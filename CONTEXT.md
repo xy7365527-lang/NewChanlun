@@ -26,7 +26,7 @@ _Avoid_: 默认方向 UP；用 close/open 推断初始方向（#1286 冻结的�
 **判据**：一层有没有自己那份专属筹码，决定它是独立的一重，还是别人的从属层（无专属筹码 = 在该级别上做的差价属主重仓位的一部分）。
 **重绑死标的**（2026-08-01 编排者裁定）：缠师给了两套模式——第一利润最大定理 = 对**固定交易品种**、参与中枢震荡（`049:58`+`049:60`）；第二 = **不断换股**、不参与中枢震荡、新中枢成立即退出（`049:72`+`049:68`+`078:290`），他明说「两者不能偏废」（`049:74`）。**本仓只做第一套**：换股依赖比价关系与选股层（支柱 III K4），而该支柱在 map [#787](https://github.com/xy7365527-lang/NewChanlun/issues/787) 已划为 Out of scope ⟹ **不是主动放弃，是不在本条链的疆域内**；第二套留待选股层那条线。
 **保证金逐仓分开**（2026-08-01 编排者裁定）：各重的保证金独立，不跨重净额抵消——依据即上文「专属筹码」+ `040:22`「每一层次的操作都是**独立**又在一个整体的操作中」。代价明写：反向重之间不再抵消，保证金占用上升、可用杠杆下降。
-**重内单向**（2026-08-02 编排者裁定，[ADR 0014](docs/adr/0014-intra-chong-unidirectional-inter-chong-no-arbitration.md) 裁定一；方向口径 2026-10-20 用户订正，[ADR 0040](docs/adr/0040-funding-signature-and-chong-derivation.md) 裁定一）：**一份专属筹码只有一个持仓状态** ⟹ 一重内部，塔的各结构级别的操作合成后**必须同向**，只在 `[0, 满仓]` 区间内加减，**不穿零**。**方向不是重的属性**：一重的方向就是它当前在世声部的方向，由本级结构证书逐次决定；换向须先回到 0。重按级别开，同一 (标的, 操作级别) 只有一个重；要同时持多与持空需要两份筹码，即不同操作级别的两个重——**跨级多空并存是多重赋格的设计**。**重间**则不仲裁（同 ADR 0014 裁定二）——两个重给出相反动作时两边都执行，唯一跨重约束是上条的逐仓计提 + 全局不等式上限。**「无意撞车」不是一种状态**：重内反向是违规，重间反向是设计。
+**重内单向**（2026-08-02 编排者裁定，[ADR 0014](docs/adr/0014-intra-chong-unidirectional-inter-chong-no-arbitration.md) 裁定一；方向口径 2026-10-20 用户订正，[ADR 0040](docs/adr/0040-funding-signature-and-chong-derivation.md) 裁定一）：**一份专属筹码只有一个持仓状态** ⟹ 一重内部，塔的各结构级别的操作合成后**必须同向**，只在 `[0, 满仓]` 区间内加减，**不穿零**。**方向不是重的属性**：一重的方向就是它当前在世声部的方向，由本级结构证书逐次决定；换向须先回到 0。重按级别开，同一 (标的, 操作级别) 只有一个重；要同时持多与持空需要两份筹码，即不同操作级别的两个重——**跨级多空并存是多重赋格的设计**。**重间**则不仲裁（同 ADR 0014 裁定二）——两个重给出相反动作时两边都执行，唯一跨重约束是上条的逐仓计提 + 全局不等式上限。**「无意撞车」不是一种状态**：重内反向是违规，重间反向是设计。回 0 换向是一次 Voice 换代，本金、成本与阶段事件史属重、跨方向连续，不重置、不分账；开新声部用哪部分钱由 `#1590/voice-open-funding/v1` 记录决定（[#1590](https://github.com/xy7365527-lang/NewChanlun/issues/1590)，[ADR 0043](docs/adr/0043-chong-reversal-account-continuity.md)）。
 **规模 ＝ 该操作级别的容量**（2026-08-05 编排者裁定，[ADR 0016](docs/adr/0016-chong-quantity-layer-capacity-frequency-shift.md) 裁定三）：一个重多大**不是分配出来的，是测出来的**——在你的操作级别上理想是满仓（`049:52`「就应该满仓，这才是最正确的仓位」+`049:64`「本质上是应该全仓操作的」，**分数仓位一律被原文归因为技术不足或装不下，从不是理论要求**），故规模＝能满仓的量＝该级别容量（`053:34`「该级别能容纳的资金量」）。**推论**：「有多少钱」决定「开几个重」——从**最低可行级别**开始装（`035:30`「操作级别越低，相应的效率越高」），装满往上溢出；重的数量与各重规模全部推出来，要定的只剩总投入。**上一层的架构裁定不含量**（编排者原话：「这个重之前判的应该是操作的架构，但是却没有讨论量」）。
 **频率门：开不开这个重看频率**（同上，裁定四）：`049:74`「真正能产生总体利润的，**还与操作的频率有关**」——容量与活跃度是两个量，装得下不等于发信号。信号频率过低的级别**根本不开重**。在案代价：`analysis/recursive_position_experiment.md` §5.2b 实测 OKLO 各级买点 1964/297/18/2、再下一级 **0 次**，而配额把 **51.6%** 绑在那一级上；单修此项 **+96.1pp**。
 **扩张走换档，不挪钱**（同上，裁定五）：重的钱会自己长大（ADR 0013 裁定四闸门后扩量），而容量不长 ⟹ **撞容量是成功的必然产物**。处置＝**换档**（ADR 0010 `:25` 已裁的机制）：原级别留满容量继续做，溢出部分在上一级开新重 ⟹ **N 重是长出来的，不是设计出来的**（`079:44` 五阶段、`040:20`「可以一直延伸下去」）。空仓的重**不**把钱释放给别的重——闲置由频率门在开重那一刻拦掉，不在运行中拦。
@@ -46,7 +46,7 @@ _Avoid_: 把 `depth_weights` 当量档；用底档 0.32 代填高档；用账户
 改写固定 Q 的唯一事件，是一次政策版本，前件 growth_eligible 且新 Q ≤ 已签容量。
 
 **成本停止 policy**:
-具名版本化记录（`#1354/cost-stop-policy/v1`）：费率/滑点/延迟/持有成本四项输入各带 Known|ProxyLowerBound|Missing 状态，ROUNDTRIP 波幅逐级带单边 95% 下界，阈值 θ 由用户签署，通过 = 下界比值 ≥ θ 且证据门满足。缺项是状态（NotEvaluable），不是 0；代理下界只能判失败。第一层 = L0 余量 + 延伸后复测；第二层 = 到底份额下界 > 判不出背驰份额上界。
+具名版本化记录（`#1354/cost-stop-policy/v1`）：费率/滑点/延迟/持有成本四项输入各带 Known|ProxyLowerBound|Missing 状态，ROUNDTRIP 波幅逐级带单边 95% 下界，阈值 θ 由用户签署，通过 = 下界比值 ≥ θ 且证据门满足。缺项是状态（NotEvaluable），不是 0；代理下界只能判失败。第一层 = L0 余量 + 延伸后复测；第二层 = 到底份额下界 > 判不出背驰份额上界。首份签署记录见 [ADR 0044](docs/adr/0044-cost-stop-policy-signed-instance-v1.md)（[#1559](https://github.com/xy7365527-lang/NewChanlun/issues/1559)，P0 / P1-hl-testnet 两版 v1，θ = 2/1，滑点 Missing ⟹ 成本门仍 NotEvaluable）。
 _Avoid_: 用中位数读成本门；把 #907 的 2.59× 当当前通过证据；缺费率时代 0 下钻。
 
 **经营统计样本**:
@@ -54,7 +54,7 @@ _Avoid_: 用中位数读成本门；把 #907 的 2.59× 当当前通过证据；
 _Avoid_: 只收下降事件；按原件逐条算占用时间（批内顺序不存在）；用汇总样本凑过 n≥30。
 
 **cost_remaining**:
-闸门前统计的分母：多头 = K，空头 = Σ M_b − 费后累计已实现利润；闸门处同为 0。
+闸门前统计的分母：多头 = K，空头 = Σ M_b − 费后累计已实现利润；闸门处同为 0。「多头／空头」读作在世声部（重处于 0 时为拟开声部）的方向，`Σ M_b ≔ Σ P_b`（[#1590](https://github.com/xy7365527-lang/NewChanlun/issues/1590)，[ADR 0043](docs/adr/0043-chong-reversal-account-continuity.md) 裁定二）。
 
 **触闸事件（GateReachedEvent）**:
 experiment/production profile 下 growth_eligible 首次为真的同源 AsKnown 记录；候选（未全 Applied）与模拟（TestOnly/历史双跑）分列，后者不激活 #1358。
@@ -70,6 +70,7 @@ experiment/production profile 下 growth_eligible 首次为真的同源 AsKnown 
 _Avoid_: 与「模拟批（Simulation Batch）」混用——slot 是同一稳定点的资金申请集合，模拟批是同一 bar 的外效集合。
 
 **成本下降速率（Cost-decline rate）**（2026-08-14 编排者裁定，[ADR 0022](docs/adr/0022-acceptance-criterion-parameters.md)）：闸门前验收只问一件事——**成本降得稳不稳**。定义＝每次操作（成本落袋事件）的相对降幅 `(C_before−C_after)/C_before` ÷ 占用时间（自上次事件起），与 `049:74`【正文】利润率「每次操作的平均利润／需要占用资金的平均时间」同形。**费后口径**（扣手续费与资金费率，同 ADR 0015 裁定四）；**通过 ＝ 单边 95% 下界 > 0**（按月分块 block bootstrap；事件数 ≥ 30 且月块 ≥ 12，不足则「结构性稀疏，判不出」）。中位数/分位数只作报告不作门。窗口纪律＝下界不用点估计／≥3 个互不重叠窗／每窗各自过线／合计覆盖 ≥50% 全史。**频率不合成**——两道独立门：频率管开重（ADR 0016 裁定四）、速率管验收。闸门后判据（净头寸价值）参数暂缺，待生产首次触达闸门后再定（触达后、启用前先定参数）。
+「成本下降速率」门的参数以 #1677/evidence-gate/vN 记录为准（ADR 0022 修订节）。
 _Avoid_: 拿中位数/点估计当验收门（N-6 判例：擦线处失效）；把频率乘进速率合成验收标量（抹平两个正交失败模式）；参数落盘前重算任何旧实验（ADR 0015 裁定六）；在零样本下硬编闸门后判据的数字。
 
 **工作线（Workline）**（2026-08-14 编排者裁定，[ADR 0022](docs/adr/0022-acceptance-criterion-parameters.md) 之后的统一架构正本 §十四）：执行组织单位——一条带目的地与票链的开发线（map/SPEC/实施票）。与「接缝」不混用。
@@ -92,7 +93,7 @@ _Avoid_: 仓位、持仓、头寸（这些是数量/暴露，不是实体）；"
 **推论层用词对照（2026-08-01 [#845](https://github.com/xy7365527-lang/NewChanlun/issues/845) 裁定五，[ADR 0012](docs/adr/0012-inference-layer-document-naming.md)）**：`analysis/` 与 `docs/` 推论层文档中的「声部（voice）」**多指本仓的「重」**（持久筹码层），非本词条这个一次性实体。判据是它锚哪句原文——`analysis/recursive_regularization_theory.md` §2.1 对照表把「声部」定义为「一个操作级别上的独立资金/筹码层」并锚 `040-第40课.md:20`「每一重都对应着一定的资金与筹码」⟹ 那是「重」。**援引推论层前先对词。** 上条禁令因此**只管本词条**：推论层讲「重」的那些命题不受其约束（它们用对了赋格比喻、用错了本仓的词），但仍须按 [ADR 0012](docs/adr/0012-inference-layer-document-naming.md) 裁定一重过推理链。成因是一次实误报——[#844](https://github.com/xy7365527-lang/NewChanlun/issues/844) 据词面把这里报成了冲突（X3）。
 
 **退出授权（Exit Authorization）**（2026-10-13 [#1352](https://github.com/xy7365527-lang/NewChanlun/issues/1352) 裁定，[ADR 0030](docs/adr/0030-exit-authorization-and-liability-retirement.md)）:
-结束一个 Voice 持仓的具名许可，来源三类且互不兜底：结构事实（卖点成立或买入理由失效，`031-第31课.md:26`【正文】）、具名系统风险条件（系统自设，用户签署清单版本）、用户手动/急停。范围随来源类定；跨重急停不是仲裁，是范围内每重各自退出。风险与手动不得记成卖点。
+结束一个 Voice 持仓的具名许可，来源三类且互不兜底：结构事实（卖点成立或买入理由失效，`031-第31课.md:26`【正文】）、具名系统风险条件（系统自设，用户签署清单版本）、用户手动/急停。范围随来源类定；跨重急停不是仲裁，是范围内每重各自退出。风险与手动不得记成卖点。SR 清单 v1（绑 `P1-hl-testnet`）的签署值见 [ADR 0045](docs/adr/0045-sr-v1-policy-signed.md)（[#1560](https://github.com/xy7365527-lang/NewChanlun/issues/1560)）。
 _Avoid_: 把「出场判定」节 typed exit 里的 `RiskExit` 当作具名系统风险条件来源（前者是旧 theta_v0 出场裁决的标签，不自动成为新架构授权）。
 
 **责任退休（Liability Retirement）**（同上）:
@@ -361,10 +362,10 @@ _Avoid_: 把本点自身 source_index 塞进锚（伪阳性唯一性）；三类
 ### 运行边界
 
 **「生产」拆三义（three meanings of production）**:
-**π 引擎**指 canonical `run_theta_v0_pi`/π fill 的策略与执行家族本体；**最小生产路径 CLI** 指 `theta_backtest` 用仓内数据加载、π 引擎与内部 fill 串成的可运行闭环，它证明 CLI 可驱动引擎，但不等于交易场所集成；**NT 真生产**指 NautilusTrader 的 Backtest/Live runtime、真实 portfolio/order 生命周期与 broker adapter 驱动同一策略。三者须按全名使用，不以裸称“生产”互相替代。
+**π 引擎**指 canonical `run_theta_v0_pi`/π fill 的策略与执行家族本体；**π 组件证据 CLI**（历史名「最小生产路径 CLI」）指 `theta_backtest` 用仓内数据加载、π 引擎与内部 fill 串成的可运行闭环，只产组件证据，不是生产入口，也不等于交易场所集成；**NT 真生产**指 NautilusTrader 的 Backtest/Live runtime、真实 portfolio/order 生命周期与 broker adapter 驱动同一策略。三者须按全名使用，不以裸称“生产”互相替代。
 
 **场所 profile（Venue Profile）**（2026-10-13 [#1351](https://github.com/xy7365527-lang/NewChanlun/issues/1351) 裁定，[ADR 0028](docs/adr/0028-first-capability-verification-profile.md)）:
-一次能力验证或目标生产部署所绑定的具名范围 = ⟨environment, venue, dex, account, endpoint, credential_scope, execution_form, allowed_actions, evidence_class, authorization⟩ 及版本。任一字段变更即新版本；environment 与 execution_form 不得在版本内切换。凭据只记作用域与来源，不记值。首个能力验证 profile 为 `P1-hl-testnet` v1（Hyperliquid testnet 主 DEX）。
+一次能力验证或目标生产部署所绑定的具名范围 = ⟨environment, venue, dex, account, endpoint, credential_scope, execution_form, allowed_actions, evidence_class, authorization⟩ 及版本。任一字段变更即新版本；environment 与 execution_form 不得在版本内切换。凭据只记作用域与来源，不记值。首个能力验证 profile 为 `P1-hl-testnet` v1（Hyperliquid testnet 主 DEX）。`P2` 本图不启用、TB-09/TB-10 以 P1 验收，首发授权记录格式见 ADR 0028「P2 处置」节（[#1561](https://github.com/xy7365527-lang/NewChanlun/issues/1561)）。
 _Avoid_: 把 profile 当场所选定（ADR 0021「暂不选定」仍有效）；把 `xyz` 等 builder DEX 并入 v1 的证据射程（同 profile 的 v2 另起）。
 
 **证据类（Evidence Class）**（同上）:
@@ -438,7 +439,7 @@ _Avoid_: 不区分毛/净地说"仓位大小"
 _Avoid_: "被拒的往返不记账"（旧口径，系统性偏乐观已废）
 
 **本金批次（Principal Batch）**（2026-10-13 [#1348](https://github.com/xy7365527-lang/NewChanlun/issues/1348) 裁定一，[ADR 0031](docs/adr/0031-principal-batches-phase-predicate-corporate-actions.md)；教义正本 `.chanlun/definitions/sanjieduan.md`）:
-一重的本金 P 是其已授权来源真实自有投入的分批之和，只增不减；利润资本化 A 与提取 W 不动 P。空头重的批即投入保证金 M。与 E 侧共同责任界 `baseline.amount` 是不同量。
+一重的本金 P 是其已授权来源真实自有投入的分批之和，只增不减；利润资本化 A 与提取 W 不动 P。空头重的批即投入保证金 M。与 E 侧共同责任界 `baseline.amount` 是不同量。换向不开新批：「空头重的批」读作在世声部为空时同一重的 P 批次，`Σ M_b ≔ Σ P_b`；已退本金开新声部时默认不回到在险池（`reversal_principal_exposure: profit_only`，[#1590](https://github.com/xy7365527-lang/NewChanlun/issues/1590)，[ADR 0043](docs/adr/0043-chong-reversal-account-continuity.md)）。
 
 **阶段事件史 / 扩量资格（Phase Events / Growth Eligibility）**（同上，裁定三）:
 `TStage` latch 只投影 campaign 内达标事件史（AsKnown 不回填）；扩量资格由唯一谓词按当前真实成本 K 与已退本金计算，latch 不得作其输入。两者是历史事实与当前准入两个对象，不是同一判断的两档。

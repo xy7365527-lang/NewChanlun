@@ -15,6 +15,7 @@ use std::collections::BTreeSet;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
+#[cfg(target_os = "macos")] // #1608：唯一消费点在 configure 的 macOS 分支
 const SQLITE_SOURCE_ID: &str =
     "2026-06-03 19:12:13 d6e03d8c777cfa2d35e3b60d8ec3e0187f3e9f99d8e2ee9cac695fd6fcdf1a24";
 
@@ -133,6 +134,10 @@ pub(super) fn carrier_capacity(db: &Path) -> Result<u64, CodecError> {
         ))
     }
 }
+#[cfg_attr(
+    not(target_os = "macos"),
+    allow(dead_code, reason = "#1608：唯一调用点在 configure 的 macOS 分支")
+)]
 fn pragma_i64(c: &Connection, name: &str) -> Result<i64, CodecError> {
     c.query_row(&format!("PRAGMA {name}"), [], |row| row.get(0))
         .map_err(io)
@@ -933,6 +938,13 @@ pub(super) fn image_refs(image: &serde_json::Value) -> Result<Vec<ContentRef>, C
 }
 /// Offline closure audit reads only this owner's immutable table. It never
 /// asks S or a peer, and a missing nested historical node rejects recovery.
+#[cfg_attr(
+    not(test),
+    allow(
+        dead_code,
+        reason = "#1608：#1616 合入后非测试构建无调用方，现仅 economic_session 的闭包/恢复测试使用；去留见 #1635"
+    )
+)]
 pub(super) fn verify_image(
     c: &Connection,
     image: &serde_json::Value,
@@ -1003,6 +1015,13 @@ pub(super) fn verify_image_with_budget(
 }
 
 /// Immutable published-node source for recovery, replay and current evidence.
+#[cfg_attr(
+    not(test),
+    allow(
+        dead_code,
+        reason = "#1608：#1616 合入后非测试构建无调用方，现仅 economic_session 的闭包/恢复测试使用；去留见 #1635"
+    )
+)]
 pub(super) struct PublishedSource<'a> {
     pub c: &'a Connection,
 }
@@ -1013,6 +1032,10 @@ impl NodeSource for PublishedSource<'_> {
 }
 /// Current owner transaction sees its own verified staging rows before the
 /// final atomic move; replay and recovery use PublishedSource instead.
+#[allow(
+    dead_code,
+    reason = "#1608：#1616 合入后全仓无构造点（当前事务暂存读取的 NodeSource）；去留见 #1635"
+)]
 pub(super) struct LocalSource<'a> {
     pub c: &'a Connection,
 }
@@ -1028,6 +1051,13 @@ pub(super) const PEER_IMPORT_BATCH_NODES: usize = 4096;
 /// and charged to the caller's one Job before it is staged locally.
 /// #1394 第三问选项 A：写入改为每 `PEER_IMPORT_BATCH_NODES` 个节点一块（`put_batch_budgeted`，
 /// 一块一个事务）；任何失败由调用方 `discard_unpublished` 清掉本操作全部暂存，同逐节点版本。
+#[cfg_attr(
+    not(test),
+    allow(
+        dead_code,
+        reason = "#1608：#1616 合入后非测试构建无调用方，现仅 economic_session 的闭包/恢复测试使用；去留见 #1635"
+    )
+)]
 pub(super) fn import_peer_refs(
     peer: &Connection,
     refs: &[ContentRef],

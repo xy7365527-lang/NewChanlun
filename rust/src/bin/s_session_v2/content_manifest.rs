@@ -7,9 +7,7 @@
 
 use crate::v3::audit_store::{CodecRead, CodecStore};
 use crate::v3::audit_store::{RefFields, RefValue};
-use newchan_rust::s_content::{
-    self, Built, CodecError, ContentRef, Kind, NodeDigest, NodeStore, NumberToken, Value as V,
-};
+use newchan_rust::s_content::{self, Built, CodecError, ContentRef, Kind, NodeDigest, NodeStore};
 use newchan_rust::session_protocol::{nonnegative, positive};
 use s_content::{BorrowedNumberToken, ValueView as VV};
 type Fields = RefFields<'static>;
@@ -1918,7 +1916,7 @@ mod tests {
     #[cfg(feature = "s_allocation_json_testonly")]
     #[test]
     fn owned_manifest_real_capture_body_matches_normal_identity_and_f() {
-        let (mut nodes, metadata, roots, _, _, _) = fixture();
+        let (nodes, metadata, roots, _, _, _) = fixture();
         let legacy = s_content::AuditCapture::new(nodes.clone());
         let legacy_budget = OwnedBudget::new(512 * 1024);
         let (ordinary, normal_f) = crate::v3::audit_store::with_owned_store_probe(

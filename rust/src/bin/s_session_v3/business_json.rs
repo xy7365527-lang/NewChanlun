@@ -3,7 +3,12 @@ use super::audit_store::{CodecRead, NativeAdmission};
 use super::*;
 use aj::{ArrayIter, ArrayView, JsonView};
 use newchan_rust::s_content as sc;
-use newchan_rust::sqlite_checked::{CheckedRow, CheckedStatement};
+use newchan_rust::sqlite_checked::CheckedRow;
+#[cfg(any(
+    feature = "s_allocation_json_testonly",
+    all(test, feature = "s_capture_native_testonly")
+))]
+use newchan_rust::sqlite_checked::CheckedStatement;
 use sc::capture_allocation::scratch::WorkScope;
 use sc::capture_allocation::{audit_json as aj, OwnedBudget};
 use sha2::{Digest, Sha256};
@@ -37,12 +42,17 @@ impl RawEvents {
     pub fn len(&self) -> usize {
         self.view().len()
     }
+    #[cfg(test)]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
     pub fn iter(&self) -> RawIter<'_> {
         self.view().iter()
     }
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    )]
     pub fn plain(&self) -> Result<&[Value], String> {
         match self {
             Self::Plain(v) => Ok(v),
@@ -71,6 +81,10 @@ impl std::fmt::Debug for RawEvents {
 #[derive(Clone, Copy)]
 enum RawStorage<'a> {
     Plain(&'a [Value]),
+    #[cfg_attr(
+        not(feature = "s_allocation_json_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_allocation_json_testonly 下使用")
+    )]
     Arena(ArrayView<'a>),
     Borrowed(&'a [JsonView<'a>]),
 }
@@ -91,6 +105,7 @@ impl<'a> RawEventsView<'a> {
     pub fn len(self) -> usize {
         self.len
     }
+    #[allow(dead_code, reason = "#1608：类型配套访问器，当前无调用方；保留不删")]
     pub fn is_empty(self) -> bool {
         self.len == 0
     }
@@ -193,7 +208,7 @@ pub(crate) fn new_work<T>(b: Option<&OwnedBudget>) -> sc::CodecVec<T> {
     let _ = b;
     sc::CodecVec::from_plain(Vec::new())
 }
-pub(crate) use aj::{BusinessIter, BusinessMap};
+pub(crate) use aj::BusinessMap;
 pub(crate) fn new_map<K: Eq + std::hash::Hash, V>(b: Option<&OwnedBudget>) -> BusinessMap<K, V> {
     #[cfg(feature = "s_allocation_json_testonly")]
     if let Some(b) = b {
@@ -205,6 +220,10 @@ pub(crate) fn new_map<K: Eq + std::hash::Hash, V>(b: Option<&OwnedBudget>) -> Bu
 fn workmap<K: Eq + std::hash::Hash, V>(b: Option<&OwnedBudget>) -> BusinessMap<K, V> {
     new_map(b)
 }
+#[cfg_attr(
+    not(all(test, feature = "s_allocation_json_testonly")),
+    allow(dead_code, reason = "#1608：仅 s_allocation_json_testonly 测试使用")
+)]
 pub(crate) fn bytes_extend(bytes: &mut sc::CodecVec<u8>, value: &[u8]) -> Result<(), String> {
     bytes.try_extend_bytes(value).map_err(|e| e.to_string())
 }
@@ -220,12 +239,14 @@ impl<'a> Effective<'a> {
             budget: self.budget,
         }
     }
+    #[allow(dead_code, reason = "#1608：类型配套访问器，当前无调用方；保留不删")]
     pub fn len(&self) -> usize {
         self.values.len()
     }
     pub fn iter(&self) -> impl Iterator<Item = JsonView<'a>> + '_ {
         self.values.iter().copied()
     }
+    #[allow(dead_code, reason = "#1608：类型配套访问器，当前无调用方；保留不删")]
     pub fn view(&self) -> JsonView<'_> {
         JsonView::ArraySlice(&self.values)
     }
@@ -305,6 +326,10 @@ pub(super) struct RawPrefixFacts {
     coordinates: std::collections::HashMap<usize, i64>,
 }
 impl RawPrefixFacts {
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    )]
     pub(super) fn prefix_len(&self) -> usize {
         self.prefix
     }
@@ -323,6 +348,7 @@ impl std::ops::DerefMut for RawPrefixIndex<'_> {
 pub(super) struct RawPrefixChanges {
     pub removed: Vec<i64>,
     pub added: Vec<(i64, usize)>,
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1608：仅测试使用"))]
     pub raw_visits: usize,
     pub coord_decodes: usize,
     pub rewound: bool,
@@ -336,6 +362,10 @@ impl<'raw> RawPrefixIndex<'raw> {
             retained: Default::default(),
         }
     }
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     pub(super) fn restore(
         raw: RawEventsView<'raw>,
         facts: RawPrefixFacts,
@@ -376,6 +406,10 @@ impl<'raw> RawPrefixIndex<'raw> {
         self.facts.ordered.clear();
     }
 
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    )]
     pub(super) fn is_empty(&self) -> bool {
         self.winners.is_empty()
     }
@@ -383,6 +417,13 @@ impl<'raw> RawPrefixIndex<'raw> {
         self.ordered.iter().map(|(c, i)| (*c, *i))
     }
     #[cfg(test)]
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        )
+    )]
     pub(super) fn retained_slots(&self) -> [usize; 3] {
         // HashMap 实际 capacity；BTreeMap 只报条目，不冒充节点布局/allocator开销。
         [
@@ -396,6 +437,10 @@ impl<'raw> RawPrefixIndex<'raw> {
         self.clear_winners();
         self.coordinates.clear();
     }
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    )]
     pub(super) fn advance(&mut self, prefix: usize) -> Result<RawPrefixChanges, String> {
         self.advance_admitted(prefix, &super::audit_store::NativeAdmission(None))
     }
@@ -648,6 +693,10 @@ pub(super) fn validate_raw_coordinate(
     Ok(())
 }
 /// cold 与 owner 增量账共用：seq/修订前件由同一已核索引提供，内容谓词不另写一份。
+#[cfg_attr(
+    not(feature = "s_capture_native_testonly"),
+    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+)]
 pub(super) fn validate_raw_row(
     event: JsonView<'_>,
     expected_seq: usize,
@@ -656,6 +705,10 @@ pub(super) fn validate_raw_row(
 ) -> Result<(), String> {
     validate_raw_row_core(event, expected_seq, previous, budget, None)
 }
+#[cfg_attr(
+    not(all(test, feature = "s_capture_native_testonly")),
+    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+)]
 pub(crate) fn validate_raw_row_admitted(
     event: JsonView<'_>,
     expected_seq: usize,
@@ -1111,6 +1164,10 @@ impl<'a, const N: usize> From<&'a [Value; N]> for RawEventsView<'a> {
 /// 新业务返回文本的入口存储选择。Owned实际字节持续持账；Clone只开放fallible深复制。
 pub(crate) enum TextValue {
     Plain(String),
+    #[cfg_attr(
+        not(feature = "s_allocation_json_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_allocation_json_testonly 下使用")
+    )]
     Owned(aj::TextOwner),
 }
 impl TextValue {
@@ -2157,6 +2214,13 @@ impl<'de> serde::de::Visitor<'de> for StrictKeySeed {
 }
 
 #[cfg(test)]
+#[cfg_attr(
+    not(feature = "s_allocation_json_testonly"),
+    allow(
+        dead_code,
+        reason = "#1608：测试辅助，仅 s_allocation_json_testonly 测试使用"
+    )
+)]
 pub(crate) fn strict_owner_protocol_matrix() -> Vec<Vec<u8>> {
     let mut cases: Vec<Vec<u8>> = [
         r#"{"x":1,"x":2}"#,

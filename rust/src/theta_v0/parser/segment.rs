@@ -2135,7 +2135,7 @@ mod tests {
         // 反查区间内笔全部与段区间相交（封闭性第一半）。
         if let Some((f, l)) = stroke_span_of_segment(&strokes, 0, 21) {
             for st in &strokes[f..=l] {
-                assert!(st.end_index >= 0 && st.start_index <= 21);
+                assert!(st.start_index <= 21);
             }
         }
     }

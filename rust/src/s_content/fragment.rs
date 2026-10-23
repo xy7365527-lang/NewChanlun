@@ -1167,16 +1167,6 @@ fn public_header_view(r: RefView<'_>) -> Result<(), CodecError> {
         Ok(())
     }
 }
-fn public_header(r: &ContentRef) -> Result<(), CodecError> {
-    if r.kind == Kind::TemplateBatch {
-        Err(CodecError::new(
-            code::TEMPLATE_PLACEHOLDER,
-            "公开片段不能泄漏本批占位",
-        ))
-    } else {
-        Ok(())
-    }
-}
 fn err(e: impl std::fmt::Display) -> CodecError {
     CodecError::new(INVALID, e.to_string())
 }
@@ -1206,9 +1196,6 @@ fn exact(v: &J, keys: &[&str]) -> Result<(), CodecError> {
     } else {
         Err(err("字段集合非exact"))
     }
-}
-fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 fn unhex(text: &str) -> Result<Vec<u8>, CodecError> {
     if text.len() % 2 != 0 {

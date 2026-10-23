@@ -13,6 +13,8 @@
 
 两段结束后**不合 main**——验收与合入是编排层人工闸（#1003 裁 3）。实装无 commit 即跳评审、留票待查（视为 backlog 空/被卡）。
 
+两段收尾后由 `harvest.sh` 收割（#1660）：对评审工蜂已完成、票仍 open 且无 open blocker 的分支，推分支 → 基于 main 开 PR（`Refs #n`）→ 在票上登记一条交付评论。它不合入、不推 main、不关票、不删分支；构建测试交 CI。提交说明含 GitHub 关闭关键词（close/fix/resolve + `#号`）的分支 fail-loud、不推。定时任务：`bash .sandcastle/install-sandcastle-harvest.sh install`（每 15 分钟，宿主侧由编排者安装）；手工预演：`HARVEST_DRY_RUN=1 bash .sandcastle/harvest.sh`。
+
 ## 怎么跑
 
 前置：
@@ -83,6 +85,10 @@ bash .sandcastle/install-sandcastle-claimer.sh uninstall # 卸载
 | `run-claim-loop.sh` | claim 循环常驻壳（#1182 追加）：前台 exec `npx tsx .sandcastle/claim-loop.mts`，launchd KeepAlive 调用。 |
 | `install-sandcastle-claimer.sh` | claim 循环 launchd 任务的安装/卸载/查状态（#1182 追加，对齐 install-wayfinder-engine.sh 模式）。 |
 | `launchd/com.newchanlun.sandcastle-claimer.plist` | claim 循环 launchd 任务定义：KeepAlive + RunAtLoad + `--live`（#1182 追加）。 |
+| `harvest.sh` | 收割（#1660 改为 PR 模式）：仓库根按脚本位置推导（`SANDCASTLE_HOST_REPO` 可覆盖），扫本地 `sandcastle/issue-<数字>`；每个分支先钉住 tip SHA，后续检查与推送都用它。跳过 skip-list / 已在 origin/main / 无新提交 / 最新一轮评审未完成 / 票非 open / 有 open blocker / 该 head 的 PR 已关闭或已合入（不复活分支）/ 本地与 open PR 的远端 head 分叉；提交说明（含远端领先部分）或由票标题生成的 PR 标题含关闭关键词（`#n`、`owner/repo#n`、issues URL）即 fail-loud 不推；推 `<sha>:refs/heads/<分支>`（不 force，无 PR 时远端分叉即 FAIL）→ 无 PR 则 `gh pr create --base main`（`Refs #n`）并在票上登记，已有 open PR 只推不重开不重复评论。gh 一律 `--repo` 且在 /tmp 运行；存在 `GH_TOKEN_ROTATION_REQUIRED` 标记时整轮不动。失败写 `logs/harvest-failures.md` + 通知 + exit 1。 |
+| `harvest.test.sh` | harvest.sh 离线回归（#1660）：临时裸 origin + 假 gh，用真 jq 执行脚本里的 `--jq` 过滤、有状态地记住已开 PR，覆盖关闭关键词正反例、开 PR/登记、已有 PR 不重复、二次真跑幂等、评审未完成、票已关、open blocker 计数、远端分叉/领先、已合入 PR 不复活分支、标题关键词、token 轮换标记、dry run，并断言从不关票/合入/推 main/跑 cargo。经 `harvest.test.mts` 包装，由 CI `sandcastle-ts` job 运行。 |
+| `install-sandcastle-harvest.sh` | 收割 launchd 定时任务的安装/卸载/查状态（#1660，对齐 install-sandcastle-claimer.sh）。 |
+| `launchd/com.newchanlun.sandcastle-harvest.plist` | 收割 launchd 任务定义：StartInterval 900 + RunAtLoad，指向宿主克隆（#1660）。 |
 | `prime-agent-provider.ts` | prime-agent 的自定义 AgentProvider。无头模式 `prime-agent -p --mode json` 输出 NDJSON 事件流，prompt 走 stdin（避开 Linux 128 KB argv 上限），事件映射到 sandcastle 的 stream 协议。 |
 | `implement-prompt.md` | Phase 1 实装工蜂的 prompt 模板（`{{ISSUE_NUMBER}}` 注入）：Explore→Plan→Execute→Verify→Commit 流程 + 硬性规则（不关票不合 main 不 push、被卡留评论收工）。 |
 | `review-prompt.md` | Phase 2 评审工蜂的 prompt 模板（`{{BRANCH}}`/`{{ISSUE_NUMBER}}` 注入）：看分支 diff 与原始 issue，保持功能语义前提下直接在分支上修正。#1588 起不再用 `!`git diff`` 展开整段 diff，只放变更摘要（`--stat` / 提交列表 / 文件清单），评审工蜂按文件、按提交自取 diff；diff 基准 `{{BASE}}` = 渲染前现 fetch 的 origin/main 提交；原始 issue 放 `<issue>…</issue>` 块。 |

@@ -309,6 +309,7 @@ fn is_fractal_and_gap(
 
 /// 在元素序列上检测**任意**分型（顶或底，第67课"第二个序列只要有分型就可以"）。
 /// bit-exact 对齐 Python `_has_any_fractal`（:221-239）。
+#[cfg(test)]
 fn has_any_fractal(elements: &[(Tick, Tick)]) -> bool {
     let n = elements.len();
     if n < 3 {

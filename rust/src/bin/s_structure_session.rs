@@ -792,9 +792,6 @@ fn load_batch_with(
     Ok((root.bytes, root.value, root.root_cert))
 }
 
-fn parse_batch_value(bytes: &[u8], batch_id: &str) -> Result<std::sync::Arc<Value>, String> {
-    parse_batch_value_admitted(bytes, batch_id, None)
-}
 fn parse_batch_value_admitted(
     bytes: &[u8],
     batch_id: &str,

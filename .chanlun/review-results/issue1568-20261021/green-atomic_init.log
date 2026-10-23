@@ -1,0 +1,2048 @@
+ref=codex/1568-init-atomic-main-20261021 sha=0a1adbffa64e90c55a5cb97b2bec8937bbb735d9 sub=rust target=/home/hanju/nc-remote/target cmd=cargo test --features s_session --bin s_structure_session atomic_init 
+   Compiling newchan_rust v0.1.0 (/home/hanju/nc-remote/wt/20261021-155713-0a1adbffa6/rust)
+warning: the usage of Script Group `Greek` in this crate consists solely of mixed script confusables
+    --> src/recursive_t/rec_engine.rs:3495:8
+     |
+3495 | ...fn add_s...{
+     |       ^^^^^...^^^^^
+     |
+     = note: the usage includes 'τ' (U+03C4)
+     = note: please recheck to make sure their usages are indeed what you want
+     = note: `#[warn(mixed_script_confusables)]` on by default
+
+warning: unused imports: `PanDivShortRetraceObservation`, `drain_pan_div_short_retrace_observations`, `pan_div_subtype_channel_reason`, and `t3_in_c_grade_reason_to_pan_div_subtype`
+   --> src/theta_v0/classifier/signal.rs:127:5
+    |
+127 |     drain...tions, pan_div_subtype_channel_reason,
+    |     ^^^^^...^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+128 |     t3_in...btype, PanDivShortRetraceObservation,
+    |     ^^^^^...^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `step::coverage_step_from_buckets_sep`
+   --> src/theta_v0/strategy/coverage/mod.rs:129:5
+    |
+129 | use step:...s_sep;
+    |     ^^^^^...^^^^^
+
+warning: unused import: `CONTENT_FORMAT`
+  --> src/s_content/path.rs:49:76
+   |
+49 | ...S, CONTE...ORMAT,
+   |       ^^^^^...^^^^^
+
+warning: unused import: `json`
+ --> src/economic_session/tb03c_corrections.rs:5:18
+  |
+5 | ...::{json, V...
+  |       ^^^^
+
+warning: use of deprecated method `std::sync::atomic::Atomic::<usize>::fetch_update`: renamed to `try_update` for consistency
+   --> src/s_content/capture_allocation/scratch.rs:125:18
+    |
+125 | ...  .fetch_update(Or...
+    |       ^^^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+    |
+125 -                 .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
+125 +                 .try_update(Ordering::AcqRel, Ordering::Acquire, |n| {
+    |
+
+warning: use of deprecated method `std::sync::atomic::Atomic::<usize>::fetch_update`: renamed to `try_update` for consistency
+   --> src/s_content/capture_allocation/scratch.rs:187:14
+    |
+187 | ...  .fetch_update(Or...
+    |       ^^^^^^^^^^^^
+    |
+help: replace the use of the deprecated method
+    |
+187 -             .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
+187 +             .try_update(Ordering::AcqRel, Ordering::Acquire, |n| {
+    |
+
+warning: use of deprecated method `std::sync::atomic::Atomic::<usize>::fetch_update`: renamed to `try_update` for consistency
+   --> src/s_content/capture_allocation/scratch.rs:201:14
+    |
+201 | ...  .fetch_update(Or...
+    |       ^^^^^^^^^^^^
+    |
+help: replace the use of the deprecated method
+    |
+201 -             .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| n.checked_add(1))
+201 +             .try_update(Ordering::AcqRel, Ordering::Acquire, |n| n.checked_add(1))
+    |
+
+warning: use of deprecated method `std::sync::atomic::Atomic::<usize>::fetch_update`: renamed to `try_update` for consistency
+   --> src/s_content/capture_allocation/scratch.rs:216:14
+    |
+216 | ...  .fetch_update(Or...
+    |       ^^^^^^^^^^^^
+    |
+help: replace the use of the deprecated method
+    |
+216 -             .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
+216 +             .try_update(Ordering::AcqRel, Ordering::Acquire, |n| {
+    |
+
+warning: use of deprecated method `std::sync::atomic::Atomic::<usize>::fetch_update`: renamed to `try_update` for consistency
+   --> src/session_transport.rs:621:18
+    |
+621 | ...  .fetch_update(Or...
+    |       ^^^^^^^^^^^^
+    |
+help: replace the use of the deprecated method
+    |
+621 -                 .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| {
+621 +                 .try_update(Ordering::SeqCst, Ordering::SeqCst, |n| {
+    |
+
+warning: unused variable: `c`
+   --> src/theta_v0/classifier/recursive_tower.rs:409:20
+    |
+409 | ..., (c, w...
+    |       ^ help: if this is intentional, prefix it with an underscore: `_c`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `c`
+   --> src/theta_v0/classifier/recursive_tower.rs:676:24
+    |
+676 | ..., (c, w...
+    |       ^ help: if this is intentional, prefix it with an underscore: `_c`
+
+warning: variable does not need to be mutable
+    --> src/theta_v0/classifier/signal.rs:1246:9
+     |
+1246 | ...et mut j...range = ...
+     |       ----^...^^^^^
+     |       |
+     |       help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> src/theta_v0/classifier/pipeline.rs:944:17
+    |
+944 | ...et mut p = ...
+    |       ----^
+    |       |
+    |       help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> src/trading/axiom_voice.rs:367:17
+    |
+367 | ...et mut restore = ...
+    |       ----^^^^^^^
+    |       |
+    |       help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/trading/positional_fusion.rs:1506:25
+     |
+1506 | ...et mut cover =
+     |       ----^^^^^
+     |       |
+     |       help: remove this `mut`
+
+warning: variable does not need to be mutable
+    --> src/s_content.rs:5733:5
+     |
+5733 |     mut source: C...
+     |     ----^^^^^^
+     |     |
+     |     help: remove this `mut`
+
+warning: unused variable: `stage_token`
+    --> src/economic_session/finance.rs:1644:5
+     |
+1644 |     stage_token: O...
+     |     ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_stage_token`
+
+warning: field `dbg_sink_ok` is never read
+   --> src/fugue_v3/operate.rs:101:5
+    |
+ 70 | pub struct OperateEngine {
+    |            ------------- field in this struct
+...
+101 |     dbg_sink_ok: [u64; MAX_...
+    |     ^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `buysellpoints` is never read
+   --> src/orchestrator.rs:473:9
+    |
+466 | ...truct LevelSnapshot {
+    |          ------------- field in this struct
+...
+473 | ...ub buysellpoints: Vec<...
+    |       ^^^^^^^^^^^^^
+    |
+    = note: `LevelSnapshot` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: field `reading_b_diverge` is never read
+   --> src/recursive_t/rec_engine.rs:996:5
+    |
+960 | pub struct TRoot {
+    |            ----- field in this struct
+...
+996 |     readi...verge: b...
+    |     ^^^^^...^^^^^
+
+warning: method `sink` is never used
+    --> src/recursive_t/rec_engine.rs:1687:8
+     |
+1169 | impl TRoot {
+     | ---------- method in this implementation
+...
+1687 |     fn sink(&m...
+     |        ^^^^
+
+warning: method `cost_basis` is never used
+   --> src/recursive_t/t_engine.rs:340:8
+    |
+276 | impl ...ngine {
+    | -----...----- method in this implementation
+...
+340 |     fn cost_basis(&self...
+    |        ^^^^^^^^^^
+
+warning: associated function `new` is never used
+   --> src/theta_v0/classifier/nest.rs:174:19
+    |
+170 | impl NestRung {
+    | ------------- associated function in this implementation
+...
+174 |     pub(crate) fn new(in...
+    |                   ^^^
+
+warning: associated function `from_parts` is never used
+   --> src/theta_v0/classifier/nest.rs:268:19
+    |
+257 | impl ...icate {
+    | -----...----- associated function in this implementation
+...
+268 |     pub(crate) fn from_parts(
+    |                   ^^^^^^^^^^
+
+warning: function `detect_centers_windowed` is never used
+   --> src/theta_v0/classifier/recursive_tower.rs:341:4
+    |
+341 | fn detec...dowed(
+    |    ^^^^^...^^^^^
+
+warning: function `trend_confirm_time` is never used
+   --> src/theta_v0/classifier/level_view/confirm.rs:379:15
+    |
+379 | ...fn trend..._time(
+    |       ^^^^^...^^^^^
+
+warning: function `nearest_confirmed_center` is never used
+   --> src/theta_v0/classifier/signal.rs:211:4
+    |
+211 | fn neare...enter(ce...
+    |    ^^^^^...^^^^^
+
+warning: function `t3_in_c_fixed_first_pair` is never used
+   --> src/theta_v0/classifier/signal.rs:447:15
+    |
+447 | ...fn t3_in..._pair(
+    |       ^^^^^...^^^^^
+
+warning: function `otherwise_domain_sidecar_begin` is never used
+   --> src/theta_v0/classifier/signal.rs:574:15
+    |
+574 | ...fn other...begin() {
+    |       ^^^^^...^^^^^
+
+warning: function `otherwise_domain_sidecar_take` is never used
+   --> src/theta_v0/classifier/signal.rs:580:15
+    |
+580 | ...fn other..._take() ...
+    |       ^^^^^...^^^^^
+
+warning: function `t3_in_c_grade_reason_to_pan_div_subtype` is never used
+  --> src/theta_v0/classifier/signal/pan_div_short.rs:38:15
+   |
+38 | ...fn t3_in...btype(
+   |       ^^^^^...^^^^^
+
+warning: function `pan_div_subtype_channel_reason` is never used
+  --> src/theta_v0/classifier/signal/pan_div_short.rs:54:15
+   |
+54 | ...fn pan_d...eason(su...
+   |       ^^^^^...^^^^^
+
+warning: struct `PanDivShortRetraceObservation` is never constructed
+  --> src/theta_v0/classifier/signal/pan_div_short.rs:66:19
+   |
+66 | ...ct PanDi...ation {
+   |       ^^^^^...^^^^^
+
+warning: associated function `from_record` is never used
+  --> src/theta_v0/classifier/signal/pan_div_short.rs:77:8
+   |
+76 | impl ...ation {
+   | -----...----- associated function in this implementation
+77 |     fn from_record(record: &ShortRetr...
+   |        ^^^^^^^^^^^
+
+warning: function `drain_pan_div_short_retrace_observations` is never used
+   --> src/theta_v0/classifier/signal/pan_div_short.rs:124:15
+    |
+124 | ...fn drain...tions(
+    |       ^^^^^...^^^^^
+
+warning: function `historical_bound_third_cert` is never used
+   --> src/theta_v0/classifier/pipeline.rs:194:15
+    |
+194 | ...fn histo..._cert(
+    |       ^^^^^...^^^^^
+
+warning: function `historical_bound_segment` is never used
+   --> src/theta_v0/classifier/pipeline.rs:215:4
+    |
+215 | fn histo...gment(
+    |    ^^^^^...^^^^^
+
+warning: function `has_any_fractal` is never used
+   --> src/theta_v0/parser/feature_seq.rs:306:4
+    |
+306 | fn has_a...actal(el...
+    |    ^^^^^...^^^^^
+
+warning: multiple fields are never read
+   --> src/theta_v0/strategy/coverage/compose.rs:107:9
+    |
+ 98 | ...rate) struct StepTrace {
+    |                 --------- fields in this struct
+...
+107 | ...ub closed: Vec<(ActiveLeg...
+    |       ^^^^^^
+108 | ...ub silent_drops: Vec<Acti...
+    |       ^^^^^^^^^^^^
+109 | ...ub opened: Vec<(Candidate...
+    |       ^^^^^^
+...
+117 | ...ub risk_exits: Vec<Active...
+    |       ^^^^^^^^^^
+...
+121 | ...ub overl...loses: Vec<Ac...
+    |       ^^^^^...^^^^^
+...
+125 | ...ub tw_event: Option<TwEve...
+    |       ^^^^^^^^
+...
+136 | ...ub verdicts: Vec<VoiceVer...
+    |       ^^^^^^^^
+...
+142 | ...ub lex_top3: Vec<(JThetaK...
+    |       ^^^^^^^^
+    |
+    = note: `StepTrace` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: function `pi_theta_step_traced` is never used
+   --> src/theta_v0/strategy/coverage/compose.rs:202:15
+    |
+202 | ...fn pi_th...raced(
+    |       ^^^^^...^^^^^
+
+warning: methods `overlay`, `position`, `iter`, and `as_contiguous` are never used
+   --> src/theta_v0/strategy/coverage/element.rs:112:19
+    |
+ 67 | impl<...w<'a> {
+    | -----...----- methods in this implementation
+...
+112 |     pub(crate) fn overlay(&self) -...
+    |                   ^^^^^^^
+...
+146 |     pub(crate) fn position(&self, ...
+    |                   ^^^^^^^^
+...
+156 |     pub(crate) fn iter(&self) -> i...
+    |                   ^^^^
+...
+167 |     pub(crate) fn as_contiguous(&s...
+    |                   ^^^^^^^^^^^^^
+
+warning: function `held_leg_tree_index` is never used
+  --> src/theta_v0/strategy/coverage/held.rs:34:4
+   |
+34 | fn held_...index(
+   |    ^^^^^...^^^^^
+
+warning: function `operation_role_indexed` is never used
+   --> src/theta_v0/strategy/coverage/role.rs:212:4
+    |
+212 | fn opera...dexed(
+    |    ^^^^^...^^^^^
+
+warning: methods `position_bounds`, `delta_capacity_units`, and `clamp_position` are never used
+   --> src/theta_v0/strategy/coverage/sizing.rs:382:19
+    |
+338 | impl ...kGate {
+    | -----...----- methods in this implementation
+...
+382 |     pub(crate) fn posit...ounds(&self, ...
+    |                   ^^^^^...^^^^^
+...
+388 |     pub(crate) fn delta...units(&s...
+    |                   ^^^^^...^^^^^
+...
+398 |     pub(crate) fn clamp...ition(&self, c...
+    |                   ^^^^^...^^^^^
+
+warning: function `pi_theta_step_prebuilt` is never used
+   --> src/theta_v0/strategy/coverage/sizing.rs:675:15
+    |
+675 | ...fn pi_th...built(
+    |       ^^^^^...^^^^^
+
+warning: associated items `fp_len` and `of` are never used
+   --> src/theta_v0/strategy/interp.rs:452:19
+    |
+450 | impl TreeKey {
+    | ------------ associated items in this implementation
+451 |     /// 指纹长度（诊断用：≈...
+452 |     pub(crate) fn fp_len(&s...
+    |                   ^^^^^^
+...
+456 |     pub(crate) fn of(tower:...
+    |                   ^^
+
+warning: struct `VoiceKey` is never constructed
+  --> src/theta_v0/strategy/shadow.rs:64:8
+   |
+64 | ...ct VoiceKey {
+   |       ^^^^^^^^
+
+warning: enum `ProductionFact` is never used
+  --> src/theta_v0/strategy/shadow.rs:72:17
+   |
+72 | ...um Produ...nFact {
+   |       ^^^^^...^^^^^
+
+warning: enum `DivergenceKind` is never used
+  --> src/theta_v0/strategy/shadow.rs:91:17
+   |
+91 | ...um Diver...eKind {
+   |       ^^^^^...^^^^^
+
+warning: struct `ShadowStepRecord` is never constructed
+   --> src/theta_v0/strategy/shadow.rs:117:19
+    |
+117 | ...ct Shado...ecord {
+    |       ^^^^^...^^^^^
+
+warning: struct `ShadowStats` is never constructed
+   --> src/theta_v0/strategy/shadow.rs:136:19
+    |
+136 | ...ct ShadowStats {
+    |       ^^^^^^^^^^^
+
+warning: methods `bump` and `divergences` are never used
+   --> src/theta_v0/strategy/shadow.rs:151:8
+    |
+150 | impl ...Stats {
+    | -----...----- methods in this implementation
+151 |     fn bump(&mut self, ki...
+    |        ^^^^
+...
+166 |     pub fn divergences(&s...
+    |            ^^^^^^^^^^^
+
+warning: struct `ShadowVoiceBook` is never constructed
+   --> src/theta_v0/strategy/shadow.rs:174:19
+    |
+174 | ...ct Shado...eBook {
+    |       ^^^^^...^^^^^
+
+warning: methods `observe_and_compare`, `records`, `stats`, and `render_report` are never used
+   --> src/theta_v0/strategy/shadow.rs:184:19
+    |
+180 | impl ...eBook {
+    | -----...----- methods in this implementation
+...
+184 |     pub(crate) fn obser...mpare(
+    |                   ^^^^^...^^^^^
+...
+297 |     pub(crate) fn records(&self) -> &[Sh...
+    |                   ^^^^^^^
+...
+302 |     pub(crate) fn stats(&self) -> &Shado...
+    |                   ^^^^^
+...
+307 |     pub(crate) fn render_report(&self) -...
+    |                   ^^^^^^^^^^^^^
+
+warning: function `production_fact` is never used
+   --> src/theta_v0/strategy/shadow.rs:371:4
+    |
+371 | fn produ..._fact(
+    |    ^^^^^...^^^^^
+
+warning: function `classify` is never used
+   --> src/theta_v0/strategy/shadow.rs:399:4
+    |
+399 | fn classify(de...
+    |    ^^^^^^^^
+
+warning: function `parse_canonical_u64` is never used
+   --> src/s_content.rs:835:4
+    |
+835 | fn parse...l_u64(te...
+    |    ^^^^^...^^^^^
+
+warning: methods `next` and `next_body` are never used
+    --> src/s_content.rs:1906:8
+     |
+1898 | impl LeafIter {
+     | ------------- methods in this implementation
+...
+1906 |     fn next(
+     |        ^^^^
+...
+1912 |     fn next_body<'c...
+     |        ^^^^^^^^^
+
+warning: associated function `with_memo` is never used
+    --> src/s_content.rs:4405:8
+     |
+4396 | impl<...ture> {
+     | -----...----- associated function in this implementation
+...
+4405 |     fn with_memo(source: &'a mut dyn NodeSou...
+     |        ^^^^^^^^^
+
+warning: method `copy_body` is never used
+   --> src/s_content/capture_allocation.rs:582:19
+    |
+581 | impl ...eSlab {
+    | -----...----- method in this implementation
+582 |     pub(super) fn copy_body(&s...
+    |                   ^^^^^^^^^
+
+warning: associated function `new` is never used
+  --> src/s_content/capture_allocation/work.rs:84:19
+   |
+83 | impl ...cator {
+   | -----...----- associated function in this implementation
+84 |     pub(crate) fn new(bu...
+   |                   ^^^
+
+warning: associated function `with_capacity` is never used
+   --> src/s_content/capture_allocation/work.rs:236:19
+    |
+176 | impl<...ec<T> {
+    | -----...----- associated function in this implementation
+...
+236 |     pub(crate) fn with_capacity(n:...
+    |                   ^^^^^^^^^^^^^
+
+warning: method `try_reserve` is never used
+   --> src/s_content/capture_allocation/work.rs:480:19
+    |
+479 | impl<...K, V> {
+    | -----...----- method in this implementation
+480 |     pub(crate) fn try_reserve(&mut sel...
+    |                   ^^^^^^^^^^^
+
+warning: associated items `new` and `contains` are never used
+   --> src/s_content/capture_allocation/work.rs:610:19
+    |
+609 | impl<...et<T> {
+    | -----...----- associated items in this implementation
+610 |     pub(crate) fn new(b: Option<...
+    |                   ^^^
+...
+652 |     pub(crate) fn contains(&self...
+    |                   ^^^^^^^^
+
+warning: variants `Null`, `Bool`, `Number`, `String`, `Array`, and `Object` are never constructed
+  --> src/s_content/capture_allocation/audit_json.rs:25:5
+   |
+24 | enum Node {
+   |      ---- variants in this enum
+25 |     Null,
+   |     ^^^^
+26 |     Bool(bool),
+   |     ^^^^
+27 |     Number(Nu...
+   |     ^^^^^^
+28 |     String(Sp...
+   |     ^^^^^^
+29 |     Array {
+   |     ^^^^^
+...
+34 |     Object {
+   |     ^^^^^^
+   |
+   = note: `Node` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: multiple associated items are never used
+   --> src/s_content/capture_allocation/audit_json.rs:56:8
+    |
+ 55 | impl ...dJson {
+    | -----...----- associated items in this implementation
+ 56 |     fn empty(budget: &Owne...
+    |        ^^^^^
+...
+ 69 |     fn add_node(&mut self,...
+    |        ^^^^^^^^
+...
+ 77 |     fn copy_text(&mut self...
+    |        ^^^^^^^^^
+...
+ 85 |     fn attach(&mut self, p...
+    |        ^^^^^^
+...
+218 |     fn sort_fields(&mut se...
+    |        ^^^^^^^^^^^
+...
+238 |     fn sort_..._slow(&m...
+    |        ^^^^^...^^^^^
+...
+278 |     fn shallow(&mut self, ...
+    |        ^^^^^^^
+...
+297 |     fn copy_view(&mut self...
+    |        ^^^^^^^^^
+
+warning: trait `JsonBytes` is never used
+    --> src/s_content/capture_allocation/audit_json.rs:1078:7
+     |
+1078 | trait JsonBytes {
+     |       ^^^^^^^^^
+
+warning: function `quoted` is never used
+    --> src/s_content/capture_allocation/audit_json.rs:1125:4
+     |
+1125 | fn quoted(ou...
+     |    ^^^^^^
+
+warning: function `check_range_root_ctx` is never used
+   --> src/s_content/path.rs:565:15
+    |
+565 | ...fn check...t_ctx(
+    |       ^^^^^...^^^^^
+
+warning: function `object_key_at_ctx` is never used
+   --> src/s_content/path.rs:598:15
+    |
+598 | ...fn objec...t_ctx(
+    |       ^^^^^...^^^^^
+
+warning: function `bytes_between_ctx` is never used
+   --> src/s_content/path.rs:646:15
+    |
+646 | ...fn bytes...n_ctx(
+    |       ^^^^^...^^^^^
+
+warning: function `navigate` is never used
+   --> src/s_content/path.rs:830:4
+    |
+830 | fn navigate<'c...
+    |    ^^^^^^^^
+
+warning: function `check_range_root` is never used
+    --> src/s_content/path.rs:1541:15
+     |
+1541 | ...fn check..._root(s:...
+     |       ^^^^^...^^^^^
+
+warning: function `object_key_at` is never used
+    --> src/s_content/path.rs:1544:15
+     |
+1544 | ...fn object_key_at(
+     |       ^^^^^^^^^^^^^
+
+warning: function `bytes_between` is never used
+    --> src/s_content/path.rs:1551:15
+     |
+1551 | ...fn bytes_between(
+     |       ^^^^^^^^^^^^^
+
+warning: function `public_header` is never used
+    --> src/s_content/fragment.rs:1170:4
+     |
+1170 | fn public_header(r:...
+     |    ^^^^^^^^^^^^^
+
+warning: function `hex` is never used
+    --> src/s_content/fragment.rs:1210:4
+     |
+1210 | fn hex(by...
+     |    ^^^
+
+warning: function `io_connection_with_deadline` is never used
+   --> src/session_transport.rs:518:4
+    |
+518 | fn io_co...dline(
+    |    ^^^^^...^^^^^
+
+warning: constant `SQLITE_SOURCE_ID` is never used
+  --> src/economic_session/content_store.rs:18:7
+   |
+18 | const SQLIT...CE_ID: &...
+   |       ^^^^^...^^^^^
+
+warning: function `pragma_i64` is never used
+   --> src/economic_session/content_store.rs:136:4
+    |
+136 | fn pragma_i64(c:...
+    |    ^^^^^^^^^^
+
+warning: function `verify_image` is never used
+   --> src/economic_session/content_store.rs:936:15
+    |
+936 | ...fn verify_image(
+    |       ^^^^^^^^^^^^
+
+warning: struct `PublishedSource` is never constructed
+    --> src/economic_session/content_store.rs:1006:19
+     |
+1006 | ...ct Publi...ource<'a> {
+     |       ^^^^^...^^^^^
+
+warning: struct `LocalSource` is never constructed
+    --> src/economic_session/content_store.rs:1016:19
+     |
+1016 | ...ct LocalSource<'a> {
+     |       ^^^^^^^^^^^
+
+warning: function `import_peer_refs` is never used
+    --> src/economic_session/content_store.rs:1031:15
+     |
+1031 | ...fn impor..._refs(
+     |       ^^^^^...^^^^^
+
+warning: function `apply_allocation` is never used
+   --> src/economic_session/service.rs:956:4
+    |
+956 | fn apply...ation(
+    |    ^^^^^...^^^^^
+
+warning: constant `SCHEMA` is never used
+  --> src/economic_session/store.rs:23:18
+   |
+23 | ...st SCHEMA: &...
+   |       ^^^^^^
+
+warning: function `verify_evidence` is never used
+   --> src/economic_session/financial_content.rs:992:15
+    |
+992 | ...fn verif...dence(
+    |       ^^^^^...^^^^^
+
+warning: `newchan_rust` (lib) generated 88 warnings (run `cargo fix --lib -p newchan_rust` to apply 17 suggestions)
+warning: unused import: `self as control_aj`
+ --> src/bin/s_session_v2/mod.rs:5:63
+  |
+5 | ...::{self ...ol_aj, J...
+  |       ^^^^^...^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unexpected `cfg` condition name: `issue1394_closed_owner_refusal`
+   --> src/bin/s_session_v3/audit_store.rs:989:7
+    |
+989 | #[cfg(issue...fusal)]
+    |       ^^^^^...^^^^^
+    |
+    = help: expected names are: `docsrs`, `feature`, and `test` and 34 more
+    = help: consider using a Cargo feature instead
+    = help: or consider adding in `Cargo.toml` the `check-cfg` lint config for the lint:
+             [lints.rust]
+             unexpected_cfgs = { level = "warn", check-cfg = ['cfg(issue1394_closed_owner_refusal)'] }
+    = help: or consider adding `println!("cargo::rustc-check-cfg=cfg(issue1394_closed_owner_refusal)");` to the top of the `build.rs`
+    = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+    = note: `#[warn(unexpected_cfgs)]` on by default
+
+warning: unused import: `CheckedStatement`
+ --> src/bin/s_session_v3/business_json.rs:6:48
+  |
+6 | ...w, Check...ement};
+  |       ^^^^^...^^^^^
+
+warning: unused import: `BusinessIter`
+   --> src/bin/s_session_v3/business_json.rs:196:21
+    |
+196 | ...::{BusinessIter, B...
+    |       ^^^^^^^^^^^^
+
+warning: unused import: `tb02a_facts`
+  --> src/bin/s_session_v3/catalog_evidence.rs:26:82
+   |
+26 | ...a, tb02a_facts,
+   |       ^^^^^^^^^^^
+
+warning: unused import: `OptionalExtension`
+  --> src/bin/s_session_v3/catalog_evidence.rs:34:24
+   |
+34 | ...s, Optio...nsion, T...
+   |       ^^^^^...^^^^^
+
+warning: unused imports: `RawEventsView` and `self as bj`
+    --> src/bin/s_session_v3/catalog_evidence.rs:1040:36
+     |
+1040 | ...::{self as bj, RawEventsView};
+     |       ^^^^^^^^^^  ^^^^^^^^^^^^^
+
+warning: unused imports: `ManifestMetadata`, `ManifestRoots`, and `SourceCommit`
+  --> src/bin/s_session_v3/history.rs:14:24
+   |
+14 | ...::{Manif...adata, ManifestRoots, SourceCommit};
+   |       ^^^^^...^^^^^  ^^^^^^^^^^^^^  ^^^^^^^^^^^^
+
+warning: unused import: `OwnedJson`
+  --> src/bin/s_session_v3/history.rs:23:28
+   |
+23 | ...w, OwnedJson},
+   |       ^^^^^^^^^
+
+warning: unused imports: `native_record_field_stats` and `reset_native_record_field_stats`
+  --> src/bin/s_session_v3/history.rs:31:39
+   |
+31 | ...::{nativ...stats, reset...stats};
+   |       ^^^^^...^^^^^  ^^^^^...^^^^^
+
+warning: unused import: `newchan_rust::s_content::NodeSink`
+    --> src/bin/s_session_v3/object_index.rs:2802:9
+     |
+2802 | ...se newch...eSink;
+     |       ^^^^^...^^^^^
+
+warning: unused imports: `Value` and `json`
+  --> src/bin/s_session_v3/q_runtime.rs:20:18
+   |
+20 | ...::{json, Value};
+   |       ^^^^  ^^^^^
+
+warning: unused import: `self as sc`
+ --> src/bin/s_session_v3/q_snapshot.rs:9:5
+  |
+9 |     self as sc,
+  |     ^^^^^^^^^^
+
+warning: unused import: `RefValue`
+ --> src/bin/s_session_v3/q_watch.rs:4:30
+  |
+4 | ...d, RefValue},
+  |       ^^^^^^^^
+
+warning: unused import: `canonical_hash_view_typed`
+  --> src/bin/s_session_v3/q_watch.rs:26:5
+   |
+26 |     canon...typed, n...
+   |     ^^^^^...^^^^^
+
+warning: unused import: `reply_envelope`
+ --> src/bin/s_session_v3/q_wire.rs:4:48
+  |
+4 | ...e, reply...elope, s...
+  |       ^^^^^...^^^^^
+
+warning: unused imports: `stored_source_coord` and `tb02a_facts`
+  --> src/bin/s_session_v3/source_audit.rs:13:28
+   |
+13 | ...s, store...coord, tb02a, tb02a_facts, t...
+   |       ^^^^^...^^^^^         ^^^^^^^^^^^
+
+warning: unused import: `NodeStore`
+  --> src/bin/s_session_v3/state.rs:35:55
+   |
+35 | ...f, NodeStore};
+   |       ^^^^^^^^^
+
+warning: unexpected `cfg` condition name: `issue1394_capture_callback_refusal`
+    --> src/bin/s_session_v2/content_store.rs:3055:17
+     |
+3055 | ...t, issue...fusal))]
+     |       ^^^^^...^^^^^
+     |
+     = help: consider using a Cargo feature instead
+     = help: or consider adding in `Cargo.toml` the `check-cfg` lint config for the lint:
+              [lints.rust]
+              unexpected_cfgs = { level = "warn", check-cfg = ['cfg(issue1394_capture_callback_refusal)'] }
+     = help: or consider adding `println!("cargo::rustc-check-cfg=cfg(issue1394_capture_callback_refusal)");` to the top of the `build.rs`
+     = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+
+warning: unused imports: `NumberToken` and `Value as V`
+  --> src/bin/s_session_v2/content_manifest.rs:11:71
+   |
+11 | ...e, NumberToken, Value as V,
+   |       ^^^^^^^^^^^  ^^^^^^^^^^
+
+warning: use of deprecated method `std::sync::atomic::Atomic::<u64>::fetch_update`: renamed to `try_update` for consistency
+   --> src/bin/s_session_v3/audit_owner.rs:131:14
+    |
+131 | ...  .fetch_update(Or...
+    |       ^^^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+    |
+131 -             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
+131 +             .try_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
+    |
+
+warning: unused import: `std::hash::Hash`
+   --> src/bin/s_session_v3/projection.rs:457:13
+    |
+457 | ...se std::...:Hash;
+    |       ^^^^^...^^^^^
+
+warning: unused variable: `expected_key`
+    --> src/bin/s_session_v2/mod.rs:2009:18
+     |
+2009 | ...t (expected_key, c...
+     |       ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_expected_key`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `count`
+    --> src/bin/s_session_v2/mod.rs:2009:32
+     |
+2009 | ...y, count, p...
+     |       ^^^^^ help: if this is intentional, prefix it with an underscore: `_count`
+
+warning: unused variable: `published`
+    --> src/bin/s_session_v2/mod.rs:2009:39
+     |
+2009 | ...t, published) =...
+     |       ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_published`
+
+warning: unused variable: `envelope`
+   --> src/bin/s_session_v3/audit_owner.rs:870:9
+    |
+870 | ...   envelope: &...
+    |       ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_envelope`
+
+warning: unreachable `else` clause
+    --> src/bin/s_session_v3/object_index.rs:1887:85
+     |
+1887 | ...   let b...iew)? else {
+     |       -----...----- ^^^^
+     |       |
+     |       assigning to binding pattern will always succeed
+     |
+     = note: this pattern always matches, so the else clause is unreachable
+     = note: `#[warn(irrefutable_let_patterns)]` on by default
+
+warning: unreachable `else` clause
+   --> src/bin/s_session_v3/q_content.rs:222:62
+    |
+222 | ...   let b...elope else {
+    |       -----...----- ^^^^
+    |       |
+    |       assigning to binding pattern will always succeed
+    |
+    = note: this pattern always matches, so the else clause is unreachable
+
+warning: variable does not need to be mutable
+   --> src/bin/s_session_v2/cache.rs:525:51
+    |
+525 | ...r, mut cert: R...
+    |       ----^^^^
+    |       |
+    |       help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: trait `v3::audit_budget::Budget` is more private than the item `v3::history::HashReader::<'a>::with_audit_gate`
+    --> src/bin/s_session_v3/history.rs:2177:5
+     |
+2177 | /     pub(crate) f...
+2178 | |         mut self,
+2179 | |         budget: ...
+2180 | |         deadline...
+2181 | |     ) -> Self {
+     | |_____________^ method `v3::history::HashReader::<'a>::with_audit_gate` is reachable at visibility `pub(crate)`
+     |
+note: but trait `v3::audit_budget::Budget` is only usable at visibility `pub(in crate::v3)`
+    --> src/bin/s_session_v3/audit_budget.rs:18:1
+     |
+  18 | pub(s...udget {
+     | ^^^^^...^^^^^
+     = note: `#[warn(private_interfaces)]` on by default
+
+warning: type `v3::state::AuditedState` is more private than the item `v3::history::HashReader::<'a>::for_audited`
+    --> src/bin/s_session_v3/history.rs:2192:5
+     |
+2192 | /     pub(crate) fn for_audited(
+2193 | |         source: &'a mut dyn Node...
+2194 | |         audited: &super::state::...
+2195 | |         capture: Option<&'a sc::...
+...    |
+2198 | |         max: Option<u64>,
+2199 | |     ) -> Result<Self, String> {
+     | |_____________________________^ associated function `v3::history::HashReader::<'a>::for_audited` is reachable at visibility `pub(crate)`
+     |
+note: but type `v3::state::AuditedState` is only usable at visibility `pub(in crate::v3)`
+    --> src/bin/s_session_v3/state.rs:44:1
+     |
+  44 | pub(s...State {
+     | ^^^^^...^^^^^
+
+warning: function `parse_batch_value` is never used
+   --> src/bin/s_structure_session.rs:792:4
+    |
+792 | fn parse...value(by...
+    |    ^^^^^...^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `control_normalized` is never used
+   --> src/bin/s_session_v2/mod.rs:625:4
+    |
+625 | fn contr...lized(s:...
+    |    ^^^^^...^^^^^
+
+warning: method `add_ddl` is never used
+   --> src/bin/s_session_v2/mod.rs:713:19
+    |
+706 | impl ...chema {
+    | -----...----- method in this implementation
+...
+713 |     pub(super) fn add_ddl(&m...
+    |                   ^^^^^^^
+
+warning: method `sorted_names` is never used
+   --> src/bin/s_session_v2/mod.rs:783:8
+    |
+764 | impl ...d<'_> {
+    | -----...----- method in this implementation
+...
+783 |     fn sorted_names(&s...
+    |        ^^^^^^^^^^^^
+
+warning: function `verify_control_schema` is never used
+   --> src/bin/s_session_v2/mod.rs:810:15
+    |
+810 | ...fn verif...chema(
+    |       ^^^^^...^^^^^
+
+warning: method `len` is never used
+    --> src/bin/s_session_v2/mod.rs:1161:19
+     |
+1120 | impl ...Facts {
+     | -----...----- method in this implementation
+...
+1161 |     pub(super) fn len(&s...
+     |                   ^^^
+
+warning: function `control_canonical_text` is never used
+    --> src/bin/s_session_v2/mod.rs:1347:4
+     |
+1347 | fn contr..._text(
+     |    ^^^^^...^^^^^
+
+warning: function `control_identity` is never used
+    --> src/bin/s_session_v2/mod.rs:1398:4
+     |
+1398 | fn contr...ntity(
+     |    ^^^^^...^^^^^
+
+warning: function `control_sorted_keys` is never used
+    --> src/bin/s_session_v2/mod.rs:1478:4
+     |
+1478 | fn contr..._keys<'a...
+     |    ^^^^^...^^^^^
+
+warning: function `read_audit_message` is never used
+    --> src/bin/s_session_v2/mod.rs:1511:15
+     |
+1511 | ...fn read_...ssage(
+     |       ^^^^^...^^^^^
+
+warning: function `validate_audit_message` is never used
+    --> src/bin/s_session_v2/mod.rs:1548:15
+     |
+1548 | ...fn valid...ssage(
+     |       ^^^^^...^^^^^
+
+warning: method `try_clone` is never used
+  --> src/bin/s_session_v3/audit_header.rs:84:12
+   |
+83 | impl ...adata {
+   | -----...----- method in this implementation
+84 |     pub fn try_clone(&s...
+   |            ^^^^^^^^^
+
+warning: struct `BoundOriginals` is never constructed
+  --> src/bin/s_session_v3/audit_owner.rs:42:19
+   |
+42 | ...ct Bound...inals {
+   |       ^^^^^...^^^^^
+
+warning: method `clear_complete` is never used
+   --> src/bin/s_session_v3/audit_owner.rs:823:8
+    |
+822 | impl ...ction {
+    | -----...----- method in this implementation
+823 |     fn clear...plete(&s...
+    |        ^^^^^...^^^^^
+
+warning: methods `new_ref_result`, `verify_fresh`, `verify_audit_many_fresh`, `verify_many_fresh`, `verify_cached`, and `verify_many_cached` are never used
+   --> src/bin/s_session_v3/audit_store.rs:464:8
+    |
+ 41 | ...crate) trait CodecRead: NodeS...
+    |                 --------- methods in this trait
+...
+464 | ...fn new_r...esult(&mut self) ...
+    |       ^^^^^...^^^^^
+...
+497 | ...fn verify_fresh(&mut self, r:...
+    |       ^^^^^^^^^^^^
+...
+509 | ...fn verif...fresh(
+    |       ^^^^^...^^^^^
+...
+516 | ...fn verif...fresh(
+    |       ^^^^^...^^^^^
+...
+526 | ...fn verify_cached(&mut self, r...
+    |       ^^^^^^^^^^^^^
+...
+529 | ...fn verif...ached(
+    |       ^^^^^...^^^^^
+
+warning: methods `write_template` and `replace_batch_placeholder` are never used
+   --> src/bin/s_session_v3/audit_store.rs:563:8
+    |
+537 | ...crate) trait CodecStore: CodecR...
+    |                 ---------- methods in this trait
+...
+563 | ...fn write...plate(&mut self, v:...
+    |       ^^^^^...^^^^^
+...
+566 | ...fn repla...older(
+    |       ^^^^^...^^^^^
+
+warning: method `verify_many` is never used
+   --> src/bin/s_session_v3/audit_store.rs:665:19
+    |
+624 | impl<...urce> {
+    | -----...----- method in this implementation
+...
+665 |     pub(crate) fn verify_many(
+    |                   ^^^^^^^^^^^
+
+warning: method `len` is never used
+    --> src/bin/s_session_v3/audit_store.rs:1265:12
+     |
+1245 | impl ...s<'_> {
+     | -----...----- method in this implementation
+...
+1265 |     pub fn len(&self)...
+     |            ^^^
+
+warning: function `reset_aux_audit_stats` is never used
+    --> src/bin/s_session_v3/aux_index.rs:1148:15
+     |
+1148 | ...fn reset...stats() {
+     |       ^^^^^...^^^^^
+
+warning: function `aux_audit_stats` is never used
+    --> src/bin/s_session_v3/aux_index.rs:1152:15
+     |
+1152 | ...fn aux_a...stats() ...
+     |       ^^^^^...^^^^^
+
+warning: associated function `from_loaded` is never used
+    --> src/bin/s_session_v3/aux_index.rs:1288:19
+     |
+1287 | impl<...'raw> {
+     | -----...----- associated function in this implementation
+1288 |     pub(super) fn from_loaded(
+     |                   ^^^^^^^^^^^
+
+warning: method `plain` is never used
+  --> src/bin/s_session_v3/business_json.rs:46:12
+   |
+22 | impl ...vents {
+   | -----...----- method in this implementation
+...
+46 |     pub fn plain(&s...
+   |            ^^^^^
+
+warning: variant `Arena` is never constructed
+  --> src/bin/s_session_v3/business_json.rs:74:5
+   |
+72 | enum RawStorage<'a> {
+   |      ---------- variant in this enum
+73 |     Plain(&'a [Val...
+74 |     Arena(ArrayVie...
+   |     ^^^^^
+   |
+   = note: `RawStorage` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: method `is_empty` is never used
+  --> src/bin/s_session_v3/business_json.rs:94:12
+   |
+83 | impl<...w<'a> {
+   | -----...----- method in this implementation
+...
+94 |     pub fn is_empty(self) -> ...
+   |            ^^^^^^^^
+
+warning: function `bytes_extend` is never used
+   --> src/bin/s_session_v3/business_json.rs:208:15
+    |
+208 | ...fn bytes_extend(by...
+    |       ^^^^^^^^^^^^
+
+warning: methods `len` and `view` are never used
+   --> src/bin/s_session_v3/business_json.rs:223:12
+    |
+215 | impl<...e<'a> {
+    | -----...----- methods in this implementation
+...
+223 |     pub fn len(&self) -> ...
+    |            ^^^
+...
+229 |     pub fn view(&self) ->...
+    |            ^^^^
+
+warning: method `prefix_len` is never used
+   --> src/bin/s_session_v3/business_json.rs:308:19
+    |
+307 | impl ...Facts {
+    | -----...----- method in this implementation
+308 |     pub(super) fn prefix_len(&s...
+    |                   ^^^^^^^^^^
+
+warning: associated items `restore`, `is_empty`, `retained_slots`, and `advance` are never used
+   --> src/bin/s_session_v3/business_json.rs:339:19
+    |
+330 | impl<...'raw> {
+    | -----...----- associated items in this implementation
+...
+339 |     pub(super) fn restore(
+    |                   ^^^^^^^
+...
+379 |     pub(super) fn is_empty(&self) -...
+    |                   ^^^^^^^^
+...
+386 |     pub(super) fn retai...slots(&s...
+    |                   ^^^^^...^^^^^
+...
+399 |     pub(super) fn advance(&mut self...
+    |                   ^^^^^^^
+
+warning: function `validate_raw_row` is never used
+   --> src/bin/s_session_v3/business_json.rs:651:15
+    |
+651 | ...fn valid...w_row(
+    |       ^^^^^...^^^^^
+
+warning: function `validate_raw_row_admitted` is never used
+   --> src/bin/s_session_v3/business_json.rs:659:15
+    |
+659 | ...fn valid...itted(
+    |       ^^^^^...^^^^^
+
+warning: variant `Owned` is never constructed
+    --> src/bin/s_session_v3/business_json.rs:1114:5
+     |
+1112 | pub(crate) enum TextValue {
+     |                 --------- variant in this enum
+1113 |     Plain(String),
+1114 |     Owned(aj::TextOwner),
+     |     ^^^^^
+
+warning: function `strict_owner_protocol_matrix` is never used
+    --> src/bin/s_session_v3/business_json.rs:2160:15
+     |
+2160 | ...fn stric...atrix() ...
+     |       ^^^^^...^^^^^
+
+warning: method `page_digest_for_testonly` is never used
+   --> src/bin/s_session_v3/q_retained.rs:287:19
+    |
+285 | impl Packed {
+    | ----------- method in this implementation
+286 |     #[cfg(test)]
+287 |     pub(super) fn page_...tonly(&s...
+    |                   ^^^^^...^^^^^
+
+warning: function `verify_s3_markers` is never used
+  --> src/bin/s_session_v3/control_audit.rs:81:4
+   |
+81 | fn verif...rkers(co...
+   |    ^^^^^...^^^^^
+
+warning: function `verify_s3_markers_with_owner` is never used
+  --> src/bin/s_session_v3/control_audit.rs:84:4
+   |
+84 | fn verif...owner(
+   |    ^^^^^...^^^^^
+
+warning: function `schema_ddls` is never used
+   --> src/bin/s_session_v3/control_audit.rs:127:15
+    |
+127 | ...fn schema_ddls(co...
+    |       ^^^^^^^^^^^
+
+warning: function `verify_s3_schema` is never used
+   --> src/bin/s_session_v3/control_audit.rs:169:15
+    |
+169 | ...fn verif...chema(co...
+    |       ^^^^^...^^^^^
+
+warning: function `verify_s3_publications` is never used
+   --> src/bin/s_session_v3/control_audit.rs:214:4
+    |
+214 | fn verif...tions(co...
+    |    ^^^^^...^^^^^
+
+warning: function `verify_s3_publications_with_owner` is never used
+   --> src/bin/s_session_v3/control_audit.rs:217:4
+    |
+217 | fn verif...owner(
+    |    ^^^^^...^^^^^
+
+warning: function `err` is never used
+   --> src/bin/s_session_v3/driver.rs:470:4
+    |
+470 | fn err(e:...
+    |    ^^^
+
+warning: function `sqlite_memory_used` is never used
+   --> src/bin/s_session_v3/financial_session.rs:489:4
+    |
+489 | fn sqlit..._used() ...
+    |    ^^^^^...^^^^^
+
+warning: fields `raw_nodes`, `raw_wire_nodes`, `prefixes`, and `ordered` are never read
+   --> src/bin/s_session_v3/history.rs:210:5
+    |
+209 | pub(super) struct Nativ...fixes {
+    |                   -----...----- fields in this struct
+210 |     raw_nodes: sc::CodecVec<NodeDigest>,
+    |     ^^^^^^^^^
+211 |     raw_w...nodes: sc::CodecVec<NodeD...
+    |     ^^^^^...^^^^^
+212 |     prefixes: NativeHistoryPrefixes,
+    |     ^^^^^^^^
+213 |     ordered: bj::RawPrefixFacts,
+    |     ^^^^^^^
+
+warning: methods `checked_len` and `published_len` are never used
+   --> src/bin/s_session_v3/history.rs:265:19
+    |
+215 | impl ...fixes {
+    | -----...----- methods in this implementation
+...
+265 |     pub(super) fn checked_len(&sel...
+    |                   ^^^^^^^^^^^
+...
+268 |     pub(super) fn published_len(&s...
+    |                   ^^^^^^^^^^^^^
+
+warning: function `read_indexed_history_for_audit` is never used
+   --> src/bin/s_session_v3/history.rs:336:15
+    |
+336 | ...fn read_...audit(
+    |       ^^^^^...^^^^^
+
+warning: function `read_indexed_history_for_audit_captured` is never used
+   --> src/bin/s_session_v3/history.rs:359:15
+    |
+359 | ...fn read_...tured<'a>(
+    |       ^^^^^...^^^^^
+
+warning: function `read_indexed_history_for_audit_captured_with_records` is never used
+   --> src/bin/s_session_v3/history.rs:380:15
+    |
+380 | ...fn read_...cords<'a>(
+    |       ^^^^^...^^^^^
+
+warning: function `read_indexed_history_for_audit_captured_with_records_admitted` is never used
+   --> src/bin/s_session_v3/history.rs:403:15
+    |
+403 | ...fn read_...itted<'a>(
+    |       ^^^^^...^^^^^
+
+warning: function `revalidate_current_for_reuse` is never used
+    --> src/bin/s_session_v3/history.rs:1185:15
+     |
+1185 | ...fn reval...reuse(
+     |       ^^^^^...^^^^^
+
+warning: function `revalidate_current_for_reuse_admitted` is never used
+    --> src/bin/s_session_v3/history.rs:1195:15
+     |
+1195 | ...fn reval...itted(
+     |       ^^^^^...^^^^^
+
+warning: function `text` is never used
+    --> src/bin/s_session_v3/history.rs:1548:4
+     |
+1548 | fn text<'a>(
+     |    ^^^^
+
+warning: function `integer` is never used
+    --> src/bin/s_session_v3/history.rs:1555:4
+     |
+1555 | fn integer<'a>(
+     |    ^^^^^^^
+
+warning: function `hash_json` is never used
+    --> src/bin/s_session_v3/history.rs:1627:4
+     |
+1627 | fn hash_json(v:...
+     |    ^^^^^^^^^
+
+warning: function `reset_history_prefix_leaves` is never used
+    --> src/bin/s_session_v3/history.rs:1912:4
+     |
+1912 | fn reset...eaves() {
+     |    ^^^^^...^^^^^
+
+warning: function `history_prefix_leaves` is never used
+    --> src/bin/s_session_v3/history.rs:1916:4
+     |
+1916 | fn histo...eaves() ...
+     |    ^^^^^...^^^^^
+
+warning: method `verify_many` is never used
+    --> src/bin/s_session_v3/history.rs:2428:19
+     |
+2098 | impl<...r<'a> {
+     | -----...----- method in this implementation
+...
+2428 |     pub(crate) fn verify_many(
+     |                   ^^^^^^^^^^^
+
+warning: function `reset_native_record_field_stats` is never used
+   --> src/bin/s_session_v3/native_record_fields.rs:193:15
+    |
+193 | ...fn reset...stats() {
+    |       ^^^^^...^^^^^
+
+warning: function `native_record_field_stats` is never used
+   --> src/bin/s_session_v3/native_record_fields.rs:197:15
+    |
+197 | ...fn nativ...stats() ...
+    |       ^^^^^...^^^^^
+
+warning: function `built` is never used
+  --> src/bin/s_session_v3/object_index.rs:51:4
+   |
+51 | fn built(r:...
+   |    ^^^^^
+
+warning: associated items `read_subset`, `text`, `integer`, `equal`, `slot`, and `bind_json_text` are never used
+   --> src/bin/s_session_v3/object_index.rs:81:19
+    |
+ 73 | impl Fields {
+    | ----------- associated items in this implementation
+...
+ 81 |     pub(super) fn read_subset(
+    |                   ^^^^^^^^^^^
+...
+ 95 |     pub(super) fn text(
+    |                   ^^^^
+...
+105 |     pub(super) fn integer(
+    |                   ^^^^^^^
+...
+114 |     fn equal(&self, key: &str, o...
+    |        ^^^^^
+...
+120 |     fn slot(&self, s: &mut (impl...
+    |        ^^^^
+...
+150 |     fn bind_..._text(
+    |        ^^^^^...^^^^^
+
+warning: function `root_header` is never used
+   --> src/bin/s_session_v3/object_index.rs:177:4
+    |
+177 | fn root_header(s:...
+    |    ^^^^^^^^^^^
+
+warning: method `key` is never used
+   --> src/bin/s_session_v3/object_index.rs:214:8
+    |
+213 | impl Slot {
+    | --------- method in this implementation
+214 |     fn key(&s...
+    |        ^^^
+
+warning: field `index` is never read
+   --> src/bin/s_session_v3/object_index.rs:238:9
+    |
+236 | ...uper) struct Plan {
+    |                 ---- field in this struct
+237 | ...ub generation: i64,
+238 | ...ub index: Vec<Entry>,
+    |       ^^^^^
+
+warning: method `native_sweep` is never used
+   --> src/bin/s_session_v3/object_index.rs:562:19
+    |
+561 | impl ...s<'_> {
+    | -----...----- method in this implementation
+562 |     pub(super) fn native_sweep(&m...
+    |                   ^^^^^^^^^^^^
+
+warning: method `native_dual_at_cut_scan_for_test` is never used
+   --> src/bin/s_session_v3/object_index.rs:753:8
+    |
+750 | impl ...s<'_> {
+    | -----...----- method in this implementation
+...
+753 |     fn nativ..._test(
+    |        ^^^^^...^^^^^
+
+warning: function `bind_shape_refs` is never used
+    --> src/bin/s_session_v3/object_index.rs:1212:4
+     |
+1212 | fn bind_..._refs(
+     |    ^^^^^...^^^^^
+
+warning: function `load_for_audit` is never used
+    --> src/bin/s_session_v3/object_index.rs:1408:15
+     |
+1408 | ...fn load_...audit(
+     |       ^^^^^...^^^^^
+
+warning: function `take_load_lookup_counts` is never used
+    --> src/bin/s_session_v3/object_index.rs:2018:15
+     |
+2018 | ...fn take_...ounts() ...
+     |       ^^^^^...^^^^^
+
+warning: function `load_id_capacity` is never used
+    --> src/bin/s_session_v3/object_index.rs:2025:15
+     |
+2025 | ...fn load_...acity() ...
+     |       ^^^^^...^^^^^
+
+warning: associated function `new` is never used
+    --> src/bin/s_session_v3/object_index.rs:2380:8
+     |
+2335 | impl ...Sweep {
+     | -----...----- associated function in this implementation
+...
+2380 |     fn new(index: &[Ent...
+     |        ^^^
+
+warning: methods `set_after_prepare_for_request_test` and `commit_in_request` are never used
+   --> src/bin/s_session_v3/prepared.rs:116:19
+    |
+ 87 | impl Runtime {
+    | ------------ methods in this implementation
+...
+116 |     pub(super) fn set_a..._test(
+    |                   ^^^^^...^^^^^
+...
+187 |     pub(super) fn commi...quest(
+    |                   ^^^^^...^^^^^
+
+warning: fields `inner` and `budget` are never read
+    --> src/bin/s_session_v3/prepared.rs:1370:13
+     |
+1369 | ...truct Before<'a...
+     |          ------ fields in this struct
+1370 | ...   inner: conte...
+     |       ^^^^^
+1371 | ...   budget: Opti...
+     |       ^^^^^^
+
+warning: associated items `parse_owned` and `anchor` are never used
+   --> src/bin/s_session_v3/q_content.rs:56:19
+    |
+ 52 | impl Request {
+    | ------------ associated items in this implementation
+...
+ 56 |     pub(super) fn parse_owned(
+    |                   ^^^^^^^^^^^
+...
+221 |     pub(super) fn anchor(&self) ...
+    |                   ^^^^^^
+
+warning: function `exact_view` is never used
+   --> src/bin/s_session_v3/q_content.rs:441:4
+    |
+441 | fn exact_view(va...
+    |    ^^^^^^^^^^
+
+warning: method `cause_code` is never used
+   --> src/bin/s_session_v3/q_http_input.rs:123:19
+    |
+ 81 | impl Failure {
+    | ------------ method in this implementation
+...
+123 |     pub(super) fn cause_code(&s...
+    |                   ^^^^^^^^^^
+
+warning: method `allocation_budget` is never used
+   --> src/bin/s_session_v3/q_http_input.rs:169:19
+    |
+168 | impl Head {
+    | --------- method in this implementation
+169 |     pub(super) fn alloc...udget(&s...
+    |                   ^^^^^...^^^^^
+
+warning: variant `PollMs` is never constructed
+  --> src/bin/s_session_v3/q_resources.rs:47:5
+   |
+34 | pub(super) enum Limit {
+   |                 ----- variant in this enum
+...
+47 |     PollMs,
+   |     ^^^^^^
+   |
+   = note: `Limit` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: associated items `parse_owned` and `allocation_budget` are never used
+   --> src/bin/s_session_v3/q_snapshot.rs:71:19
+    |
+ 67 | impl Request {
+    | ------------ associated items in this implementation
+...
+ 71 |     pub(super) fn parse_owned(
+    |                   ^^^^^^^^^^^
+...
+176 |     pub(super) fn alloc...udget(&s...
+    |                   ^^^^^...^^^^^
+
+warning: function `mode` is never used
+   --> src/bin/s_session_v3/q_snapshot.rs:205:4
+    |
+205 | fn mode(va...
+    |    ^^^^
+
+warning: function `exact` is never used
+   --> src/bin/s_session_v3/q_snapshot.rs:216:4
+    |
+216 | fn exact(va...
+    |    ^^^^^
+
+warning: function `token` is never used
+   --> src/bin/s_session_v3/q_snapshot.rs:304:15
+    |
+304 | ...fn token(
+    |       ^^^^^
+
+warning: associated function `parse_owned` is never used
+  --> src/bin/s_session_v3/q_watch.rs:58:19
+   |
+54 | impl Request {
+   | ------------ associated function in this implementation
+...
+58 |     pub(super) fn parse_owned(
+   |                   ^^^^^^^^^^^
+
+warning: function `cursor_at` is never used
+   --> src/bin/s_session_v3/q_watch.rs:193:15
+    |
+193 | ...fn cursor_at(
+    |       ^^^^^^^^^
+
+warning: function `exact` is never used
+   --> src/bin/s_session_v3/q_watch.rs:821:4
+    |
+821 | fn exact(va...
+    |    ^^^^^
+
+warning: function `parse` is never used
+ --> src/bin/s_session_v3/q_wire.rs:8:15
+  |
+8 | ...fn parse(by...
+  |       ^^^^^
+
+warning: function `try_reply` is never used
+   --> src/bin/s_session_v3/q_wire.rs:235:15
+    |
+235 | ...fn try_reply(
+    |       ^^^^^^^^^
+
+warning: function `encode` is never used
+   --> src/bin/s_session_v3/q_wire.rs:266:15
+    |
+266 | ...fn encode(
+    |       ^^^^^^
+
+warning: function `delta_anchor` is never used
+   --> src/bin/s_session_v3/reader.rs:197:15
+    |
+197 | ...fn delta_anchor(cu...
+    |       ^^^^^^^^^^^^
+
+warning: fields `binding_hook`, `cold`, and `hits` are never read
+  --> src/bin/s_session_v3/request_audit.rs:48:5
+   |
+36 | pub(super) struct Reque...ntext {
+   |                   -----...----- fields in this struct
+...
+48 |     binding_hook: Option<fn(&Transaction...
+   |     ^^^^^^^^^^^^
+49 |     #[cfg(test)]
+50 |     pub(super) cold: usize,
+   |                ^^^^
+51 |     #[cfg(test)]
+52 |     pub(super) hits: usize,
+   |                ^^^^
+
+warning: fields `binding`, `capture`, `node_count`, and `result` are never read
+  --> src/bin/s_session_v3/request_audit.rs:66:16
+   |
+65 | ...truct Verif...lSlot {
+   |          -----...----- fields in this struct
+66 | ...r) binding: HistoricalDependenc...
+   |       ^^^^^^^
+67 | ...r) capture: AuditCapture,
+   |       ^^^^^^^
+68 | ...r) node_count: usize,
+   |       ^^^^^^^^^^
+69 | ...r) result: Rc<ImmutableHistoric...
+   |       ^^^^^^
+
+warning: methods `retain`, `before_binding`, and `has_slot` are never used
+   --> src/bin/s_session_v3/request_audit.rs:195:19
+    |
+ 73 | impl ...ntext {
+    | -----...----- methods in this implementation
+...
+195 |     pub(super) fn retain(
+    |                   ^^^^^^
+...
+226 |     pub(super) fn befor...nding(&m...
+    |                   ^^^^^...^^^^^
+...
+232 |     pub(super) fn has_slot(&self) -...
+    |                   ^^^^^^^^
+
+warning: variants `Null`, `Integer`, `Real`, `Text`, and `Blob` are never constructed
+   --> src/bin/s_session_v3/request_audit.rs:240:5
+    |
+239 | pub(super) enum SqlCell {
+    |                 ------- variants in this enum
+240 |     Null,
+    |     ^^^^
+241 |     Integer(i64),
+    |     ^^^^^^^
+242 |     Real(u64),
+    |     ^^^^
+243 |     Text(Vec<u8>),
+    |     ^^^^
+244 |     Blob(Vec<u8>),
+    |     ^^^^
+    |
+    = note: `SqlCell` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: enum `SqlCellView` is never used
+   --> src/bin/s_session_v3/request_audit.rs:248:17
+    |
+248 | ...um SqlCellView<'a> {
+    |       ^^^^^^^^^^^
+
+warning: method `copy_admitted` is never used
+   --> src/bin/s_session_v3/request_audit.rs:256:8
+    |
+255 | impl ...w<'_> {
+    | -----...----- method in this implementation
+256 |     fn copy_admitted(se...
+    |        ^^^^^^^^^^^^^
+
+warning: associated functions `read_admitted` and `read` are never used
+   --> src/bin/s_session_v3/request_audit.rs:286:19
+    |
+283 | impl ...tRows {
+    | -----...----- associated functions in this implementation
+...
+286 |     pub(super) fn read_admitted(
+    |                   ^^^^^^^^^^^^^
+...
+358 |     pub(super) fn read(
+    |                   ^^^^
+
+warning: function `storage` is never used
+   --> src/bin/s_session_v3/request_audit.rs:396:4
+    |
+396 | fn storage(e:...
+    |    ^^^^^^^
+
+warning: associated functions `read`, `read_admitted`, and `read_source` are never used
+   --> src/bin/s_session_v3/request_audit.rs:408:19
+    |
+407 | impl ...nding {
+    | -----...----- associated functions in this implementation
+408 |     pub(super) fn read(
+    |                   ^^^^
+...
+414 |     pub(super) fn read_admitted(
+    |                   ^^^^^^^^^^^^^
+...
+480 |     fn read_source(
+    |        ^^^^^^^^^^^
+
+warning: function `f` is never used
+  --> src/bin/s_session_v3/source_audit.rs:38:4
+   |
+38 | fn f(k:...
+   |    ^
+
+warning: associated function `new` is never used
+  --> src/bin/s_session_v3/source_audit.rs:80:8
+   |
+79 | impl<...ture> {
+   | -----...----- associated function in this implementation
+80 |     fn new(capture: &'capture sc::AuditCapt...
+   |        ^^^
+
+warning: struct `HashOnly` is never constructed
+   --> src/bin/s_session_v3/source_audit.rs:265:8
+    |
+265 | ...ct HashOnly;
+    |       ^^^^^^^^
+
+warning: function `hash` is never used
+   --> src/bin/s_session_v3/source_audit.rs:271:4
+    |
+271 | fn hash(v:...
+    |    ^^^^
+
+warning: fields `winners`, `sources`, and `originals` are never read
+    --> src/bin/s_session_v3/source_audit.rs:1104:5
+     |
+1103 | pub(super) struct Nativ...Facts {
+     |                   -----...----- fields in this struct
+1104 |     winners: bj::RawPrefixFacts,
+     |     ^^^^^^^
+1105 |     sources: BusinessMap<i64, Source>,
+     |     ^^^^^^^
+1106 |     originals: std::collections::Ha...
+     |     ^^^^^^^^^
+
+warning: methods `prefix_len` and `hashed_rows` are never used
+    --> src/bin/s_session_v3/source_audit.rs:1109:19
+     |
+1108 | impl ...Facts {
+     | -----...----- methods in this implementation
+1109 |     pub(super) fn prefix_len(&se...
+     |                   ^^^^^^^^^^
+...
+1112 |     pub(super) fn hashed_rows(&s...
+     |                   ^^^^^^^^^^^
+
+warning: associated functions `new` and `restore` are never used
+    --> src/bin/s_session_v3/source_audit.rs:1149:8
+     |
+1126 | impl<...'raw> {
+     | -----...----- associated functions in this implementation
+...
+1149 |     fn new(raw: RawEventsView<'raw>...
+     |        ^^^
+...
+1161 |     fn restore(
+     |        ^^^^^^^
+
+warning: method `raw_ledger_stats` is never used
+    --> src/bin/s_session_v3/source_audit.rs:1355:19
+     |
+1275 | impl<...ture> {
+     | -----...----- method in this implementation
+...
+1355 |     pub(super) fn raw_l...stats(&self) -> ...
+     |                   ^^^^^...^^^^^
+
+warning: function `audit_generated_until` is never used
+    --> src/bin/s_session_v3/source_audit.rs:1399:15
+     |
+1399 | ...fn audit...until<'a>(
+     |       ^^^^^...^^^^^
+
+warning: variant `Public` is never constructed
+   --> src/bin/s_session_v3/source_prefix.rs:370:5
+    |
+369 | pub(super) enum ParseDomain {
+    |                 ----------- variant in this enum
+370 |     Public,
+    |     ^^^^^^
+    |
+    = note: `ParseDomain` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: associated functions `new` and `winner_intervals` are never used
+   --> src/bin/s_session_v3/source_prefix.rs:426:19
+    |
+425 | impl<...ture> {
+    | -----...----- associated functions in this implementation
+426 |     pub(super) fn new(capture: &'capture sc:...
+    |                   ^^^
+...
+449 |     fn winne...rvals(
+    |        ^^^^^...^^^^^
+
+warning: variant `Shared` is never constructed
+  --> src/bin/s_session_v3/state.rs:69:5
+   |
+67 | enum Histo...Owner {
+   |      -----...----- variant in this enum
+68 |     Unique(ImmutableHis...
+69 |     Shared(std::rc::Rc<...
+   |     ^^^^^^
+
+warning: function `audit_profile_id` is never used
+    --> src/bin/s_session_v3/state.rs:1076:4
+     |
+1076 | fn audit...le_id(
+     |    ^^^^^...^^^^^
+
+warning: function `verify_unrun_catalog` is never used
+    --> src/bin/s_session_v3/state.rs:1099:4
+     |
+1099 | fn verif...talog(
+     |    ^^^^^...^^^^^
+
+warning: method `make_room` is never used
+   --> src/bin/s_session_v2/cache.rs:332:8
+    |
+226 | impl Memo {
+    | --------- method in this implementation
+...
+332 |     fn make_room(&m...
+    |        ^^^^^^^^^
+
+warning: function `put_root_cert` is never used
+   --> src/bin/s_session_v2/cache.rs:525:4
+    |
+525 | fn put_root_cert(me...
+    |    ^^^^^^^^^^^^^
+
+warning: function `derived_get` is never used
+   --> src/bin/s_session_v2/cache.rs:898:15
+    |
+898 | ...fn derived_get(co...
+    |       ^^^^^^^^^^^
+
+warning: function `derived_put` is never used
+   --> src/bin/s_session_v2/cache.rs:936:15
+    |
+936 | ...fn derived_put(co...
+    |       ^^^^^^^^^^^
+
+warning: function `mark_reachable` is never used
+   --> src/bin/s_session_v2/cache.rs:960:15
+    |
+960 | ...fn mark_...hable(co...
+    |       ^^^^^...^^^^^
+
+warning: function `certify_retained_originals` is never used
+    --> src/bin/s_session_v2/cache.rs:1157:15
+     |
+1157 | ...fn certi...inals(co...
+     |       ^^^^^...^^^^^
+
+warning: function `prototype_capture_work_on_thread` is never used
+    --> src/bin/s_session_v2/content_store.rs:2609:15
+     |
+2609 | ...fn proto...hread() ...
+     |       ^^^^^...^^^^^
+
+warning: associated function `until` is never used
+    --> src/bin/s_session_v2/content_store.rs:2636:19
+     |
+2621 | impl ...ation {
+     | -----...----- associated function in this implementation
+...
+2636 |     pub(crate) fn until(dea...
+     |                   ^^^^^
+
+warning: function `work_resize` is never used
+  --> src/bin/s_session_v2/evidence_store.rs:63:4
+   |
+63 | fn work_resize<T:...
+   |    ^^^^^^^^^^^
+
+warning: fields `staged_nodes` and `staged_bytes` are never read
+   --> src/bin/s_session_v2/evidence_store.rs:539:16
+    |
+532 | ...truct Staged {
+    |          ------ fields in this struct
+...
+539 | ...r) staged_nodes: u...
+    |       ^^^^^^^^^^^^
+540 | ...r) staged_bytes: u64,
+    |       ^^^^^^^^^^^^
+
+warning: method `param_bytes` is never used
+   --> src/bin/s_session_v2/evidence_store.rs:578:19
+    |
+552 | impl Stager {
+    | ----------- method in this implementation
+...
+578 |     pub(super) fn param_bytes(&s...
+    |                   ^^^^^^^^^^^
+
+warning: method `read_fixed_cut_value` is never used
+    --> src/bin/s_session_v2/evidence_store.rs:1968:19
+     |
+1333 | impl<...r<'a> {
+     | -----...----- method in this implementation
+...
+1968 |     pub(super) fn read_...value(
+     |                   ^^^^^...^^^^^
+
+warning: function `append_checked` is never used
+    --> src/bin/s_session_v2/evidence_store.rs:2347:4
+     |
+2347 | fn appen...ecked(ou...
+     |    ^^^^^...^^^^^
+
+warning: function `describe` is never used
+    --> src/bin/s_session_v2/evidence_store.rs:2540:15
+     |
+2540 | ...fn describe(co...
+     |       ^^^^^^^^
+
+warning: method `last_outcome` is never used
+  --> src/bin/s_session_v2/s_fact_cache.rs:93:19
+   |
+75 | impl Lane {
+   | --------- method in this implementation
+...
+93 |     pub(super) fn last_outcome(&s...
+   |                   ^^^^^^^^^^^^
+
+warning: function `validate_prices` is never used
+   --> src/bin/s_session_v2/tb02a.rs:246:15
+    |
+246 | ...fn valid...rices(ev...
+    |       ^^^^^...^^^^^
+
+warning: function `enrich_raw_row` is never used
+   --> src/bin/s_session_v2/tb02a.rs:357:15
+    |
+357 | ...fn enric...w_row(co...
+    |       ^^^^^...^^^^^
+
+warning: function `stored_prices` is never used
+   --> src/bin/s_session_v2/tb02a.rs:408:15
+    |
+408 | ...fn stored_prices(ro...
+    |       ^^^^^^^^^^^^^
+
+warning: `newchan_rust` (bin "s_structure_session" test) generated 159 warnings (run `cargo fix --bin "s_structure_session" -p newchan_rust --tests` to apply 24 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 49.63s
+     Running unittests src/bin/s_structure_session.rs (/home/hanju/nc-remote/target/debug/deps/s_structure_session-6334780ee30570c4)
+
+running 7 tests
+test v3::atomic_init_tests::s1568_child_init_under_rlimit ... ignored, #1568 子进程入口，只由同文件父测试带环境变量调用
+test v3::atomic_init_tests::existing_target_is_refused_untouched_even_with_stale_staging ... ok
+test v3::atomic_init_tests::sweep_only_removes_this_databases_staging_names ... ok
+test v3::atomic_init_tests::foreign_wal_beside_absent_target_is_refused_and_kept ... ok
+test v3::atomic_init_tests::disk_full_failures_leave_nothing_and_retry_succeeds ... ok
+test v3::atomic_init_tests::killed_mid_write_leaves_only_identifiable_staging_and_retry_succeeds ... ok
+test v3::atomic_init_tests::fd_exhaustion_failures_leave_nothing_and_retry_succeeds ... ok
+
+test result: ok. 6 passed; 0 failed; 1 ignored; 0 measured; 547 filtered out; finished in 4.35s
+
+EXIT=0 SECONDS=54
