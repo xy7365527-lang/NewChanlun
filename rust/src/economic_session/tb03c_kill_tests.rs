@@ -33,9 +33,7 @@ fn setup_voice_authority(dir: &Path) -> Value {
     let fact_hash = book::hash(
         &json!({"raw_sha256":raw_sha,"json_pointer":"/events/0","event":event,"units":doc["units"]}),
     );
-    let reference = |name: &str| {
-        json!({"authority_id":"kill-unit","object_id":name,"revision":"0","content_hash":book::hash(&json!(name))})
-    };
+    let reference = |name: &str| json!({"authority_id":"kill-unit","object_id":name,"revision":"0","content_hash":book::hash(&json!(name))});
     // 为 B:chong-N1 创建 binding（operation_level = 1）
     let binding = json!({
         "evidence_id":"kill-evidence-1",
@@ -242,9 +240,7 @@ fn apply_payload(r: &Value, id: &Value) -> Value {
 }
 /// #1622：创建 BindVoice payload，复用第一笔 Capture/Apply 的 fact 与 allocation。
 fn bind_payload(capture_reply: &Value, allocation_id: &Value) -> Value {
-    let reference = |name: &str| {
-        json!({"authority_id":"kill-unit","object_id":name,"revision":"0","content_hash":book::hash(&json!(name))})
-    };
+    let reference = |name: &str| json!({"authority_id":"kill-unit","object_id":name,"revision":"0","content_hash":book::hash(&json!(name))});
     json!({
         "op":"BindVoice",
         "binding_id":"kill-voice-1",
