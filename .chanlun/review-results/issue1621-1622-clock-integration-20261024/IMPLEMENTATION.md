@@ -44,3 +44,11 @@
 - 对最终完整 diff 的非作者独审。
 - #1621 的 X 执行域仍按原 AC 核定承接；本候选没有把 B 内转移称为 X。
 - main 合入、#1621/#1622 关票及 #1406 后续验收仍走原人工门与完整关票门。
+
+## 2026-10-25 返修：BindVoice 丢失负控与 C4b 恢复时序
+
+- `888fb99f97` 增加步骤 21 的 `skip_resend` 负控：跳过重送后，全表比较明确报域 1 Voice 差异，公开查询比较失败，直接 `QueryVoice(kill-voice-1)` 返回 `MissingDependency：Voice 尚未绑定`。公开查询对拍新增 QueryVoice 覆盖。
+- 同提交远端日志 `/tmp/nc-remote/20261025-013852-888fb99f97.log`：新负控 1/1、BindVoice 正常 SIGKILL 2/2、全部负控 4/4、rustfmt 全过。
+- 上一轮 CI 40083596265 的 extras 唯一失败是 C4b 恢复后 E 被重复恢复、领先 B 一个时钟列；不是主线旧 funding 红。`5a0ac0b14b` 只恢复三个 B 追上已恢复的 E，生产时钟门不变。
+- `/tmp/nc-remote/20261025-015017-5a0ac0b14b.log`：原失败 C4b 用例及两个相关恢复用例各 1/1，funding 14/14，rustfmt 全过。
+- 非作者 HIGH-1 已返修，待新 head 补审与完整 CI。#1621 的 X 域仍按原 AC 另行承接，不把 B 内转移称为 X；两票保持 OPEN。
