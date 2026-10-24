@@ -12,6 +12,8 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
 fi
 
 ROOT="$(mktemp -d "${TMPDIR:-/tmp}/tb03c-fin2-hfs.XXXXXX")"
+# macOS 的 /var 是指向 /private/var 的链接，挂载表使用物理路径；先规范化再逐字比对。
+ROOT="$(cd "$ROOT" && pwd -P)"
 NAMES=(e b0 b1 b2)
 MOUNTED=()
 
@@ -36,20 +38,16 @@ for name in "${NAMES[@]}"; do
   hdiutil attach -nobrowse -mountpoint "$ROOT/$name" "$ROOT/$name.dmg"
   MOUNTED+=("$name")
   test -w "$ROOT/$name"
-  fs_type="$(stat -f '%F' "$ROOT/$name")"
-  if [[ "$fs_type" != "hfs" ]]; then
-    echo "carrier $name has unexpected filesystem $fs_type" >&2
-    exit 66
-  fi
+  # mount -t 直接按挂载表判定，不依赖 macOS stat 的格式字符。
   mount -t hfs | grep -F " on $ROOT/$name " >/dev/null
+  fs_type=hfs
   device="$(stat -f '%d' "$ROOT/$name")"
   case " $DEVICES " in
     *" $device "*) echo "carrier device reused: $device" >&2; exit 67 ;;
   esac
   DEVICES="$DEVICES $device"
-  blocks="$(stat -f '%b' "$ROOT/$name")"
-  block_size="$(stat -f '%B' "$ROOT/$name")"
-  echo "carrier name=$name fs=$fs_type device=$device blocks=$blocks block_size=$block_size mount=$ROOT/$name"
+  capacity_kib="$(df -k "$ROOT/$name" | awk 'NR==2 {print $2}')"
+  echo "carrier name=$name fs=$fs_type device=$device capacity_kib=$capacity_kib mount=$ROOT/$name"
 done
 
 export TB03C_FIN2_CARRIER_ROOT="$ROOT"
