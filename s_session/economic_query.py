@@ -65,9 +65,10 @@ def economic_revisions(manifest: Mapping[str, object]) -> tuple[str, str]:
 
 
 def book_revision(manifest):
-    """#1406：null/缺省仍属旧书账。Rust book::rules 另认 tb03c-book/2（C8），本读者尚未接 /2、遇之拒绝。"""
+    """#1406/#1620：null/缺省仍属旧书账。Rust book::rules 认 tb03c-book/1 与 /2（C8 资金签署）；
+    本读者接受两者——/2 只在公共查询字段上与 /1 等效（不处理资金合同，只读取公共图像）。"""
     revision = manifest.get("book_revision")
-    if revision is not None and (type(revision) is not str or revision != "tb03c-book/1"):
+    if revision is not None and (type(revision) is not str or revision not in ("tb03c-book/1", "tb03c-book/2")):
         raise EconomicQueryError("未知书账版本")
     return revision
 
@@ -90,11 +91,12 @@ def _signed_integer(value, name):
 
 
 def allocation_sources(manifest, revision):
-    """冻结来源身份，不实现份额或金额 reducer。无政策的清单仍可等待。"""
+    """冻结来源身份，不实现份额或金额 reducer。无政策的清单仍可等待。
+    #1620：tb03c-book/2 在外效分配字段上与 /1 等效（资金签署不影响此读者）。"""
     if "fill_manifests" not in manifest and "fill_allocation_policy" not in manifest:
         return None, {}
-    if revision != "tb03c-book/1":
-        raise EconomicQueryError("外效分配来源须冻结 tb03c-book/1")
+    if revision not in ("tb03c-book/1", "tb03c-book/2"):
+        raise EconomicQueryError("外效分配来源须冻结 tb03c-book/1 或 tb03c-book/2")
     policy = manifest.get("fill_allocation_policy")
     policies = {"netted": "frozen-manifest-proportional-cumulative/2",
                 "per_leg": "per-leg-source-attribution/1"}
@@ -772,7 +774,7 @@ class EconomicQuery:
         fields = {"book", "recorded", "pending", "applied", "unmatched", "history"}
         fields |= {"finance"} if self.manifest.get("finance") else set()
         allowed = [fields]
-        if self.book_revision == "tb03c-book/1" and domain == "E":
+        if self.book_revision in ("tb03c-book/1", "tb03c-book/2") and domain == "E":
             allowed.append(fields | {"fill_allocations"})
         if (type(image) is not dict
                 or set(image) not in allowed

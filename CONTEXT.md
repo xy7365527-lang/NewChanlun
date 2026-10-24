@@ -70,6 +70,7 @@ experiment/production profile 下 growth_eligible 首次为真的同源 AsKnown 
 _Avoid_: 与「模拟批（Simulation Batch）」混用——slot 是同一稳定点的资金申请集合，模拟批是同一 bar 的外效集合。
 
 **成本下降速率（Cost-decline rate）**（2026-08-14 编排者裁定，[ADR 0022](docs/adr/0022-acceptance-criterion-parameters.md)）：闸门前验收只问一件事——**成本降得稳不稳**。定义＝每次操作（成本落袋事件）的相对降幅 `(C_before−C_after)/C_before` ÷ 占用时间（自上次事件起），与 `049:74`【正文】利润率「每次操作的平均利润／需要占用资金的平均时间」同形。**费后口径**（扣手续费与资金费率，同 ADR 0015 裁定四）；**通过 ＝ 单边 95% 下界 > 0**（按月分块 block bootstrap；事件数 ≥ 30 且月块 ≥ 12，不足则「结构性稀疏，判不出」）。中位数/分位数只作报告不作门。窗口纪律＝下界不用点估计／≥3 个互不重叠窗／每窗各自过线／合计覆盖 ≥50% 全史。**频率不合成**——两道独立门：频率管开重（ADR 0016 裁定四）、速率管验收。闸门后判据（净头寸价值）参数暂缺，待生产首次触达闸门后再定（触达后、启用前先定参数）。
+「成本下降速率」门的参数以 #1677/evidence-gate/vN 记录为准（ADR 0022 修订节）。
 _Avoid_: 拿中位数/点估计当验收门（N-6 判例：擦线处失效）；把频率乘进速率合成验收标量（抹平两个正交失败模式）；参数落盘前重算任何旧实验（ADR 0015 裁定六）；在零样本下硬编闸门后判据的数字。
 
 **工作线（Workline）**（2026-08-14 编排者裁定，[ADR 0022](docs/adr/0022-acceptance-criterion-parameters.md) 之后的统一架构正本 §十四）：执行组织单位——一条带目的地与票链的开发线（map/SPEC/实施票）。与「接缝」不混用。
@@ -361,7 +362,7 @@ _Avoid_: 把本点自身 source_index 塞进锚（伪阳性唯一性）；三类
 ### 运行边界
 
 **「生产」拆三义（three meanings of production）**:
-**π 引擎**指 canonical `run_theta_v0_pi`/π fill 的策略与执行家族本体；**最小生产路径 CLI** 指 `theta_backtest` 用仓内数据加载、π 引擎与内部 fill 串成的可运行闭环，它证明 CLI 可驱动引擎，但不等于交易场所集成；**NT 真生产**指 NautilusTrader 的 Backtest/Live runtime、真实 portfolio/order 生命周期与 broker adapter 驱动同一策略。三者须按全名使用，不以裸称“生产”互相替代。
+**π 引擎**指 canonical `run_theta_v0_pi`/π fill 的策略与执行家族本体；**π 组件证据 CLI**（历史名「最小生产路径 CLI」）指 `theta_backtest` 用仓内数据加载、π 引擎与内部 fill 串成的可运行闭环，只产组件证据，不是生产入口，也不等于交易场所集成；**NT 真生产**指 NautilusTrader 的 Backtest/Live runtime、真实 portfolio/order 生命周期与 broker adapter 驱动同一策略。三者须按全名使用，不以裸称“生产”互相替代。
 
 **场所 profile（Venue Profile）**（2026-10-13 [#1351](https://github.com/xy7365527-lang/NewChanlun/issues/1351) 裁定，[ADR 0028](docs/adr/0028-first-capability-verification-profile.md)）:
 一次能力验证或目标生产部署所绑定的具名范围 = ⟨environment, venue, dex, account, endpoint, credential_scope, execution_form, allowed_actions, evidence_class, authorization⟩ 及版本。任一字段变更即新版本；environment 与 execution_form 不得在版本内切换。凭据只记作用域与来源，不记值。首个能力验证 profile 为 `P1-hl-testnet` v1（Hyperliquid testnet 主 DEX）。`P2` 本图不启用、TB-09/TB-10 以 P1 验收，首发授权记录格式见 ADR 0028「P2 处置」节（[#1561](https://github.com/xy7365527-lang/NewChanlun/issues/1561)）。

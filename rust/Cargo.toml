@@ -65,7 +65,7 @@ default = []
 extension-module = ["pyo3/extension-module"]
 # Nautilus 集成 feature：激活 theta_v0::nautilus 真实类型适配（②③）+ CLI BacktestEngine（⑥）。
 nautilus = ["dep:nautilus-model", "dep:nautilus-common", "dep:nautilus-trading", "dep:nautilus-backtest", "dep:nautilus-core", "dep:anyhow", "dep:rust_decimal", "dep:rust_decimal_macros"]
-# CLI 生产入口：解 theta_v0::backtest 的 #[cfg(test)] 门控为公开 API，链接 run_theta_v0_pi/load_by_symbol。
+# 历史名「CLI 生产入口」（theta_backtest 为 π 组件证据 CLI、冻结影子，非生产 launcher；ADR 0039 裁定二、ADR 0048，#1532）：解 theta_v0::backtest 的 #[cfg(test)] 门控为公开 API，链接 run_theta_v0_pi/load_by_symbol。
 #   含 nautilus：CLI ⑥ 用真实 BacktestEngine（task#8 acceptance[5]）。
 backtest_bin = ["nautilus", "dep:sha2"]
 # #1087 Rust 生产输出 + 逐段 sink → Lean 独立重算逐字段对拍。只打开只读诊断面；普通构建不编译。
@@ -82,7 +82,7 @@ s_allocation_json_testonly = ["s_session"]
 s_capture_native_testonly = ["s_session"]
 s_session = ["dep:sha2", "dep:rusqlite", "dep:libc", "dep:allocator-api2", "dep:hashbrown"]
 
-# ── CLI 生产入口（goal acceptance[5]：CLI 能驱动 S_Θ 产回测结果）。 ──
+# ── theta_backtest：π 组件证据 CLI（历史名「CLI 生产入口」；冻结影子，非生产 launcher；ADR 0048，#1532） ──
 # required-features：默认 cargo build 不编译它（cdylib 构建不受影响）。
 #   构建/运行：cargo run --features backtest_bin --bin theta_backtest -- <symbol>
 [[bin]]

@@ -93,6 +93,47 @@ fn date<'a>(v: &'a Value, k: &str) -> Result<&'a str, String> {
     }
     Ok(s)
 }
+
+/// #1621：将 Unix epoch 纳秒时间戳（整数字符串）转换为 YYYY-MM-DD 格式。
+/// 用于与签署记录的 authorized_at/valid_through（YYYY-MM-DD）比较。
+///
+/// 时间来源：Config::clock() System 模式返回 Unix epoch 纳秒
+/// (SystemTime::now().duration_since(std::time::UNIX_EPOCH).as_nanos())，
+/// 参见 store.rs:314-317。
+///
+/// 实现：精确 Proleptic Gregorian 历法（基于 Howard Hinnant 的 civil_from_days 算法）。
+/// 支持负数（1970-01-01 之前）、闰年、月底边界。
+fn ns_to_date(ns_str: &str) -> Result<String, String> {
+    const NS_PER_DAY: i64 = 86_400_000_000_000;
+
+    let ns: i64 = ns_str
+        .parse()
+        .map_err(|_| format!("InvalidDomain：first_known_ns 须为整数，得 {ns_str}"))?;
+
+    // 转换为天数（向下取整，负数正确处理）
+    let days_since_epoch = if ns >= 0 {
+        ns / NS_PER_DAY
+    } else {
+        (ns - NS_PER_DAY + 1) / NS_PER_DAY
+    };
+
+    // civil_from_days 算法（Howard Hinnant，Proleptic Gregorian）
+    // 输入：Unix epoch (1970-01-01) 后的天数
+    // 输出：(year, month, day)
+    let z = days_since_epoch + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = mp + if mp < 10 { 3 } else { -9 };
+    let y = y + if m <= 2 { 1 } else { 0 };
+
+    Ok(format!("{:04}-{:02}-{:02}", y, m, d))
+}
+
 fn text<'a>(v: &'a Value, k: &str) -> Result<&'a str, String> {
     let s = required(v, k)?;
     if s.is_empty() {
@@ -283,7 +324,8 @@ impl Contract {
     }
 
     /// 开局批核验（ADR 0040 裁定四第 4/5 步）。通过即返回写入书账的资金出处；失败不改任何状态。
-    pub(crate) fn check_opening(&self, event: &Value) -> Result<Value, String> {
+    /// `record["b_observation"]["first_known_ns"]` 为可审计观察时间（#1621），原件 `known_at` 不再用于时效判断。
+    pub(crate) fn check_opening(&self, event: &Value, record: &Value) -> Result<Value, String> {
         let c = self.chong(target(event)?)?;
         let id = &event["book_identity"];
         if id["symbol"] != c.symbol.as_str() || id["op_level"] != c.op_level.as_str() {
@@ -318,8 +360,14 @@ impl Contract {
         if batch["currency"] != self.record["currency"] {
             return Err("InvalidDomain：开局批币种与 funding-record 不符".into());
         }
-        // TestOnly：known_at 为原件自报日期；真实来源接入时须改绑可审计的观察时间（#1406 C8 评审 L7）。
-        let known_at = date(batch, "known_at")?;
+        // #1621：known_at 绑定可审计观察时间（record["b_observation"]["first_known_ns"]），不再使用原件自报日期。
+        // 跨域不变式：S/E/B/X 时刻先后由同一观察时间源锁定（与 tb03c_transfer.rs:367 转移目标口径一致）。
+        let obs = &record["b_observation"];
+        let first_known_ns_str = obs
+            .get("first_known_ns")
+            .and_then(|v| v.as_str())
+            .ok_or("MissingDependency：b_observation 缺 first_known_ns")?;
+        let known_at = ns_to_date(first_known_ns_str)?;
         let level = &c.level;
         let capacity = c.capacity();
         // ADR 0040:56/:59：批次只能引用已生效的签署（「只作用于生效后」）——下界。
@@ -327,7 +375,7 @@ impl Contract {
             ("funding-record", self.record["authorized_at"].as_str()),
             ("policy-record", c.policy["authorized_at"].as_str()),
         ] {
-            if from.is_some_and(|f| known_at < f) {
+            if from.is_some_and(|f| known_at.as_str() < f) {
                 return Err(format!(
                     "PolicyNotYetEffective：原件 known_at {known_at} 早于 {what} 签署生效日"
                 ));
@@ -341,7 +389,7 @@ impl Contract {
                 capacity.and_then(|x| x["valid_through"].as_str()),
             ),
         ] {
-            if through.is_some_and(|t| known_at > t) {
+            if through.is_some_and(|t| known_at.as_str() > t) {
                 return Err(format!(
                     "PolicyExpired：原件 known_at {known_at} 超过 {what} 有效期"
                 ));
@@ -434,4 +482,42 @@ pub(super) fn is_appended_contribution(event: &Value) -> bool {
         && event["known_cost_components"]
             .as_array()
             .is_some_and(|a| a.iter().any(|c| c["kind"] == "principal_contribution"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// #1621：ns_to_date() 精确对拍——与 Python 标准库生成的 golden 值逐项校验。
+    /// 覆盖：Unix epoch、负数、月底、闰年、政策边界。
+    #[test]
+    fn ns_to_date_parity_with_python_stdlib() {
+        // Golden 值由 tb03c_funding_oracle_date.py 生成（Python datetime 标准库）
+        const ORACLE: &str = include_str!("tb03c_funding_oracle_date.json");
+        let oracle: Value = serde_json::from_str(ORACLE).unwrap();
+        let cases = oracle["test_cases"].as_array().unwrap();
+
+        for case in cases {
+            let desc = case["description"].as_str().unwrap();
+            let ns_str = case["ns"].as_str().unwrap();
+            let expected = case["expected_date"].as_str().unwrap();
+
+            // 调用 Rust 实现
+            let result = ns_to_date(ns_str);
+            assert!(
+                result.is_ok(),
+                "{desc}: ns={ns_str} 应转换成功，实际错误 {:?}",
+                result.unwrap_err()
+            );
+            let actual = result.unwrap();
+            assert_eq!(
+                actual, expected,
+                "{desc}: ns={ns_str} 应得 {expected}，实际得 {actual}"
+            );
+        }
+
+        // 额外负控：无效输入
+        assert!(ns_to_date("not_a_number").is_err());
+        assert!(ns_to_date("").is_err());
+    }
 }

@@ -34,6 +34,8 @@ pub(super) fn contract_for_rule(rule: &str) -> Option<BiContract> {
         // #1394 合入 #1420：上一代 v2 规则 `+new-bi/2+segment-second/1` 仍是新笔 /2 合同（只读）。
         crate::V3_RULE_REVISION
         | "s2-axis-quantifiers+new-bi/2+segment-second/1"
+        // #1604：#1493 的段规则只读后仍是新笔 /2 合同。
+        | "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1"
         | crate::RULE_REVISION => Some(CURRENT_CONTRACT),
         _ => None,
     }

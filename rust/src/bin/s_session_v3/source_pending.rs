@@ -570,6 +570,10 @@ mod tests {
             ("s2-axis-quantifiers+new-bi/1+segment-second/1", false),
             ("s2-axis-quantifiers+new-bi/2+segment-second/1", true),
             (crate::V3_RULE_REVISION, true),
+            (
+                "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1",
+                true,
+            ),
             (crate::RULE_REVISION, true),
         ] {
             let policy = equal_is_evidence(rule).unwrap();

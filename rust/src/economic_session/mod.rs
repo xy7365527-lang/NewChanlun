@@ -43,3 +43,5 @@ mod tb03c_c5_tests;
 mod tb03c_chain_tests;
 #[cfg(test)]
 mod tb03c_kill_tests;
+#[cfg(test)]
+mod tb03c_rf01_tests;

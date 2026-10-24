@@ -743,7 +743,9 @@ fn apply_with(
                 c.level()
             ));
         }
-        Some(f) if event.get("observed_existing_book").is_some() => Some(f.check_opening(&event)?),
+        Some(f) if event.get("observed_existing_book").is_some() => {
+            Some(f.check_opening(&event, record)?)
+        }
         _ => None,
     };
     // 根裁定 OQ-3：Unmatched 原因闭集 = {family 不符, per_leg 缺归属, 未声明依赖的缺开局}。

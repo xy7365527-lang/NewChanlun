@@ -1,0 +1,119 @@
+{
+  "test_cases": [
+    {
+      "description": "Unix epoch",
+      "ns": "0",
+      "expected_date": "1970-01-01"
+    },
+    {
+      "description": "Unix epoch +1ns",
+      "ns": "1",
+      "expected_date": "1970-01-01"
+    },
+    {
+      "description": "Unix epoch -1ns",
+      "ns": "-1",
+      "expected_date": "1969-12-31"
+    },
+    {
+      "description": "Unix epoch +1天",
+      "ns": "86400000000000",
+      "expected_date": "1970-01-02"
+    },
+    {
+      "description": "Unix epoch -1天",
+      "ns": "-86400000000000",
+      "expected_date": "1969-12-31"
+    },
+    {
+      "description": "政策生效日 2026-10-20",
+      "ns": "1792454400000000000",
+      "expected_date": "2026-10-20"
+    },
+    {
+      "description": "政策生效日前1天",
+      "ns": "1792368000000000000",
+      "expected_date": "2026-10-19"
+    },
+    {
+      "description": "政策生效日后1天",
+      "ns": "1792540800000000000",
+      "expected_date": "2026-10-21"
+    },
+    {
+      "description": "有效期截止 2027-10-20",
+      "ns": "1823990400000000000",
+      "expected_date": "2027-10-20"
+    },
+    {
+      "description": "有效期后1天",
+      "ns": "1824076800000000000",
+      "expected_date": "2027-10-21"
+    },
+    {
+      "description": "2024-02-29 闰年2月末",
+      "ns": "1709164800000000000",
+      "expected_date": "2024-02-29"
+    },
+    {
+      "description": "2024-02-28",
+      "ns": "1709078400000000000",
+      "expected_date": "2024-02-28"
+    },
+    {
+      "description": "2023-02-28 平年2月末",
+      "ns": "1677542400000000000",
+      "expected_date": "2023-02-28"
+    },
+    {
+      "description": "2023-03-01",
+      "ns": "1677628800000000000",
+      "expected_date": "2023-03-01"
+    },
+    {
+      "description": "2026-01-31",
+      "ns": "1769817600000000000",
+      "expected_date": "2026-01-31"
+    },
+    {
+      "description": "2026-04-30",
+      "ns": "1777507200000000000",
+      "expected_date": "2026-04-30"
+    },
+    {
+      "description": "2026-12-31",
+      "ns": "1798675200000000000",
+      "expected_date": "2026-12-31"
+    },
+    {
+      "description": "2000-01-01 闰年",
+      "ns": "946684800000000000",
+      "expected_date": "2000-01-01"
+    },
+    {
+      "description": "2100-01-01 非闰世纪年",
+      "ns": "4102444800000000000",
+      "expected_date": "2100-01-01"
+    },
+    {
+      "description": "2000-02-29",
+      "ns": "951782400000000000",
+      "expected_date": "2000-02-29"
+    },
+    {
+      "description": "1969-12-31",
+      "ns": "-86400000000000",
+      "expected_date": "1969-12-31"
+    },
+    {
+      "description": "1969-01-01",
+      "ns": "-31536000000000000",
+      "expected_date": "1969-01-01"
+    },
+    {
+      "description": "1968-02-29 闰年",
+      "ns": "-58060800000000000",
+      "expected_date": "1968-02-29"
+    }
+  ]
+}

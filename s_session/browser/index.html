@@ -1369,7 +1369,7 @@
             const logicalSlot =
               k === "slot" &&
               (["s-new-bi/1", "s-new-bi/2"].includes(v.schema_revision) ||
-                ["s-segment/1", "s-segment/2", "s-segment/3", "s-segment/4"].includes(v.schema_revision));
+                ["s-segment/1", "s-segment/2", "s-segment/3", "s-segment/4", "s-segment/5"].includes(v.schema_revision));
             if (integerKeys.has(k) && x !== null && !logicalSlot) decimal(x);
             walk(x);
           }

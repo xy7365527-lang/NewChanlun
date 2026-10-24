@@ -1,4 +1,5 @@
 //! #1404：期望来自执行前冻结的 raw 账簿，不从段输出生成。
+use super::super::config::Tangency;
 use super::super::types::Direction;
 use super::*;
 
@@ -179,7 +180,7 @@ fn tb02c_length_axes_do_not_fill_inapplicable_conditions() {
         (3, "odd_ge3"),
         (4, "even_ge3"),
     ] {
-        let c = segment::construction(&ss, 0, n);
+        let c = segment::construction(&ss, 0, n, ThetaConfig::default().parse.tangency);
         assert_eq!(c.length, name);
         assert_eq!(c.vector.is_some(), n == 3);
     }
@@ -187,12 +188,17 @@ fn tb02c_length_axes_do_not_fill_inapplicable_conditions() {
 
 #[test]
 fn tb02c_closed_seed_touch_and_gap_remain_distinct() {
-    let touch = segment::construction(&chain(&[5, 10, 0, 5]), 0, 3);
+    let closed = Tangency::Closed;
+    let touch = segment::construction(&chain(&[5, 10, 0, 5]), 0, 3, closed);
     assert_eq!(touch.overlap, Some([5, 5]));
     assert_eq!(touch.overlap_relation, Some("TOUCH"));
     // 三笔相切成立，但段首末同价使顶>底失败；不把闭重叠偷换成全部条件。
     assert_eq!(touch.vector.unwrap()[1], true);
-    let separated = segment::construction(&chain(&[0, 10, 20, 30]), 0, 3);
+    // #1604 A-12：同一相切形态在 open 下判三笔无重合（关系描述仍是 TOUCH）。
+    let open = segment::construction(&chain(&[5, 10, 0, 5]), 0, 3, Tangency::Open);
+    assert_eq!(open.overlap_relation, Some("TOUCH"));
+    assert_eq!(open.vector.unwrap()[1], false);
+    let separated = segment::construction(&chain(&[0, 10, 20, 30]), 0, 3, closed);
     assert_eq!(separated.overlap_relation, Some("DISJOINT"));
     assert_eq!(separated.vector.unwrap()[1], false);
     for prices in [[0, 10, 5, 20, 12, 18, 11], [0, 10, 5, 20, 12, 18, 8]] {
