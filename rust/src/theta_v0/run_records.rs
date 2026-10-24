@@ -346,7 +346,7 @@ fn production_venue_where(
 
 /// 从具名生产记录表选择场所。匹配表的记录头损坏是 `InvalidPolicy`，不得吞成“没有记录”。
 fn production_venue_from_records(
-    records: &[(&str, &str)],
+    records: &[(&'static str, &str)],
     matches: impl Fn(&str, Option<&str>) -> bool,
 ) -> Result<VenueProfile, RunPolicyError> {
     for &(id, text) in records {
