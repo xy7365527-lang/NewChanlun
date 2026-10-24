@@ -502,15 +502,25 @@ mod tests {
     }
     impl Fixture {
         fn new() -> Self {
-            Self::with_clock(
+            Self::with_profile("ohlc_integer_tb02a_v1.json")
+        }
+        fn tick() -> Self {
+            Self::with_profile("testonly_tick_1_1_ohlc.json")
+        }
+        fn with_profile(profile_file: &str) -> Self {
+            Self::with_clock_profile(
                 json!({"schema_revision":"s-clock-plan/1","clock_plan_id":"s3-driver","origin_utc":"2026-09-18T00:00:00Z","unit":"ns","events":{
                 "input-1":{"accept_ns":"10","attempts":[{"begin_ns":"11","commit_ns":"12"},{"begin_ns":"14","commit_ns":"15"}]},
                 "input-2":{"accept_ns":"20","attempts":[{"begin_ns":"21","commit_ns":"22"},{"begin_ns":"24","commit_ns":"25"}]},
                 "input-3":{"accept_ns":"30","attempts":[{"begin_ns":"31","commit_ns":"32"},{"begin_ns":"34","commit_ns":"35"}]},
                 "recover-1":{"recover_ns":"13"},"recover-2":{"recover_ns":"23"}}}),
+                profile_file,
             )
         }
         fn with_clock(clock_value: Value) -> Self {
+            Self::with_clock_profile(clock_value, "ohlc_integer_tb02a_v1.json")
+        }
+        fn with_clock_profile(clock_value: Value, profile_file: &str) -> Self {
             let path = std::env::temp_dir().join(format!(
                 "s1394-driver-{}-{}-{}",
                 std::process::id(),
@@ -524,7 +534,7 @@ mod tests {
                 .parent()
                 .unwrap()
                 .join("s_session");
-            let profile = base.join("profiles/ohlc_integer_tb02a_v1.json");
+            let profile = base.join("profiles").join(profile_file);
             let db = path.join("s.sqlite");
             init_v3(
                 &db,
@@ -555,6 +565,26 @@ mod tests {
                 _ => panic!("driver Fixture only defines three inputs"),
             };
             let raw = located_ohlc_input(&[row]);
+            envelope(
+                &format!("message-{n}"),
+                json!({"op":"ingest","target_session_id":"s-session-testonly-001","target_session_generation":"1","writer_epoch":"1","clock_event_id":format!("input-{n}"),"raw_input":raw}),
+            )
+        }
+        fn tick_ingest(n: i64) -> Value {
+            let (event_id, coord, price) = match n {
+                1 => ("a", 0, 7),
+                2 => ("b", 10, 12),
+                3 => ("c", 20, 8),
+                _ => panic!("driver tick Fixture only defines three inputs"),
+            };
+            let raw = json!({
+                "schema_revision":"1", "session_id":"s-session-testonly-001",
+                "source_namespace":"testonly.ohlc", "source_epoch":"1",
+                "instrument":"TEST.TICK", "profile":"testonly_tick_1_1_ohlc",
+                "events":[{"event_id":event_id,"revision":"1","seq":coord.to_string(),
+                    "received_at":"2026-09-13T00:00:00Z","raw_text":price.to_string(),
+                    "price":price.to_string(),"timestamp":coord.to_string(),"volume":"1"}]
+            });
             envelope(
                 &format!("message-{n}"),
                 json!({"op":"ingest","target_session_id":"s-session-testonly-001","target_session_generation":"1","writer_epoch":"1","clock_event_id":format!("input-{n}"),"raw_input":raw}),
@@ -3036,6 +3066,51 @@ mod tests {
         let conn = open_db(&f.db).unwrap();
         assert_eq!(meta_i64(&conn, "generation").unwrap(), 2);
         assert_eq!(count(&conn, "raw_events"), 2);
+    }
+
+    #[test]
+    fn tick_profile_commits_recovers_and_audits_without_ohlc_side_tables() {
+        let fixture = Fixture::tick();
+        let mut writer = fixture.open("1").unwrap();
+        assert_eq!(
+            writer.handle(Fixture::tick_ingest(1)).unwrap()["kind"],
+            "Committed"
+        );
+        assert_eq!(count(&writer.conn, "raw_events"), 1);
+        assert_eq!(count(&writer.conn, "raw_ohlc"), 0);
+        drop(writer);
+
+        recover(&fixture.db, "2", &fixture.clock, "recover-1").unwrap();
+        let mut writer = fixture.open("2").unwrap();
+        for n in 2..=3 {
+            let mut input = Fixture::tick_ingest(n);
+            input["payload"]["writer_epoch"] = json!("2");
+            input["payload_hash"] = json!(sha256_hex(canonical_json(&input["payload"]).as_bytes()));
+            assert_eq!(writer.handle(input).unwrap()["kind"], "Committed");
+        }
+        assert_eq!(count(&writer.conn, "raw_events"), 3);
+        assert_eq!(count(&writer.conn, "raw_ohlc"), 0);
+        assert_eq!(count(&writer.conn, "s_content_publications"), 3);
+        let identity = writer.identity().unwrap();
+        let summary = writer.state_summary("tick-before-reopen").unwrap();
+        drop(writer);
+
+        let reopened = fixture.open("2").unwrap();
+        assert_eq!(reopened.identity().unwrap(), identity);
+        assert_eq!(
+            reopened.state_summary("tick-after-reopen").unwrap(),
+            summary
+        );
+        let tx = reopened.conn.unchecked_transaction().unwrap();
+        state::audit(&tx).unwrap();
+        let tick_evidence: String = tx
+            .query_row(
+                "SELECT evidence_json FROM catalog WHERE catalog_id='CC-001'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(tick_evidence, "{}", "tick 不得伪造 OHLC 13 轴当前行");
     }
 
     #[test]

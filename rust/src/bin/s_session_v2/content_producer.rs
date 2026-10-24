@@ -4124,6 +4124,96 @@ mod tests {
         );
     }
 
+    /// tick 档案沿用旧生产的三锚来源配方；不得混入 OHLC 的 dependency_refs。
+    #[test]
+    fn cc006_tick_shape_matches_generation_path_bytes() {
+        const PROFILE: &str = "testonly_tick_1_1_ohlc";
+        let mut fixture = fixture_with_profile(CASE_SHAPE, PROFILE);
+        let facts = fixture.state.materialize_facts();
+        let merged_raws: Vec<Vec<i64>> = facts
+            .groups
+            .iter()
+            .map(|group| group.members.iter().map(|coord| *coord as i64).collect())
+            .collect();
+        let mut classified = 0;
+        for start in 0..facts.groups.len().saturating_sub(2) {
+            if !matches!(
+                classify_local_shape(
+                    &facts.merged[start],
+                    &facts.merged[start + 1],
+                    &facts.merged[start + 2],
+                ),
+                Cc006LocalShape::Classified { .. }
+            ) {
+                continue;
+            }
+            let mut input_refs = oracle_shape_input_refs(&facts, &fixture.raw, start);
+            for group in &mut input_refs {
+                group.as_object_mut().unwrap().remove("dependency_refs");
+            }
+            let (branch, dir_ab, dir_bc, comparisons_json) = oracle_shape_parts(
+                &facts.merged[start],
+                &facts.merged[start + 1],
+                &facts.merged[start + 2],
+            );
+            let (want, _, _) = crate::build_object_and_witnesses(
+                &facts.merged,
+                &fixture.raw,
+                &merged_raws,
+                start,
+                &branch,
+                &dir_ab,
+                &dir_bc,
+                &comparisons_json,
+                &input_refs,
+                PROFILE,
+                GENERATION,
+                CUT,
+            );
+            let object = fixture
+                .producer
+                .build_shape(&mut fixture.store, &fixture.state, start, GENERATION, CUT)
+                .unwrap()
+                .unwrap();
+            classified += 1;
+            for (built, field) in [
+                (&object.comparisons, "comparisons_json"),
+                (&object.input_refs, "input_refs_json"),
+                (&object.source_coords, "source_coords_json"),
+            ] {
+                assert_eq!(
+                    render(&mut fixture.store, built),
+                    want[field].as_str().unwrap(),
+                    "tick 窗口{start} {field}"
+                );
+            }
+            let refs: Value = serde_json::from_str(want["input_refs_json"].as_str().unwrap()).unwrap();
+            assert!(refs.as_array().unwrap().iter().all(|group| {
+                group.as_object().unwrap().len() == 2 && group.get("dependency_refs").is_none()
+            }));
+            let old_row_refs: Value = serde_json::from_str(want["input_refs_json"].as_str().unwrap()).unwrap();
+            assert_eq!(
+                render(&mut fixture.store, &object.wire_input_refs),
+                canonical_json(&crate::project_input_refs(&old_row_refs).unwrap())
+            );
+            let mut expected = want.clone();
+            expected["object_id"] = Value::String(object.object_id.clone());
+            for (target, source) in [
+                ("comparisons", "comparisons_json"),
+                ("input_refs", "input_refs_json"),
+                ("source_coords", "source_coords_json"),
+            ] {
+                expected[target] = serde_json::from_str(want[source].as_str().unwrap()).unwrap();
+            }
+            expected.as_object_mut().unwrap().remove("comparisons_json");
+            assert_eq!(
+                serde_json::from_str::<Value>(&render(&mut fixture.store, &object.record)).unwrap(),
+                expected
+            );
+        }
+        assert!(classified > 0, "tick 对拍必须有可判窗口");
+    }
+
     /// 源修订与 rollback：CC-006 两种 `input_refs` 编码（旧生成态数值叶 / 公开 wire 文本叶）
     /// 都必须随真实源版本改根；旧根在旧叶仍在同一 store 时仍完整可核；`discard_runtime_state`
     /// 后按真实当前源在**新 store** 重建，两种闭包与记录逐字节相同。

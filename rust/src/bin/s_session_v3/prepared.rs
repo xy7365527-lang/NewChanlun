@@ -616,7 +616,9 @@ impl Runtime {
         )?;
         object_index::stage(tx, &mut store, &objects, &manifest.batch_id)?;
         aux_index::stage(tx, &mut store, &auxiliary, &manifest.batch_id)?;
-        catalog_evidence::stage_current(tx, &mut store, &axes)?;
+        if let Some(axes) = &axes {
+            catalog_evidence::stage_current(tx, &mut store, axes)?;
+        }
         Ok(Prepared {
             metadata,
             roots,

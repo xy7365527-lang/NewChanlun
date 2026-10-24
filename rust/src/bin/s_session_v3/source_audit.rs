@@ -818,8 +818,12 @@ pub(super) struct Counts {
     pub outside_domain: usize,
 }
 
-fn tick_observation_oracle(bars: &BusinessMap<i64, TickBar>) -> Result<Vec<Value>, String> {
-    let raw = bars
+fn tick_observation_oracle(
+    s: &(impl CodecRead + ?Sized),
+    bars: &BusinessMap<i64, TickBar>,
+) -> Result<Vec<Value>, String> {
+    let ordered = sorted_numeric_entries(s, bars)?;
+    let raw = ordered
         .iter()
         .map(|(coord, bar)| {
             let price = decimal(bar.price.as_str())?;
@@ -848,7 +852,7 @@ fn tick_observation_oracle(bars: &BusinessMap<i64, TickBar>) -> Result<Vec<Value
             Cc006LocalShape::Classified { .. } => continue,
             Cc006LocalShape::InsufficientKnowledge => json!({
                 "kind":"insufficient_knowledge", "reason":"fewer_than_three_bars",
-                "window_start":start, "window_mid":Value::Null, "window_end":Value::Null,
+                "window_start":Value::Null, "window_mid":Value::Null, "window_end":Value::Null,
                 "detail":{"raw_events":raw.len()},
             }),
             Cc006LocalShape::DomainNotSatisfied { reason } => json!({
@@ -1884,15 +1888,21 @@ fn audit_generated_in_store(
         // 旧 tick 没有 CC-005 组对象：每个生效原始事件自身就是一个 merged 组。
         // 组账独立于 CC-006 对象重建，domain_not_satisfied 窗口也不会造成覆盖缺口。
         let tick_payload = field_ref(s, state, "objects")?;
-        for (index, coord) in tick_bars.keys().copied().enumerate() {
+        let ordered_tick_bars = sorted_numeric_entries(s, &tick_bars)?;
+        for (index, (coord, _)) in ordered_tick_bars.iter().enumerate() {
             let index = i64::try_from(index).map_err(err)?;
             let mut members = bj::new_work(allocation.as_ref());
             s.native_codec_room(&mut members, 1).map_err(err)?;
-            members.try_push(coord).map_err(err)?;
-            let sources = copy_source_coords(s, &members)?;
+            members.try_push(*coord).map_err(err)?;
+            let sources = SourceCoords::Original(copy_coords(s, &members)?);
             let payload = s.native_ref_clone(&tick_payload).map_err(err)?;
             s.native_map_room(&mut groups).map_err(err)?;
-            groups.insert(index, Group { payload, members, sources, anchor: coord })
+            groups.insert(index, Group {
+                payload,
+                members: SourceCoords::Original(members),
+                sources,
+                anchor: *coord,
+            })
                 .map_err(err)?;
         }
     }
@@ -2200,7 +2210,7 @@ fn audit_generated_in_store(
     let tick_observations = if is_ohlc {
         None
     } else {
-        Some(tick_observation_oracle(&tick_bars)?)
+        Some(tick_observation_oracle(s, &tick_bars)?)
     };
     let observation_items = elements(s, &observations)?;
     if let Some(expected) = &tick_observations {
@@ -2215,7 +2225,7 @@ fn audit_generated_in_store(
                 return Err(err(format!("旧tick原始窗口观察[{ordinal}]与原始账判据不同")));
             }
         }
-        match text(s, &item, "kind")?.as_str() {
+        match text(s, item, "kind")?.as_str() {
             "insufficient_knowledge" => insufficient += 1,
             "domain_not_satisfied" => outside_domain += 1,
             _ => {}

@@ -24,8 +24,7 @@
 //! - **控制层冻结静态列/hash/版本**已由共享控制审计核过，本模块不复制第二套，只补核「从未运行」
 //!   的动态列；「索引自洽」「历史闭包」「来源对拍」「目录证据」各自只声明自己核过的那一段，
 //!   互不冒充。
-//! - **非 OHLC 档**：来源审计与目录证据只接线 OHLC 档；非 OHLC 在此显式拒绝（其他档仍待接线，
-//!   不宣布永久缩小范围），绝不因「没有 13 轴」而跳过。
+//! - **profile 边界**：来源审计与目录证据接线 OHLC 和 TestOnly tick 1:1；其它 profile 显式拒绝。
 //! - **原件归属**：节点读取层是 SQLite 只读源 + [`history::HashReader`] 内存派生层；派生节点只
 //!   服务本次核验并随本函数内的 store 一起销毁，返回值只承载从 SQLite 行/列读出的结构与根，
 //!   不把内存派生根当已持久原件带走。
@@ -818,7 +817,7 @@ fn audit_core_fresh_inner(
     trace_event("catalog_metadata", None);
     // 4. 从未运行的目录行：空初态（generation=0）要求全部行都仍是未运行。
     verify_unrun_catalog_admitted(tx, cuts.is_empty(), control_owner, work)?;
-    // 5. 来源审计与目录证据只接线 OHLC 档；非 OHLC 明确拒绝，不跳过也不宣布永久缩小范围。
+    // 5. 来源审计与目录证据接线 OHLC 和 TestOnly tick 1:1；其它 profile 明确拒绝。
     let _profile_id = audit_profile_id_admitted(tx, control_owner, work)?;
     // 只读源 + 内存派生层：overlay 随本函数内的 store 一起销毁，不是 SQLite 写入通道。
     let mut reader = content_store::ReadStore::new(tx).map_err(err)?;

@@ -1,6 +1,6 @@
 //! #1394 C §5.4/§5.7：S3 私有目录运行状态与逐轴证据的构造、核验与当前行投影。
 //!
-//! 三个接口（全部只处理声明的 OHLC 档）：
+//! 三个接口（处理声明的 OHLC 与 TestOnly tick 1:1 档）：
 //! - [`build_template`]：把同次最终生成态的 `catalog_axes`、真实来源审计计数与真实
 //!   withdrawals/replaces 绑成 Delta 的 `catalog_evidence` 模板（`batch_id` 用本批占位），
 //!   并给出真实 `catalog_run_status`；
@@ -13,7 +13,7 @@
 //! 边界如实：
 //! - 轴内容由 `tb02a_facts::catalog_axes` **唯一**产出；本模块不重跑包含、分型、新笔或
 //!   任何其它业务判定，不写第二套轴规则；
-//! - 非 OHLC 档没有 13 轴：一律拒绝，不得以「跳过审计」放行；
+//! - tick 档没有 13 轴：目录证据使用真实的 15 字段形状，不伪造空 `axes`；其它 profile 拒绝；
 //! - 本模块不核完整旧历史、不写独立出生/撤回索引、不代 Commit；三个接口都不等于完整
 //!   S3 审计，也不提供 CLI；
 //! - `stage_current` 只暂写调用方的事务、不 commit；`verify_current` 只读。
@@ -52,7 +52,7 @@ pub(super) const AXIS_IDS: [&str; 13] = [
 const AXIS_FIELDS: [&str; 4] = ["impl_status", "proof_status", "run_status", "evidence"];
 const EVIDENCE_CORE_FIELDS: [&str; 3] = ["scope", "object_ids", "waiting_reasons"];
 const CC056_CHANGE_FIELDS: [&str; 3] = ["raw_revisions", "withdrawals", "replaces"];
-/// 一条完整目录证据的 exact 字段集合（OHLC；非 OHLC 无 `axes`，本模块不受理）。
+/// 一条完整目录证据的 exact 字段集合（OHLC 16 字段；tick 去掉末尾 `axes`）。
 const OHLC_EVIDENCE_FIELDS: [&str; 16] = [
     "tested_domain",
     "profile_id",
@@ -1741,9 +1741,9 @@ mod tests {
         .unwrap_err();
         assert!(error.contains("batch_id"), "{error}");
 
-        // 5) 非 OHLC 档不得以「跳过审计」放行。
+        // 5) 未声明 profile 不得以「跳过审计」放行。
         let mut metadata = f.metadata.clone();
-        metadata.profile_id = "testonly_tick_1_1_ohlc".to_string();
+        metadata.profile_id = "unknown_profile".to_string();
         let error = verify_cut(
             &mut f.store,
             &metadata,
@@ -1756,7 +1756,7 @@ mod tests {
             &f.replaces,
         )
         .unwrap_err();
-        assert!(error.contains("非 OHLC"), "{error}");
+        assert!(error.contains("未声明"), "{error}");
     }
 
     #[test]

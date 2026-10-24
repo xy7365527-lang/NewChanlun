@@ -29,9 +29,8 @@
 //!
 //! ## 本域边界（照实）
 //!
-//! - **只接线 OHLC 档案**（`tb02a::PROFILE`）。旧生成段对非 OHLC 档案另有一套 CC-006
-//!   `source_coords` 配方（三个锚坐标，而非三组来源链），producer 没有实现那一支；本模块
-//!   **显式拒绝**，不静默降级、不产出与旧配方不同的对象。
+//! - **接线 OHLC 与 TestOnly tick 1:1 档案**。tick 保留旧生成段的三锚 CC-006、原始三窗观察与
+//!   无 OHLC typed 对象/13 轴的边界；其它 profile 仍显式拒绝，不静默降级。
 //! - **witness 配方**：§5.3 未定义 `wit3-`，且原文写「原 witness 不重命名」⟹ 保留 `wit-` +
 //!   前 16 位十六进制，输入 = `{object_id(本域 obj3-), slot, mi, raw_bars}`；SHA256 走
 //!   **规范 JSON 流式**写入（`render_canonical` 直接写哈希器），不 materialize。
@@ -537,7 +536,7 @@ impl GenerationRuntime {
                     Cc006LocalShape::InsufficientKnowledge => serde_json::json!({
                         "kind": "insufficient_knowledge",
                         "reason": "fewer_than_three_bars",
-                        "window_start": start,
+                        "window_start": Value::Null,
                         "window_mid": Value::Null,
                         "window_end": Value::Null,
                         "detail": {"raw_events": raw_bars.len()},
