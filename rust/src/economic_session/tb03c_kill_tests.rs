@@ -1093,11 +1093,7 @@ fn resume(k: &Killed, work: &Path, steps: Vec<Value>) -> Vec<Value> {
         for owner in 1..k.configs.len() {
             let label = format!("recover-b{owner}");
             finish(
-                spawn(
-                    work,
-                    &label,
-                    json!({"action":"recover","owner":owner}),
-                ),
+                spawn(work, &label, json!({"action":"recover","owner":owner})),
                 work,
                 &label,
             );
