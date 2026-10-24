@@ -109,7 +109,10 @@ def expectTangencyReadFailure (path required marker : String) : IO Unit := do
   let path := "/tmp/tangency-open-20261025.json"
   IO.FS.writeFile path "{\"id\":\"segment-second\",\"version\":3,\"fields\":{\"tangency\":{\"value\":\"open\"}}}"
   let p ← readTangencyPolicy path
-  if p.recordId == "segment-second" && p.version == 3 && p.tangency == Tangency.open then
+  let termination := Formal.Phase2.SegmentV1.classifyTermination p.tangency
+    (ci 5 10 (by decide)) (ci 10 20 (by decide))
+  if p.recordId == "segment-second" && p.version == 3 && p.tangency == Tangency.open &&
+      termination == Formal.Phase2.SegmentV1.TerminationCase.secondKind then
     IO.println "TANGENCY_OPEN_MUTATION_OK"
   else
     IO.ofExcept (Except.error "open record did not change Claim5 tangent behavior")
