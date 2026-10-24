@@ -1452,10 +1452,7 @@ pub(crate) fn verify_b_observation_after_e_commit(record: &Value) -> Result<(), 
     let Some(observation) = record.get("b_observation") else {
         return Ok(());
     };
-    let known = nonnegative(
-        required(observation, "first_known_ns")?,
-        "B first_known_ns",
-    )?;
+    let known = nonnegative(required(observation, "first_known_ns")?, "B first_known_ns")?;
     let e_commit = nonnegative(required(record, "commit_ns")?, "E commit_ns")?;
     if known < e_commit {
         return Err("InvalidDomain：B 获知时刻早于 E 提交".into());

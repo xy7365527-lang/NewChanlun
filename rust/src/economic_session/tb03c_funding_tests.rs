@@ -901,24 +901,27 @@ fn b_application_cannot_observe_fact_before_e_commit() {
         )
     };
     let before = store::latest(&b).unwrap().3;
-    let rejected = service::handle(&mut b, &bc, 1, 1, &json!({}), &apply("app-0"))["payload"].clone();
+    let rejected =
+        service::handle(&mut b, &bc, 1, 1, &json!({}), &apply("app-0"))["payload"].clone();
     assert_eq!(
-        rejected["error"],
-        "InvalidDomain：B 获知时刻早于 E 提交",
+        rejected["error"], "InvalidDomain：B 获知时刻早于 E 提交",
         "{rejected}"
     );
     assert_eq!(store::latest(&b).unwrap().3, before);
     assert!(store::rows(&b, "receipts").unwrap().is_empty());
 
-    let applied = service::handle(&mut b, &bc, 1, 1, &json!({}), &apply("app-1"))["payload"].clone();
+    let applied =
+        service::handle(&mut b, &bc, 1, 1, &json!({}), &apply("app-1"))["payload"].clone();
     assert_eq!(applied["kind"], "Applied", "{applied}");
     assert_eq!(applied["e_first_known_ns"], captured["first_known_ns"]);
-    assert!(applied["first_known_ns"]
-        .as_str()
-        .unwrap()
-        .parse::<i64>()
-        .unwrap()
-        >= e_commit);
+    assert!(
+        applied["first_known_ns"]
+            .as_str()
+            .unwrap()
+            .parse::<i64>()
+            .unwrap()
+            >= e_commit
+    );
 }
 
 /// #1621：known_at 绑定可审计观察时间（record["b_observation"]["first_known_ns"]）；

@@ -659,8 +659,7 @@ fn finance_cannot_know_structure_before_s_commit() {
     std::fs::write(&basis_path, canonical_json(&basis)).unwrap();
     let rejected = c.send(A, c.fin("PrepareDecision", c.epochs[A]));
     assert_eq!(
-        rejected["error"],
-        "InvalidDomain：获知时刻早于实际 S 提交",
+        rejected["error"], "InvalidDomain：获知时刻早于实际 S 提交",
         "{rejected}"
     );
 
