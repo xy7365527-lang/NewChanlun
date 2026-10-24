@@ -1070,6 +1070,17 @@ pub fn run_positional(
     floor_ladder: usize,
     mode: PolarityMode,
 ) -> Result<PositionalResult, String> {
+    run_positional_with_trend_scope_record(tape, floor_ladder, mode, None)
+}
+
+/// 与 [`run_positional`] 同一生产路径；`None` 读取当前生效的趋势作用域记录。
+/// 传入记录文本时也只走同一 profile 解析与准入门，供新版本及变异验收使用。
+fn run_positional_with_trend_scope_record(
+    tape: &SignalTape,
+    floor_ladder: usize,
+    mode: PolarityMode,
+    trend_scope_record: Option<&str>,
+) -> Result<PositionalResult, String> {
     if mode == PolarityMode::AxiomVoice {
         return super::axiom_voice::run_axiom_voice(tape, floor_ladder);
     }
@@ -1139,8 +1150,13 @@ pub fn run_positional(
                 crate::theta_v0::policy_records::TrendScopeProfile::FusionTa
             }
         };
-        let policy = crate::theta_v0::policy_records::active_trend_scope_for_profile(profile)
-            .map_err(|e| e.to_string())?;
+        let policy = match trend_scope_record {
+            Some(text) => {
+                crate::theta_v0::policy_records::parse_trend_scope_for_profile(profile, Some(text))
+            }
+            None => crate::theta_v0::policy_records::active_trend_scope_for_profile(profile),
+        }
+        .map_err(|e| e.to_string())?;
         let mut result = super::positional_fusion::run_fusion(
             tape,
             floor_ladder,
@@ -1767,6 +1783,64 @@ mod tests {
         assert_eq!(r.n_deferred_by_ladder[4], 1);
         assert_eq!(r.n_pending_cancels_by_ladder[4], 1);
         assert_eq!(r.n_entries_by_ladder[4], 0);
+    }
+
+    fn run_with_trend_scope_record(
+        mode_name: &str,
+        field: &str,
+        value: &str,
+    ) -> Result<PositionalResult, String> {
+        let record = format!(
+            "{{\"id\":\"trend-scope\",\"version\":2,\"fields\":{{\"{field}\":{{\"value\":\"{value}\"}}}}}}"
+        );
+        let tape = SignalTape {
+            bars: warmup_bars(),
+            ..Default::default()
+        };
+        run_positional_with_trend_scope_record(
+            &tape,
+            2,
+            PolarityMode::parse(mode_name).unwrap(),
+            Some(&record),
+        )
+    }
+
+    #[test]
+    fn fusion_t_rejects_unregistered_ancestor_scopes_before_fusion() {
+        for value in ["Ancestor", "SelfOrAncestor"] {
+            let err = run_with_trend_scope_record("fusion_t", "default", value).unwrap_err();
+            assert!(err.contains("InvalidPolicy{trend-scope.default}"), "{err}");
+            assert!(err.contains("预注册作用域"), "{err}");
+        }
+    }
+
+    #[test]
+    fn ancestor_profiles_reject_cross_profile_values_before_fusion() {
+        for (mode, field, value) in [
+            ("hold26_anc", "hold26_anc", "SelfLayer"),
+            ("hold26_anc", "hold26_anc", "SelfOrAncestor"),
+            ("fusion_ta", "fusion_ta", "SelfLayer"),
+            ("fusion_ta", "fusion_ta", "Ancestor"),
+        ] {
+            let err = run_with_trend_scope_record(mode, field, value).unwrap_err();
+            assert!(
+                err.contains(&format!("InvalidPolicy{{trend-scope.{field}}}")),
+                "{mode}: {err}"
+            );
+            assert!(err.contains("预注册作用域"), "{mode}: {err}");
+        }
+    }
+
+    #[test]
+    fn legal_new_scope_versions_keep_their_preregistered_identities() {
+        for (mode, field, value) in [
+            ("fusion_t", "default", "SelfLayer"),
+            ("hold26_anc", "hold26_anc", "Ancestor"),
+            ("fusion_ta", "fusion_ta", "SelfOrAncestor"),
+        ] {
+            let result = run_with_trend_scope_record(mode, field, value).unwrap();
+            assert_eq!(result.trend_scope_policy.unwrap().label(), "trend-scope/2");
+        }
     }
 
     #[test]

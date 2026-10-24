@@ -366,6 +366,14 @@ impl TrendScopeProfile {
             Self::FusionTa => "fusion_ta",
         }
     }
+
+    fn expected(self) -> TrendScope {
+        match self {
+            Self::Default => TrendScope::SelfLayer,
+            Self::Hold26Anc => TrendScope::Ancestor,
+            Self::FusionTa => TrendScope::SelfOrAncestor,
+        }
+    }
 }
 
 /// 一份趋势作用域记录及其当前值。
@@ -375,7 +383,8 @@ pub struct TrendScopePolicy {
     pub value: TrendScope,
 }
 
-/// 按 profile 读取趋势作用域；缺字段/未签/非法值均停止，不回退模式串旧值。
+/// 按 profile 读取趋势作用域；值必须仍对应该预注册研究臂。
+/// 缺字段/未签/非法值或跨 profile 赋值均停止，不回退模式串旧值。
 pub fn parse_trend_scope_for_profile(
     profile: TrendScopeProfile,
     text: Option<&str>,
@@ -395,6 +404,14 @@ pub fn parse_trend_scope_for_profile(
             ))
         }
     };
+    let expected = profile.expected();
+    if value != expected {
+        return Err(invalid(
+            TREND_SCOPE_ID,
+            field,
+            format!("profile `{field}` 的预注册作用域须为 {expected:?}，得 `{raw}`"),
+        ));
+    }
     Ok(TrendScopePolicy { record, value })
 }
 
@@ -798,12 +815,20 @@ mod tests {
     }
 
     #[test]
-    fn trend_scope_mutation_and_missing_values_do_not_fallback() {
+    fn trend_scope_profile_mismatch_and_missing_values_do_not_fallback() {
         let changed =
             r#"{"id":"trend-scope","version":2,"fields":{"default":{"value":"Ancestor"}}}"#;
+        assert!(matches!(
+            parse_trend_scope_for_profile(TrendScopeProfile::Default, Some(changed)),
+            Err(PolicyError::Invalid { field, .. }) if field == "default"
+        ));
+
+        let legal_new_version =
+            r#"{"id":"trend-scope","version":2,"fields":{"default":{"value":"SelfLayer"}}}"#;
         let parsed =
-            parse_trend_scope_for_profile(TrendScopeProfile::Default, Some(changed)).unwrap();
-        assert_eq!(parsed.value, TrendScope::Ancestor);
+            parse_trend_scope_for_profile(TrendScopeProfile::Default, Some(legal_new_version))
+                .unwrap();
+        assert_eq!(parsed.value, TrendScope::SelfLayer);
         assert_eq!(parsed.record.label(), "trend-scope/2");
 
         let missing = r#"{"id":"trend-scope","version":1,"fields":{}}"#;
