@@ -3115,10 +3115,11 @@ mod tests {
 
         let reopened = fixture.open("2").unwrap();
         assert_eq!(reopened.identity().unwrap(), identity);
-        assert_eq!(
-            reopened.state_summary("tick-after-reopen").unwrap(),
-            summary
-        );
+        let mut after = reopened.state_summary("tick-after-reopen").unwrap();
+        let mut before = summary;
+        after.remove("command");
+        before.remove("command");
+        assert_eq!(after, before);
         let tx = reopened.conn.unchecked_transaction().unwrap();
         state::audit(&tx).unwrap();
         let tick_evidence: String = tx

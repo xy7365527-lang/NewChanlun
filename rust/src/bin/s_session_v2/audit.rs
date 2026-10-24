@@ -83,9 +83,9 @@ impl Family {
                             "observation_id": r.get::<_, String>(0)?,
                             "batch_id": r.get::<_, String>(2)?,
                             "kind": r.get::<_, String>(3)?,
-                            "window_start": r.get::<_, Option<i64>>(4)?.map(|v| v.to_string()),
-                            "window_mid": r.get::<_, Option<i64>>(5)?.map(|v| v.to_string()),
-                            "window_end": r.get::<_, Option<i64>>(6)?.map(|v| v.to_string()),
+                            "window_start": r.get::<_, Option<i64>>(4)?,
+                            "window_mid": r.get::<_, Option<i64>>(5)?,
+                            "window_end": r.get::<_, Option<i64>>(6)?,
                             "reason": r.get::<_, String>(7)?,
                             "detail": json_column(r, 8, JsonShape::Object)?,
                         }),
@@ -136,7 +136,13 @@ impl Family {
             }
             result.born.entry(g).or_default().insert(id.clone());
             // 记录只保留一份不可变投影（`Arc`），不再按视图重复深拷贝整条 payload。
-            let canonical = canonical_json(&legacy_payload_projection(&record));
+            // SQLite 观察窗口是整数，Delta/封存件是公开十进制文本； canonical 对拍
+            // 必须先走同一公开投影，记录本体仍保留原始列供首版审计使用。
+            let canonical = if name == "observations" {
+                canonical_json(&legacy_payload_projection(&project_observation_wire(&record)?))
+            } else {
+                canonical_json(&legacy_payload_projection(&record))
+            };
             result
                 .records
                 .insert(id, (std::sync::Arc::new(record), canonical, g));
