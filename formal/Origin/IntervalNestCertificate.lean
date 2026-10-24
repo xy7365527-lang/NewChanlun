@@ -83,6 +83,9 @@ open Strict.Nest (Interval selKey selOrder IsSelected Sub Dir)
 
   这是 `Strict.Nest.selOrder` 的可计算镜像（selectΘ 用它逐对比较选最优）。`selOrderB_iff`
   证它与 `selOrder` 同真——Bool 实现与 Prop 谓词一致（无漂移）。
+
+  ★版本化字段 `selector_keys`（qujiantao.md §14.1，ADR 0041，[#1600]）：
+  当前写死 `(endTime 降序, startTime 降序, idx 升序)`（现行键序）。完整参数化见 Q-2 清单。
 -/
 def selOrderB (a b : Interval) : Bool :=
   (b.endTime < a.endTime)

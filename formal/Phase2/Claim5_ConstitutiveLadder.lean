@@ -227,7 +227,9 @@ def Stroke.hi (s : Stroke) : Int := max s.startFractal.ext s.endFractal.ext
   - (b) `direction` 由 **首笔方向决定**（第77课"以向上笔开始的线段一定结束于向上笔"，
         方向不自由携带，codex 修正3）；
   - (c) **前三笔价格区间有公共重叠**（第65/77课"这三笔必须有重叠的部分"）：
-        `max(三笔 lo) < min(三笔 hi)`（公共交集非空）；
+        `max(三笔 lo) < min(三笔 hi)`（公共交集非空）。
+        ★ 版本化字段 `tangency`（xianduan.md §6.3 X-38，ADR 0041，[#1600]）：
+        当前写死 `<` 判定（相切不算重合，旧 P1 取值）；完整参数化（改为 `≤` 的 `closed` 默认）见 X-38 清单。
   - (d) ★codex 第二轮修正（递归闭包）：**所有笔良构**（`∀ st ∈ strokes, st.wellFormed`）——
         关死"由坏笔组成的良构线段"漏洞。
 
