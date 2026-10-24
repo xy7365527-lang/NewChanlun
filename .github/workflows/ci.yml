@@ -456,6 +456,12 @@ jobs:
         if: ${{ !cancelled() }}
         working-directory: s_session/tests
         run: python -B -m unittest -v test_tb02w_contract
+      # #1673：TB-03-C 正式会话合链驱动的输入 hash / 断言集合 / 手算 oracle 锁；不启动进程、不需 Rust。
+      #   实跑 tb03c_fin_runtime.py 需三个正式二进制，经 nc-remote 留收据于 .chanlun/review-results/。
+      - name: TB-03-C formal-session chain driver contract (#1673)
+        if: ${{ !cancelled() }}
+        working-directory: s_session/tests
+        run: python -B -m unittest -v test_tb03c_fin_runtime_contract
       - name: TB-02-W modular observer contract tests (#1420)
         if: ${{ !cancelled() }}
         run: node --test s_session/tests/test_tb02w_contract.cjs

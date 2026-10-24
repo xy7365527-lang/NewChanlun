@@ -1,0 +1,14 @@
+{
+  "ok": true,
+  "result": [
+    {
+      "service": "q",
+      "state": "stopped",
+      "pid": 29342,
+      "signal": "SIGTERM",
+      "exit_observation_warnings": [
+        "Python \u670d\u52a1\u53c2\u6570\u4e0e\u672c\u6b21\u542f\u52a8\u547d\u4ee4\u4e0d\u7b26"
+      ]
+    }
+  ]
+}
