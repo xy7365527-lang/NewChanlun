@@ -1885,15 +1885,32 @@ fn audit_generated_in_store(
             s.native_map_room(&mut tick_bars).map_err(err)?;
             tick_bars.insert(coord, TickBar { revision, price }).map_err(err)?;
         }
-        // 旧 tick 没有 CC-005 组对象：每个生效原始事件自身就是一个 merged 组。
+        // 旧 tick 没有 CC-005 组对象。零范围 K 线只有同价才互相包含：存在方向时，
+        // 连续同价事件属于同一 merged 组；全程同价没有方向，旧包含器保留逐根 open-tail。
         // 组账独立于 CC-006 对象重建，domain_not_satisfied 窗口也不会造成覆盖缺口。
         let tick_payload = field_ref(s, state, "objects")?;
         let ordered_tick_bars = sorted_numeric_entries(s, &tick_bars)?;
-        for (index, (coord, _)) in ordered_tick_bars.iter().enumerate() {
-            let index = i64::try_from(index).map_err(err)?;
+        let merge_equal = ordered_tick_bars
+            .windows(2)
+            .any(|pair| pair[0].1.price.as_str() != pair[1].1.price.as_str());
+        let mut cursor = 0usize;
+        let mut index = 0i64;
+        while cursor < ordered_tick_bars.len() {
+            let (anchor, bar) = ordered_tick_bars[cursor];
             let mut members = bj::new_work(allocation.as_ref());
             s.native_codec_room(&mut members, 1).map_err(err)?;
-            members.try_push(*coord).map_err(err)?;
+            members.try_push(anchor).map_err(err)?;
+            cursor += 1;
+            if merge_equal {
+                while cursor < ordered_tick_bars.len()
+                    && ordered_tick_bars[cursor].1.price.as_str() == bar.price.as_str()
+                {
+                    let (coord, _) = ordered_tick_bars[cursor];
+                    s.native_codec_room(&mut members, 1).map_err(err)?;
+                    members.try_push(coord).map_err(err)?;
+                    cursor += 1;
+                }
+            }
             let sources = SourceCoords::Original(copy_coords(s, &members)?);
             let payload = s.native_ref_clone(&tick_payload).map_err(err)?;
             s.native_map_room(&mut groups).map_err(err)?;
@@ -1901,9 +1918,10 @@ fn audit_generated_in_store(
                 payload,
                 members: SourceCoords::Original(members),
                 sources,
-                anchor: *coord,
+                anchor,
             })
                 .map_err(err)?;
+            index += 1;
         }
     }
     // #1394 r3：先绑定已发布未定事实，再核组成员与 pending 的不交完备并集。
@@ -2017,8 +2035,16 @@ fn audit_generated_in_store(
                     return Err(err("形态dependency_refs不是组事实来源差集"));
                 }
                 source_union = union_coords(s, &source_union, &dependency)?;
+                source_union = union_coords(s, &source_union, &members)?;
+            } else {
+                // tick CC-006 的 source_coords 只列三个 merged 组锚，不把组内其余
+                // 同价事件扩张进窗口身份；raw_refs 仍已在上方完整核对。
+                source_union = union_coords(
+                    s,
+                    &source_union,
+                    std::slice::from_ref(&group.anchor),
+                )?;
             }
-            source_union = union_coords(s, &source_union, &members)?;
             windows[slot] = crate::content_manifest::Decimal::new(
                 object
                     .fields

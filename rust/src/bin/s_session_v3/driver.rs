@@ -505,7 +505,16 @@ mod tests {
             Self::with_profile("ohlc_integer_tb02a_v1.json")
         }
         fn tick() -> Self {
-            Self::with_profile("testonly_tick_1_1_ohlc.json")
+            Self::with_clock_profile(
+                json!({"schema_revision":"s-clock-plan/1","clock_plan_id":"s3-driver-tick","origin_utc":"2026-09-18T00:00:00Z","unit":"ns","events":{
+                "input-1":{"accept_ns":"10","attempts":[{"begin_ns":"11","commit_ns":"12"}]},
+                "input-2":{"accept_ns":"20","attempts":[{"begin_ns":"21","commit_ns":"22"}]},
+                "input-3":{"accept_ns":"30","attempts":[{"begin_ns":"31","commit_ns":"32"}]},
+                "input-4":{"accept_ns":"40","attempts":[{"begin_ns":"41","commit_ns":"42"}]},
+                "input-5":{"accept_ns":"50","attempts":[{"begin_ns":"51","commit_ns":"52"}]},
+                "recover-1":{"recover_ns":"13"}}}),
+                "testonly_tick_1_1_ohlc.json",
+            )
         }
         fn with_profile(profile_file: &str) -> Self {
             Self::with_clock_profile(
@@ -575,7 +584,9 @@ mod tests {
                 1 => ("a", 0, 7),
                 2 => ("b", 10, 12),
                 3 => ("c", 20, 8),
-                _ => panic!("driver tick Fixture only defines three inputs"),
+                4 => ("d", 30, 8),
+                5 => ("e", 40, 13),
+                _ => panic!("driver tick Fixture only defines five inputs"),
             };
             let raw = json!({
                 "schema_revision":"1", "session_id":"s-session-testonly-001",
@@ -3090,7 +3101,7 @@ mod tests {
 
         recover(&fixture.db, "2", &fixture.clock, "recover-1").unwrap();
         let mut writer = fixture.open("2").unwrap();
-        for n in 2..=3 {
+        for n in 2..=5 {
             let mut input = Fixture::tick_ingest(n);
             input["payload"]["writer_epoch"] = json!("2");
             input["payload_hash"] = json!(sha256_hex(canonical_json(&input["payload"]).as_bytes()));

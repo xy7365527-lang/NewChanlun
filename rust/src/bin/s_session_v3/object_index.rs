@@ -1402,14 +1402,21 @@ fn bind_shape_refs_view(
             .lookup_ref(generated, &[PathStep::Index(n)])
             .map_err(err)?;
         let b = s.lookup_ref(wire, &[PathStep::Index(n)]).map_err(err)?;
-        if a.extent() != Some(3)
-            || b.extent() != Some(3)
+        let extent = a.extent();
+        if !matches!(extent, Some(2 | 3))
+            || b.extent() != extent
             || text_ref(s, b.view(), "merged_index")?
                 != bj::Decimal::new(integer_ref(s, a.view(), "merged_index")?).text()
         {
             return Err(err("合并序号公开投影不符"));
         }
-        for key in ["raw_refs", "dependency_refs"] {
+        // OHLC 另带 dependency_refs；TestOnly tick 沿用旧两键配方。两侧形状必须相同。
+        let keys: &[&str] = if extent == Some(3) {
+            &["raw_refs", "dependency_refs"]
+        } else {
+            &["raw_refs"]
+        };
+        for &key in keys {
             let aa = field_ref(s, a.view(), key)?;
             let bb = field_ref(s, b.view(), key)?;
             if aa.kind() != Kind::Array || bb.kind() != Kind::Array || aa.extent() != bb.extent() {

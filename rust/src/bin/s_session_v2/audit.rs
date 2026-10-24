@@ -624,8 +624,11 @@ impl AuditWalk {
                 first["observation_id"] = json!(id);
                 first["batch_id"] = delta["index_frontier"].clone();
                 let original = project_observation_wire(&first)?;
+                // SQLite 观察列保存整数窗口；公开首版使用规范十进制文本。两侧先走同一
+                // 投影再逐字段比较，不能把合法旧 tick domain 观察误报成封存漂移。
+                let stored = project_observation_wire(stored)?;
                 same_record_iters(
-                    std::iter::once(stored.as_ref()),
+                    std::iter::once(&stored),
                     std::iter::once(&original),
                     "observation/原封存首版",
                 )?;
