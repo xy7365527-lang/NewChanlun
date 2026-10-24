@@ -237,10 +237,67 @@ impl Chain {
             valuation,
         }
     }
+    /// 从正式驱动给出的同一份 FIN/1 夹具独立建库；真实 S 路径不变，E/B 绝不复用正式结果库。
+    fn from_fixture(fixture: &Value) -> Self {
+        let space = Space::new("s1-external-oracle");
+        let dir = space.0.clone();
+        let mut manifest = fixture["manifest"].clone();
+        let (input_path, input_sha256) = save(&dir, "fin-input.json", &fixture["input"]);
+        manifest["finance"]["input_path"] = json!(input_path);
+        manifest["finance"]["input_sha256"] = json!(input_sha256);
+        manifest["e"]["db"] = json!(dir.join("e.db"));
+        manifest["e"]["socket"] = json!(dir.join("e.sock"));
+        manifest["chongs"][0]["db"] = json!(dir.join("alpha.db"));
+        manifest["chongs"][0]["socket"] = json!(dir.join("alpha.sock"));
+        let path = dir.join("manifest.json");
+        std::fs::write(&path, canonical_json(&manifest)).unwrap();
+        let configs = vec![
+            store::Config::load(&path, &dir.join("e.db"), None).unwrap(),
+            store::Config::load(&path, &dir.join("alpha.db"), Some("alpha")).unwrap(),
+        ];
+        assert_ne!(
+            configs[E].db.to_string_lossy(),
+            fixture["manifest"]["e"]["db"].as_str().unwrap(),
+            "S1 oracle 不得读取正式运行的 E 数据库"
+        );
+        assert_ne!(
+            configs[A].db.to_string_lossy(),
+            fixture["manifest"]["chongs"][0]["db"].as_str().unwrap(),
+            "S1 oracle 不得读取正式运行的 B 数据库"
+        );
+        assert_eq!(fixture["input"]["plans"][0], fixture["plan"]);
+        let mut epochs = vec![];
+        let dbs = configs
+            .iter()
+            .map(|c| {
+                epochs.push(book::integer(&store::init(c).unwrap(), "writer_epoch").unwrap());
+                store::open(&c.db, false).unwrap().0
+            })
+            .collect();
+        let documents = &fixture["documents"];
+        Self {
+            _space: space,
+            configs,
+            dbs,
+            epochs,
+            next: 0,
+            input: fixture["input"].clone(),
+            plan: fixture["plan"].clone(),
+            binding: fixture["binding"].clone(),
+            opening: documents["opening"].clone(),
+            fill: documents["fill"].clone(),
+            gap: documents["gap"].clone(),
+            conflict: documents["conflict"].clone(),
+            valuation: documents["valuation"].clone(),
+        }
+    }
+
     fn send(&mut self, owner: usize, payload: Value) -> Value {
         let id = format!("m-{}", self.next);
         self.next += 1;
-        let e = json!({"schema_revision":"economic-session/1","session_id":SESSION,"session_generation":"1","source_namespace":"test","source_epoch":"one","producer_id":"unit","producer_epoch":"1","message_id":id,"payload_hash":book::hash(&payload),"causal_refs":[],"payload":payload});
+        let session = self.configs[owner].session.clone();
+        let generation = self.configs[owner].generation.clone();
+        let e = json!({"schema_revision":"economic-session/1","session_id":session,"session_generation":generation,"source_namespace":"test","source_epoch":"one","producer_id":"unit","producer_epoch":"1","message_id":id,"payload_hash":book::hash(&payload),"causal_refs":[],"payload":payload});
         service::handle(
             &mut self.dbs[owner],
             &self.configs[owner],
@@ -336,9 +393,7 @@ fn responsibility_total(image: &Value) -> i64 {
         .sum()
 }
 
-#[test]
-fn tb03c_chain_fin1_prepare_reserve_commit_capture_resolve_apply_same_chong_and_reopen() {
-    let mut c = Chain::new("s1-chain");
+fn exercise_chain(c: &mut Chain) {
     // 开局：真实 Capture → Apply → BindVoice（不手工设仓）
     let opening = c.opening.clone();
     let open = c.capture(&opening, "token-opening");
@@ -598,6 +653,29 @@ fn tb03c_chain_fin1_prepare_reserve_commit_capture_resolve_apply_same_chong_and_
         applied_before + 1
     );
     assert_eq!(responsibility_total(&c.image(E)), 50);
+}
+
+#[test]
+fn tb03c_chain_fin1_prepare_reserve_commit_capture_resolve_apply_same_chong_and_reopen() {
+    exercise_chain(&mut Chain::new("s1-chain"));
+}
+
+/// 由 #1673 正式驱动显式调用：同夹具、独立 E/B 数据库、完整终态导出。
+#[test]
+#[ignore = "需要 TB03C_S1_FIXTURE 与 TB03C_S1_OUTPUT；由正式驱动经 nc-remote 调用"]
+fn tb03c_chain_fin1_export_external_terminal_state() {
+    let fixture_path = std::env::var_os("TB03C_S1_FIXTURE").expect("缺 TB03C_S1_FIXTURE");
+    let output =
+        std::path::PathBuf::from(std::env::var_os("TB03C_S1_OUTPUT").expect("缺 TB03C_S1_OUTPUT"));
+    let fixture: Value = serde_json::from_slice(
+        &std::fs::read(fixture_path).expect("读取 S1 comparison fixture 失败"),
+    )
+    .expect("S1 comparison fixture 不是合法 JSON");
+    let mut chain = Chain::from_fixture(&fixture);
+    exercise_chain(&mut chain);
+    let terminal = json!({"E":chain.image(E),"B:alpha":chain.image(A)});
+    assert!(!output.exists(), "S1 oracle 输出不得覆盖已有文件");
+    std::fs::write(output, canonical_json(&terminal)).expect("写入 S1 完整终态失败");
 }
 
 /// F1 的反证：同一链上，若冻结 FIN 输入的 baseline 没有预列该成交，Commit 产生的 grant 责任

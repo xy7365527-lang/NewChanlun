@@ -21,6 +21,7 @@ import copy
 import hashlib
 import io
 import json
+import os
 from pathlib import Path
 import shutil
 import socket
@@ -58,9 +59,9 @@ INPUT_NAMES = tuple(INPUT_HASHES)
 SOURCE = {"source_namespace": "test", "source_epoch": "one", "producer_id": "unit", "producer_epoch": "1"}
 QUERY_SOURCE = {"source_namespace": "testonly-tb1673-query", "source_epoch": "fixture-epoch-1",
                 "producer_id": "tb1673-query", "producer_epoch": "1"}
-# Q 单帧 watch 携带每个变化的完整图像（含嵌入的结构快照与历史），预算放到与 owner 帧界同为 16MB。
-QUERY_RESOURCES = {"max_frame_bytes": "16777216", "timeout_ms": "30000", "operation_timeout_ms": "30000",
-                   "max_reply_bytes": "16777216", "max_cached_bytes": "67108864", "max_snapshots": "4",
+# Q 与 owner 都保持 1MiB 物理帧、4MiB 逻辑文档/共享缓存；完整内容只能经分页传输。
+QUERY_RESOURCES = {"max_frame_bytes": "1048576", "timeout_ms": "30000", "operation_timeout_ms": "30000",
+                   "max_reply_bytes": "1048576", "max_cached_bytes": "4194304", "max_snapshots": "4",
                    "max_domains": "4", "max_changes": "32"}
 WRITE_OPS = ("ImportResponsibility", "CaptureExternal", "ResolveEvidence", "ApplyAllocation", "BindVoice",
              "PrepareDecision", "Reserve", "CommitDecision")
@@ -69,10 +70,9 @@ READ_OPS = ("ReadView", "Watch", "QueryFact", "QueryAllocation", "QueryDecision"
 # E/B 时钟原点：严格晚于 tb01c S 时钟计划全部时刻（knowledge_floor：获知不早于实际 S 提交）。
 T0 = 946687000000000000
 CLOCK_MESSAGES, RECOVER_EPOCHS = 96, 16
-# tb01c seed_main_schedule 的最短前缀：第 3 条输入后真实 S 首次出现结构对象（远端探针实测：
-# 2 条 0 对象；3 条 1 对象、financial-basis 约 8KB；95 条约 0.5MB）。B 每个决策记录与历史项都整份嵌入
-# 结构快照，0.5MB 级快照会让 owner 图像越过 16MB 帧界，故只喂到首个对象出现为止。
-S_OPERATIONS = 3
+# 全量 tb01c 业务输入不得为通过验收而裁短。若完整结构证据使逻辑文档越过4MiB，
+# 必须由协议返修解决；分页只限制物理帧，不允许暗中放宽逻辑/共享缓存帽。
+S_OPERATIONS = 95
 DOMAINS = ("E", "B:alpha")
 # 断言集合：每个场景必须全部实际执行，契约测试锁定。
 CHECKS = {
@@ -93,7 +93,8 @@ CHECKS = {
         "fin.total_final", "valuation.capture", "valuation.rejected", "valuation.unchanged", "oracle.k_after_valuation",
         "q.snapshot_matches_owner", "q.watch_contiguous", "q.watch_matches_store", "q.watch_final_image",
         "q.commit_receipt", "q.commit_e_cut", "q.receipt_cuts", "q.s_ref", "q.fill_allocation", "q.oracle_book",
-        "q.original_decision", "reopen.recovered", "reopen.public_equal", "q.restart_equal",
+        "q.original_decision", "s1.full_terminal_state", "reopen.recovered", "reopen.public_equal",
+        "reopen.runtime_drift_detected", "q.restart_equal", "q.restart_epoch_advanced",
         "reopen.apply_resend", "reopen.commit_resend", "reopen.capture_resend", "reopen.no_new_commit",
     ),
     "uncovered": (
@@ -250,6 +251,12 @@ def documents(base):
             "valuation": valuation}
 
 
+def build_s1_fixture(economy):
+    """交给独立 Rust S1 的同一批业务输入；不包含正式 E/B 的任何输出或数据库。"""
+    return {"manifest": economy.manifest, "input": economy.input, "plan": economy.plan,
+            "binding": economy.binding, "documents": economy.docs}
+
+
 def clock_plan():
     messages = {}
     for i in range(CLOCK_MESSAGES):
@@ -362,13 +369,15 @@ class Stack:
 
     def start_q(self, economy, expected_epochs):
         self.q_revision += 1
+        self.q_epoch = str(self.q_revision)
         config = {"schema_revision": "economic-query/1", "manifest": str(economy.manifest_path),
-                  "manifest_hash": digest(economy.manifest), "query_source": QUERY_SOURCE, "producer_epoch": "1",
-                  "expected_epochs": dict(expected_epochs), "resources": QUERY_RESOURCES}
+                  "manifest_hash": digest(economy.manifest), "query_source": QUERY_SOURCE,
+                  "producer_epoch": self.q_epoch, "expected_epochs": dict(expected_epochs), "resources": QUERY_RESOURCES}
         path = self.work / ("economic-query-r" + str(self.q_revision) + ".json")
         save(path, config)
         save(self.output / path.name, config)
         self.s["economic_query_config"] = str(path)
+        self.s["query_epoch"] = self.q_epoch
         self.s_config = self.work / ("s-launcher-r" + str(self.q_revision) + ".json")
         save(self.s_config, self.s)
         self.q_started = True
@@ -379,11 +388,11 @@ class Stack:
         self.s_control("stop-q")
         self.q_started = False
 
-    def http(self, economy, path, payload=None):
+    def http(self, economy, path, payload=None, timeout_ms=30000):
         url = "http://127.0.0.1:" + self.s["port"] + path  # DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
         label = self.label("q" + path.replace("/", "-"))
         if payload is None:
-            with urllib.request.urlopen(url, timeout=30) as response:
+            with urllib.request.urlopen(url, timeout=timeout_ms / 1000) as response:
                 body = decode_frame(response.read(int(QUERY_RESOURCES["max_reply_bytes"]) + 1))
             save(self.output / (label + ".response.json"), body)
             return body
@@ -393,7 +402,7 @@ class Stack:
         http_request = urllib.request.Request(url, data=canonical(request), headers={"Content-Type": "application/json"})
         save(self.output / (label + ".request.json"), request)
         try:
-            with urllib.request.urlopen(http_request, timeout=60) as response:
+            with urllib.request.urlopen(http_request, timeout=timeout_ms / 1000) as response:
                 raw = response.read(int(QUERY_RESOURCES["max_reply_bytes"]) + 1)
         except urllib.error.HTTPError as error:
             body = error.read(65536)
@@ -401,14 +410,15 @@ class Stack:
             raise RuntimeError("Q HTTP " + str(error.code) + " " + path + "：" + body.decode("utf-8", "replace")[:2000]) from None
         reply = decode_frame(raw)
         save(self.output / (label + ".response.json"), reply)
-        return validate_reply(request, reply, producer="Q", producer_epoch="1")
+        return validate_reply(request, reply, producer="Q", producer_epoch=self.q_epoch)
 
     def paged(self, economy, query):
         """Q 公共 HTTP 单帧硬帽 1MB（economic_http.py:116）；完整 snapshot/watch 走正式分页 /api/economic/read。"""
         deadline = time.monotonic() + 30
-        value = read_economic_pages(query, lambda payload, _remaining: self.http(economy, "/api/economic/read", payload),
+        value = read_economic_pages(query, lambda payload, remaining: self.http(
+            economy, "/api/economic/read", payload, timeout_ms=remaining),
             session_id=economy.manifest["session_id"], session_generation=economy.manifest["session_generation"],
-            producer_id="Q:" + economy.manifest["session_id"], producer_epoch="1",
+            producer_id="Q:" + economy.manifest["session_id"], producer_epoch=self.q_epoch,
             manifest_hash=digest(economy.manifest), owner_epochs=dict(economy.epochs), deadline=deadline,
             max_frame_bytes=1048576, max_document_bytes=4194304)
         save(self.output / (self.label("q-paged-" + query["op"]) + ".document.json"), value)
@@ -431,6 +441,8 @@ class Stack:
 
 class Economy:
     """一个 FIN/1 + tb03c-book/1 经济域（E + B:alpha），同 S1 夹具；s_ref 绑定真实 S 对象。"""
+
+    FRAME_BYTES = 1048576
 
     def __init__(self, stack, name, cover):
         self.stack, self.name, self.cover = stack, name, cover
@@ -511,9 +523,8 @@ class Economy:
             "fill_allocation_policy": {"fill_allocation_policy_id": FILL_POLICY_ID, "policy_revision": "s1-fin-1"},
             "authorized_sources": [{**SOURCE, "operations": list(WRITE_OPS + READ_OPS)},
                                    {**QUERY_SOURCE, "operations": list(QUERY_OPS)}],
-            # 传输预算同 tb03c_runtime SEED（30s）：Prepare 内同步调用真实 S financial-basis（debug 构建、约 0.5MB 输出），
-            # S1 单元测试的 3s 桩子预算对真实进程不足。只是等待上限，不是经济默认值。
-            "resources": {"max_frame_bytes": "16777216", "read_timeout_ms": "30000", "write_timeout_ms": "30000",
+            # 原30秒等待上限不变；物理帧不得为容纳完整S证据而放大，越界由协议返修而非裁输入。
+            "resources": {"max_frame_bytes": str(self.FRAME_BYTES), "read_timeout_ms": "30000", "write_timeout_ms": "30000",
                           "response_timeout_ms": "30000", "queue_capacity": "4", "max_connections": "4"},
             "clock": {"kind": "TestOnly", "plan": clock_plan()},
             "voice_binding": {"schema_revision": "voice-binding/1", "authorities": [{"authority_id": "alpha",
@@ -701,6 +712,39 @@ class Economy:
         c.ok("fin.total_after_commit", responsibility_total(self.image("E")) == oracle["responsibility_total"])
 
 
+def cargo_build(*, runner=subprocess.run):
+    """证据运行显式绑定当前源码构建；只在获准的 nc-remote 实跑中调用。"""
+    args = ["cargo", "build", "--locked", "--features", "s_session",
+            "--bin", "s_structure_session", "--bin", "e_economic_session", "--bin", "b_chong_session"]
+    done = runner(args, cwd=ROOT.parent / "rust", capture_output=True, text=True, timeout=1200)
+    require(done.returncode == 0, "当前候选三二进制构建失败：" + done.stderr[-4000:])
+    return args
+
+
+def run_s1_oracle(stack, economy):
+    """在远端当前源码上独立执行 Rust S1；期望输出不读正式 E/B 的任何状态。"""
+    fixture = economy.output / "s1-fixture.json"
+    terminal = economy.output / "s1-terminal.json"
+    save(fixture, build_s1_fixture(economy))
+    label = stack.label("s1-independent-oracle")
+    stdout, stderr = stack.output / (label + ".stdout"), stack.output / (label + ".stderr")
+    args = ["cargo", "test", "--locked", "--features", "s_session",
+            "tb03c_chain_fin1_export_external_terminal_state", "--", "--ignored", "--nocapture"]
+    env = os.environ.copy()
+    env["TB03C_S1_FIXTURE"] = str(fixture)
+    env["TB03C_S1_OUTPUT"] = str(terminal)
+    with stdout.open("xb") as out, stderr.open("xb") as err:
+        done = subprocess.run(args, cwd=ROOT.parent / "rust", env=env,
+                              stdout=out, stderr=err, timeout=1200)
+    stack.record({"event": "command", "command": args, "exit_code": done.returncode,
+                  "stdout": {"path": stdout.name, "sha256": sha(stdout)},
+                  "stderr": {"path": stderr.name, "sha256": sha(stderr)}})
+    if done.returncode != 0:
+        raise ValueError("独立 Rust S1 执行失败：" + stderr.read_text(errors="replace")[-4000:])
+    require(terminal.is_file(), "独立 Rust S1 未产出全终态")
+    return decode_frame(terminal.read_bytes())
+
+
 def responsibility_total(image):
     return sum(int(r["amount"]) for r in image["finance"]["responsibilities"])
 
@@ -742,12 +786,15 @@ def check_store_changes(c, store_commits, base_seq, row):
 
 
 def public(e, fill, gap, allocation_id):
-    """公共查询面（ReadView 去掉随 recover 合法变化的 writer_epoch 与进程 runtime.pid），与 S1 同集合。"""
+    """公共查询面：仅排除 writer_epoch、pid、control_instance_id；其余 runtime 逐值恢复对拍。"""
     out = []
     for domain in DOMAINS:
         view = e.read(domain, {"op": "ReadView", "cut": None, "as_known_ns": None})
         view.pop("writer_epoch", None)
-        view.pop("runtime", None)
+        runtime = view.get("runtime")
+        if type(runtime) is dict:
+            runtime.pop("pid", None)
+            runtime.pop("control_instance_id", None)
         out += [view, e.read(domain, {"op": "QueryFact", "fact_key": fill["fact_key"]})]
     out.append(e.read("E", {"op": "QueryFact", "fact_key": gap["fact_key"]}))
     out.append(e.read("E", {"op": "QueryGrant", "grant_id": e.grant_id, "cut": None, "as_known_ns": None}))
@@ -764,6 +811,7 @@ def run_covered(stack, oracle, s_passed):
     e = Economy(stack, "covered", cover=True)
     c, d = e.checks, e.docs
     c.passed += s_passed  # S 正式会话入口断言（main 内 start_s 已执行）计入同一场景
+    s1_expected = run_s1_oracle(stack, e)
     try:
         e.start()
         stack.start_q(e, e.epochs)
@@ -904,8 +952,16 @@ def run_covered(stack, oracle, s_passed):
             e.cli(dm, "recover")
         for dm in DOMAINS:
             e.serve(dm)
-        c.ok("reopen.public_equal", public(e, fill, gap, allocation["allocation_id"]) == before)
+        after_recover = public(e, fill, gap, allocation["allocation_id"])
+        c.ok("reopen.public_equal", after_recover == before)
+        drifted = copy.deepcopy(after_recover)
+        require(type(drifted[0].get("runtime")) is dict, "恢复对拍缺 runtime 稳定字段")
+        drifted[0]["runtime"]["journal_mode"] = "delete"
+        c.ok("reopen.runtime_drift_detected", drifted != after_recover)
         stack.start_q(e, e.epochs)
+        restarted_ready = stack.http(e, "/api/economic/ready")
+        c.ok("q.restart_epoch_advanced", int(restarted_ready["producer_epoch"]) > int(ready["producer_epoch"])
+             and stack.s["query_epoch"] == stack.q_epoch == restarted_ready["producer_epoch"], restarted_ready)
         again = stack.paged(e, {"op": "snapshot", "cuts": None, "as_known_ns": None, "snapshot_token": None})
         c.ok("q.restart_equal", all(again["domains"][dm]["cut"] == snapshot["domains"][dm]["cut"]
              and canonical(again["domains"][dm]["image"]) == canonical(snapshot["domains"][dm]["image"]) for dm in DOMAINS))
@@ -914,6 +970,9 @@ def run_covered(stack, oracle, s_passed):
         c.ok("reopen.capture_resend", e.capture(d["fill"], "token-s1-fill")[1] == fill)
         c.ok("reopen.no_new_commit", {dm: commits_of(e.tables(dm)) for dm in DOMAINS} == commits_before
              and len(e.image("B:alpha")["applied"]) == applied_before + 1)
+        actual_terminal = {dm: e.image(dm) for dm in DOMAINS}
+        c.ok("s1.full_terminal_state", canonical(actual_terminal) == canonical(s1_expected),
+             {"expected": s1_expected, "actual": actual_terminal})
         c.complete()
         observed = {"K_before": x["K_before"], "lock": e.prepared["record"]["prepared"]["locked_amount"],
                     "worst_quantity": e.prepared["record"]["prepared"]["worst_quantity"],
@@ -975,9 +1034,24 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binaries", type=Path, default=ROOT.parent / "rust/target/debug")
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--build", action="store_true", help="证据运行：从当前干净候选重建三个正式二进制")
     parser.add_argument("--emit-archive", action="store_true")
     args = parser.parse_args()
+    checkout = subprocess.run(["git", "-C", str(ROOT.parent), "rev-parse", "HEAD"],
+                              capture_output=True, text=True, timeout=10)
+    source_sha = checkout.stdout.strip()
+    require(checkout.returncode == 0 and len(source_sha) == 40 and all(c in "0123456789abcdef" for c in source_sha),
+            "证据源 SHA 不可解析")
+    tracked = subprocess.run(["git", "-C", str(ROOT.parent), "diff", "--quiet", "HEAD", "--",
+                              "rust/src", "s_session/tests/tb03c_fin_runtime.py",
+                              "s_session/tests/test_tb03c_fin_runtime_contract.py"])
+    untracked = subprocess.run(["git", "-C", str(ROOT.parent), "ls-files", "--others", "--exclude-standard",
+                                "--", "rust/src", "s_session/tests/tb03c_fin_runtime.py",
+                                "s_session/tests/test_tb03c_fin_runtime_contract.py"],
+                               capture_output=True, text=True, timeout=10)
+    require(tracked.returncode == 0 and not untracked.stdout.strip(), "证据源树须先提交且保持干净")
     binaries = args.binaries.resolve()
+    build_command = cargo_build() if args.build else None
     output = (args.output or Path(tempfile.mkdtemp(prefix="tb1673-out-")) / "run").resolve()
     require(not output.exists(), "输出目录必须新建")
     for name in ("s_structure_session", "e_economic_session", "b_chong_session"):
@@ -986,8 +1060,8 @@ def main():
     oracle = inputs["oracle"]
     require(hand_oracle(oracle["inputs"]) == oracle["expected"], "冻结手算 oracle 与公式不符")
     stack = Stack(inputs, binaries, output)
-    checkout = subprocess.run(["git", "-C", str(ROOT.parent), "rev-parse", "HEAD"], capture_output=True, text=True, timeout=10)
-    save(output / "provenance.json", {"issue": 1673, "source_sha": checkout.stdout.strip() or None,
+    save(output / "provenance.json", {"issue": 1673, "source_sha": source_sha, "source_clean": True,
+        "build": {"command": build_command, "source_sha": source_sha if build_command else None},
         "driver_sha256": sha(__file__), "inputs": {n: INPUT_HASHES[n] for n in INPUT_NAMES},
         "binaries": {n: sha(binaries / n) for n in ("s_structure_session", "e_economic_session", "b_chong_session")},
         "python": sys.version.split()[0]})
@@ -1008,7 +1082,7 @@ def main():
     summary = {"issue": 1673, "status": status, "failure": failure, "cleanup_errors": cleanup,
                "scenarios": [{k: r[k] for k in ("scenario", "status")} | {"checks": len(r["checks"])} for r in results],
                "trust_boundary": {
-                   "s": "真实 s_structure_session 进程 + tb01c 冻结输入前缀（op-0000..op-0002，首个结构对象出现处）；计划 s_ref 绑定本次 financial-basis 实读对象",
+                   "s": "真实 s_structure_session 进程 + tb01c 全95条冻结输入（op-0000..op-0094）；计划 s_ref 绑定本次 financial-basis 实读对象",
                    "commit_fill_binding": "Commit↔成交对应仍由夹具构造（成交预列于冻结 FIN baseline、command_id 夹具填 plan-alpha）；产品绑定 F1/F2 归 TB-04-F #1425，未认定存在",
                    "voice": "单位信任夹具，非真实 γ 独评",
                    "policy": "θ/增长/本金政策不签不填；观测 principal/growth_enabled = NotEvaluable（ADR 0041 裁定二）",

@@ -1,9 +1,11 @@
 """#1673：tb03c_fin_runtime 驱动的输入 hash、断言集合与手算 oracle 锁（不启动进程、不需 Rust）。"""
 import ast
+import copy
 import hashlib
 import json
 from pathlib import Path
 import sys
+import tempfile
 import unittest
 
 HERE = Path(__file__).resolve().parent
@@ -24,7 +26,7 @@ LOCKED_INPUTS = {
     "catalog/signed-catalog.json": "938b0ef59282e689c114cdcb211e2709c86e64c618e4ec0573862bda43508069",  # DevSkim: ignore DS173237 SHA-256 输入/断言摘要锁，非凭据
 }
 # 断言集合的独立副本（AC：锁驱动断言集合）。
-LOCKED_CHECKS_SHA256 = "08fb4fdeb0a123a0912236cd4d2295a2247ec451abfb03cb8826df0556388287"  # DevSkim: ignore DS173237 SHA-256 输入/断言摘要锁，非凭据
+LOCKED_CHECKS_SHA256 = "d86461a5534a0d40a7166192c36fff6c056ace1923331a93db4b51c1c7a4be7e"  # DevSkim: ignore DS173237 SHA-256 输入/断言摘要锁，非凭据
 
 
 def literal_checks(tree):
@@ -48,7 +50,49 @@ class Tb03cFinRuntimeContract(unittest.TestCase):
             self.assertEqual(hashlib.sha256((run.ROOT / name).read_bytes()).hexdigest(), expected, name)
         inputs = run.load_inputs()
         self.assertEqual(len(inputs["messages"]), run.S_OPERATIONS)
-        self.assertEqual(inputs["messages"][-1]["message_id"], "tb01c-op-0002")
+        self.assertEqual(len(inputs["messages"]), 95)
+        self.assertEqual(inputs["messages"][-1]["message_id"], "tb01c-op-0094")
+
+    def test_c6a_resource_caps_are_not_widened(self):
+        self.assertEqual(run.QUERY_RESOURCES["max_frame_bytes"], "1048576")
+        self.assertEqual(run.QUERY_RESOURCES["max_reply_bytes"], "1048576")
+        self.assertEqual(run.QUERY_RESOURCES["max_cached_bytes"], "4194304")
+        self.assertEqual(getattr(run.Economy, "FRAME_BYTES", None), 1048576)
+
+    def test_evidence_build_uses_all_three_current_binaries(self):
+        calls = []
+        class Done:
+            returncode = 0
+            stdout = ""
+            stderr = ""
+        def fake_run(args, **_kwargs):
+            calls.append(args)
+            return Done()
+        build = getattr(run, "cargo_build", None)
+        self.assertIsNotNone(build)
+        build(runner=fake_run)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][:4], ["cargo", "build", "--locked", "--features"])
+        for binary in ("s_structure_session", "e_economic_session", "b_chong_session"):
+            self.assertIn(binary, calls[0])
+
+    def test_s1_fixture_contains_the_exact_formal_run_inputs(self):
+        docs = {name: {"document": name} for name in ("opening", "fill", "gap", "conflict", "valuation")}
+        economy = type("Economy", (), {
+            "manifest": {"schema_revision": "economic-manifest/1"},
+            "input": {"schema_revision": "tb03b-finance/1"},
+            "plan": {"decision_id": "alpha"},
+            "binding": {"binding_id": "voice-alpha"},
+            "docs": docs,
+        })()
+        expected = {"manifest": economy.manifest, "input": economy.input, "plan": economy.plan,
+                    "binding": economy.binding, "documents": docs}
+        actual = getattr(run, "build_s1_fixture", lambda _economy: None)(economy)
+        self.assertEqual(actual, expected)
+
+    def test_restart_runtime_and_s1_acceptance_checks_are_registered(self):
+        required = {"q.restart_epoch_advanced", "reopen.runtime_drift_detected", "s1.full_terminal_state"}
+        self.assertLessEqual(required, set(run.CHECKS["covered"]))
 
     def test_check_set_locked(self):
         self.assertEqual(hashlib.sha256(canonical(run.CHECKS)).hexdigest(), LOCKED_CHECKS_SHA256)
@@ -91,6 +135,78 @@ class Tb03cFinRuntimeContract(unittest.TestCase):
             for r in range(run.RECOVER_EPOCHS):
                 self.assertLess(int(m["received_ns"][r]), int(m["first_known_ns"][r]))
                 self.assertLess(int(m["first_known_ns"][r]), int(m["commit_ns"][r]))
+
+    def test_q_restart_uses_new_query_and_producer_epoch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            stack = run.Stack.__new__(run.Stack)
+            stack.work, stack.output = root / "work", root / "out"
+            stack.work.mkdir()
+            stack.output.mkdir()
+            stack.q_revision, stack.q_started = 1, False
+            stack.s = {"query_epoch": "1"}
+            stack.s_control = lambda action: {"action": action}
+            economy = type("Economy", (), {
+                "manifest": {"session_id": "s", "session_generation": "1"},
+                "manifest_path": root / "manifest.json",
+            })()
+            stack.start_q(economy, {"E": "3"})
+            config = json.loads((stack.output / "economic-query-r2.json").read_text())
+            launcher = json.loads((stack.work / "s-launcher-r2.json").read_text())
+            self.assertEqual(config["producer_epoch"], "2")
+            self.assertEqual(launcher["query_epoch"], "2")
+
+    @staticmethod
+    def _public_view(runtime):
+        return {"kind": "EconomicView", "writer_epoch": "1", "runtime": runtime}
+
+    def _public_with_runtime(self, runtime):
+        view = self._public_view(runtime)
+        class FakeEconomy:
+            grant_id = "grant"
+            def read(self, _domain, payload):
+                if payload["op"] == "ReadView":
+                    return copy.deepcopy(view)
+                return {"kind": "EconomicFact"}
+        return run.public(FakeEconomy(), {"fact_key": "fill"}, {"fact_key": "gap"}, "allocation")
+
+    def test_public_runtime_keeps_storage_facts_but_not_process_identity(self):
+        runtime = {"pid": "10", "control_instance_id": "a", "journal_mode": "wal",
+                   "synchronous": "2", "fullfsync": "1", "filesystem": "apfs",
+                   "read_only": False, "sqlite_version": "3.51.3", "sqlite_version_number": "3051003"}
+        before = self._public_with_runtime(runtime)
+        self.assertEqual(before[0].get("runtime", {}).get("filesystem"), "apfs")
+        self.assertNotIn("pid", before[0].get("runtime", {}))
+        volatile = dict(runtime, pid="11", control_instance_id="b")
+        self.assertEqual(self._public_with_runtime(volatile), before)
+
+    def test_public_runtime_comparison_rejects_storage_drift(self):
+        runtime = {"pid": "10", "control_instance_id": "a", "journal_mode": "wal",
+                   "synchronous": "2", "fullfsync": "1", "filesystem": "apfs",
+                   "read_only": False, "sqlite_version": "3.51.3", "sqlite_version_number": "3051003"}
+        before = self._public_with_runtime(runtime)
+        drifted = dict(runtime, filesystem="hfs", read_only=True)
+        self.assertNotEqual(self._public_with_runtime(drifted), before)
+
+    def test_paged_http_receives_the_shared_remaining_deadline(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            stack = run.Stack.__new__(run.Stack)
+            stack.output, stack.number, stack.q_epoch = Path(tmp), 0, "2"
+            seen = {}
+            def fake_http(_economy, _path, _payload, timeout_ms=30000):
+                seen["timeout_ms"] = timeout_ms
+                return {"ok": True}
+            stack.http = fake_http
+            economy = type("Economy", (), {
+                "manifest": {"session_id": "s", "session_generation": "1"}, "epochs": {"E": "1"},
+            })()
+            original = run.read_economic_pages
+            run.read_economic_pages = lambda _query, fetch, **_kwargs: fetch({"op": "page"}, 1234)
+            try:
+                stack.paged(economy, {"op": "snapshot"})
+            finally:
+                run.read_economic_pages = original
+            self.assertEqual(seen["timeout_ms"], 1234)
 
     def test_trust_boundary_statement(self):
         source = Path(run.__file__).read_text()
