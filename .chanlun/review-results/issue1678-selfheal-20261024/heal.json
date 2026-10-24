@@ -51,7 +51,6 @@
     {
       "name": "cliproxy",
       "status": "healthy",
-      "url": "http://127.0.0.1:8318/v1/models",
       "httpStatus": 200,
       "models": 105,
       "message": "GET /v1/models 200，105 个模型"

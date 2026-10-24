@@ -19,8 +19,8 @@
 ## 验收对照
 
 - 单测与 tail 修正：PR CI 的 `sandcastle-ts` 已绿；reviewer 记录为 14/14。
-- red → bootstrap 自愈 → 下一轮 ok：本目录五份原始文件为实体证据，满足票面最后缺失的实证项。
-- 无密钥写入：归档只含进程计数、服务动作与 health checks；不含有 launchd 环境转储。
+- red → bootstrap 自愈 → 下一轮 ok：本目录三份原始 log 与两份脱敏 JSON 为实体证据，满足票面最后缺失的实证项。JSON 仅删除 `checks[*].url` 的回环端点，check 名称、状态、HTTP 状态、模型数、动作与恢复结果均保持原值；脱敏不改变验收语义。
+- 无密钥写入：归档只含进程计数、服务动作与 health checks；不含 launchd 环境转储或回环 IP 字面量。
 -  main CI 照实记录：[40005878482](https://github.com/xy7365527-lang/NewChanlun/actions/runs/40005878482) 总体为 failure，失败在 `rust-test-s-session-extras` 的三项 funding 回归，由 #1621 承接；同 run 的 [sandcastle-ts](https://github.com/xy7365527-lang/NewChanlun/actions/runs/40005878482/job/120593517048) 为 success。本票不把这轮主线红改写成全绿。
 
 ## 边界
