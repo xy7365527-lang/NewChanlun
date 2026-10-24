@@ -568,7 +568,11 @@ fn c4b_total_bust_across_three_fills_reverses_per_unit_from_range_stack_and_reco
     }
     let receipts = c4b_apply_all(&mut s, &r);
     c4b_book_matches(&s, &json!({"q":[1,3,3],"K":[102,304,303]}));
-    c4b_reopen_all(&mut s);
+    // E 已在重送 Resolve 前恢复；这里只恢复三个 B，使后续退款 Capture/Resolve
+    // 与 B Apply 同处 epoch 2，避免 E 二次恢复后领先 B 一个时钟列。
+    for owner in 1..4 {
+        c4b_reopen(&mut s, owner);
+    }
     assert_eq!(s.resolve(&r, 8), resolved);
     for i in 1..4 {
         assert_eq!(
