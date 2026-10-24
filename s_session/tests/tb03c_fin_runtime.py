@@ -44,14 +44,14 @@ FIN1, BOOK1 = "tb03b-finance/1", "tb03c-book/1"
 FILL_POLICY_ID = "frozen-manifest-proportional-cumulative/2"  # allocation::FILL_ALLOCATION_POLICY_ID
 # 冻结输入的原字节身份（相对 s_session/）；运行不得改写来源换 oracle。
 INPUT_HASHES = {
-    "tests/fixtures/tb03c_fin_runtime/OPENING-BASE.json": "9cd91d4f174db5293ad5f85925c7e6ac735f9a32eac7d92eb8b394927d694fda",
-    "tests/fixtures/tb03c_fin_runtime/HAND-ORACLE.json": "68fc52b4ec4fc387bd7571a64acf2a0375e844cf8f0e8ebbd5ac0c07eb99ed6a",
-    "tests/fixtures/tb01c/messages.jsonl": "29a202bf4a94e69ed503db54e1e30c52d052616447bbd1c4f37488169cc8ac58",
-    "tests/fixtures/tb01c/clock-plan.json": "3d7d0470f9e6e358e645b3e757b85ed212d45bb0024f9a90b6919bebc4001709",
-    "tests/fixtures/tb01c/profile.json": "2cd50e43e659dc87498eebba76d88deb4cde276cd51c47fa0c083b07dffbdcfc",
-    "tests/fixtures/tb01c/query-resources.json": "36b188ae42be8e24e7fdbb44e7d3a7068200f7c942f50975337d07595ac62e64",
-    "tests/fixtures/tb01c/runtime-plan.json": "18e9b3cd6cb5f17ba715b09405995b68b627bcd696ba457de790dfa9a51125c3",
-    "catalog/signed-catalog.json": "938b0ef59282e689c114cdcb211e2709c86e64c618e4ec0573862bda43508069",
+    "tests/fixtures/tb03c_fin_runtime/OPENING-BASE.json": "9cd91d4f174db5293ad5f85925c7e6ac735f9a32eac7d92eb8b394927d694fda",  # DevSkim: ignore DS173237 SHA-256 输入摘要锁，非凭据
+    "tests/fixtures/tb03c_fin_runtime/HAND-ORACLE.json": "68fc52b4ec4fc387bd7571a64acf2a0375e844cf8f0e8ebbd5ac0c07eb99ed6a",  # DevSkim: ignore DS173237 SHA-256 输入摘要锁，非凭据
+    "tests/fixtures/tb01c/messages.jsonl": "29a202bf4a94e69ed503db54e1e30c52d052616447bbd1c4f37488169cc8ac58",  # DevSkim: ignore DS173237 SHA-256 输入摘要锁，非凭据
+    "tests/fixtures/tb01c/clock-plan.json": "3d7d0470f9e6e358e645b3e757b85ed212d45bb0024f9a90b6919bebc4001709",  # DevSkim: ignore DS173237 SHA-256 输入摘要锁，非凭据
+    "tests/fixtures/tb01c/profile.json": "2cd50e43e659dc87498eebba76d88deb4cde276cd51c47fa0c083b07dffbdcfc",  # DevSkim: ignore DS173237 SHA-256 输入摘要锁，非凭据
+    "tests/fixtures/tb01c/query-resources.json": "36b188ae42be8e24e7fdbb44e7d3a7068200f7c942f50975337d07595ac62e64",  # DevSkim: ignore DS173237 SHA-256 输入摘要锁，非凭据
+    "tests/fixtures/tb01c/runtime-plan.json": "18e9b3cd6cb5f17ba715b09405995b68b627bcd696ba457de790dfa9a51125c3",  # DevSkim: ignore DS173237 SHA-256 输入摘要锁，非凭据
+    "catalog/signed-catalog.json": "938b0ef59282e689c114cdcb211e2709c86e64c618e4ec0573862bda43508069",  # DevSkim: ignore DS173237 SHA-256 输入摘要锁，非凭据
 }
 INPUT_NAMES = tuple(INPUT_HASHES)
 # 与 S1 同一业务源；Q 使用独立只读源。
