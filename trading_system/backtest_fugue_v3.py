@@ -239,6 +239,8 @@ def verify_bit_exact(stream_res: dict, bartuples: list, closes) -> dict:
 
 def build_engine(spec, log_level: str, verify_batch: bool):
     instrument = make_instrument(spec)
+    # venue 与 Rust 流式引擎共用同一份签署记录；缺记录时在装配前停止。
+    funding = nr.read_funding_record(FUNDING_PROFILE)
     engine = BacktestEngine(
         config=BacktestEngineConfig(
             trader_id=TraderId("FUGUEV3-STREAM-001"),
@@ -250,7 +252,7 @@ def build_engine(spec, log_level: str, verify_batch: bool):
         oms_type=OmsType.NETTING,
         account_type=AccountType.MARGIN,
         base_currency=USD,
-        starting_balances=[Money(1_000_000.0, USD)],
+        starting_balances=[Money(float(funding["q_total"]), USD)],
         fill_model=FillModel(prob_fill_on_limit=0.0, prob_slippage=0.0),
     )
     engine.add_instrument(instrument)
