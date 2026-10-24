@@ -2996,13 +2996,13 @@ fn advance_core(
 
 /// 既有测试显式使用诊断夹具；与正式生产入口不是同一构造。
 #[cfg(test)]
-pub(super) fn cmd_advance_fixture(db: &Path, configured_epoch: &str) -> Result<(), String> {
+pub(crate) fn cmd_advance_fixture(db: &Path, configured_epoch: &str) -> Result<(), String> {
     println!("{}", advance_core_fixture(db, configured_epoch, None)?);
     Ok(())
 }
 
 #[cfg(test)]
-pub(super) fn advance_core_fixture(
+pub(crate) fn advance_core_fixture(
     db: &Path,
     configured_epoch: &str,
     context: Option<&v2::InputContext>,
