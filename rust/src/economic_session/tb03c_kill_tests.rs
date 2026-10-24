@@ -24,7 +24,7 @@ const CHILD: &str = "economic_session::tb03c_kill_tests::tb03c_kill_child";
 const DEADLINE: Duration = Duration::from_secs(300);
 
 /// #1622：创建 voice_binding 证据权威（TestOnly fixture），写入 bundle 与 verification 文件。
-fn setup_voice_authority(dir: &Path) -> Value {
+fn write_voice_authority(dir: &Path) -> Value {
     use crate::session_protocol::sha256_hex;
     let doc: Value = serde_json::from_str(RAW).unwrap();
     let event = &doc["events"][0]; // 使用开局事实
@@ -138,6 +138,15 @@ fn setup_voice_authority(dir: &Path) -> Value {
     })
 }
 
+fn voice_authority() -> &'static Value {
+    static AUTHORITY: OnceLock<Value> = OnceLock::new();
+    AUTHORITY.get_or_init(|| {
+        let dir = root().join("voice-fixture");
+        std::fs::create_dir_all(&dir).unwrap();
+        write_voice_authority(&dir)
+    })
+}
+
 /// 与 C4a WE7 同一时钟形状：每条消息每个 epoch 一列，恢复后按第二列提交。
 fn manifest(dir: &Path, fault: Option<(&str, &str)>) -> Value {
     let mut plan = serde_json::Map::new();
@@ -155,7 +164,7 @@ fn manifest(dir: &Path, fault: Option<(&str, &str)>) -> Value {
     }
     let chongs = (0..3).map(|i|json!({"chong_id":format!("chong-N{}",i+1),"symbol":"TEST-N","operation_level":(i+1).to_string(),"fixed_q":(["1","3","3"][i]),"db":dir.join(format!("b{i}.db")),"socket":dir.join(format!("b{i}.sock"))})).collect::<Vec<_>>();
     // #1622：添加 voice_binding 证据配置，供 BindVoice 测试使用
-    let voice_binding = setup_voice_authority(dir);
+    let voice_binding = voice_authority().clone();
     let mut m = json!({"schema_revision":"economic-manifest/1","session_id":SESSION,"session_generation":"1","book_revision":"tb03c-book/1",
         "e":{"db":dir.join("e.db"),"socket":dir.join("e.sock")},"chongs":chongs,"fill_manifests":[serde_json::from_str::<Value>(MANIFEST).unwrap()],
         "authorized_sources":[{"source_namespace":"testonly-tb1406","source_epoch":"fixture-epoch-1","producer_id":"tb1406-s3","producer_epoch":"1","operations":["CaptureExternal","ResolveEvidence","ApplyAllocation","BindVoice","ReadView","QueryFact","QueryAllocation","QueryVoice"]}],
