@@ -198,7 +198,7 @@ pub(super) fn run_fixture(args: &[String]) -> Result<Option<Value>, String> {
     run_with_policy(args, false)
 }
 
-fn run_with_policy(args: &[String], production: bool) -> Result<Option<Value>, String> {
+pub(super) fn run_with_policy(args: &[String], production: bool) -> Result<Option<Value>, String> {
     match args.get(1).map(String::as_str).unwrap_or("") {
         "serve" => serve_with_policy(ServeOptions::parse(args)?, production),
         "advance" => advance_with_policy(AdvanceOptions::parse(args)?, production),
