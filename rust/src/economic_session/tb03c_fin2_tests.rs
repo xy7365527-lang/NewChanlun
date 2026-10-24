@@ -1,5 +1,7 @@
 //! #1672：FIN/2 在四个独立 HFS+ 载体上的 WE7 正例、恢复与载体负控。
-use super::tb03c_allocation_tests::{apply_request, manifest, resolve_request, Session};
+use super::tb03c_allocation_tests::{
+    apply_request, capture_request, manifest, resolve_request, Session,
+};
 use super::tb03c_book_tests::Space;
 use super::{book, store};
 use crate::session_protocol::{canonical_json, sha256_hex};
@@ -15,6 +17,10 @@ fn carrier_root() -> PathBuf {
         std::env::var("TB03C_FIN2_CARRIER_ROOT")
             .expect("TB03C_FIN2_CARRIER_ROOT must point to four mounted HFS+ roots"),
     )
+}
+
+fn owner_db(root: &Path, owner: usize) -> PathBuf {
+    root.join(["e", "b0", "b1", "b2"][owner]).join("owner.db")
 }
 
 fn reader_resources() -> Value {
@@ -39,6 +45,9 @@ fn reader_resources() -> Value {
 
 fn write_fin_input(root: &Path) -> (PathBuf, String) {
     let doc: Value = serde_json::from_str(RAW).unwrap();
+    let applicants = json!(["fin2-unused-decision"]);
+    let complete_request_hash = book::hash(&applicants);
+    let object_id = "fin2-unused-S-object";
     let covered = (3..6)
         .map(|index| {
             let event = &doc["events"][index];
@@ -79,9 +88,57 @@ fn write_fin_input(root: &Path) -> (PathBuf, String) {
             "source_ref":"TestOnly FIN/2 responsibility baseline",
             "covered_facts":covered
         },
-        "rights":[],
-        "plans":[],
-        "slots":[]
+        "rights":[{
+            "right_id":"fin2-unused-right",
+            "owner":"B:chong-N1",
+            "version":"1",
+            "amount":"1000",
+            "currency":"TEST-CASH",
+            "source_ref":"TestOnly FIN/2 unused closed-plan right"
+        }],
+        "plans":[{
+            "decision_id":"fin2-unused-decision",
+            "attempt_id":"fin2-unused-attempt",
+            "plan_id":"fin2-unused-plan",
+            "owner":"B:chong-N1",
+            "voice_binding_id":"fin2-unused-voice",
+            "right_id":"fin2-unused-right",
+            "expected_book_version":"1",
+            "expected_rights_version":"1",
+            "applicant_epoch":"1",
+            "applicant_generation":"1",
+            "slot_id":"fin2-unused-slot",
+            "quantity":"1",
+            "limit_price":"1",
+            "fee_tail":"0",
+            "quantity_source":"TestOnly FIN/2 unused quantity",
+            "price_source":"TestOnly FIN/2 unused price",
+            "fee_source":"TestOnly FIN/2 unused fee",
+            "s_ref":{
+                "schema_revision":"s-object-ref/2",
+                "object_id":object_id,
+                "object_hash":book::hash(&json!(object_id)),
+                "profile_id":"fin2-unused-profile"
+            },
+            "o_ref":{
+                "operation_id":"fin2-unused-operation",
+                "kind":"TestOnlyCashBuy",
+                "source_ref":"TestOnly FIN/2 unused operation",
+                "s_object_id":object_id,
+                "quantity":"1"
+            }
+        }],
+        "slots":[{
+            "slot_id":"fin2-unused-slot",
+            "applicants":applicants,
+            "input_end":{
+                "kind":"ControlledInputEnd",
+                "source_id":"fin2-we7-test",
+                "source_epoch":"1",
+                "watermark":"1",
+                "complete_request_hash":complete_request_hash
+            }
+        }]
     });
     let raw = canonical_json(&input);
     let path = root.join("fin-input.json");
@@ -89,10 +146,13 @@ fn write_fin_input(root: &Path) -> (PathBuf, String) {
     (path, sha256_hex(raw.as_bytes()))
 }
 
-fn fin2_manifest(root: &Path) -> Value {
-    let space = Space(root.to_path_buf());
-    let mut m = manifest(&space, true);
-    let (input_path, input_sha256) = write_fin_input(root);
+fn fin2_manifest(space: &Space, root: &Path) -> Value {
+    let mut m = manifest(space, true);
+    let (input_path, input_sha256) = write_fin_input(&space.0);
+    m["e"]["db"] = json!(owner_db(root, 0));
+    for index in 0..3 {
+        m["chongs"][index]["db"] = json!(owner_db(root, index + 1));
+    }
     m["protocol_revision"] = json!("economic-session/2");
     m["resources"]["response_timeout_ms"] = json!("30000");
     m["finance"] = json!({
@@ -106,9 +166,9 @@ fn fin2_manifest(root: &Path) -> Value {
             "producer_epoch":"1"
         },
         "structure":{
-            "binary":root.join("unit-S-binary"),
+            "binary":space.0.join("unit-S-binary"),
             "binary_sha256":book::hash(&json!("unit")),
-            "db":root.join("s.db"),
+            "db":space.0.join("s.db"),
             "session_id":"tb1406-c4a",
             "session_generation":"1",
             "writer_epoch":"1",
@@ -126,16 +186,16 @@ fn fin2_manifest(root: &Path) -> Value {
 }
 
 fn load(root: &Path) -> Session {
-    let space = Space(root.to_path_buf());
-    let manifest_value = fin2_manifest(root);
-    let path = root.join("manifest.json");
+    let space = Space::new("fin2-hfs");
+    let manifest_value = fin2_manifest(&space, root);
+    let path = space.0.join("manifest.json");
     std::fs::write(&path, canonical_json(&manifest_value)).unwrap();
-    let mut configs = vec![store::Config::load(&path, &root.join("e.db"), None).unwrap()];
+    let mut configs = vec![store::Config::load(&path, &owner_db(root, 0), None).unwrap()];
     for index in 0..3 {
         configs.push(
             store::Config::load(
                 &path,
-                &root.join(format!("b{index}.db")),
+                &owner_db(root, index + 1),
                 Some(&format!("chong-N{}", index + 1)),
             )
             .unwrap(),
@@ -159,6 +219,136 @@ fn load(root: &Path) -> Session {
     }
 }
 
+struct Original {
+    owner: usize,
+    request: Value,
+    request_json: String,
+    response: Value,
+}
+
+fn stored_request_json(session: &Session, owner: usize, message_id: &str) -> String {
+    session.dbs[owner]
+        .query_row(
+            "SELECT request_json FROM messages WHERE json_extract(request_json,'$.message_id')=?1",
+            [message_id],
+            |row| row.get(0),
+        )
+        .unwrap()
+}
+
+fn storage_stats(session: &Session, owner: usize) -> Value {
+    let db = &session.dbs[owner];
+    let read = |name: &str| -> i64 {
+        db.query_row(&format!("PRAGMA {name}"), [], |row| row.get(0))
+            .unwrap()
+    };
+    json!({
+        "page_size":read("page_size"),
+        "page_count":read("page_count"),
+        "max_page_count":read("max_page_count"),
+        "freelist_count":read("freelist_count"),
+        "allocated":super::content_store::allocated(&session.configs[owner].db).unwrap(),
+    })
+}
+
+fn apply_image_sizes(session: &Session, owner: usize, request: &Value) -> (usize, usize) {
+    let payload = &request["payload"];
+    let fact_key = payload["fact_key"].as_str().unwrap();
+    let e = &session.dbs[0];
+    let e_config = &session.configs[0];
+    let mut record = store::row(e, "facts", fact_key).unwrap().unwrap();
+    let receipt = store::row(e, "receipts", fact_key).unwrap().unwrap();
+    record["cut"] = receipt["cut"].clone();
+    record["e_receipt"] = receipt;
+    record["e_domain_id"] = json!("E");
+    record["e_session_id"] = json!(e_config.session);
+    record["e_session_generation"] = json!(e_config.generation);
+    let recorded_seq: i64 = record["recorded_seq"].as_str().unwrap().parse().unwrap();
+    let (previous_root, commit_ns, image): (String, String, String) = e
+        .query_row(
+            "SELECT prev_root,commit_ns,image FROM commits WHERE seq=?",
+            [recorded_seq],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .unwrap();
+    record["e_commit_proof"] = json!({
+        "previous_root":previous_root,
+        "commit_ns":commit_ns,
+        "image":serde_json::from_str::<Value>(&image).unwrap(),
+    });
+    super::tb03c_allocation::attach_resolution(e, &session.configs[owner], &mut record).unwrap();
+    let message_id = request["message_id"].as_str().unwrap();
+    let recovery_index = usize::try_from(session.epochs[owner] - 1).unwrap();
+    let config = &session.configs[owner];
+    let received_ns = config
+        .clock(Some(message_id), "received_ns", recovery_index)
+        .unwrap();
+    let first_known_ns = config
+        .clock(Some(message_id), "first_known_ns", recovery_index)
+        .unwrap();
+    let commit_ns = config
+        .clock(Some(message_id), "commit_ns", recovery_index)
+        .unwrap();
+    record["b_observation"] = json!({
+        "received_ns":received_ns,
+        "first_known_ns":first_known_ns,
+        "commit_ns":commit_ns.clone(),
+    });
+    record["b_origin_message"] = json!({
+        "source_namespace":request["source_namespace"],
+        "source_epoch":request["source_epoch"],
+        "message_id":request["message_id"],
+        "payload_hash":request["payload_hash"],
+    });
+    record["b_origin_request_hash"] = json!(book::hash(request));
+    let current = latest_image(session, owner);
+    let (next, _) = book::apply_in(
+        &session.configs[owner].manifest,
+        &current,
+        &record,
+        latest_seq(session, owner) + 1,
+        &commit_ns,
+    )
+    .unwrap();
+    (canonical_json(&current).len(), canonical_json(&next).len())
+}
+
+fn send_original(
+    session: &mut Session,
+    originals: &mut Vec<Original>,
+    owner: usize,
+    payload: Value,
+) -> Value {
+    let request = session.new_envelope(owner, payload);
+    let response = session.send_envelope(owner, &request);
+    assert_eq!(response["schema_revision"], "economic-session/2");
+    assert_eq!(response["source_namespace"], "economic-session/replies");
+    if response["payload"]["kind"] == "Error" {
+        let mut storage = storage_stats(session, owner);
+        if request["payload"]["op"] == "ApplyAllocation" {
+            let (current_image_bytes, prospective_image_bytes) =
+                apply_image_sizes(session, owner, &request);
+            storage["current_image_bytes"] = json!(current_image_bytes);
+            storage["prospective_image_bytes"] = json!(prospective_image_bytes);
+        }
+        panic!(
+            "原请求 {} 失败: {response}; storage={storage}",
+            request["message_id"]
+        );
+    }
+    let message_id = request["message_id"].as_str().unwrap();
+    let request_json = stored_request_json(session, owner, message_id);
+    assert_eq!(request_json, canonical_json(&request));
+    let payload = response["payload"].clone();
+    originals.push(Original {
+        owner,
+        request,
+        request_json,
+        response,
+    });
+    payload
+}
+
 fn staging_count(session: &Session, owner: usize) -> i64 {
     session.dbs[owner]
         .query_row("SELECT count(*) FROM content_staging", [], |row| row.get(0))
@@ -176,7 +366,10 @@ fn latest_seq(session: &Session, owner: usize) -> i64 {
 #[test]
 #[ignore = "需要 TB03C_FIN2_CARRIER_ROOT 指向四个独立 HFS+ 挂载根"]
 fn fin2_we7_capture_resolve_apply_recover_and_resend() {
-    let mut session = load(&carrier_root());
+    let root = carrier_root();
+    let sentinel = root.join("fin2-we7-do-not-delete.sentinel");
+    std::fs::write(&sentinel, "preserve the caller-owned carrier root").unwrap();
+    let mut session = load(&root);
     for (owner, config) in session.configs.iter().enumerate() {
         let revision: String = session.dbs[owner]
             .query_row("SELECT v FROM meta WHERE k='schema_revision'", [], |row| {
@@ -208,13 +401,16 @@ fn fin2_we7_capture_resolve_apply_recover_and_resend() {
     );
 
     let hand: Value = serde_json::from_str(HAND).unwrap();
+    let mut originals = Vec::new();
     let mut captures = Vec::new();
     let mut resolves = Vec::new();
     let mut applies = Vec::new();
     for index in 0..3 {
-        let capture = session.capture(RAW, index);
+        let capture = send_original(&mut session, &mut originals, 0, capture_request(RAW, index));
         assert_eq!(capture["kind"], "Recorded", "{capture}");
-        let applied = session.send(
+        let applied = send_original(
+            &mut session,
+            &mut originals,
             index + 1,
             apply_request(&capture, &capture["allocation_id"]),
         );
@@ -226,13 +422,25 @@ fn fin2_we7_capture_resolve_apply_recover_and_resend() {
     }
 
     for round in 0..3 {
-        let capture = session.capture(RAW, round + 3);
+        let capture = send_original(
+            &mut session,
+            &mut originals,
+            0,
+            capture_request(RAW, round + 3),
+        );
         assert_eq!(capture["kind"], "Recorded", "{capture}");
-        let resolved = session.resolve(&capture, round + 4);
+        let resolved = send_original(
+            &mut session,
+            &mut originals,
+            0,
+            resolve_request(&capture, round + 4),
+        );
         assert_eq!(resolved["kind"], "Resolved", "{resolved}");
         let allocations = session.allocations(&capture);
         for index in 0..3 {
-            let applied = session.send(
+            let applied = send_original(
+                &mut session,
+                &mut originals,
                 index + 1,
                 apply_request(&capture, &allocations[index]["allocation_id"]),
             );
@@ -272,6 +480,7 @@ fn fin2_we7_capture_resolve_apply_recover_and_resend() {
     assert_eq!(captures.len(), 6);
     assert_eq!(resolves.len(), 3);
     assert_eq!(applies.len(), 12);
+    assert_eq!(originals.len(), 21);
     let mut allocation_ids = std::collections::BTreeSet::new();
     for receipt in &applies {
         assert_eq!(receipt["kind"], "Applied");
@@ -286,11 +495,16 @@ fn fin2_we7_capture_resolve_apply_recover_and_resend() {
         .map(|owner| latest_seq(&session, owner))
         .collect::<Vec<_>>();
     for owner in 0..4 {
+        drop(session.dbs.remove(owner));
         let recovered = store::recover(&session.configs[owner]).unwrap();
         assert_eq!(recovered["kind"], "Recovered");
         let next_epoch = book::integer(&recovered, "writer_epoch").unwrap();
         assert!(next_epoch > session.epochs[owner]);
         session.epochs[owner] = next_epoch;
+        session.dbs.insert(
+            owner,
+            store::open(&session.configs[owner].db, false).unwrap().0,
+        );
         store::audit(&session.dbs[owner], &session.configs[owner]).unwrap();
         assert_eq!(
             canonical_json(&latest_image(&session, owner)),
@@ -299,34 +513,44 @@ fn fin2_we7_capture_resolve_apply_recover_and_resend() {
         assert_eq!(staging_count(&session, owner), 0);
     }
 
-    // 新 writer epoch 下重送全部 6 Capture + 3 Resolve + 12 Apply；返回原收据且不新增 commit。
-    for index in 0..3 {
-        assert_eq!(session.capture(RAW, index), captures[index]);
+    let before_messages = (0..4)
+        .map(|owner| store::rows(&session.dbs[owner], "messages").unwrap())
+        .collect::<Vec<_>>();
+    let before_receipts = (0..4)
+        .map(|owner| store::rows(&session.dbs[owner], "receipts").unwrap())
+        .collect::<Vec<_>>();
+    let before_applications = (0..4)
+        .map(|owner| store::rows(&session.dbs[owner], "applications").unwrap())
+        .collect::<Vec<_>>();
+    let before_next = session.next;
+
+    // 新 writer epoch 下逐字重送 6 Capture + 3 Resolve + 12 Apply 的原信封。
+    // DB 原 request_json、提交序列与 application 表保持不变；完整 /2 响应仅
+    // writer epoch 随 recover 合法前进，其余字段（含原收据与因果引用）逐项相同。
+    for original in &originals {
         assert_eq!(
-            session.send(
-                index + 1,
-                apply_request(&captures[index], &captures[index]["allocation_id"])
+            canonical_json(&original.request),
+            original.request_json,
+            "重送前原信封字节漂移"
+        );
+        let response = session.send_envelope(original.owner, &original.request);
+        let mut expected = original.response.clone();
+        let writer_epoch = json!(session.epochs[original.owner].to_string());
+        expected["source_epoch"] = writer_epoch.clone();
+        expected["producer_epoch"] = writer_epoch;
+        assert_eq!(response, expected);
+        assert_eq!(response["schema_revision"], "economic-session/2");
+        assert_eq!(response["source_namespace"], "economic-session/replies");
+        assert_eq!(
+            stored_request_json(
+                &session,
+                original.owner,
+                original.request["message_id"].as_str().unwrap(),
             ),
-            applies[index]
+            original.request_json
         );
     }
-    for round in 0..3 {
-        assert_eq!(session.capture(RAW, round + 3), captures[round + 3]);
-        assert_eq!(
-            session.resolve(&captures[round + 3], round + 4),
-            resolves[round]
-        );
-        let allocations = session.allocations(&captures[round + 3]);
-        for index in 0..3 {
-            assert_eq!(
-                session.send(
-                    index + 1,
-                    apply_request(&captures[round + 3], &allocations[index]["allocation_id"]),
-                ),
-                applies[3 + round * 3 + index]
-            );
-        }
-    }
+    assert_eq!(session.next, before_next, "重送不得分配新 message_id");
     for owner in 0..4 {
         assert_eq!(latest_seq(&session, owner), before_seq[owner]);
         assert_eq!(
@@ -335,19 +559,47 @@ fn fin2_we7_capture_resolve_apply_recover_and_resend() {
         );
         store::audit(&session.dbs[owner], &session.configs[owner]).unwrap();
         assert_eq!(staging_count(&session, owner), 0);
+        assert_eq!(
+            store::rows(&session.dbs[owner], "messages").unwrap(),
+            before_messages[owner]
+        );
+        assert_eq!(
+            store::rows(&session.dbs[owner], "receipts").unwrap(),
+            before_receipts[owner]
+        );
+        assert_eq!(
+            store::rows(&session.dbs[owner], "applications").unwrap(),
+            before_applications[owner]
+        );
     }
+
+    drop(session);
+    assert!(root.is_dir(), "测试不得删除调用方载体根");
+    assert_eq!(
+        std::fs::read_to_string(&sentinel).unwrap(),
+        "preserve the caller-owned carrier root"
+    );
+    for owner in 0..4 {
+        let db = owner_db(&root, owner);
+        assert!(db.parent().unwrap().is_dir(), "测试不得卸载/删除挂载根");
+        assert!(db.is_file(), "测试 owner DB 必须位于真实挂载根");
+    }
+    std::fs::remove_file(sentinel).unwrap();
 }
 
 #[test]
 #[ignore = "需要 TB03C_FIN2_CARRIER_ROOT 指向四个独立 HFS+ 挂载根"]
 fn fin2_capacity_shared_carrier_and_non_hfs_are_rejected() {
     let root = carrier_root();
+    let sentinel = root.join("fin2-negative-do-not-delete.sentinel");
+    std::fs::write(&sentinel, "preserve the caller-owned carrier root").unwrap();
+    let space = Space::new("fin2-hfs-negative");
     for field in ["max_store_bytes", "max_staged_bytes"] {
-        let mut value = fin2_manifest(&root);
+        let mut value = fin2_manifest(&space, &root);
         value["finance"]["structure"]["reader_resources"]["job_limits"][field] = json!("1");
-        let path = root.join(format!("{field}.json"));
+        let path = space.0.join(format!("{field}.json"));
         std::fs::write(&path, canonical_json(&value)).unwrap();
-        let error = store::Config::load(&path, &root.join("e.db"), None)
+        let error = store::Config::load(&path, &owner_db(&root, 0), None)
             .err()
             .unwrap();
         assert!(
@@ -356,27 +608,37 @@ fn fin2_capacity_shared_carrier_and_non_hfs_are_rejected() {
         );
     }
 
-    let mut shared = fin2_manifest(&root);
-    shared["chongs"][0]["db"] = json!(root.join("e-shared.db"));
-    let path = root.join("shared-carrier.json");
+    let mut shared = fin2_manifest(&space, &root);
+    shared["chongs"][0]["db"] = json!(root.join("e").join("shared-owner.db"));
+    let path = space.0.join("shared-carrier.json");
     std::fs::write(&path, canonical_json(&shared)).unwrap();
-    let error = store::Config::load(&path, &root.join("e.db"), None)
+    let error = store::Config::load(&path, &owner_db(&root, 0), None)
         .err()
         .unwrap();
     assert!(error.contains("必须各占独立固定容量卷"), "{error}");
 
-    let apfs = root.join("apfs");
+    let apfs = space.0.join("apfs");
     std::fs::create_dir_all(&apfs).unwrap();
-    let mut non_hfs = fin2_manifest(&root);
-    non_hfs["e"]["db"] = json!(apfs.join("e.db"));
-    let path = apfs.join("non-hfs.json");
+    let mut non_hfs = fin2_manifest(&space, &root);
+    non_hfs["e"]["db"] = json!(apfs.join("owner.db"));
+    let path = space.0.join("non-hfs.json");
     std::fs::write(&path, canonical_json(&non_hfs)).unwrap();
-    let error = store::Config::load(&path, &apfs.join("e.db"), None)
+    let error = store::Config::load(&path, &apfs.join("owner.db"), None)
         .err()
         .unwrap();
     assert!(
         error.contains("HFS") || error.contains("mount root"),
         "{error}"
     );
-    assert!(!apfs.join("e.db").exists());
+    assert!(!apfs.join("owner.db").exists());
+    drop(space);
+    assert!(root.is_dir(), "负控不得删除调用方载体根");
+    assert_eq!(
+        std::fs::read_to_string(&sentinel).unwrap(),
+        "preserve the caller-owned carrier root"
+    );
+    for owner in 0..4 {
+        assert!(owner_db(&root, owner).parent().unwrap().is_dir());
+    }
+    std::fs::remove_file(sentinel).unwrap();
 }

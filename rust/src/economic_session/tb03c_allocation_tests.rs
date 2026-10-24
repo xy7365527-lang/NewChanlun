@@ -80,26 +80,29 @@ impl Session {
         }
     }
     pub(super) fn send(&mut self, owner: usize, payload: Value) -> Value {
+        let envelope = self.new_envelope(owner, payload);
+        self.send_envelope(owner, &envelope)["payload"].clone()
+    }
+    pub(super) fn new_envelope(&mut self, owner: usize, payload: Value) -> Value {
         let id = format!("m-{}", self.next);
         self.next += 1;
-        let e = json!({"schema_revision":self.configs[owner].revision().unwrap(),"session_id":"tb1406-c4a","session_generation":"1","message_id":id,"source_namespace":"testonly-tb1406","source_epoch":"fixture-epoch-1","producer_id":"tb1406-c4a","producer_epoch":"1","payload_hash":book::hash(&payload),"payload":payload,"causal_refs":[]});
+        json!({"schema_revision":self.configs[owner].revision().unwrap(),"session_id":"tb1406-c4a","session_generation":"1","message_id":id,"source_namespace":"testonly-tb1406","source_epoch":"fixture-epoch-1","producer_id":"tb1406-c4a","producer_epoch":"1","payload_hash":book::hash(&payload),"payload":payload,"causal_refs":[]})
+    }
+    pub(super) fn send_envelope(&mut self, owner: usize, envelope: &Value) -> Value {
         service::handle(
             &mut self.dbs[owner],
             &self.configs[owner],
             self.epochs[owner],
             self.epochs[0],
             &json!({}),
-            &e,
-        )["payload"]
-            .clone()
+            envelope,
+        )
     }
     pub(super) fn image(&self, owner: usize) -> Value {
         store::latest(&self.dbs[owner]).unwrap().3
     }
     pub(super) fn capture(&mut self, raw: &str, index: usize) -> Value {
-        let doc: Value = serde_json::from_str(raw).unwrap();
-        let ev = &doc["events"][index];
-        self.send(0,json!({"op":"CaptureExternal","raw_utf8":raw,"json_pointer":format!("/events/{index}"),"token":format!("token-{}",ev["source"]["external_fact_id"].as_str().unwrap()),"source_event_time":ev["source"]["source_event_time"]}))
+        self.send(0, capture_request(raw, index))
     }
     pub(super) fn resolve(&mut self, r: &Value, cursor: usize) -> Value {
         self.send(0, resolve_request(r, cursor))
@@ -123,6 +126,11 @@ impl Session {
             assert_eq!(a["kind"], "Applied", "{a}");
         }
     }
+}
+pub(super) fn capture_request(raw: &str, index: usize) -> Value {
+    let doc: Value = serde_json::from_str(raw).unwrap();
+    let ev = &doc["events"][index];
+    json!({"op":"CaptureExternal","raw_utf8":raw,"json_pointer":format!("/events/{index}"),"token":format!("token-{}",ev["source"]["external_fact_id"].as_str().unwrap()),"source_event_time":ev["source"]["source_event_time"]})
 }
 pub(super) fn resolve_request(r: &Value, cursor: usize) -> Value {
     json!({"op":"ResolveEvidence","evidence_id":format!("resolve-{}",r["fact_key"].as_str().unwrap()),"covered":[{"fact_key":r["fact_key"],"fact_hash":r["fact_hash"],"token":r["token"]}],"frontier":{"source_namespace":"testonly-tb1406","source_epoch":"fixture-epoch-1","cursor":cursor.to_string()},"dependency_version":"testonly-deps/1"})
