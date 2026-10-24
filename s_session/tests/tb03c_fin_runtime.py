@@ -733,6 +733,7 @@ def run_s1_oracle(stack, economy):
     env = os.environ.copy()
     env["TB03C_S1_FIXTURE"] = str(fixture)
     env["TB03C_S1_OUTPUT"] = str(terminal)
+    env["CARGO_TARGET_DIR"] = str(Path(env.get("CARGO_TARGET_DIR", str(ROOT.parent / "rust/target"))) / "s1-oracle")
     with stdout.open("xb") as out, stderr.open("xb") as err:
         done = subprocess.run(args, cwd=ROOT.parent / "rust", env=env,
                               stdout=out, stderr=err, timeout=1200)

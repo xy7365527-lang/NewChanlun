@@ -3,6 +3,7 @@ import ast
 import copy
 import hashlib
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -75,6 +76,40 @@ class Tb03cFinRuntimeContract(unittest.TestCase):
         self.assertEqual(calls[0][:4], ["cargo", "build", "--locked", "--features"])
         for binary in ("s_structure_session", "e_economic_session", "b_chong_session"):
             self.assertIn(binary, calls[0])
+
+    def test_s1_oracle_does_not_overwrite_formal_s_binary(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            economy_dir = root / "economy"
+            economy_dir.mkdir()
+            docs = {name: {"document": name} for name in ("opening", "fill", "gap", "conflict", "valuation")}
+            economy = type("Economy", (), {
+                "output": economy_dir, "manifest": {"schema_revision": "economic-manifest/1"},
+                "input": {}, "plan": {}, "binding": {}, "docs": docs,
+            })()
+            stack = run.Stack.__new__(run.Stack)
+            stack.output, stack.number = root, 0
+            stack.record = lambda _entry: None
+            seen = {}
+            class Done:
+                returncode = 0
+            def fake_run(_args, **kwargs):
+                seen.update(kwargs["env"])
+                Path(kwargs["env"]["TB03C_S1_OUTPUT"]).write_bytes(canonical({"E": {}, "B:alpha": {}}))
+                return Done()
+            original = run.subprocess.run
+            run.subprocess.run = fake_run
+            previous = os.environ.get("CARGO_TARGET_DIR")
+            os.environ["CARGO_TARGET_DIR"] = "/formal-target"
+            try:
+                run.run_s1_oracle(stack, economy)
+            finally:
+                run.subprocess.run = original
+                if previous is None:
+                    os.environ.pop("CARGO_TARGET_DIR", None)
+                else:
+                    os.environ["CARGO_TARGET_DIR"] = previous
+            self.assertEqual(seen["CARGO_TARGET_DIR"], "/formal-target/s1-oracle")
 
     def test_s1_fixture_contains_the_exact_formal_run_inputs(self):
         docs = {name: {"document": name} for name in ("opening", "fill", "gap", "conflict", "valuation")}
