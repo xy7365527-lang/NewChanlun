@@ -26,6 +26,7 @@ const DEADLINE: Duration = Duration::from_secs(300);
 /// 时钟计划覆盖的消息数（计划最长为 P0-acceptance-5m：三重 × 6 步 = 18）。
 const MESSAGES: usize = 32;
 const PROFILES: [&str; 3] = ["P0", "P1-hl-testnet", "P0-acceptance-5m"];
+const VALID_DAY_NS: i64 = 1_792_540_800_000_000_000; // 2026-10-21 00:00:00 UTC
 
 fn profile(id: &str) -> Value {
     let oracle: Value = serde_json::from_str(ORACLE).unwrap();
@@ -68,8 +69,9 @@ fn manifest(dir: &Path, id: &str, fault: Option<(&str, &str)>) -> Value {
         })
         .collect::<Vec<_>>();
     let mut plan = serde_json::Map::new();
+    // #1621：资金时效取 b_observation.first_known_ns；夹具须落在签署有效期内，不能用 1970 附近的纳秒值。
     for i in 0..MESSAGES as i64 {
-        let t = 1000 + 10 * i;
+        let t = VALID_DAY_NS + 1000 + 10 * i;
         let times = |offset: i64| {
             (0..16)
                 .map(|r| (r * 1_000_000 + t + offset).to_string())
@@ -86,7 +88,7 @@ fn manifest(dir: &Path, id: &str, fault: Option<(&str, &str)>) -> Value {
         "e":{"db":dir.join("e.db"),"socket":dir.join("e.sock")},"chongs":routes,
         "authorized_sources":[{"source_namespace":"testonly-tb1406","source_epoch":"fixture-epoch-1","producer_id":"tb1674-v2","producer_epoch":"1","operations":["CaptureExternal","ResolveEvidence","ApplyAllocation","ReadView","QueryFact","QueryAllocation"]}],
         "resources":{"max_frame_bytes":"1048576","read_timeout_ms":"1000","write_timeout_ms":"1000","response_timeout_ms":"2000","queue_capacity":"2","max_connections":"2"},
-        "clock":{"kind":"TestOnly","plan":{"init_ns":"1","recover_ns":((1..=16).map(|r| (r * 1_000_000).to_string()).collect::<Vec<_>>()),"messages":plan}}});
+        "clock":{"kind":"TestOnly","plan":{"init_ns":(VALID_DAY_NS + 1).to_string(),"recover_ns":((1..=16).map(|r| (VALID_DAY_NS + r * 1_000_000).to_string()).collect::<Vec<_>>()),"messages":plan}}});
     if let Some((message, phase)) = fault {
         m["test_only_fault"] =
             json!({"message_id":message,"phase":phase,"marker_path":dir.join("fault-marker.json")});
@@ -448,7 +450,7 @@ fn build(id: &'static str) -> Plan {
         snapshots: b.snapshots,
         norm_replies: vec![],
     };
-    let clock = Clock::of(plan.owners(), None);
+    let clock = Clock::of_at(plan.owners(), None, VALID_DAY_NS);
     plan.norm_replies = plan
         .replies
         .iter()
@@ -512,7 +514,7 @@ fn build_reference(plan: &Plan) -> Reference {
     );
     assert_eq!(finals[0].2, finals[1].2, "{} 两次终态哈希相同", plan.id);
     let (tables, public, _) = finals.swap_remove(0);
-    let clock = Clock::of(plan.owners(), None);
+    let clock = Clock::of_at(plan.owners(), None, VALID_DAY_NS);
     let norm_tables = tables
         .iter()
         .map(|t| normalize_reference(&without(t, &["meta", "epochs"]), &clock))
@@ -664,7 +666,10 @@ fn kill_and_recover(plan: &Plan, target: usize, phase: &str, work: &Path) -> Kil
     );
     assert_eq!(
         after_recover["epochs"],
-        json!([{"epoch":1,"phase":"init","at_ns":"1"},{"epoch":2,"phase":"recover","at_ns":"1000000"}])
+        json!([
+            {"epoch":1,"phase":"init","at_ns":(VALID_DAY_NS + 1).to_string()},
+            {"epoch":2,"phase":"recover","at_ns":(VALID_DAY_NS + 1_000_000).to_string()}
+        ])
     );
     Killed {
         configs,
@@ -706,9 +711,10 @@ fn run_once(plan: &Plan, target: usize, phase: &str, work: &Path) -> Value {
     let k = kill_and_recover(plan, target, phase, work);
     let t_kill = t0.elapsed().as_millis();
     let (owner, kill_seq) = (k.owner, k.kill_seq);
-    let clock = Clock::of(
+    let clock = Clock::of_at(
         plan.owners(),
         Some((owner, if committed { target + 1 } else { target })),
+        VALID_DAY_NS,
     );
     let mut stale = plan.steps[target].clone();
     stale["epoch"] = json!(1);
