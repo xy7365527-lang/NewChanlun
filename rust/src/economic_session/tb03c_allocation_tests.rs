@@ -8,14 +8,14 @@ const MANIFEST: &str =
     include_str!("../../../s_session/tests/fixtures/tb03c_allocation/FROZEN-MANIFEST.json");
 const HAND: &str =
     include_str!("../../../s_session/tests/fixtures/tb03c_allocation/HAND-ORACLE.json");
-struct Session {
-    _space: Space,
-    configs: Vec<store::Config>,
-    dbs: Vec<rusqlite::Connection>,
-    next: usize,
-    epochs: Vec<i64>,
+pub(super) struct Session {
+    pub(super) _space: Space,
+    pub(super) configs: Vec<store::Config>,
+    pub(super) dbs: Vec<rusqlite::Connection>,
+    pub(super) next: usize,
+    pub(super) epochs: Vec<i64>,
 }
-fn manifest(space: &Space, policy: bool) -> Value {
+pub(super) fn manifest(space: &Space, policy: bool) -> Value {
     let mut plan = serde_json::Map::new();
     for i in 0..256 {
         let t = 1000 + 10 * i;
@@ -79,10 +79,10 @@ impl Session {
             epochs,
         }
     }
-    fn send(&mut self, owner: usize, payload: Value) -> Value {
+    pub(super) fn send(&mut self, owner: usize, payload: Value) -> Value {
         let id = format!("m-{}", self.next);
         self.next += 1;
-        let e = json!({"schema_revision":"economic-session/1","session_id":"tb1406-c4a","session_generation":"1","message_id":id,"source_namespace":"testonly-tb1406","source_epoch":"fixture-epoch-1","producer_id":"tb1406-c4a","producer_epoch":"1","payload_hash":book::hash(&payload),"payload":payload,"causal_refs":[]});
+        let e = json!({"schema_revision":self.configs[owner].revision().unwrap(),"session_id":"tb1406-c4a","session_generation":"1","message_id":id,"source_namespace":"testonly-tb1406","source_epoch":"fixture-epoch-1","producer_id":"tb1406-c4a","producer_epoch":"1","payload_hash":book::hash(&payload),"payload":payload,"causal_refs":[]});
         service::handle(
             &mut self.dbs[owner],
             &self.configs[owner],
@@ -93,18 +93,18 @@ impl Session {
         )["payload"]
             .clone()
     }
-    fn image(&self, owner: usize) -> Value {
+    pub(super) fn image(&self, owner: usize) -> Value {
         store::latest(&self.dbs[owner]).unwrap().3
     }
-    fn capture(&mut self, raw: &str, index: usize) -> Value {
+    pub(super) fn capture(&mut self, raw: &str, index: usize) -> Value {
         let doc: Value = serde_json::from_str(raw).unwrap();
         let ev = &doc["events"][index];
         self.send(0,json!({"op":"CaptureExternal","raw_utf8":raw,"json_pointer":format!("/events/{index}"),"token":format!("token-{}",ev["source"]["external_fact_id"].as_str().unwrap()),"source_event_time":ev["source"]["source_event_time"]}))
     }
-    fn resolve(&mut self, r: &Value, cursor: usize) -> Value {
+    pub(super) fn resolve(&mut self, r: &Value, cursor: usize) -> Value {
         self.send(0, resolve_request(r, cursor))
     }
-    fn allocations(&self, r: &Value) -> Vec<Value> {
+    pub(super) fn allocations(&self, r: &Value) -> Vec<Value> {
         self.image(0)["fill_allocations"]
             .as_array()
             .unwrap()
@@ -115,7 +115,7 @@ impl Session {
             .unwrap()
             .clone()
     }
-    fn opening(&mut self) {
+    pub(super) fn opening(&mut self) {
         for i in 0..3 {
             let r = self.capture(RAW, i);
             assert_eq!(r["kind"], "Recorded", "{r}");
@@ -124,10 +124,10 @@ impl Session {
         }
     }
 }
-fn resolve_request(r: &Value, cursor: usize) -> Value {
+pub(super) fn resolve_request(r: &Value, cursor: usize) -> Value {
     json!({"op":"ResolveEvidence","evidence_id":format!("resolve-{}",r["fact_key"].as_str().unwrap()),"covered":[{"fact_key":r["fact_key"],"fact_hash":r["fact_hash"],"token":r["token"]}],"frontier":{"source_namespace":"testonly-tb1406","source_epoch":"fixture-epoch-1","cursor":cursor.to_string()},"dependency_version":"testonly-deps/1"})
 }
-fn apply_request(r: &Value, id: &Value) -> Value {
+pub(super) fn apply_request(r: &Value, id: &Value) -> Value {
     json!({"op":"ApplyAllocation","fact_key":r["fact_key"],"allocation_id":id,"expected_fact_hash":r["fact_hash"]})
 }
 fn assert_error(r: &Value, prefix: &str) {

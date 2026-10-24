@@ -33,6 +33,9 @@ mod voice_tests;
 
 mod financial_content;
 
+#[cfg(all(test, target_os = "macos"))]
+mod tb03c_fin2_tests;
+
 #[cfg(test)]
 mod tb03c_c5_frozen_tests;
 #[cfg(test)]
