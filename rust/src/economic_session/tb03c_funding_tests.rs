@@ -846,6 +846,77 @@ fn v2_transfer_opened_chong_carries_v2_revision() {
     assert_eq!(same, v1);
 }
 
+/// #1621：E 已提交事实不能在其提交之前被 B 获知；拒绝后修正时钟仍可应用同一事实。
+#[test]
+fn b_application_cannot_observe_fact_before_e_commit() {
+    let space = Space::new("issue1621-e-b-clock");
+    let mut m = profile_manifest(&space, P0);
+    let e_commit = TEST_CLOCK_BASE_NS + 100_000;
+    let early_b = e_commit - 1;
+    m["clock"]["plan"]["messages"]["cap-0"] = json!({
+        "received_ns": (e_commit - 2).to_string(),
+        "first_known_ns": (e_commit - 1).to_string(),
+        "commit_ns": e_commit.to_string(),
+    });
+    m["clock"]["plan"]["messages"]["app-0"] = json!({
+        "received_ns": (early_b - 1).to_string(),
+        "first_known_ns": early_b.to_string(),
+        "commit_ns": (early_b + 1).to_string(),
+    });
+    m["clock"]["plan"]["messages"]["app-1"] = json!({
+        "received_ns": e_commit.to_string(),
+        "first_known_ns": (e_commit + 1).to_string(),
+        "commit_ns": (e_commit + 2).to_string(),
+    });
+    let chong = chong_id("0");
+    let (ec, bc) = wire(&space, &m, &chong);
+    let (mut e, _) = store::open(&ec.db, false).unwrap();
+    let (mut b, _) = store::open(&bc.db, false).unwrap();
+    let raw = raw("0", &Batch::ok(100000, P0));
+    let doc: Value = serde_json::from_str(&raw).unwrap();
+    let event = &doc["events"][0];
+    let captured = service::handle(
+        &mut e,
+        &ec,
+        1,
+        1,
+        &json!({}),
+        &envelope(
+            "cap-0",
+            json!({"op":"CaptureExternal","raw_utf8":raw,"json_pointer":"/events/0","token":"tok-clock","source_event_time":event["source"]["source_event_time"]}),
+        ),
+    )["payload"]
+        .clone();
+    assert_eq!(captured["kind"], "Recorded", "{captured}");
+    assert_eq!(captured["commit_ns"], e_commit.to_string());
+
+    let apply = |message: &str| {
+        envelope(
+            message,
+            json!({"op":"ApplyAllocation","fact_key":captured["fact_key"],"allocation_id":event["allocation_id"],"expected_fact_hash":captured["fact_hash"]}),
+        )
+    };
+    let before = store::latest(&b).unwrap().3;
+    let rejected = service::handle(&mut b, &bc, 1, 1, &json!({}), &apply("app-0"))["payload"].clone();
+    assert_eq!(
+        rejected["error"],
+        "InvalidDomain：B 获知时刻早于 E 提交",
+        "{rejected}"
+    );
+    assert_eq!(store::latest(&b).unwrap().3, before);
+    assert!(store::rows(&b, "receipts").unwrap().is_empty());
+
+    let applied = service::handle(&mut b, &bc, 1, 1, &json!({}), &apply("app-1"))["payload"].clone();
+    assert_eq!(applied["kind"], "Applied", "{applied}");
+    assert_eq!(applied["e_first_known_ns"], captured["first_known_ns"]);
+    assert!(applied["first_known_ns"]
+        .as_str()
+        .unwrap()
+        .parse::<i64>()
+        .unwrap()
+        >= e_commit);
+}
+
 /// #1621：known_at 绑定可审计观察时间（record["b_observation"]["first_known_ns"]）；
 /// 跨域（S/E/B/X）时刻先后不变式 + 变异负控（观察时间早于/晚于签署有效期）。
 #[test]
