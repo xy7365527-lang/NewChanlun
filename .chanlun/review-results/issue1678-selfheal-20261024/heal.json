@@ -1,0 +1,63 @@
+{
+  "timestamp": "2026-10-24T10:23:55.387Z",
+  "mode": "heal",
+  "overallStatus": "red",
+  "checks": [
+    {
+      "name": "wayfinder_engine",
+      "status": "healthy",
+      "logPath": "/Users/silencehan/Projects/NewChanlun/.sandcastle/logs/wayfinder-engine.stdout.log",
+      "lastActivitySec": 231,
+      "message": "日志 231s 前更新"
+    },
+    {
+      "name": "claim_loop",
+      "status": "red",
+      "state": "stopped",
+      "running": false,
+      "hostRepo": "/Users/silencehan/Projects/NewChanlun-sandcastle-host",
+      "dirtyPaths": [],
+      "message": "claim-loop 进程不在"
+    },
+    {
+      "name": "stale_claims",
+      "status": "healthy",
+      "count": 0,
+      "stale": [],
+      "ignored": [
+        {
+          "ticket": 1206,
+          "reason": "票已 CLOSED"
+        },
+        {
+          "ticket": 1240,
+          "reason": "已无 assignee"
+        },
+        {
+          "ticket": 1394,
+          "reason": "票已 CLOSED"
+        }
+      ],
+      "message": "无 >48h 僵尸认领"
+    },
+    {
+      "name": "disk_space",
+      "status": "healthy",
+      "path": "/Volumes/AgentStorage",
+      "availableGiB": 390.2,
+      "requiredGiB": 100,
+      "message": "可用 390.2 GiB（门 100 GiB）"
+    },
+    {
+      "name": "cliproxy",
+      "status": "healthy",
+      "url": "http://127.0.0.1:8318/v1/models",
+      "httpStatus": 200,
+      "models": 105,
+      "message": "GET /v1/models 200，105 个模型"
+    }
+  ],
+  "actions": [
+    "com.newchanlun.sandcastle-claimer 未加载，已 bootstrap /Users/silencehan/Projects/NewChanlun-sandcastle-host/.sandcastle/launchd/com.newchanlun.sandcastle-claimer.plist，进程已起（复判：healthy）"
+  ]
+}
