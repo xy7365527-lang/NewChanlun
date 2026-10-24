@@ -1,0 +1,12 @@
+{
+  "ok": true,
+  "result": [
+    {
+      "service": "s",
+      "state": "stopped",
+      "pid": 29315,
+      "signal": "SIGTERM",
+      "exit_observation_warnings": []
+    }
+  ]
+}

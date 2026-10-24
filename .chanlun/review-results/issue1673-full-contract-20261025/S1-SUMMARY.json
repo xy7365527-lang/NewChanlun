@@ -1,0 +1,8 @@
+{
+  "status": "independent_rust_s1_exported",
+  "source_sha": "57c1722fd57ac24e3e43b885aa378ef1d739525a",
+  "terminal_canonical_bytes": 26784361,
+  "E_history": 7,
+  "B_history": 5,
+  "formal_terminal_parity": "NOT_VERIFIED — formal run stopped at B ReadView after Commit"
+}

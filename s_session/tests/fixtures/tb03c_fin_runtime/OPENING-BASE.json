@@ -1,0 +1,87 @@
+{
+  "format": "neutral TestOnly economic raw originals; not production transport wire",
+  "units": {
+    "quantity": {
+      "unit": "TEST-UNIT",
+      "quantum": "1"
+    },
+    "money": {
+      "unit": "TEST-CASH",
+      "currency": "TEST-CASH",
+      "quantum": "1"
+    },
+    "numeric_encoding": "exact_decimal_integer_text"
+  },
+  "events": [
+    {
+      "event": "known-opening",
+      "source": {
+        "source_namespace": "test",
+        "source_epoch": "one",
+        "source_cursor": "1",
+        "external_fact_id": "fact-one",
+        "received_time": "source-received",
+        "claimed_origin": "TestOnly source"
+      },
+      "allocation_id": "allocation-one",
+      "family_id": "family-one",
+      "book_identity": {
+        "chong_id": "opaque-one",
+        "symbol": "TEST",
+        "op_level": "2",
+        "fixed_q": "12"
+      },
+      "observed_existing_book": {
+        "units": "8",
+        "Pi": "900",
+        "A": "200",
+        "W": "100",
+        "witness_refs": {
+          "units": "u",
+          "Pi": "p",
+          "A": "a",
+          "W": "w"
+        }
+      },
+      "known_cost_components": [
+        {
+          "kind": "acquisition_cash",
+          "amount_text": "80000",
+          "canonical_amount": "80000",
+          "source_ref": "cost",
+          "currency": "TEST-CASH",
+          "quantum": "1"
+        }
+      ]
+    }
+  ],
+  "evidence_index": {
+    "fragments": {
+      "u": [
+        {
+          "json_pointer": "/events/0/observed_existing_book/units"
+        }
+      ],
+      "p": [
+        {
+          "json_pointer": "/events/0/observed_existing_book/Pi"
+        }
+      ],
+      "a": [
+        {
+          "json_pointer": "/events/0/observed_existing_book/A"
+        }
+      ],
+      "w": [
+        {
+          "json_pointer": "/events/0/observed_existing_book/W"
+        }
+      ],
+      "cost": [
+        {
+          "json_pointer": "/events/0/known_cost_components/0"
+        }
+      ]
+    }
+  }
+}
