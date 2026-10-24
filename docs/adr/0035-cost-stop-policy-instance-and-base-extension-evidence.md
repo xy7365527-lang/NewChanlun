@@ -9,6 +9,8 @@
 
 ## 裁定
 ### 一、记录形状与读法
+`tower_base_ref` 的值域与 `zhongshu.md` §2.1.1 一致；当前 `L0 = segment`，机读记录为 `tower-base/1`（#1626）。`kline3`／`trade3` 只在相应真实构件与数据 profile 具备时可签，缺位时显式拒绝，不以线段输入冒充。
+
 政策 id 族 `#1354/cost-stop-policy/v1`。记录 ⟨policy_id, version, profile_id, symbol, granularity, tower_base_ref, inputs{fee(Known, 费率簿引用含 source_url/retrieved_at/tier/role), slippage(Known|ProxyLowerBound|Missing), latency_error(同), holding(funding/borrow 引用 | Missing)}, amplitude{pairing=ROUNDTRIP, per_level[{level, median, lower_bound_95, n, max_month_cluster, windows[]}], probe_run_ref}, threshold{form=ratio_lb_ge_theta, theta 整数对(用户签署), authorizer, authorized_at}, evidence_gate(继承 ADR 0022 裁定六/七), valid_through, supersedes⟩。比值 `r(ℓ) = A_ℓ / (2·fee + slippage + latency_error [+ holding])`，A_ℓ 取 ROUNDTRIP 波幅单边 95% 下界（按月 block bootstrap）。通过 ⟺ `lb(r) ≥ θ` ∧ 证据门；`InsufficientEvidence` 与 `Fail` 分开。θ 由用户签署；系统拒绝 θ < 1（约束，非默认值）。全部定点整数。
 
 ### 二、缺项是状态不是 0

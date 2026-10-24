@@ -536,8 +536,9 @@ impl TowerPolicyStamp {
 
 /// Θ_level + Θ_signal 顶层入口（reference-theta-v0.md:27-37）。
 ///
-/// 递归构造 L0..Lmax：L0=parser 线段账本；每级由下级已完成走势单元构造中枢 + 裁决走势，
-/// 走势成为上级输入单元。自然终止：某级单元数 < `min_parts_per_level`（无法产生完整走势）。
+/// 递归构造 L0..Lmax：L0 按 `tower-base` 记录取构件（当前 segment=parser 线段账本）；
+/// 每级由下级已完成走势单元构造中枢 + 裁决走势，走势成为上级输入单元。
+/// 自然终止：某级单元数 < `min_parts_per_level`（无法产生完整走势）。
 /// 达 `l_max` 上界时若下一级仍可升级，记为资源截断（#1603，[`TowerTermination::ResourceBound`]，
 /// 标 `INCOMPLETE_RESOURCE_BOUND`），不作自然终止。
 ///
