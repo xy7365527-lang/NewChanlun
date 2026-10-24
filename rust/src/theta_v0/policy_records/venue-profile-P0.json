@@ -1,0 +1,38 @@
+{
+  "id": "venue-profile-P0",
+  "version": 1,
+  "kind": "venue_profile",
+  "profile_id": "P0",
+  "symbol": "BTC",
+  "admissible": true,
+  "ticket": "#1602（#1586 审计 C-06/C-17；ADR 0041）",
+  "scope": "P0 确定性回放（ADR 0028 P0 槽位；ADR 0044 P0 签署记录：Binance 现货 BTC 1m）。P2 未启用（ADR 0028「P2 处置」，#1561），不在此表",
+  "fields": {
+    "tick_size": {
+      "value": "AwaitingPolicy",
+      "unit": "价格最小变动单位",
+      "source": "未签。tick 是场所事实（#1586 AUDIT C-17），P0 场所 tick 没有签署落盘；1e-8 只是未知场所的保守夹具值，只写在 venue-profile-diagnostic-fixture，生产不借"
+    },
+    "commission_bps": {
+      "value": 10,
+      "unit": "bp/side",
+      "source": "ADR 0044 P0 签署记录 fee: Known，Binance 现货 VIP0 taker 1/1000（analysis/data_cache/venue_fee_binance_spot_20260726.json，ADR 0044:24）"
+    },
+    "slippage_bps": {
+      "value": "AwaitingPolicy",
+      "unit": "bp/side",
+      "source": "ADR 0044 P0 slippage: Missing（:26）。Missing 不代 0，也不拿未标定常数凑数（ADR 0044 被否方案；ADR 0035:27）"
+    },
+    "tax_bps": {
+      "value": "AwaitingPolicy",
+      "unit": "bp/side",
+      "source": "ADR 0044 P0 未签此项"
+    },
+    "entry_delay_bars": {
+      "value": "AwaitingPolicy",
+      "unit": "基础 K 根数",
+      "source": "ADR 0044 P0 latency_error 只有 ProxyLowerBound（只能判失败），不充作入场延迟值"
+    }
+  },
+  "cost": "本版 tick_size 与三项成本未签，生产与验收回放停在 AwaitingPolicy{venue_profile, cost_inputs}；签署任一项即出新版本（version +1）"
+}
