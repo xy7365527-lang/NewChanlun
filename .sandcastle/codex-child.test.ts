@@ -4,7 +4,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join, resolve, sep } from "node:path";
 import {
   assertRoute, boundedCodex, CodexTranscript, MODEL, MODEL_PROVIDER, preflightCheckout, providerEnvironment,
   providerOverrides, PROVIDER_KEY_ENV, runCodexChild, workerEnvironment,
@@ -54,7 +54,7 @@ function fixture() {
       + `const fs = require('node:fs'); const path = require('node:path'); const cp = require('node:child_process');\n`
       + `const root = ${JSON.stringify(dir)}; const sid = ${JSON.stringify(sessionId)};\n`
       + `const emit = (value) => process.stdout.write(JSON.stringify(value) + '\\n');\n`
-      + `const capture = () => { fs.writeFileSync(path.join(root, 'argv.json'), JSON.stringify(process.argv.slice(2))); fs.writeFileSync(path.join(root, 'worker-env.json'), JSON.stringify(Object.keys(process.env))); };\n`
+      + `const capture = () => { fs.writeFileSync(path.join(root, 'argv.json'), JSON.stringify(process.argv.slice(2))); fs.writeFileSync(path.join(root, 'worker-env.json'), JSON.stringify(Object.keys(process.env))); fs.writeFileSync(path.join(root, 'worker-codex-home.json'), JSON.stringify({ path: process.env.CODEX_HOME, hostAppsVisible: fs.existsSync(path.join(process.env.CODEX_HOME, 'apps', 'fixture-host-only')) })); };\n`
       + `const session = () => { const p = path.join(process.env.CODEX_HOME, 'sessions', '2026', '09', '14'); fs.mkdirSync(p, { recursive: true }); fs.writeFileSync(path.join(p, 'rollout-fixture-' + sid + '.jsonl'), '{}\\n'); emit({ type: 'thread.started', thread_id: sid }); };\n`
       + `const complete = (result = ${JSON.stringify(goodResult)}) => { emit({ type: 'item.completed', item: { type: 'agent_message', text: JSON.stringify(result) } }); emit({ type: 'turn.completed', usage: {input_tokens: 1, cached_input_tokens: 0, output_tokens: 1} }); };\n`
       + `let stdin = ''; process.stdin.setEncoding('utf8'); process.stdin.on('data', (x) => stdin += x); process.stdin.on('end', () => { fs.writeFileSync(path.join(root, 'received-prompt.md'), stdin); ${body}\n});\n`;
@@ -249,6 +249,23 @@ test("真实子进程：直接 SDK provider 完成，保存 session/parent 映�
     assert.ok(!existsSync(join(f.dir, "injection")));
     assert.equal(git(f.options.checkout, "status", "--porcelain"), "");
     assert.equal(git(f.options.checkout, "rev-parse", "HEAD"), f.options.expectedHead);
+  } finally { f.clean(); }
+});
+
+test("宿主 Codex Apps 不进入工蜂：env 与 session 日志共用本次隔离 home", async () => {
+  const f = fixture();
+  try {
+    mkdirSync(join(f.env.CODEX_HOME, "apps"), { recursive: true });
+    writeFileSync(join(f.env.CODEX_HOME, "apps", "fixture-host-only"), "host-only");
+    f.fake("capture(); session(); complete();");
+    const result = await runCodexChild(f.options, { env: f.env });
+    assert.equal(result.status, "completed", result.failure_reason ?? "");
+    const isolatedHome = join(result.output_dir, "codex-home");
+    const observed = JSON.parse(readFileSync(join(f.dir, "worker-codex-home.json"), "utf8"));
+    assert.deepEqual(observed, { path: isolatedHome, hostAppsVisible: false });
+    assert.ok(result.external_session_log?.startsWith(join(isolatedHome, "sessions") + sep));
+    assert.ok(existsSync(result.external_session_log!));
+    assert.ok(!existsSync(join(f.env.CODEX_HOME, "sessions")));
   } finally { f.clean(); }
 });
 

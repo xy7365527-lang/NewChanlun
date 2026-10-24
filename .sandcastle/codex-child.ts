@@ -514,6 +514,10 @@ export async function runCodexChild(
   if (inside(outputDir, checkout)) throw new Error("output-dir 必须在工蜂 checkout 之外");
   // 不接管旧结果目录，不覆盖失败证据。
   mkdirSync(outputDir, { mode: 0o700 });
+  // 每次运行使用独立 home，避免宿主 Codex Apps 工具缓存进入上游请求。
+  // outputDir 本身是一次性的；同一运行内的 env 与 sessionStorage 共用此目录。
+  const codexHome = join(outputDir, "codex-home");
+  mkdirSync(codexHome, { mode: 0o700 });
   const record: ChildRecord = {
     schema_version: 1, run_id: randomUUID(), ticket: options.ticket,
     parent_thread_id: options.parentThreadId, manager_agent_id: options.managerAgentId,
@@ -575,7 +579,11 @@ export async function runCodexChild(
     const schemaPath = join(outputDir, "output.schema.json");
     writeFileSync(schemaPath, JSON.stringify(OUTPUT_SCHEMA), { flag: "wx", mode: 0o600 });
     // 密钥缺失在任何进程启动前失败；env 只交给子进程，不进入 record。
-    const env = providerEnvironment(workerEnvironment(control.env ?? process.env), control.keyLookup);
+    // 覆盖白名单透传的宿主 CODEX_HOME，确保进程与 sessionStorage 使用同一隔离 home。
+    const env = providerEnvironment({
+      ...workerEnvironment(control.env ?? process.env),
+      CODEX_HOME: codexHome,
+    }, control.keyLookup);
     provider = await boundedCodex(options.mode, schemaPath, env);
     transcript = new CodexTranscript(provider);
     const command = provider.buildPrintCommand({ prompt, dangerouslySkipPermissions: false });
