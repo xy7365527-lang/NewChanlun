@@ -735,11 +735,7 @@ fn run_once(plan: &Plan, target: usize, phase: &str, work: &Path) -> Value {
         for b_owner in 1..k.configs.len() {
             let label = format!("recover-b{b_owner}");
             finish(
-                spawn(
-                    work,
-                    &label,
-                    json!({"action":"recover","owner":b_owner}),
-                ),
+                spawn(work, &label, json!({"action":"recover","owner":b_owner})),
                 work,
                 &label,
             );
