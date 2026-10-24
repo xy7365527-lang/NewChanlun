@@ -870,7 +870,7 @@ fn apply_projected(
     }
     super::tb03c_corrections::predecessor(event, array(image, "recorded")?)?;
     let mut next = image.clone();
-    let unmatched = if per_leg {
+    let unmatched = if per_leg && allocation.get("unmatched_reason").is_some() {
         Some("per_leg_attribution_missing")
     } else if old.is_null() {
         Some("opening_missing_undeclared")
@@ -886,8 +886,13 @@ fn apply_projected(
             json!({"fact_key":record["fact_key"],"allocation_id":id,"reason_code":code,"reason":code,"commit_seq":seq.to_string(),"commit_ns":ns}),
         );
     } else {
+        let report = if per_leg {
+            &event["per_leg_report"]
+        } else {
+            &event["netted_fill"]
+        };
         if old["side"] != "long"
-            || old["symbol"] != event["netted_fill"]["symbol"]
+            || old["symbol"] != report["symbol"]
             || old["chong_id"] != allocation["chong_id"]
             || old["units"] != doc["units"]
         {
@@ -902,8 +907,10 @@ fn apply_projected(
             return Err("InvalidDomain：冲销后数量不得为负".into());
         }
         book["actual_quantity"] = json!(quantity.to_string());
-        // 显式原件已证明 Pi/A/W 均为零；仍调用同一收益账主干验证恒等式。
-        income(&mut book, &event["netted_fill"]["income_changes"])?;
+        // netted 显式原件已证明 Pi/A/W 均为零；per_leg 形状不声明收益账变化。
+        if !per_leg {
+            income(&mut book, &event["netted_fill"]["income_changes"])?;
+        }
         let mut comps = Vec::new();
         let correction = super::tb03c_corrections::is_correction(event);
         if correction {
@@ -912,7 +919,12 @@ fn apply_projected(
             comps.push(json!({"kind":kind,"canonical_amount":amount,"derivation":{"kind":"E_resolved_netted_correction","allocation_id":id,"manifest_hash":event["netted_fill"]["manifest_hash"],"original_fact_key":allocation["original_fact_key"],"reversal":allocation["reversal"],"resolve_cut":record["e_resolution_proof"]["receipt"]["cut"]}}));
         } else if units > 0 {
             for kind in ["acquisition_cash", "commission"] {
-                comps.push(json!({"kind":kind,"canonical_amount":allocation[kind],"derivation":{"kind":"E_resolved_netted_allocation","allocation_id":id,"manifest_hash":event["netted_fill"]["manifest_hash"],"resolve_cut":record["e_resolution_proof"]["receipt"]["cut"]}}));
+                let derivation = if per_leg {
+                    "E_resolved_per_leg_allocation"
+                } else {
+                    "E_resolved_netted_allocation"
+                };
+                comps.push(json!({"kind":kind,"canonical_amount":allocation[kind],"derivation":{"kind":derivation,"allocation_id":id,"manifest_hash":report["manifest_hash"],"resolve_cut":record["e_resolution_proof"]["receipt"]["cut"]}}));
             }
         } else if integer(allocation, "acquisition_cash")? != 0
             || integer(allocation, "commission")? != 0
