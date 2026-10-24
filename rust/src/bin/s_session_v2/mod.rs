@@ -2309,12 +2309,13 @@ pub(super) fn validate_ingest_view(e: JsonView<'_>) -> Result<(), String> {
     Ok(())
 }
 
-fn handle(
+fn handle_with_policy(
     db: &Path,
     profile: &Path,
     epoch: &str,
     clock: &ClockPlan,
     e: &Value,
+    production: bool,
 ) -> Result<Value, String> {
     let conn = open_db(db)?;
     let tx = conn.unchecked_transaction().map_err(err)?;
@@ -2370,7 +2371,16 @@ fn handle(
                     Some(&c),
                 )?;
             }
-            advance_core(db, epoch, Some(&c))?;
+            if production {
+                advance_core(db, epoch, Some(&c))?;
+            } else {
+                #[cfg(test)]
+                {
+                    advance_core_fixture(db, epoch, Some(&c))?;
+                }
+                #[cfg(not(test))]
+                unreachable!("fixture only exists in test builds")
+            }
             let started = s_fact_cache::phase::begin();
             let conn = open_db(db)?;
             let tx = conn.unchecked_transaction().map_err(err)?;
@@ -2437,13 +2447,14 @@ impl Bounds {
     }
 }
 
-fn serve(
+fn serve_with_policy(
     db: &Path,
     socket: &Path,
     profile: &Path,
     epoch: &str,
     clock_path: &Path,
     bounds: Bounds,
+    production: bool,
 ) -> Result<(), String> {
     positive(epoch, "v2 writer_epoch")?;
     cache::configure(bounds.cache_bytes);
@@ -2490,12 +2501,21 @@ fn serve(
             clock: clock.clone(),
         };
         // 此身份已持久接纳：换代只取得新推进权，不能修改原payload中的旧writer_epoch。
-        advance_core(db, epoch, Some(&context))?;
+        if production {
+            advance_core(db, epoch, Some(&context))?;
+        } else {
+            #[cfg(test)]
+            {
+                advance_core_fixture(db, epoch, Some(&context))?;
+            }
+            #[cfg(not(test))]
+            unreachable!("fixture only exists in test builds")
+        }
     }
     serve_unix(socket, bounds.transport(), envelope, |e| {
         response(
             e,
-            handle(db, profile, epoch, &clock, e),
+            handle_with_policy(db, profile, epoch, &clock, e, production),
             &identity,
             control_instance_id.as_deref(),
         )
@@ -2523,6 +2543,15 @@ fn positive_arg(args: &[String], key: &str) -> Result<i64, String> {
     positive(&arg(args, key)?, key)
 }
 pub fn dispatch(args: &[String]) -> Result<bool, String> {
+    dispatch_with_policy(args, true)
+}
+
+#[cfg(test)]
+pub fn dispatch_fixture(args: &[String]) -> Result<bool, String> {
+    dispatch_with_policy(args, false)
+}
+
+fn dispatch_with_policy(args: &[String], production: bool) -> Result<bool, String> {
     let cmd = args.get(1).map(String::as_str).unwrap_or("");
     if cmd == "init"
         && [
@@ -2565,13 +2594,14 @@ pub fn dispatch(args: &[String]) -> Result<bool, String> {
             queue: usize::try_from(positive_arg(args, "--queue-capacity")?).map_err(err)?,
             connections: usize::try_from(positive_arg(args, "--max-connections")?).map_err(err)?,
         };
-        serve(
+        serve_with_policy(
             Path::new(&arg(args, "--db")?),
             Path::new(&arg(args, "--socket")?),
             Path::new(&arg(args, "--profile")?),
             &arg(args, "--writer-epoch")?,
             Path::new(&arg(args, "--clock-plan")?),
             bounds,
+            production,
         )?;
         return Ok(true);
     }
@@ -2863,7 +2893,7 @@ mod tests {
             });
             let started = Instant::now();
             let before = cache::counters_snapshot();
-            handle(&db, &profile, "1", &clock, &envelope(message).unwrap()).unwrap();
+            handle_fixture(&db, &profile, "1", &clock, &envelope(message).unwrap()).unwrap();
             let spent = started.elapsed();
             let after = cache::counters_snapshot();
             per_generation_audit_ms.push(format!(
@@ -3156,7 +3186,7 @@ mod tests {
         }
         fn ingest(&self, i: i64) -> Value {
             let m = envelope(self.message(i)).unwrap();
-            handle(&self.db, &self.profile, "1", &self.clock, &m).unwrap()
+            handle_fixture(&self.db, &self.profile, "1", &self.clock, &m).unwrap()
         }
         fn dump(&self) -> Vec<(String, Vec<String>)> {
             let conn = open_db(&self.db).unwrap();
@@ -3448,7 +3478,7 @@ mod tests {
         payload["clock_event_id"] = json!("op-5");
         let replay = f.wrap(payload, "business-replay");
         assert_eq!(
-            handle(&f.db, &f.profile, "1", &f.clock, &replay).unwrap()["kind"],
+            handle_fixture(&f.db, &f.profile, "1", &f.clock, &replay).unwrap()["kind"],
             "Committed"
         );
         verify_reachable_root(&conn).unwrap();
@@ -3599,7 +3629,7 @@ mod tests {
         let mut e = f.message(0);
         e["payload"]["clock_event_id"] = json!("op-1");
         e["payload_hash"] = json!(sha256_hex(canonical_json(&e["payload"]).as_bytes()));
-        assert!(handle(&f.db, &f.profile, "1", &f.clock, &e)
+        assert!(handle_fixture(&f.db, &f.profile, "1", &f.clock, &e)
             .unwrap_err()
             .contains("IdentityConflict"));
         assert_eq!(before, f.dump());
@@ -3661,7 +3691,7 @@ mod tests {
             let before = f.dump();
             assert!(verify_reachable_root(&conn).is_err(), "{table}");
             assert!(
-                handle(&f.db, &f.profile, "1", &f.clock, &f.message(4)).is_err(),
+                handle_fixture(&f.db, &f.profile, "1", &f.clock, &f.message(4)).is_err(),
                 "{table}"
             );
             assert!(
