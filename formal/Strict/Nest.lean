@@ -113,6 +113,8 @@ def selKey (J : Interval) : Nat × Nat × Nat :=
 
   ★`selOrder` 编码「最新 endTime 优先、再最新 startTime、再最小 idx」：
     endTime 大者优 / startTime 大者优 / idx 小者优。
+  ★版本化字段 `selector_keys`（qujiantao.md §14.1，ADR 0041，[#1600]）：
+    当前写死 `(endTime 降序, startTime 降序, idx 升序)`（现行键序）。完整参数化见 Q-2 清单。
 -/
 def selOrder (a b : Interval) : Prop :=
   a.endTime > b.endTime

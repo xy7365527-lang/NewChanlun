@@ -98,6 +98,9 @@ theorem isFeatureStroke_down (s : Stroke) :
 /--
   **缺口（第67课）** —— "特征序列两相邻元素间没有重合区间，称为该序列的一个缺口。"
   无重合 ⟺ `a.high < b.low ∨ b.high < a.low`。
+
+  ★ 版本化字段 `tangency`（xianduan.md §6.3 X-38，ADR 0041，[#1600]）：
+  当前写死 `closed` 模式（相切算重合，`≤`，现行取值）。完整参数化见 X-38 清单。
 -/
 def HasGap (a b : FeatureElem) : Prop :=
   a.high < b.low ∨ b.high < a.low
@@ -107,6 +110,9 @@ instance (a b : FeatureElem) : Decidable (HasGap a b) := by
 
 /--
   **重合（缺口的否定）** —— 两区间有公共点 ⟺ `a.low ≤ b.high ∧ b.low ≤ a.high`。
+
+  ★ 版本化字段 `tangency`（xianduan.md §6.3 X-38，ADR 0041，[#1600]）：
+  当前写死 `closed` 模式（相切算重合，`≤`，现行取值）。完整参数化见 X-38 清单。
 -/
 def Overlaps (a b : FeatureElem) : Prop :=
   a.low ≤ b.high ∧ b.low ≤ a.high

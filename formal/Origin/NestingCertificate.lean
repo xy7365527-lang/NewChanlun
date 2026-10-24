@@ -234,7 +234,11 @@ def eligibleCandidates (δ : Dir) (child : Interval) (candidates : List Candidat
   candidates.filter fun c => DivCand δ c && subB child c.interval
 
 /--
-  `Sel_Θ` 只在已过滤集合上选择。调用方可按“最近优先”排列输入；最近性不进入 `Comparable`。
+  `Sel_Θ` 只在已过滤集合上选择。调用方可按”最近优先”排列输入；最近性不进入 `Comparable`。
+
+  ★ 版本化字段 `selector_keys`（qujiantao.md §14.1，ADR 0041，[#1600]）：
+  当前假设输入已按 `(end_time 降序, start_time 降序, idx 升序)` 排序（现行键序），
+  直接取 `.head?`。完整参数化（接受键表、内部排序）见 Q-2 清单。
 -/
 def SelTheta (δ : Dir) (child : Interval) (candidates : List Candidate) : Option Candidate :=
   (eligibleCandidates δ child candidates).head?

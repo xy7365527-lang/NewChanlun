@@ -95,7 +95,11 @@ structure Interval where
   valid : lo ≤ hi
 deriving Repr
 
-/-- 两区间有公共重叠（交集非空）。缺口 = 无重叠（第67课:18）。 -/
+/-- 两区间有公共重叠（交集非空）。缺口 = 无重叠（第67课:18）。
+
+  ★ 版本化字段 `tangency`（xianduan.md §6.3 X-38，ADR 0041，[#1600]）：
+  当前写死 `closed` 模式（相切算重合，`≤`，现行取值）。完整参数化见 X-38 清单。
+-/
 def Interval.overlaps (a b : Interval) : Prop := a.lo ≤ b.hi ∧ b.lo ≤ a.hi
 
 /-- 缺口：两相邻特征序列元素 **没有** 重合区间（第67课:18 缺口定义）。 -/
