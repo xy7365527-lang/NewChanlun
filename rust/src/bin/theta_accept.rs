@@ -178,7 +178,7 @@ fn run_symbol(
     match window {
         Some((s, e)) => {
             if s > e {
-                return Err(format!("日期窗非法: START `{s}` > END `{e}`"));
+                return Err(format!("日期窗非法: START `{s}` > END `{e}`").into());
             }
             slice = full.slice_date_window(s, e);
             resolved = Some((s.to_string(), e.to_string()));
@@ -202,7 +202,7 @@ fn run_symbol(
     }
 
     if slice.bars.is_empty() {
-        return Err(format!("品种 {symbol} 在指定窗内无 bar（空数据集）"));
+        return Err(format!("品种 {symbol} 在指定窗内无 bar（空数据集）").into());
     }
 
     let started = Instant::now();
@@ -454,7 +454,7 @@ fn main() -> std::process::ExitCode {
     //    各线程隔离；报告仍按 SYMBOLS 表序（输入序）汇总，确定性输出。 ──
     let run_one = |sym: &str| run_symbol(sym, window, months, diagnostic);
 
-    let reports: Vec<Result<SymbolReport, String>> = if parallel {
+    let reports: Vec<Result<SymbolReport, SymbolFailure>> = if parallel {
         std::thread::scope(|scope| {
             let handles: Vec<_> = symbols
                 .iter()
