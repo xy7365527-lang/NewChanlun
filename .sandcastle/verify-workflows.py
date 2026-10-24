@@ -381,6 +381,18 @@ def main() -> int:
     check(update.get("on", {}).get("pull_request_target", {}).get("types") == ["labeled"],
           "agent-update-branch.yml 必须以 pull_request_target labeled 触发")
     check("--force-with-lease=" in update_raw, "agent-update-branch.yml push 必须 force-with-lease")
+    update_steps = job(update, "update-branch")["steps"]
+    update_step_names = [step.get("name") for step in update_steps]
+    update_run_name = "Run update-branch agent (hosted default retired)"
+    update_push_name = "Push branch (abort cleanly if non-fast-forward)"
+    update_blocked_name = "Mark blocked on failure"
+    check(
+        update_step_names.index(update_run_name) < update_step_names.index(update_push_name)
+        and update_steps[update_step_names.index(update_push_name)].get("if") == "success()"
+        and update_steps[update_step_names.index(update_blocked_name)].get("if") == "failure()"
+        and '--add-label "agent:blocked"' in update_steps[update_step_names.index(update_blocked_name)]["run"],
+        "agent-update-branch.yml 退役失败必须跳过 push 并回写 agent:blocked",
+    )
 
     # pull_request_target 风险面：PR 型 workflow 只能由 labeled 事件触发
     # （不可信 PR 内容不会自动跑）；label 是信任闸（需仓库写权限）。

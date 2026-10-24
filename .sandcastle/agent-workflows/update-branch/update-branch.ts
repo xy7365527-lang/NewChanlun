@@ -34,6 +34,7 @@ const BASE_REF = required("BASE_REF");
 
 try {
   assertValidModelLabels(readModelLabelsFromEnv());
+  const agent = claudeAgent("update-branch");
 
   execFileSync("git", ["fetch", "origin", BASE_REF], { stdio: "inherit" });
 
@@ -72,7 +73,7 @@ try {
 
   const result = await runWithExtraction({
     name: `update-branch-pr-${PR_NUMBER}`,
-    agent: claudeAgent("update-branch"),
+    agent,
     sandbox: noSandbox(),
     logging: { type: "stdout" },
     promptFile: path.join(import.meta.dirname, "prompt.md"),

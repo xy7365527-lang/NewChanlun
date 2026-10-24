@@ -4,7 +4,7 @@ name: Agent Update Branch
 # /fork PR 面，label 事件不会被不可信 PR 内容自动触发（下游注释解释为何用 pull_request_target）。
 
 on:
-  # #1617：hosted 无标签 Claude 默认已退役；update-branch 在模型调用前 fail-loud。
+  # #1617：hosted 无标签 Claude 默认已退役；update-branch 在任何 fetch/merge/push 前 fail-loud。
   # 本机受管工蜂改走 kimi-k3.1-pro + CLIProxyLocal；不在 ubuntu-latest 错用 Claude OAuth。
   #
   # pull_request_target rather than pull_request: the standard pull_request
