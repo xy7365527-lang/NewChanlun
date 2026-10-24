@@ -3223,7 +3223,7 @@ mod tests {
             "--max-input-bytes".into(),
             bytes.len().to_string(),
         ]);
-        assert!(super::super::dispatch(&args).unwrap());
+        assert!(super::super::dispatch_fixture(&args).unwrap());
         let receipt = receipt_request(&original);
         let receipt_file = f.path.join("receipt.json");
         let receipt_bytes = canonical_json(&receipt);
@@ -3294,7 +3294,7 @@ mod tests {
                 "--max-input-bytes".into(),
                 bytes.len().to_string(),
             ]);
-            assert!(super::super::dispatch(&args).is_err());
+            assert!(super::super::dispatch_fixture(&args).is_err());
         }
         let valid_bytes = canonical_json(&Fixture::ingest(2));
         std::fs::write(&input, &valid_bytes).unwrap();
@@ -3307,7 +3307,7 @@ mod tests {
             "--max-input-bytes".into(),
             (valid_bytes.len() - 1).to_string(),
         ]);
-        assert!(super::super::dispatch(&too_small)
+        assert!(super::super::dispatch_fixture(&too_small)
             .unwrap_err()
             .contains("输入字节超过"));
         let conn = open_db(&f.db).unwrap();
@@ -3329,12 +3329,12 @@ mod tests {
         drop(d);
         let mut recover_args = cli(&f, "recover", "--new-epoch", "1");
         recover_args.extend(["--clock-event-id".into(), "recover-1".into()]);
-        assert!(super::super::dispatch(&recover_args).is_err());
+        assert!(super::super::dispatch_fixture(&recover_args).is_err());
         recover_args[7] = "2".into();
-        assert!(super::super::dispatch(&recover_args).unwrap());
+        assert!(super::super::dispatch_fixture(&recover_args).unwrap());
         let mut advance_args = cli(&f, "advance", "--writer-epoch", "2");
         advance_args.extend(["--profile".into(), f.profile.to_string_lossy().into_owned()]);
-        assert!(super::super::dispatch(&advance_args).unwrap());
+        assert!(super::super::dispatch_fixture(&advance_args).unwrap());
         let mut reopened = f.open("2").unwrap();
         assert_eq!(
             reopened.handle(receipt_request(&original)).unwrap()["kind"],
@@ -3362,7 +3362,7 @@ mod tests {
             "--writer-epoch".into(),
             "2".into(),
         ];
-        assert!(super::super::dispatch(&args).is_err());
+        assert!(super::super::dispatch_fixture(&args).is_err());
         assert!(!db.exists());
         assert!(!PathBuf::from(format!("{}.writer.lock", db.display())).exists());
         std::fs::remove_dir_all(dir).unwrap();
@@ -3395,7 +3395,7 @@ mod tests {
             "--resource-config".into(),
             resources.to_string_lossy().into_owned(),
         ]);
-        let error = super::super::dispatch(&args).unwrap_err();
+        let error = super::super::dispatch_fixture(&args).unwrap_err();
         assert!(
             error.contains("StaleWriter") && error.contains("独占进程锁不可得"),
             "{error}"
@@ -3444,7 +3444,7 @@ mod tests {
         ]);
         for invalid in [missing, extra, zero, numeric, wrong_version] {
             std::fs::write(&resources, canonical_json(&invalid)).unwrap();
-            let error = super::super::dispatch(&args).unwrap_err();
+            let error = super::super::dispatch_fixture(&args).unwrap_err();
             assert!(error.contains("S3WriterResourcesInvalid"), "{error}");
             assert!(!lock.exists());
             assert!(!socket.exists());

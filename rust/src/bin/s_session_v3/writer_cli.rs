@@ -190,9 +190,18 @@ struct RecoverOptions {
 
 /// 命令分派：`Ok(Some(value))` 为要打印的命令结果，`Ok(None)` 为无结果（服务正常退出）。
 pub(super) fn run(args: &[String]) -> Result<Option<Value>, String> {
+    run_with_policy(args, true)
+}
+
+#[cfg(test)]
+pub(super) fn run_fixture(args: &[String]) -> Result<Option<Value>, String> {
+    run_with_policy(args, false)
+}
+
+fn run_with_policy(args: &[String], production: bool) -> Result<Option<Value>, String> {
     match args.get(1).map(String::as_str).unwrap_or("") {
-        "serve" => serve(ServeOptions::parse(args)?),
-        "advance" => advance(AdvanceOptions::parse(args)?),
+        "serve" => serve_with_policy(ServeOptions::parse(args)?, production),
+        "advance" => advance_with_policy(AdvanceOptions::parse(args)?, production),
         "recover" => recover(RecoverOptions::parse(args)?),
         other => Err(format!(
             "VersionUnsupported：S3 写入口只分派 serve/advance/recover，收到 `{other}`"
@@ -464,7 +473,7 @@ fn verify_control_resource_digest(
 }
 
 /// 全部参数/资源核验后，先持唯一写锁、完整审计/profile/clock/pending，再监听。
-fn serve(options: ServeOptions) -> Result<Option<Value>, String> {
+fn serve_with_policy(options: ServeOptions, production: bool) -> Result<Option<Value>, String> {
     let mode = s_allocation::load_testonly_environment()?;
     let resources = SResources::load(&options.resources)?;
     let expected = match std::env::var("S_CONTROL_RESOURCE_SHA256") {
@@ -491,26 +500,58 @@ fn serve(options: ServeOptions) -> Result<Option<Value>, String> {
             mode,
         )?
     } else {
-        let driver = Driver::open_for_serve_with_mode_production(
+        let driver = if production {
+            Driver::open_for_serve_with_mode_production(
+                &options.db,
+                &options.profile,
+                &options.epoch,
+                clock,
+                resources.limit("audit_cache_source_bytes"),
+                mode,
+            )?
+        } else {
+            #[cfg(test)]
+            {
+                Driver::open_for_serve_with_mode(
+                    &options.db,
+                    &options.profile,
+                    &options.epoch,
+                    clock,
+                    resources.limit("audit_cache_source_bytes"),
+                    mode,
+                )?
+            }
+            #[cfg(not(test))]
+            unreachable!("fixture only exists in test builds")
+        };
+        let identity = driver.identity()?;
+        (driver, identity)
+    };
+    #[cfg(not(feature = "s_capture_native_testonly"))]
+    let mut driver = if production {
+        Driver::open_for_serve_with_mode_production(
             &options.db,
             &options.profile,
             &options.epoch,
             clock,
             resources.limit("audit_cache_source_bytes"),
             mode,
-        )?;
-        let identity = driver.identity()?;
-        (driver, identity)
+        )?
+    } else {
+        #[cfg(test)]
+        {
+            Driver::open_for_serve_with_mode(
+                &options.db,
+                &options.profile,
+                &options.epoch,
+                clock,
+                resources.limit("audit_cache_source_bytes"),
+                mode,
+            )?
+        }
+        #[cfg(not(test))]
+        unreachable!("fixture only exists in test builds")
     };
-    #[cfg(not(feature = "s_capture_native_testonly"))]
-    let mut driver = Driver::open_for_serve_with_mode_production(
-        &options.db,
-        &options.profile,
-        &options.epoch,
-        clock,
-        resources.limit("audit_cache_source_bytes"),
-        mode,
-    )?;
     #[cfg(not(feature = "s_capture_native_testonly"))]
     let identity = driver.identity()?;
     let control_instance_id = std::env::var("S_CONTROL_INSTANCE_ID").ok();
@@ -562,7 +603,7 @@ fn reply(
 
 /// 一次性推进：打开唯一 Driver（`open` 内部按库中原件 `resume_pending`，不重写原身份），
 /// 打印真实持久摘要后退出；不监听、不常驻。
-fn advance(options: AdvanceOptions) -> Result<Option<Value>, String> {
+fn advance_with_policy(options: AdvanceOptions, production: bool) -> Result<Option<Value>, String> {
     let mode = s_allocation::load_testonly_environment()?;
     let clock = v2::ClockPlan::load(&options.clock)?;
     checked_profile(&options.profile)?;
@@ -574,14 +615,30 @@ fn advance(options: AdvanceOptions) -> Result<Option<Value>, String> {
     if let Some(ref envelope) = input {
         preflight_input(&options, &clock, envelope)?;
     }
-    let mut driver = Driver::open_production_with_request_and_mode(
-        &options.db,
-        &options.profile,
-        &options.epoch,
-        clock,
-        input.as_ref(),
-        mode,
-    )?;
+    let mut driver = if production {
+        Driver::open_production_with_request_and_mode(
+            &options.db,
+            &options.profile,
+            &options.epoch,
+            clock,
+            input.as_ref(),
+            mode,
+        )?
+    } else {
+        #[cfg(test)]
+        {
+            Driver::open_with_request_and_mode(
+                &options.db,
+                &options.profile,
+                &options.epoch,
+                clock,
+                input.as_ref(),
+                mode,
+            )?
+        }
+        #[cfg(not(test))]
+        unreachable!("fixture only exists in test builds")
+    };
     match input {
         Some(envelope) => Ok(Some(driver.handle(envelope)?)),
         None => Ok(Some(driver.state_summary("advance")?)),

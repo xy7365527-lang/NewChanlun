@@ -131,6 +131,15 @@ fn require_current_writer_rule(rule: &str) -> Result<(), String> {
 
 /// 版本选择器分派：`Ok(true)` 表示本次调用已处理，调用方直接结束；无选择器时 `Ok(false)`。
 pub(super) fn dispatch(args: &[String]) -> Result<bool, String> {
+    dispatch_with_policy(args, true)
+}
+
+#[cfg(test)]
+pub(super) fn dispatch_fixture(args: &[String]) -> Result<bool, String> {
+    dispatch_with_policy(args, false)
+}
+
+fn dispatch_with_policy(args: &[String], production: bool) -> Result<bool, String> {
     let cmd = args.get(1).map(String::as_str).unwrap_or("");
     let mut positions = Vec::new();
     for (index, arg) in args.iter().enumerate() {
@@ -173,7 +182,7 @@ pub(super) fn dispatch(args: &[String]) -> Result<bool, String> {
         return Err("VersionUnsupported：Q3监听入口当前需要Unix平台".into());
     }
     if matches!(cmd, "serve" | "advance" | "recover") && value == PROTOCOL_REVISION {
-        if let Some(out) = writer_cli::run(args)? {
+        if let Some(out) = writer_cli::run_with_policy(args, production)? {
             println!("{out}");
         }
         return Ok(true);

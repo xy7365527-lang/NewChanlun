@@ -3532,7 +3532,7 @@ mod tests {
                     Some(&c),
                 )
                 .is_err(),
-                advance_core(&f.db, "1", Some(&c)).is_err(),
+                advance_core_fixture(&f.db, "1", Some(&c)).is_err(),
                 recover_core(&f.db, "2", Some((&f.clock, "recover-1"))).is_err(),
             ] {
                 assert!(refused, "{sql}");
@@ -3609,7 +3609,7 @@ mod tests {
         let f = Fixture::new(8, 2);
         let c = f.begin_only();
         recover_core(&f.db, "2", Some((&f.clock, "recover-1"))).unwrap();
-        advance_core(&f.db, "2", Some(&c)).unwrap();
+        advance_core_fixture(&f.db, "2", Some(&c)).unwrap();
         let conn = open_db(&f.db).unwrap();
         verify_reachable_root(&conn).unwrap();
         let count: i64 = conn
@@ -3642,7 +3642,7 @@ mod tests {
         let c = f.begin_only();
         recover_core(&f.db, "2", Some((&f.clock, "recover-1"))).unwrap();
         let before = f.dump();
-        assert!(advance_core(&f.db, "2", Some(&c))
+        assert!(advance_core_fixture(&f.db, "2", Some(&c))
             .unwrap_err()
             .contains("MissingDependency"));
         assert_eq!(before, f.dump());
@@ -3693,7 +3693,7 @@ mod tests {
             .unwrap();
         let before = f.dump();
         assert!(verify_reachable_root(&conn).is_err());
-        assert!(advance_core(&f.db, "1", Some(&c)).is_err());
+        assert!(advance_core_fixture(&f.db, "1", Some(&c)).is_err());
         assert_eq!(before, f.dump());
     }
     #[test]
@@ -3724,7 +3724,7 @@ mod tests {
             let before=f.dump();
             let refused=[verify_reachable_root(&conn).is_err(),
                 accept_core(&f.db,&canonical_json(&c.envelope["payload"]["raw_input"]),&f.profile,"1",Some(&c)).is_err(),
-                advance_core(&f.db,"1",Some(&c)).is_err(),
+                advance_core_fixture(&f.db,"1",Some(&c)).is_err(),
                 recover_core(&f.db,"2",Some((&f.clock,"recover-1"))).is_err()];
             if refused!=[true;4] || before!=f.dump() { failures.push((name,refused)); }
         }
@@ -3735,7 +3735,7 @@ mod tests {
         let f = Fixture::new(8, 2);
         let c = f.begin_only();
         recover_core(&f.db, "2", Some((&f.clock, "recover-1"))).unwrap();
-        advance_core(&f.db, "2", Some(&c)).unwrap();
+        advance_core_fixture(&f.db, "2", Some(&c)).unwrap();
         let mut conn = open_db(&f.db).unwrap();
         verify_reachable_root(&conn).unwrap();
         for sql in [
@@ -3797,7 +3797,7 @@ mod tests {
                 .is_err(),
                 "{sql}"
             );
-            assert!(advance_core(&f.db, "1", Some(&c)).is_err(), "{sql}");
+            assert!(advance_core_fixture(&f.db, "1", Some(&c)).is_err(), "{sql}");
             assert!(
                 recover_core(&f.db, "2", Some((&f.clock, "recover-1"))).is_err(),
                 "{sql}"
