@@ -1636,12 +1636,12 @@ fn codec_error(error: sc::CodecError) -> String {
 mod tests {
     use super::*;
     use crate::tests::{
-        accept_ohlc, init_test_db, located_ohlc_input, tb02b_oracle_rows, TestFiles,
+        accept_ohlc, fixture, init_test_db, located_ohlc_input, tb02b_oracle_rows, TestFiles,
     };
     use crate::{
         canonical_bytes_of_value, cmd_advance, compute_diff, delta_storage, load_batch_bytes,
         meta_get_opt, open_db, read_effective_events, read_stored_objects,
-        verified_root_raw_events, StoredObjects, DEFAULT_WRITER_EPOCH,
+        verified_root_raw_events, StoredObjects, DEFAULT_WRITER_EPOCH, accept_core,
     };
     use newchan_rust::s_content::{render_canonical, MemoryNodes};
     use serde_json::json;
@@ -1967,6 +1967,30 @@ mod tests {
             accept_ohlc(&self.files, &located_ohlc_input(rows));
         }
 
+        fn accept_tick(&self, events: &[(&str, i64, i64)]) {
+            let events: Vec<Value> = events
+                .iter()
+                .map(|(id, coord, price)| json!({
+                    "event_id":id, "revision":"1", "seq":coord.to_string(),
+                    "received_at":"2026-09-13T00:00:00Z", "raw_text":price.to_string(),
+                    "price":price.to_string(), "timestamp":coord.to_string(), "volume":"1",
+                }))
+                .collect();
+            let input = json!({
+                "schema_revision":"1", "session_id":"s-session-testonly-001",
+                "source_namespace":"testonly.tick.ohlc", "source_epoch":"1",
+                "instrument":"TEST.TICK", "profile":"testonly_tick_1_1_ohlc", "events":events,
+            });
+            accept_core(
+                &self.files.db(),
+                &canonical_json(&input),
+                &fixture("profiles/testonly_tick_1_1_ohlc.json"),
+                DEFAULT_WRITER_EPOCH,
+                None,
+            )
+            .unwrap();
+        }
+
         /// 本次 advance；返回**推进前**的 `last_advance_frontier`
         /// （旧目录轴 `previous_frontier` 的同一口径）。
         fn advance(&self) -> i64 {
@@ -2130,7 +2154,13 @@ mod tests {
         let bars: Vec<Bar> = oracle
             .effective
             .iter()
-            .map(|event| bar_of(event.into(), true).expect("有效账 bar"))
+            .map(|event| {
+                bar_of(
+                    event.into(),
+                    oracle.batch["profile_id"].as_str() == Some(crate::tb02a::PROFILE),
+                )
+                .expect("有效账 bar")
+            })
             .collect();
         let (layer, _) = parser::parse_layer_with_inclusion_facts(&bars, &config);
         layer
@@ -2286,6 +2316,9 @@ mod tests {
             "catalog_axes",
         ];
         for field in FIELDS {
+            if field == "catalog_axes" && !mapped.contains_key(field) && !mine.contains_key(field) {
+                continue;
+            }
             let want = mapped
                 .get(field)
                 .unwrap_or_else(|| panic!("{label}: oracle 缺字段 {field}"));
@@ -2445,6 +2478,59 @@ mod tests {
             let (mine, _) =
                 assert_state_matches_oracle(&label, &mut store, &generated, &oracle, &[]);
             assert_non_vacuous_evidence(&label, &mine);
+        }
+    }
+
+    #[test]
+    fn oracle_tick_generation_parity_including_raw_observations() {
+        for (label, events) in [
+            ("单事件不足", vec![("a", 0, 7)]),
+            ("原始域违例", vec![("a", 0, 7), ("b", 10, 7), ("c", 20, 8)]),
+            (
+                "可判形态",
+                vec![("a", 0, 7), ("b", 10, 12), ("c", 20, 8), ("d", 30, 13), ("e", 40, 9)],
+            ),
+        ] {
+            let oracle_db = OracleDb::new();
+            oracle_db.accept_tick(&events);
+            oracle_db.advance();
+            let oracle = oracle_db.read();
+            assert_eq!(oracle.batch["profile_id"], "testonly_tick_1_1_ohlc");
+            assert!(oracle.batch.get("catalog_axes").is_none());
+            let mut store = MemoryNodes::new();
+            let mut runtime = GenerationRuntime::new(
+                oracle_db.lane_key(&format!("tick-{label}")),
+                "testonly_tick_1_1_ohlc",
+                oracle.batch["rule_revision"].as_str().unwrap(),
+            );
+            let cut = format!("cut-{}", oracle.generation);
+            let generated = generate_draft(
+                &mut store,
+                &mut runtime,
+                &oracle,
+                &cut,
+                PriorState {
+                    bi_records: Vec::new(),
+                    version_record: None,
+                },
+            );
+            assert!(generated.catalog_axes.is_none());
+            let (mine, _) = assert_state_matches_oracle(label, &mut store, &generated, &oracle, &[]);
+            assert!(mine.get("catalog_axes").is_none());
+            assert!(mine["objects"].as_array().unwrap().iter().all(|object| {
+                object["kind"] == CC006_SHAPE_KIND
+            }));
+            if label == "单事件不足" {
+                assert_eq!(mine["observations"][0]["window_start"], Value::Null);
+                assert_eq!(mine["observations"][0]["detail"]["raw_events"], 1);
+            }
+            if label == "原始域违例" {
+                assert_eq!(mine["observations"][0]["detail"]["raw_prices"], json!(["7", "7", "8"]));
+            }
+            if label == "可判形态" {
+                assert!(!mine["objects"].as_array().unwrap().is_empty());
+                assert!(!mine["witnesses"].as_array().unwrap().is_empty());
+            }
         }
     }
 
