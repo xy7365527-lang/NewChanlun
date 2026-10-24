@@ -3107,8 +3107,8 @@ mod tests {
             input["payload_hash"] = json!(sha256_hex(canonical_json(&input["payload"]).as_bytes()));
             assert_eq!(writer.handle(input).unwrap()["kind"], "Committed");
         }
-        assert_eq!(count(&writer.conn, "raw_events"), 3);
-        assert_eq!(count(&writer.conn, "s_content_publications"), 3);
+        assert_eq!(count(&writer.conn, "raw_events"), 5);
+        assert_eq!(count(&writer.conn, "s_content_publications"), 5);
         let identity = writer.identity().unwrap();
         let summary = writer.state_summary("tick-before-reopen").unwrap();
         drop(writer);
