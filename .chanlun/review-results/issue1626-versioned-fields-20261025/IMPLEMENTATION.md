@@ -66,3 +66,15 @@
 - `Origin.VersionedSelectorTests` 已加入 Lake 根目标，构建会持续执行：`chosen_default_matches_legacy` 默认逐位等值；合法 start_time 变异经 `NestLevel.chosen` 改变选择；`chiBoolWithRecord` 消费 version 2；`mixed_selector_chain_is_rejected`；缺文件、null、AwaitingPolicy 与非法值负控。
 - 最终验证：`lake build` **162 jobs** 全过，日志含 `NEST_CHOSEN_DEFAULT_OK`、`NEST_CHOSEN_MUTATION_OK`、`CHIBOOL_RECORD_OK`、`SELECTOR_MISSING_REJECT_OK`、`SELECTOR_NULL_REJECT_OK`、`SELECTOR_AWAITING_REJECT_OK`、`SELECTOR_INVALID_REJECT_OK`。`python3 scripts/check_fixture_drift.py` 三项仍 **0 字段差异、字节一致**；`git diff --check` 通过。
 - Q-4 的预注册准入、Q-6～Q-8 的塔底记录与 X-38 的相切语义未因本返修改写；没有新增 `sorry` / `admit` / 公理。当前 head 仍需重新整票独审、GitHub CI 和用户 main 合入闸。
+
+## X-38 相切行为与 IO 验收返修（2026-10-25）
+
+前次整票独审指出：Claim5 的 `open` 没有真实三笔相切行为断言，`Origin.VersionedTangencyTests` 未进入默认构建，IO 负控缺缺记录、null 与非法值。本节为对应验收返修，不改变生产定义、Q-4 预注册准入、Q-2 原证书链或 tower_base。
+
+- 新增同一三笔相切实例 `tangentClaim5Segment`：三笔公共区间只在价格 10 相切，逐笔方向、端点分型和价格均良构。构建期证明 `wellFormedV0 closed` 成立，而 `wellFormedV0 open` 不成立；不再以 `#check` 或 closed 函数绑定冒充 open 行为。
+- 同一边界在 `HasGap` / `Overlaps` 与 Claim10 `classifyTermination` 下也分别验证 closed/open 的相反结果；Origin/Claim10 继续 closed，Claim5 分别检查 closed/open，未改变既有语义。
+- `Origin.VersionedTangencyTests` 已加入 `formal/lakefile.toml` 的 Origin roots。默认 `lake build` **163 jobs** 全过，日志明确包含 `Built Origin.VersionedTangencyTests`，不是仅手工执行一个未挂根文件。
+- 现役记录读取与合法 open 新版本均覆盖：`TANGENCY_POLICY_IO_OK`、`TANGENCY_OPEN_MUTATION_OK`。
+- IO 负控完整：缺记录、null、`AwaitingPolicy`、非法相切值分别拒绝，日志为 `TANGENCY_MISSING_REJECT_OK`、`TANGENCY_NULL_REJECT_OK`、`TANGENCY_AWAITING_REJECT_OK`、`TANGENCY_INVALID_REJECT_OK`；没有备用默认或意外接受。
+- `python3 scripts/check_fixture_drift.py`：center / certificate_chain / parity 均 **0 字段差异、字节一致**。`git diff --check` 通过；没有新增 `sorry` / `admit` / 公理。未在本机运行 cargo/rustc 测试。
+- 本次只改 `formal/Origin/VersionedTangencyTests.lean` 与 `formal/lakefile.toml`，并追加本报告。GitHub CI、当前 head 的整票非作者独审及用户 main 合入闸仍待完成，不预写通过。
