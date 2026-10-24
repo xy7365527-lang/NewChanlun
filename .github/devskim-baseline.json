@@ -63615,7 +63615,7 @@
     {
       "issue": 1673,
       "pull_request": 1686,
-      "source_head": "04617a17cbc1b3360bd96e6691db1a347bd4efc4",
+      "source_head": "04617a17cb",
       "actions_run": 39685651726,
       "added_findings": 80,
       "rule_counts": {
