@@ -86,3 +86,10 @@
 - 修复：在同一个 `#eval` 中以 `p.tangency` 调用 `classifyTermination`，并要求同一三笔相切输入进入 `secondKind`；保留 record id/version 断言与四类 IO 拒绝负控。
 - 实证：`cd formal && lake env lean Origin/VersionedTangencyTests.lean` 输出 `TANGENCY_OPEN_MUTATION_OK` 及四类拒绝标记；`lake build` 163 jobs 全过，实际 `Built Origin.VersionedTangencyTests`。
 - fixture：`python3 scripts/check_fixture_drift.py` 三组均 0 字段差异、字节一致；`git diff --check` 通过。未改生产定义，未运行本机 cargo。
+
+## BSP 白名单锚点与 CI 修复（2026-10-25）
+
+- 诊断：run `40133307241` 的 `rust-test-default` 与 `rust-test-backtest-bin` 唯一失败均为 `no_stray_bsp_binding_rewrites_outside_registry`。`compose_level` 增加 `TowerBase` 参数并多行化后，合法 `source_index` 夹具过滤点由 main `:1720` 移至 `:1735`，`bsp.rs` 白名单未随迁。诊断原件：`/Volumes/AgentStorage/issue1626-ci-failure-diagnosis-20261025/REPORT.md`。
+- 修复提交：`0be91d6af3ce6c0e2035f6e5b2125e4810f30846`。只把既有锚点改为 `:1735`，并注明 TowerBase 多行化造成的 15 行位移；没有放宽 guard、删除测试、删夹具或改变业务行为。
+- 按 workflow 原命令在 nc-remote 重跑：`cargo test --all-targets --no-fail-fast --jobs 1` → **EXIT=0**，日志 `/tmp/nc-remote/20261025-061228-0be91d6af3.log`；`cargo test --lib --features backtest_bin --jobs 1` → **2914 passed / 0 failed / 153 ignored，EXIT=0**，日志 `/tmp/nc-remote/20261025-061931-0be91d6af3.log`。本地副本：`/Volumes/AgentStorage/issue1626-bsp-anchor-20261025/`。
+- 本节只记录白名单与 CI 修复，不免除 Q-4/Q-2/Q-6～Q-8/X-38 的既有验收，也不表示已合入或已关票。GitHub CI 以新 head 复核。
