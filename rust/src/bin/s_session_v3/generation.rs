@@ -247,6 +247,8 @@ pub(super) struct Generated<'a> {
     pub state_without_axes: ContentRef,
     /// 当前最终生成态根（OHLC 在 `finish_axes` 成功后更新）。
     pub generated_state: ContentRef,
+    /// 生成配置的记录版本戳；只是运行元数据，不进生成态内容字节。
+    pub policy_records: String,
     meta: StateMeta,
     roots: StateRoots,
     /// 本代知识请求线序（仅供目录轴最小投影消费，不进生成态对象）。
@@ -880,6 +882,7 @@ impl GenerationRuntime {
             catalog_axes: None,
             state_without_axes: state_without_axes.clone(),
             generated_state: state_without_axes,
+            policy_records: self.policy_records(),
             meta,
             roots,
             requests,
@@ -2001,9 +2004,11 @@ mod tests {
             semantic_commit_ns: None,
             prior,
         };
-        runtime
+        let generated = runtime
             .generate(&mut *store, &input)
-            .unwrap_or_else(|error| panic!("S3 生成失败：{error}"))
+            .unwrap_or_else(|error| panic!("S3 生成失败：{error}"));
+        assert_eq!(generated.policy_records, runtime.policy_records());
+        generated
     }
 
     /// 我方同核生成 + 第二段目录轴 finish（参数与旧段同一口径）。
