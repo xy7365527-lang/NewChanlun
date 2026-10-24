@@ -109,6 +109,8 @@ pub struct LayerTrade {
 
 #[derive(Debug, Default)]
 pub struct PositionalResult {
+    /// Fusion 实际使用的趋势作用域记录；非 Fusion 没有这份记录，保持 None。
+    pub trend_scope_policy: Option<crate::theta_v0::policy_records::PolicyRef>,
     pub trades: Vec<LayerTrade>,
     /// (bar, nav) 采样（含末 bar）。
     pub equity: Vec<(i64, f64)>,
@@ -1130,7 +1132,14 @@ pub fn run_positional(
         seq38_sub,
     } = mode
     {
-        return super::positional_fusion::run_fusion(
+        let profile = match trend_scope {
+            TrendScope::SelfLayer => crate::theta_v0::policy_records::TrendScopeProfile::Default,
+            TrendScope::Ancestor => crate::theta_v0::policy_records::TrendScopeProfile::Hold26Anc,
+            TrendScope::SelfOrAncestor => crate::theta_v0::policy_records::TrendScopeProfile::FusionTa,
+        };
+        let policy = crate::theta_v0::policy_records::active_trend_scope_for_profile(profile)
+            .map_err(|e| e.to_string())?;
+        let mut result = super::positional_fusion::run_fusion(
             tape,
             floor_ladder,
             trend_hold,
@@ -1140,14 +1149,16 @@ pub fn run_positional(
             osc,
             phase_clock,
             r2_gate,
-            trend_scope,
+            policy.value,
             nest_forward,
             short_mask,
             short_anc_gate,
             short_ghost,
             seq38_sub,
             DEFAULT_OP_LADDER,
-        );
+        )?;
+        result.trend_scope_policy = Some(policy.record);
+        return Ok(result);
     }
     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {
         return Err(format!(
