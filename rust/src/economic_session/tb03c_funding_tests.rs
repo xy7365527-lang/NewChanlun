@@ -11,6 +11,8 @@ const ORACLE: &str =
 const P0: &str = "P0";
 const P1: &str = "P1-hl-testnet";
 const P5M: &str = "P0-acceptance-5m";
+const DEFAULT_OBSERVATION_NS: &str = "1792540800000000000"; // 2026-10-21 UTC
+const TEST_CLOCK_BASE_NS: i64 = 1792540800000000000;
 
 /// 黄金值：ADR 0040 签署记录 derivation-result（profile, Q_total, [(ℓ, Q, 开局批)]）。
 fn golden() -> Vec<(&'static str, i64, Vec<(&'static str, i64, i64)>)> {
@@ -78,7 +80,8 @@ fn manifest_l(
     let mut messages = serde_json::Map::new();
     for i in 0..16 {
         for (tag, base) in [("cap", 1000), ("app", 5000), ("res", 9000)] {
-            let t = base + 10 * i as i64;
+            // 与生产 System clock 同为 Unix epoch 纳秒；置于签署有效期内，保留三阶段先后。
+            let t = TEST_CLOCK_BASE_NS + base + 10 * i as i64;
             messages.insert(
                 format!("{tag}-{i}"),
                 json!({"received_ns":t.to_string(),"first_known_ns":(t+1).to_string(),"commit_ns":(t+2).to_string()}),
@@ -92,7 +95,7 @@ fn manifest_l(
         "authorized_sources":[{"source_namespace":"testonly-tb1406","source_epoch":"fixture-epoch-1","producer_id":"tb1406-c8","producer_epoch":"1",
             "operations":["CaptureExternal","ResolveEvidence","ApplyAllocation","ReadView","QueryFact","QueryAllocation"]}],
         "resources":{"max_frame_bytes":"1048576","read_timeout_ms":"1000","write_timeout_ms":"1000","response_timeout_ms":"2000","queue_capacity":"2","max_connections":"2"},
-        "clock":{"kind":"TestOnly","plan":{"init_ns":"1","recover_ns":["90000","90001"],"messages":messages}}})
+        "clock":{"kind":"TestOnly","plan":{"init_ns":"1","recover_ns":[(TEST_CLOCK_BASE_NS+90000).to_string(),(TEST_CLOCK_BASE_NS+90001).to_string()],"messages":messages}}})
 }
 fn profile_manifest(space: &Space, profile: &str) -> Value {
     let (_, total, chongs) = golden().into_iter().find(|g| g.0 == profile).unwrap();
@@ -205,18 +208,25 @@ fn apply_with_observation(
     // #1621：添加 b_observation（可审计观察时间）。
     // observation_ns 应为真实 Unix epoch 纳秒时间戳（由生产 Config::clock() System 模式生成）。
     // 测试中直接提供纳秒字符串，未指定时使用默认值（2026-10-21 00:00:00 UTC）。
-    let first_known_ns = if let Some(ns) = observation_ns {
-        ns.to_owned()
-    } else {
-        // 默认：2026-10-21 00:00:00 UTC = 1792540800 秒 = 1792540800000000000 ns
-        "1792540800000000000".to_owned()
-    };
-    rec["b_observation"] = json!({"received_ns":"0","first_known_ns":first_known_ns,"commit_ns":(10 * (i + 1)).to_string()});
-    book::apply_in(m, image, &rec, (i + 1) as i64, &format!("{}", 10 * (i + 1)))
+    let first_known_ns = observation_ns.unwrap_or(DEFAULT_OBSERVATION_NS).to_owned();
+    rec["b_observation"] =
+        json!({"received_ns":"0","first_known_ns":first_known_ns,"commit_ns":first_known_ns});
+    book::apply_in(m, image, &rec, (i + 1) as i64, &first_known_ns)
 }
 
 fn open(m: &Value, level: &str, batch: &Batch) -> Result<Value, String> {
     apply(m, &book::empty_image(), &raw(level, batch), 0).map(|r| r.0)
+}
+
+fn open_at(m: &Value, level: &str, batch: &Batch, observation_ns: &str) -> Result<Value, String> {
+    apply_with_observation(
+        m,
+        &book::empty_image(),
+        &raw(level, batch),
+        0,
+        Some(observation_ns),
+    )
+    .map(|r| r.0)
 }
 
 /// 辅助函数：从 Result<Value, String> 提取 kind
@@ -370,21 +380,6 @@ fn opening_batch_negative_controls_are_typed_and_deterministic() {
             "InvalidDomain：开局批币种与 funding-record 不符",
         ),
         (
-            "过期",
-            with(&|b| b.known_at = "2027-10-21".into()),
-            "PolicyExpired：原件 known_at 2027-10-21 超过 funding-record 有效期",
-        ),
-        (
-            "早于签署生效日",
-            with(&|b| b.known_at = "2026-10-19".into()),
-            "PolicyNotYetEffective：原件 known_at 2026-10-19 早于 funding-record 签署生效日",
-        ),
-        (
-            "known_at 形状",
-            with(&|b| b.known_at = "20261021".into()),
-            "InvalidDomain：known_at 须为 YYYY-MM-DD",
-        ),
-        (
             "开局零批",
             with(&|b| b.copies = 0),
             "MissingDependency：tb03c-book/2 开局须带本重开局批（ADR 0040 裁定四第 4 步）",
@@ -411,11 +406,43 @@ fn opening_batch_negative_controls_are_typed_and_deterministic() {
         // 同输入同输出（含错误）。失败不改持久状态由服务链测试核 B 实际图像。
         assert_eq!(open(&m, "0", &batch), r, "{name}");
     }
+    // 时效门只读可审计观察时间；原件自报日期不再驱动判据。
+    for (name, observation_ns, expected) in [
+        (
+            "观察时间过期",
+            "1824076800000000000",
+            "PolicyExpired：原件 known_at 2027-10-21 超过 funding-record 有效期",
+        ),
+        (
+            "观察时间早于签署生效日",
+            "1792368000000000000",
+            "PolicyNotYetEffective：原件 known_at 2026-10-19 早于 funding-record 签署生效日",
+        ),
+        (
+            "观察时间形状",
+            "not-a-number",
+            "InvalidDomain：first_known_ns 须为整数，得 not-a-number",
+        ),
+    ] {
+        let r = open_at(&m, "0", &ok, observation_ns);
+        assert_eq!(r.as_ref().unwrap_err(), expected, "{name}");
+        assert_eq!(open_at(&m, "0", &ok, observation_ns), r, "{name}");
+    }
+    for claimed in ["2026-10-19", "2027-10-21", "20261021"] {
+        assert_eq!(
+            kind_simple(&open(&m, "0", &with(&|b| b.known_at = claimed.into()))),
+            "Applied",
+            "有效观察时间下，自报 known_at={claimed} 不得改变门结果"
+        );
+    }
     assert_eq!(kind_simple(&open(&m, "0", &ok)), "Applied");
     // 生效日当日与有效期当日都可开局（两端闭区间）。
-    for day in ["2026-10-20", "2027-10-20"] {
+    for (day, observation_ns) in [
+        ("2026-10-20", "1792454400000000000"),
+        ("2027-10-20", "1823990400000000000"),
+    ] {
         assert_eq!(
-            kind_simple(&open(&m, "0", &with(&|b| b.known_at = day.into()))),
+            kind_simple(&open_at(&m, "0", &ok, observation_ns)),
             "Applied",
             "{day}"
         );
@@ -426,31 +453,34 @@ fn opening_batch_negative_controls_are_typed_and_deterministic() {
 fn each_signed_record_window_gates_alone() {
     let space = Space::new("c8-window");
     let base = profile_manifest(&space, P0);
-    let at = |d: &str| Batch {
-        known_at: d.into(),
-        ..Batch::ok(100000, P0)
-    };
+    let batch = Batch::ok(100000, P0);
     let mut m = base.clone();
     m["chongs"][0]["funding"]["policy_record"]["authorized_at"] = json!("2026-11-01");
     assert_eq!(
-        open(&m, "0", &at("2026-10-21")).unwrap_err(),
+        open_at(&m, "0", &batch, DEFAULT_OBSERVATION_NS).unwrap_err(),
         "PolicyNotYetEffective：原件 known_at 2026-10-21 早于 policy-record 签署生效日"
     );
-    assert_eq!(kind_simple(&open(&m, "0", &at("2026-11-01"))), "Applied");
+    assert_eq!(
+        kind_simple(&open_at(&m, "0", &batch, "1793491200000000000")),
+        "Applied"
+    );
     let mut m = base.clone();
     m["chongs"][0]["funding"]["policy_record"]["valid_through"] = json!("2027-01-01");
     assert_eq!(
-        open(&m, "0", &at("2027-01-02")).unwrap_err(),
+        open_at(&m, "0", &batch, "1798848000000000000").unwrap_err(),
         "PolicyExpired：原件 known_at 2027-01-02 超过 policy-record 有效期"
     );
     let mut m = base.clone();
     m["chongs"][0]["funding"]["policy_record"]["capacities"][0]["valid_through"] =
         json!("2027-01-01");
     assert_eq!(
-        open(&m, "0", &at("2027-01-02")).unwrap_err(),
+        open_at(&m, "0", &batch, "1798848000000000000").unwrap_err(),
         "PolicyExpired：原件 known_at 2027-01-02 超过 capacity 有效期"
     );
-    assert_eq!(kind_simple(&open(&m, "0", &at("2027-01-01"))), "Applied");
+    assert_eq!(
+        kind_simple(&open_at(&m, "0", &batch, "1798761600000000000")),
+        "Applied"
+    );
 }
 
 #[test]
