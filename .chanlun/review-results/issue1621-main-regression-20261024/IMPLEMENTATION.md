@@ -2,7 +2,8 @@
 
 日期：2026-10-24  
 候选分支：`codex/1621-main-regression-20261024`  
-Draft PR：#1694
+Draft PR：#1694  
+当前报告提交前代码 HEAD：`328dea2dde`；本报告入仓后 HEAD 见分支最新提交。
 
 ## 范围
 
@@ -38,6 +39,8 @@ Draft PR：#1694
 | `6478a9c182` chain 测试（含 S→B 负控） | 3 passed / 0 failed | `/tmp/nc-remote/20261024-155534-6478a9c182.log` |
 | `6478a9c182` kill 单点恢复 | 红：续跑第 1 步的时钟夹具违反新锁 | `/tmp/nc-remote/20261024-155648-6478a9c182.log` |
 | `328dea2dde` 完整 CI | 运行中 | GitHub Actions run 40076486216 |
+| `9e7478f6ce` `cargo fmt --all -- --check` | EXIT=0 | `/tmp/nc-remote/20261024-160501-9e7478f6ce.log` |
+| `9e7478f6ce` 完整 CI | 运行中 | GitHub Actions run 40076636630 |
 
 E→B 负控还验证：拒绝前后 B 图像不变、没有新回执；把 B 时钟修到 E 提交之后，同一事实可成功应用。
 
