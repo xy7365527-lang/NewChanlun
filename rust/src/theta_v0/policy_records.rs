@@ -26,7 +26,8 @@
 
 use serde_json::Value;
 
-use super::config::{LevelConfig, MacdConfig, Tangency};
+use super::config::{LevelConfig, MacdConfig, Tangency, TowerBase};
+use crate::trading::positional::TrendScope;
 
 /// 级别塔资源预算记录 id（C-09）。
 pub const TOWER_LEVEL_BUDGET_ID: &str = "tower-level-budget";
@@ -36,6 +37,10 @@ pub const MACD_FORCE_ID: &str = "macd-force";
 pub const SECOND_SEQ_SCAN_BUDGET_ID: &str = "second-seq-scan-budget";
 /// 线段构造规则记录 id（A-12，#1604；xianduan §6.3 载体）。
 pub const SEGMENT_CONSTRUCTION_ID: &str = "segment-second";
+/// 趋势作用域 policy 记录 id（A-14）。
+pub const TREND_SCOPE_ID: &str = "trend-scope";
+/// 塔底构造 policy 记录 id（A-15）。
+pub const TOWER_BASE_ID: &str = "tower-base";
 
 /// 当前生效的级别塔资源预算记录（编进二进制）。
 pub const ACTIVE_TOWER_LEVEL_BUDGET_JSON: &str =
@@ -48,6 +53,10 @@ pub const ACTIVE_SECOND_SEQ_SCAN_BUDGET_JSON: &str =
 /// 当前生效的线段构造规则记录（编进二进制；Python 侧读同一文件，#1604）。
 pub const ACTIVE_SEGMENT_CONSTRUCTION_JSON: &str =
     include_str!("policy_records/segment-second.json");
+/// 当前生效的趋势作用域记录。
+pub const ACTIVE_TREND_SCOPE_JSON: &str = include_str!("policy_records/trend-scope.json");
+/// 当前生效的塔底构造记录。
+pub const ACTIVE_TOWER_BASE_JSON: &str = include_str!("policy_records/tower-base.json");
 
 /// 记录版本。`Signed(n)` 来自记录文件的 `version` 字段；`ResearchOverride` 是研究/镜像工具在
 /// 代码里改了字段值、没有对应签署版本的情形——输出照实写出，不冒充签署版本。
@@ -341,13 +350,120 @@ pub fn active_segment_construction() -> Result<SegmentConstruction, PolicyError>
     parse_segment_construction(Some(ACTIVE_SEGMENT_CONSTRUCTION_JSON))
 }
 
-/// 由预算记录 + 中枢三段下限组装 [`LevelConfig`]。
-pub fn level_config_from(budget: TowerLevelBudget, min_parts_per_level: u32) -> LevelConfig {
-    LevelConfig {
+/// 趋势作用域的 profile 键。生产模式串只选择这个键，实际值由记录给出。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrendScopeProfile {
+    Default,
+    Hold26Anc,
+    FusionTa,
+}
+
+impl TrendScopeProfile {
+    fn field(self) -> &'static str {
+        match self {
+            Self::Default => "default",
+            Self::Hold26Anc => "hold26_anc",
+            Self::FusionTa => "fusion_ta",
+        }
+    }
+}
+
+/// 一份趋势作用域记录及其当前值。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TrendScopePolicy {
+    pub record: PolicyRef,
+    pub value: TrendScope,
+}
+
+/// 按 profile 读取趋势作用域；缺字段/未签/非法值均停止，不回退模式串旧值。
+pub fn parse_trend_scope_for_profile(
+    profile: TrendScopeProfile,
+    text: Option<&str>,
+) -> Result<TrendScopePolicy, PolicyError> {
+    let (record, fields) = parse_header(TREND_SCOPE_ID, text)?;
+    let field = profile.field();
+    let raw = read_str(TREND_SCOPE_ID, &fields, field)?;
+    let value = match raw.as_str() {
+        "SelfLayer" => TrendScope::SelfLayer,
+        "Ancestor" => TrendScope::Ancestor,
+        "SelfOrAncestor" => TrendScope::SelfOrAncestor,
+        _ => {
+            return Err(invalid(
+                TREND_SCOPE_ID,
+                field,
+                format!("须为 SelfLayer / Ancestor / SelfOrAncestor，得 `{raw}`"),
+            ))
+        }
+    };
+    Ok(TrendScopePolicy { record, value })
+}
+
+/// 当前生效记录中的趋势作用域。
+pub fn active_trend_scope_for_profile(
+    profile: TrendScopeProfile,
+) -> Result<TrendScopePolicy, PolicyError> {
+    parse_trend_scope_for_profile(profile, Some(ACTIVE_TREND_SCOPE_JSON))
+}
+
+/// 塔底记录及其当前值。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TowerBasePolicy {
+    pub record: PolicyRef,
+    pub value: TowerBase,
+}
+
+/// 解析塔底记录。三种合法值均可解析；是否具备实际构件由 [`try_level_config_from`] 另行拒绝。
+pub fn parse_tower_base(text: Option<&str>) -> Result<TowerBasePolicy, PolicyError> {
+    let (record, fields) = parse_header(TOWER_BASE_ID, text)?;
+    let raw = read_str(TOWER_BASE_ID, &fields, "tower_base")?;
+    let value = match raw.as_str() {
+        "segment" => TowerBase::Segment,
+        "kline3" => TowerBase::Kline3,
+        "trade3" => TowerBase::Trade3,
+        _ => {
+            return Err(invalid(
+                TOWER_BASE_ID,
+                "tower_base",
+                format!("须为 segment / kline3 / trade3，得 `{raw}`"),
+            ))
+        }
+    };
+    Ok(TowerBasePolicy { record, value })
+}
+
+/// 当前生效的塔底记录。
+pub fn active_tower_base() -> Result<TowerBasePolicy, PolicyError> {
+    parse_tower_base(Some(ACTIVE_TOWER_BASE_JSON))
+}
+
+/// 由预算与塔底记录组装 [`LevelConfig`]。当前只有 `segment` 具备真实构件；其它合法值
+/// 在任何 L0 构造前 typed reject，不回退 `segment` 或用线段输入冒充。
+pub fn try_level_config_from(
+    budget: TowerLevelBudget,
+    tower_base: TowerBasePolicy,
+    min_parts_per_level: u32,
+) -> Result<LevelConfig, PolicyError> {
+    if tower_base.value != TowerBase::Segment {
+        return Err(invalid(
+            TOWER_BASE_ID,
+            "tower_base",
+            format!("{:?} 尚无真实构件与数据 profile", tower_base.value),
+        ));
+    }
+    Ok(LevelConfig {
         l_max: budget.l_max,
         min_parts_per_level,
         budget: budget.record,
-    }
+        tower_base: tower_base.value,
+        tower_base_policy: tower_base.record,
+    })
+}
+
+/// 由预算记录 + 中枢三段下限组装 [`LevelConfig`]。
+pub fn level_config_from(budget: TowerLevelBudget, min_parts_per_level: u32) -> LevelConfig {
+    let tower_base = active_tower_base().unwrap_or_else(|e| panic!("{e}"));
+    try_level_config_from(budget, tower_base, min_parts_per_level)
+        .unwrap_or_else(|e| panic!("{e}"))
 }
 
 #[cfg(test)]
