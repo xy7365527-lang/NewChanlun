@@ -1317,7 +1317,8 @@ fn bind_voice_wrong_allocation() -> String {
     // 使用错误的 allocation_id（应该用 "alloc-N1-open"，故意用错误值）
     let wrong_allocation = "wrong-allocation-id";
     let bad_payload = bind_payload(first_capture, &json!(wrong_allocation));
-    let bad_envelope = envelope("negative-bind", bad_payload);
+    // 复用已配置的 BindVoice 时钟项，确保负控走到 allocation 校验而非时钟拒绝。
+    let bad_envelope = envelope("m-21", bad_payload);
     let error_reply = service::handle(&mut dbs[1], &configs[1], 1, 1, &json!({}), &bad_envelope)
         ["payload"]
         .clone();
@@ -1349,8 +1350,8 @@ fn tb03c_kill_negative_skip_resend_apply_fill1_n2() {
 #[test]
 fn tb03c_kill_negative_bind_voice_wrong_allocation() {
     let reason = bind_voice_wrong_allocation();
-    assert!(
-        reason.contains("MissingDependency"),
-        "预期 MissingDependency 错误，实际：{reason}"
+    assert_eq!(
+        reason, "MissingDependency：Voice 开局 allocation 尚未应用",
+        "负控必须到达 allocation 查找失败，而不是其他前置错误"
     );
 }
