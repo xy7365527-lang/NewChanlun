@@ -68,7 +68,7 @@ use super::nested_fugue::{div_segment_broken, rec_sub_evidence, Win};
 use super::positional::{LayerTrade, PositionalResult, EQUITY_SAMPLE_BARS};
 use super::positional_fusion::{SUB_COST_K, SUB_FRICTION_RT, SUB_SPAWN_FRAC};
 use super::tape::SignalTape;
-use super::types::{BspEvent, DivEvent, Polarity, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER};
+use super::types::{BspEvent, DivEvent, Polarity, FIRST_BSP_LADDER, MAX_LADDER};
 use super::unified_necessity::prove_theta_sigma_invariant;
 use crate::buysellpoint::Side;
 use crate::stroke::Direction;
@@ -460,6 +460,7 @@ fn try_spawn(
 pub(crate) fn run_isolated_fugue(
     tape: &SignalTape,
     floor_ladder: usize,
+    q_total: f64,
 ) -> Result<PositionalResult, String> {
     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {
         return Err(format!(
@@ -482,7 +483,7 @@ pub(crate) fn run_isolated_fugue(
     let n = tape.bars.len();
     let mut res = PositionalResult::default();
     let mut voices: Vec<VoiceLedger> = Vec::new();
-    let mut free = INITIAL_CAPITAL;
+    let mut free = q_total;
     let mut n_base = 0.0f64;
     let mut book = CenterBook::new();
     let mut depth_ref = DepthRef::new(DEPTH_REF_WINDOW);
@@ -892,9 +893,10 @@ pub(crate) fn run_isolated_fugue(
 
 #[cfg(test)]
 mod tests {
-    use super::super::positional::{run_positional, PolarityMode};
+    use super::super::positional::{run_positional_fx, PolarityMode};
     use super::*;
     use crate::trading::tape::BarSig;
+    use crate::trading::types::FIXTURE_Q_TOTAL;
     use crate::trading::types::{BspClass, LadderMask};
 
     const ISO: PolarityMode = PolarityMode::Isolated;
@@ -994,7 +996,7 @@ mod tests {
             dir_flips: Some(dir_flips),
             ..Default::default()
         };
-        run_positional(&t, 2, ISO).unwrap()
+        run_positional_fx(&t, 2, ISO).unwrap()
     }
 
     #[test]
@@ -1010,7 +1012,9 @@ mod tests {
             dir_flips: Some(Vec::new()),
             ..Default::default()
         };
-        assert!(run_positional(&t, 2, ISO).unwrap_err().contains("背驰磁带"));
+        assert!(run_positional_fx(&t, 2, ISO)
+            .unwrap_err()
+            .contains("背驰磁带"));
         // 缺 dir_flips ⇒ Err。
         let t2 = SignalTape {
             bars: vec![with_empty_div(with_ev(
@@ -1021,7 +1025,7 @@ mod tests {
             dir_flips: None,
             ..Default::default()
         };
-        assert!(run_positional(&t2, 2, ISO)
+        assert!(run_positional_fx(&t2, 2, ISO)
             .unwrap_err()
             .contains("dir_flips"));
     }
@@ -1035,7 +1039,7 @@ mod tests {
         assert_eq!(r.n_nrf_root_entries_by_ladder[4], 1, "根开在最高 θ 涌现层");
         let t = &r.trades[0];
         assert_eq!((t.ladder, t.polarity), (4, Polarity::Long));
-        assert!((t.shares - INITIAL_CAPITAL / 100.0).abs() < 1e-9, "满仓");
+        assert!((t.shares - FIXTURE_Q_TOTAL / 100.0).abs() < 1e-9, "满仓");
         assert!((r.final_nav - 101_000.0).abs() < 1e-6);
     }
 
