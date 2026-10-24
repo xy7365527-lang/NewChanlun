@@ -1325,7 +1325,7 @@ fn bind_voice_wrong_allocation() -> String {
     if error_reply["kind"] != "Error" {
         panic!("预期 Error，实际得到：{}", canonical_json(&error_reply));
     }
-    let error_reason = error_reply["reason"].as_str().unwrap_or("").to_string();
+    let error_reason = error_reply["error"].as_str().unwrap_or("").to_string();
     println!(
         "S3-NEGATIVE {}",
         canonical_json(
