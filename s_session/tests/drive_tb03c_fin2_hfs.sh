@@ -36,7 +36,7 @@ for name in "${NAMES[@]}"; do
   hdiutil attach -nobrowse -mountpoint "$ROOT/$name" "$ROOT/$name.dmg"
   MOUNTED+=("$name")
   test -w "$ROOT/$name"
-  fs_type="$(stat -f '%T' "$ROOT/$name")"
+  fs_type="$(stat -f '%F' "$ROOT/$name")"
   if [[ "$fs_type" != "hfs" ]]; then
     echo "carrier $name has unexpected filesystem $fs_type" >&2
     exit 66
