@@ -155,7 +155,7 @@ pub(super) fn resolve(
     if next.get("fill_allocations").is_none() {
         next["fill_allocations"] = json!([]);
     }
-    // 路由证明不带数量或金额，绝不将未知分配伪装为零。
+    // 缺归属路由不得将未知分配伪装为零；成功路由显式携带逐腿数量、金额与费用。
     next["fill_allocations"].as_array_mut().unwrap().push(json!({"fact_key":fact["fact_key"],"fact_hash":fact["fact_hash"],"projection_kind":"per_leg","manifest_hash":m["manifest_hash"],"symbol":m["symbol"],"fill_allocation_policy_id":policy["fill_allocation_policy_id"],"policy_revision":policy["policy_revision"],"evidence_id":evidence_id,"allocations":routes}));
     Ok(())
 }
