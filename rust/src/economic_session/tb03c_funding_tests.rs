@@ -838,6 +838,10 @@ fn v2_transfer_opened_chong_carries_v2_revision() {
     let v1 = book::apply(&book::empty_image(), &rec, 1, "10", book::Rules::Tb03cV1)
         .unwrap()
         .0;
+    assert_eq!(
+        v2["book"]["principal"]["batches"][0]["known_at"],
+        rec["b_observation"]["first_known_ns"]
+    );
     assert_eq!(v2["book"]["book_revision"], "tb03c-book/2");
     assert_eq!(v1["book"]["book_revision"], "tb03c-book/1");
     assert!(v2["book"].get("funding").is_none());
