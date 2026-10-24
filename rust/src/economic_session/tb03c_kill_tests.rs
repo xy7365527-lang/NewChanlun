@@ -200,23 +200,30 @@ const COLUMN: i64 = 1_000_000;
 pub(super) struct Clock {
     owners: Vec<usize>,
     killed: Option<(usize, usize)>,
+    /// 真实 Unix 纳秒夹具的起始列；原 S3 的 1970 相对时刻为 0。
+    base_quotient: i64,
 }
 impl Clock {
     /// 通用构造（#1674 `/2` 矩阵复用）：`owners[i]` = 处理 m-i 的域；`killed` = (被杀域, 起始消息)。
     pub(super) fn of(owners: Vec<usize>, killed: Option<(usize, usize)>) -> Self {
-        Self { owners, killed }
+        Self::of_at(owners, killed, 0)
+    }
+    /// 带真实日期偏移的构造（#1621 后资金时效夹具）；商先减起始列再按 epoch 核对。
+    pub(super) fn of_at(owners: Vec<usize>, killed: Option<(usize, usize)>, base_ns: i64) -> Self {
+        Self {
+            owners,
+            killed,
+            base_quotient: base_ns / COLUMN,
+        }
     }
     fn reference(plan: &Plan) -> Self {
-        Self {
-            owners: owners(plan),
-            killed: None,
-        }
+        Self::of(owners(plan), None)
     }
     fn crash(plan: &Plan, owner: usize, target: usize, committed: bool) -> Self {
-        Self {
-            owners: owners(plan),
-            killed: Some((owner, if committed { target + 1 } else { target })),
-        }
+        Self::of(
+            owners(plan),
+            Some((owner, if committed { target + 1 } else { target })),
+        )
     }
     fn expected_quotient(&self, rem: i64) -> Result<i64, String> {
         match rem {
@@ -280,7 +287,7 @@ impl<'c> Normalizer<'c> {
                             Some(n) => {
                                 let (q, r) = (n / COLUMN, n % COLUMN);
                                 match self.clock.expected_quotient(r) {
-                                    Ok(e) if e == q => (),
+                                    Ok(e) if e + self.clock.base_quotient == q => (),
                                     Ok(e) => bad.push(format!("{here}={n}：商 {q} ≠ 期望 {e}")),
                                     Err(e) => bad.push(format!("{here}={n}：{e}")),
                                 }
