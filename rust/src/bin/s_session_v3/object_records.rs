@@ -933,9 +933,10 @@ pub(crate) fn reproject_stored_wire_view(
 /// 判据（与旧 CC-006 合同同一条，不设宽严两档）：
 ///
 /// - 数组必须恰是三组（旧 CC-006 合同要求完整三组来源）；
-/// - 每组是恰含 `merged_index` / `raw_refs` / `dependency_refs` 的对象；
+/// - OHLC 每组恰含 `merged_index` / `raw_refs` / `dependency_refs`；TestOnly tick 沿用
+///   旧配方，只含前两键；除此之外不多不少；
 /// - `merged_index` 是规范十进制文本（旧 `project_input_refs` 的数值→文本结果）；
-/// - `raw_refs` / `dependency_refs` 是数组，只核根、不展开子图（不读取子树内容）：叶级文本
+/// - 已声明的 `raw_refs` / `dependency_refs` 是数组，只核根、不展开子图（不读取子树内容）：叶级文本
 ///   形态是 producer 的构造义务，由同 oracle 对拍锁定（本模块不重渲染、不逐叶转换）。
 fn check_wire_input_refs(
     store: &mut dyn NodeStore,
@@ -966,11 +967,11 @@ fn check_wire_input_refs(
                 detail: format!("第 {index} 组不是对象（{:?}）", group.kind),
             });
         }
-        if group.extent != Some(3) {
+        if !matches!(group.extent, Some(2 | 3)) {
             return Err(RecordError::Source {
                 what,
                 detail: format!(
-                    "第 {index} 组必须恰含 merged_index/raw_refs/dependency_refs 三键，实得 {:?}",
+                    "第 {index} 组必须恰含 merged_index/raw_refs，OHLC 另含 dependency_refs，实得 {:?}",
                     group.extent
                 ),
             });
@@ -992,7 +993,9 @@ fn check_wire_input_refs(
             });
         }
         read_edge(store, &group, "raw_refs", Kind::Array, what)?;
-        read_edge(store, &group, "dependency_refs", Kind::Array, what)?;
+        if group.extent == Some(3) {
+            read_edge(store, &group, "dependency_refs", Kind::Array, what)?;
+        }
     }
     Ok(reference)
 }

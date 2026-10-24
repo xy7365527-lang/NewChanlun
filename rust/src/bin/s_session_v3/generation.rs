@@ -514,6 +514,7 @@ impl GenerationRuntime {
         let mut observations: Vec<(bool, Built)> = Vec::new();
         if !is_ohlc {
             // 旧 tick 档案还保留原始 K 线三窗观察；它不同于下方 merged-window 观察。
+            // 这里的窗口字段沿用旧生产的数组位次，不是 source_coord（见旧生成循环）。
             let raw_windows: Vec<(usize, Cc006LocalShape)> = if raw_bars.len() < 3 {
                 vec![(0, Cc006LocalShape::InsufficientKnowledge)]
             } else {
