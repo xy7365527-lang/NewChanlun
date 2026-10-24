@@ -182,7 +182,17 @@ fn dispatch_with_policy(args: &[String], production: bool) -> Result<bool, Strin
         return Err("VersionUnsupported：Q3监听入口当前需要Unix平台".into());
     }
     if matches!(cmd, "serve" | "advance" | "recover") && value == PROTOCOL_REVISION {
-        if let Some(out) = writer_cli::run_with_policy(args, production)? {
+        let out = if production {
+            writer_cli::run(args)?
+        } else {
+            #[cfg(test)]
+            {
+                writer_cli::run_fixture(args)?
+            }
+            #[cfg(not(test))]
+            unreachable!("fixture only exists in test builds")
+        };
+        if let Some(out) = out {
             println!("{out}");
         }
         return Ok(true);
@@ -227,7 +237,7 @@ fn dispatch_with_policy(args: &[String], production: bool) -> Result<bool, Strin
                 ));
             }
         }
-        if !v2::dispatch_fixture(args)? {
+        if !v2::dispatch(args)? {
             return Err(format!(
                 "VersionUnsupported：显式 {PREVIOUS_REVISION} 未进入 v2 初始化分派；拒绝回落旧域"
             ));
