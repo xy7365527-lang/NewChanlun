@@ -28,7 +28,7 @@ fn setup_voice_authority(dir: &Path) -> Value {
     use crate::session_protocol::sha256_hex;
     let doc: Value = serde_json::from_str(RAW).unwrap();
     let event = &doc["events"][0]; // 使用开局事实
-    let raw_sha = sha256_hex(canonical_json(&doc).as_bytes());
+    let raw_sha = sha256_hex(RAW.as_bytes());
     let key = book::fact_key(event).unwrap();
     let fact_hash = book::hash(
         &json!({"raw_sha256":raw_sha,"json_pointer":"/events/0","event":event,"units":doc["units"]}),
@@ -69,14 +69,18 @@ fn setup_voice_authority(dir: &Path) -> Value {
         "instrument_declaration",
         "opening_raw",
     ] {
-        let value = if name == "input" {
-            json!({"schema":"testonly-voice-input/1","units":doc["units"],"events":[event]})
+        let text = if name == "input" {
+            canonical_json(
+                &json!({"schema":"testonly-voice-input/1","units":doc["units"],"events":[event]}),
+            )
         } else if name == "opening_raw" {
-            doc.clone()
+            // CaptureExternal 的 raw_utf8 是 RAW 原文；opening_raw 必须保留同一字节序列。
+            RAW.to_owned()
         } else {
-            json!({"scope":"unit trust-root fixture, not a real gamma proof","name":name})
+            canonical_json(
+                &json!({"scope":"unit trust-root fixture, not a real gamma proof","name":name}),
+            )
         };
-        let text = canonical_json(&value);
         let path = dir.join(format!("voice-{name}.json"));
         std::fs::write(&path, &text).unwrap();
         artifacts.push(json!({
