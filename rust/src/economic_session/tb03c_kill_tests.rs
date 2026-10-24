@@ -565,6 +565,14 @@ fn public(configs: &[store::Config]) -> Vec<Value> {
                         .into_iter()
                         .map(|k| json!({"op":"QueryAllocation","allocation_id":k})),
                 );
+                let image = store::latest(&db).unwrap().3;
+                payloads.extend(
+                    image["book"]["voice"]["records"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .map(|record| json!({"op":"QueryVoice","binding_id":record["binding_id"]})),
+                );
             }
             Value::Array(
                 payloads
@@ -1291,7 +1299,7 @@ kill_step! {
 
 /// 评审 M3(b) 负控：提交前被杀并恢复后**跳过重送**直接续跑，终态比较函数必须报「不同」。
 /// 证明 `final_diff` 能区分「恰好一次」与「丢失一次」；断言写在返回值上，不用 should_panic。
-fn skip_resend(target: usize) -> String {
+fn skip_resend(target: usize) -> (String, Killed) {
     let plan = plan();
     let work = root()
         .join(format!("negative-skip-{target:02}"))
@@ -1308,7 +1316,7 @@ fn skip_resend(target: usize) -> String {
         "S3-NEGATIVE {}",
         canonical_json(&json!({"target":target,"continuation_errors":errors,"first_diff":diff}))
     );
-    diff
+    (diff, k)
 }
 
 /// #1622 负控：BindVoice 使用不存在的 allocation_id，必须在应用查找处拒绝。
@@ -1359,13 +1367,56 @@ fn bind_voice_wrong_allocation() -> String {
 }
 #[test]
 fn tb03c_kill_negative_skip_resend_capture_fill1() {
-    let diff = skip_resend(6);
+    let (diff, _) = skip_resend(6);
     assert!(diff.starts_with("终态域 0："), "{diff}");
 }
 #[test]
 fn tb03c_kill_negative_skip_resend_apply_fill1_n2() {
-    let diff = skip_resend(9);
+    let (diff, _) = skip_resend(9);
     assert!(diff.starts_with("终态域 2："), "{diff}");
+}
+
+/// #1622 负控：BindVoice 提交前被杀后漏掉重送，域 1 的 Voice 记录与公开查询都必须缺失，
+/// 且全表与公开查询比较器都必须实际报出差异；wrong-allocation 不能替代这条覆盖。
+#[test]
+fn tb03c_kill_negative_skip_resend_bind_voice_n1() {
+    let (diff, k) = skip_resend(21);
+    assert!(diff.starts_with("终态域 1："), "{diff}");
+
+    let reference = reference();
+    assert!(
+        reference.norm_public[1]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|r| r["kind"] == "EconomicVoice" && r["record"]["binding_id"] == "kill-voice-1"),
+        "参照公开查询必须包含 kill-voice-1，否则负控没有证明目标"
+    );
+    let clock = Clock::crash(plan(), k.owner, 21, false);
+    let queries = public(&k.configs);
+    let public_diff = compare(&queries[1], &clock, &reference.norm_public[1])
+        .expect_err("漏掉 BindVoice 后公开查询竟与参照相同");
+    assert!(public_diff.starts_with("规范化后不同："), "{public_diff}");
+
+    let (mut db, _) = store::open(&k.configs[1].db, false).unwrap();
+    let epoch: i64 = store::meta(&db, "writer_epoch").unwrap().parse().unwrap();
+    let query = service::handle(
+        &mut db,
+        &k.configs[1],
+        epoch,
+        epoch,
+        &json!({}),
+        &envelope(
+            "negative-bind-voice-query",
+            json!({"op":"QueryVoice","binding_id":"kill-voice-1"}),
+        ),
+    )["payload"]
+        .clone();
+    assert_eq!(query["kind"], "Error", "{query}");
+    assert_eq!(
+        query["error"], "MissingDependency：Voice 尚未绑定",
+        "{query}"
+    );
 }
 
 /// #1622 负控：不存在的 allocation_id 不得绑定 Voice。
