@@ -4187,11 +4187,13 @@ mod tests {
                     "tick 窗口{start} {field}"
                 );
             }
-            let refs: Value = serde_json::from_str(want["input_refs_json"].as_str().unwrap()).unwrap();
+            let refs: Value =
+                serde_json::from_str(want["input_refs_json"].as_str().unwrap()).unwrap();
             assert!(refs.as_array().unwrap().iter().all(|group| {
                 group.as_object().unwrap().len() == 2 && group.get("dependency_refs").is_none()
             }));
-            let old_row_refs: Value = serde_json::from_str(want["input_refs_json"].as_str().unwrap()).unwrap();
+            let old_row_refs: Value =
+                serde_json::from_str(want["input_refs_json"].as_str().unwrap()).unwrap();
             assert_eq!(
                 render(&mut fixture.store, &object.wire_input_refs),
                 canonical_json(&crate::project_input_refs(&old_row_refs).unwrap())

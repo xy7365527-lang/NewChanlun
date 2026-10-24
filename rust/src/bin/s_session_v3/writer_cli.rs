@@ -297,7 +297,9 @@ fn socket_path(raw: &str) -> Result<PathBuf, String> {
 fn checked_profile(path: &Path) -> Result<(), String> {
     let (_, profile_id, _) = load_profile(path)?;
     if profile_id != tb02a::PROFILE && profile_id != "testonly_tick_1_1_ohlc" {
-        return Err(format!("VersionUnsupported：未声明的S3写入口profile `{profile_id}`"));
+        return Err(format!(
+            "VersionUnsupported：未声明的S3写入口profile `{profile_id}`"
+        ));
     }
     Ok(())
 }

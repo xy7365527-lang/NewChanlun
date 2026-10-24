@@ -445,10 +445,12 @@ impl Runtime {
         };
         super::require_current_writer_rule(&metadata.rule_revision)?;
         content_publication::verify_current_begin_admitted(tx, token, metadata.view(), work)?;
-        if metadata.profile_id != tb02a::PROFILE
-            && metadata.profile_id != "testonly_tick_1_1_ohlc"
+        if metadata.profile_id != tb02a::PROFILE && metadata.profile_id != "testonly_tick_1_1_ohlc"
         {
-            return Err(err(format!("未声明的S3生成profile `{}`", metadata.profile_id)));
+            return Err(err(format!(
+                "未声明的S3生成profile `{}`",
+                metadata.profile_id
+            )));
         }
         if frontier <= previous {
             return Err(err("本次没有新增原始前沿"));

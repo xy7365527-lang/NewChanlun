@@ -234,7 +234,9 @@ impl AuditConnection {
         let control = control::S3Control::attach(tx, clock)?;
         let (profile_value, profile_id, profile_hash) = load_profile(profile)?;
         if profile_id != tb02a::PROFILE && profile_id != "testonly_tick_1_1_ohlc" {
-            return Err(format!("VersionUnsupported：未声明的S3驱动profile `{profile_id}`"));
+            return Err(format!(
+                "VersionUnsupported：未声明的S3驱动profile `{profile_id}`"
+            ));
         }
         if meta_get_opt(tx, "profile_hash")?.as_deref() != Some(profile_hash.as_str()) {
             return Err("IdentityConflict：S3驱动profile与冻结档案不符".into());

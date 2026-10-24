@@ -19,9 +19,9 @@ use newchan_rust::s_content::{
     path::{lookup_path, PathStep},
     Built, ContentRef, Kind, NodeDigest, NodeSink, NodeSource, NodeStore, Value as V,
 };
-use serde_json::{json, Value};
 use newchan_rust::theta_v0::classifier::local_shape::{classify_local_shape, Cc006LocalShape};
 use newchan_rust::theta_v0::types::Bar;
+use serde_json::{json, Value};
 #[path = "source_pending.rs"]
 mod source_pending;
 #[path = "source_prefix.rs"]
@@ -843,7 +843,12 @@ fn tick_observation_oracle(
         vec![(0, Cc006LocalShape::InsufficientKnowledge)]
     } else {
         (0..=raw.len() - 3)
-            .map(|start| (start, classify_local_shape(&raw[start], &raw[start + 1], &raw[start + 2])))
+            .map(|start| {
+                (
+                    start,
+                    classify_local_shape(&raw[start], &raw[start + 1], &raw[start + 2]),
+                )
+            })
             .collect()
     };
     let mut expected = Vec::new();
@@ -1874,16 +1879,23 @@ fn audit_generated_in_store(
             if !raw.contains_key(&coord) {
                 continue;
             }
-            let revision = bj::field(event, "revision").as_i64()
+            let revision = bj::field(event, "revision")
+                .as_i64()
                 .ok_or_else(|| err("原始账revision不是整数"))?;
-            if tick_bars.get(&coord).is_some_and(|bar: &TickBar| bar.revision >= revision) {
+            if tick_bars
+                .get(&coord)
+                .is_some_and(|bar: &TickBar| bar.revision >= revision)
+            {
                 continue;
             }
-            let price = bj::field(event, "price").as_str()
+            let price = bj::field(event, "price")
+                .as_str()
                 .ok_or_else(|| err("旧tick原始price不是文本"))?;
             let price = s.native_text(price).map_err(err)?;
             s.native_map_room(&mut tick_bars).map_err(err)?;
-            tick_bars.insert(coord, TickBar { revision, price }).map_err(err)?;
+            tick_bars
+                .insert(coord, TickBar { revision, price })
+                .map_err(err)?;
         }
         // 旧 tick 没有 CC-005 组对象。零范围 K 线只有同价才互相包含：存在方向时，
         // 连续同价事件属于同一 merged 组；全程同价没有方向，旧包含器保留逐根 open-tail。
@@ -1914,12 +1926,16 @@ fn audit_generated_in_store(
             let sources = SourceCoords::Original(copy_coords(s, &members)?);
             let payload = s.native_ref_clone(&tick_payload).map_err(err)?;
             s.native_map_room(&mut groups).map_err(err)?;
-            groups.insert(index, Group {
-                payload,
-                members: SourceCoords::Original(members),
-                sources,
-                anchor,
-            })
+            groups
+                .insert(
+                    index,
+                    Group {
+                        payload,
+                        members: SourceCoords::Original(members),
+                        sources,
+                        anchor,
+                    },
+                )
                 .map_err(err)?;
             index += 1;
         }
@@ -1954,7 +1970,8 @@ fn audit_generated_in_store(
         }
     }
     if (is_ohlc || raw.len() >= 3)
-        && (partition.len() != raw.len() || partition.iter().any(|(coord, _)| !raw.contains_key(coord)))
+        && (partition.len() != raw.len()
+            || partition.iter().any(|(coord, _)| !raw.contains_key(coord)))
     {
         return Err(err("同cut组未完整覆盖生效原始账"));
     }
@@ -2039,11 +2056,7 @@ fn audit_generated_in_store(
             } else {
                 // tick CC-006 的 source_coords 只列三个 merged 组锚，不把组内其余
                 // 同价事件扩张进窗口身份；raw_refs 仍已在上方完整核对。
-                source_union = union_coords(
-                    s,
-                    &source_union,
-                    std::slice::from_ref(&group.anchor),
-                )?;
+                source_union = union_coords(s, &source_union, std::slice::from_ref(&group.anchor))?;
             }
             windows[slot] = crate::content_manifest::Decimal::new(
                 object
@@ -2057,8 +2070,10 @@ fn audit_generated_in_store(
                 return Err(err("形态窗口不等于同cut组锚"));
             }
             if !is_ohlc {
-                let price = &tick_bars.get(&group.anchor)
-                    .ok_or_else(|| err("旧tick组锚缺原始price"))?.price;
+                let price = &tick_bars
+                    .get(&group.anchor)
+                    .ok_or_else(|| err("旧tick组锚缺原始price"))?
+                    .price;
                 highs[slot] = s.native_text(price.as_str()).map_err(err)?;
                 lows[slot] = s.native_text(price.as_str()).map_err(err)?;
             } else if let Some(fields) = local_fields(s, &group.payload, &["high", "low"])? {
@@ -2177,8 +2192,10 @@ fn audit_generated_in_store(
         ] {
             let actual = fields.get_admitted(s, merged).map_err(err)?;
             if !is_ohlc {
-                let expected = &tick_bars.get(&group.anchor)
-                    .ok_or_else(|| err("旧tick见证锚缺原始price"))?.price;
+                let expected = &tick_bars
+                    .get(&group.anchor)
+                    .ok_or_else(|| err("旧tick见证锚缺原始price"))?
+                    .price;
                 if actual.kind() != Kind::String
                     || text_value(s, actual.view(), merged)? != expected.as_str()
                 {
@@ -2248,7 +2265,9 @@ fn audit_generated_in_store(
         super::history::check_deadline(deadline)?;
         if let Some(expected) = &tick_observations {
             if digest(item)? != hash(&expected[ordinal])? {
-                return Err(err(format!("旧tick原始窗口观察[{ordinal}]与原始账判据不同")));
+                return Err(err(format!(
+                    "旧tick原始窗口观察[{ordinal}]与原始账判据不同"
+                )));
             }
         }
         match text(s, item, "kind")?.as_str() {
@@ -2259,7 +2278,11 @@ fn audit_generated_in_store(
     }
     Ok(Counts {
         objects: objects.len(),
-        groups: if is_ohlc || !groups.is_empty() { groups.len() } else { raw.len() },
+        groups: if is_ohlc || !groups.is_empty() {
+            groups.len()
+        } else {
+            raw.len()
+        },
         windows: groups.len().saturating_sub(2),
         effective: raw.len(),
         insufficient,

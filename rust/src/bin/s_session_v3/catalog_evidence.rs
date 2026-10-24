@@ -40,7 +40,8 @@ fn err(e: impl std::fmt::Display) -> String {
 /// OHLC 声明域的 `tested_domain` 文本；逐字等于旧生产 `s_structure_session.rs` 的取值。
 pub(super) const OHLC_TESTED_DOMAIN: &str =
     "TB-02-A：显式规范整数OHLC；已建方向与无同角色极值身份竞争域；初始包含/tie具名等待";
-pub(super) const TICK_TESTED_DOMAIN: &str = "TestOnly tick 1:1 OHLC（O=H=L=C），相邻严格无包含，初始化方向由前两点确定，无同价端点竞争";
+pub(super) const TICK_TESTED_DOMAIN: &str =
+    "TestOnly tick 1:1 OHLC（O=H=L=C），相邻严格无包含，初始化方向由前两点确定，无同价端点竞争";
 const TICK_PROFILE: &str = "testonly_tick_1_1_ohlc";
 
 /// 目录轴唯一集合；顺序 = `tb02a_facts::catalog_axes` 的写入顺序。
@@ -660,67 +661,67 @@ fn verify_cut_in_store(
         return Err(err("生成态 structure_cut 与冻结生成 cut 不同"));
     }
     if is_ohlc {
-    let axes = field_ref(store, evidence.view(), "axes")?;
-    let state_axes = generated_axes_ref(store, generated_state)?;
-    if axes.digest().map_err(err)? != state_axes.digest().map_err(err)? {
-        return Err(err(
-            "catalog_evidence.axes 不是同次最终生成态的 catalog_axes 值边",
-        ));
-    }
-    let entries = axes_entries(store, &axes)?;
-    let cc056 = entries
-        .iter()
-        .find(|entry| entry.id == "CC-056")
-        .ok_or_else(|| err("目录轴缺 CC-056"))?;
-    let allocation = store.allocation_budget();
-    let mut revisions = bj::ReferenceArray(bj::new_work(allocation.as_ref()));
-    for ordinal in raw_start..raw_prefix.len() {
-        #[cfg(test)]
-        RAW_VISITS.with(|n| n.set(n.get() + 1));
-        let event = raw_prefix
-            .get(ordinal)
-            .ok_or_else(|| err("目录raw序号越界"))?;
-        super::history::check_deadline(deadline)?;
-        let seq = bj::field(event, "seq")
-            .as_i64()
-            .ok_or_else(|| err("原始账事件缺整数 seq"))?;
-        let revision = bj::field(event, "revision")
-            .as_i64()
-            .ok_or_else(|| err("原始账事件缺整数 revision"))?;
-        if seq > previous_frontier && revision > 1 {
-            store.native_codec_room(&mut revisions.0, 1).map_err(err)?;
-            revisions
+        let axes = field_ref(store, evidence.view(), "axes")?;
+        let state_axes = generated_axes_ref(store, generated_state)?;
+        if axes.digest().map_err(err)? != state_axes.digest().map_err(err)? {
+            return Err(err(
+                "catalog_evidence.axes 不是同次最终生成态的 catalog_axes 值边",
+            ));
+        }
+        let entries = axes_entries(store, &axes)?;
+        let cc056 = entries
+            .iter()
+            .find(|entry| entry.id == "CC-056")
+            .ok_or_else(|| err("目录轴缺 CC-056"))?;
+        let allocation = store.allocation_budget();
+        let mut revisions = bj::ReferenceArray(bj::new_work(allocation.as_ref()));
+        for ordinal in raw_start..raw_prefix.len() {
+            #[cfg(test)]
+            RAW_VISITS.with(|n| n.set(n.get() + 1));
+            let event = raw_prefix
+                .get(ordinal)
+                .ok_or_else(|| err("目录raw序号越界"))?;
+            super::history::check_deadline(deadline)?;
+            let seq = bj::field(event, "seq")
+                .as_i64()
+                .ok_or_else(|| err("原始账事件缺整数 seq"))?;
+            let revision = bj::field(event, "revision")
+                .as_i64()
+                .ok_or_else(|| err("原始账事件缺整数 revision"))?;
+            if seq > previous_frontier && revision > 1 {
+                store.native_codec_room(&mut revisions.0, 1).map_err(err)?;
+                revisions
+                    .0
+                    .try_push(bj::RawReference::new(event, false)?)
+                    .map_err(err)?;
+            }
+        }
+        let mut withdrawals_view = bj::WithdrawalArray(bj::new_work(allocation.as_ref()));
+        store
+            .native_codec_room(&mut withdrawals_view.0, withdrawals_array.len())
+            .map_err(err)?;
+        for v in withdrawals_array.iter() {
+            super::history::check_deadline(deadline)?;
+            withdrawals_view
                 .0
-                .try_push(bj::RawReference::new(event, false)?)
+                .try_push(bj::WithdrawalWire::new(v).map_err(err)?)
                 .map_err(err)?;
         }
-    }
-    let mut withdrawals_view = bj::WithdrawalArray(bj::new_work(allocation.as_ref()));
-    store
-        .native_codec_room(&mut withdrawals_view.0, withdrawals_array.len())
-        .map_err(err)?;
-    for v in withdrawals_array.iter() {
-        super::history::check_deadline(deadline)?;
-        withdrawals_view
-            .0
-            .try_push(bj::WithdrawalWire::new(v).map_err(err)?)
-            .map_err(err)?;
-    }
-    for (key, want) in [
-        (
-            "raw_revisions",
-            sc::capture_allocation::audit_json::JsonView::BorrowedArray(&revisions),
-        ),
-        ("withdrawals", withdrawals_view.view()),
-        ("replaces", replaces),
-    ] {
-        let got = array_field_ref(store, &cc056.evidence, key)?;
-        if got.digest().map_err(err)?
-            != super::history::hash_json_in_store(store, want, deadline, budget)?
-        {
-            return Err(err(format!("CC-056 {key} 与本代独立依据不同")));
+        for (key, want) in [
+            (
+                "raw_revisions",
+                sc::capture_allocation::audit_json::JsonView::BorrowedArray(&revisions),
+            ),
+            ("withdrawals", withdrawals_view.view()),
+            ("replaces", replaces),
+        ] {
+            let got = array_field_ref(store, &cc056.evidence, key)?;
+            if got.digest().map_err(err)?
+                != super::history::hash_json_in_store(store, want, deadline, budget)?
+            {
+                return Err(err(format!("CC-056 {key} 与本代独立依据不同")));
+            }
         }
-    }
     }
     Ok(())
 }

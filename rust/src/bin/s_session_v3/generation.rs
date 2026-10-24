@@ -681,171 +681,177 @@ impl GenerationRuntime {
         let mut typed: Vec<ProducedObject> = Vec::new();
         let mut requests: Vec<Built> = Vec::new();
         if is_ohlc {
-        let mut step_requests: Vec<Built> = Vec::new();
-        let mut group_requests: Vec<Built> = Vec::new();
-        let mut all_reasons: Vec<&'static str> = Vec::new();
-        for index in 0..state.step_count() {
-            let view = state
-                .shared_step(index)
-                .map_err(|error| format!("GenError：共享步骤证据不可用：{}", error.reason))?
-                .ok_or_else(|| format!("GenError：步骤 {index} 缺共享证据"))?;
-            all_reasons.extend(
-                view.waiting_reasons
-                    .iter()
-                    .copied()
-                    .filter(|reason| *reason != "equal_extreme_identity"),
-            );
-            let object = self
-                .producer
-                .build_step_object(store, &view, gen, cut)
-                .map_err(producer_error)?;
-            step_requests.push(object.request.clone().ok_or_else(|| {
-                format!("GenError：CC-004 步骤 {index} 缺知识请求（旧配方必须有）")
-            })?);
-            let generated =
-                object_records::generated(store, object_records::BorrowedObject::Typed(&object))
-                    .map_err(record_error)?;
-            typed.push(ProducedObject {
-                kind: CC004_STEP_KIND.to_string(),
-                fact_key: Some(object.fact_key.clone()),
-                object_id: object.object_id.clone(),
-                generated,
-                body: ObjectBody::Typed(object),
+            let mut step_requests: Vec<Built> = Vec::new();
+            let mut group_requests: Vec<Built> = Vec::new();
+            let mut all_reasons: Vec<&'static str> = Vec::new();
+            for index in 0..state.step_count() {
+                let view = state
+                    .shared_step(index)
+                    .map_err(|error| format!("GenError：共享步骤证据不可用：{}", error.reason))?
+                    .ok_or_else(|| format!("GenError：步骤 {index} 缺共享证据"))?;
+                all_reasons.extend(
+                    view.waiting_reasons
+                        .iter()
+                        .copied()
+                        .filter(|reason| *reason != "equal_extreme_identity"),
+                );
+                let object = self
+                    .producer
+                    .build_step_object(store, &view, gen, cut)
+                    .map_err(producer_error)?;
+                step_requests.push(object.request.clone().ok_or_else(|| {
+                    format!("GenError：CC-004 步骤 {index} 缺知识请求（旧配方必须有）")
+                })?);
+                let generated = object_records::generated(
+                    store,
+                    object_records::BorrowedObject::Typed(&object),
+                )
+                .map_err(record_error)?;
+                typed.push(ProducedObject {
+                    kind: CC004_STEP_KIND.to_string(),
+                    fact_key: Some(object.fact_key.clone()),
+                    object_id: object.object_id.clone(),
+                    generated,
+                    body: ObjectBody::Typed(object),
+                });
+            }
+            for index in 0..state.group_count() {
+                let view = state
+                    .shared_group(index)
+                    .map_err(|error| format!("GenError：共享组证据不可用：{}", error.reason))?
+                    .ok_or_else(|| format!("GenError：组 {index} 缺共享证据"))?;
+                all_reasons.extend_from_slice(&group_reasons(&view));
+                let object = self
+                    .producer
+                    .build_group_object(store, index, &view, gen, cut)
+                    .map_err(producer_error)?;
+                group_requests.push(object.request.clone().ok_or_else(|| {
+                    format!("GenError：CC-005 组 {index} 缺知识请求（旧配方必须有）")
+                })?);
+                let generated = object_records::generated(
+                    store,
+                    object_records::BorrowedObject::Typed(&object),
+                )
+                .map_err(record_error)?;
+                typed.push(ProducedObject {
+                    kind: CC005_GROUP_KIND.to_string(),
+                    fact_key: Some(object.fact_key.clone()),
+                    object_id: object.object_id.clone(),
+                    generated,
+                    body: ObjectBody::Typed(object),
+                });
+            }
+            requests.extend(step_requests);
+            requests.extend(group_requests);
+            for (shape_request, fractal_requests) in &shape_requests {
+                requests.push(shape_request.clone());
+                requests.extend(fractal_requests.iter().cloned());
+            }
+            if merged.len() < 3 {
+                all_reasons.push("fewer_than_three_merged_bars");
+                let key = CValue::Array(vec![
+                    CValue::String(CC006_SHAPE_KIND.to_string()),
+                    CValue::String("pending".to_string()),
+                ]);
+                let sources = raw_prefix_coords(state).map_err(producer_error)?;
+                requests.push(
+                    self.producer
+                        .pending_request(store, key, &["fewer_than_three_merged_bars"], &sources)
+                        .map_err(producer_error)?,
+                );
+            }
+            if !state.has_direction_evidence() {
+                all_reasons.push("direction_not_yet_established");
+            }
+            if state.unsettled() {
+                all_reasons.push("initial_direction_unsettled");
+            }
+            all_reasons.extend(fractal_reasons);
+            typed.extend(fractals);
+            typed.sort_by(|left, right| {
+                (
+                    left.kind.as_str(),
+                    left.fact_key.as_deref(),
+                    left.object_id.as_str(),
+                )
+                    .cmp(&(
+                        right.kind.as_str(),
+                        right.fact_key.as_deref(),
+                        right.object_id.as_str(),
+                    ))
             });
-        }
-        for index in 0..state.group_count() {
-            let view = state
-                .shared_group(index)
-                .map_err(|error| format!("GenError：共享组证据不可用：{}", error.reason))?
-                .ok_or_else(|| format!("GenError：组 {index} 缺共享证据"))?;
-            all_reasons.extend_from_slice(&group_reasons(&view));
-            let object = self
+
+            // ── CC-054 知识状态（旧配方在泛型事实之后、TB-02-B 之前）──
+            let raw_coords = raw_prefix_coords(state).map_err(producer_error)?;
+            let knowledge = self
                 .producer
-                .build_group_object(store, index, &view, gen, cut)
-                .map_err(producer_error)?;
-            group_requests.push(object.request.clone().ok_or_else(|| {
-                format!("GenError：CC-005 组 {index} 缺知识请求（旧配方必须有）")
-            })?);
-            let generated =
-                object_records::generated(store, object_records::BorrowedObject::Typed(&object))
-                    .map_err(record_error)?;
-            typed.push(ProducedObject {
-                kind: CC005_GROUP_KIND.to_string(),
-                fact_key: Some(object.fact_key.clone()),
-                object_id: object.object_id.clone(),
-                generated,
-                body: ObjectBody::Typed(object),
-            });
-        }
-        requests.extend(step_requests);
-        requests.extend(group_requests);
-        for (shape_request, fractal_requests) in &shape_requests {
-            requests.push(shape_request.clone());
-            requests.extend(fractal_requests.iter().cloned());
-        }
-        if merged.len() < 3 {
-            all_reasons.push("fewer_than_three_merged_bars");
-            let key = CValue::Array(vec![
-                CValue::String(CC006_SHAPE_KIND.to_string()),
-                CValue::String("pending".to_string()),
-            ]);
-            let sources = raw_prefix_coords(state).map_err(producer_error)?;
-            requests.push(
-                self.producer
-                    .pending_request(store, key, &["fewer_than_three_merged_bars"], &sources)
-                    .map_err(producer_error)?,
-            );
-        }
-        if !state.has_direction_evidence() {
-            all_reasons.push("direction_not_yet_established");
-        }
-        if state.unsettled() {
-            all_reasons.push("initial_direction_unsettled");
-        }
-        all_reasons.extend(fractal_reasons);
-        typed.extend(fractals);
-        typed.sort_by(|left, right| {
-            (
-                left.kind.as_str(),
-                left.fact_key.as_deref(),
-                left.object_id.as_str(),
-            )
-                .cmp(&(
-                    right.kind.as_str(),
-                    right.fact_key.as_deref(),
-                    right.object_id.as_str(),
-                ))
-        });
-
-        // ── CC-054 知识状态（旧配方在泛型事实之后、TB-02-B 之前）──
-        let raw_coords = raw_prefix_coords(state).map_err(producer_error)?;
-        let knowledge = self
-            .producer
-            .build_knowledge_state(
-                store,
-                &raw_coords,
-                frontier,
-                &requests,
-                &all_reasons,
-                gen,
-                cut,
-            )
-            .map_err(producer_error)?;
-        for observation in &knowledge.observations {
-            observations.push((true, observation.clone()));
-        }
-        let generated = object_records::generated(
-            store,
-            object_records::BorrowedObject::Typed(&knowledge.object),
-        )
-        .map_err(record_error)?;
-        typed.push(ProducedObject {
-            kind: CC054_KNOWLEDGE_KIND.to_string(),
-            fact_key: Some(knowledge.object.fact_key.clone()),
-            object_id: knowledge.object.object_id.clone(),
-            generated,
-            body: ObjectBody::Typed(knowledge.object),
-        });
-
-        // ── TB-02-B：七个 kind 的新笔证据（上一代记录由调用方给根）──
-        let bi = self
-            .bi
-            .build_borrowed(
-                &mut self.producer,
-                store,
-                &BiBuildInputView {
-                    facts: &evidence.stroke_facts,
-                    raw: BiLedgerView::Views(&raw_by_coord),
-                    all_events: JsonView::BorrowedArray(&input.all_events)
-                        .as_array()
-                        .unwrap(),
-                    prior: &input.prior,
-                    generation: gen,
-                    cut,
+                .build_knowledge_state(
+                    store,
+                    &raw_coords,
                     frontier,
-                    semantic_commit_ns: input.semantic_commit_ns,
-                },
+                    &requests,
+                    &all_reasons,
+                    gen,
+                    cut,
+                )
+                .map_err(producer_error)?;
+            for observation in &knowledge.observations {
+                observations.push((true, observation.clone()));
+            }
+            let generated = object_records::generated(
+                store,
+                object_records::BorrowedObject::Typed(&knowledge.object),
             )
-            .map_err(|error| format!("GenError：TB-02-B 构造失败：{error}"))?;
-        for object in bi.objects {
-            let kind = typed_kind(store, &object)?;
-            let generated =
-                object_records::generated(store, object_records::BorrowedObject::Typed(&object))
-                    .map_err(record_error)?;
+            .map_err(record_error)?;
             typed.push(ProducedObject {
-                kind,
-                fact_key: Some(object.fact_key.clone()),
-                object_id: object.object_id.clone(),
+                kind: CC054_KNOWLEDGE_KIND.to_string(),
+                fact_key: Some(knowledge.object.fact_key.clone()),
+                object_id: knowledge.object.object_id.clone(),
                 generated,
-                body: ObjectBody::Typed(object),
+                body: ObjectBody::Typed(knowledge.object),
             });
-        }
-        for relation in &bi.relations {
-            relations.push(
-                sc::write_value(&mut *store, relation)
-                    .map_err(|error| format!("GenError：关系值写入失败：{error}"))?,
-            );
-        }
+
+            // ── TB-02-B：七个 kind 的新笔证据（上一代记录由调用方给根）──
+            let bi = self
+                .bi
+                .build_borrowed(
+                    &mut self.producer,
+                    store,
+                    &BiBuildInputView {
+                        facts: &evidence.stroke_facts,
+                        raw: BiLedgerView::Views(&raw_by_coord),
+                        all_events: JsonView::BorrowedArray(&input.all_events)
+                            .as_array()
+                            .unwrap(),
+                        prior: &input.prior,
+                        generation: gen,
+                        cut,
+                        frontier,
+                        semantic_commit_ns: input.semantic_commit_ns,
+                    },
+                )
+                .map_err(|error| format!("GenError：TB-02-B 构造失败：{error}"))?;
+            for object in bi.objects {
+                let kind = typed_kind(store, &object)?;
+                let generated = object_records::generated(
+                    store,
+                    object_records::BorrowedObject::Typed(&object),
+                )
+                .map_err(record_error)?;
+                typed.push(ProducedObject {
+                    kind,
+                    fact_key: Some(object.fact_key.clone()),
+                    object_id: object.object_id.clone(),
+                    generated,
+                    body: ObjectBody::Typed(object),
+                });
+            }
+            for relation in &bi.relations {
+                relations.push(
+                    sc::write_value(&mut *store, relation)
+                        .map_err(|error| format!("GenError：关系值写入失败：{error}"))?,
+                );
+            }
         }
 
         // ── 生成态六条数组：跨代共享序列 + 旧配方等价去重 ──
@@ -1499,7 +1505,12 @@ fn bar_of(event: JsonView<'_>, is_ohlc: bool) -> Result<Bar, String> {
     };
     let px = price("price")?;
     let (open, high, low, close) = if is_ohlc {
-        (price("open")?, price("high")?, price("low")?, price("close")?)
+        (
+            price("open")?,
+            price("high")?,
+            price("low")?,
+            price("close")?,
+        )
     } else {
         (px, px, px, px)
     };
@@ -1640,9 +1651,9 @@ mod tests {
         accept_ohlc, fixture, init_test_db, located_ohlc_input, tb02b_oracle_rows, TestFiles,
     };
     use crate::{
-        canonical_bytes_of_value, cmd_advance, compute_diff, delta_storage, load_batch_bytes,
-        canonical_json, meta_get_opt, open_db, read_effective_events, read_stored_objects,
-        verified_root_raw_events, StoredObjects, DEFAULT_WRITER_EPOCH, accept_core,
+        accept_core, canonical_bytes_of_value, canonical_json, cmd_advance, compute_diff,
+        delta_storage, load_batch_bytes, meta_get_opt, open_db, read_effective_events,
+        read_stored_objects, verified_root_raw_events, StoredObjects, DEFAULT_WRITER_EPOCH,
     };
     use newchan_rust::s_content::{render_canonical, MemoryNodes};
     use serde_json::json;
@@ -1971,11 +1982,13 @@ mod tests {
         fn accept_tick(&self, events: &[(&str, i64, i64)]) {
             let events: Vec<Value> = events
                 .iter()
-                .map(|(id, coord, price)| json!({
-                    "event_id":id, "revision":"1", "seq":coord.to_string(),
-                    "received_at":"2026-09-13T00:00:00Z", "raw_text":price.to_string(),
-                    "price":price.to_string(), "timestamp":coord.to_string(), "volume":"1",
-                }))
+                .map(|(id, coord, price)| {
+                    json!({
+                        "event_id":id, "revision":"1", "seq":coord.to_string(),
+                        "received_at":"2026-09-13T00:00:00Z", "raw_text":price.to_string(),
+                        "price":price.to_string(), "timestamp":coord.to_string(), "volume":"1",
+                    })
+                })
                 .collect();
             let input = json!({
                 "schema_revision":"1", "session_id":"s-session-testonly-001",
@@ -2489,11 +2502,23 @@ mod tests {
             ("原始域违例", vec![("a", 0, 7), ("b", 10, 7), ("c", 20, 8)]),
             (
                 "可判形态",
-                vec![("a", 0, 7), ("b", 10, 12), ("c", 20, 8), ("d", 30, 13), ("e", 40, 9)],
+                vec![
+                    ("a", 0, 7),
+                    ("b", 10, 12),
+                    ("c", 20, 8),
+                    ("d", 30, 13),
+                    ("e", 40, 9),
+                ],
             ),
             (
                 "连续同价包含合并",
-                vec![("a", 0, 7), ("b", 10, 7), ("c", 20, 12), ("d", 30, 8), ("e", 40, 8)],
+                vec![
+                    ("a", 0, 7),
+                    ("b", 10, 7),
+                    ("c", 20, 12),
+                    ("d", 30, 8),
+                    ("e", 40, 8),
+                ],
             ),
         ] {
             let oracle_db = OracleDb::new();
@@ -2520,17 +2545,23 @@ mod tests {
                 },
             );
             assert!(generated.catalog_axes.is_none());
-            let (mine, _) = assert_state_matches_oracle(label, &mut store, &generated, &oracle, &[]);
+            let (mine, _) =
+                assert_state_matches_oracle(label, &mut store, &generated, &oracle, &[]);
             assert!(mine.get("catalog_axes").is_none());
-            assert!(mine["objects"].as_array().unwrap().iter().all(|object| {
-                object["kind"] == CC006_SHAPE_KIND
-            }));
+            assert!(mine["objects"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|object| { object["kind"] == CC006_SHAPE_KIND }));
             if label == "单事件不足" {
                 assert_eq!(mine["observations"][0]["window_start"], Value::Null);
                 assert_eq!(mine["observations"][0]["detail"]["raw_events"], 1);
             }
             if label == "原始域违例" {
-                assert_eq!(mine["observations"][0]["detail"]["raw_prices"], json!(["7", "7", "8"]));
+                assert_eq!(
+                    mine["observations"][0]["detail"]["raw_prices"],
+                    json!(["7", "7", "8"])
+                );
             }
             if label == "可判形态" {
                 assert!(!mine["objects"].as_array().unwrap().is_empty());
@@ -2543,8 +2574,9 @@ mod tests {
                 assert_eq!(refs[0]["raw_refs"].as_array().unwrap().len(), 2);
                 assert_eq!(refs[2]["raw_refs"].as_array().unwrap().len(), 2);
                 assert!(refs[0].get("dependency_refs").is_none());
-                let sources: Value = serde_json::from_str(object["source_coords_json"].as_str().unwrap())
-                    .expect("tick source_coords 是规范JSON文本");
+                let sources: Value =
+                    serde_json::from_str(object["source_coords_json"].as_str().unwrap())
+                        .expect("tick source_coords 是规范JSON文本");
                 assert_eq!(sources, json!([0, 20, 30]));
             }
         }
