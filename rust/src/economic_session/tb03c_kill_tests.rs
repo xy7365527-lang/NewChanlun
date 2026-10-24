@@ -373,6 +373,9 @@ impl Clock {
             .get(i)
             .ok_or_else(|| format!("余数 {rem} 不属计划消息"))?;
         Ok(match self.killed {
+            // E 恢复后，后续 B 也经各自新进程 recover 进入第二时钟列。
+            // 否则 E 的重送提交会晚于 B 的首次获知，违反 #1621 的 E→B 因果锁。
+            Some((0, from)) if i >= from => 1,
             Some((o, from)) if o == owner && i >= from => 1,
             _ => 0,
         })
@@ -1083,9 +1086,32 @@ fn kill_and_recover(plan: &Plan, target: usize, phase: &str, work: &Path) -> Kil
 }
 
 /// 新进程续跑 `steps`（被杀域用 epoch 2），返回逐步进度行。
+/// E 被杀时，B 也分别由新进程 recover 后用 epoch 2：E 的重送提交与 B 的后续获知
+/// 必须保持 #1621 的 `B.first_known_ns >= E.commit_ns`，不能沿用恢复前的小时钟。
 fn resume(k: &Killed, work: &Path, steps: Vec<Value>) -> Vec<Value> {
+    if k.owner == 0 {
+        for owner in 1..k.configs.len() {
+            let label = format!("recover-b{owner}");
+            finish(
+                spawn(
+                    work,
+                    &label,
+                    json!({"action":"recover","owner":owner}),
+                ),
+                work,
+                &label,
+            );
+            let recovered = progress(work, &label)[0]["recovered"].clone();
+            assert_eq!(recovered["kind"], "Recovered");
+            assert_eq!(recovered["writer_epoch"], "2");
+        }
+    }
     let mut epochs = vec![1, 1, 1, 1];
-    epochs[k.owner] = 2;
+    if k.owner == 0 {
+        epochs.fill(2);
+    } else {
+        epochs[k.owner] = 2;
+    }
     finish(
         spawn(
             work,
