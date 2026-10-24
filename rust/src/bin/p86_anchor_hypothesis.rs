@@ -424,7 +424,15 @@ fn compose_next(
         // 别的中枢链上。`run` 的同层 blocks 在本函数不可得（属上一级），故显式走空 blocks =
         // endpoint fallback（`project_to_units` 文档的合法降级路径），不用错位块冒充方向。
         let units = project_to_units(run, &[]);
-        let (_, mut upper, _) = compose_level(&units, run, false, next_level as u32);
+        let (_, mut upper, _) = compose_level(
+            &units,
+            run,
+            false,
+            next_level as u32,
+            crate::theta_v0::policy_records::active_tower_base()
+                .unwrap_or_else(|e| panic!("{e}"))
+                .value,
+        );
         for value in &mut upper {
             value.id = ElementId {
                 level: next_level as u32,
