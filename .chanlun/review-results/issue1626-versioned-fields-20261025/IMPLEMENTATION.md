@@ -1,7 +1,7 @@
 # #1626 版本化字段实施与验证记录
 
 日期：2026-10-25。工位：`/Volumes/AgentStorage/issue1626-versioned-fields-20261025/worktree`。
-代码候选：`1af4e64ae0`；本报告单独作为文档提交，不把后续文档 SHA 当代码变更。
+首次代码候选：`1af4e64ae0`；Q-4 独审返修候选见末节。本报告单独作为文档提交，不把后续文档 SHA 当代码变更。
 
 ## 实际读取链
 
@@ -43,3 +43,15 @@
 - 没有新增 `sorry` / `admit` / 公理；既有 Lean 公理依赖未扩大。
 - 不把 #1621 的 X 执行域、#1673 的 FIN/2 协议门或 #1323 全图六项 Destination 视为本票已完成。
 - 非作者独审、GitHub CI、用户 main 合入闸及关票门仍待完成；本报告不表示已合入或已关票。
+
+## Q-4 预注册准入返修（2026-10-25）
+
+当前代码候选：`05ecc0338c`。非作者独审 H-1 指出三个 profile 都可接受三种 trend_scope，形成未预注册祖先臂；本节为实际返修，不改写前述实现与原始证据。
+
+- `TrendScopeProfile` 现在绑定唯一预注册值：`default=SelfLayer`、`hold26_anc=Ancestor`、`fusion_ta=SelfOrAncestor`。`parse_trend_scope_for_profile` 对其它组合返回 typed `InvalidPolicy`，在 `run_fusion` 前停止；`default=Ancestor` 的旧错误测试已改成拒绝。
+- `run_positional_with_trend_scope_record` 与生产主入口共用同一解析和准入门；`None` 仍读取现役记录，没有新增第二生产配置源。测试注入仅用于合法新版本和变异验收。
+- `trend-scope.json` 的 options 改为各 profile 的真实边界；新增作用域仍须另行预注册，不是全面禁止合法新版本。
+- 生产入口负控覆盖全部六种跨 profile 组合：fusion_t 的 Ancestor/SelfOrAncestor、hold26_anc 的 SelfLayer/SelfOrAncestor、fusion_ta 的 SelfLayer/Ancestor，均返回对应字段的 `InvalidPolicy`。三个合法 profile 的新版本均通过并携带 `trend-scope/2`。
+- 首轮 `b0ae62cd4b` 的负控已通过，但正例夹具缺 `trend_flips/dir_flips`，不能计作通过；`05ecc0338c` 只补合法磁带后重跑。
+- 最终 nc-remote 日志 `/tmp/nc-remote/20261025-041454-05ecc0338c.log`：policy records 11/11、positional 16/16、Fusion 78/78，共 **105 passed / 0 failed**；`cargo check --locked --all-targets`、`cargo fmt --all -- --check` 均通过，EXIT=0。
+- Q-6～Q-8、Q-2、X-38 的实现未因本返修改写；当前 head 仍需重新整票独审、GitHub CI 和用户 main 合入闸。
