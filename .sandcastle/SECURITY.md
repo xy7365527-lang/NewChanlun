@@ -2,25 +2,25 @@
 
 本文件说明 NewChanlun sandcastle 管线的凭据注入面与已知安全边界。依据：#996（脚手架）、#999（官方用法调研，报告 `chanlun/review-results/issue999-sandcastle-usage.md` §5）、#1004（kernel 预烤）、#1005（GH_TOKEN）、#1006/#1010（凭据搬迁与镜像扩容）。
 
-## 1. `.env` 注入面
+## 1. legacy `.env` 与当前 CLIProxy 注入面
 
 ### 哪些 key
 
-`.sandcastle/.env` 是全部运行时凭据的唯一入口，键面（按 `prebake-kernel.sh` 的 `--change` 清单，共 9 键）：
+`.sandcastle/.env` 是 legacy prime-agent 运行时凭据入口，键面（按 `prebake-kernel.sh` 的 `--change` 清单，共 9 键）。当前主控同型路径不从此取模型密钥：CLIProxyLocal 客户端密钥由 `cliproxy-env.mts` 从本机配置读入运行时 env；Docker 使用 `host.docker.internal:8318`，不挂配置或 OAuth 文件（#1617）。
 
 | 键 | 用途 | 来源 |
 |---|---|---|
-| `KIMI_API_KEY` | 主力 provider kimi-coding（工蜂默认模型 k3） | 宿主 `~/.prime/agent/auth.json` 静默迁移（#1006/#1010） |
-| `DEEPSEEK_API_KEY` | 升档 provider deepseek | 同上 |
-| `ZAI_API_KEY` | 升档 provider glm(zai) | 同上 |
-| `MOONSHOT_API_KEY` | 升档 provider moonshot（**注意**：key 宿主侧已失效待刷新，#1010 卡点登记） | 同上 |
+| `KIMI_API_KEY` | legacy prime-agent provider kimi-coding（不再是本机默认） | 宿主 `~/.prime/agent/auth.json` 静默迁移（#1006/#1010） |
+| `DEEPSEEK_API_KEY` | hosted implement / implement-pr / review 的显式 legacy opt-in | 同上 |
+| `ZAI_API_KEY` | legacy provider glm(zai)，非默认 | 同上 |
+| `MOONSHOT_API_KEY` | legacy provider moonshot，非默认（**注意**：key 宿主侧已失效待刷新，#1010 卡点登记） | 同上 |
 | `GH_TOKEN` | 沙盒内 `gh` CLI 读 issue / claim / 留评论 | 宿主 `gh` CLI 的 OAuth token（#1005） |
 | `GIT_AUTHOR_NAME` / `GIT_AUTHOR_EMAIL` | 沙盒内 commit 身份（非密钥，走同一注入通道） | 编排侧配置 |
 | `GIT_COMMITTER_NAME` / `GIT_COMMITTER_EMAIL` | 同上 | 同上 |
 
 ### 注入机制
 
-sandcastle 自动从 `.sandcastle/.env` 与 `process.env` 解析环境变量注入沙盒；agent provider 与 sandbox provider 各自的 `env` 可覆盖同名键，但两者键面不得重叠（重叠即抛错）。本仓 `prime-agent-provider.ts` 的 provider env 默认为空，凭据全部走 `.env`。
+sandcastle 自动从 `.sandcastle/.env` 与 `process.env` 解析环境变量注入沙盒；agent provider 与 sandbox provider 各自的 `env` 可覆盖同名键，但两者键面不得重叠（重叠即抛错）。本仓 `prime-agent-provider.ts` 的 legacy provider env 默认为空，其凭据走 `.env`；主控同型 `claudeCode` 路径则使用上述 CLIProxy 运行时 env，二者不混用。
 
 ### 为何 gitignore
 

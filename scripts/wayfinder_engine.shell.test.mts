@@ -10,7 +10,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -79,4 +79,27 @@ test("壳：空队列无 timeout → 正常走完一轮（不退出）", () => {
   assert.equal(out.includes("gh 查询失败"), false);
   assert.equal(out.includes("扫描集（ready-for-agent ∪ wayfinder:impl）0 张"), true);
   assert.equal(out.includes("一轮结束"), true);
+});
+
+test("无 node_modules：Node 原生类型剥离可 import engine 与主控模型配置", () => {
+  const dir = mkdtempSync(join(tmpdir(), "wfe-zero-deps-"));
+  try {
+    mkdirSync(join(dir, "scripts"), { recursive: true });
+    mkdirSync(join(dir, ".sandcastle"), { recursive: true });
+    for (const [source, target] of [
+      ["scripts/wayfinder_engine.mts", "scripts/wayfinder_engine.mts"],
+      [".sandcastle/cliproxy-env.mts", ".sandcastle/cliproxy-env.mts"],
+      [".sandcastle/main-model.mts", ".sandcastle/main-model.mts"],
+    ]) copyFileSync(join(repoRoot, source), join(dir, target));
+    const result = spawnSync(process.execPath, [
+      "--experimental-strip-types", "--input-type=module", "--eval",
+      "const m = await import('./scripts/wayfinder_engine.mts'); " +
+      "if (m.DEFAULT_SPEC_MODEL !== 'kimi-k3.1-pro') throw new Error('wrong model'); " +
+      "console.log(m.DEFAULT_SPEC_MODEL);",
+    ], { cwd: dir, encoding: "utf8", timeout: 30_000 });
+    assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+    assert.equal(result.stdout.trim(), "kimi-k3.1-pro");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

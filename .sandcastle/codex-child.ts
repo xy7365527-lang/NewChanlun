@@ -10,9 +10,10 @@ import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, sep } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { gitEnvironment } from "./git-environment.ts";
+import { MAIN_MODEL } from "./main-model.mts";
 
-/** 经本机 CLIProxyLocal 的 OAuth 订阅路由；不带 mf/、yd/ 等中转前缀（用户 2026-10-13 指示）。 */
-export const MODEL = "claude-opus-5-5";
+/** 与主控同型，经本机 CLIProxyLocal 的 OAuth 订阅路由；不带中转前缀（#1617）。 */
+export const MODEL = MAIN_MODEL;
 export const EFFORT = "xhigh";
 /** 命令带 --ignore-user-config，不读用户 config.toml；provider 由下方具名定义经 -c 显式给出。 */
 export const MODEL_PROVIDER = "cliproxy-local";

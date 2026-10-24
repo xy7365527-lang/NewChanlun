@@ -1,10 +1,10 @@
-# .sandcastle —— 两段式工蜂管线（sandcastle × prime-agent）
+# .sandcastle —— 工蜂管线（Sandcastle × 主控同型模型）
 
 当前 Codex 任务需要由原生子代理管理单次 Codex 工蜂时，使用 [Codex 工蜂入口与交付封包](CODEX-CHILD.md)（#1456）。该入口直接调用 Sandcastle 的 Codex provider，登记父任务、管理者和外部会话，等待实际退出后回传；下文的旧队列入口继续保持原有用途。
 
 ## 这是什么
 
-本目录是 NewChanlun 的自动化领票干活管线：**sandcastle**（`@ai-hero/sandcastle`）负责沙盒编排（每票一个 Docker 沙盒、一条确定性分支），**prime-agent** 负责在沙盒里实际干活的 agent。
+本目录是 NewChanlun 的自动化领票干活管线：**sandcastle**（`@ai-hero/sandcastle`）负责沙盒编排（每票一个独立 worktree、一条确定性分支；`main-swarm` 使用 Docker 隔离，`main.mts` 当前使用 noSandbox），**Claude Code CLI** 经本机 CLIProxyLocal 调用 `.sandcastle/main-model.mts` 指定的 `kimi-k3.1-pro`，与当前主控同型；prime-agent 只保留给显式 legacy 通道。
 
 形态是 sandcastle 官方的 **sequential-reviewer 两段式**（#1001 裁定）：
 
@@ -20,7 +20,7 @@
 前置：
 
 - **colima 在跑**——Docker 沙盒依赖本机 Docker daemon（macOS 上经 colima 提供）；
-- **`.sandcastle/.env` 凭据齐**——模型 provider（kimi-coding 等）与镜像内工具所需凭据；该文件已 gitignore，密钥永不入仓。
+- **CLIProxyLocal 可用**——本机默认模型为 `kimi-k3.1-pro`；noSandbox 用 `127.0.0.1:8318`，Docker 用 `host.docker.internal:8318`。客户端密钥运行时从本机配置读入 env，不挂入容器、不写入日志；legacy provider 的 `.sandcastle/.env` 仍按 gitignore 管理。
 
 跑法（仓库根）：
 
@@ -51,7 +51,7 @@ bash .sandcastle/install-wayfinder-engine.sh uninstall # 卸载
 
 **宿主仓 = sandcastle-host**（#1588）：plist 模板指 `/Users/silencehan/Projects/NewChanlun-sandcastle-host`（专用 main worktree，与 claimer 同宿主），不指交互主 worktree——后者检出的是用户自己的分支，launchd 跑那里的引擎等于跑旧代码（#1578 修复因此从未生效）。`run-wayfinder-engine.sh` / `watcher.sh` 按脚本自身位置推导仓库根，`SANDCASTLE_HOST_REPO` 可覆盖。
 
-**spec 起草子代理**（#1588）：Claude Code CLI 经 CLIProxyLocal（`http://127.0.0.1:8318`，接线同 `claude-route.mts`），默认 `claude-opus-5-5`；`WAYFINDER_SPEC_MODEL` 只接受 Claude 家族白名单（`claude-opus-5-5` / `claude-fable-5-1`），其它值启动即 fail-loud。
+**spec 起草子代理**（#1588 / #1617）：Claude Code CLI `--bare` 经 CLIProxyLocal（`http://127.0.0.1:8318`，无第三方依赖接线 `cliproxy-env.mts`），默认与唯一允许值均为 `kimi-k3.1-pro`；其它 `WAYFINDER_SPEC_MODEL` 启动即 fail-loud。
 
 手工调试（仓库根，不写 tracker）：`npx tsx scripts/wayfinder_engine.mts --once --dry-run`。
 
@@ -73,11 +73,15 @@ bash .sandcastle/install-sandcastle-claimer.sh uninstall # 卸载
 
 手工调试（仓库根，不写 tracker）：`npx tsx .sandcastle/claim-loop.mts --once --dry-run`。
 
+## GitHub-hosted 旧 workflow
+
+`agent-explore/implement/implement-pr/review/update-branch` 的 runner 是 `ubuntu-latest`，当前没有获批的 Kimi 凭据或可达 CLIProxy 端点。无标签 Claude 默认已在模型调用前退役并回写 blocked；`agent:model:deepseek-v4-pro` 仅为 implement / implement-pr / review 的显式 legacy opt-in，不是默认或失败回退。本机受管默认不经过这些 hosted workflow（#1617）。
+
 ## 文件地图
 
 | 文件 | 作用 |
 |---|---|
-| `main.mts` | 管线入口。两段循环：frontier 取票+claim → 起沙盒 → Phase 1 实装 → Phase 2 评审；模型面常量（实装/评审模型、provider、迭代数）集中在文件顶部，升档改这里重跑。sandcastle 专属队列空时分开报全仓 `ready-for-agent` 数（#1084 追加，不把专属空误写成全空）。#1259 追加：claim 成功后、implementer started 之前的失败自动回滚认领（WorktreeTimeoutError 先重试一次，间隔 ≥5s）。 |
+| `main.mts` | 管线入口。两段循环：frontier 取票+claim → 起沙盒 → Phase 1 实装 → Phase 2 评审；模型统一读 `main-model.mts`，实装与独审同型、不同 invocation；迭代数与资源面常量仍在文件顶部。sandcastle 专属队列空时分开报全仓 `ready-for-agent` 数（#1084 追加，不把专属空误写成全空）。#1259 追加：claim 成功后、implementer started 之前的失败自动回滚认领（WorktreeTimeoutError 先重试一次，间隔 ≥5s）。 |
 | `run-wayfinder-engine.sh` | wayfinder_engine 控制面常驻壳（#1084 追加）：前台 exec `npx tsx scripts/wayfinder_engine.mts`，launchd KeepAlive 调用；仓库根按脚本位置推导（`SANDCASTLE_HOST_REPO` 可覆盖，#1588）。 |
 | `install-wayfinder-engine.sh` | 控制面 launchd 任务的安装/卸载/查状态（#1084 追加）。 |
 | `launchd/com.newchanlun.wayfinder-engine.plist` | 控制面 launchd 任务定义：KeepAlive + RunAtLoad + `--live`（#1084 追加）。 |
@@ -89,7 +93,9 @@ bash .sandcastle/install-sandcastle-claimer.sh uninstall # 卸载
 | `harvest.test.sh` | harvest.sh 离线回归（#1660）：临时裸 origin + 假 gh，用真 jq 执行脚本里的 `--jq` 过滤、有状态地记住已开 PR，覆盖关闭关键词正反例、开 PR/登记、已有 PR 不重复、二次真跑幂等、评审未完成、票已关、open blocker 计数、远端分叉/领先、已合入 PR 不复活分支、标题关键词、token 轮换标记、dry run，并断言从不关票/合入/推 main/跑 cargo。经 `harvest.test.mts` 包装，由 CI `sandcastle-ts` job 运行。 |
 | `install-sandcastle-harvest.sh` | 收割 launchd 定时任务的安装/卸载/查状态（#1660，对齐 install-sandcastle-claimer.sh）。 |
 | `launchd/com.newchanlun.sandcastle-harvest.plist` | 收割 launchd 任务定义：StartInterval 900 + RunAtLoad，指向宿主克隆（#1660）。 |
-| `prime-agent-provider.ts` | prime-agent 的自定义 AgentProvider。无头模式 `prime-agent -p --mode json` 输出 NDJSON 事件流，prompt 走 stdin（避开 Linux 128 KB argv 上限），事件映射到 sandcastle 的 stream 协议。 |
+| `main-model.mts` / `cliproxy-env.mts` | 当前主控同型的唯一模型配置与无第三方依赖 CLIProxy 接线；后者可供 wayfinder 在无 node_modules 环境导入。 |
+| `swarm-route.mts` | main-swarm 的主控同型 provider 与 Docker 宿主网关；保留 Docker 隔离，密钥仅运行时 env；领票前做容器 TCP 连通性硬检查，失败不认领、不换模型。 |
+| `prime-agent-provider.ts` | 显式 legacy 通道的自定义 AgentProvider；不再供本机默认 main/main-swarm 使用。无头模式 `prime-agent -p --mode json` 输出 NDJSON 事件流，prompt 走 stdin（避开 Linux 128 KB argv 上限），事件映射到 sandcastle 的 stream 协议。 |
 | `implement-prompt.md` | Phase 1 实装工蜂的 prompt 模板（`{{ISSUE_NUMBER}}` 注入）：Explore→Plan→Execute→Verify→Commit 流程 + 硬性规则（不关票不合 main 不 push、被卡留评论收工）。 |
 | `review-prompt.md` | Phase 2 评审工蜂的 prompt 模板（`{{BRANCH}}`/`{{ISSUE_NUMBER}}` 注入）：看分支 diff 与原始 issue，保持功能语义前提下直接在分支上修正。#1588 起不再用 `!`git diff`` 展开整段 diff，只放变更摘要（`--stat` / 提交列表 / 文件清单），评审工蜂按文件、按提交自取 diff；diff 基准 `{{BASE}}` = 渲染前现 fetch 的 origin/main 提交；原始 issue 放 `<issue>…</issue>` 块。 |
 | `review-context.mts` | #1588 评审提示宿主侧渲染与体积闸：`buildReviewPrompt` 渲染摘要版 review-prompt.md，估算超 `REVIEW_PROMPT_MAX_TOKENS` 抛 `ReviewPromptTooLargeError`（exit 4）；`prepareReviewPrompt` 超限时落 workers.jsonl（`phase=reviewer status=failed reason=prompt_too_large`）并在原票评论；`runGuardedReview` 把渲染与运行包进同一失败通道，渲染期 git / gh / 基准解析失败落 `reason=prepare_error`、运行期失败落 `reason=run_error`；`resolveReviewBase` fetch origin main 取其 SHA 作 diff 基准（宿主 main 落后时不混入别线提交，领先/分叉即 FAIL-loud）。 |

@@ -1,0 +1,50 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import {
+  DOCKER_CLIPROXY_BASE_URL,
+  assertDockerCliProxyReachable,
+  swarmAgent,
+  swarmSandbox,
+} from "./swarm-route.mts";
+import { MAIN_MODEL } from "./main-model.mts";
+
+test("swarm 四角色共用主控模型，provider 命令不显式换档", () => {
+  const provider = swarmAgent();
+  const command = provider.buildPrintCommand({ prompt: "hi", dangerouslySkipPermissions: true });
+  assert.equal(MAIN_MODEL, "kimi-k3.1-pro");
+  assert.ok(command.command.includes(MAIN_MODEL));
+  assert.ok(!command.command.includes("prime-agent"));
+});
+
+test("swarm Docker 使用宿主网关而非容器回环，密钥只存在运行时 env", () => {
+  const env = { ANTHROPIC_BASE_URL: DOCKER_CLIPROXY_BASE_URL, ANTHROPIC_AUTH_TOKEN: "fixture-secret" };
+  const sandbox = swarmSandbox("fixture-image", env);
+  assert.equal(sandbox.env.ANTHROPIC_BASE_URL, "http://host.docker.internal:8318");
+  assert.equal(sandbox.env.ANTHROPIC_AUTH_TOKEN, "fixture-secret");
+  assert.ok(!DOCKER_CLIPROXY_BASE_URL.includes("127.0.0.1"));
+});
+
+test("main-swarm 不再实例化 prime-agent/k3，三处沙盒统一走路由 helper", () => {
+  const source = readFileSync(new URL("./main-swarm.mts", import.meta.url), "utf8");
+  assert.ok(!source.includes("primeAgent("));
+  assert.ok(!source.includes('"k3"'));
+  assert.equal(source.match(/swarmSandbox\(IMAGE\)/g)?.length, 3);
+  assert.equal(source.match(/agent: swarmAgent\(\)/g)?.length, 4);
+});
+
+test("main-swarm 领票前验证 Docker 路由，失败时不回退旧模型", () => {
+  let called = 0;
+  assertDockerCliProxyReachable("fixture-image", (image, probe) => {
+    called += 1;
+    assert.equal(image, "fixture-image");
+    assert.ok(probe.includes("host.docker.internal"));
+  });
+  assert.equal(called, 1);
+  assert.throws(
+    () => assertDockerCliProxyReachable("fixture-image", () => { throw new Error("ECONNREFUSED"); }),
+    /不会回退 k3\/Claude/,
+  );
+  const source = readFileSync(new URL("./main-swarm.mts", import.meta.url), "utf8");
+  assert.ok(source.indexOf("assertDockerCliProxyReachable(IMAGE)") < source.indexOf("for (let iteration"));
+});

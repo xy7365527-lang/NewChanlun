@@ -76,6 +76,9 @@ COPY --chown=${AGENT_UID}:${AGENT_GID} .sandcastle/image/prime-agent-settings.js
 
 # ---------- /#1010 ----------
 
+# 主控同型 Claude Code（独立末层，保留上方重型工具链缓存；#1617）。
+RUN npm install -g @anthropic-ai/claude-code
+
 WORKDIR /home/agent
 
 # worktree 模式下 sandcastle 把 git worktree 挂到 /home/agent/workspace 并以其为 cwd。

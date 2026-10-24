@@ -4,7 +4,7 @@
   "pull_request": {
     "number": 999,
     "state": "open",
-    "title": "Fix #1128: review 默认 Claude fixture（#1173 无模型标签路线）",
+    "title": "Fix #1128: review 无模型标签 fixture（#1617 退役默认）",
     "labels": [
       { "name": "agent:review" }
     ]

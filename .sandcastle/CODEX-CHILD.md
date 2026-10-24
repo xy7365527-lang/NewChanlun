@@ -2,7 +2,7 @@
 
 本入口绑定 #1456。它供当前 Codex 原生子代理管理单次 Sandcastle/Codex CLI 工蜂：主控派任务，管理子代理启动、等待或停止实际工蜂，再将结果回传。管理子代理 ID、父任务 ID 与外部 Codex session ID 分别记录；外部进程没有因此注册为 Codex App 的原生 child。
 
-旧 `main.mts` 和常驻拾取队列仍是各自已有入口。本入口只处理显式指定的 ticket、工作区和版本，使用 Sandcastle 原生 Codex provider，模型为 `claude-opus-5-5`、推理档 `xhigh`，经本机 CLIProxyLocal（provider `cliproxy-local`，`http://127.0.0.1:8318/v1`）路由到它的 OAuth 订阅认证，与主控同模型；不经 `mf/`、`yd/` 等中转前缀。模型名含 `/` 或 provider 不是 `cliproxy-local` 时，入口在启动前失败。它不经过 PrimeAgent，不改变全局模型、队列或合入设置。
+旧 `main.mts` 和常驻拾取队列仍是各自已有入口。本入口只处理显式指定的 ticket、工作区和版本，使用 Sandcastle 原生 Codex provider，模型为 `.sandcastle/main-model.mts` 的 `kimi-k3.1-pro`、推理档 `xhigh`，经本机 CLIProxyLocal（provider `cliproxy-local`，`http://127.0.0.1:8318/v1`）路由到它的 OAuth 订阅认证，与主控同模型；不经 `mf/`、`yd/` 等中转前缀。模型名含 `/` 或 provider 不是 `cliproxy-local` 时，入口在启动前失败。它不经过 PrimeAgent，不改变全局模型、队列或合入设置。
 
 ## 单次运行
 

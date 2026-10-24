@@ -8,14 +8,15 @@ import * as sandcastle from "@ai-hero/sandcastle";
 // #1547：沙盒后端暂用 noSandbox（agent 直接在宿主上、于 sandcastle 自建的独立 worktree 内运行）。
 // 切回 docker 的条件：Docker daemon 在宿主常驻运行，且 `docker image inspect sandcastle:newchanlun`
 // 成功（镜像已按 .sandcastle/Dockerfile 构建）；届时 sandboxProvider() 换回
-// docker({ imageName: "sandcastle:newchanlun", env: { ...resolveSandboxGithubEnv(), ...cliProxyEnv() } })，
-// 并注意容器内 127.0.0.1:8318 不指向宿主，claude-route.ts 的 BASE_URL 要改成 host.docker.internal。
+// docker({ imageName: "sandcastle:newchanlun", env: { ...resolveSandboxGithubEnv(), ...cliProxyEnv(undefined, "http://host.docker.internal:8318") } })，
+// 并注意容器内 127.0.0.1:8318 不指向宿主，cliproxy-env.mts 的第二参数要使用 host.docker.internal。
 import { noSandbox } from "@ai-hero/sandcastle/sandboxes/no-sandbox";
 import type { AgentProvider, Sandbox, SandboxRunResult } from "@ai-hero/sandcastle";
 import { execSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync } from "node:fs";
 import { cargoGuardEnv, installCargoGuard } from "./cargo-guard.mts";
 import { claudeWorker, cliProxyEnv } from "./claude-route.mts";
+import { MAIN_MODEL } from "./main-model.mts";
 import {
   ghIssueFetcher,
   ghIssueNotifier,
@@ -32,10 +33,10 @@ if (existsSync(TOKEN_ROTATION_MARKER)) {
   process.exit(78);
 }
 
-// ── 顶部常量（#1002 裁 3：模型面集中在此，升档改这里重跑） ────────────────
-// #1547：实装与独审都走 Claude Code CLI → 本机 CLIProxyLocal 统一路由（无前缀模型名，自动路由）。
-const IMPLEMENTER_MODEL = "claude-opus-5-5";
-const REVIEWER_MODEL = "claude-opus-5-5";
+// ── 顶部常量（迭代与资源面；模型唯一来源是 main-model.mts） ────────────────
+// #1617：实装与独审均与主控同型；独立性来自不同 invocation，而非异模型。
+const IMPLEMENTER_MODEL = MAIN_MODEL;
+const REVIEWER_MODEL = MAIN_MODEL;
 const EFFORT = "medium" as const;
 // #1066：每票每阶段（implementer/reviewer）最多续跑轮数；续跑复用原 agent 会话
 // （runWithResume），而非 sandcastle 内建 maxIterations 的「多轮各自全新会话」。

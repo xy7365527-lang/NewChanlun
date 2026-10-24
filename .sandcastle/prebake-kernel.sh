@@ -4,10 +4,15 @@
 # 本脚本在一次性容器里触发一次真实 bootstrap（key 只在运行时注入），
 # 然后 docker commit 把已配好的 ~/.prime/agent/kernel-venv 固化进镜像，
 # 并用 --change 清空容器 Env，防止密钥随 commit 进镜像 config。
-# 用法：.sandcastle/prebake-kernel.sh [image名]（默认 sandcastle:newchanlun）
+# 用法：PRIME_PREBAKE_PROVIDER=<显式legacy provider> PRIME_PREBAKE_MODEL=<显式legacy model> \
+#   .sandcastle/prebake-kernel.sh [image名]（默认 sandcastle:newchanlun）
+# #1617：本脚本只服务 legacy prime-agent；不再默认 kimi-coding/k3。
 set -euo pipefail
 
 IMAGE="${1:-sandcastle:newchanlun}"
+: "${PRIME_PREBAKE_PROVIDER:?legacy 预烤须显式设置 PRIME_PREBAKE_PROVIDER；本机默认请用 main-model.mts 的 Kimi 路径}"
+: "${PRIME_PREBAKE_MODEL:?legacy 预烤须显式设置 PRIME_PREBAKE_MODEL；不得回落 k3}"
+export PRIME_PREBAKE_PROVIDER PRIME_PREBAKE_MODEL
 CONTAINER="sc-prebake-$$"
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
@@ -19,8 +24,9 @@ echo "▸ 起一次性容器触发 kernel bootstrap（约 1-2 分钟），同进
 # 注意②：/tmp/prime-agent-* 若烤进镜像，新鲜容器 daemon 的 rename 会撞 overlayfs 下层目录 EXDEV（#1004 实测）。
 docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
 docker run --name "$CONTAINER" --env-file "$REPO_ROOT/.sandcastle/.env" \
+  -e PRIME_PREBAKE_PROVIDER -e PRIME_PREBAKE_MODEL \
   --entrypoint sh "$IMAGE" -c \
-  'prime-agent -p --provider kimi-coding --model k3 "必须调用 ipython 工具执行 print(1+1)（禁止心算直答），然后只回复结果数字"; rc=$?;
+  'prime-agent -p --provider "$PRIME_PREBAKE_PROVIDER" --model "$PRIME_PREBAKE_MODEL" "必须调用 ipython 工具执行 print(1+1)（禁止心算直答），然后只回复结果数字"; rc=$?;
    rm -rf /tmp/prime-agent-* ~/.prime/agent/daemon-workers ~/.prime/agent/session-leases ~/.prime/agent/logs ~/.prime/agent/sessions;
    exit $rc' || {
     echo "✗ bootstrap 触发失败"; docker rm -f "$CONTAINER" >/dev/null; exit 1; }
@@ -28,6 +34,7 @@ docker run --name "$CONTAINER" --env-file "$REPO_ROOT/.sandcastle/.env" \
 echo "▸ commit 固化（--change 清空 Env 防密钥入镜像）"
 docker commit \
   --change 'ENV KIMI_API_KEY=' --change 'ENV DEEPSEEK_API_KEY=' \
+  --change 'ENV PRIME_PREBAKE_PROVIDER=' --change 'ENV PRIME_PREBAKE_MODEL=' \
   --change 'ENV ZAI_API_KEY=' --change 'ENV MOONSHOT_API_KEY=' --change 'ENV GH_TOKEN=' \
   --change 'ENV GIT_AUTHOR_NAME=' --change 'ENV GIT_AUTHOR_EMAIL=' \
   --change 'ENV GIT_COMMITTER_NAME=' --change 'ENV GIT_COMMITTER_EMAIL=' \

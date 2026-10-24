@@ -1,4 +1,4 @@
-// Parallel Planner with Review（prime-agent 版）—— #1007 裁定落地。
+// Parallel Planner with Review（主控同型 Claude Code 版）—— #1007 裁定落地。
 // 官方 parallel-planner-with-review 形态 × 本仓裁定：
 //   Phase 1 planner 建依赖图（<plan> 结构化输出）→
 //   Phase 2 Promise.allSettled 扇出（MAX_PARALLEL=4 信号量，#1007 裁 2），
@@ -8,8 +8,7 @@
 // 跑法：npx tsx .sandcastle/main-swarm.mts
 
 import * as sandcastle from "@ai-hero/sandcastle";
-import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
-import { primeAgent } from "./prime-agent-provider.ts";
+import { assertDockerCliProxyReachable, swarmAgent, swarmSandbox } from "./swarm-route.mts";
 import { execSync } from "node:child_process";
 import { appendFileSync, mkdirSync } from "node:fs";
 import { z } from "zod";
@@ -25,12 +24,7 @@ import {
 // 注：蜂群走 docker 沙盒，容器内 PATH 与宿主不同、也没有 nc-remote，故不挂 cargo-guard 垫片
 // （main.mts 的 noSandbox 宿主路径才挂）；本机禁 cargo 在这里只靠提示词约束（#1588 遗留项）。
 
-// ── 顶部常量（#1002 裁 3） ────────────────────────────────────────────────
-const PLANNER_MODEL = "k3";
-const IMPLEMENTER_MODEL = "k3";
-const REVIEWER_MODEL = "k3";
-const MERGER_MODEL = "k3";
-const PROVIDER = "kimi-coding";
+// ── 顶部常量（并发与资源面；模型唯一来源是 main-model.mts） ───────────────
 const MAX_ITERATIONS = 3;
 const MAX_PARALLEL = 4; // #1007 裁 2（官方上游自用值；资源不足按实测降额登记）
 const IMAGE = "sandcastle:newchanlun";
@@ -71,6 +65,9 @@ function claim(issue: string) {
     { env: GH_CLEAN_ENV, stdio: "ignore" });
 }
 
+// 先验容器路由，再进入任何 planner/claim；失败时不产生 tracker 写副作用（#1617）。
+assertDockerCliProxyReachable(IMAGE);
+
 for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   console.log(`\n=== Iteration ${iteration}/${MAX_ITERATIONS} ===\n`);
 
@@ -81,7 +78,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   const planSandbox = await sandcastle.createSandbox({
     branch: `sandcastle/plan-${Date.now()}`,
     baseBranch: "main",
-    sandbox: docker({ imageName: IMAGE }),
+    sandbox: swarmSandbox(IMAGE),
   });
   let issues: Array<{ id: string; title: string; branch: string }>;
   try {
@@ -89,7 +86,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     const plan = await planSandbox.run({
       name: "planner",
       maxIterations: 1,
-      agent: primeAgent(PLANNER_MODEL, { provider: PROVIDER }),
+      agent: swarmAgent(),
       promptFile: "./.sandcastle/plan-prompt.md",
     });
     const m = plan.stdout.match(/<plan>([\s\S]*?)<\/plan>/);
@@ -116,13 +113,13 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
         const sandbox = await sandcastle.createSandbox({
           branch: issue.branch,
           baseBranch: "main", // 与检出分支解耦（#1003）
-          sandbox: docker({ imageName: IMAGE }),
+          sandbox: swarmSandbox(IMAGE),
         });
         try {
           const implement = await sandbox.run({
             name: "implementer",
             maxIterations: 1,
-            agent: primeAgent(IMPLEMENTER_MODEL, { provider: PROVIDER }),
+            agent: swarmAgent(),
             promptFile: "./.sandcastle/implement-prompt.md",
             promptArgs: { ISSUE_NUMBER: issue.id },
           });
@@ -145,7 +142,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
               sandbox.run({
                 name: "reviewer",
                 maxIterations: 1,
-                agent: primeAgent(REVIEWER_MODEL, { provider: PROVIDER }),
+                agent: swarmAgent(),
                 prompt,
               }),
           );
@@ -177,13 +174,13 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   const mergeSandbox = await sandcastle.createSandbox({
     branch: mergeBranch,
     baseBranch: "main",
-    sandbox: docker({ imageName: IMAGE }),
+    sandbox: swarmSandbox(IMAGE),
   });
   try {
     await mergeSandbox.run({
       name: "merger",
       maxIterations: 1,
-      agent: primeAgent(MERGER_MODEL, { provider: PROVIDER }),
+      agent: swarmAgent(),
       promptFile: "./.sandcastle/merge-prompt.md",
       promptArgs: {
         BRANCHES: completed.map((i) => `- ${i.branch}`).join("\n"),
