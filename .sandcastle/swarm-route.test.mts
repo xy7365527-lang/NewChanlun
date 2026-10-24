@@ -1,6 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { execFile } from "node:child_process";
+import { createServer } from "node:http";
+import { once } from "node:events";
+import { promisify } from "node:util";
 import {
   DOCKER_CLIPROXY_BASE_URL,
   assertDockerCliProxyReachable,
@@ -35,16 +39,84 @@ test("main-swarm 不再实例化 prime-agent/k3，三处沙盒统一走路由 he
 
 test("main-swarm 领票前验证 Docker 路由，失败时不回退旧模型", () => {
   let called = 0;
-  assertDockerCliProxyReachable("fixture-image", (image, probe) => {
-    called += 1;
-    assert.equal(image, "fixture-image");
-    assert.ok(probe.includes("host.docker.internal"));
-  });
-  assert.equal(called, 1);
-  assert.throws(
-    () => assertDockerCliProxyReachable("fixture-image", () => { throw new Error("ECONNREFUSED"); }),
-    /不会回退 k3\/Claude/,
-  );
+  const previousExitCode = process.exitCode;
+  try {
+    assertDockerCliProxyReachable("fixture-image", (image, probe) => {
+      called += 1;
+      assert.equal(image, "fixture-image");
+      assert.ok(probe.includes("/v1/messages"));
+    });
+    assert.equal(called, 1);
+    assert.throws(
+      () => assertDockerCliProxyReachable("fixture-image", () => { throw new Error("ECONNREFUSED"); }),
+      /不会回退 k3\/Claude/,
+    );
+  } finally {
+    process.exitCode = previousExitCode;
+  }
   const source = readFileSync(new URL("./main-swarm.mts", import.meta.url), "utf8");
   assert.ok(source.indexOf("assertDockerCliProxyReachable(IMAGE)") < source.indexOf("for (let iteration"));
+});
+
+test("main-swarm 路由门实际请求主控模型，而不是只测 TCP 连通", () => {
+  assertDockerCliProxyReachable("fixture-image", (_image, probe) => {
+    assert.ok(probe.includes("fetch("));
+    assert.ok(probe.includes("/v1/messages"));
+    assert.ok(probe.includes(MAIN_MODEL));
+  });
+});
+
+test("main-swarm 探针发出 Anthropic 请求并验收主控模型响应", async () => {
+  const requests: Array<{ url?: string; authorization?: string; model?: string }> = [];
+  const server = createServer((request, response) => {
+    let body = "";
+    request.setEncoding("utf8");
+    request.on("data", (chunk) => { body += chunk; });
+    request.on("end", () => {
+      requests.push({
+        url: request.url,
+        authorization: request.headers.authorization,
+        model: JSON.parse(body).model,
+      });
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ type: "message", model: MAIN_MODEL, content: [] }));
+    });
+  });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  try {
+    let probe = "";
+    assertDockerCliProxyReachable("fixture-image", (_image, value) => { probe = value; });
+    const address = server.address();
+    assert.ok(address && typeof address === "object");
+    const { stdout } = await promisify(execFile)(process.execPath, ["-e", probe], {
+      env: {
+        ...process.env,
+        ANTHROPIC_BASE_URL: `http://127.0.0.1:${address.port}`,
+        ANTHROPIC_AUTH_TOKEN: "fixture-secret",
+      },
+    });
+    assert.match(stdout, /MAIN_MODEL_HTTP_OK/);
+    assert.deepEqual(requests, [{
+      url: "/v1/messages",
+      authorization: "Bearer fixture-secret",
+      model: MAIN_MODEL,
+    }]);
+  } finally {
+    server.close();
+    await once(server, "close");
+  }
+});
+
+test("main-swarm 路由门失败后保留非零退出码", () => {
+  const previousExitCode = process.exitCode;
+  try {
+    assert.throws(
+      () => assertDockerCliProxyReachable("fixture-image", () => { throw new Error("HTTP 503"); }),
+      /main-swarm 不可用/,
+    );
+    assert.equal(process.exitCode, 1);
+  } finally {
+    process.exitCode = previousExitCode;
+  }
 });

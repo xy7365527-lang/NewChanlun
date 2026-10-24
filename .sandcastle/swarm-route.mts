@@ -25,34 +25,63 @@ export function swarmAgent(): AgentProvider {
   return claudeWorker(MAIN_MODEL);
 }
 
-const DOCKER_PROXY_PROBE = String.raw`
-const net = require("node:net");
-const socket = net.connect(8318, "host.docker.internal");
-const timer = setTimeout(() => { console.error("timeout"); process.exit(2); }, 8000);
-socket.on("connect", () => { clearTimeout(timer); socket.end(); });
-socket.on("error", (error) => { clearTimeout(timer); console.error(error.code || error.message); process.exit(1); });
+export const DOCKER_MODEL_PROBE = String.raw`
+(async () => {
+  const baseUrl = process.env.ANTHROPIC_BASE_URL;
+  const token = process.env.ANTHROPIC_AUTH_TOKEN;
+  if (!baseUrl || !token) throw new Error("missing Anthropic route environment");
+  const response = await fetch(baseUrl + "/v1/messages", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "anthropic-version": "2023-06-01",
+      "x-api-key": token,
+      "authorization": "Bearer " + token,
+    },
+    body: JSON.stringify({
+      model: "${MAIN_MODEL}",
+      max_tokens: 8,
+      messages: [{ role: "user", content: "Reply OK." }],
+    }),
+    signal: AbortSignal.timeout(60000),
+  });
+  const payload = await response.json();
+  if (!response.ok) throw new Error("HTTP " + response.status + ": " + (payload?.error?.type || "model request failed"));
+  if (payload?.type !== "message" || payload?.model !== "${MAIN_MODEL}") {
+    throw new Error("response is not a ${MAIN_MODEL} message");
+  }
+  console.log("MAIN_MODEL_HTTP_OK model=" + payload.model);
+})().catch((error) => { console.error(error instanceof Error ? error.message : String(error)); process.exit(1); });
 `;
 
 export type DockerProbeRunner = (imageName: string, probe: string) => void;
 
 const runDockerProbe: DockerProbeRunner = (imageName, probe) => {
-  execFileSync("docker", ["run", "--rm", "--entrypoint", "node", imageName, "-e", probe], {
+  const routeEnv = dockerCliProxyEnv();
+  execFileSync("docker", [
+    "run", "--rm",
+    "--env", "ANTHROPIC_BASE_URL",
+    "--env", "ANTHROPIC_AUTH_TOKEN",
+    "--entrypoint", "node", imageName, "-e", probe,
+  ], {
     stdio: ["ignore", "pipe", "pipe"],
-    timeout: 15_000,
+    timeout: 75_000,
+    env: { ...process.env, ...routeEnv },
   });
 };
 
-/** 领票前的硬门；失败时不启动 planner、不认领、不回退其它模型。 */
+/** 领票前实际调用主控模型；TCP 可达或 /v1/models 成功均不代替此行为证据。 */
 export function assertDockerCliProxyReachable(
   imageName: string,
   run: DockerProbeRunner = runDockerProbe,
 ): void {
   try {
-    run(imageName, DOCKER_PROXY_PROBE);
+    run(imageName, DOCKER_MODEL_PROBE);
   } catch (error) {
+    process.exitCode = 1;
     throw new Error(
-      `[FAIL-loud #1617] Docker 内无法连接 ${DOCKER_CLIPROXY_BASE_URL}。` +
-      "CLIProxy 只绑宿主 127.0.0.1 时 main-swarm 不可用；请配置受控的容器可达端点，" +
+      `[FAIL-loud #1617] Docker 内主控模型 ${MAIN_MODEL} 预检失败（${DOCKER_CLIPROXY_BASE_URL}/v1/messages），main-swarm 不可用。` +
+      "请配置受控的容器可达端点并确认主控模型真实响应，" +
       "或使用当前已验证的 main.mts 本机路径。不会回退 k3/Claude，也不会将领票继续执行。" +
       ` 原始错误：${String(error).slice(0, 240)}`,
     );

@@ -67,7 +67,7 @@ export const MODEL_REGISTRY = {
     primeProvider: "deepseek",
     model: "deepseek-v4-pro",
     secretName: DEEPSEEK_SECRET,
-    appliesTo: ["implement", "implement-pr", "review"],
+    appliesTo: ["implement", "implement-pr", "review", "update-branch"],
   },
 } as const satisfies Record<string, ModelRegistryEntry>;
 
@@ -274,13 +274,13 @@ const modelProviderEnv = (
   ...remoteChildIdentityEnv(env),
 });
 
-export type SelectableRole = "implement" | "implement-pr" | "review";
+export type SelectableRole = "implement" | "implement-pr" | "review" | "update-branch";
 
 export const HOSTED_DEFAULT_RETIRED =
   "Hosted agent default is retired (#1617): this runner has no approved Kimi credential or reachable CLIProxy endpoint. " +
   "Use the local kimi-k3.1-pro Sandcastle queue, or explicitly opt into agent:model:deepseek-v4-pro where supported.";
 
-/** 旧 explore/update-branch 入口保留函数名，但不再启动 Claude。 */
+/** 旧 explore 入口保留函数名，但不再启动 Claude；update-branch 由 selectedAgent 显式选路。 */
 export const claudeAgent = (
   role: AgentRole,
   env: NodeJS.ProcessEnv = process.env,
@@ -293,7 +293,7 @@ export const claudeAgent = (
 /**
  * 按事件标签构建实装/评审 agent（implement / implement-pr / review）。
  * 无标签默认在模型调用前明确退役；`agent:model:deepseek-v4-pro` 仅作显式 legacy opt-in。
- * explore/update-branch 由 claudeAgent() 同样拒绝旧默认；未知/冲突标签与缺 key 均先失败。
+ * explore 由 claudeAgent() 拒绝旧默认；update-branch 也可显式选择 legacy。
  */
 export const selectedAgent = (
   role: SelectableRole,

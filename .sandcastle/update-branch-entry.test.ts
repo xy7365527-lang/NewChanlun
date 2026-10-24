@@ -22,7 +22,7 @@ const tsx = join(repoRoot, "node_modules", ".bin", "tsx");
 
 type GitShape = "up-to-date" | "clean" | "conflict";
 
-function runEntrypoint(shape: GitShape) {
+function runEntrypoint(shape: GitShape, legacy = false) {
   const dir = mkdtempSync(join(tmpdir(), `update-branch-${shape}-`));
   try {
     const bin = join(dir, "bin");
@@ -62,7 +62,8 @@ esac
         ...process.env,
         PATH: `${bin}:${process.env.PATH ?? ""}`,
         GIT_CALL_LOG: gitCalls,
-        EVENT_PAYLOAD: "[]",
+        EVENT_PAYLOAD: legacy ? '["agent:model:deepseek-v4-pro"]' : "[]",
+        ...(legacy ? { DEEPSEEK_API_KEY: "fixture-secret" } : {}),
         PR_NUMBER: "1701",
         BRANCH: "codex/issue-1617-kimi-main-model",
         BASE_REF: "main",
@@ -71,6 +72,13 @@ esac
     });
 
     assert.equal(result.error, undefined, `${shape}: process must finish`);
+    if (legacy) {
+      assert.equal(result.status, 0, `${shape}: explicit legacy route must run\n${result.stdout}\n${result.stderr}`);
+      assert.equal(readFileSync(join(output, "should_push.txt"), "utf8"), "false");
+      assert.match(readFileSync(join(output, "comment.md"), "utf8"), /already up to date/);
+      assert.match(readFileSync(gitCalls, "utf8"), /fetch origin main/);
+      return;
+    }
     assert.equal(result.status, 1, `${shape}: retired entry must fail\n${result.stdout}\n${result.stderr}`);
     const failure = readFileSync(join(output, "failure_reason.txt"), "utf8");
     assert.match(failure, /Hosted agent default is retired \(#1617\)/, shape);
@@ -87,3 +95,7 @@ for (const shape of ["up-to-date", "clean", "conflict"] as const) {
     runEntrypoint(shape);
   });
 }
+
+test("update-branch 显式 DeepSeek legacy 路线不被退役默认吞掉", () => {
+  runEntrypoint("up-to-date", true);
+});

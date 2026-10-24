@@ -149,6 +149,7 @@ test("resolveModelSelection 显式 DeepSeek 标签走 registry 的 provider/mode
     "implement",
     "implement-pr",
     "review",
+    "update-branch",
   ]);
 });
 
@@ -277,8 +278,8 @@ test("selectedAgent DeepSeek 缺 key 在任何模型调用前抛错，不回退 
   );
 });
 
-test("模型标签作用于 implement/implement-pr/review；explore/update-branch 拒绝消费", () => {
-  for (const role of ["implement", "implement-pr", "review"] as const) {
+test("模型标签作用于 implement/implement-pr/review/update-branch；explore 拒绝消费", () => {
+  for (const role of ["implement", "implement-pr", "review", "update-branch"] as const) {
     const provider = selectedAgent(
       role,
       ["agent:model:deepseek-v4-pro"],
@@ -289,17 +290,15 @@ test("模型标签作用于 implement/implement-pr/review；explore/update-branc
       DEEPSEEK_API_KEY: "deepseek-token",
     });
   }
-  for (const role of ["explore", "update-branch"] as const) {
-    assert.throws(
-      () =>
-        selectedAgent(
-          role as unknown as SelectableRole,
-          ["agent:model:deepseek-v4-pro"],
-          { DEEPSEEK_API_KEY: "deepseek-token" },
-        ),
-      new RegExp(`does not apply to role ${role}`),
-    );
-  }
+  assert.throws(
+    () =>
+      selectedAgent(
+        "explore" as unknown as SelectableRole,
+        ["agent:model:deepseek-v4-pro"],
+        { DEEPSEEK_API_KEY: "deepseek-token" },
+      ),
+    /does not apply to role explore/,
+  );
   for (const role of ["explore", "update-branch"] as const) {
     assert.throws(() => claudeAgent(role, {}), new RegExp("Hosted agent default is retired"));
   }

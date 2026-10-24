@@ -142,7 +142,7 @@ EVENT_PAYLOAD_RULES = {
     "agent-review.yml": (PR_EVENT_PAYLOAD, 2),
     "agent-implement-pr.yml": (PR_EVENT_PAYLOAD, 2),
     "agent-explore.yml": (ISSUE_EVENT_PAYLOAD, 1),
-    "agent-update-branch.yml": (PR_EVENT_PAYLOAD, 1),
+    "agent-update-branch.yml": (PR_EVENT_PAYLOAD, 2),
 }
 
 ALLOWED_SECRET_REFS = {
@@ -508,6 +508,11 @@ def main() -> int:
             not re.search(r"contains\(github\.event\.(?:issue|pull_request)\.labels", raw),
             f"{name} 不得再用静态 event labels contains 路由（大小写不敏感/快照不可靠）",
         )
+    update_raw = raw_wf("agent-update-branch.yml")
+    check(
+        "gh pr view \"$PR_NUMBER\" --json labels --jq '.labels[].name' | grep -qx 'agent:model:deepseek-v4-pro'" in update_raw,
+        "agent-update-branch.yml 必须运行时实读 PR labels 精确选择 legacy 路由",
+    )
 
     # 固定 Secret allowlist：workflow 里出现的每个 secrets.X 都必须在白名单内。
     secret_refs = set(re.findall(r"secrets\.([A-Z0-9_]+)", "\n".join(raw_wf(n) for n in WORKFLOWS)))
@@ -529,10 +534,8 @@ def main() -> int:
         check(step in raw and "Install Claude Code" not in raw,
               f"{name} 必须显式退役旧默认，且不得安装 Claude Code")
 
-    # 可选 DeepSeek 角色（issue implement / PR implement-pr / PR review）注入
-    # DeepSeek secret；explore/update-branch 的无标签默认已退役，绝不把 DeepSeek key
-    # 放进进程 env。
-    for name in ["agent-implement.yml", "agent-implement-pr.yml", "agent-review.yml"]:
+    # 可选 DeepSeek 角色只在其显式 legacy 分支注入固定 Secret；无标签默认仍退役。
+    for name in ["agent-implement.yml", "agent-implement-pr.yml", "agent-review.yml", "agent-update-branch.yml"]:
         raw = raw_wf(name)
         check(
             "DEEPSEEK_API_KEY" in raw and "agent:model:deepseek-v4-pro" in raw,
@@ -542,7 +545,7 @@ def main() -> int:
             "prime-agent-0.7.2.tgz" in raw,
             f"{name} 必须安装与 .sandcastle/Dockerfile 同版本的 Prime Agent CLI",
         )
-    for name in ["agent-explore.yml", "agent-update-branch.yml"]:
+    for name in ["agent-explore.yml"]:
         raw = raw_wf(name)
         check(
             "DEEPSEEK_API_KEY" not in raw,
@@ -553,8 +556,8 @@ def main() -> int:
           "shared/agent.ts 必须包含显式模型 registry allowlist")
     check(
         '"review"' in agent_ts
-        and 'appliesTo: ["implement", "implement-pr", "review"]' in agent_ts,
-        "shared/agent.ts DeepSeek registry 必须对 review 角色生效",
+        and 'appliesTo: ["implement", "implement-pr", "review", "update-branch"]' in agent_ts,
+        "shared/agent.ts DeepSeek registry 必须对 review 与 update-branch 角色生效",
     )
 
     review_ts = (AW_DIR / "review" / "review.ts").read_text()
@@ -669,8 +672,8 @@ def main() -> int:
     # ── 5. #1185 jq 字符串转义机械锁 ─────────────────────────────────────────
     jq_expressions = list(_iter_workflow_jq_expressions())
     check(
-        len(jq_expressions) == 21,
-        f"agent workflows 应提取到 21 条 jq/--jq 表达式（实为 {len(jq_expressions)} 条）",
+        len(jq_expressions) == 22,
+        f"agent workflows 应提取到 22 条 jq/--jq 表达式（实为 {len(jq_expressions)} 条）",
     )
     for name, lineno, cmd, expr in jq_expressions:
         _validate_jq_expression(expr, f"{name}:{lineno} ({cmd})")

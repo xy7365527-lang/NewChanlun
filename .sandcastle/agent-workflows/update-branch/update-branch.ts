@@ -5,8 +5,8 @@ import * as sandcastle from "@ai-hero/sandcastle";
 import { noSandbox } from "@ai-hero/sandcastle/sandboxes/no-sandbox";
 import {
   assertValidModelLabels,
-  claudeAgent,
   readModelLabelsFromEnv,
+  selectedAgent,
 } from "../shared/agent.ts";
 import {
   asRecord,
@@ -34,7 +34,7 @@ const BASE_REF = required("BASE_REF");
 
 try {
   assertValidModelLabels(readModelLabelsFromEnv());
-  const agent = claudeAgent("update-branch");
+  const agent = selectedAgent("update-branch");
 
   execFileSync("git", ["fetch", "origin", BASE_REF], { stdio: "inherit" });
 
