@@ -55,3 +55,14 @@
 - 首轮 `b0ae62cd4b` 的负控已通过，但正例夹具缺 `trend_flips/dir_flips`，不能计作通过；`05ecc0338c` 只补合法磁带后重跑。
 - 最终 nc-remote 日志 `/tmp/nc-remote/20261025-041454-05ecc0338c.log`：policy records 11/11、positional 16/16、Fusion 78/78，共 **105 passed / 0 failed**；`cargo check --locked --all-targets`、`cargo fmt --all -- --check` 均通过，EXIT=0。
 - Q-6～Q-8、Q-2、X-38 的实现未因本返修改写；当前 head 仍需重新整票独审、GitHub CI 和用户 main 合入闸。
+
+## Q-2 原证书链返修（2026-10-25）
+
+当前代码候选：`f34b8c823e1dfaede3b6b93b33a63b14b590213f`。前次独审 H-1 指出 `NestLevel.chosen` 仍走旧硬编码选择器；本节为实际生产链返修，不改写前述实现和原始证据。
+
+- `NestLevel` 现在携带 `SelectorPolicy`，`chosen` 调用 `selectΘWithKeys ℓ.policy.keys`。`nestCertB` 要求相邻级 `policy` 完全相等，`NestCertPartialCorrect` 同步记录这一前件；混合记录的证书链直接失败，不允许每级各取默认。
+- `ChosenByΘ` 使用 `IsSelectedByKeyWithKeys`，新增通用键表的折叠成员、最优性、传递性、三歧性和唯一性证明。旧 `selOrder`/`selectΘ`/`IsSelectedByKey` 仅是显式测试默认的别名，不再是生产 `chosen` 的独立配置源。
+- `SelectorPolicyIO` 新增 `readNestChain` 与 `chiBoolWithRecord`：实际 JSON 在 IO 边界读取一次，经 `nestChainWithPolicy` 注入同一证书链，真实贯通 `subB` / `nestCertB` / `chiBool`。缺记录、null、`AwaitingPolicy`、非法方向及未批准 `endTime=ascending` 均拒绝，未回退默认。
+- `Origin.VersionedSelectorTests` 已加入 Lake 根目标，构建会持续执行：`chosen_default_matches_legacy` 默认逐位等值；合法 start_time 变异经 `NestLevel.chosen` 改变选择；`chiBoolWithRecord` 消费 version 2；`mixed_selector_chain_is_rejected`；缺文件、null、AwaitingPolicy 与非法值负控。
+- 最终验证：`lake build` **162 jobs** 全过，日志含 `NEST_CHOSEN_DEFAULT_OK`、`NEST_CHOSEN_MUTATION_OK`、`CHIBOOL_RECORD_OK`、`SELECTOR_MISSING_REJECT_OK`、`SELECTOR_NULL_REJECT_OK`、`SELECTOR_AWAITING_REJECT_OK`、`SELECTOR_INVALID_REJECT_OK`。`python3 scripts/check_fixture_drift.py` 三项仍 **0 字段差异、字节一致**；`git diff --check` 通过。
+- Q-4 的预注册准入、Q-6～Q-8 的塔底记录与 X-38 的相切语义未因本返修改写；没有新增 `sorry` / `admit` / 公理。当前 head 仍需重新整票独审、GitHub CI 和用户 main 合入闸。
