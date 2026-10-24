@@ -7,7 +7,8 @@ use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 
 const RAW: &str = include_str!("../../../s_session/tests/fixtures/tb03c_allocation/RAW.json");
-const HAND: &str = include_str!("../../../s_session/tests/fixtures/tb03c_allocation/HAND-ORACLE.json");
+const HAND: &str =
+    include_str!("../../../s_session/tests/fixtures/tb03c_allocation/HAND-ORACLE.json");
 
 fn carrier_root() -> PathBuf {
     PathBuf::from(
@@ -178,21 +179,33 @@ fn fin2_we7_capture_resolve_apply_recover_and_resend() {
     let mut session = load(&carrier_root());
     for (owner, config) in session.configs.iter().enumerate() {
         let revision: String = session.dbs[owner]
-            .query_row("SELECT v FROM meta WHERE k='schema_revision'", [], |row| row.get(0))
+            .query_row("SELECT v FROM meta WHERE k='schema_revision'", [], |row| {
+                row.get(0)
+            })
             .unwrap();
         assert_eq!(revision, "economic-session/2");
         let format: String = session.dbs[owner]
-            .query_row("SELECT content_format FROM content_meta WHERE singleton=1", [], |row| row.get(0))
+            .query_row(
+                "SELECT content_format FROM content_meta WHERE singleton=1",
+                [],
+                |row| row.get(0),
+            )
             .unwrap();
         assert_eq!(format, "s-content/1");
-        assert_eq!(config.domain, ["E", "B:chong-N1", "B:chong-N2", "B:chong-N3"][owner]);
+        assert_eq!(
+            config.domain,
+            ["E", "B:chong-N1", "B:chong-N2", "B:chong-N3"][owner]
+        );
     }
 
     let imported = session.send(
         0,
         json!({"op":"ImportResponsibility","responsibility_id":"fin2-we7-baseline","writer_epoch":"1"}),
     );
-    assert_eq!(imported["kind"], "ResponsibilityImportedReceipt", "{imported}");
+    assert_eq!(
+        imported["kind"], "ResponsibilityImportedReceipt",
+        "{imported}"
+    );
 
     let hand: Value = serde_json::from_str(HAND).unwrap();
     let mut captures = Vec::new();
@@ -201,7 +214,10 @@ fn fin2_we7_capture_resolve_apply_recover_and_resend() {
     for index in 0..3 {
         let capture = session.capture(RAW, index);
         assert_eq!(capture["kind"], "Recorded", "{capture}");
-        let applied = session.send(index + 1, apply_request(&capture, &capture["allocation_id"]));
+        let applied = session.send(
+            index + 1,
+            apply_request(&capture, &capture["allocation_id"]),
+        );
         assert_eq!(applied["kind"], "Applied", "{applied}");
         store::audit(&session.dbs[index + 1], &session.configs[index + 1]).unwrap();
         assert_eq!(staging_count(&session, index + 1), 0);
@@ -231,7 +247,10 @@ fn fin2_we7_capture_resolve_apply_recover_and_resend() {
             );
             assert_eq!(
                 book["cost_basis"]["K"],
-                hand["reports"][round]["K"][index].as_i64().unwrap().to_string()
+                hand["reports"][round]["K"][index]
+                    .as_i64()
+                    .unwrap()
+                    .to_string()
             );
             assert_eq!(
                 allocations[index]["commission"],
@@ -260,8 +279,12 @@ fn fin2_we7_capture_resolve_apply_recover_and_resend() {
     }
     assert_eq!(allocation_ids.len(), 12);
 
-    let before_images = (0..4).map(|owner| latest_image(&session, owner)).collect::<Vec<_>>();
-    let before_seq = (0..4).map(|owner| latest_seq(&session, owner)).collect::<Vec<_>>();
+    let before_images = (0..4)
+        .map(|owner| latest_image(&session, owner))
+        .collect::<Vec<_>>();
+    let before_seq = (0..4)
+        .map(|owner| latest_seq(&session, owner))
+        .collect::<Vec<_>>();
     for owner in 0..4 {
         let recovered = store::recover(&session.configs[owner]).unwrap();
         assert_eq!(recovered["kind"], "Recovered");
@@ -269,18 +292,30 @@ fn fin2_we7_capture_resolve_apply_recover_and_resend() {
         assert!(next_epoch > session.epochs[owner]);
         session.epochs[owner] = next_epoch;
         store::audit(&session.dbs[owner], &session.configs[owner]).unwrap();
-        assert_eq!(canonical_json(&latest_image(&session, owner)), canonical_json(&before_images[owner]));
+        assert_eq!(
+            canonical_json(&latest_image(&session, owner)),
+            canonical_json(&before_images[owner])
+        );
         assert_eq!(staging_count(&session, owner), 0);
     }
 
     // 新 writer epoch 下重送全部 6 Capture + 3 Resolve + 12 Apply；返回原收据且不新增 commit。
     for index in 0..3 {
         assert_eq!(session.capture(RAW, index), captures[index]);
-        assert_eq!(session.send(index + 1, apply_request(&captures[index], &captures[index]["allocation_id"])), applies[index]);
+        assert_eq!(
+            session.send(
+                index + 1,
+                apply_request(&captures[index], &captures[index]["allocation_id"])
+            ),
+            applies[index]
+        );
     }
     for round in 0..3 {
         assert_eq!(session.capture(RAW, round + 3), captures[round + 3]);
-        assert_eq!(session.resolve(&captures[round + 3], round + 4), resolves[round]);
+        assert_eq!(
+            session.resolve(&captures[round + 3], round + 4),
+            resolves[round]
+        );
         let allocations = session.allocations(&captures[round + 3]);
         for index in 0..3 {
             assert_eq!(
@@ -294,7 +329,10 @@ fn fin2_we7_capture_resolve_apply_recover_and_resend() {
     }
     for owner in 0..4 {
         assert_eq!(latest_seq(&session, owner), before_seq[owner]);
-        assert_eq!(canonical_json(&latest_image(&session, owner)), canonical_json(&before_images[owner]));
+        assert_eq!(
+            canonical_json(&latest_image(&session, owner)),
+            canonical_json(&before_images[owner])
+        );
         store::audit(&session.dbs[owner], &session.configs[owner]).unwrap();
         assert_eq!(staging_count(&session, owner), 0);
     }
@@ -312,7 +350,10 @@ fn fin2_capacity_shared_carrier_and_non_hfs_are_rejected() {
         let error = store::Config::load(&path, &root.join("e.db"), None)
             .err()
             .unwrap();
-        assert!(error.contains("总容量超过冻结 staged/store 上限"), "{field}: {error}");
+        assert!(
+            error.contains("总容量超过冻结 staged/store 上限"),
+            "{field}: {error}"
+        );
     }
 
     let mut shared = fin2_manifest(&root);
@@ -333,6 +374,9 @@ fn fin2_capacity_shared_carrier_and_non_hfs_are_rejected() {
     let error = store::Config::load(&path, &apfs.join("e.db"), None)
         .err()
         .unwrap();
-    assert!(error.contains("HFS") || error.contains("mount root"), "{error}");
+    assert!(
+        error.contains("HFS") || error.contains("mount root"),
+        "{error}"
+    );
     assert!(!apfs.join("e.db").exists());
 }
