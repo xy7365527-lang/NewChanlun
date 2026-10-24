@@ -23,6 +23,130 @@ const SESSION: &str = "tb1406-s3-kill";
 const CHILD: &str = "economic_session::tb03c_kill_tests::tb03c_kill_child";
 const DEADLINE: Duration = Duration::from_secs(300);
 
+/// #1622：创建 voice_binding 证据权威（TestOnly fixture），写入 bundle 与 verification 文件。
+fn write_voice_authority(dir: &Path) -> Value {
+    use crate::session_protocol::sha256_hex;
+    let doc: Value = serde_json::from_str(RAW).unwrap();
+    let event = &doc["events"][0]; // 使用开局事实
+    let raw_sha = sha256_hex(RAW.as_bytes());
+    let key = book::fact_key(event).unwrap();
+    let fact_hash = book::hash(
+        &json!({"raw_sha256":raw_sha,"json_pointer":"/events/0","event":event,"units":doc["units"]}),
+    );
+    let reference = |name: &str| json!({"authority_id":"kill-unit","object_id":name,"revision":"0","content_hash":book::hash(&json!(name))});
+    // 为 B:chong-N1 创建 binding（operation_level = 1）
+    let binding = json!({
+        "evidence_id":"kill-evidence-1",
+        "instrument":"TEST-N",
+        "chong_id":"chong-N1",
+        "operation_level":"1",
+        "carrier_ref":reference("kill-carrier"),
+        "gamma_ref":reference("kill-gamma"),
+        "sigma":"Long",
+        "n":"0",
+        "parent_voice_id":null,
+        "structure_view":{
+            "profile_id":"kill-unit",
+            "execution_level":"1",
+            "confirmation_level":"2",
+            "nest_depth":"1"
+        },
+        "opening_source":{
+            "fact_key":key,
+            "fact_hash":fact_hash,
+            "allocation_id":event["allocation_id"],
+            "raw_sha256":raw_sha,
+            "json_pointer":"/events/0",
+            "quantity":book::integer(&event["observed_existing_book"], "units").unwrap().to_string(),
+            "units":doc["units"]
+        }
+    });
+    let mut artifacts = vec![];
+    for name in [
+        "input",
+        "controlled_gammas",
+        "carrier_objects",
+        "instrument_declaration",
+        "opening_raw",
+    ] {
+        let text = if name == "input" {
+            canonical_json(
+                &json!({"schema":"testonly-voice-input/1","units":doc["units"],"events":[event]}),
+            )
+        } else if name == "opening_raw" {
+            // CaptureExternal 的 raw_utf8 是 RAW 原文；opening_raw 必须保留同一字节序列。
+            RAW.to_owned()
+        } else {
+            canonical_json(
+                &json!({"scope":"unit trust-root fixture, not a real gamma proof","name":name}),
+            )
+        };
+        let path = dir.join(format!("voice-{name}.json"));
+        std::fs::write(&path, &text).unwrap();
+        artifacts.push(json!({
+            "name":name,
+            "path":path,
+            "sha256":sha256_hex(text.as_bytes()),
+            "bytes":text.len().to_string()
+        }));
+    }
+    let bundle = json!({
+        "schema":"voice-binding-authority/1",
+        "authority_id":"kill-unit",
+        "source":{
+            "instrument":"TEST-N",
+            "input_sha256":artifacts[0]["sha256"],
+            "profile_id":"kill-unit",
+            "first_confirming_observation_source":"25",
+            "clock_mapping":{
+                "kind":"TestOnlyAffineOrdinalToNs",
+                "source_origin":"0",
+                "nanosecond_origin":"0",
+                "nanoseconds_per_ordinal":"1"
+            }
+        },
+        "artifacts":artifacts,
+        "bindings":[binding]
+    });
+    let bundle_text = canonical_json(&bundle);
+    let bundle_path = dir.join("voice-authority.json");
+    std::fs::write(&bundle_path, &bundle_text).unwrap();
+    let bundle_sha = sha256_hex(bundle_text.as_bytes());
+    let review = json!({
+        "schema":"voice-binding-independent-verification/1",
+        "verdict":"APPROVE_CONTROLLED_VOICE_BINDING",
+        "authority_id":"kill-unit",
+        "bundle_sha256":bundle_sha,
+        "artifacts":bundle["artifacts"],
+        "verified_evidence_ids":["kill-evidence-1"],
+        "scope":"unit trusted receipt fixture only; no actual gamma verification claim"
+    });
+    let review_text = canonical_json(&review);
+    let review_path = dir.join("voice-review.json");
+    std::fs::write(&review_path, &review_text).unwrap();
+    let review_sha = sha256_hex(review_text.as_bytes());
+    json!({
+        "schema_revision":"voice-binding/1",
+        "authorities":[{
+            "authority_id":"kill-unit",
+            "bundle_path":bundle_path,
+            "bundle_sha256":bundle_sha,
+            "verification_path":review_path,
+            "verification_sha256":review_sha,
+            "max_bytes":"1048576"
+        }]
+    })
+}
+
+fn voice_authority() -> &'static Value {
+    static AUTHORITY: OnceLock<Value> = OnceLock::new();
+    AUTHORITY.get_or_init(|| {
+        let dir = root().join("voice-fixture");
+        std::fs::create_dir_all(&dir).unwrap();
+        write_voice_authority(&dir)
+    })
+}
+
 /// 与 C4a WE7 同一时钟形状：每条消息每个 epoch 一列，恢复后按第二列提交。
 fn manifest(dir: &Path, fault: Option<(&str, &str)>) -> Value {
     let mut plan = serde_json::Map::new();
@@ -39,12 +163,15 @@ fn manifest(dir: &Path, fault: Option<(&str, &str)>) -> Value {
         );
     }
     let chongs = (0..3).map(|i|json!({"chong_id":format!("chong-N{}",i+1),"symbol":"TEST-N","operation_level":(i+1).to_string(),"fixed_q":(["1","3","3"][i]),"db":dir.join(format!("b{i}.db")),"socket":dir.join(format!("b{i}.sock"))})).collect::<Vec<_>>();
+    // #1622：添加 voice_binding 证据配置，供 BindVoice 测试使用
+    let voice_binding = voice_authority().clone();
     let mut m = json!({"schema_revision":"economic-manifest/1","session_id":SESSION,"session_generation":"1","book_revision":"tb03c-book/1",
         "e":{"db":dir.join("e.db"),"socket":dir.join("e.sock")},"chongs":chongs,"fill_manifests":[serde_json::from_str::<Value>(MANIFEST).unwrap()],
-        "authorized_sources":[{"source_namespace":"testonly-tb1406","source_epoch":"fixture-epoch-1","producer_id":"tb1406-s3","producer_epoch":"1","operations":["CaptureExternal","ResolveEvidence","ApplyAllocation","ReadView","QueryFact","QueryAllocation"]}],
+        "authorized_sources":[{"source_namespace":"testonly-tb1406","source_epoch":"fixture-epoch-1","producer_id":"tb1406-s3","producer_epoch":"1","operations":["CaptureExternal","ResolveEvidence","ApplyAllocation","BindVoice","ReadView","QueryFact","QueryAllocation","QueryVoice"]}],
         "resources":{"max_frame_bytes":"1048576","read_timeout_ms":"1000","write_timeout_ms":"1000","response_timeout_ms":"2000","queue_capacity":"2","max_connections":"2"},
         "clock":{"kind":"TestOnly","plan":{"init_ns":"1","recover_ns":((1..=16).map(|r| (r * 1_000_000).to_string()).collect::<Vec<_>>()),"messages":plan}},
-        "fill_allocation_policy":{"fill_allocation_policy_id":super::allocation::FILL_ALLOCATION_POLICY_ID,"policy_revision":"we7-frozen-1"}});
+        "fill_allocation_policy":{"fill_allocation_policy_id":super::allocation::FILL_ALLOCATION_POLICY_ID,"policy_revision":"we7-frozen-1"},
+        "voice_binding":voice_binding});
     if let Some((message, phase)) = fault {
         m["test_only_fault"] =
             json!({"message_id":message,"phase":phase,"marker_path":dir.join("fault-marker.json")});
@@ -131,6 +258,25 @@ fn resolve_payload(r: &Value, cursor: usize) -> Value {
 }
 fn apply_payload(r: &Value, id: &Value) -> Value {
     json!({"op":"ApplyAllocation","fact_key":r["fact_key"],"allocation_id":id,"expected_fact_hash":r["fact_hash"]})
+}
+/// #1622：创建 BindVoice payload，复用第一笔 Capture/Apply 的 fact 与 allocation。
+fn bind_payload(capture_reply: &Value, allocation_id: &Value) -> Value {
+    let reference = |name: &str| json!({"authority_id":"kill-unit","object_id":name,"revision":"0","content_hash":book::hash(&json!(name))});
+    json!({
+        "op":"BindVoice",
+        "binding_id":"kill-voice-1",
+        "evidence_id":"kill-evidence-1",
+        "carrier_ref":reference("kill-carrier"),
+        "gamma_ref":reference("kill-gamma"),
+        "parent_voice_id":null,
+        "sigma":"Long",
+        "n":"0",
+        "opening_basis":{
+            "fact_key":capture_reply["fact_key"],
+            "expected_fact_hash":capture_reply["fact_hash"],
+            "allocation_id":allocation_id
+        }
+    })
 }
 
 /// 全表逻辑转储：每表按主键序、每格原字节（TEXT 原样，BLOB 十六进制）。
@@ -227,6 +373,9 @@ impl Clock {
             .get(i)
             .ok_or_else(|| format!("余数 {rem} 不属计划消息"))?;
         Ok(match self.killed {
+            // E 恢复后，后续 B 也经各自新进程 recover 进入第二时钟列。
+            // 否则 E 的重送提交会晚于 B 的首次获知，违反 #1621 的 E→B 因果锁。
+            Some((0, from)) if i >= from => 1,
             Some((o, from)) if o == owner && i >= from => 1,
             _ => 0,
         })
@@ -650,7 +799,7 @@ impl Builder {
         assert!(
             matches!(
                 r["kind"].as_str(),
-                Some("Recorded" | "Resolved" | "Applied")
+                Some("Recorded" | "Resolved" | "Applied" | "VoiceBound")
             ),
             "{r}"
         );
@@ -713,8 +862,17 @@ fn plan() -> &'static Plan {
                 );
             }
         }
-        assert_eq!(b.steps.len(), 21);
-        assert_eq!(b.snapshot_dirs.len(), 22);
+        // #1622：在第一笔 Apply（步骤 1）后添加 BindVoice（步骤 21 → 总 22 步，owner=1=B:chong-N1）
+        let first_capture = &b.replies[0];
+        let first_apply = &b.replies[1];
+        assert_eq!(first_capture["kind"], "Recorded");
+        assert_eq!(first_apply["kind"], "Applied");
+        b.send(
+            1,
+            bind_payload(first_capture, &first_capture["allocation_id"]),
+        );
+        assert_eq!(b.steps.len(), 22);
+        assert_eq!(b.snapshot_dirs.len(), 23);
         let mut plan = Plan {
             steps: b.steps,
             replies: b.replies,
@@ -764,7 +922,7 @@ fn reference() -> &'static Reference {
             }
             let tables = dumps(&configs);
             for d in 0..4 {
-                assert_eq!(business(&tables[d]), plan.snapshots[21][d]);
+                assert_eq!(business(&tables[d]), plan.snapshots[22][d]);
             }
             audit_all(&configs);
             let queries = public(&configs);
@@ -928,9 +1086,28 @@ fn kill_and_recover(plan: &Plan, target: usize, phase: &str, work: &Path) -> Kil
 }
 
 /// 新进程续跑 `steps`（被杀域用 epoch 2），返回逐步进度行。
+/// E 被杀时，B 也分别由新进程 recover 后用 epoch 2：E 的重送提交与 B 的后续获知
+/// 必须保持 #1621 的 `B.first_known_ns >= E.commit_ns`，不能沿用恢复前的小时钟。
 fn resume(k: &Killed, work: &Path, steps: Vec<Value>) -> Vec<Value> {
+    if k.owner == 0 {
+        for owner in 1..k.configs.len() {
+            let label = format!("recover-b{owner}");
+            finish(
+                spawn(work, &label, json!({"action":"recover","owner":owner})),
+                work,
+                &label,
+            );
+            let recovered = progress(work, &label)[0]["recovered"].clone();
+            assert_eq!(recovered["kind"], "Recovered");
+            assert_eq!(recovered["writer_epoch"], "2");
+        }
+    }
     let mut epochs = vec![1, 1, 1, 1];
-    epochs[k.owner] = 2;
+    if k.owner == 0 {
+        epochs.fill(2);
+    } else {
+        epochs[k.owner] = 2;
+    }
     finish(
         spawn(
             work,
@@ -1071,8 +1248,8 @@ fn matrix(target: usize, op: &str, owner: usize, phase: &str) {
     }
 }
 
-/// WE7 全部 21 个持久写步（评审 M2）：步号 / 操作 / 所属域（0=E，1..3=B:chong-N1..N3）。
-/// 每步生成 `<名>::before_commit` 与 `<名>::after_commit` 两个测试（共 42 个组合 × 2 次 = 84 次 SIGKILL）。
+/// WE7 持久写步（评审 M2 + #1622 BindVoice）：22 步（步号 / 操作 / 所属域，0=E，1..3=B:chong-N1..N3）。
+/// 每步生成 `<名>::before_commit` 与 `<名>::after_commit` 两个测试（共 44 个组合 × 2 次 = 88 次 SIGKILL）。
 macro_rules! kill_step {
     ($($name:ident: $target:expr, $op:expr, $owner:expr;)*) => {$(
         mod $name {
@@ -1109,6 +1286,7 @@ kill_step! {
     tb03c_kill_s18_apply_fill3_n1: 18, "ApplyAllocation", 1;
     tb03c_kill_s19_apply_fill3_n2: 19, "ApplyAllocation", 2;
     tb03c_kill_s20_apply_fill3_n3: 20, "ApplyAllocation", 3;
+    tb03c_kill_s21_bind_voice_n1: 21, "BindVoice", 1;
 }
 
 /// 评审 M3(b) 负控：提交前被杀并恢复后**跳过重送**直接续跑，终态比较函数必须报「不同」。
@@ -1132,6 +1310,53 @@ fn skip_resend(target: usize) -> String {
     );
     diff
 }
+
+/// #1622 负控：BindVoice 使用不存在的 allocation_id，必须在应用查找处拒绝。
+fn bind_voice_wrong_allocation() -> String {
+    let plan = plan();
+    let work = root().join("negative-wrong-allocation").join("work");
+    std::fs::create_dir_all(&work).unwrap();
+    let configs = setup(&work, None);
+    let mut dbs: Vec<rusqlite::Connection> = configs
+        .iter()
+        .map(|c| store::open(&c.db, false).unwrap().0)
+        .collect();
+    // 执行前两步：步骤0（Capture open N1）和步骤1（Apply open N1）
+    for i in 0..2 {
+        let owner = plan.steps[i]["owner"].as_u64().unwrap() as usize;
+        let reply = service::handle(
+            &mut dbs[owner],
+            &configs[owner],
+            1,
+            1,
+            &json!({}),
+            &plan.steps[i]["envelope"],
+        )["payload"]
+            .clone();
+        assert_ne!(reply["kind"], "Error", "前置步骤失败：{reply}");
+    }
+    let first_capture = &plan.replies[0];
+    // 使用错误的 allocation_id（应该用 "alloc-N1-open"，故意用错误值）
+    let wrong_allocation = "wrong-allocation-id";
+    let bad_payload = bind_payload(first_capture, &json!(wrong_allocation));
+    // 复用已配置的 BindVoice 时钟项，确保负控走到 allocation 校验而非时钟拒绝。
+    let bad_envelope = envelope("m-21", bad_payload);
+    let error_reply = service::handle(&mut dbs[1], &configs[1], 1, 1, &json!({}), &bad_envelope)
+        ["payload"]
+        .clone();
+    // 该 allocation 未应用，生产入口在 voice.rs 的查找处返回 MissingDependency。
+    if error_reply["kind"] != "Error" {
+        panic!("预期 Error，实际得到：{}", canonical_json(&error_reply));
+    }
+    let error_reason = error_reply["error"].as_str().unwrap_or("").to_string();
+    println!(
+        "S3-NEGATIVE {}",
+        canonical_json(
+            &json!({"test":"bind_voice_wrong_allocation","error_kind":error_reply["kind"],"error_reason":error_reason})
+        )
+    );
+    error_reason
+}
 #[test]
 fn tb03c_kill_negative_skip_resend_capture_fill1() {
     let diff = skip_resend(6);
@@ -1141,4 +1366,14 @@ fn tb03c_kill_negative_skip_resend_capture_fill1() {
 fn tb03c_kill_negative_skip_resend_apply_fill1_n2() {
     let diff = skip_resend(9);
     assert!(diff.starts_with("终态域 2："), "{diff}");
+}
+
+/// #1622 负控：不存在的 allocation_id 不得绑定 Voice。
+#[test]
+fn tb03c_kill_negative_bind_voice_wrong_allocation() {
+    let reason = bind_voice_wrong_allocation();
+    assert_eq!(
+        reason, "MissingDependency：Voice 开局 allocation 尚未应用",
+        "负控必须到达 allocation 查找失败，而不是其他前置错误"
+    );
 }
