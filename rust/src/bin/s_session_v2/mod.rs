@@ -2447,6 +2447,18 @@ impl Bounds {
     }
 }
 
+#[cfg(test)]
+#[allow(clippy::too_many_arguments)]
+fn handle_fixture(
+    db: &Path,
+    profile: &Path,
+    epoch: &str,
+    clock: &v2::ClockPlan,
+    envelope: &Value,
+) -> Result<Value, String> {
+    handle_with_policy(db, profile, epoch, clock, envelope, false)
+}
+
 fn serve_with_policy(
     db: &Path,
     socket: &Path,
@@ -2542,6 +2554,18 @@ fn arg(args: &[String], key: &str) -> Result<String, String> {
 fn positive_arg(args: &[String], key: &str) -> Result<i64, String> {
     positive(&arg(args, key)?, key)
 }
+#[cfg(test)]
+fn serve_fixture(
+    db: &Path,
+    socket: &Path,
+    profile: &Path,
+    epoch: &str,
+    clock_path: &Path,
+    bounds: Bounds,
+) -> Result<(), String> {
+    serve_with_policy(db, socket, profile, epoch, clock_path, bounds, false)
+}
+
 pub fn dispatch(args: &[String]) -> Result<bool, String> {
     dispatch_with_policy(args, true)
 }
@@ -3290,7 +3314,8 @@ mod tests {
         };
         let socket = f.dir.join("s.sock");
         // 对照：当前规则库的未决 Begin 仍按原口径指向 recover（该路径对当前规则可走）。
-        let current = serve(&f.db, &socket, &f.profile, "1", &clock_path, bounds()).unwrap_err();
+        let current =
+            serve_fixture(&f.db, &socket, &f.profile, "1", &clock_path, bounds()).unwrap_err();
         assert!(
             current.starts_with("StaleWriter：") && current.contains("recover"),
             "{current}"
@@ -3313,7 +3338,8 @@ mod tests {
         };
         let before = files(&f.db);
 
-        let msg = serve(&f.db, &socket, &f.profile, "1", &clock_path, bounds()).unwrap_err();
+        let msg =
+            serve_fixture(&f.db, &socket, &f.profile, "1", &clock_path, bounds()).unwrap_err();
         assert!(msg.starts_with("VersionMismatch："), "{msg}");
         assert!(!msg.contains("请监督器先正式recover"), "{msg}");
         for path in [
@@ -3392,7 +3418,7 @@ mod tests {
             queue: 4,
             connections: 4,
         };
-        let msg = serve(
+        let msg = serve_fixture(
             &f.db,
             &socket,
             &f.profile,
