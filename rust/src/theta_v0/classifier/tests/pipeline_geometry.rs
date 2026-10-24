@@ -867,7 +867,7 @@ fn type1_funnel_census_btc() {
         }
 
         let (_cw, upper_moves, _) =
-            compose_level(&units, &moves_tower[..], is_l0, level_idx as u32 + 1);
+            compose_level(&units, &moves_tower[..], is_l0, level_idx as u32 + 1, crate::theta_v0::config::TowerBase::Segment);
         units = project_to_units(&upper_moves, &out.levels[level_idx].moves); // Q7：生产同源块
         moves_tower = Rc::new(upper_moves);
         if units.is_empty() {
@@ -1074,7 +1074,7 @@ fn issue821_upgrade_recut_probe() {
         }
 
         let (_cw, upper_moves, _) =
-            compose_level(&units, &moves_tower[..], is_l0, level_idx as u32 + 1);
+            compose_level(&units, &moves_tower[..], is_l0, level_idx as u32 + 1, crate::theta_v0::config::TowerBase::Segment);
         units = project_to_units(&upper_moves, &out.levels[level_idx].moves);
         moves_tower = Rc::new(upper_moves);
         if units.is_empty() {
@@ -1209,7 +1209,7 @@ fn issue826_same_level_decomp_probe() {
         );
 
         let (_cw, upper_moves, _) =
-            compose_level(&units, &moves_tower[..], is_l0, level_idx as u32 + 1);
+            compose_level(&units, &moves_tower[..], is_l0, level_idx as u32 + 1, crate::theta_v0::config::TowerBase::Segment);
 
         // ── 点 1：单元层覆盖（本级 units 有多少被上级走势吃掉，多少被丢弃）
         let n_units = units.len();

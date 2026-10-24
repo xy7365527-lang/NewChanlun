@@ -1282,6 +1282,7 @@ fn classify_incremental_inner(
                     prefix_count,
                     // #897：前缀中枢（pop 后保留段，与 prefix_count 1:1）供 tail run 计算。
                     &lc.centers,
+                    config.level.tower_base,
                 )
             });
         // frontier pop/recompose 若产出同一个 B_p/c_p 身份，继承已扫描对象态，只从 dirty_from 推进。

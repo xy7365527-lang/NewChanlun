@@ -394,9 +394,13 @@ pub fn compose_level(
     subs_moves: &[LeveledMove],
     is_l0: bool,
     level: u32,
+    tower_base: crate::theta_v0::config::TowerBase,
 ) -> (Vec<Center>, Vec<LeveledMove>, Vec<CpScanOwnership>) {
     let build = if is_l0 {
-        super::center::center_from_segments
+        match tower_base {
+            crate::theta_v0::config::TowerBase::Segment => super::center::center_from_segments,
+            other => panic!("tower_base={other:?} 尚无真实构件与数据 profile"),
+        }
     } else {
         super::center::center_from_window
     };
@@ -631,6 +635,7 @@ pub fn compose_level_resume(
     // tail 窗口的走势类型块可能延伸进前缀（趋势跨续扫边界），run 计算须在前缀+tail 拼
     // 接视图上做，保证与全量 `compose_level` 逐位一致。
     prefix_centers: &[Center],
+    tower_base: crate::theta_v0::config::TowerBase,
 ) -> (
     Vec<Center>,
     Vec<LeveledMove>,
@@ -639,7 +644,10 @@ pub fn compose_level_resume(
     WindowScanCursor,
 ) {
     let build = if is_l0 {
-        super::center::center_from_segments
+        match tower_base {
+            crate::theta_v0::config::TowerBase::Segment => super::center::center_from_segments,
+            other => panic!("tower_base={other:?} 尚无真实构件与数据 profile"),
+        }
     } else {
         super::center::center_from_window
     };
@@ -2751,7 +2759,7 @@ mod tests {
             .enumerate()
             .map(|(i, u)| LeveledMove::from_unit(u, eid(0, i as u64)))
             .collect();
-        let (centers, upper, _) = compose_level(&units, &moves, true, 1);
+        let (centers, upper, _) = compose_level(&units, &moves, true, 1, crate::theta_v0::config::TowerBase::Segment);
         assert_eq!(centers.len(), 1, "上-下-上 全三段核心非空 ⟹ 一个中枢");
         assert_eq!(upper.len(), 1, "一个中枢 ⟹ 一个上级走势");
         // 上级走势是 RMove::Compose，descend 取回构成它的三段 L0 线段。
@@ -2801,7 +2809,7 @@ mod tests {
             .enumerate()
             .map(|(i, u)| from_unit(u, i as u64))
             .collect();
-        let (_centers, upper, cp) = compose_level(&units, &moves, true, 1);
+        let (_centers, upper, cp) = compose_level(&units, &moves, true, 1, crate::theta_v0::config::TowerBase::Segment);
         assert_eq!(upper.len(), 2);
         assert_eq!(cp[0].departure_move_id, Some(eid(0, 3)));
         assert_eq!(cp[0].departure_interval, Some((12, 16)));
@@ -3014,7 +3022,7 @@ mod tests {
             .map(|(i, u)| from_unit(u, i as u64))
             .collect();
         // 本级：9 段 → 3 子中枢 → 3 个上级走势单元。
-        let (centers, upper, _) = compose_level(&units, &moves, true, 1);
+        let (centers, upper, _) = compose_level(&units, &moves, true, 1, crate::theta_v0::config::TowerBase::Segment);
         assert_eq!(centers.len(), 3);
         assert_eq!(upper.len(), 3);
         // descend 取回真 subs（真 Fugue：子窗切片 3 段）。
@@ -3024,7 +3032,7 @@ mod tests {
         // 上一级：3 个子中枢单元投影后 detect ⟹ 高一级中枢 seed 成立（围绕同核心，区间交非空）。
         let blocks = super::super::decompose::decompose(&centers);
         let l1_units = project_to_units(&upper, &blocks);
-        let (l1_centers, _, _) = compose_level(&l1_units, &upper, false, 2);
+        let (l1_centers, _, _) = compose_level(&l1_units, &upper, false, 2, crate::theta_v0::config::TowerBase::Segment);
         assert_eq!(
             l1_centers.len(),
             1,
@@ -3056,7 +3064,7 @@ mod tests {
             .enumerate()
             .map(|(i, u)| LeveledMove::from_unit(u, eid(0, i as u64)))
             .collect();
-        let (centers, upper, _) = compose_level(&units, &moves, true, 1);
+        let (centers, upper, _) = compose_level(&units, &moves, true, 1, crate::theta_v0::config::TowerBase::Segment);
         assert_eq!(centers.len(), 3, "三组三段各成一中枢");
         assert_eq!(upper.len(), 3);
         let clen = |m: &LeveledMove| match &m.rmove {
@@ -3103,17 +3111,17 @@ mod tests {
             .collect();
 
         // 全量 compose_level。
-        let (full_c, full_u, full_cp) = compose_level(&units, &moves, true, 1);
+        let (full_c, full_u, full_cp) = compose_level(&units, &moves, true, 1, crate::theta_v0::config::TowerBase::Segment);
 
         // resume from 0 == 全量。
-        let (rc, ru, rcp, _, _) = compose_level_resume(&units, &moves, true, 1, 0, 0, &[]);
+        let (rc, ru, rcp, _, _) = compose_level_resume(&units, &moves, true, 1, 0, 0, &[], crate::theta_v0::config::TowerBase::Segment);
         assert_eq!(rc, full_c, "resume(0) centers == 全量");
         assert_eq!(ru, full_u, "resume(0) upper == 全量");
         assert_eq!(rcp, full_cp, "resume(0) c_p 侧车 == 全量");
 
         // 增量：前 6 段 compose（产出 1 个开放中枢 + 其上级走势）。
         let (mut pc, mut pu, mut pcp, _m6, cursor6) =
-            compose_level_resume(&units[..6], &moves[..6], true, 1, 0, 0, &[]);
+            compose_level_resume(&units[..6], &moves[..6], true, 1, 0, 0, &[], crate::theta_v0::config::TowerBase::Segment);
         // frontier 协议（task #142 充要条件 #1）：pop 末位开放中枢及其上级走势 + 从 resume_from 重扫。
         if cursor6.resume_from < cursor6.consumed {
             pc.pop();
@@ -3121,7 +3129,7 @@ mod tests {
             pcp.pop();
         }
         let (tc, tu, tcp, _mt, _) =
-            compose_level_resume(&units, &moves, true, 1, cursor6.resume_from, pu.len(), &pc);
+            compose_level_resume(&units, &moves, true, 1, cursor6.resume_from, pu.len(), &pc, crate::theta_v0::config::TowerBase::Segment);
 
         let mut comb_c = pc.clone();
         comb_c.extend(tc);
@@ -3198,7 +3206,7 @@ mod tests {
             .map(|(i, u)| LeveledMove::from_unit(u, eid(0, i as u64)))
             .collect();
         // L0 → L1（完整判据，方向交替）。
-        let (_c1, l1, _) = compose_level(&units, &moves, true, 1);
+        let (_c1, l1, _) = compose_level(&units, &moves, true, 1, crate::theta_v0::config::TowerBase::Segment);
         assert_eq!(l1.len(), 3, "三组核心分离 → 3 个中枢 → 3 个 L1 走势");
         for m in &l1 {
             assert_eq!(m.rmove.level(), 1);
@@ -3209,7 +3217,7 @@ mod tests {
         }
         // L1 → L2（几何路径）。
         let l1_units = project_to_units(&l1, &[]); // 无块信息 ⟹ Q7 fallback（本测试只验区间聚合）
-        let (_c2, l2, _) = compose_level(&l1_units, &l1, false, 2);
+        let (_c2, l2, _) = compose_level(&l1_units, &l1, false, 2, crate::theta_v0::config::TowerBase::Segment);
         assert_eq!(l2.len(), 1, "3 个 L1 走势 → 1 窗口 → 1 个 L2 走势");
         assert_eq!(l2[0].rmove.level(), 2);
         // L2 走势 descend 取回 3 个 L1 走势（level 1）。
@@ -3331,7 +3339,7 @@ mod tests {
             .enumerate()
             .map(|(i, u)| from_unit(u, i as u64))
             .collect();
-        let (centers, upper, _) = compose_level(&units, &moves, true, 1);
+        let (centers, upper, _) = compose_level(&units, &moves, true, 1, crate::theta_v0::config::TowerBase::Segment);
         assert_eq!(
             (centers.len(), upper.len()),
             (3, 3),
