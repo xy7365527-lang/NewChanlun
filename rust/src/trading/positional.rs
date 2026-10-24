@@ -1795,6 +1795,8 @@ mod tests {
         );
         let tape = SignalTape {
             bars: warmup_bars(),
+            dir_flips: Some(vec![]),
+            trend_flips: Some(vec![]),
             ..Default::default()
         };
         run_positional_with_trend_scope_record(
