@@ -202,14 +202,12 @@ fn apply_with_observation(
     observation_ns: Option<&str>,
 ) -> Result<(Value, bool), String> {
     let mut rec = record_for_raw(raw, &format!("/events/{i}"));
-    // #1621：添加 b_observation（可审计观察时间）。
-    // observation_ns 应为真实 Unix epoch 纳秒时间戳（由生产 Config::clock() System 模式生成）。
-    // 测试中直接提供纳秒字符串，未指定时使用默认值（2026-10-21 00:00:00 UTC）。
+    // 未指定观察时间时保持 TestOnly 逻辑计数。System / 已写成 Unix 纳秒的观察由调用方传入。
+    // 默认塞 2026-10-21 的纳秒会绕开原件 known_at，使签署窗负控不再测它们写明的日期。
     let first_known_ns = if let Some(ns) = observation_ns {
         ns.to_owned()
     } else {
-        // 默认：2026-10-21 00:00:00 UTC = 1792540800 秒 = 1792540800000000000 ns
-        "1792540800000000000".to_owned()
+        "1".to_owned()
     };
     rec["b_observation"] = json!({"received_ns":"0","first_known_ns":first_known_ns,"commit_ns":(10 * (i + 1)).to_string()});
     book::apply_in(m, image, &rec, (i + 1) as i64, &format!("{}", 10 * (i + 1)))
@@ -814,6 +812,52 @@ fn v2_transfer_opened_chong_carries_v2_revision() {
     let mut same = v2.clone();
     same["book"]["book_revision"] = json!("tb03c-book/1");
     assert_eq!(same, v1);
+}
+
+/// #1621 回归：TestOnly 的 `first_known_ns` 是逻辑计数。按纳秒换算会得到 1970-01-01，
+/// 签署窗内的开局被拒绝，已落账的 B 域在 `store::audit` 重放时被判损坏。
+#[test]
+fn testonly_logical_counter_keeps_signed_known_at_window() {
+    let space = Space::new("issue1621-testonly");
+    let m = profile_manifest(&space, P0);
+    let ok = apply_with_observation(
+        &m,
+        &book::empty_image(),
+        &raw("0", &Batch::ok(100000, P0)),
+        0,
+        Some("5001"),
+    );
+    assert_eq!(kind(&ok), "Applied", "{ok:?}");
+    let mut early = Batch::ok(100000, P0);
+    early.known_at = "2026-10-19".into();
+    let rejected =
+        apply_with_observation(&m, &book::empty_image(), &raw("0", &early), 0, Some("5001"));
+    assert!(
+        rejected
+            .as_ref()
+            .unwrap_err()
+            .starts_with("PolicyNotYetEffective"),
+        "{rejected:?}"
+    );
+}
+
+/// System 时钟即使观察到纪元附近的小计数，也不回退到原件自报 known_at。
+#[test]
+fn system_clock_does_not_accept_client_known_at_for_epoch_observation() {
+    let space = Space::new("issue1621-system");
+    let mut m = profile_manifest(&space, P0);
+    m["clock"]["kind"] = json!("System");
+    let r = apply_with_observation(
+        &m,
+        &book::empty_image(),
+        &raw("0", &Batch::ok(100000, P0)),
+        0,
+        Some("5001"),
+    );
+    assert!(
+        r.as_ref().unwrap_err().starts_with("PolicyNotYetEffective"),
+        "{r:?}"
+    );
 }
 
 /// #1621：known_at 绑定可审计观察时间（record["b_observation"]["first_known_ns"]）；

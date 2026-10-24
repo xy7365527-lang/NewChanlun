@@ -10,7 +10,8 @@
 //!   amount = ⌈Q / L⌉，authorization_ref = `<funding policy_id>@<profile_id>`，
 //!   authorization_version = funding-record.version，currency = funding-record.currency。
 //! - 开重复核 Q ≤ C(ℓ)（ADR 0034 裁定四；ADR 0040 裁定四第 5 步）；C(ℓ) = Unknown ⟹
-//!   AwaitingPolicy{capacity, level:ℓ}，未知不是无限（E Pending 同口径）。原件 known_at 早于签署生效日
+//!   AwaitingPolicy{capacity, level:ℓ}，未知不是无限（E Pending 同口径）。政策窗的历法日：
+//!   System 时钟取观察纳秒换算的 UTC 日；TestOnly 逻辑计数仍取原件 known_at。早于签署生效日
 //!   ⟹ PolicyNotYetEffective，超过任一签署有效期 ⟹ PolicyExpired。
 //! - 非开局追加批：ADR 0040 裁定四末段「改总投入……都签新版本」⟹ AwaitingPolicy{funding_revision}。
 //! - q_rebase：「Q 变大不自动改现役 Q（输出 AwaitingPolicy{q_rebase, (S,ℓ)}）」。
@@ -61,6 +62,8 @@ pub(crate) struct Contract {
     record: Value,
     leverage: i64,
     chongs: Vec<Chong>,
+    /// `clock.kind == System` 时，`first_known_ns` 才是 Unix 纪元纳秒。
+    unix_observation: bool,
 }
 
 /// 字段集合恰为 `keys`（`scope` 可选，ADR 0040 签署记录 evidence_only 档）。
@@ -94,12 +97,16 @@ fn date<'a>(v: &'a Value, k: &str) -> Result<&'a str, String> {
     Ok(s)
 }
 
+/// 小于此值的 `first_known_ns` 不是历法时间。10^15 ns ≈ 1970-01-12；
+/// 仓内 TestOnly 计划是 10^3–10^8 的逻辑计数，System 时钟在政策生效年附近是 ~10^18。
+const CIVIL_OBSERVATION_NS: i64 = 1_000_000_000_000_000;
+
 /// #1621：将 Unix epoch 纳秒时间戳（整数字符串）转换为 YYYY-MM-DD 格式。
 /// 用于与签署记录的 authorized_at/valid_through（YYYY-MM-DD）比较。
 ///
 /// 时间来源：Config::clock() System 模式返回 Unix epoch 纳秒
 /// (SystemTime::now().duration_since(std::time::UNIX_EPOCH).as_nanos())，
-/// 参见 store.rs:314-317。
+/// 参见 store.rs:314-317。TestOnly 计划值不是纳秒历法，不能走这里。
 ///
 /// 实现：精确 Proleptic Gregorian 历法（基于 Howard Hinnant 的 civil_from_days 算法）。
 /// 支持负数（1970-01-01 之前）、闰年、月底边界。
@@ -306,7 +313,31 @@ impl Contract {
             record: record.clone(),
             leverage: l,
             chongs,
+            unix_observation: manifest["clock"]["kind"] == "System",
         }))
+    }
+
+    /// 政策窗用的历法日。System 时钟只认 `b_observation.first_known_ns`（#1621）。
+    /// TestOnly 的逻辑计数若按纳秒换算会落在 1970-01-01，从而拒绝仍在签署窗内的开局，
+    /// 并且 `store::audit` 重放已落账原件时把域判成损坏。计数继续用原件 `known_at`；
+    /// 已经写成 Unix 纳秒的观察（≥ [`CIVIL_OBSERVATION_NS`]）仍换算历法。
+    fn observation_date(&self, batch: &Value, record: &Value) -> Result<String, String> {
+        let ns_str = record["b_observation"]
+            .get("first_known_ns")
+            .and_then(|v| v.as_str());
+        if self.unix_observation {
+            let ns_str = ns_str.ok_or("MissingDependency：b_observation 缺 first_known_ns")?;
+            return ns_to_date(ns_str);
+        }
+        if let Some(ns_str) = ns_str {
+            let ns: i64 = ns_str
+                .parse()
+                .map_err(|_| format!("InvalidDomain：first_known_ns 须为整数，得 {ns_str}"))?;
+            if ns >= CIVIL_OBSERVATION_NS {
+                return ns_to_date(ns_str);
+            }
+        }
+        date(batch, "known_at").map(str::to_owned)
     }
 
     pub(crate) fn chong(&self, id: &str) -> Result<&Chong, String> {
@@ -324,7 +355,7 @@ impl Contract {
     }
 
     /// 开局批核验（ADR 0040 裁定四第 4/5 步）。通过即返回写入书账的资金出处；失败不改任何状态。
-    /// `record["b_observation"]["first_known_ns"]` 为可审计观察时间（#1621），原件 `known_at` 不再用于时效判断。
+    /// System 时钟的政策窗看 `b_observation.first_known_ns`（#1621）；TestOnly 逻辑计数看原件 `known_at`。
     pub(crate) fn check_opening(&self, event: &Value, record: &Value) -> Result<Value, String> {
         let c = self.chong(target(event)?)?;
         let id = &event["book_identity"];
@@ -360,14 +391,9 @@ impl Contract {
         if batch["currency"] != self.record["currency"] {
             return Err("InvalidDomain：开局批币种与 funding-record 不符".into());
         }
-        // #1621：known_at 绑定可审计观察时间（record["b_observation"]["first_known_ns"]），不再使用原件自报日期。
-        // 跨域不变式：S/E/B/X 时刻先后由同一观察时间源锁定（与 tb03c_transfer.rs:367 转移目标口径一致）。
-        let obs = &record["b_observation"];
-        let first_known_ns_str = obs
-            .get("first_known_ns")
-            .and_then(|v| v.as_str())
-            .ok_or("MissingDependency：b_observation 缺 first_known_ns")?;
-        let known_at = ns_to_date(first_known_ns_str)?;
+        // #1621：System 时钟把政策窗绑到可审计观察日。TestOnly 逻辑计数不是历法，
+        // 仍用原件 known_at（见 observation_date）。
+        let known_at = self.observation_date(batch, record)?;
         let level = &c.level;
         let capacity = c.capacity();
         // ADR 0040:56/:59：批次只能引用已生效的签署（「只作用于生效后」）——下界。
