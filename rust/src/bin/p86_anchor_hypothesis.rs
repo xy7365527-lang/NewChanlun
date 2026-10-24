@@ -430,9 +430,7 @@ fn compose_next(
             run,
             false,
             next_level as u32,
-            active_tower_base()
-                .unwrap_or_else(|e| panic!("{e}"))
-                .value,
+            active_tower_base().unwrap_or_else(|e| panic!("{e}")).value,
         );
         for value in &mut upper {
             value.id = ElementId {
