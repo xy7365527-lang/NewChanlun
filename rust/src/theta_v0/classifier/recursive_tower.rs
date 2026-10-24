@@ -3364,4 +3364,19 @@ mod tests {
         // 错位调用：把 L1 中枢链的 blocks 喂给 L0 塔。
         let _ = project_to_units(&moves, &blocks);
     }
+
+#[test]
+#[should_panic(expected = "尚无真实构件")]
+fn compose_level_rejects_unsupported_tower_base() {
+    let _ = compose_level(&[], &[], true, 1, crate::theta_v0::config::TowerBase::Kline3);
+}
+
+#[test]
+#[should_panic(expected = "尚无真实构件")]
+fn compose_level_resume_rejects_unsupported_tower_base() {
+    let _ = compose_level_resume(
+        &[], &[], true, 1, 0, 0, &[], crate::theta_v0::config::TowerBase::Trade3,
+    );
+}
+
 }
