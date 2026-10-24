@@ -81,6 +81,10 @@ pub(super) struct Driver {
     runtime: prepared::Runtime,
     clock: v2::ClockPlan,
     epoch: String,
+    /// 本 Driver 的唯一生成配置；生产与诊断由构造入口显式决定。
+    theta_config: newchan_rust::theta_v0::config::ThetaConfig,
+    /// 只有正式生产入口要求可准入；既有 TestOnly 夹具继续只作诊断。
+    require_admissible: bool,
     profile_id: String,
     volume_unit: Option<String>,
     /// 启动时冻结的唯一审计源保留预算；完整候选须由owner在每次handle绑定当前快照。
@@ -131,6 +135,7 @@ impl Driver {
         )
     }
 
+    #[cfg(test)]
     pub(super) fn open_for_serve_with_mode(
         db: &Path,
         profile: &Path,
@@ -141,6 +146,22 @@ impl Driver {
     ) -> Result<Self, String> {
         state::check_audit_source_retention(audit_cache_source_bytes)?;
         let mut driver = Self::open_with_request_and_mode(db, profile, epoch, clock, None, mode)?;
+        driver.audit_cache_source_bytes = Some(audit_cache_source_bytes);
+        Ok(driver)
+    }
+
+    /// 正式服务入口：生产 profile 在开门与 pending 恢复前构造，诊断夹具无权进入。
+    pub(super) fn open_for_serve_with_mode_production(
+        db: &Path,
+        profile: &Path,
+        epoch: &str,
+        clock: v2::ClockPlan,
+        audit_cache_source_bytes: usize,
+        mode: s_allocation::Mode,
+    ) -> Result<Self, String> {
+        state::check_audit_source_retention(audit_cache_source_bytes)?;
+        let mut driver =
+            Self::open_production_with_request_and_mode(db, profile, epoch, clock, None, mode)?;
         driver.audit_cache_source_bytes = Some(audit_cache_source_bytes);
         Ok(driver)
     }
@@ -167,6 +188,8 @@ impl Driver {
             None,
             mode,
             Some(&mut context),
+            newchan_rust::theta_v0::config::ThetaConfig::default(),
+            false,
         )?;
         driver.audit_cache_source_bytes = Some(audit_cache_source_bytes);
         let identity = driver.identity_in_bootstrap(&mut context)?;
@@ -193,7 +216,15 @@ impl Driver {
     }
 
     pub(super) fn state_summary(&self, command: &str) -> Result<Value, String> {
-        self.conn.summary(command, &self.epoch, &self.clock)
+        let mut summary = self.conn.summary(command, &self.epoch, &self.clock)?;
+        let fields = summary
+            .as_object_mut()
+            .ok_or("StorageUnavailable：S 摘要不是对象")?;
+        fields.insert(
+            "policy_records".into(),
+            Value::String(self.theta_config.record_labels()),
+        );
+        Ok(summary)
     }
 
     #[cfg(test)]
@@ -233,6 +264,7 @@ impl Driver {
 
     /// startup仅显式CapturedNative做同核全捕获；其它模式保持普通。在pending恢复前审计并冻结模式。
     /// 多错坏库的首报顺序可能随先捕获改变；拒绝义务不变，不保留startup结果。
+    #[cfg(test)]
     pub(super) fn open_with_request_and_mode(
         db: &Path,
         profile: &Path,
@@ -241,8 +273,44 @@ impl Driver {
         request: Option<&Value>,
         mode: s_allocation::Mode,
     ) -> Result<Self, String> {
-        Self::open_with_request_and_mode_context(db, profile, epoch, clock, request, mode, None)
+        Self::open_with_request_and_mode_context(
+            db,
+            profile,
+            epoch,
+            clock,
+            request,
+            mode,
+            None,
+            newchan_rust::theta_v0::config::ThetaConfig::default(),
+            false,
+        )
     }
+
+    /// 正式写入口：先构造当前生效生产配置，再打开库或恢复任何 pending。
+    pub(super) fn open_production_with_request_and_mode(
+        db: &Path,
+        profile: &Path,
+        epoch: &str,
+        clock: v2::ClockPlan,
+        request: Option<&Value>,
+        mode: s_allocation::Mode,
+    ) -> Result<Self, String> {
+        let theta_config =
+            newchan_rust::theta_v0::config::ThetaConfig::for_production_profile("P0")
+                .map_err(|error| error.to_string())?;
+        Self::open_with_request_and_mode_context(
+            db,
+            profile,
+            epoch,
+            clock,
+            request,
+            mode,
+            None,
+            theta_config,
+            true,
+        )
+    }
+
     // #1394：None保持原open；Some仅专有Native服务bootstrap调用，不保存context。
     fn open_with_request_and_mode_context(
         db: &Path,
@@ -252,6 +320,8 @@ impl Driver {
         request: Option<&Value>,
         mode: s_allocation::Mode,
         mut startup_context: Option<&mut request_audit::RequestAuditContext>,
+        theta_config: newchan_rust::theta_v0::config::ThetaConfig,
+        require_admissible: bool,
     ) -> Result<Self, String> {
         mode.validate()?;
         parse_writer_epoch(epoch, "configured writer_epoch")?;
@@ -277,10 +347,12 @@ impl Driver {
         )?;
         let mut driver = Self {
             conn,
-            runtime: prepared::Runtime::with_mode(mode.clone()),
+            runtime: prepared::Runtime::with_config(mode.clone(), theta_config.clone()),
             mode,
             clock,
             epoch: epoch.into(),
+            theta_config,
+            require_admissible,
             profile_id,
             volume_unit,
             audit_cache_source_bytes: None,
@@ -415,6 +487,12 @@ impl Driver {
         envelope: &Value,
         request_audit: &mut request_audit::RequestAuditContext,
     ) -> Result<(Value, super::audit_owner::Ended), String> {
+        if self.require_admissible && !self.theta_config.admissible() {
+            return Err(format!(
+                "InvalidPolicy{{venue_profile}}：配置不得参与生产准入；records={}",
+                self.theta_config.record_labels()
+            ));
+        }
         let begun = self.conn.begin_advance(
             envelope,
             &self.epoch,
@@ -576,6 +654,63 @@ mod tests {
     }
 
     /// #1405：只有规则元数据为历史 /1 的空库也不准新写者接纳/恢复；Q 的只读审计仍可读。
+    #[test]
+    fn production_open_rejects_unsigned_profile_before_pending_begin() {
+        let f = Fixture::new();
+        let conn = super::super::audit_owner::AuditConnection::open(&f.db).unwrap();
+        let mode = s_allocation::Mode::Ordinary;
+        let mut context = request_audit::RequestAuditContext::default();
+        let (admission, _) = conn
+            .admit(
+                Fixture::ingest(1),
+                "1",
+                &f.clock,
+                tb02a::PROFILE,
+                None,
+                &mode,
+                &mut context,
+            )
+            .unwrap();
+        assert!(matches!(
+            admission,
+            super::super::audit_owner::Admission::Advance { .. }
+        ));
+        drop(conn);
+        let error = match Driver::open_production_with_request_and_mode(
+            &f.db,
+            &f.profile,
+            "1",
+            f.clock.clone(),
+            None,
+            mode,
+        ) {
+            Ok(_) => panic!("未签生产 profile 不得打开 Driver"),
+            Err(error) => error,
+        };
+        assert!(error.contains("AwaitingPolicy"), "{error}");
+        assert!(error.contains("venue_profile"), "{error}");
+        assert!(error.contains("cost_inputs"), "{error}");
+        let conn = Connection::open(&f.db).unwrap();
+        assert_eq!(
+            meta_get_opt(&conn, "advance_state")
+                .unwrap()
+                .unwrap_or_default(),
+            "idle"
+        );
+        assert!(meta_get_opt(&conn, "begin_token")
+            .unwrap()
+            .unwrap_or_default()
+            .is_empty());
+        let pending: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM s_input_messages WHERE status='AcceptedPending'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(pending, 1, "配置拒绝不得消费或提交 pending 原件");
+    }
+
     #[test]
     fn historical_bi_rule_is_readable_but_writer_and_recover_leave_it_unchanged() {
         let f = Fixture::new();
@@ -1344,6 +1479,8 @@ mod tests {
             None,
             s_allocation::Mode::CapturedNative,
             Some(&mut context),
+            newchan_rust::theta_v0::config::ThetaConfig::default(),
+            false,
         )
         .unwrap();
         assert_eq!((context.cold, context.hits), (1, 0));
@@ -1403,7 +1540,8 @@ mod tests {
             initial.handle(Fixture::ingest(1)).unwrap();drop(initial);
             let mut context=request_audit::RequestAuditContext::default();
             let driver=Driver::open_with_request_and_mode_context(&f.db,&f.profile,"1",f.clock.clone(),None,
-                s_allocation::Mode::CapturedNative,Some(&mut context)).unwrap();
+                s_allocation::Mode::CapturedNative,Some(&mut context),
+                newchan_rust::theta_v0::config::ThetaConfig::default(),false).unwrap();
             assert!(context.has_slot());
             driver.conn.execute_batch(sql).unwrap();
             let before=(count(&driver.conn,"s_input_messages"),count(&driver.conn,"s_clock_events"),count(&driver.conn,"s_content_publications"));
@@ -1422,6 +1560,8 @@ mod tests {
             None,
             s_allocation::Mode::CapturedNative,
             Some(&mut context),
+            newchan_rust::theta_v0::config::ThetaConfig::default(),
+            false,
         )
         .unwrap();
         let once = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
@@ -1495,6 +1635,8 @@ mod tests {
                         Some(&request),
                         s_allocation::Mode::CapturedNative,
                         Some(&mut context),
+                        newchan_rust::theta_v0::config::ThetaConfig::default(),
+                        false,
                     )
                     .map(|_| ())
                 } else {

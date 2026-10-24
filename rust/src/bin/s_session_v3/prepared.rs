@@ -8,6 +8,7 @@ use content_manifest::{ManifestMetadata, ManifestRoots, SourceCommit, Unpublishe
 use generation::{GenerationInput, GenerationRuntime};
 use newchan_rust::s_content::{self as sc, ContentRef, NodeStore, Value as V};
 use newchan_rust::session_protocol::required;
+use newchan_rust::theta_v0::config::ThetaConfig;
 use rusqlite::Transaction;
 use sc::capture_allocation::scratch::WorkScope;
 
@@ -69,6 +70,8 @@ impl<T: NodeStore> audit_store::CodecStore for BusinessTxStore<T> {
 pub(super) struct Runtime {
     /// 与 Driver 同一启动模式；不持 capture/审计结果，Owned 业务缓存按真实生命周期计费。
     mode: s_allocation::Mode,
+    /// 生成链配置；生产与诊断由 Driver 显式区分。
+    theta_config: ThetaConfig,
     binding: Option<Vec<String>>,
     generator: Option<GenerationRuntime>,
     auxiliary: aux_index::Runtime,
@@ -95,9 +98,15 @@ impl Runtime {
         Self::with_mode(allocation.into())
     }
 
+    #[cfg(test)]
     pub(super) fn with_mode(mode: s_allocation::Mode) -> Self {
+        Self::with_config(mode, ThetaConfig::default())
+    }
+
+    pub(super) fn with_config(mode: s_allocation::Mode, theta_config: ThetaConfig) -> Self {
         Self {
             mode,
+            theta_config,
             binding: None,
             generator: None,
             auxiliary: Default::default(),
@@ -481,10 +490,11 @@ impl Runtime {
                 return Err(err("运行缓存绑定了另一库/会话/冻结域；必须创建新运行实例"));
             }
         } else {
-            self.generator = Some(GenerationRuntime::new(
+            self.generator = Some(GenerationRuntime::with_config(
                 lane_key,
                 &metadata.profile_id,
                 &metadata.rule_revision,
+                self.theta_config.clone(),
             ));
             self.binding = Some(binding);
         }

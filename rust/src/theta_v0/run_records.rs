@@ -341,10 +341,25 @@ pub fn diagnostic_fixture_venue() -> Result<VenueProfile, RunPolicyError> {
 fn production_venue_where(
     matches: impl Fn(&str, Option<&str>) -> bool,
 ) -> Result<VenueProfile, RunPolicyError> {
-    for &(id, text) in PRODUCTION_VENUE_PROFILES {
-        if let Ok((profile_id, symbol, _)) = venue_header(id, text) {
-            if matches(&profile_id, symbol.as_deref()) {
-                return parse_venue_profile(id, Some(text));
+    production_venue_from_records(PRODUCTION_VENUE_PROFILES, matches)
+}
+
+/// 从具名生产记录表选择场所。匹配表的记录头损坏是 `InvalidPolicy`，不得吞成“没有记录”。
+fn production_venue_from_records(
+    records: &[(&str, &str)],
+    matches: impl Fn(&str, Option<&str>) -> bool,
+) -> Result<VenueProfile, RunPolicyError> {
+    for &(id, text) in records {
+        match venue_header(id, text) {
+            Ok((profile_id, symbol, _)) => {
+                if matches(&profile_id, symbol.as_deref()) {
+                    return parse_venue_profile(id, Some(text));
+                }
+            }
+            Err(error) => {
+                let mut err = RunPolicyError::default();
+                err.add(&[SLOT_VENUE_PROFILE, SLOT_COST_INPUTS], error);
+                return Err(err);
             }
         }
     }
@@ -507,6 +522,25 @@ mod tests {
     }
 
     /// 生产表里没有 profile 的品种 ⟹ 缺记录，两槽都报。
+    #[test]
+    fn malformed_production_header_is_invalid_not_missing() {
+        let malformed = venue_text(FULL_FIELDS).replace(r#""admissible":true,"#, "");
+        let error =
+            production_venue_from_records(&[(VENUE_PROFILE_P0_ID, malformed.as_str())], |_, _| {
+                true
+            })
+            .unwrap_err();
+        assert!(!error.is_awaiting_policy());
+        assert!(error
+            .to_string()
+            .starts_with("InvalidPolicy{venue_profile, cost_inputs}"));
+        assert!(error.causes.iter().any(|cause| matches!(
+            cause,
+            PolicyError::Invalid { id: VENUE_PROFILE_P0_ID, field, reason }
+                if field == "admissible" && reason.contains("缺 admissible")
+        )));
+    }
+
     #[test]
     fn unknown_symbol_has_no_production_profile() {
         for sym in ["ES", "OKLO", "6E", "nope"] {

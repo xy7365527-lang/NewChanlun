@@ -1582,7 +1582,7 @@ mod tests {
         let temp = Temp::new();
         let db = init_domain(&temp);
         let clock = write_clock(&temp, "ns");
-        assert!(cmd_advance(&db, DEFAULT_WRITER_EPOCH).is_err());
+        assert!(cmd_advance_fixture(&db, DEFAULT_WRITER_EPOCH).is_err());
         assert!(cmd_snapshot(&db, None).is_err());
         assert!(cmd_catalog(&db, None).is_err());
         assert!(cmd_query(&db, "testonly.ohlc|1|TEST.OHLC|event-1").is_err());

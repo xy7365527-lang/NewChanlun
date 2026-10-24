@@ -491,7 +491,7 @@ fn serve(options: ServeOptions) -> Result<Option<Value>, String> {
             mode,
         )?
     } else {
-        let driver = Driver::open_for_serve_with_mode(
+        let driver = Driver::open_for_serve_with_mode_production(
             &options.db,
             &options.profile,
             &options.epoch,
@@ -503,7 +503,7 @@ fn serve(options: ServeOptions) -> Result<Option<Value>, String> {
         (driver, identity)
     };
     #[cfg(not(feature = "s_capture_native_testonly"))]
-    let mut driver = Driver::open_for_serve_with_mode(
+    let mut driver = Driver::open_for_serve_with_mode_production(
         &options.db,
         &options.profile,
         &options.epoch,
@@ -574,7 +574,7 @@ fn advance(options: AdvanceOptions) -> Result<Option<Value>, String> {
     if let Some(ref envelope) = input {
         preflight_input(&options, &clock, envelope)?;
     }
-    let mut driver = Driver::open_with_request_and_mode(
+    let mut driver = Driver::open_production_with_request_and_mode(
         &options.db,
         &options.profile,
         &options.epoch,

@@ -317,6 +317,8 @@ pub(super) struct GenerationRuntime {
     /// 会话冻结身份（进身份配方）；逐代输入必须与之一致，不一致即拒绝。
     profile_id: String,
     rule_revision: String,
+    /// 本生成链的唯一配置来源；生产与诊断由调用方显式注入。
+    theta_config: ThetaConfig,
     /// `(source_coord, revision)` → 已写事件节点摘要（原件不可变；见模块文档）。
     event_nodes: BTreeMap<(i64, i64), NodeDigest>,
     raw_events_seq: SequenceMemo,
@@ -351,13 +353,25 @@ impl GenerationRuntime {
     }
 
     /// `lane_key` 按 `s_fact_cache::lane_key` 的持久身份口径给出（库/会话/规则/档案/目录）。
+    #[cfg(test)]
     pub(super) fn new(lane_key: String, profile_id: &str, rule_revision: &str) -> Self {
+        Self::with_config(lane_key, profile_id, rule_revision, ThetaConfig::default())
+    }
+
+    /// 显式注入配置；生产由 Driver 给当前生效记录，测试给诊断夹具。
+    pub(super) fn with_config(
+        lane_key: String,
+        profile_id: &str,
+        rule_revision: &str,
+        theta_config: ThetaConfig,
+    ) -> Self {
         GenerationRuntime {
             lane_key,
             producer: Cc004Producer::new(profile_id, rule_revision),
             bi: ContentBi::new(),
             profile_id: profile_id.to_string(),
             rule_revision: rule_revision.to_string(),
+            theta_config,
             event_nodes: BTreeMap::new(),
             raw_events_seq: SequenceMemo::default(),
             effective_events_seq: SequenceMemo::default(),
@@ -366,6 +380,10 @@ impl GenerationRuntime {
             relations_seq: SequenceMemo::default(),
             observations_seq: SequenceMemo::default(),
         }
+    }
+
+    pub(super) fn policy_records(&self) -> String {
+        self.theta_config.record_labels()
     }
 
     /// 事务回滚 / 换库 / 换来源域之后必须调用：清掉同核运行态与全部跨代序列记忆。
@@ -455,8 +473,6 @@ impl GenerationRuntime {
         let gen = input.generation;
         let cut = input.structure_cut;
         let frontier = input.input_frontier;
-        let config = ThetaConfig::default();
-
         // ── 原始账：生效账 → coord 表 + Bar 序列 + 事件节点；全修订史 → 事件节点 ──
         let mut raw_by_coord: BTreeMap<i64, JsonView<'_>> = BTreeMap::new();
         let mut raw_bars: Vec<Bar> = Vec::with_capacity(input.effective.len());
@@ -487,7 +503,7 @@ impl GenerationRuntime {
         let lane = lane_guard.lane(&self.lane_key);
         lane.advance(&raw_bars);
         let state: &IncrFactsState = lane.state();
-        let (layer, evidence) = parser::parse_layer_with_group_evidence(state, &config);
+        let (layer, evidence) = parser::parse_layer_with_group_evidence(state, &self.theta_config);
         let merged_rc = layer.merged_bars.clone();
         let merged: &[Bar] = merged_rc.as_ref();
         let prepared = self
@@ -1919,7 +1935,7 @@ mod tests {
                 .and_then(|value| value.parse::<i64>().ok())
                 .unwrap_or(-1);
             drop(conn);
-            cmd_advance(&self.files.db(), DEFAULT_WRITER_EPOCH).expect("oracle advance");
+            cmd_advance_fixture(&self.files.db(), DEFAULT_WRITER_EPOCH).expect("oracle advance");
             previous_frontier
         }
 

@@ -130,20 +130,46 @@ fn subtract_months(date: &str, n: u32) -> String {
     format!("{ny:04}-{nm:02}-{:02}", d.min(days))
 }
 
+/// 单品种失败：配置/政策缺口必须决定整批失败；数据加载失败/空窗仍按原规则处理。
+#[derive(Debug)]
+enum SymbolFailure {
+    Policy(String),
+    Data(String),
+}
+
+impl From<String> for SymbolFailure {
+    fn from(error: String) -> Self {
+        Self::Data(error)
+    }
+}
+
+impl std::fmt::Display for SymbolFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Policy(error) | Self::Data(error) => f.write_str(error),
+        }
+    }
+}
+
+/// 即使另一品种成功，配置/政策失败也不能从总判定里消失。
+fn batch_succeeds(successful_reports: usize, all_pass: bool, has_policy_failure: bool) -> bool {
+    successful_reports > 0 && all_pass && !has_policy_failure
+}
+
 /// 跑单品种（回放双跑 + 三面对拍）。
 fn run_symbol(
     symbol: &str,
     window: Option<(&str, &str)>,
     months: Option<u32>,
     diagnostic: bool,
-) -> Result<SymbolReport, String> {
+) -> Result<SymbolReport, SymbolFailure> {
     // #1602：生产路径按品种取场所 profile；缺值 ⟹ 停在 AwaitingPolicy，不回退旧常数。
     let config = if diagnostic {
         ThetaConfig::diagnostic_fixture()
     } else {
         ThetaConfig::for_production_symbol(symbol)
     }
-    .map_err(|e| format!("停止（不产读数）：{e}"))?;
+    .map_err(|e| SymbolFailure::Policy(format!("停止（不产读数）：{e}")))?;
     let full = load_by_symbol(symbol, &config)?;
 
     // ── 解析有效窗 (start, end)；None = 全量。 ──
@@ -442,21 +468,31 @@ fn main() -> std::process::ExitCode {
 
     // 失败品种收集（load 失败/空窗）不与成功品种混序：先打成功报告，再打失败。
     let mut ok_reports: Vec<SymbolReport> = Vec::new();
-    let mut failures: Vec<(String, String)> = Vec::new();
+    let mut policy_failures: Vec<(String, String)> = Vec::new();
+    let mut data_failures: Vec<(String, String)> = Vec::new();
     for (sym, r) in symbols.iter().zip(reports) {
         match r {
             Ok(rep) => ok_reports.push(rep),
-            Err(e) => failures.push((sym.clone(), e)),
+            Err(SymbolFailure::Policy(error)) => policy_failures.push((sym.clone(), error)),
+            Err(SymbolFailure::Data(error)) => data_failures.push((sym.clone(), error)),
         }
     }
+    let has_policy_failure = !policy_failures.is_empty();
 
     for r in &ok_reports {
         print_symbol_report(r);
     }
-    if !failures.is_empty() {
+    if !policy_failures.is_empty() {
         println!();
-        println!("── 失败/空窗（不参与判定）──────────────────────────────────");
-        for (sym, e) in &failures {
+        println!("── 配置/政策失败（整批失败）────────────────────────────────");
+        for (sym, e) in &policy_failures {
+            println!("  {sym:<6} {e}");
+        }
+    }
+    if !data_failures.is_empty() {
+        println!();
+        println!("── 数据加载失败/空窗（不参与判定）─────────────────────────");
+        for (sym, e) in &data_failures {
             println!("  {sym:<6} {e}");
         }
     }
@@ -496,7 +532,10 @@ fn main() -> std::process::ExitCode {
                 r.records,
             );
         }
-        for (sym, e) in &failures {
+        for (sym, e) in &policy_failures {
+            let _ = writeln!(summary, "- {sym:<6} 配置/政策失败：{e}");
+        }
+        for (sym, e) in &data_failures {
             let _ = writeln!(summary, "- {sym:<6} 未跑：{e}");
         }
         if let Err(e) = std::fs::write(dir.join("summary.md"), summary) {
@@ -506,7 +545,11 @@ fn main() -> std::process::ExitCode {
         println!("\n报告已写入: {dir:?}");
     }
 
-    if ok_reports.iter().all(|r| r.pass()) {
+    if batch_succeeds(
+        ok_reports.len(),
+        ok_reports.iter().all(|r| r.pass()),
+        has_policy_failure,
+    ) {
         std::process::ExitCode::SUCCESS
     } else {
         std::process::ExitCode::FAILURE
@@ -515,7 +558,15 @@ fn main() -> std::process::ExitCode {
 
 #[cfg(test)]
 mod tests {
-    use super::subtract_months;
+    use super::{batch_succeeds, subtract_months};
+
+    #[test]
+    fn policy_failure_is_fatal_even_when_another_symbol_succeeds() {
+        assert!(!batch_succeeds(1, true, true));
+        assert!(batch_succeeds(1, true, false));
+        assert!(!batch_succeeds(0, true, false));
+        assert!(!batch_succeeds(2, false, false));
+    }
 
     /// `subtract_months` 跨年/跨月/闰年二月日钳制（#1308 --months 窗切分的单调键前提）。
     #[test]
