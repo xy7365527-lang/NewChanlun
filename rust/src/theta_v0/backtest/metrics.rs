@@ -129,6 +129,7 @@ pub fn compute(
     } else {
         0.0
     };
+    // #1605 C-19：cvar_tail=0.05 为 v1 预注册值；生产代码改从 research_stats 记录读取。
     let cvar_5 = cvar(daily_returns, 0.05);
 
     let (win_rate, profit_factor) = win_rate_profit_factor(trade_pnls);
@@ -398,6 +399,7 @@ pub fn significance(
     // 单边 p 值 H0：总收益 ≤ 0 = 重采样中总收益 ≤ 0 的比例。
     let n_le_0 = boot_totals.iter().filter(|&&t| t <= 0.0).count();
     let boot_pvalue_pnl_le_0 = n_le_0 as f64 / N_RESAMPLE as f64;
+    // #1605 C-19：0.025/0.975 为 v1 预注册值（ci_lower/upper_quantile）；生产代码改从 research_stats 记录读取。
     let (boot_ci95_lo, boot_ci95_hi) = percentile_ci(&mut boot_totals, 0.025, 0.975);
 
     Significance {
@@ -674,6 +676,7 @@ fn sharpe_lo2002(daily_returns: &[f64], sharpe: f64) -> (f64, f64, f64) {
     // AR(1) 调整因子（Lo 2002 一阶近似；ρ₁>0 正自相关 ⟹ SE 放大）。
     let adj = (1.0 + 2.0 * rho1 * (1.0 - 1.0 / n as f64)).max(0.0);
     let se = se_iid * adj.sqrt();
+    // #1605 C-19：1.96 为 v1 预注册值（双边 95% CI 的 z 值）；生产代码改从 research_stats 记录读取。
     (se, sharpe - 1.96 * se, sharpe + 1.96 * se)
 }
 
@@ -715,6 +718,7 @@ fn sharpe_sortino(daily_returns: &[f64]) -> (f64, f64) {
         / (n - 1) as f64;
     let downside_std = downside_var.sqrt();
 
+    // #1605 C-19：252.0 为 v1 预注册值（annualization_days）；生产代码改从 research_stats 记录读取。
     const ANN: f64 = 252.0;
     let sharpe = if std > 1e-12 {
         mean / std * ANN.sqrt()

@@ -110,6 +110,7 @@ fn cell_stats(records: &[ResidualTrade]) -> BTreeMap<(u32, u8, i8, i8), CellStat
         series.entry(key).or_default().push(y);
     }
     let pp = perm_test::stratified_delta_perm_p(records, perm_test::N_PERM, perm_test::PERM_SEED);
+    // #1605 C-19：本诊断代码复现 v1 预注册值；生产代码改从 research_stats 记录读取。
     let (za, pa) = (1.645_f64, 0.05_f64);
     let mut out = BTreeMap::new();
     for (&key, &(n, mean, m2)) in &agg {

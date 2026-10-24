@@ -165,6 +165,7 @@ pub fn global_verdict(states: &[AlphaState]) -> AcceptanceVerdict {
 mod tests {
     use super::*;
 
+    // #1605 C-19：本测试代码复现 v1 预注册值；生产代码改从 research_stats 记录读取。
     const Z: f64 = 1.645;
     const PA: f64 = 0.05;
 
