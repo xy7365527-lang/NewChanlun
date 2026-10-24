@@ -1,3 +1,5 @@
+import Origin.Tangency
+
 /-
   缠论元素构成性阶梯·真完全分类（Phase 2, claim5 / task #28）
   工位：swarm/claim5-ladder（与 claim6-opsem/claim7-divergence/claim8-conservation 并发）
@@ -238,13 +240,18 @@ def Stroke.hi (s : Stroke) : Int := max s.startFractal.ext s.endFractal.ext
   （第67/71/78课，缺口两情形 + 结算锚 + 奇数性，xianduan.md:160 口径B，唯一正式口径）。
   v1 不在本形式化范围。本良构已比"仅 length≥3"忠实——方向锚定 + 前三笔重叠几何 + 递归闭包。
 -/
-def Segment.wellFormedV0 (s : Segment) : Prop :=
+def Segment.wellFormedV0 (t : NewChanlun.Origin.Tangency) (s : Segment) : Prop :=
   s.strokes.length ≥ 3
   ∧ (∀ (h : 0 < s.strokes.length),
       (s.strokes[0].direction = StrokeDir.up ↔ s.direction = SegmentDir.up))
   ∧ (∀ (h0 : 0 < s.strokes.length) (h1 : 1 < s.strokes.length) (h2 : 2 < s.strokes.length),
-      max s.strokes[0].lo (max s.strokes[1].lo s.strokes[2].lo)
-        < min s.strokes[0].hi (min s.strokes[1].hi s.strokes[2].hi))
+      match t with
+      | .open =>
+          max s.strokes[0].lo (max s.strokes[1].lo s.strokes[2].lo)
+            < min s.strokes[0].hi (min s.strokes[1].hi s.strokes[2].hi)
+      | .closed =>
+          max s.strokes[0].lo (max s.strokes[1].lo s.strokes[2].lo)
+            ≤ min s.strokes[0].hi (min s.strokes[1].hi s.strokes[2].hi))
   ∧ (∀ st ∈ s.strokes, st.wellFormed)
 
 /-! ## 第6级·辅助：中枢区间端点（zhongshu，第20课 ZD/ZG/DD/GG）
@@ -406,11 +413,11 @@ def StrokeFromFractals (fractals : List Fractal) (s : Stroke) : Prop :=
   ★codex 第二轮修正（递归闭包）：合取 `seg.wellFormedV0`——线段不仅来自连续窗口，
   还必须本身良构（方向锚定 + 前三笔重叠 + 所有笔良构）。关死"连续窗口但坏线段"漏洞。
 -/
-def SegmentFromStrokes (strokes : List Stroke) (seg : Segment) : Prop :=
+def SegmentFromStrokes (t : NewChanlun.Origin.Tangency) (strokes : List Stroke) (seg : Segment) : Prop :=
   ∃ start len, len ≥ 3
     ∧ start + len ≤ strokes.length
     ∧ seg.strokes = (strokes.drop start).take len
-    ∧ Segment.wellFormedV0 seg
+    ∧ Segment.wellFormedV0 t seg
 
 /-! ## ★第4→5→6级：走势递归塔（Move[0]=Segment，向上无限 unfold）
 
@@ -554,14 +561,14 @@ def CentersDerivedFrom (subs : List Move) (centers : List Center) : Prop :=
           codex 第三轮：关死伪造中枢漏洞——这是构成性阶梯"中枢由下级走势构造"的精确编码）；
       (f) `∀ m ∈ subs, WellFormed m`（递归良构）。
 -/
-def MoveWellFormed : Move → Prop
-  | Move.base seg => Segment.wellFormedV0 seg
+def MoveWellFormed (t : NewChanlun.Origin.Tangency) : Move → Prop
+  | Move.base seg => Segment.wellFormedV0 t seg
   | Move.compose subs centers lvl =>
       subs.length ≥ 3 ∧ lvl ≥ 1
       ∧ (∀ m ∈ subs, m.level = lvl - 1)
       ∧ centers.length ≥ 1
       ∧ CentersDerivedFrom subs centers
-      ∧ (∀ m ∈ subs, MoveWellFormed m)
+      ∧ (∀ m ∈ subs, MoveWellFormed t m)
 
 /--
   ★完成走势（SettledMove，codex 第二轮修正5：区分"结构良构"与"完成走势"）。
@@ -576,8 +583,8 @@ def MoveWellFormed : Move → Prop
   不是本级完成走势类型，是升父级信号。把扩展态算作"良构完成走势的第四类"才是膨胀；
   本定义诚实地把它排除在完成走势之外（none 出口）。
 -/
-def SettledMove (m : Move) : Prop :=
-  MoveWellFormed m ∧ ∃ t, trendKind? m = some t
+def SettledMove (t : NewChanlun.Origin.Tangency) (m : Move) : Prop :=
+  MoveWellFormed t m ∧ ∃ t, trendKind? m = some t
 
 /-! ## ★阶梯每层完全分类（构造子穷尽，对构造子结构归纳，L0） -/
 
@@ -625,10 +632,10 @@ theorem stroke_from_fractals_wellformed (fractals : List Fractal) (s : Stroke)
   ★桥接：线段笔由连续窗口切片（非任意 membership），关死重复消费/乱序/空洞。
   线段的笔是 strokes 的连续片段 `[start, start+len)`，len ≥ 3，且线段良构（递归闭包）。
 -/
-theorem segment_from_strokes_contiguous (strokes : List Stroke) (seg : Segment)
-    (h : SegmentFromStrokes strokes seg) :
+theorem segment_from_strokes_contiguous (t : NewChanlun.Origin.Tangency) (strokes : List Stroke) (seg : Segment)
+    (h : SegmentFromStrokes t strokes seg) :
     ∃ start len, len ≥ 3 ∧ seg.strokes = (strokes.drop start).take len
-      ∧ Segment.wellFormedV0 seg := by
+      ∧ Segment.wellFormedV0 t seg := by
   obtain ⟨start, len, hlen, _, hslice, hwf⟩ := h
   exact ⟨start, len, hlen, hslice, hwf⟩
 
@@ -649,8 +656,8 @@ theorem segment_is_move_base (seg : Segment) :
   不依赖中枢（level_recursion.md:31 线段自足，打破"中枢需要走势、走势需要中枢"循环），
   但 **必须** 是良构线段，不是任意 `Segment`（关死空线段当 Move[0]）。
 -/
-theorem base_move_wellformed (seg : Segment) (h : Segment.wellFormedV0 seg) :
-    MoveWellFormed (Move.base seg) := by
+theorem base_move_wellformed (t : NewChanlun.Origin.Tangency) (seg : Segment) (h : Segment.wellFormedV0 t seg) :
+    MoveWellFormed t (Move.base seg) := by
   unfold MoveWellFormed
   exact h
 
@@ -659,9 +666,9 @@ theorem base_move_wellformed (seg : Segment) (h : Segment.wellFormedV0 seg) :
   本阶梯第5级走势递归塔的 compose 良构强制 `subs.length ≥ 3`——
   与 Phase 1 `RecursiveConstruction.WellFormed` 的 `subs.length ≥ 3` 同构。
 -/
-theorem compose_move_at_least_three (subs : List Move) (centers : List Center)
+theorem compose_move_at_least_three (t : NewChanlun.Origin.Tangency) (subs : List Move) (centers : List Center)
     (lvl : Nat)
-    (h : MoveWellFormed (Move.compose subs centers lvl)) :
+    (h : MoveWellFormed t (Move.compose subs centers lvl)) :
     subs.length ≥ 3 := by
   unfold MoveWellFormed at h
   exact h.1
@@ -670,9 +677,9 @@ theorem compose_move_at_least_three (subs : List Move) (centers : List Center)
   ★对接4：良构 compose 走势级别递减（构成性来自低一级，与 Phase 1 同构）。
   良构 compose 的每个子走势级别 = 父级 -1——构成性阶梯"每级由低一级构造"的精确编码。
 -/
-theorem compose_move_subs_one_lower (subs : List Move) (centers : List Center)
+theorem compose_move_subs_one_lower (t : NewChanlun.Origin.Tangency) (subs : List Move) (centers : List Center)
     (lvl : Nat)
-    (h : MoveWellFormed (Move.compose subs centers lvl)) :
+    (h : MoveWellFormed t (Move.compose subs centers lvl)) :
     ∀ m ∈ subs, m.level = lvl - 1 := by
   unfold MoveWellFormed at h
   exact h.2.2.1
@@ -681,8 +688,8 @@ theorem compose_move_subs_one_lower (subs : List Move) (centers : List Center)
   ★对接4b：良构 compose 的中枢由子走势生成（★codex 第三轮：CentersDerivedFrom，非凭空）。
   良构 compose 满足 `CentersDerivedFrom subs centers`——中枢序列由 subs 重叠窗口生成。
 -/
-theorem compose_centers_derived (subs : List Move) (centers : List Center) (lvl : Nat)
-    (h : MoveWellFormed (Move.compose subs centers lvl)) :
+theorem compose_centers_derived (t : NewChanlun.Origin.Tangency) (subs : List Move) (centers : List Center) (lvl : Nat)
+    (h : MoveWellFormed t (Move.compose subs centers lvl)) :
     CentersDerivedFrom subs centers := by
   unfold MoveWellFormed at h
   exact h.2.2.2.2.1
@@ -709,16 +716,16 @@ theorem no_center_witness_when_too_short (subs : List Move) (c : Center) (i : Na
   故良构 Move 的 `lo/hi` 走 `x :: xs` 分支（head 初始化），sentinel `0` 永不污染区间。
   本定理见证 base 路径：良构 base 的笔列表非空（codex 第四轮 0-sentinel 漏洞关死）。
 -/
-theorem wellformed_base_strokes_nonempty (seg : Segment)
-    (h : MoveWellFormed (Move.base seg)) : seg.strokes ≠ [] := by
+theorem wellformed_base_strokes_nonempty (t : NewChanlun.Origin.Tangency) (seg : Segment)
+    (h : MoveWellFormed t (Move.base seg)) : seg.strokes ≠ [] := by
   unfold MoveWellFormed Segment.wellFormedV0 at h
   intro hempty
   rw [hempty] at h
   simp at h
 
 /-- ★良构 compose 的中枢列表非空（区间 sentinel 不触发的 compose 路径见证，codex 第四轮）。 -/
-theorem wellformed_compose_centers_nonempty (subs : List Move) (centers : List Center)
-    (lvl : Nat) (h : MoveWellFormed (Move.compose subs centers lvl)) : centers ≠ [] := by
+theorem wellformed_compose_centers_nonempty (t : NewChanlun.Origin.Tangency) (subs : List Move) (centers : List Center)
+    (lvl : Nat) (h : MoveWellFormed t (Move.compose subs centers lvl)) : centers ≠ [] := by
   unfold MoveWellFormed at h
   intro hempty
   rw [hempty] at h
@@ -749,7 +756,7 @@ theorem one_center_is_consolidation (subs : List Move) (c : Center) (lvl : Nat) 
   含扩展/未完成的良构 compose 裁决为 none（升父级候选，非第四走势类型），被 SettledMove
   诚实排除——这正是缠论"完成走势必属三类"的精确边界（codex 修正5 关死 none 出口膨胀）。
 -/
-theorem settled_move_trichotomy (m : Move) (h : SettledMove m) :
+theorem settled_move_trichotomy (t : NewChanlun.Origin.Tangency) (m : Move) (h : SettledMove t m) :
     ∃ t, trendKind? m = some t
       ∧ (t = TrendKind.upTrend ∨ t = TrendKind.downTrend ∨ t = TrendKind.consolidation) := by
   obtain ⟨_, t, ht⟩ := h
@@ -760,8 +767,8 @@ theorem settled_move_trichotomy (m : Move) (h : SettledMove m) :
   它 **不是** 走势三分的反例，而是"本级终结、升父级"信号。本定理见证：良构 + none ⟹ ¬SettledMove
   （none 出口被诚实排除在完成走势之外，非膨胀为第四类）。
 -/
-theorem none_outcome_not_settled (m : Move) (hnone : trendKind? m = none) :
-    ¬ SettledMove m := by
+theorem none_outcome_not_settled (t : NewChanlun.Origin.Tangency) (m : Move) (hnone : trendKind? m = none) :
+    ¬ SettledMove t m := by
   intro ⟨_, t, ht⟩
   rw [hnone] at ht
   exact absurd ht (by simp)

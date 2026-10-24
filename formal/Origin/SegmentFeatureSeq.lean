@@ -1,3 +1,5 @@
+import Origin.Tangency
+
 /-
 Origin/SegmentFeatureSeq.lean — 线段/笔的特征序列法（task #113，缠论分类血肉港入 Origin）
 
@@ -96,45 +98,33 @@ theorem isFeatureStroke_down (s : Stroke) :
     ═══════════════════════════════════════════════════════════════════════ -/
 
 /--
-  **缺口（第67课）** —— "特征序列两相邻元素间没有重合区间，称为该序列的一个缺口。"
-  无重合 ⟺ `a.high < b.low ∨ b.high < a.low`。
-
-  ★ 版本化字段 `tangency`（xianduan.md §6.3 X-38，ADR 0041，[#1600]）：
-  当前写死 `closed` 模式（相切算重合，`≤`，现行取值）。完整参数化见 X-38 清单。
+  **缺口（第67课）**：`closed` 相切算重合，`open` 相切即缺口；两值共用同一互补合同。
 -/
-def HasGap (a b : FeatureElem) : Prop :=
-  a.high < b.low ∨ b.high < a.low
+def HasGap (t : Tangency) (a b : FeatureElem) : Prop :=
+  match t with
+  | .closed => a.high < b.low ∨ b.high < a.low
+  | .open => a.high ≤ b.low ∨ b.high ≤ a.low
 
-instance (a b : FeatureElem) : Decidable (HasGap a b) := by
-  unfold HasGap; exact inferInstanceAs (Decidable (_ ∨ _))
+instance (t : Tangency) (a b : FeatureElem) : Decidable (HasGap t a b) := by
+  unfold HasGap; cases t <;> exact inferInstanceAs (Decidable (_ ∨ _))
 
-/--
-  **重合（缺口的否定）** —— 两区间有公共点 ⟺ `a.low ≤ b.high ∧ b.low ≤ a.high`。
+/-- 重合与缺口由同一个 `tangency` 定义，禁止分别取不同值。 -/
+def Overlaps (t : Tangency) (a b : FeatureElem) : Prop :=
+  match t with
+  | .closed => a.low ≤ b.high ∧ b.low ≤ a.high
+  | .open => a.low < b.high ∧ b.low < a.high
 
-  ★ 版本化字段 `tangency`（xianduan.md §6.3 X-38，ADR 0041，[#1600]）：
-  当前写死 `closed` 模式（相切算重合，`≤`，现行取值）。完整参数化见 X-38 清单。
--/
-def Overlaps (a b : FeatureElem) : Prop :=
-  a.low ≤ b.high ∧ b.low ≤ a.high
+instance (t : Tangency) (a b : FeatureElem) : Decidable (Overlaps t a b) := by
+  unfold Overlaps; cases t <;> exact inferInstanceAs (Decidable (_ ∧ _))
 
-instance (a b : FeatureElem) : Decidable (Overlaps a b) := by
-  unfold Overlaps; exact inferInstanceAs (Decidable (_ ∧ _))
-
-/-- 缺口与重合互斥穷尽（L0，决定第一/第二种情况的二歧）。 -/
-theorem gap_iff_not_overlap (a b : FeatureElem) :
-    HasGap a b ↔ ¬ Overlaps a b := by
-  simp only [HasGap, Overlaps, Tick]
-  constructor
-  · rintro (h | h) ⟨h1, h2⟩ <;> omega
-  · intro h
-    -- h : ¬(a.low ≤ b.high ∧ b.low ≤ a.high)；用可判定性拆为析取后 omega 各支闭合
-    rcases Decidable.not_and_iff_not_or_not.mp h with h' | h'
-    · exact Or.inr (by omega)
-    · exact Or.inl (by omega)
+/-- 缺口与重合互斥穷尽（两个取值分别成立）。 -/
+theorem gap_iff_not_overlap (t : Tangency) (a b : FeatureElem) :
+    HasGap t a b ↔ ¬ Overlaps t a b := by
+  cases t <;> simp only [HasGap, Overlaps, Tick] at * <;> omega
 
 /-- 缺口对称（无重合是对称关系）。 -/
-theorem gap_symm (a b : FeatureElem) : HasGap a b ↔ HasGap b a := by
-  simp only [HasGap, Tick]; constructor <;> (rintro (h | h)) <;> omega
+theorem gap_symm (t : Tangency) (a b : FeatureElem) : HasGap t a b ↔ HasGap t b a := by
+  cases t <;> simp only [HasGap, Tick] at * <;> omega
 
 /-! ═══════════════════════════════════════════════════════════════════════
     § 3. 包含关系（第67/71课）：同一特征序列内的非包含处理
@@ -322,27 +312,27 @@ def FractalInSeq (wantTop : Bool) : List FeatureElem → Prop
 
   ★这是 `segmentsOf` 真判据的核心：缺口的有无决定确认路径，不是平凡桩。
 -/
-def SegmentEndUp (e1 e2 : FeatureElem) (revSeq : List FeatureElem) : Prop :=
-  if HasGap e1 e2 then FractalInSeq false revSeq else True
+def SegmentEndUp (t : Tangency) (e1 e2 : FeatureElem) (revSeq : List FeatureElem) : Prop :=
+  if HasGap t e1 e2 then FractalInSeq false revSeq else True
 
 /-- 向下线段终结判据（对偶：底分型 + 缺口时反向顶分型确认）。 -/
-def SegmentEndDown (e1 e2 : FeatureElem) (revSeq : List FeatureElem) : Prop :=
-  if HasGap e1 e2 then FractalInSeq true revSeq else True
+def SegmentEndDown (t : Tangency) (e1 e2 : FeatureElem) (revSeq : List FeatureElem) : Prop :=
+  if HasGap t e1 e2 then FractalInSeq true revSeq else True
 
 /--
   **★第一种情况无条件确认（L0）** —— `e1 e2` 无缺口 ⟹ `SegmentEndUp` 成立（不依赖反向序列）。
   这把"第一种情况直接结束"形式化为定理（067:26-28）。
 -/
-theorem segmentEndUp_caseOne (e1 e2 : FeatureElem) (revSeq : List FeatureElem)
-    (h : ¬ HasGap e1 e2) : SegmentEndUp e1 e2 revSeq := by
+theorem segmentEndUp_caseOne (t : Tangency) (e1 e2 : FeatureElem) (revSeq : List FeatureElem)
+    (h : ¬ HasGap t e1 e2) : SegmentEndUp t e1 e2 revSeq := by
   unfold SegmentEndUp; simp only [if_neg h]
 
 /--
   **★第二种情况须反向分型（L0）** —— `e1 e2` 有缺口 ⟹ `SegmentEndUp` 成立**当且仅当**
   反向序列出现底分型（067:37-38）——缺口时不能直接确认，这是真判据（非平凡桩）。
 -/
-theorem segmentEndUp_caseTwo (e1 e2 : FeatureElem) (revSeq : List FeatureElem)
-    (h : HasGap e1 e2) : SegmentEndUp e1 e2 revSeq ↔ FractalInSeq false revSeq := by
+theorem segmentEndUp_caseTwo (t : Tangency) (e1 e2 : FeatureElem) (revSeq : List FeatureElem)
+    (h : HasGap t e1 e2) : SegmentEndUp t e1 e2 revSeq ↔ FractalInSeq false revSeq := by
   unfold SegmentEndUp; simp only [if_pos h]
 
 /--
@@ -351,12 +341,12 @@ theorem segmentEndUp_caseTwo (e1 e2 : FeatureElem) (revSeq : List FeatureElem)
 
   这证明两种情况的划分是**完全分类**（不遗漏、不重叠），不是 ad-hoc 列举。
 -/
-theorem segment_two_cases_exhaustive (e1 e2 : FeatureElem) (revSeq : List FeatureElem) :
-    (¬ HasGap e1 e2 ∧ SegmentEndUp e1 e2 revSeq) ∨
-    (HasGap e1 e2 ∧ (SegmentEndUp e1 e2 revSeq ↔ FractalInSeq false revSeq)) := by
-  by_cases h : HasGap e1 e2
-  · exact Or.inr ⟨h, segmentEndUp_caseTwo e1 e2 revSeq h⟩
-  · exact Or.inl ⟨h, segmentEndUp_caseOne e1 e2 revSeq h⟩
+theorem segment_two_cases_exhaustive (t : Tangency) (e1 e2 : FeatureElem) (revSeq : List FeatureElem) :
+    (¬ HasGap t e1 e2 ∧ SegmentEndUp t e1 e2 revSeq) ∨
+    (HasGap t e1 e2 ∧ (SegmentEndUp t e1 e2 revSeq ↔ FractalInSeq false revSeq)) := by
+  by_cases h : HasGap t e1 e2
+  · exact Or.inr ⟨h, segmentEndUp_caseTwo t e1 e2 revSeq h⟩
+  · exact Or.inl ⟨h, segmentEndUp_caseOne t e1 e2 revSeq h⟩
 
 /-! ═══════════════════════════════════════════════════════════════
     § 6.1 第一种情况：先破判据与转折点窗三态（#1490 X-31，#1495）
@@ -622,31 +612,31 @@ theorem turnWindowStateDown_open_iff (b : FeatureElem) (xs : List FeatureElem) :
 
 /-- 第一种情况的完整前缀确认定义：a、b 无缺口，b 是候选峰，窗内先破确认。
 三元素 FirstBreakConfirmsUp 只表达局部几何；这里显式带入缺口与时间先后。 -/
-def FirstKindConfirmsUp (a b : FeatureElem) (xs : List FeatureElem) : Prop :=
-  ¬ HasGap a b ∧ a.high < b.high ∧ turnWindowStateUp b xs = .confirmed
+def FirstKindConfirmsUp (t : Tangency) (a b : FeatureElem) (xs : List FeatureElem) : Prop :=
+  ¬ HasGap t a b ∧ a.high < b.high ∧ turnWindowStateUp b xs = .confirmed
 
 /-- 第一种情况完整前缀确认的向下对偶。 -/
-def FirstKindConfirmsDown (a b : FeatureElem) (xs : List FeatureElem) : Prop :=
-  ¬ HasGap a b ∧ b.low < a.low ∧ turnWindowStateDown b xs = .confirmed
+def FirstKindConfirmsDown (t : Tangency) (a b : FeatureElem) (xs : List FeatureElem) : Prop :=
+  ¬ HasGap t a b ∧ b.low < a.low ∧ turnWindowStateDown b xs = .confirmed
 
 /-- 在真实首个出窗元素上，无并列时先破确认等价于 067 严格顶分型。
 `¬ Contains` 由首个出窗的定义证明；缺口条件在两边完全相同。 -/
-theorem firstKindUp_iff_topFractal (a b c : FeatureElem) (xs : List FeatureElem)
+theorem firstKindUp_iff_topFractal (t : Tangency) (a b c : FeatureElem) (xs : List FeatureElem)
     (hfirst : firstOutsideWindow b xs = some c) (hne : c.high ≠ b.high) :
-    FirstKindConfirmsUp a b xs ↔ ¬ HasGap a b ∧ IsTopFractal a b c := by
+    FirstKindConfirmsUp t a b xs ↔ ¬ HasGap t a b ∧ IsTopFractal a b c := by
   unfold FirstKindConfirmsUp
   rw [turnWindowStateUp_firstOutside b c xs hfirst,
     turnWindowStateUp_singleton_confirmed]
-  change (¬ HasGap a b ∧ FirstBreakConfirmsUp a b c) ↔ _
+  change (¬ HasGap t a b ∧ FirstBreakConfirmsUp a b c) ↔ _
   rw [firstBreakUp_iff_topFractal a b c (firstOutsideWindow_not_contains b c xs hfirst) hne]
 
-theorem firstKindDown_iff_bottomFractal (a b c : FeatureElem) (xs : List FeatureElem)
+theorem firstKindDown_iff_bottomFractal (t : Tangency) (a b c : FeatureElem) (xs : List FeatureElem)
     (hfirst : firstOutsideWindow b xs = some c) (hne : c.low ≠ b.low) :
-    FirstKindConfirmsDown a b xs ↔ ¬ HasGap a b ∧ IsBottomFractal a b c := by
+    FirstKindConfirmsDown t a b xs ↔ ¬ HasGap t a b ∧ IsBottomFractal a b c := by
   unfold FirstKindConfirmsDown
   rw [turnWindowStateDown_firstOutside b c xs hfirst,
     turnWindowStateDown_singleton_confirmed]
-  change (¬ HasGap a b ∧ FirstBreakConfirmsDown a b c) ↔ _
+  change (¬ HasGap t a b ∧ FirstBreakConfirmsDown a b c) ↔ _
   rw [firstBreakDown_iff_bottomFractal a b c
     (firstOutsideWindow_not_contains b c xs hfirst) hne]
 
