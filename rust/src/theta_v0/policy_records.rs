@@ -353,6 +353,8 @@ pub fn level_config_from(budget: TowerLevelBudget, min_parts_per_level: u32) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::theta_v0::config::TowerBase;
+    use crate::trading::positional::TrendScope;
 
     const TOWER_V2_L3: &str =
         r#"{"id":"tower-level-budget","version":2,"fields":{"l_max":{"value":3}}}"#;
@@ -668,4 +670,67 @@ mod tests {
             );
         }
     }
+    #[test]
+    fn trend_scope_profiles_read_their_own_record_values() {
+        let default = active_trend_scope_for_profile(TrendScopeProfile::Default).unwrap();
+        assert_eq!(default.value, TrendScope::SelfLayer);
+        assert_eq!(default.record.label(), "trend-scope/1");
+        let anc = active_trend_scope_for_profile(TrendScopeProfile::Hold26Anc).unwrap();
+        assert_eq!(anc.value, TrendScope::Ancestor);
+        let ta = active_trend_scope_for_profile(TrendScopeProfile::FusionTa).unwrap();
+        assert_eq!(ta.value, TrendScope::SelfOrAncestor);
+        assert_eq!(anc.record, ta.record);
+    }
+
+    #[test]
+    fn trend_scope_mutation_and_missing_values_do_not_fallback() {
+        let changed = r#"{"id":"trend-scope","version":2,"fields":{"default":{"value":"Ancestor"}}}"#;
+        let parsed = parse_trend_scope_for_profile(TrendScopeProfile::Default, Some(changed)).unwrap();
+        assert_eq!(parsed.value, TrendScope::Ancestor);
+        assert_eq!(parsed.record.label(), "trend-scope/2");
+
+        let missing = r#"{"id":"trend-scope","version":1,"fields":{}}"#;
+        assert!(matches!(
+            parse_trend_scope_for_profile(TrendScopeProfile::Default, Some(missing)),
+            Err(PolicyError::AwaitingPolicy { field, .. }) if field == "default"
+        ));
+        let invalid = r#"{"id":"trend-scope","version":1,"fields":{"default":{"value":"self"}}}"#;
+        assert!(matches!(
+            parse_trend_scope_for_profile(TrendScopeProfile::Default, Some(invalid)),
+            Err(PolicyError::Invalid { .. })
+        ));
+    }
+
+    #[test]
+    fn tower_base_record_drives_config_and_rejects_unsupported_base() {
+        let active = active_tower_base().unwrap();
+        assert_eq!(active.value, TowerBase::Segment);
+        assert_eq!(active.record.label(), "tower-base/1");
+        let budget = active_tower_level_budget().unwrap();
+        let cfg = try_level_config_from(budget, active, 3).unwrap();
+        assert_eq!(cfg.tower_base, TowerBase::Segment);
+        assert_eq!(cfg.tower_base_policy.label(), "tower-base/1");
+
+        for (token, expected) in [
+            ("kline3", TowerBase::Kline3),
+            ("trade3", TowerBase::Trade3),
+        ] {
+            let text = format!(
+                "{{\"id\":\"tower-base\",\"version\":2,\"fields\":{{\"tower_base\":{{\"value\":\"{token}\"}}}}}}"
+            );
+            let policy = parse_tower_base(Some(&text)).unwrap();
+            assert_eq!(policy.value, expected);
+            assert!(matches!(
+                try_level_config_from(budget, policy, 3),
+                Err(PolicyError::Invalid { .. })
+            ));
+        }
+
+        let missing = r#"{"id":"tower-base","version":1,"fields":{}}"#;
+        assert!(matches!(
+            parse_tower_base(Some(missing)),
+            Err(PolicyError::AwaitingPolicy { field, .. }) if field == "tower_base"
+        ));
+    }
+
 }
