@@ -63536,7 +63536,7 @@
     {
       "issue": 1670,
       "pull_request": 1697,
-      "source_head": "f441419401dea6d45f34302c1d42b2ac161e9bae",
+      "source_head": "f441419401de",
       "actions_run": 40082025796,
       "added_findings": 1,
       "rule_counts": {
