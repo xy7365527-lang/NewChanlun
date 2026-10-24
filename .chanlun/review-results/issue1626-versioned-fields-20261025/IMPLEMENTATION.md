@@ -78,3 +78,11 @@
 - IO 负控完整：缺记录、null、`AwaitingPolicy`、非法相切值分别拒绝，日志为 `TANGENCY_MISSING_REJECT_OK`、`TANGENCY_NULL_REJECT_OK`、`TANGENCY_AWAITING_REJECT_OK`、`TANGENCY_INVALID_REJECT_OK`；没有备用默认或意外接受。
 - `python3 scripts/check_fixture_drift.py`：center / certificate_chain / parity 均 **0 字段差异、字节一致**。`git diff --check` 通过；没有新增 `sorry` / `admit` / 公理。未在本机运行 cargo/rustc 测试。
 - 本次只改 `formal/Origin/VersionedTangencyTests.lean` 与 `formal/lakefile.toml`，并追加本报告。GitHub CI、当前 head 的整票非作者独审及用户 main 合入闸仍待完成，不预写通过。
+
+## X-38 open 变异重推导尾部返修（2026-10-25）
+
+- 尾部代码提交：`58359067830327654cd90705f99e12ec5809cc2a`。
+- 独审缺口：此前 open 变异只检查记录字段，未证明该记录驱动业务重推导。
+- 修复：在同一个 `#eval` 中以 `p.tangency` 调用 `classifyTermination`，并要求同一三笔相切输入进入 `secondKind`；保留 record id/version 断言与四类 IO 拒绝负控。
+- 实证：`cd formal && lake env lean Origin/VersionedTangencyTests.lean` 输出 `TANGENCY_OPEN_MUTATION_OK` 及四类拒绝标记；`lake build` 163 jobs 全过，实际 `Built Origin.VersionedTangencyTests`。
+- fixture：`python3 scripts/check_fixture_drift.py` 三组均 0 字段差异、字节一致；`git diff --check` 通过。未改生产定义，未运行本机 cargo。
