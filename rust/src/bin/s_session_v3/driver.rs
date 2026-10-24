@@ -3077,7 +3077,15 @@ mod tests {
             "Committed"
         );
         assert_eq!(count(&writer.conn, "raw_events"), 1);
-        assert_eq!(count(&writer.conn, "raw_ohlc"), 0);
+        let ohlc_sidecars: i64 = writer
+            .conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_schema WHERE type='table' AND name='raw_ohlc'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(ohlc_sidecars, 0);
         drop(writer);
 
         recover(&fixture.db, "2", &fixture.clock, "recover-1").unwrap();
@@ -3089,7 +3097,6 @@ mod tests {
             assert_eq!(writer.handle(input).unwrap()["kind"], "Committed");
         }
         assert_eq!(count(&writer.conn, "raw_events"), 3);
-        assert_eq!(count(&writer.conn, "raw_ohlc"), 0);
         assert_eq!(count(&writer.conn, "s_content_publications"), 3);
         let identity = writer.identity().unwrap();
         let summary = writer.state_summary("tick-before-reopen").unwrap();
