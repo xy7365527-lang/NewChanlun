@@ -3237,7 +3237,7 @@ mod tests {
             "--max-input-bytes".into(),
             receipt_bytes.len().to_string(),
         ]);
-        let received = super::super::writer_cli::run(&receipt_args)
+        let received = super::super::writer_cli::run_fixture(&receipt_args)
             .unwrap()
             .unwrap();
         assert_eq!(received["kind"], "Committed");
