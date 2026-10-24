@@ -1641,7 +1641,7 @@ mod tests {
     };
     use crate::{
         canonical_bytes_of_value, cmd_advance, compute_diff, delta_storage, load_batch_bytes,
-        meta_get_opt, open_db, read_effective_events, read_stored_objects,
+        canonical_json, meta_get_opt, open_db, read_effective_events, read_stored_objects,
         verified_root_raw_events, StoredObjects, DEFAULT_WRITER_EPOCH, accept_core,
     };
     use newchan_rust::s_content::{render_canonical, MemoryNodes};
@@ -2317,7 +2317,7 @@ mod tests {
             "catalog_axes",
         ];
         for field in FIELDS {
-            if field == "catalog_axes" && !mapped.contains_key(field) && !mine.contains_key(field) {
+            if field == "catalog_axes" && mapped.get(field).is_none() && mine.get(field).is_none() {
                 continue;
             }
             let want = mapped
