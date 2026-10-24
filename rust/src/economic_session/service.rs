@@ -1109,6 +1109,7 @@ fn apply_allocation_inner(
         .to_string();
     let (received, first, ns) = clocks(config, e, &floor, epoch)?;
     record["b_observation"] = json!({"received_ns":received,"first_known_ns":first,"commit_ns":ns});
+    super::store::verify_b_observation_after_e_commit(&record)?;
     record["b_origin_message"] = json!({"source_namespace":e["source_namespace"],"source_epoch":e["source_epoch"],"message_id":e["message_id"],"payload_hash":e["payload_hash"]});
     record["b_origin_request_hash"] = json!(hash(e));
     let (next, unmatched) = super::book::apply_in(&config.manifest, &image, &record, seq, &ns)?;
