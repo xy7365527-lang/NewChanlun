@@ -134,7 +134,7 @@ fn apply_payload(r: &Value, id: &Value) -> Value {
 }
 
 /// 全表逻辑转储：每表按主键序、每格原字节（TEXT 原样，BLOB 十六进制）。
-fn dump(db: &Path) -> Value {
+pub(super) fn dump(db: &Path) -> Value {
     let (c, _) = store::open(db, true).unwrap();
     let names = c
         .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
@@ -175,10 +175,10 @@ fn dump(db: &Path) -> Value {
     }
     Value::Object(tables)
 }
-fn dumps(configs: &[store::Config]) -> Vec<Value> {
+pub(super) fn dumps(configs: &[store::Config]) -> Vec<Value> {
     configs.iter().map(|c| dump(&c.db)).collect()
 }
-fn without(tables: &Value, names: &[&str]) -> Value {
+pub(super) fn without(tables: &Value, names: &[&str]) -> Value {
     let mut t = tables.clone();
     for n in names {
         t.as_object_mut().unwrap().remove(*n);
@@ -186,7 +186,7 @@ fn without(tables: &Value, names: &[&str]) -> Value {
     t
 }
 /// 业务表：除 meta（含 manifest_hash，随目录与故障计划而变）外全部表。
-fn business(tables: &Value) -> Value {
+pub(super) fn business(tables: &Value) -> Value {
     without(tables, &["meta"])
 }
 /// TestOnly 时钟列宽：消息 m-i 在 epoch e 的时刻 = (e−1)·COLUMN + 1000 + 10·i + offset（offset ∈ {0,1,2}，
@@ -197,22 +197,33 @@ const COLUMN: i64 = 1_000_000;
 /// 故商 = 该域处理 m-i 时的 epoch−1。崩溃轨里只有被杀域、且只有从 `from` 起（提交前被杀含目标消息，
 /// 提交后被杀不含）的消息由 epoch 2 处理；B 记录里抄入的 E 时刻（e_first_known_ns、E 证明的 commit_ns）
 /// 归属 E 处理的那条消息，同一判据。
-struct Clock {
+pub(super) struct Clock {
     owners: Vec<usize>,
     killed: Option<(usize, usize)>,
+    /// 真实 Unix 纳秒夹具的起始列；原 S3 的 1970 相对时刻为 0。
+    base_quotient: i64,
 }
 impl Clock {
-    fn reference(plan: &Plan) -> Self {
+    /// 通用构造（#1674 `/2` 矩阵复用）：`owners[i]` = 处理 m-i 的域；`killed` = (被杀域, 起始消息)。
+    pub(super) fn of(owners: Vec<usize>, killed: Option<(usize, usize)>) -> Self {
+        Self::of_at(owners, killed, 0)
+    }
+    /// 带真实日期偏移的构造（#1621 后资金时效夹具）；商先减起始列再按 epoch 核对。
+    pub(super) fn of_at(owners: Vec<usize>, killed: Option<(usize, usize)>, base_ns: i64) -> Self {
         Self {
-            owners: owners(plan),
-            killed: None,
+            owners,
+            killed,
+            base_quotient: base_ns / COLUMN,
         }
     }
+    fn reference(plan: &Plan) -> Self {
+        Self::of(owners(plan), None)
+    }
     fn crash(plan: &Plan, owner: usize, target: usize, committed: bool) -> Self {
-        Self {
-            owners: owners(plan),
-            killed: Some((owner, if committed { target + 1 } else { target })),
-        }
+        Self::of(
+            owners(plan),
+            Some((owner, if committed { target + 1 } else { target })),
+        )
     }
     fn expected_quotient(&self, rem: i64) -> Result<i64, String> {
         match rem {
@@ -276,7 +287,7 @@ impl<'c> Normalizer<'c> {
                             Some(n) => {
                                 let (q, r) = (n / COLUMN, n % COLUMN);
                                 match self.clock.expected_quotient(r) {
-                                    Ok(e) if e == q => (),
+                                    Ok(e) if e + self.clock.base_quotient == q => (),
                                     Ok(e) => bad.push(format!("{here}={n}：商 {q} ≠ 期望 {e}")),
                                     Err(e) => bad.push(format!("{here}={n}：{e}")),
                                 }
@@ -312,7 +323,7 @@ impl<'c> Normalizer<'c> {
     }
 }
 /// 参照值按参照时钟规范化（须全部时刻合列）。参照只算一次，存进 [`Plan`]。
-fn normalize_reference(v: &Value, reference: &Clock) -> Value {
+pub(super) fn normalize_reference(v: &Value, reference: &Clock) -> Value {
     let mut bad = vec![];
     let out = normalize(v, reference, "", &mut bad);
     assert!(bad.is_empty(), "参照时刻不合列：{bad:?}");
@@ -354,7 +365,7 @@ fn first_diff(a: &Value, b: &Value, path: &str) -> Option<String> {
 }
 /// 崩溃轨值 `actual`（时钟 `clock`）与参照值 `expected`（参照时钟）规范化后逐值相同、且全部时刻商合规。
 /// 返回 Err(差异描述)，供正向断言与负控共用（负控断言其为 Err，不用 should_panic）。
-fn compare(actual: &Value, clock: &Clock, expected: &Value) -> Result<(), String> {
+pub(super) fn compare(actual: &Value, clock: &Clock, expected: &Value) -> Result<(), String> {
     let mut bad = vec![];
     let a = normalize(actual, clock, "", &mut bad);
     if !bad.is_empty() {
@@ -368,16 +379,16 @@ fn compare(actual: &Value, clock: &Clock, expected: &Value) -> Result<(), String
         None => Ok(()),
     }
 }
-fn parsed(cell: &Value) -> Value {
+pub(super) fn parsed(cell: &Value) -> Value {
     strict_json(cell.as_str().unwrap().as_bytes()).unwrap()
 }
-fn audit_all(configs: &[store::Config]) {
+pub(super) fn audit_all(configs: &[store::Config]) {
     for c in configs {
         let (db, _) = store::open(&c.db, true).unwrap();
         store::audit(&db, c).unwrap();
     }
 }
-fn bound_receipt(config: &store::Config, message: &str) -> Option<Value> {
+pub(super) fn bound_receipt(config: &store::Config, message: &str) -> Option<Value> {
     let (c, _) = store::open(&config.db, true).unwrap();
     let k: Option<String> = c
         .query_row(
@@ -542,7 +553,7 @@ fn spawn(work: &Path, label: &str, mut job: Value) -> Child {
         .spawn()
         .unwrap()
 }
-fn finish(mut child: Child, work: &Path, label: &str) {
+pub(super) fn finish(mut child: Child, work: &Path, label: &str) {
     let deadline = Instant::now() + DEADLINE;
     loop {
         if let Some(status) = child.try_wait().unwrap() {
@@ -561,7 +572,7 @@ fn finish(mut child: Child, work: &Path, label: &str) {
         std::thread::sleep(Duration::from_millis(10));
     }
 }
-fn progress(work: &Path, label: &str) -> Vec<Value> {
+pub(super) fn progress(work: &Path, label: &str) -> Vec<Value> {
     std::fs::read_to_string(work.join(format!("{label}-progress.jsonl")))
         .unwrap_or_default()
         .lines()
@@ -579,7 +590,7 @@ fn root() -> &'static PathBuf {
         p
     })
 }
-fn save(path: &Path, v: &Value) {
+pub(super) fn save(path: &Path, v: &Value) {
     std::fs::write(path, canonical_json(v)).unwrap();
 }
 

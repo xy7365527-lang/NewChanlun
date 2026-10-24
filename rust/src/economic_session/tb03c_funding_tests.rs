@@ -29,7 +29,7 @@ fn golden() -> Vec<(&'static str, i64, Vec<(&'static str, i64, i64)>)> {
     ]
 }
 
-fn funding_record(profile: &str, cap: i64) -> Value {
+pub(super) fn funding_record(profile: &str, cap: i64) -> Value {
     let mut r = json!({"profile_id":profile,"policy_id":"#1557/funding-authorization/v1","version":"v1","supersedes":"none",
         "cap":cap.to_string(),"currency":"USDC","authorizer":"用户（#1557/#1558 2026-10-20 批复）",
         "authorized_at":"2026-10-20","valid_through":"2027-10-20"});
@@ -39,7 +39,7 @@ fn funding_record(profile: &str, cap: i64) -> Value {
     r
 }
 /// ADR 0040 签署记录 policy-record（容量四级同签：L0 1110000 / L1 3200000 / L2 9630000 / L3 Unknown）。
-fn policy_record(profile: &str, level: &str) -> Value {
+pub(super) fn policy_record(profile: &str, level: &str) -> Value {
     let cap = |l: &str, c: &str, src: &str| json!({"level":l,"C":c,"source":src,"valid_through":"2027-10-20"});
     let mut r = json!({"profile_id":profile,"policy_id":"#1355/quantity-tier-policy/v1","version":"v1","supersedes":"none",
         "symbol":"BTC","operation_level":format!("L{level}"),"q_ref":format!("#1557/funding-authorization/v1@{profile}"),
@@ -53,7 +53,7 @@ fn policy_record(profile: &str, level: &str) -> Value {
     }
     r
 }
-fn chong_id(level: &str) -> String {
+pub(super) fn chong_id(level: &str) -> String {
     format!("chong-BTC-L{level}")
 }
 /// `/2` manifest：路由 + 资金三件（funding-record、每重 ⟨Q, policy-record⟩、margin_leverage）。
@@ -102,7 +102,7 @@ fn profile_manifest(space: &Space, profile: &str) -> Value {
 
 /// 开局批分量的可调字段（缺省 = 合规的 P0 开局批）。
 #[derive(Clone)]
-struct Batch {
+pub(super) struct Batch {
     amount: i64,
     auth: String,
     version: String,
@@ -114,7 +114,7 @@ struct Batch {
     op_level: Option<String>,
 }
 impl Batch {
-    fn ok(amount: i64, profile: &str) -> Self {
+    pub(super) fn ok(amount: i64, profile: &str) -> Self {
         Self {
             amount,
             auth: format!("#1557/funding-authorization/v1@{profile}"),
@@ -129,7 +129,7 @@ impl Batch {
 }
 
 /// 一重的 TestOnly 原件：/events/0 开局（带开局批），/events/1 追加批，/events/2 q_rebase。
-fn raw(level: &str, batch: &Batch) -> String {
+pub(super) fn raw(level: &str, batch: &Batch) -> String {
     let chong = chong_id(level);
     let mut fragments = serde_json::Map::new();
     let mut frag = |name: String, pointer: String| {
