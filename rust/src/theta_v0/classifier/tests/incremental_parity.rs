@@ -1252,7 +1252,13 @@ fn cascade_reset_on_frontier_interior_rewrite() {
                 )
             })
             .collect();
-        let (c, upper, _) = recursive_tower::compose_level(&l0_units, &moves_l0, true, 1, crate::theta_v0::config::TowerBase::Segment);
+        let (c, upper, _) = recursive_tower::compose_level(
+            &l0_units,
+            &moves_l0,
+            true,
+            1,
+            crate::theta_v0::config::TowerBase::Segment,
+        );
         recursive_tower::project_to_units(&upper, &decompose::decompose(&c))
     };
     assert_eq!(

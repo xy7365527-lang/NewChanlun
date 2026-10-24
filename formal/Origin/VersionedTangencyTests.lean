@@ -21,6 +21,9 @@ def ci (lo hi : Int) (h : lo ≤ hi) : Formal.Phase2.SegmentV1.Interval := { lo 
 
 #eval do
   let p ← readTangencyPolicy "../rust/src/theta_v0/policy_records/segment-second.json"
+  let _claim10 := Formal.Phase2.SegmentV1.classifyTermination p.tangency
+    (ci 5 10 (by decide)) (ci 10 20 (by decide))
+  let _claim5 := Formal.Phase2.ConstitutiveLadder.Segment.wellFormedV0 p.tangency
   if p.recordId == "segment-second" && p.version == 2 && p.tangency == Tangency.closed then
     IO.println "TANGENCY_POLICY_IO_OK"
   else

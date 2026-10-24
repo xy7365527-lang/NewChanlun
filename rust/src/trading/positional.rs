@@ -1135,7 +1135,9 @@ pub fn run_positional(
         let profile = match trend_scope {
             TrendScope::SelfLayer => crate::theta_v0::policy_records::TrendScopeProfile::Default,
             TrendScope::Ancestor => crate::theta_v0::policy_records::TrendScopeProfile::Hold26Anc,
-            TrendScope::SelfOrAncestor => crate::theta_v0::policy_records::TrendScopeProfile::FusionTa,
+            TrendScope::SelfOrAncestor => {
+                crate::theta_v0::policy_records::TrendScopeProfile::FusionTa
+            }
         };
         let policy = crate::theta_v0::policy_records::active_trend_scope_for_profile(profile)
             .map_err(|e| e.to_string())?;

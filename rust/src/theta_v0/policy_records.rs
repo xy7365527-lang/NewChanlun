@@ -462,8 +462,7 @@ pub fn try_level_config_from(
 /// 由预算记录 + 中枢三段下限组装 [`LevelConfig`]。
 pub fn level_config_from(budget: TowerLevelBudget, min_parts_per_level: u32) -> LevelConfig {
     let tower_base = active_tower_base().unwrap_or_else(|e| panic!("{e}"));
-    try_level_config_from(budget, tower_base, min_parts_per_level)
-        .unwrap_or_else(|e| panic!("{e}"))
+    try_level_config_from(budget, tower_base, min_parts_per_level).unwrap_or_else(|e| panic!("{e}"))
 }
 
 #[cfg(test)]
@@ -800,8 +799,10 @@ mod tests {
 
     #[test]
     fn trend_scope_mutation_and_missing_values_do_not_fallback() {
-        let changed = r#"{"id":"trend-scope","version":2,"fields":{"default":{"value":"Ancestor"}}}"#;
-        let parsed = parse_trend_scope_for_profile(TrendScopeProfile::Default, Some(changed)).unwrap();
+        let changed =
+            r#"{"id":"trend-scope","version":2,"fields":{"default":{"value":"Ancestor"}}}"#;
+        let parsed =
+            parse_trend_scope_for_profile(TrendScopeProfile::Default, Some(changed)).unwrap();
         assert_eq!(parsed.value, TrendScope::Ancestor);
         assert_eq!(parsed.record.label(), "trend-scope/2");
 
@@ -827,10 +828,7 @@ mod tests {
         assert_eq!(cfg.tower_base, TowerBase::Segment);
         assert_eq!(cfg.tower_base_policy.label(), "tower-base/1");
 
-        for (token, expected) in [
-            ("kline3", TowerBase::Kline3),
-            ("trade3", TowerBase::Trade3),
-        ] {
+        for (token, expected) in [("kline3", TowerBase::Kline3), ("trade3", TowerBase::Trade3)] {
             let text = format!(
                 "{{\"id\":\"tower-base\",\"version\":2,\"fields\":{{\"tower_base\":{{\"value\":\"{token}\"}}}}}}"
             );
@@ -848,5 +846,4 @@ mod tests {
             Err(PolicyError::AwaitingPolicy { field, .. }) if field == "tower_base"
         ));
     }
-
 }

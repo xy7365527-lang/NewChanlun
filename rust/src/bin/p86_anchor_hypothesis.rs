@@ -24,6 +24,7 @@ use newchan_rust::theta_v0::classifier::recursive_tower::{
 };
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser::parse_layer;
+use newchan_rust::theta_v0::policy_records::active_tower_base;
 use newchan_rust::theta_v0::types::{quantize, Bar, Center, Direction, Segment, Timestamp};
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
@@ -429,7 +430,7 @@ fn compose_next(
             run,
             false,
             next_level as u32,
-            crate::theta_v0::policy_records::active_tower_base()
+            active_tower_base()
                 .unwrap_or_else(|e| panic!("{e}"))
                 .value,
         );

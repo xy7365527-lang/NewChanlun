@@ -13,7 +13,9 @@ def r (e s x : Nat) : RankedCandidate := { candidate := c, key := i e s x }
 #eval selectΘWithKeys defaultSelectorKeys [i 10 3 0, i 10 7 1, i 10 7 2]
 #eval selectΘWithKeys .StartAscIdxAsc [i 10 3 0, i 10 7 1]
 #eval selectΘWithKeys .StartDescIdxDesc [i 10 7 1, i 10 7 9]
-#eval SelThetaRanked defaultSelectorPolicy .buy { lo := 1, hi := 5 } [r 10 3 0, r 10 7 2, r 10 7 1]
+#eval do
+  let policy ← readSelectorPolicy "../rust/src/theta_v0/policy_records/selector-keys.json"
+  pure (SelThetaRanked policy .buy { lo := 1, hi := 5 } [r 10 3 0, r 10 7 2, r 10 7 1])
 
 #eval do
   let p ← readSelectorPolicy "../rust/src/theta_v0/policy_records/selector-keys.json"

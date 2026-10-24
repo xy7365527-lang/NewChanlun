@@ -2366,7 +2366,9 @@ mod tests {
         for mode in ["hold26_anc", "fusion_ta", "fusion_t"] {
             let r = run_with_rows(warmup34(), mode, Some(vec![]), Some(vec![]));
             assert_eq!(
-                r.trend_scope_policy.expect("Fusion 必须携带趋势记录").label(),
+                r.trend_scope_policy
+                    .expect("Fusion 必须携带趋势记录")
+                    .label(),
                 "trend-scope/1",
                 "{mode}"
             );
