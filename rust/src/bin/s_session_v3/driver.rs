@@ -3088,7 +3088,7 @@ mod tests {
             "--max-input-bytes".into(),
             bytes.len().to_string(),
         ]);
-        super::super::writer_cli::run(&args)
+        super::super::writer_cli::run_fixture(&args)
     }
 
     fn pending_state(f: &Fixture) -> (i64, i64, i64, String) {
