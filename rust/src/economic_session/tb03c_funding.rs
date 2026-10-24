@@ -360,6 +360,8 @@ impl Contract {
         if batch["currency"] != self.record["currency"] {
             return Err("InvalidDomain：开局批币种与 funding-record 不符".into());
         }
+        // 自报日期仍是原件 schema 的一部分；格式要校验，但政策窗口只认下面的可审计观察时间。
+        date(batch, "known_at")?;
         // #1621：known_at 绑定可审计观察时间（record["b_observation"]["first_known_ns"]），不再使用原件自报日期。
         // 跨域不变式：S/E/B/X 时刻先后由同一观察时间源锁定（与 tb03c_transfer.rs:367 转移目标口径一致）。
         let obs = &record["b_observation"];
