@@ -16,7 +16,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::sync::OnceLock;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 const ORACLE: &str =
     include_str!("../../../s_session/tests/fixtures/tb03c_funding/FUNDING-ORACLE.json");
@@ -322,10 +322,15 @@ fn run(work: &Path, label: &str, epochs: &[i64], steps: &[Value]) -> Vec<Value> 
 fn root() -> &'static PathBuf {
     static ROOT: OnceLock<PathBuf> = OnceLock::new();
     ROOT.get_or_init(|| {
+        // 同一外部根下重跑或 PID 复用时也必须从空现场开始；保留旧证据，不删除共享目录。
+        let run_ns = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
         let p = std::env::var_os("TB03C_KILL_ROOT")
             .map(PathBuf::from)
             .unwrap_or_else(std::env::temp_dir)
-            .join(format!("nc1674-v2-kill-{}", std::process::id()));
+            .join(format!("nc1674-v2-kill-{}-{run_ns}", std::process::id()));
         std::fs::create_dir_all(&p).unwrap();
         p
     })
