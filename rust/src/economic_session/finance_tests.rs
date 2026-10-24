@@ -197,6 +197,7 @@ impl Fixture {
             "QueryDecision",
             "QueryGrant",
             "QueryVoice",
+            "QueryBasisUsage",
             "PrepareDecision",
             "Reserve",
             "CommitDecision",
@@ -1245,5 +1246,194 @@ fn c4a_fin1_uncovered_fact_cannot_reserve_or_resolve_and_keeps_all_state() {
         .unwrap()
         .is_none());
     assert!(before.3.get("fill_allocations").is_none());
+    f.audit();
+}
+
+/// #1415 TB-03-D：库内全部持久表的行数与最新 commit（seq/root/commit_ns/image）。
+fn durable_snapshot(c: &Connection) -> (Vec<i64>, (i64, String, String, Value)) {
+    let counts = [
+        "commits",
+        "facts",
+        "pending",
+        "applications",
+        "unmatched",
+        "book",
+        "messages",
+        "receipts",
+        "epochs",
+        "meta",
+    ]
+    .iter()
+    .map(|t| {
+        c.query_row(&format!("SELECT COUNT(*) FROM {t}"), [], |r| r.get(0))
+            .unwrap()
+    })
+    .collect();
+    (counts, latest(c).unwrap())
+}
+
+/// #1415 TB-03-D：经正式 service 入口发 QueryBasisUsage，并断言查询前后提交序号、最新提交
+/// 与各持久表行数逐项不变——只读须由执行结果证明，不只靠回执里的 `s_writes:"None"` 自述。
+fn basis_usage(f: &mut Fixture, n: usize, msg: &str, as_known: Value) -> Value {
+    let before = durable_snapshot(&f.dbs[n]);
+    let r = f.handle(
+        n,
+        msg,
+        json!({"op":"QueryBasisUsage","cut":null,"as_known_ns":as_known}),
+    );
+    let after = durable_snapshot(&f.dbs[n]);
+    assert_eq!(after.1 .0, before.1 .0, "QueryBasisUsage 推进了 commit seq");
+    assert_eq!(after, before, "QueryBasisUsage 改动了持久状态");
+    r
+}
+
+/// #1415 TB-03-D：B 依据使用关系经正式 service 入口只读派生。期望值为夹具表手算
+/// （alpha: Q=12、开局 4、计划 2；beta: Q=20、开局 15、计划 3；γ 视图 2/3/1），不调用被测函数。
+#[test]
+fn tb03d_basis_usage_binds_levels_quantity_and_waiting_without_s_write() {
+    let mut f = Fixture::new("100");
+    let usage = basis_usage;
+    let before = usage(&mut f, 1, "tb03d-alpha-0", Value::Null);
+    assert_eq!(before["kind"], "EconomicBasisUsage", "{before}");
+    let voices = before["voices"].as_array().unwrap();
+    assert_eq!(voices.len(), 1);
+    let v = &voices[0];
+    assert_eq!(v["binding_id"], "voice-alpha");
+    assert_eq!(v["direction"], "Long");
+    assert_eq!(v["voice_generation"], "0");
+    assert_eq!(v["operation_level"], "2");
+    assert_eq!(v["structure_level"]["execution_level"], "2");
+    assert_eq!(v["structure_level"]["confirmation_level"], "3");
+    assert_eq!(v["drill_depth"], "1");
+    assert_eq!(v["opening_basis"]["allocation_id"], "allocation-alpha");
+    assert_eq!(v["opening_basis"]["quantity"], "4");
+    let apps = before["applications"].as_array().unwrap();
+    assert_eq!(apps.len(), 1);
+    assert_eq!(apps[0]["status"], "Applied");
+    assert_eq!(apps[0]["used_by_voices"], json!([v["voice_id"]]));
+    assert_eq!(before["decisions"], json!([]));
+    for (k, x) in [
+        ("actual_quantity", "4"),
+        ("unresolved_potential", "0"),
+        ("worst_quantity", "4"),
+        ("fixed_q", "12"),
+        ("headroom", "8"),
+    ] {
+        assert_eq!(before["quantity"][k], x, "{k}");
+    }
+    assert_eq!(before["structure_boundary"]["s_writes"], "None");
+
+    f.prepare();
+    let prepared = usage(&mut f, 1, "tb03d-alpha-1", Value::Null);
+    let d = &prepared["decisions"][0];
+    assert_eq!(d["state"], "Prepared");
+    assert_eq!(d["waiting"]["reason_code"], "AwaitingEReserveGrant");
+    assert_eq!(d["voice_id"], v["voice_id"]);
+    assert_eq!(d["direction"], "Long");
+    assert_eq!(d["s_ref"]["object_id"], "unit-S-object");
+    assert_eq!(d["o_ref"]["operation_id"], "TestOnly-operation-alpha");
+    assert_eq!(d["structure_evidence"]["evidence_hash"], hash(&f.basis));
+    assert_eq!(d["structure_evidence"]["commit_ns"], "1");
+    assert!(d["grant_id"].is_null());
+    for (k, x) in [
+        ("unresolved_potential", "2"),
+        ("worst_quantity", "6"),
+        ("headroom", "6"),
+    ] {
+        assert_eq!(prepared["quantity"][k], x, "{k}");
+    }
+
+    f.step(0, "Reserve", "slot");
+    f.step(1, "CommitDecision", "alpha");
+    let committed = usage(&mut f, 1, "tb03d-alpha-2", Value::Null);
+    let d = &committed["decisions"][0];
+    assert_eq!(d["state"], "Committed");
+    assert_eq!(d["waiting"]["reason_code"], "AwaitingExecutionEligibility");
+    assert_eq!(d["waiting"]["execution_eligibility"], "None");
+    assert!(d["grant_id"].is_string());
+    // 未见 E 降责证据前潜量保守保留；实际量不因本地 Commit 改变。
+    assert_eq!(committed["quantity"]["actual_quantity"], "4");
+    assert_eq!(committed["quantity"]["unresolved_potential"], "2");
+
+    // 另一重独立：beta 的方向与潜量不被 alpha 裁剪或抵消。
+    let beta = usage(&mut f, 2, "tb03d-beta-0", Value::Null);
+    for (k, x) in [
+        ("actual_quantity", "15"),
+        ("unresolved_potential", "3"),
+        ("worst_quantity", "18"),
+        ("fixed_q", "20"),
+        ("headroom", "2"),
+    ] {
+        assert_eq!(beta["quantity"][k], x, "{k}");
+    }
+    assert_eq!(beta["decisions"][0]["state"], "Prepared");
+
+    // AsKnown 旧时刻不回填后来的 Prepared。
+    let old = usage(&mut f, 1, "tb03d-alpha-3", json!("60"));
+    assert_eq!(old["decisions"], json!([]));
+    assert_eq!(old["quantity"]["unresolved_potential"], "0");
+
+    // E 不拥有 B 依据关系。
+    let e = usage(&mut f, 0, "tb03d-e-0", Value::Null);
+    assert_eq!(e["kind"], "Error");
+    assert!(e["error"]
+        .as_str()
+        .unwrap()
+        .starts_with("SchemaUnsupported"));
+
+    // 新连接（同库重开）重放：审计通过且同 cut 派生逐字节相同。
+    f.audit();
+    let mut fresh = open(&f.configs[1].db, false).unwrap().0;
+    let replay = service::handle(
+        &mut fresh,
+        &f.configs[1],
+        1,
+        1,
+        &json!({}),
+        &envelope(
+            "tb03d-alpha-4",
+            json!({"op":"QueryBasisUsage","cut":committed["cut"],"as_known_ns":null}),
+        ),
+    )["payload"]
+        .clone();
+    assert_eq!(canonical_json(&replay), canonical_json(&committed));
+}
+
+/// #1415 TB-03-D：Abort 分支。Prepared 后本地 Abort（未 Reserve）：B 不知 E 是否已降责，
+/// 视图须报 `PotentialRetainedAfterAbort` 并按原计划量保留潜量。期望值手算：alpha Q=12、
+/// 开局 4、计划 2 ⟹ 潜量 2、最坏 6、余量 6；abort_reason 取 `Fixture::request` 原文。
+#[test]
+fn tb03d_basis_usage_abort_retains_potential_and_stays_read_only() {
+    let mut f = Fixture::new("100");
+    f.prepare();
+    let r = f.step(1, "AbortDecision", "alpha");
+    assert_eq!(r["record"]["state"], "AbortedBeforeCommit", "{r}");
+    let seq_after_abort = latest(&f.dbs[1]).unwrap().0;
+
+    let v = basis_usage(&mut f, 1, "tb03d-abort-0", Value::Null);
+    assert_eq!(v["kind"], "EconomicBasisUsage", "{v}");
+    assert_eq!(v["cut"]["commit_seq"], seq_after_abort.to_string());
+    let ds = v["decisions"].as_array().unwrap();
+    assert_eq!(ds.len(), 1);
+    let d = &ds[0];
+    assert_eq!(d["decision_id"], "alpha");
+    assert_eq!(d["state"], "AbortedBeforeCommit");
+    assert_eq!(d["waiting"]["reason_code"], "PotentialRetainedAfterAbort");
+    assert_eq!(d["waiting"]["abort_reason"], "unit abort no release");
+    assert!(d["grant_id"].is_null());
+    assert_eq!(d["quantity"], "2");
+    for (k, x) in [
+        ("actual_quantity", "4"),
+        ("unresolved_potential", "2"),
+        ("worst_quantity", "6"),
+        ("fixed_q", "12"),
+        ("headroom", "6"),
+    ] {
+        assert_eq!(v["quantity"][k], x, "{k}");
+    }
+    // 连续两次查询同一 cut 结果逐字节相同，且 seq 仍停在 Abort 那一笔。
+    let again = basis_usage(&mut f, 1, "tb03d-abort-1", Value::Null);
+    assert_eq!(canonical_json(&again), canonical_json(&v));
+    assert_eq!(latest(&f.dbs[1]).unwrap().0, seq_after_abort);
     f.audit();
 }
