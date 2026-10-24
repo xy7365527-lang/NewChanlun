@@ -1,5 +1,6 @@
 import Lean
 import Strict.Nest
+import Origin.IntervalNestCertificate
 
 namespace Strict.Nest
 
@@ -51,5 +52,37 @@ def readSelectorPolicy (path : String) : IO SelectorPolicy := do
     | false, false => .StartAscIdxAsc
   let policy : SelectorPolicy := { keys := keys, recordId := recordId, version := version }
   pure policy
+
+
+/-- 生产证书节点的非策略输入；记录只在 IO 边界读取一次。 -/
+structure NestLevelInput where
+  lvl : Nat
+  cands : List Strict.Nest.Interval
+  candidateOK : Bool
+  confirmOK : Bool
+
+/-- 用同一份记录构造整条证书链，避免各级自行取默认。 -/
+def nestChainWithPolicy (policy : SelectorPolicy) (inputs : List NestLevelInput) :
+    List NewChanlun.Origin.IntervalNestCertificate.NestLevel :=
+  inputs.map fun input => {
+    lvl := input.lvl,
+    cands := input.cands,
+    candidateOK := input.candidateOK,
+    confirmOK := input.confirmOK,
+    policy := policy
+  }
+
+/-- 在 IO 边界读取一次记录并构造证书链。 -/
+def readNestChain (path : String) (inputs : List NestLevelInput) :
+    IO (List NewChanlun.Origin.IntervalNestCertificate.NestLevel) := do
+  let policy ← readSelectorPolicy path
+  pure (nestChainWithPolicy policy inputs)
+
+/-- 真实 IO → `NestLevel.chosen`/`nestCertB`/`chiBool` 的验收入口。 -/
+def chiBoolWithRecord (path : String) (ev : Nat) (inputs : List NestLevelInput) :
+    IO (Bool × SelectorPolicy) := do
+  let policy ← readSelectorPolicy path
+  pure (NewChanlun.Origin.IntervalNestCertificate.chiBool ev
+    (nestChainWithPolicy policy inputs), policy)
 
 end Strict.Nest
