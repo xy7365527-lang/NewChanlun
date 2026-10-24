@@ -75,7 +75,25 @@ pub(super) fn raw_bar(
     deadline: Option<Instant>,
     budget: Option<&dyn super::super::audit_budget::Budget>,
 ) -> Result<NodeDigest, String> {
-    let fields = BAR.map(|k| (k, bj::field(event, k)));
+    let present = BAR[1..]
+        .iter()
+        .filter(|key| !bj::field(event, key).is_null())
+        .count();
+    if present != 0 && present != 4 {
+        return Err(err("原始bar的OHLC字段必须完整存在或完整缺省"));
+    }
+    let derived = present == 0;
+    let fields = BAR.map(|k| {
+        let value = bj::field(event, k);
+        (
+            k,
+            if derived && k != "source_coord" {
+                bj::field(event, "price")
+            } else {
+                value
+            },
+        )
+    });
     super::super::history::hash_json_in_store(
         s,
         JsonView::object_fields(&fields).map_err(err)?,

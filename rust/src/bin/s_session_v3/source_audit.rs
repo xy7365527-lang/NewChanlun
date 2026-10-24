@@ -19,9 +19,9 @@ use newchan_rust::s_content::{
     path::{lookup_path, PathStep},
     Built, ContentRef, Kind, NodeDigest, NodeSink, NodeSource, NodeStore, Value as V,
 };
-#[cfg(test)]
-use serde_json::json;
-use serde_json::Value;
+use serde_json::{json, Value};
+use newchan_rust::theta_v0::classifier::local_shape::{classify_local_shape, Cc006LocalShape};
+use newchan_rust::theta_v0::types::Bar;
 #[path = "source_pending.rs"]
 mod source_pending;
 #[path = "source_prefix.rs"]
@@ -801,6 +801,10 @@ struct Group {
     sources: SourceCoords,
     anchor: i64,
 }
+struct TickBar {
+    revision: i64,
+    price: bj::TextValue,
+}
 struct Shape {
     groups: [i64; 3],
 }
@@ -812,6 +816,52 @@ pub(super) struct Counts {
     pub effective: usize,
     pub insufficient: usize,
     pub outside_domain: usize,
+}
+
+fn tick_observation_oracle(bars: &BusinessMap<i64, TickBar>) -> Result<Vec<Value>, String> {
+    let raw = bars
+        .iter()
+        .map(|(coord, bar)| {
+            let price = decimal(bar.price.as_str())?;
+            Ok(Bar {
+                source_index: usize::try_from(*coord).map_err(err)?,
+                timestamp: 0,
+                open: price,
+                high: price,
+                low: price,
+                close: price,
+                volume: 1.0,
+                untradable: false,
+            })
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    let windows: Vec<(usize, Cc006LocalShape)> = if raw.len() < 3 {
+        vec![(0, Cc006LocalShape::InsufficientKnowledge)]
+    } else {
+        (0..=raw.len() - 3)
+            .map(|start| (start, classify_local_shape(&raw[start], &raw[start + 1], &raw[start + 2])))
+            .collect()
+    };
+    let mut expected = Vec::new();
+    for (start, shape) in windows {
+        let observation = match shape {
+            Cc006LocalShape::Classified { .. } => continue,
+            Cc006LocalShape::InsufficientKnowledge => json!({
+                "kind":"insufficient_knowledge", "reason":"fewer_than_three_bars",
+                "window_start":start, "window_mid":Value::Null, "window_end":Value::Null,
+                "detail":{"raw_events":raw.len()},
+            }),
+            Cc006LocalShape::DomainNotSatisfied { reason } => json!({
+                "kind":"domain_not_satisfied", "reason":reason.as_str(),
+                "window_start":start, "window_mid":start+1, "window_end":start+2,
+                "detail":{"raw_prices":[
+                    raw[start].high.to_string(), raw[start+1].high.to_string(), raw[start+2].high.to_string(),
+                ]},
+            }),
+        };
+        expected.push(observation);
+    }
+    Ok(expected)
 }
 fn references(
     s: &mut (impl CodecRead + ?Sized),
@@ -1542,10 +1592,9 @@ fn audit_generated_in_store(
     let s = &mut array_source;
     #[cfg(test)]
     super::state::trace_event("source_raw", None);
-    if profile != tb02a::PROFILE {
-        return Err(err(
-            "当前来源审计仅实现OHLC档；其他档仍待接线，拒绝按此口径放行",
-        ));
+    let is_ohlc = profile == tb02a::PROFILE;
+    if !is_ohlc && profile != "testonly_tick_1_1_ohlc" {
+        return Err(err(format!("未声明的S3来源审计profile `{profile}`")));
     }
     s.native_admit(
         profile
@@ -1649,6 +1698,9 @@ fn audit_generated_in_store(
         if kind == CC006_SHAPE_KIND {
             exact(&record, Kind::Object, 15)?;
         } else {
+            if !is_ohlc {
+                return Err(err("旧tick生成态不得混入OHLC typed对象"));
+            }
             exact(&record, Kind::Object, 10)?;
             if ![
                 CC004_STEP_KIND,
@@ -1811,8 +1863,45 @@ fn audit_generated_in_store(
             })
             .map_err(err)?;
     }
+    let mut tick_bars = bj::new_map(allocation.as_ref());
+    if !is_ohlc {
+        for event in raw_prefix {
+            let coord = bj::coord(event)?;
+            if !raw.contains_key(&coord) {
+                continue;
+            }
+            let revision = bj::field(event, "revision").as_i64()
+                .ok_or_else(|| err("原始账revision不是整数"))?;
+            if tick_bars.get(&coord).is_some_and(|bar: &TickBar| bar.revision >= revision) {
+                continue;
+            }
+            let price = bj::field(event, "price").as_str()
+                .ok_or_else(|| err("旧tick原始price不是文本"))?;
+            let price = s.native_text(price).map_err(err)?;
+            s.native_map_room(&mut tick_bars).map_err(err)?;
+            tick_bars.insert(coord, TickBar { revision, price }).map_err(err)?;
+        }
+        // 旧 tick 没有 CC-005 组对象：每个生效原始事件自身就是一个 merged 组。
+        // 组账独立于 CC-006 对象重建，domain_not_satisfied 窗口也不会造成覆盖缺口。
+        let tick_payload = field_ref(s, state, "objects")?;
+        for (index, coord) in tick_bars.keys().copied().enumerate() {
+            let index = i64::try_from(index).map_err(err)?;
+            let mut members = bj::new_work(allocation.as_ref());
+            s.native_codec_room(&mut members, 1).map_err(err)?;
+            members.try_push(coord).map_err(err)?;
+            let sources = copy_source_coords(s, &members)?;
+            let payload = s.native_ref_clone(&tick_payload).map_err(err)?;
+            s.native_map_room(&mut groups).map_err(err)?;
+            groups.insert(index, Group { payload, members, sources, anchor: coord })
+                .map_err(err)?;
+        }
+    }
     // #1394 r3：先绑定已发布未定事实，再核组成员与 pending 的不交完备并集。
-    let pending = source_pending::audit(s, &objects, raw, &groups, rule, deadline)?;
+    let pending = if is_ohlc {
+        source_pending::audit(s, &objects, raw, &groups, rule, deadline)?
+    } else {
+        bj::new_work(allocation.as_ref())
+    };
     let mut partition = bj::new_map(allocation.as_ref());
     let ordered_groups = sorted_numeric_entries(s, &groups)?;
     for (expected, (index, group)) in ordered_groups.iter().enumerate() {
@@ -1836,7 +1925,9 @@ fn audit_generated_in_store(
             return Err(err("同cut组成员与初始未定来源重叠"));
         }
     }
-    if partition.len() != raw.len() || partition.iter().any(|(coord, _)| !raw.contains_key(coord)) {
+    if (is_ohlc || raw.len() >= 3)
+        && (partition.len() != raw.len() || partition.iter().any(|(coord, _)| !raw.contains_key(coord)))
+    {
         return Err(err("同cut组未完整覆盖生效原始账"));
     }
     let mut shapes = bj::new_map(allocation.as_ref());
@@ -1855,9 +1946,12 @@ fn audit_generated_in_store(
         let mut source_union = bj::new_work(allocation.as_ref());
         for (slot, part) in elements(s, &object.refs)?.into_iter().enumerate() {
             super::history::check_deadline(deadline)?;
-            exact(&part, Kind::Object, 3)?;
-            let part_fields =
-                local_fields(s, &part, &["merged_index", "raw_refs", "dependency_refs"])?;
+            exact(&part, Kind::Object, if is_ohlc { 3 } else { 2 })?;
+            let part_fields = if is_ohlc {
+                local_fields(s, &part, &["merged_index", "raw_refs", "dependency_refs"])?
+            } else {
+                local_fields(s, &part, &["merged_index", "raw_refs"])?
+            };
             let index = if let Some(fields) = &part_fields {
                 fields
                     .scalar(s, "merged_index")?
@@ -1892,27 +1986,29 @@ fn audit_generated_in_store(
             if members != group.members {
                 return Err(err("形态raw_refs不是同cut组成员"));
             }
-            let deps = if let Some(fields) = &part_fields {
-                fields.get_admitted(s, "dependency_refs").map_err(err)?
-            } else {
-                field(s, &part, "dependency_refs")?
-            };
-            let dependency = source_references(
-                s,
-                &deps,
-                &raw,
-                true,
-                &mut checked_refs,
-                native_sources.as_deref_mut(),
-                raw_prefix.len(),
-                ParseDomain::JsonInner,
-            )?;
-            let expected = difference_coords(s, &group.sources, &members)?;
-            if &*dependency != &*expected {
-                return Err(err("形态dependency_refs不是组事实来源差集"));
+            if is_ohlc {
+                let deps = if let Some(fields) = &part_fields {
+                    fields.get_admitted(s, "dependency_refs").map_err(err)?
+                } else {
+                    field(s, &part, "dependency_refs")?
+                };
+                let dependency = source_references(
+                    s,
+                    &deps,
+                    &raw,
+                    true,
+                    &mut checked_refs,
+                    native_sources.as_deref_mut(),
+                    raw_prefix.len(),
+                    ParseDomain::JsonInner,
+                )?;
+                let expected = difference_coords(s, &group.sources, &members)?;
+                if &*dependency != &*expected {
+                    return Err(err("形态dependency_refs不是组事实来源差集"));
+                }
+                source_union = union_coords(s, &source_union, &dependency)?;
             }
             source_union = union_coords(s, &source_union, &members)?;
-            source_union = union_coords(s, &source_union, &dependency)?;
             windows[slot] = crate::content_manifest::Decimal::new(
                 object
                     .fields
@@ -1924,7 +2020,12 @@ fn audit_generated_in_store(
             {
                 return Err(err("形态窗口不等于同cut组锚"));
             }
-            if let Some(fields) = local_fields(s, &group.payload, &["high", "low"])? {
+            if !is_ohlc {
+                let price = &tick_bars.get(&group.anchor)
+                    .ok_or_else(|| err("旧tick组锚缺原始price"))?.price;
+                highs[slot] = s.native_text(price.as_str()).map_err(err)?;
+                lows[slot] = s.native_text(price.as_str()).map_err(err)?;
+            } else if let Some(fields) = local_fields(s, &group.payload, &["high", "low"])? {
                 highs[slot] = fields.text(s, "high")?;
                 lows[slot] = fields.text(s, "low")?;
             } else {
@@ -2027,7 +2128,11 @@ fn audit_generated_in_store(
         if fields.integer(s, "merged_source_index").map_err(err)? != group.anchor {
             return Err(err("见证锚与同cut组不同"));
         }
-        let payload_fields = local_fields(s, &group.payload, &["high", "low", "open", "close"])?;
+        let payload_fields = if is_ohlc {
+            local_fields(s, &group.payload, &["high", "low", "open", "close"])?
+        } else {
+            None
+        };
         for (merged, field_name) in [
             ("merged_high", "high"),
             ("merged_low", "low"),
@@ -2035,6 +2140,16 @@ fn audit_generated_in_store(
             ("merged_close", "close"),
         ] {
             let actual = fields.get_admitted(s, merged).map_err(err)?;
+            if !is_ohlc {
+                let expected = &tick_bars.get(&group.anchor)
+                    .ok_or_else(|| err("旧tick见证锚缺原始price"))?.price;
+                if actual.kind() != Kind::String
+                    || text_value(s, actual.view(), merged)? != expected.as_str()
+                {
+                    return Err(err("旧tick见证合并值不是原始price"));
+                }
+                continue;
+            }
             let expected = if let Some(fields) = &payload_fields {
                 fields.get_admitted(s, field_name).map_err(err)?
             } else {
@@ -2082,8 +2197,24 @@ fn audit_generated_in_store(
     super::state::trace_event("source_observations", None);
     let mut insufficient = 0;
     let mut outside_domain = 0;
-    for item in elements(s, &observations)? {
+    let tick_observations = if is_ohlc {
+        None
+    } else {
+        Some(tick_observation_oracle(&tick_bars)?)
+    };
+    let observation_items = elements(s, &observations)?;
+    if let Some(expected) = &tick_observations {
+        if observation_items.len() != expected.len() {
+            return Err(err("旧tick原始窗口观察数量与原始账判据不同"));
+        }
+    }
+    for (ordinal, item) in observation_items.iter().enumerate() {
         super::history::check_deadline(deadline)?;
+        if let Some(expected) = &tick_observations {
+            if digest(item)? != hash(&expected[ordinal])? {
+                return Err(err(format!("旧tick原始窗口观察[{ordinal}]与原始账判据不同")));
+            }
+        }
         match text(s, &item, "kind")?.as_str() {
             "insufficient_knowledge" => insufficient += 1,
             "domain_not_satisfied" => outside_domain += 1,
@@ -2092,7 +2223,7 @@ fn audit_generated_in_store(
     }
     Ok(Counts {
         objects: objects.len(),
-        groups: groups.len(),
+        groups: if is_ohlc || !groups.is_empty() { groups.len() } else { raw.len() },
         windows: groups.len().saturating_sub(2),
         effective: raw.len(),
         insufficient,

@@ -1959,6 +1959,13 @@ impl Cc004Producer {
         cut: &str,
     ) -> Result<Cc006Object, ProducerError> {
         let [left, mid, right] = views;
+        let is_ohlc = self.profile_id == tb02a::PROFILE;
+        if !is_ohlc && self.profile_id != "testonly_tick_1_1_ohlc" {
+            return Err(ProducerError::Type {
+                what: "CC-006 profile",
+                detail: format!("未声明的 profile `{}`", self.profile_id),
+            });
+        }
         let window = [
             left.bar.source_index,
             mid.bar.source_index,
@@ -2013,8 +2020,12 @@ impl Cc004Producer {
         //   `project_input_refs` 投影结果），不参与身份。
         let mut groups: Vec<CValue> = Vec::with_capacity(3);
         let mut wire_groups: Vec<CValue> = Vec::with_capacity(3);
-        // 三组来源并集 = 右组来源链（归纳嵌套前缀性；逐前缀对拍见测试）。
-        let sources = group_sources_coords(right);
+        // OHLC 的三组来源并集 = 右组来源链；旧 tick 档案只绑定三个窗口锚坐标。
+        let sources = if is_ohlc {
+            group_sources_coords(right)
+        } else {
+            coords_ref_from_slice(&window)
+        };
         for (offset, view) in [left, mid, right].iter().enumerate() {
             let index = i64::try_from(indices[offset]).map_err(|_| {
                 ProducerError::Overflow(format!("组下标 {} 超出 i64", indices[offset]))
@@ -2022,31 +2033,35 @@ impl Cc004Producer {
             let members = group_members_coords(view);
             let shape_raw =
                 self.source_refs_array_in(&mut *store, &members, RefEncoding::ShapeInteger)?;
-            let shape_dependency =
-                self.group_dependency_array(&mut *store, view, RefEncoding::ShapeInteger)?;
-            groups.push(CValue::Object(vec![
+            let mut group = vec![
                 ("merged_index".to_string(), number(index)?),
                 ("raw_refs".to_string(), CValue::Edge(shape_raw.digest)),
-                (
-                    "dependency_refs".to_string(),
-                    CValue::Edge(shape_dependency.digest),
-                ),
-            ]));
+            ];
             let wire_raw =
                 self.source_refs_array_in(&mut *store, &members, RefEncoding::WireText)?;
-            let wire_dependency =
-                self.group_dependency_array(&mut *store, view, RefEncoding::WireText)?;
-            wire_groups.push(CValue::Object(vec![
+            let mut wire_group = vec![
                 (
                     "merged_index".to_string(),
                     CValue::String(index.to_string()),
                 ),
                 ("raw_refs".to_string(), CValue::Edge(wire_raw.digest)),
-                (
+            ];
+            if is_ohlc {
+                let shape_dependency =
+                    self.group_dependency_array(&mut *store, view, RefEncoding::ShapeInteger)?;
+                group.push((
+                    "dependency_refs".to_string(),
+                    CValue::Edge(shape_dependency.digest),
+                ));
+                let wire_dependency =
+                    self.group_dependency_array(&mut *store, view, RefEncoding::WireText)?;
+                wire_group.push((
                     "dependency_refs".to_string(),
                     CValue::Edge(wire_dependency.digest),
-                ),
-            ]));
+                ));
+            }
+            groups.push(CValue::Object(group));
+            wire_groups.push(CValue::Object(wire_group));
         }
         let input_refs = sc::write_value(&mut *store, &CValue::Array(groups))?;
         let wire_input_refs = sc::write_value(&mut *store, &CValue::Array(wire_groups))?;

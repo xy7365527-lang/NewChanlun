@@ -878,10 +878,10 @@ fn audit_core_fresh_inner(
         )?;
         previous = cut.metadata.input_frontier;
     }
-    if let Some(last) = cuts.last() {
+    if let Some(last) = cuts.last().filter(|_| _profile_id == tb02a::PROFILE) {
         #[cfg(test)]
         trace_event("catalog_current", None);
-        // 6''. 当前 13 轴 catalog 行必须与本代最终生成态同根。
+        // 6''. OHLC 当前 13 轴 catalog 行必须与本代最终生成态同根；旧 tick 没有该轴表。
         let axes = field(&mut store, &last.roots.generated_state, "catalog_axes")?;
         catalog_evidence::verify_current_for_audit(tx, &mut store, &axes)?;
     }
@@ -1140,11 +1140,8 @@ fn audit_profile_id_admitted(
 ) -> Result<super::business_json::TextValue, String> {
     let profile_id = v2::control_meta_text_admitted(tx, "profile_id", allocation, work)?
         .ok_or_else(|| err("缺冻结字段 profile_id"))?;
-    if profile_id != tb02a::PROFILE {
-        return Err(err(format!(
-            "非OHLC档（profile=`{profile_id}`）：完整状态审计的来源/目录证据只接线 `{}`，其他档仍待接线，拒绝按此口径放行",
-            tb02a::PROFILE
-        )));
+    if profile_id != tb02a::PROFILE && profile_id != "testonly_tick_1_1_ohlc" {
+        return Err(err(format!("未声明的S3完整状态审计profile `{profile_id}`")));
     }
     Ok(profile_id)
 }

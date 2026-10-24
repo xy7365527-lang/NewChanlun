@@ -445,8 +445,10 @@ impl Runtime {
         };
         super::require_current_writer_rule(&metadata.rule_revision)?;
         content_publication::verify_current_begin_admitted(tx, token, metadata.view(), work)?;
-        if metadata.profile_id != tb02a::PROFILE {
-            return Err(err("非OHLC档生成/来源接线仍未实现"));
+        if metadata.profile_id != tb02a::PROFILE
+            && metadata.profile_id != "testonly_tick_1_1_ohlc"
+        {
+            return Err(err(format!("未声明的S3生成profile `{}`", metadata.profile_id)));
         }
         if frontier <= previous {
             return Err(err("本次没有新增原始前沿"));
@@ -565,7 +567,9 @@ impl Runtime {
             };
             object_index::stage(tx, &mut store, &objects, &manifest.batch_id)?;
             aux_index::stage(tx, &mut store, &auxiliary, &manifest.batch_id)?;
-            catalog_evidence::stage_current(tx, &mut store, &axes)?;
+            if let Some(axes) = &axes {
+                catalog_evidence::stage_current(tx, &mut store, axes)?;
+            }
             return Ok(Prepared {
                 metadata,
                 roots,
@@ -655,11 +659,17 @@ impl Runtime {
         };
         #[cfg(not(feature = "s_capture_native_testonly"))]
         let objects = object_index::plan(store, &generated.objects, &audited.objects, generation)?;
-        generated.finish_axes(store, previous, &objects.withdrawals, &objects.replaces)?;
-        let axes = generated
-            .catalog_axes
-            .clone()
-            .ok_or_else(|| err("目录轴完成后仍缺真实根"))?;
+        let axes = if metadata.profile_id == tb02a::PROFILE {
+            generated.finish_axes(store, previous, &objects.withdrawals, &objects.replaces)?;
+            Some(
+                generated
+                    .catalog_axes
+                    .clone()
+                    .ok_or_else(|| err("目录轴完成后仍缺真实根"))?,
+            )
+        } else {
+            None
+        };
         let counts = source_audit::audit_generated(
             store,
             &generated.generated_state,
@@ -741,7 +751,7 @@ impl Runtime {
 struct NodeProducts<'raw> {
     generated: generation::Generated<'raw>,
     objects: object_index::Plan,
-    axes: sc::ContentRef,
+    axes: Option<sc::ContentRef>,
     counts: source_audit::Counts,
     auxiliary: aux_index::Plan,
     run: String,

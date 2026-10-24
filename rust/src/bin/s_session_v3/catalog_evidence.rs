@@ -40,6 +40,8 @@ fn err(e: impl std::fmt::Display) -> String {
 /// OHLC 声明域的 `tested_domain` 文本；逐字等于旧生产 `s_structure_session.rs` 的取值。
 pub(super) const OHLC_TESTED_DOMAIN: &str =
     "TB-02-A：显式规范整数OHLC；已建方向与无同角色极值身份竞争域；初始包含/tie具名等待";
+pub(super) const TICK_TESTED_DOMAIN: &str = "TestOnly tick 1:1 OHLC（O=H=L=C），相邻严格无包含，初始化方向由前两点确定，无同价端点竞争";
+const TICK_PROFILE: &str = "testonly_tick_1_1_ohlc";
 
 /// 目录轴唯一集合；顺序 = `tb02a_facts::catalog_axes` 的写入顺序。
 pub(super) const AXIS_IDS: [&str; 13] = [
@@ -51,7 +53,7 @@ const AXIS_FIELDS: [&str; 4] = ["impl_status", "proof_status", "run_status", "ev
 const EVIDENCE_CORE_FIELDS: [&str; 3] = ["scope", "object_ids", "waiting_reasons"];
 const CC056_CHANGE_FIELDS: [&str; 3] = ["raw_revisions", "withdrawals", "replaces"];
 /// 一条完整目录证据的 exact 字段集合（OHLC；非 OHLC 无 `axes`，本模块不受理）。
-const EVIDENCE_FIELDS: [&str; 16] = [
+const OHLC_EVIDENCE_FIELDS: [&str; 16] = [
     "tested_domain",
     "profile_id",
     "profile_hash",
@@ -220,14 +222,20 @@ fn hash_json(value: &Value) -> Result<NodeDigest, String> {
         .digest)
 }
 
-fn require_ohlc(profile_id: &str) -> Result<(), String> {
-    if profile_id != tb02a::PROFILE {
-        return Err(err(format!(
-            "当前目录证据只实现 OHLC 档 `{}`；非 OHLC 生成态没有 13 轴，拒绝按此口径放行",
-            tb02a::PROFILE
-        )));
+fn evidence_fields(profile_id: &str) -> Result<&'static [&'static str], String> {
+    match profile_id {
+        tb02a::PROFILE => Ok(&OHLC_EVIDENCE_FIELDS),
+        TICK_PROFILE => Ok(&OHLC_EVIDENCE_FIELDS[..15]),
+        _ => Err(err(format!("未声明的S3目录证据profile `{profile_id}`"))),
     }
-    Ok(())
+}
+
+fn tested_domain(profile_id: &str) -> Result<&'static str, String> {
+    match profile_id {
+        tb02a::PROFILE => Ok(OHLC_TESTED_DOMAIN),
+        TICK_PROFILE => Ok(TICK_TESTED_DOMAIN),
+        _ => Err(err(format!("未声明的S3目录证据profile `{profile_id}`"))),
+    }
 }
 
 /// 生成态最终 `catalog_axes` 值边；未 finish 的草案（无该字段）即拒绝，不假空。
@@ -360,10 +368,19 @@ pub(super) fn build_template(
     withdrawals: &[Value],
     replaces: &[Value],
 ) -> Result<(String, ContentRef), String> {
-    require_ohlc(&metadata.profile_id)?;
-    let axes = generated_axes(store, generated_state)?;
-    let mut fields: Vec<(String, V)> = Vec::with_capacity(EVIDENCE_FIELDS.len());
-    text_field(&mut fields, "tested_domain", OHLC_TESTED_DOMAIN.to_string());
+    let fields_spec = evidence_fields(&metadata.profile_id)?;
+    let is_ohlc = metadata.profile_id == tb02a::PROFILE;
+    let axes = if is_ohlc {
+        Some(generated_axes(store, generated_state)?)
+    } else {
+        None
+    };
+    let mut fields: Vec<(String, V)> = Vec::with_capacity(fields_spec.len());
+    text_field(
+        &mut fields,
+        "tested_domain",
+        tested_domain(&metadata.profile_id)?.to_string(),
+    );
     text_field(&mut fields, "profile_id", metadata.profile_id.clone());
     text_field(&mut fields, "profile_hash", metadata.profile_hash.clone());
     text_field(&mut fields, "rule_revision", metadata.rule_revision.clone());
@@ -397,7 +414,9 @@ pub(super) fn build_template(
         "scope".into(),
         V::edge_of_ref(&metadata.scope).map_err(err)?,
     ));
-    fields.push(("axes".into(), V::Edge(axes.digest().map_err(err)?)));
+    if let Some(axes) = axes {
+        fields.push(("axes".into(), V::Edge(axes.digest().map_err(err)?)));
+    }
     let built = sc::write_template(store, &V::Object(fields)).map_err(err)?;
     Ok((declared_run(counts).to_string(), built.content_ref()))
 }
@@ -556,7 +575,8 @@ fn verify_cut_in_store(
     raw_start: usize,
 ) -> Result<(), String> {
     super::history::check_deadline(deadline)?;
-    require_ohlc(metadata.profile_id)?;
+    let fields_spec = evidence_fields(metadata.profile_id)?;
+    let is_ohlc = metadata.profile_id == tb02a::PROFILE;
     store
         .verify_ref(generated_state, sc::Mode::Public)
         .map_err(err)?;
@@ -577,14 +597,15 @@ fn verify_cut_in_store(
         )));
     }
     let evidence = field_ref(store, delta, "catalog_evidence")?;
-    if evidence.kind() != Kind::Object || evidence.extent() != Some(EVIDENCE_FIELDS.len() as u64) {
+    if evidence.kind() != Kind::Object || evidence.extent() != Some(fields_spec.len() as u64) {
         return Err(err(format!(
-            "catalog_evidence 不是16字段对象（extent={:?}）",
+            "catalog_evidence 不是{}字段对象（extent={:?}）",
+            fields_spec.len(),
             evidence.extent()
         )));
     }
-    if text_ref(store, &evidence, "tested_domain")? != OHLC_TESTED_DOMAIN {
-        return Err(err("目录证据 tested_domain 不是声明 OHLC 域"));
+    if text_ref(store, &evidence, "tested_domain")? != tested_domain(metadata.profile_id)? {
+        return Err(err("目录证据 tested_domain 与冻结 profile 域不同"));
     }
     if text_ref(store, &evidence, "batch_id")? != frontier {
         return Err(err("目录证据 batch_id 与 Delta index_frontier 不同"));
@@ -638,6 +659,7 @@ fn verify_cut_in_store(
     if text_ref(store, generated_state, "structure_cut")? != metadata.structure_cut {
         return Err(err("生成态 structure_cut 与冻结生成 cut 不同"));
     }
+    if is_ohlc {
     let axes = field_ref(store, evidence.view(), "axes")?;
     let state_axes = generated_axes_ref(store, generated_state)?;
     if axes.digest().map_err(err)? != state_axes.digest().map_err(err)? {
@@ -698,6 +720,7 @@ fn verify_cut_in_store(
         {
             return Err(err(format!("CC-056 {key} 与本代独立依据不同")));
         }
+    }
     }
     Ok(())
 }
@@ -1080,7 +1103,7 @@ mod tests {
         "scope",
         "catalog_axes",
     ];
-    const CC056_EVIDENCE_FIELDS: [&str; 6] = [
+    const CC056_OHLC_EVIDENCE_FIELDS: [&str; 6] = [
         "scope",
         "object_ids",
         "waiting_reasons",
@@ -1574,7 +1597,7 @@ mod tests {
         let forged = rebuild(
             &mut f.store,
             &evidence,
-            &EVIDENCE_FIELDS,
+            &OHLC_EVIDENCE_FIELDS,
             "classified_objects",
             V::String("999999".into()),
         );
@@ -1610,7 +1633,7 @@ mod tests {
         let cc056_evidence = rebuild(
             &mut f.store,
             &cc056_evidence,
-            &CC056_EVIDENCE_FIELDS,
+            &CC056_OHLC_EVIDENCE_FIELDS,
             "raw_revisions",
             V::Edge(empty.digest().unwrap()),
         );
@@ -1631,7 +1654,7 @@ mod tests {
         let evidence = rebuild(
             &mut f.store,
             &evidence,
-            &EVIDENCE_FIELDS,
+            &OHLC_EVIDENCE_FIELDS,
             "axes",
             V::Edge(axes.digest().unwrap()),
         );
@@ -1692,7 +1715,7 @@ mod tests {
         let evidence = rebuild(
             &mut f.store,
             &current_evidence,
-            &EVIDENCE_FIELDS,
+            &OHLC_EVIDENCE_FIELDS,
             "batch_id",
             V::String(batch),
         );

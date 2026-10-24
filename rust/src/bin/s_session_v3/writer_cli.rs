@@ -296,8 +296,8 @@ fn socket_path(raw: &str) -> Result<PathBuf, String> {
 
 fn checked_profile(path: &Path) -> Result<(), String> {
     let (_, profile_id, _) = load_profile(path)?;
-    if profile_id != tb02a::PROFILE {
-        return Err("VersionUnsupported：S3写入口尚未实现非OHLC生成".into());
+    if profile_id != tb02a::PROFILE && profile_id != "testonly_tick_1_1_ohlc" {
+        return Err(format!("VersionUnsupported：未声明的S3写入口profile `{profile_id}`"));
     }
     Ok(())
 }
@@ -388,9 +388,7 @@ fn preflight_input(
         return Err("IdentityConflict：one-shot输入不属于已初始化会话/化身".into());
     }
     let (_, profile_id, profile_hash) = load_profile(&options.profile)?;
-    if profile_id != tb02a::PROFILE
-        || meta_get_opt(&tx, "profile_hash")?.as_deref() != Some(profile_hash.as_str())
-    {
+    if meta_get_opt(&tx, "profile_hash")?.as_deref() != Some(profile_hash.as_str()) {
         return Err("IdentityConflict：one-shot profile与冻结档案不符".into());
     }
     if input["payload"]["op"] == "ingest" {

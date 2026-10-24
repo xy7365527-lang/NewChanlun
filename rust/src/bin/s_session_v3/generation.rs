@@ -67,7 +67,7 @@ use newchan_rust::s_content::{
 };
 use newchan_rust::session_protocol::parse_canonical_i64;
 use newchan_rust::theta_v0::classifier::local_shape::{
-    classify_local_shape_sliding, Cc006LocalShape,
+    classify_local_shape, classify_local_shape_sliding, Cc006LocalShape,
 };
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser;
@@ -446,10 +446,11 @@ impl GenerationRuntime {
                 self.profile_id, self.rule_revision, input.profile_id, input.rule_revision
             ));
         }
-        if input.profile_id != crate::tb02a::PROFILE {
+        let is_ohlc = input.profile_id == crate::tb02a::PROFILE;
+        if !is_ohlc && input.profile_id != "testonly_tick_1_1_ohlc" {
             return Err(format!(
-                "VersionUnsupported：S3 同核生成只接线 OHLC 档案 `{}`（CC-006 来源集合配方按档案分派，非 OHLC 支未接线；不静默降级）",
-                crate::tb02a::PROFILE
+                "VersionUnsupported：S3 同核生成未声明 profile `{}`",
+                input.profile_id
             ));
         }
         let gen = input.generation;
@@ -467,7 +468,7 @@ impl GenerationRuntime {
             if raw_by_coord.insert(coord, event).is_some() {
                 return Err("StorageUnavailable：有效源坐标碰撞，拒绝覆盖见证".to_string());
             }
-            raw_bars.push(bar_of(event)?);
+            raw_bars.push(bar_of(event, is_ohlc)?);
             let node = event_node(&mut self.event_nodes, store, event)?;
             coord_nodes.insert(coord, node);
             effective_nodes.push(node);
@@ -512,6 +513,51 @@ impl GenerationRuntime {
         let mut witnesses: Vec<WitnessRecord> = Vec::new();
         let mut relations: Vec<Built> = Vec::new();
         let mut observations: Vec<(bool, Built)> = Vec::new();
+        if !is_ohlc {
+            // 旧 tick 档案还保留原始 K 线三窗观察；它不同于下方 merged-window 观察。
+            let raw_windows: Vec<(usize, Cc006LocalShape)> = if raw_bars.len() < 3 {
+                vec![(0, Cc006LocalShape::InsufficientKnowledge)]
+            } else {
+                (0..=raw_bars.len() - 3)
+                    .map(|start| {
+                        (
+                            start,
+                            classify_local_shape(
+                                &raw_bars[start],
+                                &raw_bars[start + 1],
+                                &raw_bars[start + 2],
+                            ),
+                        )
+                    })
+                    .collect()
+            };
+            for (start, shape) in raw_windows {
+                let value = match shape {
+                    Cc006LocalShape::Classified { .. } => continue,
+                    Cc006LocalShape::InsufficientKnowledge => serde_json::json!({
+                        "kind": "insufficient_knowledge",
+                        "reason": "fewer_than_three_bars",
+                        "window_start": start,
+                        "window_mid": Value::Null,
+                        "window_end": Value::Null,
+                        "detail": {"raw_events": raw_bars.len()},
+                    }),
+                    Cc006LocalShape::DomainNotSatisfied { reason } => serde_json::json!({
+                        "kind": "domain_not_satisfied",
+                        "reason": reason.as_str(),
+                        "window_start": start,
+                        "window_mid": start + 1,
+                        "window_end": start + 2,
+                        "detail": {"raw_prices": [
+                            raw_bars[start].high.to_string(),
+                            raw_bars[start + 1].high.to_string(),
+                            raw_bars[start + 2].high.to_string(),
+                        ]},
+                    }),
+                };
+                observations.push((false, write_json(store, &value)?));
+            }
+        }
         // 逐形态的请求组（旧配方线序：形态请求 → 该形态的 CC-007 三条请求）。
         let mut shape_requests: Vec<(Built, Vec<Built>)> = Vec::new();
         let mut fractals: Vec<ProducedObject> = Vec::new();
@@ -545,20 +591,24 @@ impl GenerationRuntime {
                     witnesses.extend(wits);
                     relations.extend(rels);
                     let request = object.request.clone();
-                    let fractal = match (&built_shape, &mut fractal_sources) {
-                        (ShapeBuild::Native(shape), Some(sources)) => self
-                            .producer
-                            .build_parser_fractal(store, &prepared, sources, shape, gen, cut),
-                        _ => self.producer.build_fractal(
-                            store,
-                            &prepared,
-                            object,
-                            [&views[0], &views[1], &views[2]],
-                            gen,
-                            cut,
-                        ),
-                    }
-                    .map_err(producer_error)?;
+                    let fractal = if is_ohlc {
+                        match (&built_shape, &mut fractal_sources) {
+                            (ShapeBuild::Native(shape), Some(sources)) => self
+                                .producer
+                                .build_parser_fractal(store, &prepared, sources, shape, gen, cut),
+                            _ => self.producer.build_fractal(
+                                store,
+                                &prepared,
+                                object,
+                                [&views[0], &views[1], &views[2]],
+                                gen,
+                                cut,
+                            ),
+                        }
+                        .map_err(producer_error)?
+                    } else {
+                        None
+                    };
                     let mut fractal_requests: Vec<Built> = Vec::new();
                     if let Some(fractal_object) = fractal {
                         fractal_reasons.extend(fractal_object.knowledge_reasons.iter().copied());
@@ -627,8 +677,10 @@ impl GenerationRuntime {
             }
         }
 
-        // ── 泛型事实：步骤 → 组 → 形态/分型请求 → 不足三根待决请求 ──
+        // ── OHLC 的泛型事实、知识状态与 TB-02-B；旧 tick 档案没有这条对象链 ──
         let mut typed: Vec<ProducedObject> = Vec::new();
+        let mut requests: Vec<Built> = Vec::new();
+        if is_ohlc {
         let mut step_requests: Vec<Built> = Vec::new();
         let mut group_requests: Vec<Built> = Vec::new();
         let mut all_reasons: Vec<&'static str> = Vec::new();
@@ -685,7 +737,6 @@ impl GenerationRuntime {
                 body: ObjectBody::Typed(object),
             });
         }
-        let mut requests: Vec<Built> = Vec::new();
         requests.extend(step_requests);
         requests.extend(group_requests);
         for (shape_request, fractal_requests) in &shape_requests {
@@ -795,6 +846,7 @@ impl GenerationRuntime {
                     .map_err(|error| format!("GenError：关系值写入失败：{error}"))?,
             );
         }
+        }
 
         // ── 生成态六条数组：跨代共享序列 + 旧配方等价去重 ──
         let mut objects: Vec<ProducedObject> = shape_objects;
@@ -868,7 +920,7 @@ impl GenerationRuntime {
             roots,
             requests,
             all_events: input.all_events,
-            is_ohlc: true,
+            is_ohlc,
         })
     }
 }
@@ -1435,8 +1487,8 @@ fn event_node(
     Ok(built.digest)
 }
 
-/// 生效账事件 → `Bar`（与旧生成段同一取法：OHLC 档案取 open/high/low/close）。
-fn bar_of(event: JsonView<'_>) -> Result<Bar, String> {
+/// 生效账事件 → `Bar`：OHLC 取显式四价；旧 tick 由单一 price 派生 O=H=L=C。
+fn bar_of(event: JsonView<'_>, is_ohlc: bool) -> Result<Bar, String> {
     let price = |key: &str| -> Result<i64, String> {
         parse_canonical_i64(
             bj::field(event, key)
@@ -1445,14 +1497,20 @@ fn bar_of(event: JsonView<'_>) -> Result<Bar, String> {
             key,
         )
     };
+    let px = price("price")?;
+    let (open, high, low, close) = if is_ohlc {
+        (price("open")?, price("high")?, price("low")?, price("close")?)
+    } else {
+        (px, px, px, px)
+    };
     Ok(Bar {
         source_index: usize::try_from(bj::coord(event)?)
             .map_err(|_| "StorageUnavailable：源坐标不能无损转换为 source_index".to_string())?,
         timestamp: parse_canonical_i64(bj::field(event, "ts").as_str().unwrap_or(""), "timestamp")?,
-        open: price("open")?,
-        high: price("high")?,
-        low: price("low")?,
-        close: price("close")?,
+        open,
+        high,
+        low,
+        close,
         volume: 1.0,
         untradable: false,
     })
@@ -2073,7 +2131,7 @@ mod tests {
         let bars: Vec<Bar> = oracle
             .effective
             .iter()
-            .map(|event| bar_of(event.into()).expect("有效账 bar"))
+            .map(|event| bar_of(event.into(), true).expect("有效账 bar"))
             .collect();
         let (layer, _) = parser::parse_layer_with_inclusion_facts(&bars, &config);
         layer
