@@ -87,6 +87,31 @@ open Strict.Nest (Interval selKey selOrder IsSelected Sub Dir)
   ★版本化字段 `selector_keys`（qujiantao.md §14.1，ADR 0041，[#1600]）：
   当前写死 `(endTime 降序, startTime 降序, idx 升序)`（现行键序）。完整参数化见 Q-2 清单。
 -/
+def selOrderBWithKeys (keys : Strict.Nest.SelectorKeys) (a b : Interval) : Bool :=
+  match keys with
+  | .StartDescIdxAsc =>
+      (b.endTime < a.endTime)
+        || (a.endTime == b.endTime && b.startTime < a.startTime)
+        || (a.endTime == b.endTime && a.startTime == b.startTime && a.idx < b.idx)
+  | .StartDescIdxDesc =>
+      (b.endTime < a.endTime)
+        || (a.endTime == b.endTime && b.startTime < a.startTime)
+        || (a.endTime == b.endTime && a.startTime == b.startTime && b.idx < a.idx)
+  | .StartAscIdxAsc =>
+      (b.endTime < a.endTime)
+        || (a.endTime == b.endTime && a.startTime < b.startTime)
+        || (a.endTime == b.endTime && a.startTime == b.startTime && a.idx < b.idx)
+  | .StartAscIdxDesc =>
+      (b.endTime < a.endTime)
+        || (a.endTime == b.endTime && a.startTime < b.startTime)
+        || (a.endTime == b.endTime && a.startTime == b.startTime && b.idx < a.idx)
+
+/-- Bool 与 Prop 的通用键表镜像一致。 -/
+theorem selOrderBWithKeys_iff (keys : Strict.Nest.SelectorKeys) (a b : Interval) :
+    selOrderBWithKeys keys a b = true ↔ Strict.Nest.selOrderWithKeys keys a b := by
+  cases keys <;> simp [selOrderBWithKeys, Strict.Nest.selOrderWithKeys] at * <;> omega
+
+/-- 当前默认记录的 Bool 镜像。 -/
 def selOrderB (a b : Interval) : Bool :=
   (b.endTime < a.endTime)
     || (a.endTime == b.endTime && b.startTime < a.startTime)
@@ -185,6 +210,10 @@ theorem selOrder_right_congr {a b b' : Interval}
   ★平局（键同）保留 `cur`——配合 `selectΘ` 的左折叠，键同的多候选取**首个出现**者
     （确定性：选择结果只依赖候选集合 + 顺序，键唯一时与顺序无关）。
 -/
+def selBetterWithKeys (keys : Strict.Nest.SelectorKeys) (cur x : Interval) : Interval :=
+  if selOrderBWithKeys keys x cur then x else cur
+
+/-- 当前默认记录的逐对裁决器。 -/
 def selBetter (cur x : Interval) : Interval :=
   if selOrderB x cur then x else cur
 
@@ -196,6 +225,11 @@ def selBetter (cur x : Interval) : Interval :=
 
   ★全定义（对任意列表有确定结果）：空 → none，非空 → some（确定的最优者）。无「未定义」。
 -/
+def selectΘWithKeys (keys : Strict.Nest.SelectorKeys) : List Interval → Option Interval
+  | [] => none
+  | c :: cs => some (cs.foldl (selBetterWithKeys keys) c)
+
+/-- 当前默认记录的选择函数。 -/
 def selectΘ : List Interval → Option Interval
   | [] => none
   | c :: cs => some (cs.foldl selBetter c)

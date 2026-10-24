@@ -96,6 +96,72 @@ structure Interval where
   idx : Nat
 deriving DecidableEq, Repr
 
+/-- `selector_keys` 的四个合法组合。`endTime` 固定降序（其升序在正本中仍未批准）。 -/
+inductive SelectorKeys where
+  | StartDescIdxAsc
+  | StartDescIdxDesc
+  | StartAscIdxAsc
+  | StartAscIdxDesc
+deriving DecidableEq, Repr
+
+/-- 选择器记录：纯键序 + 可追溯的 record id/version。 -/
+structure SelectorPolicy where
+  keys : SelectorKeys
+  recordId : String
+  version : Nat
+deriving Repr
+
+/-- 当前 `selector-keys/1` 的显式测试输入，不是缺记录时的备用值。 -/
+def defaultSelectorKeys : SelectorKeys := .StartDescIdxAsc
+
+/-- 当前 `selector-keys/1` 的显式测试记录。 -/
+def defaultSelectorPolicy : SelectorPolicy := {
+  keys := defaultSelectorKeys,
+  recordId := "selector-keys",
+  version := 1
+}
+
+/-- 按记录比较：`endTime` 固定降序，另外两个方向来自同一键表。 -/
+def selOrderWithKeys (keys : SelectorKeys) (a b : Interval) : Prop :=
+  match keys with
+  | .StartDescIdxAsc =>
+      a.endTime > b.endTime
+        ∨ (a.endTime = b.endTime ∧ a.startTime > b.startTime)
+        ∨ (a.endTime = b.endTime ∧ a.startTime = b.startTime ∧ a.idx < b.idx)
+  | .StartDescIdxDesc =>
+      a.endTime > b.endTime
+        ∨ (a.endTime = b.endTime ∧ a.startTime > b.startTime)
+        ∨ (a.endTime = b.endTime ∧ a.startTime = b.startTime ∧ a.idx > b.idx)
+  | .StartAscIdxAsc =>
+      a.endTime > b.endTime
+        ∨ (a.endTime = b.endTime ∧ a.startTime < b.startTime)
+        ∨ (a.endTime = b.endTime ∧ a.startTime = b.startTime ∧ a.idx < b.idx)
+  | .StartAscIdxDesc =>
+      a.endTime > b.endTime
+        ∨ (a.endTime = b.endTime ∧ a.startTime < b.startTime)
+        ∨ (a.endTime = b.endTime ∧ a.startTime = b.startTime ∧ a.idx > b.idx)
+
+/-- 通用键表的反对称性。 -/
+theorem selOrderWithKeys_asymm {keys : SelectorKeys} {a b : Interval}
+    (h : selOrderWithKeys keys a b) : ¬ selOrderWithKeys keys b a := by
+  intro h'
+  cases keys <;> simp [selOrderWithKeys] at h h'
+  <;> rcases h with he | ⟨_, hs⟩ | ⟨_, _, hi⟩ <;>
+    rcases h' with he' | ⟨_, hs'⟩ | ⟨_, _, hi'⟩ <;> omega
+
+/-- 通用键表的三歧性。 -/
+theorem selOrderWithKeys_trichotomy (keys : SelectorKeys) (a b : Interval) :
+    selOrderWithKeys keys a b ∨
+      (a.endTime = b.endTime ∧ a.startTime = b.startTime ∧ a.idx = b.idx) ∨
+      selOrderWithKeys keys b a := by
+  cases keys <;> simp [selOrderWithKeys] at * <;> omega
+
+/-- 通用键表的传递性。 -/
+theorem selOrderWithKeys_trans {keys : SelectorKeys} {a b c : Interval}
+    (h₁ : selOrderWithKeys keys a b) (h₂ : selOrderWithKeys keys b c) :
+    selOrderWithKeys keys a c := by
+  cases keys <;> simp [selOrderWithKeys] at * <;> omega
+
 /--
   **Sel_Θ 字典序键** —— 把一个区间映射到其三键 `(endTime, startTime, idx)`。
 

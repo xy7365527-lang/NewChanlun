@@ -1,3 +1,6 @@
+import Origin.IntervalNestCertificate
+import Strict.Nest
+
 /-
   Origin/NestingCertificate.lean — 区间套证书 N^δ_{ℓ↓e} 的自相似递归（spec §6/§5, P5）
   —— **级别差 (ℓ-e):Nat 结构递归 + ∃!∈{0,1} + 级别平移不变** 的 L0 结构形式化。
@@ -114,6 +117,12 @@ structure Candidate where
   direction : SegmentDir
   comparison : Comparison
   interval : Interval
+deriving DecidableEq, Repr
+
+/-- 几何候选与独立的最近性排序键；`interval.lo/hi` 不冒充时间键。 -/
+structure RankedCandidate where
+  candidate : Candidate
+  key : Strict.Nest.Interval
 deriving DecidableEq, Repr
 
 /-- `Dir = (候选段方向 = -δ)`。 -/
@@ -240,8 +249,22 @@ def eligibleCandidates (δ : Dir) (child : Interval) (candidates : List Candidat
   当前假设输入已按 `(end_time 降序, start_time 降序, idx 升序)` 排序（现行键序），
   直接取 `.head?`。完整参数化（接受键表、内部排序）见 Q-2 清单。
 -/
-def SelTheta (δ : Dir) (child : Interval) (candidates : List Candidate) : Option Candidate :=
-  (eligibleCandidates δ child candidates).head?
+def eligibleRankedCandidates (δ : Dir) (child : Interval)
+    (candidates : List RankedCandidate) : List RankedCandidate :=
+  candidates.filter fun c => DivCand δ c.candidate && subB child c.candidate.interval
+
+/-- 先过滤，再按同一 selector 记录选择；乱序输入不改变选择规则。 -/
+def SelThetaRanked (policy : Strict.Nest.SelectorPolicy) (δ : Dir) (child : Interval)
+    (candidates : List RankedCandidate) : Option RankedCandidate :=
+  match eligibleRankedCandidates δ child candidates with
+  | [] => none
+  | c :: cs => some (cs.foldl (fun cur x =>
+      if NewChanlun.Origin.IntervalNestCertificate.selOrderBWithKeys policy.keys x.key cur.key then x else cur) c)
+
+/-- 对外仍返回几何候选，最近性只由记录与独立键决定。 -/
+def SelTheta (policy : Strict.Nest.SelectorPolicy) (δ : Dir) (child : Interval)
+    (candidates : List RankedCandidate) : Option Candidate :=
+  (SelThetaRanked policy δ child candidates).map RankedCandidate.candidate
 
 /--
   **外层 `Cand^δ_ℓ(J_{ℓ-1},t)`**：条件化候选集非空。
@@ -250,14 +273,19 @@ def SelTheta (δ : Dir) (child : Interval) (candidates : List Candidate) : Optio
 def Cand (δ : Dir) (child : Interval) (candidates : List Candidate) : Bool :=
   !(eligibleCandidates δ child candidates).isEmpty
 
-/-- 选择器只消费已过滤集合：`Cand=false` 时 `SelTheta` 必为空，选择不能救回不合格候选。 -/
-theorem cand_false_implies_no_selection
-    (δ : Dir) (child : Interval) (candidates : List Candidate)
-    (h : Cand δ child candidates = false) :
-    SelTheta δ child candidates = none := by
-  unfold Cand at h
-  unfold SelTheta
-  generalize hx : eligibleCandidates δ child candidates = xs at h ⊢
+/-- 带键候选的条件化非空集，和选择器共用同一份过滤结果。 -/
+def RankedCand (δ : Dir) (child : Interval) (candidates : List RankedCandidate) : Bool :=
+  !(eligibleRankedCandidates δ child candidates).isEmpty
+
+/-- `RankedCand=false` 时选择必为空，不能用选择器救回不合格候选。 -/
+theorem ranked_cand_false_implies_no_selection
+    (policy : Strict.Nest.SelectorPolicy) (δ : Dir) (child : Interval)
+    (candidates : List RankedCandidate)
+    (h : RankedCand δ child candidates = false) :
+    SelTheta policy δ child candidates = none := by
+  unfold RankedCand at h
+  unfold SelTheta SelThetaRanked
+  generalize hx : eligibleRankedCandidates δ child candidates = xs at h ⊢
   cases xs with
   | nil => rfl
   | cons head tail => simp at h

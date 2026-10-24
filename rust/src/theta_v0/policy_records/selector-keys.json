@@ -1,0 +1,12 @@
+{
+  "id": "selector-keys",
+  "version": 1,
+  "kind": "nest_selection_policy",
+  "ticket": "#1626（#1600 / qujiantao §14.1；ADR 0041）",
+  "note": "Sel_Θ 的键序。endTime 固定降序；startTime 与 idx 可各选 ascending/descending，缺值或非法方向不回退默认。",
+  "fields": {
+    "end_time": { "value": "descending", "default": "descending", "source": "结束最新优先；升序仍待裁", "options": "仅 descending", "cost": "改主键方向须另开裁定票" },
+    "start_time": { "value": "descending", "default": "descending", "source": "开始最新优先", "options": "descending / ascending", "cost": "ascending 改选更宽区间，须重测链长与包含门" },
+    "idx": { "value": "ascending", "default": "ascending", "source": "编号最小优先", "options": "ascending / descending", "cost": "descending 改变同起止候选身份归因" }
+  }
+}
