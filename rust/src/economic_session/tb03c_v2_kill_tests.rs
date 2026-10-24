@@ -729,8 +729,31 @@ fn run_once(plan: &Plan, target: usize, phase: &str, work: &Path) -> Value {
         plan.steps[target].clone(),
     ];
     steps.extend_from_slice(&plan.steps[target + 1..]);
+    // #1621：E 恢复后，后续 B 也须由新进程 recover 并升 epoch 2；
+    // 否则 B 的首次获知早于 E 的重送提交，违反 E→B 时钟因果锁。
+    if owner == 0 {
+        for b_owner in 1..k.configs.len() {
+            let label = format!("recover-b{b_owner}");
+            finish(
+                spawn(
+                    work,
+                    &label,
+                    json!({"action":"recover","owner":b_owner}),
+                ),
+                work,
+                &label,
+            );
+            let recovered = progress(work, &label)[0]["recovered"].clone();
+            assert_eq!(recovered["kind"], "Recovered");
+            assert_eq!(recovered["writer_epoch"], "2");
+        }
+    }
     let mut epochs = vec![1; plan.domains()];
-    epochs[owner] = 2;
+    if owner == 0 {
+        epochs.fill(2);
+    } else {
+        epochs[owner] = 2;
+    }
     let after = run(work, "c", &epochs, &steps);
     let t_resume = t0.elapsed().as_millis();
     // 旧写者（epoch 1）重送：被 recover 封住，StaleWriter，不新增提交。
