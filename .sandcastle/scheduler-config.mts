@@ -1,10 +1,12 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { z } from "zod";
-
-const positive = z.number().int().positive().safe();
-const effort = z.enum(["low", "medium", "high", "xhigh"]);
-export const schedulerValuesSchema = z.object({
+// #1617 的 wayfinder 可在无 node_modules 环境导入，因此配置边界只用 Node 内建模块。
+const positive = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v) && v > 0;
+const positiveFinite = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v > 0;
+type Effort = "low" | "medium" | "high" | "xhigh";
+const effort = (v: unknown): v is Effort => typeof v === "string" && ["low", "medium", "high", "xhigh"].includes(v);
+const modelName = (v: unknown): v is string => typeof v === "string" && /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$/.test(v);
+const fields = {
   childKillGraceMs: positive,
   childExitPollMs: positive,
   childExitWaitMs: positive,
@@ -18,46 +20,66 @@ export const schedulerValuesSchema = z.object({
   dockerNamespaceTimeoutMs: positive,
   frontierQueryLimit: positive,
   backlogQueryLimit: positive,
-  mainModel: z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$/),
+  mainModel: modelName,
   workerEffort: effort,
   childEffort: effort,
   mainMaxIterations: positive,
   mainMaxTickets: positive,
   implementerIdleSeconds: positive,
   worktreeMaxAttempts: positive,
-  worktreeRetryDelayMs: positive.min(5000),
+  worktreeRetryDelayMs: (v: unknown): v is number => positive(v) && v >= 5000,
   swarmMaxIterations: positive,
   swarmMaxParallel: positive,
-  childIdleSeconds: positive.max(43200),
-  childTimeoutSeconds: positive.max(43200),
-  decisionMaps: z.array(positive).nonempty(),
+  childIdleSeconds: (v: unknown): v is number => positive(v) && v <= 43200,
+  childTimeoutSeconds: (v: unknown): v is number => positive(v) && v <= 43200,
+  decisionMaps: (v: unknown): v is number[] => Array.isArray(v) && v.length > 0 && v.every(positive),
   decisionMaxConcurrent: positive,
   decisionLoopMs: positive,
   decisionMaxRounds: positive,
-  decisionMaxAttempts: positive.min(5),
+  decisionMaxAttempts: (v: unknown): v is number => positive(v) && v >= 5,
   decisionTimeoutMs: positive,
   decisionBackoffBaseMs: positive,
   decisionBackoffCapMs: positive,
-  claimPollSeconds: z.number().positive().finite(),
+  claimPollSeconds: positiveFinite,
   claimRollbackMs: positive,
   wayfinderStaleMs: positive,
   claimStaleMs: positive,
-  diskMinGiB: z.number().positive().finite(),
-}).strict();
-export type SchedulerValues = z.infer<typeof schedulerValuesSchema>;
+  diskMinGiB: positiveFinite,
+};
+type Checked<T> = T extends (value: unknown) => value is infer V ? V : never;
+export type SchedulerValues = { [K in keyof typeof fields]: Checked<(typeof fields)[K]> };
 export type SchedulerKey = keyof SchedulerValues;
-const keys = Object.keys(schedulerValuesSchema.shape) as SchedulerKey[];
-const recordSchema = z.object({
-  schemaVersion: z.literal("sandcastle-scheduler/1"),
-  revision: positive,
-  ticket: positive,
-  values: schedulerValuesSchema,
-  sources: z.record(z.string(), z.string().min(1)),
-}).strict().superRefine((record, ctx) => {
-  for (const key of keys) {
-    if (!record.sources[key]) ctx.addIssue({ code: "custom", path: ["sources", key], message: "缺少参数来源" });
+const keys = Object.keys(fields) as SchedulerKey[];
+function object(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function invalid(scope: string, paths: string[]): never {
+  throw new Error(`[配置 #1606] ${scope}字段非法: ${paths.join(", ")}`);
+}
+function readValues(raw: unknown, scope: string): SchedulerValues {
+  if (!object(raw)) invalid(scope, ["values"]);
+  const bad = keys.filter(key => !Object.hasOwn(raw, key) || !fields[key](raw[key])).map(key => `values.${key}`);
+  bad.push(...Object.keys(raw).filter(key => !Object.hasOwn(fields, key)).map(key => `values.${key}`));
+  if (bad.length) invalid(scope, bad);
+  return { ...raw, decisionMaps: [...raw.decisionMaps as number[]] } as SchedulerValues;
+}
+function readRecord(raw: unknown) {
+  if (!object(raw)) invalid("记录", ["record"]);
+  const bad = Object.keys(raw).filter(key => !["schemaVersion", "revision", "ticket", "values", "sources"].includes(key));
+  if (raw.schemaVersion !== "sandcastle-scheduler/1") bad.push("schemaVersion");
+  if (!positive(raw.revision)) bad.push("revision");
+  if (!positive(raw.ticket)) bad.push("ticket");
+  if (!object(raw.sources)) bad.push("sources");
+  else {
+    for (const key of keys) if (!Object.hasOwn(raw.sources, key)) bad.push(`sources.${key}`);
+    for (const [key, value] of Object.entries(raw.sources)) {
+      if (typeof value !== "string" || value.length === 0) bad.push(`sources.${key}`);
+    }
   }
-});
+  if (bad.length) invalid("记录", bad);
+  return { schemaVersion: "sandcastle-scheduler/1" as const, revision: raw.revision as number,
+    ticket: raw.ticket as number, values: readValues(raw.values, "记录"), sources: raw.sources as Record<string, string> };
+}
 
 export const configPath = fileURLToPath(new URL("./scheduler-config.json", import.meta.url));
 export function schedulerEnvName(key: SchedulerKey): string {
@@ -70,11 +92,7 @@ export function readSchedulerConfig(path = configPath, env: NodeJS.ProcessEnv = 
   let raw: unknown;
   try { raw = JSON.parse(readFileSync(path, "utf8")); }
   catch { throw new Error(`[配置 #1606] 无法读取JSON记录 ${path}`); }
-  const parsed = recordSchema.safeParse(raw);
-  if (!parsed.success) {
-    throw new Error(`[配置 #1606] 记录字段非法: ${parsed.error.issues.map((i) => i.path.join(".")).join(", ")}`);
-  }
-  const record = parsed.data;
+  const record = readRecord(raw);
   const effective: Record<string, unknown> = { ...record.values };
   const origins: Record<string, string> = {};
   for (const key of keys) {
@@ -89,15 +107,12 @@ export function readSchedulerConfig(path = configPath, env: NodeJS.ProcessEnv = 
     } else effective[key] = value.trim() === "" ? NaN : Number(value);
     origins[key] = `env:${name}`;
   }
-  const values = schedulerValuesSchema.safeParse(effective);
-  if (!values.success) {
-    throw new Error(`[配置 #1606] 有效字段非法: ${values.error.issues.map((i) => i.path.join(".")).join(", ")}`);
-  }
-  if (values.data.decisionBackoffBaseMs > values.data.decisionBackoffCapMs) {
+  const values = readValues(effective, "有效");
+  if (values.decisionBackoffBaseMs > values.decisionBackoffCapMs) {
     throw new Error("[配置 #1606] decisionBackoffBaseMs 超过 decisionBackoffCapMs");
   }
-  Object.freeze(values.data.decisionMaps);
-  return { ...record, values: Object.freeze(values.data), origins: Object.freeze(origins) };
+  Object.freeze(values.decisionMaps);
+  return { ...record, values: Object.freeze(values), origins: Object.freeze(origins) };
 }
 
 let loaded: ReturnType<typeof readSchedulerConfig> | undefined;

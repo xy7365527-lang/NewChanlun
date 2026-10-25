@@ -67,6 +67,25 @@ test("非法类型、边界、跨字段关系和未知字段均拒绝", () => fi
     assert.throws(() => readSchedulerConfig(path, {}), /配置 #1606/);
   }
 }));
+test("记录结构、版本、来源和整数边界保持严格拒绝", () => fixture(path => {
+  for (const raw of [null, [], {}, { ...original, schemaVersion: "sandcastle-scheduler/2" },
+    { ...original, revision: 1.5 }, { ...original, ticket: 0 }, { ...original, extra: true },
+    { ...original, values: null }, { ...original, sources: [] },
+    { ...original, sources: { ...original.sources, mainModel: "" } },
+    { ...original, sources: { ...original.sources, mainModel: 1 } }]) {
+    writeFileSync(path, JSON.stringify(raw));
+    assert.throws(() => readSchedulerConfig(path, {}), /配置 #1606/);
+  }
+  for (const value of [0, -1, 0.5, Number.MAX_SAFE_INTEGER + 1, "1", null]) {
+    const record = structuredClone(original); record.values.childKillGraceMs = value;
+    writeFileSync(path, JSON.stringify(record));
+    assert.throws(() => readSchedulerConfig(path, {}), /values.childKillGraceMs/);
+  }
+  const record = structuredClone(original);
+  record.values.claimPollSeconds = 0.5; record.values.diskMinGiB = 0.5;
+  writeFileSync(path, JSON.stringify(record));
+  assert.equal(readSchedulerConfig(path, {}).values.claimPollSeconds, 0.5);
+}));
 test("全部环境覆盖可追溯；旧env名称保留；非法覆盖拒绝且不回显值", () => {
   const env: NodeJS.ProcessEnv = {};
   for (const [key, value] of Object.entries(expected)) {

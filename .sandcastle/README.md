@@ -121,7 +121,7 @@ bash .sandcastle/install-sandcastle-claimer.sh uninstall # 卸载
 | `harvest.test.sh` | harvest.sh 离线回归（#1660）：临时裸 origin + 假 gh，用真 jq 执行脚本里的 `--jq` 过滤、有状态地记住已开 PR，覆盖关闭关键词正反例、开 PR/登记、已有 PR 不重复、二次真跑幂等、评审未完成、票已关、open blocker 计数、远端分叉/领先、已合入 PR 不复活分支、标题关键词、token 轮换标记、dry run，并断言从不关票/合入/推 main/跑 cargo。经 `harvest.test.mts` 包装，由 CI `sandcastle-ts` job 运行。 |
 | `install-sandcastle-harvest.sh` | 收割 launchd 定时任务的安装/卸载/查状态（#1660，对齐 install-sandcastle-claimer.sh）。 |
 | `launchd/com.newchanlun.sandcastle-harvest.plist` | 收割 launchd 任务定义：StartInterval 900 + RunAtLoad，指向宿主克隆（#1660）。 |
-| `main-model.mts` / `cliproxy-env.mts` | 当前主控同型的唯一模型配置与无第三方依赖 CLIProxy 接线；后者可供 wayfinder 在无 node_modules 环境导入。 |
+| `main-model.mts` / `cliproxy-env.mts` | 当前主控同型的唯一模型配置与 CLIProxy 接线；完整导入链（含 scheduler-config 的记录校验）仅用 Node 内建模块，可供 wayfinder 在无 node_modules 环境导入。 |
 | `swarm-route.mts` | main-swarm 的主控同型 provider 与 Docker 宿主网关；保留 Docker 隔离，密钥仅运行时 env；领票前做真实模型请求与 namespace 预检；失败不认领、不换模型；已验收清单走独立受管归并入口。 |
 | `prime-agent-provider.ts` | 显式 legacy 通道的自定义 AgentProvider；不再供本机默认 main/main-swarm 使用。无头模式 `prime-agent -p --mode json` 输出 NDJSON 事件流，prompt 走 stdin（避开 Linux 128 KB argv 上限），事件映射到 sandcastle 的 stream 协议。 |
 | `implement-prompt.md` | Phase 1 实装工蜂的 prompt 模板（`{{ISSUE_NUMBER}}` 注入）：Explore→Plan→Execute→Verify→Commit 流程 + 硬性规则（不关票不合 main 不 push、被卡留评论收工）。 |
