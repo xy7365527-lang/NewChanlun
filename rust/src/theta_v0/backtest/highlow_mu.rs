@@ -34,7 +34,7 @@ use super::super::config::ThetaConfig;
 use super::l3_delta_r_alpha::build_mu_from_bars;
 use super::mu_estimator::ResidualTrade;
 use super::prereg_windows::{OOS_START, PREREG_WINDOWS};
-use super::research_stats::active_research_stats;
+use super::research_stats::{active_research_stats, ResearchStats};
 use super::{data, decontam, perm_test};
 use std::collections::BTreeMap;
 
@@ -93,6 +93,14 @@ struct CellStat {
 /// Welford + 切片内分层 δ 置换 + n_eff + 删尾 + 三态）。切片先于置换固定（D 维 δ-free
 /// ⟹ 层内 shuffle δ 不改切片归属，prereg §1.2 共线免疫论证）。
 fn cell_stats(records: &[ResidualTrade]) -> BTreeMap<(u32, u8, i8, i8), CellStat> {
+    let policy = active_research_stats().expect("C-19 research stats record");
+    cell_stats_with_policy(records, &policy)
+}
+
+fn cell_stats_with_policy(
+    records: &[ResidualTrade],
+    policy: &ResearchStats,
+) -> BTreeMap<(u32, u8, i8, i8), CellStat> {
     let mut agg: BTreeMap<(u32, u8, i8, i8), (u64, f64, f64)> = BTreeMap::new();
     let mut series: BTreeMap<(u32, u8, i8, i8), Vec<f64>> = BTreeMap::new();
     for r in records {
@@ -111,7 +119,6 @@ fn cell_stats(records: &[ResidualTrade]) -> BTreeMap<(u32, u8, i8, i8), CellStat
         series.entry(key).or_default().push(y);
     }
     let pp = perm_test::stratified_delta_perm_p(records, perm_test::N_PERM, perm_test::PERM_SEED);
-    let policy = active_research_stats().expect("C-19 research stats record");
     let (za, pa) = (policy.z_alpha, policy.perm_alpha);
     let mut out = BTreeMap::new();
     for (&key, &(n, mean, m2)) in &agg {
@@ -231,12 +238,13 @@ fn highlow_full() {
     let n_hi = records.len() - l0.len();
     assert!(!l0.is_empty(), "L0 执行样本空——样本链断裂");
 
-    let base = cell_stats(&l0);
+    let base = cell_stats_with_policy(&l0, &policy);
     let (base_rows, base_alerts) = render_slice("无条件基线 μ̂(z_L0)", &base, &base);
 
     let mut report = format!(
-        "# a3 highlow μ̂(z_L0 | D_hi)（BTC wf OOS，prereg highlow-a3-20260704 冻结口径）\n\n\
+        "# a3 highlow μ̂(z_L0 | D_hi)（BTC wf OOS，prereg highlow-a3-20260704 冻结口径）\n\n统计记录={}\n\n\
          residuals 全级别={} L0={} 高级别(弃估计,只作条件源)={}\n\n## 基线\n{base_rows}",
+        policy.record.label(),
         records.len(),
         l0.len(),
         n_hi
@@ -260,7 +268,7 @@ fn highlow_full() {
             ));
             continue;
         }
-        let stats = cell_stats(&slice);
+        let stats = cell_stats_with_policy(&slice, &policy);
         let (rows, alerts) =
             render_slice(&format!("σ^H={v:+}（n={}）", slice.len()), &stats, &base);
         report.push_str(&rows);
@@ -290,7 +298,7 @@ fn highlow_full() {
         );
     } else {
         for (lbl, slice) in [("anchored", &anchored), ("unanchored", &unanchored)] {
-            let stats = cell_stats(slice);
+            let stats = cell_stats_with_policy(slice, &policy);
             let (rows, alerts) =
                 render_slice(&format!("nest={lbl}（n={}）", slice.len()), &stats, &base);
             report.push_str(&rows);
@@ -354,6 +362,25 @@ mod self_check {
             d: 1.0, // A6：合成自检 d=1（μ_R 分母占位，切片逻辑不依赖 d）
             exit_type: crate::theta_v0::strategy::interp::ExitType::Hold, // 诊断切片占位（不进桶键）
         }
+    }
+
+    /// highlow 的真实 cell_stats 消费域：等值记录不改变 LCB，改变 z_alpha 必须改变读数。
+    #[test]
+    fn research_stats_z_alpha_reaches_cell_stats() {
+        let records: Vec<_> = (0..30)
+            .map(|i| rec(1, 1, 1.0 + (i % 3) as f64 * 0.1, i / 10))
+            .collect();
+        let stats = active_research_stats().unwrap();
+        let active = cell_stats(&records);
+        let equivalent = cell_stats_with_policy(&records, &stats);
+        let key = (0u32, 1u8, 1i8, 0i8);
+        assert_eq!(active[&key].lcb, equivalent[&key].lcb);
+        assert_eq!(active[&key].ucb, equivalent[&key].ucb);
+        let mut changed = stats;
+        changed.z_alpha = 2.0;
+        let widened = cell_stats_with_policy(&records, &changed);
+        assert_ne!(equivalent[&key].lcb, widened[&key].lcb);
+        assert_ne!(equivalent[&key].ucb, widened[&key].ucb);
     }
 
     /// 切片归属 δ-free + 管线跑通 + beta 探针方向性（prereg §1.2/§2.5 的可运行检查）。

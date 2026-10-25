@@ -191,6 +191,20 @@ mod tests {
         assert_eq!(s3, AlphaState::Inconclusive);
     }
 
+    /// perm_alpha 是实际三态判定的输入，不是记录层的摆设。
+    #[test]
+    fn perm_alpha_changes_real_bucket_verdict() {
+        let args = (0.5, 0.1, 0.9, 0.04, 500.0, 10.0, Z);
+        assert_eq!(
+            classify_bucket(args.0, args.1, args.2, args.3, args.4, args.5, args.6, 0.05),
+            AlphaState::Validated
+        );
+        assert_eq!(
+            classify_bucket(args.0, args.1, args.2, args.3, args.4, args.5, args.6, 0.01),
+            AlphaState::Inconclusive
+        );
+    }
+
     /// FALSIFIED 必须 powered——underpowered 的 LCB≤0∧UCB≤0 判 INCONCLUSIVE（667 核心）。
     #[test]
     fn falsified_requires_powered_not_just_lcb_le_zero() {

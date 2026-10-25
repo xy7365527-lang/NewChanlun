@@ -105,6 +105,35 @@ mod tests {
         );
     }
 
+    /// 两个真实 NAV 消费域保持旧公式：L3 有下限，同族无下限回放不得被统一成 1e6。
+    #[test]
+    fn named_profiles_reach_real_nav_and_preserve_no_floor_behavior() {
+        let config = ThetaConfig::default();
+        let bar = |i, close, untradable| crate::theta_v0::types::Bar {
+            source_index: i,
+            timestamp: i as i64,
+            open: close,
+            high: close,
+            low: close,
+            close,
+            volume: 1.0,
+            untradable,
+        };
+        let bars = vec![bar(0, 9_999, true), bar(1, 12_345, false)];
+        let first_px = 12_345.0 * config.tick.tick_size;
+        let l3 = active_l3_probe_profile().unwrap();
+        let no_floor = active_no_floor_probe_profile().unwrap();
+        assert_eq!(l3.nav_for_bars(&bars, &config), (first_px * 1000.0).max(1.0e6));
+        assert_eq!(no_floor.nav_for_bars(&bars, &config), first_px * 1000.0);
+        assert_eq!(no_floor.record.label(), "#1605/no-floor-probe-profile/v1");
+
+        let mut changed = l3;
+        changed.first_px_multiplier = 500.0;
+        assert_ne!(changed.nav_for_bars(&bars, &config), l3.nav_for_bars(&bars, &config));
+        let missing = active_no_floor_probe_profile().unwrap();
+        assert_eq!(missing.nav_for_bars(&[], &config), 1000.0);
+    }
+
     #[test]
     fn missing_and_invalid_profile_are_typed_errors() {
         assert_eq!(
@@ -122,6 +151,16 @@ mod tests {
         assert!(matches!(
             parse_l3_probe_profile(Some(&invalid)),
             Err(PolicyError::Invalid { field, .. }) if field == "first_px_multiplier"
+        ));
+        assert!(matches!(
+            parse_no_floor_probe_profile(None),
+            Err(PolicyError::RecordMissing { id }) if id == NO_FLOOR_PROBE_PROFILE_ID
+        ));
+        let mut root: Value = serde_json::from_str(ACTIVE_NO_FLOOR_PROBE_PROFILE_JSON).unwrap();
+        root["fields"]["nav_floor"]["value"] = (-1).into();
+        assert!(matches!(
+            parse_no_floor_probe_profile(Some(&root.to_string())),
+            Err(PolicyError::Invalid { field, .. }) if field == "nav_floor"
         ));
     }
 }

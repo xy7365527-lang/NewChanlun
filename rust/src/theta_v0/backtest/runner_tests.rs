@@ -203,6 +203,54 @@ fn structureless_data_yields_empty_orders() {
     assert_eq!(res.is_l2, res.n_orders > 0, "is_l2 ⟺ 订单非空");
 }
 
+/// C-19 在真实 runner 入口失败时，不进入闭环、分类或订单/fill 产出；修复记录后可恢复。
+#[test]
+fn research_stats_record_failure_stops_real_runner_and_recovery_is_bit_exact() {
+    let config = ThetaConfig::default();
+    let ds = Dataset {
+        symbol: "TEST".to_string(),
+        bars: (0..8).map(|i| mk_bar(i, 1000 + i as i64, false)).collect(),
+        dates: (0..8).map(|i| format!("2024-01-0{} 00:00:00", i + 1)).collect(),
+        bar_seconds: 60,
+    };
+    let active = crate::theta_v0::policy_records::ACTIVE_RESEARCH_STATS_JSON;
+    let baseline = run_theta_v0_pi_with_record(&ds, &config, 1.0, 1.0e6, Some(active))
+        .expect("有效记录应到达真实 runner");
+    assert_eq!(baseline.metrics.research_stats.label(), "#1605/research-stats/v1");
+
+    let mut missing: serde_json::Value = serde_json::from_str(active).unwrap();
+    missing["fields"].as_object_mut().unwrap().remove("z_alpha");
+    let missing = missing.to_string();
+    let missing_err = run_theta_v0_pi_with_record(&ds, &config, 1.0, 1.0e6, Some(&missing))
+        .expect_err("缺字段不得产出 RunResult/订单/读数");
+    assert!(matches!(
+        missing_err,
+        super::super::super::policy_records::PolicyError::AwaitingPolicy { field, .. }
+            if field == "z_alpha"
+    ));
+
+    let mut invalid: serde_json::Value = serde_json::from_str(active).unwrap();
+    invalid["fields"]["z_alpha"]["value"] = 0.into();
+    let invalid = invalid.to_string();
+    let invalid_err = run_theta_v0_pi_with_record(&ds, &config, 1.0, 1.0e6, Some(&invalid))
+        .expect_err("非法值不得产出 RunResult/订单/读数");
+    assert!(matches!(
+        invalid_err,
+        super::super::super::policy_records::PolicyError::Invalid { field, .. }
+            if field == "z_alpha"
+    ));
+    assert!(matches!(
+        run_theta_v0_pi_with_record(&ds, &config, 1.0, 1.0e6, None),
+        Err(super::super::super::policy_records::PolicyError::RecordMissing { .. })
+    ));
+
+    let recovered = run_theta_v0_pi_with_record(&ds, &config, 1.0, 1.0e6, Some(active))
+        .expect("恢复有效记录后应可重跑");
+    assert_eq!(recovered.n_orders, baseline.n_orders);
+    assert_eq!(recovered.metrics, baseline.metrics);
+    assert_eq!(recovered.trade_pnls, baseline.trade_pnls);
+}
+
 // ──────────────────────────────────────────────────────────────────────
 //  ★★塔导出桥 (iii) 布线段：run_theta_v0_pi 七链 π_Θ 生产 runner（接 Nautilus 实装）
 // ──────────────────────────────────────────────────────────────────────
@@ -1997,7 +2045,7 @@ fn btc_type2_open_short_channel_witness() {
     let oos = ds.slice_date_window(w.oos.0, w.oos.1);
     let cut = 32_000_usize.min(oos.bars.len());
     let train_bars = &oos.bars[0..cut / 2];
-    let nav = super::l3_probe_profile::active_l3_probe_profile()
+    let nav = super::super::l3_probe_profile::active_l3_probe_profile()
         .expect("L3 probe profile record")
         .nav_for_bars(train_bars, &config);
     let mut classifier_incr = IncrementalClassifier::new(train_bars, &config);
@@ -2194,7 +2242,7 @@ fn m3_follow_parent_short_leg_termination_witness() {
                 continue;
             }
             let bars = &test_ds.bars;
-            let nav = super::l3_probe_profile::active_l3_probe_profile()
+            let nav = super::super::l3_probe_profile::active_l3_probe_profile()
                 .expect("L3 probe profile record")
                 .nav_for_bars(bars, &config);
             let mut classifier_incr = IncrementalClassifier::new(bars, &config);
@@ -2332,7 +2380,7 @@ fn btc_prune_leg_exit_type_matches_account_identity() {
     let oos = ds.slice_date_window(w.oos.0, w.oos.1);
     let cut = 32_000_usize.min(oos.bars.len());
     let train_bars = &oos.bars[0..cut / 2];
-    let nav = super::l3_probe_profile::active_l3_probe_profile()
+    let nav = super::super::l3_probe_profile::active_l3_probe_profile()
         .expect("L3 probe profile record")
         .nav_for_bars(train_bars, &config);
     let mut classifier_incr = IncrementalClassifier::new(train_bars, &config);
@@ -2437,7 +2485,7 @@ fn btc_type2_residual_correction_witness() {
     let oos = ds.slice_date_window(w.oos.0, w.oos.1);
     let cut = 32_000_usize.min(oos.bars.len());
     let train_bars = &oos.bars[0..cut / 2];
-    let nav = super::l3_probe_profile::active_l3_probe_profile()
+    let nav = super::super::l3_probe_profile::active_l3_probe_profile()
         .expect("L3 probe profile record")
         .nav_for_bars(train_bars, &config);
     let mut classifier_incr = IncrementalClassifier::new(train_bars, &config);
@@ -8019,7 +8067,7 @@ fn m8_treasury_reach_distribution_real_btc() {
             continue;
         }
         let n = test.bars.len();
-        let nav = super::l3_probe_profile::active_l3_probe_profile()
+        let nav = super::super::l3_probe_profile::active_l3_probe_profile()
             .expect("L3 probe profile record")
             .nav_for_bars(&test.bars, &config);
         // ★A10 margin 按各窗 nav 注入（q4_margin_model cushions = 0.02/0.05·nav0；M7_WITNESS_A10=1 时）。

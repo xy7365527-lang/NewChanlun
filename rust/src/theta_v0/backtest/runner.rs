@@ -45,7 +45,9 @@ pub(super) use super::ledger::LedgerOpen;
 #[cfg(test)]
 pub(super) use super::ledger::{track_position_transition, OpsemEntrySnapshot};
 pub use super::ledger::{TypedTrade, VoiceVerdictRec, TYPED_TRADE_SCHEMA_VERSION};
-use super::research_stats::active_research_stats;
+#[cfg(test)]
+use super::research_stats::parse_research_stats;
+use super::research_stats::{active_research_stats, ResearchStats};
 use super::metrics::{self, Metrics};
 pub use super::opsem_dump::{StrictNestCertificateRecord, StrictNestSidecarSummary};
 #[cfg(test)]
@@ -324,6 +326,29 @@ fn run_theta_v0_pi_inner(
 ) -> Result<RunResult, PolicyError> {
     // 记录失败必须先于闭环、分类与任何订单/fill 读数返回。
     let stats = active_research_stats()?;
+    run_theta_v0_pi_inner_with_stats(dataset, config, years, initial_nav, chi, &stats)
+}
+
+#[cfg(test)]
+fn run_theta_v0_pi_with_record(
+    dataset: &Dataset,
+    config: &ThetaConfig,
+    years: f64,
+    initial_nav: f64,
+    record: Option<&str>,
+) -> Result<RunResult, PolicyError> {
+    let stats = parse_research_stats(record)?;
+    run_theta_v0_pi_inner_with_stats(dataset, config, years, initial_nav, None, &stats)
+}
+
+fn run_theta_v0_pi_inner_with_stats(
+    dataset: &Dataset,
+    config: &ThetaConfig,
+    years: f64,
+    initial_nav: f64,
+    chi: Option<ChiFilterCtx>,
+    stats: &ResearchStats,
+) -> Result<RunResult, PolicyError> {
     let bars = &dataset.bars;
 
     // 闭环终态证据（与退役 v1 契约同——bar 闭环驱动）。
@@ -403,7 +428,7 @@ fn run_theta_v0_pi_inner(
         &fill.trade_pnls_with_forced,
         years,
         bh_return,
-        &stats,
+        stats,
     );
 
     let n_orders = fill.n_orders;

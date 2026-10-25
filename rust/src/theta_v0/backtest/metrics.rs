@@ -908,6 +908,68 @@ mod tests {
         super::sharpe_lo2002(daily_returns, sharpe, test_stats().sharpe_ci_z)
     }
 
+    /// 等值 v1 与真实入口逐字段一致；每个统计自由度都必须抵达实际输出，而非只被 parser 读取。
+    #[test]
+    fn active_record_is_bit_exact_and_policy_mutations_reach_metric_outputs() {
+        let stats = test_stats();
+        let equity = [1.0, 1.01, 0.99, 1.03, 1.02];
+        let daily = [0.01, -0.02, 0.03, -0.01, 0.02, -0.04, 0.01];
+        let pnls = [2.0, -1.0, 3.0, -2.0, 4.0, 1.0];
+        let actual = super::compute(&equity, &daily, &pnls, 1.0, 0.05).unwrap();
+        let expected = compute_with_policy(&equity, &daily, &pnls, 1.0, 0.05, &stats);
+        assert_eq!(actual, expected, "生效记录与现行指标输出逐字段等值");
+        assert_eq!(actual.research_stats.label(), "#1605/research-stats/v1");
+
+        let mut changed = stats.clone();
+        changed.annualization_days = 126.0;
+        assert_ne!(
+            compute_with_policy(&equity, &daily, &pnls, 1.0, 0.05, &changed).sharpe,
+            expected.sharpe,
+            "恢复硬编码年化常数会与此负控冲突"
+        );
+        let mut changed = stats.clone();
+        changed.cvar_tail = 0.25;
+        assert_ne!(
+            compute_with_policy(&equity, &daily, &pnls, 1.0, 0.05, &changed).cvar_5,
+            expected.cvar_5
+        );
+
+        let baseline = significance_with_policy(&pnls, &daily, &[], &[], 0.0, 0.0, &stats);
+        let mut changed = stats.clone();
+        changed.sharpe_ci_z = 3.0;
+        let widened = significance_with_policy(&pnls, &daily, &[], &[], 0.0, 0.0, &changed);
+        assert_ne!(baseline.sharpe_ci95_lo, widened.sharpe_ci95_lo);
+        assert_ne!(baseline.sharpe_ci95_hi, widened.sharpe_ci95_hi);
+        let mut changed = stats.clone();
+        changed.ci_lower_quantile = 0.20;
+        changed.ci_upper_quantile = 0.80;
+        let narrowed = significance_with_policy(&pnls, &daily, &[], &[], 0.0, 0.0, &changed);
+        assert_ne!(baseline.boot_ci95_lo, narrowed.boot_ci95_lo);
+        assert_ne!(baseline.boot_ci95_hi, narrowed.boot_ci95_hi);
+        let mut changed = stats.clone();
+        changed.trade_block_len = 1;
+        changed.trade_n_resample = 137;
+        let resampled = significance_with_policy(&pnls, &daily, &[], &[], 0.0, 0.0, &changed);
+        assert_ne!(baseline.boot_mean_total_pnl, resampled.boot_mean_total_pnl);
+    }
+
+    /// 显著性门确实控制真实随机对照判定：同一读数在 v1 门下通过，在更严门下停止。
+    #[test]
+    fn significance_threshold_reaches_random_control_verdict() {
+        let stats = test_stats();
+        let prices: Vec<f64> = std::iter::once(100.0)
+            .chain(std::iter::once(200.0))
+            .chain(std::iter::repeat(100.0).take(98))
+            .collect();
+        let trades = vec![mk_trade(0, 1, 1.0)];
+        let baseline = significance_with_policy(&[], &[], &trades, &prices, 0.0, 1.0, &stats);
+        assert!(baseline.theta_beats_random, "v1 0.05 门下应通过合成正控");
+        let mut stricter = stats;
+        stricter.significance_p_threshold = 0.0001;
+        let rejected = significance_with_policy(&[], &[], &trades, &prices, 0.0, 1.0, &stricter);
+        assert!(!rejected.theta_beats_random, "恢复固定 0.05 会使此负控变红");
+    }
+
     /// 空权益/无交易 → 全 0（不 NaN，§5.5 inconclusive 防御）。
     #[test]
     fn empty_inputs_yield_zero_metrics() {
