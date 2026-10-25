@@ -112,6 +112,27 @@ impl From<WriterScope> for WriterAdmission {
     }
 }
 impl WriterAdmission {
+    pub(super) fn admit_prefix(
+        self,
+        db: &Path,
+        prefix: super::admission_private::RejectionPrefix<'_>,
+    ) -> Result<WriterScope, String> {
+        match self {
+            Self::Prepared(p) => WriterScope::admit_prefix(db, p, prefix),
+            Self::Admitted(s) => {
+                s.inner.require(db)?;
+                let mut state = s.inner.accounting.borrow_mut();
+                let finished = state.as_mut().ok_or("StartupAccountingFinished")?;
+                let mut account = finished.accounting();
+                super::admission_private::validate_prefix(&s.inner.source, &mut account, prefix)
+                    .map_err(|e| format!("{e}；原准入账={:?}", account.snapshot()))?;
+                drop(account);
+                drop(state);
+                s.inner.require(db)?;
+                Ok(s)
+            }
+        }
+    }
     pub(crate) fn admit(self, db: &Path) -> Result<WriterScope, String> {
         match self {
             Self::Prepared(p) => WriterScope::admit(db, p),
@@ -124,6 +145,13 @@ impl WriterAdmission {
 }
 impl WriterScope {
     pub(crate) fn admit(db: &Path, prepared: PreparedAdmission) -> Result<Self, String> {
+        Self::admit_prefix(db, prepared, super::admission_private::RejectionPrefix::None)
+    }
+    fn admit_prefix(
+        db: &Path,
+        prepared: PreparedAdmission,
+        prefix: super::admission_private::RejectionPrefix<'_>,
+    ) -> Result<Self, String> {
         let consumed = prepared.consume().map_err(|e| e.to_string())?;
         if std::fs::canonicalize(db).map_err(|_| consumed.failure("SourcePathLost"))?
             != consumed.lease().db_path()
@@ -143,7 +171,7 @@ impl WriterScope {
             .map_err(|e| e.to_string())?;
         {
             let mut account = started.accounting();
-            let result = super::admission_private::validate(&source, &mut account);
+            let result = super::admission_private::validate_prefix(&source, &mut account, prefix);
             if let Err(e) = result {
                 return Err(format!("{e}；原准入账={:?}", account.snapshot()));
             }

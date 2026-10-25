@@ -1205,7 +1205,7 @@ impl Drop for AuditTxn<'_> {
     }
 }
 
-fn invalid(error: impl std::fmt::Display) -> String {
+pub(super) fn invalid(error: impl std::fmt::Display) -> String {
     format!("S3DriverInvalid：{error}")
 }
 

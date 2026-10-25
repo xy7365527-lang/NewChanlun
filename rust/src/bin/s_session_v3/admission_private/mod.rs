@@ -195,9 +195,18 @@ impl IoAccounting for &SharedAccounting<'_, '_> {
     }
 }
 
+/// #1527 rejection-only 前缀；成功不携带可转移资格，实际连接仍完整重核。
+#[derive(Clone, Copy)]
+pub(super) enum RejectionPrefix<'a> {
+    None,
+    OrdinaryStartup { epoch: &'a str },
+    UnboundRecover,
+}
+
 fn audit_business(
     conn: &rusqlite::Connection,
     account: &SharedAccounting<'_, '_>,
+    prefix: RejectionPrefix<'_>,
 ) -> Result<(), String> {
     account.precheck().map_err(|e| e.to_string())?;
     let deadline = account
@@ -207,7 +216,21 @@ fn audit_business(
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
     let result = (|| match crate::meta_get_opt(&tx, "protocol_revision")?.as_deref() {
         Some(super::PROTOCOL_REVISION) => {
-            super::state::audit_with_budget(&tx, Some(deadline), None, Some(account)).map(|_| ())
+            super::state::audit_with_budget(&tx, Some(deadline), None, Some(account))?;
+            match prefix {
+                RejectionPrefix::None => Ok(()),
+                RejectionPrefix::OrdinaryStartup { epoch } => {
+                    crate::verify_writer_epoch(&tx, epoch)?;
+                    super::require_current_writer_rule(
+                        &crate::meta_get_opt(&tx, "rule_revision")?
+                            .ok_or_else(|| super::audit_owner::invalid("缺rule_revision"))?,
+                    )
+                }
+                RejectionPrefix::UnboundRecover => super::require_current_writer_rule(
+                    &crate::meta_get_opt(&tx, "rule_revision")?
+                        .ok_or_else(|| super::audit_owner::invalid("缺rule_revision"))?,
+                ),
+            }
         }
         None | Some(super::PREVIOUS_REVISION) => {
             // 完整原判据原样运行；旧证据图不是 s-content 分帧域，不能伪造 CheckedNodeUsage。
@@ -254,9 +277,10 @@ impl IoAccounting for AdmissionAccounting<'_> {
     }
 }
 
-pub(super) fn validate(
+pub(super) fn validate_prefix(
     source: &MeasuredDomain,
     account: &mut AdmissionAccounting<'_>,
+    prefix: RejectionPrefix<'_>,
 ) -> Result<(), String> {
     account.pre_io_check().map_err(|e| e.to_string())?;
     match source.medium {
@@ -300,7 +324,7 @@ pub(super) fn validate(
                 }
                 drop(rows);
                 drop(stmt);
-                audit_business(session.connection(), &shared)
+                audit_business(session.connection(), &shared, prefix)
             })();
             // quick_check/业务结果在任何 close 回调之前保存。
             errors.borrow_mut().returned(ErrorPhase::Business, &check);

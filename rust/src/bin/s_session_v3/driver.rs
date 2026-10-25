@@ -289,7 +289,16 @@ impl Driver {
         if !db.is_file() {
             return Err("StorageUnavailable：S3驱动只打开已初始化库".into());
         }
-        let scope = admission.admit(db)?;
+        let scope = if startup_context.is_none()
+            && matches!(mode, s_allocation::Mode::Ordinary | s_allocation::Mode::Owned(_))
+        {
+            admission.admit_prefix(
+                db,
+                super::admission_private::RejectionPrefix::OrdinaryStartup { epoch },
+            )?
+        } else {
+            admission.admit(db)?
+        };
         let _open_guard = scope.enter()?;
         let db = scope.db_path();
         scope.require_admitted()?;
@@ -493,7 +502,11 @@ pub(super) fn recover_scoped(
     if !db.is_file() {
         return Err("StorageUnavailable：恢复需要已初始化库".into());
     }
-    let scope = admission.admit(db)?;
+    // 此入口新建连接，尚无既绑候选；已绑定恢复仍走 AuditConnection 原路径。
+    let scope = admission.admit_prefix(
+        db,
+        super::admission_private::RejectionPrefix::UnboundRecover,
+    )?;
     let _open_guard = scope.enter()?;
     let db = scope.db_path();
     scope.require_admitted()?;
@@ -638,6 +651,17 @@ mod tests {
         }
         // 写者准入时不得仍有测试连接持有 WAL/SHM；先关闭造库连接。
         drop(c);
+        let bytes_before = std::fs::read(&f.db).unwrap();
+        let files = || {
+            let mut names = std::fs::read_dir(&f.path).unwrap()
+                .map(|e| e.unwrap().file_name())
+                .filter(|n| !n.to_string_lossy().ends_with(".writer.lock")
+                    && !n.to_string_lossy().ends_with(".maintenance.lock"))
+                .collect::<Vec<_>>();
+            names.sort();
+            names
+        };
+        let files_before = files();
         let open_error = f.open("1").err().unwrap();
         assert!(open_error.contains("VersionUnsupported"), "{open_error}");
         let recover_error = recover(
@@ -650,10 +674,28 @@ mod tests {
         .err()
         .unwrap();
         assert!(recover_error.contains("VersionUnsupported"), "{recover_error}");
+        assert_eq!(open_error.split("；原准入账=").next(), recover_error.split("；原准入账=").next());
+        assert_eq!(std::fs::read(&f.db).unwrap(), bytes_before);
+        assert_eq!(files(), files_before);
         let c = open_db(&f.db).unwrap();
         assert_eq!(db_meta(&c).unwrap(), before);
         assert_eq!(count(&c, "raw_events"), 0);
         assert_eq!(count(&c, "s_input_messages"), 0);
+    }
+
+    #[test]
+    fn historical_bi_rule_startup_epoch_precedes_rule_but_recover_checks_rule_first() {
+        let f = Fixture::new();
+        let c = open_db(&f.db).unwrap();
+        meta_set(&c, "rule_revision", crate::LEGACY_V3_RULE_REVISION).unwrap();
+        drop(c);
+        let e = f.open("2").err().unwrap();
+        assert!(e.starts_with("StaleWriter："), "{e}");
+        let scope = super::super::admission::WriterScope::admit(
+            &f.db, crate::v3::admission_anchor::test_prepare(&f.db),
+        ).unwrap();
+        let e = recover_scoped(&f.db, "2", &f.clock, "recover-1", scope.into()).err().unwrap();
+        assert!(e.starts_with("VersionUnsupported"), "{e}");
     }
 
     #[test]
