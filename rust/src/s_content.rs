@@ -3634,7 +3634,10 @@ impl AuditCapture {
         &'a self,
         observer: &'a dyn CaptureReadObserver,
     ) -> impl NodeSource + 'a {
-        ObservedCaptureReader { reader: CaptureReader(self), observer: Some(observer) }
+        ObservedCaptureReader {
+            reader: CaptureReader(self),
+            observer: Some(observer),
+        }
     }
     pub fn verify(&self, reference: &ContentRef, mode: Mode) -> Result<(), CodecError> {
         self.verify_refview(reference.into(), mode)
@@ -3661,7 +3664,8 @@ impl AuditCapture {
             _ => None,
         };
         let memo = std::mem::replace(&mut *slot.borrow_mut(), AuditMemo::new(budget.as_ref()));
-        let mut verifier = Verifier::with_context(CodecContext::Capture(self, observer), mode, memo);
+        let mut verifier =
+            Verifier::with_context(CodecContext::Capture(self, observer), mode, memo);
         let result = verifier.verify_refview(reference);
         // 出错不保留 run() 提前插入的 seen/pushed，不能让下一根继承半成功。
         if let Ok((digest, _, _)) = &result {
@@ -4491,10 +4495,15 @@ struct ObservedCaptureReader<'a, 'o> {
 }
 impl NodeSource for ObservedCaptureReader<'_, '_> {
     fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
-        if let Some(observer) = self.observer { observer.before_read()?; }
+        if let Some(observer) = self.observer {
+            observer.before_read()?;
+        }
         self.reader.read(digest)
     }
-    fn checked_read(&mut self, digest: &NodeDigest) -> Result<Option<job::CheckedFrame>, CodecError> {
+    fn checked_read(
+        &mut self,
+        digest: &NodeDigest,
+    ) -> Result<Option<job::CheckedFrame>, CodecError> {
         self.reader.checked_observed(digest, self.observer)
     }
 }
@@ -4554,7 +4563,9 @@ impl CaptureReader<'_> {
         digest: &NodeDigest,
         observer: Option<&dyn CaptureReadObserver>,
     ) -> Result<Option<job::CheckedFrame>, CodecError> {
-        if let Some(observer) = observer { observer.before_read()?; }
+        if let Some(observer) = observer {
+            observer.before_read()?;
+        }
         let result = self.checked_observed_inner(digest, observer)?;
         if let (Some(observer), Some(frame)) = (observer, result.as_ref()) {
             observer.accept_prepared_frame(frame)?;
@@ -4577,7 +4588,9 @@ impl CaptureReader<'_> {
                     None => NodeRead::Missing,
                 };
                 if matches!(&read, NodeRead::Found { .. }) {
-                    if let Some(observer) = observer { observer.prepare_node()?; }
+                    if let Some(observer) = observer {
+                        observer.prepare_node()?;
+                    }
                 }
                 Ok(read)
             });
@@ -4585,7 +4598,9 @@ impl CaptureReader<'_> {
         match self.read(digest)? {
             NodeRead::Missing => Ok(None),
             NodeRead::Found { tag, body } => {
-                if let Some(observer) = observer { observer.prepare_node()?; }
+                if let Some(observer) = observer {
+                    observer.prepare_node()?;
+                }
                 job::CheckedFrame::checked(digest, tag, body).map(Some)
             }
         }
@@ -4610,7 +4625,9 @@ mod native_frame_reuse_tests {
         }
         fn prepare_node(&self) -> Result<(), CodecError> {
             self.prepared.set(self.prepared.get() + 1);
-            if self.stop.get() { return Err(CodecError::new("test_stop", "stop")); }
+            if self.stop.get() {
+                return Err(CodecError::new("test_stop", "stop"));
+            }
             Ok(())
         }
         fn accept_prepared_frame(&self, _: &job::CheckedFrame) -> Result<(), CodecError> {
@@ -4622,26 +4639,46 @@ mod native_frame_reuse_tests {
     fn measured_capture_preserves_memo_and_observes_only_actual_reads() {
         let mut nodes = MemoryNodes::new();
         let built = write_value(&mut nodes, &Value::String("原件".into())).unwrap();
-        let capture = AuditCapture::new(nodes).enable_native_frame_reuse_for_testonly().unwrap();
+        let capture = AuditCapture::new(nodes)
+            .enable_native_frame_reuse_for_testonly()
+            .unwrap();
         let reference = built.content_ref();
         let meter = ReadMeter::default();
-        capture.verify_refview_observed((&reference).into(), Mode::Public, Some(&meter)).unwrap();
+        capture
+            .verify_refview_observed((&reference).into(), Mode::Public, Some(&meter))
+            .unwrap();
         assert!(meter.accepted.get() > 0);
         assert_eq!(meter.prepared.get(), meter.accepted.get());
         let reads = capture.reads.get();
         let observed = meter.reads.get();
-        capture.verify_refview_observed((&reference).into(), Mode::Public, Some(&meter)).unwrap();
-        assert_eq!(capture.reads.get() - reads, (meter.reads.get() - observed) as u64);
+        capture
+            .verify_refview_observed((&reference).into(), Mode::Public, Some(&meter))
+            .unwrap();
+        assert_eq!(
+            capture.reads.get() - reads,
+            (meter.reads.get() - observed) as u64
+        );
         let missing = [255; 32];
         let prepared = meter.prepared.get();
-        assert!(capture.reader_observed(&meter).checked_read(&missing).unwrap().is_none());
+        assert!(capture
+            .reader_observed(&meter)
+            .checked_read(&missing)
+            .unwrap()
+            .is_none());
         assert_eq!(meter.prepared.get(), prepared);
         meter.stop.set(true);
         let accepted = meter.accepted.get();
-        assert!(capture.reader_observed(&meter).checked_read(&built.digest).is_err());
+        assert!(capture
+            .reader_observed(&meter)
+            .checked_read(&built.digest)
+            .is_err());
         assert_eq!(meter.accepted.get(), accepted);
         meter.stop.set(false);
-        capture.reader_observed(&meter).checked_read(&built.digest).unwrap().unwrap();
+        capture
+            .reader_observed(&meter)
+            .checked_read(&built.digest)
+            .unwrap()
+            .unwrap();
         assert_eq!(meter.accepted.get(), accepted + 1);
     }
 
@@ -5196,6 +5233,7 @@ struct Verifier<'a, 'capture> {
 
 impl<'a, 'capture> Verifier<'a, 'capture> {
     // #1394 Root 内部实施裁定：具体capture与私有context闭合，不接受dyn成功token。
+    #[cfg(test)]
     fn with_memo_capture(
         source: &'a mut CaptureReader<'capture>,
         mode: Mode,

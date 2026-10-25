@@ -558,13 +558,24 @@ pub(crate) trait CodecRead: NodeSource {
                     .scope
                     .reserve_native(self.capture.original(digest).map_or(0, |(_, b)| b.len()))?;
                 let value = match self.observer {
-                    Some(observer) => self.capture.reader_observed(observer).checked_read(digest)?,
+                    Some(observer) => self
+                        .capture
+                        .reader_observed(observer)
+                        .checked_read(digest)?,
                     None => self.capture.reader().checked_read(digest)?,
                 };
                 Ok(value.map(|f| sc::job::ScopedFrame::new(f, Some(permit))))
             }
         }
-        sc::verify_refview(&mut Current { capture, scope, observer }, reference, mode)
+        sc::verify_refview(
+            &mut Current {
+                capture,
+                scope,
+                observer,
+            },
+            reference,
+            mode,
+        )
     }
     fn native_text(&self, text: &str) -> Result<super::business_json::TextValue, String> {
         if self.codec_work().is_some() && self.allocation_budget().is_none() {

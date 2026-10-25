@@ -629,7 +629,10 @@ pub(super) enum CodecContext<'read, 'capture> {
         sink: &'read mut dyn NodeSink,
         memo: &'read mut NativeLocalMaterialMemo,
     },
-    Capture(&'capture AuditCapture, Option<&'read dyn CaptureReadObserver>),
+    Capture(
+        &'capture AuditCapture,
+        Option<&'read dyn CaptureReadObserver>,
+    ),
     #[cfg(feature = "s_capture_native_testonly")]
     OwnerCapture {
         capture: &'capture AuditCapture,
@@ -749,7 +752,10 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
                 Ok((tag, VerifierBody::Borrowed(body)))
             }
             Self::Capture(c, observer) => {
-                let mut reader = ObservedCaptureReader { reader: CaptureReader(c), observer: *observer };
+                let mut reader = ObservedCaptureReader {
+                    reader: CaptureReader(c),
+                    observer: *observer,
+                };
                 if c.is_allocation_prototype() {
                     read_body_checked(&mut reader, Some(c), d)
                 } else {

@@ -1406,7 +1406,12 @@ impl<'raw> NativeRawLedger<'raw> {
                 // 后续只比较摘要（含 r3 的五字段 bar 投影），从不以它们读取节点。
                 let source = Source {
                     wire: super::history::hash_json_in_store(s, wire.view(), deadline, budget)?,
-                    numeric: super::history::hash_json_in_store(s, numeric.view(), deadline, budget)?,
+                    numeric: super::history::hash_json_in_store(
+                        s,
+                        numeric.view(),
+                        deadline,
+                        budget,
+                    )?,
                     raw: super::history::hash_json_in_store(s, event, deadline, budget)?,
                     bar: source_pending::raw_bar(s, event, deadline, budget)?,
                 };
@@ -2733,9 +2738,17 @@ mod tests {
                 "max_total_records": records.to_string(),
                 "max_total_requests": "20", "max_elapsed_ms": "10000",
                 "max_staged_bytes": "1048576", "max_store_bytes": "33554432"
-            })).unwrap();
-            Job::new(limits, Existing { store_bytes: 0, staged_bytes: 0 },
-                Box::new(Instant::now)).unwrap()
+            }))
+            .unwrap();
+            Job::new(
+                limits,
+                Existing {
+                    store_bytes: 0,
+                    staged_bytes: 0,
+                },
+                Box::new(Instant::now),
+            )
+            .unwrap()
         };
         let mut fixture = super::super::prepared::tests::Fixture::new();
         fixture.accept_begin(1, ("a", 0, 6, 12, 3, 7), 1);
@@ -2747,39 +2760,61 @@ mod tests {
         let mut job = make_job(100, 10000);
         {
             let audit = AuditJob::new(&mut job);
-            let got = ledger.advance_measured(&mut reader, 2, None, Some(&audit)).unwrap();
-            assert_eq!(source_entries(got), source_entries(&original_sources(&raw, 2).unwrap()));
+            let got = ledger
+                .advance_measured(&mut reader, 2, None, Some(&audit))
+                .unwrap();
+            assert_eq!(
+                source_entries(got),
+                source_entries(&original_sources(&raw, 2).unwrap())
+            );
         }
         assert_eq!(job.snapshot().records, 6, "每行新增、坐标和来源各访问一次");
         assert!(job.snapshot().nodes > 0, "四投影进入同一 Job 节点核");
         let before = job.snapshot();
         {
             let audit = AuditJob::new(&mut job);
-            ledger.advance_measured(&mut reader, 2, None, Some(&audit)).unwrap();
+            ledger
+                .advance_measured(&mut reader, 2, None, Some(&audit))
+                .unwrap();
         }
         assert_eq!(job.snapshot().records, before.records);
         assert_eq!(job.snapshot().nodes, before.nodes);
         {
             let audit = AuditJob::new(&mut job);
-            ledger.advance_measured(&mut reader, 1, None, Some(&audit)).unwrap();
-            ledger.advance_measured(&mut reader, 2, None, Some(&audit)).unwrap();
+            ledger
+                .advance_measured(&mut reader, 1, None, Some(&audit))
+                .unwrap();
+            ledger
+                .advance_measured(&mut reader, 2, None, Some(&audit))
+                .unwrap();
         }
-        assert_eq!(job.snapshot().records, 8, "回退后独立扫描收费，坐标及来源命中不虚收");
+        assert_eq!(
+            job.snapshot().records,
+            8,
+            "回退后独立扫描收费，坐标及来源命中不虚收"
+        );
         for records in [1, 3, 4] {
             let mut limited = make_job(records, 10000);
             let mut ledger = NativeRawLedger::new((&raw).into());
             let audit = AuditJob::new(&mut limited);
-            assert!(ledger.advance_measured(&mut reader, 2, None, Some(&audit)).is_err());
+            assert!(ledger
+                .advance_measured(&mut reader, 2, None, Some(&audit))
+                .is_err());
             assert!(ledger.sources.is_empty());
             assert!(ledger.originals.is_empty());
             assert!(ledger.winners.is_empty());
             let got = ledger.advance(&mut reader, 2).unwrap();
-            assert_eq!(source_entries(got), source_entries(&original_sources(&raw, 2).unwrap()));
+            assert_eq!(
+                source_entries(got),
+                source_entries(&original_sources(&raw, 2).unwrap())
+            );
         }
         let mut limited = make_job(100, 1);
         let mut ledger = NativeRawLedger::new((&raw).into());
         let audit = AuditJob::new(&mut limited);
-        assert!(ledger.advance_measured(&mut reader, 2, None, Some(&audit)).is_err());
+        assert!(ledger
+            .advance_measured(&mut reader, 2, None, Some(&audit))
+            .is_err());
         assert!(ledger.sources.is_empty());
         assert!(ledger.originals.is_empty());
         assert!(ledger.winners.is_empty());

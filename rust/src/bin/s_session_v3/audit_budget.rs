@@ -32,7 +32,7 @@ pub(super) struct NativeMeasure<'a> {
 }
 impl sc::CaptureReadObserver for NativeMeasure<'_> {
     fn before_read(&self) -> Result<(), sc::CodecError> {
-        super::check_deadline(self.deadline)
+        super::history::check_deadline(self.deadline)
             .map_err(|e| sc::CodecError::new("verify_deadline", e))?;
         self.budget.map_or(Ok(()), Budget::precheck)
     }
