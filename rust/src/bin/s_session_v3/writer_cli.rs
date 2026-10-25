@@ -124,6 +124,7 @@ impl SResources {
         })
     }
     /// 读整个文件；超过上限的文件由 `parse` 拒绝，不做截断解析。
+    #[cfg(test)]
     pub(super) fn load(path: &Path) -> Result<Self, String> {
         let mut bytes = Vec::new();
         // O_NONBLOCK 避免路径核验后被替换成 FIFO 时永久卡在 open；打开后再核 fd 类型。

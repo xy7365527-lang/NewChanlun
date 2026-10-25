@@ -39,6 +39,7 @@ pub(crate) enum Stage {
     E6,
     E7,
     E8,
+    #[allow(dead_code, reason = "#1527：保留固定 R4 阶段词汇，当前尚无 E9 消费者")]
     E9,
 }
 
@@ -62,6 +63,7 @@ pub(crate) enum ErrorKind {
 
 /// 仅带稳定类别、阶段和真实累计，不包含原文、路径、env 或下层错误文本。
 #[derive(Debug)]
+#[allow(dead_code, reason = "#1527：保留原账诊断字段；公开错误有意不输出原 t0/完整快照")]
 pub(crate) struct AdmissionError {
     pub(crate) kind: ErrorKind,
     pub(crate) stage: Stage,
@@ -519,6 +521,7 @@ pub(crate) struct StartedAdmission {
 }
 
 #[derive(Debug)]
+#[allow(dead_code, reason = "#1527：保留原账诊断字段；公开错误有意不输出原 t0/完整快照")]
 pub(crate) struct JobAdmissionError {
     pub(crate) kind: ErrorKind,
     pub(crate) stage: Stage,
@@ -551,6 +554,7 @@ fn job_error_kind(error: &newchan_rust::s_content::CodecError) -> ErrorKind {
 // #1527 B2：仅根命令拥有终端收尾槽。它延长同一本 Job 的寿命，不给 provider
 // Job/Rc/可替换槽位。线程局部且不可 Send；启动成功后显式撤下，长驻请求不继承。
 #[derive(Debug)]
+#[allow(dead_code, reason = "#1527：保留原账诊断字段；公开错误有意不输出原 t0/完整快照")]
 pub(crate) struct PreludeObservation {
     pub(crate) first_read_at: Option<Instant>,
     pub(crate) wire_bytes: u64,
@@ -568,6 +572,7 @@ thread_local! {
 }
 pub(crate) struct CommandAccounting;
 #[derive(Debug)]
+#[allow(dead_code, reason = "#1527：保留原账诊断字段；公开错误有意不输出原 t0/完整快照")]
 pub(crate) struct TerminalReceipt {
     pub(crate) prelude: Option<PreludeObservation>,
     pub(crate) first_read_at: Option<Instant>,
@@ -749,6 +754,7 @@ impl StartedAdmission {
     }
 
     /// 私有准入/清理完成后一次性收尾；源侧身份仍须由 WriterScope 接着核验。
+    #[cfg(test)]
     pub(crate) fn finish(self) -> Result<Arc<BudgetLease>, JobAdmissionError> {
         let paths = self.lease.revalidate_paths();
         // 原 Job 的 stopped/期限语义照旧；这里不重排 charge_wire_bytes 的首错。
@@ -814,10 +820,12 @@ impl AdmissionAccounting<'_> {
         self.job.charge_records(accesses)
     }
 
+    #[allow(dead_code, reason = "#1527：原账受限门面；旧域/真实恢复尚未完成接线，不授新额度")]
     pub(crate) fn charge_requests(&mut self, attempts: u64) -> Result<(), AccountingError> {
         self.job.charge_requests(attempts)
     }
 
+    #[allow(dead_code, reason = "#1527：原账受限门面；旧域/真实恢复尚未完成接线，不授新额度")]
     pub(crate) fn accept_node(
         &mut self,
         digest: &NodeDigest,
@@ -827,6 +835,7 @@ impl AdmissionAccounting<'_> {
         self.job.accept_node(digest, tag, body)
     }
 
+    #[allow(dead_code, reason = "#1527：原账受限门面；旧域/真实恢复尚未完成接线，不授新额度")]
     pub(crate) fn accept_frame(
         &mut self,
         digest: &NodeDigest,
@@ -850,6 +859,7 @@ impl AdmissionAccounting<'_> {
         self.job.reserve_staged(requested)
     }
 
+    #[allow(dead_code, reason = "#1527：原账受限门面；旧域/真实恢复尚未完成接线，不授新额度")]
     pub(crate) fn reserve_store(
         &mut self,
         requested: u64,
@@ -865,10 +875,12 @@ impl AdmissionAccounting<'_> {
         self.job.reconcile(grant, actual)
     }
 
+    #[allow(dead_code, reason = "#1527：原账受限门面；旧域/真实恢复尚未完成接线，不授新额度")]
     pub(crate) fn release(&mut self, grant: &admission_job::Grant) -> Result<(), AccountingError> {
         self.job.release(grant)
     }
 
+    #[allow(dead_code, reason = "#1527：原账受限门面；旧域/真实恢复尚未完成接线，不授新额度")]
     pub(crate) fn reclaim_staged(&mut self, actual_deleted: u64) -> Result<(), AccountingError> {
         self.job.reclaim_staged(actual_deleted)
     }
@@ -879,6 +891,7 @@ impl AdmissionAccounting<'_> {
 
     // JobNodeSource 的 job/inner 字段均私有，也不导出 Job 借用。
     // 包装仍只做原节点计费；实际 wire/request 必须由 adapter 另外照实计入。
+    #[allow(dead_code, reason = "#1527：原账受限门面；旧域/真实恢复尚未完成接线，不授新额度")]
     pub(crate) fn node_source<'b>(
         &'b mut self,
         inner: &'b mut dyn NodeSource,

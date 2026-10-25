@@ -105,7 +105,6 @@ struct Context<'a> {
     journal_name: CString,
     shm_name: CString,
 
-    trace_overflow: AtomicBool,
     main_open: AtomicBool,
     wal_open: AtomicBool,
     active: AtomicUsize,
@@ -115,7 +114,6 @@ struct Context<'a> {
     close_errors: AtomicUsize,
     sql_denials: AtomicUsize,
     read_bytes: AtomicU64,
-    retries: AtomicUsize,
 }
 
 impl Context<'_> {
@@ -985,7 +983,6 @@ impl<'a> Registration<'a> {
             journal_name: CString::new(format!("{main_name}-journal"))?,
             shm_name: CString::new(format!("{main_name}-shm"))?,
             account: RefCell::new(account),
-            trace_overflow: AtomicBool::new(false),
             main_open: AtomicBool::new(false),
             wal_open: AtomicBool::new(false),
             active: AtomicUsize::new(0),
@@ -995,7 +992,6 @@ impl<'a> Registration<'a> {
             close_errors: AtomicUsize::new(0),
             sql_denials: AtomicUsize::new(0),
             read_bytes: AtomicU64::new(0),
-            retries: AtomicUsize::new(0),
         });
         let mut vfs = Box::new(ffi::sqlite3_vfs {
             iVersion: 1,
@@ -1037,9 +1033,11 @@ impl<'a> Registration<'a> {
     fn ctx(&self) -> &Context<'a> {
         self.ctx.as_deref().expect("live registration")
     }
+    #[allow(dead_code, reason = "#1527：受限故障注入入口，真实 I4/I5 验证尚未执行")]
     pub fn inject(&self, fault: Fault) {
         self.ctx().fault.store(fault as i32, Ordering::SeqCst);
     }
+    #[allow(dead_code, reason = "#1527：授权拒绝诊断读数，不能影响准入判定")]
     pub fn sql_denials(&self) -> usize {
         self.ctx().sql_denials.load(Ordering::SeqCst)
     }

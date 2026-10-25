@@ -2642,7 +2642,7 @@ pub fn dispatch(args: &[String]) -> Result<bool, String> {
 
 // init/reset 保留旧锁分支，本提案不授予新库准备、重置或既存无锚接管资格。
 pub enum LegacyWriteGuard {
-    Initialization(File),
+    Initialization(#[allow(dead_code, reason = "#1527：文件持有本身保持 init/reset 锁直到 guard 析构")] File),
     Existing(crate::v3::admission::WriterScope),
 }
 impl LegacyWriteGuard {

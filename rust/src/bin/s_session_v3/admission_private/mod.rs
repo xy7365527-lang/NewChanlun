@@ -224,7 +224,8 @@ fn audit_business(
     account.errors.borrow_mut().phase = ErrorPhase::Rollback;
     // 显式结束事务后再关闭 connection；原审计错误优先，清理错误不会变成成功。
     // 仅撤下 VM 计算门完成回滚/关闭；VFS 实际 I/O 门仍在，不能再作业务查询。
-    conn.progress_handler(0, None::<fn() -> bool>);
+    let disabled = conn.progress_handler(0, None::<fn() -> bool>).map_err(|e| e.to_string());
+    account.errors.borrow_mut().returned(ErrorPhase::Rollback, &disabled);
     let ended = tx.rollback().map_err(|e| e.to_string());
     account
         .errors
@@ -236,7 +237,7 @@ fn audit_business(
         .errors
         .borrow_mut()
         .returned(ErrorPhase::Gate, &gate);
-    result.and(ended).and(gate)
+    result.and(disabled).and(ended).and(gate)
 }
 
 /// C 回调只看受限门面；不得取得 Job、StartedAdmission 或结束资格。

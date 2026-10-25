@@ -203,9 +203,6 @@ impl Driver {
     pub(super) fn finish_startup(&self) -> Result<(), String> {
         self._scope.finish_startup()
     }
-    pub(super) fn write_result(&self, out: &Value) -> Result<(), String> {
-        self._scope.write_result(out)
-    }
 
     pub(super) fn identity(&self) -> Result<(String, String, String), String> {
         self.conn.identity(&self.epoch, &self.clock, None)
@@ -505,6 +502,7 @@ pub(super) fn recover_scoped(
     drop(conn);
     Ok((result, scope))
 }
+#[cfg(test)]
 pub(super) fn recover(
     db: &Path,
     new_epoch: &str,
