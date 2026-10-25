@@ -47,7 +47,7 @@ impl AdmissionRamLedger {
         // 在任何Arc/Mutex分配前检查合并固定Layout。固定元数据随最后parent自然释放。
         let fixed = Self::metadata_bytes()?;
         if fixed > max_live || fixed > max_operation { return Err(ScratchFailure::Budget); }
-        let origin = NEXT_ORIGIN.fetch_update(Ordering::Relaxed, Ordering::Relaxed,
+        let origin = NEXT_ORIGIN.try_update(Ordering::Relaxed, Ordering::Relaxed,
             |value| value.checked_add(1)).map_err(|_| ScratchFailure::Ledger)?;
         let ledger = Arc::new(Mutex::new(LedgerState {
             snapshot: RamSnapshot { job_live: fixed, job_peak: fixed,

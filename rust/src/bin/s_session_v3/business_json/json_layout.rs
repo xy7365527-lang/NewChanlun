@@ -69,6 +69,7 @@ impl JsonShape {
         }
         out
     }
+    #[cfg(feature = "s_capture_native_testonly")]
     pub(crate) fn of_value(value: &serde_json::Value) -> Self {
         fn visit(value: &serde_json::Value, depth: usize, out: &mut JsonShape) {
             out.values = out.values.saturating_add(1);
@@ -117,6 +118,7 @@ impl JsonShape {
         ])
     }
     /// canonical_json 的每层 keys/parts、join和format共存。6是单字节转义的最长UTF-8输出。
+    #[cfg(feature = "s_capture_native_testonly")]
     pub(crate) fn canonical_peak(&self) -> usize {
         let output = sum([
             self.text.saturating_mul(6),
