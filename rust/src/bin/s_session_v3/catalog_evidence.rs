@@ -678,18 +678,21 @@ fn verify_cut_in_store(
         .ok_or_else(|| err("目录轴缺 CC-056"))?;
     let allocation = store.allocation_budget();
     let mut revisions = bj::ReferenceArray(bj::new_work(allocation.as_ref()));
-    let native_measure = store.native_measure();
+    let native_measured = store.native_measure().is_some();
     for ordinal in raw_start..raw_prefix.len() {
-        if let Some(measure) = native_measure {
-            sc::CaptureReadObserver::before_read(measure).map_err(err)?;
+        if native_measured {
+            super::history::check_deadline(deadline)?;
+            if let Some(account) = budget {
+                account.precheck().map_err(err)?;
+            }
         }
         #[cfg(test)]
         RAW_VISITS.with(|n| n.set(n.get() + 1));
         let event = raw_prefix
             .get(ordinal)
             .ok_or_else(|| err("目录raw序号越界"))?;
-        if let Some(measure) = native_measure {
-            if let Some(account) = measure.budget {
+        if native_measured {
+            if let Some(account) = budget {
                 account.record().map_err(err)?;
             }
         }
@@ -713,9 +716,9 @@ fn verify_cut_in_store(
         .native_codec_room(&mut withdrawals_view.0, withdrawals_array.len())
         .map_err(err)?;
     for v in withdrawals_array.iter() {
-        if let Some(measure) = native_measure {
-            sc::CaptureReadObserver::before_read(measure).map_err(err)?;
-            if let Some(account) = measure.budget {
+        if native_measured {
+            super::history::check_deadline(deadline)?;
+            if let Some(account) = budget {
                 account.record().map_err(err)?;
             }
         }
