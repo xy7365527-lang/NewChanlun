@@ -13,14 +13,18 @@
 
 **教义依据**：`040-第40课.md:20`【正文】「每一重都对应着一定的资金与筹码」、`040-第40课.md:22`【正文】「每一层次的操作都是独立又在一个整体的操作中」；经 [ADR 0013](0013-partition-machine-bidirectional-form.md) 裁定一、[ADR 0014](0014-intra-chong-unidirectional-inter-chong-no-arbitration.md) 裁定二落地 ⟹ ADR 0018 裁定三的排序理由（`rust/src/theta_v0/backtest/fill.rs:115` 的现金约束）在重之间不存在；C05.2 重内一次跃迁只一个动作。ADR 0018 裁定四「撤单不得用预算到期 bar」（锚 `049-第49课.md:62`【正文】「其后，中枢已经完成就无所谓中枢震荡了」）在多重上的形式就是前沿规则。
 
+> 2026-10-26 用户批准 #1598：本节将合法选择落为具名版本字段；未签数值与未标定能力不因方法批准自动生效。
+
+`model_id` 与 `seed`。`model_id` 可选值 = {`history-sim/bar-batch-known-frontier/1`（默认，确定性模型，seed: none；出处：ADR 0033 裁定一，批内各重订单各自独立对 OHLC 判定、互不排序、`intra_batch_order: Unknown`），`history-sim/stochastic-microevent/<rev>`（待标定，前置未满足）}。`stochastic-microevent` 标「待标定」理由：bar 内微事件概率分布与延迟需逐笔成交数据或盘口深度（#917 查实本仓三条数据通道全是聚合 Bar，无逐笔/盘口，与 ADR 0018:82 否决「穿透 k 个 tick 缓冲」同理：「k 无数据可标定」），选中时容量记 Unknown ⟹ AwaitingPolicy 不伪造默认值。代价：bar 内路径是造出来的（实盘 bar 内顺序不可知，ADR 0018 裁定三），报告须单列随机模拟计数并标 L1 假设（#1418 报告分层规则），不得作为真实路径证据。`seed` 字段：v1 确定性模型取 `none`，随机模型版本取整数（非负 i64）。ADR 0038:29 双跑五元组固定 seed：同 (input bar 序列, policy 版本, model_id/revision, seed, launcher scheduler) 五元组逐位复现（#1411 双跑验收规则消费本字段）。前置：#917 数据接入查实逐笔/盘口数据源可得性（当前不可得）。
+
 ### 二、部分成交只来自具证容量合同（第二问 A）
 
-`capacity_source ∈ {none, input(ref), scenario(ref)}`。
+`capacity_source ∈ {scenario_contract, bar_volume_derived}`，默认 `scenario_contract`；原合同 `none/input(ref)/scenario(ref)` 的证据形态保留，映射如下（#1598）：
 
 - `none`：在 [ADR 0016](0016-chong-quantity-layer-capacity-frequency-shift.md) 容量门已准入的规模内，继承「穿越即全量成交」，显式标为 L0 假设。这类成交可以进入 TB-07 全史双跑，但报告须单列 L0 计数，不得作为容量证据（根补充）。
 - `input/scenario`：批内同向可成量 q 按 [ADR 0032](0032-fill-allocation-policy.md) 裁定一/二的冻结比例分到各重，剩余量按 P7 进 E。
 
-不从 bar volume 推可用量；不设模型容量函数。
+`capacity_source`。可选值 = {`scenario_contract`（默认，场景合同声明或输入原件；出处：#1353 resolution 第二问选 A「部分成交只来自具证容量合同，不从 bar volume 推可用量」），`bar_volume_derived`（待标定，前置未满足）}。`bar_volume_derived` 标「待标定」理由：缺从 bar.volume 推导可成交量的公式（需标定市场微观结构参数，当前无），选中时容量记 Unknown ⟹ AwaitingPolicy。前置：ADR 0016 裁定三容量门已准入（当前 L0 已准入）。代价：报告须单列 `capacity_source=bar_volume_derived` 的成交计数并标 L0 假设（#1418 报告分层规则），不得作为容量证据（ADR 0033:20 根补充「L0 单列要求」）。无容量证据时在已准入规模内继承「穿越即全量成交」（ADR 0033:20），显式标为 L0 假设、不伪造容量数值。批内同向可成量 q 按 ADR 0032 裁定一/二（#1350 投影清单）的冻结比例分到各重，剩余量按 P7 进 E。
 
 ### 三、撤改在下一边界生效（第三问 A）
 
@@ -62,3 +66,7 @@ fill、fee、bust 各为独立原件，fee 带 `cause: fill(exec_id)`，经同�
 ## 溯源标签
 
 裁定一的「重间无次序」为 `[新缠论:推论]`（由 `040:20/:22` 经 ADR 0013/0014 推出）；其余为 `[新缠论:选择]`。
+
+## #1598 批复与受影响清单
+
+用户 2026-10-26 批复 [resolution](https://github.com/xy7365527-lang/NewChanlun/issues/1598#issuecomment-6403277308)。本次字段修订为 `[新缠论:选择]`，ROUNDTRIP 沿用已裁推论。受影响文件、固定基线与候选承接见 [清单](../../.chanlun/review-results/issue1598-policy-20261026/affected-code.md)；政策批准不代表下游已接单或实现。

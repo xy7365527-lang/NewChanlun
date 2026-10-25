@@ -33,8 +33,8 @@ _Avoid_: 默认方向 UP；用 close/open 推断初始方向（#1286 冻结的�
 _Avoid_: 多头重、空头重（把方向当作重的固定属性）
 
 **量档 policy**:
-具名版本化记录（`#1355/quantity-tier-policy/v1`），绑定 profile/标的/操作级别；固定 Q 只引用资金授权；逐档 w 为整数对并带来源域，`tier_quantity` 为版本内冻结的整数动作量；逐级容量须用户签署，Unknown ≠ 无限。未定档只阻该深度（`AwaitingPolicy{tier}`）。
-_Avoid_: 把 `depth_weights` 当量档；用底档 0.32 代填高档；用账户权益或市值当 Q 或容量。
+具名版本化记录（`#1355/quantity-tier-policy/v1`），绑定 profile/标的/操作级别；固定 Q 只引用资金授权；逐档 w 为整数对并带来源域，`tier_quantity` 为版本内冻结的整数动作量；逐级容量默认 UserSigned；ProbeAuto 仅在已签域和证据门均满足时可用（ADR 0034，#1598），Unknown ≠ 无限。未定档只阻该深度（`AwaitingPolicy{tier}`）。
+_Avoid_: 把 `depth_weights` 当量档；用底档 0.32 代填高档；用账户权益或市值替代固定 Q 或容量；这不排除已签同量纲换算后的 mark_value 溢出观测（ADR 0034）。
 
 **增长权益 G**:
 回本后由利润滚出的筹码与资本化现金 `{units_g, cash_g, cost_g}`，属重，不是本金，不自动进 Q；资金溢出换档只从 G 取。
