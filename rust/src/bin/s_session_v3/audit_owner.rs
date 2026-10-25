@@ -99,7 +99,7 @@ mod construction_set;
 pub(crate) use construction_set::{Edit, OwnerSourceCheck, SequenceDelta, SourceArray};
 #[cfg(feature = "s_capture_native_testonly")]
 pub(crate) use effects::{
-    MaterialAccess, SourceCutBinding, SourceMaterial, StageKind,
+        MaterialAccess, PublicationStageIdentity, SourceCutBinding, SourceMaterial, StageKind,
 };
 #[path = "construction_state.rs"]
 mod construction_state;
@@ -2860,7 +2860,7 @@ impl CompleteCandidate {
                 row_ids.auxiliary.each_ref().map(Vec::len)
             );
             // publication 借同一父scope；其它既有固定写路径保留独立调用合同。
-            let mut append_cut =
+            let append_cut =
                 |scope: &newchan_rust::s_content::capture_allocation::scratch::WorkScope| {
                     self.audited.append_owner_cut(
                         tx,

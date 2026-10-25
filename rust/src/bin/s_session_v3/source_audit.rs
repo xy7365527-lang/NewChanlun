@@ -36,7 +36,7 @@ mod source_contributions;
 mod source_delta;
 #[cfg(feature = "s_capture_native_testonly")]
 pub(crate) use source_contributions::{
-    audit_native_bound, NativeSourceState, 
+        audit_native_bound, NativeSourceState, SourceWork,
 };
 #[path = "source_pending.rs"]
 mod source_pending;

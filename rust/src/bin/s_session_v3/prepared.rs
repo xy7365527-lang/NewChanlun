@@ -681,7 +681,8 @@ impl Runtime {
             let (prior_bi, prior_version) = object_index::prior_records(&audited.objects)?;
             drop(control);
             // 第一次租约只覆盖生成、对象计划与axes；结束后才能借实际tx材料。
-            let (generated, objects, axes) = {
+                        #[cfg_attr(not(test), allow(unused_mut))]
+            let (mut generated, objects, axes) = {
                 let mut store = BusinessTxStore {
                     inner: publication_read_lease(
                         tx,
