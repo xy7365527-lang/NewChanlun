@@ -2579,7 +2579,7 @@ mod tests {
                 let sources: Value =
                     serde_json::from_str(object["source_coords_json"].as_str().unwrap())
                         .expect("tick source_coords 是规范JSON文本");
-                assert_eq!(sources, json!([0, 10, 20]));
+                assert_eq!(sources, json!(["0", "10", "20"]));
                 let second = &mine["objects"][1];
                 let second_refs: Value =
                     serde_json::from_str(second["input_refs_json"].as_str().unwrap())
