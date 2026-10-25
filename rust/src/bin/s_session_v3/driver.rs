@@ -651,6 +651,8 @@ mod tests {
         }
         // 写者准入时不得仍有测试连接持有 WAL/SHM；先关闭造库连接。
         drop(c);
+        // 测试签锚会创建控制原件；它属于前置夹具，不是拒绝路径副作用。
+        let _prepared_fixture = crate::v3::admission_anchor::test_prepare(&f.db);
         let bytes_before = std::fs::read(&f.db).unwrap();
         let files = || {
             let mut names = std::fs::read_dir(&f.path).unwrap()
