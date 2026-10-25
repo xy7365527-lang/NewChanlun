@@ -1926,6 +1926,7 @@ mod tests {
     fn incremental_macd_append_is_o1_scaling() {
         let (small, large) = macd_append_scaling_samples(MacdState::append, 100_000);
         let ratio = macd_append_scaling_ratio(small, large);
+        eprintln!("MACD scaling: small={small:?} ns/bar large={large:?} ns/bar ratio={ratio}");
         assert!(
             ratio < 3.0,
             "append 非 O(1)：小样本 {small:?} ns/bar，大样本 {large:?} ns/bar，中位比 {ratio}"
@@ -1945,6 +1946,7 @@ mod tests {
             1_000,
         );
         let ratio = macd_append_scaling_ratio(small, large);
+        eprintln!("MACD scaling: small={small:?} ns/bar large={large:?} ns/bar ratio={ratio}");
         assert!(
             ratio >= 3.0,
             "标度锁未拒绝历史扫描：小样本 {small:?} ns/bar，大样本 {large:?} ns/bar，中位比 {ratio}"
