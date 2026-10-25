@@ -4344,10 +4344,14 @@ fn json_shape(text: &str, shape: JsonShape) -> Result<Value, String> {
 }
 /// #1527：mixed专用入口先许可，再调用同一legacy形状/诊断核；不打开Native测试门。
 fn json_shape_mixed(
-    text: &str, shape: JsonShape,
+    text: &str,
+    shape: JsonShape,
     work: &newchan_rust::s_content::capture_allocation::scratch::WorkScope,
 ) -> Result<v3::business_json::PlainJson, String> {
-    let permit = work.reserve_native(v3::business_json::json_layout::JsonShape::scan(text.as_bytes()).parse_peak())
+    let permit = work
+        .reserve_native(
+            v3::business_json::json_layout::JsonShape::scan(text.as_bytes()).parse_peak(),
+        )
         .map_err(|e| e.to_string())?;
     match json_shape_with_owner(text, shape, None)? {
         v3::business_json::JsonOwner::Plain(value) => Ok(value.with_reservation(Some(permit))),

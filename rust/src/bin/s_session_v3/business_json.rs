@@ -2573,7 +2573,8 @@ fn admit_json_parse(
 }
 /// #1527 mixed专用：许可先于唯一原parser，不受Native测试feature控制。
 pub(super) fn mixed_strict_json_owner(bytes: &[u8], work: &WorkScope) -> Result<PlainJson, String> {
-    let permit = work.reserve_native(json_layout::JsonShape::scan(bytes).parse_peak())
+    let permit = work
+        .reserve_native(json_layout::JsonShape::scan(bytes).parse_peak())
         .map_err(|e| e.to_string())?;
     let parsed = strict_json_owner(bytes, None).map_err(|error| match error {
         StrictOwnerError::Syntax(e) => format!("SchemaUnsupported：{e}"),
@@ -2588,9 +2589,11 @@ pub(super) fn mixed_strict_json_owner(bytes: &[u8], work: &WorkScope) -> Result<
     }
 }
 pub(super) fn mixed_legacy_json_owner(bytes: &[u8], work: &WorkScope) -> Result<PlainJson, String> {
-    let permit = work.reserve_native(json_layout::JsonShape::scan(bytes).parse_peak())
+    let permit = work
+        .reserve_native(json_layout::JsonShape::scan(bytes).parse_peak())
         .map_err(|e| e.to_string())?;
-    serde_json::from_slice(bytes).map(|v| PlainJson::from_reserved(v, Some(permit)))
+    serde_json::from_slice(bytes)
+        .map(|v| PlainJson::from_reserved(v, Some(permit)))
         .map_err(|e| e.to_string())
 }
 

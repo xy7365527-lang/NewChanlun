@@ -910,7 +910,10 @@ impl Job {
         usage: &CheckedNodeUsage,
     ) -> Result<NodeAcceptance, CodecError> {
         if !matches!(self.accepted, AcceptedNodes::Ordinary(_)) {
-            return Err(CodecError::new(RESERVATION, "mixed节点接纳必须携带当前WorkScope"));
+            return Err(CodecError::new(
+                RESERVATION,
+                "mixed节点接纳必须携带当前WorkScope",
+            ));
         }
         let digest = usage.digest;
         if matches!(&self.accepted, AcceptedNodes::Ordinary(set) if set.contains(&digest)) {
@@ -949,67 +952,105 @@ impl Job {
         }
         self.node_bytes = projected_bytes;
         self.nodes = projected_nodes;
-        let AcceptedNodes::Ordinary(set) = &mut self.accepted else { unreachable!() };
+        let AcceptedNodes::Ordinary(set) = &mut self.accepted else {
+            unreachable!()
+        };
         set.insert(digest);
         Ok(NodeAcceptance::FirstAccept)
     }
 
     /// #1527：具名mixed构造器；两域集合共同受当前父工作域约束。
     pub fn new_started_mixed(
-        limits: JobLimits, existing: Existing, clock: Box<dyn Clock>, first: Instant,
+        limits: JobLimits,
+        existing: Existing,
+        clock: Box<dyn Clock>,
+        first: Instant,
         work: &super::capture_allocation::scratch::WorkScope,
     ) -> Result<Self, CodecError> {
         work.check_current()?;
         let mut job = Self::new_started(limits, existing, clock, first)?;
-        job.accepted = AcceptedNodes::Mixed { binding: work.reserve_native(0)?, content: Default::default(), legacy: Default::default() };
+        job.accepted = AcceptedNodes::Mixed {
+            binding: work.reserve_native(0)?,
+            content: Default::default(),
+            legacy: Default::default(),
+        };
         Ok(job)
     }
     pub fn accept_checked_usage_mixed(
-        &mut self, usage: &CheckedNodeUsage, work: &super::capture_allocation::scratch::WorkScope,
+        &mut self,
+        usage: &CheckedNodeUsage,
+        work: &super::capture_allocation::scratch::WorkScope,
     ) -> Result<NodeAcceptance, CodecError> {
         self.begin_first_read()?;
         work.check_current()?;
-        let AcceptedNodes::Mixed { content, binding, .. } = &self.accepted else {
+        let AcceptedNodes::Mixed {
+            content, binding, ..
+        } = &self.accepted
+        else {
             return Err(CodecError::new(RESERVATION, "普通Job不接受mixed节点"));
         };
-        if !binding.belongs_to_parent(work) { return Err(work.reject(super::capture_allocation::scratch::ScratchFailure::Ledger)); }
+        if !binding.belongs_to_parent(work) {
+            return Err(work.reject(super::capture_allocation::scratch::ScratchFailure::Ledger));
+        }
         if let Some(bytes) = content.get(&usage.digest) {
-            if *bytes != usage.framed_bytes { return Err(CodecError::new(RESERVATION, "同节点原件费用不一致")); }
+            if *bytes != usage.framed_bytes {
+                return Err(CodecError::new(RESERVATION, "同节点原件费用不一致"));
+            }
             return Ok(NodeAcceptance::AlreadyAccepted);
         }
         let (nodes, bytes) = self.project_mixed_node(usage.framed_bytes)?;
-        let AcceptedNodes::Mixed { content, .. } = &mut self.accepted else { unreachable!() };
+        let AcceptedNodes::Mixed { content, .. } = &mut self.accepted else {
+            unreachable!()
+        };
         content.insert_admitted(usage.digest, usage.framed_bytes, &MixedAllocation(work))?;
-        self.nodes = nodes; self.node_bytes = bytes;
+        self.nodes = nodes;
+        self.node_bytes = bytes;
         Ok(NodeAcceptance::FirstAccept)
     }
     pub fn accept_legacy_evidence(
-        &mut self, row: &super::legacy_evidence::CheckedLegacyEvidenceRow,
+        &mut self,
+        row: &super::legacy_evidence::CheckedLegacyEvidenceRow,
         work: &super::capture_allocation::scratch::WorkScope,
     ) -> Result<NodeAcceptance, CodecError> {
         self.begin_first_read()?;
         work.check_current()?;
         let identity = (row.kind(), row.payload_len(), row.declared_length());
-        let AcceptedNodes::Mixed { legacy, binding, .. } = &self.accepted else {
+        let AcceptedNodes::Mixed {
+            legacy, binding, ..
+        } = &self.accepted
+        else {
             return Err(CodecError::new(RESERVATION, "普通Job不接受legacy域"));
         };
-        if !binding.belongs_to_parent(work) { return Err(work.reject(super::capture_allocation::scratch::ScratchFailure::Ledger)); }
+        if !binding.belongs_to_parent(work) {
+            return Err(work.reject(super::capture_allocation::scratch::ScratchFailure::Ledger));
+        }
         if let Some(previous) = legacy.get(row.id()) {
-            if *previous != identity { return Err(CodecError::new(RESERVATION, "同legacy节点原件不一致")); }
+            if *previous != identity {
+                return Err(CodecError::new(RESERVATION, "同legacy节点原件不一致"));
+            }
             return Ok(NodeAcceptance::AlreadyAccepted);
         }
-        let framed = u64::try_from(row.payload_len()).ok().and_then(|n| n.checked_add(1))
+        let framed = u64::try_from(row.payload_len())
+            .ok()
+            .and_then(|n| n.checked_add(1))
             .ok_or_else(|| self.stop(LIMIT_EXCEEDED, "legacy节点费用溢出".into()))?;
         let (nodes, bytes) = self.project_mixed_node(framed)?;
-        let AcceptedNodes::Mixed { legacy, .. } = &mut self.accepted else { unreachable!() };
+        let AcceptedNodes::Mixed { legacy, .. } = &mut self.accepted else {
+            unreachable!()
+        };
         legacy.insert_admitted(*row.id(), identity, &MixedAllocation(work))?;
-        self.nodes = nodes; self.node_bytes = bytes;
+        self.nodes = nodes;
+        self.node_bytes = bytes;
         Ok(NodeAcceptance::FirstAccept)
     }
     fn project_mixed_node(&mut self, framed: u64) -> Result<(u64, u64), CodecError> {
-        let bytes = self.node_bytes.checked_add(framed)
+        let bytes = self
+            .node_bytes
+            .checked_add(framed)
             .ok_or_else(|| self.stop(LIMIT_EXCEEDED, "节点字节累计溢出".into()))?;
-        let nodes = self.nodes.checked_add(1)
+        let nodes = self
+            .nodes
+            .checked_add(1)
             .ok_or_else(|| self.stop(LIMIT_EXCEEDED, "节点数量累计溢出".into()))?;
         if bytes > self.limits.max_total_node_bytes || nodes > self.limits.max_total_nodes {
             return Err(self.stop(LIMIT_EXCEEDED, "mixed两域聚合节点费用超出签署帽".into()));
@@ -1517,27 +1558,42 @@ mod same_material_tests {
 
 struct MixedAllocation<'a>(&'a super::capture_allocation::scratch::WorkScope);
 impl super::NodeSource for MixedAllocation<'_> {
-    fn codec_work(&self) -> Option<&super::capture_allocation::scratch::WorkScope> { Some(self.0) }
+    fn codec_work(&self) -> Option<&super::capture_allocation::scratch::WorkScope> {
+        Some(self.0)
+    }
     fn read(&mut self, _: &NodeDigest) -> Result<super::NodeRead, CodecError> {
-        Err(CodecError::new(super::code::SOURCE, "分配能力不提供节点原件"))
+        Err(CodecError::new(
+            super::code::SOURCE,
+            "分配能力不提供节点原件",
+        ))
     }
 }
 
 #[cfg(test)]
 mod mixed_domain_tests {
+    use super::super::capture_allocation::scratch::{
+        CodecWork, ScratchCharge, ScratchFailure, ScratchParent,
+    };
     use super::*;
-    use super::super::capture_allocation::scratch::{CodecWork, ScratchCharge, ScratchFailure, ScratchParent};
     use std::sync::{Arc, Mutex};
     struct Parent(Mutex<usize>);
     impl ScratchParent for Parent {
         fn reserve(&self, bytes: usize, _: ScratchCharge) -> Result<u64, ScratchFailure> {
-            let mut live = self.0.lock().unwrap(); *live = live.checked_add(bytes).ok_or(ScratchFailure::Budget)?; Ok(0)
+            let mut live = self.0.lock().unwrap();
+            *live = live.checked_add(bytes).ok_or(ScratchFailure::Budget)?;
+            Ok(0)
         }
         fn release(&self, bytes: usize, _: ScratchCharge, _: u64) -> Result<(), ScratchFailure> {
-            let mut live = self.0.lock().unwrap(); *live = live.checked_sub(bytes).ok_or(ScratchFailure::Ledger)?; Ok(())
+            let mut live = self.0.lock().unwrap();
+            *live = live.checked_sub(bytes).ok_or(ScratchFailure::Ledger)?;
+            Ok(())
         }
-        fn health(&self) -> Result<(), ScratchFailure> { Ok(()) }
-        fn invalidate(&self) { panic!("test ledger invalidated") }
+        fn health(&self) -> Result<(), ScratchFailure> {
+            Ok(())
+        }
+        fn invalidate(&self) {
+            panic!("test ledger invalidated")
+        }
     }
     #[test]
     fn mixed_forced_equal_digest_stays_separate_across_domains() {
@@ -1547,20 +1603,52 @@ mod mixed_domain_tests {
             "max_total_wire_bytes":"1000", "max_total_node_bytes":"1000", "max_total_nodes":"2",
             "max_total_records":"100", "max_total_requests":"100", "max_elapsed_ms":"60000",
             "max_staged_bytes":"1000", "max_store_bytes":"1000"
-        })).unwrap();
-        CodecWork::new(parent.clone(), 1 << 20).unwrap().run(|work| {
-            let mut job = Job::new_started_mixed(limits, Existing { store_bytes: 0, staged_bytes: 0 },
-                Box::new(Instant::now), Instant::now(), work)?;
-            let legacy = super::super::legacy_evidence::CheckedLegacyEvidenceRow::verify(
-                &super::super::legacy_evidence::node_id(0, b"abc"), 0, b"abc", 3).unwrap();
-            let content = CheckedNodeUsage { digest: *legacy.id(), framed_bytes: 13 };
-            assert_eq!(job.accept_checked_usage_mixed(&content, work)?, NodeAcceptance::FirstAccept);
-            assert_eq!(job.accept_legacy_evidence(&legacy, work)?, NodeAcceptance::FirstAccept);
-            assert_eq!((job.snapshot().nodes, job.snapshot().node_bytes), (2, 17));
-            assert_eq!(job.accept_checked_usage_mixed(&content, work)?, NodeAcceptance::AlreadyAccepted);
-            assert_eq!(job.accept_legacy_evidence(&legacy, work)?, NodeAcceptance::AlreadyAccepted);
-            Ok::<_, CodecError>(())
-        }).unwrap();
+        }))
+        .unwrap();
+        CodecWork::new(parent.clone(), 1 << 20)
+            .unwrap()
+            .run(|work| {
+                let mut job = Job::new_started_mixed(
+                    limits,
+                    Existing {
+                        store_bytes: 0,
+                        staged_bytes: 0,
+                    },
+                    Box::new(Instant::now),
+                    Instant::now(),
+                    work,
+                )?;
+                let legacy = super::super::legacy_evidence::CheckedLegacyEvidenceRow::verify(
+                    &super::super::legacy_evidence::node_id(0, b"abc"),
+                    0,
+                    b"abc",
+                    3,
+                )
+                .unwrap();
+                let content = CheckedNodeUsage {
+                    digest: *legacy.id(),
+                    framed_bytes: 13,
+                };
+                assert_eq!(
+                    job.accept_checked_usage_mixed(&content, work)?,
+                    NodeAcceptance::FirstAccept
+                );
+                assert_eq!(
+                    job.accept_legacy_evidence(&legacy, work)?,
+                    NodeAcceptance::FirstAccept
+                );
+                assert_eq!((job.snapshot().nodes, job.snapshot().node_bytes), (2, 17));
+                assert_eq!(
+                    job.accept_checked_usage_mixed(&content, work)?,
+                    NodeAcceptance::AlreadyAccepted
+                );
+                assert_eq!(
+                    job.accept_legacy_evidence(&legacy, work)?,
+                    NodeAcceptance::AlreadyAccepted
+                );
+                Ok::<_, CodecError>(())
+            })
+            .unwrap();
         assert_eq!(*parent.0.lock().unwrap(), 0);
     }
 }

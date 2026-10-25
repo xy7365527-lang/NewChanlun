@@ -21,8 +21,8 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-mod resources;
 mod ram;
+mod resources;
 use resources::AdmissionResources;
 
 const CONTROL_BYTES: usize = 65_536;

@@ -39,7 +39,9 @@ impl<K: Ord, V> NativeTree<K, V> {
                     .checked_mul(11)
                     .and_then(|n| n.checked_add(16 * std::mem::size_of::<usize>()))
                     .and_then(|n| n.checked_mul(depth))
-                    .ok_or_else(|| work.reject(sc::capture_allocation::scratch::ScratchFailure::Budget))?;
+                    .ok_or_else(|| {
+                        work.reject(sc::capture_allocation::scratch::ScratchFailure::Budget)
+                    })?;
                 self.permits.try_reserve_native(work, 1)?;
                 let permit = work.reserve_native(bytes)?;
                 self.permits.try_push(permit)?;
@@ -230,4 +232,3 @@ impl<'a, K> IntoIterator for &'a NativeSet<K> {
         self.values.keys()
     }
 }
-
