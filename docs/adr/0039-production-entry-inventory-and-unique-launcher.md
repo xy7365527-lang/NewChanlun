@@ -201,7 +201,7 @@ ADR 0039 的编号按 main 顺序分配：落地时取 `docs/adr/` 现有最大�
 | `b_chong_session`（`:250-253`，`--chong ID`） | 命令+feature `s_session` | 收编：每重一个 Bᵢ 进程（重操作程序） | 同上 |
 | `x_execution_session`（新立，`rust/src/bin/x_execution_session.rs`，`required-features = ["production_session"]`） | 命令+feature | 唯一执行入口 X（C09.7） | 唯一接收凭据的进程；自持 `.writer.lock` + `writer_epoch` |
 
-**#1657 S 准入操作员入口**（资源准入，不授交易发送权；合同与签撤程序见 [ADR 0047](0047-s-resource-admission-contract-v1.md)）
+**#1657 S 准入操作员入口**（资源准入，不授交易发送权；合同与签撤程序见 [ADR 0049](0049-s-resource-admission-contract-v1.md)）
 
 | 入口 | 类 | 地位 | 写权机制 |
 |---|---|---|---|
