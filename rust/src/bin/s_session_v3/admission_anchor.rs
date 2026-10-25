@@ -1304,3 +1304,6 @@ mod test_support;
 pub(crate) fn test_prepare(db: &Path) -> PreparedAdmission {
     test_support::prepare(db)
 }
+
+#[path = "admission_issuance.rs"]
+pub(crate) mod issuance;

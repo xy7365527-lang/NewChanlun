@@ -5394,6 +5394,9 @@ fn run() -> Result<(), String> {
     if args.len() < 2 {
         return Err(usage());
     }
+    if v3::admission_anchor::issuance::dispatch(&args)? {
+        return Ok(());
+    }
     if v3::dispatch(&args)? {
         return Ok(());
     }
