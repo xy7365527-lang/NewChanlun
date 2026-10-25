@@ -1,4 +1,5 @@
 //! #1394 业务原始账的入口存储选择与同一借用判据。Owned失败直接Err，不转回std。
+pub(crate) mod json_layout;
 use super::audit_store::{CodecRead, NativeAdmission, NativeTree};
 use super::*;
 use aj::{ArrayIter, ArrayView, JsonView};
@@ -2570,6 +2571,29 @@ fn admit_json_parse(
     }
     Ok(None)
 }
+/// #1527 mixed专用：许可先于唯一原parser，不受Native测试feature控制。
+pub(super) fn mixed_strict_json_owner(bytes: &[u8], work: &WorkScope) -> Result<PlainJson, String> {
+    let permit = work.reserve_native(json_layout::JsonShape::scan(bytes).parse_peak())
+        .map_err(|e| e.to_string())?;
+    let parsed = strict_json_owner(bytes, None).map_err(|error| match error {
+        StrictOwnerError::Syntax(e) => format!("SchemaUnsupported：{e}"),
+        StrictOwnerError::Allocation(e) => e.to_string(),
+        #[cfg(feature = "s_allocation_json_testonly")]
+        StrictOwnerError::OwnedSyntax(e) => format!("SchemaUnsupported：{e}"),
+    })?;
+    match parsed {
+        JsonOwner::Plain(value) => Ok(value.with_reservation(Some(permit))),
+        #[cfg(feature = "s_allocation_json_testonly")]
+        JsonOwner::Owned(_) => unreachable!("mixed None-owner原parser产出Plain"),
+    }
+}
+pub(super) fn mixed_legacy_json_owner(bytes: &[u8], work: &WorkScope) -> Result<PlainJson, String> {
+    let permit = work.reserve_native(json_layout::JsonShape::scan(bytes).parse_peak())
+        .map_err(|e| e.to_string())?;
+    serde_json::from_slice(bytes).map(|v| PlainJson::from_reserved(v, Some(permit)))
+        .map_err(|e| e.to_string())
+}
+
 pub(crate) fn strict_json_owner_admitted(
     bytes: &[u8],
     owner: Option<&OwnedBudget>,
