@@ -65,7 +65,7 @@ CREATE TABLE structure_deltas (
  generation INTEGER PRIMARY KEY, session_id TEXT NOT NULL, catalog_revision TEXT NOT NULL,
  base_cut TEXT NOT NULL, next_cut TEXT NOT NULL, seq_range_json TEXT NOT NULL,
  index_frontier TEXT NOT NULL, input_frontier INTEGER NOT NULL, catalog_run_status TEXT NOT NULL,
- catalog_evidence_json TEXT NOT NULL, delta_json TEXT NOT NULL);
+ catalog_evidence_json TEXT NOT NULL, delta_json TEXT NOT NULL, policy_records TEXT NOT NULL);
 CREATE TABLE writer_epoch_history (
  ordinal INTEGER PRIMARY KEY, from_epoch TEXT NOT NULL, to_epoch TEXT NOT NULL,
  generation_at_transition TEXT NOT NULL, advance_state_at_transition TEXT NOT NULL,

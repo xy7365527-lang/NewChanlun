@@ -321,6 +321,7 @@ impl Runtime {
                     &prepared.metadata,
                     &prepared.roots,
                     &prepared.manifest,
+                    &prepared.policy_records,
                     stage,
                     &roots,
                 );
@@ -332,6 +333,7 @@ impl Runtime {
                 &prepared.metadata,
                 &prepared.roots,
                 &prepared.manifest,
+                &prepared.policy_records,
                 prepared.workspace,
                 work,
             );
@@ -342,6 +344,7 @@ impl Runtime {
                 &prepared.metadata,
                 &prepared.roots,
                 &prepared.manifest,
+                &prepared.policy_records,
             )
         })();
         #[cfg(all(test, feature = "s_capture_native_testonly"))]
@@ -556,7 +559,7 @@ impl Runtime {
                 )?
             }; // The lease ends before raw SQL; the frozen workspace is inert until row rebinding.
             let NodeProducts {
-                generated: _generated,
+                generated,
                 objects,
                 axes,
                 counts: _counts,
@@ -567,6 +570,7 @@ impl Runtime {
                 manifest,
                 workspace,
             } = products;
+            let policy_records = generated.policy_records.clone();
             let mut store = BusinessTxStore {
                 inner: content_store::TxStore::new(tx)
                     .map_err(err)?
@@ -580,6 +584,7 @@ impl Runtime {
                 metadata,
                 roots,
                 manifest,
+                policy_records,
                 workspace,
             });
         }
@@ -596,7 +601,7 @@ impl Runtime {
             budget: audited.budget.clone(),
         };
         let NodeProducts {
-            generated: _generated,
+            generated,
             objects,
             axes,
             counts: _counts,
@@ -620,6 +625,7 @@ impl Runtime {
             generation,
             frontier,
         )?;
+        let policy_records = generated.policy_records.clone();
         object_index::stage(tx, &mut store, &objects, &manifest.batch_id)?;
         aux_index::stage(tx, &mut store, &auxiliary, &manifest.batch_id)?;
         catalog_evidence::stage_current(tx, &mut store, &axes)?;
@@ -627,6 +633,7 @@ impl Runtime {
             metadata,
             roots,
             manifest,
+            policy_records,
             #[cfg(feature = "s_capture_native_testonly")]
             workspace,
         })
@@ -766,6 +773,7 @@ struct Prepared {
     metadata: ManifestMetadata,
     roots: ManifestRoots,
     manifest: UnpublishedManifest,
+    policy_records: String,
     #[cfg(feature = "s_capture_native_testonly")]
     workspace: Option<content_manifest::PreparedManifestWorkspace>,
 }

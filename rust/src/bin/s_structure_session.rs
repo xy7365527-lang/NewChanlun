@@ -297,7 +297,8 @@ CREATE TABLE IF NOT EXISTS structure_deltas (
   input_frontier INTEGER NOT NULL,
   catalog_run_status TEXT NOT NULL,
   catalog_evidence_json TEXT NOT NULL,
-  delta_json TEXT NOT NULL
+  delta_json TEXT NOT NULL,
+  policy_records TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS writer_epoch_history (
   ordinal INTEGER PRIMARY KEY,
@@ -3069,6 +3070,13 @@ fn advance_core_with_config(
         if frontier == last_frontier && cur_gen >= 1 {
             let structure_cut = meta_get_opt(&tx, "structure_cut")?.unwrap_or_default();
             let index_frontier = meta_get_opt(&tx, "index_frontier")?.unwrap_or_default();
+            let policy_records: String = tx
+                .query_row(
+                    "SELECT policy_records FROM structure_deltas WHERE generation=?1",
+                    params![cur_gen],
+                    |row| row.get(0),
+                )
+                .map_err(|e| format!("读历史 generation 的记录版本戳失败：{e}"))?;
             drop(tx);
             return Ok(json!({
                 "ok": true,
@@ -3076,7 +3084,7 @@ fn advance_core_with_config(
                 "generation": cur_gen.to_string(),
                 "structure_cut": structure_cut,
                 "index_frontier": index_frontier,
-                "policy_records": config.record_labels(),
+                "policy_records": policy_records,
                 "note": "无新输入（frontier 已提交），不产新 cut；DeliveryUnknown 请按原业务身份查询权威结果",
             }));
         }
@@ -3848,8 +3856,8 @@ fn advance_core_with_config(
                 delta_text.clone()
             };
             tx.execute(
-                "INSERT OR REPLACE INTO structure_deltas(generation, session_id, catalog_revision, base_cut, next_cut, seq_range_json, index_frontier, input_frontier, catalog_run_status, catalog_evidence_json, delta_json)
-                 VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                "INSERT OR REPLACE INTO structure_deltas(generation, session_id, catalog_revision, base_cut, next_cut, seq_range_json, index_frontier, input_frontier, catalog_run_status, catalog_evidence_json, delta_json, policy_records)
+                 VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
                 params![
                     gen,
                     meta_get_opt(&tx, "session_id")?.unwrap_or_default(),
@@ -3862,6 +3870,7 @@ fn advance_core_with_config(
                     run_status,
                     evidence.to_string(),
                     stored_delta,
+                    config.record_labels(),
                 ],
             )
             .map_err(|e| format!("持久 delta 失败：{e}"))?;

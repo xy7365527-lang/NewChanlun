@@ -625,6 +625,23 @@ mod tests {
         fn open(&self, epoch: &str) -> Result<Driver, String> {
             Driver::open(&self.db, &self.profile, epoch, self.clock.clone())
         }
+        fn open_with_config(
+            &self,
+            epoch: &str,
+            theta_config: ThetaConfig,
+        ) -> Result<Driver, String> {
+            Driver::open_with_request_and_mode_context(
+                &self.db,
+                &self.profile,
+                epoch,
+                self.clock.clone(),
+                None,
+                s_allocation::Mode::Ordinary,
+                None,
+                theta_config,
+                false,
+            )
+        }
         fn ingest(n: i64) -> Value {
             let row = match n {
                 1 => ("a", 0, 6, 12, 3, 7),
@@ -769,6 +786,87 @@ mod tests {
         assert_eq!(reopened.identity().unwrap(), identity);
         assert_eq!(reopened.state_summary("normal-owner").unwrap(), summary);
         ended(&reopened);
+    }
+
+    #[test]
+    fn driver_external_receipts_keep_historical_policy_records_across_config_versions() {
+        let fixture = Fixture::new();
+        let v1 = ThetaConfig::default();
+        let mut v2 = v1.clone();
+        v2.records.risk.record.version =
+            newchan_rust::theta_v0::policy_records::PolicyVersion::Signed(2);
+        assert!(!v1.admissible());
+
+        let first_input = Fixture::ingest(1);
+        let mut first_driver = fixture.open_with_config("1", v1.clone()).unwrap();
+        let first = first_driver.handle(first_input.clone()).unwrap();
+        assert_eq!(first["kind"], "Committed");
+        assert!(first["policy_records"]
+            .as_str()
+            .unwrap()
+            .contains("theta-risk/1"));
+        assert!(first["policy_records"]
+            .as_str()
+            .unwrap()
+            .contains("venue-profile-diagnostic-fixture/1"));
+        drop(first_driver);
+
+        let mut second_driver = fixture.open_with_config("1", v2.clone()).unwrap();
+        assert_eq!(second_driver.handle(first_input.clone()).unwrap(), first);
+        assert_eq!(
+            second_driver.handle(receipt_request(&first_input)).unwrap(),
+            first
+        );
+        let second_input = Fixture::ingest(2);
+        let second = second_driver.handle(second_input.clone()).unwrap();
+        assert!(second["policy_records"]
+            .as_str()
+            .unwrap()
+            .contains("theta-risk/2"));
+        assert_ne!(second["policy_records"], first["policy_records"]);
+        drop(second_driver);
+
+        let mut reopened = fixture.open_with_config("1", v1).unwrap();
+        assert_eq!(
+            reopened.handle(receipt_request(&second_input)).unwrap(),
+            second,
+            "恢复后不得用当前配置覆盖历史生成结果"
+        );
+        assert_eq!(
+            reopened.handle(receipt_request(&first_input)).unwrap(),
+            first
+        );
+    }
+
+    #[test]
+    fn resumed_driver_receipt_uses_records_from_actual_recovery_generation() {
+        let fixture = Fixture::new();
+        let input = Fixture::ingest(1);
+        let mut before = fixture
+            .open_with_config("1", ThetaConfig::default())
+            .unwrap();
+        before.stop_after = Some("begin");
+        assert!(before
+            .handle(input.clone())
+            .unwrap_err()
+            .contains("stop_after_begin"));
+        drop(before);
+        recover(&fixture.db, "2", &fixture.clock, "recover-1").unwrap();
+
+        let mut resumed_config = ThetaConfig::default();
+        resumed_config.records.risk.record.version =
+            newchan_rust::theta_v0::policy_records::PolicyVersion::Signed(2);
+        let mut resumed = fixture.open_with_config("2", resumed_config).unwrap();
+        let receipt = resumed.handle(receipt_request(&input)).unwrap();
+        assert_eq!(receipt["kind"], "Committed");
+        assert!(receipt["policy_records"]
+            .as_str()
+            .unwrap()
+            .contains("theta-risk/2"));
+        assert!(receipt["policy_records"]
+            .as_str()
+            .unwrap()
+            .contains("venue-profile-diagnostic-fixture/1"));
     }
 
     #[test]

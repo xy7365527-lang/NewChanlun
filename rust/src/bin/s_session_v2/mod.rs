@@ -2241,13 +2241,13 @@ pub(super) fn lookup(
     if stored != hash {
         return Err("IdentityConflict：原message身份绑定不同内容".into());
     }
-    let publication = if let Some(g) = g {
-        conn.query_row("SELECT generation,next_cut,index_frontier,catalog_revision,input_frontier FROM structure_deltas WHERE generation=?1",params![g],|r|Ok(json!({"generation":r.get::<_,i64>(0)?.to_string(),"structure_cut":r.get::<_,String>(1)?,"index_frontier":r.get::<_,String>(2)?,"catalog_revision":r.get::<_,String>(3)?,"input_frontier":r.get::<_,i64>(4)?.to_string()}))).map_err(err)?
+    let (publication, policy_records) = if let Some(g) = g {
+        conn.query_row("SELECT generation,next_cut,index_frontier,catalog_revision,input_frontier,policy_records FROM structure_deltas WHERE generation=?1",params![g],|r|Ok((json!({"generation":r.get::<_,i64>(0)?.to_string(),"structure_cut":r.get::<_,String>(1)?,"index_frontier":r.get::<_,String>(2)?,"catalog_revision":r.get::<_,String>(3)?,"input_frontier":r.get::<_,i64>(4)?.to_string()}),Value::String(r.get::<_,String>(5)?)))).map_err(err)?
     } else {
-        Value::Null
+        (Value::Null, Value::Null)
     };
     Ok(
-        json!({"ok":true,"kind":status,"original_message_id":id,"receipt_id":receipt,"accepted_seq":seq.to_string(),"publication":publication}),
+        json!({"ok":true,"kind":status,"original_message_id":id,"receipt_id":receipt,"accepted_seq":seq.to_string(),"publication":publication,"policy_records":policy_records}),
     )
 }
 fn ready(conn: &Connection) -> Result<Value, String> {
@@ -2317,6 +2317,19 @@ fn handle_with_policy(
     e: &Value,
     production: bool,
 ) -> Result<Value, String> {
+    handle_with_policy_and_config(db, profile, epoch, clock, e, production, None)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn handle_with_policy_and_config(
+    db: &Path,
+    profile: &Path,
+    epoch: &str,
+    clock: &ClockPlan,
+    e: &Value,
+    production: bool,
+    _fixture_config: Option<&ThetaConfig>,
+) -> Result<Value, String> {
     let conn = open_db(db)?;
     let tx = conn.unchecked_transaction().map_err(err)?;
     verify_reachable_root(&tx)?;
@@ -2371,29 +2384,39 @@ fn handle_with_policy(
                     Some(&c),
                 )?;
             }
-            if production {
-                advance_core(db, epoch, Some(&c))?;
+            let advanced = if production {
+                advance_core(db, epoch, Some(&c))?
             } else {
                 #[cfg(test)]
                 {
-                    advance_core_fixture(db, epoch, Some(&c))?;
+                    if let Some(config) = _fixture_config {
+                        advance_core_with_config(db, epoch, Some(&c), config)?
+                    } else {
+                        advance_core_fixture(db, epoch, Some(&c))?
+                    }
                 }
                 #[cfg(not(test))]
                 unreachable!("fixture only exists in test builds")
-            }
+            };
             let started = s_fact_cache::phase::begin();
             let conn = open_db(db)?;
             let tx = conn.unchecked_transaction().map_err(err)?;
             verify_reachable_root(&tx)?;
-            let out = lookup(
+            let mut out = lookup(
                 &tx,
                 required(e, "source_namespace")?,
                 required(e, "source_epoch")?,
                 required(e, "message_id")?,
                 required(e, "payload_hash")?,
-            );
+            )?;
             s_fact_cache::phase::record("post_advance_root_audit", started.elapsed().as_nanos());
-            out
+            if out["kind"] == "Committed" {
+                if out["policy_records"] != advanced["policy_records"] {
+                    return Err("IdentityConflict：外部回执与本次实际生成的记录版本戳不同".into());
+                }
+                out["policy_records"] = advanced["policy_records"].clone();
+            }
+            Ok(out)
         }
         _ => Err("SchemaUnsupported：未知op，恢复只允许正式监督器CLI".into()),
     }
@@ -2457,6 +2480,18 @@ fn handle_fixture(
     envelope: &Value,
 ) -> Result<Value, String> {
     handle_with_policy(db, profile, epoch, clock, envelope, false)
+}
+
+#[cfg(test)]
+fn handle_fixture_with_config(
+    db: &Path,
+    profile: &Path,
+    epoch: &str,
+    clock: &v2::ClockPlan,
+    envelope: &Value,
+    config: &ThetaConfig,
+) -> Result<Value, String> {
+    handle_with_policy_and_config(db, profile, epoch, clock, envelope, false, Some(config))
 }
 
 fn serve_with_policy(
@@ -3647,6 +3682,85 @@ mod tests {
         assert!(valid["gap"].is_null());
         assert_eq!(valid["deltas"].as_array().unwrap().len(), 2);
     }
+    #[test]
+    fn v2_external_receipts_keep_historical_policy_records_across_config_versions() {
+        let f = Fixture::new(8, 2);
+        let v1 = ThetaConfig::default();
+        let mut v2 = v1.clone();
+        v2.records.risk.record.version =
+            newchan_rust::theta_v0::policy_records::PolicyVersion::Signed(2);
+        assert!(!v1.admissible());
+
+        let first_input = envelope(f.message(0)).unwrap();
+        let first = handle_fixture_with_config(&f.db, &f.profile, "1", &f.clock, &first_input, &v1)
+            .unwrap();
+        assert_eq!(first["kind"], "Committed");
+        assert!(first["policy_records"]
+            .as_str()
+            .unwrap()
+            .contains("theta-risk/1"));
+        assert!(first["policy_records"]
+            .as_str()
+            .unwrap()
+            .contains("venue-profile-diagnostic-fixture/1"));
+
+        assert_eq!(
+            handle_fixture_with_config(&f.db, &f.profile, "1", &f.clock, &first_input, &v2,)
+                .unwrap(),
+            first,
+            "配置改版后的幂等重投必须返回原生成记录戳"
+        );
+        let first_query = envelope(f.wrap(
+            json!({"op":"receipt","original_source_namespace":first_input["source_namespace"],"original_source_epoch":first_input["source_epoch"],"original_message_id":first_input["message_id"],"original_payload_hash":first_input["payload_hash"]}),
+            "receipt-query-1",
+        ))
+        .unwrap();
+        assert_eq!(
+            handle_fixture_with_config(&f.db, &f.profile, "1", &f.clock, &first_query, &v2,)
+                .unwrap(),
+            first,
+            "receipt 查询不得用当前配置改写历史"
+        );
+
+        let context = InputContext {
+            envelope: first_input.clone(),
+            clock: f.clock.clone(),
+        };
+        let repeated_advance = advance_core_with_config(&f.db, "1", Some(&context), &v2).unwrap();
+        assert_eq!(repeated_advance["idempotent"], true);
+        assert_eq!(
+            repeated_advance["policy_records"], first["policy_records"],
+            "无新输入的 advance 也必须读取原 generation，而不是当前配置"
+        );
+
+        let second_input = envelope(f.message(1)).unwrap();
+        let second =
+            handle_fixture_with_config(&f.db, &f.profile, "1", &f.clock, &second_input, &v2)
+                .unwrap();
+        assert!(second["policy_records"]
+            .as_str()
+            .unwrap()
+            .contains("theta-risk/2"));
+        assert_ne!(second["policy_records"], first["policy_records"]);
+
+        let second_query = envelope(f.wrap(
+            json!({"op":"receipt","original_source_namespace":second_input["source_namespace"],"original_source_epoch":second_input["source_epoch"],"original_message_id":second_input["message_id"],"original_payload_hash":second_input["payload_hash"]}),
+            "receipt-query-2",
+        ))
+        .unwrap();
+        assert_eq!(
+            handle_fixture_with_config(&f.db, &f.profile, "1", &f.clock, &second_query, &v1,)
+                .unwrap(),
+            second,
+            "重新打开后即使配置回退，也只能读取结果实际使用的 v2 记录戳"
+        );
+        assert_eq!(
+            handle_fixture_with_config(&f.db, &f.profile, "1", &f.clock, &first_query, &v1,)
+                .unwrap(),
+            first
+        );
+    }
+
     #[test]
     fn v2_same_message_cannot_change_clock_or_payload() {
         let f = Fixture::new(8, 2);
