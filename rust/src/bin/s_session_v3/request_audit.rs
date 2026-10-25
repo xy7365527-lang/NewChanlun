@@ -1415,15 +1415,20 @@ mod tests {
 
     #[test]
     fn request_native_scan_scratch_cold_warm_and_legal_append_full_output_equal() {
-        scan_scratch_cold_warm_append_full_output_equal(false);
+        scan_scratch_cold_warm_append_full_output_equal(false, false);
     }
 
     #[test]
     fn r11_request_native_shared_scope_cold_warm_append_full_output_equal() {
-        scan_scratch_cold_warm_append_full_output_equal(true);
+        scan_scratch_cold_warm_append_full_output_equal(true, false);
     }
 
-    fn scan_scratch_cold_warm_append_full_output_equal(admitted: bool) {
+    #[test]
+    fn measured_native_admitted_cold_hit_append_preserves_full_output_and_refunds() {
+        scan_scratch_cold_warm_append_full_output_equal(true, true);
+    }
+
+    fn scan_scratch_cold_warm_append_full_output_equal(admitted: bool, measured: bool) {
         use super::super::{audit_owner::native::Budget, content_store};
         use newchan_rust::s_content as sc;
         let mut f = Fixture::new();
@@ -1458,14 +1463,26 @@ mod tests {
                 let before = content_store::prototype_capture_work_on_thread();
                 let tx = f.conn.transaction().unwrap();
                 let cold = state::audit_native_current(&tx).unwrap();
-                let current = super::super::s_allocation::audit_in_request_admitted(
-                    &tx,
-                    &super::super::s_allocation::Mode::CapturedNative,
-                    super::super::s_allocation::Phase::Handle,
-                    &mut context,
-                    work,
-                )
-                .unwrap();
+                let current = if measured {
+                    use newchan_rust::s_content::job::{Existing, Job, JobLimits};
+                    let limits = JobLimits::from_canonical_json(&serde_json::json!({
+                        "max_total_wire_bytes":"1048576", "max_total_node_bytes":"1048576",
+                        "max_total_nodes":"100000", "max_total_records":"100000",
+                        "max_total_requests":"20", "max_elapsed_ms":"10000",
+                        "max_staged_bytes":"1048576", "max_store_bytes":"33554432"
+                    })).unwrap();
+                    let mut job = Job::new(limits, Existing { store_bytes: 0, staged_bytes: 0 }, Box::new(std::time::Instant::now)).unwrap();
+                    let meter = super::super::audit_budget::AuditJob::new(&mut job);
+                    state::audit_native_in_request_measured(&tx, &mut context, work, None, Some(&meter)).unwrap()
+                } else {
+                    super::super::s_allocation::audit_in_request_admitted(
+                        &tx,
+                        &super::super::s_allocation::Mode::CapturedNative,
+                        super::super::s_allocation::Phase::Handle,
+                        &mut context,
+                        work,
+                    ).unwrap()
+                };
                 assert_eq!(
                     complete_native_output(&tx, &current),
                     complete_native_output(&tx, &cold),
