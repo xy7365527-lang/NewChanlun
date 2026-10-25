@@ -47,7 +47,7 @@ pub(crate) mod admission;
 pub(crate) mod admission_anchor;
 mod admission_private;
 mod admission_provider;
-mod audit_budget;
+pub(crate) mod audit_budget;
 mod audit_header;
 pub(super) mod audit_owner;
 #[cfg(feature = "s_capture_native_testonly")]

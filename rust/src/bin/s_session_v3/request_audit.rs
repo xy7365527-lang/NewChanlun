@@ -1580,6 +1580,46 @@ mod tests {
         state::audit_native_in_request(&tx, context).map(|_| ())
     }
     #[test]
+    fn measured_default_context_cold_hit_and_limit_clear_slot_without_parent() {
+        use super::super::audit_budget::AuditJob;
+        use newchan_rust::s_content::job::{Existing, Job, JobLimits};
+        let make_job = |records: u64| Job::new(JobLimits::from_canonical_json(&serde_json::json!({
+            "max_total_wire_bytes":"1048576", "max_total_node_bytes":"1048576",
+            "max_total_nodes":"100000", "max_total_records":records.to_string(),
+            "max_total_requests":"20", "max_elapsed_ms":"10000",
+            "max_staged_bytes":"1048576", "max_store_bytes":"33554432"
+        })).unwrap(), Existing { store_bytes: 0, staged_bytes: 0 }, Box::new(std::time::Instant::now)).unwrap();
+        let mut f = Fixture::new();
+        publish_one(&mut f);
+        let mut context = RequestAuditContext::default();
+        let mut job = make_job(100000);
+        let expected;
+        {
+            let tx = f.conn.transaction().unwrap();
+            expected = complete_native_output(&tx, &state::audit_native_current(&tx).unwrap());
+            let audit = AuditJob::new(&mut job);
+            let got = state::audit_native_in_request_measured(&tx, &mut context, None, None, Some(&audit)).unwrap();
+            assert_eq!(complete_native_output(&tx, &got), expected);
+        }
+        let first_records = job.snapshot().records;
+        assert!(first_records > 0 && job.snapshot().nodes > 0);
+        {
+            let tx = f.conn.transaction().unwrap();
+            let audit = AuditJob::new(&mut job);
+            let got = state::audit_native_in_request_measured(&tx, &mut context, None, None, Some(&audit)).unwrap();
+            assert_eq!(complete_native_output(&tx, &got), expected);
+            assert_eq!(got.raw.len(), 1);
+        }
+        assert_eq!((context.cold, context.hits), (1, 1));
+        assert_eq!(job.snapshot().records - first_records, 5, "hit仍逐次读取、OHLC、validate、raw hash、RawWire");
+        let mut limited = make_job(1);
+        let tx = f.conn.transaction().unwrap();
+        let audit = AuditJob::new(&mut limited);
+        assert!(state::audit_native_in_request_measured(&tx, &mut context, None, None, Some(&audit)).is_err());
+        assert!(context.slot.is_none());
+    }
+
+    #[test]
     fn request_history_fresh_transactions_bind_exactly_and_drop_at_request_end() {
         let mut f = Fixture::new();
         publish_one(&mut f);

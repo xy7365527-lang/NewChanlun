@@ -2429,10 +2429,18 @@ pub(crate) fn capture_for_request_prototype_admitted(
     tx: &Transaction<'_>,
     work: Option<&WorkScope>,
 ) -> Result<(s_content::AuditCapture, usize), CodecError> {
+    capture_for_request_prototype_admitted_measured(tx, work, None)
+}
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) fn capture_for_request_prototype_admitted_measured(
+    tx: &Transaction<'_>,
+    work: Option<&WorkScope>,
+    observer: Option<&dyn s_content::CaptureReadObserver>,
+) -> Result<(s_content::AuditCapture, usize), CodecError> {
     if work.is_none() {
-        return capture_for_request_prototype(tx);
+        return capture_for_request_prototype_measured(tx, observer);
     }
-    capture_originals_admitted(tx, None, work).map(|(capture, count, _)| (capture, count))
+    capture_originals_admitted(tx, None, work, observer).map(|(capture, count, _)| (capture, count))
 }
 #[cfg(feature = "s_capture_native_testonly")]
 pub(crate) fn capture_with_original_subset_for_source_cache_admitted(
@@ -2440,14 +2448,24 @@ pub(crate) fn capture_with_original_subset_for_source_cache_admitted(
     prior: Option<(&s_content::AuditCapture, usize)>,
     work: Option<&WorkScope>,
 ) -> Result<(s_content::AuditCapture, usize, bool), CodecError> {
+    capture_with_original_subset_for_source_cache_admitted_measured(tx, prior, work, None)
+}
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) fn capture_with_original_subset_for_source_cache_admitted_measured(
+    tx: &Transaction<'_>,
+    prior: Option<(&s_content::AuditCapture, usize)>,
+    work: Option<&WorkScope>,
+    observer: Option<&dyn s_content::CaptureReadObserver>,
+) -> Result<(s_content::AuditCapture, usize, bool), CodecError> {
     if work.is_none() {
-        return capture_with_original_subset_for_source_cache(tx, prior);
+        return capture_with_original_subset_for_source_cache_measured(tx, prior, observer);
     }
-    capture_originals_admitted(tx, prior, work)
+    capture_originals_admitted(tx, prior, work, observer)
 }
 #[cfg(feature = "s_capture_native_testonly")]
 fn scan_request_nodes_checked(
     tx: &Transaction<'_>,
+    observer: Option<&dyn s_content::CaptureReadObserver>,
     mut visit: impl FnMut(NodeDigest, u8, &[u8]) -> Result<(), CodecError>,
 ) -> Result<(), CodecError> {
     let mut stmt = newchan_rust::sqlite_checked::CheckedStatement::prepare(
@@ -2456,6 +2474,7 @@ fn scan_request_nodes_checked(
     )
     .map_err(storage_error)?;
     while let Some(mut row) = stmt.next().map_err(storage_error)? {
+        if let Some(observer) = observer { observer.before_read()?; }
         let digest: NodeDigest = row
             .blob(0)
             .map_err(storage_error)?
@@ -2466,6 +2485,7 @@ fn scan_request_nodes_checked(
         let tag = u8::try_from(row.integer(1).map_err(storage_error)?)
             .map_err(|_| storage_error("捕获标签域"))?;
         let body = row.blob(2).map_err(storage_error)?;
+        if let Some(observer) = observer { observer.prepare_node()?; }
         #[cfg(test)]
         record_prototype_row(body.len());
         visit(digest, tag, body)?;
@@ -2477,6 +2497,7 @@ fn capture_originals_admitted(
     tx: &Transaction<'_>,
     prior: Option<(&s_content::AuditCapture, usize)>,
     work: Option<&WorkScope>,
+    observer: Option<&dyn s_content::CaptureReadObserver>,
 ) -> Result<(s_content::AuditCapture, usize, bool), CodecError> {
     ensure_format(tx)?;
     #[cfg(test)]
@@ -2493,7 +2514,7 @@ fn capture_originals_admitted(
     let mut scratch = OriginalScanScratch::default();
     let mut matched = 0usize;
     let mut same = prior.is_some();
-    scan_request_nodes_checked(tx, |digest, tag, bytes| {
+    scan_request_nodes_checked(tx, observer, |digest, tag, bytes| {
         let unique = scratch.insert_admitted(digest, work)?;
         same &= unique;
         if let Some((capture, _)) = prior {
@@ -2551,12 +2572,24 @@ pub(crate) fn current_originals_equal_for_request_with_scratch_admitted(
     scratch: &mut OriginalScanScratch,
     work: Option<&WorkScope>,
 ) -> Result<bool, CodecError> {
+    current_originals_equal_for_request_with_scratch_admitted_measured(tx, capture, expected_nodes, scratch, work, None)
+}
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) fn current_originals_equal_for_request_with_scratch_admitted_measured(
+    tx: &Transaction<'_>,
+    capture: &s_content::AuditCapture,
+    expected_nodes: usize,
+    scratch: &mut OriginalScanScratch,
+    work: Option<&WorkScope>,
+    observer: Option<&dyn s_content::CaptureReadObserver>,
+) -> Result<bool, CodecError> {
     if work.is_none() {
-        return current_originals_equal_for_request_with_scratch(
+        return current_originals_equal_for_request_with_scratch_measured(
             tx,
             capture,
             expected_nodes,
             scratch,
+            observer,
         );
     }
     scratch.begin();
@@ -2568,7 +2601,7 @@ pub(crate) fn current_originals_equal_for_request_with_scratch_admitted(
         work.rebind_scans += 1;
     });
     let mut equal = true;
-    scan_request_nodes_checked(tx, |digest, tag, body| {
+    scan_request_nodes_checked(tx, observer, |digest, tag, body| {
         let first = scratch.insert_admitted(digest, work)?;
         equal &= first
             && capture
@@ -2584,6 +2617,13 @@ pub(crate) fn current_originals_equal_for_request_with_scratch_admitted(
 pub(crate) fn capture_for_request_prototype(
     tx: &Transaction<'_>,
 ) -> Result<(s_content::AuditCapture, usize), CodecError> {
+    capture_for_request_prototype_measured(tx, None)
+}
+#[cfg(any(test, feature = "s_capture_native_testonly"))]
+pub(crate) fn capture_for_request_prototype_measured(
+    tx: &Transaction<'_>,
+    observer: Option<&dyn s_content::CaptureReadObserver>,
+) -> Result<(s_content::AuditCapture, usize), CodecError> {
     ensure_format(tx)?;
     #[cfg(test)]
     PROTOTYPE_CAPTURE_WORK.with(|work| {
@@ -2597,10 +2637,12 @@ pub(crate) fn capture_for_request_prototype(
         .map_err(storage_error)?;
     let mut rows = stmt.query([]).map_err(storage_error)?;
     while let Some(r) = rows.next().map_err(storage_error)? {
+        if let Some(observer) = observer { observer.before_read()?; }
         let d = request_capture_digest(r)?;
         let t: i64 = r.get(1).map_err(storage_error)?;
         let t: u8 = t.try_into().map_err(|_| storage_error("捕获标签域"))?;
         let body: Vec<u8> = r.get(2).map_err(storage_error)?;
+        if let Some(observer) = observer { observer.prepare_node()?; }
         #[cfg(test)]
         record_prototype_row(body.len());
         nodes.insert_unchecked(d, t, body);
@@ -2629,6 +2671,16 @@ pub(crate) fn current_originals_equal_for_request_with_scratch(
     expected_nodes: usize,
     scratch: &mut OriginalScanScratch,
 ) -> Result<bool, CodecError> {
+    current_originals_equal_for_request_with_scratch_measured(tx, capture, expected_nodes, scratch, None)
+}
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) fn current_originals_equal_for_request_with_scratch_measured(
+    tx: &Transaction<'_>,
+    capture: &s_content::AuditCapture,
+    expected_nodes: usize,
+    scratch: &mut OriginalScanScratch,
+    observer: Option<&dyn s_content::CaptureReadObserver>,
+) -> Result<bool, CodecError> {
     scratch.begin();
     ensure_format(tx)?;
     #[cfg(test)]
@@ -2643,6 +2695,7 @@ pub(crate) fn current_originals_equal_for_request_with_scratch(
     let mut rows = stmt.query([]).map_err(storage_error)?;
     let mut equal = true;
     while let Some(r) = rows.next().map_err(storage_error)? {
+        if let Some(observer) = observer { observer.before_read()?; }
         let d = request_capture_digest(r)?;
         let t: i64 = r.get(1).map_err(storage_error)?;
         let t: u8 = t.try_into().map_err(|_| storage_error("捕获标签域"))?;
@@ -2654,6 +2707,7 @@ pub(crate) fn current_originals_equal_for_request_with_scratch(
                 unreachable!("Vec<u8>只接受BLOB")
             }
         };
+        if let Some(observer) = observer { observer.prepare_node()?; }
         #[cfg(test)]
         record_prototype_row(body.len());
         // 必须去重；仅count+lookup会接受重复旧digest替代遗漏旧digest的坏schema。
@@ -2673,6 +2727,14 @@ pub(crate) fn capture_with_original_subset_for_source_cache(
     tx: &Transaction<'_>,
     prior: Option<(&s_content::AuditCapture, usize)>,
 ) -> Result<(s_content::AuditCapture, usize, bool), CodecError> {
+    capture_with_original_subset_for_source_cache_measured(tx, prior, None)
+}
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) fn capture_with_original_subset_for_source_cache_measured(
+    tx: &Transaction<'_>,
+    prior: Option<(&s_content::AuditCapture, usize)>,
+    observer: Option<&dyn s_content::CaptureReadObserver>,
+) -> Result<(s_content::AuditCapture, usize, bool), CodecError> {
     ensure_format(tx)?;
     #[cfg(test)]
     PROTOTYPE_CAPTURE_WORK.with(|work| {
@@ -2690,10 +2752,12 @@ pub(crate) fn capture_with_original_subset_for_source_cache(
         .map_err(storage_error)?;
     let mut rows = stmt.query([]).map_err(storage_error)?;
     while let Some(row) = rows.next().map_err(storage_error)? {
+        if let Some(observer) = observer { observer.before_read()?; }
         let digest = request_capture_digest(row)?;
         let tag: i64 = row.get(1).map_err(storage_error)?;
         let tag: u8 = tag.try_into().map_err(|_| storage_error("捕获标签域"))?;
         let body: Vec<u8> = row.get(2).map_err(storage_error)?;
+        if let Some(observer) = observer { observer.prepare_node()?; }
         #[cfg(test)]
         record_prototype_row(body.len());
         let unique = seen.insert(digest);

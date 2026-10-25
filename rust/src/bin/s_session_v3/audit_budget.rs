@@ -15,7 +15,7 @@ use newchan_rust::s_content::{
 use sc::access::Access;
 use std::{cell::RefCell, mem::size_of};
 
-pub(super) trait Budget {
+pub(crate) trait Budget {
     fn precheck(&self) -> Result<(), sc::CodecError>;
     /// Found 后、计算 F 前；Missing 不调用。
     fn prepare_node(&self) -> Result<(), sc::CodecError>;

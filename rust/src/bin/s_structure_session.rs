@@ -2330,6 +2330,14 @@ fn read_raw_events_until(
     conn: &Connection,
     deadline: Option<std::time::Instant>,
 ) -> Result<Vec<Value>, String> {
+    read_raw_events_until_measured(conn, deadline, None)
+}
+
+fn read_raw_events_until_measured(
+    conn: &Connection,
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn v3::audit_budget::Budget>,
+) -> Result<Vec<Value>, String> {
     check_read_deadline(deadline)?;
     let mut stmt = conn
         .prepare(
@@ -2344,11 +2352,13 @@ fn read_raw_events_until(
         .map_err(|e| format!("query 失败：{e}"))?
         .map(|row| {
             check_read_deadline(deadline)?;
-            row.map_err(|e| format!("collect 失败：{e}"))
+            let event = row.map_err(|e| format!("collect 失败：{e}"))?;
+            if let Some(budget) = budget { budget.record().map_err(|e| e.to_string())?; }
+            Ok(event)
         })
         .collect::<Result<Vec<_>, String>>()?;
-    tb02a::enrich_raw_until(conn, &mut rows, deadline)?;
-    v3::business_json::validate_raw(v3::business_json::RawEventsView::plain(&rows), deadline)?;
+    tb02a::enrich_raw_until_measured(conn, &mut rows, deadline, budget)?;
+    v3::business_json::validate_raw_measured(v3::business_json::RawEventsView::plain(&rows), deadline, None, budget)?;
     check_read_deadline(deadline)?;
     Ok(rows)
 }
@@ -2359,10 +2369,19 @@ fn read_raw_events_until_admitted(
     deadline: Option<std::time::Instant>,
     work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
 ) -> Result<v3::business_json::JsonOwner, String> {
+    read_raw_events_until_admitted_measured(conn, deadline, work, None)
+}
+
+fn read_raw_events_until_admitted_measured(
+    conn: &Connection,
+    deadline: Option<std::time::Instant>,
+    work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
+    budget: Option<&dyn v3::audit_budget::Budget>,
+) -> Result<v3::business_json::JsonOwner, String> {
     check_read_deadline(deadline)?;
     if work.is_none() {
         return Ok(v3::business_json::JsonOwner::Plain(
-            Value::Array(read_raw_events_until(conn, deadline)?).into(),
+            Value::Array(read_raw_events_until_measured(conn, deadline, budget)?).into(),
         ));
     }
     let mut stmt = newchan_rust::sqlite_checked::CheckedStatement::prepare(
@@ -2372,6 +2391,7 @@ fn read_raw_events_until_admitted(
     while let Some(mut row) = stmt.next().map_err(|e| format!("collect 失败：{e}"))? {
         check_read_deadline(deadline)?;
         let owner = decode_raw_row_admitted(&mut row, work)?;
+        if let Some(budget) = budget { budget.record().map_err(|e| e.to_string())?; }
         rows.push(owner.view())?;
     }
     stmt.finalize()
@@ -2384,6 +2404,7 @@ fn read_raw_events_until_admitted(
         let mut enriched = v3::business_json::ScopedJsonArray::new(None, work)?;
         for row in raw.view().as_array().expect("raw构造器只产数组").iter() {
             check_read_deadline(deadline)?;
+            if let Some(budget) = budget { budget.record().map_err(|e| e.to_string())?; }
             let row = tb02a::enrich_raw_view_admitted(conn, row, true, work)?;
             enriched.push(row.view())?;
         }
@@ -2393,7 +2414,7 @@ fn read_raw_events_until_admitted(
     };
     // 同一验证核；RawEvents由拥有者保留原许可，不使借视图逃出。
     // 验证逐行时不能丢掉修订链；统一入口接受借用JsonOwner数组。
-    v3::business_json::validate_raw_admitted((&owner).into(), deadline, work)?;
+    v3::business_json::validate_raw_measured((&owner).into(), deadline, work, budget)?;
     check_read_deadline(deadline)?;
     Ok(owner)
 }

@@ -272,12 +272,22 @@ pub(super) fn enrich_raw_until(
     rows: &mut [Value],
     deadline: Option<std::time::Instant>,
 ) -> Result<(), String> {
+    enrich_raw_until_measured(conn, rows, deadline, None)
+}
+
+pub(super) fn enrich_raw_until_measured(
+    conn: &Connection,
+    rows: &mut [Value],
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn crate::v3::audit_budget::Budget>,
+) -> Result<(), String> {
     crate::check_read_deadline(deadline)?;
     if !prepare_raw_enrichment_admitted(conn, None)? {
         return Ok(());
     }
     for row in rows {
         crate::check_read_deadline(deadline)?;
+        if let Some(budget) = budget { budget.record().map_err(|e| e.to_string())?; }
         enrich_raw_row(conn, row)?;
     }
     Ok(())

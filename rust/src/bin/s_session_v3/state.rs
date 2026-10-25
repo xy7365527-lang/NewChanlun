@@ -170,28 +170,43 @@ pub(super) fn audit_bounded(
 /// 三处写前及显式CapturedNative startup选择此臂；Ordinary/Owned startup、identity/preflight/recover保持普通。
 /// 全节点捕获先于control/raw，坏库同时多错时首报顺序可能不同；读取错误不回退。
 pub(super) fn audit_native_current(tx: &Transaction<'_>) -> Result<AuditedState, String> {
+    audit_native_current_measured(tx, None, None)
+}
+
+pub(super) fn audit_native_current_measured(
+    tx: &Transaction<'_>,
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn audit_budget::Budget>,
+) -> Result<AuditedState, String> {
     #[cfg(feature = "s_capture_native_testonly")]
     {
-        let capture = content_store::capture_for_prototype(tx)
+        let measure = audit_budget::NativeMeasure { budget, deadline };
+        let observed = budget.is_some() || deadline.is_some();
+        let capture = content_store::capture_for_request_prototype_measured(tx, observed.then_some(&measure as &dyn sc::CaptureReadObserver))
+            .map(|(capture, _)| capture)
             .map_err(err)?
             .enable_native_frame_reuse_for_testonly()
             .map_err(err)?;
-        let (audited, _) = audit_core(
+        let (audited, _) = audit_core_fresh_with_policy(
             tx,
+            deadline,
             None,
-            None,
-            None,
+            budget,
             false,
             None,
             Some(&capture),
+            None,
             RetentionReport::Skip,
+            None,
+            None,
+            if observed { history::SourcePolicy::NativeMeasured } else { history::SourcePolicy::Ordinary },
         )?;
         drop(capture);
         Ok(audited)
     }
     #[cfg(not(feature = "s_capture_native_testonly"))]
     {
-        let _ = tx;
+        let _ = (tx, deadline, budget);
         Err("SNativeCaptureTestOnlyUnsupported：此构建不支持 S_CAPTURE_NATIVE_TESTONLY".into())
     }
 }
@@ -210,8 +225,22 @@ pub(super) fn audit_native_in_request_admitted(
     context: &mut super::request_audit::RequestAuditContext,
     work: Option<&sc::capture_allocation::scratch::WorkScope>,
 ) -> Result<AuditedState, String> {
+    audit_native_in_request_measured(tx, context, work, None, None)
+}
+
+pub(super) fn audit_native_in_request_measured(
+    tx: &Transaction<'_>,
+    context: &mut super::request_audit::RequestAuditContext,
+    work: Option<&sc::capture_allocation::scratch::WorkScope>,
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn audit_budget::Budget>,
+) -> Result<AuditedState, String> {
     #[cfg(feature = "s_capture_native_testonly")]
     {
+        let measure = audit_budget::NativeMeasure { budget, deadline };
+        let observed = budget.is_some() || deadline.is_some();
+        let observer = observed.then_some(&measure as &dyn sc::CaptureReadObserver);
+        let policy = if observed { history::SourcePolicy::NativeMeasured } else { history::SourcePolicy::Ordinary };
         // take保证任何读取/校验错误都不留下可继续使用的旧slot。
         let prior = context.take();
         let source_enabled = context.source_cache_enabled();
@@ -219,17 +248,18 @@ pub(super) fn audit_native_in_request_admitted(
         let result = (|| {
             let capture_fresh = || {
                 let (capture, count, source_same) = if source_enabled {
-                    content_store::capture_with_original_subset_for_source_cache_admitted(
+                    content_store::capture_with_original_subset_for_source_cache_admitted_measured(
                         tx,
                         source_prior
                             .as_ref()
                             .map(|pool| (&pool.originals, pool.nodes)),
                         work,
+                        observer,
                     )
                     .map_err(err)?
                 } else {
                     let (capture, count) =
-                        content_store::capture_for_request_prototype_admitted(tx, work)
+                        content_store::capture_for_request_prototype_admitted_measured(tx, work, observer)
                             .map_err(err)?;
                     (capture, count, false)
                 };
@@ -249,12 +279,13 @@ pub(super) fn audit_native_in_request_admitted(
             let (capture, node_count, prior, same_nodes, source_same) = match prior {
                 Some(prior) => {
                     let same_nodes =
-                        content_store::current_originals_equal_for_request_with_scratch_admitted(
+                        content_store::current_originals_equal_for_request_with_scratch_admitted_measured(
                             tx,
                             &prior.capture,
                             prior.node_count,
                             context.original_scan_scratch(),
                             work,
+                            observer,
                         )
                         .map_err(err)?;
                     let (capture, count, source_same) = if same_nodes {
@@ -283,7 +314,7 @@ pub(super) fn audit_native_in_request_admitted(
             };
             let control = control_audit::prepare_s3_control_history_admitted(tx, None, work)?;
             let raw = super::business_json::RawEvents::from_json_owner(
-                read_raw_events_until_admitted(tx, None, work)?,
+                crate::read_raw_events_until_admitted_measured(tx, deadline, work, budget)?,
             )?;
             if let Some((prior_binding, prior_result, source_pending)) = prior {
                 #[cfg(test)]
@@ -294,13 +325,16 @@ pub(super) fn audit_native_in_request_admitted(
                     work,
                 )?;
                 if binding == prior_binding && same_nodes {
-                    history::revalidate_current_for_reuse_admitted(
+                    history::revalidate_current_for_reuse_measured(
                         tx,
                         raw.view(),
                         control,
                         &capture,
                         &prior_result.cuts,
                         work,
+                        deadline,
+                        budget,
+                        policy,
                     )?;
                     #[cfg(test)]
                     trace_event("request_history_hit", None);
@@ -332,11 +366,11 @@ pub(super) fn audit_native_in_request_admitted(
             } else {
                 None
             };
-            let (audited, _) = audit_core_fresh_inner(
+            let (audited, _) = audit_core_fresh_with_policy(
                 tx,
+                deadline,
                 None,
-                None,
-                None,
+                budget,
                 false,
                 None,
                 Some(&capture),
@@ -344,6 +378,7 @@ pub(super) fn audit_native_in_request_admitted(
                 RetentionReport::Skip,
                 source_trial.as_mut(),
                 work,
+                policy,
             )?;
             let HistoricalOwner::Unique(result) = audited.historical else {
                 unreachable!()
@@ -388,7 +423,7 @@ pub(super) fn audit_native_in_request_admitted(
     }
     #[cfg(not(feature = "s_capture_native_testonly"))]
     {
-        let _ = (tx, context, work);
+        let _ = (tx, context, work, deadline, budget);
         Err("SNativeCaptureTestOnlyUnsupported：此构建不支持 S_CAPTURE_NATIVE_TESTONLY".into())
     }
 }
@@ -683,10 +718,32 @@ fn audit_core_fresh_inner(
     external_capture: Option<&sc::AuditCapture>,
     fresh: Option<(v2::ControlHistory, super::business_json::RawEvents)>,
     retention_report: RetentionReport,
+    #[cfg(feature = "s_capture_native_testonly")] source_cache: Option<
+        &mut super::cross_request_source_cache::Trial<'_>,
+    >,
+    work: Option<&sc::capture_allocation::scratch::WorkScope>,
+) -> Result<(AuditedState, Option<Value>), String> {
+    audit_core_fresh_with_policy(tx, deadline, max_render_bytes, budget, enable_prototype_capture,
+        owned_budget, external_capture, fresh, retention_report,
+        #[cfg(feature = "s_capture_native_testonly")]
+        source_cache, work, history::SourcePolicy::Ordinary)
+}
+
+fn audit_core_fresh_with_policy(
+    tx: &Transaction<'_>,
+    deadline: Option<std::time::Instant>,
+    max_render_bytes: Option<u64>,
+    budget: Option<&dyn audit_budget::Budget>,
+    enable_prototype_capture: bool,
+    owned_budget: Option<&sc::capture_allocation::OwnedBudget>,
+    external_capture: Option<&sc::AuditCapture>,
+    fresh: Option<(v2::ControlHistory, super::business_json::RawEvents)>,
+    retention_report: RetentionReport,
     #[cfg(feature = "s_capture_native_testonly")] mut source_cache: Option<
         &mut super::cross_request_source_cache::Trial<'_>,
     >,
     work: Option<&sc::capture_allocation::scratch::WorkScope>,
+    policy: history::SourcePolicy,
 ) -> Result<(AuditedState, Option<Value>), String> {
     // 外部不能带入旧捕获；只有本次fresh audit在None/None内可新建自有读集。
     #[cfg(test)]
@@ -772,12 +829,12 @@ fn audit_core_fresh_inner(
             }) {
                 Some(b) => super::business_json::read_owned(tx, deadline, b)?,
                 None => super::business_json::RawEvents::from_json_owner(
-                    read_raw_events_until_admitted(tx, deadline, work)?,
+                    crate::read_raw_events_until_admitted_measured(tx, deadline, work, if policy == history::SourcePolicy::NativeMeasured { budget } else { None })?,
                 )?,
             };
             #[cfg(not(feature = "s_allocation_json_testonly"))]
             let raw = super::business_json::RawEvents::from_json_owner(
-                read_raw_events_until_admitted(tx, deadline, work)?,
+                crate::read_raw_events_until_admitted_measured(tx, deadline, work, if policy == history::SourcePolicy::NativeMeasured { budget } else { None })?,
             )?;
             (control, raw)
         }
@@ -791,8 +848,7 @@ fn audit_core_fresh_inner(
         .filter(|c| {
             !c.is_allocation_prototype()
                 && owned_budget.is_none()
-                && budget.is_none()
-                && deadline.is_none()
+                && (policy == history::SourcePolicy::NativeMeasured || (budget.is_none() && deadline.is_none()))
                 && max_render_bytes.is_none()
         })
         .and_then(|capture| history::NativeRecordFields::new_admitted(capture, work));
@@ -809,7 +865,7 @@ fn audit_core_fresh_inner(
         objects,
         auxiliary,
         object_sweep,
-    } = history::read_indexed_history_for_sealed_ordinary_audit(
+    } = history::read_indexed_history_with_policy(
         tx,
         raw.view(),
         control,
@@ -820,6 +876,7 @@ fn audit_core_fresh_inner(
         native_records.as_mut(),
         work,
         materials.as_mut(),
+        policy,
     )?;
     #[cfg(test)]
     trace_event("catalog_metadata", None);
@@ -829,7 +886,7 @@ fn audit_core_fresh_inner(
     let _profile_id = audit_profile_id_admitted(tx, control_owner, work)?;
     // 只读源 + 内存派生层：overlay 随本函数内的 store 一起销毁，不是 SQLite 写入通道。
     let mut reader = content_store::ReadStore::new(tx).map_err(err)?;
-    if budget.is_none() {
+    if policy == history::SourcePolicy::NativeMeasured || budget.is_none() {
         reader.enable_audit_same_material();
     }
     let mut reader = Some(reader);
@@ -846,23 +903,25 @@ fn audit_core_fresh_inner(
             .with_audit_gate(budget, deadline),
         None => history::HashReader::metered(source, deadline, max_render_bytes, budget),
     };
-    store = store.with_native_scope(work).map_err(err)?;
+    store = store.with_source_policy(policy).with_native_scope(work).map_err(err)?;
     // 7a. 当前代对象索引已在同次history中完整加载并绑定原件；继续用它核逐代变化。
     #[cfg(feature = "s_capture_native_testonly")]
     let mut native_sources = capture
         .filter(|c| {
             !c.is_allocation_prototype()
                 && owned_budget.is_none()
-                && budget.is_none()
-                && deadline.is_none()
+                && (policy == history::SourcePolicy::NativeMeasured || (budget.is_none() && deadline.is_none()))
                 && max_render_bytes.is_none()
         })
         .map(|c| {
-            source_audit::NativeSourceAudit::new_with_records_admitted(
+            source_audit::NativeSourceAudit::new_with_records_measured(
                 c,
                 raw.view(),
                 native_records.take(),
                 work,
+                budget,
+                deadline,
+                policy,
             )
         })
         .transpose()?;

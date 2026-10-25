@@ -816,6 +816,15 @@ pub(crate) fn validate_raw_admitted(
     deadline: Option<Instant>,
     work: Option<&WorkScope>,
 ) -> Result<(), String> {
+    validate_raw_measured(rows, deadline, work, None)
+}
+
+pub(crate) fn validate_raw_measured(
+    rows: RawEventsView<'_>,
+    deadline: Option<Instant>,
+    work: Option<&WorkScope>,
+    budget: Option<&dyn super::audit_budget::Budget>,
+) -> Result<(), String> {
     check_native_owner(rows.budget(), work).map_err(|e| e.to_string())?;
     let admission = NativeAdmission(work);
     let mut owners = workmap::<i64, &str>(rows.budget());
@@ -823,6 +832,7 @@ pub(crate) fn validate_raw_admitted(
     let mut prior = workmap::<&str, i64>(rows.budget());
     for (expected_seq, event) in rows.iter().enumerate() {
         check_read_deadline(deadline)?;
+        if let Some(budget) = budget { budget.record().map_err(|e| e.to_string())?; }
         let c = coord(event)?;
         let identity = text(event, "identity_key")?;
         admission
