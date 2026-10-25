@@ -87,7 +87,10 @@ macro_rules! shared_family {
             value: $ptr<T>,
             lease: $lease,
         }
-        #[cfg_attr(all(not(test), not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1488 再合 #1608：s_session 非测试 构建不触达"))]
+        #[cfg_attr(
+            all(not(test), not(feature = "s_capture_native_testonly")),
+            allow(dead_code, reason = "#1488 再合 #1608：s_session 非测试 构建不触达")
+        )]
         pub(crate) struct $weak<T: ?Sized> {
             value: $weak_ptr<T>,
             lease: $lease,
@@ -125,7 +128,10 @@ macro_rules! shared_family {
             }
         }
         impl<T: ?Sized> $strong<T> {
-            #[cfg_attr(all(not(test), not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1488 再合 #1608：s_session 非测试 构建不触达"))]
+            #[cfg_attr(
+                all(not(test), not(feature = "s_capture_native_testonly")),
+                allow(dead_code, reason = "#1488 再合 #1608：s_session 非测试 构建不触达")
+            )]
             pub(crate) fn downgrade(this: &Self) -> $weak<T> {
                 $weak {
                     value: $ptr::downgrade(&this.value),
@@ -142,7 +148,10 @@ macro_rules! shared_family {
             }
             /// 保留标准库“唯一强且无弱”的条件，不按 lease 数量推断唯一性。
             /// 调用方仅能通过受准入字段操作改变动态内容；不提供 DerefMut/make_mut。
-            #[cfg_attr(all(not(test), not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1488 再合 #1608：s_session 非测试 构建不触达"))]
+            #[cfg_attr(
+                all(not(test), not(feature = "s_capture_native_testonly")),
+                allow(dead_code, reason = "#1488 再合 #1608：s_session 非测试 构建不触达")
+            )]
             pub(crate) fn get_mut(this: &mut Self) -> Option<&mut T> {
                 $ptr::get_mut(&mut this.value)
             }
@@ -152,7 +161,13 @@ macro_rules! shared_family {
             }
             /// 共享块的结构预算；不含 T 动态子分配，不是退款额度或 RSS 读数。
             /// 按归属统计时每个拥有者可保守全计，不能据此重复签发父账许可。
-            #[cfg_attr(not(feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"))]
+            #[cfg_attr(
+                not(feature = "s_capture_native_testonly"),
+                allow(
+                    dead_code,
+                    reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+                )
+            )]
             pub(crate) fn allocation_bytes(&self) -> usize {
                 let payload = Layout::for_value(self.value.as_ref());
                 if self.lease.0.is_some() {
@@ -213,7 +228,10 @@ macro_rules! shared_family {
             }
         }
         impl<T> $weak<T> {
-            #[cfg_attr(all(not(test), not(feature = "s_capture_native_testonly")), allow(dead_code, reason = "#1488 再合 #1608：s_session 非测试 构建不触达"))]
+            #[cfg_attr(
+                all(not(test), not(feature = "s_capture_native_testonly")),
+                allow(dead_code, reason = "#1488 再合 #1608：s_session 非测试 构建不触达")
+            )]
             pub(crate) fn new() -> Self {
                 Self {
                     value: $weak_ptr::new(),

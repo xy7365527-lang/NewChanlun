@@ -102,10 +102,7 @@ impl<K: Ord, V> NativeTree<K, V> {
     pub(crate) fn retain(&mut self, f: impl FnMut(&K, &mut V) -> bool) {
         self.tree.retain(f);
     }
-    #[allow(
-        dead_code,
-        reason = "#1488 再合 #1608：8组合实测无调用方，保留不删"
-    )]
+    #[allow(dead_code, reason = "#1488 再合 #1608：8组合实测无调用方，保留不删")]
     pub(crate) fn permit_capacity(&self) -> usize {
         self.permits.capacity()
     }
@@ -353,10 +350,7 @@ impl sc::path::PathView for BorrowedFieldPath<'_> {
 }
 
 /// 字段路径的文本与原许可共同存活；使用 PathView 而非拆出裸 String。
-#[allow(
-    dead_code,
-    reason = "#1488 再合 #1608：8组合实测无调用方，保留不删"
-)]
+#[allow(dead_code, reason = "#1488 再合 #1608：8组合实测无调用方，保留不删")]
 pub(crate) struct NativeFieldPath(NativeValue<String>);
 impl sc::path::PathView for NativeFieldPath {
     fn len(&self) -> usize {
@@ -495,10 +489,7 @@ pub(crate) trait CodecRead: NodeSource {
     fn native_string(&self, text: &str) -> Result<NativeValue<String>, CodecError> {
         self.native_owned_text(text)
     }
-    #[allow(
-        dead_code,
-        reason = "#1488 再合 #1608：8组合实测无调用方，保留不删"
-    )]
+    #[allow(dead_code, reason = "#1488 再合 #1608：8组合实测无调用方，保留不删")]
     fn native_field(&self, key: &str) -> Result<NativeFieldPath, CodecError> {
         self.native_string(key).map(NativeFieldPath)
     }

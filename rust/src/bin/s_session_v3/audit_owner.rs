@@ -97,12 +97,10 @@ pub(super) mod cold_root_probe {
 mod construction_set;
 #[cfg(feature = "s_capture_native_testonly")]
 pub(crate) use construction_set::{Edit, OwnerSourceCheck, SequenceDelta, SourceArray};
-#[cfg(feature = "s_capture_native_testonly")]
-pub(crate) use effects::{
-        MaterialAccess, SourceCutBinding, SourceMaterial, StageKind,
-};
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
 pub(crate) use effects::PublicationStageIdentity;
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) use effects::{MaterialAccess, SourceCutBinding, SourceMaterial, StageKind};
 #[path = "construction_state.rs"]
 mod construction_state;
 #[cfg_attr(
@@ -112,9 +110,9 @@ mod construction_state;
 pub(crate) use super::business_json::{RawWinner, RawWinnerEdit};
 #[cfg(test)]
 pub(crate) use construction_state::RawAdvanceFixture;
-pub(crate) use construction_state::{BoundRawAdvance, RawAdvanceBinding};
 #[allow(unused_imports, reason = "#1488：8组合探针 RawDomain 无使用方")]
 pub(crate) use construction_state::RawDomain;
+pub(crate) use construction_state::{BoundRawAdvance, RawAdvanceBinding};
 
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
 thread_local! {
@@ -136,7 +134,7 @@ thread_local! {
 #[cfg(feature = "s_capture_native_testonly")]
 struct PublicationResources {
     budget: native::Budget,
-        parent_limit: usize,
+    parent_limit: usize,
     before: SnapshotSeal,
     connection: usize,
 }
@@ -180,7 +178,10 @@ impl<'w> PublicationScope<'w> {
     fn budget(&self) -> &native::Budget {
         &self.resources.budget
     }
-    #[cfg_attr(feature = "s_capture_native_testonly", allow(dead_code, reason = "#1488：8组合探针 native 路径无调用，保留接口"))]
+    #[cfg_attr(
+        feature = "s_capture_native_testonly",
+        allow(dead_code, reason = "#1488：8组合探针 native 路径无调用，保留接口")
+    )]
     fn remaining(&self) -> usize {
         self.resources
             .parent_limit
@@ -1308,7 +1309,10 @@ impl AuditConnection {
         }
     }
     #[cfg(feature = "s_capture_native_testonly")]
-    #[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
+    #[cfg_attr(
+        all(not(test), feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
+    )]
     pub(super) fn complete_retained_bytes(&self) -> usize {
         self.complete
             .borrow()
@@ -6246,9 +6250,7 @@ thread_local! {
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
 mod publication_degrade_verdict_tests {
     use super::*;
-    use newchan_rust::s_content::capture_allocation::scratch::{
-        ScratchFailure, WorkScope,
-    };
+    use newchan_rust::s_content::capture_allocation::scratch::{ScratchFailure, WorkScope};
     use newchan_rust::s_content::CodecError;
 
     /// 真实 codec 工作域 + 真实类型化记录，与 publish_attempt 同构：返回判据结果。

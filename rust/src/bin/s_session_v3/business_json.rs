@@ -106,7 +106,10 @@ impl RawEvents {
         not(all(test, feature = "s_capture_native_testonly")),
         allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
     )]
-    #[cfg_attr(all(test, feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488：native 测试不使用旧 plain 入口"))]
+    #[cfg_attr(
+        all(test, feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1488：native 测试不使用旧 plain 入口")
+    )]
     pub fn plain(&self) -> Result<&[Value], String> {
         match self {
             Self::Plain(v) => Ok(v),
@@ -1307,7 +1310,7 @@ impl serde::Serialize for RawReference<'_> {
 /// 新业务返回文本的入口存储选择。Owned实际字节持续持账；Clone只开放fallible深复制。
 pub(crate) enum TextValue {
     Plain(NativeValue<String>),
-#[cfg_attr(not(feature = "s_allocation_json_testonly"), allow(dead_code))]
+    #[cfg_attr(not(feature = "s_allocation_json_testonly"), allow(dead_code))]
     Owned(aj::TextOwner),
 }
 impl TextValue {
@@ -1825,7 +1828,10 @@ impl<'work> ScopedJsonArray<'work> {
         let Some(work) = self.work else {
             return self.owner.push(value);
         };
-#[cfg_attr(not(feature = "s_allocation_json_testonly"), allow(irrefutable_let_patterns))]
+        #[cfg_attr(
+            not(feature = "s_allocation_json_testonly"),
+            allow(irrefutable_let_patterns)
+        )]
         let JsonOwner::Plain(parent) = &mut self.owner
         else {
             return Err(work
@@ -1900,7 +1906,10 @@ fn push_native_array(
         None
     };
     let child = json_from_view_admitted(&NativeAdmission(Some(work)), value)?;
-#[cfg_attr(not(feature = "s_allocation_json_testonly"), allow(irrefutable_let_patterns))]
+    #[cfg_attr(
+        not(feature = "s_allocation_json_testonly"),
+        allow(irrefutable_let_patterns)
+    )]
     let JsonOwner::Plain(mut child) = child
     else {
         return Err(work
@@ -2534,7 +2543,10 @@ pub(crate) fn strict_json_owner_admitted(
 ) -> Result<JsonOwner, StrictOwnerError> {
     let permit = admit_json_parse(bytes, owner, work).map_err(StrictOwnerError::Allocation)?;
     let mut parsed = strict_json_owner(bytes, owner)?;
-#[cfg_attr(not(feature = "s_allocation_json_testonly"), allow(irrefutable_let_patterns))]
+    #[cfg_attr(
+        not(feature = "s_allocation_json_testonly"),
+        allow(irrefutable_let_patterns)
+    )]
     if let JsonOwner::Plain(value) = &mut parsed {
         value.permit = permit;
     }
@@ -2632,7 +2644,10 @@ impl StrictOwnerSeed {
                     .push(child.into_unscoped().map_err(E::custom)?);
                 Ok(())
             }
-#[cfg_attr(not(feature = "s_allocation_json_testonly"), allow(unreachable_patterns))]
+            #[cfg_attr(
+                not(feature = "s_allocation_json_testonly"),
+                allow(unreachable_patterns)
+            )]
             _ => Err(E::custom("Q owner representation mismatch")),
         }
     }
@@ -2652,7 +2667,10 @@ impl StrictOwnerSeed {
                     .insert(key, child.into_unscoped().map_err(E::custom)?);
                 Ok(())
             }
-#[cfg_attr(not(feature = "s_allocation_json_testonly"), allow(unreachable_patterns))]
+            #[cfg_attr(
+                not(feature = "s_allocation_json_testonly"),
+                allow(unreachable_patterns)
+            )]
             _ => Err(E::custom("Q owner representation mismatch")),
         }
     }
@@ -3153,8 +3171,12 @@ mod plain_raii_tests {
         assert!(json.push(JsonView::Null).is_err());
         assert_eq!(json.view().as_array().unwrap().len(), 2);
         assert_eq!(budget.live(), held);
-        #[cfg_attr(not(feature = "s_allocation_json_testonly"), allow(irrefutable_let_patterns))]
-        let JsonOwner::Plain(json) = json else {
+        #[cfg_attr(
+            not(feature = "s_allocation_json_testonly"),
+            allow(irrefutable_let_patterns)
+        )]
+        let JsonOwner::Plain(json) = json
+        else {
             panic!("Native解析必须保留Plain名分")
         };
         assert!(json.into_unscoped().is_err());
@@ -3185,8 +3207,12 @@ mod scoped_json_array_tests {
                 })
                 .unwrap();
             assert_eq!(owner.view(), JsonView::Plain(&expected));
-            #[cfg_attr(not(feature = "s_allocation_json_testonly"), allow(irrefutable_let_patterns))]
-            let JsonOwner::Plain(value) = &owner else {
+            #[cfg_attr(
+                not(feature = "s_allocation_json_testonly"),
+                allow(irrefutable_let_patterns)
+            )]
+            let JsonOwner::Plain(value) = &owner
+            else {
                 panic!("Native必须保持Plain名分")
             };
             assert!(value.is_native_admitted());
@@ -3225,8 +3251,12 @@ mod scoped_json_array_tests {
                     budget.peak() >= before + new_blocks,
                     "两个旧buffer保留到两个新块同时准入完成"
                 );
-                #[cfg_attr(not(feature = "s_allocation_json_testonly"), allow(irrefutable_let_patterns))]
-                let JsonOwner::Plain(value) = &array.owner else {
+                #[cfg_attr(
+                    not(feature = "s_allocation_json_testonly"),
+                    allow(irrefutable_let_patterns)
+                )]
+                let JsonOwner::Plain(value) = &array.owner
+                else {
                     panic!("Native必须保持Plain名分")
                 };
                 assert_eq!(value.child_permits.capacity(), 8);
@@ -3266,8 +3296,12 @@ mod scoped_json_array_tests {
                 let held = budget.reserve(limit - budget.live() - available).unwrap();
                 let before = budget.live();
                 let error = array.push(JsonView::String(text)).unwrap_err();
-                #[cfg_attr(not(feature = "s_allocation_json_testonly"), allow(irrefutable_let_patterns))]
-                let JsonOwner::Plain(value) = &array.owner else {
+                #[cfg_attr(
+                    not(feature = "s_allocation_json_testonly"),
+                    allow(irrefutable_let_patterns)
+                )]
+                let JsonOwner::Plain(value) = &array.owner
+                else {
                     panic!("Native必须保持Plain名分")
                 };
                 assert_eq!(value.as_ref(), &serde_json::json!([null, null, null, null]));
@@ -3449,8 +3483,12 @@ mod raw_events_layout_tests {
                     assert!(budget.live() > baseline);
                     assert!(RawEvents::from_json_owner(aggregate).is_err());
                     assert_eq!(budget.live(), baseline, "转换拒绝消费owner后一次归还");
-                    #[cfg_attr(not(feature = "s_allocation_json_testonly"), allow(irrefutable_let_patterns))]
-                    let JsonOwner::Plain(aggregate) = make()? else {
+                    #[cfg_attr(
+                        not(feature = "s_allocation_json_testonly"),
+                        allow(irrefutable_let_patterns)
+                    )]
+                    let JsonOwner::Plain(aggregate) = make()?
+                    else {
                         unreachable!()
                     };
                     let mut bypass = RawEvents::Native(aggregate);

@@ -384,10 +384,7 @@ impl<'a> RawBars<'a> {
 pub(super) struct ParserChanges {
     pub old_steps: usize,
     pub new_steps: usize,
-    #[allow(
-        dead_code,
-        reason = "#1488 再合 #1608：8组合实测无调用方，保留不删"
-    )]
+    #[allow(dead_code, reason = "#1488 再合 #1608：8组合实测无调用方，保留不删")]
     pub old_groups: usize,
     pub new_groups: usize,
     pub group_dirty_from: Option<usize>,

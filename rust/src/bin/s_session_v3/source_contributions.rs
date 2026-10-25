@@ -6,7 +6,7 @@ use super::super::audit_retention::{self as retention, Retained, RetainedDelta};
 use super::super::business_json::TextValue;
 use super::super::native_shared::NativeRc as Rc;
 use super::*;
-use std::collections::{BTreeMap};
+use std::collections::BTreeMap;
 #[path = "source_order.rs"]
 mod source_order;
 use source_order::{Handle, Order};
@@ -402,11 +402,20 @@ impl Retained for StepState {
 
 #[derive(Default, Debug, Clone, Copy)]
 pub(crate) struct SourceWork {
-    #[cfg_attr(not(test), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
+    #[cfg_attr(
+        not(test),
+        allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
+    )]
     pub(crate) full_source_calls: usize,
-    #[cfg_attr(not(test), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
+    #[cfg_attr(
+        not(test),
+        allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
+    )]
     pub(crate) full_pending_calls: usize,
-    #[cfg_attr(not(test), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
+    #[cfg_attr(
+        not(test),
+        allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
+    )]
     pub(crate) full_members_enumerations: usize,
     pub(crate) object_local: usize,
     pub(crate) shape_local: usize,

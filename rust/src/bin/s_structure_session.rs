@@ -860,10 +860,7 @@ fn load_batch_with(
     Ok((root.bytes, root.value, root.root_cert))
 }
 
-#[allow(
-    dead_code,
-    reason = "#1488 再合 #1608：8组合实测无调用方，保留不删"
-)]
+#[allow(dead_code, reason = "#1488 再合 #1608：8组合实测无调用方，保留不删")]
 fn parse_batch_value(
     bytes: &[u8],
     batch_id: &str,

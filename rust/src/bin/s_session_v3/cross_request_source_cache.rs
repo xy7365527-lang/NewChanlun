@@ -629,7 +629,10 @@ impl Keeper {
             self.pool = Some(pool);
         }
     }
-    #[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
+    #[cfg_attr(
+        all(not(test), feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
+    )]
     pub(super) fn retention_cap(&self) -> usize {
         self.cap
     }
