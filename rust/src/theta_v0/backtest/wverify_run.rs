@@ -36,6 +36,17 @@ fn research_stats() -> ResearchStats {
     active_research_stats().expect("C-19 research stats record")
 }
 
+/// 人类可读报告同时携带统计与资金记录；TSV 保持机器可读 schema，由同批 Markdown 记录来源。
+fn with_policy_records(body: impl std::fmt::Display) -> String {
+    let stats = research_stats();
+    let profile = active_no_floor_probe_profile().expect("W-VERIFY probe profile record");
+    format!(
+        "统计记录={}\n探针资金记录={}\n\n{body}",
+        stats.record.label(),
+        profile.record.label()
+    )
+}
+
 /// W-VERIFY 全部首价×1000 回放资金调用点共用同一具名 profile（无 L3 的 1e6 下限）。
 fn wverify_nav(win: &data::Dataset, cfg: &ThetaConfig) -> f64 {
     let profile = active_no_floor_probe_profile().expect("W-VERIFY probe profile record");
@@ -527,7 +538,6 @@ fn wverify_full() {
     }
     // 残差分层 δ 置换逐桶 perm_p（§4.2 分层键 (ℓ,h桶,time block,σ^H)；N_PERM=200 种子 20260701 冻结）。
     let pp = perm_test::stratified_delta_perm_p(&records, perm_test::N_PERM, perm_test::PERM_SEED);
-    let policy = research_stats();
     let (za, pa) = (policy.z_alpha, policy.perm_alpha);
     let mut states = Vec::new();
     let mut rows = String::from(
@@ -615,15 +625,23 @@ fn wverify_full() {
         "WV_FULL 报告桶(含δ,描述性) residuals={} buckets={} verdict={:?} V={} F={} I={} levels={:?} wf_windows={}",
         records.len(), agg.len(), v, nv, nf, ni, lv_set, time_blocks.len()
     );
-    std::fs::write("/tmp/wv_full_rows.md", &rows).ok();
-    std::fs::write("/tmp/wv_full_h2_asymmetry.md", &h2_rows).ok();
+    std::fs::write("/tmp/wv_full_rows.md", with_policy_records(&rows)).ok();
+    std::fs::write(
+        "/tmp/wv_full_h2_asymmetry.md",
+        with_policy_records(&h2_rows),
+    )
+    .ok();
 
     // ── A1 ForceState⊥δ 前置检验（prereg-rev2 §1.2，i_class×δ 共线自毁铁律）──
     // ForceState 进主裁决聚合基前须验：每个出现的 force_state 态内 δ 两向都非空（有交换自由度，非共线）。
     // FAIL（任一态 δ 完全单向）⟹ A1 判 FALSIFIED，ForceState 退出主裁决基（fail 条件 3，停下上浮）。
     let ortho_report = forcestate_delta_orthogonality(&records);
     eprintln!("WV_FULL A1 ForceState⊥δ 检验:\n{ortho_report}");
-    std::fs::write("/tmp/wv_full_forcestate_ortho.md", &ortho_report).ok();
+    std::fs::write(
+        "/tmp/wv_full_forcestate_ortho.md",
+        with_policy_records(&ortho_report),
+    )
+    .ok();
 
     // ── δ-free 主裁决（prereg §3.2 主判据 + A1 force_state 第 8 维进聚合基）──
     // 直接在内存 records 上按 Z_decision=(level,bsp_class,parent_dir,force_state) 池化两 δ 方向算主裁决
@@ -635,12 +653,12 @@ fn wverify_full() {
     );
     std::fs::write(
         "/tmp/wv_full_deltafree.md",
-        format!(
+        with_policy_records(format!(
             "# δ-free 主裁决（在线直出，prereg-rev2 §1 Z_decision=(level,bsp_class,parent_dir,force_state)）\n\n\
              - records={} δ-free基桶={} verdict={df_v:?} V={df_nv}/F={df_nf}/I={df_ni}\n\
              - LCB>0 桶：{df_lcb}\n\n## ForceState⊥δ 检验\n\n{ortho_report}\n\n## δ-free 桶表\n\n{df_rows}\n",
             records.len(), df_nv + df_nf + df_ni,
-        ),
+        )),
     )
     .ok();
 
@@ -672,7 +690,7 @@ fn wverify_full() {
     );
     std::fs::write(
         "/tmp/wv_full_mu_r.md",
-        format!(
+        with_policy_records(format!(
             "# μ_R=E[Y/d] co-primary 双门（prereg-rev2 §2，codex-ruling-696，桶键不加 d）\n\n\
              - raw_n={} μ_R_n={}（剔除：d 不可得 NAN={n_nan_drop}，d<D_MIN({d_min:.2e}) {n_dmin_drop}）\n\
              - δ-free基桶={} verdict={mur_v:?} V={mur_nv}/F={mur_nf}/I={mur_ni}\n\
@@ -680,7 +698,7 @@ fn wverify_full() {
              口径：μ_R 与 raw μ **不可比**（#135：μ_R 除 d + D_MIN 过滤样本集不同）；双 estimand 各自过门，\
              Holm 全族校正（见结果包）。\n\n{mur_rows}\n",
             records.len(), mu_r_records.len(), mur_nv + mur_nf + mur_ni,
-        ),
+        )),
     )
     .ok();
 
@@ -725,12 +743,12 @@ fn wverify_full() {
             ));
         }
     }
-    std::fs::write("/tmp/wv_full_timeblocks.md", &wf_rows).ok();
+    std::fs::write("/tmp/wv_full_timeblocks.md", with_policy_records(&wf_rows)).ok();
 
     // ── ExitType 诊断切片（裁定甲：5 变体占比拆解，纯描述性，不进裁决基）──
     let exit_diag = exit_type_breakdown(&records);
     eprintln!("WV_FULL ExitType 诊断切片:\n{exit_diag}");
-    std::fs::write("/tmp/wv_full_exittype.md", &exit_diag).ok();
+    std::fs::write("/tmp/wv_full_exittype.md", with_policy_records(&exit_diag)).ok();
 
     assert!(!records.is_empty(), "residuals 空——管线未产观测");
 }
@@ -905,11 +923,15 @@ fn wverify_cross_symbol() {
     };
 
     eprintln!("WV_XSYM(σ̂-归一化) pooled_residuals={} buckets={} verdict={pverdict} V={nv} F={nf} I={ni}\n{sigma_md}\n{diff}", pooled.len(), pstats.len());
-    std::fs::write("/tmp/wv_xsym_sigma.md", &sigma_md).ok();
-    std::fs::write("/tmp/wv_xsym_persymbol.md", &per_symbol_md).ok();
+    std::fs::write("/tmp/wv_xsym_sigma.md", with_policy_records(&sigma_md)).ok();
+    std::fs::write(
+        "/tmp/wv_xsym_persymbol.md",
+        with_policy_records(&per_symbol_md),
+    )
+    .ok();
     std::fs::write(
         "/tmp/wv_xsym_pooled.md",
-        format!("# 池化（7 品种，σ̂-归一化 Ỹ）verdict={pverdict} V={nv}/F={nf}/I={ni}\n\n## σ̂ 表\n\n{sigma_md}\n\n{prows}\n\n## {diff}\n"),
+        with_policy_records(format!("# 池化（7 品种，σ̂-归一化 Ỹ）verdict={pverdict} V={nv}/F={nf}/I={ni}\n\n## σ̂ 表\n\n{sigma_md}\n\n{prows}\n\n## {diff}\n")),
     )
     .ok();
 }
@@ -1063,10 +1085,12 @@ fn wverify_fullz() {
         "WV_FULLZ residuals={} | full-z: buckets={n_fullz} verdict={fverdict} V={fv}/F={ff}/I={fi} | UClass: buckets={n_uclass} verdict={uverdict} V={uv}/F={uf}/I={ui}",
         records.len()
     );
-    std::fs::write("/tmp/wv_fullz_rows.md", format!("# full-z（MuClass 8 维，σ_higher 不进 prereg 桶键）verdict={fverdict} V={fv}/F={ff}/I={fi}\n\n{frows}")).ok();
+    std::fs::write("/tmp/wv_fullz_rows.md", with_policy_records(format!("# full-z（MuClass 8 维，σ_higher 不进 prereg 桶键）verdict={fverdict} V={fv}/F={ff}/I={fi}\n\n{frows}"))).ok();
     std::fs::write(
         "/tmp/wv_uclass_rows.md",
-        format!("# UClass 降维并列 verdict={uverdict} V={uv}/F={uf}/I={ui}\n\n{urows}"),
+        with_policy_records(format!(
+            "# UClass 降维并列 verdict={uverdict} V={uv}/F={uf}/I={ui}\n\n{urows}"
+        )),
     )
     .ok();
 }
@@ -1129,7 +1153,11 @@ fn thetadom_three_gauge_oos() {
             i
         );
     }
-    std::fs::write("/tmp/thetadom_three_gauge_oos.md", &report).ok();
+    std::fs::write(
+        "/tmp/thetadom_three_gauge_oos.md",
+        with_policy_records(&report),
+    )
+    .ok();
 }
 
 /// 完整策略级 π 回测（prereg-fullz-policy 阶段2 (B)）：BTC+CL，χ门μ̂注入 vs 无χ基线。
@@ -1215,7 +1243,7 @@ fn policy_backtest() {
             chi_r.metrics.max_drawdown, chi_r.n_orders, base_r.metrics.max_drawdown, base_r.n_orders, chi_pnl - base_pnl,
             base_pnl - sd_off_pnl, sd_off_r.n_orders);
     }
-    std::fs::write("/tmp/policy_backtest.md", &report).ok();
+    std::fs::write("/tmp/policy_backtest.md", with_policy_records(&report)).ok();
 }
 
 /// `d`（ISO "YYYY-MM-DD"）前推 6 个月，day 钳到 28（合法日期；slice_date_window 字典序比较）。
@@ -1406,7 +1434,7 @@ fn q4_fullpi_policy() {
         }
         report.push('\n');
     }
-    std::fs::write("/tmp/q4_fullpi_policy.md", &report).ok();
+    std::fs::write("/tmp/q4_fullpi_policy.md", with_policy_records(&report)).ok();
     eprintln!("[q4] 报告落盘 /tmp/q4_fullpi_policy.md");
 }
 
@@ -1518,7 +1546,11 @@ fn m6_btc_oos_r_decomposition() {
     report.push_str(
         "\n**守恒断言**：各窗 |守恒残差| ≤ 容差（价格 PnL − 五项成本 = 账本净变动，无泄漏）。\n",
     );
-    std::fs::write("/tmp/m6_btc_oos_r_decomposition.md", &report).ok();
+    std::fs::write(
+        "/tmp/m6_btc_oos_r_decomposition.md",
+        with_policy_records(&report),
+    )
+    .ok();
     eprintln!("[m6] R 分解报告落盘 /tmp/m6_btc_oos_r_decomposition.md");
 }
 
@@ -1995,7 +2027,11 @@ fn m8_e2e_all_systems_oos() {
            不宣称 confirmed alpha（措辞§5.6：INCONCLUSIVE≠无 alpha；§5.3：不外推 max-full）。\n\n\
          I_0 报告门槛 = {i0}（notional_in 同源 ⌊nav0⌋，各窗 nav 不同 ⟹ 门槛按 notional_in 列读）。\n",
     ));
-    std::fs::write("/tmp/m8_e2e_all_systems_oos.md", &report).ok();
+    std::fs::write(
+        "/tmp/m8_e2e_all_systems_oos.md",
+        with_policy_records(&report),
+    )
+    .ok();
     eprintln!("[m8] 端到端四层报告落盘 /tmp/m8_e2e_all_systems_oos.md");
 }
 
@@ -2081,7 +2117,11 @@ fn issue755_level_cap_on_off_btc20k_diff() {
         final_equity_on,
         final_equity_on - final_equity_off,
     );
-    std::fs::write("/tmp/issue755_level_cap_on_off_btc20k.md", &report).ok();
+    std::fs::write(
+        "/tmp/issue755_level_cap_on_off_btc20k.md",
+        with_policy_records(&report),
+    )
+    .ok();
     eprintln!("{report}");
     eprintln!("[#755] 门 on/off 对照报告落盘 /tmp/issue755_level_cap_on_off_btc20k.md");
 
@@ -3559,7 +3599,7 @@ fn deltafree_exact_recompute() {
          - LCB>0 桶（精确口径）：{lcb}\n\n{rows}\n",
         records.len(),
     );
-    std::fs::write("/tmp/deltafree_exact.md", &summary).ok();
+    std::fs::write("/tmp/deltafree_exact.md", with_policy_records(&summary)).ok();
     eprintln!("DELTAFREE_EXACT records={} buckets={n_buckets} verdict={v:?} V={nv}/F={nf}/I={ni} | LCB>0: {lcb}", records.len());
 }
 
@@ -3630,6 +3670,20 @@ fn m3_partition_btc_fullhistory() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn report_body_carries_both_policy_record_versions() {
+        let report = with_policy_records("读数");
+        assert!(report.contains(&format!("统计记录={}", research_stats().record.label())));
+        assert!(report.contains(&format!(
+            "探针资金记录={}",
+            active_no_floor_probe_profile()
+                .expect("no-floor probe profile")
+                .record
+                .label()
+        )));
+        assert!(report.ends_with("读数"));
+    }
 
     /// δ-free 精确重算自检（Task #186，L1 管线正确性）：round-trip dump→load bit-exact + δ-free
     /// perm_p 池化正确性。合成 records（level0/bsp3/σ+1 两 δ 同号高残差 = beta 漂移签名）：δ-free

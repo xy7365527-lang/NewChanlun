@@ -456,12 +456,21 @@ fn issue837_cross_level_opposing_actions() {
         }
     }
 
+    let stats = super::research_stats::active_research_stats().expect("C-19 research stats record");
     let probe_profile = super::l3_probe_profile::active_no_floor_probe_profile()
         .expect("no-floor probe profile record");
-    eprintln!("policy record: {}", probe_profile.record.label());
+    eprintln!(
+        "policy records: {} | {}",
+        stats.record.label(),
+        probe_profile.record.label()
+    );
     let nav_of = |d: &data::Dataset| probe_profile.nav_for(d, &plain);
 
-    let mut report = String::new();
+    let mut report = format!(
+        "统计记录={}\n探针资金记录={}\n",
+        stats.record.label(),
+        probe_profile.record.label()
+    );
     for (tag, lo, hi) in &wins {
         let win = ds.slice_date_window(lo, hi);
         assert!(!win.bars.is_empty(), "窗口 {tag} 为空");

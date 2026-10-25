@@ -2173,6 +2173,7 @@ fn pooling_icc_multi_symbol() {
     const MIN_ASSETS_FOR_ICC: usize = 3;
 
     eprintln!("\n===== ★跨品种 pooling 同质性检验 L2/L3（acc-pooling-icc, task #86）=====");
+    eprintln!("统计记录={}", stats.record.label());
     eprintln!("★§15 随机效应：μ_{{a,z}}=μ_z+η, η~N(0,τ²)；τ²=0→同分布→pooling 有效；τ²大→异质→强 pooling 引偏差");
     eprintln!("★§16 ICC=τ²/(τ²+σ²)∈[0,1]：→0 噪声主导(pooling 安全)；→1 品种差异主导(慎 pooling)");
     eprintln!(
