@@ -616,6 +616,15 @@ static JOB_IDS: AtomicU64 = AtomicU64::new(0);
 ///
 /// 一个 job 从用户开始重建或一次 Watch 调用开始，覆盖其全部同代 Snapshot 对拍；
 /// 跨分页、片段、证明重传、同代对拍及重试累计，**同一个余额、同一个绝对期限**。
+enum AcceptedNodes {
+    Ordinary(BTreeSet<NodeDigest>),
+    Mixed {
+        binding: super::capture_allocation::scratch::NativeReservation,
+        content: super::capture_allocation::native_tree::NativeTree<NodeDigest, u64>,
+        legacy: super::capture_allocation::native_tree::NativeTree<NodeDigest, (i64, usize, u64)>,
+    },
+}
+
 pub struct Job {
     id: u64,
     limits: JobLimits,
@@ -627,7 +636,7 @@ pub struct Job {
     nodes: u64,
     records: u64,
     requests: u64,
-    accepted: BTreeSet<NodeDigest>,
+    accepted: AcceptedNodes,
     staged: Space,
     store: Space,
     open: BTreeMap<u64, (SpaceKind, u64)>,
@@ -699,7 +708,7 @@ impl Job {
             nodes: 0,
             records: 0,
             requests: 0,
-            accepted: BTreeSet::new(),
+            accepted: AcceptedNodes::Ordinary(BTreeSet::new()),
             staged: Space {
                 // 构造时 exposure = baseline + 0 + 0，所以峰值就是实测基线本身。
                 baseline: u128::from(existing.staged_bytes),
@@ -900,8 +909,11 @@ impl Job {
         &mut self,
         usage: &CheckedNodeUsage,
     ) -> Result<NodeAcceptance, CodecError> {
+        if !matches!(self.accepted, AcceptedNodes::Ordinary(_)) {
+            return Err(CodecError::new(RESERVATION, "mixed节点接纳必须携带当前WorkScope"));
+        }
         let digest = usage.digest;
-        if self.accepted.contains(&digest) {
+        if matches!(&self.accepted, AcceptedNodes::Ordinary(set) if set.contains(&digest)) {
             return Ok(NodeAcceptance::AlreadyAccepted);
         }
         let framed = usage.framed_bytes;
@@ -937,8 +949,72 @@ impl Job {
         }
         self.node_bytes = projected_bytes;
         self.nodes = projected_nodes;
-        self.accepted.insert(digest);
+        let AcceptedNodes::Ordinary(set) = &mut self.accepted else { unreachable!() };
+        set.insert(digest);
         Ok(NodeAcceptance::FirstAccept)
+    }
+
+    /// #1527：具名mixed构造器；两域集合共同受当前父工作域约束。
+    pub fn new_started_mixed(
+        limits: JobLimits, existing: Existing, clock: Box<dyn Clock>, first: Instant,
+        work: &super::capture_allocation::scratch::WorkScope,
+    ) -> Result<Self, CodecError> {
+        work.check_current()?;
+        let mut job = Self::new_started(limits, existing, clock, first)?;
+        job.accepted = AcceptedNodes::Mixed { binding: work.reserve_native(0)?, content: Default::default(), legacy: Default::default() };
+        Ok(job)
+    }
+    pub fn accept_checked_usage_mixed(
+        &mut self, usage: &CheckedNodeUsage, work: &super::capture_allocation::scratch::WorkScope,
+    ) -> Result<NodeAcceptance, CodecError> {
+        self.begin_first_read()?;
+        work.check_current()?;
+        let AcceptedNodes::Mixed { content, binding, .. } = &self.accepted else {
+            return Err(CodecError::new(RESERVATION, "普通Job不接受mixed节点"));
+        };
+        if !binding.belongs_to_parent(work) { return Err(work.reject(super::capture_allocation::scratch::ScratchFailure::Ledger)); }
+        if let Some(bytes) = content.get(&usage.digest) {
+            if *bytes != usage.framed_bytes { return Err(CodecError::new(RESERVATION, "同节点原件费用不一致")); }
+            return Ok(NodeAcceptance::AlreadyAccepted);
+        }
+        let (nodes, bytes) = self.project_mixed_node(usage.framed_bytes)?;
+        let AcceptedNodes::Mixed { content, .. } = &mut self.accepted else { unreachable!() };
+        content.insert_admitted(usage.digest, usage.framed_bytes, &MixedAllocation(work))?;
+        self.nodes = nodes; self.node_bytes = bytes;
+        Ok(NodeAcceptance::FirstAccept)
+    }
+    pub fn accept_legacy_evidence(
+        &mut self, row: &super::legacy_evidence::CheckedLegacyEvidenceRow,
+        work: &super::capture_allocation::scratch::WorkScope,
+    ) -> Result<NodeAcceptance, CodecError> {
+        self.begin_first_read()?;
+        work.check_current()?;
+        let identity = (row.kind(), row.payload_len(), row.declared_length());
+        let AcceptedNodes::Mixed { legacy, binding, .. } = &self.accepted else {
+            return Err(CodecError::new(RESERVATION, "普通Job不接受legacy域"));
+        };
+        if !binding.belongs_to_parent(work) { return Err(work.reject(super::capture_allocation::scratch::ScratchFailure::Ledger)); }
+        if let Some(previous) = legacy.get(row.id()) {
+            if *previous != identity { return Err(CodecError::new(RESERVATION, "同legacy节点原件不一致")); }
+            return Ok(NodeAcceptance::AlreadyAccepted);
+        }
+        let framed = u64::try_from(row.payload_len()).ok().and_then(|n| n.checked_add(1))
+            .ok_or_else(|| self.stop(LIMIT_EXCEEDED, "legacy节点费用溢出".into()))?;
+        let (nodes, bytes) = self.project_mixed_node(framed)?;
+        let AcceptedNodes::Mixed { legacy, .. } = &mut self.accepted else { unreachable!() };
+        legacy.insert_admitted(*row.id(), identity, &MixedAllocation(work))?;
+        self.nodes = nodes; self.node_bytes = bytes;
+        Ok(NodeAcceptance::FirstAccept)
+    }
+    fn project_mixed_node(&mut self, framed: u64) -> Result<(u64, u64), CodecError> {
+        let bytes = self.node_bytes.checked_add(framed)
+            .ok_or_else(|| self.stop(LIMIT_EXCEEDED, "节点字节累计溢出".into()))?;
+        let nodes = self.nodes.checked_add(1)
+            .ok_or_else(|| self.stop(LIMIT_EXCEEDED, "节点数量累计溢出".into()))?;
+        if bytes > self.limits.max_total_node_bytes || nodes > self.limits.max_total_nodes {
+            return Err(self.stop(LIMIT_EXCEEDED, "mixed两域聚合节点费用超出签署帽".into()));
+        }
+        Ok((nodes, bytes))
     }
 
     /// 写前预留（暂存子集）：同一批字节**同时**占 `max_staged_bytes` 与 `max_store_bytes`，
@@ -1436,5 +1512,13 @@ mod same_material_tests {
             &new_digest
         );
         assert_eq!(super::super::frame_calls_on_thread() - before, 1);
+    }
+}
+
+struct MixedAllocation<'a>(&'a super::capture_allocation::scratch::WorkScope);
+impl super::NodeSource for MixedAllocation<'_> {
+    fn codec_work(&self) -> Option<&super::capture_allocation::scratch::WorkScope> { Some(self.0) }
+    fn read(&mut self, _: &NodeDigest) -> Result<super::NodeRead, CodecError> {
+        Err(CodecError::new(super::code::SOURCE, "分配能力不提供节点原件"))
     }
 }
