@@ -3,8 +3,6 @@
 //! 只有 `max(首可交易价 × 1000, 1e6)` 这一族探针使用本记录。`replay_dump` 等
 //! `首价 × 10000` 是另一回测口径，不在没有新裁定的情况下混改。
 
-use serde_json::Value;
-
 use super::super::config::ThetaConfig;
 use super::super::policy_records::{
     invalid, parse_header, read_f64, read_str, PolicyError, PolicyRef,
@@ -89,6 +87,7 @@ pub fn active_no_floor_probe_profile() -> Result<ProbeProfile, PolicyError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::Value;
 
     fn mutate_record(change: impl FnOnce(&mut Value)) -> String {
         let mut root: Value = serde_json::from_str(ACTIVE_L3_PROBE_PROFILE_JSON).unwrap();

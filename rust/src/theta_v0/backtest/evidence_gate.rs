@@ -5,8 +5,6 @@
 
 use std::fmt;
 
-use serde_json::Value;
-
 use super::super::policy_records::{
     invalid, parse_header, read_str, read_u32, PolicyError, PolicyRef, ACTIVE_EVIDENCE_GATE_JSON,
     EVIDENCE_GATE_ID,
@@ -183,6 +181,7 @@ pub fn active_evidence_gate() -> Result<EvidenceGate, PolicyError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::Value;
 
     fn mutate_record(change: impl FnOnce(&mut Value)) -> String {
         let mut root: Value = serde_json::from_str(ACTIVE_EVIDENCE_GATE_JSON).unwrap();
