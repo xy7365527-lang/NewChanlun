@@ -60,7 +60,7 @@ impl ResearchStats {
             ("ci_lower_quantile", self.ci_lower_quantile),
             ("ci_upper_quantile", self.ci_upper_quantile),
         ] {
-            if !(0.0..1.0).contains(&value) {
+            if !(value > 0.0 && value < 1.0) {
                 return Err(invalid(RESEARCH_STATS_ID, name, "须属于开区间 (0,1)"));
             }
         }

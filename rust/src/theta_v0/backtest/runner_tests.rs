@@ -10281,3 +10281,27 @@ fn lee_readonly_layer_btc_structural_witness_644() {
         "level_clock 与 level_attrib 逐 bar 同一决策点集合，口径必须相等"
     );
 }
+
+#[test]
+fn p1605_r3_runner_and_overlay_share_policy_failure_boundary() {
+    let config = ThetaConfig::default();
+    let ds = Dataset { symbol: "EMPTY".into(), bars: vec![], dates: vec![], bar_seconds: 60 };
+    let mut record: serde_json::Value = serde_json::from_str(ACTIVE_RESEARCH_STATS_JSON).unwrap();
+    record["version"] = 2.into();
+    record["fields"]["annualization_days"]["value"] = 126.0.into();
+    let valid = record.to_string();
+    let run = run_theta_v0_pi_inner(&ds, &config, 1.0, 1e6, None, Some(&valid)).unwrap();
+    let overlay = run_theta_v0_pi_overlay_with_record(&ds, &config, 1.0, 1e6, Some(&valid)).unwrap();
+    assert_eq!(run.metrics.research_stats.version, 2);
+    assert_eq!(overlay.net_result.metrics.research_stats.version, 2);
+    record["fields"]["z_alpha"]["value"] = "AwaitingPolicy".into();
+    let unsigned = record.to_string();
+    record["fields"]["z_alpha"]["value"] = 1.645.into();
+    record["fields"]["cvar_tail"]["value"] = 0.into();
+    let invalid = record.to_string();
+    for text in [None, Some(unsigned.as_str()), Some(invalid.as_str())] {
+        let expected = parse_research_stats(text).unwrap_err();
+        assert_eq!(run_theta_v0_pi_inner(&ds, &config, 1.0, 1e6, None, text).unwrap_err(), expected);
+        assert_eq!(run_theta_v0_pi_overlay_with_record(&ds, &config, 1.0, 1e6, text).unwrap_err(), expected);
+    }
+}

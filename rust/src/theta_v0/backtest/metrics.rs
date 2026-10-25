@@ -53,7 +53,10 @@
 //!    随机对照按每笔方向选公式、保持方向不变（只随机化入场点）——**有效域 = 多空交易**。
 
 use super::super::policy_records::{PolicyError, PolicyRef};
-use super::research_stats::{active_research_stats, ResearchStats};
+use super::research_stats::{parse_research_stats, ResearchStats};
+#[cfg(test)]
+use super::research_stats::active_research_stats;
+use super::super::policy_records::ACTIVE_RESEARCH_STATS_JSON;
 
 /// 协议 §3 全套指标（单个检验窗）。每个字段对应 §3 一行。
 #[derive(Debug, Clone, PartialEq)]
@@ -109,7 +112,18 @@ pub fn compute(
     years: f64,
     bh_return: f64,
 ) -> Result<Metrics, PolicyError> {
-    let stats = active_research_stats()?;
+    compute_with_record(equity_curve, daily_returns, trade_pnls, years, bh_return, Some(ACTIVE_RESEARCH_STATS_JSON))
+}
+
+fn compute_with_record(
+    equity_curve: &[f64],
+    daily_returns: &[f64],
+    trade_pnls: &[f64],
+    years: f64,
+    bh_return: f64,
+    record: Option<&str>,
+) -> Result<Metrics, PolicyError> {
+    let stats = parse_research_stats(record)?;
     Ok(compute_with_policy(
         equity_curve,
         daily_returns,
@@ -382,7 +396,19 @@ pub fn significance(
     fee_rate: f64,
     theta_return_mtm: f64,
 ) -> Result<Significance, PolicyError> {
-    let stats = active_research_stats()?;
+    significance_with_record(trade_pnls, daily_returns, trades, prices, fee_rate, theta_return_mtm, Some(ACTIVE_RESEARCH_STATS_JSON))
+}
+
+fn significance_with_record(
+    trade_pnls: &[f64],
+    daily_returns: &[f64],
+    trades: &[TradeRecord],
+    prices: &[f64],
+    fee_rate: f64,
+    theta_return_mtm: f64,
+    record: Option<&str>,
+) -> Result<Significance, PolicyError> {
+    let stats = parse_research_stats(record)?;
     Ok(significance_with_policy(
         trade_pnls,
         daily_returns,
@@ -863,6 +889,36 @@ fn top_n_pnl_ratio(pnls: &[f64], n: usize) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn p1605_r3_metrics_text_boundary_rejects_bad_records_and_changes_readings() {
+        let daily = [0.01, -0.02, 0.03, -0.01, 0.02, -0.04, 0.03];
+        let pnls = [2.0, -1.0, 3.0, -2.0, 4.0, 1.0];
+        let equity = [1.0, 1.01, 0.99, 1.03, 1.02];
+        let mut record: serde_json::Value = serde_json::from_str(ACTIVE_RESEARCH_STATS_JSON).unwrap();
+        record["version"] = 2.into();
+        record["fields"]["annualization_days"]["value"] = 126.0.into();
+        record["fields"]["cvar_tail"]["value"] = 0.25.into();
+        let text = record.to_string();
+        let original = super::compute(&equity, &daily, &pnls, 1.0, 0.05).unwrap();
+        let changed = compute_with_record(&equity, &daily, &pnls, 1.0, 0.05, Some(&text)).unwrap();
+        assert_eq!(changed.research_stats.version, 2);
+        assert!((changed.sharpe / original.sharpe - 0.5_f64.sqrt()).abs() < 1e-12);
+        assert_eq!(changed.cvar_5, -0.03);
+        let original_sig = super::significance(&pnls, &daily, &[], &[], 0.0, 0.0).unwrap();
+        let changed_sig = significance_with_record(&pnls, &daily, &[], &[], 0.0, 0.0, Some(&text)).unwrap();
+        assert_ne!(original_sig, changed_sig);
+        let mut unsigned = record.clone();
+        unsigned["fields"]["z_alpha"]["value"] = "AwaitingPolicy".into();
+        let unsigned = unsigned.to_string();
+        record["fields"]["cvar_tail"]["value"] = 0.into();
+        let invalid = record.to_string();
+        for text in [None, Some(unsigned.as_str()), Some(invalid.as_str())] {
+            let expected = parse_research_stats(text).unwrap_err();
+            assert_eq!(compute_with_record(&equity, &daily, &pnls, 1.0, 0.05, text).unwrap_err(), expected);
+            assert_eq!(significance_with_record(&pnls, &daily, &[], &[], 0.0, 0.0, text).unwrap_err(), expected);
+        }
+    }
 
     fn test_stats() -> ResearchStats {
         active_research_stats().expect("测试使用完整生效记录")

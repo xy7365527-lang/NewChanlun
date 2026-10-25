@@ -47,9 +47,8 @@ pub(super) use super::ledger::{track_position_transition, OpsemEntrySnapshot};
 pub use super::ledger::{TypedTrade, VoiceVerdictRec, TYPED_TRADE_SCHEMA_VERSION};
 use super::metrics::{self, Metrics};
 pub use super::opsem_dump::{StrictNestCertificateRecord, StrictNestSidecarSummary};
-#[cfg(test)]
-use super::research_stats::parse_research_stats;
-use super::research_stats::{active_research_stats, ResearchStats};
+use super::research_stats::{parse_research_stats, ResearchStats};
+use super::super::policy_records::ACTIVE_RESEARCH_STATS_JSON;
 #[cfg(test)]
 use std::rc::Rc;
 // ★B-M3b-contract（#91）fill loop seam：fill loop 本体 + FillOutput(Family)
@@ -270,7 +269,7 @@ pub fn run_theta_v0_pi(
     initial_nav: f64,
 ) -> Result<RunResult, PolicyError> {
     // χ≡1 全覆盖（默认入口，frozen Θ v0 bit-exact 不变）。χ 阈值过滤端到端入口见 [`run_theta_v0_pi_chi`]。
-    run_theta_v0_pi_inner(dataset, config, years, initial_nav, None)
+    run_theta_v0_pi_inner(dataset, config, years, initial_nav, None, Some(ACTIVE_RESEARCH_STATS_JSON))
 }
 
 /// ★χ_t 阈值过滤端到端入口（task #41 + delta-r-alpha #42）——`run_theta_v0_pi` 接 χ 过滤的版本。
@@ -293,7 +292,7 @@ pub fn run_theta_v0_pi_chi(
         treat_empty_as_pass,
         shrink_tau_sq: None,
     });
-    run_theta_v0_pi_inner(dataset, config, years, initial_nav, chi)
+    run_theta_v0_pi_inner(dataset, config, years, initial_nav, chi, Some(ACTIVE_RESEARCH_STATS_JSON))
 }
 
 /// shrinkage 准入入口（acc-three-way-l2 #83）：与 [`run_theta_v0_pi_chi`] 同 harness，唯一区别
@@ -314,7 +313,7 @@ pub fn run_theta_v0_pi_chi_shrink(
         treat_empty_as_pass,
         shrink_tau_sq: Some(tau_sq),
     });
-    run_theta_v0_pi_inner(dataset, config, years, initial_nav, chi)
+    run_theta_v0_pi_inner(dataset, config, years, initial_nav, chi, Some(ACTIVE_RESEARCH_STATS_JSON))
 }
 
 fn run_theta_v0_pi_inner(
@@ -323,9 +322,9 @@ fn run_theta_v0_pi_inner(
     years: f64,
     initial_nav: f64,
     chi: Option<ChiFilterCtx>,
+    record: Option<&str>,
 ) -> Result<RunResult, PolicyError> {
-    // 记录失败必须先于闭环、分类与任何订单/fill 读数返回。
-    let stats = active_research_stats()?;
+    let stats = parse_research_stats(record)?;
     run_theta_v0_pi_inner_with_stats(dataset, config, years, initial_nav, chi, &stats)
 }
 
@@ -337,8 +336,7 @@ fn run_theta_v0_pi_with_record(
     initial_nav: f64,
     record: Option<&str>,
 ) -> Result<RunResult, PolicyError> {
-    let stats = parse_research_stats(record)?;
-    run_theta_v0_pi_inner_with_stats(dataset, config, years, initial_nav, None, &stats)
+    run_theta_v0_pi_inner(dataset, config, years, initial_nav, None, record)
 }
 
 fn run_theta_v0_pi_inner_with_stats(
@@ -582,7 +580,17 @@ pub fn run_theta_v0_pi_overlay(
     years: f64,
     initial_nav: f64,
 ) -> Result<OverlayRunResult, PolicyError> {
-    let stats = active_research_stats()?;
+    run_theta_v0_pi_overlay_with_record(dataset, config, years, initial_nav, Some(ACTIVE_RESEARCH_STATS_JSON))
+}
+
+fn run_theta_v0_pi_overlay_with_record(
+    dataset: &Dataset,
+    config: &ThetaConfig,
+    years: f64,
+    initial_nav: f64,
+    record: Option<&str>,
+) -> Result<OverlayRunResult, PolicyError> {
+    let stats = parse_research_stats(record)?;
     let bars = &dataset.bars;
     let mut overlay = super::super::strategy::overlay_state::OverlayState::new();
     // ★LEE M1（#644 语义重放）：与 overlay 并列的级别账本只读旁路镜像（同一 sep_legs 按

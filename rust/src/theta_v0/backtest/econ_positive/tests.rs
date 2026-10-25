@@ -3445,11 +3445,7 @@ fn acc_walkforward_trainonly() {
     let _ = writeln!(rpt, "| holdout Σab_rev | {hd_ab:.4e} |");
     let _ = writeln!(rpt, "| μ_OOS | {mu_oos:.4e} |");
     let _ = writeln!(rpt, "| se（用 neff） | {se_oos:.4e} |");
-    let _ = writeln!(
-        rpt,
-        "| **LCB（μ−{}·se）** | **{{lcb_oos:.4e}}** |",
-        stats.z_alpha
-    );
+    write_walkforward_lcb(&mut rpt, lcb_oos, &stats);
     let _ = writeln!(rpt);
     let _ = writeln!(
         rpt,
@@ -3510,7 +3506,7 @@ fn acc_walkforward_trainonly() {
         "| 剔最大 5 | {q4_d5:.4e} | {} |",
         if q4_d5 > 0.0 { "是" } else { "否" }
     );
-    let _ = writeln!(rpt, "- **block bootstrap p（H0:μ≤0，block_len={}，B={}，固定种子）= {{q4_p:.4}}**（p<{} ⟹ 正均值稳健远离 0）。", stats.econ_block_len, stats.econ_n_resample, stats.significance_p_threshold);
+    write_walkforward_bootstrap(&mut rpt, q4_p, &stats);
     if q4_d5 <= 0.0 && q4_full > 0.0 {
         let _ = writeln!(rpt, "→ **Q4 坐实少数大赢家驱动**：剔最大 5 后转负 ⟹ holdout 正总和由极少数大赢家撑起，非稳健 alpha。");
     } else if q4_d5 > 0.0 {
@@ -12610,4 +12606,30 @@ fn cond1_structural_trend_dx() {
         "[p1223] 落盘 {out_path}：候选={} missing_end={missing_end} missing_fwd={missing_fwd}",
         cands.len()
     );
+}
+
+fn write_walkforward_lcb(rpt: &mut String, lcb_oos: f64, stats: &super::super::research_stats::ResearchStats) {
+    use std::fmt::Write;
+    let _ = writeln!(rpt, "| **LCB（μ−{}·se）** | **{lcb_oos:.4e}** |", stats.z_alpha);
+}
+
+fn write_walkforward_bootstrap(rpt: &mut String, q4_p: f64, stats: &super::super::research_stats::ResearchStats) {
+    use std::fmt::Write;
+    let _ = writeln!(rpt, "- **block bootstrap p（H0:μ≤0，block_len={}，B={}，固定种子）= {q4_p:.4}**（p<{} ⟹ 正均值稳健远离 0）。", stats.econ_block_len, stats.econ_n_resample, stats.significance_p_threshold);
+}
+
+#[test]
+fn p1605_r2_report_contains_readings_and_policy_values() {
+    let mut stats = active_research_stats().unwrap();
+    stats.z_alpha = 2.5;
+    stats.econ_block_len = 7;
+    stats.econ_n_resample = 123;
+    stats.significance_p_threshold = 0.1;
+    let mut report = String::new();
+    write_walkforward_lcb(&mut report, 0.0125, &stats);
+    write_walkforward_bootstrap(&mut report, 0.0125, &stats);
+    for expected in ["μ−2.5·se", "1.2500e-2", "block_len=7", "B=123", "= 0.0125", "p<0.1"] {
+        assert!(report.contains(expected), "缺少 {expected}: {report}");
+    }
+    assert!(!report.contains('{'));
 }

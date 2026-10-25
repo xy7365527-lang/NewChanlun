@@ -431,9 +431,13 @@ fn delta_r_stats(
 
 /// 当前显著性门下，符号检验全正也能拒绝零假设的最小品种数。
 fn min_sign_test_power(stats: &ResearchStats) -> usize {
-    (1..=usize::BITS as usize)
-        .find(|&n| sign_test_pvalue(n, n) < stats.significance_p_threshold)
-        .expect("有效显著性门必须存在有限符号检验功效下界")
+    let mut n = 1;
+    let mut p = 0.5;
+    while p >= stats.significance_p_threshold {
+        p *= 0.5;
+        n += 1;
+    }
+    n
 }
 
 /// 二项符号检验单边 p 值（H0：ΔR 均值符号随机，p=0.5）。
@@ -2360,6 +2364,15 @@ mod tests {
     use super::*;
 
     /// 量纲③重锚（#65 裁定 2026-07-21）：ledger χ 观测必须是费扣后持仓期相对收益。
+    #[test]
+    fn p1605_r4_power_respects_strict_boundary_and_subnormal_domain() {
+        let mut stats = active_research_stats().unwrap();
+        for (alpha, expected) in [(0.05, 5), (1e-30, 100), (0.5, 2), (0.125, 4), (f64::from_bits(1), 1075)] {
+            stats.significance_p_threshold = alpha;
+            assert_eq!(min_sign_test_power(&stats), expected, "alpha={alpha}");
+        }
+    }
+
     #[test]
     fn p1605_r4_valid_tiny_threshold_has_finite_power_bound() {
         let mut record: serde_json::Value = serde_json::from_str(
