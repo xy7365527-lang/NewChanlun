@@ -36,6 +36,14 @@ pub const MACD_FORCE_ID: &str = "macd-force";
 pub const SECOND_SEQ_SCAN_BUDGET_ID: &str = "second-seq-scan-budget";
 /// 线段构造规则记录 id（A-12，#1604；xianduan §6.3 载体）。
 pub const SEGMENT_CONSTRUCTION_ID: &str = "segment-second";
+/// C-19 研究回测与验收统计记录 id（#1605；与 evidence_gate 独立）。
+pub const RESEARCH_STATS_ID: &str = "#1605/research-stats";
+/// ADR 0022 evidence_gate 记录 id（#1677；下游消费由 #1398/#1410/#1441 实施）。
+pub const EVIDENCE_GATE_ID: &str = "#1677/evidence-gate";
+/// L3 探针资金 profile id（#1605；不是研究统计字段的摆设）。
+pub const L3_PROBE_PROFILE_ID: &str = "#1605/l3-probe-profile";
+/// W-VERIFY 探针资金 profile id（现行公式无 L3 的 1e6 下限，不能混用）。
+pub const NO_FLOOR_PROBE_PROFILE_ID: &str = "#1605/no-floor-probe-profile";
 
 /// 当前生效的级别塔资源预算记录（编进二进制）。
 pub const ACTIVE_TOWER_LEVEL_BUDGET_JSON: &str =
@@ -52,6 +60,15 @@ pub const ACTIVE_SEGMENT_CONSTRUCTION_JSON: &str =
 pub const ARM_SUB_EXPIRY_ID: &str = "arm-sub-expiry";
 /// 当前生效的 `arm-sub-expiry` 记录（编进二进制）。
 pub const ACTIVE_ARM_SUB_EXPIRY_JSON: &str = include_str!("policy_records/arm-sub-expiry.json");
+/// 当前生效的 C-19 研究统计记录。
+pub const ACTIVE_RESEARCH_STATS_JSON: &str = include_str!("policy_records/research-stats.json");
+/// 当前生效的 evidence_gate 记录；与 C-19 不合并。
+pub const ACTIVE_EVIDENCE_GATE_JSON: &str = include_str!("policy_records/evidence-gate.json");
+/// 当前生效的 L3 探针资金 profile。
+pub const ACTIVE_L3_PROBE_PROFILE_JSON: &str = include_str!("policy_records/l3-probe-profile.json");
+/// 当前生效的 W-VERIFY 探针资金 profile。
+pub const ACTIVE_NO_FLOOR_PROBE_PROFILE_JSON: &str =
+    include_str!("policy_records/no-floor-probe-profile.json");
 
 /// 记录版本。`Signed(n)` 来自记录文件的 `version` 字段；`ResearchOverride` 是研究/镜像工具在
 /// 代码里改了字段值、没有对应签署版本的情形——输出照实写出，不冒充签署版本。
@@ -69,12 +86,14 @@ pub struct PolicyRef {
 }
 
 impl PolicyRef {
-    /// `id/版本` 形式，例如 `tower-level-budget/1`；研究覆写写作 `tower-level-budget/research-override`。
+    /// `id/版本` 形式，例如 `tower-level-budget/1`；票据命名记录写 `#1605/research-stats/v1`。
     pub fn label(&self) -> String {
-        match self.version {
-            PolicyVersion::Signed(v) => format!("{}/{}", self.id, v),
-            PolicyVersion::ResearchOverride => format!("{}/research-override", self.id),
-        }
+        let version = match self.version {
+            PolicyVersion::Signed(v) if self.id.starts_with('#') => format!("v{v}"),
+            PolicyVersion::Signed(v) => v.to_string(),
+            PolicyVersion::ResearchOverride => "research-override".to_string(),
+        };
+        format!("{}/{}", self.id, version)
     }
 }
 
@@ -121,7 +140,7 @@ impl std::fmt::Display for PolicyError {
 
 impl std::error::Error for PolicyError {}
 
-fn invalid(id: &'static str, field: &str, reason: impl Into<String>) -> PolicyError {
+pub(crate) fn invalid(id: &'static str, field: &str, reason: impl Into<String>) -> PolicyError {
     PolicyError::Invalid {
         id,
         field: field.to_string(),
@@ -130,7 +149,7 @@ fn invalid(id: &'static str, field: &str, reason: impl Into<String>) -> PolicyEr
 }
 
 /// 解析记录头：`id` 必须等于期望 id，`version` 必须是正整数。返回 (`PolicyRef`, `fields` 对象)。
-fn parse_header(
+pub(crate) fn parse_header(
     id: &'static str,
     text: Option<&str>,
 ) -> Result<(PolicyRef, serde_json::Map<String, Value>), PolicyError> {
@@ -178,7 +197,7 @@ fn parse_header(
 }
 
 /// 读一个非负整数字段（`fields.<name>.value`）。
-fn read_u32(
+pub(crate) fn read_u32(
     id: &'static str,
     fields: &serde_json::Map<String, Value>,
     name: &str,
@@ -208,8 +227,36 @@ fn read_u32(
     }
 }
 
+/// 读一个有限浮点字段。JSON 的整数也接受；NaN/Infinity 与指数溢出均判非法。
+#[cfg(any(test, feature = "backtest_bin"))]
+pub(crate) fn read_f64(
+    id: &'static str,
+    fields: &serde_json::Map<String, Value>,
+    name: &str,
+) -> Result<f64, PolicyError> {
+    let awaiting = || PolicyError::AwaitingPolicy {
+        id,
+        field: name.to_string(),
+    };
+    let entry = fields.get(name).ok_or_else(awaiting)?;
+    if entry.is_null() || entry.as_str() == Some("AwaitingPolicy") {
+        return Err(awaiting());
+    }
+    let entry = entry
+        .as_object()
+        .ok_or_else(|| invalid(id, name, format!("字段须为带 value 的对象，得 {entry}")))?;
+    match entry.get("value").ok_or_else(awaiting)? {
+        Value::Null => Err(awaiting()),
+        Value::String(s) if s == "AwaitingPolicy" => Err(awaiting()),
+        v => v
+            .as_f64()
+            .filter(|x| x.is_finite())
+            .ok_or_else(|| invalid(id, name, format!("须为有限数值，得 {v}"))),
+    }
+}
+
 /// 读一个字符串字段（`fields.<name>.value`）；缺失与未签的口径同 [`read_u32`]，非字符串判非法。
-fn read_str(
+pub(crate) fn read_str(
     id: &'static str,
     fields: &serde_json::Map<String, Value>,
     name: &str,

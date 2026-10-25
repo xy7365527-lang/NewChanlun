@@ -83,6 +83,10 @@ impl RetainedDelta {
         }
         self.capacity(bytes::<K, V>(before), bytes::<K, V>(after));
     }
+    #[cfg_attr(
+        feature = "s_capture_native_testonly",
+        allow(dead_code, reason = "#1488：8组合探针 native 路径无调用，保留接口")
+    )]
     pub(crate) fn tree_len<K, V>(&mut self, before: usize, after: usize) {
         let slot = size_of::<(K, V)>()
             .checked_mul(11)
@@ -93,6 +97,10 @@ impl RetainedDelta {
         );
     }
     /// BTree 删除最后一项后可能仍留空根，清空后才允许按零项释放。
+    #[cfg_attr(
+        feature = "s_capture_native_testonly",
+        allow(dead_code, reason = "#1488：8组合探针 native 路径无调用，保留接口")
+    )]
     pub(crate) fn tree_remove<K: Ord + Retained>(&mut self, set: &mut BTreeSet<K>, key: &K) {
         if let Some(old) = set.take(key) {
             self.release(&old);
@@ -102,6 +110,10 @@ impl RetainedDelta {
             }
         }
     }
+    #[cfg_attr(
+        feature = "s_capture_native_testonly",
+        allow(dead_code, reason = "#1488：8组合探针 native 路径无调用，保留接口")
+    )]
     pub(crate) fn tree_insert<K: Ord + Retained>(&mut self, set: &mut BTreeSet<K>, key: K) {
         let bytes = key.heap_bytes();
         if set.insert(key) {
@@ -254,6 +266,11 @@ impl Retained for serde_json::Value {
         }
     }
 }
+impl Retained for super::business_json::PlainJson {
+    fn heap_bytes(&self) -> usize {
+        self.retained_heap_bytes()
+    }
+}
 impl Retained for super::business_json::TextValue {
     fn heap_bytes(&self) -> usize {
         self.capacity()
@@ -281,3 +298,26 @@ macro_rules! retained_struct {
     };
 }
 pub(crate) use retained_struct;
+
+// 统计载荷上界与 RAII 退账独立；这里绝不根据统计差释放 Native 许可。
+impl<T: Retained> Retained for sc::capture_allocation::native_owned::NativeValue<T> {
+    fn heap_bytes(&self) -> usize {
+        self.as_ref()
+            .heap_bytes()
+            .max(self.retained_charge().unwrap_or(0))
+    }
+}
+impl<K: Ord + Retained, V: Retained> Retained for super::audit_store::NativeTree<K, V> {
+    fn heap_bytes(&self) -> usize {
+        sum(std::iter::once(self.allocation_bytes()).chain(
+            self.iter()
+                .map(|(k, v)| sum([k.heap_bytes(), v.heap_bytes()])),
+        ))
+    }
+}
+
+impl<T: Retained> Retained for super::native_shared::NativeRc<T> {
+    fn heap_bytes(&self) -> usize {
+        sum([self.allocation_bytes(), self.as_ref().heap_bytes()])
+    }
+}

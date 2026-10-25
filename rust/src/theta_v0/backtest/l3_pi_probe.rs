@@ -24,18 +24,31 @@
 
 use super::super::config::ThetaConfig;
 use super::data::{self, Dataset};
+use super::l3_probe_profile::active_l3_probe_profile;
+use super::research_stats::active_research_stats;
 use super::runner::run_theta_v0_pi;
 use std::rc::Rc;
 
-/// NAV 与品种价量级匹配（首可交易价×1000，下限 1e6）——与 l3_fullwindow 同口径。
+fn print_policy_records() {
+    let stats = active_research_stats().expect("C-19 research stats record");
+    let profile = active_l3_probe_profile().expect("L3 probe profile record");
+    eprintln!(
+        "policy records: {} | {}",
+        stats.record.label(),
+        profile.record.label()
+    );
+}
+
+fn print_probe_profile_record() {
+    let profile = active_l3_probe_profile().expect("L3 probe profile record");
+    eprintln!("policy record: {}", profile.record.label());
+}
+
+/// 所有 L3 探针窗口都从具名 profile 取 NAV；缺记录时在任何订单前停止。
 fn nav_for(win: &Dataset, config: &ThetaConfig) -> f64 {
-    let first_px = win
-        .bars
-        .iter()
-        .find(|b| !b.untradable && b.close > 0)
-        .map(|b| b.close as f64 * config.tick.tick_size)
-        .unwrap_or(1.0);
-    (first_px * 1000.0).max(1.0e6)
+    active_l3_probe_profile()
+        .expect("L3 probe profile record")
+        .nav_for(win, config)
 }
 
 /// 取 OOS 窗前缀 n bar（source_index 已在 slice_date_window 重置为局部下标，前缀仍合法）。
@@ -55,6 +68,7 @@ fn prefix(oos: &Dataset, n: usize) -> Dataset {
 #[test]
 #[ignore = "Phase-1 probe: pi O(n²) substrate 时标；需数据缓存；--release"]
 fn pi_probe_scaling_single_symbol() {
+    print_policy_records();
     let config = ThetaConfig::default();
     // 单品种探针：CL（核心池，OOS 历史充足；与 PREREG_WINDOWS OOS 起点一致防数据挖掘）。
     let symbol = "CL";
@@ -90,7 +104,7 @@ fn pi_probe_scaling_single_symbol() {
         let win = prefix(&oos, n);
         let nav = nav_for(&win, &config);
         let t0 = std::time::Instant::now();
-        let res = run_theta_v0_pi(&win, &config, 1.0, nav);
+        let res = run_theta_v0_pi(&win, &config, 1.0, nav).expect("C-19 research stats record");
         let dt = t0.elapsed().as_secs_f64();
         let n_real = res.trades.iter().filter(|t| !t.forced_close).count();
         let exp = prev.map(|(pn, pt)| {
@@ -573,6 +587,7 @@ fn pi_probe_phase2_candidate_starvation() {
 #[test]
 #[ignore = "Phase-2/3 解锁证明：delta vs slice 候选 → pi_theta_step n_orders；需 CL；--release O(N²) 12K"]
 fn pi_probe_delta_candidates_unlock_orders() {
+    print_probe_profile_record();
     use super::super::classifier::{self, bsp::BspPoint, Classification, LevelState};
     use super::super::parser;
     use super::super::strategy::coverage::{pi_theta_step, KThetaRiskGate, PiThetaWeights};
@@ -756,6 +771,7 @@ fn pi_probe_delta_candidates_unlock_orders() {
 #[test]
 #[ignore = "验证#2 硬指标：生产 run_theta_v0_pi ≥64K n_orders>0；需 CL；--release O(n²) ~数分钟"]
 fn pi_production_orders_at_64k() {
+    print_policy_records();
     let config = ThetaConfig::default();
     let ds = match data::load_by_symbol("CL", &config) {
         Ok(d) => d,
@@ -770,7 +786,7 @@ fn pi_production_orders_at_64k() {
     let nav = nav_for(&win, &config);
     eprintln!("\n========== 验证#2：生产 run_theta_v0_pi（确认-bar 部署）CL N={n} ==========");
     let t0 = std::time::Instant::now();
-    let res = run_theta_v0_pi(&win, &config, 1.0, nav);
+    let res = run_theta_v0_pi(&win, &config, 1.0, nav).expect("C-19 research stats record");
     let dt = t0.elapsed().as_secs_f64();
     let real = res.trades.iter().filter(|t| !t.forced_close).count();
     eprintln!(
@@ -807,6 +823,7 @@ fn pi_production_orders_at_64k() {
 #[test]
 #[ignore = "Phase-1 诊断：zero-orders 根因 (a)硬断流 vs (c)结构饥饿；需数据；--release"]
 fn pi_probe_zero_orders_root_cause() {
+    print_policy_records();
     let config = ThetaConfig::default();
     eprintln!("\n===== Phase-1 诊断：pi zero-orders 根因 (a)硬工程断流 vs (c)结构饥饿 =====");
 
@@ -866,7 +883,7 @@ fn pi_probe_zero_orders_root_cause() {
             let win = prefix(&oos, n);
             let nav = nav_for(&win, &config);
             let t0 = std::time::Instant::now();
-            let res = run_theta_v0_pi(&win, &config, 1.0, nav);
+            let res = run_theta_v0_pi(&win, &config, 1.0, nav).expect("C-19 research stats record");
             let dt = t0.elapsed().as_secs_f64();
             let n_real = res.trades.iter().filter(|t| !t.forced_close).count();
             eprintln!("{sym:<4} {n:>8} {dt:>8.1}s {:>7} {n_real:>9}", res.n_orders);

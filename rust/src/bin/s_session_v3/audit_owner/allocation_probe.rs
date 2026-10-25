@@ -72,6 +72,11 @@ unsafe impl GlobalAlloc for ObservedSystem {
 fn ledger() -> Ledger {
     LEDGER.with(Cell::get)
 }
+/// #1488 P2-4：本线程累计真实释放layout字节；许可普查据此核每张归还许可之前确有对象析构。
+#[allow(dead_code, reason = "#1488：native 测试辅助当前无调用方")]
+pub(crate) fn released_bytes() -> u64 {
+    LEDGER.try_with(Cell::get).map_or(0, |l| l.released)
+}
 /// 开窗线程的本账窗口；不得跨线程移交（`!Send`），读数不含其他线程的分配。
 pub(crate) struct Window {
     live: i64,

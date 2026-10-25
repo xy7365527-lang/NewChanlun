@@ -1,0 +1,25 @@
+{
+ "a": "/home/hanju/nc-remote/1488-accept/s5/d2",
+ "b": "/home/hanju/nc-remote/1488-accept/s5/n1b",
+ "A": {
+  "stored": 560037,
+  "only_here": 0,
+  "only_here_reachable_here": 0,
+  "only_here_tags": {},
+  "seq_top_count": 0,
+  "under_seq_tops": 0,
+  "only_here_under_seq_tops": 0,
+  "only_here_not_under_seq_tops_tags": {}
+ },
+ "B": {
+  "stored": 560037,
+  "only_here": 0,
+  "only_here_reachable_here": 0,
+  "only_here_tags": {},
+  "seq_top_count": 0,
+  "under_seq_tops": 0,
+  "only_here_under_seq_tops": 0,
+  "only_here_not_under_seq_tops_tags": {}
+ },
+ "common": 560037
+}
