@@ -1,0 +1,634 @@
+{
+  "checked_at": "2026-10-25T22:25:48.958756+00:00",
+  "projection_note": "本入仓副本保留逐项 HEAD、工作区状态、移除结果与后验；原始 ignored 文件列表和环境扫描留在仓外执行报告。",
+  "preflight": [
+    {
+      "id": "05",
+      "path": "/Volumes/AgentStorage/issue1488-fixed-radix-borrowfix-20261018",
+      "head": "aca4b41ece0410ef13d545c605420b36af02a02b",
+      "head_ok": true,
+      "status": "",
+      "error": ""
+    },
+    {
+      "id": "06",
+      "path": "/Volumes/AgentStorage/issue1488-r5-driver-six-20261018/worktree",
+      "head": "5d09fb0fbe0902fead5f58ee647a97540f6d8b34",
+      "head_ok": true,
+      "status": "",
+      "error": ""
+    },
+    {
+      "id": "08",
+      "path": "/Volumes/AgentStorage/issue1488-stageowner-check-20261018/ci-worktree",
+      "head": "6c412d1c73ef3d15d60565a591cf6512ff535020",
+      "head_ok": true,
+      "status": "",
+      "error": ""
+    },
+    {
+      "id": "15",
+      "path": "/Volumes/AgentStorage/issue1488-stageowner-check-20261018/source",
+      "head": "546b08740bfdb548488bbe652da59ce20712cc2c",
+      "head_ok": true,
+      "status": "",
+      "error": ""
+    },
+    {
+      "id": "19",
+      "path": "/Volumes/AgentStorage/issue1488-stageowner-check-r3-20261018/worktree",
+      "head": "a031c2d69c18856f026aecfd7d5cf7433f159f2b",
+      "head_ok": true,
+      "status": "",
+      "error": ""
+    },
+    {
+      "id": "20",
+      "path": "/Volumes/AgentStorage/issue1488-stageowner-check-r4-20261018/worktree",
+      "head": "d2bad3a6a706ee433e703047b9a25aaed11db36c",
+      "head_ok": true,
+      "status": "",
+      "error": ""
+    },
+    {
+      "id": "21",
+      "path": "/Volumes/AgentStorage/issue1488-stageowner-check-r5-20261018/worktree",
+      "head": "9b5ba88e58d75b0f22f27be7037121132629e7da",
+      "head_ok": true,
+      "status": "",
+      "error": ""
+    },
+    {
+      "id": "23",
+      "path": "/Volumes/AgentStorage/issue1488-successor-testfix-20261018",
+      "head": "ba0a7ce30396ce01977d30787d06a39e4d5657c1",
+      "head_ok": true,
+      "status": "",
+      "error": ""
+    },
+    {
+      "id": "24",
+      "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/accept-s1-checkout",
+      "head": "874b2cfbba23df6afcc22eba8407b9ee8ce30fa2",
+      "head_ok": true,
+      "status": "",
+      "error": ""
+    },
+    {
+      "id": "25",
+      "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/accept-s2-checkout",
+      "head": "34c3251910e2fae39e7db7315b5a21cb76b49e1a",
+      "head_ok": true,
+      "status": "",
+      "error": ""
+    },
+    {
+      "id": "26",
+      "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/accept-s4-checkout",
+      "head": "809710da97e9751068723b89ed35b1b6031e84cd",
+      "head_ok": true,
+      "status": "",
+      "error": ""
+    },
+    {
+      "id": "27",
+      "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/baseline-0080-checkout",
+      "head": "fd50898690d586d6b17e255d29b5a3c32632a64d",
+      "head_ok": true,
+      "status": "",
+      "error": ""
+    },
+    {
+      "id": "33",
+      "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/five-0067-checkout",
+      "head": "7765c998f8cc6bbc117d8292496574693ff1743d",
+      "head_ok": true,
+      "status": "",
+      "error": ""
+    },
+    {
+      "id": "34",
+      "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/mut-0057-checkout",
+      "head": "3fcd9a75ca2d285c3bfe82f33bb99f5e987052c7",
+      "head_ok": true,
+      "status": "",
+      "error": ""
+    },
+    {
+      "id": "35",
+      "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/receipt-assess-checkout",
+      "head": "b80fe41578f0a46e8a80b4a30255643912b6de07",
+      "head_ok": true,
+      "status": "",
+      "error": ""
+    },
+    {
+      "id": "36",
+      "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/rerun-0071-checkout",
+      "head": "5aff2d1b413a3a99d55528487626d78596ac8d93",
+      "head_ok": true,
+      "status": "",
+      "error": ""
+    },
+    {
+      "id": "37",
+      "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/review-p2-0093-20261023",
+      "head": "eeef8b9962f7a4ed329064c8ddd4e1519e343d05",
+      "head_ok": true,
+      "status": "",
+      "error": ""
+    },
+    {
+      "id": "38",
+      "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/review2-checkout",
+      "head": "f0aeaf2817c25427caea9cf1fe97319a1ad73b1e",
+      "head_ok": true,
+      "status": "",
+      "error": ""
+    },
+    {
+      "id": "39",
+      "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/runner-checkout",
+      "head": "7f0b61c46f3f4591b9ce92ce50a64d25d174fc7e",
+      "head_ok": true,
+      "status": "",
+      "error": ""
+    },
+    {
+      "id": "40",
+      "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/runner-review-checkout",
+      "head": "5a76881eee4235d2bd3ee147f0490dc2964475ec",
+      "head_ok": true,
+      "status": "",
+      "error": ""
+    },
+    {
+      "id": "42",
+      "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/uo-review-checkout",
+      "head": "327aa94c39328bec5cbd6e2cf5bf1510f703907d",
+      "head_ok": true,
+      "status": "",
+      "error": ""
+    }
+  ],
+  "results": [
+    {
+      "id": "05",
+      "path": "/Volumes/AgentStorage/issue1488-fixed-radix-borrowfix-20261018",
+      "result": "removed",
+      "rc": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "id": "06",
+      "path": "/Volumes/AgentStorage/issue1488-r5-driver-six-20261018/worktree",
+      "result": "removed",
+      "rc": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "id": "08",
+      "path": "/Volumes/AgentStorage/issue1488-stageowner-check-20261018/ci-worktree",
+      "result": "removed",
+      "rc": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "id": "15",
+      "path": "/Volumes/AgentStorage/issue1488-stageowner-check-20261018/source",
+      "result": "removed",
+      "rc": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "id": "19",
+      "path": "/Volumes/AgentStorage/issue1488-stageowner-check-r3-20261018/worktree",
+      "result": "removed",
+      "rc": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "id": "20",
+      "path": "/Volumes/AgentStorage/issue1488-stageowner-check-r4-20261018/worktree",
+      "result": "removed",
+      "rc": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "id": "21",
+      "path": "/Volumes/AgentStorage/issue1488-stageowner-check-r5-20261018/worktree",
+      "result": "removed",
+      "rc": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "id": "23",
+      "path": "/Volumes/AgentStorage/issue1488-successor-testfix-20261018",
+      "result": "removed",
+      "rc": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "id": "24",
+      "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/accept-s1-checkout",
+      "result": "removed",
+      "rc": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "id": "25",
+      "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/accept-s2-checkout",
+      "result": "removed",
+      "rc": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "id": "26",
+      "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/accept-s4-checkout",
+      "result": "removed",
+      "rc": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "id": "27",
+      "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/baseline-0080-checkout",
+      "result": "removed",
+      "rc": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "id": "33",
+      "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/five-0067-checkout",
+      "result": "removed",
+      "rc": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "id": "34",
+      "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/mut-0057-checkout",
+      "result": "removed",
+      "rc": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "id": "35",
+      "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/receipt-assess-checkout",
+      "result": "removed",
+      "rc": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "id": "36",
+      "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/rerun-0071-checkout",
+      "result": "removed",
+      "rc": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "id": "37",
+      "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/review-p2-0093-20261023",
+      "result": "removed",
+      "rc": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "id": "38",
+      "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/review2-checkout",
+      "result": "removed",
+      "rc": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "id": "39",
+      "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/runner-checkout",
+      "result": "removed",
+      "rc": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "id": "40",
+      "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/runner-review-checkout",
+      "result": "removed",
+      "rc": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "id": "42",
+      "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/uo-review-checkout",
+      "result": "removed",
+      "rc": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "postflight": [
+    {
+      "id": "05",
+      "path_exists": false,
+      "registered": false,
+      "archive_ref": true
+    },
+    {
+      "id": "06",
+      "path_exists": false,
+      "registered": false,
+      "archive_ref": true
+    },
+    {
+      "id": "08",
+      "path_exists": false,
+      "registered": false,
+      "archive_ref": true
+    },
+    {
+      "id": "15",
+      "path_exists": false,
+      "registered": false,
+      "archive_ref": true
+    },
+    {
+      "id": "19",
+      "path_exists": false,
+      "registered": false,
+      "archive_ref": true
+    },
+    {
+      "id": "20",
+      "path_exists": false,
+      "registered": false,
+      "archive_ref": true
+    },
+    {
+      "id": "21",
+      "path_exists": false,
+      "registered": false,
+      "archive_ref": true
+    },
+    {
+      "id": "23",
+      "path_exists": false,
+      "registered": false,
+      "archive_ref": true
+    },
+    {
+      "id": "24",
+      "path_exists": false,
+      "registered": false,
+      "archive_ref": true
+    },
+    {
+      "id": "25",
+      "path_exists": false,
+      "registered": false,
+      "archive_ref": true
+    },
+    {
+      "id": "26",
+      "path_exists": false,
+      "registered": false,
+      "archive_ref": true
+    },
+    {
+      "id": "27",
+      "path_exists": false,
+      "registered": false,
+      "archive_ref": true
+    },
+    {
+      "id": "33",
+      "path_exists": false,
+      "registered": false,
+      "archive_ref": true
+    },
+    {
+      "id": "34",
+      "path_exists": false,
+      "registered": false,
+      "archive_ref": true
+    },
+    {
+      "id": "35",
+      "path_exists": false,
+      "registered": false,
+      "archive_ref": true
+    },
+    {
+      "id": "36",
+      "path_exists": false,
+      "registered": false,
+      "archive_ref": true
+    },
+    {
+      "id": "37",
+      "path_exists": false,
+      "registered": false,
+      "archive_ref": true
+    },
+    {
+      "id": "38",
+      "path_exists": false,
+      "registered": false,
+      "archive_ref": true
+    },
+    {
+      "id": "39",
+      "path_exists": false,
+      "registered": false,
+      "archive_ref": true
+    },
+    {
+      "id": "40",
+      "path_exists": false,
+      "registered": false,
+      "archive_ref": true
+    },
+    {
+      "id": "42",
+      "path_exists": false,
+      "registered": false,
+      "archive_ref": true
+    }
+  ],
+  "id25_assets_cmp": true,
+  "target_handles": [],
+  "alternates": [
+    [
+      "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/budget-handoff-checkout/.git/objects/info/alternates",
+      [
+        "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/checkout/.git/objects"
+      ]
+    ],
+    [
+      "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/budget-handoff-fix-v2-checkout/.git/objects/info/alternates",
+      [
+        "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/budget-handoff-checkout/.git/objects"
+      ]
+    ],
+    [
+      "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/budget-handoff-review-checkout/.git/objects/info/alternates",
+      [
+        "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/budget-handoff-checkout/.git/objects"
+      ]
+    ],
+    [
+      "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/checkout/.git/objects/info/alternates",
+      [
+        "/Users/silencehan/Projects/NewChanlun/.git/objects"
+      ]
+    ],
+    [
+      "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/coverage-checkout/.git/objects/info/alternates",
+      [
+        "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/checkout/.git/objects"
+      ]
+    ]
+  ],
+  "configuration_matches": [
+    [
+      "05",
+      1,
+      [],
+      ""
+    ],
+    [
+      "06",
+      1,
+      [],
+      ""
+    ],
+    [
+      "08",
+      1,
+      [],
+      ""
+    ],
+    [
+      "15",
+      1,
+      [],
+      ""
+    ],
+    [
+      "19",
+      1,
+      [],
+      ""
+    ],
+    [
+      "20",
+      1,
+      [],
+      ""
+    ],
+    [
+      "21",
+      1,
+      [],
+      ""
+    ],
+    [
+      "23",
+      1,
+      [],
+      ""
+    ],
+    [
+      "24",
+      1,
+      [],
+      ""
+    ],
+    [
+      "25",
+      1,
+      [],
+      ""
+    ],
+    [
+      "26",
+      1,
+      [],
+      ""
+    ],
+    [
+      "27",
+      1,
+      [],
+      ""
+    ],
+    [
+      "33",
+      1,
+      [],
+      ""
+    ],
+    [
+      "34",
+      1,
+      [],
+      ""
+    ],
+    [
+      "35",
+      1,
+      [],
+      ""
+    ],
+    [
+      "36",
+      1,
+      [],
+      ""
+    ],
+    [
+      "37",
+      1,
+      [],
+      ""
+    ],
+    [
+      "38",
+      1,
+      [],
+      ""
+    ],
+    [
+      "39",
+      1,
+      [],
+      ""
+    ],
+    [
+      "40",
+      1,
+      [],
+      ""
+    ],
+    [
+      "42",
+      1,
+      [],
+      ""
+    ]
+  ]
+}
