@@ -1,5 +1,5 @@
 {
-  "id": "#1605/wverify-probe-profile",
+  "id": "#1605/no-floor-probe-profile",
   "version": 1,
   "kind": "named_probe_profile",
   "ticket": "#1605 无额外 NAV 下限的真实探针/回放资金记录",

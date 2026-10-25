@@ -25,8 +25,8 @@ use super::super::classifier::divergence::ForceStateA5;
 use super::super::config::{ThetaConfig, ThetaDirPreset};
 use super::super::strategy::interp::ExitType;
 use super::l3_delta_r_alpha::build_mu_from_bars;
-use super::mu_estimator::{MuClass, ResidualTrade, UClass};
 use super::l3_probe_profile::active_no_floor_probe_profile;
+use super::mu_estimator::{MuClass, ResidualTrade, UClass};
 use super::prereg_windows::{OOS_START, PREREG_WINDOWS};
 use super::research_stats::{active_research_stats, ResearchStats};
 use super::{data, decontam, perm_test};
@@ -1177,12 +1177,15 @@ fn policy_backtest() {
         let nav = wverify_nav(&test_ds, &base_cfg);
         let years = test_ds.bars.len() as f64 / (365.25 * 24.0 * 60.0);
 
-        let chi_r = run_theta_v0_pi_chi(&test_ds, &chi_cfg, years, nav, &est, false).expect("C-19 research stats record");
-        let base_r = run_theta_v0_pi(&test_ds, &base_cfg, years, nav).expect("C-19 research stats record");
+        let chi_r = run_theta_v0_pi_chi(&test_ds, &chi_cfg, years, nav, &est, false)
+            .expect("C-19 research stats record");
+        let base_r =
+            run_theta_v0_pi(&test_ds, &base_cfg, years, nav).expect("C-19 research stats record");
         // f3-C 多重赋格反事实：剔 ReverseOpen 声部（同 no-χ 口径，margin=None 默认），测对冲增量价值。
         let mut sd_off_cfg = base_cfg.clone();
         sd_off_cfg.voice.disable_reverse_open = true;
-        let sd_off_r = run_theta_v0_pi(&test_ds, &sd_off_cfg, years, nav).expect("C-19 research stats record");
+        let sd_off_r =
+            run_theta_v0_pi(&test_ds, &sd_off_cfg, years, nav).expect("C-19 research stats record");
         let sum = |v: &[f64]| v.iter().sum::<f64>();
         let (chi_pnl, base_pnl, sd_off_pnl) = (
             sum(&chi_r.trade_pnls_with_forced),
@@ -1345,10 +1348,14 @@ fn q4_fullpi_policy() {
             let (est_fullpi, _) = build_mu_from_bars(&train.bars, &fullpi_tr, 0);
             let (est_plain, _) = build_mu_from_bars(&train.bars, &plain_cfg, 0);
 
-            let arm0 = run_theta_v0_pi(&test, &plain_cfg, years, nav_te).expect("C-19 research stats record");
-            let arm1 = run_theta_v0_pi_chi(&test, &fullpi_te, years, nav_te, &est_fullpi, false).expect("C-19 research stats record");
-            let arm2 = run_theta_v0_pi_chi(&test, &fullpi_te, years, nav_te, &est_fullpi, true).expect("C-19 research stats record");
-            let arm3 = run_theta_v0_pi_chi(&test, &mk_chi(false), years, nav_te, &est_plain, false).expect("C-19 research stats record");
+            let arm0 = run_theta_v0_pi(&test, &plain_cfg, years, nav_te)
+                .expect("C-19 research stats record");
+            let arm1 = run_theta_v0_pi_chi(&test, &fullpi_te, years, nav_te, &est_fullpi, false)
+                .expect("C-19 research stats record");
+            let arm2 = run_theta_v0_pi_chi(&test, &fullpi_te, years, nav_te, &est_fullpi, true)
+                .expect("C-19 research stats record");
+            let arm3 = run_theta_v0_pi_chi(&test, &mk_chi(false), years, nav_te, &est_plain, false)
+                .expect("C-19 research stats record");
 
             report.push_str(&format!(
                 "## {sym} {tag}（train {tr_lo}..{tr_hi}, test {te_lo}..{te_hi}, μ类数 fullpi={}/plain={}）\n\n\
@@ -1636,7 +1643,8 @@ fn m8_e2e_all_systems_oos() {
         super::super::strategy::coverage::cap_binding_probe_reset();
         super::super::strategy::coverage::cap_binding_attribution_reset(); // #628 阶段一归因
         super::super::strategy::coverage::ancok_probe_reset(); // #446 活动集同 ElementId 双计逐窗清零
-        let r = run_theta_v0_pi_overlay(&test, &cfg, years, nav_te).expect("C-19 research stats record");
+        let r = run_theta_v0_pi_overlay(&test, &cfg, years, nav_te)
+            .expect("C-19 research stats record");
         super::admission::t5a_chain_dump::close();
         // ★#714 MED-3 订正（影子评审 shadow-642-review-20260729.md）：本行此前是逐窗硬
         // `assert_eq!`，但 #512（`coverage/step.rs:505-528`）已把唯一性检查前移到 `next_idx`
@@ -2039,8 +2047,10 @@ fn issue755_level_cap_on_off_btc20k_diff() {
         "对照配置须满足 Σw_ℓ≤1（#351 MED 机器断言）"
     );
 
-    let r_off = run_theta_v0_pi_overlay(&test, &cfg_off, years, nav_te).expect("C-19 research stats record");
-    let r_on = run_theta_v0_pi_overlay(&test, &cfg_on, years, nav_te).expect("C-19 research stats record");
+    let r_off = run_theta_v0_pi_overlay(&test, &cfg_off, years, nav_te)
+        .expect("C-19 research stats record");
+    let r_on =
+        run_theta_v0_pi_overlay(&test, &cfg_on, years, nav_te).expect("C-19 research stats record");
 
     let final_equity_off = r_off.net_result.equity_curve.last().copied().unwrap_or(0.0);
     let final_equity_on = r_on.net_result.equity_curve.last().copied().unwrap_or(0.0);
@@ -2199,7 +2209,8 @@ fn flip_guard_wf8_onebar_prune_replay() {
     ));
     super::opsem_dump::OPSEM_DUMP_DIR_OVERRIDE.with(|c| *c.borrow_mut() = Some(dump_dir.clone()));
     super::admission::VOICE_EXEC_OVERRIDE.with(|c| c.set(Some(true)));
-    let _r = run_theta_v0_pi_overlay(&test, &cfg, years, nav_te).expect("C-19 research stats record");
+    let _r =
+        run_theta_v0_pi_overlay(&test, &cfg, years, nav_te).expect("C-19 research stats record");
     super::admission::VOICE_EXEC_OVERRIDE.with(|c| c.set(None));
     super::opsem_dump::OPSEM_DUMP_DIR_OVERRIDE.with(|c| *c.borrow_mut() = None);
 
@@ -2378,7 +2389,8 @@ fn center_lifecycle_wf8_events_replay() {
     ));
     super::opsem_dump::OPSEM_DUMP_DIR_OVERRIDE.with(|c| *c.borrow_mut() = Some(dump_dir.clone()));
     super::admission::VOICE_EXEC_OVERRIDE.with(|c| c.set(Some(true)));
-    let _r = run_theta_v0_pi_overlay(&test, &cfg, years, nav_te).expect("C-19 research stats record");
+    let _r =
+        run_theta_v0_pi_overlay(&test, &cfg, years, nav_te).expect("C-19 research stats record");
     super::admission::VOICE_EXEC_OVERRIDE.with(|c| c.set(None));
     super::opsem_dump::OPSEM_DUMP_DIR_OVERRIDE.with(|c| *c.borrow_mut() = None);
 
@@ -2708,7 +2720,8 @@ fn otherwise_domain_wf8_grade_buckets() {
         crate::theta_v0::env_registry::THETA_OTHERWISE_DOMAIN_SIDECAR,
         "1",
     );
-    let r = run_theta_v0_pi_overlay(&test, &cfg, years, nav_te).expect("C-19 research stats record");
+    let r =
+        run_theta_v0_pi_overlay(&test, &cfg, years, nav_te).expect("C-19 research stats record");
     std::env::remove_var(crate::theta_v0::env_registry::THETA_OTHERWISE_DOMAIN_SIDECAR);
     std::env::remove_var(crate::theta_v0::env_registry::THETA_CENTER_OSCILLATION);
     super::admission::VOICE_EXEC_OVERRIDE.with(|c| c.set(None));

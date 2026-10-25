@@ -29,7 +29,11 @@ impl ProbeProfile {
             ("missing_first_px_fallback", self.missing_first_px_fallback),
         ] {
             if !value.is_finite() || value < 0.0 || (name != "nav_floor" && value == 0.0) {
-                return Err(invalid(self.record.id, name, "须为有限正数；nav_floor 允许 0"));
+                return Err(invalid(
+                    self.record.id,
+                    name,
+                    "须为有限正数；nav_floor 允许 0",
+                ));
             }
         }
         Ok(())
@@ -51,10 +55,7 @@ impl ProbeProfile {
     }
 }
 
-fn parse_probe_profile(
-    id: &'static str,
-    text: Option<&str>,
-) -> Result<ProbeProfile, PolicyError> {
+fn parse_probe_profile(id: &'static str, text: Option<&str>) -> Result<ProbeProfile, PolicyError> {
     let (record, fields) = parse_header(id, text)?;
     read_str(id, &fields, "supersedes")?;
     read_str(id, &fields, "authorizer")?;
@@ -100,7 +101,11 @@ mod tests {
         let profile = active_l3_probe_profile().unwrap();
         assert_eq!(profile.record.label(), "#1605/l3-probe-profile/v1");
         assert_eq!(
-            (profile.nav_floor, profile.first_px_multiplier, profile.missing_first_px_fallback),
+            (
+                profile.nav_floor,
+                profile.first_px_multiplier,
+                profile.missing_first_px_fallback
+            ),
             (1.0e6, 1000.0, 1.0)
         );
     }
@@ -123,13 +128,19 @@ mod tests {
         let first_px = 12_345.0 * config.tick.tick_size;
         let l3 = active_l3_probe_profile().unwrap();
         let no_floor = active_no_floor_probe_profile().unwrap();
-        assert_eq!(l3.nav_for_bars(&bars, &config), (first_px * 1000.0).max(1.0e6));
+        assert_eq!(
+            l3.nav_for_bars(&bars, &config),
+            (first_px * 1000.0).max(1.0e6)
+        );
         assert_eq!(no_floor.nav_for_bars(&bars, &config), first_px * 1000.0);
         assert_eq!(no_floor.record.label(), "#1605/no-floor-probe-profile/v1");
 
         let mut changed = l3;
         changed.first_px_multiplier = 500.0;
-        assert_ne!(changed.nav_for_bars(&bars, &config), l3.nav_for_bars(&bars, &config));
+        assert_ne!(
+            changed.nav_for_bars(&bars, &config),
+            l3.nav_for_bars(&bars, &config)
+        );
         let missing = active_no_floor_probe_profile().unwrap();
         assert_eq!(missing.nav_for_bars(&[], &config), 1000.0);
     }
@@ -138,7 +149,9 @@ mod tests {
     fn missing_and_invalid_profile_are_typed_errors() {
         assert_eq!(
             parse_l3_probe_profile(None),
-            Err(PolicyError::RecordMissing { id: L3_PROBE_PROFILE_ID })
+            Err(PolicyError::RecordMissing {
+                id: L3_PROBE_PROFILE_ID
+            })
         );
         let missing = mutate_record(|root| {
             root["fields"].as_object_mut().unwrap().remove("nav_floor");
@@ -147,7 +160,8 @@ mod tests {
             parse_l3_probe_profile(Some(&missing)),
             Err(PolicyError::AwaitingPolicy { field, .. }) if field == "nav_floor"
         ));
-        let invalid = mutate_record(|root| root["fields"]["first_px_multiplier"]["value"] = 0.into());
+        let invalid =
+            mutate_record(|root| root["fields"]["first_px_multiplier"]["value"] = 0.into());
         assert!(matches!(
             parse_l3_probe_profile(Some(&invalid)),
             Err(PolicyError::Invalid { field, .. }) if field == "first_px_multiplier"

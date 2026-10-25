@@ -65,7 +65,8 @@ fn main() -> std::process::ExitCode {
     let first_px = dataset.bars[0].close as f64 * config.tick.tick_size;
     let initial_nav = (first_px.abs() * 10_000.0).max(1.0e6);
 
-    let r = run_theta_v0_pi_overlay(&dataset, &config, years, initial_nav).expect("C-19 research stats record");
+    let r = run_theta_v0_pi_overlay(&dataset, &config, years, initial_nav)
+        .expect("C-19 research stats record");
 
     println!("=== M5 声部执行层跑批（run_theta_v0_pi_overlay）===");
     println!("品种            : {}", r.symbol);

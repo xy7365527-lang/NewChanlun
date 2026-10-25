@@ -8,8 +8,8 @@ use std::fmt;
 use serde_json::Value;
 
 use super::super::policy_records::{
-    invalid, parse_header, read_str, read_u32, PolicyError, PolicyRef,
-    ACTIVE_EVIDENCE_GATE_JSON, EVIDENCE_GATE_ID,
+    invalid, parse_header, read_str, read_u32, PolicyError, PolicyRef, ACTIVE_EVIDENCE_GATE_JSON,
+    EVIDENCE_GATE_ID,
 };
 
 /// block_unit 枚举：日历月（UTC）或固定 1m bar 数。
@@ -62,7 +62,10 @@ impl EvidenceGate {
         } else {
             let p = 1.0 - conf;
             if p >= 0.5 || p <= 0.0 {
-                unreachable!("z_alpha: p={} 越界（confidence={}），应在 validate() 拦截", p, conf);
+                unreachable!(
+                    "z_alpha: p={} 越界（confidence={}），应在 validate() 拦截",
+                    p, conf
+                );
             }
             let t = (-2.0 * p.ln()).sqrt();
             let c0 = 2.515517;
@@ -193,7 +196,10 @@ mod tests {
         assert_eq!(gate.record.label(), "#1677/evidence-gate/v1");
         assert_eq!(gate.confidence, (95, 100));
         assert_eq!(gate.block_unit, BlockUnit::CalendarMonthUTC);
-        assert_eq!((gate.min_events, gate.min_blocks, gate.min_windows), (30, 12, 3));
+        assert_eq!(
+            (gate.min_events, gate.min_blocks, gate.min_windows),
+            (30, 12, 3)
+        );
         assert_eq!(gate.min_coverage, (1, 2));
         assert!((gate.z_alpha() - 1.645).abs() < 1e-3);
     }
@@ -209,7 +215,9 @@ mod tests {
         );
         assert_eq!(
             parse_evidence_gate(None),
-            Err(PolicyError::RecordMissing { id: EVIDENCE_GATE_ID })
+            Err(PolicyError::RecordMissing {
+                id: EVIDENCE_GATE_ID
+            })
         );
         let missing = mutate_record(|root| {
             root["fields"].as_object_mut().unwrap().remove("confidence");

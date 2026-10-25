@@ -70,12 +70,12 @@ use super::super::types::{Bar, BspBits};
 use super::data::{self, Dataset};
 use super::incremental::IncrementalClassifier;
 use super::l3_probe_profile::{active_l3_probe_profile, ProbeProfile};
-use super::research_stats::{active_research_stats, ResearchStats};
 use super::mu_estimator::{
     chi_dimension_three_return, h_bucket, marginal_return, MuClass, MuEstimator, MuObservation,
     PositionState, ResidualTrade,
 };
 use super::prereg_windows::PREREG_WINDOWS;
+use super::research_stats::{active_research_stats, ResearchStats};
 use super::runner::run_theta_v0_pi_chi;
 use super::selector::{z_of_candidate, ZExt};
 use std::rc::Rc;
@@ -335,7 +335,6 @@ pub fn build_mu_from_bars(
     (est, records)
 }
 
-
 /// [`build_mu_from_bars`] 的 Dataset 包装（walk-forward 调用点复用，保原 `(est, n_obs)` 签名）。
 /// `n_obs` = 兑现残差记录数（诊断信号密度；调用方均丢弃此值）。单窗 train ⟹ time_block_base=0。
 pub(super) fn build_walk_forward_mu(train: &Dataset, config: &ThetaConfig) -> (MuEstimator, usize) {
@@ -554,15 +553,23 @@ fn delta_r_alpha_multi_symbol() {
         // χ≡1 baseline（chi_theta=None）。
         let mut base_cfg = config.clone();
         base_cfg.risk.chi_theta = None;
-        let base = run_theta_v0_pi_chi(&test, &base_cfg, years, nav, &est, true).expect("C-19 research stats record");
+        let base = run_theta_v0_pi_chi(&test, &base_cfg, years, nav, &est, true)
+            .expect("C-19 research stats record");
 
         // χ 过滤（chi_theta=Some(θ)，treat_empty_as_pass=false=最诚实：无 μ 证据不交易，codex Q3）。
         let mut chi_cfg = config.clone();
         chi_cfg.risk.chi_theta = Some(theta);
-        let chi = run_theta_v0_pi_chi(&test, &chi_cfg, years, nav, &est, false).expect("C-19 research stats record");
+        let chi = run_theta_v0_pi_chi(&test, &chi_cfg, years, nav, &est, false)
+            .expect("C-19 research stats record");
 
         // ΔR 序列统计（delta-r-audit P0 修复：绝对增量配对差 = ΔR/nav0，用 equity_curve 不用百分比）。
-        let st = delta_r_stats(&base.equity_curve, &chi.equity_curve, nav, bars_per_year, &stats);
+        let st = delta_r_stats(
+            &base.equity_curve,
+            &chi.equity_curve,
+            nav,
+            bars_per_year,
+            &stats,
+        );
 
         // 分层诊断（强制；(a)/(c)/(d) 严禁谎报否证 (b) 或确认 (c')）。
         // ★(d) χ 退化空仓 guard（实证发现 + codex Q3）：chi.n_orders==0 ∧ base.n_orders>0 ⟹
@@ -839,17 +846,25 @@ fn crossfit_l2() {
 
             let mut base_cfg = config.clone();
             base_cfg.risk.chi_theta = None;
-            let base = run_theta_v0_pi_chi(&held, &base_cfg, years, nav, &est, true).expect("C-19 research stats record");
+            let base = run_theta_v0_pi_chi(&held, &base_cfg, years, nav, &est, true)
+                .expect("C-19 research stats record");
 
             let mut chi_cfg = config.clone();
             chi_cfg.risk.chi_theta = Some(theta);
-            let chi = run_theta_v0_pi_chi(&held, &chi_cfg, years, nav, &est, false).expect("C-19 research stats record");
+            let chi = run_theta_v0_pi_chi(&held, &chi_cfg, years, nav, &est, false)
+                .expect("C-19 research stats record");
 
             // 退化空仓 fold（χ 全滤）= 弃权 PnL 非选择 alpha（161号），不计入 cross-fitted ΔR。
             if chi.n_orders == 0 && base.n_orders > 0 {
                 continue;
             }
-            let st = delta_r_stats(&base.equity_curve, &chi.equity_curve, nav, bars_per_year, &stats);
+            let st = delta_r_stats(
+                &base.equity_curve,
+                &chi.equity_curve,
+                nav,
+                bars_per_year,
+                &stats,
+            );
             if st.chi_changed_trades {
                 chi_changed_any = true;
                 // 逐 bar ΔR/nav0 拼进 cf_dr（与 delta_r_stats 内部绝对增量配对差口径一致）。
@@ -890,7 +905,11 @@ fn crossfit_l2() {
                     n_le_0 += 1;
                 }
             }
-            (mean, sharpe, n_le_0 as f64 / stats.delta_r_n_resample as f64)
+            (
+                mean,
+                sharpe,
+                n_le_0 as f64 / stats.delta_r_n_resample as f64,
+            )
         } else {
             (0.0, 0.0, 1.0)
         };
@@ -1014,11 +1033,7 @@ fn rebuild_cost_series(res: &super::runner::RunResult, n_bars: usize, nav0: f64)
 ///
 /// 鞅守卫用双边（H0:E[ΔGross]=0），区别于 [`delta_r_stats`] 的单边（H0:mean≤0，净 alpha 方向性）。
 /// 双边 p = `2·min(P(boot≤0), P(boot≥0))`（block bootstrap 重采样均值分布，seed 冻结，BLOCK=20）。
-fn gross_stats(
-    gross: &[f64],
-    bars_per_year: f64,
-    stats: &ResearchStats,
-) -> (f64, f64, f64) {
+fn gross_stats(gross: &[f64], bars_per_year: f64, stats: &ResearchStats) -> (f64, f64, f64) {
     let n = gross.len();
     if n < 2 {
         return (0.0, 0.0, 1.0);
@@ -1195,13 +1210,21 @@ fn martingale_impossibility_guard() {
 
         let mut base_cfg = config.clone();
         base_cfg.risk.chi_theta = None;
-        let base = run_theta_v0_pi_chi(&test, &base_cfg, years, nav, &est, true).expect("C-19 research stats record");
+        let base = run_theta_v0_pi_chi(&test, &base_cfg, years, nav, &est, true)
+            .expect("C-19 research stats record");
 
         let mut chi_cfg = config.clone();
         chi_cfg.risk.chi_theta = Some(theta);
-        let chi = run_theta_v0_pi_chi(&test, &chi_cfg, years, nav, &est, false).expect("C-19 research stats record");
+        let chi = run_theta_v0_pi_chi(&test, &chi_cfg, years, nav, &est, false)
+            .expect("C-19 research stats record");
 
-        let st = delta_r_stats(&base.equity_curve, &chi.equity_curve, nav, bars_per_year, &stats);
+        let st = delta_r_stats(
+            &base.equity_curve,
+            &chi.equity_curve,
+            nav,
+            bars_per_year,
+            &stats,
+        );
 
         // 毛收益剥离（codex 裁决 + delta-r-audit P0 修复）：ΔGross_t = ΔR_t + ΔC_t。净配对差用
         // **绝对增量** (E^χ_t−E^χ_{t−1})−(E^0_t−E^0_{t−1})（含成本，成本已扣进 equity，口径同
@@ -1217,7 +1240,8 @@ fn martingale_impossibility_guard() {
                 net + (cost_chi[i] - cost_base[i])
             })
             .collect();
-        let (gross_mean, gross_sharpe, gross_two_sided_p) = gross_stats(&gross, bars_per_year, &stats);
+        let (gross_mean, gross_sharpe, gross_two_sided_p) =
+            gross_stats(&gross, bars_per_year, &stats);
 
         // 跨种子符号检验输入（仅 χ 真改交易集的有效种子计入——χ 未改交易集时 ΔGross≡0，符号无意义）。
         if st.chi_changed_trades {
@@ -1407,22 +1431,37 @@ fn lcb_vs_naive_l2() {
         // χ≡1 baseline（chi_theta=None，与 z_alpha 无关——baseline 不过滤）。
         let mut base_cfg = config.clone();
         base_cfg.risk.chi_theta = None;
-        let base = run_theta_v0_pi_chi(&test, &base_cfg, years, nav, &est, true).expect("C-19 research stats record");
+        let base = run_theta_v0_pi_chi(&test, &base_cfg, years, nav, &est, true)
+            .expect("C-19 research stats record");
 
         // 裸 μ selector（chi_z_alpha=0 ⟹ LCB=mean ⟹ 退化裸 μ 门；treat_empty=false 最诚实）。
         let mut naive_cfg = config.clone();
         naive_cfg.risk.chi_theta = Some(theta);
         naive_cfg.risk.chi_z_alpha = 0.0;
-        let naive = run_theta_v0_pi_chi(&test, &naive_cfg, years, nav, &est, false).expect("C-19 research stats record");
+        let naive = run_theta_v0_pi_chi(&test, &naive_cfg, years, nav, &est, false)
+            .expect("C-19 research stats record");
 
         // LCB selector（chi_z_alpha=1.645 ⟹ 准入用 LCB=mean−z_α·std/√n）。
         let mut lcb_cfg = config.clone();
         lcb_cfg.risk.chi_theta = Some(theta);
         lcb_cfg.risk.chi_z_alpha = z_alpha_lcb;
-        let lcb = run_theta_v0_pi_chi(&test, &lcb_cfg, years, nav, &est, false).expect("C-19 research stats record");
+        let lcb = run_theta_v0_pi_chi(&test, &lcb_cfg, years, nav, &est, false)
+            .expect("C-19 research stats record");
 
-        let st_naive = delta_r_stats(&base.equity_curve, &naive.equity_curve, nav, bars_per_year, &stats);
-        let st_lcb = delta_r_stats(&base.equity_curve, &lcb.equity_curve, nav, bars_per_year, &stats);
+        let st_naive = delta_r_stats(
+            &base.equity_curve,
+            &naive.equity_curve,
+            nav,
+            bars_per_year,
+            &stats,
+        );
+        let st_lcb = delta_r_stats(
+            &base.equity_curve,
+            &lcb.equity_curve,
+            nav,
+            bars_per_year,
+            &stats,
+        );
 
         // 退化（χ 全滤空仓）判定（与 multi_symbol (d) 同口径）——先于 src_b 归因，
         // 因 src_b 的 alpha 论证须排除退化品种（codex 攻击点1+4）。
@@ -1682,27 +1721,49 @@ fn three_way_l2() {
 
         let mut base_cfg = config.clone();
         base_cfg.risk.chi_theta = None;
-        let base = run_theta_v0_pi_chi(&test, &base_cfg, years, nav, &est, true).expect("C-19 research stats record");
+        let base = run_theta_v0_pi_chi(&test, &base_cfg, years, nav, &est, true)
+            .expect("C-19 research stats record");
 
         let mut naive_cfg = config.clone();
         naive_cfg.risk.chi_theta = Some(theta);
         naive_cfg.risk.chi_z_alpha = 0.0;
-        let naive = run_theta_v0_pi_chi(&test, &naive_cfg, years, nav, &est, false).expect("C-19 research stats record");
+        let naive = run_theta_v0_pi_chi(&test, &naive_cfg, years, nav, &est, false)
+            .expect("C-19 research stats record");
 
         let mut lcb_cfg = config.clone();
         lcb_cfg.risk.chi_theta = Some(theta);
         lcb_cfg.risk.chi_z_alpha = z_alpha_lcb;
-        let lcb = run_theta_v0_pi_chi(&test, &lcb_cfg, years, nav, &est, false).expect("C-19 research stats record");
+        let lcb = run_theta_v0_pi_chi(&test, &lcb_cfg, years, nav, &est, false)
+            .expect("C-19 research stats record");
 
         // shrinkage：裸门（z_alpha=0）但喂收缩 est ⟹ mu_shrink>θ 准入（解 C）。
         let mut shrink_cfg = config.clone();
         shrink_cfg.risk.chi_theta = Some(theta);
         shrink_cfg.risk.chi_z_alpha = 0.0;
-        let shrink = run_theta_v0_pi_chi(&test, &shrink_cfg, years, nav, &est_shrunk, false).expect("C-19 research stats record");
+        let shrink = run_theta_v0_pi_chi(&test, &shrink_cfg, years, nav, &est_shrunk, false)
+            .expect("C-19 research stats record");
 
-        let st_naive = delta_r_stats(&base.equity_curve, &naive.equity_curve, nav, bars_per_year, &stats);
-        let st_lcb = delta_r_stats(&base.equity_curve, &lcb.equity_curve, nav, bars_per_year, &stats);
-        let st_shrink = delta_r_stats(&base.equity_curve, &shrink.equity_curve, nav, bars_per_year, &stats);
+        let st_naive = delta_r_stats(
+            &base.equity_curve,
+            &naive.equity_curve,
+            nav,
+            bars_per_year,
+            &stats,
+        );
+        let st_lcb = delta_r_stats(
+            &base.equity_curve,
+            &lcb.equity_curve,
+            nav,
+            bars_per_year,
+            &stats,
+        );
+        let st_shrink = delta_r_stats(
+            &base.equity_curve,
+            &shrink.equity_curve,
+            nav,
+            bars_per_year,
+            &stats,
+        );
 
         let degen_naive = naive.n_orders == 0 && base.n_orders > 0;
         let degen_lcb = lcb.n_orders == 0 && base.n_orders > 0;
@@ -2249,8 +2310,14 @@ fn pooling_icc_multi_symbol() {
     } else {
         icc_pool.iter().sum::<f64>() / icc_pool.len() as f64
     };
-    let n_low_icc = icc_pool.iter().filter(|&&v| v < stats.icc_low_threshold).count(); // 同质阈（ICC<0.3 弱品种相关）
-    let n_high_icc = icc_pool.iter().filter(|&&v| v > stats.icc_high_threshold).count(); // 异质阈（ICC>0.7 强品种相关）
+    let n_low_icc = icc_pool
+        .iter()
+        .filter(|&&v| v < stats.icc_low_threshold)
+        .count(); // 同质阈（ICC<0.3 弱品种相关）
+    let n_high_icc = icc_pool
+        .iter()
+        .filter(|&&v| v > stats.icc_high_threshold)
+        .count(); // 异质阈（ICC>0.7 强品种相关）
     let mut terr_sorted = transfer_errs.clone();
     let terr_median = median(&mut terr_sorted);
 
@@ -2497,6 +2564,32 @@ mod tests {
             "恒正 ΔR ⟹ bootstrap p<0.05（拒绝 H0:ΔR≤0），实得 {}",
             st.boot_pvalue
         );
+    }
+
+    /// ΔR 与跨品种功效门的真实消费域：重采样参数和显著性门必须改变实际读数。
+    #[test]
+    fn research_stats_reach_delta_r_bootstrap_and_sign_test_power() {
+        let active = research_stats();
+        let base = vec![1.0; 300];
+        let chi: Vec<f64> = (0..300).map(|i| 1.0 + 0.001 * i as f64).collect();
+        let baseline = delta_r_stats(&base, &chi, 1.0e6, 252.0, &active);
+        let mut changed = active.clone();
+        changed.delta_r_n_resample = 37;
+        changed.delta_r_block_len = 7;
+        let resampled = delta_r_stats(&base, &chi, 1.0e6, 252.0, &changed);
+        assert_eq!(baseline.mean, resampled.mean, "重采样不得改变原始 ΔR 均值");
+        assert_ne!(
+            baseline.boot_pvalue, resampled.boot_pvalue,
+            "恢复固定块长/重采样数会使此负控变红"
+        );
+
+        assert_eq!(
+            min_sign_test_power(&active),
+            5,
+            "v1 0.05 门下全正至少 5 个品种"
+        );
+        changed.significance_p_threshold = 0.01;
+        assert_eq!(min_sign_test_power(&changed), 7);
     }
 
     /// ΔR 序列统计：χ 权益增量恒小于 baseline ⟹ mean(ΔR)<0 ∧ boot p≈1（否证能力——不冒充正 alpha）。

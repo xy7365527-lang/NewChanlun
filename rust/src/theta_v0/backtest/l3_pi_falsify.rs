@@ -42,8 +42,8 @@ use super::super::config::ThetaConfig;
 use super::data::{self, Dataset};
 use super::l3_probe_profile::active_l3_probe_profile;
 use super::metrics;
-use super::research_stats::active_research_stats;
 use super::prereg_windows::PREREG_WINDOWS;
+use super::research_stats::active_research_stats;
 use super::runner::run_theta_v0_pi;
 
 /// OOS 窗年跨（与 l3_fullwindow 同口径：朴素序数日差 / 365.25）。
@@ -80,9 +80,9 @@ fn l3_pi_falsify_multi_symbol_significance() {
     let mut baseline_config = config.clone();
     baseline_config.voice.max_depth = 1;
 
-                                         // 可行子集窗 bar 数（全窗 O(n²) 不可行，探针外推单品种全窗≈75h）。
-                                         // 32K：诊断实测 CL 32K≈49s / BTC 32K≈66s（且 CL/BTC 至 64K 仍 0 单）⟹ 8 品种 ~7min 可控；
-                                         // 显式有效域边界（非全窗结论）。诊断坐实零订单在 16K–64K 鲁棒，32K 为可行子集代表窗。
+    // 可行子集窗 bar 数（全窗 O(n²) 不可行，探针外推单品种全窗≈75h）。
+    // 32K：诊断实测 CL 32K≈49s / BTC 32K≈66s（且 CL/BTC 至 64K 仍 0 单）⟹ 8 品种 ~7min 可控；
+    // 显式有效域边界（非全窗结论）。诊断坐实零订单在 16K–64K 鲁棒，32K 为可行子集代表窗。
     const MAX_BARS_PI: usize = 32_000;
 
     eprintln!(
@@ -155,7 +155,8 @@ fn l3_pi_falsify_multi_symbol_significance() {
 
         // ②风险调整 depth=0 baseline（仅 strategy 产订单时跑——零订单 baseline 必零，超额退化）。
         let (d_sharpe, d_calmar, base_sharpe) = if res.n_orders > 0 {
-            let base = run_theta_v0_pi(&oos, &baseline_config, years, nav).expect("C-19 research stats record");
+            let base = run_theta_v0_pi(&oos, &baseline_config, years, nav)
+                .expect("C-19 research stats record");
             (
                 res.metrics.sharpe - base.metrics.sharpe,
                 res.metrics.calmar - base.metrics.calmar,
@@ -181,7 +182,8 @@ fn l3_pi_falsify_multi_symbol_significance() {
             res.fee_rate
                 .expect(super::treasury::SCALAR_COST_RATE_UNDEFINED),
             res.theta_return_mtm,
-        ).expect("C-19 research stats record");
+        )
+        .expect("C-19 research stats record");
         if sig.theta_beats_random {
             n_beats_random += 1;
         }

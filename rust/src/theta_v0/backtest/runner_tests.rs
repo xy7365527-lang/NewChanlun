@@ -210,13 +210,18 @@ fn research_stats_record_failure_stops_real_runner_and_recovery_is_bit_exact() {
     let ds = Dataset {
         symbol: "TEST".to_string(),
         bars: (0..8).map(|i| mk_bar(i, 1000 + i as i64, false)).collect(),
-        dates: (0..8).map(|i| format!("2024-01-0{} 00:00:00", i + 1)).collect(),
+        dates: (0..8)
+            .map(|i| format!("2024-01-0{} 00:00:00", i + 1))
+            .collect(),
         bar_seconds: 60,
     };
     let active = crate::theta_v0::policy_records::ACTIVE_RESEARCH_STATS_JSON;
     let baseline = run_theta_v0_pi_with_record(&ds, &config, 1.0, 1.0e6, Some(active))
         .expect("有效记录应到达真实 runner");
-    assert_eq!(baseline.metrics.research_stats.label(), "#1605/research-stats/v1");
+    assert_eq!(
+        baseline.metrics.research_stats.label(),
+        "#1605/research-stats/v1"
+    );
 
     let mut missing: serde_json::Value = serde_json::from_str(active).unwrap();
     missing["fields"].as_object_mut().unwrap().remove("z_alpha");
@@ -5073,7 +5078,8 @@ fn voice_exec_env_gate_off_bitexact_on_voice_readings() {
     let baseline = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6).expect("C-19 research stats record");
     // (1) gate 关 ⟹ 逐字节不变（env 未设语义，线程局部注入 false 显式锚定）。
     VOICE_EXEC_OVERRIDE.with(|c| c.set(Some(false)));
-    let off = run_theta_v0_pi_overlay(&ds, &config, 1.0, 1.0e6).expect("C-19 research stats record");
+    let off =
+        run_theta_v0_pi_overlay(&ds, &config, 1.0, 1.0e6).expect("C-19 research stats record");
     assert!(
         off.voice_exec.is_none(),
         "gate 关 ⟹ 无声部读数（None，不伪造）"
@@ -5572,7 +5578,8 @@ fn gate_on_stepfail_composition_dx() {
     let initial_nav = (first_px * 10_000.0).max(1.0e6);
     // 门开（线程局部注入，优先于进程级 env；与既有 gate 测试同惯例）。
     NEST_CERT_GATE_OVERRIDE.with(|c| c.set(Some(true)));
-    let r = run_theta_v0_pi(&window, &config, years, initial_nav).expect("C-19 research stats record");
+    let r =
+        run_theta_v0_pi(&window, &config, years, initial_nav).expect("C-19 research stats record");
     NEST_CERT_GATE_OVERRIDE.with(|c| c.set(None));
     eprintln!(
         "[p1147] gate-on 窗口 {start}..{end} 内 n_orders={} n_trades={} strat_return={:.6}",
@@ -7738,7 +7745,8 @@ fn merge_skip_oracle_real_cl_debug() {
         dates: oos.dates[..n].to_vec(),
         bar_seconds: 60,
     };
-    let res = run_theta_v0_pi(&prefix, &config, (n as f64) / (252.0 * 390.0), 1.0e6).expect("C-19 research stats record");
+    let res = run_theta_v0_pi(&prefix, &config, (n as f64) / (252.0 * 390.0), 1.0e6)
+        .expect("C-19 research stats record");
     assert!(res.metrics.strat_return.is_finite(), "strat 有限");
     eprintln!(
         "on2w3 merge skip 神谕：{n} bar 全 merge 调用逐 bar skip==全量（debug_assert 未 panic）"

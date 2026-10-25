@@ -37,10 +37,7 @@ pub struct ResearchStats {
     pub econ_n_resample: usize,
 }
 
-fn read_usize(
-    fields: &serde_json::Map<String, Value>,
-    name: &str,
-) -> Result<usize, PolicyError> {
+fn read_usize(fields: &serde_json::Map<String, Value>, name: &str) -> Result<usize, PolicyError> {
     Ok(read_u32(RESEARCH_STATS_ID, fields, name)? as usize)
 }
 
@@ -125,11 +122,7 @@ pub fn parse_research_stats(text: Option<&str>) -> Result<ResearchStats, PolicyE
         z_alpha: read_f64(RESEARCH_STATS_ID, &fields, "z_alpha")?,
         perm_alpha: read_f64(RESEARCH_STATS_ID, &fields, "perm_alpha")?,
         annualization_days: read_f64(RESEARCH_STATS_ID, &fields, "annualization_days")?,
-        significance_p_threshold: read_f64(
-            RESEARCH_STATS_ID,
-            &fields,
-            "significance_p_threshold",
-        )?,
+        significance_p_threshold: read_f64(RESEARCH_STATS_ID, &fields, "significance_p_threshold")?,
         cvar_tail: read_f64(RESEARCH_STATS_ID, &fields, "cvar_tail")?,
         ci_lower_quantile: read_f64(RESEARCH_STATS_ID, &fields, "ci_lower_quantile")?,
         ci_upper_quantile: read_f64(RESEARCH_STATS_ID, &fields, "ci_upper_quantile")?,

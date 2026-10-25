@@ -40,8 +40,8 @@
 use super::data::{self, Dataset};
 use super::l3_probe_profile::active_l3_probe_profile;
 use super::metrics;
-use super::research_stats::active_research_stats;
 use super::prereg_windows::PREREG_WINDOWS;
+use super::research_stats::active_research_stats;
 // F-01 迁移（bughunt 2026-07-10）：旧 `run_theta_v0` 全窗分类含结构确认前视，已
 // deprecated；本文件产出 L3 声明，必须走无前视因果入口 `run_theta_v0_pi`。
 // 既有全窗 L3 结论（基于旧入口）作废，须以本口径重跑后方可引用。
@@ -159,7 +159,8 @@ fn l3_fullwindow_multi_symbol_significance() {
             res.fee_rate
                 .expect(super::treasury::SCALAR_COST_RATE_UNDEFINED),
             res.theta_return_mtm,
-        ).expect("C-19 research stats record");
+        )
+        .expect("C-19 research stats record");
         if sig.theta_beats_random {
             n_beats_random += 1;
         }

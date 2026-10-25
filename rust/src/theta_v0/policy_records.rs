@@ -61,8 +61,7 @@ pub const ACTIVE_RESEARCH_STATS_JSON: &str = include_str!("policy_records/resear
 /// 当前生效的 evidence_gate 记录；与 C-19 不合并。
 pub const ACTIVE_EVIDENCE_GATE_JSON: &str = include_str!("policy_records/evidence-gate.json");
 /// 当前生效的 L3 探针资金 profile。
-pub const ACTIVE_L3_PROBE_PROFILE_JSON: &str =
-    include_str!("policy_records/l3-probe-profile.json");
+pub const ACTIVE_L3_PROBE_PROFILE_JSON: &str = include_str!("policy_records/l3-probe-profile.json");
 /// 当前生效的 W-VERIFY 探针资金 profile。
 pub const ACTIVE_NO_FLOOR_PROBE_PROFILE_JSON: &str =
     include_str!("policy_records/no-floor-probe-profile.json");
@@ -225,6 +224,7 @@ pub(crate) fn read_u32(
 }
 
 /// 读一个有限浮点字段。JSON 的整数也接受；NaN/Infinity 与指数溢出均判非法。
+#[cfg(any(test, feature = "backtest_bin"))]
 pub(crate) fn read_f64(
     id: &'static str,
     fields: &serde_json::Map<String, Value>,

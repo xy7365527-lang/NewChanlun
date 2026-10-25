@@ -1081,7 +1081,8 @@ mod profile {
             };
             let years = (n as f64) / (252.0 * 390.0); // 名义年数（仅 metrics 用，不影响标度）
             let t = std::time::Instant::now();
-            let _ = run_theta_v0_pi(&prefix, &config, years, 1.0).expect("C-19 research stats record");
+            let _ =
+                run_theta_v0_pi(&prefix, &config, years, 1.0).expect("C-19 research stats record");
             let t_engine = t.elapsed().as_secs_f64();
 
             // strategy 净额 = engine − classify − closed_loop（coverage/interp/registry/risk_gate/fill）。
@@ -1175,7 +1176,8 @@ mod profile {
             };
             let years = (n as f64) / (252.0 * 390.0);
             let t = std::time::Instant::now();
-            let _ = run_theta_v0_pi(&prefix, &config, years, 1.0).expect("C-19 research stats record");
+            let _ =
+                run_theta_v0_pi(&prefix, &config, years, 1.0).expect("C-19 research stats record");
             eprintln!(
                 "\n===== profile_cand_stages n={n}（墙钟={:.2}s）=====",
                 t.elapsed().as_secs_f64()

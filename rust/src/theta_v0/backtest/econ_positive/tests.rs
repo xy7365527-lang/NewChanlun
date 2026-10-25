@@ -1,6 +1,6 @@
 use super::super::super::classifier::divergence::DivergenceGauge;
-use super::*;
 use super::super::research_stats::active_research_stats;
+use super::*;
 
 // ── ★#399（#786 Q4 改写稿）：ECON_L2_MAX_BARS 截窗骨架共享 helper——八点收敛 ──
 // （l2_btc_capturable_spread_diagnosis / acc_level0sell_oos / acc_walkforward_trainonly /
@@ -3330,11 +3330,7 @@ fn acc_walkforward_trainonly() {
 
     // 任务5/Q4：剔最大赢家 + block bootstrap p。
     let (q4_full, q4_d1, q4_d3, q4_d5) = drop_top_winners(&hd_pnls);
-    let q4_p = block_bootstrap_pvalue(
-        &hd_pnls,
-        stats.econ_block_len,
-        stats.econ_n_resample,
-    );
+    let q4_p = block_bootstrap_pvalue(&hd_pnls, stats.econ_block_len, stats.econ_n_resample);
 
     // ══ 任务3：多窗滚动 walk-forward（除 Q5 单切分脆弱）══
     let k_windows: usize = std::env::var(crate::theta_v0::env_registry::ECON_WF_WINDOWS)
@@ -3391,7 +3387,10 @@ fn acc_walkforward_trainonly() {
 
     // PDF §7.3 强判据 χ=1[LCB>θ]（θ=0）：μ>0 不够，须扣除不确定性后仍正。
     // §11 全验收 = LCB>0 ∧ Q4 剔最大5仍正 ∧ bootstrap p<0.05 ∧ 多窗 LCB>0 占比高。
-    let oos_robust = lcb_oos > 0.0 && q4_d5 > 0.0 && q4_p < stats.significance_p_threshold && lcb_pos_ratio >= 100.0;
+    let oos_robust = lcb_oos > 0.0
+        && q4_d5 > 0.0
+        && q4_p < stats.significance_p_threshold
+        && lcb_pos_ratio >= 100.0;
 
     // ══ 报告 ══
     let cls_str = |c: Option<(u32, i8, u8)>| {
@@ -3446,7 +3445,11 @@ fn acc_walkforward_trainonly() {
     let _ = writeln!(rpt, "| holdout Σab_rev | {hd_ab:.4e} |");
     let _ = writeln!(rpt, "| μ_OOS | {mu_oos:.4e} |");
     let _ = writeln!(rpt, "| se（用 neff） | {se_oos:.4e} |");
-    let _ = writeln!(rpt, "| **LCB（μ−{}·se）** | **{{lcb_oos:.4e}}** |", stats.z_alpha);
+    let _ = writeln!(
+        rpt,
+        "| **LCB（μ−{}·se）** | **{{lcb_oos:.4e}}** |",
+        stats.z_alpha
+    );
     let _ = writeln!(rpt);
     let _ = writeln!(
         rpt,
@@ -3657,7 +3660,7 @@ fn neff_autocorr(pnls: &[f64], lag_max: usize) -> (f64, f64) {
     (neff.max(1.0).min(n as f64), sum_rho)
 }
 
-/// 单侧 5% LCB = μ − 1.645·se，se=σ/√neff（PDF §7.3，neff 而非 nraw）。返回 (mu, se, lcb)。
+/// 单侧 LCB = μ − z_alpha·se，se=σ/√neff（PDF §7.3，neff 而非 nraw）。返回 (mu, se, lcb)。
 fn mean_se_lcb(pnls: &[f64], neff: f64, z_alpha: f64) -> (f64, f64, f64) {
     let n = pnls.len();
     if n == 0 {
@@ -3879,6 +3882,28 @@ fn walkforward_helpers_l1() {
     );
 }
 
+/// C-19 记录字段必须抵达 econ 真实验收所用的同一组 helper，而非只改报告文字。
+#[test]
+fn research_stats_reach_econ_acceptance_helpers() {
+    let stats = active_research_stats().unwrap();
+    let pnls = vec![1.0, 1.0, 1.0, 1.0, -1.0, -1.0, -1.0, -1.0];
+    let (baseline_neff, _) = neff_autocorr(&pnls, stats.econ_neff_lag);
+    let (_, _, baseline_lcb) = mean_se_lcb(&pnls, baseline_neff, stats.z_alpha);
+    let baseline_p = block_bootstrap_pvalue(&pnls, stats.econ_block_len, stats.econ_n_resample);
+
+    let mut changed = stats.clone();
+    changed.econ_neff_lag = 0;
+    let (changed_neff, _) = neff_autocorr(&pnls, changed.econ_neff_lag);
+    assert_ne!(baseline_neff, changed_neff, "lag 截断必须改变 neff");
+    changed.z_alpha = 2.0;
+    let (_, _, changed_lcb) = mean_se_lcb(&pnls, baseline_neff, changed.z_alpha);
+    assert_ne!(baseline_lcb, changed_lcb, "z_alpha 必须改变 LCB");
+    changed.econ_block_len = 7;
+    changed.econ_n_resample = 37;
+    let changed_p = block_bootstrap_pvalue(&pnls, changed.econ_block_len, changed.econ_n_resample);
+    assert_ne!(baseline_p, changed_p, "块长/重采样数必须改变 bootstrap p");
+}
+
 /// **全历史多级别信号分布 + level2+ 逐级别 train-only holdout μ̂/LCB/p（acc-multilevel-sample + acc-highlevel-mu）**。
 ///
 /// 同一次全量跑（ECON_L2_MAX_BARS=5000000，BTC 461万 bar）产出两条 acceptance 所需数据，避免重跑。
@@ -4017,7 +4042,8 @@ fn acc_multilevel_highlevel_mu() {
         let (neff, sum_rho) = neff_autocorr(&pnls, stats.econ_neff_lag);
         let (mu_oos, se_oos, lcb) = mean_se_lcb(&pnls, neff, stats.z_alpha);
         let (_, _, _, drop_d5) = drop_top_winners(&pnls);
-        let bootstrap_p = block_bootstrap_pvalue(&pnls, stats.econ_block_len, stats.econ_n_resample);
+        let bootstrap_p =
+            block_bootstrap_pvalue(&pnls, stats.econ_block_len, stats.econ_n_resample);
         hl_results.push(HighLevelResult {
             level: lv,
             delta: dl,
@@ -4122,7 +4148,11 @@ fn acc_multilevel_highlevel_mu() {
         "## acc-highlevel-mu：level2+ 逐级别 train-only holdout μ̂/LCB/p"
     );
     let _ = writeln!(rpt, "train_frac={train_frac}，切分日 {split_day}。每个 (level,δ) 独立评估（不从 train-only 挑类——无跨级别选择偏差）。");
-    let _ = writeln!(rpt, "LCB=μ−1.645·se（单侧5%，se 用 neff），block bootstrap p（H0:μ≤0，block=20，B=2000，固定种子）。");
+    let _ = writeln!(
+        rpt,
+        "LCB=μ−{}·se（se 用 neff），block bootstrap p（H0:μ≤0，block={}，B={}，固定种子）。",
+        stats.z_alpha, stats.econ_block_len, stats.econ_n_resample
+    );
     let _ = writeln!(rpt);
     let _ = writeln!(rpt, "| level | δ | train_n | train_Σpnl | holdout_n | holdout_Σpnl | μ̂_OOS | se | LCB | neff/nraw | drop_d5 | bootstrap_p | LCB>0? |");
     let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|---|---|---|---|---|");
@@ -4189,7 +4219,7 @@ fn acc_multilevel_highlevel_mu() {
     let _ = writeln!(rpt, "   - acc-highlevel-mu：level2+ holdout LCB>0 占比={lcb_pos_count}/{total_hl}（{lcb_pos_ratio:.0}%）。{}",
             if lcb_pos_count == 0 { "全否证，高级别无稳健 OOS alpha（L2）。" }
             else { "部分或全部通过 §7.3 强判据（见明细表）。" });
-    let _ = writeln!(rpt, "2. **定义依据**：actual_pnl=δ(Pτout−Pτin)−Ce（664-Q3 真实成交口径）；LCB=μ−1.645se（PDF §7.3，se 用 neff_autocorr 修正）；train-only 每级独立评估（无跨级选择偏差）；Le Cam 硬墙判定（n<30）。");
+    let _ = writeln!(rpt, "2. **定义依据**：actual_pnl=δ(Pτout−Pτin)−Ce（664-Q3 真实成交口径）；LCB=μ−{}se（PDF §7.3，se 用 neff_autocorr 修正，lag={}）；train-only 每级独立评估（无跨级选择偏差）；Le Cam 硬墙判定（n<30）。", stats.z_alpha, stats.econ_neff_lag);
     let _ = writeln!(rpt, "3. **边界条件**：单标的 BTC L2——结论翻转条件：(a) max_bars={max_bars}（若<461万则为截断窗结论）；(b) train_frac={train_frac} 改变切分点结论可能变化；(c) 高级别 n 过少（Le Cam 约束）时 LCB 由 se 主导而非 μ；(d) 不同 bootstrap 种子理论上可影响 p（本实现固定 LCG 种子确定性）。");
     let _ = writeln!(rpt, "4. **下游推论**：若 level2+ 全否证 ⟹ 策略信号层仅可依赖 level0/1（需 L3 跨品种升基座）。若存在 LCB>0 ⟹ 该 (level,δ) 可作 entry 候选（仍需 L3）。否定性结果意味着高级别配额应为 0 或纯结构性（不依赖 alpha 预期）。");
     let _ = writeln!(rpt, "5. **谱系引用**：663 econpositive（可交易性=μ(z,a)>0）；664-Q3（真实成交口径）；formalization-validity-domain（L2 有效域<定义域，L3 待 L2 完成后）；testing-override 生成态例外（测试目的=产出可证伪结果，非通过）；161（否定性结果照实报）。不确定是否有 level2+ alpha 的独立谱系记录，保守声明无关联已知谱系。");
