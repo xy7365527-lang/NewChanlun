@@ -938,6 +938,19 @@ mod tests {
         assert!(context.take_source_pool().is_none(), "内层已消费的旧池不得复活");
         assert!(error.contains("原准入账="));
         assert!(!PathBuf::from(format!("{}-shm", f.db.display())).exists());
+        for epoch in ["1", "2"] {
+            if epoch == "2" {
+                recover(&f.db, "2", &f.clock, "recover-1",
+                    crate::v3::admission_anchor::test_prepare(&f.db).into()).unwrap();
+            }
+            let mut writer = Driver::open_with_request_and_mode(
+                &f.db, &f.profile, epoch, f.clock.clone(), None,
+                s_allocation::Mode::CapturedNative,
+                crate::v3::admission_anchor::test_prepare(&f.db).into()).unwrap();
+            writer.handle(envelope("ready-after-prefix-rejection", json!({"op":"ready"}))).unwrap();
+            drop(writer);
+            assert!(!PathBuf::from(format!("{}-shm", f.db.display())).exists(), "writer/recover闭合后无SHM");
+        }
     }
 
     #[cfg(feature = "s_capture_native_testonly")]
