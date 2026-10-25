@@ -870,6 +870,110 @@ mod tests {
     }
 
     #[test]
+    fn legacy_policy_records_migration_recovers_pending_with_current_records() {
+        let fixture = Fixture::new();
+        let v1 = ThetaConfig::default();
+        let first_input = Fixture::ingest(1);
+        let second_input = Fixture::ingest(2);
+        let mut before_driver = fixture.open_with_config("1", v1.clone()).unwrap();
+        let first = before_driver.handle(first_input.clone()).unwrap();
+        assert_eq!(first["publication"]["generation"], "1");
+        before_driver.stop_after = Some("begin");
+        assert!(before_driver
+            .handle(second_input.clone())
+            .unwrap_err()
+            .contains("stop_after_begin"));
+        drop(before_driver);
+
+        let original = |conn: &Connection| {
+            conn.query_row(
+                "SELECT delta_json,catalog_evidence_json,index_frontier FROM structure_deltas WHERE generation=1",
+                [],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                    ))
+                },
+            )
+            .unwrap()
+        };
+        let messages = |conn: &Connection| {
+            let mut stmt = conn
+                .prepare("SELECT message_id,canonical_envelope,receipt_id FROM s_input_messages ORDER BY accepted_seq")
+                .unwrap();
+            stmt.query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            })
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap()
+        };
+        let conn = Connection::open(&fixture.db).unwrap();
+        let old_delta = original(&conn);
+        let old_messages = messages(&conn);
+        conn.execute_batch("ALTER TABLE structure_deltas DROP COLUMN policy_records")
+            .unwrap();
+        assert!(conn
+            .prepare("SELECT policy_records FROM structure_deltas")
+            .is_err());
+        assert_eq!(original(&conn), old_delta);
+        assert_eq!(messages(&conn), old_messages);
+        drop(conn);
+
+        // recover 自身就是旧库首次开门者：先迁移，再按原监督器合同清 Begin、提升 epoch。
+        recover(&fixture.db, "2", &fixture.clock, "recover-2").unwrap();
+        let mut resumed_config = v1.clone();
+        resumed_config.records.risk.record.version =
+            newchan_rust::theta_v0::policy_records::PolicyVersion::Signed(2);
+        let mut resumed = fixture
+            .open_with_config("2", resumed_config.clone())
+            .unwrap();
+        let mut legacy_first = first.clone();
+        legacy_first["policy_records"] = json!(crate::LEGACY_POLICY_RECORDS_UNKNOWN);
+        assert_eq!(
+            resumed.handle(receipt_request(&first_input)).unwrap(),
+            legacy_first
+        );
+        let second = resumed.handle(receipt_request(&second_input)).unwrap();
+        assert_eq!(second["kind"], "Committed");
+        assert_eq!(second["publication"]["generation"], "2");
+        assert_eq!(
+            second["policy_records"],
+            json!(resumed_config.record_labels())
+        );
+        assert!(second["policy_records"]
+            .as_str()
+            .unwrap()
+            .contains("theta-risk/2"));
+        assert_eq!(original(&resumed.conn), old_delta);
+        assert_eq!(messages(&resumed.conn), old_messages);
+        {
+            let tx = resumed.conn.transaction().unwrap();
+            state::audit(&tx).unwrap();
+            tx.rollback().unwrap();
+        }
+        drop(resumed);
+
+        let mut reopened = fixture.open_with_config("2", v1).unwrap();
+        assert_eq!(
+            reopened.handle(receipt_request(&first_input)).unwrap(),
+            legacy_first,
+            "重开不得用当前 v1 反填旧 generation"
+        );
+        assert_eq!(
+            reopened.handle(receipt_request(&second_input)).unwrap(),
+            second,
+            "重开仍须读取恢复发布实际写入的 v2 记录戳"
+        );
+    }
+
+    #[test]
     fn audit_owner_normal_idle_recover_and_reopen_preserve_old_receipt() {
         let fixture = Fixture::new();
         let input = Fixture::ingest(1);

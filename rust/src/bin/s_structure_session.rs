@@ -205,6 +205,10 @@ fn identity_key(ns: &str, epoch: &str, instr: &str, event_id: &str) -> String {
 // 数据库初始化（C09.2：WAL + synchronous=FULL + 平台前件核）
 // ────────────────────────────────────────────────────────────────────────────
 
+/// #1602：新增记录戳列之前已发布的 generation 无从反推当时配置；迁移只标记历史未知。
+/// 该值不是任何记录 id/version，所有新发布路径仍须显式写入本次 `ThetaConfig::record_labels()`。
+const LEGACY_POLICY_RECORDS_UNKNOWN: &str = "legacy/unknown";
+
 const SCHEMA: &str = r#"
 CREATE TABLE IF NOT EXISTS meta (
   key TEXT PRIMARY KEY,
@@ -298,7 +302,7 @@ CREATE TABLE IF NOT EXISTS structure_deltas (
   catalog_run_status TEXT NOT NULL,
   catalog_evidence_json TEXT NOT NULL,
   delta_json TEXT NOT NULL,
-  policy_records TEXT NOT NULL
+  policy_records TEXT NOT NULL DEFAULT 'legacy/unknown'
 );
 CREATE TABLE IF NOT EXISTS writer_epoch_history (
   ordinal INTEGER PRIMARY KEY,
@@ -328,7 +332,7 @@ fn open_db(db: &Path) -> Result<Connection, String> {
             return Ok(historical);
         }
     }
-    let conn = Connection::open_with_flags(
+    let mut conn = Connection::open_with_flags(
         db,
         rusqlite::OpenFlags::default() | rusqlite::OpenFlags::SQLITE_OPEN_PRIVATE_CACHE,
     )
@@ -338,7 +342,40 @@ fn open_db(db: &Path) -> Result<Connection, String> {
     #[cfg(target_os = "macos")]
     conn.execute_batch("PRAGMA fullfsync=ON;")
         .map_err(|e| format!("设置 fullfsync 失败：{e}"))?;
+    migrate_legacy_policy_records(&mut conn)?;
     Ok(conn)
+}
+
+/// #1602：同协议旧库只有既有行缺少 `policy_records`；补列时 SQLite 以显式未知值填充，
+/// 不读取调用时配置。`BEGIN IMMEDIATE` 后重核列，保证多入口同时开门时迁移至多执行一次。
+fn migrate_legacy_policy_records(conn: &mut Connection) -> Result<(), String> {
+    let missing = |conn: &Connection| -> Result<bool, String> {
+        conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name='structure_deltas')
+             AND NOT EXISTS(SELECT 1 FROM pragma_table_info('structure_deltas') WHERE name='policy_records')",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|e| format!("检查 structure_deltas.policy_records 失败：{e}"))
+    };
+    if !missing(conn)? {
+        return Ok(());
+    }
+    let tx = conn
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(|e| format!("开 policy_records 迁移事务失败：{e}"))?;
+    if missing(&tx)? {
+        tx.execute(
+            &format!(
+                "ALTER TABLE structure_deltas ADD COLUMN policy_records TEXT NOT NULL DEFAULT '{LEGACY_POLICY_RECORDS_UNKNOWN}'"
+            ),
+            [],
+        )
+        .map_err(|e| format!("迁移旧 structure_deltas.policy_records 失败：{e}"))?;
+    }
+    tx.commit()
+        .map_err(|e| format!("提交 policy_records 迁移失败：{e}"))?;
+    Ok(())
 }
 
 /// #1405/#1420 持久边界：写连接首次读取会回滚残留的 `-journal` 热日志，末次关闭会检查点并

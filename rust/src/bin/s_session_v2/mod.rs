@@ -3762,6 +3762,145 @@ mod tests {
     }
 
     #[test]
+    fn v2_legacy_policy_records_migration_preserves_history_and_new_versions() {
+        let f = Fixture::new(8, 2);
+        let v1 = ThetaConfig::default();
+        let mut v2 = v1.clone();
+        v2.records.risk.record.version =
+            newchan_rust::theta_v0::policy_records::PolicyVersion::Signed(2);
+
+        let first_input = envelope(f.message(0)).unwrap();
+        let first = handle_fixture_with_config(&f.db, &f.profile, "1", &f.clock, &first_input, &v1)
+            .unwrap();
+        assert_eq!(first["publication"]["generation"], "1");
+        let original = |conn: &Connection| {
+            conn.query_row(
+                "SELECT m.canonical_envelope,m.receipt_id,d.delta_json,d.catalog_evidence_json,d.index_frontier
+                 FROM s_input_messages m JOIN structure_deltas d ON d.generation=m.first_published_generation
+                 WHERE m.message_id='msg-0'",
+                [],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, String>(3)?,
+                        row.get::<_, String>(4)?,
+                    ))
+                },
+            )
+            .unwrap()
+        };
+        let before = original(&Connection::open(&f.db).unwrap());
+
+        // 真实旧协议表：已提交 generation 留在库内，只缺本票新增的物理列。
+        {
+            let conn = Connection::open(&f.db).unwrap();
+            conn.execute_batch("ALTER TABLE structure_deltas DROP COLUMN policy_records")
+                .unwrap();
+            assert!(conn
+                .prepare("SELECT policy_records FROM structure_deltas")
+                .is_err());
+            assert_eq!(original(&conn), before);
+        }
+
+        let mut legacy_first = first.clone();
+        legacy_first["policy_records"] = json!(crate::LEGACY_POLICY_RECORDS_UNKNOWN);
+        let first_query = envelope(f.wrap(
+            json!({"op":"receipt","original_source_namespace":first_input["source_namespace"],"original_source_epoch":first_input["source_epoch"],"original_message_id":first_input["message_id"],"original_payload_hash":first_input["payload_hash"]}),
+            "legacy-receipt-query-1",
+        ))
+        .unwrap();
+        assert_eq!(
+            handle_fixture_with_config(&f.db, &f.profile, "1", &f.clock, &first_query, &v2)
+                .unwrap(),
+            legacy_first,
+            "旧 receipt 查询须迁移并返回历史未知，不得冒充当前 v2 配置"
+        );
+        assert_eq!(
+            handle_fixture_with_config(&f.db, &f.profile, "1", &f.clock, &first_input, &v2)
+                .unwrap(),
+            legacy_first,
+            "迁移后的幂等重投仍返回原消息与原 generation"
+        );
+
+        let context = InputContext {
+            envelope: first_input.clone(),
+            clock: f.clock.clone(),
+        };
+        let repeated = advance_core_with_config(&f.db, "1", Some(&context), &v2).unwrap();
+        assert_eq!(repeated["idempotent"], true);
+        assert_eq!(repeated["generation"], "1");
+        assert_eq!(
+            repeated["policy_records"],
+            json!(crate::LEGACY_POLICY_RECORDS_UNKNOWN)
+        );
+
+        recover_core(&f.db, "2", Some((&f.clock, "recover-1"))).unwrap();
+        assert_eq!(
+            handle_fixture_with_config(&f.db, &f.profile, "2", &f.clock, &first_query, &v2)
+                .unwrap(),
+            legacy_first,
+            "恢复并重开后，旧 generation 的记录戳仍是历史未知"
+        );
+
+        let mut second_message = f.message(1);
+        second_message["payload"]["writer_epoch"] = json!("2");
+        second_message["payload_hash"] = json!(sha256_hex(
+            canonical_json(&second_message["payload"]).as_bytes()
+        ));
+        let second_input = envelope(second_message).unwrap();
+        let second =
+            handle_fixture_with_config(&f.db, &f.profile, "2", &f.clock, &second_input, &v2)
+                .unwrap();
+        assert_eq!(second["publication"]["generation"], "2");
+        assert_eq!(second["policy_records"], json!(v2.record_labels()));
+        assert!(second["policy_records"]
+            .as_str()
+            .unwrap()
+            .contains("theta-risk/2"));
+        assert_eq!(
+            handle_fixture_with_config(&f.db, &f.profile, "2", &f.clock, &first_query, &v1)
+                .unwrap(),
+            legacy_first
+        );
+
+        let conn = open_db(&f.db).unwrap();
+        verify_reachable_root(&conn).unwrap();
+        assert_eq!(original(&conn), before, "迁移和后续发布不得改写旧原件");
+        let mut stmt = conn
+            .prepare("SELECT policy_records FROM structure_deltas ORDER BY generation")
+            .unwrap();
+        let stamps = stmt
+            .query_map([], |row| row.get::<_, String>(0))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(
+            stamps,
+            vec![
+                crate::LEGACY_POLICY_RECORDS_UNKNOWN.to_string(),
+                v2.record_labels(),
+            ]
+        );
+        drop(stmt);
+        drop(conn);
+
+        let output = std::process::Command::new("python3")
+            .arg(crate::tests::fixture("tests/tb02b_verify.py"))
+            .arg("--database")
+            .arg(&f.db)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "迁移后的 Python 只读严格审计失败：stdout={} stderr={}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    #[test]
     fn v2_same_message_cannot_change_clock_or_payload() {
         let f = Fixture::new(8, 2);
         f.ingest(0);
