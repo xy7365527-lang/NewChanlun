@@ -631,18 +631,33 @@ enum OpenReservations {
 }
 impl OpenReservations {
     fn len(&self) -> usize {
-        match self { Self::Ordinary(m) => m.len(), Self::Mixed(m) => m.len() }
-    }
-    fn is_empty(&self) -> bool { self.len() == 0 }
-    fn remove(&mut self, id: &u64) -> Option<(SpaceKind, u64)> {
-        match self { Self::Ordinary(m) => m.remove(id), Self::Mixed(m) => m.remove(id) }
-    }
-    fn insert(&mut self, id: u64, entry: (SpaceKind, u64),
-        work: Option<&super::capture_allocation::scratch::WorkScope>) -> Result<(), CodecError> {
         match self {
-            Self::Ordinary(m) => { m.insert(id, entry); }
+            Self::Ordinary(m) => m.len(),
+            Self::Mixed(m) => m.len(),
+        }
+    }
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+    fn remove(&mut self, id: &u64) -> Option<(SpaceKind, u64)> {
+        match self {
+            Self::Ordinary(m) => m.remove(id),
+            Self::Mixed(m) => m.remove(id),
+        }
+    }
+    fn insert(
+        &mut self,
+        id: u64,
+        entry: (SpaceKind, u64),
+        work: Option<&super::capture_allocation::scratch::WorkScope>,
+    ) -> Result<(), CodecError> {
+        match self {
+            Self::Ordinary(m) => {
+                m.insert(id, entry);
+            }
             Self::Mixed(m) => {
-                let work = work.ok_or_else(|| CodecError::new(RESERVATION, "mixed预留缺当前工作域"))?;
+                let work =
+                    work.ok_or_else(|| CodecError::new(RESERVATION, "mixed预留缺当前工作域"))?;
                 m.insert_admitted(id, entry, &MixedAllocation(work))?;
             }
         }
@@ -1084,14 +1099,18 @@ impl Job {
         Ok((nodes, bytes))
     }
 
-    fn check_reservation_scope(&self,
-        work: Option<&super::capture_allocation::scratch::WorkScope>) -> Result<(), CodecError> {
+    fn check_reservation_scope(
+        &self,
+        work: Option<&super::capture_allocation::scratch::WorkScope>,
+    ) -> Result<(), CodecError> {
         match (&self.accepted, work) {
             (AcceptedNodes::Ordinary(_), None) => Ok(()),
             (AcceptedNodes::Mixed { binding, .. }, Some(work)) => {
                 work.check_current()?;
                 if !binding.belongs_to_parent(work) {
-                    return Err(work.reject(super::capture_allocation::scratch::ScratchFailure::Ledger));
+                    return Err(
+                        work.reject(super::capture_allocation::scratch::ScratchFailure::Ledger)
+                    );
                 }
                 Ok(())
             }
@@ -1108,12 +1127,18 @@ impl Job {
     pub fn reserve_staged(&mut self, requested: u64) -> Result<Grant, CodecError> {
         self.reserve_staged_in(requested, None)
     }
-    pub fn reserve_staged_mixed(&mut self, requested: u64,
-        work: &super::capture_allocation::scratch::WorkScope) -> Result<Grant, CodecError> {
+    pub fn reserve_staged_mixed(
+        &mut self,
+        requested: u64,
+        work: &super::capture_allocation::scratch::WorkScope,
+    ) -> Result<Grant, CodecError> {
         self.reserve_staged_in(requested, Some(work))
     }
-    fn reserve_staged_in(&mut self, requested: u64,
-        work: Option<&super::capture_allocation::scratch::WorkScope>) -> Result<Grant, CodecError> {
+    fn reserve_staged_in(
+        &mut self,
+        requested: u64,
+        work: Option<&super::capture_allocation::scratch::WorkScope>,
+    ) -> Result<Grant, CodecError> {
         self.gate()?;
         self.check_reservation_scope(work)?;
         let staged_projected = self.project(
@@ -1150,12 +1175,18 @@ impl Job {
     pub fn reserve_store(&mut self, requested: u64) -> Result<Grant, CodecError> {
         self.reserve_store_in(requested, None)
     }
-    pub fn reserve_store_mixed(&mut self, requested: u64,
-        work: &super::capture_allocation::scratch::WorkScope) -> Result<Grant, CodecError> {
+    pub fn reserve_store_mixed(
+        &mut self,
+        requested: u64,
+        work: &super::capture_allocation::scratch::WorkScope,
+    ) -> Result<Grant, CodecError> {
         self.reserve_store_in(requested, Some(work))
     }
-    fn reserve_store_in(&mut self, requested: u64,
-        work: Option<&super::capture_allocation::scratch::WorkScope>) -> Result<Grant, CodecError> {
+    fn reserve_store_in(
+        &mut self,
+        requested: u64,
+        work: Option<&super::capture_allocation::scratch::WorkScope>,
+    ) -> Result<Grant, CodecError> {
         self.gate()?;
         self.check_reservation_scope(work)?;
         let store_projected = self.project(
