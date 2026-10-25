@@ -2234,6 +2234,29 @@ mod tests {
         assert_eq!(after.decoded_rows - before.decoded_rows, 1);
     }
     #[test]
+    fn measured_capture_and_rebind_preserve_late_type_error_over_early_bad_frame() {
+        use super::super::{audit_budget::NativeMeasure, content_store};
+        for fault in [
+            "UPDATE s_content_nodes SET tag='7' WHERE rowid=2",
+            "UPDATE s_content_nodes SET body='text' WHERE rowid=2",
+            "UPDATE s_content_nodes SET digest=x'01' WHERE rowid=2",
+        ] {
+            let (mut conn, capture) = node_material_fixture();
+            conn.execute_batch("UPDATE s_content_nodes SET body=x'ff' WHERE rowid=1").unwrap();
+            conn.execute_batch(fault).unwrap();
+            let tx = conn.transaction().unwrap();
+            let measure = NativeMeasure { budget: None, deadline: Some(std::time::Instant::now() + std::time::Duration::from_secs(10)) };
+            let original = content_store::capture_for_prototype(&tx).err().unwrap().to_string();
+            let cold = content_store::capture_for_request_prototype_measured(&tx, Some(&measure)).err().unwrap().to_string();
+            let mut scratch = content_store::OriginalScanScratch::default();
+            let hit = content_store::current_originals_equal_for_request_with_scratch_admitted_measured(
+                &tx, &capture, 2, &mut scratch, None, Some(&measure)).err().unwrap().to_string();
+            assert_eq!(cold, original, "{fault}");
+            assert_eq!(hit, original, "{fault}");
+        }
+    }
+
+    #[test]
     fn request_history_exact_cells_preserve_type_null_and_raw_bytes() {
         let mut conn = rusqlite::Connection::open_in_memory().unwrap();
         conn.execute_batch(
