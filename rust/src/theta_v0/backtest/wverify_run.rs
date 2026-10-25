@@ -914,10 +914,11 @@ fn wverify_cross_symbol() {
     // 与 BTC 单标的主桶差分（裁定 C 目标：池化增 n 是否使主桶 INCONCLUSIVE→VALIDATED）。
     let diff = match (btc_main.as_ref(), pooled_main) {
         (Some(b), Some(p)) => format!(
-            "主桶 {MAIN:?} 差分（σ̂-归一化 Ỹ 单位）：\n  BTC 单标的 : n={} n_eff={:.2} mean={:+.4} lcb={:+.4} perm_p={:.3} → {:?}\n  7 品种池化 : n={} n_eff={:.2} mean={:+.4} lcb={:+.4} perm_p={:.3} → {:?}\n  n_eff {:.0}→{:.0}（功效门=(1.645·CV)²逐桶重算，不复用 v1 的 290），翻转={}",
+            "主桶 {MAIN:?} 差分（σ̂-归一化 Ỹ 单位）：\n  BTC 单标的 : n={} n_eff={:.2} mean={:+.4} lcb={:+.4} perm_p={:.3} → {:?}\n  7 品种池化 : n={} n_eff={:.2} mean={:+.4} lcb={:+.4} perm_p={:.3} → {:?}\n  n_eff {:.0}→{:.0}（功效门=({z_alpha}·CV)²逐桶重算，不复用 v1 的 290），翻转={}",
             b.n, b.n_eff, b.mean, b.lcb, b.perm_p, b.state,
             p.n, p.n_eff, p.mean, p.lcb, p.perm_p, p.state,
             b.n_eff, p.n_eff, if format!("{:?}", b.state) != format!("{:?}", p.state) { "是" } else { "否" },
+            z_alpha = policy.z_alpha,
         ),
         _ => "主桶差分不可算（BTC 或池化缺主桶）".to_string(),
     };

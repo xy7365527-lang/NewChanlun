@@ -82,7 +82,10 @@ fn l3_fullwindow_multi_symbol_significance() {
 
     eprintln!("\n===== L3 多标的【全窗 OOS】否证：8 品种 + §3.4/§4 操作语义随机对照 =====");
     eprintln!("★全窗（cut=oos_full.bars.len()，不截断）⟹ 覆盖 100% OOS（非截断窗 ~4.5%），消统计功效受限 caveat");
-    eprintln!("★口径：boot_p 用已实现 trade_pnls；随机对照（shift/indep）用含浮盈 total_return；beats?=两对照 p≤0.05");
+    eprintln!(
+        "★口径：boot_p 用已实现 trade_pnls；随机对照（shift/indep）用含浮盈 total_return；beats?=两对照 p≤{}",
+        stats.significance_p_threshold
+    );
     eprintln!(
         "{:<6} {:>12} {:>6} {:>6} {:>8} {:>9} {:>7} {:>7} {:>7} {:>6} {}",
         "symbol",

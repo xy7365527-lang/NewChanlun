@@ -24,7 +24,7 @@
 //! ## 统计口径（与 wverify_full bit-same 函数链）
 //!
 //! Welford + [`perm_test::stratified_delta_perm_p`]（切片子集，N_PERM=200 seed=20260701）+
-//! [`decontam::effective_n`] + [`decontam::classify_bucket`]（z_α=1.645, perm_α=0.05）+
+//! [`decontam::effective_n`] + [`decontam::classify_bucket`]（z_α/perm_α 来自 C-19 记录）+
 //! [`perm_test::drop_top_k_mean`]（删尾 3）。beta 漂移探针（prereg §2.5）：Validated 格查同
 //! (bsp,σ_p) 反 δ 格 mean 同号 ⟹ BETA-DRIFT-SUSPECT（memory oddeven / final-alpha 教训）。
 //!

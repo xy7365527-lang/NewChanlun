@@ -680,9 +680,11 @@ fn delta_r_alpha_multi_symbol() {
         "完成品种数                          : {n_done}/{}",
         PREREG_WINDOWS.len()
     );
+    let alpha = stats.significance_p_threshold;
+    let min_l3_power = min_sign_test_power(&stats);
     eprintln!("(a)/(c) inconclusive(断流/χ未改/饥饿): {n_inconclusive}");
-    eprintln!("(b) L2 否证(mean(ΔR)≤0 或 p>.05)     : {n_l2_falsify}");
-    eprintln!("(c') L2 确认(mean(ΔR)>0 且 p≤.05)     : {n_l2_confirm}");
+    eprintln!("(b) L2 否证(mean(ΔR)≤0 或 p>{alpha})     : {n_l2_falsify}");
+    eprintln!("(c') L2 确认(mean(ΔR)>0 且 p≤{alpha})     : {n_l2_confirm}");
     eprintln!("\n--- L3 系统性 alpha（χ 真改交易集的有效品种）---");
     eprintln!("有效品种数 n_L3                      : {n_l3}");
     eprintln!("ΔR 均值>0 的品种数 n_pos             : {n_pos}/{n_l3}");
@@ -690,11 +692,11 @@ fn delta_r_alpha_multi_symbol() {
     eprintln!("符号检验单边 p（H0:符号随机 p=.5）    : {sign_p:.4}");
     eprintln!(
         "\n★诚实裁定（codex Q4 三层 + formalization-validity-domain 231号 + alpha2 §11 鞅定理）：\n  \
-         - **L3 系统性 alpha 成立** ⟺ n_pos/n_L3 符号检验 p<0.05（8 品种需 ≥7/8 正）∧ 池均值>0。\n  \
+         - **L3 系统性 alpha 成立** ⟺ n_pos/n_L3 符号检验 p<{alpha} ∧ 池均值>0。\n  \
          - 否则：若多数 (a)/(c) ⟹ substrate/工程缺口（O(n²) 截断致结构饥饿/χ 未改交易集），inconclusive。\n  \
          - 若多数 (b) 且 χ 真改交易集 ⟹ **χ 选择器不产生系统性净额增量 alpha**（鞅定理预言的真否证：\n    \
            walk-forward μ 表未捕获持续可预测性，ΔR 符号跨品种随机）——**否定性结果，缩小有效域**。\n  \
-         - 单品种 ΔSharpe≠0 不算 alpha（codex：8 品种里 ≥1 偶然为正概率 99.6%）——必须看跨品种系统性。\n  \
+         - 单品种 ΔSharpe≠0 不算 alpha（codex：多品种里 ≥1 偶然为正不能当系统性）——必须看跨品种系统性。\n  \
          - 有效域 caveat：保守欠对冲版 pi（ρ漂移剪枝）+ {MAX_BARS}bar 截断 + OOS 内 split（非独立 train 历史）。"
     );
 
@@ -705,22 +707,19 @@ fn delta_r_alpha_multi_symbol() {
         "分层完备：每完成品种恰归一类",
     );
     // L3 系统性 alpha 判定（诚实记录，非强制 PASS——否定性结果是合法产出，231号）。
-    // ★n=5 功效门（delta-r-audit-2 攻击点3，定理类）：符号检验 8 品种需 ≥7/8 正才到 p<0.05；
-    // n_L3<5 时无论符号如何都达不到 p<0.05（C(n,n)/2^n: 4/4=0.0625, 3/3=0.125 均>0.05）⟹
-    // 检验功效不足，禁用"无系统性alpha"措辞（缺乏否证它的统计功效，非否证成立）。
-    let min_l3_power = min_sign_test_power(&stats);
-    let l3_systematic = n_l3 >= 2 && sign_p < stats.significance_p_threshold && l3_mean > 0.0;
+    // 最小有效品种数由显著性记录推导；不足时全正也过不了符号门，不得声称否证。
+    let l3_systematic = n_l3 >= 2 && sign_p < alpha && l3_mean > 0.0;
     eprintln!(
         "\n★★最终判定：{}",
         if l3_systematic {
-            "L3 系统性净额增量 alpha 成立（符号检验 p<.05 ∧ 池均值>0）——χ 选择器捕获持续可预测性"
+            format!("L3 系统性净额增量 alpha 成立（符号检验 p<{alpha} ∧ 池均值>0）——χ 选择器捕获持续可预测性")
         } else if n_l3 < min_l3_power {
-            // 功效不足：n_L3<5 时符号检验无论全正都达不到 p<.05 ⟹ inconclusive(功效不足)，
-            // 不得声称"无系统性alpha"（缺乏否证的统计功效）。
-            "L3 inconclusive(功效不足)：χ 真改交易集的有效品种<5——符号检验全正也达不到 p<.05，\
-             无法否证亦无法确认系统性 alpha（缩小样本量是 substrate/工程缺口，非 alpha 结论）"
+            format!(
+                "L3 inconclusive(功效不足)：χ 真改交易集的有效品种<{min_l3_power}——符号检验全正也达不到 p<{alpha}，\
+                 无法否证亦无法确认系统性 alpha（缩小样本量是 substrate/工程缺口，非 alpha 结论）"
+            )
         } else {
-            "L3 系统性 alpha 不成立（n_L3≥5 且符号检验未达 p<.05 或池均值≤0）——χ 选择器无系统性 alpha（鞅定理否证）"
+            format!("L3 系统性 alpha 不成立（n_L3≥{min_l3_power} 且符号检验未达 p<{alpha} 或池均值≤0）——χ 选择器无系统性 alpha（鞅定理否证）")
         }
     );
 }
@@ -958,23 +957,24 @@ fn crossfit_l2() {
     eprintln!("cf ΔR 均值>0 品种: {n_pos}/{n_l3}");
     eprintln!("cf 跨品种池均值  : {l3_mean:.3e}");
     eprintln!("符号检验单边 p   : {sign_p:.4}");
+    let alpha = stats.significance_p_threshold;
     eprintln!(
         "\n★诚实裁定（PDF §34 + formalization-validity-domain 231号 + winner's curse §6）：\n  \
-         - cross-fit L3 系统性 alpha 成立 ⟺ n_L3≥5 ∧ 符号检验 p<0.05 ∧ 池均值>0。\n  \
+         - cross-fit L3 系统性 alpha 成立 ⟺ n_L3≥{min_l3_power} ∧ 符号检验 p<{alpha} ∧ 池均值>0。\n  \
          - vs 单次 split：若单次 split 正 ΔR 而 cross-fit 归零 ⟹ 单次的 alpha 是 winner's curse 伪影\n    \
            （训练选赢家污染 OOS），cross-fit 揭示真实 OOS 无 alpha（否定性结果，缩小有效域）。\n  \
          - 若两者一致（都正/都负）⟹ 选择性偏差非主导，单次 split 结论稳健。\n  \
-         - n_L3<5 ⟹ inconclusive（功效不足，K-fold 进一步缩短 train ⟹ 更少非退化品种）。"
+         - n_L3<{min_l3_power} ⟹ inconclusive（功效不足，K-fold 进一步缩短 train ⟹ 更少非退化品种）。"
     );
-    let cf_systematic = n_l3 >= 2 && sign_p < stats.significance_p_threshold && l3_mean > 0.0;
+    let cf_systematic = n_l3 >= 2 && sign_p < alpha && l3_mean > 0.0;
     eprintln!(
         "\n★★最终判定：{}",
         if cf_systematic {
-            "cross-fit L3 系统性 alpha 成立（选/评分离后仍 p<.05 ∧ 池均值>0）——非 winner's curse 伪影"
+            format!("cross-fit L3 系统性 alpha 成立（选/评分离后仍 p<{alpha} ∧ 池均值>0）——非 winner's curse 伪影")
         } else if n_l3 < min_l3_power {
-            "cross-fit inconclusive(功效不足 n_L3<5)：K-fold 缩短 train ⟹ 更少非退化品种，符号检验全正也达不到 p<.05"
+            format!("cross-fit inconclusive(功效不足 n_L3<{min_l3_power})：K-fold 缩短 train ⟹ 更少非退化品种，符号检验全正也达不到 p<{alpha}")
         } else {
-            "cross-fit L3 系统性 alpha 不成立（n_L3≥5 但 p≥.05 或池均值≤0）——选/评分离后无系统性 alpha"
+            format!("cross-fit L3 系统性 alpha 不成立（n_L3≥{min_l3_power} 但 p≥{alpha} 或池均值≤0）——选/评分离后无系统性 alpha")
         }
     );
 }
@@ -1295,9 +1295,10 @@ fn martingale_impossibility_guard() {
     eprintln!("ΔGross 均值 +/− 分布            : {n_pos} 正 / {n_neg} 负（共 {n_eff}）");
     eprintln!("跨种子双边符号检验 p（H0:E=0）   : {two_sided_sign_p:.4}");
     eprintln!("检出未来函数泄漏（系统性同号）   : {leak}");
+    let alpha = stats.significance_p_threshold;
     eprintln!(
         "\n★诚实裁定（acc-martingale-guard + alpha2 §11 鞅定理 + codex 异质审 2026-06-30 + 231号）：\n  \
-         - **harness 因果纯净（PASS）** ⟺ 跨独立种子 ΔGross 均值符号检验不显著（双边 p>0.05）——\n    \
+         - **harness 因果纯净（PASS）** ⟺ 跨独立种子 ΔGross 均值符号检验不显著（双边 p>{alpha}）——\n    \
            符号随机分布在 0 两侧，独立鞅路径上毛额总体 E[ΔGross]=0，与鞅定理 E[ΔN·ΔP]=0 自洽。\n  \
          - **认识论修正（单路径 bootstrap 否证）**：单条鞅路径样本均值必偏离 0（√n 波动），单路径\n    \
            boot p 把噪声误判为泄漏；正确判据是跨独立路径的符号随机性（与 L3 跨品种符号检验同构）。\n  \
@@ -1311,7 +1312,7 @@ fn martingale_impossibility_guard() {
     // acceptance（acc-martingale-guard 可证伪门）：跨独立鞅路径毛额不得系统性同号（无未来函数泄漏）。
     assert!(
         !leak,
-        "鞅守卫 FAIL：跨独立鞅路径 ΔGross 均值系统性同号（双边符号 p={two_sided_sign_p:.4}≤0.05）\
+        "鞅守卫 FAIL：跨独立鞅路径 ΔGross 均值系统性同号（双边符号 p={two_sided_sign_p:.4}≤{alpha}）\
          ——总体 E[ΔGross]≠0 = harness 未来函数泄漏，须定位修复（{n_pos}正/{n_neg}负/{n_eff}有效）"
     );
     // 跨种子符号检验需 ≥2 有效种子（χ 真改交易集）；否则检验空转/不可判。
@@ -2330,8 +2331,10 @@ fn pooling_icc_multi_symbol() {
     );
     eprintln!("≥{MIN_ASSETS_FOR_ICC} 品种共享且 within 可估的 z 类 : {n_shared_classes}");
     eprintln!("ICC 中位数 / 均值                   : {icc_median:.4} / {icc_mean:.4}");
+    let icc_low = stats.icc_low_threshold;
+    let icc_high = stats.icc_high_threshold;
     eprintln!(
-        "低 ICC(<0.3 同质) / 高 ICC(>0.7 异质): {n_low_icc} / {n_high_icc}（共 {} 类）",
+        "低 ICC(<{icc_low} 同质) / 高 ICC(>{icc_high} 异质): {n_low_icc} / {n_high_icc}（共 {} 类）",
         icc_pool.len()
     );
     eprintln!(
@@ -2340,8 +2343,8 @@ fn pooling_icc_multi_symbol() {
     );
     eprintln!(
         "\n★诚实裁定（§15/§16 + formalization-validity-domain 231号）：\n  \
-         - (a) 跨品种同质（pooling 有效）⟺ ICC 多数低(<0.3) ∧ 迁移误差小 ⟹ τ²≈0 ⟹ pooling 安全提升功效。\n  \
-         - (b) 跨品种异质（强 pooling 引偏差）⟺ ICC 多数高(>0.7) 或迁移误差大 ⟹ τ²>0 ⟹ 应收缩(pooling_weight)非全 pool。\n  \
+         - (a) 跨品种同质（pooling 有效）⟺ ICC 多数低(<{icc_low}) ∧ 迁移误差小 ⟹ τ²≈0 ⟹ pooling 安全提升功效。\n  \
+         - (b) 跨品种异质（强 pooling 引偏差）⟺ ICC 多数高(>{icc_high}) 或迁移误差大 ⟹ τ²>0 ⟹ 应收缩(pooling_weight)非全 pool。\n  \
          - 功效边界：n_shared_classes 小（{MAX_BARS}bar 截断 + 8 品种）⟹ ICC 统计本身功效不足，\n    \
            诚实报 blocked 而非「同质确认」（缺乏否证同质性的统计功效 ≠ 同质成立）。\n  \
          - 单品种类（<{MIN_ASSETS_FOR_ICC} 品种）不计入——无法谈「品种间」相关（ICC 定义需 ≥2 品种 between 散布）。"
