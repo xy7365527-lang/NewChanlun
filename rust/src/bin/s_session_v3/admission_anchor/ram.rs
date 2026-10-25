@@ -180,4 +180,77 @@ mod tests {
         assert!(matches!(AdmissionRamLedger::new(NativeRamLimits {
             max_live_bytes: n, max_operation_bytes: n - 1 }), Err(ScratchFailure::Budget)));
     }
+    fn job_limits() -> newchan_rust::s_content::job::JobLimits {
+        newchan_rust::s_content::job::JobLimits::from_canonical_json(&serde_json::json!({
+            "max_total_wire_bytes":"1000000", "max_total_node_bytes":"1000000", "max_total_nodes":"2",
+            "max_total_records":"100", "max_total_requests":"100", "max_elapsed_ms":"60000",
+            "max_staged_bytes":"1000000", "max_store_bytes":"1000000"
+        })).unwrap()
+    }
+    #[test]
+    fn mixed_ram_two_domain_job_acceptance_and_full_cap_duplicates() {
+        use newchan_rust::s_content::{self as sc, job::{Job, Existing, CheckedNodeUsage, NodeAcceptance}};
+        let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+        owner.codec_work().unwrap().run(|work| {
+            let mut job = Job::new_started_mixed(job_limits(), Existing::default(),
+                Box::new(std::time::Instant::now), std::time::Instant::now(), work)?;
+            let bytes = b"content";
+            let content = CheckedNodeUsage::checked(&sc::frame(sc::tag::BYTES_CHUNK, bytes), sc::tag::BYTES_CHUNK, bytes)?;
+            let legacy = sc::legacy_evidence::CheckedLegacyEvidenceRow::verify(
+                &sc::legacy_evidence::node_id(0, bytes), 0, bytes, bytes.len() as i64).unwrap();
+            assert_eq!(job.accept_checked_usage_mixed(&content, work)?, NodeAcceptance::FirstAccept);
+            assert_eq!(job.accept_legacy_evidence(&legacy, work)?, NodeAcceptance::FirstAccept);
+            let before = job.snapshot();
+            assert_eq!(before.nodes, 2);
+            assert_eq!(job.accept_checked_usage_mixed(&content, work)?, NodeAcceptance::AlreadyAccepted);
+            assert_eq!(job.accept_legacy_evidence(&legacy, work)?, NodeAcceptance::AlreadyAccepted);
+            assert_eq!(job.snapshot().nodes, before.nodes);
+            assert_eq!(job.snapshot().node_bytes, before.node_bytes);
+            Ok::<_, sc::CodecError>(())
+        }).unwrap();
+        assert_eq!(owner.snapshot().unwrap().job_live, AdmissionRamLedger::metadata_bytes().unwrap());
+    }
+    #[test]
+    fn mixed_ram_dedup_rejection_preserves_node_counts_and_wire() {
+        use newchan_rust::s_content::{self as sc, job::{Job, Existing, CheckedNodeUsage}};
+        for legacy in [false, true] {
+            let owner = AdmissionRamLedger::new(limits(CodecWork::metadata_bytes() + 1)).unwrap();
+            let mut observed = None;
+            let result = owner.codec_work().unwrap().run(|work| {
+                let mut job = Job::new_started_mixed(job_limits(), Existing::default(),
+                    Box::new(std::time::Instant::now), std::time::Instant::now(), work)?;
+                job.charge_wire_bytes(23)?;
+                let bytes = b"x";
+                let accepted = if legacy {
+                    let row = sc::legacy_evidence::CheckedLegacyEvidenceRow::verify(
+                        &sc::legacy_evidence::node_id(0, bytes), 0, bytes, 1).unwrap();
+                    job.accept_legacy_evidence(&row, work)
+                } else {
+                    let usage = CheckedNodeUsage::checked(&sc::frame(sc::tag::BYTES_CHUNK, bytes), sc::tag::BYTES_CHUNK, bytes)?;
+                    job.accept_checked_usage_mixed(&usage, work)
+                };
+                assert!(accepted.is_err());
+                observed = Some(job.snapshot());
+                accepted.map(|_| ())
+            });
+            assert!(result.is_err());
+            let observed = observed.unwrap();
+            assert_eq!((observed.nodes, observed.node_bytes, observed.wire_bytes), (0, 0, 23));
+        }
+    }
+    #[test]
+    fn mixed_ram_parsers_run_without_native_feature_and_keep_original_grammar() {
+        let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+        owner.codec_work().unwrap().run(|work| {
+            let duplicate = br#"{"key":1,"key":2}"#;
+            assert!(crate::v3::business_json::mixed_strict_json_owner(duplicate, work).is_err());
+            let legacy = crate::v3::business_json::mixed_legacy_json_owner(duplicate, work)?;
+            assert_eq!(legacy.get("key").unwrap(), &serde_json::json!(2));
+            let strict = crate::v3::business_json::mixed_strict_json_owner(br#"{"ok":[1,2]}"#, work)?;
+            assert_eq!(strict.get("ok").unwrap(), &serde_json::json!([1,2]));
+            Ok::<_, String>(())
+        }).unwrap();
+        assert_eq!(owner.snapshot().unwrap().job_live, AdmissionRamLedger::metadata_bytes().unwrap());
+    }
+
 }
