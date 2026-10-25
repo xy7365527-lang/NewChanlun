@@ -1448,7 +1448,7 @@ pub(crate) fn test_prepare(db: &Path) -> PreparedAdmission {
 pub(crate) fn test_with_clock_account<T>(
     db: &Path,
     first: Instant,
-    clock: Box<dyn Fn() -> Instant>,
+    clock: Box<dyn admission_job::Clock>,
     run: impl FnOnce(&super::admission_provider::MeasuredDomain, &mut AdmissionAccounting<'_>) -> T,
 ) -> T {
     let consumed = test_prepare(db).consume().unwrap();
