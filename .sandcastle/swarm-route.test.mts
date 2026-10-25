@@ -29,12 +29,12 @@ test("swarm Docker 使用宿主网关而非容器回环，密钥只存在运行�
   assert.ok(!DOCKER_CLIPROXY_BASE_URL.includes("127.0.0.1"));
 });
 
-test("main-swarm 不再实例化 prime-agent/k3，三处沙盒统一走路由 helper", () => {
+test("main-swarm 不再实例化 prime-agent/k3，planner/单票沙盒统一走路由 helper", () => {
   const source = readFileSync(new URL("./main-swarm.mts", import.meta.url), "utf8");
   assert.ok(!source.includes("primeAgent("));
   assert.ok(!source.includes('"k3"'));
-  assert.equal(source.match(/swarmSandbox\(IMAGE\)/g)?.length, 3);
-  assert.equal(source.match(/swarmAgent\(\)/g)?.length, 4);
+  assert.equal(source.match(/swarmSandbox\(IMAGE\)/g)?.length, 2);
+  assert.equal(source.match(/swarmAgent\(\)/g)?.length, 3);
 });
 
 test("main-swarm 领票前验证 Docker 路由，失败时不回退旧模型", () => {

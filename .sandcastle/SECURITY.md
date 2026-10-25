@@ -81,8 +81,17 @@ sandcastle 自动从 `.sandcastle/.env` 与 `process.env` 解析环境变量注�
 
 独审拿精确作者提交，修正也由宿主封包。阶段内 resume 仍用原 session；封包重入核父提交、阶段标记、文件集合与干净工位，避免重复提交。进程重启后的不明脏工位不自动接管，由 owner 按记录恢复。
 
-Docker swarm 的 namespace 尚未真实验收；单票作者/独审可复用上述受管合同，多票 merger 不可复用：它需要 merge 分支与双父提交，而现合同只接受本票分支、单父提交。namespace 预检失败或 merger 合同未批准/实现时，均在 planner/认领之前拒绝运行。镜像构建、模型 HTTP、mock tests 或 main 宿主模式成功均不替代 Docker 验收。不改变容器 capabilities/seccomp/privileged 或 sandbox 模式。
+Docker swarm 的 namespace 尚未真实验收；单票作者/独审可复用上述受管合同，多票 merger 使用另行获批的宿主归并合同，不能借此放宽单票 helper。namespace 预检失败时在 planner/认领之前拒绝运行。镜像构建、模型 HTTP、mock tests 或 main 宿主模式成功均不替代 Docker 验收。不改变容器 capabilities/seccomp/privileged 或 sandbox 模式。
 
-Codex 的受管提交提示使用 codex-implement-prompt.md / codex-review-prompt.md；旧 implement-prompt.md / review-prompt.md / merge-prompt.md 保持原调用合同。`swarm-managed.mts` 的单票作者/独审由宿主封包，不再依据 SDK 观察到的工蜂 commit 判断产出；作者未提交、blocked 或失败验证不能进入 completed 分支集。merger 原代码被启动门阻止，不以旧工蜂 git merge 合同冒充受管提交。
+Codex 的受管提交提示使用 codex-implement-prompt.md / codex-review-prompt.md；旧 implement-prompt.md / review-prompt.md / merge-prompt.md 保持原调用合同。`swarm-managed.mts` 的单票作者/独审由宿主封包，不再依据 SDK 观察到的工蜂 commit 判断产出；作者未提交、blocked 或失败验证不能进入 completed 分支集。Codex merger 不再调用旧 git merge 提示；旧模板仅保持 legacy 合同。
 
 远端结果以结构化 `RustVerification` 绑定精确 head，保存完整 stdout/stderr 和 nc-remote 原始日志；日志首行 SHA 必须匹配。作者失败诊断交独审工蜂修复，修正提交重验；独审无改动沿用同 head 的既有结论，不能降成“Rust 未改动”。验证失败至多三轮修复后以 failed 退出，不发 reviewer/completed。REVIEW_ONLY 按整份候选差异恢复验证需求。
+
+
+### 多票宿主归并的新增授权（#1617）
+
+新增授权只覆盖已验收固定 SHA 清单在专用功能归并分支上的 merge、双父提交与 MERGE_HEAD 恢复。验收清单由主控提供，不由工蜂返回 accepted；普通扇出只产生 pending 候选。清单与恢复记录位于工蜂 worktree 之外。清单固定全部票的验收证据，运行中不追随分支移动。
+
+`managed-merge.mts` 在任何提交前验证目标为本运行 `sandcastle/merge-<run-id>`，禁止 main/来源分支；用独占宿主锁和持久检查点记录父集、索引、文件内容与精确组合验证。冲突工蜂仅可编辑初始未合并路径，禁止改索引或集合外文件；blocked/越界/未知 WIP 保留现场。宿主不执行工蜂给出的 Git 命令，提交只允许准确双父集和树。commit 与检查点写入之间中断时，仅凭保存树、准确父集、本运行标记和干净工位恢复已成提交。
+
+组合验证失败保留工位并停止下一输入；单票验证不代替组合验证。没有自动 reset/clean/abort、推送、合 main 或关票动作；新交易策略与 Docker capabilities/seccomp/privileged/sandbox 改动均不在此授权内。默认 Docker 的真实执行仍待独立验收，mock/contract tests 只证明受管状态机。

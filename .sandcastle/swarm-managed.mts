@@ -43,8 +43,3 @@ export async function runManagedSwarmTicket(opts: SwarmTicketOptions): Promise<{
   channels.logWorker({ ticket: issue, branch, phase: "reviewer", status: "completed", head: verification.head, verification });
   return { commits: [...new Set([sealed.head, verification.head])], verification };
 }
-
-/** namespace 恢复也不等于多票 merge 合同获批；在 planner/claim 前明确停下。 */
-export function assertSwarmMergeContract(): void {
-  throw new Error("[FAIL-loud #1617] Codex swarm 多票 merger 受管提交合同未批准/未实现；不运行 planner、不认领。单票 main.mts 合同不受此门影响。");
-}

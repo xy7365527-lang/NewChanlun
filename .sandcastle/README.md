@@ -94,7 +94,7 @@ bash .sandcastle/install-sandcastle-claimer.sh uninstall # 卸载
 | `install-sandcastle-harvest.sh` | 收割 launchd 定时任务的安装/卸载/查状态（#1660，对齐 install-sandcastle-claimer.sh）。 |
 | `launchd/com.newchanlun.sandcastle-harvest.plist` | 收割 launchd 任务定义：StartInterval 900 + RunAtLoad，指向宿主克隆（#1660）。 |
 | `main-model.mts` / `cliproxy-env.mts` | 当前主控同型的唯一模型配置与无第三方依赖 CLIProxy 接线；后者可供 wayfinder 在无 node_modules 环境导入。 |
-| `swarm-route.mts` | main-swarm 的主控同型 provider 与 Docker 宿主网关；保留 Docker 隔离，密钥仅运行时 env；领票前做真实模型请求与 namespace 预检；多票 merger 合同未批准时另行拒绝，不认领、不换模型。 |
+| `swarm-route.mts` | main-swarm 的主控同型 provider 与 Docker 宿主网关；保留 Docker 隔离，密钥仅运行时 env；领票前做真实模型请求与 namespace 预检；失败不认领、不换模型；已验收清单走独立受管归并入口。 |
 | `prime-agent-provider.ts` | 显式 legacy 通道的自定义 AgentProvider；不再供本机默认 main/main-swarm 使用。无头模式 `prime-agent -p --mode json` 输出 NDJSON 事件流，prompt 走 stdin（避开 Linux 128 KB argv 上限），事件映射到 sandcastle 的 stream 协议。 |
 | `implement-prompt.md` | Phase 1 实装工蜂的 prompt 模板（`{{ISSUE_NUMBER}}` 注入）：Explore→Plan→Execute→Verify→Commit 流程 + 硬性规则（不关票不合 main 不 push、被卡留评论收工）。 |
 | `review-prompt.md` | Phase 2 评审工蜂的 prompt 模板（`{{BRANCH}}`/`{{ISSUE_NUMBER}}` 注入）：看分支 diff 与原始 issue，保持功能语义前提下直接在分支上修正。#1588 起不再用 `!`git diff`` 展开整段 diff，只放变更摘要（`--stat` / 提交列表 / 文件清单），评审工蜂按文件、按提交自取 diff；diff 基准 `{{BASE}}` = 渲染前现 fetch 的 origin/main 提交；原始 issue 放 `<issue>…</issue>` 块。 |
@@ -121,6 +121,21 @@ bash .sandcastle/install-sandcastle-claimer.sh uninstall # 卸载
 
 `MAX_TICKETS_PER_RUN=1` 只限制一次运行一票，不是全 lane 等主控验收的闸，互不依赖的票可并行。进程内同阶段 resume 复用 session；进程重启发现脏工位保留给原 owner，不自动清理或重复提交。
 
-`main-swarm.mts` 暂不可用：Docker namespace 尚未通过真实验收，多票 merger 的宿主提交合同尚未批准/实现。两道独立启动门均位于 planner/认领之前；namespace 恢复不会绕过 merger 门。模型请求成功不代表执行合同通过。详见 `SECURITY.md` 的职责与权限合同。
+`main-swarm.mts` 的真实 Docker 执行仍待 namespace 验收；namespace 和模型预检均在 planner/认领之前。多票宿主归并合同已获批并实现，但本地 contract tests 不代表默认 Docker 环境已经可用。详见 `SECURITY.md` 的职责与权限合同。
 
-Codex 的受管提交提示使用 codex-implement-prompt.md / codex-review-prompt.md；旧 implement-prompt.md / review-prompt.md / merge-prompt.md 保持原调用合同。swarm 单票作者/独审已接 `swarm-managed.mts`：宿主封包、精确 SHA 远端验证、失败修复与最终提示体积闸同主路径；本地 contract tests 不替代真实 Docker 验收。多票 merger 仍需另批提交责任，不能把单票分支约束放宽成任意分支。
+Codex 的受管提交提示使用 codex-implement-prompt.md / codex-review-prompt.md；旧 implement-prompt.md / review-prompt.md / merge-prompt.md 保持原调用合同。swarm 单票作者/独审已接 `swarm-managed.mts`：宿主封包、精确 SHA 远端验证、失败修复与最终提示体积闸同主路径；本地 contract tests 不替代真实 Docker 验收。多票 merger 使用独立 `managed-merge.mts` 合同，不放宽单票分支约束。
+
+
+### 多票功能归并与恢复（#1617）
+
+默认 swarm 扇出后把固定 SHA、独审与验证结果写入 `.sandcastle/logs/merge-candidates-<run-id>.json`，状态为 pending，不自动当作主控验收。主控核单票关卡后形成独立 accepted 清单（无需新增人工审批），按 `managed-merge.mts` 的 `MergeManifest` 格式填入每项 `acceptance.head/status/reviewEvidence/verificationEvidence`；两个 evidence 字段是非空证据指针字符串。run-id、基线、顺序与 SHA 随清单冻结。
+
+```sh
+SANDCASTLE_SWARM_MERGE_MANIFEST=/absolute/path/accepted-manifest.json npx tsx .sandcastle/main-swarm.mts
+```
+
+此入口跳过 planner/认领，只在 `sandcastle/merge-<run-id>` 功能分支逐条受管归并；不推送、不合 main、不关来源票。无冲突由宿主提交；冲突工蜂只能编辑冻结的冲突路径，不能改索引，宿主核完整清单后提交双父 commit。每步对精确组合 SHA 执行差异检查、累计 Rust 差异的远端 cargo check、涉及 TS 时的 typecheck；失败停止后续输入。
+
+同一命令、同一清单用于恢复；检查点在宿主 `.sandcastle/logs/merges/<run-id>/checkpoint.json`，工位保留在 `.sandcastle/worktrees/sandcastle-merge-<run-id>`。已提交但未验证只补验证；已通过不重复提交/检查。未知 WIP 或合同变化停交 owner，不 reset/clean/abort。进程硬退出遗留 `.lock` 时，owner 先核锁内 PID 确实结束、没有另一运行持锁，再移除这个锁文件并用原命令恢复；不得按超时强抢仍活着的工位。
+
+合并树不变但输入不在祖先链时仍记录双父拓扑；已在祖先链只记 already_integrated，不造空提交。重复 SHA 去重执行，原输入/票号追溯保留。完成报告与所有单票证据交主控最终验收；合 main 仍走用户原有批准闸。

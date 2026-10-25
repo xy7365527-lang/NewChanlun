@@ -3,16 +3,18 @@
 //   Phase 1 planner 建依赖图（<plan> 结构化输出）→
 //   Phase 2 Promise.allSettled 扇出（MAX_PARALLEL=4 信号量，#1007 裁 2），
 //     每 issue：createSandbox 确定性分支（baseBranch=main）→ 实装→独立评审 →
-//   Phase 3 单 merger 收口——技术合并进 sandcastle/merge-<ts> 归并分支，
+//   Phase 3 候选交主控验收；accepted 清单由独立入口受管归并到 sandcastle/merge-<run-id>，
 //     **不合 main、不关 issue**（人工闸，#1003 裁 3 有意偏离）。
 // 跑法：npx tsx .sandcastle/main-swarm.mts
 
 import * as sandcastle from "@ai-hero/sandcastle";
 import { assertDockerCliProxyReachable, assertSwarmExecutionReady, swarmAgent, swarmSandbox } from "./swarm-route.mts";
 import { execSync } from "node:child_process";
-import { appendFileSync, mkdirSync } from "node:fs";
+import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { z } from "zod";
-import { runManagedSwarmTicket, assertSwarmMergeContract } from "./swarm-managed.mts";
+import { resolve } from "node:path";
+import { runAcceptedSwarmMerge } from "./swarm-merge.mts";
+import { runManagedSwarmTicket } from "./swarm-managed.mts";
 import {
   ghIssueFetcher,
   ghIssueNotifier,
@@ -20,10 +22,9 @@ import {
   readReviewTemplate,
   resolveReviewBase,
   ReviewPromptTooLargeError,
-
 } from "./review-context.mts";
 // 单票作者/评审只编辑文件；宿主封包后由宿主 nc-remote 验精确 SHA。
-// merger 仍是旧合同，未经批准不移植；启动门保持其不可达，不扩大 Docker 权限。
+// 多票归并只消费主控已验收固定 SHA 清单；默认运行仅产候选，不自动替代单票验收。
 
 // ── 顶部常量（并发与资源面；模型唯一来源是 main-model.mts） ───────────────
 const MAX_ITERATIONS = 3;
@@ -69,7 +70,10 @@ function claim(issue: string) {
 // 先验容器路由，再进入任何 planner/claim；失败时不产生 tracker 写副作用（#1617）。
 assertSwarmExecutionReady(IMAGE);
 assertDockerCliProxyReachable(IMAGE);
-assertSwarmMergeContract();
+const acceptedManifest = process.env.SANDCASTLE_SWARM_MERGE_MANIFEST;
+if (acceptedManifest) {
+  await runAcceptedSwarmMerge(acceptedManifest, IMAGE, logWorker);
+} else {
 
 for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   console.log(`\n=== Iteration ${iteration}/${MAX_ITERATIONS} ===\n`);
@@ -163,33 +167,27 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   const completed = settled
     .map((outcome, i) => ({ outcome, issue: issues[i]! }))
     .filter((e) => e.outcome.status === "fulfilled" && (e.outcome as PromiseFulfilledResult<{ commits: unknown[] }>).value.commits.length > 0)
-    .map((e) => e.issue);
+    .map((e) => ({ ...e.issue, result: (e.outcome as PromiseFulfilledResult<Awaited<ReturnType<typeof runManagedSwarmTicket>>>).value }));
 
   console.log(`\n执行完成，${completed.length} 条分支有产出。`);
   if (completed.length === 0) continue;
 
-  // Phase 3: 单 merger 收口（技术合并进归并分支；不合 main、不关 issue——人工闸）
-  const mergeBranch = `sandcastle/merge-${Date.now()}`;
-  const mergeSandbox = await sandcastle.createSandbox({
-    branch: mergeBranch,
-    baseBranch: "main",
-    sandbox: swarmSandbox(IMAGE),
-  });
-  try {
-    await mergeSandbox.run({
-      name: "merger",
-      maxIterations: 1,
-      agent: swarmAgent(),
-      promptFile: "./.sandcastle/merge-prompt.md",
-      promptArgs: {
-        BRANCHES: completed.map((i) => `- ${i.branch}`).join("\n"),
-        ISSUES: completed.map((i) => `- ${i.id}: ${i.title}`).join("\n"),
-      },
-    });
-    console.log(`\n归并完成：${mergeBranch}（待验收合入 main，人工闸）。`);
-  } finally {
-    await mergeSandbox.close();
-  }
+  // Phase 3 的输入先交主控验收：不能把 reviewer/completed 自动改成 accepted。
+  const runId = String(Date.now());
+  const draftPath = `.sandcastle/logs/merge-candidates-${runId}.json`;
+  const draft = {
+    runId, branch: `sandcastle/merge-${runId}`, base: hostGit()(["rev-parse", "main"]).trim(),
+    inputs: completed.map(i => ({ issue: Number(i.id), branch: i.branch, sha: i.result.verification!.head,
+      acceptance: { head: i.result.verification!.head, status: "pending",
+        reviewEvidence: resolve(".sandcastle/logs/workers.jsonl"),
+        verificationEvidence: `${resolve(draftPath)}#head=${i.result.verification!.head}` },
+      verification: i.result.verification,
+    })),
+  };
+  mkdirSync(".sandcastle/logs", { recursive: true });
+  writeFileSync(draftPath, JSON.stringify(draft, null, 2));
+  console.log(`单票候选清单：${draftPath}；主控核验后形成 accepted 清单，再以 SANDCASTLE_SWARM_MERGE_MANIFEST 指向它执行/恢复归并。`);
+}
 }
 
 console.log("\nAll done.");

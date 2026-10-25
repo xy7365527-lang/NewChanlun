@@ -4,7 +4,7 @@ import { mkdtempSync, writeFileSync, readFileSync, rmSync, mkdirSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
-import { runManagedSwarmTicket, assertSwarmMergeContract, type SwarmTicketOptions } from "./swarm-managed.mts";
+import { runManagedSwarmTicket, type SwarmTicketOptions } from "./swarm-managed.mts";
 import { verifyManagedRust } from "./managed-commit.mts";
 import { hostGit, ReviewPromptTooLargeError } from "./review-context.mts";
 const report = (files: string[], status = "ready") => `<sandcastle-result>${JSON.stringify({ status, files, verification: [] })}</sandcastle-result>`;
@@ -86,11 +86,10 @@ test("完整提示追加诊断后超限：作者封包保留，评审工蜂不�
   assert.deepEqual(f.logged.map(e => e.reason), ["prompt_too_large"]); assert.equal(f.notified.length, 1);
 });
 
-test("merger 合同未批准时在 planner/claim 前拒绝，单票边界不放宽", () => {
-  assert.throws(assertSwarmMergeContract, /多票 merger/);
+test("归并入口与自动领票分离，候选不自动变成 accepted", () => {
   const source = readFileSync(new URL("./main-swarm.mts", import.meta.url), "utf8");
-  assert.ok(source.indexOf("assertSwarmMergeContract();") < source.indexOf("for (let iteration"));
-  assert.match(source, /runManagedSwarmTicket/);
-  assert.ok(source.includes("codex-implement-prompt.md")); assert.ok(source.includes("codex-review-prompt.md"));
-  assert.ok(!source.includes("implement.commits"));
+  assert.ok(source.includes("SANDCASTLE_SWARM_MERGE_MANIFEST"));
+  assert.ok(source.includes('status: "pending"'));
+  assert.ok(!source.includes("merge-prompt.md"));
+  assert.ok(source.includes("runManagedSwarmTicket"));
 });
