@@ -1687,6 +1687,45 @@ mod tests {
         )
         .is_err());
         assert!(context.slot.is_none());
+        drop(audit);
+        drop(tx);
+        for limit in [3, 4] {
+            let mut context = RequestAuditContext::default();
+            {
+                let tx = f.conn.transaction().unwrap();
+                state::audit_native_in_request(&tx, &mut context).unwrap();
+            }
+            let mut job = make_job(limit);
+            let tx = f.conn.transaction().unwrap();
+            let meter = AuditJob::new(&mut job);
+            let error = state::audit_native_in_request_measured(
+                &tx, &mut context, None, None, Some(&meter)).err().unwrap();
+            assert!(error.contains("job_limit_exceeded"), "{error}");
+            assert!(context.slot.is_none());
+            drop(meter);
+            assert_eq!(job.snapshot().records, u128::from(limit + 1),
+                "3允许SQL/OHLC/validate，4再允许raw hash；下一独立访问照实入账后拒绝");
+        }
+        for armed in [false, true] {
+            let mut keeper = super::super::cross_request_source_cache::Keeper::new(64 * 1024 * 1024);
+            {
+                let tx = f.conn.transaction().unwrap();
+                state::audit_native_with_source_keeper_for_testonly(&tx, &mut keeper).unwrap();
+            }
+            assert!(keeper.retained_source_bytes() > 0);
+            let mut context = RequestAuditContext::with_source_keeper(keeper);
+            context.arm_source_pool_return(armed);
+            let mut job = make_job(1);
+            let tx = f.conn.transaction().unwrap();
+            let meter = AuditJob::new(&mut job);
+            let error = state::audit_native_in_request_measured(
+                &tx, &mut context, None, None, Some(&meter)).err().unwrap();
+            assert!(error.contains("job_limit_exceeded"), "{error}");
+            assert!(context.slot.is_none());
+            assert_eq!(context.take_source_pool().is_some(), armed);
+            drop(meter);
+            assert_eq!(job.snapshot().records, 2);
+        }
     }
 
     #[test]

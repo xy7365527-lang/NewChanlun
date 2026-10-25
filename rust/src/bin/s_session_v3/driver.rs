@@ -857,6 +857,91 @@ mod tests {
 
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
+    fn native_prefix_context_rechecks_real_connection_current_material() {
+        for change in ["same", "append", "bad_node", "epoch", "identity", "version"] {
+            let f = Fixture::new();
+            let mut initial = f.open("1").unwrap();
+            initial.handle(Fixture::ingest(1)).unwrap();
+            drop(initial);
+            let mut context = request_audit::RequestAuditContext::default();
+            let scope = super::super::admission::WriterAdmission::from(
+                crate::v3::admission_anchor::test_prepare(&f.db)).admit_prefix(
+                    &f.db, super::super::admission_private::RejectionPrefix::NativeStartup {
+                        epoch: "1", context: Some(&mut context), work: None,
+                    }).unwrap();
+            assert!(context.has_slot());
+            assert_eq!((context.cold, context.hits), (1, 0));
+            let _guard = scope.enter().unwrap();
+            scope.require_admitted().unwrap();
+            let conn = super::super::audit_owner::AuditConnection::open(&f.db).unwrap();
+            // 真实连接已创建，但startup尚未开始事务；改变下一事务实际看到的材料。
+            let mut mutation = open_db(&f.db).unwrap();
+            match change {
+                "same" => {}
+                "append" => {
+                    let tx = mutation.transaction().unwrap();
+                    newchan_rust::s_content::write_value(
+                        &mut super::super::content_store::TxStore::new(&tx).unwrap(),
+                        &newchan_rust::s_content::Value::String("prefix-to-real-append".into()),
+                    ).unwrap();
+                    tx.commit().unwrap();
+                }
+                "bad_node" => { mutation.execute("UPDATE s_content_nodes SET body=x'ff'", []).unwrap(); }
+                "epoch" => { meta_set(&mutation, "writer_epoch", "2").unwrap(); }
+                "identity" => { meta_set(&mutation, "session_generation", "0").unwrap(); }
+                "version" => { meta_set(&mutation, "protocol_revision", "s-session/999").unwrap(); }
+                _ => unreachable!(),
+            }
+            let expected = {
+                let tx = mutation.transaction().unwrap();
+                state::audit_native_current(&tx).map(|_| ()).and_then(|_| crate::verify_writer_epoch(&tx, "1"))
+            };
+            drop(mutation);
+            let actual = conn.startup(&f.profile, "1", &f.clock, None,
+                &s_allocation::Mode::CapturedNative, Some(&mut context));
+            match expected {
+                Ok(()) => {
+                    actual.unwrap();
+                    if change == "same" { assert_eq!((context.cold, context.hits), (1, 1)); }
+                    if change == "append" { assert_eq!((context.cold, context.hits), (2, 0)); }
+                }
+                Err(expected) => assert_eq!(actual.err().unwrap(), expected, "{change}"),
+            }
+        }
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_prefix_outer_epoch_failure_clears_retained_slot_without_reviving_pool() {
+        let f = Fixture::new();
+        let mut initial = f.open("1").unwrap();
+        initial.handle(Fixture::ingest(1)).unwrap();
+        drop(initial);
+        let mut c = open_db(&f.db).unwrap();
+        let mut keeper = super::super::cross_request_source_cache::Keeper::new(64 * 1024 * 1024);
+        {
+            let tx = c.transaction().unwrap();
+            state::audit_native_with_source_keeper_for_testonly(&tx, &mut keeper).unwrap();
+        }
+        assert!(keeper.retained_source_bytes() > 0);
+        drop(c);
+        let mut context = request_audit::RequestAuditContext::with_source_keeper(keeper);
+        context.arm_source_pool_return(true);
+        let error = Driver::open_with_request_and_mode_context(
+            &f.db, &f.profile, "2", f.clock.clone(), None,
+            s_allocation::Mode::CapturedNative, Some(&mut context),
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        ).err().unwrap();
+        assert!(error.starts_with("StaleWriter："), "{error}");
+        assert_eq!(context.cold, 1, "内层已完整成功并retain后，epoch才拒绝");
+        assert!(context.take().is_none());
+        assert!(context.take_source_pool().is_none(), "内层已消费的旧池不得复活");
+        assert!(error.contains("原准入账="));
+        assert!(!PathBuf::from(format!("{}-shm", f.db.display())).exists());
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
     fn native_prefix_success_keeps_actual_startup_validation() {
         let f = Fixture::new();
         for with_context in [false, true] {
