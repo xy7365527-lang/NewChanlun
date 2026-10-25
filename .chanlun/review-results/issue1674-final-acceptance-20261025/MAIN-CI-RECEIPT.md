@@ -24,6 +24,6 @@ Owned 命令：`cargo test --locked --features s_session,s_allocation_json_testo
 - `/Volumes/AgentStorage/final-review-1674-20261025/worktree`
 - `/Volumes/AgentStorage/rebase-pr1674-20261024`
 
-本地与远端 `sandcastle/issue-1674` 保留，待主控处置。#1674 已自动 CLOSED，但最终独审文书进入 main 与分支处置尚未完成；自动关闭不等于全部关票门通过。本报告不删除分支、不修改票状态，也不代销 #1406 或六项 Destination 其它义务。
+2026-10-25T22:42:13Z 起的实时核查：`git show-ref --verify` 确认本地 `sandcastle/issue-1674` 仍指向 `dbd2979e377c8f8b67a7c641c24689eb5ff280a0`，待主控处置；`git ls-remote --heads origin` 成功且该远端 ref 无输出，远端分支已不存在。本记录不推断删除者或删除时刻。#1674 已自动 CLOSED，但最终独审文书进入 main 与分支处置尚未完成；自动关闭不等于全部关票门通过。本报告不删除分支、不修改票状态，也不代销 #1406 或六项 Destination 其它义务。
 
 取证来源：`/Volumes/AgentStorage/issue1709-pstack-orchestrate-20261025/1669-1674-CLOSEOUT-READINESS26.md` 与 `MAIN-CI-TERMINAL-CLOSEOUT26.md`；前者为后续工位处置状态，覆盖后者较早的工位待清理记录。

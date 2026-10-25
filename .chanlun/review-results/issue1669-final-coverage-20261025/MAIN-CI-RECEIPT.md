@@ -20,7 +20,7 @@
 
 ## 工位与剩余关票门
 
-原 `/Volumes/AgentStorage/issue1406-1669` 已非 force 移除，目录及 worktree 注册均无；本地与远端 `codex/1669-oq2a-short-lock` 保留，待主控处置。此报告不删除分支、不关闭票。
+原 `/Volumes/AgentStorage/issue1406-1669` 已非 force 移除，目录及 worktree 注册均无；2026-10-25T22:42:13Z 起的实时核查：`git show-ref --verify` 确认本地 `codex/1669-oq2a-short-lock` 仍指向 `c9e8a74a6e2d5a09d6e3dba59edd3626e652315f`，待主控处置；`git ls-remote --heads origin` 成功且该远端 ref 无输出，远端分支已不存在。本记录不推断删除者或删除时刻。此报告不删除分支、不关闭票。
 
 #1669 在本轮核查时仍 OPEN。最终独审及本凭据进入 main、分支处置完成后，主控才能用实际文书提交 SHA 补最终 resolution。本票证据不代替 #1378 的跨方向边界验收或六项 Destination 整图验收。
 
