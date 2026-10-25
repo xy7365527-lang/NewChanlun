@@ -1,0 +1,18 @@
+{
+  "id": "#1677/evidence-gate",
+  "version": 1,
+  "kind": "evidence_gate",
+  "ticket": "#1677（ADR 0022）；#1605 只迁移读取器，不代做 #1398/#1410/#1441 下游",
+  "fields": {
+    "confidence": { "value": "95/100", "default": "95/100", "source": "ADR 0022 signed instance v1；定点分数，不转浮点存储" },
+    "block_unit": { "value": "CalendarMonthUTC", "default": "CalendarMonthUTC", "source": "ADR 0022 signed instance v1" },
+    "min_events": { "value": 30, "default": 30, "source": "ADR 0022 signed instance v1" },
+    "min_blocks": { "value": 12, "default": 12, "source": "ADR 0022 signed instance v1" },
+    "min_windows": { "value": 3, "default": 3, "source": "ADR 0022 signed instance v1" },
+    "min_coverage": { "value": "1/2", "default": "1/2", "source": "ADR 0022 signed instance v1" },
+    "supersedes": { "value": "none", "source": "ADR 0022 signed instance v1" },
+    "authorizer": { "value": "编排者（#853 resolution 5289198250 第 3/6/7 条）；记录化 #1677", "source": "ADR 0022 signed instance v1" },
+    "authorized_at": { "value": "2026-08-14", "source": "ADR 0022 signed instance v1" }
+  },
+  "cost": "evidence_gate 的样本单位与 C-19 研究验收不同；改值须新版本，不得与 research-stats 合并或互相补默认值。"
+}

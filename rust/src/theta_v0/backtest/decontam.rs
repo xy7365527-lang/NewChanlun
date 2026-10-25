@@ -10,7 +10,7 @@
 //! 本模块是 acc-alpha acceptance 工位「beta 去污后 LCB>0 占比」判据的**纯逻辑内核**。
 //! 消费逐桶标量 `(μ̂, LCB, UCB, perm_p, n_eff, CV)`，产出三态 `AlphaState`，再聚合为全局
 //! `AcceptanceVerdict`。判据常量在 `.chanlun/review-results/acc-alpha-estimand-prereg-20260701.md`
-//! §4 冻结（`z_α=1.645`、`perm_α=0.05`、功效门 `n_eff≥(1.645·CV)²`）。
+//! §4 冻结值登记在 `#1605/research-stats/v1`（`z_α=1.645`、`perm_α=0.05`、功效门 `n_eff≥(z_α·CV)²`）。
 //!
 //! ## 认识论等级（231号，强制标注）
 //!
@@ -125,8 +125,8 @@ pub fn powered(n_eff: f64, cv: f64, z_alpha: f64) -> bool {
     n_eff >= threshold
 }
 
-/// 逐桶三态判定（预注册 §3.1）。`perm_p` 为去污置换 p 值（路径 A/B 产出）；`z_alpha=1.645`、
-/// `perm_alpha=0.05` 为 §4 冻结常量。判定顺序严格照冻结表——先功效门，再三态。
+/// 逐桶三态判定（预注册 §3.1）。`perm_p` 为去污置换 p 值（路径 A/B 产出）；`z_alpha`、
+/// `perm_alpha` 由真实调用方从 C-19 记录传入。判定顺序严格照冻结表——先功效门，再三态。
 #[allow(clippy::too_many_arguments)]
 pub fn classify_bucket(
     mu_hat: f64,
@@ -165,6 +165,7 @@ pub fn global_verdict(states: &[AlphaState]) -> AcceptanceVerdict {
 mod tests {
     use super::*;
 
+    // #1605 C-19：本测试代码复现 v1 预注册值；生产代码改从 research_stats 记录读取。
     const Z: f64 = 1.645;
     const PA: f64 = 0.05;
 
@@ -188,6 +189,20 @@ mod tests {
         // 去污不显著（perm_p≥α）⟹ 非 VALIDATED（LCB>0 但 UCB>0 ⟹ 跨零 INCONCLUSIVE）。
         let s3 = classify_bucket(0.5, 0.1, 0.9, 0.20, 500.0, 10.0, Z, PA);
         assert_eq!(s3, AlphaState::Inconclusive);
+    }
+
+    /// perm_alpha 是实际三态判定的输入，不是记录层的摆设。
+    #[test]
+    fn perm_alpha_changes_real_bucket_verdict() {
+        let args = (0.5, 0.1, 0.9, 0.04, 500.0, 10.0, Z);
+        assert_eq!(
+            classify_bucket(args.0, args.1, args.2, args.3, args.4, args.5, args.6, 0.05),
+            AlphaState::Validated
+        );
+        assert_eq!(
+            classify_bucket(args.0, args.1, args.2, args.3, args.4, args.5, args.6, 0.01),
+            AlphaState::Inconclusive
+        );
     }
 
     /// FALSIFIED 必须 powered——underpowered 的 LCB≤0∧UCB≤0 判 INCONCLUSIVE（667 核心）。
