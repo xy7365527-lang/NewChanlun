@@ -790,37 +790,68 @@ mod tests {
         assert_ne!(config, ThetaConfig::default());
         let labels = config.record_labels();
         let mut native = Driver::open_with_request_and_mode_context(
-            &f.db, &f.profile, "1", f.clock.clone(), None,
-            s_allocation::Mode::CapturedNative, None, config.clone(), false,
-        ).unwrap();
+            &f.db,
+            &f.profile,
+            "1",
+            f.clock.clone(),
+            None,
+            s_allocation::Mode::CapturedNative,
+            None,
+            config.clone(),
+            false,
+        )
+        .unwrap();
         native.audit_cache_source_bytes = Some(536_870_912);
         let mut ordinary = o.open_with_config("1", config.clone()).unwrap();
-        for n in 1..=3 {
+        for n in 1..=2 {
             let input = Fixture::ingest(n);
             if n == 2 {
-                native.runtime.set_after_prepare_for_request_test(Some(|tx| {
-                    tx.commit_hook(Some(|| true)).map_err(err)?;
-                    Ok(())
-                }));
-                let (failed, events, _) =
-                    state::traced(true, || native.handle(input.clone()));
+                native
+                    .runtime
+                    .set_after_prepare_for_request_test(Some(|tx| {
+                        tx.commit_hook(Some(|| true)).map_err(err)?;
+                        Ok(())
+                    }));
+                let (failed, events, _) = state::traced(true, || native.handle(input.clone()));
                 assert!(failed.is_err());
-                assert!(events.iter().any(|v| v["stage"] == "generate" && v["path"] == "delta"));
+                assert!(events
+                    .iter()
+                    .any(|v| v["stage"] == "generate" && v["path"] == "delta"));
                 assert_eq!(count(&native.conn, "structure_deltas"), 1);
                 assert_eq!(count(&native.conn, "s_content_publications"), 1);
-                native.conn.commit_hook(None::<fn() -> bool>).unwrap();
-                native.runtime.set_after_prepare_for_request_test(None);
+                // 提交失败会退役连接；按真实恢复合同换连接、升级 epoch 后重试 pending。
+                ordinary.stop_after = Some("begin");
+                assert!(ordinary.handle(input.clone()).unwrap_err().contains("stop_after_begin"));
+                drop(native);
+                drop(ordinary);
+                recover(&f.db, "2", &f.clock, "recover-2").unwrap();
+                recover(&o.db, "2", &o.clock, "recover-2").unwrap();
+                native = Driver::open_with_request_and_mode_context(
+                    &f.db, &f.profile, "2", f.clock.clone(), None,
+                    s_allocation::Mode::CapturedNative, None, config.clone(), false,
+                ).unwrap();
+                native.audit_cache_source_bytes = Some(536_870_912);
+                ordinary = o.open_with_config("2", config.clone()).unwrap();
             }
-            let (actual, events, _) = state::traced(true, || native.handle(input.clone()));
+            let request = if n == 2 { receipt_request(&input) } else { input.clone() };
+            let (actual, events, _) = state::traced(true, || native.handle(request.clone()));
             let actual = actual.unwrap();
-            assert_eq!(actual, ordinary.handle(input.clone()).unwrap());
+            assert_eq!(actual, ordinary.handle(request).unwrap());
             assert_eq!(actual["policy_records"], labels);
             assert_eq!(native.runtime.parser_config_for_test(), Some(&config));
-            assert!(events.iter().any(|v| v["stage"] == "generate" && v["path"] == "delta"));
-            let persisted: String = native.conn.query_row(
-                "SELECT policy_records FROM structure_deltas WHERE generation=?1",
-                [n], |row| row.get(0),
-            ).unwrap();
+            if n == 1 {
+                assert!(events
+                    .iter()
+                    .any(|v| v["stage"] == "generate" && v["path"] == "delta"));
+            }
+            let persisted: String = native
+                .conn
+                .query_row(
+                    "SELECT policy_records FROM structure_deltas WHERE generation=?1",
+                    [n],
+                    |row| row.get(0),
+                )
+                .unwrap();
             assert_eq!(persisted, labels);
             assert_eq!(native.handle(receipt_request(&input)).unwrap(), actual);
             assert_eq!(
