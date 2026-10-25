@@ -460,3 +460,37 @@ fn start_gate_does_not_accept_changed_anchor_or_nonpipe() {
         ErrorKind::ControlMismatch
     );
 }
+
+#[test]
+fn mixed_resources_anchor_validates_full_contract_but_does_not_enable_execution() {
+    let raw = serde_json::to_vec(&json!({
+        "schema_revision":resources::MIXED_REVISION,
+        "measurement_domains":["s-content/1","legacy-evidence/1"],
+        "job_limits":limit_node(),
+        "native_ram":{"max_live_bytes":"4096","max_operation_bytes":"1024"}
+    })).unwrap();
+    let fixture = Fixture::with_raw(raw);
+    let prepared = fixture.load().unwrap();
+    assert!(prepared.resources.is_mixed());
+    assert_eq!(prepared.prelude.wire_bytes, fixture.total());
+    let error = prepared.consume().err().unwrap();
+    assert_eq!(error.kind, ErrorKind::MixedAdmissionNotEnabled);
+    assert_eq!(error.stage, Stage::E5);
+    assert!(error.budget_trusted);
+}
+
+#[test]
+fn mixed_resources_anchor_ram_mutation_requires_new_signed_binding() {
+    let raw = serde_json::to_vec(&json!({
+        "schema_revision":resources::MIXED_REVISION,
+        "measurement_domains":["s-content/1","legacy-evidence/1"],
+        "job_limits":limit_node(),
+        "native_ram":{"max_live_bytes":"4096","max_operation_bytes":"1024"}
+    })).unwrap();
+    let fixture = Fixture::with_raw(raw);
+    let prepared = fixture.load().unwrap();
+    let changed = String::from_utf8(fixture.raw.clone()).unwrap().replace("4096", "8192");
+    std::fs::write(&fixture.limits, changed).unwrap();
+    assert_eq!(fixture.load().err().unwrap().kind, ErrorKind::Changed);
+    assert_eq!(prepared.consume().err().unwrap().kind, ErrorKind::Changed);
+}

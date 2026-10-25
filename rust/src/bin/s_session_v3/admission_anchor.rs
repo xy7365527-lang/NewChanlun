@@ -21,6 +21,9 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+mod resources;
+use resources::AdmissionResources;
+
 const CONTROL_BYTES: usize = 65_536;
 const PUBLISHED: &str = "s-admission";
 const PENDING: &str = ".s-admission-pending";
@@ -47,6 +50,7 @@ pub(crate) enum Stage {
 pub(crate) enum ErrorKind {
     ResourcesMissing,
     ResourcesInvalid,
+    MixedAdmissionNotEnabled,
     Identity,
     AnchorMissing,
     AnchorInvalid,
@@ -396,6 +400,7 @@ impl BudgetLease {
 /// 不 Clone，不公开构造字段，不提供重置/修改限额或重取 pathname 内容的入口。
 pub(crate) struct PreparedAdmission {
     limits: JobLimits,
+    resources: AdmissionResources,
     lease: Arc<BudgetLease>,
     prelude: ControlPrelude,
 }
@@ -495,6 +500,10 @@ impl PreparedAdmission {
 
     pub(crate) fn consume(self) -> Result<ConsumedAdmission, AdmissionError> {
         check_lease(&self.lease, &self.prelude, Stage::E5)?;
+        if self.resources.is_mixed() {
+            // schema/签锚已核；双域父账与旧域执行尚未启用，不可丢掉 RAM 合同降级八帽。
+            return Err(self.prelude.error(ErrorKind::MixedAdmissionNotEnabled, Stage::E5));
+        }
         Ok(ConsumedAdmission {
             limits: self.limits,
             lease: self.lease,
@@ -1178,8 +1187,9 @@ pub(crate) fn load_for_db(
     }
     let node = strict_json(&limits._raw)
         .map_err(|_| prelude.error(ErrorKind::ResourcesInvalid, Stage::E3))?;
-    let values = JobLimits::from_canonical_json(&node)
+    let resources = AdmissionResources::parse(&node)
         .map_err(|_| prelude.error(ErrorKind::ResourcesInvalid, Stage::E3))?;
+    let values = resources.job_limits();
     prelude.trusted = Some(values);
     prelude.gate(Stage::E4)?;
     if environment
@@ -1205,6 +1215,7 @@ pub(crate) fn load_for_db(
     check_lease(&lease, &prelude, Stage::E4)?;
     Ok(PreparedAdmission {
         limits: values,
+        resources,
         lease,
         prelude,
     })
