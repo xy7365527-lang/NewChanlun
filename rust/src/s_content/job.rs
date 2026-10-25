@@ -1522,3 +1522,45 @@ impl super::NodeSource for MixedAllocation<'_> {
         Err(CodecError::new(super::code::SOURCE, "分配能力不提供节点原件"))
     }
 }
+
+#[cfg(test)]
+mod mixed_domain_tests {
+    use super::*;
+    use super::super::capture_allocation::scratch::{CodecWork, ScratchCharge, ScratchFailure, ScratchParent};
+    use std::sync::{Arc, Mutex};
+    struct Parent(Mutex<usize>);
+    impl ScratchParent for Parent {
+        fn reserve(&self, bytes: usize, _: ScratchCharge) -> Result<u64, ScratchFailure> {
+            let mut live = self.0.lock().unwrap(); *live = live.checked_add(bytes).ok_or(ScratchFailure::Budget)?; Ok(0)
+        }
+        fn release(&self, bytes: usize, _: ScratchCharge, _: u64) -> Result<(), ScratchFailure> {
+            let mut live = self.0.lock().unwrap(); *live = live.checked_sub(bytes).ok_or(ScratchFailure::Ledger)?; Ok(())
+        }
+        fn health(&self) -> Result<(), ScratchFailure> { Ok(()) }
+        fn invalidate(&self) { panic!("test ledger invalidated") }
+    }
+    #[test]
+    fn mixed_forced_equal_digest_stays_separate_across_domains() {
+        // 只测域键分离：人为设同digest，不声称构造出了跨编码hash碰撞。
+        let parent = Arc::new(Parent(Mutex::new(0)));
+        let limits = JobLimits::from_canonical_json(&serde_json::json!({
+            "max_total_wire_bytes":"1000", "max_total_node_bytes":"1000", "max_total_nodes":"2",
+            "max_total_records":"100", "max_total_requests":"100", "max_elapsed_ms":"60000",
+            "max_staged_bytes":"1000", "max_store_bytes":"1000"
+        })).unwrap();
+        CodecWork::new(parent.clone(), 1 << 20).unwrap().run(|work| {
+            let mut job = Job::new_started_mixed(limits, Existing { store_bytes: 0, staged_bytes: 0 },
+                Box::new(Instant::now), Instant::now(), work)?;
+            let legacy = super::super::legacy_evidence::CheckedLegacyEvidenceRow::verify(
+                &super::super::legacy_evidence::node_id(0, b"abc"), 0, b"abc", 3).unwrap();
+            let content = CheckedNodeUsage { digest: *legacy.id(), framed_bytes: 13 };
+            assert_eq!(job.accept_checked_usage_mixed(&content, work)?, NodeAcceptance::FirstAccept);
+            assert_eq!(job.accept_legacy_evidence(&legacy, work)?, NodeAcceptance::FirstAccept);
+            assert_eq!((job.snapshot().nodes, job.snapshot().node_bytes), (2, 17));
+            assert_eq!(job.accept_checked_usage_mixed(&content, work)?, NodeAcceptance::AlreadyAccepted);
+            assert_eq!(job.accept_legacy_evidence(&legacy, work)?, NodeAcceptance::AlreadyAccepted);
+            Ok::<_, CodecError>(())
+        }).unwrap();
+        assert_eq!(*parent.0.lock().unwrap(), 0);
+    }
+}
