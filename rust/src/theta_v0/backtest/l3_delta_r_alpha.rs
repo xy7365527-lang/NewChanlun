@@ -2363,7 +2363,6 @@ fn pooling_icc_multi_symbol() {
 mod tests {
     use super::*;
 
-    /// 量纲③重锚（#65 裁定 2026-07-21）：ledger χ 观测必须是费扣后持仓期相对收益。
     #[test]
     fn p1605_r4_power_respects_strict_boundary_and_subnormal_domain() {
         let mut stats = active_research_stats().unwrap();
@@ -2393,6 +2392,7 @@ mod tests {
         assert_eq!(min_sign_test_power(&stats), 100);
     }
 
+    /// 量纲③重锚（#65 裁定 2026-07-21）：ledger χ 观测必须是费扣后持仓期相对收益。
     #[test]
     fn chi_feed_uses_entry_notional_relative_return() {
         let got = chi_dimension_three_return(100.0, 110.0, 1.0, 0.001, 1);
