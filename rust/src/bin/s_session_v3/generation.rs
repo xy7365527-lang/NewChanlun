@@ -2569,7 +2569,9 @@ mod tests {
             }
             if label == "连续同价包含合并" {
                 let object = &mine["objects"][0];
-                let refs = object["input_refs"].as_array().unwrap();
+                let refs = object["input_refs"]
+                    .as_array()
+                    .unwrap_or_else(|| panic!("tick input_refs 不是数组：{object}"));
                 assert_eq!(refs[0]["raw_refs"].as_array().unwrap().len(), 2);
                 assert_eq!(refs[2]["raw_refs"].as_array().unwrap().len(), 2);
                 assert!(refs[0].get("dependency_refs").is_none());
