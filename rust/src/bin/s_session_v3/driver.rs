@@ -638,7 +638,8 @@ mod tests {
             let tx = c.transaction().unwrap();
             state::audit(&tx).expect("历史规则只读审计");
         }
-        assert!(f.open("1").err().unwrap().contains("VersionUnsupported"));
+        let open_error = f.open("1").err().unwrap();
+        assert!(open_error.contains("VersionUnsupported"), "{open_error}");
         assert!(recover(&f.db, "2", &f.clock, "recover-1", crate::v3::admission_anchor::test_prepare(&f.db).into())
             .err()
             .unwrap()
