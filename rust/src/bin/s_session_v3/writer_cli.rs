@@ -9,7 +9,9 @@ use super::driver::Driver;
 use super::*;
 use newchan_rust::session_protocol::{positive, validate_envelope};
 use newchan_rust::session_transport::{serve_unix, TransportBounds};
+#[cfg(test)]
 use std::io::Read;
+#[cfg(test)]
 use std::os::unix::fs::OpenOptionsExt;
 use std::time::Duration;
 

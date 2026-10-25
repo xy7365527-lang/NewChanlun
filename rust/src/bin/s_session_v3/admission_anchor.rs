@@ -755,6 +755,7 @@ impl StartedAdmission {
 
     /// 私有准入/清理完成后一次性收尾；源侧身份仍须由 WriterScope 接着核验。
     #[cfg(test)]
+    #[allow(dead_code, reason = "#1527：特征夹具使用的终结路径；生产使用 seal 保留启动账")]
     pub(crate) fn finish(self) -> Result<Arc<BudgetLease>, JobAdmissionError> {
         let paths = self.lease.revalidate_paths();
         // 原 Job 的 stopped/期限语义照旧；这里不重排 charge_wire_bytes 的首错。
