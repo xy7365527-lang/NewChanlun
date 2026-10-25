@@ -1442,3 +1442,21 @@ mod test_support;
 pub(crate) fn test_prepare(db: &Path) -> PreparedAdmission {
     test_support::prepare(db)
 }
+
+// TestOnly：真实签锚、实测源与原 Job，只替换 Job 已有时钟接口；无生产构造口。
+#[cfg(test)]
+pub(crate) fn test_with_clock_account<T>(
+    db: &Path,
+    first: Instant,
+    clock: Box<dyn Fn() -> Instant>,
+    run: impl FnOnce(&super::admission_provider::MeasuredDomain, &mut AdmissionAccounting<'_>) -> T,
+) -> T {
+    let consumed = test_prepare(db).consume().unwrap();
+    let source = super::admission_provider::MeasuredDomain::measure(&consumed).unwrap();
+    let job = RefCell::new(admission_job::Job::new_started(
+        consumed.limits, source.existing, clock, first,
+    ).unwrap());
+    job.borrow_mut().charge_wire_bytes(consumed.prelude.wire_bytes).unwrap();
+    let result = run(&source, &mut AdmissionAccounting { job: job.borrow_mut() });
+    result
+}

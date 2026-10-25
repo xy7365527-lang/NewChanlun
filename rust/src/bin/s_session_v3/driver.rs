@@ -942,6 +942,55 @@ mod tests {
 
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
+    fn native_prefix_final_deadline_preserves_business_and_clears_retained_context() {
+        use std::{cell::Cell, rc::Rc, time::{Duration, Instant}};
+        for epoch in ["1", "2"] {
+            let f = Fixture::new();
+            let mut initial = f.open("1").unwrap();
+            initial.handle(Fixture::ingest(1)).unwrap();
+            drop(initial);
+            // 首轮观察同路径实际clock次数；次轮只令最后收尾期限观察过期。
+            let run = |expire_at: usize| {
+                let calls = Rc::new(Cell::new(0usize));
+                let observed = calls.clone();
+                let first = Instant::now();
+                let clock = Box::new(move || {
+                    let n = observed.get() + 1;
+                    observed.set(n);
+                    if n >= expire_at { first + Duration::from_secs(601) } else { first }
+                });
+                let mut context = request_audit::RequestAuditContext::default();
+                let (result, snapshot, final_calls) = super::super::admission_anchor::test_with_clock_account(
+                    &f.db, first, clock, |source, account| {
+                        let result = super::super::admission_private::validate_prefix(
+                            source, account, super::super::admission_private::RejectionPrefix::NativeStartup {
+                                epoch, context: Some(&mut context), work: None,
+                            });
+                        let final_calls = calls.get();
+                        (result, account.snapshot(), final_calls)
+                    });
+                (result, snapshot, context, final_calls)
+            };
+            let (original, before, original_context, calls) = run(usize::MAX);
+            if epoch == "1" { assert!(original.is_ok()); assert!(original_context.has_slot()); }
+            else { assert!(original.as_ref().unwrap_err().starts_with("StaleWriter：")); }
+            let (late, after, context, actual_calls) = run(calls);
+            assert_eq!(actual_calls, calls, "仅最后期限门发生变化");
+            assert_eq!(context.cold, 1, "期限门之前业务核已完成retain");
+            assert!(!context.has_slot());
+            let late = late.unwrap_err();
+            assert!(late.contains("deadline"), "{late}");
+            if let Err(original) = original { assert!(late.starts_with(&original)); assert!(late.contains("收尾期限")); }
+            assert_eq!(after.records, before.records);
+            assert_eq!(after.nodes, before.nodes);
+            assert_eq!(after.wire_bytes, before.wire_bytes);
+            assert!(after.records > 0 && after.wire_bytes > 0);
+            assert!(!PathBuf::from(format!("{}-shm", f.db.display())).exists());
+        }
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
     fn native_prefix_success_keeps_actual_startup_validation() {
         let f = Fixture::new();
         for with_context in [false, true] {
