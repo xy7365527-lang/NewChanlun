@@ -14,6 +14,7 @@ from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import s_service_control as control
+from r4_anchor_fixture import anchored_controller
 from economic_service_control import EconomicController
 
 
@@ -21,7 +22,7 @@ class RuntimeIntegrationTests(unittest.TestCase):
     @staticmethod
     def controller(root, domain="S"):
         if domain == "S":
-            return control.Controller({"db": str(root / "s.sqlite"), "python": sys.executable,
+            return anchored_controller({"db": str(root / "s.sqlite"), "python": sys.executable,
                                        "startup_timeout_ms": "2000"}, root / "s-state")
         return EconomicController(
             {"python": sys.executable, "startup_timeout_ms": "2000", "state_root": str(root / "owners")},
@@ -103,7 +104,7 @@ class RuntimeIntegrationTests(unittest.TestCase):
                 service = "s" if domain == "S" else "owner"
                 try:
                     with patch.object(controller, "record"), \
-                         patch.object(control.subprocess, "Popen", return_value=Mock(pid=123456)) as spawn:
+                         patch.object(control.subprocess, "Popen", return_value=Mock(pid=123456, **{"stdin.write.return_value": 1})) as spawn:
                         controller.start_process(service, ["fixture-only"], environment={})
                     environment = spawn.call_args.kwargs["env"]
                     expected = "S_CONTROL_INSTANCE_ID" if domain == "S" else "SESSION_CONTROL_INSTANCE_ID"

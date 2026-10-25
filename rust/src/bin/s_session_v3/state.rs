@@ -564,7 +564,7 @@ pub(crate) fn audit_with_access_and_allocation(
         Err("prototype_audit_allocation_incomplete：Q分配原型未启用".into())
     }
 }
-fn audit_with_budget(
+pub(super) fn audit_with_budget(
     tx: &Transaction<'_>,
     deadline: Option<std::time::Instant>,
     max_render_bytes: Option<u64>,

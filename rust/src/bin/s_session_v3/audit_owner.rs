@@ -427,7 +427,8 @@ impl AuditConnection {
             &meta_get_opt(tx, "rule_revision")?.ok_or_else(|| invalid("缺rule_revision"))?,
         )?;
         let control = control::S3Control::attach(tx, clock)?;
-        let (profile_value, profile_id, profile_hash) = load_profile(profile)?;
+        let (profile_value, profile_id, profile_hash) =
+            super::admission::load_startup_profile(profile)?;
         if profile_id != tb02a::PROFILE {
             return Err("VersionUnsupported：S3驱动尚未实现非OHLC生成，拒绝接纳".into());
         }

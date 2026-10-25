@@ -323,12 +323,14 @@ CREATE TABLE IF NOT EXISTS catalog (
 "#;
 
 fn open_db(db: &Path) -> Result<Connection, String> {
+    v3::admission::require_current(db)?;
     // #1405/#1420：先以只读连接判规则，旧规则库绝不以写连接打开。
     if db.exists() {
         if let Some(historical) = open_historical_readonly(db)? {
             return Ok(historical);
         }
     }
+
     let conn = Connection::open_with_flags(
         db,
         rusqlite::OpenFlags::default() | rusqlite::OpenFlags::SQLITE_OPEN_PRIVATE_CACHE,
@@ -1986,7 +1988,7 @@ fn ensure_writable(conn: &Connection) -> Result<(), String> {
 }
 
 fn load_profile(path: &Path) -> Result<(Value, String, String), String> {
-    let text = std::fs::read_to_string(path).map_err(|e| format!("读 profile 失败：{e}"))?;
+    let text = v3::admission::read_profile_text(path)?;
     let profile: Value =
         serde_json::from_str(&text).map_err(|e| format!("profile JSON 解析失败：{e}"))?;
     let profile_id = profile
@@ -2224,12 +2226,9 @@ fn cmd_accept(
     profile_path: &Path,
     configured_epoch: &str,
 ) -> Result<(), String> {
-    let text = std::fs::read_to_string(input_path).map_err(|e| format!("读输入失败：{e}"))?;
-    println!(
-        "{}",
-        accept_core(db, &text, profile_path, configured_epoch, None)?
-    );
-    Ok(())
+    let text = v3::admission::read_current_text(input_path)?;
+    let out = accept_core(db, &text, profile_path, configured_epoch, None)?;
+    v3::admission::write_current_result(&out)
 }
 
 fn accept_core(
@@ -3127,8 +3126,8 @@ fn persist_batch_before_publish_inner(
 }
 
 fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
-    println!("{}", advance_core(db, configured_epoch, None)?);
-    Ok(())
+    let out = advance_core(db, configured_epoch, None)?;
+    v3::admission::write_current_result(&out)
 }
 
 fn advance_core(
@@ -5350,8 +5349,8 @@ fn cmd_watch(db: &Path, after_generation: i64) -> Result<(), String> {
 /// 命令合法恢复），并按 `--new-epoch` 提升 writer_epoch（与 generation 同序持久历史）。旧 epoch 进程
 /// 此后重放被 StaleWriter 拒绝。这不是「手改 SQL」——是正式入口，历史写入 writer_epoch_history。
 fn cmd_recover(db: &Path, new_epoch: &str) -> Result<(), String> {
-    println!("{}", recover_core(db, new_epoch, None)?);
-    Ok(())
+    let out = recover_core(db, new_epoch, None)?;
+    v3::admission::write_current_result(&out)
 }
 
 fn recover_core(
@@ -5487,6 +5486,14 @@ fn run() -> Result<(), String> {
         return Ok(());
     }
     let _writer_lock = v2::legacy_write_lock(&args)?;
+    if let Some(guard) = &_writer_lock {
+        guard.require_admitted()?;
+    }
+    let _admission_open_guard = _writer_lock
+        .as_ref()
+        .map(|g| g.enter())
+        .transpose()?
+        .flatten();
     let cmd = args[1].as_str();
     let db = arg_value(&args, "--db").map(PathBuf::from);
     let session = arg_value(&args, "--session").unwrap_or_else(|| "s-session-default".to_string());
@@ -5555,8 +5562,12 @@ fn run() -> Result<(), String> {
 }
 
 fn main() {
+    let accounting = v3::admission_anchor::CommandAccounting::begin();
     if let Err(e) = run() {
-        eprintln!("{}", json!({"ok": false, "error": e}));
+        let receipt = accounting.report(&e, &mut std::io::stderr().lock());
+        // report 已等每次 write 返回并核原账；显式析构发生在 process::exit 之前。
+        drop(receipt);
+        drop(accounting);
         std::process::exit(1);
     }
 }
@@ -5650,9 +5661,29 @@ mod tests {
         p
     }
 
+
+    // #1527 M-03：既有断言测业务/持久状态，直接走原 core；不建立生产准入或输出夹具。
+    pub(crate) fn accept_business_file(
+        db: &Path,
+        input_path: &Path,
+        profile_path: &Path,
+        configured_epoch: &str,
+    ) -> Result<(), String> {
+        let text = std::fs::read_to_string(input_path).map_err(|e| e.to_string())?;
+        accept_core(db, &text, profile_path, configured_epoch, None).map(|_| ())
+    }
+
+    pub(crate) fn advance_business(db: &Path, configured_epoch: &str) -> Result<(), String> {
+        advance_core(db, configured_epoch, None).map(|_| ())
+    }
+
+    pub(crate) fn recover_business(db: &Path, new_epoch: &str) -> Result<(), String> {
+        recover_core(db, new_epoch, None).map(|_| ())
+    }
+
     fn accept(files: &TestFiles, value: &Value, name: &str, epoch: &str) {
         let p = write_input(files, name, value);
-        cmd_accept(
+        accept_business_file(
             &files.db(),
             &p,
             &fixture("profiles/testonly_tick_1_1_ohlc.json"),
@@ -5733,7 +5764,7 @@ mod tests {
                     }
                 }
                 accept_ohlc(&files, &input);
-                cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+                advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
             }
             let current = snapshot_of(&files, None);
             let old = snapshot_of(&files, Some(16));
@@ -5752,7 +5783,7 @@ mod tests {
             assert_eq!(data(&old)["result"], "NO_FIRST");
             assert_eq!(data(&current)["result"], "CASE_ONE");
             assert_eq!(data(&current)["geometric_end"]["group_anchor"], "13");
-            cmd_recover(&files.db(), "2").unwrap();
+            recover_business(&files.db(), "2").unwrap();
             assert_eq!(snapshot_of(&files, Some(16)), old);
             assert_eq!(snapshot_of(&files, None), current);
             let out = std::process::Command::new("python3")
@@ -6059,7 +6090,7 @@ mod tests {
         let mut snapshots = vec![];
         for n in 1..=bars.len() {
             accept_ohlc(&files, &ohlc_input(&bars[..n], false));
-            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
             let snap = snapshot_of(&files, None);
             if n >= 7 {
                 let bi = snap["objects"]
@@ -6094,7 +6125,7 @@ mod tests {
         revised["events"][5]["close"] = json!("18");
         revised["events"][5]["raw_text"] = json!("15/18 revision");
         accept_ohlc(&files, &revised);
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         for (index, snap) in snapshots.iter().enumerate() {
             assert_eq!(&snapshot_of(&files, Some(index as i64 + 1)), snap);
         }
@@ -6130,7 +6161,7 @@ mod tests {
         let bars: Vec<_> = prices.iter().map(|h| (h - 2, *h)).collect();
         for n in 1..=bars.len() {
             accept_ohlc(&files, &ohlc_input(&bars[..n], false));
-            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         }
         let s = snapshot_of(&files, None);
         let changes: Vec<_> = s["objects"]
@@ -6157,7 +6188,7 @@ mod tests {
         let files = TestFiles::new();
         init_test_db(&files);
         accept_ohlc(&files, &located_ohlc_input(&tb02b_oracle_rows()));
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         let before = snapshot_of(&files, None);
         let old = bi_object(&before, "bi:1:10").expect("独立 oracle 前缀下 UP 笔必须存在");
         assert_eq!(old["end"]["group_anchor"], "70");
@@ -6171,7 +6202,7 @@ mod tests {
         );
         // 历史插入：新业务身份 rev1 落在已接纳过的坐标区间内（75 ∈ (70, 80)），旧 raw 不改。
         accept_ohlc(&files, &located_ohlc_input(&[("x75", 75, 22, 25, 20, 22)]));
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         let after = snapshot_of(&files, None);
         // 当前视图：被改写端点不再是原代际对象；新代际对象承载重建后的确认事实。
         assert!(
@@ -6219,14 +6250,14 @@ mod tests {
         let files = TestFiles::new();
         init_test_db(&files);
         accept_ohlc(&files, &located_ohlc_input(&tb02b_oracle_rows()));
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         let before = bi_object(&snapshot_of(&files, None), "bi:1:10").unwrap();
         // 普通尾部追加：新身份落在既有最大坐标之后（140 > 130），落在尾组内不封新组。
         accept_ohlc(
             &files,
             &located_ohlc_input(&[("x140", 140, 13, 15, 12, 13)]),
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         let after =
             bi_object(&snapshot_of(&files, None), "bi:1:10").expect("同代际正常追加不得换身份");
         assert_eq!(after["confirmed_known_at"], before["confirmed_known_at"]);
@@ -6239,7 +6270,7 @@ mod tests {
         let files = TestFiles::new();
         init_test_db(&files);
         accept_ohlc(&files, &located_ohlc_input(&tb02b_oracle_rows()));
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         let original = snapshot_of(&files, None);
         let historical = snapshot_of(&files, Some(1));
         let before = bi_object(&original, "bi:1:10").unwrap();
@@ -6254,7 +6285,7 @@ mod tests {
                 ("b16", 160, 7, 9, 5, 7),
             ]),
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         let current = snapshot_of(&files, None);
         let after = bi_object(&current, "bi:1:10").unwrap();
         assert_eq!(after["end"]["group_anchor"], "70");
@@ -6284,9 +6315,9 @@ mod tests {
         let files = TestFiles::new();
         init_test_db(&files);
         accept_ohlc(&files, &located_ohlc_input(&tb02b_oracle_rows()));
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         accept_ohlc(&files, &located_ohlc_input(&[("x75", 75, 22, 25, 20, 22)]));
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         let inserted =
             bi_object(&snapshot_of(&files, None), "bi:2:10").expect("历史插入须开二代际");
         // 对已被历史插入占用的坐标再做同身份修订：有效事实集只剩最新 revision，看不出
@@ -6295,7 +6326,7 @@ mod tests {
         let mut revision = located_ohlc_input(&[("x75", 75, 23, 26, 21, 23)]);
         revision["events"][0]["revision"] = json!("2");
         accept_ohlc(&files, &revision);
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         let after = snapshot_of(&files, None);
         assert!(
             bi_object(&after, "bi:2:10").is_none(),
@@ -6316,9 +6347,9 @@ mod tests {
             let files = TestFiles::new();
             init_test_db(&files);
             accept_ohlc(&files, &located_ohlc_input(&tb02b_oracle_rows()));
-            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
             accept_ohlc(&files, &located_ohlc_input(&[("x75", 75, 22, 25, 20, 22)]));
-            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
             let old_cut = snapshot_of(&files, Some(2));
             let old = bi_object(&old_cut, "bi:2:10").unwrap();
 
@@ -6326,13 +6357,13 @@ mod tests {
             revision["events"][0]["revision"] = json!("2");
             accept_ohlc(&files, &revision);
             if publish_revision_separately {
-                cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+                advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
             }
             accept_ohlc(
                 &files,
                 &located_ohlc_input(&[("x140", 140, 13, 15, 12, 13)]),
             );
-            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
             let current = snapshot_of(&files, None);
             assert!(
                 bi_object(&current, "bi:2:10").is_none(),
@@ -6357,10 +6388,10 @@ mod tests {
                 }
             );
 
-            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
             assert_eq!(snapshot_of(&files, None), current);
-            cmd_recover(&files.db(), "2").unwrap();
-            cmd_advance(&files.db(), "2").unwrap();
+            recover_business(&files.db(), "2").unwrap();
+            advance_business(&files.db(), "2").unwrap();
             assert_eq!(
                 snapshot_of(&files, None)["generation"],
                 current["generation"]
@@ -6402,7 +6433,7 @@ mod tests {
         let files = TestFiles::new();
         init_test_db(&files);
         accept_ohlc(&files, &ohlc_input(&[(5, 10), (6, 12), (7, 11)], false));
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         let conn = open_db(&files.db()).unwrap();
         verify_reachable_root(&conn).unwrap();
         let old = snapshot_of(&files, Some(1));
@@ -6423,7 +6454,7 @@ mod tests {
             .iter()
             .all(|r| r.get("price").is_none() && r["schema_revision"] == tb02a::RAW_SCHEMA));
         accept_ohlc(&files, &ohlc_input(&[(5, 10), (6, 12), (4, 9)], true));
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         verify_reachable_root(&conn).unwrap();
         assert_eq!(snapshot_of(&files, Some(1)), old);
         let now = snapshot_of(&files, None);
@@ -6465,7 +6496,7 @@ mod tests {
             &files,
             &ohlc_input(&[(0, 1), (3, 10), (5, 10), (20, 30)], false),
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         verify_reachable_root(&open_db(&files.db()).unwrap()).unwrap();
         let snapshot = snapshot_of(&files, None);
         let objects = snapshot["objects"].as_array().unwrap();
@@ -6577,7 +6608,7 @@ mod tests {
             let mut input = ohlc_input(&bars, false);
             input["events"][0]["revision"] = json!(generation.to_string());
             accept_ohlc(&files, &input);
-            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
             verify_reachable_root(&open_db(&files.db()).unwrap()).unwrap();
             let snapshot = snapshot_of(&files, None);
             for (i, old) in histories.iter().enumerate() {
@@ -6703,7 +6734,7 @@ mod tests {
                 input["events"][3]["revision"] = json!("2");
             }
             accept_ohlc(&files, &input);
-            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
             verify_reachable_root(&open_db(&files.db()).unwrap()).unwrap();
             for (old_index, old) in histories.iter().enumerate() {
                 assert_eq!(&snapshot_of(&files, Some((old_index + 1) as i64)), old);
@@ -6775,7 +6806,7 @@ mod tests {
             "one.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         let before = snapshot_of(&files, Some(1));
         accept(
             &files,
@@ -6783,7 +6814,7 @@ mod tests {
             "two.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         let conn = open_db(&files.db()).unwrap();
         verify_reachable_root(&conn).unwrap();
         let delta: Value = delta_of(&conn, 2);
@@ -6844,7 +6875,7 @@ mod tests {
                 "input.json",
                 DEFAULT_WRITER_EPOCH,
             );
-            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
             let conn = open_db(&files.db()).unwrap();
             if key == "scope" {
                 conn.execute("DELETE FROM meta WHERE key='scope'", [])
@@ -6864,10 +6895,10 @@ mod tests {
             assert!(cmd_catalog(&files.db(), Some(0)).is_err(), "{key}");
             assert!(cmd_watch(&files.db(), 0).is_err(), "{key}");
             assert!(
-                cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).is_err(),
+                advance_business(&files.db(), DEFAULT_WRITER_EPOCH).is_err(),
                 "{key}"
             );
-            assert!(cmd_recover(&files.db(), "2").is_err(), "{key}");
+            assert!(recover_business(&files.db(), "2").is_err(), "{key}");
         }
     }
 
@@ -6896,7 +6927,7 @@ mod tests {
                 DEFAULT_WRITER_EPOCH,
             );
             assert_eq!(snapshot_of(&files, Some(0)), zero);
-            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
             assert_eq!(snapshot_of(&files, Some(0)), zero);
             let conn = open_db(&files.db()).unwrap();
             assert_eq!(read_catalog_in_tx(&conn, Some(0)).unwrap(), catalog);
@@ -6916,7 +6947,7 @@ mod tests {
                     DEFAULT_WRITER_EPOCH,
                 );
                 if published {
-                    cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+                    advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
                     accept(
                         &files,
                         &test_input(&[ev("e1", "1", "1", "11000")]),
@@ -6933,10 +6964,10 @@ mod tests {
                 assert!(cmd_catalog(&files.db(), Some(0))
                     .unwrap_err()
                     .contains("StorageUnavailable"));
-                assert!(cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH)
+                assert!(advance_business(&files.db(), DEFAULT_WRITER_EPOCH)
                     .unwrap_err()
                     .contains("StorageUnavailable"));
-                assert!(cmd_recover(&files.db(), "2")
+                assert!(recover_business(&files.db(), "2")
                     .unwrap_err()
                     .contains("StorageUnavailable"));
                 assert_eq!(db_meta(&conn).unwrap(), before);
@@ -7087,7 +7118,7 @@ mod tests {
         let conn = open_db(&files.db()).unwrap();
         meta_set(&conn, "writer_epoch", "2").unwrap();
         let before = db_meta(&conn);
-        let error = cmd_accept(
+        let error = accept_business_file(
             &files.db(),
             &fixture("inputs/cc006_four_branch.json"),
             &fixture("profiles/testonly_tick_1_1_ohlc.json"),
@@ -7110,8 +7141,8 @@ mod tests {
         init_test_db(&files);
         let input = fixture("inputs/cc006_four_branch.json");
         let profile = fixture("profiles/testonly_tick_1_1_ohlc.json");
-        cmd_accept(&files.db(), &input, &profile, DEFAULT_WRITER_EPOCH).unwrap();
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        accept_business_file(&files.db(), &input, &profile, DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         let conn = open_db(&files.db()).unwrap();
         let before = db_meta(&conn);
         let mut altered: Value =
@@ -7120,12 +7151,12 @@ mod tests {
         let other = files.0.join("changed-profile.json");
         std::fs::write(&other, altered.to_string()).unwrap();
         assert!(
-            cmd_accept(&files.db(), &input, &other, DEFAULT_WRITER_EPOCH)
+            accept_business_file(&files.db(), &input, &other, DEFAULT_WRITER_EPOCH)
                 .unwrap_err()
                 .contains("IdentityConflict")
         );
         assert_eq!(db_meta(&conn), before);
-        cmd_accept(&files.db(), &input, &profile, DEFAULT_WRITER_EPOCH).unwrap();
+        accept_business_file(&files.db(), &input, &profile, DEFAULT_WRITER_EPOCH).unwrap();
         assert_eq!(db_meta(&conn), before);
     }
 
@@ -7145,14 +7176,14 @@ mod tests {
         }
         let source = files.0.join("equal.json");
         std::fs::write(&source, input.to_string()).unwrap();
-        cmd_accept(
+        accept_business_file(
             &files.db(),
             &source,
             &fixture("profiles/testonly_tick_1_1_ohlc.json"),
             DEFAULT_WRITER_EPOCH,
         )
         .unwrap();
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         let conn = open_db(&files.db()).unwrap();
         let snapshot = read_snapshot_in_tx(&conn, None).unwrap();
         assert!(snapshot["objects"].as_array().unwrap().is_empty());
@@ -7259,7 +7290,7 @@ mod tests {
                 "bad-coordinate.json",
                 &test_input(&[ev("ok", "1", "0", "10000"), invalid]),
             );
-            let error = cmd_accept(
+            let error = accept_business_file(
                 &files.db(),
                 &input,
                 &fixture("profiles/testonly_tick_1_1_ohlc.json"),
@@ -7285,7 +7316,7 @@ mod tests {
             &test_input(&[ev("e0", "1", "0", "10000"), ev("e1", "1", "0", "11000")]),
         );
         assert!(
-            cmd_accept(&files.db(), &input, &profile, DEFAULT_WRITER_EPOCH)
+            accept_business_file(&files.db(), &input, &profile, DEFAULT_WRITER_EPOCH)
                 .unwrap_err()
                 .contains("IdentityConflict")
         );
@@ -7312,7 +7343,7 @@ mod tests {
             }
             let input = write_input(&files, "collision.json", &input_value);
             assert!(
-                cmd_accept(&files.db(), &input, &profile, DEFAULT_WRITER_EPOCH)
+                accept_business_file(&files.db(), &input, &profile, DEFAULT_WRITER_EPOCH)
                     .unwrap_err()
                     .contains("IdentityConflict"),
                 "{changed}"
@@ -7332,10 +7363,10 @@ mod tests {
             ev("e2", "1", "2", "10500"),
         ]);
         accept(&files, &original, "seed.json", DEFAULT_WRITER_EPOCH);
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         let correction = test_input(&[ev("e2", "2", "2", "11500")]);
         accept(&files, &correction, "correction.json", DEFAULT_WRITER_EPOCH);
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         let conn = open_db(&files.db()).unwrap();
         let before = read_raw_events(&conn).unwrap();
         assert_eq!(before.len(), 4);
@@ -7356,7 +7387,7 @@ mod tests {
             "moved.json",
             &test_input(&[ev("e2", "3", "3", "11800")]),
         );
-        assert!(cmd_accept(
+        assert!(accept_business_file(
             &files.db(),
             &moved,
             &fixture("profiles/testonly_tick_1_1_ohlc.json"),
@@ -7389,7 +7420,7 @@ mod tests {
             "sparse.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         assert_eq!(
             snapshot_of(&files, None)["objects"][0]["source_coords"],
             json!(["7", "15", "99"])
@@ -7409,7 +7440,7 @@ mod tests {
                     DEFAULT_WRITER_EPOCH,
                 );
                 if published {
-                    cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+                    advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
                 }
                 accept(
                     &files,
@@ -7432,14 +7463,14 @@ mod tests {
                 for result in [
                     cmd_snapshot(&files.db(), None),
                     cmd_snapshot(&files.db(), Some(0)),
-                    cmd_accept(
+                    accept_business_file(
                         &files.db(),
                         &extra,
                         &fixture("profiles/testonly_tick_1_1_ohlc.json"),
                         DEFAULT_WRITER_EPOCH,
                     ),
-                    cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH),
-                    cmd_recover(&files.db(), "2"),
+                    advance_business(&files.db(), DEFAULT_WRITER_EPOCH),
+                    recover_business(&files.db(), "2"),
                 ] {
                     assert!(
                         result.unwrap_err().contains("StorageUnavailable"),
@@ -7480,7 +7511,7 @@ mod tests {
                     DEFAULT_WRITER_EPOCH,
                 );
                 if published {
-                    cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+                    advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
                 }
                 let conn = open_db(&files.db()).unwrap();
                 conn.execute(
@@ -7492,7 +7523,7 @@ mod tests {
                 let before_batches: i64 = conn
                     .query_row("SELECT COUNT(*) FROM batches", [], |r| r.get(0))
                     .unwrap();
-                let error = cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap_err();
+                let error = advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap_err();
                 assert!(
                     error.contains("StorageUnavailable"),
                     "{published}/{bad}: {error}"
@@ -7522,7 +7553,7 @@ mod tests {
             "in1.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         let s1 = snapshot_of(&files, None);
         assert_eq!(s1["generation"], json!("1"));
         assert_eq!(s1["history_mode"], json!("RecomputedWithRevision"));
@@ -7541,7 +7572,7 @@ mod tests {
             "in2.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         let s2 = snapshot_of(&files, None);
         assert_eq!(s2["generation"], json!("2"));
         let active2 = s2["objects"].as_array().unwrap();
@@ -7571,7 +7602,7 @@ mod tests {
             "in3.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         let s3 = snapshot_of(&files, None);
         assert_eq!(s3["generation"], json!("3"));
         let active3 = s3["objects"].as_array().unwrap();
@@ -7819,21 +7850,21 @@ mod tests {
             &test_input(&[ev("e2", "1", "2", "10500")]),
         );
         let profile = fixture("profiles/testonly_tick_1_1_ohlc.json");
-        let out1 = cmd_accept(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH).unwrap();
+        let out1 = accept_business_file(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH).unwrap();
         // 同 revision 同内容 → replay（原收据）。
-        let out2 = cmd_accept(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH).unwrap();
+        let out2 = accept_business_file(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH).unwrap();
         // 同 revision 异内容 → IdentityConflict。
         let c = write_input(&files, "c.json", &test_input(&[ev("e2", "1", "2", "9999")]));
-        let out3 = cmd_accept(&files.db(), &c, &profile, DEFAULT_WRITER_EPOCH).unwrap();
+        let out3 = accept_business_file(&files.db(), &c, &profile, DEFAULT_WRITER_EPOCH).unwrap();
         // 新 revision → accepted + supersedes。
         let r2 = write_input(
             &files,
             "r2.json",
             &test_input(&[ev("e2", "2", "2", "11500")]),
         );
-        let out4 = cmd_accept(&files.db(), &r2, &profile, DEFAULT_WRITER_EPOCH).unwrap();
+        let out4 = accept_business_file(&files.db(), &r2, &profile, DEFAULT_WRITER_EPOCH).unwrap();
         // 旧版重放 → replay（不复活、不改有效值）。
-        let out5 = cmd_accept(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH).unwrap();
+        let out5 = accept_business_file(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH).unwrap();
 
         let _ = (out1, out2, out3, out4, out5);
 
@@ -7855,14 +7886,14 @@ mod tests {
             "r2.json",
             &test_input(&[ev("e2", "2", "2", "11500")]),
         );
-        cmd_accept(&files.db(), &r2, &profile, DEFAULT_WRITER_EPOCH).unwrap();
+        accept_business_file(&files.db(), &r2, &profile, DEFAULT_WRITER_EPOCH).unwrap();
         // 更低 revision 晚到（已见 rev 2）→ InvalidDomain，不新接纳。
         let r1 = write_input(
             &files,
             "r1.json",
             &test_input(&[ev("e2", "1", "2", "10500")]),
         );
-        cmd_accept(&files.db(), &r1, &profile, DEFAULT_WRITER_EPOCH).unwrap();
+        accept_business_file(&files.db(), &r1, &profile, DEFAULT_WRITER_EPOCH).unwrap();
         let conn = open_db(&files.db()).unwrap();
         let all = read_raw_events(&conn).unwrap();
         assert_eq!(all.len(), 1);
@@ -7884,9 +7915,9 @@ mod tests {
             meta_set(&conn, "writer_epoch", epoch).unwrap();
             let before = db_meta(&conn).unwrap();
             for result in [
-                cmd_accept(&files.db(), &input, &profile, epoch),
-                cmd_advance(&files.db(), epoch),
-                cmd_recover(&files.db(), "2"),
+                accept_business_file(&files.db(), &input, &profile, epoch),
+                advance_business(&files.db(), epoch),
+                recover_business(&files.db(), "2"),
             ] {
                 assert!(
                     result.unwrap_err().contains("StorageUnavailable"),
@@ -7918,9 +7949,9 @@ mod tests {
         let before = db_meta(&conn).unwrap();
         for epoch in ["foo", "01", "-1", "", "9223372036854775808"] {
             for result in [
-                cmd_accept(&files.db(), &input, &profile, epoch),
-                cmd_advance(&files.db(), epoch),
-                cmd_recover(&files.db(), epoch),
+                accept_business_file(&files.db(), &input, &profile, epoch),
+                advance_business(&files.db(), epoch),
+                recover_business(&files.db(), epoch),
             ] {
                 assert!(result.unwrap_err().contains("InvalidDomain"));
                 assert_eq!(db_meta(&conn).unwrap(), before);
@@ -7936,12 +7967,12 @@ mod tests {
         let conn = open_db(&files.db()).unwrap();
         meta_set(&conn, "writer_epoch", "0").unwrap();
         verify_writer_epoch(&conn, "0").unwrap();
-        cmd_recover(&files.db(), "9223372036854775807").unwrap();
+        recover_business(&files.db(), "9223372036854775807").unwrap();
         verify_writer_epoch(&conn, "9223372036854775807").unwrap();
         assert!(verify_writer_epoch(&conn, "0")
             .unwrap_err()
             .contains("StaleWriter"));
-        assert!(cmd_recover(&files.db(), "9223372036854775807")
+        assert!(recover_business(&files.db(), "9223372036854775807")
             .unwrap_err()
             .contains("StaleWriter"));
     }
@@ -7960,10 +7991,10 @@ mod tests {
             "in1.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
 
         // 正式换代到 epoch 2（recover：advance_state 为 idle 时仅提升 epoch）。
-        cmd_recover(&files.db(), "2").unwrap();
+        recover_business(&files.db(), "2").unwrap();
         let conn = open_db(&files.db()).unwrap();
         assert_eq!(
             meta_get_opt(&conn, "writer_epoch").unwrap().as_deref(),
@@ -7974,15 +8005,15 @@ mod tests {
         let extra = test_input(&[ev("e3", "1", "3", "10800")]);
         let ep = write_input(&files, "e3.json", &extra);
         let profile = fixture("profiles/testonly_tick_1_1_ohlc.json");
-        assert!(cmd_accept(&files.db(), &ep, &profile, "1")
+        assert!(accept_business_file(&files.db(), &ep, &profile, "1")
             .unwrap_err()
             .contains("StaleWriter"));
-        assert!(cmd_advance(&files.db(), "1")
+        assert!(advance_business(&files.db(), "1")
             .unwrap_err()
             .contains("StaleWriter"));
         // 新 epoch 进程成功。
-        cmd_accept(&files.db(), &ep, &profile, "2").unwrap();
-        cmd_advance(&files.db(), "2").unwrap();
+        accept_business_file(&files.db(), &ep, &profile, "2").unwrap();
+        advance_business(&files.db(), "2").unwrap();
     }
 
     #[test]
@@ -7999,14 +8030,14 @@ mod tests {
             "in1.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         accept(
             &files,
             &test_input(&[ev("e2", "2", "2", "11500")]),
             "in2.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
 
         let conn = open_db(&files.db()).unwrap();
         // 从 0 起读全部 delta。
@@ -8356,7 +8387,7 @@ mod tests {
             DEFAULT_WRITER_EPOCH,
         );
         assert!(financial_basis_pending(&open_db(&files.db()).unwrap()).unwrap());
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         let conn = open_db(&files.db()).unwrap();
         assert_eq!(
             meta_get_opt(&conn, "advance_state").unwrap().as_deref(),
@@ -8386,7 +8417,7 @@ mod tests {
             "修订已接纳但未 Begin/发布也必须等待"
         );
         drop(conn);
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         assert!(!financial_basis_pending(&open_db(&files.db()).unwrap()).unwrap());
     }
 
@@ -8404,7 +8435,7 @@ mod tests {
         tx.commit().unwrap();
         assert!(financial_basis_pending(&conn).unwrap());
         drop(conn);
-        cmd_recover(&files.db(), "2").unwrap();
+        recover_business(&files.db(), "2").unwrap();
         assert!(!financial_basis_pending(&open_db(&files.db()).unwrap()).unwrap());
     }
 
@@ -8426,11 +8457,11 @@ mod tests {
         let conn = open_db(&files.db()).unwrap();
         meta_set(&conn, "advance_state", "begun:dead:1:2").unwrap();
         meta_set(&conn, "begin_token", "dead").unwrap();
-        assert!(cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH)
+        assert!(advance_business(&files.db(), DEFAULT_WRITER_EPOCH)
             .unwrap_err()
             .contains("StaleWriter"));
 
-        cmd_recover(&files.db(), "2").unwrap();
+        recover_business(&files.db(), "2").unwrap();
         let conn = open_db(&files.db()).unwrap();
         assert_eq!(
             meta_get_opt(&conn, "advance_state").unwrap().as_deref(),
@@ -8445,7 +8476,7 @@ mod tests {
             Some("cut-0")
         );
         // 恢复后新 writer 合法推进。
-        cmd_advance(&files.db(), "2").unwrap();
+        advance_business(&files.db(), "2").unwrap();
         let s = snapshot_of(&files, None);
         assert_eq!(s["generation"], json!("1"));
         assert_eq!(s["objects"].as_array().unwrap().len(), 1);
@@ -8461,7 +8492,7 @@ mod tests {
             "p2.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         let s1 = snapshot_of(&files, None);
         assert_eq!(s1["generation"], json!("1"));
         assert!(s1["objects"].as_array().unwrap().is_empty());
@@ -8480,21 +8511,21 @@ mod tests {
             "e2.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         accept(
             &files,
             &test_input(&[ev("e2", "2", "2", "11500")]),
             "e2c.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         accept(
             &files,
             &test_input(&[ev("e3", "1", "3", "10800")]),
             "e3.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
 
         // AsKnown gen2（TOP 刚形成）：raw_history 只 3 条，无 replaces/supersedes，对象 active 且无撤回元数据。
         let a2 = snapshot_of(&files, Some(2));
@@ -8551,18 +8582,18 @@ mod tests {
             "in1.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
-        cmd_recover(&files.db(), "2").unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        recover_business(&files.db(), "2").unwrap();
         let conn = open_db(&files.db()).unwrap();
         assert_eq!(
             meta_get_opt(&conn, "writer_epoch").unwrap().as_deref(),
             Some("2")
         );
         // 同 epoch / 回退 epoch 均拒绝，不重写旧 epoch。
-        assert!(cmd_recover(&files.db(), "2")
+        assert!(recover_business(&files.db(), "2")
             .unwrap_err()
             .contains("StaleWriter"));
-        assert!(cmd_recover(&files.db(), "1")
+        assert!(recover_business(&files.db(), "1")
             .unwrap_err()
             .contains("StaleWriter"));
         assert_eq!(
@@ -8573,11 +8604,11 @@ mod tests {
         let e3 = test_input(&[ev("e3", "1", "3", "10800")]);
         let p = write_input(&files, "e3.json", &e3);
         let profile = fixture("profiles/testonly_tick_1_1_ohlc.json");
-        assert!(cmd_accept(&files.db(), &p, &profile, "1")
+        assert!(accept_business_file(&files.db(), &p, &profile, "1")
             .unwrap_err()
             .contains("StaleWriter"));
-        cmd_accept(&files.db(), &p, &profile, "2").unwrap();
-        cmd_advance(&files.db(), "2").unwrap();
+        accept_business_file(&files.db(), &p, &profile, "2").unwrap();
+        advance_business(&files.db(), "2").unwrap();
         let s = snapshot_of(&files, None);
         assert_eq!(s["generation"], json!("2"));
     }
@@ -8596,14 +8627,14 @@ mod tests {
             "in1.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         let conn = open_db(&files.db()).unwrap();
         assert_eq!(
             meta_get_opt(&conn, "generation").unwrap().as_deref(),
             Some("1")
         );
         // 无新输入重试（after_commit 丢回执同 argv 重试）→ 不产新 cut。
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         let conn = open_db(&files.db()).unwrap();
         assert_eq!(
             meta_get_opt(&conn, "generation").unwrap().as_deref(),
@@ -8629,7 +8660,7 @@ mod tests {
             "in1.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         let conn = open_db(&files.db()).unwrap();
         let tx = conn.unchecked_transaction().unwrap();
         let err = read_snapshot_in_tx(&tx, Some(5)).unwrap_err();
@@ -8651,7 +8682,7 @@ mod tests {
             "in1.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         // 接纳 e2 rev2 但不 advance：当前 cut 的 raw_history 不得混入未发布修订。
         accept(
             &files,
@@ -8683,7 +8714,7 @@ mod tests {
             "in1.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         {
             let conn = open_db(&files.db()).unwrap();
             let idx = meta_get_opt(&conn, "index_frontier").unwrap().unwrap();
@@ -8693,10 +8724,10 @@ mod tests {
         let extra = test_input(&[ev("e3", "1", "3", "10800")]);
         let p = write_input(&files, "e3.json", &extra);
         let profile = fixture("profiles/testonly_tick_1_1_ohlc.json");
-        assert!(cmd_accept(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH)
+        assert!(accept_business_file(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH)
             .unwrap_err()
             .contains("StorageUnavailable"));
-        assert!(cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH)
+        assert!(advance_business(&files.db(), DEFAULT_WRITER_EPOCH)
             .unwrap_err()
             .contains("StorageUnavailable"));
     }
@@ -8716,26 +8747,26 @@ mod tests {
                 "in1.json",
                 DEFAULT_WRITER_EPOCH,
             );
-            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
             accept(
                 files,
                 &test_input(&[ev("e2", "2", "2", "11500")]),
                 "in2.json",
                 DEFAULT_WRITER_EPOCH,
             );
-            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         };
         let extra = test_input(&[ev("e3", "1", "3", "10800")]);
         let profile = fixture("profiles/testonly_tick_1_1_ohlc.json");
         let assert_reject = |files: &TestFiles| {
             let p = write_input(files, "e3.json", &extra);
-            assert!(cmd_accept(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH)
+            assert!(accept_business_file(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH)
                 .unwrap_err()
                 .contains("StorageUnavailable"));
-            assert!(cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH)
+            assert!(advance_business(&files.db(), DEFAULT_WRITER_EPOCH)
                 .unwrap_err()
                 .contains("StorageUnavailable"));
-            assert!(cmd_recover(&files.db(), "2")
+            assert!(recover_business(&files.db(), "2")
                 .unwrap_err()
                 .contains("StorageUnavailable"));
         };
@@ -8797,21 +8828,21 @@ mod tests {
             "in1.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         accept(
             &files,
             &test_input(&[ev("e2", "2", "2", "11500")]),
             "in2.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         accept(
             &files,
             &test_input(&[ev("e3", "1", "3", "10800")]),
             "in3.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         {
             let conn = open_db(&files.db()).unwrap();
             conn.execute("DELETE FROM structure_deltas WHERE generation=2", [])
@@ -8820,13 +8851,13 @@ mod tests {
         let extra = test_input(&[ev("e4", "1", "4", "10900")]);
         let p = write_input(&files, "e4.json", &extra);
         let profile = fixture("profiles/testonly_tick_1_1_ohlc.json");
-        assert!(cmd_accept(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH)
+        assert!(accept_business_file(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH)
             .unwrap_err()
             .contains("StorageUnavailable"));
-        assert!(cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH)
+        assert!(advance_business(&files.db(), DEFAULT_WRITER_EPOCH)
             .unwrap_err()
             .contains("StorageUnavailable"));
-        assert!(cmd_recover(&files.db(), "2")
+        assert!(recover_business(&files.db(), "2")
             .unwrap_err()
             .contains("StorageUnavailable"));
         // 读入口也拒绝（正式 cmd_snapshot 路径，含可达根核）。
@@ -8849,7 +8880,7 @@ mod tests {
             "in1.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         {
             let conn = open_db(&files.db()).unwrap();
             meta_set(&conn, "last_advance_frontier", "broken").unwrap();
@@ -8857,13 +8888,13 @@ mod tests {
         let extra = test_input(&[ev("e3", "1", "3", "10800")]);
         let p = write_input(&files, "e3.json", &extra);
         let profile = fixture("profiles/testonly_tick_1_1_ohlc.json");
-        assert!(cmd_accept(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH)
+        assert!(accept_business_file(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH)
             .unwrap_err()
             .contains("StorageUnavailable"));
-        assert!(cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH)
+        assert!(advance_business(&files.db(), DEFAULT_WRITER_EPOCH)
             .unwrap_err()
             .contains("StorageUnavailable"));
-        assert!(cmd_recover(&files.db(), "2")
+        assert!(recover_business(&files.db(), "2")
             .unwrap_err()
             .contains("StorageUnavailable"));
         // 读入口也拒绝（正式 cmd_snapshot 路径）。
@@ -8886,14 +8917,14 @@ mod tests {
             "in1.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         accept(
             &files,
             &test_input(&[ev("e2", "2", "2", "11500")]),
             "in2.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         // 撤回对象 first_known=1，withdrawn=2；改为 withdrawn=0 → 非法生命周期。
         {
             let conn = open_db(&files.db()).unwrap();
@@ -8925,7 +8956,7 @@ mod tests {
             for (n, price) in ["10000", "11000", "10500"].iter().enumerate() {
                 let input = test_input(&[ev(&format!("e{n}"), "1", &n.to_string(), price)]);
                 accept(&files, &input, &format!("e{n}.json"), DEFAULT_WRITER_EPOCH);
-                cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+                advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
             }
             accept(
                 &files,
@@ -8933,7 +8964,7 @@ mod tests {
                 "correction.json",
                 DEFAULT_WRITER_EPOCH,
             );
-            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
             let conn = open_db(&files.db()).unwrap();
             // 克隆一条真实发布行，隐藏到所有已发布 cut 之外；不能只篡改已有行而由旧对拍顺带抓到。
             let columns: Vec<String> = conn
@@ -8979,14 +9010,14 @@ mod tests {
             for result in [
                 cmd_snapshot(&files.db(), None),
                 cmd_snapshot(&files.db(), Some(4)),
-                cmd_accept(
+                accept_business_file(
                     &files.db(),
                     &extra,
                     &fixture("profiles/testonly_tick_1_1_ohlc.json"),
                     DEFAULT_WRITER_EPOCH,
                 ),
-                cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH),
-                cmd_recover(&files.db(), "2"),
+                advance_business(&files.db(), DEFAULT_WRITER_EPOCH),
+                recover_business(&files.db(), "2"),
             ] {
                 assert!(
                     result.unwrap_err().contains("StorageUnavailable"),
@@ -9008,7 +9039,7 @@ mod tests {
             "pending.json",
             &test_input(&[ev("e0", "1", "0", "10000")]),
         );
-        cmd_accept(&files.db(), &input, &profile, DEFAULT_WRITER_EPOCH).unwrap();
+        accept_business_file(&files.db(), &input, &profile, DEFAULT_WRITER_EPOCH).unwrap();
         // 接纳与发布是两步：合法待发布原始事实不被发布索引门排除。
         cmd_snapshot(&files.db(), None).unwrap();
         let conn = open_db(&files.db()).unwrap();
@@ -9017,9 +9048,9 @@ mod tests {
         for result in [
             cmd_snapshot(&files.db(), None),
             cmd_snapshot(&files.db(), Some(0)),
-            cmd_accept(&files.db(), &input, &profile, DEFAULT_WRITER_EPOCH),
-            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH),
-            cmd_recover(&files.db(), "2"),
+            accept_business_file(&files.db(), &input, &profile, DEFAULT_WRITER_EPOCH),
+            advance_business(&files.db(), DEFAULT_WRITER_EPOCH),
+            recover_business(&files.db(), "2"),
         ] {
             assert!(result.unwrap_err().contains("StorageUnavailable"));
             assert_eq!(db_meta(&conn).unwrap(), before);
@@ -9032,7 +9063,7 @@ mod tests {
         let files = TestFiles::new();
         init_test_db(&files);
         // 无输入 advance：合法空输入域，gen1/cut-1/frontier=-1，insufficient_knowledge。
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         let s = snapshot_of(&files, None);
         assert_eq!(s["generation"], json!("1"));
         assert_eq!(s["structure_cut"], json!("cut-1"));
@@ -9043,7 +9074,7 @@ mod tests {
         );
         assert_eq!(s["raw_history"].as_array().unwrap().len(), 0);
         // 再空 advance 幂等（frontier 未变）。
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         let conn = open_db(&files.db()).unwrap();
         assert_eq!(
             meta_get_opt(&conn, "generation").unwrap().as_deref(),
@@ -9065,33 +9096,33 @@ mod tests {
                 "in1.json",
                 DEFAULT_WRITER_EPOCH,
             );
-            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
             accept(
                 files,
                 &test_input(&[ev("e2", "2", "2", "11500")]),
                 "in2.json",
                 DEFAULT_WRITER_EPOCH,
             );
-            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
             accept(
                 files,
                 &test_input(&[ev("e3", "1", "3", "10800")]),
                 "in3.json",
                 DEFAULT_WRITER_EPOCH,
             );
-            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         };
         let profile = fixture("profiles/testonly_tick_1_1_ohlc.json");
         let extra = test_input(&[ev("e4", "1", "4", "10900")]);
         let assert_reject = |files: &TestFiles| {
             let p = write_input(files, "e4.json", &extra);
-            assert!(cmd_accept(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH)
+            assert!(accept_business_file(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH)
                 .unwrap_err()
                 .contains("StorageUnavailable"));
-            assert!(cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH)
+            assert!(advance_business(&files.db(), DEFAULT_WRITER_EPOCH)
                 .unwrap_err()
                 .contains("StorageUnavailable"));
-            assert!(cmd_recover(&files.db(), "2")
+            assert!(recover_business(&files.db(), "2")
                 .unwrap_err()
                 .contains("StorageUnavailable"));
             assert!(cmd_snapshot(&files.db(), None)
@@ -9139,26 +9170,26 @@ mod tests {
                 "in1.json",
                 DEFAULT_WRITER_EPOCH,
             );
-            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
             accept(
                 files,
                 &test_input(&[ev("e2", "2", "2", "11500")]),
                 "in2.json",
                 DEFAULT_WRITER_EPOCH,
             );
-            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         };
         let profile = fixture("profiles/testonly_tick_1_1_ohlc.json");
         let extra = test_input(&[ev("e3", "1", "3", "10800")]);
         let assert_reject = |files: &TestFiles| {
             let p = write_input(files, "e3.json", &extra);
-            assert!(cmd_accept(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH)
+            assert!(accept_business_file(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH)
                 .unwrap_err()
                 .contains("StorageUnavailable"));
-            assert!(cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH)
+            assert!(advance_business(&files.db(), DEFAULT_WRITER_EPOCH)
                 .unwrap_err()
                 .contains("StorageUnavailable"));
-            assert!(cmd_recover(&files.db(), "2")
+            assert!(recover_business(&files.db(), "2")
                 .unwrap_err()
                 .contains("StorageUnavailable"));
             assert!(cmd_snapshot(&files.db(), None)
@@ -9214,7 +9245,7 @@ mod tests {
             "in1.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         // 连续两次 >2^53 修订：supersedes 引用精确往返为规范十进制字符串。
         accept(
             &files,
@@ -9222,14 +9253,14 @@ mod tests {
             "c1.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         accept(
             &files,
             &test_input(&[ev("e2", "9007199254740994", "2", "12000")]),
             "c2.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
 
         let s = snapshot_of(&files, None);
         // 见证 raw_bars.supersedes_revision 必须是规范十进制字符串（不 Number 中转）。见证按 object_id（内容 hash，
@@ -9328,21 +9359,21 @@ mod tests {
             "big1.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         accept(
             &files,
             &test_input(&[ev("e2", "9007199254740994", big_seqs[2], "11500")]),
             "big2.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         accept(
             &files,
             &test_input(&[ev("e3", "1", big_seqs[3], "10800")]),
             "big3.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
 
         let s = snapshot_of(&files, None);
         let rh = s["raw_history"].as_array().unwrap();
@@ -9503,7 +9534,7 @@ mod tests {
         let rows = tb02b_oracle_rows();
         for n in 1..=rows.len() {
             accept_ohlc(&files, &located_ohlc_input(&rows[..n]));
-            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         }
         let conn = open_db(&files.db()).unwrap();
         verify_reachable_root(&conn).unwrap();
@@ -9583,14 +9614,14 @@ mod tests {
             "in1.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         accept(
             &files,
             &test_input(&[ev("e2", "2", "2", "11500")]),
             "in2.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         let conn = open_db(&files.db()).unwrap();
         verify_reachable_root(&conn).unwrap();
         let delta = delta_of(&conn, 2);
@@ -9699,7 +9730,7 @@ mod tests {
         let bars: Vec<_> = prices.iter().map(|h| (h - 2, *h)).collect();
         for n in 1..=bars.len() {
             accept_ohlc(&files, &ohlc_input(&bars[..n], false));
-            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         }
         let mut revised = ohlc_input(&bars, false);
         revised["events"][5]["revision"] = json!("2");
@@ -9707,7 +9738,7 @@ mod tests {
         revised["events"][5]["close"] = json!("18");
         revised["events"][5]["raw_text"] = json!("15/18 revision");
         accept_ohlc(&files, &revised);
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         let conn = open_db(&files.db()).unwrap();
         verify_reachable_root(&conn).unwrap();
         let gen: i64 = meta_get_opt(&conn, "generation")
@@ -9773,7 +9804,7 @@ mod tests {
         let bars: Vec<_> = prices.iter().map(|h| (h - 2, *h)).collect();
         for n in 1..=bars.len() {
             accept_ohlc(&files, &ohlc_input(&bars[..n], false));
-            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         }
         let conn = open_db(&files.db()).unwrap();
         verify_reachable_root(&conn).unwrap();
@@ -9830,7 +9861,7 @@ mod tests {
                 &format!("input-{i}.json"),
                 DEFAULT_WRITER_EPOCH,
             );
-            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         }
         let conn = open_db(&files.db()).unwrap();
         verify_reachable_root(&conn).unwrap();
@@ -9886,7 +9917,7 @@ mod tests {
         let bars: Vec<_> = prices.iter().map(|h| (h - 2, *h)).collect();
         for n in 1..=bars.len() {
             accept_ohlc(&files, &ohlc_input(&bars[..n], false));
-            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         }
         let conn = open_db(&files.db()).unwrap();
         verify_reachable_root(&conn).unwrap();
@@ -9930,7 +9961,7 @@ mod tests {
             "in1.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         let conn = open_db(&files.db()).unwrap();
         verify_reachable_root(&conn).unwrap();
         let before = db_meta(&conn).unwrap();
@@ -9945,8 +9976,8 @@ mod tests {
             .contains("SchemaUnsupported"));
         for refused in [
             cmd_snapshot(&files.db(), None),
-            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH),
-            cmd_recover(&files.db(), "2"),
+            advance_business(&files.db(), DEFAULT_WRITER_EPOCH),
+            recover_business(&files.db(), "2"),
         ] {
             assert!(refused.is_err());
         }
@@ -9986,7 +10017,7 @@ mod tests {
             "in1.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&warm.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&warm.db(), DEFAULT_WRITER_EPOCH).unwrap();
         cache::configure(268435456);
         let healthy = open_db(&warm.db()).unwrap();
         verify_reachable_root(&healthy).unwrap(); // 首次装入，尚无已核前缀可复用
@@ -10004,8 +10035,8 @@ mod tests {
         assert!(verify_reachable_root(&healthy).is_err());
         for refused in [
             cmd_snapshot(&warm.db(), None),
-            cmd_advance(&warm.db(), DEFAULT_WRITER_EPOCH),
-            cmd_recover(&warm.db(), "2"),
+            advance_business(&warm.db(), DEFAULT_WRITER_EPOCH),
+            recover_business(&warm.db(), "2"),
         ] {
             assert!(refused.is_err());
         }
@@ -10017,7 +10048,7 @@ mod tests {
         let rows = tb02b_oracle_rows();
         for n in 1..=rows.len() {
             accept_ohlc(&dropped, &located_ohlc_input(&rows[..n]));
-            cmd_advance(&dropped.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            advance_business(&dropped.db(), DEFAULT_WRITER_EPOCH).unwrap();
         }
         cache::configure(268435456);
         let healthy = open_db(&dropped.db()).unwrap();
@@ -10032,8 +10063,8 @@ mod tests {
         assert_eq!(cache::last_resumed(), 0, "模式变化不得复用旧前缀/证书");
         for refused in [
             cmd_snapshot(&dropped.db(), None),
-            cmd_advance(&dropped.db(), DEFAULT_WRITER_EPOCH),
-            cmd_recover(&dropped.db(), "2"),
+            advance_business(&dropped.db(), DEFAULT_WRITER_EPOCH),
+            recover_business(&dropped.db(), "2"),
         ] {
             assert!(refused.is_err());
         }
@@ -10050,7 +10081,7 @@ mod tests {
         let rows = tb02b_oracle_rows();
         for n in 1..=rows.len() {
             accept_ohlc(&files, &located_ohlc_input(&rows[..n]));
-            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         }
         let conn = open_db(&files.db()).unwrap();
         let format: String = conn
@@ -10160,7 +10191,7 @@ mod tests {
             let rows = &oracle[..4];
             for n in 1..=rows.len() {
                 accept_ohlc(&files, &located_ohlc_input(&rows[..n]));
-                cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+                advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
             }
             // 先暖一次当前读集，确保损坏不被旧证书掩盖。
             let healthy = open_db(&files.db()).unwrap();
@@ -10174,8 +10205,8 @@ mod tests {
             assert!(verify_reachable_root(&healthy).is_err(), "{sql}");
             for refused in [
                 cmd_snapshot(&files.db(), None),
-                cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH),
-                cmd_recover(&files.db(), "2"),
+                advance_business(&files.db(), DEFAULT_WRITER_EPOCH),
+                recover_business(&files.db(), "2"),
             ] {
                 assert!(refused.is_err(), "{sql}");
             }
@@ -10224,7 +10255,7 @@ mod tests {
             let rows = tb02b_oracle_rows();
             for n in 1..=rows.len() {
                 accept_ohlc(files, &located_ohlc_input(&rows[..n]));
-                cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+                advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
             }
         };
         // ① 完整降级为旧库：整块字节写回批次行并撤掉三表 → 旧整块判据仍必须严格可读。
@@ -10309,7 +10340,7 @@ mod tests {
             drop(conn);
             assert!(cmd_snapshot(&half.db(), None).is_err(), "{drop_sql}");
             assert!(
-                cmd_advance(&half.db(), DEFAULT_WRITER_EPOCH).is_err(),
+                advance_business(&half.db(), DEFAULT_WRITER_EPOCH).is_err(),
                 "{drop_sql}"
             );
         }
@@ -10365,7 +10396,7 @@ mod tests {
             let bars: Vec<_> = prices.iter().map(|h| (h - 2, *h)).collect();
             for n in 1..=bars.len() {
                 accept_ohlc(&files, &ohlc_input(&bars[..n], false));
-                cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+                advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
             }
             let conn = open_db(&files.db()).unwrap();
             let batches: Vec<(i64, String, i64)> = {
@@ -10436,7 +10467,7 @@ mod tests {
                 s_fact_cache::cold_lane();
             }
             accept_ohlc(&files, &ohlc_input(&bars[..n], false));
-            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
             let conn = open_db(&files.db()).unwrap();
             let (batch_id, byte_len): (String, i64) = conn
                 .query_row(
@@ -10516,7 +10547,7 @@ mod tests {
                 // 价格与坐标均不变，只有真实事件版本变更；来源原件仍须更换。
                 input["events"][0]["revision"] = json!(revision.to_string());
                 accept_ohlc(&files, &input);
-                cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+                advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
                 let conn = open_db(&files.db()).unwrap();
                 verify_reachable_root(&conn).unwrap();
                 let batch_id: String = conn
@@ -10591,12 +10622,12 @@ mod tests {
             init_test_db(&files);
             for n in 1..=bars.len() {
                 accept_ohlc(&files, &ohlc_input(&bars[..n], false));
-                cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+                advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
             }
             accept_ohlc(&files, &revision_input(&steps[1], 2, "2"));
-            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
             accept_ohlc(&files, &revision_input(&steps[2], 2, "3"));
-            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
             s_fact_cache::set_oracle(false);
             let conn = open_db(&files.db()).unwrap();
             let mut stmt = conn
@@ -10621,8 +10652,8 @@ mod tests {
 mod staged_graph_audit_regressions {
     use super::*;
     use crate::tests::{
-        accept_ohlc, fixture, graph_digest, init_test_db, located_ohlc_input, tb02b_oracle_rows,
-        write_input, TestFiles,
+        accept_business_file, accept_ohlc, advance_business, fixture, graph_digest, init_test_db,
+        located_ohlc_input, recover_business, tb02b_oracle_rows, write_input, TestFiles,
     };
 
     /// 把库从 `evidence-graph/3` 退成**真正的** `evidence-graph/2`：Delta 与结构事实三列大原件
@@ -10703,7 +10734,7 @@ mod staged_graph_audit_regressions {
         let rows = tb02b_oracle_rows();
         for n in 1..=generations.min(rows.len()) {
             accept_ohlc(files, &located_ohlc_input(&rows[..n]));
-            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         }
     }
 
@@ -10897,7 +10928,7 @@ mod staged_graph_audit_regressions {
         cache::configure(tight);
         let rows = tb02b_oracle_rows();
         accept_ohlc(&files, &located_ohlc_input(&rows[..3]));
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
         assert!(
             cache::retained_bytes() <= tight,
             "root 替换后保留量必须在预算内：{} 分解(root,handles,certs)={:?}",
@@ -11050,8 +11081,8 @@ mod staged_graph_audit_regressions {
         cmd_watch(&files.db(), 1).unwrap();
         // 三个正式写入入口（accept / advance / recover）都在**第一笔写入之前**按写域门拒绝。
         for refusal in [
-            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap_err(),
-            cmd_recover(&files.db(), "2").unwrap_err(),
+            advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap_err(),
+            recover_business(&files.db(), "2").unwrap_err(),
         ] {
             assert!(
                 refusal.contains("SchemaUnsupported")
@@ -11062,7 +11093,7 @@ mod staged_graph_audit_regressions {
         let accept_refusal = {
             let input = located_ohlc_input(&tb02b_oracle_rows()[..1]);
             let path = write_input(&files, "v2-accept.json", &input);
-            cmd_accept(
+            accept_business_file(
                 &files.db(),
                 &path,
                 &fixture("profiles/ohlc_integer_tb02a_v1.json"),
@@ -11088,7 +11119,7 @@ mod staged_graph_audit_regressions {
             assert!(err.contains("未声明"), "{err}");
         }
         assert!(cmd_snapshot(&mixed.db(), None).is_err());
-        assert!(cmd_advance(&mixed.db(), DEFAULT_WRITER_EPOCH).is_err());
+        assert!(advance_business(&mixed.db(), DEFAULT_WRITER_EPOCH).is_err());
     }
 
     /// #1394 第二段：Delta 原件与结构事实三列原件的根/节点/行任一变化，都在**任何写入之前**拒绝，
@@ -11173,8 +11204,8 @@ mod staged_graph_audit_regressions {
             assert!(error.contains("StorageUnavailable"), "{sql} -> {error}");
             for refused in [
                 cmd_snapshot(&files.db(), None),
-                cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH),
-                cmd_recover(&files.db(), "2"),
+                advance_business(&files.db(), DEFAULT_WRITER_EPOCH),
+                recover_business(&files.db(), "2"),
             ] {
                 assert!(refused.is_err(), "{sql}");
             }

@@ -48,6 +48,9 @@ pub use ref_owner::{OwnedRefFields, RefDiagnostic, RefOwner, RefView, TransportR
 /// 整次操作的累计资源与期限（#1394 采纳 C §5.6.1）。
 pub mod job;
 
+/// #1527：旧证据图纯行验证；独立于 S-content 编码与计量。
+pub mod legacy_evidence;
+
 /// 真实 Unix I/O（调用者提供的 `UnixStream`）接到 job 计费与绝对期限的薄适配（仅 unix）。
 /// 只覆盖该连接上的读写字节；connect／spawn／HTTP／stderr 由外层各自带期限与计费。
 #[cfg(unix)]

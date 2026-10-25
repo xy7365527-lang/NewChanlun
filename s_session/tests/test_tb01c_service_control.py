@@ -14,6 +14,7 @@ from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import s_service_control as control
+from r4_anchor_fixture import anchored_controller
 
 
 class LifecycleTests(unittest.TestCase):
@@ -25,7 +26,7 @@ class LifecycleTests(unittest.TestCase):
 
     def test_initial_abbreviated_command_waits_for_complete_identity(self):
         with tempfile.TemporaryDirectory(prefix="tb01c-initial-argv-") as directory:
-            controller = control.Controller({"db": str(Path(directory) / "owned"),
+            controller = anchored_controller({"db": str(Path(directory) / "owned"),
                                              "startup_timeout_ms": "2000"}, Path(directory))
             command = ["/owned/python3.14", "-c", "import time; time.sleep(60)", "q"]
             child = Mock(pid=123456, **{"poll.return_value": None})
@@ -52,7 +53,7 @@ class LifecycleTests(unittest.TestCase):
 
     def test_persistent_abbreviation_expires_in_original_budget_and_cleans_only_child(self):
         with tempfile.TemporaryDirectory(prefix="tb01c-argv-timeout-") as directory:
-            controller = control.Controller({"db": str(Path(directory) / "owned"),
+            controller = anchored_controller({"db": str(Path(directory) / "owned"),
                                              "startup_timeout_ms": "2000"}, Path(directory))
             original = b'{"untouched":"other service record"}\n'
             controller.record_path("s").write_bytes(original)
@@ -73,7 +74,9 @@ class LifecycleTests(unittest.TestCase):
                 self.assertFalse(controller.record_path("q").exists())
                 self.assertEqual(controller.record_path("s").read_bytes(), original)
                 child.terminate.assert_called_once_with()
-                child.wait.assert_called_once_with(timeout=2.0)
+                # #1527 R4：回收已启动子进程也只用本次动作剩余期限，不另给一整份 startup_timeout_ms。
+                child.wait.assert_called_once()
+                self.assertAlmostEqual(child.wait.call_args.kwargs["timeout"], 0.0)
                 kill.assert_not_called()
             finally:
                 controller.close()
@@ -81,7 +84,7 @@ class LifecycleTests(unittest.TestCase):
     def test_complete_wrong_arguments_or_uid_are_rejected_without_retry(self):
         for wrong_uid in (False, True):
             with self.subTest(wrong_uid=wrong_uid), tempfile.TemporaryDirectory(prefix="tb01c-argv-mismatch-") as directory:
-                controller = control.Controller({"db": str(Path(directory) / "owned"),
+                controller = anchored_controller({"db": str(Path(directory) / "owned"),
                                                  "startup_timeout_ms": "2000"}, Path(directory))
                 command = ["/owned/python3.14", "right.py"]
                 response = self.ps_reply(" ".join(command) if wrong_uid else "/owned/python3.14 wrong.py",
@@ -114,8 +117,9 @@ class LifecycleTests(unittest.TestCase):
                           "query_resource_config": str(resource_config), "s_resources": {field: "1" for field in (
                               "max_frame_bytes", "read_timeout_ms", "write_timeout_ms", "queue_capacity",
                               "max_connections", "response_timeout_ms", "audit_cache_source_bytes")}}
-                controller = control.Controller(config, Path(directory))
                 clock = [0.0]
+                # #1527 R4：启动绝对期限在构造控制器时固定，start_s/start_q 不再重新起钟。
+                controller = anchored_controller(config, Path(directory), clock=lambda: clock[0])
                 child = Mock(pid=123456, **{"poll.return_value": None})
                 def spawn(*args, **kwargs):
                     clock[0] = 0.020  # 前置动作和 spawn 已用掉原预算中的 20ms。
@@ -150,7 +154,7 @@ class LifecycleTests(unittest.TestCase):
             config = {"db": str(Path(directory) / "owned"), "startup_timeout_ms": "25",
                       "binary": "/owned/s_structure_session", "python": "/owned/python3.12",
                       "browser": "/owned/browser", "port": "12345", "query_resource_config": str(resources)}
-            controller = control.Controller(config, Path(directory))
+            controller = anchored_controller(config, Path(directory))
             clock = [0.0]
             def environment(deadline):
                 self.assertEqual(deadline, 0.025)
@@ -181,7 +185,7 @@ class LifecycleTests(unittest.TestCase):
                       "binary": "/owned/s_structure_session", "python": "/owned/python3.12",
                       "browser": "/owned/browser", "port": "12345", "query_resource_config": str(resources),
                       "economic_query_config": "/owned/economic.json"}
-            controller = control.Controller(config, Path(directory))
+            controller = anchored_controller(config, Path(directory))
             try:
                 with patch.object(controller, "runtime_environment") as env, \
                      patch.object(controller, "query_resource_revision", return_value=json.loads(resources.read_text()).get("schema_revision", "legacy/2")), \
@@ -209,7 +213,7 @@ class LifecycleTests(unittest.TestCase):
                           "browser": "/owned/browser", "port": "12345", "query_resource_config": str(resources)}
                 if economic:
                     config["economic_query_config"] = "/owned/economic.json"
-                controller = control.Controller(config, Path(directory))
+                controller = anchored_controller(config, Path(directory))
                 original = b'{"preserved":"earlier service receipt"}\n'
                 controller.record_path("q").write_bytes(original)
                 try:
@@ -233,7 +237,7 @@ class LifecycleTests(unittest.TestCase):
             config = {"db": str(Path(directory) / "owned"), "startup_timeout_ms": "25",
                       "binary": "/owned/s_structure_session", "python": "/owned/python3.12",
                       "browser": "/owned/browser", "port": "12345", "query_resource_config": str(resources)}
-            controller = control.Controller(config, Path(directory))
+            controller = anchored_controller(config, Path(directory))
             clock = [0.0]
             def environment(deadline):
                 self.assertEqual(deadline, 0.025)
@@ -256,7 +260,7 @@ class LifecycleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="tb01c-resource-fifo-") as directory:
             resources = Path(directory) / "resources.fifo"
             os.mkfifo(resources)
-            controller = control.Controller({"db": str(Path(directory) / "owned"),
+            controller = anchored_controller({"db": str(Path(directory) / "owned"),
                 "startup_timeout_ms": "200", "query_resource_config": str(resources)}, Path(directory))
             children = []
             original_popen = control.subprocess.Popen
@@ -279,7 +283,7 @@ class LifecycleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="tb01c-resource-deadline-") as directory:
             resources = Path(directory) / "resources.json"
             resources.write_text('{"schema_revision":"s-query-resources/3","limits":{}}')
-            controller = control.Controller({"db": str(Path(directory) / "owned"),
+            controller = anchored_controller({"db": str(Path(directory) / "owned"),
                 "startup_timeout_ms": "200", "query_resource_config": str(resources)}, Path(directory))
             children = []
             original_popen = control.subprocess.Popen
@@ -307,7 +311,7 @@ class LifecycleTests(unittest.TestCase):
     def test_initial_identity_cannot_outlive_child_or_change_start_time(self):
         for failure in ("exited", "changed_start"):
             with self.subTest(failure=failure), tempfile.TemporaryDirectory(prefix="tb01c-argv-life-") as directory:
-                controller = control.Controller({"db": str(Path(directory) / "owned"),
+                controller = anchored_controller({"db": str(Path(directory) / "owned"),
                                                  "startup_timeout_ms": "2000"}, Path(directory))
                 command = ["/owned/python3.14", "owned.py"]
                 child = Mock(pid=123456, **{"poll.return_value": None})
@@ -331,7 +335,7 @@ class LifecycleTests(unittest.TestCase):
 
     def test_complete_identity_arriving_after_deadline_is_not_recorded(self):
         with tempfile.TemporaryDirectory(prefix="tb01c-argv-late-") as directory:
-            controller = control.Controller({"db": str(Path(directory) / "owned"),
+            controller = anchored_controller({"db": str(Path(directory) / "owned"),
                                              "startup_timeout_ms": "2000"}, Path(directory))
             clock = [0.0]
             child = Mock(pid=123456, **{"poll.return_value": None})
@@ -354,7 +358,7 @@ class LifecycleTests(unittest.TestCase):
 
     def test_abbreviation_does_not_relax_status_ready_or_stop(self):
         with tempfile.TemporaryDirectory(prefix="tb01c-argv-existing-") as directory:
-            controller = control.Controller({"db": str(Path(directory) / "owned"),
+            controller = anchored_controller({"db": str(Path(directory) / "owned"),
                                              "startup_timeout_ms": "2000"}, Path(directory))
             command = ["/owned/python3.14", "owned.py"]
             record = {"service": "q", "pid": 123456, "db": controller.config["db"], "command": command,
@@ -377,7 +381,7 @@ class LifecycleTests(unittest.TestCase):
 
     def test_after_signal_unknown_observation_is_not_adopted_or_signalled_again(self):
         with tempfile.TemporaryDirectory(prefix="tb01c-exit-observation-") as directory:
-            controller = control.Controller({"db": str(Path(directory) / "owned"), "startup_timeout_ms": "500"}, Path(directory))
+            controller = anchored_controller({"db": str(Path(directory) / "owned"), "startup_timeout_ms": "500"}, Path(directory))
             record = {"state": "running", "pid": 123456, "command": ["owned"], "process_identity": "verified"}
             try:
                 with patch.object(controller, "status", side_effect=[record, ValueError("退出时命令暂变"), {"state": "stopped"}]), \
@@ -392,7 +396,7 @@ class LifecycleTests(unittest.TestCase):
     def test_cleanup_requires_known_stopped_socket_identity(self):
         with tempfile.TemporaryDirectory(prefix="tb01c-sockowner-", dir="/tmp") as directory:
             path = Path(directory) / "s.sock"
-            controller = control.Controller({"db": str(Path(directory) / "owned"), "socket": str(path)}, Path(directory))
+            controller = anchored_controller({"db": str(Path(directory) / "owned"), "socket": str(path)}, Path(directory))
             listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             try:
                 listener.bind(str(path))
@@ -414,7 +418,7 @@ class LifecycleTests(unittest.TestCase):
     def test_unknown_stale_socket_is_never_adopted(self):
         with tempfile.TemporaryDirectory(prefix="tb01c-sockunknown-", dir="/tmp") as directory:
             path = Path(directory) / "s.sock"
-            controller = control.Controller({"db": str(Path(directory) / "owned"), "socket": str(path)}, Path(directory))
+            controller = anchored_controller({"db": str(Path(directory) / "owned"), "socket": str(path)}, Path(directory))
             try:
                 with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as listener:
                     listener.bind(str(path))
@@ -426,7 +430,7 @@ class LifecycleTests(unittest.TestCase):
 
     def test_incomplete_record_does_not_prove_stopped(self):
         with tempfile.TemporaryDirectory(prefix="tb01c-incomplete-record-") as directory:
-            controller = control.Controller({"db": str(Path(directory) / "owned")}, Path(directory))
+            controller = anchored_controller({"db": str(Path(directory) / "owned")}, Path(directory))
             try:
                 controller.record_path("s").write_text(json.dumps({"db": controller.config["db"], "service": "s"}))
                 with patch.object(control.subprocess, "run") as run:
@@ -444,13 +448,18 @@ class LifecycleTests(unittest.TestCase):
 
     def test_recovery_decode_is_inside_action_deadline(self):
         with tempfile.TemporaryDirectory(prefix="tb01c-decode-") as directory:
-            controller = control.Controller({"db": str(Path(directory) / "owned"), "startup_timeout_ms": "5",
-                                             "binary": "test", "clock_plan": "test"}, Path(directory))
+            clock = [0.0]
+            controller = anchored_controller({"db": str(Path(directory) / "owned"), "startup_timeout_ms": "5",
+                                             "binary": "test", "clock_plan": "test"}, Path(directory),
+                                             clock=lambda: clock[0])
+            def recover_process(*args, **kwargs):
+                clock[0] = 0.1  # 子进程返回时已越过构造时固定的 5ms 期限，解码不得续钟。
+                return control.subprocess.CompletedProcess([], 0, b'{"ok":true}')
             try:
                 with patch.object(controller, "status", return_value={"state": "stopped"}), \
                      patch.object(controller, "runtime_environment", return_value={}), \
-                     patch.object(control.subprocess, "run", return_value=control.subprocess.CompletedProcess([], 0, b'{"ok":true}')), \
-                     patch.object(control.time, "monotonic", side_effect=[0, 0.001, 0.1]):
+                     patch.object(control.subprocess, "run", side_effect=recover_process), \
+                     patch.object(control.time, "monotonic", side_effect=lambda: clock[0]):
                     with self.assertRaises(TimeoutError):
                         controller.recover("2", "recover-001")
             finally:
@@ -459,14 +468,24 @@ class LifecycleTests(unittest.TestCase):
     def test_database_owner_cannot_be_replaced_with_another_state_directory(self):
         with tempfile.TemporaryDirectory(prefix="tb01c-dbowner-") as directory:
             config = {"db": str(Path(directory) / "owned")}
-            first = control.Controller(config, Path(directory) / "first")
+            first = anchored_controller(config, Path(directory) / "first")
             first.close()
-            with self.assertRaisesRegex(ValueError, "其他控制目录"):
-                control.Controller(config, Path(directory) / "second")
+            # #1527 R4：S 控制器不再在构造时写/比 owner，而是在首个控制动作读持久 owner 时核身份；
+            # 另一控制目录不得接管，且 owner 原件不被改写。
+            owner = Path(config["db"] + ".control-owner.json")
+            before = owner.read_bytes()
+            second = anchored_controller(config, Path(directory) / "second")
+            try:
+                with self.assertRaises(control.AdmissionError) as refused:
+                    second.status("s")
+                self.assertEqual(refused.exception.code, "Identity")
+                self.assertEqual(owner.read_bytes(), before)
+            finally:
+                second.close()
 
     def test_unknown_process_record_does_not_authorize_recovery(self):
         with tempfile.TemporaryDirectory(prefix="tb01c-recover-") as directory:
-            controller = control.Controller({"db": str(Path(directory) / "owned")}, Path(directory))
+            controller = anchored_controller({"db": str(Path(directory) / "owned")}, Path(directory))
             try:
                 with patch.object(control.subprocess, "run") as run:
                     with self.assertRaisesRegex(ValueError, "已确认"):
@@ -477,7 +496,7 @@ class LifecycleTests(unittest.TestCase):
 
     def test_failed_record_terminates_and_reaps_only_new_child(self):
         with tempfile.TemporaryDirectory(prefix="tb01c-record-") as directory:
-            controller = control.Controller({"db": str(Path(directory) / "owned"),
+            controller = anchored_controller({"db": str(Path(directory) / "owned"),
                                              "startup_timeout_ms": "2000"}, Path(directory))
             children = []
             popen = control.subprocess.Popen
@@ -503,7 +522,7 @@ class LifecycleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="tb01c-oldq-") as directory:
             config = {"db": str(Path(directory) / "owned"), "startup_timeout_ms": "30",
                       "session_id": "test", "session_generation": "1", "port": "12345"}
-            controller = control.Controller(config, Path(directory))
+            controller = anchored_controller(config, Path(directory))
             try:
                 record = {"state": "running", "pid": 123456, "process_identity": "current",
                           "control_instance_id": "new"}
@@ -520,7 +539,7 @@ class LifecycleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="tb01c-exitq-") as directory:
             config = {"db": str(Path(directory) / "owned"), "startup_timeout_ms": "30",
                       "session_id": "test", "session_generation": "1", "port": "12345"}
-            controller = control.Controller(config, Path(directory))
+            controller = anchored_controller(config, Path(directory))
             try:
                 record = {"state": "running", "pid": 123456, "process_identity": "current",
                           "control_instance_id": "new"}
@@ -563,7 +582,7 @@ class LifecycleTests(unittest.TestCase):
     def test_stopping_q_leaves_s_alive_and_preserves_process_record(self):
         with tempfile.TemporaryDirectory(prefix="tb01c-control-") as directory:
             config = {"db": str(Path(directory) / "owned.sqlite"), "startup_timeout_ms": "2000"}
-            controller = control.Controller(config, Path(directory))
+            controller = anchored_controller(config, Path(directory))
             processes = []
             try:
                 for service in ("s", "q"):
@@ -656,16 +675,16 @@ class LifecycleTests(unittest.TestCase):
 
     def test_concurrent_control_cannot_overwrite_same_state_directory(self):
         with tempfile.TemporaryDirectory(prefix="tb01c-lock-") as directory:
-            first = control.Controller({"db": str(Path(directory) / "owned")}, Path(directory))
+            first = anchored_controller({"db": str(Path(directory) / "owned")}, Path(directory))
             try:
                 with self.assertRaisesRegex(ValueError, "并发"):
-                    control.Controller({"db": str(Path(directory) / "owned")}, Path(directory))
+                    anchored_controller({"db": str(Path(directory) / "owned")}, Path(directory))
             finally:
                 first.close()
 
     def test_reused_pid_is_rejected_without_signal(self):
         with tempfile.TemporaryDirectory(prefix="tb01c-pid-") as directory:
-            controller = control.Controller({"db": str(Path(directory) / "owned"), "startup_timeout_ms": "100"}, Path(directory))
+            controller = anchored_controller({"db": str(Path(directory) / "owned"), "startup_timeout_ms": "100"}, Path(directory))
             try:
                 controller.record_path("s").write_text(json.dumps({
                     "db": controller.config["db"], "service": "s", "pid": 123456,
@@ -680,7 +699,7 @@ class LifecycleTests(unittest.TestCase):
 
     def test_identity_changed_between_read_and_signal_is_rejected(self):
         with tempfile.TemporaryDirectory(prefix="tb01c-signal-") as directory:
-            controller = control.Controller({"db": str(Path(directory) / "owned"), "startup_timeout_ms": "100"}, Path(directory))
+            controller = anchored_controller({"db": str(Path(directory) / "owned"), "startup_timeout_ms": "100"}, Path(directory))
             try:
                 controller.record_path("s").write_text(json.dumps({
                     "db": controller.config["db"], "service": "s", "pid": 123456, "process_identity": "original", "command": ["owned"], "control_instance_id": "test"}))
@@ -694,7 +713,7 @@ class LifecycleTests(unittest.TestCase):
 
     def test_record_from_another_database_cannot_be_controlled(self):
         with tempfile.TemporaryDirectory(prefix="tb01c-owner-") as directory:
-            controller = control.Controller({"db": str(Path(directory) / "owned")}, Path(directory))
+            controller = anchored_controller({"db": str(Path(directory) / "owned")}, Path(directory))
             try:
                 controller.record_path("q").write_text(json.dumps({"db": "other", "service": "q", "pid": 123456, "process_identity": "other", "command": ["owned"], "control_instance_id": "test"}))
                 with patch.object(control.os, "kill") as kill:

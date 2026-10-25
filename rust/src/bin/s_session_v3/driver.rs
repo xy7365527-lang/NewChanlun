@@ -4,7 +4,6 @@
 
 use super::*;
 use newchan_rust::session_protocol::{required, validate_envelope};
-use std::fs::File;
 
 /// CLI 预检与运行中 handler 共用的唯一 typed 请求判据。
 pub(super) fn validate_request(envelope: Value) -> Result<Value, String> {
@@ -88,7 +87,7 @@ pub(super) struct Driver {
     /// #1394：Native私有诊断开关在首次事务前冻结。
     #[cfg(feature = "s_capture_native_testonly")]
     sqlite_pager_probe: bool,
-    _lock: File,
+    _scope: super::admission::WriterScope,
     #[cfg(test)]
     stop_after: Option<&'static str>,
 }
@@ -101,6 +100,7 @@ impl Driver {
         epoch: &str,
         clock: v2::ClockPlan,
         audit_cache_source_bytes: usize,
+        admission: super::admission::WriterAdmission,
     ) -> Result<Self, String> {
         Self::open_for_serve_with_allocation(
             db,
@@ -109,6 +109,7 @@ impl Driver {
             clock,
             audit_cache_source_bytes,
             None,
+            admission,
         )
     }
 
@@ -120,6 +121,7 @@ impl Driver {
         clock: v2::ClockPlan,
         audit_cache_source_bytes: usize,
         allocation: Option<q_allocation::Profile>,
+        admission: super::admission::WriterAdmission,
     ) -> Result<Self, String> {
         Self::open_for_serve_with_mode(
             db,
@@ -128,6 +130,7 @@ impl Driver {
             clock,
             audit_cache_source_bytes,
             allocation.into(),
+            admission,
         )
     }
 
@@ -138,9 +141,11 @@ impl Driver {
         clock: v2::ClockPlan,
         audit_cache_source_bytes: usize,
         mode: s_allocation::Mode,
+        admission: super::admission::WriterAdmission,
     ) -> Result<Self, String> {
         state::check_audit_source_retention(audit_cache_source_bytes)?;
-        let mut driver = Self::open_with_request_and_mode(db, profile, epoch, clock, None, mode)?;
+        let mut driver =
+            Self::open_with_request_and_mode(db, profile, epoch, clock, None, mode, admission)?;
         driver.audit_cache_source_bytes = Some(audit_cache_source_bytes);
         Ok(driver)
     }
@@ -153,6 +158,7 @@ impl Driver {
         clock: v2::ClockPlan,
         audit_cache_source_bytes: usize,
         mode: s_allocation::Mode,
+        admission: super::admission::WriterAdmission,
     ) -> Result<(Self, (String, String, String)), String> {
         state::check_audit_source_retention(audit_cache_source_bytes)?;
         if !matches!(mode, s_allocation::Mode::CapturedNative) {
@@ -167,6 +173,7 @@ impl Driver {
             None,
             mode,
             Some(&mut context),
+            admission,
         )?;
         driver.audit_cache_source_bytes = Some(audit_cache_source_bytes);
         let identity = driver.identity_in_bootstrap(&mut context)?;
@@ -188,6 +195,18 @@ impl Driver {
         result
     }
 
+    pub(super) fn into_output(self, out: Value) -> super::admission::CommandOutput {
+        let Self { conn, _scope, .. } = self;
+        drop(conn);
+        super::admission::CommandOutput::new(out, _scope)
+    }
+    pub(super) fn finish_startup(&self) -> Result<(), String> {
+        self._scope.finish_startup()
+    }
+    pub(super) fn write_result(&self, out: &Value) -> Result<(), String> {
+        self._scope.write_result(out)
+    }
+
     pub(super) fn identity(&self) -> Result<(String, String, String), String> {
         self.conn.identity(&self.epoch, &self.clock, None)
     }
@@ -202,8 +221,9 @@ impl Driver {
         profile: &Path,
         epoch: &str,
         clock: v2::ClockPlan,
+        admission: super::admission::WriterAdmission,
     ) -> Result<Self, String> {
-        Self::open_with_request(db, profile, epoch, clock, None)
+        Self::open_with_request(db, profile, epoch, clock, None, admission)
     }
 
     /// 输入请求在同一写者进程锁内、任何 pending 自动恢复之前再核一次。
@@ -214,8 +234,9 @@ impl Driver {
         epoch: &str,
         clock: v2::ClockPlan,
         request: Option<&Value>,
+        admission: super::admission::WriterAdmission,
     ) -> Result<Self, String> {
-        Self::open_with_request_and_allocation(db, profile, epoch, clock, request, None)
+        Self::open_with_request_and_allocation(db, profile, epoch, clock, request, None, admission)
     }
 
     /// 在恢复 pending 之前冻结私有 TestOnly 档；启动身份审计仍走原入口。
@@ -227,8 +248,17 @@ impl Driver {
         clock: v2::ClockPlan,
         request: Option<&Value>,
         allocation: Option<q_allocation::Profile>,
+        admission: super::admission::WriterAdmission,
     ) -> Result<Self, String> {
-        Self::open_with_request_and_mode(db, profile, epoch, clock, request, allocation.into())
+        Self::open_with_request_and_mode(
+            db,
+            profile,
+            epoch,
+            clock,
+            request,
+            allocation.into(),
+            admission,
+        )
     }
 
     /// startup仅显式CapturedNative做同核全捕获；其它模式保持普通。在pending恢复前审计并冻结模式。
@@ -240,8 +270,11 @@ impl Driver {
         clock: v2::ClockPlan,
         request: Option<&Value>,
         mode: s_allocation::Mode,
+        admission: super::admission::WriterAdmission,
     ) -> Result<Self, String> {
-        Self::open_with_request_and_mode_context(db, profile, epoch, clock, request, mode, None)
+        Self::open_with_request_and_mode_context(
+            db, profile, epoch, clock, request, mode, None, admission,
+        )
     }
     // #1394：None保持原open；Some仅专有Native服务bootstrap调用，不保存context。
     fn open_with_request_and_mode_context(
@@ -252,13 +285,17 @@ impl Driver {
         request: Option<&Value>,
         mode: s_allocation::Mode,
         mut startup_context: Option<&mut request_audit::RequestAuditContext>,
+        admission: super::admission::WriterAdmission,
     ) -> Result<Self, String> {
         mode.validate()?;
         parse_writer_epoch(epoch, "configured writer_epoch")?;
         if !db.is_file() {
             return Err("StorageUnavailable：S3驱动只打开已初始化库".into());
         }
-        let lock = session_transport::process_lock(db, "S")?;
+        let scope = admission.admit(db)?;
+        let _open_guard = scope.enter()?;
+        let db = scope.db_path();
+        scope.require_admitted()?;
         let conn = super::audit_owner::AuditConnection::open(db)?;
         #[cfg(feature = "s_capture_native_testonly")]
         let sqlite_pager_probe = matches!(mode, s_allocation::Mode::CapturedNative)
@@ -286,7 +323,7 @@ impl Driver {
             audit_cache_source_bytes: None,
             #[cfg(feature = "s_capture_native_testonly")]
             sqlite_pager_probe,
-            _lock: lock,
+            _scope: scope,
             #[cfg(test)]
             stop_after: None,
         };
@@ -448,24 +485,43 @@ impl Driver {
 
 /// 监督器恢复：完整旧状态有效且epoch严格上升后才清Begin，不重写已接纳消息。
 /// 尚未接CLI；换代事务提交后，由新Driver开门继续持久pending原件。
+pub(super) fn recover_scoped(
+    db: &Path,
+    new_epoch: &str,
+    clock: &v2::ClockPlan,
+    clock_event: &str,
+    admission: super::admission::WriterAdmission,
+) -> Result<(Value, super::admission::WriterScope), String> {
+    parse_writer_epoch(new_epoch, "new writer_epoch")?;
+    if !db.is_file() {
+        return Err("StorageUnavailable：恢复需要已初始化库".into());
+    }
+    let scope = admission.admit(db)?;
+    let _open_guard = scope.enter()?;
+    let db = scope.db_path();
+    scope.require_admitted()?;
+    let conn = super::audit_owner::AuditConnection::open(db)?;
+    let result = conn.recover(new_epoch, clock, clock_event)?;
+    drop(conn);
+    Ok((result, scope))
+}
 pub(super) fn recover(
     db: &Path,
     new_epoch: &str,
     clock: &v2::ClockPlan,
     clock_event: &str,
+    admission: super::admission::WriterAdmission,
 ) -> Result<Value, String> {
-    parse_writer_epoch(new_epoch, "new writer_epoch")?;
-    if !db.is_file() {
-        return Err("StorageUnavailable：恢复需要已初始化库".into());
-    }
-    let _lock = session_transport::process_lock(db, "S")?;
-    let conn = super::audit_owner::AuditConnection::open(db)?;
-    conn.recover(new_epoch, clock, clock_event)
+    let (value, scope) = recover_scoped(db, new_epoch, clock, clock_event, admission)?;
+    scope.finish_startup()?;
+    Ok(value)
 }
+
 #[cfg_attr(
     not(all(test, feature = "s_capture_native_testonly")),
     allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
 )]
+
 fn err(e: impl std::fmt::Display) -> String {
     format!("S3DriverInvalid：{e}")
 }
@@ -535,7 +591,13 @@ mod tests {
             }
         }
         fn open(&self, epoch: &str) -> Result<Driver, String> {
-            Driver::open(&self.db, &self.profile, epoch, self.clock.clone())
+            Driver::open(
+                &self.db,
+                &self.profile,
+                epoch,
+                self.clock.clone(),
+                crate::v3::admission_anchor::test_prepare(&self.db).into(),
+            )
         }
         fn ingest(n: i64) -> Value {
             let row = match n {
@@ -634,7 +696,14 @@ mod tests {
         let receipt = before.handle(input.clone()).unwrap();
         let first_summary = before.state_summary("before-recover").unwrap();
         drop(before);
-        let recovered = recover(&fixture.db, "2", &fixture.clock, "recover-1").unwrap();
+        let recovered = recover(
+            &fixture.db,
+            "2",
+            &fixture.clock,
+            "recover-1",
+            crate::v3::admission_anchor::test_prepare(&fixture.db).into(),
+        )
+        .unwrap();
         assert_eq!(
             recovered["reachable_root"]["structure_cut"],
             first_summary["structure_cut"]
@@ -665,6 +734,7 @@ mod tests {
             native_fixture.clock.clone(),
             536_870_912,
             s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&native_fixture.db).into(),
         )
         .unwrap();
         let mut ordinary = ordinary_fixture.open("1").unwrap();
@@ -749,6 +819,7 @@ mod tests {
             fixture.clock.clone(),
             536_870_912,
             s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&fixture.db).into(),
         )
         .unwrap();
         for n in 1..=3 {
@@ -802,6 +873,7 @@ mod tests {
             f.clock.clone(),
             536_870_912,
             s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
         )
         .unwrap()
     }
@@ -2043,6 +2115,7 @@ mod tests {
             f.clock.clone(),
             1024,
             s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
         )
         .unwrap();
         for request in [ready.clone(), ready, input] {
@@ -2142,6 +2215,7 @@ mod tests {
                 f.clock.clone(),
                 cap,
                 s_allocation::Mode::CapturedNative,
+                crate::v3::admission_anchor::test_prepare(&f.db).into(),
             )
             .unwrap();
             // v3 driver 不配置 legacy memo；显式开启保留，使首跑真实经 NativeAdmission 保留证书。
@@ -2190,6 +2264,7 @@ mod tests {
                 f.clock.clone(),
                 16 * 1024 * 1024,
                 s_allocation::Mode::CapturedNative,
+                crate::v3::admission_anchor::test_prepare(&f.db).into(),
             )
             .unwrap();
             crate::cache::configure(268_435_456);
@@ -2256,6 +2331,7 @@ mod tests {
                 f.clock.clone(),
                 first_cap,
                 s_allocation::Mode::CapturedNative,
+                crate::v3::admission_anchor::test_prepare(&f.db).into(),
             )
             .unwrap();
             crate::cache::configure(268_435_456);
@@ -2374,6 +2450,7 @@ mod tests {
                 f.clock.clone(),
                 1 << 20,
                 s_allocation::Mode::CapturedNative,
+                crate::v3::admission_anchor::test_prepare(&f.db).into(),
             )
             .unwrap()
         };
@@ -2456,6 +2533,7 @@ mod tests {
         let original = native.conn.complete_budget_for_test();
         let mut peak = original.peak();
         for n in 1..=2 {
+
             assert_eq!(
                 native.handle(Fixture::ingest(n)).unwrap(),
                 ordinary.handle(Fixture::ingest(n)).unwrap()
@@ -2727,6 +2805,7 @@ mod tests {
                 f.clock.clone(),
                 1,
                 s_allocation::Mode::CapturedNative,
+                crate::v3::admission_anchor::test_prepare(&f.db).into(),
             )
         });
         let (mut driver, identity) = result.unwrap();
@@ -2758,6 +2837,7 @@ mod tests {
                 f.clock.clone(),
                 1,
                 s_allocation::Mode::Ordinary,
+                crate::v3::admission_anchor::test_prepare(&f.db).into(),
             )?;
             let identity = driver.identity()?;
             Ok::<_, String>((driver, identity))
@@ -2780,6 +2860,7 @@ mod tests {
             f.clock.clone(),
             1,
             owned.clone(),
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
         )
         .err()
         .unwrap();
@@ -2787,7 +2868,15 @@ mod tests {
         #[cfg(not(feature = "s_allocation_json_testonly"))]
         {
             let (result, events, _) = state::traced(false, || {
-                Driver::open_for_serve_with_mode(&f.db, &f.profile, "1", f.clock.clone(), 1, owned)
+                Driver::open_for_serve_with_mode(
+                    &f.db,
+                    &f.profile,
+                    "1",
+                    f.clock.clone(),
+                    1,
+                    owned,
+                    crate::v3::admission_anchor::test_prepare(&f.db).into(),
+                )
             });
             assert!(result.err().unwrap().contains("此构建不支持实际分配原型"));
             assert!(!events
@@ -2823,6 +2912,7 @@ mod tests {
             None,
             s_allocation::Mode::CapturedNative,
             Some(&mut context),
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
         )
         .unwrap();
         assert_eq!((context.cold, context.hits), (1, 0));
@@ -2882,7 +2972,7 @@ mod tests {
             initial.handle(Fixture::ingest(1)).unwrap();drop(initial);
             let mut context=request_audit::RequestAuditContext::default();
             let driver=Driver::open_with_request_and_mode_context(&f.db,&f.profile,"1",f.clock.clone(),None,
-                s_allocation::Mode::CapturedNative,Some(&mut context)).unwrap();
+                s_allocation::Mode::CapturedNative,Some(&mut context), crate::v3::admission_anchor::test_prepare(&f.db).into(), ).unwrap();
             assert!(context.has_slot());
             driver.conn.execute_batch(sql).unwrap();
             let before=(count(&driver.conn,"s_input_messages"),count(&driver.conn,"s_clock_events"),count(&driver.conn,"s_content_publications"));
@@ -2901,6 +2991,7 @@ mod tests {
             None,
             s_allocation::Mode::CapturedNative,
             Some(&mut context),
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
         )
         .unwrap();
         let once = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
@@ -2974,6 +3065,7 @@ mod tests {
                         Some(&request),
                         s_allocation::Mode::CapturedNative,
                         Some(&mut context),
+                        crate::v3::admission_anchor::test_prepare(&f.db).into(),
                     )
                     .map(|_| ())
                 } else {
@@ -2984,6 +3076,7 @@ mod tests {
                         f.clock.clone(),
                         1,
                         s_allocation::Mode::CapturedNative,
+                        crate::v3::admission_anchor::test_prepare(&f.db).into(),
                     )
                     .map(|_| ())
                 }
@@ -3088,6 +3181,7 @@ mod tests {
                 fixture.clock.clone(),
                 None,
                 s_allocation::Mode::CapturedNative,
+                crate::v3::admission_anchor::test_prepare(&fixture.db).into(),
             );
             assert!(result.is_err(), "{sql}");
             let c = Connection::open(&fixture.db).unwrap();
@@ -3221,6 +3315,7 @@ mod tests {
             clock,
             Some(&envelope),
             s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&db).into(),
         );
         let open_ns = started.elapsed().as_nanos();
         let mut driver = match opened {
@@ -3264,6 +3359,7 @@ mod tests {
             f.clock.clone(),
             None,
             s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
         )
         .unwrap()
     }
@@ -3303,6 +3399,7 @@ mod tests {
             warm_fixture.clock.clone(),
             S7,
             s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&warm_fixture.db).into(),
         )
         .unwrap();
         // 原冷核不启用source Keeper，仍使用相同的Native完整capture。
@@ -3404,6 +3501,7 @@ mod tests {
             warm_fixture.clock.clone(),
             S7,
             s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&warm_fixture.db).into(),
         )
         .unwrap();
         assert!(restarted.conn.source_keeper_for_test().is_none());
@@ -3461,6 +3559,7 @@ mod tests {
             fixture.clock.clone(),
             cap,
             s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&fixture.db).into(),
         )
         .unwrap();
         assert!(
@@ -3537,6 +3636,7 @@ mod tests {
             fixture.clock.clone(),
             cap,
             s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&fixture.db).into(),
         )
         .unwrap();
         assert!(restarted.conn.source_keeper_for_test().is_none());
@@ -3567,6 +3667,7 @@ mod tests {
             warm_fixture.clock.clone(),
             total,
             s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&warm_fixture.db).into(),
         )
         .unwrap();
         let mut cold = Driver::open_for_serve_with_mode(
@@ -3576,6 +3677,7 @@ mod tests {
             cold_fixture.clock.clone(),
             total,
             s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&cold_fixture.db).into(),
         )
         .unwrap();
         cold.runtime.disable_manifest_workspace_for_test();
@@ -3668,6 +3770,7 @@ mod tests {
                 fixture.clock.clone(),
                 budget,
                 s_allocation::Mode::CapturedNative,
+                crate::v3::admission_anchor::test_prepare(&fixture.db).into(),
             )
             .unwrap();
             assert_eq!(
@@ -4007,6 +4110,7 @@ mod tests {
             f.clock.clone(),
             None,
             Some(profile),
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
         )
         .unwrap()
     }
@@ -4281,6 +4385,7 @@ mod tests {
             f.clock.clone(),
             None,
             Some(profile),
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
         )
         .err()
         .unwrap();
@@ -4303,7 +4408,15 @@ mod tests {
         let second = Fixture::ingest(2);
         let inputs = json!([first, second]);
         let cap = probe::begin(&inputs);
-        let mut d = Driver::open_for_serve(&f.db, &f.profile, "1", f.clock.clone(), 1).unwrap();
+        let mut d = Driver::open_for_serve(
+            &f.db,
+            &f.profile,
+            "1",
+            f.clock.clone(),
+            1,
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .unwrap();
         assert_eq!(d.audit_cache_source_bytes, Some(1));
         assert_eq!(state::AUDIT_SOURCE_RETAINED_BYTES, 0);
         let mut phases = Vec::new();
@@ -4375,7 +4488,14 @@ mod tests {
         phases.push(phase);
         drop(d);
         let (result, mut phase) = probe::observe("driver_reopen_current_history", || {
-            Driver::open_for_serve(&f.db, &f.profile, "1", f.clock.clone(), 1)
+            Driver::open_for_serve(
+                &f.db,
+                &f.profile,
+                "1",
+                f.clock.clone(),
+                1,
+                crate::v3::admission_anchor::test_prepare(&f.db).into(),
+            )
         });
         assert!(phase["work"]["source_reads"].as_u64().unwrap() > 0);
         phase["storage_after"] = probe::storage(&result.as_ref().unwrap().conn, &f.db);
@@ -4397,6 +4517,11 @@ mod tests {
     }
 
     fn cli(f: &Fixture, command: &str, epoch_flag: &str, epoch: &str) -> Vec<String> {
+        drop(crate::v3::admission_anchor::test_prepare(&f.db));
+        let owner: Value = serde_json::from_slice(
+            &std::fs::read(format!("{}.control-owner.json", f.db.display())).unwrap(),
+        )
+        .unwrap();
         [
             "s_structure_session".into(),
             command.into(),
@@ -4408,6 +4533,8 @@ mod tests {
             epoch.into(),
             "--clock-plan".into(),
             f.path.join("clock.json").to_string_lossy().into_owned(),
+            "--admission-job-limits".into(),
+            owner["admission"]["path"].as_str().unwrap().to_owned(),
         ]
         .to_vec()
     }
@@ -4425,7 +4552,7 @@ mod tests {
             "--max-input-bytes".into(),
             bytes.len().to_string(),
         ]);
-        super::super::writer_cli::run(&args)
+        super::super::writer_cli::run(&args).map(|out| out.map(|o| o.into_test_value()))
     }
 
     fn pending_state(f: &Fixture) -> (i64, i64, i64, String) {
@@ -4497,7 +4624,14 @@ mod tests {
             "Committed"
         );
         drop(first);
-        recover(&f.db, "2", &f.clock, "recover-1").unwrap();
+        recover(
+            &f.db,
+            "2",
+            &f.clock,
+            "recover-1",
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .unwrap();
         let mut invalid = Fixture::ingest(2);
         invalid["payload"]["writer_epoch"] = json!("2");
         invalid["payload"]["raw_input"]["events"][0]["volume"] = json!("2");
@@ -4576,7 +4710,8 @@ mod tests {
         ]);
         let received = super::super::writer_cli::run(&receipt_args)
             .unwrap()
-            .unwrap();
+            .unwrap()
+            .into_test_value();
         assert_eq!(received["kind"], "Committed");
         assert_eq!(received["original_message_id"], original["message_id"]);
         let reopened = f.open("1").unwrap();
@@ -4646,7 +4781,7 @@ mod tests {
         ]);
         assert!(super::super::dispatch(&too_small)
             .unwrap_err()
-            .contains("输入字节超过"));
+            .contains("TooLarge"));
         let conn = open_db(&f.db).unwrap();
         assert_eq!(meta_i64(&conn, "generation").unwrap(), 0);
         assert_eq!(count(&conn, "s_input_messages"), 1);
@@ -4787,9 +4922,16 @@ mod tests {
             assert!(!socket.exists());
             assert_eq!(std::fs::read(&f.db).unwrap(), original_db);
         }
-        let error = Driver::open_for_serve(&f.db, &f.profile, "1", f.clock.clone(), 0)
-            .err()
-            .unwrap();
+        let error = Driver::open_for_serve(
+            &f.db,
+            &f.profile,
+            "1",
+            f.clock.clone(),
+            0,
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .err()
+        .unwrap();
         assert!(error.contains("audit_cache_source_bytes"), "{error}");
         assert!(!lock.exists());
         assert_eq!(std::fs::read(&f.db).unwrap(), original_db);
@@ -4798,8 +4940,15 @@ mod tests {
     #[test]
     fn s3_serve_driver_rejects_unimplemented_condition_ops_before_admission() {
         let f = Fixture::new();
-        let mut driver =
-            Driver::open_for_serve(&f.db, &f.profile, "1", f.clock.clone(), 1).unwrap();
+        let mut driver = Driver::open_for_serve(
+            &f.db,
+            &f.profile,
+            "1",
+            f.clock.clone(),
+            1,
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .unwrap();
         for op in ["condition", "execute_conditional", "recover"] {
             let error = driver.handle(envelope(op, json!({"op":op}))).unwrap_err();
             assert!(error.contains("未知S3 op"), "{error}");
@@ -5048,8 +5197,22 @@ mod tests {
             .unwrap();
         drop(d);
         assert!(f.open("1").err().unwrap().contains("未完成Begin"));
-        assert!(recover(&f.db, "1", &f.clock, "recover-2").is_err());
-        let recovered = recover(&f.db, "2", &f.clock, "recover-2").unwrap();
+        assert!(recover(
+            &f.db,
+            "1",
+            &f.clock,
+            "recover-2",
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .is_err());
+        let recovered = recover(
+            &f.db,
+            "2",
+            &f.clock,
+            "recover-2",
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .unwrap();
         assert_eq!(recovered["recovered_begin"]["resolved_to"], "idle");
         let mut restarted = f.open("2").unwrap();
         assert_eq!(
@@ -5102,7 +5265,14 @@ mod tests {
             [],
         )
         .unwrap();
-        assert!(recover(&f.db, "2", &f.clock, "recover-1").is_err());
+        assert!(recover(
+            &f.db,
+            "2",
+            &f.clock,
+            "recover-1",
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .is_err());
         assert_eq!(meta_get_opt(&c, "writer_epoch").unwrap().unwrap(), "1");
         assert!(meta_get_opt(&c, "advance_state")
             .unwrap()
@@ -5460,6 +5630,7 @@ mod tests {
             f.clock.clone(),
             536_870_912,
             s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
         )
         .unwrap();
         assert_eq!(reopened.conn.complete_retained_bytes(), 0);
@@ -5496,6 +5667,7 @@ mod tests {
             warm_fixture.clock.clone(),
             536_870_912,
             s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&warm_fixture.db).into(),
         )
         .unwrap();
         let mut ordinary = ordinary_fixture.open("1").unwrap();
@@ -5609,6 +5781,7 @@ mod tests {
             native_fixture.clock.clone(),
             536_870_912,
             s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&native_fixture.db).into(),
         )
         .unwrap();
         native.conn.configure_pager_probe().unwrap();
@@ -5817,6 +5990,7 @@ mod tests {
             f.clock.clone(),
             cache_bytes,
             s_allocation::Mode::CapturedNative,
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
         )
         .unwrap();
         let ready = envelope("establish-q", json!({"op":"ready"}));
