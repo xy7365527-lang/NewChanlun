@@ -638,12 +638,15 @@ mod tests {
             let tx = c.transaction().unwrap();
             state::audit(&tx).expect("历史规则只读审计");
         }
+        // 写者准入时不得仍有测试连接持有 WAL/SHM；先关闭造库连接。
+        drop(c);
         let open_error = f.open("1").err().unwrap();
         assert!(open_error.contains("VersionUnsupported"), "{open_error}");
         assert!(recover(&f.db, "2", &f.clock, "recover-1", crate::v3::admission_anchor::test_prepare(&f.db).into())
             .err()
             .unwrap()
             .contains("VersionUnsupported"));
+        let c = open_db(&f.db).unwrap();
         assert_eq!(db_meta(&c).unwrap(), before);
         assert_eq!(count(&c, "raw_events"), 0);
         assert_eq!(count(&c, "s_input_messages"), 0);
