@@ -3629,11 +3629,28 @@ impl AuditCapture {
     pub fn reader(&self) -> impl NodeSource + '_ {
         CaptureReader(self)
     }
+    #[doc(hidden)]
+    pub fn reader_observed<'a>(
+        &'a self,
+        observer: &'a dyn CaptureReadObserver,
+    ) -> impl NodeSource + 'a {
+        ObservedCaptureReader { reader: CaptureReader(self), observer: Some(observer) }
+    }
     pub fn verify(&self, reference: &ContentRef, mode: Mode) -> Result<(), CodecError> {
         self.verify_refview(reference.into(), mode)
     }
     #[doc(hidden)]
     pub fn verify_refview(&self, reference: RefView<'_>, mode: Mode) -> Result<(), CodecError> {
+        self.verify_refview_observed(reference, mode, None)
+    }
+    /// 当前调用的读取观察；保留原 capture memo，不保存观察者。
+    #[doc(hidden)]
+    pub fn verify_refview_observed(
+        &self,
+        reference: RefView<'_>,
+        mode: Mode,
+        observer: Option<&dyn CaptureReadObserver>,
+    ) -> Result<(), CodecError> {
         let slot = if mode == Mode::Public {
             &self.public
         } else {
@@ -3644,7 +3661,7 @@ impl AuditCapture {
             _ => None,
         };
         let memo = std::mem::replace(&mut *slot.borrow_mut(), AuditMemo::new(budget.as_ref()));
-        let mut source = CaptureReader(self);
+        let mut source = ObservedCaptureReader { reader: CaptureReader(self), observer };
         let mut verifier = Verifier::with_memo_capture(&mut source, mode, memo);
         let result = verifier.verify_refview(reference);
         // 出错不保留 run() 提前插入的 seen/pushed，不能让下一根继承半成功。
@@ -4462,6 +4479,26 @@ mod source_cache_original_owner_tests {
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
     }
 }
+/// 当前调用的节点访问计量；不保存在 capture 或 memo 内。
+#[doc(hidden)]
+pub trait CaptureReadObserver {
+    fn before_read(&self) -> Result<(), CodecError>;
+    fn prepare_node(&self) -> Result<(), CodecError>;
+    fn accept_prepared_frame(&self, frame: &job::CheckedFrame) -> Result<(), CodecError>;
+}
+struct ObservedCaptureReader<'a, 'o> {
+    reader: CaptureReader<'a>,
+    observer: Option<&'o dyn CaptureReadObserver>,
+}
+impl NodeSource for ObservedCaptureReader<'_, '_> {
+    fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+        if let Some(observer) = self.observer { observer.before_read()?; }
+        self.reader.read(digest)
+    }
+    fn checked_read(&mut self, digest: &NodeDigest) -> Result<Option<job::CheckedFrame>, CodecError> {
+        self.reader.checked_observed(digest, self.observer)
+    }
+}
 impl CaptureReader<'_> {
     fn record_read(&self, digest: &NodeDigest) {
         #[cfg(test)]
@@ -4509,21 +4546,47 @@ impl NodeSource for CaptureReader<'_> {
         &mut self,
         digest: &NodeDigest,
     ) -> Result<Option<job::CheckedFrame>, CodecError> {
+        self.checked_observed(digest, None)
+    }
+}
+impl CaptureReader<'_> {
+    fn checked_observed(
+        &mut self,
+        digest: &NodeDigest,
+        observer: Option<&dyn CaptureReadObserver>,
+    ) -> Result<Option<job::CheckedFrame>, CodecError> {
+        if let Some(observer) = observer { observer.before_read()?; }
+        let result = self.checked_observed_inner(digest, observer)?;
+        if let (Some(observer), Some(frame)) = (observer, result.as_ref()) {
+            observer.accept_prepared_frame(frame)?;
+        }
+        Ok(result)
+    }
+    fn checked_observed_inner(
+        &mut self,
+        digest: &NodeDigest,
+        observer: Option<&dyn CaptureReadObserver>,
+    ) -> Result<Option<job::CheckedFrame>, CodecError> {
         #[cfg(feature = "s_capture_native_testonly")]
         if let CaptureNodes::Native(native) = &self.0.nodes {
             return self.checked_native_current(digest, native, |node| {
-                Ok(match node {
+                let read = match node {
                     Some(node) => NodeRead::Found {
                         tag: node.tag,
                         body: node.body.to_vec(),
                     },
                     None => NodeRead::Missing,
-                })
+                };
+                if matches!(&read, NodeRead::Found { .. }) {
+                    if let Some(observer) = observer { observer.prepare_node()?; }
+                }
+                Ok(read)
             });
         }
         match self.read(digest)? {
             NodeRead::Missing => Ok(None),
             NodeRead::Found { tag, body } => {
+                if let Some(observer) = observer { observer.prepare_node()?; }
                 job::CheckedFrame::checked(digest, tag, body).map(Some)
             }
         }
@@ -4533,6 +4596,55 @@ impl NodeSource for CaptureReader<'_> {
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
 mod native_frame_reuse_tests {
     use super::*;
+
+    #[derive(Default)]
+    struct ReadMeter {
+        reads: std::cell::Cell<usize>,
+        prepared: std::cell::Cell<usize>,
+        accepted: std::cell::Cell<usize>,
+        stop: std::cell::Cell<bool>,
+    }
+    impl CaptureReadObserver for ReadMeter {
+        fn before_read(&self) -> Result<(), CodecError> {
+            self.reads.set(self.reads.get() + 1);
+            Ok(())
+        }
+        fn prepare_node(&self) -> Result<(), CodecError> {
+            self.prepared.set(self.prepared.get() + 1);
+            if self.stop.get() { return Err(CodecError::new("test_stop", "stop")); }
+            Ok(())
+        }
+        fn accept_prepared_frame(&self, _: &job::CheckedFrame) -> Result<(), CodecError> {
+            self.accepted.set(self.accepted.get() + 1);
+            Ok(())
+        }
+    }
+    #[test]
+    fn measured_capture_preserves_memo_and_observes_only_actual_reads() {
+        let mut nodes = MemoryNodes::new();
+        let built = write_value(&mut nodes, &Value::String("原件".into())).unwrap();
+        let capture = AuditCapture::new(nodes).enable_native_frame_reuse_for_testonly().unwrap();
+        let reference = built.content_ref();
+        let meter = ReadMeter::default();
+        capture.verify_refview_observed((&reference).into(), Mode::Public, Some(&meter)).unwrap();
+        assert!(meter.accepted.get() > 0);
+        assert_eq!(meter.prepared.get(), meter.accepted.get());
+        let reads = capture.reads.get();
+        let observed = meter.reads.get();
+        capture.verify_refview_observed((&reference).into(), Mode::Public, Some(&meter)).unwrap();
+        assert_eq!(capture.reads.get() - reads, meter.reads.get() - observed);
+        let missing = [255; 32];
+        let prepared = meter.prepared.get();
+        assert!(capture.reader_observed(&meter).checked_read(&missing).unwrap().is_none());
+        assert_eq!(meter.prepared.get(), prepared);
+        meter.stop.set(true);
+        let accepted = meter.accepted.get();
+        assert!(capture.reader_observed(&meter).checked_read(&built.digest).is_err());
+        assert_eq!(meter.accepted.get(), accepted);
+        meter.stop.set(false);
+        capture.reader_observed(&meter).checked_read(&built.digest).unwrap().unwrap();
+        assert_eq!(meter.accepted.get(), accepted + 1);
+    }
 
     fn capture_node(tag: u8, body: &[u8]) -> (AuditCapture, MemoryNodes, NodeDigest) {
         let digest = frame(tag, body);

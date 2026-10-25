@@ -25,6 +25,29 @@ pub(super) trait Budget {
     fn record(&self) -> Result<(), sc::CodecError>;
 }
 
+/// 仅借本次审计账与截止时间；不可留存进 capture/context/memo。
+pub(super) struct NativeMeasure<'a> {
+    pub(super) budget: Option<&'a dyn Budget>,
+    pub(super) deadline: Option<std::time::Instant>,
+}
+impl sc::CaptureReadObserver for NativeMeasure<'_> {
+    fn before_read(&self) -> Result<(), sc::CodecError> {
+        super::check_deadline(self.deadline)
+            .map_err(|e| sc::CodecError::new("verify_deadline", e))?;
+        self.budget.map_or(Ok(()), Budget::precheck)
+    }
+    fn prepare_node(&self) -> Result<(), sc::CodecError> {
+        self.budget.map_or(Ok(()), Budget::prepare_node)
+    }
+    fn accept_prepared_frame(&self, frame: &CheckedFrame) -> Result<(), sc::CodecError> {
+        if let Some(budget) = self.budget {
+            budget.accept_prepared_frame(frame)?;
+            budget.precheck()?;
+        }
+        Ok(())
+    }
+}
+
 pub(super) struct AuditJob<'j> {
     job: RefCell<&'j mut dyn Access>,
     nodes: RefCell<BusinessMap<NodeDigest, CheckedNodeUsage>>,

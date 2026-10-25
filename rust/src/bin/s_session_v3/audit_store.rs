@@ -505,12 +505,23 @@ pub(crate) trait CodecRead: NodeSource {
         reference: sc::RefView<'_>,
         mode: sc::Mode,
     ) -> Result<(), CodecError> {
+        self.native_verify_original_measured(capture, reference, mode, None)
+    }
+    fn native_verify_original_measured(
+        &self,
+        capture: &sc::AuditCapture,
+        reference: sc::RefView<'_>,
+        mode: sc::Mode,
+        measure: Option<&super::audit_budget::NativeMeasure<'_>>,
+    ) -> Result<(), CodecError> {
+        let observer = measure.map(|m| m as &dyn sc::CaptureReadObserver);
         let Some(scope) = self.codec_work() else {
-            return capture.verify_refview(reference, mode);
+            return capture.verify_refview_observed(reference, mode, observer);
         };
         struct Current<'a> {
             capture: &'a sc::AuditCapture,
             scope: &'a sc::capture_allocation::scratch::WorkScope,
+            observer: Option<&'a dyn sc::CaptureReadObserver>,
         }
         impl NodeSource for Current<'_> {
             fn codec_work(&self) -> Option<&sc::capture_allocation::scratch::WorkScope> {
@@ -543,11 +554,14 @@ pub(crate) trait CodecRead: NodeSource {
                 let permit = self
                     .scope
                     .reserve_native(self.capture.original(digest).map_or(0, |(_, b)| b.len()))?;
-                let value = self.capture.reader().checked_read(digest)?;
+                let value = match self.observer {
+                    Some(observer) => self.capture.reader_observed(observer).checked_read(digest)?,
+                    None => self.capture.reader().checked_read(digest)?,
+                };
                 Ok(value.map(|f| sc::job::ScopedFrame::new(f, Some(permit))))
             }
         }
-        sc::verify_refview(&mut Current { capture, scope }, reference, mode)
+        sc::verify_refview(&mut Current { capture, scope, observer }, reference, mode)
     }
     fn native_text(&self, text: &str) -> Result<super::business_json::TextValue, String> {
         if self.codec_work().is_some() && self.allocation_budget().is_none() {
