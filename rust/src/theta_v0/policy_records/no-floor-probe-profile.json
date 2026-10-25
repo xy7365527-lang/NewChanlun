@@ -1,0 +1,15 @@
+{
+  "id": "#1605/wverify-probe-profile",
+  "version": 1,
+  "kind": "named_probe_profile",
+  "ticket": "#1605 无额外 NAV 下限的真实探针/回放资金记录",
+  "fields": {
+    "nav_floor": { "value": 0.0, "default": 0.0, "source": "wverify_run/issue837_probe/issue841_probe 现行 first_px×1000 公式没有额外下限；以 max(...,0) 等值表示，禁止套用 L3 的 1e6" },
+    "first_px_multiplier": { "value": 1000.0, "default": 1000.0, "source": "wverify_run 与 issue837/issue841 真实回放同族公式现行倍率" },
+    "missing_first_px_fallback": { "value": 1.0, "default": 1.0, "source": "上述真实回放原 unwrap_or(1.0)；只迁移旧默认" },
+    "supersedes": { "value": "none", "source": "首版" },
+    "authorizer": { "value": "#1605 返修仅等值记录化现行无额外下限探针资金公式", "source": "用户授权范围；不暗填新资金签署" },
+    "authorized_at": { "value": "2026-10-25", "source": "版本化 JSON profile 落地日期" }
+  },
+  "cost": "与 L3 profile 分开是因为旧行为不同：本记录 nav_floor=0；若套用 1e6 会改变低价品种手数和全部回测读数。W-VERIFY 与其他同公式探针共用，不另造平行记录。"
+}

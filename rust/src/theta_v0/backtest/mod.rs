@@ -57,8 +57,10 @@ pub mod evidence_gate;
 /// highlow-a3-20260704 冻结）。继承 backtest cfg(test) 门控。
 #[cfg(test)]
 mod highlow_mu;
-/// C-19 研究验证常数记录（#1605，AUDIT.md:180）——decontam §4 预注册值与探针资金。
+/// C-19 研究验证统计记录（#1605）；探针资金见独立具名 profile。
 pub mod research_stats;
+/// L3 探针真实 NAV 消费共用的具名资金 profile。
+pub mod l3_probe_profile;
 pub mod incremental;
 pub mod metrics;
 pub mod mu_estimator;

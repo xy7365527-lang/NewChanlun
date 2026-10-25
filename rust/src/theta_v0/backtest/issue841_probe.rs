@@ -260,15 +260,12 @@ fn issue841_axis_funded() {
     let cfg = ThetaConfig::default();
     let ds = load_window();
     let years = ds.bars.len() as f64 / (365.25 * 24.0 * 60.0);
-    let nav = ds
-        .bars
-        .iter()
-        .find(|b| !b.untradable && b.close > 0)
-        .map(|b| b.close as f64 * cfg.tick.tick_size)
-        .unwrap_or(1.0)
-        * 1000.0;
+    let probe_profile = super::l3_probe_profile::active_no_floor_probe_profile()
+        .expect("no-floor probe profile record");
+    eprintln!("policy record: {}", probe_profile.record.label());
+    let nav = probe_profile.nav_for(&ds, &cfg);
 
-    let r = run_theta_v0_pi_overlay(&ds, &cfg, years, nav);
+    let r = run_theta_v0_pi_overlay(&ds, &cfg, years, nav).expect("C-19 research stats record");
     let ll = &r.level_ledger;
 
     // 全部曾拿到钱的声部（closed + 窗末在飞）：id → parent_id。
@@ -402,16 +399,13 @@ fn issue841_level_cap_counterfactual() {
     let ds = load_window();
     let plain = ThetaConfig::default();
     let years = ds.bars.len() as f64 / (365.25 * 24.0 * 60.0);
-    let nav = ds
-        .bars
-        .iter()
-        .find(|b| !b.untradable && b.close > 0)
-        .map(|b| b.close as f64 * plain.tick.tick_size)
-        .unwrap_or(1.0)
-        * 1000.0;
+    let probe_profile = super::l3_probe_profile::active_no_floor_probe_profile()
+        .expect("no-floor probe profile record");
+    eprintln!("policy record: {}", probe_profile.record.label());
+    let nav = probe_profile.nav_for(&ds, &plain);
 
     let run = |cfg: &ThetaConfig| {
-        let r = run_theta_v0_pi_overlay(&ds, cfg, years, nav);
+        let r = run_theta_v0_pi_overlay(&ds, cfg, years, nav).expect("C-19 research stats record");
         let eq = r
             .net_result
             .equity_curve

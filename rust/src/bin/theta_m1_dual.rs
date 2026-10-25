@@ -114,7 +114,7 @@ fn run_symbol(symbol: &str, config: &ThetaConfig) -> Result<SymbolResult, String
     let initial_nav = initial_nav_for(&full, config);
 
     // ── 生产 runner（七链 π_Θ + 完整判据面）。 ──
-    let r = run_theta_v0_pi(&full, config, years, initial_nav);
+    let r = run_theta_v0_pi(&full, config, years, initial_nav).expect("C-19 research stats record");
 
     // ── 双开腿口径 + 预注册百分位（#1282 判据，#1309 同口径）。 ──
     let legs = dual_leg_metrics(&r.prices, &r.trades);

@@ -34,6 +34,7 @@ use super::super::config::ThetaConfig;
 use super::l3_delta_r_alpha::build_mu_from_bars;
 use super::mu_estimator::ResidualTrade;
 use super::prereg_windows::{OOS_START, PREREG_WINDOWS};
+use super::research_stats::active_research_stats;
 use super::{data, decontam, perm_test};
 use std::collections::BTreeMap;
 
@@ -110,8 +111,8 @@ fn cell_stats(records: &[ResidualTrade]) -> BTreeMap<(u32, u8, i8, i8), CellStat
         series.entry(key).or_default().push(y);
     }
     let pp = perm_test::stratified_delta_perm_p(records, perm_test::N_PERM, perm_test::PERM_SEED);
-    // #1605 C-19：本诊断代码复现 v1 预注册值；生产代码改从 research_stats 记录读取。
-    let (za, pa) = (1.645_f64, 0.05_f64);
+    let policy = active_research_stats().expect("C-19 research stats record");
+    let (za, pa) = (policy.z_alpha, policy.perm_alpha);
     let mut out = BTreeMap::new();
     for (&key, &(n, mean, m2)) in &agg {
         let std = if n < 2 {
@@ -211,6 +212,8 @@ fn render_slice(
 #[test]
 #[ignore]
 fn highlow_full() {
+    let policy = active_research_stats().expect("C-19 research stats record");
+    eprintln!("policy record: {}", policy.record.label());
     let cfg = ThetaConfig::default();
     let ds = data::load_by_symbol("BTC", &cfg).expect("BTC 数据加载（btc_1m_full.json）");
     let records = wf_oos_records(&ds, &cfg);

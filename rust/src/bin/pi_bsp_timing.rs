@@ -780,7 +780,7 @@ fn main() -> std::process::ExitCode {
     } else {
         0.0
     };
-    let m = metrics::compute(&equity_curve, &daily_returns, &trade_pnls, years, bh_return);
+    let m = metrics::compute(&equity_curve, &daily_returns, &trade_pnls, years, bh_return).expect("C-19 research stats record");
     let sig = metrics::significance(
         &trade_pnls,
         &daily_returns,
@@ -788,7 +788,7 @@ fn main() -> std::process::ExitCode {
         &prices,
         fee_rate,
         m.strat_return,
-    );
+    ).expect("C-19 research stats record");
 
     let n_voices = voices.len();
     let n_long = voices.iter().filter(|v| v.dir > 0).count();

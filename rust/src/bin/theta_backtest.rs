@@ -103,7 +103,7 @@ fn main() -> std::process::ExitCode {
     let initial_nav = (first_px.abs() * 10_000.0).max(1.0e6);
 
     // ── S_Θ 回测（π_Θ 七链生产引擎——runner.rs:1442 标注为接 Nautilus 实装的链）。 ──
-    let r = run_theta_v0_pi(&dataset, &config, years, initial_nav);
+    let r = run_theta_v0_pi(&dataset, &config, years, initial_nav).expect("C-19 research stats record");
 
     println!("=== S_Θ 回测结果（theta_v0::run_theta_v0_pi）===");
     println!("品种            : {}", r.symbol);

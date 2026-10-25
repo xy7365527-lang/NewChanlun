@@ -244,7 +244,7 @@ fn main() -> std::process::ExitCode {
     } else {
         0.0
     };
-    let m = metrics::compute(&equity_curve, &daily_returns, &trade_pnls, years, bh_return);
+    let m = metrics::compute(&equity_curve, &daily_returns, &trade_pnls, years, bh_return).expect("C-19 research stats record");
     let sig = metrics::significance(
         &trade_pnls,
         &daily_returns,
@@ -252,7 +252,7 @@ fn main() -> std::process::ExitCode {
         &prices,
         fee_rate,
         m.strat_return,
-    );
+    ).expect("C-19 research stats record");
 
     println!("=== 纯买卖点择时回测（pure_bsp_timing，离散状态机，非 π_Θ 覆盖）===");
     println!("品种            : {}", dataset.symbol);

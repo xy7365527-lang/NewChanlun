@@ -38,7 +38,9 @@
 //! 跑法：`cargo test --release --lib theta_v0::backtest::l3_fullwindow -- --ignored --nocapture`
 
 use super::data::{self, Dataset};
+use super::l3_probe_profile::active_l3_probe_profile;
 use super::metrics;
+use super::research_stats::active_research_stats;
 use super::prereg_windows::PREREG_WINDOWS;
 // F-01 迁移（bughunt 2026-07-10）：旧 `run_theta_v0` 全窗分类含结构确认前视，已
 // deprecated；本文件产出 L3 声明，必须走无前视因果入口 `run_theta_v0_pi`。
@@ -70,7 +72,13 @@ fn oos_years(oos_start: &str, oos_end: &str) -> f64 {
 #[ignore = "全窗 CPU 重；需 8 品种数据缓存；--release 跑"]
 fn l3_fullwindow_multi_symbol_significance() {
     let config = ThetaConfig::default();
-    const MIN_TRADES_FOR_L2: usize = 30; // 协议 §5.5：n_trades<30 inconclusive（625 铁律）
+    let stats = active_research_stats().expect("C-19 research stats record");
+    let probe_profile = active_l3_probe_profile().expect("L3 probe profile record");
+    eprintln!(
+        "policy records: {} | {}",
+        stats.record.label(),
+        probe_profile.record.label()
+    );
 
     eprintln!("\n===== L3 多标的【全窗 OOS】否证：8 品种 + §3.4/§4 操作语义随机对照 =====");
     eprintln!("★全窗（cut=oos_full.bars.len()，不截断）⟹ 覆盖 100% OOS（非截断窗 ~4.5%），消统计功效受限 caveat");
@@ -127,14 +135,8 @@ fn l3_fullwindow_multi_symbol_significance() {
         // years：全窗按预注册 OOS 全跨（不缩放——这是全窗，覆盖整个预注册窗）。
         let years = oos_years(w.oos.0, w.oos.1);
         // NAV 与品种价量级匹配（首价×容量；与 l3_falsify 同口径）。
-        let first_px = oos
-            .bars
-            .iter()
-            .find(|b| !b.untradable && b.close > 0)
-            .map(|b| b.close as f64 * config.tick.tick_size)
-            .unwrap_or(1.0);
-        let nav = (first_px * 1000.0).max(1.0e6);
-        let res = run_theta_v0_pi(&oos, &config, years, nav); // F-01：无前视因果入口
+        let nav = probe_profile.nav_for(&oos, &config);
+        let res = run_theta_v0_pi(&oos, &config, years, nav).expect("C-19 research stats record"); // F-01：无前视因果入口
 
         let pnls = &res.trade_pnls; // 已实现口径（§3.4 bootstrap）
         let n_trades = pnls.len();
@@ -157,7 +159,7 @@ fn l3_fullwindow_multi_symbol_significance() {
             res.fee_rate
                 .expect(super::treasury::SCALAR_COST_RATE_UNDEFINED),
             res.theta_return_mtm,
-        );
+        ).expect("C-19 research stats record");
         if sig.theta_beats_random {
             n_beats_random += 1;
         }
@@ -166,13 +168,13 @@ fn l3_fullwindow_multi_symbol_significance() {
         let verdict = if res.n_orders == 0 || n_trades == 0 {
             n_engine_block += 1;
             "(a)工程断流"
-        } else if n_real_trades < MIN_TRADES_FOR_L2 {
+        } else if n_real_trades < stats.min_trades_for_l2 {
             n_inconclusive += 1;
             "(d)inconcl real<30"
         } else if sig.controls_degenerate {
             n_inconclusive += 1;
             "(d)inconcl 对照退化"
-        } else if sig.boot_pvalue_pnl_le_0 > 0.05 {
+        } else if sig.boot_pvalue_pnl_le_0 > stats.significance_p_threshold {
             n_falsify += 1;
             "(b)否证:收益不显著"
         } else if !sig.theta_beats_random {

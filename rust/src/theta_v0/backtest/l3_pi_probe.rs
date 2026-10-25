@@ -24,18 +24,15 @@
 
 use super::super::config::ThetaConfig;
 use super::data::{self, Dataset};
+use super::l3_probe_profile::active_l3_probe_profile;
 use super::runner::run_theta_v0_pi;
 use std::rc::Rc;
 
-/// NAV 与品种价量级匹配（首可交易价×1000，下限 1e6）——与 l3_fullwindow 同口径。
+/// 所有 L3 探针窗口都从具名 profile 取 NAV；缺记录时在任何订单前停止。
 fn nav_for(win: &Dataset, config: &ThetaConfig) -> f64 {
-    let first_px = win
-        .bars
-        .iter()
-        .find(|b| !b.untradable && b.close > 0)
-        .map(|b| b.close as f64 * config.tick.tick_size)
-        .unwrap_or(1.0);
-    (first_px * 1000.0).max(1.0e6)
+    active_l3_probe_profile()
+        .expect("L3 probe profile record")
+        .nav_for(win, config)
 }
 
 /// 取 OOS 窗前缀 n bar（source_index 已在 slice_date_window 重置为局部下标，前缀仍合法）。
@@ -90,7 +87,7 @@ fn pi_probe_scaling_single_symbol() {
         let win = prefix(&oos, n);
         let nav = nav_for(&win, &config);
         let t0 = std::time::Instant::now();
-        let res = run_theta_v0_pi(&win, &config, 1.0, nav);
+        let res = run_theta_v0_pi(&win, &config, 1.0, nav).expect("C-19 research stats record");
         let dt = t0.elapsed().as_secs_f64();
         let n_real = res.trades.iter().filter(|t| !t.forced_close).count();
         let exp = prev.map(|(pn, pt)| {
@@ -770,7 +767,7 @@ fn pi_production_orders_at_64k() {
     let nav = nav_for(&win, &config);
     eprintln!("\n========== 验证#2：生产 run_theta_v0_pi（确认-bar 部署）CL N={n} ==========");
     let t0 = std::time::Instant::now();
-    let res = run_theta_v0_pi(&win, &config, 1.0, nav);
+    let res = run_theta_v0_pi(&win, &config, 1.0, nav).expect("C-19 research stats record");
     let dt = t0.elapsed().as_secs_f64();
     let real = res.trades.iter().filter(|t| !t.forced_close).count();
     eprintln!(
@@ -866,7 +863,7 @@ fn pi_probe_zero_orders_root_cause() {
             let win = prefix(&oos, n);
             let nav = nav_for(&win, &config);
             let t0 = std::time::Instant::now();
-            let res = run_theta_v0_pi(&win, &config, 1.0, nav);
+            let res = run_theta_v0_pi(&win, &config, 1.0, nav).expect("C-19 research stats record");
             let dt = t0.elapsed().as_secs_f64();
             let n_real = res.trades.iter().filter(|t| !t.forced_close).count();
             eprintln!("{sym:<4} {n:>8} {dt:>8.1}s {:>7} {n_real:>9}", res.n_orders);

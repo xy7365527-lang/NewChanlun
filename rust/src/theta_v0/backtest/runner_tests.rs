@@ -189,7 +189,7 @@ fn structureless_data_yields_empty_orders() {
             .collect(),
         bar_seconds: 60,
     };
-    let res = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6);
+    let res = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6).expect("C-19 research stats record");
     // 无结构 ⟹ 订单空 ⟹ 非 L2 ⟹ 无交易（正确退化，非阻塞）。
     assert_eq!(res.n_orders, 0, "单调数据无缠论结构 ⇒ π 产空订单");
     assert!(!res.is_l2, "无订单流 ⇒ 非 L2（无 Θ 决策被检验）");
@@ -1997,12 +1997,9 @@ fn btc_type2_open_short_channel_witness() {
     let oos = ds.slice_date_window(w.oos.0, w.oos.1);
     let cut = 32_000_usize.min(oos.bars.len());
     let train_bars = &oos.bars[0..cut / 2];
-    let first_px = train_bars
-        .iter()
-        .find(|b| !b.untradable && b.close > 0)
-        .map(|b| b.close as f64 * config.tick.tick_size)
-        .unwrap_or(1.0);
-    let nav = (first_px * 1000.0).max(1.0e6);
+    let nav = super::l3_probe_profile::active_l3_probe_profile()
+        .expect("L3 probe profile record")
+        .nav_for_bars(train_bars, &config);
     let mut classifier_incr = IncrementalClassifier::new(train_bars, &config);
     let fill = pi_theta_fill_loop(
         |i| {
@@ -2197,12 +2194,9 @@ fn m3_follow_parent_short_leg_termination_witness() {
                 continue;
             }
             let bars = &test_ds.bars;
-            let first_px = bars
-                .iter()
-                .find(|b| !b.untradable && b.close > 0)
-                .map(|b| b.close as f64 * config.tick.tick_size)
-                .unwrap_or(1.0);
-            let nav = (first_px * 1000.0).max(1.0e6);
+            let nav = super::l3_probe_profile::active_l3_probe_profile()
+                .expect("L3 probe profile record")
+                .nav_for_bars(bars, &config);
             let mut classifier_incr = IncrementalClassifier::new(bars, &config);
             let fill = pi_theta_fill_loop(
                 |i| {
@@ -2338,12 +2332,9 @@ fn btc_prune_leg_exit_type_matches_account_identity() {
     let oos = ds.slice_date_window(w.oos.0, w.oos.1);
     let cut = 32_000_usize.min(oos.bars.len());
     let train_bars = &oos.bars[0..cut / 2];
-    let first_px = train_bars
-        .iter()
-        .find(|b| !b.untradable && b.close > 0)
-        .map(|b| b.close as f64 * config.tick.tick_size)
-        .unwrap_or(1.0);
-    let nav = (first_px * 1000.0).max(1.0e6);
+    let nav = super::l3_probe_profile::active_l3_probe_profile()
+        .expect("L3 probe profile record")
+        .nav_for_bars(train_bars, &config);
     let mut classifier_incr = IncrementalClassifier::new(train_bars, &config);
     let fill = pi_theta_fill_loop(
         |i| {
@@ -2446,12 +2437,9 @@ fn btc_type2_residual_correction_witness() {
     let oos = ds.slice_date_window(w.oos.0, w.oos.1);
     let cut = 32_000_usize.min(oos.bars.len());
     let train_bars = &oos.bars[0..cut / 2];
-    let first_px = train_bars
-        .iter()
-        .find(|b| !b.untradable && b.close > 0)
-        .map(|b| b.close as f64 * config.tick.tick_size)
-        .unwrap_or(1.0);
-    let nav = (first_px * 1000.0).max(1.0e6);
+    let nav = super::l3_probe_profile::active_l3_probe_profile()
+        .expect("L3 probe profile record")
+        .nav_for_bars(train_bars, &config);
     let mut classifier_incr = IncrementalClassifier::new(train_bars, &config);
     let fill = pi_theta_fill_loop(
         |i| {
@@ -4530,7 +4518,7 @@ fn run_theta_v0_pi_structureless_runs_clean() {
             .collect(),
         bar_seconds: 60,
     };
-    let res = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6);
+    let res = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6).expect("C-19 research stats record");
     // 单调数据无缠论结构 ⟹ 空 bsp ⟹ 无订单（诚实退化）。管线全链跑通（不 panic）。
     assert_eq!(res.n_orders, 0, "无结构 ⟹ 空候选 ⟹ 无订单（诚实退化）");
     assert_eq!(
@@ -4711,8 +4699,8 @@ fn run_theta_v0_pi_deterministic_prefix_path() {
             .collect(),
         bar_seconds: 60,
     };
-    let a = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6);
-    let b = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6);
+    let a = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6).expect("C-19 research stats record");
+    let b = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6).expect("C-19 research stats record");
     assert_eq!(
         a.n_orders, b.n_orders,
         "前缀重分类路径确定 ⟹ n_orders 两次相同"
@@ -4750,7 +4738,7 @@ fn run_theta_v0_pi_zigzag_prefix_path_runs_clean() {
             .collect(),
         bar_seconds: 60,
     };
-    let res = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6);
+    let res = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6).expect("C-19 research stats record");
     assert_eq!(
         res.is_l2,
         res.n_orders > 0,
@@ -4798,8 +4786,8 @@ fn run_theta_v0_pi_overlay_reconciles_and_bit_exact_net() {
         bar_seconds: 60,
     };
     // 净额路径 bit-exact 对照：overlay arm 的 net_result 与纯净额 run_theta_v0_pi 逐字段一致。
-    let baseline = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6);
-    let ov = run_theta_v0_pi_overlay(&ds, &config, 1.0, 1.0e6);
+    let baseline = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6).expect("C-19 research stats record");
+    let ov = run_theta_v0_pi_overlay(&ds, &config, 1.0, 1.0e6).expect("C-19 research stats record");
     assert_eq!(
         ov.net_result.n_orders, baseline.n_orders,
         "overlay 只读旁路 ⟹ 净额订单数 bit-exact"
@@ -5034,10 +5022,10 @@ fn voice_exec_env_gate_off_bitexact_on_voice_readings() {
             .collect(),
         bar_seconds: 60,
     };
-    let baseline = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6);
+    let baseline = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6).expect("C-19 research stats record");
     // (1) gate 关 ⟹ 逐字节不变（env 未设语义，线程局部注入 false 显式锚定）。
     VOICE_EXEC_OVERRIDE.with(|c| c.set(Some(false)));
-    let off = run_theta_v0_pi_overlay(&ds, &config, 1.0, 1.0e6);
+    let off = run_theta_v0_pi_overlay(&ds, &config, 1.0, 1.0e6).expect("C-19 research stats record");
     assert!(
         off.voice_exec.is_none(),
         "gate 关 ⟹ 无声部读数（None，不伪造）"
@@ -5057,7 +5045,7 @@ fn voice_exec_env_gate_off_bitexact_on_voice_readings() {
     );
     // (2) gate 开 ⟹ 声部执行读数；决策层 TW 与净额 bit-exact。
     VOICE_EXEC_OVERRIDE.with(|c| c.set(Some(true)));
-    let on = run_theta_v0_pi_overlay(&ds, &config, 1.0, 1.0e6);
+    let on = run_theta_v0_pi_overlay(&ds, &config, 1.0, 1.0e6).expect("C-19 research stats record");
     VOICE_EXEC_OVERRIDE.with(|c| c.set(None));
     let vs = on.voice_exec.expect("VOICE_EXEC=1 ⟹ 声部执行读数 Some");
     assert_eq!(
@@ -5116,7 +5104,7 @@ fn pi_voice_exec_run_overlay_assembly_fields_present() {
     let ds = ds_full.slice_bar_range(start, n_full);
 
     VOICE_EXEC_OVERRIDE.with(|c| c.set(Some(true)));
-    let on = run_theta_v0_pi_overlay(&ds, &config, 1.0, 1.0e6);
+    let on = run_theta_v0_pi_overlay(&ds, &config, 1.0, 1.0e6).expect("C-19 research stats record");
     VOICE_EXEC_OVERRIDE.with(|c| c.set(None));
 
     // ① VoiceExecRunSummary 九字段装配存在（真实数据窗口，非零信号，非空转读数）。
@@ -5474,10 +5462,10 @@ fn nest_gate_env_gate_off_bitexact_on_shrinks_only() {
             .collect(),
         bar_seconds: 60,
     };
-    let baseline = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6);
+    let baseline = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6).expect("C-19 research stats record");
     // (1) 门关 ⟹ 逐字节不变（bit-exact 回归锁，VOICE_EXEC 同惯例）。
     NEST_CERT_GATE_OVERRIDE.with(|c| c.set(Some(false)));
-    let off = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6);
+    let off = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6).expect("C-19 research stats record");
     assert_eq!(off.n_orders, baseline.n_orders, "门关 ⟹ n_orders bit-exact");
     assert_eq!(off.trades, baseline.trades, "门关 ⟹ trades bit-exact");
     assert_eq!(
@@ -5490,7 +5478,7 @@ fn nest_gate_env_gate_off_bitexact_on_shrinks_only() {
     );
     // (2) 门开 ⟹ 准入只缩不增（剔除 ⟹ 不开仓；μ 桶键/R5-1 不触碰）。
     NEST_CERT_GATE_OVERRIDE.with(|c| c.set(Some(true)));
-    let on = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6);
+    let on = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6).expect("C-19 research stats record");
     NEST_CERT_GATE_OVERRIDE.with(|c| c.set(None));
     assert!(
         on.n_orders <= baseline.n_orders,
@@ -5536,7 +5524,7 @@ fn gate_on_stepfail_composition_dx() {
     let initial_nav = (first_px * 10_000.0).max(1.0e6);
     // 门开（线程局部注入，优先于进程级 env；与既有 gate 测试同惯例）。
     NEST_CERT_GATE_OVERRIDE.with(|c| c.set(Some(true)));
-    let r = run_theta_v0_pi(&window, &config, years, initial_nav);
+    let r = run_theta_v0_pi(&window, &config, years, initial_nav).expect("C-19 research stats record");
     NEST_CERT_GATE_OVERRIDE.with(|c| c.set(None));
     eprintln!(
         "[p1147] gate-on 窗口 {start}..{end} 内 n_orders={} n_trades={} strat_return={:.6}",
@@ -7667,12 +7655,12 @@ fn nest_gate_smoke_stats() {
     // 门关基线（bit-exact 路径，分离门的边际成本）。
     NEST_CERT_GATE_OVERRIDE.with(|c| c.set(Some(false)));
     let t0 = std::time::Instant::now();
-    let _ = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6);
+    let _ = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6).expect("C-19 research stats record");
     let wall_off = t0.elapsed();
     // 门开（真链判定）。
     NEST_CERT_GATE_OVERRIDE.with(|c| c.set(Some(true)));
     let t0 = std::time::Instant::now();
-    let _ = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6);
+    let _ = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6).expect("C-19 research stats record");
     let wall_on = t0.elapsed();
     NEST_CERT_GATE_OVERRIDE.with(|c| c.set(None));
     eprintln!(
@@ -7702,7 +7690,7 @@ fn merge_skip_oracle_real_cl_debug() {
         dates: oos.dates[..n].to_vec(),
         bar_seconds: 60,
     };
-    let res = run_theta_v0_pi(&prefix, &config, (n as f64) / (252.0 * 390.0), 1.0e6);
+    let res = run_theta_v0_pi(&prefix, &config, (n as f64) / (252.0 * 390.0), 1.0e6).expect("C-19 research stats record");
     assert!(res.metrics.strat_return.is_finite(), "strat 有限");
     eprintln!(
         "on2w3 merge skip 神谕：{n} bar 全 merge 调用逐 bar skip==全量（debug_assert 未 panic）"
@@ -7732,7 +7720,7 @@ fn ancok_l2_ceiling_exposure_real_btc() {
     let years = (n as f64) / super::super::data::bars_per_year(ds.bar_seconds);
 
     ancok_probe_reset();
-    let res = run_theta_v0_pi(&ds, &config, years, 1.0e6);
+    let res = run_theta_v0_pi(&ds, &config, years, 1.0e6).expect("C-19 research stats record");
     let p = ancok_probe_snapshot();
 
     // 探针记账封闭性（自检）：每次 restore 调用恰好以四种方式之一终止（#226 增种子中断项）。
@@ -8031,13 +8019,9 @@ fn m8_treasury_reach_distribution_real_btc() {
             continue;
         }
         let n = test.bars.len();
-        let first_px = test
-            .bars
-            .iter()
-            .find(|b| !b.untradable && b.close > 0)
-            .map(|b| b.close as f64 * config.tick.tick_size)
-            .unwrap_or(1.0);
-        let nav = (first_px * 1000.0).max(1.0e6);
+        let nav = super::l3_probe_profile::active_l3_probe_profile()
+            .expect("L3 probe profile record")
+            .nav_for_bars(&test.bars, &config);
         // ★A10 margin 按各窗 nav 注入（q4_margin_model cushions = 0.02/0.05·nav0；M7_WITNESS_A10=1 时）。
         if a10 {
             config.margin = Some(super::super::wverify_run::q4_margin_model(nav));
@@ -9101,7 +9085,7 @@ fn run_theta_v0_pi_carries_closed_loop_evidence() {
             .collect(),
         bar_seconds: 60,
     };
-    let res = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6);
+    let res = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6).expect("C-19 research stats record");
     let cl = res.closed_loop_final.expect("非空 bars ⟹ 闭环终态");
     // 闭环态每 bar 喂回：bar_count = 输入 bar 数。
     assert_eq!(
@@ -10146,8 +10130,8 @@ fn lee_readonly_layer_does_not_perturb_net_result_644() {
             .collect(),
         bar_seconds: 60,
     };
-    let baseline = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6);
-    let ov = run_theta_v0_pi_overlay(&ds, &config, 1.0, 1.0e6);
+    let baseline = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6).expect("C-19 research stats record");
+    let ov = run_theta_v0_pi_overlay(&ds, &config, 1.0, 1.0e6).expect("C-19 research stats record");
     assert_eq!(
         ov.net_result.n_orders, baseline.n_orders,
         "level_ledger/level_clock/level_attrib 只读 ⟹ 净额订单数 bit-exact"
@@ -10205,7 +10189,7 @@ fn lee_readonly_layer_btc_structural_witness_644() {
     };
     let ds = ds_full.slice_date_window("2017-08-17", "2017-08-31");
     eprintln!("[lee-btc-witness] window bar 数 = {}", ds.bars.len());
-    let ov = run_theta_v0_pi_overlay(&ds, &config, 1.0, 1.0e6);
+    let ov = run_theta_v0_pi_overlay(&ds, &config, 1.0, 1.0e6).expect("C-19 research stats record");
     let w = ov.level_ledger.lee_net_witness();
     eprintln!(
         "[lee-btc-witness] LeeNetWitness: n_observations={} max_abs_residual={} max_abs_net={}",

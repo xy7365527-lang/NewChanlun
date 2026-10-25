@@ -1,5 +1,6 @@
 use super::super::super::classifier::divergence::DivergenceGauge;
 use super::*;
+use super::super::research_stats::active_research_stats;
 
 // ── ★#399（#786 Q4 改写稿）：ECON_L2_MAX_BARS 截窗骨架共享 helper——八点收敛 ──
 // （l2_btc_capturable_spread_diagnosis / acc_level0sell_oos / acc_walkforward_trainonly /
@@ -3264,6 +3265,7 @@ fn winrate(pos: usize, n: usize) -> f64 {
 #[test]
 #[ignore]
 fn acc_walkforward_trainonly() {
+    let stats = active_research_stats().expect("C-19 research stats record");
     use super::super::data;
     use std::fmt::Write as _;
 
@@ -3323,12 +3325,16 @@ fn acc_walkforward_trainonly() {
 
     // 任务4：neff vs nraw（holdout 赢家类逐笔 PnL 自相关）。
     let nraw = hd_pnls.len();
-    let (neff, sum_rho) = neff_autocorr(&hd_pnls, 20);
-    let (mu_oos, se_oos, lcb_oos) = mean_se_lcb(&hd_pnls, neff);
+    let (neff, sum_rho) = neff_autocorr(&hd_pnls, stats.econ_neff_lag);
+    let (mu_oos, se_oos, lcb_oos) = mean_se_lcb(&hd_pnls, neff, stats.z_alpha);
 
     // 任务5/Q4：剔最大赢家 + block bootstrap p。
     let (q4_full, q4_d1, q4_d3, q4_d5) = drop_top_winners(&hd_pnls);
-    let q4_p = block_bootstrap_pvalue(&hd_pnls, 20, 2000);
+    let q4_p = block_bootstrap_pvalue(
+        &hd_pnls,
+        stats.econ_block_len,
+        stats.econ_n_resample,
+    );
 
     // ══ 任务3：多窗滚动 walk-forward（除 Q5 单切分脆弱）══
     let k_windows: usize = std::env::var(crate::theta_v0::env_registry::ECON_WF_WINDOWS)
@@ -3365,8 +3371,8 @@ fn acc_walkforward_trainonly() {
                     .filter(|d| d.level == lv && d.delta == dl && d.bsp_class == bc)
                     .map(|d| d.actual_pnl)
                     .collect();
-                let (nf, _) = neff_autocorr(&pnls, 20);
-                let (_, _, lcb) = mean_se_lcb(&pnls, nf);
+                let (nf, _) = neff_autocorr(&pnls, stats.econ_neff_lag);
+                let (_, _, lcb) = mean_se_lcb(&pnls, nf, stats.z_alpha);
                 (pnls.len(), pnls.iter().sum::<f64>(), lcb)
             }
             None => (0, 0.0, 0.0),
@@ -3385,7 +3391,7 @@ fn acc_walkforward_trainonly() {
 
     // PDF §7.3 强判据 χ=1[LCB>θ]（θ=0）：μ>0 不够，须扣除不确定性后仍正。
     // §11 全验收 = LCB>0 ∧ Q4 剔最大5仍正 ∧ bootstrap p<0.05 ∧ 多窗 LCB>0 占比高。
-    let oos_robust = lcb_oos > 0.0 && q4_d5 > 0.0 && q4_p < 0.05 && lcb_pos_ratio >= 100.0;
+    let oos_robust = lcb_oos > 0.0 && q4_d5 > 0.0 && q4_p < stats.significance_p_threshold && lcb_pos_ratio >= 100.0;
 
     // ══ 报告 ══
     let cls_str = |c: Option<(u32, i8, u8)>| {
@@ -3393,6 +3399,7 @@ fn acc_walkforward_trainonly() {
             .unwrap_or_else(|| "None(train无正类)".into())
     };
     let mut rpt = String::new();
+    let _ = writeln!(rpt, "**统计记录**：`{}`。", stats.record.label());
     let _ = writeln!(
         rpt,
         "# PDF §11 walk-forward 验收：train-only 挑类（除 codex Q2 BIAS-FATAL 选择偏差）"
@@ -3439,7 +3446,7 @@ fn acc_walkforward_trainonly() {
     let _ = writeln!(rpt, "| holdout Σab_rev | {hd_ab:.4e} |");
     let _ = writeln!(rpt, "| μ_OOS | {mu_oos:.4e} |");
     let _ = writeln!(rpt, "| se（用 neff） | {se_oos:.4e} |");
-    let _ = writeln!(rpt, "| **LCB（μ−1.645·se，单侧5%）** | **{lcb_oos:.4e}** |");
+    let _ = writeln!(rpt, "| **LCB（μ−{}·se）** | **{{lcb_oos:.4e}}** |", stats.z_alpha);
     let _ = writeln!(rpt);
     let _ = writeln!(
         rpt,
@@ -3500,7 +3507,7 @@ fn acc_walkforward_trainonly() {
         "| 剔最大 5 | {q4_d5:.4e} | {} |",
         if q4_d5 > 0.0 { "是" } else { "否" }
     );
-    let _ = writeln!(rpt, "- **block bootstrap p（H0:μ≤0，block_len=20，B=2000，固定种子）= {q4_p:.4}**（p<0.05 ⟹ 正均值稳健远离 0）。");
+    let _ = writeln!(rpt, "- **block bootstrap p（H0:μ≤0，block_len={}，B={}，固定种子）= {{q4_p:.4}}**（p<{} ⟹ 正均值稳健远离 0）。", stats.econ_block_len, stats.econ_n_resample, stats.significance_p_threshold);
     if q4_d5 <= 0.0 && q4_full > 0.0 {
         let _ = writeln!(rpt, "→ **Q4 坐实少数大赢家驱动**：剔最大 5 后转负 ⟹ holdout 正总和由极少数大赢家撑起，非稳健 alpha。");
     } else if q4_d5 > 0.0 {
@@ -3569,7 +3576,7 @@ fn acc_walkforward_trainonly() {
             if oos_robust { "通过 §11 全验收（缠论买卖点首个干净稳健 OOS alpha 证据，单标的 L2）" }
             else if is_level0_sell && oos_mu_positive { "Q2 选择偏差消除（level0卖确为 train-only 赢家），但 §11 稳健性验收未过——LCB≤0/少数大赢家驱动/多窗不稳之一以上成立 ⟹ +7.87e3 不达可交易 alpha 阈值（诚实否证，161/formalization-validity-domain）" }
             else { "level0卖 +7.87e3 是选择偏差/窗口产物（否证）" });
-    let _ = writeln!(rpt, "2. **定义依据**：actual_pnl=δ(Pτout−Pτin)−Ce（664-Q3 真实成交口径）；train-only 挑类=PDF§11「train 决定规则」；neff=nraw/(1+2Σρk)=PDF§6 条件二；LCB=μ−1.645se=PDF§7.3。");
+    let _ = writeln!(rpt, "2. **定义依据**：actual_pnl=δ(Pτout−Pτin)−Ce（664-Q3 真实成交口径）；train-only 挑类=PDF§11「train 决定规则」；neff=nraw/(1+2Σρk)=PDF§6 条件二；LCB=μ−{}se=PDF§7.3。", stats.z_alpha);
     let _ = writeln!(rpt, "3. **边界条件**：单标的 BTC L2——结论翻转条件：(a) L3 跨标的若 level0卖不普遍赢则 BTC 是品种特例；(b) train_frac/窗数 K 改变 train 赢家身份则选类不稳；(c) holdout 仍为下跌段则卖优势含方向效应。");
     let _ = writeln!(
         rpt,
@@ -3651,7 +3658,7 @@ fn neff_autocorr(pnls: &[f64], lag_max: usize) -> (f64, f64) {
 }
 
 /// 单侧 5% LCB = μ − 1.645·se，se=σ/√neff（PDF §7.3，neff 而非 nraw）。返回 (mu, se, lcb)。
-fn mean_se_lcb(pnls: &[f64], neff: f64) -> (f64, f64, f64) {
+fn mean_se_lcb(pnls: &[f64], neff: f64, z_alpha: f64) -> (f64, f64, f64) {
     let n = pnls.len();
     if n == 0 {
         return (0.0, 0.0, 0.0);
@@ -3663,7 +3670,7 @@ fn mean_se_lcb(pnls: &[f64], neff: f64) -> (f64, f64, f64) {
     } else {
         f64::INFINITY
     };
-    (mu, se, mu - 1.645 * se)
+    (mu, se, mu - z_alpha * se)
 }
 
 /// Q4 剔最大赢家：降序剔除 top-k 后剩余 Σ（>0 ⟹ 非少数大赢家驱动）。返回 (sum_full, sum_drop1, sum_drop3, sum_drop5)。
@@ -3848,7 +3855,7 @@ fn walkforward_helpers_l1() {
     );
 
     // LCB：μ>0 但 se 大 ⟹ LCB 可能<0（压制噪声赢家）。
-    let (mu, se, lcb) = mean_se_lcb(&[2.0, -1.0, 3.0, -2.0], 4.0);
+    let (mu, se, lcb) = mean_se_lcb(&[2.0, -1.0, 3.0, -2.0], 4.0, 1.645);
     assert!(
         (mu - 0.5).abs() < 1e-9 && se > 0.0 && lcb < mu,
         "LCB=μ−1.645se<μ，实得 mu={mu} lcb={lcb}"
@@ -3867,7 +3874,7 @@ fn walkforward_helpers_l1() {
     let strong_pos = vec![5.0; 20];
     let p_pos = block_bootstrap_pvalue(&strong_pos, 3, 500);
     assert!(
-        p_pos <= 0.05,
+        p_pos <= 0.05, // 合成 L1 夹具固定门，不是真实验收记录消费点
         "强正信号 block bootstrap p 应小，实得 {p_pos}"
     );
 }
@@ -3896,6 +3903,7 @@ fn walkforward_helpers_l1() {
 #[test]
 #[ignore]
 fn acc_multilevel_highlevel_mu() {
+    let stats = active_research_stats().expect("C-19 research stats record");
     use super::super::data;
     use std::collections::BTreeMap;
     use std::fmt::Write as _;
@@ -4006,10 +4014,10 @@ fn acc_multilevel_highlevel_mu() {
             .map(|d| d.actual_pnl)
             .collect();
         let nraw = pnls.len();
-        let (neff, sum_rho) = neff_autocorr(&pnls, 20);
-        let (mu_oos, se_oos, lcb) = mean_se_lcb(&pnls, neff);
+        let (neff, sum_rho) = neff_autocorr(&pnls, stats.econ_neff_lag);
+        let (mu_oos, se_oos, lcb) = mean_se_lcb(&pnls, neff, stats.z_alpha);
         let (_, _, _, drop_d5) = drop_top_winners(&pnls);
-        let bootstrap_p = block_bootstrap_pvalue(&pnls, 20, 2000);
+        let bootstrap_p = block_bootstrap_pvalue(&pnls, stats.econ_block_len, stats.econ_n_resample);
         hl_results.push(HighLevelResult {
             level: lv,
             delta: dl,
@@ -4031,6 +4039,7 @@ fn acc_multilevel_highlevel_mu() {
 
     // ── 报告 ──
     let mut rpt = String::new();
+    let _ = writeln!(rpt, "**统计记录**：`{}`。", stats.record.label());
     let _ = writeln!(
         rpt,
         "# acc-multilevel-sample + acc-highlevel-mu：BTC 全历史多级别 alpha 检验"
