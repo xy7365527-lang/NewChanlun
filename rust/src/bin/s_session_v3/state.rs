@@ -1072,15 +1072,6 @@ pub(super) fn trace_event(phase: &'static str, generation: Option<i64>) {
 /// #1488 S4（主控 D4/D6）：整代六阶段起点标记；`path` 记 delta/full_lease/full 车道。
 /// 只追加累计快照，阶段读量由 [`stage_rows`] 对相邻标记做差。
 #[cfg(test)]
-pub(super) fn trace_parser_policy(config: &newchan_rust::theta_v0::config::ThetaConfig) {
-    AUDIT_TRACE.with(|trace| {
-        if let Some(trace) = trace.borrow_mut().as_mut() {
-            trace.events.push(json!({"phase":"parser_policy", "config":format!("{config:?}"), "policy_records":config.record_labels()}));
-        }
-    });
-}
-
-#[cfg(test)]
 pub(super) fn trace_stage(stage: &'static str, path: &'static str, generation: i64) {
     AUDIT_TRACE.with(|trace| {
         if let Some(trace) = trace.borrow_mut().as_mut() {

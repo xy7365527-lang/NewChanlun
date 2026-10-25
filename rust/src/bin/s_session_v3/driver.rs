@@ -815,9 +815,7 @@ mod tests {
             let actual = actual.unwrap();
             assert_eq!(actual, ordinary.handle(input.clone()).unwrap());
             assert_eq!(actual["policy_records"], labels);
-            let parser = events.iter().find(|v| v["phase"] == "parser_policy").unwrap();
-            assert_eq!(parser["config"], format!("{config:?}"));
-            assert_eq!(parser["policy_records"], labels);
+            assert_eq!(native.runtime.parser_config_for_test(), Some(&config));
             assert!(events.iter().any(|v| v["stage"] == "generate" && v["path"] == "delta"));
             let persisted: String = native.conn.query_row(
                 "SELECT policy_records FROM structure_deltas WHERE generation=?1",

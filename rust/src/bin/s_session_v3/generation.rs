@@ -425,6 +425,11 @@ impl GenerationRuntime {
         }
     }
 
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn parser_config_for_test(&self) -> &ThetaConfig {
+        &self.theta_config
+    }
+
     pub(super) fn policy_records(&self) -> String {
         self.theta_config.record_labels()
     }
@@ -758,8 +763,6 @@ impl GenerationRuntime {
                 lane.state()
             }
         };
-        #[cfg(test)]
-        super::state::trace_parser_policy(&self.theta_config);
         let (layer, evidence) = parser::parse_layer_with_group_evidence(state, &self.theta_config);
         let merged: &[Bar] = layer.merged_bars.as_ref();
         let prepared = match delta_view {

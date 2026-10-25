@@ -203,6 +203,11 @@ impl Runtime {
     }
 
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn parser_config_for_test(&self) -> Option<&ThetaConfig> {
+        self.generator.as_ref().map(GenerationRuntime::parser_config_for_test)
+    }
+
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
     pub(super) fn disable_manifest_workspace_for_test(&mut self) {
         self.manifest_workspace = false;
     }
