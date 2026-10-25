@@ -1444,7 +1444,7 @@ pub(crate) fn test_prepare(db: &Path) -> PreparedAdmission {
 }
 
 // TestOnly：真实签锚、实测源与原 Job，只替换 Job 已有时钟接口；无生产构造口。
-#[cfg(test)]
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
 pub(crate) fn test_with_clock_account<T>(
     db: &Path,
     first: Instant,
