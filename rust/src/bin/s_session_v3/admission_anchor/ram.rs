@@ -192,7 +192,7 @@ mod tests {
         use newchan_rust::s_content::{self as sc, job::{Job, Existing, CheckedNodeUsage, NodeAcceptance}};
         let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
         owner.codec_work().unwrap().run(|work| {
-            let mut job = Job::new_started_mixed(job_limits(), Existing::default(),
+            let mut job = Job::new_started_mixed(job_limits(), Existing { store_bytes: 0, staged_bytes: 0 },
                 Box::new(std::time::Instant::now), std::time::Instant::now(), work)?;
             let bytes = b"content";
             let content = CheckedNodeUsage::checked(&sc::frame(sc::tag::BYTES_CHUNK, bytes), sc::tag::BYTES_CHUNK, bytes)?;
@@ -217,7 +217,7 @@ mod tests {
             let owner = AdmissionRamLedger::new(limits(CodecWork::metadata_bytes() + 1)).unwrap();
             let mut observed = None;
             let result = owner.codec_work().unwrap().run(|work| {
-                let mut job = Job::new_started_mixed(job_limits(), Existing::default(),
+                let mut job = Job::new_started_mixed(job_limits(), Existing { store_bytes: 0, staged_bytes: 0 },
                     Box::new(std::time::Instant::now), std::time::Instant::now(), work)?;
                 job.charge_wire_bytes(23)?;
                 let bytes = b"x";

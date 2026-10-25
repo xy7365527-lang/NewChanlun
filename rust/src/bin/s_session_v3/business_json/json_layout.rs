@@ -1,6 +1,20 @@
 //! #1527：生产mixed与Native测试臂共用的唯一JSON布局测量核。
-use crate::v3::audit_retention::{sum, tree_slots, vec_bytes};
 use std::mem::size_of;
+
+pub(crate) fn sum(values: impl IntoIterator<Item = usize>) -> usize {
+    values.into_iter().fold(0usize, usize::saturating_add)
+}
+pub(crate) fn vec_bytes<T>(capacity: usize) -> usize {
+    capacity.saturating_mul(size_of::<T>())
+}
+pub(crate) fn tree_slots<K, V>(len: usize) -> usize {
+    // 每个条目最多独占一棵含 11 key/value、12 edge 的节点；上界刻意不减费。
+    len.saturating_mul(
+        size_of::<(K, V)>()
+            .saturating_mul(11)
+            .saturating_add(16 * size_of::<usize>()),
+    )
+}
 
 /// 无分配词法计数，只产生内存上界；仍调用原 strict_json/原业务谓词，不赋予语法合法资格。
 /// 每个 value token 计一个可能数组槽（包含对象值/键会高估）；Vec 扩容峰值<=3*max(4,2*n)。
