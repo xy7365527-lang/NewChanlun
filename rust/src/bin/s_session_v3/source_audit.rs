@@ -171,7 +171,11 @@ impl<'capture> NativeFieldMemo<'capture> {
             field_hits: 0,
         }
     }
-    fn qualified(&self, r: sc::RefView<'_>, measure: Option<&super::audit_budget::NativeMeasure<'_>>) -> Result<bool, sc::CodecError> {
+    fn qualified(
+        &self,
+        r: sc::RefView<'_>,
+        measure: Option<&super::audit_budget::NativeMeasure<'_>>,
+    ) -> Result<bool, sc::CodecError> {
         // Root presence is insufficient; original public validation includes format/root/header
         // and the complete immutable closure. Overlay-only records never obtain a handle.
         if let sc::RefView::Normal(original) = r {
@@ -1506,7 +1510,15 @@ impl<'capture> NativeSourceAudit<'capture> {
         records: Option<super::history::NativeRecordFields<'capture>>,
         work: Option<&'capture sc::capture_allocation::scratch::WorkScope>,
     ) -> Result<Self, String> {
-        Self::new_with_records_measured(capture, raw, records, work, None, None, super::history::SourcePolicy::Ordinary)
+        Self::new_with_records_measured(
+            capture,
+            raw,
+            records,
+            work,
+            None,
+            None,
+            super::history::SourcePolicy::Ordinary,
+        )
     }
     #[cfg(feature = "s_capture_native_testonly")]
     pub(super) fn new_with_records_measured(
@@ -1536,7 +1548,8 @@ impl<'capture> NativeSourceAudit<'capture> {
             fields,
             raw,
             reader: super::history::HashReader::captured(capture, None)
-                .with_source_policy(policy).with_audit_gate(budget, deadline)
+                .with_source_policy(policy)
+                .with_audit_gate(budget, deadline)
                 .with_native_scope(work)
                 .map_err(err)?,
             memo: NativeWitnessIdentityMemo::new(capture)?,
@@ -3669,27 +3682,52 @@ mod tests {
         use super::super::audit_budget::AuditJob;
         use sc::job::{Existing, Job, JobLimits};
         let make_job = |records: u64| {
-            Job::new(JobLimits::from_canonical_json(&json!({
-                "max_total_wire_bytes":"1048576", "max_total_node_bytes":"1048576",
-                "max_total_nodes":"100000", "max_total_records":records.to_string(),
-                "max_total_requests":"20", "max_elapsed_ms":"10000",
-                "max_staged_bytes":"1048576", "max_store_bytes":"33554432"
-            })).unwrap(), Existing { store_bytes: 0, staged_bytes: 0 }, Box::new(std::time::Instant::now)).unwrap()
+            Job::new(
+                JobLimits::from_canonical_json(&json!({
+                    "max_total_wire_bytes":"1048576", "max_total_node_bytes":"1048576",
+                    "max_total_nodes":"100000", "max_total_records":records.to_string(),
+                    "max_total_requests":"20", "max_elapsed_ms":"10000",
+                    "max_staged_bytes":"1048576", "max_store_bytes":"33554432"
+                }))
+                .unwrap(),
+                Existing {
+                    store_bytes: 0,
+                    staged_bytes: 0,
+                },
+                Box::new(std::time::Instant::now),
+            )
+            .unwrap()
         };
         let (nodes, state, raw, rule) = fixture();
-        let capture = sc::AuditCapture::new(nodes).enable_native_frame_reuse_for_testonly().unwrap();
-        let expected = NativeSourceAudit::new(&capture, (&raw).into()).unwrap()
-            .audit(&state, raw.len(), tb02a::PROFILE, &rule).unwrap();
+        let capture = sc::AuditCapture::new(nodes)
+            .enable_native_frame_reuse_for_testonly()
+            .unwrap();
+        let expected = NativeSourceAudit::new(&capture, (&raw).into())
+            .unwrap()
+            .audit(&state, raw.len(), tb02a::PROFILE, &rule)
+            .unwrap();
         let mut job = make_job(100000);
         {
             let audit = AuditJob::new(&mut job);
-            let mut native = NativeSourceAudit::new_with_records_measured(&capture, (&raw).into(), None, None, Some(&audit),
-                Some(std::time::Instant::now() + std::time::Duration::from_secs(10)), super::super::history::SourcePolicy::NativeMeasured).unwrap();
-            let got = native.audit(&state, raw.len(), tb02a::PROFILE, &rule).unwrap();
+            let mut native = NativeSourceAudit::new_with_records_measured(
+                &capture,
+                (&raw).into(),
+                None,
+                None,
+                Some(&audit),
+                Some(std::time::Instant::now() + std::time::Duration::from_secs(10)),
+                super::super::history::SourcePolicy::NativeMeasured,
+            )
+            .unwrap();
+            let got = native
+                .audit(&state, raw.len(), tb02a::PROFILE, &rule)
+                .unwrap();
             assert_eq!(format!("{got:?}"), format!("{expected:?}"));
             let decoded = native.fields.field_decodes;
             assert!(decoded > 0);
-            native.audit(&state, raw.len(), tb02a::PROFILE, &rule).unwrap();
+            native
+                .audit(&state, raw.len(), tb02a::PROFILE, &rule)
+                .unwrap();
             assert_eq!(native.fields.field_decodes, decoded);
             assert!(native.fields.field_hits > 0);
             assert!(native.memo.stats.hits > 0);
@@ -3698,8 +3736,19 @@ mod tests {
         assert!(job.snapshot().nodes > 0);
         let mut limited = make_job(1);
         let audit = AuditJob::new(&mut limited);
-        let mut native = NativeSourceAudit::new_with_records_measured(&capture, (&raw).into(), None, None, Some(&audit), None, super::super::history::SourcePolicy::NativeMeasured).unwrap();
-        assert!(native.audit(&state, raw.len(), tb02a::PROFILE, &rule).is_err());
+        let mut native = NativeSourceAudit::new_with_records_measured(
+            &capture,
+            (&raw).into(),
+            None,
+            None,
+            Some(&audit),
+            None,
+            super::super::history::SourcePolicy::NativeMeasured,
+        )
+        .unwrap();
+        assert!(native
+            .audit(&state, raw.len(), tb02a::PROFILE, &rule)
+            .is_err());
         assert!(native.fields.fields.is_empty() && native.fields.scalars.values.is_empty());
         assert!(native.ledger.sources.is_empty() && native.ledger.originals.is_empty());
         assert!(native.memo.entries.is_empty());

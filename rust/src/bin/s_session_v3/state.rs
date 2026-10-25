@@ -182,11 +182,14 @@ pub(super) fn audit_native_current_measured(
     {
         let measure = audit_budget::NativeMeasure { budget, deadline };
         let observed = budget.is_some() || deadline.is_some();
-        let capture = content_store::capture_for_request_prototype_measured(tx, observed.then_some(&measure as &dyn sc::CaptureReadObserver))
-            .map(|(capture, _)| capture)
-            .map_err(err)?
-            .enable_native_frame_reuse_for_testonly()
-            .map_err(err)?;
+        let capture = content_store::capture_for_request_prototype_measured(
+            tx,
+            observed.then_some(&measure as &dyn sc::CaptureReadObserver),
+        )
+        .map(|(capture, _)| capture)
+        .map_err(err)?
+        .enable_native_frame_reuse_for_testonly()
+        .map_err(err)?;
         let (audited, _) = audit_core_fresh_with_policy(
             tx,
             deadline,
@@ -199,7 +202,11 @@ pub(super) fn audit_native_current_measured(
             RetentionReport::Skip,
             None,
             None,
-            if observed { history::SourcePolicy::NativeMeasured } else { history::SourcePolicy::Ordinary },
+            if observed {
+                history::SourcePolicy::NativeMeasured
+            } else {
+                history::SourcePolicy::Ordinary
+            },
         )?;
         drop(capture);
         Ok(audited)
@@ -240,7 +247,11 @@ pub(super) fn audit_native_in_request_measured(
         let measure = audit_budget::NativeMeasure { budget, deadline };
         let observed = budget.is_some() || deadline.is_some();
         let observer = observed.then_some(&measure as &dyn sc::CaptureReadObserver);
-        let policy = if observed { history::SourcePolicy::NativeMeasured } else { history::SourcePolicy::Ordinary };
+        let policy = if observed {
+            history::SourcePolicy::NativeMeasured
+        } else {
+            history::SourcePolicy::Ordinary
+        };
         // take保证任何读取/校验错误都不留下可继续使用的旧slot。
         let prior = context.take();
         let source_enabled = context.source_cache_enabled();
@@ -259,8 +270,10 @@ pub(super) fn audit_native_in_request_measured(
                     .map_err(err)?
                 } else {
                     let (capture, count) =
-                        content_store::capture_for_request_prototype_admitted_measured(tx, work, observer)
-                            .map_err(err)?;
+                        content_store::capture_for_request_prototype_admitted_measured(
+                            tx, work, observer,
+                        )
+                        .map_err(err)?;
                     (capture, count, false)
                 };
                 let capture = capture
@@ -723,10 +736,21 @@ fn audit_core_fresh_inner(
     >,
     work: Option<&sc::capture_allocation::scratch::WorkScope>,
 ) -> Result<(AuditedState, Option<Value>), String> {
-    audit_core_fresh_with_policy(tx, deadline, max_render_bytes, budget, enable_prototype_capture,
-        owned_budget, external_capture, fresh, retention_report,
+    audit_core_fresh_with_policy(
+        tx,
+        deadline,
+        max_render_bytes,
+        budget,
+        enable_prototype_capture,
+        owned_budget,
+        external_capture,
+        fresh,
+        retention_report,
         #[cfg(feature = "s_capture_native_testonly")]
-        source_cache, work, history::SourcePolicy::Ordinary)
+        source_cache,
+        work,
+        history::SourcePolicy::Ordinary,
+    )
 }
 
 fn audit_core_fresh_with_policy(
@@ -829,12 +853,30 @@ fn audit_core_fresh_with_policy(
             }) {
                 Some(b) => super::business_json::read_owned(tx, deadline, b)?,
                 None => super::business_json::RawEvents::from_json_owner(
-                    crate::read_raw_events_until_admitted_measured(tx, deadline, work, if policy == history::SourcePolicy::NativeMeasured { budget } else { None })?,
+                    crate::read_raw_events_until_admitted_measured(
+                        tx,
+                        deadline,
+                        work,
+                        if policy == history::SourcePolicy::NativeMeasured {
+                            budget
+                        } else {
+                            None
+                        },
+                    )?,
                 )?,
             };
             #[cfg(not(feature = "s_allocation_json_testonly"))]
             let raw = super::business_json::RawEvents::from_json_owner(
-                crate::read_raw_events_until_admitted_measured(tx, deadline, work, if policy == history::SourcePolicy::NativeMeasured { budget } else { None })?,
+                crate::read_raw_events_until_admitted_measured(
+                    tx,
+                    deadline,
+                    work,
+                    if policy == history::SourcePolicy::NativeMeasured {
+                        budget
+                    } else {
+                        None
+                    },
+                )?,
             )?;
             (control, raw)
         }
@@ -848,7 +890,8 @@ fn audit_core_fresh_with_policy(
         .filter(|c| {
             !c.is_allocation_prototype()
                 && owned_budget.is_none()
-                && (policy == history::SourcePolicy::NativeMeasured || (budget.is_none() && deadline.is_none()))
+                && (policy == history::SourcePolicy::NativeMeasured
+                    || (budget.is_none() && deadline.is_none()))
                 && max_render_bytes.is_none()
         })
         .and_then(|capture| history::NativeRecordFields::new_admitted(capture, work));
@@ -903,14 +946,18 @@ fn audit_core_fresh_with_policy(
             .with_audit_gate(budget, deadline),
         None => history::HashReader::metered(source, deadline, max_render_bytes, budget),
     };
-    store = store.with_source_policy(policy).with_native_scope(work).map_err(err)?;
+    store = store
+        .with_source_policy(policy)
+        .with_native_scope(work)
+        .map_err(err)?;
     // 7a. 当前代对象索引已在同次history中完整加载并绑定原件；继续用它核逐代变化。
     #[cfg(feature = "s_capture_native_testonly")]
     let mut native_sources = capture
         .filter(|c| {
             !c.is_allocation_prototype()
                 && owned_budget.is_none()
-                && (policy == history::SourcePolicy::NativeMeasured || (budget.is_none() && deadline.is_none()))
+                && (policy == history::SourcePolicy::NativeMeasured
+                    || (budget.is_none() && deadline.is_none()))
                 && max_render_bytes.is_none()
         })
         .map(|c| {

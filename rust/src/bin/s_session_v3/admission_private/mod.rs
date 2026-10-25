@@ -198,7 +198,9 @@ impl IoAccounting for &SharedAccounting<'_, '_> {
 /// #1527 rejection-only 前缀；成功不携带可转移资格，实际连接仍完整重核。
 pub(super) enum RejectionPrefix<'a> {
     None,
-    OrdinaryStartup { epoch: &'a str },
+    OrdinaryStartup {
+        epoch: &'a str,
+    },
     NativeStartup {
         epoch: &'a str,
         context: Option<&'a mut super::request_audit::RequestAuditContext>,
@@ -223,16 +225,29 @@ fn audit_business(
             match prefix {
                 RejectionPrefix::NativeStartup { context, work, .. } => {
                     if let Some(context) = context.as_deref_mut() {
-                        super::state::audit_native_in_request_measured(&tx, context, *work, Some(deadline), Some(account))?;
+                        super::state::audit_native_in_request_measured(
+                            &tx,
+                            context,
+                            *work,
+                            Some(deadline),
+                            Some(account),
+                        )?;
                     } else {
-                        super::state::audit_native_current_measured(&tx, Some(deadline), Some(account))?;
+                        super::state::audit_native_current_measured(
+                            &tx,
+                            Some(deadline),
+                            Some(account),
+                        )?;
                     }
                 }
-                _ => { super::state::audit_with_budget(&tx, Some(deadline), None, Some(account))?; }
+                _ => {
+                    super::state::audit_with_budget(&tx, Some(deadline), None, Some(account))?;
+                }
             }
             match prefix {
                 RejectionPrefix::None => Ok(()),
-                RejectionPrefix::OrdinaryStartup { epoch } | RejectionPrefix::NativeStartup { epoch, .. } => {
+                RejectionPrefix::OrdinaryStartup { epoch }
+                | RejectionPrefix::NativeStartup { epoch, .. } => {
                     crate::verify_writer_epoch(&tx, epoch)?;
                     super::require_current_writer_rule(
                         &crate::meta_get_opt(&tx, "rule_revision")?
@@ -302,7 +317,11 @@ pub(super) fn validate_prefix(
 ) -> Result<(), String> {
     let result = validate_prefix_inner(source, account, &mut prefix);
     if result.is_err() {
-        if let RejectionPrefix::NativeStartup { context: Some(context), .. } = &mut prefix {
+        if let RejectionPrefix::NativeStartup {
+            context: Some(context),
+            ..
+        } = &mut prefix
+        {
             drop(context.take());
         }
     }

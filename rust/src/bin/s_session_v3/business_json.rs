@@ -834,7 +834,9 @@ pub(crate) fn validate_raw_measured(
     let mut prior = workmap::<&str, i64>(rows.budget());
     for (expected_seq, event) in rows.iter().enumerate() {
         check_read_deadline(deadline)?;
-        if let Some(budget) = budget { budget.record().map_err(|e| e.to_string())?; }
+        if let Some(budget) = budget {
+            budget.record().map_err(|e| e.to_string())?;
+        }
         let c = coord(event)?;
         let identity = text(event, "identity_key")?;
         admission

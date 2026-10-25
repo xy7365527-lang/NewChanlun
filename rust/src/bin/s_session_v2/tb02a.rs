@@ -287,7 +287,9 @@ pub(super) fn enrich_raw_until_measured(
     }
     for row in rows {
         crate::check_read_deadline(deadline)?;
-        if let Some(budget) = budget { budget.record().map_err(|e| e.to_string())?; }
+        if let Some(budget) = budget {
+            budget.record().map_err(|e| e.to_string())?;
+        }
         enrich_raw_row(conn, row)?;
     }
     Ok(())

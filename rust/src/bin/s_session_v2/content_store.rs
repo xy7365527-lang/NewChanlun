@@ -2474,7 +2474,9 @@ fn scan_request_nodes_checked(
     )
     .map_err(storage_error)?;
     while let Some(mut row) = stmt.next().map_err(storage_error)? {
-        if let Some(observer) = observer { observer.before_read()?; }
+        if let Some(observer) = observer {
+            observer.before_read()?;
+        }
         let digest: NodeDigest = row
             .blob(0)
             .map_err(storage_error)?
@@ -2485,7 +2487,9 @@ fn scan_request_nodes_checked(
         let tag = u8::try_from(row.integer(1).map_err(storage_error)?)
             .map_err(|_| storage_error("捕获标签域"))?;
         let body = row.blob(2).map_err(storage_error)?;
-        if let Some(observer) = observer { observer.prepare_node()?; }
+        if let Some(observer) = observer {
+            observer.prepare_node()?;
+        }
         #[cfg(test)]
         record_prototype_row(body.len());
         visit(digest, tag, body)?;
@@ -2573,7 +2577,14 @@ pub(crate) fn current_originals_equal_for_request_with_scratch_admitted(
     scratch: &mut OriginalScanScratch,
     work: Option<&WorkScope>,
 ) -> Result<bool, CodecError> {
-    current_originals_equal_for_request_with_scratch_admitted_measured(tx, capture, expected_nodes, scratch, work, None)
+    current_originals_equal_for_request_with_scratch_admitted_measured(
+        tx,
+        capture,
+        expected_nodes,
+        scratch,
+        work,
+        None,
+    )
 }
 #[cfg(feature = "s_capture_native_testonly")]
 pub(crate) fn current_originals_equal_for_request_with_scratch_admitted_measured(
@@ -2638,12 +2649,16 @@ pub(crate) fn capture_for_request_prototype_measured(
         .map_err(storage_error)?;
     let mut rows = stmt.query([]).map_err(storage_error)?;
     while let Some(r) = rows.next().map_err(storage_error)? {
-        if let Some(observer) = observer { observer.before_read()?; }
+        if let Some(observer) = observer {
+            observer.before_read()?;
+        }
         let d = request_capture_digest(r)?;
         let t: i64 = r.get(1).map_err(storage_error)?;
         let t: u8 = t.try_into().map_err(|_| storage_error("捕获标签域"))?;
         let body: Vec<u8> = r.get(2).map_err(storage_error)?;
-        if let Some(observer) = observer { observer.prepare_node()?; }
+        if let Some(observer) = observer {
+            observer.prepare_node()?;
+        }
         #[cfg(test)]
         record_prototype_row(body.len());
         nodes.insert_unchecked(d, t, body);
@@ -2672,7 +2687,13 @@ pub(crate) fn current_originals_equal_for_request_with_scratch(
     expected_nodes: usize,
     scratch: &mut OriginalScanScratch,
 ) -> Result<bool, CodecError> {
-    current_originals_equal_for_request_with_scratch_measured(tx, capture, expected_nodes, scratch, None)
+    current_originals_equal_for_request_with_scratch_measured(
+        tx,
+        capture,
+        expected_nodes,
+        scratch,
+        None,
+    )
 }
 #[cfg(feature = "s_capture_native_testonly")]
 pub(crate) fn current_originals_equal_for_request_with_scratch_measured(
@@ -2696,7 +2717,9 @@ pub(crate) fn current_originals_equal_for_request_with_scratch_measured(
     let mut rows = stmt.query([]).map_err(storage_error)?;
     let mut equal = true;
     while let Some(r) = rows.next().map_err(storage_error)? {
-        if let Some(observer) = observer { observer.before_read()?; }
+        if let Some(observer) = observer {
+            observer.before_read()?;
+        }
         let d = request_capture_digest(r)?;
         let t: i64 = r.get(1).map_err(storage_error)?;
         let t: u8 = t.try_into().map_err(|_| storage_error("捕获标签域"))?;
@@ -2708,7 +2731,9 @@ pub(crate) fn current_originals_equal_for_request_with_scratch_measured(
                 unreachable!("Vec<u8>只接受BLOB")
             }
         };
-        if let Some(observer) = observer { observer.prepare_node()?; }
+        if let Some(observer) = observer {
+            observer.prepare_node()?;
+        }
         #[cfg(test)]
         record_prototype_row(body.len());
         // 必须去重；仅count+lookup会接受重复旧digest替代遗漏旧digest的坏schema。
@@ -2753,12 +2778,16 @@ pub(crate) fn capture_with_original_subset_for_source_cache_measured(
         .map_err(storage_error)?;
     let mut rows = stmt.query([]).map_err(storage_error)?;
     while let Some(row) = rows.next().map_err(storage_error)? {
-        if let Some(observer) = observer { observer.before_read()?; }
+        if let Some(observer) = observer {
+            observer.before_read()?;
+        }
         let digest = request_capture_digest(row)?;
         let tag: i64 = row.get(1).map_err(storage_error)?;
         let tag: u8 = tag.try_into().map_err(|_| storage_error("捕获标签域"))?;
         let body: Vec<u8> = row.get(2).map_err(storage_error)?;
-        if let Some(observer) = observer { observer.prepare_node()?; }
+        if let Some(observer) = observer {
+            observer.prepare_node()?;
+        }
         #[cfg(test)]
         record_prototype_row(body.len());
         let unique = seen.insert(digest);

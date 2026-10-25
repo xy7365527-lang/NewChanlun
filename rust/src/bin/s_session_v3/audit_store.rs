@@ -363,7 +363,9 @@ impl sc::path::PathView for NativeFieldPath {
 
 /// 仅bin内的静态codec门；具体捕获owner不可擦除成外来来源。
 pub(crate) trait CodecRead: NodeSource {
-    fn native_measure(&self) -> Option<super::audit_budget::NativeMeasure<'_>> { None }
+    fn native_measure(&self) -> Option<super::audit_budget::NativeMeasure<'_>> {
+        None
+    }
     #[must_use = "原许可必须由实际载荷持有至析构"]
     fn native_reservation(
         &self,
@@ -506,7 +508,12 @@ pub(crate) trait CodecRead: NodeSource {
         reference: sc::RefView<'_>,
         mode: sc::Mode,
     ) -> Result<(), CodecError> {
-        self.native_verify_original_measured(capture, reference, mode, self.native_measure().as_ref())
+        self.native_verify_original_measured(
+            capture,
+            reference,
+            mode,
+            self.native_measure().as_ref(),
+        )
     }
     fn native_verify_original_measured(
         &self,

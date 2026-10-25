@@ -2353,12 +2353,19 @@ fn read_raw_events_until_measured(
         .map(|row| {
             check_read_deadline(deadline)?;
             let event = row.map_err(|e| format!("collect 失败：{e}"))?;
-            if let Some(budget) = budget { budget.record().map_err(|e| e.to_string())?; }
+            if let Some(budget) = budget {
+                budget.record().map_err(|e| e.to_string())?;
+            }
             Ok(event)
         })
         .collect::<Result<Vec<_>, String>>()?;
     tb02a::enrich_raw_until_measured(conn, &mut rows, deadline, budget)?;
-    v3::business_json::validate_raw_measured(v3::business_json::RawEventsView::plain(&rows), deadline, None, budget)?;
+    v3::business_json::validate_raw_measured(
+        v3::business_json::RawEventsView::plain(&rows),
+        deadline,
+        None,
+        budget,
+    )?;
     check_read_deadline(deadline)?;
     Ok(rows)
 }
@@ -2391,7 +2398,9 @@ fn read_raw_events_until_admitted_measured(
     while let Some(mut row) = stmt.next().map_err(|e| format!("collect 失败：{e}"))? {
         check_read_deadline(deadline)?;
         let owner = decode_raw_row_admitted(&mut row, work)?;
-        if let Some(budget) = budget { budget.record().map_err(|e| e.to_string())?; }
+        if let Some(budget) = budget {
+            budget.record().map_err(|e| e.to_string())?;
+        }
         rows.push(owner.view())?;
     }
     stmt.finalize()
@@ -2404,7 +2413,9 @@ fn read_raw_events_until_admitted_measured(
         let mut enriched = v3::business_json::ScopedJsonArray::new(None, work)?;
         for row in raw.view().as_array().expect("raw构造器只产数组").iter() {
             check_read_deadline(deadline)?;
-            if let Some(budget) = budget { budget.record().map_err(|e| e.to_string())?; }
+            if let Some(budget) = budget {
+                budget.record().map_err(|e| e.to_string())?;
+            }
             let row = tb02a::enrich_raw_view_admitted(conn, row, true, work)?;
             enriched.push(row.view())?;
         }

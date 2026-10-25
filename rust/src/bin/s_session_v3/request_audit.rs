@@ -1583,12 +1583,23 @@ mod tests {
     fn measured_default_context_cold_hit_and_limit_clear_slot_without_parent() {
         use super::super::audit_budget::AuditJob;
         use newchan_rust::s_content::job::{Existing, Job, JobLimits};
-        let make_job = |records: u64| Job::new(JobLimits::from_canonical_json(&serde_json::json!({
-            "max_total_wire_bytes":"1048576", "max_total_node_bytes":"1048576",
-            "max_total_nodes":"100000", "max_total_records":records.to_string(),
-            "max_total_requests":"20", "max_elapsed_ms":"10000",
-            "max_staged_bytes":"1048576", "max_store_bytes":"33554432"
-        })).unwrap(), Existing { store_bytes: 0, staged_bytes: 0 }, Box::new(std::time::Instant::now)).unwrap();
+        let make_job = |records: u64| {
+            Job::new(
+                JobLimits::from_canonical_json(&serde_json::json!({
+                    "max_total_wire_bytes":"1048576", "max_total_node_bytes":"1048576",
+                    "max_total_nodes":"100000", "max_total_records":records.to_string(),
+                    "max_total_requests":"20", "max_elapsed_ms":"10000",
+                    "max_staged_bytes":"1048576", "max_store_bytes":"33554432"
+                }))
+                .unwrap(),
+                Existing {
+                    store_bytes: 0,
+                    staged_bytes: 0,
+                },
+                Box::new(std::time::Instant::now),
+            )
+            .unwrap()
+        };
         let mut f = Fixture::new();
         publish_one(&mut f);
         let mut context = RequestAuditContext::default();
@@ -1598,7 +1609,14 @@ mod tests {
             let tx = f.conn.transaction().unwrap();
             expected = complete_native_output(&tx, &state::audit_native_current(&tx).unwrap());
             let audit = AuditJob::new(&mut job);
-            let got = state::audit_native_in_request_measured(&tx, &mut context, None, None, Some(&audit)).unwrap();
+            let got = state::audit_native_in_request_measured(
+                &tx,
+                &mut context,
+                None,
+                None,
+                Some(&audit),
+            )
+            .unwrap();
             assert_eq!(complete_native_output(&tx, &got), expected);
         }
         let first_records = job.snapshot().records;
@@ -1606,16 +1624,34 @@ mod tests {
         {
             let tx = f.conn.transaction().unwrap();
             let audit = AuditJob::new(&mut job);
-            let got = state::audit_native_in_request_measured(&tx, &mut context, None, None, Some(&audit)).unwrap();
+            let got = state::audit_native_in_request_measured(
+                &tx,
+                &mut context,
+                None,
+                None,
+                Some(&audit),
+            )
+            .unwrap();
             assert_eq!(complete_native_output(&tx, &got), expected);
             assert_eq!(got.raw.len(), 1);
         }
         assert_eq!((context.cold, context.hits), (1, 1));
-        assert_eq!(job.snapshot().records - first_records, 5, "hit仍逐次读取、OHLC、validate、raw hash、RawWire");
+        assert_eq!(
+            job.snapshot().records - first_records,
+            5,
+            "hit仍逐次读取、OHLC、validate、raw hash、RawWire"
+        );
         let mut limited = make_job(1);
         let tx = f.conn.transaction().unwrap();
         let audit = AuditJob::new(&mut limited);
-        assert!(state::audit_native_in_request_measured(&tx, &mut context, None, None, Some(&audit)).is_err());
+        assert!(state::audit_native_in_request_measured(
+            &tx,
+            &mut context,
+            None,
+            None,
+            Some(&audit)
+        )
+        .is_err());
         assert!(context.slot.is_none());
     }
 
@@ -2242,15 +2278,35 @@ mod tests {
             "UPDATE s_content_nodes SET digest=x'01' WHERE rowid=2",
         ] {
             let (mut conn, capture) = node_material_fixture();
-            conn.execute_batch("UPDATE s_content_nodes SET body=x'ff' WHERE rowid=1").unwrap();
+            conn.execute_batch("UPDATE s_content_nodes SET body=x'ff' WHERE rowid=1")
+                .unwrap();
             conn.execute_batch(fault).unwrap();
             let tx = conn.transaction().unwrap();
-            let measure = NativeMeasure { budget: None, deadline: Some(std::time::Instant::now() + std::time::Duration::from_secs(10)) };
-            let original = content_store::capture_for_prototype(&tx).err().unwrap().to_string();
-            let cold = content_store::capture_for_request_prototype_measured(&tx, Some(&measure)).err().unwrap().to_string();
+            let measure = NativeMeasure {
+                budget: None,
+                deadline: Some(std::time::Instant::now() + std::time::Duration::from_secs(10)),
+            };
+            let original = content_store::capture_for_prototype(&tx)
+                .err()
+                .unwrap()
+                .to_string();
+            let cold = content_store::capture_for_request_prototype_measured(&tx, Some(&measure))
+                .err()
+                .unwrap()
+                .to_string();
             let mut scratch = content_store::OriginalScanScratch::default();
-            let hit = content_store::current_originals_equal_for_request_with_scratch_admitted_measured(
-                &tx, &capture, 2, &mut scratch, None, Some(&measure)).err().unwrap().to_string();
+            let hit =
+                content_store::current_originals_equal_for_request_with_scratch_admitted_measured(
+                    &tx,
+                    &capture,
+                    2,
+                    &mut scratch,
+                    None,
+                    Some(&measure),
+                )
+                .err()
+                .unwrap()
+                .to_string();
             assert_eq!(cold, original, "{fault}");
             assert_eq!(hit, original, "{fault}");
         }

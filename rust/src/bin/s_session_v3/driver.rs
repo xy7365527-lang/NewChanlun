@@ -780,15 +780,20 @@ mod tests {
                 let mut c = open_db(&f.db).unwrap();
                 meta_set(&c, "rule_revision", crate::LEGACY_V3_RULE_REVISION).unwrap();
                 if bad_business {
-                    c.execute("UPDATE catalog SET run_status='run'", []).unwrap();
+                    c.execute("UPDATE catalog SET run_status='run'", [])
+                        .unwrap();
                 }
                 let expected = {
                     let tx = c.transaction().unwrap();
                     state::audit_native_current(&tx)
                         .and_then(|_| crate::verify_writer_epoch(&tx, epoch))
-                        .and_then(|_| super::super::require_current_writer_rule(
-                            &crate::meta_get_opt(&tx, "rule_revision")?.unwrap()))
-                        .err().unwrap()
+                        .and_then(|_| {
+                            super::super::require_current_writer_rule(
+                                &crate::meta_get_opt(&tx, "rule_revision")?.unwrap(),
+                            )
+                        })
+                        .err()
+                        .unwrap()
                 };
                 drop(c);
                 let _fixture_anchor = crate::v3::admission_anchor::test_prepare(&f.db);
@@ -796,11 +801,17 @@ mod tests {
                 for with_context in [false, true] {
                     let mut context = request_audit::RequestAuditContext::default();
                     let error = Driver::open_with_request_and_mode_context(
-                        &f.db, &f.profile, epoch, f.clock.clone(), None,
+                        &f.db,
+                        &f.profile,
+                        epoch,
+                        f.clock.clone(),
+                        None,
                         s_allocation::Mode::CapturedNative,
                         with_context.then_some(&mut context),
                         crate::v3::admission_anchor::test_prepare(&f.db).into(),
-                    ).err().unwrap();
+                    )
+                    .err()
+                    .unwrap();
                     assert_eq!(error.split("；原准入账=").next(), Some(expected.as_str()));
                     assert!(context.take().is_none(), "最终拒绝不得留下历史 slot");
                     assert!(!PathBuf::from(format!("{}-shm", f.db.display())).exists());
@@ -817,19 +828,30 @@ mod tests {
         for with_context in [false, true] {
             let mut context = request_audit::RequestAuditContext::default();
             let driver = Driver::open_with_request_and_mode_context(
-                &f.db, &f.profile, "1", f.clock.clone(), None,
+                &f.db,
+                &f.profile,
+                "1",
+                f.clock.clone(),
+                None,
                 s_allocation::Mode::CapturedNative,
                 with_context.then_some(&mut context),
                 crate::v3::admission_anchor::test_prepare(&f.db).into(),
-            ).unwrap();
+            )
+            .unwrap();
             assert!(driver.identity().is_ok());
             drop(driver);
             let error = Driver::open_with_request_and_mode_context(
-                &f.db, &f.path.join("missing-profile.json"), "1", f.clock.clone(), None,
+                &f.db,
+                &f.path.join("missing-profile.json"),
+                "1",
+                f.clock.clone(),
+                None,
                 s_allocation::Mode::CapturedNative,
                 with_context.then_some(&mut context),
                 crate::v3::admission_anchor::test_prepare(&f.db).into(),
-            ).err().unwrap();
+            )
+            .err()
+            .unwrap();
             assert!(!error.is_empty(), "前缀成功不代替实际 profile 重核");
         }
     }
