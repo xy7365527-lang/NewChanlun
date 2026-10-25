@@ -4347,17 +4347,15 @@ fn json_shape_mixed(
     text: &str,
     shape: JsonShape,
     work: &newchan_rust::s_content::capture_allocation::scratch::WorkScope,
-) -> Result<v3::business_json::PlainJson, String> {
-    let permit = work
-        .reserve_native(
-            v3::business_json::json_layout::JsonShape::scan(text.as_bytes()).parse_peak(),
-        )
-        .map_err(|e| e.to_string())?;
-    match json_shape_with_owner(text, shape, None)? {
-        v3::business_json::JsonOwner::Plain(value) => Ok(value.with_reservation(Some(permit))),
-        #[cfg(feature = "s_allocation_json_testonly")]
-        v3::business_json::JsonOwner::Owned(_) => unreachable!("mixed None-owner形状核只产生Plain"),
-    }
+) -> Result<v3::business_json::PlainJson, v3::business_json::MixedJsonError> {
+    use v3::business_json::{mixed_parse_admitted, MixedJsonError, JsonOwner};
+    mixed_parse_admitted(text.as_bytes(), work, || {
+        match json_shape_with_owner(text, shape, None).map_err(MixedJsonError::Business)? {
+            JsonOwner::Plain(value) => Ok(value),
+            #[cfg(feature = "s_allocation_json_testonly")]
+            JsonOwner::Owned(_) => unreachable!("mixed None-owner形状核只产生Plain"),
+        }
+    })
 }
 
 fn json_shape_with_owner_admitted(

@@ -2572,29 +2572,43 @@ fn admit_json_parse(
     Ok(None)
 }
 /// #1527 mixed专用：许可先于唯一原parser，不受Native测试feature控制。
-pub(super) fn mixed_strict_json_owner(bytes: &[u8], work: &WorkScope) -> Result<PlainJson, String> {
-    let permit = work
-        .reserve_native(json_layout::JsonShape::scan(bytes).parse_peak())
-        .map_err(|e| e.to_string())?;
-    let parsed = strict_json_owner(bytes, None).map_err(|error| match error {
-        StrictOwnerError::Syntax(e) => format!("SchemaUnsupported：{e}"),
-        StrictOwnerError::Allocation(e) => e.to_string(),
-        #[cfg(feature = "s_allocation_json_testonly")]
-        StrictOwnerError::OwnedSyntax(e) => format!("SchemaUnsupported：{e}"),
-    })?;
-    match parsed {
-        JsonOwner::Plain(value) => Ok(value.with_reservation(Some(permit))),
-        #[cfg(feature = "s_allocation_json_testonly")]
-        JsonOwner::Owned(_) => unreachable!("mixed None-owner原parser产出Plain"),
-    }
+#[derive(Debug)]
+pub(crate) enum MixedJsonError {
+    Resource(sc::CodecError),
+    Business(String),
 }
-pub(super) fn mixed_legacy_json_owner(bytes: &[u8], work: &WorkScope) -> Result<PlainJson, String> {
-    let permit = work
-        .reserve_native(json_layout::JsonShape::scan(bytes).parse_peak())
-        .map_err(|e| e.to_string())?;
-    serde_json::from_slice(bytes)
-        .map(|v| PlainJson::from_reserved(v, Some(permit)))
-        .map_err(|e| e.to_string())
+
+/// mixed资源拒绝保持原静态CodecError；只有许可成功才进入原解析核。
+pub(crate) fn mixed_parse_admitted(
+    bytes: &[u8],
+    work: &WorkScope,
+    parse: impl FnOnce() -> Result<PlainJson, MixedJsonError>,
+) -> Result<PlainJson, MixedJsonError> {
+    let permit = work.reserve_native(json_layout::JsonShape::scan(bytes).parse_peak())
+        .map_err(MixedJsonError::Resource)?;
+    parse().map(|value| value.with_reservation(Some(permit)))
+}
+
+pub(super) fn mixed_strict_json_owner(bytes: &[u8], work: &WorkScope) -> Result<PlainJson, MixedJsonError> {
+    mixed_parse_admitted(bytes, work, || {
+        let parsed = strict_json_owner(bytes, None).map_err(|error| match error {
+            StrictOwnerError::Syntax(e) => MixedJsonError::Business(format!("SchemaUnsupported：{e}")),
+            StrictOwnerError::Allocation(e) => MixedJsonError::Resource(e),
+            #[cfg(feature = "s_allocation_json_testonly")]
+            StrictOwnerError::OwnedSyntax(e) => MixedJsonError::Business(format!("SchemaUnsupported：{e}")),
+        })?;
+        match parsed {
+            JsonOwner::Plain(value) => Ok(value),
+            #[cfg(feature = "s_allocation_json_testonly")]
+            JsonOwner::Owned(_) => unreachable!("mixed None-owner原parser产出Plain"),
+        }
+    })
+}
+pub(super) fn mixed_legacy_json_owner(bytes: &[u8], work: &WorkScope) -> Result<PlainJson, MixedJsonError> {
+    mixed_parse_admitted(bytes, work, || {
+        serde_json::from_slice(bytes).map(|v| PlainJson::from_reserved(v, None))
+            .map_err(|e| MixedJsonError::Business(e.to_string()))
+    })
 }
 
 pub(crate) fn strict_json_owner_admitted(

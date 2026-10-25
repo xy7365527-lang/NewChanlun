@@ -455,7 +455,7 @@ mod tests {
                 let strict =
                     crate::v3::business_json::mixed_strict_json_owner(br#"{"ok":[1,2]}"#, work)?;
                 assert_eq!(strict.get("ok").unwrap(), &serde_json::json!([1, 2]));
-                Ok::<_, String>(())
+                Ok::<_, crate::v3::business_json::MixedJsonError>(())
             })
             .unwrap();
         assert_eq!(
@@ -494,11 +494,11 @@ mod tests {
                         (Ok(crate::v3::business_json::JsonOwner::Plain(original)), Ok(mixed)) => {
                             assert_eq!(&*original, &*mixed)
                         }
-                        (Err(original), Err(mixed)) => assert_eq!(original, mixed),
+                        (Err(original), Err(crate::v3::business_json::MixedJsonError::Business(mixed))) => assert_eq!(original, mixed),
                         _ => panic!("mixed改变原legacy形状核"),
                     }
                 }
-                Ok::<_, String>(())
+                Ok::<_, crate::v3::business_json::MixedJsonError>(())
             })
             .unwrap();
     }
@@ -561,4 +561,59 @@ mod tests {
             assert_eq!(owner.snapshot().unwrap().job_live, baseline);
         }
     }
+    #[test]
+    fn mixed_ram_rejected_parse_does_not_invoke_parser() {
+        use crate::v3::business_json::{mixed_parse_admitted, MixedJsonError};
+        let owner = AdmissionRamLedger::new(limits(CodecWork::metadata_bytes() + 1)).unwrap();
+        let mut entered = false;
+        let result = owner.codec_work().unwrap().run(|work| {
+            let result = mixed_parse_admitted(br#"{"large":["value"]}"#, work, || {
+                entered = true;
+                Err(MixedJsonError::Business("parser invoked".into()))
+            });
+            match &result {
+                Err(MixedJsonError::Resource(error)) => assert_eq!(error.scratch_failure(), Some(ScratchFailure::Budget)),
+                _ => panic!("拒绝未保留结构化资源错误"),
+            }
+            result
+        });
+        assert!(!entered);
+        assert!(result.is_err());
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn mixed_ram_parser_refusal_allocates_no_error_string() {
+        use crate::v3::{audit_owner::allocation_probe::Window, business_json::{
+            mixed_legacy_json_owner, mixed_strict_json_owner, MixedJsonError,
+        }};
+        const TEXT: &str = r#"{"key":["a string that must allocate","another allocated string"]}"#;
+        for route in 0..3 {
+            for enough in [false, true] {
+                let extra = if enough { 1 << 20 } else { CodecWork::metadata_bytes() + 1 };
+                let owner = AdmissionRamLedger::new(limits(extra)).unwrap();
+                let result = owner.codec_work().unwrap().run(|work| {
+                    let window = Window::start();
+                    let parsed = match route {
+                        0 => mixed_strict_json_owner(TEXT.as_bytes(), work),
+                        1 => mixed_legacy_json_owner(TEXT.as_bytes(), work),
+                        _ => crate::json_shape_mixed(TEXT, crate::JsonShape::Object, work),
+                    };
+                    let observed = window.finish();
+                    let bytes = observed["allocated_bytes"].as_u64().unwrap();
+                    if enough {
+                        assert!(parsed.is_ok());
+                        assert!(bytes > 0, "同一路径的成功正控确实经过实际分配器");
+                    } else {
+                        assert!(matches!(&parsed, Err(MixedJsonError::Resource(error))
+                            if error.scratch_failure() == Some(ScratchFailure::Budget)));
+                        assert_eq!(bytes, 0, "资源拒绝到跨层返回之间不得分配错误String或JSON");
+                    }
+                    parsed.map(|_| ())
+                });
+                assert_eq!(result.is_ok(), enough);
+            }
+        }
+    }
+
 }
