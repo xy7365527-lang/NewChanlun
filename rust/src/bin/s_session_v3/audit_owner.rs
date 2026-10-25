@@ -2443,8 +2443,8 @@ impl CompleteCandidate {
                 return Err(invalid("表名原件类型不符"));
             };
             let name = std::str::from_utf8(bytes).map_err(invalid)?;
-            const PREFIX: &str = "SELECT rowid,* FROM main."";
-            const SUFFIX: &str = "" ORDER BY rowid";
+            const PREFIX: &str = "SELECT rowid,* FROM main.\"";
+            const SUFFIX: &str = "\" ORDER BY rowid";
             let requested = sum([
                 PREFIX.len(),
                 name.len(),
