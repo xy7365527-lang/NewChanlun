@@ -10292,8 +10292,8 @@ fn p1605_r3_runner_and_overlay_share_policy_failure_boundary() {
     let valid = record.to_string();
     let run = run_theta_v0_pi_inner(&ds, &config, 1.0, 1e6, None, Some(&valid)).unwrap();
     let overlay = run_theta_v0_pi_overlay_with_record(&ds, &config, 1.0, 1e6, Some(&valid)).unwrap();
-    assert_eq!(run.metrics.research_stats.version, 2);
-    assert_eq!(overlay.net_result.metrics.research_stats.version, 2);
+    assert_eq!(run.metrics.research_stats.version, crate::theta_v0::policy_records::PolicyVersion::Signed(2));
+    assert_eq!(overlay.net_result.metrics.research_stats.version, crate::theta_v0::policy_records::PolicyVersion::Signed(2));
     record["fields"]["z_alpha"]["value"] = "AwaitingPolicy".into();
     let unsigned = record.to_string();
     record["fields"]["z_alpha"]["value"] = 1.645.into();
@@ -10302,6 +10302,6 @@ fn p1605_r3_runner_and_overlay_share_policy_failure_boundary() {
     for text in [None, Some(unsigned.as_str()), Some(invalid.as_str())] {
         let expected = parse_research_stats(text).unwrap_err();
         assert_eq!(run_theta_v0_pi_inner(&ds, &config, 1.0, 1e6, None, text).unwrap_err(), expected);
-        assert_eq!(run_theta_v0_pi_overlay_with_record(&ds, &config, 1.0, 1e6, text).unwrap_err(), expected);
+        assert_eq!(run_theta_v0_pi_overlay_with_record(&ds, &config, 1.0, 1e6, text).err().unwrap(), expected);
     }
 }

@@ -902,7 +902,7 @@ mod tests {
         let text = record.to_string();
         let original = super::compute(&equity, &daily, &pnls, 1.0, 0.05).unwrap();
         let changed = compute_with_record(&equity, &daily, &pnls, 1.0, 0.05, Some(&text)).unwrap();
-        assert_eq!(changed.research_stats.version, 2);
+        assert_eq!(changed.research_stats.version, crate::theta_v0::policy_records::PolicyVersion::Signed(2));
         assert!((changed.sharpe / original.sharpe - 0.5_f64.sqrt()).abs() < 1e-12);
         assert_eq!(changed.cvar_5, -0.03);
         let original_sig = super::significance(&pnls, &daily, &[], &[], 0.0, 0.0).unwrap();
