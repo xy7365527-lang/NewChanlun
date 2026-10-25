@@ -310,3 +310,13 @@ fn successful_finish_clears_startup_account_once_and_keeps_runtime_qualification
     scope.require_admitted().unwrap();
     require_current(&f.db).unwrap();
 }
+
+#[test]
+fn external_state_member_after_freeze_is_still_rejected() {
+    let f = Fixture::new();
+    let scope = WriterScope::admit(&f.db, f.prepared()).unwrap();
+    scope.inner.source.verify_before_open().unwrap();
+    std::fs::write(f.root.join("i1527-state-main.sqlite").join("external.json"), b"external").unwrap();
+    let error = scope.inner.source.verify_before_open().unwrap_err();
+    assert!(error.contains("SourceIdentityChanged") || error.contains("SourceMembershipChanged"), "{error}");
+}

@@ -1,5 +1,7 @@
 """#1527：父登记先于源域放行的确定性时序锁。"""
-import io
+import os
+import select
+import threading
 import sys
 import tempfile
 import time
@@ -58,3 +60,62 @@ class GateTests(unittest.TestCase):
                     child.wait.assert_called_once()
                 finally:
                     c.close()
+
+    def test_q_does_not_inherit_managed_s_gate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            c = anchored_controller({"db": str(Path(directory) / "db"),
+                                     "startup_timeout_ms": "2000"}, Path(directory))
+            child = Mock(pid=1234)
+            try:
+                with patch.object(c, "status", return_value={"state": "stopped"}), \
+                     patch.object(c, "record"), \
+                     patch.object(control.subprocess, "Popen", return_value=child) as spawn:
+                    c.start_process("q", ["q-service"],
+                                    environment={"S_CONTROL_START_GATE": "stdin-v1"})
+                self.assertNotIn("S_CONTROL_START_GATE", spawn.call_args.kwargs["env"])
+                self.assertEqual(spawn.call_args.kwargs["stdin"], control.subprocess.DEVNULL)
+                child.stdin.write.assert_not_called()
+            finally:
+                c.close()
+
+    def test_real_pipe_stays_closed_until_record_latch_released(self):
+        with tempfile.TemporaryDirectory() as directory:
+            c = anchored_controller({"db": str(Path(directory) / "db"),
+                                     "startup_timeout_ms": "2000"}, Path(directory))
+            read_fd, write_fd = os.pipe()
+            writer = os.fdopen(write_fd, "wb", buffering=0)
+            child = Mock(pid=1234, stdin=writer, **{"poll.return_value": None})
+            entered, release = threading.Event(), threading.Event()
+            errors = []
+            def record(*args, **kwargs):
+                entered.set()
+                if not release.wait(1):
+                    raise TimeoutError("test latch")
+                c.save_record("s", {"registered": True})
+            def start():
+                try:
+                    c.start_process("s", ["service", "serve"])
+                except Exception as error:
+                    errors.append(error)
+            try:
+                with patch.object(c, "status", return_value={"state": "stopped"}), \
+                     patch.object(c, "record", side_effect=record), \
+                     patch.object(control.subprocess, "Popen", return_value=child):
+                    thread = threading.Thread(target=start)
+                    thread.start()
+                    try:
+                        self.assertTrue(entered.wait(1))
+                        self.assertEqual(select.select([read_fd], [], [], 0)[0], [])
+                        self.assertFalse(c.record_path("s").exists())
+                    finally:
+                        release.set()
+                        thread.join(2)
+                    self.assertFalse(thread.is_alive())
+                    self.assertEqual(errors, [])
+                    self.assertTrue(c.record_path("s").exists())
+                    self.assertEqual(os.read(read_fd, 1), b"R")
+                    self.assertEqual(os.read(read_fd, 1), b"")
+            finally:
+                writer.close()
+                os.close(read_fd)
+                c.close()
