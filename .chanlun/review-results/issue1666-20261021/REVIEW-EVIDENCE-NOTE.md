@@ -1,6 +1,6 @@
 # #1666 最终独审归档及后续验证
 
-本目录 `FINAL-INDEPENDENT-REVIEW.md` 原样归档外盘 `frontier-audit-20261022/reviews/review-1666-fable.md`；原件结论 PASS，五项 LOW 保留，历史“未核实”没有改写。GitHub 留痕：[独审评论](https://github.com/xy7365527-lang/NewChanlun/issues/1666#issuecomment-6323448983)。
+本目录 `FINAL-INDEPENDENT-REVIEW.md` 原样归档外盘 `frontier-audit-20261022/reviews/review-1666-fable.md`；原件结论 PASS，五项 LOW 保留，历史“未核实”没有改写。GitHub 留痕：[独审评论](https://github.com/xy7365527-lang/NewChanlun/pull/1667#issuecomment-6323448983)。
 
 ## 证据的时间与覆盖范围
 
