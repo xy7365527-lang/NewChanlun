@@ -36,8 +36,10 @@ mod source_contributions;
 mod source_delta;
 #[cfg(feature = "s_capture_native_testonly")]
 pub(crate) use source_contributions::{
-        audit_native_bound, NativeSourceState, SourceWork,
+    audit_native_bound, NativeSourceState,
 };
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+pub(crate) use source_contributions::SourceWork;
 #[path = "source_pending.rs"]
 mod source_pending;
 #[path = "source_prefix.rs"]

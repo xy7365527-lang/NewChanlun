@@ -31,11 +31,10 @@ use rusqlite::{params, Transaction};
 use sc::capture_allocation::native_owned::NativeValue;
 use sc::capture_allocation::{audit_json as aj, OwnedBudget};
 use serde_json::{json, Value};
-#[allow(
-    unused_imports,
-    reason = "#1488 再合 #1608：8组合实测无调用方，保留不删"
-)]
-use std::collections::{BTreeSet, HashSet};
+#[allow(unused_imports, reason = "#1488：8组合探针 BTreeSet 无调用方")]
+use std::collections::BTreeSet;
+#[cfg_attr(not(all(test, feature = "s_capture_native_testonly")), allow(unused_imports, reason = "#1488：HashSet 仅 native 测试使用"))]
+use std::collections::HashSet;
 
 pub(super) const SCHEMA: &str = "CREATE TABLE IF NOT EXISTS s_content_objects (
  object_id TEXT PRIMARY KEY, object_revision INTEGER NOT NULL, kind TEXT NOT NULL,
@@ -119,6 +118,7 @@ impl Fields {
         not(feature = "s_capture_native_testonly"),
         allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
     )]
+    #[cfg_attr(feature = "s_capture_native_testonly", allow(dead_code, reason = "#1488：8组合探针 native 路径无调用，保留接口"))]
     pub(super) fn text(
         &self,
         s: &mut (impl CodecStore + ?Sized),
@@ -133,6 +133,7 @@ impl Fields {
         not(feature = "s_capture_native_testonly"),
         allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
     )]
+    #[cfg_attr(feature = "s_capture_native_testonly", allow(dead_code, reason = "#1488：8组合探针 native 路径无调用，保留接口"))]
     pub(super) fn integer(
         &self,
         s: &mut (impl CodecStore + ?Sized),
@@ -156,6 +157,7 @@ impl Fields {
         not(feature = "s_capture_native_testonly"),
         allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
     )]
+    #[cfg_attr(feature = "s_capture_native_testonly", allow(dead_code, reason = "#1488：8组合探针 native 路径无调用，保留接口"))]
     fn slot(&self, s: &mut (impl CodecStore + ?Sized), kind: &str) -> Result<Slot, String> {
         if kind == SHAPE {
             Ok(Slot::Shape([
@@ -2185,6 +2187,7 @@ pub(super) fn prior_records(index: &[Entry]) -> Result<(Vec<Built>, Option<Built
     }
     Ok((bi, version))
 }
+#[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
 pub(super) fn stage(
     tx: &Transaction<'_>,
     s: &mut (impl CodecStore + ?Sized),

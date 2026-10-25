@@ -83,6 +83,7 @@ impl RetainedDelta {
         }
         self.capacity(bytes::<K, V>(before), bytes::<K, V>(after));
     }
+    #[cfg_attr(feature = "s_capture_native_testonly", allow(dead_code, reason = "#1488：8组合探针 native 路径无调用，保留接口"))]
     pub(crate) fn tree_len<K, V>(&mut self, before: usize, after: usize) {
         let slot = size_of::<(K, V)>()
             .checked_mul(11)
@@ -93,6 +94,7 @@ impl RetainedDelta {
         );
     }
     /// BTree 删除最后一项后可能仍留空根，清空后才允许按零项释放。
+    #[cfg_attr(feature = "s_capture_native_testonly", allow(dead_code, reason = "#1488：8组合探针 native 路径无调用，保留接口"))]
     pub(crate) fn tree_remove<K: Ord + Retained>(&mut self, set: &mut BTreeSet<K>, key: &K) {
         if let Some(old) = set.take(key) {
             self.release(&old);
@@ -102,6 +104,7 @@ impl RetainedDelta {
             }
         }
     }
+    #[cfg_attr(feature = "s_capture_native_testonly", allow(dead_code, reason = "#1488：8组合探针 native 路径无调用，保留接口"))]
     pub(crate) fn tree_insert<K: Ord + Retained>(&mut self, set: &mut BTreeSet<K>, key: K) {
         let bytes = key.heap_bytes();
         if set.insert(key) {

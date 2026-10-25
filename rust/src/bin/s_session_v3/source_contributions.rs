@@ -402,8 +402,11 @@ impl Retained for StepState {
 
 #[derive(Default, Debug, Clone, Copy)]
 pub(crate) struct SourceWork {
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
     pub(crate) full_source_calls: usize,
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
     pub(crate) full_pending_calls: usize,
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
     pub(crate) full_members_enumerations: usize,
     pub(crate) object_local: usize,
     pub(crate) shape_local: usize,

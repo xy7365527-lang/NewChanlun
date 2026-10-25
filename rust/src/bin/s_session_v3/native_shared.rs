@@ -94,7 +94,7 @@ macro_rules! shared_family {
         }
         impl<T> $strong<T> {
             /// 原无工作域入口；Native消费者使用try_new_shallow并显式传当前scope。
-            #[allow(dead_code, reason = "#1488 再合 #1608：8组合实测无调用方，保留不删")]
+            #[allow(dead_code, reason = "#1488：8组合探针部分宏实例无调用方，保留共享接口")]
             pub(crate) fn new(value: T) -> Self {
                 Self::try_new_shallow(value, None).expect("unscoped shared layout")
             }
@@ -112,7 +112,7 @@ macro_rules! shared_family {
             }
         }
         impl<T> $strong<T> {
-            #[allow(dead_code, reason = "#1488 再合 #1608：8组合实测无调用方，保留不删")]
+            #[allow(dead_code, reason = "#1488：8组合探针部分宏实例无调用方，保留共享接口")]
             pub(crate) fn try_unwrap(this: Self) -> Result<T, Self> {
                 let Self { value, lease } = this;
                 match $ptr::try_unwrap(value) {
@@ -136,7 +136,7 @@ macro_rules! shared_family {
                 $ptr::ptr_eq(&this.value, &other.value)
             }
             /// 仅作身份比较用的地址；不暴露可解引用的原始句柄。
-            #[allow(dead_code, reason = "#1488 再合 #1608：8组合实测无调用方，保留不删")]
+            #[allow(dead_code, reason = "#1488：8组合探针部分宏实例无调用方，保留共享接口")]
             pub(crate) fn as_ptr(this: &Self) -> *const T {
                 $ptr::as_ptr(&this.value)
             }
@@ -239,7 +239,7 @@ macro_rules! shared_family {
                 $weak_ptr::ptr_eq(&this.value, &other.value)
             }
             /// 仅作身份比较用的地址；与强句柄 as_ptr 同址。
-            #[allow(dead_code, reason = "#1488 再合 #1608：8组合实测无调用方，保留不删")]
+            #[allow(dead_code, reason = "#1488：8组合探针部分宏实例无调用方，保留共享接口")]
             pub(crate) fn as_ptr(&self) -> *const T {
                 self.value.as_ptr()
             }

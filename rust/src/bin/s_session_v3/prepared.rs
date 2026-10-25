@@ -298,6 +298,7 @@ impl Runtime {
     ) -> Result<commit::CommitReceipt, String> {
         phase.publish(self, token, envelope, context)
     }
+    #[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
     pub(super) fn publish_impl(
         &mut self,
         tx: &mut Transaction<'_>,
@@ -343,6 +344,7 @@ impl Runtime {
         )
     }
     /// 调用者在 prepare 之前开启唯一父域，并保持到 Commit 返回；此入口本身不签发整堆资格。
+    #[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
     pub(super) fn publish_impl_admitted(
         &mut self,
         tx: &mut Transaction<'_>,

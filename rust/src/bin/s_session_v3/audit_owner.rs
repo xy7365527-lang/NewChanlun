@@ -99,8 +99,10 @@ mod construction_set;
 pub(crate) use construction_set::{Edit, OwnerSourceCheck, SequenceDelta, SourceArray};
 #[cfg(feature = "s_capture_native_testonly")]
 pub(crate) use effects::{
-        MaterialAccess, PublicationStageIdentity, SourceCutBinding, SourceMaterial, StageKind,
+        MaterialAccess, SourceCutBinding, SourceMaterial, StageKind,
 };
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+pub(crate) use effects::PublicationStageIdentity;
 #[path = "construction_state.rs"]
 mod construction_state;
 #[cfg_attr(
@@ -110,11 +112,9 @@ mod construction_state;
 pub(crate) use super::business_json::{RawWinner, RawWinnerEdit};
 #[cfg(test)]
 pub(crate) use construction_state::RawAdvanceFixture;
-#[allow(
-    unused_imports,
-    reason = "#1488 再合 #1608：8组合实测无调用方，保留不删"
-)]
-pub(crate) use construction_state::{BoundRawAdvance, RawAdvanceBinding, RawDomain};
+pub(crate) use construction_state::{BoundRawAdvance, RawAdvanceBinding};
+#[allow(unused_imports, reason = "#1488：8组合探针 RawDomain 无使用方")]
+pub(crate) use construction_state::RawDomain;
 
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
 thread_local! {
@@ -136,8 +136,7 @@ thread_local! {
 #[cfg(feature = "s_capture_native_testonly")]
 struct PublicationResources {
     budget: native::Budget,
-    #[allow(dead_code)]
-    parent_limit: usize,
+        parent_limit: usize,
     before: SnapshotSeal,
     connection: usize,
 }
@@ -181,6 +180,7 @@ impl<'w> PublicationScope<'w> {
     fn budget(&self) -> &native::Budget {
         &self.resources.budget
     }
+    #[cfg_attr(feature = "s_capture_native_testonly", allow(dead_code, reason = "#1488：8组合探针 native 路径无调用，保留接口"))]
     fn remaining(&self) -> usize {
         self.resources
             .parent_limit
@@ -853,6 +853,7 @@ impl AuditConnection {
 
     /// #1488 P1-2锁：把入口取走的keeper放回（模拟生产入口不丢池时的attach路径）。
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[allow(dead_code, reason = "#1488：native 测试辅助当前无调用方")]
     pub(super) fn put_source_keeper_for_test(&self, keeper: cross_request_source_cache::Keeper) {
         *self.source_keeper.borrow_mut() = Some(keeper);
     }
@@ -1307,6 +1308,7 @@ impl AuditConnection {
         }
     }
     #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
     pub(super) fn complete_retained_bytes(&self) -> usize {
         self.complete
             .borrow()
@@ -2441,8 +2443,8 @@ impl CompleteCandidate {
                 return Err(invalid("表名原件类型不符"));
             };
             let name = std::str::from_utf8(bytes).map_err(invalid)?;
-            const PREFIX: &str = "SELECT rowid,* FROM main.\"";
-            const SUFFIX: &str = "\" ORDER BY rowid";
+            const PREFIX: &str = "SELECT rowid,* FROM main."";
+            const SUFFIX: &str = "" ORDER BY rowid";
             let requested = sum([
                 PREFIX.len(),
                 name.len(),

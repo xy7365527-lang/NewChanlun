@@ -106,6 +106,7 @@ impl RawEvents {
         not(all(test, feature = "s_capture_native_testonly")),
         allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
     )]
+    #[cfg_attr(all(test, feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488：native 测试不使用旧 plain 入口"))]
     pub fn plain(&self) -> Result<&[Value], String> {
         match self {
             Self::Plain(v) => Ok(v),
@@ -1453,9 +1454,9 @@ impl TextValue {
         let value = row.text(i).map_err(|e| e.to_string())?;
         Self::from_str(value, b)
     }
-    #[allow(
-        dead_code,
-        reason = "#1488 再合 #1608：8组合实测无调用方，保留不删"
+    #[cfg_attr(
+        not(all(test, feature = "s_allocation_json_testonly")),
+        allow(dead_code, reason = "#1488：仅 JSON testonly 测试调用")
     )]
     pub fn optional_sql(
         row: &mut CheckedRow<'_>,

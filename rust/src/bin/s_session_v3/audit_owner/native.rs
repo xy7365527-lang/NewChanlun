@@ -579,6 +579,7 @@ impl Budget {
             .total_limit)
     }
     /// #1488 冻结合同同时限制总容量和本请求增量；旧费用不能再次扣A。
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
     pub(crate) fn bind_frozen(
         &self,
         request: u64,
@@ -819,6 +820,7 @@ impl LedgerMark {
     }
 }
 impl Budget {
+    #[allow(dead_code, reason = "#1488：8组合探针可达构建无调用方，保留不删")]
     pub(crate) fn bind_or_handoff(
         &self,
         request: u64,
@@ -830,6 +832,7 @@ impl Budget {
             self.handoff(request, allowance)
         }
     }
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
     pub(crate) fn bind_initial(
         &self,
         request: u64,
@@ -847,6 +850,7 @@ impl Budget {
         Ok(Self(self.0.clone(), self.1, request, allowance))
     }
     /// #1488：同父账接纳新请求，只开启新的增量计数；累计观察值和旧许可不动。
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
     pub(crate) fn handoff(&self, request: u64, allowance: usize) -> Result<Self, BudgetExceeded> {
         let mut d = self.0.domain.lock().map_err(|_| BudgetExceeded)?;
         if d.state & BROKEN != 0 || self.1 != u64::from(d.serial) || self.2 == 0 || request == 0 {
@@ -1282,6 +1286,7 @@ impl MoveIn {
             origin: self.origin,
         })
     }
+    #[allow(dead_code, reason = "#1488：8组合探针可达构建无调用方，保留不删")]
     pub(crate) fn budget(&self) -> &Budget {
         &self.budget
     }
@@ -1310,7 +1315,9 @@ impl Drop for MoveIn {
 /// #1488 v4 只读观察句柄：控制块分配前从真实父同当前origin预留M；只持sponsor许可，
 /// 不能reserve/adopt/codec_work/handoff，且不可转成Budget。最后一个句柄释放时sponsor归还。
 #[derive(Clone)]
+#[cfg_attr(not(test), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
 pub(crate) struct BudgetObserver(Arc<ObserverInner>);
+#[cfg_attr(not(test), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
 struct ObserverInner {
     budget: Budget,
     _sponsor: Permit,
@@ -1318,9 +1325,11 @@ struct ObserverInner {
 }
 impl BudgetObserver {
     /// sponsor按根Ledger元数据M计费，覆盖观察控制块的实际布局（下方断言实测）。
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
     pub(crate) fn sponsor_bytes() -> usize {
         Budget::metadata_bytes()
     }
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
     pub(crate) fn new(budget: &Budget) -> Result<Self, BudgetExceeded> {
         let layout = Layout::new::<[AtomicUsize; 2]>()
             .extend(Layout::new::<ObserverInner>())
@@ -1340,16 +1349,20 @@ impl BudgetObserver {
         })))
     }
     /// 当前冻结域增量G（含sponsor M）；旧域或过期句柄读作全额A。
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
     pub(crate) fn live(&self) -> usize {
         let b = &self.0.budget;
         b.3.saturating_sub(b.remaining())
     }
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
     pub(crate) fn peak(&self) -> usize {
         self.0.budget.request_peak()
     }
+    #[allow(dead_code, reason = "#1488：8组合探针可达构建无调用方，保留不删")]
     pub(crate) fn total_live(&self) -> usize {
         self.0.budget.live()
     }
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
     pub(crate) fn same_parent(&self, other: &Budget) -> bool {
         self.0.budget.same_parent(other)
     }
@@ -1442,6 +1455,7 @@ impl<V> Tree<V> {
     pub(crate) fn len(&self) -> usize {
         self.entries.len()
     }
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
     pub(crate) fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }

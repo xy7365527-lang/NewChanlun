@@ -254,6 +254,7 @@ impl Seed {
 }
 /// 非 Clone；材料事实和 effects 闭合分开。构造只可从 owner 安装的 Seed 进入。
 pub(super) struct PendingSet {
+    #[allow(dead_code, reason = "#1488：8组合探针无读取，保留来源状态")]
     pub(super) previous: Option<Declaration>,
     pub(super) current: Declaration,
     pub(super) raw: RawAdvanceBinding,

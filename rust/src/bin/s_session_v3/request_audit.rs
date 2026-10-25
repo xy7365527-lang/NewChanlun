@@ -233,29 +233,37 @@ impl OldPoolPartition {
         self.sealed = true;
         Ok(self)
     }
+    #[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
     pub(crate) fn old_pool(&self) -> usize {
         self.old_pool
     }
+    #[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
     pub(crate) fn uncovered(&self) -> usize {
         self.uncovered
     }
     /// 各物理组L0之和（每个Ledger只计一次）。
+    #[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
     pub(crate) fn l0(&self) -> usize {
         self.l0
     }
+    #[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
     pub(crate) fn parent_paid(&self) -> usize {
         self.parent_paid
     }
+    #[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
     pub(crate) fn external(&self) -> usize {
         self.external
     }
+    #[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
     pub(crate) fn items(&self) -> &[OldPoolItem] {
         &self.items
     }
+    #[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
     pub(crate) fn homes(&self) -> &[OldPoolHome] {
         &self.homes
     }
     /// 未覆盖新增真实分配逐组列出：(role U, 来源组, 组内owner, 字节)。
+    #[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
     pub(crate) fn uncovered_items(
         &self,
     ) -> Vec<(&'static str, &'static str, &[&'static str], usize)> {
@@ -290,15 +298,18 @@ impl FreezeSeal {
 
 /// #1488 v4：唯一真实分配父与（R13兼容需要时）只读观察句柄；后者不可隐式转成Budget。
 #[cfg(feature = "s_capture_native_testonly")]
+#[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
 pub(super) struct ParentPreparation {
     parent: super::audit_owner::native::Budget,
     observer: Option<super::audit_owner::native::BudgetObserver>,
 }
 #[cfg(feature = "s_capture_native_testonly")]
 impl ParentPreparation {
+    #[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
     pub(super) fn allocation_parent(&self) -> &super::audit_owner::native::Budget {
         &self.parent
     }
+    #[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
     pub(super) fn observer(&self) -> Option<&super::audit_owner::native::BudgetObserver> {
         self.observer.as_ref()
     }
@@ -435,6 +446,7 @@ impl RequestAuditContext {
     }
     /// 无同父候选的冻结（冷入口与fixture）：old_pool整体是他父/无父的O合同项。
     #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
     pub(super) fn freeze_manifest_workspace_budget(
         &mut self,
         total: usize,
@@ -2208,12 +2220,14 @@ impl RequestAuditContext {
     }
     /// 仅显式调用才将冻结额度用于强制cold审计；缺省context没有零预算合同。
     /// #1488 v4：等价于prepare_parent(None)，消费本次冻结的唯一BootstrapGrant。
+    #[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
     pub(super) fn enable_cold_admission_for_testonly(&mut self) -> Result<(), String> {
         self.prepare_parent(None).map(drop)
     }
     /// #1488 v4：只建立一次本请求的真实父/observer契约。
     /// None=冷启动，仅消费一次BootstrapGrant；Some=暖路径，验证serial/父Arc/冻结合同后
     /// 绑定该真实父，并为外借观察句柄从同父同当前origin预留sponsor M。已有绑定不得换父。
+    #[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
     pub(super) fn prepare_parent(
         &mut self,
         existing: Option<&super::audit_owner::native::Budget>,
@@ -2265,10 +2279,12 @@ impl RequestAuditContext {
             .take()
             .filter(|g| g.domain() == contract.domain && g.limit() == contract.allowance)
     }
+    #[cfg_attr(all(not(test), feature = "s_capture_native_testonly"), allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用"))]
     pub(super) fn cold_parent_budget(&self) -> Option<super::audit_owner::native::Budget> {
         self.request_parent_budget()
     }
     /// #1488 strict消费者在audit_admission成功后调用；未绑定或过期均拒绝，绝不返回预建cold父。
+    #[cfg_attr(feature = "s_capture_native_testonly", allow(dead_code, reason = "#1488：8组合探针 native 路径无调用，保留接口"))]
     pub(crate) fn bound_parent_budget(&self) -> Result<super::audit_owner::native::Budget, String> {
         let bound = self
             .handoff_parent
@@ -2393,6 +2409,7 @@ impl ExactRows {
     ) -> Result<Option<(Self, usize)>, String> {
         Self::read_optional_bounded_params_in_parent(tx, sql, [], cap, parent)
     }
+    #[cfg_attr(feature = "s_capture_native_testonly", allow(dead_code, reason = "#1488：8组合探针 native 路径无调用，保留接口"))]
     pub(super) fn read_optional_bounded_params(
         tx: &Transaction<'_>,
         sql: &str,
