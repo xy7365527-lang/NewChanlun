@@ -2873,8 +2873,8 @@ impl NodeSink for HashReader<'_> {
             return owner.raw_put(digest, tag, body);
         }
         check_deadline(self.deadline).map_err(|e| sc::CodecError::new("verify_deadline", e))?;
-        if let Some(b) = self.budget {
-            b.node(&digest, tag, body)?;
+        if !self.native_measured() {
+            if let Some(b) = self.budget { b.node(&digest, tag, body)?; }
         }
         #[cfg(test)]
         super::state::trace_put();
@@ -2899,6 +2899,9 @@ impl NodeSink for HashReader<'_> {
                     return Ok(());
                 }
             }
+        }
+        if self.native_measured() {
+            if let Some(b) = self.budget { b.node(&digest, tag, body)?; }
         }
         self.overlay.put(digest, tag, body, self.work)
     }
