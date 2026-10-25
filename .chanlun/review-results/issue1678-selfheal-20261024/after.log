@@ -1,0 +1,6 @@
+[health-monitor] healthy → /Volumes/AgentStorage/issue1678-selfheal-20261024/after.json
+  ok  wayfinder_engine: 日志 238s 前更新
+  ok  claim_loop: 进程在跑，最近一轮未 fail-closed
+  ok  stale_claims: 无 >48h 僵尸认领
+  ok  disk_space: 可用 390.1 GiB（门 100 GiB）
+  ok  cliproxy: GET /v1/models 200，106 个模型
