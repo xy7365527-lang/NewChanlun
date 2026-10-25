@@ -196,17 +196,21 @@ impl IoAccounting for &SharedAccounting<'_, '_> {
 }
 
 /// #1527 rejection-only 前缀；成功不携带可转移资格，实际连接仍完整重核。
-#[derive(Clone, Copy)]
 pub(super) enum RejectionPrefix<'a> {
     None,
     OrdinaryStartup { epoch: &'a str },
+    NativeStartup {
+        epoch: &'a str,
+        context: Option<&'a mut super::request_audit::RequestAuditContext>,
+        work: Option<&'a sc::capture_allocation::scratch::WorkScope>,
+    },
     UnboundRecover,
 }
 
 fn audit_business(
     conn: &rusqlite::Connection,
     account: &SharedAccounting<'_, '_>,
-    prefix: RejectionPrefix<'_>,
+    prefix: &mut RejectionPrefix<'_>,
 ) -> Result<(), String> {
     account.precheck().map_err(|e| e.to_string())?;
     let deadline = account
@@ -216,10 +220,19 @@ fn audit_business(
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
     let result = (|| match crate::meta_get_opt(&tx, "protocol_revision")?.as_deref() {
         Some(super::PROTOCOL_REVISION) => {
-            super::state::audit_with_budget(&tx, Some(deadline), None, Some(account))?;
+            match prefix {
+                RejectionPrefix::NativeStartup { context, work, .. } => {
+                    if let Some(context) = context.as_deref_mut() {
+                        super::state::audit_native_in_request_measured(&tx, context, *work, Some(deadline), Some(account))?;
+                    } else {
+                        super::state::audit_native_current_measured(&tx, Some(deadline), Some(account))?;
+                    }
+                }
+                _ => { super::state::audit_with_budget(&tx, Some(deadline), None, Some(account))?; }
+            }
             match prefix {
                 RejectionPrefix::None => Ok(()),
-                RejectionPrefix::OrdinaryStartup { epoch } => {
+                RejectionPrefix::OrdinaryStartup { epoch } | RejectionPrefix::NativeStartup { epoch, .. } => {
                     crate::verify_writer_epoch(&tx, epoch)?;
                     super::require_current_writer_rule(
                         &crate::meta_get_opt(&tx, "rule_revision")?
@@ -285,7 +298,21 @@ impl IoAccounting for AdmissionAccounting<'_> {
 pub(super) fn validate_prefix(
     source: &MeasuredDomain,
     account: &mut AdmissionAccounting<'_>,
-    prefix: RejectionPrefix<'_>,
+    mut prefix: RejectionPrefix<'_>,
+) -> Result<(), String> {
+    let result = validate_prefix_inner(source, account, &mut prefix);
+    if result.is_err() {
+        if let RejectionPrefix::NativeStartup { context: Some(context), .. } = &mut prefix {
+            drop(context.take());
+        }
+    }
+    result
+}
+
+fn validate_prefix_inner(
+    source: &MeasuredDomain,
+    account: &mut AdmissionAccounting<'_>,
+    prefix: &mut RejectionPrefix<'_>,
 ) -> Result<(), String> {
     account.pre_io_check().map_err(|e| e.to_string())?;
     match source.medium {

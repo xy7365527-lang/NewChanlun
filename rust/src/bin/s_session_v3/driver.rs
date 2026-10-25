@@ -289,11 +289,16 @@ impl Driver {
         if !db.is_file() {
             return Err("StorageUnavailable：S3驱动只打开已初始化库".into());
         }
-        let scope = if startup_context.is_none()
-            && matches!(
-                mode,
-                s_allocation::Mode::Ordinary | s_allocation::Mode::Owned(_)
-            ) {
+        let scope = if matches!(mode, s_allocation::Mode::CapturedNative) {
+            admission.admit_prefix(
+                db,
+                super::admission_private::RejectionPrefix::NativeStartup {
+                    epoch,
+                    context: startup_context.as_deref_mut(),
+                    work: None,
+                },
+            )?
+        } else if startup_context.is_none() {
             admission.admit_prefix(
                 db,
                 super::admission_private::RejectionPrefix::OrdinaryStartup { epoch },
@@ -764,6 +769,69 @@ mod tests {
         let current = Fixture::new();
         let driver = allocation_driver(&current, allocation_profile());
         assert!(driver.identity().is_ok());
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_prefix_preserves_business_epoch_rule_order_and_clears_context() {
+        for bad_business in [false, true] {
+            for epoch in ["1", "2"] {
+                let f = Fixture::new();
+                let mut c = open_db(&f.db).unwrap();
+                meta_set(&c, "rule_revision", crate::LEGACY_V3_RULE_REVISION).unwrap();
+                if bad_business {
+                    c.execute("UPDATE catalog SET run_status='run'", []).unwrap();
+                }
+                let expected = {
+                    let tx = c.transaction().unwrap();
+                    state::audit_native_current(&tx)
+                        .and_then(|_| crate::verify_writer_epoch(&tx, epoch))
+                        .and_then(|_| super::super::require_current_writer_rule(
+                            &crate::meta_get_opt(&tx, "rule_revision")?.unwrap()))
+                        .err().unwrap()
+                };
+                drop(c);
+                let _fixture_anchor = crate::v3::admission_anchor::test_prepare(&f.db);
+                let bytes = std::fs::read(&f.db).unwrap();
+                for with_context in [false, true] {
+                    let mut context = request_audit::RequestAuditContext::default();
+                    let error = Driver::open_with_request_and_mode_context(
+                        &f.db, &f.profile, epoch, f.clock.clone(), None,
+                        s_allocation::Mode::CapturedNative,
+                        with_context.then_some(&mut context),
+                        crate::v3::admission_anchor::test_prepare(&f.db).into(),
+                    ).err().unwrap();
+                    assert_eq!(error.split("；原准入账=").next(), Some(expected.as_str()));
+                    assert!(context.take().is_none(), "最终拒绝不得留下历史 slot");
+                    assert!(!PathBuf::from(format!("{}-shm", f.db.display())).exists());
+                    assert_eq!(std::fs::read(&f.db).unwrap(), bytes);
+                }
+            }
+        }
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_prefix_success_keeps_actual_startup_validation() {
+        let f = Fixture::new();
+        for with_context in [false, true] {
+            let mut context = request_audit::RequestAuditContext::default();
+            let driver = Driver::open_with_request_and_mode_context(
+                &f.db, &f.profile, "1", f.clock.clone(), None,
+                s_allocation::Mode::CapturedNative,
+                with_context.then_some(&mut context),
+                crate::v3::admission_anchor::test_prepare(&f.db).into(),
+            ).unwrap();
+            assert!(driver.identity().is_ok());
+            drop(driver);
+            let error = Driver::open_with_request_and_mode_context(
+                &f.db, &f.path.join("missing-profile.json"), "1", f.clock.clone(), None,
+                s_allocation::Mode::CapturedNative,
+                with_context.then_some(&mut context),
+                crate::v3::admission_anchor::test_prepare(&f.db).into(),
+            ).err().unwrap();
+            assert!(!error.is_empty(), "前缀成功不代替实际 profile 重核");
+        }
     }
 
     #[test]
