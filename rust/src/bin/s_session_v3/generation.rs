@@ -758,6 +758,8 @@ impl GenerationRuntime {
                 lane.state()
             }
         };
+        #[cfg(test)]
+        super::state::trace_parser_policy(&self.theta_config);
         let (layer, evidence) = parser::parse_layer_with_group_evidence(state, &self.theta_config);
         let merged: &[Bar] = layer.merged_bars.as_ref();
         let prepared = match delta_view {

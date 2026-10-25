@@ -778,6 +778,60 @@ mod tests {
         ended(&reopened);
     }
 
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_delta_explicit_policy_sql_receipt_and_failed_commit_retry() {
+        let f = Fixture::new();
+        let o = Fixture::new();
+        let mut config = ThetaConfig::default();
+        config.parse.research_override_tail_window(17);
+        config.records.risk.record.version =
+            newchan_rust::theta_v0::policy_records::PolicyVersion::Signed(2);
+        assert_ne!(config, ThetaConfig::default());
+        let labels = config.record_labels();
+        let mut native = Driver::open_with_request_and_mode_context(
+            &f.db, &f.profile, "1", f.clock.clone(), None,
+            s_allocation::Mode::CapturedNative, None, config.clone(), false,
+        ).unwrap();
+        native.audit_cache_source_bytes = Some(536_870_912);
+        let mut ordinary = o.open_with_config("1", config.clone()).unwrap();
+        for n in 1..=3 {
+            let input = Fixture::ingest(n);
+            if n == 2 {
+                native.runtime.set_after_prepare_for_request_test(Some(|tx| {
+                    tx.commit_hook(Some(|| true)).map_err(err)?;
+                    Ok(())
+                }));
+                let (failed, events, _) =
+                    state::traced(true, || native.handle(input.clone()));
+                assert!(failed.is_err());
+                assert!(events.iter().any(|v| v["stage"] == "generate" && v["path"] == "delta"));
+                assert_eq!(count(&native.conn, "structure_deltas"), 1);
+                assert_eq!(count(&native.conn, "s_content_publications"), 1);
+                native.conn.commit_hook(None::<fn() -> bool>).unwrap();
+                native.runtime.set_after_prepare_for_request_test(None);
+            }
+            let (actual, events, _) = state::traced(true, || native.handle(input.clone()));
+            let actual = actual.unwrap();
+            assert_eq!(actual, ordinary.handle(input.clone()).unwrap());
+            assert_eq!(actual["policy_records"], labels);
+            let parser = events.iter().find(|v| v["phase"] == "parser_policy").unwrap();
+            assert_eq!(parser["config"], format!("{config:?}"));
+            assert_eq!(parser["policy_records"], labels);
+            assert!(events.iter().any(|v| v["stage"] == "generate" && v["path"] == "delta"));
+            let persisted: String = native.conn.query_row(
+                "SELECT policy_records FROM structure_deltas WHERE generation=?1",
+                [n], |row| row.get(0),
+            ).unwrap();
+            assert_eq!(persisted, labels);
+            assert_eq!(native.handle(receipt_request(&input)).unwrap(), actual);
+            assert_eq!(
+                prepared::tests::runtime_root_tables(&native.conn, true),
+                prepared::tests::runtime_root_tables(&ordinary.conn, true),
+            );
+        }
+    }
+
     #[test]
     fn driver_external_receipts_keep_historical_policy_records_across_config_versions() {
         let fixture = Fixture::new();
