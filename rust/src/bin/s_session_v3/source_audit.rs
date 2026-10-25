@@ -171,15 +171,16 @@ impl<'capture> NativeFieldMemo<'capture> {
             field_hits: 0,
         }
     }
-    fn qualified(&self, r: sc::RefView<'_>) -> Result<bool, sc::CodecError> {
+    fn qualified(&self, r: sc::RefView<'_>, measure: Option<&super::audit_budget::NativeMeasure<'_>>) -> Result<bool, sc::CodecError> {
         // Root presence is insufficient; original public validation includes format/root/header
         // and the complete immutable closure. Overlay-only records never obtain a handle.
         if let sc::RefView::Normal(original) = r {
             if self.capture.contains(&original.digest()?) {
-                super::audit_store::NativeAdmission(self.work).native_verify_original(
+                super::audit_store::NativeAdmission(self.work).native_verify_original_measured(
                     self.capture,
                     original.into(),
                     sc::Mode::Public,
+                    measure,
                 )?;
                 return Ok(true);
             }
@@ -458,7 +459,7 @@ impl NodeSource for ArrayAuditSource<'_, '_, '_, '_> {
         self.source.codec_work()
     }
     fn audit_full_array_scan(&self) -> bool {
-        self.full_arrays && self.deadline.is_none()
+        self.full_arrays && (self.source.native_measure().is_some() || self.deadline.is_none())
     }
     fn read(&mut self, d: &NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
         self.source.read(d)
@@ -503,13 +504,13 @@ impl SourceFieldStore for ArrayAuditSource<'_, '_, '_, '_> {
     fn decoded_scalar(&mut self, r: sc::RefView<'_>) -> Result<bj::JsonOwner, String> {
         let eligible = self.full_arrays
             && !self.source.owned_codec_active()
-            && self.deadline.is_none()
+            && (self.source.native_measure().is_some() || self.deadline.is_none())
             && self.source.allocation_budget().is_none()
             && self.max_render_bytes().is_none()
             && self
                 .fields
                 .as_ref()
-                .map(|m| m.qualified(r))
+                .map(|m| m.qualified(r, self.source.native_measure().as_ref()))
                 .transpose()
                 .map_err(err)?
                 .unwrap_or(false);
@@ -544,6 +545,9 @@ impl SourceFieldStore for ArrayAuditSource<'_, '_, '_, '_> {
     }
 }
 impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
+    fn native_measure(&self) -> Option<super::audit_budget::NativeMeasure<'_>> {
+        self.source.native_measure()
+    }
     fn parse_rendered_plain(&self, bytes: &[u8]) -> Result<bj::PlainJson, String> {
         self.source.parse_rendered_plain(bytes)
     }
@@ -599,13 +603,13 @@ impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
             self.owned_role(|s| s.lookup_subset_ref(r, n))
         } else {
             let eligible = self.full_arrays
-                && self.deadline.is_none()
+                && (self.source.native_measure().is_some() || self.deadline.is_none())
                 && self.source.allocation_budget().is_none()
                 && self.max_render_bytes().is_none()
                 && self
                     .fields
                     .as_ref()
-                    .map(|m| m.qualified(r))
+                    .map(|m| m.qualified(r, self.source.native_measure().as_ref()))
                     .transpose()?
                     .unwrap_or(false);
             if eligible {
@@ -1502,6 +1506,18 @@ impl<'capture> NativeSourceAudit<'capture> {
         records: Option<super::history::NativeRecordFields<'capture>>,
         work: Option<&'capture sc::capture_allocation::scratch::WorkScope>,
     ) -> Result<Self, String> {
+        Self::new_with_records_measured(capture, raw, records, work, None, None, super::history::SourcePolicy::Ordinary)
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn new_with_records_measured(
+        capture: &'capture sc::AuditCapture,
+        raw: RawEventsView<'capture>,
+        records: Option<super::history::NativeRecordFields<'capture>>,
+        work: Option<&'capture sc::capture_allocation::scratch::WorkScope>,
+        budget: Option<&'capture dyn super::audit_budget::Budget>,
+        deadline: Option<std::time::Instant>,
+        policy: super::history::SourcePolicy,
+    ) -> Result<Self, String> {
         if raw.budget().is_some() {
             return Err(err("Native来源memo不接收Owned原始账"));
         }
@@ -1520,6 +1536,7 @@ impl<'capture> NativeSourceAudit<'capture> {
             fields,
             raw,
             reader: super::history::HashReader::captured(capture, None)
+                .with_source_policy(policy).with_audit_gate(budget, deadline)
                 .with_native_scope(work)
                 .map_err(err)?,
             memo: NativeWitnessIdentityMemo::new(capture)?,
@@ -1554,6 +1571,7 @@ impl<'capture> NativeSourceAudit<'capture> {
         profile: &str,
         rule: &str,
     ) -> Result<Counts, String> {
+        let measure = self.reader.native_measure();
         let result = (|| {
             audit_generated_in_store(
                 &mut super::audit_store::StoreView::for_audit(&mut self.reader),
@@ -1561,8 +1579,8 @@ impl<'capture> NativeSourceAudit<'capture> {
                 self.raw.prefix(prefix_len)?,
                 profile,
                 rule,
-                None,
-                None,
+                measure.as_ref().and_then(|m| m.deadline),
+                measure.as_ref().and_then(|m| m.budget),
                 Some(&mut self.memo),
                 Some(&mut self.source_memo),
                 Some(&mut self.fields),
@@ -2266,9 +2284,10 @@ fn audit_generated_in_store(
     #[cfg(test)]
     super::state::trace_event("source_closure", None);
     s.verify_ref(state, sc::Mode::Public).map_err(err)?;
+    let full_arrays = s.native_measure().is_some() || budget.is_none();
     let mut array_source = ArrayAuditSource {
         source: s,
-        full_arrays: budget.is_none(),
+        full_arrays,
         deadline,
         fields: native_fields,
     };
@@ -3407,7 +3426,7 @@ mod tests {
         assert!(fresh.fields.is_empty() && fresh.scalars.values.is_empty());
         let other = sc::AuditCapture::new(MemoryNodes::default());
         assert!(!NativeFieldMemo::new(&other)
-            .qualified((&root).into())
+            .qualified((&root).into(), None)
             .unwrap());
     }
     #[cfg(feature = "s_capture_native_testonly")]

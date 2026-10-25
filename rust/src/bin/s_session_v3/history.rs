@@ -2905,6 +2905,9 @@ impl NodeSink for HashReader<'_> {
 }
 
 impl CodecRead for HashReader<'_> {
+    fn native_measure(&self) -> Option<super::audit_budget::NativeMeasure<'_>> {
+        HashReader::native_measure(self)
+    }
     fn parse_rendered_plain(
         &self,
         bytes: &[u8],

@@ -342,12 +342,22 @@ impl<'capture> NativeRecordFields<'capture> {
     pub(crate) fn belongs_to(&self, capture: &sc::AuditCapture) -> bool {
         std::ptr::eq(self.capture, capture)
     }
-    /// 仅在 history 成功 exact 读取完整 generated record 后调用。
+    /// 原无计量包装继续供既有测试使用。
+    #[cfg(test)]
     pub(crate) fn seed(
         &mut self,
         r: sc::RefView<'_>,
         names: &[&str],
         fields: &RefFields<'_>,
+    ) -> Result<(), sc::CodecError> {
+        self.seed_measured(r, names, fields, None)
+    }
+    pub(crate) fn seed_measured(
+        &mut self,
+        r: sc::RefView<'_>,
+        names: &[&str],
+        fields: &RefFields<'_>,
+        measure: Option<&super::super::audit_budget::NativeMeasure<'_>>,
     ) -> Result<(), sc::CodecError> {
         let sc::RefView::Normal(original) = r else {
             return Ok(());
@@ -356,7 +366,7 @@ impl<'capture> NativeRecordFields<'capture> {
             return Ok(());
         }
         let admission = NativeAdmission(self.work);
-        admission.native_verify_original(self.capture, r, sc::Mode::Public)?;
+        admission.native_verify_original_measured(self.capture, r, sc::Mode::Public, measure)?;
         // 不从 Owned 结果或不完整字段集补造原件。
         let RefFields::Plain(fields) = fields else {
             return Ok(());

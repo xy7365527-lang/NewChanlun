@@ -26,7 +26,7 @@ pub(super) trait Budget {
 }
 
 /// 仅借本次审计账与截止时间；不可留存进 capture/context/memo。
-pub(super) struct NativeMeasure<'a> {
+pub(crate) struct NativeMeasure<'a> {
     pub(super) budget: Option<&'a dyn Budget>,
     pub(super) deadline: Option<std::time::Instant>,
 }
