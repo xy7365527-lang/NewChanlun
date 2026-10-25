@@ -451,4 +451,6 @@ w(d) = 容量(ℓ−d) / 容量(ℓ) = ( A_{ℓ−d} / A_ℓ ) ^ (1/δ)
 
 ## #1598 批复与受影响清单
 
+本次修订沿用的 ADR 旧行号以获批草稿固定基线 `13ed4d45c8ff85175819ca987690328ab2a247a4` 为准；当前条款按标题定位。
+
 用户 2026-10-26 批复 [resolution](https://github.com/xy7365527-lang/NewChanlun/issues/1598#issuecomment-6403277308)。本次字段修订为 `[新缠论:选择]`，ROUNDTRIP 沿用已裁推论。受影响文件、固定基线与候选承接见 [清单](../../.chanlun/review-results/issue1598-policy-20261026/affected-code.md)；政策批准不代表下游已接单或实现。

@@ -12,7 +12,7 @@
 
 ### 一、同点争用默认整 slot 原子等待（政策 id `#1349/atomic-slot-wait/v1`）
 
-同一 slot 全部申请者的毛锁额（数量 × 限价 + 费用尾）加既有责任 ≤ cap 才整 slot 授信，否则整 slot 进入 `AwaitingAllocationPolicy`。不排序、不缩量、不拆单；默认 await_slot 不拒绝。理由：[ADR 0014](0014-intra-chong-unidirectional-inter-chong-no-arbitration.md) 裁定二无仲裁人；[ADR 0016](0016-chong-quantity-layer-capacity-frequency-shift.md)/[ADR 0017](0017-chong-quantity-numerator-shortdiff-amplitude.md) 的 w(d)×Q 不动；与在制行为同构。
+在默认 await_slot 下，同一 slot 全部申请者的毛锁额（数量 × 限价 + 费用尾）加既有责任 ≤ cap 才整 slot 授信，否则整 slot 进入 `AwaitingAllocationPolicy`。不排序、不缩量、不拆单；默认 await_slot 不拒绝。理由：[ADR 0014](0014-intra-chong-unidirectional-inter-chong-no-arbitration.md) 裁定二无仲裁人；[ADR 0016](0016-chong-quantity-layer-capacity-frequency-shift.md)/[ADR 0017](0017-chong-quantity-numerator-shortdiff-amplitude.md) 的 w(d)×Q 不动；与在制行为同构。
 
 - 等待无时钟时限。失效只来自三类事实：任一申请者在后续稳定点重新 Prepare 或撤回（剩余者构成新 slot 重判）；政策版本到期（`PolicyExpired`）；注入或释放使全体放得下（裁定二）。
 - 后来 slot 不越过等待中的 slot。这是算术推论：等待成立时既有加等待者全额已 > cap，任何追加都放不下；允许小 slot 用余量通过，等于按大小选人，即被否的 B/D。
@@ -28,7 +28,7 @@
 
 ### 三、取出默认只限空闲部分
 
-可取 = cap − Σ既有责任；等待中的 slot 不占用。超出部分当场拒绝并写原因，不排队。这保住 Σ责任 ≤ cap（ADR 0024 裁定一/五），也不让资金政策内部产生减仓压力——退出来源只认 ADR 0030 的三类。原文边界：`026-第26课.md:26`【正文】「一旦钱是有限期的，那么等于自动设置了一个停止交易的时限」。
+在默认 partial_up_to_free 下，可取 = cap − Σ既有责任；等待中的 slot 不占用。超出部分当场拒绝并写原因，不排队。这保住 Σ责任 ≤ cap（ADR 0024 裁定一/五），也不让资金政策内部产生减仓压力——退出来源只认 ADR 0030 的三类。原文边界：`026-第26课.md:26`【正文】「一旦钱是有限期的，那么等于自动设置了一个停止交易的时限」。
 
 ### 四、cap 来源 = 人工具名数额（不填默认金额）
 
