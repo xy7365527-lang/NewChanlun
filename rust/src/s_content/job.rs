@@ -625,6 +625,31 @@ enum AcceptedNodes {
     },
 }
 
+enum OpenReservations {
+    Ordinary(BTreeMap<u64, (SpaceKind, u64)>),
+    Mixed(super::capture_allocation::native_tree::NativeTree<u64, (SpaceKind, u64)>),
+}
+impl OpenReservations {
+    fn len(&self) -> usize {
+        match self { Self::Ordinary(m) => m.len(), Self::Mixed(m) => m.len() }
+    }
+    fn is_empty(&self) -> bool { self.len() == 0 }
+    fn remove(&mut self, id: &u64) -> Option<(SpaceKind, u64)> {
+        match self { Self::Ordinary(m) => m.remove(id), Self::Mixed(m) => m.remove(id) }
+    }
+    fn insert(&mut self, id: u64, entry: (SpaceKind, u64),
+        work: Option<&super::capture_allocation::scratch::WorkScope>) -> Result<(), CodecError> {
+        match self {
+            Self::Ordinary(m) => { m.insert(id, entry); }
+            Self::Mixed(m) => {
+                let work = work.ok_or_else(|| CodecError::new(RESERVATION, "mixed预留缺当前工作域"))?;
+                m.insert_admitted(id, entry, &MixedAllocation(work))?;
+            }
+        }
+        Ok(())
+    }
+}
+
 pub struct Job {
     id: u64,
     limits: JobLimits,
@@ -639,7 +664,7 @@ pub struct Job {
     accepted: AcceptedNodes,
     staged: Space,
     store: Space,
-    open: BTreeMap<u64, (SpaceKind, u64)>,
+    open: OpenReservations,
     next_grant: u64,
 }
 
@@ -720,7 +745,7 @@ impl Job {
                 peak: u128::from(existing.store_bytes),
                 ..Space::default()
             },
-            open: BTreeMap::new(),
+            open: OpenReservations::Ordinary(BTreeMap::new()),
             next_grant: 1,
         })
     }
@@ -974,6 +999,7 @@ impl Job {
             content: Default::default(),
             legacy: Default::default(),
         };
+        job.open = OpenReservations::Mixed(Default::default());
         Ok(job)
     }
     pub fn accept_checked_usage_mixed(
@@ -1058,6 +1084,21 @@ impl Job {
         Ok((nodes, bytes))
     }
 
+    fn check_reservation_scope(&self,
+        work: Option<&super::capture_allocation::scratch::WorkScope>) -> Result<(), CodecError> {
+        match (&self.accepted, work) {
+            (AcceptedNodes::Ordinary(_), None) => Ok(()),
+            (AcceptedNodes::Mixed { binding, .. }, Some(work)) => {
+                work.check_current()?;
+                if !binding.belongs_to_parent(work) {
+                    return Err(work.reject(super::capture_allocation::scratch::ScratchFailure::Ledger));
+                }
+                Ok(())
+            }
+            _ => Err(CodecError::new(RESERVATION, "预留入口与Job计量域不匹配")),
+        }
+    }
+
     /// 写前预留（暂存子集）：同一批字节**同时**占 `max_staged_bytes` 与 `max_store_bytes`，
     /// 一次调用核两本 cap；任一超限即 `job_limit_exceeded` 停止，两本账都不留部分计费状态。
     ///
@@ -1065,7 +1106,16 @@ impl Job {
     /// 或由 [`Job::release`] 在取消／失败时退出预留。两处基线都在 [`Job::new`] 一次声明、
     /// 本接口不再接受新的既存量，所以删文件腾挪额度这条通道（§5.6.1）在本层不成立。
     pub fn reserve_staged(&mut self, requested: u64) -> Result<Grant, CodecError> {
+        self.reserve_staged_in(requested, None)
+    }
+    pub fn reserve_staged_mixed(&mut self, requested: u64,
+        work: &super::capture_allocation::scratch::WorkScope) -> Result<Grant, CodecError> {
+        self.reserve_staged_in(requested, Some(work))
+    }
+    fn reserve_staged_in(&mut self, requested: u64,
+        work: Option<&super::capture_allocation::scratch::WorkScope>) -> Result<Grant, CodecError> {
         self.gate()?;
+        self.check_reservation_scope(work)?;
         let staged_projected = self.project(
             "暂存",
             self.staged_exposure(),
@@ -1079,11 +1129,11 @@ impl Job {
             self.limits.max_store_bytes,
         )?;
         let id = self.next_grant;
+        self.open.insert(id, (SpaceKind::Staged, requested), work)?;
         self.staged.pending += u128::from(requested);
         self.staged.record_peak(staged_projected);
         self.store.record_peak(store_projected);
         self.next_grant += 1;
-        self.open.insert(id, (SpaceKind::Staged, requested));
         Ok(Grant {
             job: self.id,
             id,
@@ -1098,7 +1148,16 @@ impl Job {
     /// 所以本模块不为它开回收口（不为历史内容开任意删除通道）。可能被取消的导入内容走
     /// [`Job::reserve_staged`]，那条路有 [`Job::reclaim_staged`] 按实际删除量回收。
     pub fn reserve_store(&mut self, requested: u64) -> Result<Grant, CodecError> {
+        self.reserve_store_in(requested, None)
+    }
+    pub fn reserve_store_mixed(&mut self, requested: u64,
+        work: &super::capture_allocation::scratch::WorkScope) -> Result<Grant, CodecError> {
+        self.reserve_store_in(requested, Some(work))
+    }
+    fn reserve_store_in(&mut self, requested: u64,
+        work: Option<&super::capture_allocation::scratch::WorkScope>) -> Result<Grant, CodecError> {
         self.gate()?;
+        self.check_reservation_scope(work)?;
         let store_projected = self.project(
             "存储",
             self.store_exposure(),
@@ -1106,10 +1165,10 @@ impl Job {
             self.limits.max_store_bytes,
         )?;
         let id = self.next_grant;
+        self.open.insert(id, (SpaceKind::Store, requested), work)?;
         self.store.pending += u128::from(requested);
         self.store.record_peak(store_projected);
         self.next_grant += 1;
-        self.open.insert(id, (SpaceKind::Store, requested));
         Ok(Grant {
             job: self.id,
             id,

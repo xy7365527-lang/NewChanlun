@@ -502,4 +502,47 @@ mod tests {
             })
             .unwrap();
     }
+    #[test]
+    fn mixed_ram_grant_tree_is_metered_and_failed_growth_keeps_disk_accounting() {
+        use newchan_rust::s_content::{self as sc, job::{Job, Existing}};
+        for enough in [false, true] {
+            let extra = if enough { 1 << 20 } else { CodecWork::metadata_bytes() + 1 };
+            let owner = AdmissionRamLedger::new(limits(extra)).unwrap();
+            let baseline = owner.snapshot().unwrap().job_live;
+            let result = owner.codec_work().unwrap().run(|work| {
+                let mut job = Job::new_started_mixed(job_limits(),
+                    Existing { store_bytes: 0, staged_bytes: 0 },
+                    Box::new(std::time::Instant::now), std::time::Instant::now(), work)?;
+                job.charge_wire_bytes(19)?;
+                assert!(job.reserve_staged(10).is_err(), "普通入口不能使mixed预留免账");
+                assert_eq!(job.snapshot().open_reservations, 0);
+                let before = job.snapshot();
+                let grant = job.reserve_staged_mixed(10, work);
+                if enough {
+                    let grant = grant?;
+                    assert_eq!(job.snapshot().staged.pending, 10);
+                    let stored = job.reserve_store_mixed(7, work)?;
+                    assert_eq!(job.snapshot().store.pending, 7);
+                    assert_eq!(job.snapshot().open_reservations, 2);
+                    job.reconcile(&grant, 6)?;
+                    job.release(&stored)?;
+                    assert_eq!(job.snapshot().open_reservations, 0);
+                    assert_eq!(job.snapshot().staged.pending, 0);
+                    assert_eq!(job.snapshot().store.pending, 0);
+                    job.finish_check()?;
+                } else {
+                    assert!(grant.is_err());
+                    let after = job.snapshot();
+                    assert_eq!(after.staged, before.staged);
+                    assert_eq!(after.store, before.store);
+                    assert_eq!(after.open_reservations, 0);
+                    assert_eq!(after.wire_bytes, 19);
+                }
+                Ok::<_, sc::CodecError>(())
+            });
+            assert_eq!(result.is_ok(), enough);
+            assert_eq!(owner.snapshot().unwrap().job_live, baseline);
+        }
+    }
+
 }
