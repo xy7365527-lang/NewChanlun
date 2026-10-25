@@ -5,7 +5,12 @@ import importlib.util
 import json
 from pathlib import Path
 import unittest
-import test_devskim_sarif_gate as original
+
+original_spec = importlib.util.spec_from_file_location(
+    "original_devskim_gate_tests", Path(__file__).with_name("test_devskim_sarif_gate.py")
+)
+original = importlib.util.module_from_spec(original_spec)
+original_spec.loader.exec_module(original)
 
 HELPER = Path(__file__).resolve().parents[1] / "scripts/devskim_reviewed_false_positives.py"
 spec = importlib.util.spec_from_file_location("reviewed_fp", HELPER)
