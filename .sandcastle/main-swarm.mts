@@ -1,4 +1,4 @@
-// Parallel Planner with Review（主控同型 Claude Code 版）—— #1007 裁定落地。
+// Parallel Planner with Review（主控同型 Codex 版）—— #1007 裁定落地。
 // 官方 parallel-planner-with-review 形态 × 本仓裁定：
 //   Phase 1 planner 建依赖图（<plan> 结构化输出）→
 //   Phase 2 Promise.allSettled 扇出（MAX_PARALLEL=4 信号量，#1007 裁 2），
@@ -8,7 +8,7 @@
 // 跑法：npx tsx .sandcastle/main-swarm.mts
 
 import * as sandcastle from "@ai-hero/sandcastle";
-import { assertDockerCliProxyReachable, swarmAgent, swarmSandbox } from "./swarm-route.mts";
+import { assertDockerCliProxyReachable, assertSwarmExecutionReady, swarmAgent, swarmSandbox } from "./swarm-route.mts";
 import { execSync } from "node:child_process";
 import { appendFileSync, mkdirSync } from "node:fs";
 import { z } from "zod";
@@ -66,6 +66,7 @@ function claim(issue: string) {
 }
 
 // 先验容器路由，再进入任何 planner/claim；失败时不产生 tracker 写副作用（#1617）。
+assertSwarmExecutionReady(IMAGE);
 assertDockerCliProxyReachable(IMAGE);
 
 for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {

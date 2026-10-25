@@ -4,7 +4,7 @@
 
 ## 这是什么
 
-本目录是 NewChanlun 的自动化领票干活管线：**sandcastle**（`@ai-hero/sandcastle`）负责沙盒编排（每票一个独立 worktree、一条确定性分支；`main-swarm` 使用 Docker 隔离，`main.mts` 当前使用 noSandbox），**Claude Code CLI** 经本机 CLIProxyLocal 调用 `.sandcastle/main-model.mts` 指定的 `kimi-k3.1-pro`，与当前主控同型；prime-agent 只保留给显式 legacy 通道。
+本目录是 NewChanlun 的自动化领票干活管线：**sandcastle**（`@ai-hero/sandcastle`）负责沙盒编排（每票一个独立 worktree、一条确定性分支；`main-swarm` 使用 Docker 隔离，`main.mts` 当前使用 noSandbox），**Codex CLI** 经本机 CLIProxyLocal 调用 `.sandcastle/main-model.mts` 指定的 `gpt-6-astra`，与当前主控同型；Claude/prime-agent 只保留给显式 legacy 执行通道。每票实现与独审使用两个独立 Codex session/home，同一阶段续跑沿用其 session；不读取用户全局 config。
 
 形态是 sandcastle 官方的 **sequential-reviewer 两段式**（#1001 裁定）：
 
@@ -20,7 +20,7 @@
 前置：
 
 - **colima 在跑**——Docker 沙盒依赖本机 Docker daemon（macOS 上经 colima 提供）；
-- **CLIProxyLocal 可用**——本机默认模型为 `kimi-k3.1-pro`；noSandbox 用 `127.0.0.1:8318`，Docker 用 `host.docker.internal:8318`。客户端密钥运行时从本机配置读入 env，不挂入容器、不写入日志；legacy provider 的 `.sandcastle/.env` 仍按 gitignore 管理。
+- **CLIProxyLocal 可用**——本机默认模型为 `gpt-6-astra`；noSandbox 用 `127.0.0.1:8318`，Docker 用 `host.docker.internal:8318`。执行面客户端密钥由进程环境或 launchctl 的 `CLIPROXY_LOCAL_KEY` 注入，不挂入容器、不写入日志；legacy provider 的 `.sandcastle/.env` 仍按 gitignore 管理。
 
 跑法（仓库根）：
 
@@ -51,7 +51,7 @@ bash .sandcastle/install-wayfinder-engine.sh uninstall # 卸载
 
 **宿主仓 = sandcastle-host**（#1588）：plist 模板指 `/Users/silencehan/Projects/NewChanlun-sandcastle-host`（专用 main worktree，与 claimer 同宿主），不指交互主 worktree——后者检出的是用户自己的分支，launchd 跑那里的引擎等于跑旧代码（#1578 修复因此从未生效）。`run-wayfinder-engine.sh` / `watcher.sh` 按脚本自身位置推导仓库根，`SANDCASTLE_HOST_REPO` 可覆盖。
 
-**spec 起草子代理**（#1588 / #1617）：Claude Code CLI `--bare` 经 CLIProxyLocal（`http://127.0.0.1:8318`，无第三方依赖接线 `cliproxy-env.mts`），默认与唯一允许值均为 `kimi-k3.1-pro`；其它 `WAYFINDER_SPEC_MODEL` 启动即 fail-loud。
+**spec 起草子代理**（#1588 / #1617）：Claude Code CLI `--bare` 经 CLIProxyLocal（`http://127.0.0.1:8318`，无第三方依赖接线 `cliproxy-env.mts`），默认与唯一允许值均为 `gpt-6-astra`；其它 `WAYFINDER_SPEC_MODEL` 启动即 fail-loud。
 
 手工调试（仓库根，不写 tracker）：`npx tsx scripts/wayfinder_engine.mts --once --dry-run`。
 
@@ -75,7 +75,7 @@ bash .sandcastle/install-sandcastle-claimer.sh uninstall # 卸载
 
 ## GitHub-hosted 旧 workflow
 
-`agent-explore/implement/implement-pr/review/update-branch` 的 runner 是 `ubuntu-latest`，当前没有获批的 Kimi 凭据或可达 CLIProxy 端点。无标签 Claude 默认已在模型调用前退役并回写 blocked；`agent:model:deepseek-v4-pro` 仅为 implement / implement-pr / review 的显式 legacy opt-in，不是默认或失败回退。本机受管默认不经过这些 hosted workflow（#1617）。
+`agent-explore/implement/implement-pr/review/update-branch` 的 runner 是 `ubuntu-latest`，当前没有获批的 Astra 凭据或可达 CLIProxy 端点。无标签 Claude 默认已在模型调用前退役并回写 blocked；`agent:model:deepseek-v4-pro` 仅为 implement / implement-pr / review 的显式 legacy opt-in，不是默认或失败回退。本机受管默认不经过这些 hosted workflow（#1617）。
 
 ## 文件地图
 
@@ -114,3 +114,13 @@ bash .sandcastle/install-sandcastle-claimer.sh uninstall # 卸载
 - #1001/#1002/#1003：两段式形态裁定；
 - #1008：simple-loop → sequential-reviewer 改造（本目录现状的来源）；
 - #1010：镜像工具链扩容（Rust + 三 skill + provider 凭据）。
+
+## Codex 单票执行与受管提交（#1617）
+
+`main.mts` 的作者/独审使用 Codex workspace-write；工蜂改文件，受管宿主按 `sandcastle-result` 的完整文件清单核验并提交。独审看精确作者 commit，修正由同一路径封包。Git metadata 保持对工蜂只读；Rust 验证由宿主封包后走 nc-remote 精确 SHA，未验证项进入日志，不能据完成信号验收。
+
+`MAX_TICKETS_PER_RUN=1` 只限制一次运行一票，不是全 lane 等主控验收的闸，互不依赖的票可并行。进程内同阶段 resume 复用 session；进程重启发现脏工位保留给原 owner，不自动清理或重复提交。
+
+`main-swarm.mts` 暂不可用：Docker namespace 与 swarm 提交责任未验收，默认 namespace 探针失败时在认领前 fail-loud。现有 Docker 路由预检只是连接证据。详见 `SECURITY.md` 的职责与权限合同。
+
+Codex 的受管提交提示使用 codex-implement-prompt.md / codex-review-prompt.md；旧 implement-prompt.md / review-prompt.md 保持原调用合同。swarm namespace 恢复后仍须补完并验证其提交责任迁移，本票该项尚未闭合。

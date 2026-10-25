@@ -1,4 +1,4 @@
-// Sequential Reviewer（claudeCode 版，#1547）—— #1001/#1002/#1003 裁定落地。
+// Sequential Reviewer（Codex/Astra 版，#1617）—— #1001/#1002/#1003 裁定落地。
 // 每票：host 侧 frontier 取票 + claim → createSandbox（确定性分支，baseBranch=main）
 //   → Phase 1 实装工蜂 → Phase 2 独立评审工蜂（直接在分支上修正）
 //   → 不合 main（人工闸，#1003 裁 3）。
@@ -6,16 +6,15 @@
 
 import * as sandcastle from "@ai-hero/sandcastle";
 // #1547：沙盒后端暂用 noSandbox（agent 直接在宿主上、于 sandcastle 自建的独立 worktree 内运行）。
-// 切回 docker 的条件：Docker daemon 在宿主常驻运行，且 `docker image inspect sandcastle:newchanlun`
-// 成功（镜像已按 .sandcastle/Dockerfile 构建）；届时 sandboxProvider() 换回
-// docker({ imageName: "sandcastle:newchanlun", env: { ...resolveSandboxGithubEnv(), ...cliProxyEnv(undefined, "http://host.docker.internal:8318") } })，
-// 并注意容器内 127.0.0.1:8318 不指向宿主，cliproxy-env.mts 的第二参数要使用 host.docker.internal。
+// Codex workspace-write 保留 Git metadata 只读；宿主受管步骤封包提交（#1617）。
+// Docker namespace 工具执行尚未验收，镜像构建或 API 连通不构成切回条件。
 import { noSandbox } from "@ai-hero/sandcastle/sandboxes/no-sandbox";
 import type { AgentProvider, Sandbox, SandboxRunResult } from "@ai-hero/sandcastle";
 import { execSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync } from "node:fs";
 import { cargoGuardEnv, installCargoGuard } from "./cargo-guard.mts";
-import { claudeWorker, cliProxyEnv } from "./claude-route.mts";
+import { codexWorker, codexRouteEnv } from "./codex-route.mts";
+import { beginManagedStage, finishManagedStage, verifyManagedRust } from "./managed-commit.mts";
 import { MAIN_MODEL } from "./main-model.mts";
 import {
   ghIssueFetcher,
@@ -105,7 +104,7 @@ const CARGO_GUARD = installCargoGuard();
 
 function sandboxProvider() {
   // 路由变量走沙盒后端 env（理由见 claude-route.mts claudeWorker 注释）。
-  return noSandbox({ env: { ...resolveSandboxGithubEnv(), ...cliProxyEnv(), ...cargoGuardEnv(CARGO_GUARD) } });
+  return noSandbox({ env: { ...resolveSandboxGithubEnv(), ...codexRouteEnv(), ...cargoGuardEnv(CARGO_GUARD) } });
 }
 
 function hasOpenBlocker(issue: number): boolean {
@@ -260,7 +259,7 @@ async function runReviewer(sandbox: Sandbox, issue: number, branch: string): Pro
   const git = hostGit();
   await runGuardedReview(
     {
-      template: readReviewTemplate(),
+      template: readReviewTemplate("./.sandcastle/codex-review-prompt.md"),
       branch,
       target: REVIEW_TARGET_BRANCH,
       resolveBase: () => resolveReviewBase(git),
@@ -273,11 +272,15 @@ async function runReviewer(sandbox: Sandbox, issue: number, branch: string): Pro
       logWorker({
         ticket: issue, branch, phase: "reviewer", status: "started", prompt_est_tokens: estimatedTokens, review_base: base,
       });
-      await runWithResume(sandbox, {
+      const stage = beginManagedStage(sandbox.worktreePath, branch, issue, "reviewer");
+      const review = await runWithResume(sandbox, {
         name: "reviewer",
-        agent: claudeWorker(REVIEWER_MODEL, EFFORT),
-        prompt: { prompt },
+        agent: codexWorker({ effort: EFFORT }),
+        prompt: { prompt: prompt + `\n本次评审必须读取精确候选 commit ${stage.head}；不要只依赖可变分支名。` },
       });
+      const sealed = finishManagedStage(stage, review.stdout);
+      sealed.report.verification.push(verifyManagedRust(stage, sealed));
+      logWorker({ ticket: issue, branch, phase: "reviewer", status: "sealed", head: sealed.head, verification: sealed.report.verification });
     },
   );
   logWorker({ ticket: issue, branch, phase: "reviewer", status: "completed" });
@@ -347,19 +350,22 @@ for (let iter = 1; iter <= MAX_TICKETS_PER_RUN; iter++) {
   try {
     // Phase 1：实装（#1066：多轮续跑同一会话 + idle 1800s 防长静默误杀）
     logWorker({ ticket: issue, branch, phase: "implementer", status: "started" });
+    const stage = beginManagedStage(sandbox.worktreePath, branch, issue, "implementer");
     const implement = await runWithResume(sandbox, {
       name: "implementer",
-      agent: claudeWorker(IMPLEMENTER_MODEL, EFFORT),
-      prompt: { promptFile: "./.sandcastle/implement-prompt.md", promptArgs: { ISSUE_NUMBER: String(issue) } },
+      agent: codexWorker({ effort: EFFORT }),
+      prompt: { promptFile: "./.sandcastle/codex-implement-prompt.md", promptArgs: { ISSUE_NUMBER: String(issue) } },
       idleTimeoutSeconds: IMPLEMENTER_IDLE_TIMEOUT_SECONDS,
     });
-    if (!implement.commits.length) {
+    const sealed = finishManagedStage(stage, implement.stdout);
+    sealed.report.verification.push(verifyManagedRust(stage, sealed));
+    if (!sealed.committed) {
       logWorker({ ticket: issue, branch, phase: "implementer", status: "no_commit" });
       console.log("实装无 commit（被卡或无活），跳评审，留票待查。");
       continue;
     }
-    logWorker({ ticket: issue, branch, phase: "implementer", status: "completed", commits: implement.commits.length });
-    console.log(`实装完成：${implement.commits.length} 个 commit`);
+    logWorker({ ticket: issue, branch, phase: "implementer", status: "completed", commits: 1, head: sealed.head, verification: sealed.report.verification });
+    console.log(`实装受管提交完成：${sealed.head}`);
 
     // Phase 2：独立评审（不同子代理，#1001 裁 1；直接在分支上修正；#1066 多轮续跑）
     // #1588：提示超限 → 已落失败记录与票面通知，以专用退出码收尾（票保持认领，不回滚重跑实装）。
@@ -371,6 +377,9 @@ for (let iter = 1; iter <= MAX_TICKETS_PER_RUN; iter++) {
       break;
     }
     console.log(`两段完成：${branch} 待验收合入（人工闸）。`);
+  } catch (error) {
+    logWorker({ ticket: issue, branch, phase: "managed-stage", status: "failed", reason: String(error).slice(0, 500) });
+    throw error;
   } finally {
     logWorker({ ticket: issue, branch, phase: "sandbox", status: "closed" });
     await sandbox.close();

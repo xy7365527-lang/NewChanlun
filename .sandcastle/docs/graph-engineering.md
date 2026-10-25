@@ -93,17 +93,17 @@ wayfinder_engine 下一轮重扫；FU blocker 全关的实施票被挂 `sandcast
 
 ## 调用通道
 
-`spawn_agent` 是会话内工具，launchd 脚本调不到。所有后台工蜂走 Claude CLI 经本机统一路由：
+`spawn_agent` 是会话内工具，launchd 脚本调不到。裁决面与 wayfinder spec 起草保留 Claude CLI 控制通道，模型仍为 Astra；Sandcastle 实施/独审默认使用下述 Codex 执行通道：
 
 ```bash
 ANTHROPIC_BASE_URL=http://127.0.0.1:8318 \
 ANTHROPIC_AUTH_TOKEN=<运行时从 CLIProxyLocal config 读取，不落日志> \
-claude -p --bare --model kimi-k3.1-pro --output-format stream-json
+claude -p --bare --model gpt-6-astra --output-format stream-json
 ```
 
-2026-10-24 用户裁定：分级、考古、起草、独审与实施统一为 `.sandcastle/main-model.mts` 的 `kimi-k3.1-pro`，与主控同型；429 按退避重试，打回重做不换模型（#1617）。真实 `--bare` 冒烟见该票验收记录。
+2026-10-25 用户裁定：分级、考古、起草、独审与实施统一为 `.sandcastle/main-model.mts` 的 `gpt-6-astra`，与主控同型；429 按退避重试，打回重做不换模型（#1617）。真实 `--bare` 冒烟见该票验收记录。
 
-执行面 `main.mts` 与 `main-swarm.mts` 使用 Sandcastle `claudeCode` provider，走同一模型配置。noSandbox 用 `127.0.0.1:8318`；Docker 保留隔离并用 `host.docker.internal:8318`，镜像安装 Claude Code，密钥只经运行时 env 进入；main-swarm 在领票前做容器连通性硬检查，失败不换模型、不认领（#1617）。
+执行面 `main.mts` 与 `main-swarm.mts` 使用 Sandcastle `codex` provider，走同一模型配置。noSandbox 用 `127.0.0.1:8318`；Docker 保留隔离并用 `host.docker.internal:8318`，镜像安装 Codex CLI（Claude 仅供显式 legacy），Codex 客户端密钥只从进程/launchctl 的 CLIPROXY_LOCAL_KEY 经运行时 env 进入；main-swarm 在领票前做容器连通性硬检查，失败不换模型、不认领（#1617）。
 
 ## 宿主约束
 
@@ -122,3 +122,11 @@ Sandcastle 宿主 `NewChanlun-sandcastle-host` 开启 `SANDCASTLE_HOST_AUTO_UPDA
 3. 执行面：claim-loop 派出的实施工蜂实际产生输出（上下文非 0、有 commit 或明确 blocked 结论）。
 4. health-monitor 发现停摆能变 _red_ 并自愈，进度页可看。
 5. 以上改动经 PR 合入 main（人闸）。
+
+### Codex 单票阶段交付（#1617，2026-10-25）
+
+实施票每 run 仍是一票。作者在 workspace-write 下改源码并报告实际验证，受管宿主核完整文件集合并提交；独审读精确 commit，修正经同一宿主步骤提交。Rust 验证在封包后由宿主调用 nc-remote/CI；未验证不算验收完成。此职责分离已经用户明确批准，不扩大工蜂沙箱权限，main 合入仍是人闸。
+
+旧段落中 Docker/swarm 的模型配置只说明路由，不代表执行可用：namespace 和 swarm 提交责任迁移未验收，默认 namespace 探针失败时入口在 planner/认领之前 fail-loud。主控不得将此候选的单票宿主冒烟计为 swarm 或全图验收。
+
+Codex 的受管提交提示使用 codex-implement-prompt.md / codex-review-prompt.md；旧 implement-prompt.md / review-prompt.md 保持原调用合同。swarm namespace 恢复后仍须补完并验证其提交责任迁移，本票该项尚未闭合。

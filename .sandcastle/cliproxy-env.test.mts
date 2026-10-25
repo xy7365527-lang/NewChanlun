@@ -12,7 +12,7 @@ import {
 import { MAIN_MODEL, SUPPORTED_MAIN_MODELS } from "./main-model.mts";
 
 test("主控模型只有单一配置值", () => {
-  assert.equal(MAIN_MODEL, "kimi-k3.1-pro");
+  assert.equal(MAIN_MODEL, "gpt-6-astra");
   assert.deepEqual(SUPPORTED_MAIN_MODELS, [MAIN_MODEL]);
 });
 

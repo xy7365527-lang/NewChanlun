@@ -55,10 +55,10 @@
    - **leaf sub-issue（有 parent、无子票、无 open blocker）→ 允许**（上游拒绝一切 sub-issue，此处改判）；
    - 原生 open blocker（`issue_dependencies_summary.blocked_by > 0`）→ 拒绝并标 `agent:blocked`。
 2. **agent auth/model**（`shared/agent.ts`）：
-   - #1617 现行合同：GitHub-hosted runner 没有获批的 Kimi 凭据或可达 CLIProxy 端点，
+   - #1617 现行合同：GitHub-hosted runner 没有获批的 Astra 凭据或可达 CLIProxy 端点，
      无标签 Claude 默认在模型调用前退役；不再注入 `CLAUDE_CODE_OAUTH_TOKEN` 或按角色分档；
    - `agent:model:deepseek-v4-pro` 仅作 implement / implement-pr / review 的显式 legacy opt-in；
-   - 本机受管默认统一为 `.sandcastle/main-model.mts` 的 `kimi-k3.1-pro`，经 CLIProxyLocal；
+   - 本机受管默认统一为 `.sandcastle/main-model.mts` 的 `gpt-6-astra`，经 CLIProxyLocal；
    - 缺 secret、未知标签、冲突标签与退役默认均 fail-loud（写 `failure_reason.txt` → blocked）。
 
 ## 本仓必要接线（非语义适配）

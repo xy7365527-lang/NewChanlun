@@ -103,7 +103,7 @@ tracker 物理操作（map/子票/blocking/frontier/claim/resolve 的 gh 命令�
 图清后管道自动汇入主干：**机器走管道，人守三闸**（spec 批准 / 不预授权决策 / 合入 main）。
 
 - **形态**：graph 语义 + loop 壳。DAG 走查器 = 纯函数（tracker 状态 → 触发动作）；壳 = 4 分钟轮询（watcher.sh / dispatcher 子代理先例）；日后可换事件驱动不动内核。
-- **宿主**：独立件 `scripts/wayfinder_engine`（控制面）；spec 草案 = 主控同型起草子代理（Claude Code CLI 无头、`--bare`、禁工具，经 CLIProxyLocal；默认与唯一允许值均为 `kimi-k3.1-pro`，其它值启动即 fail-loud；只读文书，#1000 例外类；#1588 / #1617 更新）；实装票派 sandcastle 工蜂（既有两段式通道）。
+- **宿主**：独立件 `scripts/wayfinder_engine`（控制面）；spec 草案 = 主控同型起草子代理（Claude Code CLI 无头、`--bare`、禁工具，经 CLIProxyLocal；默认与唯一允许值均为 `gpt-6-astra`，其它值启动即 fail-loud；只读文书，#1000 例外类；#1588 / #1617 更新）；实装票派 sandcastle 工蜂（既有两段式通道）。
 - **状态**：stateless——tracker 即账本，每轮重算 ready 集、天然幂等，不建状态库。
 - **自动动作边界**：
   1. 图清（子票全关、frontier 空）→ 自动起草 spec 草案、开图内 spec 票、@编排者批【闸一】；
@@ -122,7 +122,7 @@ tracker 物理操作（map/子票/blocking/frontier/claim/resolve 的 gh 命令�
 
 ### AFK 票的载体与派发
 
-- **载体**（2026-08-16 [#1000](https://github.com/xy7365527-lang/NewChanlun/issues/1000) 裁定更新）= **sandcastle 沙盒为默认执行面**（`.sandcastle/main.mts` 两段式 / `main-swarm.mts` 蜂群；工蜂 = Claude Code CLI 经 CLIProxyLocal，模型统一为 `.sandcastle/main-model.mts` 的 `kimi-k3.1-pro`，与当前主控同型；Docker 用 `host.docker.internal:8318` 并在领票前验连通性，#1547 / #1617 更新）；rlm 子代理退为轻量补充（只读研究、快速查证）。GitHub-hosted 五条旧 workflow 没有获批的 Kimi 凭据与可达端点，其无标签 Claude 默认已在模型调用前退役；显式 DeepSeek 只保留为 legacy opt-in，不是默认或失败回退。例外三类（只读簿记对话 / 单条小操作 / 沙盒不可行）按 #1000 Destination 举证登记。结果回流本体验收后写回 tracker 不变；合入 main 走人工闸（#1003 裁 3）。
+- **载体**（2026-08-16 [#1000](https://github.com/xy7365527-lang/NewChanlun/issues/1000) 裁定更新）= **sandcastle 沙盒为默认执行面**（`.sandcastle/main.mts` 两段式 / `main-swarm.mts` 蜂群；工蜂 = Claude Code CLI 经 CLIProxyLocal，模型统一为 `.sandcastle/main-model.mts` 的 `gpt-6-astra`，与当前主控同型；Docker 用 `host.docker.internal:8318` 并在领票前验连通性，#1547 / #1617 更新）；rlm 子代理退为轻量补充（只读研究、快速查证）。GitHub-hosted 五条旧 workflow 没有获批的 Astra 凭据与可达端点，其无标签 Claude 默认已在模型调用前退役；显式 DeepSeek 只保留为 legacy opt-in，不是默认或失败回退。例外三类（只读簿记对话 / 单条小操作 / 沙盒不可行）按 #1000 Destination 举证登记。结果回流本体验收后写回 tracker 不变；合入 main 走人工闸（#1003 裁 3）。
 - **模型** = 原生派发默认继承当前主控；本机受管后台统一读 `.sandcastle/main-model.mts`。实装、起草与独审不再按角色分模型档；独审仍须非作者独立进程，打回重做带具体审查意见（#1617）。
 - **工作区隔离**：**写仓的 AFK 子代理强制开独立 worktree**（`Agent` 工具 `isolation: "worktree"`），**只读的不强制**（[#772](https://github.com/xy7365527-lang/NewChanlun/issues/772) 裁定⑤）。本仓事实上已跑过几十个 worktree，成本只有零点几秒；而主仓撞车有 `git stash` 抹掉未提交改动的实伤前例。只读子代理开 worktree 纯属浪费。
 - **git 层冲突**：走 `/resolving-merge-conflicts`，本文只挂指针。git 会把冲突显式标出来、拒绝静默丢改动，不需要额外口径。

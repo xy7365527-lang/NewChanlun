@@ -49,7 +49,7 @@
 
 - **prime-agent 不在公共 npm registry**：Dockerfile 不能 `npm install -g prime-agent`，用官方 R2 tarball，版本与宿主机对齐（当前 v0.7.2）。（#996 偏差 2）
 - **Node ESM 解析不到全局包**：编排侧（宿主机）须在仓根 `npm install --save-dev @ai-hero/sandcastle tsx`，全局装的 sandcastle 在 `npx tsx .sandcastle/main.mts` 里 import 不到。产生的 `package.json` / `package-lock.json` 已随 #996 入仓。（#996 偏差 5）
-- **git 身份不由 sandcastle 处理**：`GIT_AUTHOR_NAME` / `GIT_AUTHOR_EMAIL` / `GIT_COMMITTER_NAME` / `GIT_COMMITTER_EMAIL` 写进 `.sandcastle/.env`（sandcastle 自动解析注入）；legacy kimi-coding 的 key 变量名是 `KIMI_API_KEY`，同样走 `.env`，不落任何已跟踪文件；本机默认 Kimi 则经 CLIProxyLocal 运行时 env，不读这个 legacy key（#996 / #1617）。
+- **git 身份不由 sandcastle 处理**：`GIT_AUTHOR_NAME` / `GIT_AUTHOR_EMAIL` / `GIT_COMMITTER_NAME` / `GIT_COMMITTER_EMAIL` 写进 `.sandcastle/.env`（sandcastle 自动解析注入）；legacy kimi-coding 的 key 变量名是 `KIMI_API_KEY`，同样走 `.env`，不落任何已跟踪文件；本机默认 Astra 则经 CLIProxyLocal 运行时 env，不读这个 legacy key（#996 / #1617）。
 - **上游 0.12.0 open bug 簇**（#999 调研登记，#1008 施工时逐条对）：provider env 丢失（上游 #925+#900，自定义 provider 的 KIMI_API_KEY 注入面会命中，冒烟必须验证沙盒内 env 真的到了）；hooks 退出码被吞（上游 #943，onSandboxReady 失败不 fail-fast）；timeoutMs 被忽略（上游 #907）。
 - **拾取闸用共享 label 会抢票**：首跑用 `ready-for-agent` 做拾取闸，把并行会话的 #1013 认领了。修正为专属 label `sandcastle`；分支确定性命名 `sandcastle/issue-<票号>`（#1003 裁定），不用时间戳名。（#1008 事故 1）
 - **`TARGET_BRANCH` 是内置 promptArg**：不可覆盖，编排脚本里不要试图传同名参数。（#1008）

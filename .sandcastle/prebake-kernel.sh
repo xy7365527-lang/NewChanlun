@@ -10,7 +10,7 @@
 set -euo pipefail
 
 IMAGE="${1:-sandcastle:newchanlun}"
-: "${PRIME_PREBAKE_PROVIDER:?legacy 预烤须显式设置 PRIME_PREBAKE_PROVIDER；本机默认请用 main-model.mts 的 Kimi 路径}"
+: "${PRIME_PREBAKE_PROVIDER:?legacy 预烤须显式设置 PRIME_PREBAKE_PROVIDER；本机默认请用 main-model.mts 的 Astra 路径}"
 : "${PRIME_PREBAKE_MODEL:?legacy 预烤须显式设置 PRIME_PREBAKE_MODEL；不得回落 k3}"
 export PRIME_PREBAKE_PROVIDER PRIME_PREBAKE_MODEL
 CONTAINER="sc-prebake-$$"

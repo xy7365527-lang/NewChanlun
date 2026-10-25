@@ -6,7 +6,7 @@
 
 ### 哪些 key
 
-`.sandcastle/.env` 是 legacy prime-agent 运行时凭据入口，键面（按 `prebake-kernel.sh` 的 `--change` 清单，共 9 键）。当前主控同型路径不从此取模型密钥：CLIProxyLocal 客户端密钥由 `cliproxy-env.mts` 从本机配置读入运行时 env；Docker 使用 `host.docker.internal:8318`，不挂配置或 OAuth 文件（#1617）。
+`.sandcastle/.env` 是 legacy prime-agent 运行时凭据入口，键面（按 `prebake-kernel.sh` 的 `--change` 清单，共 9 键）。当前主控同型路径不从此取模型密钥：Codex 执行面从进程环境或 launchctl 的 `CLIPROXY_LOCAL_KEY` 取得客户端密钥；decision/wayfinder 的 Claude CLI 控制面由 `cliproxy-env.mts` 从本机配置读入运行时 env；Docker 使用 `host.docker.internal:8318`，不挂配置或 OAuth 文件（#1617）。
 
 | 键 | 用途 | 来源 |
 |---|---|---|
@@ -20,7 +20,7 @@
 
 ### 注入机制
 
-sandcastle 自动从 `.sandcastle/.env` 与 `process.env` 解析环境变量注入沙盒；agent provider 与 sandbox provider 各自的 `env` 可覆盖同名键，但两者键面不得重叠（重叠即抛错）。本仓 `prime-agent-provider.ts` 的 legacy provider env 默认为空，其凭据走 `.env`；主控同型 `claudeCode` 路径则使用上述 CLIProxy 运行时 env，二者不混用。
+sandcastle 自动从 `.sandcastle/.env` 与 `process.env` 解析环境变量注入沙盒；agent provider 与 sandbox provider 各自的 `env` 可覆盖同名键，但两者键面不得重叠（重叠即抛错）。本仓 `prime-agent-provider.ts` 的 legacy provider env 默认为空，其凭据走 `.env`；主控同型 `codex` 路径则使用上述 CLIProxy 运行时 env，二者不混用。
 
 ### 为何 gitignore
 
@@ -72,3 +72,15 @@ sandcastle 自动从 `.sandcastle/.env` 与 `process.env` 解析环境变量注�
 - #1005：GH_TOKEN 形态与权限修正（上游 #937）；
 - #1006/#1010：凭据搬迁裁定与落地（moonshot key 失效卡点在案）；
 - #1008/#1009：两段式与蜂群模板（拾取闸 label、`GH_REPO` 注入）。
+
+## #1617 Codex 的提交责任（2026-10-25 用户批准）
+
+工蜂使用 `workspace-write`，不写 `.git`、`.agents`、`.codex`、`.aws` 等受保护目录，不使用 bypass。作者和独审只编辑允许路径，返回唯一 `sandcastle-result`（ready/blocked、完整文件清单、实际验证结果）。
+
+`managed-commit.mts` 由受管宿主执行：阶段前核干净工位/本票分支/基线，阶段后核完整文件集合，字面路径暂存并提交；遇到 blocked、额外变更、基线变化或提交失败时保留工位。宿主不执行工蜂提供的任意命令，不 push/合入/关票。提交后针对 Rust 变更调用固定 nc-remote 检查精确 SHA，失败/不可达明确记未验证，仍需 CI 或远端成功证据才能验收。
+
+独审拿精确作者提交，修正也由宿主封包。阶段内 resume 仍用原 session；封包重入核父提交、阶段标记、文件集合与干净工位，避免重复提交。进程重启后的不明脏工位不自动接管，由 owner 按记录恢复。
+
+Docker swarm 的 namespace 和提交责任迁移尚未验收，默认 namespace 探针失败时在 planner/认领之前拒绝运行；镜像构建、模型 HTTP 或 main 宿主模式成功均不替代它的验收。不改变容器 capabilities/seccomp/privileged 或 sandbox 模式。
+
+Codex 的受管提交提示使用 codex-implement-prompt.md / codex-review-prompt.md；旧 implement-prompt.md / review-prompt.md 保持原调用合同。swarm namespace 恢复后仍须补完并验证其提交责任迁移，本票该项尚未闭合。

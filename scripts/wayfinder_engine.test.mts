@@ -576,22 +576,22 @@ test("releaseTicket：写前复核读到负责人 / blocker 不发 --add-label�
 
 // ── #1617：spec 起草子代理与主控同型（经 CLIProxyLocal） ─────────────────
 
-test("起草子代理默认：claude-cliproxy / kimi-k3.1-pro", () => {
+test("起草子代理默认：claude-cliproxy / gpt-6-astra", () => {
   assert.equal(DEFAULT_SPEC_PROVIDER, "claude-cliproxy");
-  assert.equal(DEFAULT_SPEC_MODEL, "kimi-k3.1-pro");
-  assert.deepEqual(resolveSpecDrafter({}), { specProvider: "claude-cliproxy", specModel: "kimi-k3.1-pro" });
-  assert.deepEqual([...SUPPORTED_SPEC_MODELS], ["kimi-k3.1-pro"]);
+  assert.equal(DEFAULT_SPEC_MODEL, "gpt-6-astra");
+  assert.deepEqual(resolveSpecDrafter({}), { specProvider: "claude-cliproxy", specModel: "gpt-6-astra" });
+  assert.deepEqual([...SUPPORTED_SPEC_MODELS], ["gpt-6-astra"]);
 });
 
 test("起草子代理显式配置主控同型仍可用", () => {
-  assert.deepEqual(resolveSpecDrafter({ WAYFINDER_SPEC_MODEL: "kimi-k3.1-pro" }), {
+  assert.deepEqual(resolveSpecDrafter({ WAYFINDER_SPEC_MODEL: "gpt-6-astra" }), {
     specProvider: "claude-cliproxy",
-    specModel: "kimi-k3.1-pro",
+    specModel: "gpt-6-astra",
   });
 });
 
 test("起草子代理配非主控模型 → fail-loud，不回退默认", () => {
-  for (const m of ["deepseek-v4-pro", "gpt-6-astra", "claude-opus-5-5", "claude-fable-5-1", "mf/claude-opus-5-5", "claude-haiku-4-5", ""]) {
+  for (const m of ["deepseek-v4-pro", "kimi-k3.1-pro", "claude-opus-5-5", "claude-fable-5-1", "mf/claude-opus-5-5", "claude-haiku-4-5", ""]) {
     assert.throws(() => resolveSpecDrafter({ WAYFINDER_SPEC_MODEL: m }), /不等于当前主控模型/, `model=${m}`);
   }
 });
@@ -599,7 +599,7 @@ test("起草子代理配非主控模型 → fail-loud，不回退默认", () => 
 test("起草子代理配非 claude-cliproxy provider → fail-loud（旧 deepseek / prime-agent 路由不复活）", () => {
   for (const p of ["deepseek", "cliproxy-local", "anthropic"]) {
     assert.throws(
-      () => resolveSpecDrafter({ WAYFINDER_SPEC_PROVIDER: p, WAYFINDER_SPEC_MODEL: "kimi-k3.1-pro" }),
+      () => resolveSpecDrafter({ WAYFINDER_SPEC_PROVIDER: p, WAYFINDER_SPEC_MODEL: "gpt-6-astra" }),
       /不受支持/,
       `provider=${p}`,
     );
@@ -607,9 +607,9 @@ test("起草子代理配非 claude-cliproxy provider → fail-loud（旧 deepsee
 });
 
 test("起草子代理调用：Claude Code CLI 无头 -p、禁用全部工具、不落会话，模型显式传入", () => {
-  const { file, args } = specDrafterCommand("kimi-k3.1-pro");
+  const { file, args } = specDrafterCommand("gpt-6-astra");
   assert.equal(file, "claude");
-  assert.deepEqual(args, ["-p", "--bare", "--model", "kimi-k3.1-pro", "--output-format", "text", "--tools", "", "--no-session-persistence"]);
+  assert.deepEqual(args, ["-p", "--bare", "--model", "gpt-6-astra", "--output-format", "text", "--tools", "", "--no-session-persistence"]);
   assert.ok(!args.includes("prime-agent") && !args.some((a) => /deepseek/.test(a)));
 });
 
