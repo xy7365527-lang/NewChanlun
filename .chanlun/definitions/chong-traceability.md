@@ -30,9 +30,9 @@ TStage latch 只投影 campaign 内已经发生的阶段事件史。`phase_event
 
 ## Voice、筹码与毛账保留逐重归属
 
-每重可先后拥有 Voice，当前 Voice 的标识按 `CONTEXT.md:89` 的 `(carrier, γ, σ, n)` 保存。追溯必须区分重身份与 Voice 生命周期，不能拿 Voice 的退出清空重账。
+每重可先后拥有 Voice，当前 Voice 的标识按 `CONTEXT.md:88` 的 `(carrier, γ, σ, n)` 保存。追溯必须区分重身份与 Voice 生命周期，不能拿 Voice 的退出清空重账。
 
-逐重毛账按腿记录，不以净额代替。毛暴露是两腿绝对值之和，子对冲额度受父级短差额度约束。零筹码期间仍保留金额账和阶段事件史。依据为 `CONTEXT.md:427、431`、ADR 0027:26 与三阶段正本 §4。
+逐重毛账按腿记录，不以净额代替。毛暴露是两腿绝对值之和，子对冲额度受父级短差额度约束。零筹码期间仍保留金额账和阶段事件史。依据为 `CONTEXT.md:426、430`、ADR 0027:26 与三阶段正本 §4。
 
 ## 受影响代码与承接
 
@@ -81,7 +81,7 @@ TStage latch 只投影 campaign 内已经发生的阶段事件史。`phase_event
 | Q1 | 每 bar Classification 路径 | A，ADR 0027、ADR 0039，唯一 launcher 为 production_session。 |
 | Q2 | 定位到每重的路径 | A，ADR 0011:95、ADR 0013 裁定七、ADR 0027:73。 |
 | Q3 | Chong 状态追溯 | A，ADR 0010:52、ADR 0031、三阶段正本 §2。 |
-| Q4 | 逐重毛账追溯 | A，ADR 0027:26、CONTEXT.md:427、431。 |
+| Q4 | 逐重毛账追溯 | A，ADR 0027:26、CONTEXT.md:426、430。 |
 | Q5 | 旁路不回流机制 | A，ADR 0011:92、ADR 0027:73；#881 仅提供已述组件锁。 |
 | Q6 | TStage 独立性 | A，ADR 0013 裁定二、三阶段正本 §2、ADR 0043。 |
-| Q7 | Voice 独立性 | A，ADR 0010:52、CONTEXT.md:89、ADR 0027:26。 |
+| Q7 | Voice 独立性 | A，ADR 0010:52、CONTEXT.md:88、ADR 0027:26。 |
