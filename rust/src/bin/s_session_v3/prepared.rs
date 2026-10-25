@@ -857,11 +857,12 @@ impl Runtime {
                 manifest,
                 workspace,
             } = products;
+            let policy_records = generated.policy_records.clone();
             return Ok(Prepared {
                 metadata,
                 roots,
                 manifest,
-                policy_records: generated.policy_records.clone(),
+                policy_records,
                 workspace,
             });
         }
