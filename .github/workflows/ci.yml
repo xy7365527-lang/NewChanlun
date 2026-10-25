@@ -521,6 +521,9 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci --ignore-scripts
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.13'
       - name: typecheck (tsconfig.sandcastle.json)
         run: npm run typecheck
       - name: node:test — Sandcastle + wayfinder

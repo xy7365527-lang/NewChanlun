@@ -90,6 +90,8 @@ test("无 node_modules：Node 原生类型剥离可 import engine 与主控模�
       ["scripts/wayfinder_engine.mts", "scripts/wayfinder_engine.mts"],
       [".sandcastle/cliproxy-env.mts", ".sandcastle/cliproxy-env.mts"],
       [".sandcastle/main-model.mts", ".sandcastle/main-model.mts"],
+      [".sandcastle/scheduler-config.mts", ".sandcastle/scheduler-config.mts"],
+      [".sandcastle/scheduler-config.json", ".sandcastle/scheduler-config.json"],
     ]) copyFileSync(join(repoRoot, source), join(dir, target));
     const result = spawnSync(process.execPath, [
       "--experimental-strip-types", "--input-type=module", "--eval",
