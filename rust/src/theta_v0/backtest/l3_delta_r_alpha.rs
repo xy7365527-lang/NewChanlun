@@ -2361,6 +2361,19 @@ mod tests {
 
     /// 量纲③重锚（#65 裁定 2026-07-21）：ledger χ 观测必须是费扣后持仓期相对收益。
     #[test]
+    fn p1605_r4_valid_tiny_threshold_has_finite_power_bound() {
+        let mut record: serde_json::Value = serde_json::from_str(
+            crate::theta_v0::policy_records::ACTIVE_RESEARCH_STATS_JSON,
+        ).unwrap();
+        record["fields"]["significance_p_threshold"]["value"] = 1e-30.into();
+        let text = record.to_string();
+        let stats = crate::theta_v0::backtest::research_stats::parse_research_stats(Some(&text)).unwrap();
+        assert!(sign_test_pvalue(99, 99) >= stats.significance_p_threshold);
+        assert!(sign_test_pvalue(100, 100) < stats.significance_p_threshold);
+        assert_eq!(min_sign_test_power(&stats), 100);
+    }
+
+    #[test]
     fn chi_feed_uses_entry_notional_relative_return() {
         let got = chi_dimension_three_return(100.0, 110.0, 1.0, 0.001, 1);
         let expected = marginal_return(100.0, 110.0, 1.0, 0.001, 1) / 100.0;
