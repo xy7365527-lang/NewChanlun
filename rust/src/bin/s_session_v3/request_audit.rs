@@ -1703,8 +1703,8 @@ mod tests {
             assert!(error.contains("job_limit_exceeded"), "{error}");
             assert!(context.slot.is_none());
             drop(meter);
-            assert_eq!(job.snapshot().records, limit + 1,
-                "3允许SQL/OHLC/validate，4再允许raw hash；下一独立访问照实入账后拒绝");
+            assert_eq!(job.snapshot().records, limit,
+                "3允许SQL/OHLC/validate，4再允许raw hash；下一独立访问被原Job拒收，不虚增已接纳账");
         }
         for armed in [false, true] {
             let mut keeper = super::super::cross_request_source_cache::Keeper::new(64 * 1024 * 1024);
@@ -1724,7 +1724,7 @@ mod tests {
             assert!(context.slot.is_none());
             assert_eq!(context.take_source_pool().is_some(), armed);
             drop(meter);
-            assert_eq!(job.snapshot().records, 2);
+            assert_eq!(job.snapshot().records, 1);
         }
     }
 
