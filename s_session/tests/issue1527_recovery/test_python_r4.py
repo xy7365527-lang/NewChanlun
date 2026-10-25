@@ -683,7 +683,9 @@ class RepairTests(unittest.TestCase):
     """#1527 R4 独评返修锁；不发送真实信号，不启动正式服务。"""
 
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="r4-repair-", dir=os.path.realpath(tempfile.gettempdir()))
+        # macOS 默认临时根过长，子场景名会先撞 launcher 的 100 字节 socket 门，
+        # 尚未到达本组欲验证的 admission/receipt 分支；用解析后的短根，不放宽生产门。
+        self.temporary = tempfile.TemporaryDirectory(prefix="r4-repair-", dir=os.path.realpath("/tmp"))
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         env = patch.dict(os.environ, {}, clear=True)
