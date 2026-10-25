@@ -838,10 +838,17 @@ mod tests {
         for with_context in [false, true] {
             let mut context = request_audit::RequestAuditContext::default();
             let error = Driver::open_with_request_and_mode_context(
-                &f.db, &f.profile, "2", f.clock.clone(), None,
-                s_allocation::Mode::CapturedNative, with_context.then_some(&mut context),
+                &f.db,
+                &f.profile,
+                "2",
+                f.clock.clone(),
+                None,
+                s_allocation::Mode::CapturedNative,
+                with_context.then_some(&mut context),
                 crate::v3::admission_anchor::test_prepare(&f.db).into(),
-            ).err().unwrap();
+            )
+            .err()
+            .unwrap();
             assert_eq!(error.split("；原准入账=").next(), Some(expected.as_str()));
             assert!(!PathBuf::from(format!("{}-shm", f.db.display())).exists());
             assert!(context.take().is_none());

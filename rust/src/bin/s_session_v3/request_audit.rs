@@ -1470,10 +1470,26 @@ mod tests {
                         "max_total_nodes":"100000", "max_total_records":"100000",
                         "max_total_requests":"20", "max_elapsed_ms":"10000",
                         "max_staged_bytes":"1048576", "max_store_bytes":"33554432"
-                    })).unwrap();
-                    let mut job = Job::new(limits, Existing { store_bytes: 0, staged_bytes: 0 }, Box::new(std::time::Instant::now)).unwrap();
+                    }))
+                    .unwrap();
+                    let mut job = Job::new(
+                        limits,
+                        Existing {
+                            store_bytes: 0,
+                            staged_bytes: 0,
+                        },
+                        Box::new(std::time::Instant::now),
+                    )
+                    .unwrap();
                     let meter = super::super::audit_budget::AuditJob::new(&mut job);
-                    state::audit_native_in_request_measured(&tx, &mut context, work, None, Some(&meter)).unwrap()
+                    state::audit_native_in_request_measured(
+                        &tx,
+                        &mut context,
+                        work,
+                        None,
+                        Some(&meter),
+                    )
+                    .unwrap()
                 } else {
                     super::super::s_allocation::audit_in_request_admitted(
                         &tx,
@@ -1481,7 +1497,8 @@ mod tests {
                         super::super::s_allocation::Phase::Handle,
                         &mut context,
                         work,
-                    ).unwrap()
+                    )
+                    .unwrap()
                 };
                 assert_eq!(
                     complete_native_output(&tx, &current),
