@@ -400,3 +400,52 @@ fn duplicate_missing_or_alias_cli_budget_never_becomes_authority_and_errors_do_n
         ErrorKind::Identity
     );
 }
+
+fn start_gate_pipe() -> (File, File) {
+    let mut fds = [-1; 2];
+    assert_eq!(unsafe { libc::pipe(fds.as_mut_ptr()) }, 0);
+    // SAFETY：pipe成功返回两个独占新fd，各转交一个File释放。
+    unsafe { (File::from_raw_fd(fds[0]), File::from_raw_fd(fds[1])) }
+}
+#[test]
+fn start_gate_accepts_only_release_and_charges_original_wire() {
+    for value in [Some(b'R'), Some(b'X'), None] {
+        let f = Fixture::new();
+        let mut prepared = f.load().unwrap();
+        let first = prepared.prelude.first_read_at;
+        let wire = prepared.prelude.wire_bytes;
+        let (read, mut write) = start_gate_pipe();
+        if let Some(byte) = value { write.write_all(&[byte]).unwrap(); }
+        drop(write);
+        let result = prepared.wait_start_gate(read.as_raw_fd());
+        assert_eq!(result.is_ok(), value == Some(b'R'));
+        assert_eq!(prepared.prelude.first_read_at, first);
+        assert_eq!(prepared.prelude.wire_bytes, wire + u64::from(value.is_some()));
+    }
+}
+
+#[test]
+fn start_gate_wait_consumes_original_deadline() {
+    let mut node = limit_node();
+    node["max_elapsed_ms"] = json!("80");
+    let f = Fixture::with_raw(serde_json::to_vec(&node).unwrap());
+    let mut prepared = f.load().unwrap();
+    let (read, _write) = start_gate_pipe();
+    let first = prepared.prelude.first_read_at;
+    let error = prepared.wait_start_gate(read.as_raw_fd()).unwrap_err();
+    assert_eq!(error.kind, ErrorKind::Deadline);
+    assert_eq!(error.first_read_at, first);
+}
+#[test]
+fn start_gate_does_not_accept_changed_anchor_or_nonpipe() {
+    let f = Fixture::new();
+    let mut prepared = f.load().unwrap();
+    let (read, mut write) = start_gate_pipe();
+    std::fs::write(&f.limits, b"changed").unwrap();
+    write.write_all(b"R").unwrap();
+    assert_eq!(prepared.wait_start_gate(read.as_raw_fd()).unwrap_err().kind, ErrorKind::Changed);
+    let f = Fixture::new();
+    let mut prepared = f.load().unwrap();
+    let file = File::open(&f.db).unwrap();
+    assert_eq!(prepared.wait_start_gate(file.as_raw_fd()).unwrap_err().kind, ErrorKind::ControlMismatch);
+}

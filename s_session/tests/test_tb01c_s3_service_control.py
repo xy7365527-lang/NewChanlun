@@ -314,7 +314,7 @@ class S3LifecycleTests(unittest.TestCase):
                         return "old identity" if case == "live" else None
                     self.assertEqual(pid, 234567)
                     return "new identity"
-                child = Mock(pid=234567, **{"poll.return_value": None})
+                child = Mock(pid=234567, **{"poll.return_value": None, "stdin.write.return_value": 1})
                 try:
                     with patch.object(control, "process_identity", side_effect=observation), \
                          patch.object(controller, "runtime_environment", return_value={}), \
@@ -373,7 +373,7 @@ class S3LifecycleTests(unittest.TestCase):
                 command = [config["binary"], "serve"]
                 if identity is not None:
                     command += ["--protocol-revision", "s-session/3", "--resource-config", identity["path"]]
-                child = Mock(pid=234567, **{"poll.return_value": None})
+                child = Mock(pid=234567, **{"poll.return_value": None, "stdin.write.return_value": 1})
                 try:
                     with patch.object(control, "process_identity", return_value="owned argv"), \
                          patch.object(control.subprocess, "Popen", return_value=child) as spawn:

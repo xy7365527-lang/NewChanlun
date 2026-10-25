@@ -104,7 +104,7 @@ class RuntimeIntegrationTests(unittest.TestCase):
                 service = "s" if domain == "S" else "owner"
                 try:
                     with patch.object(controller, "record"), \
-                         patch.object(control.subprocess, "Popen", return_value=Mock(pid=123456)) as spawn:
+                         patch.object(control.subprocess, "Popen", return_value=Mock(pid=123456, **{"stdin.write.return_value": 1})) as spawn:
                         controller.start_process(service, ["fixture-only"], environment={})
                     environment = spawn.call_args.kwargs["env"]
                     expected = "S_CONTROL_INSTANCE_ID" if domain == "S" else "SESSION_CONTROL_INSTANCE_ID"
