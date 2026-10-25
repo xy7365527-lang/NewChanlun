@@ -34,7 +34,7 @@ test("main-swarm 不再实例化 prime-agent/k3，三处沙盒统一走路由 he
   assert.ok(!source.includes("primeAgent("));
   assert.ok(!source.includes('"k3"'));
   assert.equal(source.match(/swarmSandbox\(IMAGE\)/g)?.length, 3);
-  assert.equal(source.match(/agent: swarmAgent\(\)/g)?.length, 4);
+  assert.equal(source.match(/swarmAgent\(\)/g)?.length, 4);
 });
 
 test("main-swarm 领票前验证 Docker 路由，失败时不回退旧模型", () => {

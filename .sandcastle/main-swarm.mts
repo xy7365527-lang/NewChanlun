@@ -12,6 +12,7 @@ import { assertDockerCliProxyReachable, assertSwarmExecutionReady, swarmAgent, s
 import { execSync } from "node:child_process";
 import { appendFileSync, mkdirSync } from "node:fs";
 import { z } from "zod";
+import { runManagedSwarmTicket, assertSwarmMergeContract } from "./swarm-managed.mts";
 import {
   ghIssueFetcher,
   ghIssueNotifier,
@@ -19,10 +20,10 @@ import {
   readReviewTemplate,
   resolveReviewBase,
   ReviewPromptTooLargeError,
-  runGuardedReview,
+
 } from "./review-context.mts";
-// 注：蜂群走 docker 沙盒，容器内 PATH 与宿主不同、也没有 nc-remote，故不挂 cargo-guard 垫片
-// （main.mts 的 noSandbox 宿主路径才挂）；本机禁 cargo 在这里只靠提示词约束（#1588 遗留项）。
+// 单票作者/评审只编辑文件；宿主封包后由宿主 nc-remote 验精确 SHA。
+// merger 仍是旧合同，未经批准不移植；启动门保持其不可达，不扩大 Docker 权限。
 
 // ── 顶部常量（并发与资源面；模型唯一来源是 main-model.mts） ───────────────
 const MAX_ITERATIONS = 3;
@@ -68,6 +69,7 @@ function claim(issue: string) {
 // 先验容器路由，再进入任何 planner/claim；失败时不产生 tracker 写副作用（#1617）。
 assertSwarmExecutionReady(IMAGE);
 assertDockerCliProxyReachable(IMAGE);
+assertSwarmMergeContract();
 
 for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   console.log(`\n=== Iteration ${iteration}/${MAX_ITERATIONS} ===\n`);
@@ -117,37 +119,33 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
           sandbox: swarmSandbox(IMAGE),
         });
         try {
-          const implement = await sandbox.run({
-            name: "implementer",
-            maxIterations: 1,
-            agent: swarmAgent(),
-            promptFile: "./.sandcastle/implement-prompt.md",
-            promptArgs: { ISSUE_NUMBER: issue.id },
-          });
-          if (!implement.commits.length) return implement;
-          // #1588：评审提示宿主侧渲染（只放变更摘要，基准 = 现 fetch 的 origin/main 提交）+ 体积闸；
-          // 渲染与运行同一失败通道：超限 / 渲染失败 / 运行失败都落 workers.jsonl + 票面评论后抛出。
-          const git = hostGit();
-          const review = await runGuardedReview(
-            {
-              template: readReviewTemplate(),
-              branch: issue.branch,
-              target: "main",
-              resolveBase: () => resolveReviewBase(git),
-              issue: Number(issue.id),
-              git,
+          const git = hostGit(sandbox.worktreePath);
+          // 作者与评审各持有独立 provider；评审修复轮只续自己的 session。
+          const implementer = swarmAgent();
+          const reviewer = swarmAgent();
+          let reviewSession: string | undefined;
+          return await runManagedSwarmTicket({
+            cwd: sandbox.worktreePath, branch: issue.branch, issue: Number(issue.id),
+            implement: async () => (await sandbox.run({
+              name: "implementer", maxIterations: 1, agent: implementer,
+              promptFile: "./.sandcastle/codex-implement-prompt.md",
+              promptArgs: { ISSUE_NUMBER: issue.id },
+            })).stdout,
+            review: async (prompt) => {
+              const result = await sandbox.run({
+                name: "reviewer", maxIterations: 1, agent: reviewer, prompt,
+                ...(reviewSession ? { resumeSession: reviewSession } : {}),
+              });
+              reviewSession = result.iterations.at(-1)?.sessionId;
+              return result.stdout;
+            },
+            reviewOptions: {
+              template: readReviewTemplate("./.sandcastle/codex-review-prompt.md"),
+              target: "main", resolveBase: () => resolveReviewBase(git), git,
               fetchIssue: ghIssueFetcher(GH_CLEAN_ENV),
             },
-            { logWorker, notify: ghIssueNotifier(GH_CLEAN_ENV) },
-            ({ prompt }) =>
-              sandbox.run({
-                name: "reviewer",
-                maxIterations: 1,
-                agent: swarmAgent(),
-                prompt,
-              }),
-          );
-          return { ...review, commits: [...implement.commits, ...review.commits] };
+            channels: { logWorker, notify: ghIssueNotifier(GH_CLEAN_ENV) },
+          });
         } finally {
           await sandbox.close();
         }

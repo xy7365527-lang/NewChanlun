@@ -81,8 +81,8 @@ sandcastle 自动从 `.sandcastle/.env` 与 `process.env` 解析环境变量注�
 
 独审拿精确作者提交，修正也由宿主封包。阶段内 resume 仍用原 session；封包重入核父提交、阶段标记、文件集合与干净工位，避免重复提交。进程重启后的不明脏工位不自动接管，由 owner 按记录恢复。
 
-Docker swarm 的 namespace 和提交责任迁移尚未验收，默认 namespace 探针失败时在 planner/认领之前拒绝运行；镜像构建、模型 HTTP 或 main 宿主模式成功均不替代它的验收。不改变容器 capabilities/seccomp/privileged 或 sandbox 模式。
+Docker swarm 的 namespace 尚未真实验收；单票作者/独审可复用上述受管合同，多票 merger 不可复用：它需要 merge 分支与双父提交，而现合同只接受本票分支、单父提交。namespace 预检失败或 merger 合同未批准/实现时，均在 planner/认领之前拒绝运行。镜像构建、模型 HTTP、mock tests 或 main 宿主模式成功均不替代 Docker 验收。不改变容器 capabilities/seccomp/privileged 或 sandbox 模式。
 
-Codex 的受管提交提示使用 codex-implement-prompt.md / codex-review-prompt.md；旧 implement-prompt.md / review-prompt.md 保持原调用合同。swarm namespace 恢复后仍须补完并验证其提交责任迁移，本票该项尚未闭合。
+Codex 的受管提交提示使用 codex-implement-prompt.md / codex-review-prompt.md；旧 implement-prompt.md / review-prompt.md / merge-prompt.md 保持原调用合同。`swarm-managed.mts` 的单票作者/独审由宿主封包，不再依据 SDK 观察到的工蜂 commit 判断产出；作者未提交、blocked 或失败验证不能进入 completed 分支集。merger 原代码被启动门阻止，不以旧工蜂 git merge 合同冒充受管提交。
 
 远端结果以结构化 `RustVerification` 绑定精确 head，保存完整 stdout/stderr 和 nc-remote 原始日志；日志首行 SHA 必须匹配。作者失败诊断交独审工蜂修复，修正提交重验；独审无改动沿用同 head 的既有结论，不能降成“Rust 未改动”。验证失败至多三轮修复后以 failed 退出，不发 reviewer/completed。REVIEW_ONLY 按整份候选差异恢复验证需求。
