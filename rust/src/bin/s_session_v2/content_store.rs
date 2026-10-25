@@ -2565,6 +2565,7 @@ fn capture_originals_admitted(
     Ok((capture, count, same))
 }
 #[cfg(feature = "s_capture_native_testonly")]
+#[allow(dead_code, reason = "#1527：保留原无计量入口，measured 入口共用原核")]
 pub(crate) fn current_originals_equal_for_request_with_scratch_admitted(
     tx: &Transaction<'_>,
     capture: &s_content::AuditCapture,

@@ -805,12 +805,14 @@ pub(crate) fn sha_json_admitted(
     Ok(out.hash.finalize().into())
 }
 
+#[allow(dead_code, reason = "#1527：保留原无计量入口，measured 入口共用原核")]
 pub(crate) fn validate_raw(
     rows: RawEventsView<'_>,
     deadline: Option<Instant>,
 ) -> Result<(), String> {
     validate_raw_admitted(rows, deadline, None)
 }
+#[allow(dead_code, reason = "#1527：保留原无计量入口，measured 入口共用原核")]
 pub(crate) fn validate_raw_admitted(
     rows: RawEventsView<'_>,
     deadline: Option<Instant>,
