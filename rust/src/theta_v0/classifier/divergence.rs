@@ -1888,9 +1888,7 @@ mod tests {
 
         let cfg = MacdConfig::default();
         let states = [100, 5_000].map(|n| {
-            let closes: Vec<_> = (0..n)
-                .map(|i| 100.0 + ((i as f64) * 0.1).sin())
-                .collect();
+            let closes: Vec<_> = (0..n).map(|i| 100.0 + ((i as f64) * 0.1).sin()).collect();
             macd_state_from_closes(&closes, &cfg)
         });
         let measure = |state: &MacdState| {
