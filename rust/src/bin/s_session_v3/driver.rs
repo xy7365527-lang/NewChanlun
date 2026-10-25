@@ -865,10 +865,17 @@ mod tests {
             drop(initial);
             let mut context = request_audit::RequestAuditContext::default();
             let scope = super::super::admission::WriterAdmission::from(
-                crate::v3::admission_anchor::test_prepare(&f.db)).admit_prefix(
-                    &f.db, super::super::admission_private::RejectionPrefix::NativeStartup {
-                        epoch: "1", context: Some(&mut context), work: None,
-                    }).unwrap();
+                crate::v3::admission_anchor::test_prepare(&f.db),
+            )
+            .admit_prefix(
+                &f.db,
+                super::super::admission_private::RejectionPrefix::NativeStartup {
+                    epoch: "1",
+                    context: Some(&mut context),
+                    work: None,
+                },
+            )
+            .unwrap();
             assert!(context.has_slot());
             assert_eq!((context.cold, context.hits), (1, 0));
             let _guard = scope.enter().unwrap();
@@ -883,27 +890,50 @@ mod tests {
                     newchan_rust::s_content::write_value(
                         &mut super::super::content_store::TxStore::new(&tx).unwrap(),
                         &newchan_rust::s_content::Value::String("prefix-to-real-append".into()),
-                    ).unwrap();
+                    )
+                    .unwrap();
                     tx.commit().unwrap();
                 }
-                "bad_node" => { mutation.execute("UPDATE s_content_nodes SET body=x'ff'", []).unwrap(); }
-                "epoch" => { meta_set(&mutation, "writer_epoch", "2").unwrap(); }
-                "identity" => { meta_set(&mutation, "session_generation", "0").unwrap(); }
-                "version" => { meta_set(&mutation, "protocol_revision", "s-session/999").unwrap(); }
+                "bad_node" => {
+                    mutation
+                        .execute("UPDATE s_content_nodes SET body=x'ff'", [])
+                        .unwrap();
+                }
+                "epoch" => {
+                    meta_set(&mutation, "writer_epoch", "2").unwrap();
+                }
+                "identity" => {
+                    meta_set(&mutation, "session_generation", "0").unwrap();
+                }
+                "version" => {
+                    meta_set(&mutation, "protocol_revision", "s-session/999").unwrap();
+                }
                 _ => unreachable!(),
             }
             let expected = {
                 let tx = mutation.transaction().unwrap();
-                state::audit_native_current(&tx).map(|_| ()).and_then(|_| crate::verify_writer_epoch(&tx, "1"))
+                state::audit_native_current(&tx)
+                    .map(|_| ())
+                    .and_then(|_| crate::verify_writer_epoch(&tx, "1"))
             };
             drop(mutation);
-            let actual = conn.startup(&f.profile, "1", &f.clock, None,
-                &s_allocation::Mode::CapturedNative, Some(&mut context));
+            let actual = conn.startup(
+                &f.profile,
+                "1",
+                &f.clock,
+                None,
+                &s_allocation::Mode::CapturedNative,
+                Some(&mut context),
+            );
             match expected {
                 Ok(()) => {
                     actual.unwrap();
-                    if change == "same" { assert_eq!((context.cold, context.hits), (1, 1)); }
-                    if change == "append" { assert_eq!((context.cold, context.hits), (2, 0)); }
+                    if change == "same" {
+                        assert_eq!((context.cold, context.hits), (1, 1));
+                    }
+                    if change == "append" {
+                        assert_eq!((context.cold, context.hits), (2, 0));
+                    }
                 }
                 Err(expected) => assert_eq!(actual.err().unwrap(), expected, "{change}"),
             }
@@ -928,35 +958,69 @@ mod tests {
         let mut context = request_audit::RequestAuditContext::with_source_keeper(keeper);
         context.arm_source_pool_return(true);
         let error = Driver::open_with_request_and_mode_context(
-            &f.db, &f.profile, "2", f.clock.clone(), None,
-            s_allocation::Mode::CapturedNative, Some(&mut context),
+            &f.db,
+            &f.profile,
+            "2",
+            f.clock.clone(),
+            None,
+            s_allocation::Mode::CapturedNative,
+            Some(&mut context),
             crate::v3::admission_anchor::test_prepare(&f.db).into(),
-        ).err().unwrap();
+        )
+        .err()
+        .unwrap();
         assert!(error.starts_with("StaleWriter："), "{error}");
         assert_eq!(context.cold, 1, "内层已完整成功并retain后，epoch才拒绝");
         assert!(context.take().is_none());
-        assert!(context.take_source_pool().is_none(), "内层已消费的旧池不得复活");
+        assert!(
+            context.take_source_pool().is_none(),
+            "内层已消费的旧池不得复活"
+        );
         assert!(error.contains("原准入账="));
         assert!(!PathBuf::from(format!("{}-shm", f.db.display())).exists());
         for epoch in ["1", "2"] {
             if epoch == "2" {
-                recover(&f.db, "2", &f.clock, "recover-1",
-                    crate::v3::admission_anchor::test_prepare(&f.db).into()).unwrap();
+                recover(
+                    &f.db,
+                    "2",
+                    &f.clock,
+                    "recover-1",
+                    crate::v3::admission_anchor::test_prepare(&f.db).into(),
+                )
+                .unwrap();
             }
             let mut writer = Driver::open_with_request_and_mode(
-                &f.db, &f.profile, epoch, f.clock.clone(), None,
+                &f.db,
+                &f.profile,
+                epoch,
+                f.clock.clone(),
+                None,
                 s_allocation::Mode::CapturedNative,
-                crate::v3::admission_anchor::test_prepare(&f.db).into()).unwrap();
-            writer.handle(envelope("ready-after-prefix-rejection", json!({"op":"ready"}))).unwrap();
+                crate::v3::admission_anchor::test_prepare(&f.db).into(),
+            )
+            .unwrap();
+            writer
+                .handle(envelope(
+                    "ready-after-prefix-rejection",
+                    json!({"op":"ready"}),
+                ))
+                .unwrap();
             drop(writer);
-            assert!(!PathBuf::from(format!("{}-shm", f.db.display())).exists(), "writer/recover闭合后无SHM");
+            assert!(
+                !PathBuf::from(format!("{}-shm", f.db.display())).exists(),
+                "writer/recover闭合后无SHM"
+            );
         }
     }
 
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn native_prefix_final_deadline_preserves_business_and_clears_retained_context() {
-        use std::{cell::Cell, rc::Rc, time::{Duration, Instant}};
+        use std::{
+            cell::Cell,
+            rc::Rc,
+            time::{Duration, Instant},
+        };
         for epoch in ["1", "2"] {
             let f = Fixture::new();
             let mut initial = f.open("1").unwrap();
@@ -970,30 +1034,51 @@ mod tests {
                 let clock = Box::new(move || {
                     let n = observed.get() + 1;
                     observed.set(n);
-                    if n >= expire_at { first + Duration::from_secs(601) } else { first }
+                    if n >= expire_at {
+                        first + Duration::from_secs(601)
+                    } else {
+                        first
+                    }
                 });
                 let mut context = request_audit::RequestAuditContext::default();
-                let (result, snapshot, final_calls) = super::super::admission_anchor::test_with_clock_account(
-                    &f.db, first, clock, |source, account| {
-                        let result = super::super::admission_private::validate_prefix(
-                            source, account, super::super::admission_private::RejectionPrefix::NativeStartup {
-                                epoch, context: Some(&mut context), work: None,
-                            });
-                        let final_calls = calls.get();
-                        (result, account.snapshot(), final_calls)
-                    });
+                let (result, snapshot, final_calls) =
+                    super::super::admission_anchor::test_with_clock_account(
+                        &f.db,
+                        first,
+                        clock,
+                        |source, account| {
+                            let result = super::super::admission_private::validate_prefix(
+                                source,
+                                account,
+                                super::super::admission_private::RejectionPrefix::NativeStartup {
+                                    epoch,
+                                    context: Some(&mut context),
+                                    work: None,
+                                },
+                            );
+                            let final_calls = calls.get();
+                            (result, account.snapshot(), final_calls)
+                        },
+                    );
                 (result, snapshot, context, final_calls)
             };
             let (original, before, original_context, calls) = run(usize::MAX);
-            if epoch == "1" { assert!(original.is_ok()); assert!(original_context.has_slot()); }
-            else { assert!(original.as_ref().unwrap_err().starts_with("StaleWriter：")); }
+            if epoch == "1" {
+                assert!(original.is_ok());
+                assert!(original_context.has_slot());
+            } else {
+                assert!(original.as_ref().unwrap_err().starts_with("StaleWriter："));
+            }
             let (late, after, context, actual_calls) = run(calls);
             assert_eq!(actual_calls, calls, "仅最后期限门发生变化");
             assert_eq!(context.cold, 1, "期限门之前业务核已完成retain");
             assert!(!context.has_slot());
             let late = late.unwrap_err();
             assert!(late.contains("deadline"), "{late}");
-            if let Err(original) = original { assert!(late.starts_with(&original)); assert!(late.contains("收尾期限")); }
+            if let Err(original) = original {
+                assert!(late.starts_with(&original));
+                assert!(late.contains("收尾期限"));
+            }
             assert_eq!(after.records, before.records);
             assert_eq!(after.nodes, before.nodes);
             assert_eq!(after.wire_bytes, before.wire_bytes);

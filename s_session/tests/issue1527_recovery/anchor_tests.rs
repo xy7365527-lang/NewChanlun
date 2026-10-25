@@ -468,7 +468,8 @@ fn mixed_resources_anchor_validates_full_contract_but_does_not_enable_execution(
         "measurement_domains":["s-content/1","legacy-evidence/1"],
         "job_limits":limit_node(),
         "native_ram":{"max_live_bytes":"4096","max_operation_bytes":"1024"}
-    })).unwrap();
+    }))
+    .unwrap();
     let fixture = Fixture::with_raw(raw);
     let prepared = fixture.load().unwrap();
     assert!(prepared.resources.is_mixed());
@@ -486,10 +487,13 @@ fn mixed_resources_anchor_ram_mutation_requires_new_signed_binding() {
         "measurement_domains":["s-content/1","legacy-evidence/1"],
         "job_limits":limit_node(),
         "native_ram":{"max_live_bytes":"4096","max_operation_bytes":"1024"}
-    })).unwrap();
+    }))
+    .unwrap();
     let fixture = Fixture::with_raw(raw);
     let prepared = fixture.load().unwrap();
-    let changed = String::from_utf8(fixture.raw.clone()).unwrap().replace("4096", "81920");
+    let changed = String::from_utf8(fixture.raw.clone())
+        .unwrap()
+        .replace("4096", "81920");
     std::fs::write(&fixture.limits, changed).unwrap();
     assert_eq!(fixture.load().err().unwrap().kind, ErrorKind::Changed);
     assert_eq!(prepared.consume().err().unwrap().kind, ErrorKind::Changed);

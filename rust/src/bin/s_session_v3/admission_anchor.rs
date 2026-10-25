@@ -502,7 +502,9 @@ impl PreparedAdmission {
         check_lease(&self.lease, &self.prelude, Stage::E5)?;
         if self.resources.is_mixed() {
             // schema/签锚已核；双域父账与旧域执行尚未启用，不可丢掉 RAM 合同降级八帽。
-            return Err(self.prelude.error(ErrorKind::MixedAdmissionNotEnabled, Stage::E5));
+            return Err(self
+                .prelude
+                .error(ErrorKind::MixedAdmissionNotEnabled, Stage::E5));
         }
         Ok(ConsumedAdmission {
             limits: self.limits,
@@ -1453,10 +1455,17 @@ pub(crate) fn test_with_clock_account<T>(
 ) -> T {
     let consumed = test_prepare(db).consume().unwrap();
     let source = super::admission_provider::MeasuredDomain::measure(&consumed).unwrap();
-    let job = RefCell::new(admission_job::Job::new_started(
-        consumed.limits, source.existing, clock, first,
-    ).unwrap());
-    job.borrow_mut().charge_wire_bytes(consumed.prelude.wire_bytes).unwrap();
-    let result = run(&source, &mut AdmissionAccounting { job: job.borrow_mut() });
+    let job = RefCell::new(
+        admission_job::Job::new_started(consumed.limits, source.existing, clock, first).unwrap(),
+    );
+    job.borrow_mut()
+        .charge_wire_bytes(consumed.prelude.wire_bytes)
+        .unwrap();
+    let result = run(
+        &source,
+        &mut AdmissionAccounting {
+            job: job.borrow_mut(),
+        },
+    );
     result
 }

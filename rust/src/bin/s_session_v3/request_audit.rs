@@ -1699,15 +1699,26 @@ mod tests {
             let tx = f.conn.transaction().unwrap();
             let meter = AuditJob::new(&mut job);
             let error = state::audit_native_in_request_measured(
-                &tx, &mut context, None, None, Some(&meter)).err().unwrap();
+                &tx,
+                &mut context,
+                None,
+                None,
+                Some(&meter),
+            )
+            .err()
+            .unwrap();
             assert!(error.contains("job_limit_exceeded"), "{error}");
             assert!(context.slot.is_none());
             drop(meter);
-            assert_eq!(job.snapshot().records, limit,
-                "3允许SQL/OHLC/validate，4再允许raw hash；下一独立访问被原Job拒收，不虚增已接纳账");
+            assert_eq!(
+                job.snapshot().records,
+                limit,
+                "3允许SQL/OHLC/validate，4再允许raw hash；下一独立访问被原Job拒收，不虚增已接纳账"
+            );
         }
         for armed in [false, true] {
-            let mut keeper = super::super::cross_request_source_cache::Keeper::new(64 * 1024 * 1024);
+            let mut keeper =
+                super::super::cross_request_source_cache::Keeper::new(64 * 1024 * 1024);
             {
                 let tx = f.conn.transaction().unwrap();
                 state::audit_native_with_source_keeper_for_testonly(&tx, &mut keeper).unwrap();
@@ -1719,7 +1730,14 @@ mod tests {
             let tx = f.conn.transaction().unwrap();
             let meter = AuditJob::new(&mut job);
             let error = state::audit_native_in_request_measured(
-                &tx, &mut context, None, None, Some(&meter)).err().unwrap();
+                &tx,
+                &mut context,
+                None,
+                None,
+                Some(&meter),
+            )
+            .err()
+            .unwrap();
             assert!(error.contains("job_limit_exceeded"), "{error}");
             assert!(context.slot.is_none());
             assert_eq!(context.take_source_pool().is_some(), armed);
