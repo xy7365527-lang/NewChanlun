@@ -705,7 +705,7 @@ mod tests {
         let f = Fixture::new();
         let mut c = open_db(&f.db).unwrap();
         meta_set(&c, "rule_revision", crate::LEGACY_V3_RULE_REVISION).unwrap();
-        meta_set(&c, "session_generation", "broken").unwrap();
+        c.execute("UPDATE catalog SET run_status='run'", []).unwrap();
         let expected = {
             let tx = c.transaction().unwrap();
             state::audit(&tx).err().expect("坏库必须被原审计拒绝")
