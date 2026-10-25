@@ -477,18 +477,31 @@ class Controller:
         environment = dict(os.environ if environment is None else environment)
         # 私有声明只由本次已核冻结原件产生，ambient 值不能替代它或串到旧服务/Q。
         environment.pop("S_CONTROL_RESOURCE_SHA256", None)
+        environment.pop("S_CONTROL_START_GATE", None)
+        start_gate = service == "s" and self.socket_service == "s"
+        if start_gate:
+            environment["S_CONTROL_START_GATE"] = "stdin-v1"
         if resource_identity is not None:
             environment["S_CONTROL_RESOURCE_SHA256"] = resource_identity["sha256"]
         instance_key = "SESSION_CONTROL_INSTANCE_ID" if self.socket_service == "owner" else "S_CONTROL_INSTANCE_ID"
         environment[instance_key] = instance_id
         with (self.state_dir / (service + ".log")).open("ab") as log:
             remaining(deadline)
-            process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
-                                       start_new_session=True, env=environment)
+            process = subprocess.Popen(command, stdin=subprocess.PIPE if start_gate else subprocess.DEVNULL,
+                                       stdout=log, stderr=log,
+                                       start_new_session=True, env=environment, bufsize=0)
         try:
             self.record(service, process.pid, command, instance_id, child=process, deadline=deadline,
                         resource_identity=resource_identity)
+            if start_gate:
+                # #1527：登记原子替换完成后，才允许子进程固定整个源域。
+                remaining(deadline)
+                if process.stdin.write(b"R") != 1:
+                    raise ValueError("S 启动放行管道未完整写入")
+                process.stdin.close()
         except Exception as exc:
+            if start_gate:
+                process.stdin.close()
             # 仅善后本次尚未登记的直接子进程，不触碰其他已运行服务。
             if process.poll() is None:
                 process.terminate()

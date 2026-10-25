@@ -412,6 +412,59 @@ impl fmt::Debug for PreparedAdmission {
 }
 
 impl PreparedAdmission {
+    /// #1527：在冻结源域前等父进程登记，借用管道，不重起钟或另建账。
+    fn wait_start_gate(&mut self, fd: libc::c_int) -> Result<(), AdmissionError> {
+        let stage = Stage::E4;
+        self.prelude.gate(stage)?;
+        let start = self.prelude.first_read_at
+            .ok_or_else(|| self.prelude.error(ErrorKind::Deadline, stage))?;
+        let deadline = start.checked_add(Duration::from_millis(self.limits.max_elapsed_ms))
+            .ok_or_else(|| self.prelude.error(ErrorKind::Deadline, stage))?;
+        // SAFETY：stat 为有效输出地址；fd 仅借用，不关闭或转移 stdin 所有权。
+        let mut meta = std::mem::MaybeUninit::<libc::stat>::uninit();
+        if unsafe { libc::fstat(fd, meta.as_mut_ptr()) } != 0 {
+            return Err(self.prelude.error(ErrorKind::ControlMismatch, stage));
+        }
+        let meta = unsafe { meta.assume_init() };
+        if meta.st_mode & libc::S_IFMT != libc::S_IFIFO {
+            return Err(self.prelude.error(ErrorKind::ControlMismatch, stage));
+        }
+        loop {
+            self.prelude.gate(stage)?;
+            let left = deadline.saturating_duration_since(Instant::now());
+            let millis = left.as_millis().saturating_add(1).min(i32::MAX as u128) as i32;
+            let mut poll = libc::pollfd { fd, events: libc::POLLIN, revents: 0 };
+            // SAFETY：一个有效 pollfd；超时只来自同一原绝对期限。
+            let result = unsafe { libc::poll(&mut poll, 1, millis) };
+            self.prelude.gate(stage)?;
+            if result < 0 {
+                if io::Error::last_os_error().kind() == io::ErrorKind::Interrupted {
+                    continue;
+                }
+                return Err(self.prelude.error(ErrorKind::ReadFailed, stage));
+            }
+            if result == 0 { continue; }
+            if poll.revents & (libc::POLLERR | libc::POLLNVAL) != 0 {
+                return Err(self.prelude.error(ErrorKind::ReadFailed, stage));
+            }
+            let mut byte = [0u8; 1];
+            // SAFETY：有效单字节缓冲区；该管道仅本启动线程读取，POLLIN/HUP 后不阻塞。
+            let count = unsafe { libc::read(fd, byte.as_mut_ptr().cast(), 1) };
+            if count > 0 {
+                self.prelude.wire_bytes = self.prelude.wire_bytes.checked_add(count as u64)
+                    .ok_or_else(|| self.prelude.error(ErrorKind::Limit, stage))?;
+            }
+            self.prelude.gate(stage)?;
+            if count < 0 && io::Error::last_os_error().kind() == io::ErrorKind::Interrupted {
+                continue;
+            }
+            if count != 1 || byte[0] != b'R' {
+                return Err(self.prelude.error(ErrorKind::ControlMismatch, stage));
+            }
+            return check_lease(&self.lease, &self.prelude, stage);
+        }
+    }
+
     pub(crate) fn diagnostic(&self, message: impl fmt::Display) -> String {
         format!(
             "{message}；{}",
@@ -936,7 +989,17 @@ pub(crate) fn from_args_for_db(
         }
     }
     let path = path.ok_or_else(|| prelude.error(ErrorKind::ResourcesMissing, Stage::E0))?;
-    load_for_db(db, &path, env)
+    let mut prepared = load_for_db(db, &path, env)?;
+    // #1527：独立 CLI 不要求 launcher 握手；托管 serve 等父进程登记完成。
+    if args.get(1).is_some_and(|arg| arg == "serve") {
+        if let Some(marker) = std::env::var_os("S_CONTROL_START_GATE") {
+            if marker != "stdin-v1" {
+                return Err(prepared.prelude.error(ErrorKind::ControlMismatch, Stage::E4));
+            }
+            prepared.wait_start_gate(libc::STDIN_FILENO)?;
+        }
+    }
+    Ok(prepared)
 }
 
 /// 消费既有 R4：DB → 外置 owner → 已发布 binding → 原 limits 字节 → 最终原 FD 复核。
