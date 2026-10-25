@@ -642,10 +642,16 @@ mod tests {
         drop(c);
         let open_error = f.open("1").err().unwrap();
         assert!(open_error.contains("VersionUnsupported"), "{open_error}");
-        assert!(recover(&f.db, "2", &f.clock, "recover-1", crate::v3::admission_anchor::test_prepare(&f.db).into())
-            .err()
-            .unwrap()
-            .contains("VersionUnsupported"));
+        let recover_error = recover(
+            &f.db,
+            "2",
+            &f.clock,
+            "recover-1",
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .err()
+        .unwrap();
+        assert!(recover_error.contains("VersionUnsupported"), "{recover_error}");
         let c = open_db(&f.db).unwrap();
         assert_eq!(db_meta(&c).unwrap(), before);
         assert_eq!(count(&c, "raw_events"), 0);
