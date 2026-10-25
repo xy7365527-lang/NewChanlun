@@ -14,7 +14,7 @@ import { execSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync } from "node:fs";
 import { cargoGuardEnv, installCargoGuard } from "./cargo-guard.mts";
 import { codexWorker, codexRouteEnv } from "./codex-route.mts";
-import { beginManagedStage, finishManagedStage, verifyManagedRust } from "./managed-commit.mts";
+import { beginManagedStage, finishManagedStage, verifyManagedRust, runManagedReview, verificationPrompt, type RustVerification } from "./managed-commit.mts";
 import { MAIN_MODEL } from "./main-model.mts";
 import {
   ghIssueFetcher,
@@ -226,9 +226,10 @@ async function runWithResume(
     // promptFile + promptArgs（sandcastle 展开 `!`cmd``），或宿主侧已渲染好的 inline prompt（#1588 评审面）。
     prompt: { promptFile: string; promptArgs: Record<string, string> } | { prompt: string };
     idleTimeoutSeconds?: number;
+    resumeSession?: string;
   },
 ): Promise<SandboxRunResult> {
-  let resumeSession: string | undefined;
+  let resumeSession: string | undefined = options.resumeSession;
   let result: SandboxRunResult | undefined;
   for (let round = 1; round <= MAX_ITERATIONS; round++) {
     result = await sandbox.run({
@@ -255,7 +256,7 @@ async function runWithResume(
 // diff 基准不用宿主本地 main，而是渲染前现取的 origin/main 提交（resolveReviewBase，理由见其注释，#1588 N3）。
 const REVIEW_TARGET_BRANCH = "main";
 
-async function runReviewer(sandbox: Sandbox, issue: number, branch: string): Promise<void> {
+async function runReviewer(sandbox: Sandbox, issue: number, branch: string, authorVerification?: RustVerification): Promise<void> {
   const git = hostGit();
   await runGuardedReview(
     {
@@ -272,15 +273,24 @@ async function runReviewer(sandbox: Sandbox, issue: number, branch: string): Pro
       logWorker({
         ticket: issue, branch, phase: "reviewer", status: "started", prompt_est_tokens: estimatedTokens, review_base: base,
       });
-      const stage = beginManagedStage(sandbox.worktreePath, branch, issue, "reviewer");
-      const review = await runWithResume(sandbox, {
-        name: "reviewer",
-        agent: codexWorker({ effort: EFFORT }),
-        prompt: { prompt: prompt + `\n本次评审必须读取精确候选 commit ${stage.head}；不要只依赖可变分支名。` },
+      const first = beginManagedStage(sandbox.worktreePath, branch, issue, "reviewer");
+      // REVIEW_ONLY 没有作者内存证据：按整个候选 diff 决定远端验证，不能按“独审无改动”跳过。
+      const verification = authorVerification ?? verifyManagedRust(first, {
+        head: first.head, committed: false,
+        report: { status: "ready", files: hostGit(first.cwd)(["diff", "--name-only", "--no-renames", "-z", `${base}...${first.head}`]).split("\0").filter(Boolean), verification: [] },
       });
-      const sealed = finishManagedStage(stage, review.stdout);
-      sealed.report.verification.push(verifyManagedRust(stage, sealed));
-      logWorker({ ticket: issue, branch, phase: "reviewer", status: "sealed", head: sealed.head, verification: sealed.report.verification });
+      const agent = codexWorker({ effort: EFFORT });
+      let resumeSession: string | undefined;
+      const result = await runManagedReview(sandbox.worktreePath, branch, issue, verification, async (stage, evidence) => {
+        const review = await runWithResume(sandbox, {
+          name: "reviewer", agent, resumeSession,
+          prompt: { prompt: prompt + `\n本次评审必须读取精确候选 commit ${stage.head}。\n${verificationPrompt(evidence)}` },
+        });
+        resumeSession = review.iterations.at(-1)?.sessionId;
+        return review.stdout;
+      });
+      logWorker({ ticket: issue, branch, phase: "reviewer", status: "sealed", head: result.head, verification: result });
+
     },
   );
   logWorker({ ticket: issue, branch, phase: "reviewer", status: "completed" });
@@ -358,19 +368,19 @@ for (let iter = 1; iter <= MAX_TICKETS_PER_RUN; iter++) {
       idleTimeoutSeconds: IMPLEMENTER_IDLE_TIMEOUT_SECONDS,
     });
     const sealed = finishManagedStage(stage, implement.stdout);
-    sealed.report.verification.push(verifyManagedRust(stage, sealed));
+    const authorVerification = verifyManagedRust(stage, sealed);
     if (!sealed.committed) {
       logWorker({ ticket: issue, branch, phase: "implementer", status: "no_commit" });
       console.log("实装无 commit（被卡或无活），跳评审，留票待查。");
       continue;
     }
-    logWorker({ ticket: issue, branch, phase: "implementer", status: "completed", commits: 1, head: sealed.head, verification: sealed.report.verification });
+    logWorker({ ticket: issue, branch, phase: "implementer", status: authorVerification.status === "failed" ? "verification_failed" : "completed", commits: 1, head: sealed.head, verification: authorVerification });
     console.log(`实装受管提交完成：${sealed.head}`);
 
     // Phase 2：独立评审（不同子代理，#1001 裁 1；直接在分支上修正；#1066 多轮续跑）
     // #1588：提示超限 → 已落失败记录与票面通知，以专用退出码收尾（票保持认领，不回滚重跑实装）。
     try {
-      await runReviewer(sandbox, issue, branch);
+      await runReviewer(sandbox, issue, branch, authorVerification);
     } catch (e) {
       if (!(e instanceof ReviewPromptTooLargeError)) throw e;
       process.exitCode = e.exitCode;

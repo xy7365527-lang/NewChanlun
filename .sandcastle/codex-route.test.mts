@@ -26,7 +26,7 @@ test("Docker Codex 使用容器可达网关，main 保留一票两阶段", () =>
   assert.match(command, /host.docker.internal:8318\/v1/);
   assert.doesNotMatch(command, /127.0.0.1:8318/);
   const main = readFileSync(new URL("./main.mts", import.meta.url), "utf8");
-  assert.equal(main.match(/agent: codexWorker\(/g)?.length, 2);
+  assert.equal(main.match(/codexWorker\(\{ effort: EFFORT \}\)/g)?.length, 2);
   assert.doesNotMatch(main, /claudeWorker\(/);
   assert.match(main, /MAX_TICKETS_PER_RUN = 1/);
 });

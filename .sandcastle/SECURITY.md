@@ -84,3 +84,5 @@ sandcastle 自动从 `.sandcastle/.env` 与 `process.env` 解析环境变量注�
 Docker swarm 的 namespace 和提交责任迁移尚未验收，默认 namespace 探针失败时在 planner/认领之前拒绝运行；镜像构建、模型 HTTP 或 main 宿主模式成功均不替代它的验收。不改变容器 capabilities/seccomp/privileged 或 sandbox 模式。
 
 Codex 的受管提交提示使用 codex-implement-prompt.md / codex-review-prompt.md；旧 implement-prompt.md / review-prompt.md 保持原调用合同。swarm namespace 恢复后仍须补完并验证其提交责任迁移，本票该项尚未闭合。
+
+远端结果以结构化 `RustVerification` 绑定精确 head，保存完整 stdout/stderr 和 nc-remote 原始日志；日志首行 SHA 必须匹配。作者失败诊断交独审工蜂修复，修正提交重验；独审无改动沿用同 head 的既有结论，不能降成“Rust 未改动”。验证失败至多三轮修复后以 failed 退出，不发 reviewer/completed。REVIEW_ONLY 按整份候选差异恢复验证需求。
