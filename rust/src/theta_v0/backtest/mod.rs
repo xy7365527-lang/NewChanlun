@@ -51,14 +51,20 @@
 mod capture_oos;
 pub mod data;
 pub mod decontam;
+/// ADR 0022 evidence_gate 版本化记录（#1677/#1605）——验收判据参数记录化。
+pub mod evidence_gate;
 /// a3 acc-highlow-power：μ̂(z_L0 | D_hi) 条件化估计量（区间套统计版，694 号；prereg
 /// highlow-a3-20260704 冻结）。继承 backtest cfg(test) 门控。
 #[cfg(test)]
 mod highlow_mu;
 pub mod incremental;
+/// L3 探针真实 NAV 消费共用的具名资金 profile。
+pub mod l3_probe_profile;
 pub mod metrics;
 pub mod mu_estimator;
 pub mod perm_test;
+/// C-19 研究验证统计记录（#1605）；探针资金见独立具名 profile。
+pub mod research_stats;
 /// S2 段口径复核 + λ_gap 穿越分布（task #10，R3 §4 遗留）。只产报告不定参，L2 描述性。
 #[cfg(test)]
 mod segment_gn;
