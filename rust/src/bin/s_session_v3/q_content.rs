@@ -525,7 +525,7 @@ mod tests {
             .next()
             .unwrap();
         match owner {
-            bj::JsonOwner::Plain(value) => value,
+            bj::JsonOwner::Plain(value) => value.into_unscoped().expect("测试oracle仅接无scope值"),
             #[cfg(feature = "s_allocation_json_testonly")]
             bj::JsonOwner::Owned(_) => panic!("测试oracle只接普通delta"),
         }

@@ -15,6 +15,7 @@ Usage: devskim_sarif_gate.sh \
   [--expected-tool-name NAME] \
   [--expected-tool-version VERSION] \
   [--baseline PATH] \
+  [--false-positives PATH --source-root PATH] \
   [--summary PATH] \
   [--summary-max-new COUNT]
 
@@ -32,6 +33,10 @@ retention_days=''
 expected_tool_name=''
 expected_tool_version=''
 baseline_path=''
+false_positives_path=''
+source_root=''
+reviewed_result=''
+excluded_count=0
 summary_path=''
 summary_max_new=200
 
@@ -75,6 +80,16 @@ while [[ $# -gt 0 ]]; do
     --baseline)
       [[ $# -ge 2 ]] || { usage >&2; exit 2; }
       baseline_path="$2"
+      shift 2
+      ;;
+    --false-positives)
+      [[ $# -ge 2 ]] || { usage >&2; exit 2; }
+      false_positives_path="$2"
+      shift 2
+      ;;
+    --source-root)
+      [[ $# -ge 2 ]] || { usage >&2; exit 2; }
+      source_root="$2"
       shift 2
       ;;
     --summary)
@@ -132,6 +147,20 @@ fi
 
 if [[ "$artifact_outcome" != 'success' ]]; then
   add_error "Ordinary artifact upload outcome was \`$artifact_outcome\`, not \`success\`."
+fi
+
+if [[ -n "$false_positives_path" ]]; then
+  if [[ -z "$source_root" ]] || ! reviewed_result="$(python3 "$(dirname "$0")/devskim_reviewed_false_positives.py" \
+      --sarif "$sarif_path" --false-positives "$false_positives_path" \
+      --source-root "$source_root" 2>&1)"; then
+    add_error 'Reviewed false-positive identity validation failed.'
+    printf '%s\n' "$reviewed_result" >&2
+    reviewed_result=''
+  else
+    excluded_count="$(jq -er '.excluded_results' <<< "$reviewed_result")"
+  fi
+elif [[ -n "$source_root" ]]; then
+  add_error '--source-root requires --false-positives.'
 fi
 
 finding_count='unknown'
@@ -194,12 +223,18 @@ else
       if [[ ! -f "$baseline_path" ]]; then
         add_error "Baseline file is missing: \`$baseline_path\`."
       else
-        if ! current_keys="$(jq -r '
-          [.runs[] | (.results // [])[]
-           | (.ruleId // "?") + "|" +
-             ((.locations[0].physicalLocation.artifactLocation.uri // "?") | sub("^file://"; "")) + "|" +
-             (((.locations[0].physicalLocation.region.startLine // 0) | tostring))]
-          | unique | .[]' "$sarif_path" 2>&1)"; then
+        extract_current_keys() {
+          if [[ -n "$reviewed_result" ]]; then
+            jq -r '.keys[]' <<< "$reviewed_result"
+          else
+            jq -r '[.runs[] | (.results // [])[]
+              | (.ruleId // "?") + "|" +
+                ((.locations[0].physicalLocation.artifactLocation.uri // "?") | sub("^file://"; "")) + "|" +
+                (((.locations[0].physicalLocation.region.startLine // 0) | tostring))]
+              | unique | .[]' "$sarif_path"
+          fi
+        }
+        if ! current_keys="$(extract_current_keys 2>&1)"; then
           add_error 'SARIF finding keys could not be extracted.'
           printf '%s\n' "$current_keys" >&2
         else
@@ -236,7 +271,7 @@ else
           fi
         fi
       fi
-    elif [[ "$finding_count" -gt 0 ]]; then
+    elif (( finding_count > excluded_count )); then
       add_error "SARIF contains $finding_count finding(s); this gate requires zero."
     fi
   fi
@@ -269,6 +304,8 @@ unset error_lines
 if [[ -z "$errors" ]]; then
   if [[ -n "$baseline_path" ]]; then
     gate_conclusion='PASS — scanner and artifact upload succeeded, SARIF/tool contract matched, and no findings beyond the baseline.'
+  elif [[ -n "$false_positives_path" ]]; then
+    gate_conclusion='PASS — scanner and artifact upload succeeded, SARIF/tool contract matched, and all findings have exact reviewed identities.'
   else
     gate_conclusion='PASS — scanner and artifact upload succeeded, SARIF/tool contract matched, and findings are zero.'
   fi
@@ -293,6 +330,9 @@ else
   summary="$summary"$'\n'"- **DevSkim tool version:** \`$tool_version\` (no expected version configured)"
 fi
 summary="$summary"$'\n'"- **SARIF findings:** \`$finding_count\`"
+if [[ -n "$false_positives_path" ]]; then
+  summary="$summary"$'\n'"- **Reviewed false-positive results:** \`$excluded_count\` (exact identity and immutable file binding)"
+fi
 if [[ -n "$baseline_path" ]]; then
   summary="$summary"$'\n'"- **Baseline:** \`$baseline_path\`"
   if [[ -n "${baseline_fixed_note:-}" ]]; then
