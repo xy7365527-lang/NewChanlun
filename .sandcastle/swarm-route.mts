@@ -1,3 +1,4 @@
+import { useScheduler } from "./scheduler-config.mts";
 /** main-swarm 的 Docker 隔离与主控同型路由（#1617）。 */
 import type { AgentProvider, SandboxProvider } from "@ai-hero/sandcastle";
 import { execFileSync } from "node:child_process";
@@ -5,6 +6,8 @@ import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { codexWorker, codexRouteEnv } from "./codex-route.mts";
 
 import { MAIN_MODEL } from "./main-model.mts";
+
+const scheduler = useScheduler("swarm-route", ["dockerModelHttpTimeoutMs", "dockerModelProcessTimeoutMs", "dockerNamespaceTimeoutMs"]);
 
 export const DOCKER_CLIPROXY_BASE_URL = "http://host.docker.internal:8318";
 
@@ -40,7 +43,7 @@ export const DOCKER_MODEL_PROBE = String.raw`
       model: "${MAIN_MODEL}",
       input: "Reply OK.",
     }),
-    signal: AbortSignal.timeout(60000),
+    signal: AbortSignal.timeout(${scheduler.dockerModelHttpTimeoutMs}),
   });
   const payload = await response.json();
   if (!response.ok) throw new Error("HTTP " + response.status + ": " + (payload?.error?.type || "model request failed"));
@@ -62,7 +65,7 @@ const runDockerProbe: DockerProbeRunner = (imageName, probe) => {
     "--entrypoint", "node", imageName, "-e", probe,
   ], {
     stdio: ["ignore", "pipe", "pipe"],
-    timeout: 75_000,
+    timeout: scheduler.dockerModelProcessTimeoutMs,
     env: { ...process.env, ...routeEnv },
   });
 };
@@ -87,7 +90,7 @@ export function assertDockerCliProxyReachable(
 
 /** #1617：先证实默认容器允许工具所需 namespace，再碰 planner/认领。 */
 export function assertSwarmExecutionReady(imageName: string, probe = (image: string) => {
-  execFileSync("docker", ["run", "--rm", "--network", "none", "--entrypoint", "unshare", image, "-Ur", "true"], { stdio: "pipe", timeout: 30_000 });
+  execFileSync("docker", ["run", "--rm", "--network", "none", "--entrypoint", "unshare", image, "-Ur", "true"], { stdio: "pipe", timeout: scheduler.dockerNamespaceTimeoutMs });
 }): void {
   try { probe(imageName); }
   catch { throw new Error("[FAIL-loud #1617] 默认 Docker namespace 不可用；不认领、不扩大容器权限。Docker 提交合同另待验收。"); }
