@@ -489,7 +489,7 @@ fn mixed_resources_anchor_ram_mutation_requires_new_signed_binding() {
     })).unwrap();
     let fixture = Fixture::with_raw(raw);
     let prepared = fixture.load().unwrap();
-    let changed = String::from_utf8(fixture.raw.clone()).unwrap().replace("4096", "8192");
+    let changed = String::from_utf8(fixture.raw.clone()).unwrap().replace("4096", "81920");
     std::fs::write(&fixture.limits, changed).unwrap();
     assert_eq!(fixture.load().err().unwrap().kind, ErrorKind::Changed);
     assert_eq!(prepared.consume().err().unwrap().kind, ErrorKind::Changed);
