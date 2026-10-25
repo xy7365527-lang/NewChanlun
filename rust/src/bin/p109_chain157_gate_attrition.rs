@@ -122,6 +122,10 @@ struct ChainOutcome {
 
 #[derive(Debug, Default, Clone, Copy)]
 struct EdgeDiag {
+    #[allow(
+        dead_code,
+        reason = "#1608：探针记录字段，留作诊断上下文（仅经 Debug/调试读取）"
+    )]
     status: Option<&'static str>,
     pool_side: usize,
     left_gap: i64,

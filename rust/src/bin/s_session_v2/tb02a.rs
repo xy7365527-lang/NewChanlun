@@ -243,18 +243,6 @@ pub(super) fn parse_input(value: &Value) -> Result<RawInputFile, String> {
     })
 }
 
-pub(super) fn validate_prices(event: &RawEvent) -> Result<(), String> {
-    validate_prices_view(
-        &event.price,
-        &event.volume,
-        event.ohlc.as_ref().map(|p| OhlcView {
-            open: &p.open,
-            high: &p.high,
-            low: &p.low,
-            close: &p.close,
-        }),
-    )
-}
 pub(super) fn canonical(event: &RawEvent, p: &Ohlc) -> String {
     canonical_json(
         &json!({"event_id":event.event_id,"revision":event.revision,"seq":event.seq,
@@ -284,28 +272,29 @@ pub(super) fn enrich_raw_until(
     rows: &mut [Value],
     deadline: Option<std::time::Instant>,
 ) -> Result<(), String> {
-    enrich_raw_until_admitted(conn, rows, deadline, None)
-}
-
-pub(super) fn enrich_raw_until_admitted(
-    conn: &Connection,
-    rows: &mut [Value],
-    deadline: Option<std::time::Instant>,
-    work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
-) -> Result<(), String> {
     crate::check_read_deadline(deadline)?;
-    if !enabled_admitted(conn, work)? {
+    if !prepare_raw_enrichment_admitted(conn, None)? {
         return Ok(());
     }
-    verify_raw_ohlc_cardinality(conn)?;
     for row in rows {
         crate::check_read_deadline(deadline)?;
-        enrich_raw_row_admitted(conn, row, work)?;
+        enrich_raw_row(conn, row)?;
     }
     Ok(())
 }
+/// cold读取先核OHLC总数；固定追加回读继续复用相同字段校验。
+pub(super) fn prepare_raw_enrichment_admitted(
+    conn: &Connection,
+    work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
+) -> Result<bool, String> {
+    let enabled = enabled_admitted(conn, work)?;
+    if enabled {
+        verify_raw_ohlc_cardinality(conn)?;
+    }
+    Ok(enabled)
+}
 /// profile比较借用原SQL文本，不创建未准入的String。
-fn enabled_admitted(
+pub(super) fn enabled_admitted(
     conn: &Connection,
     work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
 ) -> Result<bool, String> {
@@ -334,46 +323,51 @@ fn enabled_admitted(
         .map_err(|e| format!("读 meta.profile_id 失败：{e}"))?;
     Ok(enabled)
 }
-/// 所有raw字段插入先取得文本、键和BTree增长许可，覆盖后不重复分配键。
-pub(super) fn raw_insert_admitted(
-    fields: &mut serde_json::Map<String, Value>,
-    key: &str,
-    value: Value,
-    admission: &v3::audit_store::NativeAdmission<'_>,
-) -> Result<(), String> {
-    use v3::audit_store::CodecRead;
-    if let Some(existing) = fields.get_mut(key) {
-        *existing = value;
-    } else {
-        admission
-            .native_tree_room::<String, Value>(fields.len())
-            .map_err(|e| e.to_string())?;
-        let key = admission.native_string(key).map_err(|e| e.to_string())?;
-        fields.insert(key, value);
-    }
-    Ok(())
-}
-/// 配对键已由调用者闭合；同一 OHLC 行校验用于 cold 与固定追加回读。
+/// 旧无scope变更入口：唯一借视图核固定None，再显式拒Native裸化。
 pub(super) fn enrich_raw_row(conn: &Connection, row: &mut Value) -> Result<(), String> {
-    enrich_raw_row_admitted(conn, row, None)
+    let owner = enrich_raw_view_admitted(conn, (&*row).into(), true, None)?;
+    match owner {
+        v3::business_json::JsonOwner::Plain(value) => {
+            *row = value.into_unscoped()?;
+            Ok(())
+        }
+        #[cfg(feature = "s_allocation_json_testonly")]
+        v3::business_json::JsonOwner::Owned(_) => Err("普通OHLC入口不可拆Owned".into()),
+    }
 }
-pub(super) fn enrich_raw_row_admitted(
+/// 所有暂存文本持原Native许可；只把借视图交给当前scope拥有者构造核。
+pub(super) fn enrich_raw_view_admitted(
     conn: &Connection,
-    row: &mut Value,
+    row: newchan_rust::s_content::capture_allocation::audit_json::JsonView<'_>,
+    ohlc: bool,
     work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
-) -> Result<(), String> {
-    use v3::audit_store::CodecRead;
-    let admission = v3::audit_store::NativeAdmission(work);
-    let revision = match &row["revision"] {
-        Value::Number(n) => n.as_i64().ok_or("StorageUnavailable：revision非i64")?,
-        Value::String(s) => parse_canonical_i64(s, "revision")?,
-        _ => return Err("StorageUnavailable：revision类型非法".into()),
+) -> Result<v3::business_json::JsonOwner, String> {
+    use newchan_rust::s_content::capture_allocation::audit_json::JsonView;
+    use newchan_rust::s_content::capture_allocation::native_owned::NativeValue;
+    use v3::audit_store::{CodecRead, NativeAdmission};
+    let admission = NativeAdmission(work);
+    if !ohlc {
+        return v3::business_json::json_from_view_admitted(&admission, row);
+    }
+    let revision = row
+        .get("revision")
+        .ok_or("StorageUnavailable：revision类型非法")?;
+    let revision = if revision.kind()
+        == newchan_rust::s_content::capture_allocation::audit_json::JsonKind::Number
+    {
+        revision
+            .as_i64()
+            .ok_or("StorageUnavailable：revision非i64")?
+    } else if let Some(s) = revision.as_str() {
+        parse_canonical_i64(s, "revision")?
+    } else {
+        return Err("StorageUnavailable：revision类型非法".into());
     };
     let missing = |e| format!("StorageUnavailable：OHLC原件缺失 {e}");
     let mut stmt = newchan_rust::sqlite_checked::CheckedStatement::prepare(
         conn, c"SELECT schema_revision,open,high,low,close FROM raw_ohlc WHERE identity_key=?1 AND revision=?2",
     ).map_err(missing)?;
-    match row["identity_key"].as_str() {
+    match row.get("identity_key").and_then(|v| v.as_str()) {
         Some(identity) => stmt.bind_text(1, identity),
         None => stmt.bind_null(1),
     }
@@ -384,35 +378,44 @@ pub(super) fn enrich_raw_row_admitted(
         .map_err(missing)?
         .ok_or("StorageUnavailable：OHLC原件缺失")?;
     if sql.text(0).map_err(missing)? != RAW_SCHEMA
-        || row["price"].as_str() != Some(sql.text(4).map_err(missing)?)
+        || row.get("price").and_then(|v| v.as_str()) != Some(sql.text(4).map_err(missing)?)
     {
         return Err("StorageUnavailable：OHLC schema/close索引矛盾".into());
     }
-    let fields = row.as_object_mut().ok_or("StorageUnavailable：raw非对象")?;
-    for (column, key) in [
-        (0, "schema_revision"),
-        (1, "open"),
-        (2, "high"),
-        (3, "low"),
-        (4, "close"),
-    ] {
-        let text = sql.text(column).map_err(missing)?;
-        let value = Value::String(admission.native_string(text).map_err(|e| e.to_string())?);
-        raw_insert_admitted(fields, key, value, &admission)?;
+    let names = ["schema_revision", "open", "high", "low", "close"];
+    let mut texts: [Option<NativeValue<String>>; 5] = std::array::from_fn(|_| None);
+    for (column, text) in texts.iter_mut().enumerate() {
+        *text = Some(
+            admission
+                .native_string(sql.text(column).map_err(missing)?)
+                .map_err(|e| e.to_string())?,
+        );
     }
+    let mut fields = newchan_rust::s_content::CodecVec::default();
+    let object = row.as_object().ok_or("StorageUnavailable：raw非对象")?;
+    admission
+        .native_codec_room(&mut fields, object.len().saturating_add(5))
+        .map_err(|e| e.to_string())?;
+    for (key, value) in object.iter() {
+        if !names.contains(&key) {
+            fields.try_push((key, value)).map_err(|e| e.to_string())?;
+        }
+    }
+    for (key, text) in names.iter().zip(texts.iter()) {
+        fields
+            .try_push((*key, JsonView::String(text.as_ref().unwrap().as_str())))
+            .map_err(|e| e.to_string())?;
+    }
+    let owner = v3::business_json::json_from_view_admitted(
+        &admission,
+        JsonView::object_fields(&fields).map_err(|e| e.to_string())?,
+    )?;
+    drop(fields);
     drop(sql);
     stmt.finalize().map_err(missing)?;
-    Ok(())
+    Ok(owner)
 }
 
-pub(super) fn stored_prices(row: &Value) -> Result<Option<Ohlc>, String> {
-    Ok(stored_prices_view(row.into())?.map(|p| Ohlc {
-        open: p.open.into(),
-        high: p.high.into(),
-        low: p.low.into(),
-        close: p.close.into(),
-    }))
-}
 pub(super) fn raw_wire(wire: &mut Value, raw: &Value) {
     if raw["schema_revision"] == RAW_SCHEMA {
         wire.as_object_mut().unwrap().remove("price");

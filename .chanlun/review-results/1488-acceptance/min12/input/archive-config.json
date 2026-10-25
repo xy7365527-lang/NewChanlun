@@ -1,0 +1,32 @@
+{
+  "schema_revision": "s-launcher/2",
+  "session_id": "tb1419-s0b-min12-per-bar",
+  "session_generation": "1",
+  "source_namespace": "testonly.ohlc.tb1419-s0b-min12-per-bar",
+  "source_epoch": "1",
+  "producer_id": "tb1419-s0b-control",
+  "producer_epoch": "1",
+  "writer_epoch": "1",
+  "query_epoch": "1",
+  "delivery_retain_generations": "4",
+  "port": "19430",
+  "startup_timeout_ms": "10000",
+  "db": "/Volumes/AgentStorage/issue1419-s0b-min12-20261014/MIN12-per-bar/session.sqlite",
+  "socket": "/private/tmp/tb1419s0b-267d44e7ec4f317d.sock",
+  "binary": "/private/tmp/goal1323-native-20261012/tb1419-impl/artifacts/s_structure_session-48e2386463",
+  "python": "/tmp/tb1414-runtime-venv/bin/python",
+  "catalog": "/Volumes/AgentStorage/issue1419-s0b-min12-20261014/copy/s_session/catalog/signed-catalog.json",
+  "profile": "/Volumes/AgentStorage/issue1419-s0b-min12-20261014/copy/s_session/profiles/ohlc_integer_tb02a_v1.json",
+  "clock_plan": "/Volumes/AgentStorage/issue1419-s0b-min12-20261014/MIN12-per-bar/clock.json",
+  "browser": "/Volumes/AgentStorage/issue1419-s0b-min12-20261014/copy/s_session/browser/index.html",
+  "query_resource_config": "/Volumes/AgentStorage/issue1419-s0b-min12-20261014/copy/s_session/tests/fixtures/tb01c/query-resources.json",
+  "s_resources": {
+    "max_frame_bytes": "1048576",
+    "read_timeout_ms": "2000",
+    "write_timeout_ms": "1000",
+    "queue_capacity": "32",
+    "max_connections": "48",
+    "response_timeout_ms": "10000",
+    "audit_cache_source_bytes": "268435456"
+  }
+}

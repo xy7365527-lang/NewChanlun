@@ -1,8 +1,9 @@
 //! #1406 C4b：迟到费用与具名冲销。只从原 fill/原 E 分配读取金额依据。
-//! 跨 fill bust 现金政策未裁，本片 typed Unsupported，不引入 FIFO 或平均价。
+//! 跨多笔原 fill 的总量 bust 按 ADR 0032 裁定六（#1683）：逐重单位数 = A(F) − A(F−b)，
+//! 每单位原价取其累计位置所在的存续区间，不引入 FIFO、平均价或另设拆分。
 use super::book::{array, integer};
 use crate::session_protocol::{nonnegative, positive, required};
-use serde_json::{json, Value};
+use serde_json::Value;
 
 pub(super) fn is_correction(event: &Value) -> bool {
     matches!(
@@ -144,10 +145,50 @@ pub(super) struct Effects {
 struct LiveRange {
     start: i64,
     end: i64,
+    price: i64,
     fact_key: Value,
 }
 
-/// 从 append-only 原回报与更正恢复当前存续的累计区间；金额仍取具名原 fill。
+/// 把存续区间栈从顶 `from` 截到 `to`，返回被撤回的段（自底向上）。#1683 / ADR 0032 裁定六：
+/// 无指向的总量 b 可跨多笔原 fill；每单位原价按其累计位置所在的存续区间取回，不另设拆分。
+/// 具名原 fill 只须是被撤回段的来源之一。
+fn rewind(
+    ranges: &mut Vec<LiveRange>,
+    from: i64,
+    to: i64,
+    named: &Value,
+) -> Result<Vec<LiveRange>, String> {
+    if ranges.last().map(|r| r.end) != Some(from) || to >= from {
+        return Err("MissingDependency：bust 不在当前存续区间顶端".into());
+    }
+    let mut removed = Vec::new();
+    while let Some(top) = ranges.last_mut() {
+        if top.end <= to {
+            break;
+        }
+        let start = top.start.max(to);
+        removed.push(LiveRange {
+            start,
+            end: top.end,
+            price: top.price,
+            fact_key: top.fact_key.clone(),
+        });
+        top.end = start;
+        if top.start == top.end {
+            ranges.pop();
+        }
+    }
+    if removed.last().map(|r| r.start) != Some(to) {
+        return Err("InvalidDomain：bust 超出全部存续数量区间".into());
+    }
+    if !removed.iter().any(|r| &r.fact_key == named) {
+        return Err("IdentityConflict：bust 具名原 fill 不是当前存续逆区间的来源".into());
+    }
+    removed.reverse();
+    Ok(removed)
+}
+
+/// 从 append-only 原回报与更正恢复当前存续的累计区间；每段携带其来源原 fill 的单价（#1683）。
 /// 这是按实际已发生的撤回重放来源，不是为跨 fill 现金挑选 FIFO/LIFO 政策。
 fn surviving_ranges(image: &Value, manifest_hash: &Value) -> Result<Vec<LiveRange>, String> {
     let mut ranges: Vec<LiveRange> = Vec::new();
@@ -175,6 +216,7 @@ fn surviving_ranges(image: &Value, manifest_hash: &Value) -> Result<Vec<LiveRang
                 ranges.push(LiveRange {
                     start: from,
                     end: to,
+                    price: integer(fill, "unit_price")?,
                     fact_key: fact["fact_key"].clone(),
                 });
             }
@@ -188,18 +230,9 @@ fn surviving_ranges(image: &Value, manifest_hash: &Value) -> Result<Vec<LiveRang
                 {
                     return Err("StorageUnavailable：存续区间与原 bust 因果不符".into());
                 }
-                let tail = ranges
-                    .last_mut()
-                    .ok_or("StorageUnavailable：持久 bust 无存续原区间")?;
-                if tail.end != from || tail.start > to || tail.fact_key != original["fact_key"] {
-                    return Err(
-                        "StorageUnavailable：持久 bust 并非同一具名原 fill 的存续区间".into(),
-                    );
-                }
-                tail.end = to;
-                if tail.start == tail.end {
-                    ranges.pop();
-                }
+                rewind(&mut ranges, from, to, &original["fact_key"]).map_err(|e| {
+                    format!("StorageUnavailable：持久 bust 不能按存续区间栈重放（{e}）")
+                })?;
             }
             "fee_only" | "reverse_component" => {
                 if to != from {
@@ -269,27 +302,23 @@ pub(super) fn resolve(
             if from != frontier {
                 return Err("MissingDependency：bust 不在当前累计前沿".into());
             }
-            if to < integer(original_row, "from")? || from > integer(original_row, "to")? {
-                return Err("Unsupported：跨多个原 fill 的 bust 现金对应尚未支持".into());
-            }
             // #1406 独审 M2：末条数量记录不等于存续归属。重放原件与逆事件的区间栈，
             // 新 fill 全部撤回后，旧 fill 的残余区间重新成为尾段，仍按旧原价冲销。
-            let surviving = surviving_ranges(image, &original_row["manifest_hash"])?;
-            let tail = surviving
-                .last()
-                .ok_or("MissingDependency：无存续数量区间")?;
-            if tail.end != from || tail.start > to || tail.fact_key != original["fact_key"] {
-                return Err(
-                    "IdentityConflict：bust 具名原 fill 不是整个当前存续逆区间的来源".into(),
-                );
+            // #1683：b 跨多笔原 fill 时逐段取 A(段尾) − A(段首)，各段之和即 A(F) − A(F−b)。
+            let mut surviving = surviving_ranges(image, &original_row["manifest_hash"])?;
+            for segment in rewind(&mut surviving, from, to, &original["fact_key"])? {
+                let inverse =
+                    super::allocation::increments(segment.start, segment.end, weights, ranks)?;
+                for i in 0..weights.len() {
+                    result.units[i] -= inverse[i];
+                    result.cash[i] = inverse[i]
+                        .checked_mul(segment.price)
+                        .and_then(|c| result.cash[i].checked_add(c))
+                        .ok_or("InvalidDomain：逆现金溢出")?;
+                }
             }
-            let inverse = super::allocation::increments(to, from, weights, ranks)?;
-            let price = integer(&original["event"]["netted_fill"], "unit_price")?;
-            for i in 0..weights.len() {
-                result.units[i] = -inverse[i];
-                result.cash[i] = inverse[i]
-                    .checked_mul(price)
-                    .ok_or("InvalidDomain：逆现金溢出")?;
+            if result.units.iter().sum::<i64>() != to - from {
+                return Err("InvalidDomain：bust 逐重反冲合计不等于 b".into());
             }
             result.from = from;
             result.to = to;

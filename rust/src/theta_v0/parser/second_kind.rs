@@ -45,9 +45,10 @@
 //! 「出现分型即确认」只是三态之一：第二种候选的语义终点 = 分型或越界先到者。原方向价格先严格
 //! 越过候选极值 P（`078-第78课.md:52`「线段C没有形成第二特征序列的分型又直接新高或新低了……
 //! 线段A、B、C加起来只能算是一个线段」）⟹ `KILLED_BY_NEW_EXTREME`，候选作废、不复活；同一笔内
-//! 先判分型、后判越界。扫描窗口名分 = 调度预算 `second-seq-scan-budget/1`（不是语义）：耗尽只产
+//! 先判分型、后判越界。扫描窗口名分 = 调度预算（记录 `second-seq-scan-budget`，不是语义）：耗尽只产
 //! `INCOMPLETE_RESOURCE_BOUND`，不产否定。本文件与 segment 状态机共用 `feature_seq` 同一判定。
 
+use super::super::config::Tangency;
 use super::super::types::{Direction, Stroke, Tick};
 use super::feature_seq::second_seq_has_fractal;
 use super::segment::{stroke_interval, Interval};
@@ -134,13 +135,15 @@ pub fn second_kind_confirmed(
 /// 通过区间重叠定位贡献该极值元素的反向笔（与 segment.rs `analyze_termination` FirstKind
 /// 定位段端笔同构）。
 ///
+/// `t`：签署记录 `segment-second` 的相切口径（#1604 A-12），与 segment.rs 定位段端笔同读一值。
+///
 /// 边界条件：无匹配反向笔 ⟹ `None`（无法定位极值锚点，调用方按未确认处理）。
-pub fn locate_apex_stroke(strokes: &[Stroke], apex: &Interval) -> Option<usize> {
+pub fn locate_apex_stroke(strokes: &[Stroke], apex: &Interval, t: Tangency) -> Option<usize> {
     let first = strokes.first()?;
     let rev = first.direction.flip();
     strokes
         .iter()
-        .position(|s| s.direction == rev && stroke_interval(s).overlaps(apex))
+        .position(|s| s.direction == rev && stroke_interval(s).overlaps(apex, t))
 }
 
 /// 第二特征序列动态确认结果（供 segment.rs 状态机消费）。
@@ -160,8 +163,8 @@ pub enum SecondKindResult {
 /// ★严格性（Lead #84 硬约束 + no-patch）：仅第二特征序列**实际出现分型**才 `Confirmed`。
 /// 未出现 ⟹ `Pending`（古怪线段/笔破坏未发展成线段破坏，对齐 Origin.SegmentFeatureComplete 未确认态）——
 /// 不为"多产线段"放松标准。
-pub fn resolve_second_kind(strokes: &[Stroke], apex: &Interval) -> SecondKindResult {
-    let Some(apex_offset) = locate_apex_stroke(strokes, apex) else {
+pub fn resolve_second_kind(strokes: &[Stroke], apex: &Interval, t: Tangency) -> SecondKindResult {
+    let Some(apex_offset) = locate_apex_stroke(strokes, apex, t) else {
         return SecondKindResult::Pending;
     };
     // #1344：P = 首特征序列分型中心元素 apex 的方向极值。
@@ -295,7 +298,7 @@ mod tests {
         ];
         let apex = Interval { lo: 100, hi: 200 }; // 不重叠任何笔
         assert_eq!(
-            resolve_second_kind(&strokes, &apex),
+            resolve_second_kind(&strokes, &apex, Tangency::Closed),
             SecondKindResult::Pending
         );
     }

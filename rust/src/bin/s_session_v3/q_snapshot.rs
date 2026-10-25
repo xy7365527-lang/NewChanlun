@@ -6,7 +6,6 @@ use super::{
     q_resources::{Limit, QResources},
 };
 use newchan_rust::s_content::{
-    self as sc,
     access::Access,
     capture_allocation::{
         audit_json::{self as aj, JsonView},
@@ -65,9 +64,14 @@ pub(super) struct Request {
     issued: Option<TextValue>,
 }
 impl Request {
+    #[cfg(test)]
     pub(super) fn parse(bytes: &[u8], resources: &QResources) -> Result<Self, String> {
         Self::parse_with_allocation(bytes, resources, None)
     }
+    #[cfg_attr(
+        not(all(test, feature = "s_allocation_json_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_allocation_json_testonly 测试使用")
+    )]
     pub(super) fn parse_owned(
         bytes: &[u8],
         resources: &QResources,
@@ -75,6 +79,13 @@ impl Request {
     ) -> Result<Self, String> {
         Self::parse_with_allocation(bytes, resources, Some(budget))
     }
+    #[cfg_attr(
+        not(test),
+        allow(
+            dead_code,
+            reason = "#1608：仅测试使用（非测试构建中只被已豁免的未用项调用）"
+        )
+    )]
     fn parse_with_allocation(
         bytes: &[u8],
         resources: &QResources,
@@ -173,6 +184,7 @@ impl Request {
     pub(super) fn envelope_view(&self) -> JsonView<'_> {
         self.envelope.view()
     }
+    #[allow(dead_code, reason = "#1608：类型配套访问器，当前无调用方；保留不删")]
     pub(super) fn allocation_budget(&self) -> Option<&OwnedBudget> {
         match &*self.envelope {
             JsonOwner::Plain(_) => None,
@@ -202,6 +214,10 @@ impl Request {
         self.mode
     }
 }
+#[allow(
+    dead_code,
+    reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删"
+)]
 fn mode(value: &str) -> Result<HistoryMode, String> {
     mode_typed(value).map_err(|e| e.to_string())
 }
@@ -213,6 +229,10 @@ fn mode_typed(value: &str) -> Result<HistoryMode, AdmissionError<'static>> {
     }
 }
 
+#[allow(
+    dead_code,
+    reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删"
+)]
 fn exact(value: JsonView<'_>, fields: &[&str]) -> Result<(), String> {
     exact_typed(value, fields).map_err(|e| e.to_string())
 }
@@ -301,6 +321,10 @@ pub(super) fn token_with_budget(
     fields[16] = ("token_checksum", JsonView::String(checksum.as_str()));
     bj::json_from_view(JsonView::object_fields(&fields).map_err(err)?, allocation)
 }
+#[allow(
+    dead_code,
+    reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删"
+)]
 pub(super) fn token(
     projection: &Projection,
     issued: &str,
@@ -311,9 +335,13 @@ pub(super) fn token(
     if matches!(projection.wire, JsonOwner::Owned(_)) {
         panic!("旧token只支持None投影，请使用token_with_budget");
     }
+    assert!(
+        !matches!(&projection.wire, JsonOwner::Plain(value) if value.is_native_admitted()),
+        "旧token不可复制Native投影为无scope值"
+    );
     match token_with_budget(projection, issued, page_size, offset, None).expect("None token同核")
     {
-        JsonOwner::Plain(v) => v,
+        JsonOwner::Plain(v) => v.into_unscoped().expect("兼容token仅接无scope值"),
         #[cfg(feature = "s_allocation_json_testonly")]
         JsonOwner::Owned(_) => unreachable!(),
     }

@@ -20,18 +20,20 @@
 
 #![allow(dead_code)] // S3 发布/历史接线由主控在下游切片落地；本模块 API 现由本文件测试消费。
 
-use super::audit_store::{CodecRead, RefValue};
+use super::audit_store::{CodecRead, CodecStore, RefValue};
 use super::business_json::{self as bj, JsonOwner, RawEventsView, TextValue};
-use crate::{
-    canonical_json, content_manifest, content_manifest::ManifestMetadata, tb02a, tb02a_facts,
-};
+#[cfg_attr(
+    not(test),
+    allow(unused_imports, reason = "#1488 再合 #1608：仅测试使用")
+)]
+use crate::{canonical_json, content_manifest, content_manifest::ManifestMetadata, tb02a};
 #[cfg(test)]
 use newchan_rust::s_content::path::{lookup_path, PathStep};
 use newchan_rust::s_content::{
     self as sc, ContentRef, Kind, NodeDigest, NodeSink, NodeSource, NodeStore, Value as V,
 };
 use newchan_rust::session_protocol::{parse_canonical_i64, strict_json};
-use rusqlite::{params, OptionalExtension, Transaction};
+use rusqlite::{params, Transaction};
 use sc::capture_allocation::audit_json::JsonView;
 use serde_json::Value;
 
@@ -77,48 +79,26 @@ fn f(key: &str) -> PathStep {
     PathStep::Field(key.into())
 }
 
-fn field(
-    s: &mut (impl CodecRead + ?Sized),
-    root: &ContentRef,
-    key: &str,
-) -> Result<ContentRef, String> {
-    normal_ref(field_ref(s, root.into(), key)?)
+// 普通夹具明确绑定无工作域 MemoryNodes；生产读路径只使用 typed owner。
+#[cfg(test)]
+fn field(s: &mut sc::MemoryNodes, root: &ContentRef, key: &str) -> Result<ContentRef, String> {
+    lookup_path(s, root, &[f(key)]).map_err(err)
 }
-
-fn scalar(
-    s: &mut (impl CodecRead + ?Sized),
-    root: &ContentRef,
-    key: &str,
-) -> Result<Value, String> {
-    match scalar_ref(s, root.into(), key)? {
-        JsonOwner::Plain(value) => Ok(value),
-        #[cfg(feature = "s_allocation_json_testonly")]
-        JsonOwner::Owned(_) => Err(err(
-            "prototype_audit_allocation_incomplete：owned标量不得经normal DTO返回",
-        )),
-    }
+#[cfg(test)]
+fn text(s: &mut sc::MemoryNodes, root: &ContentRef, key: &str) -> Result<TextValue, String> {
+    text_ref(s, root, key)
 }
-
-fn text(s: &mut (impl CodecRead + ?Sized), root: &ContentRef, key: &str) -> Result<String, String> {
-    match text_ref(s, root, key)? {
-        TextValue::Plain(text) => Ok(text),
-        TextValue::Owned(_) => Err(err(
-            "prototype_audit_allocation_incomplete：owned文本不得经normal DTO返回",
-        )),
-    }
-}
-
+#[cfg(test)]
 fn array_field(
-    s: &mut (impl CodecRead + ?Sized),
+    s: &mut sc::MemoryNodes,
     root: &ContentRef,
     key: &str,
 ) -> Result<ContentRef, String> {
-    normal_ref(array_field_ref(s, root, key)?)
-}
-
-/// 精确十进制计数（证据里按规范十进制文本声明）。
-fn count(s: &mut (impl CodecRead + ?Sized), root: &ContentRef, key: &str) -> Result<i64, String> {
-    parse_canonical_i64(&text(s, root, key)?, key).map_err(err)
+    let child = field(s, root, key)?;
+    if child.kind != Kind::Array {
+        return Err(err(format!("{key} 不是数组")));
+    }
+    Ok(child)
 }
 
 fn field_ref(
@@ -127,14 +107,6 @@ fn field_ref(
     key: &str,
 ) -> Result<RefValue, String> {
     s.lookup_field_ref(root, key).map_err(err)
-}
-fn normal_ref(reference: RefValue) -> Result<ContentRef, String> {
-    match reference {
-        RefValue::Plain(r) => Ok(r),
-        RefValue::Owned(_) => Err(err(
-            "prototype_audit_allocation_incomplete：owned引用不得经normal DTO返回",
-        )),
-    }
 }
 fn scalar_ref(
     s: &mut (impl CodecRead + ?Sized),
@@ -233,11 +205,13 @@ fn require_ohlc(profile_id: &str) -> Result<(), String> {
 }
 
 /// 生成态最终 `catalog_axes` 值边；未 finish 的草案（无该字段）即拒绝，不假空。
+#[cfg(test)]
 fn generated_axes(
-    s: &mut (impl CodecRead + ?Sized),
+    s: &mut sc::MemoryNodes,
     generated_state: &ContentRef,
 ) -> Result<ContentRef, String> {
-    normal_ref(generated_axes_ref(s, generated_state.into())?)
+    generated_axes_ref(s, generated_state.into())?;
+    field(s, generated_state, "catalog_axes")
 }
 
 /// 真实目录运行状态（与旧生产同一判据：有分类对象即 run）。
@@ -261,11 +235,64 @@ fn real_batch_id(id: &str) -> bool {
 }
 
 /// 规范四字段 `ContentRef` 文本（与同域 Delta 大证据同一引用形态）。
-fn reference_text(reference: &RefValue) -> Result<String, String> {
+fn reference_text(
+    source: &(impl CodecRead + ?Sized),
+    reference: &RefValue,
+) -> Result<TextValue, String> {
     reference.digest().map_err(err)?;
-    Ok(canonical_json(
-        &serde_json::to_value(reference).map_err(err)?,
-    ))
+    // 与 canonical_json 的四字段字典序相同；不先物化 serde_json::Value。
+    struct CanonicalReference<'a>(sc::RefView<'a>);
+    impl serde::Serialize for CanonicalReference<'_> {
+        fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+            use serde::ser::SerializeStruct;
+            let mut digits = [0u8; 20];
+            let extent = self.0.extent().map(|n| decimal(n, &mut digits));
+            let mut fields = serializer.serialize_struct("ContentRef", 4)?;
+            fields.serialize_field("extent", &extent)?;
+            fields.serialize_field("format", self.0.format())?;
+            fields.serialize_field("kind", self.0.kind().name())?;
+            fields.serialize_field("root", self.0.root())?;
+            fields.end()
+        }
+    }
+    struct Output<'a, S: CodecRead + ?Sized> {
+        bytes: sc::CodecVec<u8>,
+        source: &'a S,
+    }
+    impl<S: CodecRead + ?Sized> std::io::Write for Output<'_, S> {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.source
+                .native_codec_room(&mut self.bytes, bytes.len())
+                .map_err(std::io::Error::other)?;
+            self.bytes
+                .try_extend_bytes(bytes)
+                .map_err(std::io::Error::other)?;
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut out = Output {
+        bytes: bj::new_work(source.allocation_budget().as_ref()),
+        source,
+    };
+    serde_json::to_writer(&mut out, &CanonicalReference(reference.view())).map_err(err)?;
+    TextValue::from_bytes(out.bytes).map_err(err)
+}
+
+// 十进制文本在固定栈区内格式化；不先创建无许可 String。
+fn decimal(mut n: u64, digits: &mut [u8; 20]) -> &str {
+    let mut start = digits.len();
+    loop {
+        start -= 1;
+        digits[start] = b'0' + (n % 10) as u8;
+        n /= 10;
+        if n == 0 {
+            break;
+        }
+    }
+    std::str::from_utf8(&digits[start..]).expect("decimal digits are ASCII")
 }
 
 struct AxisState {
@@ -345,63 +372,61 @@ fn axes_entries<'r>(
     Ok(out)
 }
 
-fn text_field(fields: &mut Vec<(String, V)>, key: &str, value: String) {
-    fields.push((key.to_string(), V::String(value)));
-}
-
 /// 构造真实 `catalog_run_status` 与 `catalog_evidence` 模板。
 ///
 /// 字段、值类型、OHLC `tested_domain` 逐字沿旧生产；`batch_id` 用 `V::BatchSelf`；
 /// `scope` 取 `metadata.scope` 值边；`axes` 直接接同次最终 `generated_state.catalog_axes`
 /// 的值边（不重渲染、不重造轴）。8 个计数用规范十进制文本。
-pub(super) fn build_template(
+pub(super) fn build_template<'changes>(
     store: &mut dyn NodeStore,
     metadata: &ManifestMetadata,
     generated_state: &ContentRef,
     counts: &super::source_audit::Counts,
-    withdrawals: &[Value],
-    replaces: &[Value],
-) -> Result<(String, ContentRef), String> {
+    withdrawals: impl Into<RawEventsView<'changes>>,
+    replaces: impl Into<RawEventsView<'changes>>,
+) -> Result<(TextValue, RefValue), String> {
+    let withdrawals = withdrawals.into();
+    let replaces = replaces.into();
     require_ohlc(&metadata.profile_id)?;
-    let axes = generated_axes(store, generated_state)?;
-    let mut fields: Vec<(String, V)> = Vec::with_capacity(EVIDENCE_FIELDS.len());
-    text_field(&mut fields, "tested_domain", OHLC_TESTED_DOMAIN.to_string());
-    text_field(&mut fields, "profile_id", metadata.profile_id.clone());
-    text_field(&mut fields, "profile_hash", metadata.profile_hash.clone());
-    text_field(&mut fields, "rule_revision", metadata.rule_revision.clone());
-    fields.push(("batch_id".into(), V::BatchSelf));
-    text_field(&mut fields, "structure_cut", metadata.structure_cut.clone());
-    text_field(
-        &mut fields,
-        "classified_objects",
-        counts.objects.to_string(),
-    );
-    text_field(&mut fields, "windows_total", counts.windows.to_string());
-    text_field(&mut fields, "merged_bars", counts.groups.to_string());
-    text_field(
-        &mut fields,
-        "effective_source_positions",
-        counts.effective.to_string(),
-    );
-    text_field(&mut fields, "withdrawals", withdrawals.len().to_string());
-    text_field(&mut fields, "replaces", replaces.len().to_string());
-    text_field(
-        &mut fields,
-        "insufficient_knowledge",
-        counts.insufficient.to_string(),
-    );
-    text_field(
-        &mut fields,
-        "domain_not_satisfied",
-        counts.outside_domain.to_string(),
-    );
-    fields.push((
-        "scope".into(),
-        V::edge_of_ref(&metadata.scope).map_err(err)?,
-    ));
-    fields.push(("axes".into(), V::Edge(axes.digest().map_err(err)?)));
-    let built = sc::write_template(store, &V::Object(fields)).map_err(err)?;
-    Ok((declared_run(counts).to_string(), built.content_ref()))
+    let axes = generated_axes_ref(store, generated_state.into())?;
+    let run = declared_run(counts);
+    let counts = [
+        counts.objects,
+        counts.windows,
+        counts.groups,
+        counts.effective,
+        withdrawals.len(),
+        replaces.len(),
+        counts.insufficient,
+        counts.outside_domain,
+    ];
+    let mut digits = [[0u8; 20]; 8];
+    let mut texts = [""; 8];
+    for ((text, digits), count) in texts.iter_mut().zip(digits.iter_mut()).zip(counts) {
+        *text = decimal(u64::try_from(count).map_err(err)?, digits);
+    }
+    use sc::ValueView::{BatchSelf, Edge, Object, String as Text};
+    let fields = [
+        ("tested_domain", Text(OHLC_TESTED_DOMAIN)),
+        ("profile_id", Text(&metadata.profile_id)),
+        ("profile_hash", Text(&metadata.profile_hash)),
+        ("rule_revision", Text(&metadata.rule_revision)),
+        ("batch_id", BatchSelf),
+        ("structure_cut", Text(&metadata.structure_cut)),
+        ("classified_objects", Text(texts[0])),
+        ("windows_total", Text(texts[1])),
+        ("merged_bars", Text(texts[2])),
+        ("effective_source_positions", Text(texts[3])),
+        ("withdrawals", Text(texts[4])),
+        ("replaces", Text(texts[5])),
+        ("insufficient_knowledge", Text(texts[6])),
+        ("domain_not_satisfied", Text(texts[7])),
+        ("scope", Edge(metadata.scope.digest().map_err(err)?)),
+        ("axes", Edge(axes.digest().map_err(err)?)),
+    ];
+    let built = store.write_template_view(Object(&fields)).map_err(err)?;
+    let reference = store.native_built_ref(&built).map_err(err)?;
+    Ok((store.native_text(run).map_err(err)?, reference))
 }
 
 /// 在同一读集核验一条已解析的目录证据。
@@ -410,7 +435,7 @@ pub(super) fn build_template(
 /// CC-056 的 `raw_revisions`/`withdrawals`/`replaces` 必须与调用者的独立依据逐位同根。
 /// 不重跑包含、分型、新笔或其它业务判定；不替代调用方的完整历史审计。
 #[allow(clippy::too_many_arguments)]
-pub(super) fn verify_cut<'a>(
+pub(super) fn verify_cut<'a, 'changes>(
     store: &mut dyn NodeStore,
     metadata: &ManifestMetadata,
     generated_state: &ContentRef,
@@ -418,8 +443,8 @@ pub(super) fn verify_cut<'a>(
     raw_prefix: impl Into<RawEventsView<'a>>,
     previous_frontier: i64,
     counts: &super::source_audit::Counts,
-    withdrawals: &[Value],
-    replaces: &[Value],
+    withdrawals: impl Into<RawEventsView<'changes>>,
+    replaces: impl Into<RawEventsView<'changes>>,
 ) -> Result<(), String> {
     verify_cut_metered(
         store,
@@ -436,7 +461,7 @@ pub(super) fn verify_cut<'a>(
     )
 }
 #[allow(clippy::too_many_arguments)]
-pub(super) fn verify_cut_until<'a>(
+pub(super) fn verify_cut_until<'a, 'changes>(
     store: &mut dyn NodeStore,
     metadata: &ManifestMetadata,
     generated_state: &ContentRef,
@@ -444,8 +469,8 @@ pub(super) fn verify_cut_until<'a>(
     raw_prefix: impl Into<RawEventsView<'a>>,
     previous_frontier: i64,
     counts: &super::source_audit::Counts,
-    withdrawals: &[Value],
-    replaces: &[Value],
+    withdrawals: impl Into<RawEventsView<'changes>>,
+    replaces: impl Into<RawEventsView<'changes>>,
     deadline: Option<std::time::Instant>,
 ) -> Result<(), String> {
     verify_cut_metered(
@@ -463,7 +488,7 @@ pub(super) fn verify_cut_until<'a>(
     )
 }
 #[allow(clippy::too_many_arguments)]
-pub(super) fn verify_cut_metered<'a>(
+pub(super) fn verify_cut_metered<'a, 'changes>(
     store: &mut dyn NodeStore,
     metadata: &ManifestMetadata,
     generated_state: &ContentRef,
@@ -471,13 +496,13 @@ pub(super) fn verify_cut_metered<'a>(
     raw_prefix: impl Into<RawEventsView<'a>>,
     previous_frontier: i64,
     counts: &super::source_audit::Counts,
-    withdrawals: &[Value],
-    replaces: &[Value],
+    withdrawals: impl Into<RawEventsView<'changes>>,
+    replaces: impl Into<RawEventsView<'changes>>,
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
 ) -> Result<(), String> {
-    let withdrawal_view = bj::ValuesArray(withdrawals);
-    let replacement_view = bj::ValuesArray(replaces);
+    let withdrawal_view = withdrawals.into();
+    let replacement_view = replaces.into();
     verify_cut_in_store(
         &mut super::audit_store::StoreView::generic(store),
         metadata.view(),
@@ -722,7 +747,7 @@ pub(super) fn stage_current(
 ) -> Result<(), String> {
     let entries = axes_entries(store, axes)?;
     for entry in &entries {
-        let reference = reference_text(&entry.evidence)?;
+        let reference = reference_text(store, &entry.evidence)?;
         let changed = tx
             .execute(
                 "UPDATE catalog SET impl_status=?1,proof_status=?2,run_status=?3,evidence_json=?4 WHERE catalog_id=?5",
@@ -730,7 +755,7 @@ pub(super) fn stage_current(
                     entry.impl_status.as_str(),
                     entry.proof_status.as_str(),
                     entry.run_status.as_str(),
-                    reference,
+                    reference.as_str(),
                     entry.id
                 ],
             )
@@ -859,7 +884,9 @@ fn parse_json_owned(
             "prototype_audit_allocation_incomplete：owned目录解码入口未编译",
         ));
     }
-    strict_json(bytes).map(JsonOwner::Plain)
+    strict_json(bytes)
+        .map(bj::PlainJson::from)
+        .map(JsonOwner::Plain)
 }
 
 fn canonical_matches(
@@ -903,6 +930,85 @@ fn canonical_matches(
     };
     serde_json::to_writer(&mut out, &value).map_err(err)?;
     Ok(out.equal && out.remaining.is_empty())
+}
+
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+mod native_catalog_temp_tests {
+    use super::super::audit_store::NativeAdmission;
+    use super::*;
+
+    #[test]
+    fn reference_text_keeps_native_permit_after_scope_and_matches_canonical_oracle() {
+        for (kind, extent) in [
+            (Kind::String, None),
+            (Kind::Array, Some(0)),
+            (Kind::Object, Some(u64::MAX)),
+        ] {
+            let reference = sc::Built {
+                digest: [0xad; 32],
+                kind,
+                extent,
+            }
+            .content_ref();
+            let expected = canonical_json(&reference.to_transport_json());
+            let reference = RefValue::from(reference);
+            let budget = crate::v3::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
+            let baseline = budget.live();
+            let output = budget
+                .codec_work()
+                .unwrap()
+                .run(|scope| {
+                    let admission = NativeAdmission(Some(scope));
+                    let entry = budget.live();
+                    let output = reference_text(&admission, &reference).unwrap();
+                    assert_eq!(output.as_str(), expected);
+                    assert!(budget.live() > entry);
+                    assert!(
+                        matches!(&output, TextValue::Plain(value) if value.is_native_admitted())
+                    );
+                    Ok::<_, sc::CodecError>(output)
+                })
+                .unwrap();
+            assert_eq!(output.as_str(), expected);
+            assert!(budget.live() > baseline, "跨域保留的文本仍持原许可");
+            drop(output);
+            assert_eq!(budget.live(), baseline);
+        }
+    }
+
+    #[test]
+    fn reference_text_refusal_keeps_source_and_releases_partial_output() {
+        let reference = RefValue::from(
+            sc::Built {
+                digest: [0xad; 32],
+                kind: Kind::Array,
+                extent: Some(7),
+            }
+            .content_ref(),
+        );
+        let expected = reference.digest().unwrap();
+        let limit = 1024 * 1024;
+        let budget = crate::v3::audit_owner::native::Budget::new(limit, 0).unwrap();
+        let baseline = budget.live();
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|scope| {
+                let admission = NativeAdmission(Some(scope));
+                let entry = budget.live();
+                // 留少量空间，让规范输出开始后在后续扩容拒绝；临时输出应完全析构。
+                let ballast = scope.reserve_native(limit - entry - 16)?;
+                let before = budget.live();
+                assert!(reference_text(&admission, &reference).is_err());
+                assert_eq!(budget.live(), before);
+                assert_eq!(reference.digest().unwrap(), expected);
+                drop(ballast);
+                assert_eq!(budget.live(), entry);
+                Ok::<_, sc::CodecError>(())
+            })
+            .expect_err("规范输出的资源拒绝必须穿过 WorkScope 尾检");
+        assert_eq!(budget.live(), baseline);
+    }
 }
 
 #[cfg(all(test, feature = "s_allocation_json_testonly"))]
@@ -1037,7 +1143,6 @@ mod tests {
     use crate::content_bi::PriorState;
     use crate::tests::fixture as fixture_path;
     use crate::tests::{located_ohlc_input, tb02b_oracle_rows};
-    use crate::v3::business_json::{self as bj, RawEventsView};
     use crate::{meta_get_opt, open_db, read_effective_events, read_raw_events, sha256_hex, v2};
     use newchan_rust::s_content::{MemoryNodes, NodeRead};
     use rusqlite::{Connection, TransactionBehavior};
@@ -1101,8 +1206,8 @@ mod tests {
         axes: ContentRef,
         raw: Vec<Value>,
         counts: source_audit::Counts,
-        withdrawals: Vec<Value>,
-        replaces: Vec<Value>,
+        withdrawals: bj::JsonOwner,
+        replaces: bj::JsonOwner,
         run: String,
         evidence_template: ContentRef,
         batch_id: String,
@@ -1272,7 +1377,7 @@ mod tests {
         };
         let mut generated = runtime.generate(&mut store, &generation_input).unwrap();
         let plan = object_index::plan(&mut store, &generated.objects, &[], 1).unwrap();
-        assert!(plan.withdrawals.is_empty() && plan.replaces.is_empty());
+        assert!(plan.withdrawals.array_len() == 0 && plan.replaces.array_len() == 0);
         generated
             .finish_axes(&mut store, -1, &plan.withdrawals, &plan.replaces)
             .unwrap();
@@ -1330,6 +1435,15 @@ mod tests {
             &plan.replaces,
         )
         .unwrap();
+        // 此夹具只用无 scope MemoryNodes；生产消费者必须保留 typed owner。
+        let run = run.as_str().to_string();
+        let evidence_template = match evidence_template {
+            RefValue::Plain(reference) => {
+                assert!(!reference.is_native_admitted());
+                reference.as_ref().clone()
+            }
+            RefValue::Owned(_) => panic!("MemoryNodes fixture must remain unscoped"),
+        };
         let (manifest, delta) = manifest_and_delta(
             &mut store,
             &metadata,
@@ -1337,7 +1451,9 @@ mod tests {
             &evidence_template,
             &run,
         );
-        let generated_state = generated.generated_state.clone();
+        // 此夹具仅用无 scope MemoryNodes；生产路径不得借 Deref::clone 丢许可。
+        assert!(!generated.generated_state.is_native_admitted());
+        let generated_state = generated.generated_state.as_ref().clone();
         drop(generated);
         Fixture {
             dir,
@@ -1352,7 +1468,7 @@ mod tests {
             replaces: plan.replaces,
             run,
             evidence_template,
-            batch_id: manifest.batch_id,
+            batch_id: manifest.batch_id.as_str().to_owned(),
             delta,
         }
     }
@@ -1507,8 +1623,8 @@ mod tests {
             ("windows_total", f.counts.windows),
             ("merged_bars", f.counts.groups),
             ("effective_source_positions", f.counts.effective),
-            ("withdrawals", f.withdrawals.len()),
-            ("replaces", f.replaces.len()),
+            ("withdrawals", f.withdrawals.array_len()),
+            ("replaces", f.replaces.array_len()),
             ("insufficient_knowledge", f.counts.insufficient),
             ("domain_not_satisfied", f.counts.outside_domain),
         ] {
@@ -1758,12 +1874,7 @@ mod tests {
         assert_eq!(staged.1, "not_proved");
         assert_eq!(
             staged.3,
-            reference_text(&RefValue::Plain(axis_evidence(
-                &mut f.store,
-                &f.axes,
-                "CC-001"
-            )))
-            .unwrap()
+            canonical_json(&axis_evidence(&mut f.store, &f.axes, "CC-001").to_transport_json())
         );
         tx.rollback().unwrap();
         assert_eq!(read_row(&f.conn, "CC-001"), before);
@@ -1786,7 +1897,7 @@ mod tests {
             assert!(!evidence_json.is_empty(), "{id}");
             assert_eq!(
                 evidence_json,
-                reference_text(&RefValue::Plain(axis_evidence(&mut f.store, &f.axes, id))).unwrap(),
+                canonical_json(&axis_evidence(&mut f.store, &f.axes, id).to_transport_json()),
                 "{id}"
             );
         }

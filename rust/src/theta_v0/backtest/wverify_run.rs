@@ -25,10 +25,34 @@ use super::super::classifier::divergence::ForceStateA5;
 use super::super::config::{ThetaConfig, ThetaDirPreset};
 use super::super::strategy::interp::ExitType;
 use super::l3_delta_r_alpha::build_mu_from_bars;
+use super::l3_probe_profile::active_no_floor_probe_profile;
 use super::mu_estimator::{MuClass, ResidualTrade, UClass};
 use super::prereg_windows::{OOS_START, PREREG_WINDOWS};
+use super::research_stats::{active_research_stats, ResearchStats};
 use super::{data, decontam, perm_test};
 use std::collections::{BTreeMap, HashMap};
+
+fn research_stats() -> ResearchStats {
+    active_research_stats().expect("C-19 research stats record")
+}
+
+/// 人类可读报告同时携带统计与资金记录；TSV 保持机器可读 schema，由同批 Markdown 记录来源。
+fn with_policy_records(body: impl std::fmt::Display) -> String {
+    let stats = research_stats();
+    let profile = active_no_floor_probe_profile().expect("W-VERIFY probe profile record");
+    format!(
+        "统计记录={}\n探针资金记录={}\n\n{body}",
+        stats.record.label(),
+        profile.record.label()
+    )
+}
+
+/// W-VERIFY 全部首价×1000 回放资金调用点共用同一具名 profile（无 L3 的 1e6 下限）。
+fn wverify_nav(win: &data::Dataset, cfg: &ThetaConfig) -> f64 {
+    let profile = active_no_floor_probe_profile().expect("W-VERIFY probe profile record");
+    eprintln!("policy record: {}", profile.record.label());
+    profile.nav_for(win, cfg)
+}
 
 /// ★A1（prereg-rev2-20260704）：force_state 第 8 维的 dump 编码（离线 round-trip 无损）。
 /// None=0 / Dominated=1 / Dominates=2 / Tie=3 / Incomparable=4——`load_deltafree_dump` 逆映射。
@@ -365,7 +389,8 @@ fn deltafree_verdict(
         perm_test::N_PERM,
         perm_test::PERM_SEED,
     );
-    let (za, pa) = (1.645_f64, 0.05_f64);
+    let policy = research_stats();
+    let (za, pa) = (policy.z_alpha, policy.perm_alpha);
 
     let mut rows = String::from(
         "| L | bsp | σ^H | force | N | n_eff | mean(Y) | std | lcb | ucb | cv | perm_p | state |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|\n",
@@ -472,6 +497,8 @@ fn exit_type_breakdown(records: &[ResidualTrade]) -> String {
 #[test]
 #[ignore]
 fn wverify_full() {
+    let policy = research_stats();
+    eprintln!("policy record: {}", policy.record.label());
     let mut cfg = ThetaConfig::default();
     apply_theta_dir_preset_from_env(&mut cfg);
     apply_enforce_gross_cap_from_env(&mut cfg);
@@ -511,7 +538,7 @@ fn wverify_full() {
     }
     // 残差分层 δ 置换逐桶 perm_p（§4.2 分层键 (ℓ,h桶,time block,σ^H)；N_PERM=200 种子 20260701 冻结）。
     let pp = perm_test::stratified_delta_perm_p(&records, perm_test::N_PERM, perm_test::PERM_SEED);
-    let (za, pa) = (1.645_f64, 0.05_f64);
+    let (za, pa) = (policy.z_alpha, policy.perm_alpha);
     let mut states = Vec::new();
     let mut rows = String::from(
         "| L | bsp | δ | σ^H | n | n_eff | mean(Y) | lcb | ucb | cv | perm_p | 删尾mean(−3) | 翻转 | state |\n",
@@ -598,15 +625,23 @@ fn wverify_full() {
         "WV_FULL 报告桶(含δ,描述性) residuals={} buckets={} verdict={:?} V={} F={} I={} levels={:?} wf_windows={}",
         records.len(), agg.len(), v, nv, nf, ni, lv_set, time_blocks.len()
     );
-    std::fs::write("/tmp/wv_full_rows.md", &rows).ok();
-    std::fs::write("/tmp/wv_full_h2_asymmetry.md", &h2_rows).ok();
+    std::fs::write("/tmp/wv_full_rows.md", with_policy_records(&rows)).ok();
+    std::fs::write(
+        "/tmp/wv_full_h2_asymmetry.md",
+        with_policy_records(&h2_rows),
+    )
+    .ok();
 
     // ── A1 ForceState⊥δ 前置检验（prereg-rev2 §1.2，i_class×δ 共线自毁铁律）──
     // ForceState 进主裁决聚合基前须验：每个出现的 force_state 态内 δ 两向都非空（有交换自由度，非共线）。
     // FAIL（任一态 δ 完全单向）⟹ A1 判 FALSIFIED，ForceState 退出主裁决基（fail 条件 3，停下上浮）。
     let ortho_report = forcestate_delta_orthogonality(&records);
     eprintln!("WV_FULL A1 ForceState⊥δ 检验:\n{ortho_report}");
-    std::fs::write("/tmp/wv_full_forcestate_ortho.md", &ortho_report).ok();
+    std::fs::write(
+        "/tmp/wv_full_forcestate_ortho.md",
+        with_policy_records(&ortho_report),
+    )
+    .ok();
 
     // ── δ-free 主裁决（prereg §3.2 主判据 + A1 force_state 第 8 维进聚合基）──
     // 直接在内存 records 上按 Z_decision=(level,bsp_class,parent_dir,force_state) 池化两 δ 方向算主裁决
@@ -618,12 +653,12 @@ fn wverify_full() {
     );
     std::fs::write(
         "/tmp/wv_full_deltafree.md",
-        format!(
+        with_policy_records(format!(
             "# δ-free 主裁决（在线直出，prereg-rev2 §1 Z_decision=(level,bsp_class,parent_dir,force_state)）\n\n\
              - records={} δ-free基桶={} verdict={df_v:?} V={df_nv}/F={df_nf}/I={df_ni}\n\
              - LCB>0 桶：{df_lcb}\n\n## ForceState⊥δ 检验\n\n{ortho_report}\n\n## δ-free 桶表\n\n{df_rows}\n",
             records.len(), df_nv + df_nf + df_ni,
-        ),
+        )),
     )
     .ok();
 
@@ -655,7 +690,7 @@ fn wverify_full() {
     );
     std::fs::write(
         "/tmp/wv_full_mu_r.md",
-        format!(
+        with_policy_records(format!(
             "# μ_R=E[Y/d] co-primary 双门（prereg-rev2 §2，codex-ruling-696，桶键不加 d）\n\n\
              - raw_n={} μ_R_n={}（剔除：d 不可得 NAN={n_nan_drop}，d<D_MIN({d_min:.2e}) {n_dmin_drop}）\n\
              - δ-free基桶={} verdict={mur_v:?} V={mur_nv}/F={mur_nf}/I={mur_ni}\n\
@@ -663,7 +698,7 @@ fn wverify_full() {
              口径：μ_R 与 raw μ **不可比**（#135：μ_R 除 d + D_MIN 过滤样本集不同）；双 estimand 各自过门，\
              Holm 全族校正（见结果包）。\n\n{mur_rows}\n",
             records.len(), mu_r_records.len(), mur_nv + mur_nf + mur_ni,
-        ),
+        )),
     )
     .ok();
 
@@ -708,12 +743,12 @@ fn wverify_full() {
             ));
         }
     }
-    std::fs::write("/tmp/wv_full_timeblocks.md", &wf_rows).ok();
+    std::fs::write("/tmp/wv_full_timeblocks.md", with_policy_records(&wf_rows)).ok();
 
     // ── ExitType 诊断切片（裁定甲：5 变体占比拆解，纯描述性，不进裁决基）──
     let exit_diag = exit_type_breakdown(&records);
     eprintln!("WV_FULL ExitType 诊断切片:\n{exit_diag}");
-    std::fs::write("/tmp/wv_full_exittype.md", &exit_diag).ok();
+    std::fs::write("/tmp/wv_full_exittype.md", with_policy_records(&exit_diag)).ok();
 
     assert!(!records.is_empty(), "residuals 空——管线未产观测");
 }
@@ -724,7 +759,9 @@ struct BucketStat {
     n_eff: f64,
     mean: f64,
     lcb: f64,
+    #[allow(dead_code, reason = "#1608：分桶统计结果字段，计算后当前无读出点")]
     ucb: f64,
+    #[allow(dead_code, reason = "#1608：分桶统计结果字段，计算后当前无读出点")]
     cv: f64,
     perm_p: f64,
     state: decontam::AlphaState,
@@ -759,7 +796,8 @@ fn bucket_verdict(
         series.entry(key).or_default().push(y);
     }
     let pp = perm_test::stratified_delta_perm_p(records, perm_test::N_PERM, perm_test::PERM_SEED);
-    let (za, pa) = (1.645_f64, 0.05_f64);
+    let policy = research_stats();
+    let (za, pa) = (policy.z_alpha, policy.perm_alpha);
     let mut stats: BTreeMap<(u32, u8, i8, i8), BucketStat> = BTreeMap::new();
     let mut states = Vec::new();
     let mut rows = String::from("| L | bsp | δ | σ^H | n | n_eff | mean(Y) | lcb | ucb | cv | perm_p | state | frontier(≥2) |\n");
@@ -829,6 +867,8 @@ fn bucket_verdict(
 #[test]
 #[ignore]
 fn wverify_cross_symbol() {
+    let policy = research_stats();
+    eprintln!("policy record: {}", policy.record.label());
     let cfg = ThetaConfig::default();
     const MAIN: (u32, u8, i8, i8) = (0, 3, 1, 0); // 主桶 L0/type3/买/σ0（BTC 单标的欠功效点，n_eff=166<290）
 
@@ -874,20 +914,25 @@ fn wverify_cross_symbol() {
     // 与 BTC 单标的主桶差分（裁定 C 目标：池化增 n 是否使主桶 INCONCLUSIVE→VALIDATED）。
     let diff = match (btc_main.as_ref(), pooled_main) {
         (Some(b), Some(p)) => format!(
-            "主桶 {MAIN:?} 差分（σ̂-归一化 Ỹ 单位）：\n  BTC 单标的 : n={} n_eff={:.2} mean={:+.4} lcb={:+.4} perm_p={:.3} → {:?}\n  7 品种池化 : n={} n_eff={:.2} mean={:+.4} lcb={:+.4} perm_p={:.3} → {:?}\n  n_eff {:.0}→{:.0}（功效门=(1.645·CV)²逐桶重算，不复用 v1 的 290），翻转={}",
+            "主桶 {MAIN:?} 差分（σ̂-归一化 Ỹ 单位）：\n  BTC 单标的 : n={} n_eff={:.2} mean={:+.4} lcb={:+.4} perm_p={:.3} → {:?}\n  7 品种池化 : n={} n_eff={:.2} mean={:+.4} lcb={:+.4} perm_p={:.3} → {:?}\n  n_eff {:.0}→{:.0}（功效门=({z_alpha}·CV)²逐桶重算，不复用 v1 的 290），翻转={}",
             b.n, b.n_eff, b.mean, b.lcb, b.perm_p, b.state,
             p.n, p.n_eff, p.mean, p.lcb, p.perm_p, p.state,
             b.n_eff, p.n_eff, if format!("{:?}", b.state) != format!("{:?}", p.state) { "是" } else { "否" },
+            z_alpha = policy.z_alpha,
         ),
         _ => "主桶差分不可算（BTC 或池化缺主桶）".to_string(),
     };
 
     eprintln!("WV_XSYM(σ̂-归一化) pooled_residuals={} buckets={} verdict={pverdict} V={nv} F={nf} I={ni}\n{sigma_md}\n{diff}", pooled.len(), pstats.len());
-    std::fs::write("/tmp/wv_xsym_sigma.md", &sigma_md).ok();
-    std::fs::write("/tmp/wv_xsym_persymbol.md", &per_symbol_md).ok();
+    std::fs::write("/tmp/wv_xsym_sigma.md", with_policy_records(&sigma_md)).ok();
+    std::fs::write(
+        "/tmp/wv_xsym_persymbol.md",
+        with_policy_records(&per_symbol_md),
+    )
+    .ok();
     std::fs::write(
         "/tmp/wv_xsym_pooled.md",
-        format!("# 池化（7 品种，σ̂-归一化 Ỹ）verdict={pverdict} V={nv}/F={nf}/I={ni}\n\n## σ̂ 表\n\n{sigma_md}\n\n{prows}\n\n## {diff}\n"),
+        with_policy_records(format!("# 池化（7 品种，σ̂-归一化 Ỹ）verdict={pverdict} V={nv}/F={nf}/I={ni}\n\n## σ̂ 表\n\n{sigma_md}\n\n{prows}\n\n## {diff}\n")),
     )
     .ok();
 }
@@ -912,7 +957,8 @@ fn verdict_by<K: Ord + Copy + std::fmt::Debug + std::hash::Hash>(
         e.2 += dl * (y - e.1);
         series.entry(key).or_default().push(y);
     }
-    let (za, pa) = (1.645_f64, 0.05_f64);
+    let policy = research_stats();
+    let (za, pa) = (policy.z_alpha, policy.perm_alpha);
     let mut states = Vec::new();
     let mut rows = String::from(
         "| key | n | n_eff | mean(Y) | lcb | ucb | cv | perm_p | state | frontier(≥2) |\n",
@@ -966,6 +1012,8 @@ fn verdict_by<K: Ord + Copy + std::fmt::Debug + std::hash::Hash>(
 #[test]
 #[ignore]
 fn wverify_fullz() {
+    let policy = research_stats();
+    eprintln!("policy record: {}", policy.record.label());
     let cfg = ThetaConfig::default();
     let ds = data::load_by_symbol("BTC", &cfg).expect("BTC 数据加载（btc_1m_full.json）");
     let (records, _tb) = walk_forward_oos_residuals("BTC", 0, &ds, &cfg);
@@ -1038,10 +1086,12 @@ fn wverify_fullz() {
         "WV_FULLZ residuals={} | full-z: buckets={n_fullz} verdict={fverdict} V={fv}/F={ff}/I={fi} | UClass: buckets={n_uclass} verdict={uverdict} V={uv}/F={uf}/I={ui}",
         records.len()
     );
-    std::fs::write("/tmp/wv_fullz_rows.md", format!("# full-z（MuClass 8 维，σ_higher 不进 prereg 桶键）verdict={fverdict} V={fv}/F={ff}/I={fi}\n\n{frows}")).ok();
+    std::fs::write("/tmp/wv_fullz_rows.md", with_policy_records(format!("# full-z（MuClass 8 维，σ_higher 不进 prereg 桶键）verdict={fverdict} V={fv}/F={ff}/I={fi}\n\n{frows}"))).ok();
     std::fs::write(
         "/tmp/wv_uclass_rows.md",
-        format!("# UClass 降维并列 verdict={uverdict} V={uv}/F={uf}/I={ui}\n\n{urows}"),
+        with_policy_records(format!(
+            "# UClass 降维并列 verdict={uverdict} V={uv}/F={uf}/I={ui}\n\n{urows}"
+        )),
     )
     .ok();
 }
@@ -1104,7 +1154,11 @@ fn thetadom_three_gauge_oos() {
             i
         );
     }
-    std::fs::write("/tmp/thetadom_three_gauge_oos.md", &report).ok();
+    std::fs::write(
+        "/tmp/thetadom_three_gauge_oos.md",
+        with_policy_records(&report),
+    )
+    .ok();
 }
 
 /// 完整策略级 π 回测（prereg-fullz-policy 阶段2 (B)）：BTC+CL，χ门μ̂注入 vs 无χ基线。
@@ -1117,10 +1171,11 @@ fn thetadom_three_gauge_oos() {
 #[ignore]
 fn policy_backtest() {
     use super::runner::{run_theta_v0_pi, run_theta_v0_pi_chi};
+    eprintln!("policy record: {}", research_stats().record.label());
     let base_cfg = ThetaConfig::default();
     let mut chi_cfg = ThetaConfig::default();
     chi_cfg.risk.chi_theta = Some(0.0); // χ=1[LCB(μ)>0]（p8-9 选择器）
-    chi_cfg.risk.chi_z_alpha = 1.645;
+    chi_cfg.risk.chi_z_alpha = research_stats().z_alpha;
     let (train_lo, train_hi) = ("2022-07-01", "2022-12-31"); // OOS 前 6 月（有界 train，限跑批成本）
     let (test_lo, test_hi) = ("2023-01-01", "2023-06-30"); // OOS 6 月单折（ponytail 有界；逐窗 walk-forward 是升级路径）
 
@@ -1148,21 +1203,18 @@ fn policy_backtest() {
             test_ds.bars.len()
         );
         let (est, _r) = build_mu_from_bars(&train_ds.bars, &base_cfg, 0);
-        let first_px = test_ds
-            .bars
-            .iter()
-            .find(|b| !b.untradable && b.close > 0)
-            .map(|b| b.close as f64 * base_cfg.tick.tick_size)
-            .unwrap_or(1.0);
-        let nav = first_px * 1000.0;
+        let nav = wverify_nav(&test_ds, &base_cfg);
         let years = test_ds.bars.len() as f64 / (365.25 * 24.0 * 60.0);
 
-        let chi_r = run_theta_v0_pi_chi(&test_ds, &chi_cfg, years, nav, &est, false);
-        let base_r = run_theta_v0_pi(&test_ds, &base_cfg, years, nav);
+        let chi_r = run_theta_v0_pi_chi(&test_ds, &chi_cfg, years, nav, &est, false)
+            .expect("C-19 research stats record");
+        let base_r =
+            run_theta_v0_pi(&test_ds, &base_cfg, years, nav).expect("C-19 research stats record");
         // f3-C 多重赋格反事实：剔 ReverseOpen 声部（同 no-χ 口径，margin=None 默认），测对冲增量价值。
         let mut sd_off_cfg = base_cfg.clone();
         sd_off_cfg.voice.disable_reverse_open = true;
-        let sd_off_r = run_theta_v0_pi(&test_ds, &sd_off_cfg, years, nav);
+        let sd_off_r =
+            run_theta_v0_pi(&test_ds, &sd_off_cfg, years, nav).expect("C-19 research stats record");
         let sum = |v: &[f64]| v.iter().sum::<f64>();
         let (chi_pnl, base_pnl, sd_off_pnl) = (
             sum(&chi_r.trade_pnls_with_forced),
@@ -1192,7 +1244,7 @@ fn policy_backtest() {
             chi_r.metrics.max_drawdown, chi_r.n_orders, base_r.metrics.max_drawdown, base_r.n_orders, chi_pnl - base_pnl,
             base_pnl - sd_off_pnl, sd_off_r.n_orders);
     }
-    std::fs::write("/tmp/policy_backtest.md", &report).ok();
+    std::fs::write("/tmp/policy_backtest.md", with_policy_records(&report)).ok();
 }
 
 /// `d`（ISO "YYYY-MM-DD"）前推 6 个月，day 钳到 28（合法日期；slice_date_window 字典序比较）。
@@ -1246,23 +1298,17 @@ pub(crate) fn q4_margin_model(nav0: f64) -> super::super::strategy::risk::Margin
 #[ignore]
 fn q4_fullpi_policy() {
     use super::runner::{run_theta_v0_pi, run_theta_v0_pi_chi, RunResult};
+    eprintln!("policy record: {}", research_stats().record.label());
 
     let plain_cfg = ThetaConfig::default(); // Arm0/Arm3 基（margin=None, gross off）
     let mk_chi = |gross: bool| {
         let mut c = ThetaConfig::default();
         c.risk.chi_theta = Some(0.0); // χ=1[LCB(μ)>0]（§12 口径，z_α=1.645，非 p<0.05）
-        c.risk.chi_z_alpha = 1.645;
+        c.risk.chi_z_alpha = research_stats().z_alpha;
         c.risk.enforce_gross_cap = gross;
         c
     };
-    let nav_of = |ds: &data::Dataset, cfg: &ThetaConfig| {
-        ds.bars
-            .iter()
-            .find(|b| !b.untradable && b.close > 0)
-            .map(|b| b.close as f64 * cfg.tick.tick_size)
-            .unwrap_or(1.0)
-            * 1000.0
-    };
+    let nav_of = |ds: &data::Dataset, cfg: &ThetaConfig| wverify_nav(ds, cfg);
     let fmt_arm = |name: &str, r: &RunResult| {
         let pnl: f64 = r.trade_pnls_with_forced.iter().sum();
         format!(
@@ -1331,10 +1377,14 @@ fn q4_fullpi_policy() {
             let (est_fullpi, _) = build_mu_from_bars(&train.bars, &fullpi_tr, 0);
             let (est_plain, _) = build_mu_from_bars(&train.bars, &plain_cfg, 0);
 
-            let arm0 = run_theta_v0_pi(&test, &plain_cfg, years, nav_te);
-            let arm1 = run_theta_v0_pi_chi(&test, &fullpi_te, years, nav_te, &est_fullpi, false);
-            let arm2 = run_theta_v0_pi_chi(&test, &fullpi_te, years, nav_te, &est_fullpi, true);
-            let arm3 = run_theta_v0_pi_chi(&test, &mk_chi(false), years, nav_te, &est_plain, false);
+            let arm0 = run_theta_v0_pi(&test, &plain_cfg, years, nav_te)
+                .expect("C-19 research stats record");
+            let arm1 = run_theta_v0_pi_chi(&test, &fullpi_te, years, nav_te, &est_fullpi, false)
+                .expect("C-19 research stats record");
+            let arm2 = run_theta_v0_pi_chi(&test, &fullpi_te, years, nav_te, &est_fullpi, true)
+                .expect("C-19 research stats record");
+            let arm3 = run_theta_v0_pi_chi(&test, &mk_chi(false), years, nav_te, &est_plain, false)
+                .expect("C-19 research stats record");
 
             report.push_str(&format!(
                 "## {sym} {tag}（train {tr_lo}..{tr_hi}, test {te_lo}..{te_hi}, μ类数 fullpi={}/plain={}）\n\n\
@@ -1385,7 +1435,7 @@ fn q4_fullpi_policy() {
         }
         report.push('\n');
     }
-    std::fs::write("/tmp/q4_fullpi_policy.md", &report).ok();
+    std::fs::write("/tmp/q4_fullpi_policy.md", with_policy_records(&report)).ok();
     eprintln!("[q4] 报告落盘 /tmp/q4_fullpi_policy.md");
 }
 
@@ -1417,14 +1467,7 @@ fn m6_btc_oos_r_decomposition() {
     let plain_cfg = ThetaConfig::default();
     let ds = data::load_by_symbol("BTC", &plain_cfg).expect("BTC 数据加载（btc_1m_full.json）");
 
-    let nav_of = |d: &data::Dataset| {
-        d.bars
-            .iter()
-            .find(|b| !b.untradable && b.close > 0)
-            .map(|b| b.close as f64 * plain_cfg.tick.tick_size)
-            .unwrap_or(1.0)
-            * 1000.0
-    };
+    let nav_of = |d: &data::Dataset| wverify_nav(d, &plain_cfg);
 
     let mut report = String::from(
         "# M6 BTC OOS R 分解（TARGET_STRATEGY_MAXFULL.md M6 / 路线.pdf p16 第十一关）\n\n\
@@ -1472,7 +1515,7 @@ fn m6_btc_oos_r_decomposition() {
             "[m6] BTC {tag} test={te_lo}..{te_hi}({}) run…",
             test.bars.len()
         );
-        let r = run_theta_v0_pi(&test, &m6_cfg, years, nav_te);
+        let r = run_theta_v0_pi(&test, &m6_cfg, years, nav_te).expect("C-19 research stats record");
         match r.r_decomp {
             Some(d) => {
                 report.push_str(&format!(
@@ -1504,7 +1547,11 @@ fn m6_btc_oos_r_decomposition() {
     report.push_str(
         "\n**守恒断言**：各窗 |守恒残差| ≤ 容差（价格 PnL − 五项成本 = 账本净变动，无泄漏）。\n",
     );
-    std::fs::write("/tmp/m6_btc_oos_r_decomposition.md", &report).ok();
+    std::fs::write(
+        "/tmp/m6_btc_oos_r_decomposition.md",
+        with_policy_records(&report),
+    )
+    .ok();
     eprintln!("[m6] R 分解报告落盘 /tmp/m6_btc_oos_r_decomposition.md");
 }
 
@@ -1537,20 +1584,14 @@ fn m6_btc_oos_r_decomposition() {
 #[ignore]
 fn m8_e2e_all_systems_oos() {
     use super::super::strategy::coverage::Vertical;
+    eprintln!("policy record: {}", research_stats().record.label());
     use super::super::strategy::ledger::{RiskPolicy, TStage};
     use super::metrics::significance;
     use super::runner::run_theta_v0_pi_overlay;
 
     let plain_cfg = ThetaConfig::default();
     let ds = data::load_by_symbol("BTC", &plain_cfg).expect("BTC 数据加载（btc_1m_full.json）");
-    let nav_of = |d: &data::Dataset| {
-        d.bars
-            .iter()
-            .find(|b| !b.untradable && b.close > 0)
-            .map(|b| b.close as f64 * plain_cfg.tick.tick_size)
-            .unwrap_or(1.0)
-            * 1000.0
-    };
+    let nav_of = |d: &data::Dataset| wverify_nav(d, &plain_cfg);
 
     // OOS 窗清单：p3 单折 + 前两个 anchored walk-forward（与 M6 跑批同窗，可差分对照）。
     let mut wins: Vec<(String, String, String)> =
@@ -1635,7 +1676,8 @@ fn m8_e2e_all_systems_oos() {
         super::super::strategy::coverage::cap_binding_probe_reset();
         super::super::strategy::coverage::cap_binding_attribution_reset(); // #628 阶段一归因
         super::super::strategy::coverage::ancok_probe_reset(); // #446 活动集同 ElementId 双计逐窗清零
-        let r = run_theta_v0_pi_overlay(&test, &cfg, years, nav_te);
+        let r = run_theta_v0_pi_overlay(&test, &cfg, years, nav_te)
+            .expect("C-19 research stats record");
         super::admission::t5a_chain_dump::close();
         // ★#714 MED-3 订正（影子评审 shadow-642-review-20260729.md）：本行此前是逐窗硬
         // `assert_eq!`，但 #512（`coverage/step.rs:505-528`）已把唯一性检查前移到 `next_idx`
@@ -1800,7 +1842,8 @@ fn m8_e2e_all_systems_oos() {
                 .fee_rate
                 .expect(super::treasury::SCALAR_COST_RATE_UNDEFINED),
             r.net_result.theta_return_mtm,
-        );
+        )
+        .expect("C-19 research stats record");
         let lcb_r = sig.boot_ci95_lo; // LCB_OOS(R) = block bootstrap 总收益 2.5 分位下界
                                       // 三态（完整策略层，M8:168）：LCB>0 ⟹ confirmed；R>0∧LCB≤0 ⟹ INCONCLUSIVE；R≤0 ⟹ 无（本层）。
         let verdict = if lcb_r > 0.0 {
@@ -1985,7 +2028,11 @@ fn m8_e2e_all_systems_oos() {
            不宣称 confirmed alpha（措辞§5.6：INCONCLUSIVE≠无 alpha；§5.3：不外推 max-full）。\n\n\
          I_0 报告门槛 = {i0}（notional_in 同源 ⌊nav0⌋，各窗 nav 不同 ⟹ 门槛按 notional_in 列读）。\n",
     ));
-    std::fs::write("/tmp/m8_e2e_all_systems_oos.md", &report).ok();
+    std::fs::write(
+        "/tmp/m8_e2e_all_systems_oos.md",
+        with_policy_records(&report),
+    )
+    .ok();
     eprintln!("[m8] 端到端四层报告落盘 /tmp/m8_e2e_all_systems_oos.md");
 }
 
@@ -2019,13 +2066,7 @@ fn issue755_level_cap_on_off_btc20k_diff() {
         "BTC 前 20000 bar 非空（否则测试空转）"
     );
     let years = test.bars.len() as f64 / (365.25 * 24.0 * 60.0);
-    let nav_te = test
-        .bars
-        .iter()
-        .find(|b| !b.untradable && b.close > 0)
-        .map(|b| b.close as f64 * plain_cfg.tick.tick_size)
-        .unwrap_or(1.0)
-        * 1000.0;
+    let nav_te = wverify_nav(&test, &plain_cfg);
 
     let mut cfg_off = ThetaConfig::default();
     cfg_off.margin = Some(q4_margin_model(nav_te));
@@ -2043,8 +2084,10 @@ fn issue755_level_cap_on_off_btc20k_diff() {
         "对照配置须满足 Σw_ℓ≤1（#351 MED 机器断言）"
     );
 
-    let r_off = run_theta_v0_pi_overlay(&test, &cfg_off, years, nav_te);
-    let r_on = run_theta_v0_pi_overlay(&test, &cfg_on, years, nav_te);
+    let r_off = run_theta_v0_pi_overlay(&test, &cfg_off, years, nav_te)
+        .expect("C-19 research stats record");
+    let r_on =
+        run_theta_v0_pi_overlay(&test, &cfg_on, years, nav_te).expect("C-19 research stats record");
 
     let final_equity_off = r_off.net_result.equity_curve.last().copied().unwrap_or(0.0);
     let final_equity_on = r_on.net_result.equity_curve.last().copied().unwrap_or(0.0);
@@ -2075,7 +2118,11 @@ fn issue755_level_cap_on_off_btc20k_diff() {
         final_equity_on,
         final_equity_on - final_equity_off,
     );
-    std::fs::write("/tmp/issue755_level_cap_on_off_btc20k.md", &report).ok();
+    std::fs::write(
+        "/tmp/issue755_level_cap_on_off_btc20k.md",
+        with_policy_records(&report),
+    )
+    .ok();
     eprintln!("{report}");
     eprintln!("[#755] 门 on/off 对照报告落盘 /tmp/issue755_level_cap_on_off_btc20k.md");
 
@@ -2184,13 +2231,7 @@ fn flip_guard_wf8_onebar_prune_replay() {
     let test = ds.slice_date_window(w.test_start, w.test_end);
     assert!(!test.bars.is_empty(), "wf8 test 段非空（否则测试空转）");
     let years = test.bars.len() as f64 / (365.25 * 24.0 * 60.0);
-    let nav_te = test
-        .bars
-        .iter()
-        .find(|b| !b.untradable && b.close > 0)
-        .map(|b| b.close as f64 * plain_cfg.tick.tick_size)
-        .unwrap_or(1.0)
-        * 1000.0;
+    let nav_te = wverify_nav(&test, &plain_cfg);
     let mut cfg = ThetaConfig::default();
     apply_theta_dir_preset_from_env(&mut cfg);
     apply_enforce_gross_cap_from_env(&mut cfg);
@@ -2209,7 +2250,8 @@ fn flip_guard_wf8_onebar_prune_replay() {
     ));
     super::opsem_dump::OPSEM_DUMP_DIR_OVERRIDE.with(|c| *c.borrow_mut() = Some(dump_dir.clone()));
     super::admission::VOICE_EXEC_OVERRIDE.with(|c| c.set(Some(true)));
-    let _r = run_theta_v0_pi_overlay(&test, &cfg, years, nav_te);
+    let _r =
+        run_theta_v0_pi_overlay(&test, &cfg, years, nav_te).expect("C-19 research stats record");
     super::admission::VOICE_EXEC_OVERRIDE.with(|c| c.set(None));
     super::opsem_dump::OPSEM_DUMP_DIR_OVERRIDE.with(|c| *c.borrow_mut() = None);
 
@@ -2369,13 +2411,7 @@ fn center_lifecycle_wf8_events_replay() {
     let test = ds.slice_date_window(w.test_start, w.test_end);
     assert!(!test.bars.is_empty(), "wf8 test 段非空（否则测试空转）");
     let years = test.bars.len() as f64 / (365.25 * 24.0 * 60.0);
-    let nav_te = test
-        .bars
-        .iter()
-        .find(|b| !b.untradable && b.close > 0)
-        .map(|b| b.close as f64 * plain_cfg.tick.tick_size)
-        .unwrap_or(1.0)
-        * 1000.0;
+    let nav_te = wverify_nav(&test, &plain_cfg);
     let mut cfg = ThetaConfig::default();
     apply_theta_dir_preset_from_env(&mut cfg);
     apply_enforce_gross_cap_from_env(&mut cfg);
@@ -2394,7 +2430,8 @@ fn center_lifecycle_wf8_events_replay() {
     ));
     super::opsem_dump::OPSEM_DUMP_DIR_OVERRIDE.with(|c| *c.borrow_mut() = Some(dump_dir.clone()));
     super::admission::VOICE_EXEC_OVERRIDE.with(|c| c.set(Some(true)));
-    let _r = run_theta_v0_pi_overlay(&test, &cfg, years, nav_te);
+    let _r =
+        run_theta_v0_pi_overlay(&test, &cfg, years, nav_te).expect("C-19 research stats record");
     super::admission::VOICE_EXEC_OVERRIDE.with(|c| c.set(None));
     super::opsem_dump::OPSEM_DUMP_DIR_OVERRIDE.with(|c| *c.borrow_mut() = None);
 
@@ -2698,13 +2735,7 @@ fn otherwise_domain_wf8_grade_buckets() {
         "{win_tag} test 段非空（否则测试空转）"
     );
     let years = test.bars.len() as f64 / (365.25 * 24.0 * 60.0);
-    let nav_te = test
-        .bars
-        .iter()
-        .find(|b| !b.untradable && b.close > 0)
-        .map(|b| b.close as f64 * plain_cfg.tick.tick_size)
-        .unwrap_or(1.0)
-        * 1000.0;
+    let nav_te = wverify_nav(&test, &plain_cfg);
     let mut cfg = ThetaConfig::default();
     apply_theta_dir_preset_from_env(&mut cfg);
     apply_enforce_gross_cap_from_env(&mut cfg);
@@ -2730,7 +2761,8 @@ fn otherwise_domain_wf8_grade_buckets() {
         crate::theta_v0::env_registry::THETA_OTHERWISE_DOMAIN_SIDECAR,
         "1",
     );
-    let r = run_theta_v0_pi_overlay(&test, &cfg, years, nav_te);
+    let r =
+        run_theta_v0_pi_overlay(&test, &cfg, years, nav_te).expect("C-19 research stats record");
     std::env::remove_var(crate::theta_v0::env_registry::THETA_OTHERWISE_DOMAIN_SIDECAR);
     std::env::remove_var(crate::theta_v0::env_registry::THETA_CENTER_OSCILLATION);
     super::admission::VOICE_EXEC_OVERRIDE.with(|c| c.set(None));
@@ -3122,7 +3154,7 @@ fn cascade_dual(l0: &ParseLayer, config: &ThetaConfig, weak: bool) -> C327Arm {
         let upper: Vec<LeveledMove> = windowed
             .iter()
             .enumerate()
-            .map(|(i, (c, win))| {
+            .map(|(i, (_c, win))| {
                 // #897：与生产 compose_level 同款 run 载荷（replay 对照路径同构义务）。
                 let run_start = trend_run_start(&centers, i);
                 LeveledMove::compose(
@@ -3587,7 +3619,7 @@ fn deltafree_exact_recompute() {
          - LCB>0 桶（精确口径）：{lcb}\n\n{rows}\n",
         records.len(),
     );
-    std::fs::write("/tmp/deltafree_exact.md", &summary).ok();
+    std::fs::write("/tmp/deltafree_exact.md", with_policy_records(&summary)).ok();
     eprintln!("DELTAFREE_EXACT records={} buckets={n_buckets} verdict={v:?} V={nv}/F={nf}/I={ni} | LCB>0: {lcb}", records.len());
 }
 
@@ -3682,6 +3714,20 @@ mod tests {
             assert!(arm.hits.is_empty(), "weak={weak}：拒读层无判据命中");
         }
         assert_cascade_faithful(&cascade_dual(&marked, &cfg, false), &marked, &cfg);
+    }
+
+    #[test]
+    fn report_body_carries_both_policy_record_versions() {
+        let report = with_policy_records("读数");
+        assert!(report.contains(&format!("统计记录={}", research_stats().record.label())));
+        assert!(report.contains(&format!(
+            "探针资金记录={}",
+            active_no_floor_probe_profile()
+                .expect("no-floor probe profile")
+                .record
+                .label()
+        )));
+        assert!(report.ends_with("读数"));
     }
 
     /// δ-free 精确重算自检（Task #186，L1 管线正确性）：round-trip dump→load bit-exact + δ-free
@@ -3868,7 +3914,7 @@ mod tests {
         // ② 单次 build_mu 全程（含分类 pass + fill loop）。
         let mut chi = ThetaConfig::default();
         chi.risk.chi_theta = Some(0.0);
-        chi.risk.chi_z_alpha = 1.645;
+        chi.risk.chi_z_alpha = research_stats().z_alpha;
         chi.risk.enforce_gross_cap = true;
         super::super::super::classifier::stage_profile::reset();
         let t1 = Instant::now();

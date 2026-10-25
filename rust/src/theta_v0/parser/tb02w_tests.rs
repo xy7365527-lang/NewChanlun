@@ -7,13 +7,18 @@
 use super::super::types::Direction;
 use super::feature_seq::{
     second_sequence, ScanCoverage, SecondTerminal, SECOND_CANDIDATE_RULE_REVISION,
-    SECOND_SEQ_SCAN_BUDGET_POLICY,
 };
 use super::second_fold::{
     FoldResumeError, SecondCandidateId, SecondFoldCursor, SecondFoldStore,
     SECOND_FOLD_CURSOR_SCHEMA,
 };
 use super::*;
+use crate::theta_v0::policy_records::{PolicyRef, PolicyVersion};
+
+/// #1604：游标所带预算记录 = 当前生效记录（`ParseConfig::scan_budget`），不写版本常数。
+fn budget_ref() -> PolicyRef {
+    ThetaConfig::default().parse.scan_budget
+}
 
 fn chain(prices: &[i64], sign: i64) -> Vec<Stroke> {
     prices
@@ -269,7 +274,7 @@ fn tb02w_ast_048_01_resource_bound_candidate_is_not_skipped() {
             "窗口 0：s3 候选确认，A 止于 s2"
         );
         let mut cfg = ThetaConfig::default();
-        cfg.parse.second_seq_scan_window = 50;
+        cfg.parse.research_override_second_seq_window(50);
         let (sw, pending) = segment::divide_segments_with_tail(&ss, &cfg.parse);
         assert!(
             sw.is_empty(),
@@ -300,7 +305,7 @@ fn tb02w_ast_048_01_evidence_at_item_51_is_not_negation() {
             assert_eq!(full.matched.as_ref().unwrap().through_stroke, 54);
         }
         let mut cfg = ThetaConfig::default();
-        cfg.parse.second_seq_scan_window = 50;
+        cfg.parse.research_override_second_seq_window(50);
         let (segs, _, facts) = segment::divide_segments_with_facts(&ss, &cfg.parse);
         assert!(
             segs.is_empty(),
@@ -341,8 +346,14 @@ fn assert_windows_never_change_decided(ss: &[Stroke], label: &str) -> bool {
     let mut saw_bound = false;
     for window in [50u32, 200] {
         let mut cfg = ThetaConfig::default();
-        cfg.parse.second_seq_scan_window = window;
-        let (sw, pw, fw) = segment::divide_segments_with_facts(ss, &cfg.parse);
+        cfg.parse.research_override_second_seq_window(window);
+        let (sw, pw, mut fw) = segment::divide_segments_with_facts(ss, &cfg.parse);
+        // 研究覆写的记录戳（`…/research-override`）按设计与签署版本不同；只比语义（#1604）。
+        assert_eq!(
+            fw.policy.as_ref().map(|p| p.scan_budget.as_str()),
+            Some("second-seq-scan-budget/research-override")
+        );
+        fw.policy = f0.policy.clone();
         let bound = fw.candidates.iter().any(|c| {
             c.second
                 .as_ref()
@@ -425,15 +436,16 @@ fn wobble_tail(ss: &[Stroke]) -> Vec<Stroke> {
 fn tb02w_k1_cursor_fields_seal_everything_but_the_tail() {
     for sign in [1, -1] {
         let killed = chain(KILLED, sign);
-        let mut cur = SecondFoldCursor::new(cand(sign, 3, 40), 0);
+        let mut cur = SecondFoldCursor::new(cand(sign, 3, 40), 0, budget_ref());
         assert_eq!(
-            (cur.schema, cur.rule_revision, cur.budget_policy),
+            (cur.schema, cur.rule_revision, cur.budget_policy.label()),
             (
                 SECOND_FOLD_CURSOR_SCHEMA,
                 SECOND_CANDIDATE_RULE_REVISION,
-                SECOND_SEQ_SCAN_BUDGET_POLICY
+                "second-seq-scan-budget/2".to_string()
             )
         );
+        assert_eq!(cur.to_wire()["budget_policy"], "second-seq-scan-budget/2");
         assert_eq!(cur.budget_granted, None);
         assert_eq!(cur.state.facts.from_stroke, 4);
         assert_eq!(
@@ -457,7 +469,7 @@ fn tb02w_k1_cursor_fields_seal_everything_but_the_tail() {
 
         // OPEN：末笔 s6 只暂算，封存态停在 s5。
         let open = chain(OPEN, sign);
-        let mut cur = SecondFoldCursor::new(cand(sign, 3, 40), 0);
+        let mut cur = SecondFoldCursor::new(cand(sign, 3, 40), 0, budget_ref());
         assert_eq!(cur.resume(&open).unwrap(), second(OPEN, sign, 0));
         assert_eq!(cur.state.consumed_len, 2, "sign={sign}");
         assert_eq!(cur.state.facts.semantic_state, None);
@@ -478,7 +490,7 @@ fn tb02w_k1_cursor_fields_seal_everything_but_the_tail() {
         assert_eq!(got.semantic_state, Some(SecondTerminal::KilledByNewExtreme));
 
         // 输入回撤一笔、新末笔 s5 改写：封存的 s5 回退一步，改为暂算。
-        let mut cur = SecondFoldCursor::new(cand(sign, 3, 40), 0);
+        let mut cur = SecondFoldCursor::new(cand(sign, 3, 40), 0, budget_ref());
         cur.resume(&open).unwrap();
         let mut retracted = open[..6].to_vec();
         retracted[5].end_price = 20 * sign;
@@ -487,7 +499,7 @@ fn tb02w_k1_cursor_fields_seal_everything_but_the_tail() {
         assert_eq!(cur.state.consumed_len, 1);
 
         // 已封存笔被改写超过一步 ⟹ 拒绝续扫；重折叠与无中断折叠相同。
-        let mut cur = SecondFoldCursor::new(cand(sign, 3, 40), 0);
+        let mut cur = SecondFoldCursor::new(cand(sign, 3, 40), 0, budget_ref());
         cur.resume(&killed).unwrap();
         let mut tampered = killed.clone();
         tampered[4].end_price = 36 * sign;
@@ -504,7 +516,7 @@ fn tb02w_k1_budget_grant_resumes_to_full_budget_semantics() {
     for sign in [1, -1] {
         let ss = chain(&evidence_at_item_51(), sign);
         let p = 1000 * sign;
-        let mut cur = SecondFoldCursor::new(cand(sign, 3, 1000), 50);
+        let mut cur = SecondFoldCursor::new(cand(sign, 3, 1000), 50, budget_ref());
         assert_eq!(cur.budget_granted, Some(50));
         let w50 = cur.resume(&ss).unwrap();
         assert_eq!(w50, second_sequence(&ss, dir(sign), 3, p, 50));
@@ -569,7 +581,7 @@ fn tb02w_k1_resume_and_restore_equal_uninterrupted_fold() {
                         second_sequence(s, c.seg_dir, b, c.candidate_extreme, window)
                     };
                     let label = format!("corpus{ci} sign={sign} b={b} window={window}");
-                    let mut cur = SecondFoldCursor::new(c, window);
+                    let mut cur = SecondFoldCursor::new(c, window, budget_ref());
                     let mut snapshots = Vec::new();
                     for n in 0..=ss.len() {
                         if n >= 1 {
@@ -661,7 +673,7 @@ fn tb02w_three_way_batch_incremental_restore_bit_exact() {
     let mut restores = 0usize;
     for window in [0u32, 5] {
         let mut theta = ThetaConfig::default();
-        theta.parse.second_seq_scan_window = window;
+        theta.parse.research_override_second_seq_window(window);
         let cfg = theta.parse;
         let batch = |s: &[Stroke]| segment::divide_segments_with_tail(s, &cfg);
         for sign in [1, -1] {
@@ -815,11 +827,11 @@ fn tb02w_k1_wire_restore_verifies_then_resumes() {
                     let full = second_sequence(&ss, seg_dir, b, c.candidate_extreme, window);
                     for p in (b + 1)..ss.len() {
                         let label = format!("corpus{ci} sign={sign} b={b} w={window} p={p}");
-                        let mut cur = SecondFoldCursor::new(c, window);
+                        let mut cur = SecondFoldCursor::new(c, window, budget_ref());
                         cur.resume(&ss[..p]).unwrap();
                         let wire = wire_text(cur.to_wire());
                         let (restored, verified, _) =
-                            SecondFoldCursor::from_wire(&wire, &ss[..p]).unwrap();
+                            SecondFoldCursor::from_wire(&wire, &ss[..p], budget_ref()).unwrap();
                         assert!(verified, "{label}");
                         assert_eq!(restored, cur, "{label}");
                         verified_nonempty += usize::from(cur.state.consumed_len > 0);
@@ -829,7 +841,8 @@ fn tb02w_k1_wire_restore_verifies_then_resumes() {
                             let mut forged = wire.clone();
                             forged["consumed_digest"] = serde_json::json!("0000000000000000");
                             let (mut f, ok, _) =
-                                SecondFoldCursor::from_wire(&forged, &ss[..p]).unwrap();
+                                SecondFoldCursor::from_wire(&forged, &ss[..p], budget_ref())
+                                    .unwrap();
                             assert!(!ok, "{label}: 篡改的线形不得采纳");
                             assert_eq!(
                                 f.budget_granted, cur.budget_granted,
@@ -857,7 +870,7 @@ fn round(
     Vec<serde_json::Value>,
     (usize, usize),
 ) {
-    let mut store = SecondFoldStore::new(budget);
+    let mut store = SecondFoldStore::new(budget, budget_ref());
     for w in wires {
         store.restore(w);
     }
@@ -1050,9 +1063,9 @@ fn tb02w_w2_budget_exhaustion_blocks_sealing() {
     let ss = witness_chain(&W2_PRICES);
     assert_eq!(ss.len(), 34);
     let mut w0 = ThetaConfig::default();
-    w0.parse.second_seq_scan_window = 0;
+    w0.parse.research_override_second_seq_window(0);
     let mut w1 = ThetaConfig::default();
-    w1.parse.second_seq_scan_window = 1;
+    w1.parse.research_override_second_seq_window(1);
     let (s0, p0, f0) = segment::divide_segments_with_facts(&ss, &w0.parse);
     let (s1, p1, f1) = segment::divide_segments_with_facts(&ss, &w1.parse);
     let ends = |segs: &[Segment]| segs.iter().map(|g| g.end_index).collect::<Vec<_>>();
@@ -1166,9 +1179,9 @@ fn tb1493_search_tb02w_witnesses() {
             let pr = prices(seed, len);
             let ss = witness_chain(&pr);
             let mut w0 = ThetaConfig::default();
-            w0.parse.second_seq_scan_window = 0;
+            w0.parse.research_override_second_seq_window(0);
             let mut w1 = ThetaConfig::default();
-            w1.parse.second_seq_scan_window = 1;
+            w1.parse.research_override_second_seq_window(1);
             let (s0, _, f0) = segment::divide_segments_with_facts(&ss, &w0.parse);
             let (s1, p1, f1) = segment::divide_segments_with_facts(&ss, &w1.parse);
             let exhausted = |f: &segment::SegmentFacts| {
@@ -1208,7 +1221,7 @@ const OPEN_BLOCK_PRICES: [i64; 60] = [
 ];
 
 /// #1493 裁定 1（§7.1 第 8 条）OPEN 封段对照见证（与 W2 预算封段成对）：末段的第二种候选 b=s42 第二序列
-/// 到前缀末仍 OPEN，其后有 8 个标准特征元素（多于 `TAIL_WINDOW = 7`）。新规则在该候选处封段：6 段、
+/// 到前缀末仍 OPEN，其后有 8 个标准特征元素（多于记录尾窗 `tail_window = 7`，#1604）。新规则在该候选处封段：6 段、
 /// 末段待定；TestOnly 旧规则臂（OPEN 跳过续判）在同一输入上多发射 1 段——见证非空转。逐前缀全量 ≡
 /// 增量，已发射段逐前缀单调。
 #[test]
@@ -1230,7 +1243,7 @@ fn tb1493_open_second_candidate_blocks_later_candidates() {
         .filter(|e| e.stroke_idx > 42)
         .count();
     assert!(
-        after > segment::TAIL_WINDOW as usize,
+        after > cfg.tail_window as usize,
         "候选之后的标准元素须多于尾窗：{after}"
     );
     feature_seq::OPEN_SKIP_ARM.with(|a| a.set(true));
@@ -1253,7 +1266,7 @@ fn tb1493_open_second_candidate_blocks_later_candidates() {
 }
 
 /// #1493 裁定 1 OPEN 封段见证搜索（ignored）：旧规则（OPEN 跳过续判）在前缀末多发射段、新规则在同一处
-/// 以 OPEN 的第二种候选封段，且该候选之后的标准特征元素多于 `TAIL_WINDOW`。
+/// 以 OPEN 的第二种候选封段，且该候选之后的标准特征元素多于记录尾窗 `tail_window`。
 #[test]
 #[ignore = "搜索：OPEN 封段对照见证"]
 fn tb1493_search_open_block_witness() {
@@ -1318,4 +1331,23 @@ fn tb1493_search_open_block_witness() {
             break;
         }
     }
+}
+
+/// #1604 负控：线形所带预算记录版本与本次所读记录不同 ⟹ 不可读（游标簿改为新建、自 b 笔重折叠），
+/// 不沿用旧版本的累计预算；同版本正控可读。
+#[test]
+fn tb1604_k1_wire_with_other_budget_version_is_rejected() {
+    let ss = chain(KILLED, 1);
+    let mut cur = SecondFoldCursor::new(cand(1, 3, 40), 0, budget_ref());
+    cur.resume(&ss).unwrap();
+    let wire = cur.to_wire();
+    assert!(SecondFoldCursor::from_wire(&wire, &ss, budget_ref()).is_some());
+    let v1 = PolicyRef {
+        id: budget_ref().id,
+        version: PolicyVersion::Signed(1),
+    };
+    assert!(SecondFoldCursor::from_wire(&wire, &ss, v1).is_none());
+    let mut stale = wire.clone();
+    stale["budget_policy"] = serde_json::json!("second-seq-scan-budget/1");
+    assert!(SecondFoldCursor::from_wire(&stale, &ss, budget_ref()).is_none());
 }

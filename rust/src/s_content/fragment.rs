@@ -1008,17 +1008,17 @@ impl<'capture> Recorder<'_, 'capture> {
     ) -> Result<(u8, VerifierBody<'capture>), CodecError> {
         self.access.pre_io_check()?;
         let (tag, body) = match &mut self.source {
-            CodecContext::Source(source) => match source.read(digest)? {
-                NodeRead::Missing => {
+            CodecContext::Source(source) => match source.read_scoped(digest)? {
+                super::job::ScopedNodeRead::Missing => {
                     self.access.pre_io_check()?;
                     return Err(CodecError::new(
                         code::NODE_MISSING,
                         format!("节点缺失：{}", root_string(digest)),
                     ));
                 }
-                NodeRead::Found { tag, body } => {
+                super::job::ScopedNodeRead::Found { tag, body } => {
                     self.access.accept_node(digest, tag, &body)?;
-                    (tag, VerifierBody::Plain(body))
+                    (tag, VerifierBody::Scoped(body))
                 }
             },
             CodecContext::Closed(owner) => owner.read_fragment(digest, self.access)?,
@@ -1066,7 +1066,7 @@ impl<'capture> NodeSource for Recorder<'_, 'capture> {
             VerifierBody::Plain(body) => Ok(NodeRead::Found { tag, body }),
             VerifierBody::Scoped(body) => Ok(NodeRead::Found {
                 tag,
-                body: body.into_plain(),
+                body: body.into_plain()?,
             }),
             VerifierBody::Borrowed(_) | VerifierBody::Metered(_) => Err(CodecError::static_detail(
                 capture_allocation::INCOMPLETE,
@@ -1075,6 +1075,14 @@ impl<'capture> NodeSource for Recorder<'_, 'capture> {
         }
     }
     fn checked_read(&mut self, digest: &NodeDigest) -> Result<Option<CheckedFrame>, CodecError> {
+        self.checked_read_scoped(digest)?
+            .map(super::job::ScopedFrame::into_frame)
+            .transpose()
+    }
+    fn checked_read_scoped(
+        &mut self,
+        digest: &NodeDigest,
+    ) -> Result<Option<super::job::ScopedFrame>, CodecError> {
         self.access.pre_io_check()?;
         let CodecContext::Source(source) = &mut self.source else {
             return Err(CodecError::static_detail(
@@ -1082,11 +1090,11 @@ impl<'capture> NodeSource for Recorder<'_, 'capture> {
                 "owned Recorder不允许擦为NodeSource",
             ));
         };
-        let read = source.read(digest)?;
+        let read = source.read_scoped(digest)?;
         let checked = match read {
-            NodeRead::Missing => None,
-            NodeRead::Found { tag, body } => {
-                let frame = self.access.accept_frame(digest, tag, body)?;
+            super::job::ScopedNodeRead::Missing => None,
+            super::job::ScopedNodeRead::Found { tag, body } => {
+                let frame = body.check_with(|body| self.access.accept_frame(digest, tag, body))?;
                 self.record(digest, frame.tag(), frame.body())?;
                 Some(frame)
             }
@@ -1167,16 +1175,6 @@ fn public_header_view(r: RefView<'_>) -> Result<(), CodecError> {
         Ok(())
     }
 }
-fn public_header(r: &ContentRef) -> Result<(), CodecError> {
-    if r.kind == Kind::TemplateBatch {
-        Err(CodecError::new(
-            code::TEMPLATE_PLACEHOLDER,
-            "公开片段不能泄漏本批占位",
-        ))
-    } else {
-        Ok(())
-    }
-}
 fn err(e: impl std::fmt::Display) -> CodecError {
     CodecError::new(INVALID, e.to_string())
 }
@@ -1206,9 +1204,6 @@ fn exact(v: &J, keys: &[&str]) -> Result<(), CodecError> {
     } else {
         Err(err("字段集合非exact"))
     }
-}
-fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 fn unhex(text: &str) -> Result<Vec<u8>, CodecError> {
     if text.len() % 2 != 0 {

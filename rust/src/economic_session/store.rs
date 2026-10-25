@@ -20,6 +20,7 @@ pub(crate) const SCHEMA_V1: &str = "economic-session/1";
 pub(crate) const SCHEMA_V2: &str = "economic-session/2";
 /// #1394：旧 `/1` 调用与单位测试的兼容别名；
 /// 按 manifest 运行的生产调用一律走 `Config::revision()`。
+#[cfg(test)]
 pub(crate) const SCHEMA: &str = SCHEMA_V1;
 /// manifest 顶层的版本选择子：缺省 `/1`（旧 manifest 逐字仍可读），显式只认两个已知值。
 /// 外层 `economic-manifest/1` 不因此改变。
@@ -1445,6 +1446,20 @@ fn verify_original_message(
     Ok(())
 }
 
+/// #1621：B 对一份 E 事实的首次获知不得早于该事实在 E 的持久提交。
+/// 纯 E 副本尚未附加 b_observation，此时无可比较的 B 时刻，直接通过。
+pub(crate) fn verify_b_observation_after_e_commit(record: &Value) -> Result<(), String> {
+    let Some(observation) = record.get("b_observation") else {
+        return Ok(());
+    };
+    let known = nonnegative(required(observation, "first_known_ns")?, "B first_known_ns")?;
+    let e_commit = nonnegative(required(record, "commit_ns")?, "E commit_ns")?;
+    if known < e_commit {
+        return Err("InvalidDomain：B 获知时刻早于 E 提交".into());
+    }
+    Ok(())
+}
+
 /// 核已从固定E实读、随B事务保存的原件与提交证明；恢复时不依赖当前E可用。
 pub(crate) fn verify_e_copy(record: &Value, config: &Config) -> Result<(), String> {
     if record["e_domain_id"] != "E"
@@ -1453,6 +1468,7 @@ pub(crate) fn verify_e_copy(record: &Value, config: &Config) -> Result<(), Strin
     {
         return Err("StorageUnavailable：域损坏：B证据副本不属于配置的E会话".into());
     }
+    verify_b_observation_after_e_commit(record)?;
     let proof = &record["e_commit_proof"];
     let seq = positive(required(record, "recorded_seq")?, "recorded_seq")?;
     let ns = required(proof, "commit_ns")?;

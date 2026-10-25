@@ -4,20 +4,40 @@ use super::audit_store::RefValue;
 use super::audit_store::{CodecRead, CodecStore};
 use super::business_json::BusinessMap;
 use super::business_json::{self as bj, RawEventsView};
+#[cfg(test)]
+use super::read_effective_events;
 use crate::{
     canonical_json,
     content_producer::{
         self, Cc004Producer, ShapeIdentityView, CC004_STEP_KIND, CC005_GROUP_KIND,
         CC006_SHAPE_KIND, CC007_FRACTAL_KIND, CC054_KNOWLEDGE_KIND,
     },
-    read_effective_events, stored_source_coord, tb02a, tb02a_facts, tb02b,
+    tb02a, tb02b,
 };
 use newchan_rust::s_content::{
     self as sc,
     path::{lookup_path, PathStep},
     Built, ContentRef, Kind, NodeDigest, NodeSink, NodeSource, NodeStore, Value as V,
 };
+use sc::capture_allocation::native_owned::{NativeRefFields, NativeValue};
+#[cfg_attr(
+    not(test),
+    allow(unused_imports, reason = "#1488 再合 #1608：仅测试使用")
+)]
 use serde_json::{json, Value};
+#[cfg(test)]
+#[path = "source_audit_oracle.rs"]
+mod frozen_oracle;
+#[cfg(feature = "s_capture_native_testonly")]
+#[path = "source_contributions.rs"]
+mod source_contributions;
+#[cfg(test)]
+#[path = "source_delta.rs"]
+mod source_delta;
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+pub(crate) use source_contributions::SourceWork;
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) use source_contributions::{audit_native_bound, NativeSourceState};
 #[path = "source_pending.rs"]
 mod source_pending;
 #[path = "source_prefix.rs"]
@@ -31,58 +51,121 @@ pub(super) fn reset_native_source_prefix_stats() {
 pub(super) fn native_source_prefix_stats() -> Option<[u64; 4]> {
     source_prefix::stats()
 }
+#[cfg(test)]
+#[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct SourceCallStats {
+    pub(crate) full_source_calls: usize,
+    pub(crate) full_pending_calls: usize,
+    pub(crate) fixture_bind_calls: usize,
+    pub(crate) full_members_enumerations: usize,
+}
+#[cfg(test)]
+thread_local! { static SOURCE_CALL_STATS: std::cell::Cell<SourceCallStats> = const { std::cell::Cell::new(SourceCallStats {full_source_calls:0,full_pending_calls:0,fixture_bind_calls:0,full_members_enumerations:0}) }; }
+#[cfg(test)]
+#[cfg_attr(
+    all(test, not(feature = "s_capture_native_testonly")),
+    allow(dead_code, reason = "#1488 再合 #1608：s_session 测试 构建不触达")
+)]
+pub(crate) fn reset_source_call_stats() {
+    SOURCE_CALL_STATS.with(|v| v.set(SourceCallStats::default()));
+}
+#[cfg(test)]
+#[cfg_attr(
+    all(test, not(feature = "s_capture_native_testonly")),
+    allow(dead_code, reason = "#1488 再合 #1608：s_session 测试 构建不触达")
+)]
+pub(crate) fn source_call_stats() -> SourceCallStats {
+    SOURCE_CALL_STATS.with(std::cell::Cell::get)
+}
+#[cfg(test)]
+fn source_call_note(update: impl FnOnce(&mut SourceCallStats)) {
+    SOURCE_CALL_STATS.with(|v| {
+        let mut n = v.get();
+        update(&mut n);
+        v.set(n);
+    });
+}
 fn err(e: impl std::fmt::Display) -> String {
     format!("SourceAuditInvalid：{e}")
 }
 #[cfg(test)]
+#[cfg_attr(
+    not(feature = "s_capture_native_testonly"),
+    allow(
+        dead_code,
+        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+    )
+)]
 fn f(k: &str) -> PathStep {
     PathStep::Field(k.into())
 }
 // Only immutable Native originals may enter these maps; no cut/business verdict is retained.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 struct NativeFieldRefKey {
-    format: String,
-    root: String,
+    format: NativeValue<String>,
+    root: NativeValue<String>,
     kind: Kind,
     extent: Option<u64>,
     digest: NodeDigest,
 }
 impl NativeFieldRefKey {
-    fn new(r: sc::RefView<'_>) -> Result<Self, sc::CodecError> {
+    fn new(s: &(impl CodecRead + ?Sized), r: sc::RefView<'_>) -> Result<Self, sc::CodecError> {
         Ok(Self {
-            format: r.format().into(),
-            root: r.root().into(),
+            format: s.native_string(r.format())?,
+            root: s.native_string(r.root())?,
             kind: r.kind(),
             extent: r.extent(),
             digest: r.digest()?,
         })
     }
 }
-#[derive(Default)]
 struct NativeScalarFields {
-    values: std::collections::HashMap<NativeFieldRefKey, Value>,
+    values: BusinessMap<NativeFieldRefKey, bj::PlainJson>,
     decodes: u64,
     hits: u64,
+}
+impl Default for NativeScalarFields {
+    fn default() -> Self {
+        Self {
+            values: bj::new_map(None),
+            decodes: 0,
+            hits: 0,
+        }
+    }
+}
+// The requested sequence is an identity component, including duplicates and order.
+struct NativeFieldNames(sc::CodecVec<NativeValue<String>>);
+impl PartialEq for NativeFieldNames {
+    fn eq(&self, other: &Self) -> bool {
+        self.0[..] == other.0[..]
+    }
+}
+impl Eq for NativeFieldNames {}
+impl std::hash::Hash for NativeFieldNames {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::hash::Hash::hash(&self.0[..], state);
+    }
 }
 struct NativeFieldMemo<'capture> {
     work: Option<&'capture sc::capture_allocation::scratch::WorkScope>,
     capture: &'capture sc::AuditCapture,
     records: Option<super::history::NativeRecordFields<'capture>>,
-    fields: std::collections::HashMap<
-        (NativeFieldRefKey, Vec<String>),
-        std::collections::BTreeMap<String, ContentRef>,
-    >,
+    fields: BusinessMap<(NativeFieldRefKey, NativeFieldNames), NativeRefFields>,
     scalars: NativeScalarFields,
     field_decodes: u64,
     field_hits: u64,
 }
 impl<'capture> NativeFieldMemo<'capture> {
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     fn new(capture: &'capture sc::AuditCapture) -> Self {
         Self {
             capture,
             work: None,
             records: None,
-            fields: Default::default(),
+            fields: bj::new_map(None),
             scalars: Default::default(),
             field_decodes: 0,
             field_hits: 0,
@@ -107,8 +190,8 @@ impl<'capture> NativeFieldMemo<'capture> {
         if let Some(records) = &mut self.records {
             records.clear();
         }
-        self.fields.clear();
-        self.scalars.values.clear();
+        self.fields.retain(|_, _| false);
+        self.scalars.values.retain(|_, _| false);
     }
 }
 // Local adapter only; ordinary/Owned use the original scalar decoder.
@@ -129,7 +212,14 @@ impl<'names> SourceFields<'names> {
     ) -> Result<Self, String> {
         s.lookup_subset_ref(r, names).map(Self).map_err(err)
     }
-    fn get(&self, k: &str) -> Result<RefValue, String> {
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(
+            dead_code,
+            reason = "#1488 再合 #1608：native 非测试、s_session 非测试、s_session 测试 构建不触达"
+        )
+    )]
+    fn get(&self, k: &str) -> Result<sc::RefView<'_>, String> {
         self.0.get(k).ok_or_else(|| err(format!("原件缺字段{k}")))
     }
     fn get_admitted(&self, s: &(impl CodecRead + ?Sized), k: &str) -> Result<RefValue, String> {
@@ -248,6 +338,7 @@ fn built<'a>(r: impl Into<sc::RefView<'a>>) -> Result<Built, String> {
         extent: r.extent(),
     })
 }
+#[cfg(test)]
 fn cv(v: &Value) -> Result<V, String> {
     Ok(match v {
         Value::Null => V::Null,
@@ -262,12 +353,20 @@ fn cv(v: &Value) -> Result<V, String> {
         ),
     })
 }
+#[cfg_attr(
+    not(all(test, feature = "s_capture_native_testonly")),
+    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+)]
 struct HashOnly;
 impl NodeSink for HashOnly {
     fn put(&mut self, _: NodeDigest, _: u8, _: &[u8]) -> Result<(), sc::CodecError> {
         Ok(())
     }
 }
+#[allow(
+    dead_code,
+    reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删"
+)]
 fn hash(v: &Value) -> Result<NodeDigest, String> {
     Ok(sc::write_json_view(&mut HashOnly, v.into())
         .map_err(err)?
@@ -415,10 +514,7 @@ impl SourceFieldStore for ArrayAuditSource<'_, '_, '_, '_> {
                 .map_err(err)?
                 .unwrap_or(false);
         let key = if eligible {
-            self.source
-                .native_admit(r.format().len() + r.root().len())
-                .map_err(err)?;
-            Some(NativeFieldRefKey::new(r).map_err(err)?)
+            Some(NativeFieldRefKey::new(self.source, r).map_err(err)?)
         } else {
             None
         };
@@ -436,25 +532,26 @@ impl SourceFieldStore for ArrayAuditSource<'_, '_, '_, '_> {
             if let (Some(memo), bj::JsonOwner::Plain(parsed)) = (self.fields.as_mut(), &value) {
                 memo.scalars.decodes += 1;
                 self.source
-                    .native_std_map_room(&mut memo.scalars.values)
+                    .native_map_room(&mut memo.scalars.values)
                     .map_err(err)?;
                 memo.scalars
                     .values
-                    .insert(key, self.source.native_json_clone(parsed).map_err(err)?);
+                    .insert(key, self.source.native_json_clone(parsed).map_err(err)?)
+                    .map_err(err)?;
             }
         }
         Ok(value)
     }
 }
 impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
-    fn parse_rendered_plain(&self, bytes: &[u8]) -> Result<serde_json::Value, String> {
+    fn parse_rendered_plain(&self, bytes: &[u8]) -> Result<bj::PlainJson, String> {
         self.source.parse_rendered_plain(bytes)
     }
     fn content_ref_view(&mut self, r: &str) -> Result<RefValue, sc::CodecError> {
         if self.source.owned_codec_active() {
             self.owned_role(|s| s.content_ref_view(r))
         } else {
-            sc::content_ref_of(self, r).map(RefValue::Plain)
+            sc::path::content_ref_of_native(self, r).map(RefValue::Plain)
         }
     }
     fn lookup_ref(
@@ -465,7 +562,7 @@ impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
         if self.source.owned_codec_active() {
             self.owned_role(|s| s.lookup_ref(r, p))
         } else {
-            sc::path::lookup_path_refview(self, r, p).map(RefValue::Plain)
+            sc::path::lookup_path_native(self, r, p).map(RefValue::Plain)
         }
     }
     fn lookup_field_ref(
@@ -477,7 +574,7 @@ impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
             // 同 lookup_ref 的实际 full-array 角色；不得继承先造 String 的默认实现。
             self.owned_role(|s| s.lookup_field_ref(r, key))
         } else {
-            sc::path::lookup_path_view_refview(self, r, &super::audit_store::BorrowedFieldPath(key))
+            sc::path::lookup_path_view_native(self, r, &super::audit_store::BorrowedFieldPath(key))
                 .map(RefValue::Plain)
         }
     }
@@ -489,7 +586,7 @@ impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
         if self.source.owned_codec_active() {
             self.owned_role(|s| s.lookup_fields_ref(r, n))
         } else {
-            sc::path::lookup_fields_refview(self, r, n, false)
+            sc::path::lookup_fields_native(self, r, n, false)
                 .map(super::audit_store::RefFields::Plain)
         }
     }
@@ -519,53 +616,39 @@ impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
                 }
             }
             let key = if eligible {
-                let bytes = n.iter().try_fold(
-                    r.format()
-                        .len()
-                        .checked_add(r.root().len())
-                        .and_then(|v| v.checked_add(n.len() * std::mem::size_of::<String>()))
-                        .ok_or_else(|| self.native_overflow())?,
-                    |v, name| {
-                        v.checked_add(name.len())
-                            .ok_or_else(|| self.native_overflow())
-                    },
-                )?;
-                self.native_admit(bytes)?;
-                Some((
-                    NativeFieldRefKey::new(r)?,
-                    n.iter().map(|name| (*name).to_owned()).collect::<Vec<_>>(),
-                ))
+                let reference = NativeFieldRefKey::new(self, r)?;
+                let mut names = bj::new_work(None);
+                self.native_codec_room(&mut names, n.len())?;
+                for name in n {
+                    names.try_push(self.native_string(name)?)?;
+                }
+                Some((reference, NativeFieldNames(names)))
             } else {
                 None
             };
             if let Some(key) = &key {
                 if let Some(memo) = self.fields.as_mut() {
                     if let Some(fields) = memo.fields.get(key) {
-                        self.source
-                            .native_ref_fields_bytes(fields.iter().map(|(k, v)| (k.as_str(), v)))?;
-                        let fields = fields.clone();
+                        let fields = NativeRefFields::try_from_views(
+                            fields.iter().map(|(name, r)| (name, r.into())),
+                            self.source.codec_work(),
+                        )?;
                         memo.field_hits += 1;
-                        return Ok(super::audit_store::RefFields::Plain(
-                            sc::CodecFields::from_plain(fields),
-                        ));
+                        return Ok(super::audit_store::RefFields::Plain(fields));
                     }
                 }
             }
-            let fields = sc::path::lookup_fields_refview(self, r, n, true)?;
+            let fields = sc::path::lookup_fields_native(self, r, n, true)?;
             if let Some(key) = key {
-                // Keep the exact requested name sequence (including duplicates) in the key.
-                self.native_ref_fields_bytes(
-                    n.iter()
-                        .filter_map(|name| fields.get(name).map(|r| (*name, r))),
+                // Copy canonical unique fields; the separate key retains the original name sequence.
+                let originals = NativeRefFields::try_from_views(
+                    fields.iter().map(|(name, r)| (name, r.into())),
+                    self.source.codec_work(),
                 )?;
-                let originals = n
-                    .iter()
-                    .filter_map(|name| fields.get(name).cloned().map(|r| ((*name).to_owned(), r)))
-                    .collect();
                 if let Some(memo) = self.fields.as_mut() {
                     memo.field_decodes += 1;
-                    self.source.native_std_map_room(&mut memo.fields)?;
-                    memo.fields.insert(key, originals);
+                    self.source.native_map_room(&mut memo.fields)?;
+                    memo.fields.insert(key, originals)?;
                 }
             }
             Ok(super::audit_store::RefFields::Plain(fields))
@@ -578,7 +661,7 @@ impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
         if self.source.owned_codec_active() {
             self.owned_role(|s| s.lookup_array_ref(r))
         } else {
-            let plain = sc::path::lookup_array_items_refview(self, r)?;
+            let plain = sc::path::lookup_array_items_native(self, r)?;
             let mut out = bj::new_work(None);
             self.native_codec_room(&mut out, plain.len())?;
             for r in plain {
@@ -780,7 +863,7 @@ struct Shape {
     groups: [i64; 3],
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct Counts {
+pub(crate) struct Counts {
     pub objects: usize,
     pub groups: usize,
     pub windows: usize,
@@ -788,10 +871,56 @@ pub(super) struct Counts {
     pub insufficient: usize,
     pub outside_domain: usize,
 }
+// 来源判据依赖精确查找而不依赖哈希布局。Native 的持久树不会在扩容时重排全历史。
+trait RawLookup {
+    fn get(&self, coord: &i64) -> Option<&Source>;
+    fn contains_key(&self, coord: &i64) -> bool {
+        self.get(coord).is_some()
+    }
+    fn full_source_map(&self) -> Option<&BusinessMap<i64, Source>> {
+        None
+    }
+}
+impl RawLookup for BusinessMap<i64, Source> {
+    fn get(&self, coord: &i64) -> Option<&Source> {
+        BusinessMap::get(self, coord)
+    }
+    fn full_source_map(&self) -> Option<&BusinessMap<i64, Source>> {
+        Some(self)
+    }
+}
+impl<T: RawLookup + ?Sized> RawLookup for &T {
+    fn get(&self, coord: &i64) -> Option<&Source> {
+        (**self).get(coord)
+    }
+    fn full_source_map(&self) -> Option<&BusinessMap<i64, Source>> {
+        (**self).full_source_map()
+    }
+}
+trait GroupLookup {
+    fn get(&self, index: &i64) -> Option<&Group>;
+    fn len(&self) -> usize;
+}
+impl GroupLookup for BusinessMap<i64, Group> {
+    fn get(&self, index: &i64) -> Option<&Group> {
+        BusinessMap::get(self, index)
+    }
+    fn len(&self) -> usize {
+        BusinessMap::len(self)
+    }
+}
+trait ShapeLookup {
+    fn get(&self, id: &str) -> Option<&Shape>;
+}
+impl ShapeLookup for BusinessMap<bj::TextValue, Shape> {
+    fn get(&self, id: &str) -> Option<&Shape> {
+        BusinessMap::get(self, id)
+    }
+}
 fn references(
     s: &mut (impl CodecRead + ?Sized),
     r: &RefValue,
-    raw: &BusinessMap<i64, Source>,
+    raw: &(impl RawLookup + ?Sized),
     numeric: bool,
     checked: &mut BusinessMap<(NodeDigest, bool), i64>,
 ) -> Result<sc::CodecVec<i64>, String> {
@@ -843,7 +972,7 @@ fn source_coords(
 fn source_references(
     s: &mut (impl CodecRead + ?Sized),
     r: &RefValue,
-    raw: &BusinessMap<i64, Source>,
+    raw: &(impl RawLookup + ?Sized),
     numeric: bool,
     checked: &mut BusinessMap<(NodeDigest, bool), i64>,
     memo: Option<&mut NativeSourceMemo<'_>>,
@@ -851,7 +980,16 @@ fn source_references(
     domain: ParseDomain,
 ) -> Result<SourceCoords, String> {
     match memo {
-        Some(memo) => memo.references(s, r, raw, numeric, checked, prefix, domain),
+        Some(memo) => memo.references(
+            s,
+            r,
+            raw.full_source_map()
+                .ok_or_else(|| err("完整来源memo不接增量树账"))?,
+            numeric,
+            checked,
+            prefix,
+            domain,
+        ),
         None => references(s, r, raw, numeric, checked).map(SourceCoords::Original),
     }
 }
@@ -964,7 +1102,7 @@ const TYPED_SOURCE_FIELDS: [&str; 7] = [
 #[derive(Debug, PartialEq, Eq, Hash)]
 struct NativeWitnessIdentityKey {
     capture: usize,
-    object_id: String,
+    object_id: NativeValue<String>,
     slot: usize,
     mi: usize,
     digest: NodeDigest,
@@ -973,7 +1111,7 @@ struct NativeWitnessIdentityKey {
 }
 struct NativeWitnessIdentityMemo<'capture> {
     capture: &'capture sc::AuditCapture,
-    entries: std::collections::HashMap<NativeWitnessIdentityKey, String>,
+    entries: BusinessMap<NativeWitnessIdentityKey, NativeValue<String>>,
     #[cfg(test)]
     stats: NativeWitnessIdentityStats,
 }
@@ -1006,27 +1144,28 @@ impl<'capture> NativeWitnessIdentityMemo<'capture> {
         NATIVE_WITNESS_IDENTITY_STATS.with(|s| s.set(Some(NativeWitnessIdentityStats::default())));
         Ok(Self {
             capture,
-            entries: Default::default(),
+            entries: bj::new_map(None),
             #[cfg(test)]
             stats: Default::default(),
         })
     }
     fn key(
         &self,
+        s: &(impl CodecRead + ?Sized),
         object_id: &str,
         slot: usize,
         mi: usize,
         bars: &Built,
-    ) -> NativeWitnessIdentityKey {
-        NativeWitnessIdentityKey {
+    ) -> Result<NativeWitnessIdentityKey, sc::CodecError> {
+        Ok(NativeWitnessIdentityKey {
             capture: std::ptr::from_ref(self.capture) as usize,
-            object_id: object_id.to_owned(),
+            object_id: s.native_string(object_id)?,
             slot,
             mi,
             digest: bars.digest,
             kind: bars.kind,
             extent: bars.extent,
-        }
+        })
     }
     #[cfg(test)]
     fn record_render_attempt(&mut self, object_id: &str) {
@@ -1049,8 +1188,8 @@ impl<'capture> NativeWitnessIdentityMemo<'capture> {
             // 派生 overlay 根不取得缓存资格，明确沿原函数计算。
             #[cfg(test)]
             self.record_render_attempt(object_id);
-            let want = super::generation::witness_identity(s, object_id, slot, mi, bars)?;
-            return if stored == want {
+            let want = super::generation::witness_identity_native(s, object_id, slot, mi, bars)?;
+            return if stored == want.as_str() {
                 Ok(())
             } else {
                 Err(err("见证ID不符"))
@@ -1060,15 +1199,14 @@ impl<'capture> NativeWitnessIdentityMemo<'capture> {
         let bars_ref = s.native_built_ref(bars).map_err(err)?;
         s.native_verify_original(self.capture, bars_ref.view(), sc::Mode::Public)
             .map_err(err)?;
-        s.native_admit(object_id.len()).map_err(err)?;
-        let key = self.key(object_id, slot, mi, bars);
+        let key = self.key(s, object_id, slot, mi, bars).map_err(err)?;
         if let Some(want) = self.entries.get(&key) {
             #[cfg(test)]
             {
                 self.stats.hits += 1;
                 NATIVE_WITNESS_IDENTITY_STATS.with(|s| s.set(Some(self.stats)));
             }
-            return if stored == want {
+            return if stored == want.as_str() {
                 Ok(())
             } else {
                 Err(err("见证ID不符"))
@@ -1076,13 +1214,13 @@ impl<'capture> NativeWitnessIdentityMemo<'capture> {
         }
         #[cfg(test)]
         self.record_render_attempt(object_id);
-        let want = super::generation::witness_identity(s, object_id, slot, mi, bars)?;
-        if stored != want {
+        let want = super::generation::witness_identity_native(s, object_id, slot, mi, bars)?;
+        if stored != want.as_str() {
             return Err(err("见证ID不符"));
         }
         // 首次纯函数成功和本次 stored ID 比较都通过之后，才保留输入声明及结果文本。
-        s.native_std_map_room(&mut self.entries).map_err(err)?;
-        self.entries.insert(key, want);
+        s.native_map_room(&mut self.entries).map_err(err)?;
+        self.entries.insert(key, want).map_err(err)?;
         Ok(())
     }
 }
@@ -1101,14 +1239,30 @@ pub(super) struct NativeRawLedgerStats {
 /// 单代来源核完成后的纯所有权账；保留已访问 seq 的四类摘要、身份赢家和有序坐标。
 /// 不包含 capture/reader/RawEventsView，不能单独授予新事务的来源资格。
 pub(super) struct NativeRawFacts {
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     winners: bj::RawPrefixFacts,
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     sources: BusinessMap<i64, Source>,
-    originals: std::collections::HashMap<usize, (i64, Source)>,
+    originals: BusinessMap<usize, (i64, Source)>,
 }
 impl NativeRawFacts {
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    )]
     pub(super) fn prefix_len(&self) -> usize {
         self.winners.prefix_len()
     }
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    )]
     pub(super) fn hashed_rows(&self) -> usize {
         self.originals.len()
     }
@@ -1117,7 +1271,7 @@ struct NativeRawLedger<'raw> {
     raw: RawEventsView<'raw>,
     winners: bj::RawPrefixIndex<'raw>,
     sources: BusinessMap<i64, Source>,
-    originals: std::collections::HashMap<usize, (i64, Source)>,
+    originals: BusinessMap<usize, (i64, Source)>,
     #[cfg(feature = "s_capture_native_testonly")]
     retained: super::audit_retention::RetainedDelta,
     #[cfg(test)]
@@ -1146,18 +1300,26 @@ impl<'raw> NativeRawLedger<'raw> {
         }
     }
 
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     fn new(raw: RawEventsView<'raw>) -> Self {
         Self {
             raw,
             winners: bj::RawPrefixIndex::new(raw),
             sources: bj::new_map(None),
-            originals: Default::default(),
+            originals: bj::new_map(None),
             #[cfg(feature = "s_capture_native_testonly")]
             retained: Default::default(),
             #[cfg(test)]
             stats: Default::default(),
         }
     }
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     fn restore(
         raw: RawEventsView<'raw>,
         facts: NativeRawFacts,
@@ -1180,7 +1342,7 @@ impl<'raw> NativeRawLedger<'raw> {
     }
     fn clear(&mut self) {
         self.reset_progress();
-        self.originals.clear();
+        self.originals.retain(|_, _| false);
     }
     fn advance(
         &mut self,
@@ -1240,8 +1402,10 @@ impl<'raw> NativeRawLedger<'raw> {
                 super::state::trace_raw_hashes(true, 4);
                 #[cfg(feature = "s_capture_native_testonly")]
                 let capacity = self.originals.capacity();
-                s.native_std_map_room(&mut self.originals).map_err(err)?;
-                self.originals.insert(ordinal, (coord, source));
+                s.native_map_room(&mut self.originals).map_err(err)?;
+                self.originals
+                    .insert(ordinal, (coord, source))
+                    .map_err(err)?;
                 #[cfg(feature = "s_capture_native_testonly")]
                 self.retained
                     .hash_capacity::<usize, (i64, Source)>(capacity, self.originals.capacity());
@@ -1352,6 +1516,13 @@ impl<'capture> NativeSourceAudit<'capture> {
         Ok(result)
     }
     #[cfg(test)]
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        )
+    )]
     pub(super) fn raw_ledger_stats(&self) -> NativeRawLedgerStats {
         self.ledger.stats
     }
@@ -1381,7 +1552,7 @@ impl<'capture> NativeSourceAudit<'capture> {
             self.fields.clear();
             self.ledger.clear();
             self.source_memo.clear();
-            self.memo.entries.clear();
+            self.memo.entries.retain(|_, _| false);
         }
         result
     }
@@ -1396,6 +1567,10 @@ pub(super) fn audit_generated<'a>(
 ) -> Result<Counts, String> {
     audit_generated_metered(s, state, raw_prefix, profile, rule, None, None)
 }
+#[allow(
+    dead_code,
+    reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删"
+)]
 pub(super) fn audit_generated_until<'a>(
     s: &mut dyn NodeStore,
     state: impl Into<sc::RefView<'a>>,
@@ -1452,6 +1627,603 @@ pub(super) fn audit_generated_for_audit<'a>(
         None,
     )
 }
+
+// #1488 SFT-M1：故障对拍必须调用冻结旧核，不能借用重构后的同一实现。
+#[cfg(test)]
+#[cfg_attr(
+    all(test, not(feature = "s_capture_native_testonly")),
+    allow(dead_code, reason = "#1488 再合 #1608：s_session 测试 构建不触达")
+)]
+pub(super) fn audit_generated_frozen_for_test<'a>(
+    s: &mut super::history::HashReader<'_>,
+    state: impl Into<sc::RefView<'a>>,
+    raw_prefix: impl Into<RawEventsView<'a>>,
+    profile: &str,
+    rule: &str,
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn super::audit_budget::Budget>,
+) -> Result<Counts, String> {
+    frozen_oracle::audit_generated_in_store(
+        &mut super::audit_store::StoreView::for_audit(s),
+        state.into(),
+        raw_prefix.into(),
+        profile,
+        rule,
+        deadline,
+        budget,
+        None,
+        None,
+        None,
+        None,
+    )
+}
+
+/// 单对象同判据核：身份唯一性仍在载荷读取之前；调用方提供当前 cut 的全局索引。
+// 同一局部判据只把“当前位置之前是否出现”交给容器；不改变读取/拒绝次序。
+trait ObjectSlots {
+    fn reserve_group(&mut self, _s: &(impl CodecRead + ?Sized)) -> Result<(), String> {
+        Ok(())
+    }
+    fn insert_id(&mut self, s: &(impl CodecRead + ?Sized), id: &str) -> Result<bool, String>;
+    fn insert_group(
+        &mut self,
+        s: &(impl CodecRead + ?Sized),
+        index: i64,
+        group: Group,
+    ) -> Result<bool, String>;
+}
+struct FullObjectSlots<'a> {
+    ids: &'a mut BusinessMap<bj::TextValue, ()>,
+    groups: &'a mut BusinessMap<i64, Group>,
+}
+impl ObjectSlots for FullObjectSlots<'_> {
+    fn reserve_group(&mut self, s: &(impl CodecRead + ?Sized)) -> Result<(), String> {
+        s.native_map_room(self.groups).map_err(err)
+    }
+    fn insert_id(&mut self, s: &(impl CodecRead + ?Sized), id: &str) -> Result<bool, String> {
+        s.native_map_room(self.ids).map_err(err)?;
+        Ok(self
+            .ids
+            .insert(s.native_text(id)?, ())
+            .map_err(err)?
+            .is_some())
+    }
+    fn insert_group(
+        &mut self,
+        #[allow(
+            unused_variables,
+            reason = "#1488 再合 #1608：8组合实测无调用方，保留不删"
+        )]
+        s: &(impl CodecRead + ?Sized),
+        index: i64,
+        group: Group,
+    ) -> Result<bool, String> {
+        Ok(self.groups.insert(index, group).map_err(err)?.is_some())
+    }
+}
+fn audit_object_record(
+    s: &mut (impl SourceFieldStore + ?Sized),
+    record: &RefValue,
+    raw: &(impl RawLookup + ?Sized),
+    producer: &Cc004Producer,
+    ids: &mut BusinessMap<bj::TextValue, ()>,
+    groups: &mut BusinessMap<i64, Group>,
+    checked_refs: &mut BusinessMap<(NodeDigest, bool), i64>,
+    native_sources: Option<&mut NativeSourceMemo<'_>>,
+    raw_prefix_len: usize,
+    memo_fields: bool,
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn super::audit_budget::Budget>,
+) -> Result<Object, String> {
+    audit_object_record_with_slots(
+        s,
+        record,
+        raw,
+        producer,
+        &mut FullObjectSlots { ids, groups },
+        checked_refs,
+        native_sources,
+        raw_prefix_len,
+        memo_fields,
+        deadline,
+        budget,
+    )
+}
+
+fn audit_object_record_with_slots(
+    s: &mut (impl SourceFieldStore + ?Sized),
+    record: &RefValue,
+    raw: &(impl RawLookup + ?Sized),
+    producer: &Cc004Producer,
+    slots: &mut impl ObjectSlots,
+    checked_refs: &mut BusinessMap<(NodeDigest, bool), i64>,
+    mut native_sources: Option<&mut NativeSourceMemo<'_>>,
+    raw_prefix_len: usize,
+    memo_fields: bool,
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn super::audit_budget::Budget>,
+) -> Result<Object, String> {
+    let kind = if memo_fields {
+        SourceFields::read_subset(s, record.view(), &["kind"])?.text(s, "kind")?
+    } else {
+        text(s, record, "kind")?
+    };
+    let names: &[&'static str] = if kind == CC006_SHAPE_KIND {
+        &SHAPE_SOURCE_FIELDS
+    } else {
+        &TYPED_SOURCE_FIELDS
+    };
+    let fields = SourceFields::read_subset(s, record.view(), names).map_err(err)?;
+    let id = fields.text(s, "object_id").map_err(err)?;
+    if slots.insert_id(s, id.as_str())? || fields.integer(s, "object_revision").map_err(err)? != 1 {
+        return Err(err("对象身份重复或修订不符"));
+    }
+    let refs = s
+        .lookup_ref(
+            fields
+                .get_admitted(s, "input_refs_json")
+                .map_err(err)?
+                .view(),
+            &[PathStep::JsonText],
+        )
+        .map_err(err)?;
+    let source_ref = s
+        .lookup_ref(
+            fields
+                .get_admitted(s, "source_coords_json")
+                .map_err(err)?
+                .view(),
+            &[PathStep::JsonText],
+        )
+        .map_err(err)?;
+    let sources = source_coords(
+        s,
+        &source_ref,
+        native_sources.as_deref_mut(),
+        ParseDomain::JsonInner,
+    )?;
+    if kind == CC006_SHAPE_KIND {
+        exact(record, Kind::Object, 15)?;
+    } else {
+        exact(record, Kind::Object, 10)?;
+        if ![
+            CC004_STEP_KIND,
+            CC005_GROUP_KIND,
+            CC007_FRACTAL_KIND,
+            CC054_KNOWLEDGE_KIND,
+        ]
+        .contains(&kind.as_str())
+            && !tb02b::KINDS.contains(&kind.as_str())
+        {
+            return Err(err("未声明typed事实种类"));
+        }
+        let payload = s
+            .lookup_ref(
+                fields.get_admitted(s, "payload_json").map_err(err)?.view(),
+                &[PathStep::JsonText],
+            )
+            .map_err(err)?;
+        if payload.kind() != Kind::Object {
+            return Err(err("typed载荷不是对象"));
+        }
+        if source_references(
+            s,
+            &refs,
+            &raw,
+            false,
+            checked_refs,
+            native_sources.as_deref_mut(),
+            raw_prefix_len,
+            ParseDomain::JsonInner,
+        )? != sources
+        {
+            return Err(err("typed引用与source_coords不同"));
+        }
+        let key = fields.text(s, "fact_key").map_err(err)?;
+        let parsed_owner = parsed_json(s, key.as_bytes())?;
+        let parsed = parsed_owner.view();
+        if !canonical_matches(s, parsed, key.as_bytes())?
+            || parsed.as_array().is_none_or(|a| a.len() != 2)
+            || parsed
+                .index(0)
+                .unwrap_or(sc::capture_allocation::audit_json::JsonView::Null)
+                .as_str()
+                != Some(kind.as_str())
+        {
+            return Err(err("typed槽位种类/规范文本不符"));
+        }
+        let identity = producer
+            .typed_identity_scoped(
+                &kind,
+                &key,
+                &built(payload.view())?,
+                &built(refs.view())?,
+                s.codec_work(),
+            )
+            .map_err(err)?;
+        let expected = s
+            .native_format(format_args!(
+                "{}",
+                content_producer::object_id_display(&identity)
+            ))
+            .map_err(err)?;
+        if id.as_str() != expected.as_str() {
+            return Err(err("typed obj3身份与来源/载荷原件不符"));
+        }
+        if tb02b::KINDS.contains(&kind.as_str()) {
+            let contract = tb02b::contract_for_rule(producer.rule_revision())
+                .ok_or_else(|| err("新笔来源审计规则修订未声明"))?;
+            for (k, want) in [
+                ("schema_revision", contract.schema),
+                ("semantic_version", contract.semantic),
+                ("policy_version", contract.policy),
+                ("view_role", "main"),
+            ] {
+                if text(s, &payload, k)? != want {
+                    return Err(err("新笔载荷语义头不同"));
+                }
+            }
+            if digest(&field(s, &payload, "slot")?)?
+                != super::history::hash_json_in_store(
+                    s,
+                    parsed
+                        .index(1)
+                        .unwrap_or(sc::capture_allocation::audit_json::JsonView::Null),
+                    deadline,
+                    budget,
+                )?
+            {
+                return Err(err("新笔payload槽位与fact_key不同"));
+            }
+        }
+        if kind == CC054_KNOWLEDGE_KIND {
+            let contract = tb02b::contract_for_rule(producer.rule_revision())
+                .ok_or_else(|| err("知识域来源审计规则修订未声明"))?;
+            if text(s, &payload, "domain")? != contract.knowledge_domain {
+                return Err(err("TB-02-A 知识域与cut规则版本不符"));
+            }
+        }
+        if kind == CC005_GROUP_KIND {
+            let index = decimal(&text(s, &payload, "group_index")?)?;
+            let anchor = decimal(&text(s, &payload, "group_anchor")?)?;
+            let members_root = field(s, &payload, "members")?;
+            let members = source_coords(
+                s,
+                &members_root,
+                native_sources.as_deref_mut(),
+                ParseDomain::JsonInner,
+            )?;
+            if index < 0
+                || members.is_empty()
+                || !members.contains(&anchor)
+                || members.iter().any(|c| !raw.contains_key(c))
+            {
+                return Err(err("组成员/锚/序号不符"));
+            }
+            let mut union = copy_coords(s, &members)?;
+            for key in ["direction_evidence", "confirmation_evidence"] {
+                super::history::check_deadline(deadline)?;
+                let evidence = field(s, &payload, key)?;
+                if evidence.kind() != Kind::Null {
+                    let list = field(s, &evidence, "source_coords")?;
+                    let evidence_coords = source_coords(
+                        s,
+                        &list,
+                        native_sources.as_deref_mut(),
+                        ParseDomain::JsonInner,
+                    )?;
+                    union = union_coords(s, &union, &evidence_coords)?;
+                }
+            }
+            if &*union != &*sources {
+                return Err(err("组来源不等于成员及方向/封口依据的并集"));
+            }
+            slots.reserve_group(s)?;
+            if slots.insert_group(
+                s,
+                index,
+                Group {
+                    payload: s.native_ref_clone(&payload).map_err(err)?,
+                    members,
+                    sources: copy_source_coords(s, &sources)?,
+                    anchor,
+                },
+            )? {
+                return Err(err("同cut组合并序号重复"));
+            }
+        }
+    }
+    Ok(Object {
+        id,
+        kind,
+        fields,
+        refs,
+        sources,
+    })
+}
+
+/// 单形态核，依赖三组当前成员/依据/锚及原始来源。
+fn audit_shape_record(
+    s: &mut (impl SourceFieldStore + ?Sized),
+    object: &Object,
+    raw: &(impl RawLookup + ?Sized),
+    groups: &(impl GroupLookup + ?Sized),
+    producer: &Cc004Producer,
+    checked_refs: &mut BusinessMap<(NodeDigest, bool), i64>,
+    mut native_sources: Option<&mut NativeSourceMemo<'_>>,
+    raw_prefix_len: usize,
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn super::audit_budget::Budget>,
+) -> Result<Shape, String> {
+    let allocation = source_allocation(s)?;
+    exact(&object.refs, Kind::Array, 3)?;
+    let mut indices = [0; 3];
+    let mut highs: [bj::TextValue; 3] = std::array::from_fn(|_| bj::TextValue::from(String::new()));
+    let mut lows: [bj::TextValue; 3] = std::array::from_fn(|_| bj::TextValue::from(String::new()));
+    let mut windows = std::array::from_fn::<_, 3, _>(|_| crate::content_manifest::Decimal::new(0));
+    let mut source_union = bj::new_work(allocation.as_ref());
+    for (slot, part) in elements(s, &object.refs)?.into_iter().enumerate() {
+        super::history::check_deadline(deadline)?;
+        exact(&part, Kind::Object, 3)?;
+        let part_fields = local_fields(s, &part, &["merged_index", "raw_refs", "dependency_refs"])?;
+        let index = if let Some(fields) = &part_fields {
+            fields
+                .scalar(s, "merged_index")?
+                .view()
+                .as_i64()
+                .ok_or_else(|| err("merged_index不是整数"))?
+        } else {
+            number(s, &part, "merged_index")?
+        };
+        indices[slot] = index;
+        if slot > 0 && index != indices[slot - 1] + 1 {
+            return Err(err("形态来源组不是连续三组"));
+        }
+        let group = groups
+            .get(&index)
+            .ok_or_else(|| err("形态引用没有同cut组事实"))?;
+        let raw_refs = if let Some(fields) = &part_fields {
+            fields.get_admitted(s, "raw_refs").map_err(err)?
+        } else {
+            field(s, &part, "raw_refs")?
+        };
+        let members = source_references(
+            s,
+            &raw_refs,
+            &raw,
+            true,
+            checked_refs,
+            native_sources.as_deref_mut(),
+            raw_prefix_len,
+            ParseDomain::JsonInner,
+        )?;
+        if members != group.members {
+            return Err(err("形态raw_refs不是同cut组成员"));
+        }
+        let deps = if let Some(fields) = &part_fields {
+            fields.get_admitted(s, "dependency_refs").map_err(err)?
+        } else {
+            field(s, &part, "dependency_refs")?
+        };
+        let dependency = source_references(
+            s,
+            &deps,
+            &raw,
+            true,
+            checked_refs,
+            native_sources.as_deref_mut(),
+            raw_prefix_len,
+            ParseDomain::JsonInner,
+        )?;
+        let expected = difference_coords(s, &group.sources, &members)?;
+        if &*dependency != &*expected {
+            return Err(err("形态dependency_refs不是组事实来源差集"));
+        }
+        source_union = union_coords(s, &source_union, &members)?;
+        source_union = union_coords(s, &source_union, &dependency)?;
+        windows[slot] = crate::content_manifest::Decimal::new(
+            object
+                .fields
+                .integer(s, ["window_start", "window_mid", "window_end"][slot])
+                .map_err(err)?,
+        );
+        if windows[slot].as_str() != crate::content_manifest::Decimal::new(group.anchor).as_str() {
+            return Err(err("形态窗口不等于同cut组锚"));
+        }
+        if let Some(fields) = local_fields(s, &group.payload, &["high", "low"])? {
+            highs[slot] = fields.text(s, "high")?;
+            lows[slot] = fields.text(s, "low")?;
+        } else {
+            highs[slot] = text(s, &group.payload, "high")?;
+            lows[slot] = text(s, &group.payload, "low")?;
+        }
+    }
+    if &*source_union != &*object.sources {
+        return Err(err("形态source_coords不是完整来源并集"));
+    }
+    let branch = object.fields.text(s, "branch").map_err(err)?;
+    let dir_ab = object.fields.text(s, "dir_ab").map_err(err)?;
+    let dir_bc = object.fields.text(s, "dir_bc").map_err(err)?;
+    let comparison_text = object.fields.text(s, "comparisons_json").map_err(err)?;
+    let comparisons_owner = parsed_json(s, comparison_text.as_bytes())?;
+    let comparisons = comparisons_owner.view();
+    if !canonical_matches(s, comparisons, comparison_text.as_bytes())?
+        || comparisons.as_array().is_none_or(|v| v.len() != 4)
+    {
+        return Err(err("形态比较不是规范四项"));
+    }
+    let comparisons = Built {
+        digest: super::history::hash_json_in_store(s, comparisons, deadline, budget)?,
+        kind: Kind::Array,
+        extent: Some(4),
+    };
+    let input_refs = built(object.refs.view())?;
+    let identity = producer
+        .shape_identity_scoped(
+            ShapeIdentityView {
+                branch: &branch,
+                dir_ab: &dir_ab,
+                dir_bc: &dir_bc,
+                window: windows.each_ref().map(|v| v.as_str()),
+                highs: highs.each_ref().map(|v| v.as_str()),
+                lows: lows.each_ref().map(|v| v.as_str()),
+                comparisons: &comparisons,
+                input_refs: &input_refs,
+            },
+            s.codec_work(),
+        )
+        .map_err(err)?;
+    let expected = s
+        .native_format(format_args!(
+            "{}",
+            content_producer::object_id_display(&identity)
+        ))
+        .map_err(err)?;
+    if expected.as_str() != object.id.as_str() {
+        return Err(err("CC006 obj3与同cut组事实身份不符"));
+    }
+    Ok(Shape { groups: indices })
+}
+
+/// 单见证核，槽位重复在形态/组原件读取之前拒绝；三槽全体性仍由贡献层核验。
+trait WitnessSlots {
+    fn reserve(&mut self, s: &(impl CodecRead + ?Sized)) -> Result<(), String>;
+    fn insert_slot(
+        &mut self,
+        s: &(impl CodecRead + ?Sized),
+        id: &str,
+        slot: i64,
+    ) -> Result<bool, String>;
+}
+struct FullWitnessSlots<'a>(&'a mut BusinessMap<(bj::TextValue, i64), ()>);
+impl WitnessSlots for FullWitnessSlots<'_> {
+    fn reserve(&mut self, s: &(impl CodecRead + ?Sized)) -> Result<(), String> {
+        s.native_map_room(self.0).map_err(err)
+    }
+    fn insert_slot(
+        &mut self,
+        s: &(impl CodecRead + ?Sized),
+        id: &str,
+        slot: i64,
+    ) -> Result<bool, String> {
+        Ok(self
+            .0
+            .insert((s.native_text(id)?, slot), ())
+            .map_err(err)?
+            .is_some())
+    }
+}
+fn audit_witness_record(
+    s: &mut (impl SourceFieldStore + ?Sized),
+    witness: &RefValue,
+    raw: &(impl RawLookup + ?Sized),
+    groups: &(impl GroupLookup + ?Sized),
+    shapes: &(impl ShapeLookup + ?Sized),
+    seen: &mut BusinessMap<(bj::TextValue, i64), ()>,
+    native_identity: Option<&mut NativeWitnessIdentityMemo<'_>>,
+    deadline: Option<std::time::Instant>,
+) -> Result<(bj::TextValue, i64), String> {
+    audit_witness_record_with_slots(
+        s,
+        witness,
+        raw,
+        groups,
+        shapes,
+        &mut FullWitnessSlots(seen),
+        native_identity,
+        deadline,
+    )
+}
+
+fn audit_witness_record_with_slots(
+    s: &mut (impl SourceFieldStore + ?Sized),
+    witness: &RefValue,
+    raw: &(impl RawLookup + ?Sized),
+    groups: &(impl GroupLookup + ?Sized),
+    shapes: &(impl ShapeLookup + ?Sized),
+    slots: &mut impl WitnessSlots,
+    mut native_identity: Option<&mut NativeWitnessIdentityMemo<'_>>,
+    deadline: Option<std::time::Instant>,
+) -> Result<(bj::TextValue, i64), String> {
+    exact(witness, Kind::Object, 9)?;
+    let fields = SourceFields::read_subset(
+        s,
+        witness.view(),
+        &[
+            "witness_id",
+            "object_id",
+            "slot",
+            "merged_source_index",
+            "merged_high",
+            "merged_low",
+            "merged_open",
+            "merged_close",
+            "raw_bars",
+        ],
+    )
+    .map_err(err)?;
+    let id = fields.text(s, "witness_id").map_err(err)?;
+    let object_id = fields.text(s, "object_id").map_err(err)?;
+    let slot = fields.integer(s, "slot").map_err(err)?;
+    slots.reserve(s)?;
+    if !(0..3).contains(&slot) || slots.insert_slot(s, object_id.as_str(), slot)? {
+        return Err(err("见证槽位重复/越界"));
+    }
+    let shape = shapes
+        .get(object_id.as_str())
+        .ok_or_else(|| err("见证没有同cut形态对象"))?;
+    let mi = shape.groups[slot as usize];
+    let group = groups.get(&mi).expect("shape was bound to existing groups");
+    if fields.integer(s, "merged_source_index").map_err(err)? != group.anchor {
+        return Err(err("见证锚与同cut组不同"));
+    }
+    let payload_fields = local_fields(s, &group.payload, &["high", "low", "open", "close"])?;
+    for (merged, field_name) in [
+        ("merged_high", "high"),
+        ("merged_low", "low"),
+        ("merged_open", "open"),
+        ("merged_close", "close"),
+    ] {
+        let actual = fields.get_admitted(s, merged).map_err(err)?;
+        let expected = if let Some(fields) = &payload_fields {
+            fields.get_admitted(s, field_name).map_err(err)?
+        } else {
+            field(s, &group.payload, field_name)?
+        };
+        if actual != expected {
+            return Err(err("见证合并值不是同cut组事实"));
+        }
+    }
+    let bars = fields.get_admitted(s, "raw_bars").map_err(err)?;
+    let items = elements(s, &bars)?;
+    if items.len() != group.members.len() {
+        return Err(err("见证raw_bars成员数不同"));
+    }
+    for (bar, coord) in items.iter().zip(&group.members) {
+        super::history::check_deadline(deadline)?;
+        if digest(bar)? != raw.get(coord).expect("group members were bound to raw").raw {
+            return Err(err("见证raw_bars不是同cut真实原始成员"));
+        }
+    }
+    let bars = built(bars.view())?;
+    match native_identity.as_deref_mut() {
+        Some(memo) => memo.check_identity(s, &id, &object_id, slot as usize, mi as usize, &bars)?,
+        None => {
+            let want = super::generation::witness_identity_native(
+                s,
+                &object_id,
+                slot as usize,
+                mi as usize,
+                &bars,
+            )?;
+            if id.as_str() != want.as_str() {
+                return Err(err("见证ID不符"));
+            }
+        }
+    }
+    Ok((object_id, slot))
+}
+
 fn audit_generated_in_store(
     s: &mut super::audit_store::StoreView<'_, '_>,
     state: sc::RefView<'_>,
@@ -1465,6 +2237,10 @@ fn audit_generated_in_store(
     native_fields: Option<&mut NativeFieldMemo<'_>>,
     native_ledger: Option<&mut NativeRawLedger<'_>>,
 ) -> Result<Counts, String> {
+    #[cfg(test)]
+    source_call_note(|n| {
+        n.full_source_calls += 1;
+    });
     super::history::check_deadline(deadline)?;
     #[cfg(test)]
     super::state::trace_event("source_closure", None);
@@ -1483,15 +2259,7 @@ fn audit_generated_in_store(
             "当前来源审计仅实现OHLC档；其他档仍待接线，拒绝按此口径放行",
         ));
     }
-    s.native_admit(
-        profile
-            .len()
-            .checked_add(rule.len())
-            .and_then(|n| n.checked_add(2 * std::mem::size_of::<[usize; 2]>()))
-            .ok_or_else(|| err(s.native_overflow()))?,
-    )
-    .map_err(err)?;
-    let producer = Cc004Producer::new(profile, rule);
+    let producer = Cc004Producer::for_source_audit(profile, rule, s.codec_work()).map_err(err)?;
     let allocation;
     let ordinary_effective;
     let mut ordinary_raw;
@@ -1535,222 +2303,34 @@ fn audit_generated_in_store(
     let mut objects = bj::new_work(allocation.as_ref());
     let mut ids = bj::new_map(allocation.as_ref());
     let mut groups = bj::new_map(allocation.as_ref());
+    #[cfg(test)]
+    source_call_note(|n| n.full_members_enumerations += 1);
     for record in elements_ref(s, object_array.view())? {
         super::history::check_deadline(deadline)?;
-        let kind = if s.fields.is_some() {
-            SourceFields::read_subset(s, record.view(), &["kind"])?.text(s, "kind")?
-        } else {
-            text(s, &record, "kind")?
-        };
-        let names: &[&'static str] = if kind == CC006_SHAPE_KIND {
-            &SHAPE_SOURCE_FIELDS
-        } else {
-            &TYPED_SOURCE_FIELDS
-        };
-        let fields = SourceFields::read_subset(s, record.view(), names).map_err(err)?;
-        let id = fields.text(s, "object_id").map_err(err)?;
-        s.native_map_room(&mut ids).map_err(err)?;
-        if ids
-            .insert(s.native_text(id.as_str())?, ())
-            .map_err(err)?
-            .is_some()
-            || fields.integer(s, "object_revision").map_err(err)? != 1
-        {
-            return Err(err("对象身份重复或修订不符"));
-        }
-        let refs = s
-            .lookup_ref(
-                fields
-                    .get_admitted(s, "input_refs_json")
-                    .map_err(err)?
-                    .view(),
-                &[PathStep::JsonText],
-            )
-            .map_err(err)?;
-        let source_ref = s
-            .lookup_ref(
-                fields
-                    .get_admitted(s, "source_coords_json")
-                    .map_err(err)?
-                    .view(),
-                &[PathStep::JsonText],
-            )
-            .map_err(err)?;
-        let sources = source_coords(
+        let memo_fields = s.fields.is_some();
+        let object = audit_object_record(
             s,
-            &source_ref,
+            &record,
+            raw,
+            &producer,
+            &mut ids,
+            &mut groups,
+            &mut checked_refs,
             native_sources.as_deref_mut(),
-            ParseDomain::JsonInner,
+            raw_prefix.len(),
+            memo_fields,
+            deadline,
+            budget,
         )?;
-        if kind == CC006_SHAPE_KIND {
-            exact(&record, Kind::Object, 15)?;
-        } else {
-            exact(&record, Kind::Object, 10)?;
-            if ![
-                CC004_STEP_KIND,
-                CC005_GROUP_KIND,
-                CC007_FRACTAL_KIND,
-                CC054_KNOWLEDGE_KIND,
-            ]
-            .contains(&kind.as_str())
-                && !tb02b::KINDS.contains(&kind.as_str())
-            {
-                return Err(err("未声明typed事实种类"));
-            }
-            let payload = s
-                .lookup_ref(
-                    fields.get_admitted(s, "payload_json").map_err(err)?.view(),
-                    &[PathStep::JsonText],
-                )
-                .map_err(err)?;
-            if payload.kind() != Kind::Object {
-                return Err(err("typed载荷不是对象"));
-            }
-            if source_references(
-                s,
-                &refs,
-                &raw,
-                false,
-                &mut checked_refs,
-                native_sources.as_deref_mut(),
-                raw_prefix.len(),
-                ParseDomain::JsonInner,
-            )? != sources
-            {
-                return Err(err("typed引用与source_coords不同"));
-            }
-            let key = fields.text(s, "fact_key").map_err(err)?;
-            let parsed_owner = parsed_json(s, key.as_bytes())?;
-            let parsed = parsed_owner.view();
-            if !canonical_matches(s, parsed, key.as_bytes())?
-                || parsed.as_array().is_none_or(|a| a.len() != 2)
-                || parsed
-                    .index(0)
-                    .unwrap_or(sc::capture_allocation::audit_json::JsonView::Null)
-                    .as_str()
-                    != Some(kind.as_str())
-            {
-                return Err(err("typed槽位种类/规范文本不符"));
-            }
-            let identity = producer
-                .typed_identity_scoped(
-                    &kind,
-                    &key,
-                    &built(payload.view())?,
-                    &built(refs.view())?,
-                    s.codec_work(),
-                )
-                .map_err(err)?;
-            let expected = s
-                .native_format(format_args!(
-                    "{}",
-                    content_producer::object_id_display(&identity)
-                ))
-                .map_err(err)?;
-            if id != expected {
-                return Err(err("typed obj3身份与来源/载荷原件不符"));
-            }
-            if tb02b::KINDS.contains(&kind.as_str()) {
-                let contract = tb02b::contract_for_rule(rule)
-                    .ok_or_else(|| err("新笔来源审计规则修订未声明"))?;
-                for (k, want) in [
-                    ("schema_revision", contract.schema),
-                    ("semantic_version", contract.semantic),
-                    ("policy_version", contract.policy),
-                    ("view_role", "main"),
-                ] {
-                    if text(s, &payload, k)? != want {
-                        return Err(err("新笔载荷语义头不同"));
-                    }
-                }
-                if digest(&field(s, &payload, "slot")?)?
-                    != super::history::hash_json_in_store(
-                        s,
-                        parsed
-                            .index(1)
-                            .unwrap_or(sc::capture_allocation::audit_json::JsonView::Null),
-                        deadline,
-                        budget,
-                    )?
-                {
-                    return Err(err("新笔payload槽位与fact_key不同"));
-                }
-            }
-            if kind == CC054_KNOWLEDGE_KIND {
-                let contract = tb02b::contract_for_rule(rule)
-                    .ok_or_else(|| err("知识域来源审计规则修订未声明"))?;
-                if text(s, &payload, "domain")? != contract.knowledge_domain {
-                    return Err(err("TB-02-A 知识域与cut规则版本不符"));
-                }
-            }
-            if kind == CC005_GROUP_KIND {
-                let index = decimal(&text(s, &payload, "group_index")?)?;
-                let anchor = decimal(&text(s, &payload, "group_anchor")?)?;
-                let members_root = field(s, &payload, "members")?;
-                let members = source_coords(
-                    s,
-                    &members_root,
-                    native_sources.as_deref_mut(),
-                    ParseDomain::JsonInner,
-                )?;
-                if index < 0
-                    || members.is_empty()
-                    || !members.contains(&anchor)
-                    || members.iter().any(|c| !raw.contains_key(c))
-                {
-                    return Err(err("组成员/锚/序号不符"));
-                }
-                let mut union = copy_coords(s, &members)?;
-                for key in ["direction_evidence", "confirmation_evidence"] {
-                    super::history::check_deadline(deadline)?;
-                    let evidence = field(s, &payload, key)?;
-                    if evidence.kind() != Kind::Null {
-                        let list = field(s, &evidence, "source_coords")?;
-                        let evidence_coords = source_coords(
-                            s,
-                            &list,
-                            native_sources.as_deref_mut(),
-                            ParseDomain::JsonInner,
-                        )?;
-                        union = union_coords(s, &union, &evidence_coords)?;
-                    }
-                }
-                if &*union != &*sources {
-                    return Err(err("组来源不等于成员及方向/封口依据的并集"));
-                }
-                s.native_map_room(&mut groups).map_err(err)?;
-                if groups
-                    .insert(
-                        index,
-                        Group {
-                            payload: s.native_ref_clone(&payload).map_err(err)?,
-                            members,
-                            sources: copy_source_coords(s, &sources)?,
-                            anchor,
-                        },
-                    )
-                    .map_err(err)?
-                    .is_some()
-                {
-                    return Err(err("同cut组合并序号重复"));
-                }
-            }
-        }
         s.native_codec_room(&mut objects, 1).map_err(err)?;
-        objects
-            .try_push(Object {
-                id,
-                kind,
-                fields,
-                refs,
-                sources,
-            })
-            .map_err(err)?;
+        objects.try_push(object).map_err(err)?;
     }
     // #1394 r3：先绑定已发布未定事实，再核组成员与 pending 的不交完备并集。
-    let pending = source_pending::audit(s, &objects, raw, &groups, rule, deadline)?;
+    let pending = source_pending::audit(s, objects.iter(), raw, &groups, rule, deadline)?;
     let mut partition = bj::new_map(allocation.as_ref());
     let ordered_groups = sorted_numeric_entries(s, &groups)?;
+    #[cfg(test)]
+    source_call_note(|n| n.full_members_enumerations += 1);
     for (expected, (index, group)) in ordered_groups.iter().enumerate() {
         super::history::check_deadline(deadline)?;
         if *index != expected as i64 {
@@ -1778,237 +2358,45 @@ fn audit_generated_in_store(
     let mut shapes = bj::new_map(allocation.as_ref());
     #[cfg(test)]
     super::state::trace_event("source_shapes", None);
+    #[cfg(test)]
+    source_call_note(|n| n.full_members_enumerations += 1);
     for object in objects.iter().filter(|o| o.kind == CC006_SHAPE_KIND) {
         super::history::check_deadline(deadline)?;
-        exact(&object.refs, Kind::Array, 3)?;
-        let mut indices = [0; 3];
-        let mut highs: [bj::TextValue; 3] =
-            std::array::from_fn(|_| bj::TextValue::Plain(String::new()));
-        let mut lows: [bj::TextValue; 3] =
-            std::array::from_fn(|_| bj::TextValue::Plain(String::new()));
-        let mut windows =
-            std::array::from_fn::<_, 3, _>(|_| crate::content_manifest::Decimal::new(0));
-        let mut source_union = bj::new_work(allocation.as_ref());
-        for (slot, part) in elements(s, &object.refs)?.into_iter().enumerate() {
-            super::history::check_deadline(deadline)?;
-            exact(&part, Kind::Object, 3)?;
-            let part_fields =
-                local_fields(s, &part, &["merged_index", "raw_refs", "dependency_refs"])?;
-            let index = if let Some(fields) = &part_fields {
-                fields
-                    .scalar(s, "merged_index")?
-                    .view()
-                    .as_i64()
-                    .ok_or_else(|| err("merged_index不是整数"))?
-            } else {
-                number(s, &part, "merged_index")?
-            };
-            indices[slot] = index;
-            if slot > 0 && index != indices[slot - 1] + 1 {
-                return Err(err("形态来源组不是连续三组"));
-            }
-            let group = groups
-                .get(&index)
-                .ok_or_else(|| err("形态引用没有同cut组事实"))?;
-            let raw_refs = if let Some(fields) = &part_fields {
-                fields.get_admitted(s, "raw_refs").map_err(err)?
-            } else {
-                field(s, &part, "raw_refs")?
-            };
-            let members = source_references(
-                s,
-                &raw_refs,
-                &raw,
-                true,
-                &mut checked_refs,
-                native_sources.as_deref_mut(),
-                raw_prefix.len(),
-                ParseDomain::JsonInner,
-            )?;
-            if members != group.members {
-                return Err(err("形态raw_refs不是同cut组成员"));
-            }
-            let deps = if let Some(fields) = &part_fields {
-                fields.get_admitted(s, "dependency_refs").map_err(err)?
-            } else {
-                field(s, &part, "dependency_refs")?
-            };
-            let dependency = source_references(
-                s,
-                &deps,
-                &raw,
-                true,
-                &mut checked_refs,
-                native_sources.as_deref_mut(),
-                raw_prefix.len(),
-                ParseDomain::JsonInner,
-            )?;
-            let expected = difference_coords(s, &group.sources, &members)?;
-            if &*dependency != &*expected {
-                return Err(err("形态dependency_refs不是组事实来源差集"));
-            }
-            source_union = union_coords(s, &source_union, &members)?;
-            source_union = union_coords(s, &source_union, &dependency)?;
-            windows[slot] = crate::content_manifest::Decimal::new(
-                object
-                    .fields
-                    .integer(s, ["window_start", "window_mid", "window_end"][slot])
-                    .map_err(err)?,
-            );
-            if windows[slot].as_str()
-                != crate::content_manifest::Decimal::new(group.anchor).as_str()
-            {
-                return Err(err("形态窗口不等于同cut组锚"));
-            }
-            if let Some(fields) = local_fields(s, &group.payload, &["high", "low"])? {
-                highs[slot] = fields.text(s, "high")?;
-                lows[slot] = fields.text(s, "low")?;
-            } else {
-                highs[slot] = text(s, &group.payload, "high")?;
-                lows[slot] = text(s, &group.payload, "low")?;
-            }
-        }
-        if &*source_union != &*object.sources {
-            return Err(err("形态source_coords不是完整来源并集"));
-        }
-        let branch = object.fields.text(s, "branch").map_err(err)?;
-        let dir_ab = object.fields.text(s, "dir_ab").map_err(err)?;
-        let dir_bc = object.fields.text(s, "dir_bc").map_err(err)?;
-        let comparison_text = object.fields.text(s, "comparisons_json").map_err(err)?;
-        let comparisons_owner = parsed_json(s, comparison_text.as_bytes())?;
-        let comparisons = comparisons_owner.view();
-        if !canonical_matches(s, comparisons, comparison_text.as_bytes())?
-            || comparisons.as_array().is_none_or(|v| v.len() != 4)
-        {
-            return Err(err("形态比较不是规范四项"));
-        }
-        let comparisons = Built {
-            digest: super::history::hash_json_in_store(s, comparisons, deadline, budget)?,
-            kind: Kind::Array,
-            extent: Some(4),
-        };
-        let input_refs = built(object.refs.view())?;
-        let identity = producer
-            .shape_identity_scoped(
-                ShapeIdentityView {
-                    branch: &branch,
-                    dir_ab: &dir_ab,
-                    dir_bc: &dir_bc,
-                    window: windows.each_ref().map(|v| v.as_str()),
-                    highs: highs.each_ref().map(|v| v.as_str()),
-                    lows: lows.each_ref().map(|v| v.as_str()),
-                    comparisons: &comparisons,
-                    input_refs: &input_refs,
-                },
-                s.codec_work(),
-            )
-            .map_err(err)?;
-        let expected = s
-            .native_format(format_args!(
-                "{}",
-                content_producer::object_id_display(&identity)
-            ))
-            .map_err(err)?;
-        if expected != object.id {
-            return Err(err("CC006 obj3与同cut组事实身份不符"));
-        }
+        let shape = audit_shape_record(
+            s,
+            object,
+            raw,
+            &groups,
+            &producer,
+            &mut checked_refs,
+            native_sources.as_deref_mut(),
+            raw_prefix.len(),
+            deadline,
+            budget,
+        )?;
         s.native_map_room(&mut shapes).map_err(err)?;
         shapes
-            .insert(
-                s.native_text(object.id.as_str())?,
-                Shape { groups: indices },
-            )
+            .insert(s.native_text(object.id.as_str())?, shape)
             .map_err(err)?;
     }
     let witness_array = field_ref(s, state, "witnesses")?;
     #[cfg(test)]
     super::state::trace_event("source_witnesses", None);
     let mut seen = bj::new_map(allocation.as_ref());
+    #[cfg(test)]
+    source_call_note(|n| n.full_members_enumerations += 1);
     for witness in elements(s, &witness_array)? {
         super::history::check_deadline(deadline)?;
-        exact(&witness, Kind::Object, 9)?;
-        let fields = SourceFields::read_subset(
+        audit_witness_record(
             s,
-            witness.view(),
-            &[
-                "witness_id",
-                "object_id",
-                "slot",
-                "merged_source_index",
-                "merged_high",
-                "merged_low",
-                "merged_open",
-                "merged_close",
-                "raw_bars",
-            ],
-        )
-        .map_err(err)?;
-        let id = fields.text(s, "witness_id").map_err(err)?;
-        let object_id = fields.text(s, "object_id").map_err(err)?;
-        let slot = fields.integer(s, "slot").map_err(err)?;
-        s.native_map_room(&mut seen).map_err(err)?;
-        if !(0..3).contains(&slot)
-            || seen
-                .insert((s.native_text(object_id.as_str())?, slot), ())
-                .map_err(err)?
-                .is_some()
-        {
-            return Err(err("见证槽位重复/越界"));
-        }
-        let shape = shapes
-            .get(object_id.as_str())
-            .ok_or_else(|| err("见证没有同cut形态对象"))?;
-        let mi = shape.groups[slot as usize];
-        let group = groups.get(&mi).expect("shape was bound to existing groups");
-        if fields.integer(s, "merged_source_index").map_err(err)? != group.anchor {
-            return Err(err("见证锚与同cut组不同"));
-        }
-        let payload_fields = local_fields(s, &group.payload, &["high", "low", "open", "close"])?;
-        for (merged, field_name) in [
-            ("merged_high", "high"),
-            ("merged_low", "low"),
-            ("merged_open", "open"),
-            ("merged_close", "close"),
-        ] {
-            let actual = fields.get_admitted(s, merged).map_err(err)?;
-            let expected = if let Some(fields) = &payload_fields {
-                fields.get_admitted(s, field_name).map_err(err)?
-            } else {
-                field(s, &group.payload, field_name)?
-            };
-            if actual != expected {
-                return Err(err("见证合并值不是同cut组事实"));
-            }
-        }
-        let bars = fields.get_admitted(s, "raw_bars").map_err(err)?;
-        let items = elements(s, &bars)?;
-        if items.len() != group.members.len() {
-            return Err(err("见证raw_bars成员数不同"));
-        }
-        for (bar, coord) in items.iter().zip(&group.members) {
-            super::history::check_deadline(deadline)?;
-            if digest(bar)? != raw.get(coord).expect("group members were bound to raw").raw {
-                return Err(err("见证raw_bars不是同cut真实原始成员"));
-            }
-        }
-        let bars = built(bars.view())?;
-        match native_identity.as_deref_mut() {
-            Some(memo) => {
-                memo.check_identity(s, &id, &object_id, slot as usize, mi as usize, &bars)?
-            }
-            None => {
-                let want = super::generation::witness_identity(
-                    s,
-                    &object_id,
-                    slot as usize,
-                    mi as usize,
-                    &bars,
-                )?;
-                if id != want {
-                    return Err(err("见证ID不符"));
-                }
-            }
-        }
+            &witness,
+            raw,
+            &groups,
+            &shapes,
+            &mut seen,
+            native_identity.as_deref_mut(),
+            deadline,
+        )?;
     }
     if seen.len() != shapes.len() * 3 {
         return Err(err("形态缺完整三槽见证"));
@@ -2018,6 +2406,8 @@ fn audit_generated_in_store(
     super::state::trace_event("source_observations", None);
     let mut insufficient = 0;
     let mut outside_domain = 0;
+    #[cfg(test)]
+    source_call_note(|n| n.full_members_enumerations += 1);
     for item in elements(s, &observations)? {
         super::history::check_deadline(deadline)?;
         match text(s, &item, "kind")?.as_str() {
@@ -2046,7 +2436,7 @@ mod tests {
         tests::{accept_ohlc, init_test_db, located_ohlc_input, tb02b_oracle_rows, TestFiles},
     };
     use sc::MemoryNodes;
-    const STATE: &[&str] = &[
+    pub(super) const STATE: &[&str] = &[
         "generation",
         "structure_cut",
         "input_frontier",
@@ -2102,7 +2492,7 @@ mod tests {
         "merged_close",
         "raw_bars",
     ];
-    fn fixture() -> (MemoryNodes, ContentRef, Vec<Value>, String) {
+    pub(super) fn fixture() -> (MemoryNodes, ContentRef, Vec<Value>, String) {
         let files = TestFiles::new();
         init_test_db(&files);
         accept_ohlc(&files, &located_ohlc_input(&tb02b_oracle_rows()));
@@ -2383,6 +2773,90 @@ mod tests {
             "重复借用视图不增加赢家 key"
         );
     }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_raw_facts_keep_original_bucket_permits_across_scope_and_move() {
+        let raw = vec![
+            ledger_event("a", "7", 1, 1),
+            ledger_event("b", "9", 1, 2),
+            ledger_event("a", "7", 2, 3),
+        ];
+        let expected = original_sources(&raw, raw.len()).unwrap();
+        let budget = super::super::audit_owner::native::Budget::new(8 << 20, 0).unwrap();
+        let baseline = budget.live();
+        for _ in 0..3 {
+            let facts = budget
+                .codec_work()
+                .unwrap()
+                .run(|scope| {
+                    let mut admission = super::super::audit_store::NativeAdmission(Some(scope));
+                    let mut ledger = NativeRawLedger::new((&raw).into());
+                    for n in 1..=raw.len() {
+                        ledger.advance(&mut admission, n).unwrap();
+                    }
+                    let hashed = ledger.stats.source_hashes;
+                    ledger.advance(&mut admission, 1).unwrap();
+                    ledger.advance(&mut admission, raw.len()).unwrap();
+                    assert_eq!(ledger.stats.source_hashes, hashed, "回退重走仍复用同一原件");
+                    assert_eq!(source_entries(&ledger.sources), source_entries(&expected));
+                    assert_eq!(ledger.originals.len(), 3);
+                    let live = budget.live();
+                    let facts = ledger.into_facts();
+                    assert_eq!(budget.live(), live, "移动不退款、不重签");
+                    Ok::<_, sc::CodecError>(facts)
+                })
+                .unwrap();
+            assert!(budget.live() > baseline, "离开scope仍由事实账持有原桶许可");
+            assert_eq!(facts.hashed_rows(), 3);
+            assert_eq!(source_entries(&facts.sources), source_entries(&expected));
+            drop(facts);
+            assert_eq!(budget.live(), baseline, "所有真实事实拥有者销毁后归基线");
+        }
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn source_identity_producer_outlives_scope_without_freeing_initial_strings() {
+        let mut nodes = MemoryNodes::default();
+        let payload = sc::write_value(&mut nodes, &V::Null).unwrap();
+        let refs = sc::write_value(&mut nodes, &V::Array(vec![])).unwrap();
+        let ordinary = Cc004Producer::new(tb02a::PROFILE, crate::V3_RULE_REVISION);
+        let expected = ordinary
+            .typed_identity_scoped(CC004_STEP_KIND, "fact", &payload, &refs, None)
+            .unwrap();
+        let budget = super::super::audit_owner::native::Budget::new(1 << 20, 0).unwrap();
+        let baseline = budget.live();
+        for _ in 0..3 {
+            let producer = budget
+                .codec_work()
+                .unwrap()
+                .run(|scope| {
+                    let producer = Cc004Producer::for_source_audit(
+                        tb02a::PROFILE,
+                        crate::V3_RULE_REVISION,
+                        Some(scope),
+                    )?;
+                    assert_eq!(
+                        producer
+                            .typed_identity_scoped(
+                                CC004_STEP_KIND,
+                                "fact",
+                                &payload,
+                                &refs,
+                                Some(scope),
+                            )
+                            .unwrap(),
+                        expected
+                    );
+                    Ok::<_, sc::CodecError>(producer)
+                })
+                .unwrap();
+            assert!(budget.live() > baseline);
+            drop(producer);
+            assert_eq!(budget.live(), baseline);
+        }
+    }
+
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn cold_source_normal_fixture_oracle() {
@@ -2750,9 +3224,7 @@ mod tests {
             assert_eq!(fields.text(&mut source, "a").unwrap(), "original");
             assert_eq!(fields.text(&mut source, "a").unwrap(), "original");
             assert!(fields.get("b").is_err());
-            let scalar_root = built(fields.get("a").unwrap().view())
-                .unwrap()
-                .content_ref();
+            let scalar_root = built(fields.get("a").unwrap()).unwrap().content_ref();
             let mut forged_scalar = scalar_root.clone();
             forged_scalar.format = "bad-scalar-format".into();
             assert!(source.decoded_scalar((&forged_scalar).into()).is_err());
@@ -2782,8 +3254,8 @@ mod tests {
             assert_eq!(ordinary_duplicate.is_ok(), native_duplicate.is_ok());
             if let (Ok(ordinary), Ok(native)) = (ordinary_duplicate, native_duplicate) {
                 assert_eq!(
-                    built(ordinary.get("a").unwrap().view()).unwrap().digest,
-                    built(native.get("a").unwrap().view()).unwrap().digest
+                    built(ordinary.get("a").unwrap()).unwrap().digest,
+                    built(native.get("a").unwrap()).unwrap().digest
                 );
             }
             let mut bad = root.clone();
@@ -2821,6 +3293,172 @@ mod tests {
             .qualified((&root).into())
             .unwrap());
     }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_field_memo_scoped_hit_copies_clear_and_drop_keep_original_permits() {
+        let mut nodes = MemoryNodes::default();
+        let root = sc::write_value(
+            &mut nodes,
+            &cv(&json!({"a":"nonempty original", "b":17})).unwrap(),
+        )
+        .unwrap()
+        .content_ref();
+        let expected_a = field(&mut nodes, &root, "a").unwrap();
+        let capture = sc::AuditCapture::new(nodes);
+        let budget = super::super::audit_owner::native::Budget::new(8 << 20, 0).unwrap();
+        let baseline = budget.live();
+        for clear_first in [false, true] {
+            // 把原 map 移出，而非复制缓存或保留 WorkScope；临时 reader 与 scope
+            // 析构后测父账。若仍有 legacy retain 残费，最终回基线断言必须失败。
+            let (cached_fields, first, second) = budget
+                .codec_work()
+                .unwrap()
+                .run(|scope| {
+                    let mut memo = NativeFieldMemo::new(&capture);
+                    memo.work = Some(scope);
+                    let mut reader = super::super::history::HashReader::captured(&capture, None)
+                        .with_codec_work(scope, &budget);
+                    let (first, second) = {
+                        let mut store =
+                            super::super::audit_store::StoreView::for_audit(&mut reader);
+                        let mut source = ArrayAuditSource {
+                            source: &mut store,
+                            full_arrays: true,
+                            deadline: None,
+                            fields: Some(&mut memo),
+                        };
+                        drop(
+                            SourceFields::read_subset(&mut source, (&root).into(), &["a", "b"])
+                                .unwrap(),
+                        );
+                        let first =
+                            SourceFields::read_subset(&mut source, (&root).into(), &["a", "b"])
+                                .unwrap();
+                        let second =
+                            SourceFields::read_subset(&mut source, (&root).into(), &["a", "b"])
+                                .unwrap();
+                        (first, second)
+                    };
+                    assert_eq!(memo.field_decodes, 1);
+                    assert_eq!(memo.field_hits, 2);
+                    assert_eq!(memo.fields.len(), 1);
+                    assert_ne!(
+                        first.get("a").unwrap().root().as_ptr(),
+                        second.get("a").unwrap().root().as_ptr(),
+                        "命中副本各自拥有非空 ref 文本，不能共享或偷走 memo 的原件"
+                    );
+                    Ok::<_, sc::CodecError>((memo.fields, first, second))
+                })
+                .unwrap();
+            let mut memo = NativeFieldMemo::new(&capture);
+            memo.fields = cached_fields;
+            let capacity = memo.fields.capacity();
+            assert!(capacity > 0);
+            let all_live = budget.live();
+            assert!(all_live > baseline);
+            if clear_first {
+                memo.clear();
+                assert!(budget.live() < all_live, "clear 销毁实际键和值后退对应许可");
+            }
+            assert_eq!(first.get("a").unwrap().root(), expected_a.view().root());
+            assert_eq!(second.get("a").unwrap().root(), expected_a.view().root());
+            let before_first_drop = budget.live();
+            drop(first);
+            let after_first_drop = budget.live();
+            assert!(after_first_drop < before_first_drop, "第一个副本独立退费");
+            assert_eq!(second.get("a").unwrap().root(), expected_a.view().root());
+            let before_second_drop = budget.live();
+            drop(second);
+            let after_second_drop = budget.live();
+            assert_eq!(
+                before_first_drop - after_first_drop,
+                before_second_drop - after_second_drop,
+                "相同字段的两次 hit 各自持有完整、等额且独立的副本许可"
+            );
+            if !clear_first {
+                memo.clear();
+                assert!(budget.live() < after_second_drop);
+            }
+            assert!(memo.fields.is_empty());
+            assert_eq!(memo.fields.capacity(), capacity, "clear 保留真实桶容量");
+            let buckets_live = budget.live();
+            assert!(buckets_live > baseline, "空缓存的活桶仍收费");
+            memo.clear();
+            assert_eq!(budget.live(), buckets_live, "重复 clear 不重复退款");
+            drop(memo);
+            assert_eq!(budget.live(), baseline, "最终桶拥有者销毁才回基线");
+        }
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_witness_memo_scoped_hits_clear_and_drop_keep_original_permits() {
+        let mut nodes = MemoryNodes::default();
+        let bars = sc::write_value(
+            &mut nodes,
+            &cv(&json!([{ "source_coord":"7", "open":"10", "high":"12",
+                "low":"9", "close":"11", "identity_key":"bar-7" }]))
+            .unwrap(),
+        )
+        .unwrap();
+        let capture = sc::AuditCapture::new(nodes);
+        let mut ordinary = super::super::history::HashReader::captured(&capture, None);
+        let expected =
+            super::super::generation::witness_identity(&mut ordinary, "obj3-scoped", 2, 7, &bars)
+                .unwrap();
+        let budget = super::super::audit_owner::native::Budget::new(8 << 20, 0).unwrap();
+        let baseline = budget.live();
+        for _ in 0..2 {
+            let mut memo = NativeWitnessIdentityMemo::new(&capture).unwrap();
+            let check = |memo: &mut NativeWitnessIdentityMemo<'_>, stored: &str| {
+                budget.codec_work().unwrap().run(|scope| {
+                    let mut reader = super::super::history::HashReader::captured(&capture, None)
+                        .with_codec_work(scope, &budget);
+                    Ok::<_, sc::CodecError>(memo.check_identity(
+                        &mut reader,
+                        stored,
+                        "obj3-scoped",
+                        2,
+                        7,
+                        &bars,
+                    ))
+                })
+            };
+            assert!(check(&mut memo, "wrong-id").unwrap().is_err());
+            assert!(memo.entries.is_empty());
+            assert_eq!(budget.live(), baseline, "失败首次计算不能留下键或文本费用");
+            check(&mut memo, &expected).unwrap().unwrap();
+            let cached_live = budget.live();
+            assert!(cached_live > baseline, "离开 scope，非空身份缓存仍持原许可");
+            assert_eq!(memo.entries.len(), 1);
+            let rendered = memo.stats.render_calls;
+            for stored in [expected.as_str(), "wrong-id", expected.as_str()] {
+                assert_eq!(
+                    check(&mut memo, stored).unwrap().is_ok(),
+                    stored == expected
+                );
+                assert_eq!(
+                    budget.live(),
+                    cached_live,
+                    "命中临时 key 和验证工作均归还，不重复持费"
+                );
+                assert_eq!(memo.entries.len(), 1);
+            }
+            assert_eq!(memo.stats.hits, 3);
+            assert_eq!(memo.stats.render_calls, rendered, "命中不重算见证身份");
+            let capacity = memo.entries.capacity();
+            memo.entries.retain(|_, _| false);
+            assert!(memo.entries.is_empty());
+            assert_eq!(memo.entries.capacity(), capacity);
+            let buckets_live = budget.live();
+            assert!(buckets_live > baseline && buckets_live < cached_live);
+            memo.entries.retain(|_, _| false);
+            assert_eq!(budget.live(), buckets_live, "空桶不能再次退款");
+            drop(memo);
+            assert_eq!(budget.live(), baseline, "键、身份文本及桶全部销毁后回基线");
+        }
+    }
+
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn native_witness_identity_exact_inputs_and_success_only() {
@@ -2862,13 +3500,19 @@ mod tests {
                 .unwrap();
             assert_eq!(memo.stats.render_calls, before + 1);
         }
-        let key = memo.key("obj3-first", 0, 1, &bars);
+        let key = memo.key(&reader, "obj3-first", 0, 1, &bars).unwrap();
         let mut changed = bars.clone();
         changed.kind = Kind::Object;
-        assert_ne!(key, memo.key("obj3-first", 0, 1, &changed));
+        assert_ne!(
+            key,
+            memo.key(&reader, "obj3-first", 0, 1, &changed).unwrap()
+        );
         changed = bars.clone();
         changed.extent = Some(999);
-        assert_ne!(key, memo.key("obj3-first", 0, 1, &changed));
+        assert_ne!(
+            key,
+            memo.key(&reader, "obj3-first", 0, 1, &changed).unwrap()
+        );
         let count = memo.entries.len();
         assert!(memo
             .check_identity(&mut reader, "unused", "bad\"id", 0, 1, &bars)
@@ -2881,7 +3525,7 @@ mod tests {
         let another = sc::AuditCapture::new(MemoryNodes::default());
         let fresh = NativeWitnessIdentityMemo::new(&another).unwrap();
         assert!(fresh.entries.is_empty());
-        assert_ne!(key, fresh.key("obj3-first", 0, 1, &bars));
+        assert_ne!(key, fresh.key(&reader, "obj3-first", 0, 1, &bars).unwrap());
     }
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
@@ -3050,7 +3694,7 @@ mod tests {
         )
         .unwrap();
         assert!(!capture.contains(&overlay.digest));
-        let expected = super::super::generation::witness_identity(
+        let expected = super::super::generation::witness_identity_native(
             &mut context.reader,
             "obj3-overlay",
             0,
@@ -3083,7 +3727,7 @@ mod tests {
         );
         assert!(NativeSourceAudit::new(&owned, RawEventsView::plain(&[])).is_err());
     }
-    fn replace_field<'a>(
+    pub(super) fn replace_field<'a>(
         s: &mut dyn NodeStore,
         r: impl Into<sc::RefView<'a>>,
         names: &[&str],
@@ -3117,7 +3761,7 @@ mod tests {
     ) -> ContentRef {
         let values = field(s, state, collection).unwrap();
         let mut elements = elements(s, &values).unwrap();
-        elements[index] = RefValue::Plain(record);
+        elements[index] = RefValue::from(record);
         replace_field(
             s,
             state,
@@ -3203,7 +3847,7 @@ mod tests {
             .iter()
             .map(|name| {
                 let r = if let Some(fields) = &fields {
-                    fields.get(name).map_err(err)?.clone()
+                    fields.get_admitted(s, name).map_err(err)?
                 } else {
                     field(s, root, name)?
                 };
@@ -3231,7 +3875,7 @@ mod tests {
                     extent: r.extent(),
                 };
                 let value = value.map(|v| match v {
-                    bj::JsonOwner::Plain(v) => v,
+                    bj::JsonOwner::Plain(v) => v.as_ref().clone(),
                     #[cfg(feature = "s_allocation_json_testonly")]
                     bj::JsonOwner::Owned(v) => serde_json::to_value(v.view())
                         .expect("test-only logical oracle serialization"),
@@ -3615,6 +4259,23 @@ mod tests {
     ) {
         sc::verify(s, state).unwrap();
         let none = audit_generated(s, state, raw, tb02a::PROFILE, rule).unwrap_err();
+        let mut original_reader = super::super::history::HashReader::metered(s, None, None, None);
+        let original = frozen_oracle::audit_generated_in_store(
+            &mut super::super::audit_store::StoreView::for_audit(&mut original_reader),
+            state.into(),
+            raw.into(),
+            tb02a::PROFILE,
+            rule,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap_err();
+        drop(original_reader);
+        assert_eq!(none, original, "#1488 旧独立 oracle 与局部核首错一致");
         let meter = Meter::default();
         let mut reader = super::super::history::HashReader::metered(s, None, None, Some(&meter));
         let some = audit_generated_metered(
@@ -3645,7 +4306,7 @@ mod tests {
         let mut parts = elements(&mut s, &refs).unwrap();
         let members = field(&mut s, &parts[0], "raw_refs").unwrap();
         // 真成员不是来源差集；不引入坏节点/缺节点，必须由差集判据拒绝。
-        parts[0] = RefValue::Plain(replace_field(
+        parts[0] = RefValue::from(replace_field(
             &mut s,
             &parts[0],
             &["merged_index", "raw_refs", "dependency_refs"],
@@ -3688,9 +4349,9 @@ mod tests {
                     return false;
                 }
                 let p = field(&mut s, r, "payload_json").unwrap();
-                RefValue::Plain(
+                RefValue::from(
                     sc::path::lookup_path_refview(&mut s, p.view(), &[PathStep::JsonText]).unwrap(),
-                ) == RefValue::Plain(payload.clone())
+                ) == RefValue::from(payload.clone())
             })
             .unwrap();
         let mut bytes = Vec::new();
@@ -4191,7 +4852,7 @@ mod closed_array_role_probe {
             deadline: None,
             fields: None,
         };
-        coords(&mut source, &RefValue::Plain(root.clone()))
+        coords(&mut source, &RefValue::from(root.clone()))
     }
 
     #[cfg(feature = "s_allocation_json_testonly")]

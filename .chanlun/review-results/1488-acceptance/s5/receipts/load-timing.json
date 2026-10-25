@@ -1,0 +1,161 @@
+[
+ {
+  "label": "n1",
+  "binary_sha256": "4d141d8fc4c9621efd2591c04d6b5a9de497fb1dfa6f6aa090f1d5bf41049882",
+  "native": true,
+  "generations": 2,
+  "failure": "第 2 条未 Committed：{\"transport\": \"DeliveryUnknown\", \"message_id\": \"message-2\", \"detail\": \"[Errno 104] Connection reset by peer\"}",
+  "loadavg_1m": {
+   "min": 7.07,
+   "median": 7.07,
+   "max": 7.07
+  },
+  "elapsed_s_total": 0.2,
+  "elapsed_s_at": {},
+  "cpu_ticks_total": 13,
+  "host_snapshots": {
+   "HOST-BEFORE.txt": [
+    "label=n1 mode=native bin=/mnt/g/AgentStorage/1488-accept/s5/bin/s_structure_session-testonly-3ee05a2713 sha256=4d141d8fc4c9621efd2591c04d6b5a9de497fb1dfa6f6aa090f1d5bf41049882 head=87d09a50ce495121babac1edc9c73d75a102206d",
+    "start=2026-10-21T01:08:35Z loadavg=7.07 6.64 6.11 6/229 2954",
+    "  PID     ELAPSED %CPU COMMAND"
+   ],
+   "HOST-AFTER.txt": [
+    "end=2026-10-21T01:08:35Z loadavg=7.07 6.64 6.11 6/229 2965 driver_rc=1",
+    "  PID     ELAPSED %CPU COMMAND",
+    " 2931       00:02 99.5 /usr/lib/git-core/git reset --hard --no-recurse-submodules --quiet"
+   ]
+  }
+ },
+ {
+  "label": "n1b",
+  "binary_sha256": "4d141d8fc4c9621efd2591c04d6b5a9de497fb1dfa6f6aa090f1d5bf41049882",
+  "native": true,
+  "generations": 86,
+  "failure": null,
+  "loadavg_1m": {
+   "min": 6.6,
+   "median": 9.344999999999999,
+   "max": 21.54
+  },
+  "elapsed_s_total": 1806.8,
+  "elapsed_s_at": {
+   "10": 0.9,
+   "20": 2.1,
+   "40": 14.8,
+   "60": 26.8,
+   "86": 30.0
+  },
+  "cpu_ticks_total": 144065,
+  "host_snapshots": {
+   "HOST-BEFORE.txt": [
+    "label=n1b mode=native bin=/mnt/g/AgentStorage/1488-accept/s5/bin/s_structure_session-testonly-3ee05a2713 sha256=4d141d8fc4c9621efd2591c04d6b5a9de497fb1dfa6f6aa090f1d5bf41049882 head=87d09a50ce495121babac1edc9c73d75a102206d",
+    "start=2026-10-21T01:10:14Z loadavg=9.66 7.70 6.54 7/239 6771",
+    "  PID     ELAPSED %CPU COMMAND"
+   ],
+   "HOST-AFTER.txt": [
+    "end=2026-10-21T01:43:20Z loadavg=9.16 10.23 10.54 5/211 15877 driver_rc=0",
+    "  PID     ELAPSED %CPU COMMAND",
+    "15475       00:35  140 /home/hanju/nc-remote/issue1629-mut/release/deps/newchan_rust-43ed63dff85c51df theta_v0::parser"
+   ]
+  }
+ },
+ {
+  "label": "p1",
+  "binary_sha256": "d2f96f044e2e4d765375d12c79d67cb480888550ddcf58b8cf68052e6333c22e",
+  "native": false,
+  "generations": 86,
+  "failure": null,
+  "loadavg_1m": {
+   "min": 4.04,
+   "median": 9.82,
+   "max": 15.37
+  },
+  "elapsed_s_total": 5519.1,
+  "elapsed_s_at": {
+   "10": 1.7,
+   "20": 14.3,
+   "40": 30.1,
+   "60": 95.1,
+   "86": 287.4
+  },
+  "cpu_ticks_total": 492799,
+  "host_snapshots": {
+   "HOST-BEFORE.txt": [
+    "label=p1 mode=ordinary bin=/mnt/g/AgentStorage/1488-accept/s5/bin/s_structure_session-prod-3ee05a2713 sha256=d2f96f044e2e4d765375d12c79d67cb480888550ddcf58b8cf68052e6333c22e head=87d09a50ce495121babac1edc9c73d75a102206d",
+    "start=2026-10-21T01:44:48Z loadavg=9.82 10.08 10.46 7/222 17598",
+    "  PID     ELAPSED %CPU COMMAND"
+   ],
+   "HOST-AFTER.txt": [
+    "end=2026-10-21T03:18:33Z loadavg=13.63 12.34 10.10 12/221 27528 driver_rc=0",
+    "  PID     ELAPSED %CPU COMMAND",
+    "26435       06:50  444 /home/hanju/nc-remote/issue1608/debug/deps/s_structure_session-6334780ee30570c4 --skip v3::financial_session"
+   ]
+  }
+ },
+ {
+  "label": "p2",
+  "binary_sha256": "d2f96f044e2e4d765375d12c79d67cb480888550ddcf58b8cf68052e6333c22e",
+  "native": false,
+  "generations": 86,
+  "failure": null,
+  "loadavg_1m": {
+   "min": 2.02,
+   "median": 10.96,
+   "max": 16.4
+  },
+  "elapsed_s_total": 5505.4,
+  "elapsed_s_at": {
+   "10": 2.5,
+   "20": 16.4,
+   "40": 34.0,
+   "60": 87.9,
+   "86": 168.7
+  },
+  "cpu_ticks_total": 498202,
+  "host_snapshots": {
+   "HOST-BEFORE.txt": [
+    "label=p2 mode=ordinary bin=/mnt/g/AgentStorage/1488-accept/s5/bin/s_structure_session-prod-3ee05a2713 sha256=d2f96f044e2e4d765375d12c79d67cb480888550ddcf58b8cf68052e6333c22e head=87d09a50ce495121babac1edc9c73d75a102206d",
+    "start=2026-10-21T03:18:36Z loadavg=13.58 12.36 10.12 12/223 27576",
+    "  PID     ELAPSED %CPU COMMAND"
+   ],
+   "HOST-AFTER.txt": [
+    "end=2026-10-21T04:51:33Z loadavg=2.00 3.23 6.44 2/186 24115 driver_rc=0",
+    "  PID     ELAPSED %CPU COMMAND",
+    "27383       27:37 52.0 /mnt/g/AgentStorage/1488-accept/a5s6/bin/s_structure_session-3ee05a2713 serve --db /home/hanju/nc-remote/1488-accept/a5s6/final2/session.sqlite --socket /tmp/a76-final2.sock --writer-epoch 1 --prof"
+   ]
+  }
+ },
+ {
+  "label": "d2",
+  "binary_sha256": "65eae4632fbf25375e9f06e740caa85cd8cacf365b8164713d0732a33a1708bd",
+  "native": true,
+  "generations": 86,
+  "failure": null,
+  "loadavg_1m": {
+   "min": 1.55,
+   "median": 3.59,
+   "max": 6.12
+  },
+  "elapsed_s_total": 1177.1,
+  "elapsed_s_at": {
+   "10": 0.8,
+   "20": 1.4,
+   "40": 11.6,
+   "60": 23.1,
+   "86": 26.2
+  },
+  "cpu_ticks_total": 117369,
+  "host_snapshots": {
+   "HOST-BEFORE.txt": [
+    "label=d2 mode=native bin=/mnt/g/AgentStorage/1488-accept/s5/bin/s_structure_session-diag2-c081bfdeee sha256=65eae4632fbf25375e9f06e740caa85cd8cacf365b8164713d0732a33a1708bd head=87d09a50ce495121babac1edc9c73d75a102206d",
+    "start=2026-10-21T04:52:23Z loadavg=3.72 3.50 6.37 3/188 24344",
+    "  PID     ELAPSED %CPU COMMAND"
+   ],
+   "HOST-AFTER.txt": [
+    "end=2026-10-21T05:14:14Z loadavg=5.79 5.44 5.29 6/195 29713 driver_rc=0",
+    "  PID     ELAPSED %CPU COMMAND",
+    "29170       08:30  386 /home/hanju/nc-remote/target-m83/debug/deps/s_structure_session-054cbefe7ff1de7c --test-threads 4"
+   ]
+  }
+ }
+]

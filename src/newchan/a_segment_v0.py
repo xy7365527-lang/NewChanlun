@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from newchan.a_stroke import Stroke
+from newchan.segment_policy import active_segment_construction
 
 
 # ====================================================================
@@ -154,6 +155,7 @@ def segments_from_strokes_v0(strokes: list[Stroke]) -> list[Segment]:
         return []
 
     segments: list[Segment] = []
+    rule = active_segment_construction()
     j = 0
 
     while j <= n - 3:
@@ -161,7 +163,9 @@ def segments_from_strokes_v0(strokes: list[Stroke]) -> list[Segment]:
         overlap_low = max(s1.low, s2.low, s3.low)
         overlap_high = min(s1.high, s2.high, s3.high)
 
-        if overlap_low < overlap_high:
+        # #1604（#1586 A-12）：相切口径读记录 `segment-second`（与 v1、Rust 同读一值，#804）；
+        # #1604 前此处写死严格 `<`（相切不算重合），与签署值 `closed` 不同——见评审记录。
+        if rule.meets(overlap_low, overlap_high):
             segments.append(_build_segment_from_strokes(strokes, j))
             j += 2
         else:

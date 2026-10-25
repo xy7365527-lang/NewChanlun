@@ -64,6 +64,7 @@ pub(super) struct IngestView {
 }
 
 impl IngestView {
+    #[cfg(test)]
     pub(super) fn state(&self) -> StoredState {
         self.state
     }

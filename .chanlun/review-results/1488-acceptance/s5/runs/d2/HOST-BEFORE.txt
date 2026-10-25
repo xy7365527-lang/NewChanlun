@@ -1,0 +1,10 @@
+label=d2 mode=native bin=/mnt/g/AgentStorage/1488-accept/s5/bin/s_structure_session-diag2-c081bfdeee sha256=65eae4632fbf25375e9f06e740caa85cd8cacf365b8164713d0732a33a1708bd head=87d09a50ce495121babac1edc9c73d75a102206d
+start=2026-10-21T04:52:23Z loadavg=3.72 3.50 6.37 3/188 24344
+  PID     ELAPSED %CPU COMMAND
+24320       00:01 97.6 python3.12 unreach_s5.py /home/hanju/nc-remote/1488-accept/s5/p2 --label p2-prod-3ee05a2713 --out receipts/unreach-p2.json
+27383       28:27 53.2 /mnt/g/AgentStorage/1488-accept/a5s6/bin/s_structure_session-3ee05a2713 serve --db /home/hanju/nc-remote/1488-accept/a5s6/final2/session.sqlite --socket /tmp/a76-final2.sock --writer-epoch 1 --prof
+27395       28:27 24.7 /mnt/g/AgentStorage/1488-accept/a5s6/bin/s_structure_session-3ee05a2713 query-serve --protocol-revision s-session/3 --db /home/hanju/nc-remote/1488-accept/a5s6/final2/session.sqlite --resource-conf
+27346       28:27  0.1 python3.12 /home/hanju/nc-remote/wt/20261021-122345-2a576099bf/.chanlun/review-results/1488-acceptance/a5s6/tools/a5s6_run.py --repo /home/hanju/nc-remote/wt/20261021-122345-2a576099bf --binary /mn
+24252       00:20  0.0 bash -s
+    1    17:24:19  0.0 /init
+    9    17:24:19  0.0 plan9 --control-socket 6 --log-level 4 --server-fd 7 --pipe-fd 9 --log-truncate

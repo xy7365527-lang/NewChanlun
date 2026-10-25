@@ -1,0 +1,60 @@
+{
+  "timestamp": "2026-10-24T10:24:02.890Z",
+  "mode": "read-only",
+  "overallStatus": "healthy",
+  "checks": [
+    {
+      "name": "wayfinder_engine",
+      "status": "healthy",
+      "logPath": "/Users/silencehan/Projects/NewChanlun/.sandcastle/logs/wayfinder-engine.stdout.log",
+      "lastActivitySec": 238,
+      "message": "日志 238s 前更新"
+    },
+    {
+      "name": "claim_loop",
+      "status": "healthy",
+      "state": "ok",
+      "running": true,
+      "hostRepo": "/Users/silencehan/Projects/NewChanlun-sandcastle-host",
+      "dirtyPaths": [],
+      "message": "进程在跑，最近一轮未 fail-closed"
+    },
+    {
+      "name": "stale_claims",
+      "status": "healthy",
+      "count": 0,
+      "stale": [],
+      "ignored": [
+        {
+          "ticket": 1206,
+          "reason": "票已 CLOSED"
+        },
+        {
+          "ticket": 1240,
+          "reason": "已无 assignee"
+        },
+        {
+          "ticket": 1394,
+          "reason": "票已 CLOSED"
+        }
+      ],
+      "message": "无 >48h 僵尸认领"
+    },
+    {
+      "name": "disk_space",
+      "status": "healthy",
+      "path": "/Volumes/AgentStorage",
+      "availableGiB": 390.1,
+      "requiredGiB": 100,
+      "message": "可用 390.1 GiB（门 100 GiB）"
+    },
+    {
+      "name": "cliproxy",
+      "status": "healthy",
+      "httpStatus": 200,
+      "models": 106,
+      "message": "GET /v1/models 200，106 个模型"
+    }
+  ],
+  "actions": []
+}

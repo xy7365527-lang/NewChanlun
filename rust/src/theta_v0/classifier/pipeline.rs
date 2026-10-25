@@ -191,6 +191,10 @@ pub(crate) fn unit_to_segment(u: &UnitRange) -> Segment {
 /// 因此同向续行后的配对、同一价格带的晚框穿越、或首个 leave/retest 已失败后出现的远期
 /// 相邻对，均不能回填旧框。
 /// 九段升级同核心不设分支：接线层给出首次绑定时冻结的完整框，天然按该框四边判定。
+#[cfg_attr(
+    not(feature = "backtest_bin"),
+    allow(dead_code, reason = "#1608：仅 backtest_bin 下的 backtest 模块消费")
+)]
 pub(crate) fn historical_bound_third_cert(
     classification: &Classification,
     tower: &[Rc<Vec<LeveledMove>>],
@@ -212,6 +216,10 @@ pub(crate) fn historical_bound_third_cert(
 }
 
 /// 把 `tower[level][idx]` 按该级生产投影的同一方向/外缘口径还原成 `Segment`。
+#[cfg_attr(
+    not(feature = "backtest_bin"),
+    allow(dead_code, reason = "#1608：仅 backtest_bin 下的 backtest 模块消费")
+)]
 fn historical_bound_segment(
     classification: &Classification,
     level_moves: &[LeveledMove],
@@ -390,16 +398,70 @@ pub struct ClassifyOutput {
     pub candidate_streams: cand_event::CandidateStreams,
     /// 各操作级别的口径 S 操作序列（同旧 `classify_with_operations`，按 `level` 升序）。
     pub operations: Vec<operation::OperationSequence>,
-    /// #1603：塔如何停下——自然终止，或达 `l_max` 资源上界截断（覆盖不完整）。
+    /// #1603：塔如何停下——自然终止，或达 `l_max` 资源上界截断（覆盖不完整）；
+    /// #1653：段账本拒读另记 [`TowerTermination::ParseInvalid`]。
     pub termination: TowerTermination,
-    /// #1603：本次输出所用的版本化记录（塔预算 + MACD 力度）。
+    /// #1603：本次输出所用的版本化记录（塔预算 + MACD 力度）；#1604 加段层两份记录
+    /// （`second-seq-scan-budget` 与 `segment-second`）。
     pub policy: TowerPolicyStamp,
+    /// #1604（#1586 C-04）：L0 段账本的扫描覆盖——尾窗 `tail_window` 挤掉可准入候选时
+    /// （`ParseLayer::segments_resource_bound_from`）记 [`SegmentCoverage::IncompleteResourceBound`]，
+    /// 与塔终止态 `termination` 正交（段层资源截断 vs 塔层资源截断 / 拒读）。
+    pub segment_coverage: SegmentCoverage,
 }
 
 impl ClassifyOutput {
     /// 塔是否在 `l_max` 资源上界处被截断（覆盖不完整）。
     pub fn is_resource_truncated(&self) -> bool {
         matches!(self.termination, TowerTermination::ResourceBound { .. })
+    }
+
+    /// L0 段账本是否被尾窗截断（#1604）：自 `from` 起的段及其上构造的中枢/走势/买卖点覆盖不完整。
+    pub fn is_segment_resource_bound(&self) -> bool {
+        matches!(
+            self.segment_coverage,
+            SegmentCoverage::IncompleteResourceBound { .. }
+        )
+    }
+}
+
+/// #1604（#1586 C-04）：L0 段账本的扫描覆盖。
+///
+/// 尾窗截断（记录 `second-seq-scan-budget` 的 `tail_window`）只标记、不拒读：段层已把截断点之后的
+/// 段与正常确认区分开（`SegmentFacts::tail_window_bound`），classifier 照常构造，但把同一标记与起点
+/// 带进输出，下游不得把 `from` 起的结构当作完整覆盖。签署值 `tail_window = 7` 下恒为 `Complete`
+/// （`tb1604_tail_window_ge3_equals_unbounded_and_tw1_is_marked`）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SegmentCoverage {
+    Complete,
+    IncompleteResourceBound {
+        /// 首个被尾窗挡掉实质候选的段起点笔号（同 `ParseLayer::segments_resource_bound_from`）。
+        from: usize,
+        /// 尾窗所出自的预算记录版本。
+        budget: crate::theta_v0::policy_records::PolicyRef,
+    },
+}
+
+impl SegmentCoverage {
+    /// 与 `TowerTermination::INCOMPLETE_RESOURCE_BOUND` 同名的覆盖标记。
+    pub const INCOMPLETE_RESOURCE_BOUND: &'static str = "INCOMPLETE_RESOURCE_BOUND";
+    pub const COMPLETE: &'static str = "COMPLETE";
+
+    pub fn of(l0: &ParseLayer, config: &ThetaConfig) -> Self {
+        match l0.segments_resource_bound_from {
+            None => SegmentCoverage::Complete,
+            Some(from) => SegmentCoverage::IncompleteResourceBound {
+                from,
+                budget: config.parse.scan_budget,
+            },
+        }
+    }
+
+    pub fn code(&self) -> &'static str {
+        match self {
+            SegmentCoverage::Complete => Self::COMPLETE,
+            SegmentCoverage::IncompleteResourceBound { .. } => Self::INCOMPLETE_RESOURCE_BOUND,
+        }
     }
 }
 
@@ -408,9 +470,15 @@ impl ClassifyOutput {
 /// 自然终止 ＝ 某级可用单元数 < `min_parts_per_level`（含空 ParseLayer、某级投影为空），塔已到顶；
 /// 资源截断 ＝ 跑完 `l_max` 级后，下一级仍有 ≥ `min_parts_per_level` 个单元可升级——塔被预算截住，
 /// 更高级别的覆盖不完整。两者不得混为一类（旧口径把后者也记作「自然终止」）。
+/// 段账本拒读 ＝ L0 带段端门 fail-closed 标记（#1581 / X-37），整层不构造（#1653：与「输入为空、
+/// 塔已到顶」的自然终止分开，下游可区分「无结构」与「结构无效」）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TowerTermination {
     Natural,
+    ParseInvalid {
+        /// 失败段起点笔号（同 `ParseLayer::segments_parse_invalid_from`）。
+        from: usize,
+    },
     ResourceBound {
         /// 截断时生效的上界。
         l_max: u32,
@@ -426,11 +494,14 @@ impl TowerTermination {
     pub const INCOMPLETE_RESOURCE_BOUND: &'static str = "INCOMPLETE_RESOURCE_BOUND";
     /// 自然终止的标记。
     pub const NATURAL: &'static str = "NATURAL";
+    /// 段账本拒读的标记（#1653）。
+    pub const PARSE_INVALID: &'static str = "PARSE_INVALID";
 
     /// 输出/报告用的标记串。
     pub fn code(&self) -> &'static str {
         match self {
             TowerTermination::Natural => Self::NATURAL,
+            TowerTermination::ParseInvalid { .. } => Self::PARSE_INVALID,
             TowerTermination::ResourceBound { .. } => Self::INCOMPLETE_RESOURCE_BOUND,
         }
     }
@@ -443,6 +514,10 @@ pub struct TowerPolicyStamp {
     pub level_budget: crate::theta_v0::policy_records::PolicyRef,
     /// `macd-force` 记录版本。
     pub macd: crate::theta_v0::policy_records::PolicyRef,
+    /// #1604：段层尾窗 / 第二序列窗口所出自的 `second-seq-scan-budget` 记录版本。
+    pub scan_budget: crate::theta_v0::policy_records::PolicyRef,
+    /// #1604：相切口径所出自的线段构造规则记录版本（`segment-second/…`）。
+    pub construction_rule: crate::theta_v0::policy_records::PolicyRef,
 }
 
 impl TowerPolicyStamp {
@@ -450,6 +525,8 @@ impl TowerPolicyStamp {
         TowerPolicyStamp {
             level_budget: config.level.budget,
             macd: config.macd.record,
+            scan_budget: config.parse.scan_budget,
+            construction_rule: config.parse.construction_rule,
         }
     }
 }
@@ -536,8 +613,11 @@ pub fn classify(l0: &ParseLayer, config: &ThetaConfig, operating_levels: &[u32])
 /// ## 边界
 ///
 /// - 空 ParseLayer（无线段）⟹ `Classification::default()` + 空 tower，cache 清空。
+/// - L0 带尾窗截断标记（`segments_resource_bound_from.is_some()`，#1604）⟹ 照常构造，输出
+///   `segment_coverage` 记 [`SegmentCoverage::IncompleteResourceBound`]（含起点与预算记录版本）。
 /// - L0 带段端门 fail-closed 标记（`segments_parse_invalid_from.is_some()`，#1581 / X-37）⟹ 拒读：
-///   `Classification::default()` + 空 tower + 空 operations，可重导缓存清空，候选事件簿只读不写。
+///   `Classification::default()` + 空 tower + 空 operations，可重导缓存清空，候选事件簿只读不写；
+///   `termination` 记 [`TowerTermination::ParseInvalid`]（#1653）。
 /// - 段账本前缩（`segments.len() < last_l0_segments_len`）⟹ cache 清空 + 全量重扫（bit-exact 退化）。
 /// - merged_bars 前缀改写（inclusion 合并回退）⟹ MACD cache 局部重建（bit-exact 退化）。
 pub fn classify_incremental(
@@ -551,16 +631,19 @@ pub fn classify_incremental(
     // 清空可重导塔缓存（下个无标记的 bar 全量重建）；不可回填的候选事件簿只读不写，本 bar 不产新事件。
     // 整层拒读而非截到失败点前：各级末端判定（活中枢、末段走势、背驰）以账本末端为「当下」，截断后
     // 仍会把失败前的结构当作当下状态输出，等于在无效划分旁构造。
-    if l0.segments_parse_invalid_from.is_some() {
+    // #1604：尾窗截断标记先于拒读判定取出，两条返回路径都带上（拒读不吞掉截断标记）。
+    let segment_coverage = SegmentCoverage::of(l0, config);
+    if let Some(from) = l0.segments_parse_invalid_from {
         cache.clear();
         return ClassifyOutput {
             classification: Classification::default(),
             tower: Vec::new(),
             candidate_streams: cache.candidate_book.streams(),
             operations: Vec::new(),
-            // 拒读不是资源截断：与空 ParseLayer 同口径记自然终止（无可构造级别）。
-            termination: TowerTermination::Natural,
+            // #1653：拒读既非资源截断也非自然终止（空输入/到顶），单列 ParseInvalid。
+            termination: TowerTermination::ParseInvalid { from },
             policy: TowerPolicyStamp::of(config),
+            segment_coverage,
         };
     }
     let (classification, tower, operations, termination) =
@@ -572,6 +655,7 @@ pub fn classify_incremental(
         operations,
         termination,
         policy: TowerPolicyStamp::of(config),
+        segment_coverage,
     }
 }
 
@@ -941,6 +1025,13 @@ fn classify_incremental_inner(
             // ★增量失效边界（设计 §1.2/§3.4）：保留 `read_end_src < e` 的前缀 P（读域上界含停止哨兵，
             // 覆盖 codex §1.2.1 反例）。win_meta 与 centers 1:1 对齐、read_end_src 升序（源单调 S1）⟹
             // partition_point 定位 P。升级子中枢共享父窗口 read_end_src ⟹ 整窗保留或整窗失效（§3.5）。
+            #[cfg_attr(
+                not(test),
+                allow(
+                    unused_mut,
+                    reason = "#1608：p 仅在 test 构建的全清对照分支（CASCADE_FULLCLEAR）被改写"
+                )
+            )]
             let mut p = lc.win_meta.partition_point(|w| w.read_end_src < dirty_e);
             // ★放行条件3 keep_frac 探针（test+eprobe，release 剥离）：真实 P/len（不再用 end_index 代理）。
             #[cfg(test)]

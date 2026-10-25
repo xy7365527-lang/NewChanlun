@@ -11,23 +11,24 @@ use super::business_json::{self as bj, RawEventsView};
 use super::business_json::{BusinessMap, JsonOwner};
 use super::*;
 use crate::v3::audit_store::{CodecRead, CodecStore};
-use content_manifest::{ManifestMetadata, ManifestRoots, SourceCommit};
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+use content_manifest::ManifestRoots;
+#[cfg(test)]
+use newchan_rust::s_content::path::lookup_path;
 use newchan_rust::s_content::{
-    self as sc,
-    path::{lookup_path, PathStep},
-    ContentRef, Kind, NodeDigest, NodeRead, NodeSink, NodeSource, Value as V,
+    self as sc, path::PathStep, ContentRef, Kind, NodeDigest, NodeRead, NodeSink, NodeSource,
+    Value as V,
 };
 use newchan_rust::sqlite_checked::CheckedStatement;
 use rusqlite::Transaction;
-use sc::capture_allocation::{
-    audit_json::{JsonView, OwnedJson},
-    OwnedBudget,
-};
+#[cfg(feature = "s_allocation_json_testonly")]
+use sc::capture_allocation::audit_json::OwnedJson;
+use sc::capture_allocation::{audit_json::JsonView, OwnedBudget};
 
 #[path = "native_record_fields.rs"]
 mod native_record_fields;
 pub(super) use native_record_fields::NativeRecordFields;
-#[cfg(test)]
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
 pub(super) use native_record_fields::{native_record_field_stats, reset_native_record_field_stats};
 
 /// Opaque per-cut proof: constructed only in this module's complete-load read-only chain.
@@ -35,8 +36,8 @@ pub(super) use native_record_fields::{native_record_field_stats, reset_native_re
 pub(crate) struct NativeCutProjection<'scope, 'connection, 'capture> {
     capture: &'capture sc::AuditCapture,
     transaction: &'scope Transaction<'connection>,
-    batch: String,
-    binding: Vec<String>,
+    batch: bj::TextValue,
+    binding: sc::CodecVec<bj::TextValue>,
     arrays: [(sc::Built, sc::Built); 5],
     snapshot_members: [sc::CodecVec<NodeDigest>; 3],
     delta_members: [sc::CodecVec<NodeDigest>; 3],
@@ -59,12 +60,12 @@ fn native_cut_binding(
     m: content_manifest::MetadataView<'_>,
     r: content_manifest::RootsView<'_>,
     previous: i64,
-) -> Result<Vec<String>, String> {
+) -> Result<sc::CodecVec<bj::TextValue>, String> {
     let c = m.source_commit;
-    let mut out = Vec::new();
+    let mut out = sc::CodecVec::default();
     // 18 个原字段、4 个十进制字段、4 份 ref 的各4字段。
     store
-        .native_vec_room(&mut out, 18 + 4 + 4 * 4)
+        .native_codec_room(&mut out, 18 + 4 + 4 * 4)
         .map_err(err)?;
     for text in [
         m.session_id,
@@ -86,14 +87,15 @@ fn native_cut_binding(
         c.producer_epoch,
         c.clock_event_id,
     ] {
-        out.push(store.native_string(text).map_err(err)?);
+        out.try_push(store.native_text(text)?).map_err(err)?;
     }
     for value in [m.generation, m.input_frontier, c.attempt_index, previous] {
-        out.push(
+        out.try_push(
             store
-                .native_string(bj::Decimal::new(value).text())
+                .native_text(bj::Decimal::new(value).text())
                 .map_err(err)?,
-        );
+        )
+        .map_err(err)?;
     }
     for v in [
         m.scope,
@@ -102,13 +104,15 @@ fn native_cut_binding(
         r.delta_template,
     ] {
         for text in [v.format(), v.root(), v.kind().name()] {
-            out.push(store.native_string(text).map_err(err)?);
+            out.try_push(store.native_text(text)?).map_err(err)?;
         }
-        out.push(
+        out.try_push(
             store
                 .native_format(format_args!("{:?}", v.extent()))
+                .map(bj::TextValue::Plain)
                 .map_err(err)?,
-        );
+        )
+        .map_err(err)?;
     }
     Ok(out)
 }
@@ -124,7 +128,7 @@ impl NativeCutProjection<'_, '_, '_> {
     ) -> Result<(), String> {
         if !std::ptr::eq(self.transaction, tx)
             || self.batch != batch
-            || self.binding != native_cut_binding(s, m, r, previous)?
+            || self.binding[..] != native_cut_binding(s, m, r, previous)?[..]
             || !s
                 .native_projection_capture()
                 .is_some_and(|c| std::ptr::eq(c, self.capture))
@@ -159,9 +163,11 @@ fn native_cut_projection<'scope, 'connection, 'capture>(
         aux_index::native_cut_members(aux, s, m.generation, true, batch)?;
     let public_array =
         |s: &mut HashReader<'_>, nodes: &[NodeDigest]| -> Result<sc::Built, String> {
-            let mut values = Vec::new();
+            let mut values = sc::CodecVec::default();
             s.native_vec_room(&mut values, nodes.len()).map_err(err)?;
-            values.extend(nodes.iter().copied().map(sc::ValueView::Edge));
+            for digest in nodes {
+                values.try_push(sc::ValueView::Edge(*digest)).map_err(err)?;
+            }
             s.write_template_view(sc::ValueView::Array(&values))
                 .map_err(err)
         };
@@ -170,7 +176,7 @@ fn native_cut_projection<'scope, 'connection, 'capture>(
     Ok(Some(NativeCutProjection {
         capture,
         transaction: tx,
-        batch: s.native_string(batch).map_err(err)?,
+        batch: s.native_text(batch)?,
         binding: native_cut_binding(s, m, roots, previous)?,
         arrays: [
             o[0].clone(),
@@ -207,9 +213,25 @@ pub(super) struct IndexedHistory {
 /// R 是已取得并核 raw/wire 摘要的行数；F 是最后已发布 cut 真正消费的前缀。
 /// 两者不能混为一个进度，未发布尾不会进入旧 cut 的前缀树。
 pub(super) struct NativeRawPrefixes {
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     raw_nodes: sc::CodecVec<NodeDigest>,
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     raw_wire_nodes: sc::CodecVec<NodeDigest>,
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     prefixes: NativeHistoryPrefixes,
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     ordered: bj::RawPrefixFacts,
 }
 impl NativeRawPrefixes {
@@ -246,8 +268,16 @@ impl NativeRawPrefixes {
         }
         let old = [self.raw_nodes.capacity(), self.raw_wire_nodes.capacity()];
         let append = raw.len() - self.raw_nodes.len();
-        native.codec_vec_grow(&mut self.raw_nodes, append)?;
-        native.codec_vec_grow(&mut self.raw_wire_nodes, append)?;
+        // #1488 U2：不追认冷构造遗留的前缀容量；未持本父票者先取新块许可再分配，
+        // 摘要移入后旧块析构，许可随容器移动。已由本父出生者只核身份。
+        native.rebirth_codec_vec(&mut self.raw_nodes, work, append)?;
+        native.rebirth_codec_vec(&mut self.raw_wire_nodes, work, append)?;
+        self.raw_nodes
+            .try_reserve_native(work, append)
+            .map_err(err)?;
+        self.raw_wire_nodes
+            .try_reserve_native(work, append)
+            .map_err(err)?;
         for event in raw.iter().skip(self.raw_nodes.len()) {
             self.raw_nodes
                 .try_push(hash_json_in_store(&store, event, None, None)?)
@@ -262,15 +292,24 @@ impl NativeRawPrefixes {
         retained.vec_capacity::<NodeDigest>(old[1], self.raw_wire_nodes.capacity());
         retained.apply(0)
     }
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    )]
     pub(super) fn checked_len(&self) -> usize {
         self.raw_nodes.len()
     }
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    )]
     pub(super) fn published_len(&self) -> u64 {
         self.prefixes.raw.count
     }
 }
 
 /// 全局控制史和原始账必须先由相应正本检查取得；本口消费每代控制头并验证完整闭包。
+#[cfg(test)]
 pub(super) fn read_history(
     tx: &Transaction<'_>,
     raw: &[Value],
@@ -279,6 +318,7 @@ pub(super) fn read_history(
     read_history_until(tx, raw, control, None)
 }
 
+#[cfg(test)]
 pub(super) fn read_history_until(
     tx: &Transaction<'_>,
     raw: &[Value],
@@ -288,6 +328,7 @@ pub(super) fn read_history_until(
     read_history_bounded(tx, raw, control, deadline, None)
 }
 
+#[cfg(test)]
 pub(super) fn read_history_bounded(
     tx: &Transaction<'_>,
     raw: &[Value],
@@ -297,6 +338,7 @@ pub(super) fn read_history_bounded(
 ) -> Result<sc::CodecVec<PublishedCut>, String> {
     read_history_metered(tx, raw, control, deadline, max_render_bytes, None)
 }
+#[cfg(test)]
 pub(super) fn read_history_metered(
     tx: &Transaction<'_>,
     raw: &[Value],
@@ -310,6 +352,7 @@ pub(super) fn read_history_metered(
 }
 
 /// 完整状态审计复用这里已核的同代索引，避免在相同SQLite事务中第二次加载及绑定原件。
+#[cfg(test)]
 pub(super) fn read_indexed_history(
     tx: &Transaction<'_>,
     raw: &[Value],
@@ -333,6 +376,10 @@ pub(super) fn read_indexed_history(
     )
 }
 
+#[cfg_attr(
+    not(all(test, feature = "s_capture_native_testonly")),
+    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+)]
 pub(super) fn read_indexed_history_for_audit(
     tx: &Transaction<'_>,
     raw: &[Value],
@@ -356,6 +403,10 @@ pub(super) fn read_indexed_history_for_audit(
     )
 }
 
+#[cfg_attr(
+    not(all(test, feature = "s_capture_native_testonly")),
+    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+)]
 pub(super) fn read_indexed_history_for_audit_captured<'a>(
     tx: &Transaction<'_>,
     raw: impl Into<RawEventsView<'a>>,
@@ -377,6 +428,10 @@ pub(super) fn read_indexed_history_for_audit_captured<'a>(
     )
 }
 
+#[cfg_attr(
+    not(all(test, feature = "s_capture_native_testonly")),
+    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+)]
 pub(super) fn read_indexed_history_for_audit_captured_with_records<'a>(
     tx: &Transaction<'_>,
     raw: impl Into<RawEventsView<'a>>,
@@ -400,6 +455,10 @@ pub(super) fn read_indexed_history_for_audit_captured_with_records<'a>(
     )
 }
 
+#[cfg_attr(
+    not(all(test, feature = "s_capture_native_testonly")),
+    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+)]
 pub(super) fn read_indexed_history_for_audit_captured_with_records_admitted<'a>(
     tx: &Transaction<'_>,
     raw: impl Into<RawEventsView<'a>>,
@@ -701,7 +760,7 @@ fn audit_one_published_cut<'capture>(
                 roots.view(),
             )
             .map_err(err)?;
-            (u.value, TextValue::Plain(u.batch_id))
+            (u.value, u.batch_id)
         }
     };
     if value.digest != manifest.digest().map_err(err)?
@@ -790,7 +849,9 @@ fn audit_one_published_cut<'capture>(
     }
     let (withdrawals, replaces) = match &object_sweep {
         Some(sweep) => sweep.changes_admitted(store, objects.entries(), generation)?,
-        None => object_index::changes_at_budgeted(objects.entries(), generation, allocation)?,
+        None => {
+            object_index::changes_at_admitted(store, objects.entries(), generation, allocation)?
+        }
     };
     let mut wire_withdrawals = bj::WithdrawalArray(bj::new_work(allocation));
     for v in withdrawals
@@ -1182,6 +1243,10 @@ fn verify_current_frontiers(
     Ok(())
 }
 /// 当前事务重新消费控制头；缓存没有已消费ControlHistory或提交许可。
+#[allow(
+    dead_code,
+    reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删"
+)]
 pub(super) fn revalidate_current_for_reuse(
     tx: &Transaction<'_>,
     raw: RawEventsView<'_>,
@@ -1192,6 +1257,10 @@ pub(super) fn revalidate_current_for_reuse(
     revalidate_current_for_reuse_admitted(tx, raw, control, capture, cuts, None)
 }
 
+#[cfg_attr(
+    not(feature = "s_capture_native_testonly"),
+    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+)]
 pub(super) fn revalidate_current_for_reuse_admitted(
     tx: &Transaction<'_>,
     raw: RawEventsView<'_>,
@@ -1406,7 +1475,7 @@ fn history_decode(bytes: &[u8], allocation: Option<&OwnedBudget>) -> Result<Json
     if allocation.is_some() {
         return Err(err("owned历史JSON入口未启用"));
     }
-    strict_json(bytes).map(JsonOwner::Plain)
+    strict_json(bytes).map(|value| JsonOwner::Plain(value.into()))
 }
 fn history_canonical_equal(
     view: JsonView<'_>,
@@ -1534,6 +1603,7 @@ fn decode_manifest(
     ))
 }
 
+#[cfg(test)]
 fn root(s: &mut (impl CodecRead + ?Sized), bytes: Vec<u8>) -> Result<ContentRef, String> {
     let digest: NodeDigest = bytes.try_into().map_err(|_| err("根不是32字节"))?;
     s.content_ref_of(&sc::root_string(&digest)).map_err(err)
@@ -1545,6 +1615,10 @@ fn field<'a>(
 ) -> Result<RefValue, String> {
     field_meta(s, r.into(), k)
 }
+#[cfg_attr(
+    not(all(test, feature = "s_capture_native_testonly")),
+    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+)]
 fn text<'a>(
     s: &mut (impl CodecRead + ?Sized),
     r: impl Into<sc::RefView<'a>>,
@@ -1552,6 +1626,10 @@ fn text<'a>(
 ) -> Result<TextValue, String> {
     text_meta(s, r.into(), k)
 }
+#[allow(
+    dead_code,
+    reason = "#1608：私有辅助函数，当前无调用方；先量再动，保留不删"
+)]
 fn integer<'a>(
     s: &mut (impl CodecRead + ?Sized),
     r: impl Into<sc::RefView<'a>>,
@@ -1585,9 +1663,11 @@ fn same_json<'r, 'j>(
     same_digest(s, r, k, expected)
 }
 
+#[cfg(test)]
 fn cv(v: &Value) -> Result<V, String> {
     cv_until(v, None)
 }
+#[cfg(test)]
 fn cv_until(v: &Value, deadline: Option<std::time::Instant>) -> Result<V, String> {
     check_deadline(deadline)?;
     Ok(match v {
@@ -1624,15 +1704,33 @@ impl NodeSink for Discard<'_> {
         Ok(())
     }
 }
+#[allow(
+    dead_code,
+    reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删"
+)]
 fn hash_json(v: &Value) -> Result<NodeDigest, String> {
     hash_json_until(v, None)
 }
+#[cfg_attr(
+    not(test),
+    allow(
+        dead_code,
+        reason = "#1608：仅测试使用（非测试构建中只被已豁免的未用项调用）"
+    )
+)]
 pub(super) fn hash_json_until(
     v: &Value,
     deadline: Option<std::time::Instant>,
 ) -> Result<NodeDigest, String> {
     hash_json_metered(v, deadline, None)
 }
+#[cfg_attr(
+    not(test),
+    allow(
+        dead_code,
+        reason = "#1608：仅测试使用（非测试构建中只被已豁免的未用项调用）"
+    )
+)]
 pub(super) fn hash_json_metered<'a>(
     v: impl Into<sc::capture_allocation::audit_json::JsonView<'a>>,
     deadline: Option<std::time::Instant>,
@@ -1682,15 +1780,18 @@ fn hash_json_with_owner(
         .map_err(err)
 }
 
+#[cfg(test)]
 fn hash_array(nodes: &[NodeDigest]) -> Result<NodeDigest, String> {
     hash_array_until(nodes, None)
 }
+#[cfg(test)]
 fn hash_array_until(
     nodes: &[NodeDigest],
     deadline: Option<std::time::Instant>,
 ) -> Result<NodeDigest, String> {
     hash_array_metered(nodes, deadline, None, false)
 }
+#[cfg(test)]
 fn hash_array_metered(
     nodes: &[NodeDigest],
     deadline: Option<std::time::Instant>,
@@ -1699,6 +1800,7 @@ fn hash_array_metered(
 ) -> Result<NodeDigest, String> {
     hash_array_metered_with_owner(nodes, deadline, budget, records, None)
 }
+#[cfg(test)]
 fn hash_array_metered_with_owner(
     nodes: &[NodeDigest],
     deadline: Option<std::time::Instant>,
@@ -1757,7 +1859,7 @@ fn hash_array_metered_with_work(
 #[derive(Default)]
 struct PrefixArray {
     count: u64,
-    stack: Vec<(u64, NodeDigest)>,
+    stack: sc::CodecVec<(u64, NodeDigest)>,
 }
 impl PrefixArray {
     fn branch(left: &NodeDigest, right: &NodeDigest, count: u64) -> Result<NodeDigest, String> {
@@ -1773,7 +1875,9 @@ impl PrefixArray {
             .checked_add(1)
             .ok_or_else(|| err("前缀叶数溢出"))?;
         sc::checked_frame_len(next).map_err(err)?;
-        self.stack.push((1, sc::frame(sc::tag::SEQ_LEAF, &digest)));
+        self.stack
+            .try_push((1, sc::frame(sc::tag::SEQ_LEAF, &digest)))
+            .map_err(err)?;
         while self.stack.len() >= 2 {
             let (right_count, right) = self.stack[self.stack.len() - 1];
             let (left_count, left) = self.stack[self.stack.len() - 2];
@@ -1785,7 +1889,7 @@ impl PrefixArray {
                 .ok_or_else(|| err("前缀分支叶数溢出"))?;
             let digest = Self::branch(&left, &right, count)?;
             self.stack.truncate(self.stack.len() - 2);
-            self.stack.push((count, digest));
+            self.stack.try_push((count, digest)).map_err(err)?;
         }
         self.count = next;
         Ok(())
@@ -1909,10 +2013,24 @@ fn record_history_prefix_leaves(index: usize, count: u64) {
     });
 }
 #[cfg(test)]
+#[cfg_attr(
+    not(feature = "s_capture_native_testonly"),
+    allow(
+        dead_code,
+        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+    )
+)]
 fn reset_history_prefix_leaves() {
     HISTORY_PREFIX_LEAVES.with(|stats| stats.set([0; 6]));
 }
 #[cfg(test)]
+#[cfg_attr(
+    not(feature = "s_capture_native_testonly"),
+    allow(
+        dead_code,
+        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+    )
+)]
 fn history_prefix_leaves() -> [u64; 6] {
     HISTORY_PREFIX_LEAVES.with(std::cell::Cell::get)
 }
@@ -1946,14 +2064,14 @@ impl NodeSource for ReadOwner<'_> {
 }
 
 enum OverlayOwner {
-    Dynamic(BTreeMap<NodeDigest, (u8, Vec<u8>)>),
+    Dynamic(super::audit_store::NativeTree<NodeDigest, (u8, sc::CodecVec<u8>)>),
     #[cfg(test)]
     Bounded(sc::capture_allocation::overlay::OverlaySlab),
 }
 impl OverlayOwner {
     fn get(&self, digest: &NodeDigest) -> Option<(u8, &[u8])> {
         match self {
-            Self::Dynamic(m) => m.get(digest).map(|(t, b)| (*t, b.as_slice())),
+            Self::Dynamic(m) => m.get(digest).map(|(t, b)| (*t, b.as_ref())),
             #[cfg(test)]
             Self::Bounded(s) => s.original(digest),
         }
@@ -1970,32 +2088,11 @@ impl OverlayOwner {
     ) -> Result<(), sc::CodecError> {
         match self {
             Self::Dynamic(m) => {
-                let permit = if let Some(work) = work {
-                    let levels = usize::BITS as usize - (m.len() + 1).leading_zeros() as usize + 2;
-                    let node = 11 * std::mem::size_of::<(NodeDigest, (u8, Vec<u8>))>()
-                        + 16 * std::mem::size_of::<usize>();
-                    let bytes = node
-                        .checked_mul(levels)
-                        .and_then(|n| n.checked_add(b.len()))
-                        .ok_or_else(|| {
-                            work.reject(sc::capture_allocation::scratch::ScratchFailure::Budget)
-                        })?;
-                    Some(work.reserve_native(bytes)?)
-                } else {
-                    None
-                };
-                let mut body = Vec::new();
-                body.try_reserve_exact(b.len()).map_err(|_| {
-                    work.map_or_else(
-                        || sc::CodecError::new(sc::capture_allocation::LIMIT, "overlay分配失败"),
-                        |w| w.reject(sc::capture_allocation::scratch::ScratchFailure::Allocation),
-                    )
-                })?;
-                body.extend_from_slice(b);
-                m.insert(d, (t, body));
-                if let Some(permit) = permit {
-                    permit.retain();
-                }
+                let admission = super::audit_store::NativeAdmission(work);
+                let mut body = sc::CodecVec::default();
+                admission.native_codec_room(&mut body, b.len())?;
+                body.try_extend_bytes(b)?;
+                m.insert_admitted(d, (t, body), &admission)?;
                 Ok(())
             }
             #[cfg(test)]
@@ -2015,7 +2112,21 @@ impl OverlayOwner {
 pub(super) struct OverlayPrototype {
     pub slots: usize,
     pub bytes: usize,
+    #[cfg_attr(
+        not(test),
+        allow(
+            dead_code,
+            reason = "#1608：非测试构建不读此字段，测试经 OverlayPrototype 读取"
+        )
+    )]
     pub budget: sc::capture_allocation::OwnedBudget,
+    #[cfg_attr(
+        not(test),
+        allow(
+            dead_code,
+            reason = "#1608：非测试构建不读此字段，测试经 OverlayPrototype 读取"
+        )
+    )]
     pub peaks: std::rc::Rc<std::cell::Cell<(usize, usize)>>,
 }
 #[cfg(any(test, feature = "s_allocation_json_testonly"))]
@@ -2174,7 +2285,7 @@ impl<'a> HashReader<'a> {
     ) -> Self {
         self.with_audit_gate(None, Some(deadline))
     }
-    pub(crate) fn with_audit_gate(
+    pub(super) fn with_audit_gate(
         mut self,
         budget: Option<&'a dyn super::audit_budget::Budget>,
         deadline: Option<std::time::Instant>,
@@ -2189,7 +2300,7 @@ impl<'a> HashReader<'a> {
         self.sync_owned();
         self
     }
-    pub(crate) fn for_audited(
+    pub(super) fn for_audited(
         source: &'a mut dyn NodeSource,
         audited: &super::state::AuditedState,
         capture: Option<&'a sc::AuditCapture>,
@@ -2324,11 +2435,13 @@ impl<'a> HashReader<'a> {
             #[cfg(any(test, feature = "s_allocation_json_testonly"))]
             if let Some(c) = OVERLAY_PROTOTYPE.with(|v| v.borrow().clone()) {
                 let mut reader = Self::captured(capture, max_render_bytes);
-                let mut owned = capture.closed_codec_for_allocation_prototype(
+                let owned = capture.closed_codec_for_allocation_prototype(
                     c.slots,
                     c.bytes,
                     max_render_bytes,
                 )?;
+                #[cfg(test)]
+                let mut owned = owned;
                 #[cfg(test)]
                 owned.set_trace_callbacks(
                     Some(super::state::trace_read),
@@ -2369,7 +2482,7 @@ impl<'a> HashReader<'a> {
     pub(super) fn captured(capture: &'a sc::AuditCapture, max_render_bytes: Option<u64>) -> Self {
         Self {
             source: ReadOwner::Captured(capture),
-            overlay: OverlayOwner::Dynamic(BTreeMap::new()),
+            overlay: OverlayOwner::Dynamic(Default::default()),
             owned: None,
             work: None,
             #[cfg(feature = "s_capture_native_testonly")]
@@ -2408,9 +2521,17 @@ impl<'a> HashReader<'a> {
             self.overlay.clear();
         }
     }
+    #[cfg(test)]
     pub(crate) fn verify_public(&mut self, r: &ContentRef) -> Result<(), sc::CodecError> {
         self.verify_mode(r, sc::Mode::Public)
     }
+    #[cfg_attr(
+        not(test),
+        allow(
+            dead_code,
+            reason = "#1608：仅测试使用（非测试构建中只被已豁免的未用项调用）"
+        )
+    )]
     fn verify_mode(&mut self, r: &ContentRef, mode: sc::Mode) -> Result<(), sc::CodecError> {
         self.sync_owned();
         if let Some(owner) = &mut self.owned {
@@ -2425,6 +2546,10 @@ impl<'a> HashReader<'a> {
         }
         sc::audit_verify(self, r, mode)
     }
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    )]
     pub(crate) fn verify_many(
         &mut self,
         refs: impl IntoIterator<Item = ContentRef>,
@@ -2451,7 +2576,7 @@ impl<'a> HashReader<'a> {
     pub(super) fn new(source: &'a mut dyn NodeSource) -> Self {
         Self {
             source: ReadOwner::Dynamic(source),
-            overlay: OverlayOwner::Dynamic(BTreeMap::new()),
+            overlay: OverlayOwner::Dynamic(Default::default()),
             owned: None,
             work: None,
             #[cfg(feature = "s_capture_native_testonly")]
@@ -2462,13 +2587,14 @@ impl<'a> HashReader<'a> {
             audit_full_arrays: false,
         }
     }
+    #[cfg(test)]
     pub(super) fn until(
         source: &'a mut dyn NodeSource,
         deadline: Option<std::time::Instant>,
     ) -> Self {
         Self {
             source: ReadOwner::Dynamic(source),
-            overlay: OverlayOwner::Dynamic(BTreeMap::new()),
+            overlay: OverlayOwner::Dynamic(Default::default()),
             owned: None,
             work: None,
             #[cfg(feature = "s_capture_native_testonly")]
@@ -2479,6 +2605,7 @@ impl<'a> HashReader<'a> {
             audit_full_arrays: false,
         }
     }
+    #[cfg(test)]
     pub(super) fn bounded(
         source: &'a mut dyn NodeSource,
         deadline: Option<std::time::Instant>,
@@ -2486,7 +2613,7 @@ impl<'a> HashReader<'a> {
     ) -> Self {
         Self {
             source: ReadOwner::Dynamic(source),
-            overlay: OverlayOwner::Dynamic(BTreeMap::new()),
+            overlay: OverlayOwner::Dynamic(Default::default()),
             owned: None,
             work: None,
             #[cfg(feature = "s_capture_native_testonly")]
@@ -2505,7 +2632,7 @@ impl<'a> HashReader<'a> {
     ) -> Self {
         Self {
             source: ReadOwner::Dynamic(source),
-            overlay: OverlayOwner::Dynamic(BTreeMap::new()),
+            overlay: OverlayOwner::Dynamic(Default::default()),
             owned: None,
             work: None,
             #[cfg(feature = "s_capture_native_testonly")]
@@ -2541,6 +2668,9 @@ impl NodeSource for HashReader<'_> {
         }
     }
     fn read(&mut self, d: &NodeDigest) -> Result<NodeRead, sc::CodecError> {
+        self.read_scoped(d)?.into_plain()
+    }
+    fn read_scoped(&mut self, d: &NodeDigest) -> Result<sc::job::ScopedNodeRead, sc::CodecError> {
         if self.owned.is_some() {
             return Err(sc::CodecError::new(
                 sc::capture_allocation::INCOMPLETE,
@@ -2551,7 +2681,7 @@ impl NodeSource for HashReader<'_> {
         if let Some(b) = self.budget {
             b.precheck()?;
         }
-        let value = if let Some((tag, body)) = self.overlay.get(d) {
+        let (value, permit) = if let Some((tag, body)) = self.overlay.get(d) {
             #[cfg(test)]
             super::state::trace_read(true);
             let permit = self.reserve_copy(body.len())?;
@@ -2559,19 +2689,13 @@ impl NodeSource for HashReader<'_> {
                 tag,
                 body: body.to_vec(),
             };
-            if let Some(permit) = permit {
-                permit.retain();
-            }
-            result
+            (result, permit)
         } else {
             #[cfg(test)]
             super::state::trace_read(false);
             let permit = self.reserve_source_copy(d)?;
             let result = self.source.read(d)?;
-            if let Some(permit) = permit {
-                permit.retain();
-            }
-            result
+            (result, permit)
         };
         if let Some(b) = self.budget {
             if let NodeRead::Found { tag, body } = &value {
@@ -2579,7 +2703,7 @@ impl NodeSource for HashReader<'_> {
             }
             b.precheck()?;
         }
-        Ok(value)
+        Ok(sc::job::ScopedNodeRead::from_plain(value, permit))
     }
 
     fn checked_read(
@@ -2587,7 +2711,7 @@ impl NodeSource for HashReader<'_> {
         d: &NodeDigest,
     ) -> Result<Option<sc::job::CheckedFrame>, sc::CodecError> {
         self.checked_read_scoped(d)
-            .map(|frame| frame.map(sc::job::ScopedFrame::into_frame))
+            .and_then(|frame| frame.map(sc::job::ScopedFrame::into_frame).transpose())
     }
     fn checked_read_scoped(
         &mut self,
@@ -2710,33 +2834,11 @@ impl NodeSink for HashReader<'_> {
 }
 
 impl CodecRead for HashReader<'_> {
-    fn parse_rendered_plain(&self, bytes: &[u8]) -> Result<serde_json::Value, String> {
-        #[cfg(feature = "s_capture_native_testonly")]
-        if let (Some(work), Some(native)) = (self.work, self.native_budget) {
-            use super::audit_owner::native::JsonShape;
-            use super::audit_retention::Retained;
-            let permit = native
-                .reserve(JsonShape::scan(bytes).parse_peak())
-                .map_err(|_| {
-                    work.reject(sc::capture_allocation::scratch::ScratchFailure::Budget)
-                        .to_string()
-                })?;
-            let value = newchan_rust::session_protocol::strict_json(bytes)?;
-            // 业务输出仍 Plain。保守保留这笔载荷费到本次父账销毁；不计入 scratch。
-            permit.commit(0, value.heap_bytes());
-            return Ok(value);
-        }
-        #[cfg(feature = "s_capture_native_testonly")]
-        if let Some(work) = self.work {
-            // 已有native::Budget专用口在上面精确结算；scope-only冷口保守留解析峰。
-            let permit = work
-                .reserve_native(super::audit_owner::native::JsonShape::scan(bytes).parse_peak())
-                .map_err(err)?;
-            let value = newchan_rust::session_protocol::strict_json(bytes)?;
-            permit.retain();
-            return Ok(value);
-        }
-        newchan_rust::session_protocol::strict_json(bytes)
+    fn parse_rendered_plain(
+        &self,
+        bytes: &[u8],
+    ) -> Result<super::business_json::PlainJson, String> {
+        super::business_json::strict_plain_json_admitted(bytes, self.work)
     }
 
     fn lookup_array_ref(
@@ -2753,21 +2855,9 @@ impl CodecRead for HashReader<'_> {
             }
             Ok(out)
         } else {
-            let refs = sc::path::lookup_array_items_refview(self, r)?;
+            let refs = sc::path::lookup_array_items_native(self, r)?;
             let mut out = sc::CodecVec::from_plain(Vec::new());
-            if let Some(work) = self.work {
-                let bytes = refs
-                    .len()
-                    .checked_mul(std::mem::size_of::<RefValue>())
-                    .ok_or_else(|| {
-                        work.reject(sc::capture_allocation::scratch::ScratchFailure::Budget)
-                    })?;
-                let permit = work.reserve_native(bytes)?;
-                out.try_reserve_exact(refs.len()).map_err(|_| {
-                    work.reject(sc::capture_allocation::scratch::ScratchFailure::Allocation)
-                })?;
-                permit.retain();
-            }
+            self.native_codec_room(&mut out, refs.len())?;
             for r in refs {
                 out.try_push(super::audit_store::RefValue::Plain(r))?;
             }
@@ -2786,9 +2876,9 @@ impl CodecRead for HashReader<'_> {
             Some(o) => o
                 .content_ref_owned(r)
                 .map(super::audit_store::RefValue::Owned),
-            None => self
-                .content_ref_of(r)
-                .map(super::audit_store::RefValue::Plain),
+            None => {
+                sc::path::content_ref_of_native(self, r).map(super::audit_store::RefValue::Plain)
+            }
         }
     }
     fn lookup_ref(
@@ -2802,7 +2892,7 @@ impl CodecRead for HashReader<'_> {
                 .lookup_path_owned(r, p)
                 .map(super::audit_store::RefValue::Owned),
             None => {
-                sc::path::lookup_path_refview(self, r, p).map(super::audit_store::RefValue::Plain)
+                sc::path::lookup_path_native(self, r, p).map(super::audit_store::RefValue::Plain)
             }
         }
     }
@@ -2816,7 +2906,7 @@ impl CodecRead for HashReader<'_> {
             Some(o) => o
                 .lookup_path_view_owned(r, &BorrowedFieldPath(key))
                 .map(RefValue::Owned),
-            None => sc::path::lookup_path_view_refview(self, r, &BorrowedFieldPath(key))
+            None => sc::path::lookup_path_view_native(self, r, &BorrowedFieldPath(key))
                 .map(RefValue::Plain),
         }
     }
@@ -2830,7 +2920,7 @@ impl CodecRead for HashReader<'_> {
             Some(owner) => owner
                 .lookup_optional_field_owned(r, key)
                 .map(|value| value.map(RefValue::Owned)),
-            None => sc::path::lookup_optional_field_refview(self, r, key)
+            None => sc::path::lookup_optional_field_native(self, r, key)
                 .map(|value| value.map(RefValue::Plain)),
         }
     }
@@ -2844,7 +2934,7 @@ impl CodecRead for HashReader<'_> {
             Some(o) => o
                 .lookup_object_fields_owned(r, n)
                 .map(super::audit_store::RefFields::Owned),
-            None => sc::path::lookup_fields_refview(self, r, n, false)
+            None => sc::path::lookup_fields_native(self, r, n, false)
                 .map(super::audit_store::RefFields::Plain),
         }
     }
@@ -2858,7 +2948,7 @@ impl CodecRead for HashReader<'_> {
             Some(o) => o
                 .lookup_object_fields_subset_owned(r, n)
                 .map(super::audit_store::RefFields::Owned),
-            None => sc::path::lookup_fields_refview(self, r, n, true)
+            None => sc::path::lookup_fields_native(self, r, n, true)
                 .map(super::audit_store::RefFields::Plain),
         }
     }
@@ -3071,7 +3161,7 @@ impl CodecStore for HashReader<'_> {
             Some(o) => o
                 .replace_batch_placeholder_owned(r, p, batch)
                 .map(super::audit_store::RefValue::Owned),
-            None => sc::path::replace_batch_placeholder_refview(self, r, p, batch)
+            None => sc::path::replace_batch_placeholder_native(self, r, p, batch)
                 .map(super::audit_store::RefValue::Plain),
         }
     }
@@ -3187,7 +3277,7 @@ mod tests {
         assert_eq!(jumps.root_at(9011).unwrap(), hash_array(&nodes).unwrap());
         let mut overflow = PrefixArray {
             count: sc::MAX_FRAME_LEN,
-            stack: Vec::new(),
+            stack: sc::CodecVec::default(),
         };
         assert!(overflow.append([0; 32]).is_err());
         assert_eq!(overflow.count, sc::MAX_FRAME_LEN);
@@ -4268,7 +4358,7 @@ mod tests {
                     (0..17)
                         .map(|i| {
                             lookup_path(&mut reader, &root, &[PathStep::Index(i)])
-                                .map(crate::v3::audit_store::RefValue::Plain)
+                                .map(crate::v3::audit_store::RefValue::from)
                                 .map_err(|e| format!("SourceAuditInvalid：{e}"))
                         })
                         .collect::<Result<Vec<_>, _>>()
@@ -5315,6 +5405,14 @@ mod tests {
     #[test]
     fn native_dual_actual_template_negative_matrix() {
         // Component-level valid-Merkle negatives, not service/e2e acceptance.
+        fn clone_ref(value: &RefValue) -> RefValue {
+            super::super::audit_store::NativeAdmission(None)
+                .native_ref_clone(value)
+                .unwrap()
+        }
+        fn clone_refs(values: &[RefValue]) -> Vec<RefValue> {
+            values.iter().map(clone_ref).collect()
+        }
         fn normal(r: sc::RefView<'_>) -> ContentRef {
             sc::Built {
                 digest: r.digest().unwrap(),
@@ -5491,8 +5589,8 @@ mod tests {
             "batch_id",
             sc::ValueView::String(&batch),
         );
-        let mut changed = born.clone();
-        changed[0] = RefValue::Plain(born_string);
+        let mut changed = clone_refs(&born);
+        changed[0] = RefValue::from(born_string);
         let changed_array = array(&mut sql, &changed);
         let mut case = original.clone();
         case.delta_template = replace(
@@ -5510,8 +5608,8 @@ mod tests {
             "batch_id",
             sc::ValueView::BatchSelf,
         );
-        let mut changed = items.clone();
-        changed[old] = RefValue::Plain(old_placeholder);
+        let mut changed = clone_refs(&items);
+        changed[old] = RefValue::from(old_placeholder);
         let changed_array = array(&mut sql, &changed);
         let mut case = original.clone();
         case.publication_template = replace(
@@ -5547,8 +5645,8 @@ mod tests {
             wrong_position,
             sc::ValueView::BatchSelf,
         );
-        let mut changed = born.clone();
-        changed[0] = RefValue::Plain(wrong);
+        let mut changed = clone_refs(&born);
+        changed[0] = RefValue::from(wrong);
         let changed_array = array(&mut sql, &changed);
         let mut case = original.clone();
         case.delta_template = replace(
@@ -5561,13 +5659,13 @@ mod tests {
         cases.push(("non-batch-position-placeholder", case));
         for (label, changed) in [
             ("duplicate-member", {
-                let mut v = items.clone();
-                v[1] = v[0].clone();
+                let mut v = clone_refs(&items);
+                v[1] = clone_ref(&v[0]);
                 v
             }),
-            ("missing-member", items[1..].to_vec()),
+            ("missing-member", clone_refs(&items[1..])),
             ("reordered-members", {
-                let mut v = items.clone();
+                let mut v = clone_refs(&items);
                 v.swap(0, 1);
                 v
             }),
@@ -6534,6 +6632,7 @@ fn verify_required_meta_admitted(
 ) -> Result<i64, String> {
     use super::audit_owner::native::JsonShape;
     let admission = super::audit_store::NativeAdmission(Some(work));
+    let mut reserved_bytes = 0usize;
     for key in [
         "session_id",
         "writer_epoch",
@@ -6549,30 +6648,36 @@ fn verify_required_meta_admitted(
         stmt.bind_text(1, key).map_err(err)?;
         if let Some(mut row) = stmt.next().map_err(err)? {
             let text = row.text(0).map_err(err)?;
-            admission.native_admit(text.len()).map_err(err)?;
+            reserved_bytes = reserved_bytes
+                .checked_add(text.len())
+                .ok_or_else(|| err(admission.native_overflow()))?;
             if key == "scope" {
-                admission
-                    .native_admit(JsonShape::scan(text.as_bytes()).parse_peak())
-                    .map_err(err)?;
+                reserved_bytes = reserved_bytes
+                    .checked_add(JsonShape::scan(text.as_bytes()).parse_peak())
+                    .ok_or_else(|| err(admission.native_overflow()))?;
             }
         }
         stmt.finalize().map_err(err)?;
     }
     // format!("cut-{generation}")：初块8，i64最长20位后新块至多24；
     // meta_i64 的两个 label：初块10，增长块 max(20, 5 + key.len())。
-    admission.native_admit(8 + 24).map_err(err)?;
+    reserved_bytes = reserved_bytes
+        .checked_add(8 + 24)
+        .ok_or_else(|| err(admission.native_overflow()))?;
     for key in ["generation", "last_advance_frontier"] {
-        admission
-            .native_admit(10 + 20usize.max(5 + key.len()))
-            .map_err(err)?;
+        reserved_bytes = reserved_bytes
+            .checked_add(10 + 20usize.max(5 + key.len()))
+            .ok_or_else(|| err(admission.native_overflow()))?;
     }
     // validate_scope 原样构造的固定两字段期望对象也与解析树共存。
-    admission
-        .native_admit(
+    reserved_bytes = reserved_bytes
+        .checked_add(
             JsonShape::scan(br#"{"structure":"CompleteCut","economic":"not_started"}"#)
                 .parse_peak(),
         )
-        .map_err(err)?;
+        .ok_or_else(|| err(admission.native_overflow()))?;
+    let _temporaries = admission.native_reservation(reserved_bytes).map_err(err)?;
+    // 原严格核返回时所有String、JSON树、格式化缓冲已析构，随后原许可析构。
     verify_required_meta(tx)
 }
 
@@ -6752,4 +6857,40 @@ pub(super) fn append_owner_cut(
         },
         retained,
     ))
+}
+
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+mod native_reader_owner_tests {
+    use super::*;
+
+    #[test]
+    fn parsed_plain_owner_outlives_reader_and_scope_without_retaining_failed_parse() {
+        let budget = super::super::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
+        let baseline = budget.live();
+        let mut nodes = sc::MemoryNodes::new();
+        let parsed = budget
+            .codec_work()
+            .unwrap()
+            .run(|scope| {
+                let reader = HashReader::new(&mut nodes).with_codec_work(scope, &budget);
+                let before = budget.live();
+                assert!(reader.parse_rendered_plain(br#"{"a":1,"a":2}"#).is_err());
+                assert_eq!(budget.live(), before, "语法失败不得留下原解析许可");
+                let parsed = reader
+                    .parse_rendered_plain(br#"{"a":"payload","b":[1,2,3]}"#)
+                    .unwrap();
+                assert!(budget.live() > before);
+                drop(reader);
+                assert!(budget.live() > before, "解析结果仍拥有许可");
+                Ok::<_, sc::CodecError>(parsed)
+            })
+            .unwrap();
+        assert_eq!(
+            parsed.as_ref(),
+            &serde_json::json!({"a":"payload","b":[1,2,3]})
+        );
+        assert!(budget.live() > baseline);
+        drop(parsed);
+        assert_eq!(budget.live(), baseline);
+    }
 }

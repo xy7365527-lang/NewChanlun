@@ -182,6 +182,13 @@ fn tb1581_injected_gate_failure_blocks_downstream() {
     assert_eq!(out.classification, classifier::Classification::default());
     assert!(out.tower.is_empty());
     assert!(out.operations.is_empty());
+    // #1653：无产出相同，但终止态可与空输入区分。
+    assert_eq!(
+        out.termination,
+        classifier::TowerTermination::ParseInvalid {
+            from: bad.segments_parse_invalid_from.unwrap()
+        }
+    );
 }
 
 /// 负控（classifier 入口，热缓存）：生产流中途某 bar 的 L0 带标记 ⟹ 该 bar 无中枢/走势/买卖点、
@@ -211,6 +218,20 @@ fn tb1581_classifier_refuses_marked_layer_with_warm_cache() {
             assert!(out.tower.is_empty());
             assert!(out.operations.is_empty());
             assert_eq!(out.candidate_streams, before, "拒读 bar 不产新候选事件");
+            // #1653：拒读单列终止态，不与「输入为空／塔已到顶」的自然终止混同。
+            assert_eq!(
+                out.termination,
+                classifier::TowerTermination::ParseInvalid { from: 0 }
+            );
+            assert_eq!(
+                out.termination.code(),
+                classifier::TowerTermination::PARSE_INVALID
+            );
+            assert_eq!(
+                warm.termination.code(),
+                classifier::TowerTermination::NATURAL,
+                "正控：同一现场无标记时为自然终止"
+            );
             continue;
         }
         let out = classifier::classify_incremental(&layer, &cfg, &mut cache, &[]);

@@ -62,7 +62,9 @@ use crate::content_producer::{
     Cc006Object, Cc007Object, TypedObject, CC006_SHAPE_KIND, CC007_FRACTAL_KIND,
 };
 use crate::v3::audit_store::{CodecRead, CodecStore};
-use newchan_rust::s_content::path::{lookup_path, path_code, PathStep};
+#[cfg(test)]
+use newchan_rust::s_content::path::lookup_path;
+use newchan_rust::s_content::path::{path_code, PathStep};
 use newchan_rust::s_content::{
     self as sc, Built, CodecError, ContentRef, Kind, NodeStore, NumberToken, Value as CValue,
 };
@@ -291,22 +293,31 @@ pub(super) fn wire_template(
     life: &PublicationLife,
     current_generation: i64,
 ) -> Result<Built, RecordError> {
+    wire_template_view(store, object, life.view(), current_generation)
+}
+
+pub(super) fn wire_template_view(
+    store: &mut (impl CodecStore + ?Sized),
+    object: BorrowedObject<'_>,
+    life: LifeView<'_>,
+    current_generation: i64,
+) -> Result<Built, RecordError> {
     match object {
         BorrowedObject::Typed(source) => {
             let view = TypedView::of_typed(source);
             let record = read_typed_record(store, &view, None)?;
-            validate_life(life, current_generation, &record.object_id)?;
+            validate_life_view(life, current_generation, &record.object_id)?;
             typed_wire(store, &record, life)
         }
         BorrowedObject::Fractal(source) => {
             let view = TypedView::of_fractal(source);
             let record = read_typed_record(store, &view, Some(CC007_FRACTAL_KIND))?;
-            validate_life(life, current_generation, &record.object_id)?;
+            validate_life_view(life, current_generation, &record.object_id)?;
             typed_wire(store, &record, life)
         }
         BorrowedObject::Shape(source) => {
             let record = read_shape_record(store, source)?;
-            validate_life(life, current_generation, &record.object_id)?;
+            validate_life_view(life, current_generation, &record.object_id)?;
             shape_wire(store, &record, life)
         }
     }
@@ -366,39 +377,39 @@ impl<'a> TypedView<'a> {
 
 /// 泛型记录里精确读出的**小字段**（三条内容边只带根，不带子图）。
 struct TypedRecord {
-    object_id: String,
+    object_id: super::business_json::TextValue,
     object_revision: i64,
-    kind: String,
-    fact_key: String,
+    kind: super::business_json::TextValue,
+    fact_key: super::business_json::TextValue,
     first_known_generation: i64,
-    first_known_cut: String,
+    first_known_cut: super::business_json::TextValue,
     published_generation: i64,
-    payload: ContentRef,
-    input_refs: ContentRef,
-    source_coords: ContentRef,
-    payload_json: ContentRef,
-    input_refs_json: ContentRef,
-    source_coords_json: ContentRef,
+    payload: super::audit_store::RefValue,
+    input_refs: super::audit_store::RefValue,
+    source_coords: super::audit_store::RefValue,
+    payload_json: super::audit_store::RefValue,
+    input_refs_json: super::audit_store::RefValue,
+    source_coords_json: super::audit_store::RefValue,
 }
 
 /// CC-006 记录里精确读出的**小字段**（`comparisons`、生成态三条边与 producer 同次构造的公开
 /// `wire_input_refs` 都只带根）。
 struct ShapeRecord {
-    object_id: String,
+    object_id: super::business_json::TextValue,
     object_revision: i64,
-    kind: String,
-    branch: String,
-    dir_ab: String,
-    dir_bc: String,
+    kind: super::business_json::TextValue,
+    branch: super::business_json::TextValue,
+    dir_ab: super::business_json::TextValue,
+    dir_bc: super::business_json::TextValue,
     window: [i64; 3],
-    comparisons: ContentRef,
-    input_refs: ContentRef,
-    source_coords: ContentRef,
-    wire_input_refs: ContentRef,
-    input_refs_json: ContentRef,
-    source_coords_json: ContentRef,
+    comparisons: super::audit_store::RefValue,
+    input_refs: super::audit_store::RefValue,
+    source_coords: super::audit_store::RefValue,
+    wire_input_refs: super::audit_store::RefValue,
+    input_refs_json: super::audit_store::RefValue,
+    source_coords_json: super::audit_store::RefValue,
     first_known_generation: i64,
-    first_known_cut: String,
+    first_known_cut: super::business_json::TextValue,
     published_generation: i64,
 }
 
@@ -408,21 +419,21 @@ struct ShapeRecord {
 /// `object_id` / `fact_key` / 当前代三件套逐字一致 → `kind` 与槽位一致且不是 CC-006 →
 /// 三条内容边与三条 0x07 视图边和构造结果的根与 kind 完全一致。
 fn read_typed_record(
-    store: &mut dyn NodeStore,
+    store: &mut (impl CodecStore + ?Sized),
     view: &TypedView<'_>,
     expect_kind: Option<&str>,
 ) -> Result<TypedRecord, RecordError> {
     let what = "泛型 typed 记录";
-    let record = view.record.content_ref();
-    expect_object_shape(store, &record, what, &TYPED_RECORD_FIELDS)?;
+    let record = store.native_built_ref(view.record)?;
+    expect_object_shape(store, record.view(), what, &TYPED_RECORD_FIELDS)?;
 
-    let object_id = read_text(store, &record, "object_id", what)?;
-    let object_revision = read_int(store, &record, "object_revision", what)?;
-    let kind = read_text(store, &record, "kind", what)?;
-    let fact_key = read_text(store, &record, "fact_key", what)?;
-    let first_known_generation = read_int(store, &record, "first_known_generation", what)?;
-    let first_known_cut = read_text(store, &record, "first_known_cut", what)?;
-    let published_generation = read_int(store, &record, "published_generation", what)?;
+    let object_id = read_text(store, record.view(), "object_id", what)?;
+    let object_revision = read_int(store, record.view(), "object_revision", what)?;
+    let kind = read_text(store, record.view(), "kind", what)?;
+    let fact_key = read_text(store, record.view(), "fact_key", what)?;
+    let first_known_generation = read_int(store, record.view(), "first_known_generation", what)?;
+    let first_known_cut = read_text(store, record.view(), "first_known_cut", what)?;
+    let published_generation = read_int(store, record.view(), "published_generation", what)?;
 
     if object_id != view.object_id {
         return Err(RecordError::Source {
@@ -462,7 +473,7 @@ fn read_typed_record(
             });
         }
     }
-    check_fact_key_kind(&fact_key, &kind, what)?;
+    check_fact_key_kind(store, &fact_key, &kind, what)?;
     if first_known_generation != view.generation
         || published_generation != view.generation
         || first_known_cut != view.cut
@@ -476,12 +487,24 @@ fn read_typed_record(
         });
     }
 
-    let payload = read_edge(store, &record, "payload", Kind::Object, what)?;
-    let input_refs = read_edge(store, &record, "input_refs", Kind::Array, what)?;
-    let source_coords = read_edge(store, &record, "source_coords", Kind::Array, what)?;
-    let payload_json = read_edge(store, &record, "payload_json", Kind::JsonText, what)?;
-    let input_refs_json = read_edge(store, &record, "input_refs_json", Kind::JsonText, what)?;
-    let source_coords_json = read_edge(store, &record, "source_coords_json", Kind::JsonText, what)?;
+    let payload = read_edge(store, record.view(), "payload", Kind::Object, what)?;
+    let input_refs = read_edge(store, record.view(), "input_refs", Kind::Array, what)?;
+    let source_coords = read_edge(store, record.view(), "source_coords", Kind::Array, what)?;
+    let payload_json = read_edge(store, record.view(), "payload_json", Kind::JsonText, what)?;
+    let input_refs_json = read_edge(
+        store,
+        record.view(),
+        "input_refs_json",
+        Kind::JsonText,
+        what,
+    )?;
+    let source_coords_json = read_edge(
+        store,
+        record.view(),
+        "source_coords_json",
+        Kind::JsonText,
+        what,
+    )?;
     for (name, edge, built) in [
         ("payload", &payload, view.payload),
         ("input_refs", &input_refs, view.input_refs),
@@ -494,7 +517,7 @@ fn read_typed_record(
             view.source_coords_json,
         ),
     ] {
-        if edge.digest()? != built.digest || edge.kind != built.kind {
+        if edge.digest()? != built.digest || edge.kind() != built.kind {
             return Err(RecordError::Source {
                 what,
                 detail: format!("`{name}` 边与构造结果的根/类型不符"),
@@ -520,27 +543,27 @@ fn read_typed_record(
 
 /// CC-006 记录的完整小字段读 + 形状核（唯一的形态记录判据）。
 fn read_shape_record(
-    store: &mut dyn NodeStore,
+    store: &mut (impl CodecStore + ?Sized),
     source: &Cc006Object,
 ) -> Result<ShapeRecord, RecordError> {
     let what = "CC-006 记录";
-    let record = source.record.content_ref();
-    expect_object_shape(store, &record, what, &SHAPE_RECORD_FIELDS)?;
+    let record = store.native_built_ref(&source.record)?;
+    expect_object_shape(store, record.view(), what, &SHAPE_RECORD_FIELDS)?;
 
-    let object_id = read_text(store, &record, "object_id", what)?;
-    let object_revision = read_int(store, &record, "object_revision", what)?;
-    let kind = read_text(store, &record, "kind", what)?;
-    let branch = read_text(store, &record, "branch", what)?;
-    let dir_ab = read_text(store, &record, "dir_ab", what)?;
-    let dir_bc = read_text(store, &record, "dir_bc", what)?;
+    let object_id = read_text(store, record.view(), "object_id", what)?;
+    let object_revision = read_int(store, record.view(), "object_revision", what)?;
+    let kind = read_text(store, record.view(), "kind", what)?;
+    let branch = read_text(store, record.view(), "branch", what)?;
+    let dir_ab = read_text(store, record.view(), "dir_ab", what)?;
+    let dir_bc = read_text(store, record.view(), "dir_bc", what)?;
     let window = [
-        read_int(store, &record, "window_start", what)?,
-        read_int(store, &record, "window_mid", what)?,
-        read_int(store, &record, "window_end", what)?,
+        read_int(store, record.view(), "window_start", what)?,
+        read_int(store, record.view(), "window_mid", what)?,
+        read_int(store, record.view(), "window_end", what)?,
     ];
-    let first_known_generation = read_int(store, &record, "first_known_generation", what)?;
-    let first_known_cut = read_text(store, &record, "first_known_cut", what)?;
-    let published_generation = read_int(store, &record, "published_generation", what)?;
+    let first_known_generation = read_int(store, record.view(), "first_known_generation", what)?;
+    let first_known_cut = read_text(store, record.view(), "first_known_cut", what)?;
+    let published_generation = read_int(store, record.view(), "published_generation", what)?;
 
     if kind != CC006_SHAPE_KIND {
         return Err(RecordError::Kind {
@@ -597,14 +620,27 @@ fn read_shape_record(
     }
 
     // `comparisons` 不是 §5.2 的获准 0x07 位置：这里要求真实数组根，文本视图形态显式拒绝。
-    let comparisons = read_edge(store, &record, "comparisons", Kind::Array, what)?;
-    let input_refs = read_edge(store, &record, "input_refs", Kind::Array, what)?;
-    let source_coords = read_edge(store, &record, "source_coords", Kind::Array, what)?;
+    let comparisons = read_edge(store, record.view(), "comparisons", Kind::Array, what)?;
+    let input_refs = read_edge(store, record.view(), "input_refs", Kind::Array, what)?;
+    let source_coords = read_edge(store, record.view(), "source_coords", Kind::Array, what)?;
     // 公开 `input_refs` 是 producer 同次构造的独立边（原 generic 字符串源叶），不是生成态
     // 数值叶的别名；本模块只核有界外壳后借根（见 [`check_wire_input_refs`]）。
-    let wire_input_refs = check_wire_input_refs(store, source.wire_input_refs.content_ref())?;
-    let input_refs_json = read_edge(store, &record, "input_refs_json", Kind::JsonText, what)?;
-    let source_coords_json = read_edge(store, &record, "source_coords_json", Kind::JsonText, what)?;
+    let wire_input_refs = store.native_built_ref(&source.wire_input_refs)?;
+    let wire_input_refs = check_wire_input_refs(store, wire_input_refs)?;
+    let input_refs_json = read_edge(
+        store,
+        record.view(),
+        "input_refs_json",
+        Kind::JsonText,
+        what,
+    )?;
+    let source_coords_json = read_edge(
+        store,
+        record.view(),
+        "source_coords_json",
+        Kind::JsonText,
+        what,
+    )?;
     for (name, edge, built) in [
         ("comparisons", &comparisons, &source.comparisons),
         ("input_refs", &input_refs, &source.input_refs),
@@ -616,7 +652,7 @@ fn read_shape_record(
             &source.source_coords_json,
         ),
     ] {
-        if edge.digest()? != built.digest || edge.kind != built.kind {
+        if edge.digest()? != built.digest || edge.kind() != built.kind {
             return Err(RecordError::Source {
                 what,
                 detail: format!("`{name}` 边与构造结果的根/类型不符"),
@@ -644,138 +680,223 @@ fn read_shape_record(
 }
 
 /// 泛型生成态单条：十项旧字段；三条 `*_json` 用 producer 的 0x07 视图边。
-fn typed_generated(store: &mut dyn NodeStore, record: &TypedRecord) -> Result<Built, RecordError> {
-    let value = CValue::Object(vec![
-        ("object_id".into(), CValue::String(record.object_id.clone())),
-        ("object_revision".into(), number(record.object_revision)?),
-        ("kind".into(), CValue::String(record.kind.clone())),
-        ("fact_key".into(), CValue::String(record.fact_key.clone())),
+fn typed_generated(
+    store: &mut (impl CodecStore + ?Sized),
+    record: &TypedRecord,
+) -> Result<Built, RecordError> {
+    use sc::ValueView as B;
+    let revision = super::business_json::Decimal::new(record.object_revision);
+    let first = super::business_json::Decimal::new(record.first_known_generation);
+    let published = super::business_json::Decimal::new(record.published_generation);
+    let fields = [
+        ("object_id", B::String(&record.object_id)),
         (
-            "payload_json".into(),
-            CValue::Edge(record.payload_json.digest()?),
+            "object_revision",
+            B::Number(sc::BorrowedNumberToken::parse(revision.text())?),
+        ),
+        ("kind", B::String(&record.kind)),
+        ("fact_key", B::String(&record.fact_key)),
+        ("payload_json", B::Edge(record.payload_json.digest()?)),
+        ("input_refs_json", B::Edge(record.input_refs_json.digest()?)),
+        (
+            "source_coords_json",
+            B::Edge(record.source_coords_json.digest()?),
         ),
         (
-            "input_refs_json".into(),
-            CValue::Edge(record.input_refs_json.digest()?),
+            "first_known_generation",
+            B::Number(sc::BorrowedNumberToken::parse(first.text())?),
         ),
+        ("first_known_cut", B::String(&record.first_known_cut)),
         (
-            "source_coords_json".into(),
-            CValue::Edge(record.source_coords_json.digest()?),
+            "published_generation",
+            B::Number(sc::BorrowedNumberToken::parse(published.text())?),
         ),
-        (
-            "first_known_generation".into(),
-            number(record.first_known_generation)?,
-        ),
-        (
-            "first_known_cut".into(),
-            CValue::String(record.first_known_cut.clone()),
-        ),
-        (
-            "published_generation".into(),
-            number(record.published_generation)?,
-        ),
-    ]);
-    Ok(sc::write_value(&mut *store, &value)?)
+    ];
+    Ok(store.write_value_view(B::Object(&fields))?)
 }
 
 /// CC-006 生成态单条：十五项旧字段；`comparisons_json` 用固定小结构的规范文本，另两个 `*_json`
 /// 用 producer 的 0x07 视图边。
-fn shape_generated(store: &mut dyn NodeStore, record: &ShapeRecord) -> Result<Built, RecordError> {
-    let comparisons_json = render_canonical_text(store, &record.comparisons, "comparisons")?;
-    let value = CValue::Object(vec![
-        ("object_id".into(), CValue::String(record.object_id.clone())),
-        ("object_revision".into(), number(record.object_revision)?),
-        ("kind".into(), CValue::String(record.kind.clone())),
-        ("branch".into(), CValue::String(record.branch.clone())),
-        ("window_start".into(), number(record.window[0])?),
-        ("window_mid".into(), number(record.window[1])?),
-        ("window_end".into(), number(record.window[2])?),
-        ("dir_ab".into(), CValue::String(record.dir_ab.clone())),
-        ("dir_bc".into(), CValue::String(record.dir_bc.clone())),
-        ("comparisons_json".into(), CValue::String(comparisons_json)),
+fn shape_generated(
+    store: &mut (impl CodecStore + ?Sized),
+    record: &ShapeRecord,
+) -> Result<Built, RecordError> {
+    use sc::ValueView as B;
+    let revision = super::business_json::Decimal::new(record.object_revision);
+    let first = super::business_json::Decimal::new(record.first_known_generation);
+    let published = super::business_json::Decimal::new(record.published_generation);
+    let windows = record.window.map(super::business_json::Decimal::new);
+    let comparisons = render_canonical_text_view(store, record.comparisons.view(), "comparisons")?;
+    let fields = [
+        ("object_id", B::String(&record.object_id)),
         (
-            "input_refs_json".into(),
-            CValue::Edge(record.input_refs_json.digest()?),
+            "object_revision",
+            B::Number(sc::BorrowedNumberToken::parse(revision.text())?),
+        ),
+        ("kind", B::String(&record.kind)),
+        ("branch", B::String(&record.branch)),
+        (
+            "window_start",
+            B::Number(sc::BorrowedNumberToken::parse(windows[0].text())?),
         ),
         (
-            "source_coords_json".into(),
-            CValue::Edge(record.source_coords_json.digest()?),
+            "window_mid",
+            B::Number(sc::BorrowedNumberToken::parse(windows[1].text())?),
         ),
         (
-            "first_known_generation".into(),
-            number(record.first_known_generation)?,
+            "window_end",
+            B::Number(sc::BorrowedNumberToken::parse(windows[2].text())?),
+        ),
+        ("dir_ab", B::String(&record.dir_ab)),
+        ("dir_bc", B::String(&record.dir_bc)),
+        ("comparisons_json", B::String(&comparisons)),
+        ("input_refs_json", B::Edge(record.input_refs_json.digest()?)),
+        (
+            "source_coords_json",
+            B::Edge(record.source_coords_json.digest()?),
         ),
         (
-            "first_known_cut".into(),
-            CValue::String(record.first_known_cut.clone()),
+            "first_known_generation",
+            B::Number(sc::BorrowedNumberToken::parse(first.text())?),
         ),
+        ("first_known_cut", B::String(&record.first_known_cut)),
         (
-            "published_generation".into(),
-            number(record.published_generation)?,
+            "published_generation",
+            B::Number(sc::BorrowedNumberToken::parse(published.text())?),
         ),
-    ]);
-    Ok(sc::write_value(&mut *store, &value)?)
+    ];
+    Ok(store.write_value_view(B::Object(&fields))?)
 }
 
 /// 泛型公开 wire 单条（十五字段）：大载荷三条边直接借根；批号与生命期来自 `life`。
 fn typed_wire(
-    store: &mut dyn NodeStore,
+    store: &mut (impl CodecStore + ?Sized),
     record: &TypedRecord,
-    life: &PublicationLife,
+    life: LifeView<'_>,
 ) -> Result<Built, RecordError> {
-    let mut fields = vec![
-        ("object_id".into(), CValue::String(record.object_id.clone())),
-        ("object_revision".into(), text(record.object_revision)),
-        ("kind".into(), CValue::String(record.kind.clone())),
-        ("batch_id".into(), batch_value(&life.batch)),
-        ("fact_key".into(), CValue::String(record.fact_key.clone())),
-        ("payload".into(), CValue::Edge(record.payload.digest()?)),
+    use sc::{capture_allocation::audit_json::JsonView as J, ValueView as B};
+    let revision = super::business_json::Decimal::new(record.object_revision);
+    let first = super::business_json::Decimal::new(life.first_known_generation);
+    let published = super::business_json::Decimal::new(life.published_generation);
+    let withdrawn = life
+        .withdrawn_generation
+        .map(super::business_json::Decimal::new);
+    let fields = [
+        ("object_id", B::String(&record.object_id)),
+        ("object_revision", B::String(revision.text())),
+        ("kind", B::String(&record.kind)),
         (
-            "input_refs".into(),
-            CValue::Edge(record.input_refs.digest()?),
+            "batch_id",
+            match life.batch {
+                BatchView::CurrentBatch => B::BatchSelf,
+                BatchView::Existing(s) => B::String(s),
+            },
+        ),
+        ("fact_key", B::String(&record.fact_key)),
+        ("payload", B::Edge(record.payload.digest()?)),
+        ("input_refs", B::Edge(record.input_refs.digest()?)),
+        ("source_coords", B::Edge(record.source_coords.digest()?)),
+        ("first_known_generation", B::String(first.text())),
+        ("first_known_cut", B::String(life.first_known_cut)),
+        ("published_generation", B::String(published.text())),
+        (
+            "withdrawn_generation",
+            withdrawn
+                .as_ref()
+                .map(|v| B::String(v.text()))
+                .unwrap_or(B::Json(J::Null)),
         ),
         (
-            "source_coords".into(),
-            CValue::Edge(record.source_coords.digest()?),
+            "withdrawal_reason",
+            life.withdrawal_reason
+                .map(B::String)
+                .unwrap_or(B::Json(J::Null)),
+        ),
+        (
+            "superseded_by",
+            life.superseded_by
+                .map(B::String)
+                .unwrap_or(B::Json(J::Null)),
+        ),
+        (
+            "lifecycle",
+            B::String(if life.withdrawn_generation.is_some() {
+                "withdrawn"
+            } else {
+                "active"
+            }),
         ),
     ];
-    fields.extend(life_fields(life));
-    Ok(sc::write_template(&mut *store, &CValue::Object(fields))?)
+    Ok(store.write_template_view(B::Object(&fields))?)
 }
 
 /// CC-006 公开 wire 单条（二十字段）：`input_refs` 直接借 producer 的 `wire_input_refs`，
 /// `comparisons` 与 `source_coords` 借生成态值根。
 fn shape_wire(
-    store: &mut dyn NodeStore,
+    store: &mut (impl CodecStore + ?Sized),
     record: &ShapeRecord,
-    life: &PublicationLife,
+    life: LifeView<'_>,
 ) -> Result<Built, RecordError> {
-    let mut fields = vec![
-        ("object_id".into(), CValue::String(record.object_id.clone())),
-        ("object_revision".into(), text(record.object_revision)),
-        ("kind".into(), CValue::String(record.kind.clone())),
-        ("batch_id".into(), batch_value(&life.batch)),
-        ("branch".into(), CValue::String(record.branch.clone())),
-        ("dir_ab".into(), CValue::String(record.dir_ab.clone())),
-        ("dir_bc".into(), CValue::String(record.dir_bc.clone())),
-        ("window_start".into(), text(record.window[0])),
-        ("window_mid".into(), text(record.window[1])),
-        ("window_end".into(), text(record.window[2])),
+    use sc::{capture_allocation::audit_json::JsonView as J, ValueView as B};
+    let revision = super::business_json::Decimal::new(record.object_revision);
+    let windows = record.window.map(super::business_json::Decimal::new);
+    let first = super::business_json::Decimal::new(life.first_known_generation);
+    let published = super::business_json::Decimal::new(life.published_generation);
+    let withdrawn = life
+        .withdrawn_generation
+        .map(super::business_json::Decimal::new);
+    let fields = [
+        ("object_id", B::String(&record.object_id)),
+        ("object_revision", B::String(revision.text())),
+        ("kind", B::String(&record.kind)),
         (
-            "comparisons".into(),
-            CValue::Edge(record.comparisons.digest()?),
+            "batch_id",
+            match life.batch {
+                BatchView::CurrentBatch => B::BatchSelf,
+                BatchView::Existing(s) => B::String(s),
+            },
+        ),
+        ("branch", B::String(&record.branch)),
+        ("dir_ab", B::String(&record.dir_ab)),
+        ("dir_bc", B::String(&record.dir_bc)),
+        ("window_start", B::String(windows[0].text())),
+        ("window_mid", B::String(windows[1].text())),
+        ("window_end", B::String(windows[2].text())),
+        ("comparisons", B::Edge(record.comparisons.digest()?)),
+        ("input_refs", B::Edge(record.wire_input_refs.digest()?)),
+        ("source_coords", B::Edge(record.source_coords.digest()?)),
+        ("first_known_generation", B::String(first.text())),
+        ("first_known_cut", B::String(life.first_known_cut)),
+        ("published_generation", B::String(published.text())),
+        (
+            "withdrawn_generation",
+            withdrawn
+                .as_ref()
+                .map(|v| B::String(v.text()))
+                .unwrap_or(B::Json(J::Null)),
         ),
         (
-            "input_refs".into(),
-            CValue::Edge(record.wire_input_refs.digest()?),
+            "withdrawal_reason",
+            life.withdrawal_reason
+                .map(B::String)
+                .unwrap_or(B::Json(J::Null)),
         ),
         (
-            "source_coords".into(),
-            CValue::Edge(record.source_coords.digest()?),
+            "superseded_by",
+            life.superseded_by
+                .map(B::String)
+                .unwrap_or(B::Json(J::Null)),
+        ),
+        (
+            "lifecycle",
+            B::String(if life.withdrawn_generation.is_some() {
+                "withdrawn"
+            } else {
+                "active"
+            }),
         ),
     ];
-    fields.extend(life_fields(life));
-    Ok(sc::write_template(&mut *store, &CValue::Object(fields))?)
+    Ok(store.write_template_view(B::Object(&fields))?)
 }
 
 /// 公开面的生命期七项（文本/null + lifecycle），两型共用同一判据。
@@ -936,17 +1057,17 @@ pub(crate) fn reproject_stored_wire_view(
 /// - `raw_refs` / `dependency_refs` 是数组，只核根、不展开子图（不读取子树内容）：叶级文本
 ///   形态是 producer 的构造义务，由同 oracle 对拍锁定（本模块不重渲染、不逐叶转换）。
 fn check_wire_input_refs(
-    store: &mut dyn NodeStore,
-    reference: ContentRef,
-) -> Result<ContentRef, RecordError> {
+    store: &mut (impl CodecRead + ?Sized),
+    reference: super::audit_store::RefValue,
+) -> Result<super::audit_store::RefValue, RecordError> {
     let what = "CC-006 wire_input_refs";
-    if reference.kind != Kind::Array {
+    if reference.kind() != Kind::Array {
         return Err(RecordError::Source {
             what,
-            detail: format!("公开来源根不是数组（{:?}）", reference.kind),
+            detail: format!("公开来源根不是数组（{:?}）", reference.kind()),
         });
     }
-    let groups = reference.extent.ok_or_else(|| RecordError::Source {
+    let groups = reference.extent().ok_or_else(|| RecordError::Source {
         what,
         detail: "公开来源根缺元素数".to_string(),
     })?;
@@ -957,40 +1078,34 @@ fn check_wire_input_refs(
         });
     }
     for index in 0..3u64 {
-        let group = resolve(store, &reference, &index_path(index), what, "组")?;
-        if group.kind != Kind::Object {
+        let group = store.lookup_ref(reference.view(), &[PathStep::Index(index)])?;
+        if group.kind() != Kind::Object {
             return Err(RecordError::Source {
                 what,
-                detail: format!("第 {index} 组不是对象（{:?}）", group.kind),
+                detail: format!("第 {index} 组不是对象（{:?}）", group.kind()),
             });
         }
-        if group.extent != Some(3) {
+        if group.extent() != Some(3) {
             return Err(RecordError::Source {
                 what,
                 detail: format!(
                     "第 {index} 组必须恰含 merged_index/raw_refs/dependency_refs 三键，实得 {:?}",
-                    group.extent
+                    group.extent()
                 ),
             });
         }
-        let merged = resolve(
-            store,
-            &group,
-            &field_path("merged_index"),
-            what,
-            "merged_index",
-        )?;
-        if merged.kind != Kind::String {
+        let merged = resolve_field(store, group.view(), what, "merged_index")?;
+        if merged.kind() != Kind::String {
             return Err(RecordError::Source {
                 what,
                 detail: format!(
                     "第 {index} 组 merged_index 必须是规范十进制文本（{:?}）",
-                    merged.kind
+                    merged.kind()
                 ),
             });
         }
-        read_edge(store, &group, "raw_refs", Kind::Array, what)?;
-        read_edge(store, &group, "dependency_refs", Kind::Array, what)?;
+        read_edge(store, group.view(), "raw_refs", Kind::Array, what)?;
+        read_edge(store, group.view(), "dependency_refs", Kind::Array, what)?;
     }
     Ok(reference)
 }
@@ -1034,12 +1149,12 @@ pub(super) fn validate_life_view(
             detail: format!("first_known_generation={first} 必须为正"),
         });
     }
-    let want_cut = format!("cut-{first}");
-    if life.first_known_cut != want_cut {
+    let cut_generation = super::business_json::Decimal::new(first);
+    if life.first_known_cut.strip_prefix("cut-") != Some(cut_generation.text()) {
         return Err(RecordError::Life {
             what,
             detail: format!(
-                "first_known_cut `{}` 与首获知代号不符（应为 `{want_cut}`）",
+                "first_known_cut `{}` 与首获知代号不符（应为 `cut-{first}`）",
                 life.first_known_cut
             ),
         });
@@ -1191,34 +1306,34 @@ fn index_path(index: u64) -> Vec<PathStep> {
 ///
 /// 对象键唯一（§5.2）⟹ 计数相等且全键在场即无缺无多；本函数不展开任何子图。
 fn expect_object_shape(
-    store: &mut dyn NodeStore,
-    root: &ContentRef,
+    store: &mut (impl CodecRead + ?Sized),
+    root: sc::RefView<'_>,
     what: &'static str,
     fields: &[&str],
 ) -> Result<(), RecordError> {
-    if root.kind != Kind::Object {
+    if root.kind() != Kind::Object {
         return Err(RecordError::Source {
             what,
-            detail: format!("不是对象（{:?}）", root.kind),
+            detail: format!("不是对象（{:?}）", root.kind()),
         });
     }
-    match root.extent {
+    match root.extent() {
         Some(count) if count == fields.len() as u64 => {}
         Some(count) => {
             return Err(RecordError::Source {
                 what,
                 detail: format!("字段数 {count} ≠ exact {}", fields.len()),
-            });
+            })
         }
         None => {
             return Err(RecordError::Source {
                 what,
                 detail: "对象缺字段数".to_string(),
-            });
+            })
         }
     }
     for name in fields {
-        resolve(store, root, &field_path(name), what, name)?;
+        resolve_field(store, root, what, name)?;
     }
     Ok(())
 }
@@ -1246,27 +1361,160 @@ fn resolve(
         })
 }
 
+// #1488 renderer buffer owns its actual capacity until decoding/copy finishes.
+enum RecordBuffer {
+    Plain(Vec<u8>),
+    Native(sc::capture_allocation::scratch::ScratchBytes),
+    #[cfg(feature = "s_allocation_json_testonly")]
+    Owned(sc::CodecVec<u8>),
+}
+impl RecordBuffer {
+    fn bytes(&self) -> &[u8] {
+        match self {
+            Self::Plain(v) => v,
+            Self::Native(v) => v,
+            #[cfg(feature = "s_allocation_json_testonly")]
+            Self::Owned(v) => v,
+        }
+    }
+    fn extend(&mut self, bytes: &[u8]) -> Result<(), CodecError> {
+        match self {
+            Self::Plain(v) => {
+                v.extend_from_slice(bytes);
+                Ok(())
+            }
+            Self::Native(v) => v.try_extend_bytes(bytes),
+            #[cfg(feature = "s_allocation_json_testonly")]
+            Self::Owned(v) => sc::capture_allocation::audit_json::extend_bytes(v, bytes),
+        }
+    }
+}
+fn record_bytes(
+    store: &mut (impl CodecRead + ?Sized),
+    root: sc::RefView<'_>,
+) -> Result<RecordBuffer, RecordError> {
+    let mut bytes = if let Some(work) = store.codec_work() {
+        RecordBuffer::Native(work.bytes())
+    } else {
+        #[cfg(feature = "s_allocation_json_testonly")]
+        if let Some(budget) = store.allocation_budget() {
+            RecordBuffer::Owned(sc::capture_allocation::audit_json::owned_vec(&budget))
+        } else {
+            RecordBuffer::Plain(Vec::new())
+        }
+        #[cfg(not(feature = "s_allocation_json_testonly"))]
+        {
+            RecordBuffer::Plain(Vec::new())
+        }
+    };
+    struct Out<'a> {
+        bytes: &'a mut RecordBuffer,
+        error: Option<CodecError>,
+    }
+    impl std::io::Write for Out<'_> {
+        fn write(&mut self, v: &[u8]) -> std::io::Result<usize> {
+            match self.bytes.extend(v) {
+                Ok(()) => Ok(v.len()),
+                Err(e) => {
+                    self.error = Some(e);
+                    Err(std::io::ErrorKind::Other.into())
+                }
+            }
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut out = Out {
+        bytes: &mut bytes,
+        error: None,
+    };
+    let result = store.render_ref(root, &mut out);
+    if let Some(error) = out.error {
+        return Err(RecordError::Codec(error));
+    }
+    result?;
+    Ok(bytes)
+}
+fn record_json(
+    store: &mut (impl CodecRead + ?Sized),
+    root: sc::RefView<'_>,
+    what: &'static str,
+    label: &str,
+) -> Result<super::business_json::JsonOwner, RecordError> {
+    let bytes = record_bytes(store, root)?;
+    super::business_json::legacy_json_owner_admitted(
+        bytes.bytes(),
+        store.allocation_budget().as_ref(),
+        store.codec_work(),
+    )
+    .map_err(|error| RecordError::Source {
+        what,
+        detail: format!("`{label}` 规范渲染不是合法 JSON：{error}"),
+    })
+}
+fn render_canonical_text_view(
+    store: &mut (impl CodecRead + ?Sized),
+    root: sc::RefView<'_>,
+    label: &str,
+) -> Result<super::business_json::TextValue, RecordError> {
+    let bytes = record_bytes(store, root)?;
+    let text = std::str::from_utf8(bytes.bytes()).map_err(|error| RecordError::Source {
+        what: "小固定结构",
+        detail: format!("`{label}` 规范渲染不是 UTF-8：{error}"),
+    })?;
+    store
+        .native_text(text)
+        .map_err(|detail| RecordError::Source {
+            what: "小固定结构",
+            detail,
+        })
+}
+
+fn resolve_field(
+    store: &mut (impl CodecRead + ?Sized),
+    root: sc::RefView<'_>,
+    what: &'static str,
+    label: &str,
+) -> Result<super::audit_store::RefValue, RecordError> {
+    store
+        .lookup_field_ref(root, label)
+        .map_err(|error| match error.code() {
+            path_code::PATH_FIELD_MISSING => RecordError::Source {
+                what,
+                detail: format!("缺字段 `{label}`"),
+            },
+            path_code::PATH_INDEX_RANGE => RecordError::Source {
+                what,
+                detail: format!("`{label}` 下标越界"),
+            },
+            _ => RecordError::Codec(error),
+        })
+}
+
 /// 字符串叶精确读：定位 → 类型核 → 只渲染该叶。
 fn read_text(
     store: &mut (impl CodecRead + ?Sized),
-    root: &ContentRef,
+    root: sc::RefView<'_>,
     name: &str,
     what: &'static str,
-) -> Result<String, RecordError> {
-    let target = resolve(store, root, &field_path(name), what, name)?;
-    if target.kind != Kind::String {
+) -> Result<super::business_json::TextValue, RecordError> {
+    let target = resolve_field(store, root, what, name)?;
+    if target.kind() != Kind::String {
         return Err(RecordError::Source {
             what,
-            detail: format!("字段 `{name}` 必须是字符串（{:?}）", target.kind),
+            detail: format!("字段 `{name}` 必须是字符串（{:?}）", target.kind()),
         });
     }
-    match render_json(store, &target, what, name)? {
-        crate::Value::String(text) => Ok(text),
-        other => Err(RecordError::Source {
-            what,
-            detail: format!("字段 `{name}` 渲染不是字符串：{other}"),
-        }),
-    }
+    let value = record_json(store, target.view(), what, name)?;
+    let view = value.view();
+    let text = view.as_str().ok_or_else(|| RecordError::Source {
+        what,
+        detail: format!("字段 `{name}` 渲染不是字符串"),
+    })?;
+    store
+        .native_text(text)
+        .map_err(|detail| RecordError::Source { what, detail })
 }
 
 /// 精确整数叶读取：只接受 `Number`（i64），拒绝浮点/布尔/null/文本。
@@ -1275,49 +1523,44 @@ fn read_text(
 /// CC-006 的公开来源另由 producer 的 `wire_input_refs` 给出），不得在这里先行归一，
 /// 否则生成态字节不再等于旧封存文本。
 fn read_int(
-    store: &mut dyn NodeStore,
-    root: &ContentRef,
+    store: &mut (impl CodecRead + ?Sized),
+    root: sc::RefView<'_>,
     name: &str,
     what: &'static str,
 ) -> Result<i64, RecordError> {
-    let target = resolve(store, root, &field_path(name), what, name)?;
-    if target.kind != Kind::Number {
+    let target = resolve_field(store, root, what, name)?;
+    if target.kind() != Kind::Number {
         return Err(RecordError::Source {
             what,
             detail: format!(
                 "字段 `{name}` 必须是精确整数（{:?}；浮点/布尔/null/文本一律拒绝）",
-                target.kind
+                target.kind()
             ),
         });
     }
-    match render_json(store, &target, what, name)? {
-        crate::Value::Number(token) => token.as_i64().ok_or_else(|| RecordError::Source {
-            what,
-            detail: format!("字段 `{name}` 不是 i64：{token}"),
-        }),
-        other => Err(RecordError::Source {
-            what,
-            detail: format!("字段 `{name}` 渲染不是整数：{other}"),
-        }),
-    }
+    let value = record_json(store, target.view(), what, name)?;
+    value.view().as_i64().ok_or_else(|| RecordError::Source {
+        what,
+        detail: format!("字段 `{name}` 不是 i64"),
+    })
 }
 
 /// 边读：定位到目标值根，核 kind，返回其四字段（根文本/类型/extent 由真实节点给出）。
 fn read_edge(
-    store: &mut dyn NodeStore,
-    root: &ContentRef,
+    store: &mut (impl CodecRead + ?Sized),
+    root: sc::RefView<'_>,
     name: &str,
     expect: Kind,
     what: &'static str,
-) -> Result<ContentRef, RecordError> {
-    let target = resolve(store, root, &field_path(name), what, name)?;
-    if target.kind != expect {
+) -> Result<super::audit_store::RefValue, RecordError> {
+    let target = resolve_field(store, root, what, name)?;
+    if target.kind() != expect {
         return Err(RecordError::Source {
             what,
             detail: format!(
                 "字段 `{name}` 必须是 {}（{:?}）",
                 expect.name(),
-                target.kind
+                target.kind()
             ),
         });
     }
@@ -1362,23 +1605,59 @@ fn render_bytes(
 
 /// 事实键＝规范 JSON 文本 `[kind, slot]`：首项必须等于记录 `kind`，且文本逐字等于该值的
 /// 规范渲染（不放行等价 JSON 写法）。
-fn check_fact_key_kind(fact_key: &str, kind: &str, what: &'static str) -> Result<(), RecordError> {
-    let parsed: crate::Value =
-        serde_json::from_str(fact_key).map_err(|error| RecordError::Source {
-            what,
-            detail: format!("fact_key 不是 JSON：{error}"),
-        })?;
-    let items = parsed.as_array().ok_or_else(|| RecordError::Source {
+fn check_fact_key_kind(
+    store: &mut (impl CodecRead + ?Sized),
+    fact_key: &str,
+    kind: &str,
+    what: &'static str,
+) -> Result<(), RecordError> {
+    let parsed = super::business_json::legacy_json_owner_admitted(
+        fact_key.as_bytes(),
+        store.allocation_budget().as_ref(),
+        store.codec_work(),
+    )
+    .map_err(|error| RecordError::Source {
         what,
-        detail: format!("fact_key 不是 `[kind, slot]`：{parsed}"),
+        detail: format!("fact_key 不是 JSON：{error}"),
     })?;
-    if items.len() != 2 || items[0].as_str() != Some(kind) {
+    let view = parsed.view();
+    let items = view.as_array().ok_or_else(|| RecordError::Source {
+        what,
+        detail: "fact_key 不是 `[kind, slot]`".into(),
+    })?;
+    if items.len() != 2 || items.get(0).and_then(|v| v.as_str()) != Some(kind) {
         return Err(RecordError::Source {
             what,
             detail: format!("fact_key `{fact_key}` 的首项不是 `{kind}` 或不是两项"),
         });
     }
-    if crate::canonical_json(&parsed) != fact_key {
+    struct Matches<'a> {
+        remaining: &'a [u8],
+        equal: bool,
+    }
+    impl std::io::Write for Matches<'_> {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            if self.equal {
+                match self.remaining.strip_prefix(bytes) {
+                    Some(rest) => self.remaining = rest,
+                    None => self.equal = false,
+                }
+            }
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut out = Matches {
+        remaining: fact_key.as_bytes(),
+        equal: true,
+    };
+    serde_json::to_writer(&mut out, &view).map_err(|error| RecordError::Source {
+        what,
+        detail: format!("fact_key 规范编码失败：{error}"),
+    })?;
+    if !out.equal || !out.remaining.is_empty() {
         return Err(RecordError::Source {
             what,
             detail: format!("fact_key `{fact_key}` 不是该值的规范文本"),
@@ -1779,6 +2058,180 @@ mod tests {
             cut: source.cut.clone(),
             request: source.request.clone(),
         }
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_wire_records_and_birth_reference_keep_permits_after_scope() {
+        let mut fixture = fixture();
+        let object = fixture
+            .producer
+            .build_step(&mut fixture.store, &fixture.state, 0, GENERATION, CUT)
+            .unwrap()
+            .unwrap();
+        let life = new_life();
+        let expected = wire_template(
+            &mut fixture.store,
+            BorrowedObject::Typed(&object),
+            &life,
+            GENERATION,
+        )
+        .unwrap();
+        let capture = sc::AuditCapture::new(fixture.store.nodes);
+        let budget = super::super::audit_owner::native::Budget::new(8 * 1024 * 1024, 0).unwrap();
+        let baseline = budget.live();
+        let (record, reference) = budget
+            .codec_work()
+            .unwrap()
+            .run(|scope| {
+                let mut reader =
+                    super::super::history::HashReader::captured_for_audit(&capture, None)
+                        .map_err(|detail| RecordError::Source {
+                            what: "fixture",
+                            detail: detail.to_string(),
+                        })?
+                        .with_codec_work(scope, &budget);
+                let record = read_typed_record(&mut reader, &TypedView::of_typed(&object), None)?;
+                let wire = wire_template_view(
+                    &mut reader,
+                    BorrowedObject::Typed(&object),
+                    life.view(),
+                    GENERATION,
+                )?;
+                assert_eq!(wire.digest, expected.digest);
+                let reference = reader.native_built_ref(&wire)?;
+                Ok::<_, RecordError>((record, reference))
+            })
+            .unwrap();
+        assert_eq!(record.object_id.as_str(), object.object_id);
+        assert_eq!(reference.digest().unwrap(), expected.digest);
+        assert!(budget.live() > baseline);
+        drop(record);
+        assert!(budget.live() > baseline, "出生引用仍持实际许可");
+        drop(reference);
+        assert_eq!(budget.live(), baseline);
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_wire_bad_early_record_precedes_bad_late_life_and_releases_all_owners() {
+        let mut fixture = fixture();
+        let mut object = fixture
+            .producer
+            .build_step(&mut fixture.store, &fixture.state, 0, GENERATION, CUT)
+            .unwrap()
+            .unwrap();
+        // An existing independent oracle expects record validation before life validation.
+        object.record = sc::write_value(&mut fixture.store, &CValue::Object(Vec::new())).unwrap();
+        let mut life = new_life();
+        life.first_known_generation = -1;
+        let expected = wire_template(
+            &mut fixture.store,
+            BorrowedObject::Typed(&object),
+            &life,
+            GENERATION,
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(expected.contains("exact"));
+        let capture = sc::AuditCapture::new(fixture.store.nodes);
+        let budget = super::super::audit_owner::native::Budget::new(8 * 1024 * 1024, 0).unwrap();
+        let baseline = budget.live();
+        let result = budget.codec_work().unwrap().run(|scope| {
+            let mut reader = super::super::history::HashReader::captured_for_audit(&capture, None)
+                .map_err(|detail| RecordError::Source {
+                    what: "fixture",
+                    detail: detail.to_string(),
+                })?
+                .with_codec_work(scope, &budget);
+            wire_template_view(
+                &mut reader,
+                BorrowedObject::Typed(&object),
+                life.view(),
+                GENERATION,
+            )
+        });
+        match result.unwrap_err() {
+            sc::capture_allocation::scratch::WorkError::Operation(error) => {
+                assert_eq!(error.to_string(), expected)
+            }
+            other => panic!("预期记录语义首错，实得{other:?}"),
+        }
+        assert_eq!(budget.live(), baseline);
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_wire_valid_record_late_life_error_and_early_resource_keep_priority() {
+        let mut fixture = fixture();
+        let object = fixture
+            .producer
+            .build_step(&mut fixture.store, &fixture.state, 0, GENERATION, CUT)
+            .unwrap()
+            .unwrap();
+        let mut life = new_life();
+        life.first_known_generation = -1;
+        let expected = wire_template(
+            &mut fixture.store,
+            BorrowedObject::Typed(&object),
+            &life,
+            GENERATION,
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(expected.contains("first_known_generation"));
+        let capture = sc::AuditCapture::new(fixture.store.nodes);
+        let large = super::super::audit_owner::native::Budget::new(8 * 1024 * 1024, 0).unwrap();
+        let baseline = large.live();
+        let result = large.codec_work().unwrap().run(|scope| {
+            let mut reader = super::super::history::HashReader::captured_for_audit(&capture, None)
+                .map_err(|detail| RecordError::Source {
+                    what: "fixture",
+                    detail: detail.to_string(),
+                })?
+                .with_codec_work(scope, &large);
+            wire_template_view(
+                &mut reader,
+                BorrowedObject::Typed(&object),
+                life.view(),
+                GENERATION,
+            )
+        });
+        match result.unwrap_err() {
+            sc::capture_allocation::scratch::WorkError::Operation(error) => {
+                assert_eq!(error.to_string(), expected)
+            }
+            other => panic!("预期晚life语义首错，实得{other:?}"),
+        }
+        assert_eq!(large.live(), baseline);
+        let small = super::super::audit_owner::native::Budget::new(
+            baseline + sc::capture_allocation::scratch::CodecWork::metadata_bytes() + 8,
+            0,
+        )
+        .unwrap();
+        let small_baseline = small.live();
+        let result = small.codec_work().unwrap().run(|scope| {
+            let mut reader = super::super::history::HashReader::captured_for_audit(&capture, None)
+                .map_err(|detail| RecordError::Source {
+                    what: "fixture",
+                    detail: detail.to_string(),
+                })?
+                .with_codec_work(scope, &small);
+            wire_template_view(
+                &mut reader,
+                BorrowedObject::Typed(&object),
+                life.view(),
+                GENERATION,
+            )
+        });
+        assert!(
+            matches!(
+                result,
+                Err(sc::capture_allocation::scratch::WorkError::Resource(_))
+            ),
+            "根许可不足必须早于晚life错误"
+        );
+        assert_eq!(small.live(), small_baseline);
     }
 
     #[test]

@@ -6,9 +6,9 @@ use super::*;
 use newchan_rust::s_content::access::Access;
 #[cfg(test)]
 use newchan_rust::s_content::job::Job;
-use newchan_rust::s_content::{
-    self as sc, ContentRef, Kind, NodeDigest, NodeRead, NodeSink, NodeSource,
-};
+#[cfg(test)]
+use newchan_rust::s_content::ContentRef;
+use newchan_rust::s_content::{self as sc, Kind, NodeDigest, NodeRead, NodeSink, NodeSource};
 use newchan_rust::session_protocol::parse_canonical_i64;
 use newchan_rust::sqlite_checked::CheckedStatement;
 use rusqlite::Transaction;
@@ -50,12 +50,13 @@ impl Projection {
             reference: TransportView::new(self.root.view()),
         }
     }
+    #[cfg(test)]
     pub(super) fn anchor_with_budget(
         &self,
         allocation: Option<&OwnedBudget>,
     ) -> Result<JsonOwner, String> {
         match (&self.wire, allocation) {
-            (JsonOwner::Plain(_), None) => {}
+            (JsonOwner::Plain(v), None) if !v.is_native_admitted() => {}
             #[cfg(feature = "s_allocation_json_testonly")]
             (JsonOwner::Owned(value), Some(b)) if value.budget().same_ledger(b) => {}
             _ => return Err(err("projection实际owner与anchor预算不一致")),
@@ -63,12 +64,13 @@ impl Projection {
         bj::json_from_view(self.anchor_view().view(), allocation)
     }
     /// 旧Value接口只属于实际None构造；Owned调用必须使用anchor_with_budget或借用anchor_view。
+    #[cfg(test)]
     pub(super) fn anchor(&self) -> Value {
         match self
             .anchor_with_budget(None)
             .expect("旧anchor仅支持普通Projection")
         {
-            JsonOwner::Plain(value) => value,
+            JsonOwner::Plain(value) => value.into_unscoped().expect("兼容anchor仅接无scope值"),
             #[cfg(feature = "s_allocation_json_testonly")]
             JsonOwner::Owned(_) => unreachable!("None兼容接口不可擦除Owned"),
         }
@@ -179,19 +181,12 @@ fn decode(bytes: &[u8], budget: Option<&OwnedBudget>) -> Result<JsonOwner, Strin
     if budget.is_some() {
         return Err(err("owned Q JSON入口未启用"));
     }
-    strict_json(bytes).map(JsonOwner::Plain)
+    strict_json(bytes).map(|v| JsonOwner::Plain(v.into()))
 }
 fn push_array(array: &mut JsonOwner, value: JsonView<'_>) -> Result<(), String> {
-    match array {
-        JsonOwner::Plain(Value::Array(values)) => {
-            values.push(serde_json::to_value(value).map_err(|e| e.to_string())?);
-            Ok(())
-        }
-        #[cfg(feature = "s_allocation_json_testonly")]
-        JsonOwner::Owned(values) => values.push(value).map_err(|e| e.to_string()),
-        _ => Err(err("Q数组owner不是数组")),
-    }
+    array.push(value)
 }
+
 fn session_generation(
     tx: &Transaction<'_>,
     budget: Option<&OwnedBudget>,
@@ -283,7 +278,7 @@ pub(super) fn build(
         )
     } else {
         (
-            empty.clone(),
+            s.native_ref_clone(&empty).map_err(err)?,
             TextValue::from_str("not_run", budget.as_ref())?,
             TextValue::from_str("-1", budget.as_ref())?,
             bj::json_from_view(
@@ -454,7 +449,6 @@ enum OrderPart {
 struct PublicKey(sc::CodecVec<TextValue>);
 impl std::hash::Hash for PublicKey {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        use std::hash::Hash;
         self.0.len().hash(state);
         for value in &self.0 {
             value.hash(state);
@@ -628,7 +622,7 @@ fn build_catalog(
                     TextValue::from_str("not_implemented", budget.as_ref())?,
                     TextValue::from_str("not_proved", budget.as_ref())?,
                     TextValue::from_str("not_run", budget.as_ref())?,
-                    empty.clone(),
+                    s.native_ref_clone(empty).map_err(err)?,
                 )
             };
         if let Some(i) = names.iter().position(|name| *name == implemented.as_str()) {
@@ -748,7 +742,7 @@ impl CodecRead for Metered<'_, '_> {
         if self.graph.allocation_budget().is_some() {
             self.graph.q_lookup_ref(r, p, self.job)
         } else {
-            sc::path::lookup_path_refview(self, r, p).map(RefValue::Plain)
+            sc::path::lookup_path_refview(self, r, p).map(RefValue::from)
         }
     }
     fn render_ref(
@@ -872,18 +866,9 @@ fn number(s: &mut Metered<'_, '_>, r: sc::RefView<'_>, k: &str) -> Result<i64, S
     parse_canonical_i64(&text(s, r, k)?, k)
 }
 fn built_ref(s: &(impl CodecRead + ?Sized), built: sc::Built) -> Result<RefValue, String> {
-    if s.allocation_budget().is_some() {
-        #[cfg(feature = "s_allocation_json_testonly")]
-        {
-            return Ok(RefValue::Owned(built.owned_ref()));
-        }
-        #[cfg(not(feature = "s_allocation_json_testonly"))]
-        {
-            return Err(err("owned引用执行未启用"));
-        }
-    }
-    Ok(RefValue::Plain(built.content_ref()))
+    s.native_built_ref(&built).map_err(err)
 }
+
 fn write(s: &mut Metered<'_, '_>, v: JsonView<'_>) -> Result<RefValue, String> {
     let built = s.write_json_view(v).map_err(err)?;
     built_ref(s, built)
@@ -924,7 +909,7 @@ mod tests {
     }
     fn normal_write(s: &mut dyn NodeSink, value: &Value) -> Result<RefValue, String> {
         sc::write_json_view(s, value.into())
-            .map(|v| RefValue::Plain(v.content_ref()))
+            .map(|v| RefValue::from(v.content_ref()))
             .map_err(err)
     }
 

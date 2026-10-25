@@ -63,7 +63,7 @@ impl From<&'static str> for FailureDetail {
 }
 impl From<String> for FailureDetail {
     fn from(s: String) -> Self {
-        Self::Text(TextValue::Plain(s))
+        Self::Text(TextValue::from(s))
     }
 }
 impl From<TextValue> for FailureDetail {
@@ -120,6 +120,10 @@ impl Failure {
         }
     }
 
+    #[cfg_attr(
+        not(all(test, feature = "s_allocation_json_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_allocation_json_testonly 测试使用")
+    )]
     pub(super) fn cause_code(&self) -> Option<&'static str> {
         match &self.detail {
             FailureDetail::Allocation(e) => Some(e.code()),
@@ -166,6 +170,10 @@ pub(super) struct Head {
 }
 
 impl Head {
+    #[cfg_attr(
+        not(all(test, feature = "s_allocation_json_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_allocation_json_testonly 测试使用")
+    )]
     pub(super) fn allocation_budget(&self) -> Option<&OwnedBudget> {
         self.content_lengths.allocation_budget()
     }
@@ -184,6 +192,7 @@ pub(super) struct Input<'a, R: TimedRead> {
 }
 
 impl<'a, R: TimedRead> Input<'a, R> {
+    #[cfg(test)]
     pub(super) fn new(reader: &'a mut R, resources: &QResources) -> Result<Self, Failure> {
         Self::with_allocation(reader, resources, None)
     }
@@ -493,7 +502,7 @@ fn copy_text(value: &str, budget: Option<&OwnedBudget>) -> Result<TextValue, Fai
             detail: "Owned HTTP文本入口未启用".into(),
         });
     }
-    Ok(TextValue::Plain(value.to_owned()))
+    Ok(TextValue::from(value.to_owned()))
 }
 
 fn format_text(
@@ -501,7 +510,7 @@ fn format_text(
     budget: Option<&OwnedBudget>,
 ) -> Result<TextValue, Failure> {
     if budget.is_none() {
-        return Ok(TextValue::Plain(value.to_string()));
+        return Ok(TextValue::from(value.to_string()));
     }
     struct Writer {
         bytes: CodecVec<u8>,
