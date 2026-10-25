@@ -162,15 +162,25 @@ mod tests {
     #[test]
     fn p1605_r1_open_interval_endpoints_are_rejected() {
         let mut accepted = Vec::new();
-        for field in ["perm_alpha", "significance_p_threshold", "cvar_tail", "ci_lower_quantile", "ci_upper_quantile"] {
+        for field in [
+            "perm_alpha",
+            "significance_p_threshold",
+            "cvar_tail",
+            "ci_lower_quantile",
+            "ci_upper_quantile",
+        ] {
             for endpoint in [0.0, 1.0] {
                 let record = mutate_record(|root| root["fields"][field]["value"] = endpoint.into());
-                if !matches!(parse_research_stats(Some(&record)), Err(PolicyError::Invalid { field: bad, .. }) if bad == field) {
+                if !matches!(parse_research_stats(Some(&record)), Err(PolicyError::Invalid { field: bad, .. }) if bad == field)
+                {
                     accepted.push(format!("{field}={endpoint}"));
                 }
             }
         }
-        assert!(accepted.is_empty(), "开区间端点未被字段级拒绝: {accepted:?}");
+        assert!(
+            accepted.is_empty(),
+            "开区间端点未被字段级拒绝: {accepted:?}"
+        );
     }
 
     #[test]

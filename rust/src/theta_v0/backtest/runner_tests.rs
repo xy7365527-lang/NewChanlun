@@ -10285,15 +10285,27 @@ fn lee_readonly_layer_btc_structural_witness_644() {
 #[test]
 fn p1605_r3_runner_and_overlay_share_policy_failure_boundary() {
     let config = ThetaConfig::default();
-    let ds = Dataset { symbol: "EMPTY".into(), bars: vec![], dates: vec![], bar_seconds: 60 };
+    let ds = Dataset {
+        symbol: "EMPTY".into(),
+        bars: vec![],
+        dates: vec![],
+        bar_seconds: 60,
+    };
     let mut record: serde_json::Value = serde_json::from_str(ACTIVE_RESEARCH_STATS_JSON).unwrap();
     record["version"] = 2.into();
     record["fields"]["annualization_days"]["value"] = 126.0.into();
     let valid = record.to_string();
     let run = run_theta_v0_pi_inner(&ds, &config, 1.0, 1e6, None, Some(&valid)).unwrap();
-    let overlay = run_theta_v0_pi_overlay_with_record(&ds, &config, 1.0, 1e6, Some(&valid)).unwrap();
-    assert_eq!(run.metrics.research_stats.version, crate::theta_v0::policy_records::PolicyVersion::Signed(2));
-    assert_eq!(overlay.net_result.metrics.research_stats.version, crate::theta_v0::policy_records::PolicyVersion::Signed(2));
+    let overlay =
+        run_theta_v0_pi_overlay_with_record(&ds, &config, 1.0, 1e6, Some(&valid)).unwrap();
+    assert_eq!(
+        run.metrics.research_stats.version,
+        crate::theta_v0::policy_records::PolicyVersion::Signed(2)
+    );
+    assert_eq!(
+        overlay.net_result.metrics.research_stats.version,
+        crate::theta_v0::policy_records::PolicyVersion::Signed(2)
+    );
     record["fields"]["z_alpha"]["value"] = "AwaitingPolicy".into();
     let unsigned = record.to_string();
     record["fields"]["z_alpha"]["value"] = 1.645.into();
@@ -10301,27 +10313,47 @@ fn p1605_r3_runner_and_overlay_share_policy_failure_boundary() {
     let invalid = record.to_string();
     for text in [None, Some(unsigned.as_str()), Some(invalid.as_str())] {
         let expected = parse_research_stats(text).unwrap_err();
-        assert_eq!(run_theta_v0_pi_inner(&ds, &config, 1.0, 1e6, None, text).unwrap_err(), expected);
-        assert_eq!(run_theta_v0_pi_overlay_with_record(&ds, &config, 1.0, 1e6, text).err().unwrap(), expected);
+        assert_eq!(
+            run_theta_v0_pi_inner(&ds, &config, 1.0, 1e6, None, text).unwrap_err(),
+            expected
+        );
+        assert_eq!(
+            run_theta_v0_pi_overlay_with_record(&ds, &config, 1.0, 1e6, text)
+                .err()
+                .unwrap(),
+            expected
+        );
     }
 }
 
 #[test]
 fn p1605_r3_public_runner_matches_independent_baseline() {
- let config = ThetaConfig::default();
- let ds = super::super::data::load_symbol(std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/issue1605/btc-20170817-20170831.json")), "BTC", &config, 60).unwrap();
- assert_eq!(ds.bars.len(), 21360);
- let result = run_theta_v0_pi(&ds, &config, 1.0, 1e6).unwrap();
- assert!(result.n_orders > 0);
- assert!(!result.trade_pnls.is_empty());
- let m = &result.metrics;
- let bits = |xs: &[f64]| xs.iter().map(|x| x.to_bits()).collect::<Vec<_>>();
- let frozen = serde_json::json!({
- "n_orders":result.n_orders,"n_trades":m.n_trades,
- "metrics":bits(&[m.cagr,m.sharpe,m.sortino,m.max_drawdown,m.calmar,m.cvar_5,m.win_rate,m.profit_factor,m.top5_pnl_ratio,m.strat_return,m.bh_return]),
- "equity":bits(&result.equity_curve),"daily":bits(&result.daily_returns),"realized":bits(&result.trade_pnls),"with_forced":bits(&result.trade_pnls_with_forced),
- "trades":result.trades.iter().map(|t|serde_json::json!([t.entry_bar,t.exit_bar,t.hold_bars,t.qty.to_bits(),t.long,t.forced_close])).collect::<Vec<_>>()
- });
- let expected: serde_json::Value = serde_json::from_str(include_str!("../../../tests/fixtures/issue1605/baseline-13ed4d45-bits.json")).unwrap();
- assert_eq!(frozen, expected);
+    let config = ThetaConfig::default();
+    let ds = super::super::data::load_symbol(
+        std::path::Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/issue1605/btc-20170817-20170831.json"
+        )),
+        "BTC",
+        &config,
+        60,
+    )
+    .unwrap();
+    assert_eq!(ds.bars.len(), 21360);
+    let result = run_theta_v0_pi(&ds, &config, 1.0, 1e6).unwrap();
+    assert!(result.n_orders > 0);
+    assert!(!result.trade_pnls.is_empty());
+    let m = &result.metrics;
+    let bits = |xs: &[f64]| xs.iter().map(|x| x.to_bits()).collect::<Vec<_>>();
+    let frozen = serde_json::json!({
+    "n_orders":result.n_orders,"n_trades":m.n_trades,
+    "metrics":bits(&[m.cagr,m.sharpe,m.sortino,m.max_drawdown,m.calmar,m.cvar_5,m.win_rate,m.profit_factor,m.top5_pnl_ratio,m.strat_return,m.bh_return]),
+    "equity":bits(&result.equity_curve),"daily":bits(&result.daily_returns),"realized":bits(&result.trade_pnls),"with_forced":bits(&result.trade_pnls_with_forced),
+    "trades":result.trades.iter().map(|t|serde_json::json!([t.entry_bar,t.exit_bar,t.hold_bars,t.qty.to_bits(),t.long,t.forced_close])).collect::<Vec<_>>()
+    });
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../tests/fixtures/issue1605/baseline-13ed4d45-bits.json"
+    ))
+    .unwrap();
+    assert_eq!(frozen, expected);
 }

@@ -2367,7 +2367,13 @@ mod tests {
     #[test]
     fn p1605_r4_power_respects_strict_boundary_and_subnormal_domain() {
         let mut stats = active_research_stats().unwrap();
-        for (alpha, expected) in [(0.05, 5), (1e-30, 100), (0.5, 2), (0.125, 4), (f64::from_bits(1), 1075)] {
+        for (alpha, expected) in [
+            (0.05, 5),
+            (1e-30, 100),
+            (0.5, 2),
+            (0.125, 4),
+            (f64::from_bits(1), 1075),
+        ] {
             stats.significance_p_threshold = alpha;
             assert_eq!(min_sign_test_power(&stats), expected, "alpha={alpha}");
         }
@@ -2375,12 +2381,13 @@ mod tests {
 
     #[test]
     fn p1605_r4_valid_tiny_threshold_has_finite_power_bound() {
-        let mut record: serde_json::Value = serde_json::from_str(
-            crate::theta_v0::policy_records::ACTIVE_RESEARCH_STATS_JSON,
-        ).unwrap();
+        let mut record: serde_json::Value =
+            serde_json::from_str(crate::theta_v0::policy_records::ACTIVE_RESEARCH_STATS_JSON)
+                .unwrap();
         record["fields"]["significance_p_threshold"]["value"] = 1e-30.into();
         let text = record.to_string();
-        let stats = crate::theta_v0::backtest::research_stats::parse_research_stats(Some(&text)).unwrap();
+        let stats =
+            crate::theta_v0::backtest::research_stats::parse_research_stats(Some(&text)).unwrap();
         assert!(sign_test_pvalue(99, 99) >= stats.significance_p_threshold);
         assert!(sign_test_pvalue(100, 100) < stats.significance_p_threshold);
         assert_eq!(min_sign_test_power(&stats), 100);

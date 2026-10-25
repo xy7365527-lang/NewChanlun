@@ -29,6 +29,7 @@ use super::super::closed_loop::state::{AssemblyState, ChongAssembly, MicroEvent}
 use super::super::closed_loop::transition::{hybrid_step, AssemblyEvent};
 use super::super::config::ThetaConfig;
 use super::super::policy_records::PolicyError;
+use super::super::policy_records::ACTIVE_RESEARCH_STATS_JSON;
 use super::super::strategy::chong::{ChongBook, ChongKey};
 use super::super::strategy::ledger::RiskPolicy;
 use super::super::types::Bar;
@@ -48,7 +49,6 @@ pub use super::ledger::{TypedTrade, VoiceVerdictRec, TYPED_TRADE_SCHEMA_VERSION}
 use super::metrics::{self, Metrics};
 pub use super::opsem_dump::{StrictNestCertificateRecord, StrictNestSidecarSummary};
 use super::research_stats::{parse_research_stats, ResearchStats};
-use super::super::policy_records::ACTIVE_RESEARCH_STATS_JSON;
 #[cfg(test)]
 use std::rc::Rc;
 // ★B-M3b-contract（#91）fill loop seam：fill loop 本体 + FillOutput(Family)
@@ -269,7 +269,14 @@ pub fn run_theta_v0_pi(
     initial_nav: f64,
 ) -> Result<RunResult, PolicyError> {
     // χ≡1 全覆盖（默认入口，frozen Θ v0 bit-exact 不变）。χ 阈值过滤端到端入口见 [`run_theta_v0_pi_chi`]。
-    run_theta_v0_pi_inner(dataset, config, years, initial_nav, None, Some(ACTIVE_RESEARCH_STATS_JSON))
+    run_theta_v0_pi_inner(
+        dataset,
+        config,
+        years,
+        initial_nav,
+        None,
+        Some(ACTIVE_RESEARCH_STATS_JSON),
+    )
 }
 
 /// ★χ_t 阈值过滤端到端入口（task #41 + delta-r-alpha #42）——`run_theta_v0_pi` 接 χ 过滤的版本。
@@ -292,7 +299,14 @@ pub fn run_theta_v0_pi_chi(
         treat_empty_as_pass,
         shrink_tau_sq: None,
     });
-    run_theta_v0_pi_inner(dataset, config, years, initial_nav, chi, Some(ACTIVE_RESEARCH_STATS_JSON))
+    run_theta_v0_pi_inner(
+        dataset,
+        config,
+        years,
+        initial_nav,
+        chi,
+        Some(ACTIVE_RESEARCH_STATS_JSON),
+    )
 }
 
 /// shrinkage 准入入口（acc-three-way-l2 #83）：与 [`run_theta_v0_pi_chi`] 同 harness，唯一区别
@@ -313,7 +327,14 @@ pub fn run_theta_v0_pi_chi_shrink(
         treat_empty_as_pass,
         shrink_tau_sq: Some(tau_sq),
     });
-    run_theta_v0_pi_inner(dataset, config, years, initial_nav, chi, Some(ACTIVE_RESEARCH_STATS_JSON))
+    run_theta_v0_pi_inner(
+        dataset,
+        config,
+        years,
+        initial_nav,
+        chi,
+        Some(ACTIVE_RESEARCH_STATS_JSON),
+    )
 }
 
 fn run_theta_v0_pi_inner(
@@ -580,7 +601,13 @@ pub fn run_theta_v0_pi_overlay(
     years: f64,
     initial_nav: f64,
 ) -> Result<OverlayRunResult, PolicyError> {
-    run_theta_v0_pi_overlay_with_record(dataset, config, years, initial_nav, Some(ACTIVE_RESEARCH_STATS_JSON))
+    run_theta_v0_pi_overlay_with_record(
+        dataset,
+        config,
+        years,
+        initial_nav,
+        Some(ACTIVE_RESEARCH_STATS_JSON),
+    )
 }
 
 fn run_theta_v0_pi_overlay_with_record(
