@@ -4348,7 +4348,7 @@ fn json_shape_mixed(
     shape: JsonShape,
     work: &newchan_rust::s_content::capture_allocation::scratch::WorkScope,
 ) -> Result<v3::business_json::PlainJson, v3::business_json::MixedJsonError> {
-    use v3::business_json::{mixed_parse_admitted, MixedJsonError, JsonOwner};
+    use v3::business_json::{mixed_parse_admitted, JsonOwner, MixedJsonError};
     mixed_parse_admitted(text.as_bytes(), work, || {
         match json_shape_with_owner(text, shape, None).map_err(MixedJsonError::Business)? {
             JsonOwner::Plain(value) => Ok(value),

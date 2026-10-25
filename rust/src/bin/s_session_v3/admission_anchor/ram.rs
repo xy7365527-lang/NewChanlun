@@ -494,7 +494,10 @@ mod tests {
                         (Ok(crate::v3::business_json::JsonOwner::Plain(original)), Ok(mixed)) => {
                             assert_eq!(&*original, &*mixed)
                         }
-                        (Err(original), Err(crate::v3::business_json::MixedJsonError::Business(mixed))) => assert_eq!(original, mixed),
+                        (
+                            Err(original),
+                            Err(crate::v3::business_json::MixedJsonError::Business(mixed)),
+                        ) => assert_eq!(original, mixed),
                         _ => panic!("mixed改变原legacy形状核"),
                     }
                 }
@@ -572,7 +575,9 @@ mod tests {
                 Err(MixedJsonError::Business("parser invoked".into()))
             });
             match &result {
-                Err(MixedJsonError::Resource(error)) => assert_eq!(error.scratch_failure(), Some(ScratchFailure::Budget)),
+                Err(MixedJsonError::Resource(error)) => {
+                    assert_eq!(error.scratch_failure(), Some(ScratchFailure::Budget))
+                }
                 _ => panic!("拒绝未保留结构化资源错误"),
             }
             result
@@ -584,13 +589,18 @@ mod tests {
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn mixed_ram_parser_refusal_allocates_no_error_string() {
-        use crate::v3::{audit_owner::allocation_probe::Window, business_json::{
-            mixed_legacy_json_owner, mixed_strict_json_owner, MixedJsonError,
-        }};
+        use crate::v3::{
+            audit_owner::allocation_probe::Window,
+            business_json::{mixed_legacy_json_owner, mixed_strict_json_owner, MixedJsonError},
+        };
         const TEXT: &str = r#"{"key":["a string that must allocate","another allocated string"]}"#;
         for route in 0..3 {
             for enough in [false, true] {
-                let extra = if enough { 1 << 20 } else { CodecWork::metadata_bytes() + 1 };
+                let extra = if enough {
+                    1 << 20
+                } else {
+                    CodecWork::metadata_bytes() + 1
+                };
                 let owner = AdmissionRamLedger::new(limits(extra)).unwrap();
                 let result = owner.codec_work().unwrap().run(|work| {
                     let window = Window::start();
@@ -615,5 +625,4 @@ mod tests {
             }
         }
     }
-
 }

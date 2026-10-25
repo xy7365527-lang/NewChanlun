@@ -2584,18 +2584,26 @@ pub(crate) fn mixed_parse_admitted(
     work: &WorkScope,
     parse: impl FnOnce() -> Result<PlainJson, MixedJsonError>,
 ) -> Result<PlainJson, MixedJsonError> {
-    let permit = work.reserve_native(json_layout::JsonShape::scan(bytes).parse_peak())
+    let permit = work
+        .reserve_native(json_layout::JsonShape::scan(bytes).parse_peak())
         .map_err(MixedJsonError::Resource)?;
     parse().map(|value| value.with_reservation(Some(permit)))
 }
 
-pub(super) fn mixed_strict_json_owner(bytes: &[u8], work: &WorkScope) -> Result<PlainJson, MixedJsonError> {
+pub(super) fn mixed_strict_json_owner(
+    bytes: &[u8],
+    work: &WorkScope,
+) -> Result<PlainJson, MixedJsonError> {
     mixed_parse_admitted(bytes, work, || {
         let parsed = strict_json_owner(bytes, None).map_err(|error| match error {
-            StrictOwnerError::Syntax(e) => MixedJsonError::Business(format!("SchemaUnsupported：{e}")),
+            StrictOwnerError::Syntax(e) => {
+                MixedJsonError::Business(format!("SchemaUnsupported：{e}"))
+            }
             StrictOwnerError::Allocation(e) => MixedJsonError::Resource(e),
             #[cfg(feature = "s_allocation_json_testonly")]
-            StrictOwnerError::OwnedSyntax(e) => MixedJsonError::Business(format!("SchemaUnsupported：{e}")),
+            StrictOwnerError::OwnedSyntax(e) => {
+                MixedJsonError::Business(format!("SchemaUnsupported：{e}"))
+            }
         })?;
         match parsed {
             JsonOwner::Plain(value) => Ok(value),
@@ -2604,9 +2612,13 @@ pub(super) fn mixed_strict_json_owner(bytes: &[u8], work: &WorkScope) -> Result<
         }
     })
 }
-pub(super) fn mixed_legacy_json_owner(bytes: &[u8], work: &WorkScope) -> Result<PlainJson, MixedJsonError> {
+pub(super) fn mixed_legacy_json_owner(
+    bytes: &[u8],
+    work: &WorkScope,
+) -> Result<PlainJson, MixedJsonError> {
     mixed_parse_admitted(bytes, work, || {
-        serde_json::from_slice(bytes).map(|v| PlainJson::from_reserved(v, None))
+        serde_json::from_slice(bytes)
+            .map(|v| PlainJson::from_reserved(v, None))
             .map_err(|e| MixedJsonError::Business(e.to_string()))
     })
 }
