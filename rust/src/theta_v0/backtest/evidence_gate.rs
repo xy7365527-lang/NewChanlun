@@ -84,7 +84,8 @@ impl EvidenceGate {
             // 近似：正态分布分位数的简化公式（Beasley-Springer-Moro 近似）
             let p = 1.0 - conf;
             if p >= 0.5 || p <= 0.0 {
-                return 0.0; // 越界保护
+                // validate() 已确保 conf ∈ (1/2, 1)，故 p ∈ (0, 1/2)；此分支不应到达
+                unreachable!("z_alpha: p={} 越界（confidence={}），应在 validate() 拦截", p, conf);
             }
             let t = (-2.0 * p.ln()).sqrt();
             let c0 = 2.515517;
