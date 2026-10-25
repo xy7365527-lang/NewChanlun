@@ -21,6 +21,7 @@ import {
   ghIssueNotifier,
   hostGit,
   readReviewTemplate,
+  prepareFinalReviewPrompt,
   resolveReviewBase,
   ReviewPromptTooLargeError,
   runGuardedReview,
@@ -269,10 +270,7 @@ async function runReviewer(sandbox: Sandbox, issue: number, branch: string, auth
       fetchIssue: ghIssueFetcher(GH_CLEAN_ENV),
     },
     { logWorker, notify: ghIssueNotifier(GH_CLEAN_ENV) },
-    async ({ prompt, estimatedTokens, base }) => {
-      logWorker({
-        ticket: issue, branch, phase: "reviewer", status: "started", prompt_est_tokens: estimatedTokens, review_base: base,
-      });
+    async ({ prompt, base }) => {
       const first = beginManagedStage(sandbox.worktreePath, branch, issue, "reviewer");
       // REVIEW_ONLY 没有作者内存证据：按整个候选 diff 决定远端验证，不能按“独审无改动”跳过。
       const verification = authorVerification ?? verifyManagedRust(first, {
@@ -282,9 +280,14 @@ async function runReviewer(sandbox: Sandbox, issue: number, branch: string, auth
       const agent = codexWorker({ effort: EFFORT });
       let resumeSession: string | undefined;
       const result = await runManagedReview(sandbox.worktreePath, branch, issue, verification, async (stage, evidence) => {
+        const final = prepareFinalReviewPrompt(
+          prompt + `\n本次评审必须读取精确候选 commit ${stage.head}。\n${verificationPrompt(evidence)}`,
+          base, { issue, branch }, { logWorker, notify: ghIssueNotifier(GH_CLEAN_ENV) },
+        );
+        logWorker({ ticket: issue, branch, phase: "reviewer", status: "started", prompt_est_tokens: final.estimatedTokens, review_base: base });
         const review = await runWithResume(sandbox, {
           name: "reviewer", agent, resumeSession,
-          prompt: { prompt: prompt + `\n本次评审必须读取精确候选 commit ${stage.head}。\n${verificationPrompt(evidence)}` },
+          prompt: { prompt: final.prompt },
         });
         resumeSession = review.iterations.at(-1)?.sessionId;
         return review.stdout;
