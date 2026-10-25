@@ -3117,8 +3117,8 @@ mod tests {
         assert_eq!(reopened.identity().unwrap(), identity);
         let mut after = reopened.state_summary("tick-after-reopen").unwrap();
         let mut before = summary;
-        after.remove("command");
-        before.remove("command");
+        after.as_object_mut().unwrap().remove("command");
+        before.as_object_mut().unwrap().remove("command");
         assert_eq!(after, before);
         let tx = reopened.conn.unchecked_transaction().unwrap();
         state::audit(&tx).unwrap();
