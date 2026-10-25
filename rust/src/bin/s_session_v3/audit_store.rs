@@ -537,7 +537,10 @@ pub(crate) trait CodecRead: NodeSource {
                 let permit = self
                     .scope
                     .reserve_native(self.capture.original(digest).map_or(0, |(_, b)| b.len()))?;
-                let value = self.capture.reader().read(digest)?;
+                let value = match self.observer {
+                    Some(observer) => self.capture.reader_observed(observer).read(digest)?,
+                    None => self.capture.reader().read(digest)?,
+                };
                 Ok(sc::job::ScopedNodeRead::from_plain(value, Some(permit)))
             }
             fn checked_read(

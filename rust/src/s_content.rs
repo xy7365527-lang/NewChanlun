@@ -3661,8 +3661,7 @@ impl AuditCapture {
             _ => None,
         };
         let memo = std::mem::replace(&mut *slot.borrow_mut(), AuditMemo::new(budget.as_ref()));
-        let mut source = ObservedCaptureReader { reader: CaptureReader(self), observer };
-        let mut verifier = Verifier::with_memo_capture(&mut source, mode, memo);
+        let mut verifier = Verifier::with_context(CodecContext::Capture(self, observer), mode, memo);
         let result = verifier.verify_refview(reference);
         // 出错不保留 run() 提前插入的 seen/pushed，不能让下一根继承半成功。
         if let Ok((digest, _, _)) = &result {
@@ -4632,7 +4631,7 @@ mod native_frame_reuse_tests {
         let reads = capture.reads.get();
         let observed = meter.reads.get();
         capture.verify_refview_observed((&reference).into(), Mode::Public, Some(&meter)).unwrap();
-        assert_eq!(capture.reads.get() - reads, meter.reads.get() - observed);
+        assert_eq!(capture.reads.get() - reads, (meter.reads.get() - observed) as u64);
         let missing = [255; 32];
         let prepared = meter.prepared.get();
         assert!(capture.reader_observed(&meter).checked_read(&missing).unwrap().is_none());
@@ -5202,7 +5201,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
         mode: Mode,
         memo: AuditMemo,
     ) -> Self {
-        Self::with_context(CodecContext::Capture(source.0), mode, memo)
+        Self::with_context(CodecContext::Capture(source.0, None), mode, memo)
     }
     #[cfg(test)]
     fn with_memo(source: &'a mut dyn NodeSource, mode: Mode, memo: AuditMemo) -> Self {

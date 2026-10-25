@@ -629,7 +629,7 @@ pub(super) enum CodecContext<'read, 'capture> {
         sink: &'read mut dyn NodeSink,
         memo: &'read mut NativeLocalMaterialMemo,
     },
-    Capture(&'capture AuditCapture),
+    Capture(&'capture AuditCapture, Option<&'read dyn CaptureReadObserver>),
     #[cfg(feature = "s_capture_native_testonly")]
     OwnerCapture {
         capture: &'capture AuditCapture,
@@ -672,7 +672,7 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
     }
     pub(super) fn budget(&self) -> Option<OwnedBudget> {
         match self {
-            Self::Capture(c) => match &c.nodes {
+            Self::Capture(c, _) => match &c.nodes {
                 CaptureNodes::AllocationPrototype(s) => Some(s.owned_budget()),
                 _ => None,
             },
@@ -708,7 +708,7 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
                 sink: &mut **sink,
                 memo: &mut **memo,
             },
-            Self::Capture(c) => CodecContext::Capture(c),
+            Self::Capture(c, observer) => CodecContext::Capture(c, *observer),
             #[cfg(feature = "s_capture_native_testonly")]
             Self::OwnerCapture { capture, work } => CodecContext::OwnerCapture { capture, work },
             Self::Closed(c) => CodecContext::Closed(&mut **c),
@@ -748,8 +748,8 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
                 }
                 Ok((tag, VerifierBody::Borrowed(body)))
             }
-            Self::Capture(c) => {
-                let mut reader = CaptureReader(c);
+            Self::Capture(c, observer) => {
+                let mut reader = ObservedCaptureReader { reader: CaptureReader(c), observer: *observer };
                 if c.is_allocation_prototype() {
                     read_body_checked(&mut reader, Some(c), d)
                 } else {
@@ -823,7 +823,7 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
                     "只读 owner context 不可写节点",
                 ))
             }
-            Self::Source(_) | Self::Capture(_) => {
+            Self::Source(_) | Self::Capture(_, _) => {
                 return Err(CodecError::new(code::SOURCE, "只读context不可写节点"))
             }
         }
