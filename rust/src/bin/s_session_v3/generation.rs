@@ -2518,6 +2518,8 @@ mod tests {
                     ("c", 20, 12),
                     ("d", 30, 8),
                     ("e", 40, 8),
+                    ("f", 50, 13),
+                    ("g", 60, 9),
                 ],
             ),
         ] {
@@ -2569,13 +2571,15 @@ mod tests {
             }
             if label == "连续同价包含合并" {
                 let object = &mine["objects"][0];
-                let refs = object["input_refs"]
-                    .as_array()
-                    .unwrap_or_else(|| panic!("tick input_refs 不是数组：{object}"));
+                let refs: Value = serde_json::from_str(object["input_refs_json"].as_str().unwrap())
+                    .expect("tick input_refs 是规范JSON文本");
                 assert_eq!(refs[0]["raw_refs"].as_array().unwrap().len(), 2);
                 assert_eq!(refs[2]["raw_refs"].as_array().unwrap().len(), 2);
                 assert!(refs[0].get("dependency_refs").is_none());
-                assert_eq!(object["source_coords"], json!([0, 20, 30]));
+                let sources: Value =
+                    serde_json::from_str(object["source_coords_json"].as_str().unwrap())
+                        .expect("tick source_coords 是规范JSON文本");
+                assert_eq!(sources, json!([0, 20, 30]));
             }
         }
     }
