@@ -247,6 +247,13 @@ impl<'a> From<&'a ContentRef> for RefView<'a> {
         Self::Normal(r)
     }
 }
+impl<'a> From<&'a super::capture_allocation::native_owned::NativeValue<ContentRef>>
+    for RefView<'a>
+{
+    fn from(r: &'a super::capture_allocation::native_owned::NativeValue<ContentRef>) -> Self {
+        Self::Normal(r.as_ref())
+    }
+}
 impl<'a> From<&'a RefOwner> for RefView<'a> {
     fn from(r: &'a RefOwner) -> Self {
         Self::Owned(r)
@@ -256,6 +263,18 @@ impl<'a> From<&'a RefOwner> for RefView<'a> {
 // Only output representation varies; the path's source reads and checks are shared.
 pub(super) trait RefOutput: Sized {
     const NATIVE_HEAP: usize;
+    const RETAINS_NATIVE: bool = false;
+    fn with_native_permit(
+        self,
+        permit: Option<super::capture_allocation::scratch::NativeReservation>,
+    ) -> Result<Self, super::CodecError> {
+        if permit.is_some() {
+            return Err(super::CodecError::scratch(
+                super::capture_allocation::scratch::ScratchFailure::Ledger,
+            ));
+        }
+        Ok(self)
+    }
     fn from_checked(kind: Kind, digest: NodeDigest, extent: Option<u64>) -> Self;
 }
 impl RefOutput for ContentRef {
@@ -268,6 +287,20 @@ impl RefOutput for RefOwner {
     const NATIVE_HEAP: usize = 0;
     fn from_checked(kind: Kind, digest: NodeDigest, extent: Option<u64>) -> Self {
         Self::new(kind, digest, extent)
+    }
+}
+
+impl RefOutput for super::capture_allocation::native_owned::NativeValue<ContentRef> {
+    const NATIVE_HEAP: usize = CONTENT_FORMAT.len() + ROOT_PREFIX.len() + 64;
+    const RETAINS_NATIVE: bool = true;
+    fn from_checked(kind: Kind, digest: NodeDigest, extent: Option<u64>) -> Self {
+        Self::from_reserved(ContentRef::new(kind, &digest, extent), None)
+    }
+    fn with_native_permit(
+        self,
+        permit: Option<super::capture_allocation::scratch::NativeReservation>,
+    ) -> Result<Self, super::CodecError> {
+        Ok(self.attach_reserved(permit))
     }
 }
 

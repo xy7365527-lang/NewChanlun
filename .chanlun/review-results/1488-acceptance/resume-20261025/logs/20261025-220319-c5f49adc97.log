@@ -1,0 +1,263 @@
+ref=codex/1488-fix-p2-resume-20261023 sha=c5f49adc97d8e40ab1753a7d295a5d157c15af94 sub=rust target=/home/hanju/nc-remote/target-r88 cmd=bash -c echo\ c2V0ICtlCmZhaWxlZD0wCnJ1bigpIHsgbmFtZT0kMTsgc2hpZnQ7IGVjaG8gIj09PSBCRUdJTiAkbmFtZSA9PT0iOyAiJEAiOyByYz0kPzsgZWNobyAiPT09IEVORCAkbmFtZSBSQz0kcmMgPT09IjsgWyAiJHJjIiA9IDAgXSB8fCBmYWlsZWQ9MTsgfQpydW4gZm10IGNhcmdvIGZtdCAtLWFsbCAtLSAtLWNoZWNrCnJ1biBkZWZhdWx0IGVudiBSVVNURkxBR1M9Jy1EIHdhcm5pbmdzJyBjYXJnbyBjaGVjayAtLWxvY2tlZCAtLWFsbC10YXJnZXRzCnJ1biBiYWNrdGVzdF9iaW4gZW52IFJVU1RGTEFHUz0nLUQgd2FybmluZ3MnIGNhcmdvIGNoZWNrIC0tbG9ja2VkIC0tYWxsLXRhcmdldHMgLS1mZWF0dXJlcyBiYWNrdGVzdF9iaW4KcnVuIHNfc2Vzc2lvbiBlbnYgUlVTVEZMQUdTPSctRCB3YXJuaW5ncycgY2FyZ28gY2hlY2sgLS1sb2NrZWQgLS1hbGwtdGFyZ2V0cyAtLWZlYXR1cmVzIHNfc2Vzc2lvbgpydW4gbmF0aXZlIGVudiBSVVNURkxBR1M9Jy1EIHdhcm5pbmdzJyBjYXJnbyBjaGVjayAtLWxvY2tlZCAtLWFsbC10YXJnZXRzIC0tZmVhdHVyZXMgc19zZXNzaW9uLHNfY2FwdHVyZV9uYXRpdmVfdGVzdG9ubHkKcnVuIGpzb25fbmF0aXZlIGVudiBSVVNURkxBR1M9Jy1EIHdhcm5pbmdzJyBjYXJnbyBjaGVjayAtLWxvY2tlZCAtLWFsbC10YXJnZXRzIC0tZmVhdHVyZXMgc19zZXNzaW9uLHNfY2FwdHVyZV9uYXRpdmVfdGVzdG9ubHksc19hbGxvY2F0aW9uX2pzb25fdGVzdG9ubHkKcnVuIGJzcF9kZWZhdWx0IGNhcmdvIHRlc3QgLS1sb2NrZWQgLS1saWIgbm9fc3RyYXlfYnNwX2JpbmRpbmdfcmV3cml0ZXNfb3V0c2lkZV9yZWdpc3RyeQpydW4gYnNwX2JhY2t0ZXN0IGNhcmdvIHRlc3QgLS1sb2NrZWQgLS1saWIgLS1mZWF0dXJlcyBiYWNrdGVzdF9iaW4gbm9fc3RyYXlfYnNwX2JpbmRpbmdfcmV3cml0ZXNfb3V0c2lkZV9yZWdpc3RyeQpydW4gYnVzaW5lc3NfbmF0aXZlIGNhcmdvIHRlc3QgLS1sb2NrZWQgLS1iaW4gc19zdHJ1Y3R1cmVfc2Vzc2lvbiAtLWZlYXR1cmVzIHNfc2Vzc2lvbixzX2NhcHR1cmVfbmF0aXZlX3Rlc3Rvbmx5IHYzOjpidXNpbmVzc19qc29uOjoKcnVuIGJ1c2luZXNzX2pzb25fbmF0aXZlIGNhcmdvIHRlc3QgLS1sb2NrZWQgLS1iaW4gc19zdHJ1Y3R1cmVfc2Vzc2lvbiAtLWZlYXR1cmVzIHNfc2Vzc2lvbixzX2NhcHR1cmVfbmF0aXZlX3Rlc3Rvbmx5LHNfYWxsb2NhdGlvbl9qc29uX3Rlc3Rvbmx5IHYzOjpidXNpbmVzc19qc29uOjoKZXhpdCAkZmFpbGVkCg==\ \|\ base64\ -d\ \|\ bash 
+=== BEGIN fmt ===
+=== END fmt RC=0 ===
+=== BEGIN default ===
+    Checking newchan_rust v0.1.0 (/home/hanju/nc-remote/wt/20261025-220319-c5f49adc97/rust)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 17.63s
+=== END default RC=0 ===
+=== BEGIN backtest_bin ===
+    Checking newchan_rust v0.1.0 (/home/hanju/nc-remote/wt/20261025-220319-c5f49adc97/rust)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 21.32s
+=== END backtest_bin RC=0 ===
+=== BEGIN s_session ===
+    Checking newchan_rust v0.1.0 (/home/hanju/nc-remote/wt/20261025-220319-c5f49adc97/rust)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 26.57s
+=== END s_session RC=0 ===
+=== BEGIN native ===
+    Checking newchan_rust v0.1.0 (/home/hanju/nc-remote/wt/20261025-220319-c5f49adc97/rust)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 20.29s
+=== END native RC=0 ===
+=== BEGIN json_native ===
+    Checking newchan_rust v0.1.0 (/home/hanju/nc-remote/wt/20261025-220319-c5f49adc97/rust)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 21.42s
+=== END json_native RC=0 ===
+=== BEGIN bsp_default ===
+   Compiling once_cell v1.21.4
+   Compiling typenum v1.20.1
+   Compiling cfg-if v1.0.4
+   Compiling libc v0.2.189
+   Compiling serde_core v1.0.229
+   Compiling linux-raw-sys v0.12.1
+   Compiling bitflags v2.13.0
+   Compiling memoffset v0.9.1
+   Compiling zmij v1.0.21
+   Compiling unindent v0.2.4
+   Compiling pyo3-build-config v0.23.5
+   Compiling itoa v1.0.18
+   Compiling fastrand v2.5.0
+   Compiling memchr v2.8.2
+   Compiling rustix v1.1.5
+   Compiling allocator-api2 v0.2.21
+   Compiling cpufeatures v0.2.17
+   Compiling hashbrown v0.17.1
+   Compiling generic-array v0.14.7
+   Compiling pyo3-ffi v0.23.5
+   Compiling pyo3-macros-backend v0.23.5
+   Compiling pyo3 v0.23.5
+   Compiling block-buffer v0.10.4
+   Compiling crypto-common v0.1.7
+   Compiling getrandom v0.4.3
+   Compiling digest v0.10.7
+   Compiling sha2 v0.10.9
+   Compiling serde v1.0.229
+   Compiling serde_json v1.0.151
+   Compiling tempfile v3.27.0
+   Compiling pyo3-macros v0.23.5
+   Compiling newchan_rust v0.1.0 (/home/hanju/nc-remote/wt/20261025-220319-c5f49adc97/rust)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 37.23s
+     Running unittests src/lib.rs (/home/hanju/nc-remote/target-r88/debug/deps/newchan_rust-60f1e46e00c16f86)
+
+running 1 test
+test theta_v0::classifier::bsp::tests::no_stray_bsp_binding_rewrites_outside_registry ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3046 filtered out; finished in 0.01s
+
+=== END bsp_default RC=0 ===
+=== BEGIN bsp_backtest ===
+   Compiling proc-macro2 v1.0.106
+   Compiling serde_core v1.0.229
+   Compiling ident_case v1.0.1
+   Compiling serde v1.0.229
+   Compiling strsim v0.11.1
+   Compiling winnow v1.0.3
+   Compiling memchr v2.8.2
+   Compiling fnv v1.0.7
+   Compiling equivalent v1.0.2
+   Compiling rustversion v1.0.22
+   Compiling num-traits v0.2.19
+   Compiling parking_lot_core v0.9.12
+   Compiling rand_core v0.10.1
+   Compiling getrandom v0.4.3
+   Compiling semver v1.0.28
+   Compiling quote v1.0.45
+   Compiling zerocopy v0.8.52
+   Compiling prettyplease v0.2.37
+   Compiling syn v2.0.117
+   Compiling syn v3.0.4
+   Compiling toml_parser v1.1.3+spec-1.1.0
+   Compiling hashbrown v0.17.1
+   Compiling futures-core v0.3.34
+   Compiling getrandom v0.3.4
+   Compiling scopeguard v1.2.0
+   Compiling lock_api v0.4.14
+   Compiling indexmap v2.14.0
+   Compiling aho-corasick v1.1.4
+   Compiling rustc_version v0.4.1
+   Compiling toml_datetime v1.1.1+spec-1.1.0
+   Compiling serde_spanned v1.1.1
+   Compiling ahash v0.8.12
+   Compiling futures-sink v0.3.34
+   Compiling toml v1.1.4+spec-1.1.0
+   Compiling regex-syntax v0.8.11
+   Compiling pin-project-lite v0.2.17
+   Compiling cpufeatures v0.3.0
+   Compiling futures-channel v0.3.34
+   Compiling toml_edit v0.25.12+spec-1.1.0
+   Compiling rstest_macros v0.26.1
+   Compiling futures-io v0.3.34
+   Compiling crossbeam-utils v0.8.21
+   Compiling regex-automata v0.4.18
+   Compiling futures-task v0.3.34
+   Compiling darling_core v0.20.11
+   Compiling darling_core v0.23.0
+   Compiling serde_derive v1.0.229
+   Compiling futures-macro v0.3.34
+   Compiling rust_decimal v1.42.1
+   Compiling slab v0.4.12
+   Compiling arrayvec v0.7.7
+   Compiling serde_json v1.0.151
+   Compiling thiserror v2.0.20
+   Compiling anyhow v1.0.104
+   Compiling regex v1.13.1
+   Compiling futures-util v0.3.34
+   Compiling thiserror-impl v2.0.20
+   Compiling proc-macro-crate v3.5.0
+   Compiling darling_macro v0.20.11
+   Compiling nautilus-core v0.62.0
+   Compiling rmp v0.8.15
+   Compiling darling_macro v0.23.0
+   Compiling chacha20 v0.10.1
+   Compiling unicode-width v0.2.2
+   Compiling jiff-tzdb v0.1.8
+   Compiling darling v0.20.11
+   Compiling derive_builder_core v0.20.2
+   Compiling byteorder v1.5.0
+   Compiling jiff-core v0.1.0
+   Compiling value-bag v1.12.0
+   Compiling relative-path v1.9.3
+   Compiling lazy_static v1.5.0
+   Compiling smallvec v1.15.2
+   Compiling darling v0.23.0
+   Compiling bon-macros v3.9.3
+   Compiling bytecount v0.6.9
+   Compiling implied-vol v2.0.0
+   Compiling glob v0.3.3
+   Compiling parking_lot v0.12.5
+   Compiling derive_builder_macro v0.20.2
+   Compiling ustr v1.1.0
+   Compiling jiff v0.2.35
+   Compiling papergrid v0.18.0
+   Compiling bytes v1.12.1
+   Compiling rmp-serde v1.3.1
+   Compiling log v0.4.33
+   Compiling rand v0.10.2
+   Compiling strum_macros v0.28.0
+   Compiling uuid v1.26.0
+   Compiling arc-swap v1.9.2
+   Compiling hashbrown v0.14.5
+   Compiling ruint-macro v1.2.1
+   Compiling futures-timer v3.0.4
+   Compiling tabled v0.21.0
+   Compiling derive_builder v0.20.2
+   Compiling enum_dispatch v0.3.13
+   Compiling dashmap v6.2.1
+   Compiling ruint v1.20.0
+   Compiling rust_decimal_macros v1.40.0
+   Compiling rstest v0.26.1
+   Compiling async-stream-impl v0.3.6
+   Compiling nautilus-common v0.62.0
+   Compiling bon v3.9.3
+   Compiling futures v0.3.34
+   Compiling async-trait v0.1.92
+   Compiling strum v0.28.0
+   Compiling sysinfo v0.39.6
+   Compiling blake3 v1.8.7
+   Compiling async-stream v0.3.6
+   Compiling pyo3-macros-backend v0.23.5
+   Compiling constant_time_eq v0.4.2
+   Compiling tempfile v3.27.0
+   Compiling nautilus-model v0.62.0
+   Compiling pyo3-macros v0.23.5
+   Compiling pyo3 v0.23.5
+   Compiling nautilus-analysis v0.62.0
+   Compiling nautilus-portfolio v0.62.0
+   Compiling nautilus-execution v0.62.0
+   Compiling nautilus-data v0.62.0
+   Compiling nautilus-trading v0.62.0
+   Compiling nautilus-risk v0.62.0
+   Compiling nautilus-system v0.62.0
+   Compiling nautilus-backtest v0.62.0
+   Compiling newchan_rust v0.1.0 (/home/hanju/nc-remote/wt/20261025-220319-c5f49adc97/rust)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 58.21s
+     Running unittests src/lib.rs (/home/hanju/nc-remote/target-r88/debug/deps/newchan_rust-420cea139f250896)
+
+running 1 test
+test theta_v0::classifier::bsp::tests::no_stray_bsp_binding_rewrites_outside_registry ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3052 filtered out; finished in 0.01s
+
+=== END bsp_backtest RC=0 ===
+=== BEGIN business_native ===
+   Compiling foldhash v0.2.0
+   Compiling libsqlite3-sys v0.38.2
+   Compiling fallible-streaming-iterator v0.1.9
+   Compiling fallible-iterator v0.3.0
+   Compiling smallvec v1.15.2
+   Compiling hashbrown v0.17.1
+   Compiling hashlink v0.12.2
+   Compiling rusqlite v0.40.2
+   Compiling newchan_rust v0.1.0 (/home/hanju/nc-remote/wt/20261025-220319-c5f49adc97/rust)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 42.43s
+     Running unittests src/bin/s_structure_session.rs (/home/hanju/nc-remote/target-r88/debug/deps/s_structure_session-054cbefe7ff1de7c)
+
+running 15 tests
+test v3::business_json::native_consumer_tests::admitted_json_and_hash_match_normal_with_payload_raii ... ok
+test v3::business_json::native_consumer_tests::raw_native_tree_reuses_high_water_and_retains_buffer_until_drop ... ok
+test v3::business_json::native_consumer_tests::admitted_sql_text_clone_and_json_parsers_match_plain ... ok
+test v3::business_json::plain_raii_tests::native_strict_parse_preserves_diagnostics_and_failed_parse_returns_permit ... ok
+test v3::business_json::plain_raii_tests::native_json_cannot_be_mutated_or_detached_without_admission ... ok
+test v3::business_json::native_consumer_tests::raw_native_owners_move_out_of_scope_and_release_only_on_drop ... ok
+test v3::business_json::raw_events_layout_tests::aggregate_tree_conversion_and_direct_append_refuse_without_releasing_live_children ... ok
+test v3::business_json::raw_events_layout_tests::itemized_array_multiple_growths_retain_exact_buffers_across_work_scopes ... ok
+test v3::business_json::plain_raii_tests::native_plain_values_keep_original_permits_past_scope_and_drop_independently ... ok
+test v3::business_json::raw_events_native_append_tests::failed_work_and_capacity_refusal_preserve_raw_payload_and_balance ... ok
+test v3::business_json::raw_events_native_append_tests::same_parent_new_work_appends_and_foreign_parent_refuses_without_mutation ... ok
+test v3::business_json::scoped_json_array_tests::scoped_array_each_preparation_refusal_preserves_parent_payload_capacity_and_live ... ok
+test v3::business_json::scoped_json_array_tests::scoped_array_growth_accounts_old_new_payload_and_metadata_together ... ok
+test v3::business_json::scoped_json_array_tests::scoped_array_refuses_dual_parent_and_finished_native_rejects_unscoped_mutation ... ok
+test v3::business_json::scoped_json_array_tests::scoped_array_outlives_scope_retains_metadata_and_releases_at_last_owner_drop ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 1009 filtered out; finished in 0.00s
+
+=== END business_native RC=0 ===
+=== BEGIN business_json_native ===
+   Compiling newchan_rust v0.1.0 (/home/hanju/nc-remote/wt/20261025-220319-c5f49adc97/rust)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 44.24s
+     Running unittests src/bin/s_structure_session.rs (/home/hanju/nc-remote/target-r88/debug/deps/s_structure_session-a4800c6c97cc13cd)
+
+running 20 tests
+test v3::business_json::collection_owner_tests::owned_text_consumes_real_bytes_zero_copy_utf8_and_drops_zero ... ok
+test v3::business_json::collection_owner_tests::owned_business_map_borrowed_unicode_tuple_and_collision_delete_chains ... ok
+test v3::business_json::collection_owner_tests::owned_business_map_old_new_live_rehash_one_byte_short_preserves_values ... ok
+test v3::business_json::native_consumer_tests::admitted_json_and_hash_match_normal_with_payload_raii ... ok
+test v3::business_json::native_consumer_tests::raw_native_tree_reuses_high_water_and_retains_buffer_until_drop ... ok
+test v3::business_json::native_consumer_tests::admitted_sql_text_clone_and_json_parsers_match_plain ... ok
+test v3::business_json::checked_sql_owner_tests::checked_sql_text_owners_match_legacy_types_null_utf8_and_order ... ok
+test v3::business_json::raw_events_layout_tests::aggregate_tree_conversion_and_direct_append_refuse_without_releasing_live_children ... ok
+test v3::business_json::plain_raii_tests::native_plain_values_keep_original_permits_past_scope_and_drop_independently ... ok
+test v3::business_json::plain_raii_tests::native_strict_parse_preserves_diagnostics_and_failed_parse_returns_permit ... ok
+test v3::business_json::native_consumer_tests::raw_native_owners_move_out_of_scope_and_release_only_on_drop ... ok
+test v3::business_json::raw_events_layout_tests::itemized_array_multiple_growths_retain_exact_buffers_across_work_scopes ... ok
+test v3::business_json::raw_events_native_append_tests::failed_work_and_capacity_refusal_preserve_raw_payload_and_balance ... ok
+test v3::business_json::plain_raii_tests::native_json_cannot_be_mutated_or_detached_without_admission ... ok
+test v3::business_json::raw_events_native_append_tests::same_parent_new_work_appends_and_foreign_parent_refuses_without_mutation ... ok
+test v3::business_json::scoped_json_array_tests::scoped_array_each_preparation_refusal_preserves_parent_payload_capacity_and_live ... ok
+test v3::business_json::scoped_json_array_tests::scoped_array_growth_accounts_old_new_payload_and_metadata_together ... ok
+test v3::business_json::scoped_json_array_tests::scoped_array_refuses_dual_parent_and_finished_native_rejects_unscoped_mutation ... ok
+test v3::business_json::scoped_json_array_tests::scoped_array_outlives_scope_retains_metadata_and_releases_at_last_owner_drop ... ok
+test v3::business_json::strict_owner_protocol_tests::strict_owner_none_some_preserve_original_grammar_first_error_and_typed_budget_cause ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 1114 filtered out; finished in 0.02s
+
+=== END business_json_native RC=0 ===
+EXIT=0 SECONDS=293

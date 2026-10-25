@@ -280,7 +280,8 @@ fn current_basis(
     let (cut, (session_id, session_generation, writer_epoch)) = current_control(tx, audited)?;
     let commit_ns = cut.metadata.semantic_commit_ns.try_clone()?;
     nonnegative(&commit_ns, "commit_ns")?;
-    let snapshot = cut.snapshot.clone();
+    let snapshot =
+        super::audit_store::CodecRead::native_ref_clone(graph, &cut.snapshot).map_err(invalid)?;
     if snapshot.kind() != Kind::Object || snapshot.extent() != Some(20) {
         return Err(invalid("已发布快照不是完整二十字段对象"));
     }

@@ -2,9 +2,9 @@
 use super::*;
 use crate::v3::audit_store::{CodecRead, NativeAdmission};
 use crate::v3::business_json::{self as control_json, BusinessMap, JsonOwner, TextValue};
-#[cfg(feature = "s_allocation_json_testonly")]
-use newchan_rust::s_content::capture_allocation::audit_json as control_aj;
-use newchan_rust::s_content::capture_allocation::audit_json::JsonView;
+#[cfg_attr(not(feature = "s_allocation_json_testonly"), allow(unused_imports))]
+use newchan_rust::s_content::capture_allocation::audit_json::{self as control_aj, JsonView};
+use newchan_rust::s_content::capture_allocation::native_owned::NativeValue;
 use newchan_rust::s_content::capture_allocation::scratch::WorkScope;
 use newchan_rust::s_content::{capture_allocation::OwnedBudget, CodecVec};
 pub use newchan_rust::session_protocol::strict_json;
@@ -129,7 +129,10 @@ fn active(conn: &Connection) -> Result<bool, String> {
 pub(super) fn stored_clock(conn: &Connection) -> Result<ClockPlan, String> {
     let clock = stored_control_clock(conn, None)?;
     match (clock.value, clock.hash) {
-        (JsonOwner::Plain(value), TextValue::Plain(hash)) => Ok(ClockPlan { value, hash }),
+        (JsonOwner::Plain(value), TextValue::Plain(hash)) => Ok(ClockPlan {
+            value: value.into_unscoped()?,
+            hash: hash.into_unscoped().map_err(err)?,
+        }),
         _ => Err(err("normal ClockPlan不可擦除Owned结果")),
     }
 }
@@ -161,11 +164,11 @@ fn control_decode(
         return Err("prototype_audit_allocation_incomplete：owned控制JSON未启用".into());
     }
     if legacy {
-        serde_json::from_str(raw)
-            .map(JsonOwner::Plain)
+        serde_json::from_str::<Value>(raw)
+            .map(|v| JsonOwner::Plain(v.into()))
             .map_err(|e| e.to_string())
     } else {
-        strict_json(raw.as_bytes()).map(JsonOwner::Plain)
+        strict_json(raw.as_bytes()).map(|v| JsonOwner::Plain(v.into()))
     }
 }
 fn control_native_owner(
@@ -216,17 +219,28 @@ fn control_decode_admitted(
     work: Option<&WorkScope>,
 ) -> Result<JsonOwner, String> {
     control_native_owner(owner, work)?;
-    if work.is_some() {
-        #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_capture_native_testonly")]
+    let permit = if work.is_some() {
         NativeAdmission(work)
-            .native_admit(
+            .native_reservation(
                 crate::v3::audit_owner::native::JsonShape::scan(raw.as_bytes()).parse_peak(),
             )
-            .map_err(err)?;
-        #[cfg(not(feature = "s_capture_native_testonly"))]
+            .map_err(err)?
+    } else {
+        None
+    };
+    #[cfg(not(feature = "s_capture_native_testonly"))]
+    if work.is_some() {
         return Err("prototype_audit_allocation_incomplete：Native控制JSON未启用".into());
     }
-    control_decode(raw, owner, legacy)
+    let value = control_decode(raw, owner, legacy)?;
+    #[cfg(feature = "s_capture_native_testonly")]
+    let value = match value {
+        JsonOwner::Plain(value) => JsonOwner::Plain(value.with_reservation(permit)),
+        #[cfg(feature = "s_allocation_json_testonly")]
+        owned @ JsonOwner::Owned(_) => owned,
+    };
+    Ok(value)
 }
 fn control_canonical_equal(
     value: JsonView<'_>,
@@ -972,7 +986,7 @@ pub(super) fn verify_epoch_history(
     verify_epoch_history_with_owner(conn, v2, None)?
         .into_iter()
         .map(|(s, g)| match s {
-            TextValue::Plain(s) => Ok((s, g)),
+            TextValue::Plain(s) => Ok((s.into_unscoped().map_err(err)?, g)),
             TextValue::Owned(_) => Err(err("normal epoch结果不可擦除Owned文本")),
         })
         .collect()
@@ -1118,17 +1132,9 @@ impl ControlFacts {
         if generation != self.headers.len() as i64 + 1 {
             return Err(err("owner 新控制头非连续尾"));
         }
-        admission
-            .native_admit(
-                batch
-                    .len()
-                    .checked_add(commit_ns.len())
-                    .ok_or_else(|| err(admission.native_overflow()))?,
-            )
-            .map_err(err)?;
-        let key = (generation, TextValue::Plain(batch.into()));
+        let key = (generation, admission.native_text(batch).map_err(err)?);
         let header = ControlHeader {
-            commit_ns: TextValue::Plain(commit_ns.into()),
+            commit_ns: admission.native_text(commit_ns).map_err(err)?,
             consumed: false,
         };
         retained.add(&key);
@@ -1247,15 +1253,15 @@ impl ExpectedControl {
         let Self::V2 { history } = self else {
             return Ok(());
         };
-        if header.protocol_revision.as_deref() != Some("s-session/2") {
+        if header.protocol_revision.as_deref().map(|v| v.as_str()) != Some("s-session/2") {
             return Err(err("发布batch协议标记不是 s-session/2"));
         }
         history.consume_header(
             generation,
             batch_id,
-            header.session_generation.as_deref(),
-            header.clock_plan_hash.as_deref(),
-            header.semantic_commit_ns.as_deref(),
+            header.session_generation.as_deref().map(|v| v.as_str()),
+            header.clock_plan_hash.as_deref().map(|v| v.as_str()),
+            header.semantic_commit_ns.as_deref().map(|v| v.as_str()),
         )
     }
 
@@ -1303,7 +1309,12 @@ pub(super) fn validate_control_history(
 ) -> Result<ControlHistory, String> {
     let mut facts = control_json::new_work(None);
     for (ns, g) in epoch_facts {
-        facts.try_push((TextValue::Plain(ns), g)).map_err(err)?;
+        facts
+            .try_push((
+                TextValue::Plain(NativeValue::<String>::from_unscoped(ns)),
+                g,
+            ))
+            .map_err(err)?;
     }
     validate_control_history_with_owner(conn, protocol_revision, facts, None)
 }
@@ -1349,7 +1360,9 @@ fn control_canonical_text_admitted(
         return Err("prototype_audit_allocation_incomplete：owned规范文本未启用".into());
     }
     if work.is_none() {
-        return serde_json::to_string(&v).map(TextValue::Plain).map_err(err);
+        return serde_json::to_string(&v)
+            .map(|s| TextValue::Plain(NativeValue::<String>::from_unscoped(s)))
+            .map_err(err);
     }
     struct AdmittedWriter<'a> {
         bytes: CodecVec<u8>,
@@ -2758,10 +2771,10 @@ mod tests {
 
     fn expected_control_test_header(commit_ns: &str) -> BatchControlHeader {
         BatchControlHeader {
-            protocol_revision: Some("s-session/2".into()),
-            session_generation: Some("1".into()),
-            clock_plan_hash: Some("test-clock-hash".into()),
-            semantic_commit_ns: Some(commit_ns.into()),
+            protocol_revision: Some(share_header_text_admitted("s-session/2", None).unwrap()),
+            session_generation: Some(share_header_text_admitted("1", None).unwrap()),
+            clock_plan_hash: Some(share_header_text_admitted("test-clock-hash", None).unwrap()),
+            semantic_commit_ns: Some(share_header_text_admitted(commit_ns, None).unwrap()),
         }
     }
 
@@ -2808,7 +2821,7 @@ mod tests {
     fn v2_observe_batch_rejects_s3_marker_and_keeps_shared_consumption() {
         let mut expected = expected_control_test_state(&[(1, "batch-a", "1020")]);
         let mut s3 = expected_control_test_header("1020");
-        s3.protocol_revision = Some("s-session/3".into());
+        s3.protocol_revision = Some(share_header_text_admitted("s-session/3", None).unwrap());
         assert!(expected.observe_batch(1, "batch-a", &s3).is_err());
         // 拒绝不消费：换成真实 v2 头仍必须逐字通过并闭合。
         expected
@@ -2831,8 +2844,14 @@ mod tests {
                 1 => bad.session_generation = None,
                 2 => bad.clock_plan_hash = None,
                 3 => bad.semantic_commit_ns = None,
-                4 => bad.clock_plan_hash = Some("other-clock-hash".into()),
-                _ => bad.semantic_commit_ns = Some("01020".into()),
+                4 => {
+                    bad.clock_plan_hash =
+                        Some(share_header_text_admitted("other-clock-hash", None).unwrap())
+                }
+                _ => {
+                    bad.semantic_commit_ns =
+                        Some(share_header_text_admitted("01020", None).unwrap())
+                }
             }
             assert!(expected.verify_header(1, "batch-a", &bad).is_err());
             expected.verify_header(1, "batch-a", &correct).unwrap();
@@ -3506,7 +3525,10 @@ mod tests {
                 0 => header.protocol_revision = None,
                 1 => header.session_generation = None,
                 2 => header.clock_plan_hash = None,
-                _ => header.semantic_commit_ns = Some("01020".into()),
+                _ => {
+                    header.semantic_commit_ns =
+                        Some(share_header_text_admitted("01020", None).unwrap())
+                }
             }
             std::mem::swap(&mut reachable.batches, &mut bad);
             let expected = prepare_control(&tx).unwrap();
