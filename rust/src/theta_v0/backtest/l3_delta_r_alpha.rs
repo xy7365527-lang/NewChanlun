@@ -2571,7 +2571,15 @@ mod tests {
     fn research_stats_reach_delta_r_bootstrap_and_sign_test_power() {
         let active = research_stats();
         let base = vec![1.0; 300];
-        let chi: Vec<f64> = (0..300).map(|i| 1.0 + 0.001 * i as f64).collect();
+        let mut equity = 1.0;
+        let chi: Vec<f64> = (0..300)
+            .map(|i| {
+                if i > 0 {
+                    equity += if i % 2 == 0 { 0.001 } else { -0.001 };
+                }
+                equity
+            })
+            .collect();
         let baseline = delta_r_stats(&base, &chi, 1.0e6, 252.0, &active);
         let mut changed = active.clone();
         changed.delta_r_n_resample = 37;

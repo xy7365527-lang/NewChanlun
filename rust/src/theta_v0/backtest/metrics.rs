@@ -933,22 +933,23 @@ mod tests {
             expected.cvar_5
         );
 
-        let baseline = significance_with_policy(&pnls, &daily, &[], &[], 0.0, 0.0, &stats);
+        let ci_daily = [0.001, 0.0011, 0.0012, 0.0013, 0.0014, 0.0015];
+        let baseline = significance_with_policy(&pnls, &ci_daily, &[], &[], 0.0, 0.0, &stats);
         let mut changed = stats.clone();
         changed.sharpe_ci_z = 3.0;
-        let widened = significance_with_policy(&pnls, &daily, &[], &[], 0.0, 0.0, &changed);
+        let widened = significance_with_policy(&pnls, &ci_daily, &[], &[], 0.0, 0.0, &changed);
         assert_ne!(baseline.sharpe_ci95_lo, widened.sharpe_ci95_lo);
         assert_ne!(baseline.sharpe_ci95_hi, widened.sharpe_ci95_hi);
         let mut changed = stats.clone();
         changed.ci_lower_quantile = 0.20;
         changed.ci_upper_quantile = 0.80;
-        let narrowed = significance_with_policy(&pnls, &daily, &[], &[], 0.0, 0.0, &changed);
+        let narrowed = significance_with_policy(&pnls, &ci_daily, &[], &[], 0.0, 0.0, &changed);
         assert_ne!(baseline.boot_ci95_lo, narrowed.boot_ci95_lo);
         assert_ne!(baseline.boot_ci95_hi, narrowed.boot_ci95_hi);
         let mut changed = stats.clone();
         changed.trade_block_len = 1;
         changed.trade_n_resample = 137;
-        let resampled = significance_with_policy(&pnls, &daily, &[], &[], 0.0, 0.0, &changed);
+        let resampled = significance_with_policy(&pnls, &ci_daily, &[], &[], 0.0, 0.0, &changed);
         assert_ne!(baseline.boot_mean_total_pnl, resampled.boot_mean_total_pnl);
     }
 
