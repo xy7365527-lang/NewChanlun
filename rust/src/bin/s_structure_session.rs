@@ -5661,7 +5661,6 @@ mod tests {
         p
     }
 
-
     // #1527 M-03：既有断言测业务/持久状态，直接走原 core；不建立生产准入或输出夹具。
     pub(crate) fn accept_business_file(
         db: &Path,
@@ -8724,9 +8723,11 @@ mod tests {
         let extra = test_input(&[ev("e3", "1", "3", "10800")]);
         let p = write_input(&files, "e3.json", &extra);
         let profile = fixture("profiles/testonly_tick_1_1_ohlc.json");
-        assert!(accept_business_file(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH)
-            .unwrap_err()
-            .contains("StorageUnavailable"));
+        assert!(
+            accept_business_file(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH)
+                .unwrap_err()
+                .contains("StorageUnavailable")
+        );
         assert!(advance_business(&files.db(), DEFAULT_WRITER_EPOCH)
             .unwrap_err()
             .contains("StorageUnavailable"));
@@ -8760,9 +8761,11 @@ mod tests {
         let profile = fixture("profiles/testonly_tick_1_1_ohlc.json");
         let assert_reject = |files: &TestFiles| {
             let p = write_input(files, "e3.json", &extra);
-            assert!(accept_business_file(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH)
-                .unwrap_err()
-                .contains("StorageUnavailable"));
+            assert!(
+                accept_business_file(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH)
+                    .unwrap_err()
+                    .contains("StorageUnavailable")
+            );
             assert!(advance_business(&files.db(), DEFAULT_WRITER_EPOCH)
                 .unwrap_err()
                 .contains("StorageUnavailable"));
@@ -8851,9 +8854,11 @@ mod tests {
         let extra = test_input(&[ev("e4", "1", "4", "10900")]);
         let p = write_input(&files, "e4.json", &extra);
         let profile = fixture("profiles/testonly_tick_1_1_ohlc.json");
-        assert!(accept_business_file(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH)
-            .unwrap_err()
-            .contains("StorageUnavailable"));
+        assert!(
+            accept_business_file(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH)
+                .unwrap_err()
+                .contains("StorageUnavailable")
+        );
         assert!(advance_business(&files.db(), DEFAULT_WRITER_EPOCH)
             .unwrap_err()
             .contains("StorageUnavailable"));
@@ -8888,9 +8893,11 @@ mod tests {
         let extra = test_input(&[ev("e3", "1", "3", "10800")]);
         let p = write_input(&files, "e3.json", &extra);
         let profile = fixture("profiles/testonly_tick_1_1_ohlc.json");
-        assert!(accept_business_file(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH)
-            .unwrap_err()
-            .contains("StorageUnavailable"));
+        assert!(
+            accept_business_file(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH)
+                .unwrap_err()
+                .contains("StorageUnavailable")
+        );
         assert!(advance_business(&files.db(), DEFAULT_WRITER_EPOCH)
             .unwrap_err()
             .contains("StorageUnavailable"));
@@ -9116,9 +9123,11 @@ mod tests {
         let extra = test_input(&[ev("e4", "1", "4", "10900")]);
         let assert_reject = |files: &TestFiles| {
             let p = write_input(files, "e4.json", &extra);
-            assert!(accept_business_file(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH)
-                .unwrap_err()
-                .contains("StorageUnavailable"));
+            assert!(
+                accept_business_file(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH)
+                    .unwrap_err()
+                    .contains("StorageUnavailable")
+            );
             assert!(advance_business(&files.db(), DEFAULT_WRITER_EPOCH)
                 .unwrap_err()
                 .contains("StorageUnavailable"));
@@ -9183,9 +9192,11 @@ mod tests {
         let extra = test_input(&[ev("e3", "1", "3", "10800")]);
         let assert_reject = |files: &TestFiles| {
             let p = write_input(files, "e3.json", &extra);
-            assert!(accept_business_file(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH)
-                .unwrap_err()
-                .contains("StorageUnavailable"));
+            assert!(
+                accept_business_file(&files.db(), &p, &profile, DEFAULT_WRITER_EPOCH)
+                    .unwrap_err()
+                    .contains("StorageUnavailable")
+            );
             assert!(advance_business(&files.db(), DEFAULT_WRITER_EPOCH)
                 .unwrap_err()
                 .contains("StorageUnavailable"));

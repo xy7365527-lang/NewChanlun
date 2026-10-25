@@ -290,8 +290,10 @@ impl Driver {
             return Err("StorageUnavailable：S3驱动只打开已初始化库".into());
         }
         let scope = if startup_context.is_none()
-            && matches!(mode, s_allocation::Mode::Ordinary | s_allocation::Mode::Owned(_))
-        {
+            && matches!(
+                mode,
+                s_allocation::Mode::Ordinary | s_allocation::Mode::Owned(_)
+            ) {
             admission.admit_prefix(
                 db,
                 super::admission_private::RejectionPrefix::OrdinaryStartup { epoch },
@@ -655,10 +657,13 @@ mod tests {
         let _prepared_fixture = crate::v3::admission_anchor::test_prepare(&f.db);
         let bytes_before = std::fs::read(&f.db).unwrap();
         let files = || {
-            let mut names = std::fs::read_dir(&f.path).unwrap()
+            let mut names = std::fs::read_dir(&f.path)
+                .unwrap()
                 .map(|e| e.unwrap().file_name())
-                .filter(|n| !n.to_string_lossy().ends_with(".writer.lock")
-                    && !n.to_string_lossy().ends_with(".maintenance.lock"))
+                .filter(|n| {
+                    !n.to_string_lossy().ends_with(".writer.lock")
+                        && !n.to_string_lossy().ends_with(".maintenance.lock")
+                })
                 .collect::<Vec<_>>();
             names.sort();
             names
@@ -675,8 +680,14 @@ mod tests {
         )
         .err()
         .unwrap();
-        assert!(recover_error.contains("VersionUnsupported"), "{recover_error}");
-        assert_eq!(open_error.split("；原准入账=").next(), recover_error.split("；原准入账=").next());
+        assert!(
+            recover_error.contains("VersionUnsupported"),
+            "{recover_error}"
+        );
+        assert_eq!(
+            open_error.split("；原准入账=").next(),
+            recover_error.split("；原准入账=").next()
+        );
         assert_eq!(std::fs::read(&f.db).unwrap(), bytes_before);
         assert_eq!(files(), files_before);
         let c = open_db(&f.db).unwrap();
@@ -694,9 +705,13 @@ mod tests {
         let e = f.open("2").err().unwrap();
         assert!(e.starts_with("StaleWriter："), "{e}");
         let scope = super::super::admission::WriterScope::admit(
-            &f.db, crate::v3::admission_anchor::test_prepare(&f.db),
-        ).unwrap();
-        let e = recover_scoped(&f.db, "2", &f.clock, "recover-1", scope.into()).err().unwrap();
+            &f.db,
+            crate::v3::admission_anchor::test_prepare(&f.db),
+        )
+        .unwrap();
+        let e = recover_scoped(&f.db, "2", &f.clock, "recover-1", scope.into())
+            .err()
+            .unwrap();
         assert!(e.starts_with("VersionUnsupported"), "{e}");
     }
 
@@ -705,7 +720,8 @@ mod tests {
         let f = Fixture::new();
         let mut c = open_db(&f.db).unwrap();
         meta_set(&c, "rule_revision", crate::LEGACY_V3_RULE_REVISION).unwrap();
-        c.execute("UPDATE catalog SET run_status='run'", []).unwrap();
+        c.execute("UPDATE catalog SET run_status='run'", [])
+            .unwrap();
         let expected = {
             let tx = c.transaction().unwrap();
             state::audit(&tx).err().expect("坏库必须被原审计拒绝")
@@ -713,8 +729,15 @@ mod tests {
         drop(c);
         let e = f.open("2").err().unwrap();
         assert_eq!(e.split("；原准入账=").next(), Some(expected.as_str()));
-        let e = recover(&f.db, "2", &f.clock, "recover-1",
-            crate::v3::admission_anchor::test_prepare(&f.db).into()).err().unwrap();
+        let e = recover(
+            &f.db,
+            "2",
+            &f.clock,
+            "recover-1",
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        )
+        .err()
+        .unwrap();
         assert_eq!(e.split("；原准入账=").next(), Some(expected.as_str()));
     }
 
@@ -726,9 +749,16 @@ mod tests {
         meta_set(&c, "rule_revision", crate::LEGACY_V3_RULE_REVISION).unwrap();
         drop(c);
         let e = Driver::open_with_request_and_allocation(
-            &f.db, &f.profile, "1", f.clock.clone(), None, Some(allocation_profile()),
+            &f.db,
+            &f.profile,
+            "1",
+            f.clock.clone(),
+            None,
+            Some(allocation_profile()),
             crate::v3::admission_anchor::test_prepare(&f.db).into(),
-        ).err().unwrap();
+        )
+        .err()
+        .unwrap();
         assert!(e.starts_with("VersionUnsupported"), "{e}");
         assert!(!PathBuf::from(format!("{}-shm", f.db.display())).exists());
         let current = Fixture::new();
@@ -2621,7 +2651,6 @@ mod tests {
         let original = native.conn.complete_budget_for_test();
         let mut peak = original.peak();
         for n in 1..=2 {
-
             assert_eq!(
                 native.handle(Fixture::ingest(n)).unwrap(),
                 ordinary.handle(Fixture::ingest(n)).unwrap()

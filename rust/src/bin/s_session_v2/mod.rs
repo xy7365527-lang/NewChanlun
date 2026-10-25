@@ -2642,7 +2642,13 @@ pub fn dispatch(args: &[String]) -> Result<bool, String> {
 
 // init/reset 保留旧锁分支，本提案不授予新库准备、重置或既存无锚接管资格。
 pub enum LegacyWriteGuard {
-    Initialization(#[allow(dead_code, reason = "#1527：文件持有本身保持 init/reset 锁直到 guard 析构")] File),
+    Initialization(
+        #[allow(
+            dead_code,
+            reason = "#1527：文件持有本身保持 init/reset 锁直到 guard 析构"
+        )]
+        File,
+    ),
     Existing(crate::v3::admission::WriterScope),
 }
 impl LegacyWriteGuard {
@@ -3341,7 +3347,16 @@ mod tests {
         };
         let socket = f.dir.join("s.sock");
         // 对照：当前规则库的未决 Begin 仍按原口径指向 recover（该路径对当前规则可走）。
-        let current = serve(&f.db, &socket, &f.profile, "1", &clock_path, bounds(), crate::v3::admission_anchor::test_prepare(&f.db)).unwrap_err();
+        let current = serve(
+            &f.db,
+            &socket,
+            &f.profile,
+            "1",
+            &clock_path,
+            bounds(),
+            crate::v3::admission_anchor::test_prepare(&f.db),
+        )
+        .unwrap_err();
         assert!(
             current.starts_with("StaleWriter：") && current.contains("recover"),
             "{current}"
@@ -3364,7 +3379,16 @@ mod tests {
         };
         let before = files(&f.db);
 
-        let msg = serve(&f.db, &socket, &f.profile, "1", &clock_path, bounds(), crate::v3::admission_anchor::test_prepare(&f.db)).unwrap_err();
+        let msg = serve(
+            &f.db,
+            &socket,
+            &f.profile,
+            "1",
+            &clock_path,
+            bounds(),
+            crate::v3::admission_anchor::test_prepare(&f.db),
+        )
+        .unwrap_err();
         assert!(msg.starts_with("VersionMismatch："), "{msg}");
         assert!(!msg.contains("请监督器先正式recover"), "{msg}");
         for path in [

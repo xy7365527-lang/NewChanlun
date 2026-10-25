@@ -2202,9 +2202,9 @@ mod tests {
         accept_ohlc, init_test_db, located_ohlc_input, tb02b_oracle_rows, TestFiles,
     };
     use crate::{
-        canonical_bytes_of_value, compute_diff, delta_storage, load_batch_bytes,
-        meta_get_opt, open_db, read_effective_events, read_stored_objects,
-        verified_root_raw_events, StoredObjects, DEFAULT_WRITER_EPOCH,
+        canonical_bytes_of_value, compute_diff, delta_storage, load_batch_bytes, meta_get_opt,
+        open_db, read_effective_events, read_stored_objects, verified_root_raw_events,
+        StoredObjects, DEFAULT_WRITER_EPOCH,
     };
     use newchan_rust::s_content::{render_canonical, MemoryNodes};
     use serde_json::json;

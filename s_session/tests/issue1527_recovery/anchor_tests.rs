@@ -415,12 +415,17 @@ fn start_gate_accepts_only_release_and_charges_original_wire() {
         let first = prepared.prelude.first_read_at;
         let wire = prepared.prelude.wire_bytes;
         let (read, mut write) = start_gate_pipe();
-        if let Some(byte) = value { write.write_all(&[byte]).unwrap(); }
+        if let Some(byte) = value {
+            write.write_all(&[byte]).unwrap();
+        }
         drop(write);
         let result = prepared.wait_start_gate(read.as_raw_fd());
         assert_eq!(result.is_ok(), value == Some(b'R'));
         assert_eq!(prepared.prelude.first_read_at, first);
-        assert_eq!(prepared.prelude.wire_bytes, wire + u64::from(value.is_some()));
+        assert_eq!(
+            prepared.prelude.wire_bytes,
+            wire + u64::from(value.is_some())
+        );
     }
 }
 
@@ -443,9 +448,15 @@ fn start_gate_does_not_accept_changed_anchor_or_nonpipe() {
     let (read, mut write) = start_gate_pipe();
     std::fs::write(&f.limits, b"changed").unwrap();
     write.write_all(b"R").unwrap();
-    assert_eq!(prepared.wait_start_gate(read.as_raw_fd()).unwrap_err().kind, ErrorKind::Changed);
+    assert_eq!(
+        prepared.wait_start_gate(read.as_raw_fd()).unwrap_err().kind,
+        ErrorKind::Changed
+    );
     let f = Fixture::new();
     let mut prepared = f.load().unwrap();
     let file = File::open(&f.db).unwrap();
-    assert_eq!(prepared.wait_start_gate(file.as_raw_fd()).unwrap_err().kind, ErrorKind::ControlMismatch);
+    assert_eq!(
+        prepared.wait_start_gate(file.as_raw_fd()).unwrap_err().kind,
+        ErrorKind::ControlMismatch
+    );
 }

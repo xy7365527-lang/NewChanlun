@@ -145,7 +145,11 @@ impl WriterAdmission {
 }
 impl WriterScope {
     pub(crate) fn admit(db: &Path, prepared: PreparedAdmission) -> Result<Self, String> {
-        Self::admit_prefix(db, prepared, super::admission_private::RejectionPrefix::None)
+        Self::admit_prefix(
+            db,
+            prepared,
+            super::admission_private::RejectionPrefix::None,
+        )
     }
     fn admit_prefix(
         db: &Path,

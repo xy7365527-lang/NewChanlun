@@ -316,7 +316,14 @@ fn external_state_member_after_freeze_is_still_rejected() {
     let f = Fixture::new();
     let scope = WriterScope::admit(&f.db, f.prepared()).unwrap();
     scope.inner.source.verify_before_open().unwrap();
-    std::fs::write(f.root.join("i1527-state-main.sqlite").join("external.json"), b"external").unwrap();
+    std::fs::write(
+        f.root.join("i1527-state-main.sqlite").join("external.json"),
+        b"external",
+    )
+    .unwrap();
     let error = scope.inner.source.verify_before_open().unwrap_err();
-    assert!(error.contains("SourceIdentityChanged") || error.contains("SourceMembershipChanged"), "{error}");
+    assert!(
+        error.contains("SourceIdentityChanged") || error.contains("SourceMembershipChanged"),
+        "{error}"
+    );
 }
