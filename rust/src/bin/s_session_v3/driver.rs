@@ -823,6 +823,33 @@ mod tests {
 
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
+    fn native_prefix_populated_capture_type_error_precedes_frame_and_epoch() {
+        let f = Fixture::new();
+        let mut initial = f.open("1").unwrap();
+        initial.handle(Fixture::ingest(1)).unwrap();
+        drop(initial);
+        let mut c = open_db(&f.db).unwrap();
+        c.execute_batch("ALTER TABLE s_content_nodes RENAME TO old_nodes; CREATE TABLE s_content_nodes(digest,tag,body); INSERT INTO s_content_nodes SELECT digest,tag,body FROM old_nodes; DROP TABLE old_nodes; UPDATE s_content_nodes SET body=x'ff' WHERE rowid=(SELECT min(rowid) FROM s_content_nodes); UPDATE s_content_nodes SET body='text' WHERE rowid=(SELECT max(rowid) FROM s_content_nodes);").unwrap();
+        let expected = {
+            let tx = c.transaction().unwrap();
+            state::audit_native_current(&tx).err().unwrap()
+        };
+        drop(c);
+        for with_context in [false, true] {
+            let mut context = request_audit::RequestAuditContext::default();
+            let error = Driver::open_with_request_and_mode_context(
+                &f.db, &f.profile, "2", f.clock.clone(), None,
+                s_allocation::Mode::CapturedNative, with_context.then_some(&mut context),
+                crate::v3::admission_anchor::test_prepare(&f.db).into(),
+            ).err().unwrap();
+            assert_eq!(error.split("；原准入账=").next(), Some(expected.as_str()));
+            assert!(!PathBuf::from(format!("{}-shm", f.db.display())).exists());
+            assert!(context.take().is_none());
+        }
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
     fn native_prefix_success_keeps_actual_startup_validation() {
         let f = Fixture::new();
         for with_context in [false, true] {
