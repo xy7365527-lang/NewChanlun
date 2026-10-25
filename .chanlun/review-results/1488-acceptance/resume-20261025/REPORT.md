@@ -33,5 +33,13 @@
 ## 关票门与后续消费者
 
 - 主体仍是 testonly 增量构造；生产增量切换归 #1645，测量归 #1642。#1488 通过不等于 Destination ①–⑥通过。
-- 0091 第1/4/5/6项需要非作者对本报告、候选/基线关系、关票声明与 PR/CI 复核；由主控安排。
+- 0091 第1/4/5项和P1/P2修复已由非作者复核PASS；第6项当前PR/CI收齐后由主控完成关票门核对。
 - main 合入、人审和关票尚未发生。#1279保持开放；前端归#1460，K4不并入。资金、隔离、恢复与验收要求不变。
+
+## PR 与独审交付
+
+PR：[#1711](https://github.com/xy7365527-lang/NewChanlun/pull/1711)，base=main。打开时GitHub报告MERGEABLE，base为13ed4d45c8ff85175819ca987690328ab2a247a4。CI已触发、尚未完结；以PR最新head检查为准，不预写通过。
+
+非作者独审已PASS，绑定代码c5f49adc97与封包e8a0eed712，收据见 `independent-review/REVIEW.md` 与 `RESULT.json`。新增的独审收据和PR记录只改文档，Rust与CI文件保持不变。
+
+首次推送遇Git LFS无法沿三级alternates读取对象；逐一核出既有对象目录后，本次命令用GIT_ALTERNATE_OBJECT_DIRECTORIES显式列全，fsck --pointers通过，正常hook推送成功。未跳hook、未修改共享配置或发布历史。
