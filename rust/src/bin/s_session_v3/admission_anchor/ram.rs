@@ -253,4 +253,26 @@ mod tests {
         assert_eq!(owner.snapshot().unwrap().job_live, AdmissionRamLedger::metadata_bytes().unwrap());
     }
 
+    #[test]
+    fn mixed_ram_parse_refusal_precedes_owned_json_and_shape_kernel_stays_original() {
+        let owner = AdmissionRamLedger::new(limits(CodecWork::metadata_bytes() + 1)).unwrap();
+        let result = owner.codec_work().unwrap().run(|work| {
+            crate::v3::business_json::mixed_legacy_json_owner(br#"{"many":[1,2,3],"broken":}"#, work)
+        });
+        assert!(matches!(result, Err(newchan_rust::s_content::capture_allocation::scratch::WorkError::Resource(ScratchFailure::Budget))));
+        let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+        owner.codec_work().unwrap().run(|work| {
+            for text in ["not json", "[]", r#"{"key":1,"key":2}"#] {
+                let original = crate::json_shape_with_owner(text, crate::JsonShape::Object, None);
+                let mixed = crate::json_shape_mixed(text, crate::JsonShape::Object, work);
+                match (original, mixed) {
+                    (Ok(crate::v3::business_json::JsonOwner::Plain(original)), Ok(mixed)) => assert_eq!(&*original, &*mixed),
+                    (Err(original), Err(mixed)) => assert_eq!(original, mixed),
+                    _ => panic!("mixed改变原legacy形状核"),
+                }
+            }
+            Ok::<_, String>(())
+        }).unwrap();
+    }
+
 }
