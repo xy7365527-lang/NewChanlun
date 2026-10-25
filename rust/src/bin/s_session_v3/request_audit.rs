@@ -1703,7 +1703,7 @@ mod tests {
             assert!(error.contains("job_limit_exceeded"), "{error}");
             assert!(context.slot.is_none());
             drop(meter);
-            assert_eq!(job.snapshot().records, u128::from(limit + 1),
+            assert_eq!(job.snapshot().records, limit + 1,
                 "3允许SQL/OHLC/validate，4再允许raw hash；下一独立访问照实入账后拒绝");
         }
         for armed in [false, true] {
