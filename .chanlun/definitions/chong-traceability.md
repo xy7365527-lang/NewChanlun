@@ -42,6 +42,7 @@ TStage latch 只投影 campaign 内已经发生的阶段事件史。`phase_event
 |---|---|---|
 | Rust | `rust/src/theta_v0/classifier/pipeline.rs:116、552、623` | Classification 与批量、增量分类入口。S 结构事实只读边界和逐 bar 关联归 TB-02 #1360、FU-11 #1534。 |
 | Rust | `rust/src/theta_v0/classifier/operation.rs:64、84、694、711` | 操作序列及增量旁路。主干不回流和完整定位的正式验收归 #1360、#1364。 |
+| Rust | `rust/src/theta_v0/classifier/descend.rs:115`；`rust/src/theta_v0/classifier/nest.rs:44、246`；`rust/src/theta_v0/classifier/chain_cert/mod.rs:573、595` | 次级别走势读取、定位区间与嵌套证书、候选链路径遍历。逐 bar 下钻定位关联及正式路径验证归 #1534、#1360、#1364；这些局部算子不等于完整 launcher 已验收。 |
 | Rust | `rust/src/theta_v0/classifier/tests/operation.rs:102–117` | 已有旁路组件锁的准确覆盖面。#1360 扩展到正式程序证据时保留此锁，不用它代替端到端。 |
 | Rust | `rust/src/theta_v0/strategy/chong.rs:37、48、102`；`rust/src/theta_v0/strategy/voice.rs:138`；`rust/src/theta_v0/strategy/ledger.rs:94` | 旧组件中的 ChongKey、ChongBook、VoiceState 和 latch 镜像。对齐持久 Bᵢ 时保留正确语义，不给影子链恢复生产写权。归 #1361、#1534。 |
 | Rust | `rust/src/bin/s_structure_session.rs:27–28、5557`；`rust/src/bin/b_chong_session.rs:2–3`；`rust/src/economic_session/service.rs:1480` | S 组件入口与 Bᵢ 独立 owner。正式装配归 #1523，输入侧恢复归 #1527，逐 bar 身份与状态链归 #1534、#1362。 |
