@@ -3341,7 +3341,7 @@ mod tests {
         };
         let socket = f.dir.join("s.sock");
         // 对照：当前规则库的未决 Begin 仍按原口径指向 recover（该路径对当前规则可走）。
-        let current = serve(&f.db, &socket, &f.profile, "1", &clock_path, bounds()).unwrap_err();
+        let current = serve(&f.db, &socket, &f.profile, "1", &clock_path, bounds(), crate::v3::admission_anchor::test_prepare(&f.db)).unwrap_err();
         assert!(
             current.starts_with("StaleWriter：") && current.contains("recover"),
             "{current}"
@@ -3364,7 +3364,7 @@ mod tests {
         };
         let before = files(&f.db);
 
-        let msg = serve(&f.db, &socket, &f.profile, "1", &clock_path, bounds()).unwrap_err();
+        let msg = serve(&f.db, &socket, &f.profile, "1", &clock_path, bounds(), crate::v3::admission_anchor::test_prepare(&f.db)).unwrap_err();
         assert!(msg.starts_with("VersionMismatch："), "{msg}");
         assert!(!msg.contains("请监督器先正式recover"), "{msg}");
         for path in [
@@ -3450,6 +3450,7 @@ mod tests {
             "1",
             &f.dir.join("clock.json"),
             bounds,
+            crate::v3::admission_anchor::test_prepare(&f.db),
         )
         .unwrap_err();
         assert!(msg.starts_with("VersionMismatch："), "{msg}");

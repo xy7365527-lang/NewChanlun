@@ -608,7 +608,7 @@ class LifecycleTests(unittest.TestCase):
         # 这里在发信号后立即由本测试回收，复现「进程已不存在」这一观察路径。
         with tempfile.TemporaryDirectory(prefix="tb01c-reaped-exit-") as directory:
             config = {"db": str(Path(directory) / "owned.sqlite"), "startup_timeout_ms": "3000"}
-            controller = control.Controller(config, Path(directory))
+            controller = anchored_controller(config, Path(directory))
             process = None
             real_kill = control.os.kill
             try:
@@ -653,7 +653,7 @@ class LifecycleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="tb01c-ignored-signal-") as directory:
             ready = Path(directory) / "ready"
             config = {"db": str(Path(directory) / "owned.sqlite"), "startup_timeout_ms": "1500"}
-            controller = control.Controller(config, Path(directory))
+            controller = anchored_controller(config, Path(directory))
             process = None
             try:
                 script = ("import pathlib, signal, sys, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); "
