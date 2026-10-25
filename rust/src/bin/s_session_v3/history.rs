@@ -373,6 +373,7 @@ pub(super) fn read_indexed_history(
         None,
         None,
         None,
+        SourcePolicy::Ordinary,
     )
 }
 
@@ -400,6 +401,7 @@ pub(super) fn read_indexed_history_for_audit(
         None,
         None,
         None,
+        SourcePolicy::Ordinary,
     )
 }
 
@@ -492,9 +494,25 @@ pub(super) fn read_indexed_history_for_sealed_ordinary_audit<'a>(
     max_render_bytes: Option<u64>,
     budget: Option<&dyn super::audit_budget::Budget>,
     capture: Option<&sc::AuditCapture>,
+    records: Option<&mut NativeRecordFields<'_>>,
+    work: Option<&sc::capture_allocation::scratch::WorkScope>,
+    materials: Option<&mut super::ordinary_materials::OrdinaryAuditMaterials>,
+) -> Result<IndexedHistory, String> {
+    read_indexed_history_with_policy(tx, raw, control, deadline, max_render_bytes, budget, capture, records, work, materials, SourcePolicy::Ordinary)
+}
+
+pub(super) fn read_indexed_history_with_policy<'a>(
+    tx: &Transaction<'_>,
+    raw: impl Into<RawEventsView<'a>>,
+    control: v2::ControlHistory,
+    deadline: Option<std::time::Instant>,
+    max_render_bytes: Option<u64>,
+    budget: Option<&dyn super::audit_budget::Budget>,
+    capture: Option<&sc::AuditCapture>,
     mut records: Option<&mut NativeRecordFields<'_>>,
     work: Option<&sc::capture_allocation::scratch::WorkScope>,
     materials: Option<&mut super::ordinary_materials::OrdinaryAuditMaterials>,
+    policy: SourcePolicy,
 ) -> Result<IndexedHistory, String> {
     // 清除失败 history 的部分交接材料；不会交给后续 source 审计。
     let result = read_indexed_history_inner(
@@ -504,11 +522,12 @@ pub(super) fn read_indexed_history_for_sealed_ordinary_audit<'a>(
         deadline,
         max_render_bytes,
         budget,
-        budget.is_none(),
+        policy == SourcePolicy::NativeMeasured || budget.is_none(),
         capture,
         records.as_deref_mut(),
         work,
         materials,
+        policy,
     );
     if result.is_err() {
         if let Some(records) = records {
@@ -530,6 +549,7 @@ fn read_indexed_history_inner(
     mut records: Option<&mut NativeRecordFields<'_>>,
     work: Option<&sc::capture_allocation::scratch::WorkScope>,
     materials: Option<&mut super::ordinary_materials::OrdinaryAuditMaterials>,
+    policy: SourcePolicy,
 ) -> Result<IndexedHistory, String> {
     check_deadline(deadline)?;
     #[cfg(feature = "s_capture_native_testonly")]
@@ -551,19 +571,18 @@ fn read_indexed_history_inner(
         None => reader.as_mut().unwrap(),
     };
     let capture =
-        capture.filter(|c| c.is_allocation_prototype() || (budget.is_none() && deadline.is_none()));
+        capture.filter(|c| c.is_allocation_prototype() || policy == SourcePolicy::NativeMeasured || (budget.is_none() && deadline.is_none()));
     let mut store = match capture {
         Some(c) => HashReader::captured_for_audit(c, max_render_bytes)
             .map_err(err)?
             .with_audit_gate(budget, deadline),
         None => HashReader::metered(source, deadline, max_render_bytes, budget),
     };
-    store = store.with_native_scope(work).map_err(err)?;
-    store.audit_full_arrays = audit_same_material && budget.is_none();
+    store = store.with_source_policy(policy).with_native_scope(work).map_err(err)?;
+    store.audit_full_arrays = audit_same_material && (policy == SourcePolicy::NativeMeasured || budget.is_none());
     let mut records = records.take().filter(|memo| {
         audit_same_material
-            && budget.is_none()
-            && deadline.is_none()
+            && (policy == SourcePolicy::NativeMeasured || (budget.is_none() && deadline.is_none()))
             && max_render_bytes.is_none()
             && capture.is_some_and(|capture| memo.belongs_to(capture))
     });
@@ -1201,6 +1220,10 @@ fn hash_current_raw(
     let allocation = history_allocation(store)?;
     let mut raw_nodes = bj::new_work(allocation.as_ref());
     for v in raw.iter() {
+        if store.native_measured() {
+            check_deadline(deadline)?;
+            if let Some(budget) = budget { budget.record().map_err(err)?; }
+        }
         store.native_codec_room(&mut raw_nodes, 1).map_err(err)?;
         raw_nodes
             .try_push(hash_json_in_store(store, v, deadline, budget)?)
@@ -1209,6 +1232,9 @@ fn hash_current_raw(
     let mut raw_wire_nodes = bj::new_work(allocation.as_ref());
     for event in raw.iter() {
         check_deadline(deadline)?;
+        if store.native_measured() {
+            if let Some(budget) = budget { budget.record().map_err(err)?; }
+        }
         store
             .native_codec_room(&mut raw_wire_nodes, 1)
             .map_err(err)?;
@@ -1264,10 +1290,24 @@ pub(super) fn revalidate_current_for_reuse(
 pub(super) fn revalidate_current_for_reuse_admitted(
     tx: &Transaction<'_>,
     raw: RawEventsView<'_>,
+    control: v2::ControlHistory,
+    capture: &sc::AuditCapture,
+    cuts: &sc::CodecVec<PublishedCut>,
+    work: Option<&sc::capture_allocation::scratch::WorkScope>,
+) -> Result<(), String> {
+    revalidate_current_for_reuse_measured(tx, raw, control, capture, cuts, work, None, None, SourcePolicy::Ordinary)
+}
+
+pub(super) fn revalidate_current_for_reuse_measured(
+    tx: &Transaction<'_>,
+    raw: RawEventsView<'_>,
     mut control: v2::ControlHistory,
     capture: &sc::AuditCapture,
     cuts: &sc::CodecVec<PublishedCut>,
     work: Option<&sc::capture_allocation::scratch::WorkScope>,
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn super::audit_budget::Budget>,
+    policy: SourcePolicy,
 ) -> Result<(), String> {
     #[cfg(feature = "s_capture_native_testonly")]
     if let Some(work) = work {
@@ -1277,10 +1317,11 @@ pub(super) fn revalidate_current_for_reuse_admitted(
     }
     #[cfg(not(feature = "s_capture_native_testonly"))]
     verify_required_meta(tx)?;
-    let mut store = HashReader::captured_for_audit(capture, None).map_err(err)?;
+    let mut store = HashReader::captured_for_audit(capture, None).map_err(err)?
+        .with_source_policy(policy).with_audit_gate(budget, deadline);
     store = store.with_native_scope(work).map_err(err)?;
     store.audit_full_arrays = true;
-    hash_current_raw(&store, raw, None, None)?;
+    hash_current_raw(&store, raw, deadline, budget)?;
     for cut in cuts {
         let m = &cut.metadata;
         control.consume_header(
@@ -2161,7 +2202,11 @@ impl Drop for OverlayOwner {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SourcePolicy { Ordinary, NativeMeasured }
+
 pub(crate) struct HashReader<'a> {
+    policy: SourcePolicy,
     source: ReadOwner<'a>,
     overlay: OverlayOwner,
     owned: Option<sc::ClosedCapturedOwner<'a>>,
@@ -2261,8 +2306,7 @@ impl<'a> HashReader<'a> {
         #[cfg(feature = "s_capture_native_testonly")]
         if self.audit_full_arrays
             && self.owned.is_none()
-            && self.budget.is_none()
-            && self.deadline.is_none()
+            && (self.native_measured() || (self.budget.is_none() && self.deadline.is_none()))
         {
             if let ReadOwner::Captured(capture) = self.source {
                 if !capture.is_allocation_prototype() {
@@ -2284,6 +2328,19 @@ impl<'a> HashReader<'a> {
         deadline: std::time::Instant,
     ) -> Self {
         self.with_audit_gate(None, Some(deadline))
+    }
+    pub(crate) fn with_source_policy(mut self, policy: SourcePolicy) -> Self {
+        self.policy = policy;
+        self
+    }
+    pub(crate) fn native_measured(&self) -> bool {
+        self.policy == SourcePolicy::NativeMeasured
+    }
+    pub(crate) fn native_measure(&self) -> Option<super::audit_budget::NativeMeasure<'a>> {
+        self.native_measured().then_some(super::audit_budget::NativeMeasure {
+            budget: self.budget,
+            deadline: self.deadline,
+        })
     }
     pub(super) fn with_audit_gate(
         mut self,
@@ -2491,6 +2548,7 @@ impl<'a> HashReader<'a> {
             max_render_bytes,
             budget: None,
             audit_full_arrays: false,
+            policy: SourcePolicy::Ordinary,
         }
     }
     #[cfg(test)]
@@ -2537,10 +2595,10 @@ impl<'a> HashReader<'a> {
         if let Some(owner) = &mut self.owned {
             return owner.verify_cached(r, mode);
         }
-        if self.work.is_none() && self.budget.is_none() && self.deadline.is_none() {
+        if self.work.is_none() && (self.native_measured() || (self.budget.is_none() && self.deadline.is_none())) {
             if let ReadOwner::Captured(c) = &self.source {
                 if c.contains(&r.digest()?) {
-                    return c.verify(r, mode);
+                    return c.verify_refview_observed(r.into(), mode, self.native_measure().as_ref().map(|m| m as &dyn sc::CaptureReadObserver));
                 }
             }
         }
@@ -2561,8 +2619,7 @@ impl<'a> HashReader<'a> {
         }
         if self.work.is_some()
             || matches!(self.source, ReadOwner::Dynamic(_))
-            || self.budget.is_some()
-            || self.deadline.is_some()
+            || (!self.native_measured() && (self.budget.is_some() || self.deadline.is_some()))
         {
             return sc::audit_verify_many(self, refs, mode);
         }
@@ -2585,6 +2642,7 @@ impl<'a> HashReader<'a> {
             max_render_bytes: None,
             budget: None,
             audit_full_arrays: false,
+            policy: SourcePolicy::Ordinary,
         }
     }
     #[cfg(test)]
@@ -2603,6 +2661,7 @@ impl<'a> HashReader<'a> {
             max_render_bytes: None,
             budget: None,
             audit_full_arrays: false,
+            policy: SourcePolicy::Ordinary,
         }
     }
     #[cfg(test)]
@@ -2622,6 +2681,7 @@ impl<'a> HashReader<'a> {
             max_render_bytes,
             budget: None,
             audit_full_arrays: false,
+            policy: SourcePolicy::Ordinary,
         }
     }
     pub(super) fn metered(
@@ -2641,6 +2701,7 @@ impl<'a> HashReader<'a> {
             max_render_bytes,
             budget,
             audit_full_arrays: false,
+            policy: SourcePolicy::Ordinary,
         }
     }
 }
@@ -2659,7 +2720,8 @@ impl NodeSource for HashReader<'_> {
         self.work
     }
     fn audit_full_array_scan(&self) -> bool {
-        self.audit_full_arrays && self.budget.is_none() && self.deadline.is_none()
+        self.audit_full_arrays
+            && (self.native_measured() || (self.budget.is_none() && self.deadline.is_none()))
     }
     fn max_render_bytes(&self) -> Option<u64> {
         match (self.max_render_bytes, self.source.max_render_bytes()) {
@@ -2726,6 +2788,16 @@ impl NodeSource for HashReader<'_> {
         check_deadline(self.deadline).map_err(|e| sc::CodecError::new("verify_deadline", e))?;
         if let Some(b) = self.budget {
             b.precheck()?;
+        }
+        if self.native_measured() && !self.overlay.contains_key(d) {
+            if let ReadOwner::Captured(capture) = &self.source {
+                let permit = self.reserve_source_copy(d)?;
+                let measure = self.native_measure().expect("NativeMeasured 同次观察器");
+                #[cfg(test)]
+                super::state::trace_read(false);
+                let frame = capture.reader_observed(&measure).checked_read(d)?;
+                return Ok(frame.map(|frame| sc::job::ScopedFrame::new(frame, permit)));
+            }
         }
         if self.budget.is_none() && !self.overlay.contains_key(d) {
             #[cfg(test)]
@@ -2820,8 +2892,7 @@ impl NodeSink for HashReader<'_> {
                 if capture.native_frame_reuse_active_for_testonly()
                     && self.audit_full_arrays
                     && self.owned.is_none()
-                    && self.budget.is_none()
-                    && self.deadline.is_none()
+                    && (self.native_measured() || (self.budget.is_none() && self.deadline.is_none()))
                     && self.max_render_bytes.is_none()
                     && matches!(&self.overlay, OverlayOwner::Dynamic(nodes) if !nodes.contains_key(&digest))
                 {
@@ -2957,10 +3028,10 @@ impl CodecRead for HashReader<'_> {
         match &mut self.owned {
             Some(o) => o.verify_cached_owned(r, m),
             None => {
-                if self.work.is_none() && self.budget.is_none() && self.deadline.is_none() {
+                if self.work.is_none() && (self.native_measured() || (self.budget.is_none() && self.deadline.is_none())) {
                     if let ReadOwner::Captured(c) = &self.source {
                         if c.contains(&r.digest()?) {
-                            return c.verify_refview(r, m);
+                            return c.verify_refview_observed(r, m, self.native_measure().as_ref().map(|m| m as &dyn sc::CaptureReadObserver));
                         }
                     }
                 }
@@ -2990,8 +3061,7 @@ impl CodecRead for HashReader<'_> {
             None => {
                 if self.work.is_some()
                     || matches!(self.source, ReadOwner::Dynamic(_))
-                    || self.budget.is_some()
-                    || self.deadline.is_some()
+                    || (!self.native_measured() && (self.budget.is_some() || self.deadline.is_some()))
                 {
                     return sc::audit_verify_many_refview(self, r, m);
                 }
@@ -3484,6 +3554,45 @@ mod tests {
             4,
             "已有overlay继续逐次核F"
         );
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_measured_reader_retains_source_role_and_actual_frame_observation() {
+        #[derive(Default)]
+        struct Meter(std::cell::Cell<usize>);
+        impl super::super::audit_budget::Budget for Meter {
+            fn precheck(&self) -> Result<(), sc::CodecError> { Ok(()) }
+            fn prepare_node(&self) -> Result<(), sc::CodecError> { Ok(()) }
+            fn accept_prepared_frame(&self, _: &sc::job::CheckedFrame) -> Result<(), sc::CodecError> {
+                self.0.set(self.0.get() + 1); Ok(())
+            }
+            fn node(&self, _: &NodeDigest, _: u8, _: &[u8]) -> Result<(), sc::CodecError> { panic!("必须消费原 checked frame") }
+            fn record(&self) -> Result<(), sc::CodecError> { Ok(()) }
+        }
+        let body = b"native-metered";
+        let digest = sc::frame(sc::tag::BYTES_CHUNK, body);
+        let mut nodes = sc::MemoryNodes::new();
+        nodes.insert_unchecked(digest, sc::tag::BYTES_CHUNK, body.to_vec());
+        let capture = sc::AuditCapture::new(nodes).enable_native_frame_reuse_for_testonly().unwrap();
+        let meter = Meter::default();
+        let deadline = Some(std::time::Instant::now() + std::time::Duration::from_secs(10));
+        let mut reader = HashReader::captured(&capture, None)
+            .with_source_policy(SourcePolicy::NativeMeasured).with_audit_gate(Some(&meter), deadline);
+        reader.enable_full_arrays_for_test();
+        assert!(reader.audit_full_array_scan());
+        assert!(reader.native_projection_capture().is_some());
+        reader.put(digest, sc::tag::BYTES_CHUNK, body).unwrap();
+        assert!(!reader.overlay.contains_key(&digest));
+        let before = sc::frame_calls_on_thread();
+        reader.checked_read(&digest).unwrap().unwrap();
+        reader.checked_read(&digest).unwrap().unwrap();
+        assert_eq!(meter.0.get(), 2);
+        assert_eq!(sc::frame_calls_on_thread() - before, 1);
+        let mut ordinary = HashReader::captured(&capture, None).with_audit_gate(Some(&meter), deadline);
+        ordinary.enable_full_arrays_for_test();
+        assert!(!ordinary.audit_full_array_scan());
+        assert!(ordinary.native_projection_capture().is_none());
     }
 
     #[cfg(feature = "s_capture_native_testonly")]
