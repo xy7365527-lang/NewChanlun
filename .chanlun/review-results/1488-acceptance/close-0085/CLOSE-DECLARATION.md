@@ -1,5 +1,7 @@
 # #1488 关票声明草稿（CLOSE-DECLARATION，0085）
 
+> **当前状态（2026-10-25）**：代码候选为 `c5f49adc97d8e40ab1753a7d295a5d157c15af94`，P2-1/P2-2 已实施修复并进入终面验证/独审；最新报告与完整探针见 [resume-20261025/REPORT.md](../resume-20261025/REPORT.md)。本文件下文的 0085/0091 读数是历史快照，其中“未改、待负责人裁定”不再代表当前 P2 状态。当前无合入、无关票，main 闸与独审/CI 门仍保留。
+
 > **状态：草稿，不是关票评论。**
 > - 标【合入后填】的项，只有在用户合入闸之后才能为真（G3）。现在不写结论。
 > - squash 面验证读数见 §8；合并面尾部（pre-squash `8a1924993b`、再合 main `dbfb13d90b`、`5417eea488`（含 #1608 告警门控回退与 114 行 cfg_attr/allow）、`0fb96c00ae`）**需补合并面独审**；squash 面独审 0091 对 `336b53db8d` 预审判 FAIL（P1-1 bsp 白名单锚，终面已修；P2-1/P2-2/P3 交负责人裁定），终面待复审（REVIEW-CHAIN §3.4）。
@@ -170,3 +172,9 @@ squash 之后，第 1–23 处原提交 hash 只保留在 §5 合并面分支上
 | financial 22 对 main | `--features s_session --bin s_structure_session v3::financial_session`：squash 4/22/3ign，main `66c409e7e3` 4/22/3ign；22 条 (测试全名, panic 位置, panic 消息) 两边逐行 diff 为空（`fin-pairs-*.tsv` 两边 sha 同为 `0f167731…`）。panic 位置 `financial_session_tests.rs:40:32` ×17、`:633:5`、`:677:35`、`:721:35`、`:806:35`、`:1567:39` 各 1；消息全为 MissingDependency「会话保留量读数当前只在macOS实现」。归因：`financial_session.rs:504–506` 在 `cfg(not(target_os = "macos"))` 下 `heap_probe` 直接返回该错误；本票未改这两个文件 | squash log `20261022-034338-336b53db8d`，main log `20261022-044955-66c409e7e3` |
 | 生产 nobid（P58） | fmt 前 `0fb96c00ae` `2b82e38686e81b0c…`，fmt 后 `e4f7ee3b7792c3d4…`，同长 10600736 B；581 字节差全在 `.data.rel.ro`，RELATIVE 重定位两侧 6641 条全等；560 条 panic Location 记录全部只变行号（列不变），判定 `ALL_PANIC_LOCATION`。记录按文件：s_structure_session 280、s_session_v2/mod 56、object_index 46、cache 41、audit_owner 25、business_json 25、aux_index 19、generation 13、evidence_store 9、source_audit 9、content_manifest 9、s_content 8、fixed_radix 6、content_producer 4、s_fact_cache 3、state 2、content_publication 2、catalog_evidence 1、audit_store 1、native_owned 1 | log `20261022-033217-0fb96c00ae`、`20261022-033549-336b53db8d`；分类器 `workers/close-0085/nobid_classify.py` |
 | S86 cross-binary（ordinary，86 代） | squash 生产构建 `417d3bc3…`（12902024 B，`rel-full-squash3`）跑 s86 输入，driver rc=0。**对 `s1/r8a`（main 基线 `6badaa6049` 二进制）**：cmp_rc=0，VERDICT PASS；INVARIANT 全部 EQUAL（init、86 回复帧逐位、逐代公开根与 FinancialBasis 根、basis-ref、全部业务表、公开根集合、可达闭包 344419/344419）。CONDITIONAL 有三项 DIFF：binary_sha256（预期）、`s_content_nodes` 全集 784774→560069、逐代 stored_nodes/stored_body_bytes（51261418→35082658 B）。不可达节点 440355（56.1%）→215650（38.5%），这正是本票去作废中间根的效果，可达部分完全相同。**对 `s5/p1`（评审期 `3ee05a2713` 生产构建）**：cmp_rc=0，VERDICT PASS；INVARIANT 全等；CONDITIONAL 只有 binary_sha256 一项 DIFF，`s_content_nodes` 全集 560069/560069 与逐代 stored_nodes/bytes 全等。末代 snapshot 根 `7508b621…`、basis 根 `sc1-c195df59…` 三方一致。前两轮（p1@`d5ae676bf9`、p2@`5b5e264276`）结论相同 | log `20261022-045545-336b53db8d`；`close-0085/p3/cmp-s1-r8a.json` `bc2759a1…`、`cmp-s5-p1.json` `3c9db71e…` |
+
+## 9. 2026-10-25 续接关票门（当前）
+
+代码候选为c5f49adc97，功能分支为codex/1488-fix-p2-resume-20261023。交付计划为squash merge；本分支保留故障与修复过程，不宣称各过程commit逐个可编译。旧§8的树等同和CI仅属于其注明的旧SHA。
+
+P2-1/P2-2已修，具体逐档RC、PR和CI以最新REPORT为准。最终独审、实际main合入hash、合入后CI与清理工位均尚未成立，因此本声明仍是草稿，不能用于关票。生产增量化仍由#1645承接；不扩大#1488验收范围，也不关闭#1279。
