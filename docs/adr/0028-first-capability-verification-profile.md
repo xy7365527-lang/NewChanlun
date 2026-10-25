@@ -55,7 +55,7 @@ P1 按 Netting 验证（[ADR 0014](0014-intra-chong-unidirectional-inter-chong-n
 - **P1-hl-testnet**：仍为首个验证默认；主 DEX、experiment、Netting、独立 API wallet、trade_no_transfer。范围与授权按裁定一，不扩 builder DEX、子账户、强平或生产 X 排他结论。
 - **C/P2 主网最小额候选**：本图不做真钱首次发送，#1561 不解除。日后另票按 ADR 0021 裁定五重启，重跑 #942 问 1/3/4/5、执行 #937 四裁切换；主网存款及数额走 ADR 0040 的 P2 新版本；具名权限签署、用户本人首次发送授权及 TB-09 重核缺一不可，不做强平实验。
 - **D/IBKR paper**：需本地 TWS、paper 账户配置与支柱 IV 执行器接通；保证金与强平合并口径不证明逐重隔离。配置函数不等于完整 adapter。
-- **E/Binance 只读**：子账户未开通、VPN 前置保留；只读不证明发送与回报，不授权开子账户或交易。
+- **E/Binance 只读**：历史曾验通：[#953 收口评论](https://github.com/xy7365527-lang/NewChanlun/issues/953#issuecomment-5397752334)记录只读 API 已开通且交易、转账、提现全关；[#932 收口评论](https://github.com/xy7365527-lang/NewChanlun/issues/932#issuecomment-5399028001)记录成交层 BUY×2、单仓、平仓至零及余额回笼验通。两项记录不证明使用同一凭据，也不代表当前账户能力与权限；当前接线、子账户能力、权限及 VPN 前置须实时核验。E 仍仅为只读候选，只读不证明发送与回报，不授权开子账户或交易。
 
 D/E 的 profile id 随实施接线记录，不擅定已生效 P3/P4。保留候选不改变下节 P2 处置及 P1/P0 验收边界。
 
