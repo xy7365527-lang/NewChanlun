@@ -588,7 +588,16 @@ impl<'raw> RawPrefixIndex<'raw> {
         prefix: usize,
         admission: &(impl super::audit_store::CodecRead + ?Sized),
     ) -> Result<RawPrefixChanges, String> {
-        let result = self.advance_inner(prefix, admission);
+        self.advance_measured(prefix, admission, None, None)
+    }
+    pub(super) fn advance_measured(
+        &mut self,
+        prefix: usize,
+        admission: &(impl super::audit_store::CodecRead + ?Sized),
+        deadline: Option<Instant>,
+        budget: Option<&dyn super::audit_budget::Budget>,
+    ) -> Result<RawPrefixChanges, String> {
+        let result = self.advance_inner(prefix, admission, deadline, budget);
         if result.is_err() {
             self.clear();
         }
@@ -598,6 +607,8 @@ impl<'raw> RawPrefixIndex<'raw> {
         &mut self,
         prefix: usize,
         admission: &(impl super::audit_store::CodecRead + ?Sized),
+        deadline: Option<Instant>,
+        budget: Option<&dyn super::audit_budget::Budget>,
     ) -> Result<RawPrefixChanges, String> {
         if self.raw.budget().is_some() {
             return Err("prototype_audit_allocation_incomplete：有序raw索引不接收Owned原件".into());
@@ -612,7 +623,11 @@ impl<'raw> RawPrefixIndex<'raw> {
         let raw = self.raw;
         let mut changed = NativeTree::<&str, (i64, usize)>::default();
         for ordinal in self.prefix..prefix {
+            super::history::check_deadline(deadline)?;
             let event = raw.get(ordinal).expect("已截前缀");
+            if let Some(budget) = budget {
+                budget.record().map_err(|e| e.to_string())?;
+            }
             let identity = field(event, "identity_key").as_str().unwrap_or("");
             let revision = field(event, "revision").as_i64().unwrap_or(0);
             let previous = changed
@@ -638,7 +653,12 @@ impl<'raw> RawPrefixIndex<'raw> {
             let c = match self.coordinates.get(&ordinal) {
                 Some(c) => *c,
                 None => {
-                    let c = coord(self.raw.get(ordinal).expect("赢家原件"))?;
+                    super::history::check_deadline(deadline)?;
+                    let event = self.raw.get(ordinal).expect("赢家原件");
+                    if let Some(budget) = budget {
+                        budget.record().map_err(|e| e.to_string())?;
+                    }
+                    let c = coord(event)?;
                     #[cfg(feature = "s_capture_native_testonly")]
                     let capacity = self.coordinates.capacity();
                     admission

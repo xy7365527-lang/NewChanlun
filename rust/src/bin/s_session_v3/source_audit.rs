@@ -1344,12 +1344,22 @@ impl<'raw> NativeRawLedger<'raw> {
         self.reset_progress();
         self.originals.retain(|_, _| false);
     }
+    #[cfg(test)]
     fn advance(
         &mut self,
         s: &mut (impl CodecRead + ?Sized),
         prefix: usize,
     ) -> Result<&BusinessMap<i64, Source>, String> {
-        if let Err(error) = self.advance_inner(s, prefix) {
+        self.advance_measured(s, prefix, None, None)
+    }
+    fn advance_measured(
+        &mut self,
+        s: &mut (impl CodecRead + ?Sized),
+        prefix: usize,
+        deadline: Option<std::time::Instant>,
+        budget: Option<&dyn super::audit_budget::Budget>,
+    ) -> Result<&BusinessMap<i64, Source>, String> {
+        if let Err(error) = self.advance_inner(s, prefix, deadline, budget) {
             self.clear();
             return Err(error);
         }
@@ -1359,8 +1369,10 @@ impl<'raw> NativeRawLedger<'raw> {
         &mut self,
         s: &mut (impl CodecRead + ?Sized),
         prefix: usize,
+        deadline: Option<std::time::Instant>,
+        budget: Option<&dyn super::audit_budget::Budget>,
     ) -> Result<(), String> {
-        let changes = self.winners.advance_admitted(prefix, s)?;
+        let changes = self.winners.advance_measured(prefix, s, deadline, budget)?;
         if changes.rewound {
             #[cfg(feature = "s_capture_native_testonly")]
             self.retained
@@ -1383,16 +1395,20 @@ impl<'raw> NativeRawLedger<'raw> {
             let source = if let Some((_, source)) = self.originals.get(&ordinal) {
                 *source
             } else {
+                super::history::check_deadline(deadline)?;
                 let event = self.raw.get(ordinal).expect("winner original");
+                if let Some(budget) = budget {
+                    budget.record().map_err(err)?;
+                }
                 let wire = bj::RawReference::new(event, false)?;
                 let numeric = bj::RawReference::new(event, true)?;
                 // hash_json_in_store 用 Discard 丢弃节点，不写 reader overlay。
                 // 后续只比较摘要（含 r3 的五字段 bar 投影），从不以它们读取节点。
                 let source = Source {
-                    wire: super::history::hash_json_in_store(s, wire.view(), None, None)?,
-                    numeric: super::history::hash_json_in_store(s, numeric.view(), None, None)?,
-                    raw: super::history::hash_json_in_store(s, event, None, None)?,
-                    bar: source_pending::raw_bar(s, event, None, None)?,
+                    wire: super::history::hash_json_in_store(s, wire.view(), deadline, budget)?,
+                    numeric: super::history::hash_json_in_store(s, numeric.view(), deadline, budget)?,
+                    raw: super::history::hash_json_in_store(s, event, deadline, budget)?,
+                    bar: source_pending::raw_bar(s, event, deadline, budget)?,
                 };
                 #[cfg(test)]
                 {
@@ -2265,7 +2281,7 @@ fn audit_generated_in_store(
     let mut ordinary_raw;
     let raw = if let Some(ledger) = native_ledger {
         allocation = source_allocation(s)?;
-        ledger.advance(s, raw_prefix.len())?
+        ledger.advance_measured(s, raw_prefix.len(), deadline, budget)?
     } else {
         ordinary_effective = bj::effective(raw_prefix, deadline)?;
         allocation = source_allocation(s)?;
@@ -2703,6 +2719,72 @@ mod tests {
             .map(|(coord, source)| (*coord, *source))
             .collect()
     }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_raw_ledger_measured_visits_hits_rewind_and_failure() {
+        use super::super::audit_budget::AuditJob;
+        use sc::job::{Existing, Job, JobLimits};
+        use std::time::Instant;
+        let make_job = |records: u64, nodes: u64| {
+            let limits = JobLimits::from_canonical_json(&json!({
+                "max_total_wire_bytes": "1048576",
+                "max_total_node_bytes": "1048576",
+                "max_total_nodes": nodes.to_string(),
+                "max_total_records": records.to_string(),
+                "max_total_requests": "20", "max_elapsed_ms": "10000",
+                "max_staged_bytes": "1048576", "max_store_bytes": "33554432"
+            })).unwrap();
+            Job::new(limits, Existing { store_bytes: 0, staged_bytes: 0 },
+                Box::new(Instant::now)).unwrap()
+        };
+        let mut fixture = super::super::prepared::tests::Fixture::new();
+        fixture.accept_begin(1, ("a", 0, 6, 12, 3, 7), 1);
+        fixture.accept_begin(2, ("b", 1, 8, 16, 6, 12), 1);
+        let raw = read_raw_events(&fixture.conn).unwrap();
+        let capture = sc::AuditCapture::new(MemoryNodes::default());
+        let mut reader = super::super::history::HashReader::captured(&capture, None);
+        let mut ledger = NativeRawLedger::new((&raw).into());
+        let mut job = make_job(100, 10000);
+        {
+            let audit = AuditJob::new(&mut job);
+            let got = ledger.advance_measured(&mut reader, 2, None, Some(&audit)).unwrap();
+            assert_eq!(source_entries(got), source_entries(&original_sources(&raw, 2).unwrap()));
+        }
+        assert_eq!(job.snapshot().records, 6, "每行新增、坐标和来源各访问一次");
+        assert!(job.snapshot().nodes > 0, "四投影进入同一 Job 节点核");
+        let before = job.snapshot();
+        {
+            let audit = AuditJob::new(&mut job);
+            ledger.advance_measured(&mut reader, 2, None, Some(&audit)).unwrap();
+        }
+        assert_eq!(job.snapshot().records, before.records);
+        assert_eq!(job.snapshot().nodes, before.nodes);
+        {
+            let audit = AuditJob::new(&mut job);
+            ledger.advance_measured(&mut reader, 1, None, Some(&audit)).unwrap();
+            ledger.advance_measured(&mut reader, 2, None, Some(&audit)).unwrap();
+        }
+        assert_eq!(job.snapshot().records, 8, "回退后独立扫描收费，坐标及来源命中不虚收");
+        for records in [1, 3, 4] {
+            let mut limited = make_job(records, 10000);
+            let mut ledger = NativeRawLedger::new((&raw).into());
+            let audit = AuditJob::new(&mut limited);
+            assert!(ledger.advance_measured(&mut reader, 2, None, Some(&audit)).is_err());
+            assert!(ledger.sources.is_empty());
+            assert!(ledger.originals.is_empty());
+            assert!(ledger.winners.is_empty());
+            let got = ledger.advance(&mut reader, 2).unwrap();
+            assert_eq!(source_entries(got), source_entries(&original_sources(&raw, 2).unwrap()));
+        }
+        let mut limited = make_job(100, 1);
+        let mut ledger = NativeRawLedger::new((&raw).into());
+        let audit = AuditJob::new(&mut limited);
+        assert!(ledger.advance_measured(&mut reader, 2, None, Some(&audit)).is_err());
+        assert!(ledger.sources.is_empty());
+        assert!(ledger.originals.is_empty());
+        assert!(ledger.winners.is_empty());
+    }
+
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn cold_raw_index_normal_revisions_unordered_duplicate_prices_and_replay_view() {
