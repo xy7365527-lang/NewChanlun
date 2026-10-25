@@ -912,7 +912,7 @@ mod tests {
     fn active_record_is_bit_exact_and_policy_mutations_reach_metric_outputs() {
         let stats = test_stats();
         let equity = [1.0, 1.01, 0.99, 1.03, 1.02];
-        let daily = [0.01, -0.02, 0.03, -0.01, 0.02, -0.02, 0.01];
+        let daily = [0.01, -0.02, 0.03, -0.01, 0.02, -0.04, 0.03];
         let pnls = [2.0, -1.0, 3.0, -2.0, 4.0, 1.0];
         let actual = super::compute(&equity, &daily, &pnls, 1.0, 0.05).unwrap();
         let expected = compute_with_policy(&equity, &daily, &pnls, 1.0, 0.05, &stats);

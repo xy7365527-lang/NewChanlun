@@ -135,11 +135,12 @@ mod tests {
         assert_eq!(no_floor.nav_for_bars(&bars, &config), first_px * 1000.0);
         assert_eq!(no_floor.record.label(), "#1605/no-floor-probe-profile/v1");
 
-        let mut changed = l3;
+        let mut changed = no_floor;
         changed.first_px_multiplier = 500.0;
         assert_ne!(
             changed.nav_for_bars(&bars, &config),
-            l3.nav_for_bars(&bars, &config)
+            no_floor.nav_for_bars(&bars, &config),
+            "用无下限 profile 避免 L3 的 1e6 下限遮住倍率变异"
         );
         let missing = active_no_floor_probe_profile().unwrap();
         assert_eq!(missing.nav_for_bars(&[], &config), 1000.0);
