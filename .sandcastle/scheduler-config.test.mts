@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, writeFileSync, rmSync, mkdirSync } from "nod
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { execFileSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { configPath, readSchedulerConfig, schedulerEnvName, type SchedulerKey } from "./scheduler-config.mts";
 
 const expected = {
@@ -85,7 +85,7 @@ test("全部环境覆盖可追溯；旧env名称保留；非法覆盖拒绝且�
 test("各入口绑定集中记录；启动日志含值和来源但不含无关secret", () => {
   const files = {
     "swarm-route.mts": ["dockerModelHttpTimeoutMs", "dockerModelProcessTimeoutMs", "dockerNamespaceTimeoutMs"],
-    
+
     "main.mts": ["frontierQueryLimit", "backlogQueryLimit", "workerEffort", "mainMaxIterations", "mainMaxTickets", "implementerIdleSeconds", "worktreeMaxAttempts", "worktreeRetryDelayMs"],
     "main-swarm.mts": ["swarmMaxIterations", "swarmMaxParallel"],
     "codex-child.ts": ["childKillGraceMs", "childExitPollMs", "childExitWaitMs", "childEffort", "childIdleSeconds", "childTimeoutSeconds"],
@@ -113,7 +113,7 @@ test("真实 claim-loop dry-run 与堆叠基线同值等价，不写票不启动
   const calls = join(dir, "calls");
   writeFileSync(join(bin, "pgrep"), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
   writeFileSync(join(bin, "gh"), '#!/bin/sh\necho "$*" >> "$CALLS"\ncase "$1 $2" in\n"issue list") echo \'[{"number":1606,"assignees":[]}]\';;\n"api repos/"*) echo 0;;\n*) exit 98;;\nesac\n', { mode: 0o755 });
-  const baseline = execFileSync("git", ["show", "2bd876be4490c340048bbc9f0c63353b46f7f423:.sandcastle/claim-loop.mts"], { encoding: "utf8" });
+  const baseline = readFileSync(new URL("./fixtures/issue1606/claim-loop-before.mts", import.meta.url), "utf8");
   const before = join(dir, "before.mts"); writeFileSync(before, baseline);
   const env = { PATH: bin + ":" + process.env.PATH, CALLS: calls, HOME: dir };
   const run = (script: string) => {
