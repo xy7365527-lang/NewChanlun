@@ -2514,10 +2514,10 @@ mod tests {
                 "连续同价包含合并",
                 vec![
                     ("a", 0, 7),
-                    ("b", 10, 7),
-                    ("c", 20, 12),
+                    ("b", 10, 12),
+                    ("c", 20, 8),
                     ("d", 30, 8),
-                    ("e", 40, 8),
+                    ("e", 40, 13),
                     ("f", 50, 13),
                     ("g", 60, 9),
                 ],
@@ -2570,16 +2570,21 @@ mod tests {
                 assert!(!mine["witnesses"].as_array().unwrap().is_empty());
             }
             if label == "连续同价包含合并" {
+                assert_eq!(mine["objects"].as_array().unwrap().len(), 3);
                 let object = &mine["objects"][0];
                 let refs: Value = serde_json::from_str(object["input_refs_json"].as_str().unwrap())
                     .expect("tick input_refs 是规范JSON文本");
-                assert_eq!(refs[0]["raw_refs"].as_array().unwrap().len(), 2);
                 assert_eq!(refs[2]["raw_refs"].as_array().unwrap().len(), 2);
                 assert!(refs[0].get("dependency_refs").is_none());
                 let sources: Value =
                     serde_json::from_str(object["source_coords_json"].as_str().unwrap())
                         .expect("tick source_coords 是规范JSON文本");
-                assert_eq!(sources, json!([0, 20, 30]));
+                assert_eq!(sources, json!([0, 10, 20]));
+                let second = &mine["objects"][1];
+                let second_refs: Value =
+                    serde_json::from_str(second["input_refs_json"].as_str().unwrap())
+                        .expect("tick input_refs 是规范JSON文本");
+                assert_eq!(second_refs[2]["raw_refs"].as_array().unwrap().len(), 2);
             }
         }
     }
