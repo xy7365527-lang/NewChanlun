@@ -36,7 +36,7 @@ mod source_contributions;
 mod source_delta;
 #[cfg(feature = "s_capture_native_testonly")]
 pub(crate) use source_contributions::{
-    audit_native_bound, NativeSourceState, NativeSourceVerdict, SourceWork,
+    audit_native_bound, NativeSourceState, 
 };
 #[path = "source_pending.rs"]
 mod source_pending;
@@ -863,7 +863,7 @@ struct Shape {
     groups: [i64; 3],
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct Counts {
+pub(crate) struct Counts {
     pub objects: usize,
     pub groups: usize,
     pub windows: usize,

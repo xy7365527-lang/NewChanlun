@@ -6,7 +6,7 @@ use super::super::audit_retention::{self as retention, Retained, RetainedDelta};
 use super::super::business_json::TextValue;
 use super::super::native_shared::NativeRc as Rc;
 use super::*;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap};
 #[path = "source_order.rs"]
 mod source_order;
 use source_order::{Handle, Order};

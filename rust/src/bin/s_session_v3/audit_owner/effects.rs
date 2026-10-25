@@ -2088,7 +2088,7 @@ impl StageGuard {
             }
             reserve_consumed(&mut j, budget)?;
             let remaining =
-                if let Some(resources) = j.resources.as_ref().filter(|r| r.shared_parent) {
+                if let Some(_resources) = j.resources.as_ref().filter(|r| r.shared_parent) {
                     j.cap
                         .checked_sub(j.bytes)
                         .ok_or_else(|| construction_state::stale("stage局部原件额度不足"))?
@@ -3122,12 +3122,12 @@ mod construction_coverage_tests {
         let mut db = database();
         let tx = db.transaction().unwrap();
         let (recording, state) = set_recording(&tx);
-        tx.progress_handler(1, Some(|| true));
+        let _ = tx.progress_handler(1, Some(|| true));
         assert!(
             with_material_access(&tx, None, |m| note_source_cut(m.unwrap(), (&state).into()))
                 .is_err()
         );
-        tx.progress_handler(0, None::<fn() -> bool>);
+        let _ = tx.progress_handler(0, None::<fn() -> bool>);
         assert!(
             with_material_access(&tx, None, |_| Ok(())).is_err(),
             "取消后不能重建成功scope"

@@ -1869,7 +1869,7 @@ mod tests {
         b.vec_grow(&mut v, 1).unwrap();
         assert_eq!(b.live(), base + v.capacity() * size_of::<u64>());
         assert!(b.peak() >= before + v.capacity() * size_of::<u64>());
-        let mut blocked = vec![1u64, 2, 3, 4];
+        let blocked = vec![1u64, 2, 3, 4];
         let old_block = vec_bytes::<u64>(blocked.capacity());
         let tight = Budget::new(base + old_block + vec_bytes::<u64>(8) - 1, old_block).unwrap();
         let capacity = blocked.capacity();

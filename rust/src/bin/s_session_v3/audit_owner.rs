@@ -99,7 +99,7 @@ mod construction_set;
 pub(crate) use construction_set::{Edit, OwnerSourceCheck, SequenceDelta, SourceArray};
 #[cfg(feature = "s_capture_native_testonly")]
 pub(crate) use effects::{
-    MaterialAccess, PublicationStageIdentity, SourceCutBinding, SourceMaterial, StageKind,
+    MaterialAccess, SourceCutBinding, SourceMaterial, StageKind,
 };
 #[path = "construction_state.rs"]
 mod construction_state;
@@ -136,6 +136,7 @@ thread_local! {
 #[cfg(feature = "s_capture_native_testonly")]
 struct PublicationResources {
     budget: native::Budget,
+    #[allow(dead_code)]
     parent_limit: usize,
     before: SnapshotSeal,
     connection: usize,
@@ -6244,7 +6245,7 @@ thread_local! {
 mod publication_degrade_verdict_tests {
     use super::*;
     use newchan_rust::s_content::capture_allocation::scratch::{
-        ScratchFailure, WorkError, WorkScope,
+        ScratchFailure, WorkScope,
     };
     use newchan_rust::s_content::CodecError;
 
