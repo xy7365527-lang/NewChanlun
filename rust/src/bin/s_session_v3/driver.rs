@@ -699,6 +699,42 @@ mod tests {
     }
 
     #[test]
+    fn historical_bi_rule_bad_audit_precedes_epoch_and_rule() {
+        let f = Fixture::new();
+        let mut c = open_db(&f.db).unwrap();
+        meta_set(&c, "rule_revision", crate::LEGACY_V3_RULE_REVISION).unwrap();
+        meta_set(&c, "session_generation", "broken").unwrap();
+        let expected = {
+            let tx = c.transaction().unwrap();
+            state::audit(&tx).err().expect("坏库必须被原审计拒绝")
+        };
+        drop(c);
+        let e = f.open("2").err().unwrap();
+        assert_eq!(e.split("；原准入账=").next(), Some(expected.as_str()));
+        let e = recover(&f.db, "2", &f.clock, "recover-1",
+            crate::v3::admission_anchor::test_prepare(&f.db).into()).err().unwrap();
+        assert_eq!(e.split("；原准入账=").next(), Some(expected.as_str()));
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn historical_bi_rule_owned_rejects_without_sidecar_then_current_rule_opens() {
+        let f = Fixture::new();
+        let c = open_db(&f.db).unwrap();
+        meta_set(&c, "rule_revision", crate::LEGACY_V3_RULE_REVISION).unwrap();
+        drop(c);
+        let e = Driver::open_with_request_and_allocation(
+            &f.db, &f.profile, "1", f.clock.clone(), None, Some(allocation_profile()),
+            crate::v3::admission_anchor::test_prepare(&f.db).into(),
+        ).err().unwrap();
+        assert!(e.starts_with("VersionUnsupported"), "{e}");
+        assert!(!PathBuf::from(format!("{}-shm", f.db.display())).exists());
+        let current = Fixture::new();
+        let driver = allocation_driver(&current, allocation_profile());
+        assert!(driver.identity().is_ok());
+    }
+
+    #[test]
     fn audit_owner_driver_normal_requests_release_transactions_and_statements() {
         fn ended(driver: &Driver) {
             assert!(driver.conn.is_autocommit());
