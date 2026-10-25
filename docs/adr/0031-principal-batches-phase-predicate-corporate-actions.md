@@ -31,7 +31,7 @@ K、P、R、费用跨 Voice 连续；迟到费用 f 进该重 K，归属指针�
 
 ### 五、公司行动（第五问 A，`[新缠论:选择]`，原文留白）
 
-现金分红净额 `dividend_cash_net: i64` 计已实现回收、减 K；代扣税 `withholding_tax: i64` 作费用分量，gross/withheld/net 三值与币种留原件；除权参考价调整是估值，不改 K；拆股以整数比 `(num, den)` 重基，`q' = q·num/den` 须整除，否则原件须自带零股处置（现金代付即回收）或 `Unsupported`，不四舍五入；拆股不造回收、不改 K；fixed_q 按原件重基（是否触发 [ADR 0016](0016-chong-quantity-layer-capacity-frequency-shift.md) 换档另裁）。空头重支付的分红是费用分量。公司行动一律走 P4 Recorded+Pending 原件。本条收口 ADR 0024 裁定四的遗留子项。
+现金分红政策 `dividend_treatment={recover_reduce_k,capitalize_no_reduce_k}`（#1599 用户 2026-10-26 批准），默认 recover_reduce_k：净额 `dividend_cash_net: i64` 计已实现回收、减 K；备选 capitalize_no_reduce_k：净额计资本化 A、不减 K，代价是延后本金回收门触达。gross/withheld/net 不双计，不把 A 或 K 偷换成 G；事件入口与回放消费同一具名版本，改值新版本、不失败换值。代扣税 `withholding_tax: i64` 作费用分量，gross/withheld/net 三值与币种留原件；除权参考价调整是估值，不改 K；拆股以整数比 `(num, den)` 重基，`q' = q·num/den` 须整除，否则原件须自带零股处置（现金代付即回收）或 `Unsupported`，不四舍五入；拆股不造回收、不改 K；fixed_q 按原件重基（是否触发 [ADR 0016](0016-chong-quantity-layer-capacity-frequency-shift.md) 换档另裁）。空头重支付的分红是费用分量。公司行动一律走 P4 Recorded+Pending 原件。本条收口 ADR 0024 裁定四的遗留子项。
 
 ## 数值口径
 
@@ -48,3 +48,7 @@ K、P、R、费用跨 Voice 连续；迟到费用 f 进该重 K，归属指针�
 ## 溯源标签
 
 裁定一至三的教义部分为 `[旧缠论]`（见教义正本 §1–§4 的原文锚）；数据形态、零分母处置与公司行动为 `[新缠论:选择]`。
+
+## #1599 批复与受影响清单
+
+[用户批复](https://github.com/xy7365527-lang/NewChanlun/issues/1599#issuecomment-6403278294)；[受影响清单](../../.chanlun/review-results/issue1599-policy-20261026/affected-code.md)含固定基线、Rust/Python/Lean 接缝及下游未承接项。本次为政策文书，不声称实现或关票；新增自由度为 `[新缠论:选择]`，既裁不变量不变。
