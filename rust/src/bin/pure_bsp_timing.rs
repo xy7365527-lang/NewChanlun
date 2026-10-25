@@ -257,6 +257,7 @@ fn main() -> std::process::ExitCode {
     .expect("C-19 research stats record");
 
     println!("=== 纯买卖点择时回测（pure_bsp_timing，离散状态机，非 π_Θ 覆盖）===");
+    println!("统计记录        : {}", m.research_stats.label());
     println!("品种            : {}", dataset.symbol);
     println!("bar 数          : {n}");
     println!("年化基数(years) : {years:.4}");

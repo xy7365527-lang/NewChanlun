@@ -2041,6 +2041,9 @@ fn btc_type2_open_short_channel_witness() {
     use super::super::incremental::IncrementalClassifier;
     use super::super::prereg_windows::PREREG_WINDOWS;
     use crate::theta_v0::strategy::account::{AccountIdentity, ActionReason};
+    let probe_profile =
+        super::super::l3_probe_profile::active_l3_probe_profile().expect("L3 probe profile record");
+    eprintln!("探针资金记录={}", probe_profile.record.label());
     let config = ThetaConfig::default();
     let w = PREREG_WINDOWS
         .iter()
@@ -2050,9 +2053,7 @@ fn btc_type2_open_short_channel_witness() {
     let oos = ds.slice_date_window(w.oos.0, w.oos.1);
     let cut = 32_000_usize.min(oos.bars.len());
     let train_bars = &oos.bars[0..cut / 2];
-    let nav = super::super::l3_probe_profile::active_l3_probe_profile()
-        .expect("L3 probe profile record")
-        .nav_for_bars(train_bars, &config);
+    let nav = probe_profile.nav_for_bars(train_bars, &config);
     let mut classifier_incr = IncrementalClassifier::new(train_bars, &config);
     let fill = pi_theta_fill_loop(
         |i| {
@@ -2223,6 +2224,9 @@ fn m3_follow_parent_short_leg_termination_witness() {
     use super::super::data;
     use super::super::incremental::IncrementalClassifier;
     use super::super::prereg_windows::PREREG_WINDOWS;
+    let probe_profile =
+        super::super::l3_probe_profile::active_l3_probe_profile().expect("L3 probe profile record");
+    eprintln!("探针资金记录={}", probe_profile.record.label());
     let config = ThetaConfig::default();
     let w = PREREG_WINDOWS
         .iter()
@@ -2247,9 +2251,7 @@ fn m3_follow_parent_short_leg_termination_witness() {
                 continue;
             }
             let bars = &test_ds.bars;
-            let nav = super::super::l3_probe_profile::active_l3_probe_profile()
-                .expect("L3 probe profile record")
-                .nav_for_bars(bars, &config);
+            let nav = probe_profile.nav_for_bars(bars, &config);
             let mut classifier_incr = IncrementalClassifier::new(bars, &config);
             let fill = pi_theta_fill_loop(
                 |i| {
@@ -2376,6 +2378,9 @@ fn btc_prune_leg_exit_type_matches_account_identity() {
     use super::super::prereg_windows::PREREG_WINDOWS;
     use crate::theta_v0::strategy::account::AccountIdentity;
     use crate::theta_v0::strategy::interp::ExitType;
+    let probe_profile =
+        super::super::l3_probe_profile::active_l3_probe_profile().expect("L3 probe profile record");
+    eprintln!("探针资金记录={}", probe_profile.record.label());
     let config = ThetaConfig::default();
     let w = PREREG_WINDOWS
         .iter()
@@ -2385,9 +2390,7 @@ fn btc_prune_leg_exit_type_matches_account_identity() {
     let oos = ds.slice_date_window(w.oos.0, w.oos.1);
     let cut = 32_000_usize.min(oos.bars.len());
     let train_bars = &oos.bars[0..cut / 2];
-    let nav = super::super::l3_probe_profile::active_l3_probe_profile()
-        .expect("L3 probe profile record")
-        .nav_for_bars(train_bars, &config);
+    let nav = probe_profile.nav_for_bars(train_bars, &config);
     let mut classifier_incr = IncrementalClassifier::new(train_bars, &config);
     let fill = pi_theta_fill_loop(
         |i| {
@@ -2481,6 +2484,9 @@ fn btc_type2_residual_correction_witness() {
     type2_sell_guard_probe_reset();
     residual_correction_probe_reset();
     crate::theta_v0::strategy::coverage::t1_target_zero_probe_reset();
+    let probe_profile =
+        super::super::l3_probe_profile::active_l3_probe_profile().expect("L3 probe profile record");
+    eprintln!("探针资金记录={}", probe_profile.record.label());
     let config = ThetaConfig::default();
     let w = PREREG_WINDOWS
         .iter()
@@ -2490,9 +2496,7 @@ fn btc_type2_residual_correction_witness() {
     let oos = ds.slice_date_window(w.oos.0, w.oos.1);
     let cut = 32_000_usize.min(oos.bars.len());
     let train_bars = &oos.bars[0..cut / 2];
-    let nav = super::super::l3_probe_profile::active_l3_probe_profile()
-        .expect("L3 probe profile record")
-        .nav_for_bars(train_bars, &config);
+    let nav = probe_profile.nav_for_bars(train_bars, &config);
     let mut classifier_incr = IncrementalClassifier::new(train_bars, &config);
     let fill = pi_theta_fill_loop(
         |i| {
@@ -8033,6 +8037,9 @@ fn m8_treasury_reach_distribution_real_btc() {
     use super::super::super::strategy::ledger::TStage;
     use super::super::data;
     use super::super::prereg_windows::PREREG_WINDOWS;
+    let probe_profile =
+        super::super::l3_probe_profile::active_l3_probe_profile().expect("L3 probe profile record");
+    eprintln!("探针资金记录={}", probe_profile.record.label());
     let mut config = ThetaConfig::default();
     // ★A10 成本注入（M7_WITNESS_A10=1，p126 runbook §2.1）：cost_model 循环前注入（与 nav 无关）；
     // margin 循环内按各窗 nav 注入（q4_margin_model cushions 依赖 nav0）——与 m8_e2e 同函数同源
@@ -8050,9 +8057,11 @@ fn m8_treasury_reach_distribution_real_btc() {
         .find(|w| w.symbol == "BTC")
         .expect("BTC 在 PREREG_WINDOWS");
 
-    let mut report = String::from(
+    let mut report = format!(
             "# M8 treasury 多窗 Reach 分布（BTC anchored walk-forward，含 2020-2021 牛市段）\n\n\
+             探针资金记录={}\n\
              口径：κ=0 baseline；nav=窗首价×1000；生产 π 路径 tw_final 单读（stage 单向不可逆 ⟹ 终态=Reach）。\n\n",
+            probe_profile.record.label(),
         );
     if a10 {
         report.push_str(&format!(
@@ -8075,9 +8084,7 @@ fn m8_treasury_reach_distribution_real_btc() {
             continue;
         }
         let n = test.bars.len();
-        let nav = super::super::l3_probe_profile::active_l3_probe_profile()
-            .expect("L3 probe profile record")
-            .nav_for_bars(&test.bars, &config);
+        let nav = probe_profile.nav_for_bars(&test.bars, &config);
         // ★A10 margin 按各窗 nav 注入（q4_margin_model cushions = 0.02/0.05·nav0；M7_WITNESS_A10=1 时）。
         if a10 {
             config.margin = Some(super::super::wverify_run::q4_margin_model(nav));

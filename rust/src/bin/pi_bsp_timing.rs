@@ -798,6 +798,7 @@ fn main() -> std::process::ExitCode {
     let max_net = net_per_bar.iter().fold(0.0f64, |a, &x| a.max(x.abs()));
 
     println!("=== π_Θ^bsp 买卖点多声部离散择时回测（忠实 PDF §1-19）===");
+    println!("统计记录        : {}", m.research_stats.label());
     println!("品种            : {}", dataset.symbol);
     println!("bar 数          : {n}");
     println!("年化基数(years) : {years:.4}");

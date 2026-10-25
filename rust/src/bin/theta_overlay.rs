@@ -69,6 +69,10 @@ fn main() -> std::process::ExitCode {
         .expect("C-19 research stats record");
 
     println!("=== M5 声部执行层跑批（run_theta_v0_pi_overlay）===");
+    println!(
+        "统计记录        : {}",
+        r.net_result.metrics.research_stats.label()
+    );
     println!("品种            : {}", r.symbol);
     match window {
         Some((s, e)) => println!("日期窗          : {s} .. {e}"),

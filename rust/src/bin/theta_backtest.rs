@@ -107,6 +107,7 @@ fn main() -> std::process::ExitCode {
         run_theta_v0_pi(&dataset, &config, years, initial_nav).expect("C-19 research stats record");
 
     println!("=== S_Θ 回测结果（theta_v0::run_theta_v0_pi）===");
+    println!("统计记录        : {}", r.metrics.research_stats.label());
     println!("品种            : {}", r.symbol);
     if let Some((s, e)) = window {
         println!("日期窗          : {s} .. {e}");
