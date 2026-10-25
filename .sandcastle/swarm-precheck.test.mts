@@ -16,7 +16,7 @@ function fixture(t: { after: (fn: () => void) => void }, conflict = false) {
   const calls = join(root, "calls");
   for (const name of ["docker", "gh", "codex"]) {
     const path = join(bin, name);
-    writeFileSync(path, `#!/bin/sh\nprintf '%s\\n' '${name}' >> "$PROBE_CALLS"\nexit 42\n`);
+    writeFileSync(path, `#!/bin/sh\nprintf '%s\\n' '${name}' >> "$PROBE_CALLS"\nif [ '${name}' = docker ] && [ "$PROBE_NAMESPACE_OK" = 1 ]; then\n  case "$*" in *'--entrypoint unshare'*) exit 0 ;; esac\nfi\nexit 42\n`);
     chmodSync(path, 0o755);
   }
   const git = (...args: string[]) => execFileSync("git", args, { cwd: repo, encoding: "utf8", stdio: "pipe" }).trim();
@@ -35,9 +35,10 @@ function fixture(t: { after: (fn: () => void) => void }, conflict = false) {
   const path = join(root, "accepted.json"); writeFileSync(path, JSON.stringify(manifest));
   const worktree = join(repo, ".sandcastle/worktrees/sandcastle-merge-precheck");
   const checkpoint = join(repo, ".sandcastle/logs/merges/precheck/checkpoint.json");
-  const run = (accepted = true) => spawnSync(process.execPath, ["--import", loader, entry], {
+  const run = (accepted = true, namespaceReady = false) => spawnSync(process.execPath, ["--import", loader, entry], {
     cwd: repo, encoding: "utf8", timeout: 30_000,
     env: { PATH: `${bin}:${dirname(process.execPath)}:/usr/bin:/bin`, HOME: root, PROBE_CALLS: calls,
+      PROBE_NAMESPACE_OK: namespaceReady ? "1" : "0", CLIPROXY_LOCAL_KEY: "fixture-no-network",
       ...(accepted ? { SANDCASTLE_SWARM_MERGE_MANIFEST: path } : {}) },
   });
   const called = () => existsSync(calls) ? readFileSync(calls, "utf8").trim().split("\n") : [];
@@ -88,5 +89,16 @@ test("公共 CLI：普通 swarm 在 planner/claim 前仍因 Docker 不可用拒�
   assert.deepEqual(f.called(), ["docker"]);
   assert.equal(existsSync(f.checkpoint), false);
   assert.equal(f.git("worktree", "list", "--porcelain").match(/^worktree /gm)?.length, 1);
+  assert.equal(f.git("rev-parse", "main"), f.base);
+});
+
+test("公共 CLI：冲突 namespace 可用但模型路由拒绝时仍不启动冲突工蜂", t => {
+  const f = fixture(t, true); const result = f.run(true, true);
+  assert.equal(result.status, 1); assert.match(result.stderr, /主控模型 .* 预检失败/);
+  const state = JSON.parse(readFileSync(f.checkpoint, "utf8"));
+  assert.equal(state.phase, "conflict"); assert.equal(state.position, 1);
+  assert.equal(state.snapshot.mergeHead, f.inputs[1]!.sha);
+  assert.equal(execFileSync("git", ["rev-parse", "MERGE_HEAD"], { cwd: f.worktree, encoding: "utf8" }).trim(), f.inputs[1]!.sha);
+  assert.deepEqual(f.called(), ["docker", "docker"]);
   assert.equal(f.git("rev-parse", "main"), f.base);
 });

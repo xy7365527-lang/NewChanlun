@@ -67,13 +67,13 @@ function claim(issue: string) {
     { env: GH_CLEAN_ENV, stdio: "ignore" });
 }
 
-// 先验容器路由，再进入任何 planner/claim；失败时不产生 tracker 写副作用（#1617）。
-assertSwarmExecutionReady(IMAGE);
-assertDockerCliProxyReachable(IMAGE);
 const acceptedManifest = process.env.SANDCASTLE_SWARM_MERGE_MANIFEST;
 if (acceptedManifest) {
   await runAcceptedSwarmMerge(acceptedManifest, IMAGE, logWorker);
 } else {
+// 普通 swarm 先验容器路由，再进入 planner/claim（#1617）。
+assertSwarmExecutionReady(IMAGE);
+assertDockerCliProxyReachable(IMAGE);
 
 for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   console.log(`\n=== Iteration ${iteration}/${MAX_ITERATIONS} ===\n`);

@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { runManagedMerge, validateMergeManifest, type MergeManifest, type MergeCheck } from "./managed-merge.mts";
 import { verifyManagedRust } from "./managed-commit.mts";
 import { prepareFinalReviewPrompt } from "./review-context.mts";
-import { swarmAgent, swarmSandbox } from "./swarm-route.mts";
+import { assertSwarmExecutionReady, assertDockerCliProxyReachable, swarmAgent, swarmSandbox } from "./swarm-route.mts";
 
 export const MERGE_CHECK_ID = "combination-v1:git-diff-check,cargo-check-locked,tsc-noEmit";
 export async function verifyCombination(cwd: string, manifest: MergeManifest, head: string, files: string[]): Promise<MergeCheck> {
@@ -42,10 +42,17 @@ export async function runAcceptedSwarmMerge(manifestPath: string, image: string,
     execFileSync("git", ["worktree", "add", "-b", manifest.branch, cwd, manifest.base], { cwd: repo, stdio: "pipe" });
   }
   if (realpathSync(manifestPath).startsWith(realpathSync(cwd) + "/")) throw new Error("验收清单不得位于工蜂 worktree");
+  let conflictExecutionReady = false;
   const result = await runManagedMerge({
     cwd, manifest, checkpoint: join(evidenceDir, "checkpoint.json"), checkId: MERGE_CHECK_ID,
     verify: (head, files) => verifyCombination(cwd, manifest, head, files),
     resolveConflict: async ({ head, incoming, files }) => {
+      // #1617：仅冲突需要 Docker；此时 MERGE_HEAD 与检查点已保存，失败保留现场。
+      if (!conflictExecutionReady) {
+        assertSwarmExecutionReady(image);
+        assertDockerCliProxyReachable(image);
+        conflictExecutionReady = true;
+      }
       const final = prepareFinalReviewPrompt(
         `你只解决当前功能分支的这一次 merge 冲突。原 HEAD=${head}，输入=${incoming}。\n` +
         `只允许编辑以下冻结路径：${JSON.stringify(files)}。不要 git add/commit/merge/abort/reset，不 push、不改 main、不关票，不修改索引/受保护路径。\n` +
