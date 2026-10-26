@@ -4193,4 +4193,5 @@ impl ControlFacts {
         serde_json::json!({"session_generation":self.session_generation.as_str(),"clock_plan_hash":self.clock_plan_hash.as_str(),"headers":headers})
     }
 }
-\npub(crate) mod mixed_control;\n
+
+pub(crate) mod mixed_control;
