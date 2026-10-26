@@ -9,6 +9,7 @@ pub(crate) enum ProjectionKind {
 }
 #[derive(Clone, Copy)]
 pub(crate) enum Field {
+    FactKey, PayloadJson, InputRefsJson, SourceCoordsJson, Payload,
     MergedIndex, RawRefs, DependencyRefs,
     IdentityKey,
     Revision,
@@ -51,6 +52,11 @@ pub(crate) enum Field {
 impl Field {
     fn name(self) -> &'static str {
         match self {
+            Self::FactKey => "fact_key",
+            Self::PayloadJson => "payload_json",
+            Self::InputRefsJson => "input_refs_json",
+            Self::SourceCoordsJson => "source_coords_json",
+            Self::Payload => "payload",
             Self::MergedIndex => "merged_index",
             Self::RawRefs => "raw_refs",
             Self::DependencyRefs => "dependency_refs",
@@ -118,6 +124,14 @@ impl<'a> ScopedLegacyRecord<'a> {
         let text = NativeValue::try_format(format_args!("{n}"), Some(self.work)).map_err(MixedJsonError::Resource)?;
         self.text(field, text.as_ref())
     }
+    pub(crate) fn numeric(&mut self, field: Field, n: i64) -> Result<(), MixedJsonError> {
+        let permit = self.work.reserve_native(0).map_err(MixedJsonError::Resource)?;
+        self.insert(field, PlainJson::from_reserved(Value::from(n), Some(permit)))
+    }
+    pub(crate) fn borrowed(&mut self, field: Field, value: &Value) -> Result<(), MixedJsonError> {
+        let child = PlainJson::try_clone_from(value, Some(self.work)).map_err(MixedJsonError::Resource)?;
+        self.insert(field, child)
+    }
     pub(crate) fn null(&mut self, field: Field) -> Result<(), MixedJsonError> {
         let permit = self.work.reserve_native(0).map_err(MixedJsonError::Resource)?;
         self.insert(field, PlainJson::from_reserved(Value::Null, Some(permit)))
@@ -150,6 +164,11 @@ impl<'a> ScopedLegacyRecord<'a> {
     }
     pub(crate) fn replace_known_field(&mut self, field: Field, borrowed: &Value) -> Result<(), MixedJsonError> {
         let child = PlainJson::try_clone_from(borrowed, Some(self.work)).map_err(MixedJsonError::Resource)?;
+        self.replace_owned(field, child)
+    }
+    pub(crate) fn replace_text(&mut self, field: Field, text: &str) -> Result<(), MixedJsonError> {
+        let permit = self.work.reserve_native(text.len()).map_err(MixedJsonError::Resource)?;
+        let child = PlainJson::from_reserved(Value::String(text.to_owned()), Some(permit));
         self.replace_owned(field, child)
     }
     pub(crate) fn replace_integer(&mut self, field: Field, n: i64) -> Result<(), MixedJsonError> {
@@ -332,5 +351,65 @@ pub(crate) fn project_object_row(row: &rusqlite::Row<'_>, as_of: Option<i64>, wo
         } else { out.null(field)?; }
     }
     out.text(Field::Lifecycle,if effective.is_some() {"withdrawn"} else {"active"})?;
+    Ok(out.finish())
+}
+
+/// 第一阶段仅取得SQL文本，三列JSON在最终typed project之前不解析。
+pub(crate) fn collect_fact_row(row: &rusqlite::Row<'_>, work: &WorkScope) -> Result<PlainJson, MixedSqlError> {
+    let mut out = ScopedLegacyRecord::object(ProjectionKind::LegacyPayload, work)?;
+    out.text(Field::ObjectId, sql_text(row,0)?)?;
+    out.numeric(Field::ObjectRevision, row.get(1)?)?;
+    out.text(Field::Kind, sql_text(row,2)?)?;
+    out.text(Field::BatchId, sql_text(row,3)?)?;
+    out.text(Field::FactKey, sql_text(row,4)?)?;
+    out.text(Field::PayloadJson, sql_text(row,5)?)?;
+    out.text(Field::InputRefsJson, sql_text(row,6)?)?;
+    out.text(Field::SourceCoordsJson, sql_text(row,7)?)?;
+    out.numeric(Field::FirstKnownGeneration, row.get(8)?)?;
+    out.text(Field::FirstKnownCut, sql_text(row,9)?)?;
+    out.numeric(Field::PublishedGeneration, row.get(10)?)?;
+    match row.get::<_,Option<i64>>(11)? {
+        Some(n) => out.numeric(Field::WithdrawnGeneration,n)?,
+        None => out.null(Field::WithdrawnGeneration)?,
+    }
+    for (i,field) in [(12,Field::WithdrawalReason),(13,Field::SupersededBy)] {
+        if matches!(row.get_ref(i)?,rusqlite::types::ValueRef::Null) { out.null(field)?; }
+        else { out.text(field,sql_text(row,i)?)?; }
+    }
+    Ok(out.finish())
+}
+
+/// 最终投影才解析三列；复用原kind/数字/JSON核，保持每个读取和首错的先后。
+pub(crate) fn project_fact(o: &Value, work: &WorkScope) -> Result<PlainJson, MixedJsonError> {
+    let kind = crate::v2::tb02a::checked_fact_kind(o).map_err(MixedJsonError::Business)?;
+    let mut out = ScopedLegacyRecord::object(ProjectionKind::ObjectWire,work)?;
+    out.borrowed(Field::ObjectId,&o["object_id"])?;
+    let n = crate::exact_wire_integer(&o["object_revision"]).map_err(MixedJsonError::Business)?;
+    out.integer(Field::ObjectRevision,n)?;
+    out.text(Field::Kind,kind)?;
+    out.borrowed(Field::BatchId,o.get("batch_id").unwrap_or(&Value::Null))?;
+    out.borrowed(Field::FactKey,&o["fact_key"])?;
+    for (field,key,message,shape) in [
+        (Field::Payload,"payload_json","StorageUnavailable：事实payload缺失",crate::JsonShape::Object),
+        (Field::InputRefs,"input_refs_json","StorageUnavailable：事实来源缺失",crate::JsonShape::Array),
+        (Field::SourceCoords,"source_coords_json","StorageUnavailable：事实坐标缺失",crate::JsonShape::Array),
+    ] {
+        let text = o[key].as_str().ok_or_else(|| MixedJsonError::Business(message.into()))?;
+        out.insert(field,crate::json_shape_mixed(text,shape,work)?)?;
+    }
+    let n = crate::exact_wire_integer(&o["first_known_generation"]).map_err(MixedJsonError::Business)?;
+    out.integer(Field::FirstKnownGeneration,n)?;
+    out.borrowed(Field::FirstKnownCut,&o["first_known_cut"])?;
+    let n = crate::exact_wire_integer(&o["published_generation"]).map_err(MixedJsonError::Business)?;
+    out.integer(Field::PublishedGeneration,n)?;
+    out.null(Field::WithdrawnGeneration)?;
+    out.borrowed(Field::WithdrawalReason,o.get("withdrawal_reason").unwrap_or(&Value::Null))?;
+    out.borrowed(Field::SupersededBy,o.get("superseded_by").unwrap_or(&Value::Null))?;
+    out.text(Field::Lifecycle,"active")?;
+    if !o["withdrawn_generation"].is_null() {
+        let n = crate::exact_wire_integer(&o["withdrawn_generation"]).map_err(MixedJsonError::Business)?;
+        out.replace_integer(Field::WithdrawnGeneration,n)?;
+        out.replace_text(Field::Lifecycle,"withdrawn")?;
+    }
     Ok(out.finish())
 }

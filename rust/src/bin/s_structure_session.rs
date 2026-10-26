@@ -4138,10 +4138,11 @@ fn project_wire_integers(v: &Value) -> Value {
 // WIRE 精确整数投影：把「明确外发」的精确坐标/版本/来源游标字段投影为规范十进制字符串。
 // ────────────────────────────────────────────────────────────────────────────
 
+fn exact_wire_integer(v: &Value) -> Result<i64, String> {
+    v.as_i64().ok_or_else(|| "持久整数必须是 i64，不能是浮点、布尔、空值或文本".to_string())
+}
 fn num_to_str(v: &Value) -> Result<Value, String> {
-    v.as_i64()
-        .map(|n| Value::String(n.to_string()))
-        .ok_or_else(|| "持久整数必须是 i64，不能是浮点、布尔、空值或文本".to_string())
+    exact_wire_integer(v).map(|n| Value::String(n.to_string()))
 }
 
 /// `objects[].input_refs`：merged_index、raw_refs[].seq、raw_refs[].revision → 字符串。

@@ -98,6 +98,7 @@ impl Source {
 
 struct Context<'a> {
     account: RefCell<&'a mut dyn IoAccounting>,
+    mixed_tables: Option<super::mixed_sql::ExpectedTables>,
     main: Source,
     wal: Option<Source>,
     main_name: CString,
@@ -716,14 +717,12 @@ unsafe extern "C" fn authorizer(
 ) -> c_int {
     let ctx = unsafe { &*data.cast::<Context>() };
     let rc = guarded(ctx, || {
-        let allowed = audit_sql_allowed(
-            action,
-            unsafe { bytes(a) },
-            unsafe { bytes(b) },
-            unsafe { bytes(db) },
-            unsafe { bytes(origin) },
-            ctx.exclusive_armed.load(Ordering::SeqCst),
-        );
+        let (a, b, db, origin) = unsafe { (bytes(a), bytes(b), bytes(db), bytes(origin)) };
+        let armed = ctx.exclusive_armed.load(Ordering::SeqCst);
+        let allowed = match ctx.mixed_tables {
+            Some(policy) => policy.allows(action, a, b, db, origin, armed),
+            None => audit_sql_allowed(action, a, b, db, origin, armed),
+        };
         if allowed {
             ffi::SQLITE_OK
         } else {
@@ -959,6 +958,24 @@ impl<'a> Registration<'a> {
         wal_file: Option<File>,
         account: &'a mut dyn IoAccounting,
     ) -> Result<Self> {
+        Self::new_with_policy(main_file, wal_file, account, None)
+    }
+
+    pub(super) fn new_mixed(
+        main_file: File,
+        wal_file: Option<File>,
+        account: &'a mut dyn IoAccounting,
+        expected: super::mixed_sql::ExpectedTables,
+    ) -> Result<Self> {
+        Self::new_with_policy(main_file, wal_file, account, Some(expected))
+    }
+
+    fn new_with_policy(
+        main_file: File,
+        wal_file: Option<File>,
+        account: &'a mut dyn IoAccounting,
+        mixed_tables: Option<super::mixed_sql::ExpectedTables>,
+    ) -> Result<Self> {
         account.before_io()?;
         // D1 机制与固定 bundled SQLite source id 绑定，不换成宿主 SQLite 重试。
         let source_id = unsafe { CStr::from_ptr(ffi::sqlite3_sourceid()) };
@@ -983,6 +1000,7 @@ impl<'a> Registration<'a> {
             journal_name: CString::new(format!("{main_name}-journal"))?,
             shm_name: CString::new(format!("{main_name}-shm"))?,
             account: RefCell::new(account),
+            mixed_tables,
             main_open: AtomicBool::new(false),
             wal_open: AtomicBool::new(false),
             active: AtomicUsize::new(0),

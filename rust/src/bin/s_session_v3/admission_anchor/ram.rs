@@ -706,4 +706,37 @@ mod tests {
         }
     }
 
+    #[test]
+    fn mixed_ram_fact_collect_defers_json_and_project_preserves_first_error() {
+        use crate::v3::business_json::scoped_legacy::{collect_fact_row,project_fact};
+        use crate::v3::business_json::MixedJsonError;
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        for (kind,payload,refs,death) in [
+            ("CC-004.inclusion_step","{}","[]",None),
+            ("CC-004.inclusion_step","{}","[]",Some(3_i64)),
+            ("unknown","bad","bad",None),
+            ("CC-004.inclusion_step","","",None),
+            ("CC-004.inclusion_step","bad","[]",None),
+            ("CC-004.inclusion_step","{}","{}",None),
+        ] {
+            let mut stmt = conn.prepare("SELECT 'id',1,?1,'batch','key',?2,?3,'[]',1,'cut',2,?4,NULL,NULL").unwrap();
+            let mut rows = stmt.query(rusqlite::params![kind,payload,refs,death]).unwrap();
+            let row = rows.next().unwrap().unwrap();
+            let original = crate::v2::tb02a::collect_fact_row(row).unwrap();
+            let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+            owner.codec_work().unwrap().run(|work| {
+                let collected = collect_fact_row(row,work).unwrap();
+                assert_eq!(*collected,original); // graph empty placeholders and bad JSON remain raw text
+                let expected = crate::v2::tb02a::project(&original);
+                match (expected,project_fact(&collected,work)) {
+                    (Ok(a),Ok(b)) => assert_eq!(a,*b),
+                    (Err(a),Err(MixedJsonError::Business(b))) => assert_eq!(a,b),
+                    other => panic!("fact projection mismatch {other:?}"),
+                }
+                Ok::<_,newchan_rust::s_content::CodecError>(())
+            }).unwrap();
+            assert_eq!(owner.snapshot().unwrap().job_live,AdmissionRamLedger::metadata_bytes().unwrap());
+        }
+    }
+
 }
