@@ -692,7 +692,7 @@ impl CommandAccounting {
                 .or_else(|| state.prelude.as_ref().and_then(|p| p.first_read_at)),
             prelude: state.prelude,
             job: None,
-            ram_before_stderr: state.ram.as_ref().and_then(|ram|ram.snapshot().ok()),
+            ram_before_stderr: state.ram.as_ref().and_then(|ram| ram.snapshot().ok()),
             ram_final: None,
             actual_stderr_bytes: 0,
             unaccepted_stderr_bytes: 0,
@@ -700,9 +700,9 @@ impl CommandAccounting {
             write_error: None,
         };
         if let Some(mixed) = state.mixed {
-            let mut receipt=mixed.report(error,sink,state.job.as_ref(),receipt);
+            let mut receipt = mixed.report(error, sink, state.job.as_ref(), receipt);
             drop(state.job);
-            receipt.ram_final=state.ram.as_ref().and_then(|ram|ram.snapshot().ok());
+            receipt.ram_final = state.ram.as_ref().and_then(|ram| ram.snapshot().ok());
             return receipt;
         }
         // 仅声明写之前已知的账状态，不把尚未发生的写量嵌回本条消息。
@@ -813,9 +813,9 @@ impl ConsumedAdmission {
             })
             .transpose()
             .map_err(resource_error)?;
-        TERMINAL.with(|slot|{
-            if let Some(state)=slot.borrow_mut().as_mut(){
-                state.ram=ram.as_ref().map(|ram|ram.observation());
+        TERMINAL.with(|slot| {
+            if let Some(state) = slot.borrow_mut().as_mut() {
+                state.ram = ram.as_ref().map(|ram| ram.observation());
             }
         });
         let core = match &ram {
