@@ -31,7 +31,7 @@ fn parse_batch(bytes:&[u8],id:&str,work:&WorkScope)->Result<NativeArc<SharedPlai
     NativeArc::try_new_shallow(SharedPlainJson{value:parsed},Some(work)).map_err(MixedJsonError::Resource)
 }
 fn batch_ref(conn:&Connection,reader:&mut evidence_store::Reader<'_>,id:&str,work:&WorkScope)->Result<(BatchRef,Cert),MixedJsonError>{
-    if evidence_store::format_typed(conn,None,Some(work))?.graph(){
+    if evidence_store::format_typed(conn,Some(work))?.graph(){
         let(blob,len)=read_batch_row_typed(conn,id,None,Some(work))?;
         if !blob.is_empty(){return Err(format!("StorageUnavailable：图域 batch `{id}` 仍带整块字节（与私有根混写），拒绝写入").into());}
         let key=formatted(format_args!("batch/{id}"),work)?;
@@ -101,7 +101,7 @@ fn capture(conn:&Connection,work:&WorkScope,observer:&dyn LegacyObserver)->Resul
             push(&mut ids,text(sql_text(row,0).map_err(|e|e.to_string())?,work)?,work)?;
         }
     }
-    let format=evidence_store::format_typed(conn,None,Some(work))?;
+    let format=evidence_store::format_typed(conn,Some(work))?;
     let mut reader=evidence_store::Reader::new_mixed(conn,EVIDENCE_READ_BUDGET,work,observer)?;
     let mut batches=NativeTree::default();
     let mut originals=cache::mixed::Originals::default();
