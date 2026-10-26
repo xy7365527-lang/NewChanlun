@@ -436,7 +436,7 @@ fn verify_last_catalog(conn:&Connection,last:&cache::mixed::DeltaRow,work:&WorkS
     Ok(())
 }
 pub(crate) fn startup(conn:&Connection,work:&WorkScope,observer:&dyn LegacyObserver)->Result<CodecVec<crate::v3::business_json::PlainJson>,MixedJsonError>{
-    let _capture=cache::begin_capture(EVIDENCE_READ_BUDGET);
+    let _capture=cache::begin_capture_mixed(EVIDENCE_READ_BUDGET,work).map_err(MixedJsonError::Resource)?;
     if conn.is_autocommit(){
         let tx=conn.unchecked_transaction().map_err(|e|format!("开根审计读事务失败：{e}"))?;
         let raw=startup(&tx,work,observer)?;
