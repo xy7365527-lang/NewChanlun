@@ -717,13 +717,7 @@ mod tests {
                     pending: (exit_kind == 1).then_some(Pending::Seg),
                     parse_invalid: false,
                 });
-                let boundary = rp.step(
-                    1,
-                    &bar,
-                    &layer,
-                    |_| exit_kind == 0,
-                    |_| (None, None),
-                );
+                let boundary = rp.step(1, &bar, &layer, |_| exit_kind == 0, |_| (None, None));
                 assert!(rp.open.is_none());
                 assert_eq!(rp.trades.len(), 1);
                 let tr = &rp.trades[0];
@@ -742,5 +736,4 @@ mod tests {
             }
         }
     }
-
 }
