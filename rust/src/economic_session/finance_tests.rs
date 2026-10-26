@@ -103,8 +103,8 @@ impl Fixture {
             None,
         )
     }
-    /// #1717：同上，财务结构改为正式 S（生产 `s_structure_session` 冷读入口与真实 s-session/3 会话），
-    /// 计划的 `s_ref` 指向该会话的真实对象；`real_s` 为 `{structure, s_ref}`。
+    /// #1717：同上，财务结构改为正式 S（生产 `s_structure_session` 与真实 s-session/3 会话），计划的
+    /// `s_ref` 指向该会话的真实对象；`real_s` 为 `{structure, s_ref}`，`structure.reader_session` 冻结读法。
     fn content_with_real_s(carriers: &[PathBuf], section: Value, real_s: &Value) -> Self {
         Self::build_full(
             "100",
@@ -315,9 +315,8 @@ impl Fixture {
             structure["reader_session"] = Value::Null;
         }
         if let Some(s) = real_s {
-            // 正式 S 经生产二进制冷读，每次读取都起 S 进程并核二进制摘要；4 根 bar 的真实 basis 一次冷读即需
-            // 约 372 次 S 请求、54 秒（release S，nc-remote 实测）。夹具的 E/B 传输响应期限按此放宽，冻结的
-            // reader_resources（含 job 八项与单次 S 期限）保持已批原值。
+            // 正式 S：冻结生产二进制与真实会话身份，读法由 `reader_session` 在冻结时选定（A6 第4节）。
+            // reader_resources 八项、单次 S 期限与 E/B response_timeout_ms 均保持上方原值。
             for k in [
                 "binary",
                 "binary_sha256",
@@ -325,10 +324,10 @@ impl Fixture {
                 "session_id",
                 "session_generation",
                 "writer_epoch",
+                "reader_session",
             ] {
                 manifest["finance"]["structure"][k] = s["structure"][k].clone();
             }
-            manifest["resources"]["response_timeout_ms"] = json!("300000");
         }
         if let Some((resolve_first, _)) = c4a {
             manifest["book_revision"] = json!(book::TB03C_BOOK_V1);

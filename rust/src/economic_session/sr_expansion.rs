@@ -495,7 +495,8 @@ fn receipt(config: &Config, event: &Value, cut: Value) -> Value {
 
 /// 正式 E 写口，与财务写口同形：先按原身份取回已提交回执，再在一个 immediate 事务内审计、CAS
 /// 事实前沿、评估、核本地闭包、追加提交、回执与消息绑定。`/2` 的统一 job 覆盖从首次依赖读取到
-/// 提交后物理对账的全部读写，任何失败都发生在 COMMIT 之前，不留经济提交。
+/// 提交后物理对账的全部读写。COMMIT 前的失败不留经济提交；COMMIT 后物理对账失败报 DeliveryUnknown，
+/// 此时评估已提交，原请求重送取回原回执。
 pub(super) fn write(
     c: &mut Connection,
     config: &Config,
