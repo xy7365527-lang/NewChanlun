@@ -643,7 +643,7 @@ mod tests {
                 owner.codec_work().unwrap().run(|work| {
                     match (original, project_raw_history_row(row, work)) {
                         (Ok(original), Ok(mixed)) => assert_eq!(original, *mixed),
-                        (Err(original), Err(MixedSqlError::Sql(mixed))) => assert_eq!(original.to_string(), mixed.to_string()),
+                        (Err(original), Err(MixedSqlError::Sql(mixed))) => assert_eq!(original, mixed),
                         other => panic!("SQL投影结果不一致: {other:?}"),
                     }
                     Ok::<_, newchan_rust::s_content::CodecError>(())

@@ -171,11 +171,11 @@ impl From<rusqlite::Error> for MixedSqlError {
 
 /// 与Row::get<String>一致的类型/UTF8错误，不提前生成owned文本。
 pub(crate) fn sql_text<'row>(row: &'row rusqlite::Row<'_>, index: usize) -> rusqlite::Result<&'row str> {
-    use rusqlite::{types::{Type, ValueRef}, Error};
+    use rusqlite::{types::ValueRef, Error};
     let value = row.get_ref(index)?;
     match value {
         ValueRef::Text(bytes) => std::str::from_utf8(bytes)
-            .map_err(|e| Error::FromSqlConversionFailure(index, Type::Text, Box::new(e))),
+            .map_err(|e| Error::Utf8Error(index, e)),
         other => Err(Error::InvalidColumnType(index,
             row.as_ref().column_name(index)?.to_owned(), other.data_type())),
     }
