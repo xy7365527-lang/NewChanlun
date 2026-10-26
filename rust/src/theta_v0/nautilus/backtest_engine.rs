@@ -144,12 +144,19 @@ pub fn require_btc_symbol(symbol: &str) -> anyhow::Result<()> {
 /// 都读其 `Q_total`。缺记录 ⟹ `AwaitingPolicy{funding_record}` 报错、引擎不建、不下单；
 /// `evidence_only` 记录同样拒收。起始余额按 BTCUSDT 报价币 USDT 记账（记录币种 USDC，
 /// 1:1 名义近似，属本回测的有效域边界）。
+///
+/// ★成交规则（#1718 I3）：`theta.exec.fill_rule = Touch` ⟹ 报错、引擎不建、不下单。
+/// touch 仅诊断，不参与正式验收或准入（ADR 0018 裁定一，#1599 A-05）。
 pub fn run_theta_backtest(
     dataset: &Dataset,
     theta: &ThetaConfig,
     funding: Option<FundingRecord>,
 ) -> anyhow::Result<BacktestResult> {
     require_btc_symbol(&dataset.symbol)?;
+    theta
+        .exec
+        .require_production_fill_rule()
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
 
     let instrument = btc_instrument();
     let instrument_id = instrument.id();
@@ -269,5 +276,29 @@ mod tests {
             err.to_string().contains("`FOO`"),
             "错误须通过 {{symbol}} 插值点名，非静态列举，实际: {err}"
         );
+    }
+
+    /// #1718 I3：fill_rule=Touch 仅诊断，正式验收入口拒收。
+    #[test]
+    fn touch_fill_rule_refuses_production() {
+        use crate::theta_v0::config::FillRule;
+        let dataset = Dataset {
+            symbol: "BTC".into(),
+            bars: Vec::new(),
+            dates: Vec::new(),
+            bar_seconds: 60,
+        };
+        let funding = FundingRecord::active("P0").unwrap();
+        let mut cfg = ThetaConfig::default();
+        cfg.exec.fill_rule = FillRule::Touch;
+        let err = run_theta_backtest(&dataset, &cfg, Some(funding))
+            .expect_err("fill_rule=Touch 须拒收");
+        assert!(
+            err.to_string().contains("Touch") && err.to_string().contains("诊断"),
+            "错误须说明 Touch 仅诊断，实际: {err}"
+        );
+        // Cross(1) 默认值须通过 fill_rule 检查（空数据集可能因其他原因失败）
+        cfg.exec.fill_rule = FillRule::Cross(1);
+        let _ = run_theta_backtest(&dataset, &cfg, Some(FundingRecord::active("P0").unwrap()));
     }
 }

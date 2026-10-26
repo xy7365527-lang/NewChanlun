@@ -455,6 +455,14 @@ pub struct ExecConfig {
     ///   `bin::pure_bsp_timing` / `bin::pi_bsp_timing` 各有自带 PnL 引擎，收编需逐引擎接
     ///   (qty, side) 缝，属另票。
     pub fee_schedule: Option<super::venue_fee::VenueFeeSchedule>,
+    /// 限价单成交规则（ADR 0018 裁定一 + #1599 A-05 / #1718 I3）。
+    ///
+    /// - `Cross(k)`：严格穿越 k tick 才成交（生产与验收默认，k≥1）；
+    /// - `Touch`：触及即成交（仅诊断，不参与准入或验收）。
+    ///
+    /// 默认 `Cross(1)`（最小 1 tick 严格穿越）。#1718：touch 结果不得用作正式验收证据，
+    /// 不因 cross 未成交而回退 touch。
+    pub fill_rule: FillRule,
 }
 
 impl Default for ExecConfig {
@@ -465,7 +473,43 @@ impl Default for ExecConfig {
             slippage_bps: 2.0,
             tax_bps: 0.0,
             fee_schedule: None,
+            fill_rule: FillRule::default(), // Cross(1)
         }
+    }
+}
+
+impl ExecConfig {
+    /// 生产与验收准入：touch fill_rule 只许诊断，不参与准入或验收（#1718 I3）。
+    ///
+    /// 返回 `Err` 若 `fill_rule = Touch`；生产路径（`nautilus/backtest_engine.rs`、
+    /// `nautilus/theta_strategy.rs` 等）在构造时调用此方法拒收 touch 配置。
+    pub fn require_production_fill_rule(&self) -> Result<(), String> {
+        match self.fill_rule {
+            FillRule::Touch => Err(
+                "fill_rule=Touch 仅诊断，不参与准入或正式验收（ADR 0018 裁定一 + #1718 I3）"
+                    .into(),
+            ),
+            FillRule::Cross(_) => Ok(()),
+        }
+    }
+}
+
+/// 限价单成交规则（ADR 0018 裁定一 + #1599 A-05 / #1718 I3）。
+///
+/// - `Cross(k)`：严格穿越 k tick 才成交（生产与验收默认，k≥1）；
+/// - `Touch`：触及即成交(仅诊断，不参与准入或验收)。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum FillRule {
+    /// 严格穿越 k tick（k≥1，最小 1 tick），买单 `low < 挂单价 - k + 1`（整数 tick 域）。
+    Cross(u32),
+    /// 触及即成交（买单 `low <= 挂单价`），仅诊断。
+    Touch,
+}
+
+impl Default for FillRule {
+    /// 默认 Cross(1)：最小 1 tick 严格穿越（ADR 0018 裁定一）。
+    fn default() -> Self {
+        FillRule::Cross(1)
     }
 }
 
