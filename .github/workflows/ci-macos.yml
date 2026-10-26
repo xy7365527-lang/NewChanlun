@@ -15,6 +15,11 @@ name: CI macOS
 # 估时：冷缓存 debug 编译约 6–10 min，两步执行约 5–8 min（本机该模块 29 条 wall 283 s，3 核 runner 估计）。
 on:
   workflow_dispatch:
+    inputs:
+      issue1716_real_s_only:
+        description: '只跑 #1716 真实 S 内容域 cap 消费正控作业，跳过已有读数的 macos-session'
+        type: boolean
+        default: false
   workflow_call:
   push:
     branches: [main]
@@ -27,6 +32,7 @@ on:
 
 jobs:
   macos-session:
+    if: ${{ !inputs.issue1716_real_s_only }}
     runs-on: macos-latest
     timeout-minutes: 60
     env:
@@ -119,4 +125,68 @@ jobs:
             /tmp/tb1716-hfs/fixtures
             /tmp/tb1716-hfs/service-faults
             /tmp/tb1716-hfs/evidence
+          if-no-files-found: warn
+
+  # #1716 /4 正控：S 侧单 bar 真实 S3 夹具导出库（#1717 PR #1736 同一导出测试），测试内起停 release
+  #   s_structure_session 的 financial-serve 只读会话；manifest 冻结 SessionClosure 读法，reader_resources 八项与
+  #   E/B response_timeout_ms 3000 保持原值。两 B Prepare 后 E 激活 cap 版本 2，Reserve 实际消费该版本。
+  #   E、B:alpha、B:beta 各占一个 24 MiB 临时 HFS+ 卷（同上）。原件（会话回执、stdout/stderr、证据 JSON）总上传。
+  issue1716-real-s:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      CARGO_INCREMENTAL: "0"
+    defaults:
+      run:
+        working-directory: rust
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12 for pyo3
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache cargo registry + git
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-registry-v1-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-cargo-registry-v1-
+
+      - name: cargo test — issue 1716 真实 S 内容域 /4 cap 消费正控（单 bar 会话读法，三个临时固定容量 HFS+ 卷）
+        run: |
+          root="$RUNNER_TEMP/tb1716-real-s"
+          mkdir -p "$root/work" "$root/s3" "$root/mnt"
+          detach_all() { for owner in e alpha beta; do [ -d "$root/mnt/$owner" ] && hdiutil detach "$root/mnt/$owner" -force || true; done; }
+          trap detach_all EXIT
+          carriers=""
+          for owner in e alpha beta; do
+            hdiutil create -size 24m -fs HFS+ -volname "tb1716-$owner" -type UDIF "$root/mnt/$owner.dmg"
+            mkdir "$root/mnt/$owner"
+            hdiutil attach "$root/mnt/$owner.dmg" -mountpoint "$root/mnt/$owner" -nobrowse
+            carriers="$carriers${carriers:+:}$root/mnt/$owner"
+          done
+          df -k "$root/mnt/e" "$root/mnt/alpha" "$root/mnt/beta"
+          TB1717_S_EXPORT="$root/s3/export.json" cargo test --locked --features s_session --bin s_structure_session -- \
+            --ignored --exact v3::financial_session::tests::export_real_s3_fixture_for_economic_content_domain
+          cargo build --release --locked --features s_session --bin s_structure_session
+          ls -l target/release/s_structure_session
+          TB03B_TEST_ROOT="$root/work" TB1716_HFS_CARRIERS="$carriers" TB1716_S_EXPORT="$root/s3/export.json" \
+            TB1716_S_BINARY="$PWD/target/release/s_structure_session" \
+            cargo test --locked --features s_session --lib -- --ignored --exact --nocapture \
+            economic_session::finance::tests::real_s::content_domain_activated_cap_consumed_by_real_s_reserve
+
+      - name: 上传 issue 1716 /4 消费正控原件
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue1716-real-s-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/tb1716-real-s/work
+            ${{ runner.temp }}/tb1716-real-s/s3
           if-no-files-found: warn

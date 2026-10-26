@@ -74,7 +74,7 @@ impl Fixture {
         slot_spec: &[(&str, &[&str])],
         c4a: Option<(bool, bool)>,
     ) -> Self {
-        Self::build_full(cap, fault, slot_spec, c4a, None, None)
+        Self::build_full(cap, fault, slot_spec, c4a, None, None, None)
     }
     /// #1716：显式选择 `tb03b-finance/3` 的夹具；S 由钉住摘要的单位桩回答，Reserve 可经 `service::handle`。
     fn v3(cap: &str, baseline: &str, import: bool, fault: Option<(&str, &str)>) -> Self {
@@ -84,6 +84,7 @@ impl Fixture {
             &[("slot", &["alpha", "beta"])],
             None,
             Some((baseline, import)),
+            None,
             None,
         )
     }
@@ -97,6 +98,26 @@ impl Fixture {
             None,
             activation.then_some((baseline, true)),
             Some(carriers),
+            None,
+        )
+    }
+    /// #1716：`tb03b-finance/4` 内容域夹具，财务结构改为正式 S（生产 `s_structure_session` 与真实
+    /// s-session/3 会话），计划的 `s_ref` 指向该会话的真实对象；`real_s` 为 `{structure, s_ref}`，
+    /// `structure.reader_session` 冻结读法。
+    fn content_with_real_s(
+        carriers: &[PathBuf],
+        cap: &str,
+        baseline: &str,
+        real_s: &Value,
+    ) -> Self {
+        Self::build_full(
+            cap,
+            None,
+            &[("slot", &["alpha", "beta"])],
+            None,
+            Some((baseline, true)),
+            Some(carriers),
+            Some(real_s),
         )
     }
     fn build_full(
@@ -106,6 +127,7 @@ impl Fixture {
         c4a: Option<(bool, bool)>,
         v3: Option<(&str, bool)>,
         carriers: Option<&[PathBuf]>,
+        real_s: Option<&Value>,
     ) -> Self {
         let rev = match (carriers.is_some(), v3.is_some()) {
             (false, false) => REV,
@@ -149,6 +171,10 @@ impl Fixture {
         if carriers.is_some() {
             s_ref["schema_revision"] = json!(S_REF_V2);
         }
+        if let Some(s) = real_s {
+            s_ref = s["s_ref"].clone();
+        }
+        let s_object_id = s_ref["object_id"].clone();
         let tag = dir.file_name().unwrap().to_str().unwrap().to_owned();
         let db_of = |name: &str, carrier: usize| match carriers {
             Some(c) => c[carrier].join(format!("{tag}-{name}.db")),
@@ -208,7 +234,7 @@ impl Fixture {
             authorities.push(json!({"authority_id":name,"bundle_path":bp,"bundle_sha256":bh,"verification_path":rp,"verification_sha256":rh,"max_bytes":"1048576"}));
             rights.push(json!({"right_id":name,"owner":format!("B:{name}"),"version":"1","amount":cash,"currency":"TEST-CASH","source_ref":format!("TestOnly-privately-owned-cash-original/{name}")}));
             if applicants.contains(&name) {
-                plans.push(json!({"decision_id":name,"attempt_id":format!("attempt-{name}"),"plan_id":format!("plan-{name}"),"owner":format!("B:{name}"),"voice_binding_id":format!("voice-{name}"),"right_id":name,"expected_book_version":"2","expected_rights_version":"1","applicant_epoch":"1","applicant_generation":"1","slot_id":slot_of(name),"quantity":new_quantity,"limit_price":price,"fee_tail":fee,"quantity_source":format!("TestOnly-quantity/{name}"),"price_source":format!("TestOnly-price/{name}"),"fee_source":format!("TestOnly-tail/{name}"),"s_ref":s_ref.clone(),"o_ref":{"operation_id":format!("TestOnly-operation-{name}"),"kind":"TestOnlyCashBuy","source_ref":format!("TestOnly-operation-sheet/{name}"),"s_object_id":"unit-S-object","quantity":new_quantity}}));
+                plans.push(json!({"decision_id":name,"attempt_id":format!("attempt-{name}"),"plan_id":format!("plan-{name}"),"owner":format!("B:{name}"),"voice_binding_id":format!("voice-{name}"),"right_id":name,"expected_book_version":"2","expected_rights_version":"1","applicant_epoch":"1","applicant_generation":"1","slot_id":slot_of(name),"quantity":new_quantity,"limit_price":price,"fee_tail":fee,"quantity_source":format!("TestOnly-quantity/{name}"),"price_source":format!("TestOnly-price/{name}"),"fee_source":format!("TestOnly-tail/{name}"),"s_ref":s_ref.clone(),"o_ref":{"operation_id":format!("TestOnly-operation-{name}"),"kind":"TestOnlyCashBuy","source_ref":format!("TestOnly-operation-sheet/{name}"),"s_object_id":s_object_id,"quantity":new_quantity}}));
             }
             routes.push(json!({"chong_id":name,"symbol":name,"operation_level":"2","fixed_q":fixed,"db":db_of(name, routes.len() + 1),"socket":dir.join(format!("{name}.sock"))}));
             docs.push(doc);
@@ -325,6 +351,24 @@ impl Fixture {
             structure["reader_resources"] = json!({"schema_revision":"s-financial-reader-resources/1","max_request_bytes":"193120","max_reply_bytes":"827022","max_stderr_bytes":"193120","request_timeout_ms":"45000","job_limits":{"max_total_wire_bytes":"1162304996","max_total_node_bytes":"192172","max_total_nodes":"2614","max_total_records":"2614","max_total_requests":"958","max_elapsed_ms":"43110000","max_staged_bytes":"32153600","max_store_bytes":"64307200"}});
             structure["reader_session"] = Value::Null;
         }
+        if let Some(s) = real_s {
+            // 正式 S：冻结生产二进制与真实会话身份，读法由 `reader_session` 在冻结时选定（A6 第4节）。
+            // 经济会话与 S 会话须同 session_id/generation（finance.rs 身份门），信封随之取 manifest 值。
+            // reader_resources 八项、单次 S 期限与 E/B response_timeout_ms 均保持上方原值。
+            manifest["session_id"] = s["structure"]["session_id"].clone();
+            manifest["session_generation"] = s["structure"]["session_generation"].clone();
+            for k in [
+                "binary",
+                "binary_sha256",
+                "db",
+                "session_id",
+                "session_generation",
+                "writer_epoch",
+                "reader_session",
+            ] {
+                manifest["finance"]["structure"][k] = s["structure"][k].clone();
+            }
+        }
         if let Some((resolve_first, _)) = c4a {
             manifest["book_revision"] = json!(book::TB03C_BOOK_V1);
             manifest["fill_manifests"] = json!([fill_manifest]);
@@ -392,6 +436,8 @@ impl Fixture {
     fn handle(&mut self, n: usize, msg: &str, p: Value) -> Value {
         let mut e = envelope(msg, p);
         e["schema_revision"] = json!(self.configs[n].revision().unwrap());
+        e["session_id"] = json!(self.configs[n].session);
+        e["session_generation"] = json!(self.configs[n].generation);
         service::handle(&mut self.dbs[n], &self.configs[n], 1, 1, &json!({}), &e)["payload"].clone()
     }
     fn request(&self, op: &str, name: &str) -> Value {
@@ -1984,3 +2030,6 @@ fn cap_activation_sigkill_recovers_whole_old_or_new_version() {
         );
     }
 }
+
+#[path = "finance_real_s_tests.rs"]
+mod real_s;
