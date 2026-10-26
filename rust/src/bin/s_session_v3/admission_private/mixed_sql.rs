@@ -88,9 +88,9 @@ mod tests {
         for graph in [false, true] {
             let conn = Connection::open_in_memory().unwrap();
             let mut expected = BTreeMap::new();
-            for ddl in [crate::SCHEMA, crate::v2::SCHEMA_V2, crate::v2::tb02a::SCHEMA,
-                crate::v2::delta_storage::DDL,
-                if graph { crate::v2::evidence_store::DDL } else { "" }] {
+            for ddl in [crate::SCHEMA, crate::v2::SCHEMA_V2, crate::tb02a::SCHEMA,
+                crate::delta_storage::DDL,
+                if graph { crate::evidence_store::DDL } else { "" }] {
                 conn.execute_batch(ddl).unwrap();
                 crate::v2::expect_ddl_tables("mixed test", ddl, &mut expected).unwrap();
             }

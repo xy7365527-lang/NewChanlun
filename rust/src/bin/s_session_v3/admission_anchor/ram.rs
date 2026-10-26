@@ -722,12 +722,12 @@ mod tests {
             let mut stmt = conn.prepare("SELECT 'id',1,?1,'batch','key',?2,?3,'[]',1,'cut',2,?4,NULL,NULL").unwrap();
             let mut rows = stmt.query(rusqlite::params![kind,payload,refs,death]).unwrap();
             let row = rows.next().unwrap().unwrap();
-            let original = crate::v2::tb02a::collect_fact_row(row).unwrap();
+            let original = crate::tb02a::collect_fact_row(row).unwrap();
             let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
             owner.codec_work().unwrap().run(|work| {
                 let collected = collect_fact_row(row,work).unwrap();
                 assert_eq!(*collected,original); // graph empty placeholders and bad JSON remain raw text
-                let expected = crate::v2::tb02a::project(&original);
+                let expected = crate::tb02a::project(&original);
                 match (expected,project_fact(&collected,work)) {
                     (Ok(a),Ok(b)) => assert_eq!(a,*b),
                     (Err(a),Err(MixedJsonError::Business(b))) => assert_eq!(a,b),

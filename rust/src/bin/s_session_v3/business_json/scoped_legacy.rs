@@ -381,7 +381,7 @@ pub(crate) fn collect_fact_row(row: &rusqlite::Row<'_>, work: &WorkScope) -> Res
 
 /// 最终投影才解析三列；复用原kind/数字/JSON核，保持每个读取和首错的先后。
 pub(crate) fn project_fact(o: &Value, work: &WorkScope) -> Result<PlainJson, MixedJsonError> {
-    let kind = crate::v2::tb02a::checked_fact_kind(o).map_err(MixedJsonError::Business)?;
+    let kind = crate::tb02a::checked_fact_kind(o).map_err(MixedJsonError::Business)?;
     let mut out = ScopedLegacyRecord::object(ProjectionKind::ObjectWire,work)?;
     out.borrowed(Field::ObjectId,&o["object_id"])?;
     let n = crate::exact_wire_integer(&o["object_revision"]).map_err(MixedJsonError::Business)?;
