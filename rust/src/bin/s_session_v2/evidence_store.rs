@@ -206,10 +206,15 @@ pub(super) fn read_format_with_owner(
     read_format_admitted(conn, owner, None)
 }
 pub(super) fn read_format_admitted(
+    conn:&Connection, owner:Option<&OwnedBudget>, work:Option<&WorkScope>,
+)->Result<Format,String>{
+    read_format_typed(conn,owner,work).map_err(ordinary_read_error)
+}
+pub(crate) fn read_format_typed(
     conn: &Connection,
     owner: Option<&OwnedBudget>,
     work: Option<&WorkScope>,
-) -> Result<Format, String> {
+) -> Result<Format, MixedJsonError> {
     let admission = NativeAdmission(work);
     let read_err = |e| {
         format!(
@@ -251,7 +256,7 @@ pub(super) fn read_format_admitted(
                 sql_columns(e, &["singleton", "graph_format"])
             )
         })?;
-        let format = TextValue::from_str_admitted(
+        let format = TextValue::from_str_admitted_typed(
             row.text(1).map_err(|e| {
                 format!(
                     "StorageUnavailable：私有图格式登记行损坏：{}",
@@ -260,12 +265,12 @@ pub(super) fn read_format_admitted(
             })?,
             owner,
             work,
-        )?;
+        ).map_err(MixedJsonError::Resource)?;
         admission
             .native_codec_room(&mut rows, 1)
-            .map_err(|e| e.to_string())?;
+            .map_err(MixedJsonError::Resource)?;
         rows.try_push((singleton, format))
-            .map_err(|e| e.to_string())?;
+            .map_err(MixedJsonError::Resource)?;
     }
     stmt.finalize().map_err(|e| {
         format!(
@@ -277,7 +282,7 @@ pub(super) fn read_format_admitted(
         return Err(format!(
             "StorageUnavailable：私有图格式登记必须恰一行（实际 {} 行，缺行/多行一律拒绝）",
             rows.len()
-        ));
+        ).into());
     };
     if *singleton != 1 {
         return Err("StorageUnavailable：私有图格式登记 singleton 非 1".into());
@@ -288,7 +293,7 @@ pub(super) fn read_format_admitted(
         other => Err(format!(
             "SchemaUnsupported：未知证据图格式 `{other}`（本 reader 只认无登记表的旧整块域、\
              `{GRAPH_FORMAT_V2}` 与 `{GRAPH_FORMAT}`）"
-        )),
+        ).into()),
     }
 }
 
@@ -471,6 +476,38 @@ pub(super) fn split_fact_root(
         take(refs, "input_refs")?,
         take(coords, "source_coords")?,
     ))
+}
+
+pub(crate) fn fact_root_key_mixed(object_id: &str, work: &WorkScope)
+    -> Result<newchan_rust::s_content::capture_allocation::native_owned::NativeValue<String>, MixedJsonError>
+{
+    newchan_rust::s_content::capture_allocation::native_owned::NativeValue::try_format(
+        format_args!("{}{object_id}",RootKind::Fact.prefix()),Some(work)
+    ).map_err(MixedJsonError::Resource)
+}
+pub(crate) fn split_fact_root_mixed(
+    bytes:&[u8], what:&str, work:&WorkScope,
+)->Result<(
+    newchan_rust::s_content::capture_allocation::native_owned::NativeValue<String>,
+    newchan_rust::s_content::capture_allocation::native_owned::NativeValue<String>,
+    newchan_rust::s_content::capture_allocation::native_owned::NativeValue<String>,
+),MixedJsonError>{
+    use newchan_rust::s_content::capture_allocation::native_owned::NativeValue;
+    let text=std::str::from_utf8(bytes)
+        .map_err(|e|MixedJsonError::Business(format!("StorageUnavailable：{what} 事实原件非 UTF-8：{e}")))?;
+    let value=crate::v3::business_json::mixed_parse_admitted(bytes,work,||{
+        v2::strict_json(text.as_bytes()).map(crate::v3::business_json::PlainJson::from)
+            .map_err(|e|MixedJsonError::Business(format!("StorageUnavailable：{what} 事实原件非严格 JSON：{e}")))
+    })?;
+    let items=value.as_array().ok_or_else(||MixedJsonError::Business(format!("StorageUnavailable：{what} 事实原件必须是三元素数组")))?;
+    let [payload,refs,coords]=items.as_slice() else {
+        return Err(MixedJsonError::Business(format!("StorageUnavailable：{what} 事实原件必须是三元素数组（实际 {}）",items.len())));
+    };
+    let take=|value:&Value,label:&str|->Result<NativeValue<String>,MixedJsonError>{
+        let text=value.as_str().ok_or_else(||MixedJsonError::Business(format!("StorageUnavailable：{what} 事实原件{label}必须是文本")))?;
+        NativeValue::try_from_str(text,Some(work)).map_err(MixedJsonError::Resource)
+    };
+    Ok((take(payload,"payload")?,take(refs,"input_refs")?,take(coords,"source_coords")?))
 }
 
 // ───────────────────────────── 写入：staging ─────────────────────────────
