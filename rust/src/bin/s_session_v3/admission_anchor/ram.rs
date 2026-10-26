@@ -1051,6 +1051,23 @@ mod tests {
                 let error=family.verify(&bad,1,crate::delta_storage::Mode::ChangesOnly,[&record],work,&observer).unwrap_err();
                 assert!(matches!(error,crate::v3::business_json::MixedJsonError::Business(ref s) if s.contains("Delta 重复身份")));
             }
+            {
+                let facts=rusqlite::Connection::open_in_memory().unwrap();
+                facts.execute_batch("CREATE TABLE meta(key TEXT PRIMARY KEY,value TEXT); INSERT INTO meta VALUES('profile_id','ohlc_integer_tb02a_v1');").unwrap();
+                facts.execute_batch(crate::tb02a::SCHEMA).unwrap();
+                facts.execute_batch("INSERT INTO structure_facts VALUES('o',1,'CC-004.inclusion_step','b','f','bad-json','[]','[]',2,'cut',2,NULL,NULL,NULL)").unwrap();
+                let before=observer.job.borrow().snapshot().records;
+                let (active,dead)=crate::audit::mixed::read_facts(&facts,Some(1),work,&observer).unwrap();
+                assert!(active.is_empty() && dead.is_empty());
+                assert_eq!(observer.job.borrow().snapshot().records-before,1);
+                let (active,dead)=crate::audit::mixed::read_facts(&facts,None,work,&observer).unwrap();
+                assert_eq!(active.len(),1);
+                assert!(dead.is_empty());
+                assert_eq!(active[0]["payload_json"],"bad-json");
+                facts.execute("UPDATE structure_facts SET withdrawn_generation=2",[]).unwrap();
+                assert!(matches!(crate::audit::mixed::read_facts(&facts,Some(1),work,&observer),
+                    Err(crate::v3::business_json::MixedJsonError::Business(ref s)) if s.contains("生命周期非法")));
+            }
             let first = crate::evidence_store::read_node_mixed(&conn,&id,work,&observer).unwrap();
             assert_eq!(first.payload(),payload);
             assert_eq!(first.checked().id(),&id);

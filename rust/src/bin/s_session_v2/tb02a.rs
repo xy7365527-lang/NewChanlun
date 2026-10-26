@@ -1,4 +1,6 @@
 //! #1373：OHLC 输入、同核包含事实的持久投影。所有结构判断来自 parser。
+pub(crate) const FACTS_READ_SQL: &str = "SELECT object_id,object_revision,kind,batch_id,fact_key,payload_json,input_refs_json,source_coords_json,first_known_generation,first_known_cut,published_generation,withdrawn_generation,withdrawal_reason,superseded_by FROM structure_facts ORDER BY kind,fact_key,object_id,object_revision";
+
 use super::*;
 
 pub(super) const PROFILE: &str = "ohlc_integer_tb02a_v1";
@@ -617,7 +619,7 @@ pub(super) fn read_facts(
     // 同一次读取共用一个捕获作用域与读取器，唯一节点原行只读一次。
     let format = evidence_store::format(conn)?;
     let mut reader = evidence_store::Reader::new(conn, crate::EVIDENCE_READ_BUDGET);
-    let mut stmt=conn.prepare("SELECT object_id,object_revision,kind,batch_id,fact_key,payload_json,input_refs_json,source_coords_json,first_known_generation,first_known_cut,published_generation,withdrawn_generation,withdrawal_reason,superseded_by FROM structure_facts ORDER BY kind,fact_key,object_id,object_revision").map_err(|e|e.to_string())?;
+    let mut stmt=conn.prepare(FACTS_READ_SQL).map_err(|e|e.to_string())?;
     let rows = stmt
         .query_map([], collect_fact_row)
         .map_err(|e| e.to_string())?

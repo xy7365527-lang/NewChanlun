@@ -125,3 +125,56 @@ impl Family {
     }
     pub(crate) fn len(&self)->usize {self.records.len()}
 }
+
+pub(crate) fn read_facts(
+    conn:&Connection, as_of:Option<i64>, work:&WorkScope, observer:&dyn LegacyObserver,
+)->Result<(newchan_rust::s_content::CodecVec<PlainJson>,newchan_rust::s_content::CodecVec<PlainJson>),MixedJsonError>{
+    use scoped_legacy::{Field,ProjectionKind,ScopedLegacyRecord};
+    use newchan_rust::s_content::CodecVec;
+    observer.check_work(work).map_err(MixedJsonError::Resource)?;
+    if !tb02a::enabled_admitted(conn,Some(work))? {return Ok((CodecVec::default(),CodecVec::default()));}
+    let format=evidence_store::read_format_typed(conn,None,Some(work))?;
+    let mut reader=evidence_store::Reader::new_mixed(conn,crate::EVIDENCE_READ_BUDGET,work,observer)?;
+    let mut stmt=conn.prepare(tb02a::FACTS_READ_SQL).map_err(|e|MixedJsonError::Business(e.to_string()))?;
+    let mut cursor=stmt.query([]).map_err(|e|MixedJsonError::Business(e.to_string()))?;
+    let mut rows=CodecVec::default();
+    while let Some(row)=cursor.next().map_err(|e|MixedJsonError::Business(e.to_string()))? {
+        let row=scoped_legacy::collect_fact_row(row,work).map_err(sql_error)?;
+        rows.try_reserve_native(work,1).map_err(MixedJsonError::Resource)?;
+        rows.try_push(row).map_err(MixedJsonError::Resource)?;
+    }
+    drop(cursor);
+    let mut enriched=CodecVec::default();
+    for row in rows {
+        let row=if format.records_in_graph() {
+            let object_id_owner=Text::try_from_str(row["object_id"].as_str().unwrap_or(""),Some(work)).map_err(MixedJsonError::Resource)?;
+            let object_id=object_id_owner.as_ref();
+            for (column,label) in [("payload_json","payload"),("input_refs_json","input_refs"),("source_coords_json","source_coords")] {
+                if !row[column].as_str().unwrap_or("").is_empty() {
+                    return Err(format!("StorageUnavailable：图域结构事实 `{object_id}` 行内 {label} 仍带整块原文，拒绝").into());
+                }
+            }
+            let key=evidence_store::fact_root_key_mixed(&object_id,work)?;
+            let bytes=reader.read_root_typed(&key,false)?.bytes;
+            let what=Text::try_format(format_args!("事实 `{object_id}`"),Some(work)).map_err(MixedJsonError::Resource)?;
+            let (payload,refs,coords)=evidence_store::split_fact_root_mixed(&bytes,&what,work)?;
+            let mut projected=ScopedLegacyRecord::from_owned(ProjectionKind::LegacyPayload,row,work)?;
+            projected.replace_text(Field::PayloadJson,&payload)?;
+            projected.replace_text(Field::InputRefsJson,&refs)?;
+            projected.replace_text(Field::SourceCoordsJson,&coords)?;
+            projected.finish()
+        } else {row};
+        enriched.try_reserve_native(work,1).map_err(MixedJsonError::Resource)?;
+        enriched.try_push(row).map_err(MixedJsonError::Resource)?;
+    }
+    let mut active=CodecVec::default();
+    let mut withdrawn=CodecVec::default();
+    for row in enriched {
+        observer.visit_record("objects","fact-lifecycle",LegacyRecordRef::Json(&row)).map_err(MixedJsonError::Resource)?;
+        let Some(row)=scoped_legacy::filter_fact_lifecycle(row,as_of,work)? else {continue};
+        let target=if row["withdrawn_generation"].is_null(){&mut active}else{&mut withdrawn};
+        target.try_reserve_native(work,1).map_err(MixedJsonError::Resource)?;
+        target.try_push(row).map_err(MixedJsonError::Resource)?;
+    }
+    Ok((active,withdrawn))
+}
