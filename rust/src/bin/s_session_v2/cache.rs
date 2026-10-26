@@ -50,7 +50,7 @@ use crate::v3::native_shared::{NativeArc as Arc, NativeWeakArc as Weak};
 type Identity = (String, String, (String, String), String, String);
 /// 本次捕获的全部私有根证明。无法保留的根仍须带键，以 `None` 禁止前缀复用。
 pub(super) type Originals = BTreeMap<String, Option<Arc<RootCert>>>;
-struct Root {
+struct LegacyRoot {
     rows: Vec<DeltaRow>,
     identity: Identity,
     /// batch、Delta、fact 的全部私有根证明；只持弱引用，不让被驱逐原件逃出预算。
@@ -60,6 +60,20 @@ struct Root {
     bytes: usize,
 }
 
+#[path="cache/mixed.rs"]
+pub(crate) mod mixed;
+enum Root {
+    Legacy(Arc<LegacyRoot>),
+    Mixed(Arc<mixed::Root>),
+}
+impl Clone for Root {
+    fn clone(&self)->Self { match self {Self::Legacy(r)=>Self::Legacy(r.clone()),Self::Mixed(r)=>Self::Mixed(r.clone())} }
+}
+impl Root {
+    fn bytes(&self)->usize {match self {Self::Legacy(r)=>r.bytes,Self::Mixed(r)=>r.bytes}}
+    #[cfg(test)]
+    fn rows_len(&self)->usize {match self {Self::Legacy(r)=>r.rows.len(),Self::Mixed(r)=>r.rows.len()}}
+}
 /// 一个唯一节点的**精确原件证书**：原始行（种类 + payload 原字节 + 声明长度）与有序直接子节点
 /// 引用。子引用就是子证书的键（内容寻址 id），故证书图不需要递归深链，也不需要第二层摘要。
 pub(super) struct Cert {
@@ -299,7 +313,7 @@ impl Memo {
         self.capture.as_ref().map_or(0, |c| c.bytes)
     }
     fn root_bytes(&self) -> usize {
-        self.root.as_ref().map_or(0, |r| r.bytes)
+        self.root.as_ref().map_or(0, |r| r.bytes())
     }
     /// 跨请求**保留量**：root walk + 持久句柄 + 小控制头 + 持久原件证书。由单一 `limit` 约束。
     fn retained_bytes(&self) -> usize {
@@ -337,7 +351,7 @@ impl Memo {
             order
                 .try_push((
                     entry.cost,
-                    admission.native_text(key)?,
+                    TextValue::from_str_admitted_typed(key,None,work)?,
                 ))
                 ?;
         }
@@ -387,7 +401,7 @@ impl Memo {
             order
                 .try_push((
                     entry.cost,
-                    admission.native_text(key)?,
+                    TextValue::from_str_admitted_typed(key,None,work)?,
                 ))
                 ?;
         }
@@ -912,6 +926,7 @@ pub(crate) struct MixedCacheTransaction {
     saved: Option<RetainedTables>,
 }
 struct RetainedTables {
+    prefix:Option<Root>,
     certs: NativeMap<[u8; 32], Arc<Cert>>,
     roots: NativeMap<TextValue, Arc<RootCert>>,
     handles: NativeTree<TextValue, Handle>,
@@ -924,6 +939,7 @@ struct RetainedTables {
 impl RetainedTables {
     fn copy_from(m: &Memo, work: &WorkScope) -> Result<Self, newchan_rust::s_content::CodecError> {
         m.cert_lineage.check_retained_source()?;
+        if let Some(Root::Mixed(root))=&m.root {root.check_retained_source()?;}
         let certs = m.certs.try_copy_mixed(work, |key, value| {
             value.check_retained_source()?;
             Ok((*key, value.clone()))
@@ -973,6 +989,7 @@ impl RetainedTables {
             ))
         })?;
         Ok(Self {
+            prefix:m.root.clone(),
             certs,
             roots,
             handles,
@@ -985,6 +1002,7 @@ impl RetainedTables {
     }
     fn exchange(self, m: &mut Memo) -> Self {
         Self {
+            prefix:std::mem::replace(&mut m.root,self.prefix),
             certs: std::mem::replace(&mut m.certs, self.certs),
             roots: std::mem::replace(&mut m.root_certs, self.roots),
             handles: std::mem::replace(&mut m.handles, self.handles),
@@ -1018,6 +1036,7 @@ impl Drop for MixedCacheTransaction {
         if let Some(saved) = self.saved.take() {
             MEMO.with(|m| {
                 let mut m = m.borrow_mut();
+                m.root = saved.prefix;
                 m.certs = saved.certs;
                 m.root_certs = saved.roots;
                 m.handles = saved.handles;
@@ -1973,7 +1992,7 @@ pub(super) fn resume(
     LAST_RESUMED.with(|v| v.set(0));
     MEMO.with(|m| {
         let m = m.borrow();
-        let Some(old) = &m.root else { return 0 };
+        let Some(Root::Legacy(old)) = &m.root else { return 0 };
         if &old.identity != identity
             || rows.len() < old.rows.len()
             || rows[..old.rows.len()] != old.rows
@@ -2030,7 +2049,8 @@ pub(super) fn store_root(
         if bytes > m.limit {
             // 新 root 单独超限：保留此前仍可复用的旧前缀（仍在当前上限内、身份相同、且仍是当前行的
             // 前缀），不清空句柄缓存；判不出仍有用时只丢旧 root。
-            let keep = m.root.as_ref().is_some_and(|old| {
+            let keep = m.root.as_ref().is_some_and(|root| {
+                let Root::Legacy(old)=root else {return false;};
                 old.bytes <= m.limit
                     && old.identity == identity
                     && rows.len() >= old.rows.len()
@@ -2043,7 +2063,7 @@ pub(super) fn store_root(
             m.fit_retention();
             return;
         }
-        m.root = Some(Root {
+        m.root = Some(Root::Legacy(Arc::new(LegacyRoot {
             rows,
             identity,
             originals: originals
@@ -2052,7 +2072,7 @@ pub(super) fn store_root(
                 .collect(),
             walk,
             bytes,
-        });
+        })));
         // root walk 优先装入，再按剩余预算驱逐句柄与原件证书（不因新 root 变大而整块清空）。
         m.fit_retention();
     });
@@ -2199,7 +2219,7 @@ mod tests {
             .collect()
     }
     fn memo_root_rows() -> Option<usize> {
-        MEMO.with(|m| m.borrow().root.as_ref().map(|r| r.rows.len()))
+        MEMO.with(|m| m.borrow().root.as_ref().map(|r| r.rows_len()))
     }
     fn memo_handle_keys() -> Vec<String> {
         MEMO.with(|m| {

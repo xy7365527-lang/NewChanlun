@@ -1114,6 +1114,53 @@ mod tests {
                     .unwrap();
             }
         }
+
+        crate::cache::configure(1<<20);
+        let make_rows=|work:&sc::capture_allocation::scratch::WorkScope|{
+            let mut rows=sc::CodecVec::default();
+            rows.try_reserve_native(work,1).unwrap();
+            rows.try_push(crate::cache::mixed::DeltaRow{
+                generation:1,input_frontier:-1,
+                text:["s","c","base","cut","{}","b","run","{}","{}",""]
+                    .map(|s|sc::capture_allocation::native_owned::NativeValue::try_from_str(s,Some(work)).unwrap())
+            }).unwrap();
+            rows
+        };
+        let make_identity=|work:&sc::capture_allocation::scratch::WorkScope|{
+            ["s","c","p","h","changes-only/1","legacy-blob/0"]
+                .map(|s|sc::capture_allocation::native_owned::NativeValue::try_from_str(s,Some(work)).unwrap())
+        };
+        let first=AdmissionRamLedger::new(limits(1<<20)).unwrap();
+        first.codec_work().unwrap().run(|work|{
+            let job=Job::new_started_mixed(job_limits(),Existing{store_bytes:0,staged_bytes:0},
+                Box::new(std::time::Instant::now),std::time::Instant::now(),work)?;
+            let observer=Observer{job:RefCell::new(job),work};
+            let transaction=crate::cache::MixedCacheTransaction::start(work)?;
+            let mut walk=crate::audit::mixed::AuditWalk::capture(&conn,std::iter::empty(),work,&observer).unwrap();
+            walk.verify(&delta,1,&batch,crate::delta_storage::Mode::ChangesOnly,work,&observer).unwrap();
+            crate::cache::mixed::store_root(make_rows(work),make_identity(work),walk,&Default::default(),work,&observer).unwrap();
+            transaction.commit();
+            Ok::<(),sc::CodecError>(())
+        }).unwrap();
+        first.close().unwrap();
+        let second=AdmissionRamLedger::new(limits(1<<20)).unwrap();
+        second.codec_work().unwrap().run(|work|{
+            let job=Job::new_started_mixed(job_limits(),Existing{store_bytes:0,staged_bytes:0},
+                Box::new(std::time::Instant::now),std::time::Instant::now(),work)?;
+            let observer=Observer{job:RefCell::new(job),work};
+            let transaction=crate::cache::MixedCacheTransaction::start(work)?;
+            let mut walk=crate::audit::mixed::AuditWalk::capture(&conn,std::iter::empty(),work,&observer).unwrap();
+            assert_eq!(crate::cache::mixed::resume(&make_rows(work),&make_identity(work),&mut walk,&Default::default(),work,&observer).unwrap(),1);
+            walk.finish().unwrap();
+            let mut other=make_identity(work);
+            other[0]=sc::capture_allocation::native_owned::NativeValue::try_from_str("other",Some(work))?;
+            crate::cache::mixed::store_root(make_rows(work),other,walk,&Default::default(),work,&observer).unwrap();
+            drop(transaction);
+            let mut restored=crate::audit::mixed::AuditWalk::capture(&conn,std::iter::empty(),work,&observer).unwrap();
+            assert_eq!(crate::cache::mixed::resume(&make_rows(work),&make_identity(work),&mut restored,&Default::default(),work,&observer).unwrap(),1);
+            Ok::<(),sc::CodecError>(())
+        }).unwrap();
+        crate::cache::configure(0);
     }
 
     #[test]
