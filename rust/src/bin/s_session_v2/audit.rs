@@ -665,3 +665,6 @@ impl AuditWalk {
         self.observations.finish()
     }
 }
+
+#[path="audit/mixed_profile.rs"]
+pub(crate) mod mixed_profile;

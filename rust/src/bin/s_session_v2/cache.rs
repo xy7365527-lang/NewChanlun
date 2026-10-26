@@ -1964,12 +1964,17 @@ pub(super) fn handle_put_blob(
         .expect("None admission cannot fail")
 }
 pub(super) fn handle_put_blob_admitted(
+    root_key:&str,closure:[u8;32],bytes:Arc<[u8]>,value:Option<Arc<SharedPlainJson>>,work:Option<&WorkScope>,
+)->Result<(),String>{
+    handle_put_blob_typed(root_key,closure,bytes,value,work).map_err(|e|e.to_string())
+}
+pub(crate) fn handle_put_blob_typed(
     root_key: &str,
     closure: [u8; 32],
     bytes: Arc<[u8]>,
     value: Option<Arc<SharedPlainJson>>,
     work: Option<&WorkScope>,
-) -> Result<(), String> {
+) -> Result<(), newchan_rust::s_content::CodecError> {
     let admission = NativeAdmission(work);
     MEMO.with(|m| {
         let mut m = m.borrow_mut();
@@ -1979,29 +1984,34 @@ pub(super) fn handle_put_blob_admitted(
             return Ok(());
         }
         let cost = handle_cost(root_key.len(), bytes.len(), value.is_some());
-        if let Some(old) = m.handles.remove(root_key) {
-            m.handles_bytes = m.handles_bytes.saturating_sub(old.cost);
-        }
-        if !m.make_room_admitted(cost, work)? {
+        let floor=m.root_bytes().saturating_add(m.certs_bytes).saturating_add(m.capture_bytes());
+        if floor.saturating_add(cost)>m.limit {
+            if let Some(old)=m.handles.remove(root_key) {m.handles_bytes=m.handles_bytes.saturating_sub(old.cost);}
             #[cfg(test)]
-            counter(|c| c.handle_admission_rejected += 1);
+            counter(|c|c.handle_admission_rejected+=1);
             return Ok(());
         }
-        let key = admission.native_text(root_key).map_err(|e| e.to_string())?;
-        m.handles_bytes = m.handles_bytes.saturating_add(cost);
-        m.handles
-            .insert_admitted(
-                key,
-                Handle {
-                    closure,
-                    root_cert: None,
-                    bytes,
-                    value,
-                    cost,
-                },
-                &admission,
-            )
-            .map_err(|e| e.to_string())?;
+        let key=TextValue::from_str_admitted_typed(root_key,None,work)?;
+        m.handles.reserve_entry_admitted(&key,&admission)?;
+        let old=m.handles.remove_entry(root_key);
+        if let Some((_,old))=&old {m.handles_bytes=m.handles_bytes.saturating_sub(old.cost);}
+        match m.make_room_typed(cost,work) {
+            Err(error)=>{
+                if let Some((key,old))=old {
+                    m.handles_bytes=m.handles_bytes.saturating_add(old.cost);
+                    m.handles.insert_reserved(key,old);
+                }
+                return Err(error);
+            },
+            Ok(false)=>{
+                #[cfg(test)]
+                counter(|c|c.handle_admission_rejected+=1);
+                return Ok(());
+            },
+            Ok(true)=>{},
+        }
+        m.handles_bytes=m.handles_bytes.saturating_add(cost);
+        m.handles.insert_reserved(key,Handle{closure,root_cert:None,bytes,value,cost});
         Ok(())
     })
 }
