@@ -51,6 +51,9 @@ impl AdmissionRamLedger {
             .ok_or(ScratchFailure::Ledger)
     }
     pub(super) fn new(limits: NativeRamLimits) -> Result<Self, ScratchFailure> {
+        Self::new_with_fixed(limits, 0)
+    }
+    pub(super) fn new_with_fixed(limits: NativeRamLimits, other_fixed: usize) -> Result<Self, ScratchFailure> {
         let max_live =
             usize::try_from(limits.max_live_bytes).map_err(|_| ScratchFailure::Budget)?;
         let max_operation =
@@ -59,7 +62,7 @@ impl AdmissionRamLedger {
             return Err(ScratchFailure::Ledger);
         }
         // 在任何Arc/Mutex分配前检查合并固定Layout。固定元数据随最后parent自然释放。
-        let fixed = Self::metadata_bytes()?;
+        let fixed = Self::metadata_bytes()?.checked_add(other_fixed).ok_or(ScratchFailure::Ledger)?;
         if fixed > max_live || fixed > max_operation {
             return Err(ScratchFailure::Budget);
         }

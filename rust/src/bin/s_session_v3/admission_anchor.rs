@@ -410,8 +410,22 @@ pub(crate) struct PreparedAdmission {
 /// 最终 into_job(self, measured_existing) 的准确补丁另交根协调 Job::new_started。
 pub(crate) struct ConsumedAdmission {
     limits: JobLimits,
+    mixed: Option<PreparedMixedAdmission>,
     lease: Arc<BudgetLease>,
     prelude: ControlPrelude,
+}
+
+/// 已经完整核验原件/租约的mixed资源，只能由PreparedAdmission消费产生。
+struct PreparedMixedAdmission {
+    native_ram: resources::NativeRamLimits,
+}
+fn mixed_fixed_metadata() -> Result<usize, newchan_rust::s_content::capture_allocation::scratch::ScratchFailure> {
+    use std::alloc::Layout;
+    use newchan_rust::s_content::capture_allocation::scratch::ScratchFailure;
+    // Rc强/弱计数及原Job；终端固定槽随原命令存活，不按失败临时扩容。
+    let job = Layout::new::<[usize; 2]>().extend(Layout::new::<RefCell<admission_job::Job>>())
+        .map_err(|_| ScratchFailure::Ledger)?.0.pad_to_align().size();
+    job.checked_add(Layout::new::<TerminalState>().size()).ok_or(ScratchFailure::Ledger)
 }
 
 impl fmt::Debug for PreparedAdmission {
@@ -501,14 +515,13 @@ impl PreparedAdmission {
 
     pub(crate) fn consume(self) -> Result<ConsumedAdmission, AdmissionError> {
         check_lease(&self.lease, &self.prelude, Stage::E5)?;
-        if self.resources.is_mixed() {
-            // schema/签锚已核；双域父账与旧域执行尚未启用，不可丢掉 RAM 合同降级八帽。
-            return Err(self
-                .prelude
-                .error(ErrorKind::MixedAdmissionNotEnabled, Stage::E5));
-        }
+        let mixed = match self.resources {
+            AdmissionResources::Ordinary(_) => None,
+            AdmissionResources::Mixed { native_ram, .. } => Some(PreparedMixedAdmission { native_ram }),
+        };
         Ok(ConsumedAdmission {
             limits: self.limits,
+            mixed,
             lease: self.lease,
             prelude: self.prelude,
         })
@@ -543,6 +556,7 @@ use newchan_rust::s_content::{
 /// 不向 provider 移交本持有者或其可变引用；finish 永远检查这里的原账。
 pub(crate) struct StartedAdmission {
     job: Rc<RefCell<admission_job::Job>>,
+    ram: Option<ram::AdmissionRamLedger>,
     lease: Arc<BudgetLease>,
     first_read_at: Instant,
 }
@@ -739,10 +753,23 @@ impl ConsumedAdmission {
             .prelude
             .first_read_at
             .ok_or_else(|| self.prelude.error(ErrorKind::Deadline, Stage::E7))?;
-        let job = Rc::new(RefCell::new(
-            Job::new_started(self.limits, measured, Box::new(Instant::now), first)
+        use newchan_rust::s_content::capture_allocation::scratch::{ScratchFailure, WorkError};
+        let resource_error = |failure: ScratchFailure| self.prelude.error(
+            if failure == ScratchFailure::Budget { ErrorKind::Limit } else { ErrorKind::ResourcesInvalid }, Stage::E7);
+        let ram = self.mixed.map(|prepared| {
+            ram::AdmissionRamLedger::new_with_fixed(prepared.native_ram, mixed_fixed_metadata()?)
+        }).transpose().map_err(resource_error)?;
+        let core = match &ram {
+            Some(ram) => ram.codec_work().map_err(resource_error)?.run(|work| {
+                Job::new_started_mixed(self.limits, measured, Box::new(Instant::now), first, work)
+            }).map_err(|error| match error {
+                WorkError::Resource(failure) => resource_error(failure),
+                WorkError::Operation(error) => self.prelude.error(job_error_kind(&error), Stage::E7),
+            })?,
+            None => Job::new_started(self.limits, measured, Box::new(Instant::now), first)
                 .map_err(|e| self.prelude.error(job_error_kind(&e), Stage::E7))?,
-        ));
+        };
+        let job = Rc::new(RefCell::new(core));
         retain_terminal_job(&job, first);
         // check 已先追认 deadline/wire；本次仅回灌一次实际值，没有新的 I/O。
         job.borrow_mut()
@@ -750,6 +777,7 @@ impl ConsumedAdmission {
             .map_err(|e| self.prelude.error(job_error_kind(&e), Stage::E7))?;
         Ok(StartedAdmission {
             job,
+            ram,
             lease: self.lease,
             first_read_at: first,
         })
@@ -760,6 +788,20 @@ impl StartedAdmission {
     pub(crate) fn accounting(&mut self) -> AdmissionAccounting<'_> {
         AdmissionAccounting {
             job: self.job.borrow_mut(),
+            work: None,
+            mixed: self.ram.is_some(),
+        }
+    }
+
+    pub(crate) fn with_accounting<T, E>(&mut self,
+        run: impl FnOnce(&mut AdmissionAccounting<'_>) -> Result<T, E>,
+    ) -> Result<T, newchan_rust::s_content::capture_allocation::scratch::WorkError<E>> {
+        use newchan_rust::s_content::capture_allocation::scratch::WorkError;
+        match &self.ram {
+            Some(ram) => ram.codec_work().map_err(WorkError::Resource)?.run(|work| {
+                run(&mut AdmissionAccounting { job: self.job.borrow_mut(), work: Some(work), mixed: true })
+            }),
+            None => run(&mut self.accounting()).map_err(WorkError::Operation),
         }
     }
 
@@ -783,8 +825,12 @@ impl StartedAdmission {
         paths.map_err(|_| self.error(ErrorKind::Changed))?;
         let finished = self.job.borrow_mut().finish_check();
         finished.map_err(|e| self.error(job_error_kind(&e)))?;
+        if let Some(ram) = &self.ram {
+            ram.close().map_err(|_| self.error(ErrorKind::ResourcesInvalid))?;
+        }
         Ok(FinishedAdmission {
             job: self.job,
+            ram: self.ram,
             lease: self.lease,
         })
     }
@@ -812,6 +858,7 @@ impl StartedAdmission {
 /// 私有恢复已收尾后的同一本账，仅用于启动外围 I/O，不能重新准入或换 Job。
 pub(crate) struct FinishedAdmission {
     job: Rc<RefCell<admission_job::Job>>,
+    ram: Option<ram::AdmissionRamLedger>,
     lease: Arc<BudgetLease>,
 }
 impl FinishedAdmission {
@@ -821,6 +868,8 @@ impl FinishedAdmission {
     pub(crate) fn accounting(&mut self) -> AdmissionAccounting<'_> {
         AdmissionAccounting {
             job: self.job.borrow_mut(),
+            work: None,
+            mixed: self.ram.is_some(),
         }
     }
     pub(crate) fn finish_output(&mut self) -> Result<(), AccountingError> {
@@ -833,9 +882,19 @@ impl FinishedAdmission {
 /// 丢弃门面不自动释放 Grant；未结预留仍由原账 finish_check 拒绝。
 pub(crate) struct AdmissionAccounting<'a> {
     job: RefMut<'a, admission_job::Job>,
+    work: Option<&'a newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
+    mixed: bool,
 }
 
 impl AdmissionAccounting<'_> {
+    pub(crate) fn is_mixed(&self) -> bool { self.mixed }
+    pub(crate) fn mixed_scope(&self) -> Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope> { self.work }
+    pub(crate) fn accept_legacy_evidence(&mut self,
+        row: &newchan_rust::s_content::legacy_evidence::CheckedLegacyEvidenceRow,
+    ) -> Result<admission_job::NodeAcceptance, AccountingError> {
+        let work = self.work.ok_or_else(|| AccountingError::new("job_reservation", "legacy接纳缺mixed工作域"))?;
+        self.job.accept_legacy_evidence(row, work)
+    }
     pub(crate) fn begin_first_read(&mut self) -> Result<(), AccountingError> {
         self.job.begin_first_read()
     }
@@ -898,14 +957,20 @@ impl AdmissionAccounting<'_> {
         &mut self,
         usage: &admission_job::CheckedNodeUsage,
     ) -> Result<admission_job::NodeAcceptance, AccountingError> {
-        self.job.accept_checked_usage(usage)
+        match self.work {
+            Some(work) => self.job.accept_checked_usage_mixed(usage, work),
+            None => self.job.accept_checked_usage(usage),
+        }
     }
 
     pub(crate) fn reserve_staged(
         &mut self,
         requested: u64,
     ) -> Result<admission_job::Grant, AccountingError> {
-        self.job.reserve_staged(requested)
+        match self.work {
+            Some(work) => self.job.reserve_staged_mixed(requested, work),
+            None => self.job.reserve_staged(requested),
+        }
     }
 
     #[allow(
@@ -916,7 +981,10 @@ impl AdmissionAccounting<'_> {
         &mut self,
         requested: u64,
     ) -> Result<admission_job::Grant, AccountingError> {
-        self.job.reserve_store(requested)
+        match self.work {
+            Some(work) => self.job.reserve_store_mixed(requested, work),
+            None => self.job.reserve_store(requested),
+        }
     }
 
     pub(crate) fn reconcile(
@@ -1466,6 +1534,8 @@ pub(super) fn test_with_clock_account<T>(
         &source,
         &mut AdmissionAccounting {
             job: job.borrow_mut(),
+            work: None,
+            mixed: false,
         },
     );
     result

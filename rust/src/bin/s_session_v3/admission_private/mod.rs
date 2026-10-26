@@ -334,6 +334,10 @@ fn validate_prefix_inner(
     prefix: &mut RejectionPrefix<'_>,
 ) -> Result<(), String> {
     account.pre_io_check().map_err(|e| e.to_string())?;
+    if account.is_mixed() {
+        // #1527：父账已可消费，旧域SQL/walker完整闭合前仍不发布服务准入。
+        return Err("MixedAdmissionNotEnabled".into());
+    }
     match source.medium {
         Medium::RollbackJournal => return Err("D2ProductionCapacityMissing：JobLimits8/SResources7没有已裁的overlay payload、metadata与SQLite heap额度映射；禁止采用D2-SMALL六参数默认".into()),
         Medium::MainOnly | Medium::Wal => {}
