@@ -96,7 +96,7 @@ pub struct OrganicLedger {
     pub cumulative_recovered: f64,
     /// 未部署现金（master 入场侧递归建仓，entry_mode=Recursive）。
     /// Full 模式恒 0.0——close 的 total_value 加 0.0 位等价（O0≡P5 零接触）。
-    /// 资金守恒：部署现金 + 本值 = INITIAL_CAPITAL（add_entry_tranche 单向流出）。
+    /// 资金守恒：部署现金 + 本值 = 期初资金 q_total（add_entry_tranche 单向流出）。
     pub undeployed_cash: f64,
     /// 开放腿，插入序存储（bit-exact 硬前提，模块 docstring）。
     legs: Vec<(SlotKey, OpenLeg)>,

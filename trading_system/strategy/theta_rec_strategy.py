@@ -28,17 +28,17 @@ class ThetaRecStrategyConfig(StrategyConfig, frozen=True):
     """theta_v0 π 目标敞口跟踪策略配置。
 
     min_rebalance_units : 目标敞口变化阈值——小于此不提单（避免微小 churn / size 精度噪声）。
-    initial_nav         : `push_bar` 的 `nav<=0` 时兜底净值（正常路径 nav 取账户真余额）。
-    venue_profile       : 生产场所 profile id（如 "P0"）。#1602：profile 缺 tick 或成本项时
-                          `ThetaStream` 构造报 AwaitingPolicy，不回退旧常数。
-    preset              : "diagnostic-fixture" ⟹ 诊断夹具场所 profile（不参与准入）；与
-                          venue_profile 二选一。
+    venue_profile       : 生产场所 profile；未签则停止，不回退诊断夹具（#1602）。
+    preset              : diagnostic-fixture 为显式诊断场所，不参与准入（#1602）。
+    funding_profile     : ADR 0040 funding-record 的 profile（如 "P0"）。无默认（#1601）：未给 ⟹
+                          构造 `ThetaStream` 报 AwaitingPolicy{funding_record}，策略不构造、不下单；
+                          `evidence_only` 记录同样拒收。
     """
 
     instrument_id: InstrumentId
     bar_type: BarType
     min_rebalance_units: float = 1e-4
-    initial_nav: float = 1.0e6
+    funding_profile: str | None = None
     venue_profile: str | None = None
     preset: str | None = None
 
@@ -55,7 +55,7 @@ class ThetaRecStrategy(Strategy):
         super().__init__(config)
         self.engine = newchan_rust.ThetaStream(
             preset=config.preset,
-            initial_nav=config.initial_nav,
+            funding_profile=config.funding_profile,
             venue_profile=config.venue_profile,
         )
         self.instrument = None
@@ -78,7 +78,10 @@ class ThetaRecStrategy(Strategy):
             self.stop()
             return
         self.subscribe_bars(self.config.bar_type)
-        self.log.info(f"ThetaRecStrategy 启动: {self.config.bar_type}")
+        self.log.info(
+            f"ThetaRecStrategy 启动: {self.config.bar_type} "
+            f"funding_record={self.engine.funding_record}"
+        )
 
     def on_bar(self, bar: Bar) -> None:
         ts = bar.ts_event
@@ -107,12 +110,14 @@ class ThetaRecStrategy(Strategy):
         self._rebalance(target)
 
     def _nav(self) -> float:
-        """账户总余额（净值真值源）；账户不可用 ⟹ 构造期 initial_nav 兜底。"""
+        """账户总余额（净值真值源）。
+
+        #1601 C-03：账户不可用或余额非正时不再换成 1e6——原样交给 `push_bar`，由引擎报错停止。
+        """
         account = self.portfolio.account(self.config.instrument_id.venue)
         if account is None:
-            return self.config.initial_nav
-        nav = account.balance_total().as_double()
-        return nav if nav > 0.0 else self.config.initial_nav
+            return 0.0
+        return account.balance_total().as_double()
 
     def _rebalance(self, target_units: float) -> None:
         """提单使 NT 净仓位 = 引擎目标净敞口（NETTING，delta 提单）。与旧策略逐字同逻辑。"""

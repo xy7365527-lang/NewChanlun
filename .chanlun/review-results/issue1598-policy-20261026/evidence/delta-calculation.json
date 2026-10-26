@@ -1,0 +1,18 @@
+{
+  "example_only": true,
+  "fixed_amplitude_ratio": 0.565685424949238,
+  "w_at_delta_0_5": 0.32,
+  "formula": "w(delta)=0.32**(0.5/delta)",
+  "values": [
+    {
+      "delta": 0.4,
+      "w": 0.2406785979575292,
+      "relative_percent": -24.787938138272125
+    },
+    {
+      "delta": 0.7,
+      "w": 0.4431346384488602,
+      "relative_percent": 38.4795745152688
+    }
+  ]
+}

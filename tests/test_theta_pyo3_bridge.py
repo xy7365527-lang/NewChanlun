@@ -34,8 +34,8 @@ def synthetic_ohlc(n: int = 80) -> list[tuple[float, float, float, float]]:
 
 def test_push_bar_returns_float_and_deterministic():
     bars = synthetic_ohlc()
-    a = newchan_rust.ThetaStream(preset=FIXTURE)
-    b = newchan_rust.ThetaStream(preset=FIXTURE)
+    a = newchan_rust.ThetaStream(preset=FIXTURE, funding_profile="P0")
+    b = newchan_rust.ThetaStream(preset=FIXTURE, funding_profile="P0")
     p_t = 0.0
     for i, (o, h, l, c) in enumerate(bars):
         pa = a.push_bar(o, h, l, c, p_t, 1.0e6)
@@ -47,7 +47,7 @@ def test_push_bar_returns_float_and_deterministic():
 
 def test_last_order_action_in_seven_constructors():
     bars = synthetic_ohlc()
-    s = newchan_rust.ThetaStream(preset=FIXTURE)
+    s = newchan_rust.ThetaStream(preset=FIXTURE, funding_profile="P0")
     p_t = 0.0
     for o, h, l, c in bars:
         p_t = s.push_bar(o, h, l, c, p_t, 1.0e6)
@@ -61,7 +61,7 @@ def test_p_star_within_nominal_cap():
     # 名义上限：cap = γ̄·U_ℓ（default risk.gamma × nav/px）。只断言有符号手数界内不爆表
     # （默认 gamma 小 ⟹ |p_star| 被 U_ℓ 尺度约束），并断言 p_star 有限。
     bars = synthetic_ohlc()
-    s = newchan_rust.ThetaStream(preset=FIXTURE)
+    s = newchan_rust.ThetaStream(preset=FIXTURE, funding_profile="P0")
     p_t = 0.0
     for o, h, l, c in bars:
         p_star = s.push_bar(o, h, l, c, p_t, 1.0e6)
@@ -71,7 +71,7 @@ def test_p_star_within_nominal_cap():
 
 def test_finish_full_reconcile_and_lee_net_witness():
     bars = synthetic_ohlc()
-    s = newchan_rust.ThetaStream(preset=FIXTURE)
+    s = newchan_rust.ThetaStream(preset=FIXTURE, funding_profile="P0")
     p_t = 0.0
     for o, h, l, c in bars:
         p_t = s.push_bar(o, h, l, c, p_t, 1.0e6)
@@ -93,7 +93,7 @@ def test_finish_full_reconcile_and_lee_net_witness():
 
 def test_sep_legs_shape_and_snapshot():
     bars = synthetic_ohlc()
-    s = newchan_rust.ThetaStream(preset=FIXTURE)
+    s = newchan_rust.ThetaStream(preset=FIXTURE, funding_profile="P0")
     p_t = 0.0
     for o, h, l, c in bars:
         p_t = s.push_bar(o, h, l, c, p_t, 1.0e6)
@@ -116,10 +116,34 @@ def test_production_profile_awaits_policy_and_fixture_is_labelled():
     with pytest.raises(ValueError, match=r"AwaitingPolicy\{venue_profile, cost_inputs\}"):
         newchan_rust.ThetaStream()
     with pytest.raises(ValueError, match=r"AwaitingPolicy\{venue_profile, cost_inputs\}"):
-        newchan_rust.ThetaStream(venue_profile="P0")
+        newchan_rust.ThetaStream(venue_profile="P0", funding_profile="P0")
     with pytest.raises(ValueError):
         newchan_rust.ThetaStream(preset="nope")
-    s = newchan_rust.ThetaStream(preset=FIXTURE)
+    s = newchan_rust.ThetaStream(preset=FIXTURE, funding_profile="P0")
     assert s.admissible() is False
     assert "venue-profile-diagnostic-fixture/1" in s.records()
     assert "theta-risk/1" in s.records() and "data-profile/1" in s.records()
+
+
+def test_missing_or_evidence_only_funding_record_refuses():
+    """#1601：缺 funding_profile ⟹ AwaitingPolicy{funding_record}；evidence_only ⟹ 拒收。"""
+    with pytest.raises(ValueError, match=r"AwaitingPolicy\{funding_record"):
+        newchan_rust.ThetaStream(preset=FIXTURE)
+    with pytest.raises(ValueError, match="evidence_only"):
+        newchan_rust.ThetaStream(preset=FIXTURE, funding_profile="P0-acceptance-5m")
+
+
+def test_funding_record_q_total_and_version_are_exposed():
+    s = newchan_rust.ThetaStream(preset=FIXTURE, funding_profile="P0")
+    assert s.q_total == 100_000.0
+    assert s.funding_record == "#1557/funding-authorization/v1@P0/v1"
+    assert newchan_rust.ThetaStream(preset=FIXTURE, funding_profile="P1-hl-testnet").q_total == 500.0
+
+
+@pytest.mark.parametrize("nav", [0.0, -1.0, float("nan")])
+def test_non_positive_nav_raises_not_replaced(nav):
+    """#1601 C-03 负控：nav≤0 / NaN ⟹ 报错，不换成 1e6。"""
+    s = newchan_rust.ThetaStream(preset=FIXTURE, funding_profile="P0")
+    o, h, l, c = synthetic_ohlc()[0]
+    with pytest.raises(ValueError, match="nav="):
+        s.push_bar(o, h, l, c, 0.0, nav)

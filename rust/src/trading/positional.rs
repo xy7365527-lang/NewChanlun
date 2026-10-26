@@ -26,9 +26,8 @@ use super::center_book::CenterBook;
 use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
 use super::tape::SignalTape;
-use super::types::{
-    Polarity, DEFAULT_OP_LADDER, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER, SUB_EXPIRY,
-};
+use super::types::{Polarity, FIRST_BSP_LADDER, MAX_LADDER};
+use crate::funding_record::ReplayRecords;
 
 /// NAV 采样间隔（1min bar 口径 ≈ 1 日；分年 nats 分解的数据基础）。
 pub const EQUITY_SAMPLE_BARS: i64 = 1440;
@@ -113,6 +112,8 @@ pub struct PositionalResult {
     /// (bar, nav) 采样（含末 bar）。
     pub equity: Vec<(i64, f64)>,
     pub final_nav: f64,
+    /// 本次回放读的记录 id 与版本（`ReplayRecords::label`，#1601）：总投入、起始级别、ARM 过期窗口。
+    pub records: String,
     pub n_entries_by_ladder: [u64; MAX_LADDER],
     pub n_exits_by_ladder: [u64; MAX_LADDER],
     pub held_bars_by_ladder: [u64; MAX_LADDER],
@@ -1063,32 +1064,67 @@ impl PolarityMode {
 }
 
 /// 主入口。floor_ladder ∈ [FIRST_BSP_LADDER, MAX_LADDER)。
+///
+/// `rec`：本次回放读的版本化记录（#1601）——期初现金池 = `rec.q_total()`（ADR 0040 funding-record
+/// `cap`），操作绑定级别 = `rec.op_ladder()`（derivation-input `l_start`），ARM 过期窗口 =
+/// `rec.sub_expiry()`（`arm-sub-expiry`）。结果的 `records` 字段写出三份记录的 id 与版本。
 pub fn run_positional(
     tape: &SignalTape,
     floor_ladder: usize,
     mode: PolarityMode,
+    rec: &ReplayRecords,
 ) -> Result<PositionalResult, String> {
+    let mut res = run_positional_records(tape, floor_ladder, mode, rec)?;
+    res.records = rec.label();
+    Ok(res)
+}
+
+/// 测试夹具入口：与改前常数等值的记录（`ReplayRecords::legacy_parity_fixture`）。
+#[cfg(test)]
+pub(crate) fn run_positional_fx(
+    tape: &SignalTape,
+    floor_ladder: usize,
+    mode: PolarityMode,
+) -> Result<PositionalResult, String> {
+    run_positional(
+        tape,
+        floor_ladder,
+        mode,
+        &ReplayRecords::legacy_parity_fixture(),
+    )
+}
+
+fn run_positional_records(
+    tape: &SignalTape,
+    floor_ladder: usize,
+    mode: PolarityMode,
+    rec: &ReplayRecords,
+) -> Result<PositionalResult, String> {
+    let q_total = rec.q_total();
+    let op_ladder = rec.op_ladder();
     if mode == PolarityMode::AxiomVoice {
-        return super::axiom_voice::run_axiom_voice(tape, floor_ladder);
+        return super::axiom_voice::run_axiom_voice(tape, floor_ladder, q_total);
     }
     if mode == PolarityMode::UnifiedRecursive {
-        return super::unified_recursive::run_unified_recursive(tape, floor_ladder);
+        return super::unified_recursive::run_unified_recursive(tape, floor_ladder, q_total);
     }
     if mode == PolarityMode::PositioningChain {
         return super::positioning_chain_fugue::run_positioning_chain_fugue(
             tape,
             floor_ladder,
-            DEFAULT_OP_LADDER,
+            op_ladder,
+            q_total,
         );
     }
     if mode == PolarityMode::Isolated {
-        return super::isolated_fugue::run_isolated_fugue(tape, floor_ladder);
+        return super::isolated_fugue::run_isolated_fugue(tape, floor_ladder, q_total);
     }
     if mode == PolarityMode::UnifiedNecessity {
         return super::unified_necessity::run_unified_necessity(
             tape,
             floor_ladder,
-            DEFAULT_OP_LADDER,
+            op_ladder,
+            q_total,
         );
     }
     if let PolarityMode::NestedInterval { min_trade_ladder } = mode {
@@ -1096,23 +1132,34 @@ pub fn run_positional(
             tape,
             floor_ladder,
             min_trade_ladder,
+            q_total,
         );
     }
     if mode == PolarityMode::RecursiveNested {
-        return super::recursive_nested_fugue::run_recursive_nested_fugue(tape, floor_ladder);
+        return super::recursive_nested_fugue::run_recursive_nested_fugue(
+            tape,
+            floor_ladder,
+            q_total,
+        );
     }
     if let PolarityMode::NestedRecursive { clearance } = mode {
-        return super::nested_fugue::run_nested_fugue(tape, floor_ladder, clearance);
+        return super::nested_fugue::run_nested_fugue(tape, floor_ladder, clearance, q_total);
     }
     if let PolarityMode::DualVoice {
         dual_book,
         nest_deep,
     } = mode
     {
-        return super::dual_voice::run_dual_voice(tape, floor_ladder, dual_book, nest_deep);
+        return super::dual_voice::run_dual_voice(
+            tape,
+            floor_ladder,
+            dual_book,
+            nest_deep,
+            q_total,
+        );
     }
     if let PolarityMode::UnifiedVoice { anc_freeze } = mode {
-        return super::unified_voice::run_unified_voice(tape, floor_ladder, anc_freeze);
+        return super::unified_voice::run_unified_voice(tape, floor_ladder, anc_freeze, q_total);
     }
     if let PolarityMode::Fusion {
         trend_hold,
@@ -1146,7 +1193,8 @@ pub fn run_positional(
             short_anc_gate,
             short_ghost,
             seq38_sub,
-            DEFAULT_OP_LADDER,
+            op_ladder,
+            q_total,
         );
     }
     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {
@@ -1162,7 +1210,8 @@ pub fn run_positional(
     let n = tape.bars.len();
     let mut res = PositionalResult::default();
     let mut layers: [LayerState; MAX_LADDER] = [LayerState::Flat; MAX_LADDER];
-    let mut pool = INITIAL_CAPITAL;
+    let mut pool = q_total;
+    let sub_expiry = rec.sub_expiry();
     let mut book = CenterBook::new();
     let mut depth_ref = DepthRef::new(DEPTH_REF_WINDOW);
 
@@ -1270,7 +1319,7 @@ pub fn run_positional(
                     // 入场（在册 master ARMED 逐字同构，per-layer 化）。
                     let sub_mask = (1u16 << k) - 1;
                     let confirmed =
-                        sig.buy_any.0 & sub_mask != 0 || (i as i64 - arm_bar) > SUB_EXPIRY;
+                        sig.buy_any.0 & sub_mask != 0 || (i as i64 - arm_bar) > sub_expiry;
                     if confirmed {
                         layers[k] = enter_or_defer(
                             k,
@@ -1445,6 +1494,8 @@ pub(crate) fn enter_or_defer(
 mod tests {
     use super::*;
     use crate::trading::tape::BarSig;
+    use crate::trading::types::FIXTURE_Q_TOTAL;
+    use crate::trading::types::FIXTURE_SUB_EXPIRY;
     use crate::trading::types::{BspClass, BspEvent, LadderMask};
 
     fn bar(close: f64) -> BarSig {
@@ -1513,14 +1564,14 @@ mod tests {
             bars,
             ..Default::default()
         };
-        let r = run_positional(&t, 2, PolarityMode::Cycle45).unwrap();
+        let r = run_positional_fx(&t, 2, PolarityMode::Cycle45).unwrap();
         assert_eq!(r.n_entries_by_ladder[2], 1);
         let tr = &r.trades[0];
         assert!(
             (tr.weight_at_entry - 0.25).abs() < 1e-12,
             "w₂ = 1%/(1%+3%) = 0.25"
         );
-        assert!((tr.shares - 0.25 * INITIAL_CAPITAL / 100.0).abs() < 1e-9);
+        assert!((tr.shares - 0.25 * FIXTURE_Q_TOTAL / 100.0).abs() < 1e-9);
         assert_eq!(tr.exit_reason, "eod");
     }
 
@@ -1536,7 +1587,7 @@ mod tests {
             bars,
             ..Default::default()
         };
-        let r = run_positional(&t, 2, PolarityMode::Cycle45).unwrap();
+        let r = run_positional_fx(&t, 2, PolarityMode::Cycle45).unwrap();
         assert_eq!(r.n_entries_by_ladder[2], 1);
         assert_eq!(r.n_entries_by_ladder[4], 1);
         let t2: Vec<_> = r.trades.iter().filter(|t| t.ladder == 2).collect();
@@ -1546,7 +1597,64 @@ mod tests {
         assert_eq!(t4[0].exit_reason, "eod", "段级 sell1 无权清 recL2 配额");
         assert_eq!(t4[0].exit_price, 120.0);
         // 股数守恒：层 4 进出同股数
-        assert!((t4[0].shares - 0.75 * INITIAL_CAPITAL / 100.0).abs() < 1e-9);
+        assert!((t4[0].shares - 0.75 * FIXTURE_Q_TOTAL / 100.0).abs() < 1e-9);
+    }
+
+    /// #1601 专项验收：P0 与 P0-acceptance-5m 各跑一次回放——输出 `records` 写出三份记录的 id 与版本，
+    /// 层配额股数按各自 `Q_total` 给出（改回常数的变异体在 5m 断言变红）；P0 与改前常数等值夹具
+    /// （Q 100,000 / ARM 60；Cycle45 基础路径不读 op_ladder）除 `records` 外逐位相同。
+    #[test]
+    fn replay_reads_q_total_and_version_from_records() {
+        let mut bars = warmup_bars();
+        bars.push(buy1(buy1(bar(100.0), 2), 4));
+        bars.push(sub_confirm(bar(100.0), 1));
+        bars.push(sell1(bar(110.0), 2));
+        bars.push(bar(120.0));
+        let t = SignalTape {
+            bars,
+            ..Default::default()
+        };
+        let run = |rec: &ReplayRecords| run_positional(&t, 2, PolarityMode::Cycle45, rec).unwrap();
+        let fx = run(&ReplayRecords::legacy_parity_fixture());
+        let p0 = run(&ReplayRecords::active("P0").unwrap());
+        let acc = run(&ReplayRecords::active("P0-acceptance-5m").unwrap());
+        assert_eq!(
+            p0.records,
+            "#1557/funding-authorization/v1@P0/v1; #1558/chong-derivation-input/v1@P0/v1; arm-sub-expiry/1"
+        );
+        assert_eq!(
+            acc.records,
+            "#1557/funding-authorization/v1@P0-acceptance-5m/v1; \
+             #1558/chong-derivation-input/v1@P0-acceptance-5m/v1; arm-sub-expiry/1"
+        );
+        let shares4 =
+            |r: &PositionalResult| r.trades.iter().find(|t| t.ladder == 4).unwrap().shares;
+        assert!((shares4(&p0) - 0.75 * 100_000.0 / 100.0).abs() < 1e-9);
+        assert!((shares4(&acc) - 0.75 * 5_000_000.0 / 100.0).abs() < 1e-6);
+        // 收益率与 Q 无关（线性缩放），NAV 本身随 Q 走。
+        assert!((acc.final_nav / 5_000_000.0 - p0.final_nav / 100_000.0).abs() < 1e-12);
+        let strip = |mut r: PositionalResult| {
+            r.records.clear();
+            format!("{r:?}")
+        };
+        assert_eq!(strip(fx), strip(p0));
+    }
+
+    /// #1601 行为变化锁：生效记录 `l_start = L0` ⟹ op_ladder 2（segment），fusion 要求
+    /// op_ladder ≥ 3（segment 非势源）⟹ 显式报错而非静默改用旧常数 3；等值夹具（L1）照常运行。
+    #[test]
+    fn active_l0_record_makes_fusion_refuse_not_fallback() {
+        let t = SignalTape {
+            bars: warmup_bars(),
+            ..Default::default()
+        };
+        let mode = PolarityMode::parse("fusion_t").unwrap();
+        let err = run_positional(&t, 2, mode, &ReplayRecords::active("P0").unwrap()).unwrap_err();
+        assert!(err.contains("op_ladder=2"), "{err}");
+        // 夹具（L1 ⟹ op_ladder 3）过 ladder 门；此 tape 是否另因别的判据报错与本锁无关。
+        if let Err(e) = run_positional(&t, 2, mode, &ReplayRecords::legacy_parity_fixture()) {
+            assert!(!e.contains("op_ladder"), "{e}");
+        }
     }
 
     #[test]
@@ -1562,10 +1670,10 @@ mod tests {
             bars,
             ..Default::default()
         };
-        let r = run_positional(&t, 2, PolarityMode::Cycle45).unwrap();
+        let r = run_positional_fx(&t, 2, PolarityMode::Cycle45).unwrap();
         assert_eq!(r.n_entries_by_ladder[2], 0);
         assert_eq!(r.n_noref_skips_by_ladder[2], 1);
-        assert_eq!(r.final_nav, INITIAL_CAPITAL);
+        assert_eq!(r.final_nav, FIXTURE_Q_TOTAL);
     }
 
     #[test]
@@ -1589,7 +1697,7 @@ mod tests {
             bars,
             ..Default::default()
         };
-        let r = run_positional(&t, 2, PolarityMode::Cycle45).unwrap();
+        let r = run_positional_fx(&t, 2, PolarityMode::Cycle45).unwrap();
         assert_eq!(r.n_entries_by_ladder[2], 1);
         assert_eq!(r.n_deferred_by_ladder[4], 1, "确认 bar 资金不足 → 推迟");
         assert_eq!(r.n_entries_by_ladder[4], 1, "层 2 出场释放后入场");
@@ -1618,7 +1726,7 @@ mod tests {
             bars,
             ..Default::default()
         };
-        let r = run_positional(&t, 2, PolarityMode::Cycle45).unwrap();
+        let r = run_positional_fx(&t, 2, PolarityMode::Cycle45).unwrap();
         assert_eq!(r.n_pending_cancels_by_ladder[4], 1);
         assert_eq!(r.n_entries_by_ladder[4], 0);
     }
@@ -1633,24 +1741,24 @@ mod tests {
             bars,
             ..Default::default()
         };
-        let r = run_positional(&t, 2, PolarityMode::Cycle45).unwrap();
+        let r = run_positional_fx(&t, 2, PolarityMode::Cycle45).unwrap();
         assert_eq!(r.n_disarms_by_ladder[2], 1);
         assert_eq!(r.n_entries_by_ladder[2], 0);
     }
 
     #[test]
     fn expiry_fallback_entry() {
-        // 次级别确认不来 → SUB_EXPIRY 超时入场（在册 master 同构）。
+        // 次级别确认不来 → FIXTURE_SUB_EXPIRY 超时入场（在册 master 同构）。
         let mut bars = warmup_bars();
         bars.push(buy1(bar(100.0), 2));
-        for _ in 0..(SUB_EXPIRY + 2) {
+        for _ in 0..(FIXTURE_SUB_EXPIRY + 2) {
             bars.push(bar(100.0));
         }
         let t = SignalTape {
             bars,
             ..Default::default()
         };
-        let r = run_positional(&t, 2, PolarityMode::Cycle45).unwrap();
+        let r = run_positional_fx(&t, 2, PolarityMode::Cycle45).unwrap();
         assert_eq!(r.n_entries_by_ladder[2], 1);
     }
 
@@ -1666,8 +1774,8 @@ mod tests {
             bars,
             ..Default::default()
         };
-        let r = run_positional(&t, 2, PolarityMode::Cycle45).unwrap();
-        assert!((r.final_nav - INITIAL_CAPITAL).abs() < 1e-9);
+        let r = run_positional_fx(&t, 2, PolarityMode::Cycle45).unwrap();
+        assert!((r.final_nav - FIXTURE_Q_TOTAL).abs() < 1e-9);
     }
 
     fn sellpt(mut b: BarSig, lad: usize) -> BarSig {
@@ -1687,7 +1795,7 @@ mod tests {
             bars,
             ..Default::default()
         };
-        let r = run_positional(
+        let r = run_positional_fx(
             &t,
             2,
             PolarityMode::Hold26 {
@@ -1705,7 +1813,7 @@ mod tests {
         assert_eq!(t4.len(), 1, "层4 不被层2 卖点触及");
         assert_eq!(t4[0].exit_reason, "eod");
         // 周期股数守恒：层2 第一周期进出同股数（@100 买 @110 卖全清）
-        assert!((t2[0].shares - 0.25 * INITIAL_CAPITAL / 100.0).abs() < 1e-9);
+        assert!((t2[0].shares - 0.25 * FIXTURE_Q_TOTAL / 100.0).abs() < 1e-9);
     }
 
     #[test]
@@ -1718,7 +1826,7 @@ mod tests {
             bars,
             ..Default::default()
         };
-        let r = run_positional(&t, 2, PolarityMode::Hold26 { sell_t1_only: true }).unwrap();
+        let r = run_positional_fx(&t, 2, PolarityMode::Hold26 { sell_t1_only: true }).unwrap();
         let t2: Vec<_> = r.trades.iter().filter(|t| t.ladder == 2).collect();
         assert_eq!(t2.len(), 1);
         assert_eq!(t2[0].exit_reason, "eod", "hold26_t1 只认 type1 卖点");
@@ -1743,7 +1851,7 @@ mod tests {
             bars,
             ..Default::default()
         };
-        let r = run_positional(
+        let r = run_positional_fx(
             &t,
             2,
             PolarityMode::Hold26 {
@@ -1762,9 +1870,9 @@ mod tests {
             bars: vec![bar(100.0)],
             ..Default::default()
         };
-        assert!(run_positional(&t, 0, PolarityMode::Cycle45).is_err());
+        assert!(run_positional_fx(&t, 0, PolarityMode::Cycle45).is_err());
         assert!(
-            run_positional(&t, 2, PolarityMode::Cycle45).is_err(),
+            run_positional_fx(&t, 2, PolarityMode::Cycle45).is_err(),
             "事件磁带全空也拒绝"
         );
     }
