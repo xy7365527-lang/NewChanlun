@@ -1449,7 +1449,7 @@ fn sr_expansion_content_domain_deadline_crossed_in_flight_leaves_no_commit() {
         .unwrap();
     let id = "eval-real-s-in-flight-deadline";
     let marks = mark_phases(&f.dbs[0], started);
-    let reply = f.handle(0, "sr-in-flight-deadline", evaluation(&f, id, &v2));
+    let reply = f.handle(0, "sr-post-1", evaluation(&f, id, &v2));
     let replied_ms = started.elapsed().as_millis();
     let phases = unmark_phases(&f.dbs[0], &marks);
     f.dbs[0]
