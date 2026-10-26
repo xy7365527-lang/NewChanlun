@@ -54,18 +54,49 @@ pub(crate) enum Signed<T> {
     AwaitingPolicy,
 }
 
+/// 具名数量单位 + 有理 quantum；与原件 `units.quantity` 同一词汇，在 B 边界逐项比对（F2）。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct QuantityUnit {
+    pub unit: String,
+    pub quantum: Ratio,
+}
+impl QuantityUnit {
+    fn same(&self, other: &QuantityUnit) -> bool {
+        self.unit == other.unit
+            && i128::from(self.quantum.num) * i128::from(other.quantum.den)
+                == i128::from(other.quantum.num) * i128::from(self.quantum.den)
+    }
+    fn to_json(&self) -> Value {
+        json!({"unit": self.unit, "quantum": {"num": self.quantum.num.to_string(), "den": self.quantum.den.to_string()}})
+    }
+}
+
+/// 资金币种 → 报价币种的尺度；`from` 绑定 funding-record 与原件金额币种，`to` 绑定报价计价币种。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct CurrencyScale {
+    pub from: String,
+    pub to: String,
+    pub ratio: Ratio,
+}
+
+/// 报价计价单位：每个 `quantity` quantum 值多少 `money`。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct PriceUnit {
+    pub money: String,
+    pub quantity: QuantityUnit,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct FrozenQuotePolicy {
     pub quote_time_policy: Signed<AnchorKind>,
     pub max_quote_age: Signed<i64>,
-    pub currency_scale: Ratio,
-    pub quantity_quantum: String,
+    pub currency_scale: CurrencyScale,
     pub selector: QuoteSelector,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum QuantityBasis {
-    SignedUnits { units: i64, signature_ref: String },
+    SignedUnits { units: i64 },
     FrozenQuote(FrozenQuotePolicy),
     AwaitingPolicy,
 }
@@ -85,13 +116,42 @@ pub(crate) struct Binding {
     pub q_ref: String,
 }
 
+/// 本定标版本的签署事实（ADR 0040 签署记录同形：引用 + 签署人 + 时刻），版本号必须指向本记录（F3）。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct CalibrationSignature {
+    pub signature_ref: String,
+    pub authorizer: String,
+    pub signed_ns: i64,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct CalibrationPolicy {
     pub version: String,
     pub supersedes: String,
     pub binding: Binding,
+    pub quantity_unit: QuantityUnit,
+    pub signature: Signed<CalibrationSignature>,
     pub basis: QuantityBasis,
     pub tiers: Vec<TierRatio>,
+}
+
+/// 持久激活请求：E 已提交事实的身份与首次获知时刻（F4）。锚由它或版本签署派生，manifest 不能另填。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ActionFact {
+    pub fact_key: String,
+    pub first_known_ns: i64,
+}
+impl ActionFact {
+    pub(crate) fn of(record: &Value) -> Result<Self, String> {
+        Ok(Self {
+            fact_key: text(record, "fact_key")?,
+            first_known_ns: parse_canonical_i64(
+                required(record, "first_known_ns")
+                    .map_err(|_| "MissingDependency：激活请求缺 E 持久首次获知时刻".to_string())?,
+                "first_known_ns",
+            )?,
+        })
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -100,21 +160,25 @@ pub(crate) struct Anchor {
     pub anchor_id: String,
     pub t_anchor: i64,
     pub snapshot_id: String,
+    pub sealed_ns: i64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Quote {
     pub quote_id: String,
     pub selector: QuoteSelector,
+    pub price_unit: PriceUnit,
     pub t_occurred: i64,
     pub t_first_observed: i64,
     pub price: Ratio,
     pub original_ref: String,
 }
 
+/// 选价前封存的快照：`sealed_ns` 之后观察到的报价不属于本封存。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Snapshot {
     pub snapshot_id: String,
+    pub sealed_ns: i64,
     pub quotes: Vec<Quote>,
 }
 
@@ -136,7 +200,10 @@ pub(crate) struct Calibration {
     pub version: String,
     pub supersedes: String,
     pub binding: Binding,
-    /// 已签定标方法的可审计投影（方法、签署引用、尺度、quantum、选择器）。
+    pub quantity_unit: QuantityUnit,
+    pub signature: CalibrationSignature,
+    pub currency_scale: Option<CurrencyScale>,
+    /// 已签定标方法的可审计投影（方法、尺度、选择器）。
     pub basis: Value,
     pub q_amount: i64,
     pub q_units: i64,
@@ -155,16 +222,22 @@ pub(crate) enum Readiness {
 }
 
 /// 定标：失败返回 Err（身份冲突、非法输入、溢出）；未签与缺数据是 typed 未就绪，不激活。
+/// 锚只由持久事实派生：首次激活锚 = `request`，签署锚 = 本版本签署；快照封存须不晚于锚。
 pub(crate) fn calibrate(
     policy: &CalibrationPolicy,
     funding: &ChongFunding,
-    anchor: Option<&Anchor>,
+    request: &ActionFact,
+    snapshot_id: &str,
     snapshots: &[Snapshot],
 ) -> Result<Readiness, String> {
     check_binding(&policy.binding, funding)?;
+    let signature = match &policy.signature {
+        Signed::Signed(s) if s.signed_ns <= request.first_known_ns => s,
+        _ => return Ok(Readiness::AwaitingPolicy("calibration_signature")),
+    };
     let (q_units, residue, selected) = match &policy.basis {
         QuantityBasis::AwaitingPolicy => return Ok(Readiness::AwaitingPolicy("quantity_basis")),
-        QuantityBasis::SignedUnits { units, .. } => (*units, None, None),
+        QuantityBasis::SignedUnits { units } => (*units, None, None),
         QuantityBasis::FrozenQuote(fq) => {
             let kind = match fq.quote_time_policy {
                 Signed::Signed(k) => k,
@@ -176,33 +249,32 @@ pub(crate) fn calibrate(
                 Signed::Signed(a) => a,
                 Signed::AwaitingPolicy => return Ok(Readiness::AwaitingPolicy("max_quote_age")),
             };
-            let Some(anchor) = anchor else {
-                return Ok(Readiness::AwaitingData("quote_anchor"));
+            let (anchor_id, t_anchor) = match kind {
+                AnchorKind::ActivationRequest => (request.fact_key.clone(), request.first_known_ns),
+                AnchorKind::ProfileSignature => {
+                    (signature.signature_ref.clone(), signature.signed_ns)
+                }
             };
-            if anchor.kind != kind {
-                return Err(format!(
-                    "IdentityConflict：锚类型与已签 quote_time_policy={} 不符；首次激活锚与签署锚不得混用",
-                    kind.policy_text()
-                ));
-            }
             let Some(snapshot) = snapshots
                 .iter()
-                .find(|s| s.snapshot_id == anchor.snapshot_id)
+                .find(|s| s.snapshot_id == snapshot_id && s.sealed_ns <= t_anchor)
             else {
                 return Ok(Readiness::AwaitingData("quote_snapshot"));
             };
-            let Some(quote) = select_quote(&fq.selector, max_age, anchor, snapshot)? else {
+            let anchor = Anchor {
+                kind,
+                anchor_id,
+                t_anchor,
+                snapshot_id: snapshot.snapshot_id.clone(),
+                sealed_ns: snapshot.sealed_ns,
+            };
+            let Some(quote) = select_quote(fq, &policy.quantity_unit, max_age, &anchor, snapshot)?
+            else {
                 return Ok(Readiness::AwaitingData("eligible_quote"));
             };
-            let (units, residue) = to_units(funding.q_amount, &fq.currency_scale, &quote.price)?;
-            (
-                units,
-                Some(residue),
-                Some(SelectedQuote {
-                    quote,
-                    anchor: anchor.clone(),
-                }),
-            )
+            let (units, residue) =
+                to_units(funding.q_amount, &fq.currency_scale.ratio, &quote.price)?;
+            (units, Some(residue), Some(SelectedQuote { quote, anchor }))
         }
     };
     if q_units == 0 {
@@ -227,6 +299,12 @@ pub(crate) fn calibrate(
         version: policy.version.clone(),
         supersedes: policy.supersedes.clone(),
         binding: policy.binding.clone(),
+        quantity_unit: policy.quantity_unit.clone(),
+        signature: signature.clone(),
+        currency_scale: match &policy.basis {
+            QuantityBasis::FrozenQuote(fq) => Some(fq.currency_scale.clone()),
+            _ => None,
+        },
         basis: basis_json(&policy.basis),
         q_amount: funding.q_amount,
         q_units,
@@ -236,7 +314,7 @@ pub(crate) fn calibrate(
     }))
 }
 
-fn check_binding(b: &Binding, f: &ChongFunding) -> Result<(), String> {
+pub(crate) fn check_binding(b: &Binding, f: &ChongFunding) -> Result<(), String> {
     for (what, signed, actual) in [
         ("profile", &b.profile_id, &f.profile_id),
         ("funding version", &b.funding_version, &f.funding_version),
@@ -254,10 +332,11 @@ fn check_binding(b: &Binding, f: &ChongFunding) -> Result<(), String> {
     Ok(())
 }
 
-/// 合格集合：选择器匹配、发生与首次观察都不晚于锚、年龄不超过已签上限；
+/// 合格集合：选择器与计价单位匹配、发生与首次观察都不晚于锚、首次观察不晚于封存、年龄不超过已签上限；
 /// 取（发生时间、首次观察时间、稳定 ID）字典序最大者；同 ID 内容不同即拒绝。
 fn select_quote(
-    selector: &QuoteSelector,
+    fq: &FrozenQuotePolicy,
+    quantity_unit: &QuantityUnit,
     max_age: i64,
     anchor: &Anchor,
     snapshot: &Snapshot,
@@ -277,9 +356,12 @@ fn select_quote(
     let mut best: Option<&Quote> = None;
     for q in by_id.values().copied() {
         let age = anchor.t_anchor.checked_sub(q.t_occurred);
-        let eligible = q.selector == *selector
+        let eligible = q.selector == fq.selector
+            && q.price_unit.money == fq.currency_scale.to
+            && q.price_unit.quantity.same(quantity_unit)
             && q.t_occurred <= anchor.t_anchor
             && q.t_first_observed <= anchor.t_anchor
+            && q.t_first_observed <= snapshot.sealed_ns
             && age.is_some_and(|a| a <= max_age);
         if eligible && best.is_none_or(|b| key(q) > key(b)) {
             best = Some(q);
@@ -317,12 +399,38 @@ fn floor_mul(units: i64, w: &Ratio) -> Result<i64, String> {
 }
 
 impl Calibration {
-    /// 同一选中报价下把金额容量换到数量域（跨维容量绑定同一定标记录，ADR 0049）。
-    pub(crate) fn capacity_units(&self, c_amount: i64, scale: &Ratio) -> Result<i64, String> {
-        match &self.selected {
-            Some(s) => Ok(to_units(c_amount, scale, &s.quote.price)?.0),
-            None => Err("Unsupported：signed_units 定标没有报价，不能把金额容量换成数量".into()),
+    /// 同一选中报价下把金额容量换到数量域（跨维容量绑定同一定标记录，ADR 0049）；signed_units 无报价 ⟹ None。
+    pub(crate) fn capacity_units(&self, c_amount: i64) -> Result<Option<i64>, String> {
+        match (&self.selected, &self.currency_scale) {
+            (Some(s), Some(scale)) => Ok(Some(to_units(c_amount, &scale.ratio, &s.quote.price)?.0)),
+            _ => Ok(None),
         }
+    }
+
+    /// B 边界的量纲绑定：原件 `units.quantity` 必须与定标 quantity_unit 同名同 quantum，
+    /// frozen_quote 另要求原件金额币种等于尺度 `from`；同一整数不同单位即拒绝（F2）。
+    pub(crate) fn check_units(&self, units: &Value) -> Result<(), String> {
+        let q = &units["quantity"];
+        let doc = QuantityUnit {
+            unit: text(q, "unit")?,
+            quantum: decimal(required(q, "quantum")?, "units.quantity.quantum")?,
+        };
+        if !doc.same(&self.quantity_unit) {
+            return Err(format!(
+                "IdentityConflict：原件数量单位 {}（quantum {}/{}）与定标 quantity_unit {}（quantum {}/{}）不符，冻结数量不能跨单位消费",
+                doc.unit, doc.quantum.num, doc.quantum.den, self.quantity_unit.unit,
+                self.quantity_unit.quantum.num, self.quantity_unit.quantum.den
+            ));
+        }
+        if let Some(scale) = &self.currency_scale {
+            if units["money"]["currency"] != scale.from.as_str() {
+                return Err(format!(
+                    "IdentityConflict：原件金额币种与定标 currency_scale.from={} 不符",
+                    scale.from
+                ));
+            }
+        }
+        Ok(())
     }
 
     pub(crate) fn to_json(&self) -> Value {
@@ -331,6 +439,9 @@ impl Calibration {
             "policy_id": QUANTITY_CALIBRATION_POLICY_ID,
             "version": self.version,
             "supersedes": self.supersedes,
+            "signature": {"signature_ref": self.signature.signature_ref, "version": self.version,
+                "authorizer": self.signature.authorizer, "signed_ns": self.signature.signed_ns.to_string()},
+            "quantity_unit": self.quantity_unit.to_json(),
             "quantity_basis": self.basis,
             "chong_id": self.chong_id,
             "profile_id": self.binding.profile_id,
@@ -349,6 +460,7 @@ impl Calibration {
                 "anchor_kind": s.anchor.kind.policy_text(),
                 "t_anchor": s.anchor.t_anchor.to_string(),
                 "snapshot_id": s.anchor.snapshot_id,
+                "snapshot_sealed_ns": s.anchor.sealed_ns.to_string(),
             })),
             "tiers": self.tiers.iter().map(|t| match t.quantity {
                 Signed::Signed(q) => json!({"d": t.d.to_string(), "tier_quantity": q.to_string()}),
@@ -360,8 +472,8 @@ impl Calibration {
 
 fn basis_json(b: &QuantityBasis) -> Value {
     match b {
-        QuantityBasis::SignedUnits { signature_ref, .. } => {
-            json!({"kind": "signed_units", "signature_ref": signature_ref})
+        QuantityBasis::SignedUnits { units } => {
+            json!({"kind": "signed_units", "units": units.to_string()})
         }
         QuantityBasis::FrozenQuote(fq) => json!({
             "kind": "frozen_quote",
@@ -373,8 +485,8 @@ fn basis_json(b: &QuantityBasis) -> Value {
                 Signed::Signed(a) => a.to_string(),
                 Signed::AwaitingPolicy => "AwaitingPolicy".to_string(),
             },
-            "currency_scale": {"num": fq.currency_scale.num.to_string(), "den": fq.currency_scale.den.to_string()},
-            "quantity_quantum": fq.quantity_quantum,
+            "currency_scale": {"from": fq.currency_scale.from, "to": fq.currency_scale.to,
+                "num": fq.currency_scale.ratio.num.to_string(), "den": fq.currency_scale.ratio.den.to_string()},
             "selector": {"source": fq.selector.source, "market": fq.selector.market,
                          "instrument": fq.selector.instrument, "price_field": fq.selector.price_field},
             "rounding": "floor",
@@ -383,8 +495,9 @@ fn basis_json(b: &QuantityBasis) -> Value {
     }
 }
 
-/// 拆股只按比例重基已冻结数量（书账里的定标投影）；报价、锚、快照与版本不变，不重新选价。
-pub(crate) fn rebase_split(cal: &Value, num: i64, den: i64) -> Result<Value, String> {
+/// 拆股只按比例重基书账资金投影里同一定标派生的全部数量：Q_units、各档量与同维 C_units（F5）；
+/// 金额、报价、锚、快照与版本不变，不重新选价；不整除拒绝。
+pub(crate) fn rebase_split(funding: &Value, num: i64, den: i64) -> Result<Value, String> {
     let rebase = |x: &Value, what: &str| -> Result<Value, String> {
         let q = parse_canonical_i64(
             x.as_str()
@@ -399,9 +512,10 @@ pub(crate) fn rebase_split(cal: &Value, num: i64, den: i64) -> Result<Value, Str
             .map_err(|_| "InvalidDomain：拆股重基溢出".to_string())?
             .to_string()))
     };
-    let mut out = cal.clone();
-    out["Q_units"] = rebase(&cal["Q_units"], "Q_units")?;
-    for t in out["tiers"]
+    let cal = &funding["quantity_calibration"];
+    let mut out = funding.clone();
+    out["quantity_calibration"]["Q_units"] = rebase(&cal["Q_units"], "Q_units")?;
+    for t in out["quantity_calibration"]["tiers"]
         .as_array_mut()
         .ok_or("SchemaUnsupported：定标 tiers 须数组")?
     {
@@ -409,21 +523,24 @@ pub(crate) fn rebase_split(cal: &Value, num: i64, den: i64) -> Result<Value, Str
             t["tier_quantity"] = rebase(&t["tier_quantity"], "tier_quantity")?;
         }
     }
+    if let Some(c_units) = funding["capacity"].get("C_units") {
+        out["capacity"]["C_units"] = rebase(c_units, "C_units")?;
+    }
     let mut splits = cal
         .get("splits")
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
     splits.push(json!({"num": num.to_string(), "den": den.to_string()}));
-    out["splits"] = Value::Array(splits);
+    out["quantity_calibration"]["splits"] = Value::Array(splits);
     Ok(out)
 }
 
 const WAIT_SLOTS: [&str; 7] = [
+    "calibration_signature",
     "quantity_basis",
     "quote_time_policy",
     "max_quote_age",
-    "quote_anchor",
     "quote_snapshot",
     "eligible_quote",
     "quantity_zero",
@@ -505,6 +622,33 @@ fn awaiting(v: &Value) -> bool {
     v.as_str() == Some("AwaitingPolicy")
 }
 
+/// 原件 `exact_decimal` 文本（如 "1"、"0.001"）→ 正有理数。
+fn decimal(t: &str, what: &str) -> Result<Ratio, String> {
+    let (whole, frac) = t.split_once('.').unwrap_or((t, ""));
+    let digits = format!("{whole}{frac}");
+    if whole.is_empty() || digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(format!("InvalidDomain：{what} 须为十进制文本"));
+    }
+    let den = u32::try_from(frac.len())
+        .ok()
+        .and_then(|n| 10i64.checked_pow(n))
+        .ok_or_else(|| format!("InvalidDomain：{what} 小数位过多"))?;
+    let num: i64 = digits
+        .parse()
+        .map_err(|_| format!("InvalidDomain：{what} 超出 i64"))?;
+    if num <= 0 {
+        return Err(format!("InvalidDomain：{what} 须为正"));
+    }
+    Ok(Ratio { num, den })
+}
+fn quantity_unit(v: &Value, what: &str) -> Result<QuantityUnit, String> {
+    exact(v, &["unit", "quantum"], what)?;
+    Ok(QuantityUnit {
+        unit: text(v, "unit")?,
+        quantum: ratio(&v["quantum"], what)?,
+    })
+}
+
 pub(crate) fn parse_policy(v: &Value) -> Result<CalibrationPolicy, String> {
     exact(
         v,
@@ -513,6 +657,8 @@ pub(crate) fn parse_policy(v: &Value) -> Result<CalibrationPolicy, String> {
             "version",
             "supersedes",
             "binding",
+            "quantity_unit",
+            "signature",
             "quantity_basis",
             "tiers",
         ],
@@ -523,6 +669,7 @@ pub(crate) fn parse_policy(v: &Value) -> Result<CalibrationPolicy, String> {
             "IdentityConflict：数量定标政策族须为 {QUANTITY_CALIBRATION_POLICY_ID}"
         ));
     }
+    let version = text(v, "version")?;
     let b = &v["binding"];
     exact(
         b,
@@ -541,6 +688,27 @@ pub(crate) fn parse_policy(v: &Value) -> Result<CalibrationPolicy, String> {
         symbol: text(b, "symbol")?,
         operation_level: text(b, "operation_level")?,
         q_ref: text(b, "q_ref")?,
+    };
+    let s = &v["signature"];
+    let signature = if awaiting(s) {
+        Signed::AwaitingPolicy
+    } else {
+        exact(
+            s,
+            &["signature_ref", "version", "authorizer", "signed_ns"],
+            "quantity-calibration signature ",
+        )?;
+        if s["version"] != version.as_str() {
+            return Err(format!(
+                "IdentityConflict：签署引用指向版本 {} 而非本定标版本 {version}，不能作为本版本签署",
+                s["version"]
+            ));
+        }
+        Signed::Signed(CalibrationSignature {
+            signature_ref: text(s, "signature_ref")?,
+            authorizer: text(s, "authorizer")?,
+            signed_ns: int(s, "signed_ns")?,
+        })
     };
     let basis = parse_basis(&v["quantity_basis"])?;
     let tiers = v["tiers"]
@@ -570,9 +738,11 @@ pub(crate) fn parse_policy(v: &Value) -> Result<CalibrationPolicy, String> {
         }
     }
     Ok(CalibrationPolicy {
-        version: text(v, "version")?,
+        version,
         supersedes: text(v, "supersedes")?,
         binding,
+        quantity_unit: quantity_unit(&v["quantity_unit"], "quantity_unit ")?,
+        signature,
         basis,
         tiers,
     })
@@ -584,10 +754,9 @@ fn parse_basis(v: &Value) -> Result<QuantityBasis, String> {
     }
     match v["kind"].as_str() {
         Some("signed_units") => {
-            exact(v, &["kind", "units", "signature_ref"], "signed_units ")?;
+            exact(v, &["kind", "units"], "signed_units ")?;
             Ok(QuantityBasis::SignedUnits {
                 units: positive(required(v, "units")?, "signed_units.units")?,
-                signature_ref: text(v, "signature_ref")?,
             })
         }
         Some("frozen_quote") => {
@@ -598,7 +767,6 @@ fn parse_basis(v: &Value) -> Result<QuantityBasis, String> {
                     "quote_time_policy",
                     "max_quote_age",
                     "currency_scale",
-                    "quantity_quantum",
                     "selector",
                     "rounding",
                 ],
@@ -618,11 +786,19 @@ fn parse_basis(v: &Value) -> Result<QuantityBasis, String> {
             } else {
                 Signed::Signed(positive(required(v, "max_quote_age")?, "max_quote_age")?)
             };
+            let cs = &v["currency_scale"];
+            exact(cs, &["from", "to", "num", "den"], "currency_scale ")?;
             Ok(QuantityBasis::FrozenQuote(FrozenQuotePolicy {
                 quote_time_policy,
                 max_quote_age,
-                currency_scale: ratio(&v["currency_scale"], "currency_scale")?,
-                quantity_quantum: text(v, "quantity_quantum")?,
+                currency_scale: CurrencyScale {
+                    from: text(cs, "from")?,
+                    to: text(cs, "to")?,
+                    ratio: Ratio {
+                        num: positive(required(cs, "num")?, "currency_scale")?,
+                        den: positive(required(cs, "den")?, "currency_scale")?,
+                    },
+                },
                 selector: selector(&v["selector"])?,
             }))
         }
@@ -633,29 +809,12 @@ fn parse_basis(v: &Value) -> Result<QuantityBasis, String> {
     }
 }
 
-pub(crate) fn parse_anchor(v: &Value) -> Result<Anchor, String> {
+pub(crate) fn parse_snapshot(v: &Value) -> Result<Snapshot, String> {
     exact(
         v,
-        &["kind", "anchor_id", "t_anchor", "snapshot_id"],
-        "quote anchor ",
+        &["snapshot_id", "sealed_ns", "quotes"],
+        "quote snapshot ",
     )?;
-    let kind = match v["kind"].as_str() {
-        Some("activation_request") => AnchorKind::ActivationRequest,
-        Some("profile_signature") => AnchorKind::ProfileSignature,
-        _ => {
-            return Err("InvalidDomain：锚类型只认 activation_request 或 profile_signature".into())
-        }
-    };
-    Ok(Anchor {
-        kind,
-        anchor_id: text(v, "anchor_id")?,
-        t_anchor: int(v, "t_anchor")?,
-        snapshot_id: text(v, "snapshot_id")?,
-    })
-}
-
-pub(crate) fn parse_snapshot(v: &Value) -> Result<Snapshot, String> {
-    exact(v, &["snapshot_id", "quotes"], "quote snapshot ")?;
     let quotes = v["quotes"]
         .as_array()
         .ok_or("SchemaUnsupported：快照 quotes 须数组")?
@@ -669,6 +828,7 @@ pub(crate) fn parse_snapshot(v: &Value) -> Result<Snapshot, String> {
                     "market",
                     "instrument",
                     "price_field",
+                    "price_unit",
                     "t_occurred",
                     "t_first_observed",
                     "price",
@@ -683,9 +843,15 @@ pub(crate) fn parse_snapshot(v: &Value) -> Result<Snapshot, String> {
             if p_num <= 0 || p_den <= 0 {
                 return Err("InvalidDomain：报价须为正有理数".into());
             }
+            let pu = &q["price_unit"];
+            exact(pu, &["money", "quantity"], "quote price_unit ")?;
             Ok(Quote {
                 quote_id: text(q, "quote_id")?,
                 selector: selector(q)?,
+                price_unit: PriceUnit {
+                    money: text(pu, "money")?,
+                    quantity: quantity_unit(&pu["quantity"], "quote price_unit.quantity ")?,
+                },
                 t_occurred: int(q, "t_occurred")?,
                 t_first_observed: int(q, "t_first_observed")?,
                 price: Ratio {
@@ -698,6 +864,7 @@ pub(crate) fn parse_snapshot(v: &Value) -> Result<Snapshot, String> {
         .collect::<Result<Vec<_>, String>>()?;
     Ok(Snapshot {
         snapshot_id: text(v, "snapshot_id")?,
+        sealed_ns: int(v, "sealed_ns")?,
         quotes,
     })
 }

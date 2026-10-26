@@ -809,7 +809,7 @@ fn unknown_capacity_opening_waits_in_e_and_resolve_cannot_clear_it() {
     // `/2` 下已签容量的开局不挂 capacity 等待（P0 的 L0）。
     let reason = tb03c_funding::pending_reason(
         &profile_manifest(&space, P0),
-        &serde_json::from_str::<Value>(&raw_for("0")).unwrap()["events"][0],
+        &json!({"event":serde_json::from_str::<Value>(&raw_for("0")).unwrap()["events"][0]}),
     )
     .unwrap();
     assert_eq!(reason, None);

@@ -455,18 +455,19 @@ fn split(book: &mut Value, ca: &Value) -> Result<(), String> {
         }
         *slot = scaled / den;
     }
-    // #1715（`/3`）：冻结定标随拆股按同一比例重基，报价/锚/快照不变，不重新选价。
-    let calibration = match book
+    // #1715（`/3`）：同一冻结定标派生的全部数量（Q_units、档量、C_units）随拆股按同一比例重基，
+    // 金额、报价、锚、快照与版本不变，不重新选价。
+    let funding = match book
         .get("funding")
-        .and_then(|f| f.get("quantity_calibration"))
+        .filter(|f| f.get("quantity_calibration").is_some())
     {
-        Some(cal) => Some(super::quantity_calibration::rebase_split(cal, num, den)?),
+        Some(f) => Some(super::quantity_calibration::rebase_split(f, num, den)?),
         None => None,
     };
     book["actual_quantity"] = json!(rebased[0].to_string());
     book["fixed_q"] = json!(rebased[1].to_string());
-    if let Some(cal) = calibration {
-        book["funding"]["quantity_calibration"] = cal;
+    if let Some(f) = funding {
+        book["funding"] = f;
     }
     Ok(())
 }
@@ -705,18 +706,26 @@ fn apply_with(
     if event.get("valuation_observation").is_some() {
         return Err("SchemaUnsupported：估值观察只记 E，不进 B 成本账（C05.4）".into());
     }
-    if event.get("q_rebase").is_some() {
-        if let Some(f) = funding {
-            // ADR 0040 裁定四末段：Q 变大不自动改现役 Q，输出 AwaitingPolicy{q_rebase, (S,ℓ)}。
-            let c = f.chong(target(&event)?)?;
-            return Err(format!(
-                "AwaitingPolicy：q_rebase (S,ℓ)=({},{})；现役 Q 不自动改写，须签新版本",
-                c.symbol(),
-                c.level()
-            ));
+    // #1715（`/3`）：只有 manifest 冻结的获批新定标版本能重基 fixed_q；其余照旧等待新签。
+    let rebased = if event.get("q_rebase").is_some() {
+        match funding {
+            Some(f) if f.rules() == Rules::Tb03cV3 => {
+                Some(f.check_q_rebase(&event, record, &doc["units"], &image["book"])?)
+            }
+            Some(f) => {
+                // ADR 0040 裁定四末段：Q 变大不自动改现役 Q，输出 AwaitingPolicy{q_rebase, (S,ℓ)}。
+                let c = f.chong(target(&event)?)?;
+                return Err(format!(
+                    "AwaitingPolicy：q_rebase (S,ℓ)=({},{})；现役 Q 不自动改写，须签新版本",
+                    c.symbol(),
+                    c.level()
+                ));
+            }
+            None => return Err("AwaitingPolicy：capacity；C(ℓ) 未签署，fixed_q 不变".into()),
         }
-        return Err("AwaitingPolicy：capacity；C(ℓ) 未签署，fixed_q 不变".into());
-    }
+    } else {
+        None
+    };
     // #1406 C4 / ADR 0032 五：E 已解析并不代表本 B 已应用前件。费用/更正沿因果原件等待，
     // 不把声明了依赖的缺开局永久记为 Unmatched，也不以迟到件触发新 Voice。
     if let Some(dependency) = super::tb03c_e::dependency_key(&event)? {
@@ -753,7 +762,11 @@ fn apply_with(
             ));
         }
         Some(f) if event.get("observed_existing_book").is_some() => {
-            Some(f.check_opening(&event, record)?)
+            Some(f.check_opening(&event, record, &doc["units"])?)
+        }
+        // #1715（`/3`）：转入目标的本金仍来自转移，数量走与开局同一激活闸并把定标写入目标账。
+        Some(f) if super::tb03c_transfer::is_in(&event) => {
+            f.check_transfer_opening(&event, record, &doc["units"])?
         }
         _ => None,
     };
@@ -823,6 +836,10 @@ fn apply_with(
                 return Err("InvalidDomain：重内不穿零：持量/欠券量不可为负".into());
             }
             book["actual_quantity"] = json!(q.to_string());
+            if let Some((fixed_q, f)) = &rebased {
+                book["fixed_q"] = json!(fixed_q);
+                book["funding"] = f.clone();
+            }
             income(&mut book, d)?;
             if let Some(p) = event.get("declared_realized_profit") {
                 let gross = add(integer(&book["realized"], "gross")?, integer(p, "gross")?)?;

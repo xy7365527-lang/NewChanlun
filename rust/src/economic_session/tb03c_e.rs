@@ -91,10 +91,11 @@ pub(super) fn pending_entry(
     let transfer_wait = super::tb03c_transfer::waiting_on(recorded, event)?;
     let netted = super::tb03c_allocation::is_projected(event);
     // #1406 C8：`/2` 的签署缺口（q_rebase、追加投入）先于其余等待；`/1` 返回 None、原文案不变。
-    let funding_wait = super::tb03c_funding::pending_reason(&config.manifest, event)?;
+    let funding_wait = super::tb03c_funding::pending_reason(&config.manifest, record)?;
     let reason = if let Some(wait) = funding_wait {
         wait
-    } else if event.get("q_rebase").is_some() {
+    } else if event.get("q_rebase").is_some() && config.book_rules()? != Rules::Tb03cV3 {
+        // `/3` 获批新版本已就绪的 q_rebase 照常待证据；其余域 q_rebase 仍是容量等待。
         json!({"kind":"AwaitingPolicy","slot":"capacity"})
     } else if let Some(on) = transfer_wait {
         json!({"kind":"AwaitingDependency","on":on})

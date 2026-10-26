@@ -61,14 +61,34 @@ pub(crate) struct Chong {
     quantity: Option<Quantity>,
 }
 struct Quantity {
-    readiness: Readiness,
-    scale: Option<qc::Ratio>,
+    funding: qc::ChongFunding,
+    /// [现役初版, 获批 q_rebase 新版…]：后版 supersedes 前版；每版各指定一份选价前封存快照。
+    versions: Vec<Version>,
+}
+struct Version {
+    policy: qc::CalibrationPolicy,
+    snapshot_id: String,
+}
+impl Quantity {
+    /// q_rebase 原件的 `policy_ref` 只认已冻结的获批新版本（`<政策族>@<版本>`）；初版不能被重新激活。
+    fn rebase_version(&self, rebase: &Value) -> Option<&Version> {
+        self.versions[1..].iter().find(|v| {
+            rebase["policy_ref"]
+                == format!(
+                    "{}@{}",
+                    qc::QUANTITY_CALIBRATION_POLICY_ID,
+                    v.policy.version
+                )
+                .as_str()
+        })
+    }
 }
 pub(crate) struct Contract {
     rules: Rules,
     record: Value,
     leverage: i64,
     chongs: Vec<Chong>,
+    snapshots: Vec<qc::Snapshot>,
 }
 
 /// 字段集合恰为 `keys`（`scope` 可选，ADR 0040 签署记录 evidence_only 档）。
@@ -160,48 +180,56 @@ fn has_funding(manifest: &Value) -> bool {
             .is_some_and(|a| a.iter().any(|c| c.get("funding").is_some()))
 }
 
-/// `/3` 逐重定标：金额只取本重 `funding.Q`（不读总 cap），锚与快照取 manifest 冻结原件，
-/// 同一 manifest 恢复必得同一定标。已就绪时路由 `fixed_q` 必须等于冻结 Q_units（激活绑定）。
-#[allow(clippy::too_many_arguments)]
-fn calibrate_chong(
-    route: &Value,
+/// `/3` 逐重定标记录：金额只取本重 `funding.Q`（不读总 cap）；身份与币种在加载边界核，
+/// 锚由激活时的持久请求或版本签署派生，所以定标结果在动作处计算（`Contract::readiness`）。
+fn parse_quantity(
     cf: &Value,
     record: &Value,
-    id: &str,
-    symbol: &str,
-    level: &str,
-    q_ref: &str,
-    q: i64,
-    snapshots: &[qc::Snapshot],
+    funding: qc::ChongFunding,
 ) -> Result<Quantity, String> {
-    let policy = qc::parse_policy(&cf["quantity_calibration"])?;
-    let anchor = match &cf["quote_anchor"] {
-        Value::Null => None,
-        a => Some(qc::parse_anchor(a)?),
-    };
-    let funding = qc::ChongFunding {
-        chong_id: id.to_owned(),
-        profile_id: required(record, "profile_id")?.to_owned(),
-        funding_version: required(record, "version")?.to_owned(),
-        symbol: symbol.to_owned(),
-        operation_level: level.to_owned(),
-        q_ref: q_ref.to_owned(),
-        q_amount: q,
-    };
-    let readiness = qc::calibrate(&policy, &funding, anchor.as_ref(), snapshots)?;
-    if let Some(cal) = readiness.ready() {
-        if positive(required(route, "fixed_q")?, "fixed_q")? != cal.q_units {
-            return Err(format!(
-                "IdentityConflict：重 {id} 路由 fixed_q 须等于冻结 Q_units {}（ADR 0049 Q4）",
-                cal.q_units
-            ));
+    let mut versions = vec![Version {
+        policy: qc::parse_policy(&cf["quantity_calibration"])?,
+        snapshot_id: text(cf, "quote_snapshot")?.to_owned(),
+    }];
+    if let Some(rebases) = cf.get("quantity_rebases") {
+        for r in rebases
+            .as_array()
+            .ok_or("SchemaUnsupported：quantity_rebases 须数组")?
+        {
+            exact(
+                r,
+                &["quantity_calibration", "quote_snapshot"],
+                &[],
+                "q_rebase 定标版本 ",
+            )?;
+            versions.push(Version {
+                policy: qc::parse_policy(&r["quantity_calibration"])?,
+                snapshot_id: text(r, "quote_snapshot")?.to_owned(),
+            });
         }
     }
-    let scale = match policy.basis {
-        qc::QuantityBasis::FrozenQuote(fq) => Some(fq.currency_scale),
-        _ => None,
-    };
-    Ok(Quantity { readiness, scale })
+    let mut seen = std::collections::BTreeSet::new();
+    for (i, v) in versions.iter().enumerate() {
+        if !seen.insert(v.policy.version.as_str()) {
+            return Err("IdentityConflict：数量定标版本重复".into());
+        }
+        if i > 0 && v.policy.supersedes != versions[i - 1].policy.version {
+            return Err(format!(
+                "IdentityConflict：q_rebase 定标版本 {} 须直接继承 {}",
+                v.policy.version,
+                versions[i - 1].policy.version
+            ));
+        }
+        qc::check_binding(&v.policy.binding, &funding)?;
+        if let qc::QuantityBasis::FrozenQuote(fq) = &v.policy.basis {
+            if fq.currency_scale.from != required(record, "currency")? {
+                return Err(
+                    "IdentityConflict：定标 currency_scale.from 须等于 funding-record 币种".into(),
+                );
+            }
+        }
+    }
+    Ok(Quantity { funding, versions })
 }
 
 pub(super) fn validate_config(manifest: &Value) -> Result<(), String> {
@@ -226,6 +254,15 @@ impl Chong {
         self.capacity()
             .and_then(|x| x["C"].as_str())
             .filter(|c| *c != "Unknown")
+    }
+    fn signed_cap(&self) -> Result<i64, String> {
+        match self.signed_capacity() {
+            Some(v) => positive(v, "C(ℓ)"),
+            None => Err(format!(
+                "AwaitingPolicy：capacity level={}；C(ℓ) 未签署（Unknown 不是无限），不建收据",
+                self.level
+            )),
+        }
     }
 }
 
@@ -318,8 +355,13 @@ impl Contract {
             if v3 {
                 exact(
                     cf,
-                    &["Q", "policy_record", "quantity_calibration", "quote_anchor"],
-                    &[],
+                    &[
+                        "Q",
+                        "policy_record",
+                        "quantity_calibration",
+                        "quote_snapshot",
+                    ],
+                    &["quantity_rebases"],
                     "重资金 ",
                 )?;
             } else {
@@ -378,8 +420,18 @@ impl Contract {
                 date(cap, "valid_through")?;
             }
             let quantity = if v3 {
-                Some(calibrate_chong(
-                    c, cf, record, id, symbol, &level, &q_ref, q, &snapshots,
+                Some(parse_quantity(
+                    cf,
+                    record,
+                    qc::ChongFunding {
+                        chong_id: id.to_owned(),
+                        profile_id: required(record, "profile_id")?.to_owned(),
+                        funding_version: required(record, "version")?.to_owned(),
+                        symbol: symbol.to_owned(),
+                        operation_level: level.clone(),
+                        q_ref: q_ref.clone(),
+                        q_amount: q,
+                    },
                 )?)
             } else {
                 None
@@ -402,6 +454,7 @@ impl Contract {
             record: record.clone(),
             leverage: l,
             chongs,
+            snapshots,
         }))
     }
 
@@ -415,6 +468,138 @@ impl Contract {
             .find(|c| c.id == id)
             .ok_or_else(|| format!("InvalidDomain：资金合同无重 {id}"))
     }
+    /// 本重某定标版本对持久请求 `record`（E 已提交事实）的就绪判定；E 等待与 B 激活同一函数。
+    fn readiness(&self, c: &Chong, v: &Version, record: &Value) -> Result<Readiness, String> {
+        let q = c
+            .quantity
+            .as_ref()
+            .ok_or("StorageUnavailable：/3 重缺数量定标")?;
+        qc::calibrate(
+            &v.policy,
+            &q.funding,
+            &qc::ActionFact::of(record)?,
+            &v.snapshot_id,
+            &self.snapshots,
+        )
+    }
+
+    /// `/3` 数量激活闸（#1715 I1-Q）：普通开局、转入目标与获批 q_rebase 共用——持久请求派生锚 →
+    /// 定标就绪 → 原件量纲绑定 → fixed_q = Q_units → 同维容量 Q_units ≤ C_units。返回 (定标投影, C, C_units)。
+    fn quantity_gate(
+        &self,
+        c: &Chong,
+        v: &Version,
+        fixed_q: i64,
+        units: &Value,
+        record: &Value,
+    ) -> Result<(Value, i64, Option<i64>), String> {
+        let readiness = self.readiness(c, v, record)?;
+        let Some(cal) = readiness.ready() else {
+            return Err(readiness.reason().unwrap_or_default());
+        };
+        cal.check_units(units)?;
+        if fixed_q != cal.q_units {
+            return Err(format!(
+                "IdentityConflict：fixed_q 须等于冻结 Q_units {}（ADR 0049 Q4）",
+                cal.q_units
+            ));
+        }
+        let cap = c.signed_cap()?;
+        let c_units = cal.capacity_units(cap)?;
+        if let Some(cu) = c_units {
+            if cal.q_units > cu {
+                return Err(format!(
+                    "InvalidDomain：Q_units {} 超过同维 C_units({}) {cu}",
+                    cal.q_units, c.level
+                ));
+            }
+        }
+        Ok((cal.to_json(), cap, c_units))
+    }
+
+    /// 转入目标开局（`/3`）：本金来源仍是转移（ADR 0034 裁定六，不核开局批），数量走同一激活闸。
+    /// `/2` 返回 None，书账形状逐字不变。
+    pub(crate) fn check_transfer_opening(
+        &self,
+        event: &Value,
+        record: &Value,
+        units: &Value,
+    ) -> Result<Option<Value>, String> {
+        let c = self.chong(target(event)?)?;
+        let Some(q) = &c.quantity else {
+            return Ok(None);
+        };
+        let o = &event["transfer_opening"];
+        if o["symbol"] != c.symbol.as_str() || o["op_level"] != c.op_level.as_str() {
+            return Err("IdentityConflict：转入开局 (S,ℓ) 与资金合同冻结的重不符".into());
+        }
+        let fixed_q = positive(required(o, "fixed_q")?, "transfer fixed_q")?;
+        let (cal, cap, c_units) = self.quantity_gate(c, &q.versions[0], fixed_q, units, record)?;
+        let mut capacity = json!({"level": c.level, "C": cap.to_string()});
+        if let Some(cu) = c_units {
+            capacity["C_units"] = json!(cu.to_string());
+        }
+        Ok(Some(
+            json!({"funding_version": self.record["version"], "quantity_calibration": cal, "capacity": capacity}),
+        ))
+    }
+
+    /// q_rebase（`/3`）：只有 manifest 已冻结的获批新版本、且直接继承书账现役定标版本时才重定标；
+    /// 锚取本次持久 q_rebase 请求或新版本签署。返回新的 fixed_q 与书账资金投影。
+    pub(crate) fn check_q_rebase(
+        &self,
+        event: &Value,
+        record: &Value,
+        units: &Value,
+        book: &Value,
+    ) -> Result<(String, Value), String> {
+        let c = self.chong(target(event)?)?;
+        let unsigned = || {
+            format!(
+                "AwaitingPolicy：q_rebase (S,ℓ)=({},{})；现役 Q 不自动改写，须签新版本",
+                c.symbol, c.level
+            )
+        };
+        let Some(v) = c
+            .quantity
+            .as_ref()
+            .and_then(|q| q.rebase_version(&event["q_rebase"]))
+        else {
+            return Err(unsigned());
+        };
+        let funding = book
+            .get("funding")
+            .filter(|f| f.get("quantity_calibration").is_some())
+            .ok_or("AwaitingDependency：q_rebase 须在已冻结定标的开局之后")?;
+        if funding["quantity_calibration"]["version"] != v.policy.supersedes.as_str() {
+            return Err(format!(
+                "IdentityConflict：q_rebase 新版本 {} 不直接继承书账现役定标版本",
+                v.policy.version
+            ));
+        }
+        let new_q = positive(required(&event["q_rebase"], "new_q")?, "q_rebase.new_q")?;
+        let (cal, cap, c_units) = self.quantity_gate(c, v, new_q, units, record)?;
+        let mut out = funding.clone();
+        let mut superseded = funding
+            .get("superseded_calibrations")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        superseded.push(funding["quantity_calibration"].clone());
+        out["superseded_calibrations"] = Value::Array(superseded);
+        out["quantity_calibration"] = cal;
+        out["capacity"]["C"] = json!(cap.to_string());
+        match c_units {
+            Some(cu) => out["capacity"]["C_units"] = json!(cu.to_string()),
+            None => {
+                if let Some(m) = out["capacity"].as_object_mut() {
+                    m.remove("C_units");
+                }
+            }
+        }
+        Ok((new_q.to_string(), out))
+    }
+
     fn authorization_ref(&self) -> String {
         format!(
             "{}@{}",
@@ -425,7 +610,12 @@ impl Contract {
 
     /// 开局批核验（ADR 0040 裁定四第 4/5 步）。通过即返回写入书账的资金出处；失败不改任何状态。
     /// `record["b_observation"]["first_known_ns"]` 为可审计观察时间（#1621），原件 `known_at` 不再用于时效判断。
-    pub(crate) fn check_opening(&self, event: &Value, record: &Value) -> Result<Value, String> {
+    pub(crate) fn check_opening(
+        &self,
+        event: &Value,
+        record: &Value,
+        units: &Value,
+    ) -> Result<Value, String> {
         let c = self.chong(target(event)?)?;
         let id = &event["book_identity"];
         if id["symbol"] != c.symbol.as_str() || id["op_level"] != c.op_level.as_str() {
@@ -495,21 +685,16 @@ impl Contract {
                 ));
             }
         }
-        let calibration = match &c.quantity {
+        let quantity = match &c.quantity {
             None => None,
-            Some(qty) => match qty.readiness.ready() {
-                Some(cal) => Some((cal, qty.scale.as_ref())),
-                None => return Err(qty.readiness.reason().unwrap_or_default()),
-            },
+            Some(q) => Some(self.quantity_gate(
+                c,
+                &q.versions[0],
+                positive(required(id, "fixed_q")?, "fixed_q")?,
+                units,
+                record,
+            )?),
         };
-        if let Some((cal, _)) = calibration {
-            if positive(required(id, "fixed_q")?, "fixed_q")? != cal.q_units {
-                return Err(format!(
-                    "IdentityConflict：开局 fixed_q 须等于冻结 Q_units {}（ADR 0049 Q4）",
-                    cal.q_units
-                ));
-            }
-        }
         let cap = match c.signed_capacity() {
             Some(v) => positive(v, "C(ℓ)")?,
             None => {
@@ -539,41 +724,51 @@ impl Contract {
             "Q":c.q.to_string(),"margin_leverage":self.leverage.to_string(),"opening_batch":expected.to_string(),
             "policy_record":{"policy_id":c.policy["policy_id"],"version":c.policy["version"],"q_ref":c.policy["q_ref"]},
             "capacity":{"level":level,"C":cap.to_string()}});
-        if let Some((cal, scale)) = calibration {
+        if let Some((cal, _, c_units)) = quantity {
             // 数量域容量与 Q_units 同维比较，且绑定同一冻结报价（ADR 0034 裁定四；ADR 0049）。
-            if let Some(scale) = scale {
-                let c_units = cal.capacity_units(cap, scale)?;
-                if cal.q_units > c_units {
-                    return Err(format!(
-                        "InvalidDomain：Q_units {} 超过同维 C_units({level}) {c_units}",
-                        cal.q_units
-                    ));
-                }
-                out["capacity"]["C_units"] = json!(c_units.to_string());
+            if let Some(cu) = c_units {
+                out["capacity"]["C_units"] = json!(cu.to_string());
             }
-            out["quantity_calibration"] = cal.to_json();
+            out["quantity_calibration"] = cal;
         }
         Ok(out)
     }
 }
 
 /// `/2` 下 E 侧必须显式等待的签署缺口；`/1` 与缺省返回 None（原文案逐字不变）。
-pub(super) fn pending_reason(manifest: &Value, event: &Value) -> Result<Option<Value>, String> {
+/// `record` 是 E 已提交事实：`/3` 的定标锚由它（fact_key、first_known_ns）派生，与 B 激活同一判定。
+pub(super) fn pending_reason(manifest: &Value, record: &Value) -> Result<Option<Value>, String> {
     if !matches!(rules(manifest)?, Rules::Tb03cV2 | Rules::Tb03cV3) {
         return Ok(None);
     }
-    let quantity_wait = || -> Result<Option<(&'static str, &'static str)>, String> {
-        if event.get("observed_existing_book").is_none() {
+    let event = &record["event"];
+    let rebase = event.get("q_rebase").is_some();
+    // None = 不适用（非 `/3`、非开局/转入/q_rebase，或 q_rebase 无获批新版本）；Some(None) = 已就绪。
+    type Wait = Option<(&'static str, &'static str)>;
+    let quantity_wait = || -> Result<Option<Wait>, String> {
+        let opening =
+            event.get("observed_existing_book").is_some() || super::tb03c_transfer::is_in(event);
+        if !opening && !rebase {
             return Ok(None);
         }
         let Some(contract) = Contract::of(manifest)? else {
             return Ok(None);
         };
-        Ok(target(event)
-            .ok()
-            .and_then(|id| contract.chong(id).ok())
-            .and_then(|c| c.quantity.as_ref())
-            .and_then(|q| q.readiness.wait()))
+        let Some(c) = target(event).ok().and_then(|id| contract.chong(id).ok()) else {
+            return Ok(None);
+        };
+        let Some(q) = &c.quantity else {
+            return Ok(None);
+        };
+        let version = if rebase {
+            match q.rebase_version(&event["q_rebase"]) {
+                Some(v) => v,
+                None => return Ok(None),
+            }
+        } else {
+            &q.versions[0]
+        };
+        Ok(Some(contract.readiness(c, version, record)?.wait()))
     };
     let opening_without_capacity = || -> Result<bool, String> {
         if event.get("observed_existing_book").is_none() {
@@ -587,12 +782,21 @@ pub(super) fn pending_reason(manifest: &Value, event: &Value) -> Result<Option<V
             .and_then(|id| contract.chong(id).ok())
             .is_some_and(|c| c.signed_capacity().is_none()))
     };
+    let quantity = quantity_wait()?;
     let mut kind = "AwaitingPolicy";
-    let slot = if event.get("q_rebase").is_some() {
-        "q_rebase"
+    let slot = if rebase {
+        match quantity {
+            // #1715：获批新版本已就绪的 q_rebase 不挂签署等待。
+            Some(None) => return Ok(None),
+            Some(Some((k, slot))) => {
+                kind = k;
+                slot
+            }
+            None => "q_rebase",
+        }
     } else if is_appended_contribution(event) {
         "funding_revision"
-    } else if let Some((k, slot)) = quantity_wait()? {
+    } else if let Some(Some((k, slot))) = quantity {
         // #1715：`/3` 定标未签或缺合格报价 ⟹ E 侧 typed 等待，与 B 拒绝同口径。
         kind = k;
         slot
