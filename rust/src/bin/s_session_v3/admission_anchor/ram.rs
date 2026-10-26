@@ -1061,8 +1061,8 @@ mod tests {
                         (Err(expected),Err(crate::v3::business_json::MixedJsonError::Business(actual)))=>assert_eq!(actual,expected),
                         _=>panic!("case {case}, mode {mode:?}: old={expected:?}, mixed={actual:?}"),
                     }
-                    assert_eq!(actual.is_ok(),case==0 || (case==1 && !mode.changes_only()));
-                    Ok(())
+                    assert_eq!(actual.is_ok(),case==0);
+                    Ok::<(),sc::CodecError>(())
                 }).unwrap();
             }
         }
