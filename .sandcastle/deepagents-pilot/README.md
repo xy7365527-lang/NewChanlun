@@ -14,6 +14,14 @@
 
 打开官方 Studio 的方法见 [在官方 Studio 查看试点执行图](STUDIO.md)。此入口只读，不接管原 run。
 
+## 核验独立 GitHub App
+
+用户创建的独立 App 用法见 [核验独立 GitHub App 身份](APP-IDENTITY.md)。这是单独的只读入口，不改变下文 v1 run 与批准账本。
+
+## 用新执行器交付专用票
+
+v2 新执行器（登记、持有、运行、精确发布与释放）用法见 [用新执行器交付一张首证专用票](EXECUTOR.md)。它只接首证专用票，交付到 `awaiting_merge` 为止，不改变下文 v1 run 与批准账本。
+
 ## 准备环境
 
 依赖锁在 `requirements.lock`（deepagents 0.7.32、langgraph 1.2.17、langgraph-checkpoint-sqlite 3.1.2、langchain-openai 1.7.2、类型检查用的 types-PyYAML）。

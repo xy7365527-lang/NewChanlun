@@ -32,14 +32,6 @@ def _graph_state(agent, config: dict) -> dict:
 
 
 def _run(args: argparse.Namespace) -> int:
-    from .agent import (
-        TraceRecorder,
-        build_agent,
-        disable_external_tracing,
-        initial_message,
-    )
-
-    disable_external_tracing()
     home = Path(args.home)
     run_id = parse_run_id(args.run_id)
     kw = {"crash_at": args.crash_at}
@@ -49,6 +41,9 @@ def _run(args: argparse.Namespace) -> int:
                 print("该 run 已存在，任务已冻结；恢复时不要再传 --task", file=sys.stderr)
                 return 2
             run = PilotRun.open(home, run_id, **kw)
+            if run.spec.v != 1:
+                print("这是 v2 run，只能经 python -m pilot1742.executor 推进", file=sys.stderr)
+                return 2
             run.acquire()
             run.ensure_checkouts()
         else:
@@ -62,7 +57,20 @@ def _run(args: argparse.Namespace) -> int:
     except Busy as error:
         print(str(error), file=sys.stderr)
         return EXIT_BUSY
+    return drive(run, recheck_approval=args.recheck_approval)
 
+
+def drive(run: PilotRun, *, recheck_approval: bool) -> int:
+    """在已持锁的 run 上首跑或恢复 Deep Agents 图；v1 CLI 与 v2 执行器共用。"""
+    from .agent import (
+        TraceRecorder,
+        build_agent,
+        disable_external_tracing,
+        initial_message,
+    )
+
+    disable_external_tracing()
+    run_id = run.spec.run_id
     conn = sqlite3.connect(run.dir / "graph.sqlite", check_same_thread=False)
     agent = build_agent(run, SqliteSaver(conn))
     config = {"configurable": {"thread_id": run_id}, "callbacks": [TraceRecorder(run.dir / "agent-trace.jsonl")],
@@ -72,7 +80,7 @@ def _run(args: argparse.Namespace) -> int:
         run.trail("graph_start")
         agent.invoke({"messages": [HumanMessage(initial_message(run))]}, config, durability="sync")
     elif graph["interrupts"]:
-        if not args.recheck_approval:
+        if not recheck_approval:
             print(json.dumps({"graph": graph, "status": run.status()}, ensure_ascii=False, indent=2))
             return 0
         run.trail("graph_resume_approval_recheck")
@@ -83,7 +91,7 @@ def _run(args: argparse.Namespace) -> int:
     else:
         run.trail("graph_already_finished")
     report = {"graph": _graph_state(agent, config), "status": run.status()}
-    if not report["graph"]["next"] and report["status"]["phase"] not in ("gate", "halted"):
+    if not report["graph"]["next"] and report["status"]["phase"] not in ("gate", "halted", "awaiting_merge", "stale"):
         last = agent.get_state(config).values["messages"][-1]
         report["brain_stopped_early"] = {"finish_reason": last.response_metadata.get("finish_reason"),
                                          "text": str(last.content)[:2000]}

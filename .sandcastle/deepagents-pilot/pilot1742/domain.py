@@ -135,13 +135,16 @@ class CommitIntent:
     parent: Sha
     tree: str
     paths: tuple[str, ...]
+    generation: int | None = None
 
     @property
     def trailer(self) -> str:
-        return f"{self.author.run_id}/{self.author.name}"
+        base = f"{self.author.run_id}/{self.author.name}"
+        return base if self.generation is None else f"{base} gen={self.generation}"
 
 
 TRAILER_KEY = "Pilot-1742-Run"
+V2_TRAILER_KEY = "Deepagents-Run"
 
 
 @dataclass(frozen=True)

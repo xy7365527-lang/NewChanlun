@@ -9,9 +9,12 @@ import signal
 import subprocess
 import threading
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
@@ -21,6 +24,7 @@ from .domain import (
     ROLE_MODE,
     TICKET,
     TRAILER_KEY,
+    V2_TRAILER_KEY,
     ApprovalRecord,
     Approved,
     Awaiting,
@@ -60,6 +64,10 @@ from .domain import (
     reconcile_commit,
     synthesis_refusal,
 )
+from .workunit import WorkUnit, parse_work_unit
+
+if TYPE_CHECKING:
+    from .executor import TicketExecutor
 
 SOURCE_REPO = Path(__file__).resolve().parents[3]
 DEFAULT_HOME = Path("/Volumes/AgentStorage/issue1742-deepagents-pilot-20261027")
@@ -162,7 +170,7 @@ def plan_roles(text: str) -> RolePlan:
 class RunSpec:
     run_id: RunId
     ticket: int
-    scope: Scope
+    scope: Scope | None
     base: Sha
     task: TaskSpec
     author_model: ModelSlug
@@ -173,9 +181,21 @@ class RunSpec:
     created_at: str
     design_models: tuple[ModelSlug, ModelSlug] | None
     judge_model: ModelSlug | None
+    v: int = 1
+    work_unit: dict | None = None
 
     def to_json(self) -> dict:
-        return asdict(self)
+        data = asdict(self)
+        if self.v == 1:
+            data.pop("v")
+            data.pop("work_unit")
+        return data
+
+    @property
+    def unit(self) -> WorkUnit:
+        if self.work_unit is None:
+            raise ToolRefusal("v1 run 没有 WorkUnit")
+        return parse_work_unit(self.work_unit)
 
     @staticmethod
     def from_json(data: dict) -> "RunSpec":
@@ -184,11 +204,22 @@ class RunSpec:
                         bool(raw_task.get("require_design", False)))
         design = data.get("design_models")
         judge = data.get("judge_model")
+        version = data.get("v", 1)
+        if version not in (1, 2):
+            raise ValueError(f"未知 RunSpec 版本：{version!r}")
+        unit = data.get("work_unit") if version == 2 else None
+        if version == 2:
+            parsed = parse_work_unit(unit or {})
+            if (parsed.run_id != data["run_id"] or parsed.ticket != data["ticket"] or parsed.base != data["base"]
+                    or data.get("scope") is not None or parsed.allowed_prefixes != task.allowed_prefixes):
+                raise ValueError("v2 RunSpec 与 WorkUnit 不一致")
+        elif data["ticket"] != TICKET:
+            raise ValueError("v1 RunSpec 只属于 #1742")
         return RunSpec(RunId(data["run_id"]), data["ticket"], data["scope"], parse_sha(data["base"]), task,
                        parse_model(data["author_model"]), parse_model(data["reviewer_model"]),
                        parse_model(data["brain_model"]), data["author_checkout"], data["review_checkout"],
                        data["created_at"], (parse_model(design[0]), parse_model(design[1])) if design else None,
-                       parse_model(judge) if judge else None)
+                       parse_model(judge) if judge else None, version, unit)
 
     def model_for(self, role: Role) -> ModelSlug:
         if role == "author":
@@ -204,7 +235,13 @@ class RunSpec:
         return {"author": author, "review": Path(self.review_checkout)}.get(role, author.parent / role)
 
     def branch_for(self, role: Role) -> str:
+        if self.v == 2:
+            return f"codex/deepagents-run/{self.run_id}-{role}"
         return f"codex/deepagents-pilot-1742-{self.run_id}-{role}"
+
+    @property
+    def trailer_key(self) -> str:
+        return V2_TRAILER_KEY if self.v == 2 else TRAILER_KEY
 
 
 def _porcelain_paths(root: Path | str) -> tuple[str, ...]:
@@ -233,8 +270,8 @@ def _status_text_paths(status: str) -> tuple[str, ...]:
     return tuple(sorted(set(paths)))
 
 
-def parse_result(key: WorkerKey, data: dict, output_dir: Path) -> WorkerReceipt:
-    if data.get("ticket") != TICKET or data.get("status") not in ("completed", "failed", "cancelled"):
+def parse_result(key: WorkerKey, data: dict, output_dir: Path, ticket: int = TICKET) -> WorkerReceipt:
+    if data.get("ticket") != ticket or data.get("status") not in ("completed", "failed", "cancelled"):
         raise ValueError("result.json 票号或终态不符")
     expected = parse_sha(data.get("expected_head"))
     if expected != key.target_head or data.get("mode") != ROLE_MODE[key.role]:
@@ -308,12 +345,27 @@ def worker_group_alive(state: dict | None, rows: list[tuple[int, int, str, str]]
                                         for p, g, s, c in rows)
 
 
+def lock_run_dir(run_dir: Path) -> int:
+    """run 锁的唯一入口：控制进程与主控对账都经这里。锁文件不存在就创建，缺失不算无锁。返回持锁 fd。"""
+    run_dir.mkdir(parents=True, exist_ok=True)
+    fd = os.open(run_dir / "owner.lock", os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        os.close(fd)
+        raise Busy(f"run {run_dir.name} 已有控制进程持锁，本进程未做任何副作用") from None
+    os.ftruncate(fd, 0)
+    os.write(fd, f"{os.getpid()}\n".encode())
+    return fd
+
+
 class PilotRun:
     """一个 run 目录的唯一写者；进程内工具调用经 mutex 串行，进程间经 owner.lock。"""
 
     def __init__(self, home: Path, spec: RunSpec, *, launcher: list[str] | None = None, crash_at: str | None = None,
-                 source_repo: Path = SOURCE_REPO):
+                 source_repo: Path = SOURCE_REPO, executor: TicketExecutor | None = None):
         self.home = home
+        self.executor = executor
         self.source_repo = source_repo
         self.spec = spec
         self.dir = home / "runs" / spec.run_id
@@ -345,6 +397,59 @@ class PilotRun:
         return run
 
     @classmethod
+    def create_v2(cls, home: Path, unit: WorkUnit, task: TaskSpec, models_text: str, executor: TicketExecutor,
+                  **kw) -> "PilotRun":
+        """v2：先取 run 锁，再在票级锁内持有票，最后才冻结 run.json 与建 checkout。"""
+        if task.allowed_prefixes != unit.allowed_prefixes or task.require_design != unit.require_design:
+            raise ValueError("任务文件的写集或设计要求与 WorkUnit 不一致")
+        plan = plan_roles(models_text)
+        checkouts = home / "checkouts" / unit.run_id
+        spec = RunSpec(unit.run_id, unit.ticket, None, unit.base, task, plan.author, plan.reviewer, plan.brain,
+                       str(checkouts / "author"), str(checkouts / "review"), _now(), plan.design, plan.judge,
+                       2, unit.to_json())
+        run = cls(home, spec, executor=executor, **kw)
+        run.acquire()
+        try:
+            run.bind_claim()
+            if not (run.dir / "run.json").exists():
+                _write_once(run.dir / "run.json", spec.to_json())
+            run.spec = RunSpec.from_json(json.loads((run.dir / "run.json").read_text()))
+            if run.spec.unit != unit:
+                raise Halted("run.json 已冻结的 WorkUnit 与本次登记不同")
+            run.trail("run_created", spec=run.spec.to_json(), generation=run.generation)
+            run.ensure_checkouts()
+        except BaseException:
+            run.release()
+            raise
+        return run
+
+    def bind_claim(self) -> None:
+        """v2 run 的持有代次写进 run 目录；恢复时必须与票级记录一致。"""
+        assert self.executor is not None
+        claim = self.executor.claim(self.dir)
+        path = self.dir / "claim.json"
+        bound = {"ticket": claim.ticket, "run_id": claim.run_id, "generation": claim.generation}
+        if path.exists() and json.loads(path.read_text()) != bound:
+            raise Halted(f"run 目录记录的持有代次与票级记录不符：{path}")
+        if not path.exists():
+            _write_once(path, bound)
+        self.trail("claim_bound", **bound)
+
+    @property
+    def generation(self) -> int:
+        return int(json.loads((self.dir / "claim.json").read_text())["generation"])
+
+    @contextmanager
+    def _fence(self, effect: str) -> Iterator[None]:
+        if self.executor is None:
+            if self.spec.v == 2:
+                raise Halted("v2 run 的副作用只能经新执行器的票级动作锁执行")
+            yield
+            return
+        with self.executor.action(effect, self.dir, self.generation):
+            yield
+
+    @classmethod
     def open(cls, home: Path, run_id: RunId, **kw) -> "PilotRun":
         path = cls.run_dir(home, run_id) / "run.json"
         if not path.exists():
@@ -352,16 +457,7 @@ class PilotRun:
         return cls(home, RunSpec.from_json(json.loads(path.read_text())), **kw)
 
     def acquire(self) -> None:
-        self.dir.mkdir(parents=True, exist_ok=True)
-        fd = os.open(self.dir / "owner.lock", os.O_RDWR | os.O_CREAT, 0o600)
-        try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            os.close(fd)
-            raise Busy(f"run {self.spec.run_id} 已有控制进程持锁，本进程未做任何副作用") from None
-        os.ftruncate(fd, 0)
-        os.write(fd, f"{os.getpid()}\n".encode())
-        self._lock_fd = fd
+        self._lock_fd = lock_run_dir(self.dir)
 
     def release(self) -> None:
         if self._lock_fd is not None:
@@ -411,7 +507,7 @@ class PilotRun:
         state = None
         try:
             if (out / "result.json").exists():
-                result = parse_result(key, json.loads((out / "result.json").read_text()), out)
+                result = parse_result(key, json.loads((out / "result.json").read_text()), out, self.spec.ticket)
             if (out / "state.json").exists():
                 state = json.loads((out / "state.json").read_text())
         except (ValueError, KeyError, json.JSONDecodeError) as error:
@@ -431,12 +527,15 @@ class PilotRun:
 
     def _parse_intent(self, data: dict) -> CommitIntent:
         return CommitIntent(parse_key_name(self.spec.run_id, data["author"]), parse_sha(data["parent"]),
-                            data["tree"], tuple(data["paths"]))
+                            data["tree"], tuple(data["paths"]), data.get("generation"))
 
-    @staticmethod
-    def _intent_json(intent: CommitIntent) -> dict:
-        return {"author": intent.author.name, "parent": intent.parent, "tree": intent.tree,
-                "paths": list(intent.paths), "trailer": f"{TRAILER_KEY}: {intent.trailer}"}
+    def _intent_json(self, intent: CommitIntent) -> dict:
+        data: dict[str, Any] = {"author": intent.author.name, "parent": intent.parent, "tree": intent.tree,
+                                "paths": list(intent.paths),
+                                "trailer": f"{self.spec.trailer_key}: {intent.trailer}"}
+        if intent.generation is not None:
+            data["generation"] = intent.generation
+        return data
 
     def facts(self) -> RunFacts:
         rows = _ps_rows()
@@ -513,20 +612,24 @@ class PilotRun:
         intent = json.loads((self.dir / "intents" / f"{key.name}.json").read_text())
         out = self._key_dir(key)
         out.parent.mkdir(parents=True, exist_ok=True)
-        argv = [*self.launcher, "--ticket", str(TICKET), "--parent-thread-id", f"pilot1742-{self.spec.run_id}",
-                "--manager-agent-id", f"/deepagents/pilot1742/{self.spec.run_id}", "--checkout", intent["checkout"],
+        thread, manager = ((f"deepagents-{self.spec.run_id}", f"/deepagents/exec/{self.spec.run_id}")
+                           if self.spec.v == 2 else
+                           (f"pilot1742-{self.spec.run_id}", f"/deepagents/pilot1742/{self.spec.run_id}"))
+        argv = [*self.launcher, "--ticket", str(self.spec.ticket), "--parent-thread-id", thread,
+                "--manager-agent-id", manager, "--checkout", intent["checkout"],
                 "--expected-head", key.target_head, "--mode", intent["mode"], "--model", intent["model"],
                 "--idle-timeout-seconds", str(WORKER_IDLE_SECONDS), "--timeout-seconds", str(WORKER_TOTAL_SECONDS),
                 "--prompt-file", intent["prompt_file"], "--output-dir", str(out)]
         log_dir = self.dir / "launch"
         log_dir.mkdir(exist_ok=True)
         env = {k: os.environ[k] for k in _ENV_KEEP if os.environ.get(k)}
-        with open(log_dir / f"{key.name}.log", "ab") as log:
-            child = subprocess.Popen(argv, cwd=self.source_repo, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
-                                     env=env, start_new_session=True)
-        self._children[key.name] = child
-        self._crash("after_spawn_before_launch_record")
-        _write_once(log_dir / f"{key.name}.{child.pid}.json", {"pid": child.pid, "argv": argv, "at": _now()})
+        with self._fence("dispatch"):
+            with open(log_dir / f"{key.name}.log", "ab") as log:
+                child = subprocess.Popen(argv, cwd=self.source_repo, stdin=subprocess.DEVNULL, stdout=log,
+                                         stderr=log, env=env, start_new_session=True)
+            self._children[key.name] = child
+            self._crash("after_spawn_before_launch_record")
+            _write_once(log_dir / f"{key.name}.{child.pid}.json", {"pid": child.pid, "argv": argv, "at": _now()})
         self.trail("dispatched", key=key.name, supervisor_pid=child.pid, model=intent["model"])
 
     def _drive_all(self, keys: list[WorkerKey]) -> list[WorkerReceipt]:
@@ -559,12 +662,16 @@ class PilotRun:
                 child.poll()
             time.sleep(2)
 
+    @property
+    def _label(self) -> str:
+        return "交付" if self.spec.v == 2 else "试点"
+
     def _prompt(self, key: WorkerKey, brief: str, facts: RunFacts) -> str:
         task = self.spec.task
         scope = "、".join(task.allowed_prefixes)
         architect = SKILLS_ROOT + "architect"
         if key.role in DESIGN_SLOTS:
-            return (f"# #1742 设计候选（architect Phase B 的 arena runner）\n\nrun {self.spec.run_id}，基线 {key.target_head}。"
+            return (f"# #{self.spec.ticket} 设计候选（architect Phase B 的 arena runner）\n\nrun {self.spec.run_id}，基线 {key.target_head}。"
                     "你在自己的独立只读 checkout 里工作，不写任何文件。\n\n"
                     f"先完整读 `{architect}/SKILL.md` 与 `{architect}/references/runner-prompt.md`：前者是你所在的流程，"
                     f"后者是本候选的合同。设计说明按 `{architect}/references/rationale-template.md` 组织，"
@@ -581,7 +688,7 @@ class PilotRun:
                 assert isinstance(fact, Terminal)
                 rejected = "\n".join(f"- {f}" for f in fact.receipt.findings)
                 packages.append(f"## {label}\n{fact.receipt.summary}\n\n### {label}拒绝的替代形状\n{rejected}\n")
-            return (f"# #1742 arena 交叉裁判（只读）\n\nrun {self.spec.run_id}，基线 {key.target_head}。"
+            return (f"# #{self.spec.ticket} arena 交叉裁判（只读）\n\nrun {self.spec.run_id}，基线 {key.target_head}。"
                     f"先完整读 `{SKILLS_ROOT}arena/SKILL.md`，你是其中 Phase C 的只读裁判，不写任何文件。"
                     "下面是同一任务的两个候选设计包，只按标签区分。按主控给的 rubric 逐条给每个候选打分，推荐一个 base 并写理由，"
                     "再指出各候选值得嫁接或应当拒绝的部分。\n\n"
@@ -596,12 +703,12 @@ class PilotRun:
                 findings = "\n".join(f"- {f}" for f in review.receipt.findings)
                 rework = (f"\n## 返修依据\n候选 {key.target_head} 被独审（{verdict.reviewer_model}）判 BLOCK。\n"
                           f"{review.receipt.summary}\n{findings}\n")
-            return (f"# #1742 试点作者任务：{task.title}\n\nrun {self.spec.run_id}，基线 {key.target_head}。\n\n"
+            return (f"# #{self.spec.ticket} {self._label}作者任务：{task.title}\n\nrun {self.spec.run_id}，基线 {key.target_head}。\n\n"
                     f"## 需求原文\n{task.requirement}\n\n## 写集\n只允许改动 {scope} 下的文件；"
                     f"写集外的改动会让宿主拒绝提交。不要 commit，宿主负责受管提交。\n{rework}\n"
                     f"## 主控 brief\n{brief.strip()}\n")
         author_commit = next(c for c in facts.commits if c.commit == key.target_head)
-        return (f"# #1742 试点独立审阅：{task.title}\n\nrun {self.spec.run_id}。审阅候选提交 {key.target_head}"
+        return (f"# #{self.spec.ticket} {self._label}独立审阅：{task.title}\n\nrun {self.spec.run_id}。审阅候选提交 {key.target_head}"
                 f"（父提交 {author_commit.intent.parent}）。用 `git show {key.target_head}` 与 "
                 f"`git diff {author_commit.intent.parent} {key.target_head}` 读改动，可以运行只读检查，不得写 checkout。\n\n"
                 f"## 需求原文\n{task.requirement}\n\n## 写集\n{scope}\n\n## 结论协议\n"
@@ -650,12 +757,18 @@ class PilotRun:
             if intent is not None and intent.tree != tree:
                 raise Halted("作者 checkout 自提交意图写下后发生变化")
             if intent is None:
-                intent = CommitIntent(akey, head, tree, paths)
+                intent = CommitIntent(akey, head, tree, paths, self.generation if self.spec.v == 2 else None)
                 _write_once(intent_path, self._intent_json(intent))
                 self.trail("commit_intent", author=akey.name, parent=head, tree=tree)
-            message = (f"#1742 试点候选：{self.spec.task.title}\n\n作者工蜂 {fact.receipt.model}，"
+            message = (f"#{self.spec.ticket} {self._label}候选：{self.spec.task.title}\n\n作者工蜂 {fact.receipt.model}，"
                        f"run {self.spec.run_id}，基线 {head}。")
-            _git(checkout, "commit", "-q", "-m", message, "--trailer", f"{TRAILER_KEY}: {intent.trailer}")
+            trailer = f"{self.spec.trailer_key}: {intent.trailer}"
+            with self._fence("commit"):
+                if self.spec.v == 2:
+                    _git(checkout, "-c", "commit.gpgsign=false", "commit", "-q", "-m", message, "--trailer", trailer,
+                         env={**os.environ, "TZ": "UTC"})
+                else:
+                    _git(checkout, "commit", "-q", "-m", message, "--trailer", trailer)
             self._crash("after_commit_before_receipt")
             if reconcile_commit(intent, self._observe_head(checkout)) != "committed":
                 raise Halted("提交后观测不到与意图一致的提交")
@@ -664,7 +777,7 @@ class PilotRun:
     def _observe_head(self, checkout: Path) -> HeadObservation:
         head = parse_sha(_git(checkout, "rev-parse", "HEAD"))
         parents = _git(checkout, "rev-list", "--parents", "-n", "1", head).split()
-        trailers = _git(checkout, "log", "-1", "--format=%(trailers:key=" + TRAILER_KEY + ",valueonly)", head)
+        trailers = _git(checkout, "log", "-1", "--format=%(trailers:key=" + self.spec.trailer_key + ",valueonly)", head)
         return HeadObservation(head, parse_sha(parents[1]) if len(parents) > 1 else None,
                                _git(checkout, "rev-parse", f"{head}^{{tree}}"),
                                tuple(t.strip() for t in trailers.splitlines() if t.strip()))
@@ -676,7 +789,15 @@ class PilotRun:
         self.trail("commit_receipt", commit=receipt.commit, parent=intent.parent, recovered=recovered)
         return receipt
 
+    def publish_candidate(self) -> dict[str, Any]:
+        if self.executor is None or self.spec.v != 2:
+            raise ToolRefusal("只有 v2 run 经新执行器发布")
+        with self._mutex:
+            return self.executor.publish(self)
+
     def evaluate_gate(self, facts: RunFacts | None = None) -> tuple[GateDecision, list[str]]:
+        if self.spec.v != 1 or self.spec.scope is None:
+            raise ToolRefusal("v2 run 不消费 v1 批准账本")
         facts = facts or self.facts()
         ledger = self.dir / "approvals.jsonl"
         records, problems = parse_approval_ledger(ledger.read_text() if ledger.exists() else "")
@@ -694,10 +815,19 @@ class PilotRun:
         facts = self.facts()
         head = current_head(facts)
         phase = derive_phase(facts)
-        gate, problems = self.evaluate_gate(facts) if phase in ("gate", "conflict") else (None, [])
+        v1 = self.spec.v == 1
+        gate, problems = self.evaluate_gate(facts) if v1 and phase in ("gate", "conflict") else (None, [])
         conflict = candidate_conflict(facts)
+        extra: dict[str, Any] = {}
+        if not v1:
+            from .executor import delivery_status
+
+            extra = {"v": 2, "work_unit": self.spec.work_unit, "generation": self.generation,
+                     "delivery": delivery_status(self.dir)}
+            if phase == "gate" and extra["delivery"]["phase"] is not None:
+                phase = extra["delivery"]["phase"]
         return {
-            "run_id": self.spec.run_id, "ticket": TICKET, "scope": self.spec.scope, "base": self.spec.base,
+            "run_id": self.spec.run_id, "ticket": self.spec.ticket, "scope": self.spec.scope, "base": self.spec.base,
             "recorded_head": head, "observed_head": facts.observed.head, "observed_branch": facts.observed.branch,
             "conflict": conflict.code if conflict else None, "phase": phase,
             "require_design": self.spec.task.require_design,
@@ -708,7 +838,7 @@ class PilotRun:
             "commits": [{"commit": c.commit, "parent": c.intent.parent, "tree": c.intent.tree,
                          "recovered": c.recovered} for c in facts.commits],
             "verdicts": {h: v.kind for h, v in facts.verdicts.items()},
-            "gate": gate_json(gate) if gate is not None else None, "ledger_problems": problems,
+            "gate": gate_json(gate) if gate is not None else None, "ledger_problems": problems, **extra,
         }
 
 
