@@ -243,7 +243,9 @@ fn stored_messages(session: &Session, owner: usize) -> Vec<(String, String, Stri
         .prepare("SELECT k,payload_hash,receipt_key,request_json FROM messages ORDER BY k")
         .unwrap();
     statement
-        .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)))
+        .query_map([], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+        })
         .unwrap()
         .collect::<Result<Vec<_>, _>>()
         .unwrap()
@@ -697,10 +699,7 @@ fn fin2_we7_capture_resolve_apply_recover_and_resend() {
         );
         store::audit(&session.dbs[owner], &session.configs[owner]).unwrap();
         assert_eq!(staging_count(&session, owner), 0);
-        assert_eq!(
-            stored_messages(&session, owner),
-            before_messages[owner]
-        );
+        assert_eq!(stored_messages(&session, owner), before_messages[owner]);
         assert_eq!(
             store::rows(&session.dbs[owner], "receipts").unwrap(),
             before_receipts[owner]
