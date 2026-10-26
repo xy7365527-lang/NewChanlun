@@ -316,7 +316,10 @@ impl Fixture {
         }
         if let Some(s) = real_s {
             // 正式 S：冻结生产二进制与真实会话身份，读法由 `reader_session` 在冻结时选定（A6 第4节）。
+            // 经济会话与 S 会话须同 session_id/generation（finance.rs 身份门），信封随之取 manifest 值。
             // reader_resources 八项、单次 S 期限与 E/B response_timeout_ms 均保持上方原值。
+            manifest["session_id"] = s["structure"]["session_id"].clone();
+            manifest["session_generation"] = s["structure"]["session_generation"].clone();
             for k in [
                 "binary",
                 "binary_sha256",
@@ -410,6 +413,8 @@ impl Fixture {
     fn handle(&mut self, n: usize, msg: &str, p: Value) -> Value {
         let mut e = envelope(msg, p);
         e["schema_revision"] = json!(self.configs[n].revision().unwrap());
+        e["session_id"] = json!(self.configs[n].session);
+        e["session_generation"] = json!(self.configs[n].generation);
         service::handle(&mut self.dbs[n], &self.configs[n], 1, 1, &json!({}), &e)["payload"].clone()
     }
     fn request(&self, op: &str, name: &str) -> Value {
