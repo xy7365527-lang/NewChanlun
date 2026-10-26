@@ -1354,6 +1354,30 @@ mod tests {
     }
 
     #[test]
+    fn mixed_control_clock_matches_original_strict_parser() {
+
+        use crate::v2::mixed_control as control;
+        use crate::v3::business_json::MixedJsonError;
+        for case in 0..4 {
+            let conn=rusqlite::Connection::open_in_memory().unwrap();
+            conn.execute_batch("CREATE TABLE s_protocol_meta(singleton INTEGER,clock_plan_json TEXT,clock_plan_hash TEXT)").unwrap();
+            let value=serde_json::json!({"schema_revision":"s-clock-plan/1","clock_plan_id":"test","origin_utc":"2000-01-01T00:00:00Z","unit":"ns","events":{}});
+            let hash=newchan_rust::session_protocol::ClockView::parse((&value).into()).unwrap().hash_fixed_with_owner(None).unwrap();
+            let raw=match case{1=>"{".to_string(),2=>r#"{"events":{},"events":{}}"#.to_string(),_=>crate::canonical_json(&value)};
+            conn.execute("INSERT INTO s_protocol_meta VALUES(1,?1,?2)",rusqlite::params![raw,if case==3{"wrong"}else{hash.as_str()}]).unwrap();
+            let expected=control::original_clock(&conn);
+            let owner=AdmissionRamLedger::new(limits(1<<20)).unwrap();
+            owner.codec_work().unwrap().run(|work|{
+                let actual=control::clock(&conn,work).map(|c|c.hash.as_str().to_string()).map_err(|e|match e {
+                    MixedJsonError::Business(s)=>s,MixedJsonError::Resource(e)=>panic!("resource {e:?}"),
+                });
+                assert_eq!(expected,actual,"case={case}");
+                Ok::<(),newchan_rust::s_content::CodecError>(())
+            }).unwrap();
+        }
+    }
+
+    #[test]
     fn mixed_control_schema_epoch_matches_original() {
         use crate::v3::audit_budget::LegacyObserver;
         use newchan_rust::s_content::{

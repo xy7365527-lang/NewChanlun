@@ -209,3 +209,6 @@ pub(crate) fn catalog(conn:&Connection,work:&WorkScope)->Result<(),MixedJsonErro
     }
     Ok(())
 }
+
+#[cfg(test)]
+pub(crate) fn original_clock(conn:&Connection)->Result<String,String>{super::stored_clock(conn).map(|c|c.hash)}
