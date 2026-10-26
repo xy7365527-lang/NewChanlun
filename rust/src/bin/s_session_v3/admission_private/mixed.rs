@@ -8,12 +8,12 @@ use crate::v3::business_json::{MixedFailureScope,MixedJsonError};
 use sc::capture_allocation::native_owned::NativeValue;
 use std::cell::Cell;
 
-pub(super) struct SealedPrefix {
+pub(crate) struct SealedPrefix {
     protocol: Option<NativeValue<String>>,
     epoch: NativeValue<String>,
 }
 impl SealedPrefix {
-    pub(super) fn require(&self,prefix:&RejectionPrefix<'_>)->Result<(),FixedFailure>{
+    pub(crate) fn require(&self,prefix:&RejectionPrefix<'_>)->Result<(),FixedFailure>{
         match prefix {
             RejectionPrefix::None=>Ok(()),
             _=>Err(FixedFailure::new("MixedProtocolMismatch","business",

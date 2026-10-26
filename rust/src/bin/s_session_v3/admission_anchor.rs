@@ -568,6 +568,7 @@ use newchan_rust::s_content::{
 /// 不向 provider 移交本持有者或其可变引用；finish 永远检查这里的原账。
 pub(crate) struct StartedAdmission {
     cache_transaction: Option<crate::cache::MixedCacheTransaction>,
+    mixed_prefix: Option<super::admission_private::MixedSealedPrefix>,
     job: Rc<RefCell<admission_job::Job>>,
     ram: Option<ram::AdmissionRamLedger>,
     lease: Arc<BudgetLease>,
@@ -822,6 +823,7 @@ impl ConsumedAdmission {
             .map_err(|e| self.prelude.error(job_error_kind(&e), Stage::E7))?;
         Ok(StartedAdmission {
             cache_transaction: None,
+            mixed_prefix: None,
             job,
             ram,
             lease: self.lease,
@@ -831,6 +833,10 @@ impl ConsumedAdmission {
 }
 
 impl StartedAdmission {
+    pub(crate) fn is_mixed(&self)->bool {self.ram.is_some()}
+    pub(crate) fn set_mixed_prefix(&mut self,prefix:super::admission_private::MixedSealedPrefix){
+        self.mixed_prefix=Some(prefix);
+    }
     pub(crate) fn accounting(&mut self) -> AdmissionAccounting<'_> {
         AdmissionAccounting {
             job: self.job.borrow_mut(),
@@ -895,6 +901,7 @@ impl StartedAdmission {
             transaction.commit();
         }
         Ok(FinishedAdmission {
+            mixed_prefix: self.mixed_prefix,
             job: self.job,
             ram: self.ram,
             lease: self.lease,
@@ -923,11 +930,18 @@ impl StartedAdmission {
 
 /// 私有恢复已收尾后的同一本账，仅用于启动外围 I/O，不能重新准入或换 Job。
 pub(crate) struct FinishedAdmission {
+    mixed_prefix:Option<super::admission_private::MixedSealedPrefix>,
     job: Rc<RefCell<admission_job::Job>>,
     ram: Option<ram::AdmissionRamLedger>,
     lease: Arc<BudgetLease>,
 }
 impl FinishedAdmission {
+    pub(crate) fn is_mixed(&self)->bool {self.ram.is_some()}
+    pub(crate) fn require_mixed_prefix(&self,prefix:&super::admission_private::RejectionPrefix<'_>)
+        ->Result<(),terminal::FixedFailure>{
+        self.mixed_prefix.as_ref().ok_or_else(||terminal::FixedFailure::new(
+            "MixedSealedProofMissing","reuse","缺完整审计封存结果"))?.require(prefix)
+    }
     pub(crate) fn lease(&self) -> &Arc<BudgetLease> {
         &self.lease
     }

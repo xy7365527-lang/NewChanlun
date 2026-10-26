@@ -606,3 +606,29 @@ pub(crate) fn test_progressive_mixed_sql_policy<T>(
 pub(crate) fn mixed_fixed_metadata_bytes() -> usize {
     mixed_accounting::fixed_metadata_bytes()
 }
+
+pub(crate) use mixed::SealedPrefix as MixedSealedPrefix;
+pub(crate) fn validate_mixed_prefix(
+    source:&MeasuredDomain,account:&mut AdmissionAccounting<'_>,prefix:&RejectionPrefix<'_>,
+)->Result<MixedSealedPrefix,super::admission_anchor::terminal::FixedFailure>{
+    let enabled=false;
+    #[cfg(test)]
+    let enabled=enabled||MIXED_TEST_ENTRY.with(|value|value.get());
+    if !enabled{
+        return Err(super::admission_anchor::terminal::FixedFailure::new(
+            "MixedAdmissionNotEnabled","business","MixedAdmissionNotEnabled"));
+    }
+    let sealed=mixed::validate(source,account)?;
+    sealed.require(prefix)?;
+    Ok(sealed)
+}
+#[cfg(test)]
+thread_local! {static MIXED_TEST_ENTRY:std::cell::Cell<bool>=const{std::cell::Cell::new(false)};}
+#[cfg(test)]
+pub(crate) fn test_with_mixed_entry<T>(run:impl FnOnce()->T)->T{
+    struct Reset;
+    impl Drop for Reset{fn drop(&mut self){MIXED_TEST_ENTRY.with(|v|v.set(false));}}
+    MIXED_TEST_ENTRY.with(|v|assert!(!v.replace(true)));
+    let _reset=Reset;
+    run()
+}

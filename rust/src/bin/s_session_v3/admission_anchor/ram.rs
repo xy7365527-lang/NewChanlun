@@ -2507,7 +2507,7 @@ mod tests {
                 sc::tag::BYTES_CHUNK,bytes).unwrap();
             let old=b"real legacy";
             let legacy=sc::legacy_evidence::CheckedLegacyEvidenceRow::verify(
-                &sc::legacy_evidence::node_id(0,old),0,old,old.len() as u64).unwrap();
+                &sc::legacy_evidence::node_id(0,old),0,old,old.len() as i64).unwrap();
             let total=(sc::DOMAIN_SEPARATOR.len()+9+bytes.len()+1+old.len()) as u64;
             let fields=match mode {
                 "nodes"=>vec![("max_total_nodes",2)],
