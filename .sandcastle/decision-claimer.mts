@@ -16,7 +16,7 @@
  * 模型通道：claude -p 经本机统一路由 127.0.0.1:8318；令牌运行时从 CLIProxyLocal config
  * 读取，只进子进程环境变量，不打印、不写日志、不落文件。
  */
-import { drainRequested, withLegacyAdmission } from "./drain-control.mts";
+import { DRAIN_ROOT, DrainFrozenError, drainRequested, withLegacyAdmission } from "./drain-control.mts";
 import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -936,6 +936,7 @@ ${draft}`;
 
 export interface Deps {
   mode: Mode;
+  drainRoot?: string;
   /** ADR 编号预留表与锁所在目录；缺省 outRoot。 */
   stateDir?: string;
   gh: GhRunner;
@@ -1150,7 +1151,7 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
         claimed = true;
         const after = loadTicket(d.gh, n).assignees;
         if (after.length !== 1 || (d.me && after[0] !== d.me)) throw new Error(`claim 竞争：assignees=${after.join(",")}`);
-      });
+      }, d.drainRoot);
     } else summary.plannedWrites.push(`claim：assign #${n}`);
 
     const persist = () => writeJson(join(dir, "summary.json"), summary);
@@ -1531,7 +1532,7 @@ async function main() {
   const gh = guardGh(a.mode, realGh);
   const srcDir = join(a.outRoot, ".src");
   const d: Deps = {
-    mode: a.mode, gh, git, model: makeClaudeRunner(), outRoot: a.outRoot, srcDir, repoRoot: REPO_ROOT, now: Date.now,
+    mode: a.mode, drainRoot: DRAIN_ROOT, gh, git, model: makeClaudeRunner(), outRoot: a.outRoot, srcDir, repoRoot: REPO_ROOT, now: Date.now,
     me: a.mode === "live" ? gh(["api", "user", "--jq", ".login"]).trim() : undefined,
   };
   if (a.archaeologyOnly) {

@@ -82,3 +82,40 @@ test("控制进程被杀后fcntl锁自动释放，无PID猜测与人工删锁", 
   assert.equal(await freeze(root), 0);
   assert.equal(drainRequested(root), true);
 });
+
+
+test("开放准入可并发，freeze 等全部持有者收尾后阻止后续准入", { timeout: 8000 }, async () => {
+  const root = temp();
+  let begin1!: () => void;
+  let begin2!: () => void;
+  let finish1!: () => void;
+  let finish2!: () => void;
+  const entered1 = new Promise<void>((r) => { begin1 = r; });
+  const entered2 = new Promise<void>((r) => { begin2 = r; });
+  const release1 = new Promise<void>((r) => { finish1 = r; });
+  const release2 = new Promise<void>((r) => { finish2 = r; });
+  const first = withLegacyAdmission(async () => { begin1(); await release1; }, root);
+  await entered1;
+  const second = withLegacyAdmission(async () => { begin2(); await release2; }, root);
+  let freezing: Promise<void> | undefined;
+  try {
+    assert.equal(await Promise.race([entered2.then(() => true), delay(800).then(() => false)]), true, "两个开放准入必须同时进入");
+    let frozen = false;
+    freezing = freeze(root).then((code) => { assert.equal(code, 0); frozen = true; });
+    await delay(80);
+    assert.equal(frozen, false);
+    finish1();
+    await first;
+    await delay(80);
+    assert.equal(frozen, false, "第二个准入未结束前不能返回冻结确认");
+    finish2();
+    await second;
+    await freezing;
+    assert.equal(frozen, true);
+    await assert.rejects(withLegacyAdmission(() => assert.fail("冻结后的准入不能执行"), root), DrainFrozenError);
+  } finally {
+    finish1(); finish2();
+    await Promise.all([first, second]);
+    await freezing;
+  }
+});
