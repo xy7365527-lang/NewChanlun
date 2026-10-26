@@ -55,7 +55,7 @@ struct Root {
     identity: Identity,
     /// batch、Delta、fact 的全部私有根证明；只持弱引用，不让被驱逐原件逃出预算。
     /// 旧整块域为空，行内原件由 `rows` / `AuditWalk` 逐字节比较。
-    originals: BTreeMap<String, Option<Weak<RootCert>>>,
+    originals: BTreeMap<String, Option<Weak<()>>>,
     walk: audit::AuditWalk,
     bytes: usize,
 }
@@ -93,8 +93,28 @@ pub(super) struct RootCert {
     pub(super) content_sha256: TextValue,
     // 原件池一旦丢失或替换节点，这份证明失效；此令牌仅负责失效，不能替代新鲜原件比较。
     lineage: Weak<()>,
+    identity: Option<Arc<()>>,
 }
 impl RootCert {
+    pub(super) fn copy_mixed(&self,work:&WorkScope)->Result<Self,newchan_rust::s_content::CodecError>{
+        self.slots.check_retained_source()?;
+        if let Some(identity)=&self.identity {identity.check_retained_source()?;}
+        let mut slots=newchan_rust::s_content::CodecVec::default();
+        slots.try_reserve_native(work,self.slots.len())?;
+        for slot in &self.slots{slots.try_push(*slot)?;}
+        Ok(Self{node:self.node,slots,expanded_length:self.expanded_length,
+            content_sha256:self.content_sha256.try_clone_mixed(work)?,lineage:self.lineage.clone(),identity:self.identity.clone()})
+    }
+    fn identity_weak(&self)->Weak<()> {
+        self.identity.as_ref().map(Arc::downgrade).unwrap_or_else(Weak::new)
+    }
+    fn identity_ptr(&self)->usize {
+        self.identity.as_ref().map_or(0,|id|Arc::as_ptr(id) as usize)
+    }
+    fn same_identity(&self,other:&Self)->bool{
+        matches!((&self.identity,&other.identity),(Some(a),Some(b)) if Arc::ptr_eq(a,b))
+    }
+
     #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     pub(super) fn new(
         node: [u8; 32],
@@ -108,6 +128,7 @@ impl RootCert {
             expanded_length,
             content_sha256: TextValue::Plain(NativeValue::<String>::from_unscoped(content_sha256)),
             lineage: Weak::new(),
+            identity: None,
         }
     }
     pub(super) fn new_admitted(
@@ -122,6 +143,7 @@ impl RootCert {
             expanded_length,
             content_sha256: TextValue::Plain(content_sha256),
             lineage: Weak::new(),
+            identity: None,
         }
     }
     /// 逐字节比较**实际原件**：根指针、有序槽列、声明长度、内容摘要。
@@ -152,7 +174,7 @@ impl RootCert {
 /// （指针同一），故摘要相等既不是充分条件也不是唯一条件。
 struct Handle {
     closure: [u8; 32],
-    root_cert: Option<Weak<RootCert>>,
+    root_cert: Option<Weak<()>>,
     bytes: Arc<[u8]>,
     value: Option<Arc<SharedPlainJson>>,
     cost: usize,
@@ -161,7 +183,7 @@ struct Handle {
 struct BatchHeaderEntry {
     batch_id: TextValue,
     byte_len: usize,
-    root_cert: Weak<RootCert>,
+    root_cert: Weak<()>,
     closure: [u8; 32],
     header: BatchControlHeader,
     cost: usize,
@@ -497,7 +519,7 @@ impl Memo {
                         (
                             cert.cost().saturating_add(key.len()),
                             key.as_str(),
-                            Arc::as_ptr(cert) as usize,
+                            cert.identity_ptr(),
                         )
                     })
                     .collect::<Vec<_>>();
@@ -548,7 +570,7 @@ impl Memo {
                 !remove
             });
             self.root_certs
-                .retain(|_, cert| !removed_cert(Arc::as_ptr(cert) as usize));
+                .retain(|_, cert| !removed_cert(cert.identity_ptr()));
         }
     }
 
@@ -1441,11 +1463,11 @@ pub(super) fn batch_header_get(
             entry.batch_id == batch_id
                 && entry.byte_len == byte_len
                 && entry.closure == *closure
-                && Weak::ptr_eq(&entry.root_cert, &Arc::downgrade(root_cert))
+                && Weak::ptr_eq(&entry.root_cert, &root_cert.identity_weak())
                 && Weak::ptr_eq(&root_cert.lineage, &Arc::downgrade(&m.cert_lineage))
                 && m.root_certs
                     .get(root_key)
-                    .is_some_and(|current| Arc::ptr_eq(current, root_cert))
+                    .is_some_and(|current| current.same_identity(root_cert))
         });
         #[cfg(test)]
         counter(|c| {
@@ -1491,7 +1513,7 @@ pub(super) fn batch_header_put_admitted(
             || !m
                 .root_certs
                 .get(root_key)
-                .is_some_and(|current| Arc::ptr_eq(current, root_cert))
+                .is_some_and(|current| current.same_identity(root_cert))
         {
             #[cfg(test)]
             counter(|c| c.batch_header_admission_rejected += 1);
@@ -1517,7 +1539,7 @@ pub(super) fn batch_header_put_admitted(
                 BatchHeaderEntry {
                     batch_id,
                     byte_len,
-                    root_cert: Arc::downgrade(root_cert),
+                    root_cert: root_cert.identity_weak(),
                     closure,
                     header,
                     cost,
@@ -1551,7 +1573,7 @@ pub(super) fn handle_get_certified(
                     && h.closure == *closure
                     && h.root_cert
                         .as_ref()
-                        .is_some_and(|c| Weak::ptr_eq(c, &Arc::downgrade(root_cert)));
+                        .is_some_and(|c| Weak::ptr_eq(c, &root_cert.identity_weak()));
                 #[cfg(test)]
                 {
                     *reuse_outcome = Some(if matches {
@@ -1617,11 +1639,11 @@ pub(super) fn handle_put_certified_typed(
             #[cfg(test)] counter(|c|c.handle_admission_rejected+=1);
             return Ok(None);
         }
-        let existing=m.root_certs.get(root_key).filter(|old|{
+        let matching=m.root_certs.get(root_key).filter(|old|{
             Weak::ptr_eq(&old.lineage,&Arc::downgrade(&m.cert_lineage))
                 && old.same_originals(&root_cert.node,&root_cert.slots,root_cert.expanded_length,&root_cert.content_sha256)
-                && work.is_none_or(|work|old.belongs_to_parent(work))
         }).cloned();
+        let existing=matching.as_ref().filter(|old|work.is_none_or(|work|old.belongs_to_parent(work))).cloned();
         let old_root_cost=m.root_certs.get(root_key).map_or(0,|old|old.cost().saturating_add(root_key.len()));
         let root_cost=root_cert.cost().saturating_add(root_key.len());
         let delta=if existing.is_some(){0}else{root_cost};
@@ -1646,6 +1668,13 @@ pub(super) fn handle_put_certified_typed(
                 let hash=admission.native_string(&root_cert.content_sha256)?;
                 let mut cert=RootCert::new_admitted(root_cert.node,slots,root_cert.expanded_length,hash);
                 cert.lineage=Arc::downgrade(&m.cert_lineage);
+                cert.identity=match matching.as_ref().and_then(|old|old.identity.as_ref()){
+                    Some(identity)=>{
+                        identity.check_retained_source()?;
+                        Some(identity.clone())
+                    }
+                    None=>Some(Arc::try_new_shallow((),work)?),
+                };
                 Arc::try_new_shallow(cert,work)?
             }
         };
@@ -1683,7 +1712,7 @@ pub(super) fn handle_put_certified_typed(
             m.certs_bytes=m.certs_bytes.saturating_sub(credit).saturating_add(delta);
         }
         if let Some(key)=handle_key {
-            m.handles.insert_reserved(key,Handle{closure,root_cert:Some(Arc::downgrade(&retained)),bytes,value,cost});
+            m.handles.insert_reserved(key,Handle{closure,root_cert:Some(retained.identity_weak()),bytes,value,cost});
             m.handles_bytes=m.handles_bytes.saturating_add(cost);
         }else{
             #[cfg(test)] counter(|c|c.handle_admission_rejected+=1);
@@ -1793,7 +1822,7 @@ pub(super) fn resume(
         for (key, old_cert) in &old.originals {
             match (old_cert, originals.get(key)) {
                 (Some(a), Some(Some(b)))
-                    if Weak::ptr_eq(a, &Arc::downgrade(b))
+                    if Weak::ptr_eq(a, &b.identity_weak())
                         && Weak::ptr_eq(&b.lineage, &Arc::downgrade(&m.cert_lineage)) => {}
                 _ => return 0,
             }
@@ -1843,7 +1872,7 @@ pub(super) fn store_root(
             identity,
             originals: originals
                 .iter()
-                .map(|(key, cert)| (key.clone(), cert.as_ref().map(Arc::downgrade)))
+                .map(|(key, cert)| (key.clone(), cert.as_ref().map(|cert|cert.identity_weak())))
                 .collect(),
             walk,
             bytes,

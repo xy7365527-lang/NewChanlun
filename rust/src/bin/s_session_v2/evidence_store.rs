@@ -1811,13 +1811,14 @@ impl<'a> Reader<'a> {
     }
 
     /// 只证明当前完整原件；缺缓存返回 None，闭包错误原样传播，不替换全文读取出口。
-    pub(super) fn prove_root(
+    pub(super) fn prove_root(&mut self,root_key:&str)->Result<Option<VerifiedRootProof>,String>{self.prove_root_typed(root_key).map_err(ordinary_read_error)}
+    pub(crate) fn prove_root_typed(
         &mut self,
         root_key: &str,
-    ) -> Result<Option<VerifiedRootProof>, String> {
+    ) -> Result<Option<VerifiedRootProof>, MixedJsonError> {
         #[cfg(test)]
         cache::counter(|c| c.root_proof_reads += 1);
-        let check = self.closure(root_key).map_err(|error| {
+        let check = self.closure_typed(root_key).map_err(|error| {
             #[cfg(test)]
             cache::counter(|c| c.root_proof_errors += 1);
             error
@@ -1833,13 +1834,16 @@ impl<'a> Reader<'a> {
             cache::counter(|c| c.root_proof_misses += 1);
             return Ok(None);
         };
+        let root_cert=if self.mixed_observer.is_some(){
+            root_cert.share_or_copy_mixed(self.work.expect("mixed work"),|cert,work|cert.copy_mixed(work))
+                .map_err(MixedJsonError::Resource)?
+        }else{root_cert};
         #[cfg(test)]
         cache::counter(|c| c.root_proof_hits += 1);
         Ok(Some(VerifiedRootProof {
             declared_length: check.row.expanded_length,
-            content_sha256: NativeAdmission(self.work)
-                .native_text(check.row.content_sha256.as_str())
-                .map_err(|e| e.to_string())?,
+            content_sha256: TextValue::from_str_admitted_typed(check.row.content_sha256.as_str(),None,self.work)
+                .map_err(MixedJsonError::Resource)?,
             closure: check.digest,
             root_cert,
         }))
