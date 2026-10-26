@@ -81,14 +81,6 @@ fn work_copy_typed<T: Copy>(
     Ok(out)
 }
 
-fn work_resize_admitted<T: Copy>(
-    v: &mut CodecVec<T>,
-    len: usize,
-    value: T,
-    work: Option<&WorkScope>,
-) -> Result<(), String> {
-    work_resize_typed(v, len, value, work).map_err(ordinary_read_error)
-}
 fn work_resize_typed<T: Copy>(
     v: &mut CodecVec<T>,
     len: usize,
@@ -1002,6 +994,7 @@ fn split_seq_work<'a>(
 ) -> Result<CodecVec<Part<'a>>, String> {
     split_seq_work_admitted(payload, owner, None)
 }
+#[cfg(test)]
 fn split_seq_work_admitted<'a>(
     payload: &'a [u8],
     owner: Option<&OwnedBudget>,
@@ -1442,14 +1435,6 @@ struct ReadDerived {
     digest: [u8; 32],
 }
 impl ReadDerived {
-    fn try_clone(
-        &self,
-        owner: Option<&OwnedBudget>,
-        work: Option<&WorkScope>,
-    ) -> Result<Self, String> {
-        self.try_clone_typed(owner, work)
-            .map_err(ordinary_read_error)
-    }
     fn try_clone_typed(
         &self,
         owner: Option<&OwnedBudget>,
@@ -1630,9 +1615,6 @@ impl<'a> Reader<'a> {
             None => cache::derived_has(self.conn_id, id),
         }
     }
-    fn derived_get(&self, id: &[u8; 32]) -> Result<Option<ReadDerived>, String> {
-        self.derived_get_typed(id).map_err(ordinary_read_error)
-    }
     fn derived_get_typed(&self, id: &[u8; 32]) -> Result<Option<ReadDerived>, MixedJsonError> {
         match &self.owned {
             Some(o) => o
@@ -1648,9 +1630,6 @@ impl<'a> Reader<'a> {
                     digest: v.digest,
                 })),
         }
-    }
-    fn derived_put(&mut self, id: [u8; 32], v: ReadDerived) -> Result<(), String> {
-        self.derived_put_typed(id, v).map_err(ordinary_read_error)
     }
     fn derived_put_typed(&mut self, id: [u8; 32], v: ReadDerived) -> Result<(), MixedJsonError> {
         match &mut self.owned {
@@ -1852,9 +1831,6 @@ impl<'a> Reader<'a> {
     /// 一个与根无关的节点派生量：`length`（不含槽）、`slot_counts`、子树摘要。
     ///
     /// 后序迭代 + 捕获内 memo；`on_path` 只含当前路径——闭包成环一律拒绝（不得用无限遍历替代判据）。
-    fn derived_of(&mut self, root: [u8; 32]) -> Result<ReadDerived, String> {
-        self.derived_of_typed(root).map_err(ordinary_read_error)
-    }
     fn derived_of_typed(&mut self, root: [u8; 32]) -> Result<ReadDerived, MixedJsonError> {
         let owner = self.owner().cloned();
         let work = self.work;
@@ -2607,13 +2583,11 @@ pub(crate) struct ObservedLegacyNode<'a> {
     _observer: &'a dyn crate::v3::audit_budget::LegacyObserver,
 }
 impl ObservedLegacyNode<'_> {
+    #[cfg(test)]
     pub(crate) fn checked(
         &self,
     ) -> &newchan_rust::s_content::legacy_evidence::CheckedLegacyEvidenceRow {
         &self.checked
-    }
-    pub(crate) fn payload(&self) -> &[u8] {
-        &self.payload
     }
     /// 当前原件已核且已接纳之后才能比较持久证书；不发布新资格。
     pub(crate) fn certificate(
@@ -2851,14 +2825,6 @@ fn read_root_row_typed(
     }))
 }
 
-fn append_checked_admitted(
-    out: &mut CodecVec<u8>,
-    bytes: &[u8],
-    declared: u64,
-    work: Option<&WorkScope>,
-) -> Result<(), String> {
-    append_checked_typed(out, bytes, declared, work).map_err(ordinary_read_error)
-}
 fn append_checked_typed(
     out: &mut CodecVec<u8>,
     bytes: &[u8],

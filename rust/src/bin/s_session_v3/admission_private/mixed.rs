@@ -9,11 +9,11 @@ use sc::capture_allocation::native_owned::NativeValue;
 use std::cell::Cell;
 
 pub(crate) struct SealedPrefix {
-    protocol: Option<NativeValue<String>>,
-    epoch: NativeValue<String>,
+    _protocol: Option<NativeValue<String>>,
+    _epoch: NativeValue<String>,
 }
 impl SealedPrefix {
-    pub(crate) fn require(&self, prefix: &RejectionPrefix<'_>) -> Result<(), FixedFailure> {
+    pub(in crate::v3) fn require(&self, prefix: &RejectionPrefix<'_>) -> Result<(), FixedFailure> {
         match prefix {
             RejectionPrefix::None => Ok(()),
             _ => Err(FixedFailure::new(
@@ -84,7 +84,7 @@ fn business(
             crate::audit::mixed_profile::meta_text(&tx, "writer_epoch", shared.work),
         )?
         .ok_or_else(|| shared.failure("MixedEpochMissing", "完整核后缺writer_epoch"))?;
-        Ok(SealedPrefix { protocol, epoch })
+        Ok(SealedPrefix { _protocol: protocol, _epoch: epoch })
     })();
     shared.set_phase(ErrorPhase::Rollback);
     let disabled = conn

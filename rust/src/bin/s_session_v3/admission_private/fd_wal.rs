@@ -653,6 +653,7 @@ pub(super) const COUNT_SCAN_TABLES: &[&[u8]] = &[
     b"s_content_publications",
     b"s_delivery_policy",
     b"s_delivery_refs",
+    b"s_evidence_nodes",
     b"s_protocol_meta",
     b"structure_deltas",
 ];

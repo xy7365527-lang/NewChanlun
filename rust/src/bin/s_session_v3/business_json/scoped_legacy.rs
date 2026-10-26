@@ -390,6 +390,7 @@ pub(crate) fn sql_text<'row>(
         )),
     }
 }
+#[cfg(test)]
 pub(crate) fn project_raw_history_row(
     row: &rusqlite::Row<'_>,
     work: &WorkScope,

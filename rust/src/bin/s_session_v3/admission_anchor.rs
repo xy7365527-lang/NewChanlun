@@ -52,7 +52,6 @@ pub(crate) enum Stage {
 pub(crate) enum ErrorKind {
     ResourcesMissing,
     ResourcesInvalid,
-    MixedAdmissionNotEnabled,
     Identity,
     AnchorMissing,
     AnchorInvalid,
@@ -646,8 +645,8 @@ pub(crate) struct TerminalReceipt {
     pub(crate) prelude: Option<PreludeObservation>,
     pub(crate) first_read_at: Option<Instant>,
     pub(crate) job: Option<admission_job::JobSnapshot>,
-    pub(crate) ram_before_stderr: Option<ram::RamSnapshot>,
-    pub(crate) ram_final: Option<ram::RamSnapshot>,
+    ram_before_stderr: Option<ram::RamSnapshot>,
+    ram_final: Option<ram::RamSnapshot>,
     pub(crate) actual_stderr_bytes: u128,
     pub(crate) unaccepted_stderr_bytes: u128,
     pub(crate) accounting_error: Option<std::borrow::Cow<'static, str>>,
@@ -966,7 +965,7 @@ impl FinishedAdmission {
     pub(crate) fn is_mixed(&self) -> bool {
         self.ram.is_some()
     }
-    pub(crate) fn require_mixed_prefix(
+    pub(super) fn require_mixed_prefix(
         &self,
         prefix: &super::admission_private::RejectionPrefix<'_>,
     ) -> Result<(), terminal::FixedFailure> {

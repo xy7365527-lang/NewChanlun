@@ -257,6 +257,7 @@ impl ExpectedTables {
         }
         result
     }
+    #[cfg(test)]
     pub(super) fn include(&mut self, name: &str) -> Result<(), &'static str> {
         let i = TABLES
             .iter()
@@ -490,10 +491,6 @@ pub(super) fn test_progressive_policy<T>(
         state.denied.borrow()
     );
     result
-}
-#[cfg(test)]
-pub(super) fn test_policy<T>(conn: &rusqlite::Connection, run: impl FnOnce() -> T) -> T {
-    tests::with_policy(conn, run)
 }
 #[cfg(test)]
 mod tests {

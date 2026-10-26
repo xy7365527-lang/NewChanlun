@@ -342,10 +342,12 @@ impl Memo {
         self.retained_bytes().saturating_add(self.capture_bytes())
     }
     /// 按开销从大到小驱逐句柄，直到句柄总量不超过给定预算（不整块清空）。
+    #[cfg(test)]
     fn trim_handles(&mut self, budget: usize) {
         self.trim_handles_admitted(budget, None)
             .expect("None admission cannot fail")
     }
+    #[cfg(test)]
     fn trim_handles_admitted(
         &mut self,
         budget: usize,
@@ -393,10 +395,12 @@ impl Memo {
             self.batch_headers_bytes = self.batch_headers_bytes.saturating_sub(old.cost);
         }
     }
+    #[cfg(test)]
     fn trim_batch_headers(&mut self, budget: usize) {
         self.trim_batch_headers_admitted(budget, None)
             .expect("None admission cannot fail")
     }
+    #[cfg(test)]
     fn trim_batch_headers_admitted(
         &mut self,
         budget: usize,
@@ -434,13 +438,6 @@ impl Memo {
         Ok(())
     }
     /// 单一预算下先丢大句柄、再丢小控制头；不为准入旋转原件池。
-    fn make_room_admitted(
-        &mut self,
-        cost: usize,
-        work: Option<&WorkScope>,
-    ) -> Result<bool, String> {
-        self.make_room_typed(cost, work).map_err(|e| e.to_string())
-    }
     /// #1527：先为两组驱逐计划完成所有许可，再改原cache；拒绝保留旧合法条目。
     fn make_room_typed(
         &mut self,
@@ -575,6 +572,7 @@ impl Memo {
     }
     /// 驱逐独有节点证书（单条最大者优先）与根证书，直到证书总量不超过给定预算。
     /// 证书只影响复用、不影响任何判据；根证书被驱逐时其句柄一并作废（不留永远命不中的死句柄）。
+    #[cfg(test)]
     fn trim_certs(&mut self, budget: usize) {
         self.trim_certs_typed(budget, None)
             .expect("None admission cannot fail")
@@ -1241,13 +1239,6 @@ pub(super) fn capture_len() -> usize {
 }
 
 /// 本捕获已算出的节点派生量（同一连接、同一次捕获内复用；跨捕获必然重算）。
-pub(super) fn derived_get_admitted(
-    conn_id: usize,
-    id: &[u8; 32],
-    work: Option<&WorkScope>,
-) -> Result<Option<NodeDerived>, String> {
-    derived_get_typed(conn_id, id, work).map_err(|e| e.to_string())
-}
 pub(super) fn derived_get_typed(
     conn_id: usize,
     id: &[u8; 32],
@@ -1283,14 +1274,6 @@ pub(super) fn derived_has(conn_id: usize, id: &[u8; 32]) -> bool {
             .as_ref()
             .is_some_and(|c| c.derived.contains_key(&(conn_id, *id)))
     })
-}
-pub(super) fn derived_put_admitted(
-    conn_id: usize,
-    id: [u8; 32],
-    derived: NodeDerived,
-    work: Option<&WorkScope>,
-) -> Result<(), String> {
-    derived_put_typed(conn_id, id, derived, work).map_err(|e| e.to_string())
 }
 pub(super) fn derived_put_typed(
     conn_id: usize,
@@ -1420,6 +1403,7 @@ pub(super) fn cert_marked(conn_id: usize, id: [u8; 32]) -> bool {
 pub(super) fn cert_certify(conn_id: usize, id: [u8; 32]) {
     cert_certify_admitted(conn_id, id, None).expect("None admission cannot fail")
 }
+#[cfg(test)]
 pub(super) fn cert_certify_admitted(
     conn_id: usize,
     id: [u8; 32],
@@ -1475,6 +1459,7 @@ impl IdSet for NativeSet<[u8; 32]> {
         self.iter()
     }
 }
+#[cfg(test)]
 pub(super) fn cert_commit_admitted(
     conn_id: usize,
     ids: &(impl IdSet + ?Sized),
@@ -1538,13 +1523,6 @@ pub(super) fn cert_commit_typed(
     })
 }
 /// 冷展开后，只有全部当前原件仍在池里且与本次读集为同一不可变原件，才能建立新根证明。
-pub(super) fn certify_retained_originals_admitted(
-    conn_id: usize,
-    ids: &(impl IdSet + ?Sized),
-    work: Option<&WorkScope>,
-) -> Result<bool, String> {
-    certify_retained_originals_typed(conn_id, ids, work).map_err(|e| e.to_string())
-}
 pub(super) fn certify_retained_originals_typed(
     conn_id: usize,
     ids: &(impl IdSet + ?Sized),
@@ -1838,6 +1816,7 @@ pub(super) fn handle_put_certified(
     handle_put_certified_admitted(root_key, root_cert, closure, bytes, value, None)
         .expect("None admission cannot fail")
 }
+#[cfg(test)]
 pub(super) fn handle_put_certified_admitted(
     root_key: &str,
     root_cert: &RootCert,
@@ -2810,7 +2789,7 @@ mod tests {
                     assert_eq!(m.total_bytes(), total_before);
                     // 单一预算恰好容不下再一份同量 payload：漏账会把它错放进来。
                     m.limit = total_before + a.payload_cost() - 1;
-                    assert!(!m.make_room_admitted(a.payload_cost(), None).unwrap());
+                    assert!(!m.make_room_typed(a.payload_cost(), None).unwrap());
                 });
                 end_capture();
                 checked = true;

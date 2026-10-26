@@ -61,6 +61,7 @@ impl AdmissionRamLedger {
             .checked_add(arc_layout::<OperationParent>()?.size())
             .ok_or(ScratchFailure::Ledger)
     }
+    #[cfg(test)]
     pub(super) fn new(limits: NativeRamLimits) -> Result<Self, ScratchFailure> {
         Self::new_with_fixed(limits, 0)
     }
@@ -109,6 +110,7 @@ impl AdmissionRamLedger {
     pub(super) fn observation(&self) -> RamObservation {
         RamObservation(self.parent.ledger.clone())
     }
+    #[cfg(test)]
     pub(super) fn snapshot(&self) -> Result<RamSnapshot, ScratchFailure> {
         self.parent
             .ledger

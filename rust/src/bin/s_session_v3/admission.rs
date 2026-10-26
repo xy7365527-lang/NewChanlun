@@ -527,7 +527,6 @@ fn mixed_failure(code: &'static str, phase: &'static str, detail: &str) -> Strin
 #[cfg(test)]
 mod mixed_writer_tests {
     use super::*;
-    use std::io::Write as _;
     #[test]
     fn mixed_writer_initial_ram_refusal_uses_fixed_terminal_without_job() {
         crate::v2::with_mixed_control_fixture(|conn| {

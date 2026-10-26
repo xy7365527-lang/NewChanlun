@@ -482,6 +482,7 @@ fn load_batch_bytes_with(
 struct SharedHeaderText {
     text: TextValue,
 }
+#[cfg(test)]
 fn share_header_text_admitted(
     text: &str,
     work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
@@ -495,7 +496,6 @@ fn share_header_text_typed(
     crate::v3::native_shared::NativeArc<SharedHeaderText>,
     newchan_rust::s_content::CodecError,
 > {
-    use v3::audit_store::{CodecRead, NativeAdmission};
     let text = TextValue::from_str_admitted_typed(text, None, work)?;
     crate::v3::native_shared::NativeArc::try_new_shallow(SharedHeaderText { text }, work)
 }
@@ -2425,6 +2425,7 @@ fn read_raw_events_until_measured(
 }
 
 /// 当前scope拥有完整raw数组；借SQL字段与OHLC视图，不拆出裸Vec<Value>。
+#[cfg(test)]
 fn read_raw_events_until_admitted(
     conn: &Connection,
     deadline: Option<std::time::Instant>,
@@ -6006,7 +6007,7 @@ mod tests {
         let mut snaps = vec![];
         for &count in counts {
             accept_ohlc(&files, &design_input(&rows[..count]));
-            cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+            advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
             let snap = snapshot_of(&files, None);
             contract_check(&snap);
             snaps.push(snap);
@@ -6127,7 +6128,7 @@ mod tests {
         );
         tb02c::TEST_ROUND_BUDGET.with(|c| c.set(Some(1)));
         let before = snapshot_of(&files, None);
-        cmd_recover(&files.db(), "2").unwrap();
+        recover_business(&files.db(), "2").unwrap();
         assert_eq!(snapshot_of(&files, None), before, "recover 不改已发布 cut");
         let mut more = rows.clone();
         let last = *more.last().unwrap();
@@ -6142,7 +6143,7 @@ mod tests {
             None,
         )
         .unwrap();
-        cmd_advance(&files.db(), "2").unwrap();
+        advance_business(&files.db(), "2").unwrap();
         let after = snapshot_of(&files, None);
         tb02c::TEST_ROUND_BUDGET.with(|c| c.set(None));
         contract_check(&after);
@@ -8195,7 +8196,7 @@ mod tests {
             "tb1405-in.json",
             DEFAULT_WRITER_EPOCH,
         );
-        cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
     }
 
     /// 旧规则 /1 库带未检查点的 -wal（含未决 Begin）：新二进制的读、写、恢复入口全部不改写
@@ -8454,7 +8455,7 @@ mod tests {
         assert_eq!(reads(&image), live, "崩溃现场重开");
 
         recover_core(&image, "2", None).unwrap();
-        cmd_accept(
+        accept_business_file(
             &image,
             &write_input(
                 &files,
@@ -8465,7 +8466,7 @@ mod tests {
             "2",
         )
         .unwrap();
-        cmd_advance(&image, "2").unwrap();
+        advance_business(&image, "2").unwrap();
         let after = reads(&image);
         assert_eq!(after.1["generation"], json!("2"));
     }

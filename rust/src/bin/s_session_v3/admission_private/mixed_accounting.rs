@@ -96,6 +96,7 @@ impl<'s, 'j> MixedAccounting<'s, 'j> {
             .and_then(|mut account| run(&mut account));
         self.observed(result)
     }
+    #[cfg(test)]
     pub(super) fn resource_error(&self) -> Option<sc::CodecError> {
         self.errors.borrow().first_codec.clone()
     }
