@@ -822,6 +822,71 @@ pub(super) fn begin_capture_admitted(
 ) -> Result<CaptureGuard, String> {
     begin_capture_typed(node_budget, work).map_err(|e| e.to_string())
 }
+/// mixed准入成功前保留旧合法索引；失败析构时恢复，不把失败父留作下一Job的缓存父。
+pub(crate) struct MixedCacheTransaction {
+    saved: Option<RetainedTables>,
+}
+struct RetainedTables {
+    certs: NativeMap<[u8;32],Arc<Cert>>,
+    roots: NativeMap<TextValue,Arc<RootCert>>,
+    handles: NativeTree<TextValue,Handle>,
+    headers: NativeTree<TextValue,BatchHeaderEntry>,
+    certs_bytes: usize,
+    handles_bytes: usize,
+    headers_bytes: usize,
+    lineage: Arc<()>,
+}
+impl MixedCacheTransaction {
+    pub(crate) fn start(work:&WorkScope)->Result<Self,newchan_rust::s_content::CodecError>{
+        MEMO.with(|m|{
+            let mut m=m.borrow_mut();
+            if m.capture.is_some() {
+                return Err(work.reject(newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Ledger));
+            }
+            let certs=m.certs.try_copy_mixed(work,|key,value|{
+                value.check_retained_source()?; Ok((*key,value.clone()))
+            })?;
+            let roots=m.root_certs.try_copy_mixed(work,|key,value|{
+                value.check_retained_source()?; Ok((key.try_clone_mixed(work)?,value.clone()))
+            })?;
+            let handles=m.handles.try_copy_mixed(work,|key,value|{
+                value.bytes.check_retained_source()?;
+                if let Some(json)=&value.value{json.check_retained_source()?;}
+                Ok((key.try_clone_mixed(work)?,Handle{closure:value.closure,root_cert:value.root_cert.clone(),
+                    bytes:value.bytes.clone(),value:value.value.clone(),cost:value.cost}))
+            })?;
+            let headers=m.batch_headers.try_copy_mixed(work,|key,value|{
+                for text in [&value.header.protocol_revision,&value.header.session_generation,
+                    &value.header.clock_plan_hash,&value.header.semantic_commit_ns].into_iter().flatten(){
+                    text.check_retained_source()?;
+                }
+                Ok((key.try_clone_mixed(work)?,BatchHeaderEntry{batch_id:value.batch_id.try_clone_mixed(work)?,
+                    byte_len:value.byte_len,root_cert:value.root_cert.clone(),closure:value.closure,
+                    header:value.header.clone(),cost:value.cost}))
+            })?;
+            let saved=RetainedTables{
+                certs:std::mem::replace(&mut m.certs,certs),roots:std::mem::replace(&mut m.root_certs,roots),
+                handles:std::mem::replace(&mut m.handles,handles),headers:std::mem::replace(&mut m.batch_headers,headers),
+                certs_bytes:m.certs_bytes,handles_bytes:m.handles_bytes,headers_bytes:m.batch_headers_bytes,
+                lineage:m.cert_lineage.clone(),
+            };
+            Ok(Self{saved:Some(saved)})
+        })
+    }
+    pub(crate) fn commit(mut self){self.saved.take();}
+}
+impl Drop for MixedCacheTransaction {
+    fn drop(&mut self){
+        if let Some(saved)=self.saved.take(){
+            MEMO.with(|m|{
+                let mut m=m.borrow_mut();
+                m.certs=saved.certs;m.root_certs=saved.roots;m.handles=saved.handles;m.batch_headers=saved.headers;
+                m.certs_bytes=saved.certs_bytes;m.handles_bytes=saved.handles_bytes;m.batch_headers_bytes=saved.headers_bytes;
+                m.cert_lineage=saved.lineage;
+            });
+        }
+    }
+}
 /// 跨Job仅重建容器布局与键。条目仍持原payload父，读取选中内容时另作受控复制。
 pub(crate) fn begin_capture_mixed(budget_bytes:usize,work:&WorkScope)->Result<CaptureGuard,newchan_rust::s_content::CodecError>{
     MEMO.with(|m| {

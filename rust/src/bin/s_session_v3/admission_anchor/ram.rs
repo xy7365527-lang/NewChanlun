@@ -119,6 +119,7 @@ impl AdmissionRamLedger {
             .lock()
             .map_err(|_| ScratchFailure::Ledger)?;
         state.snapshot.active = false;
+        if let Some(error)=state.snapshot.failed {return Err(error);}
         Ok(state.snapshot)
     }
 }

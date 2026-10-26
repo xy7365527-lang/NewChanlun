@@ -431,6 +431,7 @@ fn mixed_fixed_metadata(
         .pad_to_align()
         .size();
     job.checked_add(Layout::new::<TerminalState>().size())
+        .and_then(|n| n.checked_add(Layout::new::<crate::cache::MixedCacheTransaction>().size()))
         .ok_or(ScratchFailure::Ledger)
 }
 
@@ -563,6 +564,7 @@ use newchan_rust::s_content::{
 /// #1527 M-01：原 Job 只属于此持有者；provider 只借用受限记账门面。
 /// 不向 provider 移交本持有者或其可变引用；finish 永远检查这里的原账。
 pub(crate) struct StartedAdmission {
+    cache_transaction: Option<crate::cache::MixedCacheTransaction>,
     job: Rc<RefCell<admission_job::Job>>,
     ram: Option<ram::AdmissionRamLedger>,
     lease: Arc<BudgetLease>,
@@ -811,6 +813,7 @@ impl ConsumedAdmission {
             .charge_wire_bytes(self.prelude.wire_bytes)
             .map_err(|e| self.prelude.error(job_error_kind(&e), Stage::E7))?;
         Ok(StartedAdmission {
+            cache_transaction: None,
             job,
             ram,
             lease: self.lease,
@@ -833,6 +836,17 @@ impl StartedAdmission {
         run: impl FnOnce(&mut AdmissionAccounting<'_>) -> Result<T, E>,
     ) -> Result<T, newchan_rust::s_content::capture_allocation::scratch::WorkError<E>> {
         use newchan_rust::s_content::capture_allocation::scratch::WorkError;
+        if let Some(ram)=&self.ram {
+            if self.cache_transaction.is_none(){
+                let transaction=ram.codec_work().map_err(WorkError::Resource)?
+                    .run(crate::cache::MixedCacheTransaction::start)
+                    .map_err(|error|match error{
+                        WorkError::Resource(error)=>WorkError::Resource(error),
+                        WorkError::Operation(error)=>WorkError::Resource(error.scratch_failure().unwrap_or(newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Ledger)),
+                    })?;
+                self.cache_transaction=Some(transaction);
+            }
+        }
         match &self.ram {
             Some(ram) => ram.codec_work().map_err(WorkError::Resource)?.run(|work| {
                 run(&mut AdmissionAccounting {
@@ -856,7 +870,7 @@ impl StartedAdmission {
         }
     }
 
-    pub(crate) fn seal(self) -> Result<FinishedAdmission, JobAdmissionError> {
+    pub(crate) fn seal(mut self) -> Result<FinishedAdmission, JobAdmissionError> {
         let paths = self.lease.revalidate_paths();
         self.job
             .borrow()
@@ -869,6 +883,7 @@ impl StartedAdmission {
             ram.close()
                 .map_err(|_| self.error(ErrorKind::ResourcesInvalid))?;
         }
+        if let Some(transaction)=self.cache_transaction.take(){transaction.commit();}
         Ok(FinishedAdmission {
             job: self.job,
             ram: self.ram,
