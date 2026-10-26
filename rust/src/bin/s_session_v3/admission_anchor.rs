@@ -1623,3 +1623,8 @@ pub(crate) fn test_mixed_account<'a>(
 )->AdmissionAccounting<'a>{
     AdmissionAccounting{job:job.borrow_mut(),work:Some(work),mixed:true}
 }
+
+#[cfg(test)]
+pub(crate) fn test_prepare_mixed(db:&Path,live:u64,operation:u64)->PreparedAdmission {
+    test_support::prepare_with_ram(db,Some((live,operation)))
+}

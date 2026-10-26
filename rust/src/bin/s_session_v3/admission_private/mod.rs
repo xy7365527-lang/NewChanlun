@@ -2,6 +2,7 @@
 mod fd_wal;
 mod mixed_sql;
 mod mixed_accounting;
+mod mixed;
 use super::admission_anchor::AdmissionAccounting;
 use super::admission_provider::{MeasuredDomain, Medium};
 use super::audit_budget::Budget;

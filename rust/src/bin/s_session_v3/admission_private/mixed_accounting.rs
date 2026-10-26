@@ -38,6 +38,21 @@ impl<'s,'j> MixedAccounting<'s,'j> {
         })
     }
     pub(super) fn set_phase(&self,phase:ErrorPhase) {self.phase.set(phase);}
+    pub(super) fn failure(&self, code:&'static str, detail:&str)->FixedFailure {
+        self.note_business(code,detail);
+        self.errors.borrow().first.expect("recorded failure")
+    }
+    pub(super) fn codec_failure(&self,error:sc::CodecError)->FixedFailure {
+        let _:Result<(),_>=self.observed(Err(error));
+        self.errors.borrow().first.expect("recorded failure")
+    }
+    pub(super) fn reserve(&self)->Result<sc::job::Grant,sc::CodecError>{
+        self.run(|a|a.reserve_staged(0))
+    }
+    pub(super) fn reconcile(&self,grant:&sc::job::Grant)->Result<(),sc::CodecError>{
+        self.run(|a|a.reconcile(grant,0))
+    }
+
     fn observed<T>(&self,result:Result<T,sc::CodecError>)->Result<T,sc::CodecError>{
         if let Err(error)=&result {
             crate::v3::business_json::mixed_callback_failed(error);

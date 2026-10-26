@@ -50,7 +50,7 @@ fn work_copy<T: Copy>(bytes: &[T], owner: Option<&OwnedBudget>) -> Result<CodecV
 }
 fn ordinary_read_error(error: MixedJsonError) -> String {
     match error {
-        MixedJsonError::Resource(error) => error.to_string(),
+        MixedJsonError::Resource(error) => crate::v3::business_json::mixed_resource_diagnostic(&error),
         MixedJsonError::Business(error) => error,
     }
 }
@@ -309,7 +309,7 @@ pub(super) fn format(conn: &Connection) -> Result<Format, String> {
     format_admitted(conn, None)
 }
 pub(super) fn format_admitted(conn:&Connection,work:Option<&WorkScope>)->Result<Format,String>{
-    format_typed(conn,work).map_err(|e|match e {MixedJsonError::Business(e)=>e,MixedJsonError::Resource(e)=>e.to_string()})
+    format_typed(conn,work).map_err(|e|match e {MixedJsonError::Business(e)=>e,MixedJsonError::Resource(e)=>crate::v3::business_json::mixed_resource_diagnostic(&e)})
 }
 pub(crate) fn format_typed(
     conn: &Connection,
@@ -513,31 +513,31 @@ pub(crate) fn split_fact_root_mixed(
 > {
     use newchan_rust::s_content::capture_allocation::native_owned::NativeValue;
     let text = std::str::from_utf8(bytes).map_err(|e| {
-        MixedJsonError::Business(format!("StorageUnavailable：{what} 事实原件非 UTF-8：{e}"))
+        MixedJsonError::diagnostic(format_args!("StorageUnavailable：{what} 事实原件非 UTF-8：{e}"))
     })?;
     let value = crate::v3::business_json::mixed_parse_admitted(bytes, work, || {
         v2::strict_json(text.as_bytes())
             .map(crate::v3::business_json::PlainJson::from)
             .map_err(|e| {
-                MixedJsonError::Business(format!(
+                MixedJsonError::diagnostic(format_args!(
                     "StorageUnavailable：{what} 事实原件非严格 JSON：{e}"
                 ))
             })
     })?;
     let items = value.as_array().ok_or_else(|| {
-        MixedJsonError::Business(format!(
+        MixedJsonError::diagnostic(format_args!(
             "StorageUnavailable：{what} 事实原件必须是三元素数组"
         ))
     })?;
     let [payload, refs, coords] = items.as_slice() else {
-        return Err(MixedJsonError::Business(format!(
+        return Err(MixedJsonError::diagnostic(format_args!(
             "StorageUnavailable：{what} 事实原件必须是三元素数组（实际 {}）",
             items.len()
         )));
     };
     let take = |value: &Value, label: &str| -> Result<NativeValue<String>, MixedJsonError> {
         let text = value.as_str().ok_or_else(|| {
-            MixedJsonError::Business(format!(
+            MixedJsonError::diagnostic(format_args!(
                 "StorageUnavailable：{what} 事实原件{label}必须是文本"
             ))
         })?;
@@ -2215,13 +2215,13 @@ impl<'a> Reader<'a> {
                     })
                     .map_err(|e| match e {
                         crate::v3::business_json::StrictOwnerError::Syntax(cause) => {
-                            MixedJsonError::Business(format!(
+                            MixedJsonError::diagnostic(format_args!(
                                 "StorageUnavailable：私有根 `{root_key}` 非严格 JSON：{cause}"
                             ))
                         }
                         #[cfg(feature = "s_allocation_json_testonly")]
                         crate::v3::business_json::StrictOwnerError::OwnedSyntax(cause) => {
-                            MixedJsonError::Business(format!(
+                            MixedJsonError::diagnostic(format_args!(
                                 "StorageUnavailable：私有根 `{root_key}` 非严格 JSON：{cause}"
                             ))
                         }
@@ -2650,7 +2650,7 @@ fn read_node_row_typed(
     MixedJsonError,
 > {
     let err = |e| {
-        MixedJsonError::Business(format!(
+        MixedJsonError::diagnostic(format_args!(
             "StorageUnavailable：读私有节点失败：{}",
             sql_columns(e, &["node_kind", "payload", "expanded_length"])
         ))
@@ -2662,7 +2662,7 @@ fn read_node_row_typed(
     .map_err(err)?;
     stmt.bind_blob(1, id).map_err(err)?;
     let mut row = stmt.next().map_err(err)?.ok_or_else(|| {
-        MixedJsonError::Business(format!("StorageUnavailable：私有节点 {} 缺失", hex(id)))
+        MixedJsonError::diagnostic(format_args!("StorageUnavailable：私有节点 {} 缺失", hex(id)))
     })?;
     let kind = row.integer(0).map_err(err)?;
     let payload = work_copy_typed(row.blob(1).map_err(err)?, owner, work)?;
@@ -2961,7 +2961,7 @@ pub(crate) fn ensure_all_nodes_reachable_mixed(
     reachable: usize,
     work: &WorkScope,
 ) -> Result<(), MixedJsonError> {
-    let err = |e| MixedJsonError::Business(format!("StorageUnavailable：核私有节点表失败：{e}"));
+    let err = |e| MixedJsonError::diagnostic(format_args!("StorageUnavailable：核私有节点表失败：{e}"));
     let mut count =
         CheckedStatement::prepare(conn, c"SELECT COUNT(*) FROM s_evidence_nodes").map_err(err)?;
     let mut row = count
@@ -2975,7 +2975,7 @@ pub(crate) fn ensure_all_nodes_reachable_mixed(
         return Ok(());
     }
     let orphan = unreachable_nodes_mixed(conn, &std::collections::BTreeSet::new(), work)?;
-    Err(MixedJsonError::Business(format!(
+    Err(MixedJsonError::diagnostic(format_args!(
         "StorageUnavailable：私有证据图节点覆盖不符（表内 {total} 行 / 本次可达 {reachable} 个；首例不可达 {}）",
         orphan.first().map(|id| hex(id)).unwrap_or_else(|| "-".to_string())
     )))
@@ -2986,9 +2986,9 @@ pub(crate) fn unreachable_nodes_mixed(
     work: &WorkScope,
 ) -> Result<CodecVec<[u8; 32]>, MixedJsonError> {
     let sql_error =
-        |e| MixedJsonError::Business(format!("StorageUnavailable：读私有节点表失败：{e}"));
+        |e| MixedJsonError::diagnostic(format_args!("StorageUnavailable：读私有节点表失败：{e}"));
     let row_error = |e| {
-        MixedJsonError::Business(format!(
+        MixedJsonError::diagnostic(format_args!(
             "StorageUnavailable：私有节点行损坏：{}",
             sql_columns(e, &["node_id"])
         ))

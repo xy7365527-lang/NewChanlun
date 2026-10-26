@@ -749,7 +749,7 @@ pub(super) fn enrich_raw_owned(
         return Ok(());
     }
     verify_raw_ohlc_cardinality(conn)?;
-    let mut stmt=conn.prepare("SELECT schema_revision,open,high,low,close FROM raw_ohlc WHERE identity_key=?1 AND revision=?2").map_err(|e|e.to_string())?;
+    let mut stmt=conn.prepare("SELECT schema_revision,open,high,low,close FROM raw_ohlc WHERE identity_key=?1 AND revision=?2").map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
     for i in 0..tree.view().as_array().unwrap().len() {
         crate::check_read_deadline(deadline)?;
         let event = tree.view().index(i).unwrap();

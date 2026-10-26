@@ -376,7 +376,7 @@ fn meta_integer(conn: &Connection, key: &str, work: &WorkScope) -> Result<i64, M
         .ok_or_else(|| format!("StorageUnavailable：meta.{key} 缺失"))?;
     let field = formatted(format_args!("meta.{key}"), work)?;
     parse_canonical_i64(&value, &field)
-        .map_err(|e| MixedJsonError::Business(format!("StorageUnavailable：{e}")))
+        .map_err(|e| MixedJsonError::diagnostic(format_args!("StorageUnavailable：{e}")))
 }
 pub(crate) fn scope(
     conn: &Connection,
@@ -847,7 +847,7 @@ fn verify_last_catalog(
             .as_object()
             .ok_or("StorageUnavailable：末代逐轴证据缺失")?;
         for (axis, expected) in axes {
-            let mut stmt=conn.prepare("SELECT impl_status,proof_status,run_status,evidence_json FROM catalog WHERE catalog_id=?1").map_err(|e|e.to_string())?;
+            let mut stmt=conn.prepare("SELECT impl_status,proof_status,run_status,evidence_json FROM catalog WHERE catalog_id=?1").map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
             let mut rows = stmt.query(params![axis]).map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
             let row = rows
                 .next()
@@ -915,7 +915,7 @@ pub(crate) fn startup(
     let reachable = capture(conn, work, observer)?;
     let control = mixed_control::prepare(conn, work, observer)?;
     verify(conn, reachable, control, work, observer).map_err(|e| match e {
-        MixedJsonError::Business(s) => MixedJsonError::Business(format!("StorageUnavailable：{s}")),
+        MixedJsonError::Business(s) => MixedJsonError::diagnostic(format_args!("StorageUnavailable：{s}")),
         resource => resource,
     })
 }
