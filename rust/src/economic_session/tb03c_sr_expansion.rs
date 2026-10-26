@@ -111,6 +111,27 @@ fn date<'a>(v: &'a Value, k: &str) -> Result<&'a str, String> {
     if !ok {
         return Err(format!("InvalidDomain：{k} 须为 YYYY-MM-DD"));
     }
+
+    // 验证日期有效性（简化版：月份1-12，日期1-31）
+    let year: i32 = s[0..4].parse().unwrap();
+    let month: u32 = s[5..7].parse().unwrap();
+    let day: u32 = s[8..10].parse().unwrap();
+
+    if month < 1 || month > 12 {
+        return Err(format!("InvalidDomain：{k} 月份须为 01-12"));
+    }
+    if day < 1 || day > 31 {
+        return Err(format!("InvalidDomain：{k} 日期须为 01-31"));
+    }
+
+    // 简化验证：2月不超过29天，4/6/9/11月不超过30天
+    if month == 2 && day > 29 {
+        return Err(format!("InvalidDomain：{k} 2月日期不得超过29"));
+    }
+    if [4, 6, 9, 11].contains(&month) && day > 30 {
+        return Err(format!("InvalidDomain：{k} 该月日期不得超过30"));
+    }
+
     Ok(s)
 }
 
