@@ -1039,7 +1039,7 @@ mod tests {
                 "insufficient_knowledge":0,"domain_not_satisfied":0}
         });
         for mode in [crate::delta_storage::Mode::ChangesOnly,crate::delta_storage::Mode::LegacyFull] {
-            for case in 0..4 {
+            for case in 0..5 {
                 let mut candidate=delta.clone();
                 match case {
                     1=>candidate["upserts"].as_array_mut().unwrap().push(upsert.clone()),
@@ -1055,6 +1055,12 @@ mod tests {
                         Box::new(std::time::Instant::now),std::time::Instant::now(),work)?;
                     let observer=Observer{job:RefCell::new(job),work};
                     let mut walk=crate::audit::mixed::AuditWalk::capture(&conn,std::iter::empty(),work,&observer).unwrap();
+                    if case==4 {
+                        let used=observer.job.borrow().snapshot().records;
+                        observer.job.borrow_mut().charge_records(100-used).unwrap();
+                        assert!(matches!(walk.verify(&candidate,1,&batch,mode,work,&observer),Err(crate::v3::business_json::MixedJsonError::Resource(_))));
+                        return Ok::<(),sc::CodecError>(());
+                    }
                     let actual=walk.verify(&candidate,1,&batch,mode,work,&observer);
                     match (&expected,&actual) {
                         (Ok(()),Ok(()))=>{original.finish().unwrap();walk.finish().unwrap();},
