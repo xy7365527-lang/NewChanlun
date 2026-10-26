@@ -15,6 +15,7 @@ static NEXT_ORIGIN: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct RamSnapshot {
+    pub fixed_metadata: usize,
     pub job_live: usize,
     pub job_peak: usize,
     pub operation_live: usize,
@@ -90,6 +91,7 @@ impl AdmissionRamLedger {
             .map_err(|_| ScratchFailure::Ledger)?;
         let ledger = Arc::new(Mutex::new(LedgerState {
             snapshot: RamSnapshot {
+                fixed_metadata: fixed,
                 job_live: fixed,
                 job_peak: fixed,
                 operation_live: fixed,
@@ -2573,10 +2575,17 @@ mod tests {
                     assert_eq!(final_ram.parts[1], 0);
                     assert_eq!(final_ram.parts[2], 0);
                     let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
-                    assert_eq!(
-                        value["admission_accounting"]["ram_before_stderr"]["operation_closed"],
-                        true
-                    );
+                    let written = &value["admission_accounting"]["ram_before_stderr"];
+                    assert_eq!(written["operation_closed"], true);
+                    assert_eq!(written["final_live"], after.job_live);
+                    assert_eq!(written["retained_live"], 0);
+                    assert_eq!(written["fixed_metadata_bytes"], after.fixed_metadata);
+                    assert_eq!(written["parts"], serde_json::json!({
+                        "metadata_bytes": after.parts[0],
+                        "layout_bytes": after.parts[1],
+                        "native_bytes": after.parts[2]
+                    }));
+                    assert!(written["retention_error"].is_null());
                 } else {
                     assert!(result.is_ok());
                     if pass == 2 {
@@ -2590,6 +2599,79 @@ mod tests {
             crate::cache::configure(0);
         });
     }
+    #[test]
+    fn mixed_terminal_written_ram_matches_real_cache_permits_and_eviction() {
+        use crate::v3::admission_anchor::{test_prepare_mixed, CommandAccounting};
+        use crate::v3::admission_private::{test_with_mixed_entry, validate_mixed_prefix, RejectionPrefix};
+        use crate::v3::admission_provider::MeasuredDomain;
+        use sc::capture_allocation::scratch::WorkError;
+        crate::v2::with_mixed_control_fixture(|conn| {
+            let original: String = conn.query_row("PRAGMA database_list", [], |r| r.get(2)).unwrap();
+            for mode in 0..3 {
+                crate::cache::configure(0);
+                if mode != 0 {
+                    crate::cache::configure(1 << 20);
+                }
+                let path = std::path::Path::new(&original)
+                    .with_file_name(format!("mixed-terminal-retention-{mode}.sqlite"));
+                conn.execute("VACUUM INTO ?1", rusqlite::params![path.to_str().unwrap()]).unwrap();
+                let command = CommandAccounting::begin();
+                let consumed = test_prepare_mixed(&path, 1 << 26, 1 << 26).consume().unwrap();
+                let source = MeasuredDomain::measure(&consumed).unwrap();
+                let mut started = consumed.into_job(source.existing).unwrap();
+                let ledger = started.ram.as_ref().unwrap().parent.ledger.clone();
+                let result = started.with_accounting(|account| {
+                    test_with_mixed_entry(|| validate_mixed_prefix(&source, account, &RejectionPrefix::None))
+                });
+                let proof = match result {
+                    Ok(proof) => proof,
+                    Err(WorkError::Operation(error)) => panic!("{} {}", error.code, error.detail()),
+                    Err(WorkError::Resource(error)) => panic!("{error:?}"),
+                };
+                started.set_mixed_prefix(proof);
+                let finished = started.seal().unwrap();
+                drop(finished);
+                if mode == 2 {
+                    crate::cache::configure(0);
+                }
+                let before = ledger.lock().unwrap().snapshot;
+                assert!(!before.active);
+                assert_eq!(before.job_live, before.parts.into_iter().sum::<usize>());
+                let mut output = Vec::new();
+                let receipt = command.report("terminal RAM observation", &mut output);
+                assert!(receipt.accounting_error.is_none());
+                let after_job = ledger.lock().unwrap().snapshot;
+                crate::cache::configure(0);
+                let after_cache = ledger.lock().unwrap().snapshot;
+                assert_eq!(after_cache.job_live, before.fixed_metadata);
+                let retained = after_job.job_live.checked_sub(after_cache.job_live).unwrap();
+                let job_native = before.job_live.checked_sub(after_job.job_live).unwrap();
+                assert_eq!(retained > 0, mode == 1);
+                let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
+                assert_eq!(value["admission_accounting"]["ram_before_stderr"], serde_json::json!({
+                    "final_live": before.job_live,
+                    "retained_live": retained,
+                    "fixed_metadata_bytes": before.fixed_metadata,
+                    "terminal_job_native_bytes": job_native,
+                    "retention_error": null,
+                    "parts": {
+                        "metadata_bytes": before.parts[0],
+                        "layout_bytes": before.parts[1],
+                        "native_bytes": before.parts[2]
+                    },
+                    "job_peak": before.job_peak,
+                    "operation_live": before.operation_live,
+                    "operation_peak": before.operation_peak,
+                    "operation_closed": true,
+                    "failed": false
+                }));
+                assert_eq!(receipt.ram_before_stderr.unwrap(), before);
+                assert_eq!(receipt.ram_final.unwrap(), after_job);
+                source.verify_before_open().unwrap();
+            }
+        });
+    }
+
     #[test]
     fn mixed_prepared_two_real_domains_share_caps_and_refusal_atomicity() {
         use crate::v3::admission_anchor::test_prepare_mixed_caps;

@@ -129,6 +129,18 @@ impl<K: Ord, V> NativeTree<K, V> {
     pub fn permit_capacity(&self) -> usize {
         self.permits.capacity()
     }
+    pub fn native_permit_bytes(&self) -> Result<usize, CodecError> {
+        use sc::capture_allocation::scratch::ScratchFailure;
+        let buffer = match self.permits.native_retained_charge() {
+            Some(bytes) => bytes,
+            None if self.permits.capacity() == 0 => 0,
+            None => return Err(CodecError::scratch(ScratchFailure::Ledger)),
+        };
+        self.permits.iter().try_fold(buffer, |bytes, permit| {
+            bytes.checked_add(permit.bytes())
+                .ok_or_else(|| CodecError::scratch(ScratchFailure::Ledger))
+        })
+    }
     /// 仅供保留结构统计：含尚未 clear 的节点上界与许可缓冲；不用于父账退款。
     #[cfg_attr(
         not(feature = "s_capture_native_testonly"),

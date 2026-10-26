@@ -1006,6 +1006,25 @@ impl Job {
         Ok(NodeAcceptance::FirstAccept)
     }
 
+    /// 原 Job 当前独占的 mixed 节点索引与开放预留许可，不含缓存。
+    pub fn mixed_tracking_native_bytes(&self) -> Result<usize, CodecError> {
+        use super::capture_allocation::scratch::ScratchFailure;
+        let AcceptedNodes::Mixed { binding, content, legacy } = &self.accepted else {
+            return Err(CodecError::scratch(ScratchFailure::Ledger));
+        };
+        let OpenReservations::Mixed(open) = &self.open else {
+            return Err(CodecError::scratch(ScratchFailure::Ledger));
+        };
+        [
+            binding.bytes(),
+            content.native_permit_bytes()?,
+            legacy.native_permit_bytes()?,
+            open.native_permit_bytes()?,
+        ].into_iter().try_fold(0usize, |total, bytes| {
+            total.checked_add(bytes)
+                .ok_or_else(|| CodecError::scratch(ScratchFailure::Ledger))
+        })
+    }
     /// #1527：具名mixed构造器；两域集合共同受当前父工作域约束。
     pub fn new_started_mixed(
         limits: JobLimits,

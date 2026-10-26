@@ -5,13 +5,9 @@ use super::*;
 use crate::v3::admission_anchor::terminal::FixedFailure;
 use crate::v3::audit_budget::LegacyObserver;
 use crate::v3::business_json::{MixedFailureScope, MixedJsonError};
-use sc::capture_allocation::native_owned::NativeValue;
 use std::cell::Cell;
 
-pub(crate) struct SealedPrefix {
-    _protocol: Option<NativeValue<String>>,
-    _epoch: NativeValue<String>,
-}
+pub(crate) struct SealedPrefix(());
 impl SealedPrefix {
     pub(in crate::v3) fn require(&self, prefix: &RejectionPrefix<'_>) -> Result<(), FixedFailure> {
         match prefix {
@@ -79,15 +75,12 @@ fn business(
             crate::v2::mixed_root::startup(&tx, shared.work, shared),
         )?;
         drop(raw);
-        let epoch = typed(
+        typed(
             shared,
             crate::audit::mixed_profile::meta_text(&tx, "writer_epoch", shared.work),
         )?
         .ok_or_else(|| shared.failure("MixedEpochMissing", "完整核后缺writer_epoch"))?;
-        Ok(SealedPrefix {
-            _protocol: protocol,
-            _epoch: epoch,
-        })
+        Ok(SealedPrefix(()))
     })();
     shared.set_phase(ErrorPhase::Rollback);
     let disabled = conn
@@ -217,11 +210,6 @@ mod tests {
                 Ok(sealed) => sealed,
                 Err(_) => panic!("mixed private work failed"),
             };
-            assert_eq!(
-                sealed._protocol.as_ref().map(|p| p.as_str()),
-                Some("s-session/2")
-            );
-            assert_eq!(sealed._epoch.as_str(), "1");
             assert!(sealed.require(&RejectionPrefix::None).is_ok());
             assert!(sealed.require(&RejectionPrefix::UnboundRecover).is_err());
             let mut finished = started.seal().unwrap();
@@ -256,6 +244,7 @@ mod tests {
             let before = started.accounting().snapshot();
             assert!(before.wire_bytes > 4096);
             assert_eq!(before.stopped, Some(sc::job::LIMIT_EXCEEDED));
+            drop(started);
             let mut output = Vec::new();
             let receipt = command.report("", &mut output);
             assert_eq!(receipt.job.as_ref().unwrap().wire_bytes, before.wire_bytes);

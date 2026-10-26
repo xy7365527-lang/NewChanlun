@@ -114,6 +114,8 @@ impl MixedTerminal {
         fallback: &str,
         snapshot: Option<&admission_job::JobSnapshot>,
         ram: Option<&ram::RamSnapshot>,
+        job_native: Option<usize>,
+        retained: Option<usize>,
     ) -> fmt::Result {
         let failure = self
             .first
@@ -161,9 +163,25 @@ impl MixedTerminal {
             out.write_char('}')?;
         }
         if let Some(ram) = ram {
-            write!(out,",\"ram_before_stderr\":{{\"final_live\":{},\"retained_live\":{},\"job_peak\":{},\"operation_live\":{},\"operation_peak\":{},\"operation_closed\":{},\"failed\":{}}}",
-                ram.job_live,if ram.active {0} else {ram.job_live},ram.job_peak,
-                ram.operation_live,ram.operation_peak,!ram.active,ram.failed.is_some())?;
+            write!(out, ",\"ram_before_stderr\":{{\"final_live\":{},\"retained_live\":", ram.job_live)?;
+            match retained {
+                Some(bytes) => write!(out, "{bytes}")?,
+                None => out.write_str("null")?,
+            }
+            write!(out, ",\"fixed_metadata_bytes\":{},\"terminal_job_native_bytes\":", ram.fixed_metadata)?;
+            match job_native {
+                Some(bytes) => write!(out, "{bytes}")?,
+                None => out.write_str("null")?,
+            }
+            out.write_str(",\"retention_error\":")?;
+            if retained.is_some() {
+                out.write_str("null")?;
+            } else {
+                json_string(out, if ram.active { "MixedRamOperationOpen" } else { "MixedRamBalanceInvalid" })?;
+            }
+            write!(out, ",\"parts\":{{\"metadata_bytes\":{},\"layout_bytes\":{},\"native_bytes\":{}}},\"job_peak\":{},\"operation_live\":{},\"operation_peak\":{},\"operation_closed\":{},\"failed\":{}}}",
+                ram.parts[0], ram.parts[1], ram.parts[2], ram.job_peak,
+                ram.operation_live, ram.operation_peak, !ram.active, ram.failed.is_some())?;
         }
         out.write_str("}}\n")
     }
@@ -175,8 +193,23 @@ impl MixedTerminal {
         mut receipt: TerminalReceipt,
     ) -> TerminalReceipt {
         let before = job.map(|j| j.borrow().snapshot());
+        let job_native = job.and_then(|j| j.borrow().mixed_tracking_native_bytes().ok());
+        let retained = receipt.ram_before_stderr.as_ref().and_then(|ram| {
+            if ram.active {
+                return None;
+            }
+            ram.job_live.checked_sub(ram.fixed_metadata)?
+                .checked_sub(job_native?)
+        });
+        if let Some(ram) = receipt.ram_before_stderr.as_ref() {
+            if retained.is_none() {
+                receipt.accounting_error.get_or_insert(Cow::Borrowed(
+                    if ram.active { "MixedRamOperationOpen" } else { "MixedRamBalanceInvalid" },
+                ));
+            }
+        }
         let payload_ok = self
-            .payload(error, before.as_ref(), receipt.ram_before_stderr.as_ref())
+            .payload(error, before.as_ref(), receipt.ram_before_stderr.as_ref(), job_native, retained)
             .is_ok();
         // 固定容量内部不变量失败也只用静态字节；不能走 String/JSON fallback。
         let payload = if payload_ok {
@@ -339,7 +372,7 @@ mod tests {
         let detail = "界\n\"\\\u{0}".repeat(200);
         terminal.note(FixedFailure::new("original", "business", &detail));
         terminal.note(FixedFailure::new("later", "cleanup", "second"));
-        terminal.payload("fallback", None, None).unwrap();
+        terminal.payload("fallback", None, None, None, None).unwrap();
         let decoded: serde_json::Value = serde_json::from_slice(terminal.payload.bytes()).unwrap();
         assert_eq!(decoded["code"], "original");
         assert_eq!(decoded["phase"], "business");
