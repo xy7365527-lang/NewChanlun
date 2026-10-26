@@ -1978,8 +1978,8 @@ mod tests {
             trend_flips: Some(vec![]),
             ..Default::default()
         };
-        let err = run_positional(&tape, 2, PolarityMode::parse("fusion_t").unwrap(), &rec)
-            .unwrap_err();
+        let err =
+            run_positional(&tape, 2, PolarityMode::parse("fusion_t").unwrap(), &rec).unwrap_err();
         assert!(err.contains("op_ladder=2"), "{err}");
     }
 
