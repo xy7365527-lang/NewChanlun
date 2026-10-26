@@ -1575,6 +1575,85 @@ mod tests {
             crate::cache::configure(0);
         });
     }
+
+    #[test]
+    fn mixed_complete_root_cross_parent_retains_prefix_and_typed_failure() {
+                use crate::v3::audit_budget::LegacyObserver;
+        use newchan_rust::s_content::{
+            self as sc,
+            job::{Existing, Job},
+        };
+        use std::cell::RefCell;
+        struct Observer<'a> {
+            job: RefCell<Job>,
+            work: &'a sc::capture_allocation::scratch::WorkScope,
+        }
+        impl LegacyObserver for Observer<'_> {
+            fn visit_record(
+                &self,
+                _family: &'static str,
+                _process: &'static str,
+                _member: crate::v3::audit_budget::LegacyRecordRef<'_>,
+            ) -> Result<(), sc::CodecError> {
+                self.job.borrow_mut().charge_records(1)
+            }
+
+            fn precheck(&self) -> Result<(), sc::CodecError> {
+                self.job.borrow_mut().pre_io_check()
+            }
+            fn check_work(
+                &self,
+                work: &sc::capture_allocation::scratch::WorkScope,
+            ) -> Result<(), sc::CodecError> {
+                let token = self.work.reserve_native(0)?;
+                if !token.belongs_to_parent(work) {
+                    return Err(work.reject(ScratchFailure::Ledger));
+                }
+                Ok(())
+            }
+            fn accept_checked(
+                &self,
+                row: &sc::legacy_evidence::CheckedLegacyEvidenceRow,
+            ) -> Result<(), sc::CodecError> {
+                self.job
+                    .borrow_mut()
+                    .accept_legacy_evidence(row, self.work)
+                    .map(|_| ())
+            }
+        }
+
+        use crate::v3::business_json::MixedJsonError;
+        crate::v2::with_mixed_control_fixture(|conn|{
+            crate::cache::configure(1<<22);
+            let expected=crate::verified_root_raw_events(conn).unwrap();
+            for pass in 0..2{
+                let owner=AdmissionRamLedger::new(limits(1<<24)).unwrap();
+                owner.codec_work().unwrap().run(|work|{
+                    let mut caps=job_limits();caps.max_total_nodes=100000;caps.max_total_records=100000;caps.max_total_node_bytes=10000000;
+                    let job=Job::new_started_mixed(caps,Existing{store_bytes:0,staged_bytes:0},Box::new(std::time::Instant::now),std::time::Instant::now(),work)?;
+                    let observer=Observer{job:RefCell::new(job),work};
+                    let transaction=crate::cache::MixedCacheTransaction::start(work)?;
+                    let actual=crate::v2::mixed_root::startup(conn,work,&observer).unwrap();
+                    assert_eq!(actual.len(),expected.len());
+                    for(a,b)in actual.iter().zip(expected.iter()){assert_eq!(a.as_ref(),b);}
+                    if pass==1{assert_eq!(crate::cache::last_resumed(),2);}
+                    transaction.commit();
+                    Ok::<_,sc::CodecError>(())
+                }).unwrap();
+            }
+            let owner=AdmissionRamLedger::new(limits(1<<24)).unwrap();
+            owner.codec_work().unwrap().run(|work|{
+                let mut caps=job_limits();caps.max_total_nodes=100000;caps.max_total_records=0;caps.max_total_node_bytes=10000000;
+                let job=Job::new_started_mixed(caps,Existing{store_bytes:0,staged_bytes:0},Box::new(std::time::Instant::now),std::time::Instant::now(),work)?;
+                let observer=Observer{job:RefCell::new(job),work};
+                let _transaction=crate::cache::MixedCacheTransaction::start(work)?;
+                let result=crate::v2::mixed_root::startup(conn,work,&observer);
+                assert!(matches!(result,Err(MixedJsonError::Resource(_))),"record cap retains typed resource cause");
+                Ok::<_,sc::CodecError>(())
+            }).unwrap();
+            crate::cache::configure(0);
+        });
+    }
     #[test]
     fn mixed_control_history_matches_real_committed_messages() {
         use crate::v2::mixed_control::{self, history};
