@@ -830,4 +830,42 @@ mod tests {
             );
         }
     }
+    #[test]
+    fn mixed_ram_cache_same_parent_shares_closed_parent_copies_failed_parent_rejects() {
+        use crate::v3::native_shared::NativeArc;
+        use newchan_rust::s_content::capture_allocation::native_owned::NativeValue;
+        let old = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+        let cached = old.codec_work().unwrap().run(|work| {
+            let text = NativeValue::try_from_str("cached pure content",Some(work))?;
+            let cached = NativeArc::try_new_shallow(text,Some(work))?;
+            let shared = cached.share_or_copy_mixed(work,|_,_| panic!("same parent must not copy"))?;
+            assert!(NativeArc::ptr_eq(&cached,&shared));
+            Ok::<_,newchan_rust::s_content::CodecError>(cached)
+        }).unwrap();
+        old.close().unwrap();
+        let current = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+        let copy = current.codec_work().unwrap().run(|work| {
+            cached.share_or_copy_mixed(work,|text,scope| text.try_clone_admitted(scope))
+        }).unwrap();
+        assert!(!NativeArc::ptr_eq(&cached,&copy));
+        assert_eq!(cached.as_ref(),copy.as_ref());
+        assert!(old.snapshot().unwrap().job_live > AdmissionRamLedger::metadata_bytes().unwrap());
+        assert!(current.snapshot().unwrap().job_live > AdmissionRamLedger::metadata_bytes().unwrap());
+        drop(copy);
+        assert_eq!(current.snapshot().unwrap().job_live,AdmissionRamLedger::metadata_bytes().unwrap());
+        drop(cached);
+        assert_eq!(old.snapshot().unwrap().job_live,AdmissionRamLedger::metadata_bytes().unwrap());
+
+        let failed = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+        let retained = failed.codec_work().unwrap().run(|work| NativeArc::try_new_shallow(17_u64,Some(work))).unwrap();
+        failed.parent.invalidate();
+        let target = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+        target.codec_work().unwrap().run(|work| {
+            let before = target.snapshot().unwrap().job_live;
+            assert!(retained.share_or_copy_mixed(work,|_,_| panic!("failed parent must not copy")).is_err());
+            assert_eq!(target.snapshot().unwrap().job_live,before);
+            Ok::<_,newchan_rust::s_content::CodecError>(())
+        }).unwrap();
+    }
+
 }

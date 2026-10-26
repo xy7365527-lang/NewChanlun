@@ -96,6 +96,18 @@ macro_rules! shared_family {
             lease: $lease,
         }
         impl<T> $strong<T> {
+            /// #1527 mixed缓存：同父仅共享；异父先核源健康，再由封闭字段工厂复制纯内容。
+            /// 不携带任何Job/capture资格，调用者仍须完成fresh原件核验。
+            pub(crate) fn share_or_copy_mixed(
+                &self, work: &WorkScope,
+                copy: impl FnOnce(&T, &WorkScope) -> Result<T, CodecError>,
+            ) -> Result<Self, CodecError> {
+                work.check_current()?;
+                self.check_retained_source()?;
+                if self.belongs_to_parent(work) { return Ok(self.clone()); }
+                let value = copy(&self.value, work)?;
+                Self::try_new_shallow(value, Some(work))
+            }
             /// 原无工作域入口；Native消费者使用try_new_shallow并显式传当前scope。
             #[allow(dead_code, reason = "#1488：8组合探针部分宏实例无调用方，保留共享接口")]
             pub(crate) fn new(value: T) -> Self {
@@ -137,6 +149,14 @@ macro_rules! shared_family {
                     value: $ptr::downgrade(&this.value),
                     lease: this.lease.clone(),
                 }
+            }
+            /// #1527：只比较真实分配父；不能把该结果当Job/capture资格。
+            pub(crate) fn belongs_to_parent(&self, work: &WorkScope) -> bool {
+                self.lease.0.as_ref().is_some_and(|lease| lease._permit.belongs_to_parent(work))
+            }
+            /// 同父共享或异父复制前核旧父健康；closed不是failed。
+            pub(crate) fn check_retained_source(&self) -> Result<(), CodecError> {
+                self.lease.0.as_ref().map_or(Ok(()), |lease| lease._permit.check_retained_source())
             }
             pub(crate) fn ptr_eq(this: &Self, other: &Self) -> bool {
                 $ptr::ptr_eq(&this.value, &other.value)
@@ -253,6 +273,14 @@ macro_rules! shared_family {
                 })
             }
             #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
+            /// #1527：只比较真实分配父；不能把该结果当Job/capture资格。
+            pub(crate) fn belongs_to_parent(&self, work: &WorkScope) -> bool {
+                self.lease.0.as_ref().is_some_and(|lease| lease._permit.belongs_to_parent(work))
+            }
+            /// 同父共享或异父复制前核旧父健康；closed不是failed。
+            pub(crate) fn check_retained_source(&self) -> Result<(), CodecError> {
+                self.lease.0.as_ref().map_or(Ok(()), |lease| lease._permit.check_retained_source())
+            }
             pub(crate) fn ptr_eq(this: &Self, other: &Self) -> bool {
                 $weak_ptr::ptr_eq(&this.value, &other.value)
             }
