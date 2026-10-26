@@ -40,6 +40,7 @@ impl<'s,'j> MixedAccounting<'s,'j> {
     pub(super) fn set_phase(&self,phase:ErrorPhase) {self.phase.set(phase);}
     fn observed<T>(&self,result:Result<T,sc::CodecError>)->Result<T,sc::CodecError>{
         if let Err(error)=&result {
+            crate::v3::business_json::mixed_callback_failed(error);
             let mut errors=self.errors.borrow_mut();
             let phase=self.phase.get();
             errors.note(phase,FixedFailure::new(error.code(),phase.name(),error.detail()));
@@ -148,6 +149,7 @@ mod tests {
             "max_total_records":"1","max_total_requests":"1","max_elapsed_ms":"60000",
             "max_staged_bytes":"1024","max_store_bytes":"4096"
         })).unwrap();
+        let _failure_scope=crate::v3::business_json::MixedFailureScope::enter().unwrap();
         CodecWork::new(Arc::new(Parent),1<<20).unwrap().run(|work|{
             let job=RefCell::new(Job::new_started_mixed(limits,Existing{store_bytes:0,staged_bytes:0},
                 Box::new(Instant::now),Instant::now(),work)?);
@@ -160,6 +162,17 @@ mod tests {
             shared.set_phase(ErrorPhase::Close);
             io.after_read(3).unwrap_err();
             let first=shared.resource_error().unwrap();
+
+            struct NoDisplay;
+            impl std::fmt::Display for NoDisplay {
+                fn fmt(&self,_:&mut std::fmt::Formatter<'_>)->std::fmt::Result{
+                    panic!("resource refusal rendered SQL wrapper");
+                }
+            }
+            let wrapper=crate::v3::business_json::mixed_diagnostic(format_args!("{}",NoDisplay));
+            assert!(wrapper.is_empty());
+            assert!(matches!(crate::v3::business_json::MixedJsonError::from(wrapper),
+                crate::v3::business_json::MixedJsonError::Resource(e) if e.code()==first.code()));
             assert_eq!(first.code(),sc::job::LIMIT_EXCEEDED);
             let errors=shared.errors.borrow();
             assert_eq!(errors.first.unwrap().phase,"业务返回");

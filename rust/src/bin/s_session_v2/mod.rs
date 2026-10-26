@@ -68,7 +68,7 @@ CREATE TABLE s_delivery_refs (
 "#;
 
 fn err(e: impl fmt::Display) -> String {
-    format!("StorageUnavailable：{e}")
+    crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：{e}"))
 }
 
 /// `s-clock-plan/1` 是全仓唯一的 clock 规则（严格 JSON + 非负/不倒退 attempt 校验 + 规范 JSON hash）。

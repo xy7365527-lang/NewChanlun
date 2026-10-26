@@ -434,6 +434,7 @@ fn mixed_fixed_metadata(
     job.checked_add(Layout::new::<TerminalState>().size())
         .and_then(|n| n.checked_add(Layout::new::<crate::cache::MixedCacheTransaction>().size()))
         .and_then(|n| n.checked_add(super::admission_private::mixed_fixed_metadata_bytes()))
+        .and_then(|n| n.checked_add(super::business_json::mixed_callback_metadata_bytes()))
         .ok_or(ScratchFailure::Ledger)
 }
 

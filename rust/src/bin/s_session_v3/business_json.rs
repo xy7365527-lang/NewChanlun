@@ -2661,14 +2661,55 @@ pub(crate) enum MixedJsonError {
     Business(String),
 }
 
+
+// #1527: SQL may report SQLITE_INTERRUPT after a VFS budget refusal. Preserve
+// that original typed cause before any SQL wrapper renders a dynamic String.
+// The guard is scoped to one actual private mixed operation, never ordinary use.
+thread_local! {
+    static MIXED_CALLBACK_FAILURE: std::cell::RefCell<Option<Option<sc::CodecError>>> =
+        const { std::cell::RefCell::new(None) };
+}
+pub(crate) struct MixedFailureScope;
+impl MixedFailureScope {
+    pub(crate) fn enter() -> Result<Self, &'static str> {
+        MIXED_CALLBACK_FAILURE.with(|slot| {
+            let mut slot=slot.borrow_mut();
+            if slot.is_some() { return Err("NestedMixedFailureScope"); }
+            *slot=Some(None);
+            Ok(Self)
+        })
+    }
+}
+impl Drop for MixedFailureScope {
+    fn drop(&mut self) { MIXED_CALLBACK_FAILURE.with(|s|{s.borrow_mut().take();}); }
+}
+pub(crate) fn mixed_callback_failed(error:&sc::CodecError) {
+    MIXED_CALLBACK_FAILURE.with(|s|{
+        if let Some(first)=s.borrow_mut().as_mut() {
+            if first.is_none(){*first=Some(error.clone());}
+        }
+    });
+}
+pub(crate) fn mixed_callback_failure()->Option<sc::CodecError>{
+    MIXED_CALLBACK_FAILURE.with(|s|s.borrow().as_ref().and_then(|e|e.clone()))
+}
+pub(crate) fn mixed_diagnostic(detail:std::fmt::Arguments<'_>)->String {
+    if mixed_callback_failure().is_some(){String::new()}else{detail.to_string()}
+}
+pub(crate) fn mixed_callback_metadata_bytes()->usize {
+    std::mem::size_of::<std::cell::RefCell<Option<Option<sc::CodecError>>>>()
+}
 impl From<String> for MixedJsonError {
     fn from(error: String) -> Self {
-        Self::Business(error)
+        mixed_callback_failure().map(Self::Resource).unwrap_or(Self::Business(error))
     }
 }
 impl From<&str> for MixedJsonError {
     fn from(error: &str) -> Self {
-        Self::Business(error.to_owned())
+        match mixed_callback_failure() {
+            Some(error)=>Self::Resource(error),
+            None=>Self::Business(error.to_owned()),
+        }
     }
 }
 

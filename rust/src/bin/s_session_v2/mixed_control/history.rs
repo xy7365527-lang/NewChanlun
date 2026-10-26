@@ -24,7 +24,7 @@ fn meta_i64(conn: &Connection, key: &str, work: &WorkScope) -> Result<i64, Mixed
         meta(conn, key, work)?.ok_or_else(|| format!("StorageUnavailable：meta.{key} 缺失"))?;
     let label = Text::try_format(format_args!("meta.{key}"), Some(work))
         .map_err(MixedJsonError::Resource)?;
-    parse_canonical_i64(&value, &label).map_err(|e| format!("StorageUnavailable：{e}").into())
+    parse_canonical_i64(&value, &label).map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：{e}")).into())
 }
 fn push<T>(values: &mut CodecVec<T>, value: T, work: &WorkScope) -> Result<(), MixedJsonError> {
     control_push(values, value, Some(work)).map_err(MixedJsonError::Resource)
