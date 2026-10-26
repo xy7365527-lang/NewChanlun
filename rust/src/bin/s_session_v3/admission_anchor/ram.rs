@@ -902,6 +902,28 @@ mod tests {
             let repeated = crate::evidence_store::read_node_mixed(&conn,&id,work,&observer).unwrap();
             assert_eq!(repeated.payload(),payload);
             assert_eq!(observer.job.borrow().snapshot().nodes,1);
+            crate::cache::configure(1 << 20);
+            let capture = crate::cache::begin_capture_admitted(1 << 20,Some(work)).unwrap();
+            let (cert,owned) = first.certificate(work).unwrap();
+            assert!(owned);
+            crate::cache::node_put_admitted(7,cert.clone(),true,Some(work)).unwrap();
+            crate::cache::cert_commit_admitted(7,&std::collections::BTreeSet::from([id]),Some(work)).unwrap();
+            drop(capture);
+            let next_owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+            next_owner.codec_work().unwrap().run(|next_work| {
+                let next_job = Job::new_started_mixed(job_limits(),Existing {store_bytes:0,staged_bytes:0},
+                    Box::new(std::time::Instant::now),std::time::Instant::now(),next_work)?;
+                let next_observer = Observer {job:RefCell::new(next_job),work:next_work};
+                let fresh = crate::evidence_store::read_node_mixed(&conn,&id,next_work,&next_observer).unwrap();
+                let (copy,owned) = fresh.certificate(next_work).unwrap();
+                assert!(owned);
+                assert!(!crate::v3::native_shared::NativeArc::ptr_eq(&cert,&copy));
+                assert!(copy.belongs_to_parent(next_work));
+                assert_eq!(copy.payload.as_ref(),payload);
+                assert_eq!(next_observer.job.borrow().snapshot().nodes,1); // oldJob资格不转移
+                Ok::<_,sc::CodecError>(())
+            }).unwrap();
+            crate::cache::clear_handles();
             conn.execute("UPDATE s_evidence_nodes SET payload=?1",rusqlite::params![&b"bad"[..]]).unwrap();
             assert!(matches!(crate::evidence_store::read_node_mixed(&conn,&id,work,&observer),
                 Err(crate::v3::business_json::MixedJsonError::Business(ref s)) if s.contains("同 ID 异内容")));

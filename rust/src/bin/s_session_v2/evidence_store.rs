@@ -872,18 +872,22 @@ fn split_seq_work<'a>(
 ) -> Result<CodecVec<Part<'a>>, String> {
     split_seq_work_admitted(payload, owner, None)
 }
-fn split_seq_work_admitted<'a>(
+fn split_seq_work_admitted<'a>(payload: &'a [u8], owner: Option<&OwnedBudget>, work: Option<&WorkScope>)
+    -> Result<CodecVec<Part<'a>>,String> {
+    split_seq_work_typed(payload,owner,work).map_err(ordinary_read_error)
+}
+fn split_seq_work_typed<'a>(
     payload: &'a [u8],
     owner: Option<&OwnedBudget>,
     work: Option<&WorkScope>,
-) -> Result<CodecVec<Part<'a>>, String> {
+) -> Result<CodecVec<Part<'a>>, MixedJsonError> {
     let admission = NativeAdmission(work);
     let mut parts = new_work(owner);
     let mut i = 0usize;
     while i < payload.len() {
         admission
             .native_codec_room(&mut parts, 1)
-            .map_err(|e| e.to_string())?;
+            .map_err(MixedJsonError::Resource)?;
         match payload[i] {
             TAG_LIT => {
                 if i + 5 > payload.len() {
@@ -901,7 +905,7 @@ fn split_seq_work_admitted<'a>(
                 }
                 parts
                     .try_push(Part::Lit(&payload[start..end]))
-                    .map_err(|e| e.to_string())?;
+                    .map_err(MixedJsonError::Resource)?;
                 i = end;
             }
             TAG_REF => {
@@ -910,7 +914,7 @@ fn split_seq_work_admitted<'a>(
                 }
                 let mut id = [0u8; 32];
                 id.copy_from_slice(&payload[i + 1..i + 33]);
-                parts.try_push(Part::Ref(id)).map_err(|e| e.to_string())?;
+                parts.try_push(Part::Ref(id)).map_err(MixedJsonError::Resource)?;
                 i += 33;
             }
             TAG_SLOT => {
@@ -922,13 +926,13 @@ fn split_seq_work_admitted<'a>(
                         payload[i + 1],
                         payload[i + 2],
                     ])))
-                    .map_err(|e| e.to_string())?;
+                    .map_err(MixedJsonError::Resource)?;
                 i += 3;
             }
             other => {
                 return Err(format!(
                     "StorageUnavailable：拼接节点分量标签 `{other}` 未声明"
-                ))
+                ).into())
             }
         }
     }
@@ -2208,6 +2212,34 @@ pub(crate) struct ObservedLegacyNode<'a> {
 impl ObservedLegacyNode<'_> {
     pub(crate) fn checked(&self) -> &newchan_rust::s_content::legacy_evidence::CheckedLegacyEvidenceRow { &self.checked }
     pub(crate) fn payload(&self) -> &[u8] { &self.payload }
+    /// 当前原件已核且已接纳之后才能比较持久证书；不发布新资格。
+    pub(crate) fn certificate(&self, work: &WorkScope)
+        -> Result<(crate::v3::native_shared::NativeArc<cache::Cert>,bool),MixedJsonError> {
+        use crate::v3::native_shared::NativeArc;
+        self._observer.check_work(work).map_err(MixedJsonError::Resource)?;
+        self._observer.precheck().map_err(MixedJsonError::Resource)?;
+        let kind = self.checked.kind();
+        let declared = self.checked.declared_length();
+        let children = node_children_typed(kind,&self.payload,None,Some(work))?;
+        if let Some(retained) = cache::cert_get(self.checked.id()) {
+            if retained.same_originals(kind,&self.payload,declared) {
+                let same_parent = retained.belongs_to_parent(work);
+                let copied = retained.share_or_copy_mixed(work,|original,work| {
+                    original.payload.check_retained_source()?;
+                    Ok(cache::Cert {
+                        id: original.id, kind, expanded_length: declared, children,
+                        payload: NativeArc::<[u8]>::try_copy_slice(&self.payload,Some(work))?,
+                    })
+                }).map_err(MixedJsonError::Resource)?;
+                return Ok((copied,!same_parent));
+            }
+        }
+        let payload = NativeArc::<[u8]>::try_copy_slice(&self.payload,Some(work)).map_err(MixedJsonError::Resource)?;
+        let cert = NativeArc::try_new_shallow(cache::Cert {
+            id: *self.checked.id(),kind,payload,expanded_length:declared,children,
+        },Some(work)).map_err(MixedJsonError::Resource)?;
+        Ok((cert,true))
+    }
 }
 pub(crate) fn read_node_mixed<'a>(
     conn: &Connection, id: &[u8;32], work: &WorkScope,
@@ -2265,21 +2297,25 @@ fn node_children(
 ) -> Result<CodecVec<[u8; 32]>, String> {
     node_children_admitted(kind, payload, owner, None)
 }
-fn node_children_admitted(
+fn node_children_admitted(kind: i64, payload: &[u8], owner: Option<&OwnedBudget>, work: Option<&WorkScope>)
+    -> Result<CodecVec<[u8;32]>,String> {
+    node_children_typed(kind,payload,owner,work).map_err(ordinary_read_error)
+}
+fn node_children_typed(
     kind: i64,
     payload: &[u8],
     owner: Option<&OwnedBudget>,
     work: Option<&WorkScope>,
-) -> Result<CodecVec<[u8; 32]>, String> {
+) -> Result<CodecVec<[u8; 32]>, MixedJsonError> {
     let admission = NativeAdmission(work);
     let mut children = new_work(owner);
     if kind != KIND_LEAF {
-        for part in split_seq_work_admitted(payload, owner, work)? {
+        for part in split_seq_work_typed(payload, owner, work)? {
             if let Part::Ref(child) = part {
                 admission
                     .native_codec_room(&mut children, 1)
-                    .map_err(|e| e.to_string())?;
-                children.try_push(child).map_err(|e| e.to_string())?;
+                    .map_err(MixedJsonError::Resource)?;
+                children.try_push(child).map_err(MixedJsonError::Resource)?;
             }
         }
     }

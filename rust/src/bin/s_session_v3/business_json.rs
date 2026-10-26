@@ -2580,6 +2580,13 @@ pub(crate) enum MixedJsonError {
     Business(String),
 }
 
+impl From<String> for MixedJsonError {
+    fn from(error: String) -> Self { Self::Business(error) }
+}
+impl From<&str> for MixedJsonError {
+    fn from(error: &str) -> Self { Self::Business(error.to_owned()) }
+}
+
 /// mixed资源拒绝保持原静态CodecError；只有许可成功才进入原解析核。
 pub(crate) fn mixed_parse_admitted(
     bytes: &[u8],
