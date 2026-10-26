@@ -442,17 +442,23 @@ pub fn collect_run_records(
         super::config::ParseConfig::from_active_records(),
     );
     match (venue, risk, data, tower, level, macd, parse) {
-        (Some(venue), Some(risk), Some(data), Some(tower), Some(level), Some(macd), Some(parse)) => {
-            Ok(RunRecordSet {
-                venue,
-                risk,
-                data,
-                tower,
-                level,
-                macd,
-                parse,
-            })
-        }
+        (
+            Some(venue),
+            Some(risk),
+            Some(data),
+            Some(tower),
+            Some(level),
+            Some(macd),
+            Some(parse),
+        ) => Ok(RunRecordSet {
+            venue,
+            risk,
+            data,
+            tower,
+            level,
+            macd,
+            parse,
+        }),
         _ => Err(err),
     }
 }
@@ -681,7 +687,10 @@ mod tests {
         .unwrap();
         assert_eq!(ok.tower.record.label(), "tower-level-budget/1");
         assert_eq!(ok.level.budget, ok.tower.record);
-        assert_eq!(ok.level, super::super::config::LevelConfig::from_active_record().unwrap());
+        assert_eq!(
+            ok.level,
+            super::super::config::LevelConfig::from_active_record().unwrap()
+        );
         assert_eq!(ok.level.tower_base_policy.label(), "tower-base/1");
     }
 }

@@ -994,7 +994,7 @@ mod tests {
             "w_grade":{"value":[1.0,0.5]}}}"#;
         let data =
             r#"{"id":"data-profile","version":2,"fields":{"bad_tick_max_dev":{"value":0.5}}}"#;
-        let c = ThetaConfig::from_records(
+        let mut c = ThetaConfig::from_records(
             parse_venue_profile(VENUE_PROFILE_P0_ID, Some(venue)),
             Some(risk),
             Some(data),
@@ -1025,6 +1025,9 @@ mod tests {
              venue-profile-P0/3, theta-risk/2, data-profile/2"
         );
         assert!(c.admissible());
+        c.level.tower_base = TowerBase::Trade3;
+        assert!(c.record_labels().contains("tower-base/research-override"));
+        assert!(!c.admissible());
     }
 
     /// #1602：就地改记录字段 ⟹ 该记录标 research-override，且不再可准入（不冒充签署版本）。
@@ -1042,7 +1045,6 @@ mod tests {
         assert!(c.record_labels().contains("data-profile/research-override"));
         c.level.tower_base = TowerBase::Kline3;
         assert!(c.record_labels().contains("tower-base/research-override"));
-        assert!(!c.admissible());
     }
 
     /// #1602 负控：缺记录 / 缺字段 / 非法值 ⟹ 配置组装报错，不回退常数。
