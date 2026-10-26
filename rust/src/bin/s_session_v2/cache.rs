@@ -1690,6 +1690,17 @@ pub(super) fn batch_header_put_admitted(
     header: BatchControlHeader,
     work: Option<&WorkScope>,
 ) -> Result<(), String> {
+    batch_header_put_typed(root_key,batch_id,byte_len,root_cert,closure,header,work).map_err(|e|e.to_string())
+}
+pub(crate) fn batch_header_put_typed(
+    root_key: &str,
+    batch_id: &str,
+    byte_len: usize,
+    root_cert: &Arc<RootCert>,
+    closure: [u8; 32],
+    header: BatchControlHeader,
+    work: Option<&WorkScope>,
+) -> Result<(), newchan_rust::s_content::CodecError> {
     let admission = NativeAdmission(work);
     MEMO.with(|m| {
         let mut m = m.borrow_mut();
@@ -1709,17 +1720,32 @@ pub(super) fn batch_header_put_admitted(
             .saturating_add(batch_id.len())
             .saturating_add(header.source_bytes())
             .saturating_add(128);
-        m.remove_batch_header(root_key);
-        if !m.make_room_admitted(cost, work)? {
+        let floor=m.root_bytes().saturating_add(m.certs_bytes).saturating_add(m.capture_bytes());
+        if floor.saturating_add(cost)>m.limit {
+            m.remove_batch_header(root_key);
+            #[cfg(test)] counter(|c|c.batch_header_admission_rejected+=1);
+            return Ok(());
+        }
+        let key=admission.native_text(root_key)?;
+        let batch_id=admission.native_text(batch_id)?;
+        m.batch_headers.reserve_entry_admitted(&key,&admission)?;
+        let old=m.batch_headers.remove_entry(root_key);
+        if let Some((_,entry))=&old {m.batch_headers_bytes=m.batch_headers_bytes.saturating_sub(entry.cost);}
+        let room=match m.make_room_typed(cost,work){
+            Ok(room)=>room,
+            Err(error)=>{
+                if let Some((key,entry))=old {m.batch_headers_bytes=m.batch_headers_bytes.saturating_add(entry.cost);m.batch_headers.insert_reserved(key,entry);}
+                return Err(error);
+            }
+        };
+        if !room {
             #[cfg(test)]
             counter(|c| c.batch_header_admission_rejected += 1);
             return Ok(());
         }
-        let key = admission.native_text(root_key).map_err(|e| e.to_string())?;
-        let batch_id = admission.native_text(batch_id).map_err(|e| e.to_string())?;
         m.batch_headers_bytes = m.batch_headers_bytes.saturating_add(cost);
         m.batch_headers
-            .insert_admitted(
+            .insert_reserved(
                 key,
                 BatchHeaderEntry {
                     batch_id,
@@ -1729,9 +1755,7 @@ pub(super) fn batch_header_put_admitted(
                     header,
                     cost,
                 },
-                &admission,
-            )
-            .map_err(|e| e.to_string())?;
+            );
         Ok(())
     })
 }

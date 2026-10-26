@@ -486,12 +486,17 @@ fn share_header_text_admitted(
     text: &str,
     work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
 ) -> Result<crate::v3::native_shared::NativeArc<SharedHeaderText>, String> {
+    share_header_text_typed(text,work).map_err(|e|e.to_string())
+}
+fn share_header_text_typed(
+    text: &str,
+    work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
+) -> Result<crate::v3::native_shared::NativeArc<SharedHeaderText>, newchan_rust::s_content::CodecError> {
     use v3::audit_store::{CodecRead, NativeAdmission};
     let text = NativeAdmission(work)
         .native_text(text)
-        .map_err(|e| e.to_string())?;
+        ?;
     crate::v3::native_shared::NativeArc::try_new_shallow(SharedHeaderText { text }, work)
-        .map_err(|e| e.to_string())
 }
 impl SharedHeaderText {
     fn as_str(&self) -> &str {
@@ -559,11 +564,17 @@ impl BatchControlHeader {
         batch: &Value,
         work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
     ) -> Result<Self, String> {
+        Self::from_verified_batch_typed(batch,work).map_err(|e|e.to_string())
+    }
+    fn from_verified_batch_typed(
+        batch: &Value,
+        work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
+    ) -> Result<Self, newchan_rust::s_content::CodecError> {
         let string = |key| {
             batch
                 .get(key)
                 .and_then(Value::as_str)
-                .map(|text| share_header_text_admitted(text, work))
+                .map(|text| share_header_text_typed(text, work))
                 .transpose()
         };
         Ok(Self {
