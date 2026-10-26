@@ -589,6 +589,6 @@ mod tests {
 }
 
 #[cfg(test)]
-pub(crate) fn test_mixed_sql_policy<T>(conn:&rusqlite::Connection,run:impl FnOnce()->T)->T{
-    mixed_sql::test_policy(conn,run)
+pub(crate) fn test_mixed_sql_policy<T>(conn: &rusqlite::Connection, run: impl FnOnce() -> T) -> T {
+    mixed_sql::test_policy(conn, run)
 }

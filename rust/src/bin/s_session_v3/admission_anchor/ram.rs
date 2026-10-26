@@ -1392,10 +1392,9 @@ mod tests {
         }
     }
 
-
     #[test]
     fn mixed_real_root_capture_matches_original_and_meta_errors() {
-                use crate::v3::audit_budget::LegacyObserver;
+        use crate::v3::audit_budget::LegacyObserver;
         use newchan_rust::s_content::{
             self as sc,
             job::{Existing, Job},
@@ -1441,25 +1440,53 @@ mod tests {
 
         use crate::v3::business_json::MixedJsonError;
         crate::v2::with_mixed_control_fixture(|conn| {
-            crate::cache::configure(1<<22);
+            crate::cache::configure(1 << 22);
             for mutation in [
                 "",
                 "UPDATE s_evidence_roots SET expanded_length=expanded_length+1",
                 "UPDATE s_evidence_roots SET content_sha256='bad'",
             ] {
                 conn.execute_batch("SAVEPOINT root_case").unwrap();
-                if !mutation.is_empty(){conn.execute_batch(mutation).unwrap();}
-                let expected=crate::capture_reachable_batches(conn).map(|r|(r.batches.len(),r.roots.len(),r.originals.len()));
-                let owner=AdmissionRamLedger::new(limits(1<<24)).unwrap();
-                owner.codec_work().unwrap().run(|work|{
-                    let mut caps=job_limits(); caps.max_total_nodes=100000; caps.max_total_records=100000; caps.max_total_node_bytes=10000000; let job=Job::new_started_mixed(caps,Existing{store_bytes:0,staged_bytes:0},Box::new(std::time::Instant::now),std::time::Instant::now(),work)?;
-                    let observer=Observer{job:RefCell::new(job),work};
-                    let _transaction=crate::cache::MixedCacheTransaction::start(work)?;
-                    let actual=crate::v2::mixed_root::test_capture(conn,work,&observer).map_err(|e|match e{MixedJsonError::Business(s)=>s,MixedJsonError::Resource(e)=>panic!("unexpected resource {e:?}")});
-                    assert_eq!(actual,expected,"mutation={mutation}");
-                    Ok::<_,sc::CodecError>(())
-                }).unwrap();
-                conn.execute_batch("ROLLBACK TO root_case; RELEASE root_case").unwrap();
+                if !mutation.is_empty() {
+                    conn.execute_batch(mutation).unwrap();
+                }
+                let expected = crate::capture_reachable_batches(conn)
+                    .map(|r| (r.batches.len(), r.roots.len(), r.originals.len()));
+                let owner = AdmissionRamLedger::new(limits(1 << 24)).unwrap();
+                owner
+                    .codec_work()
+                    .unwrap()
+                    .run(|work| {
+                        let mut caps = job_limits();
+                        caps.max_total_nodes = 100000;
+                        caps.max_total_records = 100000;
+                        caps.max_total_node_bytes = 10000000;
+                        let job = Job::new_started_mixed(
+                            caps,
+                            Existing {
+                                store_bytes: 0,
+                                staged_bytes: 0,
+                            },
+                            Box::new(std::time::Instant::now),
+                            std::time::Instant::now(),
+                            work,
+                        )?;
+                        let observer = Observer {
+                            job: RefCell::new(job),
+                            work,
+                        };
+                        let _transaction = crate::cache::MixedCacheTransaction::start(work)?;
+                        let actual = crate::v2::mixed_root::test_capture(conn, work, &observer)
+                            .map_err(|e| match e {
+                                MixedJsonError::Business(s) => s,
+                                MixedJsonError::Resource(e) => panic!("unexpected resource {e:?}"),
+                            });
+                        assert_eq!(actual, expected, "mutation={mutation}");
+                        Ok::<_, sc::CodecError>(())
+                    })
+                    .unwrap();
+                conn.execute_batch("ROLLBACK TO root_case; RELEASE root_case")
+                    .unwrap();
             }
             for mutation in [
                 "",
@@ -1476,15 +1503,26 @@ mod tests {
                 "UPDATE meta SET value='[]' WHERE key='scope'",
             ] {
                 conn.execute_batch("SAVEPOINT meta_case").unwrap();
-                if !mutation.is_empty(){conn.execute_batch(mutation).unwrap();}
-                let expected=crate::verify_required_meta(conn);
-                let owner=AdmissionRamLedger::new(limits(1<<22)).unwrap();
-                owner.codec_work().unwrap().run(|work|{
-                    let actual=crate::v2::mixed_root::required_meta(conn,work).map_err(|e|match e{MixedJsonError::Business(s)=>s,MixedJsonError::Resource(e)=>panic!("unexpected resource {e:?}")});
-                    assert_eq!(actual,expected,"mutation={mutation}");
-                    Ok::<_,sc::CodecError>(())
-                }).unwrap();
-                conn.execute_batch("ROLLBACK TO meta_case; RELEASE meta_case").unwrap();
+                if !mutation.is_empty() {
+                    conn.execute_batch(mutation).unwrap();
+                }
+                let expected = crate::verify_required_meta(conn);
+                let owner = AdmissionRamLedger::new(limits(1 << 22)).unwrap();
+                owner
+                    .codec_work()
+                    .unwrap()
+                    .run(|work| {
+                        let actual =
+                            crate::v2::mixed_root::required_meta(conn, work).map_err(|e| match e {
+                                MixedJsonError::Business(s) => s,
+                                MixedJsonError::Resource(e) => panic!("unexpected resource {e:?}"),
+                            });
+                        assert_eq!(actual, expected, "mutation={mutation}");
+                        Ok::<_, sc::CodecError>(())
+                    })
+                    .unwrap();
+                conn.execute_batch("ROLLBACK TO meta_case; RELEASE meta_case")
+                    .unwrap();
             }
             crate::cache::configure(0);
         });
@@ -1492,7 +1530,7 @@ mod tests {
 
     #[test]
     fn mixed_complete_root_matches_original_real_history() {
-                use crate::v3::audit_budget::LegacyObserver;
+        use crate::v3::audit_budget::LegacyObserver;
         use newchan_rust::s_content::{
             self as sc,
             job::{Existing, Job},
@@ -1537,8 +1575,8 @@ mod tests {
         }
 
         use crate::v3::business_json::MixedJsonError;
-        crate::v2::with_mixed_control_fixture(|conn|{
-            crate::cache::configure(1<<22);
+        crate::v2::with_mixed_control_fixture(|conn| {
+            crate::cache::configure(1 << 22);
             for mutation in [
                 "",
                 "UPDATE structure_deltas SET seq_range_json='{}' WHERE generation=1",
@@ -1546,31 +1584,62 @@ mod tests {
                 "UPDATE catalog SET run_status='bad' WHERE catalog_id='CC-006'",
                 "UPDATE meta SET value='wrong' WHERE key='profile_hash'",
                 "UPDATE s_input_messages SET receipt_id='wrong' WHERE accepted_seq=0",
-            ]{
+            ] {
                 conn.execute_batch("SAVEPOINT whole_case").unwrap();
-                if !mutation.is_empty(){conn.execute_batch(mutation).unwrap();}
-                let expected=crate::verified_root_raw_events(conn);
-                let owner=AdmissionRamLedger::new(limits(1<<24)).unwrap();
-                owner.codec_work().unwrap().run(|work|{
-                    let mut caps=job_limits();caps.max_total_nodes=100000;caps.max_total_records=100000;caps.max_total_node_bytes=10000000;
-                    let job=Job::new_started_mixed(caps,Existing{store_bytes:0,staged_bytes:0},Box::new(std::time::Instant::now),std::time::Instant::now(),work)?;
-                    let observer=Observer{job:RefCell::new(job),work};
-                    let _transaction=crate::cache::MixedCacheTransaction::start(work)?;
-                    for pass in 0..2{
-                        let actual=crate::v3::admission_private::test_mixed_sql_policy(conn,||crate::v2::mixed_root::startup(conn,work,&observer));
-                        match(&expected,actual){
-                            (Ok(want),Ok(got))=>{
-                                assert_eq!(want.len(),got.len());
-                                for(a,b)in want.iter().zip(got.iter()){assert_eq!(a,b.as_ref());}
+                if !mutation.is_empty() {
+                    conn.execute_batch(mutation).unwrap();
+                }
+                let expected = crate::verified_root_raw_events(conn);
+                let owner = AdmissionRamLedger::new(limits(1 << 24)).unwrap();
+                owner
+                    .codec_work()
+                    .unwrap()
+                    .run(|work| {
+                        let mut caps = job_limits();
+                        caps.max_total_nodes = 100000;
+                        caps.max_total_records = 100000;
+                        caps.max_total_node_bytes = 10000000;
+                        let job = Job::new_started_mixed(
+                            caps,
+                            Existing {
+                                store_bytes: 0,
+                                staged_bytes: 0,
                             },
-                            (Err(want),Err(MixedJsonError::Business(got)))=>assert_eq!(want,&got,"mutation={mutation}, pass={pass}"),
-                            (_,Err(MixedJsonError::Resource(e)))=>panic!("unexpected resource {e:?}; mutation={mutation}"),
-                            _=>panic!("verdict differs, mutation={mutation}, pass={pass}"),
+                            Box::new(std::time::Instant::now),
+                            std::time::Instant::now(),
+                            work,
+                        )?;
+                        let observer = Observer {
+                            job: RefCell::new(job),
+                            work,
+                        };
+                        let _transaction = crate::cache::MixedCacheTransaction::start(work)?;
+                        for pass in 0..2 {
+                            let actual =
+                                crate::v3::admission_private::test_mixed_sql_policy(conn, || {
+                                    crate::v2::mixed_root::startup(conn, work, &observer)
+                                });
+                            match (&expected, actual) {
+                                (Ok(want), Ok(got)) => {
+                                    assert_eq!(want.len(), got.len());
+                                    for (a, b) in want.iter().zip(got.iter()) {
+                                        assert_eq!(a, b.as_ref());
+                                    }
+                                }
+                                (Err(want), Err(MixedJsonError::Business(got))) => {
+                                    assert_eq!(want, &got, "mutation={mutation}, pass={pass}")
+                                }
+                                (_, Err(MixedJsonError::Resource(e))) => {
+                                    panic!("unexpected resource {e:?}; mutation={mutation}")
+                                }
+                                _ => panic!("verdict differs, mutation={mutation}, pass={pass}"),
+                            }
                         }
-                    }
-                    Ok::<_,sc::CodecError>(())
-                }).unwrap();
-                conn.execute_batch("ROLLBACK TO whole_case; RELEASE whole_case").unwrap();
+                        Ok::<_, sc::CodecError>(())
+                    })
+                    .unwrap();
+                conn.execute_batch("ROLLBACK TO whole_case; RELEASE whole_case")
+                    .unwrap();
             }
             crate::cache::configure(0);
         });
@@ -1578,7 +1647,7 @@ mod tests {
 
     #[test]
     fn mixed_complete_root_cross_parent_retains_prefix_and_typed_failure() {
-                use crate::v3::audit_budget::LegacyObserver;
+        use crate::v3::audit_budget::LegacyObserver;
         use newchan_rust::s_content::{
             self as sc,
             job::{Existing, Job},
@@ -1623,34 +1692,85 @@ mod tests {
         }
 
         use crate::v3::business_json::MixedJsonError;
-        crate::v2::with_mixed_control_fixture(|conn|{
-            crate::cache::configure(1<<22);
-            let expected=crate::verified_root_raw_events(conn).unwrap();
-            for pass in 0..2{
-                let owner=AdmissionRamLedger::new(limits(1<<24)).unwrap();
-                owner.codec_work().unwrap().run(|work|{
-                    let mut caps=job_limits();caps.max_total_nodes=100000;caps.max_total_records=100000;caps.max_total_node_bytes=10000000;
-                    let job=Job::new_started_mixed(caps,Existing{store_bytes:0,staged_bytes:0},Box::new(std::time::Instant::now),std::time::Instant::now(),work)?;
-                    let observer=Observer{job:RefCell::new(job),work};
-                    let transaction=crate::cache::MixedCacheTransaction::start(work)?;
-                    let actual=crate::v3::admission_private::test_mixed_sql_policy(conn,||crate::v2::mixed_root::startup(conn,work,&observer)).unwrap();
-                    assert_eq!(actual.len(),expected.len());
-                    for(a,b)in actual.iter().zip(expected.iter()){assert_eq!(a.as_ref(),b);}
-                    if pass==1{assert_eq!(crate::cache::last_resumed(),2);}
-                    transaction.commit();
-                    Ok::<_,sc::CodecError>(())
-                }).unwrap();
+        crate::v2::with_mixed_control_fixture(|conn| {
+            crate::cache::configure(1 << 22);
+            let expected = crate::verified_root_raw_events(conn).unwrap();
+            for pass in 0..2 {
+                let owner = AdmissionRamLedger::new(limits(1 << 24)).unwrap();
+                owner
+                    .codec_work()
+                    .unwrap()
+                    .run(|work| {
+                        let mut caps = job_limits();
+                        caps.max_total_nodes = 100000;
+                        caps.max_total_records = 100000;
+                        caps.max_total_node_bytes = 10000000;
+                        let job = Job::new_started_mixed(
+                            caps,
+                            Existing {
+                                store_bytes: 0,
+                                staged_bytes: 0,
+                            },
+                            Box::new(std::time::Instant::now),
+                            std::time::Instant::now(),
+                            work,
+                        )?;
+                        let observer = Observer {
+                            job: RefCell::new(job),
+                            work,
+                        };
+                        let transaction = crate::cache::MixedCacheTransaction::start(work)?;
+                        let actual =
+                            crate::v3::admission_private::test_mixed_sql_policy(conn, || {
+                                crate::v2::mixed_root::startup(conn, work, &observer)
+                            })
+                            .unwrap();
+                        assert_eq!(actual.len(), expected.len());
+                        for (a, b) in actual.iter().zip(expected.iter()) {
+                            assert_eq!(a.as_ref(), b);
+                        }
+                        if pass == 1 {
+                            assert_eq!(crate::cache::last_resumed(), 2);
+                        }
+                        transaction.commit();
+                        Ok::<_, sc::CodecError>(())
+                    })
+                    .unwrap();
             }
-            let owner=AdmissionRamLedger::new(limits(1<<24)).unwrap();
-            owner.codec_work().unwrap().run(|work|{
-                let mut caps=job_limits();caps.max_total_nodes=100000;caps.max_total_records=1;caps.max_total_node_bytes=10000000;
-                let job=Job::new_started_mixed(caps,Existing{store_bytes:0,staged_bytes:0},Box::new(std::time::Instant::now),std::time::Instant::now(),work)?;
-                let observer=Observer{job:RefCell::new(job),work};
-                let _transaction=crate::cache::MixedCacheTransaction::start(work)?;
-                let result=crate::v3::admission_private::test_mixed_sql_policy(conn,||crate::v2::mixed_root::startup(conn,work,&observer));
-                assert!(matches!(result,Err(MixedJsonError::Resource(_))),"record cap retains typed resource cause");
-                Ok::<_,sc::CodecError>(())
-            }).unwrap();
+            let owner = AdmissionRamLedger::new(limits(1 << 24)).unwrap();
+            owner
+                .codec_work()
+                .unwrap()
+                .run(|work| {
+                    let mut caps = job_limits();
+                    caps.max_total_nodes = 100000;
+                    caps.max_total_records = 1;
+                    caps.max_total_node_bytes = 10000000;
+                    let job = Job::new_started_mixed(
+                        caps,
+                        Existing {
+                            store_bytes: 0,
+                            staged_bytes: 0,
+                        },
+                        Box::new(std::time::Instant::now),
+                        std::time::Instant::now(),
+                        work,
+                    )?;
+                    let observer = Observer {
+                        job: RefCell::new(job),
+                        work,
+                    };
+                    let _transaction = crate::cache::MixedCacheTransaction::start(work)?;
+                    let result = crate::v3::admission_private::test_mixed_sql_policy(conn, || {
+                        crate::v2::mixed_root::startup(conn, work, &observer)
+                    });
+                    assert!(
+                        matches!(result, Err(MixedJsonError::Resource(_))),
+                        "record cap retains typed resource cause"
+                    );
+                    Ok::<_, sc::CodecError>(())
+                })
+                .unwrap();
             crate::cache::configure(0);
         });
     }

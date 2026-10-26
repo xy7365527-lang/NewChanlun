@@ -240,17 +240,20 @@ impl ExpectedTables {
     pub(super) fn empty() -> Self {
         Self(0)
     }
-    pub(super) fn selected(v2:bool,ohlc:bool,delta:bool,graph:bool)->Self{
-        let mut result=Self::empty();
-        for(i,(name,_))in TABLES.iter().enumerate(){
-            let include=match *name{
-                b"s_protocol_meta"|b"s_input_messages"|b"s_clock_events"|b"s_delivery_policy"|b"s_delivery_refs"=>v2,
-                b"raw_ohlc"|b"structure_facts"=>ohlc,
-                b"s_storage_format"=>delta,
-                b"s_evidence_format"|b"s_evidence_nodes"|b"s_evidence_roots"=>graph,
-                _=>true,
+    pub(super) fn selected(v2: bool, ohlc: bool, delta: bool, graph: bool) -> Self {
+        let mut result = Self::empty();
+        for (i, (name, _)) in TABLES.iter().enumerate() {
+            let include = match *name {
+                b"s_protocol_meta" | b"s_input_messages" | b"s_clock_events"
+                | b"s_delivery_policy" | b"s_delivery_refs" => v2,
+                b"raw_ohlc" | b"structure_facts" => ohlc,
+                b"s_storage_format" => delta,
+                b"s_evidence_format" | b"s_evidence_nodes" | b"s_evidence_roots" => graph,
+                _ => true,
             };
-            if include{result.0|=1<<i;}
+            if include {
+                result.0 |= 1 << i;
+            }
         }
         result
     }
@@ -310,8 +313,8 @@ impl ExpectedTables {
 }
 
 #[cfg(test)]
-pub(super) fn test_policy<T>(conn:&rusqlite::Connection,run:impl FnOnce()->T)->T{
-    tests::with_policy(conn,run)
+pub(super) fn test_policy<T>(conn: &rusqlite::Connection, run: impl FnOnce() -> T) -> T {
+    tests::with_policy(conn, run)
 }
 #[cfg(test)]
 mod tests {
@@ -350,35 +353,80 @@ mod tests {
             ffi::SQLITE_DENY
         }
     }
-    pub(super) fn with_policy<T>(conn:&Connection,run:impl FnOnce()->T)->T{
-        let tx=if conn.is_autocommit(){Some(conn.unchecked_transaction().unwrap())}else{None};
-        let mut capture=Capture{policy:ExpectedTables::selected(true,true,true,true),calls:Vec::new()};
-        unsafe{assert_eq!(ffi::sqlite3_set_authorizer(conn.handle(),Some(authorize),(&mut capture as *mut Capture).cast()),ffi::SQLITE_OK);}
-        let result=run();
-        unsafe{ffi::sqlite3_set_authorizer(conn.handle(),None,std::ptr::null_mut());}
-        if let Some(tx)=tx{tx.rollback().unwrap();}
-        assert!(!capture.calls.iter().any(|c|c.ends_with("allowed=false")),"callbacks: {:?}",capture.calls);
+    pub(super) fn with_policy<T>(conn: &Connection, run: impl FnOnce() -> T) -> T {
+        let tx = if conn.is_autocommit() {
+            Some(conn.unchecked_transaction().unwrap())
+        } else {
+            None
+        };
+        let mut capture = Capture {
+            policy: ExpectedTables::selected(true, true, true, true),
+            calls: Vec::new(),
+        };
+        unsafe {
+            assert_eq!(
+                ffi::sqlite3_set_authorizer(
+                    conn.handle(),
+                    Some(authorize),
+                    (&mut capture as *mut Capture).cast()
+                ),
+                ffi::SQLITE_OK
+            );
+        }
+        let result = run();
+        unsafe {
+            ffi::sqlite3_set_authorizer(conn.handle(), None, std::ptr::null_mut());
+        }
+        if let Some(tx) = tx {
+            tx.rollback().unwrap();
+        }
+        assert!(
+            !capture.calls.iter().any(|c| c.ends_with("allowed=false")),
+            "callbacks: {:?}",
+            capture.calls
+        );
         result
     }
     #[test]
-    fn mixed_sql_selected_schema_is_exact_for_each_domain(){
-        for v2 in [false,true]{for ohlc in [false,true]{for delta in [false,true]{for graph in [false,true]{
-            let mut expected=BTreeMap::new();
-            for ddl in [crate::SCHEMA,if v2{crate::v2::SCHEMA_V2}else{""},if ohlc{crate::tb02a::SCHEMA}else{""},if delta{crate::delta_storage::DDL}else{""},if graph{crate::evidence_store::DDL}else{""}]{
-                crate::v2::expect_ddl_tables("selected constants",ddl,&mut expected).unwrap();
+    fn mixed_sql_selected_schema_is_exact_for_each_domain() {
+        for v2 in [false, true] {
+            for ohlc in [false, true] {
+                for delta in [false, true] {
+                    for graph in [false, true] {
+                        let mut expected = BTreeMap::new();
+                        for ddl in [
+                            crate::SCHEMA,
+                            if v2 { crate::v2::SCHEMA_V2 } else { "" },
+                            if ohlc { crate::tb02a::SCHEMA } else { "" },
+                            if delta { crate::delta_storage::DDL } else { "" },
+                            if graph {
+                                crate::evidence_store::DDL
+                            } else {
+                                ""
+                            },
+                        ] {
+                            crate::v2::expect_ddl_tables("selected constants", ddl, &mut expected)
+                                .unwrap();
+                        }
+                        let policy = ExpectedTables::selected(v2, ohlc, delta, graph);
+                        for (name, _) in TABLES {
+                            let name = std::str::from_utf8(name).unwrap();
+                            assert_eq!(
+                                policy.contains(name.as_bytes()),
+                                expected.contains_key(name),
+                                "{name} v2={v2} ohlc={ohlc} delta={delta} graph={graph}"
+                            );
+                        }
+                    }
+                }
             }
-            let policy=ExpectedTables::selected(v2,ohlc,delta,graph);
-            for(name,_)in TABLES{
-                let name=std::str::from_utf8(name).unwrap();
-                assert_eq!(policy.contains(name.as_bytes()),expected.contains_key(name),"{name} v2={v2} ohlc={ohlc} delta={delta} graph={graph}");
-            }
-        }}}}
+        }
     }
     #[test]
-    fn mixed_sql_real_root_callbacks_close_under_selected_policy(){
-        crate::v2::with_mixed_control_fixture(|conn|{
-            let result=with_policy(conn,||crate::verified_root_raw_events(conn));
-            assert!(result.is_ok(),"root: {result:?}");
+    fn mixed_sql_real_root_callbacks_close_under_selected_policy() {
+        crate::v2::with_mixed_control_fixture(|conn| {
+            let result = with_policy(conn, || crate::verified_root_raw_events(conn));
+            assert!(result.is_ok(), "root: {result:?}");
         });
     }
     #[test]

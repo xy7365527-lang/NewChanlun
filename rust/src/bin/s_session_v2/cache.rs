@@ -1690,7 +1690,10 @@ pub(super) fn batch_header_put_admitted(
     header: BatchControlHeader,
     work: Option<&WorkScope>,
 ) -> Result<(), String> {
-    batch_header_put_typed(root_key,batch_id,byte_len,root_cert,closure,header,work).map_err(|e|e.to_string())
+    batch_header_put_typed(
+        root_key, batch_id, byte_len, root_cert, closure, header, work,
+    )
+    .map_err(|e| e.to_string())
 }
 pub(crate) fn batch_header_put_typed(
     root_key: &str,
@@ -1720,21 +1723,30 @@ pub(crate) fn batch_header_put_typed(
             .saturating_add(batch_id.len())
             .saturating_add(header.source_bytes())
             .saturating_add(128);
-        let floor=m.root_bytes().saturating_add(m.certs_bytes).saturating_add(m.capture_bytes());
-        if floor.saturating_add(cost)>m.limit {
+        let floor = m
+            .root_bytes()
+            .saturating_add(m.certs_bytes)
+            .saturating_add(m.capture_bytes());
+        if floor.saturating_add(cost) > m.limit {
             m.remove_batch_header(root_key);
-            #[cfg(test)] counter(|c|c.batch_header_admission_rejected+=1);
+            #[cfg(test)]
+            counter(|c| c.batch_header_admission_rejected += 1);
             return Ok(());
         }
-        let key=TextValue::from_str_admitted_typed(root_key,None,work)?;
-        let batch_id=TextValue::from_str_admitted_typed(batch_id,None,work)?;
-        m.batch_headers.reserve_entry_admitted(&key,&admission)?;
-        let old=m.batch_headers.remove_entry(root_key);
-        if let Some((_,entry))=&old {m.batch_headers_bytes=m.batch_headers_bytes.saturating_sub(entry.cost);}
-        let room=match m.make_room_typed(cost,work){
-            Ok(room)=>room,
-            Err(error)=>{
-                if let Some((key,entry))=old {m.batch_headers_bytes=m.batch_headers_bytes.saturating_add(entry.cost);m.batch_headers.insert_reserved(key,entry);}
+        let key = TextValue::from_str_admitted_typed(root_key, None, work)?;
+        let batch_id = TextValue::from_str_admitted_typed(batch_id, None, work)?;
+        m.batch_headers.reserve_entry_admitted(&key, &admission)?;
+        let old = m.batch_headers.remove_entry(root_key);
+        if let Some((_, entry)) = &old {
+            m.batch_headers_bytes = m.batch_headers_bytes.saturating_sub(entry.cost);
+        }
+        let room = match m.make_room_typed(cost, work) {
+            Ok(room) => room,
+            Err(error) => {
+                if let Some((key, entry)) = old {
+                    m.batch_headers_bytes = m.batch_headers_bytes.saturating_add(entry.cost);
+                    m.batch_headers.insert_reserved(key, entry);
+                }
                 return Err(error);
             }
         };
@@ -1744,18 +1756,17 @@ pub(crate) fn batch_header_put_typed(
             return Ok(());
         }
         m.batch_headers_bytes = m.batch_headers_bytes.saturating_add(cost);
-        m.batch_headers
-            .insert_reserved(
-                key,
-                BatchHeaderEntry {
-                    batch_id,
-                    byte_len,
-                    root_cert: root_cert.identity_weak(),
-                    closure,
-                    header,
-                    cost,
-                },
-            );
+        m.batch_headers.insert_reserved(
+            key,
+            BatchHeaderEntry {
+                batch_id,
+                byte_len,
+                root_cert: root_cert.identity_weak(),
+                closure,
+                header,
+                cost,
+            },
+        );
         Ok(())
     })
 }

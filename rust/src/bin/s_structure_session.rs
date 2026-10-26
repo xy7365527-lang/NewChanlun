@@ -486,14 +486,17 @@ fn share_header_text_admitted(
     text: &str,
     work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
 ) -> Result<crate::v3::native_shared::NativeArc<SharedHeaderText>, String> {
-    share_header_text_typed(text,work).map_err(|e|e.to_string())
+    share_header_text_typed(text, work).map_err(|e| e.to_string())
 }
 fn share_header_text_typed(
     text: &str,
     work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
-) -> Result<crate::v3::native_shared::NativeArc<SharedHeaderText>, newchan_rust::s_content::CodecError> {
+) -> Result<
+    crate::v3::native_shared::NativeArc<SharedHeaderText>,
+    newchan_rust::s_content::CodecError,
+> {
     use v3::audit_store::{CodecRead, NativeAdmission};
-    let text = TextValue::from_str_admitted_typed(text,None,work)?;
+    let text = TextValue::from_str_admitted_typed(text, None, work)?;
     crate::v3::native_shared::NativeArc::try_new_shallow(SharedHeaderText { text }, work)
 }
 impl SharedHeaderText {
@@ -562,7 +565,7 @@ impl BatchControlHeader {
         batch: &Value,
         work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
     ) -> Result<Self, String> {
-        Self::from_verified_batch_typed(batch,work).map_err(|e|e.to_string())
+        Self::from_verified_batch_typed(batch, work).map_err(|e| e.to_string())
     }
     fn from_verified_batch_typed(
         batch: &Value,
@@ -1488,9 +1491,9 @@ fn verify_profile_binding_admitted(
 }
 
 fn verify_batch_profile(batch: &Value, binding: &(String, String)) -> Result<(), String> {
-    verify_batch_profile_refs(batch,(&binding.0,&binding.1))
+    verify_batch_profile_refs(batch, (&binding.0, &binding.1))
 }
-fn verify_batch_profile_refs(batch:&Value,binding:(&str,&str))->Result<(),String>{
+fn verify_batch_profile_refs(batch: &Value, binding: (&str, &str)) -> Result<(), String> {
     let id = batch["profile_id"]
         .as_str()
         .ok_or("StorageUnavailable：batch.profile_id缺失")?;
