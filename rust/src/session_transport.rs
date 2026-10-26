@@ -316,9 +316,24 @@ fn read_chunk(
 fn read_chunk(
     stream: &mut UnixStream,
     bytes: &mut [u8],
-    _deadline: Instant,
+    deadline: Instant,
 ) -> std::io::Result<usize> {
-    stream.read(bytes)
+    loop {
+        match stream.read(bytes) {
+            // #1717：Linux 设了 SO_RCVTIMEO 的 recv 被信号唤醒即回 EINTR，SA_RESTART 不生效；
+            // 进程无处理器时，别的线程交叠起停子进程也实测打断过读。同一连接按原绝对期限续读。
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {
+                let remaining = deadline
+                    .checked_duration_since(Instant::now())
+                    .filter(|d| !d.is_zero())
+                    .ok_or_else(|| {
+                        std::io::Error::new(std::io::ErrorKind::TimedOut, "请求读期限")
+                    })?;
+                stream.set_read_timeout(Some(remaining))?;
+            }
+            other => return other,
+        }
+    }
 }
 
 /// 帧观测口：唯一读循环与分块写循环共用的计费与期限钩子（#1394 C §5.6.1）。
@@ -700,6 +715,92 @@ mod tests {
         assert!(started.elapsed() >= Duration::from_millis(30));
         assert!(started.elapsed() < Duration::from_millis(500));
         sender.shutdown(std::net::Shutdown::Write).unwrap();
+    }
+
+    /// 读线程阻塞期间按 `every` 周期向它发 SIGUSR1（处理器带 SA_RESTART），直到读返回。
+    #[cfg(target_os = "linux")]
+    fn read_while_signalled(
+        receiver: UnixStream,
+        deadline: Instant,
+        every: Duration,
+        before_frame: Option<(UnixStream, usize)>,
+    ) -> (Result<Value, String>, usize) {
+        extern "C" fn ignore(_: libc::c_int) {}
+        static HANDLER: std::sync::Once = std::sync::Once::new();
+        HANDLER.call_once(|| unsafe {
+            let mut action: libc::sigaction = std::mem::zeroed();
+            action.sa_sigaction = ignore as *const () as libc::sighandler_t;
+            action.sa_flags = libc::SA_RESTART;
+            libc::sigemptyset(&mut action.sa_mask);
+            assert_eq!(
+                libc::sigaction(libc::SIGUSR1, &action, std::ptr::null_mut()),
+                0
+            );
+        });
+        let done = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let (tx, rx) = mpsc::channel();
+        let finished = done.clone();
+        let reader = std::thread::spawn(move || {
+            let mut receiver = receiver;
+            tx.send(unsafe { libc::pthread_self() }).unwrap();
+            let result = read_frame(&mut receiver, 4096, deadline, value_only);
+            finished.store(true, Ordering::SeqCst);
+            result
+        });
+        let thread = rx.recv().unwrap();
+        let mut sent = 0;
+        let mut sender = before_frame;
+        while !done.load(Ordering::SeqCst) {
+            std::thread::sleep(every);
+            if done.load(Ordering::SeqCst) {
+                break;
+            }
+            assert_eq!(unsafe { libc::pthread_kill(thread, libc::SIGUSR1) }, 0);
+            sent += 1;
+            if let Some((mut peer, after)) = sender.take() {
+                if sent < after {
+                    sender = Some((peer, after));
+                } else {
+                    peer.write_all(b"{\"valid\":true}\n").unwrap();
+                    peer.shutdown(std::net::Shutdown::Write).unwrap();
+                }
+            }
+        }
+        (reader.join().unwrap(), sent)
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn signal_interrupted_read_resumes_the_same_frame() {
+        let (receiver, sender) = UnixStream::pair().unwrap();
+        let (result, sent) = read_while_signalled(
+            receiver,
+            Instant::now() + Duration::from_secs(5),
+            Duration::from_millis(20),
+            Some((sender, 3)),
+        );
+        assert_eq!(result.unwrap(), json!({"valid":true}));
+        assert!(sent >= 3, "信号须在帧到达前打到阻塞读：{sent}");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn continuous_signal_interruption_still_expires_at_the_original_deadline() {
+        let (receiver, sender) = UnixStream::pair().unwrap();
+        let started = Instant::now();
+        let (result, sent) = read_while_signalled(
+            receiver,
+            started + Duration::from_millis(120),
+            Duration::from_millis(2),
+            None,
+        );
+        let elapsed = started.elapsed();
+        let error = result.unwrap_err();
+        assert!(!error.contains("Interrupted"), "{error}");
+        assert!(sent >= 10, "期限内须持续被打断：{sent}");
+        assert!(elapsed >= Duration::from_millis(110), "{elapsed:?}");
+        assert!(elapsed < Duration::from_millis(600), "{elapsed:?}");
+        drop(sender);
     }
 
     #[test]
