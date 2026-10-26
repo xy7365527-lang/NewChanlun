@@ -134,7 +134,7 @@ impl Session {
         .collect()
     }
 }
-fn reference(doc: &mut Value, index: usize, field: &str, name: &str) {
+pub(super) fn reference(doc: &mut Value, index: usize, field: &str, name: &str) {
     doc["evidence_index"]["fragments"][name] =
         json!([{"json_pointer":format!("/events/{index}/{field}")}]);
 }
@@ -260,14 +260,14 @@ fn c5_growth_and_rebase_reject_mixed_or_unwitnessed_originals() {
     );
 }
 
-fn fact_identity(event: &Value) -> Value {
+pub(super) fn fact_identity(event: &Value) -> Value {
     json!({"source_namespace":event["source"]["source_namespace"],"source_epoch":event["source"]["source_epoch"],"external_fact_id":event["source"]["external_fact_id"],"allocation_id":event["allocation_id"]})
 }
-fn lot(doc: &mut Value, index: usize, value: Value) {
+pub(super) fn lot(doc: &mut Value, index: usize, value: Value) {
     doc["events"][index]["completed_growth"] = value;
     reference(doc, index, "completed_growth", &format!("lot-{index}"));
 }
-fn transfer(doc: &mut Value, index: usize, claim: &Value, role: &str) {
+pub(super) fn transfer(doc: &mut Value, index: usize, claim: &Value, role: &str) {
     let name = format!("transfer-{role}-{index}");
     doc["events"][index]["transfer"] = json!({"role":role,"claim":claim,"source_ref":name});
     reference(doc, index, "transfer", &name);

@@ -2,7 +2,7 @@
 //! 不是签署市场值。纯函数层用抽象时刻（锚 100、签署 90）；B 与服务层以 T0 为基的纳秒时刻，锚取 E 持久事实。
 use super::book;
 use super::quantity_calibration::{self as qc, Readiness, Signed};
-use super::tb03c_book_tests::{record_for_raw, Space};
+use super::tb03c_book_tests::{record_for_raw, Space, TestDoc};
 use super::tb03c_funding::{self, Contract};
 use super::tb03c_funding_tests::{funding_record, policy_record, raw, Batch};
 use super::{service, store};
@@ -865,16 +865,20 @@ fn chain_manifest(space: &Space, v2_signed: bool) -> Value {
             ),
         ],
     );
-    let extra = json!({"session_id":"tb1715-v3","session_generation":"1",
-        "e":{"db":space.0.join("e.db"),"socket":space.0.join("e.sock")},
-        "authorized_sources":[{"source_namespace":"testonly-tb1406","source_epoch":"fixture-epoch-1","producer_id":"tb1715","producer_epoch":"1",
-            "operations":["CaptureExternal","ResolveEvidence","ApplyAllocation","ReadView","QueryFact","QueryAllocation"]}],
-        "resources":{"max_frame_bytes":"1048576","read_timeout_ms":"1000","write_timeout_ms":"1000","response_timeout_ms":"2000","queue_capacity":"2","max_connections":"2"},
-        "clock":{"kind":"TestOnly","plan":{"init_ns":"1","recover_ns":[(T0+90000).to_string(),(T0+90001).to_string(),(T0+90002).to_string(),(T0+90003).to_string()],"messages":messages}}});
+    let extra = served(space, messages);
     for (k, v) in extra.as_object().unwrap() {
         m[k] = v.clone();
     }
     m
+}
+/// `/3` 服务域公共件：会话、E 路径、获准来源（含公共查询）、资源与 TestOnly 时钟计划。
+fn served(space: &Space, messages: serde_json::Map<String, Value>) -> Value {
+    json!({"schema_revision":"economic-manifest/1","session_id":"tb1715-v3","session_generation":"1",
+        "e":{"db":space.0.join("e.db"),"socket":space.0.join("e.sock")},
+        "authorized_sources":[{"source_namespace":"testonly-tb1406","source_epoch":"fixture-epoch-1","producer_id":"tb1715","producer_epoch":"1",
+            "operations":["CaptureExternal","ResolveEvidence","ApplyAllocation","ReadView","QueryFact","QueryAllocation"]}],
+        "resources":{"max_frame_bytes":"1048576","read_timeout_ms":"1000","write_timeout_ms":"1000","response_timeout_ms":"2000","queue_capacity":"2","max_connections":"2"},
+        "clock":{"kind":"TestOnly","plan":{"init_ns":"1","recover_ns":[(T0+90000).to_string(),(T0+90001).to_string(),(T0+90002).to_string(),(T0+90003).to_string()],"messages":messages}}})
 }
 /// TestOnly 原件：/events/0 开局（fixed_q = 32000），/events/1 拆股 2:1，/events/2 q_rebase 指向 v2（new_q 53333）。
 fn chain_raw(policy_ref_version: &str, new_q: &str) -> String {
@@ -1267,12 +1271,16 @@ fn envelope(message: &str, payload: Value) -> Value {
         "source_namespace":"testonly-tb1406","source_epoch":"fixture-epoch-1","producer_id":"tb1715","producer_epoch":"1",
         "payload_hash":book::hash(&payload),"payload":payload,"causal_refs":[]})
 }
+/// manifest 的全部持久域：E 在前，其后按 manifest 顺序每重一个 B。
 fn configs(dir: &Path) -> Vec<store::Config> {
     let path = dir.join("manifest.json");
-    vec![
-        store::Config::load(&path, &dir.join("e.db"), None).unwrap(),
-        store::Config::load(&path, &dir.join("b1.db"), Some("chong-BTC-L1")).unwrap(),
-    ]
+    let m = strict_json(&std::fs::read(&path).unwrap()).unwrap();
+    std::iter::once(store::Config::load(&path, &dir.join("e.db"), None).unwrap())
+        .chain(m["chongs"].as_array().unwrap().iter().map(|c| {
+            let db = PathBuf::from(c["db"].as_str().unwrap());
+            store::Config::load(&path, &db, c["chong_id"].as_str()).unwrap()
+        }))
+        .collect()
 }
 /// 公共只读查询：ReadView + 每个事实 QueryFact + B 的每个 allocation QueryAllocation（去掉写者 epoch 与运行时）。
 fn public(config: &store::Config) -> Value {
@@ -1491,4 +1499,425 @@ fn v3_unsigned_waits_in_e_and_resolve_cannot_clear_it() {
     );
     assert_eq!(store::latest(&b).unwrap().3, before);
     assert!(store::rows(&b, "receipts").unwrap().is_empty());
+}
+
+// ---- 真实 `/3` 转移：非零本金源重回收本金、资本化、转出 → 目标转入经同一激活闸定标；E、源 B、目标 B 新进程恢复 ----
+
+/// 原件来源改为服务信封的获准来源；须在派生转移 claim 前改，事实身份才与 claim 一致。
+fn served_source(doc: &mut Value) {
+    for e in doc["events"].as_array_mut().unwrap() {
+        e["source"]["source_namespace"] = json!("testonly-tb1406");
+        e["source"]["source_epoch"] = json!("fixture-epoch-1");
+    }
+}
+
+/// 源 S（L1，Q 1000，价 100 ⟹ fixed_q 10）与目标 U（L3，fixed_q 3）的 TestOnly 原件：S/0 开局买 10，本金批
+/// 1000 = ⌈Q/L⌉；S/1 卖 7 回款 1400、具名实现 700（K = −400）；S/2 回收本金 1000；S/3 把 300 资本化为具名现金批；
+/// S/4 转出该批 300；U/0 转入。
+fn v3_transfer_documents() -> (Value, Value) {
+    use super::tb03c_c5_tests::{fact_identity, lot, reference, transfer};
+    let mut s = TestDoc::new("S", "fam-S", 10, "long");
+    s.opening(
+        10,
+        &[
+            ("acquisition_cash", 1000, json!({})),
+            (
+                "principal_contribution",
+                1000,
+                json!({"batch_id":"S-P0","authorization_ref":"#1557/funding-authorization/v1@P0","authorization_version":"v1"}),
+            ),
+        ],
+    );
+    s.realized_step(-7, 700, 0);
+    s.step(0, &[("recover_capital", 1000, json!({}))]);
+    s.step(
+        0,
+        &[(
+            "growth_capitalization",
+            300,
+            json!({"authorization_ref":"testonly-A"}),
+        )],
+    );
+    s.step(0, &[]);
+    let mut source = s.document();
+    served_source(&mut source);
+    source["events"][1]["known_cost_components"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"kind":"disposal_cash","amount_text":"1400","canonical_amount":"1400","currency":"TEST-CASH","quantum":"1","source_ref":"S-1:disposal"}));
+    reference(&mut source, 1, "known_cost_components/1", "S-1:disposal");
+    source["events"][3]["deltas"]["A"] = json!("300");
+    source["events"][3]["component_witnesses"] =
+        json!([{"kind":"completed_profit_capitalization","value":"300","source_ref":"S-3:A"}]);
+    reference(&mut source, 3, "component_witnesses/0", "S-3:A");
+    lot(
+        &mut source,
+        3,
+        json!({"profile":"TestOnly","lot_id":"cash-300","kind":"cash_capitalization","cash":"300","units":"0","carrying_cost":"0","authorization_ref":"testonly-G7","source_ref":"lot-3"}),
+    );
+    let mut u = TestDoc::new("U", "fam-U", 3, "long");
+    u.step(0, &[]);
+    let mut target = u.document();
+    served_source(&mut target);
+    let claim = json!({"revision":"tb03c-transfer/1","profile":"TestOnly","transfer_id":"transfer-v3-cash","kind":"capital_overflow",
+        "source_chong":"S","target_chong":"U","source_fact":fact_identity(&source["events"][4]),"target_fact":fact_identity(&target["events"][0]),
+        "payload":{"cash":"300","units":"0","carrying_cost":"0"},"units":source["units"],
+        "growth_source":{"fact":fact_identity(&source["events"][3]),"lot_id":"cash-300"},
+        "trigger_evidence_ref":"testonly-completed-capitalization","authorization_ref":"testonly-transfer",
+        "policy_versions":{"quantity_policy_ref":format!("{POLICY}@qc-transfer-v1")}});
+    transfer(&mut source, 4, &claim, "out");
+    transfer(&mut target, 0, &claim, "in");
+    (source, target)
+}
+
+/// 服务链 `/3` 转移 manifest：S（L1，Q 1000，fixed_q 10）读 s-transfer，U（L3，Q `u_q`，C(L3) `u_c`，fixed_q 3）读
+/// s-target。E 捕获锚：S 开局 T0+86、U 转入 T0+1051；B 应用在 2026-10-21，`late` 改写 U 转入的 B 时钟。
+fn transfer_chain_manifest(space: &Space, u_q: &str, u_c: &str, late: Option<i64>) -> Value {
+    let mut m = transfer_manifest(true, vec![test_quote("P", T0 + 80, 100)]);
+    m["chongs"].as_array_mut().unwrap().remove(1);
+    m["funding"]["quote_snapshots"]
+        .as_array_mut()
+        .unwrap()
+        .push(snap(
+            "s-target",
+            T0 + 1045,
+            vec![test_quote("P2", T0 + 1040, 100)],
+        ));
+    for (i, id, fixed_q, q) in [(0, "S", "10", "1000"), (1, "U", "3", u_q)] {
+        let c = &mut m["chongs"][i];
+        c["db"] = json!(space.0.join(format!("{id}.db")));
+        c["socket"] = json!(space.0.join(format!("{id}.sock")));
+        c["fixed_q"] = json!(fixed_q);
+        c["funding"]["Q"] = json!(q);
+    }
+    let target = &mut m["chongs"][1]["funding"];
+    target["quote_snapshot"] = json!("s-target");
+    target["policy_record"]["capacities"][3]["C"] = json!(u_c);
+    let at = |t: i64| json!({"received_ns":t.to_string(),"first_known_ns":(t + 1).to_string(),"commit_ns":(t + 2).to_string()});
+    let mut messages = serde_json::Map::new();
+    messages.insert("cap-0".into(), at(T0 + 85));
+    for i in 1..6i64 {
+        messages.insert(format!("cap-{i}"), at(T0 + 1000 + 10 * i));
+    }
+    for (k, t) in [
+        ("app-0", 5000),
+        ("app-1", 5010),
+        ("app-3-early", 5015),
+        ("app-2", 5020),
+        ("app-3", 5030),
+        ("app-5-early", 5035),
+        ("app-4", 5040),
+        ("app-5", 5050),
+        ("app-5-retry", 5060),
+        ("app-4-retry", 5070),
+    ] {
+        messages.insert(k.into(), at(T0 + t));
+    }
+    if let Some(t) = late {
+        messages.insert("app-5".into(), at(t));
+    }
+    for (k, v) in served(space, messages).as_object().unwrap() {
+        m[k] = v.clone();
+    }
+    m
+}
+
+/// 多域 `/3` 服务驱动：E 与每重各一条 SQLite 连接，请求经真实 `service::handle`，message_id 即 TestOnly 时钟键。
+struct Served {
+    space: Space,
+    cs: Vec<store::Config>,
+    db: Vec<rusqlite::Connection>,
+}
+impl Served {
+    fn new(space: Space, m: &Value) -> Self {
+        std::fs::write(space.0.join("manifest.json"), canonical_json(m)).unwrap();
+        let cs = configs(&space.0);
+        for c in &cs {
+            store::init(c).unwrap();
+        }
+        let db = cs
+            .iter()
+            .map(|c| store::open(&c.db, false).unwrap().0)
+            .collect();
+        Self { space, cs, db }
+    }
+    fn send(&mut self, owner: usize, message: &str, payload: Value) -> Value {
+        service::handle(
+            &mut self.db[owner],
+            &self.cs[owner],
+            1,
+            1,
+            &json!({}),
+            &envelope(message, payload),
+        )["payload"]
+            .clone()
+    }
+    fn capture(&mut self, message: &str, doc: &Value, i: usize) -> Value {
+        let event = &doc["events"][i];
+        let payload = json!({"op":"CaptureExternal","raw_utf8":canonical_json(doc),"json_pointer":format!("/events/{i}"),
+            "token":format!("tok-{}",event["allocation_id"].as_str().unwrap()),"source_event_time":event["source"]["source_event_time"]});
+        self.send(0, message, payload)
+    }
+    fn apply(&mut self, owner: usize, message: &str, receipt: &Value) -> Value {
+        self.send(owner, message, json!({"op":"ApplyAllocation","fact_key":receipt["fact_key"],"allocation_id":receipt["allocation_id"],"expected_fact_hash":receipt["fact_hash"]}))
+    }
+    fn image(&self, owner: usize) -> Value {
+        store::latest(&self.db[owner]).unwrap().3
+    }
+    fn commits(&self, owner: usize) -> i64 {
+        self.db[owner]
+            .query_row("SELECT count(*) FROM commits", [], |r| r.get(0))
+            .unwrap()
+    }
+    fn receipts(&self, owner: usize) -> usize {
+        store::rows(&self.db[owner], "receipts").unwrap().len()
+    }
+}
+/// `Served` 的域下标：0 = E，其后按 manifest 顺序。
+const SRC: usize = 1;
+const DST: usize = 2;
+
+#[test]
+fn v3_transfer_service_chain_recovers_e_and_both_b_in_a_new_process() {
+    let space = Space::new("1715-v3-transfer");
+    let m = transfer_chain_manifest(&space, "300", "1000", None);
+    let mut c = Served::new(space, &m);
+    let (source, target) = v3_transfer_documents();
+    let caps: Vec<Value> = (0..4)
+        .map(|i| c.capture(&format!("cap-{i}"), &source, i))
+        .collect();
+    for cap in &caps {
+        assert_eq!(cap["kind"], "Recorded", "{cap}");
+    }
+    assert_eq!(c.apply(SRC, "app-0", &caps[0])["kind"], "Applied");
+    assert_eq!(c.apply(SRC, "app-1", &caps[1])["kind"], "Applied");
+    // 本金未回收：资本化被唯一资格谓词拒绝，源账不变（夹具不改本金门）。
+    let before = c.image(SRC);
+    let early = c.apply(SRC, "app-3-early", &caps[3]);
+    assert!(
+        early["error"]
+            .as_str()
+            .is_some_and(|e| e.starts_with("Rejected：增长资本化前件 growth_eligible 不成立")),
+        "{early}"
+    );
+    assert_eq!(c.image(SRC), before);
+    assert_eq!(c.apply(SRC, "app-2", &caps[2])["kind"], "Applied");
+    assert_eq!(c.apply(SRC, "app-3", &caps[3])["kind"], "Applied");
+    let sb = c.image(SRC)["book"].clone();
+    assert_eq!(
+        (
+            sb["principal"]["P"].as_str(),
+            sb["principal"]["P_recovered"].as_str()
+        ),
+        (Some("1000"), Some("1000"))
+    );
+    assert_eq!(sb["cost_basis"]["K"], "-400");
+    assert_eq!(sb["phase"]["growth_eligible"]["status"], "Eligible");
+    assert_eq!(
+        sb["income_book"],
+        json!({"Pi":"700","A":"300","W":"0","R":"400"})
+    );
+    assert_eq!(sb["funding"]["opening_batch"], "1000");
+    let sc = &sb["funding"]["quantity_calibration"];
+    assert_eq!(
+        (sc["Q_amount"].as_str(), sc["Q_units"].as_str()),
+        (Some("1000"), Some("10"))
+    );
+    assert_eq!(
+        sc["quote"]["anchor_id"], caps[0]["fact_key"],
+        "源锚 = E 持久开局请求"
+    );
+    assert_eq!(
+        sb["funding"]["capacity"],
+        json!({"level":"L1","C":"3200000","C_units":"32000"})
+    );
+    let out = c.capture("cap-4", &source, 4);
+    assert_eq!(out["kind"], "Recorded", "{out}");
+    let incoming = c.capture("cap-5", &target, 0);
+    assert_eq!(incoming["kind"], "Recorded", "{incoming}");
+    // 缺来源：源 B 尚未扣账，目标转入等待，目标账、收据与提交不变。
+    let empty = (c.image(DST), c.commits(DST));
+    let missing = c.apply(DST, "app-5-early", &incoming);
+    assert!(
+        missing["error"]
+            .as_str()
+            .is_some_and(|e| e.starts_with("AwaitingDependency")),
+        "{missing}"
+    );
+    assert_eq!((c.image(DST), c.commits(DST)), empty);
+    assert_eq!(c.receipts(DST), 0);
+    let debit = c.apply(SRC, "app-4", &out);
+    assert_eq!(debit["kind"], "Applied", "{debit}");
+    let applied = c.apply(DST, "app-5", &incoming);
+    assert_eq!(applied["kind"], "Applied", "{applied}");
+    assert_eq!(applied["e_first_known_ns"], incoming["first_known_ns"]);
+    let image = c.image(DST);
+    let b = &image["book"];
+    assert_eq!(b["book_revision"], "tb03c-book/3");
+    assert_eq!(
+        (b["fixed_q"].as_str(), b["actual_quantity"].as_str()),
+        (Some("3"), Some("0"))
+    );
+    assert_eq!(
+        (
+            b["opening_fact_ref"]["fact_key"].as_str(),
+            b["opening_fact_ref"]["fact_hash"].as_str()
+        ),
+        (
+            incoming["fact_key"].as_str(),
+            incoming["fact_hash"].as_str()
+        ),
+        "目标账开局原件 = E 持久转入事实"
+    );
+    let batch = &b["principal"]["batches"][0];
+    assert_eq!(
+        (
+            batch["batch_id"].as_str(),
+            batch["amount"].as_str(),
+            batch["source_transfer_id"].as_str()
+        ),
+        (
+            Some("P0:transfer-v3-cash"),
+            Some("300"),
+            Some("transfer-v3-cash")
+        ),
+        "本金来源是转移，不冒充开局批"
+    );
+    assert_eq!(b["funding"]["funding_version"], "v1");
+    let cal = &b["funding"]["quantity_calibration"];
+    assert_eq!(
+        (
+            cal["chong_id"].as_str(),
+            cal["version"].as_str(),
+            cal["Q_amount"].as_str(),
+            cal["Q_units"].as_str()
+        ),
+        (Some("U"), Some("qc-transfer-v1"), Some("300"), Some("3"))
+    );
+    assert_eq!(
+        cal["quote"]["anchor_id"], incoming["fact_key"],
+        "目标锚 = E 持久转入事实"
+    );
+    assert_eq!(cal["quote"]["t_anchor"], incoming["first_known_ns"]);
+    assert_eq!(
+        (
+            cal["quote"]["quote_id"].as_str(),
+            cal["quote"]["snapshot_id"].as_str()
+        ),
+        (Some("P2"), Some("s-target"))
+    );
+    assert_eq!(
+        cal["signature"]["content_sha256"],
+        m["chongs"][1]["funding"]["quantity_calibration"]["signature"]["content_sha256"]
+    );
+    assert_eq!(
+        b["funding"]["capacity"],
+        json!({"level":"L3","C":"1000","C_units":"10"})
+    );
+    let proof = &image["recorded"][0]["b_source_debit_proof"];
+    assert_eq!(proof["domain_id"], "B:S");
+    assert_eq!(proof["receipt"], debit, "证明 = 源 B 实际 Applied 回执");
+    // 重送：目标转入与源扣账各返回原收据，三域不新增提交。
+    let commits = [0, SRC, DST].map(|o| c.commits(o));
+    assert_eq!(c.apply(DST, "app-5-retry", &incoming), applied);
+    assert_eq!(c.apply(SRC, "app-4-retry", &out), debit);
+    assert_eq!([0, SRC, DST].map(|o| c.commits(o)), commits);
+    assert_eq!(c.image(DST), image);
+    let images = [0, SRC, DST].map(|o| c.image(o));
+    let before: Vec<Value> = c.cs.iter().map(public).collect();
+    assert_eq!(
+        before[DST][0]["image"]["book"]["funding"]["quantity_calibration"],
+        *cal
+    );
+    drop(std::mem::take(&mut c.db));
+    let dir = c.space.0.clone();
+    let status = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", CHILD, "--ignored", "--nocapture"])
+        .env("TB1715_RECOVERY_WORK", &dir)
+        .stdout(std::fs::File::create(dir.join("child.stdout")).unwrap())
+        .stderr(std::fs::File::create(dir.join("child.stderr")).unwrap())
+        .status()
+        .unwrap();
+    assert!(
+        status.success(),
+        "{}",
+        std::fs::read_to_string(dir.join("child.stderr")).unwrap_or_default()
+    );
+    let child = strict_json(&std::fs::read(dir.join("child.json")).unwrap()).unwrap();
+    assert_ne!(child["pid"], json!(std::process::id()));
+    let domains = child["domains"].as_array().unwrap();
+    assert_eq!(domains.len(), 3);
+    for (i, d) in domains.iter().enumerate() {
+        assert_eq!(d["image"], images[i], "{} 恢复后图像逐字相同", d["domain"]);
+        assert_eq!(
+            d["public"], before[i],
+            "{} 恢复后公共查询逐项相同",
+            d["domain"]
+        );
+    }
+    // 目标只靠本地证明恢复：E 与源 B 离线后再恢复，图像不变；重送仍返回原收据且不新增提交。
+    for owner in [0, SRC] {
+        let db = &c.cs[owner].db;
+        std::fs::rename(db, db.with_extension("offline")).unwrap();
+    }
+    store::recover(&c.cs[DST]).unwrap();
+    let (mut ub, _) = store::open(&c.cs[DST].db, false).unwrap();
+    assert_eq!(store::latest(&ub).unwrap().3, image);
+    let epoch: i64 = store::meta(&ub, "writer_epoch").unwrap().parse().unwrap();
+    let commits_u: i64 = ub
+        .query_row("SELECT count(*) FROM commits", [], |r| r.get(0))
+        .unwrap();
+    let again = service::handle(&mut ub, &c.cs[DST], epoch, epoch, &json!({}), &envelope("app-5-after-restart",
+        json!({"op":"ApplyAllocation","fact_key":incoming["fact_key"],"allocation_id":incoming["allocation_id"],"expected_fact_hash":incoming["fact_hash"]})))["payload"].clone();
+    assert_eq!(again, applied, "{again}");
+    assert_eq!(
+        ub.query_row("SELECT count(*) FROM commits", [], |r| r.get::<_, i64>(0))
+            .unwrap(),
+        commits_u
+    );
+}
+
+/// 服务入口负控：目标转入金额 301/300、B 获知时刻过签署有效期，被同一激活闸拒绝；目标账、收据与提交不变，
+/// 已提交的源扣账保持原样（沿既有转移合同，不另造回滚）。
+#[test]
+fn v3_transfer_target_rejections_change_nothing() {
+    for (tag, u_q, u_c, late, want) in [
+        (
+            "1715-v3-301",
+            "301",
+            "300",
+            None,
+            "InvalidDomain：Q 301 超过已签 C(L3) 300",
+        ),
+        (
+            "1715-v3-late",
+            "300",
+            "1000",
+            Some(T0 + 365 * DAY),
+            "PolicyExpired：原件 known_at 2027-10-21 超过 funding-record 有效期",
+        ),
+    ] {
+        let space = Space::new(tag);
+        let m = transfer_chain_manifest(&space, u_q, u_c, late);
+        let mut c = Served::new(space, &m);
+        let (source, target) = v3_transfer_documents();
+        for i in 0..5 {
+            let cap = c.capture(&format!("cap-{i}"), &source, i);
+            assert_eq!(cap["kind"], "Recorded", "{tag} S/{i}: {cap}");
+            let app = c.apply(SRC, &format!("app-{i}"), &cap);
+            assert_eq!(app["kind"], "Applied", "{tag} S/{i}: {app}");
+        }
+        let debited = c.image(SRC);
+        let incoming = c.capture("cap-5", &target, 0);
+        assert_eq!(incoming["kind"], "Recorded", "{tag}: {incoming}");
+        let before = (c.image(DST), c.commits(DST));
+        let got = c.apply(DST, "app-5", &incoming);
+        assert!(
+            got["error"].as_str().is_some_and(|e| e.starts_with(want)),
+            "{tag}: {got}"
+        );
+        assert_eq!((c.image(DST), c.commits(DST)), before, "{tag}");
+        assert_eq!(c.receipts(DST), 0, "{tag}");
+        assert_eq!(c.image(SRC), debited, "{tag}");
+    }
 }
