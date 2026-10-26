@@ -43,3 +43,7 @@
 [主控合入登记](https://github.com/xy7365527-lang/NewChanlun/issues/1737#issuecomment-6411636647) 已明确保持该票 OPEN。
 
 本票证据覆盖 I/O 等待原截止并断开回包通道，以及已有经济截止锁。完整 `economic-session/2` 服务端到端无新增持久回执验收仍归 #1716，不能由这次测试同步修复替代。
+
+## 文书归档的 DevSkim 误报返修
+
+首个归档候选的 DevSkim 扫描将五份 CI JSON 中的六个 Git 提交号误判为凭据。[精确误报登记说明](DEVSKIM-REVIEW.md) 给出逐项来源、既有完整身份绑定机制与同一原始 SARIF 的前后 gate 读数。12 份原件保持逐字内容，新候选仍需差异独审与 GitHub CI。
