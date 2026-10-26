@@ -126,3 +126,52 @@ impl IoAccounting for &MixedAccounting<'_,'_> {
 pub(super) fn fixed_metadata_bytes()->usize {
     std::mem::size_of::<MixedAccounting<'static,'static>>()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sc::job::{Existing,Job,JobLimits};
+    use sc::capture_allocation::scratch::{CodecWork,ScratchCharge,ScratchParent};
+    use std::sync::Arc;
+    use std::time::Instant;
+    struct Parent;
+    impl ScratchParent for Parent{
+        fn reserve(&self,_:usize,_:ScratchCharge)->Result<u64,ScratchFailure>{Ok(0)}
+        fn release(&self,_:usize,_:ScratchCharge,_:u64)->Result<(),ScratchFailure>{Ok(())}
+        fn health(&self)->Result<(),ScratchFailure>{Ok(())}
+        fn invalidate(&self){panic!("unexpected parent invalidation")}
+    }
+    #[test]
+    fn mixed_callbacks_keep_first_typed_error_and_actual_rejected_wire(){
+        let limits=JobLimits::from_canonical_json(&serde_json::json!({
+            "max_total_wire_bytes":"10","max_total_node_bytes":"1024","max_total_nodes":"16",
+            "max_total_records":"1","max_total_requests":"1","max_elapsed_ms":"60000",
+            "max_staged_bytes":"1024","max_store_bytes":"4096"
+        })).unwrap();
+        CodecWork::new(Arc::new(Parent),1<<20).unwrap().run(|work|{
+            let job=RefCell::new(Job::new_started_mixed(limits,Existing{store_bytes:0,staged_bytes:0},
+                Box::new(Instant::now),Instant::now(),work)?);
+            let mut account=crate::v3::admission_anchor::test_mixed_account(&job,work);
+            let policy=Cell::new(MixedPolicy::Bootstrap);
+            let shared=MixedAccounting::new(&mut account,&policy).unwrap();
+            let mut io=&shared;
+            io.before_io().unwrap();
+            io.after_read(11).unwrap_err();
+            shared.set_phase(ErrorPhase::Close);
+            io.after_read(3).unwrap_err();
+            let first=shared.resource_error().unwrap();
+            assert_eq!(first.code(),sc::job::LIMIT_EXCEEDED);
+            let errors=shared.errors.borrow();
+            assert_eq!(errors.first.unwrap().phase,"业务返回");
+            assert_eq!(errors.later[ErrorPhase::Close as usize].unwrap().phase,"关闭连接");
+            assert_eq!(errors.unaccepted_wire,3);
+            assert!(!errors.overflow);
+            assert_eq!(std::mem::size_of::<CallbackFailed>(),0);
+            drop(errors);
+            assert!(shared.publish_failure().is_some());
+            drop(shared);
+            assert_eq!(account.snapshot().wire_bytes,11);
+            Ok::<_,sc::CodecError>(())
+        }).unwrap();
+    }
+}

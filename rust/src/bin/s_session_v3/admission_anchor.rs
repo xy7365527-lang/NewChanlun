@@ -1614,3 +1614,11 @@ pub(super) fn test_with_clock_account<T>(
     );
     result
 }
+
+#[cfg(test)]
+pub(crate) fn test_mixed_account<'a>(
+    job:&'a RefCell<admission_job::Job>,
+    work:&'a newchan_rust::s_content::capture_allocation::scratch::WorkScope,
+)->AdmissionAccounting<'a>{
+    AdmissionAccounting{job:job.borrow_mut(),work:Some(work),mixed:true}
+}

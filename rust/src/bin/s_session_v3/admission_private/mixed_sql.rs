@@ -351,8 +351,7 @@ impl MixedPolicy {
                             .is_some_and(|(_, columns)| columns.contains(&c));
                     }
                 (Some(b"s_evidence_nodes"), Some(b""), None) if graph => return true,
-                (Some(b"batches"), Some(b""), None) if graph => return true,
-                (Some(b"structure_deltas" | b"structure_facts"), Some(b""), None) if records => return true,
+                (Some(b"structure_deltas"), Some(b""), None) if records => return true,
                 _ => {}
             }
         }
