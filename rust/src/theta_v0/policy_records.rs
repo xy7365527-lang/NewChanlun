@@ -205,12 +205,12 @@ pub(crate) fn parse_header(
     ))
 }
 
-/// 读一个非负整数字段（`fields.<name>.value`）。
-pub(crate) fn read_u32(
+/// 取已签字段的 `value`（`fields.<name>.value`）；缺失或未签 ⟹ `AwaitingPolicy`。
+fn signed_value<'a>(
     id: &'static str,
-    fields: &serde_json::Map<String, Value>,
+    fields: &'a serde_json::Map<String, Value>,
     name: &str,
-) -> Result<u32, PolicyError> {
+) -> Result<&'a Value, PolicyError> {
     let awaiting = || PolicyError::AwaitingPolicy {
         id,
         field: name.to_string(),
@@ -224,20 +224,14 @@ pub(crate) fn read_u32(
     let entry = entry
         .as_object()
         .ok_or_else(|| invalid(id, name, format!("字段须为带 value 的对象，得 {entry}")))?;
-    let value = entry.get("value").ok_or_else(awaiting)?;
-    match value {
-        Value::Null => Err(awaiting()),
-        Value::String(s) if s == "AwaitingPolicy" => Err(awaiting()),
-        v => v
-            .as_u64()
-            .filter(|&n| n <= u64::from(u32::MAX))
-            .map(|n| n as u32)
-            .ok_or_else(|| invalid(id, name, format!("须为非负整数，得 {v}"))),
+    match entry.get("value") {
+        None | Some(Value::Null) => Err(awaiting()),
+        Some(Value::String(s)) if s == "AwaitingPolicy" => Err(awaiting()),
+        Some(v) => Ok(v),
     }
 }
 
 /// 读一个有限浮点字段。JSON 的整数也接受；NaN/Infinity 与指数溢出均判非法。
-#[cfg(any(test, feature = "backtest_bin"))]
 pub(crate) fn read_f64(
     id: &'static str,
     fields: &serde_json::Map<String, Value>,
@@ -287,6 +281,46 @@ pub(crate) fn read_str(
         Value::String(s) => Ok(s.clone()),
         v => Err(invalid(id, name, format!("须为字符串，得 {v}"))),
     }
+}
+
+/// 读一个非负整数字段（`fields.<name>.value`）。
+pub(crate) fn read_u32(
+    id: &'static str,
+    fields: &serde_json::Map<String, Value>,
+    name: &str,
+) -> Result<u32, PolicyError> {
+    let v = signed_value(id, fields, name)?;
+    v.as_u64()
+        .filter(|&n| n <= u64::from(u32::MAX))
+        .map(|n| n as u32)
+        .ok_or_else(|| invalid(id, name, format!("须为非负整数，得 {v}")))
+}
+
+/// 读一个布尔字段（`fields.<name>.value`）。
+pub(super) fn read_bool(
+    id: &'static str,
+    fields: &serde_json::Map<String, Value>,
+    name: &str,
+) -> Result<bool, PolicyError> {
+    let v = signed_value(id, fields, name)?;
+    v.as_bool()
+        .ok_or_else(|| invalid(id, name, format!("须为 true/false，得 {v}")))
+}
+
+/// 读一个定长有限浮点数组字段（`fields.<name>.value`）。
+pub(super) fn read_f64_array<const N: usize>(
+    id: &'static str,
+    fields: &serde_json::Map<String, Value>,
+    name: &str,
+) -> Result<[f64; N], PolicyError> {
+    let v = signed_value(id, fields, name)?;
+    let bad = || invalid(id, name, format!("须为 {N} 个有限数的数组，得 {v}"));
+    let arr = v.as_array().filter(|a| a.len() == N).ok_or_else(bad)?;
+    let mut out = [0.0; N];
+    for (slot, x) in out.iter_mut().zip(arr) {
+        *slot = x.as_f64().filter(|x| x.is_finite()).ok_or_else(bad)?;
+    }
+    Ok(out)
 }
 
 /// 解析 `tower-level-budget` 记录。`min_parts_per_level` 不在本记录里：它是中枢定义的三段下限

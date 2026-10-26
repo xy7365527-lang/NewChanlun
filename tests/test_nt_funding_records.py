@@ -201,3 +201,77 @@ def test_record_errors_stop_before_engine_assembly(monkeypatch, key, message):
     with pytest.raises(ValueError, match=message):
         _build(module, key)
     assert calls == ["P0"]
+
+
+@pytest.mark.parametrize("diagnostic", [False, True])
+def test_theta_strategy_forwards_funding_and_venue_separately(monkeypatch, diagnostic):
+    _install(monkeypatch)
+    sys.modules["nautilus_trader.model.enums"].OrderSide = NS(BUY="buy", SELL="sell")
+    calls = []
+    monkeypatch.setattr(sys.modules["newchan_rust"], "ThetaStream",
+                        lambda **kw: calls.append(kw) or NS(), raising=False)
+    spec = importlib.util.spec_from_file_location(
+        "theta_strategy_funding_probe", ROOT / "trading_system/strategy/theta_rec_strategy.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.ThetaRecStrategy(module.ThetaRecStrategyConfig(
+        instrument_id=NS(venue="venue"), bar_type="bar", funding_profile="P1-hl-testnet",
+        preset="diagnostic-fixture" if diagnostic else None,
+        venue_profile=None if diagnostic else "P0"))
+    assert calls == [{"funding_profile": "P1-hl-testnet",
+                      "preset": "diagnostic-fixture" if diagnostic else None,
+                      "venue_profile": None if diagnostic else "P0"}]
+
+
+@pytest.mark.parametrize("diagnostic", [False, True])
+@pytest.mark.parametrize("funding", [None, "P1-hl-testnet"])
+def test_theta_cli_keeps_both_profiles_and_uses_signed_balance(monkeypatch, tmp_path, diagnostic, funding):
+    _install(monkeypatch)
+    sys.modules["nautilus_trader.model.currencies"].USDC = "USDC"
+    sys.modules["nautilus_trader.model.identifiers"].Venue = str
+    objects = sys.modules["nautilus_trader.model.objects"]
+    objects.Price = objects.Quantity = object
+    _module(monkeypatch, "pandas")
+    _module(monkeypatch, "pytz")
+    instrument = NS(id=NS(venue="venue"))
+    sys.modules["trading_system.config.instruments"].INSTRUMENTS = {"BTC": NS()}
+    sys.modules["trading_system.config.instruments"].make_instrument = lambda _s: instrument
+    calls = []
+    def strategy(config):
+        calls.append(config)
+        if config.funding_profile is None:
+            raise ValueError("AwaitingPolicy{funding_record}")
+        return NS(engine=NS(q_total=500.0, funding_record="P1-hl-testnet/v1"))
+    _module(monkeypatch, "trading_system.strategy.theta_rec_strategy",
+            ThetaRecStrategy=strategy, ThetaRecStrategyConfig=lambda **kw: NS(**kw))
+    spec = importlib.util.spec_from_file_location(
+        "theta_cli_funding_probe", ROOT / "trading_system/backtest/theta_backtest_py.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    data = tmp_path / "bars.json"
+    data.write_text("{}")
+    argv = ["theta", "--data", str(data)]
+    if diagnostic:
+        argv += ["--diagnostic-fixture"]
+    if funding:
+        argv += ["--funding-profile", funding]
+    monkeypatch.setattr(sys, "argv", argv)
+    class VenueReached(Exception):
+        pass
+    def engine(**_kwargs):
+        assert funding is not None, "missing funding must stop before engine assembly"
+        def add_venue(**kwargs):
+            balance = kwargs["starting_balances"][0]
+            assert (balance.amount, balance.currency) == (500.0, "USDC")
+            raise VenueReached
+        return NS(add_venue=add_venue)
+    monkeypatch.setattr(module, "BacktestEngine", engine)
+    if funding is None:
+        assert module.main() == 2
+    else:
+        with pytest.raises(VenueReached):
+            module.main()
+    assert len(calls) == 1
+    assert calls[0].funding_profile == funding
+    assert calls[0].venue_profile == (None if diagnostic else "P0")
+    assert calls[0].preset == ("diagnostic-fixture" if diagnostic else None)

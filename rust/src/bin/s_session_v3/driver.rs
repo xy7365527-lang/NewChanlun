@@ -81,6 +81,10 @@ pub(super) struct Driver {
     runtime: prepared::Runtime,
     clock: v2::ClockPlan,
     epoch: String,
+    /// 本 Driver 的唯一生成配置；生产与诊断由构造入口显式决定。
+    theta_config: newchan_rust::theta_v0::config::ThetaConfig,
+    /// 只有正式生产入口要求可准入；既有 TestOnly 夹具继续只作诊断。
+    require_admissible: bool,
     profile_id: String,
     volume_unit: Option<String>,
     /// 启动时冻结的唯一审计源保留预算；完整候选须由owner在每次handle绑定当前快照。
@@ -131,6 +135,7 @@ impl Driver {
         )
     }
 
+    #[cfg(test)]
     pub(super) fn open_for_serve_with_mode(
         db: &Path,
         profile: &Path,
@@ -141,6 +146,22 @@ impl Driver {
     ) -> Result<Self, String> {
         state::check_audit_source_retention(audit_cache_source_bytes)?;
         let mut driver = Self::open_with_request_and_mode(db, profile, epoch, clock, None, mode)?;
+        driver.audit_cache_source_bytes = Some(audit_cache_source_bytes);
+        Ok(driver)
+    }
+
+    /// 正式服务入口：生产 profile 在开门与 pending 恢复前构造，诊断夹具无权进入。
+    pub(super) fn open_for_serve_with_mode_production(
+        db: &Path,
+        profile: &Path,
+        epoch: &str,
+        clock: v2::ClockPlan,
+        audit_cache_source_bytes: usize,
+        mode: s_allocation::Mode,
+    ) -> Result<Self, String> {
+        state::check_audit_source_retention(audit_cache_source_bytes)?;
+        let mut driver =
+            Self::open_production_with_request_and_mode(db, profile, epoch, clock, None, mode)?;
         driver.audit_cache_source_bytes = Some(audit_cache_source_bytes);
         Ok(driver)
     }
@@ -167,6 +188,8 @@ impl Driver {
             None,
             mode,
             Some(&mut context),
+            newchan_rust::theta_v0::config::ThetaConfig::default(),
+            false,
         )?;
         driver.audit_cache_source_bytes = Some(audit_cache_source_bytes);
         let identity = driver.identity_in_bootstrap(&mut context)?;
@@ -193,7 +216,15 @@ impl Driver {
     }
 
     pub(super) fn state_summary(&self, command: &str) -> Result<Value, String> {
-        self.conn.summary(command, &self.epoch, &self.clock)
+        let mut summary = self.conn.summary(command, &self.epoch, &self.clock)?;
+        let fields = summary
+            .as_object_mut()
+            .ok_or("StorageUnavailable：S 摘要不是对象")?;
+        fields.insert(
+            "policy_records".into(),
+            Value::String(self.theta_config.record_labels()),
+        );
+        Ok(summary)
     }
 
     #[cfg(test)]
@@ -233,6 +264,7 @@ impl Driver {
 
     /// startup仅显式CapturedNative做同核全捕获；其它模式保持普通。在pending恢复前审计并冻结模式。
     /// 多错坏库的首报顺序可能随先捕获改变；拒绝义务不变，不保留startup结果。
+    #[cfg(test)]
     pub(super) fn open_with_request_and_mode(
         db: &Path,
         profile: &Path,
@@ -241,8 +273,44 @@ impl Driver {
         request: Option<&Value>,
         mode: s_allocation::Mode,
     ) -> Result<Self, String> {
-        Self::open_with_request_and_mode_context(db, profile, epoch, clock, request, mode, None)
+        Self::open_with_request_and_mode_context(
+            db,
+            profile,
+            epoch,
+            clock,
+            request,
+            mode,
+            None,
+            newchan_rust::theta_v0::config::ThetaConfig::default(),
+            false,
+        )
     }
+
+    /// 正式写入口：先构造当前生效生产配置，再打开库或恢复任何 pending。
+    pub(super) fn open_production_with_request_and_mode(
+        db: &Path,
+        profile: &Path,
+        epoch: &str,
+        clock: v2::ClockPlan,
+        request: Option<&Value>,
+        mode: s_allocation::Mode,
+    ) -> Result<Self, String> {
+        let theta_config =
+            newchan_rust::theta_v0::config::ThetaConfig::for_production_profile("P0")
+                .map_err(|error| error.to_string())?;
+        Self::open_with_request_and_mode_context(
+            db,
+            profile,
+            epoch,
+            clock,
+            request,
+            mode,
+            None,
+            theta_config,
+            true,
+        )
+    }
+
     // #1394：None保持原open；Some仅专有Native服务bootstrap调用，不保存context。
     fn open_with_request_and_mode_context(
         db: &Path,
@@ -252,6 +320,8 @@ impl Driver {
         request: Option<&Value>,
         mode: s_allocation::Mode,
         mut startup_context: Option<&mut request_audit::RequestAuditContext>,
+        theta_config: newchan_rust::theta_v0::config::ThetaConfig,
+        require_admissible: bool,
     ) -> Result<Self, String> {
         mode.validate()?;
         parse_writer_epoch(epoch, "configured writer_epoch")?;
@@ -277,10 +347,12 @@ impl Driver {
         )?;
         let mut driver = Self {
             conn,
-            runtime: prepared::Runtime::with_mode(mode.clone()),
+            runtime: prepared::Runtime::with_config(mode.clone(), theta_config.clone()),
             mode,
             clock,
             epoch: epoch.into(),
+            theta_config,
+            require_admissible,
             profile_id,
             volume_unit,
             audit_cache_source_bytes: None,
@@ -405,6 +477,12 @@ impl Driver {
         envelope: &Value,
         request_audit: &mut request_audit::RequestAuditContext,
     ) -> Result<(Value, super::audit_owner::Ended), String> {
+        if self.require_admissible && !self.theta_config.admissible() {
+            return Err(format!(
+                "InvalidPolicy{{venue_profile}}：配置不得参与生产准入；records={}",
+                self.theta_config.record_labels()
+            ));
+        }
         let begun = self.conn.begin_advance(
             envelope,
             &self.epoch,
@@ -537,6 +615,23 @@ mod tests {
         fn open(&self, epoch: &str) -> Result<Driver, String> {
             Driver::open(&self.db, &self.profile, epoch, self.clock.clone())
         }
+        fn open_with_config(
+            &self,
+            epoch: &str,
+            theta_config: ThetaConfig,
+        ) -> Result<Driver, String> {
+            Driver::open_with_request_and_mode_context(
+                &self.db,
+                &self.profile,
+                epoch,
+                self.clock.clone(),
+                None,
+                s_allocation::Mode::Ordinary,
+                None,
+                theta_config,
+                false,
+            )
+        }
         fn ingest(n: i64) -> Value {
             let row = match n {
                 1 => ("a", 0, 6, 12, 3, 7),
@@ -566,6 +661,63 @@ mod tests {
     }
 
     /// #1405：只有规则元数据为历史 /1 的空库也不准新写者接纳/恢复；Q 的只读审计仍可读。
+    #[test]
+    fn production_open_rejects_unsigned_profile_before_pending_begin() {
+        let f = Fixture::new();
+        let conn = super::super::audit_owner::AuditConnection::open(&f.db).unwrap();
+        let mode = s_allocation::Mode::Ordinary;
+        let mut context = request_audit::RequestAuditContext::default();
+        let (admission, _) = conn
+            .admit(
+                Fixture::ingest(1),
+                "1",
+                &f.clock,
+                tb02a::PROFILE,
+                None,
+                &mode,
+                &mut context,
+            )
+            .unwrap();
+        assert!(matches!(
+            admission,
+            super::super::audit_owner::Admission::Advance { .. }
+        ));
+        drop(conn);
+        let error = match Driver::open_production_with_request_and_mode(
+            &f.db,
+            &f.profile,
+            "1",
+            f.clock.clone(),
+            None,
+            mode,
+        ) {
+            Ok(_) => panic!("未签生产 profile 不得打开 Driver"),
+            Err(error) => error,
+        };
+        assert!(error.contains("AwaitingPolicy"), "{error}");
+        assert!(error.contains("venue_profile"), "{error}");
+        assert!(error.contains("cost_inputs"), "{error}");
+        let conn = Connection::open(&f.db).unwrap();
+        assert_eq!(
+            meta_get_opt(&conn, "advance_state")
+                .unwrap()
+                .unwrap_or_default(),
+            "idle"
+        );
+        assert!(meta_get_opt(&conn, "begin_token")
+            .unwrap()
+            .unwrap_or_default()
+            .is_empty());
+        let pending: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM s_input_messages WHERE status='AcceptedPending'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(pending, 1, "配置拒绝不得消费或提交 pending 原件");
+    }
+
     #[test]
     fn historical_bi_rule_is_readable_but_writer_and_recover_leave_it_unchanged() {
         let f = Fixture::new();
@@ -624,6 +776,289 @@ mod tests {
         assert_eq!(reopened.identity().unwrap(), identity);
         assert_eq!(reopened.state_summary("normal-owner").unwrap(), summary);
         ended(&reopened);
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_delta_explicit_policy_sql_receipt_and_failed_commit_retry() {
+        let f = Fixture::new();
+        let o = Fixture::new();
+        let mut config = ThetaConfig::default();
+        config.parse.research_override_tail_window(17);
+        config.records.risk.record.version =
+            newchan_rust::theta_v0::policy_records::PolicyVersion::Signed(2);
+        assert_ne!(config, ThetaConfig::default());
+        let labels = config.record_labels();
+        let mut native = Driver::open_with_request_and_mode_context(
+            &f.db,
+            &f.profile,
+            "1",
+            f.clock.clone(),
+            None,
+            s_allocation::Mode::CapturedNative,
+            None,
+            config.clone(),
+            false,
+        )
+        .unwrap();
+        native.audit_cache_source_bytes = Some(536_870_912);
+        let mut ordinary = o.open_with_config("1", config.clone()).unwrap();
+        for n in 1..=2 {
+            let input = Fixture::ingest(n);
+            if n == 2 {
+                native
+                    .runtime
+                    .set_after_prepare_for_request_test(Some(|tx| {
+                        tx.commit_hook(Some(|| true)).map_err(err)?;
+                        Ok(())
+                    }));
+                let (failed, events, _) = state::traced(true, || native.handle(input.clone()));
+                assert!(failed.is_err());
+                assert!(events
+                    .iter()
+                    .any(|v| v["stage"] == "generate" && v["path"] == "delta"));
+                assert_eq!(count(&native.conn, "structure_deltas"), 1);
+                assert_eq!(count(&native.conn, "s_content_publications"), 1);
+                // 提交失败会退役连接；按真实恢复合同换连接、升级 epoch 后重试 pending。
+                ordinary.stop_after = Some("begin");
+                assert!(ordinary
+                    .handle(input.clone())
+                    .unwrap_err()
+                    .contains("stop_after_begin"));
+                drop(native);
+                drop(ordinary);
+                recover(&f.db, "2", &f.clock, "recover-2").unwrap();
+                recover(&o.db, "2", &o.clock, "recover-2").unwrap();
+                native = Driver::open_with_request_and_mode_context(
+                    &f.db,
+                    &f.profile,
+                    "2",
+                    f.clock.clone(),
+                    None,
+                    s_allocation::Mode::CapturedNative,
+                    None,
+                    config.clone(),
+                    false,
+                )
+                .unwrap();
+                native.audit_cache_source_bytes = Some(536_870_912);
+                ordinary = o.open_with_config("2", config.clone()).unwrap();
+            }
+            let request = if n == 2 {
+                receipt_request(&input)
+            } else {
+                input.clone()
+            };
+            let (actual, events, _) = state::traced(true, || native.handle(request.clone()));
+            let actual = actual.unwrap();
+            assert_eq!(actual, ordinary.handle(request).unwrap());
+            assert_eq!(actual["policy_records"], labels);
+            assert_eq!(native.runtime.parser_config_for_test(), Some(&config));
+            if n == 1 {
+                assert!(events
+                    .iter()
+                    .any(|v| v["stage"] == "generate" && v["path"] == "delta"));
+            }
+            let persisted: String = native
+                .conn
+                .query_row(
+                    "SELECT policy_records FROM structure_deltas WHERE generation=?1",
+                    [n],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(persisted, labels);
+            assert_eq!(native.handle(receipt_request(&input)).unwrap(), actual);
+            assert_eq!(
+                prepared::tests::runtime_root_tables(&native.conn, true),
+                prepared::tests::runtime_root_tables(&ordinary.conn, true),
+            );
+        }
+    }
+
+    #[test]
+    fn driver_external_receipts_keep_historical_policy_records_across_config_versions() {
+        let fixture = Fixture::new();
+        let v1 = ThetaConfig::default();
+        let mut v2 = v1.clone();
+        v2.records.risk.record.version =
+            newchan_rust::theta_v0::policy_records::PolicyVersion::Signed(2);
+        assert!(!v1.admissible());
+
+        let first_input = Fixture::ingest(1);
+        let mut first_driver = fixture.open_with_config("1", v1.clone()).unwrap();
+        let first = first_driver.handle(first_input.clone()).unwrap();
+        assert_eq!(first["kind"], "Committed");
+        assert!(first["policy_records"]
+            .as_str()
+            .unwrap()
+            .contains("theta-risk/1"));
+        assert!(first["policy_records"]
+            .as_str()
+            .unwrap()
+            .contains("venue-profile-diagnostic-fixture/1"));
+        drop(first_driver);
+
+        let mut second_driver = fixture.open_with_config("1", v2.clone()).unwrap();
+        assert_eq!(second_driver.handle(first_input.clone()).unwrap(), first);
+        assert_eq!(
+            second_driver.handle(receipt_request(&first_input)).unwrap(),
+            first
+        );
+        let second_input = Fixture::ingest(2);
+        let second = second_driver.handle(second_input.clone()).unwrap();
+        assert!(second["policy_records"]
+            .as_str()
+            .unwrap()
+            .contains("theta-risk/2"));
+        assert_ne!(second["policy_records"], first["policy_records"]);
+        drop(second_driver);
+
+        let mut reopened = fixture.open_with_config("1", v1).unwrap();
+        assert_eq!(
+            reopened.handle(receipt_request(&second_input)).unwrap(),
+            second,
+            "恢复后不得用当前配置覆盖历史生成结果"
+        );
+        assert_eq!(
+            reopened.handle(receipt_request(&first_input)).unwrap(),
+            first
+        );
+    }
+
+    #[test]
+    fn resumed_driver_receipt_uses_records_from_actual_recovery_generation() {
+        let fixture = Fixture::new();
+        let input = Fixture::ingest(1);
+        let mut before = fixture
+            .open_with_config("1", ThetaConfig::default())
+            .unwrap();
+        before.stop_after = Some("begin");
+        assert!(before
+            .handle(input.clone())
+            .unwrap_err()
+            .contains("stop_after_begin"));
+        drop(before);
+        recover(&fixture.db, "2", &fixture.clock, "recover-1").unwrap();
+
+        let mut resumed_config = ThetaConfig::default();
+        resumed_config.records.risk.record.version =
+            newchan_rust::theta_v0::policy_records::PolicyVersion::Signed(2);
+        let mut resumed = fixture.open_with_config("2", resumed_config).unwrap();
+        let receipt = resumed.handle(receipt_request(&input)).unwrap();
+        assert_eq!(receipt["kind"], "Committed");
+        assert!(receipt["policy_records"]
+            .as_str()
+            .unwrap()
+            .contains("theta-risk/2"));
+        assert!(receipt["policy_records"]
+            .as_str()
+            .unwrap()
+            .contains("venue-profile-diagnostic-fixture/1"));
+    }
+
+    #[test]
+    fn legacy_policy_records_migration_recovers_pending_with_current_records() {
+        let fixture = Fixture::new();
+        let v1 = ThetaConfig::default();
+        let first_input = Fixture::ingest(1);
+        let second_input = Fixture::ingest(2);
+        let mut before_driver = fixture.open_with_config("1", v1.clone()).unwrap();
+        let first = before_driver.handle(first_input.clone()).unwrap();
+        assert_eq!(first["publication"]["generation"], "1");
+        before_driver.stop_after = Some("begin");
+        assert!(before_driver
+            .handle(second_input.clone())
+            .unwrap_err()
+            .contains("stop_after_begin"));
+        drop(before_driver);
+
+        let original = |conn: &Connection| {
+            conn.query_row(
+                "SELECT delta_json,catalog_evidence_json,index_frontier FROM structure_deltas WHERE generation=1",
+                [],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                    ))
+                },
+            )
+            .unwrap()
+        };
+        let messages = |conn: &Connection| {
+            let mut stmt = conn
+                .prepare("SELECT message_id,canonical_envelope,receipt_id FROM s_input_messages ORDER BY accepted_seq")
+                .unwrap();
+            stmt.query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            })
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap()
+        };
+        let conn = Connection::open(&fixture.db).unwrap();
+        let old_delta = original(&conn);
+        let old_messages = messages(&conn);
+        conn.execute_batch("ALTER TABLE structure_deltas DROP COLUMN policy_records")
+            .unwrap();
+        assert!(conn
+            .prepare("SELECT policy_records FROM structure_deltas")
+            .is_err());
+        assert_eq!(original(&conn), old_delta);
+        assert_eq!(messages(&conn), old_messages);
+        drop(conn);
+
+        // recover 自身就是旧库首次开门者：先迁移，再按原监督器合同清 Begin、提升 epoch。
+        recover(&fixture.db, "2", &fixture.clock, "recover-2").unwrap();
+        let mut resumed_config = v1.clone();
+        resumed_config.records.risk.record.version =
+            newchan_rust::theta_v0::policy_records::PolicyVersion::Signed(2);
+        let mut resumed = fixture
+            .open_with_config("2", resumed_config.clone())
+            .unwrap();
+        let mut legacy_first = first.clone();
+        legacy_first["policy_records"] = json!(crate::LEGACY_POLICY_RECORDS_UNKNOWN);
+        assert_eq!(
+            resumed.handle(receipt_request(&first_input)).unwrap(),
+            legacy_first
+        );
+        let second = resumed.handle(receipt_request(&second_input)).unwrap();
+        assert_eq!(second["kind"], "Committed");
+        assert_eq!(second["publication"]["generation"], "2");
+        assert_eq!(
+            second["policy_records"],
+            json!(resumed_config.record_labels())
+        );
+        assert!(second["policy_records"]
+            .as_str()
+            .unwrap()
+            .contains("theta-risk/2"));
+        assert_eq!(original(&resumed.conn), old_delta);
+        assert_eq!(messages(&resumed.conn), old_messages);
+        {
+            let tx = resumed.conn.transaction().unwrap();
+            state::audit(&tx).unwrap();
+            tx.rollback().unwrap();
+        }
+        drop(resumed);
+
+        let mut reopened = fixture.open_with_config("2", v1).unwrap();
+        assert_eq!(
+            reopened.handle(receipt_request(&first_input)).unwrap(),
+            legacy_first,
+            "重开不得用当前 v1 反填旧 generation"
+        );
+        assert_eq!(
+            reopened.handle(receipt_request(&second_input)).unwrap(),
+            second,
+            "重开仍须读取恢复发布实际写入的 v2 记录戳"
+        );
     }
 
     #[test]
@@ -2823,6 +3258,8 @@ mod tests {
             None,
             s_allocation::Mode::CapturedNative,
             Some(&mut context),
+            newchan_rust::theta_v0::config::ThetaConfig::default(),
+            false,
         )
         .unwrap();
         assert_eq!((context.cold, context.hits), (1, 0));
@@ -2882,7 +3319,8 @@ mod tests {
             initial.handle(Fixture::ingest(1)).unwrap();drop(initial);
             let mut context=request_audit::RequestAuditContext::default();
             let driver=Driver::open_with_request_and_mode_context(&f.db,&f.profile,"1",f.clock.clone(),None,
-                s_allocation::Mode::CapturedNative,Some(&mut context)).unwrap();
+                s_allocation::Mode::CapturedNative,Some(&mut context),
+                newchan_rust::theta_v0::config::ThetaConfig::default(),false).unwrap();
             assert!(context.has_slot());
             driver.conn.execute_batch(sql).unwrap();
             let before=(count(&driver.conn,"s_input_messages"),count(&driver.conn,"s_clock_events"),count(&driver.conn,"s_content_publications"));
@@ -2901,6 +3339,8 @@ mod tests {
             None,
             s_allocation::Mode::CapturedNative,
             Some(&mut context),
+            newchan_rust::theta_v0::config::ThetaConfig::default(),
+            false,
         )
         .unwrap();
         let once = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
@@ -2974,6 +3414,8 @@ mod tests {
                         Some(&request),
                         s_allocation::Mode::CapturedNative,
                         Some(&mut context),
+                        newchan_rust::theta_v0::config::ThetaConfig::default(),
+                        false,
                     )
                     .map(|_| ())
                 } else {
@@ -4425,7 +4867,7 @@ mod tests {
             "--max-input-bytes".into(),
             bytes.len().to_string(),
         ]);
-        super::super::writer_cli::run(&args)
+        super::super::writer_cli::run_fixture(&args)
     }
 
     fn pending_state(f: &Fixture) -> (i64, i64, i64, String) {
@@ -4560,7 +5002,7 @@ mod tests {
             "--max-input-bytes".into(),
             bytes.len().to_string(),
         ]);
-        assert!(super::super::dispatch(&args).unwrap());
+        assert!(super::super::dispatch_fixture(&args).unwrap());
         let receipt = receipt_request(&original);
         let receipt_file = f.path.join("receipt.json");
         let receipt_bytes = canonical_json(&receipt);
@@ -4574,7 +5016,7 @@ mod tests {
             "--max-input-bytes".into(),
             receipt_bytes.len().to_string(),
         ]);
-        let received = super::super::writer_cli::run(&receipt_args)
+        let received = super::super::writer_cli::run_fixture(&receipt_args)
             .unwrap()
             .unwrap();
         assert_eq!(received["kind"], "Committed");
@@ -4631,7 +5073,7 @@ mod tests {
                 "--max-input-bytes".into(),
                 bytes.len().to_string(),
             ]);
-            assert!(super::super::dispatch(&args).is_err());
+            assert!(super::super::dispatch_fixture(&args).is_err());
         }
         let valid_bytes = canonical_json(&Fixture::ingest(2));
         std::fs::write(&input, &valid_bytes).unwrap();
@@ -4644,7 +5086,7 @@ mod tests {
             "--max-input-bytes".into(),
             (valid_bytes.len() - 1).to_string(),
         ]);
-        assert!(super::super::dispatch(&too_small)
+        assert!(super::super::dispatch_fixture(&too_small)
             .unwrap_err()
             .contains("输入字节超过"));
         let conn = open_db(&f.db).unwrap();
@@ -4666,12 +5108,12 @@ mod tests {
         drop(d);
         let mut recover_args = cli(&f, "recover", "--new-epoch", "1");
         recover_args.extend(["--clock-event-id".into(), "recover-1".into()]);
-        assert!(super::super::dispatch(&recover_args).is_err());
+        assert!(super::super::dispatch_fixture(&recover_args).is_err());
         recover_args[7] = "2".into();
-        assert!(super::super::dispatch(&recover_args).unwrap());
+        assert!(super::super::dispatch_fixture(&recover_args).unwrap());
         let mut advance_args = cli(&f, "advance", "--writer-epoch", "2");
         advance_args.extend(["--profile".into(), f.profile.to_string_lossy().into_owned()]);
-        assert!(super::super::dispatch(&advance_args).unwrap());
+        assert!(super::super::dispatch_fixture(&advance_args).unwrap());
         let mut reopened = f.open("2").unwrap();
         assert_eq!(
             reopened.handle(receipt_request(&original)).unwrap()["kind"],
@@ -4699,7 +5141,7 @@ mod tests {
             "--writer-epoch".into(),
             "2".into(),
         ];
-        assert!(super::super::dispatch(&args).is_err());
+        assert!(super::super::dispatch_fixture(&args).is_err());
         assert!(!db.exists());
         assert!(!PathBuf::from(format!("{}.writer.lock", db.display())).exists());
         std::fs::remove_dir_all(dir).unwrap();
@@ -4732,7 +5174,7 @@ mod tests {
             "--resource-config".into(),
             resources.to_string_lossy().into_owned(),
         ]);
-        let error = super::super::dispatch(&args).unwrap_err();
+        let error = super::super::dispatch_fixture(&args).unwrap_err();
         assert!(
             error.contains("StaleWriter") && error.contains("独占进程锁不可得"),
             "{error}"
@@ -4781,7 +5223,7 @@ mod tests {
         ]);
         for invalid in [missing, extra, zero, numeric, wrong_version] {
             std::fs::write(&resources, canonical_json(&invalid)).unwrap();
-            let error = super::super::dispatch(&args).unwrap_err();
+            let error = super::super::dispatch_fixture(&args).unwrap_err();
             assert!(error.contains("S3WriterResourcesInvalid"), "{error}");
             assert!(!lock.exists());
             assert!(!socket.exists());

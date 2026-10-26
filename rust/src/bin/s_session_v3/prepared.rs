@@ -9,6 +9,7 @@ use content_manifest::{ManifestMetadata, SourceCommit, UnpublishedManifest};
 use generation::{GenerationInput, GenerationRuntime};
 use newchan_rust::s_content::{self as sc, ContentRef, NodeStore, Value as V};
 use newchan_rust::session_protocol::required;
+use newchan_rust::theta_v0::config::ThetaConfig;
 use rusqlite::Transaction;
 use sc::capture_allocation::scratch::WorkScope;
 
@@ -119,6 +120,8 @@ impl<T: NodeStore> audit_store::CodecStore for BusinessTxStore<T> {
 pub(super) struct Runtime {
     /// 与 Driver 同一启动模式；不持 capture/审计结果，Owned 业务缓存按真实生命周期计费。
     mode: s_allocation::Mode,
+    /// 生成链配置；生产与诊断由 Driver 显式区分。
+    theta_config: ThetaConfig,
     binding: Option<Vec<String>>,
     generator: Option<GenerationRuntime>,
     auxiliary: aux_index::Runtime,
@@ -147,9 +150,15 @@ impl Runtime {
         Self::with_mode(allocation.into())
     }
 
+    #[cfg(test)]
     pub(super) fn with_mode(mode: s_allocation::Mode) -> Self {
+        Self::with_config(mode, ThetaConfig::default())
+    }
+
+    pub(super) fn with_config(mode: s_allocation::Mode, theta_config: ThetaConfig) -> Self {
         Self {
             mode,
+            theta_config,
             binding: None,
             generator: None,
             auxiliary: Default::default(),
@@ -191,6 +200,13 @@ impl Runtime {
         hook: Option<fn(&Transaction<'_>, &ContentRef) -> Result<ContentRef, String>>,
     ) {
         self.before_native_source = hook;
+    }
+
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn parser_config_for_test(&self) -> Option<&ThetaConfig> {
+        self.generator
+            .as_ref()
+            .map(GenerationRuntime::parser_config_for_test)
     }
 
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
@@ -484,6 +500,7 @@ impl Runtime {
                     &prepared.metadata,
                     &prepared.roots,
                     &prepared.manifest,
+                    &prepared.policy_records,
                     stage,
                     roots.as_slice(),
                     prepared.workspace,
@@ -497,6 +514,7 @@ impl Runtime {
                 &prepared.metadata,
                 &prepared.roots,
                 &prepared.manifest,
+                &prepared.policy_records,
                 prepared.workspace,
                 work,
             );
@@ -507,6 +525,7 @@ impl Runtime {
                 &prepared.metadata,
                 &prepared.roots,
                 &prepared.manifest,
+                &prepared.policy_records,
             )
         })();
         #[cfg(test)]
@@ -667,10 +686,11 @@ impl Runtime {
                 return Err(err("运行缓存绑定了另一库/会话/冻结域；必须创建新运行实例"));
             }
         } else {
-            self.generator = Some(GenerationRuntime::new(
+            self.generator = Some(GenerationRuntime::with_config(
                 lane_key,
                 &metadata.profile_id,
                 &metadata.rule_revision,
+                self.theta_config.clone(),
             ));
             self.binding = Some(binding);
         }
@@ -833,7 +853,7 @@ impl Runtime {
                 },
             )?;
             let NodeProducts {
-                generated: _generated,
+                generated,
                 objects: _objects,
                 axes: _axes,
                 counts: _counts,
@@ -844,10 +864,12 @@ impl Runtime {
                 manifest,
                 workspace,
             } = products;
+            let policy_records = generated.policy_records.clone();
             return Ok(Prepared {
                 metadata,
                 roots,
                 manifest,
+                policy_records,
                 workspace,
             });
         }
@@ -917,7 +939,7 @@ impl Runtime {
             #[cfg(test)]
             state::trace_stage("stage_indexes", "full_lease", generation);
             let NodeProducts {
-                generated: _generated,
+                generated,
                 objects,
                 axes,
                 counts: _counts,
@@ -928,6 +950,7 @@ impl Runtime {
                 manifest,
                 workspace,
             } = products;
+            let policy_records = generated.policy_records.clone();
             #[cfg(test)]
             if let Some(stage) = stage {
                 stage.flush_cut(
@@ -981,6 +1004,7 @@ impl Runtime {
                 metadata,
                 roots,
                 manifest,
+                policy_records,
                 workspace,
             });
         }
@@ -997,7 +1021,7 @@ impl Runtime {
             budget: audited.budget.clone(),
         };
         let NodeProducts {
-            generated: _generated,
+            generated,
             objects,
             axes,
             counts: _counts,
@@ -1021,6 +1045,7 @@ impl Runtime {
             generation,
             frontier,
         )?;
+        let policy_records = generated.policy_records.clone();
         #[cfg(test)]
         state::trace_stage("stage_indexes", "full", generation);
         #[cfg(feature = "s_capture_native_testonly")]
@@ -1063,6 +1088,7 @@ impl Runtime {
             metadata,
             roots,
             manifest,
+            policy_records,
             #[cfg(feature = "s_capture_native_testonly")]
             workspace,
         })
@@ -1291,6 +1317,7 @@ struct Prepared {
     metadata: ManifestMetadata,
     roots: NativeManifestRoots,
     manifest: UnpublishedManifest,
+    policy_records: String,
     #[cfg(feature = "s_capture_native_testonly")]
     workspace: Option<content_manifest::PreparedManifestWorkspace>,
 }

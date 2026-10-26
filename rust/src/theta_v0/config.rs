@@ -15,19 +15,47 @@
 //! - `[L3经验待标定]`：数值需 L2/L3 标定 → **进 config**，default 给 v0 占位值，
 //!   字段注释标 `L3`。
 
-/// 价格量化：整数 tick。无 `tick_size` 默认 `1e-8`（reference-theta-v0.md:15）。
+/// 价格量化：整数 tick（reference-theta-v0.md:15）。
 ///
-/// [设计选择,默认值]。bit-exact 要求所有价格运算在整数 tick 域进行——浮点价格在
-/// 引擎边界一次性量化为 `i64` tick，内部不再触碰 `f64`（消除浮点约简顺序歧义）。
+/// bit-exact 要求所有价格运算在整数 tick 域进行——浮点价格在引擎边界一次性量化为 `i64` tick，
+/// 内部不再触碰 `f64`（消除浮点约简顺序歧义）。
+///
+/// #1602（#1586 C-17）：tick 是场所事实，值只来自场所 profile 记录（[`super::run_records`]）。
+/// `Default` 读诊断夹具记录 `venue-profile-diagnostic-fixture`（不参与准入）；生产入口走
+/// [`ThetaConfig::for_production_symbol`]，profile 缺 tick 即停在 `AwaitingPolicy{venue_profile}`。
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TickConfig {
-    /// tick 大小（价格最小变动单位）。default `1e-8`。
+    /// tick 大小（价格最小变动单位）。值来自场所 profile 记录 `tick_size`。
     pub tick_size: f64,
 }
 
+impl TickConfig {
+    pub fn from_venue(v: &super::run_records::VenueProfile) -> Self {
+        TickConfig {
+            tick_size: v.tick_size,
+        }
+    }
+}
+
+/// 读诊断夹具场所 profile；夹具记录损坏是构建期错误（`run_records` 单测锁定可解析），此处显式 panic。
+fn fixture_venue() -> super::run_records::VenueProfile {
+    super::run_records::diagnostic_fixture_venue().unwrap_or_else(|e| panic!("{e}"))
+}
+
+/// 读当前生效的 Θ_risk 记录；同 [`fixture_venue`]：损坏即 panic，不给备用值。
+fn active_theta_risk() -> super::run_records::ThetaRisk {
+    super::run_records::active_theta_risk().unwrap_or_else(|e| panic!("{e}"))
+}
+
+/// 读当前生效的数据 profile 记录；同 [`fixture_venue`]：损坏即 panic，不给备用值。
+fn active_data_profile() -> super::run_records::DataProfile {
+    super::run_records::active_data_profile().unwrap_or_else(|e| panic!("{e}"))
+}
+
+/// 测试夹具与诊断用：读诊断夹具场所 profile（#1602）。
 impl Default for TickConfig {
     fn default() -> Self {
-        TickConfig { tick_size: 1e-8 }
+        TickConfig::from_venue(&fixture_venue())
     }
 }
 
@@ -210,6 +238,11 @@ impl LevelConfig {
         )
     }
 
+    /// 由已解析的塔预算记录 + 中枢三段下限组装。
+    pub fn from_budget(budget: super::policy_records::TowerLevelBudget) -> Self {
+        super::policy_records::level_config_from(budget, 3)
+    }
+
     /// 研究/镜像工具在代码里改塔高时用：值照改，记录版本标 `research-override`，输出不冒充签署版本。
     pub fn research_override_l_max(&mut self, l_max: u32) {
         self.l_max = l_max;
@@ -272,9 +305,12 @@ pub enum ThetaDirPreset {
 }
 
 /// Θ_voice 参数（reference-theta-v0.md:39-42）。
+///
+/// #1602（#1586 C-08）：`max_depth` 与 `w_grade` 只从 `theta-risk` 记录读取；`depth_weights` 属 C-07
+/// （审计判 E），不转成记录字段。
 #[derive(Debug, Clone, PartialEq)]
 pub struct VoiceConfig {
-    /// 声部树最大层数（L*, L*-1, L*-2）。default 3。[设计选择,默认值]
+    /// 声部树最大层数（L*, L*-1, L*-2）。值来自 `theta-risk.max_depth`。[设计选择]
     pub max_depth: u32,
     /// 深度资金权重 `w=[0.60,0.30,0.10]`。未用部分保留现金不重分配。
     pub depth_weights: Vec<f64>,
@@ -286,26 +322,38 @@ pub struct VoiceConfig {
     /// （w_dir≡1.0，frozen Θ v0 bit-exact 不变）。选 Follow/Adversary 启用 σ_higher 分级 sizing。
     pub theta_dir: ThetaDirPreset,
     /// w_grade：G 轴（grade_rel）sizing 权重（prereg-wg 推荐 (c) 因子化，GPT §九 `w_{ℓ,σ_higher,role,G,...}`）。
-    /// `[SameLevel, SubLevel]`。default `[1.0, 1.0]` identity ⟹ G 轴 sizing 无差异 ⟹ frozen Θ v0 bit-exact 不变。
+    /// `[SameLevel, SubLevel]`。值来自 `theta-risk.w_grade`（v1 为 identity ⟹ G 轴 sizing 无差异）。
     /// 非 identity ⟹ [`super::strategy::coverage::leg_target`] w = depth_weight × dir_weight × w_grade[grade]
     /// （G 进 sizing 不进 μ 桶键，696 同构：轴进 A 层 ≠ 进 B 层）。与 `theta_dir`（V 轴 σ_higher）正交——
     /// G 轴独立消费，不绑 Follow/Adversary preset。C4 实质担忧的形式化：同级别反父 vs 次级别反父在 sizing 区分。
     pub w_grade: [f64; 2],
 }
 
-impl Default for VoiceConfig {
-    fn default() -> Self {
+impl VoiceConfig {
+    /// 由 `theta-risk` 记录组装；记录外的字段取 v0 结构默认（C-07 `depth_weights`、反事实开关关、
+    /// `Neutral` 预设）。
+    pub fn from_record(r: &super::run_records::ThetaRisk) -> Self {
         VoiceConfig {
-            max_depth: 3,
+            max_depth: r.max_depth,
             depth_weights: vec![0.60, 0.30, 0.10],
             disable_reverse_open: false,
             theta_dir: ThetaDirPreset::Neutral,
-            w_grade: [1.0, 1.0],
+            w_grade: r.w_grade,
         }
     }
 }
 
+/// 读当前生效的 `theta-risk` 记录（#1602）。
+impl Default for VoiceConfig {
+    fn default() -> Self {
+        VoiceConfig::from_record(&active_theta_risk())
+    }
+}
+
 /// Θ_risk 参数（reference-theta-v0.md:44-47）。全部 [设计选择,默认值;L3经验待标定]。
+///
+/// #1602（#1586 C-08）：rho/beta/gamma/kappa/default_lot/chi_z_alpha/两个 cap 开关只从带版本号的
+/// `theta-risk` 记录读取（[`super::run_records`]），出处逐字段写在记录里；数值签署归 #1557/#1560。
 #[derive(Debug, Clone, PartialEq)]
 pub struct RiskConfig {
     /// 单声部风险 `ρ=0.005 NAV`。L3。
@@ -373,24 +421,37 @@ pub struct RiskConfig {
     pub enforce_level_cap: bool,
 }
 
-impl Default for RiskConfig {
-    fn default() -> Self {
+impl RiskConfig {
+    /// 由 `theta-risk` 记录组装；`chi_theta`（None ⟹ χ≡1）与 `level_weights`（空表）是未启用态，
+    /// 不在记录里。
+    pub fn from_record(r: &super::run_records::ThetaRisk) -> Self {
         RiskConfig {
-            rho: 0.005,
-            beta: 0.5,
-            gamma: 1.0,
-            kappa: 2.0,
-            default_lot: 1,
+            rho: r.rho,
+            beta: r.beta,
+            gamma: r.gamma,
+            kappa: r.kappa,
+            default_lot: r.default_lot,
             chi_theta: None,
-            chi_z_alpha: 0.0,
-            enforce_gross_cap: false,
+            chi_z_alpha: r.chi_z_alpha,
+            enforce_gross_cap: r.enforce_gross_cap,
             level_weights: Vec::new(),
-            enforce_level_cap: false,
+            enforce_level_cap: r.enforce_level_cap,
         }
     }
 }
 
+/// 读当前生效的 `theta-risk` 记录（#1602）。
+impl Default for RiskConfig {
+    fn default() -> Self {
+        RiskConfig::from_record(&active_theta_risk())
+    }
+}
+
 /// Θ_exec 参数（reference-theta-v0.md:49-54）。
+///
+/// #1602（#1586 C-06）：四项成本（`entry_delay_bars`/`commission_bps`/`slippage_bps`/`tax_bps`）只从
+/// 场所 profile 记录读取（[`super::run_records`]）。`Default` 读诊断夹具记录，只作测试夹具与诊断；
+/// 生产入口 profile 缺任一项即停在 `AwaitingPolicy{cost_inputs}`。
 ///
 /// ★venue 口径（#303 裁定 = **spot**）与默认费率落差（3bp/side vs 现货 VIP0 taker 10bp/side）：
 /// 结论的唯一权威登记见 [`CostModel`](super::strategy::risk::CostModel) 节头，此处不复制。
@@ -408,19 +469,19 @@ impl Default for RiskConfig {
 /// 无法 `Copy`。`ExecConfig` 仍 `Clone`——按值传递处改 `.clone()` 或借用。
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExecConfig {
-    /// 信号确认后延迟成交的基础 K 根数。default 1（reference-theta-v0.md:50）。
+    /// 信号确认后延迟成交的基础 K 根数（reference-theta-v0.md:50）。值来自场所 profile。
     pub entry_delay_bars: u32,
-    /// commission（bp/side）。default 1。[设计选择;L3经验待标定]
+    /// commission（bp/side）。值来自场所 profile。[设计选择;L3经验待标定]
     ///
     /// ★#360 后语义收窄：本字段（与 `slippage_bps`/`tax_bps` 合成的常率）是
     /// **`fee_schedule = None` 时的未标定 fallback**，口径标签 `[L1机制/费率未标定]`。
     pub commission_bps: f64,
-    /// slippage（bp/side）。default 2。L3。
+    /// slippage（bp/side）。值来自场所 profile。L3。
     ///
     /// ★#360 不覆盖滑点：滑点本质是价差/冲击 datum（报告 §1.6 裂缝 3，另立 datum 是另票），
     /// 标定档下本字段**仍未标定**——venue 费率表只标定佣金/监管/清算科目。
     pub slippage_bps: f64,
-    /// tax（bp/side）。default 0。L3。
+    /// tax（bp/side）。值来自场所 profile。L3。
     ///
     /// **标定档下必须为 0**——本处只是该约束的**声明处**，唯一**强制处**是
     /// `backtest::treasury::fee_quoter` 内的 `assert!`（`fee_schedule.is_none() || tax_bps == 0.0`）。
@@ -471,14 +532,67 @@ pub struct ExecConfig {
     pub fee_schedule: Option<super::venue_fee::VenueFeeSchedule>,
 }
 
+impl ExecConfig {
+    /// 由场所 profile 记录组装；`fee_schedule` 不在 profile 里（#360 datum 注入通道另票）。
+    pub fn from_venue(v: &super::run_records::VenueProfile) -> Self {
+        ExecConfig {
+            entry_delay_bars: v.entry_delay_bars,
+            commission_bps: v.commission_bps,
+            slippage_bps: v.slippage_bps,
+            tax_bps: v.tax_bps,
+            fee_schedule: None,
+        }
+    }
+}
+
+/// 测试夹具与诊断用：读诊断夹具场所 profile（#1602）。
 impl Default for ExecConfig {
     fn default() -> Self {
-        ExecConfig {
-            entry_delay_bars: 1,
-            commission_bps: 1.0,
-            slippage_bps: 2.0,
-            tax_bps: 0.0,
-            fee_schedule: None,
+        ExecConfig::from_venue(&fixture_venue())
+    }
+}
+
+/// 数据清洗参数（#1602，#1586 C-18）。值只从 `data-profile` 记录读取。
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct DataConfig {
+    /// #922 坏 tick 闸：bar 四价对净化前收的最大偏离超过本值 ⟹ 前收填充 + untradable
+    /// （`backtest::data::load_symbol`）。出处（#922 扫描、#1013 评审）写在记录里。
+    pub bad_tick_max_dev: f64,
+}
+
+impl DataConfig {
+    pub fn from_record(d: &super::run_records::DataProfile) -> Self {
+        DataConfig {
+            bad_tick_max_dev: d.bad_tick_max_dev,
+        }
+    }
+}
+
+/// 读当前生效的 `data-profile` 记录（#1602）。
+impl Default for DataConfig {
+    fn default() -> Self {
+        DataConfig::from_record(&active_data_profile())
+    }
+}
+
+/// 本配置所出自的场所 profile、Θ_risk 与数据 profile 记录（#1602）。
+///
+/// 存的是记录本身，[`ThetaConfig::record_refs`] 据此核对现值：研究工具就地改了某个记录字段
+/// （如 `exec.entry_delay_bars`），对应记录在输出里标 `research-override`，不冒充签署版本。
+#[derive(Debug, Clone, PartialEq)]
+pub struct RunRecords {
+    pub venue: super::run_records::VenueProfile,
+    pub risk: super::run_records::ThetaRisk,
+    pub data: super::run_records::DataProfile,
+}
+
+/// 测试夹具与诊断用：诊断夹具场所 profile + 当前生效的 Θ_risk 与数据 profile。
+impl Default for RunRecords {
+    fn default() -> Self {
+        RunRecords {
+            venue: fixture_venue(),
+            risk: active_theta_risk(),
+            data: active_data_profile(),
         }
     }
 }
@@ -536,6 +650,10 @@ impl SizingProfile {
 ///
 /// `Default::default()` = reference-theta-v0.md 冻结的 Θ v0 默认值（`sizing_profile` 空 ⟹
 /// sizing 退化为 `risk` 标量，bit-exact 不变）。
+///
+/// #1602：`Default` 的场所 profile 是诊断夹具（`admissible: false`），只作测试夹具与诊断。生产、
+/// 回放与准入入口用 [`ThetaConfig::for_production_symbol`] / [`ThetaConfig::for_production_profile`]，
+/// 记录缺失、未签或非法 ⟹ `Err(RunPolicyError)`，不回退任何旧常数。
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct ThetaConfig {
     pub tick: TickConfig,
@@ -545,6 +663,10 @@ pub struct ThetaConfig {
     pub voice: VoiceConfig,
     pub risk: RiskConfig,
     pub exec: ExecConfig,
+    /// 数据清洗参数（#1602 C-18，`data-profile` 记录）。
+    pub data: DataConfig,
+    /// 场所 profile / Θ_risk / 数据 profile 记录本身（#1602，输出据此写记录 id 与版本）。
+    pub records: RunRecords,
     /// 狭义短差（中枢震荡高抛低吸，#274/#292）落点门控。默认关闭：触发证据仍可见（协议轨），
     /// 短差动作/订单轨 frozen bit-exact。★注释订正（#292 评审尾巴，原「配对子腿」措辞是 S6
     /// 开空腿对冲形态的残留——该形态已被 ADR 0001 修正案一 修1 废止删除，本字段现口径 =
@@ -591,18 +713,143 @@ pub struct ThetaConfig {
 }
 
 impl ThetaConfig {
-    /// 可恢复错误版的默认构造：`level`/`macd` 从当前生效记录读取，记录缺失、未签或非法 ⟹ `Err`
-    /// （#1603 缺值行为：不回退旧常数）。其余组件同 `Default`。
-    pub fn try_from_active_records() -> Result<Self, super::policy_records::PolicyError> {
-        let level = LevelConfig::from_active_record()?;
-        let macd = super::policy_records::active_macd_force()?;
-        let parse = ParseConfig::from_active_records()?;
+    /// 可恢复错误版的默认构造：同 [`ThetaConfig::diagnostic_fixture`]（#1603/#1602 缺值行为：
+    /// 记录缺失、未签或非法 ⟹ `Err`，不回退旧常数）。
+    pub fn try_from_active_records() -> Result<Self, super::run_records::RunPolicyError> {
+        Self::diagnostic_fixture()
+    }
+
+    /// 诊断夹具配置：场所 profile 用 `venue-profile-diagnostic-fixture`（`admissible: false`），
+    /// 其余记录取当前生效版本。输出须标「诊断夹具，不参与准入」。
+    pub fn diagnostic_fixture() -> Result<Self, super::run_records::RunPolicyError> {
+        Self::from_records(
+            super::run_records::diagnostic_fixture_venue(),
+            Some(super::run_records::ACTIVE_THETA_RISK_JSON),
+            Some(super::run_records::ACTIVE_DATA_PROFILE_JSON),
+        )
+    }
+
+    /// 生产 / 验收回放配置：按品种取生产场所 profile。profile 缺 tick 或成本项 ⟹
+    /// `Err(AwaitingPolicy{venue_profile|cost_inputs})`，调用方停止、不产读数。
+    pub fn for_production_symbol(symbol: &str) -> Result<Self, super::run_records::RunPolicyError> {
+        Self::from_records(
+            super::run_records::production_venue_for_symbol(symbol),
+            Some(super::run_records::ACTIVE_THETA_RISK_JSON),
+            Some(super::run_records::ACTIVE_DATA_PROFILE_JSON),
+        )
+    }
+
+    /// 生产配置：按 profile id（如 `P0`）取生产场所 profile；缺值行为同 [`Self::for_production_symbol`]。
+    pub fn for_production_profile(
+        profile_id: &str,
+    ) -> Result<Self, super::run_records::RunPolicyError> {
+        Self::from_records(
+            super::run_records::production_venue_for_profile(profile_id),
+            Some(super::run_records::ACTIVE_THETA_RISK_JSON),
+            Some(super::run_records::ACTIVE_DATA_PROFILE_JSON),
+        )
+    }
+
+    /// 由给定场所 profile 与 Θ_risk / 数据 profile 记录文本组装（塔预算与 MACD 取当前生效记录）。
+    /// 任何缺口一次收齐报错。
+    pub fn from_records(
+        venue: Result<super::run_records::VenueProfile, super::run_records::RunPolicyError>,
+        risk_text: Option<&str>,
+        data_text: Option<&str>,
+    ) -> Result<Self, super::run_records::RunPolicyError> {
+        let set = super::run_records::collect_run_records(venue, risk_text, data_text)?;
         Ok(ThetaConfig {
-            parse,
-            level,
-            macd,
-            ..ThetaConfig::default()
+            tick: TickConfig::from_venue(&set.venue),
+            parse: set.parse,
+            level: set.level,
+            macd: set.macd,
+            voice: VoiceConfig::from_record(&set.risk),
+            risk: RiskConfig::from_record(&set.risk),
+            exec: ExecConfig::from_venue(&set.venue),
+            data: DataConfig::from_record(&set.data),
+            records: RunRecords {
+                venue: set.venue,
+                risk: set.risk,
+                data: set.data,
+            },
+            center_oscillation: Default::default(),
+            sizing_profile: SizingProfile::default(),
+            margin: None,
+            cost_model: None,
+            risk_policy: None,
+            divergence_gauge: Default::default(),
+            c2_level_view: Default::default(),
+            level_projection: Default::default(),
         })
+    }
+
+    /// 本配置用到的全部记录（塔预算、MACD、扫描预算、构造规则、场所 profile、Θ_risk、数据 profile）及版本。
+    /// 现值与所出自的记录不一致（研究工具就地改过）⟹ 该记录标 `research-override`。
+    pub fn record_refs(&self) -> Vec<super::policy_records::PolicyRef> {
+        use super::policy_records::{PolicyRef, PolicyVersion};
+        let stamp = |r: PolicyRef, same: bool| {
+            if same {
+                r
+            } else {
+                PolicyRef {
+                    version: PolicyVersion::ResearchOverride,
+                    ..r
+                }
+            }
+        };
+        // 只核对记录里的字段（`fee_schedule`、`chi_theta`、`level_weights` 等不在记录里）。
+        let v = &self.records.venue;
+        let e = &self.exec;
+        let venue_same = self.tick.tick_size == v.tick_size
+            && e.entry_delay_bars == v.entry_delay_bars
+            && e.commission_bps == v.commission_bps
+            && e.slippage_bps == v.slippage_bps
+            && e.tax_bps == v.tax_bps;
+        let r = &self.records.risk;
+        let k = &self.risk;
+        let risk_same = k.rho == r.rho
+            && k.beta == r.beta
+            && k.gamma == r.gamma
+            && k.kappa == r.kappa
+            && k.default_lot == r.default_lot
+            && k.chi_z_alpha == r.chi_z_alpha
+            && k.enforce_gross_cap == r.enforce_gross_cap
+            && k.enforce_level_cap == r.enforce_level_cap
+            && self.voice.max_depth == r.max_depth
+            && self.voice.w_grade == r.w_grade;
+        let data_same = self.data == DataConfig::from_record(&self.records.data);
+        vec![
+            self.level.budget,
+            stamp(
+                self.level.tower_base_policy,
+                super::policy_records::active_tower_base()
+                    .is_ok_and(|base| self.level.tower_base == base.value),
+            ),
+            self.macd.record,
+            self.parse.scan_budget,
+            self.parse.construction_rule,
+            stamp(v.record, venue_same),
+            stamp(r.record, risk_same),
+            stamp(self.records.data.record, data_same),
+        ]
+    }
+
+    /// [`Self::record_refs`] 的 `id/版本` 标签，逗号连接（输出头用）。
+    pub fn record_labels(&self) -> String {
+        self.record_refs()
+            .iter()
+            .map(|r| r.label())
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
+    /// 本配置跑出的输出能否参与准入：场所 profile `admissible` 且所有记录都是签署版本（无研究覆写）。
+    pub fn admissible(&self) -> bool {
+        self.records.venue.admissible
+            && self
+                .record_refs()
+                .iter()
+                .all(|r| matches!(r.version, super::policy_records::PolicyVersion::Signed(_)))
     }
 }
 
@@ -630,6 +877,18 @@ mod tests {
         assert_eq!(c.parse.scan_budget.label(), "second-seq-scan-budget/2");
         assert_eq!(c.parse.tangency, Tangency::Closed);
         assert_eq!(c.parse.construction_rule.label(), "segment-second/2");
+        // #1602：tick/exec 来自诊断夹具场所 profile v1，risk/voice 来自 theta-risk v1，
+        // 坏 tick 闸来自 data-profile v1（等值对拍：与改前常数逐位相同）。
+        assert_eq!(
+            c.record_labels(),
+            "tower-level-budget/1, tower-base/1, macd-force/1, second-seq-scan-budget/2, segment-second/2, \
+             venue-profile-diagnostic-fixture/1, \
+             theta-risk/1, data-profile/1"
+        );
+        assert!(!c.admissible(), "诊断夹具不参与准入");
+        assert_eq!(c.data.bad_tick_max_dev, 0.80);
+        assert_eq!(c.risk.chi_z_alpha, 0.0);
+        assert!(!c.risk.enforce_level_cap);
         assert_eq!(c.voice.max_depth, 3);
         assert_eq!(c.voice.depth_weights, vec![0.60, 0.30, 0.10]);
         assert_eq!(c.risk.rho, 0.005);
@@ -691,6 +950,167 @@ mod tests {
         assert!(
             !c.risk.enforce_gross_cap,
             "#890：default=false 是 #937 问 1 条件式裁定的当前读数（非 frozen）——             随 ADR 0021 重启翻 true 属预期路径（同步更新本测试），其它理由须开票说明"
+        );
+    }
+
+    /// #1602 等值对拍：`Default` 与可恢复的夹具构造逐位相同。
+    #[test]
+    fn default_equals_diagnostic_fixture_constructor() {
+        let a = ThetaConfig::default();
+        let b = ThetaConfig::diagnostic_fixture().expect("夹具记录可解析");
+        assert_eq!(a, b);
+        assert_eq!(ThetaConfig::try_from_active_records().unwrap(), a);
+    }
+
+    /// #1602 专项验收：生产与验收回放的配置入口对所有品种都停在 AwaitingPolicy——BTC（P0）是
+    /// tick/成本未签，其余品种是生产表里没有场所 profile；两槽 `venue_profile` 与 `cost_inputs` 都报。
+    #[test]
+    fn production_config_awaits_venue_profile_and_cost_inputs() {
+        use super::super::backtest::data::SYMBOLS;
+        use super::super::run_records::{SLOT_COST_INPUTS, SLOT_VENUE_PROFILE};
+        for (sym, _, _) in SYMBOLS {
+            let e = ThetaConfig::for_production_symbol(sym)
+                .expect_err("生产场所 profile 未签，不得产出配置");
+            assert_eq!(e.slots, vec![SLOT_VENUE_PROFILE, SLOT_COST_INPUTS], "{sym}");
+            assert!(e.is_awaiting_policy(), "{sym}: {e}");
+        }
+        let e = ThetaConfig::for_production_profile("P0").unwrap_err();
+        assert!(e
+            .to_string()
+            .starts_with("AwaitingPolicy{venue_profile, cost_inputs}"));
+    }
+
+    /// #1602 变异体锁：签齐的场所 profile / Θ_risk / 数据 profile 新版本 ⟹ 配置逐字段取记录值、
+    /// 输出写新版本。把任一读取改回常数，本测试即红。
+    #[test]
+    fn config_reads_every_field_from_records() {
+        use super::super::run_records::{parse_venue_profile, VENUE_PROFILE_P0_ID};
+        let venue = r#"{"id":"venue-profile-P0","version":3,"profile_id":"P0","symbol":"BTC","admissible":true,
+            "fields":{"tick_size":{"value":0.01},"commission_bps":{"value":10},"slippage_bps":{"value":4},
+            "tax_bps":{"value":0.5},"entry_delay_bars":{"value":2}}}"#;
+        let risk = r#"{"id":"theta-risk","version":2,"fields":{"rho":{"value":0.01},"beta":{"value":0.25},
+            "gamma":{"value":0.8},"kappa":{"value":3.5},"default_lot":{"value":5},"chi_z_alpha":{"value":1.645},
+            "enforce_gross_cap":{"value":true},"enforce_level_cap":{"value":true},"max_depth":{"value":2},
+            "w_grade":{"value":[1.0,0.5]}}}"#;
+        let data =
+            r#"{"id":"data-profile","version":2,"fields":{"bad_tick_max_dev":{"value":0.5}}}"#;
+        let mut c = ThetaConfig::from_records(
+            parse_venue_profile(VENUE_PROFILE_P0_ID, Some(venue)),
+            Some(risk),
+            Some(data),
+        )
+        .expect("签齐的记录可组装");
+        assert_eq!(c.tick.tick_size, 0.01);
+        assert_eq!(
+            (
+                c.exec.commission_bps,
+                c.exec.slippage_bps,
+                c.exec.tax_bps,
+                c.exec.entry_delay_bars
+            ),
+            (10.0, 4.0, 0.5, 2)
+        );
+        assert_eq!(
+            (c.risk.rho, c.risk.beta, c.risk.gamma, c.risk.kappa),
+            (0.01, 0.25, 0.8, 3.5)
+        );
+        assert_eq!(c.risk.default_lot, 5);
+        assert_eq!(c.risk.chi_z_alpha, 1.645);
+        assert!(c.risk.enforce_gross_cap && c.risk.enforce_level_cap);
+        assert_eq!((c.voice.max_depth, c.voice.w_grade), (2, [1.0, 0.5]));
+        assert_eq!(c.data.bad_tick_max_dev, 0.5);
+        assert_eq!(
+            c.record_labels(),
+            "tower-level-budget/1, tower-base/1, macd-force/1, second-seq-scan-budget/2, segment-second/2, \
+             venue-profile-P0/3, theta-risk/2, data-profile/2"
+        );
+        assert!(c.admissible());
+        c.level.tower_base = TowerBase::Trade3;
+        assert!(c.record_labels().contains("tower-base/research-override"));
+        assert!(!c.admissible());
+    }
+
+    /// #1602：就地改记录字段 ⟹ 该记录标 research-override，且不再可准入（不冒充签署版本）。
+    #[test]
+    fn in_place_override_is_labelled() {
+        let mut c = ThetaConfig::default();
+        c.exec.entry_delay_bars = 0;
+        c.risk.chi_theta = Some(0.1); // 不在记录里：不影响标签
+        let labels = c.record_labels();
+        assert!(labels.contains("venue-profile-diagnostic-fixture/research-override"));
+        assert!(labels.contains("theta-risk/1"));
+        c.voice.max_depth = 2;
+        assert!(c.record_labels().contains("theta-risk/research-override"));
+        c.data.bad_tick_max_dev = 0.5;
+        assert!(c.record_labels().contains("data-profile/research-override"));
+        c.level.tower_base = TowerBase::Kline3;
+        assert!(c.record_labels().contains("tower-base/research-override"));
+    }
+
+    /// #1602 负控：缺记录 / 缺字段 / 非法值 ⟹ 配置组装报错，不回退常数。
+    #[test]
+    fn config_negative_controls() {
+        use super::super::run_records::{
+            diagnostic_fixture_venue, ACTIVE_DATA_PROFILE_JSON, ACTIVE_THETA_RISK_JSON,
+            SLOT_DATA_PROFILE, SLOT_THETA_RISK,
+        };
+        let e = ThetaConfig::from_records(
+            diagnostic_fixture_venue(),
+            None,
+            Some(ACTIVE_DATA_PROFILE_JSON),
+        )
+        .unwrap_err();
+        assert_eq!(e.slots, vec![SLOT_THETA_RISK]);
+        let no_kappa = ACTIVE_THETA_RISK_JSON.replacen("\"kappa\"", "\"kappa_gone\"", 1);
+        let e = ThetaConfig::from_records(
+            diagnostic_fixture_venue(),
+            Some(&no_kappa),
+            Some(ACTIVE_DATA_PROFILE_JSON),
+        )
+        .unwrap_err();
+        assert!(e.is_awaiting_policy() && e.slots == vec![SLOT_THETA_RISK]);
+        let bad_dev = ACTIVE_DATA_PROFILE_JSON.replacen("0.8", "0", 1);
+        let e = ThetaConfig::from_records(
+            diagnostic_fixture_venue(),
+            Some(ACTIVE_THETA_RISK_JSON),
+            Some(&bad_dev),
+        )
+        .unwrap_err();
+        assert!(!e.is_awaiting_policy() && e.slots == vec![SLOT_DATA_PROFILE]);
+    }
+
+    /// #1602 源码守卫：非测试代码里不得再写这些记录值的常数（`impl Default` 只读夹具记录）。
+    #[test]
+    fn source_guard_no_record_constants() {
+        let src = include_str!("config.rs");
+        let prod = src.split("#[cfg(test)]").next().unwrap();
+        for lit in [
+            "1e-8",
+            "entry_delay_bars: 1",
+            "commission_bps: 1.0",
+            "slippage_bps: 2.0",
+            "tax_bps: 0.0",
+            "rho: 0.005",
+            "beta: 0.5",
+            "gamma: 1.0",
+            "kappa: 2.0",
+            "default_lot: 1",
+            "chi_z_alpha: 0.0",
+            "enforce_gross_cap: false",
+            "enforce_level_cap: false",
+            "max_depth: 3",
+            "w_grade: [1.0, 1.0]",
+        ] {
+            assert!(
+                !prod.contains(lit),
+                "config.rs 非测试代码又出现常数 `{lit}`"
+            );
+        }
+        let data_src = include_str!("backtest/data.rs");
+        let data_prod = data_src.split("#[cfg(test)]").next().unwrap();
+        assert!(
+            !data_prod.contains("0.80"),
+            "data.rs 非测试代码又出现坏 tick 闸常数 0.80"
         );
     }
 
