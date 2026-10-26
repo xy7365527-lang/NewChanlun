@@ -308,15 +308,18 @@ pub(crate) fn read_format_typed(
 pub(super) fn format(conn: &Connection) -> Result<Format, String> {
     format_admitted(conn, None)
 }
-pub(super) fn format_admitted(
+pub(super) fn format_admitted(conn:&Connection,work:Option<&WorkScope>)->Result<Format,String>{
+    format_typed(conn,work).map_err(|e|match e {MixedJsonError::Business(e)=>e,MixedJsonError::Resource(e)=>e.to_string()})
+}
+pub(crate) fn format_typed(
     conn: &Connection,
     work: Option<&WorkScope>,
-) -> Result<Format, String> {
+) -> Result<Format, MixedJsonError> {
     let conn_id = conn as *const Connection as usize;
     if let Some(cached) = cache::capture_format(conn_id) {
         return Ok(cached);
     }
-    let format = read_format_admitted(conn, None, work)?;
+    let format = read_format_typed(conn, None, work)?;
     cache::capture_format_set(conn_id, format);
     Ok(format)
 }

@@ -609,11 +609,17 @@ fn read_batch_row_with_owner(
     read_batch_row_admitted(conn, batch_id, owner, None)
 }
 fn read_batch_row_admitted(
+    conn:&Connection,batch_id:&str,owner:Option<&newchan_rust::s_content::capture_allocation::OwnedBudget>,
+    work:Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
+)->Result<(newchan_rust::s_content::CodecVec<u8>,usize),String>{
+    read_batch_row_typed(conn,batch_id,owner,work).map_err(|e|match e {v3::business_json::MixedJsonError::Business(e)=>e,v3::business_json::MixedJsonError::Resource(e)=>e.to_string()})
+}
+fn read_batch_row_typed(
     conn: &Connection,
     batch_id: &str,
     owner: Option<&newchan_rust::s_content::capture_allocation::OwnedBudget>,
     work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
-) -> Result<(newchan_rust::s_content::CodecVec<u8>, usize), String> {
+) -> Result<(newchan_rust::s_content::CodecVec<u8>, usize), v3::business_json::MixedJsonError> {
     use v3::audit_store::{CodecRead, NativeAdmission};
     let err = |e| {
         format!(
@@ -634,8 +640,8 @@ fn read_batch_row_admitted(
     let source = row.blob(0).map_err(err)?;
     NativeAdmission(work)
         .native_codec_room(&mut blob, source.len())
-        .map_err(|e| e.to_string())?;
-    blob.try_extend_bytes(source).map_err(|e| e.to_string())?;
+        .map_err(v3::business_json::MixedJsonError::Resource)?;
+    blob.try_extend_bytes(source).map_err(v3::business_json::MixedJsonError::Resource)?;
     let byte_len = row.integer(1).map_err(err)?;
     drop(row);
     stmt.finalize().map_err(err)?;
@@ -653,16 +659,22 @@ fn read_batch_storage(
     read_batch_storage_admitted(conn, batch_id, owner, None)
 }
 fn read_batch_storage_admitted(
+    conn:&Connection,batch_id:&str,owner:Option<&newchan_rust::s_content::capture_allocation::OwnedBudget>,
+    work:Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
+)->Result<(newchan_rust::s_content::CodecVec<u8>,usize,bool),String>{
+    read_batch_storage_typed(conn,batch_id,owner,work).map_err(|e|match e {v3::business_json::MixedJsonError::Business(e)=>e,v3::business_json::MixedJsonError::Resource(e)=>e.to_string()})
+}
+fn read_batch_storage_typed(
     conn: &Connection,
     batch_id: &str,
     owner: Option<&newchan_rust::s_content::capture_allocation::OwnedBudget>,
     work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
-) -> Result<(newchan_rust::s_content::CodecVec<u8>, usize, bool), String> {
-    let (blob, byte_len) = read_batch_row_admitted(conn, batch_id, owner, work)?;
+) -> Result<(newchan_rust::s_content::CodecVec<u8>, usize, bool), v3::business_json::MixedJsonError> {
+    let (blob, byte_len) = read_batch_row_typed(conn, batch_id, owner, work)?;
     let expect_hash = batch_content_hash(batch_id)?;
     let graph = match owner {
-        Some(_) => evidence_store::read_format_admitted(conn, owner, work)?,
-        None => evidence_store::format_admitted(conn, work)?,
+        Some(_) => evidence_store::read_format_typed(conn, owner, work)?,
+        None => evidence_store::format_typed(conn, work)?,
     }
     .graph();
     if !graph {
@@ -670,12 +682,12 @@ fn read_batch_storage_admitted(
             || blob.len() != byte_len
             || !evidence_store::hash_matches(&blob, expect_hash)
         {
-            return Err(format!("StorageUnavailable：batch `{batch_id}` 规范字节/长度与内容寻址不符（坏 bytes/byte_len），拒绝写入"));
+            return Err(format!("StorageUnavailable：batch `{batch_id}` 规范字节/长度与内容寻址不符（坏 bytes/byte_len），拒绝写入").into());
         }
     } else if !blob.is_empty() {
         return Err(format!(
             "StorageUnavailable：图域 batch `{batch_id}` 仍带整块字节（与私有根混写），拒绝写入"
-        ));
+        ).into());
     }
     Ok((blob, byte_len, graph))
 }
