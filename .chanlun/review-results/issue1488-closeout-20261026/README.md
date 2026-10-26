@@ -1,6 +1,6 @@
-# #1488 收尾证据与剩余容器
+# #1488 收尾证据与旧容器处置
 
-本报告为 #1488 绑定的工作草稿，供主控核关票门。2026-10-26 已释放旧归档 42 个容器中的 36 个，剩余 6 个保留。代码已合入 main，本票尚不能关闭。
+本报告为 #1488 绑定的工作草稿，供主控核关票门。旧归档 42 个容器已全部处置：2026-10-26 先释放 36 个，余下 6 个于 `2026-10-26T22:59:53Z` 保全后移除。代码已合入 main，本票尚不能关闭。
 
 ## 已交付实现与主线证据
 
@@ -24,7 +24,7 @@ cargo test --locked --features s_session,s_allocation_json_testonly --bin s_stru
 
 ## 已释放 36 个旧容器，内容仍可恢复
 
-以下两份执行报告及验收字段 JSON 已随本文入版本控制。干净批次 JSON 仅删除 ignored 文件清单，保留 HEAD、状态、移除结果、后验及环境核查字段；退役批次 JSON 保持原件。报告中的“仍保留”段是各次执行结束时的快照，当前剩余范围以下一节为准。
+以下两份执行报告及验收字段 JSON 已随本文入版本控制。干净批次 JSON 仅删除 ignored 文件清单，保留 HEAD、状态、移除结果、后验及环境核查字段；退役批次 JSON 保持原件。报告中的“仍保留”段是各次执行结束时的快照，其余六项的最终处置以下一节为准。
 
 |批次|归档 ID|实体报告|
 |---|---|---|
@@ -41,28 +41,24 @@ cargo test --locked --features s_session,s_allocation_json_testonly --bin s_stru
 
 ID02 的三个 ignored Serena 配置另存于归档 `release26-supplement/02/.serena/`，本报告不包含配置内容。恢复时仍需这些仓外原件。本次入仓的是报告，不是把恢复数据或备份复制进仓库。
 
-## 旧归档剩余 6 个容器及解除条件
+## 旧归档余 6 个容器已保全并移除
 
-以下路径均相对 `/Volumes/AgentStorage/issue1488-ticket-manager-20261018/`。本次整理时再次核到 ID29 的 Git 注册只含自身及 ID43；PID21953 仍持有 ID43 脚本的两个句柄。
+ID28、29、30、31、32、43 经用户批准，在保全后全部移除。移除前，五个独立 clone 的 839 个引用、ID41 与 ID43 的退役 stash 已导入独立 `restore.git`，840 个根引用的 Git 对象闭包无缺失；源容器删除后实际恢复了 ID43 的三个未跟踪文件。
 
-|ID|路径|当前依赖与解除条件|
+|ID|路径（相对 `/Volumes/AgentStorage/issue1488-ticket-manager-20261018/`）|终态|
 |---|---|---|
-|43|`worktree-fix-p2-resume-20261023`|Desktop Commander MCP 的 PID21953 打开 `.github/scripts/run-1488-driver-ci.py`。服务正常释放句柄后，主控核无在飞 owner、未跟踪内容仍已保全，才能处置此 linked 工位。|
-|29|`budget-handoff-fix-v2-checkout`|ID43 的 common dir；对象来自 ID28。ID43 释放且 `refs/archive/issue1488-retired-41` 的恢复需要妥善保全后才能处置。|
-|30|`budget-handoff-review-checkout`|对象来自 ID28。独立 clone 需由主控按恢复与消费者核查结果处置，不能用 `worktree remove` 删除其主工作树。|
-|32|`coverage-checkout`|对象来自 ID31。与 ID30 同样按独立 clone 处置。|
-|28|`budget-handoff-checkout`|对象来自 ID31，向 ID29 和 ID30 提供对象。逆依赖消除后才可处置。|
-|31|`checkout`|对象来自主仓，向 ID28 和 ID32 提供对象。逆依赖消除后才可处置；主仓 `.git` 不在清理范围。|
+|43|`worktree-fix-p2-resume-20261023`|非 force `git worktree remove`，退出 0。|
+|29、30、32、28、31|五个独立 clone|按精确目录移除，均退出 0。|
 
-这些依赖允许先处置已满足条件的 ID30 或 ID32，但不允许删除 ID43 所需的 29、28、31 链。主控仍保留全部六项，未授权本次文档任务执行删除。不得为了关票停止共享 MCP 或重启 Codex。
+执行顺序、恢复命令、两份 stash ID 和原件见 [余六项处置报告](1488-SIX-DISPOSITION27M.md) 及 `six-disposition27m/`。十个历史 `relations.jsonl` LFS 版本在源库本就缺失，仍不可恢复；`export.git` 的 alternates 指向已删 clone，不能作为恢复源。
 
 六个 reference-coding 工位属于参考索引用途，排除在这 42 项之外。它们不因 #1488 收尾而删除。父目录的 `workers/` 与验收包也不在容器清理范围。
 
 ## 主控关票前仍需完成
 
-1. 核实际消费者解除，按对象依赖完成剩余六个旧容器及原 branch 的处置，保留独立恢复原件。
+1. 旧归档 42 个容器已全部处置。关票时仍需按上文逐项处置退役工位遗留的原 branch，保留独立恢复原件。
 2. 独立评审本文档候选，取得 main 批准后合入。本次纯文档提交豁免编译，不替代已有实现验证。
-3. 处置本次新增文档工位及分支。它不在旧归档 42 项内，登记于 [本次 roster](../../agent-roster-1488-closeout-doc-20261026.md)。
+3. 处置文档工位及其两条文档分支。它不在旧归档 42 项内，登记于 [本次 roster](../../agent-roster-1488-closeout-doc-20261026.md)。
 4. 依 `docs/agents/delivery-discipline.md` 发布真实 resolution，引用实现落地 SHA、文档落地 SHA、上述仓内报告路径与主线 CI 事实。
 
 在这些条件成立前，#1488 保持 open，#1491 和 #1640 的原生依赖不手动放行。#1279 保持 open，六项 Destination 验收范围不变。
