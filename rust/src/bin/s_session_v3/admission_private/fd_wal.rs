@@ -641,10 +641,9 @@ unsafe extern "C" fn current_time(_: *mut ffi::sqlite3_vfs, out: *mut f64) -> c_
     .unwrap_or(ffi::SQLITE_ERROR)
 }
 
-// #1527：业务审计里不带 WHERE 的 count(*) 会以「无库名、空列名」的 SQLITE_READ 上报整表读取。
-// 白名单来源：探针提交 f3624c5d 在 windows-5090 跑全套 `cargo test --features s_session
-// --bin s_structure_session`，记录到的零列整表读共 768 次，全部 db=<none>、origin=<none>，
-// 恰为下列 9 张表（见 #1527 issuecomment-6267843338 之后的评论）。审计新增此类读前须同步本表。
+// #1527：count(*) 优化以 db=None、空列的 SQLITE_READ 上报整表读取。
+// 探针 f3624c5d 记录到 9 张业务表，见 issuecomment-6267843338 后续评论。
+// 旧证据完整审计另读 s_evidence_nodes 的总数；仅补该表，不开放任意空列读。
 pub(super) const COUNT_SCAN_TABLES: &[&[u8]] = &[
     b"catalog",
     b"raw_events",

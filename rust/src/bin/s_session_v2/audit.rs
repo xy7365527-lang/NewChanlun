@@ -666,5 +666,5 @@ impl AuditWalk {
     }
 }
 
-#[path="audit/mixed_profile.rs"]
+#[path = "audit/mixed_profile.rs"]
 pub(crate) mod mixed_profile;

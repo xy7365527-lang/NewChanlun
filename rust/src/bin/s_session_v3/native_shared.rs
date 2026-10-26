@@ -98,7 +98,10 @@ macro_rules! shared_family {
         impl<T> $strong<T> {
             /// #1527 mixed缓存：同父仅共享；异父先核源健康，再由封闭字段工厂复制纯内容。
             /// 不携带任何Job/capture资格，调用者仍须完成fresh原件核验。
-            #[allow(dead_code, reason = "#1527：共享宏的Rc/Arc实例消费者不同，保留同一父账接口")]
+            #[allow(
+                dead_code,
+                reason = "#1527：共享宏的Rc/Arc实例消费者不同，保留同一父账接口"
+            )]
             pub(crate) fn share_or_copy_mixed(
                 &self,
                 work: &WorkScope,
@@ -155,7 +158,10 @@ macro_rules! shared_family {
                 }
             }
             /// #1527：只比较真实分配父；不能把该结果当Job/capture资格。
-            #[allow(dead_code, reason = "#1527：共享宏的Rc/Arc实例消费者不同，保留同一父账接口")]
+            #[allow(
+                dead_code,
+                reason = "#1527：共享宏的Rc/Arc实例消费者不同，保留同一父账接口"
+            )]
             pub(crate) fn belongs_to_parent(&self, work: &WorkScope) -> bool {
                 self.lease
                     .0
@@ -163,14 +169,20 @@ macro_rules! shared_family {
                     .is_some_and(|lease| lease._permit.belongs_to_parent(work))
             }
             /// 同父共享或异父复制前核旧父健康；closed不是failed。
-            #[allow(dead_code, reason = "#1527：共享宏的Rc/Arc实例消费者不同，保留同一父账接口")]
+            #[allow(
+                dead_code,
+                reason = "#1527：共享宏的Rc/Arc实例消费者不同，保留同一父账接口"
+            )]
             pub(crate) fn check_retained_source(&self) -> Result<(), CodecError> {
                 self.lease
                     .0
                     .as_ref()
                     .map_or(Ok(()), |lease| lease._permit.check_retained_source())
             }
-            #[allow(dead_code, reason = "#1527：共享宏的Rc/Arc实例消费者不同，保留同一父账接口")]
+            #[allow(
+                dead_code,
+                reason = "#1527：共享宏的Rc/Arc实例消费者不同，保留同一父账接口"
+            )]
             pub(crate) fn ptr_eq(this: &Self, other: &Self) -> bool {
                 $ptr::ptr_eq(&this.value, &other.value)
             }
@@ -285,9 +297,11 @@ macro_rules! shared_family {
                     lease: self.lease.clone(),
                 })
             }
-            #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
             /// #1527：只比较真实分配父；不能把该结果当Job/capture资格。
-            #[allow(dead_code, reason = "#1527：共享宏的Rc/Arc实例消费者不同，保留同一父账接口")]
+            #[allow(
+                dead_code,
+                reason = "#1527：共享宏的Rc/Arc实例消费者不同，保留同一父账接口"
+            )]
             pub(crate) fn belongs_to_parent(&self, work: &WorkScope) -> bool {
                 self.lease
                     .0
@@ -295,14 +309,20 @@ macro_rules! shared_family {
                     .is_some_and(|lease| lease._permit.belongs_to_parent(work))
             }
             /// 同父共享或异父复制前核旧父健康；closed不是failed。
-            #[allow(dead_code, reason = "#1527：共享宏的Rc/Arc实例消费者不同，保留同一父账接口")]
+            #[allow(
+                dead_code,
+                reason = "#1527：共享宏的Rc/Arc实例消费者不同，保留同一父账接口"
+            )]
             pub(crate) fn check_retained_source(&self) -> Result<(), CodecError> {
                 self.lease
                     .0
                     .as_ref()
                     .map_or(Ok(()), |lease| lease._permit.check_retained_source())
             }
-            #[allow(dead_code, reason = "#1527：共享宏的Rc/Arc实例消费者不同，保留同一父账接口")]
+            #[allow(
+                dead_code,
+                reason = "#1527：共享宏的Rc/Arc实例消费者不同，保留同一父账接口"
+            )]
             pub(crate) fn ptr_eq(this: &Self, other: &Self) -> bool {
                 $weak_ptr::ptr_eq(&this.value, &other.value)
             }
@@ -335,7 +355,10 @@ shared_family!(NativeArc, NativeWeakArc, Arc, ArcWeak, ArcLease);
 macro_rules! slice_copy {
     ($strong:ident, $ptr:ident, $lease:ident, $element:ty) => {
         impl $strong<[$element]> {
-            #[allow(dead_code, reason = "#1527：共享宏的Rc/Arc实例消费者不同，保留同一父账接口")]
+            #[allow(
+                dead_code,
+                reason = "#1527：共享宏的Rc/Arc实例消费者不同，保留同一父账接口"
+            )]
             pub(crate) fn share_or_copy_slice_mixed(
                 &self,
                 work: &WorkScope,

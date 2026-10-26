@@ -84,7 +84,10 @@ fn business(
             crate::audit::mixed_profile::meta_text(&tx, "writer_epoch", shared.work),
         )?
         .ok_or_else(|| shared.failure("MixedEpochMissing", "完整核后缺writer_epoch"))?;
-        Ok(SealedPrefix { _protocol: protocol, _epoch: epoch })
+        Ok(SealedPrefix {
+            _protocol: protocol,
+            _epoch: epoch,
+        })
     })();
     shared.set_phase(ErrorPhase::Rollback);
     let disabled = conn
