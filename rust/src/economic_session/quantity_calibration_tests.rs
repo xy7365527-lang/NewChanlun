@@ -997,6 +997,259 @@ fn v3_split_rebases_all_quantities_and_rebase_needs_approved_successor() {
     }
 }
 
+// ---- 独审 26AF：R1 金额尺度、R2 新激活共用金额容量与签署窗口、F3 签署绑定所签内容 ----
+
+const DAY: i64 = 86_400_000_000_000;
+
+/// 真实 L1 开局原件（chain_raw /events/0，本金 3200000）改写金额量纲：`units.money` 与本金分量同改，金额文本不变。
+fn opening_with_money(unit: &str, quantum: &str) -> Value {
+    let mut doc: Value = serde_json::from_str(&chain_raw(V2, "53333")).unwrap();
+    doc["units"]["money"]["unit"] = json!(unit);
+    doc["units"]["money"]["quantum"] = json!(quantum);
+    doc["events"][0]["known_cost_components"][0]["quantum"] = json!(quantum);
+    let mut r = record_for_raw(&canonical_json(&doc), "/events/0");
+    r["first_known_ns"] = json!((T0 + 100).to_string());
+    r["b_observation"] = json!({"received_ns":"0","first_known_ns":(T0 + 500).to_string(),"commit_ns":(T0 + 501).to_string()});
+    r
+}
+fn activation_outcome(got: &Result<(Value, bool), String>) -> String {
+    match got {
+        Ok((image, _)) => format!(
+            "已激活：书账金额 {:?}，Q_amount {} Q_units {}，容量 {}",
+            image["book"]["units"]["money"],
+            image["book"]["funding"]["quantity_calibration"]["Q_amount"],
+            image["book"]["funding"]["quantity_calibration"]["Q_units"],
+            image["book"]["funding"]["capacity"]
+        ),
+        Err(e) => e.clone(),
+    }
+}
+
+#[test]
+fn r1_money_quantum_binds_funding_scale_on_real_opening() {
+    let m = three_chongs();
+    // 正控：funding-record 币种的名义整数（ADR 0040:34，quantum 1）开局，书账资金与定标同一尺度。
+    let (image, _) = book::apply_in(
+        &m,
+        &book::empty_image(),
+        &opening_with_money("USDC", "1"),
+        1,
+        "1",
+    )
+    .unwrap();
+    let b = &image["book"];
+    assert_eq!(
+        b["units"]["money"],
+        json!({"unit":"USDC","currency":"USDC","quantum":"1"})
+    );
+    assert_eq!(b["funding"]["Q"], "3200000");
+    assert_eq!(b["funding"]["opening_batch"], "3200000");
+    assert_eq!(b["funding"]["quantity_calibration"]["Q_amount"], "3200000");
+    assert_eq!(b["funding"]["quantity_calibration"]["Q_units"], "32000");
+    // 负控：同币种、同数量、同金额文本；金额 quantum 为 100 或 2（同一整数即 100 倍、2 倍名义值），
+    // 或以分币单位计：资金与书账不同尺度，B 拒绝激活。
+    for (unit, quantum) in [("USDC", "100"), ("USDC", "2"), ("USDC-CENT", "1")] {
+        let got = book::apply_in(
+            &m,
+            &book::empty_image(),
+            &opening_with_money(unit, quantum),
+            1,
+            "1",
+        );
+        assert!(
+            got.as_ref()
+                .is_err_and(|e| e.starts_with("IdentityConflict：原件金额")),
+            "{unit}/quantum {quantum} 不得激活：{}",
+            activation_outcome(&got)
+        );
+    }
+}
+
+/// `/3` 转入目标 U（L3，fixed_q 3，价 100）：Q_amount、C_amount(L3) 与签署窗口可调。
+fn transfer_target(q: &str, c: &str, edit: impl Fn(&mut Value)) -> (Value, Value) {
+    let mut m = transfer_manifest(true, vec![test_quote("P", T0 + 80, 100)]);
+    m["chongs"][2]["funding"]["Q"] = json!(q);
+    m["chongs"][2]["funding"]["policy_record"]["capacities"][3]["C"] = json!(c);
+    edit(&mut m["chongs"][2]["funding"]["policy_record"]);
+    let (_, _, u) = super::tb03c_c5_tests::transfer_documents();
+    let mut rec = record_for_raw(&canonical_json(&u), "/events/0");
+    rec["b_source_debit_proof"] = json!({"testonly":"presence only; verified by store/service"});
+    rec["first_known_ns"] = json!((T0 + 90).to_string());
+    rec["b_observation"] = json!({"first_known_ns":(T0 + DAY).to_string()});
+    (m, rec)
+}
+
+#[test]
+fn r2_new_activations_share_amount_capacity_and_signature_windows() {
+    // 转入：floor(300/100) = floor(301/100) = 3，数量闸分不开；金额域 Q_amount ≤ C_amount 等于允许、超 1 拒绝。
+    let (m, rec) = transfer_target("300", "300", |_| {});
+    let (image, _) = book::apply_in(&m, &book::empty_image(), &rec, 1, "10").unwrap();
+    assert_eq!(
+        image["book"]["funding"]["capacity"],
+        json!({"level":"L3","C":"300","C_units":"3"})
+    );
+    let (m, rec) = transfer_target("301", "300", |_| {});
+    let got = book::apply_in(&m, &book::empty_image(), &rec, 1, "10");
+    assert!(
+        got.as_ref()
+            .is_err_and(|e| e.starts_with("InvalidDomain：Q 301 超过已签 C(L3) 300")),
+        "转入 301/300：{}",
+        activation_outcome(&got)
+    );
+    // 转入：容量条目刚过期、policy-record 尚未生效：同普通开局拒绝（B 观察时刻 2026-10-22）。
+    for (what, want, edit) in [
+        (
+            "容量条目 valid_through 2026-10-21",
+            "PolicyExpired：原件 known_at 2026-10-22 超过 capacity 有效期",
+            Box::new(|p: &mut Value| p["capacities"][3]["valid_through"] = json!("2026-10-21"))
+                as Box<dyn Fn(&mut Value)>,
+        ),
+        (
+            "policy-record authorized_at 2026-10-23",
+            "PolicyNotYetEffective：原件 known_at 2026-10-22 早于 policy-record 签署生效日",
+            Box::new(|p: &mut Value| p["authorized_at"] = json!("2026-10-23")),
+        ),
+    ] {
+        let (m, rec) = transfer_target("300", "1000", &*edit);
+        let got = book::apply_in(&m, &book::empty_image(), &rec, 1, "10");
+        assert!(
+            got.as_ref().is_err_and(|e| e.starts_with(want)),
+            "转入 {what}：{}",
+            activation_outcome(&got)
+        );
+    }
+    // q_rebase：同一获批 v2、同一 E 请求与报价，只把 B 观察时刻推到签署有效期（2027-10-20）之后。
+    let space = Space::new("1715-r2-rebase");
+    let m = chain_manifest(&space, true);
+    let text = chain_raw(V2, "53333");
+    let rec = |i: usize, e_known: i64, b_known: i64| {
+        let mut r = record_for_raw(&text, &format!("/events/{i}"));
+        r["first_known_ns"] = json!(e_known.to_string());
+        r["b_observation"] = json!({"received_ns":"0","first_known_ns":b_known.to_string(),"commit_ns":(b_known + 1).to_string()});
+        r
+    };
+    let expired = T0 + 365 * DAY;
+    let (opened, _) = book::apply_in(
+        &m,
+        &book::empty_image(),
+        &rec(0, T0 + 1001, T0 + 5001),
+        1,
+        "1",
+    )
+    .unwrap();
+    // 已开重的拆股不是新激活：签署到期后照常比例重基，旧持仓延续不被新激活门误伤。
+    let (late_split, _) = book::apply_in(&m, &opened, &rec(1, T0 + 1011, expired), 2, "2").unwrap();
+    assert_eq!(late_split["book"]["fixed_q"], "64000");
+    let (split, _) = book::apply_in(&m, &opened, &rec(1, T0 + 1011, T0 + 5011), 2, "2").unwrap();
+    let (rebased, _) = book::apply_in(&m, &split, &rec(2, T0 + 1021, T0 + 5021), 3, "3").unwrap();
+    assert_eq!(rebased["book"]["fixed_q"], "53333");
+    for image in [&split, &late_split] {
+        let got = book::apply_in(&m, image, &rec(2, T0 + 1021, expired + 10), 3, "3");
+        assert!(
+            got.as_ref().is_err_and(|e| e
+                .starts_with("PolicyExpired：原件 known_at 2027-10-21 超过 funding-record 有效期")),
+            "过期 q_rebase：{}",
+            activation_outcome(&got)
+        );
+    }
+}
+
+/// 服务入口：q_rebase 的 B 观察时刻晚于签署有效期 ⟹ 拒绝，B 图像、收据与现役定标版本不变。
+#[test]
+fn r2_expired_q_rebase_changes_nothing_in_service() {
+    let space = Space::new("1715-r2-service");
+    let mut m = chain_manifest(&space, true);
+    let late = T0 + 365 * DAY;
+    m["clock"]["plan"]["messages"]["app-2"] = json!({"received_ns":late.to_string(),"first_known_ns":(late + 1).to_string(),"commit_ns":(late + 2).to_string()});
+    std::fs::write(space.0.join("manifest.json"), canonical_json(&m)).unwrap();
+    let cs = configs(&space.0);
+    for c in &cs {
+        store::init(c).unwrap();
+    }
+    let (mut e, _) = store::open(&cs[0].db, false).unwrap();
+    let (mut b, _) = store::open(&cs[1].db, false).unwrap();
+    let text = chain_raw(V2, "53333");
+    let doc: Value = serde_json::from_str(&text).unwrap();
+    let mut last = Value::Null;
+    for i in 0..3 {
+        let event = &doc["events"][i];
+        let cap = service::handle(&mut e, &cs[0], 1, 1, &json!({}), &envelope(&format!("cap-{i}"),
+            json!({"op":"CaptureExternal","raw_utf8":text,"json_pointer":format!("/events/{i}"),"token":format!("tok-{i}"),"source_event_time":event["source"]["source_event_time"]})))["payload"].clone();
+        assert_eq!(cap["kind"], "Recorded", "{cap}");
+        let before = store::latest(&b).unwrap().3;
+        let app = service::handle(&mut b, &cs[1], 1, 1, &json!({}), &envelope(&format!("app-{i}"),
+            json!({"op":"ApplyAllocation","fact_key":cap["fact_key"],"allocation_id":event["allocation_id"],"expected_fact_hash":cap["fact_hash"]})))["payload"].clone();
+        if i < 2 {
+            assert_eq!(app["kind"], "Applied", "{i}: {app}");
+            continue;
+        }
+        assert!(
+            app["error"]
+                .as_str()
+                .is_some_and(|e| e.starts_with("PolicyExpired")),
+            "过期 q_rebase 不得应用：{app}"
+        );
+        let after = store::latest(&b).unwrap().3;
+        assert_eq!(after, before, "拒绝前后 B 图像逐字相同");
+        assert_eq!(
+            after["book"]["funding"]["quantity_calibration"]["version"],
+            "qc-test-v1"
+        );
+        assert_eq!(after["book"]["fixed_q"], "64000");
+        assert!(
+            store::row(&b, "receipts", event["allocation_id"].as_str().unwrap())
+                .unwrap()
+                .is_none()
+        );
+        last = after;
+    }
+    assert!(!last.is_null());
+}
+
+#[test]
+fn f3_signature_binds_signed_content() {
+    let signed = policy_v(
+        "1",
+        "qc-test-v1",
+        "none",
+        Some(50),
+        frozen("activation_request_asof", "20"),
+    );
+    // 负控：沿用同一签署（引用、版本、签署人、时刻与内容摘要），改 max_quote_age、尺度、档比或数量单位 ⟹ 解析拒绝。
+    for (ptr, val) in [
+        ("/quantity_basis/max_quote_age", json!("99")),
+        ("/quantity_basis/currency_scale/num", json!("2")),
+        ("/tiers/0/w/num", json!("500")),
+        ("/quantity_unit/unit", json!("BTC-MILLI")),
+    ] {
+        let mut changed = signed.clone();
+        *changed.pointer_mut(ptr).unwrap() = val;
+        let got = qc::parse_policy(&changed);
+        assert!(
+            got.as_ref().is_err_and(|e| e.contains("content_sha256")),
+            "{ptr}：沿用旧签署改内容不得解析：{:?}",
+            got.map(|p| p.version)
+        );
+    }
+    // 正控：签署记录的 content_sha256 = 本版本除签署外全部内容的规范 JSON 摘要；书账定标逐字记录它。
+    let mut content = signed.clone();
+    content.as_object_mut().unwrap().remove("signature");
+    let digest = crate::session_protocol::sha256_hex(canonical_json(&content).as_bytes());
+    assert_eq!(signed["signature"]["content_sha256"], digest);
+    let snaps = [snapshot("s100", 100, vec![quote("B", 99, 99, 100, 1)])];
+    let c = ready(
+        qc::calibrate(
+            &qc::parse_policy(&signed).unwrap(),
+            &funding(3_200_000),
+            &req(100),
+            "s100",
+            &snaps,
+        )
+        .unwrap(),
+    );
+    assert_eq!(c.to_json()["signature"]["content_sha256"], digest);
+}
+
 // ---- F6：同核服务主链 Capture→Apply（开局、拆股、获批 q_rebase）→ 公共查询 → 新进程恢复对拍 ----
 
 fn envelope(message: &str, payload: Value) -> Value {
