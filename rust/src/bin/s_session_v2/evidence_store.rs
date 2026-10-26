@@ -1322,6 +1322,8 @@ pub(super) struct Reader<'a> {
     /// 本次捕获的临时读集守卫：析构即作废本次读入的节点行。
     _capture: Option<cache::CaptureGuard>,
     owned: Option<OwnedReadState>,
+    mixed_observer: Option<&'a dyn crate::v3::audit_budget::LegacyObserver>,
+    mixed_seen: crate::v3::audit_store::NativeSet<[u8;32]>,
     /// 本次读取实际读到过的节点 id（供「不可达残留」核对）。
     touched: crate::v3::audit_store::NativeSet<[u8; 32]>,
 }
@@ -1343,8 +1345,52 @@ impl<'a> Reader<'a> {
             work,
             _capture: Some(cache::begin_capture_admitted(budget_bytes, work)?),
             owned: None,
+            mixed_observer: None,
+            mixed_seen: Default::default(),
             touched: Default::default(),
         })
+    }
+
+    pub(crate) fn new_mixed(
+        conn: &'a Connection, budget_bytes: usize, work: &'a WorkScope,
+        observer: &'a dyn crate::v3::audit_budget::LegacyObserver,
+    ) -> Result<Self,MixedJsonError> {
+        observer.check_work(work).map_err(MixedJsonError::Resource)?;
+        observer.precheck().map_err(MixedJsonError::Resource)?;
+        Ok(Self {
+            conn,conn_id:conn as *const Connection as usize,work:Some(work),owned:None,
+            _capture:Some(cache::begin_capture_typed(budget_bytes,Some(work)).map_err(MixedJsonError::Resource)?),
+            mixed_observer:Some(observer),mixed_seen:Default::default(),touched:Default::default(),
+        })
+    }
+    /// 只由具名mixed构造器产生当前Job观察者；普通load不借此入口改变合同。
+    pub(crate) fn load_mixed(&mut self,id:&[u8;32])
+        -> Result<crate::v3::native_shared::NativeArc<cache::Cert>,MixedJsonError> {
+        use crate::v3::native_shared::NativeArc;
+        let observer=self.mixed_observer.ok_or_else(||MixedJsonError::Business("mixed Reader缺观察者".into()))?;
+        let work=self.work.ok_or_else(||MixedJsonError::Business("mixed Reader缺工作域".into()))?;
+        observer.precheck().map_err(MixedJsonError::Resource)?;
+        let admission=NativeAdmission(Some(work));
+        self.touched.insert_admitted(*id,&admission).map_err(MixedJsonError::Resource)?;
+        cache::mark_reachable_typed(self.conn_id,*id,Some(work)).map_err(MixedJsonError::Resource)?;
+        if self.mixed_seen.contains(id) {
+            if let Some(cert)=cache::node_get(self.conn_id,id) {
+                return cert.share_or_copy_mixed(work,|original,work| {
+                    original.payload.check_retained_source()?;
+                    let mut children=CodecVec::default();
+                    children.try_reserve_native(work,original.children.len())?;
+                    for child in &original.children { children.try_push(*child)?; }
+                    Ok(cache::Cert {id:original.id,kind:original.kind,expanded_length:original.expanded_length,
+                        payload:NativeArc::<[u8]>::try_copy_slice(&original.payload,Some(work))?,children})
+                }).map_err(MixedJsonError::Resource);
+            }
+        }
+        let observed=read_node_mixed(self.conn,id,work,observer)?;
+        let (cert,owned,matched)=observed.certificate(work)?;
+        self.mixed_seen.insert_admitted(*id,&admission).map_err(MixedJsonError::Resource)?;
+        if matched { cache::cert_matched_mark_typed(self.conn_id,*id,Some(work)).map_err(MixedJsonError::Resource)?; }
+        cache::node_put_typed(self.conn_id,cert.clone(),owned,Some(work)).map_err(MixedJsonError::Resource)?;
+        Ok(cert)
     }
 
     pub(super) fn with_owner(conn: &'a Connection, budget: &OwnedBudget) -> Self {
@@ -1354,6 +1400,8 @@ impl<'a> Reader<'a> {
             work: None,
             _capture: None,
             touched: Default::default(),
+            mixed_observer: None,
+            mixed_seen: Default::default(),
             owned: Some(OwnedReadState {
                 budget: budget.clone(),
                 nodes: new_map(Some(budget)),
@@ -2214,7 +2262,7 @@ impl ObservedLegacyNode<'_> {
     pub(crate) fn payload(&self) -> &[u8] { &self.payload }
     /// 当前原件已核且已接纳之后才能比较持久证书；不发布新资格。
     pub(crate) fn certificate(&self, work: &WorkScope)
-        -> Result<(crate::v3::native_shared::NativeArc<cache::Cert>,bool),MixedJsonError> {
+        -> Result<(crate::v3::native_shared::NativeArc<cache::Cert>,bool,bool),MixedJsonError> {
         use crate::v3::native_shared::NativeArc;
         self._observer.check_work(work).map_err(MixedJsonError::Resource)?;
         self._observer.precheck().map_err(MixedJsonError::Resource)?;
@@ -2231,14 +2279,14 @@ impl ObservedLegacyNode<'_> {
                         payload: NativeArc::<[u8]>::try_copy_slice(&self.payload,Some(work))?,
                     })
                 }).map_err(MixedJsonError::Resource)?;
-                return Ok((copied,!same_parent));
+                return Ok((copied,!same_parent,true));
             }
         }
         let payload = NativeArc::<[u8]>::try_copy_slice(&self.payload,Some(work)).map_err(MixedJsonError::Resource)?;
         let cert = NativeArc::try_new_shallow(cache::Cert {
             id: *self.checked.id(),kind,payload,expanded_length:declared,children,
         },Some(work)).map_err(MixedJsonError::Resource)?;
-        Ok((cert,true))
+        Ok((cert,true,false))
     }
 }
 pub(crate) fn read_node_mixed<'a>(

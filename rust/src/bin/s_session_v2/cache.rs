@@ -2278,6 +2278,39 @@ mod tests {
         configure(0);
     }
 
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn mixed_cache_second_eviction_plan_failure_preserves_both_old_groups() {
+        configure(1 << 20);
+        let long_key = "h".repeat(8192);
+        let root = RootCert::new([1;32],vec![],2,"hash".into());
+        let retained = handle_put_certified(&long_key,&root,[2;32],Arc::from(&b"{}"[..]),None).unwrap();
+        let header = BatchControlHeader::from_verified_batch(&json!({"protocol_revision":"s-session/2"}));
+        batch_header_put(&long_key,"public",2,&retained,[2;32],header);
+        evict_full_handles_for_test();
+        let (bytes,value)=handle("small",64,false);
+        handle_put_blob("small",[0;32],bytes,value);
+        let budget=crate::v3::audit_owner::native::Budget::new(1<<20,0).unwrap();
+        let mut rejected=false;
+        let _=budget.codec_work().unwrap().run(|work| -> Result<(),String> {
+            let _hog=work.reserve_native((1<<20)-budget.live()-4096).unwrap();
+            MEMO.with(|m| {
+                let mut m=m.borrow_mut();
+                m.limit=m.retained_bytes();
+                let before=(m.handles.len(),m.batch_headers.len(),m.total_bytes());
+                assert_eq!((before.0,before.1),(1,1));
+                let requested=m.handles_bytes+1; // requires all handles, then a header
+                assert!(m.make_room_typed(requested,Some(work)).is_err());
+                assert_eq!((m.handles.len(),m.batch_headers.len(),m.total_bytes()),before);
+                rejected=true;
+            });
+            Ok(())
+        });
+        assert!(rejected);
+        configure(0);
+    }
+
     /// #1488 0087 ①-F-1：owned 树高水位插入因父账不足失败时，证书 payload 不得从
     /// certs_bytes 消账而落不进读集账；失败后单一预算仍须按真实持有量拒绝超限准入。
     #[cfg(feature = "s_capture_native_testonly")]

@@ -904,7 +904,8 @@ mod tests {
             assert_eq!(observer.job.borrow().snapshot().nodes,1);
             crate::cache::configure(1 << 20);
             let capture = crate::cache::begin_capture_admitted(1 << 20,Some(work)).unwrap();
-            let (cert,owned) = first.certificate(work).unwrap();
+            let (cert,owned,matched) = first.certificate(work).unwrap();
+            assert!(!matched);
             assert!(owned);
             crate::cache::node_put_admitted(7,cert.clone(),true,Some(work)).unwrap();
             crate::cache::cert_commit_admitted(7,&std::collections::BTreeSet::from([id]),Some(work)).unwrap();
@@ -915,7 +916,8 @@ mod tests {
                     Box::new(std::time::Instant::now),std::time::Instant::now(),next_work)?;
                 let next_observer = Observer {job:RefCell::new(next_job),work:next_work};
                 let fresh = crate::evidence_store::read_node_mixed(&conn,&id,next_work,&next_observer).unwrap();
-                let (copy,owned) = fresh.certificate(next_work).unwrap();
+                let (copy,owned,matched) = fresh.certificate(next_work).unwrap();
+                assert!(matched);
                 assert!(owned);
                 assert!(!crate::v3::native_shared::NativeArc::ptr_eq(&cert,&copy));
                 assert!(copy.belongs_to_parent(next_work));
@@ -924,6 +926,13 @@ mod tests {
                 Ok::<_,sc::CodecError>(())
             }).unwrap();
             crate::cache::clear_handles();
+            {
+                let mut reader=crate::evidence_store::Reader::new_mixed(&conn,1<<20,work,&observer).unwrap();
+                let first=reader.load_mixed(&id).unwrap();
+                let again=reader.load_mixed(&id).unwrap();
+                assert!(crate::v3::native_shared::NativeArc::ptr_eq(&first,&again));
+                assert_eq!(observer.job.borrow().snapshot().nodes,1);
+            }
             conn.execute("UPDATE s_evidence_nodes SET payload=?1",rusqlite::params![&b"bad"[..]]).unwrap();
             assert!(matches!(crate::evidence_store::read_node_mixed(&conn,&id,work,&observer),
                 Err(crate::v3::business_json::MixedJsonError::Business(ref s)) if s.contains("同 ID 异内容")));
