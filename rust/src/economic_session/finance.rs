@@ -17,9 +17,13 @@ use std::path::{Path, PathBuf};
 const REV: &str = "tb03b-finance/1";
 /// #1394 §5.7：新财务子合同。没有 `/2` 域，`/1` 的子合同也不得靠改名接管新域。
 const REV_V2: &str = "tb03b-finance/2";
+/// #1716 I1-C：`economic-session/1` 域上显式选择的新财务子合同 = `/1` 全部语义 + 签署 cap 原子激活。
+/// `/1`、`/2` 不接受激活，图像、Reserve 记录与读者形状逐字不变。
+const REV_V3: &str = "tb03b-finance/3";
 /// §5.7 `s_ref/2` 的 exact 四字段版本值。
 const S_REF_V2: &str = "s-object-ref/2";
-/// 财务子合同版本的唯一登记点：缺省 `/1`（旧 manifest 逐字仍可读），显式只认 `/2`。
+/// 财务子合同版本的唯一登记点：缺省 `/1`（旧 manifest 逐字仍可读），显式认 `/2`，
+/// 以及 `economic-session/1` 域上显式选择的 `/3`。
 ///
 /// 与 E/B 域版本（`store::domain_revision`）必须同版；未知值与混写当场拒绝（§5.8）。
 fn revision(m: &Value) -> Result<&'static str, String> {
@@ -34,18 +38,80 @@ fn revision(m: &Value) -> Result<&'static str, String> {
     };
     match f.get("schema_revision") {
         Some(Value::String(text)) if text == want => Ok(want),
-        Some(Value::String(text)) if text == REV || text == REV_V2 => {
+        Some(Value::String(text)) if text == REV_V3 && want == REV => Ok(REV_V3),
+        Some(Value::String(text)) if text == REV || text == REV_V2 || text == REV_V3 => {
             Err("IdentityConflict：财务子合同版本与 E/B 域版本混写".into())
         }
-        _ => Err("SchemaUnsupported：财务子合同只有 tb03b-finance/1 与 tb03b-finance/2".into()),
+        _ => Err(
+            "SchemaUnsupported：财务子合同只有 tb03b-finance/1、tb03b-finance/2 与 tb03b-finance/3"
+                .into(),
+        ),
     }
 }
 const LIMIT: usize = 16 * 1024 * 1024;
 /// #1349 共同资金争用政策的具名 id（ADR 0029 裁定一：整 slot 原子等待）。版本字段与失效/重组归 #1408。
 pub(super) const ALLOCATION_POLICY_ID: &str = "#1349/atomic-slot-wait/v1";
 /// #1716 I1-C（ADR 0049 Q1）：E 当前生效 cap 版本记录。创世版本 1 由冻结原件 `policy` 派生；
-/// 只有显式 `ActivateCapPolicy` 在同一原子点核当前责任后整体切换，不提供自动排队激活。
+/// 只有 `/3` 的显式 `ActivateCapPolicy` 在同一原子点核签署原件与当前责任后整体切换，不提供自动排队激活。
 const CAP_POLICY_REV: &str = "funding-cap-policy/1";
+/// 新 cap 版本的不可变签署原件（ADR 0029 裁定四记录形状的 TestOnly 载体）。
+const CAP_RECORD_REV: &str = "funding-cap-policy-record/1";
+fn cap_activation_contract(config: &Config) -> Result<(), String> {
+    if revision(&config.manifest)? == REV_V3 {
+        Ok(())
+    } else {
+        Err("SchemaUnsupported：cap 激活只属于 tb03b-finance/3；/1、/2 不接受新激活".into())
+    }
+}
+/// 签署原件逐项绑定激活请求：适用政策身份与量纲、签署版本与所取代版本、金额、有效期、签署先于原子点。
+fn signed_cap_record(d: &Value, p: &Value, raw: &str, ns: &str) -> Result<Value, String> {
+    if sha256_hex(raw.as_bytes()) != p["policy_record"]["sha256"] {
+        return Err("IdentityConflict：新 cap 签署原件内容不等于激活引用摘要".into());
+    }
+    let r = strict_json(raw.as_bytes())?;
+    exact(
+        &r,
+        &[
+            "schema_revision",
+            "kind",
+            "policy_id",
+            "version",
+            "supersedes",
+            "cap",
+            "currency",
+            "money_unit",
+            "valid_through_ns",
+            "authorizer",
+            "authorized_at_ns",
+            "signature_ref",
+        ],
+    )?;
+    if r["schema_revision"] != CAP_RECORD_REV || r["kind"] != "TestOnly" {
+        return Err("UnsupportedCapability：新 cap 签署原件非具名 TestOnly 记录".into());
+    }
+    required(&r, "authorizer")?;
+    required(&r, "signature_ref")?;
+    if r["policy_id"] != d["policy"]["policy_id"]
+        || r["currency"] != d["policy"]["currency"]
+        || r["money_unit"] != d["policy"]["money_unit"]
+    {
+        return Err("IdentityConflict：签署原件不属于本冻结资金政策/量纲".into());
+    }
+    if r["version"] != p["to_version"] || r["supersedes"] != p["from_version"] {
+        return Err("IdentityConflict：签署版本或所取代版本与激活请求不同".into());
+    }
+    nonnegative(required(&r, "cap")?, "signed cap")?;
+    nonnegative(required(&r, "valid_through_ns")?, "signed valid_through_ns")?;
+    if r["cap"] != p["cap"] || r["valid_through_ns"] != p["valid_through_ns"] {
+        return Err("IdentityConflict：激活金额或有效期与签署原件不同".into());
+    }
+    if nonnegative(required(&r, "authorized_at_ns")?, "authorized_at_ns")?
+        > nonnegative(ns, "commit_ns")?
+    {
+        return Err("MissingDependency：签署晚于激活原子点".into());
+    }
+    Ok(r)
+}
 fn active_cap_policy(config: &Config, image: &Value, d: &Value) -> Result<Value, String> {
     match finance(config, image)?.get("cap_policy") {
         Some(active) if !active.is_null() => Ok(active.clone()),
@@ -174,18 +240,22 @@ fn item<'a>(a: &'a [Value], k: &str, id: &str) -> Result<&'a Value, String> {
         .ok_or_else(|| format!("MissingDependency：{k}={id} 不存在"))
 }
 fn pinned_raw(config: &Config) -> Result<String, String> {
-    let path = required(&config.manifest["finance"], "input_path")?;
+    original_raw(
+        required(&config.manifest["finance"], "input_path")?,
+        "财务原件",
+    )
+}
+fn original_raw(path: &str, what: &str) -> Result<String, String> {
     let mut bytes = Vec::new();
-    let f =
-        std::fs::File::open(path).map_err(|e| format!("MissingDependency：财务原件不可读：{e}"))?;
+    let f = std::fs::File::open(path).map_err(|e| format!("MissingDependency：{what}不可读：{e}"))?;
     if !f.metadata().map_err(err)?.is_file() {
-        return Err("InvalidDomain：财务原件须普通文件".into());
+        return Err(format!("InvalidDomain：{what}须普通文件"));
     }
     f.take((LIMIT + 1) as u64)
         .read_to_end(&mut bytes)
         .map_err(err)?;
     if bytes.len() > LIMIT {
-        return Err("InvalidDomain：财务原件超限".into());
+        return Err(format!("InvalidDomain：{what}超限"));
     }
     String::from_utf8(bytes).map_err(err)
 }
@@ -525,15 +595,16 @@ fn decision<'a>(config: &Config, image: &'a Value, id: &str) -> Result<&'a Value
 fn push(v: &mut Value, k: &str, x: Value) {
     v[k].as_array_mut().unwrap().push(x)
 }
+#[cfg(test)]
 fn receipt_key(op: &str, id: &str) -> String {
     format!("{REV}:{op}:{}", hash(&json!(id)))
 }
 fn receipt_key_for(config: &Config, op: &str, id: &str) -> Result<String, String> {
-    if revision(&config.manifest)? == REV {
-        Ok(receipt_key(op, id))
-    } else {
-        Ok(format!("{REV_V2}:{op}:{}", hash(&json!(id))))
-    }
+    Ok(format!(
+        "{}:{op}:{}",
+        revision(&config.manifest)?,
+        hash(&json!(id))
+    ))
 }
 pub(super) fn is_event(v: &Value) -> bool {
     matches!(
@@ -595,6 +666,7 @@ fn validate_request(p: &Value) -> Result<(), String> {
                     "to_version",
                     "cap",
                     "valid_through_ns",
+                    "policy_record",
                     "writer_epoch",
                 ],
             )?;
@@ -602,9 +674,13 @@ fn validate_request(p: &Value) -> Result<(), String> {
             required(p, "policy_id")?;
             positive(required(p, "from_version")?, "cap from_version")?;
             positive(required(p, "to_version")?, "cap to_version")?;
-            positive(required(p, "cap")?, "new cap")?;
+            nonnegative(required(p, "cap")?, "new cap")?;
             nonnegative(required(p, "valid_through_ns")?, "cap valid_through_ns")?;
-            Ok(())
+            exact(&p["policy_record"], &["path", "sha256"])?;
+            if !Path::new(required(&p["policy_record"], "path")?).is_absolute() {
+                return Err("InvalidDomain：新 cap 签署原件须绝对路径".into());
+            }
+            digest(required(&p["policy_record"], "sha256")?)
         }
         _ => Err("SchemaUnsupported：未知财务操作".into()),
     }?;
@@ -798,7 +874,7 @@ fn verify_structure_for_domain(
     evidence: &Value,
     plan: Option<&Value>,
 ) -> Result<(), String> {
-    if revision(&config.manifest)? == REV {
+    if revision(&config.manifest)? != REV_V2 {
         return verify_structure(config, evidence, plan);
     }
     let deadline = budget.deadline;
@@ -1250,6 +1326,7 @@ fn reduce_with_budget(
             r
         }
         "ActivateCapPolicy" => {
+            cap_activation_contract(config)?;
             if config.domain != "E" {
                 return Err("InvalidDomain：cap 激活仅 E".into());
             }
@@ -1267,12 +1344,23 @@ fn reduce_with_budget(
             if positive(required(p, "to_version")?, "cap to_version")? != add(from, 1)? {
                 return Err("IdentityConflict：新 cap 版本须为当前版本+1".into());
             }
+            let signed = signed_cap_record(&d, p, required(w, "cap_policy_raw")?, ns)?;
             let commit_ns = nonnegative(ns, "commit_ns")?;
             if nonnegative(required(p, "valid_through_ns")?, "cap valid_through_ns")? < commit_ns {
                 return Err("MissingDependency：新 cap 版本在原子点已过期".into());
             }
-            let cap = positive(required(p, "cap")?, "new cap")?;
-            let liability = list(finance(config, previous)?, "responsibilities")?
+            let cap = nonnegative(required(p, "cap")?, "new cap")?;
+            let responsibilities = list(finance(config, previous)?, "responsibilities")?;
+            if !responsibilities.iter().any(|r| {
+                r["responsibility_id"] == d["baseline"]["responsibility_id"]
+                    && r["owner"] == "E:baseline"
+            }) {
+                return Err(
+                    "MissingDependency：既有公共责任尚未规范导入 E；不能按未导入责任激活新 cap"
+                        .into(),
+                );
+            }
+            let liability = responsibilities
                 .iter()
                 .try_fold(0i64, |a, r| add(a, number(r, "amount")?))?;
             if liability > cap {
@@ -1280,7 +1368,7 @@ fn reduce_with_budget(
                     "InvalidDomain：新 cap {cap} 低于原子点当前责任 {liability}；保留原生效版本"
                 ));
             }
-            let new = json!({"schema_revision":CAP_POLICY_REV,"policy_id":p["policy_id"],"policy_version":p["to_version"],"cap":p["cap"],"valid_through_ns":p["valid_through_ns"],"activation_id":p["activation_id"],"replaces_version":p["from_version"],"liability_at_activation":liability.to_string(),"activated_seq":seq.to_string(),"activated_ns":ns});
+            let new = json!({"schema_revision":CAP_POLICY_REV,"policy_id":p["policy_id"],"policy_version":p["to_version"],"cap":p["cap"],"valid_through_ns":p["valid_through_ns"],"activation_id":p["activation_id"],"replaces_version":p["from_version"],"policy_record_sha256":p["policy_record"]["sha256"],"authorizer":signed["authorizer"],"authorized_at_ns":signed["authorized_at_ns"],"signature_ref":signed["signature_ref"],"liability_at_activation":liability.to_string(),"activated_seq":seq.to_string(),"activated_ns":ns});
             next["finance"]["cap_policy"] = new.clone();
             json!({"activation_id":p["activation_id"],"state":"CapPolicyActivated","from":live_cap,"to":new,"liability_at_activation":liability.to_string()})
         }
@@ -1472,6 +1560,9 @@ pub(super) fn write_with_ingress(
 ) -> Result<Value, String> {
     let p = &e["payload"];
     validate_request(p)?;
+    if p["op"] == "ActivateCapPolicy" {
+        cap_activation_contract(config)?;
+    }
     let k = key_for(config, p)?;
     let mut shared_job = if revision(&config.manifest)? == REV_V2 {
         Some(new_content_job(c, config)?)
@@ -1567,7 +1658,13 @@ pub(super) fn write_with_ingress(
             )?;
             w["structure"] = structure(config)?;
         }
-        "ImportResponsibility" | "AbortDecision" | "CloseApplicants" | "ActivateCapPolicy" => (),
+        "ActivateCapPolicy" => {
+            w["cap_policy_raw"] = json!(original_raw(
+                required(&p["policy_record"], "path")?,
+                "新 cap 签署原件"
+            )?);
+        }
+        "ImportResponsibility" | "AbortDecision" | "CloseApplicants" => (),
         _ => return Err("SchemaUnsupported：财务操作未知".into()),
     }
     persist(c, config, epoch, e, w)
@@ -1654,7 +1751,7 @@ fn write_v2_inner(
                 receipt_key_for(config, "Reserve", required(q, "slot_id")?)?,
             ));
         }
-        "ImportResponsibility" | "AbortDecision" | "CloseApplicants" | "ActivateCapPolicy" => (),
+        "ImportResponsibility" | "AbortDecision" | "CloseApplicants" => (),
         _ => return Err("SchemaUnsupported：财务操作未知".into()),
     }
     let token = format!(

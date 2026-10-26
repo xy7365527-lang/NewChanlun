@@ -74,6 +74,26 @@ impl Fixture {
         slot_spec: &[(&str, &[&str])],
         c4a: Option<(bool, bool)>,
     ) -> Self {
+        Self::build_full(cap, fault, slot_spec, c4a, None)
+    }
+    /// #1716：显式选择 `tb03b-finance/3` 的夹具；S 由钉住摘要的单位桩回答，Reserve 可经 `service::handle`。
+    fn v3(cap: &str, baseline: &str, import: bool, fault: Option<(&str, &str)>) -> Self {
+        Self::build_full(
+            cap,
+            fault,
+            &[("slot", &["alpha", "beta"])],
+            None,
+            Some((baseline, import)),
+        )
+    }
+    fn build_full(
+        cap: &str,
+        fault: Option<(&str, &str)>,
+        slot_spec: &[(&str, &[&str])],
+        c4a: Option<(bool, bool)>,
+        v3: Option<(&str, bool)>,
+    ) -> Self {
+        let rev = if v3.is_some() { REV_V3 } else { REV };
         let applicants: Vec<&str> = slot_spec
             .iter()
             .flat_map(|(_, a)| a.iter().copied())
@@ -183,7 +203,8 @@ impl Fixture {
                 json!({"slot_id":slot_id,"applicants":applicant_list,"input_end":{"kind":"ControlledInputEnd","source_id":"unit-fixture","source_epoch":"1","watermark":"2","complete_request_hash":request_hash}})
             })
             .collect();
-        let data = json!({"schema_revision":REV,"kind":"TestOnly","source_id":"unit-fixture","source_epoch":"1","policy":{"policy_id":format!("TestOnly-cash-cap-{cap}"),"allocation_policy_id":"#1349/atomic-slot-wait/v1","cap":cap,"currency":"TEST-CASH","money_unit":"TEST-CASH","quantity_unit":"TEST-UNIT","quantum":"1","capability_id":"TestOnly-no-leverage-no-venue","model":"TestOnlyUnleveragedCashBuy","valid_through_ns":"100000"},"baseline":{"responsibility_id":"existing20","amount":"20","source_ref":"TestOnly-existing-full-liability-original","covered_facts":covered},"rights":rights,"plans":plans,"slots":slots});
+        let baseline = v3.map_or("20", |(amount, _)| amount);
+        let data = json!({"schema_revision":rev,"kind":"TestOnly","source_id":"unit-fixture","source_epoch":"1","policy":{"policy_id":format!("TestOnly-cash-cap-{cap}"),"allocation_policy_id":"#1349/atomic-slot-wait/v1","cap":cap,"currency":"TEST-CASH","money_unit":"TEST-CASH","quantity_unit":"TEST-UNIT","quantum":"1","capability_id":"TestOnly-no-leverage-no-venue","model":"TestOnlyUnleveragedCashBuy","valid_through_ns":"100000"},"baseline":{"responsibility_id":"existing20","amount":baseline,"source_ref":"TestOnly-existing-full-liability-original","covered_facts":covered},"rights":rights,"plans":plans,"slots":slots});
         let (ip, ih) = save(&dir, "input.json", &data);
         let source = json!({"source_namespace":"test","source_epoch":"one","producer_id":"unit","producer_epoch":"1"});
         let mut auth = source.clone();
@@ -241,6 +262,9 @@ impl Fixture {
             ("ActivateCapPolicy-equal", 95, 96, 96),
             ("ActivateCapPolicy-stale", 96, 97, 97),
             ("ActivateCapPolicy-above", 97, 98, 98),
+            ("ActivateCapPolicy-race", 99, 99, 99),
+            ("Reserve-race", 99, 99, 99),
+            ("ImportResponsibility-race", 99, 99, 99),
         ] {
             clocks[message] = json!({"received_ns":r.to_string(),"first_known_ns":k.to_string(),"commit_ns":c.to_string()});
         }
@@ -249,7 +273,17 @@ impl Fixture {
             clocks["Reserve-slot-b"] =
                 json!({"received_ns":"93","first_known_ns":"94","commit_ns":"94"});
         }
-        let mut manifest = json!({"schema_revision":"economic-manifest/1","session_id":"tb03b-unit","session_generation":"1","e":{"db":dir.join("e.db"),"socket":dir.join("e.sock")},"chongs":routes,"authorized_sources":[auth],"resources":{"max_frame_bytes":"16777216","read_timeout_ms":"1000","write_timeout_ms":"1000","response_timeout_ms":"3000","queue_capacity":"4","max_connections":"4"},"clock":{"kind":"TestOnly","plan":{"init_ns":"1","recover_ns":["1000","2000"],"messages":clocks}},"voice_binding":{"schema_revision":"voice-binding/1","authorities":authorities},"finance":{"schema_revision":REV,"input_path":ip,"input_sha256":ih,"coordinator_source":source,"structure":{"binary":"/unit-unavailable-S-binary","binary_sha256":hash(&json!("unit")),"db":dir.join("s.db"),"session_id":"tb03b-unit","session_generation":"1","writer_epoch":"1"}}});
+        let mut manifest = json!({"schema_revision":"economic-manifest/1","session_id":"tb03b-unit","session_generation":"1","e":{"db":dir.join("e.db"),"socket":dir.join("e.sock")},"chongs":routes,"authorized_sources":[auth],"resources":{"max_frame_bytes":"16777216","read_timeout_ms":"1000","write_timeout_ms":"1000","response_timeout_ms":"3000","queue_capacity":"4","max_connections":"4"},"clock":{"kind":"TestOnly","plan":{"init_ns":"1","recover_ns":["1000","2000"],"messages":clocks}},"voice_binding":{"schema_revision":"voice-binding/1","authorities":authorities},"finance":{"schema_revision":rev,"input_path":ip,"input_sha256":ih,"coordinator_source":source,"structure":{"binary":"/unit-unavailable-S-binary","binary_sha256":hash(&json!("unit")),"db":dir.join("s.db"),"session_id":"tb03b-unit","session_generation":"1","writer_epoch":"1"}}});
+        if v3.is_some() {
+            use std::os::unix::fs::PermissionsExt;
+            let (basis_path, _) = save(&dir, "s-unit-basis-stub.json", &basis);
+            let stub = dir.join("s-unit-stub.sh");
+            std::fs::write(&stub, format!("#!/bin/sh\nexec /bin/cat '{basis_path}'\n")).unwrap();
+            std::fs::set_permissions(&stub, std::fs::Permissions::from_mode(0o700)).unwrap();
+            manifest["finance"]["structure"]["binary"] = json!(stub);
+            manifest["finance"]["structure"]["binary_sha256"] =
+                json!(sha256_hex(&std::fs::read(&stub).unwrap()));
+        }
         if let Some((resolve_first, _)) = c4a {
             manifest["book_revision"] = json!(book::TB03C_BOOK_V1);
             manifest["fill_manifests"] = json!([fill_manifest]);
@@ -298,7 +332,9 @@ impl Fixture {
             let bound = f.handle(i + 1, &format!("bind-{name}"), bindings[i].clone());
             assert_eq!(bound["kind"], "VoiceBound", "{bound}");
         }
-        if !fault.is_some_and(|(message, _)| message == "ImportResponsibility-existing20") {
+        if !fault.is_some_and(|(message, _)| message == "ImportResponsibility-existing20")
+            && v3.is_none_or(|(_, import)| import)
+        {
             f.step(0, "ImportResponsibility", "existing20");
         }
         f
@@ -335,9 +371,13 @@ impl Fixture {
                 p["reason"] = json!("unit abort no release");
             }
             if op == "CommitDecision" {
-                let r = row(&self.dbs[0], "receipts", &receipt_key("Reserve", "slot"))
-                    .unwrap()
-                    .unwrap();
+                let r = row(
+                    &self.dbs[0],
+                    "receipts",
+                    &receipt_key_for(&self.configs[0], "Reserve", "slot").unwrap(),
+                )
+                .unwrap()
+                .unwrap();
                 p["grant_id"] = r["record"]["grants"]
                     .as_array()
                     .unwrap()
@@ -364,7 +404,7 @@ impl Fixture {
                     proof(
                         &self.configs[0],
                         &format!("B:{name}"),
-                        &receipt_key("PrepareDecision", name),
+                        &receipt_key_for(&self.configs[0], "PrepareDecision", name).unwrap(),
                     )
                     .unwrap()
                 })
@@ -372,8 +412,12 @@ impl Fixture {
             w["prepared_proofs"] = json!(proofs);
         }
         if op == "CommitDecision" {
-            w["grant_proof"] =
-                proof(&self.configs[1], "E", &receipt_key("Reserve", "slot")).unwrap();
+            w["grant_proof"] = proof(
+                &self.configs[1],
+                "E",
+                &receipt_key_for(&self.configs[1], "Reserve", "slot").unwrap(),
+            )
+            .unwrap();
         }
         w
     }
@@ -1259,16 +1303,22 @@ fn c4a_fin1_uncovered_fact_cannot_reserve_or_resolve_and_keeps_all_state() {
     f.audit();
 }
 
-// #1716 I1-C：cap 原子激活经 E 正式会话入口（service::handle → finance::write）提交；
-// #1408 授信消费点 Reserve 走同一 persist → reduce，S 结构依据沿用本文件的单位信任夹具。
-fn cap_payload(f: &Fixture, from: &str, to: &str, cap: &str, valid: &str) -> Value {
-    json!({"op":"ActivateCapPolicy","activation_id":format!("cap-{from}-{to}-{cap}-{valid}"),"policy_id":f.data["policy"]["policy_id"],"from_version":from,"to_version":to,"cap":cap,"valid_through_ns":valid,"writer_epoch":"1"})
+// #1716 I1-C：cap 原子激活只属于显式选择的 tb03b-finance/3，经 E 正式会话入口
+// （service::handle → finance::write_with_ingress）提交，新 cap 来自不可变 TestOnly 合成签署原件。
+// #1408 授信消费点 Reserve 同样经 service::handle，S 由钉住摘要的单位桩回答。
+fn cap_record(f: &Fixture, from: &str, to: &str, cap: &str, valid: &str) -> Value {
+    json!({"schema_revision":CAP_RECORD_REV,"kind":"TestOnly","policy_id":f.data["policy"]["policy_id"],"version":to,"supersedes":from,"cap":cap,"currency":f.data["policy"]["currency"],"money_unit":f.data["policy"]["money_unit"],"valid_through_ns":valid,"authorizer":"TestOnly 合成签署人（#1716 夹具，非真实资金签署）","authorized_at_ns":"1","signature_ref":"TestOnly-synthetic-signature/#1716"})
 }
-fn reserve_now(f: &mut Fixture) -> Value {
-    let e = f.request("Reserve", "slot");
-    let w = f.witness_for("Reserve", "slot");
-    persist(&mut f.dbs[0], &f.configs[0], 1, &e, w)
-        .unwrap_or_else(|error| json!({"kind":"Error","error":error}))
+fn activation(f: &Fixture, record: &Value, from: &str, to: &str, cap: &str, valid: &str) -> Value {
+    let (path, sha) = save(&f.dir, &format!("cap-record-{}.json", hash(record)), record);
+    json!({"op":"ActivateCapPolicy","activation_id":format!("cap-{from}-{to}-{cap}-{valid}"),"policy_id":f.data["policy"]["policy_id"],"from_version":from,"to_version":to,"cap":cap,"valid_through_ns":valid,"policy_record":{"path":path,"sha256":sha},"writer_epoch":"1"})
+}
+fn cap_payload(f: &Fixture, from: &str, to: &str, cap: &str, valid: &str) -> Value {
+    activation(f, &cap_record(f, from, to, cap, valid), from, to, cap, valid)
+}
+fn reserve_now(f: &mut Fixture, message: &str) -> Value {
+    let payload = f.request("Reserve", "slot")["payload"].clone();
+    f.handle(0, message, payload)
 }
 fn assert_rejected_unchanged(f: &mut Fixture, message: &str, payload: Value, kind: &str) -> Value {
     let before: Vec<_> = (0..3).map(|n| latest(&f.dbs[n]).unwrap()).collect();
@@ -1281,50 +1331,77 @@ fn assert_rejected_unchanged(f: &mut Fixture, message: &str, payload: Value, kin
         canonical_json(&after[0].3),
         "E 图像逐字相等"
     );
-    assert!(row(&f.dbs[0], "receipts", &key(&payload).unwrap())
+    assert!(row(&f.dbs[0], "receipts", &key_for(&f.configs[0], &payload).unwrap())
         .unwrap()
         .is_none());
     r
 }
+fn active_cap_and_liability(f: &Fixture) -> (Value, i64) {
+    let image = latest(&f.dbs[0]).unwrap().3;
+    (image["finance"]["cap_policy"].clone(), responsibility_total(&image))
+}
 #[test]
-fn cap_activation_is_atomic() {
+fn old_finance_contracts_refuse_cap_activation() {
     let mut f = Fixture::new("100");
     f.prepare();
-    let reserved = reserve_now(&mut f);
+    let mut payload = cap_payload(&f, "1", "2", "150", "100000");
+    payload["policy_record"]["path"] = json!(f.dir.join("never-read.json"));
+    let r = assert_rejected_unchanged(
+        &mut f,
+        "ActivateCapPolicy-pre",
+        payload,
+        "SchemaUnsupported",
+    );
+    assert!(r["error"].as_str().unwrap().contains("tb03b-finance/3"));
+    let reserved = f.step(0, "Reserve", "slot");
+    assert!(reserved["record"].get("cap_policy").is_none());
+    assert!(latest(&f.dbs[0]).unwrap().3["finance"]
+        .get("cap_policy")
+        .is_none());
+    f.audit();
+    let mut m = f.configs[0].manifest.clone();
+    for (protocol, finance) in [(SCHEMA_V1, REV), (SCHEMA_V2, REV_V2)] {
+        m["protocol_revision"] = json!(protocol);
+        m["finance"]["schema_revision"] = json!(finance);
+        assert_eq!(revision(&m).unwrap(), finance);
+    }
+    m["finance"]["schema_revision"] = json!(REV_V3);
+    assert!(revision(&m).unwrap_err().contains("混写"));
+    m["protocol_revision"] = json!(SCHEMA_V1);
+    assert_eq!(revision(&m).unwrap(), REV_V3);
+}
+#[test]
+fn cap_activation_is_atomic() {
+    let mut f = Fixture::v3("100", "20", true, None);
+    f.prepare();
+    let reserved = reserve_now(&mut f, "Reserve-slot");
     assert_eq!(reserved["kind"], "ReserveReceipt", "{reserved}");
     assert_eq!(reserved["record"]["state"], "Reserved");
     assert!(reserved["record"].get("cap_policy").is_none());
-    assert_eq!(responsibility_total(&latest(&f.dbs[0]).unwrap().3), 90);
-    // 责任 90 > 新 cap 89：拒绝，旧 v1 与账目逐字不变。
+    assert_eq!(active_cap_and_liability(&f).1, 90);
     let low = cap_payload(&f, "1", "2", "89", "100000");
     let rejected_low =
         assert_rejected_unchanged(&mut f, "ActivateCapPolicy-low", low, "InvalidDomain");
     assert!(rejected_low["error"].as_str().unwrap().contains("90"));
-    assert!(latest(&f.dbs[0]).unwrap().3["finance"]
-        .get("cap_policy")
-        .is_none());
-    // 责任 90 = 新 cap 90：允许，整体切到 v2。
+    assert!(active_cap_and_liability(&f).0.is_null());
     let equal = cap_payload(&f, "1", "2", "90", "100000");
     let activated = f.handle(0, "ActivateCapPolicy-equal", equal.clone());
     assert_eq!(
         activated["kind"], "CapPolicyActivatedReceipt",
         "{activated}"
     );
-    assert_eq!(activated["record"]["state"], "CapPolicyActivated");
+    let to = &activated["record"]["to"];
     assert_eq!(activated["record"]["from"]["policy_version"], "1");
     assert_eq!(activated["record"]["from"]["cap"], "100");
-    assert_eq!(activated["record"]["to"]["policy_version"], "2");
-    assert_eq!(activated["record"]["to"]["cap"], "90");
+    assert_eq!(to["policy_version"], "2");
+    assert_eq!(to["cap"], "90");
+    assert_eq!(to["policy_record_sha256"], equal["policy_record"]["sha256"]);
+    assert_eq!(to["signature_ref"], "TestOnly-synthetic-signature/#1716");
     assert_eq!(activated["record"]["liability_at_activation"], "90");
-    let image = latest(&f.dbs[0]).unwrap().3;
-    assert_eq!(image["finance"]["cap_policy"], activated["record"]["to"]);
-    assert_eq!(responsibility_total(&image), 90);
-    // 同一激活重送返回原回执，不重复切换。
+    assert_eq!(active_cap_and_liability(&f), (to.clone(), 90));
     assert_eq!(f.handle(0, "ActivateCapPolicy-equal", equal), activated);
-    // 基于已被取代的 v1 再激活：CAS 拒绝，v2 与账目逐字不变。
     let stale = cap_payload(&f, "1", "2", "500", "100000");
     assert_rejected_unchanged(&mut f, "ActivateCapPolicy-stale", stale, "StaleWriter");
-    // 责任 90 < 新 cap 150：允许 v2→v3。
     let above = f.handle(
         0,
         "ActivateCapPolicy-above",
@@ -1333,25 +1410,186 @@ fn cap_activation_is_atomic() {
     assert_eq!(above["kind"], "CapPolicyActivatedReceipt", "{above}");
     assert_eq!(above["record"]["from"]["policy_version"], "2");
     assert_eq!(above["record"]["to"]["cap"], "150");
-    // 既有 grant 仍可 Commit，激活不减仓、不挪责任。
     for (n, name) in [(1, "alpha"), (2, "beta")] {
         assert_eq!(
             f.step(n, "CommitDecision", name)["record"]["state"],
             "Committed"
         );
     }
-    assert_eq!(responsibility_total(&latest(&f.dbs[0]).unwrap().3), 90);
+    assert_eq!(active_cap_and_liability(&f).1, 90);
     f.audit();
     save(
         &f.dir,
         "issue1716-cap-activation-oracle.json",
-        &json!({"scope":"#1716 I1-C TestOnly synthetic cap fixture through service::handle; not signed instance","rejected_low":rejected_low,"activated":activated,"above":above,"e_image":latest(&f.dbs[0]).unwrap().3}),
+        &json!({"scope":"#1716 I1-C tb03b-finance/3 TestOnly synthetic signed cap fixture through service::handle; not a signed real instance","reserve":reserved,"rejected_low":rejected_low,"activated":activated,"above":above,"e_image":latest(&f.dbs[0]).unwrap().3}),
     );
 }
 #[test]
+fn cap_activation_requires_matching_signed_original() {
+    let mut f = Fixture::v3("100", "20", true, None);
+    f.prepare();
+    let good = cap_record(&f, "1", "2", "90", "100000");
+    let mut rejected = vec![];
+    let mut missing = cap_payload(&f, "1", "2", "90", "100000");
+    missing["policy_record"]["path"] = json!(f.dir.join("missing-signed-record.json"));
+    rejected.push(("缺签署原件", missing, "MissingDependency", "不可读"));
+    let mut unsigned = good.clone();
+    unsigned.as_object_mut().unwrap().remove("authorizer");
+    rejected.push((
+        "缺签署人",
+        activation(&f, &unsigned, "1", "2", "90", "100000"),
+        "SchemaUnsupported",
+        "字段不完整",
+    ));
+    for (case, field, value, reason) in [
+        ("错政策签署", "policy_id", "TestOnly-other-policy", "不属于本冻结资金政策"),
+        ("错币种签署", "currency", "OTHER-CASH", "不属于本冻结资金政策"),
+        ("错版本签署", "version", "3", "签署版本或所取代版本"),
+        ("错取代版本签署", "supersedes", "2", "签署版本或所取代版本"),
+    ] {
+        let mut wrong = good.clone();
+        wrong[field] = json!(value);
+        rejected.push((
+            case,
+            activation(&f, &wrong, "1", "2", "90", "100000"),
+            "IdentityConflict",
+            reason,
+        ));
+    }
+    let mut late = good.clone();
+    late["authorized_at_ns"] = json!("100");
+    rejected.push((
+        "签署晚于原子点",
+        activation(&f, &late, "1", "2", "90", "100000"),
+        "MissingDependency",
+        "签署晚于",
+    ));
+    let mut real = good.clone();
+    real["kind"] = json!("UserSigned");
+    rejected.push((
+        "非 TestOnly 原件",
+        activation(&f, &real, "1", "2", "90", "100000"),
+        "UnsupportedCapability",
+        "TestOnly",
+    ));
+    rejected.push((
+        "改金额",
+        activation(&f, &good, "1", "2", "150", "100000"),
+        "IdentityConflict",
+        "金额或有效期",
+    ));
+    rejected.push((
+        "改期限",
+        activation(&f, &good, "1", "2", "90", "200000"),
+        "IdentityConflict",
+        "金额或有效期",
+    ));
+    let mut rewritten = cap_payload(&f, "1", "2", "90", "100000");
+    let copy = f.dir.join("cap-record-rewritten-after-signing.json");
+    let mut tampered = good.clone();
+    tampered["cap"] = json!("1000");
+    std::fs::write(&copy, canonical_json(&tampered)).unwrap();
+    rewritten["policy_record"]["path"] = json!(copy);
+    rejected.push((
+        "签署后改写原件",
+        rewritten,
+        "IdentityConflict",
+        "不等于激活引用摘要",
+    ));
+    let mut evidence = vec![];
+    for (case, payload, kind, reason) in rejected {
+        let r = assert_rejected_unchanged(&mut f, "ActivateCapPolicy-pre", payload, kind);
+        assert!(r["error"].as_str().unwrap().contains(reason), "{case}: {r}");
+        assert!(active_cap_and_liability(&f).0.is_null(), "{case}");
+        evidence.push(json!({"case":case,"error":r["error"]}));
+    }
+    let signed = cap_payload(&f, "1", "2", "90", "100000");
+    let activated = f.handle(0, "ActivateCapPolicy-pre", signed.clone());
+    assert_eq!(
+        activated["kind"], "CapPolicyActivatedReceipt",
+        "{activated}"
+    );
+    assert_eq!(
+        activated["record"]["to"]["policy_record_sha256"],
+        signed["policy_record"]["sha256"]
+    );
+    let r = reserve_now(&mut f, "Reserve-slot");
+    assert_eq!(r["record"]["state"], "Reserved", "{r}");
+    assert_eq!(r["record"]["cap_policy"], activated["record"]["to"]);
+    f.audit();
+    save(
+        &f.dir,
+        "issue1716-cap-signature-controls.json",
+        &json!({"rejected":evidence,"activated":activated,"reserve":r}),
+    );
+}
+#[test]
+fn cap_activation_requires_imported_baseline() {
+    let mut f = Fixture::v3("100", "20", false, None);
+    f.prepare();
+    for cap in ["10", "100"] {
+        let r = assert_rejected_unchanged(
+            &mut f,
+            "ActivateCapPolicy-pre",
+            cap_payload(&f, "1", "2", cap, "100000"),
+            "MissingDependency",
+        );
+        assert!(r["error"].as_str().unwrap().contains("尚未规范导入"));
+    }
+    let imported = f.handle(
+        0,
+        "ImportResponsibility-race",
+        json!({"op":"ImportResponsibility","responsibility_id":"existing20","writer_epoch":"1"}),
+    );
+    assert_eq!(imported["kind"], "ResponsibilityImportedReceipt", "{imported}");
+    assert_eq!(active_cap_and_liability(&f).1, 20);
+    assert_rejected_unchanged(
+        &mut f,
+        "ActivateCapPolicy-race",
+        cap_payload(&f, "1", "2", "19", "100000"),
+        "InvalidDomain",
+    );
+    let a = f.handle(
+        0,
+        "ActivateCapPolicy-race",
+        cap_payload(&f, "1", "2", "20", "100000"),
+    );
+    assert_eq!(a["record"]["liability_at_activation"], "20", "{a}");
+    f.audit();
+}
+#[test]
+fn zero_liability_allows_zero_cap_and_negative_cap_is_refused() {
+    let mut f = Fixture::v3("100", "0", true, None);
+    f.prepare();
+    assert_eq!(active_cap_and_liability(&f).1, 0);
+    let mut negative = cap_payload(&f, "1", "2", "0", "100000");
+    negative["cap"] = json!("-1");
+    assert_rejected_unchanged(&mut f, "ActivateCapPolicy-pre", negative, "InvalidDomain");
+    let mut signed_negative = cap_record(&f, "1", "2", "0", "100000");
+    signed_negative["cap"] = json!("-1");
+    assert_rejected_unchanged(
+        &mut f,
+        "ActivateCapPolicy-pre",
+        activation(&f, &signed_negative, "1", "2", "0", "100000"),
+        "InvalidDomain",
+    );
+    let zero = f.handle(
+        0,
+        "ActivateCapPolicy-pre",
+        cap_payload(&f, "1", "2", "0", "100000"),
+    );
+    assert_eq!(zero["kind"], "CapPolicyActivatedReceipt", "{zero}");
+    assert_eq!(zero["record"]["to"]["cap"], "0");
+    assert_eq!(zero["record"]["liability_at_activation"], "0");
+    let r = reserve_now(&mut f, "Reserve-slot");
+    assert_eq!(r["record"]["state"], "AwaitingAllocationPolicy", "{r}");
+    assert_eq!(r["record"]["retained_total"], "0");
+    assert_eq!(active_cap_and_liability(&f).1, 0);
+    f.audit();
+}
+#[test]
 fn cap_activation_and_new_liability_rejudged_in_one_atomic_order() {
-    // 先激活 v2(cap 50，原子点责任 20)，后来的 Reserve（#1408 授信消费点）按 v2 判：90 > 50 等待政策。
-    let mut first = Fixture::new("100");
+    let mut first = Fixture::v3("100", "20", true, None);
     first.prepare();
     let a = first.handle(
         0,
@@ -1360,34 +1598,104 @@ fn cap_activation_and_new_liability_rejudged_in_one_atomic_order() {
     );
     assert_eq!(a["kind"], "CapPolicyActivatedReceipt", "{a}");
     assert_eq!(a["record"]["liability_at_activation"], "20");
-    let r = reserve_now(&mut first);
+    let r = reserve_now(&mut first, "Reserve-slot");
     assert_eq!(r["kind"], "ReserveReceipt", "{r}");
     assert_eq!(r["record"]["state"], "AwaitingAllocationPolicy");
     assert_eq!(r["record"]["required_total"], "90");
     assert_eq!(r["record"]["retained_total"], "20");
     assert_eq!(r["record"]["grants"], json!([]));
     assert_eq!(r["record"]["cap_policy"], a["record"]["to"]);
-    assert_eq!(responsibility_total(&latest(&first.dbs[0]).unwrap().3), 20);
+    assert_eq!(active_cap_and_liability(&first).1, 20);
     first.audit();
-    // 先 Reserve 增责到 90，后来的激活 cap 50 在其原子点重判：拒绝，Reserved 与责任逐字保留。
-    let mut second = Fixture::new("100");
+    let mut second = Fixture::v3("100", "20", true, None);
     second.prepare();
-    let r = reserve_now(&mut second);
+    let r = reserve_now(&mut second, "Reserve-slot");
     assert_eq!(r["record"]["state"], "Reserved", "{r}");
     let late = cap_payload(&second, "1", "2", "50", "100000");
     assert_rejected_unchanged(&mut second, "ActivateCapPolicy-low", late, "InvalidDomain");
-    assert_eq!(responsibility_total(&latest(&second.dbs[0]).unwrap().3), 90);
+    assert_eq!(active_cap_and_liability(&second).1, 90);
     second.audit();
+}
+fn race(f: &Fixture, a: (&str, Value), b: (&str, Value)) -> [Value; 2] {
+    let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+    let run = |(message, payload): (&str, Value)| {
+        let (config, barrier, message) = (f.configs[0].clone(), barrier.clone(), message.to_owned());
+        std::thread::spawn(move || {
+            let (mut c, _) = open(&config.db, false).unwrap();
+            barrier.wait();
+            service::handle(&mut c, &config, 1, 1, &json!({}), &envelope(&message, payload))
+                ["payload"]
+                .clone()
+        })
+    };
+    let (a, b) = (run(a), run(b));
+    [a.join().unwrap(), b.join().unwrap()]
+}
+#[test]
+fn concurrent_connections_never_leave_cap_below_liability() {
+    let mut observed = vec![];
+    for round in 0..4 {
+        let mut f = Fixture::v3("100", "20", true, None);
+        f.prepare();
+        let reserve = f.request("Reserve", "slot")["payload"].clone();
+        let cap = cap_payload(&f, "1", "2", "50", "100000");
+        let [activated, reserved] = race(
+            &f,
+            ("ActivateCapPolicy-race", cap),
+            ("Reserve-race", reserve),
+        );
+        assert_eq!(reserved["kind"], "ReserveReceipt", "{reserved}");
+        let (active, liability) = active_cap_and_liability(&f);
+        let winner = if activated["kind"] == "CapPolicyActivatedReceipt" {
+            assert_eq!(reserved["record"]["state"], "AwaitingAllocationPolicy");
+            assert_eq!(reserved["record"]["cap_policy"], active);
+            assert_eq!(liability, 20);
+            "activation-first"
+        } else {
+            c4a_error(&activated, "InvalidDomain");
+            assert_eq!(reserved["record"]["state"], "Reserved");
+            assert!(active.is_null());
+            assert_eq!(liability, 90);
+            "reserve-first"
+        };
+        assert!(active.is_null() || number(&active, "cap").unwrap() >= liability);
+        f.audit();
+        let mut g = Fixture::v3("100", "20", false, None);
+        g.prepare();
+        let import = json!({"op":"ImportResponsibility","responsibility_id":"existing20","writer_epoch":"1"});
+        let [imported, low] = race(
+            &g,
+            ("ImportResponsibility-race", import),
+            ("ActivateCapPolicy-race", cap_payload(&g, "1", "2", "10", "100000")),
+        );
+        assert_eq!(imported["kind"], "ResponsibilityImportedReceipt", "{imported}");
+        assert_eq!(low["kind"], "Error", "{low}");
+        let import_order = if low["error"].as_str().unwrap().starts_with("MissingDependency") {
+            "activation-first"
+        } else {
+            c4a_error(&low, "InvalidDomain");
+            "import-first"
+        };
+        assert_eq!(active_cap_and_liability(&g), (Value::Null, 20));
+        g.audit();
+        observed.push(json!({"round":round,"reserve_vs_activation":winner,"import_vs_activation":import_order,"reserve":reserved,"activation":activated,"low_activation":low}));
+    }
+    let root = std::env::var_os("TB03B_TEST_ROOT")
+        .map(PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir);
+    save(
+        &root,
+        &format!("issue1716-cap-race-{}.json", std::process::id()),
+        &json!({"scope":"two SQLite connections on one E db, threads released by a barrier","rounds":observed}),
+    );
 }
 #[test]
 fn expired_cap_version_rejection_does_not_restore_credit() {
-    // 新版本有效期在原子点前已过：拒绝激活。
-    let mut f = Fixture::new("100");
+    let mut f = Fixture::v3("100", "20", true, None);
     f.prepare();
     let stale = cap_payload(&f, "1", "2", "100", "50");
     assert_rejected_unchanged(&mut f, "ActivateCapPolicy-pre", stale, "MissingDependency");
-    // v2 有效到 91；Reserve 在 92 读 v2，已过期，不授信。
-    let mut g = Fixture::new("100");
+    let mut g = Fixture::v3("100", "20", true, None);
     g.prepare();
     let a = g.handle(
         0,
@@ -1396,12 +1704,11 @@ fn expired_cap_version_rejection_does_not_restore_credit() {
     );
     assert_eq!(a["kind"], "CapPolicyActivatedReceipt", "{a}");
     let before = latest(&g.dbs[0]).unwrap();
-    c4a_error(&reserve_now(&mut g), "MissingDependency");
+    c4a_error(&reserve_now(&mut g, "Reserve-slot"), "MissingDependency");
     assert_eq!(latest(&g.dbs[0]).unwrap(), before);
-    // 换新版本被责任拒绝后，保留的是已过期 v2：仍不能恢复授信。
     let low = cap_payload(&g, "2", "3", "10", "100000");
     assert_rejected_unchanged(&mut g, "ActivateCapPolicy-low", low, "InvalidDomain");
-    c4a_error(&reserve_now(&mut g), "MissingDependency");
+    c4a_error(&reserve_now(&mut g, "Reserve-slot"), "MissingDependency");
     assert_eq!(latest(&g.dbs[0]).unwrap(), before);
     assert_eq!(responsibility_total(&before.3), 20);
     g.audit();
@@ -1409,14 +1716,14 @@ fn expired_cap_version_rejection_does_not_restore_credit() {
 #[test]
 fn cap_activation_sigkill_recovers_whole_old_or_new_version() {
     for phase in ["before_commit", "after_commit"] {
-        let mut f = Fixture::with_fault("100", Some(("ActivateCapPolicy-equal", phase)));
+        let mut f = Fixture::v3("100", "20", true, Some(("ActivateCapPolicy-equal", phase)));
         f.prepare();
-        f.step(0, "Reserve", "slot");
-        let request = envelope(
-            "ActivateCapPolicy-equal",
-            cap_payload(&f, "1", "2", "90", "100000"),
-        );
-        let witness = json!({"input_raw":canonical_json(&f.data)});
+        assert_eq!(reserve_now(&mut f, "Reserve-slot")["record"]["state"], "Reserved");
+        let payload = cap_payload(&f, "1", "2", "90", "100000");
+        let request = envelope("ActivateCapPolicy-equal", payload.clone());
+        let raw = std::fs::read_to_string(required(&payload["policy_record"], "path").unwrap())
+            .unwrap();
+        let witness = json!({"input_raw":canonical_json(&f.data),"cap_policy_raw":raw});
         let previous = latest(&f.dbs[0]).unwrap();
         let job = json!({"action":"write","manifest":f.dir.join("manifest.json"),"db":f.configs[0].db,"chong":Value::Null,"request":request,"witness":witness});
         let mut process = child(&f.dir, &job, "persist");
@@ -1458,7 +1765,8 @@ fn cap_activation_sigkill_recovers_whole_old_or_new_version() {
             assert!(fin.get("cap_policy").is_none());
         }
         assert_eq!(responsibility_total(&current.3), 90);
-        let original = row(&f.dbs[0], "receipts", &key(&request["payload"]).unwrap()).unwrap();
+        let original = row(&f.dbs[0], "receipts", &key_for(&f.configs[0], &payload).unwrap())
+            .unwrap();
         assert_eq!(original.is_some(), committed);
         if committed {
             assert_eq!(
