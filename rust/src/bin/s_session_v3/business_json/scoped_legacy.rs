@@ -9,6 +9,7 @@ pub(crate) enum ProjectionKind {
 }
 #[derive(Clone, Copy)]
 pub(crate) enum Field {
+    MergedIndex, RawRefs, DependencyRefs,
     IdentityKey,
     Revision,
     InputRevision,
@@ -50,6 +51,9 @@ pub(crate) enum Field {
 impl Field {
     fn name(self) -> &'static str {
         match self {
+            Self::MergedIndex => "merged_index",
+            Self::RawRefs => "raw_refs",
+            Self::DependencyRefs => "dependency_refs",
             Self::IdentityKey => "identity_key",
             Self::Revision => "revision",
             Self::InputRevision => "input_revision",
@@ -145,9 +149,18 @@ impl<'a> ScopedLegacyRecord<'a> {
         Ok(())
     }
     pub(crate) fn replace_known_field(&mut self, field: Field, borrowed: &Value) -> Result<(), MixedJsonError> {
+        let child = PlainJson::try_clone_from(borrowed, Some(self.work)).map_err(MixedJsonError::Resource)?;
+        self.replace_owned(field, child)
+    }
+    pub(crate) fn replace_integer(&mut self, field: Field, n: i64) -> Result<(), MixedJsonError> {
+        let text = NativeValue::try_format(format_args!("{n}"), Some(self.work)).map_err(MixedJsonError::Resource)?;
+        let permit = self.work.reserve_native(text.len()).map_err(MixedJsonError::Resource)?;
+        let child = PlainJson::from_reserved(Value::String(text.as_ref().to_owned()), Some(permit));
+        self.replace_owned(field, child)
+    }
+    pub(crate) fn replace_owned(&mut self, field: Field, child: PlainJson) -> Result<(), MixedJsonError> {
         // 原聚合许可不猜单个子树退款；新旧完整投影在替换成功前同时持费。
         let mut next = Self::clone_projection(self.kind, &self.owner.value, self.work)?;
-        let child = PlainJson::try_clone_from(borrowed, Some(self.work)).map_err(MixedJsonError::Resource)?;
         let object = next.owner.value.as_object_mut().ok_or_else(|| MixedJsonError::Business("旧域投影必须是对象".into()))?;
         object.remove(field.name());
         next.insert(field, child)?;
@@ -202,5 +215,122 @@ pub(crate) fn project_raw_history_row(row: &rusqlite::Row<'_>, work: &WorkScope)
         Some(n) => out.integer(Field::SupersedesRevision,n)?,
         None => out.null(Field::SupersedesRevision)?,
     }
+    Ok(out.finish())
+}
+
+/// 编码容器，不额外计业务成员；每个child已持同父许可。
+pub(crate) struct ScopedLegacyArray<'a> {
+    items: sc::CodecVec<PlainJson>,
+    work: &'a WorkScope,
+}
+impl<'a> ScopedLegacyArray<'a> {
+    pub(crate) fn new(work: &'a WorkScope) -> Self { Self { items: Default::default(), work } }
+    pub(crate) fn push(&mut self, child: PlainJson) -> Result<(), MixedJsonError> {
+        if !child.permit.as_ref().is_some_and(|p| p.belongs_to_parent(self.work)) {
+            return Err(MixedJsonError::Resource(self.work.reject(sc::capture_allocation::scratch::ScratchFailure::Ledger)));
+        }
+        self.items.try_reserve_native(self.work,1).map_err(MixedJsonError::Resource)?;
+        self.items.try_push(child).map_err(MixedJsonError::Resource)
+    }
+    pub(crate) fn finish(self) -> Result<PlainJson, MixedJsonError> {
+        let fail = || MixedJsonError::Resource(self.work.reject(sc::capture_allocation::scratch::ScratchFailure::Budget));
+        let bytes = self.items.len().checked_mul(std::mem::size_of::<Value>()).ok_or_else(fail)?;
+        let permit = self.work.reserve_native(bytes).map_err(MixedJsonError::Resource)?;
+        let permits = self.items.iter().try_fold(0usize, |n,item| n.checked_add(item.child_permits.len())?.checked_add(1)).ok_or_else(fail)?;
+        let mut retained = sc::CodecVec::default();
+        retained.try_reserve_native(self.work, permits).map_err(MixedJsonError::Resource)?;
+        let mut rows = Vec::new();
+        rows.try_reserve_exact(self.items.len()).map_err(|_| MixedJsonError::Resource(self.work.reject(sc::capture_allocation::scratch::ScratchFailure::Allocation)))?;
+        for mut child in self.items {
+            rows.push(std::mem::replace(&mut child.value, Value::Null));
+            retained.try_push(child.permit.take().unwrap()).expect("已预留载荷许可");
+            for permit in std::mem::take(&mut child.child_permits) {
+                retained.try_push(permit).expect("已预留子许可");
+            }
+        }
+        let mut owner = PlainJson::from_reserved(Value::Array(rows),Some(permit));
+        owner.layout = NativeJsonLayout::ItemizedArray;
+        owner.child_permits = retained;
+        Ok(owner)
+    }
+}
+fn integer_value(value: &Value) -> Result<i64,MixedJsonError> {
+    value.as_i64().ok_or_else(|| MixedJsonError::Business("持久整数必须是 i64，不能是浮点、布尔、空值或文本".into()))
+}
+pub(crate) fn project_input_refs(refs: &Value, work: &WorkScope) -> Result<PlainJson,MixedJsonError> {
+    let groups = refs.as_array().ok_or_else(|| MixedJsonError::Business("input_refs 必须是数组".into()))?;
+    let mut out = ScopedLegacyArray::new(work);
+    for group in groups {
+        group.as_object().ok_or_else(|| MixedJsonError::Business("input_refs 成员必须是对象".into()))?;
+        let mut obj = ScopedLegacyRecord::clone_projection(ProjectionKind::LegacyPayload, group, work)?;
+        obj.replace_integer(Field::MergedIndex, integer_value(group.get("merged_index").unwrap_or(&Value::Null))?)?;
+        for (key,field) in [("raw_refs",Field::RawRefs),("dependency_refs",Field::DependencyRefs)] {
+            if key == "dependency_refs" && group.get(key).is_none() { continue; }
+            let raw_refs = group.get(key).and_then(Value::as_array).ok_or_else(|| MixedJsonError::Business("input_refs成员来源必须为数组".into()))?;
+            let mut projected = ScopedLegacyArray::new(work);
+            for raw in raw_refs {
+                raw.as_object().ok_or_else(|| MixedJsonError::Business("input_refs来源成员必须对象".into()))?;
+                let mut item = ScopedLegacyRecord::clone_projection(ProjectionKind::LegacyPayload,raw,work)?;
+                item.replace_integer(Field::Seq, integer_value(raw.get("seq").unwrap_or(&Value::Null))?)?;
+                if let Some(revision) = raw.get("revision") {
+                    item.replace_integer(Field::Revision,integer_value(revision)?)?;
+                }
+                projected.push(item.finish())?;
+            }
+            obj.replace_owned(field,projected.finish()?)?;
+        }
+        out.push(obj.finish())?;
+    }
+    out.finish()
+}
+fn sql_json(row: &rusqlite::Row<'_>, index: usize, shape: crate::JsonShape, work: &WorkScope) -> Result<PlainJson,MixedSqlError> {
+    let text = sql_text(row,index)?;
+    match crate::json_shape_mixed(text,shape,work) {
+        Ok(value) => Ok(value),
+        Err(MixedJsonError::Business(error)) => Err(MixedSqlError::Sql(crate::json_column_error(index,error))),
+        Err(error) => Err(MixedSqlError::Projection(error)),
+    }
+}
+pub(crate) fn project_object_row(row: &rusqlite::Row<'_>, as_of: Option<i64>, work: &WorkScope) -> Result<PlainJson,MixedSqlError> {
+    let wg: Option<i64> = row.get(16)?;
+    let fkg: i64 = row.get(13)?;
+    if let Some(w) = wg {
+        if w <= fkg {
+            return Err(crate::json_column_error(16,format!("对象生命周期非法：withdrawn_generation={w} <= first_known_generation={fkg}")).into());
+        }
+    }
+    let effective = match (as_of,wg) { (Some(n),Some(w)) if w > n => None, _ => wg };
+    let mut out = ScopedLegacyRecord::object(ProjectionKind::ObjectWire,work)?;
+    out.text(Field::ObjectId,sql_text(row,0)?)?;
+    out.integer(Field::ObjectRevision,row.get(1)?)?;
+    out.text(Field::Kind,sql_text(row,2)?)?;
+    out.text(Field::BatchId,sql_text(row,3)?)?;
+    out.text(Field::Branch,sql_text(row,4)?)?;
+    out.text(Field::DirAb,sql_text(row,5)?)?;
+    out.text(Field::DirBc,sql_text(row,6)?)?;
+    out.integer(Field::WindowStart,row.get(7)?)?;
+    out.integer(Field::WindowMid,row.get(8)?)?;
+    out.integer(Field::WindowEnd,row.get(9)?)?;
+    out.insert(Field::Comparisons,sql_json(row,10,crate::JsonShape::Array,work)?)?;
+    let refs = sql_json(row,11,crate::JsonShape::Array,work)?;
+    let refs = project_input_refs(&refs,work).map_err(|error| match error {
+        MixedJsonError::Business(error) => MixedSqlError::Sql(crate::json_column_error(11,error)),
+        error => MixedSqlError::Projection(error),
+    })?;
+    out.insert(Field::InputRefs,refs)?;
+    out.insert(Field::SourceCoords,sql_json(row,12,crate::JsonShape::Array,work)?)?;
+    out.integer(Field::FirstKnownGeneration,row.get(13)?)?;
+    out.text(Field::FirstKnownCut,sql_text(row,14)?)?;
+    out.integer(Field::PublishedGeneration,row.get(15)?)?;
+    match effective {
+        Some(n) => out.integer(Field::WithdrawnGeneration,n)?,
+        None => out.null(Field::WithdrawnGeneration)?,
+    }
+    for (index,field) in [(17,Field::WithdrawalReason),(18,Field::SupersededBy)] {
+        if effective.is_some() && !matches!(row.get_ref(index)?,rusqlite::types::ValueRef::Null) {
+            out.text(field,sql_text(row,index)?)?;
+        } else { out.null(field)?; }
+    }
+    out.text(Field::Lifecycle,if effective.is_some() {"withdrawn"} else {"active"})?;
     Ok(out.finish())
 }

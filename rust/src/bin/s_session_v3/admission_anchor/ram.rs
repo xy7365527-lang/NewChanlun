@@ -672,4 +672,38 @@ mod tests {
         assert_eq!(owner.snapshot().unwrap().job_live, AdmissionRamLedger::metadata_bytes().unwrap());
     }
 
+    #[test]
+    fn mixed_ram_sql_object_projection_keeps_lifecycle_before_json_and_optional_reads() {
+        use crate::v3::business_json::scoped_legacy::{project_object_row,MixedSqlError};
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        let good = r#"[{"merged_index":1,"raw_refs":[{"seq":2,"revision":3,"extra":true}],"untouched":"yes"}]"#;
+        for (wg, comparisons, refs, as_of) in [
+            (Some(1), "{bad", "[]", None),
+            (Some(3), "[]", good, Some(2)),
+            (Some(3), "[]", good, None),
+            (None, "[]", good, None),
+            (None, "{bad", "[]", None),
+            (None, "[]", "{}", None),
+            (None, "[]", r#"[{"merged_index":"bad","raw_refs":[]}]"#, None),
+        ] {
+            let mut stmt = conn.prepare("SELECT 'id',2,'k','b','up','up','down',1,2,3,?2,?3,'[]',1,'cut',2,?1,99,88").unwrap();
+            let mut rows = stmt.query(rusqlite::params![wg,comparisons,refs]).unwrap();
+            let row = rows.next().unwrap().unwrap();
+            let original = crate::project_object_row(row,as_of);
+            let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+            owner.codec_work().unwrap().run(|work| {
+                match (original,project_object_row(row,as_of,work)) {
+                    (Ok(original),Ok(mixed)) => assert_eq!(original,*mixed),
+                    (Err(original),Err(MixedSqlError::Sql(mixed))) => {
+                        assert_eq!(std::mem::discriminant(&original),std::mem::discriminant(&mixed));
+                        assert_eq!(original.to_string(),mixed.to_string());
+                    }
+                    other => panic!("对象投影或首错漂移：{other:?}"),
+                }
+                Ok::<_, newchan_rust::s_content::CodecError>(())
+            }).unwrap();
+            assert_eq!(owner.snapshot().unwrap().job_live,AdmissionRamLedger::metadata_bytes().unwrap());
+        }
+    }
+
 }
