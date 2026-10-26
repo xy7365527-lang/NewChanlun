@@ -312,7 +312,6 @@ impl ExpectedTables {
     }
 }
 
-
 /// 原序捕获先于 schema 判别：此时只开放这些真实前缀查询的固定列。
 /// 不从待审库登记学表/列；schema 完成判别后整个前缀权限由 Selected 替换。
 #[derive(Clone, Copy, Debug)]
@@ -323,15 +322,25 @@ pub(super) enum MixedPolicy {
 }
 impl MixedPolicy {
     pub(super) fn allows(
-        &self, action: c_int, a: Option<&[u8]>, b: Option<&[u8]>,
-        db: Option<&[u8]>, origin: Option<&[u8]>, armed: bool,
+        &self,
+        action: c_int,
+        a: Option<&[u8]>,
+        b: Option<&[u8]>,
+        db: Option<&[u8]>,
+        origin: Option<&[u8]>,
+        armed: bool,
     ) -> bool {
         if let Self::Selected(selected) = self {
             return selected.allows(action, a, b, db, origin, armed);
         }
-        if origin.is_some() || !matches!(db, None | Some(b"main")) { return false; }
+        if origin.is_some() || !matches!(db, None | Some(b"main")) {
+            return false;
+        }
         let (graph, records) = match self {
-            Self::Capture { graph, records_in_graph } => (*graph, *records_in_graph),
+            Self::Capture {
+                graph,
+                records_in_graph,
+            } => (*graph, *records_in_graph),
             _ => (false, false),
         };
         if action == ffi::SQLITE_READ {
@@ -339,17 +348,30 @@ impl MixedPolicy {
                 (Some(b"meta"), Some(b"key" | b"value"), Some(b"main")) => return true,
                 (Some(b"structure_deltas"), Some(b"index_frontier"), Some(b"main")) => return true,
                 // read_format_typed 的原判别；格式成功后，LegacyBlob 不再开放此表。
-                (Some(b"s_evidence_format"), Some(b"singleton" | b"graph_format"), Some(b"main"))
-                    if matches!(self, Self::Bootstrap) || graph => return true,
-                (Some(b"batches"), Some(b"batch_id" | b"canonical_bytes" | b"byte_len"), Some(b"main"))
-                    if matches!(self, Self::Capture { .. }) => return true,
-                (Some(b"structure_deltas"), Some(b"generation"), Some(b"main")) if records => return true,
-                (Some(b"structure_facts"), Some(b"object_id"), Some(b"main")) if records => return true,
+                (
+                    Some(b"s_evidence_format"),
+                    Some(b"singleton" | b"graph_format"),
+                    Some(b"main"),
+                ) if matches!(self, Self::Bootstrap) || graph => return true,
+                (
+                    Some(b"batches"),
+                    Some(b"batch_id" | b"canonical_bytes" | b"byte_len"),
+                    Some(b"main"),
+                ) if matches!(self, Self::Capture { .. }) => return true,
+                (Some(b"structure_deltas"), Some(b"generation"), Some(b"main")) if records => {
+                    return true
+                }
+                (Some(b"structure_facts"), Some(b"object_id"), Some(b"main")) if records => {
+                    return true
+                }
                 (Some(t @ (b"s_evidence_nodes" | b"s_evidence_roots")), Some(c), Some(b"main"))
-                    if graph => {
-                        return TABLES.iter().find(|(name, _)| *name == t)
-                            .is_some_and(|(_, columns)| columns.contains(&c));
-                    }
+                    if graph =>
+                {
+                    return TABLES
+                        .iter()
+                        .find(|(name, _)| *name == t)
+                        .is_some_and(|(_, columns)| columns.contains(&c));
+                }
                 (Some(b"s_evidence_nodes"), Some(b""), None) if graph => return true,
                 (Some(b"structure_deltas"), Some(b""), None) if records => return true,
                 _ => {}
@@ -361,7 +383,8 @@ impl MixedPolicy {
 
 #[cfg(test)]
 pub(super) fn test_progressive_policy<T>(
-    conn: &rusqlite::Connection, observer: &dyn crate::v3::audit_budget::LegacyObserver,
+    conn: &rusqlite::Connection,
+    observer: &dyn crate::v3::audit_budget::LegacyObserver,
     run: impl FnOnce(&dyn crate::v3::audit_budget::LegacyObserver) -> T,
 ) -> T {
     use crate::v3::audit_budget::{LegacyObserver, LegacyRecordRef};
@@ -374,42 +397,98 @@ pub(super) fn test_progressive_policy<T>(
         denied: RefCell<Vec<String>>,
     }
     impl LegacyObserver for PolicyObserver<'_> {
-        fn select_legacy_capture(&self, graph:bool, records_in_graph:bool) {
-            self.policy.set(MixedPolicy::Capture{graph,records_in_graph});
+        fn select_legacy_capture(&self, graph: bool, records_in_graph: bool) {
+            self.policy.set(MixedPolicy::Capture {
+                graph,
+                records_in_graph,
+            });
         }
-        fn select_legacy_tables(&self,v2:bool,ohlc:bool,delta:bool,graph:bool) {
-            self.policy.set(MixedPolicy::Selected(ExpectedTables::selected(v2,ohlc,delta,graph)));
+        fn select_legacy_tables(&self, v2: bool, ohlc: bool, delta: bool, graph: bool) {
+            self.policy
+                .set(MixedPolicy::Selected(ExpectedTables::selected(
+                    v2, ohlc, delta, graph,
+                )));
         }
-        fn visit_record(&self,f:&'static str,p:&'static str,m:LegacyRecordRef<'_>)->Result<(),sc::CodecError>{
-            self.inner.visit_record(f,p,m)
+        fn visit_record(
+            &self,
+            f: &'static str,
+            p: &'static str,
+            m: LegacyRecordRef<'_>,
+        ) -> Result<(), sc::CodecError> {
+            self.inner.visit_record(f, p, m)
         }
-        fn precheck(&self)->Result<(),sc::CodecError>{self.inner.precheck()}
-        fn check_work(&self,w:&WorkScope)->Result<(),sc::CodecError>{self.inner.check_work(w)}
-        fn accept_checked(&self,r:&sc::legacy_evidence::CheckedLegacyEvidenceRow)->Result<(),sc::CodecError>{
+        fn precheck(&self) -> Result<(), sc::CodecError> {
+            self.inner.precheck()
+        }
+        fn check_work(&self, w: &WorkScope) -> Result<(), sc::CodecError> {
+            self.inner.check_work(w)
+        }
+        fn accept_checked(
+            &self,
+            r: &sc::legacy_evidence::CheckedLegacyEvidenceRow,
+        ) -> Result<(), sc::CodecError> {
             self.inner.accept_checked(r)
         }
     }
     unsafe extern "C" fn authorize(
-        data:*mut c_void, action:c_int,a:*const c_char,b:*const c_char,db:*const c_char,origin:*const c_char,
-    )->c_int {
-        unsafe fn arg<'a>(p:*const c_char)->Option<&'a [u8]> {
-            if p.is_null(){None}else{Some(unsafe{CStr::from_ptr(p)}.to_bytes())}
+        data: *mut c_void,
+        action: c_int,
+        a: *const c_char,
+        b: *const c_char,
+        db: *const c_char,
+        origin: *const c_char,
+    ) -> c_int {
+        unsafe fn arg<'a>(p: *const c_char) -> Option<&'a [u8]> {
+            if p.is_null() {
+                None
+            } else {
+                Some(unsafe { CStr::from_ptr(p) }.to_bytes())
+            }
         }
-        let state=unsafe{&*data.cast::<PolicyObserver<'_>>()};
-        let(a,b,db,origin)=unsafe{(arg(a),arg(b),arg(db),arg(origin))};
-        if state.policy.get().allows(action,a,b,db,origin,true){ffi::SQLITE_OK}
-        else {
-            state.denied.borrow_mut().push(format!("{action} {a:?} {b:?} {db:?}"));
+        let state = unsafe { &*data.cast::<PolicyObserver<'_>>() };
+        let (a, b, db, origin) = unsafe { (arg(a), arg(b), arg(db), arg(origin)) };
+        if state.policy.get().allows(action, a, b, db, origin, true) {
+            ffi::SQLITE_OK
+        } else {
+            state
+                .denied
+                .borrow_mut()
+                .push(format!("{action} {a:?} {b:?} {db:?}"));
             ffi::SQLITE_DENY
         }
     }
-    let tx=if conn.is_autocommit(){Some(conn.unchecked_transaction().unwrap())}else{None};
-    let state=PolicyObserver{policy:Cell::new(MixedPolicy::Bootstrap),inner:observer,denied:RefCell::new(Vec::new())};
-    unsafe{assert_eq!(ffi::sqlite3_set_authorizer(conn.handle(),Some(authorize),(&state as *const PolicyObserver<'_>).cast_mut().cast()),ffi::SQLITE_OK);}
-    let result=run(&state);
-    unsafe{ffi::sqlite3_set_authorizer(conn.handle(),None,std::ptr::null_mut());}
-    if let Some(tx)=tx {tx.rollback().unwrap();}
-    assert!(state.denied.borrow().is_empty(),"progressive callback denied: {:?}",state.denied.borrow());
+    let tx = if conn.is_autocommit() {
+        Some(conn.unchecked_transaction().unwrap())
+    } else {
+        None
+    };
+    let state = PolicyObserver {
+        policy: Cell::new(MixedPolicy::Bootstrap),
+        inner: observer,
+        denied: RefCell::new(Vec::new()),
+    };
+    unsafe {
+        assert_eq!(
+            ffi::sqlite3_set_authorizer(
+                conn.handle(),
+                Some(authorize),
+                (&state as *const PolicyObserver<'_>).cast_mut().cast()
+            ),
+            ffi::SQLITE_OK
+        );
+    }
+    let result = run(&state);
+    unsafe {
+        ffi::sqlite3_set_authorizer(conn.handle(), None, std::ptr::null_mut());
+    }
+    if let Some(tx) = tx {
+        tx.rollback().unwrap();
+    }
+    assert!(
+        state.denied.borrow().is_empty(),
+        "progressive callback denied: {:?}",
+        state.denied.borrow()
+    );
     result
 }
 #[cfg(test)]
@@ -490,21 +569,52 @@ mod tests {
 
     #[test]
     fn mixed_sql_bootstrap_and_typed_tightening_reject_extra_columns() {
-        let read=|p:MixedPolicy,t:&[u8],c:&[u8]|p.allows(ffi::SQLITE_READ,Some(t),Some(c),Some(b"main"),None,true);
-        assert!(read(MixedPolicy::Bootstrap,b"structure_deltas",b"index_frontier"));
-        assert!(read(MixedPolicy::Bootstrap,b"s_evidence_format",b"graph_format"));
-        assert!(!read(MixedPolicy::Bootstrap,b"structure_deltas",b"delta_json"));
-        assert!(!read(MixedPolicy::Bootstrap,b"s_evidence_nodes",b"payload"));
-        let legacy=MixedPolicy::Capture{graph:false,records_in_graph:false};
-        assert!(read(legacy,b"batches",b"canonical_bytes"));
-        assert!(!read(legacy,b"s_evidence_format",b"graph_format"));
-        assert!(!read(legacy,b"structure_facts",b"object_id"));
-        let graph=MixedPolicy::Capture{graph:true,records_in_graph:true};
-        assert!(read(graph,b"structure_facts",b"object_id"));
-        assert!(!read(graph,b"structure_facts",b"payload_json"));
-        let selected=MixedPolicy::Selected(ExpectedTables::selected(false,false,false,false));
-        assert!(!read(selected,b"s_evidence_format",b"graph_format"));
-        assert!(!read(selected,b"structure_facts",b"object_id"));
+        let read = |p: MixedPolicy, t: &[u8], c: &[u8]| {
+            p.allows(
+                ffi::SQLITE_READ,
+                Some(t),
+                Some(c),
+                Some(b"main"),
+                None,
+                true,
+            )
+        };
+        assert!(read(
+            MixedPolicy::Bootstrap,
+            b"structure_deltas",
+            b"index_frontier"
+        ));
+        assert!(read(
+            MixedPolicy::Bootstrap,
+            b"s_evidence_format",
+            b"graph_format"
+        ));
+        assert!(!read(
+            MixedPolicy::Bootstrap,
+            b"structure_deltas",
+            b"delta_json"
+        ));
+        assert!(!read(
+            MixedPolicy::Bootstrap,
+            b"s_evidence_nodes",
+            b"payload"
+        ));
+        let legacy = MixedPolicy::Capture {
+            graph: false,
+            records_in_graph: false,
+        };
+        assert!(read(legacy, b"batches", b"canonical_bytes"));
+        assert!(!read(legacy, b"s_evidence_format", b"graph_format"));
+        assert!(!read(legacy, b"structure_facts", b"object_id"));
+        let graph = MixedPolicy::Capture {
+            graph: true,
+            records_in_graph: true,
+        };
+        assert!(read(graph, b"structure_facts", b"object_id"));
+        assert!(!read(graph, b"structure_facts", b"payload_json"));
+        let selected = MixedPolicy::Selected(ExpectedTables::selected(false, false, false, false));
+        assert!(!read(selected, b"s_evidence_format", b"graph_format"));
+        assert!(!read(selected, b"structure_facts", b"object_id"));
     }
     #[test]
     fn mixed_sql_selected_schema_is_exact_for_each_domain() {

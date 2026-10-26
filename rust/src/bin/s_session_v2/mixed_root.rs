@@ -186,16 +186,27 @@ struct Reachable {
 fn root_keys(conn: &Connection, work: &WorkScope) -> Result<CodecVec<Text>, MixedJsonError> {
     let mut stmt = conn
         .prepare("SELECT root_key FROM s_evidence_roots ORDER BY root_key")
-        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：读私有根表失败：{e}")))?;
-    let mut rows = stmt
-        .query([])
-        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：读私有根表失败：{e}")))?;
+        .map_err(|e| {
+            crate::v3::business_json::mixed_diagnostic(format_args!(
+                "StorageUnavailable：读私有根表失败：{e}"
+            ))
+        })?;
+    let mut rows = stmt.query([]).map_err(|e| {
+        crate::v3::business_json::mixed_diagnostic(format_args!(
+            "StorageUnavailable：读私有根表失败：{e}"
+        ))
+    })?;
     let mut keys = CodecVec::default();
-    while let Some(row) = rows
-        .next()
-        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：私有根行损坏：{e}")))?
-    {
-        let key = sql_text(row, 0).map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：私有根行损坏：{e}")))?;
+    while let Some(row) = rows.next().map_err(|e| {
+        crate::v3::business_json::mixed_diagnostic(format_args!(
+            "StorageUnavailable：私有根行损坏：{e}"
+        ))
+    })? {
+        let key = sql_text(row, 0).map_err(|e| {
+            crate::v3::business_json::mixed_diagnostic(format_args!(
+                "StorageUnavailable：私有根行损坏：{e}"
+            ))
+        })?;
         push(&mut keys, text(key, work)?, work)?;
     }
     Ok(keys)
@@ -210,11 +221,21 @@ fn capture(
         let mut stmt = conn
             .prepare("SELECT d.index_frontier FROM structure_deltas d")
             .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
-        let mut rows = stmt.query([]).map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
-        while let Some(row) = rows.next().map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))? {
+        let mut rows = stmt
+            .query([])
+            .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
+        while let Some(row) = rows
+            .next()
+            .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?
+        {
             push(
                 &mut ids,
-                text(sql_text(row, 0).map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?, work)?,
+                text(
+                    sql_text(row, 0).map_err(|e| {
+                        crate::v3::business_json::mixed_diagnostic(format_args!("{e}"))
+                    })?,
+                    work,
+                )?,
                 work,
             )?;
         }
@@ -254,7 +275,11 @@ fn capture(
                             params![record],
                             |r| r.get(0),
                         )
-                        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：核私有根批次行失败：{e}")))?;
+                        .map_err(|e| {
+                            crate::v3::business_json::mixed_diagnostic(format_args!(
+                                "StorageUnavailable：核私有根批次行失败：{e}"
+                            ))
+                        })?;
                     if present != 1 {
                         return Err(format!("StorageUnavailable：私有根 `{}` 没有对应批次行（不可达残留），拒绝写入",key.as_ref()).into());
                     }
@@ -290,7 +315,11 @@ fn capture(
                             params![generation],
                             |r| r.get(0),
                         )
-                        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：核 Delta 根行失败：{e}")))?;
+                        .map_err(|e| {
+                            crate::v3::business_json::mixed_diagnostic(format_args!(
+                                "StorageUnavailable：核 Delta 根行失败：{e}"
+                            ))
+                        })?;
                     if present != 1 {
                         return Err(format!("StorageUnavailable：私有根 `{}` 没有对应 Delta 行（不可达残留），拒绝写入",key.as_ref()).into());
                     }
@@ -325,7 +354,11 @@ fn capture(
                             params![record],
                             |r| r.get(0),
                         )
-                        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：核结构事实根行失败：{e}")))?;
+                        .map_err(|e| {
+                            crate::v3::business_json::mixed_diagnostic(format_args!(
+                                "StorageUnavailable：核结构事实根行失败：{e}"
+                            ))
+                        })?;
                     if present != 1 {
                         return Err(format!("StorageUnavailable：私有根 `{}` 没有对应结构事实行（不可达残留），拒绝写入",key.as_ref()).into());
                     }
@@ -396,8 +429,9 @@ pub(crate) fn required_meta(conn: &Connection, work: &WorkScope) -> Result<i64, 
     }
     let epoch = audit::mixed_profile::meta_text(conn, "writer_epoch", work)?
         .ok_or("StorageUnavailable：缺 writer_epoch")?;
-    parse_writer_epoch(&epoch, "持久 writer_epoch")
-        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：{e}")))?;
+    parse_writer_epoch(&epoch, "持久 writer_epoch").map_err(|e| {
+        crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：{e}"))
+    })?;
     let generation = meta_integer(conn, "generation", work)?;
     if generation < 0 {
         return Err("StorageUnavailable：meta.generation 为负".into());
@@ -440,7 +474,11 @@ pub(crate) fn required_meta(conn: &Connection, work: &WorkScope) -> Result<i64, 
                 |r| r.get(0),
             )
             .optional()
-            .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("读 delta[{generation}].input_frontier 失败：{e}")))?;
+            .map_err(|e| {
+                crate::v3::business_json::mixed_diagnostic(format_args!(
+                    "读 delta[{generation}].input_frontier 失败：{e}"
+                ))
+            })?;
         match delta_frontier {
             None => {
                 return Err(format!(
@@ -517,12 +555,15 @@ fn delta_rows(
     work: &WorkScope,
 ) -> Result<CodecVec<cache::mixed::DeltaRow>, MixedJsonError> {
     let mut stmt=conn.prepare("SELECT generation, session_id, catalog_revision, base_cut, next_cut, seq_range_json, index_frontier, input_frontier, catalog_run_status, catalog_evidence_json, delta_json FROM structure_deltas ORDER BY generation ASC").map_err(|e|crate::v3::business_json::mixed_diagnostic(format_args!("prepare 可达根核失败：{e}")))?;
-    let mut sql = stmt
-        .query([])
-        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("query 可达根失败：{e}")))?;
+    let mut sql = stmt.query([]).map_err(|e| {
+        crate::v3::business_json::mixed_diagnostic(format_args!("query 可达根失败：{e}"))
+    })?;
     let mut rows = CodecVec::default();
-    while let Some(row) = sql.next().map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("collect 可达根失败：{e}")))? {
-        let error = |e| crate::v3::business_json::mixed_diagnostic(format_args!("collect 可达根失败：{e}"));
+    while let Some(row) = sql.next().map_err(|e| {
+        crate::v3::business_json::mixed_diagnostic(format_args!("collect 可达根失败：{e}"))
+    })? {
+        let error =
+            |e| crate::v3::business_json::mixed_diagnostic(format_args!("collect 可达根失败：{e}"));
         let generation = row.get::<_, i64>(0).map_err(error)?;
         let a = text(sql_text(row, 1).map_err(error)?, work)?;
         let b = text(sql_text(row, 2).map_err(error)?, work)?;
@@ -597,8 +638,11 @@ fn record_text(
     }
     let key = formatted(format_args!("delta/{g}"), work)?;
     let bytes = reader.read_root_typed(&key, false)?.bytes;
-    let value = std::str::from_utf8(&bytes)
-        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：delta[{g}] 非 UTF-8：{e}")))?;
+    let value = std::str::from_utf8(&bytes).map_err(|e| {
+        crate::v3::business_json::mixed_diagnostic(format_args!(
+            "StorageUnavailable：delta[{g}] 非 UTF-8：{e}"
+        ))
+    })?;
     text(value, work)
 }
 fn verify(
@@ -848,15 +892,21 @@ fn verify_last_catalog(
             .ok_or("StorageUnavailable：末代逐轴证据缺失")?;
         for (axis, expected) in axes {
             let mut stmt=conn.prepare("SELECT impl_status,proof_status,run_status,evidence_json FROM catalog WHERE catalog_id=?1").map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
-            let mut rows = stmt.query(params![axis]).map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
+            let mut rows = stmt
+                .query(params![axis])
+                .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
             let row = rows
                 .next()
                 .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?
                 .ok_or_else(|| rusqlite::Error::QueryReturnedNoRows.to_string())?;
-            let implementation = sql_text(row, 0).map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
-            let proof = sql_text(row, 1).map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
-            let run = sql_text(row, 2).map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
-            let raw = sql_text(row, 3).map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
+            let implementation = sql_text(row, 0)
+                .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
+            let proof = sql_text(row, 1)
+                .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
+            let run = sql_text(row, 2)
+                .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
+            let raw = sql_text(row, 3)
+                .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
             let actual =
                 crate::json_shape_mixed(raw, JsonShape::Object, work).map_err(|e| match e {
                     MixedJsonError::Business(s) => {
@@ -876,7 +926,11 @@ fn verify_last_catalog(
             }
         }
     } else {
-        let error = |e| crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：读当前目录证据失败：{e}"));
+        let error = |e| {
+            crate::v3::business_json::mixed_diagnostic(format_args!(
+                "StorageUnavailable：读当前目录证据失败：{e}"
+            ))
+        };
         let mut stmt = conn
             .prepare("SELECT run_status,evidence_json FROM catalog WHERE catalog_id='CC-006'")
             .map_err(error)?;
@@ -904,18 +958,21 @@ pub(crate) fn startup(
     let _capture =
         cache::begin_capture_mixed(EVIDENCE_READ_BUDGET, work).map_err(MixedJsonError::Resource)?;
     if conn.is_autocommit() {
-        let tx = conn
-            .unchecked_transaction()
-            .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("开根审计读事务失败：{e}")))?;
+        let tx = conn.unchecked_transaction().map_err(|e| {
+            crate::v3::business_json::mixed_diagnostic(format_args!("开根审计读事务失败：{e}"))
+        })?;
         let raw = startup(&tx, work, observer)?;
-        tx.commit()
-            .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("结束根审计读事务失败：{e}")))?;
+        tx.commit().map_err(|e| {
+            crate::v3::business_json::mixed_diagnostic(format_args!("结束根审计读事务失败：{e}"))
+        })?;
         return Ok(raw);
     }
     let reachable = capture(conn, work, observer)?;
     let control = mixed_control::prepare(conn, work, observer)?;
     verify(conn, reachable, control, work, observer).map_err(|e| match e {
-        MixedJsonError::Business(s) => MixedJsonError::diagnostic(format_args!("StorageUnavailable：{s}")),
+        MixedJsonError::Business(s) => {
+            MixedJsonError::diagnostic(format_args!("StorageUnavailable：{s}"))
+        }
         resource => resource,
     })
 }

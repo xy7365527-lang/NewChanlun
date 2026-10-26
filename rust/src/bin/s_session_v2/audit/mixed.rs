@@ -371,22 +371,21 @@ pub(crate) fn read_objects(
     if invalid != 0 {
         return Err("StorageUnavailable：对象生命周期非法（withdrawn_generation <= first_known_generation）".into());
     }
-    let collect = |sql: &str, label: &str| -> Result<CodecVec<PlainJson>, MixedJsonError> {
-        let mut stmt = conn
-            .prepare(sql)
-            .map_err(|e| MixedJsonError::diagnostic(format_args!("prepare {label} 失败：{e}")))?;
-        let mut rows = match as_of {
-            None => stmt.query([]),
-            Some(n) => stmt.query(params![n]),
-        }
-        .map_err(|e| MixedJsonError::diagnostic(format_args!("query {label} 失败：{e}")))?;
-        let mut out = CodecVec::default();
-        while let Some(row) = rows
-            .next()
-            .map_err(|e| MixedJsonError::diagnostic(format_args!("collect {label} 失败：{e}")))?
-        {
-            let value =
-                scoped_legacy::project_object_row(row, as_of, work).map_err(
+    let collect =
+        |sql: &str, label: &str| -> Result<CodecVec<PlainJson>, MixedJsonError> {
+            let mut stmt = conn.prepare(sql).map_err(|e| {
+                MixedJsonError::diagnostic(format_args!("prepare {label} 失败：{e}"))
+            })?;
+            let mut rows = match as_of {
+                None => stmt.query([]),
+                Some(n) => stmt.query(params![n]),
+            }
+            .map_err(|e| MixedJsonError::diagnostic(format_args!("query {label} 失败：{e}")))?;
+            let mut out = CodecVec::default();
+            while let Some(row) = rows.next().map_err(|e| {
+                MixedJsonError::diagnostic(format_args!("collect {label} 失败：{e}"))
+            })? {
+                let value = scoped_legacy::project_object_row(row, as_of, work).map_err(
                     |error| match error {
                         scoped_legacy::MixedSqlError::Sql(e) => {
                             MixedJsonError::diagnostic(format_args!("collect {label} 失败：{e}"))
@@ -394,19 +393,19 @@ pub(crate) fn read_objects(
                         scoped_legacy::MixedSqlError::Projection(e) => e,
                     },
                 )?;
-            observer
-                .visit_record(
-                    "objects",
-                    "object-sql-project",
-                    LegacyRecordRef::Json(&value),
-                )
-                .map_err(MixedJsonError::Resource)?;
-            out.try_reserve_native(work, 1)
-                .map_err(MixedJsonError::Resource)?;
-            out.try_push(value).map_err(MixedJsonError::Resource)?;
-        }
-        Ok(out)
-    };
+                observer
+                    .visit_record(
+                        "objects",
+                        "object-sql-project",
+                        LegacyRecordRef::Json(&value),
+                    )
+                    .map_err(MixedJsonError::Resource)?;
+                out.try_reserve_native(work, 1)
+                    .map_err(MixedJsonError::Resource)?;
+                out.try_push(value).map_err(MixedJsonError::Resource)?;
+            }
+            Ok(out)
+        };
     let mut objects = collect(
         if as_of.is_none() {
             crate::OBJECT_ACTIVE_SQL
@@ -1340,8 +1339,8 @@ impl AuditWalk {
             work,
             observer,
         )?;
-        let from =
-            usize::try_from(number(&delta["seq_range"], "from")?).map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
+        let from = usize::try_from(number(&delta["seq_range"], "from")?)
+            .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
         same_records(
             value_array(&delta["raw_history_added"])?,
             raw.get(from..)
@@ -1523,14 +1522,16 @@ pub(crate) fn read_raw(
 ) -> Result<newchan_rust::s_content::CodecVec<PlainJson>, MixedJsonError> {
     use scoped_legacy::{Field, ProjectionKind, ScopedLegacyRecord};
     observer.precheck().map_err(MixedJsonError::Resource)?;
-    let mut statement = conn
-        .prepare(crate::RAW_EVENTS_SQL)
-        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("prepare 读取失败：{e}")))?;
+    let mut statement = conn.prepare(crate::RAW_EVENTS_SQL).map_err(|e| {
+        crate::v3::business_json::mixed_diagnostic(format_args!("prepare 读取失败：{e}"))
+    })?;
     let mut sql = statement
         .query([])
         .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("query 失败：{e}")))?;
     let mut records = newchan_rust::s_content::CodecVec::default();
-    while let Some(row) = sql.next().map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("collect 失败：{e}")))? {
+    while let Some(row) = sql.next().map_err(|e| {
+        crate::v3::business_json::mixed_diagnostic(format_args!("collect 失败：{e}"))
+    })? {
         observer.precheck().map_err(MixedJsonError::Resource)?;
         let value = scoped_legacy::decode_raw_history_row(row, work).map_err(|e| match e {
             scoped_legacy::MixedSqlError::Sql(e) => {
@@ -1555,7 +1556,11 @@ pub(crate) fn read_raw(
             let revision = record["revision"]
                 .as_i64()
                 .ok_or("StorageUnavailable：revision非i64")?;
-            let missing = |e| crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：OHLC原件缺失 {e}"));
+            let missing = |e| {
+                crate::v3::business_json::mixed_diagnostic(format_args!(
+                    "StorageUnavailable：OHLC原件缺失 {e}"
+                ))
+            };
             let mut stmt=newchan_rust::sqlite_checked::CheckedStatement::prepare(conn,
                 c"SELECT schema_revision,open,high,low,close FROM raw_ohlc WHERE identity_key=?1 AND revision=?2").map_err(missing)?;
             match record["identity_key"].as_str() {

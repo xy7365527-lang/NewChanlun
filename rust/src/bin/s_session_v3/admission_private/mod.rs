@@ -1,8 +1,8 @@
 //! #1527：私有 SQLite 仅通过固定只读 FD VFS。无源 RW、无默认 VFS 兜底、无文件 clone。
 mod fd_wal;
-mod mixed_sql;
-mod mixed_accounting;
 mod mixed;
+mod mixed_accounting;
+mod mixed_sql;
 use super::admission_anchor::AdmissionAccounting;
 use super::admission_provider::{MeasuredDomain, Medium};
 use super::audit_budget::Budget;
@@ -597,7 +597,8 @@ pub(crate) fn test_mixed_sql_policy<T>(conn: &rusqlite::Connection, run: impl Fn
 
 #[cfg(test)]
 pub(crate) fn test_progressive_mixed_sql_policy<T>(
-    conn: &rusqlite::Connection, observer: &dyn super::audit_budget::LegacyObserver,
+    conn: &rusqlite::Connection,
+    observer: &dyn super::audit_budget::LegacyObserver,
     run: impl FnOnce(&dyn super::audit_budget::LegacyObserver) -> T,
 ) -> T {
     mixed_sql::test_progressive_policy(conn, observer, run)
@@ -609,26 +610,35 @@ pub(crate) fn mixed_fixed_metadata_bytes() -> usize {
 
 pub(crate) use mixed::SealedPrefix as MixedSealedPrefix;
 pub(crate) fn validate_mixed_prefix(
-    source:&MeasuredDomain,account:&mut AdmissionAccounting<'_>,prefix:&RejectionPrefix<'_>,
-)->Result<MixedSealedPrefix,super::admission_anchor::terminal::FixedFailure>{
-    let enabled=false;
+    source: &MeasuredDomain,
+    account: &mut AdmissionAccounting<'_>,
+    prefix: &RejectionPrefix<'_>,
+) -> Result<MixedSealedPrefix, super::admission_anchor::terminal::FixedFailure> {
+    let enabled = false;
     #[cfg(test)]
-    let enabled=enabled||MIXED_TEST_ENTRY.with(|value|value.get());
-    if !enabled{
+    let enabled = enabled || MIXED_TEST_ENTRY.with(|value| value.get());
+    if !enabled {
         return Err(super::admission_anchor::terminal::FixedFailure::new(
-            "MixedAdmissionNotEnabled","business","MixedAdmissionNotEnabled"));
+            "MixedAdmissionNotEnabled",
+            "business",
+            "MixedAdmissionNotEnabled",
+        ));
     }
-    let sealed=mixed::validate(source,account)?;
+    let sealed = mixed::validate(source, account)?;
     sealed.require(prefix)?;
     Ok(sealed)
 }
 #[cfg(test)]
 thread_local! {static MIXED_TEST_ENTRY:std::cell::Cell<bool>=const{std::cell::Cell::new(false)};}
 #[cfg(test)]
-pub(crate) fn test_with_mixed_entry<T>(run:impl FnOnce()->T)->T{
+pub(crate) fn test_with_mixed_entry<T>(run: impl FnOnce() -> T) -> T {
     struct Reset;
-    impl Drop for Reset{fn drop(&mut self){MIXED_TEST_ENTRY.with(|v|v.set(false));}}
-    MIXED_TEST_ENTRY.with(|v|assert!(!v.replace(true)));
-    let _reset=Reset;
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            MIXED_TEST_ENTRY.with(|v| v.set(false));
+        }
+    }
+    MIXED_TEST_ENTRY.with(|v| assert!(!v.replace(true)));
+    let _reset = Reset;
     run()
 }

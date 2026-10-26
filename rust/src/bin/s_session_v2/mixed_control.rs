@@ -207,8 +207,9 @@ pub(crate) fn epoch_history(
 ) -> Result<EpochFacts, MixedJsonError> {
     let generation = crate::audit::mixed_profile::meta_text(conn, "generation", work)?
         .ok_or_else(|| "StorageUnavailable：meta.generation 缺失".to_string())?;
-    let generation = parse_canonical_i64(&generation, "meta.generation")
-        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：{e}")))?;
+    let generation = parse_canonical_i64(&generation, "meta.generation").map_err(|e| {
+        crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：{e}"))
+    })?;
     let current = crate::audit::mixed_profile::meta_text(conn, "writer_epoch", work)?
         .ok_or_else(|| err("缺writer_epoch"))?;
     let current = parse_writer_epoch(&current, "meta.writer_epoch").map_err(err)?;
@@ -271,24 +272,37 @@ pub(crate) fn delta_mode(
             params![delta_storage::TABLE],
             |r| r.get(0),
         )
-        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：读私有格式登记失败：{e}")))?;
+        .map_err(|e| {
+            crate::v3::business_json::mixed_diagnostic(format_args!(
+                "StorageUnavailable：读私有格式登记失败：{e}"
+            ))
+        })?;
     if exists == 0 {
         return Ok(delta_storage::Mode::LegacyFull);
     }
     let mut stmt = conn
         .prepare("SELECT singleton,storage_format FROM s_storage_format")
-        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：私有格式登记结构不符：{e}")))?;
-    let mut query = stmt
-        .query([])
-        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：读私有格式登记失败：{e}")))?;
+        .map_err(|e| {
+            crate::v3::business_json::mixed_diagnostic(format_args!(
+                "StorageUnavailable：私有格式登记结构不符：{e}"
+            ))
+        })?;
+    let mut query = stmt.query([]).map_err(|e| {
+        crate::v3::business_json::mixed_diagnostic(format_args!(
+            "StorageUnavailable：读私有格式登记失败：{e}"
+        ))
+    })?;
     let mut rows = CodecVec::default();
-    while let Some(row) = query
-        .next()
-        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：私有格式登记行损坏：{e}")))?
-    {
-        let n: i64 = row
-            .get(0)
-            .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：私有格式登记行损坏：{e}")))?;
+    while let Some(row) = query.next().map_err(|e| {
+        crate::v3::business_json::mixed_diagnostic(format_args!(
+            "StorageUnavailable：私有格式登记行损坏：{e}"
+        ))
+    })? {
+        let n: i64 = row.get(0).map_err(|e| {
+            crate::v3::business_json::mixed_diagnostic(format_args!(
+                "StorageUnavailable：私有格式登记行损坏：{e}"
+            ))
+        })?;
         let value = row
             .get_ref(1)
             .and_then(|v| {
@@ -305,7 +319,11 @@ pub(crate) fn delta_mode(
                     }
                 })
             })
-            .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：私有格式登记行损坏：{e}")))?;
+            .map_err(|e| {
+                crate::v3::business_json::mixed_diagnostic(format_args!(
+                    "StorageUnavailable：私有格式登记行损坏：{e}"
+                ))
+            })?;
         let text = Text::try_from_str(value, Some(work)).map_err(MixedJsonError::Resource)?;
         rows.try_reserve_native(work, 1)
             .map_err(MixedJsonError::Resource)?;

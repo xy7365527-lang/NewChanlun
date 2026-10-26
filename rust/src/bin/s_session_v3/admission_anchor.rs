@@ -447,7 +447,9 @@ impl fmt::Debug for PreparedAdmission {
 }
 
 impl PreparedAdmission {
-    pub(crate) fn is_mixed(&self)->bool {self.resources.is_mixed()}
+    pub(crate) fn is_mixed(&self) -> bool {
+        self.resources.is_mixed()
+    }
     /// #1527：在冻结源域前等父进程登记，借用管道，不重起钟或另建账。
     fn wait_start_gate(&mut self, fd: libc::c_int) -> Result<(), AdmissionError> {
         let stage = Stage::E4;
@@ -769,9 +771,11 @@ impl ConsumedAdmission {
     ) -> Result<StartedAdmission, AdmissionError> {
         use newchan_rust::s_content::job::Job;
         if self.mixed.is_some() {
-            TERMINAL.with(|slot|{
-                if let Some(state)=slot.borrow_mut().as_mut(){
-                    if state.mixed.is_none(){state.mixed=Some(terminal::MixedTerminal::new());}
+            TERMINAL.with(|slot| {
+                if let Some(state) = slot.borrow_mut().as_mut() {
+                    if state.mixed.is_none() {
+                        state.mixed = Some(terminal::MixedTerminal::new());
+                    }
                 }
             });
         }
@@ -841,9 +845,11 @@ impl ConsumedAdmission {
 }
 
 impl StartedAdmission {
-    pub(crate) fn is_mixed(&self)->bool {self.ram.is_some()}
-    pub(crate) fn set_mixed_prefix(&mut self,prefix:super::admission_private::MixedSealedPrefix){
-        self.mixed_prefix=Some(prefix);
+    pub(crate) fn is_mixed(&self) -> bool {
+        self.ram.is_some()
+    }
+    pub(crate) fn set_mixed_prefix(&mut self, prefix: super::admission_private::MixedSealedPrefix) {
+        self.mixed_prefix = Some(prefix);
     }
     pub(crate) fn accounting(&mut self) -> AdmissionAccounting<'_> {
         AdmissionAccounting {
@@ -938,17 +944,29 @@ impl StartedAdmission {
 
 /// 私有恢复已收尾后的同一本账，仅用于启动外围 I/O，不能重新准入或换 Job。
 pub(crate) struct FinishedAdmission {
-    mixed_prefix:Option<super::admission_private::MixedSealedPrefix>,
+    mixed_prefix: Option<super::admission_private::MixedSealedPrefix>,
     job: Rc<RefCell<admission_job::Job>>,
     ram: Option<ram::AdmissionRamLedger>,
     lease: Arc<BudgetLease>,
 }
 impl FinishedAdmission {
-    pub(crate) fn is_mixed(&self)->bool {self.ram.is_some()}
-    pub(crate) fn require_mixed_prefix(&self,prefix:&super::admission_private::RejectionPrefix<'_>)
-        ->Result<(),terminal::FixedFailure>{
-        self.mixed_prefix.as_ref().ok_or_else(||terminal::FixedFailure::new(
-            "MixedSealedProofMissing","reuse","缺完整审计封存结果"))?.require(prefix)
+    pub(crate) fn is_mixed(&self) -> bool {
+        self.ram.is_some()
+    }
+    pub(crate) fn require_mixed_prefix(
+        &self,
+        prefix: &super::admission_private::RejectionPrefix<'_>,
+    ) -> Result<(), terminal::FixedFailure> {
+        self.mixed_prefix
+            .as_ref()
+            .ok_or_else(|| {
+                terminal::FixedFailure::new(
+                    "MixedSealedProofMissing",
+                    "reuse",
+                    "缺完整审计封存结果",
+                )
+            })?
+            .require(prefix)
     }
     pub(crate) fn lease(&self) -> &Arc<BudgetLease> {
         &self.lease
@@ -1640,23 +1658,37 @@ pub(super) fn test_with_clock_account<T>(
 
 #[cfg(test)]
 pub(crate) fn test_mixed_account<'a>(
-    job:&'a RefCell<admission_job::Job>,
-    work:&'a newchan_rust::s_content::capture_allocation::scratch::WorkScope,
-)->AdmissionAccounting<'a>{
-    AdmissionAccounting{job:job.borrow_mut(),work:Some(work),mixed:true}
+    job: &'a RefCell<admission_job::Job>,
+    work: &'a newchan_rust::s_content::capture_allocation::scratch::WorkScope,
+) -> AdmissionAccounting<'a> {
+    AdmissionAccounting {
+        job: job.borrow_mut(),
+        work: Some(work),
+        mixed: true,
+    }
 }
 
 #[cfg(test)]
-pub(crate) fn test_prepare_mixed(db:&Path,live:u64,operation:u64)->PreparedAdmission {
-    test_support::prepare_with_ram(db,Some((live,operation)))
+pub(crate) fn test_prepare_mixed(db: &Path, live: u64, operation: u64) -> PreparedAdmission {
+    test_support::prepare_with_ram(db, Some((live, operation)))
 }
 
 #[cfg(test)]
-pub(crate) fn test_prepare_mixed_wire(db:&Path,live:u64,operation:u64,wire:u64)->PreparedAdmission {
-    test_support::prepare_with_ram_wire(db,Some((live,operation)),Some(wire))
+pub(crate) fn test_prepare_mixed_wire(
+    db: &Path,
+    live: u64,
+    operation: u64,
+    wire: u64,
+) -> PreparedAdmission {
+    test_support::prepare_with_ram_wire(db, Some((live, operation)), Some(wire))
 }
 
 #[cfg(test)]
-pub(crate) fn test_prepare_mixed_caps(db:&Path,live:u64,operation:u64,fields:&[(&str,u64)])->PreparedAdmission {
-    test_support::prepare_with_fields(db,Some((live,operation)),fields)
+pub(crate) fn test_prepare_mixed_caps(
+    db: &Path,
+    live: u64,
+    operation: u64,
+    fields: &[(&str, u64)],
+) -> PreparedAdmission {
+    test_support::prepare_with_fields(db, Some((live, operation)), fields)
 }

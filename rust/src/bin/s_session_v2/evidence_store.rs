@@ -50,7 +50,9 @@ fn work_copy<T: Copy>(bytes: &[T], owner: Option<&OwnedBudget>) -> Result<CodecV
 }
 fn ordinary_read_error(error: MixedJsonError) -> String {
     match error {
-        MixedJsonError::Resource(error) => crate::v3::business_json::mixed_resource_diagnostic(&error),
+        MixedJsonError::Resource(error) => {
+            crate::v3::business_json::mixed_resource_diagnostic(&error)
+        }
         MixedJsonError::Business(error) => error,
     }
 }
@@ -244,7 +246,11 @@ pub(crate) fn read_format_typed(
         conn,
         c"SELECT singleton,graph_format FROM s_evidence_format",
     )
-    .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：私有图格式登记结构不符：{e}")))?;
+    .map_err(|e| {
+        crate::v3::business_json::mixed_diagnostic(format_args!(
+            "StorageUnavailable：私有图格式登记结构不符：{e}"
+        ))
+    })?;
     let mut rows = new_work(owner);
     while let Some(mut row) = stmt.next().map_err(|e| {
         format!(
@@ -308,8 +314,14 @@ pub(crate) fn read_format_typed(
 pub(super) fn format(conn: &Connection) -> Result<Format, String> {
     format_admitted(conn, None)
 }
-pub(super) fn format_admitted(conn:&Connection,work:Option<&WorkScope>)->Result<Format,String>{
-    format_typed(conn,work).map_err(|e|match e {MixedJsonError::Business(e)=>e,MixedJsonError::Resource(e)=>crate::v3::business_json::mixed_resource_diagnostic(&e)})
+pub(super) fn format_admitted(
+    conn: &Connection,
+    work: Option<&WorkScope>,
+) -> Result<Format, String> {
+    format_typed(conn, work).map_err(|e| match e {
+        MixedJsonError::Business(e) => e,
+        MixedJsonError::Resource(e) => crate::v3::business_json::mixed_resource_diagnostic(&e),
+    })
 }
 pub(crate) fn format_typed(
     conn: &Connection,
@@ -332,7 +344,11 @@ pub(super) fn graph_tables_present(conn: &Connection) -> Result<bool, String> {
             params![FORMAT_TABLE, NODES_TABLE, ROOTS_TABLE],
             |r| r.get(0),
         )
-        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：核私有证据图表失败：{e}")))?;
+        .map_err(|e| {
+            crate::v3::business_json::mixed_diagnostic(format_args!(
+                "StorageUnavailable：核私有证据图表失败：{e}"
+            ))
+        })?;
     match count {
         0 => Ok(false),
         3 => Ok(true),
@@ -344,13 +360,16 @@ pub(super) fn graph_tables_present(conn: &Connection) -> Result<bool, String> {
 
 /// 新 init 落私有 DDL 与唯一一行声明。只在新建库调用；旧库不补、不迁移、不混代。
 pub(super) fn declare_new(conn: &Connection) -> Result<(), String> {
-    conn.execute_batch(DDL)
-        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("建私有证据图表失败：{e}")))?;
+    conn.execute_batch(DDL).map_err(|e| {
+        crate::v3::business_json::mixed_diagnostic(format_args!("建私有证据图表失败：{e}"))
+    })?;
     conn.execute(
         "INSERT INTO s_evidence_format(singleton,graph_format) VALUES(1,?1)",
         params![GRAPH_FORMAT],
     )
-    .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("写私有图格式登记失败：{e}")))?;
+    .map_err(|e| {
+        crate::v3::business_json::mixed_diagnostic(format_args!("写私有图格式登记失败：{e}"))
+    })?;
     Ok(())
 }
 
@@ -431,8 +450,11 @@ pub(super) fn root_kind(root_key: &str) -> Result<(RootKind, &str), String> {
                 ));
             }
             if kind == RootKind::Delta {
-                let generation = parse_canonical_i64(rest, "Delta 私有根代数")
-                    .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：{e}")))?;
+                let generation = parse_canonical_i64(rest, "Delta 私有根代数").map_err(|e| {
+                    crate::v3::business_json::mixed_diagnostic(format_args!(
+                        "StorageUnavailable：{e}"
+                    ))
+                })?;
                 if generation < 1 {
                     return Err(format!(
                         "StorageUnavailable：Delta 私有根 `{root_key}` 代数必须为正整数"
@@ -461,10 +483,16 @@ pub(super) fn split_fact_root(
     bytes: &[u8],
     what: &str,
 ) -> Result<(String, String, String), String> {
-    let text = std::str::from_utf8(bytes)
-        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：{what} 事实原件非 UTF-8：{e}")))?;
-    let value = v2::strict_json(text.as_bytes())
-        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：{what} 事实原件非严格 JSON：{e}")))?;
+    let text = std::str::from_utf8(bytes).map_err(|e| {
+        crate::v3::business_json::mixed_diagnostic(format_args!(
+            "StorageUnavailable：{what} 事实原件非 UTF-8：{e}"
+        ))
+    })?;
+    let value = v2::strict_json(text.as_bytes()).map_err(|e| {
+        crate::v3::business_json::mixed_diagnostic(format_args!(
+            "StorageUnavailable：{what} 事实原件非严格 JSON：{e}"
+        ))
+    })?;
     let items = value
         .as_array()
         .ok_or_else(|| format!("StorageUnavailable：{what} 事实原件必须是三元素数组"))?;
@@ -513,7 +541,9 @@ pub(crate) fn split_fact_root_mixed(
 > {
     use newchan_rust::s_content::capture_allocation::native_owned::NativeValue;
     let text = std::str::from_utf8(bytes).map_err(|e| {
-        MixedJsonError::diagnostic(format_args!("StorageUnavailable：{what} 事实原件非 UTF-8：{e}"))
+        MixedJsonError::diagnostic(format_args!(
+            "StorageUnavailable：{what} 事实原件非 UTF-8：{e}"
+        ))
     })?;
     let value = crate::v3::business_json::mixed_parse_admitted(bytes, work, || {
         v2::strict_json(text.as_bytes())
@@ -740,7 +770,9 @@ impl Stager {
                     if i > 0 {
                         children.push(Child::Lit(esc(escape, ",")));
                     }
-                    let key = serde_json::to_string(k).map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
+                    let key = serde_json::to_string(k).map_err(|e| {
+                        crate::v3::business_json::mixed_diagnostic(format_args!("{e}"))
+                    })?;
                     children.push(Child::Lit(esc(escape, &format!("{key}:"))));
                     let child = self.intern(v, escape)?;
                     children.push(child);
@@ -754,8 +786,11 @@ impl Stager {
                 // 少了这一步，候选展开就永远比目标短（`"` 未写成 `\"`），整段拆分会被
                 // 自核对安静地退回成一个大叶——字节仍对，但跨代共享退化成按字符串整体去重。
                 let canonical = canonical_bytes_of_value(value);
-                let text = std::str::from_utf8(&canonical)
-                    .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("SchemaUnsupported：字符串规范字节非 UTF-8：{e}")))?;
+                let text = std::str::from_utf8(&canonical).map_err(|e| {
+                    crate::v3::business_json::mixed_diagnostic(format_args!(
+                        "SchemaUnsupported：字符串规范字节非 UTF-8：{e}"
+                    ))
+                })?;
                 let mut escaped = Vec::with_capacity(canonical.len() + 2);
                 push_escaped(&mut escaped, text);
                 Ok(self.leaf(escaped))
@@ -876,7 +911,9 @@ impl Stager {
             Child::Lit(b) => stack
                 .try_push(Frame::Lit(CodecVec::from_plain(b.clone())))
                 .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?,
-            Child::Slot(i) => stack.try_push(Frame::Slot(*i)).map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?,
+            Child::Slot(i) => stack
+                .try_push(Frame::Slot(*i))
+                .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?,
             Child::Ref(id) => stack
                 .try_push(Frame::Open(*id))
                 .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?,
@@ -1165,7 +1202,11 @@ pub(super) fn publish_refs(
             .prepare(
                 "SELECT node_kind,payload,expanded_length FROM s_evidence_nodes WHERE node_id=?1",
             )
-            .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("prepare 私有节点读取失败：{e}")))?;
+            .map_err(|e| {
+                crate::v3::business_json::mixed_diagnostic(format_args!(
+                    "prepare 私有节点读取失败：{e}"
+                ))
+            })?;
         for (id, node) in &staged.nodes {
             let changed = insert
                 .execute(params![
@@ -1175,7 +1216,9 @@ pub(super) fn publish_refs(
                     i64::try_from(node.expanded_length)
                         .map_err(|_| "StorageUnavailable：节点展开长度超出 i64 域")?,
                 ])
-                .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("写私有节点失败：{e}")))?;
+                .map_err(|e| {
+                    crate::v3::business_json::mixed_diagnostic(format_args!("写私有节点失败：{e}"))
+                })?;
             if changed == 1 {
                 inserted += 1;
                 inserted_bytes += node.payload.len() as u64;
@@ -1186,8 +1229,11 @@ pub(super) fn publish_refs(
                         == Some("after_evidence_node")
                 {
                     // #1394：真实节点页已刷入当前未提交事务，根行尚未写入；外部按标记 PID 注入 SIGKILL。
-                    tx.cache_flush()
-                        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("TestOnly：节点页刷新失败：{e}")))?;
+                    tx.cache_flush().map_err(|e| {
+                        crate::v3::business_json::mixed_diagnostic(format_args!(
+                            "TestOnly：节点页刷新失败：{e}"
+                        ))
+                    })?;
                     testonly_pause("after_evidence_node");
                 }
                 continue;
@@ -1195,7 +1241,11 @@ pub(super) fn publish_refs(
             // 同 ID 必须同内容：逐字节比对，不符即拒绝发布。
             let (kind, payload, length): (i64, Vec<u8>, i64) = read
                 .query_row(params![&id[..]], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
-                .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("读既有私有节点失败：{e}")))?;
+                .map_err(|e| {
+                    crate::v3::business_json::mixed_diagnostic(format_args!(
+                        "读既有私有节点失败：{e}"
+                    ))
+                })?;
             if kind != node.kind
                 || payload != node.payload
                 || u64::try_from(length).ok() != Some(node.expanded_length)
@@ -1246,7 +1296,9 @@ pub(super) fn publish_refs(
             "DELETE FROM s_evidence_roots WHERE root_key=?1 AND node_id<>?2",
             params![root_key, &staged.root[..]],
         )
-        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("核私有根唯一性失败：{e}")))?;
+        .map_err(|e| {
+            crate::v3::business_json::mixed_diagnostic(format_args!("核私有根唯一性失败：{e}"))
+        })?;
     if replaced != 0 {
         return Err(format!(
             "IdentityConflict：私有根 `{root_key}` 出现同 key 多根"
@@ -1641,7 +1693,10 @@ impl<'a> Reader<'a> {
             children,
         };
         let result = node.try_clone(&state.budget)?;
-        state.nodes.insert(*id, node).map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
+        state
+            .nodes
+            .insert(*id, node)
+            .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
         Ok(ReadNode::Owned(result))
     }
     fn load_for_walk(&mut self, id: &[u8; 32]) -> Result<ReadNode, MixedJsonError> {
@@ -2485,7 +2540,11 @@ impl<'a> Reader<'a> {
             let (kind, payload, len): (i64, Vec<u8>, i64) = statement
                 .query_row(params![&id[..]], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
                 .optional()
-                .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：读私有节点失败：{e}")))?
+                .map_err(|e| {
+                    crate::v3::business_json::mixed_diagnostic(format_args!(
+                        "StorageUnavailable：读私有节点失败：{e}"
+                    ))
+                })?
                 .ok_or_else(|| format!("StorageUnavailable：私有节点 {} 缺失", hex(id)))?;
             drop(statement);
             let declared = verify_node_row(id, kind, &payload, len)?;
@@ -2662,7 +2721,10 @@ fn read_node_row_typed(
     .map_err(err)?;
     stmt.bind_blob(1, id).map_err(err)?;
     let mut row = stmt.next().map_err(err)?.ok_or_else(|| {
-        MixedJsonError::diagnostic(format_args!("StorageUnavailable：私有节点 {} 缺失", hex(id)))
+        MixedJsonError::diagnostic(format_args!(
+            "StorageUnavailable：私有节点 {} 缺失",
+            hex(id)
+        ))
     })?;
     let kind = row.integer(0).map_err(err)?;
     let payload = work_copy_typed(row.blob(1).map_err(err)?, owner, work)?;
@@ -2899,7 +2961,9 @@ pub(super) fn prune_unreachable_nodes(conn: &Connection) -> Result<usize, String
             "DELETE FROM s_evidence_nodes WHERE node_id=?1",
             params![&id[..]],
         )
-        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("删除不可达节点失败：{e}")))?;
+        .map_err(|e| {
+            crate::v3::business_json::mixed_diagnostic(format_args!("删除不可达节点失败：{e}"))
+        })?;
         deleted += 1;
     }
     Ok(deleted)
@@ -2916,7 +2980,11 @@ pub(super) fn ensure_all_nodes_reachable(
 ) -> Result<(), String> {
     let total: i64 = conn
         .query_row("SELECT COUNT(*) FROM s_evidence_nodes", [], |r| r.get(0))
-        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：核私有节点表失败：{e}")))?;
+        .map_err(|e| {
+            crate::v3::business_json::mixed_diagnostic(format_args!(
+                "StorageUnavailable：核私有节点表失败：{e}"
+            ))
+        })?;
     if usize::try_from(total).ok() == Some(reachable) {
         return Ok(());
     }
@@ -2938,12 +3006,24 @@ pub(super) fn unreachable_nodes(
 ) -> Result<Vec<[u8; 32]>, String> {
     let mut stmt = conn
         .prepare("SELECT node_id FROM s_evidence_nodes")
-        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：读私有节点表失败：{e}")))?;
+        .map_err(|e| {
+            crate::v3::business_json::mixed_diagnostic(format_args!(
+                "StorageUnavailable：读私有节点表失败：{e}"
+            ))
+        })?;
     let rows = stmt
         .query_map([], |r| r.get::<_, Vec<u8>>(0))
-        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：读私有节点表失败：{e}")))?
+        .map_err(|e| {
+            crate::v3::business_json::mixed_diagnostic(format_args!(
+                "StorageUnavailable：读私有节点表失败：{e}"
+            ))
+        })?
         .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：私有节点行损坏：{e}")))?;
+        .map_err(|e| {
+            crate::v3::business_json::mixed_diagnostic(format_args!(
+                "StorageUnavailable：私有节点行损坏：{e}"
+            ))
+        })?;
     let mut orphan = Vec::new();
     for row in rows {
         let id = decode_id(&row)
@@ -2961,7 +3041,8 @@ pub(crate) fn ensure_all_nodes_reachable_mixed(
     reachable: usize,
     work: &WorkScope,
 ) -> Result<(), MixedJsonError> {
-    let err = |e| MixedJsonError::diagnostic(format_args!("StorageUnavailable：核私有节点表失败：{e}"));
+    let err =
+        |e| MixedJsonError::diagnostic(format_args!("StorageUnavailable：核私有节点表失败：{e}"));
     let mut count =
         CheckedStatement::prepare(conn, c"SELECT COUNT(*) FROM s_evidence_nodes").map_err(err)?;
     let mut row = count
@@ -3025,12 +3106,24 @@ pub(crate) fn unreachable_nodes_mixed(
 pub(super) fn root_keys(conn: &Connection) -> Result<Vec<String>, String> {
     let mut stmt = conn
         .prepare("SELECT root_key FROM s_evidence_roots ORDER BY root_key")
-        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：读私有根表失败：{e}")))?;
+        .map_err(|e| {
+            crate::v3::business_json::mixed_diagnostic(format_args!(
+                "StorageUnavailable：读私有根表失败：{e}"
+            ))
+        })?;
     let keys = stmt
         .query_map([], |r| r.get::<_, String>(0))
-        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：读私有根表失败：{e}")))?
+        .map_err(|e| {
+            crate::v3::business_json::mixed_diagnostic(format_args!(
+                "StorageUnavailable：读私有根表失败：{e}"
+            ))
+        })?
         .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：私有根行损坏：{e}")))?;
+        .map_err(|e| {
+            crate::v3::business_json::mixed_diagnostic(format_args!(
+                "StorageUnavailable：私有根行损坏：{e}"
+            ))
+        })?;
     Ok(keys)
 }
 
@@ -3041,7 +3134,11 @@ pub(super) fn stats(conn: &Connection) -> Result<(i64, i64), String> {
         [],
         |r| Ok((r.get(0)?, r.get(1)?)),
     )
-    .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：读私有节点统计失败：{e}")))
+    .map_err(|e| {
+        crate::v3::business_json::mixed_diagnostic(format_args!(
+            "StorageUnavailable：读私有节点统计失败：{e}"
+        ))
+    })
 }
 
 /// 拼接节点的每一项在展开时是否只按字面读取（测试与审计用的结构探针）。

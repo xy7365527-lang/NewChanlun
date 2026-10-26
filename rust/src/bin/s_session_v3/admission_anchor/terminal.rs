@@ -29,10 +29,20 @@ impl FixedFailure {
         out.detail[..len].copy_from_slice(&detail.as_bytes()[..len]);
         out
     }
-    pub(crate) fn formatted(code:&'static str,phase:&'static str,detail:fmt::Arguments<'_>)->Self{
-        let mut buffer=FixedBuffer::<DETAIL_BYTES>::new();
-        let truncated=buffer.write_fmt(detail).is_err();
-        Self{code,phase,detail:buffer.bytes,len:buffer.len,truncated}
+    pub(crate) fn formatted(
+        code: &'static str,
+        phase: &'static str,
+        detail: fmt::Arguments<'_>,
+    ) -> Self {
+        let mut buffer = FixedBuffer::<DETAIL_BYTES>::new();
+        let truncated = buffer.write_fmt(detail).is_err();
+        Self {
+            code,
+            phase,
+            detail: buffer.bytes,
+            len: buffer.len,
+            truncated,
+        }
     }
     pub(crate) fn detail(&self) -> &str {
         std::str::from_utf8(&self.detail[..self.len]).expect("bounded UTF-8 copy")
@@ -117,7 +127,9 @@ impl MixedTerminal {
         out.write_str(",\"later\":[")?;
         let mut separator = false;
         for later in self.later.iter().flatten() {
-            if separator { out.write_char(',')?; }
+            if separator {
+                out.write_char(',')?;
+            }
             separator = true;
             out.write_str("{\"code\":")?;
             json_string(out, later.code)?;
@@ -127,8 +139,11 @@ impl MixedTerminal {
             json_string(out, later.detail())?;
             write!(out, ",\"detail_truncated\":{}}}", later.truncated)?;
         }
-        write!(out, "],\"unaccepted_read_wire\":{},\"unaccepted_read_overflow\":{}",
-            self.unaccepted_read_wire, self.unaccepted_read_overflow)?;
+        write!(
+            out,
+            "],\"unaccepted_read_wire\":{},\"unaccepted_read_overflow\":{}",
+            self.unaccepted_read_wire, self.unaccepted_read_overflow
+        )?;
         write!(
             out,
             ",\"detail_truncated\":{},\"admission_accounting\":{{\"job_present\":{}",
@@ -213,13 +228,13 @@ pub(crate) fn note_failure(failure: FixedFailure) {
     });
 }
 
-pub(crate) fn note_cleanup(
-    later: [Option<FixedFailure>; 7], unaccepted: u128, overflow: bool,
-) {
+pub(crate) fn note_cleanup(later: [Option<FixedFailure>; 7], unaccepted: u128, overflow: bool) {
     TERMINAL.with(|slot| {
         if let Some(mixed) = slot.borrow_mut().as_mut().and_then(|s| s.mixed.as_mut()) {
             for (destination, value) in mixed.later.iter_mut().zip(later) {
-                if destination.is_none() { *destination = value; }
+                if destination.is_none() {
+                    *destination = value;
+                }
             }
             mixed.unaccepted_read_wire = unaccepted;
             mixed.unaccepted_read_overflow = overflow;

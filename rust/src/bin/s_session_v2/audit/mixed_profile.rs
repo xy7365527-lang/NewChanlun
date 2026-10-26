@@ -15,7 +15,8 @@ pub(crate) fn meta_text(
     key: &str,
     work: &WorkScope,
 ) -> Result<Option<Text>, MixedJsonError> {
-    let error = |e| crate::v3::business_json::mixed_diagnostic(format_args!("读 meta.{key} 失败：{e}"));
+    let error =
+        |e| crate::v3::business_json::mixed_diagnostic(format_args!("读 meta.{key} 失败：{e}"));
     let mut stmt = newchan_rust::sqlite_checked::CheckedStatement::prepare(
         conn,
         c"SELECT value FROM meta WHERE key = ?1",
@@ -114,14 +115,23 @@ pub(crate) fn verify_profile(
         let mut statement=newchan_rust::sqlite_checked::CheckedStatement::prepare(conn,
             c"SELECT b.batch_id FROM batches b JOIN structure_deltas d ON d.index_frontier=b.batch_id ORDER BY d.generation ASC").map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
         let mut ids = CodecVec::default();
-        while let Some(mut row) = statement.next().map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))? {
+        while let Some(mut row) = statement
+            .next()
+            .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?
+        {
             ids.try_reserve_native(work, 1)
                 .map_err(MixedJsonError::Resource)?;
-            let id = Text::try_from_str(row.text(0).map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?, Some(work))
-                .map_err(MixedJsonError::Resource)?;
+            let id = Text::try_from_str(
+                row.text(0)
+                    .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?,
+                Some(work),
+            )
+            .map_err(MixedJsonError::Resource)?;
             ids.try_push(id).map_err(MixedJsonError::Resource)?;
         }
-        statement.finalize().map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
+        statement
+            .finalize()
+            .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
         let mut found = false;
         let mut reader =
             evidence_store::Reader::new_mixed(conn, crate::EVIDENCE_READ_BUDGET, work, observer)?;
