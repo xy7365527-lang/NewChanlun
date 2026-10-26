@@ -102,6 +102,8 @@ mod s_allocation;
 mod source_audit;
 mod state;
 mod writer_cli;
+#[cfg(test)]
+pub(crate) use admission_private::test_with_mixed_entry;
 
 /// 本模块唯一负责的协议版本。
 pub(super) const PROTOCOL_REVISION: &str = "s-session/3";
