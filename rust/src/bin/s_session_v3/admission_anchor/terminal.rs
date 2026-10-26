@@ -399,9 +399,13 @@ mod tests {
     fn mixed_terminal_ram_without_a_job_has_zero_job_permits() {
         let command = CommandAccounting::begin();
         let ram = ram::AdmissionRamLedger::new_with_fixed(
-            resources::NativeRamLimits { max_live_bytes: 1 << 20, max_operation_bytes: 1 << 20 },
+            resources::NativeRamLimits {
+                max_live_bytes: 1 << 20,
+                max_operation_bytes: 1 << 20,
+            },
             mixed_fixed_metadata().unwrap(),
-        ).unwrap();
+        )
+        .unwrap();
         TERMINAL.with(|slot| {
             let mut state = slot.borrow_mut();
             let state = state.as_mut().unwrap();
