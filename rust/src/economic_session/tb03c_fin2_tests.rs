@@ -262,7 +262,10 @@ fn storage_stats(session: &Session, owner: usize) -> Value {
     }
     let parent = std::ffi::CString::new(path.parent().unwrap().as_os_str().as_bytes()).unwrap();
     let mut vfs = std::mem::MaybeUninit::<libc::statvfs>::uninit();
-    assert_eq!(unsafe { libc::statvfs(parent.as_ptr(), vfs.as_mut_ptr()) }, 0);
+    assert_eq!(
+        unsafe { libc::statvfs(parent.as_ptr(), vfs.as_mut_ptr()) },
+        0
+    );
     let vfs = unsafe { vfs.assume_init() };
     let free = vfs.f_bavail * vfs.f_frsize;
     let page_size = read("page_size");
@@ -401,7 +404,12 @@ fn send_original(
         format!("{}\n", canonical_json(&evidence)).as_bytes(),
         true,
     );
-    observe_storage(session, owner, "original", request["message_id"].as_str().unwrap());
+    observe_storage(
+        session,
+        owner,
+        "original",
+        request["message_id"].as_str().unwrap(),
+    );
     assert_eq!(response["schema_revision"], "economic-session/2");
     assert_eq!(response["source_namespace"], "economic-session/replies");
     if response["payload"]["kind"] == "Error" {
@@ -452,7 +460,11 @@ fn fin2_we7_capture_resolve_apply_recover_and_resend() {
     std::fs::write(&sentinel, "preserve the caller-owned carrier root").unwrap();
     let mut session = load(&root);
     for name in ["manifest.json", "fin-input.json"] {
-        archive_evidence(name, &std::fs::read(session._space.0.join(name)).unwrap(), false);
+        archive_evidence(
+            name,
+            &std::fs::read(session._space.0.join(name)).unwrap(),
+            false,
+        );
     }
     archive_evidence("RAW.json", RAW.as_bytes(), false);
     archive_evidence("HAND-ORACLE.json", HAND.as_bytes(), false);
@@ -486,7 +498,11 @@ fn fin2_we7_capture_resolve_apply_recover_and_resend() {
         "{imported}"
     );
 
-    archive_evidence("import-receipt.json", canonical_json(&imported).as_bytes(), false);
+    archive_evidence(
+        "import-receipt.json",
+        canonical_json(&imported).as_bytes(),
+        false,
+    );
     for owner in 0..4 {
         observe_storage(&session, owner, "initialized", "");
     }
@@ -636,9 +652,13 @@ fn fin2_we7_capture_resolve_apply_recover_and_resend() {
         observe_storage(&session, original.owner, "after_resend", message_id);
         archive_evidence(
             "resends.jsonl",
-            format!("{}\n", canonical_json(&json!({
-                "owner":original.owner,"request":original.request,"response":response
-            }))).as_bytes(),
+            format!(
+                "{}\n",
+                canonical_json(&json!({
+                    "owner":original.owner,"request":original.request,"response":response
+                }))
+            )
+            .as_bytes(),
             true,
         );
         let mut expected = original.response.clone();
@@ -689,7 +709,8 @@ fn fin2_we7_capture_resolve_apply_recover_and_resend() {
             "captures":captures.len(),"resolves":resolves.len(),"applies":applies.len(),
             "resends":originals.len(),"final_books":final_books,"epochs":session.epochs,
             "sequences":before_seq,"next":session.next,"recovery_and_resend_invariants":"passed",
-        })).as_bytes(),
+        }))
+        .as_bytes(),
         false,
     );
     drop(session);
