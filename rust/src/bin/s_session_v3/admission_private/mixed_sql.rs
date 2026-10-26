@@ -351,10 +351,12 @@ mod tests {
         }
     }
     pub(super) fn with_policy<T>(conn:&Connection,run:impl FnOnce()->T)->T{
+        let tx=if conn.is_autocommit(){Some(conn.unchecked_transaction().unwrap())}else{None};
         let mut capture=Capture{policy:ExpectedTables::selected(true,true,true,true),calls:Vec::new()};
         unsafe{assert_eq!(ffi::sqlite3_set_authorizer(conn.handle(),Some(authorize),(&mut capture as *mut Capture).cast()),ffi::SQLITE_OK);}
         let result=run();
         unsafe{ffi::sqlite3_set_authorizer(conn.handle(),None,std::ptr::null_mut());}
+        if let Some(tx)=tx{tx.rollback().unwrap();}
         assert!(!capture.calls.iter().any(|c|c.ends_with("allowed=false")),"callbacks: {:?}",capture.calls);
         result
     }
@@ -375,12 +377,8 @@ mod tests {
     #[test]
     fn mixed_sql_real_root_callbacks_close_under_selected_policy(){
         crate::v2::with_mixed_control_fixture(|conn|{
-            let mut capture=Capture{policy:ExpectedTables::selected(true,true,true,true),calls:Vec::new()};
-            unsafe{assert_eq!(ffi::sqlite3_set_authorizer(conn.handle(),Some(authorize),(&mut capture as *mut Capture).cast()),ffi::SQLITE_OK);}
-            let result=crate::verified_root_raw_events(conn);
-            unsafe{ffi::sqlite3_set_authorizer(conn.handle(),None,std::ptr::null_mut());}
-            assert!(result.is_ok(),"root: {result:?}; callbacks: {:?}",capture.calls);
-            assert!(!capture.calls.iter().any(|c|c.ends_with("allowed=false")));
+            let result=with_policy(conn,||crate::verified_root_raw_events(conn));
+            assert!(result.is_ok(),"root: {result:?}");
         });
     }
     #[test]
