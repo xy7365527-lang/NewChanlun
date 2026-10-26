@@ -685,8 +685,9 @@ mod tests {
             // raw_bar_at 的同一 `.filter` 行，内容不变，同条目重登记。）
             "bin/s_session_v2/content_producer.rs:3114",
             // #[ignore] 死探针（已被 runner::newly_confirmed_step 取代，issue #747 条目6 登记不入
-            // 18 处枚举）。（#885 S4-d：上方 slice_step 增一行 ⟹ 596→597，同条目重登记。）
-            "theta_v0/backtest/l3_pi_probe.rs:603",
+            // 18 处枚举）。（#885 S4-d：上方 slice_step 增一行 ⟹ 596→597，同条目重登记。
+            // #1605：上方探针记录读取与输出追溯共增 15 行 ⟹ 603→618，内容不变。）
+            "theta_v0/backtest/l3_pi_probe.rs:618",
             // ADR-0005 GUARD-ROLE 对照臂原型语句本体（单列登记，不改调，见函数头注释订正）。
             "theta_v0/classifier/nest.rs:725",
             // #885 S4-d：`LevelState::first_class_grade_at`/`Classification::otherwise_domain_at`

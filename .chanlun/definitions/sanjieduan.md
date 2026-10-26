@@ -5,7 +5,7 @@
 > 受影响代码清单：本文件 §5（基线 main `465174240b`；FIN 线 `0d8a6017` 单独标注）、§6.4（对拍锁，PR #1616 分支 `673726b813`）；工作草稿副本 [`.chanlun/review-results/issue1323-grilling-20261013/1348-AFFECTED-CODE.md`](../review-results/issue1323-grilling-20261013/1348-AFFECTED-CODE.md)，票关后随归档出仓
 
 **状态**: 已裁定（#1348 第一至第三问的教义部分；数据形态、零分母与公司行动见 [ADR 0031](../../docs/adr/0031-principal-batches-phase-predicate-corporate-actions.md)）
-**最后更新**: 2026-10-21
+**最后更新**: 2026-10-25
 **原文依据**: 第 31、35、40、49 课（博文，`docs/chanlun/text/blog/`）
 
 **与既有生成态文件的关系**：[`fengkong.md`](fengkong.md)「概念3：成本归零策略」与 [`chanlun-trading-system.md`](chanlun-trading-system.md)「概念2：资金管理」描述的是同一组三阶段，二者仍为生成态操作说明。自 #1348 起，阶段如何判定、本金按什么口径计，以本文件为准；两处与本文件不一致时以本文件为准。
@@ -32,6 +32,8 @@
 > **★ 2026-10-21 订正（[#1590](https://github.com/xy7365527-lang/NewChanlun/issues/1590)，[ADR 0043](../../docs/adr/0043-chong-reversal-account-continuity.md) 裁定三，用户批复）**：方向属在世声部（ADR 0040 裁定一），上句「多头／空头」读作「在世声部为多／为空」。latch 已到 `EarningShares` 的重换空后，原空头蕴含在单账下必然有反例，订正为：空头 `growth_eligible ⇒ latch.rank ≥ CapitalRecovered`，空头事件不把 latch 推进到 `EarningShares`。多头蕴含原文不变，由补发规则维持：开多声部的求值点若多头谓词为真且 `latch.rank < EarningShares`，经 `LegalTransition` 追加既有 `enterEarning` 阶段事件（known_at ＝ 求值点，append-only，AsKnown 不回填）。原句保留作历史。
 
 **证明与对拍义务归 #1406**：`TotalWealth.lean` 既有阶段单调性定理不等于上述资格蕴含已获证明。交付时须声明候选 Lean 模型的实际覆盖面；若只覆盖多头，空头条由 Rust 同输入同输出锁（#804）承担，不得声称空头资格关系已形式证明。
+
+**实际覆盖面登记（#1669，2026-10-25）**：与本义务相关的 Lean 覆盖仅到 campaign 内的阶段单调性：`stage_rank_monotone`（`TotalWealth.lean:194`）与 `earning_no_regress`（`:212`）都是单步定理，且明确排除 `clearCampaign`，不证明任一侧的 `growth_eligible ⇒ latch`。`TWState` 没有 `side` 字段；`units : Int` 的 #891 注记虽写「多正空负」（`:104-108`），现有定理不按其符号分方向。模型没有 `growth_eligible` 对应谓词或资格蕴含定理；`LegalEnterEarningStrict`（`:665`）是严格 EnterReady 的入口合法性谓词，其合取项包含 `stage = capitalRecovered`，不能充当扩量资格谓词。故多头 `growth_eligible ⇒ latch = EarningShares`、空头 `growth_eligible ⇒ latch.rank ≥ CapitalRecovered` 及空头事件不推进到 `EarningShares`，均由 Rust `tb03c_book_tests` 的同输入性质锁承担（#804），不是 Lean 已证结论。跨方向换向与开多求值点补发 `enterEarning` 的负控归 #1378。
 
 ### 换向与开局资金（#1590）
 

@@ -52,9 +52,17 @@
 //!    LeverageCapital.lean 有符号名义 `n_v=σ_v·M·P·q` + MainTheorem.lean §22「多空镜像」）。
 //!    随机对照按每笔方向选公式、保持方向不变（只随机化入场点）——**有效域 = 多空交易**。
 
+use super::super::policy_records::ACTIVE_RESEARCH_STATS_JSON;
+use super::super::policy_records::{PolicyError, PolicyRef};
+#[cfg(test)]
+use super::research_stats::active_research_stats;
+use super::research_stats::{parse_research_stats, ResearchStats};
+
 /// 协议 §3 全套指标（单个检验窗）。每个字段对应 §3 一行。
 #[derive(Debug, Clone, PartialEq)]
 pub struct Metrics {
+    /// 本读数实际使用的 C-19 记录；不是报告层事后补写的标签。
+    pub research_stats: PolicyRef,
     // ── §3.1 收益与风险调整 ──
     /// 几何年化收益（扣成本后）。
     pub cagr: f64,
@@ -103,6 +111,44 @@ pub fn compute(
     trade_pnls: &[f64],
     years: f64,
     bh_return: f64,
+) -> Result<Metrics, PolicyError> {
+    compute_with_record(
+        equity_curve,
+        daily_returns,
+        trade_pnls,
+        years,
+        bh_return,
+        Some(ACTIVE_RESEARCH_STATS_JSON),
+    )
+}
+
+fn compute_with_record(
+    equity_curve: &[f64],
+    daily_returns: &[f64],
+    trade_pnls: &[f64],
+    years: f64,
+    bh_return: f64,
+    record: Option<&str>,
+) -> Result<Metrics, PolicyError> {
+    let stats = parse_research_stats(record)?;
+    Ok(compute_with_policy(
+        equity_curve,
+        daily_returns,
+        trade_pnls,
+        years,
+        bh_return,
+        &stats,
+    ))
+}
+
+/// 已验证记录上的确定性计算；真实入口由 [`compute`] 负责 fail-closed 读取。
+pub fn compute_with_policy(
+    equity_curve: &[f64],
+    daily_returns: &[f64],
+    trade_pnls: &[f64],
+    years: f64,
+    bh_return: f64,
+    stats: &ResearchStats,
 ) -> Metrics {
     let strat_return =
         if let (Some(&first), Some(&last)) = (equity_curve.first(), equity_curve.last()) {
@@ -122,19 +168,20 @@ pub fn compute(
         0.0
     };
 
-    let (sharpe, sortino) = sharpe_sortino(daily_returns);
+    let (sharpe, sortino) = sharpe_sortino(daily_returns, stats.annualization_days);
     let max_drawdown = max_drawdown(equity_curve);
     let calmar = if max_drawdown > 1e-12 {
         cagr / max_drawdown
     } else {
         0.0
     };
-    let cvar_5 = cvar(daily_returns, 0.05);
+    let cvar_5 = cvar(daily_returns, stats.cvar_tail);
 
     let (win_rate, profit_factor) = win_rate_profit_factor(trade_pnls);
     let top5_pnl_ratio = top_n_pnl_ratio(trade_pnls, 5);
 
     Metrics {
+        research_stats: stats.record,
         cagr,
         sharpe,
         sortino,
@@ -183,7 +230,7 @@ pub const PREREG_SEED: u64 = 20260625;
 /// 做块长=20 交易日的 block bootstrap 输出 CAGR/Sharpe 经验分布——本 [`significance`] **未实装
 /// 该分支**（daily_returns 仅用于 Lo 2002 Sharpe 标准误）。该协议项是已存在的实装缺口，
 /// 不在本轮（操作语义随机对照重写）owner 范围，不声明已具备。
-pub const TRADE_BLOCK_LEN: usize = 5;
+/// 交易序列块长与重采样数从 `ResearchStats` 读取；源码不再持有签署值。
 
 /// ★交易执行轨迹（操作语义随机对照的输入，2026-06-28 新增）。
 ///
@@ -216,9 +263,6 @@ pub struct TradeRecord {
     /// 统计功效门槛**（避免 29 笔真实退出 + 1 笔强平偷过门槛，codex 指出的陷阱）。
     pub forced_close: bool,
 }
-
-/// bootstrap / 蒙特卡洛重采样次数（§3.4 + §4：n=1000）。
-pub const N_RESAMPLE: usize = 1000;
 
 /// SplitMix64 确定性 PRNG（无依赖，纯算术）。
 ///
@@ -254,6 +298,8 @@ impl SplitMix64 {
 /// §3.4 + §4 统计显著性检验结果（预注册全套，全部报告，不挑有利项）。
 #[derive(Debug, Clone, PartialEq)]
 pub struct Significance {
+    /// 本次显著性读数实际使用的 C-19 记录。
+    pub research_stats: PolicyRef,
     // ── §3.4 block bootstrap（H0：收益 ≤ 0）──
     /// bootstrap 重采样的交易序列**总收益**经验分布的均值。
     pub boot_mean_total_pnl: f64,
@@ -334,7 +380,7 @@ pub struct Significance {
 /// **block bootstrap**（§3.4，backtest-protocol-v0.md:127）：以 [`TRADE_BLOCK_LEN`]=5 笔为块长
 /// （★单位修正：协议 §3.4 的「20 交易日」是日 returns 块，**不是** 20 笔交易；trade_pnls 序列
 /// 用交易笔数块长），从 `trade_pnls` 有放回抽连续块拼成等长重采样序列（保留交易序列局部自相关），
-/// 算其总收益，重复 [`N_RESAMPLE`]=1000 次 ⟹ 单边 p 值（H0：收益≤0）+ 95% 置信区间。
+/// 算其总收益，重复 `ResearchStats`=1000 次 ⟹ 单边 p 值（H0：收益≤0）+ 95% 置信区间。
 ///
 /// **Sharpe 标准误**（§3.4，Lo 2002）：日 returns 的 Sharpe 标准误，一阶自相关调整。
 ///
@@ -356,18 +402,62 @@ pub fn significance(
     prices: &[f64],
     fee_rate: f64,
     theta_return_mtm: f64,
+) -> Result<Significance, PolicyError> {
+    significance_with_record(
+        trade_pnls,
+        daily_returns,
+        trades,
+        prices,
+        fee_rate,
+        theta_return_mtm,
+        Some(ACTIVE_RESEARCH_STATS_JSON),
+    )
+}
+
+fn significance_with_record(
+    trade_pnls: &[f64],
+    daily_returns: &[f64],
+    trades: &[TradeRecord],
+    prices: &[f64],
+    fee_rate: f64,
+    theta_return_mtm: f64,
+    record: Option<&str>,
+) -> Result<Significance, PolicyError> {
+    let stats = parse_research_stats(record)?;
+    Ok(significance_with_policy(
+        trade_pnls,
+        daily_returns,
+        trades,
+        prices,
+        fee_rate,
+        theta_return_mtm,
+        &stats,
+    ))
+}
+
+/// 已验证记录上的显著性计算；调用方可用输出中的 record ref 追溯版本。
+pub fn significance_with_policy(
+    trade_pnls: &[f64],
+    daily_returns: &[f64],
+    trades: &[TradeRecord],
+    prices: &[f64],
+    fee_rate: f64,
+    theta_return_mtm: f64,
+    stats: &ResearchStats,
 ) -> Significance {
-    let (sharpe, _) = sharpe_sortino(daily_returns);
-    let (sharpe_se, sharpe_ci95_lo, sharpe_ci95_hi) = sharpe_lo2002(daily_returns, sharpe);
+    let (sharpe, _) = sharpe_sortino(daily_returns, stats.annualization_days);
+    let (sharpe_se, sharpe_ci95_lo, sharpe_ci95_hi) =
+        sharpe_lo2002(daily_returns, sharpe, stats.sharpe_ci_z);
 
     // ── §4 操作语义随机入场对照（seed 冻结，独立 rng 流，先于 bootstrap 算保证可复现）──
     // ★Θ 同口径 total_return 在 random_entry_controls 内部用 trades+prices 算（与随机同公式）。
-    let ctrl = random_entry_controls(trades, prices, fee_rate);
+    let ctrl = random_entry_controls(trades, prices, fee_rate, stats);
 
     let n = trade_pnls.len();
     // §3.4 退化：无交易 / 仅 1 笔 ⟹ 无可重采样的序列结构 ⟹ 不冒充显著性（§5.5 inconclusive）。
     if n < 2 {
         return Significance {
+            research_stats: stats.record,
             boot_mean_total_pnl: trade_pnls.iter().sum(),
             boot_pvalue_pnl_le_0: 1.0, // 无法拒绝 H0（无证据）
             boot_ci95_lo: 0.0,
@@ -389,18 +479,23 @@ pub fn significance(
 
     // ── §3.4 block bootstrap（块长 TRADE_BLOCK_LEN 笔，n=1000，H0：总收益≤0）──
     let mut rng = SplitMix64::new(PREREG_SEED);
-    let mut boot_totals: Vec<f64> = Vec::with_capacity(N_RESAMPLE);
-    for _ in 0..N_RESAMPLE {
-        let total = block_bootstrap_total(trade_pnls, TRADE_BLOCK_LEN, &mut rng);
+    let mut boot_totals: Vec<f64> = Vec::with_capacity(stats.trade_n_resample);
+    for _ in 0..stats.trade_n_resample {
+        let total = block_bootstrap_total(trade_pnls, stats.trade_block_len, &mut rng);
         boot_totals.push(total);
     }
-    let boot_mean_total_pnl = boot_totals.iter().sum::<f64>() / N_RESAMPLE as f64;
+    let boot_mean_total_pnl = boot_totals.iter().sum::<f64>() / stats.trade_n_resample as f64;
     // 单边 p 值 H0：总收益 ≤ 0 = 重采样中总收益 ≤ 0 的比例。
     let n_le_0 = boot_totals.iter().filter(|&&t| t <= 0.0).count();
-    let boot_pvalue_pnl_le_0 = n_le_0 as f64 / N_RESAMPLE as f64;
-    let (boot_ci95_lo, boot_ci95_hi) = percentile_ci(&mut boot_totals, 0.025, 0.975);
+    let boot_pvalue_pnl_le_0 = n_le_0 as f64 / stats.trade_n_resample as f64;
+    let (boot_ci95_lo, boot_ci95_hi) = percentile_ci(
+        &mut boot_totals,
+        stats.ci_lower_quantile,
+        stats.ci_upper_quantile,
+    );
 
     Significance {
+        research_stats: stats.record,
         boot_mean_total_pnl,
         boot_pvalue_pnl_le_0,
         boot_ci95_lo,
@@ -464,7 +559,12 @@ struct RandomControls {
 ///
 /// **认识论 L2**（真实数据时）：随机化 entry 移除"Θ 按缠论结构选时点"的信息——若 Θ 同口径收益
 /// 不能稳定打败随机分布，则缠论内在语法**不贡献择时 alpha**（否证，缩小有效域，231号）。
-fn random_entry_controls(trades: &[TradeRecord], prices: &[f64], fee_rate: f64) -> RandomControls {
+fn random_entry_controls(
+    trades: &[TradeRecord],
+    prices: &[f64],
+    fee_rate: f64,
+    stats: &ResearchStats,
+) -> RandomControls {
     let len = prices.len();
     // 退化：无交易序列 / 价格序列太短 ⟹ 无法构造随机策略 ⟹ 不冒充否证。
     if trades.is_empty() || len < 2 {
@@ -508,7 +608,7 @@ fn random_entry_controls(trades: &[TradeRecord], prices: &[f64], fee_rate: f64) 
     let min_entry = trades.iter().map(|t| t.entry_bar).min().unwrap_or(0);
     let max_exit = trades.iter().map(|t| t.exit_bar).max().unwrap_or(0);
     let mut rng = SplitMix64::new(PREREG_SEED);
-    let mut shift_returns: Vec<f64> = Vec::with_capacity(N_RESAMPLE);
+    let mut shift_returns: Vec<f64> = Vec::with_capacity(stats.trade_n_resample);
     // span = 合法 δ 取值数（含端点）。span<2 ⟹ 唯一 δ=0（复现 Θ），**无真随机平移**——
     // 退化（codex 缺陷⑤）：留空 shift_returns ⟹ control_stats 返 p_upper=1.0，但通过
     // theta_beats_random 的 shift 退化检查阻止「退化伪装否证/确认」（下游报告 inconclusive）。
@@ -519,7 +619,7 @@ fn random_entry_controls(trades: &[TradeRecord], prices: &[f64], fee_rate: f64) 
     };
     let shift_degenerate = span < 2; // 无非零合法平移 ⟹ 退化
     if !shift_degenerate {
-        for _ in 0..N_RESAMPLE {
+        for _ in 0..stats.trade_n_resample {
             let delta = rng.next_below(span) as isize - min_entry as isize;
             let mut total_abs = 0.0;
             for t in trades {
@@ -534,8 +634,8 @@ fn random_entry_controls(trades: &[TradeRecord], prices: &[f64], fee_rate: f64) 
     let (shift_mean_return, shift_pvalue) = control_stats(&mut shift_returns, theta_same_caliber);
 
     // ── 副：independent-entry（逐笔独立随机抽 entry，破坏交易间时序相关）──
-    let mut indep_returns: Vec<f64> = Vec::with_capacity(N_RESAMPLE);
-    for _ in 0..N_RESAMPLE {
+    let mut indep_returns: Vec<f64> = Vec::with_capacity(stats.trade_n_resample);
+    for _ in 0..stats.trade_n_resample {
         let mut total_abs = 0.0;
         let mut feasible = true;
         for t in trades {
@@ -558,8 +658,10 @@ fn random_entry_controls(trades: &[TradeRecord], prices: &[f64], fee_rate: f64) 
 
     // codex 严格判定（含退化 guard 缺陷⑤）：Θ 须**同时**打败 schedule-shift 与 independent-entry，
     // **且两对照都有真随机样本**（非退化）——退化时不冒充否证也不冒充确认（下游归 inconclusive）。
-    let theta_beats_random =
-        !shift_degenerate && !indep_degenerate && shift_pvalue <= 0.05 && indep_pvalue <= 0.05;
+    let theta_beats_random = !shift_degenerate
+        && !indep_degenerate
+        && shift_pvalue <= stats.significance_p_threshold
+        && indep_pvalue <= stats.significance_p_threshold;
 
     RandomControls {
         shift_mean_return,
@@ -662,7 +764,7 @@ fn percentile_ci(samples: &mut [f64], lo: f64, hi: f64) -> (f64, f64) {
 /// 标注 L1 口径（统计算法正确性），完整高阶 GMM 估计待 L3 精化（不冒充全阶）。
 ///
 /// 边界：n<2 ⟹ SE=0，CI=[sharpe,sharpe]（无波动无标准误）。
-fn sharpe_lo2002(daily_returns: &[f64], sharpe: f64) -> (f64, f64, f64) {
+fn sharpe_lo2002(daily_returns: &[f64], sharpe: f64, ci_z: f64) -> (f64, f64, f64) {
     let n = daily_returns.len();
     if n < 2 {
         return (0.0, sharpe, sharpe);
@@ -674,7 +776,7 @@ fn sharpe_lo2002(daily_returns: &[f64], sharpe: f64) -> (f64, f64, f64) {
     // AR(1) 调整因子（Lo 2002 一阶近似；ρ₁>0 正自相关 ⟹ SE 放大）。
     let adj = (1.0 + 2.0 * rho1 * (1.0 - 1.0 / n as f64)).max(0.0);
     let se = se_iid * adj.sqrt();
-    (se, sharpe - 1.96 * se, sharpe + 1.96 * se)
+    (se, sharpe - ci_z * se, sharpe + ci_z * se)
 }
 
 /// lag-1 自相关系数 ρ₁（日 returns 序列）。
@@ -693,7 +795,7 @@ fn lag1_autocorr(x: &[f64]) -> f64 {
 }
 
 /// 年化 Sharpe + Sortino（rf=0）。日 returns 序列 → 均值/标准差 → ×√252 年化。
-fn sharpe_sortino(daily_returns: &[f64]) -> (f64, f64) {
+fn sharpe_sortino(daily_returns: &[f64], annualization_days: f64) -> (f64, f64) {
     let n = daily_returns.len();
     if n < 2 {
         return (0.0, 0.0);
@@ -715,14 +817,14 @@ fn sharpe_sortino(daily_returns: &[f64]) -> (f64, f64) {
         / (n - 1) as f64;
     let downside_std = downside_var.sqrt();
 
-    const ANN: f64 = 252.0;
+    let ann = annualization_days;
     let sharpe = if std > 1e-12 {
-        mean / std * ANN.sqrt()
+        mean / std * ann.sqrt()
     } else {
         0.0
     };
     let sortino = if downside_std > 1e-12 {
-        mean / downside_std * ANN.sqrt()
+        mean / downside_std * ann.sqrt()
     } else {
         0.0
     };
@@ -802,6 +904,153 @@ fn top_n_pnl_ratio(pnls: &[f64], n: usize) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn p1605_r3_metrics_text_boundary_rejects_bad_records_and_changes_readings() {
+        let daily = [0.01, -0.02, 0.03, -0.01, 0.02, -0.04, 0.03];
+        let pnls = [2.0, -1.0, 3.0, -2.0, 4.0, 1.0];
+        let equity = [1.0, 1.01, 0.99, 1.03, 1.02];
+        let mut record: serde_json::Value =
+            serde_json::from_str(ACTIVE_RESEARCH_STATS_JSON).unwrap();
+        record["version"] = 2.into();
+        record["fields"]["annualization_days"]["value"] = 126.0.into();
+        record["fields"]["cvar_tail"]["value"] = 0.25.into();
+        let text = record.to_string();
+        let original = super::compute(&equity, &daily, &pnls, 1.0, 0.05).unwrap();
+        let changed = compute_with_record(&equity, &daily, &pnls, 1.0, 0.05, Some(&text)).unwrap();
+        assert_eq!(
+            changed.research_stats.version,
+            crate::theta_v0::policy_records::PolicyVersion::Signed(2)
+        );
+        assert!((changed.sharpe / original.sharpe - 0.5_f64.sqrt()).abs() < 1e-12);
+        assert_eq!(changed.cvar_5, -0.03);
+        let original_sig = super::significance(&pnls, &daily, &[], &[], 0.0, 0.0).unwrap();
+        let changed_sig =
+            significance_with_record(&pnls, &daily, &[], &[], 0.0, 0.0, Some(&text)).unwrap();
+        assert_ne!(original_sig, changed_sig);
+        let mut unsigned = record.clone();
+        unsigned["fields"]["z_alpha"]["value"] = "AwaitingPolicy".into();
+        let unsigned = unsigned.to_string();
+        record["fields"]["cvar_tail"]["value"] = 0.into();
+        let invalid = record.to_string();
+        for text in [None, Some(unsigned.as_str()), Some(invalid.as_str())] {
+            let expected = parse_research_stats(text).unwrap_err();
+            assert_eq!(
+                compute_with_record(&equity, &daily, &pnls, 1.0, 0.05, text).unwrap_err(),
+                expected
+            );
+            assert_eq!(
+                significance_with_record(&pnls, &daily, &[], &[], 0.0, 0.0, text).unwrap_err(),
+                expected
+            );
+        }
+    }
+
+    fn test_stats() -> ResearchStats {
+        active_research_stats().expect("测试使用完整生效记录")
+    }
+
+    fn compute(
+        equity_curve: &[f64],
+        daily_returns: &[f64],
+        trade_pnls: &[f64],
+        years: f64,
+        bh_return: f64,
+    ) -> Metrics {
+        super::compute(equity_curve, daily_returns, trade_pnls, years, bh_return)
+            .expect("生效 C-19 记录必须可用")
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn significance(
+        trade_pnls: &[f64],
+        daily_returns: &[f64],
+        trades: &[TradeRecord],
+        prices: &[f64],
+        fee_rate: f64,
+        theta_return_mtm: f64,
+    ) -> Significance {
+        super::significance(
+            trade_pnls,
+            daily_returns,
+            trades,
+            prices,
+            fee_rate,
+            theta_return_mtm,
+        )
+        .expect("生效 C-19 记录必须可用")
+    }
+
+    fn sharpe_sortino(daily_returns: &[f64]) -> (f64, f64) {
+        super::sharpe_sortino(daily_returns, test_stats().annualization_days)
+    }
+
+    fn sharpe_lo2002(daily_returns: &[f64], sharpe: f64) -> (f64, f64, f64) {
+        super::sharpe_lo2002(daily_returns, sharpe, test_stats().sharpe_ci_z)
+    }
+
+    /// 等值 v1 与真实入口逐字段一致；每个统计自由度都必须抵达实际输出，而非只被 parser 读取。
+    #[test]
+    fn active_record_is_bit_exact_and_policy_mutations_reach_metric_outputs() {
+        let stats = test_stats();
+        let equity = [1.0, 1.01, 0.99, 1.03, 1.02];
+        let daily = [0.01, -0.02, 0.03, -0.01, 0.02, -0.04, 0.03];
+        let pnls = [2.0, -1.0, 3.0, -2.0, 4.0, 1.0];
+        let actual = super::compute(&equity, &daily, &pnls, 1.0, 0.05).unwrap();
+        let expected = compute_with_policy(&equity, &daily, &pnls, 1.0, 0.05, &stats);
+        assert_eq!(actual, expected, "生效记录与现行指标输出逐字段等值");
+        assert_eq!(actual.research_stats.label(), "#1605/research-stats/v1");
+
+        let mut changed = stats.clone();
+        changed.annualization_days = 126.0;
+        assert_ne!(
+            compute_with_policy(&equity, &daily, &pnls, 1.0, 0.05, &changed).sharpe,
+            expected.sharpe,
+            "恢复硬编码年化常数会与此负控冲突"
+        );
+        let mut changed = stats.clone();
+        changed.cvar_tail = 0.25;
+        assert_ne!(
+            compute_with_policy(&equity, &daily, &pnls, 1.0, 0.05, &changed).cvar_5,
+            expected.cvar_5
+        );
+
+        let ci_daily = [0.001, 0.0011, 0.0012, 0.0013, 0.0014, 0.0015];
+        let baseline = significance_with_policy(&pnls, &ci_daily, &[], &[], 0.0, 0.0, &stats);
+        let mut changed = stats.clone();
+        changed.sharpe_ci_z = 3.0;
+        let widened = significance_with_policy(&pnls, &ci_daily, &[], &[], 0.0, 0.0, &changed);
+        assert_ne!(baseline.sharpe_ci95_lo, widened.sharpe_ci95_lo);
+        assert_ne!(baseline.sharpe_ci95_hi, widened.sharpe_ci95_hi);
+        let mut changed = stats.clone();
+        changed.ci_lower_quantile = 0.20;
+        changed.ci_upper_quantile = 0.80;
+        let narrowed = significance_with_policy(&pnls, &ci_daily, &[], &[], 0.0, 0.0, &changed);
+        assert_ne!(baseline.boot_ci95_lo, narrowed.boot_ci95_lo);
+        assert_ne!(baseline.boot_ci95_hi, narrowed.boot_ci95_hi);
+        let mut changed = stats.clone();
+        changed.trade_block_len = 1;
+        changed.trade_n_resample = 137;
+        let resampled = significance_with_policy(&pnls, &ci_daily, &[], &[], 0.0, 0.0, &changed);
+        assert_ne!(baseline.boot_mean_total_pnl, resampled.boot_mean_total_pnl);
+    }
+
+    /// 显著性门确实控制真实随机对照判定：同一读数在 v1 门下通过，在更严门下停止。
+    #[test]
+    fn significance_threshold_reaches_random_control_verdict() {
+        let stats = test_stats();
+        let prices: Vec<f64> = std::iter::once(100.0)
+            .chain(std::iter::once(200.0))
+            .chain(std::iter::repeat(100.0).take(98))
+            .collect();
+        let trades = vec![mk_trade(0, 1, 1.0)];
+        let baseline = significance_with_policy(&[], &[], &trades, &prices, 0.0, 1.0, &stats);
+        assert!(baseline.theta_beats_random, "v1 0.05 门下应通过合成正控");
+        let mut stricter = stats;
+        stricter.significance_p_threshold = 0.0001;
+        let rejected = significance_with_policy(&[], &[], &trades, &prices, 0.0, 1.0, &stricter);
+        assert!(!rejected.theta_beats_random, "恢复固定 0.05 会使此负控变红");
+    }
 
     /// 空权益/无交易 → 全 0（不 NaN，§5.5 inconclusive 防御）。
     #[test]
