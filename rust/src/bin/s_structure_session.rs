@@ -8328,10 +8328,9 @@ mod tests {
 
         let command = v3::admission_anchor::CommandAccounting::begin();
         let prepared = v3::admission_anchor::test_prepare_mixed(&image, 1 << 26, 1 << 26);
-        let scope = v3::test_with_mixed_entry(|| {
-            v3::admission::WriterScope::admit(&image, prepared)
-        })
-        .unwrap();
+        let scope =
+            v3::test_with_mixed_entry(|| v3::admission::WriterScope::admit(&image, prepared))
+                .unwrap();
         let guard = scope.enter().unwrap();
         let error = cmd_accept(&image, &input, &profile, DEFAULT_WRITER_EPOCH).unwrap_err();
         assert!(error.starts_with("VersionMismatch："), "{error}");
