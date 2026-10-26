@@ -39,7 +39,7 @@ cleanup() {
     fi
   done
   if [[ "$cleanup_failed" -eq 0 ]]; then
-    rm -rf "$ROOT"
+    rm -rf "$ROOT" || cleanup_failed=1
     test ! -e "$ROOT" || cleanup_failed=1
   else
     echo "cleanup: preserving $ROOT after evidence/detach failure" >&2
@@ -90,4 +90,8 @@ if [[ -n "${TB03C_FIN2_EVIDENCE_DIR:-}" ]]; then
 fi
 export TB03C_FIN2_CARRIER_ROOT="$ROOT"
 echo "TB03C_FIN2_CARRIER_ROOT=$TB03C_FIN2_CARRIER_ROOT"
-"$@"
+if [[ -n "${TB03C_FIN2_EVIDENCE_DIR:-}" ]]; then
+  "$@" 2>&1 | tee "$TB03C_FIN2_EVIDENCE_DIR/cargo-test.log"
+else
+  "$@"
+fi

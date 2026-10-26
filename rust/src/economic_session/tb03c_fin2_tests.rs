@@ -267,10 +267,10 @@ fn storage_stats(session: &Session, owner: usize) -> Value {
         0
     );
     let vfs = unsafe { vfs.assume_init() };
-    let free = vfs.f_bavail * vfs.f_frsize;
+    let free = u64::from(vfs.f_bavail) * vfs.f_frsize;
     let page_size = read("page_size");
     let max_pages = read("max_page_count");
-    let capacity = vfs.f_blocks * vfs.f_frsize;
+    let capacity = super::content_store::carrier_capacity(path).unwrap();
     let carrier_page_limit = capacity / (8 * (u64::try_from(page_size).unwrap() + 24));
     let one = i64::try_from(carrier_page_limit).unwrap() * (page_size + 24) + 65536;
     let image_bytes: i64 = db
@@ -283,7 +283,7 @@ fn storage_stats(session: &Session, owner: usize) -> Value {
     json!({
         "page_size":page_size,
         "page_count":read("page_count"),
-        "max_page_count":max_pages,
+        "connection_max_page_count":max_pages,
         "freelist_count":read("freelist_count"),
         "current_image_bytes":image_bytes,
         "allocated":super::content_store::allocated(path).unwrap(),
