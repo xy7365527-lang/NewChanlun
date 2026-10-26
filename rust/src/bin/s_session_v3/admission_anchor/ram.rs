@@ -1267,6 +1267,93 @@ mod tests {
     }
 
     #[test]
+    fn mixed_raw_collect_enrich_validate_matches_original() {
+        use crate::v3::audit_budget::LegacyObserver;
+        use newchan_rust::s_content::{
+            self as sc,
+            job::{Existing, Job},
+        };
+        use std::cell::RefCell;
+        struct Observer<'a> {
+            job: RefCell<Job>,
+            work: &'a sc::capture_allocation::scratch::WorkScope,
+        }
+        impl LegacyObserver for Observer<'_> {
+            fn visit_record(
+                &self,
+                _family: &'static str,
+                _process: &'static str,
+                _member: crate::v3::audit_budget::LegacyRecordRef<'_>,
+            ) -> Result<(), sc::CodecError> {
+                self.job.borrow_mut().charge_records(1)
+            }
+
+            fn precheck(&self) -> Result<(), sc::CodecError> {
+                self.job.borrow_mut().pre_io_check()
+            }
+            fn check_work(
+                &self,
+                work: &sc::capture_allocation::scratch::WorkScope,
+            ) -> Result<(), sc::CodecError> {
+                let token = self.work.reserve_native(0)?;
+                if !token.belongs_to_parent(work) {
+                    return Err(work.reject(ScratchFailure::Ledger));
+                }
+                Ok(())
+            }
+            fn accept_checked(
+                &self,
+                row: &sc::legacy_evidence::CheckedLegacyEvidenceRow,
+            ) -> Result<(), sc::CodecError> {
+                self.job
+                    .borrow_mut()
+                    .accept_legacy_evidence(row, self.work)
+                    .map(|_| ())
+            }
+        }
+
+        use serde_json::json;
+        for ohlc in [false,true] {
+            for corrupt in [false,true] {
+                let conn=rusqlite::Connection::open_in_memory().unwrap();
+                conn.execute_batch(crate::SCHEMA).unwrap();
+                conn.execute_batch(crate::tb02a::SCHEMA).unwrap();
+                let mut payload=json!({"event_id":"e","revision":"1","seq":"0","received_at":"1","raw_text":"x","timestamp":"1","volume":"1"});
+                if ohlc {for key in ["open","high","low","close"] {payload[key]=json!("2");}}
+                else {payload["price"]=json!("2");}
+                let hash=crate::sha256_hex(crate::canonical_json(&payload).as_bytes());
+                let receipt_hash=crate::sha256_hex(format!("n|ep|i|e|{hash}").as_bytes());
+                let receipt=format!("rcpt-{}",&receipt_hash[..16]);
+                conn.execute("INSERT INTO raw_events VALUES(?1,1,'1',?2,?3,0,'n','ep','i','e','1','x','2','1','1','0',NULL)",
+                    rusqlite::params!["n|ep|i|e",if corrupt {"bad"}else{&hash},receipt]).unwrap();
+                if ohlc {
+                    conn.execute("INSERT INTO meta VALUES('profile_id',?1)",[crate::tb02a::PROFILE]).unwrap();
+                    conn.execute("INSERT INTO raw_ohlc VALUES('n|ep|i|e',1,?1,'2','2','2','2')",[crate::tb02a::RAW_SCHEMA]).unwrap();
+                }
+                let original=crate::read_raw_events(&conn);
+                let owner=AdmissionRamLedger::new(limits(1<<20)).unwrap();
+                owner.codec_work().unwrap().run(|work|{
+                    let job=Job::new_started_mixed(job_limits(),Existing{store_bytes:0,staged_bytes:0},
+                        Box::new(std::time::Instant::now),std::time::Instant::now(),work)?;
+                    let observer=Observer{job:RefCell::new(job),work};
+                    let result=crate::audit::mixed::read_raw(&conn,work,&observer);
+                    match (&original,&result) {
+                        (Ok(expected),Ok(actual))=>{
+                            assert_eq!(expected.len(),actual.len());
+                            for (expected,actual) in expected.iter().zip(actual.iter()) {assert_eq!(expected,actual.as_ref());}
+                        },
+                        (Err(expected),Err(crate::v3::business_json::MixedJsonError::Business(actual)))=>assert_eq!(expected,actual),
+                        _=>panic!("ohlc={ohlc}, corrupt={corrupt}: old={original:?}, mixed_ok={}",result.is_ok()),
+                    }
+                    assert_eq!(result.is_ok(),!corrupt);
+                    assert_eq!(observer.job.borrow().snapshot().records,if ohlc {3}else{2});
+                    Ok::<(),sc::CodecError>(())
+                }).unwrap();
+            }
+        }
+    }
+
+    #[test]
     fn mixed_ram_sql_node_acceptance_is_fresh_and_rejects_corrupt_original() {
         use crate::v3::audit_budget::LegacyObserver;
         use newchan_rust::s_content::{
