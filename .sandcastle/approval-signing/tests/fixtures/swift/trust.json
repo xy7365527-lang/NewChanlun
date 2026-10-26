@@ -6,9 +6,9 @@
   "format" : "newchanlun-approval-trust\/v1",
   "keys" : [
     {
-      "key_id" : "d32fe2d1e3262640f7132fac7e87719a1d6553fb0cf0753244a6e9e0bf2f3869",
+      "key_id" : "674179da9d23dc6ad2e3dc471d4bb2b21a5415dde9dbef26a4773b1ecd021c17",
       "label" : "approval-core-check software test key",
-      "public_key_spki_der_b64" : "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEHK1YUlmf6Og8lD5ghFtZ0JXUeJ\/epeXeGbfllkH5midzOdWsY23BqUzNmbR5UhYuZyFwngXQiOlkDfY0OYtEDQ=="
+      "public_key_spki_der_b64" : "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEuhB2J34345QNR5ZXKAS9UBLCSTbKa9EmTO+0cIHYMqxFi0fBoh3c2gSh32xgs9U2WDpFC5PQNQWgBvkaJo1jEA=="
     }
   ],
   "repository_id" : 1150335160

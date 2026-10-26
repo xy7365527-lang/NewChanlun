@@ -20,6 +20,7 @@ from approval_signing.protocol import (
     Scope,
     TrustRoot,
     VerifiedReceipt,
+    canonical_receipt,
     key_id_for,
     parse_trust,
     verify_receipt,
@@ -41,14 +42,7 @@ class SoftwareKey:
         self.key_id = key_id_for(self.spki)
 
     def receipt(self, payload: bytes) -> bytes:
-        signature = self.private.sign(payload, ec.ECDSA(hashes.SHA256()))
-        return json.dumps({
-            "format": "newchanlun-approval-receipt/v1",
-            "algorithm": "ecdsa-p256-sha256",
-            "key_id": self.key_id,
-            "payload": base64.b64encode(payload).decode(),
-            "signature": base64.b64encode(signature).decode(),
-        }).encode()
+        return canonical_receipt(self.key_id, payload, self.private.sign(payload, ec.ECDSA(hashes.SHA256())))
 
     def trust(self, scopes: tuple[str, ...] = ("candidate_head", "spec_authorization")) -> TrustRoot:
         return parse_trust(json.dumps({

@@ -4,7 +4,7 @@
 
 签名钥在 Secure Enclave 内生成，不可导出，访问控制是 `privateKeyUsage + userPresence`。每次签名新建 `LAContext`，`touchIDAuthenticationAllowableReuseDuration = 0`，签完即 `invalidate`。
 
-权威记录在 `/Library/Application Support/NewChanlun/approval-receipts/<request_nonce>/<序号>.json`。目录和文件归 root 所有，只有 `sudo` 下的 `publish` 能往里追加；它只接受用信任公钥签过、恰好接在当前链头之后的下一条。执行器从这里读整条链，不以 GitHub 或任何用户可写文件为准。
+权威记录在 `/Library/Application Support/NewChanlun/approval-receipts/<request_nonce>/<序号>.json`。目录和文件归 root 所有，只有 `sudo` 下的 `publish` 能往里追加。`publish` 先在同一 root 目录下的 `.staging/` 写临时文件，再原子改名进链目录，所以链目录里除了 `<序号>.json` 不该有任何东西；它只接受用信任公钥签过、恰好接在当前链头之后的下一条。执行器从这里读整条链，不以 GitHub 或任何用户可写文件为准。
 
 ## 一次性安装（由你本人操作）
 
@@ -45,7 +45,7 @@ APPROVE="/Library/Application Support/NewChanlun/newchanlun-approve"
 "$APPROVE" sign --request <请求文件> --decision approve   # 或 reject
 ```
 
-`sign` 自动接在权威记录当前链头之后，后一个决定覆盖前一个。发布用 `sudo -k`，每次都要密码，也不留下 sudo 凭据缓存。看到 `已发布到权威记录……现在生效` 才算生效。若看到 `未发布`，回执存在 `~/Library/Application Support/NewChanlunApproval/pending/`，可按提示运行 `sudo "$APPROVE" publish --receipt <文件>`；这种方式会先显示回执内容，要你输入 `publish` 确认。只在你自己刚发起签批时完成 Touch ID 或 sudo 认证，任何你没有发起的弹窗都取消。
+`sign` 自动接在权威记录当前链头之后，后一个决定覆盖前一个。发布用 `sudo -k`，每次都要密码，也不留下 sudo 凭据缓存。看到 `已发布到权威记录……现在生效` 才算生效。若看到 `未发布`，回执存在 `~/Library/Application Support/NewChanlunApproval/pending/`，可按提示运行 `sudo -k "$APPROVE" publish --receipt <文件>`；这种方式会先显示回执内容，要你输入 `publish` 确认。只在你自己刚发起签批时完成 Touch ID 或 sudo 认证，任何你没有发起的弹窗都取消。
 
 ## 首次真机验收
 
@@ -54,7 +54,7 @@ APPROVE="/Library/Application Support/NewChanlun/newchanlun-approve"
 1. `status`：应显示还没有已发布决定。
 2. `sign --decision approve`，Touch ID 弹窗时取消。应无回执、不出现 sudo 提示；`status` 仍为空。
 3. `sign --decision approve`，完成 Touch ID，sudo 要密码时按 Ctrl-C。应提示“未发布，尚未生效”；`status` 仍为空。
-4. 按提示 `sudo … publish --receipt <待发布文件>`，核对内容后输入 `publish`。`status` 显示当前生效为批准（第 1 条）。
+4. 按提示 `sudo -k … publish --receipt <待发布文件>`，核对内容后输入 `publish`。`status` 显示当前生效为批准（第 1 条）。
 5. `sign --decision reject`。这一次必须再次弹出 Touch ID；若没有弹窗就签出来了，验收失败。完成 sudo。`status` 显示当前生效为拒绝（第 2 条）。
 6. 在本目录下运行 `python3 -m approval_signing status <请求文件>`，应输出 `rejected`，这是执行器读到的结果。
 
@@ -70,7 +70,7 @@ decide(request, current_target, *, now, trust_path=DEFAULT_TRUST_PATH, authority
 - `current_target` 是动作此刻真正作用的对象：`CommitTarget(<40 位 SHA>)`，或 `spec_target(spec_issue, GitHub 返回的正文原始字节)`。
 - 返回的 `releases` 为真才放行。`rejected` 表示最新已发布决定是拒绝；`awaiting_human` 表示还没有已发布决定、批准已过期或目标已变；`needs_reconciliation` 表示权威记录有异常，停下交人。
 
-`decide` 读该 nonce 的整条已发布链。路径任何一级不归 root 所有、组或其他人可写、或为符号链接，目录里有陌生条目，签名无效，文件位置与内容不符，缺号或断链，一律返回 `needs_reconciliation`，从不跳过。信任配置缺失或不受 root 控制直接抛错。GitHub 可以转载回执供人查看，但执行器不以它为准。
+`decide` 读该 nonce 的整条已发布链。路径任何一级不归 root 所有、组或其他人可写、或为符号链接，目录里有任何不是 `<序号>.json` 的条目（包括点文件），回执不是规范格式，签名无效，文件位置与内容不符，缺号或断链，一律返回 `needs_reconciliation`，从不跳过。信任配置缺失或不受 root 控制直接抛错。GitHub 可以转载回执供人查看，但执行器不以它为准。
 
 ## 字节格式 v1
 
@@ -89,7 +89,7 @@ previous_receipt=none
 expires_at=2099-01-01T00:00:00Z
 ```
 
-ASCII，LF 结尾，字段顺序固定，十进制无前导零，十六进制小写，`expires_at` 限 2000–2099 年。`spec_authorization` 的目标写作 `spec:<SPEC 票号>:sha256:<正文摘要>`。请求文件用表头 `newchanlun-approval-request/v1`，去掉 `decision`、`sequence`、`previous_receipt` 三行。解析后重新编码必须与原字节完全一致。回执是 JSON：`format`、`algorithm`（`ecdsa-p256-sha256`）、`key_id`（公钥 SPKI DER 的 SHA-256）、`payload` 与 `signature`（DER）的标准 base64，不得有重复键。`publish` 存入记录的是从验过的字段重建的回执。`receipt_id` 是载荷字节的 SHA-256。
+ASCII，LF 结尾，字段顺序固定，十进制无前导零，十六进制小写，`expires_at` 限 2000–2099 年。`spec_authorization` 的目标写作 `spec:<SPEC 票号>:sha256:<正文摘要>`。请求文件用表头 `newchanlun-approval-request/v1`，去掉 `decision`、`sequence`、`previous_receipt` 三行。解析后重新编码必须与原字节完全一致。回执是 JSON：`format`、`algorithm`（`ecdsa-p256-sha256`）、`key_id`（公钥 SPKI DER 的 SHA-256）、`payload` 与 `signature`（DER）的标准 base64。回执必须是规范形式：键按字母序、无空白、斜杠不转义、末尾一个 LF，即 Python `json.dumps(obj, sort_keys=True, separators=(",", ":")) + "\n"`，所以重复键或任何其他写法两端都拒。`receipt_id` 是载荷字节的 SHA-256。
 
 ## 能防什么，不能防什么
 

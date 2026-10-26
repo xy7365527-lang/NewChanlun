@@ -10,7 +10,7 @@ public let installedDirectory = "/Library/Application Support/NewChanlun"
 public let installedHelperPath = installedDirectory + "/newchanlun-approve"
 public let trustConfigPath = installedDirectory + "/approval-trust.json"
 public let authorityRootPath = installedDirectory + "/approval-receipts"
-let pendingPrefix = ".pending-"
+let stagingName = ".staging"
 
 public struct AuthorityError: Error, CustomStringConvertible {
     public let description: String
@@ -85,7 +85,7 @@ public struct VerifiedReceipt {
     public let signature: Data
     public let payload: ApprovalPayload
 
-    /// Receipt JSON rebuilt from the verified fields; this, not the submitted text, is what gets stored.
+    /// Receipt JSON rebuilt from the verified fields. Equal to the verified input, which had to be canonical.
     public var canonicalJSON: Data {
         // Encoding a [String: String] dictionary cannot fail.
         (try? receiptJSON(keyID: keyID, payload: payloadBytes, signature: signature)) ?? Data()
@@ -106,6 +106,10 @@ public func verifyReceipt(_ data: Data, trust: TrustRoot) throws -> VerifiedRece
           key.isValidSignature(ecdsa, for: payloadBytes)
     else { throw AuthorityError("回执签名无效") }
     let payload = try ApprovalPayload.parse(payloadBytes)
+    // One spelling per receipt: rejects duplicate keys and anything else two JSON readers could see differently.
+    guard data == (try? receiptJSON(keyID: keyID, payload: payloadBytes, signature: signature)) else {
+        throw AuthorityError("回执不是规范形式")
+    }
     guard payload.request.repositoryID == trust.repositoryID else { throw AuthorityError("回执属于别的仓库") }
     guard trust.allowedScopes.contains(payload.request.scope) else { throw AuthorityError("回执 scope 未获许可") }
     return VerifiedReceipt(receiptID: hexDigest(payloadBytes), keyID: keyID, payloadBytes: payloadBytes,
@@ -144,7 +148,7 @@ public struct AuthorityStore {
         guard st.st_mode & 0o170000 == 0o040000 else { throw AuthorityError("\(dir) 不是目录") }
 
         var bySequence: [Int: VerifiedReceipt] = [:]
-        for name in try FileManager.default.contentsOfDirectory(atPath: dir) where !name.hasPrefix(pendingPrefix) {
+        for name in try FileManager.default.contentsOfDirectory(atPath: dir) {
             guard matches("[1-9][0-9]{0,17}\\.json", name), let sequence = Int(name.dropLast(5)) else {
                 throw AuthorityError("权威记录里有陌生条目 \(name)")
             }
@@ -192,7 +196,13 @@ public struct AuthorityStore {
             throw AuthorityError("无法创建 \(dir): \(String(cString: strerror(errno)))")
         }
         if let issue = problem(dir) { throw AuthorityError("权威记录不受保护: \(issue)") }
-        let temp = dir + "/" + pendingPrefix + "\(sequence)-\(getpid())"
+        // Temporary files live in a root-owned staging directory beside the chains, never inside one.
+        let staging = root + "/" + stagingName
+        if mkdir(staging, 0o700) != 0 && errno != EEXIST {
+            throw AuthorityError("无法创建 \(staging): \(String(cString: strerror(errno)))")
+        }
+        if let issue = problem(staging) { throw AuthorityError("暂存目录不受保护: \(issue)") }
+        let temp = staging + "/\(nonce)-\(sequence)-\(getpid())"
         let final = dir + "/\(sequence).json"
         try writeDurably(receipt.canonicalJSON, to: temp)
         if renamex_np(temp, final, UInt32(RENAME_EXCL)) != 0 {

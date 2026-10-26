@@ -154,3 +154,14 @@ def test_unreadable_receipts_raise_protocol_error(key: SoftwareKey) -> None:
                  b"[" * 100_000, b"not json", text[:-1].encode() + b', "payload": "AA=="}'):
         with pytest.raises(ProtocolError):
             verify_receipt(blob, key.trust())
+
+
+def test_receipt_must_be_canonical(key: SoftwareKey) -> None:
+    first = ApprovalPayload(make_request(), Decision.APPROVE, 1, None).encode()
+    later = ApprovalPayload(make_request(), Decision.REJECT, 1, None).encode()
+    good = key.receipt(first)
+    assert verify_receipt(good, key.trust()).payload.decision is Decision.APPROVE
+    duplicate = good.replace(b"{", b'{"payload":"' + base64.b64encode(later) + b'",', 1)
+    for blob in (duplicate, good.replace(b'","', b'", "'), good[:-1], good.replace(b"/v1", b"\\/v1")):
+        with pytest.raises(ProtocolError):
+            verify_receipt(blob, key.trust())

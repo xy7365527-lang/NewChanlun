@@ -382,6 +382,17 @@ def load_trust(path: Path = DEFAULT_TRUST_PATH) -> TrustRoot:
     return parse_trust(path.read_bytes())
 
 
+def canonical_receipt(key_id: str, payload: bytes, signature: bytes) -> bytes:
+    """The one accepted spelling of a receipt; the Swift helper writes exactly these bytes."""
+    return (json.dumps({
+        "format": RECEIPT_FORMAT,
+        "algorithm": ALGORITHM,
+        "key_id": key_id,
+        "payload": base64.b64encode(payload).decode("ascii"),
+        "signature": base64.b64encode(signature).decode("ascii"),
+    }, sort_keys=True, separators=(",", ":")) + "\n").encode("ascii")
+
+
 def verify_receipt(data: bytes, trust: TrustRoot) -> VerifiedReceipt:
     raw = _strict_json(data, "receipt")
     if not isinstance(raw, dict) or set(raw) != {"format", "algorithm", "key_id", "payload", "signature"}:
@@ -397,6 +408,8 @@ def verify_receipt(data: bytes, trust: TrustRoot) -> VerifiedReceipt:
         key.public_key.verify(signature, payload_bytes, ec.ECDSA(hashes.SHA256()))
     except InvalidSignature as exc:
         raise ProtocolError("receipt signature is invalid") from exc
+    if data != canonical_receipt(raw["key_id"], payload_bytes, signature):
+        raise ProtocolError("receipt is not canonical")
     payload = ApprovalPayload.parse(payload_bytes)
     if payload.request.repository_id != trust.repository_id:
         raise ProtocolError("receipt is for another repository")

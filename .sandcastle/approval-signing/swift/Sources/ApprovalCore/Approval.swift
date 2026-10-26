@@ -240,7 +240,7 @@ func receiptJSON(keyID: String, payload: Data, signature: Data) throws -> Data {
         "payload": payload.base64EncodedString(),
         "signature": signature.base64EncodedString(),
     ]
-    return try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]) + Data("\n".utf8)
+    return try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys, .withoutEscapingSlashes]) + Data("\n".utf8)
 }
 
 /// Show the exact payload, get one presence-gated signature, return the receipt. Throws without a receipt on refusal.
