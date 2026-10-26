@@ -633,7 +633,7 @@ pub enum SubMode {
     /// - vs Fractal（OKLO −73.8pp，近似实现）：信号源 = 本级别 BSP/盘背
     ///   事件流，非笔级方向行翻转（a0 近似死因矫正）；
     /// - vs Sequence38：方向遵守符号交替塔（38课程式的方向镜像），非恒 Short。
-    /// 递归终止三范畴：深度预算 ∧ 存在论下限 FIRST_BSP_LADDER（笔 = a0，
+    /// 递归终止三范畴：深度预算 ∧ 阶梯下限 FIRST_BSP_LADDER（笔层不开一类点，
     /// 62/77/78课）∧ 35课成本门（sub_cost_gate：θ_q ≥ sub_cost_k×friction）。
     CounterSeg,
 }
