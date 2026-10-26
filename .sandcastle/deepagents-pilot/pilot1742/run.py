@@ -1,8 +1,3 @@
-"""#1742 唯一副作用拥有者 PilotRun。
-
-每个副作用都是“读现存事实 -> domain 纯函数决策 -> 只做差额 -> 写一次性回执”。
-LangGraph checkpoint 只保存模型上下文；派工去重依据是 codex-child 的排他 outputDir，提交去重依据是 git 本身。
-"""
 from __future__ import annotations
 
 import fcntl
@@ -54,6 +49,7 @@ from .domain import (
     dispatch_refusal,
     outside_allowed,
     parse_model,
+    parse_role,
     parse_sha,
     parse_verdict,
     reconcile_commit,
@@ -327,8 +323,6 @@ class PilotRun:
             self.trail("crash_injected", point=point)
             os.kill(os.getpid(), signal.SIGKILL)
 
-    # ---- 观测 ----------------------------------------------------------------
-
     def _branch(self, role: Role) -> str:
         return f"codex/deepagents-pilot-1742-{self.spec.run_id}-{role}"
 
@@ -364,7 +358,7 @@ class PilotRun:
         keys = []
         for name in sorted(names):
             role, _, head = name.partition("-")
-            keys.append(WorkerKey(self.spec.run_id, role, parse_sha(head)))  # type: ignore[arg-type]
+            keys.append(WorkerKey(self.spec.run_id, parse_role(role), parse_sha(head)))
         return keys
 
     def _observe(self, key: WorkerKey, rows: list[tuple[int, int, str, str]]) -> WorkerFact:
@@ -393,7 +387,7 @@ class PilotRun:
 
     def _parse_intent(self, data: dict) -> CommitIntent:
         role, _, head = data["author"].partition("-")
-        return CommitIntent(WorkerKey(self.spec.run_id, role, parse_sha(head)), parse_sha(data["parent"]),  # type: ignore[arg-type]
+        return CommitIntent(WorkerKey(self.spec.run_id, parse_role(role), parse_sha(head)), parse_sha(data["parent"]),
                             data["tree"], tuple(data["paths"]))
 
     @staticmethod
@@ -415,8 +409,6 @@ class PilotRun:
             if key.role == "review" and isinstance(fact, Terminal) and key.target_head in author_model_of:
                 verdicts[key.target_head] = parse_verdict(fact.receipt, author_model_of[key.target_head])
         return RunFacts(self.spec.run_id, self.spec.base, commits, workers, verdicts)
-
-    # ---- 工具：派工 ------------------------------------------------------------
 
     def run_worker(self, role: Role, brief: str) -> WorkerReceipt:
         with self._mutex:
@@ -520,8 +512,6 @@ class PilotRun:
                 "BLOCK 时 findings 逐条写必须修复的缺陷。status 填 completed 表示审阅已完成，与结论无关。\n\n"
                 f"## 主控关注点（不能指定结论）\n{brief.strip()}\n")
 
-    # ---- 工具：宿主提交 ----------------------------------------------------------
-
     def commit_candidate(self) -> CommitReceipt:
         with self._mutex:
             facts = self.facts()
@@ -586,8 +576,6 @@ class PilotRun:
                            "at": _now()})
         self.trail("commit_receipt", commit=receipt.commit, parent=intent.parent, recovered=recovered)
         return receipt
-
-    # ---- 工具：门与状态 ----------------------------------------------------------
 
     def evaluate_gate(self, facts: RunFacts | None = None) -> tuple[GateDecision, list[str]]:
         facts = facts or self.facts()

@@ -1,4 +1,3 @@
-"""门的正负控。这里的批准记录是测试内合成的，只证明纯判定逻辑，不计入任何真实人批。"""
 from pilot1742.domain import (
     ApprovalRecord,
     Approved,

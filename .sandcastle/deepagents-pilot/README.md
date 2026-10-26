@@ -13,6 +13,8 @@ npm ci   # codex-child.mts 需要仓库根的 node_modules
 
 模型经本机 CLIProxyLocal（`http://127.0.0.1:8318/v1`）。密钥沿用 codex-child 的受管机制：进程环境有 `CLIPROXY_LOCAL_KEY` 就用，否则 `launchctl getenv` 取一次，只留在内存。启动时关闭 LangSmith 外发。角色模型取 `~/.agents/pstack-models.md`：`feature, refactoring` 行是作者，`judgment and prose` 行是独审，`hardest tasks` 行是 Deep Agent 主控。作者与独审同家族时 run 拒绝创建。
 
+主控推理档是 `high`，单次输出上限 64000 tokens。poteto-mode 规定判断角色比 xhigh 预算低一档；首轮实测 xhigh 把 CLIProxy 缺省的 32000 输出上限全部用于思考，回复为空，图随之结束。工蜂推理档仍由 codex-child 固定为 xhigh。
+
 ## 启动一个 run
 
 在仓库根运行：

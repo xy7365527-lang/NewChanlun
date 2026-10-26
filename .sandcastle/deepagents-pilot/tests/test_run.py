@@ -1,4 +1,3 @@
-"""PilotRun 的副作用恢复：真实 git、真实子进程，工蜂由同参数同认领语义的替身扮演。"""
 import json
 import os
 import signal

@@ -1,4 +1,3 @@
-"""#1742 官方 Deep Agents 装配：真实模型、完整 pstack 技能树、四个业务工具、SQLite checkpoint。"""
 from __future__ import annotations
 
 import json
@@ -31,6 +30,8 @@ SKILLS_ROOT = "/Users/silencehan/.codex/pstack-upstream-source/installed/skills/
 POTETO_MODE = SKILLS_ROOT + "poteto-mode/SKILL.md"
 CLIPROXY_BASE_URL = "http://127.0.0.1:8318/v1"
 KEY_ENV = "CLIPROXY_LOCAL_KEY"
+BRAIN_EFFORT = "high"
+BRAIN_MAX_TOKENS = 64000
 READ_ONLY_FS_TOOLS = ["ls", "read_file", "glob", "grep"]
 TRACING_ENV = ("LANGSMITH_TRACING", "LANGCHAIN_TRACING_V2", "LANGSMITH_API_KEY", "LANGCHAIN_API_KEY",
                "LANGSMITH_ENDPOINT", "LANGCHAIN_ENDPOINT")
@@ -58,7 +59,7 @@ def managed_cliproxy_key() -> SecretStr:
 
 def build_model(slug: str) -> ChatOpenAI:
     return ChatOpenAI(model=slug, base_url=CLIPROXY_BASE_URL, api_key=managed_cliproxy_key(),
-                      reasoning_effort="xhigh", timeout=900, max_retries=2)
+                      reasoning_effort=BRAIN_EFFORT, max_tokens=BRAIN_MAX_TOKENS, timeout=1200, max_retries=2)
 
 
 def _receipt_json(receipt: WorkerReceipt) -> dict:

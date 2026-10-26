@@ -1,4 +1,3 @@
-"""#1742 启动入口。同一条 run 命令负责首跑、崩溃后恢复与批准复查。"""
 from __future__ import annotations
 
 import argparse
@@ -70,7 +69,13 @@ def _run(args: argparse.Namespace) -> int:
         agent.invoke(None, config, durability="sync")
     else:
         run.trail("graph_already_finished")
-    print(json.dumps({"graph": _graph_state(agent, config), "status": run.status()}, ensure_ascii=False, indent=2))
+    report = {"graph": _graph_state(agent, config), "status": run.status()}
+    if not report["graph"]["next"] and report["status"]["phase"] not in ("gate", "halted"):
+        last = agent.get_state(config).values["messages"][-1]
+        report["brain_stopped_early"] = {"finish_reason": last.response_metadata.get("finish_reason"),
+                                         "text": str(last.content)[:2000]}
+        run.trail("brain_stopped_early", **report["brain_stopped_early"])
+    print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0
 
 

@@ -1,4 +1,3 @@
-"""官方 Deep Agent 装配：真实请求里的工具面，以及门暂停与恢复走 SQLite checkpoint。模型是脚本化替身。"""
 import json
 import sqlite3
 

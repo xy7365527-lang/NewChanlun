@@ -1,4 +1,3 @@
-"""在独立进程里执行一个工具动作，供 SIGKILL 与崩溃窗口测试使用。"""
 import sys
 from pathlib import Path
 

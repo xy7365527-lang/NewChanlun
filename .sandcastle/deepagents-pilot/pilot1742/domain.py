@@ -1,12 +1,8 @@
-"""#1742 试点的领域模型：纯数据与纯决策，不做 I/O。
-
-外部输入（codex-child 的 result.json、git 观测、批准账本、CLI 参数）在 run.py 边界解析成这里的类型。
-"""
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Literal, NewType
+from typing import Literal, NewType, cast
 
 TICKET = 1742
 
@@ -36,11 +32,17 @@ MODEL_FAMILY: dict[str, str] = {"gpt-6.1-sol": "gpt", "claude-opus-5-5": "claude
 def parse_model(raw: object) -> ModelSlug:
     if raw not in MODEL_FAMILY:
         raise ValueError(f"模型不在白名单 {sorted(MODEL_FAMILY)}：{raw!r}")
-    return raw  # type: ignore[return-value]
+    return cast(ModelSlug, raw)
 
 
 Role = Literal["author", "review"]
 ROLE_MODE: dict[Role, Literal["execute", "review"]] = {"author": "execute", "review": "review"}
+
+
+def parse_role(raw: str) -> Role:
+    if raw not in ROLE_MODE:
+        raise ValueError(f"未知角色：{raw!r}")
+    return cast(Role, raw)
 
 
 @dataclass(frozen=True)
@@ -181,7 +183,8 @@ def parse_verdict(review: WorkerReceipt, author_model: ModelSlug) -> ReviewVerdi
     if MODEL_FAMILY[review.model] == MODEL_FAMILY[author_model]:
         return ReviewVerdict(head, "VERIFIER_BLOCKED", author_model, review.model)
     match = _VERDICT.match(review.summary) if review.status == "completed" else None
-    return ReviewVerdict(head, match.group(1) if match else "UNPARSED", author_model, review.model)  # type: ignore[arg-type]
+    kind = cast(VerdictKind, match.group(1)) if match else "UNPARSED"
+    return ReviewVerdict(head, kind, author_model, review.model)
 
 
 Scope = Literal["pilot_acceptance", "main_merge"]
