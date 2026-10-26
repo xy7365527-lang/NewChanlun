@@ -1095,6 +1095,7 @@ fn v3_service_chain_queries_and_recovers_in_a_new_process() {
     let text = chain_raw(V2, "53333");
     let doc: Value = serde_json::from_str(&text).unwrap();
     let mut captured = vec![];
+    let mut applied = vec![];
     for i in 0..3 {
         let event = &doc["events"][i];
         let cap = service::handle(&mut e, &cs[0], 1, 1, &json!({}), &envelope(&format!("cap-{i}"),
@@ -1104,6 +1105,7 @@ fn v3_service_chain_queries_and_recovers_in_a_new_process() {
             json!({"op":"ApplyAllocation","fact_key":cap["fact_key"],"allocation_id":event["allocation_id"],"expected_fact_hash":cap["fact_hash"]})))["payload"].clone();
         assert_eq!(app["kind"], "Applied", "{i}: {app}");
         captured.push(cap);
+        applied.push(app);
     }
     // E：三条都已就绪，不挂签署/数据等待（获批 q_rebase 也不再是 q_rebase 等待）。
     let e_image = store::latest(&e).unwrap().3;
@@ -1130,10 +1132,14 @@ fn v3_service_chain_queries_and_recovers_in_a_new_process() {
         (old["Q_units"].as_str(), old["splits"][0]["num"].as_str()),
         (Some("64000"), Some("2"))
     );
-    // 同一请求重试：事实已消费，不重新定标。
+    // 同一请求重试：返回原收据（同一提交 cut），不新增提交、不重新定标。
     let retry = service::handle(&mut b, &cs[1], 1, 1, &json!({}), &envelope("app-3",
         json!({"op":"ApplyAllocation","fact_key":captured[2]["fact_key"],"allocation_id":doc["events"][2]["allocation_id"],"expected_fact_hash":captured[2]["fact_hash"]})))["payload"].clone();
-    assert_eq!(retry["kind"], "Error", "{retry}");
+    assert_eq!(
+        (&retry["kind"], &retry["cut"]),
+        (&applied[2]["kind"], &applied[2]["cut"]),
+        "{retry}"
+    );
     assert_eq!(store::latest(&b).unwrap().3, image);
     // 公共查询读到同一冻结定标。
     let before: Vec<Value> = cs.iter().map(public).collect();
@@ -1217,8 +1223,8 @@ fn v3_unsigned_waits_in_e_and_resolve_cannot_clear_it() {
         app["error"]
             .as_str()
             .unwrap()
-            .starts_with("AwaitingPolicy：calibration_signature"),
-        "{app}"
+            .starts_with("AwaitingPolicy："),
+        "E 的 typed 等待即挡住 B：{app}"
     );
     assert_eq!(store::latest(&b).unwrap().3, before);
     assert!(store::rows(&b, "receipts").unwrap().is_empty());
