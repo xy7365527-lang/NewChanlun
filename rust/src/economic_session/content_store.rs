@@ -992,6 +992,7 @@ pub(super) fn verify_image_with_budget(
         },
         refs,
     )?;
+    super::phase_trace::mark("image_codec_verify", "-");
     // The codec proves anonymous reachable nodes. Each actual six-family row
     // visit is separately checked and charged by the financial validator.
     for item in evidence {
@@ -1010,6 +1011,7 @@ pub(super) fn verify_image_with_budget(
             .ok_or_else(|| error("audit Job missing"))?;
         super::financial_content::verify_evidence_with_read(structure, item, &mut read, job, None)
             .map_err(error)?;
+        super::phase_trace::mark("image_evidence_verify", "-");
     }
     budget.before().map_err(error)
 }

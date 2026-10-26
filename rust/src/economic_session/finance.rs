@@ -956,6 +956,7 @@ fn verify_structure_for_domain(
         job,
         plan.map(|p| &p["s_ref"]),
     )?;
+    super::phase_trace::mark("structure_verify", &config.domain);
     budget.before()
 }
 fn knowledge_floor(witness: &Value, first: &str) -> Result<(), String> {
@@ -1206,6 +1207,7 @@ fn reduce_with_budget(
                 return Err("MissingDependency：完整同 slot 原 Prepared 证据不齐".into());
             }
             let mut seen = BTreeSet::new();
+            let mut verified_refs: Vec<&Value> = Vec::new();
             let mut grants = Vec::new();
             let mut additional = 0i64;
             for q in &active {
@@ -1235,7 +1237,11 @@ fn reduce_with_budget(
                 if latest_proof_seq(pf)? != expected_version {
                     return Err("InvalidDomain：Prepared 后本地账本版本已改变".into());
                 }
-                verify_structure_for_domain(c, config, budget, &w["structure"], Some(q))?;
+                // 结构校验只取决于同一 witness 与 s_ref；同 slot 多个申请者引用同一对象时只核一次。
+                if !verified_refs.contains(&&q["s_ref"]) {
+                    verify_structure_for_domain(c, config, budget, &w["structure"], Some(q))?;
+                    verified_refs.push(&q["s_ref"]);
+                }
                 if bound(q)? != number(&original["prepared"], "locked_amount")? {
                     return Err("IdentityConflict：私有锁不是原计划全额".into());
                 }
