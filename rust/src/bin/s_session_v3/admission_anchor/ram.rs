@@ -2580,11 +2580,14 @@ mod tests {
                     assert_eq!(written["final_live"], after.job_live);
                     assert_eq!(written["retained_live"], 0);
                     assert_eq!(written["fixed_metadata_bytes"], after.fixed_metadata);
-                    assert_eq!(written["parts"], serde_json::json!({
-                        "metadata_bytes": after.parts[0],
-                        "layout_bytes": after.parts[1],
-                        "native_bytes": after.parts[2]
-                    }));
+                    assert_eq!(
+                        written["parts"],
+                        serde_json::json!({
+                            "metadata_bytes": after.parts[0],
+                            "layout_bytes": after.parts[1],
+                            "native_bytes": after.parts[2]
+                        })
+                    );
                     assert!(written["retention_error"].is_null());
                 } else {
                     assert!(result.is_ok());
@@ -2602,11 +2605,15 @@ mod tests {
     #[test]
     fn mixed_terminal_written_ram_matches_real_cache_permits_and_eviction() {
         use crate::v3::admission_anchor::{test_prepare_mixed, CommandAccounting};
-        use crate::v3::admission_private::{test_with_mixed_entry, validate_mixed_prefix, RejectionPrefix};
+        use crate::v3::admission_private::{
+            test_with_mixed_entry, validate_mixed_prefix, RejectionPrefix,
+        };
         use crate::v3::admission_provider::MeasuredDomain;
-        use sc::capture_allocation::scratch::WorkError;
+        use newchan_rust::s_content::capture_allocation::scratch::WorkError;
         crate::v2::with_mixed_control_fixture(|conn| {
-            let original: String = conn.query_row("PRAGMA database_list", [], |r| r.get(2)).unwrap();
+            let original: String = conn
+                .query_row("PRAGMA database_list", [], |r| r.get(2))
+                .unwrap();
             for mode in 0..3 {
                 crate::cache::configure(0);
                 if mode != 0 {
@@ -2614,14 +2621,19 @@ mod tests {
                 }
                 let path = std::path::Path::new(&original)
                     .with_file_name(format!("mixed-terminal-retention-{mode}.sqlite"));
-                conn.execute("VACUUM INTO ?1", rusqlite::params![path.to_str().unwrap()]).unwrap();
+                conn.execute("VACUUM INTO ?1", rusqlite::params![path.to_str().unwrap()])
+                    .unwrap();
                 let command = CommandAccounting::begin();
-                let consumed = test_prepare_mixed(&path, 1 << 26, 1 << 26).consume().unwrap();
+                let consumed = test_prepare_mixed(&path, 1 << 26, 1 << 26)
+                    .consume()
+                    .unwrap();
                 let source = MeasuredDomain::measure(&consumed).unwrap();
                 let mut started = consumed.into_job(source.existing).unwrap();
                 let ledger = started.ram.as_ref().unwrap().parent.ledger.clone();
                 let result = started.with_accounting(|account| {
-                    test_with_mixed_entry(|| validate_mixed_prefix(&source, account, &RejectionPrefix::None))
+                    test_with_mixed_entry(|| {
+                        validate_mixed_prefix(&source, account, &RejectionPrefix::None)
+                    })
                 });
                 let proof = match result {
                     Ok(proof) => proof,
@@ -2644,27 +2656,33 @@ mod tests {
                 crate::cache::configure(0);
                 let after_cache = ledger.lock().unwrap().snapshot;
                 assert_eq!(after_cache.job_live, before.fixed_metadata);
-                let retained = after_job.job_live.checked_sub(after_cache.job_live).unwrap();
+                let retained = after_job
+                    .job_live
+                    .checked_sub(after_cache.job_live)
+                    .unwrap();
                 let job_native = before.job_live.checked_sub(after_job.job_live).unwrap();
                 assert_eq!(retained > 0, mode == 1);
                 let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
-                assert_eq!(value["admission_accounting"]["ram_before_stderr"], serde_json::json!({
-                    "final_live": before.job_live,
-                    "retained_live": retained,
-                    "fixed_metadata_bytes": before.fixed_metadata,
-                    "terminal_job_native_bytes": job_native,
-                    "retention_error": null,
-                    "parts": {
-                        "metadata_bytes": before.parts[0],
-                        "layout_bytes": before.parts[1],
-                        "native_bytes": before.parts[2]
-                    },
-                    "job_peak": before.job_peak,
-                    "operation_live": before.operation_live,
-                    "operation_peak": before.operation_peak,
-                    "operation_closed": true,
-                    "failed": false
-                }));
+                assert_eq!(
+                    value["admission_accounting"]["ram_before_stderr"],
+                    serde_json::json!({
+                        "final_live": before.job_live,
+                        "retained_live": retained,
+                        "fixed_metadata_bytes": before.fixed_metadata,
+                        "terminal_job_native_bytes": job_native,
+                        "retention_error": null,
+                        "parts": {
+                            "metadata_bytes": before.parts[0],
+                            "layout_bytes": before.parts[1],
+                            "native_bytes": before.parts[2]
+                        },
+                        "job_peak": before.job_peak,
+                        "operation_live": before.operation_live,
+                        "operation_peak": before.operation_peak,
+                        "operation_closed": true,
+                        "failed": false
+                    })
+                );
                 assert_eq!(receipt.ram_before_stderr.unwrap(), before);
                 assert_eq!(receipt.ram_final.unwrap(), after_job);
                 source.verify_before_open().unwrap();

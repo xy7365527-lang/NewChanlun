@@ -137,7 +137,8 @@ impl<K: Ord, V> NativeTree<K, V> {
             None => return Err(CodecError::scratch(ScratchFailure::Ledger)),
         };
         self.permits.iter().try_fold(buffer, |bytes, permit| {
-            bytes.checked_add(permit.bytes())
+            bytes
+                .checked_add(permit.bytes())
                 .ok_or_else(|| CodecError::scratch(ScratchFailure::Ledger))
         })
     }

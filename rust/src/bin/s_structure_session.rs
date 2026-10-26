@@ -2043,8 +2043,12 @@ fn ensure_writable(conn: &Connection) -> Result<(), String> {
 
 fn load_profile(path: &Path) -> Result<(Value, String, String), String> {
     let text = v3::admission::read_profile_text(path)?;
+    parse_profile_text(&text)
+}
+
+fn parse_profile_text(text: &str) -> Result<(Value, String, String), String> {
     let profile: Value =
-        serde_json::from_str(&text).map_err(|e| format!("profile JSON 解析失败：{e}"))?;
+        serde_json::from_str(text).map_err(|e| format!("profile JSON 解析失败：{e}"))?;
     let profile_id = profile
         .get("profile_id")
         .and_then(Value::as_str)

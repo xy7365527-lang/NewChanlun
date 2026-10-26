@@ -2465,6 +2465,34 @@ impl Bounds {
     }
 }
 
+pub(crate) fn verify_serve_startup(
+    conn: &Connection,
+    db: &Path,
+    epoch: &str,
+    clock: &ClockPlan,
+    load_profile: impl FnOnce() -> Result<(Value, String, String), String>,
+) -> Result<(), String> {
+    verify_writer_epoch(conn, epoch)?;
+    verify_reachable_root(conn)?;
+    if !active(conn)? {
+        return Err("SchemaUnsupported：serve需要显式v2初始化".into());
+    }
+    check_clock(conn, clock)?;
+    let (_, _, profile_hash) = load_profile()?;
+    if meta_get_opt(conn, "profile_hash")?.as_deref() != Some(&profile_hash) {
+        return Err("IdentityConflict：serve profile绑定不同".into());
+    }
+    if meta_get_opt(conn, "advance_state")?.as_deref() != Some("idle") {
+        // #1576：历史规则库的 recover 必拒（VersionMismatch），不能再把运维指向它；闭门本身不放松。
+        let rule = meta_get_opt(conn, "rule_revision")?;
+        if rule.as_deref() != Some(RULE_REVISION) {
+            return Err(stale_begin_on_historical_rule(rule.as_deref(), db));
+        }
+        return Err("StaleWriter：未完成Begin保持闭门，请监督器先正式recover".into());
+    }
+    Ok(())
+}
+
 fn serve(
     db: &Path,
     socket: &Path,
@@ -2479,30 +2507,15 @@ fn serve(
     // 监督器nonce仅用于把Ready绑定真实启动进程；绝不进入业务payload/hash/持久事实。
     let control_instance_id = std::env::var("S_CONTROL_INSTANCE_ID").ok();
     let clock = ClockPlan::parse(strict_json(&admission.read_file(clock_path, None)?)?)?;
-    let scope = crate::v3::admission::WriterScope::admit(db, admission)?;
+    let scope = crate::v3::admission::WriterScope::admit_legacy_serve(
+        db, admission, epoch, &clock, profile,
+    )?;
     let _open_guard = scope.enter()?;
     let db = scope.db_path();
     scope.require_admitted()?;
     let conn = open_db(db)?;
     let tx = conn.unchecked_transaction().map_err(err)?;
-    verify_writer_epoch(&tx, epoch)?;
-    verify_reachable_root(&tx)?;
-    if !active(&tx)? {
-        return Err("SchemaUnsupported：serve需要显式v2初始化".into());
-    }
-    check_clock(&tx, &clock)?;
-    let (_, _, profile_hash) = load_profile(profile)?;
-    if meta_get_opt(&tx, "profile_hash")?.as_deref() != Some(&profile_hash) {
-        return Err("IdentityConflict：serve profile绑定不同".into());
-    }
-    if meta_get_opt(&tx, "advance_state")?.as_deref() != Some("idle") {
-        // #1576：历史规则库的 recover 必拒（VersionMismatch），不能再把运维指向它；闭门本身不放松。
-        let rule = meta_get_opt(&tx, "rule_revision")?;
-        if rule.as_deref() != Some(RULE_REVISION) {
-            return Err(stale_begin_on_historical_rule(rule.as_deref(), db));
-        }
-        return Err("StaleWriter：未完成Begin保持闭门，请监督器先正式recover".into());
-    }
+    verify_serve_startup(&tx, db, epoch, &clock, || load_profile(profile))?;
     let identity = protocol_identity(&tx)?;
     let pending = {
         let mut q=tx.prepare("SELECT canonical_envelope FROM s_input_messages WHERE status='AcceptedPending' ORDER BY accepted_seq,message_id").map_err(err)?;
@@ -3497,6 +3510,50 @@ mod tests {
         assert!(msg.contains("meta 缺 rule_revision 键"), "{msg}");
         assert!(!msg.contains("rule_revision=``"), "{msg}");
         assert!(!socket.exists(), "拒绝须发生在绑定 socket 之前");
+    }
+
+    #[test]
+    fn v2_serve_stale_prefix_preserves_profile_order_and_adapter_gate() {
+        for bad_profile in [false, true] {
+            let f = Fixture::new(8, 2);
+            let profile = if bad_profile {
+                f.begin_only();
+                let conn = open_db(&f.db).unwrap();
+                meta_set(&conn, "rule_revision", "s2-axis-quantifiers+new-bi/1").unwrap();
+                drop(conn);
+                let mut value: Value = serde_json::from_slice(&std::fs::read(&f.profile).unwrap()).unwrap();
+                value["tick_size"] = json!("2");
+                let path = f.dir.join("different-profile.json");
+                std::fs::write(&path, canonical_json(&value)).unwrap();
+                path
+            } else {
+                f.profile.clone()
+            };
+            let socket = f.dir.join("prefix-must-not-bind.sock");
+            let msg = serve(
+                &f.db,
+                &socket,
+                &profile,
+                "1",
+                &f.dir.join("clock.json"),
+                Bounds {
+                    frame: 65536,
+                    read: Duration::from_millis(1000),
+                    write: Duration::from_millis(1000),
+                    response: Duration::from_millis(1000),
+                    cache_bytes: 0,
+                    queue: 4,
+                    connections: 4,
+                },
+                crate::v3::admission_anchor::test_prepare(&f.db),
+            ).unwrap_err();
+            assert!(msg.starts_with(if bad_profile {
+                "IdentityConflict：serve profile绑定不同"
+            } else {
+                "LegacyAdmissionBudgetAdapterMissing："
+            }), "{msg}");
+            assert!(!socket.exists());
+        }
     }
 
     #[test]

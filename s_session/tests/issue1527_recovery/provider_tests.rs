@@ -351,7 +351,10 @@ fn assert_private_mixed_rejected(
     let result = super::super::admission_private::test_with_mixed_entry(|| {
         WriterScope::admit_prefix(path, prepared, prefix)
     });
-    assert!(result.is_err(), "失败不得返回持 FinishedAdmission 的 WriterScope");
+    assert!(
+        result.is_err(),
+        "失败不得返回持 FinishedAdmission 的 WriterScope"
+    );
     let error = result.err().unwrap();
     let mut output = Vec::new();
     let receipt = command.report(&error, &mut output);
@@ -360,8 +363,14 @@ fn assert_private_mixed_rejected(
     assert_eq!(value["error"], detail);
     assert!(receipt.job.is_some());
     assert!(receipt.accounting_error.is_none());
-    assert_eq!(value["admission_accounting"]["before_stderr"]["open_reservations"], 0);
-    assert_eq!(value["admission_accounting"]["ram_before_stderr"]["operation_closed"], true);
+    assert_eq!(
+        value["admission_accounting"]["before_stderr"]["open_reservations"],
+        0
+    );
+    assert_eq!(
+        value["admission_accounting"]["ram_before_stderr"]["operation_closed"],
+        true
+    );
 }
 
 fn assert_clean_mixed_admission(path: &Path) {
@@ -380,9 +389,12 @@ fn mixed_private_business_failure_preserves_original_diagnostic_and_recovers() {
     with_legacy_mixed_copy("mixed-business-recovery.sqlite", |path| {
         let conn = rusqlite::Connection::open(path).unwrap();
         let original: String = conn
-            .query_row("SELECT value FROM meta WHERE key='profile_hash'", [], |r| r.get(0))
+            .query_row("SELECT value FROM meta WHERE key='profile_hash'", [], |r| {
+                r.get(0)
+            })
             .unwrap();
-        conn.execute("UPDATE meta SET value='wrong' WHERE key='profile_hash'", []).unwrap();
+        conn.execute("UPDATE meta SET value='wrong' WHERE key='profile_hash'", [])
+            .unwrap();
         let expected = crate::verified_root_raw_events(&conn).unwrap_err();
         conn.close().unwrap();
         let before = std::fs::read(path).unwrap();
@@ -394,7 +406,11 @@ fn mixed_private_business_failure_preserves_original_diagnostic_and_recovers() {
         );
         assert_eq!(std::fs::read(path).unwrap(), before);
         let conn = rusqlite::Connection::open(path).unwrap();
-        conn.execute("UPDATE meta SET value=?1 WHERE key='profile_hash'", [&original]).unwrap();
+        conn.execute(
+            "UPDATE meta SET value=?1 WHERE key='profile_hash'",
+            [&original],
+        )
+        .unwrap();
         conn.close().unwrap();
         assert_clean_mixed_admission(path);
     });

@@ -166,6 +166,17 @@ impl WriterAdmission {
     }
 }
 impl WriterScope {
+    pub(crate) fn admit_legacy_serve(
+        db: &Path,
+        prepared: PreparedAdmission,
+        epoch: &str,
+        clock: &crate::v2::ClockPlan,
+        profile: &Path,
+    ) -> Result<Self, String> {
+        Self::admit_prefix(db, prepared, super::admission_private::RejectionPrefix::LegacyServe {
+            db, epoch, clock, profile,
+        })
+    }
     pub(crate) fn admit(db: &Path, prepared: PreparedAdmission) -> Result<Self, String> {
         Self::admit_prefix(
             db,
@@ -448,8 +459,15 @@ pub(crate) fn read_startup(
 ) -> Result<Vec<u8>, String> {
     let mut state = scope.inner.accounting.borrow_mut();
     let account = state.as_mut().ok_or("StartupAccountingFinished")?;
+    read_startup_accounted(&mut account.accounting(), path, maximum)
+}
+
+pub(super) fn read_startup_accounted(
+    account: &mut super::admission_anchor::AdmissionAccounting<'_>,
+    path: &Path,
+    maximum: Option<usize>,
+) -> Result<Vec<u8>, String> {
     account
-        .accounting()
         .pre_io_check()
         .map_err(|e| e.to_string())?;
     let opened = OpenOptions::new()
@@ -457,7 +475,6 @@ pub(crate) fn read_startup(
         .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC)
         .open(path);
     account
-        .accounting()
         .check_deadline()
         .map_err(|e| e.to_string())?;
     let mut f = opened.map_err(|_| "StartupInputOpenFailed")?;
@@ -472,8 +489,7 @@ pub(crate) fn read_startup(
     let mut buf = [0u8; 8192];
     loop {
         account
-            .accounting()
-            .pre_io_check()
+                .pre_io_check()
             .map_err(|e| e.to_string())?;
         let room = maximum.map_or(buf.len(), |m| {
             m.saturating_sub(bytes.len())
@@ -483,8 +499,7 @@ pub(crate) fn read_startup(
         match f.read(&mut buf[..room]) {
             Ok(n) => {
                 account
-                    .accounting()
-                    .charge_wire_bytes(n as u64)
+                                .charge_wire_bytes(n as u64)
                     .map_err(|e| e.to_string())?;
                 if maximum.is_some_and(|m| bytes.len().saturating_add(n) > m) {
                     return Err("StartupInputTooLarge".into());
@@ -499,8 +514,7 @@ pub(crate) fn read_startup(
             }
             Err(_) => {
                 account
-                    .accounting()
-                    .check_deadline()
+                                .check_deadline()
                     .map_err(|e| e.to_string())?;
                 return Err("StartupInputReadFailed".into());
             }
