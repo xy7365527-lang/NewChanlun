@@ -198,8 +198,12 @@ impl<'a> ScopedLegacyRecord<'a> {
     pub(crate) fn insert(
         &mut self,
         field: Field,
-        mut child: PlainJson,
+        child: PlainJson,
     ) -> Result<(), MixedJsonError> {
+        self.insert_legacy_key(field.name(), child)
+    }
+    // 任意键仅用于LegacyPayload递归的原键；业务顶层入口仍是Field。
+    fn insert_legacy_key(&mut self, key: &str, mut child: PlainJson) -> Result<(), MixedJsonError> {
         let work = self.work;
         work.check_current().map_err(MixedJsonError::Resource)?;
         if !child
@@ -211,7 +215,6 @@ impl<'a> ScopedLegacyRecord<'a> {
                 work.reject(sc::capture_allocation::scratch::ScratchFailure::Ledger),
             ));
         }
-        let key = field.name();
         let object = self
             .owner
             .value
@@ -789,4 +792,64 @@ pub(crate) fn project_family_row(
         _=>return Err(MixedJsonError::Business("StorageUnavailable：未知索引族".into()).into()),
     };
     Ok((id,generation,record))
+}
+
+/// LegacyPayload保持原递归转换边界：detail全整数投影，raw_bars只转换supersedes_revision。
+pub(crate) fn legacy_payload(value: &Value, work: &WorkScope) -> Result<PlainJson, MixedJsonError> {
+    match value {
+        Value::Object(fields) => {
+            let mut out=ScopedLegacyRecord::object(ProjectionKind::LegacyPayload,work)?;
+            for (key,value) in fields {
+                let projected=if key=="detail" {
+                    wire_integers(value,work)?
+                } else if key=="raw_bars" {
+                    if let Some(bars)=value.as_array() {
+                        let mut out=ScopedLegacyArray::new(work);
+                        for bar in bars {
+                            let mut projected=ScopedLegacyRecord::clone_projection(ProjectionKind::LegacyPayload,bar,work)?;
+                            if let Some(sup)=bar.get("supersedes_revision") {
+                                projected.replace_owned(Field::SupersedesRevision,wire_integers(sup,work)?)?;
+                            }
+                            out.push(projected.finish())?;
+                        }
+                        out.finish()?
+                    } else {
+                        PlainJson::try_clone_from(value,Some(work)).map_err(MixedJsonError::Resource)?
+                    }
+                } else { legacy_payload(value,work)? };
+                out.insert_legacy_key(key,projected)?;
+            }
+            Ok(out.finish())
+        },
+        Value::Array(values) => {
+            let mut out=ScopedLegacyArray::new(work);
+            for value in values { out.push(legacy_payload(value,work)?)?; }
+            out.finish()
+        },
+        _=>PlainJson::try_clone_from(value,Some(work)).map_err(MixedJsonError::Resource),
+    }
+}
+fn wire_integers(value: &Value, work: &WorkScope) -> Result<PlainJson, MixedJsonError> {
+    if let Value::Number(n)=value {
+        let text=if let Some(i)=n.as_i64() {Some(NativeValue::try_format(format_args!("{i}"),Some(work)))}
+            else {n.as_u64().map(|u|NativeValue::try_format(format_args!("{u}"),Some(work)))};
+        if let Some(text)=text {
+            let text=text.map_err(MixedJsonError::Resource)?;
+            let permit=work.reserve_native(text.as_ref().len()).map_err(MixedJsonError::Resource)?;
+            return Ok(PlainJson::from_reserved(Value::String(text.as_ref().clone()),Some(permit)));
+        }
+    }
+    match value {
+        Value::Object(fields)=>{
+            let mut out=ScopedLegacyRecord::object(ProjectionKind::LegacyPayload,work)?;
+            for (key,value) in fields {out.insert_legacy_key(key,wire_integers(value,work)?)?;}
+            Ok(out.finish())
+        },
+        Value::Array(values)=>{
+            let mut out=ScopedLegacyArray::new(work);
+            for value in values {out.push(wire_integers(value,work)?)?;}
+            out.finish()
+        },
+        _=>PlainJson::try_clone_from(value,Some(work)).map_err(MixedJsonError::Resource),
+    }
 }

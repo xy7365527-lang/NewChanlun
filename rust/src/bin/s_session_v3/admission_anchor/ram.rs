@@ -916,6 +916,16 @@ mod tests {
                     other=>panic!("raw bars mismatch {other:?}"),
                 }
             }
+            for original in [
+                serde_json::json!({"detail":{"i":-1,"u":18446744073709551615u64,"f":1.25,"nest":[3,null]},"other":7}),
+                serde_json::json!({"raw_bars":[{"seq":2,"supersedes_revision":3,"detail":{"i":5}},7,null],"detail":4}),
+                serde_json::json!({"raw_bars":{"x":2},"nested":[{"detail":9,"raw_bars":[{"supersedes_revision":{"k":8}}]}]}),
+            ] {
+                let projected=crate::v3::business_json::scoped_legacy::legacy_payload(&original,work).unwrap();
+                assert_eq!(*projected,crate::legacy_payload_projection(&original));
+                let text=newchan_rust::s_content::capture_allocation::native_owned::NativeValue::try_format(format_args!("{}",projected.as_ref()),Some(work))?;
+                assert_eq!(text.as_ref(),&crate::canonical_json(&projected));
+            }
             for (name,sql,expected) in [
                 ("witnesses", "SELECT 'w',3,'o',4,5,'h','l','o','c','[]'",serde_json::json!({"witness_id":"w","object_id":"o","slot":"4","merged_source_index":"5","merged_high":"h","merged_low":"l","merged_open":"o","merged_close":"c","raw_bars":[]})),
                 ("observations","SELECT 'ob',3,'b','k',NULL,4,5,'why','{}'",serde_json::json!({"observation_id":"ob","batch_id":"b","kind":"k","window_start":null,"window_mid":4,"window_end":5,"reason":"why","detail":{}})),
