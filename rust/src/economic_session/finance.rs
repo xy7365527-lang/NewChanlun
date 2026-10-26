@@ -247,7 +247,8 @@ fn pinned_raw(config: &Config) -> Result<String, String> {
 }
 fn original_raw(path: &str, what: &str) -> Result<String, String> {
     let mut bytes = Vec::new();
-    let f = std::fs::File::open(path).map_err(|e| format!("MissingDependency：{what}不可读：{e}"))?;
+    let f =
+        std::fs::File::open(path).map_err(|e| format!("MissingDependency：{what}不可读：{e}"))?;
     if !f.metadata().map_err(err)?.is_file() {
         return Err(format!("InvalidDomain：{what}须普通文件"));
     }

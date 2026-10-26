@@ -1314,7 +1314,14 @@ fn activation(f: &Fixture, record: &Value, from: &str, to: &str, cap: &str, vali
     json!({"op":"ActivateCapPolicy","activation_id":format!("cap-{from}-{to}-{cap}-{valid}"),"policy_id":f.data["policy"]["policy_id"],"from_version":from,"to_version":to,"cap":cap,"valid_through_ns":valid,"policy_record":{"path":path,"sha256":sha},"writer_epoch":"1"})
 }
 fn cap_payload(f: &Fixture, from: &str, to: &str, cap: &str, valid: &str) -> Value {
-    activation(f, &cap_record(f, from, to, cap, valid), from, to, cap, valid)
+    activation(
+        f,
+        &cap_record(f, from, to, cap, valid),
+        from,
+        to,
+        cap,
+        valid,
+    )
 }
 fn reserve_now(f: &mut Fixture, message: &str) -> Value {
     let payload = f.request("Reserve", "slot")["payload"].clone();
@@ -1331,14 +1338,21 @@ fn assert_rejected_unchanged(f: &mut Fixture, message: &str, payload: Value, kin
         canonical_json(&after[0].3),
         "E 图像逐字相等"
     );
-    assert!(row(&f.dbs[0], "receipts", &key_for(&f.configs[0], &payload).unwrap())
-        .unwrap()
-        .is_none());
+    assert!(row(
+        &f.dbs[0],
+        "receipts",
+        &key_for(&f.configs[0], &payload).unwrap()
+    )
+    .unwrap()
+    .is_none());
     r
 }
 fn active_cap_and_liability(f: &Fixture) -> (Value, i64) {
     let image = latest(&f.dbs[0]).unwrap().3;
-    (image["finance"]["cap_policy"].clone(), responsibility_total(&image))
+    (
+        image["finance"]["cap_policy"].clone(),
+        responsibility_total(&image),
+    )
 }
 #[test]
 fn old_finance_contracts_refuse_cap_activation() {
@@ -1442,8 +1456,18 @@ fn cap_activation_requires_matching_signed_original() {
         "字段不完整",
     ));
     for (case, field, value, reason) in [
-        ("错政策签署", "policy_id", "TestOnly-other-policy", "不属于本冻结资金政策"),
-        ("错币种签署", "currency", "OTHER-CASH", "不属于本冻结资金政策"),
+        (
+            "错政策签署",
+            "policy_id",
+            "TestOnly-other-policy",
+            "不属于本冻结资金政策",
+        ),
+        (
+            "错币种签署",
+            "currency",
+            "OTHER-CASH",
+            "不属于本冻结资金政策",
+        ),
         ("错版本签署", "version", "3", "签署版本或所取代版本"),
         ("错取代版本签署", "supersedes", "2", "签署版本或所取代版本"),
     ] {
@@ -1529,12 +1553,8 @@ fn cap_activation_requires_imported_baseline() {
     f.prepare();
     for cap in ["10", "100"] {
         let early = cap_payload(&f, "1", "2", cap, "100000");
-        let r = assert_rejected_unchanged(
-            &mut f,
-            "ActivateCapPolicy-pre",
-            early,
-            "MissingDependency",
-        );
+        let r =
+            assert_rejected_unchanged(&mut f, "ActivateCapPolicy-pre", early, "MissingDependency");
         assert!(r["error"].as_str().unwrap().contains("尚未规范导入"));
     }
     let imported = f.handle(
@@ -1542,7 +1562,10 @@ fn cap_activation_requires_imported_baseline() {
         "ImportResponsibility-race",
         json!({"op":"ImportResponsibility","responsibility_id":"existing20","writer_epoch":"1"}),
     );
-    assert_eq!(imported["kind"], "ResponsibilityImportedReceipt", "{imported}");
+    assert_eq!(
+        imported["kind"], "ResponsibilityImportedReceipt",
+        "{imported}"
+    );
     assert_eq!(active_cap_and_liability(&f).1, 20);
     let below = cap_payload(&f, "1", "2", "19", "100000");
     assert_rejected_unchanged(&mut f, "ActivateCapPolicy-race", below, "InvalidDomain");
@@ -1617,12 +1640,19 @@ fn cap_activation_and_new_liability_rejudged_in_one_atomic_order() {
 fn race(f: &Fixture, a: (&str, Value), b: (&str, Value)) -> [Value; 2] {
     let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
     let run = |(message, payload): (&str, Value)| {
-        let (config, barrier, message) = (f.configs[0].clone(), barrier.clone(), message.to_owned());
+        let (config, barrier, message) =
+            (f.configs[0].clone(), barrier.clone(), message.to_owned());
         std::thread::spawn(move || {
             let (mut c, _) = open(&config.db, false).unwrap();
             barrier.wait();
-            service::handle(&mut c, &config, 1, 1, &json!({}), &envelope(&message, payload))
-                ["payload"]
+            service::handle(
+                &mut c,
+                &config,
+                1,
+                1,
+                &json!({}),
+                &envelope(&message, payload),
+            )["payload"]
                 .clone()
         })
     };
@@ -1664,11 +1694,21 @@ fn concurrent_connections_never_leave_cap_below_liability() {
         let [imported, low] = race(
             &g,
             ("ImportResponsibility-race", import),
-            ("ActivateCapPolicy-race", cap_payload(&g, "1", "2", "10", "100000")),
+            (
+                "ActivateCapPolicy-race",
+                cap_payload(&g, "1", "2", "10", "100000"),
+            ),
         );
-        assert_eq!(imported["kind"], "ResponsibilityImportedReceipt", "{imported}");
+        assert_eq!(
+            imported["kind"], "ResponsibilityImportedReceipt",
+            "{imported}"
+        );
         assert_eq!(low["kind"], "Error", "{low}");
-        let import_order = if low["error"].as_str().unwrap().starts_with("MissingDependency") {
+        let import_order = if low["error"]
+            .as_str()
+            .unwrap()
+            .starts_with("MissingDependency")
+        {
             "activation-first"
         } else {
             c4a_error(&low, "InvalidDomain");
@@ -1716,11 +1756,14 @@ fn cap_activation_sigkill_recovers_whole_old_or_new_version() {
     for phase in ["before_commit", "after_commit"] {
         let mut f = Fixture::v3("100", "20", true, Some(("ActivateCapPolicy-equal", phase)));
         f.prepare();
-        assert_eq!(reserve_now(&mut f, "Reserve-slot")["record"]["state"], "Reserved");
+        assert_eq!(
+            reserve_now(&mut f, "Reserve-slot")["record"]["state"],
+            "Reserved"
+        );
         let payload = cap_payload(&f, "1", "2", "90", "100000");
         let request = envelope("ActivateCapPolicy-equal", payload.clone());
-        let raw = std::fs::read_to_string(required(&payload["policy_record"], "path").unwrap())
-            .unwrap();
+        let raw =
+            std::fs::read_to_string(required(&payload["policy_record"], "path").unwrap()).unwrap();
         let witness = json!({"input_raw":canonical_json(&f.data),"cap_policy_raw":raw});
         let previous = latest(&f.dbs[0]).unwrap();
         let job = json!({"action":"write","manifest":f.dir.join("manifest.json"),"db":f.configs[0].db,"chong":Value::Null,"request":request,"witness":witness});
@@ -1763,8 +1806,12 @@ fn cap_activation_sigkill_recovers_whole_old_or_new_version() {
             assert!(fin.get("cap_policy").is_none());
         }
         assert_eq!(responsibility_total(&current.3), 90);
-        let original = row(&f.dbs[0], "receipts", &key_for(&f.configs[0], &payload).unwrap())
-            .unwrap();
+        let original = row(
+            &f.dbs[0],
+            "receipts",
+            &key_for(&f.configs[0], &payload).unwrap(),
+        )
+        .unwrap();
         assert_eq!(original.is_some(), committed);
         if committed {
             assert_eq!(
