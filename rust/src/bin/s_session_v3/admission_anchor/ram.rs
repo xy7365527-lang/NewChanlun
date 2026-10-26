@@ -1441,6 +1441,7 @@ mod tests {
 
         use crate::v3::business_json::MixedJsonError;
         crate::v2::with_mixed_control_fixture(|conn| {
+            crate::cache::configure(1<<22);
             for mutation in [
                 "",
                 "UPDATE s_evidence_roots SET expanded_length=expanded_length+1",
@@ -1485,6 +1486,7 @@ mod tests {
                 }).unwrap();
                 conn.execute_batch("ROLLBACK TO meta_case; RELEASE meta_case").unwrap();
             }
+            crate::cache::configure(0);
         });
     }
     #[test]

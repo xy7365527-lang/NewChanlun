@@ -1488,6 +1488,9 @@ fn verify_profile_binding_admitted(
 }
 
 fn verify_batch_profile(batch: &Value, binding: &(String, String)) -> Result<(), String> {
+    verify_batch_profile_refs(batch,(&binding.0,&binding.1))
+}
+fn verify_batch_profile_refs(batch:&Value,binding:(&str,&str))->Result<(),String>{
     let id = batch["profile_id"]
         .as_str()
         .ok_or("StorageUnavailable：batch.profile_id缺失")?;
