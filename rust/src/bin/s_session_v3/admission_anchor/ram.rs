@@ -1354,6 +1354,99 @@ mod tests {
     }
 
     #[test]
+    fn mixed_profile_binding_preserves_sources_and_first_errors() {
+        use crate::v3::audit_budget::LegacyObserver;
+        use newchan_rust::s_content::{
+            self as sc,
+            job::{Existing, Job},
+        };
+        use std::cell::RefCell;
+        struct Observer<'a> {
+            job: RefCell<Job>,
+            work: &'a sc::capture_allocation::scratch::WorkScope,
+        }
+        impl LegacyObserver for Observer<'_> {
+            fn visit_record(
+                &self,
+                _family: &'static str,
+                _process: &'static str,
+                _member: crate::v3::audit_budget::LegacyRecordRef<'_>,
+            ) -> Result<(), sc::CodecError> {
+                self.job.borrow_mut().charge_records(1)
+            }
+
+            fn precheck(&self) -> Result<(), sc::CodecError> {
+                self.job.borrow_mut().pre_io_check()
+            }
+            fn check_work(
+                &self,
+                work: &sc::capture_allocation::scratch::WorkScope,
+            ) -> Result<(), sc::CodecError> {
+                let token = self.work.reserve_native(0)?;
+                if !token.belongs_to_parent(work) {
+                    return Err(work.reject(ScratchFailure::Ledger));
+                }
+                Ok(())
+            }
+            fn accept_checked(
+                &self,
+                row: &sc::legacy_evidence::CheckedLegacyEvidenceRow,
+            ) -> Result<(), sc::CodecError> {
+                self.job
+                    .borrow_mut()
+                    .accept_legacy_evidence(row, self.work)
+                    .map(|_| ())
+            }
+        }
+
+        use serde_json::json;
+        for case in 0..6 {
+            let conn=rusqlite::Connection::open_in_memory().unwrap();
+            conn.execute_batch("CREATE TABLE batches(batch_id TEXT PRIMARY KEY,canonical_bytes BLOB NOT NULL,byte_len INTEGER NOT NULL); CREATE TABLE structure_deltas(generation INTEGER,index_frontier TEXT); CREATE TABLE meta(key TEXT PRIMARY KEY,value TEXT); CREATE TABLE raw_events(seq INTEGER)").unwrap();
+            let declared:serde_json::Value=serde_json::from_str(include_str!(concat!(env!("CARGO_MANIFEST_DIR"),"/../s_session/profiles/testonly_tick_1_1_ohlc.json"))).unwrap();
+            let profile=if case==4 {declared}else{json!({"profile_id":"fixed","x":1})};
+            let id=profile["profile_id"].as_str().unwrap();
+            let hash=newchan_rust::session_protocol::canonical_hash_view_with_owner((&profile).into(),None).unwrap();
+            if case>0 {
+                for (key,value) in [("profile_id",id),("input_profile",id),("profile_hash",hash.as_str())] {
+                    conn.execute("INSERT INTO meta VALUES(?1,?2)",rusqlite::params![key,value]).unwrap();
+                }
+                if case==1 || case==2 {
+                    conn.execute("INSERT INTO meta VALUES('profile_definition',?1)",[if case==2 {"{".to_string()}else{crate::canonical_json(&profile)}]).unwrap();
+                }
+                if case==3 || case==5 {
+                    for (g,batch) in [json!({"profile_id":"","profile_hash":""}),json!({"profile_id":if case==5 {"wrong"}else{id},"profile_hash":hash.as_str()}),json!({"profile_id":id,"profile_hash":hash.as_str()})].into_iter().enumerate() {
+                        let bytes=crate::canonical_json(&batch).into_bytes();
+                        let batch_id=format!("batch-{}",crate::sha256_hex(&bytes));
+                        conn.execute("INSERT OR IGNORE INTO batches VALUES(?1,?2,?3)",rusqlite::params![batch_id,bytes,bytes.len() as i64]).unwrap();
+                        conn.execute("INSERT INTO structure_deltas VALUES(?1,?2)",rusqlite::params![g as i64+1,batch_id]).unwrap();
+                    }
+                }
+            }
+            crate::cache::configure(1<<20);
+            let expected=crate::verify_profile_binding(&conn);
+            let owner=AdmissionRamLedger::new(limits(1<<20)).unwrap();
+            owner.codec_work().unwrap().run(|work|{
+                let job=Job::new_started_mixed(job_limits(),Existing{store_bytes:0,staged_bytes:0},
+                    Box::new(std::time::Instant::now),std::time::Instant::now(),work)?;
+                let observer=Observer{job:RefCell::new(job),work};
+                let transaction=crate::cache::MixedCacheTransaction::start(work)?;
+                let actual=crate::audit::mixed_profile::verify_profile(&conn,work,&observer);
+                match (&expected,&actual) {
+                    (Ok((ei,eh)),Ok((ai,ah)))=>{assert_eq!(ei,ai.as_ref());assert_eq!(eh,ah.as_ref());},
+                    (Err(e),Err(crate::v3::business_json::MixedJsonError::Business(a)))=>assert_eq!(e,a),
+                    _=>panic!("case={case}: old={expected:?}, mixed={actual:?}"),
+                }
+                assert_eq!(actual.is_ok(),case!=2 && case!=5);
+                assert_eq!(observer.job.borrow().snapshot().records,0,"profile/control headers are not semantic records");
+                drop(transaction);
+                Ok::<(),sc::CodecError>(())
+            }).unwrap();
+            crate::cache::configure(0);
+        }
+    }
+
+    #[test]
     fn mixed_ram_sql_node_acceptance_is_fresh_and_rejects_corrupt_original() {
         use crate::v3::audit_budget::LegacyObserver;
         use newchan_rust::s_content::{
