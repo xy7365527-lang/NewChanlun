@@ -1,17 +1,37 @@
 # #1742 Deep Agents 试点：如何启动、恢复与查看一个 run
 
-本目录让官方 Deep Agents（LangGraph runtime）里的真实模型读取 pstack `poteto-mode` 并按 playbook 推进一个小任务：派 GPT 作者工蜂、宿主受管本地提交、派 Opus 独审工蜂，最后在门上停为 `awaiting_approval`。工蜂只经现役 `.sandcastle/codex-child.mts` 启动，隔离与现役相同。试点不 push、不开 PR、不合 main，也不碰常驻队列与服务。
+本目录让官方 Deep Agents（LangGraph runtime）里的真实模型读取 pstack `poteto-mode`，按选中的 playbook 推进一个小任务。Feature 任务的一次完整 run 依次做五件事：
+
+1. 并行派两个不同家族的只读设计候选（architect Phase B 的 arena runner）。
+2. 派一个与主控不同家族的只读交叉裁判，主控自己选 base、嫁接并合成设计。
+3. 派 GPT 作者工蜂实现，宿主做受管本地提交。
+4. 派 Opus 独审工蜂审这个精确 head。
+5. 在门上停为 `awaiting_approval`。
+
+所有工蜂只经现役 `.sandcastle/codex-child.mts` 启动，隔离与现役相同。试点不 push、不开 PR、不合 main，也不碰常驻队列与服务。
 
 ## 准备环境
 
-依赖锁在 `requirements.lock`（deepagents 0.7.32、langgraph 1.2.17、langgraph-checkpoint-sqlite 3.1.2、langchain-openai 1.7.2）。
+依赖锁在 `requirements.lock`（deepagents 0.7.32、langgraph 1.2.17、langgraph-checkpoint-sqlite 3.1.2、langchain-openai 1.7.2、类型检查用的 types-PyYAML）。
 
 ```bash
 python3.12 -m venv "$VENV" && "$VENV/bin/pip" install -r .sandcastle/deepagents-pilot/requirements.lock
 npm ci   # codex-child.mts 需要仓库根的 node_modules
 ```
 
-模型经本机 CLIProxyLocal（`http://127.0.0.1:8318/v1`）。密钥沿用 codex-child 的受管机制：进程环境有 `CLIPROXY_LOCAL_KEY` 就用，否则 `launchctl getenv` 取一次，只留在内存。启动时关闭 LangSmith 外发。角色模型取 `~/.agents/pstack-models.md`：`feature, refactoring` 行是作者，`judgment and prose` 行是独审，`hardest tasks` 行是 Deep Agent 主控。作者与独审同家族时 run 拒绝创建。
+模型经本机 CLIProxyLocal（`http://127.0.0.1:8318/v1`）。密钥沿用 codex-child 的受管机制：进程环境有 `CLIPROXY_LOCAL_KEY` 就用，否则 `launchctl getenv` 取一次，只留在内存。启动时关闭 LangSmith 外发。
+
+run 创建时从 `~/.agents/pstack-models.md` 冻结六个角色的模型：
+
+| 角色 | 取自 | 本机当前值 |
+|---|---|---|
+| Deep Agent 主控 | `hardest tasks` | claude-opus-5-5 |
+| 作者 | `feature, refactoring` | gpt-6.1-sol |
+| 独审 | `judgment and prose` | claude-opus-5-5 |
+| 设计候选 `design-a`、`design-b` | `architect runners` 前两个 | claude-opus-5-5、gpt-6.1-sol |
+| 交叉裁判 `judge` | `arena cross-judge pool` 中第一个与主控不同家族的 | gpt-6.1-sol |
+
+作者与独审同家族、两个设计候选同家族，或裁判池里没有与主控不同家族的模型时，run 拒绝创建。
 
 主控推理档是 `high`，单次输出上限 64000 tokens。poteto-mode 规定判断角色比 xhigh 预算低一档；首轮实测 xhigh 把 CLIProxy 缺省的 32000 输出上限全部用于思考，回复为空，图随之结束。工蜂推理档仍由 codex-child 固定为 xhigh。
 
@@ -25,13 +45,29 @@ PYTHONPATH=.sandcastle/deepagents-pilot "$VENV/bin/python" -m pilot1742 run \
 	--run-id r1 --task .sandcastle/deepagents-pilot/demo-task.md
 ```
 
-`--base` 缺省为本工作区 HEAD。新 run 会在 `<home>/checkouts/<run-id>/` 下建作者与独审两个 `codex/deepagents-pilot-1742-<run-id>-*` 工作树。`<home>` 缺省是 `/Volumes/AgentStorage/issue1742-deepagents-pilot-20261027`，可用 `--home` 改。
+任务文件头写 `title`、`allowed_prefixes`，可选 `require_design: true`。设了 `require_design` 时，两个设计候选和裁判都完成前，作者派工会被拒绝。`demo-task.md` 设了它。
+
+`--base` 缺省为本工作区 HEAD。`<home>` 缺省是 `/Volumes/AgentStorage/issue1742-deepagents-pilot-20261027`，可用 `--home` 改。
+
+## Deep Agent 能做什么
+
+主控只有四个业务工具，加上 `write_todos` 和只读的 `ls`、`read_file`、`glob`、`grep`。没有 `execute`、`task`，也没有写文件工具。技能源是整个 `installed/skills/` 树，只读。
+
+`run_worker(role, brief)` 的 `role` 只有四个值。head、模型、checkout 与输出目录都由宿主从回执推导，模型只给 brief。
+
+- `design` 只在首个作者之前、在基线上可用。它把同一个 brief 同时派给 `design-a` 与 `design-b` 两个只读工蜂（codex-child `review` 模式）。两者各用自己的 checkout，即 `<home>/checkouts/<run-id>/design-a` 与 `design-b`，返回两份设计包。
+- `judge` 要等两份设计包都完成。裁判在 `judge` checkout 里只读运行，brief 是主控的 rubric，提示里只有“候选 1/候选 2”标签，不出现模型名。
+- `author` 在作者 checkout 里写；`review` 在独审 checkout 里只读审当前候选提交。
+
+另外三个业务工具是 `commit_candidate()`、`check_gate()` 和 `run_status()`。arena 的 Phase D 与 E（选 base、嫁接、合成）由主控在对话里完成，再把合成设计写进作者 brief。
+
+每个工蜂的幂等键是 run 加角色加目标 head。同键再调用只会收养已有工蜂，`design` 的两个槽位各自独立收养。
 
 ## 恢复被杀掉的 run
 
 原样再跑一次 `run --run-id r1`，不带 `--task`。命令从 SQLite checkpoint 续跑同一个 `thread_id`，重放的工具调用先重认回执：
 
-- 工蜂监督进程独立于控制进程，控制进程被 `kill -9` 后工蜂照常跑完，恢复时收养同一个结果。
+- 工蜂监督进程独立于控制进程。控制进程被 `kill -9` 后工蜂照常跑完，恢复时收养同一个结果；并行的两个设计候选同样如此。
 - 提交已做、回执未落时，按 parent、tree、`Pilot-1742-Run` trailer 认领已有提交，不再提交。
 - 输出目录已认领却没有终态、也没有存活监督进程时，run 停为 `halted`，不换键重派。
 
@@ -41,13 +77,21 @@ PYTHONPATH=.sandcastle/deepagents-pilot "$VENV/bin/python" -m pilot1742 run \
 
 ## 批准与门
 
-门只在当前 head 有异家族 `VERDICT: PASS`、且 `<home>/runs/<run-id>/approvals.jsonl` 里有同票、同 scope、同 head 的人类批准时放行。试点代码从不写这个账本。人类批准后，由主控逐行登记，`source` 必须指向本票评论 URL 或用户原始消息：
+门同时检查三件事，缺一不放行：
+
+1. 作者 checkout 的实际分支与完整 HEAD 等于本 run 最后一份提交回执。
+2. 该 head 有异家族独审，其 summary 首行整行等于 `VERDICT: PASS`。
+3. `<home>/runs/<run-id>/approvals.jsonl` 里同票、同 scope、同 head 的最新人类记录是批准。
+
+有人在作者 checkout 上另加提交或切走分支时，门返回 `candidate_head_drift` 或 `author_branch_changed`，新派工也被拒绝。`status` 同时列出 `recorded_head` 与 `observed_head`。提交已做、回执未落的那一步不算冲突，恢复时会补回执。
+
+试点代码从不写批准账本。人类批准后，由主控逐行登记，`source` 必须指向本票评论 URL 或用户原始消息：
 
 ```json
 {"ticket":1742,"scope":"pilot_acceptance","head":"<40 位 sha>","decision":"approve","source":{"kind":"tracker_comment","reference":"https://github.com/xy7365527-lang/NewChanlun/issues/1742#issuecomment-<id>","registered_by":"<登记人>"}}
 ```
 
-`pilot_acceptance` 不推出 `main_merge`。候选 head 一变，旧批准不再匹配。登记后运行 `run --run-id r1 --recheck-approval`，图从 `check_gate` 的暂停点继续。
+`pilot_acceptance` 不推出 `main_merge`。登记后运行 `run --run-id r1 --recheck-approval`，图从 `check_gate` 的暂停点继续。
 
 ## 查看状态与证据
 
@@ -55,12 +99,21 @@ PYTHONPATH=.sandcastle/deepagents-pilot "$VENV/bin/python" -m pilot1742 run \
 
 | 文件 | 内容 |
 |---|---|
-| `run.json` | 冻结的任务、基线、写集与三个模型 |
+| `run.json` | 冻结的任务、基线、写集与全部角色模型 |
 | `agent-trace.jsonl` | 每次模型请求的工具名集合、模型输出、每次工具调用与返回 |
 | `trail.jsonl` | 派工、收养、提交、门与崩溃注入的决策记录 |
 | `workers/<role>-<head>/` | codex-child 原始 `state.json`、`result.json`、`events.jsonl`、`prompt.md` |
+| `prompts/<role>-<head>.md` | 宿主按固定模板生成的工蜂任务；裁判提示里含两份设计包 |
 | `commits/*.intent.json`、`*.receipt.json` | 提交意图与回执 |
 | `graph.sqlite` | LangGraph checkpoint |
+
+## 当前限制
+
+- 设计候选或裁判失败时，run 停为 `halted`。arena 允许的“少一个候选继续”没有实现。
+- 只支持设计 arena。Feature 第 4 步的实现 arena（多个作者并行写代码）没有通道，作者只有一个，审阅分离靠异家族独审。
+- 合成设计只存在于主控回复与作者 brief 中，没有单独的合成产物文件。
+- 每个 run 最多建五个工作树，作者、独审、两个设计、裁判各一个；本仓每个约 1.1 GB。
+- 人类批准链没有端到端演示过，需要真人批准与主控登记。
 
 ## 运行测试
 
@@ -68,4 +121,11 @@ PYTHONPATH=.sandcastle/deepagents-pilot "$VENV/bin/python" -m pilot1742 run \
 cd .sandcastle/deepagents-pilot && "$VENV/bin/python" -m pytest -q tests
 ```
 
-测试用与 codex-child 同参数、同排他认领语义的替身工蜂和真实 git，覆盖控制进程 SIGKILL 后收养、提交后回执前崩溃、意图后派工前崩溃、结果不明停机、并发控制进程、越界改动和门的正负控。门测试里的批准记录是测试内合成的，不进入任何 run 的账本。
+测试用与 codex-child 同参数、同排他认领语义的替身工蜂和真实 git，覆盖以下场景：
+
+- 恢复：控制进程 SIGKILL 后收养单个工蜂与并行设计候选；提交后回执前崩溃；意图后派工前崩溃，含两个设计意图之间崩溃。
+- 停机与并发：结果不明时停机；第二个控制进程在任何副作用前被拒绝。
+- 设计通道：槽位、模型与 checkout 固定，作者之前必须完成设计与裁判。
+- 门与审阅：作者 checkout 外部加提交或切分支后拒绝旧批准；VERDICT 首行严格匹配；越界改动不提交；门的正负控。
+
+门测试里的批准记录是测试内合成的，不进入任何 run 的账本。

@@ -35,8 +35,10 @@ def parse_model(raw: object) -> ModelSlug:
     return cast(ModelSlug, raw)
 
 
-Role = Literal["author", "review"]
-ROLE_MODE: dict[Role, Literal["execute", "review"]] = {"author": "execute", "review": "review"}
+Role = Literal["author", "review", "design-a", "design-b", "judge"]
+ROLE_MODE: dict[Role, Literal["execute", "review"]] = {
+    "author": "execute", "review": "review", "design-a": "review", "design-b": "review", "judge": "review"}
+DESIGN_SLOTS: tuple[Role, Role] = ("design-a", "design-b")
 
 
 def parse_role(raw: str) -> Role:
@@ -56,6 +58,11 @@ class WorkerKey:
     @property
     def name(self) -> str:
         return f"{self.role}-{self.target_head}"
+
+
+def parse_key_name(run_id: RunId, name: str) -> WorkerKey:
+    role, _, head = name.rpartition("-")
+    return WorkerKey(run_id, parse_role(role), parse_sha(head))
 
 
 @dataclass(frozen=True)
@@ -166,7 +173,7 @@ def outside_allowed(paths: tuple[str, ...], prefixes: tuple[str, ...]) -> tuple[
 
 
 VerdictKind = Literal["PASS", "BLOCK", "UNPARSED", "VERIFIER_BLOCKED"]
-_VERDICT = re.compile(r"\s*VERDICT:\s*(PASS|BLOCK)\b")
+_VERDICT_LINES: dict[str, VerdictKind] = {"VERDICT: PASS": "PASS", "VERDICT: BLOCK": "BLOCK"}
 
 
 @dataclass(frozen=True)
@@ -178,12 +185,12 @@ class ReviewVerdict:
 
 
 def parse_verdict(review: WorkerReceipt, author_model: ModelSlug) -> ReviewVerdict:
-    """completed 只说明工蜂跑完；结论只认 summary 首行的 VERDICT 协议，且作者与独审必须不同家族。"""
+    """completed 只说明工蜂跑完；summary 首行必须整行等于 `VERDICT: PASS` 或 `VERDICT: BLOCK`，且作者与独审不同家族。"""
     head = review.key.target_head
     if MODEL_FAMILY[review.model] == MODEL_FAMILY[author_model]:
         return ReviewVerdict(head, "VERIFIER_BLOCKED", author_model, review.model)
-    match = _VERDICT.match(review.summary) if review.status == "completed" else None
-    kind = cast(VerdictKind, match.group(1)) if match else "UNPARSED"
+    first_line = review.summary.splitlines()[0] if review.summary else ""
+    kind = _VERDICT_LINES.get(first_line, "UNPARSED") if review.status == "completed" else "UNPARSED"
     return ReviewVerdict(head, kind, author_model, review.model)
 
 
@@ -231,9 +238,26 @@ class Refused:
 GateDecision = Approved | Awaiting | Refused
 
 
-def decide_gate(*, ticket: int, scope: Scope, candidate: Sha, verdict: ReviewVerdict | None,
-                records: list[ApprovalRecord]) -> GateDecision:
-    """两因子门：当前 head 的异家族 PASS，加同票、同 scope、同 head 的最新人类批准。"""
+@dataclass(frozen=True)
+class CheckoutState:
+    branch: str
+    head: Sha
+
+
+@dataclass(frozen=True)
+class Conflict:
+    """作者 checkout 的实际分支或 HEAD 与本 run 回执链不符；门与新派工都拒绝，等主控处置。"""
+
+    code: Literal["author_branch_changed", "candidate_head_drift"]
+    recorded_head: Sha
+    observed: CheckoutState
+
+
+def decide_gate(*, ticket: int, scope: Scope, candidate: Sha, conflict: Conflict | None,
+                verdict: ReviewVerdict | None, records: list[ApprovalRecord]) -> GateDecision:
+    """两因子门：实际 HEAD 等于回执候选、该 head 的异家族 PASS，加同票、同 scope、同 head 的最新人类批准。"""
+    if conflict is not None:
+        return Refused(candidate, (conflict.code,))
     if verdict is None or verdict.head != candidate:
         return Refused(candidate, ("no_review_at_head",))
     if verdict.kind != "PASS":
@@ -255,17 +279,39 @@ def decide_gate(*, ticket: int, scope: Scope, candidate: Sha, verdict: ReviewVer
 class RunFacts:
     run_id: RunId
     base: Sha
+    require_design: bool
     commits: tuple[CommitReceipt, ...]
     workers: dict[WorkerKey, WorkerFact]
     verdicts: dict[Sha, ReviewVerdict]
+    author_branch: str
+    observed: CheckoutState
+    pending_commit_landed: bool
 
 
-def current_head(facts: RunFacts) -> Sha:
-    by_parent = {c.intent.parent: c.commit for c in facts.commits}
-    head = facts.base
+def chain_head(base: Sha, commits: tuple[CommitReceipt, ...]) -> Sha:
+    by_parent = {c.intent.parent: c.commit for c in commits}
+    head = base
     while head in by_parent:
         head = by_parent[head]
     return head
+
+
+def current_head(facts: RunFacts) -> Sha:
+    return chain_head(facts.base, facts.commits)
+
+
+def candidate_conflict(facts: RunFacts) -> Conflict | None:
+    """提交已做、回执未落时，实际 HEAD 领先一步是可恢复的，不算冲突。"""
+    recorded = current_head(facts)
+    if facts.observed.branch != facts.author_branch:
+        return Conflict("author_branch_changed", recorded, facts.observed)
+    if facts.observed.head == recorded or facts.pending_commit_landed:
+        return None
+    return Conflict("candidate_head_drift", recorded, facts.observed)
+
+
+def _completed(fact: WorkerFact | None) -> bool:
+    return isinstance(fact, Terminal) and fact.receipt.status == "completed"
 
 
 def _stuck(fact: WorkerFact) -> bool:
@@ -279,16 +325,32 @@ def _stuck(fact: WorkerFact) -> bool:
 
 def dispatch_refusal(facts: RunFacts, key: WorkerKey) -> str | None:
     """新键能否开派；返回拒绝原因或 None。已存在的键不经过这里，由调用方收养。"""
-    busy = [k.name for k, f in facts.workers.items() if isinstance(f, Running)]
+    conflict = candidate_conflict(facts)
+    if conflict is not None:
+        return f"{conflict.code}：回执候选 {conflict.recorded_head}，实际 {conflict.observed.branch}@{conflict.observed.head}"
+    paired = key.role in DESIGN_SLOTS
+    busy = [k.name for k, f in facts.workers.items()
+            if isinstance(f, Running) and not (paired and k.role in DESIGN_SLOTS and k.target_head == key.target_head)]
     if busy:
         return f"已有工蜂在运行：{busy}"
     stuck = [k.name for k, f in facts.workers.items() if _stuck(f)]
     if stuck:
         return f"本 run 停在未成功、无产出或结果不明的工蜂上，需主控处置：{stuck}"
     head = current_head(facts)
+    at_base = head == facts.base and not any(k.role == "author" for k in facts.workers)
+    if key.role in DESIGN_SLOTS:
+        return None if at_base else "设计 arena 只在首个作者之前、在基线上进行"
+    if key.role == "judge":
+        if not at_base:
+            return "设计 arena 只在首个作者之前、在基线上进行"
+        designs = [facts.workers.get(WorkerKey(facts.run_id, slot, head)) for slot in DESIGN_SLOTS]
+        return None if all(_completed(f) for f in designs) else "两个设计候选都完成后才能派交叉裁判"
     if key.role == "review":
         return "还没有本 run 的候选提交，不能独审" if head == facts.base else None
     if head == facts.base:
+        judged = _completed(facts.workers.get(WorkerKey(facts.run_id, "judge", head)))
+        if facts.require_design and not judged:
+            return "本 run 要求先完成设计 arena（两个设计候选与交叉裁判）再派作者"
         return None
     verdict = facts.verdicts.get(head)
     if verdict is not None and verdict.kind == "BLOCK":
@@ -296,25 +358,33 @@ def dispatch_refusal(facts: RunFacts, key: WorkerKey) -> str | None:
     return f"候选 {head} 没有明确的独审 BLOCK，不能再派作者"
 
 
-Phase = Literal["needs_author", "author_running", "needs_commit", "needs_review", "review_running",
-                "rework", "gate", "halted"]
+Phase = Literal["needs_design", "design_running", "needs_judge", "needs_author", "author_running", "needs_commit",
+                "needs_review", "review_running", "rework", "gate", "halted", "conflict"]
 
 
 def derive_phase(facts: RunFacts) -> Phase:
+    if candidate_conflict(facts) is not None:
+        return "conflict"
     if any(_stuck(f) for f in facts.workers.values()):
         return "halted"
     head = current_head(facts)
-    author = facts.workers.get(WorkerKey(facts.run_id, "author", head))
-    review = facts.workers.get(WorkerKey(facts.run_id, "review", head))
-    if isinstance(author, Running):
+    fact = {role: facts.workers.get(WorkerKey(facts.run_id, role, head))
+            for role in ("author", "review", "design-a", "design-b", "judge")}
+    if any(isinstance(fact[role], Running) for role in ("design-a", "design-b", "judge")):
+        return "design_running"
+    if isinstance(fact["author"], Running):
         return "author_running"
-    if isinstance(review, Running):
+    if isinstance(fact["review"], Running):
         return "review_running"
-    if isinstance(author, Terminal):
+    if isinstance(fact["author"], Terminal):
         return "needs_commit"
     if head == facts.base:
+        if facts.require_design and not all(_completed(fact[slot]) for slot in DESIGN_SLOTS):
+            return "needs_design"
+        if facts.require_design and not _completed(fact["judge"]):
+            return "needs_judge"
         return "needs_author"
-    if review is None or isinstance(review, NotStarted):
+    if fact["review"] is None or isinstance(fact["review"], NotStarted):
         return "needs_review"
     verdict = facts.verdicts.get(head)
     if verdict is not None and verdict.kind == "BLOCK":

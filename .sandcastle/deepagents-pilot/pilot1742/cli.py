@@ -12,7 +12,15 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import Command
 
 from .domain import parse_run_id, parse_sha
-from .run import CRASH_POINTS, DEFAULT_HOME, PSTACK_MODELS, SOURCE_REPO, Busy, PilotRun, parse_task
+from .run import (
+    CRASH_POINTS,
+    DEFAULT_HOME,
+    PSTACK_MODELS,
+    SOURCE_REPO,
+    Busy,
+    PilotRun,
+    parse_task,
+)
 
 EXIT_BUSY = 75
 
@@ -24,7 +32,12 @@ def _graph_state(agent, config: dict) -> dict:
 
 
 def _run(args: argparse.Namespace) -> int:
-    from .agent import TraceRecorder, build_agent, disable_external_tracing, initial_message
+    from .agent import (
+        TraceRecorder,
+        build_agent,
+        disable_external_tracing,
+        initial_message,
+    )
 
     disable_external_tracing()
     home = Path(args.home)

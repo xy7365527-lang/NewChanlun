@@ -11,8 +11,10 @@ from pilot1742.domain import parse_run_id, parse_sha  # noqa: E402
 from pilot1742.run import PilotRun, TaskSpec  # noqa: E402
 
 FAKE = [sys.executable, str(Path(__file__).with_name("fake_codex_child.py"))]
-MODELS = "feature, refactoring: gpt-6.1-sol\njudgment and prose: claude-opus-5-5\nhardest tasks: claude-opus-5-5\n"
-TASK = TaskSpec("测试任务", "在 demo/ 下实现函数。", ("demo/",))
+MODELS = ("feature, refactoring: gpt-6.1-sol\njudgment and prose: claude-opus-5-5\nhardest tasks: claude-opus-5-5\n"
+          "architect runners: claude-opus-5-5, gpt-6.1-sol\narena cross-judge pool: claude-opus-5-5, gpt-6.1-sol\n")
+TASK = TaskSpec("测试任务", "在 demo/ 下实现函数。", ("demo/",), False)
+DESIGN_TASK = TaskSpec("测试任务", "在 demo/ 下实现函数。", ("demo/",), True)
 
 
 def git(root, *args):
@@ -42,8 +44,8 @@ class Env:
         path = self.home / "fake-claims.log"
         return path.read_text().split() if path.exists() else []
 
-    def create(self, run_id="r1", models=MODELS, **kw) -> PilotRun:
-        return PilotRun.create(self.home, parse_run_id(run_id), TASK, self.base, models, launcher=FAKE,
+    def create(self, run_id="r1", models=MODELS, task=TASK, **kw) -> PilotRun:
+        return PilotRun.create(self.home, parse_run_id(run_id), task, self.base, models, launcher=FAKE,
                                source_repo=self.source, **kw)
 
     def reopen(self, run_id="r1") -> PilotRun:

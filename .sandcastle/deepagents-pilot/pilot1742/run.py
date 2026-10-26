@@ -16,6 +16,7 @@ from pathlib import Path
 import yaml
 
 from .domain import (
+    DESIGN_SLOTS,
     MODEL_FAMILY,
     ROLE_MODE,
     TICKET,
@@ -23,6 +24,7 @@ from .domain import (
     ApprovalRecord,
     Approved,
     Awaiting,
+    CheckoutState,
     CommitIntent,
     CommitReceipt,
     EffectUnknown,
@@ -42,14 +44,16 @@ from .domain import (
     WorkerKey,
     WorkerObservation,
     WorkerReceipt,
+    candidate_conflict,
+    chain_head,
     classify_worker,
     current_head,
     decide_gate,
     derive_phase,
     dispatch_refusal,
     outside_allowed,
+    parse_key_name,
     parse_model,
-    parse_role,
     parse_sha,
     parse_verdict,
     reconcile_commit,
@@ -58,6 +62,7 @@ from .domain import (
 SOURCE_REPO = Path(__file__).resolve().parents[3]
 DEFAULT_HOME = Path("/Volumes/AgentStorage/issue1742-deepagents-pilot-20261027")
 PSTACK_MODELS = Path.home() / ".agents" / "pstack-models.md"
+SKILLS_ROOT = "/Users/silencehan/.codex/pstack-upstream-source/installed/skills/"
 CRASH_POINTS = ("after_intent_before_spawn", "after_spawn_before_launch_record", "after_commit_before_receipt")
 WORKER_IDLE_SECONDS = 900
 WORKER_TOTAL_SECONDS = 5400
@@ -99,6 +104,7 @@ class TaskSpec:
     title: str
     requirement: str
     allowed_prefixes: tuple[str, ...]
+    require_design: bool
 
 
 def parse_task(text: str) -> TaskSpec:
@@ -112,17 +118,42 @@ def parse_task(text: str) -> TaskSpec:
         raise ValueError("任务头需要 title 与以 / 结尾的相对目录 allowed_prefixes")
     if not match.group(2).strip():
         raise ValueError("任务正文为空")
-    return TaskSpec(str(head["title"]), match.group(2).strip(), prefixes)
+    require_design = head.get("require_design", False)
+    if not isinstance(require_design, bool):
+        raise ValueError("require_design 只能是 true 或 false")
+    return TaskSpec(str(head["title"]), match.group(2).strip(), prefixes, require_design)
 
 
-def role_models(text: str) -> tuple[ModelSlug, ModelSlug, ModelSlug]:
-    """从 pstack-models.md 取作者、独审与大脑模型：feature 行、judgment 行、hardest 行。"""
-    lines = dict(line.split(":", 1) for line in text.splitlines() if ":" in line and not line.startswith("#"))
-    pick = {k.strip(): v.strip().split(",")[0].strip() for k, v in lines.items()}
-    author = parse_model(pick["feature, refactoring"])
-    reviewer = parse_model(pick["judgment and prose"])
-    brain = parse_model(pick["hardest tasks"])
-    return author, reviewer, brain
+@dataclass(frozen=True)
+class RolePlan:
+    author: ModelSlug
+    reviewer: ModelSlug
+    brain: ModelSlug
+    design: tuple[ModelSlug, ModelSlug]
+    judge: ModelSlug
+
+
+def plan_roles(text: str) -> RolePlan:
+    """从 pstack-models.md 派生：feature 行作者、judgment 行独审、hardest 行主控、architect runners 行前两个做设计候选、
+    arena cross-judge pool 里第一个与主控不同家族的模型做交叉裁判。"""
+    rows = {key.strip(): [m.strip() for m in value.split(",") if m.strip()]
+            for key, value in (line.split(":", 1) for line in text.splitlines()
+                               if ":" in line and not line.lstrip().startswith("#"))}
+    missing = [name for name in ("feature, refactoring", "judgment and prose", "hardest tasks", "architect runners",
+                                 "arena cross-judge pool") if not rows.get(name)]
+    if missing:
+        raise ValueError(f"pstack-models.md 缺少角色行：{missing}")
+    author, reviewer, brain = (parse_model(rows[name][0])
+                               for name in ("feature, refactoring", "judgment and prose", "hardest tasks"))
+    runners = [parse_model(m) for m in rows["architect runners"][:2]]
+    judges = [m for m in rows["arena cross-judge pool"] if MODEL_FAMILY.get(m) not in (None, MODEL_FAMILY[brain])]
+    if MODEL_FAMILY[author] == MODEL_FAMILY[reviewer]:
+        raise ValueError("pstack-models 的作者与独审是同一家族，不能构成异家族独审")
+    if len(runners) < 2 or MODEL_FAMILY[runners[0]] == MODEL_FAMILY[runners[1]]:
+        raise ValueError("architect runners 需要两个不同家族的模型")
+    if not judges:
+        raise ValueError("arena cross-judge pool 里没有与主控不同家族的模型")
+    return RolePlan(author, reviewer, brain, (runners[0], runners[1]), parse_model(judges[0]))
 
 
 @dataclass(frozen=True)
@@ -138,17 +169,40 @@ class RunSpec:
     author_checkout: str
     review_checkout: str
     created_at: str
+    design_models: tuple[ModelSlug, ModelSlug] | None
+    judge_model: ModelSlug | None
 
     def to_json(self) -> dict:
         return asdict(self)
 
     @staticmethod
     def from_json(data: dict) -> "RunSpec":
-        task = TaskSpec(data["task"]["title"], data["task"]["requirement"], tuple(data["task"]["allowed_prefixes"]))
+        raw_task = data["task"]
+        task = TaskSpec(raw_task["title"], raw_task["requirement"], tuple(raw_task["allowed_prefixes"]),
+                        bool(raw_task.get("require_design", False)))
+        design = data.get("design_models")
+        judge = data.get("judge_model")
         return RunSpec(RunId(data["run_id"]), data["ticket"], data["scope"], parse_sha(data["base"]), task,
                        parse_model(data["author_model"]), parse_model(data["reviewer_model"]),
                        parse_model(data["brain_model"]), data["author_checkout"], data["review_checkout"],
-                       data["created_at"])
+                       data["created_at"], (parse_model(design[0]), parse_model(design[1])) if design else None,
+                       parse_model(judge) if judge else None)
+
+    def model_for(self, role: Role) -> ModelSlug:
+        if role == "author":
+            return self.author_model
+        if role == "review":
+            return self.reviewer_model
+        if self.design_models is None or self.judge_model is None:
+            raise ToolRefusal("本 run 创建时没有冻结设计通道的模型，不能派设计或裁判工蜂")
+        return self.judge_model if role == "judge" else self.design_models[DESIGN_SLOTS.index(role)]
+
+    def checkout_for(self, role: Role) -> Path:
+        author = Path(self.author_checkout)
+        return {"author": author, "review": Path(self.review_checkout)}.get(role, author.parent / role)
+
+    def branch_for(self, role: Role) -> str:
+        return f"codex/deepagents-pilot-1742-{self.run_id}-{role}"
 
 
 def _porcelain_paths(root: Path | str) -> tuple[str, ...]:
@@ -273,14 +327,12 @@ class PilotRun:
 
     @classmethod
     def create(cls, home: Path, run_id: RunId, task: TaskSpec, base: Sha, models_text: str, **kw) -> "PilotRun":
-        author, reviewer, brain = role_models(models_text)
-        if MODEL_FAMILY[author] == MODEL_FAMILY[reviewer]:
-            raise ValueError("pstack-models 的作者与独审是同一家族，不能构成异家族独审")
+        plan = plan_roles(models_text)
         root = cls.run_dir(home, run_id)
         root.mkdir(parents=True, exist_ok=True)
         checkouts = home / "checkouts" / run_id
-        spec = RunSpec(run_id, TICKET, "pilot_acceptance", base, task, author, reviewer, brain,
-                       str(checkouts / "author"), str(checkouts / "review"), _now())
+        spec = RunSpec(run_id, TICKET, "pilot_acceptance", base, task, plan.author, plan.reviewer, plan.brain,
+                       str(checkouts / "author"), str(checkouts / "review"), _now(), plan.design, plan.judge)
         run = cls(home, spec, **kw)
         run.acquire()
         if not (root / "run.json").exists():
@@ -323,18 +375,12 @@ class PilotRun:
             self.trail("crash_injected", point=point)
             os.kill(os.getpid(), signal.SIGKILL)
 
-    def _branch(self, role: Role) -> str:
-        return f"codex/deepagents-pilot-1742-{self.spec.run_id}-{role}"
-
-    def _checkout(self, role: Role) -> Path:
-        return Path(self.spec.author_checkout if role == "author" else self.spec.review_checkout)
-
     def ensure_checkouts(self) -> None:
         for role in ("author", "review"):
             self._ensure_checkout(role, self.spec.base)
 
     def _ensure_checkout(self, role: Role, head: Sha) -> None:
-        path, branch = self._checkout(role), self._branch(role)
+        path, branch = self.spec.checkout_for(role), self.spec.branch_for(role)
         if not path.exists():
             path.parent.mkdir(parents=True, exist_ok=True)
             exists = subprocess.run(["git", "-C", str(self.source_repo), "rev-parse", "--verify", "-q",
@@ -355,11 +401,7 @@ class PilotRun:
             folder = self.dir / sub
             if folder.exists():
                 names.update(p.name.removesuffix(".json") for p in folder.iterdir() if not p.name.endswith(".tmp"))
-        keys = []
-        for name in sorted(names):
-            role, _, head = name.partition("-")
-            keys.append(WorkerKey(self.spec.run_id, parse_role(role), parse_sha(head)))
-        return keys
+        return [parse_key_name(self.spec.run_id, name) for name in sorted(names)]
 
     def _observe(self, key: WorkerKey, rows: list[tuple[int, int, str, str]]) -> WorkerFact:
         out = self._key_dir(key)
@@ -386,8 +428,7 @@ class PilotRun:
         return receipts
 
     def _parse_intent(self, data: dict) -> CommitIntent:
-        role, _, head = data["author"].partition("-")
-        return CommitIntent(WorkerKey(self.spec.run_id, parse_role(role), parse_sha(head)), parse_sha(data["parent"]),
+        return CommitIntent(parse_key_name(self.spec.run_id, data["author"]), parse_sha(data["parent"]),
                             data["tree"], tuple(data["paths"]))
 
     @staticmethod
@@ -408,35 +449,52 @@ class PilotRun:
         for key, fact in workers.items():
             if key.role == "review" and isinstance(fact, Terminal) and key.target_head in author_model_of:
                 verdicts[key.target_head] = parse_verdict(fact.receipt, author_model_of[key.target_head])
-        return RunFacts(self.spec.run_id, self.spec.base, commits, workers, verdicts)
+        author = self.spec.checkout_for("author")
+        observed = CheckoutState(_git(author, "branch", "--show-current"), parse_sha(_git(author, "rev-parse", "HEAD")))
+        recorded = chain_head(self.spec.base, commits)
+        intent_path = self.dir / "commits" / f"author-{recorded}.intent.json"
+        pending_landed = (observed.head != recorded and intent_path.exists() and reconcile_commit(
+            self._parse_intent(json.loads(intent_path.read_text())), self._observe_head(author)) == "committed")
+        return RunFacts(self.spec.run_id, self.spec.base, self.spec.task.require_design, commits, workers, verdicts,
+                        self.spec.branch_for("author"), observed, pending_landed)
+
+    def run_design(self, brief: str) -> list[WorkerReceipt]:
+        with self._mutex:
+            head = current_head(self.facts())
+            return self._dispatch([WorkerKey(self.spec.run_id, slot, head) for slot in DESIGN_SLOTS], brief)
 
     def run_worker(self, role: Role, brief: str) -> WorkerReceipt:
         with self._mutex:
-            facts = self.facts()
-            head = current_head(facts)
-            key = WorkerKey(self.spec.run_id, role, head)
-            if key not in facts.workers:
-                refusal = dispatch_refusal(facts, key)
-                if refusal:
-                    self.trail("refused", tool="run_worker", key=key.name, reason=refusal)
-                    raise ToolRefusal(refusal)
-                self._prepare_dispatch(key, brief, facts)
-            else:
+            head = current_head(self.facts())
+            return self._dispatch([WorkerKey(self.spec.run_id, role, head)], brief)[0]
+
+    def _dispatch(self, keys: list[WorkerKey], brief: str) -> list[WorkerReceipt]:
+        facts = self.facts()
+        fresh = [key for key in keys if key not in facts.workers]
+        for key in fresh:
+            refusal = dispatch_refusal(facts, key)
+            if refusal:
+                self.trail("refused", key=key.name, reason=refusal)
+                raise ToolRefusal(refusal)
+        for key in keys:
+            if key not in fresh:
                 self.trail("adopt", key=key.name, fact=type(facts.workers[key]).__name__)
-            return self._drive(key)
+        for key in fresh:
+            self._prepare_dispatch(key, brief, facts)
+        return self._drive_all(keys)
 
     def _prepare_dispatch(self, key: WorkerKey, brief: str, facts: RunFacts) -> None:
-        checkout = self._checkout(key.role)
-        if key.role == "review":
-            current = _git(checkout, "rev-parse", "HEAD")
-            if current != key.target_head:
+        model = self.spec.model_for(key.role)
+        checkout = self.spec.checkout_for(key.role)
+        if key.role != "author":
+            self._ensure_checkout(key.role, key.target_head)
+            if _git(checkout, "rev-parse", "HEAD") != key.target_head:
                 if _porcelain_paths(checkout):
-                    raise Halted(f"独审 checkout 不干净，不能切到 {key.target_head}")
-                _git(checkout, "switch", "-q", "-C", self._branch("review"), key.target_head)
+                    raise Halted(f"{key.role} checkout 不干净，不能切到 {key.target_head}")
+                _git(checkout, "switch", "-q", "-C", self.spec.branch_for(key.role), key.target_head)
         prompt = self.dir / "prompts" / f"{key.name}.md"
         prompt.parent.mkdir(parents=True, exist_ok=True)
         prompt.write_text(self._prompt(key, brief, facts))
-        model = self.spec.author_model if key.role == "author" else self.spec.reviewer_model
         _write_once(self.dir / "intents" / f"{key.name}.json", {
             "key": key.name, "run_id": self.spec.run_id, "role": key.role, "target_head": key.target_head,
             "mode": ROLE_MODE[key.role], "model": model, "checkout": str(checkout), "prompt_file": str(prompt),
@@ -464,33 +522,65 @@ class PilotRun:
         _write_once(log_dir / f"{key.name}.{child.pid}.json", {"pid": child.pid, "argv": argv, "at": _now()})
         self.trail("dispatched", key=key.name, supervisor_pid=child.pid, model=intent["model"])
 
-    def _drive(self, key: WorkerKey) -> WorkerReceipt:
-        launched_here = False
+    def _drive_all(self, keys: list[WorkerKey]) -> list[WorkerReceipt]:
+        launched: set[str] = set()
         while True:
-            fact = self._observe(key, _ps_rows())
-            if isinstance(fact, Terminal):
-                self.trail("terminal", key=key.name, status=fact.receipt.status, model=fact.receipt.model,
-                           session=fact.receipt.external_session_id)
-                return fact.receipt
-            if isinstance(fact, EffectUnknown):
-                self.trail("halted", key=key.name, reason=fact.reason)
-                raise Halted(f"{key.name}：{fact.reason}")
-            if isinstance(fact, NotStarted):
-                child = self._children.get(key.name)
-                if launched_here and child is not None and child.poll() is not None:
-                    self.trail("halted", key=key.name, reason="监督进程在认领 outputDir 前退出")
-                    raise Halted(f"{key.name}：codex-child 在认领 outputDir 前退出，见 launch/{key.name}.log")
-                if not launched_here:
-                    self._launch(key)
-                    launched_here = True
-            child = self._children.get(key.name)
-            if child is not None:
+            rows = _ps_rows()
+            done: dict[WorkerKey, WorkerReceipt] = {}
+            for key in keys:
+                fact = self._observe(key, rows)
+                if isinstance(fact, Terminal):
+                    done[key] = fact.receipt
+                elif isinstance(fact, EffectUnknown):
+                    self.trail("halted", key=key.name, reason=fact.reason)
+                    raise Halted(f"{key.name}：{fact.reason}")
+                elif isinstance(fact, NotStarted):
+                    child = self._children.get(key.name)
+                    if key.name in launched and child is not None and child.poll() is not None:
+                        self.trail("halted", key=key.name, reason="监督进程在认领 outputDir 前退出")
+                        raise Halted(f"{key.name}：codex-child 在认领 outputDir 前退出，见 launch/{key.name}.log")
+                    if key.name not in launched:
+                        self._launch(key)
+                        launched.add(key.name)
+            if len(done) == len(keys):
+                for key in keys:
+                    receipt = done[key]
+                    self.trail("terminal", key=key.name, status=receipt.status, model=receipt.model,
+                               session=receipt.external_session_id)
+                return [done[key] for key in keys]
+            for child in self._children.values():
                 child.poll()
             time.sleep(2)
 
     def _prompt(self, key: WorkerKey, brief: str, facts: RunFacts) -> str:
         task = self.spec.task
         scope = "、".join(task.allowed_prefixes)
+        architect = SKILLS_ROOT + "architect"
+        if key.role in DESIGN_SLOTS:
+            return (f"# #1742 设计候选（architect Phase B 的 arena runner）\n\nrun {self.spec.run_id}，基线 {key.target_head}。"
+                    "你在自己的独立只读 checkout 里工作，不写任何文件。\n\n"
+                    f"先完整读 `{architect}/SKILL.md` 与 `{architect}/references/runner-prompt.md`：前者是你所在的流程，"
+                    f"后者是本候选的合同。设计说明按 `{architect}/references/rationale-template.md` 组织，"
+                    f"并用 `{architect}/references/design-red-flags.md` 自检。\n\n"
+                    f"## 需求原文\n{task.requirement}\n\n## 写集\n{scope}\n\n"
+                    f"## 主控给所有候选的同一设计任务\n{brief.strip()}\n\n## 交付\n"
+                    "summary 写完整设计包：调用方用法、类型与函数签名草图、模块边界，以及按 rationale-template 写的 rationale"
+                    "（含 Alternatives considered）。findings 逐条写你考虑过并拒绝的替代形状及理由。validation 写你实际核对过的事实。"
+                    "不要向其他候选折中，status 填 completed 表示设计包已完成。\n")
+        if key.role == "judge":
+            packages = []
+            for label, slot in zip(("候选 1", "候选 2"), DESIGN_SLOTS, strict=True):
+                fact = facts.workers[WorkerKey(self.spec.run_id, slot, key.target_head)]
+                assert isinstance(fact, Terminal)
+                rejected = "\n".join(f"- {f}" for f in fact.receipt.findings)
+                packages.append(f"## {label}\n{fact.receipt.summary}\n\n### {label}拒绝的替代形状\n{rejected}\n")
+            return (f"# #1742 arena 交叉裁判（只读）\n\nrun {self.spec.run_id}，基线 {key.target_head}。"
+                    f"先完整读 `{SKILLS_ROOT}arena/SKILL.md`，你是其中 Phase C 的只读裁判，不写任何文件。"
+                    "下面是同一任务的两个候选设计包，只按标签区分。按主控给的 rubric 逐条给每个候选打分，推荐一个 base 并写理由，"
+                    "再指出各候选值得嫁接或应当拒绝的部分。\n\n"
+                    f"## 需求原文\n{task.requirement}\n\n## rubric（主控给出）\n{brief.strip()}\n\n" + "\n".join(packages)
+                    + "\n## 交付\nsummary 第一行写 `BASE: 候选 1` 或 `BASE: 候选 2`，之后写逐条评分与理由。"
+                    "findings 逐条写建议嫁接或拒绝的点。status 填 completed 表示裁判已完成。\n")
         if key.role == "author":
             rework = ""
             verdict = facts.verdicts.get(key.target_head)
@@ -526,7 +616,7 @@ class PilotRun:
                 raise ToolRefusal(f"当前 head {head} 没有已完成的作者工蜂可提交")
             folder = self.dir / "commits"
             intent_path, receipt_path = folder / f"{akey.name}.intent.json", folder / f"{akey.name}.receipt.json"
-            checkout = self._checkout("author")
+            checkout = self.spec.checkout_for("author")
             intent = self._parse_intent(json.loads(intent_path.read_text())) if intent_path.exists() else None
             if intent is not None:
                 state = reconcile_commit(intent, self._observe_head(checkout))
@@ -535,6 +625,8 @@ class PilotRun:
                 if state == "conflict":
                     self.trail("halted", tool="commit_candidate", reason="HEAD 已变但与提交意图不符")
                     raise Halted("作者 checkout 的 HEAD 已变化，但 parent/tree/trailer 与提交意图不符")
+            if _git(checkout, "branch", "--show-current") != self.spec.branch_for("author"):
+                raise Halted("作者 checkout 不在本 run 的作者分支")
             if _git(checkout, "rev-parse", "HEAD") != head:
                 raise Halted("作者 checkout 不在当前 head")
             if (Path(_git(checkout, "rev-parse", "--absolute-git-dir")) / "index.lock").exists():
@@ -582,8 +674,8 @@ class PilotRun:
         ledger = self.dir / "approvals.jsonl"
         records, problems = parse_approval_ledger(ledger.read_text() if ledger.exists() else "")
         head = current_head(facts)
-        return decide_gate(ticket=TICKET, scope=self.spec.scope, candidate=head, verdict=facts.verdicts.get(head),
-                           records=records), problems
+        return decide_gate(ticket=TICKET, scope=self.spec.scope, candidate=head, conflict=candidate_conflict(facts),
+                           verdict=facts.verdicts.get(head), records=records), problems
 
     def gate(self) -> GateDecision:
         with self._mutex:
@@ -594,12 +686,17 @@ class PilotRun:
     def status(self) -> dict:
         facts = self.facts()
         head = current_head(facts)
-        gate, problems = self.evaluate_gate(facts) if derive_phase(facts) == "gate" else (None, [])
+        phase = derive_phase(facts)
+        gate, problems = self.evaluate_gate(facts) if phase in ("gate", "conflict") else (None, [])
+        conflict = candidate_conflict(facts)
         return {
             "run_id": self.spec.run_id, "ticket": TICKET, "scope": self.spec.scope, "base": self.spec.base,
-            "current_head": head, "phase": derive_phase(facts),
+            "recorded_head": head, "observed_head": facts.observed.head, "observed_branch": facts.observed.branch,
+            "conflict": conflict.code if conflict else None, "phase": phase,
+            "require_design": self.spec.task.require_design,
             "models": {"brain": self.spec.brain_model, "author": self.spec.author_model,
-                       "reviewer": self.spec.reviewer_model},
+                       "reviewer": self.spec.reviewer_model, "design": self.spec.design_models,
+                       "judge": self.spec.judge_model},
             "workers": {k.name: _fact_json(f) for k, f in facts.workers.items()},
             "commits": [{"commit": c.commit, "parent": c.intent.parent, "tree": c.intent.tree,
                          "recovered": c.recovered} for c in facts.commits],

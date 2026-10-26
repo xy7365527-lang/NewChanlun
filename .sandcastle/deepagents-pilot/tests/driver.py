@@ -10,5 +10,7 @@ run = PilotRun.open(Path(home), run_id, launcher=[sys.executable, str(Path(__fil
 run.acquire()
 if action == "commit":
     run.commit_candidate()
+elif action == "design":
+    run.run_design("测试设计任务")
 else:
     run.run_worker(action, "测试 brief")

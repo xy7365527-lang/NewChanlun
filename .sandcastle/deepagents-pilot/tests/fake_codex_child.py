@@ -16,8 +16,7 @@ args = parser.parse_args()
 out = Path(args.output_dir)
 home = out.parents[3]
 control = json.loads((home / "fake-control.json").read_text())
-role = "author" if args.mode == "execute" else "review"
-step = control.get(role, {})
+step = control.get(out.name.rpartition("-")[0], {})
 os.mkdir(out)
 with open(home / "fake-claims.log", "a") as fh:
     fh.write(f"{out.name}\n")

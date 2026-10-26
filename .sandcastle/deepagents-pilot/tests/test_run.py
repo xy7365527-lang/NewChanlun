@@ -4,9 +4,9 @@ import signal
 import time
 
 import pytest
-from conftest import git
+from conftest import DESIGN_TASK, MODELS, git
 
-from pilot1742.domain import Approved, Awaiting
+from pilot1742.domain import Approved, Awaiting, Refused
 from pilot1742.run import Busy, Halted, ToolRefusal, _ps_rows, supervisor_alive
 
 DEMO = {"demo/a.py": "def f():\n    return 1\n"}
@@ -97,7 +97,11 @@ def test_crash_after_commit_before_receipt_recovers_the_same_commit(env):
     head_after_crash = git(env.home / "checkouts" / "r1" / "author", "rev-parse", "HEAD")
     assert head_after_crash != env.base
     assert not list((env.home / "runs" / "r1" / "commits").glob("*.receipt.json"))
-    receipt = env.reopen().commit_candidate()
+    window = env.reopen()
+    status = window.status()
+    assert status["conflict"] is None and status["phase"] == "needs_commit"
+    assert status["recorded_head"] == env.base and status["observed_head"] == head_after_crash
+    receipt = window.commit_candidate()
     assert receipt.recovered and receipt.commit == head_after_crash
     assert git(env.source, "rev-list", "--count", f"{env.base}..{receipt.commit}") == "1"
 
@@ -150,4 +154,106 @@ def test_out_of_scope_change_is_never_committed(env):
 
 def test_same_family_models_are_rejected_at_creation(env):
     with pytest.raises(ValueError):
-        env.create(models="feature, refactoring: gpt-6.1-sol\njudgment and prose: gpt-6.1-sol\nhardest tasks: claude-opus-5-5\n")
+        env.create(models=MODELS.replace("judgment and prose: claude-opus-5-5", "judgment and prose: gpt-6.1-sol"))
+    with pytest.raises(ValueError, match="architect runners"):
+        env.create(models=MODELS.replace("architect runners: claude-opus-5-5, gpt-6.1-sol", "architect runners: gpt-6.1-sol"))
+    with pytest.raises(ValueError, match="缺少角色行"):
+        env.create(models=MODELS.replace("arena cross-judge pool", "other pool"))
+
+
+def approved_run(env):
+    run = env.create()
+    env.control({"author": {"write": DEMO}, "review": {"summary": "VERDICT: PASS\n可以"}})
+    run.run_worker("author", "实现")
+    head = run.commit_candidate().commit
+    run.run_worker("review", "审")
+    ledger(run, head)
+    assert isinstance(run.gate(), Approved)
+    return run, head
+
+
+def test_external_commit_on_author_checkout_revokes_the_old_approval(env):
+    run, head = approved_run(env)
+    author = env.home / "checkouts" / "r1" / "author"
+    (author / "demo" / "extra.py").write_text("x = 2\n")
+    git(author, "add", "demo/extra.py")
+    git(author, "commit", "-qm", "外部提交")
+    observed = git(author, "rev-parse", "HEAD")
+    decision = run.gate()
+    assert isinstance(decision, Refused) and decision.reasons == ("candidate_head_drift",)
+    status = run.status()
+    assert (status["recorded_head"], status["observed_head"]) == (head, observed)
+    assert status["conflict"] == "candidate_head_drift" and status["phase"] == "conflict"
+    assert status["gate"]["decision"] == "refused"
+    claims = env.claims()
+    with pytest.raises(ToolRefusal, match="candidate_head_drift"):
+        run.run_worker("author", "在外部提交上继续")
+    assert env.claims() == claims
+
+
+def test_author_branch_switch_refuses_gate_and_commit(env):
+    run, head = approved_run(env)
+    author = env.home / "checkouts" / "r1" / "author"
+    git(author, "switch", "-q", "-c", "codex/someone-else")
+    assert run.gate().reasons == ("author_branch_changed",)
+    assert run.status()["observed_branch"] == "codex/someone-else"
+
+
+DESIGNS = {"design-a": {"summary": "设计包甲：正则加遮蔽", "findings": ["拒绝状态机"]},
+           "design-b": {"summary": "设计包乙：逐字符状态机", "findings": ["拒绝正则"]},
+           "judge": {"summary": "BASE: 候选 1\n更简单"}}
+
+
+def test_design_arena_runs_two_fixed_readonly_slots_then_judge_before_author(env):
+    run = env.create(task=DESIGN_TASK)
+    env.control({**DESIGNS, "author": {"write": DEMO}})
+    with pytest.raises(ToolRefusal, match="设计 arena"):
+        run.run_worker("author", "跳过设计")
+    with pytest.raises(ToolRefusal, match="两个设计候选"):
+        run.run_worker("judge", "rubric")
+    first = run.run_design("同一个设计任务")
+    assert [(r.key.role, r.model) for r in first] == [("design-a", "claude-opus-5-5"), ("design-b", "gpt-6.1-sol")]
+    assert run.run_design("重放时换了措辞") == first
+    intents = {k: json.loads((run.dir / "intents" / f"{k}-{env.base}.json").read_text()) for k in ("design-a", "design-b")}
+    assert {i["mode"] for i in intents.values()} == {"review"}
+    assert intents["design-a"]["checkout"] != intents["design-b"]["checkout"]
+    for slot in ("design-a", "design-b"):
+        prompt = (run.dir / "prompts" / f"{slot}-{env.base}.md").read_text()
+        assert "同一个设计任务" in prompt and "runner-prompt.md" in prompt
+        assert git(env.home / "checkouts" / "r1" / slot, "rev-parse", "HEAD") == env.base
+    judge = run.run_worker("judge", "rubric：简单、可测")
+    assert judge.model == "gpt-6.1-sol"
+    judge_prompt = (run.dir / "prompts" / f"judge-{env.base}.md").read_text()
+    assert "设计包甲" in judge_prompt and "设计包乙" in judge_prompt and "rubric：简单、可测" in judge_prompt
+    assert "claude-opus-5-5" not in judge_prompt and "gpt-6.1-sol" not in judge_prompt
+    assert run.run_worker("author", "按合成设计实现").status == "completed"
+    assert run.run_design("重放基线上的设计") == first
+    run.commit_candidate()
+    with pytest.raises(ToolRefusal, match="首个作者之前"):
+        run.run_design("候选提交之后再开设计")
+    assert sorted(env.claims()) == sorted([f"design-a-{env.base}", f"design-b-{env.base}", f"judge-{env.base}",
+                                           f"author-{env.base}"])
+
+
+def test_design_crash_between_the_two_intents_dispatches_each_slot_once(env):
+    env.create(task=DESIGN_TASK).release()
+    env.control(DESIGNS)
+    assert env.driver("design", crash="after_intent_before_spawn").wait() == -signal.SIGKILL
+    assert env.claims() == []
+    receipts = env.reopen().run_design("恢复")
+    assert [r.status for r in receipts] == ["completed", "completed"]
+    assert sorted(env.claims()) == [f"design-a-{env.base}", f"design-b-{env.base}"]
+
+
+def test_controller_sigkill_during_design_fan_out_adopts_both_runners(env):
+    env.create(task=DESIGN_TASK).release()
+    env.control({slot: {**step, "sleep": 4} for slot, step in DESIGNS.items()})
+    workers = env.home / "runs" / "r1" / "workers"
+    driver = env.driver("design")
+    wait_for(lambda: all((workers / f"{slot}-{env.base}" / "state.json").exists() for slot in ("design-a", "design-b")))
+    os.kill(driver.pid, signal.SIGKILL)
+    driver.wait()
+    assert all(supervisor_alive(workers / f"{slot}-{env.base}", _ps_rows()) for slot in ("design-a", "design-b"))
+    receipts = env.reopen().run_design("恢复后再次请求")
+    assert [r.status for r in receipts] == ["completed", "completed"]
+    assert sorted(env.claims()) == [f"design-a-{env.base}", f"design-b-{env.base}"]

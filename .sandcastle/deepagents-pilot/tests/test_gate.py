@@ -2,6 +2,8 @@ from pilot1742.domain import (
     ApprovalRecord,
     Approved,
     Awaiting,
+    CheckoutState,
+    Conflict,
     HumanSource,
     Refused,
     ReviewVerdict,
@@ -21,7 +23,7 @@ def record(seq, head, decision="approve", scope="pilot_acceptance", ticket=1742)
 
 
 def gate(records, verdict=PASS_H2, scope="pilot_acceptance", candidate=H2):
-    return decide_gate(ticket=1742, scope=scope, candidate=candidate, verdict=verdict, records=records)
+    return decide_gate(ticket=1742, scope=scope, candidate=candidate, conflict=None, verdict=verdict, records=records)
 
 
 def test_same_head_approval_passes():
@@ -76,3 +78,10 @@ def test_ledger_counts_only_registered_human_sources():
     assert len(problems) == len(bad)
     records, _ = parse_approval_ledger("\n".join(bad))
     assert isinstance(gate(records), Awaiting)
+
+
+def test_conflict_refuses_even_a_matching_approval():
+    conflict = Conflict("candidate_head_drift", H2, CheckoutState("codex/x", H1))
+    decision = decide_gate(ticket=1742, scope="pilot_acceptance", candidate=H2, conflict=conflict, verdict=PASS_H2,
+                           records=[record(1, H2)])
+    assert isinstance(decision, Refused) and decision.reasons == ("candidate_head_drift",)

@@ -1,6 +1,7 @@
 import json
 import sqlite3
 
+import pytest
 from langchain_core.messages import AIMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_openai import ChatOpenAI
@@ -9,13 +10,12 @@ from langgraph.types import Command
 from pydantic import SecretStr
 
 from pilot1742.agent import POTETO_MODE, build_agent
+from pilot1742.run import ToolRefusal
 
 ALLOWED = {"run_worker", "commit_candidate", "check_gate", "run_status", "write_todos", "ls", "read_file", "glob", "grep"}
 
 
 class ScriptedOpenAI(ChatOpenAI):
-    """与生产同类（provider=openai），所以 harness profile 的解析路径相同；回复按脚本给出。"""
-
     script: list = []
     requests: list = []
 
@@ -70,3 +70,19 @@ def test_gate_pauses_as_interrupt_and_resumes_from_checkpoint_after_ledger_entry
     gate_reply = [m for m in result["messages"] if getattr(m, "name", None) == "check_gate"][-1]
     assert json.loads(gate_reply.content)["decision"] == "approved"
     assert not second.get_state(config).next
+
+
+def test_run_created_before_the_design_channel_still_builds_and_refuses_design(env):
+    run = env.create()
+    spec = json.loads((run.dir / "run.json").read_text())
+    for field in ("design_models", "judge_model"):
+        spec.pop(field)
+    (run.dir / "run.json").write_text(json.dumps(spec))
+    run.release()
+    old = env.reopen()
+    agent = build_agent(old, SqliteSaver(sqlite3.connect(old.dir / "graph.sqlite", check_same_thread=False)),
+                        scripted(AIMessage("完")))
+    agent.invoke({"messages": [("user", "开始")]}, {"configurable": {"thread_id": "r1"}}, durability="sync")
+    with pytest.raises(ToolRefusal, match="设计通道"):
+        old.run_design("x")
+    assert env.claims() == []

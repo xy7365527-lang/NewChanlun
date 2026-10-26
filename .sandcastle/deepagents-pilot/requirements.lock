@@ -57,6 +57,7 @@ sqlite-vec==0.1.9
 tenacity==9.1.4
 tiktoken==0.14.0
 truststore==0.10.5
+types-pyyaml==6.0.12.20260906
 typing-extensions==4.16.0
 typing-inspection==0.4.4
 urllib3==2.8.0

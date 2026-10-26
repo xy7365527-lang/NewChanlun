@@ -2,6 +2,7 @@
 title: 票号引用解析器
 allowed_prefixes:
   - experiments/pilot1742_demo/
+require_design: true
 ---
 在 experiments/pilot1742_demo/ 新建 ticket_refs.py 与 test_ticket_refs.py。
 

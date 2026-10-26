@@ -16,7 +16,7 @@ from deepagents import (
     register_harness_profile,
 )
 from deepagents.backends import CompositeBackend, FilesystemBackend, StateBackend
-from langchain.agents.middleware import TodoListMiddleware
+from langchain.agents.middleware import AgentMiddleware, TodoListMiddleware
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import tool
@@ -25,9 +25,8 @@ from langgraph.types import interrupt
 from pydantic import SecretStr
 
 from .domain import Awaiting, CommitReceipt, WorkerReceipt
-from .run import PSTACK_MODELS, Halted, PilotRun, ToolRefusal, gate_json
+from .run import PSTACK_MODELS, SKILLS_ROOT, Halted, PilotRun, ToolRefusal, gate_json
 
-SKILLS_ROOT = "/Users/silencehan/.codex/pstack-upstream-source/installed/skills/"
 POTETO_MODE = SKILLS_ROOT + "poteto-mode/SKILL.md"
 CLIPROXY_BASE_URL = "http://127.0.0.1:8318/v1"
 KEY_ENV = "CLIPROXY_LOCAL_KEY"
@@ -60,7 +59,8 @@ def managed_cliproxy_key() -> SecretStr:
 
 def build_model(slug: str) -> ChatOpenAI:
     return ChatOpenAI(model=slug, base_url=CLIPROXY_BASE_URL, api_key=managed_cliproxy_key(),
-                      reasoning_effort=BRAIN_EFFORT, max_tokens=BRAIN_MAX_TOKENS, timeout=1200, max_retries=2)
+                      reasoning_effort=BRAIN_EFFORT, max_completion_tokens=BRAIN_MAX_TOKENS, timeout=1200,
+                      max_retries=2)
 
 
 def _receipt_json(receipt: WorkerReceipt) -> dict:
@@ -80,12 +80,18 @@ def _commit_json(run: PilotRun, receipt: CommitReceipt) -> dict:
 
 def build_tools(run: PilotRun) -> list:
     @tool
-    def run_worker(role: Literal["author", "review"], brief: str) -> str:
-        """派一个 Sandcastle 工蜂并等它终态：author 在当前 head 上实现（GPT 作者），review 独立审阅当前候选（Opus 独审）。
+    def run_worker(role: Literal["design", "judge", "author", "review"], brief: str) -> str:
+        """派 Sandcastle 工蜂并等到终态。head、模型、checkout 与输出目录都由宿主从回执推导，你只给 brief。
 
-        head、模型、checkout 与输出目录都由宿主从回执推导，你只给 brief。同一角色同一 head 重复调用会收养已有工蜂，不会重派。
-        只有当前候选被独审明确 BLOCK 后，才能再派 author 返修。"""
+        design：在基线上并行派两个只读设计候选（architect runners 行的两个不同家族模型，各用独立只读 checkout），
+        两者收到同一个 brief，返回两份设计包。judge：两份设计包都完成后，派一个与主控不同家族的只读交叉裁判，
+        brief 是你的 rubric，裁判只按“候选 1/候选 2”标签看到两份设计包。author：在当前 head 上实现（可写 checkout）。
+        review：只读独立审阅当前候选提交。同一角色同一 head 重复调用会收养已有工蜂，不会重派。
+        本 run 要求设计 arena 时，judge 完成前不能派 author；只有当前候选被独审明确 BLOCK 后，才能再派 author 返修。"""
         try:
+            if role == "design":
+                receipts = [_receipt_json(r) for r in run.run_design(brief)]
+                return json.dumps({"ok": True, "receipts": receipts}, ensure_ascii=False)
             return json.dumps({"ok": True, "receipt": _receipt_json(run.run_worker(role, brief))}, ensure_ascii=False)
         except (ToolRefusal, Halted) as error:
             return json.dumps({"ok": False, type(error).__name__: str(error)}, ensure_ascii=False)
@@ -115,6 +121,18 @@ def build_tools(run: PilotRun) -> list:
     return [run_worker, commit_candidate, check_gate, run_status]
 
 
+def design_mapping(run: PilotRun) -> str:
+    spec = run.spec
+    if spec.design_models is None:
+        return "- 本 run 创建时没有设计通道，architect 与 arena 的并行候选无法派发。\n"
+    required = "本 run 要求设计 arena，judge 完成前 author 会被拒绝。" if spec.task.require_design else ""
+    return (f'- architect Phase B 与 arena 的并行候选 = run_worker(role="design", brief)：同一个设计任务同时派给两个固定的只读 '
+            f"runner（{spec.design_models[0]} 与 {spec.design_models[1]}），各自独立 checkout，返回两份设计包。"
+            f'arena Phase C 的只读交叉裁判 = run_worker(role="judge", brief=你的 rubric)，固定模型 {spec.judge_model}。'
+            "Phase D 与 E 由你自己完成：逐份读完两个设计包，按 rubric 逐条打分并与裁判对照，选 base、嫁接，"
+            f"把合成后的设计与合成说明写进你的回复，再交给作者。{required}\n")
+
+
 def system_prompt(run: PilotRun) -> str:
     models = PSTACK_MODELS.read_text() if PSTACK_MODELS.exists() else "(pstack-models.md 缺失)"
     task = run.spec.task
@@ -123,7 +141,7 @@ def system_prompt(run: PilotRun) -> str:
 先用 read_file 完整读取 {POTETO_MODE}（read_file 每次最多 100 行，用 offset 分页读到文件末尾），按其 Playbooks 选择适用 playbook，读取该 playbook 文件和你实际应用的原则叶技能 SKILL.md，然后用 write_todos 原样抄入 playbook 步骤；不做的步骤保留并写 skip 原因。技能根目录是 {SKILLS_ROOT}，其中相对引用以各技能目录为基准。
 
 本 harness 的映射：
-- pstack 的 Task/spawn_agent 代码委派 = run_worker(role="author", brief)，由 Sandcastle 外部工蜂执行；独立审阅 = run_worker(role="review", brief)。没有其他子代理、shell 或写文件工具。
+{design_mapping(run)}- pstack 的 Task/spawn_agent 代码委派 = run_worker(role="author", brief)，由 Sandcastle 外部工蜂执行；独立审阅 = run_worker(role="review", brief)。没有其他子代理、shell 或写文件工具。
 - 工蜂不 commit；commit_candidate 做宿主受管本地提交并返回 diff，你要自己读 diff 再派独审。
 - 独审结论只认 VERDICT: PASS/BLOCK。BLOCK 时把 findings 写进新的 author brief 返修，再 commit_candidate、再 run_worker(review)。
 - 最后调用 check_gate。门需要人类批准，本试点不自批，awaiting_approval 是合法终点。
@@ -151,11 +169,13 @@ def build_agent(run: PilotRun, checkpointer: Any, model: BaseChatModel | None = 
         general_purpose_subagent=GeneralPurposeSubagentProfile(enabled=False)))
     backend = CompositeBackend(default=StateBackend(),
                                routes={SKILLS_ROOT: FilesystemBackend(root_dir=SKILLS_ROOT, virtual_mode=True)})
+    middleware: list[AgentMiddleware[Any, Any, Any]] = [
+        FilesystemMiddleware(backend=backend, tools=READ_ONLY_FS_TOOLS), TodoListMiddleware()]
     return create_deep_agent(
         model=brain,
         tools=build_tools(run),
         system_prompt=system_prompt(run),
-        middleware=[FilesystemMiddleware(backend=backend, tools=READ_ONLY_FS_TOOLS), TodoListMiddleware()],
+        middleware=middleware,
         skills=[SKILLS_ROOT],
         backend=backend,
         checkpointer=checkpointer,

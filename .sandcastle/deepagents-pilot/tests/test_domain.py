@@ -1,4 +1,5 @@
 from pilot1742.domain import (
+    CheckoutState,
     CommitIntent,
     CommitReceipt,
     EffectUnknown,
@@ -11,6 +12,8 @@ from pilot1742.domain import (
     WorkerKey,
     WorkerObservation,
     WorkerReceipt,
+    candidate_conflict,
+    chain_head,
     classify_worker,
     current_head,
     derive_phase,
@@ -59,8 +62,13 @@ def test_verdict_needs_protocol_line_and_cross_family():
     assert parse_verdict(receipt("review", H1, "failed", "claude-opus-5-5", "VERDICT: PASS"), "gpt-6.1-sol").kind == "UNPARSED"
 
 
-def facts(commits=(), workers=None, verdicts=None):
-    return RunFacts("r1", BASE, tuple(commits), workers or {}, verdicts or {})
+BRANCH = "codex/deepagents-pilot-1742-r1-author"
+
+
+def facts(commits=(), workers=None, verdicts=None, *, design=False, observed=None, branch=BRANCH, landed=False):
+    head = observed or chain_head(BASE, tuple(commits))
+    return RunFacts("r1", BASE, design, tuple(commits), workers or {}, verdicts or {}, BRANCH,
+                    CheckoutState(branch, head), landed)
 
 
 def commit(parent, head, author_head):
@@ -98,3 +106,51 @@ def test_head_follows_commit_chain_and_phase_tracks_facts():
     blocked = {H1: ReviewVerdict(H1, "BLOCK", "gpt-6.1-sol", "claude-opus-5-5")}
     review = {WorkerKey("r1", "review", H1): Terminal(receipt("review", H1, model="claude-opus-5-5"))}
     assert derive_phase(facts([commit(BASE, H1, BASE)], review, blocked)) == "rework"
+
+
+def test_verdict_first_line_must_equal_one_legal_value():
+    cases = {
+        "VERDICT: PASS\n理由": "PASS",
+        "VERDICT: BLOCK\r\n理由": "BLOCK",
+        "VERDICT: PASS": "PASS",
+        "VERDICT:\nPASS": "UNPARSED",
+        "VERDICT: PASS or BLOCK, undecided": "UNPARSED",
+        "VERDICT: PASSIVE": "UNPARSED",
+        "\nVERDICT: PASS": "UNPARSED",
+        " VERDICT: PASS": "UNPARSED",
+        "VERDICT: PASS ": "UNPARSED",
+        "": "UNPARSED",
+    }
+    for summary, kind in cases.items():
+        review = receipt("review", H1, model="claude-opus-5-5", summary=summary)
+        assert parse_verdict(review, "gpt-6.1-sol").kind == kind, summary
+
+
+def test_observed_author_head_must_match_receipt_chain():
+    chain = [commit(BASE, H1, BASE)]
+    assert candidate_conflict(facts(chain)) is None
+    drift = candidate_conflict(facts(chain, observed=H2))
+    assert drift.code == "candidate_head_drift" and drift.recorded_head == H1 and drift.observed.head == H2
+    assert candidate_conflict(facts(chain, branch="codex/other")).code == "author_branch_changed"
+    assert candidate_conflict(facts(observed=H1, landed=True)) is None
+    assert derive_phase(facts(chain, observed=H2)) == "conflict"
+    assert "candidate_head_drift" in dispatch_refusal(facts(chain, observed=H2), WorkerKey("r1", "review", H1))
+
+
+def test_design_arena_slots_precede_the_first_author():
+    a, b, judge, author = (WorkerKey("r1", role, BASE) for role in ("design-a", "design-b", "judge", "author"))
+    assert dispatch_refusal(facts(design=True), a) is None
+    assert dispatch_refusal(facts(design=True), author) is not None
+    assert dispatch_refusal(facts(design=True), judge) is not None
+    assert derive_phase(facts(design=True)) == "needs_design"
+    running_a = {a: Running()}
+    assert dispatch_refusal(facts(workers=running_a, design=True), b) is None
+    assert derive_phase(facts(workers=running_a, design=True)) == "design_running"
+    done = {a: Terminal(receipt("design-a", BASE, changed=())), b: Terminal(receipt("design-b", BASE, changed=()))}
+    assert dispatch_refusal(facts(workers=done, design=True), judge) is None
+    assert derive_phase(facts(workers=done, design=True)) == "needs_judge"
+    judged = {**done, judge: Terminal(receipt("judge", BASE, changed=()))}
+    assert dispatch_refusal(facts(workers=judged, design=True), author) is None
+    assert derive_phase(facts(workers=judged, design=True)) == "needs_author"
+    authored = {**judged, author: Terminal(receipt("author", BASE))}
+    assert dispatch_refusal(facts(workers=authored, design=True), WorkerKey("r1", "design-a", H1)) is not None
