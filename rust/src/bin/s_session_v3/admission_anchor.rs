@@ -768,6 +768,13 @@ impl ConsumedAdmission {
         measured: newchan_rust::s_content::job::Existing,
     ) -> Result<StartedAdmission, AdmissionError> {
         use newchan_rust::s_content::job::Job;
+        if self.mixed.is_some() {
+            TERMINAL.with(|slot|{
+                if let Some(state)=slot.borrow_mut().as_mut(){
+                    if state.mixed.is_none(){state.mixed=Some(terminal::MixedTerminal::new());}
+                }
+            });
+        }
         self.check(Stage::E7)?;
         let first = self
             .prelude
@@ -784,13 +791,6 @@ impl ConsumedAdmission {
                 Stage::E7,
             )
         };
-        if self.mixed.is_some() {
-            TERMINAL.with(|slot|{
-                if let Some(state)=slot.borrow_mut().as_mut(){
-                    if state.mixed.is_none(){state.mixed=Some(terminal::MixedTerminal::new());}
-                }
-            });
-        }
         let ram = self
             .mixed
             .map(|prepared| {

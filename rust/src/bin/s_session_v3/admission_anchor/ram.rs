@@ -2491,6 +2491,36 @@ mod tests {
         }).unwrap();
     }
     #[test]
+    fn mixed_private_real_parent_ram_refusal_releases_without_source_change(){
+        use crate::v3::admission_anchor::{CommandAccounting,test_prepare_mixed};
+        use crate::v3::admission_provider::MeasuredDomain;
+        use crate::v3::admission_private::{test_with_mixed_entry,validate_mixed_prefix,RejectionPrefix};
+        crate::v2::with_mixed_control_fixture(|conn|{
+            let original:String=conn.query_row("PRAGMA database_list",[],|r|r.get(2)).unwrap();
+            let path=std::path::Path::new(&original).with_file_name("mixed-ram-refusal.sqlite");
+            conn.execute("VACUUM INTO ?1",rusqlite::params![path.to_str().unwrap()]).unwrap();
+            let command=CommandAccounting::begin();
+            let consumed=test_prepare_mixed(&path,1<<26,1<<26).consume().unwrap();
+            let source=MeasuredDomain::measure(&consumed).unwrap();
+            let mut started=consumed.into_job(source.existing).unwrap();
+            let ledger=started.ram.as_ref().unwrap().parent.ledger.clone();
+            let result=started.with_accounting(|account|{
+                let remaining={let l=ledger.lock().unwrap();l.max_operation-l.snapshot.operation_live};
+                let _hold=account.mixed_scope().unwrap().reserve_native(remaining).unwrap();
+                test_with_mixed_entry(||validate_mixed_prefix(&source,account,&RejectionPrefix::None))
+            });
+            assert!(result.is_err());
+            assert!(ledger.lock().unwrap().snapshot.failed.is_some());
+            drop(started);
+            let after=ledger.lock().unwrap().snapshot;
+            assert_eq!(after.parts[1],0);
+            assert_eq!(after.parts[2],0);
+            assert!(!after.active);
+            source.verify_before_open().unwrap();
+            drop(command);
+        });
+    }
+    #[test]
     fn mixed_prepared_two_real_domains_share_caps_and_refusal_atomicity() {
         use crate::v3::admission_anchor::test_prepare_mixed_caps;
         use crate::v3::admission_provider::MeasuredDomain;
