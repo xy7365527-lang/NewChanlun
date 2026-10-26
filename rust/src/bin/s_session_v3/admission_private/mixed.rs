@@ -147,6 +147,34 @@ mod tests {
         });
     }
     #[test]
+    fn mixed_private_failed_parent_preserves_cache_for_next_real_admission(){
+        crate::v2::with_mixed_control_fixture(|conn|{
+            let original:String=conn.query_row("PRAGMA database_list",[],|r|r.get(2)).unwrap();
+            let path=std::path::Path::new(&original).with_file_name("mixed-recovery.sqlite");
+            conn.execute("VACUUM INTO ?1",rusqlite::params![path.to_str().unwrap()]).unwrap();
+            crate::cache::configure(1<<20);
+            for pass in 0..3 {
+                let command=crate::v3::admission_anchor::CommandAccounting::begin();
+                let wire=if pass==1 {4096} else {1<<26};
+                let consumed=crate::v3::admission_anchor::test_prepare_mixed_wire(&path,1<<26,1<<26,wire).consume().unwrap();
+                let source=MeasuredDomain::measure(&consumed).unwrap();
+                let mut started=consumed.into_job(source.existing).unwrap();
+                let result=started.with_accounting(|account|validate(&source,account));
+                if pass==1 {
+                    assert!(result.is_err());
+                    drop(started);
+                }else{
+                    assert!(result.is_ok());
+                    if pass==2 { assert_eq!(crate::cache::last_resumed(),2); }
+                    let _finished=started.seal().unwrap();
+                }
+                source.verify_before_open().unwrap();
+                drop(command);
+            }
+            crate::cache::configure(0);
+        });
+    }
+    #[test]
     fn mixed_private_real_vfs_wire_refusal_keeps_original_cause(){
         use crate::v3::admission_anchor::{CommandAccounting,test_prepare_mixed_wire};
         crate::v2::with_mixed_control_fixture(|conn|{

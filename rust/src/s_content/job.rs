@@ -1015,13 +1015,32 @@ impl Job {
         work: &super::capture_allocation::scratch::WorkScope,
     ) -> Result<Self, CodecError> {
         work.check_current()?;
-        let mut job = Self::new_started(limits, existing, clock, first)?;
+        // Mixed拒绝在构造任何动态诊断前完成；普通构造器保留原详细文本。
+        if limits.entries().iter().any(|(_,value)|*value==0||*value>MAX_LIMIT) {
+            return Err(CodecError::static_detail(LIMIT_DOMAIN,"mixed Job限额不在合法数域"));
+        }
+        if existing.staged_bytes>existing.store_bytes {
+            return Err(CodecError::static_detail(LIMIT_DOMAIN,"mixed暂存基线超过存储基线"));
+        }
+        if existing.staged_bytes>limits.max_staged_bytes||existing.store_bytes>limits.max_store_bytes {
+            return Err(CodecError::static_detail(LIMIT_EXCEEDED,"mixed既存基线超过Job帽"));
+        }
+        let now=clock.now();
+        let deadline=first.checked_add(Duration::from_millis(limits.max_elapsed_ms))
+            .ok_or_else(||CodecError::static_detail(DEADLINE,"mixed首读期限溢出"))?;
+        if now<first||now>=deadline {
+            return Err(CodecError::static_detail(DEADLINE,"mixed首读时刻无效或期限已到"));
+        }
+        // 上述已逐项验证new的所有拒绝条件；其成功路径只建空容器。
+        let mut job = Self::new(limits, existing, clock)?;
+        job.started=Some(first);
         job.accepted = AcceptedNodes::Mixed {
             binding: work.reserve_native(0)?,
             content: Default::default(),
             legacy: Default::default(),
         };
         job.open = OpenReservations::Mixed(Default::default());
+        job.check_deadline()?;
         Ok(job)
     }
     pub fn accept_checked_usage_mixed(
