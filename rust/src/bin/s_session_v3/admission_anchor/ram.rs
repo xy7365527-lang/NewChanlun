@@ -1354,6 +1354,91 @@ mod tests {
     }
 
     #[test]
+    fn mixed_control_schema_epoch_matches_original() {
+        use crate::v3::audit_budget::LegacyObserver;
+        use newchan_rust::s_content::{
+            self as sc,
+            job::{Existing, Job},
+        };
+        use std::cell::RefCell;
+        struct Observer<'a> {
+            job: RefCell<Job>,
+            work: &'a sc::capture_allocation::scratch::WorkScope,
+        }
+        impl LegacyObserver for Observer<'_> {
+            fn visit_record(
+                &self,
+                _family: &'static str,
+                _process: &'static str,
+                _member: crate::v3::audit_budget::LegacyRecordRef<'_>,
+            ) -> Result<(), sc::CodecError> {
+                self.job.borrow_mut().charge_records(1)
+            }
+
+            fn precheck(&self) -> Result<(), sc::CodecError> {
+                self.job.borrow_mut().pre_io_check()
+            }
+            fn check_work(
+                &self,
+                work: &sc::capture_allocation::scratch::WorkScope,
+            ) -> Result<(), sc::CodecError> {
+                let token = self.work.reserve_native(0)?;
+                if !token.belongs_to_parent(work) {
+                    return Err(work.reject(ScratchFailure::Ledger));
+                }
+                Ok(())
+            }
+            fn accept_checked(
+                &self,
+                row: &sc::legacy_evidence::CheckedLegacyEvidenceRow,
+            ) -> Result<(), sc::CodecError> {
+                self.job
+                    .borrow_mut()
+                    .accept_legacy_evidence(row, self.work)
+                    .map(|_| ())
+            }
+        }
+
+        use crate::v2::mixed_control as control;
+        use crate::v3::business_json::MixedJsonError;
+        for case in 0..9 {
+            let conn=rusqlite::Connection::open_in_memory().unwrap();
+            conn.execute_batch(crate::SCHEMA).unwrap();
+            conn.execute_batch("INSERT INTO meta VALUES('generation','0'); INSERT INTO meta VALUES('writer_epoch','1');").unwrap();
+            match case {
+                1=>conn.execute_batch("CREATE TABLE extra(x TEXT)").unwrap(),
+                2=>conn.execute_batch("INSERT INTO meta VALUES('corrupt',x'ff')").unwrap(),
+                3=>conn.execute_batch("DELETE FROM meta WHERE key='generation'").unwrap(),
+                4=>conn.execute_batch("INSERT INTO writer_epoch_history VALUES(2,'1','2','0','idle','1')").unwrap(),
+                5=>conn.execute_batch("INSERT INTO writer_epoch_history VALUES(1,'1','2','0','idle','1'); UPDATE meta SET value='2' WHERE key='writer_epoch'").unwrap(),
+                6=>{conn.execute_batch(crate::v2::SCHEMA_V2).unwrap();conn.execute_batch("INSERT INTO meta VALUES('protocol_revision','s-session/2')").unwrap();},
+                7=>crate::delta_storage::declare_new(&conn).unwrap(),
+                8=>conn.execute_batch("INSERT INTO meta VALUES('protocol_revision','bad')").unwrap(),
+                _=>{}
+            }
+            let enabled=case==6;
+            let schema=control::original_schema(&conn,enabled);
+            let active=control::original_active(&conn);
+            let epoch=crate::v2::verify_epoch_history(&conn,enabled);
+            let owner=AdmissionRamLedger::new(limits(1<<20)).unwrap();
+            owner.codec_work().unwrap().run(|work|{
+                let job=Job::new_started_mixed(job_limits(),Existing{store_bytes:0,staged_bytes:0},
+                    Box::new(std::time::Instant::now),std::time::Instant::now(),work)?;
+                let observer=Observer{job:RefCell::new(job),work};
+                let actual_schema=control::verify_schema(&conn,enabled,work,&observer).map(|_|());
+                let actual_active=control::active(&conn,work);
+                let actual_epoch=control::epoch_history(&conn,enabled,work).map(|facts|facts.iter().map(|(s,n)|(s.as_str().to_string(),*n)).collect::<Vec<_>>());
+                let business=|e:MixedJsonError|match e{MixedJsonError::Business(s)=>s,MixedJsonError::Resource(e)=>panic!("unexpected resource: {e:?}")};
+                assert_eq!(schema,actual_schema.map_err(business),"schema case={case}");
+                assert_eq!(active,actual_active.map_err(business),"active case={case}");
+                assert_eq!(epoch,actual_epoch.map_err(business),"epoch case={case}");
+                assert_eq!(observer.job.borrow().snapshot().records,0);
+                Ok::<(),sc::CodecError>(())
+            }).unwrap();
+        }
+    }
+
+    #[test]
     fn mixed_profile_binding_preserves_sources_and_first_errors() {
         use crate::v3::audit_budget::LegacyObserver;
         use newchan_rust::s_content::{

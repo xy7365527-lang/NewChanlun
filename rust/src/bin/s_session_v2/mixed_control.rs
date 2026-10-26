@@ -98,7 +98,7 @@ pub(crate) fn active(conn:&Connection,work:&WorkScope)->Result<bool,MixedJsonErr
     }
 }
 pub(crate) fn epoch_history(conn:&Connection,enabled:bool,work:&WorkScope)->Result<EpochFacts,MixedJsonError>{
-    let generation=crate::audit::mixed_profile::meta_text(conn,"generation",work)?.ok_or_else(||err("StorageUnavailable：meta.generation 缺失"))?;
+    let generation=crate::audit::mixed_profile::meta_text(conn,"generation",work)?.ok_or_else(||"StorageUnavailable：meta.generation 缺失".to_string())?;
     let generation=parse_canonical_i64(&generation,"meta.generation").map_err(|e|format!("StorageUnavailable：{e}"))?;
     let current=crate::audit::mixed_profile::meta_text(conn,"writer_epoch",work)?.ok_or_else(||err("缺writer_epoch"))?;
     let current=parse_writer_epoch(&current,"meta.writer_epoch").map_err(err)?;
@@ -123,3 +123,8 @@ pub(crate) fn epoch_history(conn:&Connection,enabled:bool,work:&WorkScope)->Resu
     if previous_epoch.is_some_and(|last|last!=current) {return Err(err("writer_epoch与最后换代结果不一致").into());}
     Ok(facts)
 }
+
+#[cfg(test)]
+pub(crate) fn original_schema(conn:&Connection,enabled:bool)->Result<(),String>{super::verify_schema(conn,enabled)}
+#[cfg(test)]
+pub(crate) fn original_active(conn:&Connection)->Result<bool,String>{super::active(conn)}
