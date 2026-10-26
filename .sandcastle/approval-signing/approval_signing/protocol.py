@@ -299,11 +299,24 @@ def _b64(value: object, field: str) -> bytes:
     return decoded
 
 
-def parse_trust(data: bytes) -> TrustRoot:
+def _strict_json(data: bytes, what: str) -> object:
+    """JSON with no duplicate keys, so every reader sees the same object."""
+
+    def no_duplicates(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        if len({key for key, _ in pairs}) != len(pairs):
+            raise ProtocolError(f"{what} has duplicate keys")
+        return dict(pairs)
+
     try:
-        raw = json.loads(data)
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise ProtocolError("trust config is not JSON") from exc
+        return json.loads(data, object_pairs_hook=no_duplicates)
+    except ProtocolError:
+        raise
+    except (ValueError, RecursionError) as exc:
+        raise ProtocolError(f"{what} is not JSON") from exc
+
+
+def parse_trust(data: bytes) -> TrustRoot:
+    raw = _strict_json(data, "trust config")
     if not isinstance(raw, dict) or set(raw) != {"format", "repository_id", "allowed_scopes", "keys"}:
         raise ProtocolError("trust config fields")
     if raw["format"] != TRUST_FORMAT:
@@ -370,10 +383,7 @@ def load_trust(path: Path = DEFAULT_TRUST_PATH) -> TrustRoot:
 
 
 def verify_receipt(data: bytes, trust: TrustRoot) -> VerifiedReceipt:
-    try:
-        raw = json.loads(data)
-    except (ValueError, RecursionError) as exc:
-        raise ProtocolError("receipt is not JSON") from exc
+    raw = _strict_json(data, "receipt")
     if not isinstance(raw, dict) or set(raw) != {"format", "algorithm", "key_id", "payload", "signature"}:
         raise ProtocolError("receipt fields")
     if raw["format"] != RECEIPT_FORMAT or raw["algorithm"] != ALGORITHM:

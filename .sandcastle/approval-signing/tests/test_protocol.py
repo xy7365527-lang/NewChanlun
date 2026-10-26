@@ -145,3 +145,12 @@ def test_expiry_domain_matches_the_swift_helper(key: SoftwareKey, when: str, acc
     else:
         with pytest.raises(ProtocolError):
             ApprovalPayload.parse(payload)
+
+
+def test_unreadable_receipts_raise_protocol_error(key: SoftwareKey) -> None:
+    good = json.loads(key.receipt(ApprovalPayload(make_request(), Decision.APPROVE, 1, None).encode()))
+    text = json.dumps(good)
+    for blob in (json.dumps({**good, "payload": "雪"}).encode(), json.dumps({**good, "signature": "雪"}).encode(),
+                 b"[" * 100_000, b"not json", text[:-1].encode() + b', "payload": "AA=="}'):
+        with pytest.raises(ProtocolError):
+            verify_receipt(blob, key.trust())

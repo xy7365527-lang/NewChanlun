@@ -1,8 +1,10 @@
 # Secure Enclave 真人签批（#1742 D8）
 
-执行器需要人批时写出一份待批请求。你在本机运行 `newchanlun-approve sign`，终端显示仓库、票号、范围、完整目标（commit SHA 或 SPEC 正文摘要）和批准或拒绝，随后系统弹出 Touch ID 或登录密码认证。认证通过才产生一份签名回执；取消或失败不产生任何文件。执行器只认 root 所有的信任配置里那把公钥签出的回执。
+执行器需要人批时写出一份待批请求。你运行 `newchanlun-approve sign`：终端先显示仓库、票号、范围、完整目标（commit SHA 或 SPEC 正文摘要）和批准或拒绝，系统随后要你用 Touch ID 或登录密码签名，再由 `sudo` 要你的密码，把这份决定发布到 root 所有的权威记录。**只有发布成功的决定才生效。** 认证取消就不签名；签了但 sudo 取消或失败，终端会醒目地提示“未发布，尚未生效”，执行器也看不到它。
 
-签名钥在 Secure Enclave 内生成，不可导出。钥的访问控制是 `privateKeyUsage + userPresence`，每次签名新建 `LAContext`，`touchIDAuthenticationAllowableReuseDuration = 0`，签完即 `invalidate`，所以每份回执都对应一次单独的本人认证。
+签名钥在 Secure Enclave 内生成，不可导出，访问控制是 `privateKeyUsage + userPresence`。每次签名新建 `LAContext`，`touchIDAuthenticationAllowableReuseDuration = 0`，签完即 `invalidate`。
+
+权威记录在 `/Library/Application Support/NewChanlun/approval-receipts/<request_nonce>/<序号>.json`。目录和文件归 root 所有，只有 `sudo` 下的 `publish` 能往里追加；它只接受用信任公钥签过、恰好接在当前链头之后的下一条。执行器从这里读整条链，不以 GitHub 或任何用户可写文件为准。
 
 ## 一次性安装（由你本人操作）
 
@@ -12,13 +14,14 @@
    COMMIT=<COMMIT>
    SRC=$(mktemp -d)
    git -C /Users/silencehan/Projects/NewChanlun archive "$COMMIT" .sandcastle/approval-signing | tar -x -C "$SRC"
-   cd "$SRC/.sandcastle/approval-signing/swift" && swift build -c release
+   cd "$SRC/.sandcastle/approval-signing/swift" && swift build -c release --product newchanlun-approve
    ```
 
-2. 把签批工具装成 root 所有。之后一律用这个绝对路径运行它。
+2. 安装签批工具，建好 root 所有的权威记录目录。之后一律用这个绝对路径运行它。
 
    ```sh
    sudo install -d -o root -g wheel -m 0755 "/Library/Application Support/NewChanlun"
+   sudo install -d -o root -g wheel -m 0755 "/Library/Application Support/NewChanlun/approval-receipts"
    sudo install -o root -g wheel -m 0755 .build/release/newchanlun-approve \
      "/Library/Application Support/NewChanlun/newchanlun-approve"
    ```
@@ -31,45 +34,42 @@
    sudo chmod 0644 "/Library/Application Support/NewChanlun/approval-trust.json"
    ```
 
-   终端会打印 `key_id`。核对 `sudo cat` 出来的配置里是同一个 `key_id`。钥句柄保存在 `~/Library/Application Support/NewChanlunApproval/signing-key.se-handle`，它只能在本机 Secure Enclave 里用，每次用都要你认证。
+   终端打印的 `key_id` 应与 `sudo cat` 出来的配置里的一致。钥句柄存于 `~/Library/Application Support/NewChanlunApproval/signing-key.se-handle`，只能在本机 Secure Enclave 里用，每次用都要你认证。
 
 ## 每次签批
 
 ```sh
 APPROVE="/Library/Application Support/NewChanlun/newchanlun-approve"
-"$APPROVE" sign --request <执行器给出的 request.txt> --decision approve --out <回执.json>
+"$APPROVE" status --request <请求文件>                    # 看这一请求当前生效的决定
+"$APPROVE" sign --request <请求文件> --decision approve   # 或 reject
 ```
 
-拒绝把 `approve` 换成 `reject`。对同一请求改主意时，用 `--previous <上一份回执>` 接在后面签，新决定覆盖旧决定。只在你自己刚发起签批时完成认证；任何你没有发起的 Touch ID 或密码弹窗都取消。
-
-检查回执：
-
-```sh
-cd /Users/silencehan/Projects/NewChanlun/.sandcastle/approval-signing
-python3 -m approval_signing verify <回执.json>
-```
+`sign` 自动接在权威记录当前链头之后，后一个决定覆盖前一个。看到 `已发布到权威记录……现在生效` 才算生效。若看到 `未发布`，回执存在 `~/Library/Application Support/NewChanlunApproval/pending/`，可按提示运行 `sudo "$APPROVE" publish --receipt <文件>`；这种方式会先显示回执内容，要你输入 `publish` 确认。只在你自己刚发起签批时完成 Touch ID 或 sudo 认证，任何你没有发起的弹窗都取消。
 
 ## 首次真机验收
 
-主控给你一份验收用的 request（`run_id=enrollment-check`，随机 nonce，任何执行器都不会发出同一 nonce，所以它不放行任何真实动作）。依次做：
+主控给你一份验收用的请求（`run_id=enrollment-check`，随机 nonce，任何执行器都不会发出同一 nonce，所以它不放行任何真实动作）。依次做：
 
-1. `sign --decision approve`，弹窗时取消。应无回执文件。
-2. 再 `sign --decision approve`，完成认证。得到回执 1。
-3. `sign --decision reject --previous 回执1`。这一次必须再次弹窗；若没有弹窗就签出来了，验收失败。
-4. `verify` 两份回执都应为 VALID。
+1. `status`：应显示还没有已发布决定。
+2. `sign --decision approve`，Touch ID 弹窗时取消。应无回执、不出现 sudo 提示；`status` 仍为空。
+3. `sign --decision approve`，完成 Touch ID，sudo 要密码时按 Ctrl-C。应提示“未发布，尚未生效”；`status` 仍为空。
+4. 按提示 `sudo … publish --receipt <待发布文件>`，核对内容后输入 `publish`。`status` 显示当前生效为批准（第 1 条）。
+5. `sign --decision reject`。这一次必须再次弹出 Touch ID；若没有弹窗就签出来了，验收失败。完成 sudo。`status` 显示当前生效为拒绝（第 2 条）。
+6. 在本目录下运行 `python3 -m approval_signing status <请求文件>`，应输出 `rejected`，这是执行器读到的结果。
 
 ## 执行器接入
 
-`approval_signing/protocol.py` 定义字节格式、回执和信任配置，`approval_signing/decision.py` 判定当前决定。
+`approval_signing/decision.py` 的 `decide` 是唯一入口：
 
-1. 每个需要人批的动作生成一份 `ApprovalRequest`，`request_nonce = secrets.token_hex(16)`，目标取动作此刻真正作用的对象：`CommitTarget(<40 位 SHA>)`，或 `spec_target(spec_issue, GitHub 返回的正文原始字节)`。目标或运行状态变了就发新请求、新 nonce。
-2. 动作前调用 `decide(request, current_target, receipt_blobs, now=..., watermark=..., receipts_complete=...)`。它用 `load_trust()` 读 root 所有的信任配置（任何一级非 root 所有、组或其他人可写、或为符号链接都抛错），逐份 `verify_receipt`，验不过的记入 `ignored` 且不计数，再 `evaluate`。只有 `releases` 为真才放行。
-3. 先持久化返回的 `watermark` 再行动。读回已存水位失败（`Watermark` 构造抛 `ProtocolError`）就停下交人，不能当成没有水位。
-4. 读不全回执来源时传 `receipts_complete=False`，此时只会拒绝或等待，不会放行。
+```python
+decide(request, current_target, *, now, trust_path=DEFAULT_TRUST_PATH, authority_root=AUTHORITY_ROOT) -> Evaluation
+```
 
-`current_target` 是动作此刻真正作用的对象，`request` 是执行器当初发出、带 run_id、claim_generation、nonce 与过期时间的那份请求；二者都由执行器自己的状态给出，不取自回执。
+- `request` 是执行器发出并保存的 `ApprovalRequest`：`repository_id=1150335160`、`ticket`、`run_id`、`claim_generation`、`scope`、`target`、`request_nonce=secrets.token_hex(16)`、`expires_at`（UTC 整秒，2000–2099 年）。`request.encode()` 写成请求文件交给你签。目标或 run、generation 变了就发新请求、新 nonce。
+- `current_target` 是动作此刻真正作用的对象：`CommitTarget(<40 位 SHA>)`，或 `spec_target(spec_issue, GitHub 返回的正文原始字节)`。
+- 返回的 `releases` 为真才放行。`rejected` 表示最新已发布决定是拒绝；`awaiting_human` 表示还没有已发布决定、批准已过期或目标已变；`needs_reconciliation` 表示权威记录有异常，停下交人。
 
-判定规则：同一 nonce 的回执按 `sequence`/`previous_receipt` 组成一条链，最新一条生效，后来的拒绝覆盖先前的批准。分叉、断链、同 nonce 却字段不同、比已存水位短都返回 `needs_reconciliation`，交人对账。批准过期或目标已变返回 `awaiting_human`。
+`decide` 读该 nonce 的整条已发布链。路径任何一级不归 root 所有、组或其他人可写、或为符号链接，目录里有陌生条目，签名无效，文件位置与内容不符，缺号或断链，一律返回 `needs_reconciliation`，从不跳过。信任配置缺失或不受 root 控制直接抛错。GitHub 可以转载回执供人查看，但执行器不以它为准。
 
 ## 字节格式 v1
 
@@ -88,22 +88,22 @@ previous_receipt=none
 expires_at=2099-01-01T00:00:00Z
 ```
 
-ASCII，LF 结尾，字段顺序固定，十进制无前导零，十六进制小写，`expires_at` 限 2000–2099 年。`spec_authorization` 的目标写作 `spec:<SPEC 票号>:sha256:<正文摘要>`。请求文件用表头 `newchanlun-approval-request/v1`，去掉 `decision`、`sequence`、`previous_receipt` 三行。解析后重新编码必须与原字节完全一致，所以每个载荷只有一种编码。回执是 JSON：`format`、`algorithm`（`ecdsa-p256-sha256`）、`key_id`（公钥 SPKI DER 的 SHA-256）、`payload` 与 `signature`（DER）的标准 base64。`receipt_id` 是载荷字节的 SHA-256。
+ASCII，LF 结尾，字段顺序固定，十进制无前导零，十六进制小写，`expires_at` 限 2000–2099 年。`spec_authorization` 的目标写作 `spec:<SPEC 票号>:sha256:<正文摘要>`。请求文件用表头 `newchanlun-approval-request/v1`，去掉 `decision`、`sequence`、`previous_receipt` 三行。解析后重新编码必须与原字节完全一致。回执是 JSON：`format`、`algorithm`（`ecdsa-p256-sha256`）、`key_id`（公钥 SPKI DER 的 SHA-256）、`payload` 与 `signature`（DER）的标准 base64，不得有重复键。`publish` 存入记录的是从验过的字段重建的回执。`receipt_id` 是载荷字节的 SHA-256。
 
 ## 能防什么，不能防什么
 
 代理和工蜂与你同一个 macOS 账户运行，可以读写你的文件、启动程序，但 `sudo` 要你的密码。
 
-能防的是代理自己产出批准。它不能在没有你在场认证的情况下让 Secure Enclave 签名；它改不了 root 所有的信任配置和签批工具；它换掉钥句柄只会得到验不过的回执。执行器已经读到并存入水位的拒绝，之后从 GitHub 删掉，会表现为链变短，执行器停下对账。
+能防的：代理不能自己产出生效的决定，因为签名要你在场认证，发布要你的 sudo 密码。它改不了 root 所有的信任配置、签批工具和权威记录，所以删不掉、也回滚不了已发布的拒绝；在记录里塞进或改动任何文件都需要 root。换钥句柄只会得到验不过的回执。它诱导你在 Touch ID 弹窗上点了通过，得到的也只是一份未发布、不生效的回执。
 
-不能防的有四类。第一，代理可以用你的钥句柄在任意时刻触发一次系统认证弹窗，弹窗文字由调用方决定；只要你在没有自己发起签批时通过了认证，就可能签下它准备的内容。所以只认自己发起的弹窗。第二，你运行的终端、Swift 工具链和 Python 环境与代理同一账户，被篡改后显示内容可以与签名内容不一致；固定提交构建和 root 安装缩小了这个面，没有消除它。第三，删除回执只在两个条件下被发现：执行器已经观察到那条拒绝，且水位存放处代理改不回去。水位若存在同账户普通文件里，代理可把它连同远端回执一起回滚，旧批准就会重新生效；执行器从未读到就被删掉的拒绝也发现不了。可信水位存放处与回执在 GitHub 上的发布、读取方式由执行器接入时确定，本工具不提供。第四，拥有 root 或你的密码的程序不在防护范围内。
+不能防的有三类。第一，你运行的终端、Swift 工具链和 Python 环境与代理同一账户；构建产物在复制进 root 目录之前、执行器自己的代码和它保存的请求，都可能被同账户程序改动。固定提交构建、root 安装和执行器核对请求字段缩小了这个面，没有消除它。第二，`sudo` 密码或 root 权限一旦被别的程序拿到，权威记录就不再可信；root 删掉链尾也无法被发现。第三，代理可以用你的钥句柄触发 Touch ID 弹窗，弹窗理由由调用方写，所以只认自己发起的弹窗。
 
 ## 开发检查
 
 ```sh
 cd .sandcastle/approval-signing/swift && swift build -c release
-./.build/release/approval-core-check ../tests/fixtures/swift   # Swift 侧检查并重写跨语言夹具
-cd .. && python3 -m pytest -q                                    # 需要 cryptography 与 pytest
+./.build/release/approval-core-check                    # Swift 侧检查；加目录参数会重写跨语言夹具
+cd .. && python3 -m pytest -q                            # 需要 cryptography 与 pytest
 ```
 
-`approval-core-check` 用软件测试钥生成夹具，它是独立的开发程序，签批工具本身不链接任何软件钥。本机命令行工具链没有 XCTest，Swift 侧检查因此做成可执行程序。
+`approval-core-check` 用软件测试钥，在临时目录里演练权威记录的发布与篡改；签批工具本身不链接任何软件钥。本机命令行工具链没有 XCTest，Swift 侧检查因此做成可执行程序。
