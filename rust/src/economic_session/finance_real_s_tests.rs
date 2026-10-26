@@ -4,6 +4,7 @@
 //! 合成签署 cap 原件；本测试不替代 #1552 统一 source、Q 与浏览器整链，也不启用生产金额。
 use super::*;
 use crate::economic_session::content_store::{allocated, carrier_capacity, image_refs};
+use crate::economic_session::phase_trace;
 use std::time::Instant;
 
 fn env_path(key: &str) -> PathBuf {
@@ -181,6 +182,7 @@ fn reserve_under_activated_cap(carriers: &[PathBuf], real_s: &Value, cap: &str) 
     assert_eq!(responsibility_total(&latest(&f.dbs[0]).unwrap().3), 20);
 
     let mut elapsed_ms = serde_json::Map::new();
+    let mut phases = serde_json::Map::new();
     let mut prepared = vec![];
     for (n, name) in [(1, "alpha"), (2, "beta")] {
         let p = f.request("PrepareDecision", name)["payload"].clone();
@@ -190,6 +192,7 @@ fn reserve_under_activated_cap(carriers: &[PathBuf], real_s: &Value, cap: &str) 
             format!("PrepareDecision-{name}"),
             json!(t.elapsed().as_millis().to_string()),
         );
+        phases.insert(format!("PrepareDecision-{name}"), phase_trace::take());
         assert_eq!(r["kind"], "PreparedReceipt", "{r}");
         prepared.push(r);
     }
@@ -197,6 +200,7 @@ fn reserve_under_activated_cap(carriers: &[PathBuf], real_s: &Value, cap: &str) 
 
     let payload = cap_payload(&f, "1", "2", cap, "100000");
     let activated = f.handle(0, "ActivateCapPolicy-pre", payload);
+    phases.insert("ActivateCapPolicy-pre".into(), phase_trace::take());
     assert_eq!(
         activated["kind"], "CapPolicyActivatedReceipt",
         "{activated}"
@@ -214,6 +218,10 @@ fn reserve_under_activated_cap(carriers: &[PathBuf], real_s: &Value, cap: &str) 
         "Reserve-slot".into(),
         json!(t.elapsed().as_millis().to_string()),
     );
+    phases.insert("Reserve-slot".into(), phase_trace::take());
+    let timing = json!({"activated_cap":cap,"elapsed_ms":elapsed_ms,"phases":phases,"reserve":reserved});
+    save(&f.dir, &format!("issue1716-reserve-phases-cap{cap}.json"), &timing);
+    println!("ISSUE1716_RESERVE_PHASES {}", canonical_json(&timing));
     assert_eq!(reserved["kind"], "ReserveReceipt", "{reserved}");
     let record = &reserved["record"];
     assert_eq!(record["cap_policy"], to, "Reserve 记录的是已激活的版本 2");
@@ -269,7 +277,7 @@ fn reserve_under_activated_cap(carriers: &[PathBuf], real_s: &Value, cap: &str) 
         .map(|(o, (n, b))| json!({"owner":o,"content_nodes":n.to_string(),"content_node_bytes":b.to_string()}))
         .collect();
     let evidence = json!({"activated_cap":cap,"prepared":prepared,"activation":activated,"reserve":reserved,
-        "elapsed_ms":elapsed_ms,"content":owners,"e_content_refs":refs.len().to_string(),
+        "elapsed_ms":elapsed_ms,"phases":phases,"content":owners,"e_content_refs":refs.len().to_string(),
         "e_allocated_bytes":physical.to_string(),"e_carrier_capacity":capacity.to_string(),"e_image":image});
     save(&f.dir, "issue1716-content-domain-real-s.json", &evidence);
     evidence
@@ -296,10 +304,15 @@ fn content_domain_activated_cap_consumed_by_real_s_reserve() {
     let export = strict_json(&std::fs::read(&export_path).unwrap()).unwrap();
     let session = SSession::start(&binary, &export, export_path.parent().unwrap());
     let real_s = real_s_from_export(&binary, &export, &session.socket);
-    let equal = reserve_under_activated_cap(&carriers, &real_s, "90");
-    let short = reserve_under_activated_cap(&carriers, &real_s, "89");
+    // 用例断言失败也先停掉本测试起的 S 会话并留下 FINAL，再按原失败退出。
+    let cases = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let equal = reserve_under_activated_cap(&carriers, &real_s, "90");
+        let short = reserve_under_activated_cap(&carriers, &real_s, "89");
+        (equal, short)
+    }));
     let session_ready = session.ready.clone();
     let session_final = session.stop(&binary);
+    let (equal, short) = cases.unwrap_or_else(|panic| std::panic::resume_unwind(panic));
     let evidence = json!({"carriers":carriers,"reading":"SessionClosure","response_timeout_ms":"3000",
         "s_source":real_s,"s_session_ready":session_ready,"s_session_final":session_final,
         "equal_cap":equal,"insufficient_cap":short});
