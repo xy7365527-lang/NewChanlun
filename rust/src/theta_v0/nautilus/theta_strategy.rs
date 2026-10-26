@@ -32,6 +32,7 @@ use nautilus_model::identifiers::InstrumentId;
 use nautilus_model::types::Quantity;
 use nautilus_trading::strategy::{Strategy, StrategyConfig, StrategyCore};
 
+use crate::funding_record::{FundingError, FundingRecord};
 use crate::theta_v0::config::ThetaConfig;
 
 use super::account_adapter::PortfolioSnapshot;
@@ -52,6 +53,10 @@ pub struct ThetaStrategy {
     tick_size: f64,
     /// 下单数量精度（来自 instrument size_precision，构造 `Quantity` 用）。
     size_precision: u8,
+    /// sizing 基数：ADR 0040 funding-record 的 `Q_total`（#1601 C-02，取代 1e6 占位）。
+    nav: f64,
+    /// 所读 funding-record 的 id 与版本（`label()`）。
+    funding_record: String,
 }
 
 impl Debug for ThetaStrategy {
@@ -59,6 +64,7 @@ impl Debug for ThetaStrategy {
         f.debug_struct("ThetaStrategy")
             .field("instrument_id", &self.instrument_id)
             .field("bar_type", &self.bar_type)
+            .field("funding_record", &self.funding_record)
             .field("n_bars", &self.inner.bars.len())
             .finish()
     }
@@ -69,24 +75,35 @@ impl ThetaStrategy {
     /// `bar_type`：订阅的 bar 类型（须 `AggregationSource::External`，与 add_data 喂的 bar 一致）；
     /// `size_precision`：instrument 数量精度（构造下单 Quantity 用）。
     ///
+    /// `funding`：ADR 0040 funding-record；sizing 基数读其 `Q_total`。缺记录 ⟹
+    /// `AwaitingPolicy{funding_record}`，`evidence_only` ⟹ `Invalid{scope}`——都不构造策略、不下单（#1601）。
+    ///
     /// ★`inner = ThetaCore::new(theta)` 继承 #7 的生产 `entry_delay_bars`（CLI 须设 0，见 task#8）。
-    #[must_use]
     pub fn new(
         config: StrategyConfig,
         theta: ThetaConfig,
         bar_type: nautilus_model::data::BarType,
         size_precision: u8,
-    ) -> Self {
+        funding: Option<FundingRecord>,
+    ) -> Result<Self, FundingError> {
+        let funding = FundingRecord::admit_production(funding)?;
         let tick_size = theta.tick.tick_size;
         let instrument_id = bar_type.instrument_id();
-        Self {
+        Ok(Self {
             core: StrategyCore::new(config),
             inner: ThetaCore::new(theta),
             instrument_id,
             bar_type,
             tick_size,
             size_precision,
-        }
+            nav: funding.q_total_f64(),
+            funding_record: funding.label(),
+        })
+    }
+
+    /// 本策略读的 funding-record id 与版本。
+    pub fn funding_record(&self) -> &str {
+        &self.funding_record
     }
 
     /// 从 Nautilus portfolio 读真实持仓快照（持仓**数量**真相源 = Nautilus，消双源）。
@@ -96,7 +113,7 @@ impl ThetaStrategy {
     ///
     /// ★有效域（no-workaround）：v0.60.0 PortfolioApi 暴露 `net_position(&id) -> Decimal`。
     /// nav/PnL 的 Money 读取在 PortfolioApi 当前为 `pub(crate)`（balances facade 未公开），故 nav
-    /// 暂用构造期初始 NAV 近似（回测起始余额）——这是**有效域边界**（单标的回测起始 NAV 恒定，
+    /// 暂用构造期 funding-record 的 `Q_total`（回测起始余额同源）——这是**有效域边界**（单标的回测起始 NAV 恒定，
     /// sizing 基数足够），非缺陷。多笔成交后 NAV 漂移的精确读取待 PortfolioApi 公开 balance facade。
     fn read_portfolio_snapshot(&self, initial_nav: f64) -> PortfolioSnapshot {
         let portfolio = self.portfolio();
@@ -158,8 +175,8 @@ impl DataActor for ThetaStrategy {
         let source_index = self.inner.bars.len();
         let s_bar = bar_adapter::from_real_bar(bar, source_index, self.tick_size);
 
-        // 2. portfolio 快照（持仓数量真相源 = Nautilus）。initial_nav 近似见 read_portfolio_snapshot。
-        let snap = self.read_portfolio_snapshot(INITIAL_NAV_PLACEHOLDER);
+        // 2. portfolio 快照（持仓数量真相源 = Nautilus）。nav 近似见 read_portfolio_snapshot。
+        let snap = self.read_portfolio_snapshot(self.nav);
 
         // 3. ThetaCore 退出先于开仓（#7）→ OrderIntent 列表。
         let intents = self.inner.plan_for_bar(s_bar, &snap);
@@ -172,13 +189,63 @@ impl DataActor for ThetaStrategy {
     }
 }
 
-/// 初始 NAV 占位（read_portfolio_snapshot 的有效域边界，见其文档）。
-/// ⑥ CLI 用 venue starting_balance 量级；sizing 基数恒定足够单标的回测。
-const INITIAL_NAV_PLACEHOLDER: f64 = 1_000_000.0;
-
 /// `rust_decimal::Decimal` → f64（net_position 转换）。
 fn decimal_to_f64(d: rust_decimal::Decimal) -> f64 {
     use std::str::FromStr;
     // Decimal 无 lossless f64，用 to_string→parse（精度足够手数判定）。
     f64::from_str(&d.to_string()).unwrap_or(0.0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nautilus_model::data::{BarSpecification, BarType};
+    use nautilus_model::enums::{AggregationSource, BarAggregation, PriceType};
+    use nautilus_model::identifiers::InstrumentId;
+
+    fn btc_bar_type() -> BarType {
+        let spec = BarSpecification::new(1, BarAggregation::Minute, PriceType::Last);
+        BarType::new(
+            InstrumentId::from("BTCUSDT.BINANCE"),
+            spec,
+            AggregationSource::External,
+        )
+    }
+
+    fn build(funding: Option<FundingRecord>) -> Result<ThetaStrategy, FundingError> {
+        ThetaStrategy::new(
+            StrategyConfig::default(),
+            ThetaConfig::default(),
+            btc_bar_type(),
+            6,
+            funding,
+        )
+    }
+
+    /// #1601 C-02：sizing 基数 = 记录的 `Q_total`；换 profile 即换基数（改回常数的变异体在此变红）。
+    #[test]
+    fn nav_reads_funding_record_q_total() {
+        for (profile, q) in [("P0", 100_000.0), ("P1-hl-testnet", 500.0)] {
+            let strat = build(Some(FundingRecord::active(profile).unwrap())).unwrap();
+            assert_eq!(strat.nav, q, "{profile}");
+            assert_eq!(
+                strat.funding_record(),
+                format!("#1557/funding-authorization/v1@{profile}/v1")
+            );
+        }
+    }
+
+    /// 负控：缺记录 ⟹ AwaitingPolicy{funding_record}；evidence_only ⟹ 拒入生产。都不构造策略。
+    #[test]
+    fn missing_or_evidence_only_record_refuses_to_build() {
+        match build(None) {
+            Err(FundingError::AwaitingPolicy { slot, .. }) => assert_eq!(slot, "funding_record"),
+            other => panic!("缺记录须 AwaitingPolicy，得 {other:?}"),
+        }
+        let acceptance = FundingRecord::active("P0-acceptance-5m").unwrap();
+        assert!(matches!(
+            build(Some(acceptance)),
+            Err(FundingError::Invalid { ref field, .. }) if field == "scope"
+        ));
+    }
 }

@@ -544,7 +544,7 @@ impl SubLou {
         let devs = &rows.devs[k];
         match ledger.open_slot(key).map(|l| l.cycle.shares) {
             Some(my_shares) => {
-                // 子节点递归（深度预算 ∧ 存在论下限：笔 = a0，62/77/78课——
+                // 子节点递归（深度预算 ∧ 阶梯下限：笔层不开一类点，62/77/78课——
                 // k−1 < FIRST_BSP_LADDER 即无中枢/买卖点概念，递归自然终止）
                 if self.path.depth() < cfg.rev_sub_depth && k >= 1 && k - 1 >= FIRST_BSP_LADDER {
                     let path = self.path;
