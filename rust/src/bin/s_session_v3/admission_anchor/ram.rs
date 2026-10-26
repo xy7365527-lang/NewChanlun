@@ -936,7 +936,6 @@ mod tests {
                 }
                 Ok::<_,sc::CodecError>(())
             }).unwrap();
-            crate::cache::clear_handles();
             {
                 let mut reader=crate::evidence_store::Reader::new_mixed(&conn,1<<20,work,&observer).unwrap();
                 let first=reader.load_mixed(&id).unwrap();
@@ -945,7 +944,11 @@ mod tests {
                 assert_eq!(observer.job.borrow().snapshot().nodes,1);
                 let expanded=reader.mixed_expansion_for_test("root").unwrap();
                 assert_eq!(&*expanded,payload);
+                let proof=reader.prove_root_typed("root").unwrap().expect("fresh originals retain proof");
+                assert!(crate::cache::handle_get_certified("root",&proof.root_cert,&proof.closure,&mut None).is_some(),
+                    "copied proof keeps the original certificate identity");
                 let root=reader.read_root_typed("root",true).unwrap();
+                assert!(root.reused,"cross-Job pure content copy must not rerun expansion");
                 assert_eq!(&*root.bytes,payload);
                 assert_eq!(root.value.as_ref().unwrap().as_ref().as_ref(),&serde_json::json!({"x":1}));
                 assert_eq!(observer.job.borrow().snapshot().nodes,1);
