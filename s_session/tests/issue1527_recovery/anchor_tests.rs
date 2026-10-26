@@ -544,10 +544,12 @@ fn mixed_resources_anchor_ram_mutation_requires_new_signed_binding() {
 
 #[test]
 fn mixed_resources_swallowed_ram_failure_cannot_seal_success() {
+    let mut limits=limit_node();
+    limits["max_store_bytes"]=json!("1048576");
     let raw=serde_json::to_vec(&json!({
         "schema_revision":resources::MIXED_REVISION,
         "measurement_domains":["s-content/1","legacy-evidence/1"],
-        "job_limits":limit_node(),
+        "job_limits":limits,
         "native_ram":{"max_live_bytes":"1048576","max_operation_bytes":"1048576"}
     })).unwrap();
     let fixture=Fixture::with_raw(raw);
