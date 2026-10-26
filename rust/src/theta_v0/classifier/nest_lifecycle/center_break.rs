@@ -29,6 +29,29 @@ pub struct CenterBreakFact {
 }
 
 impl CenterBreakFact {
+    /// 从 `CenterLifecycleEvent::Broken` 提取破坏事实（#1719 I4 端点 1：事实产生）。
+    ///
+    /// 输入：`Broken` 事件（完整中枢身份、破坏证据、级别）+ 首次已知该事实的 bar。
+    /// 输出：可持久化的 `CenterBreakFact`（用于清账与恢复）。
+    ///
+    /// `known_at` 原则：该事件首次对本系统可见的 bar（通常 = 事件产出的当前 bar）。
+    /// 迟到事实的 `known_at` ≠ 物理破坏钟（`breaker_source_index` 是物理坐标）。
+    pub fn from_broken_event(
+        level: u32,
+        center: &super::super::types::Center,
+        breaker_source_index: usize,
+        breaker_side: Side,
+        known_at: usize,
+    ) -> Self {
+        Self {
+            center_id: CenterId::of(center),
+            level,
+            breaker_source_index,
+            breaker_side,
+            known_at,
+        }
+    }
+
     /// 去重键：同一中枢的同一破坏证据视为同一事实。
     ///
     /// 幂等原则：重复喂入同一事实不得重复清账。去重键不含 `known_at`

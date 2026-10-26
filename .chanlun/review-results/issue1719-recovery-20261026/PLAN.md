@@ -93,13 +93,20 @@ pub struct HypothesisBridge {
 
 ## 三、实施步骤
 
-### Step 1：数据类型（红）
-- [ ] 新增 `CenterBreakFact` 结构体（`nest_lifecycle/types.rs` 或新文件）
-- [ ] 新增 `HypothesisBridge` 结构体
-- [ ] `InvalidatedReason` 新增 `CenterBreak` 变体
-- [ ] `NestLifecycleBook` 新增字段：`bridges`、`applied_breaks`
+### Step 1：数据类型（已完成 ✓）
+- [x] 新增 `CenterBreakFact` 结构体（`center_break.rs` 新文件）
+- [x] 新增 `HypothesisBridge` 结构体
+- [x] `InvalidatedReason` 新增 `CenterBreak` 变体
+- [x] `NestLifecycleBook` 新增字段：`bridges`、`applied_breaks`
+- [x] 新增方法：`register_center_bridge`、`apply_center_break`、访问器
+- [x] 模块导出：center_break 模块注册与重导出
+- **提交**：`d837202e72` "[#1719 I4] Step 1: 数据类型与字段新增"
 
-### Step 2：端点 1 事实产生（绿）
+**当前head**：`d837202e72e3c79f6b6e18a5a8e3bba2d2c1df25`
+
+**nc-remote 不可达情况**：执行 `ssh nc-remote` 返回 "Could not resolve hostname"。按用户指令，Rust 仅可用 nc-remote 或 CI。当前时段两者均不可立即验证编译。下一步继续完成端点实现设计，待基础设施恢复后批量验证。
+
+### Step 2：端点 1 事实产生（设计中）
 - [ ] 新增 `center_break_extractor.rs` 模块
 - [ ] 从 `CenterLifecycleEvent::Broken` 提取 `CenterBreakFact`
 - [ ] 测试：真实 BSP 链产生 `Broken` → 提取完整 `CenterBreakFact`
