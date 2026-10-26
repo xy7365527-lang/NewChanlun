@@ -91,10 +91,11 @@ pub(super) fn pending_entry(
     let transfer_wait = super::tb03c_transfer::waiting_on(recorded, event)?;
     let netted = super::tb03c_allocation::is_projected(event);
     // #1406 C8：`/2` 的签署缺口（q_rebase、追加投入）先于其余等待；`/1` 返回 None、原文案不变。
-    let funding_wait = super::tb03c_funding::pending_reason(&config.manifest, event)?;
+    let funding_wait = super::tb03c_funding::pending_reason(&config.manifest, record)?;
     let reason = if let Some(wait) = funding_wait {
         wait
-    } else if event.get("q_rebase").is_some() {
+    } else if event.get("q_rebase").is_some() && config.book_rules()? != Rules::Tb03cV3 {
+        // `/3` 获批新版本已就绪的 q_rebase 照常待证据；其余域 q_rebase 仍是容量等待。
         json!({"kind":"AwaitingPolicy","slot":"capacity"})
     } else if let Some(on) = transfer_wait {
         json!({"kind":"AwaitingDependency","on":on})
@@ -205,6 +206,17 @@ pub(super) fn resolve_image(
         {
             return Err(format!(
                 "AwaitingPolicy：{}；Resolve 证据不能替代用户签署的新版本",
+                p["reason"]["slot"].as_str().unwrap_or("")
+            ));
+        }
+        // #1715（`/3`）：数量定标缺签署或缺合格报价只能由新版本/新封存数据解除，Resolve 证据不能替代。
+        if p["reason"]["slot"]
+            .as_str()
+            .is_some_and(super::quantity_calibration::is_wait_slot)
+        {
+            return Err(format!(
+                "{}：{}；Resolve 证据不能替代数量定标签署或封存报价",
+                p["reason"]["kind"].as_str().unwrap_or(""),
                 p["reason"]["slot"].as_str().unwrap_or("")
             ));
         }

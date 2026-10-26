@@ -1168,6 +1168,7 @@ pub(super) fn audit_with_budget(
         previous_image = image;
         last_ns = n;
         seen += 1;
+        super::phase_trace::mark_seq("audit_commit", &config.domain, seq);
     }
     budget.before()?;
     if seen == 0 {
@@ -1292,6 +1293,7 @@ pub(super) fn audit_with_budget(
             return Err("StorageUnavailable：域损坏：永久回执完整内容与实际提交不同".into());
         }
     }
+    super::phase_trace::mark("audit_receipts", &config.domain);
     for (table, field) in [
         ("facts", "fact_key"),
         ("pending", "fact_key"),
