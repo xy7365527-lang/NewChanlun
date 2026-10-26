@@ -112,6 +112,16 @@ def test_crash_after_intent_before_spawn_dispatches_same_key_once(env):
     assert env.claims() == [f"author-{env.base}"]
 
 
+def test_crash_after_spawn_before_launch_record_adopts_the_detached_worker(env):
+    run = env.create()
+    run.release()
+    env.control({"author": {"sleep": 2, "write": DEMO}})
+    assert env.driver("author", crash="after_spawn_before_launch_record").wait() == -signal.SIGKILL
+    assert not list((env.home / "runs" / "r1" / "launch").glob("*.json"))
+    assert env.reopen().run_worker("author", "恢复").status == "completed"
+    assert env.claims() == [f"author-{env.base}"]
+
+
 def test_claimed_dir_without_result_or_supervisor_halts_without_new_dispatch(env):
     run = env.create()
     out = run.dir / "workers" / f"author-{env.base}"
