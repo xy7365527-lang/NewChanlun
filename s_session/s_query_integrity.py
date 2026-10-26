@@ -31,6 +31,9 @@ tb02 = importlib.util.module_from_spec(_tb02_spec)
 _tb02_spec.loader.exec_module(tb02)
 
 
+# #1602：旧库迁移只能标记历史记录戳不可考；新发布由 Rust writer 显式写实际版本。
+LEGACY_POLICY_RECORDS_UNKNOWN = "legacy/unknown"
+
 LEGACY_SCHEMA = """
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE raw_events (
@@ -65,7 +68,8 @@ CREATE TABLE structure_deltas (
  generation INTEGER PRIMARY KEY, session_id TEXT NOT NULL, catalog_revision TEXT NOT NULL,
  base_cut TEXT NOT NULL, next_cut TEXT NOT NULL, seq_range_json TEXT NOT NULL,
  index_frontier TEXT NOT NULL, input_frontier INTEGER NOT NULL, catalog_run_status TEXT NOT NULL,
- catalog_evidence_json TEXT NOT NULL, delta_json TEXT NOT NULL);
+ catalog_evidence_json TEXT NOT NULL, delta_json TEXT NOT NULL,
+ policy_records TEXT NOT NULL DEFAULT 'legacy/unknown');
 CREATE TABLE writer_epoch_history (
  ordinal INTEGER PRIMARY KEY, from_epoch TEXT NOT NULL, to_epoch TEXT NOT NULL,
  generation_at_transition TEXT NOT NULL, advance_state_at_transition TEXT NOT NULL,

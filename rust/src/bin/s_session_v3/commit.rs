@@ -5,14 +5,15 @@
 //! Delta、clock、delivery 和 meta。它不代替对象来源、全部历史或 Delta 方程的业务审计。
 //! 本模块不提供 CLI；完整 writer 尚未接入，不能把本模块测试当完整 S3 验收。
 
+use super::audit_store::{CodecRead, NativeAdmission};
+use super::business_json::TextValue;
 use super::{control::S3Control, *};
-use content_manifest::{ManifestMetadata, ManifestRoots, UnpublishedManifest};
-use newchan_rust::s_content::{
-    self as sc,
-    path::{lookup_path, PathStep},
-    ContentRef, Kind,
-};
+#[cfg(test)]
+use content_manifest::ManifestRoots;
+use content_manifest::{ManifestMetadata, ManifestRootSource, UnpublishedManifest};
+use newchan_rust::s_content::{self as sc, path::PathStep, ContentRef, Kind};
 use rusqlite::Transaction;
+use sc::capture_allocation::native_owned::NativeValue;
 use sc::capture_allocation::scratch::WorkScope;
 
 /// S3 私有发布索引。原 `structure_deltas` 保留共同控制列和 delivery 外键；其 `delta_json`
@@ -39,14 +40,14 @@ pub(super) fn init_schema(tx: &Transaction<'_>) -> Result<(), String> {
 pub(super) struct CommitReceipt {
     #[cfg_attr(not(test), allow(dead_code, reason = "#1608：仅测试使用"))]
     pub generation: i64,
-    #[cfg_attr(not(test), allow(dead_code, reason = "#1608：仅测试使用"))]
-    pub structure_cut: String,
-    #[cfg_attr(not(test), allow(dead_code, reason = "#1608：仅测试使用"))]
-    pub batch_id: String,
-    #[cfg_attr(not(test), allow(dead_code, reason = "#1608：仅测试使用"))]
-    pub snapshot: ContentRef,
-    #[cfg_attr(not(test), allow(dead_code, reason = "#1608：仅测试使用"))]
-    pub delta: ContentRef,
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
+    pub structure_cut: TextValue,
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
+    pub batch_id: TextValue,
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
+    pub snapshot: NativeValue<ContentRef>,
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
+    pub delta: NativeValue<ContentRef>,
     pub message_receipt: Value,
 }
 
@@ -56,10 +57,17 @@ pub(super) fn publish_prepared(
     mut tx: Transaction<'_>,
     begin_token: &str,
     metadata: &ManifestMetadata,
-    roots: &ManifestRoots,
+    roots: &(impl ManifestRootSource + ?Sized),
     manifest: &UnpublishedManifest,
 ) -> Result<CommitReceipt, String> {
-    let receipt = publish_borrowed(&mut tx, begin_token, metadata, roots, manifest)?;
+    let receipt = publish_borrowed(
+        &mut tx,
+        begin_token,
+        metadata,
+        roots,
+        manifest,
+        &ThetaConfig::default().record_labels(),
+    )?;
     tx.commit().map_err(err)?;
     Ok(receipt)
 }
@@ -75,8 +83,9 @@ pub(super) fn publish_borrowed(
     tx: &mut Transaction<'_>,
     begin_token: &str,
     metadata: &ManifestMetadata,
-    roots: &ManifestRoots,
+    roots: &(impl ManifestRootSource + ?Sized),
     manifest: &UnpublishedManifest,
+    policy_records: &str,
 ) -> Result<CommitReceipt, String> {
     publish_prepared_inner(
         tx,
@@ -84,6 +93,7 @@ pub(super) fn publish_borrowed(
         metadata,
         roots,
         manifest,
+        policy_records,
         #[cfg(all(test, feature = "s_capture_native_testonly"))]
         None,
         #[cfg(all(test, feature = "s_capture_native_testonly"))]
@@ -98,10 +108,13 @@ pub(super) fn publish_borrowed_staged(
     tx: &mut Transaction<'_>,
     token: &str,
     m: &ManifestMetadata,
-    roots: &ManifestRoots,
+    roots: &(impl ManifestRootSource + ?Sized),
     manifest: &UnpublishedManifest,
+    policy_records: &str,
     stage: &staged_nodes::StageOwner,
     runtime: &[sc::NodeDigest],
+    workspace: Option<content_manifest::PreparedManifestWorkspace>,
+    work: Option<&WorkScope>,
 ) -> Result<CommitReceipt, String> {
     publish_prepared_inner(
         tx,
@@ -109,10 +122,11 @@ pub(super) fn publish_borrowed_staged(
         m,
         roots,
         manifest,
+        policy_records,
         Some(stage),
         runtime,
-        None,
-        None,
+        workspace,
+        work,
     )
 }
 #[cfg(feature = "s_capture_native_testonly")]
@@ -124,19 +138,30 @@ pub(super) fn publish_borrowed_with_workspace(
     tx: &mut Transaction<'_>,
     token: &str,
     m: &ManifestMetadata,
-    roots: &ManifestRoots,
+    roots: &(impl ManifestRootSource + ?Sized),
     manifest: &UnpublishedManifest,
+    policy_records: &str,
     workspace: Option<content_manifest::PreparedManifestWorkspace>,
 ) -> Result<CommitReceipt, String> {
-    publish_borrowed_with_workspace_admitted(tx, token, m, roots, manifest, workspace, None)
+    publish_borrowed_with_workspace_admitted(
+        tx,
+        token,
+        m,
+        roots,
+        manifest,
+        policy_records,
+        workspace,
+        None,
+    )
 }
 #[cfg(feature = "s_capture_native_testonly")]
 pub(super) fn publish_borrowed_with_workspace_admitted(
     tx: &mut Transaction<'_>,
     token: &str,
     m: &ManifestMetadata,
-    roots: &ManifestRoots,
+    roots: &(impl ManifestRootSource + ?Sized),
     manifest: &UnpublishedManifest,
+    policy_records: &str,
     workspace: Option<content_manifest::PreparedManifestWorkspace>,
     work: Option<&WorkScope>,
 ) -> Result<CommitReceipt, String> {
@@ -146,6 +171,7 @@ pub(super) fn publish_borrowed_with_workspace_admitted(
         m,
         roots,
         manifest,
+        policy_records,
         #[cfg(test)]
         None,
         #[cfg(test)]
@@ -158,8 +184,9 @@ fn publish_prepared_inner(
     tx: &mut Transaction<'_>,
     begin_token: &str,
     metadata: &ManifestMetadata,
-    roots: &ManifestRoots,
+    roots: &(impl ManifestRootSource + ?Sized),
     manifest: &UnpublishedManifest,
+    policy_records: &str,
     #[cfg(all(test, feature = "s_capture_native_testonly"))] stage: Option<
         &staged_nodes::StageOwner,
     >,
@@ -183,12 +210,14 @@ fn publish_prepared_inner(
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     let resolved = match stage {
         Some(stage) => content_publication::resolve_current_births_staged(
-            &tx,
+            tx,
             begin_token,
             m,
             roots,
             manifest,
             stage,
+            workspace,
+            work,
         )?,
         None => content_publication::resolve_current_births_with_workspace_admitted(
             tx,
@@ -243,9 +272,10 @@ fn publish_prepared_inner(
             .as_str()
             .ok_or_else(|| err("目录运行状态不是文本"))?
             .to_owned();
-        let evidence_ref = lookup_path(
+        // 活动工作域下查找签发的原正文许可随引用持有，至函数结束随对象释放。
+        let evidence_ref = sc::path::lookup_path_native(
             &mut store,
-            &resolved.delta,
+            (&resolved.delta).into(),
             &[PathStep::Field("catalog_evidence".into())],
         )
         .map_err(err)?;
@@ -258,11 +288,11 @@ fn publish_prepared_inner(
     // 先建真实 Delta 控制行，delivery 的外键随后才能引用本代；大值存显式内容引用。
     tx.execute(
         "INSERT INTO structure_deltas(generation,session_id,catalog_revision,base_cut,next_cut,
-         seq_range_json,index_frontier,input_frontier,catalog_run_status,catalog_evidence_json,delta_json)
-         VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
+         seq_range_json,index_frontier,input_frontier,catalog_run_status,catalog_evidence_json,delta_json,policy_records)
+         VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)",
         params![m.generation,m.session_id,m.catalog_revision,m.base_cut,m.structure_cut,
             seq_range,manifest.batch_id,m.input_frontier,run,
-            reference_json(&evidence_ref)?,reference_json(&resolved.delta)?],
+            reference_json(&evidence_ref)?,reference_json(&resolved.delta)?,policy_records],
     ).map_err(err)?;
     tx.execute(
         "INSERT INTO s_content_publications(generation,batch_id,manifest_root,snapshot_root,delta_root)
@@ -271,14 +301,21 @@ fn publish_prepared_inner(
             &resolved.snapshot.digest().map_err(err)?[..],&resolved.delta.digest().map_err(err)?[..]],
     ).map_err(err)?;
     control.commit(&view, m.generation, m.input_frontier)?;
+    let admission = NativeAdmission(work);
+    let generation_text = admission
+        .native_format(format_args!("{}", m.generation))
+        .map_err(err)?;
+    let frontier_text = admission
+        .native_format(format_args!("{}", m.input_frontier))
+        .map_err(err)?;
     for (key, value) in [
-        ("generation", m.generation.to_string()),
-        ("structure_cut", m.structure_cut.clone()),
-        ("index_frontier", manifest.batch_id.clone()),
-        ("last_advance_frontier", m.input_frontier.to_string()),
-        ("advance_state", "idle".into()),
+        ("generation", generation_text.as_str()),
+        ("structure_cut", m.structure_cut.as_str()),
+        ("index_frontier", manifest.batch_id.as_str()),
+        ("last_advance_frontier", frontier_text.as_str()),
+        ("advance_state", "idle"),
     ] {
-        meta_set(&tx, key, &value)?;
+        meta_set(&tx, key, value)?;
     }
     // 同旧生产 Commit：begin_* 保留为最后一次 Begin 的历史证据，idle 表示占用已释放。
     // 不把新内容格式变更扩成 Begin 证据的删除；换代清理仍属于 recover。
@@ -292,12 +329,29 @@ fn publish_prepared_inner(
     )?;
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     if let Some(stage) = stage {
-        stage.flush(&tx, runtime)?;
+        if stage.work().is_some() {
+            // 本代显式控制/目录/生成根；generated_state包含catalog_axes各轴evidence。
+            let current = [
+                manifest.value.digest,
+                resolved.snapshot.digest().map_err(err)?,
+                resolved.delta.digest().map_err(err)?,
+                evidence_ref.digest().map_err(err)?,
+                roots.view().generated_state.digest().map_err(err)?,
+                roots.view().publication_template.digest().map_err(err)?,
+                roots.view().delta_template.digest().map_err(err)?,
+                metadata.scope.digest().map_err(err)?,
+            ];
+            stage.flush_cut(tx, staged_nodes::FlushCut::Final(&current))?;
+            stage.flush_cut(tx, staged_nodes::FlushCut::Final(runtime))?;
+        } else {
+            // 仅既有无scope诊断臂保留旧计数口径；strict publication不走此分支。
+            stage.flush(tx, runtime)?;
+        }
     }
     Ok(CommitReceipt {
         generation: m.generation,
-        structure_cut: m.structure_cut.clone(),
-        batch_id: manifest.batch_id.clone(),
+        structure_cut: TextValue::from_str_admitted(&m.structure_cut, None, work)?,
+        batch_id: manifest.batch_id.try_clone_admitted(work)?,
         snapshot: resolved.snapshot,
         delta: resolved.delta,
         message_receipt,
@@ -319,7 +373,10 @@ fn small_field(
     root: &ContentRef,
     field: &str,
 ) -> Result<Value, String> {
-    let reference = lookup_path(store, root, &[PathStep::Field(field.into())]).map_err(err)?;
+    // 活动工作域下查找签发的原正文许可随引用持有，渲染后随对象释放。
+    let reference =
+        sc::path::lookup_path_native(store, root.into(), &[PathStep::Field(field.into())])
+            .map_err(err)?;
     let mut bytes = Vec::new();
     sc::render_canonical(store, &reference, &mut bytes).map_err(err)?;
     strict_json(&bytes)
@@ -565,7 +622,7 @@ pub(crate) mod tests {
             .unwrap();
         assert_eq!(
             ContentRef::from_transport_json(&strict_json(saved.as_bytes()).unwrap()).unwrap(),
-            result.delta
+            *result.delta
         );
     }
 

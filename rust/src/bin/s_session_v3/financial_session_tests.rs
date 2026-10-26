@@ -1632,3 +1632,40 @@ fn closure_stream_stops_when_the_source_changes() {
         "FAIL"
     );
 }
+
+/// #1717：单 bar 真实 S3 夹具（init_v3 + 真实接纳/Begin/提交，文件库 WAL）留在原处，路径与可读对象登记到
+/// `TB1717_S_EXPORT`，同目录写 `financial-serve` 启动所需的写者收尾托管与会话资源，供经济侧内容域正控以
+/// 冻结的 `SessionClosure` 读法读同一库。单 bar 对应 #1394 具名单 bar 小源的规模；会话资源取 A6 r2 §2.3
+/// 的 S86 r6 具名值，`max_closure_nodes` 取同节建议值。夹具目录不随本测试删除，写者连接不关闭以免收尾
+/// checkpoint 改动托管后的主库与 WAL。
+#[test]
+#[ignore = "仅供 ci-macos 的 #1717 内容域正控导出真实 S3 库"]
+fn export_real_s3_fixture_for_economic_content_domain() {
+    let out = PathBuf::from(std::env::var("TB1717_S_EXPORT").expect("TB1717_S_EXPORT 未设置"));
+    let dir = out.parent().unwrap();
+    let mut f = Fixture::new();
+    publish(&mut f, 1);
+    let ids = object_ids(&mut f);
+    assert!(!ids.is_empty(), "真实 S3 夹具没有可读的当前对象");
+    let resources = SessionResources {
+        startup_timeout_ms: 300_000,
+        retained_bytes: 268_435_456,
+        max_requests: 4096,
+        max_request_bytes: 193_120,
+        max_reply_bytes: 827_022,
+        request_timeout_ms: 45_000,
+        max_capture_bytes: 805_306_368,
+        max_closure_nodes: 262_144,
+    };
+    let resources_path = dir.join("s-session-resources.json");
+    std::fs::write(&resources_path, canonical_json(&resources.to_json())).unwrap();
+    let custody_path = dir.join("s-writer-custody.json");
+    let custody = Custody::observe(&f.db_path(), None).unwrap();
+    std::fs::write(&custody_path, canonical_json(&custody.to_json())).unwrap();
+    let export = json!({"schema_revision":"tb1717-s3-fixture-export/2","db":f.db_path(),
+        "session_id":"s-session-testonly-001","session_generation":"1","writer_epoch":"1",
+        "profile_id":"ohlc_integer_tb02a_v1","bars":"1","object_ids":ids,
+        "session_resources":resources_path,"writer_custody":custody_path});
+    std::fs::write(&out, canonical_json(&export)).unwrap();
+    std::mem::forget(f);
+}

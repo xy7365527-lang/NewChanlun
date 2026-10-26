@@ -249,17 +249,40 @@ fn killed_mid_write_leaves_only_identifiable_staging_and_retry_succeeds() {
         );
         assert_retry_from_scene(&db, &clock, &format!("fsize-kill:{limit}"));
     }
-    // 按时 SIGKILL：落点不定，每个落点都须满足两态并可重试。
-    for delay_ms in [0u64, 2, 5, 10, 20, 40, 80, 160] {
+    // SIGKILL：先轮询到暂存文件出现（子进程已进入 init 建库），再延迟不同时长杀死，让落点散布在
+    // 建库/提交/发布各处；每个落点都须满足两态并可重试。
+    // #1666 L1：暂存文件只在建库开始到发布 rename 之间存在，故「被 SIGKILL 杀死 + 目标不存在 +
+    // 有暂存残留」即确证命中 init 中途；至少命中一次，否则此循环没有测到东西。
+    let mut mid_init_hits = Vec::new();
+    for delay_ms in [0u64, 0, 1, 2, 5, 10, 20, 40] {
         let dir = Dir::new("kill");
         let db = dir.0.join("s3.sqlite");
         let clock = write_clock(&dir.0);
         let mut child = spawn_child(&db, &clock, "plain");
+        let deadline = std::time::Instant::now() + Duration::from_secs(30);
+        while staging_leftovers(&db).is_empty()
+            && child.try_wait().unwrap().is_none()
+            && std::time::Instant::now() < deadline
+        {
+            std::thread::sleep(Duration::from_micros(200));
+        }
         std::thread::sleep(Duration::from_millis(delay_ms));
         let _ = child.kill();
-        let _ = child.wait();
-        assert_retry_from_scene(&db, &clock, &format!("kill@{delay_ms}ms"));
+        let status = child.wait().unwrap();
+        let label = format!("kill@staging+{delay_ms}ms");
+        if status.signal() == Some(libc::SIGKILL)
+            && !db.exists()
+            && !staging_leftovers(&db).is_empty()
+        {
+            mid_init_hits.push(label.clone());
+        }
+        assert_retry_from_scene(&db, &clock, &label);
     }
+    println!("S1666_KILL_MID_INIT_HITS {mid_init_hits:?}");
+    assert!(
+        !mid_init_hits.is_empty(),
+        "SIGKILL 循环一次也没命中 init 中途（暂存存在、目标未发布）"
+    );
 }
 
 #[test]
@@ -358,4 +381,141 @@ fn foreign_wal_beside_absent_target_is_refused_and_kept() {
     std::fs::remove_file(&wal).unwrap();
     run_init(&db, &clock).unwrap();
     assert!(target_absent_or_complete(&db));
+}
+
+// ── #1666 L2/L3：发布阶段故障注入（`atomic_init::fault`，仅本线程生效） ──
+
+use atomic_init::fault::{self, Fault};
+
+fn publish_warnings(out: &Value) -> Vec<String> {
+    out.get("publish_warnings")
+        .and_then(Value::as_array)
+        .map(|a| a.iter().map(|w| w.as_str().unwrap().to_string()).collect())
+        .unwrap_or_default()
+}
+
+#[test]
+fn link_fallback_publishes_complete_db_without_leftovers() {
+    let dir = Dir::new("link");
+    let db = dir.0.join("s3.sqlite");
+    let clock = write_clock(&dir.0);
+    let out = fault::with(Fault::RenameErrno(libc::ENOTSUP), || run_init(&db, &clock))
+        .unwrap_or_else(|e| panic!("link 回退应发布成功：{e}"));
+    assert_eq!(out["ok"], json!(true));
+    assert!(publish_warnings(&out).is_empty(), "{out}");
+    assert!(target_absent_or_complete(&db));
+    assert!(
+        staging_leftovers(&db).is_empty(),
+        "{:?}",
+        staging_leftovers(&db)
+    );
+}
+
+#[test]
+fn link_fallback_never_overwrites_existing_target() {
+    let dir = Dir::new("link-exists");
+    let db = dir.0.join("s3.sqlite");
+    let staging = atomic_init::Staging::new(&db).unwrap();
+    std::fs::write(staging.path(), b"staged").unwrap();
+    // 发布前目标被他人抢先创建：link 以 EEXIST 失败，既有字节不动，暂存由守卫删除。
+    std::fs::write(&db, b"someone else").unwrap();
+    let err = fault::with(Fault::RenameErrno(libc::ENOTSUP), || staging.publish()).unwrap_err();
+    assert!(err.contains("库已存在"), "{err}");
+    assert_eq!(std::fs::read(&db).unwrap(), b"someone else");
+    assert!(
+        staging_leftovers(&db).is_empty(),
+        "{:?}",
+        staging_leftovers(&db)
+    );
+}
+
+#[test]
+fn rename_einval_classification_follows_platform_manual() {
+    let dir = Dir::new("einval");
+    let db = dir.0.join("s3.sqlite");
+    let clock = write_clock(&dir.0);
+    let result = fault::with(Fault::RenameErrno(libc::EINVAL), || run_init(&db, &clock));
+    if cfg!(target_os = "linux") {
+        // renameat2(2)：EINVAL = 文件系统不支持该标志 → 走 link 回退并成功。
+        let out = result.unwrap_or_else(|e| panic!("Linux EINVAL 应回退 link：{e}"));
+        assert!(publish_warnings(&out).is_empty(), "{out}");
+        assert!(target_absent_or_complete(&db));
+    } else {
+        // renamex_np(2)：EINVAL 不是「不支持」，不回退；目标不存在、暂存已清。
+        let err = result.unwrap_err();
+        assert!(err.contains("原子发布暂存库失败"), "{err}");
+        assert!(!db.exists());
+    }
+    assert!(
+        staging_leftovers(&db).is_empty(),
+        "{:?}",
+        staging_leftovers(&db)
+    );
+    // 其他 errno 一律不回退。
+    let dir = Dir::new("eacces");
+    let db = dir.0.join("s3.sqlite");
+    let clock = write_clock(&dir.0);
+    let err = fault::with(Fault::RenameErrno(libc::EACCES), || run_init(&db, &clock)).unwrap_err();
+    assert!(err.contains("原子发布暂存库失败"), "{err}");
+    assert!(!db.exists());
+    assert!(
+        staging_leftovers(&db).is_empty(),
+        "{:?}",
+        staging_leftovers(&db)
+    );
+}
+
+#[test]
+fn dir_fsync_failure_after_publish_is_success_with_warning() {
+    let dir = Dir::new("dirsync");
+    let db = dir.0.join("s3.sqlite");
+    let clock = write_clock(&dir.0);
+    let out = fault::with(Fault::DirSync, || run_init(&db, &clock))
+        .unwrap_or_else(|e| panic!("目标已发布，目录 fsync 失败不得报 init 失败：{e}"));
+    assert_eq!(out["ok"], json!(true));
+    let warnings = publish_warnings(&out);
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+    assert!(warnings[0].starts_with("PublishedUnsynced"), "{warnings:?}");
+    assert!(target_absent_or_complete(&db));
+    assert!(
+        staging_leftovers(&db).is_empty(),
+        "{:?}",
+        staging_leftovers(&db)
+    );
+}
+
+#[test]
+fn link_fallback_unlink_failure_is_success_with_leftover_warning() {
+    let dir = Dir::new("unlink");
+    let db = dir.0.join("s3.sqlite");
+    let clock = write_clock(&dir.0);
+    let out = fault::with(Fault::RenameUnsupportedUnlinkFails, || {
+        run_init(&db, &clock)
+    })
+    .unwrap_or_else(|e| panic!("目标已 link 发布，删暂存名失败不得报 init 失败：{e}"));
+    assert_eq!(out["ok"], json!(true));
+    let warnings = publish_warnings(&out);
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+    assert!(
+        warnings[0].starts_with("PublishedWithLeftover"),
+        "{warnings:?}"
+    );
+    assert!(target_absent_or_complete(&db));
+    // 告警点名的残留就是那个与目标同 inode 的暂存名。
+    let leftovers = staging_leftovers(&db);
+    assert_eq!(leftovers.len(), 1, "{leftovers:?}");
+    assert!(
+        warnings[0].contains(&leftovers[0]),
+        "{warnings:?} {leftovers:?}"
+    );
+    use std::os::unix::fs::MetadataExt;
+    assert_eq!(
+        std::fs::metadata(dir.0.join(&leftovers[0])).unwrap().ino(),
+        std::fs::metadata(&db).unwrap().ino()
+    );
+    // 同路径再 init：识别为既有库，拒绝且不改动。
+    let before = std::fs::read(&db).unwrap();
+    let err = run_init(&db, &clock).unwrap_err();
+    assert!(err.contains("库已存在"), "{err}");
+    assert_eq!(std::fs::read(&db).unwrap(), before);
 }

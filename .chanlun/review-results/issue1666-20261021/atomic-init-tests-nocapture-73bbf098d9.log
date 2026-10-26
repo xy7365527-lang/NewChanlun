@@ -1,0 +1,34 @@
+# #1666 L4：atomic_init_tests --nocapture 远端留档（nc-remote windows-5090 WSL；编译警告段已略，均非本票文件）
+# 跑的是代码提交 73bbf098d9；该提交随后 amend 只加入本日志文件（提交号因此改变），rust/ 代码树不变。
+# 命中明细：fd 扫描 nofile:4–7 四档失败分别落在 SQLite 打开、清扫读目录、设置 WAL、开 init 事务；
+# 其余档位（nofile:8–40）未报 init 错误，现场均通过两态与原路径重试断言。SIGKILL 循环 8 次中 6 次确证命中 init 中途。
+
+ref=sandcastle/issue-1666 sha=73bbf098d98068f0ccea9ca94aa2374c18241938 sub=rust target=/home/hanju/nc-remote/sandcastle-issue-1666 cmd=cargo test --locked --features s_session --bin s_structure_session atomic_init_tests -- --nocapture --test-threads=1 
+...
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 46.41s
+     Running unittests src/bin/s_structure_session.rs (/home/hanju/nc-remote/sandcastle-issue-1666/debug/deps/s_structure_session-6334780ee30570c4)
+
+running 12 tests
+test v3::atomic_init_tests::dir_fsync_failure_after_publish_is_success_with_warning ... ok
+test v3::atomic_init_tests::disk_full_failures_leave_nothing_and_retry_succeeds ... ok
+test v3::atomic_init_tests::existing_target_is_refused_untouched_even_with_stale_staging ... ok
+test v3::atomic_init_tests::fd_exhaustion_failures_leave_nothing_and_retry_succeeds ... S1568_NOFILE_FAILURES [
+    "nofile:4: err StorageUnavailable：Too many open files (os error 24)",
+    "nofile:5: err 读目录 /tmp/s1568-nofile-28010-1792586003910606204-8 失败：Too many open files (os error 24)",
+    "nofile:6: err 设置 WAL/FULL 失败：unable to open database file",
+    "nofile:7: err 开 init 事务失败：unable to open database file",
+]
+ok
+test v3::atomic_init_tests::foreign_wal_beside_absent_target_is_refused_and_kept ... ok
+test v3::atomic_init_tests::killed_mid_write_leaves_only_identifiable_staging_and_retry_succeeds ... S1666_KILL_MID_INIT_HITS ["kill@staging+0ms", "kill@staging+0ms", "kill@staging+1ms", "kill@staging+2ms", "kill@staging+5ms", "kill@staging+10ms"]
+ok
+test v3::atomic_init_tests::link_fallback_never_overwrites_existing_target ... ok
+test v3::atomic_init_tests::link_fallback_publishes_complete_db_without_leftovers ... ok
+test v3::atomic_init_tests::link_fallback_unlink_failure_is_success_with_leftover_warning ... ok
+test v3::atomic_init_tests::rename_einval_classification_follows_platform_manual ... ok
+test v3::atomic_init_tests::s1568_child_init_under_rlimit ... ignored, #1568 子进程入口，只由同文件父测试带环境变量调用
+test v3::atomic_init_tests::sweep_only_removes_this_databases_staging_names ... ok
+
+test result: ok. 11 passed; 0 failed; 1 ignored; 0 measured; 547 filtered out; finished in 2.17s
+
+EXIT=0 SECONDS=48

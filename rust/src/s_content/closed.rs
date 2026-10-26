@@ -629,7 +629,15 @@ pub(super) enum CodecContext<'read, 'capture> {
         sink: &'read mut dyn NodeSink,
         memo: &'read mut NativeLocalMaterialMemo,
     },
-    Capture(&'capture AuditCapture),
+    Capture(
+        &'capture AuditCapture,
+        Option<&'read dyn CaptureReadObserver>,
+    ),
+    #[cfg(feature = "s_capture_native_testonly")]
+    OwnerCapture {
+        capture: &'capture AuditCapture,
+        work: &'read capture_allocation::scratch::WorkScope,
+    },
     Closed(&'read mut ClosedCapturedOwner<'capture>),
     QAccess {
         owner: &'read mut ClosedCapturedOwner<'capture>,
@@ -648,47 +656,26 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
         }
     }
 
+    pub(super) fn native_vec_room<T>(
+        &self,
+        result: &mut WorkVec<T>,
+        additional: usize,
+    ) -> Result<(), CodecError> {
+        match self.work_budget() {
+            Some(work @ WorkBudget::Scratch(_)) => result.reserve_native_work(&work, additional),
+            _ => result.try_reserve(additional),
+        }
+    }
     pub(super) fn plain_vec_room<T>(
         &self,
         result: &mut WorkVec<T>,
         additional: usize,
     ) -> Result<(), CodecError> {
-        let failure = |reason| {
-            self.work_budget()
-                .map_or_else(capture_allocation::work::allocation_error, |b| {
-                    b.native_failure(reason)
-                })
-        };
-        let needed = result
-            .len()
-            .checked_add(additional)
-            .ok_or_else(|| failure(capture_allocation::scratch::ScratchFailure::Budget))?;
-        if needed <= result.capacity() || self.budget().is_some() {
-            return Ok(());
-        }
-        // 只替 Native 动态结果申请新完整块；已释放旧块仍保守持账，不提前减费。
-        let next = needed
-            .max(
-                result
-                    .capacity()
-                    .checked_mul(2)
-                    .ok_or_else(|| failure(capture_allocation::scratch::ScratchFailure::Budget))?,
-            )
-            .max(4);
-        let bytes = next
-            .checked_mul(std::mem::size_of::<T>())
-            .ok_or_else(|| failure(capture_allocation::scratch::ScratchFailure::Budget))?;
-        if let Some(permit) = self.reserve_native(bytes)? {
-            result
-                .try_reserve_exact(next - result.len())
-                .map_err(|_| failure(capture_allocation::scratch::ScratchFailure::Allocation))?;
-            permit.retain();
-        }
-        Ok(())
+        self.native_vec_room(result, additional)
     }
     pub(super) fn budget(&self) -> Option<OwnedBudget> {
         match self {
-            Self::Capture(c) => match &c.nodes {
+            Self::Capture(c, _) => match &c.nodes {
                 CaptureNodes::AllocationPrototype(s) => Some(s.owned_budget()),
                 _ => None,
             },
@@ -702,6 +689,8 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
     pub(super) fn work_budget(&self) -> Option<WorkBudget> {
         let scope = match self {
             Self::Source(s) => s.codec_work(),
+            #[cfg(feature = "s_capture_native_testonly")]
+            Self::OwnerCapture { work, .. } => Some(*work),
             Self::Store(s) => s.codec_work(),
             Self::Sink(s, _) => s.codec_sink_work(),
             #[cfg(feature = "s_capture_native_testonly")]
@@ -722,7 +711,9 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
                 sink: &mut **sink,
                 memo: &mut **memo,
             },
-            Self::Capture(c) => CodecContext::Capture(c),
+            Self::Capture(c, observer) => CodecContext::Capture(c, *observer),
+            #[cfg(feature = "s_capture_native_testonly")]
+            Self::OwnerCapture { capture, work } => CodecContext::OwnerCapture { capture, work },
             Self::Closed(c) => CodecContext::Closed(&mut **c),
             Self::QAccess { owner, access } => CodecContext::QAccess {
                 owner: &mut **owner,
@@ -738,8 +729,33 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
         match self {
             Self::Source(s) => read_scoped_checked(&mut **s, d),
             Self::Store(s) => read_scoped_checked(&mut **s, d),
-            Self::Capture(c) => {
-                let mut reader = CaptureReader(c);
+            #[cfg(feature = "s_capture_native_testonly")]
+            Self::OwnerCapture { capture, work } => {
+                let _health = work.reserve_native(0)?;
+                #[cfg(test)]
+                trace_capture_body_read(d);
+                capture.reads.set(capture.reads.get().saturating_add(1));
+                let (tag, body) = capture.original(d).ok_or_else(|| {
+                    CodecError::new(code::NODE_MISSING, format!("节点缺失：{}", root_string(d)))
+                })?;
+                let actual = frame(tag, body);
+                if actual != *d {
+                    return Err(CodecError::new(
+                        code::NODE_DIGEST,
+                        format!(
+                            "节点 (tag, body) 与摘要不符：声称 {}，实算 {}；未核摘要不成帧",
+                            root_string(d),
+                            root_string(&actual)
+                        ),
+                    ));
+                }
+                Ok((tag, VerifierBody::Borrowed(body)))
+            }
+            Self::Capture(c, observer) => {
+                let mut reader = ObservedCaptureReader {
+                    reader: CaptureReader(c),
+                    observer: *observer,
+                };
                 if c.is_allocation_prototype() {
                     read_body_checked(&mut reader, Some(c), d)
                 } else {
@@ -806,7 +822,14 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
             Self::Fragment(_) => {
                 return Err(CodecError::new(code::SOURCE, "只读fragment不可写节点"))
             }
-            Self::Source(_) | Self::Capture(_) => {
+            #[cfg(feature = "s_capture_native_testonly")]
+            Self::OwnerCapture { .. } => {
+                return Err(CodecError::new(
+                    code::SOURCE,
+                    "只读 owner context 不可写节点",
+                ))
+            }
+            Self::Source(_) | Self::Capture(_, _) => {
                 return Err(CodecError::new(code::SOURCE, "只读context不可写节点"))
             }
         }

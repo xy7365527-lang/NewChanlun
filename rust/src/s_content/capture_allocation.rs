@@ -3,6 +3,8 @@
 //! 普通NodeSource及公开Vec契约保持；默认Owned Arc/Mutex仪表不算payload。
 //! Native独立scratch元数据先计入父账，真实工作Layout动态预留；仍不授予完整Native准入。
 
+pub mod native_tree;
+
 use super::{CodecError, NodeDigest};
 use std::alloc::{alloc_zeroed, dealloc, Layout};
 use std::ptr::NonNull;
@@ -594,6 +596,8 @@ impl CaptureSlab {
     }
 }
 
+#[doc(hidden)]
+pub mod native_owned;
 #[doc(hidden)]
 pub mod scratch;
 pub(crate) mod work;

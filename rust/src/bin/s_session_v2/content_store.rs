@@ -115,22 +115,12 @@ fn read_material(
     conn: &Connection,
     digest: &NodeDigest,
 ) -> Result<Option<(u8, Vec<u8>)>, CodecError> {
-    read_material_admitted(conn, digest, None)
-}
-
-/// 借用经过 NOMEM 检查的 SQL 正文，取得父账许可后才生成 Rust 副本。
-fn read_material_admitted(
-    conn: &Connection,
-    digest: &NodeDigest,
-    work: Option<&WorkScope>,
-) -> Result<Option<(u8, Vec<u8>)>, CodecError> {
-    let result = read_material_reserved(conn, digest, work)?;
-    Ok(result.map(|(tag, body, permit)| {
-        if let Some(permit) = permit {
-            permit.retain();
-        }
-        (tag, body)
-    }))
+    Ok(
+        read_material_reserved(conn, digest, None)?.map(|(tag, body, permit)| {
+            debug_assert!(permit.is_none());
+            (tag, body)
+        }),
+    )
 }
 fn read_material_reserved(
     conn: &Connection,
@@ -183,17 +173,6 @@ fn read_material_reserved(
     Ok(Some((tag, body, permit)))
 }
 
-/// Native 正文复制在许可之后；无 scope 的旧调用维持同一复制语义。
-pub(super) fn native_body_copy(
-    work: Option<&WorkScope>,
-    body: &[u8],
-) -> Result<Vec<u8>, CodecError> {
-    let (body, permit) = native_body_reserved(work, body)?;
-    if let Some(permit) = permit {
-        permit.retain();
-    }
-    Ok(body)
-}
 pub(super) fn native_body_reserved(
     work: Option<&WorkScope>,
     body: &[u8],
@@ -244,17 +223,6 @@ fn read_checked_node_scoped(
     }
 }
 
-fn read_checked_node_admitted(
-    conn: &Connection,
-    digest: &NodeDigest,
-    work: Option<&WorkScope>,
-) -> Result<Option<s_content::job::CheckedFrame>, CodecError> {
-    match read_material_admitted(conn, digest, work)? {
-        None => Ok(None),
-        Some((tag, body)) => s_content::job::CheckedFrame::checked(digest, tag, body).map(Some),
-    }
-}
-
 #[cfg(test)]
 thread_local! { static SQL_READS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) }; }
 
@@ -292,7 +260,13 @@ const SAME_MATERIAL_BYTES: usize = 4 * 1024 * 1024;
 const SAME_MATERIAL_ENTRIES: usize = 65_536;
 #[derive(Default)]
 struct SameMaterial {
-    frames: BTreeMap<NodeDigest, (s_content::job::CheckedFrame, usize)>,
+    frames: BTreeMap<
+        NodeDigest,
+        (
+            s_content::capture_allocation::native_owned::NativeValue<s_content::job::CheckedFrame>,
+            usize,
+        ),
+    >,
     retained_capacity: usize,
     // frames 先析构；许可只在整棵实际树释放后归还。
     tree_permit: Option<NativeReservation>,
@@ -358,10 +332,14 @@ impl SameMaterial {
                 NodeDigest,
                 (s_content::job::CheckedFrame, usize),
             >(work, next)?;
-            let retained = native_body_copy(work, frame.body())?;
+            let (retained, body_permit) = native_body_reserved(work, frame.body())?;
             let capacity = retained.capacity();
             if capacity <= remaining {
                 let proof = frame.checked_same_material(digest, tag, retained)?;
+                let proof = match body_permit {
+                    Some(permit) => permit.hold(proof),
+                    None => s_content::capture_allocation::native_owned::NativeValue::without_reservation(proof),
+                };
                 self.frames.insert(*digest, (proof, capacity));
                 self.tree_permit = tree_permit;
                 self.retained_capacity += capacity;
@@ -396,6 +374,12 @@ fn native_pragma_rows<T>(
     let values = result?;
     finalized?;
     Ok(values)
+}
+
+/// #1488 owner effects 复用同一节点保持判据，不另造宽严两档。
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) fn owner_node_insert_gate(tx: &Transaction<'_>) -> Result<bool, CodecError> {
+    native_insert_can_preserve(tx)
 }
 
 #[cfg(feature = "s_capture_native_testonly")]
@@ -583,6 +567,8 @@ pub(super) struct NativeReadLease<'lease, 'conn> {
     material: SameMaterial,
     poisoned: bool,
     insert_can_preserve: bool,
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    stage: Option<&'lease super::staged_nodes::StageOwner<'lease>>,
 }
 #[cfg(feature = "s_capture_native_testonly")]
 impl<'lease, 'conn> NativeReadLease<'lease, 'conn> {
@@ -613,7 +599,26 @@ impl<'lease, 'conn> NativeReadLease<'lease, 'conn> {
             material: Default::default(),
             poisoned: false,
             insert_can_preserve,
+            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            stage: None,
         })
+    }
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn new_admitted_staged(
+        tx: &'lease mut Transaction<'conn>,
+        work: &'lease WorkScope,
+        stage: &'lease super::staged_nodes::StageOwner<'lease>,
+    ) -> Result<Self, CodecError> {
+        stage.check_transaction(tx)?;
+        if !stage
+            .work()
+            .is_some_and(|stage_work| std::ptr::eq(stage_work, work))
+        {
+            return Err(storage_error("暂存租约必须继承同一已签发工作域"));
+        }
+        let mut lease = Self::new_admitted(tx, Some(work))?;
+        lease.stage = Some(stage);
+        Ok(lease)
     }
     fn clear(&mut self) {
         self.material = SameMaterial::default();
@@ -633,7 +638,7 @@ impl<'lease, 'conn> NativeReadLease<'lease, 'conn> {
         digest: &NodeDigest,
     ) -> Result<Option<s_content::job::CheckedFrame>, CodecError> {
         self.current_scoped(digest)
-            .map(|f| f.map(s_content::job::ScopedFrame::into_frame))
+            .and_then(|f| f.map(s_content::job::ScopedFrame::into_frame).transpose())
     }
     fn current_scoped(
         &mut self,
@@ -641,9 +646,17 @@ impl<'lease, 'conn> NativeReadLease<'lease, 'conn> {
     ) -> Result<Option<s_content::job::ScopedFrame>, CodecError> {
         self.check_live()?;
         let result = (|| {
+            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            if let Some(stage) = self.stage {
+                stage.check_transaction(self.tx)?;
+            }
             if let Some((frame, _)) = self.material.frames.get(digest) {
                 let (body, permit) = native_body_reserved(self.work, frame.body())?;
                 let frame = frame.checked_same_material(digest, frame.tag(), body)?;
+                #[cfg(all(test, feature = "s_capture_native_testonly"))]
+                if let Some(stage) = self.stage {
+                    stage.check_original(digest, frame.tag(), frame.body())?;
+                }
                 return Ok(Some(s_content::job::ScopedFrame::new(frame, permit)));
             }
             match read_material_reserved(self.tx, digest, self.work)? {
@@ -656,20 +669,42 @@ impl<'lease, 'conn> NativeReadLease<'lease, 'conn> {
                         SAME_MATERIAL_ENTRIES,
                         self.work,
                     )?;
+                    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+                    if let Some(stage) = self.stage {
+                        stage.check_original(digest, frame.tag(), frame.body())?;
+                    }
                     Ok(Some(s_content::job::ScopedFrame::new(frame, permit)))
                 }
-                None => Ok(None),
+                None => {
+                    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+                    if let Some(stage) = self.stage {
+                        return stage.read_scoped(digest);
+                    }
+                    Ok(None)
+                }
             }
         })();
         if result.is_err() {
             self.clear();
             self.poisoned = true;
+            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            if let Some(stage) = self.stage {
+                stage.reject_after_error();
+            }
         }
         result
     }
 }
 #[cfg(feature = "s_capture_native_testonly")]
 impl NodeSource for NativeReadLease<'_, '_> {
+    fn read_scoped(
+        &mut self,
+        digest: &NodeDigest,
+    ) -> Result<s_content::job::ScopedNodeRead, CodecError> {
+        self.checked_read_scoped(digest)
+            .map(s_content::job::ScopedNodeRead::from_checked)
+    }
+
     fn checked_read_scoped(
         &mut self,
         d: &NodeDigest,
@@ -702,6 +737,21 @@ impl NodeSink for NativeReadLease<'_, '_> {
     }
     fn put(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), CodecError> {
         self.check_live()?;
+        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        if let Some(stage) = self.stage {
+            let result = (|| {
+                stage.check_transaction(self.tx)?;
+                TxStore::new_with_stage(self.tx, Some(stage))?
+                    .with_work(self.work)
+                    .put(digest, tag, body)
+            })();
+            if result.is_err() {
+                self.clear();
+                self.poisoned = true;
+            }
+            // SQL未变：SameMaterial只持真实SQL素材，绝不缓存overlay。
+            return result;
+        }
         // Private short reborrow avoids a self-referential &mut Transaction + TxStore pair.
         // Constructor already checked the format once, exactly as original TxStore::new does.
         let material = &mut self.material;
@@ -770,17 +820,25 @@ pub(super) fn publication_put(
     tag: u8,
     body: &[u8],
     work: Option<&WorkScope>,
+    #[cfg(all(test, feature = "s_capture_native_testonly"))] stage: Option<
+        &super::staged_nodes::StageOwner<'_>,
+    >,
 ) -> Result<PublicationPutEffect, CodecError> {
     let mut before_write = None;
     TxStore {
         tx,
         work,
         #[cfg(all(test, feature = "s_capture_native_testonly"))]
-        stage: None,
+        stage,
     }
     .put_before_write(digest, tag, body, || {
         before_write = Some(tx.total_changes())
     })?;
+    // staged：SQL 缺该节点时 put 只进暂存、不碰 SQL，基底原件不变；可达闭包由 Commit 的 Final cut 落盘。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    if stage.is_some() && before_write.is_some() {
+        return Ok(PublicationPutEffect::Noop);
+    }
     Ok(match before_write {
         None => PublicationPutEffect::Noop,
         Some(before)
@@ -797,7 +855,7 @@ pub(super) struct TxStore<'a, 'conn> {
     tx: &'a Transaction<'conn>,
     work: Option<&'a WorkScope>,
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
-    stage: Option<&'a super::staged_nodes::StageOwner>,
+    stage: Option<&'a super::staged_nodes::StageOwner<'a>>,
 }
 
 impl<'a, 'conn> TxStore<'a, 'conn> {
@@ -817,7 +875,7 @@ impl<'a, 'conn> TxStore<'a, 'conn> {
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     pub(super) fn new_with_stage(
         tx: &'a Transaction<'conn>,
-        stage: Option<&'a super::staged_nodes::StageOwner>,
+        stage: Option<&'a super::staged_nodes::StageOwner<'a>>,
     ) -> Result<Self, CodecError> {
         let mut store = Self::new(tx)?;
         if let Some(owner) = stage {
@@ -829,55 +887,63 @@ impl<'a, 'conn> TxStore<'a, 'conn> {
 }
 
 impl NodeSource for TxStore<'_, '_> {
+    fn read_scoped(
+        &mut self,
+        digest: &NodeDigest,
+    ) -> Result<s_content::job::ScopedNodeRead, CodecError> {
+        self.checked_read_scoped(digest)
+            .map(s_content::job::ScopedNodeRead::from_checked)
+    }
+
     fn checked_read_scoped(
         &mut self,
         d: &NodeDigest,
     ) -> Result<Option<s_content::job::ScopedFrame>, CodecError> {
+        let result = (|| {
+            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            if let Some(stage) = self.stage {
+                stage.check_transaction(self.tx)?;
+            }
+            let current = read_checked_node_scoped(self.tx, d, self.work)?;
+            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            if let Some(stage) = self.stage {
+                if let Some(frame) = &current {
+                    stage.check_original(d, frame.tag(), frame.body())?;
+                } else {
+                    return stage.read_scoped(d);
+                }
+            }
+            Ok(current)
+        })();
         #[cfg(all(test, feature = "s_capture_native_testonly"))]
-        if self.stage.is_some() {
-            return self
-                .checked_read(d)
-                .map(|f| f.map(|f| s_content::job::ScopedFrame::new(f, None)));
+        if result.is_err() {
+            if let Some(stage) = self.stage {
+                stage.reject_after_error();
+            }
         }
-        read_checked_node_scoped(self.tx, d, self.work)
+        result
     }
     fn codec_work(&self) -> Option<&WorkScope> {
         self.work
     }
     fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
-        let current = match read_checked_node_admitted(self.tx, digest, self.work)? {
+        self.checked_read(digest).map(|frame| match frame {
             None => NodeRead::Missing,
             Some(frame) => {
                 let (tag, body) = frame.into_parts();
                 NodeRead::Found { tag, body }
             }
-        };
-        #[cfg(all(test, feature = "s_capture_native_testonly"))]
-        if matches!(current, NodeRead::Missing) {
-            if let Some(stage) = self.stage {
-                if let Some((tag, body)) = stage.read(digest) {
-                    check_digest(digest, tag, &body)?;
-                    return Ok(NodeRead::Found { tag, body });
-                }
-            }
-        }
-        Ok(current)
+        })
     }
-
     fn checked_read(
         &mut self,
         digest: &NodeDigest,
     ) -> Result<Option<s_content::job::CheckedFrame>, CodecError> {
-        let current = read_checked_node_admitted(self.tx, digest, self.work)?;
-        #[cfg(all(test, feature = "s_capture_native_testonly"))]
-        if current.is_none() {
-            if let Some(stage) = self.stage {
-                if let Some((tag, body)) = stage.read(digest) {
-                    return s_content::job::CheckedFrame::checked(digest, tag, body).map(Some);
-                }
-            }
-        }
-        Ok(current)
+        self.checked_read_scoped(digest).and_then(|frame| {
+            frame
+                .map(s_content::job::ScopedFrame::into_frame)
+                .transpose()
+        })
     }
 }
 
@@ -889,8 +955,33 @@ impl TxStore<'_, '_> {
         body: &[u8],
         before_write: impl FnOnce(),
     ) -> Result<(), CodecError> {
+        let result = self.put_before_write_inner(digest, tag, body, before_write);
+        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        if result.is_err() {
+            if let Some(stage) = self.stage {
+                stage.reject_after_error();
+            }
+        }
+        result
+    }
+    fn put_before_write_inner(
+        &mut self,
+        digest: NodeDigest,
+        tag: u8,
+        body: &[u8],
+        before_write: impl FnOnce(),
+    ) -> Result<(), CodecError> {
         check_digest(&digest, tag, body)?;
+        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        if let Some(stage) = self.stage {
+            stage.check_transaction(self.tx)?;
+            stage.check_original(&digest, tag, body)?;
+        }
+        #[cfg(feature = "s_capture_native_testonly")]
+        let before = self.tx.total_changes();
         let current = read_checked_node_scoped(self.tx, &digest, self.work)?;
+        #[cfg(feature = "s_capture_native_testonly")]
+        let inserted = current.is_none();
         match current {
             Some(frame) => {
                 if frame.tag() != tag || frame.body() != body {
@@ -916,7 +1007,7 @@ impl TxStore<'_, '_> {
             }
         }
         #[cfg(feature = "s_capture_native_testonly")]
-        crate::v3::audit_owner::note_persisted_node(self.tx, digest);
+        crate::v3::audit_owner::note_persisted_node(self.tx, digest, before, inserted);
         Ok(())
     }
 }
@@ -2207,7 +2298,7 @@ mod tests {
 }
 
 /// #1394：显式 Native TestOnly 当前事务捕获；普通容器，不附资源额度或生产资格。
-#[cfg(any(test, feature = "s_capture_native_testonly"))]
+#[cfg(test)]
 pub(crate) fn capture_for_prototype(
     tx: &Transaction<'_>,
 ) -> Result<s_content::AuditCapture, CodecError> {
@@ -2258,6 +2349,7 @@ fn request_capture_digest(row: &rusqlite::Row<'_>) -> Result<NodeDigest, CodecEr
 #[derive(Default)]
 pub(crate) struct OriginalScanScratch {
     seen: std::collections::HashSet<NodeDigest>,
+    permit: Option<NativeReservation>,
     #[cfg(test)]
     capacity_growths: u64,
 }
@@ -2289,6 +2381,15 @@ impl OriginalScanScratch {
         let Some(work) = work else {
             return Ok(self.insert(digest));
         };
+        work.check_current()?;
+        if self
+            .permit
+            .as_ref()
+            .is_some_and(|permit| !permit.belongs_to_parent(work))
+            || (self.permit.is_none() && self.seen.capacity() != 0)
+        {
+            return Err(work.reject(s_content::capture_allocation::scratch::ScratchFailure::Ledger));
+        }
         if self.seen.contains(&digest) {
             return Ok(false);
         }
@@ -2301,7 +2402,7 @@ impl OriginalScanScratch {
             self.seen.try_reserve(1).map_err(|_| {
                 work.reject(s_content::capture_allocation::scratch::ScratchFailure::Allocation)
             })?;
-            permit.retain();
+            self.permit = Some(permit);
         }
         let first = self.seen.insert(digest);
         #[cfg(test)]
@@ -2323,30 +2424,48 @@ impl OriginalScanScratch {
 }
 
 /// Native cold entry: checked borrowed SQL bodies are copied only after parent admission.
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
 pub(crate) fn capture_for_request_prototype_admitted(
     tx: &Transaction<'_>,
     work: Option<&WorkScope>,
 ) -> Result<(s_content::AuditCapture, usize), CodecError> {
-    if work.is_none() {
-        return capture_for_request_prototype(tx);
-    }
-    capture_originals_admitted(tx, None, work).map(|(capture, count, _)| (capture, count))
+    capture_for_request_prototype_admitted_measured(tx, work, None)
 }
 #[cfg(feature = "s_capture_native_testonly")]
+pub(crate) fn capture_for_request_prototype_admitted_measured(
+    tx: &Transaction<'_>,
+    work: Option<&WorkScope>,
+    observer: Option<&dyn s_content::CaptureReadObserver>,
+) -> Result<(s_content::AuditCapture, usize), CodecError> {
+    if work.is_none() {
+        return capture_for_request_prototype_measured(tx, observer);
+    }
+    capture_originals_admitted(tx, None, work, observer).map(|(capture, count, _)| (capture, count))
+}
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
 pub(crate) fn capture_with_original_subset_for_source_cache_admitted(
     tx: &Transaction<'_>,
     prior: Option<(&s_content::AuditCapture, usize)>,
     work: Option<&WorkScope>,
 ) -> Result<(s_content::AuditCapture, usize, bool), CodecError> {
+    capture_with_original_subset_for_source_cache_admitted_measured(tx, prior, work, None)
+}
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) fn capture_with_original_subset_for_source_cache_admitted_measured(
+    tx: &Transaction<'_>,
+    prior: Option<(&s_content::AuditCapture, usize)>,
+    work: Option<&WorkScope>,
+    observer: Option<&dyn s_content::CaptureReadObserver>,
+) -> Result<(s_content::AuditCapture, usize, bool), CodecError> {
     if work.is_none() {
-        return capture_with_original_subset_for_source_cache(tx, prior);
+        return capture_with_original_subset_for_source_cache_measured(tx, prior, observer);
     }
-    capture_originals_admitted(tx, prior, work)
+    capture_originals_admitted(tx, prior, work, observer)
 }
 #[cfg(feature = "s_capture_native_testonly")]
 fn scan_request_nodes_checked(
     tx: &Transaction<'_>,
+    observer: Option<&dyn s_content::CaptureReadObserver>,
     mut visit: impl FnMut(NodeDigest, u8, &[u8]) -> Result<(), CodecError>,
 ) -> Result<(), CodecError> {
     let mut stmt = newchan_rust::sqlite_checked::CheckedStatement::prepare(
@@ -2355,6 +2474,9 @@ fn scan_request_nodes_checked(
     )
     .map_err(storage_error)?;
     while let Some(mut row) = stmt.next().map_err(storage_error)? {
+        if let Some(observer) = observer {
+            observer.before_read()?;
+        }
         let digest: NodeDigest = row
             .blob(0)
             .map_err(storage_error)?
@@ -2365,6 +2487,9 @@ fn scan_request_nodes_checked(
         let tag = u8::try_from(row.integer(1).map_err(storage_error)?)
             .map_err(|_| storage_error("捕获标签域"))?;
         let body = row.blob(2).map_err(storage_error)?;
+        if let Some(observer) = observer {
+            observer.prepare_node()?;
+        }
         #[cfg(test)]
         record_prototype_row(body.len());
         visit(digest, tag, body)?;
@@ -2376,6 +2501,7 @@ fn capture_originals_admitted(
     tx: &Transaction<'_>,
     prior: Option<(&s_content::AuditCapture, usize)>,
     work: Option<&WorkScope>,
+    observer: Option<&dyn s_content::CaptureReadObserver>,
 ) -> Result<(s_content::AuditCapture, usize, bool), CodecError> {
     ensure_format(tx)?;
     #[cfg(test)]
@@ -2386,12 +2512,13 @@ fn capture_originals_admitted(
         work.rebind_scans += u64::from(prior.is_some());
     });
     // Locals drop in reverse order: nodes first, whole-tree permit afterwards.
-    let mut tree_permit = None;
+    let mut tree_permit = s_content::CodecVec::default();
+    let mut body_permits = s_content::CodecVec::default();
     let mut nodes = s_content::MemoryNodes::new();
     let mut scratch = OriginalScanScratch::default();
     let mut matched = 0usize;
     let mut same = prior.is_some();
-    scan_request_nodes_checked(tx, |digest, tag, bytes| {
+    scan_request_nodes_checked(tx, observer, |digest, tag, bytes| {
         let unique = scratch.insert_admitted(digest, work)?;
         same &= unique;
         if let Some((capture, _)) = prior {
@@ -2404,22 +2531,45 @@ fn capture_originals_admitted(
             .len()
             .checked_add(usize::from(!nodes.contains(&digest)))
             .ok_or_else(|| NativeAdmission(work).native_overflow())?;
-        let next_permit = native_tree_storage::<NodeDigest, (u8, Vec<u8>)>(work, next)?;
-        let body = native_body_copy(work, bytes)?;
+        let next_permit = if next > nodes.len() {
+            if let Some(work) = work {
+                tree_permit.try_reserve_native(work, 1)?;
+                // 每个新条目在插入前追加一整节点许可：BTree 每个节点至少含一键，
+                // 累计许可恒覆盖 tree_slots(len) 线性上界（与原整树单票同额），不按深度重复计费。
+                let bytes = crate::v3::audit_retention::tree_slots::<NodeDigest, (u8, Vec<u8>)>(1);
+                Some(work.reserve_native(bytes)?)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        NativeAdmission(work).native_codec_room(&mut body_permits, 1)?;
+        let source_bytes = bytes
+            .len()
+            .checked_add(97)
+            .ok_or_else(|| NativeAdmission(work).native_overflow())?;
+        // #1488 P2-A：来源只登记合同额，父账物理只由正文块许可计一次。
+        let source_claim = work.map(|_| source_bytes);
+        let (body, body_permit) = native_body_reserved(work, bytes)?;
         nodes.insert_unchecked(digest, tag, body);
-        tree_permit = next_permit;
+        if let Some(index) = body_permits.iter().position(|(old, _, _)| old == &digest) {
+            drop(body_permits.remove(index));
+        }
+        body_permits.try_push((digest, body_permit, source_claim))?;
+        if let Some(permit) = next_permit {
+            tree_permit.try_push(permit)?;
+        }
         Ok(())
     })?;
     same &= prior.is_some_and(|(_, count)| matched == count);
     let count = nodes.len();
-    let capture = s_content::AuditCapture::new(nodes);
-    // Return owns the tree; conservative retention until the caller's entire parent domain ends.
-    if let Some(permit) = tree_permit {
-        permit.retain();
-    }
+    let capture = s_content::AuditCapture::new(nodes)
+        .with_original_fees_for_testonly(tree_permit, body_permits)?;
     Ok((capture, count, same))
 }
 #[cfg(feature = "s_capture_native_testonly")]
+#[allow(dead_code, reason = "#1527：保留原无计量入口，measured 入口共用原核")]
 pub(crate) fn current_originals_equal_for_request_with_scratch_admitted(
     tx: &Transaction<'_>,
     capture: &s_content::AuditCapture,
@@ -2427,12 +2577,31 @@ pub(crate) fn current_originals_equal_for_request_with_scratch_admitted(
     scratch: &mut OriginalScanScratch,
     work: Option<&WorkScope>,
 ) -> Result<bool, CodecError> {
+    current_originals_equal_for_request_with_scratch_admitted_measured(
+        tx,
+        capture,
+        expected_nodes,
+        scratch,
+        work,
+        None,
+    )
+}
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) fn current_originals_equal_for_request_with_scratch_admitted_measured(
+    tx: &Transaction<'_>,
+    capture: &s_content::AuditCapture,
+    expected_nodes: usize,
+    scratch: &mut OriginalScanScratch,
+    work: Option<&WorkScope>,
+    observer: Option<&dyn s_content::CaptureReadObserver>,
+) -> Result<bool, CodecError> {
     if work.is_none() {
-        return current_originals_equal_for_request_with_scratch(
+        return current_originals_equal_for_request_with_scratch_measured(
             tx,
             capture,
             expected_nodes,
             scratch,
+            observer,
         );
     }
     scratch.begin();
@@ -2444,7 +2613,7 @@ pub(crate) fn current_originals_equal_for_request_with_scratch_admitted(
         work.rebind_scans += 1;
     });
     let mut equal = true;
-    scan_request_nodes_checked(tx, |digest, tag, body| {
+    scan_request_nodes_checked(tx, observer, |digest, tag, body| {
         let first = scratch.insert_admitted(digest, work)?;
         equal &= first
             && capture
@@ -2456,9 +2625,16 @@ pub(crate) fn current_originals_equal_for_request_with_scratch_admitted(
 }
 
 /// 计数取自刚构建的完整原件集合，只供私有Native请求slot核对覆盖；不增加capture字段。
-#[cfg(any(test, feature = "s_capture_native_testonly"))]
+#[cfg(test)]
 pub(crate) fn capture_for_request_prototype(
     tx: &Transaction<'_>,
+) -> Result<(s_content::AuditCapture, usize), CodecError> {
+    capture_for_request_prototype_measured(tx, None)
+}
+#[cfg(any(test, feature = "s_capture_native_testonly"))]
+pub(crate) fn capture_for_request_prototype_measured(
+    tx: &Transaction<'_>,
+    observer: Option<&dyn s_content::CaptureReadObserver>,
 ) -> Result<(s_content::AuditCapture, usize), CodecError> {
     ensure_format(tx)?;
     #[cfg(test)]
@@ -2473,10 +2649,16 @@ pub(crate) fn capture_for_request_prototype(
         .map_err(storage_error)?;
     let mut rows = stmt.query([]).map_err(storage_error)?;
     while let Some(r) = rows.next().map_err(storage_error)? {
+        if let Some(observer) = observer {
+            observer.before_read()?;
+        }
         let d = request_capture_digest(r)?;
         let t: i64 = r.get(1).map_err(storage_error)?;
         let t: u8 = t.try_into().map_err(|_| storage_error("捕获标签域"))?;
         let body: Vec<u8> = r.get(2).map_err(storage_error)?;
+        if let Some(observer) = observer {
+            observer.prepare_node()?;
+        }
         #[cfg(test)]
         record_prototype_row(body.len());
         nodes.insert_unchecked(d, t, body);
@@ -2498,12 +2680,28 @@ pub(crate) fn current_originals_equal_for_request(
     current_originals_equal_for_request_with_scratch(tx, capture, expected_nodes, &mut scratch)
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
 pub(crate) fn current_originals_equal_for_request_with_scratch(
     tx: &Transaction<'_>,
     capture: &s_content::AuditCapture,
     expected_nodes: usize,
     scratch: &mut OriginalScanScratch,
+) -> Result<bool, CodecError> {
+    current_originals_equal_for_request_with_scratch_measured(
+        tx,
+        capture,
+        expected_nodes,
+        scratch,
+        None,
+    )
+}
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) fn current_originals_equal_for_request_with_scratch_measured(
+    tx: &Transaction<'_>,
+    capture: &s_content::AuditCapture,
+    expected_nodes: usize,
+    scratch: &mut OriginalScanScratch,
+    observer: Option<&dyn s_content::CaptureReadObserver>,
 ) -> Result<bool, CodecError> {
     scratch.begin();
     ensure_format(tx)?;
@@ -2519,6 +2717,9 @@ pub(crate) fn current_originals_equal_for_request_with_scratch(
     let mut rows = stmt.query([]).map_err(storage_error)?;
     let mut equal = true;
     while let Some(r) = rows.next().map_err(storage_error)? {
+        if let Some(observer) = observer {
+            observer.before_read()?;
+        }
         let d = request_capture_digest(r)?;
         let t: i64 = r.get(1).map_err(storage_error)?;
         let t: u8 = t.try_into().map_err(|_| storage_error("捕获标签域"))?;
@@ -2530,6 +2731,9 @@ pub(crate) fn current_originals_equal_for_request_with_scratch(
                 unreachable!("Vec<u8>只接受BLOB")
             }
         };
+        if let Some(observer) = observer {
+            observer.prepare_node()?;
+        }
         #[cfg(test)]
         record_prototype_row(body.len());
         // 必须去重；仅count+lookup会接受重复旧digest替代遗漏旧digest的坏schema。
@@ -2544,10 +2748,18 @@ pub(crate) fn current_originals_equal_for_request_with_scratch(
 
 /// #1394 隔离测试：本次完整捕获同时逐tuple绑定旧原件超集，允许正常新增节点。
 /// 不把旧memo移入新捕获；任何行的SQL/type错误均直接返回，包括已发现mismatch之后。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
 pub(crate) fn capture_with_original_subset_for_source_cache(
     tx: &Transaction<'_>,
     prior: Option<(&s_content::AuditCapture, usize)>,
+) -> Result<(s_content::AuditCapture, usize, bool), CodecError> {
+    capture_with_original_subset_for_source_cache_measured(tx, prior, None)
+}
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) fn capture_with_original_subset_for_source_cache_measured(
+    tx: &Transaction<'_>,
+    prior: Option<(&s_content::AuditCapture, usize)>,
+    observer: Option<&dyn s_content::CaptureReadObserver>,
 ) -> Result<(s_content::AuditCapture, usize, bool), CodecError> {
     ensure_format(tx)?;
     #[cfg(test)]
@@ -2566,10 +2778,16 @@ pub(crate) fn capture_with_original_subset_for_source_cache(
         .map_err(storage_error)?;
     let mut rows = stmt.query([]).map_err(storage_error)?;
     while let Some(row) = rows.next().map_err(storage_error)? {
+        if let Some(observer) = observer {
+            observer.before_read()?;
+        }
         let digest = request_capture_digest(row)?;
         let tag: i64 = row.get(1).map_err(storage_error)?;
         let tag: u8 = tag.try_into().map_err(|_| storage_error("捕获标签域"))?;
         let body: Vec<u8> = row.get(2).map_err(storage_error)?;
+        if let Some(observer) = observer {
+            observer.prepare_node()?;
+        }
         #[cfg(test)]
         record_prototype_row(body.len());
         let unique = seen.insert(digest);

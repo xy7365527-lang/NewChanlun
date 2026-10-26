@@ -167,6 +167,8 @@ enum VecStorage<T> {
 /// Opaque持有者；返回离开codec仍保留真实allocator，不能转成std Vec逃账。
 pub struct CodecVec<T> {
     storage: VecStorage<T>,
+    // Rust 按声明顺序析构：元素和 backing allocation 必须先于许可释放。
+    native_permit: Option<super::scratch::NativeReservation>,
 }
 pub(crate) type WorkVec<T> = CodecVec<T>;
 impl<T> Default for CodecVec<T> {
@@ -196,6 +198,174 @@ impl<T> CodecVec<T> {
     pub fn try_reserve(&mut self, additional: usize) -> Result<(), CodecError> {
         self.reserve(additional)
     }
+    /// 同一个 Plain buffer 的原许可随 owner 移动；不是 Owned Layout。
+    /// 已有非空裸 buffer 的费用来源不明，不能在这里重签掩盖旧 retain。
+    pub fn try_reserve_native(
+        &mut self,
+        work: &super::scratch::WorkScope,
+        additional: usize,
+    ) -> Result<(), CodecError> {
+        self.reserve_native_work(&work.budget(), additional)
+    }
+    /// #1488 冷原件接纳的原子入口。所有可能失败的容量/新块准入均在接纳前。
+    /// #1488 P3-a：无生产调用方（生产父账恒拒接纳），只随测试/Native测试臂编译。
+    #[cfg(any(test, feature = "s_capture_native_testonly"))]
+    #[doc(hidden)]
+    pub fn try_reserve_native_adopting(
+        &mut self,
+        work: &super::scratch::WorkScope,
+        additional: usize,
+    ) -> Result<(), CodecError> {
+        use super::scratch::ScratchFailure;
+        work.check_current()?;
+        if self.native_permit.is_some() {
+            return self.try_reserve_native(work, additional);
+        }
+        let old_bytes = self.retained_layout_bytes()?;
+        let VecStorage::Plain(values) = &mut self.storage else {
+            return Err(work.reject(ScratchFailure::Ledger));
+        };
+        let needed = values
+            .len()
+            .checked_add(additional)
+            .ok_or_else(|| work.reject(ScratchFailure::Budget))?;
+        if needed <= values.capacity() {
+            self.native_permit = Some(work.adopt_native(old_bytes)?);
+            return Ok(());
+        }
+        let capacity = needed
+            .max(
+                values
+                    .capacity()
+                    .checked_mul(2)
+                    .ok_or_else(|| work.reject(ScratchFailure::Budget))?,
+            )
+            .max(4);
+        let bytes = capacity
+            .checked_mul(std::mem::size_of::<T>())
+            .ok_or_else(|| work.reject(ScratchFailure::Budget))?;
+        let permit = work.reserve_native(bytes)?;
+        let mut replacement = Vec::new();
+        replacement
+            .try_reserve_exact(capacity)
+            .map_err(|_| work.reject(ScratchFailure::Allocation))?;
+        // 原件仍在values；接纳失败前没有append或绑定。成功后只做不可失败的移动。
+        let old_permit = work.adopt_native(old_bytes)?;
+        replacement.append(values);
+        let old = std::mem::replace(values, replacement);
+        drop(old);
+        drop(old_permit);
+        self.native_permit = Some(permit);
+        Ok(())
+    }
+    pub(crate) fn reserve_native_work(
+        &mut self,
+        work: &WorkBudget,
+        additional: usize,
+    ) -> Result<(), CodecError> {
+        use super::scratch::ScratchFailure;
+        // 统一入口先核当前操作域，再核旧 owner 父身份；容量足够也不能绕过。
+        // 双失效时保留当前操作域首错，不把旧 payload 重签到新父账。
+        let probe = work
+            .reserve_native(0)?
+            .ok_or_else(|| work.native_failure(ScratchFailure::Ledger))?;
+        if self
+            .native_permit
+            .as_ref()
+            .is_some_and(|old| !old.same_parent(&probe))
+        {
+            return Err(work.native_failure(ScratchFailure::Ledger));
+        }
+        drop(probe);
+        let VecStorage::Plain(values) = &mut self.storage else {
+            return Err(work.native_failure(ScratchFailure::Ledger));
+        };
+        if self.native_permit.is_none() && values.capacity() != 0 && std::mem::size_of::<T>() != 0 {
+            return Err(work.native_failure(ScratchFailure::Ledger));
+        }
+        let needed = values
+            .len()
+            .checked_add(additional)
+            .ok_or_else(|| work.native_failure(ScratchFailure::Budget))?;
+        if needed <= values.capacity() {
+            if self.native_permit.is_none() {
+                self.native_permit = work.reserve_native(0)?;
+            }
+            return Ok(());
+        }
+        let next = needed
+            .max(
+                values
+                    .capacity()
+                    .checked_mul(2)
+                    .ok_or_else(|| work.native_failure(ScratchFailure::Budget))?,
+            )
+            .max(4);
+        let bytes = next
+            .checked_mul(std::mem::size_of::<T>())
+            .ok_or_else(|| work.native_failure(ScratchFailure::Budget))?;
+        let permit = work.reserve_native(bytes)?;
+        // 独立新块使旧 allocation 与旧许可在完整新块准入/分配时都真实存活。
+        let mut replacement = Vec::new();
+        replacement
+            .try_reserve_exact(next)
+            .map_err(|_| work.native_failure(ScratchFailure::Allocation))?;
+        replacement.append(values);
+        let old = std::mem::replace(values, replacement);
+        drop(old);
+        self.native_permit = permit;
+        Ok(())
+    }
+    pub fn remove_prefix(&mut self, count: usize) {
+        match &mut self.storage {
+            VecStorage::Plain(values) => {
+                drop(values.drain(..count));
+            }
+            VecStorage::Owned(values) => {
+                drop(values.drain(..count));
+            }
+        }
+    }
+    /// #1488 新旧块同时持费，载荷移动完成后才销毁旧块和它的原许可。
+    pub fn try_compact_native(
+        &mut self,
+        work: Option<&super::scratch::WorkScope>,
+    ) -> Result<(), CodecError> {
+        use super::scratch::ScratchFailure;
+        if let Some(work) = work {
+            work.check_current()?;
+            if (self.native_permit.is_none() && self.capacity() != 0)
+                || self
+                    .native_permit
+                    .as_ref()
+                    .is_some_and(|p| !p.belongs_to_parent(work))
+            {
+                return Err(work.reject(ScratchFailure::Ledger));
+            }
+        } else if self.native_permit.is_some() {
+            return Err(allocation_error());
+        }
+        let VecStorage::Plain(values) = &mut self.storage else {
+            return Err(allocation_error());
+        };
+        if values.len() == values.capacity() {
+            return Ok(());
+        }
+        let bytes = values
+            .len()
+            .checked_mul(std::mem::size_of::<T>())
+            .ok_or_else(allocation_error)?;
+        let permit = work.map(|w| w.reserve_native(bytes)).transpose()?;
+        let mut replacement = Vec::new();
+        replacement.try_reserve_exact(values.len()).map_err(|_| {
+            work.map_or_else(allocation_error, |w| w.reject(ScratchFailure::Allocation))
+        })?;
+        replacement.append(values);
+        let old = std::mem::replace(values, replacement);
+        drop(old);
+        self.native_permit = permit;
+        Ok(())
+    }
     pub fn remove(&mut self, index: usize) -> T {
         match &mut self.storage {
             VecStorage::Plain(v) => v.remove(index),
@@ -218,6 +388,7 @@ impl<T> CodecVec<T> {
     pub fn from_plain(v: Vec<T>) -> Self {
         Self {
             storage: VecStorage::Plain(v),
+            native_permit: None,
         }
     }
     pub(crate) fn new(b: Option<&OwnedBudget>) -> Self {
@@ -232,6 +403,7 @@ impl<T> CodecVec<T> {
                     std::any::type_name::<T>(),
                 ))),
             },
+            native_permit: None,
         }
     }
     #[cfg(test)]
@@ -244,17 +416,132 @@ impl<T> CodecVec<T> {
         Ok(v)
     }
     pub(crate) fn reserve(&mut self, n: usize) -> Result<(), CodecError> {
+        if self.native_permit.is_some() {
+            return if n <= self.capacity().saturating_sub(self.len()) {
+                Ok(())
+            } else {
+                Err(allocation_error())
+            };
+        }
         match &mut self.storage {
             VecStorage::Plain(v) => v.try_reserve(n).map_err(|_| allocation_error()),
             VecStorage::Owned(v) => v.try_reserve(n).map_err(|_| v.allocator().budget.error()),
         }
     }
     pub(crate) fn reserve_exact(&mut self, n: usize) -> Result<(), CodecError> {
+        if self.native_permit.is_some() {
+            return if n <= self.capacity().saturating_sub(self.len()) {
+                Ok(())
+            } else {
+                Err(allocation_error())
+            };
+        }
         match &mut self.storage {
             VecStorage::Plain(v) => v.try_reserve_exact(n).map_err(|_| allocation_error()),
             VecStorage::Owned(v) => v
                 .try_reserve_exact(n)
                 .map_err(|_| v.allocator().budget.error()),
+        }
+    }
+    /// 是否已绑定 Native 父账，包括容量为零的许可。
+    /// #1488：已有初始原件费的消费式附接，不分配也不复制载荷。
+    #[doc(hidden)]
+    #[doc(hidden)]
+    pub fn native_parent_matches(
+        &self,
+        parent: &std::sync::Arc<dyn super::scratch::ScratchParent>,
+    ) -> bool {
+        self.native_permit
+            .as_ref()
+            .is_some_and(|permit| permit.belongs_to_parent_arc(parent))
+    }
+    pub fn can_adopt_native(&self) -> bool {
+        self.native_permit.is_none() && matches!(self.storage, VecStorage::Plain(_))
+    }
+    #[doc(hidden)]
+    pub fn attach_native_reservation(
+        &mut self,
+        permit: super::scratch::NativeReservation,
+    ) -> Result<(), CodecError> {
+        if self.native_permit.is_some()
+            || !matches!(self.storage, VecStorage::Plain(_))
+            || permit.bytes() != self.retained_layout_bytes()?
+        {
+            return Err(CodecError::scratch(super::scratch::ScratchFailure::Ledger));
+        }
+        self.native_permit = Some(permit);
+        Ok(())
+    }
+    pub fn check_retained_source(&self) -> Result<(), CodecError> {
+        self.native_permit.as_ref().map_or(
+            Ok(()),
+            super::scratch::NativeReservation::check_retained_source,
+        )
+    }
+    pub fn native_belongs_to_work(&self, work: &super::scratch::WorkScope) -> bool {
+        self.native_permit
+            .as_ref()
+            .is_some_and(|p| p.belongs_to_parent(work))
+    }
+    pub fn is_native_bound(&self) -> bool {
+        self.native_permit.is_some()
+    }
+    /// #1488 P3-c：本块实际持有的Native许可字节（只读，不签发、不转移）。
+    #[doc(hidden)]
+    pub fn native_retained_charge(&self) -> Option<usize> {
+        self.native_permit
+            .as_ref()
+            .map(super::scratch::NativeReservation::bytes)
+    }
+    /// Native 写入必须带本次活 scope；共享入口核父身份并先准入完整新块。
+    pub fn try_push_native(
+        &mut self,
+        value: T,
+        work: &super::scratch::WorkScope,
+    ) -> Result<(), CodecError> {
+        self.try_reserve_native(work, 1)?;
+        match &mut self.storage {
+            VecStorage::Plain(v) => v.push(value),
+            VecStorage::Owned(_) => unreachable!("Native reserve rejects Owned storage"),
+        }
+        Ok(())
+    }
+    /// 有序插入；错误 index 在准入和写入前拒绝。
+    pub fn try_insert_native(
+        &mut self,
+        index: usize,
+        value: T,
+        work: &super::scratch::WorkScope,
+    ) -> Result<(), CodecError> {
+        self.check_insert_index(index)?;
+        self.try_reserve_native(work, 1)?;
+        match &mut self.storage {
+            VecStorage::Plain(v) => v.insert(index, value),
+            VecStorage::Owned(_) => unreachable!("Native reserve rejects Owned storage"),
+        }
+        Ok(())
+    }
+    /// Plain/Owned 插入沿原 allocator；Native 必须显式提供活 scope。
+    pub fn try_insert(&mut self, index: usize, value: T) -> Result<(), CodecError> {
+        self.check_insert_index(index)?;
+        if self.is_native_bound() {
+            return Err(allocation_error());
+        }
+        self.reserve(1)?;
+        match &mut self.storage {
+            VecStorage::Plain(v) => v.insert(index, value),
+            VecStorage::Owned(v) => v.insert(index, value),
+        }
+        Ok(())
+    }
+    fn check_insert_index(&self, index: usize) -> Result<(), CodecError> {
+        if index > self.len() {
+            Err(CodecError::static_detail(
+                INCOMPLETE,
+                "codec有序插入index超出长度",
+            ))
+        } else {
+            Ok(())
         }
     }
     pub fn try_push(&mut self, x: T) -> Result<(), CodecError> {
@@ -307,6 +594,9 @@ impl<T> CodecVec<T> {
     where
         T: Clone,
     {
+        if self.native_permit.is_some() {
+            return Err(allocation_error());
+        }
         match &self.storage {
             VecStorage::Plain(v) => Ok(Self::from_plain(v.clone())),
             VecStorage::Owned(v) => {
@@ -323,6 +613,9 @@ impl<T> CodecVec<T> {
         }
     }
     pub(crate) fn into_plain(self) -> Result<Vec<T>, CodecError> {
+        if self.native_permit.is_some() {
+            return Err(allocation_error());
+        }
         match self.storage {
             VecStorage::Plain(v) => Ok(v),
             VecStorage::Owned(_) => Err(CodecError::static_detail(
@@ -333,7 +626,37 @@ impl<T> CodecVec<T> {
     }
 }
 impl CodecVec<u8> {
+    /// #1488 原 Plain Vec allocation 和原许可一并转为 UTF-8 String；不复制或重签。
+    pub fn try_into_native_text(
+        self,
+    ) -> Result<super::native_owned::NativeValue<String>, CodecError> {
+        match self.storage {
+            VecStorage::Plain(bytes) => {
+                let text = String::from_utf8(bytes).map_err(|_| super::super::utf8_error())?;
+                Ok(super::native_owned::NativeValue::from_reserved(
+                    text,
+                    self.native_permit,
+                ))
+            }
+            VecStorage::Owned(_) => Err(CodecError::static_detail(
+                INCOMPLETE,
+                "owned codec字节不可擦除为Native文本",
+            )),
+        }
+    }
     /// 字节追加只复制u8，不开放可能深复制payload的泛型Clone入口。
+    pub fn try_extend_bytes_native(
+        &mut self,
+        bytes: &[u8],
+        work: &super::scratch::WorkScope,
+    ) -> Result<(), CodecError> {
+        self.try_reserve_native(work, bytes.len())?;
+        match &mut self.storage {
+            VecStorage::Plain(v) => v.extend_from_slice(bytes),
+            VecStorage::Owned(_) => unreachable!("Native reserve rejects Owned storage"),
+        }
+        Ok(())
+    }
     pub fn try_extend_bytes(&mut self, bytes: &[u8]) -> Result<(), CodecError> {
         self.extend_from_slice(bytes)
     }
@@ -387,6 +710,7 @@ enum IterStorage<T> {
 }
 pub struct CodecVecIntoIter<T> {
     storage: IterStorage<T>,
+    _native_permit: Option<super::scratch::NativeReservation>,
 }
 impl<T> Iterator for CodecVecIntoIter<T> {
     type Item = T;
@@ -421,6 +745,7 @@ impl<T> IntoIterator for CodecVec<T> {
                 VecStorage::Plain(v) => IterStorage::Plain(v.into_iter()),
                 VecStorage::Owned(v) => IterStorage::Owned(v.into_iter()),
             },
+            _native_permit: self.native_permit,
         }
     }
 }
@@ -716,6 +1041,26 @@ pub struct CodecFields {
     storage: FieldsStorage,
 }
 impl CodecFields {
+    /// #1488 Native 保留账：真实 String capacity 加 BTree 节点槽的保守上界。
+    /// 只读；每个来源贡献首次入账/替换时调用，不用于每代扫描旧缓存。
+    /// Owned 的内存由其原预算持有，返回 None，不能擦成 Native 账；溢出也返回 None。
+    #[doc(hidden)]
+    pub fn plain_retained_bytes(&self) -> Option<usize> {
+        let FieldsStorage::Plain(fields) = &self.storage else {
+            return None;
+        };
+        let slot = std::mem::size_of::<(String, super::super::ContentRef)>()
+            .checked_mul(11)?
+            .checked_add(16 * std::mem::size_of::<usize>())?;
+        fields
+            .iter()
+            .try_fold(fields.len().checked_mul(slot)?, |bytes, (key, value)| {
+                bytes
+                    .checked_add(key.capacity())?
+                    .checked_add(value.format.capacity())?
+                    .checked_add(value.root.capacity())
+            })
+    }
     pub fn from_plain(m: BTreeMap<String, super::super::ContentRef>) -> Self {
         Self {
             storage: FieldsStorage::Plain(m),
@@ -909,6 +1254,275 @@ mod allocator_tests {
         assert_eq!(b.snapshot().allocated_layouts, before.allocated_layouts);
         assert_eq!(b.snapshot().allocation_attempts, before.allocation_attempts);
         drop(m);
+        assert_eq!(b.snapshot().live_requested_layout_bytes, 0);
+    }
+}
+
+#[cfg(test)]
+mod native_vec_scope_tests {
+    use super::super::scratch::{
+        CodecWork, ScratchCharge, ScratchFailure, ScratchParent, WorkError,
+    };
+    use super::*;
+    use std::sync::{Arc, Mutex};
+
+    #[derive(Default)]
+    struct Counts {
+        live: usize,
+        native: usize,
+        peak: usize,
+        broken: bool,
+    }
+    struct Parent {
+        limit: usize,
+        counts: Mutex<Counts>,
+    }
+    impl Parent {
+        fn new(limit: usize) -> Arc<Self> {
+            Arc::new(Self {
+                limit,
+                counts: Mutex::new(Counts::default()),
+            })
+        }
+        fn live(&self) -> usize {
+            self.counts.lock().unwrap().live
+        }
+        fn native(&self) -> usize {
+            self.counts.lock().unwrap().native
+        }
+    }
+    impl ScratchParent for Parent {
+        fn reserve(&self, bytes: usize, kind: ScratchCharge) -> Result<u64, ScratchFailure> {
+            let mut c = self.counts.lock().unwrap();
+            let next = c.live.checked_add(bytes).ok_or(ScratchFailure::Budget)?;
+            if next > self.limit {
+                return Err(ScratchFailure::Budget);
+            }
+            c.live = next;
+            c.peak = c.peak.max(next);
+            if matches!(kind, ScratchCharge::Native) {
+                c.native += bytes;
+            }
+            Ok(0)
+        }
+        fn release(
+            &self,
+            bytes: usize,
+            kind: ScratchCharge,
+            origin: u64,
+        ) -> Result<(), ScratchFailure> {
+            if origin != 0 {
+                return Err(ScratchFailure::Ledger);
+            }
+            let mut c = self.counts.lock().unwrap();
+            c.live = c.live.checked_sub(bytes).ok_or(ScratchFailure::Ledger)?;
+            if matches!(kind, ScratchCharge::Native) {
+                c.native = c.native.checked_sub(bytes).ok_or(ScratchFailure::Ledger)?;
+            }
+            Ok(())
+        }
+        fn health(&self) -> Result<(), ScratchFailure> {
+            if self.counts.lock().unwrap().broken {
+                Err(ScratchFailure::Ledger)
+            } else {
+                Ok(())
+            }
+        }
+        fn invalidate(&self) {
+            self.counts.lock().unwrap().broken = true;
+        }
+    }
+    fn run<T>(
+        p: &Arc<Parent>,
+        f: impl FnOnce(&super::super::scratch::WorkScope) -> Result<T, CodecError>,
+    ) -> T {
+        CodecWork::new(p.clone(), p.limit).unwrap().run(f).unwrap()
+    }
+    #[test]
+    fn native_vec_foreign_parent_rejects_spare_growth_and_zero_permit() {
+        for additional in [0, 1, 8] {
+            let a = Parent::new(1 << 20);
+            let b = Parent::new(1 << 20);
+            let mut v = run(&a, |w| {
+                let mut v = CodecVec::default();
+                v.try_push_native(7u64, w)?;
+                Ok(v)
+            });
+            let cap = v.capacity();
+            let charged = a.native();
+            let result = CodecWork::new(b.clone(), b.limit)
+                .unwrap()
+                .run(|w| v.try_reserve_native(w, additional));
+            assert!(matches!(
+                result,
+                Err(WorkError::Resource(ScratchFailure::Ledger))
+            ));
+            assert_eq!(&*v, &[7]);
+            assert_eq!(v.capacity(), cap);
+            assert_eq!(a.native(), charged);
+            assert_eq!(b.live(), 0);
+            drop(v);
+            assert_eq!(a.live(), 0);
+        }
+        let a = Parent::new(1 << 20);
+        let b = Parent::new(1 << 20);
+        let mut empty = run(&a, |w| {
+            let mut v = CodecVec::<u64>::default();
+            v.try_reserve_native(w, 0)?;
+            Ok(v)
+        });
+        assert!(empty.is_native_bound());
+        assert_eq!(empty.capacity(), 0);
+        assert!(CodecWork::new(b.clone(), b.limit)
+            .unwrap()
+            .run(|w| empty.try_reserve_native(w, 0))
+            .is_err());
+        assert_eq!(b.live(), 0);
+        drop(empty);
+        assert_eq!(a.live(), 0);
+    }
+    #[test]
+    fn native_vec_same_parent_new_scope_insert_order_and_refund() {
+        let p = Parent::new(1 << 20);
+        let mut v = run(&p, |w| {
+            let mut v = CodecVec::default();
+            v.try_push_native(1u64, w)?;
+            v.try_push_native(3, w)?;
+            Ok(v)
+        });
+        run(&p, |w| {
+            v.try_reserve_native(w, 0)?;
+            v.try_insert_native(1, 2, w)?;
+            v.try_insert_native(0, 0, w)?;
+            v.try_insert_native(4, 4, w)?;
+            let cap = v.capacity();
+            let before = p.native();
+            assert!(v.try_insert_native(6, 99, w).is_err());
+            assert_eq!(v.capacity(), cap);
+            assert_eq!(p.native(), before);
+            Ok(())
+        });
+        assert_eq!(&*v, &[0, 1, 2, 3, 4]);
+        assert_eq!(p.native(), v.capacity() * std::mem::size_of::<u64>());
+        assert!(v.try_insert(0, 99).is_err());
+        drop(v);
+        assert_eq!(p.live(), 0);
+        let mut bytes = run(&p, |w| {
+            let mut v = CodecVec::default();
+            v.try_extend_bytes_native(b"ab", w)?;
+            Ok(v)
+        });
+        run(&p, |w| bytes.try_extend_bytes_native(b"cd", w));
+        assert_eq!(&*bytes, b"abcd");
+        drop(bytes);
+        assert_eq!(p.live(), 0);
+    }
+    #[test]
+    fn native_vec_failed_or_closed_scope_rejects_zero_growth() {
+        let p = Parent::new(1 << 20);
+        let mut v = run(&p, |w| {
+            let mut v = CodecVec::default();
+            v.try_push_native(7u64, w)?;
+            Ok(v)
+        });
+        let cap = v.capacity();
+        let charge = p.native();
+        let result = CodecWork::new(p.clone(), p.limit).unwrap().run(|w| {
+            let _ = w.reject(ScratchFailure::Budget);
+            assert!(v.try_reserve_native(w, 0).is_err());
+            assert!(v.try_push_native(8, w).is_err());
+            Ok::<_, CodecError>(())
+        });
+        assert!(matches!(
+            result,
+            Err(WorkError::Resource(ScratchFailure::Budget))
+        ));
+        let closed = run(&p, |w| Ok(w.budget()));
+        assert!(v.reserve_native_work(&closed, 0).is_err());
+        assert_eq!(&*v, &[7]);
+        assert_eq!(v.capacity(), cap);
+        assert_eq!(p.native(), charge);
+        drop(closed);
+        drop(v);
+        assert_eq!(p.live(), 0);
+    }
+    #[test]
+    fn native_vec_internal_entry_keeps_current_scope_first_failure() {
+        let a = Parent::new(1 << 20);
+        let b = Parent::new(1 << 20);
+        let mut v = run(&a, |w| {
+            let mut v = CodecVec::default();
+            v.try_push_native(7u64, w)?;
+            Ok(v)
+        });
+        let charge = a.native();
+        let result = CodecWork::new(b.clone(), b.limit).unwrap().run(|w| {
+            let _ = w.reject(ScratchFailure::Budget);
+            v.reserve_native_work(&w.budget(), 0)
+        });
+        assert!(matches!(
+            result,
+            Err(WorkError::Resource(ScratchFailure::Budget))
+        ));
+        assert_eq!(a.native(), charge);
+        assert_eq!(&*v, &[7]);
+        assert_eq!(b.live(), 0);
+        assert!(v
+            .reserve_native_work(&WorkBudget::Owned(OwnedBudget::new(4096)), 0)
+            .is_err());
+        drop(v);
+        assert_eq!(a.live(), 0);
+    }
+    #[test]
+    fn native_vec_growth_failure_is_atomic_and_old_new_are_charged() {
+        for room in [95, 96] {
+            let p = Parent::new(CodecWork::metadata_bytes() + room);
+            let mut v = run(&p, |w| {
+                let mut v = CodecVec::default();
+                for x in 0u64..4 {
+                    v.try_push_native(x, w)?;
+                }
+                Ok(v)
+            });
+            assert_eq!(v.capacity(), 4);
+            let result = CodecWork::new(p.clone(), p.limit)
+                .unwrap()
+                .run(|w| v.try_insert_native(2, 99, w));
+            if room == 95 {
+                assert!(matches!(
+                    result,
+                    Err(WorkError::Resource(ScratchFailure::Budget))
+                ));
+                assert_eq!(&*v, &[0, 1, 2, 3]);
+                assert_eq!(v.capacity(), 4);
+                assert_eq!(p.native(), 32);
+            } else {
+                result.unwrap();
+                assert_eq!(&*v, &[0, 1, 99, 2, 3]);
+                assert_eq!(v.capacity(), 8);
+                assert_eq!(p.native(), 64);
+                assert_eq!(
+                    p.counts.lock().unwrap().peak,
+                    CodecWork::metadata_bytes() + 96
+                );
+            }
+            drop(v);
+            assert_eq!(p.live(), 0);
+        }
+    }
+    #[test]
+    fn plain_owned_insert_preserves_order_and_failed_capacity() {
+        let mut plain = CodecVec::from_plain(vec![1u64, 3]);
+        plain.try_insert(1, 2).unwrap();
+        assert_eq!(&*plain, &[1, 2, 3]);
+        let b = OwnedBudget::new(96);
+        let mut owned = CodecVec::with_capacity(4, Some(&b)).unwrap();
+        for x in 0u64..4 {
+            owned.try_push(x).unwrap();
+        }
+        owned.try_insert(2, 99).unwrap();
+        assert_eq!(&*owned, &[0, 1, 99, 2, 3]);
+        drop(owned);
         assert_eq!(b.snapshot().live_requested_layout_bytes, 0);
     }
 }

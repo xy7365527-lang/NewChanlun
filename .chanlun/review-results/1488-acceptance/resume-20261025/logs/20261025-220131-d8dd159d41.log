@@ -1,0 +1,5 @@
+ref=codex/1488-fix-p2-resume-20261023 sha=d8dd159d413e4172ae4297e27479ebcd16ed049e sub=rust target=/home/hanju/nc-remote/target-r88 cmd=bash -c set\ +e\;\ RUSTFLAGS="-D\ warnings"\ cargo\ check\ --locked\ --all-targets\ --features\ s_session\,s_capture_native_testonly\;\ rc=$\?\;\ cargo\ fmt\ --all\;\ fmt=$\?\;\ git\ diff\ \>\ /home/hanju/nc-remote/logs/1488-resume-fmt.patch\;\ echo\ CHECK_RC=$rc\ FMT_RC=$fmt\;\ \[\ $rc\ =\ 0\ \]\ \&\&\ \[\ $fmt\ =\ 0\ \] 
+    Checking newchan_rust v0.1.0 (/home/hanju/nc-remote/wt/20261025-220131-d8dd159d41/rust)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 22.27s
+CHECK_RC=0 FMT_RC=0
+EXIT=0 SECONDS=26

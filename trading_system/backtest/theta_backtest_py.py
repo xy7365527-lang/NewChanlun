@@ -40,7 +40,6 @@ from trading_system.config.instruments import INSTRUMENTS, make_instrument
 from trading_system.strategy.theta_rec_strategy import ThetaRecStrategy, ThetaRecStrategyConfig
 
 DEFAULT_DATA = REPO_ROOT / "analysis" / "data_cache" / "btc_1m_full.json"
-INITIAL_CAPITAL = 100_000.0
 
 
 def load_btc_bars(
@@ -86,6 +85,15 @@ def main() -> int:
     parser.add_argument("--data", type=Path, default=DEFAULT_DATA)
     parser.add_argument("--bars", type=int, default=300_000, help="最大 bar 数（0=全量）")
     parser.add_argument("--log-level", default="ERROR", help="Nautilus 日志级别")
+    parser.add_argument(
+        "--funding-profile",
+        default=None,
+        help="ADR 0040 funding-record profile（如 P0）；未给 ⟹ AwaitingPolicy，不建引擎、不下单（#1601）",
+    )
+    parser.add_argument(
+        "--diagnostic-fixture", action="store_true",
+        help="用诊断夹具场所 profile 跑，不参与准入（#1602）；仍须给资金记录",
+    )
     args = parser.parse_args()
 
     if not args.data.exists():
@@ -95,6 +103,25 @@ def main() -> int:
     spec = INSTRUMENTS["BTC"]
     instrument = make_instrument(spec)
     venue = instrument.id.venue
+
+    bar_type = BarType.from_str(f"{instrument.id}-1-MINUTE-LAST-EXTERNAL")
+    # #1601：先构造策略——缺 funding-record ⟹ ThetaStream 报 AwaitingPolicy{funding_record}，
+    # 不建引擎、不下单。起始余额 = 记录的 Q_total。
+    try:
+        strategy = ThetaRecStrategy(
+            config=ThetaRecStrategyConfig(
+                instrument_id=instrument.id,
+                bar_type=bar_type,
+                funding_profile=args.funding_profile,
+                venue_profile=None if args.diagnostic_fixture else "P0",
+                preset="diagnostic-fixture" if args.diagnostic_fixture else None,
+            ),
+        )
+    except ValueError as e:
+        print(f"未运行，不下单：{e}", file=sys.stderr)
+        return 2
+    q_total = strategy.engine.q_total
+    print(f"资金记录: {strategy.engine.funding_record}（Q_total {q_total:.0f}）")
 
     engine = BacktestEngine(
         config=BacktestEngineConfig(
@@ -107,18 +134,11 @@ def main() -> int:
         oms_type=OmsType.NETTING,
         account_type=AccountType.MARGIN,
         base_currency=USDC,
-        starting_balances=[Money(INITIAL_CAPITAL, USDC)],
+        starting_balances=[Money(q_total, USDC)],
         fill_model=FillModel(prob_fill_on_limit=0.0, prob_slippage=0.0),
     )
     engine.add_instrument(instrument)
 
-    bar_type = BarType.from_str(f"{instrument.id}-1-MINUTE-LAST-EXTERNAL")
-    strategy = ThetaRecStrategy(
-        config=ThetaRecStrategyConfig(
-            instrument_id=instrument.id,
-            bar_type=bar_type,
-        ),
-    )
     engine.add_strategy(strategy)
 
     print(f"加载 BTC 数据: {args.data}（max_bars={args.bars or '全量'}）")
@@ -135,12 +155,16 @@ def main() -> int:
 
     account = engine.cache.account_for_venue(venue)
     final_bal = account.balance_total(USDC).as_double() if account else float("nan")
-    strat_pct = (final_bal / INITIAL_CAPITAL - 1.0) * 100.0
+    strat_pct = (final_bal / q_total - 1.0) * 100.0
     bh_pct = (closes[-1] / closes[0] - 1.0) * 100.0 if len(closes) >= 2 else 0.0
     d = strategy.engine.finish_full()
     print("\n========== theta_v0 π × NautilusTrader BTC 回测 ==========")
     print(f"bars={len(bars)}  run={run_secs:.1f}s")
-    print(f"NT 真账本: 起始={INITIAL_CAPITAL:.0f} 期末={final_bal:.2f}  strat={strat_pct:+.2f}%")
+    print(f"记录: {', '.join(strategy.engine.records())}")
+    if not strategy.engine.admissible():
+        print("准入: 诊断夹具，不参与准入")
+    print(f"资金记录: {strategy.engine.funding_record}")
+    print(f"NT 真账本: 起始={q_total:.0f} 期末={final_bal:.2f}  strat={strat_pct:+.2f}%")
     print(f"BH={bh_pct:+.2f}%  (closes[0]={closes[0]:.2f} → closes[-1]={closes[-1]:.2f})")
     print(f"策略: bars={strategy.n_bars} orders={strategy.n_orders} dups={strategy.n_dups}")
     print(f"per-leg 账本: n_orders={d.get('n_orders')} reconcile_residual={d.get('reconcile_residual')}")

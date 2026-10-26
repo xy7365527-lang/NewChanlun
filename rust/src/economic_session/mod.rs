@@ -8,6 +8,7 @@ mod finance;
 mod finance_transport;
 mod financial_reader_resources;
 mod service;
+mod sr_expansion;
 mod store;
 mod store_read;
 mod tb03c_allocation;
@@ -48,3 +49,5 @@ mod tb03c_chain_tests;
 mod tb03c_kill_tests;
 #[cfg(test)]
 mod tb03c_rf01_tests;
+#[cfg(test)]
+mod tb03c_v2_kill_tests;

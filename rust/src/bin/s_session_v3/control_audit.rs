@@ -49,12 +49,13 @@ pub(super) fn prepare_s3_control_history_with_owner(
     conn: &Connection,
     owner: Option<&OwnedBudget>,
 ) -> Result<v2::ControlHistory, String> {
-    prepare_s3_control_history_admitted(conn, owner, None)
+    prepare_s3_control_history_admitted(conn, owner, None, None)
 }
 pub(super) fn prepare_s3_control_history_admitted(
     conn: &Connection,
     owner: Option<&OwnedBudget>,
     work: Option<&WorkScope>,
+    before_write: Option<&std::cell::Cell<crate::DeltaShape>>,
 ) -> Result<v2::ControlHistory, String> {
     if let Some(work) = work {
         if owner.is_some() {
@@ -70,7 +71,7 @@ pub(super) fn prepare_s3_control_history_admitted(
         return Err("prototype_audit_allocation_incomplete：owned控制审计未启用".into());
     }
     verify_s3_markers_admitted(conn, owner, work)?;
-    verify_s3_schema_admitted(conn, owner, work)?;
+    verify_s3_schema_admitted(conn, owner, work, before_write)?;
     let _profile = crate::verify_profile_binding_admitted(conn, owner, work)?;
     let epoch = v2::verify_epoch_history_admitted(conn, true, owner, work)?;
     let history =
@@ -187,16 +188,25 @@ pub(crate) fn verify_s3_schema_with_owner(
     conn: &Connection,
     owner: Option<&OwnedBudget>,
 ) -> Result<(), String> {
-    verify_s3_schema_admitted(conn, owner, None)
+    verify_s3_schema_admitted(conn, owner, None, None)
 }
+/// `before_write` 只由写前准入门面给出：源库缺 #1602 列时，期望改为迁移前的精确
+/// structure_deltas，并记下所见形状；其余表与比较核不变。开库后的审计传 None，只认当前 schema。
 pub(crate) fn verify_s3_schema_admitted(
     conn: &Connection,
     owner: Option<&OwnedBudget>,
     work: Option<&WorkScope>,
+    before_write: Option<&std::cell::Cell<crate::DeltaShape>>,
 ) -> Result<(), String> {
     let mut expected = v2::ControlSchema::new(owner);
     for ddl in schema_ddls_admitted(conn, owner, work)? {
         expected.add_ddl_admitted("S3固定DDL", ddl, work)?;
+    }
+    if let Some(shape) = before_write {
+        if crate::policy_records_missing(conn)? {
+            expected.add_ddl_admitted("#1602前Delta", crate::PRE_POLICY_RECORDS_DELTAS, work)?;
+            shape.set(crate::DeltaShape::PrePolicyRecords);
+        }
     }
     v2::verify_control_schema_admitted(conn, &expected, work)?;
     content_store::ensure_format(conn).map_err(|e| format!("StorageUnavailable：{e}"))?;
@@ -437,7 +447,7 @@ mod tests {
         Domain {
             fixture,
             clock_hash,
-            batch_id: receipt.batch_id,
+            batch_id: receipt.batch_id.as_str().to_owned(),
         }
     }
 
@@ -482,12 +492,12 @@ mod tests {
             .unwrap()
             .run(|scope| {
                 // 代表调用方已持有的父域工作；控制链必须继续使用这一本账。
-                NativeAdmission(Some(scope))
-                    .native_admit(137)
-                    .map_err(|e| e.to_string())?;
+                let _caller_payload = NativeAdmission(Some(scope))
+    .native_owned_text("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+    .map_err(|e| e.to_string())?;
                 let before = budget.live();
                 let mut native =
-                    prepare_s3_control_history_admitted(&domain.fixture.conn, None, Some(scope))?;
+                    prepare_s3_control_history_admitted(&domain.fixture.conn, None, Some(scope), None)?;
                 assert_eq!(native.session_generation(), plain.session_generation());
                 assert_eq!(native.clock_plan_hash(), plain.clock_plan_hash());
                 assert_eq!(
@@ -505,17 +515,27 @@ mod tests {
                         Some(COMMIT_NS),
                     )?;
                 }
+                // 第十七处裁改断言（主控裁定 https://github.com/xy7365527-lang/NewChanlun/issues/1488#issuecomment-6298532692）。
+                // 原断言（162d6b7b30，随 PR #1573 入 main）：finish 后 `live == after`「消费已有事实不再复制文本，Native许可留在原父域」，
+                // 离域后 `live > 137`「离开WorkScope不提前释放父域许可」——依赖 main 的 NativeReservation::retain「保守留在父账到父作用域结束」模型。
+                // v4 合同 :9「许可随对象移动，在对象析构以后返还」：finish 析构事实对象后许可回到 before，离域后只剩父账元数据。
+                // 原意图中仍成立的“消费已有事实不再复制文本”保留为 finish 前的 `== after`。
+                assert_eq!(budget.live(), after, "消费已有事实不再复制文本");
                 plain.finish()?;
                 native.finish()?;
                 assert_eq!(
                     budget.live(),
-                    after,
-                    "消费已有事实不再复制文本，Native许可留在原父域"
+                    before,
+                    "v4：Native许可随事实对象析构返还原父域，回到调用方已持有工作"
                 );
                 Ok::<_, String>(())
             })
             .unwrap();
-        assert!(budget.live() > 137, "离开WorkScope不提前释放父域许可");
+        assert_eq!(
+            budget.live(),
+            super::super::audit_owner::native::Budget::metadata_bytes(),
+            "v4：离开WorkScope且全部对象析构后只剩父账元数据，无滞留许可"
+        );
         assert_eq!(budget.scratch_observation().2, 0);
     }
 
@@ -531,7 +551,7 @@ mod tests {
             .codec_work()
             .unwrap()
             .run(|scope| {
-                let native = prepare_s3_control_history_admitted(&conn, None, Some(scope))?;
+                let native = prepare_s3_control_history_admitted(&conn, None, Some(scope), None)?;
                 assert_eq!(native.session_generation(), plain.session_generation());
                 assert_eq!(native.clock_plan_hash(), plain.clock_plan_hash());
                 assert_eq!(

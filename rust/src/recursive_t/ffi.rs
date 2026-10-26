@@ -17,6 +17,7 @@ use super::rec_stream::RecStream;
 use super::stream::TFugueStreamCore;
 use super::{iterate, A0Source, Direction, PerfectionMode, Unit};
 use crate::fugue_v3::layer::FugueResult;
+use crate::funding_record::{py_funding_record, FundingRecord};
 
 /// 解析方向字符串。
 fn parse_dir(s: &str) -> Direction {
@@ -37,8 +38,12 @@ fn parse_mode(s: Option<&str>) -> PerfectionMode {
     }
 }
 
-/// 解析 a₀ 来源字符串（谱系 526）。默认（`None`）= `Segment`（保 bit-exact，现有 Python 调用不变）。
-/// "segment"/"seg" = 线段基线；"stroke"/"bi" = 笔（递归底座下移）。
+/// 解析塔底来源字符串（谱系 526）。默认（`None`）= `Segment`（保 bit-exact，现有 Python 调用不变）。
+/// "segment"/"seg" = 线段基线；"stroke"/"bi" = 笔**已否证对照臂**（#1627 zhongshu §2.1.1：笔不是
+/// `a₀` 合法值），仅为 `rec_btc`（`T_A0=stroke`）复现 526 号 E1 A/B 保留，不进任何准入路径。
+/// `TFugueStream`／`RecTStream` 两个 pyclass 的 `a0` 参数都经此解析；现存 Python 调用者
+/// （`backtest_t_fugue.py:167`、`analysis/capture_ratio_matrix.py:85`、`analysis/t3_exit_trigger_diag.py:36`）
+/// 均不传 `a0`，即全走 `Segment`（#1654 核查）。
 fn parse_a0(s: Option<&str>) -> A0Source {
     match s {
         None | Some("segment") | Some("seg") => A0Source::Segment,
@@ -221,18 +226,27 @@ fn t_result_to_dict<'py>(py: Python<'py>, res: &FugueResult) -> PyResult<Bound<'
 #[pyclass(name = "TFugueStream")]
 pub struct PyTFugueStream {
     core: TFugueStreamCore,
+    funding: FundingRecord,
 }
 
 #[pymethods]
 impl PyTFugueStream {
+    /// `funding_profile`：ADR 0040 funding-record 的 profile（如 `"P0"`）；期初现金池读该记录的
+    /// `Q_total`。未给 ⟹ `AwaitingPolicy{funding_record}` 报错（#1601，无默认）。
     #[new]
-    #[pyo3(signature = (mode=None, a0=None))]
-    fn new(mode: Option<String>, a0: Option<String>) -> Self {
+    #[pyo3(signature = (mode=None, a0=None, funding_profile=None))]
+    fn new(
+        mode: Option<String>,
+        a0: Option<String>,
+        funding_profile: Option<&str>,
+    ) -> PyResult<Self> {
         let perfection = parse_mode(mode.as_deref());
         let a0_source = parse_a0(a0.as_deref());
-        PyTFugueStream {
-            core: TFugueStreamCore::new_with_a0(perfection, a0_source),
-        }
+        let funding = py_funding_record(funding_profile)?;
+        Ok(PyTFugueStream {
+            core: TFugueStreamCore::new_with_a0(perfection, a0_source, funding.q_total_f64()),
+            funding,
+        })
     }
 
     /// 逐 bar 推送 OHLC（NautilusTrader on_bar）。返回本 bar **新增** trade（trade11）。
@@ -272,6 +286,8 @@ impl PyTFugueStream {
         // 递归塔结构普查（TV 谱 + r*）——L2 滤波器度量 P1/P2 结构面，与操作层 a₀ 同源。
         d.set_item("tree_census", self.core.tree_census())?;
         d.set_item("r_star_peak", self.core.max_levels_seen())?;
+        d.set_item("funding_record", self.funding.label())?;
+        d.set_item("q_total", self.funding.q_total)?;
         Ok(d.into())
     }
 }
@@ -289,28 +305,45 @@ impl PyTFugueStream {
 ///
 /// GUARD-ROLE: t-engine-rec-branch-live-python-caller——名分：**现役**（评审 FAIL 后订正，
 /// #762 C7-E3 核定）。PyO3 导出名 `RecTStream`（下方 `#[pyclass(name="RecTStream")]`，非
-/// Rust 内部名 `RecStream`）按 `lib.rs` pymodule 导出名反查有 4 处真实 python 调用者，含
+/// Rust 内部名 `RecStream`）按 `lib.rs` pymodule 导出名反查，当时有 4 处真实 python 调用者，含
 /// NT 生产策略 `trading_system/strategy/rec_t_strategy.py:45`；原按 Rust 内部名
 /// `\.RecStream(` grep python 得"零命中"系漏查（rename 未覆盖），非真实零调用。
+/// 现状（#1654 核查）：`rec_t_strategy.py` 已在 #951 移除，现存调用者只有
+/// `analysis/capture_ratio_matrix.py:85`、`analysis/t3_exit_trigger_diag.py:36` 两处，均不传 `a0`。
 /// 详见 `rec_engine.rs` 头部 GUARD-ROLE 块。
 #[pyclass(name = "RecTStream")]
 pub struct PyRecStream {
     core: RecStream,
+    funding: FundingRecord,
 }
 
 #[pymethods]
 impl PyRecStream {
+    /// `funding_profile`：ADR 0040 funding-record 的 profile（如 `"P0"`）；根账本期初资金读该记录的
+    /// `Q_total`。未给 ⟹ `AwaitingPolicy{funding_record}` 报错（#1601，无默认）。
     #[new]
-    #[pyo3(signature = (mode=None, a0=None))]
-    fn new(mode: Option<String>, a0: Option<String>) -> Self {
+    #[pyo3(signature = (mode=None, a0=None, funding_profile=None))]
+    fn new(
+        mode: Option<String>,
+        a0: Option<String>,
+        funding_profile: Option<&str>,
+    ) -> PyResult<Self> {
         let perfection = parse_mode(mode.as_deref());
         let a0_source = parse_a0(a0.as_deref());
+        let funding = py_funding_record(funding_profile)?;
         // **生产/默认回测引擎 = Face A 纯级别×买卖点统一引擎（做空腿赚 #113，spec §8.1「默认开启」）**：
         // `new_production` ⇒ `EngineConfig::production()`（默认 Face A；env `T_OFF_BASELINE` ⇒ instances
         // OFF 回归守卫；显式变体 env ⇒ 尊重）。python 回测（backtest_t_fugue 等）走此 FFI ⇒ 默认开启 Face A。
-        PyRecStream {
-            core: RecStream::new_production(perfection, a0_source),
-        }
+        Ok(PyRecStream {
+            core: RecStream::new_production(perfection, a0_source, funding.q_total_f64()),
+            funding,
+        })
+    }
+
+    /// 本实例读的 funding-record id 与版本（#1601）。
+    #[getter]
+    fn funding_record(&self) -> String {
+        self.funding.label()
     }
 
     /// 逐 bar 推送 OHLC（NT on_bar）。返回**当前目标净敞口** signed units（long − short）。
@@ -363,6 +396,8 @@ impl PyRecStream {
         let nav = self.core.finish();
         let d = PyDict::new(py);
         d.set_item("final_nav", nav)?;
+        d.set_item("funding_record", self.funding.label())?;
+        d.set_item("q_total", self.funding.q_total)?;
         let trades: Vec<(usize, i64, i64, f64, f64, f64, bool, f64)> =
             self.core.leg_trades().to_vec();
         d.set_item("leg_trades", trades)?;

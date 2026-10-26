@@ -36,8 +36,8 @@ pub(super) use native_record_fields::{native_record_field_stats, reset_native_re
 pub(crate) struct NativeCutProjection<'scope, 'connection, 'capture> {
     capture: &'capture sc::AuditCapture,
     transaction: &'scope Transaction<'connection>,
-    batch: String,
-    binding: Vec<String>,
+    batch: bj::TextValue,
+    binding: sc::CodecVec<bj::TextValue>,
     arrays: [(sc::Built, sc::Built); 5],
     snapshot_members: [sc::CodecVec<NodeDigest>; 3],
     delta_members: [sc::CodecVec<NodeDigest>; 3],
@@ -60,12 +60,12 @@ fn native_cut_binding(
     m: content_manifest::MetadataView<'_>,
     r: content_manifest::RootsView<'_>,
     previous: i64,
-) -> Result<Vec<String>, String> {
+) -> Result<sc::CodecVec<bj::TextValue>, String> {
     let c = m.source_commit;
-    let mut out = Vec::new();
+    let mut out = sc::CodecVec::default();
     // 18 个原字段、4 个十进制字段、4 份 ref 的各4字段。
     store
-        .native_vec_room(&mut out, 18 + 4 + 4 * 4)
+        .native_codec_room(&mut out, 18 + 4 + 4 * 4)
         .map_err(err)?;
     for text in [
         m.session_id,
@@ -87,14 +87,15 @@ fn native_cut_binding(
         c.producer_epoch,
         c.clock_event_id,
     ] {
-        out.push(store.native_string(text).map_err(err)?);
+        out.try_push(store.native_text(text)?).map_err(err)?;
     }
     for value in [m.generation, m.input_frontier, c.attempt_index, previous] {
-        out.push(
+        out.try_push(
             store
-                .native_string(bj::Decimal::new(value).text())
+                .native_text(bj::Decimal::new(value).text())
                 .map_err(err)?,
-        );
+        )
+        .map_err(err)?;
     }
     for v in [
         m.scope,
@@ -103,13 +104,15 @@ fn native_cut_binding(
         r.delta_template,
     ] {
         for text in [v.format(), v.root(), v.kind().name()] {
-            out.push(store.native_string(text).map_err(err)?);
+            out.try_push(store.native_text(text)?).map_err(err)?;
         }
-        out.push(
+        out.try_push(
             store
                 .native_format(format_args!("{:?}", v.extent()))
+                .map(bj::TextValue::Plain)
                 .map_err(err)?,
-        );
+        )
+        .map_err(err)?;
     }
     Ok(out)
 }
@@ -125,7 +128,7 @@ impl NativeCutProjection<'_, '_, '_> {
     ) -> Result<(), String> {
         if !std::ptr::eq(self.transaction, tx)
             || self.batch != batch
-            || self.binding != native_cut_binding(s, m, r, previous)?
+            || self.binding[..] != native_cut_binding(s, m, r, previous)?[..]
             || !s
                 .native_projection_capture()
                 .is_some_and(|c| std::ptr::eq(c, self.capture))
@@ -160,9 +163,11 @@ fn native_cut_projection<'scope, 'connection, 'capture>(
         aux_index::native_cut_members(aux, s, m.generation, true, batch)?;
     let public_array =
         |s: &mut HashReader<'_>, nodes: &[NodeDigest]| -> Result<sc::Built, String> {
-            let mut values = Vec::new();
+            let mut values = sc::CodecVec::default();
             s.native_vec_room(&mut values, nodes.len()).map_err(err)?;
-            values.extend(nodes.iter().copied().map(sc::ValueView::Edge));
+            for digest in nodes {
+                values.try_push(sc::ValueView::Edge(*digest)).map_err(err)?;
+            }
             s.write_template_view(sc::ValueView::Array(&values))
                 .map_err(err)
         };
@@ -171,7 +176,7 @@ fn native_cut_projection<'scope, 'connection, 'capture>(
     Ok(Some(NativeCutProjection {
         capture,
         transaction: tx,
-        batch: s.native_string(batch).map_err(err)?,
+        batch: s.native_text(batch)?,
         binding: native_cut_binding(s, m, roots, previous)?,
         arrays: [
             o[0].clone(),
@@ -263,8 +268,16 @@ impl NativeRawPrefixes {
         }
         let old = [self.raw_nodes.capacity(), self.raw_wire_nodes.capacity()];
         let append = raw.len() - self.raw_nodes.len();
-        native.codec_vec_grow(&mut self.raw_nodes, append)?;
-        native.codec_vec_grow(&mut self.raw_wire_nodes, append)?;
+        // #1488 U2：不追认冷构造遗留的前缀容量；未持本父票者先取新块许可再分配，
+        // 摘要移入后旧块析构，许可随容器移动。已由本父出生者只核身份。
+        native.rebirth_codec_vec(&mut self.raw_nodes, work, append)?;
+        native.rebirth_codec_vec(&mut self.raw_wire_nodes, work, append)?;
+        self.raw_nodes
+            .try_reserve_native(work, append)
+            .map_err(err)?;
+        self.raw_wire_nodes
+            .try_reserve_native(work, append)
+            .map_err(err)?;
         for event in raw.iter().skip(self.raw_nodes.len()) {
             self.raw_nodes
                 .try_push(hash_json_in_store(&store, event, None, None)?)
@@ -360,6 +373,7 @@ pub(super) fn read_indexed_history(
         None,
         None,
         None,
+        SourcePolicy::Ordinary,
     )
 }
 
@@ -387,6 +401,7 @@ pub(super) fn read_indexed_history_for_audit(
         None,
         None,
         None,
+        SourcePolicy::Ordinary,
     )
 }
 
@@ -479,9 +494,37 @@ pub(super) fn read_indexed_history_for_sealed_ordinary_audit<'a>(
     max_render_bytes: Option<u64>,
     budget: Option<&dyn super::audit_budget::Budget>,
     capture: Option<&sc::AuditCapture>,
+    records: Option<&mut NativeRecordFields<'_>>,
+    work: Option<&sc::capture_allocation::scratch::WorkScope>,
+    materials: Option<&mut super::ordinary_materials::OrdinaryAuditMaterials>,
+) -> Result<IndexedHistory, String> {
+    read_indexed_history_with_policy(
+        tx,
+        raw,
+        control,
+        deadline,
+        max_render_bytes,
+        budget,
+        capture,
+        records,
+        work,
+        materials,
+        SourcePolicy::Ordinary,
+    )
+}
+
+pub(super) fn read_indexed_history_with_policy<'a>(
+    tx: &Transaction<'_>,
+    raw: impl Into<RawEventsView<'a>>,
+    control: v2::ControlHistory,
+    deadline: Option<std::time::Instant>,
+    max_render_bytes: Option<u64>,
+    budget: Option<&dyn super::audit_budget::Budget>,
+    capture: Option<&sc::AuditCapture>,
     mut records: Option<&mut NativeRecordFields<'_>>,
     work: Option<&sc::capture_allocation::scratch::WorkScope>,
     materials: Option<&mut super::ordinary_materials::OrdinaryAuditMaterials>,
+    policy: SourcePolicy,
 ) -> Result<IndexedHistory, String> {
     // 清除失败 history 的部分交接材料；不会交给后续 source 审计。
     let result = read_indexed_history_inner(
@@ -491,11 +534,12 @@ pub(super) fn read_indexed_history_for_sealed_ordinary_audit<'a>(
         deadline,
         max_render_bytes,
         budget,
-        budget.is_none(),
+        policy == SourcePolicy::NativeMeasured || budget.is_none(),
         capture,
         records.as_deref_mut(),
         work,
         materials,
+        policy,
     );
     if result.is_err() {
         if let Some(records) = records {
@@ -517,6 +561,7 @@ fn read_indexed_history_inner(
     mut records: Option<&mut NativeRecordFields<'_>>,
     work: Option<&sc::capture_allocation::scratch::WorkScope>,
     materials: Option<&mut super::ordinary_materials::OrdinaryAuditMaterials>,
+    policy: SourcePolicy,
 ) -> Result<IndexedHistory, String> {
     check_deadline(deadline)?;
     #[cfg(feature = "s_capture_native_testonly")]
@@ -537,20 +582,26 @@ fn read_indexed_history_inner(
         Some(source) => source,
         None => reader.as_mut().unwrap(),
     };
-    let capture =
-        capture.filter(|c| c.is_allocation_prototype() || (budget.is_none() && deadline.is_none()));
+    let capture = capture.filter(|c| {
+        c.is_allocation_prototype()
+            || policy == SourcePolicy::NativeMeasured
+            || (budget.is_none() && deadline.is_none())
+    });
     let mut store = match capture {
         Some(c) => HashReader::captured_for_audit(c, max_render_bytes)
             .map_err(err)?
             .with_audit_gate(budget, deadline),
         None => HashReader::metered(source, deadline, max_render_bytes, budget),
     };
-    store = store.with_native_scope(work).map_err(err)?;
-    store.audit_full_arrays = audit_same_material && budget.is_none();
+    store = store
+        .with_source_policy(policy)
+        .with_native_scope(work)
+        .map_err(err)?;
+    store.audit_full_arrays =
+        audit_same_material && (policy == SourcePolicy::NativeMeasured || budget.is_none());
     let mut records = records.take().filter(|memo| {
         audit_same_material
-            && budget.is_none()
-            && deadline.is_none()
+            && (policy == SourcePolicy::NativeMeasured || (budget.is_none() && deadline.is_none()))
             && max_render_bytes.is_none()
             && capture.is_some_and(|capture| memo.belongs_to(capture))
     });
@@ -747,7 +798,7 @@ fn audit_one_published_cut<'capture>(
                 roots.view(),
             )
             .map_err(err)?;
-            (u.value, TextValue::Plain(u.batch_id))
+            (u.value, u.batch_id)
         }
     };
     if value.digest != manifest.digest().map_err(err)?
@@ -836,7 +887,9 @@ fn audit_one_published_cut<'capture>(
     }
     let (withdrawals, replaces) = match &object_sweep {
         Some(sweep) => sweep.changes_admitted(store, objects.entries(), generation)?,
-        None => object_index::changes_at_budgeted(objects.entries(), generation, allocation)?,
+        None => {
+            object_index::changes_at_admitted(store, objects.entries(), generation, allocation)?
+        }
     };
     let mut wire_withdrawals = bj::WithdrawalArray(bj::new_work(allocation));
     for v in withdrawals
@@ -1186,6 +1239,12 @@ fn hash_current_raw(
     let allocation = history_allocation(store)?;
     let mut raw_nodes = bj::new_work(allocation.as_ref());
     for v in raw.iter() {
+        if store.native_measured() {
+            check_deadline(deadline)?;
+            if let Some(budget) = budget {
+                budget.record().map_err(err)?;
+            }
+        }
         store.native_codec_room(&mut raw_nodes, 1).map_err(err)?;
         raw_nodes
             .try_push(hash_json_in_store(store, v, deadline, budget)?)
@@ -1194,6 +1253,11 @@ fn hash_current_raw(
     let mut raw_wire_nodes = bj::new_work(allocation.as_ref());
     for event in raw.iter() {
         check_deadline(deadline)?;
+        if store.native_measured() {
+            if let Some(budget) = budget {
+                budget.record().map_err(err)?;
+            }
+        }
         store
             .native_codec_room(&mut raw_wire_nodes, 1)
             .map_err(err)?;
@@ -1249,10 +1313,34 @@ pub(super) fn revalidate_current_for_reuse(
 pub(super) fn revalidate_current_for_reuse_admitted(
     tx: &Transaction<'_>,
     raw: RawEventsView<'_>,
+    control: v2::ControlHistory,
+    capture: &sc::AuditCapture,
+    cuts: &sc::CodecVec<PublishedCut>,
+    work: Option<&sc::capture_allocation::scratch::WorkScope>,
+) -> Result<(), String> {
+    revalidate_current_for_reuse_measured(
+        tx,
+        raw,
+        control,
+        capture,
+        cuts,
+        work,
+        None,
+        None,
+        SourcePolicy::Ordinary,
+    )
+}
+
+pub(super) fn revalidate_current_for_reuse_measured(
+    tx: &Transaction<'_>,
+    raw: RawEventsView<'_>,
     mut control: v2::ControlHistory,
     capture: &sc::AuditCapture,
     cuts: &sc::CodecVec<PublishedCut>,
     work: Option<&sc::capture_allocation::scratch::WorkScope>,
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn super::audit_budget::Budget>,
+    policy: SourcePolicy,
 ) -> Result<(), String> {
     #[cfg(feature = "s_capture_native_testonly")]
     if let Some(work) = work {
@@ -1262,10 +1350,13 @@ pub(super) fn revalidate_current_for_reuse_admitted(
     }
     #[cfg(not(feature = "s_capture_native_testonly"))]
     verify_required_meta(tx)?;
-    let mut store = HashReader::captured_for_audit(capture, None).map_err(err)?;
+    let mut store = HashReader::captured_for_audit(capture, None)
+        .map_err(err)?
+        .with_source_policy(policy)
+        .with_audit_gate(budget, deadline);
     store = store.with_native_scope(work).map_err(err)?;
     store.audit_full_arrays = true;
-    hash_current_raw(&store, raw, None, None)?;
+    hash_current_raw(&store, raw, deadline, budget)?;
     for cut in cuts {
         let m = &cut.metadata;
         control.consume_header(
@@ -1460,7 +1551,7 @@ fn history_decode(bytes: &[u8], allocation: Option<&OwnedBudget>) -> Result<Json
     if allocation.is_some() {
         return Err(err("owned历史JSON入口未启用"));
     }
-    strict_json(bytes).map(JsonOwner::Plain)
+    strict_json(bytes).map(|value| JsonOwner::Plain(value.into()))
 }
 fn history_canonical_equal(
     view: JsonView<'_>,
@@ -1844,7 +1935,7 @@ fn hash_array_metered_with_work(
 #[derive(Default)]
 struct PrefixArray {
     count: u64,
-    stack: Vec<(u64, NodeDigest)>,
+    stack: sc::CodecVec<(u64, NodeDigest)>,
 }
 impl PrefixArray {
     fn branch(left: &NodeDigest, right: &NodeDigest, count: u64) -> Result<NodeDigest, String> {
@@ -1860,7 +1951,9 @@ impl PrefixArray {
             .checked_add(1)
             .ok_or_else(|| err("前缀叶数溢出"))?;
         sc::checked_frame_len(next).map_err(err)?;
-        self.stack.push((1, sc::frame(sc::tag::SEQ_LEAF, &digest)));
+        self.stack
+            .try_push((1, sc::frame(sc::tag::SEQ_LEAF, &digest)))
+            .map_err(err)?;
         while self.stack.len() >= 2 {
             let (right_count, right) = self.stack[self.stack.len() - 1];
             let (left_count, left) = self.stack[self.stack.len() - 2];
@@ -1872,7 +1965,7 @@ impl PrefixArray {
                 .ok_or_else(|| err("前缀分支叶数溢出"))?;
             let digest = Self::branch(&left, &right, count)?;
             self.stack.truncate(self.stack.len() - 2);
-            self.stack.push((count, digest));
+            self.stack.try_push((count, digest)).map_err(err)?;
         }
         self.count = next;
         Ok(())
@@ -2047,14 +2140,14 @@ impl NodeSource for ReadOwner<'_> {
 }
 
 enum OverlayOwner {
-    Dynamic(BTreeMap<NodeDigest, (u8, Vec<u8>)>),
+    Dynamic(super::audit_store::NativeTree<NodeDigest, (u8, sc::CodecVec<u8>)>),
     #[cfg(test)]
     Bounded(sc::capture_allocation::overlay::OverlaySlab),
 }
 impl OverlayOwner {
     fn get(&self, digest: &NodeDigest) -> Option<(u8, &[u8])> {
         match self {
-            Self::Dynamic(m) => m.get(digest).map(|(t, b)| (*t, b.as_slice())),
+            Self::Dynamic(m) => m.get(digest).map(|(t, b)| (*t, b.as_ref())),
             #[cfg(test)]
             Self::Bounded(s) => s.original(digest),
         }
@@ -2071,32 +2164,11 @@ impl OverlayOwner {
     ) -> Result<(), sc::CodecError> {
         match self {
             Self::Dynamic(m) => {
-                let permit = if let Some(work) = work {
-                    let levels = usize::BITS as usize - (m.len() + 1).leading_zeros() as usize + 2;
-                    let node = 11 * std::mem::size_of::<(NodeDigest, (u8, Vec<u8>))>()
-                        + 16 * std::mem::size_of::<usize>();
-                    let bytes = node
-                        .checked_mul(levels)
-                        .and_then(|n| n.checked_add(b.len()))
-                        .ok_or_else(|| {
-                            work.reject(sc::capture_allocation::scratch::ScratchFailure::Budget)
-                        })?;
-                    Some(work.reserve_native(bytes)?)
-                } else {
-                    None
-                };
-                let mut body = Vec::new();
-                body.try_reserve_exact(b.len()).map_err(|_| {
-                    work.map_or_else(
-                        || sc::CodecError::new(sc::capture_allocation::LIMIT, "overlay分配失败"),
-                        |w| w.reject(sc::capture_allocation::scratch::ScratchFailure::Allocation),
-                    )
-                })?;
-                body.extend_from_slice(b);
-                m.insert(d, (t, body));
-                if let Some(permit) = permit {
-                    permit.retain();
-                }
+                let admission = super::audit_store::NativeAdmission(work);
+                let mut body = sc::CodecVec::default();
+                admission.native_codec_room(&mut body, b.len())?;
+                body.try_extend_bytes(b)?;
+                m.insert_admitted(d, (t, body), &admission)?;
                 Ok(())
             }
             #[cfg(test)]
@@ -2165,7 +2237,14 @@ impl Drop for OverlayOwner {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SourcePolicy {
+    Ordinary,
+    NativeMeasured,
+}
+
 pub(crate) struct HashReader<'a> {
+    policy: SourcePolicy,
     source: ReadOwner<'a>,
     overlay: OverlayOwner,
     owned: Option<sc::ClosedCapturedOwner<'a>>,
@@ -2265,8 +2344,7 @@ impl<'a> HashReader<'a> {
         #[cfg(feature = "s_capture_native_testonly")]
         if self.audit_full_arrays
             && self.owned.is_none()
-            && self.budget.is_none()
-            && self.deadline.is_none()
+            && (self.native_measured() || (self.budget.is_none() && self.deadline.is_none()))
         {
             if let ReadOwner::Captured(capture) = self.source {
                 if !capture.is_allocation_prototype() {
@@ -2288,6 +2366,20 @@ impl<'a> HashReader<'a> {
         deadline: std::time::Instant,
     ) -> Self {
         self.with_audit_gate(None, Some(deadline))
+    }
+    pub(crate) fn with_source_policy(mut self, policy: SourcePolicy) -> Self {
+        self.policy = policy;
+        self
+    }
+    pub(crate) fn native_measured(&self) -> bool {
+        self.policy == SourcePolicy::NativeMeasured
+    }
+    pub(crate) fn native_measure(&self) -> Option<super::audit_budget::NativeMeasure<'a>> {
+        self.native_measured()
+            .then_some(super::audit_budget::NativeMeasure {
+                budget: self.budget,
+                deadline: self.deadline,
+            })
     }
     pub(super) fn with_audit_gate(
         mut self,
@@ -2486,7 +2578,7 @@ impl<'a> HashReader<'a> {
     pub(super) fn captured(capture: &'a sc::AuditCapture, max_render_bytes: Option<u64>) -> Self {
         Self {
             source: ReadOwner::Captured(capture),
-            overlay: OverlayOwner::Dynamic(BTreeMap::new()),
+            overlay: OverlayOwner::Dynamic(Default::default()),
             owned: None,
             work: None,
             #[cfg(feature = "s_capture_native_testonly")]
@@ -2495,6 +2587,7 @@ impl<'a> HashReader<'a> {
             max_render_bytes,
             budget: None,
             audit_full_arrays: false,
+            policy: SourcePolicy::Ordinary,
         }
     }
     #[cfg(test)]
@@ -2541,10 +2634,18 @@ impl<'a> HashReader<'a> {
         if let Some(owner) = &mut self.owned {
             return owner.verify_cached(r, mode);
         }
-        if self.work.is_none() && self.budget.is_none() && self.deadline.is_none() {
+        if self.work.is_none()
+            && (self.native_measured() || (self.budget.is_none() && self.deadline.is_none()))
+        {
             if let ReadOwner::Captured(c) = &self.source {
                 if c.contains(&r.digest()?) {
-                    return c.verify(r, mode);
+                    return c.verify_refview_observed(
+                        r.into(),
+                        mode,
+                        self.native_measure()
+                            .as_ref()
+                            .map(|m| m as &dyn sc::CaptureReadObserver),
+                    );
                 }
             }
         }
@@ -2565,8 +2666,7 @@ impl<'a> HashReader<'a> {
         }
         if self.work.is_some()
             || matches!(self.source, ReadOwner::Dynamic(_))
-            || self.budget.is_some()
-            || self.deadline.is_some()
+            || (!self.native_measured() && (self.budget.is_some() || self.deadline.is_some()))
         {
             return sc::audit_verify_many(self, refs, mode);
         }
@@ -2580,7 +2680,7 @@ impl<'a> HashReader<'a> {
     pub(super) fn new(source: &'a mut dyn NodeSource) -> Self {
         Self {
             source: ReadOwner::Dynamic(source),
-            overlay: OverlayOwner::Dynamic(BTreeMap::new()),
+            overlay: OverlayOwner::Dynamic(Default::default()),
             owned: None,
             work: None,
             #[cfg(feature = "s_capture_native_testonly")]
@@ -2589,6 +2689,7 @@ impl<'a> HashReader<'a> {
             max_render_bytes: None,
             budget: None,
             audit_full_arrays: false,
+            policy: SourcePolicy::Ordinary,
         }
     }
     #[cfg(test)]
@@ -2598,7 +2699,7 @@ impl<'a> HashReader<'a> {
     ) -> Self {
         Self {
             source: ReadOwner::Dynamic(source),
-            overlay: OverlayOwner::Dynamic(BTreeMap::new()),
+            overlay: OverlayOwner::Dynamic(Default::default()),
             owned: None,
             work: None,
             #[cfg(feature = "s_capture_native_testonly")]
@@ -2607,6 +2708,7 @@ impl<'a> HashReader<'a> {
             max_render_bytes: None,
             budget: None,
             audit_full_arrays: false,
+            policy: SourcePolicy::Ordinary,
         }
     }
     #[cfg(test)]
@@ -2617,7 +2719,7 @@ impl<'a> HashReader<'a> {
     ) -> Self {
         Self {
             source: ReadOwner::Dynamic(source),
-            overlay: OverlayOwner::Dynamic(BTreeMap::new()),
+            overlay: OverlayOwner::Dynamic(Default::default()),
             owned: None,
             work: None,
             #[cfg(feature = "s_capture_native_testonly")]
@@ -2626,6 +2728,7 @@ impl<'a> HashReader<'a> {
             max_render_bytes,
             budget: None,
             audit_full_arrays: false,
+            policy: SourcePolicy::Ordinary,
         }
     }
     pub(super) fn metered(
@@ -2636,7 +2739,7 @@ impl<'a> HashReader<'a> {
     ) -> Self {
         Self {
             source: ReadOwner::Dynamic(source),
-            overlay: OverlayOwner::Dynamic(BTreeMap::new()),
+            overlay: OverlayOwner::Dynamic(Default::default()),
             owned: None,
             work: None,
             #[cfg(feature = "s_capture_native_testonly")]
@@ -2645,6 +2748,7 @@ impl<'a> HashReader<'a> {
             max_render_bytes,
             budget,
             audit_full_arrays: false,
+            policy: SourcePolicy::Ordinary,
         }
     }
 }
@@ -2663,7 +2767,8 @@ impl NodeSource for HashReader<'_> {
         self.work
     }
     fn audit_full_array_scan(&self) -> bool {
-        self.audit_full_arrays && self.budget.is_none() && self.deadline.is_none()
+        self.audit_full_arrays
+            && (self.native_measured() || (self.budget.is_none() && self.deadline.is_none()))
     }
     fn max_render_bytes(&self) -> Option<u64> {
         match (self.max_render_bytes, self.source.max_render_bytes()) {
@@ -2672,6 +2777,9 @@ impl NodeSource for HashReader<'_> {
         }
     }
     fn read(&mut self, d: &NodeDigest) -> Result<NodeRead, sc::CodecError> {
+        self.read_scoped(d)?.into_plain()
+    }
+    fn read_scoped(&mut self, d: &NodeDigest) -> Result<sc::job::ScopedNodeRead, sc::CodecError> {
         if self.owned.is_some() {
             return Err(sc::CodecError::new(
                 sc::capture_allocation::INCOMPLETE,
@@ -2682,7 +2790,7 @@ impl NodeSource for HashReader<'_> {
         if let Some(b) = self.budget {
             b.precheck()?;
         }
-        let value = if let Some((tag, body)) = self.overlay.get(d) {
+        let (value, permit) = if let Some((tag, body)) = self.overlay.get(d) {
             #[cfg(test)]
             super::state::trace_read(true);
             let permit = self.reserve_copy(body.len())?;
@@ -2690,19 +2798,13 @@ impl NodeSource for HashReader<'_> {
                 tag,
                 body: body.to_vec(),
             };
-            if let Some(permit) = permit {
-                permit.retain();
-            }
-            result
+            (result, permit)
         } else {
             #[cfg(test)]
             super::state::trace_read(false);
             let permit = self.reserve_source_copy(d)?;
             let result = self.source.read(d)?;
-            if let Some(permit) = permit {
-                permit.retain();
-            }
-            result
+            (result, permit)
         };
         if let Some(b) = self.budget {
             if let NodeRead::Found { tag, body } = &value {
@@ -2710,7 +2812,7 @@ impl NodeSource for HashReader<'_> {
             }
             b.precheck()?;
         }
-        Ok(value)
+        Ok(sc::job::ScopedNodeRead::from_plain(value, permit))
     }
 
     fn checked_read(
@@ -2718,7 +2820,7 @@ impl NodeSource for HashReader<'_> {
         d: &NodeDigest,
     ) -> Result<Option<sc::job::CheckedFrame>, sc::CodecError> {
         self.checked_read_scoped(d)
-            .map(|frame| frame.map(sc::job::ScopedFrame::into_frame))
+            .and_then(|frame| frame.map(sc::job::ScopedFrame::into_frame).transpose())
     }
     fn checked_read_scoped(
         &mut self,
@@ -2733,6 +2835,16 @@ impl NodeSource for HashReader<'_> {
         check_deadline(self.deadline).map_err(|e| sc::CodecError::new("verify_deadline", e))?;
         if let Some(b) = self.budget {
             b.precheck()?;
+        }
+        if self.native_measured() && !self.overlay.contains_key(d) {
+            if let ReadOwner::Captured(capture) = &self.source {
+                let permit = self.reserve_source_copy(d)?;
+                let measure = self.native_measure().expect("NativeMeasured 同次观察器");
+                #[cfg(test)]
+                super::state::trace_read(false);
+                let frame = capture.reader_observed(&measure).checked_read(d)?;
+                return Ok(frame.map(|frame| sc::job::ScopedFrame::new(frame, permit)));
+            }
         }
         if self.budget.is_none() && !self.overlay.contains_key(d) {
             #[cfg(test)]
@@ -2808,8 +2920,10 @@ impl NodeSink for HashReader<'_> {
             return owner.raw_put(digest, tag, body);
         }
         check_deadline(self.deadline).map_err(|e| sc::CodecError::new("verify_deadline", e))?;
-        if let Some(b) = self.budget {
-            b.node(&digest, tag, body)?;
+        if !self.native_measured() {
+            if let Some(b) = self.budget {
+                b.node(&digest, tag, body)?;
+            }
         }
         #[cfg(test)]
         super::state::trace_put();
@@ -2827,8 +2941,8 @@ impl NodeSink for HashReader<'_> {
                 if capture.native_frame_reuse_active_for_testonly()
                     && self.audit_full_arrays
                     && self.owned.is_none()
-                    && self.budget.is_none()
-                    && self.deadline.is_none()
+                    && (self.native_measured()
+                        || (self.budget.is_none() && self.deadline.is_none()))
                     && self.max_render_bytes.is_none()
                     && matches!(&self.overlay, OverlayOwner::Dynamic(nodes) if !nodes.contains_key(&digest))
                 {
@@ -2836,38 +2950,24 @@ impl NodeSink for HashReader<'_> {
                 }
             }
         }
+        if self.native_measured() {
+            if let Some(b) = self.budget {
+                b.node(&digest, tag, body)?;
+            }
+        }
         self.overlay.put(digest, tag, body, self.work)
     }
 }
 
 impl CodecRead for HashReader<'_> {
-    fn parse_rendered_plain(&self, bytes: &[u8]) -> Result<serde_json::Value, String> {
-        #[cfg(feature = "s_capture_native_testonly")]
-        if let (Some(work), Some(native)) = (self.work, self.native_budget) {
-            use super::audit_owner::native::JsonShape;
-            use super::audit_retention::Retained;
-            let permit = native
-                .reserve(JsonShape::scan(bytes).parse_peak())
-                .map_err(|_| {
-                    work.reject(sc::capture_allocation::scratch::ScratchFailure::Budget)
-                        .to_string()
-                })?;
-            let value = newchan_rust::session_protocol::strict_json(bytes)?;
-            // 业务输出仍 Plain。保守保留这笔载荷费到本次父账销毁；不计入 scratch。
-            permit.commit(0, value.heap_bytes());
-            return Ok(value);
-        }
-        #[cfg(feature = "s_capture_native_testonly")]
-        if let Some(work) = self.work {
-            // 已有native::Budget专用口在上面精确结算；scope-only冷口保守留解析峰。
-            let permit = work
-                .reserve_native(super::audit_owner::native::JsonShape::scan(bytes).parse_peak())
-                .map_err(err)?;
-            let value = newchan_rust::session_protocol::strict_json(bytes)?;
-            permit.retain();
-            return Ok(value);
-        }
-        newchan_rust::session_protocol::strict_json(bytes)
+    fn native_measure(&self) -> Option<super::audit_budget::NativeMeasure<'_>> {
+        HashReader::native_measure(self)
+    }
+    fn parse_rendered_plain(
+        &self,
+        bytes: &[u8],
+    ) -> Result<super::business_json::PlainJson, String> {
+        super::business_json::strict_plain_json_admitted(bytes, self.work)
     }
 
     fn lookup_array_ref(
@@ -2884,21 +2984,9 @@ impl CodecRead for HashReader<'_> {
             }
             Ok(out)
         } else {
-            let refs = sc::path::lookup_array_items_refview(self, r)?;
+            let refs = sc::path::lookup_array_items_native(self, r)?;
             let mut out = sc::CodecVec::from_plain(Vec::new());
-            if let Some(work) = self.work {
-                let bytes = refs
-                    .len()
-                    .checked_mul(std::mem::size_of::<RefValue>())
-                    .ok_or_else(|| {
-                        work.reject(sc::capture_allocation::scratch::ScratchFailure::Budget)
-                    })?;
-                let permit = work.reserve_native(bytes)?;
-                out.try_reserve_exact(refs.len()).map_err(|_| {
-                    work.reject(sc::capture_allocation::scratch::ScratchFailure::Allocation)
-                })?;
-                permit.retain();
-            }
+            self.native_codec_room(&mut out, refs.len())?;
             for r in refs {
                 out.try_push(super::audit_store::RefValue::Plain(r))?;
             }
@@ -2917,9 +3005,9 @@ impl CodecRead for HashReader<'_> {
             Some(o) => o
                 .content_ref_owned(r)
                 .map(super::audit_store::RefValue::Owned),
-            None => self
-                .content_ref_of(r)
-                .map(super::audit_store::RefValue::Plain),
+            None => {
+                sc::path::content_ref_of_native(self, r).map(super::audit_store::RefValue::Plain)
+            }
         }
     }
     fn lookup_ref(
@@ -2933,7 +3021,7 @@ impl CodecRead for HashReader<'_> {
                 .lookup_path_owned(r, p)
                 .map(super::audit_store::RefValue::Owned),
             None => {
-                sc::path::lookup_path_refview(self, r, p).map(super::audit_store::RefValue::Plain)
+                sc::path::lookup_path_native(self, r, p).map(super::audit_store::RefValue::Plain)
             }
         }
     }
@@ -2947,7 +3035,7 @@ impl CodecRead for HashReader<'_> {
             Some(o) => o
                 .lookup_path_view_owned(r, &BorrowedFieldPath(key))
                 .map(RefValue::Owned),
-            None => sc::path::lookup_path_view_refview(self, r, &BorrowedFieldPath(key))
+            None => sc::path::lookup_path_view_native(self, r, &BorrowedFieldPath(key))
                 .map(RefValue::Plain),
         }
     }
@@ -2961,7 +3049,7 @@ impl CodecRead for HashReader<'_> {
             Some(owner) => owner
                 .lookup_optional_field_owned(r, key)
                 .map(|value| value.map(RefValue::Owned)),
-            None => sc::path::lookup_optional_field_refview(self, r, key)
+            None => sc::path::lookup_optional_field_native(self, r, key)
                 .map(|value| value.map(RefValue::Plain)),
         }
     }
@@ -2975,7 +3063,7 @@ impl CodecRead for HashReader<'_> {
             Some(o) => o
                 .lookup_object_fields_owned(r, n)
                 .map(super::audit_store::RefFields::Owned),
-            None => sc::path::lookup_fields_refview(self, r, n, false)
+            None => sc::path::lookup_fields_native(self, r, n, false)
                 .map(super::audit_store::RefFields::Plain),
         }
     }
@@ -2989,7 +3077,7 @@ impl CodecRead for HashReader<'_> {
             Some(o) => o
                 .lookup_object_fields_subset_owned(r, n)
                 .map(super::audit_store::RefFields::Owned),
-            None => sc::path::lookup_fields_refview(self, r, n, true)
+            None => sc::path::lookup_fields_native(self, r, n, true)
                 .map(super::audit_store::RefFields::Plain),
         }
     }
@@ -2998,10 +3086,19 @@ impl CodecRead for HashReader<'_> {
         match &mut self.owned {
             Some(o) => o.verify_cached_owned(r, m),
             None => {
-                if self.work.is_none() && self.budget.is_none() && self.deadline.is_none() {
+                if self.work.is_none()
+                    && (self.native_measured()
+                        || (self.budget.is_none() && self.deadline.is_none()))
+                {
                     if let ReadOwner::Captured(c) = &self.source {
                         if c.contains(&r.digest()?) {
-                            return c.verify_refview(r, m);
+                            return c.verify_refview_observed(
+                                r,
+                                m,
+                                self.native_measure()
+                                    .as_ref()
+                                    .map(|m| m as &dyn sc::CaptureReadObserver),
+                            );
                         }
                     }
                 }
@@ -3031,8 +3128,8 @@ impl CodecRead for HashReader<'_> {
             None => {
                 if self.work.is_some()
                     || matches!(self.source, ReadOwner::Dynamic(_))
-                    || self.budget.is_some()
-                    || self.deadline.is_some()
+                    || (!self.native_measured()
+                        && (self.budget.is_some() || self.deadline.is_some()))
                 {
                     return sc::audit_verify_many_refview(self, r, m);
                 }
@@ -3202,7 +3299,7 @@ impl CodecStore for HashReader<'_> {
             Some(o) => o
                 .replace_batch_placeholder_owned(r, p, batch)
                 .map(super::audit_store::RefValue::Owned),
-            None => sc::path::replace_batch_placeholder_refview(self, r, p, batch)
+            None => sc::path::replace_batch_placeholder_native(self, r, p, batch)
                 .map(super::audit_store::RefValue::Plain),
         }
     }
@@ -3318,7 +3415,7 @@ mod tests {
         assert_eq!(jumps.root_at(9011).unwrap(), hash_array(&nodes).unwrap());
         let mut overflow = PrefixArray {
             count: sc::MAX_FRAME_LEN,
-            stack: Vec::new(),
+            stack: sc::CodecVec::default(),
         };
         assert!(overflow.append([0; 32]).is_err());
         assert_eq!(overflow.count, sc::MAX_FRAME_LEN);
@@ -3525,6 +3622,61 @@ mod tests {
             4,
             "已有overlay继续逐次核F"
         );
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_measured_reader_retains_source_role_and_actual_frame_observation() {
+        #[derive(Default)]
+        struct Meter(std::cell::Cell<usize>);
+        impl super::super::audit_budget::Budget for Meter {
+            fn precheck(&self) -> Result<(), sc::CodecError> {
+                Ok(())
+            }
+            fn prepare_node(&self) -> Result<(), sc::CodecError> {
+                Ok(())
+            }
+            fn accept_prepared_frame(
+                &self,
+                _: &sc::job::CheckedFrame,
+            ) -> Result<(), sc::CodecError> {
+                self.0.set(self.0.get() + 1);
+                Ok(())
+            }
+            fn node(&self, _: &NodeDigest, _: u8, _: &[u8]) -> Result<(), sc::CodecError> {
+                panic!("必须消费原 checked frame")
+            }
+            fn record(&self) -> Result<(), sc::CodecError> {
+                Ok(())
+            }
+        }
+        let body = b"native-metered";
+        let digest = sc::frame(sc::tag::BYTES_CHUNK, body);
+        let mut nodes = sc::MemoryNodes::new();
+        nodes.insert_unchecked(digest, sc::tag::BYTES_CHUNK, body.to_vec());
+        let capture = sc::AuditCapture::new(nodes)
+            .enable_native_frame_reuse_for_testonly()
+            .unwrap();
+        let meter = Meter::default();
+        let deadline = Some(std::time::Instant::now() + std::time::Duration::from_secs(10));
+        let mut reader = HashReader::captured(&capture, None)
+            .with_source_policy(SourcePolicy::NativeMeasured)
+            .with_audit_gate(Some(&meter), deadline);
+        reader.enable_full_arrays_for_test();
+        assert!(reader.audit_full_array_scan());
+        assert!(reader.native_projection_capture().is_some());
+        reader.put(digest, sc::tag::BYTES_CHUNK, body).unwrap();
+        assert!(!reader.overlay.contains_key(&digest));
+        let before = sc::frame_calls_on_thread();
+        reader.checked_read(&digest).unwrap().unwrap();
+        reader.checked_read(&digest).unwrap().unwrap();
+        assert_eq!(meter.0.get(), 2);
+        assert_eq!(sc::frame_calls_on_thread() - before, 1);
+        let mut ordinary =
+            HashReader::captured(&capture, None).with_audit_gate(Some(&meter), deadline);
+        ordinary.enable_full_arrays_for_test();
+        assert!(!ordinary.audit_full_array_scan());
+        assert!(ordinary.native_projection_capture().is_none());
     }
 
     #[cfg(feature = "s_capture_native_testonly")]
@@ -4399,7 +4551,7 @@ mod tests {
                     (0..17)
                         .map(|i| {
                             lookup_path(&mut reader, &root, &[PathStep::Index(i)])
-                                .map(crate::v3::audit_store::RefValue::Plain)
+                                .map(crate::v3::audit_store::RefValue::from)
                                 .map_err(|e| format!("SourceAuditInvalid：{e}"))
                         })
                         .collect::<Result<Vec<_>, _>>()
@@ -5446,6 +5598,14 @@ mod tests {
     #[test]
     fn native_dual_actual_template_negative_matrix() {
         // Component-level valid-Merkle negatives, not service/e2e acceptance.
+        fn clone_ref(value: &RefValue) -> RefValue {
+            super::super::audit_store::NativeAdmission(None)
+                .native_ref_clone(value)
+                .unwrap()
+        }
+        fn clone_refs(values: &[RefValue]) -> Vec<RefValue> {
+            values.iter().map(clone_ref).collect()
+        }
         fn normal(r: sc::RefView<'_>) -> ContentRef {
             sc::Built {
                 digest: r.digest().unwrap(),
@@ -5622,8 +5782,8 @@ mod tests {
             "batch_id",
             sc::ValueView::String(&batch),
         );
-        let mut changed = born.clone();
-        changed[0] = RefValue::Plain(born_string);
+        let mut changed = clone_refs(&born);
+        changed[0] = RefValue::from(born_string);
         let changed_array = array(&mut sql, &changed);
         let mut case = original.clone();
         case.delta_template = replace(
@@ -5641,8 +5801,8 @@ mod tests {
             "batch_id",
             sc::ValueView::BatchSelf,
         );
-        let mut changed = items.clone();
-        changed[old] = RefValue::Plain(old_placeholder);
+        let mut changed = clone_refs(&items);
+        changed[old] = RefValue::from(old_placeholder);
         let changed_array = array(&mut sql, &changed);
         let mut case = original.clone();
         case.publication_template = replace(
@@ -5678,8 +5838,8 @@ mod tests {
             wrong_position,
             sc::ValueView::BatchSelf,
         );
-        let mut changed = born.clone();
-        changed[0] = RefValue::Plain(wrong);
+        let mut changed = clone_refs(&born);
+        changed[0] = RefValue::from(wrong);
         let changed_array = array(&mut sql, &changed);
         let mut case = original.clone();
         case.delta_template = replace(
@@ -5692,13 +5852,13 @@ mod tests {
         cases.push(("non-batch-position-placeholder", case));
         for (label, changed) in [
             ("duplicate-member", {
-                let mut v = items.clone();
-                v[1] = v[0].clone();
+                let mut v = clone_refs(&items);
+                v[1] = clone_ref(&v[0]);
                 v
             }),
-            ("missing-member", items[1..].to_vec()),
+            ("missing-member", clone_refs(&items[1..])),
             ("reordered-members", {
-                let mut v = items.clone();
+                let mut v = clone_refs(&items);
                 v.swap(0, 1);
                 v
             }),
@@ -6665,6 +6825,7 @@ fn verify_required_meta_admitted(
 ) -> Result<i64, String> {
     use super::audit_owner::native::JsonShape;
     let admission = super::audit_store::NativeAdmission(Some(work));
+    let mut reserved_bytes = 0usize;
     for key in [
         "session_id",
         "writer_epoch",
@@ -6680,30 +6841,36 @@ fn verify_required_meta_admitted(
         stmt.bind_text(1, key).map_err(err)?;
         if let Some(mut row) = stmt.next().map_err(err)? {
             let text = row.text(0).map_err(err)?;
-            admission.native_admit(text.len()).map_err(err)?;
+            reserved_bytes = reserved_bytes
+                .checked_add(text.len())
+                .ok_or_else(|| err(admission.native_overflow()))?;
             if key == "scope" {
-                admission
-                    .native_admit(JsonShape::scan(text.as_bytes()).parse_peak())
-                    .map_err(err)?;
+                reserved_bytes = reserved_bytes
+                    .checked_add(JsonShape::scan(text.as_bytes()).parse_peak())
+                    .ok_or_else(|| err(admission.native_overflow()))?;
             }
         }
         stmt.finalize().map_err(err)?;
     }
     // format!("cut-{generation}")：初块8，i64最长20位后新块至多24；
     // meta_i64 的两个 label：初块10，增长块 max(20, 5 + key.len())。
-    admission.native_admit(8 + 24).map_err(err)?;
+    reserved_bytes = reserved_bytes
+        .checked_add(8 + 24)
+        .ok_or_else(|| err(admission.native_overflow()))?;
     for key in ["generation", "last_advance_frontier"] {
-        admission
-            .native_admit(10 + 20usize.max(5 + key.len()))
-            .map_err(err)?;
+        reserved_bytes = reserved_bytes
+            .checked_add(10 + 20usize.max(5 + key.len()))
+            .ok_or_else(|| err(admission.native_overflow()))?;
     }
     // validate_scope 原样构造的固定两字段期望对象也与解析树共存。
-    admission
-        .native_admit(
+    reserved_bytes = reserved_bytes
+        .checked_add(
             JsonShape::scan(br#"{"structure":"CompleteCut","economic":"not_started"}"#)
                 .parse_peak(),
         )
-        .map_err(err)?;
+        .ok_or_else(|| err(admission.native_overflow()))?;
+    let _temporaries = admission.native_reservation(reserved_bytes).map_err(err)?;
+    // 原严格核返回时所有String、JSON树、格式化缓冲已析构，随后原许可析构。
     verify_required_meta(tx)
 }
 
@@ -6883,4 +7050,40 @@ pub(super) fn append_owner_cut(
         },
         retained,
     ))
+}
+
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+mod native_reader_owner_tests {
+    use super::*;
+
+    #[test]
+    fn parsed_plain_owner_outlives_reader_and_scope_without_retaining_failed_parse() {
+        let budget = super::super::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
+        let baseline = budget.live();
+        let mut nodes = sc::MemoryNodes::new();
+        let parsed = budget
+            .codec_work()
+            .unwrap()
+            .run(|scope| {
+                let reader = HashReader::new(&mut nodes).with_codec_work(scope, &budget);
+                let before = budget.live();
+                assert!(reader.parse_rendered_plain(br#"{"a":1,"a":2}"#).is_err());
+                assert_eq!(budget.live(), before, "语法失败不得留下原解析许可");
+                let parsed = reader
+                    .parse_rendered_plain(br#"{"a":"payload","b":[1,2,3]}"#)
+                    .unwrap();
+                assert!(budget.live() > before);
+                drop(reader);
+                assert!(budget.live() > before, "解析结果仍拥有许可");
+                Ok::<_, sc::CodecError>(parsed)
+            })
+            .unwrap();
+        assert_eq!(
+            parsed.as_ref(),
+            &serde_json::json!({"a":"payload","b":[1,2,3]})
+        );
+        assert!(budget.live() > baseline);
+        drop(parsed);
+        assert_eq!(budget.live(), baseline);
+    }
 }

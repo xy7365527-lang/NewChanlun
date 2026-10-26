@@ -4,6 +4,7 @@
 import argparse
 import errno
 import fcntl
+from functools import wraps
 import hashlib
 import json
 import os
@@ -18,6 +19,7 @@ import uuid
 from pathlib import Path
 
 from s_socket_client import decode_frame, exchange, validate_reply
+from recovery_admission import AdmissionError, RecoveryAdmission
 
 S_RESOURCE_FIELDS = {"max_frame_bytes", "read_timeout_ms", "write_timeout_ms", "response_timeout_ms",
                      "audit_cache_source_bytes", "queue_capacity", "max_connections"}
@@ -79,6 +81,12 @@ def read_config(path):
         if type(value) is not str or not value:
             raise ValueError("economic_query_config 须为具名配置路径")
         config["economic_query_config"] = str((path.parent / value).resolve())
+    if "admission_job_limits" in config:
+        value = config["admission_job_limits"]
+        if type(value) is not str or not value:
+            raise ValueError("admission_job_limits 须为具名配置路径")
+        # 不先 resolve 掩盖源预算文件的 symlink；R4 固定 FD 负责核验。
+        config["admission_job_limits"] = os.path.abspath(path.parent / value)
     if len(os.fsencode(config["socket"])) > 100:
         raise ValueError("Unix socket 路径超过本 launcher 的跨平台 100 字节上限")
     validate_s_resources(config)
@@ -197,6 +205,38 @@ def process_identity(pid, command=None, *, deadline=None):
     return identity
 
 
+def admission_action(action):
+    """#1527 M2：在控制器边界保存失败当刻的脱敏 prelude，不创建或冒充 Rust Job。"""
+    @wraps(action)
+    def run(self, *args, **kwargs):
+        if self._action_error is not None:
+            raise self._action_error
+        self._action_stage, self._action_returncode = "admission", None
+        try:
+            self.admission.prepare()
+            return action(self, *args, **kwargs)
+        except (OSError, ValueError, TypeError, RecursionError, subprocess.SubprocessError) as exc:
+            if not hasattr(exc, "control_receipt"):
+                lease = self.admission
+                receipt = dict(action=action.__name__, stage=self._action_stage, action_stage=self._action_stage,
+                               admission_stage=lease.stage, wire_bytes=lease.wire_bytes,
+                               wire_scope="python_control_prelude",
+                               elapsed_ms=None if lease.first_read_at is None else
+                               max(0, (time.monotonic() - lease.first_read_at) * 1000))
+                if isinstance(exc, AdmissionError):
+                    receipt.update(stage=exc.stage, admission_stage=exc.stage,
+                                   wire_bytes=exc.wire_bytes, elapsed_ms=exc.elapsed_ms)
+                code = exc.returncode if isinstance(exc, subprocess.CalledProcessError) else self._action_returncode
+                if code is not None:
+                    receipt["returncode"] = code
+                exc.control_receipt = receipt
+            # fsync 的 AdmissionError 仍可在原已核对象上续发；动作失败保原首错。
+            if not isinstance(exc, AdmissionError):
+                self._action_error = exc
+            raise
+    return run
+
+
 class Controller:
     def __init__(self, config, state_dir):
         self.config = config
@@ -208,24 +248,40 @@ class Controller:
         if not self.db.is_absolute():
             raise ValueError("生命周期数据库必须为已解析的绝对路径")
         self.state_dir = state_dir.resolve()
-        self.state_dir.mkdir(parents=True, exist_ok=True)
-        self.db.parent.mkdir(parents=True, exist_ok=True)
+        self.admission = None
+        self._action_error = None
+        self._action_returncode = None
+        # #1527：S 的正常入口只消费既存锚。经济域沿用原独立生命周期。
+        # 在首次控制读取前固定本次启动绝对期限，start/recover 不重新起钟。
+        self.admission_deadline = time.monotonic() + positive(config["startup_timeout_ms"], "startup_timeout_ms") / 1000
+        if self.socket_service == "owner":
+            self.state_dir.mkdir(parents=True, exist_ok=True)
+            self.db.parent.mkdir(parents=True, exist_ok=True)
+        else:
+            self.db = self.db.resolve(strict=True)
         self.db_lock = None
         self.lock = (self.state_dir / ".control.lock").open("a+b")
         try:
             fcntl.flock(self.lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             self.db_lock = Path(str(self.db) + ".control.lock").open("a+b")
             fcntl.flock(self.db_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            owner_path = Path(str(self.db) + ".control-owner.json")
-            owner = {"db": config["db"], "state_dir": str(self.state_dir)}
-            if owner_path.exists():
-                if decode_frame(owner_path.read_bytes()) != owner:
-                    raise ValueError("同一数据库已绑定其他控制目录，不得以新目录采用未知进程")
+            if self.socket_service == "s":
+                self.admission = RecoveryAdmission(self.db, self.state_dir, self.admission_deadline,
+                                                   os.environ, owner_only=True)
+                # 后续 CLI 使用与持久锚完全相同的实际 DB，不采用环境声明的路径。
+                self.db = self.admission.db
+                self.config = {**config, "db": str(self.db)}
             else:
-                with owner_path.open("x") as output:
-                    json.dump(owner, output, ensure_ascii=True)
-                    output.flush()
-                    os.fsync(output.fileno())
+                owner_path = Path(str(self.db) + ".control-owner.json")
+                owner = {"db": config["db"], "state_dir": str(self.state_dir)}
+                if owner_path.exists():
+                    if decode_frame(owner_path.read_bytes()) != owner:
+                        raise ValueError("同一数据库已绑定其他控制目录，不得以新目录采用未知进程")
+                else:
+                    with owner_path.open("x") as output:
+                        json.dump(owner, output, ensure_ascii=True)
+                        output.flush()
+                        os.fsync(output.fileno())
         except (OSError, ValueError) as exc:
             if self.db_lock is not None:
                 self.db_lock.close()
@@ -235,6 +291,8 @@ class Controller:
             raise ValueError("控制目录或数据库已有操作，拒绝并发覆盖进程记录：" + str(exc)) from exc
 
     def close(self):
+        if self.admission is not None:
+            self.admission.close()
         self.db_lock.close()
         self.lock.close()
 
@@ -242,6 +300,8 @@ class Controller:
         return self.state_dir / (service + ".process.json")
 
     def status(self, service, *, deadline=None):
+        if self.admission is not None:
+            self.admission.require_owner()
         if deadline is not None:
             remaining(deadline)
         path = self.record_path(service)
@@ -424,23 +484,36 @@ class Controller:
         environment = dict(os.environ if environment is None else environment)
         # 私有声明只由本次已核冻结原件产生，ambient 值不能替代它或串到旧服务/Q。
         environment.pop("S_CONTROL_RESOURCE_SHA256", None)
+        environment.pop("S_CONTROL_START_GATE", None)
+        start_gate = service == "s" and self.socket_service == "s"
+        if start_gate:
+            environment["S_CONTROL_START_GATE"] = "stdin-v1"
         if resource_identity is not None:
             environment["S_CONTROL_RESOURCE_SHA256"] = resource_identity["sha256"]
         instance_key = "SESSION_CONTROL_INSTANCE_ID" if self.socket_service == "owner" else "S_CONTROL_INSTANCE_ID"
         environment[instance_key] = instance_id
         with (self.state_dir / (service + ".log")).open("ab") as log:
             remaining(deadline)
-            process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
-                                       start_new_session=True, env=environment)
+            process = subprocess.Popen(command, stdin=subprocess.PIPE if start_gate else subprocess.DEVNULL,
+                                       stdout=log, stderr=log,
+                                       start_new_session=True, env=environment, bufsize=0)
         try:
             self.record(service, process.pid, command, instance_id, child=process, deadline=deadline,
                         resource_identity=resource_identity)
+            if start_gate:
+                # #1527：登记原子替换完成后，才允许子进程固定整个源域。
+                remaining(deadline)
+                if process.stdin.write(b"R") != 1:
+                    raise ValueError("S 启动放行管道未完整写入")
+                process.stdin.close()
         except Exception as exc:
+            if start_gate:
+                process.stdin.close()
             # 仅善后本次尚未登记的直接子进程，不触碰其他已运行服务。
             if process.poll() is None:
                 process.terminate()
             try:
-                process.wait(timeout=int(self.config["startup_timeout_ms"]) / 1000)
+                process.wait(timeout=max(0, deadline - time.monotonic()))
             except subprocess.TimeoutExpired as timeout:
                 raise ValueError(f"{service} 登记失败且本次子进程 pid={process.pid} 尚未退出：{exc}") from timeout
             raise
@@ -455,6 +528,7 @@ class Controller:
         )
         result = subprocess.run([python, "-c", probe],
                                 capture_output=True, check=True, timeout=remaining(deadline))
+        self._action_returncode = result.returncode
         remaining(deadline)
         library_dir, library_name, framework, framework_prefix = json.loads(result.stdout)
         # #1373：同一显式 Python 声明的两种安装布局，各自核真实文件。
@@ -555,30 +629,27 @@ class Controller:
             raise ValueError("健康回执返回时本次启动进程身份已失效")
         remaining(deadline)
 
+    @admission_action
     def start_s(self, writer_epoch):
         config = self.config
-        deadline = time.monotonic() + int(config["startup_timeout_ms"]) / 1000
+        deadline = self.admission_deadline
         s3 = launcher_revision(config) == "s-launcher/3"
         validate_s_resources(config)
         positive(writer_epoch, "writer_epoch")
-        environment = self.runtime_environment(deadline)
+        if "admission_job_limits" in config:
+            self.admission.crosscheck_limits(config["admission_job_limits"])
+        self.admission.publish()
+        self._action_stage = "runtime_probe"
+        environment = self.admission.child_environment(self.runtime_environment(deadline))
+        self._action_stage, self._action_returncode = "resources", None
         remaining(deadline)
         resource_identity = self.freeze_s_resources(deadline) if s3 else None
+        self._action_stage = "socket"
         cleanup = self.prepare_socket(deadline)
         initialization = None
-        if not Path(config["db"]).exists():
-            init_command = [config["binary"], "init", "--db", config["db"], "--session", config["session_id"],
-                                   "--catalog", config["catalog"], "--profile", config["profile"],
-                                   "--session-generation", config["session_generation"], "--clock-plan", config["clock_plan"],
-                                   "--delivery-retain-generations", config["delivery_retain_generations"]]
-            if s3:
-                init_command += ["--protocol-revision", "s-session/3"]
-            init = subprocess.run(init_command,
-                                  capture_output=True, check=True, env=environment, timeout=remaining(deadline))
-            initialization = decode_frame(init.stdout)
-            remaining(deadline)
         command = [config["binary"], "serve", "--db", config["db"], "--socket", config["socket"],
-                   "--writer-epoch", writer_epoch, "--profile", config["profile"], "--clock-plan", config["clock_plan"]]
+                   "--writer-epoch", writer_epoch, "--profile", config["profile"], "--clock-plan", config["clock_plan"],
+                   "--admission-job-limits", self.admission.limits_path]
         if s3:
             command += ["--protocol-revision", "s-session/3", "--resource-config", resource_identity["path"]]
         else:
@@ -588,10 +659,13 @@ class Controller:
                               ("audit-cache-source-bytes", "audit_cache_source_bytes")):
                 command += ["--" + option, config["s_resources"][field]]
         remaining(deadline)
+        self.admission.revalidate()
+        self._action_stage = "start_process"
         if s3:
             self.start_process("s", command, environment, deadline=deadline, resource_identity=resource_identity)
         else:
             self.start_process("s", command, environment, deadline=deadline)
+        self._action_stage = "ready"
         return {**self.wait_ready("s", writer_epoch, deadline=deadline), "initialization": initialization,
                 "socket_cleanup": cleanup}
 
@@ -627,6 +701,8 @@ class Controller:
         return result.stdout.decode("ascii")
 
     def start_q(self, query_epoch):
+        if self.admission is not None:
+            self.admission.require_owner()
         config = self.config
         deadline = time.monotonic() + int(config["startup_timeout_ms"]) / 1000
         remaining(deadline)
@@ -683,20 +759,34 @@ class Controller:
         detail = "；观察期间的异常：" + " | ".join(observations) if observations else ""
         raise TimeoutError(service + " 尚未退出，不自动升级信号" + detail)
 
+    @admission_action
     def recover(self, new_epoch, clock_event_id):
-        if self.status("s")["state"] != "stopped":
+        deadline = self.admission_deadline
+        self._action_stage = "recover_status"
+        if self.status("s", deadline=deadline)["state"] != "stopped":
             raise ValueError("须有本控制器记录且已确认原 S 停止，才可恢复换代")
         positive(new_epoch, "new_epoch")
         config = self.config
-        deadline = time.monotonic() + int(config["startup_timeout_ms"]) / 1000
-        environment = self.runtime_environment(deadline)
+        self._action_stage = "admission"
+        if "admission_job_limits" in config:
+            self.admission.crosscheck_limits(config["admission_job_limits"])
+        self.admission.publish()
+        self._action_stage = "runtime_probe"
+        environment = self.admission.child_environment(self.runtime_environment(deadline))
+        self._action_stage, self._action_returncode = "recover_process", None
         command = [config["binary"], "recover", "--db", config["db"], "--new-epoch", new_epoch,
-                   "--clock-plan", config["clock_plan"], "--clock-event-id", clock_event_id]
+                   "--clock-plan", config["clock_plan"], "--clock-event-id", clock_event_id,
+                   "--admission-job-limits", self.admission.limits_path]
         if launcher_revision(config) == "s-launcher/3":
             command += ["--protocol-revision", "s-session/3"]
+        self.admission.revalidate()
         recovery = subprocess.run(command,
                                   capture_output=True, check=True, env=environment, timeout=remaining(deadline))
-        reply = decode_frame(recovery.stdout)
+        self._action_stage, self._action_returncode = "recover_reply", recovery.returncode
+        try:
+            reply = decode_frame(recovery.stdout)
+        except (ValueError, UnicodeError, RecursionError):
+            raise ValueError("恢复回执格式无效") from None
         remaining(deadline)
         return {"service": "s", "state": "recovered", "new_epoch": new_epoch,
                 "reply": reply, "next_action": "start-s --writer-epoch " + new_epoch}
@@ -738,8 +828,16 @@ def main():
             result = control.recover(args.new_epoch, args.clock_event_id)
         print(json.dumps({"ok": True, "result": result}, ensure_ascii=True, indent=2))
         return 0
-    except (OSError, ValueError, subprocess.SubprocessError) as exc:
-        print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=True), file=sys.stderr)
+    except (OSError, ValueError, TypeError, RecursionError, subprocess.SubprocessError) as exc:
+        # 控制原文、重复键文本、子进程输出与 ambient env 不能进入 CLI 错误。
+        error = {"ok": False, "error": "生命周期动作失败", "category": type(exc).__name__}
+        error.update(getattr(exc, "control_receipt", {}))
+        if isinstance(exc, AdmissionError):
+            error.update(code=exc.code, stage=exc.stage, wire_bytes=exc.wire_bytes,
+                         elapsed_ms=exc.elapsed_ms)
+        elif isinstance(exc, subprocess.CalledProcessError):
+            error["returncode"] = exc.returncode
+        print(json.dumps(error, ensure_ascii=True), file=sys.stderr)
         return 1
     finally:
         if control is not None:
