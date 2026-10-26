@@ -280,6 +280,85 @@ impl AuditWalk {
         }
         Ok(result)
     }
+    pub(crate) fn resume_from(
+        &mut self,old:&Self,generation:i64,work:&WorkScope,observer:&dyn LegacyObserver,
+    )->Result<bool,MixedJsonError>{
+        observer.check_work(work).map_err(MixedJsonError::Resource)?;
+        if self.raw.len()<old.raw.len() {return Ok(false);}
+        old.raw.check_retained_source().map_err(MixedJsonError::Resource)?;
+        for (current,previous) in self.raw.iter().zip(old.raw.iter()) {
+            previous.check_retained_source().map_err(MixedJsonError::Resource)?;
+            observer.visit_record("raw_history","resume-raw-current",LegacyRecordRef::Json(current)).map_err(MixedJsonError::Resource)?;
+            observer.visit_record("raw_history","resume-raw-previous",LegacyRecordRef::Json(previous)).map_err(MixedJsonError::Resource)?;
+            if current.as_ref()!=previous.as_ref() {return Ok(false);}
+        }
+        for (current,previous) in [(&self.witnesses,&old.witnesses),(&self.relations,&old.relations),(&self.observations,&old.observations)] {
+            for (id,(record,canonical,g)) in previous.records.iter() {
+                record.check_retained_source().map_err(MixedJsonError::Resource)?;
+                record.as_ref().check_retained_source().map_err(MixedJsonError::Resource)?;
+                observer.visit_record(previous.name,"resume-family-previous",LegacyRecordRef::Json(record.as_ref())).map_err(MixedJsonError::Resource)?;
+                let Some((next,next_c,next_g))=current.records.get(id.as_ref().as_str()) else {return Ok(false)};
+                observer.visit_record(current.name,"resume-family-current",LegacyRecordRef::Json(next.as_ref())).map_err(MixedJsonError::Resource)?;
+                if record.as_ref().as_ref()!=next.as_ref().as_ref() || canonical!=next_c || g!=next_g {return Ok(false);}
+            }
+            for (id,(record,_,g)) in current.records.iter() {
+                observer.visit_record(current.name,"resume-family-birth",LegacyRecordRef::Json(record.as_ref())).map_err(MixedJsonError::Resource)?;
+                if *g<=generation && !previous.records.contains_key(id.as_ref().as_str()) {return Ok(false);}
+            }
+        }
+        let mut matched=0;
+        for (id,record) in self.objects.iter() {
+            observer.visit_record("objects","resume-object-current",LegacyRecordRef::Json(record.as_ref())).map_err(MixedJsonError::Resource)?;
+            let Ok(born)=number(record.as_ref(),"first_known_generation") else {return Ok(false)};
+            if born>generation {continue;}
+            let mut projected=None;
+            if !record["withdrawn_generation"].is_null() {
+                let Ok(withdrawn)=number(record.as_ref(),"withdrawn_generation") else {return Ok(false)};
+                if withdrawn>generation {
+                    use scoped_legacy::{Field,ProjectionKind,ScopedLegacyRecord};
+                    let mut previous=ScopedLegacyRecord::clone_projection(ProjectionKind::AtPreviousLifecycle,record.as_ref(),work)?;
+                    for field in [Field::WithdrawnGeneration,Field::WithdrawalReason,Field::SupersededBy] {
+                        previous.replace_known_field(field,&Value::Null)?;
+                    }
+                    previous.replace_text(Field::Lifecycle,"active")?;
+                    projected=Some(previous.finish());
+                }
+            }
+            let Some(previous)=old.objects.get(id.as_ref().as_str()) else {return Ok(false)};
+            previous.check_retained_source().map_err(MixedJsonError::Resource)?;
+            previous.as_ref().check_retained_source().map_err(MixedJsonError::Resource)?;
+            observer.visit_record("objects","resume-object-previous",LegacyRecordRef::Json(previous.as_ref())).map_err(MixedJsonError::Resource)?;
+            let at_previous=projected.as_ref().map(PlainJson::as_ref).unwrap_or_else(||record.as_ref().as_ref());
+            if previous.as_ref().as_ref()!=at_previous {return Ok(false);}
+            matched+=1;
+        }
+        if matched!=old.objects.len() {return Ok(false);}
+        let copy_tree=|tree:&NativeTree<Text,Shared>|tree.try_copy_mixed(work,|key,value|{
+            Ok((key.try_clone_admitted(work)?,value.share_or_copy_mixed(work,|value,work|value.try_clone_mixed(work))?))
+        }).map_err(MixedJsonError::Resource);
+        let copy_set=|set:&NativeSet<Text>|->Result<NativeSet<Text>,MixedJsonError>{
+            let mut next=NativeSet::default();
+            let admission=NativeAdmission(Some(work));
+            for id in set.iter() {
+                id.check_retained_source().map_err(MixedJsonError::Resource)?;
+                next.insert_admitted(id.try_clone_admitted(work).map_err(MixedJsonError::Resource)?,&admission).map_err(MixedJsonError::Resource)?;
+            }
+            Ok(next)
+        };
+        let active=copy_tree(&old.active)?;
+        let witnesses=copy_set(&old.witnesses.seen)?;
+        let relations=copy_set(&old.relations.seen)?;
+        let observations=copy_set(&old.observations.seen)?;
+        let originals=copy_tree(&old.original_observations)?;
+        self.births.retain(|g,_|*g>generation);
+        self.deaths.retain(|g,_|*g>generation);
+        self.active=active;
+        self.witnesses.seen=witnesses;
+        self.relations.seen=relations;
+        self.observations.seen=observations;
+        self.original_observations=originals;
+        Ok(true)
+    }
     pub(crate) fn finish(&self)->Result<(),MixedJsonError>{
         if !self.births.is_empty() || !self.deaths.is_empty() {
             return Err("StorageUnavailable：对象生灭代不可达".into());

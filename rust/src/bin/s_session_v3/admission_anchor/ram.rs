@@ -1081,6 +1081,15 @@ mod tests {
                 let walk=crate::audit::mixed::AuditWalk::capture(&objects,std::iter::empty(),work,&observer).unwrap();
                 assert_eq!(observer.job.borrow().snapshot().records-before,2);
                 assert!(matches!(walk.finish(),Err(crate::v3::business_json::MixedJsonError::Business(ref s)) if s.contains("生灭代不可达")));
+                objects.execute("UPDATE objects SET withdrawn_generation=2,withdrawal_reason='later'",[]).unwrap();
+                let mut next=crate::audit::mixed::AuditWalk::capture(&objects,std::iter::empty(),work,&observer).unwrap();
+                let before=observer.job.borrow().snapshot().records;
+                assert!(next.resume_from(&walk,1,work,&observer).unwrap());
+                assert_eq!(observer.job.borrow().snapshot().records-before,2);
+                objects.execute("UPDATE objects SET kind='changed'",[]).unwrap();
+                let mut changed=crate::audit::mixed::AuditWalk::capture(&objects,std::iter::empty(),work,&observer).unwrap();
+                assert!(!changed.resume_from(&walk,1,work,&observer).unwrap());
+
             }
             let first = crate::evidence_store::read_node_mixed(&conn,&id,work,&observer).unwrap();
             assert_eq!(first.payload(),payload);
