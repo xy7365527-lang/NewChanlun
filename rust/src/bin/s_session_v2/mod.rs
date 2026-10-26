@@ -4216,3 +4216,5 @@ pub(crate) mod mixed_control;
 pub(crate) fn with_mixed_control_fixture(run: impl FnOnce(&Connection)) {
     tests::with_mixed_control_fixture(run)
 }
+
+pub(crate) mod mixed_root;

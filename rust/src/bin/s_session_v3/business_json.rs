@@ -2706,6 +2706,17 @@ pub(crate) fn mixed_strict_json_owner(
         }
     })
 }
+pub(crate) fn mixed_batch_json_owner(bytes:&[u8],id:&str,work:&WorkScope)->Result<PlainJson,MixedJsonError>{
+    mixed_parse_admitted(bytes,work,||{
+        let parsed=strict_json_owner(bytes,None).map_err(|e|match e{
+            StrictOwnerError::Syntax(e)=>MixedJsonError::Business(format!("StorageUnavailable：batch {id} 规范字节非严格 JSON：{e}")),
+            StrictOwnerError::Allocation(e)=>MixedJsonError::Resource(e),
+            #[cfg(feature="s_allocation_json_testonly")]
+            StrictOwnerError::OwnedSyntax(e)=>MixedJsonError::Business(format!("StorageUnavailable：batch {id} 规范字节非严格 JSON：{e}")),
+        })?;
+        match parsed{JsonOwner::Plain(value)=>Ok(value),#[cfg(feature="s_allocation_json_testonly")]JsonOwner::Owned(_)=>unreachable!("mixed parser uses plain storage")}
+    })
+}
 pub(crate) fn mixed_legacy_json_owner(
     bytes: &[u8],
     work: &WorkScope,
