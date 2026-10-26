@@ -1306,6 +1306,163 @@ fn sr_expansion_content_domain_publishes_real_s_basis_closure() {
     );
 }
 
+/// #1717 R3 负控：与上面正控同一真实 S 非空场景，SR 评估在执行中越过期限。经正式入口，期限在第一个事务前
+/// 确立（`sr_expansion::write` 的 `operation_deadline`），第二个事务的审计（`audit_with_deadline`）通过、
+/// 评估与闭包发布核验完成后，E 连接的 update hook 在 `commits` 追加行上一次性睡过 response_timeout_ms。
+/// receipts 与 messages 写入随后仍在同一事务内执行，提交前期限门必须拒绝并回滚：不留 commit、回执、
+/// 消息绑定或内容变化。manifest 资源与 3000 ms 期限不改，入口已过期的拒绝另见固定卷用例。
+#[test]
+#[ignore = "需 TB1717_HFS_CARRIERS、TB1717_S_BINARY、TB1717_S_EXPORT 与 bind Unix socket 的权限"]
+fn sr_expansion_content_domain_deadline_crossed_in_flight_leaves_no_commit() {
+    use crate::economic_session::content_store::{allocated, carrier_capacity, image_refs};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{Arc, Mutex};
+    let carriers = carriers_from_env();
+    let binary = PathBuf::from(std::env::var("TB1717_S_BINARY").expect("TB1717_S_BINARY 未设置"));
+    let export_path =
+        PathBuf::from(std::env::var("TB1717_S_EXPORT").expect("TB1717_S_EXPORT 未设置"));
+    let export = strict_json(&std::fs::read(&export_path).unwrap()).unwrap();
+    let work = export_path.parent().unwrap().join("sr-in-flight-deadline");
+    std::fs::create_dir_all(&work).unwrap();
+    let session = SSession::start(&binary, &export, &work);
+    let real_s = real_s_from_export(&binary, &export, &session.socket);
+    let (v2, v3) = socket_policies();
+    let mut f = Fixture::content_with_real_s(&carriers, authorizations(&[&v2, &v3]), &real_s);
+    let config = f.configs[0].clone();
+    assert_eq!(config.revision().unwrap(), SCHEMA_V2);
+    let timeout_ms: u64 = required(&config.manifest["resources"], "response_timeout_ms")
+        .unwrap()
+        .parse()
+        .unwrap();
+    assert_eq!(timeout_ms, 3000);
+    for (n, name) in [(1, "alpha"), (2, "beta")] {
+        let p = f.request("PrepareDecision", name)["payload"].clone();
+        let prepared = f.handle(n, &format!("PrepareDecision-{name}"), p);
+        assert_eq!(prepared["kind"], "PreparedReceipt", "{prepared}");
+    }
+    let p = f.request("Reserve", "slot")["payload"].clone();
+    let reserved = f.handle(0, "Reserve-slot", p);
+    assert_eq!(reserved["kind"], "ReserveReceipt", "{reserved}");
+
+    let rows = |c: &rusqlite::Connection| -> Vec<String> {
+        [
+            "commits",
+            "receipts",
+            "messages",
+            "content_nodes",
+            "content_staging",
+        ]
+        .iter()
+        .map(|t| {
+            c.query_row(&format!("SELECT count(*) FROM {t}"), [], |r| {
+                r.get::<_, i64>(0)
+            })
+            .unwrap()
+            .to_string()
+        })
+        .collect()
+    };
+    let before = latest(&f.dbs[0]).unwrap();
+    let refs = image_refs(&before.3).unwrap();
+    assert!(!refs.is_empty(), "E 历史须持有 FinancialBasisEvidence 引用");
+    let before_rows = rows(&f.dbs[0]);
+    let before_content = content_footprint(&f.dbs[0]);
+
+    let started = Instant::now();
+    let slept = Arc::new(AtomicUsize::new(0));
+    let writes = Arc::new(Mutex::new(Vec::<(String, u128)>::new()));
+    let (slept_in_hook, writes_in_hook) = (slept.clone(), writes.clone());
+    // 钩子点晚于期限确立，睡满 response_timeout_ms 即必然越过 min(确立时刻+3000 ms, job 期限)。
+    let crossing = std::time::Duration::from_millis(timeout_ms + 1);
+    f.dbs[0]
+        .update_hook(Some(
+            move |action: rusqlite::hooks::Action, _: &str, table: &str, _: i64| {
+                writes_in_hook
+                    .lock()
+                    .unwrap()
+                    .push((format!("{action:?} {table}"), started.elapsed().as_millis()));
+                if table == "commits" && slept_in_hook.fetch_add(1, Ordering::SeqCst) == 0 {
+                    std::thread::sleep(crossing);
+                }
+            },
+        ))
+        .unwrap();
+    let id = "eval-real-s-in-flight-deadline";
+    let reply = f.handle(0, "sr-in-flight-deadline", evaluation(&f, id, &v2));
+    let replied_ms = started.elapsed().as_millis();
+    f.dbs[0]
+        .update_hook(None::<fn(rusqlite::hooks::Action, &str, &str, i64)>)
+        .unwrap();
+    let writes = writes.lock().unwrap().clone();
+
+    assert_eq!(reply["kind"], "Error", "{reply}");
+    let error = reply["error"].as_str().unwrap();
+    assert!(
+        error.starts_with("Incomplete") && error.contains("期限"),
+        "{reply}"
+    );
+    assert_eq!(slept.load(Ordering::SeqCst), 1, "{writes:?}");
+    let at = writes
+        .iter()
+        .position(|(w, _)| w == "SQLITE_INSERT commits")
+        .unwrap();
+    let staged: Vec<&str> = writes[at..].iter().map(|(w, _)| w.as_str()).collect();
+    assert_eq!(
+        staged,
+        [
+            "SQLITE_INSERT commits",
+            "SQLITE_INSERT receipts",
+            "SQLITE_INSERT messages"
+        ],
+        "越期后回执与消息绑定仍在同一事务内写入"
+    );
+    assert!(
+        writes[at + 1].1 > writes[at].1 + u128::from(timeout_ms),
+        "{writes:?}"
+    );
+    assert_eq!(latest(&f.dbs[0]).unwrap(), before, "越期不得留 E 提交");
+    assert_eq!(
+        rows(&f.dbs[0]),
+        before_rows,
+        "commit、回执、消息绑定与内容行全部回滚"
+    );
+    assert_eq!(content_footprint(&f.dbs[0]), before_content);
+    assert_eq!(
+        row(
+            &f.dbs[0],
+            "receipts",
+            &crate::economic_session::sr_expansion::receipt_key(id)
+        )
+        .unwrap(),
+        None
+    );
+    let looked_up = query(&mut f, id);
+    assert_eq!(looked_up["kind"], "Error", "{looked_up}");
+    let db = &config.db;
+    let (physical, capacity) = (allocated(db).unwrap(), carrier_capacity(db).unwrap());
+    assert!(physical <= capacity, "{physical} > {capacity}");
+    let session_final = session.stop(&binary);
+    let reopened = Config::load(&f.dir.join("manifest.json"), db, None).unwrap();
+    audit(&open(&reopened.db, false).unwrap().0, &reopened).unwrap();
+    f.audit();
+    let writes: Vec<Value> = writes
+        .iter()
+        .map(|(w, ms)| json!({"write":w,"at_ms":ms.to_string()}))
+        .collect();
+    let evidence = json!({"reading":"SessionClosure","response_timeout_ms":timeout_ms.to_string(),
+        "crossing":"E update hook: one sleep of response_timeout_ms+1 on the second transaction's commits insert",
+        "writes":writes,"replied_ms":replied_ms.to_string(),"reply":reply,"query":looked_up,
+        "rows":{"tables":["commits","receipts","messages","content_nodes","content_staging"],"before":before_rows,"after":rows(&f.dbs[0])},
+        "content":{"content_nodes":before_content.0.to_string(),"content_node_bytes":before_content.1.to_string()},
+        "e_content_refs":refs.len().to_string(),"e_allocated_bytes":physical.to_string(),
+        "e_carrier_capacity":capacity.to_string(),"s_session_final":session_final});
+    save(&f.dir, "issue1717-sr-in-flight-deadline.json", &evidence);
+    println!(
+        "ISSUE1717_SR_IN_FLIGHT_DEADLINE {}",
+        canonical_json(&evidence)
+    );
+}
+
 /// 子进程入口：只由本文件的恢复/故障调度以其建立的 job 文件调用。
 #[test]
 #[ignore = "仅供 #1717 SR 评估子进程故障与恢复调度调用，不作独立通过项"]

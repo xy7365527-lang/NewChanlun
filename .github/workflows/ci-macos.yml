@@ -17,7 +17,7 @@ on:
   workflow_dispatch:
     inputs:
       issue1717_real_s_only:
-        description: '只跑 #1717 真实 S 内容域正控作业，跳过已有读数的 macos-session'
+        description: '只跑 #1717 真实 S 内容域正控与在途越期负控作业，跳过已有读数的 macos-session'
         type: boolean
         default: false
   workflow_call:
@@ -107,7 +107,8 @@ jobs:
 
   # #1717 R3 正控：S 侧单 bar 真实 S3 夹具导出库，测试内起停 release s_structure_session 的 financial-serve
   #   只读会话；manifest 冻结 SessionClosure 读法，reader_resources 八项与 E/B response_timeout_ms 3000 保持原值。
-  #   E、B:alpha、B:beta 各占一个 24 MiB 临时 HFS+ 卷（同上）。原件（会话回执、stdout/stderr、证据 JSON）总上传。
+  #   E、B:alpha、B:beta 各占一个 24 MiB 临时 HFS+ 卷（同上）。负控在同一场景的 SR 评估第二事务内越过 3000 ms
+  #   期限，须不留提交；与正控分两次 cargo test 顺序执行，各起一个 S 会话。原件（会话回执、stdout/stderr、证据 JSON）总上传。
   issue1717-real-s:
     runs-on: macos-latest
     timeout-minutes: 60
@@ -135,7 +136,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ runner.arch }}-cargo-registry-v1-
 
-      - name: cargo test — issue 1717 真实 S 内容域正控（单 bar 会话读法，三个临时固定容量 HFS+ 卷）
+      - name: cargo test — issue 1717 真实 S 内容域正控与在途越期负控（单 bar 会话读法，三个临时固定容量 HFS+ 卷）
         run: |
           root="$RUNNER_TEMP/tb1717-real-s"
           mkdir -p "$root/work" "$root/s3" "$root/mnt"
@@ -157,8 +158,12 @@ jobs:
             TB1717_S_BINARY="$PWD/target/release/s_structure_session" \
             cargo test --locked --features s_session --lib -- --ignored --exact --nocapture \
             economic_session::finance::tests::sr_expansion::sr_expansion_content_domain_publishes_real_s_basis_closure
+          TB03B_TEST_ROOT="$root/work" TB1717_HFS_CARRIERS="$carriers" TB1717_S_EXPORT="$root/s3/export.json" \
+            TB1717_S_BINARY="$PWD/target/release/s_structure_session" \
+            cargo test --locked --features s_session --lib -- --ignored --exact --nocapture \
+            economic_session::finance::tests::sr_expansion::sr_expansion_content_domain_deadline_crossed_in_flight_leaves_no_commit
 
-      - name: 上传 issue 1717 正控原件
+      - name: 上传 issue 1717 正控与负控原件
         if: always()
         uses: actions/upload-artifact@v4
         with:
