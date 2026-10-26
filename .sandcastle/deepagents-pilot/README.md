@@ -59,7 +59,7 @@ PYTHONPATH=.sandcastle/deepagents-pilot "$VENV/bin/python" -m pilot1742 run \
 - `judge` 要等两份设计包都完成。裁判在 `judge` checkout 里只读运行，brief 是主控的 rubric，提示里只有“候选 1/候选 2”标签，不出现模型名。
 - `author` 在作者 checkout 里写；`review` 在独审 checkout 里只读审当前候选提交。
 
-另外三个业务工具是 `commit_candidate()`、`check_gate()` 和 `run_status()`。arena 的 Phase D 与 E（选 base、嫁接、合成）由主控在对话里完成，再把合成设计写进作者 brief。
+另外三个业务工具是 `commit_candidate()`、`check_gate()` 和 `run_status()`。arena 的 Phase D 与 E（选 base、嫁接、合成）由主控自己完成，结果写进作者 brief。设计 arena 之后的首个作者 brief 必须单独一行写且只写一个 `BASE: 候选 1` 或 `BASE: 候选 2`，否则作者派工被拒绝；宿主把声明的 base 与裁判首行一起记进 `trail.jsonl` 的 `synthesis` 事件。
 
 每个工蜂的幂等键是 run 加角色加目标 head。同键再调用只会收养已有工蜂，`design` 的两个槽位各自独立收养。
 
@@ -111,7 +111,7 @@ PYTHONPATH=.sandcastle/deepagents-pilot "$VENV/bin/python" -m pilot1742 run \
 
 - 设计候选或裁判失败时，run 停为 `halted`。arena 允许的“少一个候选继续”没有实现。
 - 只支持设计 arena。Feature 第 4 步的实现 arena（多个作者并行写代码）没有通道，作者只有一个，审阅分离靠异家族独审。
-- 合成设计只存在于主控回复与作者 brief 中，没有单独的合成产物文件。
+- 合成说明与合成设计只在作者 brief（`prompts/author-<head>.md`）里，宿主只校验其中的 `BASE` 行，嫁接与拒绝理由的内容不做检查。
 - 每个 run 最多建五个工作树，作者、独审、两个设计、裁判各一个；本仓每个约 1.1 GB。
 - 人类批准链没有端到端演示过，需要真人批准与主控登记。
 
@@ -125,7 +125,7 @@ cd .sandcastle/deepagents-pilot && "$VENV/bin/python" -m pytest -q tests
 
 - 恢复：控制进程 SIGKILL 后收养单个工蜂与并行设计候选；提交后回执前崩溃；意图后派工前崩溃，含两个设计意图之间崩溃。
 - 停机与并发：结果不明时停机；第二个控制进程在任何副作用前被拒绝。
-- 设计通道：槽位、模型与 checkout 固定，作者之前必须完成设计与裁判。
+- 设计通道：槽位、模型与 checkout 固定，作者之前必须完成设计与裁判，作者 brief 必须声明唯一 BASE。
 - 门与审阅：作者 checkout 外部加提交或切分支后拒绝旧批准；VERDICT 首行严格匹配；越界改动不提交；门的正负控。
 
 门测试里的批准记录是测试内合成的，不进入任何 run 的账本。
