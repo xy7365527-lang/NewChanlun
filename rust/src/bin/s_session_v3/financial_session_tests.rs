@@ -1645,9 +1645,6 @@ fn export_real_s3_fixture_for_economic_content_domain() {
     }
     let ids = object_ids(&mut f);
     assert!(!ids.is_empty(), "真实 S3 夹具没有可冷读的当前对象");
-    f.conn
-        .execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")
-        .unwrap();
     let export = json!({"schema_revision":"tb1717-s3-fixture-export/1","db":f.db_path(),
         "session_id":"s-session-testonly-001","session_generation":"1","writer_epoch":"1",
         "profile_id":"ohlc_integer_tb02a_v1","object_ids":ids});

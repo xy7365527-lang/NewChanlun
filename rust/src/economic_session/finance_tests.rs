@@ -315,8 +315,9 @@ impl Fixture {
             structure["reader_session"] = Value::Null;
         }
         if let Some(s) = real_s {
-            // 正式 S 经生产二进制冷读，每次读取都起 S 进程并核二进制摘要；E/B 传输响应期限按此放宽，
-            // 冻结的 reader_resources（含 job 八项与单次 S 期限）不变。
+            // 正式 S 经生产二进制冷读，每次读取都起 S 进程并核二进制摘要；4 根 bar 的真实 basis 一次冷读即需
+            // 约 372 次 S 请求、54 秒（release S，nc-remote 实测）。夹具的 E/B 传输响应期限按此放宽，冻结的
+            // reader_resources（含 job 八项与单次 S 期限）保持已批原值。
             for k in [
                 "binary",
                 "binary_sha256",
@@ -327,7 +328,7 @@ impl Fixture {
             ] {
                 manifest["finance"]["structure"][k] = s["structure"][k].clone();
             }
-            manifest["resources"]["response_timeout_ms"] = json!("60000");
+            manifest["resources"]["response_timeout_ms"] = json!("300000");
         }
         if let Some((resolve_first, _)) = c4a {
             manifest["book_revision"] = json!(book::TB03C_BOOK_V1);

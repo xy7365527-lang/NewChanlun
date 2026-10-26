@@ -1066,10 +1066,16 @@ fn real_s_from_export(binary: &Path, export: &Path) -> Value {
 }
 
 /// #1717 R3 正控：内容域 E 的历史持有非空 FinancialBasisEvidence。B:alpha/B:beta 经正式入口 Prepare 时
-/// 经生产 S 冷读入口读真实 S3 库的 basis 并发布闭包，E Reserve 读 S 并导入两份 peer 证明闭包；随后 SR 评估的同一 job 审计、
-/// 发布核验这份非空闭包并完成最终物理预留与对账，事实含 Reserve 形成的责任。
+/// 经生产 S 冷读入口读真实 S3 库的 basis 并发布闭包，E Reserve 读 S 并导入两份 peer 证明闭包；随后 SR
+/// 评估的同一 job 审计、发布核验这份非空闭包并完成最终物理预留与对账，事实含 Reserve 形成的责任。
+///
+/// 现状阻塞在已批 `s-financial-reader-resources/1`：4 根 bar 的真实 S3 basis 完整闭包实测 274747 节点字节、
+/// 3446 节点，高于冻结上限 192172 与 2614，B Prepare 在 S 读取处 `job_limit_exceeded`，本测试据实失败，
+/// 不改已批值。运行方式：S 侧 `TB1717_S_EXPORT=<json> cargo test --features s_session --bin s_structure_session
+/// -- --ignored --exact v3::financial_session::tests::export_real_s3_fixture_for_economic_content_domain`，
+/// `cargo build --release --features s_session --bin s_structure_session`，再带三卷与两个变量跑本测试。
 #[test]
-#[ignore = "需 TB1717_HFS_CARRIERS 三个临时固定容量 HFS+ 卷、TB1717_S_BINARY 生产 s_structure_session 与 TB1717_S_EXPORT 真实 S3 库；ci-macos.yml 显式运行"]
+#[ignore = "阻塞：真实 S3 basis 闭包超过已批 reader_resources 节点上限；需 TB1717_HFS_CARRIERS、TB1717_S_BINARY、TB1717_S_EXPORT"]
 fn sr_expansion_content_domain_publishes_real_s_basis_closure() {
     use crate::economic_session::content_store::{allocated, carrier_capacity, image_refs};
     let carriers = carriers_from_env();
@@ -1125,7 +1131,11 @@ fn sr_expansion_content_domain_publishes_real_s_basis_closure() {
         "{receipt}"
     );
     let after = latest(&f.dbs[0]).unwrap();
-    assert_eq!(image_refs(&after.3).unwrap(), refs, "评估不新增也不丢失内容引用");
+    assert_eq!(
+        image_refs(&after.3).unwrap(),
+        refs,
+        "评估不新增也不丢失内容引用"
+    );
     let again = f.handle(0, "sr-post-2", request);
     assert_eq!(again, receipt, "原请求重送只取原回执");
     let db = &config.db;
@@ -1136,7 +1146,10 @@ fn sr_expansion_content_domain_publishes_real_s_basis_closure() {
     f.audit();
     let evidence = json!({"carriers":carriers,"s_source":real_s,"finance_steps":steps,"e_content_refs":refs.len().to_string(),"e_content_nodes":nodes.to_string(),"sr_receipt":receipt,"e_allocated_bytes":physical.to_string(),"e_carrier_capacity":capacity.to_string()});
     save(&f.dir, "issue1717-content-domain-real-s.json", &evidence);
-    println!("ISSUE1717_CONTENT_DOMAIN_REAL_S {}", canonical_json(&evidence));
+    println!(
+        "ISSUE1717_CONTENT_DOMAIN_REAL_S {}",
+        canonical_json(&evidence)
+    );
 }
 
 /// 子进程入口：只由本文件的恢复/故障调度以其建立的 job 文件调用。
