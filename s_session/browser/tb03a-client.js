@@ -121,7 +121,16 @@
     need(value.pending_revision === false && integer(value.commit_ns) <= horizon, "结构依据未成立或晚于首次获知");
     // 此 HTTP 合同未提供内容节点；只核持久头/引用，不能声称验证节点闭包或七字段正文绑定。
   }
-  const financeKinds = {ImportResponsibility:"ResponsibilityImportedReceipt", PrepareDecision:"PreparedReceipt", Reserve:"ReserveReceipt", CommitDecision:"LocalCommitReceipt", AbortDecision:"AbortReceipt", CloseApplicants:"ApplicantsClosedReceipt"};
+  const financeKinds = {ImportResponsibility:"ResponsibilityImportedReceipt", PrepareDecision:"PreparedReceipt", Reserve:"ReserveReceipt", CommitDecision:"LocalCommitReceipt", AbortDecision:"AbortReceipt", CloseApplicants:"ApplicantsClosedReceipt", ActivateCapPolicy:"CapPolicyActivatedReceipt"};
+  // #1716：E 在 seq 之前最后一次显式激活的 cap 版本；未激活时由冻结原件派生 v1。
+  function activeCap(image,seq,data) {
+    const last=image.history.filter(e=>e.kind==="ActivateCapPolicy" && BigInt(e.commit_seq)<BigInt(seq)).at(-1);
+    return last?last.record.to:{schema_revision:"funding-cap-policy/1",policy_id:data.policy.policy_id,policy_version:"1",cap:data.policy.cap,valid_through_ns:data.policy.valid_through_ns};
+  }
+  function liabilityBefore(image,seq) {
+    const before=image.history.filter(e=>BigInt(e.commit_seq)<BigInt(seq));
+    return before.filter(e=>e.kind==="ImportResponsibility").reduce((sum,e)=>sum+BigInt(e.record.original.amount),0n)+before.filter(e=>e.kind==="Reserve").flatMap(e=>e.record.grants).reduce((sum,g)=>sum+BigInt(g.amount),0n);
+  }
   async function receiptMatches(r, image, view, discovery) {
     keys(r, ["kind", "domain_id", "record", "first_known_ns", "commit_ns", "cut", "receipt_key"], "财务原回执");
     cut(r.cut, view.cut.domain_id);
@@ -130,7 +139,7 @@
     need(integer(r.first_known_ns)<=integer(r.commit_ns), "回执知识时态不同");
     const e = image.history.find(h => h.commit_seq === r.cut.commit_seq);
     need(e && financeKinds[e.kind] === r.kind && same(e.record, r.record) && e.first_known_ns === r.first_known_ns && e.commit_ns === r.commit_ns, "原回执与历史原件不同");
-    need(r.receipt_key === discovery.finance_revision + ":" + e.kind + ":" + await sha256(e.request.payload[e.kind === "ImportResponsibility" ? "responsibility_id" : ["Reserve","CloseApplicants"].includes(e.kind) ? "slot_id" : "decision_id"]), "原回执键与请求不同");
+    need(r.receipt_key === discovery.finance_revision + ":" + e.kind + ":" + await sha256(e.request.payload[e.kind === "ImportResponsibility" ? "responsibility_id" : ["Reserve","CloseApplicants"].includes(e.kind) ? "slot_id" : e.kind === "ActivateCapPolicy" ? "activation_id" : "decision_id"]), "原回执键与请求不同");
   }
   async function proof(p, horizon, discovery) {
     keys(p, ["domain_id", "receipt", "previous_root", "commit_ns", "image", "current_image", "current_epoch", "current_epoch_at_ns", "current_cut", "current_previous_root", "current_commit_ns"], "对端财务证明");
@@ -212,12 +221,13 @@
     }
     need(assigned.size===data.plans.length && assigned.size>0,"原输入计划未完整纳入非空关闭集合");
   }
-  async function eventBinding(event,view,discovery) {
-    need(["ImportResponsibility","Reserve","CloseApplicants"].includes(event.kind)?view.cut.domain_id==="E":view.cut.domain_id.startsWith("B:"),"财务原事件 owner 域不同");
+  async function eventBinding(event,view,discovery,image) {
+    need(["ImportResponsibility","Reserve","CloseApplicants","ActivateCapPolicy"].includes(event.kind)?view.cut.domain_id==="E":view.cut.domain_id.startsWith("B:"),"财务原事件 owner 域不同");
     const request=event.request.payload,record=event.record,data=inputWitness(event);
     await inputSlots(data,discovery);
-    if(!["AbortDecision","CloseApplicants"].includes(event.kind))need(BigInt(data.policy.valid_through_ns)>=integer(event.commit_ns),"原共同界/能力证据在提交时已过期");
-    const fields={ImportResponsibility:["op","responsibility_id","writer_epoch"],PrepareDecision:["op","decision_id","plan_hash","writer_epoch"],Reserve:["op","slot_id","request_set_hash","writer_epoch"],CommitDecision:["op","decision_id","plan_hash","grant_id","writer_epoch"],AbortDecision:["op","decision_id","plan_hash","writer_epoch","reason"],CloseApplicants:["op","slot_id","writer_epoch","closed","reason"]};
+    const active=activeCap(image,event.commit_seq,data);
+    if(!["AbortDecision","CloseApplicants","ActivateCapPolicy"].includes(event.kind))need(BigInt(event.kind==="Reserve"?active.valid_through_ns:data.policy.valid_through_ns)>=integer(event.commit_ns),"原共同界/能力证据在提交时已过期");
+    const fields={ActivateCapPolicy:["op","activation_id","policy_id","from_version","to_version","cap","valid_through_ns","writer_epoch"],ImportResponsibility:["op","responsibility_id","writer_epoch"],PrepareDecision:["op","decision_id","plan_hash","writer_epoch"],Reserve:["op","slot_id","request_set_hash","writer_epoch"],CommitDecision:["op","decision_id","plan_hash","grant_id","writer_epoch"],AbortDecision:["op","decision_id","plan_hash","writer_epoch","reason"],CloseApplicants:["op","slot_id","writer_epoch","closed","reason"]};
     keys(request,fields[event.kind],"财务原请求业务字段");integer(request.writer_epoch,true);
     if(["PrepareDecision","CommitDecision","AbortDecision"].includes(event.kind)) {
       need(request.decision_id===record.decision_id && request.plan_hash===record.prepared.plan_hash,"原计划摘要/请求业务身份不同");
@@ -226,6 +236,12 @@
       if(event.kind==="AbortDecision")need(request.reason===record.abort_reason,"Abort 请求原因不同");
     } else if(event.kind==="Reserve") {
       need(request.slot_id===record.slot_id && request.request_set_hash===await sha256(record.slot.applicants) && same(record.slot,data.slots.find(s=>s.slot_id===record.slot_id)) && record.policy_id===data.policy.policy_id,"Reserve 请求业务身份或原 slot 不同");
+    } else if(event.kind==="ActivateCapPolicy") {
+      const liability=liabilityBefore(image,event.commit_seq);
+      integer(request.cap,true);integer(request.valid_through_ns);
+      need(request.policy_id===data.policy.policy_id && request.from_version===active.policy_version && BigInt(request.to_version)===BigInt(active.policy_version)+1n && BigInt(request.valid_through_ns)>=integer(event.commit_ns) && liability<=BigInt(request.cap),"cap 激活越过原子点责任/版本/有效期");
+      const to={schema_revision:"funding-cap-policy/1",policy_id:request.policy_id,policy_version:request.to_version,cap:request.cap,valid_through_ns:request.valid_through_ns,activation_id:request.activation_id,replaces_version:request.from_version,liability_at_activation:liability.toString(),activated_seq:event.commit_seq,activated_ns:event.commit_ns};
+      need(same(record,{activation_id:request.activation_id,state:"CapPolicyActivated",from:active,to,liability_at_activation:liability.toString()}),"cap 激活记录与原子点重算不同");
     } else if(event.kind==="ImportResponsibility") {
       const original={responsibility_id:data.baseline.responsibility_id,owner:"E:baseline",amount:data.baseline.amount,source:data.baseline,policy:data.policy};
       need(request.responsibility_id===data.baseline.responsibility_id && same(record,{responsibility_id:data.baseline.responsibility_id,state:"ResponsibilityImported",original}),"原责任导入全公式/身份不同");
@@ -300,6 +316,8 @@
     need(originals.length===f.responsibilities.length && originals.every(r=>f.responsibilities.some(x=>same(x,r))),"责任与原导入/grant 须双向完整覆盖");
     const closed=events.filter(e=>e.kind==="CloseApplicants").flatMap(e=>e.record.closed.map(c=>({...c,slot_id:e.record.slot_id})));
     need(same(f.closed_applicants||[],closed),"关闭申请与原历史须双向覆盖");
+    const activations=events.filter(e=>e.kind==="ActivateCapPolicy");
+    need(activations.length?same(f.cap_policy,activations.at(-1).record.to):!Object.hasOwn(f,"cap_policy"),"当前 cap 版本与激活历史末尾不同");
   }
   function reservePrepared(reserve) {
     const proofs=reserve.witness.prepared_proofs,ids=new Set(),data=inputWitness(reserve),slot=reserve.record;
@@ -380,9 +398,9 @@
   }
   async function verifyFinance(f, view, discovery, image) {
     const domain=view.cut.domain_id;
-    keys(f,["schema_revision","rights","decisions","slots","responsibilities",...(Object.hasOwn(f,"closed_applicants")?["closed_applicants"]:[])],"财务图像");
+    keys(f,["schema_revision","rights","decisions","slots","responsibilities",...(Object.hasOwn(f,"closed_applicants")?["closed_applicants"]:[]),...(Object.hasOwn(f,"cap_policy")?["cap_policy"]:[])],"财务图像");
     need(f.schema_revision === discovery.finance_revision,"未知或混搭财务版本");
-    for(const k of Object.keys(f).filter(k=>k!=="schema_revision"))need(Array.isArray(f[k]),"财务记录族须数组");
+    for(const k of Object.keys(f).filter(k=>k!=="schema_revision" && k!=="cap_policy"))need(Array.isArray(f[k]),"财务记录族须数组");
     financeCoverage(image,view);
     const ids=new Set();
     for(const d of f.decisions){need(!ids.has(d.decision_id),"决定身份重复");ids.add(d.decision_id);await decision(d,view,discovery,image);}
@@ -400,7 +418,7 @@
     }
     const slotIds=new Set();
     for(const s of f.slots){
-      keys(s,["closed_applicants","grants","policy_id","required_total","reserve_ns","reserve_seq","retained_total","slot","slot_id","state","waiting_for"],"财务 slot");
+      keys(s,["closed_applicants","grants","policy_id","required_total","reserve_ns","reserve_seq","retained_total","slot","slot_id","state","waiting_for",...(Object.hasOwn(s,"cap_policy")?["cap_policy"]:[])],"财务 slot");
       need(domain==="E" && !slotIds.has(s.slot_id) && ["Reserved","AwaitingAllocationPolicy"].includes(s.state),"slot 身份或状态不同");slotIds.add(s.slot_id);
       need(Array.isArray(s.grants) && Array.isArray(s.closed_applicants) && s.slot.slot_id===s.slot_id,"slot 原件不同");
       if(s.state==="AwaitingAllocationPolicy")need(s.waiting_for==="#1349/atomic-slot-wait/v1" && s.grants.length===0,"未决政策不能选择赢家");
@@ -423,7 +441,9 @@
       const before=f.responsibilities.filter(r=>!r.grant || BigInt(r.grant.reserved_seq)<BigInt(s.reserve_seq)).reduce((sum,r)=>sum+BigInt(r.amount),0n);
       const required=before+reserve.witness.prepared_proofs.reduce((sum,p)=>sum+BigInt(p.receipt.record.prepared.locked_amount),0n);
       const retained=before+s.grants.reduce((sum,g)=>sum+BigInt(g.amount),0n);
-      need((s.state==="Reserved") === (required<=integer(inputWitness(reserve).policy.cap)) && (s.state!=="Reserved" || (s.grants.length===reserve.witness.prepared_proofs.length && s.waiting_for===null)),"Reserve 原共同界/完整授信状态不同");
+      const cap=activeCap(image,s.reserve_seq,inputWitness(reserve));
+      need(image.history.some(e=>e.kind==="ActivateCapPolicy" && BigInt(e.commit_seq)<BigInt(s.reserve_seq))?same(s.cap_policy,cap):!Object.hasOwn(s,"cap_policy"),"Reserve 所用 cap 版本不同");
+      need((s.state==="Reserved") === (required<=integer(cap.cap)) && (s.state!=="Reserved" || (s.grants.length===reserve.witness.prepared_proofs.length && s.waiting_for===null)),"Reserve 原共同界/完整授信状态不同");
       need(integer(s.retained_total)===retained && integer(s.required_total)===required && required<=9223372036854775807n && retained<=9223372036854775807n,"公共责任总额不同");
     }
   }
@@ -437,7 +457,7 @@
       const first=integer(e.first_known_ns);
       need(integer(e.received_ns)<=first && first<=integer(e.commit_ns) && BigInt(e.commit_ns)<=integer(view.commit_ns) && integer(e.commit_seq,true)<=integer(view.cut.commit_seq),"财务事件知识时态不同");
       need(e.request.schema_revision===revision(discovery) && e.request.session_id===discovery.session_id && e.request.session_generation===discovery.session_generation && e.request.payload.op===e.kind && e.request.payload_hash===await sha256(e.request.payload),"财务历史请求版本或摘要不同");
-      await eventBinding(e,view,discovery);
+      await eventBinding(e,view,discovery,image);
       if(["PrepareDecision","Reserve","CommitDecision"].includes(e.kind))evidence(e.witness.structure,discovery,first);
       if(Object.hasOwn(e.record,"structure_evidence"))evidence(e.record.structure_evidence,discovery,first);
       if(e.kind==="PrepareDecision")need(same(e.record.structure_evidence,e.witness.structure) && e.record.state==="Prepared", "Prepare 依据被替换");
