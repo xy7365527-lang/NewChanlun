@@ -65,11 +65,14 @@ def test_only_published_decisions_count_and_the_latest_wins(record: Record) -> N
 
 @pytest.mark.parametrize("damage", [
     lambda d: (d / "1.json").unlink(),
-    lambda d: (d / "2.json").write_bytes((d / "2.json").read_bytes().replace(b'"signature": "M', b'"signature": "N')),
+    lambda d: (d / "2.json").write_bytes((d / "2.json").read_bytes().replace(b'"signature":"M', b'"signature":"N')),
     lambda d: (d / "2.json").rename(d / "3.json"),
     lambda d: (d / "notes.txt").write_text(""),
     lambda d: (d / "3.json").write_text("{}"),
     lambda d: ((d / "2.json").unlink(), (d / "2.json").symlink_to(d / "1.json")),
+    lambda d: (d / ".pending-2-123").write_text("half written"),
+    lambda d: (d / ".pending-evil").symlink_to(d / "1.json"),
+    lambda d: (d / "2.json").write_bytes((d / "2.json").read_bytes().replace(b'","', b'", "')),
 ])
 def test_damaged_record_fails_closed(record: Record, damage) -> None:  # type: ignore[no-untyped-def]
     record.publish(Decision.APPROVE)
@@ -84,12 +87,6 @@ def test_record_entry_from_an_untrusted_key_fails_closed(record: Record) -> None
     payload = ApprovalPayload(record.chain.request, Decision.APPROVE, 2, record.chain.links[0].receipt_id)
     (record.dir / "2.json").write_bytes(SoftwareKey().receipt(payload.encode()))
     assert record.decide().status is Status.NEEDS_RECONCILIATION
-
-
-def test_pending_files_are_not_part_of_the_record(record: Record) -> None:
-    record.publish(Decision.APPROVE)
-    (record.dir / ".pending-2-123").write_text("half written")
-    assert record.decide().releases
 
 
 def test_a_user_writable_record_is_never_authoritative(tmp_path: Path, key: SoftwareKey,

@@ -110,6 +110,16 @@ refused("receipt with a changed payload byte is refused") {
     _ = try verifyReceipt(tampered, trust: trust)
 }
 
+let canonical = String(decoding: first.json, as: UTF8.self)
+refused("a receipt with a duplicate payload key is refused") {
+    let otherPayload = second.payload.base64EncodedString()
+    _ = try verifyReceipt(Data(canonical.replacingOccurrences(of: "{", with: "{\"payload\":\"\(otherPayload)\",").utf8),
+                          trust: trust)
+}
+refused("a receipt spelled with extra whitespace is refused") {
+    _ = try verifyReceipt(Data(canonical.replacingOccurrences(of: "\",\"", with: "\", \"").utf8), trust: trust)
+}
+
 let scratch = FileManager.default.temporaryDirectory.appendingPathComponent("approval-core-check-\(getpid())").path
 try FileManager.default.createDirectory(atPath: scratch, withIntermediateDirectories: true)
 defer { try? FileManager.default.removeItem(atPath: scratch) }
@@ -165,9 +175,11 @@ try withChange("a foreign entry fails closed", {
 try withChange("an entry stored under the wrong sequence fails closed", {
     try FileManager.default.moveItem(atPath: nonceDir + "/2.json", toPath: nonceDir + "/3.json")
 }, undo: { try FileManager.default.moveItem(atPath: nonceDir + "/3.json", toPath: nonceDir + "/2.json") })
-try Data().write(to: URL(fileURLWithPath: nonceDir + "/.pending-9-1"))
-check((try? store.chain(nonce: request.requestNonce, trust: trust).count) == 2, "leftover pending files are ignored")
-try FileManager.default.removeItem(atPath: nonceDir + "/.pending-9-1")
+try withChange("a stray dot-file in a chain directory fails closed", {
+    try Data().write(to: URL(fileURLWithPath: nonceDir + "/.pending-9-1"))
+}, undo: { try FileManager.default.removeItem(atPath: nonceDir + "/.pending-9-1") })
+try Data().write(to: URL(fileURLWithPath: scratch + "/.staging/leftover"))
+check((try? store.chain(nonce: request.requestNonce, trust: trust).count) == 2, "staging leftovers are outside every chain")
 
 if CommandLine.arguments.count == 2 {
     let dir = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)

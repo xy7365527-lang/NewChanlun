@@ -18,7 +18,6 @@ from typing import Final
 from .protocol import ProtocolError, TrustRoot, VerifiedReceipt, trust_path_problem, verify_receipt
 
 AUTHORITY_ROOT: Final = Path("/Library/Application Support/NewChanlun/approval-receipts")
-PENDING_PREFIX: Final = ".pending-"
 _ENTRY = re.compile(r"([1-9][0-9]{0,17})\.json")
 _NONCE = re.compile(r"[0-9a-f]{32}")
 
@@ -27,7 +26,9 @@ def load_chain(nonce: str, trust: TrustRoot, root: Path = AUTHORITY_ROOT) -> lis
     """Every published decision for `nonce`, in order. Empty if none has been published.
 
     Raises ProtocolError for anything the publisher would never have written:
-    an unprotected path, a foreign entry, a bad signature, an entry stored under
+    an unprotected path, any entry other than `<sequence>.json` (the publisher
+    stages its temporary files outside the chain directory), a non-canonical or
+    badly signed receipt, an entry stored under
     the wrong sequence or nonce, a gap, or a broken link.
     """
     if not _NONCE.fullmatch(nonce):
@@ -48,8 +49,6 @@ def load_chain(nonce: str, trust: TrustRoot, root: Path = AUTHORITY_ROOT) -> lis
 
     by_sequence: dict[int, VerifiedReceipt] = {}
     for name in os.listdir(directory):
-        if name.startswith(PENDING_PREFIX):
-            continue
         match = _ENTRY.fullmatch(name)
         if match is None:
             raise ProtocolError(f"unexpected entry {name} in the authority record")

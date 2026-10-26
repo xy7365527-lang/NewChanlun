@@ -11,7 +11,7 @@ let usage = """
   newchanlun-approve status --request FILE
   newchanlun-approve show --request FILE --decision approve|reject [--raw]
   newchanlun-approve sign --request FILE --decision approve|reject [--key-dir DIR]
-  sudo newchanlun-approve publish --receipt FILE
+  sudo -k newchanlun-approve publish --receipt FILE
 
 sign 先显示待签内容，再弹出系统认证签名，随后用 sudo 把回执发布到 root 所有的权威记录。
 只有发布成功的决定才生效。认证取消则不签名；sudo 取消或失败则回执停在“待发布”，未生效。
@@ -220,7 +220,7 @@ func run(_ args: [String]) throws {
         let pending = savePending(receipt, keyDir: dir)
         print("已签名，尚未生效。现在发布到权威记录，sudo 会要你的密码。")
         if publishWithSudo(receipt.json) { return }
-        let retry = pending.map { "回执存于 \($0)。确认后重试：sudo \"\(installedHelperPath)\" publish --receipt \"\($0)\"" }
+        let retry = pending.map { "回执存于 \($0)。确认后重试：sudo -k \"\(installedHelperPath)\" publish --receipt \"\($0)\"" }
             ?? "回执未能存盘，需重新 sign。"
         print("""
 
