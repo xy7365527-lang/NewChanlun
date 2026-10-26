@@ -61,13 +61,16 @@ pub(super) fn read_mode(conn: &Connection) -> Result<Mode, String> {
         .map_err(|e| format!("StorageUnavailable：读私有格式登记失败：{e}"))?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| format!("StorageUnavailable：私有格式登记行损坏：{e}"))?;
-    validate_mode_rows(rows.len(),rows.first().map(|(n,s)|(*n,s.as_str())))
+    validate_mode_rows(rows.len(), rows.first().map(|(n, s)| (*n, s.as_str())))
 }
-pub(super) fn validate_mode_rows(count:usize,first:Option<(i64,&str)>)->Result<Mode,String>{
-    if count!=1 {
-        return Err(format!("StorageUnavailable：私有格式登记必须恰一行（实际 {} 行，缺行/多行一律拒绝）",count));
+pub(super) fn validate_mode_rows(count: usize, first: Option<(i64, &str)>) -> Result<Mode, String> {
+    if count != 1 {
+        return Err(format!(
+            "StorageUnavailable：私有格式登记必须恰一行（实际 {} 行，缺行/多行一律拒绝）",
+            count
+        ));
     }
-    let (singleton,format)=first.expect("one row has a first row");
+    let (singleton, format) = first.expect("one row has a first row");
     if singleton != 1 {
         return Err("StorageUnavailable：私有格式登记 singleton 非 1".into());
     }

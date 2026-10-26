@@ -620,7 +620,7 @@ fn normalize_schema(s: &str) -> String {
     let mut out = String::new();
     normalize_schema_chunks(s, |v| {
         out.push_str(v);
-        Ok::<(),String>(())
+        Ok::<(), String>(())
     })
     .expect("normal String sink");
     out
@@ -738,7 +738,7 @@ impl ControlSchema {
         })
     }
 }
-fn ddl_table_entries<E:From<String>>(
+fn ddl_table_entries<E: From<String>>(
     label: &str,
     ddl: &str,
     mut emit: impl FnMut(&str, &str) -> Result<(), E>,
@@ -1759,9 +1759,13 @@ pub(super) fn validate_control_history_with_owner(
 ) -> Result<ControlHistory, String> {
     validate_control_history_admitted(conn, protocol_revision, epoch_facts, owner, None)
 }
-fn verify_control_catalog_admitted(conn:&Connection,owner:Option<&OwnedBudget>,work:Option<&WorkScope>)->Result<(),String>{
+fn verify_control_catalog_admitted(
+    conn: &Connection,
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<(), String> {
     use control_json::field;
-    use newchan_rust::session_protocol::{canonical_hash_view_with_owner,required_view};
+    use newchan_rust::session_protocol::{canonical_hash_view_with_owner, required_view};
     let catalog_raw = control_meta_text_admitted(conn, "catalog_definition", owner, work)?
         .ok_or_else(|| err("v2缺catalog来源"))?;
     let catalog_hash = control_meta_text_admitted(conn, "catalog_hash", owner, work)?
@@ -1880,7 +1884,7 @@ pub(super) fn validate_control_history_admitted(
     let root_g = control_meta_i64_admitted(conn, "generation", owner, work)?;
     let sid = control_meta_text_admitted(conn, "session_id", owner, work)?
         .ok_or_else(|| err("缺session"))?;
-    verify_control_catalog_admitted(conn,owner,work)?;
+    verify_control_catalog_admitted(conn, owner, work)?;
     let (ps,pi,pr,keep,first,head) = control_query_row(conn,c"SELECT session_id,session_generation,policy_revision,retain_generations,first_available_generation,head_generation FROM s_delivery_policy WHERE singleton=1", &[], |r| Ok((TextValue::from_sql_admitted(r,0,owner, work)?,TextValue::from_sql_admitted(r,1,owner, work)?,TextValue::from_sql_admitted(r,2,owner, work)?,r.integer(3).map_err(|e|e.to_string())?,r.integer(4).map_err(|e|e.to_string())?,r.integer(5).map_err(|e|e.to_string())?)))?;
     validate_delivery_policy(&ps, &pi, &pr, keep, first, head, &sid, &inc, root_g)?;
     let mut stmt = conn

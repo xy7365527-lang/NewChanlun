@@ -390,24 +390,38 @@ pub(crate) fn sql_text<'row>(
         )),
     }
 }
-pub(crate) fn project_raw_history_row(row:&rusqlite::Row<'_>,work:&WorkScope)->Result<PlainJson,MixedSqlError>{
-    raw_history_row(row,work,false)
+pub(crate) fn project_raw_history_row(
+    row: &rusqlite::Row<'_>,
+    work: &WorkScope,
+) -> Result<PlainJson, MixedSqlError> {
+    raw_history_row(row, work, false)
 }
-pub(crate) fn decode_raw_history_row(row:&rusqlite::Row<'_>,work:&WorkScope)->Result<PlainJson,MixedSqlError>{
-    raw_history_row(row,work,true)
+pub(crate) fn decode_raw_history_row(
+    row: &rusqlite::Row<'_>,
+    work: &WorkScope,
+) -> Result<PlainJson, MixedSqlError> {
+    raw_history_row(row, work, true)
 }
 fn raw_history_row(
     row: &rusqlite::Row<'_>,
     work: &WorkScope,
-    numeric:bool,
+    numeric: bool,
 ) -> Result<PlainJson, MixedSqlError> {
     let mut out = ScopedLegacyRecord::object(ProjectionKind::RawEventWire, work)?;
     out.text(Field::IdentityKey, sql_text(row, 0)?)?;
-    if numeric {out.numeric(Field::Revision,row.get(1)?)?;} else {out.integer(Field::Revision,row.get(1)?)?;}
+    if numeric {
+        out.numeric(Field::Revision, row.get(1)?)?;
+    } else {
+        out.integer(Field::Revision, row.get(1)?)?;
+    }
     out.text(Field::InputRevision, sql_text(row, 2)?)?;
     out.text(Field::PayloadHash, sql_text(row, 3)?)?;
     out.text(Field::ReceiptId, sql_text(row, 4)?)?;
-    if numeric {out.numeric(Field::Seq,row.get(5)?)?;} else {out.integer(Field::Seq,row.get(5)?)?;}
+    if numeric {
+        out.numeric(Field::Seq, row.get(5)?)?;
+    } else {
+        out.integer(Field::Seq, row.get(5)?)?;
+    }
     out.text(Field::SourceNamespace, sql_text(row, 6)?)?;
     out.text(Field::SourceEpoch, sql_text(row, 7)?)?;
     out.text(Field::Instrument, sql_text(row, 8)?)?;
@@ -419,7 +433,13 @@ fn raw_history_row(
     out.text(Field::Volume, sql_text(row, 14)?)?;
     out.text(Field::SourceCoord, sql_text(row, 15)?)?;
     match row.get::<_, Option<i64>>(16)? {
-        Some(n) => if numeric {out.numeric(Field::SupersedesRevision,n)?;} else {out.integer(Field::SupersedesRevision,n)?;},
+        Some(n) => {
+            if numeric {
+                out.numeric(Field::SupersedesRevision, n)?;
+            } else {
+                out.integer(Field::SupersedesRevision, n)?;
+            }
+        }
         None => out.null(Field::SupersedesRevision)?,
     }
     Ok(out.finish())

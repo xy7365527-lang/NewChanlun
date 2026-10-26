@@ -905,31 +905,54 @@ pub(crate) fn validate_raw_row_admitted(
     validate_raw_row_core(event, expected_seq, previous, None, work)
 }
 fn validate_raw_row_core(
-    event:JsonView<'_>,expected_seq:usize,previous:Option<i64>,
-    budget:Option<&OwnedBudget>,work:Option<&WorkScope>,
-)->Result<(),String>{
-    validate_raw_row_typed(event,expected_seq,previous,budget,work).map_err(|e|match e {MixedJsonError::Business(e)=>e,MixedJsonError::Resource(e)=>e.to_string()})
+    event: JsonView<'_>,
+    expected_seq: usize,
+    previous: Option<i64>,
+    budget: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<(), String> {
+    validate_raw_row_typed(event, expected_seq, previous, budget, work).map_err(|e| match e {
+        MixedJsonError::Business(e) => e,
+        MixedJsonError::Resource(e) => e.to_string(),
+    })
 }
 pub(crate) fn validate_raw_mixed(
-    rows:&[PlainJson],work:&WorkScope,observer:&dyn super::audit_budget::LegacyObserver,
-)->Result<(),MixedJsonError>{
-    observer.check_work(work).map_err(MixedJsonError::Resource)?;
-    let admission=NativeAdmission(Some(work));
-    let mut owners=super::audit_store::NativeTree::default();
-    let mut positions=super::audit_store::NativeTree::default();
-    let mut prior=super::audit_store::NativeTree::default();
-    for (expected_seq,record) in rows.iter().enumerate() {
+    rows: &[PlainJson],
+    work: &WorkScope,
+    observer: &dyn super::audit_budget::LegacyObserver,
+) -> Result<(), MixedJsonError> {
+    observer
+        .check_work(work)
+        .map_err(MixedJsonError::Resource)?;
+    let admission = NativeAdmission(Some(work));
+    let mut owners = super::audit_store::NativeTree::default();
+    let mut positions = super::audit_store::NativeTree::default();
+    let mut prior = super::audit_store::NativeTree::default();
+    for (expected_seq, record) in rows.iter().enumerate() {
         observer.precheck().map_err(MixedJsonError::Resource)?;
-        observer.visit_record("raw_history","validate-raw",super::audit_budget::LegacyRecordRef::Json(record.as_ref())).map_err(MixedJsonError::Resource)?;
-        let event:JsonView<'_>=record.as_ref().into();
-        let coordinate=coord(event)?;
-        let identity=text(event,"identity_key")?;
-        let previous_identity=owners.insert_admitted(coordinate,identity,&admission).map_err(MixedJsonError::Resource)?;
-        let previous_coordinate=positions.insert_admitted(identity,coordinate,&admission).map_err(MixedJsonError::Resource)?;
-        validate_raw_coordinate(identity,coordinate,previous_identity,previous_coordinate)?;
-        let revision=parse_canonical_i64(text(event,"input_revision")?,"input_revision").map_err(|e|format!("StorageUnavailable：{e}"))?;
-        let previous=prior.insert_admitted(identity,revision,&admission).map_err(MixedJsonError::Resource)?;
-        validate_raw_row_typed(event,expected_seq,previous,None,Some(work))?;
+        observer
+            .visit_record(
+                "raw_history",
+                "validate-raw",
+                super::audit_budget::LegacyRecordRef::Json(record.as_ref()),
+            )
+            .map_err(MixedJsonError::Resource)?;
+        let event: JsonView<'_> = record.as_ref().into();
+        let coordinate = coord(event)?;
+        let identity = text(event, "identity_key")?;
+        let previous_identity = owners
+            .insert_admitted(coordinate, identity, &admission)
+            .map_err(MixedJsonError::Resource)?;
+        let previous_coordinate = positions
+            .insert_admitted(identity, coordinate, &admission)
+            .map_err(MixedJsonError::Resource)?;
+        validate_raw_coordinate(identity, coordinate, previous_identity, previous_coordinate)?;
+        let revision = parse_canonical_i64(text(event, "input_revision")?, "input_revision")
+            .map_err(|e| format!("StorageUnavailable：{e}"))?;
+        let previous = prior
+            .insert_admitted(identity, revision, &admission)
+            .map_err(MixedJsonError::Resource)?;
+        validate_raw_row_typed(event, expected_seq, previous, None, Some(work))?;
     }
     observer.precheck().map_err(MixedJsonError::Resource)
 }

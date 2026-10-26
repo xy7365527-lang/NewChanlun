@@ -1313,96 +1313,179 @@ mod tests {
         }
 
         use serde_json::json;
-        for ohlc in [false,true] {
-            for corrupt in [false,true] {
-                let conn=rusqlite::Connection::open_in_memory().unwrap();
+        for ohlc in [false, true] {
+            for corrupt in [false, true] {
+                let conn = rusqlite::Connection::open_in_memory().unwrap();
                 conn.execute_batch(crate::SCHEMA).unwrap();
                 conn.execute_batch(crate::tb02a::SCHEMA).unwrap();
-                let mut payload=json!({"event_id":"e","revision":"1","seq":"0","received_at":"1","raw_text":"x","timestamp":"1","volume":"1"});
-                if ohlc {for key in ["open","high","low","close"] {payload[key]=json!("2");}}
-                else {payload["price"]=json!("2");}
-                let hash=crate::sha256_hex(crate::canonical_json(&payload).as_bytes());
-                let receipt_hash=crate::sha256_hex(format!("n|ep|i|e|{hash}").as_bytes());
-                let receipt=format!("rcpt-{}",&receipt_hash[..16]);
+                let mut payload = json!({"event_id":"e","revision":"1","seq":"0","received_at":"1","raw_text":"x","timestamp":"1","volume":"1"});
+                if ohlc {
+                    for key in ["open", "high", "low", "close"] {
+                        payload[key] = json!("2");
+                    }
+                } else {
+                    payload["price"] = json!("2");
+                }
+                let hash = crate::sha256_hex(crate::canonical_json(&payload).as_bytes());
+                let receipt_hash = crate::sha256_hex(format!("n|ep|i|e|{hash}").as_bytes());
+                let receipt = format!("rcpt-{}", &receipt_hash[..16]);
                 conn.execute("INSERT INTO raw_events VALUES(?1,1,'1',?2,?3,0,'n','ep','i','e','1','x','2','1','1','0',NULL)",
                     rusqlite::params!["n|ep|i|e",if corrupt {"bad"}else{&hash},receipt]).unwrap();
                 if ohlc {
-                    conn.execute("INSERT INTO meta VALUES('profile_id',?1)",[crate::tb02a::PROFILE]).unwrap();
-                    conn.execute("INSERT INTO raw_ohlc VALUES('n|ep|i|e',1,?1,'2','2','2','2')",[crate::tb02a::RAW_SCHEMA]).unwrap();
+                    conn.execute(
+                        "INSERT INTO meta VALUES('profile_id',?1)",
+                        [crate::tb02a::PROFILE],
+                    )
+                    .unwrap();
+                    conn.execute(
+                        "INSERT INTO raw_ohlc VALUES('n|ep|i|e',1,?1,'2','2','2','2')",
+                        [crate::tb02a::RAW_SCHEMA],
+                    )
+                    .unwrap();
                 }
-                let original=crate::read_raw_events(&conn);
-                let owner=AdmissionRamLedger::new(limits(1<<20)).unwrap();
-                owner.codec_work().unwrap().run(|work|{
-                    let job=Job::new_started_mixed(job_limits(),Existing{store_bytes:0,staged_bytes:0},
-                        Box::new(std::time::Instant::now),std::time::Instant::now(),work)?;
-                    let observer=Observer{job:RefCell::new(job),work};
-                    let result=crate::audit::mixed::read_raw(&conn,work,&observer);
-                    match (&original,&result) {
-                        (Ok(expected),Ok(actual))=>{
-                            assert_eq!(expected.len(),actual.len());
-                            for (expected,actual) in expected.iter().zip(actual.iter()) {assert_eq!(expected,actual.as_ref());}
-                        },
-                        (Err(expected),Err(crate::v3::business_json::MixedJsonError::Business(actual)))=>assert_eq!(expected,actual),
-                        _=>panic!("ohlc={ohlc}, corrupt={corrupt}: old={original:?}, mixed_ok={}",result.is_ok()),
-                    }
-                    assert_eq!(result.is_ok(),!corrupt);
-                    assert_eq!(observer.job.borrow().snapshot().records,if ohlc {3}else{2});
-                    Ok::<(),sc::CodecError>(())
-                }).unwrap();
+                let original = crate::read_raw_events(&conn);
+                let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+                owner
+                    .codec_work()
+                    .unwrap()
+                    .run(|work| {
+                        let job = Job::new_started_mixed(
+                            job_limits(),
+                            Existing {
+                                store_bytes: 0,
+                                staged_bytes: 0,
+                            },
+                            Box::new(std::time::Instant::now),
+                            std::time::Instant::now(),
+                            work,
+                        )?;
+                        let observer = Observer {
+                            job: RefCell::new(job),
+                            work,
+                        };
+                        let result = crate::audit::mixed::read_raw(&conn, work, &observer);
+                        match (&original, &result) {
+                            (Ok(expected), Ok(actual)) => {
+                                assert_eq!(expected.len(), actual.len());
+                                for (expected, actual) in expected.iter().zip(actual.iter()) {
+                                    assert_eq!(expected, actual.as_ref());
+                                }
+                            }
+                            (
+                                Err(expected),
+                                Err(crate::v3::business_json::MixedJsonError::Business(actual)),
+                            ) => assert_eq!(expected, actual),
+                            _ => panic!(
+                                "ohlc={ohlc}, corrupt={corrupt}: old={original:?}, mixed_ok={}",
+                                result.is_ok()
+                            ),
+                        }
+                        assert_eq!(result.is_ok(), !corrupt);
+                        assert_eq!(
+                            observer.job.borrow().snapshot().records,
+                            if ohlc { 3 } else { 2 }
+                        );
+                        Ok::<(), sc::CodecError>(())
+                    })
+                    .unwrap();
             }
         }
     }
 
     #[test]
     fn mixed_control_catalog_matches_original() {
-
         use crate::v2::mixed_control as control;
         use crate::v3::business_json::MixedJsonError;
         for case in 0..7 {
-            let conn=rusqlite::Connection::open_in_memory().unwrap();
+            let conn = rusqlite::Connection::open_in_memory().unwrap();
             conn.execute_batch("CREATE TABLE meta(key TEXT PRIMARY KEY,value TEXT); CREATE TABLE catalog(catalog_id TEXT,kind TEXT,title TEXT,domain TEXT,branches_json TEXT)").unwrap();
-            let value=serde_json::json!({"catalog_revision":"r1","items":[{"id":"x","kind":"k","title":"t","domain":"d","branches":[]}]});
-            let raw=if case==1{"{".to_string()}else{crate::canonical_json(&value)};
-            let hash=newchan_rust::session_protocol::canonical_hash_view_with_owner((&value).into(),None).unwrap();
-            for (key,v) in [("catalog_definition",raw.as_str()),("catalog_hash",if case==2{"wrong"}else{hash.as_str()}),("catalog_revision",if case==3{"r2"}else{"r1"})]{
-                conn.execute("INSERT INTO meta VALUES(?1,?2)",rusqlite::params![key,v]).unwrap();
+            let value = serde_json::json!({"catalog_revision":"r1","items":[{"id":"x","kind":"k","title":"t","domain":"d","branches":[]}]});
+            let raw = if case == 1 {
+                "{".to_string()
+            } else {
+                crate::canonical_json(&value)
+            };
+            let hash = newchan_rust::session_protocol::canonical_hash_view_with_owner(
+                (&value).into(),
+                None,
+            )
+            .unwrap();
+            for (key, v) in [
+                ("catalog_definition", raw.as_str()),
+                (
+                    "catalog_hash",
+                    if case == 2 { "wrong" } else { hash.as_str() },
+                ),
+                ("catalog_revision", if case == 3 { "r2" } else { "r1" }),
+            ] {
+                conn.execute("INSERT INTO meta VALUES(?1,?2)", rusqlite::params![key, v])
+                    .unwrap();
             }
-            if case!=4 {
-                conn.execute("INSERT INTO catalog VALUES('x','k',?1,'d',?2)",rusqlite::params![if case==5{"wrong"}else{"t"},if case==6{"{"}else{"[]"}]).unwrap();
+            if case != 4 {
+                conn.execute(
+                    "INSERT INTO catalog VALUES('x','k',?1,'d',?2)",
+                    rusqlite::params![
+                        if case == 5 { "wrong" } else { "t" },
+                        if case == 6 { "{" } else { "[]" }
+                    ],
+                )
+                .unwrap();
             }
-            let expected=control::original_catalog(&conn);
-            let owner=AdmissionRamLedger::new(limits(1<<20)).unwrap();
-            owner.codec_work().unwrap().run(|work|{
-                let actual=control::catalog(&conn,work).map_err(|e|match e{
-                    MixedJsonError::Business(s)=>s,MixedJsonError::Resource(e)=>panic!("resource {e:?}"),
-                });
-                assert_eq!(expected,actual,"case={case}");
-                Ok::<(),newchan_rust::s_content::CodecError>(())
-            }).unwrap();
+            let expected = control::original_catalog(&conn);
+            let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+            owner
+                .codec_work()
+                .unwrap()
+                .run(|work| {
+                    let actual = control::catalog(&conn, work).map_err(|e| match e {
+                        MixedJsonError::Business(s) => s,
+                        MixedJsonError::Resource(e) => panic!("resource {e:?}"),
+                    });
+                    assert_eq!(expected, actual, "case={case}");
+                    Ok::<(), newchan_rust::s_content::CodecError>(())
+                })
+                .unwrap();
         }
     }
 
     #[test]
     fn mixed_control_clock_matches_original_strict_parser() {
-
         use crate::v2::mixed_control as control;
         use crate::v3::business_json::MixedJsonError;
         for case in 0..4 {
-            let conn=rusqlite::Connection::open_in_memory().unwrap();
+            let conn = rusqlite::Connection::open_in_memory().unwrap();
             conn.execute_batch("CREATE TABLE s_protocol_meta(singleton INTEGER,clock_plan_json TEXT,clock_plan_hash TEXT)").unwrap();
-            let value=serde_json::json!({"schema_revision":"s-clock-plan/1","clock_plan_id":"test","origin_utc":"2000-01-01T00:00:00Z","unit":"ns","events":{}});
-            let hash=newchan_rust::session_protocol::ClockView::parse((&value).into()).unwrap().hash_fixed_with_owner(None).unwrap();
-            let raw=match case{1=>"{".to_string(),2=>r#"{"events":{},"events":{}}"#.to_string(),_=>crate::canonical_json(&value)};
-            conn.execute("INSERT INTO s_protocol_meta VALUES(1,?1,?2)",rusqlite::params![raw,if case==3{"wrong"}else{hash.as_str()}]).unwrap();
-            let expected=control::original_clock(&conn);
-            let owner=AdmissionRamLedger::new(limits(1<<20)).unwrap();
-            owner.codec_work().unwrap().run(|work|{
-                let actual=control::clock(&conn,work).map(|c|c.hash.as_str().to_string()).map_err(|e|match e {
-                    MixedJsonError::Business(s)=>s,MixedJsonError::Resource(e)=>panic!("resource {e:?}"),
-                });
-                assert_eq!(expected,actual,"case={case}");
-                Ok::<(),newchan_rust::s_content::CodecError>(())
-            }).unwrap();
+            let value = serde_json::json!({"schema_revision":"s-clock-plan/1","clock_plan_id":"test","origin_utc":"2000-01-01T00:00:00Z","unit":"ns","events":{}});
+            let hash = newchan_rust::session_protocol::ClockView::parse((&value).into())
+                .unwrap()
+                .hash_fixed_with_owner(None)
+                .unwrap();
+            let raw = match case {
+                1 => "{".to_string(),
+                2 => r#"{"events":{},"events":{}}"#.to_string(),
+                _ => crate::canonical_json(&value),
+            };
+            conn.execute(
+                "INSERT INTO s_protocol_meta VALUES(1,?1,?2)",
+                rusqlite::params![raw, if case == 3 { "wrong" } else { hash.as_str() }],
+            )
+            .unwrap();
+            let expected = control::original_clock(&conn);
+            let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+            owner
+                .codec_work()
+                .unwrap()
+                .run(|work| {
+                    let actual = control::clock(&conn, work)
+                        .map(|c| c.hash.as_str().to_string())
+                        .map_err(|e| match e {
+                            MixedJsonError::Business(s) => s,
+                            MixedJsonError::Resource(e) => panic!("resource {e:?}"),
+                        });
+                    assert_eq!(expected, actual, "case={case}");
+                    Ok::<(), newchan_rust::s_content::CodecError>(())
+                })
+                .unwrap();
         }
     }
 
@@ -1455,7 +1538,7 @@ mod tests {
         use crate::v2::mixed_control as control;
         use crate::v3::business_json::MixedJsonError;
         for case in 0..12 {
-            let conn=rusqlite::Connection::open_in_memory().unwrap();
+            let conn = rusqlite::Connection::open_in_memory().unwrap();
             conn.execute_batch(crate::SCHEMA).unwrap();
             conn.execute_batch("INSERT INTO meta VALUES('generation','0'); INSERT INTO meta VALUES('writer_epoch','1');").unwrap();
             match case {
@@ -1472,25 +1555,57 @@ mod tests {
                 11=>{crate::delta_storage::declare_new(&conn).unwrap();conn.execute_batch("UPDATE s_storage_format SET storage_format=x'ff'").unwrap();},
                 _=>{}
             }
-            let enabled=case==6;
-            let schema=control::original_schema(&conn,enabled);
-            let active=control::original_active(&conn);
-            let epoch=crate::v2::verify_epoch_history(&conn,enabled);
-            let owner=AdmissionRamLedger::new(limits(1<<20)).unwrap();
-            owner.codec_work().unwrap().run(|work|{
-                let job=Job::new_started_mixed(job_limits(),Existing{store_bytes:0,staged_bytes:0},
-                    Box::new(std::time::Instant::now),std::time::Instant::now(),work)?;
-                let observer=Observer{job:RefCell::new(job),work};
-                let actual_schema=control::verify_schema(&conn,enabled,work,&observer).map(|_|());
-                let actual_active=control::active(&conn,work);
-                let actual_epoch=control::epoch_history(&conn,enabled,work).map(|facts|facts.iter().map(|(s,n)|(s.as_str().to_string(),*n)).collect::<Vec<_>>());
-                let business=|e:MixedJsonError|match e{MixedJsonError::Business(s)=>s,MixedJsonError::Resource(e)=>panic!("unexpected resource: {e:?}")};
-                assert_eq!(schema,actual_schema.map_err(business),"schema case={case}");
-                assert_eq!(active,actual_active.map_err(business),"active case={case}");
-                assert_eq!(epoch,actual_epoch.map_err(business),"epoch case={case}");
-                assert_eq!(observer.job.borrow().snapshot().records,0);
-                Ok::<(),sc::CodecError>(())
-            }).unwrap();
+            let enabled = case == 6;
+            let schema = control::original_schema(&conn, enabled);
+            let active = control::original_active(&conn);
+            let epoch = crate::v2::verify_epoch_history(&conn, enabled);
+            let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+            owner
+                .codec_work()
+                .unwrap()
+                .run(|work| {
+                    let job = Job::new_started_mixed(
+                        job_limits(),
+                        Existing {
+                            store_bytes: 0,
+                            staged_bytes: 0,
+                        },
+                        Box::new(std::time::Instant::now),
+                        std::time::Instant::now(),
+                        work,
+                    )?;
+                    let observer = Observer {
+                        job: RefCell::new(job),
+                        work,
+                    };
+                    let actual_schema =
+                        control::verify_schema(&conn, enabled, work, &observer).map(|_| ());
+                    let actual_active = control::active(&conn, work);
+                    let actual_epoch = control::epoch_history(&conn, enabled, work).map(|facts| {
+                        facts
+                            .iter()
+                            .map(|(s, n)| (s.as_str().to_string(), *n))
+                            .collect::<Vec<_>>()
+                    });
+                    let business = |e: MixedJsonError| match e {
+                        MixedJsonError::Business(s) => s,
+                        MixedJsonError::Resource(e) => panic!("unexpected resource: {e:?}"),
+                    };
+                    assert_eq!(
+                        schema,
+                        actual_schema.map_err(business),
+                        "schema case={case}"
+                    );
+                    assert_eq!(
+                        active,
+                        actual_active.map_err(business),
+                        "active case={case}"
+                    );
+                    assert_eq!(epoch, actual_epoch.map_err(business), "epoch case={case}");
+                    assert_eq!(observer.job.borrow().snapshot().records, 0);
+                    Ok::<(), sc::CodecError>(())
+                })
+                .unwrap();
         }
     }
 
@@ -1542,20 +1657,48 @@ mod tests {
 
         use serde_json::json;
         for case in 0..6 {
-            let conn=rusqlite::Connection::open_in_memory().unwrap();
+            let conn = rusqlite::Connection::open_in_memory().unwrap();
             conn.execute_batch("CREATE TABLE batches(batch_id TEXT PRIMARY KEY,canonical_bytes BLOB NOT NULL,byte_len INTEGER NOT NULL); CREATE TABLE structure_deltas(generation INTEGER,index_frontier TEXT); CREATE TABLE meta(key TEXT PRIMARY KEY,value TEXT); CREATE TABLE raw_events(seq INTEGER)").unwrap();
-            let declared:serde_json::Value=serde_json::from_str(include_str!(concat!(env!("CARGO_MANIFEST_DIR"),"/../s_session/profiles/testonly_tick_1_1_ohlc.json"))).unwrap();
-            let profile=if case==4 {declared}else{json!({"profile_id":"fixed","x":1})};
-            let id=profile["profile_id"].as_str().unwrap();
-            let hash=newchan_rust::session_protocol::canonical_hash_view_with_owner((&profile).into(),None).unwrap();
-            if case>0 {
-                for (key,value) in [("profile_id",id),("input_profile",id),("profile_hash",hash.as_str())] {
-                    conn.execute("INSERT INTO meta VALUES(?1,?2)",rusqlite::params![key,value]).unwrap();
+            let declared: serde_json::Value = serde_json::from_str(include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../s_session/profiles/testonly_tick_1_1_ohlc.json"
+            )))
+            .unwrap();
+            let profile = if case == 4 {
+                declared
+            } else {
+                json!({"profile_id":"fixed","x":1})
+            };
+            let id = profile["profile_id"].as_str().unwrap();
+            let hash = newchan_rust::session_protocol::canonical_hash_view_with_owner(
+                (&profile).into(),
+                None,
+            )
+            .unwrap();
+            if case > 0 {
+                for (key, value) in [
+                    ("profile_id", id),
+                    ("input_profile", id),
+                    ("profile_hash", hash.as_str()),
+                ] {
+                    conn.execute(
+                        "INSERT INTO meta VALUES(?1,?2)",
+                        rusqlite::params![key, value],
+                    )
+                    .unwrap();
                 }
-                if case==1 || case==2 {
-                    conn.execute("INSERT INTO meta VALUES('profile_definition',?1)",[if case==2 {"{".to_string()}else{crate::canonical_json(&profile)}]).unwrap();
+                if case == 1 || case == 2 {
+                    conn.execute(
+                        "INSERT INTO meta VALUES('profile_definition',?1)",
+                        [if case == 2 {
+                            "{".to_string()
+                        } else {
+                            crate::canonical_json(&profile)
+                        }],
+                    )
+                    .unwrap();
                 }
-                if case==3 || case==5 {
+                if case == 3 || case == 5 {
                     for (g,batch) in [json!({"profile_id":"","profile_hash":""}),json!({"profile_id":if case==5 {"wrong"}else{id},"profile_hash":hash.as_str()}),json!({"profile_id":id,"profile_hash":hash.as_str()})].into_iter().enumerate() {
                         let bytes=crate::canonical_json(&batch).into_bytes();
                         let batch_id=format!("batch-{}",crate::sha256_hex(&bytes));
@@ -1564,25 +1707,50 @@ mod tests {
                     }
                 }
             }
-            crate::cache::configure(1<<20);
-            let expected=crate::verify_profile_binding(&conn);
-            let owner=AdmissionRamLedger::new(limits(1<<20)).unwrap();
-            owner.codec_work().unwrap().run(|work|{
-                let job=Job::new_started_mixed(job_limits(),Existing{store_bytes:0,staged_bytes:0},
-                    Box::new(std::time::Instant::now),std::time::Instant::now(),work)?;
-                let observer=Observer{job:RefCell::new(job),work};
-                let transaction=crate::cache::MixedCacheTransaction::start(work)?;
-                let actual=crate::audit::mixed_profile::verify_profile(&conn,work,&observer);
-                match (&expected,&actual) {
-                    (Ok((ei,eh)),Ok((ai,ah)))=>{assert_eq!(ei,ai.as_ref());assert_eq!(eh,ah.as_ref());},
-                    (Err(e),Err(crate::v3::business_json::MixedJsonError::Business(a)))=>assert_eq!(e,a),
-                    _=>panic!("case={case}: old={expected:?}, mixed={actual:?}"),
-                }
-                assert_eq!(actual.is_ok(),case!=2 && case!=5);
-                assert_eq!(observer.job.borrow().snapshot().records,0,"profile/control headers are not semantic records");
-                drop(transaction);
-                Ok::<(),sc::CodecError>(())
-            }).unwrap();
+            crate::cache::configure(1 << 20);
+            let expected = crate::verify_profile_binding(&conn);
+            let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+            owner
+                .codec_work()
+                .unwrap()
+                .run(|work| {
+                    let job = Job::new_started_mixed(
+                        job_limits(),
+                        Existing {
+                            store_bytes: 0,
+                            staged_bytes: 0,
+                        },
+                        Box::new(std::time::Instant::now),
+                        std::time::Instant::now(),
+                        work,
+                    )?;
+                    let observer = Observer {
+                        job: RefCell::new(job),
+                        work,
+                    };
+                    let transaction = crate::cache::MixedCacheTransaction::start(work)?;
+                    let actual =
+                        crate::audit::mixed_profile::verify_profile(&conn, work, &observer);
+                    match (&expected, &actual) {
+                        (Ok((ei, eh)), Ok((ai, ah))) => {
+                            assert_eq!(ei, ai.as_ref());
+                            assert_eq!(eh, ah.as_ref());
+                        }
+                        (Err(e), Err(crate::v3::business_json::MixedJsonError::Business(a))) => {
+                            assert_eq!(e, a)
+                        }
+                        _ => panic!("case={case}: old={expected:?}, mixed={actual:?}"),
+                    }
+                    assert_eq!(actual.is_ok(), case != 2 && case != 5);
+                    assert_eq!(
+                        observer.job.borrow().snapshot().records,
+                        0,
+                        "profile/control headers are not semantic records"
+                    );
+                    drop(transaction);
+                    Ok::<(), sc::CodecError>(())
+                })
+                .unwrap();
             crate::cache::configure(0);
         }
     }
