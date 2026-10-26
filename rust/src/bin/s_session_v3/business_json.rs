@@ -908,7 +908,7 @@ fn validate_raw_row_core(
     event:JsonView<'_>,expected_seq:usize,previous:Option<i64>,
     budget:Option<&OwnedBudget>,work:Option<&WorkScope>,
 )->Result<(),String>{
-    validate_raw_row_typed(event,expected_seq,previous,budget,work).map_err(|e|e.to_string())
+    validate_raw_row_typed(event,expected_seq,previous,budget,work).map_err(|e|match e {MixedJsonError::Business(e)=>e,MixedJsonError::Resource(e)=>e.to_string()})
 }
 pub(crate) fn validate_raw_mixed(
     rows:&[PlainJson],work:&WorkScope,observer:&dyn super::audit_budget::LegacyObserver,
