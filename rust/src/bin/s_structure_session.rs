@@ -8304,7 +8304,9 @@ mod tests {
         let image = files.0.join("旧规则 scoped hot-wal.sqlite");
         {
             let writer = open_db(&files.db()).unwrap();
-            writer.execute_batch("PRAGMA wal_autocheckpoint=0;").unwrap();
+            writer
+                .execute_batch("PRAGMA wal_autocheckpoint=0;")
+                .unwrap();
             meta_set(&writer, "rule_revision", "s2-axis-quantifiers").unwrap();
             meta_set(&writer, "advance_state", "begun:dead:2:2").unwrap();
             meta_set(&writer, "begin_token", "dead").unwrap();
