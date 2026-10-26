@@ -302,8 +302,8 @@ fn reserve_under_activated_cap(carriers: &[PathBuf], real_s: &Value, cap: &str) 
 /// 一份的 basis_ref 或 session_generation，审计必须拒绝，即值不同的那一份照样被核。
 fn evidence_copy_controls(f: &Fixture) -> Value {
     let audit = |n: usize, image: &Value| -> Result<(), String> {
-        let mut job = super::super::store::new_content_job(&f.dbs[n], &f.configs[n]).unwrap();
-        super::super::content_store::verify_image(
+        let mut job = crate::economic_session::store::new_content_job(&f.dbs[n], &f.configs[n]).unwrap();
+        crate::economic_session::content_store::verify_image(
             &f.dbs[n],
             image,
             &f.configs[n].manifest["finance"]["structure"],
@@ -321,7 +321,12 @@ fn evidence_copy_controls(f: &Fixture) -> Value {
     let mut out = serde_json::Map::new();
     for (label, n, image, copy) in [
         ("E", 0, &e_image, e_copy.as_str()),
-        ("B:alpha", 1, &b_image, "/finance/decisions/0/structure_evidence"),
+        (
+            "B:alpha",
+            1,
+            &b_image,
+            "/finance/decisions/0/structure_evidence",
+        ),
     ] {
         audit(n, image).unwrap_or_else(|e| panic!("{label} 原图像审计失败：{e}"));
         for field in ["basis_ref", "session_generation"] {
@@ -331,7 +336,8 @@ fn evidence_copy_controls(f: &Fixture) -> Value {
             if field == "basis_ref" {
                 let root = target["basis_ref"]["root"].as_str().unwrap().to_owned();
                 let flipped = if root.ends_with('0') { '1' } else { '0' };
-                target["basis_ref"]["root"] = json!(format!("{}{flipped}", &root[..root.len() - 1]));
+                target["basis_ref"]["root"] =
+                    json!(format!("{}{flipped}", &root[..root.len() - 1]));
             } else {
                 target["session_generation"] = json!("2");
             }
@@ -368,8 +374,8 @@ fn s_ref_controls(f: &Fixture, real_s: &Value) -> Value {
     let flipped = if hash.ends_with('0') { '1' } else { '0' };
     bad["object_hash"] = json!(format!("{}{flipped}", &hash[..hash.len() - 1]));
     let run = |refs: &[&Value]| -> (Result<(), String>, usize) {
-        let mut job = super::super::store::new_content_job(&f.dbs[0], &f.configs[0]).unwrap();
-        let mut budget = super::super::store::ReadBudget::new(Some(&mut job), None);
+        let mut job = crate::economic_session::store::new_content_job(&f.dbs[0], &f.configs[0]).unwrap();
+        let mut budget = crate::economic_session::store::ReadBudget::new(Some(&mut job), None);
         let mut verified = BTreeSet::new();
         phase_trace::begin();
         let result = refs.iter().try_for_each(|s_ref| {
@@ -386,14 +392,27 @@ fn s_ref_controls(f: &Fixture, real_s: &Value) -> Value {
             .as_array()
             .unwrap()
             .iter()
-            .filter(|p| p["phase"].as_str().unwrap().starts_with("structure_verify@"))
+            .filter(|p| {
+                p["phase"]
+                    .as_str()
+                    .unwrap()
+                    .starts_with("structure_verify@")
+            })
             .count();
         (result, checks)
     };
     let (same, same_checks) = run(&[&first, &first]);
-    assert_eq!((same.clone(), same_checks), (Ok(()), 1), "同值 s_ref 只核一次");
+    assert_eq!(
+        (same.clone(), same_checks),
+        (Ok(()), 1),
+        "同值 s_ref 只核一次"
+    );
     let (distinct, distinct_checks) = run(&[&first, &second]);
-    assert_eq!((distinct.clone(), distinct_checks), (Ok(()), 2), "不同合法 s_ref 各核一次");
+    assert_eq!(
+        (distinct.clone(), distinct_checks),
+        (Ok(()), 2),
+        "不同合法 s_ref 各核一次"
+    );
     let (rejected, rejected_checks) = run(&[&first, &bad]);
     let error = rejected.expect_err("第二个坏 s_ref 必须拒绝");
     assert_eq!(rejected_checks, 1, "坏 s_ref 在校验内被拒，未记完成段");
