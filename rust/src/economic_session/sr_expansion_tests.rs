@@ -1167,6 +1167,59 @@ fn content_footprint(c: &rusqlite::Connection) -> (i64, i64) {
     .unwrap()
 }
 
+/// #1717 超时分段：请求期间给 E 连接挂 authorizer，在语句准备时记事务、PRAGMA 与读写表的切换时刻。
+/// 内容表读并作 `content`，连续同类只记首个。不改请求、资源与期限；结果立即打印，断言失败也留证。
+type PhaseMarks = std::sync::Arc<std::sync::Mutex<Vec<(String, u128)>>>;
+fn mark_phases(c: &rusqlite::Connection, started: Instant) -> PhaseMarks {
+    use rusqlite::hooks::{AuthAction, AuthContext, Authorization};
+    let marks = PhaseMarks::default();
+    let sink = marks.clone();
+    c.authorizer(Some(move |ctx: AuthContext<'_>| {
+        let table = |t: &str| {
+            if t.starts_with("content_") {
+                "content".to_owned()
+            } else {
+                t.to_owned()
+            }
+        };
+        let key = match ctx.action {
+            AuthAction::Transaction { operation } => format!("txn {operation:?}"),
+            AuthAction::Pragma { pragma_name, .. } => format!("pragma {pragma_name}"),
+            AuthAction::Read { table_name, .. } => format!("read {}", table(table_name)),
+            AuthAction::Insert { table_name } => format!("insert {}", table(table_name)),
+            AuthAction::Update { table_name, .. } => format!("update {}", table(table_name)),
+            AuthAction::Delete { table_name } => format!("delete {}", table(table_name)),
+            _ => return Authorization::Allow,
+        };
+        let mut m = sink.lock().unwrap();
+        if m.last().map(|(k, _)| k) != Some(&key) {
+            m.push((key, started.elapsed().as_millis()));
+        }
+        Authorization::Allow
+    }))
+    .unwrap();
+    marks
+}
+fn unmark_phases(c: &rusqlite::Connection, marks: &PhaseMarks) -> Value {
+    c.authorizer(None::<fn(rusqlite::hooks::AuthContext<'_>) -> rusqlite::hooks::Authorization>)
+        .unwrap();
+    let marks = marks.lock().unwrap();
+    json!(marks
+        .iter()
+        .map(|(phase, ms)| json!({"at_ms":ms.to_string(),"phase":phase}))
+        .collect::<Vec<_>>())
+}
+fn timed_e(f: &mut Fixture, message: &str, p: Value) -> (Value, Value) {
+    let started = Instant::now();
+    let marks = mark_phases(&f.dbs[0], started);
+    let reply = f.handle(0, message, p);
+    let total_ms = started.elapsed().as_millis().to_string();
+    let phases =
+        json!({"message":message,"total_ms":total_ms,"phases":unmark_phases(&f.dbs[0], &marks)});
+    println!("ISSUE1717_PHASES {}", canonical_json(&phases));
+    (reply, phases)
+}
+
 /// #1717 R3 正控：内容域 E 的历史持有非空 FinancialBasisEvidence。S 侧单 bar 真实 S3 库上起只读会话，
 /// manifest 冻结 `SessionClosure` 读法（A6 第4节，失败不换读法），reader_resources 八项与 E/B 3000 ms
 /// 响应期限保持原值。B:alpha/B:beta 经正式入口 Prepare 时经会话读 basis 并导入、发布闭包；E Reserve 读 S
@@ -1218,20 +1271,18 @@ fn sr_expansion_content_domain_publishes_real_s_basis_closure() {
         let p = f.request("PrepareDecision", name)["payload"].clone();
         let t = Instant::now();
         let prepared = f.handle(n, &format!("PrepareDecision-{name}"), p);
-        elapsed_ms.insert(
-            format!("PrepareDecision-{name}"),
-            json!(t.elapsed().as_millis().to_string()),
-        );
+        let ms = t.elapsed().as_millis().to_string();
+        println!("ISSUE1717_STEP_MS PrepareDecision-{name} {ms}");
+        elapsed_ms.insert(format!("PrepareDecision-{name}"), json!(ms));
         assert_eq!(prepared["kind"], "PreparedReceipt", "{prepared}");
         steps.push(prepared);
     }
     let p = f.request("Reserve", "slot")["payload"].clone();
     let t = Instant::now();
     let reserved = f.handle(0, "Reserve-slot", p);
-    elapsed_ms.insert(
-        "Reserve-slot".into(),
-        json!(t.elapsed().as_millis().to_string()),
-    );
+    let ms = t.elapsed().as_millis().to_string();
+    println!("ISSUE1717_STEP_MS Reserve-slot {ms}");
+    elapsed_ms.insert("Reserve-slot".into(), json!(ms));
     assert_eq!(reserved["kind"], "ReserveReceipt", "{reserved}");
     steps.push(reserved.clone());
     let before = latest(&f.dbs[0]).unwrap();
@@ -1251,13 +1302,21 @@ fn sr_expansion_content_domain_publishes_real_s_basis_closure() {
             vec![signed("gross", ">=", "21", all_chongs(), "freeze_new")],
         ),
     );
-    rejected(&mut f, "sr-post-1", tampered, "IdentityConflict");
+    let (refusal, tamper_phases) = timed_e(&mut f, "sr-post-1", tampered);
+    assert_eq!(refusal["kind"], "Error", "{refusal}");
+    assert!(
+        refusal["error"]
+            .as_str()
+            .unwrap()
+            .starts_with("IdentityConflict"),
+        "期望 IdentityConflict：{refusal}"
+    );
+    assert_eq!(latest(&f.dbs[0]).unwrap(), before, "拒收不得写 E 提交");
     let request = evaluation(&f, "eval-real-s", &v2);
-    let t = Instant::now();
-    let receipt = f.handle(0, "sr-post-2", request.clone());
+    let (receipt, eval_phases) = timed_e(&mut f, "sr-post-2", request.clone());
     elapsed_ms.insert(
         "EvaluateSrExpansion".into(),
-        json!(t.elapsed().as_millis().to_string()),
+        eval_phases["total_ms"].clone(),
     );
     assert_eq!(receipt["kind"], "SrExpansionEvaluated", "{receipt}");
     assert_eq!(receipt["record"]["result"], "ActionCandidates");
@@ -1279,7 +1338,7 @@ fn sr_expansion_content_domain_publishes_real_s_basis_closure() {
         footprints[0],
         "评估不新增内容节点"
     );
-    let again = f.handle(0, "sr-post-2", request);
+    let (again, resend_phases) = timed_e(&mut f, "sr-post-2", request);
     assert_eq!(again, receipt, "原请求重送只取原回执");
     let session_ready = session.ready.clone();
     let session_final = session.stop(&binary);
@@ -1297,6 +1356,7 @@ fn sr_expansion_content_domain_publishes_real_s_basis_closure() {
     let evidence = json!({"carriers":carriers,"reading":"SessionClosure","response_timeout_ms":"3000",
         "reader_resources":structure["reader_resources"],"s_source":real_s,"s_session_ready":session_ready,
         "s_session_final":session_final,"finance_steps":steps,"elapsed_ms":elapsed_ms,"content":owners,
+        "phases":[tamper_phases,eval_phases,resend_phases],
         "e_content_refs":refs.len().to_string(),"sr_receipt":receipt,
         "e_allocated_bytes":physical.to_string(),"e_carrier_capacity":capacity.to_string()});
     save(&f.dir, "issue1717-content-domain-real-s.json", &evidence);
@@ -1388,12 +1448,19 @@ fn sr_expansion_content_domain_deadline_crossed_in_flight_leaves_no_commit() {
         ))
         .unwrap();
     let id = "eval-real-s-in-flight-deadline";
+    let marks = mark_phases(&f.dbs[0], started);
     let reply = f.handle(0, "sr-in-flight-deadline", evaluation(&f, id, &v2));
     let replied_ms = started.elapsed().as_millis();
+    let phases = unmark_phases(&f.dbs[0], &marks);
     f.dbs[0]
         .update_hook(None::<fn(rusqlite::hooks::Action, &str, &str, i64)>)
         .unwrap();
     let writes = writes.lock().unwrap().clone();
+    println!(
+        "ISSUE1717_SR_IN_FLIGHT_DEADLINE_RAW {}",
+        canonical_json(&json!({"reply":reply,"replied_ms":replied_ms.to_string(),
+            "slept":slept.load(Ordering::SeqCst).to_string(),"writes":format!("{writes:?}"),"phases":phases}))
+    );
 
     assert_eq!(reply["kind"], "Error", "{reply}");
     let error = reply["error"].as_str().unwrap();
@@ -1451,7 +1518,7 @@ fn sr_expansion_content_domain_deadline_crossed_in_flight_leaves_no_commit() {
         .collect();
     let evidence = json!({"reading":"SessionClosure","response_timeout_ms":timeout_ms.to_string(),
         "crossing":"E update hook: one sleep of response_timeout_ms+1 on the second transaction's commits insert",
-        "writes":writes,"replied_ms":replied_ms.to_string(),"reply":reply,"query":looked_up,
+        "writes":writes,"phases":phases,"replied_ms":replied_ms.to_string(),"reply":reply,"query":looked_up,
         "rows":{"tables":["commits","receipts","messages","content_nodes","content_staging"],"before":before_rows,"after":rows(&f.dbs[0])},
         "content":{"content_nodes":before_content.0.to_string(),"content_node_bytes":before_content.1.to_string()},
         "e_content_refs":refs.len().to_string(),"e_allocated_bytes":physical.to_string(),

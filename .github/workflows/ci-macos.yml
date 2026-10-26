@@ -154,14 +154,29 @@ jobs:
             --ignored --exact v3::financial_session::tests::export_real_s3_fixture_for_economic_content_domain
           cargo build --release --locked --features s_session --bin s_structure_session
           ls -l target/release/s_structure_session
-          TB03B_TEST_ROOT="$root/work" TB1717_HFS_CARRIERS="$carriers" TB1717_S_EXPORT="$root/s3/export.json" \
-            TB1717_S_BINARY="$PWD/target/release/s_structure_session" \
-            cargo test --locked --features s_session --lib -- --ignored --exact --nocapture \
-            economic_session::finance::tests::sr_expansion::sr_expansion_content_domain_publishes_real_s_basis_closure
-          TB03B_TEST_ROOT="$root/work" TB1717_HFS_CARRIERS="$carriers" TB1717_S_EXPORT="$root/s3/export.json" \
-            TB1717_S_BINARY="$PWD/target/release/s_structure_session" \
-            cargo test --locked --features s_session --lib -- --ignored --exact --nocapture \
-            economic_session::finance::tests::sr_expansion::sr_expansion_content_domain_deadline_crossed_in_flight_leaves_no_commit
+          # 正控与负控各跑一次、各记退出码与日志；任一失败本步失败。release 对照只在 debug 正控失败时跑，只作诊断，不参与判定。
+          run1717() {
+            label=$1; export_json=$2; shift 2
+            set +e
+            TB03B_TEST_ROOT="$root/work" TB1717_HFS_CARRIERS="$carriers" TB1717_S_EXPORT="$export_json" \
+              TB1717_S_BINARY="$PWD/target/release/s_structure_session" \
+              cargo test --locked --features s_session --lib "$@" -- --ignored --exact --nocapture \
+              "economic_session::finance::tests::sr_expansion::$test" 2>&1 | tee "$root/work/$label.log"
+            rc=${PIPESTATUS[0]}
+            set -e
+            echo "$label=$rc" | tee -a "$root/work/exit-codes.txt"
+          }
+          test=sr_expansion_content_domain_publishes_real_s_basis_closure
+          run1717 positive-debug "$root/s3/export.json"; positive=$rc
+          test=sr_expansion_content_domain_deadline_crossed_in_flight_leaves_no_commit
+          run1717 negative-debug "$root/s3/export.json"; negative=$rc
+          if [ "$positive" -ne 0 ]; then
+            mkdir -p "$root/s3/release-diagnostic"
+            cp "$root/s3/export.json" "$root/s3/release-diagnostic/export.json"
+            test=sr_expansion_content_domain_publishes_real_s_basis_closure
+            run1717 positive-release-diagnostic "$root/s3/release-diagnostic/export.json" --release
+          fi
+          if [ "$positive" -ne 0 ] || [ "$negative" -ne 0 ]; then exit 1; fi
 
       - name: 上传 issue 1717 正控与负控原件
         if: always()
