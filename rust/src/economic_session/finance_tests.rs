@@ -1528,10 +1528,11 @@ fn cap_activation_requires_imported_baseline() {
     let mut f = Fixture::v3("100", "20", false, None);
     f.prepare();
     for cap in ["10", "100"] {
+        let early = cap_payload(&f, "1", "2", cap, "100000");
         let r = assert_rejected_unchanged(
             &mut f,
             "ActivateCapPolicy-pre",
-            cap_payload(&f, "1", "2", cap, "100000"),
+            early,
             "MissingDependency",
         );
         assert!(r["error"].as_str().unwrap().contains("尚未规范导入"));
@@ -1543,12 +1544,8 @@ fn cap_activation_requires_imported_baseline() {
     );
     assert_eq!(imported["kind"], "ResponsibilityImportedReceipt", "{imported}");
     assert_eq!(active_cap_and_liability(&f).1, 20);
-    assert_rejected_unchanged(
-        &mut f,
-        "ActivateCapPolicy-race",
-        cap_payload(&f, "1", "2", "19", "100000"),
-        "InvalidDomain",
-    );
+    let below = cap_payload(&f, "1", "2", "19", "100000");
+    assert_rejected_unchanged(&mut f, "ActivateCapPolicy-race", below, "InvalidDomain");
     let a = f.handle(
         0,
         "ActivateCapPolicy-race",
@@ -1567,10 +1564,11 @@ fn zero_liability_allows_zero_cap_and_negative_cap_is_refused() {
     assert_rejected_unchanged(&mut f, "ActivateCapPolicy-pre", negative, "InvalidDomain");
     let mut signed_negative = cap_record(&f, "1", "2", "0", "100000");
     signed_negative["cap"] = json!("-1");
+    let signed_negative = activation(&f, &signed_negative, "1", "2", "0", "100000");
     assert_rejected_unchanged(
         &mut f,
         "ActivateCapPolicy-pre",
-        activation(&f, &signed_negative, "1", "2", "0", "100000"),
+        signed_negative,
         "InvalidDomain",
     );
     let zero = f.handle(
