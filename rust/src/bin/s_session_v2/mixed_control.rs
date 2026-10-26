@@ -147,3 +147,65 @@ pub(crate) fn delta_mode(conn:&Connection,work:&WorkScope)->Result<delta_storage
     }
     delta_storage::validate_mode_rows(rows.len(),rows.first().map(|(n,s)|(*n,s.as_str()))).map_err(Into::into)
 }
+
+pub(crate) struct Clock {
+    pub(crate) value:crate::v3::business_json::PlainJson,
+    pub(crate) hash:Text,
+}
+impl Clock {
+    pub(crate) fn phase(&self,id:&str,phase:&str,index:i64)->Result<&str,String>{
+        newchan_rust::session_protocol::clock_phase_view(self.value.as_ref().into(),id,phase,index)
+    }
+}
+fn decode(raw:&str,work:&WorkScope)->Result<crate::v3::business_json::PlainJson,MixedJsonError>{
+    crate::v3::business_json::mixed_strict_json_owner(raw.as_bytes(),work).map_err(|e|match e{
+        MixedJsonError::Business(e)=>MixedJsonError::Business(err(e)),
+        e=>e,
+    })
+}
+pub(crate) fn clock(conn:&Connection,work:&WorkScope)->Result<Clock,MixedJsonError>{
+    let mut stmt=CheckedStatement::prepare(conn,c"SELECT clock_plan_json,clock_plan_hash FROM s_protocol_meta WHERE singleton=1").map_err(err)?;
+    let mut row=stmt.next().map_err(err)?.ok_or_else(||err(rusqlite::Error::QueryReturnedNoRows))?;
+    let raw=sql_text(&mut row,0,work)?;
+    let stored_hash=sql_text(&mut row,1,work)?;
+    drop(row);stmt.finalize().map_err(err)?;
+    let value=decode(&raw,work)?;
+    let view=newchan_rust::session_protocol::ClockView::parse(value.as_ref().into()).map_err(err)?;
+    let hash=view.hash_fixed_with_owner(None).map_err(err)?;
+    if hash.as_str()!=stored_hash.as_str() || !control_canonical_equal(value.as_ref().into(),&raw,None)? {
+        return Err(err("clock计划/hash不一致").into());
+    }
+    let hash=Text::try_from_str(hash.as_str(),Some(work)).map_err(MixedJsonError::Resource)?;
+    Ok(Clock{value,hash})
+}
+pub(crate) fn catalog(conn:&Connection,work:&WorkScope)->Result<(),MixedJsonError>{
+    use crate::audit::mixed_profile::meta_text;
+    use control_json::field;
+    use newchan_rust::session_protocol::{canonical_hash_view_with_owner,required_view};
+    let raw=meta_text(conn,"catalog_definition",work)?.ok_or_else(||err("v2缺catalog来源"))?;
+    let hash=meta_text(conn,"catalog_hash",work)?.ok_or_else(||err("v2缺catalog hash"))?;
+    let value=decode(&raw,work)?;
+    let view:JsonView<'_>=value.as_ref().into();
+    if !control_canonical_equal(view,&raw,None)?
+        || canonical_hash_view_with_owner(view,None).map_err(err)?.as_str()!=hash.as_str()
+        || field(view,"catalog_revision").as_str()!=meta_text(conn,"catalog_revision",work)?.as_ref().map(|s|s.as_str()) {
+        return Err(err("目录来源/hash/revision不一致").into());
+    }
+    let items=field(view,"items").as_array().ok_or_else(||err("目录源items缺失"))?;
+    let count:i64=conn.query_row("SELECT COUNT(*) FROM catalog",[],|r|r.get(0)).map_err(err)?;
+    if count as usize!=items.len(){return Err(err("目录静态行数不同").into());}
+    for item in items.iter(){
+        let mut stmt=CheckedStatement::prepare(conn,c"SELECT kind,title,domain,branches_json FROM catalog WHERE catalog_id=?1").map_err(err)?;
+        stmt.bind_text(1,required_view(item,"id").map_err(err)?).map_err(err)?;
+        let mut row=stmt.next().map_err(err)?.ok_or_else(||err(rusqlite::Error::QueryReturnedNoRows))?;
+        let actual=[sql_text(&mut row,0,work)?,sql_text(&mut row,1,work)?,sql_text(&mut row,2,work)?,sql_text(&mut row,3,work)?];
+        drop(row);stmt.finalize().map_err(err)?;
+        if field(item,"kind").as_str()!=Some(actual[0].as_str())
+            || field(item,"title").as_str()!=Some(actual[1].as_str())
+            || field(item,"domain").as_str()!=Some(actual[2].as_str())
+            || field(item,"branches")!=JsonView::from(decode(&actual[3],work)?.as_ref()) {
+            return Err(err("目录静态内容与来源不同").into());
+        }
+    }
+    Ok(())
+}
