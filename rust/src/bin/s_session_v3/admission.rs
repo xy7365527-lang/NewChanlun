@@ -65,6 +65,8 @@ struct Inner {
     // 资格必须与文件锁同寿命，控制 lease 的 Arc 不能单独授权开库。
     writer: Lock,
     maintenance: Lock,
+    // 准入所见源形状；只有 PrePolicyRecords 授权开库时那次 #1602 迁移写。
+    delta: std::cell::Cell<crate::DeltaShape>,
 }
 impl Inner {
     fn startup_gate(&self) -> Result<(), String> {
@@ -142,12 +144,13 @@ impl WriterAdmission {
                         .map_err(|e| mixed_failure(e.code(), "reuse", e.detail()))?;
                 } else {
                     let mut account = finished.accounting();
-                    super::admission_private::validate_prefix(
+                    let delta = super::admission_private::validate_prefix(
                         &s.inner.source,
                         &mut account,
                         prefix,
                     )
                     .map_err(|e| format!("{e}；原准入账={:?}", account.snapshot()))?;
+                    s.inner.delta.set(delta);
                 }
                 drop(state);
                 s.inner.require(db)?;
@@ -223,7 +226,7 @@ impl WriterScope {
             }
         })?;
         let mixed = started.is_mixed();
-        if mixed {
+        let delta = if mixed {
             let sealed = started
                 .with_accounting(|account| {
                     super::admission_private::validate_mixed_prefix(&source, account, &prefix)
@@ -237,13 +240,16 @@ impl WriterScope {
                     ) => mixed_failure("MixedResourceFailure", "business", "mixed工作域资源拒绝"),
                 })?;
             started.set_mixed_prefix(sealed);
+            // mixed 旧域审计逐字对拍原 schema 核，只认当前形状。
+            crate::DeltaShape::Current
         } else {
             let mut account = started.accounting();
             let result = super::admission_private::validate_prefix(&source, &mut account, prefix);
-            if let Err(e) = result {
-                return Err(format!("{e}；原准入账={:?}", account.snapshot()));
+            match result {
+                Ok(delta) => delta,
+                Err(e) => return Err(format!("{e}；原准入账={:?}", account.snapshot())),
             }
-        }
+        };
         let mut finished = started.seal().map_err(|e| {
             if mixed {
                 record_mixed_failure(super::admission_anchor::terminal::FixedFailure::formatted(
@@ -288,6 +294,7 @@ impl WriterScope {
                 startup_failure: RefCell::new(None),
                 writer,
                 maintenance,
+                delta: std::cell::Cell::new(delta),
             }),
         })
     }
@@ -408,6 +415,26 @@ pub(crate) fn require_current(db: &Path) -> Result<(), String> {
             .upgrade()
             .ok_or_else(|| "WriterScopeExpired".to_string())?
             .require(db),
+    })
+}
+
+/// #1602 迁移是开库时的写。读命令/显式初始化不持 scope，保持 #1602 原合同；
+/// 写者 scope 只能执行其准入已审到的那次迁移。
+pub(crate) fn require_policy_records_migration() -> Result<(), String> {
+    ACTIVE.with(|slot| match &*slot.borrow() {
+        None => Ok(()),
+        Some(w) => match w
+            .upgrade()
+            .ok_or_else(|| "WriterScopeExpired".to_string())?
+            .delta
+            .get()
+        {
+            crate::DeltaShape::PrePolicyRecords => Ok(()),
+            crate::DeltaShape::Current => Err(
+                "PolicyRecordsMigrationNotAdmitted：准入所见源已是当前 structure_deltas，开库时不得再迁移"
+                    .into(),
+            ),
+        },
     })
 }
 

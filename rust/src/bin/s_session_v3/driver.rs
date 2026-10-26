@@ -1531,6 +1531,121 @@ mod tests {
             .contains("venue-profile-diagnostic-fixture/1"));
     }
 
+    fn source_bytes(db: &Path) -> (Vec<u8>, Option<Vec<u8>>) {
+        let wal = std::fs::read(format!("{}-wal", db.display()))
+            .ok()
+            .filter(|bytes| !bytes.is_empty());
+        (std::fs::read(db).unwrap(), wal)
+    }
+    fn alter_source(db: &Path, sql: &str) {
+        Connection::open(db).unwrap().execute_batch(sql).unwrap();
+    }
+    fn policy_records_missing_at(db: &Path) -> bool {
+        crate::policy_records_missing(&Connection::open(db).unwrap()).unwrap()
+    }
+    const DROP_POLICY_RECORDS: &str = "ALTER TABLE structure_deltas DROP COLUMN policy_records";
+
+    /// #1527×#1602：写前准入只读审到迁移前精确源；迁移发生在 require_admitted 之后的 scope 内。
+    #[test]
+    fn pre_policy_records_source_is_admitted_unchanged_and_migrated_in_scope() {
+        let f = Fixture::new();
+        alter_source(&f.db, DROP_POLICY_RECORDS);
+        let before = source_bytes(&f.db);
+        let scope = super::super::admission::WriterScope::admit(
+            &f.db,
+            crate::v3::admission_anchor::test_prepare(&f.db),
+        )
+        .unwrap();
+        assert_eq!(source_bytes(&f.db), before, "准入不得写源库");
+        assert!(policy_records_missing_at(&f.db), "准入不得迁移");
+        {
+            let _guard = scope.enter().unwrap();
+            scope.require_admitted().unwrap();
+            let mut conn = crate::open_db(scope.db_path()).unwrap();
+            assert!(!crate::policy_records_missing(&conn).unwrap());
+            let tx = conn.transaction().unwrap();
+            state::audit(&tx).unwrap();
+        }
+        scope.finish_startup().unwrap();
+    }
+
+    #[test]
+    fn rejected_pre_policy_records_admission_leaves_source_unmigrated() {
+        let f = Fixture::new();
+        alter_source(&f.db, DROP_POLICY_RECORDS);
+        let before = source_bytes(&f.db);
+        let error = f
+            .open_with_config("2", ThetaConfig::default())
+            .err()
+            .unwrap();
+        assert!(error.starts_with("StaleWriter："), "{error}");
+        assert_eq!(source_bytes(&f.db), before);
+        assert!(policy_records_missing_at(&f.db));
+    }
+
+    #[test]
+    fn pre_policy_records_admission_rejects_every_other_shape_deviation() {
+        for (sql, table) in [
+            (
+                "ALTER TABLE structure_deltas DROP COLUMN policy_records; ALTER TABLE catalog ADD COLUMN extra TEXT",
+                "catalog",
+            ),
+            (
+                "ALTER TABLE structure_deltas DROP COLUMN policy_records; ALTER TABLE structure_deltas ADD COLUMN extra TEXT",
+                "structure_deltas",
+            ),
+            (
+                "ALTER TABLE structure_deltas DROP COLUMN policy_records; ALTER TABLE structure_deltas DROP COLUMN delta_json",
+                "structure_deltas",
+            ),
+            (
+                "ALTER TABLE structure_deltas DROP COLUMN policy_records; ALTER TABLE structure_deltas ADD COLUMN policy_records TEXT NOT NULL DEFAULT 'x'",
+                "structure_deltas",
+            ),
+            (
+                "ALTER TABLE structure_deltas DROP COLUMN policy_records; ALTER TABLE structure_deltas ADD COLUMN policy_records TEXT",
+                "structure_deltas",
+            ),
+        ] {
+            let f = Fixture::new();
+            alter_source(&f.db, sql);
+            let missing = policy_records_missing_at(&f.db);
+            let before = source_bytes(&f.db);
+            let error = super::super::admission::WriterScope::admit(
+                &f.db,
+                crate::v3::admission_anchor::test_prepare(&f.db),
+            )
+            .err()
+            .unwrap();
+            assert!(
+                error.contains(&format!("模式/约束不匹配 table/{table}")),
+                "{sql}: {error}"
+            );
+            assert_eq!(source_bytes(&f.db), before, "{sql}");
+            assert_eq!(policy_records_missing_at(&f.db), missing, "{sql}");
+        }
+    }
+
+    #[test]
+    fn scope_admitted_on_current_source_refuses_an_unaudited_migration() {
+        let f = Fixture::new();
+        let scope = super::super::admission::WriterScope::admit(
+            &f.db,
+            crate::v3::admission_anchor::test_prepare(&f.db),
+        )
+        .unwrap();
+        let guard = scope.enter().unwrap();
+        alter_source(&f.db, DROP_POLICY_RECORDS);
+        let error = crate::open_db(&f.db).err().unwrap();
+        assert!(
+            error.starts_with("PolicyRecordsMigrationNotAdmitted："),
+            "{error}"
+        );
+        assert!(policy_records_missing_at(&f.db));
+        drop(guard);
+        drop(scope);
+    }
+
     #[test]
     fn legacy_policy_records_migration_recovers_pending_with_current_records() {
         let fixture = Fixture::new();

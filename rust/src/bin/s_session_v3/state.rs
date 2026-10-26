@@ -325,7 +325,12 @@ pub(super) fn audit_native_in_request_measured(
                     (capture, count, None, false, source_same)
                 }
             };
-            let control = control_audit::prepare_s3_control_history_admitted(tx, None, work)?;
+            let control = control_audit::prepare_s3_control_history_admitted(
+                tx,
+                None,
+                work,
+                budget.and_then(|b| b.before_write()),
+            )?;
             let raw = super::business_json::RawEvents::from_json_owner(
                 crate::read_raw_events_until_admitted_measured(tx, deadline, work, budget)?,
             )?;
@@ -840,8 +845,12 @@ fn audit_core_fresh_with_policy(
     let (control, raw) = match fresh {
         Some(fresh) => fresh,
         None => {
-            let control =
-                control_audit::prepare_s3_control_history_admitted(tx, control_owner, work)?;
+            let control = control_audit::prepare_s3_control_history_admitted(
+                tx,
+                control_owner,
+                work,
+                budget.and_then(|b| b.before_write()),
+            )?;
             #[cfg(test)]
             trace_event("raw", None);
             // 2. 真实原始账：逐序回读并做身份/修订链/内容hash/receipt 自检。

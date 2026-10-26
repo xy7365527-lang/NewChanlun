@@ -129,6 +129,8 @@ impl ObservedErrors {
 struct SharedAccounting<'s, 'j> {
     account: RefCell<&'s mut AdmissionAccounting<'j>>,
     errors: &'s RefCell<ObservedErrors>,
+    // 准入先于任何写：S3 schema 核在此记下源库是否仍是 #1602 迁移前形状。
+    delta: &'s std::cell::Cell<crate::DeltaShape>,
 }
 impl SharedAccounting<'_, '_> {
     fn observed<T>(&self, result: Result<T, sc::CodecError>) -> Result<T, sc::CodecError> {
@@ -168,6 +170,9 @@ impl Budget for SharedAccounting<'_, '_> {
     }
     fn record(&self) -> Result<(), sc::CodecError> {
         self.with_account(|account| account.charge_records(1))
+    }
+    fn before_write(&self) -> Option<&std::cell::Cell<crate::DeltaShape>> {
+        Some(self.delta)
     }
 }
 fn reentrant() -> sc::CodecError {
@@ -355,11 +360,12 @@ impl IoAccounting for AdmissionAccounting<'_> {
     }
 }
 
+/// 成功返回源库的 structure_deltas 形状；`PrePolicyRecords` 由 scope 带到开库迁移。
 pub(super) fn validate_prefix(
     source: &MeasuredDomain,
     account: &mut AdmissionAccounting<'_>,
     mut prefix: RejectionPrefix<'_>,
-) -> Result<(), String> {
+) -> Result<crate::DeltaShape, String> {
     let result = validate_prefix_inner(source, account, &mut prefix);
     if result.is_err() {
         if let RejectionPrefix::NativeStartup {
@@ -377,7 +383,7 @@ fn validate_prefix_inner(
     source: &MeasuredDomain,
     account: &mut AdmissionAccounting<'_>,
     prefix: &mut RejectionPrefix<'_>,
-) -> Result<(), String> {
+) -> Result<crate::DeltaShape, String> {
     account.pre_io_check().map_err(|e| e.to_string())?;
     if account.is_mixed() {
         // #1527：父账已可消费，旧域SQL/walker完整闭合前仍不发布服务准入。
@@ -391,12 +397,14 @@ fn validate_prefix_inner(
     // 因而此机制的新增磁盘 allocation_upper 精确为 0，不是未知上界填 0。
     let grant = account.reserve_staged(0).map_err(|e| e.to_string())?;
     let errors = RefCell::new(ObservedErrors::new());
+    let delta = std::cell::Cell::new(crate::DeltaShape::Current);
     let result = (|| {
         let main = source.main_fd()?;
         let wal = source.wal_fd()?;
         let shared = SharedAccounting {
             account: RefCell::new(&mut *account),
             errors: &errors,
+            delta: &delta,
         };
         let mut io = &shared;
         let registration = fd_wal::Registration::new(main, wal, &mut io)
@@ -455,7 +463,7 @@ fn validate_prefix_inner(
     errors.borrow_mut().phase = ErrorPhase::Deadline;
     let budget = account.check_deadline().map_err(|e| e.to_string());
     errors.borrow_mut().returned(ErrorPhase::Deadline, &budget);
-    errors.into_inner().finish()
+    errors.into_inner().finish().map(|()| delta.get())
 }
 
 #[cfg(test)]
@@ -487,6 +495,7 @@ mod tests {
             let shared = SharedAccounting {
                 account: RefCell::new(&mut account),
                 errors: &errors,
+                delta: &std::cell::Cell::new(crate::DeltaShape::Current),
             };
             let mut io = &shared;
             io.before_io().unwrap();
@@ -599,6 +608,7 @@ mod tests {
             let shared = SharedAccounting {
                 account: RefCell::new(&mut account),
                 errors: &errors,
+                delta: &std::cell::Cell::new(crate::DeltaShape::Current),
             };
             let mut io = &shared;
             first = io.after_read(actual).unwrap_err().to_string();

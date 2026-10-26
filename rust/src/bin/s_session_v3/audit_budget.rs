@@ -23,6 +23,10 @@ pub(crate) trait Budget {
     fn accept_prepared_frame(&self, frame: &CheckedFrame) -> Result<(), sc::CodecError>;
     fn node(&self, digest: &NodeDigest, tag: u8, body: &[u8]) -> Result<(), sc::CodecError>;
     fn record(&self) -> Result<(), sc::CodecError>;
+    /// #1527×#1602：只有写前准入门面给出，供 S3 schema 核记录所见 structure_deltas 形状。
+    fn before_write(&self) -> Option<&std::cell::Cell<crate::DeltaShape>> {
+        None
+    }
 }
 
 /// #1527：旧域节点只能来自完整原行核验；资格只借当前Job，不进缓存。

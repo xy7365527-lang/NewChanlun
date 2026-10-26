@@ -184,6 +184,7 @@ const TABLES: &[(&[u8], &[&[u8]])] = &[
             b"catalog_run_status",
             b"catalog_evidence_json",
             b"delta_json",
+            b"policy_records",
         ],
     ),
     (
@@ -649,6 +650,53 @@ mod tests {
         }
     }
     #[test]
+    fn mixed_sql_manifest_columns_equal_compile_time_ddl() {
+        let conn = Connection::open_in_memory().unwrap();
+        for ddl in [
+            crate::SCHEMA,
+            crate::v2::SCHEMA_V2,
+            crate::tb02a::SCHEMA,
+            crate::delta_storage::DDL,
+            crate::evidence_store::DDL,
+        ] {
+            conn.execute_batch(ddl).unwrap();
+        }
+        let column_names = |table: &str| {
+            let mut stmt = conn
+                .prepare("SELECT name FROM pragma_table_info(?1) ORDER BY cid")
+                .unwrap();
+            stmt.query_map([table], |r| r.get::<_, String>(0))
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap()
+        };
+        let mut stmt = conn
+            .prepare(
+                "SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+            )
+            .unwrap();
+        let ddl: Vec<(String, Vec<String>)> = stmt
+            .query_map([], |r| r.get::<_, String>(0))
+            .unwrap()
+            .map(|name| {
+                let name = name.unwrap();
+                let columns = column_names(&name);
+                (name, columns)
+            })
+            .collect();
+        let manifest: Vec<(String, Vec<String>)> = TABLES
+            .iter()
+            .map(|(name, columns)| {
+                let text = |b: &[u8]| String::from_utf8(b.to_vec()).unwrap();
+                (text(name), columns.iter().map(|c| text(c)).collect())
+            })
+            .collect();
+        assert_eq!(
+            manifest, ddl,
+            "mixed manifest must equal the five compile-time DDL constants"
+        );
+    }
+    #[test]
     fn mixed_sql_real_root_callbacks_close_under_selected_policy() {
         crate::v2::with_mixed_control_fixture(|conn| {
             let result = with_policy(conn, || crate::verified_root_raw_events(conn));
@@ -759,6 +807,18 @@ mod tests {
                 None,
                 true
             ));
+            let deltas = |column: &[u8]| {
+                policy.allows(
+                    ffi::SQLITE_READ,
+                    Some(b"structure_deltas"),
+                    Some(column),
+                    Some(b"main"),
+                    None,
+                    true,
+                )
+            };
+            assert!(deltas(b"policy_records"));
+            assert!(!deltas(b"policy_records_extra"));
             assert!(!policy.allows(
                 ffi::SQLITE_READ,
                 Some(b"meta"),

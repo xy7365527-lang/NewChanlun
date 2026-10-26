@@ -350,25 +350,54 @@ fn open_db(db: &Path) -> Result<Connection, String> {
     Ok(conn)
 }
 
+/// #1602 之前的 structure_deltas 建表语句（`SCHEMA` 逐字去掉 `policy_records` 列）。
+/// 写前准入只用它精确识别尚未迁移的源库；开库迁移后的严格审计仍只认 `SCHEMA`。
+const PRE_POLICY_RECORDS_DELTAS: &str = r#"
+CREATE TABLE IF NOT EXISTS structure_deltas (
+  generation INTEGER PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  catalog_revision TEXT NOT NULL,
+  base_cut TEXT NOT NULL,
+  next_cut TEXT NOT NULL,
+  seq_range_json TEXT NOT NULL,
+  index_frontier TEXT NOT NULL,
+  input_frontier INTEGER NOT NULL,
+  catalog_run_status TEXT NOT NULL,
+  catalog_evidence_json TEXT NOT NULL,
+  delta_json TEXT NOT NULL
+);
+"#;
+
+/// 写前准入所见的 structure_deltas 形状。`PrePolicyRecords` 只在 #1602 迁移之前合法，
+/// 并且是写者 scope 执行该迁移写的唯一授权。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum DeltaShape {
+    Current,
+    PrePolicyRecords,
+}
+
+/// #1602 迁移与写前准入共用的判别：表存在且缺 `policy_records` 列。
+fn policy_records_missing(conn: &Connection) -> Result<bool, String> {
+    conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name='structure_deltas')
+         AND NOT EXISTS(SELECT 1 FROM pragma_table_info('structure_deltas') WHERE name='policy_records')",
+        [],
+        |row| row.get(0),
+    )
+    .map_err(|e| format!("检查 structure_deltas.policy_records 失败：{e}"))
+}
+
 /// #1602：同协议旧库只有既有行缺少 `policy_records`；补列时 SQLite 以显式未知值填充，
 /// 不读取调用时配置。`BEGIN IMMEDIATE` 后重核列，保证多入口同时开门时迁移至多执行一次。
 fn migrate_legacy_policy_records(conn: &mut Connection) -> Result<(), String> {
-    let missing = |conn: &Connection| -> Result<bool, String> {
-        conn.query_row(
-            "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name='structure_deltas')
-             AND NOT EXISTS(SELECT 1 FROM pragma_table_info('structure_deltas') WHERE name='policy_records')",
-            [],
-            |row| row.get(0),
-        )
-        .map_err(|e| format!("检查 structure_deltas.policy_records 失败：{e}"))
-    };
-    if !missing(conn)? {
+    if !policy_records_missing(conn)? {
         return Ok(());
     }
     let tx = conn
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(|e| format!("开 policy_records 迁移事务失败：{e}"))?;
-    if missing(&tx)? {
+    if policy_records_missing(&tx)? {
+        v3::admission::require_policy_records_migration()?;
         tx.execute(
             &format!(
                 "ALTER TABLE structure_deltas ADD COLUMN policy_records TEXT NOT NULL DEFAULT '{LEGACY_POLICY_RECORDS_UNKNOWN}'"
@@ -8423,6 +8452,83 @@ mod tests {
                 "{rule}: 主库/-wal 字节须不变"
             );
         }
+    }
+
+    /// #1527×#1602：迁移前形状由编译期 SCHEMA 去掉新增列得到；真实迁移把它变回严格当前形状。
+    #[test]
+    fn pre_policy_records_deltas_is_schema_without_the_column_and_migrates_to_schema() {
+        let statement = |ddl: &'static str| {
+            ddl.split(';')
+                .map(str::trim)
+                .find(|s| s.starts_with("CREATE TABLE IF NOT EXISTS structure_deltas"))
+                .unwrap()
+        };
+        assert_eq!(
+            statement(SCHEMA).replace(
+                ",\n  policy_records TEXT NOT NULL DEFAULT 'legacy/unknown'",
+                ""
+            ),
+            statement(PRE_POLICY_RECORDS_DELTAS)
+        );
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(PRE_POLICY_RECORDS_DELTAS).unwrap();
+        assert!(policy_records_missing(&conn).unwrap());
+        migrate_legacy_policy_records(&mut conn).unwrap();
+        assert!(!policy_records_missing(&conn).unwrap());
+        let stored: String = conn
+            .query_row(
+                "SELECT sql FROM sqlite_schema WHERE type='table' AND name='structure_deltas'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let mut migrated = BTreeMap::new();
+        v2::expect_ddl_tables("migrated", &stored, &mut migrated).unwrap();
+        let mut current = BTreeMap::new();
+        v2::expect_ddl_tables("SCHEMA", SCHEMA, &mut current).unwrap();
+        assert_eq!(migrated["structure_deltas"], current["structure_deltas"]);
+    }
+
+    /// 历史规则库只读打开，旧域 mixed 准入也只读审计；两者都不执行 #1602 迁移。
+    #[test]
+    fn historical_pre_policy_records_store_is_never_migrated() {
+        let files = TestFiles::new();
+        tb1405_accepted_store(&files);
+        let db = files.db();
+        {
+            let conn = Connection::open(&db).unwrap();
+            conn.execute_batch("ALTER TABLE structure_deltas DROP COLUMN policy_records")
+                .unwrap();
+            meta_set(&conn, "rule_revision", "s2-axis-quantifiers").unwrap();
+        }
+        let bytes = || {
+            let wal = std::fs::read(format!("{}-wal", db.display()))
+                .ok()
+                .filter(|b| !b.is_empty());
+            (std::fs::read(&db).unwrap(), wal)
+        };
+        let before = bytes();
+        let reader = open_db(&db).unwrap();
+        assert!(policy_records_missing(&reader).unwrap());
+        assert!(meta_set(&reader, "advance_state", "idle").is_err());
+        drop(reader);
+        assert_eq!(bytes(), before);
+        // 只读连接留下的空 -wal 与 -shm 不是源内容；移除后 mixed 准入照常完整测量。
+        std::fs::remove_file(format!("{}-shm", db.display())).ok();
+        if std::fs::metadata(format!("{}-wal", db.display())).is_ok_and(|m| m.len() == 0) {
+            std::fs::remove_file(format!("{}-wal", db.display())).unwrap();
+        }
+
+        let _command = v3::admission_anchor::CommandAccounting::begin();
+        let prepared = v3::admission_anchor::test_prepare_mixed(&db, 1 << 26, 1 << 26);
+        let admitted =
+            v3::test_with_mixed_entry(|| v3::admission::WriterScope::admit(&db, prepared));
+        assert!(
+            admitted.is_err(),
+            "mixed 旧域 schema 核逐字对拍原判据，只认当前形状"
+        );
+        assert_eq!(bytes(), before);
+        assert!(policy_records_missing(&Connection::open(&db).unwrap()).unwrap());
     }
 
     #[test]
