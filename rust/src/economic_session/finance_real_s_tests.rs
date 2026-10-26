@@ -349,27 +349,32 @@ fn evidence_copy_controls(f: &Fixture) -> Value {
     Value::Object(out)
 }
 
+/// 导出快照中 `real_s.s_ref` 之外、经运行中的会话以生产 `financial-basis-ref` 可读的另一个对象的 `s_ref/2`。
+fn second_s_ref(real_s: &Value) -> Value {
+    let export = &real_s["export"];
+    let structure = &real_s["structure"];
+    let binary = PathBuf::from(structure["binary"].as_str().unwrap());
+    let socket = PathBuf::from(structure["reader_session"].as_str().unwrap());
+    export["object_ids"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|id| **id != real_s["s_ref"]["object_id"])
+        .find_map(|id| {
+            let reply = basis_ref_reply(&binary, export, &socket, id)?;
+            Some(json!({"schema_revision":"s-object-ref/2","object_id":id,
+                "object_hash":reply["selected_objects"][0]["object_hash"],"profile_id":export["profile_id"]}))
+        })
+        .expect("导出快照须有第二个可读对象")
+}
+
 /// Reserve 结构校验按 s_ref 值去重的负控，在 E 已发布的同一 witness 上直接走 `verify_structure_once`：
 /// 同值两次只核一次；两个不同的合法 s_ref 各核一次都通过；第二个改坏 object_hash 的 s_ref 仍被拒绝。
 fn s_ref_controls(f: &Fixture, real_s: &Value) -> Value {
     let e_image = latest(&f.dbs[0]).unwrap().3;
     let witness = &e_image["history"].as_array().unwrap().last().unwrap()["witness"]["structure"];
     let first = real_s["s_ref"].clone();
-    let export = &real_s["export"];
-    let structure = &real_s["structure"];
-    let binary = PathBuf::from(structure["binary"].as_str().unwrap());
-    let socket = PathBuf::from(structure["reader_session"].as_str().unwrap());
-    let second = export["object_ids"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .filter(|id| **id != first["object_id"])
-        .find_map(|id| {
-            let reply = basis_ref_reply(&binary, export, &socket, id)?;
-            Some(json!({"schema_revision":"s-object-ref/2","object_id":id,
-                "object_hash":reply["selected_objects"][0]["object_hash"],"profile_id":export["profile_id"]}))
-        })
-        .expect("导出快照须有第二个可读对象");
+    let second = second_s_ref(real_s);
     let mut bad = second.clone();
     let hash = bad["object_hash"].as_str().unwrap().to_owned();
     let flipped = if hash.ends_with('0') { '1' } else { '0' };
@@ -422,6 +427,72 @@ fn s_ref_controls(f: &Fixture, real_s: &Value) -> Value {
         "distinct_checks":distinct_checks.to_string(),"bad_error":error})
 }
 
+/// #1716 F1：同一 slot 的两个申请者引用正式 S 会话中的两个不同对象。两 B 经正式入口 Prepare，E Reserve 读 S、
+/// 导入两份 peer 证明闭包，对两个不同 s_ref 在 reduce 中各核一次结构，创世 cap 100 下整槽授信 90。
+fn reserve_with_distinct_s_refs(carriers: &[PathBuf], real_s: &Value) -> Value {
+    let second = second_s_ref(real_s);
+    let mut f =
+        Fixture::content_with_real_s_refs(carriers, real_s, &json!({"beta":second.clone()}));
+    let plans = list(&f.data, "plans").unwrap();
+    assert_eq!(plans[0]["s_ref"], real_s["s_ref"]);
+    assert_eq!(plans[1]["s_ref"], second);
+    for (n, name) in [(1, "alpha"), (2, "beta")] {
+        let p = f.request("PrepareDecision", name)["payload"].clone();
+        let r = f.handle(n, &format!("PrepareDecision-{name}"), p);
+        phase_trace::take();
+        assert_eq!(r["kind"], "PreparedReceipt", "{r}");
+    }
+    let b_before = [latest(&f.dbs[1]).unwrap(), latest(&f.dbs[2]).unwrap()];
+    let t = Instant::now();
+    let reserved = reserve_now(&mut f, "Reserve-slot");
+    let elapsed_ms = t.elapsed().as_millis().to_string();
+    let phases = phase_trace::take();
+    let checks = phases["phases"]
+        .as_array()
+        .map_or(0, |p| p.iter().filter(|p| p["phase"] == "structure_verify@E").count());
+    let staged: Vec<String> = f
+        .dbs
+        .iter()
+        .map(|c| {
+            c.query_row("SELECT count(*) FROM content_staging", [], |r| {
+                r.get::<_, i64>(0)
+            })
+            .unwrap()
+            .to_string()
+        })
+        .collect();
+    let evidence = json!({"s_refs":[real_s["s_ref"],second],"elapsed_ms":elapsed_ms,"phases":phases,
+        "e_reduce_structure_checks":checks.to_string(),"content_staging_rows_after":staged,"reserve":reserved});
+    save(&f.dir, "issue1716-distinct-s-ref-real-s.json", &evidence);
+    println!("ISSUE1716_DISTINCT_S_REF {}", canonical_json(&evidence));
+    assert_eq!(reserved["kind"], "ReserveReceipt", "{reserved}");
+    let record = &reserved["record"];
+    assert_eq!(record["state"], "Reserved", "{reserved}");
+    assert_eq!(record["required_total"], "90");
+    assert_eq!(record["retained_total"], "90");
+    let granted: Vec<&Value> = record["grants"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|g| &g["decision_id"])
+        .collect();
+    assert_eq!(granted, [&json!("alpha"), &json!("beta")]);
+    assert_eq!(checks, 2, "两个不同 s_ref 各核一次结构");
+    assert_eq!(responsibility_total(&latest(&f.dbs[0]).unwrap().3), 90);
+    assert_eq!(
+        [latest(&f.dbs[1]).unwrap(), latest(&f.dbs[2]).unwrap()],
+        b_before,
+        "Reserve 只写 E"
+    );
+    assert_eq!(
+        reserve_now(&mut f, "Reserve-slot"),
+        reserved,
+        "原请求重送只取原回执"
+    );
+    f.audit();
+    evidence
+}
+
 /// #1716：真实 S 单 bar 闭包上，/4 正式 cap 激活的版本被两 B Prepare 之后的 E Reserve 实际消费。等值例
 /// cap=90 全量授信；不足例 cap=89 整槽等待、零授信、无部分责任。manifest 冻结 `SessionClosure` 读法，
 /// reader_resources 八项与 E/B 3000 ms 响应期限保持原值；停机 FINAL=PASS 证明全部 S 回复出自同一已审状态。
@@ -447,14 +518,16 @@ fn content_domain_activated_cap_consumed_by_real_s_reserve() {
     let cases = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let equal = reserve_under_activated_cap(&carriers, &real_s, "90");
         let short = reserve_under_activated_cap(&carriers, &real_s, "89");
-        (equal, short)
+        let distinct = reserve_with_distinct_s_refs(&carriers, &real_s);
+        (equal, short, distinct)
     }));
     let session_ready = session.ready.clone();
     let session_final = session.stop(&binary);
-    let (equal, short) = cases.unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+    let (equal, short, distinct) =
+        cases.unwrap_or_else(|panic| std::panic::resume_unwind(panic));
     let evidence = json!({"carriers":carriers,"reading":"SessionClosure","response_timeout_ms":"3000",
         "s_source":real_s,"s_session_ready":session_ready,"s_session_final":session_final,
-        "equal_cap":equal,"insufficient_cap":short});
+        "equal_cap":equal,"insufficient_cap":short,"distinct_s_refs":distinct});
     let root = std::env::var_os("TB03B_TEST_ROOT")
         .map(PathBuf::from)
         .unwrap_or_else(std::env::temp_dir);

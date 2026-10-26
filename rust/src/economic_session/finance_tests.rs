@@ -74,7 +74,7 @@ impl Fixture {
         slot_spec: &[(&str, &[&str])],
         c4a: Option<(bool, bool)>,
     ) -> Self {
-        Self::build_full(cap, fault, slot_spec, c4a, None, None, None, None)
+        Self::build_full(cap, fault, slot_spec, c4a, None, None, None, None, None)
     }
     /// #1716：显式选择 `tb03b-finance/3` 的夹具；S 由钉住摘要的单位桩回答，Reserve 可经 `service::handle`。
     fn v3(cap: &str, baseline: &str, import: bool, fault: Option<(&str, &str)>) -> Self {
@@ -84,6 +84,7 @@ impl Fixture {
             &[("slot", &["alpha", "beta"])],
             None,
             Some((baseline, import)),
+            None,
             None,
             None,
             None,
@@ -100,6 +101,7 @@ impl Fixture {
             activation.then_some((baseline, true)),
             None,
             Some(carriers),
+            None,
             None,
         )
     }
@@ -122,6 +124,7 @@ impl Fixture {
             None,
             Some(carriers),
             Some(real_s),
+            None,
         )
     }
     /// #1717：选择 `sr-expansion/1` 子合同的夹具；`section` 即 manifest 顶层 `sr_expansion`。
@@ -134,6 +137,7 @@ impl Fixture {
             None,
             None,
             Some(section),
+            None,
             None,
             None,
         )
@@ -151,6 +155,7 @@ impl Fixture {
             section,
             Some(carriers),
             None,
+            None,
         )
     }
     /// #1717：同上，财务结构改为正式 S（生产 `s_structure_session` 与真实 s-session/3 会话），计划的
@@ -165,6 +170,36 @@ impl Fixture {
             Some(section),
             Some(carriers),
             Some(real_s),
+            None,
+        )
+    }
+    /// #1716：`tb03b-finance/3` 夹具，同一 slot 的申请者按 `s_refs`（`{申请者: s_ref}`）引用不同 S 对象；
+    /// 未列出的申请者沿用默认对象。
+    fn v3_with_s_refs(s_refs: &Value) -> Self {
+        Self::build_full(
+            "100",
+            None,
+            &[("slot", &["alpha", "beta"])],
+            None,
+            Some(("20", true)),
+            None,
+            None,
+            None,
+            Some(s_refs),
+        )
+    }
+    /// #1716：同 `content_with_real_s`，申请者按 `s_refs` 引用正式 S 会话中的不同对象。
+    fn content_with_real_s_refs(carriers: &[PathBuf], real_s: &Value, s_refs: &Value) -> Self {
+        Self::build_full(
+            "100",
+            None,
+            &[("slot", &["alpha", "beta"])],
+            None,
+            Some(("20", true)),
+            None,
+            Some(carriers),
+            Some(real_s),
+            Some(s_refs),
         )
     }
     fn build_full(
@@ -176,6 +211,7 @@ impl Fixture {
         sr_expansion: Option<Value>,
         carriers: Option<&[PathBuf]>,
         real_s: Option<&Value>,
+        s_refs: Option<&Value>,
     ) -> Self {
         let rev = match (carriers.is_some(), v3.is_some()) {
             (false, false) => REV,
@@ -222,7 +258,6 @@ impl Fixture {
         if let Some(s) = real_s {
             s_ref = s["s_ref"].clone();
         }
-        let s_object_id = s_ref["object_id"].clone();
         let tag = dir.file_name().unwrap().to_str().unwrap().to_owned();
         let db_of = |name: &str, carrier: usize| match carriers {
             Some(c) => c[carrier].join(format!("{tag}-{name}.db")),
@@ -282,7 +317,9 @@ impl Fixture {
             authorities.push(json!({"authority_id":name,"bundle_path":bp,"bundle_sha256":bh,"verification_path":rp,"verification_sha256":rh,"max_bytes":"1048576"}));
             rights.push(json!({"right_id":name,"owner":format!("B:{name}"),"version":"1","amount":cash,"currency":"TEST-CASH","source_ref":format!("TestOnly-privately-owned-cash-original/{name}")}));
             if applicants.contains(&name) {
-                plans.push(json!({"decision_id":name,"attempt_id":format!("attempt-{name}"),"plan_id":format!("plan-{name}"),"owner":format!("B:{name}"),"voice_binding_id":format!("voice-{name}"),"right_id":name,"expected_book_version":"2","expected_rights_version":"1","applicant_epoch":"1","applicant_generation":"1","slot_id":slot_of(name),"quantity":new_quantity,"limit_price":price,"fee_tail":fee,"quantity_source":format!("TestOnly-quantity/{name}"),"price_source":format!("TestOnly-price/{name}"),"fee_source":format!("TestOnly-tail/{name}"),"s_ref":s_ref.clone(),"o_ref":{"operation_id":format!("TestOnly-operation-{name}"),"kind":"TestOnlyCashBuy","source_ref":format!("TestOnly-operation-sheet/{name}"),"s_object_id":s_object_id,"quantity":new_quantity}}));
+                let s_ref = s_refs.and_then(|m| m.get(name)).unwrap_or(&s_ref).clone();
+                let s_object_id = s_ref["object_id"].clone();
+                plans.push(json!({"decision_id":name,"attempt_id":format!("attempt-{name}"),"plan_id":format!("plan-{name}"),"owner":format!("B:{name}"),"voice_binding_id":format!("voice-{name}"),"right_id":name,"expected_book_version":"2","expected_rights_version":"1","applicant_epoch":"1","applicant_generation":"1","slot_id":slot_of(name),"quantity":new_quantity,"limit_price":price,"fee_tail":fee,"quantity_source":format!("TestOnly-quantity/{name}"),"price_source":format!("TestOnly-price/{name}"),"fee_source":format!("TestOnly-tail/{name}"),"s_ref":s_ref,"o_ref":{"operation_id":format!("TestOnly-operation-{name}"),"kind":"TestOnlyCashBuy","source_ref":format!("TestOnly-operation-sheet/{name}"),"s_object_id":s_object_id,"quantity":new_quantity}}));
             }
             routes.push(json!({"chong_id":name,"symbol":name,"operation_level":"2","fixed_q":fixed,"db":db_of(name, routes.len() + 1),"socket":dir.join(format!("{name}.sock"))}));
             docs.push(doc);
@@ -1715,6 +1752,74 @@ fn cap_activation_is_atomic() {
         &f.dir,
         "issue1716-cap-activation-oracle.json",
         &json!({"scope":"#1716 I1-C tb03b-finance/3 TestOnly synthetic signed cap fixture through service::handle; not a signed real instance","reserve":reserved,"rejected_low":rejected_low,"activated":activated,"above":above,"e_image":latest(&f.dbs[0]).unwrap().3}),
+    );
+}
+/// #1716 F1：同一 slot 的两个申请者引用单位 S 的两个不同对象，B Prepare 与 E Reserve 都经 `service::handle`。
+/// 两个合法引用各自核验后整槽授信。Prepare 之后只改第二个申请者引用的对象时，Reserve 在逐申请者结构校验处
+/// 拒绝：三域活跃版本、E 图像与责任不变，不留回执；S 恢复原样后同一请求照常授信。
+#[test]
+fn reserve_verifies_each_distinct_s_ref_in_the_same_slot() {
+    let beta_object = json!({"object_id":"unit-S-object-beta","kind":"UnitStructuralTrustRoot","branch":"FALLING"});
+    let prepared = || {
+        let beta_ref = json!({"object_id":beta_object["object_id"],"object_hash":hash(&beta_object),"profile_id":"unit"});
+        let mut f = Fixture::v3_with_s_refs(&json!({"beta":beta_ref.clone()}));
+        let plans = list(&f.data, "plans").unwrap();
+        assert_eq!(plans[1]["s_ref"], beta_ref);
+        assert_ne!(plans[0]["s_ref"], plans[1]["s_ref"]);
+        f.basis["snapshot"]["objects"]
+            .as_array_mut()
+            .unwrap()
+            .push(beta_object.clone());
+        save(&f.dir, "s-unit-basis-stub.json", &f.basis);
+        for (n, name) in [(1, "alpha"), (2, "beta")] {
+            let p = f.request("PrepareDecision", name)["payload"].clone();
+            let r = f.handle(n, &format!("PrepareDecision-{name}"), p);
+            assert_eq!(r["kind"], "PreparedReceipt", "{r}");
+        }
+        f
+    };
+    let assert_granted = |f: &Fixture, reserved: &Value| {
+        assert_eq!(reserved["kind"], "ReserveReceipt", "{reserved}");
+        assert_eq!(reserved["record"]["state"], "Reserved", "{reserved}");
+        assert_eq!(reserved["record"]["required_total"], "90");
+        let granted: Vec<&Value> = reserved["record"]["grants"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|g| &g["decision_id"])
+            .collect();
+        assert_eq!(granted, [&json!("alpha"), &json!("beta")]);
+        assert_eq!(active_cap_and_liability(f).1, 90);
+    };
+
+    let mut f = prepared();
+    let reserved = reserve_now(&mut f, "Reserve-slot");
+    assert_granted(&f, &reserved);
+    f.audit();
+
+    let mut g = prepared();
+    let legal = g.basis.clone();
+    let mut drifted = legal.clone();
+    drifted["snapshot"]["objects"][1]["branch"] = json!("RISING");
+    save(&g.dir, "s-unit-basis-stub.json", &drifted);
+    let payload = g.request("Reserve", "slot")["payload"].clone();
+    let rejected = assert_rejected_unchanged(&mut g, "Reserve-slot", payload, "InvalidDomain");
+    assert!(
+        rejected["error"]
+            .as_str()
+            .unwrap()
+            .contains("原 S 结构失效/被替换/内容改变"),
+        "{rejected}"
+    );
+    assert_eq!(active_cap_and_liability(&g).1, 20, "拒绝不留部分责任");
+    save(&g.dir, "s-unit-basis-stub.json", &legal);
+    let retried = reserve_now(&mut g, "Reserve-slot");
+    assert_granted(&g, &retried);
+    g.audit();
+    save(
+        &g.dir,
+        "issue1716-distinct-s-ref-reserve.json",
+        &json!({"scope":"#1716 F1 tb03b-finance/3 unit S through service::handle","reserved":reserved,"rejected_after_second_object_changed":rejected,"retried_after_restore":retried}),
     );
 }
 #[test]
