@@ -18,35 +18,46 @@ impl<K, V> Default for NativeTree<K, V> {
     }
 }
 impl<K: Ord, V> NativeTree<K, V> {
-    pub fn belongs_to_work(&self,work:&sc::capture_allocation::scratch::WorkScope) -> bool {
-        (self.high_water==0 && self.permits.capacity()==0) || self.permits.native_belongs_to_work(work)
+    pub fn belongs_to_work(&self, work: &sc::capture_allocation::scratch::WorkScope) -> bool {
+        (self.high_water == 0 && self.permits.capacity() == 0)
+            || self.permits.native_belongs_to_work(work)
     }
     /// 仅复制表与调用者选择的纯内容；不携带当前Job观察资格。
     pub fn try_copy_mixed(
-        &self,work:&sc::capture_allocation::scratch::WorkScope,
-        mut copy:impl FnMut(&K,&V)->Result<(K,V),CodecError>,
-    ) -> Result<Self,CodecError> {
+        &self,
+        work: &sc::capture_allocation::scratch::WorkScope,
+        mut copy: impl FnMut(&K, &V) -> Result<(K, V), CodecError>,
+    ) -> Result<Self, CodecError> {
         work.check_current()?;
         self.permits.check_retained_source()?;
-        for permit in &self.permits { permit.check_retained_source()?; }
-        let mut next=Self::default();
+        for permit in &self.permits {
+            permit.check_retained_source()?;
+        }
+        let mut next = Self::default();
         struct Source<'a>(&'a sc::capture_allocation::scratch::WorkScope);
         impl sc::NodeSource for Source<'_> {
-            fn codec_work(&self)->Option<&sc::capture_allocation::scratch::WorkScope>{Some(self.0)}
-            fn read(&mut self,_:&sc::NodeDigest)->Result<sc::NodeRead,CodecError>{
-                Err(CodecError::new(sc::code::SOURCE,"metadata copy cannot read"))
+            fn codec_work(&self) -> Option<&sc::capture_allocation::scratch::WorkScope> {
+                Some(self.0)
+            }
+            fn read(&mut self, _: &sc::NodeDigest) -> Result<sc::NodeRead, CodecError> {
+                Err(CodecError::new(
+                    sc::code::SOURCE,
+                    "metadata copy cannot read",
+                ))
             }
         }
-        let source=Source(work);
-        for (key,value) in &self.tree {
-            let (key,value)=copy(key,value)?;
-            next.insert_admitted(key,value,&source)?;
+        let source = Source(work);
+        for (key, value) in &self.tree {
+            let (key, value) = copy(key, value)?;
+            next.insert_admitted(key, value, &source)?;
         }
         Ok(next)
     }
     pub fn reserve_entry_admitted(
-        &mut self,key:&K,admission:&(impl sc::NodeSource+?Sized),
-    )->Result<(),CodecError>{
+        &mut self,
+        key: &K,
+        admission: &(impl sc::NodeSource + ?Sized),
+    ) -> Result<(), CodecError> {
         if let Some(work) = admission.codec_work() {
             self.permits.try_reserve_native(work, 0)?;
         } else if self.permits.is_native_bound() {
@@ -73,15 +84,18 @@ impl<K: Ord, V> NativeTree<K, V> {
         }
         Ok(())
     }
-    pub fn insert_reserved(&mut self,key:K,value:V)->Option<V>{
-        assert!(self.tree.contains_key(&key)||self.tree.len()<self.high_water);
-        self.tree.insert(key,value)
+    pub fn insert_reserved(&mut self, key: K, value: V) -> Option<V> {
+        assert!(self.tree.contains_key(&key) || self.tree.len() < self.high_water);
+        self.tree.insert(key, value)
     }
     pub fn insert_admitted(
-        &mut self,key:K,value:V,admission:&(impl sc::NodeSource+?Sized),
-    )->Result<Option<V>,CodecError>{
-        self.reserve_entry_admitted(&key,admission)?;
-        Ok(self.insert_reserved(key,value))
+        &mut self,
+        key: K,
+        value: V,
+        admission: &(impl sc::NodeSource + ?Sized),
+    ) -> Result<Option<V>, CodecError> {
+        self.reserve_entry_admitted(&key, admission)?;
+        Ok(self.insert_reserved(key, value))
     }
     pub fn remove<Q: Ord + ?Sized>(&mut self, key: &Q) -> Option<V>
     where

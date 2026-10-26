@@ -119,7 +119,9 @@ impl AdmissionRamLedger {
             .lock()
             .map_err(|_| ScratchFailure::Ledger)?;
         state.snapshot.active = false;
-        if let Some(error)=state.snapshot.failed {return Err(error);}
+        if let Some(error) = state.snapshot.failed {
+            return Err(error);
+        }
         Ok(state.snapshot)
     }
 }
@@ -836,64 +838,122 @@ mod tests {
         use crate::v3::native_shared::NativeArc;
         use newchan_rust::s_content::capture_allocation::native_owned::NativeValue;
         let old = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
-        let cached = old.codec_work().unwrap().run(|work| {
-            let text = NativeValue::try_from_str("cached pure content",Some(work))?;
-            let cached = NativeArc::try_new_shallow(text,Some(work))?;
-            let shared = cached.share_or_copy_mixed(work,|_,_| panic!("same parent must not copy"))?;
-            assert!(NativeArc::ptr_eq(&cached,&shared));
-            Ok::<_,newchan_rust::s_content::CodecError>(cached)
-        }).unwrap();
+        let cached = old
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let text = NativeValue::try_from_str("cached pure content", Some(work))?;
+                let cached = NativeArc::try_new_shallow(text, Some(work))?;
+                let shared =
+                    cached.share_or_copy_mixed(work, |_, _| panic!("same parent must not copy"))?;
+                assert!(NativeArc::ptr_eq(&cached, &shared));
+                Ok::<_, newchan_rust::s_content::CodecError>(cached)
+            })
+            .unwrap();
         old.close().unwrap();
         let current = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
-        let copy = current.codec_work().unwrap().run(|work| {
-            cached.share_or_copy_mixed(work,|text,scope| text.try_clone_admitted(scope))
-        }).unwrap();
-        assert!(!NativeArc::ptr_eq(&cached,&copy));
-        assert_eq!(cached.as_ref(),copy.as_ref());
+        let copy = current
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                cached.share_or_copy_mixed(work, |text, scope| text.try_clone_admitted(scope))
+            })
+            .unwrap();
+        assert!(!NativeArc::ptr_eq(&cached, &copy));
+        assert_eq!(cached.as_ref(), copy.as_ref());
         assert!(old.snapshot().unwrap().job_live > AdmissionRamLedger::metadata_bytes().unwrap());
-        assert!(current.snapshot().unwrap().job_live > AdmissionRamLedger::metadata_bytes().unwrap());
+        assert!(
+            current.snapshot().unwrap().job_live > AdmissionRamLedger::metadata_bytes().unwrap()
+        );
         drop(copy);
-        assert_eq!(current.snapshot().unwrap().job_live,AdmissionRamLedger::metadata_bytes().unwrap());
+        assert_eq!(
+            current.snapshot().unwrap().job_live,
+            AdmissionRamLedger::metadata_bytes().unwrap()
+        );
         drop(cached);
-        assert_eq!(old.snapshot().unwrap().job_live,AdmissionRamLedger::metadata_bytes().unwrap());
+        assert_eq!(
+            old.snapshot().unwrap().job_live,
+            AdmissionRamLedger::metadata_bytes().unwrap()
+        );
 
         let failed = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
-        let retained = failed.codec_work().unwrap().run(|work| NativeArc::try_new_shallow(17_u64,Some(work))).unwrap();
+        let retained = failed
+            .codec_work()
+            .unwrap()
+            .run(|work| NativeArc::try_new_shallow(17_u64, Some(work)))
+            .unwrap();
         failed.parent.invalidate();
         let target = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
-        target.codec_work().unwrap().run(|work| {
-            let before = target.snapshot().unwrap().job_live;
-            assert!(retained.share_or_copy_mixed(work,|_,_| panic!("failed parent must not copy")).is_err());
-            assert_eq!(target.snapshot().unwrap().job_live,before);
-            Ok::<_,newchan_rust::s_content::CodecError>(())
-        }).unwrap();
+        target
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let before = target.snapshot().unwrap().job_live;
+                assert!(retained
+                    .share_or_copy_mixed(work, |_, _| panic!("failed parent must not copy"))
+                    .is_err());
+                assert_eq!(target.snapshot().unwrap().job_live, before);
+                Ok::<_, newchan_rust::s_content::CodecError>(())
+            })
+            .unwrap();
     }
 
     #[test]
     fn mixed_ram_sql_node_acceptance_is_fresh_and_rejects_corrupt_original() {
-        use newchan_rust::s_content::{self as sc, job::{Job,Existing}};
         use crate::v3::audit_budget::LegacyObserver;
+        use newchan_rust::s_content::{
+            self as sc,
+            job::{Existing, Job},
+        };
         use std::cell::RefCell;
-        struct Observer<'a> { job: RefCell<Job>, work: &'a sc::capture_allocation::scratch::WorkScope }
+        struct Observer<'a> {
+            job: RefCell<Job>,
+            work: &'a sc::capture_allocation::scratch::WorkScope,
+        }
         impl LegacyObserver for Observer<'_> {
-            fn precheck(&self) -> Result<(),sc::CodecError> { self.job.borrow_mut().pre_io_check() }
-            fn check_work(&self,work: &sc::capture_allocation::scratch::WorkScope) -> Result<(),sc::CodecError> {
+            fn precheck(&self) -> Result<(), sc::CodecError> {
+                self.job.borrow_mut().pre_io_check()
+            }
+            fn check_work(
+                &self,
+                work: &sc::capture_allocation::scratch::WorkScope,
+            ) -> Result<(), sc::CodecError> {
                 let token = self.work.reserve_native(0)?;
-                if !token.belongs_to_parent(work) { return Err(work.reject(ScratchFailure::Ledger)); }
+                if !token.belongs_to_parent(work) {
+                    return Err(work.reject(ScratchFailure::Ledger));
+                }
                 Ok(())
             }
-            fn accept_checked(&self,row: &sc::legacy_evidence::CheckedLegacyEvidenceRow) -> Result<(),sc::CodecError> {
-                self.job.borrow_mut().accept_legacy_evidence(row,self.work).map(|_| ())
+            fn accept_checked(
+                &self,
+                row: &sc::legacy_evidence::CheckedLegacyEvidenceRow,
+            ) -> Result<(), sc::CodecError> {
+                self.job
+                    .borrow_mut()
+                    .accept_legacy_evidence(row, self.work)
+                    .map(|_| ())
             }
         }
         let conn = rusqlite::Connection::open_in_memory().unwrap();
         conn.execute_batch(crate::evidence_store::DDL).unwrap();
         use sha2::Digest;
         let payload = br#"{"x":1}"#;
-        let id = sc::legacy_evidence::node_id(0,payload);
-        conn.execute("INSERT INTO s_evidence_nodes VALUES(?1,0,?2,?3)",rusqlite::params![&id[..],&payload[..],payload.len() as i64]).unwrap();
-        conn.execute("INSERT INTO s_evidence_roots VALUES('root',?1,?2,?3,?4)",
-            rusqlite::params![&id[..],&b""[..],payload.len() as i64,format!("{:x}",sha2::Sha256::digest(payload))]).unwrap();
+        let id = sc::legacy_evidence::node_id(0, payload);
+        conn.execute(
+            "INSERT INTO s_evidence_nodes VALUES(?1,0,?2,?3)",
+            rusqlite::params![&id[..], &payload[..], payload.len() as i64],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO s_evidence_roots VALUES('root',?1,?2,?3,?4)",
+            rusqlite::params![
+                &id[..],
+                &b""[..],
+                payload.len() as i64,
+                format!("{:x}", sha2::Sha256::digest(payload))
+            ],
+        )
+        .unwrap();
         let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
         owner.codec_work().unwrap().run(|work| {
             let job = Job::new_started_mixed(job_limits(),Existing {store_bytes:0,staged_bytes:0},
@@ -960,5 +1020,4 @@ mod tests {
             Ok::<_,sc::CodecError>(())
         }).unwrap();
     }
-
 }

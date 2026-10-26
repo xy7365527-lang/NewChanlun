@@ -1350,8 +1350,12 @@ pub(crate) enum TextValue {
     Owned(aj::TextOwner),
 }
 impl TextValue {
-    pub fn from_str_admitted(text: &str, owner: Option<&OwnedBudget>, work: Option<&WorkScope>) -> Result<Self, String> {
-        Self::from_str_admitted_typed(text,owner,work).map_err(|e|e.to_string())
+    pub fn from_str_admitted(
+        text: &str,
+        owner: Option<&OwnedBudget>,
+        work: Option<&WorkScope>,
+    ) -> Result<Self, String> {
+        Self::from_str_admitted_typed(text, owner, work).map_err(|e| e.to_string())
     }
     pub fn from_str_admitted_typed(
         text: &str,
@@ -1360,10 +1364,7 @@ impl TextValue {
     ) -> Result<Self, sc::CodecError> {
         check_native_owner(owner, work)?;
         if work.is_some() {
-            return NativeAdmission(work)
-                .native_string(text)
-                .map(Self::Plain)
-                ;
+            return NativeAdmission(work).native_string(text).map(Self::Plain);
         }
         Self::from_str_typed(text, owner)
     }
@@ -1388,13 +1389,15 @@ impl TextValue {
             .map(|text| Self::from_str_admitted(text, owner, work))
             .transpose()
     }
-    pub(crate) fn try_clone_mixed(&self,work:&WorkScope)->Result<Self,sc::CodecError>{
+    pub(crate) fn try_clone_mixed(&self, work: &WorkScope) -> Result<Self, sc::CodecError> {
         match self {
-            Self::Plain(value)=>{
+            Self::Plain(value) => {
                 value.check_retained_source()?;
                 value.try_clone_admitted(work).map(Self::Plain)
             }
-            Self::Owned(_)=>Err(work.reject(sc::capture_allocation::scratch::ScratchFailure::Ledger)),
+            Self::Owned(_) => {
+                Err(work.reject(sc::capture_allocation::scratch::ScratchFailure::Ledger))
+            }
         }
     }
     pub fn try_clone_admitted(&self, work: Option<&WorkScope>) -> Result<Self, String> {
@@ -1702,11 +1705,15 @@ impl PlainJson {
         }
         Ok(self.value)
     }
-    pub(crate) fn try_clone_mixed(&self,work:&WorkScope)->Result<Self,sc::CodecError>{
-        if let Some(permit)=&self.permit{permit.check_retained_source()?;}
+    pub(crate) fn try_clone_mixed(&self, work: &WorkScope) -> Result<Self, sc::CodecError> {
+        if let Some(permit) = &self.permit {
+            permit.check_retained_source()?;
+        }
         self.child_permits.check_retained_source()?;
-        for permit in &self.child_permits{permit.check_retained_source()?;}
-        Self::try_clone_from(self.as_ref(),Some(work))
+        for permit in &self.child_permits {
+            permit.check_retained_source()?;
+        }
+        Self::try_clone_from(self.as_ref(), Some(work))
     }
     pub(crate) fn try_clone_from(
         value: &Value,
@@ -2599,10 +2606,14 @@ pub(crate) enum MixedJsonError {
 }
 
 impl From<String> for MixedJsonError {
-    fn from(error: String) -> Self { Self::Business(error) }
+    fn from(error: String) -> Self {
+        Self::Business(error)
+    }
 }
 impl From<&str> for MixedJsonError {
-    fn from(error: &str) -> Self { Self::Business(error.to_owned()) }
+    fn from(error: &str) -> Self {
+        Self::Business(error.to_owned())
+    }
 }
 
 /// mixed资源拒绝保持原静态CodecError；只有许可成功才进入原解析核。

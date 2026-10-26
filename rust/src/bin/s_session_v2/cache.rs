@@ -96,22 +96,40 @@ pub(super) struct RootCert {
     identity: Option<Arc<()>>,
 }
 impl RootCert {
-    pub(super) fn copy_mixed(&self,work:&WorkScope)->Result<Self,newchan_rust::s_content::CodecError>{
+    pub(super) fn copy_mixed(
+        &self,
+        work: &WorkScope,
+    ) -> Result<Self, newchan_rust::s_content::CodecError> {
         self.slots.check_retained_source()?;
-        if let Some(identity)=&self.identity {identity.check_retained_source()?;}
-        let mut slots=newchan_rust::s_content::CodecVec::default();
-        slots.try_reserve_native(work,self.slots.len())?;
-        for slot in &self.slots{slots.try_push(*slot)?;}
-        Ok(Self{node:self.node,slots,expanded_length:self.expanded_length,
-            content_sha256:self.content_sha256.try_clone_mixed(work)?,lineage:self.lineage.clone(),identity:self.identity.clone()})
+        if let Some(identity) = &self.identity {
+            identity.check_retained_source()?;
+        }
+        let mut slots = newchan_rust::s_content::CodecVec::default();
+        slots.try_reserve_native(work, self.slots.len())?;
+        for slot in &self.slots {
+            slots.try_push(*slot)?;
+        }
+        Ok(Self {
+            node: self.node,
+            slots,
+            expanded_length: self.expanded_length,
+            content_sha256: self.content_sha256.try_clone_mixed(work)?,
+            lineage: self.lineage.clone(),
+            identity: self.identity.clone(),
+        })
     }
-    fn identity_weak(&self)->Weak<()> {
-        self.identity.as_ref().map(Arc::downgrade).unwrap_or_else(Weak::new)
+    fn identity_weak(&self) -> Weak<()> {
+        self.identity
+            .as_ref()
+            .map(Arc::downgrade)
+            .unwrap_or_else(Weak::new)
     }
-    fn identity_ptr(&self)->usize {
-        self.identity.as_ref().map_or(0,|id|Arc::as_ptr(id) as usize)
+    fn identity_ptr(&self) -> usize {
+        self.identity
+            .as_ref()
+            .map_or(0, |id| Arc::as_ptr(id) as usize)
     }
-    fn same_identity(&self,other:&Self)->bool{
+    fn same_identity(&self, other: &Self) -> bool {
         matches!((&self.identity,&other.identity),(Some(a),Some(b)) if Arc::ptr_eq(a,b))
     }
 
@@ -379,55 +397,83 @@ impl Memo {
         Ok(())
     }
     /// 单一预算下先丢大句柄、再丢小控制头；不为准入旋转原件池。
-    fn make_room_admitted(&mut self,cost:usize,work:Option<&WorkScope>) -> Result<bool,String> {
-        self.make_room_typed(cost,work).map_err(|e|e.to_string())
+    fn make_room_admitted(
+        &mut self,
+        cost: usize,
+        work: Option<&WorkScope>,
+    ) -> Result<bool, String> {
+        self.make_room_typed(cost, work).map_err(|e| e.to_string())
     }
     /// #1527：先为两组驱逐计划完成所有许可，再改原cache；拒绝保留旧合法条目。
-    fn make_room_typed(&mut self,cost:usize,work:Option<&WorkScope>) -> Result<bool,newchan_rust::s_content::CodecError> {
-        use newchan_rust::s_content::{CodecVec,capture_allocation::native_owned::NativeValue};
+    fn make_room_typed(
+        &mut self,
+        cost: usize,
+        work: Option<&WorkScope>,
+    ) -> Result<bool, newchan_rust::s_content::CodecError> {
+        use newchan_rust::s_content::{capture_allocation::native_owned::NativeValue, CodecVec};
         let admission = NativeAdmission(work);
-        let floor = self.root_bytes().saturating_add(self.certs_bytes).saturating_add(self.capture_bytes());
-        if floor.saturating_add(cost) > self.limit { return Ok(false); }
+        let floor = self
+            .root_bytes()
+            .saturating_add(self.certs_bytes)
+            .saturating_add(self.capture_bytes());
+        if floor.saturating_add(cost) > self.limit {
+            return Ok(false);
+        }
         let used = self.retained_bytes().saturating_add(self.capture_bytes());
-        if used.saturating_add(cost) <= self.limit { return Ok(true); }
+        if used.saturating_add(cost) <= self.limit {
+            return Ok(true);
+        }
         let mut need = used.saturating_add(cost).saturating_sub(self.limit);
         let mut handles = CodecVec::default();
-        admission.native_vec_room(&mut handles,self.handles.len())?;
-        for (key,entry) in &self.handles {
-            handles.try_push((entry.cost,NativeValue::try_from_str(key,work)?))?;
+        admission.native_vec_room(&mut handles, self.handles.len())?;
+        for (key, entry) in &self.handles {
+            handles.try_push((entry.cost, NativeValue::try_from_str(key, work)?))?;
         }
-        handles.sort_unstable_by(|a,b|b.cmp(a));
+        handles.sort_unstable_by(|a, b| b.cmp(a));
         let mut handle_count = 0;
-        for (bytes,_) in &handles {
-            if need == 0 { break; }
+        for (bytes, _) in &handles {
+            if need == 0 {
+                break;
+            }
             need = need.saturating_sub(*bytes);
             handle_count += 1;
         }
         let mut headers = CodecVec::default();
         let mut header_count = 0;
         if need != 0 {
-            admission.native_vec_room(&mut headers,self.batch_headers.len())?;
-            for (key,entry) in &self.batch_headers {
-                headers.try_push((entry.cost,NativeValue::try_from_str(key,work)?))?;
+            admission.native_vec_room(&mut headers, self.batch_headers.len())?;
+            for (key, entry) in &self.batch_headers {
+                headers.try_push((entry.cost, NativeValue::try_from_str(key, work)?))?;
             }
-            headers.sort_unstable_by(|a,b|b.cmp(a));
-            for (bytes,_) in &headers {
-                if need == 0 { break; }
+            headers.sort_unstable_by(|a, b| b.cmp(a));
+            for (bytes, _) in &headers {
+                if need == 0 {
+                    break;
+                }
                 need = need.saturating_sub(*bytes);
                 header_count += 1;
             }
         }
         // 计划构造完成；以下不分配、不再申请许可。
-        for (bytes,key) in handles.into_iter().take(handle_count) {
+        for (bytes, key) in handles.into_iter().take(handle_count) {
             self.handles.remove(key.as_str());
             self.handles_bytes = self.handles_bytes.saturating_sub(bytes);
-            #[cfg(test)] counter(|c| {c.handle_capacity_evictions += 1; c.handle_capacity_evicted_bytes += bytes;});
+            #[cfg(test)]
+            counter(|c| {
+                c.handle_capacity_evictions += 1;
+                c.handle_capacity_evicted_bytes += bytes;
+            });
         }
-        for (_,key) in headers.into_iter().take(header_count) {
+        for (_, key) in headers.into_iter().take(header_count) {
             self.remove_batch_header(key.as_str());
-            #[cfg(test)] counter(|c|c.batch_header_capacity_evictions += 1);
+            #[cfg(test)]
+            counter(|c| c.batch_header_capacity_evictions += 1);
         }
-        Ok(self.retained_bytes().saturating_add(self.capture_bytes()).saturating_add(cost)<=self.limit)
+        Ok(self
+            .retained_bytes()
+            .saturating_add(self.capture_bytes())
+            .saturating_add(cost)
+            <= self.limit)
     }
 
     /// 移除索引后，捕获若仍持有原件，把唯一 payload 费用转给其中一个读集条目。
@@ -435,7 +481,13 @@ impl Memo {
         self.remove_cert_admitted(key, None)
             .expect("None admission cannot fail")
     }
-    fn remove_cert_admitted(&mut self,key:&[u8;32],work:Option<&WorkScope>) -> Result<(),String> { self.remove_cert_typed(key,work).map_err(|e|e.to_string()) }
+    fn remove_cert_admitted(
+        &mut self,
+        key: &[u8; 32],
+        work: Option<&WorkScope>,
+    ) -> Result<(), String> {
+        self.remove_cert_typed(key, work).map_err(|e| e.to_string())
+    }
     fn remove_cert_typed(
         &mut self,
         key: &[u8; 32],
@@ -463,9 +515,7 @@ impl Memo {
                 .map(|(key, _)| *key)
             {
                 Some(owner) => {
-                    c.owned
-                        .insert_admitted(owner, &admission)
-                        ?;
+                    c.owned.insert_admitted(owner, &admission)?;
                     true
                 }
                 None => false,
@@ -850,91 +900,141 @@ pub(crate) struct MixedCacheTransaction {
     saved: Option<RetainedTables>,
 }
 struct RetainedTables {
-    certs: NativeMap<[u8;32],Arc<Cert>>,
-    roots: NativeMap<TextValue,Arc<RootCert>>,
-    handles: NativeTree<TextValue,Handle>,
-    headers: NativeTree<TextValue,BatchHeaderEntry>,
+    certs: NativeMap<[u8; 32], Arc<Cert>>,
+    roots: NativeMap<TextValue, Arc<RootCert>>,
+    handles: NativeTree<TextValue, Handle>,
+    headers: NativeTree<TextValue, BatchHeaderEntry>,
     certs_bytes: usize,
     handles_bytes: usize,
     headers_bytes: usize,
     lineage: Arc<()>,
 }
 impl RetainedTables {
-    fn copy_from(m:&Memo,work:&WorkScope)->Result<Self,newchan_rust::s_content::CodecError>{
+    fn copy_from(m: &Memo, work: &WorkScope) -> Result<Self, newchan_rust::s_content::CodecError> {
         m.cert_lineage.check_retained_source()?;
-            let certs=m.certs.try_copy_mixed(work,|key,value|{
-                value.check_retained_source()?; Ok((*key,value.clone()))
-            })?;
-            let roots=m.root_certs.try_copy_mixed(work,|key,value|{
-                value.check_retained_source()?; Ok((key.try_clone_mixed(work)?,value.clone()))
-            })?;
-            let handles=m.handles.try_copy_mixed(work,|key,value|{
-                value.bytes.check_retained_source()?;
-                if let Some(json)=&value.value{json.check_retained_source()?;}
-                Ok((key.try_clone_mixed(work)?,Handle{closure:value.closure,root_cert:value.root_cert.clone(),
-                    bytes:value.bytes.clone(),value:value.value.clone(),cost:value.cost}))
-            })?;
-            let headers=m.batch_headers.try_copy_mixed(work,|key,value|{
-                for text in [&value.header.protocol_revision,&value.header.session_generation,
-                    &value.header.clock_plan_hash,&value.header.semantic_commit_ns].into_iter().flatten(){
-                    text.check_retained_source()?;
-                }
-                Ok((key.try_clone_mixed(work)?,BatchHeaderEntry{batch_id:value.batch_id.try_clone_mixed(work)?,
-                    byte_len:value.byte_len,root_cert:value.root_cert.clone(),closure:value.closure,
-                    header:value.header.clone(),cost:value.cost}))
-            })?;
-        Ok(Self{certs,roots,handles,headers,certs_bytes:m.certs_bytes,
-            handles_bytes:m.handles_bytes,headers_bytes:m.batch_headers_bytes,lineage:m.cert_lineage.clone()})
+        let certs = m.certs.try_copy_mixed(work, |key, value| {
+            value.check_retained_source()?;
+            Ok((*key, value.clone()))
+        })?;
+        let roots = m.root_certs.try_copy_mixed(work, |key, value| {
+            value.check_retained_source()?;
+            Ok((key.try_clone_mixed(work)?, value.clone()))
+        })?;
+        let handles = m.handles.try_copy_mixed(work, |key, value| {
+            value.bytes.check_retained_source()?;
+            if let Some(json) = &value.value {
+                json.check_retained_source()?;
+            }
+            Ok((
+                key.try_clone_mixed(work)?,
+                Handle {
+                    closure: value.closure,
+                    root_cert: value.root_cert.clone(),
+                    bytes: value.bytes.clone(),
+                    value: value.value.clone(),
+                    cost: value.cost,
+                },
+            ))
+        })?;
+        let headers = m.batch_headers.try_copy_mixed(work, |key, value| {
+            for text in [
+                &value.header.protocol_revision,
+                &value.header.session_generation,
+                &value.header.clock_plan_hash,
+                &value.header.semantic_commit_ns,
+            ]
+            .into_iter()
+            .flatten()
+            {
+                text.check_retained_source()?;
+            }
+            Ok((
+                key.try_clone_mixed(work)?,
+                BatchHeaderEntry {
+                    batch_id: value.batch_id.try_clone_mixed(work)?,
+                    byte_len: value.byte_len,
+                    root_cert: value.root_cert.clone(),
+                    closure: value.closure,
+                    header: value.header.clone(),
+                    cost: value.cost,
+                },
+            ))
+        })?;
+        Ok(Self {
+            certs,
+            roots,
+            handles,
+            headers,
+            certs_bytes: m.certs_bytes,
+            handles_bytes: m.handles_bytes,
+            headers_bytes: m.batch_headers_bytes,
+            lineage: m.cert_lineage.clone(),
+        })
     }
-    fn exchange(self,m:&mut Memo)->Self {
-        Self{
-            certs:std::mem::replace(&mut m.certs,self.certs),
-            roots:std::mem::replace(&mut m.root_certs,self.roots),
-            handles:std::mem::replace(&mut m.handles,self.handles),
-            headers:std::mem::replace(&mut m.batch_headers,self.headers),
-            certs_bytes:std::mem::replace(&mut m.certs_bytes,self.certs_bytes),
-            handles_bytes:std::mem::replace(&mut m.handles_bytes,self.handles_bytes),
-            headers_bytes:std::mem::replace(&mut m.batch_headers_bytes,self.headers_bytes),
-            lineage:std::mem::replace(&mut m.cert_lineage,self.lineage),
+    fn exchange(self, m: &mut Memo) -> Self {
+        Self {
+            certs: std::mem::replace(&mut m.certs, self.certs),
+            roots: std::mem::replace(&mut m.root_certs, self.roots),
+            handles: std::mem::replace(&mut m.handles, self.handles),
+            headers: std::mem::replace(&mut m.batch_headers, self.headers),
+            certs_bytes: std::mem::replace(&mut m.certs_bytes, self.certs_bytes),
+            handles_bytes: std::mem::replace(&mut m.handles_bytes, self.handles_bytes),
+            headers_bytes: std::mem::replace(&mut m.batch_headers_bytes, self.headers_bytes),
+            lineage: std::mem::replace(&mut m.cert_lineage, self.lineage),
         }
     }
 }
 impl MixedCacheTransaction {
-    pub(crate) fn start(work:&WorkScope)->Result<Self,newchan_rust::s_content::CodecError>{
-        MEMO.with(|m|{
-            let mut m=m.borrow_mut();
+    pub(crate) fn start(work: &WorkScope) -> Result<Self, newchan_rust::s_content::CodecError> {
+        MEMO.with(|m| {
+            let mut m = m.borrow_mut();
             if m.capture.is_some() {
-                return Err(work.reject(newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Ledger));
+                return Err(work.reject(
+                    newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Ledger,
+                ));
             }
-            let saved=RetainedTables::copy_from(&m,work)?.exchange(&mut m);
-            Ok(Self{saved:Some(saved)})
+            let saved = RetainedTables::copy_from(&m, work)?.exchange(&mut m);
+            Ok(Self { saved: Some(saved) })
         })
     }
-    pub(crate) fn commit(mut self){self.saved.take();}
+    pub(crate) fn commit(mut self) {
+        self.saved.take();
+    }
 }
 impl Drop for MixedCacheTransaction {
-    fn drop(&mut self){
-        if let Some(saved)=self.saved.take(){
-            MEMO.with(|m|{
-                let mut m=m.borrow_mut();
-                m.certs=saved.certs;m.root_certs=saved.roots;m.handles=saved.handles;m.batch_headers=saved.headers;
-                m.certs_bytes=saved.certs_bytes;m.handles_bytes=saved.handles_bytes;m.batch_headers_bytes=saved.headers_bytes;
-                m.cert_lineage=saved.lineage;
+    fn drop(&mut self) {
+        if let Some(saved) = self.saved.take() {
+            MEMO.with(|m| {
+                let mut m = m.borrow_mut();
+                m.certs = saved.certs;
+                m.root_certs = saved.roots;
+                m.handles = saved.handles;
+                m.batch_headers = saved.headers;
+                m.certs_bytes = saved.certs_bytes;
+                m.handles_bytes = saved.handles_bytes;
+                m.batch_headers_bytes = saved.headers_bytes;
+                m.cert_lineage = saved.lineage;
             });
         }
     }
 }
 /// 跨Job仅重建容器布局与键。条目仍持原payload父，读取选中内容时另作受控复制。
-pub(crate) fn begin_capture_mixed(budget_bytes:usize,work:&WorkScope)->Result<CaptureGuard,newchan_rust::s_content::CodecError>{
+pub(crate) fn begin_capture_mixed(
+    budget_bytes: usize,
+    work: &WorkScope,
+) -> Result<CaptureGuard, newchan_rust::s_content::CodecError> {
     MEMO.with(|m| {
-        let mut m=m.borrow_mut();
-        if !(m.certs.belongs_to_work(work)&&m.root_certs.belongs_to_work(work)
-            &&m.handles.belongs_to_work(work)&&m.batch_headers.belongs_to_work(work)){
-            RetainedTables::copy_from(&m,work)?.exchange(&mut m);
+        let mut m = m.borrow_mut();
+        if !(m.certs.belongs_to_work(work)
+            && m.root_certs.belongs_to_work(work)
+            && m.handles.belongs_to_work(work)
+            && m.batch_headers.belongs_to_work(work))
+        {
+            RetainedTables::copy_from(&m, work)?.exchange(&mut m);
         }
-        Ok::<_,newchan_rust::s_content::CodecError>(())
+        Ok::<_, newchan_rust::s_content::CodecError>(())
     })?;
-    begin_capture_typed(budget_bytes,Some(work))
+    begin_capture_typed(budget_bytes, Some(work))
 }
 pub(super) fn begin_capture_typed(
     node_budget: usize,
@@ -991,7 +1091,7 @@ pub(super) fn node_put_admitted(
     owned: bool,
     work: Option<&WorkScope>,
 ) -> Result<(), String> {
-    node_put_typed(conn_id,cert,owned,work).map_err(|e|e.to_string())
+    node_put_typed(conn_id, cert, owned, work).map_err(|e| e.to_string())
 }
 pub(super) fn node_put_typed(
     conn_id: usize,
@@ -1027,21 +1127,38 @@ pub(super) fn node_put_typed(
             return Ok(());
         }
         // 合法不保留先于当前RAM许可；不得把旧容量策略变成资源失败。
-        if m.root_bytes().saturating_add(m.certs_bytes).saturating_add(m.capture_bytes()).saturating_add(cost) > m.limit {
-            #[cfg(test)] counter(|c| c.capture_node_admission_rejected += 1);
+        if m.root_bytes()
+            .saturating_add(m.certs_bytes)
+            .saturating_add(m.capture_bytes())
+            .saturating_add(cost)
+            > m.limit
+        {
+            #[cfg(test)]
+            counter(|c| c.capture_node_admission_rejected += 1);
             return Ok(());
         }
         let id = cert.id;
         let inserted_owned = {
-            let Some(c) = m.capture.as_mut() else { return Ok(()); };
+            let Some(c) = m.capture.as_mut() else {
+                return Ok(());
+            };
             admission.native_std_map_room(&mut c.nodes)?;
-            if owned { c.owned.insert_admitted((conn_id,id),&admission)? } else { false }
+            if owned {
+                c.owned.insert_admitted((conn_id, id), &admission)?
+            } else {
+                false
+            }
         };
-        match m.make_room_typed(cost,work) {
-            Ok(true) => {},
+        match m.make_room_typed(cost, work) {
+            Ok(true) => {}
             result => {
-                if inserted_owned { m.capture.as_mut().unwrap().owned.remove(&(conn_id,id)); }
-                #[cfg(test)] if matches!(result,Ok(false)) { counter(|c|c.capture_node_admission_rejected += 1); }
+                if inserted_owned {
+                    m.capture.as_mut().unwrap().owned.remove(&(conn_id, id));
+                }
+                #[cfg(test)]
+                if matches!(result, Ok(false)) {
+                    counter(|c| c.capture_node_admission_rejected += 1);
+                }
                 return result.map(|_| ());
             }
         }
@@ -1081,9 +1198,7 @@ pub(super) fn derived_get_typed(
             return Ok(None);
         };
         let mut slot_counts = newchan_rust::s_content::CodecVec::default();
-        admission
-            .native_vec_room(&mut slot_counts, v.slot_counts.len())
-            ?;
+        admission.native_vec_room(&mut slot_counts, v.slot_counts.len())?;
         for n in &v.slot_counts {
             slot_counts.try_push(*n)?;
         }
@@ -1121,9 +1236,7 @@ pub(super) fn derived_put_typed(
     MEMO.with(|m| {
         if let Some(c) = m.borrow_mut().capture.as_mut() {
             if !c.derived.contains_key(&(conn_id, id)) {
-                admission
-                    .native_std_map_room(&mut c.derived)
-                    ?;
+                admission.native_std_map_room(&mut c.derived)?;
             }
             c.derived.insert((conn_id, id), derived);
         }
@@ -1147,9 +1260,7 @@ pub(super) fn mark_reachable_typed(
     let admission = NativeAdmission(work);
     MEMO.with(|m| {
         if let Some(c) = m.borrow_mut().capture.as_mut() {
-            c.reachable
-                .insert_admitted((conn_id, id), &admission)
-                ?;
+            c.reachable.insert_admitted((conn_id, id), &admission)?;
         }
         Ok(())
     })
@@ -1205,9 +1316,7 @@ pub(super) fn cert_matched_mark_typed(
     let admission = NativeAdmission(work);
     MEMO.with(|m| {
         if let Some(c) = m.borrow_mut().capture.as_mut() {
-            c.matched
-                .insert_admitted((conn_id, id), &admission)
-                ?;
+            c.matched.insert_admitted((conn_id, id), &admission)?;
         }
         Ok(())
     })
@@ -1245,7 +1354,13 @@ pub(super) fn cert_marked(conn_id: usize, id: [u8; 32]) -> bool {
 pub(super) fn cert_certify(conn_id: usize, id: [u8; 32]) {
     cert_certify_admitted(conn_id, id, None).expect("None admission cannot fail")
 }
-pub(super) fn cert_certify_admitted(conn_id:usize,id:[u8;32],work:Option<&WorkScope>) -> Result<(),String> { cert_certify_typed(conn_id,id,work).map_err(|e|e.to_string()) }
+pub(super) fn cert_certify_admitted(
+    conn_id: usize,
+    id: [u8; 32],
+    work: Option<&WorkScope>,
+) -> Result<(), String> {
+    cert_certify_typed(conn_id, id, work).map_err(|e| e.to_string())
+}
 pub(super) fn cert_certify_typed(
     conn_id: usize,
     id: [u8; 32],
@@ -1254,9 +1369,7 @@ pub(super) fn cert_certify_typed(
     let admission = NativeAdmission(work);
     MEMO.with(|m| {
         if let Some(c) = m.borrow_mut().capture.as_mut() {
-            c.certified
-                .insert_admitted((conn_id, id), &admission)
-                ?;
+            c.certified.insert_admitted((conn_id, id), &admission)?;
         }
         Ok(())
     })
@@ -1296,7 +1409,13 @@ impl IdSet for NativeSet<[u8; 32]> {
         self.iter()
     }
 }
-pub(super) fn cert_commit_admitted(conn_id:usize,ids:&(impl IdSet+?Sized),work:Option<&WorkScope>) -> Result<(),String> { cert_commit_typed(conn_id,ids,work).map_err(|e|e.to_string()) }
+pub(super) fn cert_commit_admitted(
+    conn_id: usize,
+    ids: &(impl IdSet + ?Sized),
+    work: Option<&WorkScope>,
+) -> Result<(), String> {
+    cert_commit_typed(conn_id, ids, work).map_err(|e| e.to_string())
+}
 pub(super) fn cert_commit_typed(
     conn_id: usize,
     ids: &(impl IdSet + ?Sized),
@@ -1336,9 +1455,7 @@ pub(super) fn cert_commit_typed(
                 counter(|c| c.shared_node_cert_admission_rejected += 1);
                 continue;
             }
-            admission
-                .native_std_map_room(&mut m.certs)
-                ?;
+            admission.native_std_map_room(&mut m.certs)?;
             if owned {
                 // 独占：字节已由读集持有，只把它从瞬时读集**转记**为持久证书（总量不变）。
                 if let Some(c) = m.capture.as_mut() {
@@ -1355,7 +1472,13 @@ pub(super) fn cert_commit_typed(
     })
 }
 /// 冷展开后，只有全部当前原件仍在池里且与本次读集为同一不可变原件，才能建立新根证明。
-pub(super) fn certify_retained_originals_admitted(conn_id:usize,ids:&(impl IdSet+?Sized),work:Option<&WorkScope>) -> Result<bool,String> { certify_retained_originals_typed(conn_id,ids,work).map_err(|e|e.to_string()) }
+pub(super) fn certify_retained_originals_admitted(
+    conn_id: usize,
+    ids: &(impl IdSet + ?Sized),
+    work: Option<&WorkScope>,
+) -> Result<bool, String> {
+    certify_retained_originals_typed(conn_id, ids, work).map_err(|e| e.to_string())
+}
 pub(super) fn certify_retained_originals_typed(
     conn_id: usize,
     ids: &(impl IdSet + ?Sized),
@@ -1377,12 +1500,8 @@ pub(super) fn certify_retained_originals_typed(
         if complete {
             let c = m.capture.as_mut().unwrap();
             for id in ids.each() {
-                c.matched
-                    .insert_admitted((conn_id, *id), &admission)
-                    ?;
-                c.certified
-                    .insert_admitted((conn_id, *id), &admission)
-                    ?;
+                c.matched.insert_admitted((conn_id, *id), &admission)?;
+                c.certified.insert_admitted((conn_id, *id), &admission)?;
             }
         }
         Ok(complete)
@@ -1626,96 +1745,143 @@ pub(super) fn handle_put_certified_admitted(
     value: Option<Arc<SharedPlainJson>>,
     work: Option<&WorkScope>,
 ) -> Result<Option<Arc<RootCert>>, String> {
-    handle_put_certified_typed(root_key,root_cert,closure,bytes,value,work).map_err(|e|e.to_string())
+    handle_put_certified_typed(root_key, root_cert, closure, bytes, value, work)
+        .map_err(|e| e.to_string())
 }
 pub(super) fn handle_put_certified_typed(
-    root_key:&str,root_cert:&RootCert,closure:[u8;32],bytes:Arc<[u8]>,
-    value:Option<Arc<SharedPlainJson>>,work:Option<&WorkScope>,
-)->Result<Option<Arc<RootCert>>,newchan_rust::s_content::CodecError>{
-    let admission=NativeAdmission(work);
-    MEMO.with(|m|{
-        let mut m=m.borrow_mut();
-        if m.limit==0 {
-            #[cfg(test)] counter(|c|c.handle_admission_rejected+=1);
+    root_key: &str,
+    root_cert: &RootCert,
+    closure: [u8; 32],
+    bytes: Arc<[u8]>,
+    value: Option<Arc<SharedPlainJson>>,
+    work: Option<&WorkScope>,
+) -> Result<Option<Arc<RootCert>>, newchan_rust::s_content::CodecError> {
+    let admission = NativeAdmission(work);
+    MEMO.with(|m| {
+        let mut m = m.borrow_mut();
+        if m.limit == 0 {
+            #[cfg(test)]
+            counter(|c| c.handle_admission_rejected += 1);
             return Ok(None);
         }
-        let matching=m.root_certs.get(root_key).filter(|old|{
-            Weak::ptr_eq(&old.lineage,&Arc::downgrade(&m.cert_lineage))
-                && old.same_originals(&root_cert.node,&root_cert.slots,root_cert.expanded_length,&root_cert.content_sha256)
-        }).cloned();
-        let existing=matching.as_ref().filter(|old|work.is_none_or(|work|old.belongs_to_parent(work))).cloned();
-        let old_root_cost=m.root_certs.get(root_key).map_or(0,|old|old.cost().saturating_add(root_key.len()));
-        let root_cost=root_cert.cost().saturating_add(root_key.len());
-        let delta=if existing.is_some(){0}else{root_cost};
-        let credit=if existing.is_some(){0}else{old_root_cost};
-        let floor=m.root_bytes().saturating_add(m.certs_bytes.saturating_sub(credit)).saturating_add(m.capture_bytes());
-        if floor.saturating_add(delta)>m.limit {
-            #[cfg(test)] counter(|c|c.handle_admission_rejected+=1);
+        let matching = m
+            .root_certs
+            .get(root_key)
+            .filter(|old| {
+                Weak::ptr_eq(&old.lineage, &Arc::downgrade(&m.cert_lineage))
+                    && old.same_originals(
+                        &root_cert.node,
+                        &root_cert.slots,
+                        root_cert.expanded_length,
+                        &root_cert.content_sha256,
+                    )
+            })
+            .cloned();
+        let existing = matching
+            .as_ref()
+            .filter(|old| work.is_none_or(|work| old.belongs_to_parent(work)))
+            .cloned();
+        let old_root_cost = m
+            .root_certs
+            .get(root_key)
+            .map_or(0, |old| old.cost().saturating_add(root_key.len()));
+        let root_cost = root_cert.cost().saturating_add(root_key.len());
+        let delta = if existing.is_some() { 0 } else { root_cost };
+        let credit = if existing.is_some() { 0 } else { old_root_cost };
+        let floor = m
+            .root_bytes()
+            .saturating_add(m.certs_bytes.saturating_sub(credit))
+            .saturating_add(m.capture_bytes());
+        if floor.saturating_add(delta) > m.limit {
+            #[cfg(test)]
+            counter(|c| c.handle_admission_rejected += 1);
             return Ok(None);
         }
-        let cost=handle_cost(root_key.len(),bytes.len(),value.is_some());
-        let keep_handle=floor.saturating_add(delta).saturating_add(cost)<=m.limit;
-        let root_key_owned=if existing.is_none(){
+        let cost = handle_cost(root_key.len(), bytes.len(), value.is_some());
+        let keep_handle = floor.saturating_add(delta).saturating_add(cost) <= m.limit;
+        let root_key_owned = if existing.is_none() {
             admission.native_std_map_room(&mut m.root_certs)?;
-            Some(TextValue::from_str_admitted_typed(root_key,None,work)?)
-        }else{None};
-        let retained=match existing {
-            Some(old)=>old,
-            None=>{
-                let mut slots=newchan_rust::s_content::CodecVec::default();
-                admission.native_vec_room(&mut slots,root_cert.slots.len())?;
-                for slot in &root_cert.slots{slots.try_push(*slot)?;}
-                let hash=admission.native_string(&root_cert.content_sha256)?;
-                let mut cert=RootCert::new_admitted(root_cert.node,slots,root_cert.expanded_length,hash);
-                cert.lineage=Arc::downgrade(&m.cert_lineage);
-                cert.identity=match matching.as_ref().and_then(|old|old.identity.as_ref()){
-                    Some(identity)=>{
+            Some(TextValue::from_str_admitted_typed(root_key, None, work)?)
+        } else {
+            None
+        };
+        let retained = match existing {
+            Some(old) => old,
+            None => {
+                let mut slots = newchan_rust::s_content::CodecVec::default();
+                admission.native_vec_room(&mut slots, root_cert.slots.len())?;
+                for slot in &root_cert.slots {
+                    slots.try_push(*slot)?;
+                }
+                let hash = admission.native_string(&root_cert.content_sha256)?;
+                let mut cert =
+                    RootCert::new_admitted(root_cert.node, slots, root_cert.expanded_length, hash);
+                cert.lineage = Arc::downgrade(&m.cert_lineage);
+                cert.identity = match matching.as_ref().and_then(|old| old.identity.as_ref()) {
+                    Some(identity) => {
                         identity.check_retained_source()?;
                         Some(identity.clone())
                     }
-                    None=>Some(Arc::try_new_shallow((),work)?),
+                    None => Some(Arc::try_new_shallow((), work)?),
                 };
-                Arc::try_new_shallow(cert,work)?
+                Arc::try_new_shallow(cert, work)?
             }
         };
-        let handle_key=if keep_handle {
-            let key=TextValue::from_str_admitted_typed(root_key,None,work)?;
-            m.handles.reserve_entry_admitted(&key,&admission)?;
+        let handle_key = if keep_handle {
+            let key = TextValue::from_str_admitted_typed(root_key, None, work)?;
+            m.handles.reserve_entry_admitted(&key, &admission)?;
             Some(key)
-        }else{None};
+        } else {
+            None
+        };
         // 所有目标条目先构成。暂移旧handle只为精确计算替换容量；失败原样还原。
-        let old_handle=m.handles.remove_entry(root_key);
-        if let Some((_,old))=&old_handle {m.handles_bytes=m.handles_bytes.saturating_sub(old.cost);}
-        m.certs_bytes=m.certs_bytes.saturating_sub(credit);
-        let room=m.make_room_typed(delta.saturating_add(if keep_handle{cost}else{0}),work);
-        m.certs_bytes=m.certs_bytes.saturating_add(credit);
+        let old_handle = m.handles.remove_entry(root_key);
+        if let Some((_, old)) = &old_handle {
+            m.handles_bytes = m.handles_bytes.saturating_sub(old.cost);
+        }
+        m.certs_bytes = m.certs_bytes.saturating_sub(credit);
+        let room = m.make_room_typed(
+            delta.saturating_add(if keep_handle { cost } else { 0 }),
+            work,
+        );
+        m.certs_bytes = m.certs_bytes.saturating_add(credit);
         match room {
-            Err(error)=>{
-                if let Some((key,old))=old_handle {
-                    m.handles_bytes=m.handles_bytes.saturating_add(old.cost);
-                    m.handles.insert_reserved(key,old);
+            Err(error) => {
+                if let Some((key, old)) = old_handle {
+                    m.handles_bytes = m.handles_bytes.saturating_add(old.cost);
+                    m.handles.insert_reserved(key, old);
                 }
                 return Err(error);
             }
-            Ok(false)=>{
-                if let Some((key,old))=old_handle {
-                    m.handles_bytes=m.handles_bytes.saturating_add(old.cost);
-                    m.handles.insert_reserved(key,old);
+            Ok(false) => {
+                if let Some((key, old)) = old_handle {
+                    m.handles_bytes = m.handles_bytes.saturating_add(old.cost);
+                    m.handles.insert_reserved(key, old);
                 }
                 return Ok(None);
             }
-            Ok(true)=>{}
+            Ok(true) => {}
         }
-        if let Some(key)=root_key_owned {
+        if let Some(key) = root_key_owned {
             m.remove_batch_header(root_key);
-            m.root_certs.insert(key,retained.clone());
-            m.certs_bytes=m.certs_bytes.saturating_sub(credit).saturating_add(delta);
+            m.root_certs.insert(key, retained.clone());
+            m.certs_bytes = m.certs_bytes.saturating_sub(credit).saturating_add(delta);
         }
-        if let Some(key)=handle_key {
-            m.handles.insert_reserved(key,Handle{closure,root_cert:Some(retained.identity_weak()),bytes,value,cost});
-            m.handles_bytes=m.handles_bytes.saturating_add(cost);
-        }else{
-            #[cfg(test)] counter(|c|c.handle_admission_rejected+=1);
+        if let Some(key) = handle_key {
+            m.handles.insert_reserved(
+                key,
+                Handle {
+                    closure,
+                    root_cert: Some(retained.identity_weak()),
+                    bytes,
+                    value,
+                    cost,
+                },
+            );
+            m.handles_bytes = m.handles_bytes.saturating_add(cost);
+        } else {
+            #[cfg(test)]
+            counter(|c| c.handle_admission_rejected += 1);
         }
         Ok(Some(retained))
     })
@@ -1872,7 +2038,7 @@ pub(super) fn store_root(
             identity,
             originals: originals
                 .iter()
-                .map(|(key, cert)| (key.clone(), cert.as_ref().map(|cert|cert.identity_weak())))
+                .map(|(key, cert)| (key.clone(), cert.as_ref().map(|cert| cert.identity_weak())))
                 .collect(),
             walk,
             bytes,
@@ -2387,35 +2553,44 @@ mod tests {
         configure(0);
     }
 
-
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn mixed_cache_second_eviction_plan_failure_preserves_both_old_groups() {
         configure(1 << 20);
         let long_key = "h".repeat(8192);
-        let root = RootCert::new([1;32],vec![],2,"hash".into());
-        let retained = handle_put_certified(&long_key,&root,[2;32],Arc::from(&b"{}"[..]),None).unwrap();
-        let header = BatchControlHeader::from_verified_batch(&json!({"protocol_revision":"s-session/2"}));
-        batch_header_put(&long_key,"public",2,&retained,[2;32],header);
+        let root = RootCert::new([1; 32], vec![], 2, "hash".into());
+        let retained =
+            handle_put_certified(&long_key, &root, [2; 32], Arc::from(&b"{}"[..]), None).unwrap();
+        let header =
+            BatchControlHeader::from_verified_batch(&json!({"protocol_revision":"s-session/2"}));
+        batch_header_put(&long_key, "public", 2, &retained, [2; 32], header);
         evict_full_handles_for_test();
-        let (bytes,value)=handle("small",64,false);
-        handle_put_blob("small",[0;32],bytes,value);
-        let budget=crate::v3::audit_owner::native::Budget::new(1<<20,0).unwrap();
-        let mut rejected=false;
-        let _=budget.codec_work().unwrap().run(|work| -> Result<(),String> {
-            let _hog=work.reserve_native((1<<20)-budget.live()-4096).unwrap();
-            MEMO.with(|m| {
-                let mut m=m.borrow_mut();
-                m.limit=m.retained_bytes();
-                let before=(m.handles.len(),m.batch_headers.len(),m.total_bytes());
-                assert_eq!((before.0,before.1),(1,1));
-                let requested=m.handles_bytes+1; // requires all handles, then a header
-                assert!(m.make_room_typed(requested,Some(work)).is_err());
-                assert_eq!((m.handles.len(),m.batch_headers.len(),m.total_bytes()),before);
-                rejected=true;
+        let (bytes, value) = handle("small", 64, false);
+        handle_put_blob("small", [0; 32], bytes, value);
+        let budget = crate::v3::audit_owner::native::Budget::new(1 << 20, 0).unwrap();
+        let mut rejected = false;
+        let _ = budget
+            .codec_work()
+            .unwrap()
+            .run(|work| -> Result<(), String> {
+                let _hog = work
+                    .reserve_native((1 << 20) - budget.live() - 4096)
+                    .unwrap();
+                MEMO.with(|m| {
+                    let mut m = m.borrow_mut();
+                    m.limit = m.retained_bytes();
+                    let before = (m.handles.len(), m.batch_headers.len(), m.total_bytes());
+                    assert_eq!((before.0, before.1), (1, 1));
+                    let requested = m.handles_bytes + 1; // requires all handles, then a header
+                    assert!(m.make_room_typed(requested, Some(work)).is_err());
+                    assert_eq!(
+                        (m.handles.len(), m.batch_headers.len(), m.total_bytes()),
+                        before
+                    );
+                    rejected = true;
+                });
+                Ok(())
             });
-            Ok(())
-        });
         assert!(rejected);
         configure(0);
     }
@@ -2423,30 +2598,44 @@ mod tests {
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn mixed_cache_failed_publication_restores_prior_parent_tables() {
-        const LIMIT:usize=1<<20;
+        const LIMIT: usize = 1 << 20;
         configure(LIMIT);
-        let root=RootCert::new([9;32],vec![],2,"old".into());
-        let old=handle_put_certified("old",&root,[7;32],Arc::from(&b"{}"[..]),None).unwrap();
-        let budget=crate::v3::audit_owner::native::Budget::new(LIMIT,0).unwrap();
-        let mut rejected=false;
-        let _=budget.codec_work().unwrap().run(|work|->Result<(),String>{
-            let transaction=MixedCacheTransaction::start(work).unwrap();
-            let _hog=work.reserve_native(LIMIT-budget.live()-1).unwrap();
-            assert!(handle_put_certified_typed("old",&root,[7;32],Arc::from(&b"{}"[..]),None,Some(work)).is_err());
-            drop(transaction);
-            assert!(Arc::ptr_eq(&root_cert_get("old").unwrap(),&old));
-            rejected=true;
-            Ok(())
-        });
+        let root = RootCert::new([9; 32], vec![], 2, "old".into());
+        let old = handle_put_certified("old", &root, [7; 32], Arc::from(&b"{}"[..]), None).unwrap();
+        let budget = crate::v3::audit_owner::native::Budget::new(LIMIT, 0).unwrap();
+        let mut rejected = false;
+        let _ = budget
+            .codec_work()
+            .unwrap()
+            .run(|work| -> Result<(), String> {
+                let transaction = MixedCacheTransaction::start(work).unwrap();
+                let _hog = work.reserve_native(LIMIT - budget.live() - 1).unwrap();
+                assert!(handle_put_certified_typed(
+                    "old",
+                    &root,
+                    [7; 32],
+                    Arc::from(&b"{}"[..]),
+                    None,
+                    Some(work)
+                )
+                .is_err());
+                drop(transaction);
+                assert!(Arc::ptr_eq(&root_cert_get("old").unwrap(), &old));
+                rejected = true;
+                Ok(())
+            });
         assert!(rejected);
         // 第二Job仍能复制旧合法表；若失败父的元数据泄漏到MEMO，此处会拒绝。
-        let next=crate::v3::audit_owner::native::Budget::new(LIMIT,0).unwrap();
-        next.codec_work().unwrap().run(|work|->Result<(),String>{
-            let transaction=MixedCacheTransaction::start(work).unwrap();
-            assert!(Arc::ptr_eq(&root_cert_get("old").unwrap(),&old));
-            drop(transaction);
-            Ok(())
-        }).unwrap();
+        let next = crate::v3::audit_owner::native::Budget::new(LIMIT, 0).unwrap();
+        next.codec_work()
+            .unwrap()
+            .run(|work| -> Result<(), String> {
+                let transaction = MixedCacheTransaction::start(work).unwrap();
+                assert!(Arc::ptr_eq(&root_cert_get("old").unwrap(), &old));
+                drop(transaction);
+                Ok(())
+            })
+            .unwrap();
         configure(0);
     }
 

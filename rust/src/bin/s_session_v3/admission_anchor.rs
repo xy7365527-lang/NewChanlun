@@ -836,15 +836,15 @@ impl StartedAdmission {
         run: impl FnOnce(&mut AdmissionAccounting<'_>) -> Result<T, E>,
     ) -> Result<T, newchan_rust::s_content::capture_allocation::scratch::WorkError<E>> {
         use newchan_rust::s_content::capture_allocation::scratch::WorkError;
-        if let Some(ram)=&self.ram {
-            if self.cache_transaction.is_none(){
+        if let Some(ram) = &self.ram {
+            if self.cache_transaction.is_none() {
                 let transaction=ram.codec_work().map_err(WorkError::Resource)?
                     .run(crate::cache::MixedCacheTransaction::start)
                     .map_err(|error|match error{
                         WorkError::Resource(error)=>WorkError::Resource(error),
                         WorkError::Operation(error)=>WorkError::Resource(error.scratch_failure().unwrap_or(newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Ledger)),
                     })?;
-                self.cache_transaction=Some(transaction);
+                self.cache_transaction = Some(transaction);
             }
         }
         match &self.ram {
@@ -883,7 +883,9 @@ impl StartedAdmission {
             ram.close()
                 .map_err(|_| self.error(ErrorKind::ResourcesInvalid))?;
         }
-        if let Some(transaction)=self.cache_transaction.take(){transaction.commit();}
+        if let Some(transaction) = self.cache_transaction.take() {
+            transaction.commit();
+        }
         Ok(FinishedAdmission {
             job: self.job,
             ram: self.ram,
