@@ -417,7 +417,7 @@ pub struct OrganicConfig {
     // ── 次级别确认完整递归消融位（2026-06-11 任务；27课区间套延拓到全部
     //    操作点。统一谓词 BarRows::sub_confirm = 同 bar 事件证据 ∨ D3 方向行
     //    结构证据——非 R1 的窗口记忆形式，bi 层有 D3 行故有效域非空）──
-    /// SCe：ARMED→入场取消 SUB_EXPIRY 超时 fallback——无次级别买确认不入场
+    /// SCe：ARMED→入场取消 sub_expiry（`arm-sub-expiry` 记录）超时 fallback——无次级别买确认不入场
     /// （type1 买开仓的严格区间套；超时后继续等待直到确认或 sell1 撤防）。
     pub sc_entry_strict: bool,
     /// SCm：master type1 卖出场（含 earning 升级出场）要求次级别卖侧确认

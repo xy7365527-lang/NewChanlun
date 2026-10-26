@@ -25,9 +25,7 @@
 //! T50/T56–T59 eod 观测。violation = panic = 验收标准失败。
 
 use super::accounting::{close_voice, make_root, nav, settle, try_spawn_cost_gated};
-use super::params::{
-    EQUITY_SAMPLE_BARS, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER, PENDING_LO,
-};
+use super::params::{EQUITY_SAMPLE_BARS, FIRST_BSP_LADDER, MAX_LADDER, PENDING_LO};
 use super::prove::{
     prove_a5_relabel, prove_all_group_laws, prove_chirality_seam, prove_cross_level_closure,
     prove_n1_forest, prove_n2_per_voice, prove_n4_cost_gate, prove_n7_spawn_self_level,
@@ -89,7 +87,8 @@ pub struct SpiralEngineCore {
 impl SpiralEngineCore {
     /// 初始化（零操作参数引擎；`floor_ladder` 仅作结构递归基断言 = FIRST_BSP_LADDER）。
     /// 启动时运行群关系 L0 自检（`prove_all_group_laws`）——群结构是引擎先验。
-    pub fn new(floor_ladder: usize) -> Result<Self, String> {
+    /// `q_total`：期初现金池（ADR 0040 funding-record `cap`，#1601；调用方从记录读）。
+    pub fn new(floor_ladder: usize, q_total: f64) -> Result<Self, String> {
         if floor_ladder != FIRST_BSP_LADDER {
             return Err(format!(
                 "螺旋引擎是零操作参数引擎：floor_ladder 仅作结构递归基 = FIRST_BSP_LADDER={FIRST_BSP_LADDER}；得 {floor_ladder}"
@@ -100,7 +99,7 @@ impl SpiralEngineCore {
         Ok(SpiralEngineCore {
             res: SpiralResult::default(),
             voices: Vec::new(),
-            free: INITIAL_CAPITAL,
+            free: q_total,
             n_base: 0.0,
             signal: SignalState::new(),
             max_children_seen: 0,
@@ -487,7 +486,7 @@ impl SpiralEngineCore {
 mod tests {
     use super::*;
     use crate::trading::tape::BarSig;
-    use crate::trading::types::{BspClass, BspEvent, LadderMask, INITIAL_CAPITAL};
+    use crate::trading::types::{BspClass, BspEvent, LadderMask, FIXTURE_Q_TOTAL};
 
     /// 构造一个测试 BarSig。`events` = (ladder, class, confirmed, price)。
     fn mk_bar(
@@ -527,14 +526,15 @@ mod tests {
     #[test]
     fn empty_bars_are_noop_conservation_holds() {
         // 全空信号：引擎 no-op，守恒 + 全 prove 零 panic，final_nav = 初始资本。
-        let mut core = SpiralEngineCore::new(FIRST_BSP_LADDER).expect("floor=FIRST_BSP");
+        let mut core =
+            SpiralEngineCore::new(FIRST_BSP_LADDER, FIXTURE_Q_TOTAL).expect("floor=FIRST_BSP");
         for _ in 0..5 {
             core.step(&mk_bar(100.0, 0, 0, 0, vec![]), &NO_FLIP);
         }
         core.finish();
         assert!(core.result().trades.is_empty(), "无事件不应产生 trade");
         assert!(
-            (core.result().final_nav - INITIAL_CAPITAL).abs() < 1e-6,
+            (core.result().final_nav - FIXTURE_Q_TOTAL).abs() < 1e-6,
             "无操作 final_nav 应 = 初始资本，得 {}",
             core.result().final_nav
         );
@@ -546,7 +546,8 @@ mod tests {
         // confirm + buy1@move ⇒ F 满仓开多 @ move(L1)；flat 至 eod cascade 关根。
         // 全程 prove_n8（Σunits=N_base + NAV 中性）/ prove_chain / prove_t52 / N1/N2/T1
         // / prove_n4 / T56/T58 零 panic（守恒 = 验收）。
-        let mut core = SpiralEngineCore::new(FIRST_BSP_LADDER).expect("floor=FIRST_BSP");
+        let mut core =
+            SpiralEngineCore::new(FIRST_BSP_LADDER, FIXTURE_Q_TOTAL).expect("floor=FIRST_BSP");
         // bar0：segment(2) type1 Buy confirmed（记 type1_hist 内圈）+ move(3) type1 Buy
         //       candidate（武装 nest_buy[3]，since=0）。
         core.step(
@@ -574,7 +575,7 @@ mod tests {
         );
         assert_eq!(short_u, 0.0);
         assert!(
-            (nav_after_entry - INITIAL_CAPITAL).abs() < 1e-4,
+            (nav_after_entry - FIXTURE_Q_TOTAL).abs() < 1e-4,
             "F 入场 NAV 中性"
         );
         assert_eq!(
@@ -592,7 +593,7 @@ mod tests {
         assert_eq!(t.ladder, 3);
         assert!((t.shares - 1000.0).abs() < 1e-6);
         assert!(
-            (core.result().final_nav - INITIAL_CAPITAL).abs() < 1e-4,
+            (core.result().final_nav - FIXTURE_Q_TOTAL).abs() < 1e-4,
             "同价进出 final_nav 应 = 初始资本（pnl=0），得 {}",
             core.result().final_nav
         );

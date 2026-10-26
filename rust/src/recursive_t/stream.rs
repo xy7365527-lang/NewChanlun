@@ -226,17 +226,24 @@ impl TFugueStreamCore {
     /// `mode`：步骤c 走势完美判定（Structural/And/Or）。a₀ 来源默认 `Segment`（保 bit-exact）。
     /// orchestrator 配置与 batch `backtest_run.rs` 逐字一致（wide / min_strict_sep=5 /
     /// new_raw_gap_min=3，关 bsp/macd 下游层——segments bit-exact 且省 O(n²)）。
+    /// 测试夹具：期初现金池取等值夹具 `FIXTURE_Q_TOTAL`（#1601；生产走 `new_with_a0` 显式传 `q_total`）。
+    #[cfg(test)]
     pub fn new(mode: PerfectionMode) -> Self {
-        Self::new_with_a0(mode, A0Source::Segment)
+        Self::new_with_a0(
+            mode,
+            A0Source::Segment,
+            crate::trading::types::FIXTURE_Q_TOTAL,
+        )
     }
 
     /// 显式指定塔底来源（线段=基线 / 笔=已否证对照臂，#1627 zhongshu §2.1.1，仅供 `rec_btc`
     /// 复现 526 号 E1 A/B）。`new(mode)` 委托此构造默认 Segment。
-    pub fn new_with_a0(mode: PerfectionMode, a0_source: A0Source) -> Self {
+    /// `q_total`：期初现金池（ADR 0040 funding-record `cap`，#1601；调用方从记录读）。
+    pub fn new_with_a0(mode: PerfectionMode, a0_source: A0Source, q_total: f64) -> Self {
         TFugueStreamCore {
             orch: RecursiveOrchestrator::new(6, "wide", 5, false, 3, false, false, false),
             mode,
-            engine: TPositionEngine::new(),
+            engine: TPositionEngine::new(q_total),
             macd: OnlineMacdState::new(12, 26, 9),
             prefix_pos: vec![0.0], // prefix[0] = 0（区间面积 = prefix[hi+1]−prefix[lo]）
             prefix_neg: vec![0.0],
@@ -458,6 +465,7 @@ impl TFugueStreamCore {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::trading::types::FIXTURE_Q_TOTAL;
 
     /// 驱动 orchestrator + 同步累积 online MACD 前缀和（复刻 `push_bar` 的 prefix 逻辑），
     /// 返回 `(orch, prefix_pos, prefix_neg)`——供 `build_a0_fast` 测试两种 a₀ 来源。
@@ -647,7 +655,8 @@ mod tests {
             core.finish();
         }
         let mut a = TFugueStreamCore::new(PerfectionMode::And);
-        let mut b = TFugueStreamCore::new_with_a0(PerfectionMode::And, A0Source::Segment);
+        let mut b =
+            TFugueStreamCore::new_with_a0(PerfectionMode::And, A0Source::Segment, FIXTURE_Q_TOTAL);
         run(&mut a);
         run(&mut b);
         assert_eq!(
@@ -661,7 +670,11 @@ mod tests {
     /// **流式笔对照臂零 panic + 有限 final_nav**（守恒守卫每 bar 成立；#1627 对照臂，非 a₀ 合法值）。
     #[test]
     fn 流式笔底座零panic() {
-        let mut core = TFugueStreamCore::new_with_a0(PerfectionMode::Structural, A0Source::Stroke);
+        let mut core = TFugueStreamCore::new_with_a0(
+            PerfectionMode::Structural,
+            A0Source::Stroke,
+            FIXTURE_Q_TOTAL,
+        );
         let mut price = 100.0;
         let mut up = true;
         for i in 0..600 {

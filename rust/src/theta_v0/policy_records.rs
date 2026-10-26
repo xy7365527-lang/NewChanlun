@@ -56,6 +56,10 @@ pub const ACTIVE_SECOND_SEQ_SCAN_BUDGET_JSON: &str =
 /// 当前生效的线段构造规则记录（编进二进制；Python 侧读同一文件，#1604）。
 pub const ACTIVE_SEGMENT_CONSTRUCTION_JSON: &str =
     include_str!("policy_records/segment-second.json");
+/// 旧经济臂 ARM 后次级别确认过期窗口记录 id（#1601，#1586 C-22）。
+pub const ARM_SUB_EXPIRY_ID: &str = "arm-sub-expiry";
+/// 当前生效的 `arm-sub-expiry` 记录（编进二进制）。
+pub const ACTIVE_ARM_SUB_EXPIRY_JSON: &str = include_str!("policy_records/arm-sub-expiry.json");
 /// 当前生效的 C-19 研究统计记录。
 pub const ACTIVE_RESEARCH_STATS_JSON: &str = include_str!("policy_records/research-stats.json");
 /// 当前生效的 evidence_gate 记录；与 C-19 不合并。
@@ -310,6 +314,32 @@ pub fn parse_macd_force(text: Option<&str>) -> Result<MacdConfig, PolicyError> {
     })
 }
 
+/// 解析 `arm-sub-expiry` 记录（#1601，#1586 C-22）。合法性：正整数 bar 数。
+pub fn parse_arm_sub_expiry(text: Option<&str>) -> Result<ArmSubExpiry, PolicyError> {
+    let (record, fields) = parse_header(ARM_SUB_EXPIRY_ID, text)?;
+    let bars = read_u32(ARM_SUB_EXPIRY_ID, &fields, "sub_expiry_bars")?;
+    if bars == 0 {
+        return Err(invalid(
+            ARM_SUB_EXPIRY_ID,
+            "sub_expiry_bars",
+            "过期窗口须 ≥ 1 bar",
+        ));
+    }
+    Ok(ArmSubExpiry { record, bars })
+}
+
+/// `arm-sub-expiry` 记录的解析结果（旧经济臂 ARM 后次级别确认过期窗口）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ArmSubExpiry {
+    pub record: PolicyRef,
+    pub bars: u32,
+}
+
+/// 当前生效记录的 `arm-sub-expiry`。
+pub fn active_arm_sub_expiry() -> Result<ArmSubExpiry, PolicyError> {
+    parse_arm_sub_expiry(Some(ACTIVE_ARM_SUB_EXPIRY_JSON))
+}
+
 /// `tower-level-budget` 记录的解析结果。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TowerLevelBudget {
@@ -413,6 +443,32 @@ mod tests {
         let m = active_macd_force().expect("生效 MACD 记录可解析");
         assert_eq!((m.fast, m.slow, m.signal), (12, 26, 9));
         assert_eq!(m.record.label(), "macd-force/1");
+    }
+
+    /// #1601（C-22）：`arm-sub-expiry` v1 = 现行值 60；缺记录 / 未签 / 0 各一例负控。
+    #[test]
+    fn arm_sub_expiry_active_and_negative_controls() {
+        let s = active_arm_sub_expiry().expect("生效 arm-sub-expiry 记录可解析");
+        assert_eq!(s.bars, 60);
+        assert_eq!(s.record.label(), "arm-sub-expiry/1");
+        assert_eq!(
+            parse_arm_sub_expiry(None),
+            Err(PolicyError::RecordMissing {
+                id: ARM_SUB_EXPIRY_ID
+            })
+        );
+        let unsigned =
+            r#"{"id":"arm-sub-expiry","version":1,"fields":{"sub_expiry_bars":{"value":null}}}"#;
+        assert!(matches!(
+            parse_arm_sub_expiry(Some(unsigned)),
+            Err(PolicyError::AwaitingPolicy { .. })
+        ));
+        let zero =
+            r#"{"id":"arm-sub-expiry","version":1,"fields":{"sub_expiry_bars":{"value":0}}}"#;
+        assert!(matches!(
+            parse_arm_sub_expiry(Some(zero)),
+            Err(PolicyError::Invalid { .. })
+        ));
     }
 
     #[test]
