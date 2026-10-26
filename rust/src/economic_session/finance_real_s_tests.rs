@@ -219,8 +219,13 @@ fn reserve_under_activated_cap(carriers: &[PathBuf], real_s: &Value, cap: &str) 
         json!(t.elapsed().as_millis().to_string()),
     );
     phases.insert("Reserve-slot".into(), phase_trace::take());
-    let timing = json!({"activated_cap":cap,"elapsed_ms":elapsed_ms,"phases":phases,"reserve":reserved});
-    save(&f.dir, &format!("issue1716-reserve-phases-cap{cap}.json"), &timing);
+    let timing =
+        json!({"activated_cap":cap,"elapsed_ms":elapsed_ms,"phases":phases,"reserve":reserved});
+    save(
+        &f.dir,
+        &format!("issue1716-reserve-phases-cap{cap}.json"),
+        &timing,
+    );
     println!("ISSUE1716_RESERVE_PHASES {}", canonical_json(&timing));
     assert_eq!(reserved["kind"], "ReserveReceipt", "{reserved}");
     let record = &reserved["record"];
