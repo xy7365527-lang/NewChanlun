@@ -9,6 +9,7 @@ from typing import Any, Literal
 
 from deepagents import (
     FilesystemMiddleware,
+    FsToolName,
     GeneralPurposeSubagentProfile,
     HarnessProfile,
     create_deep_agent,
@@ -32,7 +33,7 @@ CLIPROXY_BASE_URL = "http://127.0.0.1:8318/v1"
 KEY_ENV = "CLIPROXY_LOCAL_KEY"
 BRAIN_EFFORT = "high"
 BRAIN_MAX_TOKENS = 64000
-READ_ONLY_FS_TOOLS = ["ls", "read_file", "glob", "grep"]
+READ_ONLY_FS_TOOLS: list[FsToolName] = ["ls", "read_file", "glob", "grep"]
 TRACING_ENV = ("LANGSMITH_TRACING", "LANGCHAIN_TRACING_V2", "LANGSMITH_API_KEY", "LANGCHAIN_API_KEY",
                "LANGSMITH_ENDPOINT", "LANGCHAIN_ENDPOINT")
 

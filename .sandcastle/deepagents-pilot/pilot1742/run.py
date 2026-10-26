@@ -350,7 +350,7 @@ class PilotRun:
         return self.dir / "workers" / key.name
 
     def _keys(self) -> list[WorkerKey]:
-        names = set()
+        names: set[str] = set()
         for sub in ("intents", "workers"):
             folder = self.dir / sub
             if folder.exists():
