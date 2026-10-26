@@ -1,0 +1,20 @@
+ref=codex/1737-deadline-sync-20261026 sha=a053ca2322ac9ab8d27d98e376f9c569024046bb sub=rust target=/home/hanju/nc-remote/target cmd=bash -lc set\ -e\;\ source\ ~/.cargo/env\;\ cargo\ test\ --locked\ --features\ s_session\ --lib\ trusted_ingress_deadline_is_not_restarted_by_economic_job\ --\ --nocapture\;\ cargo\ test\ --locked\ --features\ s_session\ --lib\ session_transport::tests\ --\ --nocapture 
+   Compiling newchan_rust v0.1.0 (/home/hanju/nc-remote/wt/20261026-153154-a053ca2322/rust)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 43.76s
+     Running unittests src/lib.rs (/home/hanju/nc-remote/target/debug/deps/newchan_rust-e4c5e760517ef883)
+
+running 1 test
+test economic_session::finance::tests::trusted_ingress_deadline_is_not_restarted_by_economic_job ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3502 filtered out; finished in 0.16s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.03s
+     Running unittests src/lib.rs (/home/hanju/nc-remote/target/debug/deps/newchan_rust-e4c5e760517ef883)
+
+running 2 tests
+test session_transport::tests::queued_unix_job_keeps_ingress_response_deadline_in_actor ... ok
+test session_transport::tests::lf_without_peer_eof_still_expires_without_accepting_a_frame ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 3501 filtered out; finished in 0.04s
+
+EXIT=0 SECONDS=44
