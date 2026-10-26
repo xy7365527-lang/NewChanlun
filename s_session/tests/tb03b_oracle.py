@@ -40,9 +40,11 @@ def read_domain(path):
 
 
 def cap_activation(manifest_path):
-    """#1716 tb03b-finance/3：只读 E 原库，独立复算每次 cap 激活与其后 Reserve 的生效版本判定。"""
+    """#1716 tb03b-finance/3 与 /4：只读 E 原库，独立复算每次 cap 激活与其后 Reserve 的生效版本判定。"""
     manifest = json.loads(Path(manifest_path).read_text())
-    assert manifest["finance"]["schema_revision"] == "tb03b-finance/3"
+    revision = manifest["finance"]["schema_revision"]
+    protocol = manifest.get("protocol_revision", "economic-session/1")
+    assert (protocol, revision) in (("economic-session/1", "tb03b-finance/3"), ("economic-session/2", "tb03b-finance/4"))
     data_raw = Path(manifest["finance"]["input_path"]).read_bytes()
     assert hashlib.sha256(data_raw).hexdigest() == manifest["finance"]["input_sha256"]
     data = json.loads(data_raw)
@@ -63,7 +65,7 @@ def cap_activation(manifest_path):
             assert hashlib.sha256(raw.encode()).hexdigest() == request["policy_record"]["sha256"]
             signed = json.loads(raw)
             assert signed["schema_revision"] == "funding-cap-policy-record/1" and signed["kind"] == "TestOnly"
-            assert all(signed[k] == policy[k] for k in ("policy_id", "currency", "money_unit"))
+            assert all(signed[k] == policy[k] for k in ("profile_id", "policy_id", "currency", "money_unit"))
             assert signed["supersedes"] == request["from_version"] == str(cap["version"])
             assert signed["version"] == request["to_version"] == str(cap["version"] + 1)
             assert signed["cap"] == request["cap"] and signed["valid_through_ns"] == request["valid_through_ns"]
@@ -71,6 +73,7 @@ def cap_activation(manifest_path):
             assert imported and liability <= amount(signed["cap"]) and amount(signed["valid_through_ns"]) >= ns
             assert event["record"]["liability_at_activation"] == str(liability)
             assert event["record"]["to"]["policy_record_sha256"] == request["policy_record"]["sha256"]
+            assert event["record"]["to"]["profile_id"] == policy["profile_id"]
             cap = {"version": cap["version"] + 1, "cap": amount(signed["cap"]), "valid_through_ns": amount(signed["valid_through_ns"])}
             activations.append({"seq": event["commit_seq"], "version": str(cap["version"]), "cap": str(cap["cap"]), "liability": str(liability)})
         elif kind == "Reserve":
@@ -100,7 +103,7 @@ def cap_activation(manifest_path):
         assert cap["cap"] >= liability
     else:
         assert "cap_policy" not in finance
-    return {"scope": "#1716 tb03b-finance/3 independent cap-activation oracle", "manifest": str(manifest_path),
+    return {"scope": "#1716 " + revision + " independent cap-activation oracle", "manifest": str(manifest_path),
             "input_sha256": hashlib.sha256(data_raw).hexdigest(), "activations": activations, "reserves": reserves,
             "final_liability": str(liability), "final_cap_version": str(cap["version"]), "final_cap": str(cap["cap"])}
 
