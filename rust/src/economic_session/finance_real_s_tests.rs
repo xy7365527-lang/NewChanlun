@@ -302,7 +302,8 @@ fn reserve_under_activated_cap(carriers: &[PathBuf], real_s: &Value, cap: &str) 
 /// 一份的 basis_ref 或 session_generation，审计必须拒绝，即值不同的那一份照样被核。
 fn evidence_copy_controls(f: &Fixture) -> Value {
     let audit = |n: usize, image: &Value| -> Result<(), String> {
-        let mut job = crate::economic_session::store::new_content_job(&f.dbs[n], &f.configs[n]).unwrap();
+        let mut job =
+            crate::economic_session::store::new_content_job(&f.dbs[n], &f.configs[n]).unwrap();
         crate::economic_session::content_store::verify_image(
             &f.dbs[n],
             image,
@@ -374,7 +375,8 @@ fn s_ref_controls(f: &Fixture, real_s: &Value) -> Value {
     let flipped = if hash.ends_with('0') { '1' } else { '0' };
     bad["object_hash"] = json!(format!("{}{flipped}", &hash[..hash.len() - 1]));
     let run = |refs: &[&Value]| -> (Result<(), String>, usize) {
-        let mut job = crate::economic_session::store::new_content_job(&f.dbs[0], &f.configs[0]).unwrap();
+        let mut job =
+            crate::economic_session::store::new_content_job(&f.dbs[0], &f.configs[0]).unwrap();
         let mut budget = crate::economic_session::store::ReadBudget::new(Some(&mut job), None);
         let mut verified = BTreeSet::new();
         phase_trace::begin();
