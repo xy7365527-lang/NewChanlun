@@ -185,6 +185,7 @@ pub(crate) fn verify_schema(
         }
         expected.add("证据图 DDL", evidence_store::DDL, work)?;
     }
+    observer.select_legacy_tables(enabled, ohlc, delta == 1, graph != 0);
     expected.verify(conn, work, observer)?;
     delta_mode(conn, work)?;
     evidence_store::read_format_typed(conn, None, Some(work))?;

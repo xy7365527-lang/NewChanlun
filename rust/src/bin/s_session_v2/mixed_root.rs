@@ -220,6 +220,7 @@ fn capture(
         }
     }
     let format = evidence_store::format_typed(conn, Some(work))?;
+    observer.select_legacy_capture(format.graph(), format.records_in_graph());
     let mut reader = evidence_store::Reader::new_mixed(conn, EVIDENCE_READ_BUDGET, work, observer)?;
     let mut batches = NativeTree::default();
     let mut originals = cache::mixed::Originals::default();

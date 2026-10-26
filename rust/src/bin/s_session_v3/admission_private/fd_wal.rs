@@ -98,7 +98,7 @@ impl Source {
 
 struct Context<'a> {
     account: RefCell<&'a mut dyn IoAccounting>,
-    mixed_tables: Option<super::mixed_sql::ExpectedTables>,
+    mixed_tables: Option<&'a std::cell::Cell<super::mixed_sql::MixedPolicy>>,
     main: Source,
     wal: Option<Source>,
     main_name: CString,
@@ -720,7 +720,7 @@ unsafe extern "C" fn authorizer(
         let (a, b, db, origin) = unsafe { (bytes(a), bytes(b), bytes(db), bytes(origin)) };
         let armed = ctx.exclusive_armed.load(Ordering::SeqCst);
         let allowed = match ctx.mixed_tables {
-            Some(policy) => policy.allows(action, a, b, db, origin, armed),
+            Some(policy) => policy.get().allows(action, a, b, db, origin, armed),
             None => audit_sql_allowed(action, a, b, db, origin, armed),
         };
         if allowed {
@@ -965,7 +965,7 @@ impl<'a> Registration<'a> {
         main_file: File,
         wal_file: Option<File>,
         account: &'a mut dyn IoAccounting,
-        expected: super::mixed_sql::ExpectedTables,
+        expected: &'a std::cell::Cell<super::mixed_sql::MixedPolicy>,
     ) -> Result<Self> {
         Self::new_with_policy(main_file, wal_file, account, Some(expected))
     }
@@ -974,7 +974,7 @@ impl<'a> Registration<'a> {
         main_file: File,
         wal_file: Option<File>,
         account: &'a mut dyn IoAccounting,
-        mixed_tables: Option<super::mixed_sql::ExpectedTables>,
+        mixed_tables: Option<&'a std::cell::Cell<super::mixed_sql::MixedPolicy>>,
     ) -> Result<Self> {
         account.before_io()?;
         // D1 机制与固定 bundled SQLite source id 绑定，不换成宿主 SQLite 重试。

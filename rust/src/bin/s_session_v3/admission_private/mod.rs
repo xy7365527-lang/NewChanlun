@@ -592,3 +592,11 @@ mod tests {
 pub(crate) fn test_mixed_sql_policy<T>(conn: &rusqlite::Connection, run: impl FnOnce() -> T) -> T {
     mixed_sql::test_policy(conn, run)
 }
+
+#[cfg(test)]
+pub(crate) fn test_progressive_mixed_sql_policy<T>(
+    conn: &rusqlite::Connection, observer: &dyn super::audit_budget::LegacyObserver,
+    run: impl FnOnce(&dyn super::audit_budget::LegacyObserver) -> T,
+) -> T {
+    mixed_sql::test_progressive_policy(conn, observer, run)
+}

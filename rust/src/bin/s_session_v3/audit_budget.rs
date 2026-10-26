@@ -31,6 +31,9 @@ pub(crate) enum LegacyRecordRef<'a> {
     Canonical(&'a str),
 }
 pub(crate) trait LegacyObserver {
+    /// 私有 mixed SQL 前缀只消费原 getter 已核过的判别；普通观察者不改变策略。
+    fn select_legacy_capture(&self, _graph: bool, _records_in_graph: bool) {}
+    fn select_legacy_tables(&self, _v2: bool, _ohlc: bool, _delta: bool, _graph: bool) {}
     fn visit_record(
         &self,
         family: &'static str,

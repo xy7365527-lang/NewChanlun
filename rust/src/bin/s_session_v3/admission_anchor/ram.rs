@@ -1616,8 +1616,8 @@ mod tests {
                         let _transaction = crate::cache::MixedCacheTransaction::start(work)?;
                         for pass in 0..2 {
                             let actual =
-                                crate::v3::admission_private::test_mixed_sql_policy(conn, || {
-                                    crate::v2::mixed_root::startup(conn, work, &observer)
+                                crate::v3::admission_private::test_progressive_mixed_sql_policy(conn, &observer, |observer| {
+                                    crate::v2::mixed_root::startup(conn, work, observer)
                                 });
                             match (&expected, actual) {
                                 (Ok(want), Ok(got)) => {
@@ -1721,8 +1721,8 @@ mod tests {
                         };
                         let transaction = crate::cache::MixedCacheTransaction::start(work)?;
                         let actual =
-                            crate::v3::admission_private::test_mixed_sql_policy(conn, || {
-                                crate::v2::mixed_root::startup(conn, work, &observer)
+                            crate::v3::admission_private::test_progressive_mixed_sql_policy(conn, &observer, |observer| {
+                                crate::v2::mixed_root::startup(conn, work, observer)
                             })
                             .unwrap();
                         assert_eq!(actual.len(), expected.len());
@@ -1761,8 +1761,8 @@ mod tests {
                         work,
                     };
                     let _transaction = crate::cache::MixedCacheTransaction::start(work)?;
-                    let result = crate::v3::admission_private::test_mixed_sql_policy(conn, || {
-                        crate::v2::mixed_root::startup(conn, work, &observer)
+                    let result = crate::v3::admission_private::test_progressive_mixed_sql_policy(conn, &observer, |observer| {
+                        crate::v2::mixed_root::startup(conn, work, observer)
                     });
                     assert!(
                         matches!(result, Err(MixedJsonError::Resource(_))),
