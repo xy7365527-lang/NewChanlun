@@ -899,6 +899,40 @@ mod tests {
     }
 
     #[test]
+    fn mixed_family_sql_projection_and_raw_bars_preserve_originals() {
+        use crate::v3::business_json::scoped_legacy::{project_family_row,project_raw_bars};
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+        owner.codec_work().unwrap().run(|work| {
+            for bars in [
+                serde_json::json!([{"seq":1,"revision":2,"supersedes_revision":null}]),
+                serde_json::json!([{"seq":1,"schema_revision":"s-ohlc/1","price":"2","open":"1"}]),
+                serde_json::json!([{"seq":1,"supersedes_revision":"bad"}]),
+                serde_json::json!([{"seq":null}]),
+            ] {
+                match (crate::project_raw_bars(&bars), project_raw_bars(&bars,work)) {
+                    (Ok(a),Ok(b))=>assert_eq!(a,*b),
+                    (Err(a),Err(crate::v3::business_json::MixedJsonError::Business(b)))=>assert_eq!(a,b),
+                    other=>panic!("raw bars mismatch {other:?}"),
+                }
+            }
+            for (name,sql,expected) in [
+                ("witnesses", "SELECT 'w',3,'o',4,5,'h','l','o','c','[]'",serde_json::json!({"witness_id":"w","object_id":"o","slot":"4","merged_source_index":"5","merged_high":"h","merged_low":"l","merged_open":"o","merged_close":"c","raw_bars":[]})),
+                ("observations","SELECT 'ob',3,'b','k',NULL,4,5,'why','{}'",serde_json::json!({"observation_id":"ob","batch_id":"b","kind":"k","window_start":null,"window_mid":4,"window_end":5,"reason":"why","detail":{}})),
+                ("relations","SELECT 's','r','o',3",serde_json::json!({"subject":"s","relation_type":"r","object":"o"})),
+            ] {
+                let mut stmt=conn.prepare(sql).unwrap();
+                let mut rows=stmt.query([]).unwrap();
+                let (id,g,record)=project_family_row(rows.next().unwrap().unwrap(),name,work).unwrap();
+                assert_eq!(g,3);
+                assert_eq!(*record,expected);
+                if name=="relations" {assert_eq!(id.as_ref(),&crate::canonical_json(&expected));}
+            }
+            Ok::<_,newchan_rust::s_content::CodecError>(())
+        }).unwrap();
+    }
+
+    #[test]
     fn mixed_reachability_preserves_collect_before_decode() {
         use crate::v3::business_json::MixedJsonError;
         let conn = rusqlite::Connection::open_in_memory().unwrap();

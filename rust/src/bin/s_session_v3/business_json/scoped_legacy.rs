@@ -16,6 +16,8 @@ pub(crate) enum ProjectionKind {
 }
 #[derive(Clone, Copy)]
 pub(crate) enum Field {
+    SchemaRevision, Open, High, Low, Close,
+    WitnessId, ObservationId, Slot, MergedSourceIndex, MergedHigh, MergedLow, MergedOpen, MergedClose, RawBars, Reason, Detail, Subject, RelationType, Object,
     FactKey,
     PayloadJson,
     InputRefsJson,
@@ -65,6 +67,8 @@ pub(crate) enum Field {
 impl Field {
     fn name(self) -> &'static str {
         match self {
+            Self::SchemaRevision => "schema_revision", Self::Open => "open", Self::High => "high", Self::Low => "low", Self::Close => "close",
+            Self::WitnessId => "witness_id", Self::ObservationId => "observation_id", Self::Slot => "slot", Self::MergedSourceIndex => "merged_source_index", Self::MergedHigh => "merged_high", Self::MergedLow => "merged_low", Self::MergedOpen => "merged_open", Self::MergedClose => "merged_close", Self::RawBars => "raw_bars", Self::Reason => "reason", Self::Detail => "detail", Self::Subject => "subject", Self::RelationType => "relation_type", Self::Object => "object",
             Self::FactKey => "fact_key",
             Self::PayloadJson => "payload_json",
             Self::InputRefsJson => "input_refs_json",
@@ -298,6 +302,12 @@ impl<'a> ScopedLegacyRecord<'a> {
         object.remove(field.name());
         next.insert(field, child)?;
         self.owner = next.owner;
+        Ok(())
+    }
+    /// 删除字段只释放实际Value；聚合许可保留到owner析构，不猜测子树退款。
+    fn remove(&mut self, field: Field) -> Result<(), MixedJsonError> {
+        self.work.check_current().map_err(MixedJsonError::Resource)?;
+        self.owner.value.as_object_mut().expect("projection object").remove(field.name());
         Ok(())
     }
     pub(crate) fn finish(self) -> PlainJson {
@@ -698,4 +708,85 @@ pub(crate) fn filter_fact_lifecycle(
             Ok(Some(out.finish()))
         }
     }
+}
+
+/// 原raw_bars投影：先对象、seq、可选revision、可选supersedes，再typed raw_wire。
+pub(crate) fn project_raw_bars(bars: &Value, work: &WorkScope) -> Result<PlainJson, MixedJsonError> {
+    let bars = bars.as_array().ok_or_else(||MixedJsonError::Business("raw_bars 必须是数组".into()))?;
+    let mut out = ScopedLegacyArray::new(work);
+    for bar in bars {
+        bar.as_object().ok_or_else(||MixedJsonError::Business("raw_bars 成员必须是对象".into()))?;
+        let mut item = ScopedLegacyRecord::clone_projection(ProjectionKind::RawEventWire, bar, work)?;
+        item.replace_integer(Field::Seq, integer_value(&bar["seq"])?)?;
+        if bar.get("revision").is_some() { item.replace_integer(Field::Revision, integer_value(&bar["revision"])?)?; }
+        if let Some(sup) = bar.get("supersedes_revision") {
+            if let Some(n) = sup.as_i64() { item.replace_integer(Field::SupersedesRevision,n)?; }
+            else if !sup.is_null() { return Err(MixedJsonError::Business("raw_bars.supersedes_revision 必须是 i64 或 null".into())); }
+        }
+        // 原raw_wire对其它字段赋回原值；clone已保留完全相同的字段，只有删除price改变内容。
+        if bar["schema_revision"] == crate::tb02a::RAW_SCHEMA {
+            item.remove(Field::Price)?;
+            for (key,field) in [("schema_revision",Field::SchemaRevision),("open",Field::Open),("high",Field::High),("low",Field::Low),("close",Field::Close)] {
+                if bar.get(key).is_none() { item.null(field)?; }
+            }
+        }
+        out.push(item.finish())?;
+    }
+    out.finish()
+}
+pub(crate) fn project_family_row(
+    row: &rusqlite::Row<'_>, name: &str, work: &WorkScope,
+) -> Result<(NativeValue<String>, i64, PlainJson), MixedSqlError> {
+    let (id,generation,record) = match name {
+        "witnesses" => {
+            let id = NativeValue::try_from_str(sql_text(row,0)?,Some(work)).map_err(MixedJsonError::Resource)?;
+            let generation = row.get(1)?;
+            let mut out = ScopedLegacyRecord::object(ProjectionKind::WitnessWire,work)?;
+            out.text(Field::WitnessId,sql_text(row,0)?)?;
+            out.text(Field::ObjectId,sql_text(row,2)?)?;
+            out.integer(Field::Slot,row.get(3)?)?;
+            out.integer(Field::MergedSourceIndex,row.get(4)?)?;
+            out.text(Field::MergedHigh,sql_text(row,5)?)?;
+            out.text(Field::MergedLow,sql_text(row,6)?)?;
+            out.text(Field::MergedOpen,sql_text(row,7)?)?;
+            out.text(Field::MergedClose,sql_text(row,8)?)?;
+            let bars=sql_json(row,9,crate::JsonShape::Array,work)?;
+            let bars=project_raw_bars(&bars,work).map_err(|error|match error {
+                MixedJsonError::Business(error)=>MixedSqlError::Sql(crate::json_column_error(9,error)),
+                error=>MixedSqlError::Projection(error),
+            })?;
+            out.insert(Field::RawBars,bars)?;
+            (id,generation,out.finish())
+        },
+        "observations" => {
+            let id = NativeValue::try_from_str(sql_text(row,0)?,Some(work)).map_err(MixedJsonError::Resource)?;
+            let generation = row.get(1)?;
+            let mut out = ScopedLegacyRecord::object(ProjectionKind::ObservationWire,work)?;
+            out.text(Field::ObservationId,sql_text(row,0)?)?;
+            out.text(Field::BatchId,sql_text(row,2)?)?;
+            out.text(Field::Kind,sql_text(row,3)?)?;
+            for (index,field) in [(4,Field::WindowStart),(5,Field::WindowMid),(6,Field::WindowEnd)] {
+                match row.get::<_,Option<i64>>(index)? { Some(n)=>out.numeric(field,n)?, None=>out.null(field)? }
+            }
+            out.text(Field::Reason,sql_text(row,7)?)?;
+            out.insert(Field::Detail,sql_json(row,8,crate::JsonShape::Object,work)?)?;
+            (id,generation,out.finish())
+        },
+        "relations" => {
+            // 原入口先读完三个文本，再规范化身份，随后读取generation。
+            let subject=NativeValue::try_from_str(sql_text(row,0)?,Some(work)).map_err(MixedJsonError::Resource)?;
+            let relation=NativeValue::try_from_str(sql_text(row,1)?,Some(work)).map_err(MixedJsonError::Resource)?;
+            let object=NativeValue::try_from_str(sql_text(row,2)?,Some(work)).map_err(MixedJsonError::Resource)?;
+            let mut out=ScopedLegacyRecord::object(ProjectionKind::Relation,work)?;
+            out.text(Field::Subject,subject.as_ref())?;
+            out.text(Field::RelationType,relation.as_ref())?;
+            out.text(Field::Object,object.as_ref())?;
+            let record=out.finish();
+            let id=NativeValue::try_format(format_args!("{}",record.as_ref()),Some(work)).map_err(MixedJsonError::Resource)?;
+            let generation=row.get(3)?;
+            (id,generation,record)
+        },
+        _=>return Err(MixedJsonError::Business("StorageUnavailable：未知索引族".into()).into()),
+    };
+    Ok((id,generation,record))
 }
