@@ -315,7 +315,8 @@ fn content_domain_activated_cap_consumed_by_real_s_reserve() {
 
 /// 一个 /4 正式 socket 例：夹具以生产 handler 完成开局与既有责任导入后关闭全部连接，交由
 /// `s_session/tests/tb1716_formal_consumption.py` 经 economic_service_control 起 E、两 B 正式服务进程，
-/// 经 socket 激活 cap 版本 2 并发 ChongAdvance（E 内部经 B socket Prepare、E Reserve、B socket Commit）。
+/// 经 socket 直发两 B Prepare、E 激活 cap 版本 2、E Reserve 与两 B Commit 的正式子协议，最后以 ChongAdvance
+/// 经 E 协调入口按原身份重送取回同一 Reserve 与 Commit 回执；不证明一次首发 ChongAdvance 包办全流程。
 /// `fault` 为 manifest 的 TestOnly 故障缝，驱动在 marker 处 SIGKILL 实际 owner、recover 并以新 epoch 起新进程。
 fn formal_socket_case(
     carriers: &[PathBuf],
@@ -356,8 +357,8 @@ fn formal_socket_case(
     result
 }
 
-/// #1716：真实 S 单 bar 闭包上，/4 新 cap 经 E/B 正式服务进程与 Unix socket 被实际消费。cap=90 时 ChongAdvance
-/// 在 E 提交 Reserve 回执并经 B socket 提交两份 Commit，责任 20+30+40=90；cap=89 时整槽等待、两 B 不提交。
+/// #1716：真实 S 单 bar 闭包上，/4 新 cap 经 E/B 正式服务进程与 Unix socket 被实际消费。cap=90 时 E Reserve
+/// 与两 B Commit 经正式子协议提交，ChongAdvance 取回同一回执，责任 20+30+40=90；cap=89 时整槽等待、两 B 不提交。
 /// 两个恢复例在 E Reserve 提交后、B:alpha Commit 提交后 SIGKILL 实际进程，recover 后以新 epoch 起新进程重送，
 /// 取回原回执且每域恰一份 Reserve/Commit。运行方式同上一测试，另需 `TB1716_ECON_BINARIES`（含 release
 /// `e_economic_session`、`b_chong_session`，ADR 0039 的生产构建配置）。S 会话原件写在 TB03B_TEST_ROOT/formal-s-session。

@@ -3,7 +3,7 @@
 
 输入由 Rust 正控 `content_domain_activated_cap_consumed_through_formal_sockets` 写出：manifest 已冻结真实 S
 会话读法，三域库已以生产 handler 完成开局与既有责任导入。本驱动经 economic_service_control 起停 E、两 B，
-经 socket 发 ActivateCapPolicy 与 ChongAdvance；故障只经 manifest 的 TestOnly marker 定位后 SIGKILL 实际 PID。
+经 socket 发 Prepare、ActivateCapPolicy、Reserve、Commit 正式子协议，再以 ChongAdvance 按原身份取回同一回执；故障只经 manifest 的 TestOnly marker 定位后 SIGKILL 实际 PID。
 """
 import argparse
 from concurrent.futures import ThreadPoolExecutor
@@ -245,12 +245,17 @@ class Run:
                 "writer_epochs": {d: domains[d]["meta"]["writer_epoch"] for d in DOMAINS}}
 
     def close(self):
-        for domain in reversed(self.started):
-            try:
-                self.control("stop", domain)
-            except (RuntimeError, ValueError, OSError, subprocess.SubprocessError):
-                pass
-        self.log.close()
+        """逐个停已启动 owner，一个失败不跳过其余；返回全部停机失败，由 main 计入结果。"""
+        errors = []
+        try:
+            for domain in reversed(self.started):
+                try:
+                    self.control("stop", domain)
+                except Exception as error:
+                    errors.append({"domain": domain, "error": repr(error)})
+        finally:
+            self.log.close()
+        return errors
 
 
 def main():
@@ -261,7 +266,7 @@ def main():
     args = p.parse_args()
     case = decode_frame(args.case.read_bytes())
     output = args.output.resolve()
-    run = None
+    run, cleanup_errors = None, []
     try:
         run = Run(case, args.binaries.resolve(), output)
         outcome = {"status": "passed", **run.run()}
@@ -269,10 +274,15 @@ def main():
         outcome = {"status": "failed", "error": repr(error)}
     finally:
         if run is not None:
-            run.close()
+            cleanup_errors = run.close()
+            for item in cleanup_errors:
+                print("停机失败 " + item["domain"] + "：" + item["error"], file=sys.stderr)
+    if cleanup_errors:
+        outcome = {**outcome, "status": "failed", "cleanup_errors": cleanup_errors}
     output.mkdir(exist_ok=True)
     save(output / "RESULT.json", {"issue": 1716, "cap": case["cap"], "fault": case["fault"], **outcome})
-    print(json.dumps({"status": outcome["status"], "error": outcome.get("error")}, ensure_ascii=False))
+    print(json.dumps({"status": outcome["status"], "error": outcome.get("error"), "cleanup_errors": cleanup_errors},
+                     ensure_ascii=False))
     return 0 if outcome["status"] == "passed" else 1
 
 
