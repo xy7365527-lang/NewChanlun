@@ -144,7 +144,8 @@ impl Fixture {
         let mut covered = vec![];
         let mut rights = vec![];
         let mut routes = vec![];
-        let mut s_ref = json!({"object_id":"unit-S-object","object_hash":hash(&object),"profile_id":"unit"});
+        let mut s_ref =
+            json!({"object_id":"unit-S-object","object_hash":hash(&object),"profile_id":"unit"});
         if carriers.is_some() {
             s_ref["schema_revision"] = json!(S_REF_V2);
         }
@@ -378,7 +379,10 @@ impl Fixture {
             if carriers.is_some() {
                 let p = f.request("ImportResponsibility", "existing20")["payload"].clone();
                 let imported = f.handle(0, "ImportResponsibility-existing20", p);
-                assert_eq!(imported["kind"], "ResponsibilityImportedReceipt", "{imported}");
+                assert_eq!(
+                    imported["kind"], "ResponsibilityImportedReceipt",
+                    "{imported}"
+                );
             } else {
                 f.step(0, "ImportResponsibility", "existing20");
             }
@@ -388,8 +392,7 @@ impl Fixture {
     fn handle(&mut self, n: usize, msg: &str, p: Value) -> Value {
         let mut e = envelope(msg, p);
         e["schema_revision"] = json!(self.configs[n].revision().unwrap());
-        service::handle(&mut self.dbs[n], &self.configs[n], 1, 1, &json!({}), &e)["payload"]
-            .clone()
+        service::handle(&mut self.dbs[n], &self.configs[n], 1, 1, &json!({}), &e)["payload"].clone()
     }
     fn request(&self, op: &str, name: &str) -> Value {
         let mut p = json!({"op":op,"writer_epoch":"1"});
@@ -1464,8 +1467,19 @@ fn content_domain_cap_activation_on_fixed_carriers() {
     assert_eq!(revision(&old.configs[0].manifest).unwrap(), REV_V2);
     let mut never = cap_payload(&old, "1", "2", "150", "100000");
     never["policy_record"]["path"] = json!(old.dir.join("never-read.json"));
-    let refused = assert_rejected_unchanged(&mut old, "ActivateCapPolicy-pre", never, "SchemaUnsupported");
-    assert!(refused["error"].as_str().unwrap().contains("tb03b-finance/3 与 /4"), "{refused}");
+    let refused = assert_rejected_unchanged(
+        &mut old,
+        "ActivateCapPolicy-pre",
+        never,
+        "SchemaUnsupported",
+    );
+    assert!(
+        refused["error"]
+            .as_str()
+            .unwrap()
+            .contains("tb03b-finance/3 与 /4"),
+        "{refused}"
+    );
     old.audit();
 
     let mut f = Fixture::content(&carriers, "100", "20", true);
@@ -1474,7 +1488,10 @@ fn content_domain_cap_activation_on_fixed_carriers() {
     assert_eq!(responsibility_total(&latest(&f.dbs[0]).unwrap().3), 20);
     let below = cap_payload(&f, "1", "2", "19", "100000");
     let low = assert_rejected_unchanged(&mut f, "ActivateCapPolicy-low", below, "InvalidDomain");
-    assert!(low["error"].as_str().unwrap().contains("staged_cleanup"), "{low}");
+    assert!(
+        low["error"].as_str().unwrap().contains("staged_cleanup"),
+        "{low}"
+    );
     let mut other_profile = cap_record(&f, "1", "2", "20", "100000");
     other_profile["profile_id"] = json!("TestOnly-P-other-acceptance");
     let wrong_profile = activation(&f, &other_profile, "1", "2", "20", "100000");
@@ -1484,11 +1501,17 @@ fn content_domain_cap_activation_on_fixed_carriers() {
         wrong_profile,
         "IdentityConflict",
     );
-    assert!(cross["error"].as_str().unwrap().contains("资金 profile"), "{cross}");
+    assert!(
+        cross["error"].as_str().unwrap().contains("资金 profile"),
+        "{cross}"
+    );
 
     let payload = cap_payload(&f, "1", "2", "20", "100000");
     let activated = f.handle(0, "ActivateCapPolicy-equal", payload.clone());
-    assert_eq!(activated["kind"], "CapPolicyActivatedReceipt", "{activated}");
+    assert_eq!(
+        activated["kind"], "CapPolicyActivatedReceipt",
+        "{activated}"
+    );
     assert!(key_for(&f.configs[0], &payload)
         .unwrap()
         .starts_with("tb03b-finance/4:ActivateCapPolicy:"));
