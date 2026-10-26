@@ -89,6 +89,10 @@ pub enum InvalidatedReason {
     /// 完成时该活假设从未写入 first_provable，与 ForceOvertake 的「曾构成」严格互补
     /// （两码的 first_provable_at 一有一无，assert_invariants 逐条钉死）。
     NeverConstituted,
+    /// 中枢破坏（#1719 I4：center_break 第二层清账）。B 中枢收到教义破坏事实（三类点），
+    /// 原活假设对象失效。与 ForceOvertake（力度反超）、IdentityVanished（provider 换轨）
+    /// 互不交叉；第二层完成锚（ADR-0003 completion_anchor=center_break）。
+    CenterBreak,
 }
 
 /// 力度不可验原因码（#78 修复 1：「不可验」≠「不再弱」）。

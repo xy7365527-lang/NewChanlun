@@ -116,8 +116,10 @@ use std::collections::{BTreeMap, BTreeSet};
 // 身份键与桥 → `key`；域类型（三态/原因码/力度/修订/entry）→ `entry`；
 // 观察契约 → `observation`；审计/统计载体 → `stats`；注册表 → `book`；
 // pan 活窗产出机 + L1 active C frontier → `pan`；L1/L2 active window frontier →
-// `window`；回放喂数出口 → `feed`。重导出保 `nest_lifecycle::X` 原路径逐字不变。
+// `window`；回放喂数出口 → `feed`；center_break 桥接 (#1719 I4) → `center_break`。
+// 重导出保 `nest_lifecycle::X` 原路径逐字不变。
 mod book;
+mod center_break;
 mod entry;
 mod feed;
 mod key;
@@ -127,6 +129,7 @@ mod stats;
 mod window;
 
 pub use book::NestLifecycleBook;
+pub use center_break::{CenterBreakFact, HypothesisBridge};
 pub use entry::{
     ForceCheck, ForceEvidence, InvalidatedReason, LifecycleRevision, LifecycleRevisionKind,
     NestEventState, NestLifecycleEntry, NestPolicy, UnavailReason, VanishCause,

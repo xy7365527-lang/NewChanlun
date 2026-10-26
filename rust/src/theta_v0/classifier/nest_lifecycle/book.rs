@@ -4,9 +4,11 @@
 //! [`NestLifecycleBook::assert_invariants`] 迁至本文件——该方法是断言集的唯一公开入口，
 //! 账本级骨架 `assert_core_invariants` 仍留在 `ledger_kernel`。
 
+use super::center_break::{CenterBreakFact, HypothesisBridge};
 use super::entry::MigrationKind;
 use super::key::same_anchor;
 use super::*;
+use super::super::center_lifecycle::CenterId;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // NestLifecycleBook（sidecar 注册表）
@@ -32,6 +34,12 @@ pub struct NestLifecycleBook {
     completion_signals: Vec<CompletionSignal>,
     /// 完成信号与力度不可验同时发生的独立审计面（#428；按桥身份唯一）。
     completion_force_unavailable_audits: Vec<CompletionForceUnavailableAudit>,
+    /// 中枢绑定桥（#1719 I4）：对象注册时保留精确 CenterId + 原 LifecycleKey + 政策版本。
+    /// 支持 center_break 事实到对象的精确匹配与恢复。按 LifecycleKey 索引（一对象一桥）。
+    bridges: BTreeMap<LifecycleKey, HypothesisBridge>,
+    /// 已应用的中枢破坏事实去重集（#1719 I4）：幂等原则——同一事实不重复清账。
+    /// 去重键 = (CenterId, breaker_source_index)。
+    applied_breaks: BTreeSet<(CenterId, usize)>,
 }
 
 impl NestLifecycleBook {
@@ -227,6 +235,102 @@ impl NestLifecycleBook {
         // trigger 喂入后显式调用本公开入口。
         #[cfg(debug_assertions)]
         self.assert_invariants();
+        delta.into_vec()
+    }
+
+    /// 中枢绑定桥门户（#1719 I4，只读）。
+    pub fn bridges(&self) -> &BTreeMap<LifecycleKey, HypothesisBridge> {
+        &self.bridges
+    }
+
+    /// 已应用中枢破坏事实门户（#1719 I4，只读）。
+    pub fn applied_breaks(&self) -> &BTreeSet<(CenterId, usize)> {
+        &self.applied_breaks
+    }
+
+    /// 注册对象时建立中枢绑定（#1719 I4 端点 2：对象匹配）。
+    ///
+    /// 在 `advance` 建仓时调用，保留精确 `CenterId` + 原 `LifecycleKey` + 政策版本。
+    /// 绑定原则：level + 完整 CenterId（含 zd/zg）+ 原键三重绑定同源可证。
+    ///
+    /// 政策版本由调用方提供（#1599：具名版本化，一次运行只读一个版本）。
+    /// 同一键多次注册（桥迁移后重建）覆盖旧绑定（最后注册生效）。
+    pub fn register_center_bridge(
+        &mut self,
+        key: LifecycleKey,
+        center_id: CenterId,
+        policy_version: String,
+        registered_at: usize,
+    ) {
+        let bridge = HypothesisBridge {
+            lifecycle_key: key,
+            center_id,
+            policy_version,
+            registered_at,
+        };
+        self.bridges.insert(key, bridge);
+    }
+
+    /// 应用中枢破坏事实（#1719 I4 端点 3：第二层清账）。
+    ///
+    /// 输入：`CenterBreakFact`（从 `CenterEventMachine::Broken` 提取）+ 消费 bar。
+    /// 查找：按 level + 完整 `CenterId` 精确匹配 `bridges`（不只 `start_index`）。
+    /// 清账：只清匹配的原对象一次，产生 `Invalidated(CenterBreak)` 修订。
+    /// 幂等：同一事实重复输入不重复清账（去重键：`(center_id, breaker_source_index)`）。
+    ///
+    /// 返回：本次新产出的修订（幂等/匹配失败/已终态 = 空）。
+    pub fn apply_center_break(
+        &mut self,
+        fact: &CenterBreakFact,
+        as_of: usize,
+    ) -> Vec<LifecycleRevision> {
+        let mut delta = LedgerDelta::new();
+
+        // 幂等守卫：同一事实不重复清账。
+        let dedup_key = fact.dedup_key();
+        if self.applied_breaks.contains(&dedup_key) {
+            return vec![];
+        }
+
+        // 精确匹配：level + CenterId → LifecycleKey。
+        let match_key = (fact.level, fact.center_id);
+        let target_key = self
+            .bridges
+            .values()
+            .find(|bridge| bridge.match_key() == match_key)
+            .map(|bridge| bridge.lifecycle_key);
+
+        let Some(target_key) = target_key else {
+            // 匹配失败：该级别该中枢未绑定任何活假设对象，诚实空产出。
+            return vec![];
+        };
+
+        // 终态吸收：已终态对象不重复清账（禁复活，与 advance 同纪律）。
+        match self.ledger.admit(&target_key, as_of) {
+            LedgerAdmission::RetrogradeRejected => return vec![],
+            LedgerAdmission::TerminalAbsorbed => return vec![],
+            LedgerAdmission::Accepted => {}
+        }
+
+        // 清账：产生 Invalidated(CenterBreak) 修订。
+        let entry = self
+            .ledger
+            .get_mut(&target_key)
+            .expect("桥匹配的键必须在册");
+        let revision = entry.settle(
+            NestEventState::Invalidated,
+            Some(InvalidatedReason::CenterBreak),
+            None,
+            as_of,
+        );
+        delta.record(revision);
+
+        // 记录已应用事实。
+        self.applied_breaks.insert(dedup_key);
+
+        #[cfg(debug_assertions)]
+        self.assert_invariants();
+
         delta.into_vec()
     }
 
