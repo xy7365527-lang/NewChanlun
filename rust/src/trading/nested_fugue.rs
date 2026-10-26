@@ -144,7 +144,7 @@ pub(super) fn rec_sub_evidence(
     devrows: &[Vec<DivEvent>; MAX_LADDER],
     flip_edge: &[Option<Direction>; MAX_LADDER],
 ) -> Option<usize> {
-    let lo = FIRST_BSP_LADDER - 1; // a0 下界（77-78课笔）
+    let lo = FIRST_BSP_LADDER - 1; // 阶梯下限 = bi 层（笔层不开一类点，只读翻转沿；77-78课）
     (lo..=start)
         .rev()
         .find(|&j| sub_evidence(j, side, &evrows[j], &devrows[j], flip_edge[j]))
@@ -911,7 +911,7 @@ pub(crate) fn run_nested_fugue(
 
         // ── E. spawn（降成本释放）：尾的 nest 定位反向点@own-level ∨
         //    根尾（层 < top）的 confirmed 卖 ⇒ 释放 θ 配额 m 给子 voice。
-        //    终止 = floor（77-78课笔=a0）∨ 35课成本门 ──
+        //    终止 = floor（阶梯下限：笔层不开一类点，77-78课）∨ 35课成本门 ──
         if !acted {
             if let Some(tail) = chain.last().copied() {
                 // 根尾的 confirmed 卖：C 未消费（非背驰 ∨ 未定位）的一切

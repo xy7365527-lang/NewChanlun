@@ -29,7 +29,7 @@
 //!    开腿谓词的 Short 侧逐字镜像）全抛本层 slice，k−1 级买证据
 //!    （confirmed Buy1/Buy3 ∨ 盘背买；counterseg_close_trigger 镜像）
 //!    如数接回。35课成本门（θ_q(k−1) 因果滚动中位数 ≥ k×friction）守卫
-//!    级别可操作性；笔=a0（77/78课）⇒ k−1 < FIRST_BSP_LADDER 不开。
+//!    级别可操作性；阶梯下限（笔层不开一类点，77/78课；#1654）⇒ k−1 < FIRST_BSP_LADDER 不开。
 //!
 //! ## 44课铰链（044:44，两线均未实现的新轴）
 //!
@@ -1337,7 +1337,7 @@ pub(crate) fn run_fusion(
                 let LayerState::Long { shares, .. } = layers[k] else {
                     continue;
                 };
-                let sk = k - 1; // 笔=a0（77/78课）：循环下界已保证 sk ≥ FIRST_BSP_LADDER
+                let sk = k - 1; // 阶梯下限（笔层不开一类点，77/78课）：循环下界已保证 sk ≥ FIRST_BSP_LADDER
                 if !sub_open_trigger(&evrows[sk], &devrows[sk]) {
                     continue;
                 }

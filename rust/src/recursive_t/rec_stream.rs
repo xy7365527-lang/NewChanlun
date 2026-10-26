@@ -42,7 +42,7 @@ fn bsp_kind_idx(k: crate::recursive_t::types::BSPKind) -> u8 {
 pub struct RecStream {
     orch: RecursiveOrchestrator,
     mode: PerfectionMode,
-    /// a₀ 来源（线段=默认 bit-exact / 笔=递归底座下移，526号）。决定门控计数口径与 build_a0 过滤。
+    /// 塔底来源（线段=默认 bit-exact / 笔=已否证对照臂，#1627）。决定门控计数口径与 build_a0 过滤。
     a0_source: A0Source,
     driver: RecDriver,
     macd: OnlineMacdState,
@@ -122,7 +122,7 @@ impl RecStream {
         Self::new_with_a0(mode, A0Source::Segment)
     }
 
-    /// 显式指定 a₀ 来源（线段=基线 / 笔=递归底座下移，526号）。`new(mode)` 委托此构造默认 Segment。
+    /// 显式指定塔底来源（线段=基线 / 笔=已否证对照臂，#1627 zhongshu §2.1.1）。`new(mode)` 委托此构造默认 Segment。
     /// 引擎配置从 env 读（= 当前 main 行为，OFF 基线）。**rec≡flat bit-exact 守卫 + 合成单测 base**——
     /// **不改默认**（改默认会破 `rec_flat_btc_bit_exact` 等 OFF 守卫）。生产「默认开启 Face A」走
     /// `new_production`（FFI/python 回测入口），见 #113 spec §8.1。
@@ -1284,7 +1284,7 @@ mod tests {
         assert!(!r.leg_trades.is_empty(), "至少一笔腿平仓（守卫非平凡）");
     }
 
-    /// **递归流式笔底座零 panic + 有限正 final_nav**（TW 守恒守卫每操作，a0=笔 526号）。
+    /// **递归流式笔对照臂零 panic + 有限正 final_nav**（TW 守恒守卫每操作；#1627 对照臂，非 a₀ 合法值）。
     #[test]
     fn 递归流式笔底座零panic() {
         let mut s = RecStream::new_with_a0(PerfectionMode::Structural, A0Source::Stroke);
@@ -1570,7 +1570,7 @@ mod tests {
     /// 递归引擎 **8 标的 × 3 模式**回测（L3 验证）：vs flat 引擎（t_backtest_8x3）vs BH。
     /// 跑法：`cargo test --release recursive_t::rec_stream::tests::rec_btc -- --ignored --nocapture`
     /// `BT_SYMBOLS=CL,BTC` 过滤标的（默认全 8）。
-    /// `T_A0=stroke` 切 a₀=笔（递归底座下移，526号；默认 segment=线段基线）——A/B 对比级别增量。
+    /// `T_A0=stroke` 切笔对照臂（#1627：已否证、非 a₀ 合法值，仅复现 526 号 A/B；默认 segment=线段基线）。
     #[test]
     #[ignore = "递归引擎全量回测，需 analysis/data_cache/*.json"]
     fn rec_btc() {
@@ -1590,7 +1590,7 @@ mod tests {
                     .collect()
             })
             .unwrap_or_default();
-        // a₀ 来源 A/B 开关（默认 Segment=bit-exact 基线）。
+        // 塔底来源开关（默认 Segment=bit-exact 基线；stroke=#1627 已否证对照臂）。
         let a0_source = match std::env::var("T_A0").ok().as_deref() {
             Some("stroke") | Some("bi") => A0Source::Stroke,
             _ => A0Source::Segment,
