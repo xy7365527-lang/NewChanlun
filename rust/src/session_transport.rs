@@ -722,12 +722,12 @@ mod tests {
         client.shutdown(std::net::Shutdown::Write).unwrap();
         let job = rx.recv_timeout(Duration::from_millis(100)).unwrap();
         assert_eq!(job.job.envelope["op"], "probe");
-        // Receipt proves enqueue completed. Delay handler work for twice the
-        // response window after admission; a fresh now()+10ms would be wrong.
-        std::thread::sleep(Duration::from_millis(20));
+        client
+            .set_read_timeout(Some(Duration::from_secs(2)))
+            .unwrap();
+        let mut reply = [0_u8; 1];
+        assert_eq!(client.read(&mut reply).unwrap(), 0);
         assert!(Instant::now() >= job.response_deadline);
-        let local_reset = Instant::now() + Duration::from_millis(10);
-        assert!(local_reset > Instant::now());
         assert!(job.job.result.try_send(json!({"ok":true})).is_err());
         thread.join().unwrap();
     }
