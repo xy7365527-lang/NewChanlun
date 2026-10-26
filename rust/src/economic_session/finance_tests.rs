@@ -74,7 +74,7 @@ impl Fixture {
         slot_spec: &[(&str, &[&str])],
         c4a: Option<(bool, bool)>,
     ) -> Self {
-        Self::build_full(cap, fault, slot_spec, c4a, None, None)
+        Self::build_full(cap, fault, slot_spec, c4a, None, None, None)
     }
     /// #1717：选择 `sr-expansion/1` 子合同的夹具；`section` 即 manifest 顶层 `sr_expansion`。
     /// 既有夹具不选该合同，旧操作与旧接受域逐字不变。
@@ -85,6 +85,7 @@ impl Fixture {
             &[("slot", &["alpha", "beta"])],
             None,
             Some(section),
+            None,
             None,
         )
     }
@@ -99,6 +100,20 @@ impl Fixture {
             None,
             section,
             Some(carriers),
+            None,
+        )
+    }
+    /// #1717：同上，财务结构改为正式 S（生产 `s_structure_session` 冷读入口与真实 s-session/3 会话），
+    /// 计划的 `s_ref` 指向该会话的真实对象；`real_s` 为 `{structure, s_ref}`。
+    fn content_with_real_s(carriers: &[PathBuf], section: Value, real_s: &Value) -> Self {
+        Self::build_full(
+            "100",
+            None,
+            &[("slot", &["alpha", "beta"])],
+            None,
+            Some(section),
+            Some(carriers),
+            Some(real_s),
         )
     }
     fn build_full(
@@ -108,6 +123,7 @@ impl Fixture {
         c4a: Option<(bool, bool)>,
         sr_expansion: Option<Value>,
         carriers: Option<&[PathBuf]>,
+        real_s: Option<&Value>,
     ) -> Self {
         let rev = if carriers.is_some() { REV_V2 } else { REV };
         let applicants: Vec<&str> = slot_spec
@@ -139,6 +155,10 @@ impl Fixture {
         if carriers.is_some() {
             s_ref["schema_revision"] = json!(S_REF_V2);
         }
+        if let Some(s) = real_s {
+            s_ref = s["s_ref"].clone();
+        }
+        let s_object_id = s_ref["object_id"].clone();
         let tag = dir.file_name().unwrap().to_str().unwrap().to_owned();
         let db_of = |name: &str, carrier: usize| match carriers {
             Some(c) => c[carrier].join(format!("{tag}-{name}.db")),
@@ -205,7 +225,7 @@ impl Fixture {
             authorities.push(json!({"authority_id":name,"bundle_path":bp,"bundle_sha256":bh,"verification_path":rp,"verification_sha256":rh,"max_bytes":"1048576"}));
             rights.push(json!({"right_id":name,"owner":format!("B:{name}"),"version":"1","amount":cash,"currency":"TEST-CASH","source_ref":format!("TestOnly-privately-owned-cash-original/{name}")}));
             if applicants.contains(&name) {
-                plans.push(json!({"decision_id":name,"attempt_id":format!("attempt-{name}"),"plan_id":format!("plan-{name}"),"owner":format!("B:{name}"),"voice_binding_id":format!("voice-{name}"),"right_id":name,"expected_book_version":"2","expected_rights_version":"1","applicant_epoch":"1","applicant_generation":"1","slot_id":slot_of(name),"quantity":new_quantity,"limit_price":price,"fee_tail":fee,"quantity_source":format!("TestOnly-quantity/{name}"),"price_source":format!("TestOnly-price/{name}"),"fee_source":format!("TestOnly-tail/{name}"),"s_ref":s_ref.clone(),"o_ref":{"operation_id":format!("TestOnly-operation-{name}"),"kind":"TestOnlyCashBuy","source_ref":format!("TestOnly-operation-sheet/{name}"),"s_object_id":"unit-S-object","quantity":new_quantity}}));
+                plans.push(json!({"decision_id":name,"attempt_id":format!("attempt-{name}"),"plan_id":format!("plan-{name}"),"owner":format!("B:{name}"),"voice_binding_id":format!("voice-{name}"),"right_id":name,"expected_book_version":"2","expected_rights_version":"1","applicant_epoch":"1","applicant_generation":"1","slot_id":slot_of(name),"quantity":new_quantity,"limit_price":price,"fee_tail":fee,"quantity_source":format!("TestOnly-quantity/{name}"),"price_source":format!("TestOnly-price/{name}"),"fee_source":format!("TestOnly-tail/{name}"),"s_ref":s_ref.clone(),"o_ref":{"operation_id":format!("TestOnly-operation-{name}"),"kind":"TestOnlyCashBuy","source_ref":format!("TestOnly-operation-sheet/{name}"),"s_object_id":s_object_id,"quantity":new_quantity}}));
             }
             routes.push(json!({"chong_id":name,"symbol":name,"operation_level":"2","fixed_q":fixed,"db":db_of(name, routes.len() + 1),"socket":dir.join(format!("{name}.sock"))}));
             docs.push(doc);
@@ -293,6 +313,21 @@ impl Fixture {
             structure["content_format"] = json!(crate::s_content::CONTENT_FORMAT);
             structure["reader_resources"] = json!({"schema_revision":"s-financial-reader-resources/1","max_request_bytes":"193120","max_reply_bytes":"827022","max_stderr_bytes":"193120","request_timeout_ms":"45000","job_limits":{"max_total_wire_bytes":"1162304996","max_total_node_bytes":"192172","max_total_nodes":"2614","max_total_records":"2614","max_total_requests":"958","max_elapsed_ms":"43110000","max_staged_bytes":"32153600","max_store_bytes":"64307200"}});
             structure["reader_session"] = Value::Null;
+        }
+        if let Some(s) = real_s {
+            // 正式 S 经生产二进制冷读，每次读取都起 S 进程并核二进制摘要；E/B 传输响应期限按此放宽，
+            // 冻结的 reader_resources（含 job 八项与单次 S 期限）不变。
+            for k in [
+                "binary",
+                "binary_sha256",
+                "db",
+                "session_id",
+                "session_generation",
+                "writer_epoch",
+            ] {
+                manifest["finance"]["structure"][k] = s["structure"][k].clone();
+            }
+            manifest["resources"]["response_timeout_ms"] = json!("60000");
         }
         if let Some((resolve_first, _)) = c4a {
             manifest["book_revision"] = json!(book::TB03C_BOOK_V1);

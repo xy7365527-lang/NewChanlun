@@ -932,12 +932,7 @@ fn owner_socket_scenario(f: &Fixture, v2: &Value, v3: &Value) -> Value {
 #[ignore = "需 TB1717_HFS_CARRIERS 指向 E、B:alpha、B:beta 三个临时固定容量 HFS+ 卷；ci-macos.yml 显式运行"]
 fn sr_expansion_content_domain_on_fixed_carriers() {
     use crate::economic_session::content_store::{allocated, carrier_capacity};
-    let carriers: Vec<PathBuf> = std::env::var("TB1717_HFS_CARRIERS")
-        .expect("TB1717_HFS_CARRIERS 未设置")
-        .split(':')
-        .map(PathBuf::from)
-        .collect();
-    assert_eq!(carriers.len(), 3, "需要 E、B:alpha、B:beta 三个卷");
+    let carriers = carriers_from_env();
     let (v2, v3) = socket_policies();
 
     let mut old = Fixture::content_with_sr_expansion(&carriers, None);
@@ -1012,6 +1007,136 @@ fn sr_expansion_content_domain_on_fixed_carriers() {
     let evidence = json!({"carriers":carriers,"domain":SCHEMA_V2,"finance":REV_V2,"old_domain_refusal":"InvalidDomain","expired_deadline":expired,"scenario":scenario,"late_retry":late_retry,"e_allocated_bytes":physical.to_string(),"e_carrier_capacity":capacity.to_string(),"e_image":latest(&f.dbs[0]).unwrap().3});
     save(&f.dir, "issue1717-content-domain-sr.json", &evidence);
     println!("ISSUE1717_CONTENT_DOMAIN_SR {}", canonical_json(&evidence));
+}
+
+fn carriers_from_env() -> Vec<PathBuf> {
+    let carriers: Vec<PathBuf> = std::env::var("TB1717_HFS_CARRIERS")
+        .expect("TB1717_HFS_CARRIERS 未设置")
+        .split(':')
+        .map(PathBuf::from)
+        .collect();
+    assert_eq!(carriers.len(), 3, "需要 E、B:alpha、B:beta 三个卷");
+    carriers
+}
+
+/// 真实 S 来源：S 侧真实 S3 夹具（init_v3 + 真实接纳/Begin/提交）导出的库，经生产 `s_structure_session`
+/// 冷读入口 `financial-basis-ref` 取一个当前对象的全 wire 摘要。生产 `advance` 写者在未签 venue/cost 政策下
+/// 拒绝打开（`driver.rs` 的 `production_open_rejects_unsigned_profile_before_pending_begin`），故会话由夹具建。
+/// 返回 `content_with_real_s` 的 `{structure, s_ref}`。
+fn real_s_from_export(binary: &Path, export: &Path) -> Value {
+    let export = strict_json(&std::fs::read(export).unwrap()).unwrap();
+    let db = required(&export, "db").unwrap().to_owned();
+    let ids = export["object_ids"].as_array().unwrap();
+    for id in ids {
+        let request = json!({"schema_revision":"s-financial-query/1","session_id":export["session_id"],"session_generation":export["session_generation"],"writer_epoch":export["writer_epoch"],"object_ids":[id]});
+        let mut child = std::process::Command::new(binary)
+            .args([
+                "financial-basis-ref",
+                "--protocol-revision",
+                "s-session/3",
+                "--db",
+                db.as_str(),
+            ])
+            .env_clear()
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        {
+            use std::io::Write;
+            let mut stdin = child.stdin.take().unwrap();
+            stdin
+                .write_all(canonical_json(&request).as_bytes())
+                .unwrap();
+        }
+        let out = child.wait_with_output().unwrap();
+        if !out.status.success() {
+            continue;
+        }
+        let reply = strict_json(&out.stdout).unwrap();
+        let selected = &reply["selected_objects"][0];
+        assert_eq!(&selected["object_id"], id);
+        let sha = sha256_hex(&std::fs::read(binary).unwrap());
+        return json!({"structure":{"binary":binary,"binary_sha256":sha,"db":db,"session_id":export["session_id"],"session_generation":export["session_generation"],"writer_epoch":export["writer_epoch"]},
+            "s_ref":{"schema_revision":"s-object-ref/2","object_id":id,"object_hash":selected["object_hash"],"profile_id":export["profile_id"]},
+            "export":export,"basis_ref":reply["basis_ref"],"s_commit_ns":reply["commit_ns"]});
+    }
+    panic!("生产 S 冷读入口读不到导出库的任何当前对象：{export}");
+}
+
+/// #1717 R3 正控：内容域 E 的历史持有非空 FinancialBasisEvidence。B:alpha/B:beta 经正式入口 Prepare 时
+/// 经生产 S 冷读入口读真实 S3 库的 basis 并发布闭包，E Reserve 读 S 并导入两份 peer 证明闭包；随后 SR 评估的同一 job 审计、
+/// 发布核验这份非空闭包并完成最终物理预留与对账，事实含 Reserve 形成的责任。
+#[test]
+#[ignore = "需 TB1717_HFS_CARRIERS 三个临时固定容量 HFS+ 卷、TB1717_S_BINARY 生产 s_structure_session 与 TB1717_S_EXPORT 真实 S3 库；ci-macos.yml 显式运行"]
+fn sr_expansion_content_domain_publishes_real_s_basis_closure() {
+    use crate::economic_session::content_store::{allocated, carrier_capacity, image_refs};
+    let carriers = carriers_from_env();
+    let binary = PathBuf::from(std::env::var("TB1717_S_BINARY").expect("TB1717_S_BINARY 未设置"));
+    let export = PathBuf::from(std::env::var("TB1717_S_EXPORT").expect("TB1717_S_EXPORT 未设置"));
+    let real_s = real_s_from_export(&binary, &export);
+    let (v2, v3) = socket_policies();
+    let mut f = Fixture::content_with_real_s(&carriers, authorizations(&[&v2, &v3]), &real_s);
+    let config = f.configs[0].clone();
+    assert_eq!(config.revision().unwrap(), SCHEMA_V2);
+    assert_eq!(
+        config.manifest["finance"]["structure"]["binary_sha256"],
+        real_s["structure"]["binary_sha256"]
+    );
+
+    let mut steps = vec![];
+    for (n, name) in [(1, "alpha"), (2, "beta")] {
+        let p = f.request("PrepareDecision", name)["payload"].clone();
+        let prepared = f.handle(n, &format!("PrepareDecision-{name}"), p);
+        assert_eq!(prepared["kind"], "PreparedReceipt", "{prepared}");
+        steps.push(prepared);
+    }
+    let p = f.request("Reserve", "slot")["payload"].clone();
+    let reserved = f.handle(0, "Reserve-slot", p);
+    assert_eq!(reserved["kind"], "ReserveReceipt", "{reserved}");
+    steps.push(reserved.clone());
+    let before = latest(&f.dbs[0]).unwrap();
+    let refs = image_refs(&before.3).unwrap();
+    assert!(!refs.is_empty(), "E 历史须持有 FinancialBasisEvidence 引用");
+    let nodes: i64 = f.dbs[0]
+        .query_row("SELECT count(*) FROM content_nodes", [], |r| r.get(0))
+        .unwrap();
+    assert!(nodes > 0, "E 本地内容存储须持有闭包节点");
+
+    let tampered = evaluation(
+        &f,
+        "eval-real-s-tampered",
+        &policy(
+            "v2",
+            vec![signed("gross", ">=", "21", all_chongs(), "freeze_new")],
+        ),
+    );
+    rejected(&mut f, "sr-post-1", tampered, "IdentityConflict");
+    let request = evaluation(&f, "eval-real-s", &v2);
+    let receipt = f.handle(0, "sr-post-2", request.clone());
+    assert_eq!(receipt["kind"], "SrExpansionEvaluated", "{receipt}");
+    assert_eq!(receipt["record"]["result"], "ActionCandidates");
+    let components = receipt["record"]["fact"]["components"].as_array().unwrap();
+    assert!(
+        components
+            .iter()
+            .any(|c| c["origin"]["event"] == "Reserve" && c["owner"] != "E:baseline"),
+        "{receipt}"
+    );
+    let after = latest(&f.dbs[0]).unwrap();
+    assert_eq!(image_refs(&after.3).unwrap(), refs, "评估不新增也不丢失内容引用");
+    let again = f.handle(0, "sr-post-2", request);
+    assert_eq!(again, receipt, "原请求重送只取原回执");
+    let db = &config.db;
+    let (physical, capacity) = (allocated(db).unwrap(), carrier_capacity(db).unwrap());
+    assert!(physical <= capacity, "{physical} > {capacity}");
+    let reopened = Config::load(&f.dir.join("manifest.json"), db, None).unwrap();
+    audit(&open(&reopened.db, false).unwrap().0, &reopened).unwrap();
+    f.audit();
+    let evidence = json!({"carriers":carriers,"s_source":real_s,"finance_steps":steps,"e_content_refs":refs.len().to_string(),"e_content_nodes":nodes.to_string(),"sr_receipt":receipt,"e_allocated_bytes":physical.to_string(),"e_carrier_capacity":capacity.to_string()});
+    save(&f.dir, "issue1717-content-domain-real-s.json", &evidence);
+    println!("ISSUE1717_CONTENT_DOMAIN_REAL_S {}", canonical_json(&evidence));
 }
 
 /// 子进程入口：只由本文件的恢复/故障调度以其建立的 job 文件调用。

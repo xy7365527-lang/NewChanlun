@@ -75,8 +75,9 @@ jobs:
 
       # #1717：sr-expansion/1 在 economic-session/2 内容域上的评估。E、B:alpha、B:beta 各占一个本地可写
       #   固定容量 HFS+ 卷（store.rs 载体门）；按 #1394 已批载体合同各建一个 24 MiB 临时镜像（容量低于
-      #   已批 max_staged_bytes 32153600）。测试经子进程正式 owner socket 服务，结束后卸载。
-      - name: cargo test — #1717 SR 扩量评估内容域（三个临时固定容量 HFS+ 卷）
+      #   已批 max_staged_bytes 32153600）。第一项经子进程正式 owner socket 服务；第二项由 S 侧真实 S3 夹具
+      #   导出库、生产 s_structure_session 冷读，E 历史持有真实 FinancialBasisEvidence。结束后卸载。
+      - name: cargo test — issue 1717 SR 扩量评估内容域（三个临时固定容量 HFS+ 卷，正式 S）
         if: always()
         run: |
           root=$(mktemp -d /tmp/tb1717-hfs.XXXXXX)
@@ -92,8 +93,14 @@ jobs:
           mount | grep tb1717 || true
           df -k "$root/e" "$root/alpha" "$root/beta"
           mkdir "$root/work"
-          TB03B_TEST_ROOT="$root/work" TB1717_HFS_CARRIERS="$carriers" cargo test --locked --features s_session --lib -- --ignored --exact \
-            economic_session::finance::tests::sr_expansion::sr_expansion_content_domain_on_fixed_carriers --nocapture
+          TB1717_S_EXPORT="$root/s3-export.json" cargo test --locked --features s_session --bin s_structure_session -- \
+            --ignored --exact v3::financial_session::tests::export_real_s3_fixture_for_economic_content_domain
+          cargo build --locked --features s_session --bin s_structure_session
+          TB03B_TEST_ROOT="$root/work" TB1717_HFS_CARRIERS="$carriers" TB1717_S_EXPORT="$root/s3-export.json" \
+            TB1717_S_BINARY="$PWD/target/debug/s_structure_session" \
+            cargo test --locked --features s_session --lib -- --ignored --exact --test-threads=1 --nocapture \
+            economic_session::finance::tests::sr_expansion::sr_expansion_content_domain_on_fixed_carriers \
+            economic_session::finance::tests::sr_expansion::sr_expansion_content_domain_publishes_real_s_basis_closure
 
       - name: cargo test — economic_session / session_transport / session_protocol 库测试（#1394 G-1）
         if: always()

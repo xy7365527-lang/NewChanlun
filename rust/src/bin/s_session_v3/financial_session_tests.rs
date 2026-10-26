@@ -1632,3 +1632,25 @@ fn closure_stream_stops_when_the_source_changes() {
         "FAIL"
     );
 }
+
+/// #1717：真实 S3 夹具（init_v3 + 真实接纳/Begin/提交，文件库 WAL）留在原处，路径与可冷读对象登记到
+/// `TB1717_S_EXPORT`，供经济侧内容域正控经生产 `financial-basis-ref` 冷读同一库。夹具目录不随本测试删除。
+#[test]
+#[ignore = "仅供 ci-macos 的 #1717 内容域正控导出真实 S3 库"]
+fn export_real_s3_fixture_for_economic_content_domain() {
+    let out = PathBuf::from(std::env::var("TB1717_S_EXPORT").expect("TB1717_S_EXPORT 未设置"));
+    let mut f = Fixture::new();
+    for n in 1..=4 {
+        publish(&mut f, n);
+    }
+    let ids = object_ids(&mut f);
+    assert!(!ids.is_empty(), "真实 S3 夹具没有可冷读的当前对象");
+    f.conn
+        .execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")
+        .unwrap();
+    let export = json!({"schema_revision":"tb1717-s3-fixture-export/1","db":f.db_path(),
+        "session_id":"s-session-testonly-001","session_generation":"1","writer_epoch":"1",
+        "profile_id":"ohlc_integer_tb02a_v1","object_ids":ids});
+    std::fs::write(&out, canonical_json(&export)).unwrap();
+    std::mem::forget(f);
+}
