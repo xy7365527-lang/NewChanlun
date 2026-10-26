@@ -60,7 +60,7 @@ impl Family {
             let projected=scoped_legacy::legacy_payload(&record,work)?;
             let canonical=Text::try_format(format_args!("{}",projected.as_ref()),Some(work)).map_err(MixedJsonError::Resource)?;
             drop(projected);
-            let record=NativeArc::try_new(record,Some(work)).map_err(MixedJsonError::Resource)?;
+            let record=NativeArc::try_new_shallow(record,Some(work)).map_err(MixedJsonError::Resource)?;
             result.records.insert_admitted(id,(record,canonical,g),&admission).map_err(MixedJsonError::Resource)?;
         }
         Ok(result)
