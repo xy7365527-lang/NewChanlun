@@ -63,11 +63,13 @@ python3 -m approval_signing verify <回执.json>
 `approval_signing/protocol.py` 定义字节格式、回执和信任配置，`approval_signing/decision.py` 判定当前决定。
 
 1. 每个需要人批的动作生成一份 `ApprovalRequest`，`request_nonce = secrets.token_hex(16)`，目标取动作此刻真正作用的对象：`CommitTarget(<40 位 SHA>)`，或 `spec_target(spec_issue, GitHub 返回的正文原始字节)`。目标或运行状态变了就发新请求、新 nonce。
-2. 用 `load_trust()` 读信任配置。它拒绝任何非 root 所有、组或其他人可写、或经过符号链接的路径。
-3. 每份回执经 `verify_receipt` 验签。
-4. 动作前调用 `evaluate(request, current_target, receipts, now=..., watermark=..., receipts_complete=...)`。只有 `releases` 为真才放行。先持久化返回的 `watermark` 再行动。读不全回执来源时传 `receipts_complete=False`，此时只会拒绝或等待，不会放行。
+2. 动作前调用 `decide(request, current_target, receipt_blobs, now=..., watermark=..., receipts_complete=...)`。它用 `load_trust()` 读 root 所有的信任配置（任何一级非 root 所有、组或其他人可写、或为符号链接都抛错），逐份 `verify_receipt`，验不过的记入 `ignored` 且不计数，再 `evaluate`。只有 `releases` 为真才放行。
+3. 先持久化返回的 `watermark` 再行动。读回已存水位失败（`Watermark` 构造抛 `ProtocolError`）就停下交人，不能当成没有水位。
+4. 读不全回执来源时传 `receipts_complete=False`，此时只会拒绝或等待，不会放行。
 
-判定规则：同一 nonce 的回执按 `sequence`/`previous_receipt` 组成一条链，最新一条生效，后来的拒绝覆盖先前的批准。分叉、断链、同 nonce 却字段不同、比已见水位短（远端删除）都返回 `needs_reconciliation`，交人对账。批准过期或目标已变返回 `awaiting_human`。
+`current_target` 是动作此刻真正作用的对象，`request` 是执行器当初发出、带 run_id、claim_generation、nonce 与过期时间的那份请求；二者都由执行器自己的状态给出，不取自回执。
+
+判定规则：同一 nonce 的回执按 `sequence`/`previous_receipt` 组成一条链，最新一条生效，后来的拒绝覆盖先前的批准。分叉、断链、同 nonce 却字段不同、比已存水位短都返回 `needs_reconciliation`，交人对账。批准过期或目标已变返回 `awaiting_human`。
 
 ## 字节格式 v1
 
@@ -86,15 +88,15 @@ previous_receipt=none
 expires_at=2099-01-01T00:00:00Z
 ```
 
-ASCII，LF 结尾，字段顺序固定，十进制无前导零，十六进制小写。`spec_authorization` 的目标写作 `spec:<SPEC 票号>:sha256:<正文摘要>`。请求文件用表头 `newchanlun-approval-request/v1`，去掉 `decision`、`sequence`、`previous_receipt` 三行。解析后重新编码必须与原字节完全一致，所以每个载荷只有一种编码。回执是 JSON：`format`、`algorithm`（`ecdsa-p256-sha256`）、`key_id`（公钥 SPKI DER 的 SHA-256）、`payload` 与 `signature`（DER）的标准 base64。`receipt_id` 是载荷字节的 SHA-256。
+ASCII，LF 结尾，字段顺序固定，十进制无前导零，十六进制小写，`expires_at` 限 2000–2099 年。`spec_authorization` 的目标写作 `spec:<SPEC 票号>:sha256:<正文摘要>`。请求文件用表头 `newchanlun-approval-request/v1`，去掉 `decision`、`sequence`、`previous_receipt` 三行。解析后重新编码必须与原字节完全一致，所以每个载荷只有一种编码。回执是 JSON：`format`、`algorithm`（`ecdsa-p256-sha256`）、`key_id`（公钥 SPKI DER 的 SHA-256）、`payload` 与 `signature`（DER）的标准 base64。`receipt_id` 是载荷字节的 SHA-256。
 
 ## 能防什么，不能防什么
 
 代理和工蜂与你同一个 macOS 账户运行，可以读写你的文件、启动程序，但 `sudo` 要你的密码。
 
-能防的是代理自己产出批准。它不能在没有你在场认证的情况下让 Secure Enclave 签名；它改不了 root 所有的信任配置和签批工具；它换掉钥句柄只会得到验不过的回执；它删掉 GitHub 上的拒绝回执，执行器的水位会发现链变短并停下。
+能防的是代理自己产出批准。它不能在没有你在场认证的情况下让 Secure Enclave 签名；它改不了 root 所有的信任配置和签批工具；它换掉钥句柄只会得到验不过的回执。执行器已经读到并存入水位的拒绝，之后从 GitHub 删掉，会表现为链变短，执行器停下对账。
 
-不能防的有三类。第一，代理可以用你的钥句柄在任意时刻触发一次系统认证弹窗，弹窗文字由调用方决定；只要你在没有自己发起签批时通过了认证，就可能签下它准备的内容。所以只认自己发起的弹窗。第二，你运行的终端、Swift 工具链和 Python 环境与代理同一账户，被篡改后显示内容可以与签名内容不一致；固定提交构建和 root 安装缩小了这个面，没有消除它。第三，拥有 root 或你的密码的程序不在防护范围内。
+不能防的有四类。第一，代理可以用你的钥句柄在任意时刻触发一次系统认证弹窗，弹窗文字由调用方决定；只要你在没有自己发起签批时通过了认证，就可能签下它准备的内容。所以只认自己发起的弹窗。第二，你运行的终端、Swift 工具链和 Python 环境与代理同一账户，被篡改后显示内容可以与签名内容不一致；固定提交构建和 root 安装缩小了这个面，没有消除它。第三，删除回执只在两个条件下被发现：执行器已经观察到那条拒绝，且水位存放处代理改不回去。水位若存在同账户普通文件里，代理可把它连同远端回执一起回滚，旧批准就会重新生效；执行器从未读到就被删掉的拒绝也发现不了。可信水位存放处与回执在 GitHub 上的发布、读取方式由执行器接入时确定，本工具不提供。第四，拥有 root 或你的密码的程序不在防护范围内。
 
 ## 开发检查
 

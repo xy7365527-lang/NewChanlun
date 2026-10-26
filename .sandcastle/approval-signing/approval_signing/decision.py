@@ -3,24 +3,46 @@
 Every receipt for a request carries a sequence and the id of the receipt before
 it, so the decisions form one chain. The latest link wins: a later reject
 overrides an earlier approve. The executor persists the chain head it has seen
-(the watermark), so deleting newer receipts from GitHub cannot bring an older
-approve back.
+(the watermark); receipts deleted after they were seen then show up as a
+shorter chain. That only holds for decisions the executor already observed and
+only while the watermark itself cannot be rolled back.
 """
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
 
-from .protocol import ApprovalRequest, Decision, Target, VerifiedReceipt
+from .protocol import (
+    DEFAULT_TRUST_PATH,
+    ApprovalRequest,
+    Decision,
+    ProtocolError,
+    Target,
+    VerifiedReceipt,
+    load_trust,
+    verify_receipt,
+)
+
+_HEX64 = re.compile(r"[0-9a-f]{64}")
 
 
 @dataclass(frozen=True)
 class Watermark:
+    """Chain head already observed. A stored watermark that does not parse means stop; never replace it with None."""
+
     sequence: int
     receipt_id: str
+
+    def __post_init__(self) -> None:
+        if isinstance(self.sequence, bool) or not isinstance(self.sequence, int) or self.sequence < 1:
+            raise ProtocolError("watermark sequence must be a positive integer")
+        if not isinstance(self.receipt_id, str) or not _HEX64.fullmatch(self.receipt_id):
+            raise ProtocolError("watermark receipt_id must be 64 lowercase hex")
 
 
 class Status(Enum):
@@ -36,6 +58,8 @@ class Evaluation:
     reason: str
     watermark: Watermark | None
     """Persist this before acting. None means nothing new was observed."""
+    ignored: tuple[str, ...] = ()
+    """Why each receipt blob passed to `decide` failed verification; those blobs count for nothing."""
 
     @property
     def releases(self) -> bool:
@@ -104,3 +128,31 @@ def evaluate(
     if not receipts_complete:
         return Evaluation(Status.AWAITING_HUMAN, "receipt set incomplete; cannot rule out a reject", seen)
     return Evaluation(Status.APPROVED, f"approved by {head.receipt_id}", seen)
+
+
+def decide(
+    request: ApprovalRequest,
+    current_target: Target,
+    receipt_blobs: Iterable[bytes],
+    *,
+    now: datetime,
+    watermark: Watermark | None,
+    receipts_complete: bool,
+    trust_path: Path = DEFAULT_TRUST_PATH,
+) -> Evaluation:
+    """Executor entry point: load the root-owned trust config, verify every receipt blob, evaluate.
+
+    Blobs that fail verification are reported in `ignored` and otherwise count
+    for nothing. A trust config that is missing or not root-controlled raises.
+    """
+    trust = load_trust(trust_path)
+    verified: list[VerifiedReceipt] = []
+    ignored: list[str] = []
+    for blob in receipt_blobs:
+        try:
+            verified.append(verify_receipt(blob, trust))
+        except ProtocolError as exc:
+            ignored.append(str(exc))
+    result = evaluate(request, current_target, verified, now=now, watermark=watermark,
+                      receipts_complete=receipts_complete)
+    return replace(result, ignored=tuple(ignored))

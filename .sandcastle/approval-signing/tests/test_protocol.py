@@ -126,3 +126,22 @@ def test_trust_key_id_must_match_the_key(key: SoftwareKey) -> None:
     with pytest.raises(ProtocolError, match="key_id"):
         parse_trust(json.dumps(raw).encode())
 
+
+
+@pytest.mark.parametrize("when, accepted", [
+    ("2000-02-29T00:00:00Z", True),
+    ("2096-02-29T23:59:59Z", True),
+    ("2001-02-29T00:00:00Z", False),
+    ("1500-02-29T00:00:00Z", False),
+    ("1582-10-10T00:00:00Z", False),
+    ("2100-01-01T00:00:00Z", False),
+    ("2099-12-31T24:00:00Z", False),
+])
+def test_expiry_domain_matches_the_swift_helper(key: SoftwareKey, when: str, accepted: bool) -> None:
+    text = ApprovalPayload(make_request(), Decision.APPROVE, 1, None).encode().decode()
+    payload = text.replace("2099-01-01T00:00:00Z", when).encode()
+    if accepted:
+        assert ApprovalPayload.parse(payload).encode() == payload
+    else:
+        with pytest.raises(ProtocolError):
+            ApprovalPayload.parse(payload)

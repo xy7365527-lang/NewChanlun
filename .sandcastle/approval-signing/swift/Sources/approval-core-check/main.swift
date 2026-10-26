@@ -47,6 +47,13 @@ check(rejects(requestText.replacingOccurrences(of: "scope=candidate_head", with:
 check(rejects(requestText.replacingOccurrences(of: "commit:", with: "spec:1340:sha256:")), "target must match scope")
 check(rejects(requestText.replacingOccurrences(of: "2099-01-01", with: "2099-02-30")), "impossible date rejected")
 check(rejects(requestText + "extra=1\n"), "extra field rejected")
+for (when, accepted) in [("2000-02-29T00:00:00Z", true), ("2096-02-29T23:59:59Z", true),
+                         ("2001-02-29T00:00:00Z", false), ("1500-02-29T00:00:00Z", false),
+                         ("1582-10-10T00:00:00Z", false), ("2100-01-01T00:00:00Z", false),
+                         ("2099-12-31T24:00:00Z", false)] {
+    check(rejects(requestText.replacingOccurrences(of: "2099-01-01T00:00:00Z", with: when)) != accepted,
+          "expiry \(when) \(accepted ? "accepted" : "rejected") as in protocol.py")
+}
 check(rejects(String(requestText.dropLast())), "missing final LF rejected")
 
 var shown: [String] = []
