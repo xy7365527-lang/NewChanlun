@@ -25,7 +25,7 @@
 use super::*;
 // #1527：库/bin 共用迁移后的唯一原验证器；SQL 类型拒绝仍在原读行位置。
 use crate::v3::audit_store::{CodecRead, NativeAdmission};
-use crate::v3::business_json::{new_map, new_work, BusinessMap, TextValue};
+use crate::v3::business_json::{new_map, new_work, BusinessMap, TextValue, MixedJsonError};
 use newchan_rust::s_content::capture_allocation::scratch::WorkScope;
 pub(super) use newchan_rust::s_content::legacy_evidence::hex_bytes;
 use newchan_rust::s_content::legacy_evidence::{
@@ -48,23 +48,29 @@ pub(super) fn sql_columns(error: rusqlite::Error, names: &[&str]) -> rusqlite::E
 fn work_copy<T: Copy>(bytes: &[T], owner: Option<&OwnedBudget>) -> Result<CodecVec<T>, String> {
     work_copy_admitted(bytes, owner, None)
 }
+/// 旧入口的诊断边界；mixed不得经过String桥。
+fn ordinary_read_error(error: MixedJsonError) -> String {
+    match error {
+        MixedJsonError::Resource(error) => error.to_string(),
+        MixedJsonError::Business(error) => error,
+    }
+}
 fn work_copy_admitted<T: Copy>(
-    bytes: &[T],
-    owner: Option<&OwnedBudget>,
-    work: Option<&WorkScope>,
+    bytes: &[T], owner: Option<&OwnedBudget>, work: Option<&WorkScope>,
 ) -> Result<CodecVec<T>, String> {
+    work_copy_typed(bytes,owner,work).map_err(ordinary_read_error)
+}
+fn work_copy_typed<T: Copy>(
+    bytes: &[T], owner: Option<&OwnedBudget>, work: Option<&WorkScope>,
+) -> Result<CodecVec<T>, MixedJsonError> {
     let admission = NativeAdmission(work);
     let mut out = new_work(owner);
-    admission
-        .native_codec_room(&mut out, bytes.len())
-        .map_err(|e| e.to_string())?;
-    out.try_reserve_exact(bytes.len())
-        .map_err(|e| e.to_string())?;
-    for byte in bytes {
-        out.try_push(*byte).map_err(|e| e.to_string())?;
-    }
+    admission.native_codec_room(&mut out,bytes.len()).map_err(MixedJsonError::Resource)?;
+    out.try_reserve_exact(bytes.len()).map_err(MixedJsonError::Resource)?;
+    for byte in bytes { out.try_push(*byte).map_err(MixedJsonError::Resource)?; }
     Ok(out)
 }
+
 fn work_resize_admitted<T: Copy>(
     v: &mut CodecVec<T>,
     len: usize,
@@ -2192,17 +2198,45 @@ impl<'a> Reader<'a> {
     }
 }
 
+/// #1527：原SQL/原行验证共享核之后，才向当前同父Job提交旧域节点。
+/// 返回值不进入持久cache；Reader持有的观察者借用限定当前operation寿命。
+pub(crate) struct ObservedLegacyNode<'a> {
+    checked: newchan_rust::s_content::legacy_evidence::CheckedLegacyEvidenceRow,
+    payload: CodecVec<u8>,
+    _observer: &'a dyn crate::v3::audit_budget::LegacyObserver,
+}
+impl ObservedLegacyNode<'_> {
+    pub(crate) fn checked(&self) -> &newchan_rust::s_content::legacy_evidence::CheckedLegacyEvidenceRow { &self.checked }
+    pub(crate) fn payload(&self) -> &[u8] { &self.payload }
+}
+pub(crate) fn read_node_mixed<'a>(
+    conn: &Connection, id: &[u8;32], work: &WorkScope,
+    observer: &'a dyn crate::v3::audit_budget::LegacyObserver,
+) -> Result<ObservedLegacyNode<'a>, MixedJsonError> {
+    observer.check_work(work).map_err(MixedJsonError::Resource)?;
+    observer.precheck().map_err(MixedJsonError::Resource)?;
+    let (checked,payload) = read_node_row_typed(conn,id,None,Some(work))?;
+    observer.accept_checked(&checked).map_err(MixedJsonError::Resource)?;
+    Ok(ObservedLegacyNode { checked,payload,_observer:observer })
+}
+
 fn read_node_row_admitted(
+    conn: &Connection, id: &[u8;32], owner: Option<&OwnedBudget>, work: Option<&WorkScope>,
+) -> Result<(i64,CodecVec<u8>,u64),String> {
+    let (checked,payload) = read_node_row_typed(conn,id,owner,work).map_err(ordinary_read_error)?;
+    Ok((checked.kind(),payload,checked.declared_length()))
+}
+fn read_node_row_typed(
     conn: &Connection,
     id: &[u8; 32],
     owner: Option<&OwnedBudget>,
     work: Option<&WorkScope>,
-) -> Result<(i64, CodecVec<u8>, u64), String> {
+) -> Result<(newchan_rust::s_content::legacy_evidence::CheckedLegacyEvidenceRow, CodecVec<u8>), MixedJsonError> {
     let err = |e| {
-        format!(
+        MixedJsonError::Business(format!(
             "StorageUnavailable：读私有节点失败：{}",
             sql_columns(e, &["node_kind", "payload", "expanded_length"])
-        )
+        ))
     };
     let mut stmt = CheckedStatement::prepare(
         conn,
@@ -2213,14 +2247,15 @@ fn read_node_row_admitted(
     let mut row = stmt
         .next()
         .map_err(err)?
-        .ok_or_else(|| format!("StorageUnavailable：私有节点 {} 缺失", hex(id)))?;
+        .ok_or_else(|| MixedJsonError::Business(format!("StorageUnavailable：私有节点 {} 缺失", hex(id))))?;
     let kind = row.integer(0).map_err(err)?;
-    let payload = work_copy_admitted(row.blob(1).map_err(err)?, owner, work)?;
+    let payload = work_copy_typed(row.blob(1).map_err(err)?, owner, work)?;
     let len = row.integer(2).map_err(err)?;
     drop(row);
     stmt.finalize().map_err(err)?;
-    let declared = verify_node_row(id, kind, &payload, len)?;
-    Ok((kind, payload, declared))
+    let checked = newchan_rust::s_content::legacy_evidence::CheckedLegacyEvidenceRow::verify(id, kind, &payload, len)
+        .map_err(MixedJsonError::Business)?;
+    Ok((checked, payload))
 }
 
 fn node_children(

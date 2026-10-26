@@ -868,4 +868,46 @@ mod tests {
         }).unwrap();
     }
 
+    #[test]
+    fn mixed_ram_sql_node_acceptance_is_fresh_and_rejects_corrupt_original() {
+        use newchan_rust::s_content::{self as sc, job::{Job,Existing}};
+        use crate::v3::audit_budget::LegacyObserver;
+        use std::cell::RefCell;
+        struct Observer<'a> { job: RefCell<Job>, work: &'a sc::capture_allocation::scratch::WorkScope }
+        impl LegacyObserver for Observer<'_> {
+            fn precheck(&self) -> Result<(),sc::CodecError> { self.job.borrow_mut().pre_io_check() }
+            fn check_work(&self,work: &sc::capture_allocation::scratch::WorkScope) -> Result<(),sc::CodecError> {
+                let token = self.work.reserve_native(0)?;
+                if !token.belongs_to_parent(work) { return Err(work.reject(ScratchFailure::Ledger)); }
+                Ok(())
+            }
+            fn accept_checked(&self,row: &sc::legacy_evidence::CheckedLegacyEvidenceRow) -> Result<(),sc::CodecError> {
+                self.job.borrow_mut().accept_legacy_evidence(row,self.work).map(|_| ())
+            }
+        }
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch(crate::evidence_store::DDL).unwrap();
+        let payload = b"abc";
+        let id = sc::legacy_evidence::node_id(0,payload);
+        conn.execute("INSERT INTO s_evidence_nodes VALUES(?1,0,?2,3)",rusqlite::params![&id[..],&payload[..]]).unwrap();
+        let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+        owner.codec_work().unwrap().run(|work| {
+            let job = Job::new_started_mixed(job_limits(),Existing {store_bytes:0,staged_bytes:0},
+                Box::new(std::time::Instant::now),std::time::Instant::now(),work)?;
+            let observer = Observer {job:RefCell::new(job),work};
+            let first = crate::evidence_store::read_node_mixed(&conn,&id,work,&observer).unwrap();
+            assert_eq!(first.payload(),payload);
+            assert_eq!(first.checked().id(),&id);
+            assert_eq!(observer.job.borrow().snapshot().nodes,1);
+            let repeated = crate::evidence_store::read_node_mixed(&conn,&id,work,&observer).unwrap();
+            assert_eq!(repeated.payload(),payload);
+            assert_eq!(observer.job.borrow().snapshot().nodes,1);
+            conn.execute("UPDATE s_evidence_nodes SET payload=?1",rusqlite::params![&b"bad"[..]]).unwrap();
+            assert!(matches!(crate::evidence_store::read_node_mixed(&conn,&id,work,&observer),
+                Err(crate::v3::business_json::MixedJsonError::Business(ref s)) if s.contains("同 ID 异内容")));
+            assert_eq!(observer.job.borrow().snapshot().nodes,1);
+            Ok::<_,sc::CodecError>(())
+        }).unwrap();
+    }
+
 }

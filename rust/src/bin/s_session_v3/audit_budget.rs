@@ -25,6 +25,35 @@ pub(crate) trait Budget {
     fn record(&self) -> Result<(), sc::CodecError>;
 }
 
+/// #1527：旧域节点只能来自完整原行核验；资格只借当前Job，不进缓存。
+pub(crate) trait LegacyObserver {
+    fn precheck(&self) -> Result<(), sc::CodecError>;
+    fn check_work(&self, work: &sc::capture_allocation::scratch::WorkScope) -> Result<(), sc::CodecError>;
+    fn accept_checked(&self, row: &sc::legacy_evidence::CheckedLegacyEvidenceRow) -> Result<(), sc::CodecError>;
+}
+pub(crate) struct AdmissionLegacyObserver<'s, 'j> {
+    account: RefCell<&'s mut super::admission_anchor::AdmissionAccounting<'j>>,
+}
+impl<'s, 'j> AdmissionLegacyObserver<'s, 'j> {
+    pub(crate) fn new(account: &'s mut super::admission_anchor::AdmissionAccounting<'j>) -> Self {
+        Self { account: RefCell::new(account) }
+    }
+}
+impl LegacyObserver for AdmissionLegacyObserver<'_, '_> {
+    fn precheck(&self) -> Result<(), sc::CodecError> { self.account.borrow_mut().pre_io_check() }
+    fn check_work(&self, work: &sc::capture_allocation::scratch::WorkScope) -> Result<(), sc::CodecError> {
+        let binding = work.reserve_native(0)?;
+        let account = self.account.borrow();
+        if !account.mixed_scope().is_some_and(|scope| binding.belongs_to_parent(scope)) {
+            return Err(work.reject(sc::capture_allocation::scratch::ScratchFailure::Ledger));
+        }
+        Ok(())
+    }
+    fn accept_checked(&self, row: &sc::legacy_evidence::CheckedLegacyEvidenceRow) -> Result<(), sc::CodecError> {
+        self.account.borrow_mut().accept_legacy_evidence(row).map(|_| ())
+    }
+}
+
 /// 仅借本次审计账与截止时间；不可留存进 capture/context/memo。
 pub(crate) struct NativeMeasure<'a> {
     pub(super) budget: Option<&'a dyn Budget>,
