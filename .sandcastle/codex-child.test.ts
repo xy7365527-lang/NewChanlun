@@ -117,6 +117,30 @@ test("路由门：模型不得带 mf/、yd/ 等中转前缀，provider 只能是
   assert.ok(providerOverrides().every((item) => !item.includes(fixtureKey)));
 });
 
+test("#1742 显式模型只接白名单：gpt-6.1-sol 进入 -m，白名单外与中转前缀在建目录前失败", async () => {
+  const provider = await boundedCodex("execute", "/tmp/schema.json", undefined, "gpt-6.1-sol");
+  const command = provider.buildPrintCommand({ prompt: "x", dangerouslySkipPermissions: false }).command;
+  assert.ok(command.includes(" -m 'gpt-6.1-sol'"));
+  assert.ok(!command.includes("claude-opus-5-5"));
+  assert.ok(command.includes("--sandbox workspace-write") && command.includes("network_access=false"));
+  assert.throws(() => assertRoute("gpt-5.5"), /模型只能是/);
+  assert.throws(() => assertRoute("mf/gpt-6.1-sol"), /中转前缀/);
+  const f = fixture();
+  try {
+    for (const model of ["gpt-5.5", "mf/gpt-6.1-sol"]) {
+      await assert.rejects(runCodexChild({ ...f.options, model: model as "gpt-6.1-sol" }, { env: f.env }), /模型只能是|中转前缀/);
+      assert.ok(!existsSync(f.options.outputDir));
+    }
+    f.fake("capture(); session(); complete();");
+    const result = await runCodexChild({ ...f.options, model: "gpt-6.1-sol" }, { env: f.env });
+    assert.equal(result.status, "completed", result.failure_reason ?? "");
+    assert.equal(result.model, "gpt-6.1-sol");
+    assert.equal(JSON.parse(readFileSync(join(f.options.outputDir, "result.json"), "utf8")).model, "gpt-6.1-sol");
+    const argv: string[] = JSON.parse(readFileSync(join(f.dir, "argv.json"), "utf8"));
+    assert.ok(argv.includes("gpt-6.1-sol") && !argv.includes("claude-opus-5-5"));
+  } finally { f.clean(); }
+});
+
 test("密钥：进程环境已有则不查 launchctl；缺失时只查一次；仍缺失则提示不含值", () => {
   let calls = 0;
   const present = providerEnvironment({ PATH: "/bin", CLIPROXY_LOCAL_KEY: fixtureKey }, () => { calls += 1; return "other"; });
