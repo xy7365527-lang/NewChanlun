@@ -4098,7 +4098,6 @@ mod tests {
     fn v2_mixed_admission_migrates_current_rule_pre_policy_records_store_in_scope() {
         let f = Fixture::new(4, 1);
         f.ingest(0);
-        f.ingest(1);
         Connection::open(&f.db)
             .unwrap()
             .execute_batch("ALTER TABLE structure_deltas DROP COLUMN policy_records")
