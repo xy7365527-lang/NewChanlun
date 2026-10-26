@@ -3,6 +3,10 @@ const C4B_RAW: &str =
     include_str!("../../../s_session/tests/fixtures/tb03c_allocation/C4B-RAW.json");
 const C4B_HAND: &str =
     include_str!("../../../s_session/tests/fixtures/tb03c_allocation/C4B-HAND-ORACLE.json");
+const PER_LEG_RAW: &str =
+    include_str!("../../../s_session/tests/fixtures/tb03c_allocation/PER-LEG-RAW.json");
+const PER_LEG_HAND: &str =
+    include_str!("../../../s_session/tests/fixtures/tb03c_allocation/PER-LEG-HAND-ORACLE.json");
 
 fn c4b_apply_all(s: &mut Session, r: &Value) -> Vec<Value> {
     s.allocations(r)
@@ -265,6 +269,13 @@ fn c4b_per_leg_raw(s: &Session, attribution: Value) -> String {
     raw["evidence_index"]["fragments"][key] = json!([{"json_pointer":"/events/3/per_leg_report"}]);
     canonical_json(&raw)
 }
+fn c4b_per_leg_attribution() -> Value {
+    json!({
+        "chong-N1":{"units":"2","acquisition_cash":"200","commission":"2"},
+        "chong-N2":{"units":"1","acquisition_cash":"100","commission":"1"},
+        "chong-N3":{"units":"0","acquisition_cash":"0","commission":"0"}
+    })
+}
 #[test]
 fn c4b_per_leg_missing_attribution_is_persistent_unmatched_without_amounts_or_fallback() {
     let mut s = Session::custom("c4b-per-leg", true, c4b_per_leg_manifest);
@@ -304,14 +315,86 @@ fn c4b_per_leg_missing_attribution_is_persistent_unmatched_without_amounts_or_fa
     raw["events"][3]["netted_fill"]["manifest_hash"] =
         s.configs[0].manifest["fill_manifests"][0]["manifest_hash"].clone();
     assert_error(&s.capture(&canonical_json(&raw), 3), "IdentityConflict");
-    let mut second = Session::custom("c4b-per-leg-known", true, c4b_per_leg_manifest);
-    second.opening();
-    let raw = c4b_per_leg_raw(&second, json!({"chong_id":"chong-N1"}));
-    let r = second.capture(&raw, 3);
+}
+
+#[test]
+fn c4b_per_leg_source_attribution_applies_once_matches_oracle_and_recovers() {
+    let mut s = Session::custom("c4b-per-leg-success", true, c4b_per_leg_manifest);
+    s.opening();
+    let r = s.capture(PER_LEG_RAW, 3);
     assert_eq!(r["kind"], "Recorded", "{r}");
-    let before = second.image(0);
-    assert_error(&second.resolve(&r, 4), "Unsupported");
-    assert_eq!(second.image(0), before);
+    assert_eq!(s.resolve(&r, 4)["kind"], "Resolved");
+    let hand: Value = serde_json::from_str(PER_LEG_HAND).unwrap();
+    let allocations = s.allocations(&r);
+    assert_eq!(allocations.len(), 3);
+    for (allocation, expected) in allocations.iter().zip(hand["routes"].as_array().unwrap()) {
+        assert_eq!(allocation["chong_id"], expected["chong_id"]);
+        for key in ["units", "acquisition_cash", "commission"] {
+            assert_eq!(allocation[key], expected[key], "{allocation}");
+        }
+        assert_eq!(allocation["fill_allocation_policy_id"], hand["policy"]);
+        assert!(allocation.get("unmatched_reason").is_none());
+    }
+    // [2,1,0] 不是冻结请求量 [1,3,3] 的比例分配；改成比例 resolve 会使这里和账簿同时变红。
+    assert_eq!(allocations[0]["units"], "2");
+    assert_eq!(allocations[1]["units"], "1");
+    assert_eq!(allocations[2]["units"], "0");
+    c4b_reopen(&mut s, 0);
+    let receipts = c4b_apply_all(&mut s, &r);
+    c4b_book_matches(&s, &hand["after_fill"]);
+    for (i, receipt) in receipts.iter().enumerate() {
+        let owner = i + 1;
+        c4b_reopen(&mut s, owner);
+        let before = s.image(owner);
+        let request = apply_request(&r, &allocations[i]["allocation_id"]);
+        assert_eq!(&s.send(owner, request.clone()), receipt);
+        assert_eq!(s.image(owner), before);
+        let mut conflict = request;
+        conflict["expected_fact_hash"] = json!("different-fact-hash");
+        assert_error(&s.send(owner, conflict), "IdentityConflict");
+        assert_eq!(s.image(owner), before);
+        store::audit(&s.dbs[owner], &s.configs[owner]).unwrap();
+    }
+    store::audit(&s.dbs[0], &s.configs[0]).unwrap();
+}
+
+#[test]
+fn c4b_per_leg_attribution_negative_controls_preserve_e_and_b_images() {
+    let mut missing = c4b_per_leg_attribution();
+    missing.as_object_mut().unwrap().remove("chong-N2");
+    let mut unknown = c4b_per_leg_attribution();
+    let zero = unknown.as_object_mut().unwrap().remove("chong-N3").unwrap();
+    unknown["chong-unknown"] = zero;
+    let mut quantity = c4b_per_leg_attribution();
+    quantity["chong-N1"]["units"] = json!("3");
+    quantity["chong-N1"]["acquisition_cash"] = json!("300");
+    let mut cash = c4b_per_leg_attribution();
+    cash["chong-N1"]["acquisition_cash"] = json!("201");
+    let mut commission = c4b_per_leg_attribution();
+    commission["chong-N1"]["commission"] = json!("3");
+    let mut zero_with_fee = c4b_per_leg_attribution();
+    zero_with_fee["chong-N3"]["commission"] = json!("1");
+    for (name, attribution) in [
+        ("missing", missing),
+        ("unknown", unknown),
+        ("quantity", quantity),
+        ("cash", cash),
+        ("commission", commission),
+        ("zero-with-fee", zero_with_fee),
+    ] {
+        let mut s = Session::custom(&format!("c4b-per-leg-{name}"), true, c4b_per_leg_manifest);
+        s.opening();
+        let before_b = (1..4).map(|i| s.image(i)).collect::<Vec<_>>();
+        let raw = c4b_per_leg_raw(&s, attribution);
+        let r = s.capture(&raw, 3);
+        assert_eq!(r["kind"], "Recorded", "{name}: {r}");
+        let before_e = s.image(0);
+        assert_error(&s.resolve(&r, 4), "IdentityConflict");
+        assert_eq!(s.image(0), before_e, "{name}");
+        for (i, before) in before_b.into_iter().enumerate() {
+            assert_eq!(s.image(i + 1), before, "{name}");
+        }
+    }
 }
 
 #[test]

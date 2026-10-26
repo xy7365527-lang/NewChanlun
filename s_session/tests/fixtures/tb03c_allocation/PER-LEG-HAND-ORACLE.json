@@ -1,0 +1,36 @@
+{
+  "after_fill": {
+    "K": [
+      302,
+      301,
+      200
+    ],
+    "q": [
+      3,
+      3,
+      2
+    ]
+  },
+  "policy": "per-leg-source-attribution/1",
+  "routes": [
+    {
+      "acquisition_cash": "200",
+      "chong_id": "chong-N1",
+      "commission": "2",
+      "units": "2"
+    },
+    {
+      "acquisition_cash": "100",
+      "chong_id": "chong-N2",
+      "commission": "1",
+      "units": "1"
+    },
+    {
+      "acquisition_cash": "0",
+      "chong_id": "chong-N3",
+      "commission": "0",
+      "units": "0"
+    }
+  ],
+  "schema": "tb03c-per-leg-hand-oracle/1"
+}
