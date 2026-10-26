@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -138,6 +139,11 @@ def test_decide_verifies_blobs_and_reports_the_ones_it_ignores(key: SoftwareKey,
         decide(request, CommitTarget(HEAD), blobs, now=NOW, watermark=None, receipts_complete=True,
                trust_path=untrusted)
 
+    good = json.loads(blobs[0])
+    blobs += [json.dumps({**good, "payload": "雪"}).encode(), json.dumps({**good, "signature": "雪"}).encode(),
+              b"[" * 100_000]
     monkeypatch.setattr(decision, "load_trust", lambda path: key.trust())
     result = decide(request, CommitTarget(HEAD), blobs, now=NOW, watermark=None, receipts_complete=True)
-    assert result.releases and len(result.ignored) == 2
+    assert result.releases and len(result.ignored) == 5
+    assert not decide(request, CommitTarget(HEAD), blobs[1:], now=NOW, watermark=None,
+                      receipts_complete=True).releases
