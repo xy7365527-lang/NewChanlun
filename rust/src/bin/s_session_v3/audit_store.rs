@@ -44,7 +44,7 @@ impl<K, V> Default for NativeMap<K, V> {
 }
 impl<K: Eq + std::hash::Hash, V> NativeMap<K, V> {
     pub(crate) fn belongs_to_work(&self,work:&sc::capture_allocation::scratch::WorkScope)->bool {
-        self.permit.as_ref().is_some_and(|p|p.belongs_to_parent(work))
+        self.permit.as_ref().map_or(self.map.capacity()==0,|p|p.belongs_to_parent(work))
     }
     pub(crate) fn try_copy_mixed(
         &self,work:&sc::capture_allocation::scratch::WorkScope,

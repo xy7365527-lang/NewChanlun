@@ -19,7 +19,7 @@ impl<K, V> Default for NativeTree<K, V> {
 }
 impl<K: Ord, V> NativeTree<K, V> {
     pub fn belongs_to_work(&self,work:&sc::capture_allocation::scratch::WorkScope) -> bool {
-        self.permits.native_belongs_to_work(work)
+        (self.high_water==0 && self.permits.capacity()==0) || self.permits.native_belongs_to_work(work)
     }
     /// 仅复制表与调用者选择的纯内容；不携带当前Job观察资格。
     pub fn try_copy_mixed(
