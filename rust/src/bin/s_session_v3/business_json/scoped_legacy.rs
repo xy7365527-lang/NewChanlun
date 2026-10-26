@@ -985,7 +985,11 @@ pub(crate) fn normalize_records<'a>(
             .map_err(MixedJsonError::Resource)?;
         out.try_push(text).map_err(MixedJsonError::Resource)?;
     }
+    let sort_bytes = out.len().checked_mul(std::mem::size_of::<NativeValue<String>>())
+        .ok_or_else(|| MixedJsonError::Resource(work.reject(sc::capture_allocation::scratch::ScratchFailure::Budget)))?;
+    let sort_permit = work.reserve_native(sort_bytes).map_err(MixedJsonError::Resource)?;
     out.sort();
+    drop(sort_permit);
     if out.windows(2).any(|w| w[0] == w[1]) {
         return Err(MixedJsonError::Business(format!(
             "StorageUnavailable：{field} 重复成员"

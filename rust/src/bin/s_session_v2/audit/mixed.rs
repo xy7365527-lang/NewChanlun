@@ -593,15 +593,13 @@ impl AuditWalk {
             }
             Ok(())
         };
-        for value in self
-            .active
-            .values()
-            .chain(self.objects.values())
-            .chain(self.original_observations.values())
-            .chain(self.births.values().flat_map(|values| values.iter()))
-            .chain(self.deaths.values().flat_map(|values| values.iter()))
+        for (value, family) in self
+            .active.values().chain(self.objects.values()).map(|value| (value, "objects"))
+            .chain(self.original_observations.values().map(|value| (value, "observations")))
+            .chain(self.births.values().flat_map(|values| values.iter()).map(|value| (value, "objects")))
+            .chain(self.deaths.values().flat_map(|values| values.iter()).map(|value| (value, "objects")))
         {
-            account(&mut seen, &mut total, value, "objects")?;
+            account(&mut seen, &mut total, value, family)?;
         }
         for value in &self.raw {
             value
