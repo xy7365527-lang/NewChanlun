@@ -959,6 +959,20 @@ fn verify_structure_for_domain(
     super::phase_trace::mark("structure_verify", &config.domain);
     budget.before()
 }
+/// 结构校验只取决于同一 witness 与 plan 的 s_ref；同一 slot 内同值 s_ref 只核一次，不同值各核一次。
+fn verify_structure_once(
+    verified: &mut BTreeSet<String>,
+    c: &Connection,
+    config: &Config,
+    budget: &mut super::store::ReadBudget<'_>,
+    evidence: &Value,
+    plan: &Value,
+) -> Result<(), String> {
+    if verified.insert(canonical_json(&plan["s_ref"])) {
+        verify_structure_for_domain(c, config, budget, evidence, Some(plan))?;
+    }
+    Ok(())
+}
 fn knowledge_floor(witness: &Value, first: &str) -> Result<(), String> {
     let known = nonnegative(first, "first_known_ns")?;
     if witness.get("structure").is_some_and(|v| !v.is_null())
@@ -1207,7 +1221,7 @@ fn reduce_with_budget(
                 return Err("MissingDependency：完整同 slot 原 Prepared 证据不齐".into());
             }
             let mut seen = BTreeSet::new();
-            let mut verified_refs: Vec<&Value> = Vec::new();
+            let mut verified_refs = BTreeSet::new();
             let mut grants = Vec::new();
             let mut additional = 0i64;
             for q in &active {
@@ -1237,11 +1251,7 @@ fn reduce_with_budget(
                 if latest_proof_seq(pf)? != expected_version {
                     return Err("InvalidDomain：Prepared 后本地账本版本已改变".into());
                 }
-                // 结构校验只取决于同一 witness 与 s_ref；同 slot 多个申请者引用同一对象时只核一次。
-                if !verified_refs.contains(&&q["s_ref"]) {
-                    verify_structure_for_domain(c, config, budget, &w["structure"], Some(q))?;
-                    verified_refs.push(&q["s_ref"]);
-                }
+                verify_structure_once(&mut verified_refs, c, config, budget, &w["structure"], q)?;
                 if bound(q)? != number(&original["prepared"], "locked_amount")? {
                     return Err("IdentityConflict：私有锁不是原计划全额".into());
                 }

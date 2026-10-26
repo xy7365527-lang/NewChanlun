@@ -106,46 +106,54 @@ impl SSession {
 /// 返回 `content_with_real_s` 的 `{structure, s_ref}`，`structure.reader_session` 为会话 socket。
 fn real_s_from_export(binary: &Path, export: &Value, socket: &Path) -> Value {
     let db = required(export, "db").unwrap().to_owned();
-    let socket = socket.to_str().unwrap();
-    let ids = export["object_ids"].as_array().unwrap();
-    for id in ids {
-        let request = json!({"schema_revision":"s-financial-query/1","session_id":export["session_id"],"session_generation":export["session_generation"],"writer_epoch":export["writer_epoch"],"object_ids":[id]});
-        let mut child = std::process::Command::new(binary)
-            .args([
-                "financial-basis-ref",
-                "--protocol-revision",
-                "s-session/3",
-                "--db",
-                db.as_str(),
-                "--session",
-                socket,
-            ])
-            .env_clear()
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn()
-            .unwrap();
-        {
-            use std::io::Write;
-            let mut stdin = child.stdin.take().unwrap();
-            stdin
-                .write_all(canonical_json(&request).as_bytes())
-                .unwrap();
-        }
-        let out = child.wait_with_output().unwrap();
-        if !out.status.success() {
+    for id in export["object_ids"].as_array().unwrap() {
+        let Some(reply) = basis_ref_reply(binary, export, socket, id) else {
             continue;
-        }
-        let reply = strict_json(&out.stdout).unwrap();
+        };
         let selected = &reply["selected_objects"][0];
-        assert_eq!(&selected["object_id"], id);
         let sha = sha256_hex(&std::fs::read(binary).unwrap());
         return json!({"structure":{"binary":binary,"binary_sha256":sha,"db":db,"session_id":export["session_id"],"session_generation":export["session_generation"],"writer_epoch":export["writer_epoch"],"reader_session":socket},
             "s_ref":{"schema_revision":"s-object-ref/2","object_id":id,"object_hash":selected["object_hash"],"profile_id":export["profile_id"]},
             "export":export,"basis_ref":reply["basis_ref"],"s_commit_ns":reply["commit_ns"]});
     }
     panic!("生产 S 会话读不到导出库的任何当前对象：{export}");
+}
+
+/// 经运行中的会话以生产 `financial-basis-ref` 读一个对象；读不到返回 None。
+fn basis_ref_reply(binary: &Path, export: &Value, socket: &Path, id: &Value) -> Option<Value> {
+    let db = required(export, "db").unwrap().to_owned();
+    let socket = socket.to_str().unwrap();
+    let request = json!({"schema_revision":"s-financial-query/1","session_id":export["session_id"],"session_generation":export["session_generation"],"writer_epoch":export["writer_epoch"],"object_ids":[id]});
+    let mut child = std::process::Command::new(binary)
+        .args([
+            "financial-basis-ref",
+            "--protocol-revision",
+            "s-session/3",
+            "--db",
+            db.as_str(),
+            "--session",
+            socket,
+        ])
+        .env_clear()
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    {
+        use std::io::Write;
+        let mut stdin = child.stdin.take().unwrap();
+        stdin
+            .write_all(canonical_json(&request).as_bytes())
+            .unwrap();
+    }
+    let out = child.wait_with_output().unwrap();
+    if !out.status.success() {
+        return None;
+    }
+    let reply = strict_json(&out.stdout).unwrap();
+    assert_eq!(&reply["selected_objects"][0]["object_id"], id);
+    Some(reply)
 }
 
 /// 本 owner 内容存储的不同根节点数与 §5.6.1 分帧字节（len(D)+1+8+len(body)，D 为 32 字节摘要）。
@@ -269,6 +277,8 @@ fn reserve_under_activated_cap(carriers: &[PathBuf], real_s: &Value, cap: &str) 
         reserved,
         "原请求重送只取原回执"
     );
+    let mut dedup_controls = evidence_copy_controls(&f);
+    dedup_controls["s_ref"] = s_ref_controls(&f, real_s);
 
     let db = &config.db;
     let (physical, capacity) = (allocated(db).unwrap(), carrier_capacity(db).unwrap());
@@ -282,10 +292,113 @@ fn reserve_under_activated_cap(carriers: &[PathBuf], real_s: &Value, cap: &str) 
         .map(|(o, (n, b))| json!({"owner":o,"content_nodes":n.to_string(),"content_node_bytes":b.to_string()}))
         .collect();
     let evidence = json!({"activated_cap":cap,"prepared":prepared,"activation":activated,"reserve":reserved,
-        "elapsed_ms":elapsed_ms,"phases":phases,"content":owners,"e_content_refs":refs.len().to_string(),
+        "elapsed_ms":elapsed_ms,"phases":phases,"dedup_controls":dedup_controls,"content":owners,"e_content_refs":refs.len().to_string(),
         "e_allocated_bytes":physical.to_string(),"e_carrier_capacity":capacity.to_string(),"e_image":image});
     save(&f.dir, "issue1716-content-domain-real-s.json", &evidence);
     evidence
+}
+
+/// 图像内容审计按值去重的负控：E（Reserve 后含多份同一证据）与 B:alpha 的已提交图像原样通过；只改其中
+/// 一份的 basis_ref 或 session_generation，审计必须拒绝，即值不同的那一份照样被核。
+fn evidence_copy_controls(f: &Fixture) -> Value {
+    let audit = |n: usize, image: &Value| -> Result<(), String> {
+        let mut job = super::super::store::new_content_job(&f.dbs[n], &f.configs[n]).unwrap();
+        super::super::content_store::verify_image(
+            &f.dbs[n],
+            image,
+            &f.configs[n].manifest["finance"]["structure"],
+            &mut job,
+        )
+        .map_err(|e| e.to_string())
+    };
+    let e_image = latest(&f.dbs[0]).unwrap().3;
+    let b_image = latest(&f.dbs[1]).unwrap().3;
+    let last = e_image["history"].as_array().unwrap().len() - 1;
+    assert_eq!(e_image["history"][last]["kind"], "Reserve");
+    let e_copy = format!(
+        "/history/{last}/witness/prepared_proofs/1/image/finance/decisions/0/structure_evidence"
+    );
+    let mut out = serde_json::Map::new();
+    for (label, n, image, copy) in [
+        ("E", 0, &e_image, e_copy.as_str()),
+        ("B:alpha", 1, &b_image, "/finance/decisions/0/structure_evidence"),
+    ] {
+        audit(n, image).unwrap_or_else(|e| panic!("{label} 原图像审计失败：{e}"));
+        for field in ["basis_ref", "session_generation"] {
+            let mut tampered = image.clone();
+            let target = tampered.pointer_mut(copy).unwrap();
+            assert_eq!(target["kind"], "FinancialBasisEvidence");
+            if field == "basis_ref" {
+                let root = target["basis_ref"]["root"].as_str().unwrap().to_owned();
+                let flipped = if root.ends_with('0') { '1' } else { '0' };
+                target["basis_ref"]["root"] = json!(format!("{}{flipped}", &root[..root.len() - 1]));
+            } else {
+                target["session_generation"] = json!("2");
+            }
+            let error = audit(n, &tampered).expect_err("只改一份证据也必须拒绝");
+            out.insert(format!("{label}:{field}"), json!(error));
+        }
+    }
+    Value::Object(out)
+}
+
+/// Reserve 结构校验按 s_ref 值去重的负控，在 E 已发布的同一 witness 上直接走 `verify_structure_once`：
+/// 同值两次只核一次；两个不同的合法 s_ref 各核一次都通过；第二个改坏 object_hash 的 s_ref 仍被拒绝。
+fn s_ref_controls(f: &Fixture, real_s: &Value) -> Value {
+    let e_image = latest(&f.dbs[0]).unwrap().3;
+    let witness = &e_image["history"].as_array().unwrap().last().unwrap()["witness"]["structure"];
+    let first = real_s["s_ref"].clone();
+    let export = &real_s["export"];
+    let structure = &real_s["structure"];
+    let binary = PathBuf::from(structure["binary"].as_str().unwrap());
+    let socket = PathBuf::from(structure["reader_session"].as_str().unwrap());
+    let second = export["object_ids"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|id| **id != first["object_id"])
+        .find_map(|id| {
+            let reply = basis_ref_reply(&binary, export, &socket, id)?;
+            Some(json!({"schema_revision":"s-object-ref/2","object_id":id,
+                "object_hash":reply["selected_objects"][0]["object_hash"],"profile_id":export["profile_id"]}))
+        })
+        .expect("导出快照须有第二个可读对象");
+    let mut bad = second.clone();
+    let hash = bad["object_hash"].as_str().unwrap().to_owned();
+    let flipped = if hash.ends_with('0') { '1' } else { '0' };
+    bad["object_hash"] = json!(format!("{}{flipped}", &hash[..hash.len() - 1]));
+    let run = |refs: &[&Value]| -> (Result<(), String>, usize) {
+        let mut job = super::super::store::new_content_job(&f.dbs[0], &f.configs[0]).unwrap();
+        let mut budget = super::super::store::ReadBudget::new(Some(&mut job), None);
+        let mut verified = BTreeSet::new();
+        phase_trace::begin();
+        let result = refs.iter().try_for_each(|s_ref| {
+            verify_structure_once(
+                &mut verified,
+                &f.dbs[0],
+                &f.configs[0],
+                &mut budget,
+                witness,
+                &json!({"s_ref":s_ref}),
+            )
+        });
+        let checks = phase_trace::take()["phases"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|p| p["phase"].as_str().unwrap().starts_with("structure_verify@"))
+            .count();
+        (result, checks)
+    };
+    let (same, same_checks) = run(&[&first, &first]);
+    assert_eq!((same.clone(), same_checks), (Ok(()), 1), "同值 s_ref 只核一次");
+    let (distinct, distinct_checks) = run(&[&first, &second]);
+    assert_eq!((distinct.clone(), distinct_checks), (Ok(()), 2), "不同合法 s_ref 各核一次");
+    let (rejected, rejected_checks) = run(&[&first, &bad]);
+    let error = rejected.expect_err("第二个坏 s_ref 必须拒绝");
+    assert_eq!(rejected_checks, 1, "坏 s_ref 在校验内被拒，未记完成段");
+    json!({"first":first,"second":second,"bad":bad,"same_checks":same_checks.to_string(),
+        "distinct_checks":distinct_checks.to_string(),"bad_error":error})
 }
 
 /// #1716：真实 S 单 bar 闭包上，/4 正式 cap 激活的版本被两 B Prepare 之后的 E Reserve 实际消费。等值例

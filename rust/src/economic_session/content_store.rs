@@ -962,12 +962,11 @@ pub(super) fn verify_image_with_budget(
     format_guard_metered(c, budget)?;
     // 同一份 FinancialBasisEvidence 会在 witness、record、decision 与嵌套 proof 图像里重复出现；
     // 校验只取决于证据值与本 owner 同一张内容表，按值去重后每份只核一次。
-    let mut evidence: Vec<&serde_json::Value> = Vec::new();
-    for item in image_evidence(image)? {
-        if !evidence.contains(&item) {
-            evidence.push(item);
-        }
-    }
+    let mut seen = BTreeSet::new();
+    let evidence: Vec<&serde_json::Value> = image_evidence(image)?
+        .into_iter()
+        .filter(|item| seen.insert(crate::session_protocol::canonical_json(item)))
+        .collect();
     let refs: Vec<ContentRef> = evidence
         .iter()
         .map(|e| evidence_root(e))
