@@ -925,6 +925,12 @@ mod tests {
                 assert!(copy.belongs_to_parent(next_work));
                 assert_eq!(copy.payload.as_ref(),payload);
                 assert_eq!(next_observer.job.borrow().snapshot().nodes,1); // oldJob资格不转移
+                {
+                    let mut reader=crate::evidence_store::Reader::new_mixed(&conn,1<<20,next_work,&next_observer).unwrap();
+                    let bytes=reader.mixed_expansion_for_test("root").unwrap();
+                    assert_eq!(&*bytes,payload);
+                    assert_eq!(next_observer.job.borrow().snapshot().nodes,1);
+                }
                 Ok::<_,sc::CodecError>(())
             }).unwrap();
             crate::cache::clear_handles();

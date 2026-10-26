@@ -44,12 +44,9 @@ impl<K: Ord, V> NativeTree<K, V> {
         }
         Ok(next)
     }
-    pub fn insert_admitted(
-        &mut self,
-        key: K,
-        value: V,
-        admission: &(impl sc::NodeSource + ?Sized),
-    ) -> Result<Option<V>, CodecError> {
+    pub fn reserve_entry_admitted(
+        &mut self,key:&K,admission:&(impl sc::NodeSource+?Sized),
+    )->Result<(),CodecError>{
         if let Some(work) = admission.codec_work() {
             self.permits.try_reserve_native(work, 0)?;
         } else if self.permits.is_native_bound() {
@@ -58,7 +55,7 @@ impl<K: Ord, V> NativeTree<K, V> {
                 "Native树操作缺当前工作域",
             ));
         }
-        if !self.tree.contains_key(&key) && self.tree.len() >= self.high_water {
+        if !self.tree.contains_key(key) && self.tree.len() >= self.high_water {
             if let Some(work) = admission.codec_work() {
                 let depth = usize::BITS as usize - self.tree.len().leading_zeros() as usize + 2;
                 let bytes = std::mem::size_of::<(K, V)>()
@@ -74,7 +71,17 @@ impl<K: Ord, V> NativeTree<K, V> {
             }
             self.high_water = self.tree.len() + 1;
         }
-        Ok(self.tree.insert(key, value))
+        Ok(())
+    }
+    pub fn insert_reserved(&mut self,key:K,value:V)->Option<V>{
+        assert!(self.tree.contains_key(&key)||self.tree.len()<self.high_water);
+        self.tree.insert(key,value)
+    }
+    pub fn insert_admitted(
+        &mut self,key:K,value:V,admission:&(impl sc::NodeSource+?Sized),
+    )->Result<Option<V>,CodecError>{
+        self.reserve_entry_admitted(&key,admission)?;
+        Ok(self.insert_reserved(key,value))
     }
     pub fn remove<Q: Ord + ?Sized>(&mut self, key: &Q) -> Option<V>
     where

@@ -888,6 +888,10 @@ pub(crate) fn begin_capture_mixed(budget_bytes:usize,work:&WorkScope)->Result<Ca
                 bytes:value.bytes.clone(),value:value.value.clone(),cost:value.cost}))
         })?)};
         let headers=if m.batch_headers.belongs_to_work(work) {None} else {Some(m.batch_headers.try_copy_mixed(work,|key,value|{
+            for text in [&value.header.protocol_revision,&value.header.session_generation,
+                &value.header.clock_plan_hash,&value.header.semantic_commit_ns].into_iter().flatten() {
+                text.check_retained_source()?;
+            }
             Ok((key.try_clone_mixed(work)?,BatchHeaderEntry{batch_id:value.batch_id.try_clone_mixed(work)?,
                 byte_len:value.byte_len,root_cert:value.root_cert.clone(),closure:value.closure,
                 header:value.header.clone(),cost:value.cost}))
