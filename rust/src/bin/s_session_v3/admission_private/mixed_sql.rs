@@ -310,6 +310,10 @@ impl ExpectedTables {
 }
 
 #[cfg(test)]
+pub(super) fn test_policy<T>(conn:&rusqlite::Connection,run:impl FnOnce()->T)->T{
+    tests::with_policy(conn,run)
+}
+#[cfg(test)]
 mod tests {
     use super::*;
     use rusqlite::Connection;
@@ -345,6 +349,14 @@ mod tests {
         } else {
             ffi::SQLITE_DENY
         }
+    }
+    pub(super) fn with_policy<T>(conn:&Connection,run:impl FnOnce()->T)->T{
+        let mut capture=Capture{policy:ExpectedTables::selected(true,true,true,true),calls:Vec::new()};
+        unsafe{assert_eq!(ffi::sqlite3_set_authorizer(conn.handle(),Some(authorize),(&mut capture as *mut Capture).cast()),ffi::SQLITE_OK);}
+        let result=run();
+        unsafe{ffi::sqlite3_set_authorizer(conn.handle(),None,std::ptr::null_mut());}
+        assert!(!capture.calls.iter().any(|c|c.ends_with("allowed=false")),"callbacks: {:?}",capture.calls);
+        result
     }
     #[test]
     fn mixed_sql_selected_schema_is_exact_for_each_domain(){

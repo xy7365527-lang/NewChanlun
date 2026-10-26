@@ -587,3 +587,8 @@ mod tests {
         std::fs::remove_dir_all(dir).unwrap();
     }
 }
+
+#[cfg(test)]
+pub(crate) fn test_mixed_sql_policy<T>(conn:&rusqlite::Connection,run:impl FnOnce()->T)->T{
+    mixed_sql::test_policy(conn,run)
+}

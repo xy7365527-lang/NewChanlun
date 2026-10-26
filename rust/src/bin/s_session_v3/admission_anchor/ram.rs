@@ -1557,7 +1557,7 @@ mod tests {
                     let observer=Observer{job:RefCell::new(job),work};
                     let _transaction=crate::cache::MixedCacheTransaction::start(work)?;
                     for pass in 0..2{
-                        let actual=crate::v2::mixed_root::startup(conn,work,&observer);
+                        let actual=crate::v3::admission_private::test_mixed_sql_policy(conn,||crate::v2::mixed_root::startup(conn,work,&observer));
                         match(&expected,actual){
                             (Ok(want),Ok(got))=>{
                                 assert_eq!(want.len(),got.len());
@@ -1633,7 +1633,7 @@ mod tests {
                     let job=Job::new_started_mixed(caps,Existing{store_bytes:0,staged_bytes:0},Box::new(std::time::Instant::now),std::time::Instant::now(),work)?;
                     let observer=Observer{job:RefCell::new(job),work};
                     let transaction=crate::cache::MixedCacheTransaction::start(work)?;
-                    let actual=crate::v2::mixed_root::startup(conn,work,&observer).unwrap();
+                    let actual=crate::v3::admission_private::test_mixed_sql_policy(conn,||crate::v2::mixed_root::startup(conn,work,&observer)).unwrap();
                     assert_eq!(actual.len(),expected.len());
                     for(a,b)in actual.iter().zip(expected.iter()){assert_eq!(a.as_ref(),b);}
                     if pass==1{assert_eq!(crate::cache::last_resumed(),2);}
@@ -1643,11 +1643,11 @@ mod tests {
             }
             let owner=AdmissionRamLedger::new(limits(1<<24)).unwrap();
             owner.codec_work().unwrap().run(|work|{
-                let mut caps=job_limits();caps.max_total_nodes=100000;caps.max_total_records=0;caps.max_total_node_bytes=10000000;
+                let mut caps=job_limits();caps.max_total_nodes=100000;caps.max_total_records=1;caps.max_total_node_bytes=10000000;
                 let job=Job::new_started_mixed(caps,Existing{store_bytes:0,staged_bytes:0},Box::new(std::time::Instant::now),std::time::Instant::now(),work)?;
                 let observer=Observer{job:RefCell::new(job),work};
                 let _transaction=crate::cache::MixedCacheTransaction::start(work)?;
-                let result=crate::v2::mixed_root::startup(conn,work,&observer);
+                let result=crate::v3::admission_private::test_mixed_sql_policy(conn,||crate::v2::mixed_root::startup(conn,work,&observer));
                 assert!(matches!(result,Err(MixedJsonError::Resource(_))),"record cap retains typed resource cause");
                 Ok::<_,sc::CodecError>(())
             }).unwrap();
