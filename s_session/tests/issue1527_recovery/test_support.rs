@@ -8,6 +8,12 @@ pub(super) fn prepare_with_ram(db: &Path, ram:Option<(u64,u64)>) -> PreparedAdmi
     prepare_with_ram_wire(db,ram,None)
 }
 pub(super) fn prepare_with_ram_wire(db: &Path, ram:Option<(u64,u64)>, wire:Option<u64>) -> PreparedAdmission {
+    match wire {
+        Some(wire)=>prepare_with_fields(db,ram,&[("max_total_wire_bytes",wire)]),
+        None=>prepare_with_fields(db,ram,&[]),
+    }
+}
+pub(super) fn prepare_with_fields(db:&Path,ram:Option<(u64,u64)>, fields:&[(&str,u64)]) -> PreparedAdmission {
     let db = std::fs::canonicalize(db).unwrap();
     let owner_path = {
         let mut p = db.as_os_str().to_os_string();
@@ -38,7 +44,7 @@ pub(super) fn prepare_with_ram_wire(db: &Path, ram:Option<(u64,u64)>, wire:Optio
         "max_total_records":"10000000", "max_total_requests":"1000000", "max_elapsed_ms":"600000",
         "max_staged_bytes":"67108864", "max_store_bytes":"1073741824"
     });
-    if let Some(wire)=wire {job_limits["max_total_wire_bytes"]=json!(wire.to_string());}
+    for (name,value) in fields {job_limits[*name]=json!(value.to_string());}
     let resources=match ram {
         None=>job_limits,
         Some((live,operation))=>json!({

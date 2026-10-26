@@ -2490,4 +2490,67 @@ mod tests {
             Ok::<_,sc::CodecError>(())
         }).unwrap();
     }
+    #[test]
+    fn mixed_prepared_two_real_domains_share_caps_and_refusal_atomicity() {
+        use crate::v3::admission_anchor::test_prepare_mixed_caps;
+        use crate::v3::admission_provider::MeasuredDomain;
+        use newchan_rust::s_content::{self as sc,job::{CheckedNodeUsage,NodeAcceptance}};
+        for mode in ["nodes","bytes","layout"] {
+            let dir=std::env::temp_dir().join(format!("s1527-real-two-domains-{}-{}-{}",
+                std::process::id(),mode,
+                std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+            std::fs::create_dir(&dir).unwrap();
+            let db=dir.join("db");
+            std::fs::write(&db,b"test-only measured source").unwrap();
+            let bytes=b"real content";
+            let content=CheckedNodeUsage::checked(&sc::frame(sc::tag::BYTES_CHUNK,bytes),
+                sc::tag::BYTES_CHUNK,bytes).unwrap();
+            let old=b"real legacy";
+            let legacy=sc::legacy_evidence::CheckedLegacyEvidenceRow::verify(
+                &sc::legacy_evidence::node_id(0,old),0,old,old.len() as u64).unwrap();
+            let total=(sc::DOMAIN_SEPARATOR.len()+9+bytes.len()+1+old.len()) as u64;
+            let fields=match mode {
+                "nodes"=>vec![("max_total_nodes",2)],
+                "bytes"=>vec![("max_total_node_bytes",total)],
+                _=>vec![],
+            };
+            let consumed=test_prepare_mixed_caps(&db,1<<20,1<<20,&fields).consume().unwrap();
+            let source=MeasuredDomain::measure(&consumed).unwrap();
+            let mut started=consumed.into_job(source.existing).unwrap();
+            let ledger=started.ram.as_ref().unwrap().parent.ledger.clone();
+            let result=started.with_accounting(|account|{
+                account.charge_wire_bytes(17)?;
+                assert_eq!(account.accept_checked_usage(&content)?,NodeAcceptance::FirstAccept);
+                assert_eq!(account.accept_legacy_evidence(&legacy)?,NodeAcceptance::FirstAccept);
+                let before=account.snapshot();
+                assert_eq!((before.nodes,before.node_bytes),(2,total));
+                assert_eq!(account.accept_checked_usage(&content)?,NodeAcceptance::AlreadyAccepted);
+                assert_eq!(account.accept_legacy_evidence(&legacy)?,NodeAcceptance::AlreadyAccepted);
+                let hold=if mode=="layout"{
+                    let remaining={let l=ledger.lock().unwrap();l.max_operation-l.snapshot.operation_live};
+                    Some(account.mixed_scope().unwrap().reserve_native(remaining)?)
+                }else{None};
+                let ram_before=ledger.lock().unwrap().snapshot;
+                let next=b"next valid content";
+                let next=CheckedNodeUsage::checked(&sc::frame(sc::tag::BYTES_CHUNK,next),
+                    sc::tag::BYTES_CHUNK,next).unwrap();
+                let rejected=account.accept_checked_usage(&next);
+                assert!(rejected.is_err());
+                let after=account.snapshot();
+                assert_eq!((after.nodes,after.node_bytes,after.wire_bytes),
+                    (before.nodes,before.node_bytes,before.wire_bytes));
+                let ram_after=ledger.lock().unwrap().snapshot;
+                assert_eq!((ram_after.job_live,ram_after.operation_live),
+                    (ram_before.job_live,ram_before.operation_live));
+                drop(hold);
+                if mode=="layout"{return rejected.map(|_|());}
+                Ok::<_,sc::CodecError>(())
+            });
+            assert_eq!(result.is_err(),mode=="layout");
+            drop(started);
+            drop(source);
+            std::fs::remove_dir_all(dir).unwrap();
+        }
+    }
+
 }

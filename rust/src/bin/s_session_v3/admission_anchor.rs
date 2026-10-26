@@ -1633,3 +1633,8 @@ pub(crate) fn test_prepare_mixed(db:&Path,live:u64,operation:u64)->PreparedAdmis
 pub(crate) fn test_prepare_mixed_wire(db:&Path,live:u64,operation:u64,wire:u64)->PreparedAdmission {
     test_support::prepare_with_ram_wire(db,Some((live,operation)),Some(wire))
 }
+
+#[cfg(test)]
+pub(crate) fn test_prepare_mixed_caps(db:&Path,live:u64,operation:u64,fields:&[(&str,u64)])->PreparedAdmission {
+    test_support::prepare_with_fields(db,Some((live,operation)),fields)
+}
