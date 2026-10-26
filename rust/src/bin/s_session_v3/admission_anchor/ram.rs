@@ -23,6 +23,14 @@ pub(super) struct RamSnapshot {
     pub active: bool,
     pub failed: Option<ScratchFailure>,
 }
+/// 只读观察同一个父账；不创建额度、不提供reserve或复活能力。
+#[derive(Clone)]
+pub(super) struct RamObservation(Arc<Mutex<LedgerState>>);
+impl RamObservation {
+    pub(super) fn snapshot(&self)->Result<RamSnapshot,ScratchFailure>{
+        self.0.lock().map(|state|state.snapshot).map_err(|_|ScratchFailure::Ledger)
+    }
+}
 struct LedgerState {
     snapshot: RamSnapshot,
     max_live: usize,
@@ -94,6 +102,9 @@ impl AdmissionRamLedger {
             parent: Arc::new(OperationParent { ledger }),
             origin,
         })
+    }
+    pub(super) fn observation(&self)->RamObservation {
+        RamObservation(self.parent.ledger.clone())
     }
     pub(super) fn snapshot(&self) -> Result<RamSnapshot, ScratchFailure> {
         self.parent
@@ -2550,6 +2561,14 @@ mod tests {
                     assert_eq!(after.parts[1], 0);
                     assert_eq!(after.parts[2], 0);
                     assert!(!after.active);
+                    let mut output=Vec::new();
+                    let receipt=command.report("",&mut output);
+                    let final_ram=receipt.ram_final.unwrap();
+                    assert!(!final_ram.active);
+                    assert_eq!(final_ram.parts[1],0);
+                    assert_eq!(final_ram.parts[2],0);
+                    let value:serde_json::Value=serde_json::from_slice(&output).unwrap();
+                    assert_eq!(value["admission_accounting"]["ram_before_stderr"]["operation_closed"],true);
                 } else {
                     assert!(result.is_ok());
                     if pass == 2 {

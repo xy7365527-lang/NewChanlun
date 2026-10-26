@@ -631,6 +631,7 @@ struct TerminalState {
     job: Option<Rc<RefCell<admission_job::Job>>>,
     first_read_at: Option<Instant>,
     mixed: Option<terminal::MixedTerminal>,
+    ram: Option<ram::RamObservation>,
 }
 thread_local! {
     static TERMINAL: RefCell<Option<TerminalState>> = const { RefCell::new(None) };
@@ -645,6 +646,8 @@ pub(crate) struct TerminalReceipt {
     pub(crate) prelude: Option<PreludeObservation>,
     pub(crate) first_read_at: Option<Instant>,
     pub(crate) job: Option<admission_job::JobSnapshot>,
+    pub(crate) ram_before_stderr: Option<ram::RamSnapshot>,
+    pub(crate) ram_final: Option<ram::RamSnapshot>,
     pub(crate) actual_stderr_bytes: u128,
     pub(crate) unaccepted_stderr_bytes: u128,
     pub(crate) accounting_error: Option<std::borrow::Cow<'static, str>>,
@@ -689,13 +692,18 @@ impl CommandAccounting {
                 .or_else(|| state.prelude.as_ref().and_then(|p| p.first_read_at)),
             prelude: state.prelude,
             job: None,
+            ram_before_stderr: state.ram.as_ref().and_then(|ram|ram.snapshot().ok()),
+            ram_final: None,
             actual_stderr_bytes: 0,
             unaccepted_stderr_bytes: 0,
             accounting_error: None,
             write_error: None,
         };
         if let Some(mixed) = state.mixed {
-            return mixed.report(error, sink, state.job.as_ref(), receipt);
+            let mut receipt=mixed.report(error,sink,state.job.as_ref(),receipt);
+            drop(state.job);
+            receipt.ram_final=state.ram.as_ref().and_then(|ram|ram.snapshot().ok());
+            return receipt;
         }
         // 仅声明写之前已知的账状态，不把尚未发生的写量嵌回本条消息。
         let before = state.job.as_ref().map(|j| j.borrow().snapshot());
@@ -805,6 +813,11 @@ impl ConsumedAdmission {
             })
             .transpose()
             .map_err(resource_error)?;
+        TERMINAL.with(|slot|{
+            if let Some(state)=slot.borrow_mut().as_mut(){
+                state.ram=ram.as_ref().map(|ram|ram.observation());
+            }
+        });
         let core = match &ram {
             Some(ram) => ram
                 .codec_work()

@@ -113,6 +113,7 @@ impl MixedTerminal {
         &mut self,
         fallback: &str,
         snapshot: Option<&admission_job::JobSnapshot>,
+        ram:Option<&ram::RamSnapshot>,
     ) -> fmt::Result {
         let failure = self
             .first
@@ -159,6 +160,11 @@ impl MixedTerminal {
             }
             out.write_char('}')?;
         }
+        if let Some(ram)=ram {
+            write!(out,",\"ram_before_stderr\":{{\"final_live\":{},\"retained_live\":{},\"job_peak\":{},\"operation_live\":{},\"operation_peak\":{},\"operation_closed\":{},\"failed\":{}}}",
+                ram.job_live,if ram.active {0} else {ram.job_live},ram.job_peak,
+                ram.operation_live,ram.operation_peak,!ram.active,ram.failed.is_some())?;
+        }
         out.write_str("}}\n")
     }
     pub(super) fn report(
@@ -169,7 +175,7 @@ impl MixedTerminal {
         mut receipt: TerminalReceipt,
     ) -> TerminalReceipt {
         let before = job.map(|j| j.borrow().snapshot());
-        let payload_ok = self.payload(error, before.as_ref()).is_ok();
+        let payload_ok = self.payload(error, before.as_ref(),receipt.ram_before_stderr.as_ref()).is_ok();
         // 固定容量内部不变量失败也只用静态字节；不能走 String/JSON fallback。
         let payload = if payload_ok {
             self.payload.bytes()
@@ -331,7 +337,7 @@ mod tests {
         let detail = "界\n\"\\\u{0}".repeat(200);
         terminal.note(FixedFailure::new("original", "business", &detail));
         terminal.note(FixedFailure::new("later", "cleanup", "second"));
-        terminal.payload("fallback", None).unwrap();
+        terminal.payload("fallback", None,None).unwrap();
         let decoded: serde_json::Value = serde_json::from_slice(terminal.payload.bytes()).unwrap();
         assert_eq!(decoded["code"], "original");
         assert_eq!(decoded["phase"], "business");
