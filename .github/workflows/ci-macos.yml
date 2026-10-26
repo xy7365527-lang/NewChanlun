@@ -20,6 +20,10 @@ on:
         description: '只跑 #1716 真实 S 内容域 cap 消费正控作业，跳过已有读数的 macos-session'
         type: boolean
         default: false
+      issue1717_real_s_only:
+        description: '只跑 #1717 真实 S 内容域正控与在途越期负控作业，跳过已有读数的 macos-session'
+        type: boolean
+        default: false
   workflow_call:
   push:
     branches: [main]
@@ -32,7 +36,7 @@ on:
 
 jobs:
   macos-session:
-    if: ${{ !inputs.issue1716_real_s_only }}
+    if: ${{ !inputs.issue1716_real_s_only && !inputs.issue1717_real_s_only }}
     runs-on: macos-latest
     timeout-minutes: 60
     env:
@@ -78,6 +82,28 @@ jobs:
 
       - name: cargo test — v3::financial_session（macOS 保留量读数与 peer uid，#1394 根裁定 A）
         run: cargo test --locked --features s_session --bin s_structure_session v3::financial_session
+
+      # #1717：sr-expansion/1 在 economic-session/2 内容域上的评估。E、B:alpha、B:beta 各占一个本地可写
+      #   固定容量 HFS+ 卷（store.rs 载体门）；按 #1394 已批载体合同各建一个 24 MiB 临时镜像（容量低于
+      #   已批 max_staged_bytes 32153600）。测试经子进程正式 owner socket 服务，结束后卸载。
+      - name: cargo test — #1717 SR 扩量评估内容域（三个临时固定容量 HFS+ 卷）
+        if: always()
+        run: |
+          root=$(mktemp -d /tmp/tb1717-hfs.XXXXXX)
+          detach_all() { for owner in e alpha beta; do [ -d "$root/$owner" ] && hdiutil detach "$root/$owner" -force || true; done; }
+          trap detach_all EXIT
+          carriers=""
+          for owner in e alpha beta; do
+            hdiutil create -size 24m -fs HFS+ -volname "tb1717-$owner" -type UDIF "$root/$owner.dmg"
+            mkdir "$root/$owner"
+            hdiutil attach "$root/$owner.dmg" -mountpoint "$root/$owner" -nobrowse
+            carriers="$carriers${carriers:+:}$root/$owner"
+          done
+          mount | grep tb1717 || true
+          df -k "$root/e" "$root/alpha" "$root/beta"
+          mkdir "$root/work"
+          TB03B_TEST_ROOT="$root/work" TB1717_HFS_CARRIERS="$carriers" cargo test --locked --features s_session --lib -- --ignored --exact \
+            economic_session::finance::tests::sr_expansion::sr_expansion_content_domain_on_fixed_carriers --nocapture
 
       - name: cargo test — economic_session / session_transport / session_protocol 库测试（#1394 G-1）
         if: always()
@@ -204,4 +230,83 @@ jobs:
           path: |
             ${{ runner.temp }}/tb1716-real-s/work
             ${{ runner.temp }}/tb1716-real-s/s3
+          if-no-files-found: warn
+
+  # #1717 R3 正控：S 侧单 bar 真实 S3 夹具导出库，测试内起停 release s_structure_session 的 financial-serve
+  #   只读会话；manifest 冻结 SessionClosure 读法，reader_resources 八项与 E/B response_timeout_ms 3000 保持原值。
+  #   E、B:alpha、B:beta 各占一个 24 MiB 临时 HFS+ 卷（同上）。负控在同一场景的 SR 评估第二事务内越过 3000 ms
+  #   期限，须不留提交；与正控分两次 cargo test 顺序执行，各起一个 S 会话。原件（会话回执、stdout/stderr、证据 JSON）总上传。
+  #   判定构建为现存 [profile.release]（ADR 0039 生产二进制取 release；主控 26BC 采纳 26BB）。这是 s_session 下
+  #   E 业务核接真实 S 的组件验收，不是完整 production_session、回放或 paper/live 链。debug 两次失败留在 run
+  #   40313246715 原件里，不在此重跑。
+  issue1717-real-s:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      CARGO_INCREMENTAL: "0"
+    defaults:
+      run:
+        working-directory: rust
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12 for pyo3
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache cargo registry + git
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-registry-v1-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-cargo-registry-v1-
+
+      - name: cargo test --release — issue 1717 release 组件验收：真实 S 内容域正控与在途越期负控（单 bar 会话读法，三个临时固定容量 HFS+ 卷）
+        run: |
+          root="$RUNNER_TEMP/tb1717-real-s"
+          mkdir -p "$root/work" "$root/s3" "$root/mnt"
+          detach_all() { for owner in e alpha beta; do [ -d "$root/mnt/$owner" ] && hdiutil detach "$root/mnt/$owner" -force || true; done; }
+          trap detach_all EXIT
+          carriers=""
+          for owner in e alpha beta; do
+            hdiutil create -size 24m -fs HFS+ -volname "tb1717-$owner" -type UDIF "$root/mnt/$owner.dmg"
+            mkdir "$root/mnt/$owner"
+            hdiutil attach "$root/mnt/$owner.dmg" -mountpoint "$root/mnt/$owner" -nobrowse
+            carriers="$carriers${carriers:+:}$root/mnt/$owner"
+          done
+          df -k "$root/mnt/e" "$root/mnt/alpha" "$root/mnt/beta"
+          TB1717_S_EXPORT="$root/s3/export.json" cargo test --locked --features s_session --bin s_structure_session -- \
+            --ignored --exact v3::financial_session::tests::export_real_s3_fixture_for_economic_content_domain
+          cargo build --release --locked --features s_session --bin s_structure_session
+          ls -l target/release/s_structure_session
+          # 正控与负控各跑一次 release、各记退出码与日志；任一非零本步失败。
+          run1717() {
+            label=$1; test=$2
+            set +e
+            TB03B_TEST_ROOT="$root/work" TB1717_HFS_CARRIERS="$carriers" TB1717_S_EXPORT="$root/s3/export.json" \
+              TB1717_S_BINARY="$PWD/target/release/s_structure_session" \
+              cargo test --release --locked --features s_session --lib -- --ignored --exact --nocapture \
+              "economic_session::finance::tests::sr_expansion::$test" 2>&1 | tee "$root/work/$label.log"
+            rc=${PIPESTATUS[0]}
+            set -e
+            echo "$label=$rc" | tee -a "$root/work/exit-codes.txt"
+            grep -q '^test result: ok. 1 passed; 0 failed' "$root/work/$label.log" || { echo "$label 未恰好通过 1 条测试"; rc=1; }
+          }
+          run1717 positive-release sr_expansion_content_domain_publishes_real_s_basis_closure; positive=$rc
+          run1717 negative-release sr_expansion_content_domain_deadline_crossed_in_flight_leaves_no_commit; negative=$rc
+          if [ "$positive" -ne 0 ] || [ "$negative" -ne 0 ]; then exit 1; fi
+
+      - name: 上传 issue 1717 正控与负控原件
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue1717-real-s
+          path: |
+            ${{ runner.temp }}/tb1717-real-s/work
+            ${{ runner.temp }}/tb1717-real-s/s3
           if-no-files-found: warn

@@ -74,7 +74,7 @@ impl Fixture {
         slot_spec: &[(&str, &[&str])],
         c4a: Option<(bool, bool)>,
     ) -> Self {
-        Self::build_full(cap, fault, slot_spec, c4a, None, None, None)
+        Self::build_full(cap, fault, slot_spec, c4a, None, None, None, None)
     }
     /// #1716：显式选择 `tb03b-finance/3` 的夹具；S 由钉住摘要的单位桩回答，Reserve 可经 `service::handle`。
     fn v3(cap: &str, baseline: &str, import: bool, fault: Option<(&str, &str)>) -> Self {
@@ -84,6 +84,7 @@ impl Fixture {
             &[("slot", &["alpha", "beta"])],
             None,
             Some((baseline, import)),
+            None,
             None,
             None,
         )
@@ -97,6 +98,7 @@ impl Fixture {
             &[("slot", &["alpha", "beta"])],
             None,
             activation.then_some((baseline, true)),
+            None,
             Some(carriers),
             None,
         )
@@ -117,6 +119,50 @@ impl Fixture {
             &[("slot", &["alpha", "beta"])],
             None,
             Some((baseline, true)),
+            None,
+            Some(carriers),
+            Some(real_s),
+        )
+    }
+    /// #1717：选择 `sr-expansion/1` 子合同的夹具；`section` 即 manifest 顶层 `sr_expansion`。
+    /// 既有夹具不选该合同，旧操作与旧接受域逐字不变。
+    fn with_sr_expansion(fault: Option<(&str, &str)>, section: Value) -> Self {
+        Self::build_full(
+            "100",
+            fault,
+            &[("slot", &["alpha", "beta"])],
+            None,
+            None,
+            Some(section),
+            None,
+            None,
+        )
+    }
+    /// #1717：`economic-session/2` 内容域（`tb03b-finance/2`）夹具，`section` 为 `None` 即未选择
+    /// `sr-expansion/1`。E、B:alpha、B:beta 的库各落一个独立固定容量卷，全部经 E/B 正式入口；不跑需要
+    /// S 内容的操作。
+    fn content_with_sr_expansion(carriers: &[PathBuf], section: Option<Value>) -> Self {
+        Self::build_full(
+            "100",
+            None,
+            &[("slot", &["alpha", "beta"])],
+            None,
+            None,
+            section,
+            Some(carriers),
+            None,
+        )
+    }
+    /// #1717：同上，财务结构改为正式 S（生产 `s_structure_session` 与真实 s-session/3 会话），计划的
+    /// `s_ref` 指向该会话的真实对象；`real_s` 为 `{structure, s_ref}`，`structure.reader_session` 冻结读法。
+    fn content_with_real_s_sr(carriers: &[PathBuf], section: Value, real_s: &Value) -> Self {
+        Self::build_full(
+            "100",
+            None,
+            &[("slot", &["alpha", "beta"])],
+            None,
+            None,
+            Some(section),
             Some(carriers),
             Some(real_s),
         )
@@ -127,6 +173,7 @@ impl Fixture {
         slot_spec: &[(&str, &[&str])],
         c4a: Option<(bool, bool)>,
         v3: Option<(&str, bool)>,
+        sr_expansion: Option<Value>,
         carriers: Option<&[PathBuf]>,
         real_s: Option<&Value>,
     ) -> Self {
@@ -407,6 +454,22 @@ impl Fixture {
                 ("c4a-apply", 1200),
             ] {
                 clocks[message] = json!({"received_ns":t.to_string(),"first_known_ns":(t+1).to_string(),"commit_ns":(t+2).to_string()});
+            }
+        }
+        if let Some(section) = sr_expansion {
+            manifest["sr_expansion"] = section;
+            manifest["authorized_sources"][0]["operations"]
+                .as_array_mut()
+                .unwrap()
+                .extend([json!("EvaluateSrExpansion"), json!("QuerySrEvaluation")]);
+            // SR 评估消息时钟落在 Import(65)与 Reserve(90)之间、CloseApplicants(132)之后及首次
+            // 恢复(1000)之后。
+            let clocks = &mut manifest["clock"]["plan"]["messages"];
+            for (prefix, start) in [("sr-pre", 66), ("sr-post", 150), ("sr-late", 1100)] {
+                for k in 0..6 {
+                    let n = start + 3 * k;
+                    clocks[format!("{prefix}-{}", k + 1)] = json!({"received_ns":n.to_string(),"first_known_ns":n.to_string(),"commit_ns":(n+1).to_string()});
+                }
             }
         }
         if let Some((message, phase)) = fault {
@@ -2055,3 +2118,6 @@ fn cap_activation_sigkill_recovers_whole_old_or_new_version() {
 
 #[path = "finance_real_s_tests.rs"]
 mod real_s;
+
+#[path = "sr_expansion_tests.rs"]
+mod sr_expansion;
