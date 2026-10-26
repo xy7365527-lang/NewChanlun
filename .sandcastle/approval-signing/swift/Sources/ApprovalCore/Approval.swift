@@ -36,6 +36,7 @@ public enum Decision: String {
 let requestHeader = "newchanlun-approval-request/v1"
 let payloadHeader = "newchanlun-approval/v1"
 let receiptFormat = "newchanlun-approval-receipt/v1"
+let trustFormat = "newchanlun-approval-trust/v1"
 let algorithm = "ecdsa-p256-sha256"
 let requestKeys = ["repository_id", "ticket", "run_id", "claim_generation", "scope", "target",
                    "request_nonce", "expires_at"]
@@ -212,46 +213,52 @@ public struct Receipt {
     public let json: Data
 }
 
-/// Payload bytes for `decision` on `request`, chained after `previousReceipt` when given.
-public func composePayload(request: ApprovalRequest, decision: Decision, previousReceipt: Data?) throws -> Data {
-    guard let previousReceipt else {
+/// Payload bytes for `decision` on `request`, chained after the published chain head when there is one.
+public func composePayload(request: ApprovalRequest, decision: Decision, after head: VerifiedReceipt?) throws -> Data {
+    guard let head else {
         return try ApprovalPayload(request: request, decision: decision, sequence: 1, previousReceipt: nil).encode()
     }
-    guard let object = try? JSONSerialization.jsonObject(with: previousReceipt) as? [String: Any],
-          let encoded = object["payload"] as? String, let previousBytes = Data(base64Encoded: encoded)
-    else { throw ApprovalError.previousMismatch("previous receipt is not a receipt") }
-    let previous = try ApprovalPayload.parse(previousBytes)
-    guard previous.request == request else {
+    guard head.payload.request == request else {
         throw ApprovalError.previousMismatch("ticket, run, scope, target, nonce or expiry differ")
     }
-    return try ApprovalPayload(request: request, decision: decision, sequence: previous.sequence + 1,
-                               previousReceipt: hexDigest(previousBytes)).encode()
+    return try ApprovalPayload(request: request, decision: decision, sequence: head.payload.sequence + 1,
+                               previousReceipt: head.receiptID).encode()
 }
 
-/// Show the exact payload, get one presence-gated signature, return the receipt. Throws without a receipt on refusal.
-public func signDecision(
-    request: ApprovalRequest, decision: Decision, previousReceipt: Data?,
-    signer: PresenceSigner, present: (String) -> Void
-) throws -> Receipt {
-    let bytes = try composePayload(request: request, decision: decision, previousReceipt: previousReceipt)
-    let shown = try ApprovalPayload.parse(bytes)
-    present(shown.rendered(raw: bytes))
-    let signature = try signer.sign(bytes, reason: shown.systemReason)
+/// Receipt JSON for `bytes`, signed once by `signer`.
+public func makeReceipt(_ bytes: Data, signer: PresenceSigner, reason: String) throws -> Receipt {
+    let signature = try signer.sign(bytes, reason: reason)
+    let json = try receiptJSON(keyID: hexDigest(signer.publicKeySPKI), payload: bytes, signature: signature)
+    return Receipt(payload: bytes, receiptID: hexDigest(bytes), json: json)
+}
+
+func receiptJSON(keyID: String, payload: Data, signature: Data) throws -> Data {
     let object: [String: String] = [
         "format": receiptFormat,
         "algorithm": algorithm,
-        "key_id": hexDigest(signer.publicKeySPKI),
-        "payload": bytes.base64EncodedString(),
+        "key_id": keyID,
+        "payload": payload.base64EncodedString(),
         "signature": signature.base64EncodedString(),
     ]
-    let json = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
-    return Receipt(payload: bytes, receiptID: hexDigest(bytes), json: json + Data("\n".utf8))
+    return try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]) + Data("\n".utf8)
+}
+
+/// Show the exact payload, get one presence-gated signature, return the receipt. Throws without a receipt on refusal.
+/// The receipt takes effect only after `AuthorityStore.publish`.
+public func signDecision(
+    request: ApprovalRequest, decision: Decision, after head: VerifiedReceipt?,
+    signer: PresenceSigner, present: (String) -> Void
+) throws -> Receipt {
+    let bytes = try composePayload(request: request, decision: decision, after: head)
+    let shown = try ApprovalPayload.parse(bytes)
+    present(shown.rendered(raw: bytes))
+    return try makeReceipt(bytes, signer: signer, reason: shown.systemReason)
 }
 
 /// Trust-config entry for a public key, for the operator to install as root.
 public func trustConfig(publicKeySPKI: Data, label: String, repositoryID: Int) throws -> Data {
     let object: [String: Any] = [
-        "format": "newchanlun-approval-trust/v1",
+        "format": trustFormat,
         "repository_id": repositoryID,
         "allowed_scopes": [Scope.candidateHead.rawValue, Scope.specAuthorization.rawValue],
         "keys": [[

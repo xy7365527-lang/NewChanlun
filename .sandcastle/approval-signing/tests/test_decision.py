@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-import json
 from datetime import datetime, timezone
-from pathlib import Path
 
 import pytest
 from conftest import HEAD, OTHER_HEAD, Chain, SoftwareKey, make_request
 
-from approval_signing import decision
-from approval_signing.decision import Status, Watermark, decide, evaluate
+from approval_signing.decision import Status, Watermark, evaluate
 from approval_signing.protocol import (
     ApprovalPayload,
     ApprovalRequest,
@@ -127,23 +124,3 @@ def test_malformed_watermark_cannot_exist(sequence: int, receipt: str) -> None:
     with pytest.raises(ProtocolError, match="watermark"):
         Watermark(sequence, receipt)
 
-
-def test_decide_verifies_blobs_and_reports_the_ones_it_ignores(key: SoftwareKey, monkeypatch, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
-    request = make_request()
-    approve = ApprovalPayload(request, Decision.APPROVE, 1, None).encode()
-    blobs = [key.receipt(approve), SoftwareKey().receipt(approve), b"not json"]
-
-    untrusted = tmp_path / "trust.json"
-    untrusted.write_bytes(b"{}")
-    with pytest.raises(ProtocolError, match="operator-controlled"):
-        decide(request, CommitTarget(HEAD), blobs, now=NOW, watermark=None, receipts_complete=True,
-               trust_path=untrusted)
-
-    good = json.loads(blobs[0])
-    blobs += [json.dumps({**good, "payload": "雪"}).encode(), json.dumps({**good, "signature": "雪"}).encode(),
-              b"[" * 100_000]
-    monkeypatch.setattr(decision, "load_trust", lambda path: key.trust())
-    result = decide(request, CommitTarget(HEAD), blobs, now=NOW, watermark=None, receipts_complete=True)
-    assert result.releases and len(result.ignored) == 5
-    assert not decide(request, CommitTarget(HEAD), blobs[1:], now=NOW, watermark=None,
-                      receipts_complete=True).releases

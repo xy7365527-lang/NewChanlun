@@ -2,21 +2,22 @@
 
 Every receipt for a request carries a sequence and the id of the receipt before
 it, so the decisions form one chain. The latest link wins: a later reject
-overrides an earlier approve. The executor persists the chain head it has seen
-(the watermark); receipts deleted after they were seen then show up as a
-shorter chain. That only holds for decisions the executor already observed and
-only while the watermark itself cannot be rolled back.
+overrides an earlier approve. `evaluate` also takes a watermark, the chain
+head a caller already saw, so a caller reading receipts from a place others
+can edit notices a shrunken chain. The executor uses `decide`, which reads the
+root-owned record that only root can shrink.
 """
 
 from __future__ import annotations
 
 import re
 from collections.abc import Iterable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
 
+from .authority import AUTHORITY_ROOT, load_chain
 from .protocol import (
     DEFAULT_TRUST_PATH,
     ApprovalRequest,
@@ -25,7 +26,6 @@ from .protocol import (
     Target,
     VerifiedReceipt,
     load_trust,
-    verify_receipt,
 )
 
 _HEX64 = re.compile(r"[0-9a-f]{64}")
@@ -58,8 +58,6 @@ class Evaluation:
     reason: str
     watermark: Watermark | None
     """Persist this before acting. None means nothing new was observed."""
-    ignored: tuple[str, ...] = ()
-    """Why each receipt blob passed to `decide` failed verification; those blobs count for nothing."""
 
     @property
     def releases(self) -> bool:
@@ -133,26 +131,21 @@ def evaluate(
 def decide(
     request: ApprovalRequest,
     current_target: Target,
-    receipt_blobs: Iterable[bytes],
     *,
     now: datetime,
-    watermark: Watermark | None,
-    receipts_complete: bool,
     trust_path: Path = DEFAULT_TRUST_PATH,
+    authority_root: Path = AUTHORITY_ROOT,
 ) -> Evaluation:
-    """Executor entry point: load the root-owned trust config, verify every receipt blob, evaluate.
+    """Executor entry point: the current decision for `request` from the root-owned record.
 
-    Blobs that fail verification are reported in `ignored` and otherwise count
-    for nothing. A trust config that is missing or not root-controlled raises.
+    Reads the whole published chain for the request's nonce. Anything wrong with
+    the record (unprotected path, foreign entry, bad signature, gap, broken link)
+    halts with needs_reconciliation; it is never skipped. A trust config that is
+    missing or not root-controlled raises.
     """
     trust = load_trust(trust_path)
-    verified: list[VerifiedReceipt] = []
-    ignored: list[str] = []
-    for blob in receipt_blobs:
-        try:
-            verified.append(verify_receipt(blob, trust))
-        except ProtocolError as exc:
-            ignored.append(str(exc))
-    result = evaluate(request, current_target, verified, now=now, watermark=watermark,
-                      receipts_complete=receipts_complete)
-    return replace(result, ignored=tuple(ignored))
+    try:
+        chain = load_chain(request.request_nonce, trust, authority_root)
+    except (OSError, ProtocolError) as exc:
+        return Evaluation(Status.NEEDS_RECONCILIATION, f"authority record: {exc}", None)
+    return evaluate(request, current_target, chain, now=now, watermark=None, receipts_complete=True)

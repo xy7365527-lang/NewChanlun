@@ -8,11 +8,14 @@ let repositoryID = 1_150_335_160
 let usage = """
 用法:
   newchanlun-approve enroll [--key-dir DIR] [--label TEXT]   （信任配置写到标准输出）
-  newchanlun-approve show --request FILE --decision approve|reject [--previous RECEIPT] [--raw]
-  newchanlun-approve sign --request FILE --decision approve|reject [--previous RECEIPT] --out FILE [--key-dir DIR]
+  newchanlun-approve status --request FILE
+  newchanlun-approve show --request FILE --decision approve|reject [--raw]
+  newchanlun-approve sign --request FILE --decision approve|reject [--key-dir DIR]
+  sudo newchanlun-approve publish --receipt FILE
 
-enroll 在本机 Secure Enclave 生成不可导出的签名钥，每次使用都要求本人认证。
-sign 先显示待签内容，再弹出系统认证；取消或失败不写回执。
+sign 先显示待签内容，再弹出系统认证签名，随后用 sudo 把回执发布到 root 所有的权威记录。
+只有发布成功的决定才生效。认证取消则不签名；sudo 取消或失败则回执停在“待发布”，未生效。
+status 显示权威记录里这一请求当前生效的决定。
 """
 
 struct Failure: Error, CustomStringConvertible {
@@ -93,14 +96,63 @@ struct SecureEnclaveSigner: PresenceSigner {
     }
 }
 
-func readRequest(_ opts: [String: String]) throws -> (ApprovalRequest, Decision, Data?) {
-    guard let requestPath = opts["--request"], let decisionText = opts["--decision"] else {
-        throw Failure(description: usage)
+func readRequest(_ opts: [String: String]) throws -> ApprovalRequest {
+    guard let requestPath = opts["--request"] else { throw Failure(description: usage) }
+    return try ApprovalRequest.parse(Data(contentsOf: URL(fileURLWithPath: requestPath)))
+}
+
+func readDecision(_ opts: [String: String]) throws -> Decision {
+    guard let text = opts["--decision"], let decision = Decision(rawValue: text) else {
+        throw Failure(description: "--decision 只能是 approve 或 reject")
     }
-    guard let decision = Decision(rawValue: decisionText) else { throw Failure(description: "--decision 只能是 approve 或 reject") }
-    let request = try ApprovalRequest.parse(Data(contentsOf: URL(fileURLWithPath: requestPath)))
-    let previous = try opts["--previous"].map { try Data(contentsOf: URL(fileURLWithPath: $0)) }
-    return (request, decision, previous)
+    return decision
+}
+
+func verdictLine(_ link: VerifiedReceipt) -> String {
+    let verb = link.payload.decision == .approve ? "批准" : "拒绝"
+    return "第 \(link.payload.sequence) 条 \(verb)  receipt_id \(link.receiptID)"
+}
+
+/// Publish through sudo with the root-installed helper. The receipt goes over a pipe, never through a file.
+func publishWithSudo(_ receiptJSON: Data) throws -> Int32 {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/sudo")
+    process.arguments = [installedHelperPath, "publish", "--stdin"]
+    let input = Pipe()
+    process.standardInput = input
+    // Ctrl-C at the sudo prompt should stop sudo, not this process, so the "not published" notice still prints.
+    signal(SIGINT, SIG_IGN)
+    defer { signal(SIGINT, SIG_DFL) }
+    try process.run()
+    input.fileHandleForWriting.write(receiptJSON)
+    try input.fileHandleForWriting.close()
+    process.waitUntilExit()
+    return process.terminationStatus
+}
+
+func savePending(_ receipt: Receipt, keyDir: URL) -> String? {
+    let dir = keyDir.appendingPathComponent("pending", isDirectory: true)
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true,
+                                             attributes: [.posixPermissions: 0o700])
+    let url = dir.appendingPathComponent("\(receipt.receiptID).json")
+    if (try? writeNew(receipt.json, to: url)) != nil || FileManager.default.fileExists(atPath: url.path) {
+        return url.path
+    }
+    return nil
+}
+
+func confirmOnTerminal() throws {
+    guard let tty = FileHandle(forUpdatingAtPath: "/dev/tty") else { throw Failure(description: "需要在终端里确认，未发布") }
+    tty.write(Data("核对上面的内容。输入 publish 并回车才会发布：".utf8))
+    var line = Data()
+    while true {
+        let byte = tty.readData(ofLength: 1)
+        if byte.isEmpty || byte == Data([0x0A]) { break }
+        line.append(byte)
+    }
+    guard String(decoding: line, as: UTF8.self).trimmingCharacters(in: .whitespaces) == "publish" else {
+        throw Failure(description: "未确认，未发布，决定没有生效")
+    }
 }
 
 func run(_ args: [String]) throws {
@@ -121,24 +173,67 @@ func run(_ args: [String]) throws {
         // The trust config comes from the key just created in this process, never from a file on disk.
         FileHandle.standardOutput.write(try trustConfig(publicKeySPKI: spki, label: label, repositoryID: repositoryID))
         FileHandle.standardError.write(Data("已在 Secure Enclave 生成签名钥。key_id \(hexDigest(spki))\n".utf8))
+    case "status":
+        let opts = try options(rest, allowed: ["--request"])
+        let request = try readRequest(opts)
+        let chain = try AuthorityStore().chain(nonce: request.requestNonce, trust: loadInstalledTrust())
+        print("请求 #\(request.ticket) \(request.scope.rawValue) \(request.target)，nonce \(request.requestNonce)，过期 \(request.expiresAt)")
+        chain.forEach { print("  " + verdictLine($0)) }
+        if let head = chain.last {
+            print("当前生效：\(head.payload.decision == .approve ? "批准" : "拒绝")（第 \(head.payload.sequence) 条）")
+        } else {
+            print("权威记录里还没有这一请求的已发布决定。")
+        }
     case "show":
-        let opts = try options(rest, allowed: ["--request", "--decision", "--previous"], flags: ["--raw"])
-        let (request, decision, previous) = try readRequest(opts)
-        let bytes = try composePayload(request: request, decision: decision, previousReceipt: previous)
+        let opts = try options(rest, allowed: ["--request", "--decision"], flags: ["--raw"])
+        let request = try readRequest(opts)
+        let head = try AuthorityStore().chain(nonce: request.requestNonce, trust: loadInstalledTrust()).last
+        let bytes = try composePayload(request: request, decision: readDecision(opts), after: head)
         if opts["--raw"] != nil {
             FileHandle.standardOutput.write(bytes)
         } else {
             print(try ApprovalPayload.parse(bytes).rendered(raw: bytes))
         }
     case "sign":
-        let opts = try options(rest, allowed: ["--request", "--decision", "--previous", "--out", "--key-dir"])
-        guard let out = opts["--out"] else { throw Failure(description: usage) }
-        let (request, decision, previous) = try readRequest(opts)
+        let opts = try options(rest, allowed: ["--request", "--decision", "--key-dir"])
+        let request = try readRequest(opts)
+        let decision = try readDecision(opts)
         let dir = opts["--key-dir"].map { URL(fileURLWithPath: $0, isDirectory: true) } ?? defaultKeyDir()
-        let receipt = try signDecision(request: request, decision: decision, previousReceipt: previous,
-                                       signer: SecureEnclaveSigner(keyDir: dir)) { print($0) }
-        try writeNew(receipt.json, to: URL(fileURLWithPath: out))
-        print("已签名。回执 \(out)，receipt_id \(receipt.receiptID)")
+        let trust = try loadInstalledTrust()
+        let signer = try SecureEnclaveSigner(keyDir: dir)
+        guard trust.keys[hexDigest(signer.publicKeySPKI)] != nil else {
+            throw Failure(description: "本机签名钥不在已安装的信任配置里")
+        }
+        let head = try AuthorityStore().chain(nonce: request.requestNonce, trust: trust).last
+        let receipt = try signDecision(request: request, decision: decision, after: head, signer: signer) { print($0) }
+        let pending = savePending(receipt, keyDir: dir)
+        print("已签名，尚未生效。现在发布到权威记录，sudo 会要你的密码。")
+        if try publishWithSudo(receipt.json) == 0 { return }
+        let retry = pending.map { "回执存于 \($0)。确认后重试：sudo \"\(installedHelperPath)\" publish --receipt \"\($0)\"" }
+            ?? "回执未能存盘，需重新 sign。"
+        print("""
+
+        !!!!!!!! 未发布：这个\(decision == .approve ? "批准" : "拒绝")还没有生效，执行器看不到它。 !!!!!!!!
+        \(retry)
+        """)
+        exit(3)
+    case "publish":
+        let opts = try options(rest, allowed: ["--receipt"], flags: ["--stdin"])
+        guard (opts["--receipt"] == nil) != (opts["--stdin"] == nil) else { throw Failure(description: usage) }
+        guard geteuid() == 0 else { throw Failure(description: "publish 只能用 sudo 运行") }
+        let trust = try loadInstalledTrust()
+        let raw = try opts["--receipt"].map { try Data(contentsOf: URL(fileURLWithPath: $0)) }
+            ?? FileHandle.standardInput.readData(ofLength: 65_537)
+        guard raw.count <= 65_536 else { throw Failure(description: "回执过大") }
+        let receipt = try verifyReceipt(raw, trust: trust)
+        print(receipt.payload.rendered(raw: receipt.payloadBytes))
+        if opts["--receipt"] != nil { try confirmOnTerminal() }
+        switch try AuthorityStore().publish(receipt, trust: trust) {
+        case .published(let link):
+            print("已发布到权威记录：\(verdictLine(link))。现在生效。")
+        case .alreadyPublished(let link):
+            print("这一决定早已发布：\(verdictLine(link))。")
+        }
     default:
         throw Failure(description: usage)
     }
