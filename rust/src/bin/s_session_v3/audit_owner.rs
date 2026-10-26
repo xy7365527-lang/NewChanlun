@@ -4225,14 +4225,20 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
 )"#;
     const POLICY_RECORDS_COLUMN: &str =
         ",\n  policy_records TEXT NOT NULL DEFAULT 'legacy/unknown'";
-    let current_schema: String = f.conn.query_row(
-        "SELECT sql FROM sqlite_schema WHERE type='table' AND name='structure_deltas'",
-        [], |row| row.get(0),
-    ).unwrap();
-    let expected_schema = LEGACY_DELTA_SCHEMA.replace(
-        "\n)", &format!("{POLICY_RECORDS_COLUMN}\n)"),
+    let current_schema: String = f
+        .conn
+        .query_row(
+            "SELECT sql FROM sqlite_schema WHERE type='table' AND name='structure_deltas'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let expected_schema =
+        LEGACY_DELTA_SCHEMA.replace("\n)", &format!("{POLICY_RECORDS_COLUMN}\n)"));
+    assert_eq!(
+        current_schema, expected_schema,
+        "R14仅增加已批准的记录溯源列"
     );
-    assert_eq!(current_schema, expected_schema, "R14仅增加已批准的记录溯源列");
     let schema_growth = POLICY_RECORDS_COLUMN.len();
     let total = 64 * 1024 * 1024;
     let mut ordinary_source_cost = 0;
