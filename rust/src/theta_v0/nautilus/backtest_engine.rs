@@ -291,8 +291,8 @@ mod tests {
         let funding = FundingRecord::active("P0").unwrap();
         let mut cfg = ThetaConfig::default();
         cfg.exec.fill_rule = FillRule::Touch;
-        let err = run_theta_backtest(&dataset, &cfg, Some(funding))
-            .expect_err("fill_rule=Touch 须拒收");
+        let err =
+            run_theta_backtest(&dataset, &cfg, Some(funding)).expect_err("fill_rule=Touch 须拒收");
         assert!(
             err.to_string().contains("Touch") && err.to_string().contains("诊断"),
             "错误须说明 Touch 仅诊断，实际: {err}"

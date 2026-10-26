@@ -5,10 +5,14 @@ use std::collections::BTreeSet;
 
 pub const MODEL_ID: &str = "adr0018-integer-bar/1";
 pub const REQUEST_SCHEMA: &str = "diagnostic-fill-request/1";
-pub const WARNING: &str = "touch是乐观撮合，存在过拟合代价；全部诊断输出均不得用于生产准入或正式验收";
+pub const WARNING: &str =
+    "touch是乐观撮合，存在过拟合代价；全部诊断输出均不得用于生产准入或正式验收";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Side { Buy, Sell }
+pub enum Side {
+    Buy,
+    Sell,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -59,17 +63,25 @@ impl Request {
         }
         let mut ids = BTreeSet::new();
         for order in &self.orders {
-            if order.id.is_empty() || order.quantity == 0 || order.submitted_at > self.as_of || !ids.insert(&order.id) {
+            if order.id.is_empty()
+                || order.quantity == 0
+                || order.submitted_at > self.as_of
+                || !ids.insert(&order.id)
+            {
                 return Err("InvalidDomain：订单身份须唯一且数量为正".into());
             }
         }
         let mut previous = None;
         for bar in &self.bars {
-            if bar.low > bar.open || bar.low > bar.close
-                || bar.high < bar.open || bar.high < bar.close
-                || bar.low > bar.high || bar.event_time > bar.known_at
+            if bar.low > bar.open
+                || bar.low > bar.close
+                || bar.high < bar.open
+                || bar.high < bar.close
+                || bar.low > bar.high
+                || bar.event_time > bar.known_at
                 || bar.known_at > self.as_of
-                || previous.is_some_and(|(event, known)| bar.event_time <= event || bar.known_at < known)
+                || previous
+                    .is_some_and(|(event, known)| bar.event_time <= event || bar.known_at < known)
             {
                 return Err("InvalidDomain：行情不是该快照已知前沿的有序有效OHLC".into());
             }
@@ -115,15 +127,22 @@ pub struct Checkpoint {
     fills: Vec<Fill>,
 }
 
-pub struct Replay { checkpoint: Checkpoint }
+pub struct Replay {
+    checkpoint: Checkpoint,
+}
 
 fn matched(order: &Order, bar: &Bar, rule: FillRule) -> Option<i64> {
-    if order.submitted_at >= bar.event_time { return None; }
+    if order.submitted_at >= bar.event_time {
+        return None;
+    }
     let distance = match order.side {
         Side::Buy => i128::from(order.limit_ticks) - i128::from(bar.low),
         Side::Sell => i128::from(bar.high) - i128::from(order.limit_ticks),
     };
-    let minimum = match rule { FillRule::Cross(k) => i128::from(k), FillRule::Touch => 0 };
+    let minimum = match rule {
+        FillRule::Cross(k) => i128::from(k),
+        FillRule::Touch => 0,
+    };
     (distance >= minimum).then(|| match order.side {
         Side::Buy => bar.open.min(order.limit_ticks),
         Side::Sell => bar.open.max(order.limit_ticks),
@@ -133,27 +152,46 @@ fn matched(order: &Order, bar: &Bar, rule: FillRule) -> Option<i64> {
 impl Replay {
     pub fn new(request: Request) -> Result<Self, String> {
         request.validate()?;
-        Ok(Self { checkpoint: Checkpoint { request, next_bar: 0, fills: Vec::new() } })
+        Ok(Self {
+            checkpoint: Checkpoint {
+                request,
+                next_bar: 0,
+                fills: Vec::new(),
+            },
+        })
     }
 
     pub fn restore(checkpoint: Checkpoint, expected: &Request) -> Result<Self, String> {
         expected.validate()?;
         if checkpoint.request != *expected {
-            return Err("VersionMismatch：恢复必须绑定原模型、记录版本、规则、订单及行情快照".into());
+            return Err(
+                "VersionMismatch：恢复必须绑定原模型、记录版本、规则、订单及行情快照".into(),
+            );
         }
         if checkpoint.next_bar > expected.bars.len() {
             return Err("InvalidCheckpoint：游标越过行情前沿".into());
         }
         let mut filled = BTreeSet::new();
         for fill in &checkpoint.fills {
-            let order = expected.orders.iter().find(|o| o.id == fill.order_id)
+            let order = expected
+                .orders
+                .iter()
+                .find(|o| o.id == fill.order_id)
                 .ok_or("InvalidCheckpoint：成交无原订单")?;
-            let bar = expected.bars.get(fill.bar_index).ok_or("InvalidCheckpoint：成交无原行情")?;
-            if fill.bar_index >= checkpoint.next_bar || !filled.insert(&fill.order_id)
-                || fill.side != order.side || fill.quantity != order.quantity
-                || fill.event_time != bar.event_time || fill.known_at != bar.known_at
+            let bar = expected
+                .bars
+                .get(fill.bar_index)
+                .ok_or("InvalidCheckpoint：成交无原行情")?;
+            if fill.bar_index >= checkpoint.next_bar
+                || !filled.insert(&fill.order_id)
+                || fill.side != order.side
+                || fill.quantity != order.quantity
+                || fill.event_time != bar.event_time
+                || fill.known_at != bar.known_at
                 || matched(order, bar, expected.fill_rule) != Some(fill.price_ticks)
-            { return Err("InvalidCheckpoint：成交与冻结输入不一致".into()); }
+            {
+                return Err("InvalidCheckpoint：成交与冻结输入不一致".into());
+            }
         }
         Ok(Self { checkpoint })
     }
@@ -167,11 +205,18 @@ impl Replay {
         for index in state.next_bar..end {
             let bar = &state.request.bars[index];
             for order in &state.request.orders {
-                if filled.contains(&order.id) { continue; }
+                if filled.contains(&order.id) {
+                    continue;
+                }
                 if let Some(price_ticks) = matched(order, bar, state.request.fill_rule) {
                     state.fills.push(Fill {
-                        order_id: order.id.clone(), side: order.side, quantity: order.quantity,
-                        bar_index: index, event_time: bar.event_time, known_at: bar.known_at, price_ticks,
+                        order_id: order.id.clone(),
+                        side: order.side,
+                        quantity: order.quantity,
+                        bar_index: index,
+                        event_time: bar.event_time,
+                        known_at: bar.known_at,
+                        price_ticks,
                     });
                     filled.insert(order.id.clone());
                 }
@@ -181,19 +226,30 @@ impl Replay {
         Ok(())
     }
 
-    pub fn checkpoint(&self) -> Checkpoint { self.checkpoint.clone() }
+    pub fn checkpoint(&self) -> Checkpoint {
+        self.checkpoint.clone()
+    }
 
     pub fn report(&self) -> Report {
         let state = &self.checkpoint;
         let request = &state.request;
         let filled: BTreeSet<&str> = state.fills.iter().map(|f| f.order_id.as_str()).collect();
         Report {
-            schema: "diagnostic-fill-report/1".into(), mode: "diagnostic".into(),
-            model_id: request.model_id.clone(), record_version: request.record_version.clone(),
-            fill_rule: request.fill_rule, market_snapshot: request.market_snapshot.clone(),
-            as_of: request.as_of, processed_bars: state.next_bar, fills: state.fills.clone(),
-            pending_order_ids: request.orders.iter().filter(|o| !filled.contains(o.id.as_str()))
-                .map(|o| o.id.clone()).collect(),
+            schema: "diagnostic-fill-report/1".into(),
+            mode: "diagnostic".into(),
+            model_id: request.model_id.clone(),
+            record_version: request.record_version.clone(),
+            fill_rule: request.fill_rule,
+            market_snapshot: request.market_snapshot.clone(),
+            as_of: request.as_of,
+            processed_bars: state.next_bar,
+            fills: state.fills.clone(),
+            pending_order_ids: request
+                .orders
+                .iter()
+                .filter(|o| !filled.contains(o.id.as_str()))
+                .map(|o| o.id.clone())
+                .collect(),
             warning: WARNING.into(),
         }
     }
@@ -226,10 +282,21 @@ pub fn compare(request: &Request) -> Result<Comparison, String> {
     let mut touch_request = request.clone();
     touch_request.fill_rule = FillRule::Touch;
     let touch = replay(touch_request)?;
-    let changed_order_ids = request.orders.iter().filter(|order| {
-        cross.fills.iter().find(|f| f.order_id == order.id)
-            != touch.fills.iter().find(|f| f.order_id == order.id)
-    }).map(|o| o.id.clone()).collect();
-    Ok(Comparison { schema: "diagnostic-fill-comparison/1".into(), mode: "diagnostic".into(),
-        cross, touch, changed_order_ids, warning: WARNING.into() })
+    let changed_order_ids = request
+        .orders
+        .iter()
+        .filter(|order| {
+            cross.fills.iter().find(|f| f.order_id == order.id)
+                != touch.fills.iter().find(|f| f.order_id == order.id)
+        })
+        .map(|o| o.id.clone())
+        .collect();
+    Ok(Comparison {
+        schema: "diagnostic-fill-comparison/1".into(),
+        mode: "diagnostic".into(),
+        cross,
+        touch,
+        changed_order_ids,
+        warning: WARNING.into(),
+    })
 }

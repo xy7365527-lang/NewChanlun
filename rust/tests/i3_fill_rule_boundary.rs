@@ -4,17 +4,25 @@ use serde_json::Value;
 use std::process::{Command, Output};
 
 const FIXTURE: &str = include_str!("fixtures/issue1718/boundary.json");
-fn request() -> Request { serde_json::from_str(FIXTURE).unwrap() }
+fn request() -> Request {
+    serde_json::from_str(FIXTURE).unwrap()
+}
 
 fn command(args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_diagnostic_fill")).args(args).output().unwrap()
+    Command::new(env!("CARGO_BIN_EXE_diagnostic_fill"))
+        .args(args)
+        .output()
+        .unwrap()
 }
 
 #[test]
 fn cross_requires_at_least_one_tick() {
     let mut cfg = ExecConfig::default();
     cfg.fill_rule = FillRule::Cross(0);
-    assert!(cfg.require_production_fill_rule().unwrap_err().contains("1 tick"));
+    assert!(cfg
+        .require_production_fill_rule()
+        .unwrap_err()
+        .contains("1 tick"));
     let mut input = request();
     input.fill_rule = FillRule::Cross(0);
     assert!(replay(input).unwrap_err().contains("1 tick"));
@@ -27,15 +35,21 @@ fn touch_diagnostic_not_acceptance_evidence() {
     let mut input = request();
     input.fill_rule = FillRule::Touch;
     let report = replay(input).unwrap();
-    let rows: Vec<_> = report.fills.iter()
-        .map(|f| (f.order_id.as_str(), f.bar_index, f.price_ticks, f.quantity)).collect();
+    let rows: Vec<_> = report
+        .fills
+        .iter()
+        .map(|f| (f.order_id.as_str(), f.bar_index, f.price_ticks, f.quantity))
+        .collect();
     assert_eq!(rows, vec![("buy", 0, 100, 3), ("sell", 0, 110, 2)]);
     assert_eq!(report.mode, "diagnostic");
     assert_eq!(report.fill_rule, FillRule::Touch);
     assert!(report.warning.contains("过拟合"));
     let mut cfg = ExecConfig::default();
     cfg.fill_rule = FillRule::Touch;
-    assert!(cfg.require_production_fill_rule().unwrap_err().contains("诊断"));
+    assert!(cfg
+        .require_production_fill_rule()
+        .unwrap_err()
+        .contains("诊断"));
     let mut input = request();
     input.mode = "formal_acceptance".into();
     assert!(replay(input).unwrap_err().contains("DiagnosticOnly"));
@@ -58,8 +72,11 @@ fn cross_failure_never_falls_back_to_touch() {
 #[test]
 fn one_tick_cross_emits_real_order_fills_and_open_improvement() {
     let report = replay(request()).unwrap();
-    let rows: Vec<_> = report.fills.iter()
-        .map(|f| (f.order_id.as_str(), f.bar_index, f.price_ticks, f.quantity)).collect();
+    let rows: Vec<_> = report
+        .fills
+        .iter()
+        .map(|f| (f.order_id.as_str(), f.bar_index, f.price_ticks, f.quantity))
+        .collect();
     assert_eq!(rows, vec![("buy", 1, 99, 3), ("sell", 1, 110, 2)]);
     assert_eq!(report.pending_order_ids, vec!["pending"]);
     let comparison = compare(&request()).unwrap();
@@ -83,7 +100,14 @@ fn diagnostic_replay_keeps_rule_and_version() {
     recovered.advance_to(2).unwrap();
     assert_eq!(recovered.report(), before);
     assert!(recovered.advance_to(1).is_err());
-    for field in ["model_id", "record_version", "market_snapshot", "fill_rule", "bars", "orders"] {
+    for field in [
+        "model_id",
+        "record_version",
+        "market_snapshot",
+        "fill_rule",
+        "bars",
+        "orders",
+    ] {
         let mut changed = serde_json::to_value(&input).unwrap();
         match field {
             "fill_rule" => changed[field] = serde_json::json!("Touch"),
@@ -92,7 +116,10 @@ fn diagnostic_replay_keeps_rule_and_version() {
             _ => changed[field] = serde_json::json!("changed/2"),
         }
         let changed: Request = serde_json::from_value(changed).unwrap();
-        assert!(Replay::restore(serde_json::from_slice(&bytes).unwrap(), &changed).is_err(), "{field}");
+        assert!(
+            Replay::restore(serde_json::from_slice(&bytes).unwrap(), &changed).is_err(),
+            "{field}"
+        );
     }
 }
 
@@ -140,7 +167,10 @@ fn integer_tick_boundaries_do_not_overflow() {
 #[test]
 fn fill_rule_serialization_round_trip() {
     for rule in [FillRule::Cross(2), FillRule::Touch] {
-        assert_eq!(serde_json::from_str::<FillRule>(&serde_json::to_string(&rule).unwrap()).unwrap(), rule);
+        assert_eq!(
+            serde_json::from_str::<FillRule>(&serde_json::to_string(&rule).unwrap()).unwrap(),
+            rule
+        );
     }
 }
 
@@ -154,11 +184,18 @@ fn diagnostic_cli_consumes_fixture_and_recovers_in_new_process() {
     let input = input.to_str().unwrap();
     let checkpoint_path = checkpoint.to_str().unwrap();
     let direct = command(&["run", input]);
-    assert!(direct.status.success(), "{}", String::from_utf8_lossy(&direct.stderr));
+    assert!(
+        direct.status.success(),
+        "{}",
+        String::from_utf8_lossy(&direct.stderr)
+    );
     let compare = command(&["compare", input]);
     assert!(compare.status.success());
     let diff: Value = serde_json::from_slice(&compare.stdout).unwrap();
-    assert_eq!(diff["changed_order_ids"], serde_json::json!(["buy", "sell"]));
+    assert_eq!(
+        diff["changed_order_ids"],
+        serde_json::json!(["buy", "sell"])
+    );
     assert_eq!(diff["cross"]["fills"][0]["bar_index"], 1);
     assert_eq!(diff["touch"]["fills"][0]["bar_index"], 0);
     let saved = command(&["checkpoint", input, "1"]);
@@ -166,7 +203,11 @@ fn diagnostic_cli_consumes_fixture_and_recovers_in_new_process() {
     let _: Checkpoint = serde_json::from_slice(&saved.stdout).unwrap();
     std::fs::write(&checkpoint, saved.stdout).unwrap();
     let recovered = command(&["resume", input, checkpoint_path]);
-    assert!(recovered.status.success(), "{}", String::from_utf8_lossy(&recovered.stderr));
+    assert!(
+        recovered.status.success(),
+        "{}",
+        String::from_utf8_lossy(&recovered.stderr)
+    );
     assert_eq!(recovered.stdout, direct.stdout);
     let mut changed = request();
     changed.record_version = "synthetic-boundary/2".into();

@@ -484,8 +484,7 @@ impl ExecConfig {
         self.fill_rule.validate()?;
         match self.fill_rule {
             FillRule::Touch => Err(
-                "fill_rule=Touch 仅诊断，不参与准入或正式验收（ADR 0018 裁定一 + #1718 I3）"
-                    .into(),
+                "fill_rule=Touch 仅诊断，不参与准入或正式验收（ADR 0018 裁定一 + #1718 I3）".into(),
             ),
             FillRule::Cross(_) => Ok(()),
         }
