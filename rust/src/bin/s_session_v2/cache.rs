@@ -601,54 +601,7 @@ impl Memo {
         );
     }
 }
-/// 保留一份根原件证书（指针稳定：内容相同则复用既有 Arc，不换原件）。
-fn put_root_cert_admitted(
-    memo: &mut Memo,
-    root_key: &str,
-    mut cert: RootCert,
-    work: Option<&WorkScope>,
-) -> Result<Option<Arc<RootCert>>, String> {
-    let admission = NativeAdmission(work);
-    if memo.limit == 0 {
-        return Ok(None);
-    }
-    if let Some(old) = memo.root_certs.get(root_key) {
-        if Weak::ptr_eq(&old.lineage, &Arc::downgrade(&memo.cert_lineage))
-            && old.same_originals(
-                &cert.node,
-                &cert.slots,
-                cert.expanded_length,
-                &cert.content_sha256,
-            )
-        {
-            return Ok(Some(old.clone()));
-        }
-    }
-    let cost = cert.cost().saturating_add(root_key.len());
-    if let Some(old) = memo.root_certs.remove(root_key) {
-        memo.remove_batch_header(root_key);
-        memo.certs_bytes = memo
-            .certs_bytes
-            .saturating_sub(old.cost().saturating_add(root_key.len()));
-    }
-    if !memo.make_room_admitted(cost, work)? {
-        return Ok(None);
-    }
-    cert.lineage = Arc::downgrade(&memo.cert_lineage);
-    admission
-        .native_std_map_room(&mut memo.root_certs)
-        .map_err(|e| e.to_string())?;
-    let key = admission.native_text(root_key).map_err(|e| e.to_string())?;
-    let cert = Arc::try_new_shallow(cert, work).map_err(|e| e.to_string())?;
-    let old = memo.root_certs.insert(key, cert);
-    if let Some(old) = old {
-        memo.certs_bytes = memo
-            .certs_bytes
-            .saturating_sub(old.cost().saturating_add(root_key.len()));
-    }
-    memo.certs_bytes = memo.certs_bytes.saturating_add(cost);
-    Ok(memo.root_certs.get(root_key).cloned())
-}
+
 #[cfg(test)]
 thread_local! {static LAST_RESUMED: std::cell::Cell<usize> = const {std::cell::Cell::new(0)};}
 #[cfg(test)]
@@ -1624,7 +1577,7 @@ pub(super) fn handle_put_certified_typed(
         let keep_handle=floor.saturating_add(delta).saturating_add(cost)<=m.limit;
         let root_key_owned=if existing.is_none(){
             admission.native_std_map_room(&mut m.root_certs)?;
-            Some(admission.native_text(root_key)?)
+            Some(TextValue::from_str_admitted_typed(root_key,None,work)?)
         }else{None};
         let retained=match existing {
             Some(old)=>old,
@@ -1639,7 +1592,7 @@ pub(super) fn handle_put_certified_typed(
             }
         };
         let handle_key=if keep_handle {
-            let key=admission.native_text(root_key)?;
+            let key=TextValue::from_str_admitted_typed(root_key,None,work)?;
             m.handles.reserve_entry_admitted(&key,&admission)?;
             Some(key)
         }else{None};
