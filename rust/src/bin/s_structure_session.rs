@@ -8312,6 +8312,7 @@ mod tests {
             meta_set(&writer, "begin_token", "dead").unwrap();
             tb1405_crash_image(&files.db(), &image);
         }
+        std::fs::remove_file(format!("{}-shm", image.display())).unwrap();
         let before = tb1405_file_bytes(&image);
         assert!(before[2].1.as_ref().is_some_and(|wal| !wal.is_empty()));
         let input = write_input(
