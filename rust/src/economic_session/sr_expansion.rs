@@ -6,9 +6,12 @@
 //! 冻结新承担与同一退出由共享的冻结/退出授权入口消费，本模块不应用、不另建执行器。
 //! 本切片只认具名 TestOnly 政策与 TestOnly 合成签署；生产签署合同与生产事实指标未批准。
 //!
-//! 新语义是与旧合同并列的子合同 `sr-expansion/1`：manifest 顶层 `sr_expansion` 显式选择，只声明在
-//! `economic-session/1`，E 在 init 绑定、audit 核对，旧域不原地扩义。签署引用只认该节冻结的授权
-//! 原件；授权原件随 manifest_hash 冻结，同一具名政策版本只能对应一份判据，改值必须登记新版本。
+//! 新语义是与旧合同并列的子合同 `sr-expansion/1`：manifest 顶层 `sr_expansion` 显式选择，E 在 init
+//! 绑定、audit 核对，旧域不原地扩义。它不占财务版本号，声明在 `economic-session/1` 与内容域
+//! `economic-session/2`（`tb03b-finance/2` 起的具名财务责任）上。`/2` 的评估与财务写口共用同一形状：
+//! 一个统一 job 自首次依赖读取起覆盖审计、事实比较、本地闭包核验、最终物理预留、提交与对账，取
+//! 该 job 与入口响应的最早绝对期限。签署引用只认该节冻结的授权原件；授权原件随 manifest_hash 冻结，
+//! 同一具名政策版本只能对应一份判据，改值必须登记新版本。
 use super::book::hash;
 use super::store::*;
 use crate::session_protocol::{
@@ -288,11 +291,6 @@ fn registry(manifest: &Value) -> Result<Option<Vec<Authorization>>, String> {
     if section["schema_revision"] != CONTRACT_REVISION {
         return Err("SchemaUnsupported：SR 扩量子合同只认 sr-expansion/1".into());
     }
-    // `/2` 的写入须经统一 job 与最终物理预留/对账，该物理预算只在 macOS HFS+ 证明；
-    // 本合同只声明在可运行验证的 `/1`，`/2` 接入须另行声明并补运行证据。
-    if domain_revision(manifest)? != SCHEMA_V1 {
-        return Err("SchemaUnsupported：sr-expansion/1 只声明在 economic-session/1".into());
-    }
     if !manifest.get("finance").is_some_and(|v| !v.is_null()) {
         return Err("InvalidDomain：SR 扩量子合同须同时冻结具名财务责任".into());
     }
@@ -495,7 +493,9 @@ fn receipt(config: &Config, event: &Value, cut: Value) -> Value {
     json!({"kind":RECEIPT,"domain_id":config.domain,"evaluation_id":event["record"]["evaluation_id"],"record":event["record"],"first_known_ns":event["first_known_ns"],"commit_ns":event["commit_ns"],"cut":cut})
 }
 
-/// 正式 E 写口：同一 immediate 事务内审计、CAS 事实前沿、评估、追加提交、回执与消息绑定。
+/// 正式 E 写口，与财务写口同形：先按原身份取回已提交回执，再在一个 immediate 事务内审计、CAS
+/// 事实前沿、评估、核本地闭包、追加提交、回执与消息绑定。`/2` 的统一 job 覆盖从首次依赖读取到
+/// 提交后物理对账的全部读写，任何失败都发生在 COMMIT 之前，不留经济提交。
 pub(super) fn write(
     c: &mut Connection,
     config: &Config,
@@ -509,22 +509,46 @@ pub(super) fn write(
         return Err("SchemaUnsupported：SR 扩量评估只属于 E".into());
     }
     let key = receipt_key(required(p, "evaluation_id")?);
-    let tx = immediate(c)?;
-    check_epoch(&tx, epoch)?;
-    audit(&tx, config)?;
-    if let Some(r) = super::service::previous_message(&tx, e)? {
-        return Ok(r);
-    }
-    if let Some(r) = row(&tx, "receipts", &key)? {
-        audit_message(&tx, config, e, &r, &mut ReadBudget::new(None, None))?;
-        super::service::bind_message(&tx, e, &key)?;
-        tx.commit().map_err(err)?;
-        return Ok(r);
+    let mut job = if config.revision()? == SCHEMA_V2 {
+        Some(new_content_job(c, config)?)
+    } else {
+        None
+    };
+    let deadline = match job.as_mut() {
+        Some(job) => Some(operation_deadline(config, job, ingress_response_deadline)?),
+        None => ingress_response_deadline,
+    };
+    {
+        let tx = immediate(c)?;
+        check_epoch(&tx, epoch)?;
+        audit_with_job(&tx, config, job.as_mut())?;
+        if let Some(r) = super::service::previous_message(&tx, e)? {
+            return Ok(r);
+        }
+        if let Some(r) = row(&tx, "receipts", &key)? {
+            audit_message(&tx, config, e, &r, &mut ReadBudget::new(job.as_mut(), None))?;
+            super::service::bind_message(&tx, e, &key)?;
+            tx.commit().map_err(err)?;
+            return Ok(r);
+        }
     }
     if p["writer_epoch"] != epoch.to_string() {
         return Err("StaleWriter：SR 评估 writer_epoch 陈旧".into());
     }
-    check_operation_deadline(None, ingress_response_deadline)?;
+    check_operation_deadline(job.as_mut(), deadline)?;
+    let final_budget = match job.as_mut() {
+        Some(job) => Some(
+            super::content_store::reserve_final(c, &config.db, job)
+                .map_err(|e| format!("Incomplete：SR 评估最终物理预留失败：{e}"))?,
+        ),
+        None => None,
+    };
+    let tx = immediate(c)?;
+    check_epoch(&tx, epoch)?;
+    audit_with_deadline(&tx, config, job.as_mut(), deadline)?;
+    if let Some(r) = super::service::previous_message(&tx, e)? {
+        return Ok(r);
+    }
     let (seq, root, last_ns, mut image) = latest(&tx)?;
     let record = evaluate(config, &image, &cut(config, seq, &root), p)?;
     let recovered: String = tx
@@ -544,13 +568,34 @@ pub(super) fn write(
         .as_array_mut()
         .ok_or("StorageUnavailable：历史形状损坏")?
         .push(event.clone());
+    if let Some(job) = job.as_mut() {
+        // 评估事件不新增内容引用；新图像仍须整体闭包已在本 owner 持久，才可发布。
+        let refs = super::content_store::image_refs(&image)
+            .map_err(|e| format!("MissingDependency：SR 评估图像引用路径非法：{e}"))?;
+        super::content_store::publish(&tx, &refs, job)
+            .map_err(|e| format!("MissingDependency：本地内容闭包未完整持久：{e}"))?;
+        job.pre_io_check()
+            .map_err(|e| format!("Incomplete：SR 评估提交前 job 期限：{e}"))?;
+    }
     let committed = append(&tx, config, seq, &root, &ns, &image)?;
     let r = receipt(config, &event, committed);
     put(&tx, "receipts", &key, &r)?;
     super::service::bind_message(&tx, e, &key)?;
     config.pause(required(e, "message_id")?, "before_commit")?;
-    check_operation_deadline(None, ingress_response_deadline)?;
+    check_operation_deadline(job.as_mut(), deadline)?;
     tx.commit().map_err(err)?;
+    if let Some((grant, before, ceiling)) = final_budget {
+        super::content_store::reconcile_final(
+            c,
+            &config.db,
+            job.as_mut()
+                .ok_or("DeliveryUnknown：SR 评估已提交但 job 缺失")?,
+            &grant,
+            before,
+            ceiling,
+        )
+        .map_err(|e| format!("DeliveryUnknown：SR 评估已提交，物理对账待核：{e}"))?;
+    }
     config.pause(required(e, "message_id")?, "after_commit")?;
     Ok(r)
 }

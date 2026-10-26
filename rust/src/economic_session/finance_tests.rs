@@ -74,7 +74,7 @@ impl Fixture {
         slot_spec: &[(&str, &[&str])],
         c4a: Option<(bool, bool)>,
     ) -> Self {
-        Self::build_full(cap, fault, slot_spec, c4a, None)
+        Self::build_full(cap, fault, slot_spec, c4a, None, None)
     }
     /// #1717：选择 `sr-expansion/1` 子合同的夹具；`section` 即 manifest 顶层 `sr_expansion`。
     /// 既有夹具不选该合同，旧操作与旧接受域逐字不变。
@@ -85,6 +85,20 @@ impl Fixture {
             &[("slot", &["alpha", "beta"])],
             None,
             Some(section),
+            None,
+        )
+    }
+    /// #1717：`economic-session/2` 内容域（`tb03b-finance/2`）夹具，`section` 为 `None` 即未选择
+    /// `sr-expansion/1`。E、B:alpha、B:beta 的库各落一个独立固定容量卷，全部经 E/B 正式入口；不跑需要
+    /// S 内容的操作。
+    fn content_with_sr_expansion(carriers: &[PathBuf], section: Option<Value>) -> Self {
+        Self::build_full(
+            "100",
+            None,
+            &[("slot", &["alpha", "beta"])],
+            None,
+            section,
+            Some(carriers),
         )
     }
     fn build_full(
@@ -93,7 +107,9 @@ impl Fixture {
         slot_spec: &[(&str, &[&str])],
         c4a: Option<(bool, bool)>,
         sr_expansion: Option<Value>,
+        carriers: Option<&[PathBuf]>,
     ) -> Self {
+        let rev = if carriers.is_some() { REV_V2 } else { REV };
         let applicants: Vec<&str> = slot_spec
             .iter()
             .flat_map(|(_, a)| a.iter().copied())
@@ -118,6 +134,16 @@ impl Fixture {
         let object =
             json!({"object_id":"unit-S-object","kind":"UnitStructuralTrustRoot","branch":"RISING"});
         let basis = json!({"kind":"FinancialBasis","session_id":"tb03b-unit","session_generation":"1","writer_epoch":"1","pending_revision":false,"commit_ns":"1","snapshot":{"profile_id":"unit","objects":[object.clone()]}});
+        let mut s_ref =
+            json!({"object_id":"unit-S-object","object_hash":hash(&object),"profile_id":"unit"});
+        if carriers.is_some() {
+            s_ref["schema_revision"] = json!(S_REF_V2);
+        }
+        let tag = dir.file_name().unwrap().to_str().unwrap().to_owned();
+        let db_of = |name: &str, carrier: usize| match carriers {
+            Some(c) => c[carrier].join(format!("{tag}-{name}.db")),
+            None => dir.join(format!("{name}.db")),
+        };
         let mut authorities = vec![];
         let mut docs = vec![];
         let mut bindings = vec![];
@@ -179,9 +205,9 @@ impl Fixture {
             authorities.push(json!({"authority_id":name,"bundle_path":bp,"bundle_sha256":bh,"verification_path":rp,"verification_sha256":rh,"max_bytes":"1048576"}));
             rights.push(json!({"right_id":name,"owner":format!("B:{name}"),"version":"1","amount":cash,"currency":"TEST-CASH","source_ref":format!("TestOnly-privately-owned-cash-original/{name}")}));
             if applicants.contains(&name) {
-                plans.push(json!({"decision_id":name,"attempt_id":format!("attempt-{name}"),"plan_id":format!("plan-{name}"),"owner":format!("B:{name}"),"voice_binding_id":format!("voice-{name}"),"right_id":name,"expected_book_version":"2","expected_rights_version":"1","applicant_epoch":"1","applicant_generation":"1","slot_id":slot_of(name),"quantity":new_quantity,"limit_price":price,"fee_tail":fee,"quantity_source":format!("TestOnly-quantity/{name}"),"price_source":format!("TestOnly-price/{name}"),"fee_source":format!("TestOnly-tail/{name}"),"s_ref":{"object_id":"unit-S-object","object_hash":hash(&object),"profile_id":"unit"},"o_ref":{"operation_id":format!("TestOnly-operation-{name}"),"kind":"TestOnlyCashBuy","source_ref":format!("TestOnly-operation-sheet/{name}"),"s_object_id":"unit-S-object","quantity":new_quantity}}));
+                plans.push(json!({"decision_id":name,"attempt_id":format!("attempt-{name}"),"plan_id":format!("plan-{name}"),"owner":format!("B:{name}"),"voice_binding_id":format!("voice-{name}"),"right_id":name,"expected_book_version":"2","expected_rights_version":"1","applicant_epoch":"1","applicant_generation":"1","slot_id":slot_of(name),"quantity":new_quantity,"limit_price":price,"fee_tail":fee,"quantity_source":format!("TestOnly-quantity/{name}"),"price_source":format!("TestOnly-price/{name}"),"fee_source":format!("TestOnly-tail/{name}"),"s_ref":s_ref.clone(),"o_ref":{"operation_id":format!("TestOnly-operation-{name}"),"kind":"TestOnlyCashBuy","source_ref":format!("TestOnly-operation-sheet/{name}"),"s_object_id":"unit-S-object","quantity":new_quantity}}));
             }
-            routes.push(json!({"chong_id":name,"symbol":name,"operation_level":"2","fixed_q":fixed,"db":dir.join(format!("{name}.db")),"socket":dir.join(format!("{name}.sock"))}));
+            routes.push(json!({"chong_id":name,"symbol":name,"operation_level":"2","fixed_q":fixed,"db":db_of(name, routes.len() + 1),"socket":dir.join(format!("{name}.sock"))}));
             docs.push(doc);
             bindings.push(p);
         }
@@ -203,7 +229,7 @@ impl Fixture {
                 json!({"slot_id":slot_id,"applicants":applicant_list,"input_end":{"kind":"ControlledInputEnd","source_id":"unit-fixture","source_epoch":"1","watermark":"2","complete_request_hash":request_hash}})
             })
             .collect();
-        let data = json!({"schema_revision":REV,"kind":"TestOnly","source_id":"unit-fixture","source_epoch":"1","policy":{"policy_id":format!("TestOnly-cash-cap-{cap}"),"allocation_policy_id":"#1349/atomic-slot-wait/v1","cap":cap,"currency":"TEST-CASH","money_unit":"TEST-CASH","quantity_unit":"TEST-UNIT","quantum":"1","capability_id":"TestOnly-no-leverage-no-venue","model":"TestOnlyUnleveragedCashBuy","valid_through_ns":"100000"},"baseline":{"responsibility_id":"existing20","amount":"20","source_ref":"TestOnly-existing-full-liability-original","covered_facts":covered},"rights":rights,"plans":plans,"slots":slots});
+        let data = json!({"schema_revision":rev,"kind":"TestOnly","source_id":"unit-fixture","source_epoch":"1","policy":{"policy_id":format!("TestOnly-cash-cap-{cap}"),"allocation_policy_id":"#1349/atomic-slot-wait/v1","cap":cap,"currency":"TEST-CASH","money_unit":"TEST-CASH","quantity_unit":"TEST-UNIT","quantum":"1","capability_id":"TestOnly-no-leverage-no-venue","model":"TestOnlyUnleveragedCashBuy","valid_through_ns":"100000"},"baseline":{"responsibility_id":"existing20","amount":"20","source_ref":"TestOnly-existing-full-liability-original","covered_facts":covered},"rights":rights,"plans":plans,"slots":slots});
         let (ip, ih) = save(&dir, "input.json", &data);
         let source = json!({"source_namespace":"test","source_epoch":"one","producer_id":"unit","producer_epoch":"1"});
         let mut auth = source.clone();
@@ -258,7 +284,16 @@ impl Fixture {
             clocks["Reserve-slot-b"] =
                 json!({"received_ns":"93","first_known_ns":"94","commit_ns":"94"});
         }
-        let mut manifest = json!({"schema_revision":"economic-manifest/1","session_id":"tb03b-unit","session_generation":"1","e":{"db":dir.join("e.db"),"socket":dir.join("e.sock")},"chongs":routes,"authorized_sources":[auth],"resources":{"max_frame_bytes":"16777216","read_timeout_ms":"1000","write_timeout_ms":"1000","response_timeout_ms":"3000","queue_capacity":"4","max_connections":"4"},"clock":{"kind":"TestOnly","plan":{"init_ns":"1","recover_ns":["1000","2000"],"messages":clocks}},"voice_binding":{"schema_revision":"voice-binding/1","authorities":authorities},"finance":{"schema_revision":REV,"input_path":ip,"input_sha256":ih,"coordinator_source":source,"structure":{"binary":"/unit-unavailable-S-binary","binary_sha256":hash(&json!("unit")),"db":dir.join("s.db"),"session_id":"tb03b-unit","session_generation":"1","writer_epoch":"1"}}});
+        let mut manifest = json!({"schema_revision":"economic-manifest/1","session_id":"tb03b-unit","session_generation":"1","e":{"db":db_of("e", 0),"socket":dir.join("e.sock")},"chongs":routes,"authorized_sources":[auth],"resources":{"max_frame_bytes":"16777216","read_timeout_ms":"1000","write_timeout_ms":"1000","response_timeout_ms":"3000","queue_capacity":"4","max_connections":"4"},"clock":{"kind":"TestOnly","plan":{"init_ns":"1","recover_ns":["1000","2000"],"messages":clocks}},"voice_binding":{"schema_revision":"voice-binding/1","authorities":authorities},"finance":{"schema_revision":rev,"input_path":ip,"input_sha256":ih,"coordinator_source":source,"structure":{"binary":"/unit-unavailable-S-binary","binary_sha256":hash(&json!("unit")),"db":dir.join("s.db"),"session_id":"tb03b-unit","session_generation":"1","writer_epoch":"1"}}});
+        if carriers.is_some() {
+            // #1394 已批 economic-session/2 内容域：十字段 structure，资源取已批 READER-RESOURCES 原值。
+            manifest["protocol_revision"] = json!(SCHEMA_V2);
+            let structure = &mut manifest["finance"]["structure"];
+            structure["reader_revision"] = json!("s-financial-basis/3");
+            structure["content_format"] = json!(crate::s_content::CONTENT_FORMAT);
+            structure["reader_resources"] = json!({"schema_revision":"s-financial-reader-resources/1","max_request_bytes":"193120","max_reply_bytes":"827022","max_stderr_bytes":"193120","request_timeout_ms":"45000","job_limits":{"max_total_wire_bytes":"1162304996","max_total_node_bytes":"192172","max_total_nodes":"2614","max_total_records":"2614","max_total_requests":"958","max_elapsed_ms":"43110000","max_staged_bytes":"32153600","max_store_bytes":"64307200"}});
+            structure["reader_session"] = Value::Null;
+        }
         if let Some((resolve_first, _)) = c4a {
             manifest["book_revision"] = json!(book::TB03C_BOOK_V1);
             manifest["fill_manifests"] = json!([fill_manifest]);
@@ -300,8 +335,8 @@ impl Fixture {
         save(&dir, "structure-unit-basis.json", &basis);
         let mut configs = vec![];
         let mut dbs = vec![];
-        for name in [None, Some("alpha"), Some("beta")] {
-            let db = dir.join(format!("{}.db", name.unwrap_or("e")));
+        for (i, name) in [None, Some("alpha"), Some("beta")].into_iter().enumerate() {
+            let db = db_of(name.unwrap_or("e"), i);
             let c = Config::load(&dir.join("manifest.json"), &db, name).unwrap();
             init(&c).unwrap();
             dbs.push(open(&db, false).unwrap().0);
@@ -324,20 +359,23 @@ impl Fixture {
             assert_eq!(bound["kind"], "VoiceBound", "{bound}");
         }
         if !fault.is_some_and(|(message, _)| message == "ImportResponsibility-existing20") {
-            f.step(0, "ImportResponsibility", "existing20");
+            if carriers.is_some() {
+                let p = f.request("ImportResponsibility", "existing20")["payload"].clone();
+                let imported = f.handle(0, "ImportResponsibility-existing20", p);
+                assert_eq!(
+                    imported["kind"], "ResponsibilityImportedReceipt",
+                    "{imported}"
+                );
+            } else {
+                f.step(0, "ImportResponsibility", "existing20");
+            }
         }
         f
     }
     fn handle(&mut self, n: usize, msg: &str, p: Value) -> Value {
-        service::handle(
-            &mut self.dbs[n],
-            &self.configs[n],
-            1,
-            1,
-            &json!({}),
-            &envelope(msg, p),
-        )["payload"]
-            .clone()
+        let mut e = envelope(msg, p);
+        e["schema_revision"] = json!(self.configs[n].revision().unwrap());
+        service::handle(&mut self.dbs[n], &self.configs[n], 1, 1, &json!({}), &e)["payload"].clone()
     }
     fn request(&self, op: &str, name: &str) -> Value {
         let mut p = json!({"op":op,"writer_epoch":"1"});

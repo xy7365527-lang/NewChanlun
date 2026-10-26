@@ -113,16 +113,15 @@ fn query(f: &mut Fixture, id: &str) -> Value {
         json!({"op":"QuerySrEvaluation","evaluation_id":id}),
     )
 }
+/// 信封版本取该域登记的 `economic-session/N`。
+fn envelope_for(config: &Config, message: &str, p: Value) -> Value {
+    let mut e = envelope(message, p);
+    e["schema_revision"] = json!(config.revision().unwrap());
+    e
+}
 fn e_handle(f: &mut Fixture, epoch: i64, message: &str, p: Value) -> Value {
-    service::handle(
-        &mut f.dbs[0],
-        &f.configs[0],
-        epoch,
-        epoch,
-        &json!({}),
-        &envelope(message, p),
-    )["payload"]
-        .clone()
+    let e = envelope_for(&f.configs[0], message, p);
+    service::handle(&mut f.dbs[0], &f.configs[0], epoch, epoch, &json!({}), &e)["payload"].clone()
 }
 
 #[test]
@@ -748,13 +747,15 @@ fn sr_contract_is_explicitly_selected_and_old_domains_keep_their_contract() {
         let refusal = load(&old, &format!("bad-sr-{n}.json"), &m).err().unwrap();
         assert!(refusal.starts_with(kind), "{n}: {refusal}");
     }
+    // 子合同与财务版本正交：内容域 `economic-session/2` 同样声明本合同；其物理载体门另由
+    // `sr_expansion_content_domain_on_fixed_carriers` 在 macOS 固定容量卷上实跑。
     let mut m = old.configs[0].manifest.clone();
     m["protocol_revision"] = json!("economic-session/2");
+    m["finance"]["schema_revision"] = json!(REV_V2);
     m["sr_expansion"] = section.clone();
-    let refusal = load(&old, "v2-with-sr.json", &m).err().unwrap();
-    assert!(
-        refusal.starts_with("SchemaUnsupported") && refusal.contains("economic-session/1"),
-        "/2 未声明本合同：{refusal}"
+    assert_eq!(
+        crate::economic_session::sr_expansion::validate_config(&m),
+        Ok(true)
     );
 
     let f = sr_fixture(None, &[&v2]);
@@ -804,27 +805,44 @@ impl Owner {
     }
 }
 
+fn socket_policies() -> (Value, Value) {
+    (
+        policy(
+            "v2",
+            vec![signed("gross", ">=", "20", all_chongs(), "freeze_new")],
+        ),
+        policy(
+            "v3",
+            vec![signed("gross", ">=", "21", all_chongs(), "freeze_new")],
+        ),
+    )
+}
+
 #[test]
 fn sr_formal_owner_socket_persists_reads_and_recovers_across_processes() {
-    let v2 = policy(
-        "v2",
-        vec![signed("gross", ">=", "20", all_chongs(), "freeze_new")],
-    );
-    let v3 = policy(
-        "v3",
-        vec![signed("gross", ">=", "21", all_chongs(), "freeze_new")],
-    );
+    let (v2, v3) = socket_policies();
     let f = sr_fixture(None, &[&v2, &v3]);
+    owner_socket_scenario(&f, &v2, &v3);
+}
+
+/// 同一行为合同在 `/1` 与内容域 `/2` 各跑一遍：真实 owner socket 评估与读回、同版本篡改拒收、
+/// SIGKILL、新进程恢复、原请求重送只取原回执、新 epoch 新版本评估。返回各步原件供证据落盘。
+fn owner_socket_scenario(f: &Fixture, v2: &Value, v3: &Value) -> Value {
     let config = f.configs[0].clone();
     let send = |message: &str, p: Value, epoch: &str| {
-        crate::economic_session::finance_transport::call(&config, "E", epoch, envelope(message, p))
+        crate::economic_session::finance_transport::call(
+            &config,
+            "E",
+            epoch,
+            envelope_for(&config, message, p),
+        )
     };
     let query = json!({"op":"QuerySrEvaluation","evaluation_id":"eval-socket"});
     let view = json!({"op":"ReadView","cut":null,"as_known_ns":null});
 
-    let owner = Owner::start(&f, "serve-1", "1");
-    let before = e_cut(&f);
-    let original = evaluation(&f, "eval-socket", &v2);
+    let owner = Owner::start(f, "serve-1", "1");
+    let before = e_cut(f);
+    let original = evaluation(f, "eval-socket", v2);
     let receipt = send("sr-pre-1", original.clone(), "1").unwrap();
     assert_eq!(receipt["kind"], "SrExpansionEvaluated", "{receipt}");
     assert_eq!(receipt["record"]["result"], "ActionCandidates");
@@ -846,7 +864,7 @@ fn sr_formal_owner_socket_persists_reads_and_recovers_across_processes() {
     assert_eq!(read["kind"], "EconomicSrEvaluation", "{read}");
     assert_eq!(read["evaluation"], receipt["record"]);
     assert_eq!(read["receipt"], receipt);
-    assert_eq!(read["policy_raw_utf8"], canonical_json(&v2));
+    assert_eq!(read["policy_raw_utf8"], canonical_json(v2));
     let image = send("sr-socket-view", view.clone(), "1").unwrap();
     assert_eq!(image["cut"], receipt["cut"]);
     let last = image["image"]["history"]
@@ -865,7 +883,7 @@ fn sr_formal_owner_socket_persists_reads_and_recovers_across_processes() {
     assert_eq!(watch["changes"].as_array().unwrap().len(), 1, "{watch}");
     let committed = latest(&f.dbs[0]).unwrap();
     let conflict = evaluation(
-        &f,
+        f,
         "eval-socket-21",
         &policy(
             "v2",
@@ -883,18 +901,19 @@ fn sr_formal_owner_socket_persists_reads_and_recovers_across_processes() {
     );
     assert_eq!(out["recovered"]["writer_epoch"], "2");
     assert_eq!(out["recovered"]["cut"], receipt["cut"]);
+    assert_eq!(out["queries"][0]["evaluation"], receipt["record"]);
 
-    let owner = Owner::start(&f, "serve-2", "2");
+    let owner = Owner::start(f, "serve-2", "2");
     let read = send("sr-socket-query", query, "2").unwrap();
     assert_eq!(read["evaluation"], receipt["record"]);
     assert_eq!(read["receipt"], receipt);
     assert_eq!(
-        send("sr-pre-1", original, "2").unwrap(),
+        send("sr-pre-1", original.clone(), "2").unwrap(),
         receipt,
         "新 owner 进程对原请求只取回原回执"
     );
     assert_eq!(latest(&f.dbs[0]).unwrap(), committed, "重送不得新增提交");
-    let mut late = evaluation(&f, "eval-socket-v3", &v3);
+    let mut late = evaluation(f, "eval-socket-v3", v3);
     late["writer_epoch"] = json!("2");
     let late = send("sr-late-1", late, "2").unwrap();
     assert_eq!(late["record"]["result"], "NoAction", "{late}");
@@ -904,6 +923,95 @@ fn sr_formal_owner_socket_persists_reads_and_recovers_across_processes() {
     );
     owner.kill();
     audit(&f.dbs[0], &f.configs[0]).unwrap();
+    json!({"original_request":original,"receipt":receipt,"identity_conflict":refusal,"recovered":out["recovered"],"resend":"original receipt, no new commit","late":late})
+}
+
+/// #1717 R3：内容域 `economic-session/2`（`tb03b-finance/2`）上，SR 评估经 E 正式 owner socket 走统一 job、
+/// 最早绝对期限、本地闭包发布、最终物理预留与提交后对账。三个库各占一个临时固定容量 HFS+ 卷。
+#[test]
+#[ignore = "需 TB1717_HFS_CARRIERS 指向 E、B:alpha、B:beta 三个临时固定容量 HFS+ 卷；ci-macos.yml 显式运行"]
+fn sr_expansion_content_domain_on_fixed_carriers() {
+    use crate::economic_session::content_store::{allocated, carrier_capacity};
+    let carriers: Vec<PathBuf> = std::env::var("TB1717_HFS_CARRIERS")
+        .expect("TB1717_HFS_CARRIERS 未设置")
+        .split(':')
+        .map(PathBuf::from)
+        .collect();
+    assert_eq!(carriers.len(), 3, "需要 E、B:alpha、B:beta 三个卷");
+    let (v2, v3) = socket_policies();
+
+    let mut old = Fixture::content_with_sr_expansion(&carriers, None);
+    assert_eq!(old.configs[0].revision().unwrap(), SCHEMA_V2);
+    assert_eq!(sr_meta(&old, 0), None);
+    let request = evaluation(&old, "eval-old", &v2);
+    rejected(&mut old, "sr-pre-1", request, "InvalidDomain");
+    assert_eq!(responsibility_total(&latest(&old.dbs[0]).unwrap().3), 20);
+    old.audit();
+
+    let mut f = Fixture::content_with_sr_expansion(&carriers, Some(authorizations(&[&v2, &v3])));
+    let config = f.configs[0].clone();
+    assert_eq!(config.revision().unwrap(), SCHEMA_V2);
+    assert_eq!(config.manifest["finance"]["schema_revision"], REV_V2);
+    assert_eq!(sr_meta(&f, 0).as_deref(), Some("sr-expansion/1"));
+    assert_eq!(responsibility_total(&latest(&f.dbs[0]).unwrap().3), 20);
+
+    let tampered = evaluation(
+        &f,
+        "eval-tampered",
+        &policy(
+            "v2",
+            vec![signed("gross", ">=", "21", all_chongs(), "freeze_new")],
+        ),
+    );
+    rejected(&mut f, "sr-pre-3", tampered, "IdentityConflict");
+    let before = latest(&f.dbs[0]).unwrap();
+    let request = envelope_for(&config, "sr-pre-4", evaluation(&f, "eval-expired", &v2));
+    let expired = crate::economic_session::sr_expansion::write(
+        &mut f.dbs[0],
+        &config,
+        1,
+        &request,
+        Some(std::time::Instant::now() - std::time::Duration::from_millis(20)),
+    )
+    .unwrap_err();
+    assert!(
+        expired.starts_with("Incomplete") && expired.contains("期限"),
+        "{expired}"
+    );
+    assert_eq!(latest(&f.dbs[0]).unwrap(), before, "过期不得写 E 提交");
+    assert_eq!(
+        row(
+            &f.dbs[0],
+            "receipts",
+            &crate::economic_session::sr_expansion::receipt_key("eval-expired"),
+        )
+        .unwrap(),
+        None
+    );
+
+    let scenario = owner_socket_scenario(&f, &v2, &v3);
+    let original = envelope_for(&config, "sr-pre-1", scenario["original_request"].clone());
+    let late_retry = crate::economic_session::sr_expansion::write(
+        &mut f.dbs[0],
+        &config,
+        2,
+        &original,
+        Some(std::time::Instant::now() - std::time::Duration::from_millis(20)),
+    )
+    .unwrap();
+    assert_eq!(
+        late_retry, scenario["receipt"],
+        "期限已过的重送仍按原身份取回已提交回执"
+    );
+    let db = &config.db;
+    let (physical, capacity) = (allocated(db).unwrap(), carrier_capacity(db).unwrap());
+    assert!(physical <= capacity, "{physical} > {capacity}");
+    let reopened = Config::load(&f.dir.join("manifest.json"), db, None).unwrap();
+    audit(&open(&reopened.db, false).unwrap().0, &reopened).unwrap();
+    f.audit();
+    let evidence = json!({"carriers":carriers,"domain":SCHEMA_V2,"finance":REV_V2,"old_domain_refusal":"InvalidDomain","expired_deadline":expired,"scenario":scenario,"late_retry":late_retry,"e_allocated_bytes":physical.to_string(),"e_carrier_capacity":capacity.to_string(),"e_image":latest(&f.dbs[0]).unwrap().3});
+    save(&f.dir, "issue1717-content-domain-sr.json", &evidence);
+    println!("ISSUE1717_CONTENT_DOMAIN_SR {}", canonical_json(&evidence));
 }
 
 /// 子进程入口：只由本文件的恢复/故障调度以其建立的 job 文件调用。
@@ -940,7 +1048,8 @@ fn sr_child() {
                     epoch,
                     epoch,
                     &json!({}),
-                    &envelope(
+                    &envelope_for(
+                        &config,
                         "sr-child-query",
                         json!({"op":"QuerySrEvaluation","evaluation_id":id}),
                     ),
