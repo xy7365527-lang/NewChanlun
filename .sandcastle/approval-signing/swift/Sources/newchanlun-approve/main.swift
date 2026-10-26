@@ -114,20 +114,31 @@ func verdictLine(_ link: VerifiedReceipt) -> String {
 }
 
 /// Publish through sudo with the root-installed helper. The receipt goes over a pipe, never through a file.
-func publishWithSudo(_ receiptJSON: Data) throws -> Int32 {
+/// `sudo -k` asks for the password every time and leaves no cached credential behind. True only on success.
+func publishWithSudo(_ receiptJSON: Data) -> Bool {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/sudo")
-    process.arguments = [installedHelperPath, "publish", "--stdin"]
+    process.arguments = ["-k", installedHelperPath, "publish", "--stdin"]
     let input = Pipe()
     process.standardInput = input
-    // Ctrl-C at the sudo prompt should stop sudo, not this process, so the "not published" notice still prints.
+    // Ctrl-C at the sudo prompt, or sudo exiting before it reads the pipe, must stop sudo only,
+    // so the "not published" notice still prints.
     signal(SIGINT, SIG_IGN)
-    defer { signal(SIGINT, SIG_DFL) }
-    try process.run()
-    input.fileHandleForWriting.write(receiptJSON)
-    try input.fileHandleForWriting.close()
-    process.waitUntilExit()
-    return process.terminationStatus
+    signal(SIGPIPE, SIG_IGN)
+    defer {
+        signal(SIGINT, SIG_DFL)
+        signal(SIGPIPE, SIG_DFL)
+    }
+    do {
+        try process.run()
+        try input.fileHandleForWriting.write(contentsOf: receiptJSON)
+        try input.fileHandleForWriting.close()
+    } catch {
+        FileHandle.standardError.write(Data("无法运行 sudo: \(error)\n".utf8))
+        if process.isRunning { process.terminate() }
+    }
+    if process.processIdentifier != 0 { process.waitUntilExit() }
+    return process.processIdentifier != 0 && process.terminationReason == .exit && process.terminationStatus == 0
 }
 
 func savePending(_ receipt: Receipt, keyDir: URL) -> String? {
@@ -208,7 +219,7 @@ func run(_ args: [String]) throws {
         let receipt = try signDecision(request: request, decision: decision, after: head, signer: signer) { print($0) }
         let pending = savePending(receipt, keyDir: dir)
         print("已签名，尚未生效。现在发布到权威记录，sudo 会要你的密码。")
-        if try publishWithSudo(receipt.json) == 0 { return }
+        if publishWithSudo(receipt.json) { return }
         let retry = pending.map { "回执存于 \($0)。确认后重试：sudo \"\(installedHelperPath)\" publish --receipt \"\($0)\"" }
             ?? "回执未能存盘，需重新 sign。"
         print("""

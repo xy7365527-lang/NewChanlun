@@ -32,9 +32,10 @@
    "/Library/Application Support/NewChanlun/newchanlun-approve" enroll --label "Mac Studio Secure Enclave" \
      | sudo tee "/Library/Application Support/NewChanlun/approval-trust.json" >/dev/null
    sudo chmod 0644 "/Library/Application Support/NewChanlun/approval-trust.json"
+   sudo -k
    ```
 
-   终端打印的 `key_id` 应与 `sudo cat` 出来的配置里的一致。钥句柄存于 `~/Library/Application Support/NewChanlunApproval/signing-key.se-handle`，只能在本机 Secure Enclave 里用，每次用都要你认证。
+   最后的 `sudo -k` 清掉本终端的 sudo 凭据缓存。终端打印的 `key_id` 应与 `sudo cat` 出来的配置里的一致。钥句柄存于 `~/Library/Application Support/NewChanlunApproval/signing-key.se-handle`，只能在本机 Secure Enclave 里用，每次用都要你认证。
 
 ## 每次签批
 
@@ -44,7 +45,7 @@ APPROVE="/Library/Application Support/NewChanlun/newchanlun-approve"
 "$APPROVE" sign --request <请求文件> --decision approve   # 或 reject
 ```
 
-`sign` 自动接在权威记录当前链头之后，后一个决定覆盖前一个。看到 `已发布到权威记录……现在生效` 才算生效。若看到 `未发布`，回执存在 `~/Library/Application Support/NewChanlunApproval/pending/`，可按提示运行 `sudo "$APPROVE" publish --receipt <文件>`；这种方式会先显示回执内容，要你输入 `publish` 确认。只在你自己刚发起签批时完成 Touch ID 或 sudo 认证，任何你没有发起的弹窗都取消。
+`sign` 自动接在权威记录当前链头之后，后一个决定覆盖前一个。发布用 `sudo -k`，每次都要密码，也不留下 sudo 凭据缓存。看到 `已发布到权威记录……现在生效` 才算生效。若看到 `未发布`，回执存在 `~/Library/Application Support/NewChanlunApproval/pending/`，可按提示运行 `sudo "$APPROVE" publish --receipt <文件>`；这种方式会先显示回执内容，要你输入 `publish` 确认。只在你自己刚发起签批时完成 Touch ID 或 sudo 认证，任何你没有发起的弹窗都取消。
 
 ## 首次真机验收
 
@@ -94,7 +95,7 @@ ASCII，LF 结尾，字段顺序固定，十进制无前导零，十六进制小
 
 代理和工蜂与你同一个 macOS 账户运行，可以读写你的文件、启动程序，但 `sudo` 要你的密码。
 
-能防的：代理不能自己产出生效的决定，因为签名要你在场认证，发布要你的 sudo 密码。它改不了 root 所有的信任配置、签批工具和权威记录，所以删不掉、也回滚不了已发布的拒绝；在记录里塞进或改动任何文件都需要 root。换钥句柄只会得到验不过的回执。它诱导你在 Touch ID 弹窗上点了通过，得到的也只是一份未发布、不生效的回执。
+能防的：代理不能自己产出生效的决定，因为签名要你在场认证，发布要你当场输入 sudo 密码（`sudo -k`，不用也不留缓存）。前提是没有别的 sudo 凭据缓存可被同账户进程复用：安装步骤末尾的 `sudo -k` 清掉安装留下的缓存，平时别在代理也在用的终端里留 sudo 缓存。它改不了 root 所有的信任配置、签批工具和权威记录，所以删不掉、也回滚不了已发布的拒绝；在记录里塞进或改动任何文件都需要 root。换钥句柄只会得到验不过的回执。它诱导你在 Touch ID 弹窗上点了通过，得到的也只是一份未发布、不生效的回执。
 
 不能防的有三类。第一，你运行的终端、Swift 工具链和 Python 环境与代理同一账户；构建产物在复制进 root 目录之前、执行器自己的代码和它保存的请求，都可能被同账户程序改动。固定提交构建、root 安装和执行器核对请求字段缩小了这个面，没有消除它。第二，`sudo` 密码或 root 权限一旦被别的程序拿到，权威记录就不再可信；root 删掉链尾也无法被发现。第三，代理可以用你的钥句柄触发 Touch ID 弹窗，弹窗理由由调用方写，所以只认自己发起的弹窗。
 
