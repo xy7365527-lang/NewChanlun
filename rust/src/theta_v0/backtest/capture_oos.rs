@@ -244,6 +244,12 @@ mod tests {
             window_ended: impl Fn(u32) -> bool,
             entry_ctx: impl Fn(usize) -> (Option<(u32, bool)>, Option<f64>),
         ) -> usize {
+            // #1585：先标记持仓，再允许价格退出；首次无效 bar 的退出同样剔出聚合。
+            if layer.segments_parse_invalid_from.is_some() {
+                if let Some(ot) = &mut self.open {
+                    ot.parse_invalid = true;
+                }
+            }
             let mut boundary_closes = 0;
             let worse = |dir: Direction, a: f64, b: f64| -> f64 {
                 match dir {
@@ -338,7 +344,7 @@ mod tests {
         }
 
         /// 逐 bar 的「#1585 闸 + 段确认开平仓」，在价格侧出场（窗界强平/顺延出场/止损）之后调用。
-        /// `entry_ctx(t)` 给开仓所需的 (窗, λ)。段解析无效 ⟹ 拒读段账本：记标记区间、污染当前持仓、
+        /// `entry_ctx(t)` 给开仓所需的 (窗, λ)。段解析无效 ⟹ 拒读段账本：记标记区间、
         /// 跳过按段确认开平仓（高水位不动），只补最近可交易 close。
         fn seg_step(
             &mut self,
@@ -353,9 +359,6 @@ mod tests {
                     match self.invalid_runs.last_mut() {
                         Some(r) if r.1 + 1 == t && r.2 == from => r.1 = t,
                         _ => self.invalid_runs.push((t, t, from)),
-                    }
-                    if let Some(ot) = &mut self.open {
-                        ot.parse_invalid = true;
                     }
                     if !bar.untradable {
                         self.last_tradable_close = Some(bar.close as f64);
@@ -588,7 +591,7 @@ mod tests {
         }
     }
 
-    /// #1585（X-39）负控：锁主回测接线（`Replay::seg_step`／`final_seg`／`train_gaps` 即主循环所调）。
+    /// #1585（X-39）负控：锁主回测接线（`Replay::step`／`final_seg`／`train_gaps` 即主循环所调）。
     /// 生产增量逐 bar 重放到一根「有新确认段且有持仓」的 bar，给该 bar 的层注入段端门 fail-closed
     /// 标记 ⟹ 本 bar 不按段确认开平仓（高水位、交易、持仓不动）、持仓打污染、标记区间入报告；终局账本
     /// 标记于中间某段起点笔 ⟹ 理论分母与 λ 样本只到该段之前。正控：同一层无标记时照常确认开平仓、
@@ -599,7 +602,7 @@ mod tests {
         let bars = crate::theta_v0::parser::tb1581_tests::tb1581_bars(0x1581_0000, 4_000);
         let no_win = |_: usize| (None, None);
 
-        // ── 逐 bar 增量：主循环同一个 seg_step ──
+        // ── 逐 bar 增量：主循环同一个 step ──
         let mut incr = ParseLayerIncr::new(&cfg);
         let mut rp = Replay::new();
         let mut probe = None;
@@ -613,7 +616,7 @@ mod tests {
             {
                 probe = Some((t, *bar, layer.clone(), rp.hw, rp.trades.len()));
             }
-            rp.seg_step(t, bar, &layer, no_win);
+            rp.step(t, bar, &layer, |_| false, no_win);
         }
         assert!(
             rp.trades.len() > 2 && rp.hw > 0,
@@ -629,20 +632,20 @@ mod tests {
             let mut rp = Replay::new();
             for (u, b) in bars[..stop].iter().enumerate() {
                 let l = incr.append(*b);
-                rp.seg_step(u, b, &l, no_win);
+                rp.step(u, b, &l, |_| false, no_win);
             }
             rp
         };
         let mut pos = replay_to(t);
         assert_eq!((pos.hw, pos.trades.len()), (hw0, n0));
-        pos.seg_step(t, &bar, &layer, no_win);
+        pos.step(t, &bar, &layer, |_| false, no_win);
         assert!(pos.hw > hw0, "正控：该 bar 无标记时确认新段");
 
         let mut neg = replay_to(t);
         let open_seg = neg.open.as_ref().map(|ot| ot.seg_idx);
         let mut marked = layer.clone();
         marked.segments_parse_invalid_from = Some(0);
-        neg.seg_step(t, &bar, &marked, no_win);
+        neg.step(t, &bar, &marked, |_| false, no_win);
         assert_eq!(neg.hw, hw0, "标记 bar 高水位不动");
         assert_eq!(neg.trades.len(), n0, "标记 bar 不按段确认平仓");
         assert_eq!(
@@ -688,7 +691,16 @@ mod tests {
     #[test]
     fn tb1585_first_invalid_bar_taints_each_price_exit() {
         let cfg = ThetaConfig::default();
-        let bar = Bar { source_index: 1, timestamp: 1, open: 100, high: 101, low: 90, close: 95, volume: 1.0, untradable: false };
+        let bar = Bar {
+            source_index: 1,
+            timestamp: 1,
+            open: 100,
+            high: 101,
+            low: 90,
+            close: 95,
+            volume: 1.0,
+            untradable: false,
+        };
         for marked in [false, true] {
             for exit_kind in 0..3 {
                 let mut layer = parse_layer(&[], &cfg);
@@ -705,7 +717,13 @@ mod tests {
                     pending: (exit_kind == 1).then_some(Pending::Seg),
                     parse_invalid: false,
                 });
-                let boundary = rp.step(1, &bar, &layer, |_| exit_kind == 0, |_| (None, None));
+                let boundary = rp.step(
+                    1,
+                    &bar,
+                    &layer,
+                    |_| exit_kind == 0,
+                    |_| (None, None),
+                );
                 assert!(rp.open.is_none());
                 assert_eq!(rp.trades.len(), 1);
                 let tr = &rp.trades[0];
@@ -713,8 +731,14 @@ mod tests {
                 assert_eq!(tr.exit, if exit_kind == 0 { 102.0 } else { 95.0 });
                 assert_eq!(tr.stopped, exit_kind == 2);
                 assert_eq!(boundary, usize::from(exit_kind == 0));
-                assert_eq!(rp.trades.iter().filter(|tr| !tr.parse_invalid).count(), usize::from(!marked));
-                assert_eq!(rp.invalid_runs, if marked { vec![(1, 1, 0)] } else { vec![] });
+                assert_eq!(
+                    rp.trades.iter().filter(|tr| !tr.parse_invalid).count(),
+                    usize::from(!marked)
+                );
+                assert_eq!(
+                    rp.invalid_runs,
+                    if marked { vec![(1, 1, 0)] } else { vec![] }
+                );
             }
         }
     }
