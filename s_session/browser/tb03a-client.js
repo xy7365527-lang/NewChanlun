@@ -102,7 +102,7 @@
   }
   // #1394 §5.7：版本由 discovery 明示，未知值和混搭拒绝，不从失败降档。
   function revision(discovery) {
-    need(discovery.finance_revision === undefined || ["tb03b-finance/1", "tb03b-finance/2"].includes(discovery.finance_revision), "未知财务查询版本");
+    need(discovery.finance_revision === undefined || ["tb03b-finance/1", "tb03b-finance/2", "tb03b-finance/3"].includes(discovery.finance_revision), "未知财务查询版本");
     return discovery.finance_revision === "tb03b-finance/2" ? "economic-session/2" : "economic-session/1";
   }
   function evidence(value, discovery, horizon) {
@@ -122,7 +122,11 @@
     // 此 HTTP 合同未提供内容节点；只核持久头/引用，不能声称验证节点闭包或七字段正文绑定。
   }
   const financeKinds = {ImportResponsibility:"ResponsibilityImportedReceipt", PrepareDecision:"PreparedReceipt", Reserve:"ReserveReceipt", CommitDecision:"LocalCommitReceipt", AbortDecision:"AbortReceipt", CloseApplicants:"ApplicantsClosedReceipt", ActivateCapPolicy:"CapPolicyActivatedReceipt"};
-  // #1716：E 在 seq 之前最后一次显式激活的 cap 版本；未激活时由冻结原件派生 v1。
+  // #1716：tb03b-finance/3 的 E 在 seq 之前最后一次显式激活的 cap 版本；未激活时由冻结原件派生 v1。
+  async function textSha256(source) {
+    const bytes=await globalThis.crypto.subtle.digest("SHA-256",new TextEncoder().encode(source));
+    return Array.from(new Uint8Array(bytes),b=>b.toString(16).padStart(2,"0")).join("");
+  }
   function activeCap(image,seq,data) {
     const last=image.history.filter(e=>e.kind==="ActivateCapPolicy" && BigInt(e.commit_seq)<BigInt(seq)).at(-1);
     return last?last.record.to:{schema_revision:"funding-cap-policy/1",policy_id:data.policy.policy_id,policy_version:"1",cap:data.policy.cap,valid_through_ns:data.policy.valid_through_ns};
@@ -181,7 +185,7 @@
     need(new TextEncoder().encode(event.witness.input_raw).byteLength<=16*1024*1024,"财务原输入超出原 Rust 字节上限");
     const data=parse(event.witness.input_raw);
     keys(data,["schema_revision","kind","source_id","source_epoch","policy","baseline","rights","plans","slots"],"财务原输入");
-    need(data.schema_revision===(event.request.schema_revision==="economic-session/2"?"tb03b-finance/2":"tb03b-finance/1") && data.kind==="TestOnly","财务原输入版本/范围不同");
+    need((event.request.schema_revision==="economic-session/2"?["tb03b-finance/2"]:["tb03b-finance/1","tb03b-finance/3"]).includes(data.schema_revision) && data.kind==="TestOnly","财务原输入版本/范围不同");
     text(data.source_id,"输入来源");text(data.source_epoch,"输入来源代际");
     for(const k of ["rights","plans","slots"])need(Array.isArray(data[k]),"财务原输入族缺失");
     const p=data.policy,b=data.baseline;
@@ -224,10 +228,12 @@
   async function eventBinding(event,view,discovery,image) {
     need(["ImportResponsibility","Reserve","CloseApplicants","ActivateCapPolicy"].includes(event.kind)?view.cut.domain_id==="E":view.cut.domain_id.startsWith("B:"),"财务原事件 owner 域不同");
     const request=event.request.payload,record=event.record,data=inputWitness(event);
+    need(data.schema_revision===discovery.finance_revision,"财务原输入与查询版本不同");
+    if(event.kind==="ActivateCapPolicy")need(discovery.finance_revision==="tb03b-finance/3","cap 激活只属于 tb03b-finance/3");
     await inputSlots(data,discovery);
     const active=activeCap(image,event.commit_seq,data);
     if(!["AbortDecision","CloseApplicants","ActivateCapPolicy"].includes(event.kind))need(BigInt(event.kind==="Reserve"?active.valid_through_ns:data.policy.valid_through_ns)>=integer(event.commit_ns),"原共同界/能力证据在提交时已过期");
-    const fields={ActivateCapPolicy:["op","activation_id","policy_id","from_version","to_version","cap","valid_through_ns","writer_epoch"],ImportResponsibility:["op","responsibility_id","writer_epoch"],PrepareDecision:["op","decision_id","plan_hash","writer_epoch"],Reserve:["op","slot_id","request_set_hash","writer_epoch"],CommitDecision:["op","decision_id","plan_hash","grant_id","writer_epoch"],AbortDecision:["op","decision_id","plan_hash","writer_epoch","reason"],CloseApplicants:["op","slot_id","writer_epoch","closed","reason"]};
+    const fields={ActivateCapPolicy:["op","activation_id","policy_id","from_version","to_version","cap","valid_through_ns","policy_record","writer_epoch"],ImportResponsibility:["op","responsibility_id","writer_epoch"],PrepareDecision:["op","decision_id","plan_hash","writer_epoch"],Reserve:["op","slot_id","request_set_hash","writer_epoch"],CommitDecision:["op","decision_id","plan_hash","grant_id","writer_epoch"],AbortDecision:["op","decision_id","plan_hash","writer_epoch","reason"],CloseApplicants:["op","slot_id","writer_epoch","closed","reason"]};
     keys(request,fields[event.kind],"财务原请求业务字段");integer(request.writer_epoch,true);
     if(["PrepareDecision","CommitDecision","AbortDecision"].includes(event.kind)) {
       need(request.decision_id===record.decision_id && request.plan_hash===record.prepared.plan_hash,"原计划摘要/请求业务身份不同");
@@ -237,10 +243,18 @@
     } else if(event.kind==="Reserve") {
       need(request.slot_id===record.slot_id && request.request_set_hash===await sha256(record.slot.applicants) && same(record.slot,data.slots.find(s=>s.slot_id===record.slot_id)) && record.policy_id===data.policy.policy_id,"Reserve 请求业务身份或原 slot 不同");
     } else if(event.kind==="ActivateCapPolicy") {
+      keys(event.witness,["input_raw","cap_policy_raw"],"cap 激活依据");
+      keys(request.policy_record,["path","sha256"],"签署原件引用");digest(request.policy_record.sha256,"签署原件");
+      text(event.witness.cap_policy_raw,"签署原件");
+      need(await textSha256(event.witness.cap_policy_raw)===request.policy_record.sha256,"签署原件内容与引用摘要不同");
+      const signed=parse(event.witness.cap_policy_raw);
+      keys(signed,["schema_revision","kind","policy_id","version","supersedes","cap","currency","money_unit","valid_through_ns","authorizer","authorized_at_ns","signature_ref"],"签署原件");
+      text(signed.authorizer,"签署人");text(signed.signature_ref,"签署引用");integer(request.cap);integer(request.valid_through_ns);
+      need(signed.schema_revision==="funding-cap-policy-record/1" && signed.kind==="TestOnly" && signed.policy_id===data.policy.policy_id && signed.currency===data.policy.currency && signed.money_unit===data.policy.money_unit && signed.version===request.to_version && signed.supersedes===request.from_version && signed.cap===request.cap && signed.valid_through_ns===request.valid_through_ns && integer(signed.authorized_at_ns)<=integer(event.commit_ns),"签署原件与激活请求或冻结政策不符");
+      need(image.history.some(e=>e.kind==="ImportResponsibility" && BigInt(e.commit_seq)<BigInt(event.commit_seq)),"责任基线未规范导入不能激活");
       const liability=liabilityBefore(image,event.commit_seq);
-      integer(request.cap,true);integer(request.valid_through_ns);
       need(request.policy_id===data.policy.policy_id && request.from_version===active.policy_version && BigInt(request.to_version)===BigInt(active.policy_version)+1n && BigInt(request.valid_through_ns)>=integer(event.commit_ns) && liability<=BigInt(request.cap),"cap 激活越过原子点责任/版本/有效期");
-      const to={schema_revision:"funding-cap-policy/1",policy_id:request.policy_id,policy_version:request.to_version,cap:request.cap,valid_through_ns:request.valid_through_ns,activation_id:request.activation_id,replaces_version:request.from_version,liability_at_activation:liability.toString(),activated_seq:event.commit_seq,activated_ns:event.commit_ns};
+      const to={schema_revision:"funding-cap-policy/1",policy_id:request.policy_id,policy_version:request.to_version,cap:request.cap,valid_through_ns:request.valid_through_ns,activation_id:request.activation_id,replaces_version:request.from_version,policy_record_sha256:request.policy_record.sha256,authorizer:signed.authorizer,authorized_at_ns:signed.authorized_at_ns,signature_ref:signed.signature_ref,liability_at_activation:liability.toString(),activated_seq:event.commit_seq,activated_ns:event.commit_ns};
       need(same(record,{activation_id:request.activation_id,state:"CapPolicyActivated",from:active,to,liability_at_activation:liability.toString()}),"cap 激活记录与原子点重算不同");
     } else if(event.kind==="ImportResponsibility") {
       const original={responsibility_id:data.baseline.responsibility_id,owner:"E:baseline",amount:data.baseline.amount,source:data.baseline,policy:data.policy};
@@ -398,7 +412,8 @@
   }
   async function verifyFinance(f, view, discovery, image) {
     const domain=view.cut.domain_id;
-    keys(f,["schema_revision","rights","decisions","slots","responsibilities",...(Object.hasOwn(f,"closed_applicants")?["closed_applicants"]:[]),...(Object.hasOwn(f,"cap_policy")?["cap_policy"]:[])],"财务图像");
+    const v3=discovery.finance_revision==="tb03b-finance/3";
+    keys(f,["schema_revision","rights","decisions","slots","responsibilities",...(Object.hasOwn(f,"closed_applicants")?["closed_applicants"]:[]),...(v3 && Object.hasOwn(f,"cap_policy")?["cap_policy"]:[])],"财务图像");
     need(f.schema_revision === discovery.finance_revision,"未知或混搭财务版本");
     for(const k of Object.keys(f).filter(k=>k!=="schema_revision" && k!=="cap_policy"))need(Array.isArray(f[k]),"财务记录族须数组");
     financeCoverage(image,view);
@@ -418,7 +433,7 @@
     }
     const slotIds=new Set();
     for(const s of f.slots){
-      keys(s,["closed_applicants","grants","policy_id","required_total","reserve_ns","reserve_seq","retained_total","slot","slot_id","state","waiting_for",...(Object.hasOwn(s,"cap_policy")?["cap_policy"]:[])],"财务 slot");
+      keys(s,["closed_applicants","grants","policy_id","required_total","reserve_ns","reserve_seq","retained_total","slot","slot_id","state","waiting_for",...(v3 && Object.hasOwn(s,"cap_policy")?["cap_policy"]:[])],"财务 slot");
       need(domain==="E" && !slotIds.has(s.slot_id) && ["Reserved","AwaitingAllocationPolicy"].includes(s.state),"slot 身份或状态不同");slotIds.add(s.slot_id);
       need(Array.isArray(s.grants) && Array.isArray(s.closed_applicants) && s.slot.slot_id===s.slot_id,"slot 原件不同");
       if(s.state==="AwaitingAllocationPolicy")need(s.waiting_for==="#1349/atomic-slot-wait/v1" && s.grants.length===0,"未决政策不能选择赢家");
