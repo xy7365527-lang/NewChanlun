@@ -1880,44 +1880,74 @@ mod tests {
         }
     }
 
-    /// 标度：增量 append 单次成本应近似常数（exp≈1），相对全量 compute_macd 的 O(n)。
-    ///
-    /// 用单 bar append 的固定耗时 vs 全量 compute_macd 在增大 n 下的线性增长比，
-    /// 断言 append 耗时不随已处理 bar 数增长（O(1) per bar）。
+    fn macd_append_scaling_samples(
+        append: impl Fn(&MacdState, f64) -> MacdState,
+        iters: usize,
+    ) -> ([f64; 7], [f64; 7]) {
+        use std::hint::black_box;
+
+        let cfg = MacdConfig::default();
+        let states = [100, 5_000].map(|n| {
+            let closes: Vec<_> = (0..n).map(|i| 100.0 + ((i as f64) * 0.1).sin()).collect();
+            macd_state_from_closes(&closes, &cfg)
+        });
+        let measure = |state: &MacdState| {
+            let start = std::time::Instant::now();
+            for _ in 0..iters {
+                black_box(append(black_box(state), black_box(105.0)));
+            }
+            start.elapsed().as_secs_f64() * 1e9 / iters as f64
+        };
+        let mut small = [0.0; 7];
+        let mut large = [0.0; 7];
+        for round in 0..7 {
+            // #1678 CI 收尾：交替顺序，且每次都从固定历史长度追加一根。
+            if round % 2 == 0 {
+                small[round] = measure(&states[0]);
+                large[round] = measure(&states[1]);
+            } else {
+                large[round] = measure(&states[1]);
+                small[round] = measure(&states[0]);
+            }
+        }
+        (small, large)
+    }
+
+    fn macd_append_scaling_ratio(small: [f64; 7], large: [f64; 7]) -> f64 {
+        let mut ratios = std::array::from_fn::<_, 7, _>(|i| large[i] / small[i]);
+        ratios.sort_by(f64::total_cmp);
+        ratios[3]
+    }
+
+    /// 历史从 100 到 5000 根时，单次追加的成本保持 O(1)。
     #[test]
     fn incremental_macd_append_is_o1_scaling() {
-        let cfg = MacdConfig::default();
-        // 在两个不同规模下测量「再 append 1 bar」的耗时——O(1) 则两者相近。
-        let bench_once = |n_pre: usize| -> u128 {
-            let closes_pre: Vec<f64> = (0..n_pre)
-                .map(|i| 100.0 + ((i as f64) * 0.1).sin())
-                .collect();
-            let state0 = macd_state_from_closes(&closes_pre, &cfg);
-            let new_close = 105.0;
-            // 重复 append（丢弃，仅测单次 append 在已处理 n_pre 后的耗时）。
-            let start = std::time::Instant::now();
-            let iters = 50_000;
-            let mut s = state0.clone();
-            for _ in 0..iters {
-                s = s.append(new_close);
-            }
-            let _ = s.current_point();
-            start.elapsed().as_nanos() / (iters as u128)
-        };
-        // min-of-3 降噪：CI 共享 runner 单轮抖动只会抬高耗时（cache miss / 频率漂移），
-        // 取最小值压回真实成本；真正 O(n) 回归差 ~50x，min-of-3 仍远超 3.0 阈值。
-        let bench = |n_pre: usize| -> u128 { (0..3).map(|_| bench_once(n_pre)).min().unwrap() };
-        let per_bar_small = bench(100);
-        let per_bar_large = bench(5_000);
-        // O(1) 判据：大样本 per-bar 耗时不应显著高于小样本。
-        // 容忍 3x 噪声（bench 环境抖动），真正 O(n) 会差 ~50x。
-        let ratio = per_bar_large as f64 / per_bar_small.max(1) as f64;
+        let (small, large) = macd_append_scaling_samples(MacdState::append, 100_000);
+        let ratio = macd_append_scaling_ratio(small, large);
+        eprintln!("MACD scaling: small={small:?} ns/bar large={large:?} ns/bar ratio={ratio}");
         assert!(
             ratio < 3.0,
-            "append 非 O(1)：小样本 {} ns/bar，大样本 {} ns/bar，比 {}",
-            per_bar_small,
-            per_bar_large,
-            ratio
+            "append 非 O(1)：小样本 {small:?} ns/bar，大样本 {large:?} ns/bar，中位比 {ratio}"
+        );
+    }
+
+    /// 同一计量器必须拒绝按历史长度扫描的实现，不能靠降噪掩盖 O(n)。
+    #[test]
+    fn incremental_macd_scaling_rejects_history_scan() {
+        let (small, large) = macd_append_scaling_samples(
+            |state, close| {
+                for i in 0..state.bars_processed() {
+                    std::hint::black_box(i);
+                }
+                state.append(close)
+            },
+            1_000,
+        );
+        let ratio = macd_append_scaling_ratio(small, large);
+        eprintln!("MACD scaling: small={small:?} ns/bar large={large:?} ns/bar ratio={ratio}");
+        assert!(
+            ratio >= 3.0,
+            "标度锁未拒绝历史扫描：小样本 {small:?} ns/bar，大样本 {large:?} ns/bar，中位比 {ratio}"
         );
     }
 }
