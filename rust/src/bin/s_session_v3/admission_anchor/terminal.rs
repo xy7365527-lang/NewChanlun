@@ -4,7 +4,7 @@ use std::borrow::Cow;
 use std::fmt::Write as _;
 
 const DETAIL_BYTES: usize = 512;
-const PAYLOAD_BYTES: usize = 8192;
+const PAYLOAD_BYTES: usize = 32768;
 #[derive(Clone, Copy)]
 pub(crate) struct FixedFailure {
     pub(crate) code: &'static str,
@@ -35,6 +35,9 @@ impl FixedFailure {
 }
 pub(super) struct MixedTerminal {
     first: Option<FixedFailure>,
+    later: [Option<FixedFailure>; 7],
+    unaccepted_read_wire: u128,
+    unaccepted_read_overflow: bool,
     payload: FixedBuffer<PAYLOAD_BYTES>,
 }
 struct FixedBuffer<const N: usize> {
@@ -80,6 +83,9 @@ impl MixedTerminal {
     pub(super) fn new() -> Self {
         Self {
             first: None,
+            later: [None; 7],
+            unaccepted_read_wire: 0,
+            unaccepted_read_overflow: false,
             payload: FixedBuffer::new(),
         }
     }
@@ -103,6 +109,21 @@ impl MixedTerminal {
         json_string(out, failure.code)?;
         out.write_str(",\"phase\":")?;
         json_string(out, failure.phase)?;
+        out.write_str(",\"later\":[")?;
+        let mut separator = false;
+        for later in self.later.iter().flatten() {
+            if separator { out.write_char(',')?; }
+            separator = true;
+            out.write_str("{\"code\":")?;
+            json_string(out, later.code)?;
+            out.write_str(",\"phase\":")?;
+            json_string(out, later.phase)?;
+            out.write_str(",\"detail\":")?;
+            json_string(out, later.detail())?;
+            write!(out, ",\"detail_truncated\":{}}}", later.truncated)?;
+        }
+        write!(out, "],\"unaccepted_read_wire\":{},\"unaccepted_read_overflow\":{}",
+            self.unaccepted_read_wire, self.unaccepted_read_overflow)?;
         write!(
             out,
             ",\"detail_truncated\":{},\"admission_accounting\":{{\"job_present\":{}",
@@ -183,6 +204,20 @@ pub(crate) fn note_failure(failure: FixedFailure) {
     TERMINAL.with(|slot| {
         if let Some(mixed) = slot.borrow_mut().as_mut().and_then(|s| s.mixed.as_mut()) {
             mixed.note(failure);
+        }
+    });
+}
+
+pub(crate) fn note_cleanup(
+    later: [Option<FixedFailure>; 7], unaccepted: u128, overflow: bool,
+) {
+    TERMINAL.with(|slot| {
+        if let Some(mixed) = slot.borrow_mut().as_mut().and_then(|s| s.mixed.as_mut()) {
+            for (destination, value) in mixed.later.iter_mut().zip(later) {
+                if destination.is_none() { *destination = value; }
+            }
+            mixed.unaccepted_read_wire = unaccepted;
+            mixed.unaccepted_read_overflow = overflow;
         }
     });
 }

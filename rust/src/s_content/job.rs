@@ -1035,14 +1035,14 @@ impl Job {
             content, binding, ..
         } = &self.accepted
         else {
-            return Err(CodecError::new(RESERVATION, "普通Job不接受mixed节点"));
+            return Err(CodecError::static_detail(RESERVATION, "普通Job不接受mixed节点"));
         };
         if !binding.belongs_to_parent(work) {
             return Err(work.reject(super::capture_allocation::scratch::ScratchFailure::Ledger));
         }
         if let Some(bytes) = content.get(&usage.digest) {
             if *bytes != usage.framed_bytes {
-                return Err(CodecError::new(RESERVATION, "同节点原件费用不一致"));
+                return Err(CodecError::static_detail(RESERVATION, "同节点原件费用不一致"));
             }
             return Ok(NodeAcceptance::AlreadyAccepted);
         }
@@ -1067,14 +1067,14 @@ impl Job {
             legacy, binding, ..
         } = &self.accepted
         else {
-            return Err(CodecError::new(RESERVATION, "普通Job不接受legacy域"));
+            return Err(CodecError::static_detail(RESERVATION, "普通Job不接受legacy域"));
         };
         if !binding.belongs_to_parent(work) {
             return Err(work.reject(super::capture_allocation::scratch::ScratchFailure::Ledger));
         }
         if let Some(previous) = legacy.get(row.id()) {
             if *previous != identity {
-                return Err(CodecError::new(RESERVATION, "同legacy节点原件不一致"));
+                return Err(CodecError::static_detail(RESERVATION, "同legacy节点原件不一致"));
             }
             return Ok(NodeAcceptance::AlreadyAccepted);
         }

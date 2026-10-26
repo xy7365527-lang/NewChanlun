@@ -23,7 +23,7 @@ use std::time::{Duration, Instant};
 
 mod ram;
 mod resources;
-mod terminal;
+pub(crate) mod terminal;
 use resources::AdmissionResources;
 
 const CONTROL_BYTES: usize = 65_536;
@@ -433,6 +433,7 @@ fn mixed_fixed_metadata(
         .size();
     job.checked_add(Layout::new::<TerminalState>().size())
         .and_then(|n| n.checked_add(Layout::new::<crate::cache::MixedCacheTransaction>().size()))
+        .and_then(|n| n.checked_add(super::admission_private::mixed_fixed_metadata_bytes()))
         .ok_or(ScratchFailure::Ledger)
 }
 
@@ -950,13 +951,13 @@ pub(crate) struct AdmissionAccounting<'a> {
     mixed: bool,
 }
 
-impl AdmissionAccounting<'_> {
+impl<'a> AdmissionAccounting<'a> {
     pub(crate) fn is_mixed(&self) -> bool {
         self.mixed
     }
     pub(crate) fn mixed_scope(
         &self,
-    ) -> Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope> {
+    ) -> Option<&'a newchan_rust::s_content::capture_allocation::scratch::WorkScope> {
         self.work
     }
     pub(crate) fn accept_legacy_evidence(

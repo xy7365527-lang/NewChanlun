@@ -1,6 +1,7 @@
 //! #1527：私有 SQLite 仅通过固定只读 FD VFS。无源 RW、无默认 VFS 兜底、无文件 clone。
 mod fd_wal;
 mod mixed_sql;
+mod mixed_accounting;
 use super::admission_anchor::AdmissionAccounting;
 use super::admission_provider::{MeasuredDomain, Medium};
 use super::audit_budget::Budget;
@@ -599,4 +600,8 @@ pub(crate) fn test_progressive_mixed_sql_policy<T>(
     run: impl FnOnce(&dyn super::audit_budget::LegacyObserver) -> T,
 ) -> T {
     mixed_sql::test_progressive_policy(conn, observer, run)
+}
+
+pub(crate) fn mixed_fixed_metadata_bytes() -> usize {
+    mixed_accounting::fixed_metadata_bytes()
 }
