@@ -202,7 +202,9 @@ impl Fixture {
             "CommitDecision",
             "AbortDecision",
             "CloseApplicants",
-            "ChongAdvance"
+            "ChongAdvance",
+            "EvaluateSrExpansion",
+            "QuerySrEvaluation"
         ]);
         let mut clocks = json!({});
         for (i, (op, name)) in [
@@ -233,6 +235,14 @@ impl Fixture {
             json!({"received_ns":"95","first_known_ns":"96","commit_ns":"97"});
         clocks["commit-beta-late"] =
             json!({"received_ns":"110","first_known_ns":"111","commit_ns":"112"});
+        // #1717：SR 扩量评估消息时钟，落在 Import(65)与 Reserve(90)之间、CloseApplicants(132)之后
+        // 及首次恢复(1000)之后；既有消息时钟不变。
+        for (prefix, start) in [("sr-pre", 66), ("sr-post", 150), ("sr-late", 1100)] {
+            for k in 0..6 {
+                let n = start + 3 * k;
+                clocks[format!("{prefix}-{}", k + 1)] = json!({"received_ns":n.to_string(),"first_known_ns":n.to_string(),"commit_ns":(n+1).to_string()});
+            }
+        }
         if slot_spec.len() > 1 {
             // 第二个 slot 的 Reserve 时钟；只在双 slot 夹具里出现，单 slot 夹具的时钟表不变。
             clocks["Reserve-slot-b"] =
@@ -1247,3 +1257,6 @@ fn c4a_fin1_uncovered_fact_cannot_reserve_or_resolve_and_keeps_all_state() {
     assert!(before.3.get("fill_allocations").is_none());
     f.audit();
 }
+
+#[path = "sr_expansion_tests.rs"]
+mod sr_expansion;

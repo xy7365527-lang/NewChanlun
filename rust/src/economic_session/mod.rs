@@ -8,6 +8,7 @@ mod finance;
 mod finance_transport;
 mod financial_reader_resources;
 mod service;
+mod sr_expansion;
 mod store;
 mod store_read;
 mod tb03c_allocation;

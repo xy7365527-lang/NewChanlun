@@ -1,0 +1,639 @@
+//! #1717 I2：SR 扩量评估经正式 E 入口（`service::handle`，即 serve 的同一分派）比较已提交责任事实、
+//! 持久评估、公开读与新进程恢复。E/B 沿用 #1394 TestOnly 信任根；签署只用 TestOnly 合成签署，
+//! 不是生产阈值实例。冻结/退出的实际应用不在本切片，记录如实为 NotApplied。
+use super::*;
+use std::os::unix::process::ExitStatusExt;
+
+const CHILD: &str = "economic_session::finance::tests::sr_expansion::sr_child";
+
+fn fact_decl(currency: &str) -> Value {
+    json!({"source":"E:finance.responsibilities","metric":"gross_responsibility_total","frontier":"latest_committed_cut","currency":currency,"money_unit":"TEST-CASH"})
+}
+fn all_chongs() -> Value {
+    json!({"kind":"all_chongs"})
+}
+fn symbol(s: &str) -> Value {
+    json!({"kind":"symbol","symbol":s})
+}
+fn signed(id: &str, comparison: &str, threshold: &str, scope: Value, action: &str) -> Value {
+    json!({"entry_id":id,"status":"enabled","fact":fact_decl("TEST-CASH"),"comparison":comparison,"threshold":{"value":threshold,"signature":{"kind":"TestOnlySynthetic","reference":format!("TestOnly-synthetic-signature/{id}")}},"scope":scope,"action":action})
+}
+fn unsigned(id: &str) -> Value {
+    let mut e = signed(id, ">=", "0", all_chongs(), "freeze_new");
+    e["threshold"] = json!("AwaitingPolicy");
+    e
+}
+fn policy(version: &str, entries: Vec<Value>) -> Value {
+    json!({"schema_revision":"sr-expansion-policy/1","kind":"TestOnly","policy_id":"TestOnly-sr-expansion","version":version,"supersedes":"v1","entries":entries})
+}
+fn e_cut(f: &Fixture) -> Value {
+    let (seq, root, _, _) = latest(&f.dbs[0]).unwrap();
+    cut(&f.configs[0], seq, &root)
+}
+fn evaluation(f: &Fixture, id: &str, policy: &Value) -> Value {
+    json!({"op":"EvaluateSrExpansion","evaluation_id":id,"policy_raw_utf8":canonical_json(policy),"fact_cut":e_cut(f),"writer_epoch":"1"})
+}
+fn outcomes(record: &Value) -> Vec<(String, String)> {
+    record["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| {
+            (
+                e["entry_id"].as_str().unwrap().to_owned(),
+                e["outcome"].as_str().unwrap().to_owned(),
+            )
+        })
+        .collect()
+}
+fn pairs(v: &[(&str, &str)]) -> Vec<(String, String)> {
+    v.iter()
+        .map(|(a, b)| (a.to_string(), b.to_string()))
+        .collect()
+}
+fn rejected(f: &mut Fixture, message: &str, p: Value, kind: &str) {
+    let before = latest(&f.dbs[0]).unwrap();
+    let r = f.handle(0, message, p);
+    assert_eq!(r["kind"], "Error", "{r}");
+    assert!(
+        r["error"].as_str().unwrap().starts_with(kind),
+        "期望 {kind}：{r}"
+    );
+    assert_eq!(latest(&f.dbs[0]).unwrap(), before, "拒收不得写 E 提交");
+}
+fn query(f: &mut Fixture, id: &str) -> Value {
+    f.handle(
+        0,
+        "sr-query",
+        json!({"op":"QuerySrEvaluation","evaluation_id":id}),
+    )
+}
+fn e_handle(f: &mut Fixture, epoch: i64, message: &str, p: Value) -> Value {
+    service::handle(
+        &mut f.dbs[0],
+        &f.configs[0],
+        epoch,
+        epoch,
+        &json!({}),
+        &envelope(message, p),
+    )["payload"]
+        .clone()
+}
+
+#[test]
+fn sr_expansion_signed_entries_compare_persisted_responsibility_facts() {
+    let mut f = Fixture::new("100");
+    let import_cut = e_cut(&f);
+    let p = policy(
+        "v2",
+        vec![
+            signed("at-least-21", ">=", "21", all_chongs(), "freeze_new"),
+            signed("at-least-20", ">=", "20", all_chongs(), "freeze_new"),
+            signed("above-20", ">", "20", all_chongs(), "exit_all_in_scope"),
+            signed("above-19", ">", "19", symbol("alpha"), "exit_all_in_scope"),
+            signed("below-21", "<", "21", all_chongs(), "freeze_new"),
+        ],
+    );
+    let r = f.handle(0, "sr-pre-1", evaluation(&f, "eval-import", &p));
+    assert_eq!(r["kind"], "SrExpansionEvaluated", "{r}");
+    let record = r["record"].clone();
+    assert_eq!(record["policy"]["version"], "v2");
+    assert_eq!(record["policy"]["supersedes"], "v1");
+    assert_eq!(record["fact"]["cut"], import_cut);
+    assert_eq!(record["fact"]["value"], "20");
+    assert_eq!(
+        record["fact"]["components"],
+        json!([{"responsibility_id":"existing20","owner":"E:baseline","amount":"20","origin":{"event":"ImportResponsibility","commit_seq":import_cut["commit_seq"],"commit_ns":"65"}}])
+    );
+    assert_eq!(
+        outcomes(&record),
+        pairs(&[
+            ("above-19", "Triggered"),
+            ("above-20", "NotTriggered"),
+            ("at-least-20", "Triggered"),
+            ("at-least-21", "NotTriggered"),
+            ("below-21", "Triggered"),
+        ])
+    );
+    assert_eq!(record["result"], "ActionCandidates");
+    assert_eq!(
+        record["actions"],
+        json!([
+            {"action":"exit_all_in_scope","scope":{"kind":"symbol","symbol":"alpha"},"scope_members":["alpha"],"entry_ids":["above-19"],"application_state":"NotApplied"},
+            {"action":"freeze_new","scope":{"kind":"all_chongs"},"scope_members":["alpha","beta"],"entry_ids":["at-least-20","below-21"],"application_state":"NotApplied"}
+        ])
+    );
+
+    let q = query(&mut f, "eval-import");
+    assert_eq!(q["kind"], "EconomicSrEvaluation", "{q}");
+    assert_eq!(q["evaluation"], record);
+    assert_eq!(q["receipt"], r);
+    assert_eq!(q["policy_raw_utf8"], canonical_json(&p));
+    let view = f.handle(
+        0,
+        "sr-view",
+        json!({"op":"ReadView","cut":null,"as_known_ns":null}),
+    );
+    assert_eq!(view["cut"], r["cut"]);
+    let last = view["image"]["history"].as_array().unwrap().last().unwrap();
+    assert_eq!(last["kind"], "EvaluateSrExpansion");
+    assert_eq!(last["record"], record);
+    let watch = f.handle(0, "sr-watch", json!({"op":"Watch","after_cut":import_cut}));
+    assert_eq!(watch["changes"].as_array().unwrap().len(), 1, "{watch}");
+    assert_eq!(watch["changes"][0]["cut"], r["cut"]);
+
+    f.prepare();
+    let reserve = f.step(0, "Reserve", "slot");
+    assert_eq!(reserve["record"]["state"], "Reserved");
+    let after = f.handle(0, "sr-post-1", evaluation(&f, "eval-reserve", &p));
+    assert_eq!(after["kind"], "SrExpansionEvaluated", "{after}");
+    let fact = &after["record"]["fact"];
+    assert_eq!(fact["value"], "90");
+    assert_eq!(fact["cut"], reserve["cut"]);
+    let amounts: Vec<&Value> = fact["components"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| &c["amount"])
+        .collect();
+    assert_eq!(amounts, [&json!("20"), &json!("30"), &json!("40")]);
+    for c in &fact["components"].as_array().unwrap()[1..] {
+        assert_eq!(c["origin"]["event"], "Reserve");
+        assert_eq!(c["origin"]["commit_seq"], reserve["cut"]["commit_seq"]);
+    }
+    assert_eq!(
+        outcomes(&after["record"]),
+        pairs(&[
+            ("above-19", "Triggered"),
+            ("above-20", "Triggered"),
+            ("at-least-20", "Triggered"),
+            ("at-least-21", "Triggered"),
+            ("below-21", "NotTriggered"),
+        ])
+    );
+    assert_eq!(query(&mut f, "eval-import")["evaluation"], record);
+    f.audit();
+}
+
+#[test]
+fn sr_expansion_disabled_or_unsigned_emits_no_action_and_old_operations_continue() {
+    let mut f = Fixture::new("100");
+    let mut disabled = signed("gross", ">=", "1", all_chongs(), "freeze_new");
+    disabled["status"] = json!("disabled");
+    for (message, id, entry, outcome) in [
+        ("sr-pre-1", "eval-disabled", disabled, "Disabled"),
+        (
+            "sr-pre-2",
+            "eval-unsigned",
+            unsigned("gross"),
+            "AwaitingPolicy",
+        ),
+    ] {
+        let r = f.handle(0, message, evaluation(&f, id, &policy("v2", vec![entry])));
+        assert_eq!(r["kind"], "SrExpansionEvaluated", "{r}");
+        assert_eq!(outcomes(&r["record"]), pairs(&[("gross", outcome)]));
+        assert_eq!(r["record"]["result"], "NoAction");
+        assert_eq!(r["record"]["actions"], json!([]));
+    }
+    let mut bare = signed("gross", ">=", "20", all_chongs(), "freeze_new");
+    bare["threshold"] = json!("20");
+    let p = evaluation(&f, "eval-bare", &policy("v2", vec![bare]));
+    rejected(&mut f, "sr-bare", p, "SchemaUnsupported");
+    let mut unsigned_signature = unsigned("gross");
+    unsigned_signature["threshold"] =
+        json!({"signature":{"kind":"TestOnlySynthetic","reference":"x"}});
+    let p = evaluation(
+        &f,
+        "eval-signature-only",
+        &policy("v2", vec![unsigned_signature]),
+    );
+    rejected(&mut f, "sr-signature-only", p, "SchemaUnsupported");
+
+    let mut reference = Fixture::new("100");
+    f.prepare();
+    reference.prepare();
+    let semantic = |r: &Value| {
+        let grants: Vec<Value> = r["record"]["grants"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|g| json!([g["decision_id"], g["owner"], g["amount"], g["grant_id"]]))
+            .collect();
+        json!({"kind":r["kind"],"state":r["record"]["state"],"required_total":r["record"]["required_total"],"retained_total":r["record"]["retained_total"],"grants":grants})
+    };
+    let ours = f.step(0, "Reserve", "slot");
+    let theirs = reference.step(0, "Reserve", "slot");
+    assert_eq!(semantic(&ours), semantic(&theirs));
+    assert_eq!(ours["record"]["retained_total"], "90");
+    for (n, name) in [(1, "alpha"), (2, "beta")] {
+        let r = f.step(n, "CommitDecision", name);
+        assert_eq!(r["record"]["state"], "Committed");
+    }
+    f.audit();
+}
+
+#[test]
+fn sr_expansion_signed_scope_is_nonselective_and_entry_order_independent() {
+    let mut f = Fixture::new("100");
+    let entries = vec![
+        signed(
+            "exit-alpha",
+            ">=",
+            "20",
+            symbol("alpha"),
+            "exit_all_in_scope",
+        ),
+        signed("freeze-all", ">=", "20", all_chongs(), "freeze_new"),
+        signed("freeze-all-again", ">", "0", all_chongs(), "freeze_new"),
+        unsigned("pending-all"),
+    ];
+    let forward = f.handle(
+        0,
+        "sr-pre-1",
+        evaluation(&f, "eval-forward", &policy("v2", entries.clone())),
+    );
+    let mut reversed = entries.clone();
+    reversed.reverse();
+    let backward = f.handle(
+        0,
+        "sr-pre-2",
+        evaluation(&f, "eval-backward", &policy("v2", reversed)),
+    );
+    assert_ne!(
+        forward["record"]["policy"]["raw_sha256"],
+        backward["record"]["policy"]["raw_sha256"]
+    );
+    for k in ["entries", "result", "actions"] {
+        assert_eq!(forward["record"][k], backward["record"][k], "{k}");
+    }
+    assert_eq!(
+        forward["record"]["fact"]["value"],
+        backward["record"]["fact"]["value"]
+    );
+    assert_eq!(
+        forward["record"]["actions"],
+        json!([
+            {"action":"exit_all_in_scope","scope":{"kind":"symbol","symbol":"alpha"},"scope_members":["alpha"],"entry_ids":["exit-alpha"],"application_state":"NotApplied"},
+            {"action":"freeze_new","scope":{"kind":"all_chongs"},"scope_members":["alpha","beta"],"entry_ids":["freeze-all","freeze-all-again"],"application_state":"NotApplied"}
+        ])
+    );
+    assert_eq!(
+        outcomes(&forward["record"]),
+        pairs(&[
+            ("exit-alpha", "Triggered"),
+            ("freeze-all", "Triggered"),
+            ("freeze-all-again", "Triggered"),
+            ("pending-all", "AwaitingPolicy"),
+        ])
+    );
+    for (scope, kind) in [
+        (
+            json!({"kind":"chongs","chong_ids":["alpha"]}),
+            "InvalidDomain",
+        ),
+        (symbol("gamma"), "InvalidDomain"),
+        (
+            json!({"kind":"symbol","symbol":"alpha","chong_ids":["alpha"]}),
+            "SchemaUnsupported",
+        ),
+    ] {
+        let p = evaluation(
+            &f,
+            "eval-selective",
+            &policy("v2", vec![signed("x", ">=", "1", scope, "freeze_new")]),
+        );
+        rejected(&mut f, "sr-selective", p, kind);
+    }
+    let p = evaluation(
+        &f,
+        "eval-select-winner",
+        &policy(
+            "v2",
+            vec![signed("x", ">=", "1", all_chongs(), "freeze_selected")],
+        ),
+    );
+    rejected(&mut f, "sr-select-winner", p, "InvalidDomain");
+
+    f.prepare();
+    let reserve = f.step(0, "Reserve", "slot");
+    assert_eq!(
+        reserve["record"]["state"], "Reserved",
+        "候选只登记不应用：冻结/退出由共享授权入口消费"
+    );
+    assert_eq!(
+        query(&mut f, "eval-forward")["evaluation"]["actions"],
+        forward["record"]["actions"]
+    );
+    f.audit();
+}
+
+#[test]
+fn sr_expansion_rejects_wrong_unit_source_frontier_and_conflicting_identity() {
+    let base = policy(
+        "v2",
+        vec![signed("gross", ">=", "20", all_chongs(), "freeze_new")],
+    );
+    let mut empty = Fixture::with_fault(
+        "100",
+        Some(("ImportResponsibility-existing20", "before_commit")),
+    );
+    let p = evaluation(&empty, "eval-missing", &base);
+    rejected(&mut empty, "sr-missing", p, "MissingDependency");
+
+    let mut f = Fixture::new("100");
+    let mut bad = vec![];
+    let mut wrong_unit = signed("gross", ">=", "20", all_chongs(), "freeze_new");
+    wrong_unit["fact"] = fact_decl("OTHER-CASH");
+    bad.push((policy("v2", vec![wrong_unit]), "IdentityConflict"));
+    for (k, v) in [
+        ("source", "E:valuation.reference_price"),
+        ("metric", "account_value"),
+        ("frontier", "fixed_cut"),
+    ] {
+        let mut e = signed("gross", ">=", "20", all_chongs(), "freeze_new");
+        e["fact"][k] = json!(v);
+        bad.push((policy("v2", vec![e]), "UnsupportedCapability"));
+    }
+    let mut user_signed = signed("gross", ">=", "20", all_chongs(), "freeze_new");
+    user_signed["threshold"]["signature"]["kind"] = json!("UserSigned");
+    bad.push((policy("v2", vec![user_signed]), "UnsupportedCapability"));
+    for (k, v, kind) in [
+        ("kind", "Production", "UnsupportedCapability"),
+        ("version", "v1", "InvalidDomain"),
+        ("supersedes", "v0", "InvalidDomain"),
+        (
+            "schema_revision",
+            "sr-expansion-policy/0",
+            "SchemaUnsupported",
+        ),
+    ] {
+        let mut p = base.clone();
+        p[k] = json!(v);
+        bad.push((p, kind));
+    }
+    bad.push((
+        policy(
+            "v2",
+            vec![
+                signed("gross", ">=", "20", all_chongs(), "freeze_new"),
+                signed("gross", ">=", "21", all_chongs(), "freeze_new"),
+            ],
+        ),
+        "IdentityConflict",
+    ));
+    for (n, (p, kind)) in bad.into_iter().enumerate() {
+        let request = evaluation(&f, &format!("eval-bad-{n}"), &p);
+        rejected(&mut f, &format!("sr-bad-{n}"), request, kind);
+    }
+
+    let at = e_cut(&f);
+    let seq: i64 = at["commit_seq"].as_str().unwrap().parse().unwrap();
+    let mut future = evaluation(&f, "eval-future", &base);
+    future["fact_cut"]["commit_seq"] = json!((seq + 1).to_string());
+    rejected(&mut f, "sr-future", future, "InvalidDomain");
+    let mut wrong_root = evaluation(&f, "eval-root", &base);
+    wrong_root["fact_cut"]["root_hash"] = json!(hash(&json!("not-the-root")));
+    rejected(&mut f, "sr-root", wrong_root, "InvalidDomain");
+    let mut stale_epoch = evaluation(&f, "eval-epoch", &base);
+    stale_epoch["writer_epoch"] = json!("2");
+    rejected(&mut f, "sr-epoch", stale_epoch, "StaleWriter");
+    let b = f.handle(1, "sr-b", evaluation(&f, "eval-b", &base));
+    assert!(
+        b["error"]
+            .as_str()
+            .unwrap()
+            .starts_with("SchemaUnsupported"),
+        "{b}"
+    );
+
+    let original = evaluation(&f, "eval-ok", &base);
+    let stale = evaluation(&f, "eval-stale", &base);
+    let ok = f.handle(0, "sr-pre-1", original.clone());
+    assert_eq!(ok["kind"], "SrExpansionEvaluated", "{ok}");
+    rejected(&mut f, "sr-stale", stale, "InvalidDomain");
+    let before = latest(&f.dbs[0]).unwrap();
+    assert_eq!(f.handle(0, "sr-pre-1", original.clone()), ok);
+    assert_eq!(f.handle(0, "sr-alias", original), ok);
+    assert_eq!(latest(&f.dbs[0]).unwrap(), before, "重送不得新增提交");
+    let other = evaluation(
+        &f,
+        "eval-ok",
+        &policy(
+            "v3",
+            vec![signed("gross", ">=", "21", all_chongs(), "freeze_new")],
+        ),
+    );
+    rejected(&mut f, "sr-conflict", other, "IdentityConflict");
+    f.audit();
+}
+
+#[test]
+fn sr_version_replay_preserves_original_across_new_process_recover() {
+    let mut f = Fixture::new("100");
+    let v2 = policy(
+        "v2",
+        vec![signed("gross", ">=", "20", all_chongs(), "freeze_new")],
+    );
+    let v3 = policy(
+        "v3",
+        vec![signed("gross", ">=", "21", all_chongs(), "freeze_new")],
+    );
+    let v2_request = evaluation(&f, "eval-v2", &v2);
+    let first = f.handle(0, "sr-pre-1", v2_request.clone());
+    let second = f.handle(0, "sr-pre-2", evaluation(&f, "eval-v3", &v3));
+    assert_eq!(first["record"]["result"], "ActionCandidates", "{first}");
+    assert_eq!(second["record"]["result"], "NoAction", "{second}");
+    assert_eq!(second["record"]["policy"]["version"], "v3");
+
+    let out = run_child(
+        &f.dir,
+        &json!({"label":"recover","action":"recover","manifest":f.dir.join("manifest.json"),"db":f.configs[0].db,"evaluations":["eval-v2","eval-v3"]}),
+    );
+    assert_ne!(out["pid"], std::process::id().to_string());
+    assert_eq!(out["recovered"]["kind"], "Recovered");
+    assert_eq!(out["recovered"]["writer_epoch"], "2");
+    assert_eq!(out["recovered"]["cut"], second["cut"]);
+    for (q, original) in out["queries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .zip([&first, &second])
+    {
+        assert_eq!(q["kind"], "EconomicSrEvaluation", "{q}");
+        assert_eq!(q["evaluation"], original["record"]);
+        assert_eq!(q["receipt"], *original);
+    }
+    assert_eq!(
+        e_handle(&mut f, 2, "sr-pre-1", v2_request),
+        first,
+        "恢复后原请求只取回原回执，不按新版本重算"
+    );
+    let mut late = evaluation(&f, "eval-v3-late", &v3);
+    late["writer_epoch"] = json!("2");
+    let late = e_handle(&mut f, 2, "sr-late-1", late);
+    assert_eq!(late["kind"], "SrExpansionEvaluated", "{late}");
+    assert_eq!(late["record"]["result"], "NoAction");
+    assert_eq!(
+        e_handle(
+            &mut f,
+            2,
+            "sr-query",
+            json!({"op":"QuerySrEvaluation","evaluation_id":"eval-v2"}),
+        )["evaluation"],
+        first["record"]
+    );
+
+    for sql in [
+        "UPDATE receipts SET json=json_set(json,'$.record.result','NoAction') WHERE json_extract(json,'$.evaluation_id')='eval-v2'",
+        "DELETE FROM messages WHERE json_extract(request_json,'$.payload.evaluation_id')='eval-v3'",
+    ] {
+        f.dbs[0].execute_batch("SAVEPOINT corrupt").unwrap();
+        f.dbs[0].execute_batch(sql).unwrap();
+        assert!(audit(&f.dbs[0], &f.configs[0]).is_err(), "{sql}");
+        f.dbs[0]
+            .execute_batch("ROLLBACK TO corrupt; RELEASE corrupt")
+            .unwrap();
+    }
+    f.audit();
+}
+
+#[test]
+fn sr_evaluation_sigkill_before_or_after_commit_recovers_complete_state() {
+    for phase in ["before_commit", "after_commit"] {
+        let mut f = Fixture::with_fault("100", Some(("sr-pre-1", phase)));
+        let p = evaluation(
+            &f,
+            "eval-kill",
+            &policy(
+                "v2",
+                vec![signed("gross", ">=", "20", all_chongs(), "freeze_new")],
+            ),
+        );
+        let request = envelope("sr-pre-1", p);
+        let previous = latest(&f.dbs[0]).unwrap();
+        let job = json!({"label":"evaluate","action":"evaluate","manifest":f.dir.join("manifest.json"),"db":f.configs[0].db,"request":request});
+        let mut process = spawn_child(&f.dir, &job);
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        while !f.dir.join("fault-marker.json").exists() {
+            if let Some(status) = process.try_wait().unwrap() {
+                panic!("子进程未到故障缝即退出 {status}: {}", f.dir.display())
+            }
+            if std::time::Instant::now() >= deadline {
+                let _ = process.kill();
+                let _ = process.wait();
+                panic!("故障 marker 超时：{}", f.dir.display())
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        process.kill().unwrap();
+        assert_eq!(process.wait().unwrap().signal(), Some(9));
+        let committed = phase == "after_commit";
+        let current = latest(&f.dbs[0]).unwrap();
+        assert_eq!(current.0, previous.0 + i64::from(committed), "{phase}");
+        if !committed {
+            assert_eq!(current, previous);
+        }
+        let receipt = row(
+            &f.dbs[0],
+            "receipts",
+            &crate::economic_session::sr_expansion::receipt_key("eval-kill"),
+        )
+        .unwrap();
+        assert_eq!(receipt.is_some(), committed, "{phase}");
+        audit(&f.dbs[0], &f.configs[0]).unwrap();
+        let evaluations = if committed {
+            json!(["eval-kill"])
+        } else {
+            json!([])
+        };
+        let out = run_child(
+            &f.dir,
+            &json!({"label":"recover","action":"recover","manifest":f.dir.join("manifest.json"),"db":f.configs[0].db,"evaluations":evaluations}),
+        );
+        assert_eq!(out["recovered"]["writer_epoch"], "2");
+        assert_eq!(
+            out["recovered"]["cut"],
+            cut(&f.configs[0], current.0, &current.1)
+        );
+        let again = service::handle(&mut f.dbs[0], &f.configs[0], 2, 2, &json!({}), &request)
+            ["payload"]
+            .clone();
+        if committed {
+            let receipt = receipt.unwrap();
+            assert_eq!(again, receipt);
+            assert_eq!(out["queries"][0]["evaluation"], receipt["record"]);
+        } else {
+            assert!(
+                again["error"].as_str().unwrap().starts_with("StaleWriter"),
+                "{again}"
+            );
+        }
+        assert_eq!(latest(&f.dbs[0]).unwrap(), current);
+        audit(&f.dbs[0], &f.configs[0]).unwrap();
+    }
+}
+
+/// 子进程入口：只由本文件的恢复/故障调度以其建立的 job 文件调用。
+#[test]
+#[ignore = "仅供 #1717 SR 评估子进程故障与恢复调度调用，不作独立通过项"]
+fn sr_child() {
+    let job_path =
+        PathBuf::from(std::env::var_os("TB1717_SR_CHILD_JOB").expect("child job required"));
+    let job = strict_json(&std::fs::read(&job_path).unwrap()).unwrap();
+    let config = Config::load(
+        Path::new(required(&job, "manifest").unwrap()),
+        Path::new(required(&job, "db").unwrap()),
+        None,
+    )
+    .unwrap();
+    let result = if job["action"] == "recover" {
+        let recovered = recover(&config).unwrap();
+        let epoch = positive(required(&recovered, "writer_epoch").unwrap(), "epoch").unwrap();
+        let (mut c, _) = open(&config.db, false).unwrap();
+        let queries: Vec<Value> = job["evaluations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|id| {
+                service::handle(
+                    &mut c,
+                    &config,
+                    epoch,
+                    epoch,
+                    &json!({}),
+                    &envelope(
+                        "sr-child-query",
+                        json!({"op":"QuerySrEvaluation","evaluation_id":id}),
+                    ),
+                )["payload"]
+                    .clone()
+            })
+            .collect();
+        json!({"pid":std::process::id().to_string(),"recovered":recovered,"queries":queries})
+    } else {
+        let (mut c, _) = open(&config.db, false).unwrap();
+        service::handle(&mut c, &config, 1, 1, &json!({}), &job["request"])["payload"].clone()
+    };
+    save(
+        job_path.parent().unwrap(),
+        &format!("{}-result.json", required(&job, "label").unwrap()),
+        &result,
+    );
+}
+fn spawn_child(dir: &Path, job: &Value) -> std::process::Child {
+    let label = required(job, "label").unwrap();
+    let (path, _) = save(dir, &format!("sr-{label}-job.json"), job);
+    std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", CHILD, "--ignored", "--nocapture"])
+        .env("TB1717_SR_CHILD_JOB", path)
+        .stdout(std::fs::File::create(dir.join(format!("sr-{label}.stdout"))).unwrap())
+        .stderr(std::fs::File::create(dir.join(format!("sr-{label}.stderr"))).unwrap())
+        .spawn()
+        .unwrap()
+}
+fn run_child(dir: &Path, job: &Value) -> Value {
+    let status = spawn_child(dir, job).wait().unwrap();
+    assert!(status.success(), "子进程失败：{}", dir.display());
+    let label = required(job, "label").unwrap();
+    strict_json(&std::fs::read(dir.join(format!("{label}-result.json"))).unwrap()).unwrap()
+}

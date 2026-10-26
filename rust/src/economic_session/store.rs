@@ -224,6 +224,8 @@ impl Config {
                     "CloseApplicants",
                     "QueryDecision",
                     "QueryGrant",
+                    super::sr_expansion::OP,
+                    super::sr_expansion::QUERY,
                 ]
                 .contains(&op)
                     || !unique.insert(op)
@@ -1081,6 +1083,17 @@ pub(super) fn audit_with_budget(
         } else if image["history"]
             .as_array()
             .and_then(|a| a.last())
+            .is_some_and(|e| e["kind"] == super::sr_expansion::OP)
+        {
+            let event = image["history"].as_array().unwrap().last().unwrap();
+            let expected =
+                super::sr_expansion::replay(c, config, &previous_image, event, seq, &ns, budget)?;
+            if image != expected {
+                return Err("StorageUnavailable：SR 评估重放不等于完整提交图像".into());
+            }
+        } else if image["history"]
+            .as_array()
+            .and_then(|a| a.last())
             .is_some_and(super::finance::is_event)
         {
             let event = image["history"].as_array().unwrap().last().unwrap();
@@ -1171,6 +1184,10 @@ pub(super) fn audit_with_budget(
     for r in receipt_rows {
         if r["kind"] == "Resolved" {
             super::tb03c_e::audit_receipt(c, config, &previous_image, &r, budget)?;
+            continue;
+        }
+        if r["kind"] == super::sr_expansion::RECEIPT {
+            super::sr_expansion::audit_receipt(c, config, &r, budget)?;
             continue;
         }
         if r.get("receipt_key").is_some() {
@@ -1283,6 +1300,8 @@ pub(super) fn audit_with_budget(
             let v = strict_json(s.as_bytes())?;
             let expected_key = if table == "receipts" && v["kind"] == "Resolved" {
                 super::tb03c_e::receipt_key(required(&v, "evidence_id")?)
+            } else if table == "receipts" && v["kind"] == super::sr_expansion::RECEIPT {
+                super::sr_expansion::receipt_key(required(&v, "evaluation_id")?)
             } else if table == "receipts" && v.get("receipt_key").is_some() {
                 required(&v, "receipt_key")?.to_owned()
             } else if table == "receipts" && v["kind"] == "VoiceBound" {
@@ -1345,6 +1364,14 @@ pub(super) fn audit_with_budget(
             {
                 return Err("StorageUnavailable：Resolve 消息与原证据/来源不一致".into());
             }
+        } else if receipt["kind"] == super::sr_expansion::RECEIPT {
+            if config.domain != "E"
+                || payload["op"] != super::sr_expansion::OP
+                || rk != super::sr_expansion::receipt_key(required(payload, "evaluation_id")?)
+            {
+                return Err("StorageUnavailable：SR 消息与永久回执类型/身份不符".into());
+            }
+            super::sr_expansion::audit_message(c, config, &request, &receipt, budget)?;
         } else if receipt.get("receipt_key").is_some() {
             super::finance::audit_message(c, config, &request, &receipt, budget)?;
         } else if config.domain == "E" {

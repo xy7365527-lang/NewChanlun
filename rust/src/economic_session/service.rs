@@ -1356,6 +1356,7 @@ fn read(
             json!({"kind":"EconomicChanges","domain_id":config.domain,"cut":cut(config,s,&h),"changes":changes,"writer_epoch":epoch.to_string()})
         }
         "QueryDecision" | "QueryGrant" => super::finance::query(&tx, config, p)?,
+        super::sr_expansion::QUERY => super::sr_expansion::query(&tx, config, p)?,
         "QueryFact" => {
             exact(p, &["op", "fact_key"])?;
             let k = required(p, "fact_key")?;
@@ -1442,6 +1443,9 @@ fn handle_with_deadline(
             "ResolveEvidence" if config.domain == "E" => {
                 resolve_evidence(c, config, epoch, e, ingress_response_deadline)
             }
+            super::sr_expansion::OP if config.domain == "E" => {
+                super::sr_expansion::write(c, config, epoch, e, ingress_response_deadline)
+            }
             "ApplyAllocation" if config.domain.starts_with("B:") => apply_allocation_with_ingress(
                 c,
                 config,
@@ -1453,8 +1457,14 @@ fn handle_with_deadline(
             "BindVoice" if config.domain.starts_with("B:") => {
                 bind_voice(c, config, epoch, e, ingress_response_deadline)
             }
-            "ReadView" | "Watch" | "QueryFact" | "QueryAllocation" | "QueryVoice"
-            | "QueryDecision" | "QueryGrant" => read(c, config, epoch, runtime, &e["payload"]),
+            "ReadView"
+            | "Watch"
+            | "QueryFact"
+            | "QueryAllocation"
+            | "QueryVoice"
+            | "QueryDecision"
+            | "QueryGrant"
+            | super::sr_expansion::QUERY => read(c, config, epoch, runtime, &e["payload"]),
             _ => Err("SchemaUnsupported：操作不属于本域".into()),
         }
     })();
