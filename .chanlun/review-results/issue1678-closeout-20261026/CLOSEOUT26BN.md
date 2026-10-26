@@ -19,7 +19,7 @@
 | `/Volumes/AgentStorage/issue1678-selfheal-evidence-20261024/worktree` | `f6118cc6668efb50fe656423e3231870d7a4d073` | `refs/archive/issue1678-26bn/evidence` |
 | `/Volumes/AgentStorage/pr1720-consume1723-20261026` | `b1b2016b1dc02be8c2106ab6701b4e816e79ec70` | `refs/archive/issue1678-26bn/integrated` |
 
-两份增量 bundle 已通过 `git bundle verify`，list-heads 对齐上述 HEAD。它们的基础提交分别为 `13ed4d45c8ff85175819ca987690328ab2a247a4` 和 `9b66f8a7acc85402f15fc9918628a86439d7ddb3`，不是完整仓库备份。
+两份增量 bundle 已通过 `git bundle verify`，list-heads 对齐上述 HEAD。evidence bundle 要求前置提交 `13ed4d45c8ff85175819ca987690328ab2a247a4`；integrated bundle 要求前置提交 `9b66f8a7acc85402f15fc9918628a86439d7ddb3` 与 `99df2ed762201236b89f0e81c0276cb3aa847f0a`。它们不是完整仓库备份。
 
 恢复命令在原仓库执行。
 
