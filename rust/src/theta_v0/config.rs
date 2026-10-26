@@ -171,6 +171,15 @@ impl Tangency {
     }
 }
 
+/// 塔底构件（qujiantao §14.3）。当前生产只具备 `segment` 的真实构件与数据 profile；
+/// `kline3` / `trade3` 是合法记录值，但在构造入口显式拒绝，不能拿线段输入冒充。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TowerBase {
+    Segment,
+    Kline3,
+    Trade3,
+}
+
 /// Θ_level 参数（reference-theta-v0.md:27-30）。
 ///
 /// #1603（#1586 C-09）：`l_max` 是资源预算，只从版本化记录 `tower-level-budget` 读取
@@ -185,15 +194,20 @@ pub struct LevelConfig {
     pub min_parts_per_level: u32,
     /// `l_max` 所出自的记录版本（输出随 `ClassifyOutput::policy` 写出）。
     pub budget: super::policy_records::PolicyRef,
+    /// 递归第一步的构件；只从 `tower-base` 记录读取。
+    pub tower_base: TowerBase,
+    /// `tower_base` 所出自的记录版本。
+    pub tower_base_policy: super::policy_records::PolicyRef,
 }
 
 impl LevelConfig {
     /// 由当前生效的 `tower-level-budget` 记录构造；记录缺失、未签或非法 ⟹ 报错（不回退）。
     pub fn from_active_record() -> Result<Self, super::policy_records::PolicyError> {
-        Ok(super::policy_records::level_config_from(
+        super::policy_records::try_level_config_from(
             super::policy_records::active_tower_level_budget()?,
+            super::policy_records::active_tower_base()?,
             3,
-        ))
+        )
     }
 
     /// 研究/镜像工具在代码里改塔高时用：值照改，记录版本标 `research-override`，输出不冒充签署版本。

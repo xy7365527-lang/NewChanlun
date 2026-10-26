@@ -1,0 +1,30 @@
+{
+  "id": "trend-scope",
+  "version": 1,
+  "kind": "positional_policy",
+  "ticket": "#1626（#1600 / qujiantao §14.2；ADR 0041）",
+  "note": "趋势相停削的层级作用域。模式串只选择 profile，实际取值只读本记录且须匹配预注册身份；改记录版本不改变 profile 语义，新增作用域另需预注册，不在运行中改走。",
+  "fields": {
+    "default": {
+      "value": "SelfLayer",
+      "default": "SelfLayer",
+      "source": "qujiantao §14.2：本仓现行默认值",
+      "options": "SelfLayer",
+      "cost": "改值改变停削窗口，旧读数不可直接比较"
+    },
+    "hold26_anc": {
+      "value": "Ancestor",
+      "default": "Ancestor",
+      "source": "hold26_anc 预注册研究臂（026:80 的工程推广）",
+      "options": "Ancestor",
+      "cost": "只在该研究臂预注册合取下合法"
+    },
+    "fusion_ta": {
+      "value": "SelfOrAncestor",
+      "default": "SelfOrAncestor",
+      "source": "fusion_ta 预注册研究臂",
+      "options": "SelfOrAncestor",
+      "cost": "接受集为自层与祖先的并集，只在该研究臂预注册合取下合法"
+    }
+  }
+}

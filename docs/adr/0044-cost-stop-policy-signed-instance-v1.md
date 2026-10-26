@@ -51,7 +51,7 @@ version: v1
 supersedes: none
 symbol: BTC
 granularity: 1m
-tower_base_ref: L0（qujiantao.md:519 塔底；ADR 0035:15）
+tower_base_ref: L0 = segment（qujiantao.md:519 塔底；ADR 0035:15；机读 `tower-base/1`，#1626）
 fee: Known  ref: analysis/data_cache/venue_fee_binance_spot_20260726.json  source_url: https://www.binance.com/en/fee/trading  retrieved_at: 2026-07-26  tier: VIP0  role: taker  rate: 1/1000
 slippage: Missing
 latency_error: ProxyLowerBound  probe_run_ref: .chanlun/review-results/issue907-cost-gate-level-20260805.md:161-169（DELAYERR，只能判失败）
@@ -73,7 +73,7 @@ version: v1
 supersedes: none
 symbol: BTC
 granularity: 1m
-tower_base_ref: L0（qujiantao.md:519 塔底；ADR 0035:15）
+tower_base_ref: L0 = segment（qujiantao.md:519 塔底；ADR 0035:15；机读 `tower-base/1`，#1626）
 fee: Known  source_url: https://hyperliquid.gitbook.io/hyperliquid-docs/trading/fees  retrieved_at: 2026-10-20  tier: Tier 0 Base rate  role: taker  rate: 45/100000
 slippage: Missing
 latency_error: Missing
