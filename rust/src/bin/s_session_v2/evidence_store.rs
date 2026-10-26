@@ -1505,6 +1505,12 @@ impl<'a> Reader<'a> {
             self.load_work(id).map_err(MixedJsonError::Business)
         }
     }
+    #[cfg(test)]
+    pub(crate) fn mixed_expansion_for_test(&mut self,root_key:&str) -> Result<CodecVec<u8>,MixedJsonError> {
+        assert!(self.mixed_observer.is_some());
+        let check=self.closure_typed(root_key)?;
+        self.expand_work_typed(root_key,&check.row)
+    }
     pub(super) fn read_root_owned(&mut self, root_key: &str) -> Result<OwnedVerifiedRoot, String> {
         if self.owned.is_none() {
             return Err("prototype_audit_allocation_incomplete：私有图Owned入口缺原账".into());

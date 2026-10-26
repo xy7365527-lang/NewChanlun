@@ -890,6 +890,8 @@ mod tests {
         let payload = b"abc";
         let id = sc::legacy_evidence::node_id(0,payload);
         conn.execute("INSERT INTO s_evidence_nodes VALUES(?1,0,?2,3)",rusqlite::params![&id[..],&payload[..]]).unwrap();
+        conn.execute("INSERT INTO s_evidence_roots VALUES('root',?1,?2,3,?3)",
+            rusqlite::params![&id[..],&b""[..],"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"]).unwrap();
         let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
         owner.codec_work().unwrap().run(|work| {
             let job = Job::new_started_mixed(job_limits(),Existing {store_bytes:0,staged_bytes:0},
@@ -931,6 +933,9 @@ mod tests {
                 let first=reader.load_mixed(&id).unwrap();
                 let again=reader.load_mixed(&id).unwrap();
                 assert!(crate::v3::native_shared::NativeArc::ptr_eq(&first,&again));
+                assert_eq!(observer.job.borrow().snapshot().nodes,1);
+                let expanded=reader.mixed_expansion_for_test("root").unwrap();
+                assert_eq!(&*expanded,payload);
                 assert_eq!(observer.job.borrow().snapshot().nodes,1);
             }
             conn.execute("UPDATE s_evidence_nodes SET payload=?1",rusqlite::params![&b"bad"[..]]).unwrap();
