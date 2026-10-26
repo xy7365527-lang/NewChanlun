@@ -1178,17 +1178,18 @@ pub(super) fn cert_marked(conn_id: usize, id: [u8; 32]) -> bool {
 pub(super) fn cert_certify(conn_id: usize, id: [u8; 32]) {
     cert_certify_admitted(conn_id, id, None).expect("None admission cannot fail")
 }
-pub(super) fn cert_certify_admitted(
+pub(super) fn cert_certify_admitted(conn_id:usize,id:[u8;32],work:Option<&WorkScope>) -> Result<(),String> { cert_certify_typed(conn_id,id,work).map_err(|e|e.to_string()) }
+pub(super) fn cert_certify_typed(
     conn_id: usize,
     id: [u8; 32],
     work: Option<&WorkScope>,
-) -> Result<(), String> {
+) -> Result<(), newchan_rust::s_content::CodecError> {
     let admission = NativeAdmission(work);
     MEMO.with(|m| {
         if let Some(c) = m.borrow_mut().capture.as_mut() {
             c.certified
                 .insert_admitted((conn_id, id), &admission)
-                .map_err(|e| e.to_string())?;
+                ?;
         }
         Ok(())
     })

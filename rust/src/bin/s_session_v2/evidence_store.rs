@@ -71,22 +71,25 @@ fn work_copy_typed<T: Copy>(
     Ok(out)
 }
 
-fn work_resize_admitted<T: Copy>(
+fn work_resize_admitted<T: Copy>(v: &mut CodecVec<T>, len: usize, value: T, work: Option<&WorkScope>) -> Result<(), String> {
+    work_resize_typed(v,len,value,work).map_err(ordinary_read_error)
+}
+fn work_resize_typed<T: Copy>(
     v: &mut CodecVec<T>,
     len: usize,
     value: T,
     work: Option<&WorkScope>,
-) -> Result<(), String> {
+) -> Result<(), MixedJsonError> {
     let admission = NativeAdmission(work);
     if len > v.len() {
         admission
             .native_codec_room(v, len - v.len())
-            .map_err(|e| e.to_string())?;
+            .map_err(MixedJsonError::Resource)?;
         v.try_reserve_exact(len - v.len())
-            .map_err(|e| e.to_string())?;
+            .map_err(MixedJsonError::Resource)?;
     }
     while v.len() < len {
-        v.try_push(value).map_err(|e| e.to_string())?;
+        v.try_push(value).map_err(MixedJsonError::Resource)?;
     }
     Ok(())
 }
@@ -942,44 +945,47 @@ fn split_seq_work_typed<'a>(
 fn decode_into(kind: i64, payload: &[u8], stack: &mut CodecVec<Frame>) -> Result<(), String> {
     decode_into_admitted(kind, payload, stack, None)
 }
-fn decode_into_admitted(
+fn decode_into_admitted(kind: i64, payload: &[u8], stack: &mut CodecVec<Frame>, work: Option<&WorkScope>) -> Result<(), String> {
+    decode_into_typed(kind,payload,stack,work).map_err(ordinary_read_error)
+}
+fn decode_into_typed(
     kind: i64,
     payload: &[u8],
     stack: &mut CodecVec<Frame>,
     work: Option<&WorkScope>,
-) -> Result<(), String> {
+) -> Result<(), MixedJsonError> {
     let admission = NativeAdmission(work);
     let owner = stack.allocation_budget().cloned();
     if kind == KIND_LEAF {
         admission
             .native_codec_room(stack, 1)
-            .map_err(|e| e.to_string())?;
+            .map_err(MixedJsonError::Resource)?;
         stack
-            .try_push(Frame::Lit(work_copy_admitted(
+            .try_push(Frame::Lit(work_copy_typed(
                 payload,
                 owner.as_ref(),
                 work,
             )?))
-            .map_err(|e| e.to_string())?;
+            .map_err(MixedJsonError::Resource)?;
         return Ok(());
     }
     let mut frames = new_work(owner.as_ref());
-    for part in split_seq_work_admitted(payload, owner.as_ref(), work)? {
+    for part in split_seq_work_typed(payload, owner.as_ref(), work)? {
         let frame = match part {
-            Part::Lit(bytes) => Frame::Lit(work_copy_admitted(bytes, owner.as_ref(), work)?),
+            Part::Lit(bytes) => Frame::Lit(work_copy_typed(bytes, owner.as_ref(), work)?),
             Part::Ref(id) => Frame::Open(id),
             Part::Slot(idx) => Frame::Slot(idx),
         };
         admission
             .native_codec_room(&mut frames, 1)
-            .map_err(|e| e.to_string())?;
-        frames.try_push(frame).map_err(|e| e.to_string())?;
+            .map_err(MixedJsonError::Resource)?;
+        frames.try_push(frame).map_err(MixedJsonError::Resource)?;
     }
     for f in frames.into_iter().rev() {
         admission
             .native_codec_room(stack, 1)
-            .map_err(|e| e.to_string())?;
-        stack.try_push(f).map_err(|e| e.to_string())?;
+            .map_err(MixedJsonError::Resource)?;
+        stack.try_push(f).map_err(MixedJsonError::Resource)?;
     }
     Ok(())
 }
@@ -1290,14 +1296,15 @@ struct ReadDerived {
     digest: [u8; 32],
 }
 impl ReadDerived {
-    fn try_clone(
+    fn try_clone(&self, owner: Option<&OwnedBudget>, work: Option<&WorkScope>) -> Result<Self,String> { self.try_clone_typed(owner,work).map_err(ordinary_read_error) }
+    fn try_clone_typed(
         &self,
         owner: Option<&OwnedBudget>,
         work: Option<&WorkScope>,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, MixedJsonError> {
         Ok(Self {
             length: self.length,
-            slot_counts: work_copy_admitted(&self.slot_counts, owner, work)?,
+            slot_counts: work_copy_typed(&self.slot_counts, owner, work)?,
             digest: self.digest,
         })
     }
@@ -1415,11 +1422,12 @@ impl<'a> Reader<'a> {
     fn owner(&self) -> Option<&OwnedBudget> {
         self.owned.as_ref().map(|o| &o.budget)
     }
-    fn mark_touched(&mut self, id: [u8; 32]) -> Result<(), String> {
+    fn mark_touched(&mut self, id: [u8;32]) -> Result<(), String> { self.mark_touched_typed(id).map_err(ordinary_read_error) }
+    fn mark_touched_typed(&mut self, id: [u8; 32]) -> Result<(), MixedJsonError> {
         if self.owned.is_none() {
             self.touched
                 .insert_admitted(id, &NativeAdmission(self.work))
-                .map_err(|e| e.to_string())?;
+                .map_err(MixedJsonError::Resource)?;
         }
         Ok(())
     }
@@ -1429,15 +1437,16 @@ impl<'a> Reader<'a> {
             None => cache::derived_has(self.conn_id, id),
         }
     }
-    fn derived_get(&self, id: &[u8; 32]) -> Result<Option<ReadDerived>, String> {
+    fn derived_get(&self,id:&[u8;32]) -> Result<Option<ReadDerived>, String> { self.derived_get_typed(id).map_err(ordinary_read_error) }
+    fn derived_get_typed(&self, id: &[u8; 32]) -> Result<Option<ReadDerived>, MixedJsonError> {
         match &self.owned {
             Some(o) => o
                 .derived
                 .get(id)
-                .map(|v| v.try_clone(Some(&o.budget), None))
+                .map(|v| v.try_clone_typed(Some(&o.budget), None))
                 .transpose(),
             None => Ok(
-                cache::derived_get_admitted(self.conn_id, id, self.work)?.map(|v| ReadDerived {
+                cache::derived_get_typed(self.conn_id, id, self.work).map_err(MixedJsonError::Resource)?.map(|v| ReadDerived {
                     length: v.length,
                     slot_counts: v.slot_counts,
                     digest: v.digest,
@@ -1445,12 +1454,13 @@ impl<'a> Reader<'a> {
             ),
         }
     }
-    fn derived_put(&mut self, id: [u8; 32], v: ReadDerived) -> Result<(), String> {
+    fn derived_put(&mut self,id:[u8;32],v:ReadDerived) -> Result<(), String> { self.derived_put_typed(id,v).map_err(ordinary_read_error) }
+    fn derived_put_typed(&mut self, id: [u8; 32], v: ReadDerived) -> Result<(), MixedJsonError> {
         match &mut self.owned {
             Some(o) => {
-                o.derived.insert(id, v).map_err(|e| e.to_string())?;
+                o.derived.insert(id, v).map_err(MixedJsonError::Resource)?;
             }
-            None => cache::derived_put_admitted(
+            None => cache::derived_put_typed(
                 self.conn_id,
                 id,
                 cache::NodeDerived {
@@ -1459,7 +1469,7 @@ impl<'a> Reader<'a> {
                     digest: v.digest,
                 },
                 self.work,
-            )?,
+            ).map_err(MixedJsonError::Resource)?,
         }
         Ok(())
     }
@@ -1487,6 +1497,13 @@ impl<'a> Reader<'a> {
         let result = node.try_clone(&state.budget)?;
         state.nodes.insert(*id, node).map_err(|e| e.to_string())?;
         Ok(ReadNode::Owned(result))
+    }
+    fn load_for_walk(&mut self,id:&[u8;32]) -> Result<ReadNode,MixedJsonError> {
+        if self.mixed_observer.is_some() {
+            self.load_mixed(id).map(ReadNode::Plain)
+        } else {
+            self.load_work(id).map_err(MixedJsonError::Business)
+        }
     }
     pub(super) fn read_root_owned(&mut self, root_key: &str) -> Result<OwnedVerifiedRoot, String> {
         if self.owned.is_none() {
@@ -1535,8 +1552,9 @@ impl<'a> Reader<'a> {
     /// 种类、参数叶身份与声明长度自洽，最后给出与**节点 id/种类/长度 + 根行**一一对应的闭包指纹。
     ///
     /// 指纹由当前内容计算，只作附加校验；复用另须根行、全部节点与参数槽原件逐字节匹配。
-    fn closure(&mut self, root_key: &str) -> Result<ClosureCheck, String> {
-        let row = read_root_row_admitted(self.conn, root_key, self.owner(), self.work)?
+    fn closure(&mut self,root_key:&str) -> Result<ClosureCheck,String> { self.closure_typed(root_key).map_err(ordinary_read_error) }
+    fn closure_typed(&mut self, root_key: &str) -> Result<ClosureCheck, MixedJsonError> {
+        let row = read_root_row_typed(self.conn, root_key, self.owner(), self.work)?
             .ok_or_else(|| format!("StorageUnavailable：私有根 `{root_key}` 缺失"))?;
         let RootRow {
             node: root,
@@ -1548,21 +1566,21 @@ impl<'a> Reader<'a> {
         let work = self.work;
         // 声明槽未必都被模板引用：只核每个槽叶自身可寻址；实际占用的槽字节在遍历时累计。
         let mut slot_len = new_work(owner.as_ref());
-        work_resize_admitted(&mut slot_len, slots.len(), 0u64, work)?;
+        work_resize_typed(&mut slot_len, slots.len(), 0u64, work)?;
         for id in &slots {
-            let node = self.load_work(id)?;
+            let node = self.load_for_walk(id)?;
             if node.kind() != KIND_LEAF {
                 return Err(format!(
                     "StorageUnavailable：私有根 `{root_key}` 参数槽引用了非叶节点"
-                ));
+                ).into());
             }
         }
         for (i, id) in slots.iter().enumerate() {
-            slot_len[i] = self.load_work(id)?.length();
+            slot_len[i] = self.load_for_walk(id)?.length();
         }
         // 与根无关的派生量（不含槽长度 + 子树槽出现次数 + 子树摘要）按**新鲜行**自下而上算一次，
         // 同一次捕获内跨根共享（每个唯一节点只解析一次，不再按根重复遍历整棵闭包）。
-        let derived = self.derived_of(root)?;
+        let derived = self.derived_of_typed(root)?;
         let mut slot_bytes = 0u64;
         for (index, count) in derived.slot_counts.iter().enumerate() {
             let bytes = slot_len.get(index).ok_or_else(|| {
@@ -1575,7 +1593,7 @@ impl<'a> Reader<'a> {
             return Err(format!(
                 "StorageUnavailable：私有根 `{root_key}` 展开长度不符（声明 {expanded_len}，闭包合计 {}）",
                 derived.length.saturating_add(slot_bytes)
-            ));
+            ).into());
         }
         let row = RootRow {
             node: root,
@@ -1621,13 +1639,14 @@ impl<'a> Reader<'a> {
     /// 一个与根无关的节点派生量：`length`（不含槽）、`slot_counts`、子树摘要。
     ///
     /// 后序迭代 + 捕获内 memo；`on_path` 只含当前路径——闭包成环一律拒绝（不得用无限遍历替代判据）。
-    fn derived_of(&mut self, root: [u8; 32]) -> Result<ReadDerived, String> {
+    fn derived_of(&mut self,root:[u8;32]) -> Result<ReadDerived,String> { self.derived_of_typed(root).map_err(ordinary_read_error) }
+    fn derived_of_typed(&mut self, root: [u8; 32]) -> Result<ReadDerived, MixedJsonError> {
         let owner = self.owner().cloned();
         let work = self.work;
         let admission = NativeAdmission(work);
-        if let Some(found) = self.derived_get(&root)? {
+        if let Some(found) = self.derived_get_typed(&root)? {
             // 本次捕获已按新鲜行结算过该节点：仍要记账（可达集必须覆盖它），但不重复读行。
-            self.mark_touched(root)?;
+            self.mark_touched_typed(root)?;
             return Ok(found);
         }
         let mut on_path = new_map::<[u8; 32], ()>(owner.as_ref());
@@ -1637,15 +1656,15 @@ impl<'a> Reader<'a> {
         let mut stack = new_work(owner.as_ref());
         admission
             .native_codec_room(&mut stack, 1)
-            .map_err(|e| e.to_string())?;
-        stack.try_push((root, false)).map_err(|e| e.to_string())?;
+            .map_err(MixedJsonError::Resource)?;
+        stack.try_push((root, false)).map_err(MixedJsonError::Resource)?;
         while let Some((id, closing)) = stack.pop() {
             // 热路径只问存在性（不克隆派生量：`slot_counts` 是 Vec，克隆会为每个节点多一次分配）。
             if local.contains_key(&id) || self.derived_has(&id) {
-                self.mark_touched(id)?;
+                self.mark_touched_typed(id)?;
                 continue;
             }
-            let node = self.load_work(&id)?;
+            let node = self.load_for_walk(&id)?;
             if node.kind() == KIND_LEAF {
                 let derived = ReadDerived {
                     length: node.length(),
@@ -1654,37 +1673,37 @@ impl<'a> Reader<'a> {
                 };
                 admission
                     .native_map_room(&mut local)
-                    .map_err(|e| e.to_string())?;
+                    .map_err(MixedJsonError::Resource)?;
                 local
-                    .insert(id, derived.try_clone(owner.as_ref(), work)?)
-                    .map_err(|e| e.to_string())?;
-                self.derived_put(id, derived)?;
+                    .insert(id, derived.try_clone_typed(owner.as_ref(), work)?)
+                    .map_err(MixedJsonError::Resource)?;
+                self.derived_put_typed(id, derived)?;
                 // 叶子没有子依赖：本次逐字节命中即可认证（认证搭在既有后序遍历上，零额外遍历）。
                 if self.owned.is_none() && cache::cert_marked(self.conn_id, id) {
-                    cache::cert_certify_admitted(self.conn_id, id, self.work)?;
+                    cache::cert_certify_typed(self.conn_id, id, self.work).map_err(MixedJsonError::Resource)?;
                 }
                 continue;
             }
-            let parts = split_seq_work_admitted(node.payload(), owner.as_ref(), work)?;
+            let parts = split_seq_work_typed(node.payload(), owner.as_ref(), work)?;
             if !closing {
                 admission
                     .native_map_room(&mut on_path)
-                    .map_err(|e| e.to_string())?;
-                if on_path.insert(id, ()).map_err(|e| e.to_string())?.is_some() {
+                    .map_err(MixedJsonError::Resource)?;
+                if on_path.insert(id, ()).map_err(MixedJsonError::Resource)?.is_some() {
                     return Err(format!(
                         "StorageUnavailable：私有图闭包出现环（节点 {} 自引用）",
                         hex(&id)
-                    ));
+                    ).into());
                 }
                 admission
                     .native_codec_room(&mut stack, 1)
-                    .map_err(|e| e.to_string())?;
-                stack.try_push((id, true)).map_err(|e| e.to_string())?;
+                    .map_err(MixedJsonError::Resource)?;
+                stack.try_push((id, true)).map_err(MixedJsonError::Resource)?;
                 for child in node.children().iter().rev() {
                     admission
                         .native_codec_room(&mut stack, 1)
-                        .map_err(|e| e.to_string())?;
-                    stack.try_push((*child, false)).map_err(|e| e.to_string())?;
+                        .map_err(MixedJsonError::Resource)?;
+                    stack.try_push((*child, false)).map_err(MixedJsonError::Resource)?;
                 }
                 continue;
             }
@@ -1701,12 +1720,12 @@ impl<'a> Reader<'a> {
             if let Some(child) = missing {
                 admission
                     .native_codec_room(&mut stack, 1)
-                    .map_err(|e| e.to_string())?;
-                stack.try_push((id, true)).map_err(|e| e.to_string())?;
+                    .map_err(MixedJsonError::Resource)?;
+                stack.try_push((id, true)).map_err(MixedJsonError::Resource)?;
                 admission
                     .native_codec_room(&mut stack, 1)
-                    .map_err(|e| e.to_string())?;
-                stack.try_push((child, false)).map_err(|e| e.to_string())?;
+                    .map_err(MixedJsonError::Resource)?;
+                stack.try_push((child, false)).map_err(MixedJsonError::Resource)?;
                 continue;
             }
             let mut length = 0u64;
@@ -1718,14 +1737,14 @@ impl<'a> Reader<'a> {
                     Part::Slot(index) => {
                         let index = index as usize;
                         if counts.len() <= index {
-                            work_resize_admitted(&mut counts, index + 1, 0, work)?;
+                            work_resize_typed(&mut counts, index + 1, 0, work)?;
                         }
                         counts[index] = counts[index].saturating_add(1);
                     }
                     Part::Ref(child) => {
                         let entry = match local.get(&child) {
-                            Some(v) => Some(v.try_clone(owner.as_ref(), work)?),
-                            None => self.derived_get(&child)?,
+                            Some(v) => Some(v.try_clone_typed(owner.as_ref(), work)?),
+                            None => self.derived_get_typed(&child)?,
                         }
                         .ok_or_else(|| {
                             format!(
@@ -1736,15 +1755,15 @@ impl<'a> Reader<'a> {
                         })?;
                         length = length.saturating_add(entry.length);
                         if counts.len() < entry.slot_counts.len() {
-                            work_resize_admitted(&mut counts, entry.slot_counts.len(), 0, work)?;
+                            work_resize_typed(&mut counts, entry.slot_counts.len(), 0, work)?;
                         }
                         for (index, count) in entry.slot_counts.iter().enumerate() {
                             counts[index] = counts[index].saturating_add(*count);
                         }
                         admission
                             .native_codec_room(&mut children, 1)
-                            .map_err(|e| e.to_string())?;
-                        children.try_push(child).map_err(|e| e.to_string())?;
+                            .map_err(MixedJsonError::Resource)?;
+                        children.try_push(child).map_err(MixedJsonError::Resource)?;
                     }
                 }
             }
@@ -1753,7 +1772,7 @@ impl<'a> Reader<'a> {
                     "StorageUnavailable：私有节点 {} 声明长度 {} 与实际展开 {length} 不符",
                     hex(&id),
                     node.length()
-                ));
+                ).into());
             }
             on_path.remove(&id);
             let derived = ReadDerived {
@@ -1763,11 +1782,11 @@ impl<'a> Reader<'a> {
             };
             admission
                 .native_map_room(&mut local)
-                .map_err(|e| e.to_string())?;
+                .map_err(MixedJsonError::Resource)?;
             local
-                .insert(id, derived.try_clone(owner.as_ref(), work)?)
-                .map_err(|e| e.to_string())?;
-            self.derived_put(id, derived)?;
+                .insert(id, derived.try_clone_typed(owner.as_ref(), work)?)
+                .map_err(MixedJsonError::Resource)?;
+            self.derived_put_typed(id, derived)?;
             // 子节点（本帧的后序先决条件）已全部结算：只要每个直接子节点都已认证，本节点也认证。
             if self.owned.is_none()
                 && cache::cert_marked(self.conn_id, id)
@@ -1775,14 +1794,14 @@ impl<'a> Reader<'a> {
                     .iter()
                     .all(|child| cache::cert_is_certified(self.conn_id, *child))
             {
-                cache::cert_certify_admitted(self.conn_id, id, self.work)?;
+                cache::cert_certify_typed(self.conn_id, id, self.work).map_err(MixedJsonError::Resource)?;
             }
         }
         match local.get(&root) {
-            Some(v) => Some(v.try_clone(owner.as_ref(), work)?),
-            None => self.derived_get(&root)?,
+            Some(v) => Some(v.try_clone_typed(owner.as_ref(), work)?),
+            None => self.derived_get_typed(&root)?,
         }
-        .ok_or_else(|| "StorageUnavailable：私有节点派生量缺失（实现缺陷）".to_string())
+        .ok_or_else(|| MixedJsonError::Business("StorageUnavailable：私有节点派生量缺失（实现缺陷）".into()))
     }
 
     /// 只证明当前完整原件；缺缓存返回 None，闭包错误原样传播，不替换全文读取出口。
@@ -2037,7 +2056,8 @@ impl<'a> Reader<'a> {
             .try_into_plain()
             .map_err(|e| e.to_string())
     }
-    fn expand_work(&mut self, root_key: &str, row: &RootRow) -> Result<CodecVec<u8>, String> {
+    fn expand_work(&mut self,root_key:&str,row:&RootRow) -> Result<CodecVec<u8>,String> { self.expand_work_typed(root_key,row).map_err(ordinary_read_error) }
+    fn expand_work_typed(&mut self, root_key: &str, row: &RootRow) -> Result<CodecVec<u8>, MixedJsonError> {
         let owner = self.owner().cloned();
         let work = self.work;
         let admission = NativeAdmission(work);
@@ -2047,30 +2067,30 @@ impl<'a> Reader<'a> {
         let mut param_bytes = new_work(owner.as_ref());
         admission
             .native_codec_room(&mut param_bytes, row.slots.len())
-            .map_err(|e| e.to_string())?;
+            .map_err(MixedJsonError::Resource)?;
         param_bytes
             .try_reserve_exact(row.slots.len())
-            .map_err(|e| e.to_string())?;
+            .map_err(MixedJsonError::Resource)?;
         for id in &row.slots {
-            let node = self.load_work(id)?;
+            let node = self.load_for_walk(id)?;
             if node.kind() != KIND_LEAF {
                 return Err(format!(
                     "StorageUnavailable：私有根 `{root_key}` 参数槽引用了非叶节点"
-                ));
+                ).into());
             }
             param_bytes
-                .try_push(work_copy_admitted(node.payload(), owner.as_ref(), work)?)
-                .map_err(|e| e.to_string())?;
+                .try_push(work_copy_typed(node.payload(), owner.as_ref(), work)?)
+                .map_err(MixedJsonError::Resource)?;
         }
         // 声明长度来自数据库，不能用它直接请求任意大的分配；实际输出逐段增长。
         let mut out = new_work(owner.as_ref());
         let mut stack = new_work(owner.as_ref());
         admission
             .native_codec_room(&mut stack, 1)
-            .map_err(|e| e.to_string())?;
+            .map_err(MixedJsonError::Resource)?;
         stack
             .try_push(Frame::Open(root))
-            .map_err(|e| e.to_string())?;
+            .map_err(MixedJsonError::Resource)?;
         let mut slot_bytes = 0u64;
         // #1394：仅在固定事务内复用本次已完成的展开区间；自动提交仍逐次 Open 读新鲜行。
         // 只记 out 的区间和槽字节增量，不持有原件/证书；参数固定，out 只追加，区间始终有效。
@@ -2078,12 +2098,12 @@ impl<'a> Reader<'a> {
             .then(|| new_map::<[u8; 32], (usize, usize, u64)>(owner.as_ref()));
         while let Some(item) = stack.pop() {
             match item {
-                Frame::Lit(bytes) => append_checked_admitted(&mut out, &bytes, expanded_len, work)?,
+                Frame::Lit(bytes) => append_checked_typed(&mut out, &bytes, expanded_len, work)?,
                 Frame::Slot(i) => {
                     let bytes = param_bytes.get(i as usize).ok_or_else(|| {
                         format!("StorageUnavailable：私有根 `{root_key}` 参数槽 {i} 越界")
                     })?;
-                    append_checked_admitted(&mut out, bytes, expanded_len, work)?;
+                    append_checked_typed(&mut out, bytes, expanded_len, work)?;
                     slot_bytes += bytes.len() as u64;
                 }
                 Frame::Open(id) => {
@@ -2100,19 +2120,19 @@ impl<'a> Reader<'a> {
                         }
                         admission
                             .native_codec_room(&mut out, len)
-                            .map_err(|e| e.to_string())?;
-                        out.try_reserve_exact(len).map_err(|e| e.to_string())?;
+                            .map_err(MixedJsonError::Resource)?;
+                        out.try_reserve_exact(len).map_err(MixedJsonError::Resource)?;
                         for offset in start..end {
                             let byte = out[offset];
-                            out.try_push(byte).map_err(|e| e.to_string())?;
+                            out.try_push(byte).map_err(MixedJsonError::Resource)?;
                         }
                         slot_bytes += slots;
                         continue;
                     }
-                    let node = self.load_work(&id)?;
+                    let node = self.load_for_walk(&id)?;
                     admission
                         .native_codec_room(&mut stack, 1)
-                        .map_err(|e| e.to_string())?;
+                        .map_err(MixedJsonError::Resource)?;
                     stack
                         .try_push(Frame::Close {
                             id,
@@ -2120,8 +2140,8 @@ impl<'a> Reader<'a> {
                             start: out.len(),
                             slot_bytes_at_open: slot_bytes,
                         })
-                        .map_err(|e| e.to_string())?;
-                    decode_into_admitted(node.kind(), node.payload(), &mut stack, work)?;
+                        .map_err(MixedJsonError::Resource)?;
+                    decode_into_typed(node.kind(), node.payload(), &mut stack, work)?;
                 }
                 Frame::Close {
                     id,
@@ -2137,17 +2157,17 @@ impl<'a> Reader<'a> {
                             "StorageUnavailable：私有节点 {} 声明长度 {} 与实际展开 {without_slots} 不符",
                             hex(&id),
                             declared_length
-                        ));
+                        ).into());
                     }
                     if let Some(spans) = completed.as_mut() {
                         if !spans.contains_key(&id) {
                             admission
                                 .native_map_room(spans)
-                                .map_err(|e| e.to_string())?;
+                                .map_err(MixedJsonError::Resource)?;
                         }
                         spans
                             .insert(id, (start, out.len(), slots))
-                            .map_err(|e| e.to_string())?;
+                            .map_err(MixedJsonError::Resource)?;
                     }
                 }
             }
@@ -2156,12 +2176,12 @@ impl<'a> Reader<'a> {
             return Err(format!(
                 "StorageUnavailable：私有根 `{root_key}` 展开长度不符（声明 {expanded_len}，实际 {}）",
                 out.len()
-            ));
+            ).into());
         }
         if !hash_matches(&out, hash) {
             return Err(format!(
                 "StorageUnavailable：私有根 `{root_key}` 展开字节与登记摘要不符（内容被改）"
-            ));
+            ).into());
         }
         Ok(out)
     }
@@ -2376,12 +2396,15 @@ fn read_root_row(
 ) -> Result<Option<RootRow>, String> {
     read_root_row_admitted(conn, root_key, owner, None)
 }
-fn read_root_row_admitted(
+fn read_root_row_admitted(conn: &Connection, root_key: &str, owner: Option<&OwnedBudget>, work: Option<&WorkScope>) -> Result<Option<RootRow>, String> {
+    read_root_row_typed(conn,root_key,owner,work).map_err(ordinary_read_error)
+}
+fn read_root_row_typed(
     conn: &Connection,
     root_key: &str,
     owner: Option<&OwnedBudget>,
     work: Option<&WorkScope>,
-) -> Result<Option<RootRow>, String> {
+) -> Result<Option<RootRow>, MixedJsonError> {
     let admission = NativeAdmission(work);
     let err = |e| {
         format!(
@@ -2398,10 +2421,10 @@ fn read_root_row_admitted(
         stmt.finalize().map_err(err)?;
         return Ok(None);
     };
-    let node = work_copy_admitted(row.blob(0).map_err(err)?, owner, work)?;
-    let slots = work_copy_admitted(row.blob(1).map_err(err)?, owner, work)?;
+    let node = work_copy_typed(row.blob(0).map_err(err)?, owner, work)?;
+    let slots = work_copy_typed(row.blob(1).map_err(err)?, owner, work)?;
     let len = row.integer(2).map_err(err)?;
-    let hash = TextValue::from_str_admitted(row.text(3).map_err(err)?, owner, work)?;
+    let hash = TextValue::from_str_admitted_typed(row.text(3).map_err(err)?, owner, work).map_err(MixedJsonError::Resource)?;
     drop(row);
     stmt.finalize().map_err(err)?;
     let root = decode_id(&node)
@@ -2409,26 +2432,26 @@ fn read_root_row_admitted(
     if slots.len() % 32 != 0 {
         return Err(format!(
             "StorageUnavailable：私有根 `{root_key}` 参数槽列长度非 32 倍数"
-        ));
+        ).into());
     }
     let mut params = new_work(owner);
     admission
         .native_codec_room(&mut params, slots.len() / 32)
-        .map_err(|e| e.to_string())?;
+        .map_err(MixedJsonError::Resource)?;
     params
         .try_reserve_exact(slots.len() / 32)
-        .map_err(|e| e.to_string())?;
+        .map_err(MixedJsonError::Resource)?;
     for chunk in slots.chunks(32) {
         let mut id = [0u8; 32];
         id.copy_from_slice(chunk);
-        params.try_push(id).map_err(|e| e.to_string())?;
+        params.try_push(id).map_err(MixedJsonError::Resource)?;
     }
     let expanded = u64::try_from(len)
         .map_err(|_| format!("StorageUnavailable：私有根 `{root_key}` 长度非负越界"))?;
     if !is_hex64(hash.as_str()) {
         return Err(format!(
             "StorageUnavailable：私有根 `{root_key}` 内容摘要非 64 位十六进制"
-        ));
+        ).into());
     }
     Ok(Some(RootRow {
         node: root,
@@ -2438,12 +2461,15 @@ fn read_root_row_admitted(
     }))
 }
 
-fn append_checked_admitted(
+fn append_checked_admitted(out: &mut CodecVec<u8>, bytes: &[u8], declared: u64, work: Option<&WorkScope>) -> Result<(), String> {
+    append_checked_typed(out,bytes,declared,work).map_err(ordinary_read_error)
+}
+fn append_checked_typed(
     out: &mut CodecVec<u8>,
     bytes: &[u8],
     declared: u64,
     work: Option<&WorkScope>,
-) -> Result<(), String> {
+) -> Result<(), MixedJsonError> {
     let admission = NativeAdmission(work);
     let next = out
         .len()
@@ -2454,10 +2480,10 @@ fn append_checked_admitted(
     }
     admission
         .native_codec_room(out, bytes.len())
-        .map_err(|e| e.to_string())?;
+        .map_err(MixedJsonError::Resource)?;
     out.try_reserve_exact(bytes.len())
-        .map_err(|e| e.to_string())?;
-    out.try_extend_bytes(bytes).map_err(|e| e.to_string())?;
+        .map_err(MixedJsonError::Resource)?;
+    out.try_extend_bytes(bytes).map_err(MixedJsonError::Resource)?;
     Ok(())
 }
 

@@ -1350,19 +1350,22 @@ pub(crate) enum TextValue {
     Owned(aj::TextOwner),
 }
 impl TextValue {
-    pub fn from_str_admitted(
+    pub fn from_str_admitted(text: &str, owner: Option<&OwnedBudget>, work: Option<&WorkScope>) -> Result<Self, String> {
+        Self::from_str_admitted_typed(text,owner,work).map_err(|e|e.to_string())
+    }
+    pub fn from_str_admitted_typed(
         text: &str,
         owner: Option<&OwnedBudget>,
         work: Option<&WorkScope>,
-    ) -> Result<Self, String> {
-        check_native_owner(owner, work).map_err(|e| e.to_string())?;
+    ) -> Result<Self, sc::CodecError> {
+        check_native_owner(owner, work)?;
         if work.is_some() {
             return NativeAdmission(work)
                 .native_string(text)
                 .map(Self::Plain)
-                .map_err(|e| e.to_string());
+                ;
         }
-        Self::from_str(text, owner)
+        Self::from_str_typed(text, owner)
     }
     pub fn from_sql_admitted(
         row: &mut CheckedRow<'_>,
