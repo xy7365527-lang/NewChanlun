@@ -8297,6 +8297,62 @@ mod tests {
         }
     }
 
+    #[test]
+    fn tb1405_cmd_accept_with_real_scope_preserves_historical_hot_wal() {
+        let files = TestFiles::new();
+        tb1405_accepted_store(&files);
+        let image = files.0.join("旧规则 scoped hot-wal.sqlite");
+        {
+            let writer = open_db(&files.db()).unwrap();
+            writer.execute_batch("PRAGMA wal_autocheckpoint=0;").unwrap();
+            meta_set(&writer, "rule_revision", "s2-axis-quantifiers").unwrap();
+            meta_set(&writer, "advance_state", "begun:dead:2:2").unwrap();
+            meta_set(&writer, "begin_token", "dead").unwrap();
+            tb1405_crash_image(&files.db(), &image);
+        }
+        let before = tb1405_file_bytes(&image);
+        assert!(before[2].1.as_ref().is_some_and(|wal| !wal.is_empty()));
+        let input = write_input(
+            &files,
+            "tb1405-scoped-more.json",
+            &test_input(&[ev("e3", "1", "3", "12000")]),
+        );
+        let profile = fixture("profiles/testonly_tick_1_1_ohlc.json");
+        assert_eq!(
+            cmd_accept(&image, &input, &profile, DEFAULT_WRITER_EPOCH).unwrap_err(),
+            "StartupScopeMissing"
+        );
+        assert_eq!(tb1405_file_bytes(&image), before);
+
+        let command = v3::admission_anchor::CommandAccounting::begin();
+        let prepared = v3::admission_anchor::test_prepare_mixed(&image, 1 << 26, 1 << 26);
+        let scope = v3::admission_private::test_with_mixed_entry(|| {
+            v3::admission::WriterScope::admit(&image, prepared)
+        })
+        .unwrap();
+        let guard = scope.enter().unwrap();
+        let error = cmd_accept(&image, &input, &profile, DEFAULT_WRITER_EPOCH).unwrap_err();
+        assert!(error.starts_with("VersionMismatch："), "{error}");
+        let reader = open_db(&image).unwrap();
+        assert_eq!(
+            meta_get_opt(&reader, "advance_state").unwrap().as_deref(),
+            Some("begun:dead:2:2")
+        );
+        assert!(meta_set(&reader, "advance_state", "idle").is_err());
+        assert_eq!(
+            read_snapshot_in_tx(&reader.unchecked_transaction().unwrap(), None).unwrap()
+                ["generation"],
+            json!("1")
+        );
+        drop(reader);
+        drop(guard);
+        drop(scope);
+        let mut sink = Vec::new();
+        let receipt = command.report(&error, &mut sink);
+        assert!(receipt.job.is_some());
+        assert_eq!(tb1405_file_bytes(&image), before);
+    }
+
     /// 旧规则库带未回滚的 -journal 热日志：只读判规则读不出 ⟹ 全部入口拒绝，主库与 -journal
     /// 字节不变（写连接首读会回滚热日志，改写主库）。
     #[test]
