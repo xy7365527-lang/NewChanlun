@@ -10,6 +10,10 @@
 
 所有工蜂只经现役 `.sandcastle/codex-child.mts` 启动，隔离与现役相同。试点不 push、不开 PR、不合 main，也不碰常驻队列与服务。
 
+## 在浏览器看图
+
+打开官方 Studio 的方法见 [在官方 Studio 查看试点执行图](STUDIO.md)。此入口只读，不接管原 run。
+
 ## 准备环境
 
 依赖锁在 `requirements.lock`（deepagents 0.7.32、langgraph 1.2.17、langgraph-checkpoint-sqlite 3.1.2、langchain-openai 1.7.2、类型检查用的 types-PyYAML）。

@@ -1,0 +1,20 @@
+{
+  "dependencies": ["."],
+  "graphs": {"pilot1742": "pilot1742.studio:graph"},
+  "http": {
+    "app": "pilot1742.studio:app",
+    "disable_runs": true,
+    "disable_threads": true,
+    "disable_store": true,
+    "disable_ui": true,
+    "disable_mcp": true,
+    "disable_a2a": true,
+    "disable_webhooks": true,
+    "cors": {
+      "allow_origins": ["https://smith.langchain.com"],
+      "allow_methods": ["GET", "POST", "OPTIONS"],
+      "allow_headers": ["*"],
+      "allow_credentials": true
+    }
+  }
+}
