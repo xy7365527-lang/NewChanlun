@@ -6,6 +6,8 @@ use super::tb03c_book_tests::Space;
 use super::{book, store};
 use crate::session_protocol::{canonical_json, sha256_hex};
 use serde_json::{json, Value};
+use std::io::Write;
+use std::os::unix::{ffi::OsStrExt, fs::MetadataExt};
 use std::path::{Path, PathBuf};
 
 const RAW: &str = include_str!("../../../s_session/tests/fixtures/tb03c_allocation/RAW.json");
@@ -242,13 +244,85 @@ fn storage_stats(session: &Session, owner: usize) -> Value {
         db.query_row(&format!("PRAGMA {name}"), [], |row| row.get(0))
             .unwrap()
     };
+    let path = &session.configs[owner].db;
+    let mut files = Vec::new();
+    for suffix in ["", "-wal", "-shm"] {
+        let mut name = path.as_os_str().to_os_string();
+        name.push(suffix);
+        let metadata = match std::fs::metadata(PathBuf::from(name)) {
+            Ok(metadata) => Some(metadata),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+            Err(error) => panic!("storage metadata: {error}"),
+        };
+        files.push(json!({
+            "suffix":suffix,
+            "bytes":metadata.as_ref().map_or(0, |metadata| metadata.len()),
+            "allocated_bytes":metadata.as_ref().map_or(0, |metadata| metadata.blocks() * 512),
+        }));
+    }
+    let parent = std::ffi::CString::new(path.parent().unwrap().as_os_str().as_bytes()).unwrap();
+    let mut vfs = std::mem::MaybeUninit::<libc::statvfs>::uninit();
+    assert_eq!(unsafe { libc::statvfs(parent.as_ptr(), vfs.as_mut_ptr()) }, 0);
+    let vfs = unsafe { vfs.assume_init() };
+    let free = vfs.f_bavail * vfs.f_frsize;
+    let page_size = read("page_size");
+    let max_pages = read("max_page_count");
+    let capacity = vfs.f_blocks * vfs.f_frsize;
+    let carrier_page_limit = capacity / (8 * (u64::try_from(page_size).unwrap() + 24));
+    let one = i64::try_from(carrier_page_limit).unwrap() * (page_size + 24) + 65536;
+    let image_bytes: i64 = db
+        .query_row(
+            "SELECT length(CAST(image AS BLOB)) FROM commits ORDER BY seq DESC LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
     json!({
-        "page_size":read("page_size"),
+        "page_size":page_size,
         "page_count":read("page_count"),
-        "max_page_count":read("max_page_count"),
+        "max_page_count":max_pages,
         "freelist_count":read("freelist_count"),
-        "allocated":super::content_store::allocated(&session.configs[owner].db).unwrap(),
+        "current_image_bytes":image_bytes,
+        "allocated":super::content_store::allocated(path).unwrap(),
+        "files":files,
+        "capacity_bytes":capacity,
+        "carrier_page_limit":carrier_page_limit,
+        "cleanup_budget_basis":"carrier_page_limit",
+        "free_bytes":free,
+        "cleanup_needed_bytes":2 * one,
+        "cleanup_margin_bytes":i64::try_from(free).unwrap() - 2 * one,
+        "next_write_needed_bytes":4 * one,
+        "next_write_margin_bytes":i64::try_from(free).unwrap() - 4 * one,
     })
+}
+
+fn archive_evidence(name: &str, bytes: &[u8], append: bool) {
+    if let Some(directory) = std::env::var_os("TB03C_FIN2_EVIDENCE_DIR") {
+        let directory = PathBuf::from(directory);
+        std::fs::create_dir_all(&directory).unwrap();
+        let mut file = std::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .append(append)
+            .truncate(!append)
+            .open(directory.join(name))
+            .unwrap();
+        file.write_all(bytes).unwrap();
+    }
+}
+
+fn observe_storage(session: &Session, owner: usize, phase: &str, message_id: &str) {
+    let observation = json!({
+        "phase":phase,
+        "message_id":message_id,
+        "owner":session.configs[owner].domain,
+        "writer_epoch":session.epochs[owner],
+        "seq":latest_seq(session, owner),
+        "storage":storage_stats(session, owner),
+    });
+    let line = format!("{}\n", canonical_json(&observation));
+    print!("FIN2_STORAGE {line}");
+    archive_evidence("storage.jsonl", line.as_bytes(), true);
 }
 
 fn apply_image_sizes(session: &Session, owner: usize, request: &Value) -> (usize, usize) {
@@ -321,6 +395,13 @@ fn send_original(
 ) -> Value {
     let request = session.new_envelope(owner, payload);
     let response = session.send_envelope(owner, &request);
+    let evidence = json!({"owner":owner,"request":request,"response":response});
+    archive_evidence(
+        "originals.jsonl",
+        format!("{}\n", canonical_json(&evidence)).as_bytes(),
+        true,
+    );
+    observe_storage(session, owner, "original", request["message_id"].as_str().unwrap());
     assert_eq!(response["schema_revision"], "economic-session/2");
     assert_eq!(response["source_namespace"], "economic-session/replies");
     if response["payload"]["kind"] == "Error" {
@@ -370,6 +451,11 @@ fn fin2_we7_capture_resolve_apply_recover_and_resend() {
     let sentinel = root.join("fin2-we7-do-not-delete.sentinel");
     std::fs::write(&sentinel, "preserve the caller-owned carrier root").unwrap();
     let mut session = load(&root);
+    for name in ["manifest.json", "fin-input.json"] {
+        archive_evidence(name, &std::fs::read(session._space.0.join(name)).unwrap(), false);
+    }
+    archive_evidence("RAW.json", RAW.as_bytes(), false);
+    archive_evidence("HAND-ORACLE.json", HAND.as_bytes(), false);
     for (owner, config) in session.configs.iter().enumerate() {
         let revision: String = session.dbs[owner]
             .query_row("SELECT v FROM meta WHERE k='schema_revision'", [], |row| {
@@ -400,6 +486,10 @@ fn fin2_we7_capture_resolve_apply_recover_and_resend() {
         "{imported}"
     );
 
+    archive_evidence("import-receipt.json", canonical_json(&imported).as_bytes(), false);
+    for owner in 0..4 {
+        observe_storage(&session, owner, "initialized", "");
+    }
     let hand: Value = serde_json::from_str(HAND).unwrap();
     let mut originals = Vec::new();
     let mut captures = Vec::new();
@@ -495,8 +585,14 @@ fn fin2_we7_capture_resolve_apply_recover_and_resend() {
         .map(|owner| latest_seq(&session, owner))
         .collect::<Vec<_>>();
     for owner in 0..4 {
+        observe_storage(&session, owner, "before_recover", "");
         drop(session.dbs.remove(owner));
         let recovered = store::recover(&session.configs[owner]).unwrap();
+        archive_evidence(
+            "recoveries.jsonl",
+            format!("{}\n", canonical_json(&recovered)).as_bytes(),
+            true,
+        );
         assert_eq!(recovered["kind"], "Recovered");
         let next_epoch = book::integer(&recovered, "writer_epoch").unwrap();
         assert!(next_epoch > session.epochs[owner]);
@@ -511,6 +607,7 @@ fn fin2_we7_capture_resolve_apply_recover_and_resend() {
             canonical_json(&before_images[owner])
         );
         assert_eq!(staging_count(&session, owner), 0);
+        observe_storage(&session, owner, "after_recover", "");
     }
 
     let before_messages = (0..4)
@@ -533,7 +630,17 @@ fn fin2_we7_capture_resolve_apply_recover_and_resend() {
             original.request_json,
             "重送前原信封字节漂移"
         );
+        let message_id = original.request["message_id"].as_str().unwrap();
+        observe_storage(&session, original.owner, "before_resend", message_id);
         let response = session.send_envelope(original.owner, &original.request);
+        observe_storage(&session, original.owner, "after_resend", message_id);
+        archive_evidence(
+            "resends.jsonl",
+            format!("{}\n", canonical_json(&json!({
+                "owner":original.owner,"request":original.request,"response":response
+            }))).as_bytes(),
+            true,
+        );
         let mut expected = original.response.clone();
         let writer_epoch = json!(session.epochs[original.owner].to_string());
         expected["source_epoch"] = writer_epoch.clone();
@@ -573,6 +680,18 @@ fn fin2_we7_capture_resolve_apply_recover_and_resend() {
         );
     }
 
+    let final_books = (1..4)
+        .map(|owner| latest_image(&session, owner)["book"].clone())
+        .collect::<Vec<_>>();
+    archive_evidence(
+        "RESULT.json",
+        canonical_json(&json!({
+            "captures":captures.len(),"resolves":resolves.len(),"applies":applies.len(),
+            "resends":originals.len(),"final_books":final_books,"epochs":session.epochs,
+            "sequences":before_seq,"next":session.next,"recovery_and_resend_invariants":"passed",
+        })).as_bytes(),
+        false,
+    );
     drop(session);
     assert!(root.is_dir(), "测试不得删除调用方载体根");
     assert_eq!(
@@ -616,6 +735,19 @@ fn fin2_capacity_shared_carrier_and_non_hfs_are_rejected() {
         .err()
         .unwrap();
     assert!(error.contains("必须各占独立固定容量卷"), "{error}");
+
+    let nested = root.join("e").join("not-a-mount-root");
+    std::fs::create_dir(&nested).unwrap();
+    let mut non_root = fin2_manifest(&space, &root);
+    non_root["e"]["db"] = json!(nested.join("owner.db"));
+    let path = space.0.join("non-mount-root.json");
+    std::fs::write(&path, canonical_json(&non_root)).unwrap();
+    let error = store::Config::load(&path, &nested.join("owner.db"), None)
+        .err()
+        .unwrap();
+    assert!(error.contains("mount root"), "{error}");
+    assert!(!nested.join("owner.db").exists());
+    std::fs::remove_dir(nested).unwrap();
 
     let apfs = space.0.join("apfs");
     std::fs::create_dir_all(&apfs).unwrap();

@@ -73,12 +73,22 @@ jobs:
       - name: cargo test — v3::financial_session（macOS 保留量读数与 peer uid，#1394 根裁定 A）
         run: cargo test --locked --features s_session --bin s_structure_session v3::financial_session
 
-      # #1672：E + 3B 各自独立 16 MiB HFS+ 卷上的 FIN/2 首个完整正例。
+      # #1672：E + 3B 各自独立 32 MiB HFS+ 卷上的 FIN/2 首个完整正例。
       # 只有这里创建真实载体；Linux/ubuntu 不生成 FIN/2 伪通过项。
       - name: FIN/2 WE7 — four independent HFS+ carriers（#1672）
         if: always()
+        env:
+          TB03C_FIN2_EVIDENCE_DIR: ${{ runner.temp }}/issue1672-fin2-evidence
         run: ../s_session/tests/drive_tb03c_fin2_hfs.sh cargo test --locked --features s_session --lib tb03c_fin2 -- --ignored --nocapture --test-threads=1
 
       - name: cargo test — economic_session / session_transport / session_protocol 库测试（#1394 G-1）
         if: always()
         run: cargo test --locked --features s_session --lib -- economic_session session_transport session_protocol
+
+      - name: Archive FIN/2 originals and carrier cleanup (#1672)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue1672-fin2-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/issue1672-fin2-evidence
+          if-no-files-found: error

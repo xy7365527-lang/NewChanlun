@@ -19,13 +19,40 @@ MOUNTED=()
 
 cleanup() {
   local rc=$?
+  local cleanup_failed=0
+  if [[ -n "${TB03C_FIN2_EVIDENCE_DIR:-}" ]]; then
+    mkdir -p "$TB03C_FIN2_EVIDENCE_DIR/carriers"
+    for name in "${MOUNTED[@]}"; do
+      if ! cp -R "$ROOT/$name" "$TB03C_FIN2_EVIDENCE_DIR/carriers/$name"; then
+        cleanup_failed=1
+      fi
+      df -k "$ROOT/$name" >> "$TB03C_FIN2_EVIDENCE_DIR/carriers-before-detach.txt" || cleanup_failed=1
+    done
+  fi
   for name in "${MOUNTED[@]}"; do
     echo "cleanup: hdiutil detach $ROOT/$name"
-    hdiutil detach "$ROOT/$name" -quiet || true
+    if hdiutil detach "$ROOT/$name" -quiet; then
+      echo "cleanup: detached $ROOT/$name"
+    else
+      echo "cleanup: detach failed $ROOT/$name" >&2
+      cleanup_failed=1
+    fi
   done
-  echo "cleanup: remove $ROOT"
-  rm -rf "$ROOT"
-  return "$rc"
+  if [[ "$cleanup_failed" -eq 0 ]]; then
+    rm -rf "$ROOT"
+    test ! -e "$ROOT" || cleanup_failed=1
+  else
+    echo "cleanup: preserving $ROOT after evidence/detach failure" >&2
+  fi
+  if [[ -n "${TB03C_FIN2_EVIDENCE_DIR:-}" ]]; then
+    printf 'command_exit=%s\ncleanup_failed=%s\nroot=%s\nroot_exists=%s\n' \
+      "$rc" "$cleanup_failed" "$ROOT" "$(test -e "$ROOT" && echo yes || echo no)" \
+      > "$TB03C_FIN2_EVIDENCE_DIR/cleanup.txt"
+  fi
+  if [[ "$cleanup_failed" -ne 0 && "$rc" -eq 0 ]]; then
+    rc=1
+  fi
+  exit "$rc"
 }
 trap cleanup EXIT
 trap 'exit 130' INT
@@ -34,7 +61,7 @@ trap 'exit 143' TERM
 DEVICES=""
 for name in "${NAMES[@]}"; do
   mkdir -p "$ROOT/$name"
-  hdiutil create -size 16m -fs HFS+ -volname "$name" -type UDIF "$ROOT/$name.dmg"
+  hdiutil create -size 32m -fs HFS+ -volname "$name" -type UDIF "$ROOT/$name.dmg"
   hdiutil attach -nobrowse -mountpoint "$ROOT/$name" "$ROOT/$name.dmg"
   MOUNTED+=("$name")
   test -w "$ROOT/$name"
@@ -50,6 +77,17 @@ for name in "${NAMES[@]}"; do
   echo "carrier name=$name fs=$fs_type device=$device capacity_kib=$capacity_kib mount=$ROOT/$name"
 done
 
+if [[ -n "${TB03C_FIN2_EVIDENCE_DIR:-}" ]]; then
+  mkdir -p "$TB03C_FIN2_EVIDENCE_DIR"
+  cp "$0" "$TB03C_FIN2_EVIDENCE_DIR/drive_tb03c_fin2_hfs.sh"
+  {
+    printf 'command='; printf '%q ' "$@"; printf '\n'
+    printf 'source_sha='; git rev-parse HEAD
+    printf 'source_status\n'; git status --porcelain
+    sw_vers
+    mount -t hfs
+  } > "$TB03C_FIN2_EVIDENCE_DIR/provenance.txt"
+fi
 export TB03C_FIN2_CARRIER_ROOT="$ROOT"
 echo "TB03C_FIN2_CARRIER_ROOT=$TB03C_FIN2_CARRIER_ROOT"
 "$@"
