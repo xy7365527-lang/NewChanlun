@@ -1,15 +1,19 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 
+import pytest
 from conftest import HEAD, OTHER_HEAD, Chain, SoftwareKey, make_request
 
-from approval_signing.decision import Status, Watermark, evaluate
+from approval_signing import decision
+from approval_signing.decision import Status, Watermark, decide, evaluate
 from approval_signing.protocol import (
     ApprovalPayload,
     ApprovalRequest,
     CommitTarget,
     Decision,
+    ProtocolError,
     Scope,
     VerifiedReceipt,
     spec_target,
@@ -115,3 +119,25 @@ def test_expired_or_incomplete_never_approves_but_reject_still_holds(key: Softwa
 
     chain.add(Decision.REJECT)
     assert judge(chain.request, chain.links, complete=False).status is Status.REJECTED
+
+
+@pytest.mark.parametrize("sequence, receipt", [(0, "a" * 64), (-1, "a" * 64), (True, "a" * 64), (1, "A" * 64), (1, "")])
+def test_malformed_watermark_cannot_exist(sequence: int, receipt: str) -> None:
+    with pytest.raises(ProtocolError, match="watermark"):
+        Watermark(sequence, receipt)
+
+
+def test_decide_verifies_blobs_and_reports_the_ones_it_ignores(key: SoftwareKey, monkeypatch, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
+    request = make_request()
+    approve = ApprovalPayload(request, Decision.APPROVE, 1, None).encode()
+    blobs = [key.receipt(approve), SoftwareKey().receipt(approve), b"not json"]
+
+    untrusted = tmp_path / "trust.json"
+    untrusted.write_bytes(b"{}")
+    with pytest.raises(ProtocolError, match="operator-controlled"):
+        decide(request, CommitTarget(HEAD), blobs, now=NOW, watermark=None, receipts_complete=True,
+               trust_path=untrusted)
+
+    monkeypatch.setattr(decision, "load_trust", lambda path: key.trust())
+    result = decide(request, CommitTarget(HEAD), blobs, now=NOW, watermark=None, receipts_complete=True)
+    assert result.releases and len(result.ignored) == 2

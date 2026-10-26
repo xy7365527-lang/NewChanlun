@@ -82,7 +82,8 @@ public struct ApprovalRequest: Equatable {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
         formatter.timeZone = TimeZone(identifier: "UTC")
-        guard matches("[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z", text),
+        // Years 2000-2099 only, matching protocol.py; older dates hit calendar differences.
+        guard matches("20[0-9]{2}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z", text),
               let date = formatter.date(from: text), formatter.string(from: date) == text
         else { throw ApprovalError.malformed("expires_at") }
     }

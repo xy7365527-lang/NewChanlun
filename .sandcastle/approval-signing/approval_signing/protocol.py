@@ -35,7 +35,8 @@ _DECIMAL = re.compile(r"0|[1-9][0-9]{0,17}")
 _RUN_ID = re.compile(r"[A-Za-z0-9._-]{1,64}")
 _HEX32 = re.compile(r"[0-9a-f]{32}")
 _HEX64 = re.compile(r"[0-9a-f]{64}")
-_TIMESTAMP = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z")
+# Years 2000-2099 only: there Python's proleptic calendar and Foundation's Gregorian agree.
+_TIMESTAMP = re.compile(r"20[0-9]{2}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z")
 _COMMIT_TARGET = re.compile(r"commit:([0-9a-f]{40})")
 _SPEC_TARGET = re.compile(r"spec:([1-9][0-9]{0,17}):sha256:([0-9a-f]{64})")
 
@@ -101,7 +102,7 @@ def _format_time(value: datetime) -> str:
 
 def _parse_time(text: str) -> datetime:
     if not _TIMESTAMP.fullmatch(text):
-        raise ProtocolError("expires_at is not YYYY-MM-DDTHH:MM:SSZ")
+        raise ProtocolError("expires_at is not 20YY-MM-DDTHH:MM:SSZ")
     try:
         return datetime.strptime(text, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
     except ValueError as exc:
