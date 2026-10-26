@@ -1393,6 +1393,36 @@ mod tests {
     }
 
     #[test]
+    fn mixed_control_history_matches_real_committed_messages() {
+
+        use crate::v2::mixed_control::{self,history};
+        use crate::v3::business_json::MixedJsonError;
+        crate::v2::with_mixed_control_fixture(|conn|{
+            for case in 0..3 {
+                conn.execute_batch("SAVEPOINT negative").unwrap();
+                match case{
+                    1=>conn.execute_batch("UPDATE s_input_messages SET receipt_id='wrong' WHERE accepted_seq=0").unwrap(),
+                    2=>conn.execute_batch("UPDATE s_protocol_meta SET logical_phase_frontier='9999'").unwrap(),
+                    _=>{}
+                }
+                let expected=crate::v2::validate_control_history(conn,"s-session/2",crate::v2::verify_epoch_history(conn,true).unwrap())
+                    .map(|h|(h.session_generation().to_string(),h.clock_plan_hash().to_string(),h.pending_count()));
+                let owner=AdmissionRamLedger::new(limits(1<<22)).unwrap();
+                owner.codec_work().unwrap().run(|work|{
+                    let facts=mixed_control::epoch_history(conn,true,work).unwrap();
+                    let actual=history::validate(conn,"s-session/2",facts,work)
+                        .map(|h|(h.session_generation().to_string(),h.clock_plan_hash().to_string(),h.pending_count()))
+                        .map_err(|e|match e{MixedJsonError::Business(s)=>s,MixedJsonError::Resource(e)=>panic!("resource {e:?}")});
+                    assert_eq!(expected,actual,"case={case}");
+                    if case==0 {assert_eq!(actual.unwrap().2,2);}
+                    Ok::<(),newchan_rust::s_content::CodecError>(())
+                }).unwrap();
+                conn.execute_batch("ROLLBACK TO negative; RELEASE negative").unwrap();
+            }
+        });
+    }
+
+    #[test]
     fn mixed_control_history_matches_original_first_errors() {
 
         use crate::v2::mixed_control::history;

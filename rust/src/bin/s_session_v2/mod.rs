@@ -3192,6 +3192,13 @@ mod tests {
     };
     use std::time::Instant;
     static N: AtomicUsize = AtomicUsize::new(0);
+    pub(super) fn with_mixed_control_fixture(run: impl FnOnce(&Connection)) {
+        let fixture=Fixture::new(4,1);
+        fixture.ingest(0);
+        fixture.ingest(1);
+        let conn=open_db(&fixture.db).unwrap();
+        run(&conn);
+    }
     struct Fixture {
         dir: PathBuf,
         db: PathBuf,
@@ -4206,3 +4213,6 @@ impl ControlFacts {
 }
 
 pub(crate) mod mixed_control;
+
+#[cfg(test)]
+pub(crate) fn with_mixed_control_fixture(run:impl FnOnce(&Connection)){tests::with_mixed_control_fixture(run)}
