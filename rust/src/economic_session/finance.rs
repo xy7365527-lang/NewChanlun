@@ -945,9 +945,9 @@ fn reduce_with_budget(
     let op = required(p, "op")?;
     let d = input(config, required(w, "input_raw")?)?;
     // #1716：E 的 Reserve 读当前生效 cap 版本的有效期；激活事件自核新版本有效期，不受旧版本过期挡。
-    let active = active_cap_policy(config, previous, &d)?;
+    let live_cap = active_cap_policy(config, previous, &d)?;
     let validity = if op == "Reserve" {
-        number(&active, "valid_through_ns")?
+        number(&live_cap, "valid_through_ns")?
     } else {
         number(&d["policy"], "valid_through_ns")?
     };
@@ -1131,10 +1131,10 @@ fn reduce_with_budget(
                 .iter()
                 .try_fold(0i64, |a, r| add(a, number(r, "amount")?))?;
             let total = add(existing, additional)?;
-            let all_fit = total <= number(&active, "cap")?;
+            let all_fit = total <= number(&live_cap, "cap")?;
             let mut r = json!({"slot_id":slot["slot_id"],"slot":slot,"state":if all_fit{"Reserved"}else{"AwaitingAllocationPolicy"},"policy_id":d["policy"]["policy_id"],"waiting_for":if all_fit{Value::Null}else{d["policy"]["allocation_policy_id"].clone()},"required_total":total.to_string(),"retained_total":if all_fit{total}else{existing}.to_string(),"grants":if all_fit{grants.clone()}else{vec![]},"closed_applicants":closed,"reserve_seq":seq.to_string(),"reserve_ns":ns});
             if f.get("cap_policy").is_some_and(|v| !v.is_null()) {
-                r["cap_policy"] = active.clone();
+                r["cap_policy"] = live_cap.clone();
             }
             let f = &mut next["finance"];
             if all_fit {
@@ -1256,11 +1256,11 @@ fn reduce_with_budget(
             if p["policy_id"] != d["policy"]["policy_id"] {
                 return Err("IdentityConflict：激活 policy_id 不属于冻结资金政策".into());
             }
-            if p["from_version"] != active["policy_version"] {
+            if p["from_version"] != live_cap["policy_version"] {
                 return Err(format!(
                     "StaleWriter：激活基于 cap 版本 {}，当前生效 {}",
                     required(p, "from_version")?,
-                    required(&active, "policy_version")?
+                    required(&live_cap, "policy_version")?
                 ));
             }
             let from = positive(required(p, "from_version")?, "cap from_version")?;
@@ -1282,7 +1282,7 @@ fn reduce_with_budget(
             }
             let new = json!({"schema_revision":CAP_POLICY_REV,"policy_id":p["policy_id"],"policy_version":p["to_version"],"cap":p["cap"],"valid_through_ns":p["valid_through_ns"],"activation_id":p["activation_id"],"replaces_version":p["from_version"],"liability_at_activation":liability.to_string(),"activated_seq":seq.to_string(),"activated_ns":ns});
             next["finance"]["cap_policy"] = new.clone();
-            json!({"activation_id":p["activation_id"],"state":"CapPolicyActivated","from":active,"to":new,"liability_at_activation":liability.to_string()})
+            json!({"activation_id":p["activation_id"],"state":"CapPolicyActivated","from":live_cap,"to":new,"liability_at_activation":liability.to_string()})
         }
         "CloseApplicants" => {
             if config.domain != "E" {
