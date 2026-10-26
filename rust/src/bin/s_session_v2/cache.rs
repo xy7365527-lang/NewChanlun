@@ -1726,8 +1726,8 @@ pub(crate) fn batch_header_put_typed(
             #[cfg(test)] counter(|c|c.batch_header_admission_rejected+=1);
             return Ok(());
         }
-        let key=admission.native_text(root_key)?;
-        let batch_id=admission.native_text(batch_id)?;
+        let key=TextValue::from_str_admitted_typed(root_key,None,work)?;
+        let batch_id=TextValue::from_str_admitted_typed(batch_id,None,work)?;
         m.batch_headers.reserve_entry_admitted(&key,&admission)?;
         let old=m.batch_headers.remove_entry(root_key);
         if let Some((_,entry))=&old {m.batch_headers_bytes=m.batch_headers_bytes.saturating_sub(entry.cost);}

@@ -493,9 +493,7 @@ fn share_header_text_typed(
     work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
 ) -> Result<crate::v3::native_shared::NativeArc<SharedHeaderText>, newchan_rust::s_content::CodecError> {
     use v3::audit_store::{CodecRead, NativeAdmission};
-    let text = NativeAdmission(work)
-        .native_text(text)
-        ?;
+    let text = TextValue::from_str_admitted_typed(text,None,work)?;
     crate::v3::native_shared::NativeArc::try_new_shallow(SharedHeaderText { text }, work)
 }
 impl SharedHeaderText {
