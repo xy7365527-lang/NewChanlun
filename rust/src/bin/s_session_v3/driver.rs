@@ -3881,7 +3881,8 @@ mod tests {
         let phase_count =
             |events: &[Value], phase: &str| events.iter().filter(|e| e["phase"] == phase).count();
         assert_eq!(phase_count(&events, "request_history_cold"), 1);
-        assert_eq!(phase_count(&events, "request_history_hit"), 1);
+        // #1527 FixedFD前缀cold并保留纯内容slot；真实startup与identity各命中一次。
+        assert_eq!(phase_count(&events, "request_history_hit"), 2);
         assert_eq!(phase_count(&events, "request_history_context_released"), 1);
         assert_eq!(
             events.last().unwrap()["phase"],
@@ -3951,7 +3952,7 @@ mod tests {
                 .iter()
                 .any(|e| e["phase"].as_str().unwrap().starts_with("request_history_")));
         }
-        println!("Native idle bootstrap cold=1 hit=1 released_before_return=1; Ready cold=1 hit=0 released=1; retained_source=0");
+        println!("Native idle bootstrap cold=1 hit=2 released_before_return=1; Ready cold=1 hit=0 released=1; retained_source=0");
     }
 
     #[cfg(feature = "s_capture_native_testonly")]
@@ -3985,7 +3986,8 @@ mod tests {
             crate::v3::admission_anchor::test_prepare(&f.db).into(),
         )
         .unwrap();
-        assert_eq!((context.cold, context.hits), (1, 0));
+        // #1527 前缀cold保留slot，真实startup命中；恢复pending前仍须丢弃。
+        assert_eq!((context.cold, context.hits), (1, 1));
         assert!(!context.has_slot(), "startup原件不能跨着恢复请求保留");
         assert_eq!(count(&driver.conn, "s_content_publications"), 2);
         assert_eq!(count(&driver.conn, "s_clock_events"), 6);
@@ -4009,7 +4011,7 @@ mod tests {
             driver.identity_in_bootstrap(&mut context).unwrap(),
             baseline.identity().unwrap()
         );
-        assert_eq!((context.cold, context.hits), (2, 0));
+        assert_eq!((context.cold, context.hits), (2, 1));
         assert!(context.has_slot());
         drop(context);
         assert_eq!(driver.handle(Fixture::ingest(2)).unwrap(), expected);
@@ -4021,7 +4023,7 @@ mod tests {
                 .handle(envelope("after-resume-ready", json!({"op":"ready"})))
                 .unwrap()
         );
-        println!("Native pending bootstrap cold=2 hit=0 startup_slot_dropped_before_advance=1; generation=2 raw_frontier=1 index_frontier=publication_batch clocks=6; receipt/Ready=ordinary");
+        println!("Native pending bootstrap cold=2 hit=1 startup_slot_dropped_before_advance=1; generation=2 raw_frontier=1 index_frontier=publication_batch clocks=6; receipt/Ready=ordinary");
     }
 
     #[cfg(feature = "s_capture_native_testonly")]
@@ -4046,10 +4048,12 @@ mod tests {
                 newchan_rust::theta_v0::config::ThetaConfig::default(),false,
                 crate::v3::admission_anchor::test_prepare(&f.db).into(),).unwrap();
             assert!(context.has_slot());
+            // #1527 前缀cold保留slot，真实startup命中；损坏后的identity不得再命中旧证明。
+            assert_eq!((context.cold,context.hits),(1,1));
             driver.conn.execute_batch(sql).unwrap();
             let before=(count(&driver.conn,"s_input_messages"),count(&driver.conn,"s_clock_events"),count(&driver.conn,"s_content_publications"));
             assert!(driver.identity_in_bootstrap(&mut context).is_err(),"{sql}");
-            assert!(!context.has_slot(),"{sql}");assert_eq!(context.hits,0);
+            assert!(!context.has_slot(),"{sql}");assert_eq!(context.hits,1,"{sql}");
             assert_eq!((count(&driver.conn,"s_input_messages"),count(&driver.conn,"s_clock_events"),count(&driver.conn,"s_content_publications")),before);
         }
         // 实际SQL step中断也不能cold重试吞错。
@@ -4082,9 +4086,9 @@ mod tests {
             .progress_handler(0, None::<fn() -> bool>)
             .unwrap();
         assert!(!context.has_slot());
-        assert_eq!((context.cold, context.hits), (1, 0));
+        assert_eq!((context.cold, context.hits), (1, 1));
         driver.identity_in_bootstrap(&mut context).unwrap();
-        assert_eq!((context.cold, context.hits), (2, 0));
+        assert_eq!((context.cold, context.hits), (2, 1));
     }
 
     #[cfg(feature = "s_capture_native_testonly")]
