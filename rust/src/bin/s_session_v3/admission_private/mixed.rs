@@ -11,7 +11,6 @@ use std::cell::Cell;
 pub(super) struct SealedPrefix {
     protocol: Option<NativeValue<String>>,
     epoch: NativeValue<String>,
-    rule: Option<NativeValue<String>>,
 }
 impl SealedPrefix {
     pub(super) fn require(&self,prefix:&RejectionPrefix<'_>)->Result<(),FixedFailure>{
@@ -54,8 +53,7 @@ fn business(conn:&rusqlite::Connection,shared:&MixedAccounting<'_,'_>)->Result<S
         drop(raw);
         let epoch=typed(shared,crate::audit::mixed_profile::meta_text(&tx,"writer_epoch",shared.work))?
             .ok_or_else(||shared.failure("MixedEpochMissing","完整核后缺writer_epoch"))?;
-        let rule=typed(shared,crate::audit::mixed_profile::meta_text(&tx,"rule_revision",shared.work))?;
-        Ok(SealedPrefix{protocol,epoch,rule})
+        Ok(SealedPrefix{protocol,epoch})
     })();
     shared.set_phase(ErrorPhase::Rollback);
     let disabled=conn.progress_handler(0,None::<fn()->bool>)
@@ -128,7 +126,7 @@ mod tests {
             let result=started.with_accounting(|account|{
                 let result=validate(&source,account);
                 if let Err(error)=&result{
-                    panic!("mixed private {} {}",error.code,error.phase);
+                    panic!("mixed private {} {} {}",error.code,error.phase,error.detail());
                 }
                 result
             });
@@ -148,4 +146,37 @@ mod tests {
             drop(sealed);
         });
     }
+    #[test]
+    fn mixed_private_real_vfs_wire_refusal_keeps_original_cause(){
+        use crate::v3::admission_anchor::{CommandAccounting,test_prepare_mixed_wire};
+        crate::v2::with_mixed_control_fixture(|conn|{
+            let original:String=conn.query_row("PRAGMA database_list",[],|r|r.get(2)).unwrap();
+            let path=std::path::Path::new(&original).with_file_name("mixed-wire.sqlite");
+            conn.execute("VACUUM INTO ?1",rusqlite::params![path.to_str().unwrap()]).unwrap();
+            let command=CommandAccounting::begin();
+            let prepared=test_prepare_mixed_wire(&path,1<<26,1<<26,4096);
+            let consumed=prepared.consume().unwrap();
+            let source=MeasuredDomain::measure(&consumed).unwrap();
+            let mut started=consumed.into_job(source.existing).unwrap();
+            let result=started.with_accounting(|account|validate(&source,account));
+            let error=match result{
+                Err(sc::capture_allocation::scratch::WorkError::Operation(error))=>error,
+                _=>panic!("expected original callback wire failure"),
+            };
+            assert_eq!(error.code,sc::job::LIMIT_EXCEEDED);
+            let before=started.accounting().snapshot();
+            assert!(before.wire_bytes>4096);
+            assert_eq!(before.stopped,Some(sc::job::LIMIT_EXCEEDED));
+            let mut output=Vec::new();
+            let receipt=command.report("",&mut output);
+            assert_eq!(receipt.job.as_ref().unwrap().wire_bytes,before.wire_bytes);
+            assert_eq!(receipt.actual_stderr_bytes,output.len() as u128);
+            assert_eq!(receipt.unaccepted_stderr_bytes,output.len() as u128);
+            let value:serde_json::Value=serde_json::from_slice(&output).unwrap();
+            assert_eq!(value["code"],sc::job::LIMIT_EXCEEDED);
+            assert_eq!(value["phase"],"业务返回");
+            source.verify_before_open().unwrap();
+        });
+    }
+
 }

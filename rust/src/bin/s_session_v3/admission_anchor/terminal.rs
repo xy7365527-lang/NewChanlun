@@ -29,7 +29,7 @@ impl FixedFailure {
         out.detail[..len].copy_from_slice(&detail.as_bytes()[..len]);
         out
     }
-    fn detail(&self) -> &str {
+    pub(crate) fn detail(&self) -> &str {
         std::str::from_utf8(&self.detail[..self.len]).expect("bounded UTF-8 copy")
     }
 }

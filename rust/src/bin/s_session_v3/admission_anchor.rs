@@ -1628,3 +1628,8 @@ pub(crate) fn test_mixed_account<'a>(
 pub(crate) fn test_prepare_mixed(db:&Path,live:u64,operation:u64)->PreparedAdmission {
     test_support::prepare_with_ram(db,Some((live,operation)))
 }
+
+#[cfg(test)]
+pub(crate) fn test_prepare_mixed_wire(db:&Path,live:u64,operation:u64,wire:u64)->PreparedAdmission {
+    test_support::prepare_with_ram_wire(db,Some((live,operation)),Some(wire))
+}
