@@ -351,27 +351,50 @@ mod tests {
     /// 并写出记录 id 与版本（改回常数的变异体在此变红）。push_bar 在 nav≤0 时报错且不推进 bar。
     #[test]
     fn funding_and_venue_profiles_are_independent_and_both_required() {
+        pyo3::prepare_freethreaded_python();
         assert!(PyThetaStream::new(None, Some("P0"), None).is_err());
         let venue_error = PyThetaStream::new(None, Some("P0"), Some("P0".into()))
-            .err().expect("unsigned venue cannot borrow funding authorization");
+            .err()
+            .expect("unsigned venue cannot borrow funding authorization");
         assert!(venue_error.to_string().contains("venue_profile"));
-        assert!(PyThetaStream::new(Some(DIAGNOSTIC_FIXTURE_PRESET.into()),
-            Some("P0"), Some("P0".into())).is_err());
-        let stream = PyThetaStream::new(Some(DIAGNOSTIC_FIXTURE_PRESET.into()),
-            Some("P1-hl-testnet"), None).unwrap();
+        assert!(PyThetaStream::new(
+            Some(DIAGNOSTIC_FIXTURE_PRESET.into()),
+            Some("P0"),
+            Some("P0".into())
+        )
+        .is_err());
+        let stream = PyThetaStream::new(
+            Some(DIAGNOSTIC_FIXTURE_PRESET.into()),
+            Some("P1-hl-testnet"),
+            None,
+        )
+        .unwrap();
         assert_eq!(stream.q_total(), 500.0);
         assert!(!stream.admissible());
-        assert!(stream.records().contains(&"venue-profile-diagnostic-fixture/1".into()));
+        assert!(stream
+            .records()
+            .contains(&"venue-profile-diagnostic-fixture/1".into()));
     }
 
     #[test]
     fn stream_reads_funding_record_and_rejects_bad_nav() {
         assert!(PyThetaStream::new(Some(DIAGNOSTIC_FIXTURE_PRESET.into()), None, None).is_err());
-        assert!(PyThetaStream::new(Some(DIAGNOSTIC_FIXTURE_PRESET.into()), Some("P0-acceptance-5m"), None).is_err());
-        let mut s = PyThetaStream::new(Some(DIAGNOSTIC_FIXTURE_PRESET.into()), Some("P0"), None).expect("P0 生效记录");
+        assert!(PyThetaStream::new(
+            Some(DIAGNOSTIC_FIXTURE_PRESET.into()),
+            Some("P0-acceptance-5m"),
+            None
+        )
+        .is_err());
+        let mut s = PyThetaStream::new(Some(DIAGNOSTIC_FIXTURE_PRESET.into()), Some("P0"), None)
+            .expect("P0 生效记录");
         assert_eq!(s.q_total(), 100_000.0);
         assert_eq!(s.funding_record(), "#1557/funding-authorization/v1@P0/v1");
-        let p1 = PyThetaStream::new(Some(DIAGNOSTIC_FIXTURE_PRESET.into()), Some("P1-hl-testnet"), None).expect("P1 生效记录");
+        let p1 = PyThetaStream::new(
+            Some(DIAGNOSTIC_FIXTURE_PRESET.into()),
+            Some("P1-hl-testnet"),
+            None,
+        )
+        .expect("P1 生效记录");
         assert_eq!(p1.q_total(), 500.0);
         assert!(s.push_bar(100.0, 100.1, 99.9, 100.0, 0.0, 0.0).is_err());
         assert!(s.push_bar(100.0, 100.1, 99.9, 100.0, 0.0, -5.0).is_err());
