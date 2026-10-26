@@ -1,0 +1,7 @@
+[health-monitor] red → /Volumes/AgentStorage/issue1678-selfheal-20261024/heal.json
+  ok  wayfinder_engine: 日志 231s 前更新
+  RED claim_loop: claim-loop 进程不在
+  ok  stale_claims: 无 >48h 僵尸认领
+  ok  disk_space: 可用 390.2 GiB（门 100 GiB）
+  ok  cliproxy: GET /v1/models 200，105 个模型
+  action: com.newchanlun.sandcastle-claimer 未加载，已 bootstrap /Users/silencehan/Projects/NewChanlun-sandcastle-host/.sandcastle/launchd/com.newchanlun.sandcastle-claimer.plist，进程已起（复判：healthy）
