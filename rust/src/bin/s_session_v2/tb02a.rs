@@ -581,6 +581,20 @@ pub(super) fn save_fact(conn: &Connection, o: &Value, batch: &str) -> Result<(),
     }
     Ok(())
 }
+pub(crate) enum FactLifecycle { Skip, Keep, ClearDeath }
+/// 只在全部SQL行与图原件替换完成后调用；不解析三列JSON。
+pub(crate) fn fact_lifecycle(o: &Value, as_of: Option<i64>) -> Result<FactLifecycle, String> {
+    let first = o["first_known_generation"].as_i64().unwrap();
+    let death = o["withdrawn_generation"].as_i64();
+    if death.is_some_and(|w| w <= first) {
+        return Err("StorageUnavailable：结构事实生命周期非法".into());
+    }
+    if as_of.is_some_and(|n| first > n) { return Ok(FactLifecycle::Skip); }
+    if matches!((as_of,death),(Some(n),Some(w)) if w>n) {
+        return Ok(FactLifecycle::ClearDeath);
+    }
+    Ok(FactLifecycle::Keep)
+}
 pub(crate) fn collect_fact_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Value> {
     Ok(json!({"object_id":r.get::<_,String>(0)?,"object_revision":r.get::<_,i64>(1)?,"kind":r.get::<_,String>(2)?,"batch_id":r.get::<_,String>(3)?,"fact_key":r.get::<_,String>(4)?,"payload_json":r.get::<_,String>(5)?,"input_refs_json":r.get::<_,String>(6)?,"source_coords_json":r.get::<_,String>(7)?,"first_known_generation":r.get::<_,i64>(8)?,"first_known_cut":r.get::<_,String>(9)?,"published_generation":r.get::<_,i64>(10)?,"withdrawn_generation":r.get::<_,Option<i64>>(11)?,"withdrawal_reason":r.get::<_,Option<String>>(12)?,"superseded_by":r.get::<_,Option<String>>(13)?}))
 }
@@ -625,17 +639,13 @@ pub(super) fn read_facts(
     let mut active = vec![];
     let mut withdrawn = vec![];
     for mut o in rows {
-        let first = o["first_known_generation"].as_i64().unwrap();
-        let death = o["withdrawn_generation"].as_i64();
-        if death.is_some_and(|w| w <= first) {
-            return Err("StorageUnavailable：结构事实生命周期非法".into());
-        }
-        if as_of.is_some_and(|n| first > n) {
-            continue;
-        }
-        if matches!((as_of,death),(Some(n),Some(w)) if w>n) {
-            for k in ["withdrawn_generation", "withdrawal_reason", "superseded_by"] {
-                o[k] = Value::Null;
+        match fact_lifecycle(&o, as_of)? {
+            FactLifecycle::Skip => continue,
+            FactLifecycle::Keep => {},
+            FactLifecycle::ClearDeath => {
+                for k in ["withdrawn_generation", "withdrawal_reason", "superseded_by"] {
+                    o[k] = Value::Null;
+                }
             }
         }
         if o["withdrawn_generation"].is_null() {

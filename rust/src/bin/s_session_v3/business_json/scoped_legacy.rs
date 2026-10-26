@@ -112,6 +112,13 @@ impl<'a> ScopedLegacyRecord<'a> {
         owner.layout = NativeJsonLayout::ItemizedObject;
         Ok(Self {owner, work, kind})
     }
+    pub(crate) fn from_owned(kind: ProjectionKind, owner: PlainJson, work: &'a WorkScope) -> Result<Self, MixedJsonError> {
+        work.check_current().map_err(MixedJsonError::Resource)?;
+        if !owner.permit.as_ref().is_some_and(|p| p.belongs_to_parent(work)) {
+            return Err(MixedJsonError::Resource(work.reject(sc::capture_allocation::scratch::ScratchFailure::Ledger)));
+        }
+        Ok(Self { owner, work, kind })
+    }
     pub(crate) fn clone_projection(kind: ProjectionKind, value: &Value, work: &'a WorkScope) -> Result<Self, MixedJsonError> {
         let owner = PlainJson::try_clone_from(value, Some(work)).map_err(MixedJsonError::Resource)?;
         Ok(Self { owner, work, kind })
@@ -412,4 +419,20 @@ pub(crate) fn project_fact(o: &Value, work: &WorkScope) -> Result<PlainJson, Mix
         out.replace_text(Field::Lifecycle,"withdrawn")?;
     }
     Ok(out.finish())
+}
+
+/// 第三阶段：沿原生命周期/as_of核过滤；被过滤的坏JSON不解析。
+pub(crate) fn filter_fact_lifecycle(owner: PlainJson, as_of: Option<i64>, work: &WorkScope)
+    -> Result<Option<PlainJson>,MixedJsonError> {
+    match crate::tb02a::fact_lifecycle(&owner,as_of).map_err(MixedJsonError::Business)? {
+        crate::tb02a::FactLifecycle::Skip => Ok(None),
+        crate::tb02a::FactLifecycle::Keep => Ok(Some(owner)),
+        crate::tb02a::FactLifecycle::ClearDeath => {
+            let mut out = ScopedLegacyRecord::from_owned(ProjectionKind::AtPreviousLifecycle,owner,work)?;
+            for field in [Field::WithdrawnGeneration,Field::WithdrawalReason,Field::SupersededBy] {
+                out.replace_known_field(field,&Value::Null)?;
+            }
+            Ok(Some(out.finish()))
+        }
+    }
 }

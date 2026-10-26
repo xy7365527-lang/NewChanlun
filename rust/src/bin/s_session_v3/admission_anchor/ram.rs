@@ -739,4 +739,36 @@ mod tests {
         }
     }
 
+    #[test]
+    fn mixed_ram_fact_asof_filter_never_parses_excluded_json() {
+        use crate::v3::business_json::scoped_legacy::{filter_fact_lifecycle,project_fact};
+        use crate::v3::business_json::{PlainJson,MixedJsonError};
+        for (first,death,asof,skip,clear,error) in [
+            (3,None,Some(2),true,false,false),
+            (1,Some(4),Some(2),false,true,false),
+            (3,Some(2),Some(1),false,false,true),
+        ] {
+            let source = serde_json::json!({"first_known_generation":first,"withdrawn_generation":death,
+                "withdrawal_reason":"old","superseded_by":"next","payload_json":"bad"});
+            let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+            owner.codec_work().unwrap().run(|work| {
+                let row = PlainJson::try_clone_from(&source,Some(work))?;
+                let filtered = filter_fact_lifecycle(row,asof,work);
+                if error {
+                    assert!(matches!(filtered,Err(MixedJsonError::Business(ref s)) if s == "StorageUnavailable：结构事实生命周期非法"));
+                } else if skip { assert!(filtered.unwrap().is_none()); }
+                else {
+                    let kept = filtered.unwrap().unwrap();
+                    assert_eq!(kept["payload_json"],"bad");
+                    if clear {
+                        for key in ["withdrawn_generation","withdrawal_reason","superseded_by"] { assert!(kept[key].is_null()); }
+                    }
+                    assert!(matches!(project_fact(&kept,work),Err(MixedJsonError::Business(ref s)) if s == "StorageUnavailable：事实kind缺失"));
+                }
+                Ok::<_,newchan_rust::s_content::CodecError>(())
+            }).unwrap();
+            assert_eq!(owner.snapshot().unwrap().job_live,AdmissionRamLedger::metadata_bytes().unwrap());
+        }
+    }
+
 }
