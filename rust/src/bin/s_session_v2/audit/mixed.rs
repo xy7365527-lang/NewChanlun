@@ -280,6 +280,43 @@ impl AuditWalk {
         }
         Ok(result)
     }
+    pub(crate) fn source_bytes(&self,work:&WorkScope,observer:&dyn LegacyObserver)->Result<usize,MixedJsonError>{
+        observer.check_work(work).map_err(MixedJsonError::Resource)?;
+        let admission=NativeAdmission(Some(work));
+        let mut seen=NativeSet::default();
+        let mut total=0usize;
+        let account=|seen:&mut NativeSet<usize>,total:&mut usize,value:&Shared,family:&'static str|->Result<(),MixedJsonError>{
+            let pointer=NativeArc::as_ptr(value) as usize;
+            if seen.insert_admitted(pointer,&admission).map_err(MixedJsonError::Resource)? {
+                value.check_retained_source().map_err(MixedJsonError::Resource)?;
+                value.as_ref().check_retained_source().map_err(MixedJsonError::Resource)?;
+                observer.visit_record(family,"source-bytes",LegacyRecordRef::Json(value.as_ref())).map_err(MixedJsonError::Resource)?;
+                let canonical=Text::try_format(format_args!("{}",value.as_ref().as_ref()),Some(work)).map_err(MixedJsonError::Resource)?;
+                *total=total.saturating_add(canonical.len());
+            }
+            Ok(())
+        };
+        for value in self.active.values().chain(self.objects.values()).chain(self.original_observations.values())
+            .chain(self.births.values().flat_map(|values|values.iter())).chain(self.deaths.values().flat_map(|values|values.iter()))
+        {
+            account(&mut seen,&mut total,value,"objects")?;
+        }
+        for value in &self.raw {
+            value.check_retained_source().map_err(MixedJsonError::Resource)?;
+            observer.visit_record("raw_history","source-bytes",LegacyRecordRef::Json(value)).map_err(MixedJsonError::Resource)?;
+            let canonical=Text::try_format(format_args!("{}",value.as_ref()),Some(work)).map_err(MixedJsonError::Resource)?;
+            total=total.saturating_add(canonical.len());
+        }
+        for family in [&self.witnesses,&self.relations,&self.observations] {
+            for (id,(value,canonical,_)) in family.records.iter() {
+                account(&mut seen,&mut total,value,family.name)?;
+                total=total.saturating_add(id.len()+canonical.len()+8);
+            }
+            for id in family.seen.iter() {total=total.saturating_add(id.len());}
+            for id in family.born.values().flat_map(|ids|ids.iter()) {total=total.saturating_add(id.len()+8);}
+        }
+        Ok(total)
+    }
     pub(crate) fn resume_from(
         &mut self,old:&Self,generation:i64,work:&WorkScope,observer:&dyn LegacyObserver,
     )->Result<bool,MixedJsonError>{

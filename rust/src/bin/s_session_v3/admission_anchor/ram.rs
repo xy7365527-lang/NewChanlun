@@ -1080,6 +1080,9 @@ mod tests {
                 let before=observer.job.borrow().snapshot().records;
                 let walk=crate::audit::mixed::AuditWalk::capture(&objects,std::iter::empty(),work,&observer).unwrap();
                 assert_eq!(observer.job.borrow().snapshot().records-before,2);
+                let before=observer.job.borrow().snapshot().records;
+                assert_eq!(walk.source_bytes(work,&observer).unwrap(),crate::canonical_json(&ordinary.0[0]).len());
+                assert_eq!(observer.job.borrow().snapshot().records-before,1);
                 assert!(matches!(walk.finish(),Err(crate::v3::business_json::MixedJsonError::Business(ref s)) if s.contains("生灭代不可达")));
                 objects.execute("UPDATE objects SET withdrawn_generation=2,withdrawal_reason='later'",[]).unwrap();
                 let mut next=crate::audit::mixed::AuditWalk::capture(&objects,std::iter::empty(),work,&observer).unwrap();
