@@ -1780,7 +1780,7 @@ fn verified_root_raw_events_inner(
         return Ok(raw);
     }
     let reachable = capture_reachable_batches(conn)?;
-    let control = v2::prepare_control_before_write(conn, before_write)?;
+    let control = v2::prepare_control(conn, before_write)?;
     verify_reachable_root_in_tx(conn, &reachable, control)
         .map_err(|e| format!("StorageUnavailable：{e}"))
 }

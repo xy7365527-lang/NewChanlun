@@ -1309,10 +1309,7 @@ pub(crate) fn audit_private_startup(
 
 /// 新鲜检查所有全局控制行，再准备逐代控制头期望；返回不代表批次控制审计通过。
 /// 不能按generation过滤未来/同代损坏或信任自报摘要。
-pub(super) fn prepare_control(conn: &Connection) -> Result<ExpectedControl, String> {
-    prepare_control_before_write(conn, None)
-}
-pub(super) fn prepare_control_before_write(
+pub(super) fn prepare_control(
     conn: &Connection,
     before_write: Option<&std::cell::Cell<crate::DeltaShape>>,
 ) -> Result<ExpectedControl, String> {
@@ -3714,7 +3711,7 @@ mod tests {
         cache::counters_reset();
         let tx = conn.unchecked_transaction().unwrap();
         let mut reachable = capture_reachable_batches(&tx).unwrap();
-        let expected = prepare_control(&tx).unwrap();
+        let expected = prepare_control(&tx, None).unwrap();
         assert_eq!(cache::counters_snapshot().batch_header_hits, 4);
         assert_eq!(cache::counters_snapshot().batch_full_reads, 0);
         assert_eq!(
@@ -3740,7 +3737,7 @@ mod tests {
                 }
             }
             std::mem::swap(&mut reachable.batches, &mut bad);
-            let expected = prepare_control(&tx).unwrap();
+            let expected = prepare_control(&tx, None).unwrap();
             assert!(
                 verify_reachable_root_in_tx(&tx, &reachable, expected).is_err(),
                 "控制头不得暗补或数字归一化"
@@ -4614,7 +4611,7 @@ fn testonly_audit_cost_breakdown() {
         let b = t.elapsed();
         let captured = retained_sample();
         let capture_counters = serde_json::to_value(cache::counters_snapshot()).unwrap();
-        let expected = prepare_control(&tx).unwrap();
+        let expected = prepare_control(&tx, None).unwrap();
         let c = t.elapsed();
         let control_counters = serde_json::to_value(cache::counters_snapshot()).unwrap();
         verify_reachable_root_in_tx(&tx, &batches, expected).unwrap();
