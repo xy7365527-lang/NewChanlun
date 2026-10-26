@@ -1593,62 +1593,94 @@ pub(super) fn handle_put_certified_admitted(
     value: Option<Arc<SharedPlainJson>>,
     work: Option<&WorkScope>,
 ) -> Result<Option<Arc<RootCert>>, String> {
-    let admission = NativeAdmission(work);
-    MEMO.with(|m| {
-        let mut m = m.borrow_mut();
-        if m.limit == 0 {
-            #[cfg(test)]
-            counter(|c| c.handle_admission_rejected += 1);
+    handle_put_certified_typed(root_key,root_cert,closure,bytes,value,work).map_err(|e|e.to_string())
+}
+pub(super) fn handle_put_certified_typed(
+    root_key:&str,root_cert:&RootCert,closure:[u8;32],bytes:Arc<[u8]>,
+    value:Option<Arc<SharedPlainJson>>,work:Option<&WorkScope>,
+)->Result<Option<Arc<RootCert>>,newchan_rust::s_content::CodecError>{
+    let admission=NativeAdmission(work);
+    MEMO.with(|m|{
+        let mut m=m.borrow_mut();
+        if m.limit==0 {
+            #[cfg(test)] counter(|c|c.handle_admission_rejected+=1);
             return Ok(None);
         }
-        let mut slots = newchan_rust::s_content::CodecVec::default();
-        admission
-            .native_vec_room(&mut slots, root_cert.slots.len())
-            .map_err(|e| e.to_string())?;
-        for slot in &root_cert.slots {
-            slots.try_push(*slot).map_err(|e| e.to_string())?;
-        }
-        let hash = admission
-            .native_string(&root_cert.content_sha256)
-            .map_err(|e| e.to_string())?;
-        let retained = put_root_cert_admitted(
-            &mut m,
-            root_key,
-            RootCert::new_admitted(root_cert.node, slots, root_cert.expanded_length, hash),
-            work,
-        )?;
-        let Some(retained) = retained else {
-            #[cfg(test)]
-            counter(|c| c.handle_admission_rejected += 1);
+        let existing=m.root_certs.get(root_key).filter(|old|{
+            Weak::ptr_eq(&old.lineage,&Arc::downgrade(&m.cert_lineage))
+                && old.same_originals(&root_cert.node,&root_cert.slots,root_cert.expanded_length,&root_cert.content_sha256)
+                && work.is_none_or(|work|old.belongs_to_parent(work))
+        }).cloned();
+        let old_root_cost=m.root_certs.get(root_key).map_or(0,|old|old.cost().saturating_add(root_key.len()));
+        let root_cost=root_cert.cost().saturating_add(root_key.len());
+        let delta=if existing.is_some(){0}else{root_cost};
+        let credit=if existing.is_some(){0}else{old_root_cost};
+        let floor=m.root_bytes().saturating_add(m.certs_bytes.saturating_sub(credit)).saturating_add(m.capture_bytes());
+        if floor.saturating_add(delta)>m.limit {
+            #[cfg(test)] counter(|c|c.handle_admission_rejected+=1);
             return Ok(None);
+        }
+        let cost=handle_cost(root_key.len(),bytes.len(),value.is_some());
+        let keep_handle=floor.saturating_add(delta).saturating_add(cost)<=m.limit;
+        let root_key_owned=if existing.is_none(){
+            admission.native_std_map_room(&mut m.root_certs)?;
+            Some(admission.native_text(root_key)?)
+        }else{None};
+        let retained=match existing {
+            Some(old)=>old,
+            None=>{
+                let mut slots=newchan_rust::s_content::CodecVec::default();
+                admission.native_vec_room(&mut slots,root_cert.slots.len())?;
+                for slot in &root_cert.slots{slots.try_push(*slot)?;}
+                let hash=admission.native_string(&root_cert.content_sha256)?;
+                let mut cert=RootCert::new_admitted(root_cert.node,slots,root_cert.expanded_length,hash);
+                cert.lineage=Arc::downgrade(&m.cert_lineage);
+                Arc::try_new_shallow(cert,work)?
+            }
         };
-        let cost = handle_cost(root_key.len(), bytes.len(), value.is_some());
-        if let Some(old) = m.handles.remove(root_key) {
-            m.handles_bytes = m.handles_bytes.saturating_sub(old.cost);
+        let handle_key=if keep_handle {
+            let key=admission.native_text(root_key)?;
+            m.handles.reserve_entry_admitted(&key,&admission)?;
+            Some(key)
+        }else{None};
+        // 所有目标条目先构成。暂移旧handle只为精确计算替换容量；失败原样还原。
+        let old_handle=m.handles.remove_entry(root_key);
+        if let Some((_,old))=&old_handle {m.handles_bytes=m.handles_bytes.saturating_sub(old.cost);}
+        m.certs_bytes=m.certs_bytes.saturating_sub(credit);
+        let room=m.make_room_typed(delta.saturating_add(if keep_handle{cost}else{0}),work);
+        m.certs_bytes=m.certs_bytes.saturating_add(credit);
+        match room {
+            Err(error)=>{
+                if let Some((key,old))=old_handle {
+                    m.handles_bytes=m.handles_bytes.saturating_add(old.cost);
+                    m.handles.insert_reserved(key,old);
+                }
+                return Err(error);
+            }
+            Ok(false)=>{
+                if let Some((key,old))=old_handle {
+                    m.handles_bytes=m.handles_bytes.saturating_add(old.cost);
+                    m.handles.insert_reserved(key,old);
+                }
+                return Ok(None);
+            }
+            Ok(true)=>{}
         }
-        if !m.make_room_admitted(cost, work)? {
-            #[cfg(test)]
-            counter(|c| c.handle_admission_rejected += 1);
-            return Ok(Some(retained));
+        if let Some(key)=root_key_owned {
+            m.remove_batch_header(root_key);
+            m.root_certs.insert(key,retained.clone());
+            m.certs_bytes=m.certs_bytes.saturating_sub(credit).saturating_add(delta);
         }
-        let key = admission.native_text(root_key).map_err(|e| e.to_string())?;
-        m.handles_bytes = m.handles_bytes.saturating_add(cost);
-        m.handles
-            .insert_admitted(
-                key,
-                Handle {
-                    closure,
-                    root_cert: Some(Arc::downgrade(&retained)),
-                    bytes,
-                    value,
-                    cost,
-                },
-                &admission,
-            )
-            .map_err(|e| e.to_string())?;
+        if let Some(key)=handle_key {
+            m.handles.insert_reserved(key,Handle{closure,root_cert:Some(Arc::downgrade(&retained)),bytes,value,cost});
+            m.handles_bytes=m.handles_bytes.saturating_add(cost);
+        }else{
+            #[cfg(test)] counter(|c|c.handle_admission_rejected+=1);
+        }
         Ok(Some(retained))
     })
 }
+
 /// 记入整块域已核句柄（原件就是行内字节，无需根证书）。
 #[cfg(test)]
 pub(super) fn handle_put_blob(
