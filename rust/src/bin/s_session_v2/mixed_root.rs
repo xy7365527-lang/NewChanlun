@@ -182,7 +182,7 @@ pub(crate) fn required_meta(conn: &Connection, work: &WorkScope) -> Result<i64, 
     let expect_cut = formatted(format_args!("cut-{generation}"),work)?;
     if cut != expect_cut {
         return Err(format!(
-            "StorageUnavailable：meta.structure_cut=`{cut}` 与 generation={generation} 不一致（应 `{expect_cut}`）"
+            "StorageUnavailable：meta.structure_cut=`{cut}` 与 generation={generation} 不一致（应 `{expect_cut}`）",cut=cut.as_str(),expect_cut=expect_cut.as_str()
         ).into());
     }
     let cat = audit::mixed_profile::meta_text(conn, "catalog_revision", work)?.unwrap_or(text("",work)?);
@@ -227,7 +227,7 @@ pub(crate) fn required_meta(conn: &Connection, work: &WorkScope) -> Result<i64, 
     } else {
         if !idx.is_empty() {
             return Err(format!(
-                "StorageUnavailable：初态 generation=0 却存在 index_frontier=`{idx}`（不一致）"
+                "StorageUnavailable：初态 generation=0 却存在 index_frontier=`{idx}`（不一致）",idx=idx.as_str()
             ).into());
         }
         if published_frontier != -1 {

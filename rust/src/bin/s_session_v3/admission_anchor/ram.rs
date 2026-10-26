@@ -1451,7 +1451,7 @@ mod tests {
                 let expected=crate::capture_reachable_batches(conn).map(|r|(r.batches.len(),r.roots.len(),r.originals.len()));
                 let owner=AdmissionRamLedger::new(limits(1<<24)).unwrap();
                 owner.codec_work().unwrap().run(|work|{
-                    let job=Job::new_started_mixed(job_limits(),Existing{store_bytes:0,staged_bytes:0},Box::new(std::time::Instant::now),std::time::Instant::now(),work)?;
+                    let mut caps=job_limits(); caps.max_total_nodes=100000; caps.max_total_records=100000; caps.max_total_node_bytes=10000000; let job=Job::new_started_mixed(caps,Existing{store_bytes:0,staged_bytes:0},Box::new(std::time::Instant::now),std::time::Instant::now(),work)?;
                     let observer=Observer{job:RefCell::new(job),work};
                     let _transaction=crate::cache::MixedCacheTransaction::start(work)?;
                     let actual=crate::v2::mixed_root::test_capture(conn,work,&observer).map_err(|e|match e{MixedJsonError::Business(s)=>s,MixedJsonError::Resource(e)=>panic!("unexpected resource {e:?}")});
