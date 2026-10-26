@@ -7,6 +7,7 @@ mod evidence;
 mod finance;
 mod finance_transport;
 mod financial_reader_resources;
+mod phase_trace;
 mod quantity_calibration;
 mod service;
 mod sr_expansion;
