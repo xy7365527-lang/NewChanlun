@@ -2,6 +2,13 @@
 //! 每批原件仍完整读取。累计 batch 自身的历史字节不会凭此变成 O(page)。
 use super::*;
 use std::collections::BTreeSet;
+pub(crate) mod mixed;
+const WITNESSES_SQL: &str = "SELECT witness_id,published_generation,object_id,slot,merged_source_index,
+                        merged_high,merged_low,merged_open,merged_close,raw_json FROM witnesses";
+const OBSERVATIONS_SQL: &str = "SELECT observation_id,published_generation,batch_id,kind,window_start,window_mid,
+                        window_end,reason,detail_json FROM observations";
+const RELATIONS_SQL: &str = "SELECT subject,relation_type,object,published_generation FROM relations";
+
 
 fn number(v: &Value, key: &str) -> Result<i64, String> {
     parse_canonical_i64(
@@ -51,8 +58,7 @@ impl Family {
             fn(&rusqlite::Row<'_>) -> rusqlite::Result<(String, Option<i64>, Value)>,
         ) = match name {
             "witnesses" => (
-                "SELECT witness_id,published_generation,object_id,slot,merged_source_index,
-                        merged_high,merged_low,merged_open,merged_close,raw_json FROM witnesses",
+                WITNESSES_SQL,
                 |r| {
                     Ok((
                         r.get::<_, String>(0)?,
@@ -73,8 +79,7 @@ impl Family {
                 },
             ),
             "observations" => (
-                "SELECT observation_id,published_generation,batch_id,kind,window_start,window_mid,
-                        window_end,reason,detail_json FROM observations",
+                OBSERVATIONS_SQL,
                 |r| {
                     Ok((
                         r.get::<_, String>(0)?,
@@ -93,7 +98,7 @@ impl Family {
                 },
             ),
             "relations" => (
-                "SELECT subject,relation_type,object,published_generation FROM relations",
+                RELATIONS_SQL,
                 |r| {
                     let subject: String = r.get(0)?;
                     let relation_type: String = r.get(1)?;

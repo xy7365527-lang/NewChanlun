@@ -1037,6 +1037,20 @@ mod tests {
                 assert!(compare_normalized(&actual,&[],"test","objects",&observer).is_err());
                 assert_eq!(observer.job.borrow().snapshot().records,before,"length mismatch reads no members");
             }
+            {
+                conn.execute_batch("CREATE TABLE relations(subject TEXT,relation_type TEXT,object TEXT,published_generation INTEGER); INSERT INTO relations VALUES('s','r','o',1)").unwrap();
+                let before=observer.job.borrow().snapshot().records;
+                let mut family=crate::audit::mixed::Family::capture(&conn,"relations",work,&observer).unwrap();
+                assert_eq!(family.len(),1);
+                let record=serde_json::json!({"subject":"s","relation_type":"r","object":"o"});
+                let delta=serde_json::json!({"relations":[record.clone()]});
+                family.verify(&delta,1,crate::delta_storage::Mode::ChangesOnly,[&record],work,&observer).unwrap();
+                family.finish().unwrap();
+                assert_eq!(observer.job.borrow().snapshot().records-before,5);
+                let bad=serde_json::json!({"relations":[record.clone(),record.clone()]});
+                let error=family.verify(&bad,1,crate::delta_storage::Mode::ChangesOnly,[&record],work,&observer).unwrap_err();
+                assert!(matches!(error,crate::v3::business_json::MixedJsonError::Business(ref s) if s.contains("Delta 重复身份")));
+            }
             let first = crate::evidence_store::read_node_mixed(&conn,&id,work,&observer).unwrap();
             assert_eq!(first.payload(),payload);
             assert_eq!(first.checked().id(),&id);
