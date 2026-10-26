@@ -392,7 +392,7 @@ fn open_book(
     doc: &Value,
     event: &Value,
     record: &Value,
-    v2: bool,
+    rules: Rules,
     funding: Option<Value>,
 ) -> Result<Value, String> {
     let transfer = super::tb03c_transfer::is_in(event);
@@ -415,12 +415,10 @@ fn open_book(
     } else {
         positive(required(o, "units")?, "opening_units")?
     };
-    // 书账版本取自域规则（评审 M4）：`/2` 域里转移开出的重同样盖 `/2`。
-    let revision = if v2 {
-        super::book::TB03C_BOOK_V2
-    } else {
-        super::book::TB03C_BOOK_V1
-    };
+    // 书账版本取自域规则（评审 M4）：`/2`、`/3` 域里转移开出的重同样盖本域版本。
+    let revision = rules
+        .revision()
+        .ok_or("StorageUnavailable：tb03c 书账缺版本")?;
     let mut book = json!({
         "book_revision": revision,
         "chong_id": target(event)?, "symbol": id["symbol"], "operation_level": id["op_level"],
@@ -783,7 +781,13 @@ fn apply_with(
         );
     } else {
         let mut book = if opening {
-            open_book(&doc, &event, record, funding.is_some(), funded.clone())?
+            open_book(
+                &doc,
+                &event,
+                record,
+                funding.map_or(Rules::Tb03cV1, |f| f.rules()),
+                funded.clone(),
+            )?
         } else {
             old.clone()
         };

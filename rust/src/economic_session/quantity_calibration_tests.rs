@@ -1,6 +1,9 @@
 //! #1715 I1-Q 验收（ADR 0049 验收清单 4/5/5a/6/7）。全部报价、时间、尺度、quantum 为合成 fixture，不是签署市场值。
+use super::book;
 use super::quantity_calibration::{self as qc, Readiness, Signed};
+use super::tb03c_book_tests::record_for_raw;
 use super::tb03c_funding::Contract;
+use super::tb03c_funding_tests::{raw, Batch};
 use serde_json::{json, Value};
 
 const PROFILE: &str = "P0-acceptance-5m";
@@ -540,5 +543,56 @@ fn split_rebases_frozen_quantity_without_reselecting_quote() {
             .check_opening(&opening("1", 32_000, 3_200_000), &observed())
             .unwrap(),
         out
+    );
+}
+
+/// 真实 B 应用入口（`book::apply_in`）：`/3` 开局把冻结定标写入书账，追加批与 q_rebase 不刷新定标。
+#[test]
+fn b_apply_opening_consumes_frozen_calibration() {
+    let m = three_chongs();
+    let text = raw("1", &Batch::ok(3_200_000, PROFILE)).replacen(
+        "\"fixed_q\":\"1\"",
+        "\"fixed_q\":\"32000\"",
+        1,
+    );
+    let rec = |i: usize| {
+        let mut r = record_for_raw(&text, &format!("/events/{i}"));
+        r["b_observation"] = json!({"received_ns":"0","first_known_ns":"1792540800000000000","commit_ns":"1792540800000000000"});
+        r
+    };
+    let (image, _) =
+        book::apply_in(&m, &book::empty_image(), &rec(0), 1, "1792540800000000000").unwrap();
+    let b = &image["book"];
+    assert_eq!(b["book_revision"], "tb03c-book/3");
+    assert_eq!(b["fixed_q"], "32000");
+    let cal = &b["funding"]["quantity_calibration"];
+    assert_eq!(
+        (cal["Q_amount"].as_str(), cal["Q_units"].as_str()),
+        (Some("3200000"), Some("32000"))
+    );
+    assert_eq!(cal["tiers"][0]["tier_quantity"], "11104");
+    assert_eq!(cal["quote"]["quote_id"], "B");
+    assert_eq!(cal["quote"]["snapshot_id"], "s100");
+    assert_eq!(b["funding"]["capacity"]["C_units"], "32000");
+    // 新进程重放：同 manifest、同原件 ⟹ 逐字相同的书账。
+    let (again, _) =
+        book::apply_in(&m, &book::empty_image(), &rec(0), 1, "1792540800000000000").unwrap();
+    assert_eq!(again, image);
+    // 追加批与 q_rebase 都不能刷新冻结定标：等待新签版本，书账不变。
+    for i in [1, 2] {
+        assert!(
+            book::apply_in(&m, &image, &rec(i), 2, "1792540800000000001")
+                .unwrap_err()
+                .starts_with("AwaitingPolicy")
+        );
+    }
+    // 开局 fixed_q 未按冻结 Q_units 填写：B 拒绝开局。
+    let wrong = raw("1", &Batch::ok(3_200_000, PROFILE));
+    let mut r = record_for_raw(&wrong, "/events/0");
+    r["b_observation"] = json!({"received_ns":"0","first_known_ns":"1792540800000000000","commit_ns":"1792540800000000000"});
+    assert!(
+        book::apply_in(&m, &book::empty_image(), &r, 1, "1792540800000000000")
+            .unwrap_err()
+            .contains("fixed_q 须等于冻结 Q_units")
     );
 }

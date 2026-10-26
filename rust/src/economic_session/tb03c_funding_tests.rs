@@ -256,7 +256,12 @@ fn rules_resolve_exactly_three_values() {
     assert_eq!(book::Rules::Tb03cV2.revision(), Some("tb03c-book/2"));
     assert_eq!(book::Rules::Tb03cV1.revision(), Some("tb03c-book/1"));
     assert_eq!(book::Rules::Legacy.revision(), None);
-    for bad in ["tb03c-book/3", "tb03c-book/0", "tb03c-book/2 "] {
+    // #1715：`/3` 是 `/2` + 逐重数量定标的并列新版本（见 quantity_calibration_tests），闭集外样本改用 `/4`。
+    assert_eq!(
+        book::rules(&json!({"book_revision":"tb03c-book/3"})).unwrap(),
+        book::Rules::Tb03cV3
+    );
+    for bad in ["tb03c-book/4", "tb03c-book/0", "tb03c-book/2 "] {
         assert!(book::rules(&json!({ "book_revision": bad }))
             .unwrap_err()
             .starts_with("SchemaUnsupported"));

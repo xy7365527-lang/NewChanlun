@@ -65,6 +65,7 @@ struct Quantity {
     scale: Option<qc::Ratio>,
 }
 pub(crate) struct Contract {
+    rules: Rules,
     record: Value,
     leverage: i64,
     chongs: Vec<Chong>,
@@ -397,12 +398,17 @@ impl Contract {
             return Err("InvalidDomain：各重 Q 之和超过 funding-record 总投入".into());
         }
         Ok(Some(Self {
+            rules: revision,
             record: record.clone(),
             leverage: l,
             chongs,
         }))
     }
 
+    /// 本合同所属书账版本（`/2` 或 `/3`）。
+    pub(crate) fn rules(&self) -> Rules {
+        self.rules
+    }
     pub(crate) fn chong(&self, id: &str) -> Result<&Chong, String> {
         self.chongs
             .iter()
