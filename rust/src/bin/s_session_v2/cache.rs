@@ -413,17 +413,18 @@ impl Memo {
         self.remove_cert_admitted(key, None)
             .expect("None admission cannot fail")
     }
-    fn remove_cert_admitted(
+    fn remove_cert_admitted(&mut self,key:&[u8;32],work:Option<&WorkScope>) -> Result<(),String> { self.remove_cert_typed(key,work).map_err(|e|e.to_string()) }
+    fn remove_cert_typed(
         &mut self,
         key: &[u8; 32],
         work: Option<&WorkScope>,
-    ) -> Result<(), String> {
+    ) -> Result<(), newchan_rust::s_content::CodecError> {
         let admission = NativeAdmission(work);
         if let Some(work) = work {
-            work.check_current().map_err(|e| e.to_string())?;
+            work.check_current()?;
         }
         let next_lineage = if self.certs.contains_key(key) {
-            Some(Arc::try_new_shallow((), work).map_err(|e| e.to_string())?)
+            Some(Arc::try_new_shallow((), work)?)
         } else {
             None
         };
@@ -442,7 +443,7 @@ impl Memo {
                 Some(owner) => {
                     c.owned
                         .insert_admitted(owner, &admission)
-                        .map_err(|e| e.to_string())?;
+                        ?;
                     true
                 }
                 None => false,
@@ -1273,11 +1274,12 @@ impl IdSet for NativeSet<[u8; 32]> {
         self.iter()
     }
 }
-pub(super) fn cert_commit_admitted(
+pub(super) fn cert_commit_admitted(conn_id:usize,ids:&(impl IdSet+?Sized),work:Option<&WorkScope>) -> Result<(),String> { cert_commit_typed(conn_id,ids,work).map_err(|e|e.to_string()) }
+pub(super) fn cert_commit_typed(
     conn_id: usize,
     ids: &(impl IdSet + ?Sized),
     work: Option<&WorkScope>,
-) -> Result<(), String> {
+) -> Result<(), newchan_rust::s_content::CodecError> {
     let admission = NativeAdmission(work);
     MEMO.with(|m| {
         let mut m = m.borrow_mut();
@@ -1292,7 +1294,7 @@ pub(super) fn cert_commit_admitted(
             if m.certs.get(id).is_some_and(|old| Arc::ptr_eq(old, &cert)) {
                 continue;
             }
-            m.remove_cert_admitted(id, work)?;
+            m.remove_cert_typed(id, work)?;
             let owner = m.capture.as_ref().and_then(|c| {
                 if c.owned.contains(&key) {
                     return Some(key);
@@ -1307,14 +1309,14 @@ pub(super) fn cert_commit_admitted(
                     .copied()
             });
             let owned = owner.is_some();
-            if !owned && !m.make_room_admitted(cert.payload_cost(), work)? {
+            if !owned && !m.make_room_typed(cert.payload_cost(), work)? {
                 #[cfg(test)]
                 counter(|c| c.shared_node_cert_admission_rejected += 1);
                 continue;
             }
             admission
                 .native_std_map_room(&mut m.certs)
-                .map_err(|e| e.to_string())?;
+                ?;
             if owned {
                 // 独占：字节已由读集持有，只把它从瞬时读集**转记**为持久证书（总量不变）。
                 if let Some(c) = m.capture.as_mut() {
@@ -1331,11 +1333,12 @@ pub(super) fn cert_commit_admitted(
     })
 }
 /// 冷展开后，只有全部当前原件仍在池里且与本次读集为同一不可变原件，才能建立新根证明。
-pub(super) fn certify_retained_originals_admitted(
+pub(super) fn certify_retained_originals_admitted(conn_id:usize,ids:&(impl IdSet+?Sized),work:Option<&WorkScope>) -> Result<bool,String> { certify_retained_originals_typed(conn_id,ids,work).map_err(|e|e.to_string()) }
+pub(super) fn certify_retained_originals_typed(
     conn_id: usize,
     ids: &(impl IdSet + ?Sized),
     work: Option<&WorkScope>,
-) -> Result<bool, String> {
+) -> Result<bool, newchan_rust::s_content::CodecError> {
     let admission = NativeAdmission(work);
     MEMO.with(|m| {
         let mut m = m.borrow_mut();
@@ -1354,10 +1357,10 @@ pub(super) fn certify_retained_originals_admitted(
             for id in ids.each() {
                 c.matched
                     .insert_admitted((conn_id, *id), &admission)
-                    .map_err(|e| e.to_string())?;
+                    ?;
                 c.certified
                     .insert_admitted((conn_id, *id), &admission)
-                    .map_err(|e| e.to_string())?;
+                    ?;
             }
         }
         Ok(complete)

@@ -313,6 +313,12 @@ shared_family!(NativeArc, NativeWeakArc, Arc, ArcWeak, ArcLease);
 macro_rules! slice_copy {
     ($strong:ident, $ptr:ident, $lease:ident, $element:ty) => {
         impl $strong<[$element]> {
+            pub(crate) fn share_or_copy_slice_mixed(&self,work:&WorkScope)->Result<Self,CodecError>{
+                work.check_current()?;
+                self.check_retained_source()?;
+                if self.belongs_to_parent(work){Ok(self.clone())}
+                else{Self::try_copy_slice(self,Some(work))}
+            }
             #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
             pub(crate) fn try_copy_slice(
                 values: &[$element],

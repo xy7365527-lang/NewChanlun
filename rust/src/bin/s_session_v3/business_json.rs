@@ -1702,6 +1702,12 @@ impl PlainJson {
         }
         Ok(self.value)
     }
+    pub(crate) fn try_clone_mixed(&self,work:&WorkScope)->Result<Self,sc::CodecError>{
+        if let Some(permit)=&self.permit{permit.check_retained_source()?;}
+        self.child_permits.check_retained_source()?;
+        for permit in &self.child_permits{permit.check_retained_source()?;}
+        Self::try_clone_from(self.as_ref(),Some(work))
+    }
     pub(crate) fn try_clone_from(
         value: &Value,
         work: Option<&WorkScope>,

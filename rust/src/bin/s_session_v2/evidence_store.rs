@@ -1847,13 +1847,14 @@ impl<'a> Reader<'a> {
 
     /// 读一个根：完整原件证明与附加指纹均命中，才复用已验展开字节/解析结果；未命中则
     /// 完整展开并核公开长度与摘要后入句柄。两条路径的返回必须逐字节相同。
-    pub(super) fn read_root(
+    pub(super) fn read_root(&mut self,root_key:&str,with_value:bool)->Result<VerifiedRoot,String>{self.read_root_typed(root_key,with_value).map_err(ordinary_read_error)}
+    pub(crate) fn read_root_typed(
         &mut self,
         root_key: &str,
         with_value: bool,
-    ) -> Result<VerifiedRoot, String> {
+    ) -> Result<VerifiedRoot, MixedJsonError> {
         let admission = NativeAdmission(self.work);
-        let check = self.closure(root_key).map_err(|error| {
+        let check = self.closure_typed(root_key).map_err(|error| {
             #[cfg(test)]
             cache::counter(|c| c.reuse_gate_not_reached += 1);
             error
@@ -1894,13 +1895,27 @@ impl<'a> Reader<'a> {
             }
         });
         let (bytes, mut value) = match cached {
-            Some((bytes, value)) => (bytes, value),
+            Some((bytes, value)) => {
+                if self.mixed_observer.is_some(){
+                    let work=self.work.expect("mixed work");
+                    let bytes=bytes.share_or_copy_slice_mixed(work).map_err(MixedJsonError::Resource)?;
+                    let value=value.map(|json|json.share_or_copy_mixed(work,|old,work|{
+                        Ok(crate::SharedPlainJson{value:old.value.try_clone_mixed(work)?})
+                    })).transpose().map_err(MixedJsonError::Resource)?;
+                    if let Some(cert)=retained.as_ref(){
+                        cert.check_retained_source().map_err(MixedJsonError::Resource)?;
+                        retained=cache::handle_put_certified_typed(root_key,cert,check.digest,bytes.clone(),value.clone(),Some(work))
+                            .map_err(MixedJsonError::Resource)?;
+                    }
+                    (bytes,value)
+                }else{(bytes,value)}
+            },
             None => {
-                let expanded = self.expand_work(root_key, &check.row)?;
+                let expanded = self.expand_work_typed(root_key, &check.row)?;
                 let bytes = crate::v3::native_shared::NativeArc::<[u8]>::try_copy_slice(
                     &expanded, self.work,
                 )
-                .map_err(|e| e.to_string())?;
+                .map_err(MixedJsonError::Resource)?;
                 if cache::retention_enabled() {
                     // 已核闭包：把本次读到的**原件证书**保留下来（共享同一份原节点，按唯一保留量
                     // 记账），供后续捕获逐字节比较。只在成功核过长度/摘要之后才保留。
@@ -1908,36 +1923,36 @@ impl<'a> Reader<'a> {
                     let mut frontier = newchan_rust::s_content::CodecVec::default();
                     admission
                         .native_vec_room(&mut frontier, check.row.slots.len() + 1)
-                        .map_err(|e| e.to_string())?;
+                        .map_err(MixedJsonError::Resource)?;
                     for id in &check.row.slots {
-                        frontier.try_push(*id).map_err(|e| e.to_string())?;
+                        frontier.try_push(*id).map_err(MixedJsonError::Resource)?;
                     }
                     frontier
                         .try_push(check.row.node)
-                        .map_err(|e| e.to_string())?;
+                        .map_err(MixedJsonError::Resource)?;
                     while let Some(id) = frontier.pop() {
                         if !ids
                             .insert_admitted(id, &admission)
-                            .map_err(|e| e.to_string())?
+                            .map_err(MixedJsonError::Resource)?
                         {
                             continue;
                         }
                         // 命中本捕获读集时不再读 SQLite；读集被逐出时按新鲜行重读。
-                        let node = self.load(&id)?;
+                        let node = self.load_for_walk(&id)?;
                         admission
-                            .native_vec_room(&mut frontier, node.children.len())
-                            .map_err(|e| e.to_string())?;
-                        for id in &node.children {
-                            frontier.try_push(*id).map_err(|e| e.to_string())?;
+                            .native_vec_room(&mut frontier, node.children().len())
+                            .map_err(MixedJsonError::Resource)?;
+                        for id in node.children() {
+                            frontier.try_push(*id).map_err(MixedJsonError::Resource)?;
                         }
                     }
-                    cache::cert_commit_admitted(self.conn_id, &ids, self.work)?;
+                    cache::cert_commit_typed(self.conn_id, &ids, self.work).map_err(MixedJsonError::Resource)?;
                     let mut slots = CodecVec::default();
                     admission
                         .native_vec_room(&mut slots, check.row.slots.len())
-                        .map_err(|e| e.to_string())?;
+                        .map_err(MixedJsonError::Resource)?;
                     for slot in &check.row.slots {
-                        slots.try_push(*slot).map_err(|e| e.to_string())?;
+                        slots.try_push(*slot).map_err(MixedJsonError::Resource)?;
                     }
                     let cert = cache::RootCert::new_admitted(
                         check.row.node,
@@ -1945,21 +1960,21 @@ impl<'a> Reader<'a> {
                         check.row.expanded_length,
                         admission
                             .native_string(check.row.content_sha256.as_str())
-                            .map_err(|e| e.to_string())?,
+                            .map_err(MixedJsonError::Resource)?,
                     );
-                    retained = if cache::certify_retained_originals_admitted(
+                    retained = if cache::certify_retained_originals_typed(
                         self.conn_id,
                         &ids,
                         self.work,
-                    )? {
-                        cache::handle_put_certified_admitted(
+                    ).map_err(MixedJsonError::Resource)? {
+                        cache::handle_put_certified_typed(
                             root_key,
                             &cert,
                             check.digest,
                             bytes.clone(),
                             None,
                             self.work,
-                        )?
+                        ).map_err(MixedJsonError::Resource)?
                     } else {
                         #[cfg(test)]
                         cache::counter(|c| c.root_proof_rebuild_incomplete += 1);
@@ -1970,8 +1985,8 @@ impl<'a> Reader<'a> {
             }
         };
         if with_value && value.is_none() {
-            let parsed =
-                crate::v3::business_json::strict_json_owner_admitted(&bytes, None, self.work)
+            let parse = |work| {
+                crate::v3::business_json::strict_json_owner_admitted(&bytes, None, work)
                     .map(|parsed| match parsed {
                         crate::v3::business_json::JsonOwner::Plain(value) => value,
                         #[cfg(feature = "s_allocation_json_testonly")]
@@ -1981,31 +1996,35 @@ impl<'a> Reader<'a> {
                     })
                     .map_err(|e| match e {
                         crate::v3::business_json::StrictOwnerError::Syntax(cause) => {
-                            format!("StorageUnavailable：私有根 `{root_key}` 非严格 JSON：{cause}")
+                            MixedJsonError::Business(format!("StorageUnavailable：私有根 `{root_key}` 非严格 JSON：{cause}"))
                         }
                         #[cfg(feature = "s_allocation_json_testonly")]
                         crate::v3::business_json::StrictOwnerError::OwnedSyntax(cause) => {
-                            format!("StorageUnavailable：私有根 `{root_key}` 非严格 JSON：{cause}")
+                            MixedJsonError::Business(format!("StorageUnavailable：私有根 `{root_key}` 非严格 JSON：{cause}"))
                         }
                         crate::v3::business_json::StrictOwnerError::Allocation(cause) => {
-                            cause.to_string()
+                            MixedJsonError::Resource(cause)
                         }
-                    })?;
+                    })
+            };
+            let parsed=if self.mixed_observer.is_some(){
+                crate::v3::business_json::mixed_parse_admitted(&bytes,self.work.expect("mixed work"),||parse(None))?
+            }else{parse(self.work)?};
             if !parsed.is_object() {
                 return Err(format!(
                     "StorageUnavailable：私有根 `{root_key}` 非 JSON 对象"
-                ));
+                ).into());
             }
-            let parsed = crate::share_plain_json_admitted(parsed, self.work)?;
+            let parsed = crate::v3::native_shared::NativeArc::try_new_shallow(crate::SharedPlainJson{value:parsed},self.work).map_err(MixedJsonError::Resource)?;
             if let Some(cert) = retained.clone() {
-                retained = cache::handle_put_certified_admitted(
+                retained = cache::handle_put_certified_typed(
                     root_key,
                     &cert,
                     check.digest,
                     bytes.clone(),
                     Some(parsed.clone()),
                     self.work,
-                )?;
+                ).map_err(MixedJsonError::Resource)?;
             }
             value = Some(parsed);
             #[cfg(test)]
@@ -2014,9 +2033,8 @@ impl<'a> Reader<'a> {
         Ok(VerifiedRoot {
             bytes,
             declared_length: check.row.expanded_length,
-            content_sha256: NativeAdmission(self.work)
-                .native_text(check.row.content_sha256.as_str())
-                .map_err(|e| e.to_string())?,
+            content_sha256: TextValue::from_str_admitted_typed(check.row.content_sha256.as_str(),None,self.work)
+                .map_err(MixedJsonError::Resource)?,
             value,
             closure: check.digest,
             reused,
