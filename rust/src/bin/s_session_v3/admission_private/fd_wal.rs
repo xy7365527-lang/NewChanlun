@@ -644,7 +644,7 @@ unsafe extern "C" fn current_time(_: *mut ffi::sqlite3_vfs, out: *mut f64) -> c_
 // 白名单来源：探针提交 f3624c5d 在 windows-5090 跑全套 `cargo test --features s_session
 // --bin s_structure_session`，记录到的零列整表读共 768 次，全部 db=<none>、origin=<none>，
 // 恰为下列 9 张表（见 #1527 issuecomment-6267843338 之后的评论）。审计新增此类读前须同步本表。
-const COUNT_SCAN_TABLES: &[&[u8]] = &[
+pub(super) const COUNT_SCAN_TABLES: &[&[u8]] = &[
     b"catalog",
     b"raw_events",
     b"raw_ohlc",
@@ -657,7 +657,7 @@ const COUNT_SCAN_TABLES: &[&[u8]] = &[
 ];
 
 // #1527：只列原完整审计实际使用的只读动作；无 DDL/DML/ATTACH/SAVEPOINT/未知函数。
-fn audit_sql_allowed(
+pub(super) fn audit_sql_allowed(
     action: c_int,
     a: Option<&[u8]>,
     b: Option<&[u8]>,

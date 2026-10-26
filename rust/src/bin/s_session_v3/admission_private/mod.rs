@@ -1,5 +1,6 @@
 //! #1527：私有 SQLite 仅通过固定只读 FD VFS。无源 RW、无默认 VFS 兜底、无文件 clone。
 mod fd_wal;
+mod mixed_sql;
 use super::admission_anchor::AdmissionAccounting;
 use super::admission_provider::{MeasuredDomain, Medium};
 use super::audit_budget::Budget;
