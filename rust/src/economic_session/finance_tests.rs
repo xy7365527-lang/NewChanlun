@@ -155,11 +155,7 @@ impl Fixture {
     }
     /// #1717：同上，财务结构改为正式 S（生产 `s_structure_session` 与真实 s-session/3 会话），计划的
     /// `s_ref` 指向该会话的真实对象；`real_s` 为 `{structure, s_ref}`，`structure.reader_session` 冻结读法。
-    fn content_with_real_s_sr(
-        carriers: &[PathBuf],
-        section: Value,
-        real_s: &Value,
-    ) -> Self {
+    fn content_with_real_s_sr(carriers: &[PathBuf], section: Value, real_s: &Value) -> Self {
         Self::build_full(
             "100",
             None,
