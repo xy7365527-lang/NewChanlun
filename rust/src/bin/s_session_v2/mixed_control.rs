@@ -240,7 +240,9 @@ pub(crate) fn epoch_history(
         facts
             .try_reserve_native(work, 1)
             .map_err(MixedJsonError::Resource)?;
-        facts.try_push((TextValue::Plain(ns), at)).map_err(MixedJsonError::Resource)?;
+        facts
+            .try_push((TextValue::Plain(ns), at))
+            .map_err(MixedJsonError::Resource)?;
     }
     query.finalize().map_err(err)?;
     if previous_epoch.is_some_and(|last| last != current) {
@@ -433,10 +435,18 @@ pub(crate) fn original_catalog(conn: &Connection) -> Result<(), String> {
 
 pub(crate) mod history;
 
-pub(crate) fn prepare(conn:&Connection,work:&WorkScope,observer:&dyn LegacyObserver)->Result<ExpectedControl,MixedJsonError>{
-    let enabled=active(conn,work)?;
-    verify_schema(conn,enabled,work,observer)?;
-    let facts=epoch_history(conn,enabled,work)?;
-    if !enabled{return Ok(ExpectedControl::Legacy);}
-    Ok(ExpectedControl::V2{history:history::validate(conn,"s-session/2",facts,work)?})
+pub(crate) fn prepare(
+    conn: &Connection,
+    work: &WorkScope,
+    observer: &dyn LegacyObserver,
+) -> Result<ExpectedControl, MixedJsonError> {
+    let enabled = active(conn, work)?;
+    verify_schema(conn, enabled, work, observer)?;
+    let facts = epoch_history(conn, enabled, work)?;
+    if !enabled {
+        return Ok(ExpectedControl::Legacy);
+    }
+    Ok(ExpectedControl::V2 {
+        history: history::validate(conn, "s-session/2", facts, work)?,
+    })
 }

@@ -1394,57 +1394,114 @@ mod tests {
 
     #[test]
     fn mixed_control_history_matches_real_committed_messages() {
-
-        use crate::v2::mixed_control::{self,history};
+        use crate::v2::mixed_control::{self, history};
         use crate::v3::business_json::MixedJsonError;
-        crate::v2::with_mixed_control_fixture(|conn|{
+        crate::v2::with_mixed_control_fixture(|conn| {
             for case in 0..3 {
                 conn.execute_batch("SAVEPOINT negative").unwrap();
-                match case{
-                    1=>conn.execute_batch("UPDATE s_input_messages SET receipt_id='wrong' WHERE accepted_seq=0").unwrap(),
-                    2=>conn.execute_batch("UPDATE s_protocol_meta SET logical_phase_frontier='9999'").unwrap(),
-                    _=>{}
+                match case {
+                    1 => conn
+                        .execute_batch(
+                            "UPDATE s_input_messages SET receipt_id='wrong' WHERE accepted_seq=0",
+                        )
+                        .unwrap(),
+                    2 => conn
+                        .execute_batch("UPDATE s_protocol_meta SET logical_phase_frontier='9999'")
+                        .unwrap(),
+                    _ => {}
                 }
-                let expected=crate::v2::validate_control_history(conn,"s-session/2",crate::v2::verify_epoch_history(conn,true).unwrap())
-                    .map(|h|(h.session_generation().to_string(),h.clock_plan_hash().to_string(),h.pending_count()));
-                let owner=AdmissionRamLedger::new(limits(1<<22)).unwrap();
-                owner.codec_work().unwrap().run(|work|{
-                    let facts=mixed_control::epoch_history(conn,true,work).unwrap();
-                    let actual=history::validate(conn,"s-session/2",facts,work)
-                        .map(|h|(h.session_generation().to_string(),h.clock_plan_hash().to_string(),h.pending_count()))
-                        .map_err(|e|match e{MixedJsonError::Business(s)=>s,MixedJsonError::Resource(e)=>panic!("resource {e:?}")});
-                    assert_eq!(expected,actual,"case={case}");
-                    if case==0 {assert_eq!(actual.unwrap().2,2);}
-                    Ok::<(),newchan_rust::s_content::CodecError>(())
-                }).unwrap();
-                if case==0 {
-                    let small=AdmissionRamLedger::new(limits(CodecWork::metadata_bytes()+1)).unwrap();
-                    let result=small.codec_work().unwrap().run(|work|history::validate(conn,"s-session/2",Default::default(),work));
+                let expected = crate::v2::validate_control_history(
+                    conn,
+                    "s-session/2",
+                    crate::v2::verify_epoch_history(conn, true).unwrap(),
+                )
+                .map(|h| {
+                    (
+                        h.session_generation().to_string(),
+                        h.clock_plan_hash().to_string(),
+                        h.pending_count(),
+                    )
+                });
+                let owner = AdmissionRamLedger::new(limits(1 << 22)).unwrap();
+                owner
+                    .codec_work()
+                    .unwrap()
+                    .run(|work| {
+                        let facts = mixed_control::epoch_history(conn, true, work).unwrap();
+                        let actual = history::validate(conn, "s-session/2", facts, work)
+                            .map(|h| {
+                                (
+                                    h.session_generation().to_string(),
+                                    h.clock_plan_hash().to_string(),
+                                    h.pending_count(),
+                                )
+                            })
+                            .map_err(|e| match e {
+                                MixedJsonError::Business(s) => s,
+                                MixedJsonError::Resource(e) => panic!("resource {e:?}"),
+                            });
+                        assert_eq!(expected, actual, "case={case}");
+                        if case == 0 {
+                            assert_eq!(actual.unwrap().2, 2);
+                        }
+                        Ok::<(), newchan_rust::s_content::CodecError>(())
+                    })
+                    .unwrap();
+                if case == 0 {
+                    let small =
+                        AdmissionRamLedger::new(limits(CodecWork::metadata_bytes() + 1)).unwrap();
+                    let result = small.codec_work().unwrap().run(|work| {
+                        history::validate(conn, "s-session/2", Default::default(), work)
+                    });
                     assert!(matches!(result,Err(newchan_rust::s_content::capture_allocation::scratch::WorkError::Resource(ScratchFailure::Budget))),"resource failures retain typed cause");
                 }
-                conn.execute_batch("ROLLBACK TO negative; RELEASE negative").unwrap();
+                conn.execute_batch("ROLLBACK TO negative; RELEASE negative")
+                    .unwrap();
             }
         });
     }
 
     #[test]
     fn mixed_control_history_matches_original_first_errors() {
-
         use crate::v2::mixed_control::history;
         use crate::v3::business_json::MixedJsonError;
         for case in 0..9 {
-            let conn=rusqlite::Connection::open_in_memory().unwrap();
+            let conn = rusqlite::Connection::open_in_memory().unwrap();
             conn.execute_batch(crate::SCHEMA).unwrap();
             conn.execute_batch(crate::v2::SCHEMA_V2).unwrap();
-            let clock=serde_json::json!({"schema_revision":"s-clock-plan/1","clock_plan_id":"test","origin_utc":"2000-01-01T00:00:00Z","unit":"ns","events":{}});
-            let ch=newchan_rust::session_protocol::ClockView::parse((&clock).into()).unwrap().hash_fixed_with_owner(None).unwrap();
-            let cat=serde_json::json!({"catalog_revision":"r1","items":[]});
-            let ca=newchan_rust::session_protocol::canonical_hash_view_with_owner((&cat).into(),None).unwrap();
-            for(key,v)in [("profile_id","fixed"),("profile_hash","hash"),("profile_definition","{}"),("input_profile","fixed"),("writer_epoch","1"),("generation","0"),("session_id","s"),("catalog_definition",&crate::canonical_json(&cat)),("catalog_hash",ca.as_str()),("catalog_revision","r1")]{
-                conn.execute("INSERT INTO meta VALUES(?1,?2)",rusqlite::params![key,v]).unwrap();
+            let clock = serde_json::json!({"schema_revision":"s-clock-plan/1","clock_plan_id":"test","origin_utc":"2000-01-01T00:00:00Z","unit":"ns","events":{}});
+            let ch = newchan_rust::session_protocol::ClockView::parse((&clock).into())
+                .unwrap()
+                .hash_fixed_with_owner(None)
+                .unwrap();
+            let cat = serde_json::json!({"catalog_revision":"r1","items":[]});
+            let ca =
+                newchan_rust::session_protocol::canonical_hash_view_with_owner((&cat).into(), None)
+                    .unwrap();
+            for (key, v) in [
+                ("profile_id", "fixed"),
+                ("profile_hash", "hash"),
+                ("profile_definition", "{}"),
+                ("input_profile", "fixed"),
+                ("writer_epoch", "1"),
+                ("generation", "0"),
+                ("session_id", "s"),
+                ("catalog_definition", &crate::canonical_json(&cat)),
+                ("catalog_hash", ca.as_str()),
+                ("catalog_revision", "r1"),
+            ] {
+                conn.execute("INSERT INTO meta VALUES(?1,?2)", rusqlite::params![key, v])
+                    .unwrap();
             }
-            conn.execute("INSERT INTO s_protocol_meta VALUES(1,'s-session/2','1',?1,?2,1,'-1')",rusqlite::params![ch.as_str(),crate::canonical_json(&clock)]).unwrap();
-            conn.execute_batch("INSERT INTO s_delivery_policy VALUES(1,'s','1','generation-window/1',4,1,0)").unwrap();
+            conn.execute(
+                "INSERT INTO s_protocol_meta VALUES(1,'s-session/2','1',?1,?2,1,'-1')",
+                rusqlite::params![ch.as_str(), crate::canonical_json(&clock)],
+            )
+            .unwrap();
+            conn.execute_batch(
+                "INSERT INTO s_delivery_policy VALUES(1,'s','1','generation-window/1',4,1,0)",
+            )
+            .unwrap();
             match case {
                 1=>conn.execute_batch("DELETE FROM meta WHERE key='profile_id'").unwrap(),
                 2=>conn.execute_batch("UPDATE s_protocol_meta SET protocol_revision='s-session/3'").unwrap(),
@@ -1455,17 +1512,36 @@ mod tests {
                 7=>conn.execute_batch("INSERT INTO s_input_messages VALUES('n','e','m','h','{','receipt',0,'AcceptedPending',NULL,'x',0)").unwrap(),
                 _=>{}
             }
-            let protocol=if case==8 {"bad"}else{"s-session/2"};
-            let expected=crate::v2::validate_control_history(&conn,protocol,vec![]).map(|h|(h.session_generation().to_string(),h.clock_plan_hash().to_string(),h.pending_count()));
-            let owner=AdmissionRamLedger::new(limits(1<<20)).unwrap();
-            owner.codec_work().unwrap().run(|work|{
-                let actual=history::validate(&conn,protocol,Default::default(),work).map(|h|(h.session_generation().to_string(),h.clock_plan_hash().to_string(),h.pending_count())).map_err(|e|match e{
-                    MixedJsonError::Business(s)=>s,MixedJsonError::Resource(e)=>panic!("resource {e:?}"),
-                });
-                assert_eq!(expected,actual,"case={case}");
-                assert_eq!(actual.is_ok(),case==0);
-                Ok::<(),newchan_rust::s_content::CodecError>(())
-            }).unwrap();
+            let protocol = if case == 8 { "bad" } else { "s-session/2" };
+            let expected = crate::v2::validate_control_history(&conn, protocol, vec![]).map(|h| {
+                (
+                    h.session_generation().to_string(),
+                    h.clock_plan_hash().to_string(),
+                    h.pending_count(),
+                )
+            });
+            let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+            owner
+                .codec_work()
+                .unwrap()
+                .run(|work| {
+                    let actual = history::validate(&conn, protocol, Default::default(), work)
+                        .map(|h| {
+                            (
+                                h.session_generation().to_string(),
+                                h.clock_plan_hash().to_string(),
+                                h.pending_count(),
+                            )
+                        })
+                        .map_err(|e| match e {
+                            MixedJsonError::Business(s) => s,
+                            MixedJsonError::Resource(e) => panic!("resource {e:?}"),
+                        });
+                    assert_eq!(expected, actual, "case={case}");
+                    assert_eq!(actual.is_ok(), case == 0);
+                    Ok::<(), newchan_rust::s_content::CodecError>(())
+                })
+                .unwrap();
         }
     }
 

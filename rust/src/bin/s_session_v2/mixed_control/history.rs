@@ -1,59 +1,123 @@
 //! #1527：控制历史的 typed 资源传播，复用原业务谓词与 ControlHistory 消费核。
 use super::*;
-fn from_str(value:&str,work:&WorkScope)->Result<TextValue,MixedJsonError>{
-    Text::try_from_str(value,Some(work)).map(TextValue::Plain).map_err(MixedJsonError::Resource)
+fn from_str(value: &str, work: &WorkScope) -> Result<TextValue, MixedJsonError> {
+    Text::try_from_str(value, Some(work))
+        .map(TextValue::Plain)
+        .map_err(MixedJsonError::Resource)
 }
-fn text(row:&mut CheckedRow<'_>,column:usize,work:&WorkScope)->Result<TextValue,MixedJsonError>{
-    sql_text(row,column,work).map(TextValue::Plain)
+fn text(
+    row: &mut CheckedRow<'_>,
+    column: usize,
+    work: &WorkScope,
+) -> Result<TextValue, MixedJsonError> {
+    sql_text(row, column, work).map(TextValue::Plain)
 }
-fn meta(conn:&Connection,key:&str,work:&WorkScope)->Result<Option<TextValue>,MixedJsonError>{
-    crate::audit::mixed_profile::meta_text(conn,key,work).map(|v|v.map(TextValue::Plain))
+fn meta(
+    conn: &Connection,
+    key: &str,
+    work: &WorkScope,
+) -> Result<Option<TextValue>, MixedJsonError> {
+    crate::audit::mixed_profile::meta_text(conn, key, work).map(|v| v.map(TextValue::Plain))
 }
-fn meta_i64(conn:&Connection,key:&str,work:&WorkScope)->Result<i64,MixedJsonError>{
-    let value=meta(conn,key,work)?.ok_or_else(||format!("StorageUnavailable：meta.{key} 缺失"))?;
-    let label=Text::try_format(format_args!("meta.{key}"),Some(work)).map_err(MixedJsonError::Resource)?;
-    parse_canonical_i64(&value,&label).map_err(|e|format!("StorageUnavailable：{e}").into())
+fn meta_i64(conn: &Connection, key: &str, work: &WorkScope) -> Result<i64, MixedJsonError> {
+    let value =
+        meta(conn, key, work)?.ok_or_else(|| format!("StorageUnavailable：meta.{key} 缺失"))?;
+    let label = Text::try_format(format_args!("meta.{key}"), Some(work))
+        .map_err(MixedJsonError::Resource)?;
+    parse_canonical_i64(&value, &label).map_err(|e| format!("StorageUnavailable：{e}").into())
 }
-fn push<T>(values:&mut CodecVec<T>,value:T,work:&WorkScope)->Result<(),MixedJsonError>{
-    control_push(values,value,Some(work)).map_err(MixedJsonError::Resource)
+fn push<T>(values: &mut CodecVec<T>, value: T, work: &WorkScope) -> Result<(), MixedJsonError> {
+    control_push(values, value, Some(work)).map_err(MixedJsonError::Resource)
 }
-fn insert<K:Eq+std::hash::Hash,V>(values:&mut BusinessMap<K,V>,key:K,value:V,work:&WorkScope)->Result<Option<V>,MixedJsonError>{
-    control_insert(values,key,value,Some(work)).map_err(MixedJsonError::Resource)
+fn insert<K: Eq + std::hash::Hash, V>(
+    values: &mut BusinessMap<K, V>,
+    key: K,
+    value: V,
+    work: &WorkScope,
+) -> Result<Option<V>, MixedJsonError> {
+    control_insert(values, key, value, Some(work)).map_err(MixedJsonError::Resource)
 }
-fn sorted_keys<'a,K:Eq+std::hash::Hash+Ord,V>(map:&'a BusinessMap<K,V>,work:&WorkScope)->Result<CodecVec<&'a K>,MixedJsonError>{
-    let mut keys=CodecVec::default();
-    for (key,_) in map.iter(){push(&mut keys,key,work)?;}
+fn sorted_keys<'a, K: Eq + std::hash::Hash + Ord, V>(
+    map: &'a BusinessMap<K, V>,
+    work: &WorkScope,
+) -> Result<CodecVec<&'a K>, MixedJsonError> {
+    let mut keys = CodecVec::default();
+    for (key, _) in map.iter() {
+        push(&mut keys, key, work)?;
+    }
     keys.sort_unstable();
     Ok(keys)
 }
-fn query_row<T>(conn:&Connection,sql:&CStr,params:&[ControlBind<'_>],read:impl FnOnce(&mut CheckedRow<'_>)->Result<T,MixedJsonError>)->Result<T,MixedJsonError>{
-    let mut stmt=CheckedStatement::prepare(conn,sql).map_err(err)?;
-    for(i,p)in params.iter().enumerate(){
-        match p{ControlBind::Text(s)=>stmt.bind_text(i as i32+1,s),ControlBind::Integer(n)=>stmt.bind_integer(i as i32+1,*n)}.map_err(err)?;
+fn query_row<T>(
+    conn: &Connection,
+    sql: &CStr,
+    params: &[ControlBind<'_>],
+    read: impl FnOnce(&mut CheckedRow<'_>) -> Result<T, MixedJsonError>,
+) -> Result<T, MixedJsonError> {
+    let mut stmt = CheckedStatement::prepare(conn, sql).map_err(err)?;
+    for (i, p) in params.iter().enumerate() {
+        match p {
+            ControlBind::Text(s) => stmt.bind_text(i as i32 + 1, s),
+            ControlBind::Integer(n) => stmt.bind_integer(i as i32 + 1, *n),
+        }
+        .map_err(err)?;
     }
-    let mut row=stmt.next().map_err(err)?.ok_or_else(||err(rusqlite::Error::QueryReturnedNoRows))?;
-    let result=read(&mut row)?;
-    drop(row);stmt.finalize().map_err(err)?;
+    let mut row = stmt
+        .next()
+        .map_err(err)?
+        .ok_or_else(|| err(rusqlite::Error::QueryReturnedNoRows))?;
+    let result = read(&mut row)?;
+    drop(row);
+    stmt.finalize().map_err(err)?;
     Ok(result)
 }
-fn canonical(value:JsonView<'_>,work:&WorkScope)->Result<TextValue,MixedJsonError>{
-    struct Sink<'a>{bytes:CodecVec<u8>,work:&'a WorkScope,failure:Option<newchan_rust::s_content::CodecError>}
-    impl std::io::Write for Sink<'_>{
-        fn write(&mut self,b:&[u8])->std::io::Result<usize>{
-            if let Err(e)=control_extend(&mut self.bytes,b,Some(self.work)){
-                self.failure=Some(e);return Err(std::io::Error::other("mixed canonical allocation"));
-            }Ok(b.len())
-        }
-        fn flush(&mut self)->std::io::Result<()>{Ok(())}
+fn canonical(value: JsonView<'_>, work: &WorkScope) -> Result<TextValue, MixedJsonError> {
+    struct Sink<'a> {
+        bytes: CodecVec<u8>,
+        work: &'a WorkScope,
+        failure: Option<newchan_rust::s_content::CodecError>,
     }
-    let mut sink=Sink{bytes:CodecVec::default(),work,failure:None};
-    let result=serde_json::to_writer(&mut sink,&value);
-    if let Some(e)=sink.failure{return Err(MixedJsonError::Resource(e));}
+    impl std::io::Write for Sink<'_> {
+        fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+            if let Err(e) = control_extend(&mut self.bytes, b, Some(self.work)) {
+                self.failure = Some(e);
+                return Err(std::io::Error::other("mixed canonical allocation"));
+            }
+            Ok(b.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut sink = Sink {
+        bytes: CodecVec::default(),
+        work,
+        failure: None,
+    };
+    let result = serde_json::to_writer(&mut sink, &value);
+    if let Some(e) = sink.failure {
+        return Err(MixedJsonError::Resource(e));
+    }
     result.map_err(err)?;
-    sink.bytes.try_into_native_text().map(TextValue::Plain).map_err(MixedJsonError::Resource)
+    sink.bytes
+        .try_into_native_text()
+        .map(TextValue::Plain)
+        .map_err(MixedJsonError::Resource)
 }
-fn read_message(r:&mut CheckedRow<'_>,work:&WorkScope)->Result<AuditMessage,MixedJsonError>{
-    Ok(AuditMessage{ns:text(r,0,work)?,se:text(r,1,work)?,id:text(r,2,work)?,hash:text(r,3,work)?,raw:text(r,4,work)?,receipt:text(r,5,work)?,seq:r.integer(6).map_err(err)?,status:text(r,7,work)?,published:r.optional_integer(8).map_err(err)?,event:text(r,9,work)?,count:r.integer(10).map_err(err)?})
+fn read_message(r: &mut CheckedRow<'_>, work: &WorkScope) -> Result<AuditMessage, MixedJsonError> {
+    Ok(AuditMessage {
+        ns: text(r, 0, work)?,
+        se: text(r, 1, work)?,
+        id: text(r, 2, work)?,
+        hash: text(r, 3, work)?,
+        raw: text(r, 4, work)?,
+        receipt: text(r, 5, work)?,
+        seq: r.integer(6).map_err(err)?,
+        status: text(r, 7, work)?,
+        published: r.optional_integer(8).map_err(err)?,
+        event: text(r, 9, work)?,
+        count: r.integer(10).map_err(err)?,
+    })
 }
 
 fn validate_message(
@@ -82,7 +146,7 @@ fn validate_message(
         count,
     } = m;
     let (seq, count, published) = (*seq, *count, *published);
-    let envelope = super::decode(&raw,work)?;
+    let envelope = super::decode(&raw, work)?;
     let e = validate_envelope_view_with_owner(envelope.as_ref().into(), protocol_revision, None)
         .map_err(err)?;
     if !control_canonical_equal(e, &raw, None)?
@@ -104,16 +168,23 @@ fn validate_message(
         return Err(err("持久输入消息非单事件").into());
     }
     let ev = input.event(0).map_err(err)?;
-    let ik=Text::try_format(format_args!("{}|{}|{}|{}",input.source_namespace,input.source_epoch,input.instrument,ev.event_id),Some(work)).map_err(MixedJsonError::Resource)?;
+    let ik = Text::try_format(
+        format_args!(
+            "{}|{}|{}|{}",
+            input.source_namespace, input.source_epoch, input.instrument, ev.event_id
+        ),
+        Some(work),
+    )
+    .map_err(MixedJsonError::Resource)?;
     let actual = query_row(
         conn,
         c"SELECT receipt_id,payload_hash,identity_key,revision FROM raw_events WHERE seq=?1",
         &[ControlBind::Integer(seq)],
         |mut r| {
             Ok((
-                text(&mut r,0,work)?,
-                text(&mut r,1,work)?,
-                text(&mut r,2,work)?,
+                text(&mut r, 0, work)?,
+                text(&mut r, 1, work)?,
+                text(&mut r, 2, work)?,
                 r.integer(3).map_err(err)?,
             ))
         },
@@ -141,7 +212,7 @@ fn validate_message(
         JsonView::String(&se),
         JsonView::String(&id),
     ];
-    canonical(JsonView::ArraySlice(&key_fields),work)
+    canonical(JsonView::ArraySlice(&key_fields), work)
 }
 
 pub(crate) fn validate(
@@ -153,7 +224,8 @@ pub(crate) fn validate(
     if !matches!(protocol_revision, "s-session/2" | "s-session/3") {
         return Err(err(format!(
             "协议版本参数只允许 s-session/2 或 s-session/3，收到 `{protocol_revision}`"
-        )).into());
+        ))
+        .into());
     }
     for (table, count_sql, singleton_sql) in [
         (
@@ -186,8 +258,7 @@ pub(crate) fn validate(
         }
     }
     positive(
-        &meta(conn, "writer_epoch", work)?
-            .ok_or_else(|| err("缺writer_epoch"))?,
+        &meta(conn, "writer_epoch", work)?.ok_or_else(|| err("缺writer_epoch"))?,
         "v2 writer_epoch",
     )
     .map_err(err)?;
@@ -198,9 +269,8 @@ pub(crate) fn validate(
     }
     positive(&inc, "session_generation").map_err(err)?;
     let root_g = meta_i64(conn, "generation", work)?;
-    let sid = meta(conn, "session_id", work)?
-        .ok_or_else(|| err("缺session"))?;
-    super::catalog(conn,work)?;
+    let sid = meta(conn, "session_id", work)?.ok_or_else(|| err("缺session"))?;
+    super::catalog(conn, work)?;
     let (ps,pi,pr,keep,first,head) = query_row(conn,c"SELECT session_id,session_generation,policy_revision,retain_generations,first_available_generation,head_generation FROM s_delivery_policy WHERE singleton=1", &[], |r| Ok((text(r,0,work)?,text(r,1,work)?,text(r,2,work)?,r.integer(3).map_err(err)?,r.integer(4).map_err(err)?,r.integer(5).map_err(err)?)))?;
     validate_delivery_policy(&ps, &pi, &pr, keep, first, head, &sid, &inc, root_g)?;
     let mut stmt = conn
@@ -265,9 +335,7 @@ pub(crate) fn validate(
             ..
         } = m;
         insert(&mut message_sequences, seq, (), work)?;
-        if insert(&mut messages, event, (key, count, published), work)?
-            .is_some()
-        {
+        if insert(&mut messages, event, (key, count, published), work)?.is_some() {
             return Err(err("重复clock消息身份").into());
         }
     }
@@ -276,7 +344,7 @@ pub(crate) fn validate(
         .query_row("SELECT COUNT(*) FROM raw_events", [], |r| r.get(0))
         .map_err(err)?;
     if message_sequences.len() as i128 != raw_count as i128
-        || sorted_keys(&message_sequences,work)?
+        || sorted_keys(&message_sequences, work)?
             .iter()
             .enumerate()
             .any(|(i, seq)| **seq as i128 != i as i128)
@@ -292,11 +360,11 @@ pub(crate) fn validate(
     let mut recover_facts = CodecVec::default();
     let mut max_ns = -1;
     while let Some(mut r) = stmt.next().map_err(err)? {
-        let id = text(&mut r,0,work)?;
-        let phase = text(&mut r,1,work)?;
+        let id = text(&mut r, 0, work)?;
+        let phase = text(&mut r, 1, work)?;
         let index = r.integer(2).map_err(err)?;
-        let ns = text(&mut r,3,work)?;
-        let key = text(&mut r,4,work)?;
+        let ns = text(&mut r, 3, work)?;
+        let key = text(&mut r, 4, work)?;
         let ord = r.optional_integer(5).map_err(err)?;
         let g = r.integer(6).map_err(err)?;
         validate_audit_phase(
@@ -318,7 +386,10 @@ pub(crate) fn validate(
         if phase == "recover" {
             push(
                 &mut recover_facts,
-                (ns.try_clone_mixed(work).map_err(MixedJsonError::Resource)?, g),
+                (
+                    ns.try_clone_mixed(work).map_err(MixedJsonError::Resource)?,
+                    g,
+                ),
                 work,
             )?;
         } else {
@@ -329,7 +400,10 @@ pub(crate) fn validate(
                 && insert(
                     &mut ordinals,
                     ord.unwrap(),
-                    (id.try_clone_mixed(work).map_err(MixedJsonError::Resource)?, index),
+                    (
+                        id.try_clone_mixed(work).map_err(MixedJsonError::Resource)?,
+                        index,
+                    ),
                     work,
                 )?
                 .is_some()
@@ -357,30 +431,31 @@ pub(crate) fn validate(
             && insert(
                 &mut commits_by_generation,
                 g,
-                (id.try_clone_mixed(work).map_err(MixedJsonError::Resource)?, index),
+                (
+                    id.try_clone_mixed(work).map_err(MixedJsonError::Resource)?,
+                    index,
+                ),
                 work,
             )?
             .is_some()
         {
             return Err(err("每代重复Commit phase").into());
         }
-        if insert(&mut seen, (id, phase, index), (ord, g), work)?
-            .is_some()
-        {
+        if insert(&mut seen, (id, phase, index), (ord, g), work)?.is_some() {
             return Err(err("重复phase").into());
         }
     }
     stmt.finalize().map_err(err)?;
     if parse_canonical_i64(&frontier, "logical_phase_frontier").map_err(err)? != max_ns
         || next as i128 != ordinals.len() as i128 + 1
-        || sorted_keys(&ordinals,work)?
+        || sorted_keys(&ordinals, work)?
             .iter()
             .enumerate()
             .any(|(i, o)| **o as i128 != i as i128 + 1)
     {
         return Err(err("phase frontier/attempt序列断裂").into());
     }
-    for id in &sorted_keys(&messages,work)? {
+    for id in &sorted_keys(&messages, work)? {
         let (_, count, published) = messages.get(id.as_str()).unwrap();
         let indexes = begins_by_message.get(id.as_str());
         let mut sorted_indexes = CodecVec::default();
@@ -419,7 +494,7 @@ pub(crate) fn validate(
     let mut remaining = control_json::new_map(None);
     while let Some(mut r) = q.next().map_err(err)? {
         let g = r.integer(0).map_err(err)?;
-        let batch_id = text(&mut r,1,work)?;
+        let batch_id = text(&mut r, 1, work)?;
         let (id, index) = commits_by_generation
             .get(&g)
             .ok_or_else(|| err("v2发布缺真实Commit phase"))?;
@@ -427,7 +502,7 @@ pub(crate) fn validate(
             &mut remaining,
             (g, batch_id),
             ControlHeader {
-                commit_ns: from_str(clock.phase(id, "commit", *index).map_err(err)?,work)?,
+                commit_ns: from_str(clock.phase(id, "commit", *index).map_err(err)?, work)?,
                 consumed: false,
             },
             work,
