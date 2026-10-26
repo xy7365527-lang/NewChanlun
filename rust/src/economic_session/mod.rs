@@ -16,6 +16,7 @@ mod tb03c_corrections;
 mod tb03c_e;
 mod tb03c_funding;
 mod tb03c_per_leg;
+mod tb03c_sr_expansion;
 mod tb03c_transfer;
 mod voice;
 pub use service::cli;
