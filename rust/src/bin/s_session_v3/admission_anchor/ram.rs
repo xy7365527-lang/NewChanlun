@@ -1354,6 +1354,35 @@ mod tests {
     }
 
     #[test]
+    fn mixed_control_catalog_matches_original() {
+
+        use crate::v2::mixed_control as control;
+        use crate::v3::business_json::MixedJsonError;
+        for case in 0..7 {
+            let conn=rusqlite::Connection::open_in_memory().unwrap();
+            conn.execute_batch("CREATE TABLE meta(key TEXT PRIMARY KEY,value TEXT); CREATE TABLE catalog(catalog_id TEXT,kind TEXT,title TEXT,domain TEXT,branches_json TEXT)").unwrap();
+            let value=serde_json::json!({"catalog_revision":"r1","items":[{"id":"x","kind":"k","title":"t","domain":"d","branches":[]}]});
+            let raw=if case==1{"{".to_string()}else{crate::canonical_json(&value)};
+            let hash=newchan_rust::session_protocol::canonical_hash_view_with_owner((&value).into(),None).unwrap();
+            for (key,v) in [("catalog_definition",raw.as_str()),("catalog_hash",if case==2{"wrong"}else{hash.as_str()}),("catalog_revision",if case==3{"r2"}else{"r1"})]{
+                conn.execute("INSERT INTO meta VALUES(?1,?2)",rusqlite::params![key,v]).unwrap();
+            }
+            if case!=4 {
+                conn.execute("INSERT INTO catalog VALUES('x','k',?1,'d',?2)",rusqlite::params![if case==5{"wrong"}else{"t"},if case==6{"{"}else{"[]"}]).unwrap();
+            }
+            let expected=control::original_catalog(&conn);
+            let owner=AdmissionRamLedger::new(limits(1<<20)).unwrap();
+            owner.codec_work().unwrap().run(|work|{
+                let actual=control::catalog(&conn,work).map_err(|e|match e{
+                    MixedJsonError::Business(s)=>s,MixedJsonError::Resource(e)=>panic!("resource {e:?}"),
+                });
+                assert_eq!(expected,actual,"case={case}");
+                Ok::<(),newchan_rust::s_content::CodecError>(())
+            }).unwrap();
+        }
+    }
+
+    #[test]
     fn mixed_control_clock_matches_original_strict_parser() {
 
         use crate::v2::mixed_control as control;

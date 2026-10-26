@@ -1759,6 +1759,62 @@ pub(super) fn validate_control_history_with_owner(
 ) -> Result<ControlHistory, String> {
     validate_control_history_admitted(conn, protocol_revision, epoch_facts, owner, None)
 }
+fn verify_control_catalog_admitted(conn:&Connection,owner:Option<&OwnedBudget>,work:Option<&WorkScope>)->Result<(),String>{
+    use control_json::field;
+    use newchan_rust::session_protocol::{canonical_hash_view_with_owner,required_view};
+    let catalog_raw = control_meta_text_admitted(conn, "catalog_definition", owner, work)?
+        .ok_or_else(|| err("v2缺catalog来源"))?;
+    let catalog_hash = control_meta_text_admitted(conn, "catalog_hash", owner, work)?
+        .ok_or_else(|| err("v2缺catalog hash"))?;
+    let catalog = control_decode_admitted(&catalog_raw, owner, false, work).map_err(err)?;
+    let catalog_view = catalog.view();
+    if !control_canonical_equal(catalog_view, &catalog_raw, owner)?
+        || canonical_hash_view_with_owner(catalog_view, owner)
+            .map_err(err)?
+            .as_str()
+            != catalog_hash.as_str()
+        || field(catalog_view, "catalog_revision").as_str()
+            != control_meta_text_admitted(conn, "catalog_revision", owner, work)?.as_deref()
+    {
+        return Err(err("目录来源/hash/revision不一致"));
+    }
+    let items = field(catalog_view, "items")
+        .as_array()
+        .ok_or_else(|| err("目录源items缺失"))?;
+    let actual_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM catalog", [], |r| r.get(0))
+        .map_err(err)?;
+    if actual_count as usize != items.len() {
+        return Err(err("目录静态行数不同"));
+    }
+    for item in items.iter() {
+        let actual = control_query_row(
+            conn,
+            c"SELECT kind,title,domain,branches_json FROM catalog WHERE catalog_id=?1",
+            &[ControlBind::Text(required_view(item, "id").map_err(err)?)],
+            |r| {
+                Ok((
+                    TextValue::from_sql_admitted(r, 0, owner, work)?,
+                    TextValue::from_sql_admitted(r, 1, owner, work)?,
+                    TextValue::from_sql_admitted(r, 2, owner, work)?,
+                    TextValue::from_sql_admitted(r, 3, owner, work)?,
+                ))
+            },
+        )?;
+        if field(item, "kind").as_str() != Some(actual.0.as_str())
+            || field(item, "title").as_str() != Some(actual.1.as_str())
+            || field(item, "domain").as_str() != Some(actual.2.as_str())
+            || field(item, "branches")
+                != control_decode_admitted(&actual.3, owner, false, work)
+                    .map_err(err)?
+                    .view()
+        {
+            return Err(err("目录静态内容与来源不同"));
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn validate_control_history_admitted(
     conn: &Connection,
     protocol_revision: &str,
@@ -1824,56 +1880,7 @@ pub(super) fn validate_control_history_admitted(
     let root_g = control_meta_i64_admitted(conn, "generation", owner, work)?;
     let sid = control_meta_text_admitted(conn, "session_id", owner, work)?
         .ok_or_else(|| err("缺session"))?;
-    let catalog_raw = control_meta_text_admitted(conn, "catalog_definition", owner, work)?
-        .ok_or_else(|| err("v2缺catalog来源"))?;
-    let catalog_hash = control_meta_text_admitted(conn, "catalog_hash", owner, work)?
-        .ok_or_else(|| err("v2缺catalog hash"))?;
-    let catalog = control_decode_admitted(&catalog_raw, owner, false, work).map_err(err)?;
-    let catalog_view = catalog.view();
-    if !control_canonical_equal(catalog_view, &catalog_raw, owner)?
-        || canonical_hash_view_with_owner(catalog_view, owner)
-            .map_err(err)?
-            .as_str()
-            != catalog_hash.as_str()
-        || field(catalog_view, "catalog_revision").as_str()
-            != control_meta_text_admitted(conn, "catalog_revision", owner, work)?.as_deref()
-    {
-        return Err(err("目录来源/hash/revision不一致"));
-    }
-    let items = field(catalog_view, "items")
-        .as_array()
-        .ok_or_else(|| err("目录源items缺失"))?;
-    let actual_count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM catalog", [], |r| r.get(0))
-        .map_err(err)?;
-    if actual_count as usize != items.len() {
-        return Err(err("目录静态行数不同"));
-    }
-    for item in items.iter() {
-        let actual = control_query_row(
-            conn,
-            c"SELECT kind,title,domain,branches_json FROM catalog WHERE catalog_id=?1",
-            &[ControlBind::Text(required_view(item, "id").map_err(err)?)],
-            |r| {
-                Ok((
-                    TextValue::from_sql_admitted(r, 0, owner, work)?,
-                    TextValue::from_sql_admitted(r, 1, owner, work)?,
-                    TextValue::from_sql_admitted(r, 2, owner, work)?,
-                    TextValue::from_sql_admitted(r, 3, owner, work)?,
-                ))
-            },
-        )?;
-        if field(item, "kind").as_str() != Some(actual.0.as_str())
-            || field(item, "title").as_str() != Some(actual.1.as_str())
-            || field(item, "domain").as_str() != Some(actual.2.as_str())
-            || field(item, "branches")
-                != control_decode_admitted(&actual.3, owner, false, work)
-                    .map_err(err)?
-                    .view()
-        {
-            return Err(err("目录静态内容与来源不同"));
-        }
-    }
+    verify_control_catalog_admitted(conn,owner,work)?;
     let (ps,pi,pr,keep,first,head) = control_query_row(conn,c"SELECT session_id,session_generation,policy_revision,retain_generations,first_available_generation,head_generation FROM s_delivery_policy WHERE singleton=1", &[], |r| Ok((TextValue::from_sql_admitted(r,0,owner, work)?,TextValue::from_sql_admitted(r,1,owner, work)?,TextValue::from_sql_admitted(r,2,owner, work)?,r.integer(3).map_err(|e|e.to_string())?,r.integer(4).map_err(|e|e.to_string())?,r.integer(5).map_err(|e|e.to_string())?)))?;
     validate_delivery_policy(&ps, &pi, &pr, keep, first, head, &sid, &inc, root_g)?;
     let mut stmt = conn
