@@ -228,7 +228,10 @@ fn audit_legacy_serve_prefix(
 ) -> Result<(), String> {
     crate::v2::verify_serve_startup(conn, db, epoch, clock, || {
         let bytes = {
-            let mut access = account.account.try_borrow_mut().map_err(|_| reentrant().to_string())?;
+            let mut access = account
+                .account
+                .try_borrow_mut()
+                .map_err(|_| reentrant().to_string())?;
             super::admission::read_startup_accounted(&mut **access, profile, None)?
         };
         let text = String::from_utf8(bytes).map_err(|_| "StartupProfileUtf8Invalid")?;
@@ -273,9 +276,12 @@ fn audit_business(
             }
             match prefix {
                 RejectionPrefix::None => Ok(()),
-                RejectionPrefix::LegacyServe { db, epoch, clock, profile } => {
-                    audit_legacy_serve_prefix(&tx, account, db, epoch, clock, profile)
-                }
+                RejectionPrefix::LegacyServe {
+                    db,
+                    epoch,
+                    clock,
+                    profile,
+                } => audit_legacy_serve_prefix(&tx, account, db, epoch, clock, profile),
                 RejectionPrefix::OrdinaryStartup { epoch }
                 | RejectionPrefix::NativeStartup { epoch, .. } => {
                     crate::verify_writer_epoch(&tx, epoch)?;
@@ -293,7 +299,13 @@ fn audit_business(
         None | Some(super::PREVIOUS_REVISION) => {
             // 完整原判据原样运行；旧证据图不是 s-content 分帧域，不能伪造 CheckedNodeUsage。
             crate::v2::audit_private_startup(&tx)?;
-            if let RejectionPrefix::LegacyServe { db, epoch, clock, profile } = prefix {
+            if let RejectionPrefix::LegacyServe {
+                db,
+                epoch,
+                clock,
+                profile,
+            } = prefix
+            {
                 audit_legacy_serve_prefix(&tx, account, db, epoch, clock, profile)?;
             }
             Err("LegacyAdmissionBudgetAdapterMissing：完整旧域审计已调用，但旧证据图节点与Snapshot/Delta尚无Job同源费用适配，禁止签发准入".into())

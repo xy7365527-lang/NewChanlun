@@ -173,9 +173,16 @@ impl WriterScope {
         clock: &crate::v2::ClockPlan,
         profile: &Path,
     ) -> Result<Self, String> {
-        Self::admit_prefix(db, prepared, super::admission_private::RejectionPrefix::LegacyServe {
-            db, epoch, clock, profile,
-        })
+        Self::admit_prefix(
+            db,
+            prepared,
+            super::admission_private::RejectionPrefix::LegacyServe {
+                db,
+                epoch,
+                clock,
+                profile,
+            },
+        )
     }
     pub(crate) fn admit(db: &Path, prepared: PreparedAdmission) -> Result<Self, String> {
         Self::admit_prefix(
@@ -459,7 +466,8 @@ pub(crate) fn read_startup(
 ) -> Result<Vec<u8>, String> {
     let mut state = scope.inner.accounting.borrow_mut();
     let account = state.as_mut().ok_or("StartupAccountingFinished")?;
-    read_startup_accounted(&mut account.accounting(), path, maximum)
+    let result = read_startup_accounted(&mut account.accounting(), path, maximum);
+    result
 }
 
 pub(super) fn read_startup_accounted(
@@ -467,16 +475,12 @@ pub(super) fn read_startup_accounted(
     path: &Path,
     maximum: Option<usize>,
 ) -> Result<Vec<u8>, String> {
-    account
-        .pre_io_check()
-        .map_err(|e| e.to_string())?;
+    account.pre_io_check().map_err(|e| e.to_string())?;
     let opened = OpenOptions::new()
         .read(true)
         .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC)
         .open(path);
-    account
-        .check_deadline()
-        .map_err(|e| e.to_string())?;
+    account.check_deadline().map_err(|e| e.to_string())?;
     let mut f = opened.map_err(|_| "StartupInputOpenFailed")?;
     if !f
         .metadata()
@@ -488,9 +492,7 @@ pub(super) fn read_startup_accounted(
     let mut bytes = Vec::new();
     let mut buf = [0u8; 8192];
     loop {
-        account
-                .pre_io_check()
-            .map_err(|e| e.to_string())?;
+        account.pre_io_check().map_err(|e| e.to_string())?;
         let room = maximum.map_or(buf.len(), |m| {
             m.saturating_sub(bytes.len())
                 .saturating_add(1)
@@ -499,7 +501,7 @@ pub(super) fn read_startup_accounted(
         match f.read(&mut buf[..room]) {
             Ok(n) => {
                 account
-                                .charge_wire_bytes(n as u64)
+                    .charge_wire_bytes(n as u64)
                     .map_err(|e| e.to_string())?;
                 if maximum.is_some_and(|m| bytes.len().saturating_add(n) > m) {
                     return Err("StartupInputTooLarge".into());
@@ -513,9 +515,7 @@ pub(super) fn read_startup_accounted(
                 }
             }
             Err(_) => {
-                account
-                                .check_deadline()
-                    .map_err(|e| e.to_string())?;
+                account.check_deadline().map_err(|e| e.to_string())?;
                 return Err("StartupInputReadFailed".into());
             }
         }

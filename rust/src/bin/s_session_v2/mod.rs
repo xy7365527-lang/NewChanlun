@@ -3521,7 +3521,8 @@ mod tests {
                 let conn = open_db(&f.db).unwrap();
                 meta_set(&conn, "rule_revision", "s2-axis-quantifiers+new-bi/1").unwrap();
                 drop(conn);
-                let mut value: Value = serde_json::from_slice(&std::fs::read(&f.profile).unwrap()).unwrap();
+                let mut value: Value =
+                    serde_json::from_slice(&std::fs::read(&f.profile).unwrap()).unwrap();
                 value["tick_size"] = json!("2");
                 let path = f.dir.join("different-profile.json");
                 std::fs::write(&path, canonical_json(&value)).unwrap();
@@ -3546,12 +3547,16 @@ mod tests {
                     connections: 4,
                 },
                 crate::v3::admission_anchor::test_prepare(&f.db),
-            ).unwrap_err();
-            assert!(msg.starts_with(if bad_profile {
-                "IdentityConflict：serve profile绑定不同"
-            } else {
-                "LegacyAdmissionBudgetAdapterMissing："
-            }), "{msg}");
+            )
+            .unwrap_err();
+            assert!(
+                msg.starts_with(if bad_profile {
+                    "IdentityConflict：serve profile绑定不同"
+                } else {
+                    "LegacyAdmissionBudgetAdapterMissing："
+                }),
+                "{msg}"
+            );
             assert!(!socket.exists());
         }
     }
