@@ -828,3 +828,49 @@ impl AuditWalk {
         self.observations.finish()
     }
 }
+
+
+fn same_records<'a,'b>(
+    actual:impl IntoIterator<Item=&'a Value>,expected:impl IntoIterator<Item=&'b Value>,
+    field:&str,family:&'static str,work:&WorkScope,observer:&dyn LegacyObserver,
+)->Result<(),MixedJsonError>{
+    let actual=scoped_legacy::normalize_records(actual,field,family,work,observer)?;
+    let expected=scoped_legacy::normalize_records(expected,field,family,work,observer)?;
+    scoped_legacy::compare_normalized(&actual,&expected,field,family,observer)
+}
+fn value_array(value:&Value)->Result<&[Value],MixedJsonError>{
+    value.as_array().map(|v|v.as_slice()).ok_or_else(||MixedJsonError::Business("StorageUnavailable：集合非数组".into()))
+}
+fn verify_delta_evidence(
+    delta:&Value,batch:&Value,work:&WorkScope,observer:&dyn LegacyObserver,
+)->Result<(),MixedJsonError>{
+    crate::verify_delta_prefix(delta,batch)?;
+    let evidence=&delta["catalog_evidence"];
+    if batch["profile_id"]==tb02a::PROFILE {
+        let changes=&evidence["axes"]["CC-056"]["evidence"];
+        same_records(value_array(&changes["withdrawals"])?,value_array(&delta["withdrawals"])?,
+            "CC056撤回证据","objects",work,observer)?;
+        same_records(value_array(&changes["replaces"])?,value_array(&delta["replaces"])?,
+            "CC056替代证据","relations",work,observer)?;
+        let start=parse_canonical_i64(delta["seq_range"]["from"].as_str().ok_or("StorageUnavailable：Delta起始前沿缺失")?,"from")?;
+        let mut revisions=newchan_rust::s_content::CodecVec::default();
+        for raw in required_array(batch,"raw_events")? {
+            observer.visit_record("raw_history","delta-raw-filter",LegacyRecordRef::Json(raw)).map_err(MixedJsonError::Resource)?;
+            if raw["seq"].as_i64().is_some_and(|n|n>=start) && raw["revision"].as_i64().is_some_and(|n|n>1) {
+                use scoped_legacy::{ScopedLegacyRecord,ProjectionKind,Field};
+                let mut out=ScopedLegacyRecord::object(ProjectionKind::RawEventWire,work)?;
+                for (key,field) in [("identity_key",Field::IdentityKey),("payload_hash",Field::PayloadHash),("receipt_id",Field::ReceiptId),
+                    ("event_id",Field::EventId),("input_revision",Field::InputRevision)] {out.borrowed(field,&raw[key])?;}
+                out.integer(Field::Revision,raw["revision"].as_i64().unwrap())?;
+                out.integer(Field::Seq,raw["seq"].as_i64().unwrap())?;
+                out.borrowed(Field::SourceCoord,&raw["source_coord"])?;
+                revisions.try_reserve_native(work,1).map_err(MixedJsonError::Resource)?;
+                revisions.try_push(out.finish()).map_err(MixedJsonError::Resource)?;
+            }
+        }
+        same_records(value_array(&changes["raw_revisions"])?,revisions.iter().map(PlainJson::as_ref),
+            "CC056原始修订证据","raw_history",work,observer)?;
+    }
+    crate::verify_delta_suffix(delta,batch)?;
+    Ok(())
+}

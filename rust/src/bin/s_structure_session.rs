@@ -1088,7 +1088,11 @@ fn verify_batch_coordinates(
 
 // #1371 R9：scope 是本片已初始化 S 的必需身份，不是缺省配置。
 fn validate_scope(scope: &Value) -> Result<(), String> {
-    if scope != &json!({"structure": "CompleteCut", "economic": "not_started"}) {
+    if !scope.as_object().is_some_and(|fields| {
+        fields.len() == 2
+            && fields.get("structure").and_then(Value::as_str) == Some("CompleteCut")
+            && fields.get("economic").and_then(Value::as_str) == Some("not_started")
+    }) {
         return Err("StorageUnavailable：scope 与本片结构/经济未启动声明不符".to_string());
     }
     Ok(())
@@ -1206,7 +1210,7 @@ fn same_records(actual: &Value, expected: &Value, field: &str) -> Result<(), Str
 
 // #1371 R9：七集合均为必需。以不可变 batch 的本次结果和独立历史索引对拍；
 // 只读投影，不重算分类，不修改旧 BLOB/hash/获知史。旧整数 wire 仅作无损语义投影。
-fn verify_delta_evidence(delta: &Value, batch: &Value) -> Result<(), String> {
+fn verify_delta_prefix(delta: &Value, batch: &Value) -> Result<(), String> {
     for key in [
         "upserts",
         "withdrawals",
@@ -1239,34 +1243,10 @@ fn verify_delta_evidence(delta: &Value, batch: &Value) -> Result<(), String> {
     {
         return Err("StorageUnavailable：逐轴目录证据与封存批次不一致".into());
     }
-    if batch["profile_id"] == tb02a::PROFILE {
-        let changes = &evidence["axes"]["CC-056"]["evidence"];
-        same_records(
-            &changes["withdrawals"],
-            &delta["withdrawals"],
-            "CC056撤回证据",
-        )?;
-        same_records(&changes["replaces"], &delta["replaces"], "CC056替代证据")?;
-        let start = parse_canonical_i64(
-            delta["seq_range"]["from"]
-                .as_str()
-                .ok_or("StorageUnavailable：Delta起始前沿缺失")?,
-            "from",
-        )?;
-        let revisions: Vec<Value> = required_array(batch, "raw_events")?
-            .iter()
-            .filter(|r| {
-                r["seq"].as_i64().is_some_and(|n| n >= start)
-                    && r["revision"].as_i64().is_some_and(|n| n > 1)
-            })
-            .map(tb02a_facts::raw_ref)
-            .collect();
-        same_records(
-            &changes["raw_revisions"],
-            &json!(revisions),
-            "CC056原始修订证据",
-        )?;
-    }
+    Ok(())
+}
+fn verify_delta_suffix(delta: &Value, batch: &Value) -> Result<(), String> {
+    let evidence = &delta["catalog_evidence"];
     let expected_run = if required_array(batch, "objects")?.is_empty() {
         "not_run"
     } else {
@@ -1295,6 +1275,40 @@ fn verify_delta_evidence(delta: &Value, batch: &Value) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+fn verify_delta_evidence(delta: &Value, batch: &Value) -> Result<(), String> {
+    verify_delta_prefix(delta, batch)?;
+    let evidence = &delta["catalog_evidence"];
+    if batch["profile_id"] == tb02a::PROFILE {
+        let changes = &evidence["axes"]["CC-056"]["evidence"];
+        same_records(
+            &changes["withdrawals"],
+            &delta["withdrawals"],
+            "CC056撤回证据",
+        )?;
+        same_records(&changes["replaces"], &delta["replaces"], "CC056替代证据")?;
+        let start = parse_canonical_i64(
+            delta["seq_range"]["from"]
+                .as_str()
+                .ok_or("StorageUnavailable：Delta起始前沿缺失")?,
+            "from",
+        )?;
+        let revisions: Vec<Value> = required_array(batch, "raw_events")?
+            .iter()
+            .filter(|r| {
+                r["seq"].as_i64().is_some_and(|n| n >= start)
+                    && r["revision"].as_i64().is_some_and(|n| n > 1)
+            })
+            .map(tb02a_facts::raw_ref)
+            .collect();
+        same_records(
+            &changes["raw_revisions"],
+            &json!(revisions),
+            "CC056原始修订证据",
+        )?;
+    }
+    verify_delta_suffix(delta, batch)
 }
 
 fn observation_id(ob: &Value) -> String {
