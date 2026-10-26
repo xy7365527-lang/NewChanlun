@@ -5,6 +5,10 @@
 //! 只用事件自带的原件，没有“最新配置”可追算旧评估。动作候选只登记为 NotApplied：
 //! 冻结新承担与同一退出由共享的冻结/退出授权入口消费，本模块不应用、不另建执行器。
 //! 本切片只认具名 TestOnly 政策与 TestOnly 合成签署；生产签署合同与生产事实指标未批准。
+//!
+//! 新语义是与旧合同并列的子合同 `sr-expansion/1`：manifest 顶层 `sr_expansion` 显式选择，只声明在
+//! `economic-session/1`，E 在 init 绑定、audit 核对，旧域不原地扩义。签署引用只认该节冻结的授权
+//! 原件；授权原件随 manifest_hash 冻结，同一具名政策版本只能对应一份判据，改值必须登记新版本。
 use super::book::hash;
 use super::store::*;
 use crate::session_protocol::{
@@ -23,6 +27,10 @@ const POLICY_LIMIT: usize = 65_536;
 const FACT_SOURCE: &str = "E:finance.responsibilities";
 const FACT_METRIC: &str = "gross_responsibility_total";
 const FACT_FRONTIER: &str = "latest_committed_cut";
+pub(super) const CONTRACT_FIELD: &str = "sr_expansion";
+pub(super) const CONTRACT_REVISION: &str = "sr-expansion/1";
+pub(super) const META_KEY: &str = "sr_expansion_revision";
+const AUTHORIZATION_KIND: &str = "TestOnlySynthetic";
 
 #[derive(Clone, Copy)]
 enum Comparison {
@@ -63,13 +71,25 @@ struct Entry {
     comparison: Comparison,
     /// `None` 即 AwaitingPolicy：未签不带数值，也没有备用值。
     signed_threshold: Option<i64>,
+    reference: Option<String>,
     scope: Scope,
     raw: Value,
 }
 
 struct Policy {
     identity: Value,
+    policy_id: String,
+    version: String,
+    /// 条目按 entry_id 排序后的规范原文：条目换序不是新判据，任何取值变化都是。
+    canonical: String,
     entries: Vec<Entry>,
+}
+
+struct Authorization {
+    reference: String,
+    policy_id: String,
+    version: String,
+    canonical: String,
 }
 
 struct Fact {
@@ -151,16 +171,18 @@ fn entry(v: &Value) -> Result<Entry, String> {
                 .into(),
         );
     }
-    let signed_threshold = match &v["threshold"] {
-        Value::String(s) if s == "AwaitingPolicy" => None,
+    let (signed_threshold, reference) = match &v["threshold"] {
+        Value::String(s) if s == "AwaitingPolicy" => (None, None),
         t @ Value::Object(_) => {
             exact(t, &["value", "signature"], "SR 已签阈值")?;
             exact(&t["signature"], &["kind", "reference"], "SR 签署")?;
-            if t["signature"]["kind"] != "TestOnlySynthetic" {
+            if t["signature"]["kind"] != AUTHORIZATION_KIND {
                 return Err("UnsupportedCapability：本切片只认 TestOnly 合成签署".into());
             }
-            required(&t["signature"], "reference")?;
-            Some(nonnegative(required(t, "value")?, "SR threshold")?)
+            (
+                Some(nonnegative(required(t, "value")?, "SR threshold")?),
+                Some(required(&t["signature"], "reference")?.to_owned()),
+            )
         }
         _ => return Err("SchemaUnsupported：SR 阈值只能是 AwaitingPolicy 或带签署的数值".into()),
     };
@@ -191,15 +213,21 @@ fn entry(v: &Value) -> Result<Entry, String> {
         ),
         comparison: Comparison::parse(&v["comparison"])?,
         signed_threshold,
+        reference,
         scope,
         raw: v.clone(),
     })
 }
 
 fn policy(raw: &str) -> Result<Policy, String> {
-    let p = strict_json(raw.as_bytes())?;
+    let mut parsed = parse_policy(&strict_json(raw.as_bytes())?)?;
+    parsed.identity["raw_sha256"] = json!(sha256_hex(raw.as_bytes()));
+    Ok(parsed)
+}
+
+fn parse_policy(p: &Value) -> Result<Policy, String> {
     exact(
-        &p,
+        p,
         &[
             "schema_revision",
             "kind",
@@ -216,8 +244,9 @@ fn policy(raw: &str) -> Result<Policy, String> {
     if p["kind"] != "TestOnly" {
         return Err("UnsupportedCapability：SR 扩量生产签署合同未批准，只认具名 TestOnly".into());
     }
-    required(&p, "policy_id")?;
-    if required(&p, "version")? == "v1" {
+    let policy_id = required(p, "policy_id")?.to_owned();
+    let version = required(p, "version")?.to_owned();
+    if version == "v1" {
         return Err("InvalidDomain：v1 是旧 SR 原件，扩量只能是新版本".into());
     }
     if p["supersedes"] != "v1" {
@@ -234,10 +263,100 @@ fn policy(raw: &str) -> Result<Policy, String> {
     if entries.windows(2).any(|w| w[0].id == w[1].id) {
         return Err("IdentityConflict：SR 扩量条目 id 重复".into());
     }
+    let mut canonical = p.clone();
+    canonical["entries"] = Value::Array(entries.iter().map(|e| e.raw.clone()).collect());
     Ok(Policy {
-        identity: json!({"schema_revision":p["schema_revision"],"kind":p["kind"],"policy_id":p["policy_id"],"version":p["version"],"supersedes":p["supersedes"],"raw_sha256":sha256_hex(raw.as_bytes())}),
+        identity: json!({"schema_revision":p["schema_revision"],"kind":p["kind"],"policy_id":p["policy_id"],"version":p["version"],"supersedes":p["supersedes"]}),
+        policy_id,
+        version,
+        canonical: crate::session_protocol::canonical_json(&canonical),
         entries,
     })
+}
+
+/// 子合同 `sr-expansion/1` 的冻结授权原件表；缺省或 null 即本域未选择新合同。
+fn registry(manifest: &Value) -> Result<Option<Vec<Authorization>>, String> {
+    let section = match manifest.get(CONTRACT_FIELD) {
+        None | Some(Value::Null) => return Ok(None),
+        Some(section) => section,
+    };
+    exact(
+        section,
+        &["schema_revision", "authorizations"],
+        "SR 扩量子合同",
+    )?;
+    if section["schema_revision"] != CONTRACT_REVISION {
+        return Err("SchemaUnsupported：SR 扩量子合同只认 sr-expansion/1".into());
+    }
+    // `/2` 的写入须经统一 job 与最终物理预留/对账，该物理预算只在 macOS HFS+ 证明；
+    // 本合同只声明在可运行验证的 `/1`，`/2` 接入须另行声明并补运行证据。
+    if domain_revision(manifest)? != SCHEMA_V1 {
+        return Err("SchemaUnsupported：sr-expansion/1 只声明在 economic-session/1".into());
+    }
+    if !manifest.get("finance").is_some_and(|v| !v.is_null()) {
+        return Err("InvalidDomain：SR 扩量子合同须同时冻结具名财务责任".into());
+    }
+    let mut registry: Vec<Authorization> = Vec::new();
+    for a in section["authorizations"]
+        .as_array()
+        .ok_or("SchemaUnsupported：SR 授权原件表须数组")?
+    {
+        exact(a, &["reference", "kind", "policy"], "SR 授权原件")?;
+        if a["kind"] != AUTHORIZATION_KIND {
+            return Err("UnsupportedCapability：本切片只认 TestOnly 合成授权原件".into());
+        }
+        let reference = required(a, "reference")?.to_owned();
+        let p = parse_policy(&a["policy"])?;
+        if p.entries
+            .iter()
+            .any(|e| e.reference.as_ref().is_some_and(|r| *r != reference))
+        {
+            return Err("IdentityConflict：SR 授权原件内的签署引用须指向本授权".into());
+        }
+        if registry.iter().any(|o| {
+            o.reference == reference || (o.policy_id == p.policy_id && o.version == p.version)
+        }) {
+            return Err("IdentityConflict：SR 授权引用或具名政策版本重复".into());
+        }
+        registry.push(Authorization {
+            reference,
+            policy_id: p.policy_id,
+            version: p.version,
+            canonical: p.canonical,
+        });
+    }
+    Ok(Some(registry))
+}
+
+pub(super) fn validate_config(manifest: &Value) -> Result<bool, String> {
+    Ok(registry(manifest)?.is_some())
+}
+
+/// init 绑定、audit 核对的持久子合同版本：只有选择了本合同的 E 有此 meta 行。
+pub(super) fn bound_revision(config: &Config) -> Result<Option<&'static str>, String> {
+    Ok((config.domain == "E" && validate_config(&config.manifest)?).then_some(CONTRACT_REVISION))
+}
+
+/// 签署引用必须解析到冻结授权原件，具名版本的判据必须与该原件逐值相同。
+fn authorize<'a>(
+    registry: &'a [Authorization],
+    policy: &Policy,
+) -> Result<&'a Authorization, String> {
+    for reference in policy.entries.iter().filter_map(|e| e.reference.as_ref()) {
+        if !registry.iter().any(|a| a.reference == *reference) {
+            return Err("UnsupportedCapability：SR 签署引用未登记冻结授权原件".into());
+        }
+    }
+    let authorization = registry
+        .iter()
+        .find(|a| a.policy_id == policy.policy_id && a.version == policy.version)
+        .ok_or("UnsupportedCapability：SR 具名政策版本未登记冻结授权原件")?;
+    if authorization.canonical != policy.canonical {
+        return Err(
+            "IdentityConflict：SR 具名政策版本已冻结为另一份判据，签署原件与请求内容不符".into(),
+        );
+    }
+    Ok(authorization)
 }
 
 /// 已核事实：每笔责任都回到同一图像历史中实际提交它的 ImportResponsibility 或 Reserve 事件。
@@ -323,7 +442,11 @@ fn evaluate(config: &Config, image: &Value, at: &Value, p: &Value) -> Result<Val
     if p["fact_cut"] != *at {
         return Err("InvalidDomain：SR 事实前沿不是本域最新已提交 cut（CAS 陈旧或越界）".into());
     }
-    let policy = policy(required(p, "policy_raw_utf8")?)?;
+    let mut policy = policy(required(p, "policy_raw_utf8")?)?;
+    let registry = registry(&config.manifest)?
+        .ok_or("SchemaUnsupported：本域未选择 sr-expansion/1 合同，不接受 SR 扩量评估")?;
+    let authorization = authorize(&registry, &policy)?;
+    policy.identity["authorization"] = json!({"reference":authorization.reference,"kind":AUTHORIZATION_KIND,"content_sha256":sha256_hex(authorization.canonical.as_bytes())});
     let fact = fact(config, image, at)?;
     let mut entries = Vec::new();
     let mut actions: BTreeMap<(String, String), (Value, Vec<String>, Vec<String>)> =

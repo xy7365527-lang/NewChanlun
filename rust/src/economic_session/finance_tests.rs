@@ -74,6 +74,26 @@ impl Fixture {
         slot_spec: &[(&str, &[&str])],
         c4a: Option<(bool, bool)>,
     ) -> Self {
+        Self::build_full(cap, fault, slot_spec, c4a, None)
+    }
+    /// #1717：选择 `sr-expansion/1` 子合同的夹具；`section` 即 manifest 顶层 `sr_expansion`。
+    /// 既有夹具不选该合同，旧操作与旧接受域逐字不变。
+    fn with_sr_expansion(fault: Option<(&str, &str)>, section: Value) -> Self {
+        Self::build_full(
+            "100",
+            fault,
+            &[("slot", &["alpha", "beta"])],
+            None,
+            Some(section),
+        )
+    }
+    fn build_full(
+        cap: &str,
+        fault: Option<(&str, &str)>,
+        slot_spec: &[(&str, &[&str])],
+        c4a: Option<(bool, bool)>,
+        sr_expansion: Option<Value>,
+    ) -> Self {
         let applicants: Vec<&str> = slot_spec
             .iter()
             .flat_map(|(_, a)| a.iter().copied())
@@ -202,9 +222,7 @@ impl Fixture {
             "CommitDecision",
             "AbortDecision",
             "CloseApplicants",
-            "ChongAdvance",
-            "EvaluateSrExpansion",
-            "QuerySrEvaluation"
+            "ChongAdvance"
         ]);
         let mut clocks = json!({});
         for (i, (op, name)) in [
@@ -235,14 +253,6 @@ impl Fixture {
             json!({"received_ns":"95","first_known_ns":"96","commit_ns":"97"});
         clocks["commit-beta-late"] =
             json!({"received_ns":"110","first_known_ns":"111","commit_ns":"112"});
-        // #1717：SR 扩量评估消息时钟，落在 Import(65)与 Reserve(90)之间、CloseApplicants(132)之后
-        // 及首次恢复(1000)之后；既有消息时钟不变。
-        for (prefix, start) in [("sr-pre", 66), ("sr-post", 150), ("sr-late", 1100)] {
-            for k in 0..6 {
-                let n = start + 3 * k;
-                clocks[format!("{prefix}-{}", k + 1)] = json!({"received_ns":n.to_string(),"first_known_ns":n.to_string(),"commit_ns":(n+1).to_string()});
-            }
-        }
         if slot_spec.len() > 1 {
             // 第二个 slot 的 Reserve 时钟；只在双 slot 夹具里出现，单 slot 夹具的时钟表不变。
             clocks["Reserve-slot-b"] =
@@ -265,6 +275,22 @@ impl Fixture {
                 ("c4a-apply", 1200),
             ] {
                 clocks[message] = json!({"received_ns":t.to_string(),"first_known_ns":(t+1).to_string(),"commit_ns":(t+2).to_string()});
+            }
+        }
+        if let Some(section) = sr_expansion {
+            manifest["sr_expansion"] = section;
+            manifest["authorized_sources"][0]["operations"]
+                .as_array_mut()
+                .unwrap()
+                .extend([json!("EvaluateSrExpansion"), json!("QuerySrEvaluation")]);
+            // SR 评估消息时钟落在 Import(65)与 Reserve(90)之间、CloseApplicants(132)之后及首次
+            // 恢复(1000)之后。
+            let clocks = &mut manifest["clock"]["plan"]["messages"];
+            for (prefix, start) in [("sr-pre", 66), ("sr-post", 150), ("sr-late", 1100)] {
+                for k in 0..6 {
+                    let n = start + 3 * k;
+                    clocks[format!("{prefix}-{}", k + 1)] = json!({"received_ns":n.to_string(),"first_known_ns":n.to_string(),"commit_ns":(n+1).to_string()});
+                }
             }
         }
         if let Some((message, phase)) = fault {

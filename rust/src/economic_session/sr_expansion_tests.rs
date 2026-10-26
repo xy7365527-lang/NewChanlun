@@ -1,10 +1,13 @@
 //! #1717 I2：SR 扩量评估经正式 E 入口（`service::handle`，即 serve 的同一分派）比较已提交责任事实、
-//! 持久评估、公开读与新进程恢复。E/B 沿用 #1394 TestOnly 信任根；签署只用 TestOnly 合成签署，
-//! 不是生产阈值实例。冻结/退出的实际应用不在本切片，记录如实为 NotApplied。
+//! 持久评估、公开读与新进程恢复。E/B 沿用 #1394 TestOnly 信任根；签署只用 TestOnly 合成签署与
+//! 夹具 manifest 冻结的合成授权原件，不是生产阈值实例。冻结/退出的实际应用不在本切片，记录如实为
+//! NotApplied。
 use super::*;
+use rusqlite::OptionalExtension;
 use std::os::unix::process::ExitStatusExt;
 
 const CHILD: &str = "economic_session::finance::tests::sr_expansion::sr_child";
+const POLICY_ID: &str = "TestOnly-sr-expansion";
 
 fn fact_decl(currency: &str) -> Value {
     json!({"source":"E:finance.responsibilities","metric":"gross_responsibility_total","frontier":"latest_committed_cut","currency":currency,"money_unit":"TEST-CASH"})
@@ -15,8 +18,12 @@ fn all_chongs() -> Value {
 fn symbol(s: &str) -> Value {
     json!({"kind":"symbol","symbol":s})
 }
+fn authorization_ref(version: &str) -> String {
+    format!("TestOnly-synthetic-authorization/{POLICY_ID}/{version}")
+}
+/// 签署引用由 `policy` 绑定到该具名版本的授权原件。
 fn signed(id: &str, comparison: &str, threshold: &str, scope: Value, action: &str) -> Value {
-    json!({"entry_id":id,"status":"enabled","fact":fact_decl("TEST-CASH"),"comparison":comparison,"threshold":{"value":threshold,"signature":{"kind":"TestOnlySynthetic","reference":format!("TestOnly-synthetic-signature/{id}")}},"scope":scope,"action":action})
+    json!({"entry_id":id,"status":"enabled","fact":fact_decl("TEST-CASH"),"comparison":comparison,"threshold":{"value":threshold,"signature":{"kind":"TestOnlySynthetic","reference":"unbound"}},"scope":scope,"action":action})
 }
 fn unsigned(id: &str) -> Value {
     let mut e = signed(id, ">=", "0", all_chongs(), "freeze_new");
@@ -24,7 +31,45 @@ fn unsigned(id: &str) -> Value {
     e
 }
 fn policy(version: &str, entries: Vec<Value>) -> Value {
-    json!({"schema_revision":"sr-expansion-policy/1","kind":"TestOnly","policy_id":"TestOnly-sr-expansion","version":version,"supersedes":"v1","entries":entries})
+    let entries: Vec<Value> = entries
+        .into_iter()
+        .map(|mut e| {
+            if e["threshold"]["signature"].is_object() {
+                e["threshold"]["signature"]["reference"] = json!(authorization_ref(version));
+            }
+            e
+        })
+        .collect();
+    json!({"schema_revision":"sr-expansion-policy/1","kind":"TestOnly","policy_id":POLICY_ID,"version":version,"supersedes":"v1","entries":entries})
+}
+fn with_reference(mut p: Value, reference: &str) -> Value {
+    for e in p["entries"].as_array_mut().unwrap() {
+        if e["threshold"]["signature"].is_object() {
+            e["threshold"]["signature"]["reference"] = json!(reference);
+        }
+    }
+    p
+}
+/// manifest 顶层 `sr_expansion`：每个具名版本冻结一份合成授权原件。
+fn authorizations(policies: &[&Value]) -> Value {
+    let authorizations: Vec<Value> = policies
+        .iter()
+        .map(|p| json!({"reference":authorization_ref(p["version"].as_str().unwrap()),"kind":"TestOnlySynthetic","policy":p}))
+        .collect();
+    json!({"schema_revision":"sr-expansion/1","authorizations":authorizations})
+}
+fn sr_fixture(fault: Option<(&str, &str)>, policies: &[&Value]) -> Fixture {
+    Fixture::with_sr_expansion(fault, authorizations(policies))
+}
+fn sr_meta(f: &Fixture, n: usize) -> Option<String> {
+    f.dbs[n]
+        .query_row(
+            "SELECT v FROM meta WHERE k='sr_expansion_revision'",
+            [],
+            |r| r.get(0),
+        )
+        .optional()
+        .unwrap()
 }
 fn e_cut(f: &Fixture) -> Value {
     let (seq, root, _, _) = latest(&f.dbs[0]).unwrap();
@@ -82,8 +127,6 @@ fn e_handle(f: &mut Fixture, epoch: i64, message: &str, p: Value) -> Value {
 
 #[test]
 fn sr_expansion_signed_entries_compare_persisted_responsibility_facts() {
-    let mut f = Fixture::new("100");
-    let import_cut = e_cut(&f);
     let p = policy(
         "v2",
         vec![
@@ -94,10 +137,25 @@ fn sr_expansion_signed_entries_compare_persisted_responsibility_facts() {
             signed("below-21", "<", "21", all_chongs(), "freeze_new"),
         ],
     );
+    let mut f = sr_fixture(None, &[&p]);
+    let import_cut = e_cut(&f);
     let r = f.handle(0, "sr-pre-1", evaluation(&f, "eval-import", &p));
     assert_eq!(r["kind"], "SrExpansionEvaluated", "{r}");
     let record = r["record"].clone();
     assert_eq!(record["policy"]["version"], "v2");
+    assert_eq!(
+        record["policy"]["authorization"]["reference"],
+        authorization_ref("v2")
+    );
+    // 授权内容摘要按条目规范序计算，与请求原件的字节顺序无关。
+    let mut frozen = p.clone();
+    let mut entries = frozen["entries"].as_array().unwrap().clone();
+    entries.sort_by_key(|e| e["entry_id"].as_str().unwrap().to_owned());
+    frozen["entries"] = json!(entries);
+    assert_eq!(
+        record["policy"]["authorization"]["content_sha256"],
+        crate::session_protocol::sha256_hex(canonical_json(&frozen).as_bytes())
+    );
     assert_eq!(record["policy"]["supersedes"], "v1");
     assert_eq!(record["fact"]["cut"], import_cut);
     assert_eq!(record["fact"]["value"], "20");
@@ -177,19 +235,21 @@ fn sr_expansion_signed_entries_compare_persisted_responsibility_facts() {
 
 #[test]
 fn sr_expansion_disabled_or_unsigned_emits_no_action_and_old_operations_continue() {
-    let mut f = Fixture::new("100");
     let mut disabled = signed("gross", ">=", "1", all_chongs(), "freeze_new");
     disabled["status"] = json!("disabled");
-    for (message, id, entry, outcome) in [
-        ("sr-pre-1", "eval-disabled", disabled, "Disabled"),
+    let disabled = policy("v2", vec![disabled]);
+    let unsigned_policy = policy("v3", vec![unsigned("gross")]);
+    let mut f = sr_fixture(None, &[&disabled, &unsigned_policy]);
+    for (message, id, p, outcome) in [
+        ("sr-pre-1", "eval-disabled", &disabled, "Disabled"),
         (
             "sr-pre-2",
             "eval-unsigned",
-            unsigned("gross"),
+            &unsigned_policy,
             "AwaitingPolicy",
         ),
     ] {
-        let r = f.handle(0, message, evaluation(&f, id, &policy("v2", vec![entry])));
+        let r = f.handle(0, message, evaluation(&f, id, p));
         assert_eq!(r["kind"], "SrExpansionEvaluated", "{r}");
         assert_eq!(outcomes(&r["record"]), pairs(&[("gross", outcome)]));
         assert_eq!(r["record"]["result"], "NoAction");
@@ -210,6 +270,8 @@ fn sr_expansion_disabled_or_unsigned_emits_no_action_and_old_operations_continue
     rejected(&mut f, "sr-signature-only", p, "SchemaUnsupported");
 
     let mut reference = Fixture::new("100");
+    let old_contract = evaluation(&reference, "eval-old-contract", &disabled);
+    rejected(&mut reference, "sr-pre-3", old_contract, "InvalidDomain");
     f.prepare();
     reference.prepare();
     let semantic = |r: &Value| {
@@ -234,7 +296,6 @@ fn sr_expansion_disabled_or_unsigned_emits_no_action_and_old_operations_continue
 
 #[test]
 fn sr_expansion_signed_scope_is_nonselective_and_entry_order_independent() {
-    let mut f = Fixture::new("100");
     let entries = vec![
         signed(
             "exit-alpha",
@@ -247,6 +308,11 @@ fn sr_expansion_signed_scope_is_nonselective_and_entry_order_independent() {
         signed("freeze-all-again", ">", "0", all_chongs(), "freeze_new"),
         unsigned("pending-all"),
     ];
+    let off_session = policy(
+        "v4",
+        vec![signed("x", ">=", "1", symbol("gamma"), "freeze_new")],
+    );
+    let mut f = sr_fixture(None, &[&policy("v2", entries.clone()), &off_session]);
     let forward = f.handle(
         0,
         "sr-pre-1",
@@ -286,12 +352,13 @@ fn sr_expansion_signed_scope_is_nonselective_and_entry_order_independent() {
             ("pending-all", "AwaitingPolicy"),
         ])
     );
+    let p = evaluation(&f, "eval-off-session", &off_session);
+    rejected(&mut f, "sr-off-session", p, "InvalidDomain");
     for (scope, kind) in [
         (
             json!({"kind":"chongs","chong_ids":["alpha"]}),
             "InvalidDomain",
         ),
-        (symbol("gamma"), "InvalidDomain"),
         (
             json!({"kind":"symbol","symbol":"alpha","chong_ids":["alpha"]}),
             "SchemaUnsupported",
@@ -333,18 +400,56 @@ fn sr_expansion_rejects_wrong_unit_source_frontier_and_conflicting_identity() {
         "v2",
         vec![signed("gross", ">=", "20", all_chongs(), "freeze_new")],
     );
-    let mut empty = Fixture::with_fault(
-        "100",
+    let mut wrong_unit = signed("gross", ">=", "20", all_chongs(), "freeze_new");
+    wrong_unit["fact"] = fact_decl("OTHER-CASH");
+    let other_unit = policy("v9", vec![wrong_unit.clone()]);
+    let mut empty = sr_fixture(
         Some(("ImportResponsibility-existing20", "before_commit")),
+        &[&base],
     );
     let p = evaluation(&empty, "eval-missing", &base);
     rejected(&mut empty, "sr-missing", p, "MissingDependency");
 
-    let mut f = Fixture::new("100");
+    let mut f = sr_fixture(None, &[&base, &other_unit]);
     let mut bad = vec![];
-    let mut wrong_unit = signed("gross", ">=", "20", all_chongs(), "freeze_new");
-    wrong_unit["fact"] = fact_decl("OTHER-CASH");
+    // 已登记的 v9 原件单位与已核事实单位不同。
+    bad.push((other_unit.clone(), "IdentityConflict"));
+    // 同一 policy_id/version 改单位、阈值、比较、范围或动作：与冻结原件不符。
     bad.push((policy("v2", vec![wrong_unit]), "IdentityConflict"));
+    for e in [
+        signed("gross", ">=", "21", all_chongs(), "freeze_new"),
+        signed("gross", ">", "20", all_chongs(), "freeze_new"),
+        signed("gross", ">=", "20", symbol("alpha"), "freeze_new"),
+        signed("gross", ">=", "20", all_chongs(), "exit_all_in_scope"),
+    ] {
+        bad.push((policy("v2", vec![e]), "IdentityConflict"));
+    }
+    // 签署引用未登记；引用已登记但指向另一份原件；版本未登记。
+    bad.push((
+        with_reference(base.clone(), "TestOnly-synthetic-authorization/unknown"),
+        "UnsupportedCapability",
+    ));
+    bad.push((
+        with_reference(base.clone(), &authorization_ref("v9")),
+        "IdentityConflict",
+    ));
+    bad.push((
+        with_reference(
+            policy(
+                "v7",
+                vec![signed("gross", ">=", "20", all_chongs(), "freeze_new")],
+            ),
+            &authorization_ref("v2"),
+        ),
+        "UnsupportedCapability",
+    ));
+    bad.push((
+        policy(
+            "v7",
+            vec![signed("gross", ">=", "20", all_chongs(), "freeze_new")],
+        ),
+        "UnsupportedCapability",
+    ));
     for (k, v) in [
         ("source", "E:valuation.reference_price"),
         ("metric", "account_value"),
@@ -410,7 +515,23 @@ fn sr_expansion_rejects_wrong_unit_source_frontier_and_conflicting_identity() {
     let stale = evaluation(&f, "eval-stale", &base);
     let ok = f.handle(0, "sr-pre-1", original.clone());
     assert_eq!(ok["kind"], "SrExpansionEvaluated", "{ok}");
+    assert_eq!(ok["record"]["result"], "ActionCandidates");
     rejected(&mut f, "sr-stale", stale, "InvalidDomain");
+    // 独审 R1 复现：同 policy_id/version 与同签署引用只改阈值，换新 evaluation_id 与最新 cut。
+    let same_version_other_threshold = evaluation(
+        &f,
+        "eval-threshold-21",
+        &policy(
+            "v2",
+            vec![signed("gross", ">=", "21", all_chongs(), "freeze_new")],
+        ),
+    );
+    rejected(
+        &mut f,
+        "sr-pre-2",
+        same_version_other_threshold,
+        "IdentityConflict",
+    );
     let before = latest(&f.dbs[0]).unwrap();
     assert_eq!(f.handle(0, "sr-pre-1", original.clone()), ok);
     assert_eq!(f.handle(0, "sr-alias", original), ok);
@@ -429,7 +550,6 @@ fn sr_expansion_rejects_wrong_unit_source_frontier_and_conflicting_identity() {
 
 #[test]
 fn sr_version_replay_preserves_original_across_new_process_recover() {
-    let mut f = Fixture::new("100");
     let v2 = policy(
         "v2",
         vec![signed("gross", ">=", "20", all_chongs(), "freeze_new")],
@@ -438,6 +558,7 @@ fn sr_version_replay_preserves_original_across_new_process_recover() {
         "v3",
         vec![signed("gross", ">=", "21", all_chongs(), "freeze_new")],
     );
+    let mut f = sr_fixture(None, &[&v2, &v3]);
     let v2_request = evaluation(&f, "eval-v2", &v2);
     let first = f.handle(0, "sr-pre-1", v2_request.clone());
     let second = f.handle(0, "sr-pre-2", evaluation(&f, "eval-v3", &v3));
@@ -499,16 +620,13 @@ fn sr_version_replay_preserves_original_across_new_process_recover() {
 
 #[test]
 fn sr_evaluation_sigkill_before_or_after_commit_recovers_complete_state() {
+    let v2 = policy(
+        "v2",
+        vec![signed("gross", ">=", "20", all_chongs(), "freeze_new")],
+    );
     for phase in ["before_commit", "after_commit"] {
-        let mut f = Fixture::with_fault("100", Some(("sr-pre-1", phase)));
-        let p = evaluation(
-            &f,
-            "eval-kill",
-            &policy(
-                "v2",
-                vec![signed("gross", ">=", "20", all_chongs(), "freeze_new")],
-            ),
-        );
+        let mut f = sr_fixture(Some(("sr-pre-1", phase)), &[&v2]);
+        let p = evaluation(&f, "eval-kill", &v2);
         let request = envelope("sr-pre-1", p);
         let previous = latest(&f.dbs[0]).unwrap();
         let job = json!({"label":"evaluate","action":"evaluate","manifest":f.dir.join("manifest.json"),"db":f.configs[0].db,"request":request});
@@ -573,6 +691,221 @@ fn sr_evaluation_sigkill_before_or_after_commit_recovers_complete_state() {
     }
 }
 
+#[test]
+fn sr_contract_is_explicitly_selected_and_old_domains_keep_their_contract() {
+    let v2 = policy(
+        "v2",
+        vec![signed("gross", ">=", "20", all_chongs(), "freeze_new")],
+    );
+    let mut old = Fixture::new("100");
+    assert_eq!(sr_meta(&old, 0), None);
+    let request = evaluation(&old, "eval-old", &v2);
+    rejected(&mut old, "sr-pre-1", request, "InvalidDomain");
+    let q = query(&mut old, "eval-old");
+    assert!(
+        q["error"].as_str().unwrap().starts_with("InvalidDomain"),
+        "{q}"
+    );
+    old.prepare();
+    assert_eq!(
+        old.step(0, "Reserve", "slot")["record"]["state"],
+        "Reserved",
+        "旧合同的合法操作不受新子合同影响"
+    );
+    old.audit();
+
+    let load = |f: &Fixture, name: &str, m: &Value| {
+        let (path, _) = save(&f.dir, name, m);
+        Config::load(Path::new(&path), &f.configs[0].db, None)
+    };
+    let mut m = old.configs[0].manifest.clone();
+    m["authorized_sources"][0]["operations"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!("EvaluateSrExpansion"));
+    let refusal = load(&old, "old-with-sr-op.json", &m).err().unwrap();
+    assert!(refusal.starts_with("InvalidDomain"), "{refusal}");
+
+    let section = authorizations(&[&v2]);
+    let mut bad = vec![];
+    let mut s = section.clone();
+    s["schema_revision"] = json!("sr-expansion/0");
+    bad.push((s, "SchemaUnsupported"));
+    let mut s = section.clone();
+    s["authorizations"][0]["kind"] = json!("UserSigned");
+    bad.push((s, "UnsupportedCapability"));
+    let mut s = section.clone();
+    s["authorizations"][0]["policy"]["entries"][0]["threshold"]["signature"]["reference"] =
+        json!("elsewhere");
+    bad.push((s, "IdentityConflict"));
+    let mut s = section.clone();
+    let duplicate = s["authorizations"][0].clone();
+    s["authorizations"].as_array_mut().unwrap().push(duplicate);
+    bad.push((s, "IdentityConflict"));
+    for (n, (s, kind)) in bad.into_iter().enumerate() {
+        let mut m = old.configs[0].manifest.clone();
+        m["sr_expansion"] = s;
+        let refusal = load(&old, &format!("bad-sr-{n}.json"), &m).err().unwrap();
+        assert!(refusal.starts_with(kind), "{n}: {refusal}");
+    }
+    let mut m = old.configs[0].manifest.clone();
+    m["protocol_revision"] = json!("economic-session/2");
+    m["sr_expansion"] = section.clone();
+    let refusal = load(&old, "v2-with-sr.json", &m).err().unwrap();
+    assert!(
+        refusal.starts_with("SchemaUnsupported") && refusal.contains("economic-session/1"),
+        "/2 未声明本合同：{refusal}"
+    );
+
+    let f = sr_fixture(None, &[&v2]);
+    assert_eq!(sr_meta(&f, 0).as_deref(), Some("sr-expansion/1"));
+    assert_eq!(sr_meta(&f, 1), None, "子合同只属于 E");
+    f.dbs[0].execute_batch("SAVEPOINT unbind").unwrap();
+    f.dbs[0]
+        .execute_batch("DELETE FROM meta WHERE k='sr_expansion_revision'")
+        .unwrap();
+    let unbound = audit(&f.dbs[0], &f.configs[0]).unwrap_err();
+    assert!(unbound.starts_with("IdentityConflict"), "{unbound}");
+    f.dbs[0]
+        .execute_batch("ROLLBACK TO unbind; RELEASE unbind")
+        .unwrap();
+    f.audit();
+}
+
+/// 正式 owner 进程：子进程取同一域独占锁后运行 `service::serve`（cli `serve` 的同一循环）。
+struct Owner {
+    process: std::process::Child,
+    socket: PathBuf,
+}
+impl Owner {
+    fn start(f: &Fixture, label: &str, epoch: &str) -> Self {
+        let job = json!({"label":label,"action":"serve","manifest":f.dir.join("manifest.json"),"db":f.configs[0].db,"epoch":epoch});
+        let mut process = spawn_child(&f.dir, &job);
+        let socket = f.configs[0].socket.clone();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        while !socket.exists() {
+            if let Some(status) = process.try_wait().unwrap() {
+                panic!("owner 未监听即退出 {status}: {}", f.dir.display())
+            }
+            if std::time::Instant::now() >= deadline {
+                let _ = process.kill();
+                let _ = process.wait();
+                panic!("owner socket 超时：{}", f.dir.display())
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        Self { process, socket }
+    }
+    /// SIGKILL 后由监督方确认进程已退出，再清理残留 socket（serve 不擅自 unlink）。
+    fn kill(mut self) {
+        self.process.kill().unwrap();
+        assert_eq!(self.process.wait().unwrap().signal(), Some(9));
+        std::fs::remove_file(&self.socket).unwrap();
+    }
+}
+
+#[test]
+fn sr_formal_owner_socket_persists_reads_and_recovers_across_processes() {
+    let v2 = policy(
+        "v2",
+        vec![signed("gross", ">=", "20", all_chongs(), "freeze_new")],
+    );
+    let v3 = policy(
+        "v3",
+        vec![signed("gross", ">=", "21", all_chongs(), "freeze_new")],
+    );
+    let f = sr_fixture(None, &[&v2, &v3]);
+    let config = f.configs[0].clone();
+    let send = |message: &str, p: Value, epoch: &str| {
+        crate::economic_session::finance_transport::call(&config, "E", epoch, envelope(message, p))
+    };
+    let query = json!({"op":"QuerySrEvaluation","evaluation_id":"eval-socket"});
+    let view = json!({"op":"ReadView","cut":null,"as_known_ns":null});
+
+    let owner = Owner::start(&f, "serve-1", "1");
+    let before = e_cut(&f);
+    let original = evaluation(&f, "eval-socket", &v2);
+    let receipt = send("sr-pre-1", original.clone(), "1").unwrap();
+    assert_eq!(receipt["kind"], "SrExpansionEvaluated", "{receipt}");
+    assert_eq!(receipt["record"]["result"], "ActionCandidates");
+    assert_eq!(
+        receipt["record"]["actions"][0]["application_state"],
+        "NotApplied"
+    );
+    assert_eq!(
+        row(
+            &f.dbs[0],
+            "receipts",
+            &crate::economic_session::sr_expansion::receipt_key("eval-socket"),
+        )
+        .unwrap(),
+        Some(receipt.clone()),
+        "owner 进程已持久回执"
+    );
+    let read = send("sr-socket-query", query.clone(), "1").unwrap();
+    assert_eq!(read["kind"], "EconomicSrEvaluation", "{read}");
+    assert_eq!(read["evaluation"], receipt["record"]);
+    assert_eq!(read["receipt"], receipt);
+    assert_eq!(read["policy_raw_utf8"], canonical_json(&v2));
+    let image = send("sr-socket-view", view.clone(), "1").unwrap();
+    assert_eq!(image["cut"], receipt["cut"]);
+    let last = image["image"]["history"]
+        .as_array()
+        .unwrap()
+        .last()
+        .unwrap();
+    assert_eq!(last["kind"], "EvaluateSrExpansion");
+    assert_eq!(last["record"], receipt["record"]);
+    let watch = send(
+        "sr-socket-watch",
+        json!({"op":"Watch","after_cut":before}),
+        "1",
+    )
+    .unwrap();
+    assert_eq!(watch["changes"].as_array().unwrap().len(), 1, "{watch}");
+    let committed = latest(&f.dbs[0]).unwrap();
+    let conflict = evaluation(
+        &f,
+        "eval-socket-21",
+        &policy(
+            "v2",
+            vec![signed("gross", ">=", "21", all_chongs(), "freeze_new")],
+        ),
+    );
+    let refusal = send("sr-pre-2", conflict, "1").unwrap_err();
+    assert!(refusal.starts_with("IdentityConflict"), "{refusal}");
+    assert_eq!(latest(&f.dbs[0]).unwrap(), committed, "拒收不得写 E 提交");
+    owner.kill();
+
+    let out = run_child(
+        &f.dir,
+        &json!({"label":"recover","action":"recover","manifest":f.dir.join("manifest.json"),"db":f.configs[0].db,"evaluations":["eval-socket"]}),
+    );
+    assert_eq!(out["recovered"]["writer_epoch"], "2");
+    assert_eq!(out["recovered"]["cut"], receipt["cut"]);
+
+    let owner = Owner::start(&f, "serve-2", "2");
+    let read = send("sr-socket-query", query, "2").unwrap();
+    assert_eq!(read["evaluation"], receipt["record"]);
+    assert_eq!(read["receipt"], receipt);
+    assert_eq!(
+        send("sr-pre-1", original, "2").unwrap(),
+        receipt,
+        "新 owner 进程对原请求只取回原回执"
+    );
+    assert_eq!(latest(&f.dbs[0]).unwrap(), committed, "重送不得新增提交");
+    let mut late = evaluation(&f, "eval-socket-v3", &v3);
+    late["writer_epoch"] = json!("2");
+    let late = send("sr-late-1", late, "2").unwrap();
+    assert_eq!(late["record"]["result"], "NoAction", "{late}");
+    assert_eq!(
+        send("sr-socket-view", view, "2").unwrap()["cut"],
+        late["cut"]
+    );
+    owner.kill();
+    audit(&f.dbs[0], &f.configs[0]).unwrap();
+}
+
 /// 子进程入口：只由本文件的恢复/故障调度以其建立的 job 文件调用。
 #[test]
 #[ignore = "仅供 #1717 SR 评估子进程故障与恢复调度调用，不作独立通过项"]
@@ -586,6 +919,12 @@ fn sr_child() {
         None,
     )
     .unwrap();
+    let _lock = crate::session_transport::process_lock(&config.db, &config.domain).unwrap();
+    if job["action"] == "serve" {
+        let epoch = positive(required(&job, "epoch").unwrap(), "epoch").unwrap();
+        service::serve(&config, epoch, epoch).unwrap();
+        unreachable!("serve 只由监督方 SIGKILL 结束");
+    }
     let result = if job["action"] == "recover" {
         let recovered = recover(&config).unwrap();
         let epoch = positive(required(&recovered, "writer_epoch").unwrap(), "epoch").unwrap();

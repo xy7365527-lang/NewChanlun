@@ -1486,6 +1486,45 @@ fn handle_with_deadline(
         Err(error) => json!({"kind":"Error","domain_id":config.domain,"error":error}),
     }
 }
+/// 正式 owner 服务循环。cli `serve` 取得同一域独占锁后调用；测试子进程同样先取锁再调用。
+pub(super) fn serve(config: &Config, epoch: i64, e_epoch: i64) -> Result<(), String> {
+    let (mut c, runtime) = open(&config.db, false)?;
+    check_epoch(&c, epoch)?;
+    audit(&c, config)?;
+    let r = &config.manifest["resources"];
+    let n = |k: &str| -> Result<usize, String> {
+        usize::try_from(positive(required(r, k)?, k)?).map_err(err)
+    };
+    let bounds = TransportBounds {
+        frame: n("max_frame_bytes")?,
+        read: Duration::from_millis(n("read_timeout_ms")? as u64),
+        write: Duration::from_millis(n("write_timeout_ms")? as u64),
+        response: Duration::from_millis(n("response_timeout_ms")? as u64),
+        queue: n("queue_capacity")?,
+        connections: n("max_connections")?,
+    };
+    // 信封校验按本域登记的版本派发；未知版本在 Config::load 就已拒绝。
+    let validator: EnvelopeValidator = if config.revision()? == SCHEMA_V2 {
+        validate_v2
+    } else {
+        validate_v1
+    };
+    let mut reads = ReadTransfers::default();
+    let revision = config.revision()?;
+    serve_unix_with_deadline(&config.socket, bounds, validator, |e, deadline| {
+        if matches!(
+            e["payload"]["op"].as_str(),
+            Some("EconomicReadOpen" | "EconomicReadPage" | "EconomicReadClose")
+        ) {
+            handle_paged_read(&mut c, config, epoch, &runtime, e, deadline, &mut reads)
+        } else if revision == SCHEMA_V2 {
+            handle_with_deadline(&mut c, config, epoch, e_epoch, &runtime, e, Some(deadline))
+        } else {
+            // /1 金融写入口保持原有语义；只读分页使用新 transport 截止。
+            handle(&mut c, config, epoch, e_epoch, &runtime, e)
+        }
+    })
+}
 /// 正式 owner 入口。init/recover/serve 共用同一域独占锁；不给客户端创建替代权威路径。
 pub fn cli(is_b: bool) -> Result<(), String> {
     let mut args = std::env::args().skip(1);
@@ -1528,50 +1567,7 @@ pub fn cli(is_b: bool) -> Result<(), String> {
             } else {
                 epoch
             };
-            let (mut c, runtime) = open(&config.db, false)?;
-            check_epoch(&c, epoch)?;
-            audit(&c, &config)?;
-            let r = &config.manifest["resources"];
-            let n = |k: &str| -> Result<usize, String> {
-                usize::try_from(positive(required(r, k)?, k)?).map_err(err)
-            };
-            let bounds = TransportBounds {
-                frame: n("max_frame_bytes")?,
-                read: Duration::from_millis(n("read_timeout_ms")? as u64),
-                write: Duration::from_millis(n("write_timeout_ms")? as u64),
-                response: Duration::from_millis(n("response_timeout_ms")? as u64),
-                queue: n("queue_capacity")?,
-                connections: n("max_connections")?,
-            };
-            // 信封校验按本域登记的版本派发；未知版本在 Config::load 就已拒绝。
-            let validator: EnvelopeValidator = if config.revision()? == SCHEMA_V2 {
-                validate_v2
-            } else {
-                validate_v1
-            };
-            let mut reads = ReadTransfers::default();
-            let revision = config.revision()?;
-            serve_unix_with_deadline(&config.socket, bounds, validator, |e, deadline| {
-                if matches!(
-                    e["payload"]["op"].as_str(),
-                    Some("EconomicReadOpen" | "EconomicReadPage" | "EconomicReadClose")
-                ) {
-                    handle_paged_read(&mut c, &config, epoch, &runtime, e, deadline, &mut reads)
-                } else if revision == SCHEMA_V2 {
-                    handle_with_deadline(
-                        &mut c,
-                        &config,
-                        epoch,
-                        e_epoch,
-                        &runtime,
-                        e,
-                        Some(deadline),
-                    )
-                } else {
-                    // /1 金融写入口保持原有语义；只读分页使用新 transport 截止。
-                    handle(&mut c, &config, epoch, e_epoch, &runtime, e)
-                }
-            })?;
+            serve(&config, epoch, e_epoch)?;
         }
         _ => return Err("InvalidDomain：未知子命令".into()),
     }
