@@ -1259,14 +1259,16 @@ fn c4a_fin1_uncovered_fact_cannot_reserve_or_resolve_and_keeps_all_state() {
     f.audit();
 }
 
-// #1716 I1-C：cap 原子激活经 E 正式会话入口（service::handle → finance::write）提交，
-// 并由同一入口的 Reserve（#1408 授信消费点）读取当前生效 cap 版本。
+// #1716 I1-C：cap 原子激活经 E 正式会话入口（service::handle → finance::write）提交；
+// #1408 授信消费点 Reserve 走同一 persist → reduce，S 结构依据沿用本文件的单位信任夹具。
 fn cap_payload(f: &Fixture, from: &str, to: &str, cap: &str, valid: &str) -> Value {
     json!({"op":"ActivateCapPolicy","activation_id":format!("cap-{from}-{to}-{cap}-{valid}"),"policy_id":f.data["policy"]["policy_id"],"from_version":from,"to_version":to,"cap":cap,"valid_through_ns":valid,"writer_epoch":"1"})
 }
-fn reserve_via_session(f: &mut Fixture) -> Value {
-    let p = f.request("Reserve", "slot")["payload"].clone();
-    f.handle(0, "Reserve-slot", p)
+fn reserve_now(f: &mut Fixture) -> Value {
+    let e = f.request("Reserve", "slot");
+    let w = f.witness_for("Reserve", "slot");
+    persist(&mut f.dbs[0], &f.configs[0], 1, &e, w)
+        .unwrap_or_else(|error| json!({"kind":"Error","error":error}))
 }
 fn assert_rejected_unchanged(f: &mut Fixture, message: &str, payload: Value, kind: &str) -> Value {
     let before: Vec<_> = (0..3).map(|n| latest(&f.dbs[n]).unwrap()).collect();
@@ -1288,7 +1290,7 @@ fn assert_rejected_unchanged(f: &mut Fixture, message: &str, payload: Value, kin
 fn cap_activation_is_atomic() {
     let mut f = Fixture::new("100");
     f.prepare();
-    let reserved = reserve_via_session(&mut f);
+    let reserved = reserve_now(&mut f);
     assert_eq!(reserved["kind"], "ReserveReceipt", "{reserved}");
     assert_eq!(reserved["record"]["state"], "Reserved");
     assert!(reserved["record"].get("cap_policy").is_none());
@@ -1358,7 +1360,7 @@ fn cap_activation_and_new_liability_rejudged_in_one_atomic_order() {
     );
     assert_eq!(a["kind"], "CapPolicyActivatedReceipt", "{a}");
     assert_eq!(a["record"]["liability_at_activation"], "20");
-    let r = reserve_via_session(&mut first);
+    let r = reserve_now(&mut first);
     assert_eq!(r["kind"], "ReserveReceipt", "{r}");
     assert_eq!(r["record"]["state"], "AwaitingAllocationPolicy");
     assert_eq!(r["record"]["required_total"], "90");
@@ -1370,7 +1372,7 @@ fn cap_activation_and_new_liability_rejudged_in_one_atomic_order() {
     // 先 Reserve 增责到 90，后来的激活 cap 50 在其原子点重判：拒绝，Reserved 与责任逐字保留。
     let mut second = Fixture::new("100");
     second.prepare();
-    let r = reserve_via_session(&mut second);
+    let r = reserve_now(&mut second);
     assert_eq!(r["record"]["state"], "Reserved", "{r}");
     let late = cap_payload(&second, "1", "2", "50", "100000");
     assert_rejected_unchanged(&mut second, "ActivateCapPolicy-low", late, "InvalidDomain");
@@ -1394,12 +1396,12 @@ fn expired_cap_version_rejection_does_not_restore_credit() {
     );
     assert_eq!(a["kind"], "CapPolicyActivatedReceipt", "{a}");
     let before = latest(&g.dbs[0]).unwrap();
-    c4a_error(&reserve_via_session(&mut g), "MissingDependency");
+    c4a_error(&reserve_now(&mut g), "MissingDependency");
     assert_eq!(latest(&g.dbs[0]).unwrap(), before);
     // 换新版本被责任拒绝后，保留的是已过期 v2：仍不能恢复授信。
     let low = cap_payload(&g, "2", "3", "10", "100000");
     assert_rejected_unchanged(&mut g, "ActivateCapPolicy-low", low, "InvalidDomain");
-    c4a_error(&reserve_via_session(&mut g), "MissingDependency");
+    c4a_error(&reserve_now(&mut g), "MissingDependency");
     assert_eq!(latest(&g.dbs[0]).unwrap(), before);
     assert_eq!(responsibility_total(&before.3), 20);
     g.audit();
