@@ -1,6 +1,5 @@
 import { test } from "node:test";
 import { execFileSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -1050,7 +1049,7 @@ test("--archaeology-only 与 processTicket 共用目录锁", async () => {
 });
 
 
-const drainHelper = fileURLToPath(new URL("./drain-control.py", import.meta.url));
+const drainHelper = join(__dirname, "drain-control.py");
 const drainCli = (d: Deps, command: "freeze" | "resume", ...args: string[]) =>
   execFileSync("python3", [drainHelper, command, "--root", d.drainRoot!, ...args]);
 

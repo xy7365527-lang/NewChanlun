@@ -46,7 +46,7 @@ def main() -> int:
     root = args.root
     root.mkdir(parents=True, exist_ok=True)
     with (root / 'admission.lock').open('a') as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
+        fcntl.flock(lock, fcntl.LOCK_SH if args.command == 'hold' else fcntl.LOCK_EX)
         state = read_state(root)
         if args.command == 'freeze':
             if state['mode'] == 'open':

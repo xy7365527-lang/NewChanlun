@@ -1337,6 +1337,12 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
     if (s.phase === "review_parse_error") write(`取消认领 #${n}（审查解析失败，待重跑）`, ["issue", "edit", String(n), "--remove-assignee", "@me"]);
     summary.phase = s.phase === "land_t" || s.phase === "shadow_p" || s.phase === "review_parse_error" ? s.phase : "done";
   } catch (e) {
+    if (e instanceof DrainFrozenError) {
+      skipPersist = true;
+      summary.phase = "skipped";
+      summary.error = e.message;
+      return summary;
+    }
     summary.phase = "error";
     summary.error = e instanceof Error ? e.message : String(e);
     if (claimed) {

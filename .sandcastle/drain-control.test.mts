@@ -84,7 +84,7 @@ test("控制进程被杀后fcntl锁自动释放，无PID猜测与人工删锁", 
 });
 
 
-test("开放准入可并发，freeze 等全部持有者收尾后阻止后续准入", { timeout: 8000 }, async () => {
+test("开放准入可并发，freeze 等全部持有者收尾后阻止后续准入", { timeout: 10000 }, async () => {
   const root = temp();
   let begin1!: () => void;
   let begin2!: () => void;
@@ -99,7 +99,11 @@ test("开放准入可并发，freeze 等全部持有者收尾后阻止后续准�
   const second = withLegacyAdmission(async () => { begin2(); await release2; }, root);
   let freezing: Promise<void> | undefined;
   try {
-    assert.equal(await Promise.race([entered2.then(() => true), delay(800).then(() => false)]), true, "两个开放准入必须同时进入");
+    const concurrent = await new Promise<boolean>((resolve) => {
+      const timeout = setTimeout(() => resolve(false), 3000);
+      void entered2.then(() => { clearTimeout(timeout); resolve(true); });
+    });
+    assert.equal(concurrent, true, "两个开放准入必须同时进入");
     let frozen = false;
     freezing = freeze(root).then((code) => { assert.equal(code, 0); frozen = true; });
     await delay(80);

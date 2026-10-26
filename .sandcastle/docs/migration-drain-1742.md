@@ -19,7 +19,7 @@ python3 .sandcastle/drain-control.py freeze
 python3 .sandcastle/drain-control.py status
 ```
 
-`freeze` 返回 `mode=draining` 及 generation，重复执行保持同一代次。冻结和准入用同一个系统 `fcntl.flock`。freeze 成功返回时，先前的“选择到首次副作用”操作已完成，后来的新操作会拒绝。它不杀已认领工蜂。
+`freeze` 返回 `mode=draining` 及 generation，重复执行保持同一代次。冻结和准入用同一个系统 `fcntl.flock`。开放准入持共享锁，不互相串行。freeze 和 resume 持排他锁。freeze 成功返回时，先前的“选择到首次副作用”操作已完成，后来的新操作会拒绝。它不杀已认领工蜂。
 
 - main 的选票与 claim 在锁内；REVIEW_ONLY 的沙盒创建同样须准入。
 - claim-loop 只在锁内拉起新 main，并在已拉起的子进程结束后停止下一轮。冻结期间不回滚到旧队列。
@@ -30,7 +30,11 @@ python3 .sandcastle/drain-control.py status
 
 `harvest.sh` 不承担新增领票。当前策略允许它在排空期间完成已经过审旧分支的 PR 交付，不改它的既有判据。切流前必须等当前 harvest 单轮结束，再停它的定时入口，记录全部已交付 PR。它仍不是新执行器精确 head 发布器。
 
-取得 freeze 确认后核对所有本机控制进程、工蜂、远端 job、workers.jsonl 尾部、decision summary 和分支归属。没有完整清单，不算排空。health-monitor 的 launchd KeepAlive/定时任务也须对账；冻结门只保证重启后的新选择被拒，不声称进程从此不再被 launchd 拉起。
+取得 freeze 确认后核对所有本机控制进程、工蜂、远端 job、workers.jsonl 尾部、decision summary 和分支归属。没有完整清单，不算排空。
+
+单独列出 workers.jsonl 中有 `phase:claim` 却没有 implementer started 的票，并对照 GitHub 当前认领、标签与本地 checkpoint。认领后、启动前失败的票在冻结下不会自动回队列，不能把“没有工蜂进程”计为完成。逐票记录旧 owner、最后一个已证实步骤、分支和未执行副作用。由旧 owner 在批准范围内选择从原 checkpoint 收尾，或保留冻结认领并登记给新执行器的交接方案。需要释放认领或重新排队时，先核该动作属于 D6 批准范围，再按交接方案执行。全部遗留票有去向及接收记录后，才能确认排空。
+
+冻结后循环正常退出，但 launchd 的 `KeepAlive=true` 可能继续节流重拉，形成启动后立即退出的日志噪音。门禁仍拒绝新选择，这些启动记录不算新增工蜂。待各循环达到安全边界、子进程已完成并且 inventory 已对账，再由部署 owner bootout 对应 plist，不能在子进程仍在飞时卸载父服务。核对 health-monitor 的 KeepAlive 和定时任务，保持 heal 禁用直到恢复步骤最后。
 
 未知版本、坏 JSON、读取失败或错误 generation 都失败关闭。控制进程崩溃后 helper 的 stdin 关闭，内核释放 flock，不靠 PID 年龄猜锁是否陈旧。持久状态保持 draining，不自动恢复 open。
 
@@ -50,4 +54,4 @@ python3 .sandcastle/drain-control.py resume --generation 1
 node --import tsx --test .sandcastle/drain-control.test.mts
 ```
 
-测试仅用临时根，覆盖 freeze/claim 竞争、已准入收尾、冻结后无新增副作用、半写状态、代次恢复及真实 SIGKILL 后内核释放锁。真实部署、旧消费者排空和远端变量启用仍未执行。
+测试仅用临时根，覆盖 freeze/claim 竞争、已准入收尾、冻结后无新增副作用、半写状态、代次恢复、并发开放准入及真实 SIGKILL 后内核释放锁。decision-claimer 相邻测试用独立临时根，覆盖 T 类断点、P 类 pDone 在冻结下保留，以及解冻后不重复评论或提交。真实部署、旧消费者排空和远端变量启用仍未执行。
