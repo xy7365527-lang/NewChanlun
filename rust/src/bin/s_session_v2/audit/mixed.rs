@@ -178,3 +178,114 @@ pub(crate) fn read_facts(
     }
     Ok((active,withdrawn))
 }
+
+pub(crate) fn read_objects(
+    conn:&Connection, as_of:Option<i64>, work:&WorkScope, observer:&dyn LegacyObserver,
+)->Result<(newchan_rust::s_content::CodecVec<PlainJson>,newchan_rust::s_content::CodecVec<PlainJson>),MixedJsonError>{
+    use newchan_rust::s_content::CodecVec;
+    observer.check_work(work).map_err(MixedJsonError::Resource)?;
+    let invalid:i64=conn.query_row(
+        "SELECT COUNT(*) FROM objects WHERE withdrawn_generation IS NOT NULL AND withdrawn_generation <= first_known_generation",
+        [],|r|r.get(0)).map_err(|e|MixedJsonError::Business(format!("核对象生命周期失败：{e}")))?;
+    if invalid!=0 {
+        return Err("StorageUnavailable：对象生命周期非法（withdrawn_generation <= first_known_generation）".into());
+    }
+    let collect=|sql:&str,label:&str|->Result<CodecVec<PlainJson>,MixedJsonError>{
+        let mut stmt=conn.prepare(sql).map_err(|e|MixedJsonError::Business(format!("prepare {label} 失败：{e}")))?;
+        let mut rows=match as_of {None=>stmt.query([]),Some(n)=>stmt.query(params![n])}
+            .map_err(|e|MixedJsonError::Business(format!("query {label} 失败：{e}")))?;
+        let mut out=CodecVec::default();
+        while let Some(row)=rows.next().map_err(|e|MixedJsonError::Business(format!("collect {label} 失败：{e}")))? {
+            let value=scoped_legacy::project_object_row(row,as_of,work).map_err(|error|match error {
+                scoped_legacy::MixedSqlError::Sql(e)=>MixedJsonError::Business(format!("collect {label} 失败：{e}")),
+                scoped_legacy::MixedSqlError::Projection(e)=>e,
+            })?;
+            observer.visit_record("objects","object-sql-project",LegacyRecordRef::Json(&value)).map_err(MixedJsonError::Resource)?;
+            out.try_reserve_native(work,1).map_err(MixedJsonError::Resource)?;
+            out.try_push(value).map_err(MixedJsonError::Resource)?;
+        }
+        Ok(out)
+    };
+    let mut objects=collect(if as_of.is_none(){crate::OBJECT_ACTIVE_SQL}else{crate::OBJECT_ACTIVE_ASOF_SQL},"objects")?;
+    let mut withdrawn=collect(if as_of.is_none(){crate::OBJECT_DEAD_SQL}else{crate::OBJECT_DEAD_ASOF_SQL},"withdrawn")?;
+    let (typed_active,typed_dead)=read_facts(conn,as_of,work,observer)?;
+    for (source,target) in [(&typed_active,&mut objects),(&typed_dead,&mut withdrawn)] {
+        // 原collect完整typed投影成功后才extend目标。
+        let mut projected=CodecVec::default();
+        for value in source {
+            observer.visit_record("objects","fact-project",LegacyRecordRef::Json(value)).map_err(MixedJsonError::Resource)?;
+            let value=scoped_legacy::project_fact(value,work)?;
+            projected.try_reserve_native(work,1).map_err(MixedJsonError::Resource)?;
+            projected.try_push(value).map_err(MixedJsonError::Resource)?;
+        }
+        target.try_reserve_native(work,projected.len()).map_err(MixedJsonError::Resource)?;
+        for value in projected {target.try_push(value).map_err(MixedJsonError::Resource)?;}
+    }
+    Ok((objects,withdrawn))
+}
+
+pub(crate) struct AuditWalk {
+    active:NativeTree<Text,Shared>,
+    births:NativeTree<i64,newchan_rust::s_content::CodecVec<Shared>>,
+    deaths:NativeTree<i64,newchan_rust::s_content::CodecVec<Shared>>,
+    witnesses:Family,
+    relations:Family,
+    observations:Family,
+    original_observations:NativeTree<Text,Shared>,
+    raw:newchan_rust::s_content::CodecVec<PlainJson>,
+    objects:NativeTree<Text,Shared>,
+}
+fn push_event(
+    tree:&mut NativeTree<i64,newchan_rust::s_content::CodecVec<Shared>>,
+    generation:i64,value:Shared,work:&WorkScope,
+)->Result<(),MixedJsonError>{
+    let admission=NativeAdmission(Some(work));
+    if !tree.contains_key(&generation) {
+        tree.insert_admitted(generation,Default::default(),&admission).map_err(MixedJsonError::Resource)?;
+    }
+    let list=tree.get_mut(&generation).unwrap();
+    list.try_reserve_native(work,1).map_err(MixedJsonError::Resource)?;
+    list.try_push(value).map_err(MixedJsonError::Resource)
+}
+impl AuditWalk {
+    pub(crate) fn capture<'a>(
+        conn:&Connection,raw:impl IntoIterator<Item=&'a Value>,work:&WorkScope,observer:&dyn LegacyObserver,
+    )->Result<Self,MixedJsonError>{
+        let (objects,withdrawn)=read_objects(conn,None,work,observer)?;
+        let witnesses=Family::capture(conn,"witnesses",work,observer)?;
+        let relations=Family::capture(conn,"relations",work,observer)?;
+        let observations=Family::capture(conn,"observations",work,observer)?;
+        let mut raw_copy=newchan_rust::s_content::CodecVec::default();
+        for record in raw {
+            let copied=PlainJson::try_clone_from(record,Some(work)).map_err(MixedJsonError::Resource)?;
+            raw_copy.try_reserve_native(work,1).map_err(MixedJsonError::Resource)?;
+            raw_copy.try_push(copied).map_err(MixedJsonError::Resource)?;
+        }
+        let mut result=Self{active:Default::default(),births:Default::default(),deaths:Default::default(),
+            witnesses,relations,observations,original_observations:Default::default(),raw:raw_copy,objects:Default::default()};
+        let mut ids=NativeSet::default();
+        let admission=NativeAdmission(Some(work));
+        for value in objects.iter().chain(withdrawn.iter()) {
+            observer.visit_record("objects","capture-lifecycle",LegacyRecordRef::Json(value)).map_err(MixedJsonError::Resource)?;
+            if !ids.insert_admitted(identity(value,"objects",work)?,&admission).map_err(MixedJsonError::Resource)? {
+                return Err("StorageUnavailable：对象重复身份".into());
+            }
+            let copied=value.try_clone_mixed(work).map_err(MixedJsonError::Resource)?;
+            let shared=NativeArc::try_new_shallow(copied,Some(work)).map_err(MixedJsonError::Resource)?;
+            result.objects.insert_admitted(identity(value,"objects",work)?,shared.clone(),&admission).map_err(MixedJsonError::Resource)?;
+            push_event(&mut result.births,number(value,"first_known_generation")?,shared.clone(),work)?;
+            if !value["withdrawn_generation"].is_null() {
+                push_event(&mut result.deaths,number(value,"withdrawn_generation")?,shared,work)?;
+            }
+        }
+        Ok(result)
+    }
+    pub(crate) fn finish(&self)->Result<(),MixedJsonError>{
+        if !self.births.is_empty() || !self.deaths.is_empty() {
+            return Err("StorageUnavailable：对象生灭代不可达".into());
+        }
+        self.witnesses.finish()?;
+        self.relations.finish()?;
+        self.observations.finish()
+    }
+}

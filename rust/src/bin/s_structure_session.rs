@@ -4648,6 +4648,10 @@ fn read_catalog_in_tx(conn: &Connection, as_of: Option<i64>) -> Result<Value, St
 }
 
 /// 读对象（active 或 as_of 视图）与撤回对象，按生命周期的 cut 过滤。
+const OBJECT_ACTIVE_SQL: &str = "SELECT object_id, object_revision, kind, batch_id, branch, dir_ab, dir_bc, window_start, window_mid, window_end, comparisons_json, input_refs_json, source_coords_json, first_known_generation, first_known_cut, published_generation, withdrawn_generation, withdrawal_reason, superseded_by FROM objects WHERE withdrawn_generation IS NULL ORDER BY window_start";
+const OBJECT_ACTIVE_ASOF_SQL: &str = "SELECT object_id, object_revision, kind, batch_id, branch, dir_ab, dir_bc, window_start, window_mid, window_end, comparisons_json, input_refs_json, source_coords_json, first_known_generation, first_known_cut, published_generation, withdrawn_generation, withdrawal_reason, superseded_by FROM objects WHERE first_known_generation <= ?1 AND (withdrawn_generation IS NULL OR withdrawn_generation > ?1) ORDER BY window_start";
+const OBJECT_DEAD_SQL: &str = "SELECT object_id, object_revision, kind, batch_id, branch, dir_ab, dir_bc, window_start, window_mid, window_end, comparisons_json, input_refs_json, source_coords_json, first_known_generation, first_known_cut, published_generation, withdrawn_generation, withdrawal_reason, superseded_by FROM objects WHERE withdrawn_generation IS NOT NULL ORDER BY first_known_generation";
+const OBJECT_DEAD_ASOF_SQL: &str = "SELECT object_id, object_revision, kind, batch_id, branch, dir_ab, dir_bc, window_start, window_mid, window_end, comparisons_json, input_refs_json, source_coords_json, first_known_generation, first_known_cut, published_generation, withdrawn_generation, withdrawal_reason, superseded_by FROM objects WHERE withdrawn_generation IS NOT NULL AND withdrawn_generation <= ?1 AND first_known_generation <= ?1 ORDER BY first_known_generation";
 fn read_objects_view(
     conn: &Connection,
     as_of: Option<i64>,
@@ -4665,22 +4669,18 @@ fn read_objects_view(
     }
     let active_sql = match as_of {
         None => {
-            "SELECT object_id, object_revision, kind, batch_id, branch, dir_ab, dir_bc, window_start, window_mid, window_end, comparisons_json, input_refs_json, source_coords_json, first_known_generation, first_known_cut, published_generation, withdrawn_generation, withdrawal_reason, superseded_by FROM objects WHERE withdrawn_generation IS NULL ORDER BY window_start"
-                .to_string()
+            OBJECT_ACTIVE_SQL
         }
         Some(_) => {
-            "SELECT object_id, object_revision, kind, batch_id, branch, dir_ab, dir_bc, window_start, window_mid, window_end, comparisons_json, input_refs_json, source_coords_json, first_known_generation, first_known_cut, published_generation, withdrawn_generation, withdrawal_reason, superseded_by FROM objects WHERE first_known_generation <= ?1 AND (withdrawn_generation IS NULL OR withdrawn_generation > ?1) ORDER BY window_start"
-                .to_string()
+            OBJECT_ACTIVE_ASOF_SQL
         }
     };
     let withdrawn_sql = match as_of {
         None => {
-            "SELECT object_id, object_revision, kind, batch_id, branch, dir_ab, dir_bc, window_start, window_mid, window_end, comparisons_json, input_refs_json, source_coords_json, first_known_generation, first_known_cut, published_generation, withdrawn_generation, withdrawal_reason, superseded_by FROM objects WHERE withdrawn_generation IS NOT NULL ORDER BY first_known_generation"
-                .to_string()
+            OBJECT_DEAD_SQL
         }
         Some(_) => {
-            "SELECT object_id, object_revision, kind, batch_id, branch, dir_ab, dir_bc, window_start, window_mid, window_end, comparisons_json, input_refs_json, source_coords_json, first_known_generation, first_known_cut, published_generation, withdrawn_generation, withdrawal_reason, superseded_by FROM objects WHERE withdrawn_generation IS NOT NULL AND withdrawn_generation <= ?1 AND first_known_generation <= ?1 ORDER BY first_known_generation"
-                .to_string()
+            OBJECT_DEAD_ASOF_SQL
         }
     };
 
