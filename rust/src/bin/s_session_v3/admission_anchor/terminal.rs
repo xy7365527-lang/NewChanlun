@@ -208,7 +208,10 @@ impl MixedTerminal {
         mut receipt: TerminalReceipt,
     ) -> TerminalReceipt {
         let before = job.map(|j| j.borrow().snapshot());
-        let job_native = job.and_then(|j| j.borrow().mixed_tracking_native_bytes().ok());
+        let job_native = match job {
+            Some(job) => job.borrow().mixed_tracking_native_bytes().ok(),
+            None => Some(0),
+        };
         let retained = receipt.ram_before_stderr.as_ref().and_then(|ram| {
             if ram.active {
                 return None;
@@ -392,6 +395,32 @@ mod tests {
             assert!(matches!(receipt.write_error, Some(Cow::Borrowed(_))));
         }
     }
+    #[test]
+    fn mixed_terminal_ram_without_a_job_has_zero_job_permits() {
+        let command = CommandAccounting::begin();
+        let ram = ram::AdmissionRamLedger::new_with_fixed(
+            resources::NativeRamLimits { max_live_bytes: 1 << 20, max_operation_bytes: 1 << 20 },
+            mixed_fixed_metadata().unwrap(),
+        ).unwrap();
+        TERMINAL.with(|slot| {
+            let mut state = slot.borrow_mut();
+            let state = state.as_mut().unwrap();
+            state.ram = Some(ram.observation());
+            state.mixed = Some(MixedTerminal::new());
+        });
+        drop(ram);
+        let mut output = Vec::new();
+        let receipt = command.report("construction failed", &mut output);
+        assert!(receipt.job.is_none());
+        assert!(receipt.accounting_error.is_none());
+        let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
+        let written = &value["admission_accounting"]["ram_before_stderr"];
+        assert_eq!(written["terminal_job_native_bytes"], 0);
+        assert_eq!(written["retained_live"], 0);
+        assert_eq!(written["final_live"], written["fixed_metadata_bytes"]);
+        assert!(written["retention_error"].is_null());
+    }
+
     #[test]
     fn mixed_terminal_fixed_utf8_json_bound_and_first_failure() {
         let mut terminal = MixedTerminal::new();
