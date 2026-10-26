@@ -86,7 +86,7 @@ pub(crate) fn verify_schema(conn:&Connection,enabled:bool,work:&WorkScope,observ
         expected.add("证据图 DDL",evidence_store::DDL,work)?;
     }
     expected.verify(conn,work,observer)?;
-    delta_storage::read_mode(conn)?;
+    delta_mode(conn,work)?;
     evidence_store::read_format_typed(conn,None,Some(work))?;
     Ok(expected)
 }
@@ -128,3 +128,22 @@ pub(crate) fn epoch_history(conn:&Connection,enabled:bool,work:&WorkScope)->Resu
 pub(crate) fn original_schema(conn:&Connection,enabled:bool)->Result<(),String>{super::verify_schema(conn,enabled)}
 #[cfg(test)]
 pub(crate) fn original_active(conn:&Connection)->Result<bool,String>{super::active(conn)}
+
+pub(crate) fn delta_mode(conn:&Connection,work:&WorkScope)->Result<delta_storage::Mode,MixedJsonError>{
+    let exists:i64=conn.query_row("SELECT COUNT(*) FROM sqlite_schema WHERE type='table' AND name=?1",params![delta_storage::TABLE],|r|r.get(0))
+        .map_err(|e|format!("StorageUnavailable：读私有格式登记失败：{e}"))?;
+    if exists==0 {return Ok(delta_storage::Mode::LegacyFull);}
+    let mut stmt=conn.prepare("SELECT singleton,storage_format FROM s_storage_format")
+        .map_err(|e|format!("StorageUnavailable：私有格式登记结构不符：{e}"))?;
+    let mut query=stmt.query([]).map_err(|e|format!("StorageUnavailable：读私有格式登记失败：{e}"))?;
+    let mut rows=CodecVec::default();
+    while let Some(row)=query.next().map_err(|e|format!("StorageUnavailable：私有格式登记行损坏：{e}"))? {
+        let n:i64=row.get(0).map_err(|e|format!("StorageUnavailable：私有格式登记行损坏：{e}"))?;
+        let value=row.get_ref(1).and_then(|v|v.as_str().map_err(|e|match e { rusqlite::types::FromSqlError::InvalidType=>rusqlite::Error::InvalidColumnType(1,"storage_format".into(),v.data_type()),other=>rusqlite::Error::FromSqlConversionFailure(1,v.data_type(),Box::new(other)) }))
+            .map_err(|e|format!("StorageUnavailable：私有格式登记行损坏：{e}"))?;
+        let text=Text::try_from_str(value,Some(work)).map_err(MixedJsonError::Resource)?;
+        rows.try_reserve_native(work,1).map_err(MixedJsonError::Resource)?;
+        rows.try_push((n,text)).map_err(MixedJsonError::Resource)?;
+    }
+    delta_storage::validate_mode_rows(rows.len(),rows.first().map(|(n,s)|(*n,s.as_str()))).map_err(Into::into)
+}

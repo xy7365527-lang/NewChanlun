@@ -1401,7 +1401,7 @@ mod tests {
 
         use crate::v2::mixed_control as control;
         use crate::v3::business_json::MixedJsonError;
-        for case in 0..9 {
+        for case in 0..12 {
             let conn=rusqlite::Connection::open_in_memory().unwrap();
             conn.execute_batch(crate::SCHEMA).unwrap();
             conn.execute_batch("INSERT INTO meta VALUES('generation','0'); INSERT INTO meta VALUES('writer_epoch','1');").unwrap();
@@ -1414,6 +1414,9 @@ mod tests {
                 6=>{conn.execute_batch(crate::v2::SCHEMA_V2).unwrap();conn.execute_batch("INSERT INTO meta VALUES('protocol_revision','s-session/2')").unwrap();},
                 7=>crate::delta_storage::declare_new(&conn).unwrap(),
                 8=>conn.execute_batch("INSERT INTO meta VALUES('protocol_revision','bad')").unwrap(),
+                9=>conn.execute_batch(crate::delta_storage::DDL).unwrap(),
+                10=>{crate::delta_storage::declare_new(&conn).unwrap();conn.execute_batch("UPDATE s_storage_format SET storage_format='wrong'").unwrap();},
+                11=>{crate::delta_storage::declare_new(&conn).unwrap();conn.execute_batch("UPDATE s_storage_format SET storage_format=x'ff'").unwrap();},
                 _=>{}
             }
             let enabled=case==6;
