@@ -8519,14 +8519,17 @@ mod tests {
             std::fs::remove_file(format!("{}-wal", db.display())).unwrap();
         }
 
+        // mixed 写前准入只读审到迁移前精确形状；写命令开库仍走历史只读连接，迁移不发生。
         let _command = v3::admission_anchor::CommandAccounting::begin();
         let prepared = v3::admission_anchor::test_prepare_mixed(&db, 1 << 26, 1 << 26);
-        let admitted =
-            v3::test_with_mixed_entry(|| v3::admission::WriterScope::admit(&db, prepared));
-        assert!(
-            admitted.is_err(),
-            "mixed 旧域 schema 核逐字对拍原判据，只认当前形状"
-        );
+        let scope =
+            v3::test_with_mixed_entry(|| v3::admission::WriterScope::admit(&db, prepared)).unwrap();
+        assert_eq!(bytes(), before);
+        let guard = scope.enter().unwrap();
+        let error = recover_core(&db, "2", None).unwrap_err();
+        assert!(error.starts_with("VersionMismatch："), "{error}");
+        drop(guard);
+        drop(scope);
         assert_eq!(bytes(), before);
         assert!(policy_records_missing(&Connection::open(&db).unwrap()).unwrap());
     }

@@ -34,6 +34,8 @@ impl FixedErrors {
 pub(super) struct MixedAccounting<'s, 'j> {
     account: RefCell<&'s mut AdmissionAccounting<'j>>,
     pub(super) policy: &'s Cell<MixedPolicy>,
+    // 准入先于任何写：旧域 schema 核在此记下源库是否仍是 #1602 迁移前形状。
+    pub(super) delta: &'s Cell<crate::DeltaShape>,
     pub(super) work: &'j WorkScope,
     phase: Cell<ErrorPhase>,
     errors: RefCell<FixedErrors>,
@@ -42,11 +44,13 @@ impl<'s, 'j> MixedAccounting<'s, 'j> {
     pub(super) fn new(
         account: &'s mut AdmissionAccounting<'j>,
         policy: &'s Cell<MixedPolicy>,
+        delta: &'s Cell<crate::DeltaShape>,
     ) -> Option<Self> {
         let work = account.mixed_scope()?;
         account.is_mixed().then(|| Self {
             account: RefCell::new(account),
             policy,
+            delta,
             work,
             phase: Cell::new(ErrorPhase::Business),
             errors: RefCell::new(FixedErrors::new()),
@@ -174,6 +178,9 @@ impl LegacyObserver for MixedAccounting<'_, '_> {
     ) -> Result<(), sc::CodecError> {
         self.run(|a| a.accept_legacy_evidence(row).map(|_| ()))
     }
+    fn before_write(&self) -> Option<&Cell<crate::DeltaShape>> {
+        Some(self.delta)
+    }
 }
 #[derive(Debug)]
 struct CallbackFailed;
@@ -246,7 +253,8 @@ mod tests {
                 )?);
                 let mut account = crate::v3::admission_anchor::test_mixed_account(&job, work);
                 let policy = Cell::new(MixedPolicy::Bootstrap);
-                let shared = MixedAccounting::new(&mut account, &policy).unwrap();
+                let delta = Cell::new(crate::DeltaShape::Current);
+                let shared = MixedAccounting::new(&mut account, &policy, &delta).unwrap();
                 let mut io = &shared;
                 io.before_io().unwrap();
                 io.after_read(11).unwrap_err();

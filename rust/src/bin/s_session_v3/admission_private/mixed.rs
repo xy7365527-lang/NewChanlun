@@ -7,8 +7,12 @@ use crate::v3::audit_budget::LegacyObserver;
 use crate::v3::business_json::{MixedFailureScope, MixedJsonError};
 use std::cell::Cell;
 
-pub(crate) struct SealedPrefix(());
+/// 封存结果带准入所见源形状；`PrePolicyRecords` 由 scope 带到开库时那次 #1602 迁移。
+pub(crate) struct SealedPrefix(crate::DeltaShape);
 impl SealedPrefix {
+    pub(in crate::v3) fn delta(&self) -> crate::DeltaShape {
+        self.0
+    }
     pub(in crate::v3) fn require(&self, prefix: &RejectionPrefix<'_>) -> Result<(), FixedFailure> {
         match prefix {
             RejectionPrefix::None => Ok(()),
@@ -80,7 +84,7 @@ fn business(
             crate::audit::mixed_profile::meta_text(&tx, "writer_epoch", shared.work),
         )?
         .ok_or_else(|| shared.failure("MixedEpochMissing", "完整核后缺writer_epoch"))?;
-        Ok(SealedPrefix(()))
+        Ok(SealedPrefix(shared.delta.get()))
     })();
     shared.set_phase(ErrorPhase::Rollback);
     let disabled = conn
@@ -108,7 +112,8 @@ pub(super) fn validate(
     let _failure_scope = MixedFailureScope::enter()
         .map_err(|e| FixedFailure::new("MixedScopeInvalid", "business", e))?;
     let policy = Cell::new(MixedPolicy::Bootstrap);
-    let shared = MixedAccounting::new(account, &policy).ok_or_else(|| {
+    let delta = Cell::new(crate::DeltaShape::Current);
+    let shared = MixedAccounting::new(account, &policy, &delta).ok_or_else(|| {
         FixedFailure::new("MixedWorkMissing", "business", "缺当前mixed WorkScope")
     })?;
     let result = (|| {

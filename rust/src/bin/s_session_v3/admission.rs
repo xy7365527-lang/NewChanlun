@@ -239,9 +239,9 @@ impl WriterScope {
                         _,
                     ) => mixed_failure("MixedResourceFailure", "business", "mixed工作域资源拒绝"),
                 })?;
+            let delta = sealed.delta();
             started.set_mixed_prefix(sealed);
-            // mixed 旧域审计逐字对拍原 schema 核，只认当前形状。
-            crate::DeltaShape::Current
+            delta
         } else {
             let mut account = started.accounting();
             let result = super::admission_private::validate_prefix(&source, &mut account, prefix);

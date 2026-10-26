@@ -444,3 +444,94 @@ fn mixed_private_non_none_prefix_rejects_after_real_vfs_and_recovers() {
         assert_clean_mixed_admission(path);
     });
 }
+
+const DROP_POLICY_RECORDS: &str = "ALTER TABLE structure_deltas DROP COLUMN policy_records";
+
+/// 原调用的首错：首个开门者先按 #1602 迁移再跑严格审计（在副本上取，原件不动）。
+fn original_first_error(path: &Path) -> String {
+    let copy = path.with_extension("original.sqlite");
+    std::fs::copy(path, &copy).unwrap();
+    crate::verified_root_raw_events(&crate::open_db(&copy).unwrap()).unwrap_err()
+}
+
+#[test]
+fn mixed_private_rejected_pre_policy_records_store_keeps_original_first_error_unmigrated() {
+    with_legacy_mixed_copy("mixed-pre-policy-rejected.sqlite", |path| {
+        let conn = rusqlite::Connection::open(path).unwrap();
+        conn.execute_batch(DROP_POLICY_RECORDS).unwrap();
+        conn.execute("UPDATE meta SET value='wrong' WHERE key='profile_hash'", [])
+            .unwrap();
+        conn.close().unwrap();
+        let expected = original_first_error(path);
+        let before = std::fs::read(path).unwrap();
+        assert_private_mixed_rejected(
+            path,
+            super::super::admission_private::RejectionPrefix::None,
+            "MixedBusinessRejected",
+            &expected,
+        );
+        assert_eq!(std::fs::read(path).unwrap(), before);
+        assert!(crate::policy_records_missing(&rusqlite::Connection::open(path).unwrap()).unwrap());
+    });
+}
+
+#[test]
+fn mixed_private_pre_policy_records_admission_rejects_every_other_shape_deviation() {
+    for (i, sql) in [
+        "ALTER TABLE structure_deltas DROP COLUMN policy_records; ALTER TABLE catalog ADD COLUMN extra TEXT",
+        "ALTER TABLE structure_deltas DROP COLUMN policy_records; ALTER TABLE structure_deltas ADD COLUMN extra TEXT",
+        "ALTER TABLE structure_deltas DROP COLUMN policy_records; ALTER TABLE structure_deltas DROP COLUMN delta_json",
+        "ALTER TABLE structure_deltas DROP COLUMN policy_records; ALTER TABLE structure_deltas ADD COLUMN policy_records TEXT NOT NULL DEFAULT 'x'",
+        "ALTER TABLE structure_deltas DROP COLUMN policy_records; ALTER TABLE structure_deltas ADD COLUMN policy_records TEXT",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        with_legacy_mixed_copy(&format!("mixed-pre-policy-shape-{i}.sqlite"), |path| {
+            let conn = rusqlite::Connection::open(path).unwrap();
+            conn.execute_batch(sql).unwrap();
+            let missing = crate::policy_records_missing(&conn).unwrap();
+            conn.close().unwrap();
+            let expected = original_first_error(path);
+            assert!(expected.contains("模式/约束不匹配 table/"), "{sql}: {expected}");
+            let before = std::fs::read(path).unwrap();
+            assert_private_mixed_rejected(
+                path,
+                super::super::admission_private::RejectionPrefix::None,
+                "MixedBusinessRejected",
+                &expected,
+            );
+            assert_eq!(std::fs::read(path).unwrap(), before, "{sql}");
+            assert_eq!(
+                crate::policy_records_missing(&rusqlite::Connection::open(path).unwrap()).unwrap(),
+                missing,
+                "{sql}"
+            );
+        });
+    }
+}
+
+#[test]
+fn mixed_private_scope_admitted_on_current_source_refuses_an_unaudited_migration() {
+    with_legacy_mixed_copy("mixed-current-scope.sqlite", |path| {
+        let _command = super::super::admission_anchor::CommandAccounting::begin();
+        let prepared = super::super::admission_anchor::test_prepare_mixed(path, 1 << 26, 1 << 26);
+        let scope = super::super::admission_private::test_with_mixed_entry(|| {
+            WriterScope::admit(path, prepared)
+        })
+        .unwrap();
+        let guard = scope.enter().unwrap();
+        rusqlite::Connection::open(path)
+            .unwrap()
+            .execute_batch(DROP_POLICY_RECORDS)
+            .unwrap();
+        let error = crate::open_db(path).err().unwrap();
+        assert!(
+            error.starts_with("PolicyRecordsMigrationNotAdmitted："),
+            "{error}"
+        );
+        assert!(crate::policy_records_missing(&rusqlite::Connection::open(path).unwrap()).unwrap());
+        drop(guard);
+        drop(scope);
+    });
+}

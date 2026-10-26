@@ -185,11 +185,39 @@ pub(crate) fn verify_schema(
         }
         expected.add("证据图 DDL", evidence_store::DDL, work)?;
     }
+    // 只有写前准入门面给出 before_write：迁移前源换成迁移前的精确 structure_deltas 期望并记下形状；
+    // 其余表与比较核不变。
+    if let Some(shape) = observer.before_write() {
+        if pre_policy_records(conn, work)? {
+            expected.add("#1602前Delta", crate::PRE_POLICY_RECORDS_DELTAS, work)?;
+            shape.set(crate::DeltaShape::PrePolicyRecords);
+        }
+    }
     observer.select_legacy_tables(enabled, ohlc, delta == 1, graph != 0);
     expected.verify(conn, work, observer)?;
     delta_mode(conn, work)?;
     evidence_store::read_format_typed(conn, None, Some(work))?;
     Ok(expected)
+}
+/// 源库 structure_deltas 原文规范化后是否逐字等于 #1602 迁移前 DDL。mixed SQL 合同只开放
+/// sqlite_schema 的 type/name/sql，不开放 pragma_table_info.name，所以用已授权的原文判别；
+/// 随后的精确比较不变，接受集合与迁移谓词“表在且缺列”加精确比较相同。
+fn pre_policy_records(conn: &Connection, work: &WorkScope) -> Result<bool, MixedJsonError> {
+    let mut pre = Schema::new();
+    pre.add("#1602前Delta", crate::PRE_POLICY_RECORDS_DELTAS, work)?;
+    let mut stmt = CheckedStatement::prepare(
+        conn,
+        c"SELECT sql FROM sqlite_schema WHERE type='table' AND name='structure_deltas'",
+    )
+    .map_err(err)?;
+    let stored = match stmt.next().map_err(err)? {
+        Some(mut row) => Some(normalized(&sql_text(&mut row, 0, work)?, work)?),
+        None => None,
+    };
+    stmt.finalize().map_err(err)?;
+    Ok(stored.is_some_and(|stored| {
+        pre.tables.get("structure_deltas").map(|v| v.as_str()) == Some(stored.as_str())
+    }))
 }
 pub(crate) fn active(conn: &Connection, work: &WorkScope) -> Result<bool, MixedJsonError> {
     let marker = crate::audit::mixed_profile::meta_text(conn, "protocol_revision", work)?;

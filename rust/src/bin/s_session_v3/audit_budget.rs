@@ -54,6 +54,10 @@ pub(crate) trait LegacyObserver {
         &self,
         row: &sc::legacy_evidence::CheckedLegacyEvidenceRow,
     ) -> Result<(), sc::CodecError>;
+    /// #1527×#1602：只有 mixed 写前准入门面给出，供旧域 schema 核记录所见 structure_deltas 形状。
+    fn before_write(&self) -> Option<&std::cell::Cell<crate::DeltaShape>> {
+        None
+    }
 }
 /// 仅借本次审计账与截止时间；不可留存进 capture/context/memo。
 pub(crate) struct NativeMeasure<'a> {

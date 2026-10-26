@@ -3302,6 +3302,57 @@ mod tests {
         let conn = open_db(&fixture.db).unwrap();
         run(&conn);
     }
+    fn dump_db(db: &Path) -> Vec<(String, Vec<String>)> {
+        let conn = open_db(db).unwrap();
+        let names = [
+            "meta",
+            "raw_events",
+            "batches",
+            "objects",
+            "witnesses",
+            "relations",
+            "observations",
+            "structure_deltas",
+            "s_storage_format",
+            "writer_epoch_history",
+            "catalog",
+            "s_protocol_meta",
+            "s_input_messages",
+            "s_clock_events",
+            "s_delivery_policy",
+            "s_delivery_refs",
+        ];
+        names
+            .iter()
+            .map(|n| {
+                let exists: i64 = conn
+                    .query_row(
+                        "SELECT COUNT(*) FROM sqlite_schema WHERE type='table' AND name=?1",
+                        params![n],
+                        |r| r.get(0),
+                    )
+                    .unwrap();
+                if exists == 0 {
+                    return (n.to_string(), vec!["<absent>".to_string()]);
+                }
+                let mut q = conn
+                    .prepare(&format!("SELECT * FROM {n} ORDER BY rowid"))
+                    .unwrap();
+                let cols = q.column_count();
+                let rows = q
+                    .query_map([], |r| {
+                        Ok((0..cols)
+                            .map(|i| format!("{:?}", r.get_ref(i).unwrap()))
+                            .collect::<Vec<_>>()
+                            .join("|"))
+                    })
+                    .unwrap()
+                    .collect::<Result<Vec<_>, _>>()
+                    .unwrap();
+                (n.to_string(), rows)
+            })
+            .collect()
+    }
     struct Fixture {
         dir: PathBuf,
         db: PathBuf,
@@ -3367,55 +3418,7 @@ mod tests {
             handle_fixture(&self.db, &self.profile, "1", &self.clock, &m).unwrap()
         }
         fn dump(&self) -> Vec<(String, Vec<String>)> {
-            let conn = open_db(&self.db).unwrap();
-            let names = [
-                "meta",
-                "raw_events",
-                "batches",
-                "objects",
-                "witnesses",
-                "relations",
-                "observations",
-                "structure_deltas",
-                "s_storage_format",
-                "writer_epoch_history",
-                "catalog",
-                "s_protocol_meta",
-                "s_input_messages",
-                "s_clock_events",
-                "s_delivery_policy",
-                "s_delivery_refs",
-            ];
-            names
-                .iter()
-                .map(|n| {
-                    let exists: i64 = conn
-                        .query_row(
-                            "SELECT COUNT(*) FROM sqlite_schema WHERE type='table' AND name=?1",
-                            params![n],
-                            |r| r.get(0),
-                        )
-                        .unwrap();
-                    if exists == 0 {
-                        return (n.to_string(), vec!["<absent>".to_string()]);
-                    }
-                    let mut q = conn
-                        .prepare(&format!("SELECT * FROM {n} ORDER BY rowid"))
-                        .unwrap();
-                    let cols = q.column_count();
-                    let rows = q
-                        .query_map([], |r| {
-                            Ok((0..cols)
-                                .map(|i| format!("{:?}", r.get_ref(i).unwrap()))
-                                .collect::<Vec<_>>()
-                                .join("|"))
-                        })
-                        .unwrap()
-                        .collect::<Result<Vec<_>, _>>()
-                        .unwrap();
-                    (n.to_string(), rows)
-                })
-                .collect()
+            dump_db(&self.db)
         }
         fn begin_only(&self) -> InputContext {
             let c = InputContext {
@@ -4086,6 +4089,68 @@ mod tests {
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
         );
+    }
+
+    /// #1527×#1602 B 臂：当前规则 s-session/2 库只缺新增列时，mixed 写前准入只读审到迁移前精确形状；
+    /// 真实 recover 入口在 scope 内迁移后照跑严格审计，结果与原调用（无 scope 时首个开门者迁移）相同。
+    /// serve 入口的封存前缀拒绝与形状无关。
+    #[test]
+    fn v2_mixed_admission_migrates_current_rule_pre_policy_records_store_in_scope() {
+        let f = Fixture::new(4, 1);
+        f.ingest(0);
+        f.ingest(1);
+        Connection::open(&f.db)
+            .unwrap()
+            .execute_batch("ALTER TABLE structure_deltas DROP COLUMN policy_records")
+            .unwrap();
+        assert!(crate::policy_records_missing(&Connection::open(&f.db).unwrap()).unwrap());
+        let original = f.dir.join("original-call.sqlite");
+        std::fs::copy(&f.db, &original).unwrap();
+        let bytes = || {
+            let wal = std::fs::read(format!("{}-wal", f.db.display()))
+                .ok()
+                .filter(|b| !b.is_empty());
+            (std::fs::read(&f.db).unwrap(), wal)
+        };
+        let before = bytes();
+
+        let command = crate::v3::admission_anchor::CommandAccounting::begin();
+        let prepared = crate::v3::admission_anchor::test_prepare_mixed(&f.db, 1 << 26, 1 << 26);
+        let error = crate::v3::test_with_mixed_entry(|| {
+            crate::v3::admission::WriterScope::admit_legacy_serve(
+                &f.db, prepared, "1", &f.clock, &f.profile,
+            )
+        })
+        .err()
+        .unwrap();
+        let mut output = Vec::new();
+        command.report(&error, &mut output);
+        let output: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(output["code"], "MixedProtocolMismatch");
+        assert_eq!(bytes(), before);
+
+        let _command = crate::v3::admission_anchor::CommandAccounting::begin();
+        let prepared = crate::v3::admission_anchor::test_prepare_mixed(&f.db, 1 << 26, 1 << 26);
+        let scope = crate::v3::test_with_mixed_entry(|| {
+            crate::v3::admission::WriterScope::admit(&f.db, prepared)
+        })
+        .unwrap();
+        assert_eq!(bytes(), before, "准入只读，不迁移");
+        let out = {
+            let _guard = scope.enter().unwrap();
+            scope.require_admitted().unwrap();
+            recover_core(scope.db_path(), "2", Some((&f.clock, "recover-1"))).unwrap()
+        };
+        scope.finish_startup().unwrap();
+        drop(scope);
+        let conn = open_db(&f.db).unwrap();
+        assert!(!crate::policy_records_missing(&conn).unwrap());
+        verify_reachable_root(&conn).unwrap();
+        drop(conn);
+
+        let expected = recover_core(&original, "2", Some((&f.clock, "recover-1"))).unwrap();
+        assert_eq!(out, expected);
+        assert_eq!(dump_db(&f.db), dump_db(&original));
     }
 
     #[test]
