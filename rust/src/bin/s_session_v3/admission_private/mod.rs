@@ -231,7 +231,7 @@ fn audit_legacy_serve_prefix(
     clock: &crate::v2::ClockPlan,
     profile: &std::path::Path,
 ) -> Result<(), String> {
-    crate::v2::verify_serve_startup(conn, db, epoch, clock, || {
+    crate::v2::verify_serve_startup(conn, db, epoch, clock, Some(account.delta), || {
         let bytes = {
             let mut access = account
                 .account
@@ -303,7 +303,7 @@ fn audit_business(
         }
         None | Some(super::PREVIOUS_REVISION) => {
             // 完整原判据原样运行；旧证据图不是 s-content 分帧域，不能伪造 CheckedNodeUsage。
-            crate::v2::audit_private_startup(&tx)?;
+            crate::v2::audit_private_startup(&tx, Some(account.delta))?;
             if let RejectionPrefix::LegacyServe {
                 db,
                 epoch,

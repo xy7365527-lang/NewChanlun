@@ -1745,15 +1745,27 @@ fn verify_reachable_root(conn: &Connection) -> Result<(), String> {
 }
 
 fn verified_root_raw_events(conn: &Connection) -> Result<Vec<Value>, String> {
+    verified_root_raw_events_before_write(conn, None)
+}
+
+/// `before_write` 只由写前准入门面给出：源库若是 #1602 迁移前精确形状，schema 期望按迁移前 DDL
+/// 并记下形状；开库后的审计传 None，只认当前 schema。
+fn verified_root_raw_events_before_write(
+    conn: &Connection,
+    before_write: Option<&std::cell::Cell<DeltaShape>>,
+) -> Result<Vec<Value>, String> {
     #[cfg(test)]
     let started = std::time::Instant::now();
-    let out = verified_root_raw_events_inner(conn);
+    let out = verified_root_raw_events_inner(conn, before_write);
     #[cfg(test)]
     cache::counter(|c| c.audit_ns += started.elapsed().as_nanos() as u64);
     out
 }
 
-fn verified_root_raw_events_inner(conn: &Connection) -> Result<Vec<Value>, String> {
+fn verified_root_raw_events_inner(
+    conn: &Connection,
+    before_write: Option<&std::cell::Cell<DeltaShape>>,
+) -> Result<Vec<Value>, String> {
     // #1394 第二段（2D）：整次根审计共享**一个**捕获作用域——根清单、Delta 原件与结构事实
     // 共用同一份节点读集，同一唯一节点原行只读一次（写入路径会显式作废该读集）。
     let _capture = cache::begin_capture(EVIDENCE_READ_BUDGET);
@@ -1762,13 +1774,13 @@ fn verified_root_raw_events_inner(conn: &Connection) -> Result<Vec<Value>, Strin
         let tx = conn
             .unchecked_transaction()
             .map_err(|e| format!("开根审计读事务失败：{e}"))?;
-        let raw = verified_root_raw_events_inner(&tx)?;
+        let raw = verified_root_raw_events_inner(&tx, before_write)?;
         tx.commit()
             .map_err(|e| format!("结束根审计读事务失败：{e}"))?;
         return Ok(raw);
     }
     let reachable = capture_reachable_batches(conn)?;
-    let control = v2::prepare_control(conn)?;
+    let control = v2::prepare_control_before_write(conn, before_write)?;
     verify_reachable_root_in_tx(conn, &reachable, control)
         .map_err(|e| format!("StorageUnavailable：{e}"))
 }

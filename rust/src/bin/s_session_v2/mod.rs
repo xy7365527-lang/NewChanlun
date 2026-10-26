@@ -922,7 +922,11 @@ pub(super) fn valid_storage_cell(
     }
 }
 
-fn verify_schema(conn: &Connection, v2: bool) -> Result<(), String> {
+fn verify_schema(
+    conn: &Connection,
+    v2: bool,
+    before_write: Option<&std::cell::Cell<crate::DeltaShape>>,
+) -> Result<(), String> {
     let mut expected = BTreeMap::new();
     expect_ddl_tables(
         "schema常量",
@@ -971,6 +975,17 @@ fn verify_schema(conn: &Connection, v2: bool) -> Result<(), String> {
             return Err(err("私有证据图表不齐全（三表必须同生）"));
         }
         expect_ddl_tables("证据图 DDL", evidence_store::DDL, &mut expected)?;
+    }
+    // 写前准入：迁移前源换成迁移前的精确 structure_deltas 期望并记下形状，判别与迁移同一谓词。
+    if let Some(shape) = before_write {
+        if crate::policy_records_missing(conn)? {
+            expect_ddl_tables(
+                "#1602前Delta",
+                crate::PRE_POLICY_RECORDS_DELTAS,
+                &mut expected,
+            )?;
+            shape.set(crate::DeltaShape::PrePolicyRecords);
+        }
     }
     verify_expected_schema(conn, &expected)?;
     // 表在而登记行缺/多/未声明值：与模式损坏同门，读取与写入前一律拒绝。
@@ -1285,15 +1300,24 @@ impl ExpectedControl {
 
 /// #1527 私有只读连接复用根的完整 S2/legacy 审计，不另写判据。
 /// 原入口包含全部可达批次、Delta、控制史、独立索引和来源对拍。
-pub(crate) fn audit_private_startup(conn: &Connection) -> Result<(), String> {
-    verify_reachable_root(conn)
+pub(crate) fn audit_private_startup(
+    conn: &Connection,
+    before_write: Option<&std::cell::Cell<crate::DeltaShape>>,
+) -> Result<(), String> {
+    crate::verified_root_raw_events_before_write(conn, before_write).map(|_| ())
 }
 
 /// 新鲜检查所有全局控制行，再准备逐代控制头期望；返回不代表批次控制审计通过。
 /// 不能按generation过滤未来/同代损坏或信任自报摘要。
 pub(super) fn prepare_control(conn: &Connection) -> Result<ExpectedControl, String> {
+    prepare_control_before_write(conn, None)
+}
+pub(super) fn prepare_control_before_write(
+    conn: &Connection,
+    before_write: Option<&std::cell::Cell<crate::DeltaShape>>,
+) -> Result<ExpectedControl, String> {
     let enabled = active(conn)?;
-    verify_schema(conn, enabled)?;
+    verify_schema(conn, enabled, before_write)?;
     let epoch_facts = verify_epoch_history(conn, enabled)?;
     if !enabled {
         return Ok(ExpectedControl::Legacy);
@@ -2503,10 +2527,11 @@ pub(crate) fn verify_serve_startup(
     db: &Path,
     epoch: &str,
     clock: &ClockPlan,
+    before_write: Option<&std::cell::Cell<crate::DeltaShape>>,
     load_profile: impl FnOnce() -> Result<(Value, String, String), String>,
 ) -> Result<(), String> {
     verify_writer_epoch(conn, epoch)?;
-    verify_reachable_root(conn)?;
+    audit_private_startup(conn, before_write)?;
     if !active(conn)? {
         return Err("SchemaUnsupported：serve需要显式v2初始化".into());
     }
@@ -2573,7 +2598,7 @@ fn serve_with_policy(
     scope.require_admitted()?;
     let conn = open_db(db)?;
     let tx = conn.unchecked_transaction().map_err(err)?;
-    verify_serve_startup(&tx, db, epoch, &clock, || load_profile(profile))?;
+    verify_serve_startup(&tx, db, epoch, &clock, None, || load_profile(profile))?;
     let identity = protocol_identity(&tx)?;
     let pending = {
         let mut q=tx.prepare("SELECT canonical_envelope FROM s_input_messages WHERE status='AcceptedPending' ORDER BY accepted_seq,message_id").map_err(err)?;
@@ -3609,7 +3634,10 @@ mod tests {
 
     #[test]
     fn v2_serve_stale_prefix_preserves_profile_order_and_adapter_gate() {
-        for bad_profile in [false, true] {
+        // #1527×#1602：当前规则旧库只缺新增列时，写前前缀照样给出原首错，且不迁移源库。
+        for (bad_profile, pre_policy_records) in
+            [(false, false), (true, false), (false, true), (true, true)]
+        {
             let f = Fixture::new(8, 2);
             let profile = if bad_profile {
                 f.begin_only();
@@ -3625,6 +3653,13 @@ mod tests {
             } else {
                 f.profile.clone()
             };
+            if pre_policy_records {
+                Connection::open(&f.db)
+                    .unwrap()
+                    .execute_batch("ALTER TABLE structure_deltas DROP COLUMN policy_records")
+                    .unwrap();
+            }
+            let before = std::fs::read(&f.db).unwrap();
             let socket = f.dir.join("prefix-must-not-bind.sock");
             let msg = serve_fixture(
                 &f.db,
@@ -3653,6 +3688,11 @@ mod tests {
                 "{msg}"
             );
             assert!(!socket.exists());
+            assert_eq!(std::fs::read(&f.db).unwrap(), before);
+            assert_eq!(
+                crate::policy_records_missing(&Connection::open(&f.db).unwrap()).unwrap(),
+                pre_policy_records
+            );
         }
     }
 

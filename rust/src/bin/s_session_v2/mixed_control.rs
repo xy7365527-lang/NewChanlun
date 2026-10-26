@@ -283,7 +283,7 @@ pub(crate) fn epoch_history(
 
 #[cfg(test)]
 pub(crate) fn original_schema(conn: &Connection, enabled: bool) -> Result<(), String> {
-    super::verify_schema(conn, enabled)
+    super::verify_schema(conn, enabled, None)
 }
 #[cfg(test)]
 pub(crate) fn original_active(conn: &Connection) -> Result<bool, String> {
