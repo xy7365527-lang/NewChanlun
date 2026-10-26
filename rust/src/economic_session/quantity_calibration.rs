@@ -273,18 +273,15 @@ fn select_quote(
             }
         }
     }
+    let key = |x: &Quote| (x.t_occurred, x.t_first_observed, x.quote_id.clone());
     let mut best: Option<&Quote> = None;
-    for q in by_id.values() {
+    for q in by_id.values().copied() {
         let age = anchor.t_anchor.checked_sub(q.t_occurred);
         let eligible = q.selector == *selector
             && q.t_occurred <= anchor.t_anchor
             && q.t_first_observed <= anchor.t_anchor
             && age.is_some_and(|a| a <= max_age);
-        if !eligible {
-            continue;
-        }
-        let key = |x: &Quote| (x.t_occurred, x.t_first_observed, x.quote_id.clone());
-        if best.is_none_or(|b| key(q) > key(b)) {
+        if eligible && best.is_none_or(|b| key(q) > key(b)) {
             best = Some(q);
         }
     }
@@ -461,9 +458,9 @@ impl Readiness {
     pub(crate) fn wait(&self) -> Option<(&'static str, &'static str)> {
         match self {
             Readiness::Ready(_) => None,
-            Readiness::AwaitingPolicy(s) => Some(("AwaitingPolicy", s)),
-            Readiness::AwaitingData(s) => Some(("AwaitingData", s)),
-            Readiness::NotComputable(s) => Some(("NotComputable", s)),
+            Readiness::AwaitingPolicy(s) => Some(("AwaitingPolicy", *s)),
+            Readiness::AwaitingData(s) => Some(("AwaitingData", *s)),
+            Readiness::NotComputable(s) => Some(("NotComputable", *s)),
         }
     }
 }
