@@ -55,6 +55,7 @@ use super::{
     MAX_FRAME_LEN,
 };
 use serde_json::{Map as JsonMap, Value as JsonNode};
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -670,7 +671,7 @@ pub struct Job {
     limits: JobLimits,
     clock: Box<dyn Clock>,
     started: Option<Instant>,
-    stopped: Option<(&'static str, String)>,
+    stopped: Option<(&'static str, Cow<'static, str>)>,
     wire_bytes: u128,
     node_bytes: u64,
     nodes: u64,
@@ -821,10 +822,10 @@ impl Job {
             Some(deadline) => Ok(deadline),
             None => Err(self.stop(
                 DEADLINE,
-                format!(
+                self.stop_detail(format_args!(
                     "起始 Instant 加上 max_elapsed_ms {} ms 溢出单调时钟域：无法给出绝对期限",
                     self.limits.max_elapsed_ms
-                ),
+                )),
             )),
         }
     }
@@ -859,21 +860,21 @@ impl Job {
                 self.wire_bytes = u128::MAX;
                 return Err(self.stop(
                     LIMIT_EXCEEDED,
-                    format!("{} 累计溢出内部 u128 记账域", LIMIT_FIELDS[0]),
+                    self.stop_detail(format_args!("{} 累计溢出内部 u128 记账域", LIMIT_FIELDS[0])),
                 ));
             }
         };
         if self.wire_bytes > u128::from(self.limits.max_total_wire_bytes) {
             return Err(self.stop(
                 LIMIT_EXCEEDED,
-                format!(
+                self.stop_detail(format_args!(
                     "{} 累计 {} 超过上限 {}（实际字节已先入账再停止）",
                     LIMIT_FIELDS[0], self.wire_bytes, self.limits.max_total_wire_bytes
-                ),
+                )),
             ));
         }
         if let Err(err) = self.deadline_gate() {
-            return Err(self.stop(DEADLINE, err.detail().to_string()));
+            return Err(self.stop(DEADLINE, self.stop_detail(format_args!("{}", err.detail()))));
         }
         Ok(())
     }
@@ -963,31 +964,31 @@ impl Job {
         let projected_bytes = match self.node_bytes.checked_add(framed) {
             Some(n) => n,
             None => {
-                return Err(self.stop(LIMIT_EXCEEDED, format!("{} 累计溢出 u64", LIMIT_FIELDS[1])))
+                return Err(self.stop(LIMIT_EXCEEDED, self.stop_detail(format_args!("{} 累计溢出 u64", LIMIT_FIELDS[1]))))
             }
         };
         let projected_nodes = match self.nodes.checked_add(1) {
             Some(n) => n,
             None => {
-                return Err(self.stop(LIMIT_EXCEEDED, format!("{} 累计溢出 u64", LIMIT_FIELDS[2])))
+                return Err(self.stop(LIMIT_EXCEEDED, self.stop_detail(format_args!("{} 累计溢出 u64", LIMIT_FIELDS[2]))))
             }
         };
         if projected_bytes > self.limits.max_total_node_bytes {
             return Err(self.stop(
                 LIMIT_EXCEEDED,
-                format!(
+                self.stop_detail(format_args!(
                     "{} 累计 {projected_bytes} 超过上限 {}",
                     LIMIT_FIELDS[1], self.limits.max_total_node_bytes
-                ),
+                )),
             ));
         }
         if projected_nodes > self.limits.max_total_nodes {
             return Err(self.stop(
                 LIMIT_EXCEEDED,
-                format!(
+                self.stop_detail(format_args!(
                     "{} 累计 {projected_nodes} 超过上限 {}",
                     LIMIT_FIELDS[2], self.limits.max_total_nodes
-                ),
+                )),
             ));
         }
         self.node_bytes = projected_bytes;
@@ -1246,10 +1247,10 @@ impl Job {
         if actual > requested {
             return Err(self.stop(
                 RECONCILE,
-                format!(
+                self.stop_detail(format_args!(
                     "{kind:?} 写后实际 {actual} 字节超过预留 {requested} 字节：不足即停止；\
                      真实 actual 已按实际入账，确已删除的暂存用 reclaim_staged 回收"
-                ),
+                )),
             ));
         }
         Ok(())
@@ -1405,7 +1406,7 @@ impl Job {
         if exposure > cap {
             return Err(self.stop(
                 LIMIT_EXCEEDED,
-                format!("{name}既有敞口 {exposure} 已超上限 {cap}"),
+                self.stop_detail(format_args!("{name}既有敞口 {exposure} 已超上限 {cap}")),
             ));
         }
         // exposure ≤ cap ≤ 2^63-1、requested ≤ 2^64-1 ⟹ 和 < 2^65，u128 不可能溢出。
@@ -1413,7 +1414,7 @@ impl Job {
         if projected > cap {
             return Err(self.stop(
                 LIMIT_EXCEEDED,
-                format!("{name}预留后峰值 {projected} 超过上限 {cap}（既有敞口 {exposure}）"),
+                self.stop_detail(format_args!("{name}预留后峰值 {projected} 超过上限 {cap}（既有敞口 {exposure}）")),
             ));
         }
         Ok(projected)
@@ -1432,22 +1433,38 @@ impl Job {
         let projected = match current.checked_add(add) {
             Some(n) => n,
             None => {
-                return Err(self.stop(LIMIT_EXCEEDED, format!("{name} 累计溢出 u64")));
+                return Err(self.stop(LIMIT_EXCEEDED, self.stop_detail(format_args!("{name} 累计溢出 u64"))));
             }
         };
         if projected > cap {
             return Err(self.stop(
                 LIMIT_EXCEEDED,
-                format!("{name} 本次 +{add} 后累计 {projected} 超过上限 {cap}"),
+                self.stop_detail(format_args!("{name} 本次 +{add} 后累计 {projected} 超过上限 {cap}")),
             ));
         }
         Ok(projected)
     }
 
+    /// #1527：mixed 错误保留静态细节、原 code 和累计账；不渲染动态格式参数。
+    fn stop_detail(&self, detail: fmt::Arguments<'_>) -> Cow<'static, str> {
+        if matches!(self.accepted, AcceptedNodes::Mixed { .. }) {
+            Cow::Borrowed("mixed Job resource rejection; see code and snapshot counters")
+        } else {
+            Cow::Owned(detail.to_string())
+        }
+    }
+
+    fn error_detail(code: &'static str, detail: Cow<'static, str>) -> CodecError {
+        match detail {
+            Cow::Borrowed(text) => CodecError::static_detail(code, text),
+            Cow::Owned(text) => CodecError::new(code, text),
+        }
+    }
+
     fn stopped_err(&self) -> Option<CodecError> {
-        self.stopped
-            .as_ref()
-            .map(|(code, detail)| CodecError::new(code, format!("job 已停止（{code}）：{detail}")))
+        self.stopped.as_ref().map(|(code, detail)| {
+            Self::error_detail(code, self.stop_detail(format_args!("job 已停止（{code}）：{detail}")))
+        })
     }
 
     fn deadline_gate(&self) -> Result<(), CodecError> {
@@ -1456,12 +1473,12 @@ impl Job {
         };
         let limit = Duration::from_millis(self.limits.max_elapsed_ms);
         if elapsed >= limit {
-            return Err(CodecError::new(
+            return Err(Self::error_detail(
                 DEADLINE,
-                format!(
+                self.stop_detail(format_args!(
                     "已过绝对期限 {} ms（半开区间：必须在期限前收尾）",
                     self.limits.max_elapsed_ms
-                ),
+                )),
             ));
         }
         Ok(())
@@ -1473,17 +1490,17 @@ impl Job {
             return Err(err);
         }
         if let Err(err) = self.deadline_gate() {
-            return Err(self.stop(DEADLINE, err.detail().to_string()));
+            return Err(self.stop(DEADLINE, self.stop_detail(format_args!("{}", err.detail()))));
         }
         Ok(())
     }
 
     /// 首次超限即停止：停止不是清账，`snapshot` 仍照实显示全部累计量。
-    fn stop(&mut self, code: &'static str, detail: String) -> CodecError {
+    fn stop(&mut self, code: &'static str, detail: Cow<'static, str>) -> CodecError {
         if self.stopped.is_none() {
             self.stopped = Some((code, detail.clone()));
         }
-        CodecError::new(code, detail)
+        Self::error_detail(code, detail)
     }
 }
 
@@ -1741,4 +1758,45 @@ mod mixed_domain_tests {
             .unwrap();
         assert_eq!(*parent.0.lock().unwrap(), 0);
     }
+    #[test]
+    fn mixed_stop_diagnostics_do_not_render_after_resource_rejection() {
+        struct MustNotFormat;
+        impl fmt::Display for MustNotFormat {
+            fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
+                panic!("mixed resource failure formatted dynamically");
+            }
+        }
+        let parent = Arc::new(Parent(Mutex::new(0)));
+        let limits = JobLimits::from_canonical_json(&serde_json::json!({
+            "max_total_wire_bytes":"10", "max_total_node_bytes":"1000", "max_total_nodes":"2",
+            "max_total_records":"1", "max_total_requests":"1", "max_elapsed_ms":"60000",
+            "max_staged_bytes":"1000", "max_store_bytes":"1000"
+        })).unwrap();
+        CodecWork::new(parent.clone(), 1 << 20).unwrap().run(|work| {
+            let mut job = Job::new_started_mixed(
+                limits, Existing { store_bytes: 0, staged_bytes: 0 },
+                Box::new(Instant::now), Instant::now(), work,
+            )?;
+            assert!(matches!(job.stop_detail(format_args!("{}", MustNotFormat)), Cow::Borrowed(_)));
+            let first = job.charge_wire_bytes(11).unwrap_err();
+            assert_eq!(first.code(), LIMIT_EXCEEDED);
+            assert_eq!(job.snapshot().wire_bytes, 11);
+            assert!(matches!(job.stopped.as_ref().unwrap().1, Cow::Borrowed(_)));
+            // Retry is rejected without clearing or fabricating the already observed bytes.
+            assert_eq!(job.charge_wire_bytes(3).unwrap_err().code(), LIMIT_EXCEEDED);
+            assert_eq!(job.snapshot().wire_bytes, 11);
+            assert_eq!(job.pre_io_check().unwrap_err().code(), LIMIT_EXCEEDED);
+            assert_eq!(job.finish_check().unwrap_err().code(), LIMIT_EXCEEDED);
+            Ok::<_, CodecError>(())
+        }).unwrap();
+        assert_eq!(*parent.0.lock().unwrap(), 0);
+        // Ordinary entry keeps its original detailed diagnostic and stopped prefix.
+        let mut job = Job::new(limits, Existing { store_bytes: 0, staged_bytes: 0 },
+            Box::new(Instant::now)).unwrap();
+        let err = job.charge_wire_bytes(11).unwrap_err();
+        assert!(err.detail().contains("累计 11 超过上限 10"));
+        assert!(job.pre_io_check().unwrap_err().detail().starts_with("job 已停止"));
+        assert!(matches!(job.stopped.as_ref().unwrap().1, Cow::Owned(_)));
+    }
+
 }

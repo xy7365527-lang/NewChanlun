@@ -36,7 +36,7 @@ fn retain_test_job(limit: u64) -> Rc<RefCell<Job>> {
         )
         .unwrap(),
     ));
-    retain_terminal_job(&job, first);
+    retain_terminal_job(&job, first, false);
     job
 }
 #[test]

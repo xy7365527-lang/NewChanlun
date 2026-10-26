@@ -23,6 +23,7 @@ use std::time::{Duration, Instant};
 
 mod ram;
 mod resources;
+mod terminal;
 use resources::AdmissionResources;
 
 const CONTROL_BYTES: usize = 65_536;
@@ -623,6 +624,7 @@ struct TerminalState {
     prelude: Option<PreludeObservation>,
     job: Option<Rc<RefCell<admission_job::Job>>>,
     first_read_at: Option<Instant>,
+    mixed: Option<terminal::MixedTerminal>,
 }
 thread_local! {
     static TERMINAL: RefCell<Option<TerminalState>> = const { RefCell::new(None) };
@@ -639,16 +641,17 @@ pub(crate) struct TerminalReceipt {
     pub(crate) job: Option<admission_job::JobSnapshot>,
     pub(crate) actual_stderr_bytes: u128,
     pub(crate) unaccepted_stderr_bytes: u128,
-    pub(crate) accounting_error: Option<String>,
-    pub(crate) write_error: Option<String>,
+    pub(crate) accounting_error: Option<std::borrow::Cow<'static, str>>,
+    pub(crate) write_error: Option<std::borrow::Cow<'static, str>>,
 }
-fn retain_terminal_job(job: &Rc<RefCell<admission_job::Job>>, first: Instant) {
+fn retain_terminal_job(job: &Rc<RefCell<admission_job::Job>>, first: Instant, mixed: bool) {
     TERMINAL.with(|slot| {
         if let Some(state) = slot.borrow_mut().as_mut() {
             // 一个命令只消费一次准备态，拒绝在已有账上续一份新账。
             assert!(state.job.is_none(), "nested admission Job");
             state.job = Some(Rc::clone(job));
             state.first_read_at = Some(first);
+            state.mixed = mixed.then(terminal::MixedTerminal::new);
         }
     });
 }
@@ -685,6 +688,9 @@ impl CommandAccounting {
             accounting_error: None,
             write_error: None,
         };
+        if let Some(mixed) = state.mixed {
+            return mixed.report(error, sink, state.job.as_ref(), receipt);
+        }
         // 仅声明写之前已知的账状态，不把尚未发生的写量嵌回本条消息。
         let before = state.job.as_ref().map(|j| j.borrow().snapshot());
         let value = if before.is_none() && receipt.prelude.is_none() {
@@ -710,7 +716,7 @@ impl CommandAccounting {
                         if let Err(e) = job.charge_wire_bytes(n as u64) {
                             receipt
                                 .accounting_error
-                                .get_or_insert_with(|| e.to_string());
+                                .get_or_insert_with(|| e.to_string().into());
                         }
                         let accepted = job.snapshot().wire_bytes - before;
                         receipt.unaccepted_stderr_bytes += (n as u128).saturating_sub(accepted);
@@ -725,7 +731,7 @@ impl CommandAccounting {
                 }
                 Err(e) => {
                     // 包括 EINTR：保留之前成功 n，不重试、不报完整输出成功。
-                    receipt.write_error = Some(e.kind().to_string());
+                    receipt.write_error = Some(e.kind().to_string().into());
                     break;
                 }
             }
@@ -735,7 +741,7 @@ impl CommandAccounting {
             if let Err(e) = job.finish_check() {
                 receipt
                     .accounting_error
-                    .get_or_insert_with(|| e.to_string());
+                    .get_or_insert_with(|| e.to_string().into());
             }
             receipt.job = Some(job.snapshot());
         }
@@ -807,7 +813,7 @@ impl ConsumedAdmission {
                 .map_err(|e| self.prelude.error(job_error_kind(&e), Stage::E7))?,
         };
         let job = Rc::new(RefCell::new(core));
-        retain_terminal_job(&job, first);
+        retain_terminal_job(&job, first, ram.is_some());
         // check 已先追认 deadline/wire；本次仅回灌一次实际值，没有新的 I/O。
         job.borrow_mut()
             .charge_wire_bytes(self.prelude.wire_bytes)
