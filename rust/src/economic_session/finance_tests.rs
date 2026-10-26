@@ -74,7 +74,7 @@ impl Fixture {
         slot_spec: &[(&str, &[&str])],
         c4a: Option<(bool, bool)>,
     ) -> Self {
-        Self::build_full(cap, fault, slot_spec, c4a, None)
+        Self::build_full(cap, fault, slot_spec, c4a, None, None)
     }
     /// #1716：显式选择 `tb03b-finance/3` 的夹具；S 由钉住摘要的单位桩回答，Reserve 可经 `service::handle`。
     fn v3(cap: &str, baseline: &str, import: bool, fault: Option<(&str, &str)>) -> Self {
@@ -84,6 +84,19 @@ impl Fixture {
             &[("slot", &["alpha", "beta"])],
             None,
             Some((baseline, import)),
+            None,
+        )
+    }
+    /// #1716：`economic-session/2` 内容域夹具。E、B:alpha、B:beta 的库各落一个独立固定容量卷；
+    /// `activation` 选 `tb03b-finance/4`，否则为旧 `tb03b-finance/2`。只走 E/B 正式入口，不跑需要 S 内容的操作。
+    fn content(carriers: &[PathBuf], cap: &str, baseline: &str, activation: bool) -> Self {
+        Self::build_full(
+            cap,
+            None,
+            &[("slot", &["alpha", "beta"])],
+            None,
+            activation.then_some((baseline, true)),
+            Some(carriers),
         )
     }
     fn build_full(
@@ -92,8 +105,14 @@ impl Fixture {
         slot_spec: &[(&str, &[&str])],
         c4a: Option<(bool, bool)>,
         v3: Option<(&str, bool)>,
+        carriers: Option<&[PathBuf]>,
     ) -> Self {
-        let rev = if v3.is_some() { REV_V3 } else { REV };
+        let rev = match (carriers.is_some(), v3.is_some()) {
+            (false, false) => REV,
+            (false, true) => REV_V3,
+            (true, false) => REV_V2,
+            (true, true) => REV_V4,
+        };
         let applicants: Vec<&str> = slot_spec
             .iter()
             .flat_map(|(_, a)| a.iter().copied())
@@ -125,6 +144,15 @@ impl Fixture {
         let mut covered = vec![];
         let mut rights = vec![];
         let mut routes = vec![];
+        let mut s_ref = json!({"object_id":"unit-S-object","object_hash":hash(&object),"profile_id":"unit"});
+        if carriers.is_some() {
+            s_ref["schema_revision"] = json!(S_REF_V2);
+        }
+        let tag = dir.file_name().unwrap().to_str().unwrap().to_owned();
+        let db_of = |name: &str, carrier: usize| match carriers {
+            Some(c) => c[carrier].join(format!("{tag}-{name}.db")),
+            None => dir.join(format!("{name}.db")),
+        };
         for (name, fixed, quantity, cash, new_quantity, price, fee) in [
             ("alpha", "12", "4", "40", "2", "14", "2"),
             ("beta", "20", "15", "50", "3", "12", "4"),
@@ -179,9 +207,9 @@ impl Fixture {
             authorities.push(json!({"authority_id":name,"bundle_path":bp,"bundle_sha256":bh,"verification_path":rp,"verification_sha256":rh,"max_bytes":"1048576"}));
             rights.push(json!({"right_id":name,"owner":format!("B:{name}"),"version":"1","amount":cash,"currency":"TEST-CASH","source_ref":format!("TestOnly-privately-owned-cash-original/{name}")}));
             if applicants.contains(&name) {
-                plans.push(json!({"decision_id":name,"attempt_id":format!("attempt-{name}"),"plan_id":format!("plan-{name}"),"owner":format!("B:{name}"),"voice_binding_id":format!("voice-{name}"),"right_id":name,"expected_book_version":"2","expected_rights_version":"1","applicant_epoch":"1","applicant_generation":"1","slot_id":slot_of(name),"quantity":new_quantity,"limit_price":price,"fee_tail":fee,"quantity_source":format!("TestOnly-quantity/{name}"),"price_source":format!("TestOnly-price/{name}"),"fee_source":format!("TestOnly-tail/{name}"),"s_ref":{"object_id":"unit-S-object","object_hash":hash(&object),"profile_id":"unit"},"o_ref":{"operation_id":format!("TestOnly-operation-{name}"),"kind":"TestOnlyCashBuy","source_ref":format!("TestOnly-operation-sheet/{name}"),"s_object_id":"unit-S-object","quantity":new_quantity}}));
+                plans.push(json!({"decision_id":name,"attempt_id":format!("attempt-{name}"),"plan_id":format!("plan-{name}"),"owner":format!("B:{name}"),"voice_binding_id":format!("voice-{name}"),"right_id":name,"expected_book_version":"2","expected_rights_version":"1","applicant_epoch":"1","applicant_generation":"1","slot_id":slot_of(name),"quantity":new_quantity,"limit_price":price,"fee_tail":fee,"quantity_source":format!("TestOnly-quantity/{name}"),"price_source":format!("TestOnly-price/{name}"),"fee_source":format!("TestOnly-tail/{name}"),"s_ref":s_ref.clone(),"o_ref":{"operation_id":format!("TestOnly-operation-{name}"),"kind":"TestOnlyCashBuy","source_ref":format!("TestOnly-operation-sheet/{name}"),"s_object_id":"unit-S-object","quantity":new_quantity}}));
             }
-            routes.push(json!({"chong_id":name,"symbol":name,"operation_level":"2","fixed_q":fixed,"db":dir.join(format!("{name}.db")),"socket":dir.join(format!("{name}.sock"))}));
+            routes.push(json!({"chong_id":name,"symbol":name,"operation_level":"2","fixed_q":fixed,"db":db_of(name, routes.len() + 1),"socket":dir.join(format!("{name}.sock"))}));
             docs.push(doc);
             bindings.push(p);
         }
@@ -204,7 +232,10 @@ impl Fixture {
             })
             .collect();
         let baseline = v3.map_or("20", |(amount, _)| amount);
-        let data = json!({"schema_revision":rev,"kind":"TestOnly","source_id":"unit-fixture","source_epoch":"1","policy":{"policy_id":format!("TestOnly-cash-cap-{cap}"),"allocation_policy_id":"#1349/atomic-slot-wait/v1","cap":cap,"currency":"TEST-CASH","money_unit":"TEST-CASH","quantity_unit":"TEST-UNIT","quantum":"1","capability_id":"TestOnly-no-leverage-no-venue","model":"TestOnlyUnleveragedCashBuy","valid_through_ns":"100000"},"baseline":{"responsibility_id":"existing20","amount":baseline,"source_ref":"TestOnly-existing-full-liability-original","covered_facts":covered},"rights":rights,"plans":plans,"slots":slots});
+        let mut data = json!({"schema_revision":rev,"kind":"TestOnly","source_id":"unit-fixture","source_epoch":"1","policy":{"policy_id":format!("TestOnly-cash-cap-{cap}"),"allocation_policy_id":"#1349/atomic-slot-wait/v1","cap":cap,"currency":"TEST-CASH","money_unit":"TEST-CASH","quantity_unit":"TEST-UNIT","quantum":"1","capability_id":"TestOnly-no-leverage-no-venue","model":"TestOnlyUnleveragedCashBuy","valid_through_ns":"100000"},"baseline":{"responsibility_id":"existing20","amount":baseline,"source_ref":"TestOnly-existing-full-liability-original","covered_facts":covered},"rights":rights,"plans":plans,"slots":slots});
+        if v3.is_some() {
+            data["policy"]["profile_id"] = json!(TEST_PROFILE);
+        }
         let (ip, ih) = save(&dir, "input.json", &data);
         let source = json!({"source_namespace":"test","source_epoch":"one","producer_id":"unit","producer_epoch":"1"});
         let mut auth = source.clone();
@@ -273,7 +304,7 @@ impl Fixture {
             clocks["Reserve-slot-b"] =
                 json!({"received_ns":"93","first_known_ns":"94","commit_ns":"94"});
         }
-        let mut manifest = json!({"schema_revision":"economic-manifest/1","session_id":"tb03b-unit","session_generation":"1","e":{"db":dir.join("e.db"),"socket":dir.join("e.sock")},"chongs":routes,"authorized_sources":[auth],"resources":{"max_frame_bytes":"16777216","read_timeout_ms":"1000","write_timeout_ms":"1000","response_timeout_ms":"3000","queue_capacity":"4","max_connections":"4"},"clock":{"kind":"TestOnly","plan":{"init_ns":"1","recover_ns":["1000","2000"],"messages":clocks}},"voice_binding":{"schema_revision":"voice-binding/1","authorities":authorities},"finance":{"schema_revision":rev,"input_path":ip,"input_sha256":ih,"coordinator_source":source,"structure":{"binary":"/unit-unavailable-S-binary","binary_sha256":hash(&json!("unit")),"db":dir.join("s.db"),"session_id":"tb03b-unit","session_generation":"1","writer_epoch":"1"}}});
+        let mut manifest = json!({"schema_revision":"economic-manifest/1","session_id":"tb03b-unit","session_generation":"1","e":{"db":db_of("e", 0),"socket":dir.join("e.sock")},"chongs":routes,"authorized_sources":[auth],"resources":{"max_frame_bytes":"16777216","read_timeout_ms":"1000","write_timeout_ms":"1000","response_timeout_ms":"3000","queue_capacity":"4","max_connections":"4"},"clock":{"kind":"TestOnly","plan":{"init_ns":"1","recover_ns":["1000","2000"],"messages":clocks}},"voice_binding":{"schema_revision":"voice-binding/1","authorities":authorities},"finance":{"schema_revision":rev,"input_path":ip,"input_sha256":ih,"coordinator_source":source,"structure":{"binary":"/unit-unavailable-S-binary","binary_sha256":hash(&json!("unit")),"db":dir.join("s.db"),"session_id":"tb03b-unit","session_generation":"1","writer_epoch":"1"}}});
         if v3.is_some() {
             use std::os::unix::fs::PermissionsExt;
             let (basis_path, _) = save(&dir, "s-unit-basis-stub.json", &basis);
@@ -283,6 +314,15 @@ impl Fixture {
             manifest["finance"]["structure"]["binary"] = json!(stub);
             manifest["finance"]["structure"]["binary_sha256"] =
                 json!(sha256_hex(&std::fs::read(&stub).unwrap()));
+        }
+        if carriers.is_some() {
+            // #1394 已批 economic-session/2 内容域：十字段 structure，资源取已批 READER-RESOURCES 原值。
+            manifest["protocol_revision"] = json!(SCHEMA_V2);
+            let structure = &mut manifest["finance"]["structure"];
+            structure["reader_revision"] = json!("s-financial-basis/3");
+            structure["content_format"] = json!(crate::s_content::CONTENT_FORMAT);
+            structure["reader_resources"] = json!({"schema_revision":"s-financial-reader-resources/1","max_request_bytes":"193120","max_reply_bytes":"827022","max_stderr_bytes":"193120","request_timeout_ms":"45000","job_limits":{"max_total_wire_bytes":"1162304996","max_total_node_bytes":"192172","max_total_nodes":"2614","max_total_records":"2614","max_total_requests":"958","max_elapsed_ms":"43110000","max_staged_bytes":"32153600","max_store_bytes":"64307200"}});
+            structure["reader_session"] = Value::Null;
         }
         if let Some((resolve_first, _)) = c4a {
             manifest["book_revision"] = json!(book::TB03C_BOOK_V1);
@@ -309,8 +349,8 @@ impl Fixture {
         save(&dir, "structure-unit-basis.json", &basis);
         let mut configs = vec![];
         let mut dbs = vec![];
-        for name in [None, Some("alpha"), Some("beta")] {
-            let db = dir.join(format!("{}.db", name.unwrap_or("e")));
+        for (i, name) in [None, Some("alpha"), Some("beta")].into_iter().enumerate() {
+            let db = db_of(name.unwrap_or("e"), i);
             let c = Config::load(&dir.join("manifest.json"), &db, name).unwrap();
             init(&c).unwrap();
             dbs.push(open(&db, false).unwrap().0);
@@ -335,19 +375,20 @@ impl Fixture {
         if !fault.is_some_and(|(message, _)| message == "ImportResponsibility-existing20")
             && v3.is_none_or(|(_, import)| import)
         {
-            f.step(0, "ImportResponsibility", "existing20");
+            if carriers.is_some() {
+                let p = f.request("ImportResponsibility", "existing20")["payload"].clone();
+                let imported = f.handle(0, "ImportResponsibility-existing20", p);
+                assert_eq!(imported["kind"], "ResponsibilityImportedReceipt", "{imported}");
+            } else {
+                f.step(0, "ImportResponsibility", "existing20");
+            }
         }
         f
     }
     fn handle(&mut self, n: usize, msg: &str, p: Value) -> Value {
-        service::handle(
-            &mut self.dbs[n],
-            &self.configs[n],
-            1,
-            1,
-            &json!({}),
-            &envelope(msg, p),
-        )["payload"]
+        let mut e = envelope(msg, p);
+        e["schema_revision"] = json!(self.configs[n].revision().unwrap());
+        service::handle(&mut self.dbs[n], &self.configs[n], 1, 1, &json!({}), &e)["payload"]
             .clone()
     }
     fn request(&self, op: &str, name: &str) -> Value {
@@ -1306,8 +1347,10 @@ fn c4a_fin1_uncovered_fact_cannot_reserve_or_resolve_and_keeps_all_state() {
 // #1716 I1-C：cap 原子激活只属于显式选择的 tb03b-finance/3，经 E 正式会话入口
 // （service::handle → finance::write_with_ingress）提交，新 cap 来自不可变 TestOnly 合成签署原件。
 // #1408 授信消费点 Reserve 同样经 service::handle，S 由钉住摘要的单位桩回答。
+/// 本夹具会话冻结的 TestOnly 资金 profile；另一 profile 与它共用 policy_id、币种和版本。
+const TEST_PROFILE: &str = "TestOnly-P-1716";
 fn cap_record(f: &Fixture, from: &str, to: &str, cap: &str, valid: &str) -> Value {
-    json!({"schema_revision":CAP_RECORD_REV,"kind":"TestOnly","policy_id":f.data["policy"]["policy_id"],"version":to,"supersedes":from,"cap":cap,"currency":f.data["policy"]["currency"],"money_unit":f.data["policy"]["money_unit"],"valid_through_ns":valid,"authorizer":"TestOnly 合成签署人（#1716 夹具，非真实资金签署）","authorized_at_ns":"1","signature_ref":"TestOnly-synthetic-signature/#1716"})
+    json!({"schema_revision":CAP_RECORD_REV,"kind":"TestOnly","profile_id":f.data["policy"]["profile_id"],"policy_id":f.data["policy"]["policy_id"],"version":to,"supersedes":from,"cap":cap,"currency":f.data["policy"]["currency"],"money_unit":f.data["policy"]["money_unit"],"valid_through_ns":valid,"authorizer":"TestOnly 合成签署人（#1716 夹具，非真实资金签署）","authorized_at_ns":"1","signature_ref":"TestOnly-synthetic-signature/#1716"})
 }
 fn activation(f: &Fixture, record: &Value, from: &str, to: &str, cap: &str, valid: &str) -> Value {
     let (path, sha) = save(&f.dir, &format!("cap-record-{}.json", hash(record)), record);
@@ -1383,6 +1426,88 @@ fn old_finance_contracts_refuse_cap_activation() {
     assert!(revision(&m).unwrap_err().contains("混写"));
     m["protocol_revision"] = json!(SCHEMA_V1);
     assert_eq!(revision(&m).unwrap(), REV_V3);
+    m["finance"]["schema_revision"] = json!(REV_V4);
+    assert!(revision(&m).unwrap_err().contains("混写"));
+    m["protocol_revision"] = json!(SCHEMA_V2);
+    assert_eq!(revision(&m).unwrap(), REV_V4);
+    let gates: Vec<(&str, bool, bool)> = CONTRACTS
+        .iter()
+        .map(|c| (c.revision, c.content, c.cap_activation))
+        .collect();
+    assert_eq!(
+        gates,
+        [
+            (REV, false, false),
+            (REV_V2, true, false),
+            (REV_V3, false, true),
+            (REV_V4, true, true)
+        ]
+    );
+    m["finance"] = Value::Null;
+    assert_eq!(revision(&m).unwrap(), REV_V2);
+    m["protocol_revision"] = json!(SCHEMA_V1);
+    assert_eq!(revision(&m).unwrap(), REV);
+}
+/// #1716：`tb03b-finance/4` 的 cap 激活经 E 正式入口走内容域 write_v2、统一 job 与最终物理预留；
+/// 旧 `tb03b-finance/2` 在读任何原件前拒绝激活。三个库各占一个临时固定容量 HFS+ 卷。
+#[test]
+#[ignore = "需 TB1716_HFS_CARRIERS 指向 E、B:alpha、B:beta 三个临时固定容量 HFS+ 卷；ci-macos.yml 显式运行"]
+fn content_domain_cap_activation_on_fixed_carriers() {
+    let carriers: Vec<PathBuf> = std::env::var("TB1716_HFS_CARRIERS")
+        .expect("TB1716_HFS_CARRIERS 未设置")
+        .split(':')
+        .map(PathBuf::from)
+        .collect();
+    assert_eq!(carriers.len(), 3, "需要 E、B:alpha、B:beta 三个卷");
+
+    let mut old = Fixture::content(&carriers, "100", "20", false);
+    assert_eq!(revision(&old.configs[0].manifest).unwrap(), REV_V2);
+    let mut never = cap_payload(&old, "1", "2", "150", "100000");
+    never["policy_record"]["path"] = json!(old.dir.join("never-read.json"));
+    let refused = assert_rejected_unchanged(&mut old, "ActivateCapPolicy-pre", never, "SchemaUnsupported");
+    assert!(refused["error"].as_str().unwrap().contains("tb03b-finance/3 与 /4"), "{refused}");
+    old.audit();
+
+    let mut f = Fixture::content(&carriers, "100", "20", true);
+    assert_eq!(f.configs[0].revision().unwrap(), SCHEMA_V2);
+    assert_eq!(revision(&f.configs[0].manifest).unwrap(), REV_V4);
+    assert_eq!(responsibility_total(&latest(&f.dbs[0]).unwrap().3), 20);
+    let below = cap_payload(&f, "1", "2", "19", "100000");
+    let low = assert_rejected_unchanged(&mut f, "ActivateCapPolicy-low", below, "InvalidDomain");
+    assert!(low["error"].as_str().unwrap().contains("staged_cleanup"), "{low}");
+    let mut other_profile = cap_record(&f, "1", "2", "20", "100000");
+    other_profile["profile_id"] = json!("TestOnly-P-other-acceptance");
+    let wrong_profile = activation(&f, &other_profile, "1", "2", "20", "100000");
+    let cross = assert_rejected_unchanged(
+        &mut f,
+        "ActivateCapPolicy-stale",
+        wrong_profile,
+        "IdentityConflict",
+    );
+    assert!(cross["error"].as_str().unwrap().contains("资金 profile"), "{cross}");
+
+    let payload = cap_payload(&f, "1", "2", "20", "100000");
+    let activated = f.handle(0, "ActivateCapPolicy-equal", payload.clone());
+    assert_eq!(activated["kind"], "CapPolicyActivatedReceipt", "{activated}");
+    assert!(key_for(&f.configs[0], &payload)
+        .unwrap()
+        .starts_with("tb03b-finance/4:ActivateCapPolicy:"));
+    let image = latest(&f.dbs[0]).unwrap().3;
+    assert_eq!(image["finance"]["schema_revision"], REV_V4);
+    let live = &image["finance"]["cap_policy"];
+    assert_eq!(live["policy_version"], "2");
+    assert_eq!(live["cap"], "20");
+    assert_eq!(live["profile_id"], TEST_PROFILE);
+    assert_eq!(live["liability_at_activation"], "20");
+    assert_eq!(f.handle(0, "ActivateCapPolicy-equal", payload), activated);
+    f.audit();
+    let reopened = Config::load(&f.dir.join("manifest.json"), &f.configs[0].db, None).unwrap();
+    audit(&open(&reopened.db, false).unwrap().0, &reopened).unwrap();
+    save(
+        &f.dir,
+        "issue1716-content-domain-cap.json",
+        &json!({"carriers":carriers,"old_v2_refusal":refused,"below_liability":low,"cross_profile":cross,"activated":activated,"e_image":image}),
+    );
 }
 #[test]
 fn cap_activation_is_atomic() {
@@ -1467,6 +1592,12 @@ fn cap_activation_requires_matching_signed_original() {
             "currency",
             "OTHER-CASH",
             "不属于本冻结资金政策",
+        ),
+        (
+            "同政策同币种同版本、不同 profile 的签署",
+            "profile_id",
+            "TestOnly-P-other-acceptance",
+            "资金 profile",
         ),
         ("错版本签署", "version", "3", "签署版本或所取代版本"),
         ("错取代版本签署", "supersedes", "2", "签署版本或所取代版本"),
