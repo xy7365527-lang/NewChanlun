@@ -31,7 +31,12 @@ pub(crate) enum LegacyRecordRef<'a> {
     Canonical(&'a str),
 }
 pub(crate) trait LegacyObserver {
-    fn visit_record(&self, family: &'static str, process: &'static str, member: LegacyRecordRef<'_>) -> Result<(), sc::CodecError>;
+    fn visit_record(
+        &self,
+        family: &'static str,
+        process: &'static str,
+        member: LegacyRecordRef<'_>,
+    ) -> Result<(), sc::CodecError>;
     fn precheck(&self) -> Result<(), sc::CodecError>;
     fn check_work(
         &self,
@@ -53,7 +58,12 @@ impl<'s, 'j> AdmissionLegacyObserver<'s, 'j> {
     }
 }
 impl LegacyObserver for AdmissionLegacyObserver<'_, '_> {
-    fn visit_record(&self, _family: &'static str, _process: &'static str, _member: LegacyRecordRef<'_>) -> Result<(), sc::CodecError> {
+    fn visit_record(
+        &self,
+        _family: &'static str,
+        _process: &'static str,
+        _member: LegacyRecordRef<'_>,
+    ) -> Result<(), sc::CodecError> {
         self.account.borrow_mut().charge_records(1)
     }
 

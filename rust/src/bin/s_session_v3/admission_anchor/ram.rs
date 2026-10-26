@@ -900,7 +900,7 @@ mod tests {
 
     #[test]
     fn mixed_family_sql_projection_and_raw_bars_preserve_originals() {
-        use crate::v3::business_json::scoped_legacy::{project_family_row,project_raw_bars};
+        use crate::v3::business_json::scoped_legacy::{project_family_row, project_raw_bars};
         let conn = rusqlite::Connection::open_in_memory().unwrap();
         let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
         owner.codec_work().unwrap().run(|work| {
@@ -973,7 +973,12 @@ mod tests {
             work: &'a sc::capture_allocation::scratch::WorkScope,
         }
         impl LegacyObserver for Observer<'_> {
-            fn visit_record(&self, _family: &'static str, _process: &'static str, _member: crate::v3::audit_budget::LegacyRecordRef<'_>) -> Result<(), sc::CodecError> {
+            fn visit_record(
+                &self,
+                _family: &'static str,
+                _process: &'static str,
+                _member: crate::v3::audit_budget::LegacyRecordRef<'_>,
+            ) -> Result<(), sc::CodecError> {
                 self.job.borrow_mut().charge_records(1)
             }
 

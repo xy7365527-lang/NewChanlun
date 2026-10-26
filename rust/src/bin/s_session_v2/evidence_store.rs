@@ -206,9 +206,11 @@ pub(super) fn read_format_with_owner(
     read_format_admitted(conn, owner, None)
 }
 pub(super) fn read_format_admitted(
-    conn:&Connection, owner:Option<&OwnedBudget>, work:Option<&WorkScope>,
-)->Result<Format,String>{
-    read_format_typed(conn,owner,work).map_err(ordinary_read_error)
+    conn: &Connection,
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<Format, String> {
+    read_format_typed(conn, owner, work).map_err(ordinary_read_error)
 }
 pub(crate) fn read_format_typed(
     conn: &Connection,
@@ -265,7 +267,8 @@ pub(crate) fn read_format_typed(
             })?,
             owner,
             work,
-        ).map_err(MixedJsonError::Resource)?;
+        )
+        .map_err(MixedJsonError::Resource)?;
         admission
             .native_codec_room(&mut rows, 1)
             .map_err(MixedJsonError::Resource)?;
@@ -282,7 +285,8 @@ pub(crate) fn read_format_typed(
         return Err(format!(
             "StorageUnavailable：私有图格式登记必须恰一行（实际 {} 行，缺行/多行一律拒绝）",
             rows.len()
-        ).into());
+        )
+        .into());
     };
     if *singleton != 1 {
         return Err("StorageUnavailable：私有图格式登记 singleton 非 1".into());
@@ -293,7 +297,8 @@ pub(crate) fn read_format_typed(
         other => Err(format!(
             "SchemaUnsupported：未知证据图格式 `{other}`（本 reader 只认无登记表的旧整块域、\
              `{GRAPH_FORMAT_V2}` 与 `{GRAPH_FORMAT}`）"
-        ).into()),
+        )
+        .into()),
     }
 }
 
@@ -478,36 +483,68 @@ pub(super) fn split_fact_root(
     ))
 }
 
-pub(crate) fn fact_root_key_mixed(object_id: &str, work: &WorkScope)
-    -> Result<newchan_rust::s_content::capture_allocation::native_owned::NativeValue<String>, MixedJsonError>
-{
+pub(crate) fn fact_root_key_mixed(
+    object_id: &str,
+    work: &WorkScope,
+) -> Result<
+    newchan_rust::s_content::capture_allocation::native_owned::NativeValue<String>,
+    MixedJsonError,
+> {
     newchan_rust::s_content::capture_allocation::native_owned::NativeValue::try_format(
-        format_args!("{}{object_id}",RootKind::Fact.prefix()),Some(work)
-    ).map_err(MixedJsonError::Resource)
+        format_args!("{}{object_id}", RootKind::Fact.prefix()),
+        Some(work),
+    )
+    .map_err(MixedJsonError::Resource)
 }
 pub(crate) fn split_fact_root_mixed(
-    bytes:&[u8], what:&str, work:&WorkScope,
-)->Result<(
-    newchan_rust::s_content::capture_allocation::native_owned::NativeValue<String>,
-    newchan_rust::s_content::capture_allocation::native_owned::NativeValue<String>,
-    newchan_rust::s_content::capture_allocation::native_owned::NativeValue<String>,
-),MixedJsonError>{
+    bytes: &[u8],
+    what: &str,
+    work: &WorkScope,
+) -> Result<
+    (
+        newchan_rust::s_content::capture_allocation::native_owned::NativeValue<String>,
+        newchan_rust::s_content::capture_allocation::native_owned::NativeValue<String>,
+        newchan_rust::s_content::capture_allocation::native_owned::NativeValue<String>,
+    ),
+    MixedJsonError,
+> {
     use newchan_rust::s_content::capture_allocation::native_owned::NativeValue;
-    let text=std::str::from_utf8(bytes)
-        .map_err(|e|MixedJsonError::Business(format!("StorageUnavailable：{what} 事实原件非 UTF-8：{e}")))?;
-    let value=crate::v3::business_json::mixed_parse_admitted(bytes,work,||{
-        v2::strict_json(text.as_bytes()).map(crate::v3::business_json::PlainJson::from)
-            .map_err(|e|MixedJsonError::Business(format!("StorageUnavailable：{what} 事实原件非严格 JSON：{e}")))
+    let text = std::str::from_utf8(bytes).map_err(|e| {
+        MixedJsonError::Business(format!("StorageUnavailable：{what} 事实原件非 UTF-8：{e}"))
     })?;
-    let items=value.as_array().ok_or_else(||MixedJsonError::Business(format!("StorageUnavailable：{what} 事实原件必须是三元素数组")))?;
-    let [payload,refs,coords]=items.as_slice() else {
-        return Err(MixedJsonError::Business(format!("StorageUnavailable：{what} 事实原件必须是三元素数组（实际 {}）",items.len())));
+    let value = crate::v3::business_json::mixed_parse_admitted(bytes, work, || {
+        v2::strict_json(text.as_bytes())
+            .map(crate::v3::business_json::PlainJson::from)
+            .map_err(|e| {
+                MixedJsonError::Business(format!(
+                    "StorageUnavailable：{what} 事实原件非严格 JSON：{e}"
+                ))
+            })
+    })?;
+    let items = value.as_array().ok_or_else(|| {
+        MixedJsonError::Business(format!(
+            "StorageUnavailable：{what} 事实原件必须是三元素数组"
+        ))
+    })?;
+    let [payload, refs, coords] = items.as_slice() else {
+        return Err(MixedJsonError::Business(format!(
+            "StorageUnavailable：{what} 事实原件必须是三元素数组（实际 {}）",
+            items.len()
+        )));
     };
-    let take=|value:&Value,label:&str|->Result<NativeValue<String>,MixedJsonError>{
-        let text=value.as_str().ok_or_else(||MixedJsonError::Business(format!("StorageUnavailable：{what} 事实原件{label}必须是文本")))?;
-        NativeValue::try_from_str(text,Some(work)).map_err(MixedJsonError::Resource)
+    let take = |value: &Value, label: &str| -> Result<NativeValue<String>, MixedJsonError> {
+        let text = value.as_str().ok_or_else(|| {
+            MixedJsonError::Business(format!(
+                "StorageUnavailable：{what} 事实原件{label}必须是文本"
+            ))
+        })?;
+        NativeValue::try_from_str(text, Some(work)).map_err(MixedJsonError::Resource)
     };
-    Ok((take(payload,"payload")?,take(refs,"input_refs")?,take(coords,"source_coords")?))
+    Ok((
+        take(payload, "payload")?,
+        take(refs, "input_refs")?,
+        take(coords, "source_coords")?,
+    ))
 }
 
 // ───────────────────────────── 写入：staging ─────────────────────────────
@@ -2917,15 +2954,23 @@ pub(super) fn unreachable_nodes(
 
 /// N07：mixed 仍先收齐全部 SQL blob，再依原次序 decode；不把诊断扫描计作节点接纳。
 pub(crate) fn ensure_all_nodes_reachable_mixed(
-    conn: &Connection, reachable: usize, work: &WorkScope,
+    conn: &Connection,
+    reachable: usize,
+    work: &WorkScope,
 ) -> Result<(), MixedJsonError> {
     let err = |e| MixedJsonError::Business(format!("StorageUnavailable：核私有节点表失败：{e}"));
-    let mut count = CheckedStatement::prepare(conn, c"SELECT COUNT(*) FROM s_evidence_nodes").map_err(err)?;
-    let mut row = count.next().map_err(err)?.ok_or_else(||err(rusqlite::Error::QueryReturnedNoRows))?;
+    let mut count =
+        CheckedStatement::prepare(conn, c"SELECT COUNT(*) FROM s_evidence_nodes").map_err(err)?;
+    let mut row = count
+        .next()
+        .map_err(err)?
+        .ok_or_else(|| err(rusqlite::Error::QueryReturnedNoRows))?;
     let total = row.integer(0).map_err(err)?;
     drop(row);
     count.finalize().map_err(err)?;
-    if usize::try_from(total).ok() == Some(reachable) { return Ok(()); }
+    if usize::try_from(total).ok() == Some(reachable) {
+        return Ok(());
+    }
     let orphan = unreachable_nodes_mixed(conn, &std::collections::BTreeSet::new(), work)?;
     Err(MixedJsonError::Business(format!(
         "StorageUnavailable：私有证据图节点覆盖不符（表内 {total} 行 / 本次可达 {reachable} 个；首例不可达 {}）",
@@ -2933,25 +2978,40 @@ pub(crate) fn ensure_all_nodes_reachable_mixed(
     )))
 }
 pub(crate) fn unreachable_nodes_mixed(
-    conn: &Connection, touched: &std::collections::BTreeSet<[u8;32]>, work: &WorkScope,
-) -> Result<CodecVec<[u8;32]>, MixedJsonError> {
-    let sql_error = |e| MixedJsonError::Business(format!("StorageUnavailable：读私有节点表失败：{e}"));
-    let row_error = |e| MixedJsonError::Business(format!("StorageUnavailable：私有节点行损坏：{}", sql_columns(e, &["node_id"])));
-    let mut statement = CheckedStatement::prepare(conn, c"SELECT node_id FROM s_evidence_nodes").map_err(sql_error)?;
+    conn: &Connection,
+    touched: &std::collections::BTreeSet<[u8; 32]>,
+    work: &WorkScope,
+) -> Result<CodecVec<[u8; 32]>, MixedJsonError> {
+    let sql_error =
+        |e| MixedJsonError::Business(format!("StorageUnavailable：读私有节点表失败：{e}"));
+    let row_error = |e| {
+        MixedJsonError::Business(format!(
+            "StorageUnavailable：私有节点行损坏：{}",
+            sql_columns(e, &["node_id"])
+        ))
+    };
+    let mut statement = CheckedStatement::prepare(conn, c"SELECT node_id FROM s_evidence_nodes")
+        .map_err(sql_error)?;
     let admission = NativeAdmission(Some(work));
     let mut rows: CodecVec<CodecVec<u8>> = CodecVec::default();
     while let Some(mut row) = statement.next().map_err(row_error)? {
         let blob = row.blob(0).map_err(row_error)?;
         let value = work_copy_typed(blob, None, Some(work))?;
-        admission.native_codec_room(&mut rows, 1).map_err(MixedJsonError::Resource)?;
+        admission
+            .native_codec_room(&mut rows, 1)
+            .map_err(MixedJsonError::Resource)?;
         rows.try_push(value).map_err(MixedJsonError::Resource)?;
     }
     statement.finalize().map_err(row_error)?;
     let mut orphan = CodecVec::default();
     for row in &rows {
-        let id = decode_id(row).ok_or_else(|| MixedJsonError::Business("StorageUnavailable：私有节点 id 非 32 字节".to_string()))?;
+        let id = decode_id(row).ok_or_else(|| {
+            MixedJsonError::Business("StorageUnavailable：私有节点 id 非 32 字节".to_string())
+        })?;
         if !touched.contains(&id) {
-            admission.native_codec_room(&mut orphan, 1).map_err(MixedJsonError::Resource)?;
+            admission
+                .native_codec_room(&mut orphan, 1)
+                .map_err(MixedJsonError::Resource)?;
             orphan.try_push(id).map_err(MixedJsonError::Resource)?;
         }
     }

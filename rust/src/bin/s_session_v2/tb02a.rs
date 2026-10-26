@@ -619,7 +619,7 @@ pub(super) fn read_facts(
     // 同一次读取共用一个捕获作用域与读取器，唯一节点原行只读一次。
     let format = evidence_store::format(conn)?;
     let mut reader = evidence_store::Reader::new(conn, crate::EVIDENCE_READ_BUDGET);
-    let mut stmt=conn.prepare(FACTS_READ_SQL).map_err(|e|e.to_string())?;
+    let mut stmt = conn.prepare(FACTS_READ_SQL).map_err(|e| e.to_string())?;
     let rows = stmt
         .query_map([], collect_fact_row)
         .map_err(|e| e.to_string())?

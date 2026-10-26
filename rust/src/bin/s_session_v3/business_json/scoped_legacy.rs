@@ -16,8 +16,25 @@ pub(crate) enum ProjectionKind {
 }
 #[derive(Clone, Copy)]
 pub(crate) enum Field {
-    SchemaRevision, Open, High, Low, Close,
-    WitnessId, ObservationId, Slot, MergedSourceIndex, MergedHigh, MergedLow, MergedOpen, MergedClose, RawBars, Reason, Detail, Subject, RelationType, Object,
+    SchemaRevision,
+    Open,
+    High,
+    Low,
+    Close,
+    WitnessId,
+    ObservationId,
+    Slot,
+    MergedSourceIndex,
+    MergedHigh,
+    MergedLow,
+    MergedOpen,
+    MergedClose,
+    RawBars,
+    Reason,
+    Detail,
+    Subject,
+    RelationType,
+    Object,
     FactKey,
     PayloadJson,
     InputRefsJson,
@@ -67,8 +84,25 @@ pub(crate) enum Field {
 impl Field {
     fn name(self) -> &'static str {
         match self {
-            Self::SchemaRevision => "schema_revision", Self::Open => "open", Self::High => "high", Self::Low => "low", Self::Close => "close",
-            Self::WitnessId => "witness_id", Self::ObservationId => "observation_id", Self::Slot => "slot", Self::MergedSourceIndex => "merged_source_index", Self::MergedHigh => "merged_high", Self::MergedLow => "merged_low", Self::MergedOpen => "merged_open", Self::MergedClose => "merged_close", Self::RawBars => "raw_bars", Self::Reason => "reason", Self::Detail => "detail", Self::Subject => "subject", Self::RelationType => "relation_type", Self::Object => "object",
+            Self::SchemaRevision => "schema_revision",
+            Self::Open => "open",
+            Self::High => "high",
+            Self::Low => "low",
+            Self::Close => "close",
+            Self::WitnessId => "witness_id",
+            Self::ObservationId => "observation_id",
+            Self::Slot => "slot",
+            Self::MergedSourceIndex => "merged_source_index",
+            Self::MergedHigh => "merged_high",
+            Self::MergedLow => "merged_low",
+            Self::MergedOpen => "merged_open",
+            Self::MergedClose => "merged_close",
+            Self::RawBars => "raw_bars",
+            Self::Reason => "reason",
+            Self::Detail => "detail",
+            Self::Subject => "subject",
+            Self::RelationType => "relation_type",
+            Self::Object => "object",
             Self::FactKey => "fact_key",
             Self::PayloadJson => "payload_json",
             Self::InputRefsJson => "input_refs_json",
@@ -195,11 +229,7 @@ impl<'a> ScopedLegacyRecord<'a> {
             .map_err(MixedJsonError::Resource)?;
         self.insert(field, PlainJson::from_reserved(Value::Null, Some(permit)))
     }
-    pub(crate) fn insert(
-        &mut self,
-        field: Field,
-        child: PlainJson,
-    ) -> Result<(), MixedJsonError> {
+    pub(crate) fn insert(&mut self, field: Field, child: PlainJson) -> Result<(), MixedJsonError> {
         self.insert_legacy_key(field.name(), child)
     }
     // 任意键仅用于LegacyPayload递归的原键；业务顶层入口仍是Field。
@@ -309,8 +339,14 @@ impl<'a> ScopedLegacyRecord<'a> {
     }
     /// 删除字段只释放实际Value；聚合许可保留到owner析构，不猜测子树退款。
     fn remove(&mut self, field: Field) -> Result<(), MixedJsonError> {
-        self.work.check_current().map_err(MixedJsonError::Resource)?;
-        self.owner.value.as_object_mut().expect("projection object").remove(field.name());
+        self.work
+            .check_current()
+            .map_err(MixedJsonError::Resource)?;
+        self.owner
+            .value
+            .as_object_mut()
+            .expect("projection object")
+            .remove(field.name());
         Ok(())
     }
     pub(crate) fn finish(self) -> PlainJson {
@@ -714,23 +750,45 @@ pub(crate) fn filter_fact_lifecycle(
 }
 
 /// 原raw_bars投影：先对象、seq、可选revision、可选supersedes，再typed raw_wire。
-pub(crate) fn project_raw_bars(bars: &Value, work: &WorkScope) -> Result<PlainJson, MixedJsonError> {
-    let bars = bars.as_array().ok_or_else(||MixedJsonError::Business("raw_bars 必须是数组".into()))?;
+pub(crate) fn project_raw_bars(
+    bars: &Value,
+    work: &WorkScope,
+) -> Result<PlainJson, MixedJsonError> {
+    let bars = bars
+        .as_array()
+        .ok_or_else(|| MixedJsonError::Business("raw_bars 必须是数组".into()))?;
     let mut out = ScopedLegacyArray::new(work);
     for bar in bars {
-        bar.as_object().ok_or_else(||MixedJsonError::Business("raw_bars 成员必须是对象".into()))?;
-        let mut item = ScopedLegacyRecord::clone_projection(ProjectionKind::RawEventWire, bar, work)?;
+        bar.as_object()
+            .ok_or_else(|| MixedJsonError::Business("raw_bars 成员必须是对象".into()))?;
+        let mut item =
+            ScopedLegacyRecord::clone_projection(ProjectionKind::RawEventWire, bar, work)?;
         item.replace_integer(Field::Seq, integer_value(&bar["seq"])?)?;
-        if bar.get("revision").is_some() { item.replace_integer(Field::Revision, integer_value(&bar["revision"])?)?; }
+        if bar.get("revision").is_some() {
+            item.replace_integer(Field::Revision, integer_value(&bar["revision"])?)?;
+        }
         if let Some(sup) = bar.get("supersedes_revision") {
-            if let Some(n) = sup.as_i64() { item.replace_integer(Field::SupersedesRevision,n)?; }
-            else if !sup.is_null() { return Err(MixedJsonError::Business("raw_bars.supersedes_revision 必须是 i64 或 null".into())); }
+            if let Some(n) = sup.as_i64() {
+                item.replace_integer(Field::SupersedesRevision, n)?;
+            } else if !sup.is_null() {
+                return Err(MixedJsonError::Business(
+                    "raw_bars.supersedes_revision 必须是 i64 或 null".into(),
+                ));
+            }
         }
         // 原raw_wire对其它字段赋回原值；clone已保留完全相同的字段，只有删除price改变内容。
         if bar["schema_revision"] == crate::tb02a::RAW_SCHEMA {
             item.remove(Field::Price)?;
-            for (key,field) in [("schema_revision",Field::SchemaRevision),("open",Field::Open),("high",Field::High),("low",Field::Low),("close",Field::Close)] {
-                if bar.get(key).is_none() { item.null(field)?; }
+            for (key, field) in [
+                ("schema_revision", Field::SchemaRevision),
+                ("open", Field::Open),
+                ("high", Field::High),
+                ("low", Field::Low),
+                ("close", Field::Close),
+            ] {
+                if bar.get(key).is_none() {
+                    item.null(field)?;
+                }
             }
         }
         out.push(item.finish())?;
@@ -738,154 +796,237 @@ pub(crate) fn project_raw_bars(bars: &Value, work: &WorkScope) -> Result<PlainJs
     out.finish()
 }
 pub(crate) fn project_family_row(
-    row: &rusqlite::Row<'_>, name: &str, work: &WorkScope,
+    row: &rusqlite::Row<'_>,
+    name: &str,
+    work: &WorkScope,
 ) -> Result<(NativeValue<String>, i64, PlainJson), MixedSqlError> {
-    let (id,generation,record) = match name {
+    let (id, generation, record) = match name {
         "witnesses" => {
-            let id = NativeValue::try_from_str(sql_text(row,0)?,Some(work)).map_err(MixedJsonError::Resource)?;
+            let id = NativeValue::try_from_str(sql_text(row, 0)?, Some(work))
+                .map_err(MixedJsonError::Resource)?;
             let generation = row.get(1)?;
-            let mut out = ScopedLegacyRecord::object(ProjectionKind::WitnessWire,work)?;
-            out.text(Field::WitnessId,sql_text(row,0)?)?;
-            out.text(Field::ObjectId,sql_text(row,2)?)?;
-            out.integer(Field::Slot,row.get(3)?)?;
-            out.integer(Field::MergedSourceIndex,row.get(4)?)?;
-            out.text(Field::MergedHigh,sql_text(row,5)?)?;
-            out.text(Field::MergedLow,sql_text(row,6)?)?;
-            out.text(Field::MergedOpen,sql_text(row,7)?)?;
-            out.text(Field::MergedClose,sql_text(row,8)?)?;
-            let bars=sql_json(row,9,crate::JsonShape::Array,work)?;
-            let bars=project_raw_bars(&bars,work).map_err(|error|match error {
-                MixedJsonError::Business(error)=>MixedSqlError::Sql(crate::json_column_error(9,error)),
-                error=>MixedSqlError::Projection(error),
+            let mut out = ScopedLegacyRecord::object(ProjectionKind::WitnessWire, work)?;
+            out.text(Field::WitnessId, sql_text(row, 0)?)?;
+            out.text(Field::ObjectId, sql_text(row, 2)?)?;
+            out.integer(Field::Slot, row.get(3)?)?;
+            out.integer(Field::MergedSourceIndex, row.get(4)?)?;
+            out.text(Field::MergedHigh, sql_text(row, 5)?)?;
+            out.text(Field::MergedLow, sql_text(row, 6)?)?;
+            out.text(Field::MergedOpen, sql_text(row, 7)?)?;
+            out.text(Field::MergedClose, sql_text(row, 8)?)?;
+            let bars = sql_json(row, 9, crate::JsonShape::Array, work)?;
+            let bars = project_raw_bars(&bars, work).map_err(|error| match error {
+                MixedJsonError::Business(error) => {
+                    MixedSqlError::Sql(crate::json_column_error(9, error))
+                }
+                error => MixedSqlError::Projection(error),
             })?;
-            out.insert(Field::RawBars,bars)?;
-            (id,generation,out.finish())
-        },
+            out.insert(Field::RawBars, bars)?;
+            (id, generation, out.finish())
+        }
         "observations" => {
-            let id = NativeValue::try_from_str(sql_text(row,0)?,Some(work)).map_err(MixedJsonError::Resource)?;
+            let id = NativeValue::try_from_str(sql_text(row, 0)?, Some(work))
+                .map_err(MixedJsonError::Resource)?;
             let generation = row.get(1)?;
-            let mut out = ScopedLegacyRecord::object(ProjectionKind::ObservationWire,work)?;
-            out.text(Field::ObservationId,sql_text(row,0)?)?;
-            out.text(Field::BatchId,sql_text(row,2)?)?;
-            out.text(Field::Kind,sql_text(row,3)?)?;
-            for (index,field) in [(4,Field::WindowStart),(5,Field::WindowMid),(6,Field::WindowEnd)] {
-                match row.get::<_,Option<i64>>(index)? { Some(n)=>out.numeric(field,n)?, None=>out.null(field)? }
+            let mut out = ScopedLegacyRecord::object(ProjectionKind::ObservationWire, work)?;
+            out.text(Field::ObservationId, sql_text(row, 0)?)?;
+            out.text(Field::BatchId, sql_text(row, 2)?)?;
+            out.text(Field::Kind, sql_text(row, 3)?)?;
+            for (index, field) in [
+                (4, Field::WindowStart),
+                (5, Field::WindowMid),
+                (6, Field::WindowEnd),
+            ] {
+                match row.get::<_, Option<i64>>(index)? {
+                    Some(n) => out.numeric(field, n)?,
+                    None => out.null(field)?,
+                }
             }
-            out.text(Field::Reason,sql_text(row,7)?)?;
-            out.insert(Field::Detail,sql_json(row,8,crate::JsonShape::Object,work)?)?;
-            (id,generation,out.finish())
-        },
+            out.text(Field::Reason, sql_text(row, 7)?)?;
+            out.insert(
+                Field::Detail,
+                sql_json(row, 8, crate::JsonShape::Object, work)?,
+            )?;
+            (id, generation, out.finish())
+        }
         "relations" => {
             // 原入口先读完三个文本，再规范化身份，随后读取generation。
-            let subject=NativeValue::try_from_str(sql_text(row,0)?,Some(work)).map_err(MixedJsonError::Resource)?;
-            let relation=NativeValue::try_from_str(sql_text(row,1)?,Some(work)).map_err(MixedJsonError::Resource)?;
-            let object=NativeValue::try_from_str(sql_text(row,2)?,Some(work)).map_err(MixedJsonError::Resource)?;
-            let mut out=ScopedLegacyRecord::object(ProjectionKind::Relation,work)?;
-            out.text(Field::Subject,subject.as_ref())?;
-            out.text(Field::RelationType,relation.as_ref())?;
-            out.text(Field::Object,object.as_ref())?;
-            let record=out.finish();
-            let id=NativeValue::try_format(format_args!("{}",record.as_ref()),Some(work)).map_err(MixedJsonError::Resource)?;
-            let generation=row.get(3)?;
-            (id,generation,record)
-        },
-        _=>return Err(MixedJsonError::Business("StorageUnavailable：未知索引族".into()).into()),
+            let subject = NativeValue::try_from_str(sql_text(row, 0)?, Some(work))
+                .map_err(MixedJsonError::Resource)?;
+            let relation = NativeValue::try_from_str(sql_text(row, 1)?, Some(work))
+                .map_err(MixedJsonError::Resource)?;
+            let object = NativeValue::try_from_str(sql_text(row, 2)?, Some(work))
+                .map_err(MixedJsonError::Resource)?;
+            let mut out = ScopedLegacyRecord::object(ProjectionKind::Relation, work)?;
+            out.text(Field::Subject, subject.as_ref())?;
+            out.text(Field::RelationType, relation.as_ref())?;
+            out.text(Field::Object, object.as_ref())?;
+            let record = out.finish();
+            let id = NativeValue::try_format(format_args!("{}", record.as_ref()), Some(work))
+                .map_err(MixedJsonError::Resource)?;
+            let generation = row.get(3)?;
+            (id, generation, record)
+        }
+        _ => return Err(MixedJsonError::Business("StorageUnavailable：未知索引族".into()).into()),
     };
-    Ok((id,generation,record))
+    Ok((id, generation, record))
 }
 
 /// LegacyPayload保持原递归转换边界：detail全整数投影，raw_bars只转换supersedes_revision。
 pub(crate) fn legacy_payload(value: &Value, work: &WorkScope) -> Result<PlainJson, MixedJsonError> {
     match value {
         Value::Object(fields) => {
-            let mut out=ScopedLegacyRecord::object(ProjectionKind::LegacyPayload,work)?;
-            for (key,value) in fields {
-                let projected=if key=="detail" {
-                    wire_integers(value,work)?
-                } else if key=="raw_bars" {
-                    if let Some(bars)=value.as_array() {
-                        let mut out=ScopedLegacyArray::new(work);
+            let mut out = ScopedLegacyRecord::object(ProjectionKind::LegacyPayload, work)?;
+            for (key, value) in fields {
+                let projected = if key == "detail" {
+                    wire_integers(value, work)?
+                } else if key == "raw_bars" {
+                    if let Some(bars) = value.as_array() {
+                        let mut out = ScopedLegacyArray::new(work);
                         for bar in bars {
-                            let mut projected=ScopedLegacyRecord::clone_projection(ProjectionKind::LegacyPayload,bar,work)?;
-                            if let Some(sup)=bar.get("supersedes_revision") {
-                                projected.replace_owned(Field::SupersedesRevision,wire_integers(sup,work)?)?;
+                            let mut projected = ScopedLegacyRecord::clone_projection(
+                                ProjectionKind::LegacyPayload,
+                                bar,
+                                work,
+                            )?;
+                            if let Some(sup) = bar.get("supersedes_revision") {
+                                projected.replace_owned(
+                                    Field::SupersedesRevision,
+                                    wire_integers(sup, work)?,
+                                )?;
                             }
                             out.push(projected.finish())?;
                         }
                         out.finish()?
                     } else {
-                        PlainJson::try_clone_from(value,Some(work)).map_err(MixedJsonError::Resource)?
+                        PlainJson::try_clone_from(value, Some(work))
+                            .map_err(MixedJsonError::Resource)?
                     }
-                } else { legacy_payload(value,work)? };
-                out.insert_legacy_key(key,projected)?;
+                } else {
+                    legacy_payload(value, work)?
+                };
+                out.insert_legacy_key(key, projected)?;
             }
             Ok(out.finish())
-        },
+        }
         Value::Array(values) => {
-            let mut out=ScopedLegacyArray::new(work);
-            for value in values { out.push(legacy_payload(value,work)?)?; }
+            let mut out = ScopedLegacyArray::new(work);
+            for value in values {
+                out.push(legacy_payload(value, work)?)?;
+            }
             out.finish()
-        },
-        _=>PlainJson::try_clone_from(value,Some(work)).map_err(MixedJsonError::Resource),
+        }
+        _ => PlainJson::try_clone_from(value, Some(work)).map_err(MixedJsonError::Resource),
     }
 }
 fn wire_integers(value: &Value, work: &WorkScope) -> Result<PlainJson, MixedJsonError> {
-    if let Value::Number(n)=value {
-        let text=if let Some(i)=n.as_i64() {Some(NativeValue::try_format(format_args!("{i}"),Some(work)))}
-            else {n.as_u64().map(|u|NativeValue::try_format(format_args!("{u}"),Some(work)))};
-        if let Some(text)=text {
-            let text=text.map_err(MixedJsonError::Resource)?;
-            let permit=work.reserve_native(text.as_ref().len()).map_err(MixedJsonError::Resource)?;
-            return Ok(PlainJson::from_reserved(Value::String(text.as_ref().clone()),Some(permit)));
+    if let Value::Number(n) = value {
+        let text = if let Some(i) = n.as_i64() {
+            Some(NativeValue::try_format(format_args!("{i}"), Some(work)))
+        } else {
+            n.as_u64()
+                .map(|u| NativeValue::try_format(format_args!("{u}"), Some(work)))
+        };
+        if let Some(text) = text {
+            let text = text.map_err(MixedJsonError::Resource)?;
+            let permit = work
+                .reserve_native(text.as_ref().len())
+                .map_err(MixedJsonError::Resource)?;
+            return Ok(PlainJson::from_reserved(
+                Value::String(text.as_ref().clone()),
+                Some(permit),
+            ));
         }
     }
     match value {
-        Value::Object(fields)=>{
-            let mut out=ScopedLegacyRecord::object(ProjectionKind::LegacyPayload,work)?;
-            for (key,value) in fields {out.insert_legacy_key(key,wire_integers(value,work)?)?;}
+        Value::Object(fields) => {
+            let mut out = ScopedLegacyRecord::object(ProjectionKind::LegacyPayload, work)?;
+            for (key, value) in fields {
+                out.insert_legacy_key(key, wire_integers(value, work)?)?;
+            }
             Ok(out.finish())
-        },
-        Value::Array(values)=>{
-            let mut out=ScopedLegacyArray::new(work);
-            for value in values {out.push(wire_integers(value,work)?)?;}
+        }
+        Value::Array(values) => {
+            let mut out = ScopedLegacyArray::new(work);
+            for value in values {
+                out.push(wire_integers(value, work)?)?;
+            }
             out.finish()
-        },
-        _=>PlainJson::try_clone_from(value,Some(work)).map_err(MixedJsonError::Resource),
+        }
+        _ => PlainJson::try_clone_from(value, Some(work)).map_err(MixedJsonError::Resource),
     }
 }
 
 pub(crate) fn normalize_records<'a>(
-    records: impl IntoIterator<Item=&'a Value>, field: &str, family: &'static str,
-    work: &WorkScope, observer: &dyn crate::v3::audit_budget::LegacyObserver,
+    records: impl IntoIterator<Item = &'a Value>,
+    field: &str,
+    family: &'static str,
+    work: &WorkScope,
+    observer: &dyn crate::v3::audit_budget::LegacyObserver,
 ) -> Result<sc::CodecVec<NativeValue<String>>, MixedJsonError> {
     use crate::v3::audit_budget::LegacyRecordRef;
-    observer.check_work(work).map_err(MixedJsonError::Resource)?;
-    let mut out=sc::CodecVec::default();
+    observer
+        .check_work(work)
+        .map_err(MixedJsonError::Resource)?;
+    let mut out = sc::CodecVec::default();
     for record in records {
-        observer.visit_record(family,"normalize",LegacyRecordRef::Json(record)).map_err(MixedJsonError::Resource)?;
-        if !record.is_object() {return Err(MixedJsonError::Business("StorageUnavailable：集合成员非对象".into()));}
-        let projected=legacy_payload(record,work)?;
-        let text=NativeValue::try_format(format_args!("{}",projected.as_ref()),Some(work)).map_err(MixedJsonError::Resource)?;
-        out.try_reserve_native(work,1).map_err(MixedJsonError::Resource)?;
+        observer
+            .visit_record(family, "normalize", LegacyRecordRef::Json(record))
+            .map_err(MixedJsonError::Resource)?;
+        if !record.is_object() {
+            return Err(MixedJsonError::Business(
+                "StorageUnavailable：集合成员非对象".into(),
+            ));
+        }
+        let projected = legacy_payload(record, work)?;
+        let text = NativeValue::try_format(format_args!("{}", projected.as_ref()), Some(work))
+            .map_err(MixedJsonError::Resource)?;
+        out.try_reserve_native(work, 1)
+            .map_err(MixedJsonError::Resource)?;
         out.try_push(text).map_err(MixedJsonError::Resource)?;
     }
     out.sort();
-    if out.windows(2).any(|w|w[0]==w[1]) {
-        return Err(MixedJsonError::Business(format!("StorageUnavailable：{field} 重复成员")));
+    if out.windows(2).any(|w| w[0] == w[1]) {
+        return Err(MixedJsonError::Business(format!(
+            "StorageUnavailable：{field} 重复成员"
+        )));
     }
     Ok(out)
 }
 pub(crate) fn compare_normalized(
-    actual: &[NativeValue<String>], expected: &[NativeValue<String>], field:&str,
-    family:&'static str, observer:&dyn crate::v3::audit_budget::LegacyObserver,
+    actual: &[NativeValue<String>],
+    expected: &[NativeValue<String>],
+    field: &str,
+    family: &'static str,
+    observer: &dyn crate::v3::audit_budget::LegacyObserver,
 ) -> Result<(), MixedJsonError> {
     use crate::v3::audit_budget::LegacyRecordRef;
-    let mismatch=||MixedJsonError::Business(format!("StorageUnavailable：{field} 与封存批次/同 cut 持久快照不一致"));
-    if actual.len()!=expected.len() {return Err(mismatch());}
-    for (actual,expected) in actual.iter().zip(expected) {
-        observer.visit_record(family,"compare",LegacyRecordRef::Canonical(actual.as_ref())).map_err(MixedJsonError::Resource)?;
-        observer.visit_record(family,"compare",LegacyRecordRef::Canonical(expected.as_ref())).map_err(MixedJsonError::Resource)?;
-        if actual!=expected {return Err(mismatch());}
+    let mismatch = || {
+        MixedJsonError::Business(format!(
+            "StorageUnavailable：{field} 与封存批次/同 cut 持久快照不一致"
+        ))
+    };
+    if actual.len() != expected.len() {
+        return Err(mismatch());
+    }
+    for (actual, expected) in actual.iter().zip(expected) {
+        observer
+            .visit_record(
+                family,
+                "compare",
+                LegacyRecordRef::Canonical(actual.as_ref()),
+            )
+            .map_err(MixedJsonError::Resource)?;
+        observer
+            .visit_record(
+                family,
+                "compare",
+                LegacyRecordRef::Canonical(expected.as_ref()),
+            )
+            .map_err(MixedJsonError::Resource)?;
+        if actual != expected {
+            return Err(mismatch());
+        }
     }
     Ok(())
 }

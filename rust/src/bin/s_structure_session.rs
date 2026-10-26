@@ -4668,20 +4668,12 @@ fn read_objects_view(
         return Err("StorageUnavailable：对象生命周期非法（withdrawn_generation <= first_known_generation）".to_string());
     }
     let active_sql = match as_of {
-        None => {
-            OBJECT_ACTIVE_SQL
-        }
-        Some(_) => {
-            OBJECT_ACTIVE_ASOF_SQL
-        }
+        None => OBJECT_ACTIVE_SQL,
+        Some(_) => OBJECT_ACTIVE_ASOF_SQL,
     };
     let withdrawn_sql = match as_of {
-        None => {
-            OBJECT_DEAD_SQL
-        }
-        Some(_) => {
-            OBJECT_DEAD_ASOF_SQL
-        }
+        None => OBJECT_DEAD_SQL,
+        Some(_) => OBJECT_DEAD_ASOF_SQL,
     };
 
     let mut stmt = conn
