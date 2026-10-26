@@ -208,6 +208,17 @@ pub(super) fn resolve_image(
                 p["reason"]["slot"].as_str().unwrap_or("")
             ));
         }
+        // #1715（`/3`）：数量定标缺签署或缺合格报价只能由新版本/新封存数据解除，Resolve 证据不能替代。
+        if p["reason"]["slot"]
+            .as_str()
+            .is_some_and(super::quantity_calibration::is_wait_slot)
+        {
+            return Err(format!(
+                "{}：{}；Resolve 证据不能替代数量定标签署或封存报价",
+                p["reason"]["kind"].as_str().unwrap_or(""),
+                p["reason"]["slot"].as_str().unwrap_or("")
+            ));
+        }
         super::finance::covered_pending(previous, covered, p)?;
         // C06.2/C06.3：FIN 域只认 E 已持久的完整责任界。请求自报的摘要只能绑定事实，不能替代保责。
         if let Some(finance) = previous.get("finance") {

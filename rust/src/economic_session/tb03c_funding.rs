@@ -15,6 +15,7 @@
 //! - 非开局追加批：ADR 0040 裁定四末段「改总投入……都签新版本」⟹ AwaitingPolicy{funding_revision}。
 //! - q_rebase：「Q 变大不自动改现役 Q（输出 AwaitingPolicy{q_rebase, (S,ℓ)}）」。
 use super::book::{rules, target, Rules};
+use super::quantity_calibration::{self as qc, Readiness};
 use crate::session_protocol::{parse_canonical_i64, positive, required};
 use serde_json::{json, Value};
 
@@ -56,6 +57,12 @@ pub(crate) struct Chong {
     level: String,
     q: i64,
     policy: Value,
+    /// `/3` 才有：本重冻结数量定标（#1715 I1-Q）；`/2` 为 None，行为逐字不变。
+    quantity: Option<Quantity>,
+}
+struct Quantity {
+    readiness: Readiness,
+    scale: Option<qc::Ratio>,
 }
 pub(crate) struct Contract {
     record: Value,
@@ -152,6 +159,50 @@ fn has_funding(manifest: &Value) -> bool {
             .is_some_and(|a| a.iter().any(|c| c.get("funding").is_some()))
 }
 
+/// `/3` 逐重定标：金额只取本重 `funding.Q`（不读总 cap），锚与快照取 manifest 冻结原件，
+/// 同一 manifest 恢复必得同一定标。已就绪时路由 `fixed_q` 必须等于冻结 Q_units（激活绑定）。
+#[allow(clippy::too_many_arguments)]
+fn calibrate_chong(
+    route: &Value,
+    cf: &Value,
+    record: &Value,
+    id: &str,
+    symbol: &str,
+    level: &str,
+    q_ref: &str,
+    q: i64,
+    snapshots: &[qc::Snapshot],
+) -> Result<Quantity, String> {
+    let policy = qc::parse_policy(&cf["quantity_calibration"])?;
+    let anchor = match &cf["quote_anchor"] {
+        Value::Null => None,
+        a => Some(qc::parse_anchor(a)?),
+    };
+    let funding = qc::ChongFunding {
+        chong_id: id.to_owned(),
+        profile_id: required(record, "profile_id")?.to_owned(),
+        funding_version: required(record, "version")?.to_owned(),
+        symbol: symbol.to_owned(),
+        operation_level: level.to_owned(),
+        q_ref: q_ref.to_owned(),
+        q_amount: q,
+    };
+    let readiness = qc::calibrate(&policy, &funding, anchor.as_ref(), snapshots)?;
+    if let Some(cal) = readiness.ready() {
+        if positive(required(route, "fixed_q")?, "fixed_q")? != cal.q_units {
+            return Err(format!(
+                "IdentityConflict：重 {id} 路由 fixed_q 须等于冻结 Q_units {}（ADR 0049 Q4）",
+                cal.q_units
+            ));
+        }
+    }
+    let scale = match policy.basis {
+        qc::QuantityBasis::FrozenQuote(fq) => Some(fq.currency_scale),
+        _ => None,
+    };
+    Ok(Quantity { readiness, scale })
+}
+
 pub(super) fn validate_config(manifest: &Value) -> Result<(), String> {
     Contract::of(manifest).map(|_| ())
 }
@@ -180,7 +231,8 @@ impl Chong {
 impl Contract {
     /// `/2` ⟹ 解析并核验冻结的资金三件；`/1` 与缺省 ⟹ None（且不得夹带资金字段）。
     pub(crate) fn of(manifest: &Value) -> Result<Option<Self>, String> {
-        if rules(manifest)? != Rules::Tb03cV2 {
+        let revision = rules(manifest)?;
+        if !matches!(revision, Rules::Tb03cV2 | Rules::Tb03cV3) {
             if has_funding(manifest) {
                 return Err(
                     "SchemaUnsupported：资金合同只属 tb03c-book/2 域；本域版本不读它（#799 无回落）"
@@ -200,7 +252,17 @@ impl Contract {
         let leverage = f.get("margin_leverage").filter(|v| v.is_object()).ok_or(
             "MissingDependency：tb03c-book/2 缺 margin_leverage（值+出处，ADR 0040 裁定三）",
         )?;
-        exact(f, &["funding_record", "margin_leverage"], &[], "funding ")?;
+        let v3 = revision == Rules::Tb03cV3;
+        if v3 {
+            exact(
+                f,
+                &["funding_record", "margin_leverage", "quote_snapshots"],
+                &[],
+                "funding ",
+            )?;
+        } else {
+            exact(f, &["funding_record", "margin_leverage"], &[], "funding ")?;
+        }
         exact(record, &FUNDING_FIELDS, &["scope"], "funding-record ")?;
         if record["policy_id"] != FUNDING_POLICY_ID {
             return Err(
@@ -227,6 +289,21 @@ impl Contract {
             required(record, "policy_id")?,
             required(record, "profile_id")?
         );
+        let snapshots = if v3 {
+            let snaps = f["quote_snapshots"]
+                .as_array()
+                .ok_or("SchemaUnsupported：quote_snapshots 须数组（选价前封存）")?
+                .iter()
+                .map(qc::parse_snapshot)
+                .collect::<Result<Vec<_>, String>>()?;
+            let mut ids = std::collections::BTreeSet::new();
+            if snaps.iter().any(|s| !ids.insert(s.snapshot_id.clone())) {
+                return Err("IdentityConflict：quote_snapshots 快照 ID 重复".into());
+            }
+            snaps
+        } else {
+            Vec::new()
+        };
         let mut chongs = Vec::new();
         let mut total = 0i64;
         for c in manifest["chongs"]
@@ -237,7 +314,16 @@ impl Contract {
             let cf = c.get("funding").filter(|v| v.is_object()).ok_or_else(|| {
                 format!("MissingDependency：tb03c-book/2 重 {id} 缺 ⟨Q, policy-record⟩")
             })?;
-            exact(cf, &["Q", "policy_record"], &[], "重资金 ")?;
+            if v3 {
+                exact(
+                    cf,
+                    &["Q", "policy_record", "quantity_calibration", "quote_anchor"],
+                    &[],
+                    "重资金 ",
+                )?;
+            } else {
+                exact(cf, &["Q", "policy_record"], &[], "重资金 ")?;
+            }
             let q = positive(required(cf, "Q")?, "Q")?;
             total = total.checked_add(q).ok_or("InvalidDomain：ΣQ 溢出")?;
             let p = &cf["policy_record"];
@@ -290,6 +376,13 @@ impl Contract {
                 text(cap, "source")?;
                 date(cap, "valid_through")?;
             }
+            let quantity = if v3 {
+                Some(calibrate_chong(
+                    c, cf, record, id, symbol, &level, &q_ref, q, &snapshots,
+                )?)
+            } else {
+                None
+            };
             chongs.push(Chong {
                 id: id.to_owned(),
                 symbol: symbol.to_owned(),
@@ -297,6 +390,7 @@ impl Contract {
                 level,
                 q,
                 policy: p.clone(),
+                quantity,
             });
         }
         if total > positive(required(record, "cap")?, "funding cap")? {
@@ -395,6 +489,21 @@ impl Contract {
                 ));
             }
         }
+        let calibration = match &c.quantity {
+            None => None,
+            Some(qty) => match qty.readiness.ready() {
+                Some(cal) => Some((cal, qty.scale.as_ref())),
+                None => return Err(qty.readiness.reason().unwrap_or_default()),
+            },
+        };
+        if let Some((cal, _)) = calibration {
+            if positive(required(id, "fixed_q")?, "fixed_q")? != cal.q_units {
+                return Err(format!(
+                    "IdentityConflict：开局 fixed_q 须等于冻结 Q_units {}（ADR 0049 Q4）",
+                    cal.q_units
+                ));
+            }
+        }
         let cap = match c.signed_capacity() {
             Some(v) => positive(v, "C(ℓ)")?,
             None => {
@@ -420,20 +529,46 @@ impl Contract {
                 "IdentityConflict：开局批金额 ≠ ⌈Q/L⌉ = {expected}（ADR 0040 裁定四第 4 步）"
             ));
         }
-        Ok(
-            json!({"authorization_ref":self.authorization_ref(),"funding_version":self.record["version"],
+        let mut out = json!({"authorization_ref":self.authorization_ref(),"funding_version":self.record["version"],
             "Q":c.q.to_string(),"margin_leverage":self.leverage.to_string(),"opening_batch":expected.to_string(),
             "policy_record":{"policy_id":c.policy["policy_id"],"version":c.policy["version"],"q_ref":c.policy["q_ref"]},
-            "capacity":{"level":level,"C":cap.to_string()}}),
-        )
+            "capacity":{"level":level,"C":cap.to_string()}});
+        if let Some((cal, scale)) = calibration {
+            // 数量域容量与 Q_units 同维比较，且绑定同一冻结报价（ADR 0034 裁定四；ADR 0049）。
+            if let Some(scale) = scale {
+                let c_units = cal.capacity_units(cap, scale)?;
+                if cal.q_units > c_units {
+                    return Err(format!(
+                        "InvalidDomain：Q_units {} 超过同维 C_units({level}) {c_units}",
+                        cal.q_units
+                    ));
+                }
+                out["capacity"]["C_units"] = json!(c_units.to_string());
+            }
+            out["quantity_calibration"] = cal.to_json();
+        }
+        Ok(out)
     }
 }
 
 /// `/2` 下 E 侧必须显式等待的签署缺口；`/1` 与缺省返回 None（原文案逐字不变）。
 pub(super) fn pending_reason(manifest: &Value, event: &Value) -> Result<Option<Value>, String> {
-    if rules(manifest)? != Rules::Tb03cV2 {
+    if !matches!(rules(manifest)?, Rules::Tb03cV2 | Rules::Tb03cV3) {
         return Ok(None);
     }
+    let quantity_wait = || -> Result<Option<(&'static str, &'static str)>, String> {
+        if event.get("observed_existing_book").is_none() {
+            return Ok(None);
+        }
+        let Some(contract) = Contract::of(manifest)? else {
+            return Ok(None);
+        };
+        Ok(target(event)
+            .ok()
+            .and_then(|id| contract.chong(id).ok())
+            .and_then(|c| c.quantity.as_ref())
+            .and_then(|q| q.readiness.wait()))
+    };
     let opening_without_capacity = || -> Result<bool, String> {
         if event.get("observed_existing_book").is_none() {
             return Ok(false);
@@ -446,10 +581,15 @@ pub(super) fn pending_reason(manifest: &Value, event: &Value) -> Result<Option<V
             .and_then(|id| contract.chong(id).ok())
             .is_some_and(|c| c.signed_capacity().is_none()))
     };
+    let mut kind = "AwaitingPolicy";
     let slot = if event.get("q_rebase").is_some() {
         "q_rebase"
     } else if is_appended_contribution(event) {
         "funding_revision"
+    } else if let Some((k, slot)) = quantity_wait()? {
+        // #1715：`/3` 定标未签或缺合格报价 ⟹ E 侧 typed 等待，与 B 拒绝同口径。
+        kind = k;
+        slot
     } else if opening_without_capacity()? {
         // 评审 M3 / 根裁定 OQ-3：C(ℓ) 未签署是 E 侧 typed 等待，与 B 拒绝同口径。
         "capacity"
@@ -471,7 +611,7 @@ pub(super) fn pending_reason(manifest: &Value, event: &Value) -> Result<Option<V
         None => (Value::Null, Value::Null),
     };
     Ok(Some(
-        json!({"kind":"AwaitingPolicy","slot":slot,"symbol":symbol,"level":level}),
+        json!({"kind":kind,"slot":slot,"symbol":symbol,"level":level}),
     ))
 }
 

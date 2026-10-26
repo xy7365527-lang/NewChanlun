@@ -457,8 +457,19 @@ fn split(book: &mut Value, ca: &Value) -> Result<(), String> {
         }
         *slot = scaled / den;
     }
+    // #1715（`/3`）：冻结定标随拆股按同一比例重基，报价/锚/快照不变，不重新选价。
+    let calibration = match book
+        .get("funding")
+        .and_then(|f| f.get("quantity_calibration"))
+    {
+        Some(cal) => Some(super::quantity_calibration::rebase_split(cal, num, den)?),
+        None => None,
+    };
     book["actual_quantity"] = json!(rebased[0].to_string());
     book["fixed_q"] = json!(rebased[1].to_string());
+    if let Some(cal) = calibration {
+        book["funding"]["quantity_calibration"] = cal;
+    }
     Ok(())
 }
 
