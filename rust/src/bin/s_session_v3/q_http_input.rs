@@ -63,7 +63,7 @@ impl From<&'static str> for FailureDetail {
 }
 impl From<String> for FailureDetail {
     fn from(s: String) -> Self {
-        Self::Text(TextValue::Plain(s))
+        Self::Text(TextValue::from(s))
     }
 }
 impl From<TextValue> for FailureDetail {
@@ -502,7 +502,7 @@ fn copy_text(value: &str, budget: Option<&OwnedBudget>) -> Result<TextValue, Fai
             detail: "Owned HTTP文本入口未启用".into(),
         });
     }
-    Ok(TextValue::Plain(value.to_owned()))
+    Ok(TextValue::from(value.to_owned()))
 }
 
 fn format_text(
@@ -510,7 +510,7 @@ fn format_text(
     budget: Option<&OwnedBudget>,
 ) -> Result<TextValue, Failure> {
     if budget.is_none() {
-        return Ok(TextValue::Plain(value.to_string()));
+        return Ok(TextValue::from(value.to_string()));
     }
     struct Writer {
         bytes: CodecVec<u8>,

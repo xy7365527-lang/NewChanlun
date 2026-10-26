@@ -1,0 +1,53 @@
+{
+  "schema": "tb1419-s0b-plan/1",
+  "admission_evidence": false,
+  "source_head": "48e23864636825d20023eafa45aec296597cdf3c",
+  "patched": {
+    "before": {
+      "s_query.py": "56ff64df53ec13487fb0d6f475e71a6eb5448b7d4329add395f4b460f13ac25c",
+      "browser/index.html": "c30a34bfc197c11b2e65599440b2553944053445bdde0c6b37f613b82b6a9280",
+      "browser/tb01c-client.js": "3dd47ea356e51d44f62724b825057ad5f08fb0bc94fe5e6b3f50d765f7c69931"
+    },
+    "after": {
+      "s_query.py": "17e0a0e30795066a47cf9a881567e3d7ef15e29e5a2f6200896ac9715c40c4b5",
+      "browser/index.html": "1eac2aa8817c691967c57578c03f60ee2052c640b39419d5b56ea9eee69aaa80",
+      "browser/tb01c-client.js": "0f3e43489c3dd639893dfdcfb65288c97c909a6e5a24b3ed403d74e5278064c3"
+    }
+  },
+  "binary": {
+    "path": "/private/tmp/goal1323-native-20261012/tb1419-impl/artifacts/s_structure_session-48e2386463",
+    "sha256": "38c61eeed8ba79a7c5ec1d74575ca46c9cf32614ded9c5d9f04294f18642245b"
+  },
+  "python": "/tmp/tb1414-runtime-venv/bin/python",
+  "node": "/Users/silencehan/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
+  "caps": {
+    "arm_s": 900,
+    "collect_core_s": 120,
+    "frozen_oracle_s": 180,
+    "browser_s": 30,
+    "q_verify_ms": 5000,
+    "input_reply_ms": 10000
+  },
+  "runs": [
+    {
+      "stream": "MIN12",
+      "mode": "per-bar",
+      "batch": 1,
+      "messages": 52,
+      "bars": 52,
+      "directory": "/Volumes/AgentStorage/issue1419-s0b-min12-20261014/MIN12-per-bar",
+      "design": "/private/tmp/goal1323-native-20261012/tb1419-impl/f1-s0b/min12/s0b-MIN12.json",
+      "q_sidecar": "/Volumes/AgentStorage/issue1419-s0b-min12-20261014/MIN12-per-bar/q-sidecar.jsonl"
+    },
+    {
+      "stream": "MIN12",
+      "mode": "batched",
+      "batch": 16,
+      "messages": 4,
+      "bars": 52,
+      "directory": "/Volumes/AgentStorage/issue1419-s0b-min12-20261014/MIN12-batched",
+      "design": "/private/tmp/goal1323-native-20261012/tb1419-impl/f1-s0b/min12/s0b-MIN12.json",
+      "q_sidecar": "/Volumes/AgentStorage/issue1419-s0b-min12-20261014/MIN12-batched/q-sidecar.jsonl"
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "native": "/home/hanju/nc-remote/1488-accept/d65/min12d-nat2",
+  "ordinary": "/home/hanju/nc-remote/1488-accept/d65/min12d-main1",
+  "binary_sha256": [
+    "06abcef0d4739ccb42807ec601ba5e32afe287ac4d3cf89be9c099d919a29c94",
+    "c944bd6bed40dd7e75332d66851ad050178b7ccb31860c1068d749de2726e040"
+  ],
+  "env_testonly": [
+    {
+      "S_CAPTURE_NATIVE_TESTONLY": "1",
+      "S_MANIFEST_WORKSPACE_DIAGNOSTICS": "1"
+    },
+    {
+      "S_CAPTURE_NATIVE_TESTONLY": null,
+      "S_MANIFEST_WORKSPACE_DIAGNOSTICS": null
+    }
+  ],
+  "items": [
+    {
+      "item": "回执 publication（逐条）",
+      "count": [
+        52,
+        52
+      ],
+      "equal": true,
+      "diff_index": []
+    },
+    {
+      "item": "逐代 digest",
+      "equal": true,
+      "diff_generations": []
+    },
+    {
+      "item": "逐代 counts",
+      "equal": true,
+      "diff_generations": []
+    },
+    {
+      "item": "逐代 structure_cut",
+      "equal": true,
+      "diff_generations": []
+    },
+    {
+      "item": "逐代 rule_revision",
+      "equal": true,
+      "diff_generations": []
+    },
+    {
+      "item": "逐代 rows_sha256",
+      "equal": true,
+      "diff_generations": []
+    }
+  ],
+  "verdict": "PASS"
+}

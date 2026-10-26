@@ -1,0 +1,39 @@
+{
+  "service": "s",
+  "pid": 26980,
+  "db": "/home/hanju/nc-remote/1488-accept/a5s6/main1/session.sqlite",
+  "process_identity": "1000 Wed Oct 21 10:48:52 2026 /mnt/g/AgentStorage/1488-accept/s2/bin/s_structure_session-6badaa6049 serve --db /home/hanju/nc-remote/1488-accept/a5s6/main1/session.sqlite --socket /tmp/a76-main1.sock --writer-epoch 1 --profile /home/hanju/nc-remote/wt/20261021-104806-2a576099bf/s_session/profiles/ohlc_integer_tb02a_v1.json --clock-plan /home/hanju/nc-remote/wt/20261021-104806-2a576099bf/.chanlun/review-results/1488-acceptance/min12/input/clock.json --protocol-revision s-session/3 --resource-config /home/hanju/nc-remote/1488-accept/a5s6/main1/control/s-resources-29f0634a-2f19-499a-bc3f-e5e321ede7ac.json",
+  "command": [
+    "/mnt/g/AgentStorage/1488-accept/s2/bin/s_structure_session-6badaa6049",
+    "serve",
+    "--db",
+    "/home/hanju/nc-remote/1488-accept/a5s6/main1/session.sqlite",
+    "--socket",
+    "/tmp/a76-main1.sock",
+    "--writer-epoch",
+    "1",
+    "--profile",
+    "/home/hanju/nc-remote/wt/20261021-104806-2a576099bf/s_session/profiles/ohlc_integer_tb02a_v1.json",
+    "--clock-plan",
+    "/home/hanju/nc-remote/wt/20261021-104806-2a576099bf/.chanlun/review-results/1488-acceptance/min12/input/clock.json",
+    "--protocol-revision",
+    "s-session/3",
+    "--resource-config",
+    "/home/hanju/nc-remote/1488-accept/a5s6/main1/control/s-resources-29f0634a-2f19-499a-bc3f-e5e321ede7ac.json"
+  ],
+  "control_instance_id": "b6ee3bee-0b50-4201-b4aa-fec00797fd08",
+  "resource_identity": {
+    "path": "/home/hanju/nc-remote/1488-accept/a5s6/main1/control/s-resources-29f0634a-2f19-499a-bc3f-e5e321ede7ac.json",
+    "nonce": "29f0634a-2f19-499a-bc3f-e5e321ede7ac",
+    "sha256": "38e54410ae9a3874dee564fabe70986547c583076e7cf8f6d8c540205fd0178c",
+    "device": 2096,
+    "inode": 1915363,
+    "uid": 1000
+  },
+  "socket_identity": {
+    "path": "/tmp/a76-main1.sock",
+    "device": 2096,
+    "inode": 1915370,
+    "uid": 1000
+  }
+}

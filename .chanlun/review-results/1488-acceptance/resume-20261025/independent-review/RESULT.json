@@ -1,0 +1,21 @@
+{
+  "verdict": "PASS",
+  "scope": "0091 P1/P2修复切片及续接封包",
+  "code_head": "c5f49adc97d8e40ab1753a7d295a5d157c15af94",
+  "package_head": "e8a0eed712ffc93b593cbeb7ac9ac6ab733c99c8",
+  "reviewed_diff_base": "870fe6a5",
+  "blocking_findings": [],
+  "tests": {
+    "fmt": "pass",
+    "warnings_four_profiles": "pass",
+    "json_native_check": "pass",
+    "bsp_default": 1,
+    "bsp_backtest": 1,
+    "business_native": 15,
+    "business_json_native": 20
+  },
+  "evidence": "../logs/20261025-220319-c5f49adc97.log",
+  "current_pr_ci": "pending",
+  "merge_approved": false,
+  "issue_closable": false
+}
