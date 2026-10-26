@@ -29,6 +29,11 @@ impl FixedFailure {
         out.detail[..len].copy_from_slice(&detail.as_bytes()[..len]);
         out
     }
+    pub(crate) fn formatted(code:&'static str,phase:&'static str,detail:fmt::Arguments<'_>)->Self{
+        let mut buffer=FixedBuffer::<DETAIL_BYTES>::new();
+        let truncated=buffer.write_fmt(detail).is_err();
+        Self{code,phase,detail:buffer.bytes,len:buffer.len,truncated}
+    }
     pub(crate) fn detail(&self) -> &str {
         std::str::from_utf8(&self.detail[..self.len]).expect("bounded UTF-8 copy")
     }

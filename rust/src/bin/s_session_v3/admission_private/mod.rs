@@ -604,7 +604,7 @@ pub(crate) fn test_progressive_mixed_sql_policy<T>(
 }
 
 pub(crate) fn mixed_fixed_metadata_bytes() -> usize {
-    mixed_accounting::fixed_metadata_bytes()
+    mixed_accounting::fixed_metadata_bytes() + std::mem::size_of::<MixedSealedPrefix>()
 }
 
 pub(crate) use mixed::SealedPrefix as MixedSealedPrefix;

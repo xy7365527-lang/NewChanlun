@@ -447,6 +447,7 @@ impl fmt::Debug for PreparedAdmission {
 }
 
 impl PreparedAdmission {
+    pub(crate) fn is_mixed(&self)->bool {self.resources.is_mixed()}
     /// #1527：在冻结源域前等父进程登记，借用管道，不重起钟或另建账。
     fn wait_start_gate(&mut self, fd: libc::c_int) -> Result<(), AdmissionError> {
         let stage = Stage::E4;
@@ -783,6 +784,13 @@ impl ConsumedAdmission {
                 Stage::E7,
             )
         };
+        if self.mixed.is_some() {
+            TERMINAL.with(|slot|{
+                if let Some(state)=slot.borrow_mut().as_mut(){
+                    if state.mixed.is_none(){state.mixed=Some(terminal::MixedTerminal::new());}
+                }
+            });
+        }
         let ram = self
             .mixed
             .map(|prepared| {

@@ -165,6 +165,7 @@ impl WriterScope {
         prepared: PreparedAdmission,
         prefix: super::admission_private::RejectionPrefix<'_>,
     ) -> Result<Self, String> {
+        let mixed_resources=prepared.is_mixed();
         let consumed = prepared.consume().map_err(|e| e.to_string())?;
         if std::fs::canonicalize(db).map_err(|_| consumed.failure("SourcePathLost"))?
             != consumed.lease().db_path()
@@ -181,7 +182,10 @@ impl WriterScope {
         let source = MeasuredDomain::measure(&consumed)?;
         let mut started = consumed
             .into_job(source.existing)
-            .map_err(|e| e.to_string())?;
+            .map_err(|e|if mixed_resources{
+                record_mixed_failure(super::admission_anchor::terminal::FixedFailure::formatted(
+                    "MixedAdmissionRejected","start",format_args!("{e}")))
+            }else{e.to_string()})?;
         let mixed=started.is_mixed();
         if mixed {
             let sealed=started.with_accounting(|account|
@@ -201,7 +205,8 @@ impl WriterScope {
             }
         }
         let mut finished = started.seal().map_err(|e|if mixed {
-            mixed_failure("MixedSealFailed","seal","mixed收尾期限/绑定或父账拒绝")
+            record_mixed_failure(super::admission_anchor::terminal::FixedFailure::formatted(
+                "MixedSealFailed","seal",format_args!("{e}")))
         }else{e.to_string()})?;
         // finish 之后仍核源；同步调用返回后核同一原期限，才创建有资格的 Inner。
         let post = source.verify_before_open();
@@ -481,6 +486,24 @@ fn mixed_failure(code:&'static str,phase:&'static str,detail:&str)->String {
 mod mixed_writer_tests {
     use super::*;
     use std::io::Write as _;
+    #[test]
+    fn mixed_writer_initial_ram_refusal_uses_fixed_terminal_without_job(){
+        crate::v2::with_mixed_control_fixture(|conn|{
+            let original:String=conn.query_row("PRAGMA database_list",[],|r|r.get(2)).unwrap();
+            let path=std::path::Path::new(&original).with_file_name("mixed-initial-ram.sqlite");
+            conn.execute("VACUUM INTO ?1",rusqlite::params![path.to_str().unwrap()]).unwrap();
+            let command=super::super::admission_anchor::CommandAccounting::begin();
+            let prepared=super::super::admission_anchor::test_prepare_mixed(&path,1,1);
+            assert!(WriterScope::admit(&path,prepared).is_err());
+            let mut output=Vec::new();
+            let receipt=command.report("",&mut output);
+            assert!(receipt.job.is_none());
+            let value:serde_json::Value=serde_json::from_slice(&output).unwrap();
+            assert_eq!(value["code"],"MixedAdmissionRejected");
+            assert_eq!(value["phase"],"start");
+            assert_eq!(value["admission_accounting"]["job_present"],false);
+        });
+    }
     #[test]
     fn mixed_writer_reuses_only_sealed_unchanged_source_without_new_work(){
         crate::v2::with_mixed_control_fixture(|conn|{
