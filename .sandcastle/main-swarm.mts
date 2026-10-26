@@ -7,6 +7,7 @@
 //     **不合 main、不关 issue**（人工闸，#1003 裁 3 有意偏离）。
 // 跑法：npx tsx .sandcastle/main-swarm.mts
 
+import { drainRequested, withLegacyAdmission, DrainFrozenError } from "./drain-control.mts";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { primeAgent } from "./prime-agent-provider.ts";
@@ -72,6 +73,7 @@ function claim(issue: string) {
 }
 
 for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
+  if (drainRequested()) break;
   console.log(`\n=== Iteration ${iteration}/${MAX_ITERATIONS} ===\n`);
 
   // Phase 1: Plan
@@ -106,7 +108,13 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   for (const i of issues) console.log(`  #${i.id}: ${i.title} → ${i.branch}`);
 
   // host 侧认领（扇出前一次性完成）
-  for (const i of issues) claim(i.id);
+  try {
+    await withLegacyAdmission(() => { for (const i of issues) claim(i.id); });
+  } catch (error) {
+    if (!(error instanceof DrainFrozenError)) throw error;
+    console.log(error.message);
+    break;
+  }
 
   // Phase 2: Execute + Review（信号量限流扇出）
   const withLimit = semaphore(MAX_PARALLEL);

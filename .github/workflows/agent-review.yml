@@ -20,7 +20,7 @@ on:
 
 jobs:
   review:
-    if: github.event.label.name == 'agent:review'
+    if: vars.SANDCASTLE_LEGACY_FREEZE != '1' && github.event.label.name == 'agent:review'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     concurrency:

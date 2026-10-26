@@ -4,6 +4,7 @@
 //   → 不合 main（人工闸，#1003 裁 3）。
 // 跑法：npx tsx .sandcastle/main.mts
 
+import { withLegacyAdmission, DrainFrozenError } from "./drain-control.mts";
 import * as sandcastle from "@ai-hero/sandcastle";
 // #1547：沙盒后端暂用 noSandbox（agent 直接在宿主上、于 sandcastle 自建的独立 worktree 内运行）。
 // 切回 docker 的条件：Docker daemon 在宿主常驻运行，且 `docker image inspect sandcastle:newchanlun`
@@ -156,9 +157,9 @@ function isWorktreeTimeoutError(e: unknown): boolean {
 
 /** 回滚认领（best-effort）：unassign @me + 恢复 sandcastle 标签 + workers.jsonl 追加 rolled_back。
  *  回滚本身失败不吞原错（原异常照常上抛、exit 1），claim-loop 收尾兜底会按 workers.jsonl 再试。 */
-function rollbackClaim(issue: number, branch: string): void {
+async function rollbackClaim(issue: number, branch: string): Promise<void> {
   try {
-    execSync(`gh issue edit ${issue} --remove-assignee @me --add-label sandcastle`, { env: GH_CLEAN_ENV });
+    await withLegacyAdmission(() => execSync(`gh issue edit ${issue} --remove-assignee @me --add-label sandcastle`, { env: GH_CLEAN_ENV }));
     logWorker({ ticket: issue, branch, phase: "claim", status: "rolled_back" });
     console.error(`[#1259] 票 #${issue} 认领已回滚：unassigned + sandcastle 标签恢复，下轮可重拾。`);
   } catch (e) {
@@ -295,11 +296,11 @@ if (REVIEW_ONLY) {
   }
   const issue = Number(roIssue);
   const branch = roBranch;
-  const sandbox = await sandcastle.createSandbox({
+  const sandbox = await withLegacyAdmission(() => sandcastle.createSandbox({
     branch,
     baseBranch: "main",
     sandbox: sandboxProvider(),
-  });
+  }));
   try {
     await runReviewer(sandbox, issue, branch);
   } catch (e) {
@@ -313,7 +314,21 @@ if (REVIEW_ONLY) {
 }
 
 for (let iter = 1; iter <= MAX_TICKETS_PER_RUN; iter++) {
-  const issue = pickIssue();
+  let issue: number | null;
+  try {
+    issue = await withLegacyAdmission(() => {
+      const picked = pickIssue();
+      if (picked) {
+        execSync(`gh issue edit ${picked} --remove-label sandcastle --add-assignee @me`);
+        logWorker({ ticket: picked, branch: `sandcastle/issue-${picked}`, phase: "claim", status: "claimed" });
+      }
+      return picked;
+    });
+  } catch (error) {
+    if (!(error instanceof DrainFrozenError)) throw error;
+    console.log(error.message);
+    break;
+  }
   if (!issue) {
     let readyForAgent: number | null = null;
     try {
@@ -330,9 +345,7 @@ for (let iter = 1; iter <= MAX_TICKETS_PER_RUN; iter++) {
   }
 
   // 认领（#1007 裁 3 + #1013 抢票教训）：摘 sandcastle + assign @me；拾取闸用专属 label，不碰 ready-for-agent 共享面
-  execSync(`gh issue edit ${issue} --remove-label sandcastle --add-assignee @me`);
   const branch = `sandcastle/issue-${issue}`;
-  logWorker({ ticket: issue, branch, phase: "claim", status: "claimed" });
   console.log(`\n=== Iteration ${iter}/${MAX_TICKETS_PER_RUN}: issue #${issue} → ${branch} ===\n`);
 
   // #1259：claim 成功后、implementer started 之前的失败都回滚认领（WorktreeTimeoutError 先重试一次）。
@@ -340,7 +353,7 @@ for (let iter = 1; iter <= MAX_TICKETS_PER_RUN; iter++) {
   try {
     sandbox = await createSandboxWithWorktreeRetry({ branch });
   } catch (e) {
-    rollbackClaim(issue, branch);
+    await rollbackClaim(issue, branch);
     throw e;
   }
   try {
