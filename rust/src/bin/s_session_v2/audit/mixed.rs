@@ -1515,3 +1515,56 @@ impl AuditWalk {
         Ok(())
     }
 }
+
+pub(crate) fn read_raw(
+    conn:&Connection,work:&WorkScope,observer:&dyn LegacyObserver,
+)->Result<newchan_rust::s_content::CodecVec<PlainJson>,MixedJsonError>{
+    use scoped_legacy::{Field,ProjectionKind,ScopedLegacyRecord};
+    observer.precheck().map_err(MixedJsonError::Resource)?;
+    let mut statement=conn.prepare(crate::RAW_EVENTS_SQL).map_err(|e|format!("prepare 读取失败：{e}"))?;
+    let mut sql=statement.query([]).map_err(|e|format!("query 失败：{e}"))?;
+    let mut records=newchan_rust::s_content::CodecVec::default();
+    while let Some(row)=sql.next().map_err(|e|format!("collect 失败：{e}"))? {
+        observer.precheck().map_err(MixedJsonError::Resource)?;
+        let value=scoped_legacy::decode_raw_history_row(row,work).map_err(|e|match e {
+            scoped_legacy::MixedSqlError::Sql(e)=>MixedJsonError::Business(format!("collect 失败：{e}")),
+            scoped_legacy::MixedSqlError::Projection(e)=>e,
+        })?;
+        observer.visit_record("raw_history","sql-raw",LegacyRecordRef::Json(&value)).map_err(MixedJsonError::Resource)?;
+        push(&mut records,value,work)?;
+    }
+    drop(sql); drop(statement);
+    observer.precheck().map_err(MixedJsonError::Resource)?;
+    if tb02a::prepare_raw_enrichment_admitted(conn,Some(work))? {
+        for record in records.iter_mut() {
+            observer.precheck().map_err(MixedJsonError::Resource)?;
+            observer.visit_record("raw_history","raw-enrich",LegacyRecordRef::Json(record)).map_err(MixedJsonError::Resource)?;
+            let revision=record["revision"].as_i64().ok_or("StorageUnavailable：revision非i64")?;
+            let missing=|e|format!("StorageUnavailable：OHLC原件缺失 {e}");
+            let mut stmt=newchan_rust::sqlite_checked::CheckedStatement::prepare(conn,
+                c"SELECT schema_revision,open,high,low,close FROM raw_ohlc WHERE identity_key=?1 AND revision=?2").map_err(missing)?;
+            match record["identity_key"].as_str() {
+                Some(id)=>stmt.bind_text(1,id),None=>stmt.bind_null(1),
+            }.map_err(missing)?;
+            stmt.bind_integer(2,revision).map_err(missing)?;
+            let mut row=stmt.next().map_err(missing)?.ok_or("StorageUnavailable：OHLC原件缺失")?;
+            if row.text(0).map_err(missing)?!=tb02a::RAW_SCHEMA ||
+                record["price"].as_str()!=Some(row.text(4).map_err(missing)?) {
+                return Err("StorageUnavailable：OHLC schema/close索引矛盾".into());
+            }
+            let mut texts:[Option<Text>;5]=std::array::from_fn(|_|None);
+            for (index,value) in texts.iter_mut().enumerate() {
+                *value=Some(Text::try_from_str(row.text(index).map_err(missing)?,Some(work)).map_err(MixedJsonError::Resource)?);
+            }
+            let mut out=ScopedLegacyRecord::clone_projection(ProjectionKind::RawEventWire,record,work)?;
+            for (field,value) in [Field::SchemaRevision,Field::Open,Field::High,Field::Low,Field::Close].into_iter().zip(texts.iter()) {
+                out.replace_text(field,value.as_ref().unwrap())?;
+            }
+            drop(row);stmt.finalize().map_err(missing)?;
+            *record=out.finish();
+        }
+    }
+    crate::v3::business_json::validate_raw_mixed(&records,work,observer)?;
+    observer.precheck().map_err(MixedJsonError::Resource)?;
+    Ok(records)
+}

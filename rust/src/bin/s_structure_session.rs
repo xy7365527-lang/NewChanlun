@@ -2347,6 +2347,11 @@ fn read_raw_events_until(
     read_raw_events_until_measured(conn, deadline, None)
 }
 
+const RAW_EVENTS_SQL:&str="SELECT identity_key, revision, input_revision, payload_hash, receipt_id, seq, source_namespace,
+                    source_epoch, instrument, event_id, received_at, raw_text, price,
+                    ts, volume, source_coord, supersedes_revision
+             FROM raw_events ORDER BY seq ASC";
+
 fn read_raw_events_until_measured(
     conn: &Connection,
     deadline: Option<std::time::Instant>,
@@ -2354,12 +2359,7 @@ fn read_raw_events_until_measured(
 ) -> Result<Vec<Value>, String> {
     check_read_deadline(deadline)?;
     let mut stmt = conn
-        .prepare(
-            "SELECT identity_key, revision, input_revision, payload_hash, receipt_id, seq, source_namespace,
-                    source_epoch, instrument, event_id, received_at, raw_text, price,
-                    ts, volume, source_coord, supersedes_revision
-             FROM raw_events ORDER BY seq ASC",
-        )
+        .prepare(RAW_EVENTS_SQL)
         .map_err(|e| format!("prepare 读取失败：{e}"))?;
     let mut rows = stmt
         .query_map([], decode_raw_row)
