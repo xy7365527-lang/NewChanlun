@@ -874,3 +874,223 @@ fn verify_delta_evidence(
     crate::verify_delta_suffix(delta,batch)?;
     Ok(())
 }
+
+fn push<T>(items:&mut newchan_rust::s_content::CodecVec<T>,value:T,work:&WorkScope)->Result<(),MixedJsonError>{
+    items.try_reserve_native(work,1).map_err(MixedJsonError::Resource)?;
+    items.try_push(value).map_err(MixedJsonError::Resource)
+}
+fn copy_shared_tree(tree:&NativeTree<Text,Shared>,work:&WorkScope)->Result<NativeTree<Text,Shared>,MixedJsonError>{
+    tree.try_copy_mixed(work,|key,value|Ok((key.try_clone_admitted(work)?,
+        value.share_or_copy_mixed(work,|value,work|value.try_clone_mixed(work))?))).map_err(MixedJsonError::Resource)
+}
+fn active_projection(value:&Value,work:&WorkScope)->Result<PlainJson,MixedJsonError>{
+    use scoped_legacy::{Field,ProjectionKind,ScopedLegacyRecord};
+    let mut out=ScopedLegacyRecord::clone_projection(ProjectionKind::IndexBirth,value,work)?;
+    for field in [Field::WithdrawnGeneration,Field::WithdrawalReason,Field::SupersededBy] {out.replace_known_field(field,&Value::Null)?;}
+    out.replace_text(Field::Lifecycle,"active")?;
+    Ok(out.finish())
+}
+fn observation_identity(value:&Value,work:&WorkScope)->Result<Text,MixedJsonError>{
+    use scoped_legacy::{Field,ProjectionKind,ScopedLegacyRecord};
+    use sha2::Digest;
+    if value["detail"]["tb02a"]==true {
+        let canonical=Text::try_format(format_args!("{value}"),Some(work)).map_err(MixedJsonError::Resource)?;
+        return Text::try_format(format_args!("obs-{:x}",sha2::Sha256::digest(canonical.as_bytes())),Some(work)).map_err(MixedJsonError::Resource);
+    }
+    let mut out=ScopedLegacyRecord::object(ProjectionKind::ObservationWire,work)?;
+    for (key,field) in [("kind",Field::Kind),("window_start",Field::WindowStart),("window_mid",Field::WindowMid),("window_end",Field::WindowEnd),("reason",Field::Reason)] {
+        out.borrowed(field,&value[key])?;
+    }
+    let out=out.finish();
+    let canonical=Text::try_format(format_args!("{}",out.as_ref()),Some(work)).map_err(MixedJsonError::Resource)?;
+    let digest=Text::try_format(format_args!("{:x}",sha2::Sha256::digest(canonical.as_bytes())),Some(work)).map_err(MixedJsonError::Resource)?;
+    Text::try_format(format_args!("obs-{}",&digest[..16]),Some(work)).map_err(MixedJsonError::Resource)
+}
+impl AuditWalk {
+    pub(crate) fn verify(&mut self,delta:&Value,g:i64,batch:&Value,mode:delta_storage::Mode,work:&WorkScope,observer:&dyn LegacyObserver)->Result<(),MixedJsonError>{
+        use scoped_legacy::{Field,ProjectionKind,ScopedLegacyRecord};
+        use newchan_rust::s_content::CodecVec;
+        observer.check_work(work).map_err(MixedJsonError::Resource)?;
+        let admission=NativeAdmission(Some(work));
+        verify_delta_evidence(delta,batch,work,observer)?;
+        let mut batch_next=CodecVec::default();
+        for record in required_array(batch,"objects")? {
+            observer.visit_record("objects","batch-next",LegacyRecordRef::Json(record)).map_err(MixedJsonError::Resource)?;
+            let mut record=ScopedLegacyRecord::clone_projection(ProjectionKind::ObjectWire,record,work)?;
+            record.replace_known_field(Field::BatchId,&delta["index_frontier"])?;
+            let wire=scoped_legacy::project_object_wire(&record.finish(),work)?;
+            let wire=ScopedLegacyRecord::from_owned(ProjectionKind::ObjectWire,wire,work)?;
+            // 身份读取发生在原project_object_wire之后。
+            let value=wire.finish();
+            let id=identity(&value,"objects",work)?;
+            let mut wire=ScopedLegacyRecord::from_owned(ProjectionKind::ObjectWire,value,work)?;
+            if let Some(old)=self.active.get(id.as_ref().as_str()) {
+                observer.visit_record("objects","batch-next-active",LegacyRecordRef::Json(old.as_ref())).map_err(MixedJsonError::Resource)?;
+                for (key,field) in [("batch_id",Field::BatchId),("first_known_generation",Field::FirstKnownGeneration),("first_known_cut",Field::FirstKnownCut),("published_generation",Field::PublishedGeneration)] {
+                    wire.replace_known_field(field,&old[key])?;
+                }
+            }
+            push(&mut batch_next,wire.finish(),work)?;
+        }
+        let mut index_next=copy_shared_tree(&self.active,work)?;
+        let mut index_born=CodecVec::default();
+        if let Some(births)=self.births.remove(&g) {
+            for value in births {
+                observer.visit_record("objects","index-birth",LegacyRecordRef::Json(value.as_ref())).map_err(MixedJsonError::Resource)?;
+                let value=NativeArc::try_new_shallow(active_projection(value.as_ref(),work)?,Some(work)).map_err(MixedJsonError::Resource)?;
+                push(&mut index_born,value.clone(),work)?;
+                if index_next.insert_admitted(identity(value.as_ref(),"objects",work)?,value,&admission).map_err(MixedJsonError::Resource)?.is_some() {
+                    return Err("StorageUnavailable：重复对象出生".into());
+                }
+            }
+        }
+        let mut withdrawals=CodecVec::default();
+        let mut replaces=CodecVec::default();
+        for value in self.deaths.remove(&g).unwrap_or_default() {
+            observer.visit_record("objects","index-death",LegacyRecordRef::Json(value.as_ref())).map_err(MixedJsonError::Resource)?;
+            let id=identity(value.as_ref(),"objects",work)?;
+            if index_next.remove(id.as_ref().as_str()).is_none() {return Err("StorageUnavailable：撤回对象尚未出生".into());}
+            if number(value.as_ref(),"withdrawn_generation")?!=g || number(value.as_ref(),"first_known_generation")?>g {
+                return Err("StorageUnavailable：撤回历史首次获知/撤回代不一致".into());
+            }
+            let reason=value["withdrawal_reason"].as_str().ok_or("StorageUnavailable：撤回原因缺失")?;
+            let mut withdrawal=ScopedLegacyRecord::object(ProjectionKind::Withdrawal,work)?;
+            withdrawal.borrowed(Field::ObjectId,&value["object_id"])?;
+            if tb02a::typed(value.as_ref()) {withdrawal.borrowed(Field::FactKey,&value["fact_key"])?;}
+            else {for (key,field) in [("window_start",Field::WindowStart),("window_mid",Field::WindowMid),("window_end",Field::WindowEnd)] {withdrawal.borrowed(field,&value[key])?;}}
+            withdrawal.text(Field::Reason,reason)?;
+            withdrawal.borrowed(Field::SupersededBy,&value["superseded_by"])?;
+            push(&mut withdrawals,withdrawal.finish(),work)?;
+            if !value["superseded_by"].is_null() {
+                let mut replace=ScopedLegacyRecord::object(ProjectionKind::Relation,work)?;
+                replace.borrowed(Field::OldObjectId,&value["object_id"])?;
+                replace.borrowed(Field::NewObjectId,&value["superseded_by"])?;
+                push(&mut replaces,replace.finish(),work)?;
+            }
+        }
+        let mut delta_next=copy_shared_tree(&self.active,work)?;
+        for value in required_array(delta,"upserts")? {
+            observer.visit_record("objects","delta-upsert",LegacyRecordRef::Json(value)).map_err(MixedJsonError::Resource)?;
+            let id=identity(value,"objects",work)?;
+            match delta_next.get(id.as_ref().as_str()) {
+                None=>{
+                    let copied=PlainJson::try_clone_from(value,Some(work)).map_err(MixedJsonError::Resource)?;
+                    let value=NativeArc::try_new_shallow(copied,Some(work)).map_err(MixedJsonError::Resource)?;
+                    delta_next.insert_admitted(id,value,&admission).map_err(MixedJsonError::Resource)?;
+                },
+                Some(old) if !mode.changes_only()=>{
+                    observer.visit_record("objects","delta-upsert-active",LegacyRecordRef::Json(old.as_ref())).map_err(MixedJsonError::Resource)?;
+                    let old=scoped_legacy::legacy_payload(old.as_ref(),work)?;
+                    let old=Text::try_format(format_args!("{}",old.as_ref()),Some(work)).map_err(MixedJsonError::Resource)?;
+                    let next=scoped_legacy::legacy_payload(value,work)?;
+                    let next=Text::try_format(format_args!("{}",next.as_ref()),Some(work)).map_err(MixedJsonError::Resource)?;
+                    if old!=next {return Err("StorageUnavailable：Delta upsert 与既有活动身份内容不一致".into());}
+                },
+                Some(_)=>return Err("StorageUnavailable：Delta upsert 覆盖既有活动身份（同 ID 异内容不得吞掉）".into()),
+            }
+        }
+        for value in required_array(delta,"withdrawals")? {
+            observer.visit_record("objects","delta-withdrawal",LegacyRecordRef::Json(value)).map_err(MixedJsonError::Resource)?;
+            let id=Text::try_from_str(value["object_id"].as_str().ok_or("StorageUnavailable：Delta 撤回缺 object_id")?,Some(work)).map_err(MixedJsonError::Resource)?;
+            if delta_next.remove(id.as_ref().as_str()).is_none() {return Err("StorageUnavailable：Delta 撤回无活动前件".into());}
+        }
+        let normalized_batch={
+            let actual=scoped_legacy::normalize_records(index_next.values().map(|v|v.as_ref().as_ref()),"objects/独立索引活动集","objects",work,observer)?;
+            let expected=scoped_legacy::normalize_records(batch_next.iter().map(PlainJson::as_ref),"objects/独立索引活动集","objects",work,observer)?;
+            scoped_legacy::compare_normalized(&actual,&expected,"objects/独立索引活动集","objects",observer)?;
+            expected
+        };
+        drop(batch_next);
+        {
+            let actual=scoped_legacy::normalize_records(delta_next.values().map(|v|v.as_ref().as_ref()),"objects/Delta活动集","objects",work,observer)?;
+            scoped_legacy::compare_normalized(&actual,&normalized_batch,"objects/Delta活动集","objects",observer)?;
+        }
+        same_records(value_array(&delta["withdrawals"])?,withdrawals.iter().map(PlainJson::as_ref),"withdrawals","objects",work,observer)?;
+        same_records(value_array(&delta["replaces"])?,replaces.iter().map(PlainJson::as_ref),"replaces","relations",work,observer)?;
+        if mode.changes_only() {
+            same_records(value_array(&delta["upserts"])?,index_born.iter().map(|v|v.as_ref().as_ref()),"upserts/本代首次","objects",work,observer)?;
+        } else {
+            let actual=scoped_legacy::normalize_records(value_array(&delta["upserts"])?, "upserts/batch","objects",work,observer)?;
+            scoped_legacy::compare_normalized(&actual,&normalized_batch,"upserts/batch","objects",observer)?;
+        }
+        drop(normalized_batch);
+        let mut witnesses=CodecVec::default();
+        for value in required_array(batch,"witnesses")? {
+            observer.visit_record("witnesses","batch-project",LegacyRecordRef::Json(value)).map_err(MixedJsonError::Resource)?;
+            push(&mut witnesses,scoped_legacy::project_witness_wire(value,work)?,work)?;
+        }
+        let mut relations=CodecVec::default();
+        for value in required_array(batch,"relations")? {
+            observer.visit_record("relations","batch-project",LegacyRecordRef::Json(value)).map_err(MixedJsonError::Resource)?;
+            push(&mut relations,PlainJson::try_clone_from(value,Some(work)).map_err(MixedJsonError::Resource)?,work)?;
+        }
+        for replace in &replaces {
+            observer.visit_record("relations","replacement-relation",LegacyRecordRef::Json(replace)).map_err(MixedJsonError::Resource)?;
+            let mut relation=ScopedLegacyRecord::object(ProjectionKind::Relation,work)?;
+            relation.borrowed(Field::Subject,&replace["new_object_id"])?;
+            relation.text(Field::RelationType,"replaces")?;
+            relation.borrowed(Field::Object,&replace["old_object_id"])?;
+            push(&mut relations,relation.finish(),work)?;
+        }
+        let to=number(delta,"input_frontier")?;
+        let end=usize::try_from(to.checked_add(1).ok_or("StorageUnavailable：前沿溢出")?).map_err(|e|e.to_string())?;
+        let raw=self.raw.get(..end).ok_or("StorageUnavailable：批次前沿超过原始事实")?;
+        let mut batch_raw=CodecVec::default();
+        for value in required_array(batch,"raw_events")? {
+            observer.visit_record("raw_history","batch-project",LegacyRecordRef::Json(value)).map_err(MixedJsonError::Resource)?;
+            push(&mut batch_raw,scoped_legacy::project_raw_event_wire(value,work)?,work)?;
+        }
+        same_records(raw.iter().map(PlainJson::as_ref),batch_raw.iter().map(PlainJson::as_ref),"raw_history/batch","raw_history",work,observer)?;
+        let from=usize::try_from(number(&delta["seq_range"],"from")?).map_err(|e|e.to_string())?;
+        same_records(value_array(&delta["raw_history_added"])?,raw.get(from..).ok_or("StorageUnavailable：raw区间反向")?.iter().map(PlainJson::as_ref),
+            "raw_history_added","raw_history",work,observer)?;
+        for value in raw {
+            observer.visit_record("raw_history","raw-supersedes",LegacyRecordRef::Json(value)).map_err(MixedJsonError::Resource)?;
+            if let Some(sup)=value["supersedes_revision"].as_str() {
+                let subject=Text::try_format(format_args!("{}@{}",value["identity_key"].as_str().unwrap_or(""),value["revision"].as_str().unwrap_or("")),Some(work)).map_err(MixedJsonError::Resource)?;
+                let object=Text::try_format(format_args!("{}@{sup}",value["identity_key"].as_str().unwrap_or("")),Some(work)).map_err(MixedJsonError::Resource)?;
+                let mut relation=ScopedLegacyRecord::object(ProjectionKind::Relation,work)?;
+                relation.text(Field::Subject,&subject)?; relation.text(Field::RelationType,"supersedes")?; relation.text(Field::Object,&object)?;
+                push(&mut relations,relation.finish(),work)?;
+            }
+        }
+        if !mode.changes_only() {
+            same_records(value_array(&delta["witnesses"])?,witnesses.iter().map(PlainJson::as_ref),"witnesses/batch","witnesses",work,observer)?;
+            same_records(value_array(&delta["relations"])?,relations.iter().map(PlainJson::as_ref),"relations/batch","relations",work,observer)?;
+        }
+        let mut observations=CodecVec::default();
+        let mut first_observations=CodecVec::default();
+        for ob in required_array(batch,"observations")? {
+            observer.visit_record("observations","batch-observation",LegacyRecordRef::Json(ob)).map_err(MixedJsonError::Resource)?;
+            let id=observation_identity(ob,work)?;
+            let (stored,_,born)=self.observations.records.get(id.as_ref().as_str()).ok_or("StorageUnavailable：观察没有独立端点")?;
+            observer.visit_record("observations","batch-observation-index",LegacyRecordRef::Json(stored.as_ref())).map_err(MixedJsonError::Resource)?;
+            if !self.original_observations.contains_key(id.as_ref().as_str()) {
+                if *born!=g || stored["batch_id"]!=delta["index_frontier"] {return Err("StorageUnavailable：观察首版批次/出生代不一致".into());}
+                let mut first=ScopedLegacyRecord::clone_projection(ProjectionKind::ObservationWire,ob,work)?;
+                first.replace_text(Field::ObservationId,&id)?;
+                first.replace_known_field(Field::BatchId,&delta["index_frontier"])?;
+                let original=scoped_legacy::project_observation_wire(&first.finish(),work)?;
+                same_records(std::iter::once(stored.as_ref().as_ref()),std::iter::once(original.as_ref()),
+                    "observation/原封存首版","observations",work,observer)?;
+                let original=NativeArc::try_new_shallow(original,Some(work)).map_err(MixedJsonError::Resource)?;
+                self.original_observations.insert_admitted(id.try_clone_admitted(work).map_err(MixedJsonError::Resource)?,original,&admission).map_err(MixedJsonError::Resource)?;
+            }
+            let original=self.original_observations.get(id.as_ref().as_str()).unwrap().clone();
+            if *born==g {push(&mut first_observations,original.clone(),work)?;}
+            push(&mut observations,original,work)?;
+        }
+        if mode.changes_only() {
+            same_records(value_array(&delta["observations"])?,first_observations.iter().map(|v|v.as_ref().as_ref()),
+                "observations/本代首次","observations",work,observer)?;
+        } else {
+            same_records(value_array(&delta["observations"])?,observations.iter().map(|v|v.as_ref().as_ref()),
+                "observations/首版","observations",work,observer)?;
+        }
+        self.witnesses.verify(delta,g,mode,witnesses.iter().map(PlainJson::as_ref),work,observer)?;
+        self.relations.verify(delta,g,mode,relations.iter().map(PlainJson::as_ref),work,observer)?;
+        self.observations.verify(delta,g,mode,observations.iter().map(|v|v.as_ref().as_ref()),work,observer)?;
+        self.active=index_next;
+        Ok(())
+    }
+}

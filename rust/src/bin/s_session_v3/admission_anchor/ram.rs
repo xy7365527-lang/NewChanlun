@@ -971,6 +971,104 @@ mod tests {
     }
 
     #[test]
+    fn mixed_audit_walk_verify_matches_original_three_way_and_failures() {
+        use crate::v3::audit_budget::LegacyObserver;
+        use newchan_rust::s_content::{
+            self as sc,
+            job::{Existing, Job},
+        };
+        use std::cell::RefCell;
+        struct Observer<'a> {
+            job: RefCell<Job>,
+            work: &'a sc::capture_allocation::scratch::WorkScope,
+        }
+        impl LegacyObserver for Observer<'_> {
+            fn visit_record(
+                &self,
+                _family: &'static str,
+                _process: &'static str,
+                _member: crate::v3::audit_budget::LegacyRecordRef<'_>,
+            ) -> Result<(), sc::CodecError> {
+                self.job.borrow_mut().charge_records(1)
+            }
+
+            fn precheck(&self) -> Result<(), sc::CodecError> {
+                self.job.borrow_mut().pre_io_check()
+            }
+            fn check_work(
+                &self,
+                work: &sc::capture_allocation::scratch::WorkScope,
+            ) -> Result<(), sc::CodecError> {
+                let token = self.work.reserve_native(0)?;
+                if !token.belongs_to_parent(work) {
+                    return Err(work.reject(ScratchFailure::Ledger));
+                }
+                Ok(())
+            }
+            fn accept_checked(
+                &self,
+                row: &sc::legacy_evidence::CheckedLegacyEvidenceRow,
+            ) -> Result<(), sc::CodecError> {
+                self.job
+                    .borrow_mut()
+                    .accept_legacy_evidence(row, self.work)
+                    .map(|_| ())
+            }
+        }
+
+        let conn=rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch(crate::SCHEMA).unwrap();
+        conn.execute_batch("INSERT INTO objects VALUES('o',1,'k','b','branch','up','down',0,1,2,'[]','[]','[]',1,'cut',1,NULL,NULL,NULL)").unwrap();
+        let record=serde_json::json!({
+            "object_id":"o","object_revision":1,"kind":"k","batch_id":"b","branch":"branch",
+            "dir_ab":"up","dir_bc":"down","window_start":0,"window_mid":1,"window_end":2,
+            "comparisons_json":"[]","input_refs_json":"[]","source_coords_json":"[]",
+            "first_known_generation":1,"first_known_cut":"cut","published_generation":1
+        });
+        let scope=serde_json::json!({"structure":"CompleteCut","economic":"not_started"});
+        let batch=serde_json::json!({"scope":scope,"profile_id":"legacy","profile_hash":"h","rule_revision":"r",
+            "objects":[record],"witnesses":[],"relations":[],"observations":[],"raw_events":[]});
+        let upsert=crate::project_object_wire(&batch["objects"][0]).unwrap();
+        let delta=serde_json::json!({
+            "upserts":[upsert],"withdrawals":[],"replaces":[],"witnesses":[],"relations":[],
+            "observations":[],"raw_history_added":[],"index_frontier":"b","next_cut":"cut",
+            "input_frontier":"-1","seq_range":{"from":"0"},"catalog_run_status":"run",
+            "catalog_evidence":{"scope":scope,"profile_id":"legacy","profile_hash":"h","rule_revision":"r",
+                "batch_id":"b","structure_cut":"cut","classified_objects":1,"windows_total":0,
+                "merged_bars":0,"effective_source_positions":0,"withdrawals":0,"replaces":0,
+                "insufficient_knowledge":0,"domain_not_satisfied":0}
+        });
+        for mode in [crate::delta_storage::Mode::ChangesOnly,crate::delta_storage::Mode::LegacyFull] {
+            for case in 0..4 {
+                let mut candidate=delta.clone();
+                match case {
+                    1=>candidate["upserts"].as_array_mut().unwrap().push(upsert.clone()),
+                    2=>candidate["index_frontier"]=serde_json::json!("wrong"),
+                    3=>candidate["upserts"]=serde_json::json!([]),
+                    _=>{}
+                }
+                let mut original=crate::audit::AuditWalk::capture(&conn,&[]).unwrap();
+                let expected=original.verify(&candidate,1,&batch,mode);
+                let owner=AdmissionRamLedger::new(limits(1<<20)).unwrap();
+                owner.codec_work().unwrap().run(|work|{
+                    let job=Job::new_started_mixed(job_limits(),Existing{store_bytes:0,staged_bytes:0},
+                        Box::new(std::time::Instant::now),std::time::Instant::now(),work)?;
+                    let observer=Observer{job:RefCell::new(job),work};
+                    let mut walk=crate::audit::mixed::AuditWalk::capture(&conn,std::iter::empty(),work,&observer).unwrap();
+                    let actual=walk.verify(&candidate,1,&batch,mode,work,&observer);
+                    match (&expected,&actual) {
+                        (Ok(()),Ok(()))=>{original.finish().unwrap();walk.finish().unwrap();},
+                        (Err(expected),Err(crate::v3::business_json::MixedJsonError::Business(actual)))=>assert_eq!(actual,expected),
+                        _=>panic!("case {case}, mode {mode:?}: old={expected:?}, mixed={actual:?}"),
+                    }
+                    assert_eq!(actual.is_ok(),case==0 || (case==1 && !mode.changes_only()));
+                    Ok(())
+                }).unwrap();
+            }
+        }
+    }
+
+    #[test]
     fn mixed_ram_sql_node_acceptance_is_fresh_and_rejects_corrupt_original() {
         use crate::v3::audit_budget::LegacyObserver;
         use newchan_rust::s_content::{

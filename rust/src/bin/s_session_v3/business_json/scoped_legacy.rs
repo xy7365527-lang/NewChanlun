@@ -16,6 +16,7 @@ pub(crate) enum ProjectionKind {
 }
 #[derive(Clone, Copy)]
 pub(crate) enum Field {
+    OldObjectId, NewObjectId,
     SchemaRevision,
     Open,
     High,
@@ -84,6 +85,7 @@ pub(crate) enum Field {
 impl Field {
     fn name(self) -> &'static str {
         match self {
+            Self::OldObjectId => "old_object_id", Self::NewObjectId => "new_object_id",
             Self::SchemaRevision => "schema_revision",
             Self::Open => "open",
             Self::High => "high",
