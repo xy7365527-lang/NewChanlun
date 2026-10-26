@@ -16,7 +16,8 @@ pub(crate) enum ProjectionKind {
 }
 #[derive(Clone, Copy)]
 pub(crate) enum Field {
-    OldObjectId, NewObjectId,
+    OldObjectId,
+    NewObjectId,
     SchemaRevision,
     Open,
     High,
@@ -85,7 +86,8 @@ pub(crate) enum Field {
 impl Field {
     fn name(self) -> &'static str {
         match self {
-            Self::OldObjectId => "old_object_id", Self::NewObjectId => "new_object_id",
+            Self::OldObjectId => "old_object_id",
+            Self::NewObjectId => "new_object_id",
             Self::SchemaRevision => "schema_revision",
             Self::Open => "open",
             Self::High => "high",
@@ -987,9 +989,17 @@ pub(crate) fn normalize_records<'a>(
             .map_err(MixedJsonError::Resource)?;
         out.try_push(text).map_err(MixedJsonError::Resource)?;
     }
-    let sort_bytes = out.len().checked_mul(std::mem::size_of::<NativeValue<String>>())
-        .ok_or_else(|| MixedJsonError::Resource(work.reject(sc::capture_allocation::scratch::ScratchFailure::Budget)))?;
-    let sort_permit = work.reserve_native(sort_bytes).map_err(MixedJsonError::Resource)?;
+    let sort_bytes = out
+        .len()
+        .checked_mul(std::mem::size_of::<NativeValue<String>>())
+        .ok_or_else(|| {
+            MixedJsonError::Resource(
+                work.reject(sc::capture_allocation::scratch::ScratchFailure::Budget),
+            )
+        })?;
+    let sort_permit = work
+        .reserve_native(sort_bytes)
+        .map_err(MixedJsonError::Resource)?;
     out.sort();
     drop(sort_permit);
     if out.windows(2).any(|w| w[0] == w[1]) {
@@ -1037,83 +1047,165 @@ pub(crate) fn compare_normalized(
     Ok(())
 }
 
-pub(crate) fn project_object_wire(value:&Value,work:&WorkScope)->Result<PlainJson,MixedJsonError>{
-    if crate::tb02a::typed(value) {return project_fact(value,work);}
-    let comparisons=crate::json_shape_mixed(value["comparisons_json"].as_str().unwrap_or("[]"),crate::JsonShape::Array,work)?;
-    let refs=crate::json_shape_mixed(value["input_refs_json"].as_str().unwrap_or("[]"),crate::JsonShape::Array,work)?;
-    let coords=crate::json_shape_mixed(value["source_coords_json"].as_str().unwrap_or("[]"),crate::JsonShape::Array,work)?;
-    let mut out=ScopedLegacyRecord::object(ProjectionKind::ObjectWire,work)?;
-    out.borrowed(Field::ObjectId,&value["object_id"])?;
-    out.integer(Field::ObjectRevision,integer_value(&value["object_revision"])?)?;
-    out.borrowed(Field::Kind,&value["kind"])?;
-    out.borrowed(Field::BatchId,&value["batch_id"])?;
-    out.borrowed(Field::Branch,&value["branch"])?;
-    out.borrowed(Field::DirAb,&value["dir_ab"])?;
-    out.borrowed(Field::DirBc,&value["dir_bc"])?;
-    for (key,field) in [("window_start",Field::WindowStart),("window_mid",Field::WindowMid),("window_end",Field::WindowEnd)] {
-        out.integer(field,integer_value(&value[key])?)?;
+pub(crate) fn project_object_wire(
+    value: &Value,
+    work: &WorkScope,
+) -> Result<PlainJson, MixedJsonError> {
+    if crate::tb02a::typed(value) {
+        return project_fact(value, work);
     }
-    out.insert(Field::Comparisons,comparisons)?;
-    out.insert(Field::InputRefs,project_input_refs(&refs,work)?)?;
-    out.insert(Field::SourceCoords,coords)?;
-    out.integer(Field::FirstKnownGeneration,integer_value(&value["first_known_generation"])?)?;
-    out.borrowed(Field::FirstKnownCut,&value["first_known_cut"])?;
-    out.integer(Field::PublishedGeneration,integer_value(&value["published_generation"])?)?;
+    let comparisons = crate::json_shape_mixed(
+        value["comparisons_json"].as_str().unwrap_or("[]"),
+        crate::JsonShape::Array,
+        work,
+    )?;
+    let refs = crate::json_shape_mixed(
+        value["input_refs_json"].as_str().unwrap_or("[]"),
+        crate::JsonShape::Array,
+        work,
+    )?;
+    let coords = crate::json_shape_mixed(
+        value["source_coords_json"].as_str().unwrap_or("[]"),
+        crate::JsonShape::Array,
+        work,
+    )?;
+    let mut out = ScopedLegacyRecord::object(ProjectionKind::ObjectWire, work)?;
+    out.borrowed(Field::ObjectId, &value["object_id"])?;
+    out.integer(
+        Field::ObjectRevision,
+        integer_value(&value["object_revision"])?,
+    )?;
+    out.borrowed(Field::Kind, &value["kind"])?;
+    out.borrowed(Field::BatchId, &value["batch_id"])?;
+    out.borrowed(Field::Branch, &value["branch"])?;
+    out.borrowed(Field::DirAb, &value["dir_ab"])?;
+    out.borrowed(Field::DirBc, &value["dir_bc"])?;
+    for (key, field) in [
+        ("window_start", Field::WindowStart),
+        ("window_mid", Field::WindowMid),
+        ("window_end", Field::WindowEnd),
+    ] {
+        out.integer(field, integer_value(&value[key])?)?;
+    }
+    out.insert(Field::Comparisons, comparisons)?;
+    out.insert(Field::InputRefs, project_input_refs(&refs, work)?)?;
+    out.insert(Field::SourceCoords, coords)?;
+    out.integer(
+        Field::FirstKnownGeneration,
+        integer_value(&value["first_known_generation"])?,
+    )?;
+    out.borrowed(Field::FirstKnownCut, &value["first_known_cut"])?;
+    out.integer(
+        Field::PublishedGeneration,
+        integer_value(&value["published_generation"])?,
+    )?;
     match value["withdrawn_generation"].as_i64() {
-        Some(n)=>out.integer(Field::WithdrawnGeneration,n)?,
-        None=>out.null(Field::WithdrawnGeneration)?,
+        Some(n) => out.integer(Field::WithdrawnGeneration, n)?,
+        None => out.null(Field::WithdrawnGeneration)?,
     }
-    out.borrowed(Field::WithdrawalReason,&value["withdrawal_reason"])?;
-    out.borrowed(Field::SupersededBy,&value["superseded_by"])?;
-    out.text(Field::Lifecycle,if value["withdrawn_generation"].as_i64().is_some() {"withdrawn"}else{"active"})?;
+    out.borrowed(Field::WithdrawalReason, &value["withdrawal_reason"])?;
+    out.borrowed(Field::SupersededBy, &value["superseded_by"])?;
+    out.text(
+        Field::Lifecycle,
+        if value["withdrawn_generation"].as_i64().is_some() {
+            "withdrawn"
+        } else {
+            "active"
+        },
+    )?;
     Ok(out.finish())
 }
-pub(crate) fn project_witness_wire(value:&Value,work:&WorkScope)->Result<PlainJson,MixedJsonError>{
-    let bars=PlainJson::try_clone_from(&value["raw_bars"],Some(work)).map_err(MixedJsonError::Resource)?;
-    let mut out=ScopedLegacyRecord::object(ProjectionKind::WitnessWire,work)?;
-    out.borrowed(Field::WitnessId,&value["witness_id"])?;
-    out.borrowed(Field::ObjectId,&value["object_id"])?;
-    out.integer(Field::Slot,integer_value(&value["slot"])?)?;
-    out.integer(Field::MergedSourceIndex,integer_value(&value["merged_source_index"])?)?;
-    for (key,field) in [("merged_high",Field::MergedHigh),("merged_low",Field::MergedLow),("merged_open",Field::MergedOpen),("merged_close",Field::MergedClose)] {
-        out.borrowed(field,&value[key])?;
+pub(crate) fn project_witness_wire(
+    value: &Value,
+    work: &WorkScope,
+) -> Result<PlainJson, MixedJsonError> {
+    let bars = PlainJson::try_clone_from(&value["raw_bars"], Some(work))
+        .map_err(MixedJsonError::Resource)?;
+    let mut out = ScopedLegacyRecord::object(ProjectionKind::WitnessWire, work)?;
+    out.borrowed(Field::WitnessId, &value["witness_id"])?;
+    out.borrowed(Field::ObjectId, &value["object_id"])?;
+    out.integer(Field::Slot, integer_value(&value["slot"])?)?;
+    out.integer(
+        Field::MergedSourceIndex,
+        integer_value(&value["merged_source_index"])?,
+    )?;
+    for (key, field) in [
+        ("merged_high", Field::MergedHigh),
+        ("merged_low", Field::MergedLow),
+        ("merged_open", Field::MergedOpen),
+        ("merged_close", Field::MergedClose),
+    ] {
+        out.borrowed(field, &value[key])?;
     }
-    out.insert(Field::RawBars,project_raw_bars(&bars,work)?)?;
+    out.insert(Field::RawBars, project_raw_bars(&bars, work)?)?;
     Ok(out.finish())
 }
-pub(crate) fn project_observation_wire(value:&Value,work:&WorkScope)->Result<PlainJson,MixedJsonError>{
-    let mut out=ScopedLegacyRecord::object(ProjectionKind::ObservationWire,work)?;
-    out.borrowed(Field::ObservationId,&value["observation_id"])?;
-    out.borrowed(Field::BatchId,&value["batch_id"])?;
-    out.borrowed(Field::Kind,&value["kind"])?;
-    for (key,field) in [("window_start",Field::WindowStart),("window_mid",Field::WindowMid),("window_end",Field::WindowEnd)] {
-        if value[key].is_null() {out.null(field)?;}else{out.integer(field,integer_value(&value[key])?)?;}
+pub(crate) fn project_observation_wire(
+    value: &Value,
+    work: &WorkScope,
+) -> Result<PlainJson, MixedJsonError> {
+    let mut out = ScopedLegacyRecord::object(ProjectionKind::ObservationWire, work)?;
+    out.borrowed(Field::ObservationId, &value["observation_id"])?;
+    out.borrowed(Field::BatchId, &value["batch_id"])?;
+    out.borrowed(Field::Kind, &value["kind"])?;
+    for (key, field) in [
+        ("window_start", Field::WindowStart),
+        ("window_mid", Field::WindowMid),
+        ("window_end", Field::WindowEnd),
+    ] {
+        if value[key].is_null() {
+            out.null(field)?;
+        } else {
+            out.integer(field, integer_value(&value[key])?)?;
+        }
     }
-    out.borrowed(Field::Reason,&value["reason"])?;
-    out.borrowed(Field::Detail,&value["detail"])?;
+    out.borrowed(Field::Reason, &value["reason"])?;
+    out.borrowed(Field::Detail, &value["detail"])?;
     Ok(out.finish())
 }
-pub(crate) fn project_raw_event_wire(value:&Value,work:&WorkScope)->Result<PlainJson,MixedJsonError>{
-    let mut out=ScopedLegacyRecord::object(ProjectionKind::RawEventWire,work)?;
-    out.borrowed(Field::IdentityKey,&value["identity_key"])?;
-    out.integer(Field::Revision,integer_value(&value["revision"])?)?;
-    for (key,field) in [("input_revision",Field::InputRevision),("payload_hash",Field::PayloadHash),("receipt_id",Field::ReceiptId)] {
-        out.borrowed(field,&value[key])?;
+pub(crate) fn project_raw_event_wire(
+    value: &Value,
+    work: &WorkScope,
+) -> Result<PlainJson, MixedJsonError> {
+    let mut out = ScopedLegacyRecord::object(ProjectionKind::RawEventWire, work)?;
+    out.borrowed(Field::IdentityKey, &value["identity_key"])?;
+    out.integer(Field::Revision, integer_value(&value["revision"])?)?;
+    for (key, field) in [
+        ("input_revision", Field::InputRevision),
+        ("payload_hash", Field::PayloadHash),
+        ("receipt_id", Field::ReceiptId),
+    ] {
+        out.borrowed(field, &value[key])?;
     }
-    out.integer(Field::Seq,integer_value(&value["seq"])?)?;
-    for (key,field) in [
-        ("source_namespace",Field::SourceNamespace),("source_epoch",Field::SourceEpoch),("instrument",Field::Instrument),
-        ("event_id",Field::EventId),("received_at",Field::ReceivedAt),("raw_text",Field::RawText),("price",Field::Price),
-        ("ts",Field::Ts),("volume",Field::Volume),("source_coord",Field::SourceCoord),
-    ] {out.borrowed(field,&value[key])?;}
+    out.integer(Field::Seq, integer_value(&value["seq"])?)?;
+    for (key, field) in [
+        ("source_namespace", Field::SourceNamespace),
+        ("source_epoch", Field::SourceEpoch),
+        ("instrument", Field::Instrument),
+        ("event_id", Field::EventId),
+        ("received_at", Field::ReceivedAt),
+        ("raw_text", Field::RawText),
+        ("price", Field::Price),
+        ("ts", Field::Ts),
+        ("volume", Field::Volume),
+        ("source_coord", Field::SourceCoord),
+    ] {
+        out.borrowed(field, &value[key])?;
+    }
     match value["supersedes_revision"].as_i64() {
-        Some(n)=>out.integer(Field::SupersedesRevision,n)?,
-        None=>out.null(Field::SupersedesRevision)?,
+        Some(n) => out.integer(Field::SupersedesRevision, n)?,
+        None => out.null(Field::SupersedesRevision)?,
     }
-    if value["schema_revision"]==crate::tb02a::RAW_SCHEMA {
+    if value["schema_revision"] == crate::tb02a::RAW_SCHEMA {
         out.remove(Field::Price)?;
-        for (key,field) in [("schema_revision",Field::SchemaRevision),("open",Field::Open),("high",Field::High),("low",Field::Low),("close",Field::Close)] {
-            out.borrowed(field,&value[key])?;
+        for (key, field) in [
+            ("schema_revision", Field::SchemaRevision),
+            ("open", Field::Open),
+            ("high", Field::High),
+            ("low", Field::Low),
+            ("close", Field::Close),
+        ] {
+            out.borrowed(field, &value[key])?;
         }
     }
     Ok(out.finish())
