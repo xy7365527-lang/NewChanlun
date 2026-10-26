@@ -337,7 +337,7 @@ pub struct PositionalResult {
     pub n_nrf_cost_rejects_by_ladder: [u64; MAX_LADDER],
     /// θ 参照不可定义拒数（warm-up 保守拒绝，按子层）。
     pub n_nrf_noref_rejects_by_ladder: [u64; MAX_LADDER],
-    /// floor 触底数（k−1 < floor——存在论终止（笔=a0），按父层）。
+    /// floor 触底数（k−1 < floor——阶梯下限终止（笔层不开一类点），按父层）。
     pub n_nrf_floor_stops_by_ladder: [u64; MAX_LADDER],
     /// 尾 voice 翻转数（confirmed 走势完美 ⇒ 平旧开新；同一笔物理交易在
     /// 父层 = 短差腿闭/开——双层记账的核心机制读数，按层）。
