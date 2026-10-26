@@ -51,6 +51,7 @@ mod bi_zhongshu_bsp;
 mod buysellpoint;
 #[cfg(test)]
 mod c_segment_verify;
+pub mod diagnostic_fill;
 mod divergence;
 mod fractal;
 /// 赋格引擎 v3（递归嵌套多重赋格 = 操作必然结构）。层结构四步循环操作引擎，复用
@@ -58,7 +59,6 @@ mod fractal;
 pub mod fugue_v3;
 /// #1601：ADR 0040 资金签署记录（`Q_total`、`l_start`）的唯一读取点。
 pub mod funding_record;
-pub mod diagnostic_fill;
 mod level;
 mod macd;
 mod moves;
