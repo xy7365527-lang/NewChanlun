@@ -26,7 +26,12 @@ pub(crate) trait Budget {
 }
 
 /// #1527：旧域节点只能来自完整原行核验；资格只借当前Job，不进缓存。
+pub(crate) enum LegacyRecordRef<'a> {
+    Json(&'a serde_json::Value),
+    Canonical(&'a str),
+}
 pub(crate) trait LegacyObserver {
+    fn visit_record(&self, family: &'static str, process: &'static str, member: LegacyRecordRef<'_>) -> Result<(), sc::CodecError>;
     fn precheck(&self) -> Result<(), sc::CodecError>;
     fn check_work(
         &self,
@@ -48,6 +53,10 @@ impl<'s, 'j> AdmissionLegacyObserver<'s, 'j> {
     }
 }
 impl LegacyObserver for AdmissionLegacyObserver<'_, '_> {
+    fn visit_record(&self, _family: &'static str, _process: &'static str, _member: LegacyRecordRef<'_>) -> Result<(), sc::CodecError> {
+        self.account.borrow_mut().charge_records(1)
+    }
+
     fn precheck(&self) -> Result<(), sc::CodecError> {
         self.account.borrow_mut().pre_io_check()
     }

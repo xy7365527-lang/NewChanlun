@@ -853,3 +853,39 @@ fn wire_integers(value: &Value, work: &WorkScope) -> Result<PlainJson, MixedJson
         _=>PlainJson::try_clone_from(value,Some(work)).map_err(MixedJsonError::Resource),
     }
 }
+
+pub(crate) fn normalize_records<'a>(
+    records: impl IntoIterator<Item=&'a Value>, field: &str, family: &'static str,
+    work: &WorkScope, observer: &dyn crate::v3::audit_budget::LegacyObserver,
+) -> Result<sc::CodecVec<NativeValue<String>>, MixedJsonError> {
+    use crate::v3::audit_budget::LegacyRecordRef;
+    observer.check_work(work).map_err(MixedJsonError::Resource)?;
+    let mut out=sc::CodecVec::default();
+    for record in records {
+        observer.visit_record(family,"normalize",LegacyRecordRef::Json(record)).map_err(MixedJsonError::Resource)?;
+        if !record.is_object() {return Err(MixedJsonError::Business("StorageUnavailable：集合成员非对象".into()));}
+        let projected=legacy_payload(record,work)?;
+        let text=NativeValue::try_format(format_args!("{}",projected.as_ref()),Some(work)).map_err(MixedJsonError::Resource)?;
+        out.try_reserve_native(work,1).map_err(MixedJsonError::Resource)?;
+        out.try_push(text).map_err(MixedJsonError::Resource)?;
+    }
+    out.sort();
+    if out.windows(2).any(|w|w[0]==w[1]) {
+        return Err(MixedJsonError::Business(format!("StorageUnavailable：{field} 重复成员")));
+    }
+    Ok(out)
+}
+pub(crate) fn compare_normalized(
+    actual: &[NativeValue<String>], expected: &[NativeValue<String>], field:&str,
+    family:&'static str, observer:&dyn crate::v3::audit_budget::LegacyObserver,
+) -> Result<(), MixedJsonError> {
+    use crate::v3::audit_budget::LegacyRecordRef;
+    let mismatch=||MixedJsonError::Business(format!("StorageUnavailable：{field} 与封存批次/同 cut 持久快照不一致"));
+    if actual.len()!=expected.len() {return Err(mismatch());}
+    for (actual,expected) in actual.iter().zip(expected) {
+        observer.visit_record(family,"compare",LegacyRecordRef::Canonical(actual.as_ref())).map_err(MixedJsonError::Resource)?;
+        observer.visit_record(family,"compare",LegacyRecordRef::Canonical(expected.as_ref())).map_err(MixedJsonError::Resource)?;
+        if actual!=expected {return Err(mismatch());}
+    }
+    Ok(())
+}

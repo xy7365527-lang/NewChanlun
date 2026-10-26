@@ -973,6 +973,10 @@ mod tests {
             work: &'a sc::capture_allocation::scratch::WorkScope,
         }
         impl LegacyObserver for Observer<'_> {
+            fn visit_record(&self, _family: &'static str, _process: &'static str, _member: crate::v3::audit_budget::LegacyRecordRef<'_>) -> Result<(), sc::CodecError> {
+                self.job.borrow_mut().charge_records(1)
+            }
+
             fn precheck(&self) -> Result<(), sc::CodecError> {
                 self.job.borrow_mut().pre_io_check()
             }
@@ -1021,6 +1025,18 @@ mod tests {
             let job = Job::new_started_mixed(job_limits(),Existing {store_bytes:0,staged_bytes:0},
                 Box::new(std::time::Instant::now),std::time::Instant::now(),work)?;
             let observer = Observer {job:RefCell::new(job),work};
+            {
+                use crate::v3::business_json::scoped_legacy::{normalize_records,compare_normalized};
+                let original=serde_json::json!({"detail":{"n":2}});
+                let before=observer.job.borrow().snapshot().records;
+                let actual=normalize_records([&original],"test","objects",work,&observer).unwrap();
+                let expected=normalize_records([&original],"test","objects",work,&observer).unwrap();
+                compare_normalized(&actual,&expected,"test","objects",&observer).unwrap();
+                assert_eq!(observer.job.borrow().snapshot().records-before,4);
+                let before=observer.job.borrow().snapshot().records;
+                assert!(compare_normalized(&actual,&[],"test","objects",&observer).is_err());
+                assert_eq!(observer.job.borrow().snapshot().records,before,"length mismatch reads no members");
+            }
             let first = crate::evidence_store::read_node_mixed(&conn,&id,work,&observer).unwrap();
             assert_eq!(first.payload(),payload);
             assert_eq!(first.checked().id(),&id);
