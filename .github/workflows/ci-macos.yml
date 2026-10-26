@@ -81,10 +81,6 @@ jobs:
           TB03C_FIN2_EVIDENCE_DIR: ${{ runner.temp }}/issue1672-fin2-evidence
         run: ../s_session/tests/drive_tb03c_fin2_hfs.sh cargo test --locked --features s_session --lib tb03c_fin2 -- --ignored --nocapture --test-threads=1
 
-      - name: cargo test — economic_session / session_transport / session_protocol 库测试（#1394 G-1）
-        if: always()
-        run: cargo test --locked --features s_session --lib -- economic_session session_transport session_protocol
-
       - name: Archive FIN/2 originals and carrier cleanup (#1672)
         if: always()
         uses: actions/upload-artifact@v4
@@ -92,3 +88,7 @@ jobs:
           name: issue1672-fin2-${{ github.sha }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/issue1672-fin2-evidence
           if-no-files-found: error
+
+      - name: cargo test — economic_session / session_transport / session_protocol 库测试（#1394 G-1）
+        if: always()
+        run: cargo test --locked --features s_session --lib -- economic_session session_transport session_protocol
