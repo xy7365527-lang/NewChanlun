@@ -1,6 +1,6 @@
 {
   "checked_at": "2026-10-25T22:25:48.958756+00:00",
-  "projection_note": "本入仓副本保留逐项 HEAD、工作区状态、移除结果与后验；原始 ignored 文件列表和环境扫描留在仓外执行报告。",
+  "projection_note": "本入仓副本保留逐项 HEAD、工作区状态、移除结果与后验；原始 ignored 文件列表留在仓外执行报告。",
   "preflight": [
     {
       "id": "05",
