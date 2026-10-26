@@ -109,6 +109,9 @@ jobs:
   #   只读会话；manifest 冻结 SessionClosure 读法，reader_resources 八项与 E/B response_timeout_ms 3000 保持原值。
   #   E、B:alpha、B:beta 各占一个 24 MiB 临时 HFS+ 卷（同上）。负控在同一场景的 SR 评估第二事务内越过 3000 ms
   #   期限，须不留提交；与正控分两次 cargo test 顺序执行，各起一个 S 会话。原件（会话回执、stdout/stderr、证据 JSON）总上传。
+  #   判定构建为现存 [profile.release]（ADR 0039 生产二进制取 release；主控 26BC 采纳 26BB）。这是 s_session 下
+  #   E 业务核接真实 S 的组件验收，不是完整 production_session、回放或 paper/live 链。debug 两次失败留在 run
+  #   40313246715 原件里，不在此重跑。
   issue1717-real-s:
     runs-on: macos-latest
     timeout-minutes: 60
@@ -136,7 +139,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ runner.arch }}-cargo-registry-v1-
 
-      - name: cargo test — issue 1717 真实 S 内容域正控与在途越期负控（单 bar 会话读法，三个临时固定容量 HFS+ 卷）
+      - name: cargo test --release — issue 1717 release 组件验收：真实 S 内容域正控与在途越期负控（单 bar 会话读法，三个临时固定容量 HFS+ 卷）
         run: |
           root="$RUNNER_TEMP/tb1717-real-s"
           mkdir -p "$root/work" "$root/s3" "$root/mnt"
@@ -154,28 +157,21 @@ jobs:
             --ignored --exact v3::financial_session::tests::export_real_s3_fixture_for_economic_content_domain
           cargo build --release --locked --features s_session --bin s_structure_session
           ls -l target/release/s_structure_session
-          # 正控与负控各跑一次、各记退出码与日志；任一失败本步失败。release 对照只在 debug 正控失败时跑，只作诊断，不参与判定。
+          # 正控与负控各跑一次 release、各记退出码与日志；任一非零本步失败。
           run1717() {
-            label=$1; export_json=$2; shift 2
+            label=$1; test=$2
             set +e
-            TB03B_TEST_ROOT="$root/work" TB1717_HFS_CARRIERS="$carriers" TB1717_S_EXPORT="$export_json" \
+            TB03B_TEST_ROOT="$root/work" TB1717_HFS_CARRIERS="$carriers" TB1717_S_EXPORT="$root/s3/export.json" \
               TB1717_S_BINARY="$PWD/target/release/s_structure_session" \
-              cargo test --locked --features s_session --lib "$@" -- --ignored --exact --nocapture \
+              cargo test --release --locked --features s_session --lib -- --ignored --exact --nocapture \
               "economic_session::finance::tests::sr_expansion::$test" 2>&1 | tee "$root/work/$label.log"
             rc=${PIPESTATUS[0]}
             set -e
             echo "$label=$rc" | tee -a "$root/work/exit-codes.txt"
+            grep -q '^test result: ok. 1 passed; 0 failed' "$root/work/$label.log" || { echo "$label 未恰好通过 1 条测试"; rc=1; }
           }
-          test=sr_expansion_content_domain_publishes_real_s_basis_closure
-          run1717 positive-debug "$root/s3/export.json"; positive=$rc
-          test=sr_expansion_content_domain_deadline_crossed_in_flight_leaves_no_commit
-          run1717 negative-debug "$root/s3/export.json"; negative=$rc
-          if [ "$positive" -ne 0 ]; then
-            mkdir -p "$root/s3/release-diagnostic"
-            cp "$root/s3/export.json" "$root/s3/release-diagnostic/export.json"
-            test=sr_expansion_content_domain_publishes_real_s_basis_closure
-            run1717 positive-release-diagnostic "$root/s3/release-diagnostic/export.json" --release
-          fi
+          run1717 positive-release sr_expansion_content_domain_publishes_real_s_basis_closure; positive=$rc
+          run1717 negative-release sr_expansion_content_domain_deadline_crossed_in_flight_leaves_no_commit; negative=$rc
           if [ "$positive" -ne 0 ] || [ "$negative" -ne 0 ]; then exit 1; fi
 
       - name: 上传 issue 1717 正控与负控原件
