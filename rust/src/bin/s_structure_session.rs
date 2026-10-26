@@ -4139,7 +4139,8 @@ fn project_wire_integers(v: &Value) -> Value {
 // ────────────────────────────────────────────────────────────────────────────
 
 fn exact_wire_integer(v: &Value) -> Result<i64, String> {
-    v.as_i64().ok_or_else(|| "持久整数必须是 i64，不能是浮点、布尔、空值或文本".to_string())
+    v.as_i64()
+        .ok_or_else(|| "持久整数必须是 i64，不能是浮点、布尔、空值或文本".to_string())
 }
 fn num_to_str(v: &Value) -> Result<Value, String> {
     exact_wire_integer(v).map(|n| Value::String(n.to_string()))
@@ -4802,25 +4803,25 @@ fn frontier_at_generation(conn: &Connection, gen: i64) -> Result<Option<i64>, St
 }
 
 fn project_raw_history_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Value> {
-        Ok(json!({
-            "identity_key": r.get::<_, String>(0)?,
-            "revision": r.get::<_, i64>(1)?.to_string(),
-            "input_revision": r.get::<_, String>(2)?,
-            "payload_hash": r.get::<_, String>(3)?,
-            "receipt_id": r.get::<_, String>(4)?,
-            "seq": r.get::<_, i64>(5)?.to_string(),
-            "source_namespace": r.get::<_, String>(6)?,
-            "source_epoch": r.get::<_, String>(7)?,
-            "instrument": r.get::<_, String>(8)?,
-            "event_id": r.get::<_, String>(9)?,
-            "received_at": r.get::<_, String>(10)?,
-            "raw_text": r.get::<_, String>(11)?,
-            "price": r.get::<_, String>(12)?,
-            "ts": r.get::<_, String>(13)?,
-            "volume": r.get::<_, String>(14)?,
-            "source_coord": r.get::<_, String>(15)?,
-            "supersedes_revision": r.get::<_, Option<i64>>(16)?.map(|v| v.to_string()),
-        }))
+    Ok(json!({
+        "identity_key": r.get::<_, String>(0)?,
+        "revision": r.get::<_, i64>(1)?.to_string(),
+        "input_revision": r.get::<_, String>(2)?,
+        "payload_hash": r.get::<_, String>(3)?,
+        "receipt_id": r.get::<_, String>(4)?,
+        "seq": r.get::<_, i64>(5)?.to_string(),
+        "source_namespace": r.get::<_, String>(6)?,
+        "source_epoch": r.get::<_, String>(7)?,
+        "instrument": r.get::<_, String>(8)?,
+        "event_id": r.get::<_, String>(9)?,
+        "received_at": r.get::<_, String>(10)?,
+        "raw_text": r.get::<_, String>(11)?,
+        "price": r.get::<_, String>(12)?,
+        "ts": r.get::<_, String>(13)?,
+        "volume": r.get::<_, String>(14)?,
+        "source_coord": r.get::<_, String>(15)?,
+        "supersedes_revision": r.get::<_, Option<i64>>(16)?.map(|v| v.to_string()),
+    }))
 }
 
 /// 源修订链（含 supersedes），可选按接纳序上限过滤（AsKnown 当时可知）。

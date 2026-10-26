@@ -419,13 +419,19 @@ pub(crate) struct ConsumedAdmission {
 struct PreparedMixedAdmission {
     native_ram: resources::NativeRamLimits,
 }
-fn mixed_fixed_metadata() -> Result<usize, newchan_rust::s_content::capture_allocation::scratch::ScratchFailure> {
-    use std::alloc::Layout;
+fn mixed_fixed_metadata(
+) -> Result<usize, newchan_rust::s_content::capture_allocation::scratch::ScratchFailure> {
     use newchan_rust::s_content::capture_allocation::scratch::ScratchFailure;
+    use std::alloc::Layout;
     // Rc强/弱计数及原Job；终端固定槽随原命令存活，不按失败临时扩容。
-    let job = Layout::new::<[usize; 2]>().extend(Layout::new::<RefCell<admission_job::Job>>())
-        .map_err(|_| ScratchFailure::Ledger)?.0.pad_to_align().size();
-    job.checked_add(Layout::new::<TerminalState>().size()).ok_or(ScratchFailure::Ledger)
+    let job = Layout::new::<[usize; 2]>()
+        .extend(Layout::new::<RefCell<admission_job::Job>>())
+        .map_err(|_| ScratchFailure::Ledger)?
+        .0
+        .pad_to_align()
+        .size();
+    job.checked_add(Layout::new::<TerminalState>().size())
+        .ok_or(ScratchFailure::Ledger)
 }
 
 impl fmt::Debug for PreparedAdmission {
@@ -517,7 +523,9 @@ impl PreparedAdmission {
         check_lease(&self.lease, &self.prelude, Stage::E5)?;
         let mixed = match self.resources {
             AdmissionResources::Ordinary(_) => None,
-            AdmissionResources::Mixed { native_ram, .. } => Some(PreparedMixedAdmission { native_ram }),
+            AdmissionResources::Mixed { native_ram, .. } => {
+                Some(PreparedMixedAdmission { native_ram })
+            }
         };
         Ok(ConsumedAdmission {
             limits: self.limits,
@@ -754,18 +762,45 @@ impl ConsumedAdmission {
             .first_read_at
             .ok_or_else(|| self.prelude.error(ErrorKind::Deadline, Stage::E7))?;
         use newchan_rust::s_content::capture_allocation::scratch::{ScratchFailure, WorkError};
-        let resource_error = |failure: ScratchFailure| self.prelude.error(
-            if failure == ScratchFailure::Budget { ErrorKind::Limit } else { ErrorKind::ResourcesInvalid }, Stage::E7);
-        let ram = self.mixed.map(|prepared| {
-            ram::AdmissionRamLedger::new_with_fixed(prepared.native_ram, mixed_fixed_metadata()?)
-        }).transpose().map_err(resource_error)?;
+        let resource_error = |failure: ScratchFailure| {
+            self.prelude.error(
+                if failure == ScratchFailure::Budget {
+                    ErrorKind::Limit
+                } else {
+                    ErrorKind::ResourcesInvalid
+                },
+                Stage::E7,
+            )
+        };
+        let ram = self
+            .mixed
+            .map(|prepared| {
+                ram::AdmissionRamLedger::new_with_fixed(
+                    prepared.native_ram,
+                    mixed_fixed_metadata()?,
+                )
+            })
+            .transpose()
+            .map_err(resource_error)?;
         let core = match &ram {
-            Some(ram) => ram.codec_work().map_err(resource_error)?.run(|work| {
-                Job::new_started_mixed(self.limits, measured, Box::new(Instant::now), first, work)
-            }).map_err(|error| match error {
-                WorkError::Resource(failure) => resource_error(failure),
-                WorkError::Operation(error) => self.prelude.error(job_error_kind(&error), Stage::E7),
-            })?,
+            Some(ram) => ram
+                .codec_work()
+                .map_err(resource_error)?
+                .run(|work| {
+                    Job::new_started_mixed(
+                        self.limits,
+                        measured,
+                        Box::new(Instant::now),
+                        first,
+                        work,
+                    )
+                })
+                .map_err(|error| match error {
+                    WorkError::Resource(failure) => resource_error(failure),
+                    WorkError::Operation(error) => {
+                        self.prelude.error(job_error_kind(&error), Stage::E7)
+                    }
+                })?,
             None => Job::new_started(self.limits, measured, Box::new(Instant::now), first)
                 .map_err(|e| self.prelude.error(job_error_kind(&e), Stage::E7))?,
         };
@@ -793,13 +828,18 @@ impl StartedAdmission {
         }
     }
 
-    pub(crate) fn with_accounting<T, E>(&mut self,
+    pub(crate) fn with_accounting<T, E>(
+        &mut self,
         run: impl FnOnce(&mut AdmissionAccounting<'_>) -> Result<T, E>,
     ) -> Result<T, newchan_rust::s_content::capture_allocation::scratch::WorkError<E>> {
         use newchan_rust::s_content::capture_allocation::scratch::WorkError;
         match &self.ram {
             Some(ram) => ram.codec_work().map_err(WorkError::Resource)?.run(|work| {
-                run(&mut AdmissionAccounting { job: self.job.borrow_mut(), work: Some(work), mixed: true })
+                run(&mut AdmissionAccounting {
+                    job: self.job.borrow_mut(),
+                    work: Some(work),
+                    mixed: true,
+                })
             }),
             None => run(&mut self.accounting()).map_err(WorkError::Operation),
         }
@@ -826,7 +866,8 @@ impl StartedAdmission {
         let finished = self.job.borrow_mut().finish_check();
         finished.map_err(|e| self.error(job_error_kind(&e)))?;
         if let Some(ram) = &self.ram {
-            ram.close().map_err(|_| self.error(ErrorKind::ResourcesInvalid))?;
+            ram.close()
+                .map_err(|_| self.error(ErrorKind::ResourcesInvalid))?;
         }
         Ok(FinishedAdmission {
             job: self.job,
@@ -887,12 +928,21 @@ pub(crate) struct AdmissionAccounting<'a> {
 }
 
 impl AdmissionAccounting<'_> {
-    pub(crate) fn is_mixed(&self) -> bool { self.mixed }
-    pub(crate) fn mixed_scope(&self) -> Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope> { self.work }
-    pub(crate) fn accept_legacy_evidence(&mut self,
+    pub(crate) fn is_mixed(&self) -> bool {
+        self.mixed
+    }
+    pub(crate) fn mixed_scope(
+        &self,
+    ) -> Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope> {
+        self.work
+    }
+    pub(crate) fn accept_legacy_evidence(
+        &mut self,
         row: &newchan_rust::s_content::legacy_evidence::CheckedLegacyEvidenceRow,
     ) -> Result<admission_job::NodeAcceptance, AccountingError> {
-        let work = self.work.ok_or_else(|| AccountingError::new("job_reservation", "legacy接纳缺mixed工作域"))?;
+        let work = self
+            .work
+            .ok_or_else(|| AccountingError::new("job_reservation", "legacy接纳缺mixed工作域"))?;
         self.job.accept_legacy_evidence(row, work)
     }
     pub(crate) fn begin_first_read(&mut self) -> Result<(), AccountingError> {

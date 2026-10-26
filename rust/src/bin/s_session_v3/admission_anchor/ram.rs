@@ -53,7 +53,10 @@ impl AdmissionRamLedger {
     pub(super) fn new(limits: NativeRamLimits) -> Result<Self, ScratchFailure> {
         Self::new_with_fixed(limits, 0)
     }
-    pub(super) fn new_with_fixed(limits: NativeRamLimits, other_fixed: usize) -> Result<Self, ScratchFailure> {
+    pub(super) fn new_with_fixed(
+        limits: NativeRamLimits,
+        other_fixed: usize,
+    ) -> Result<Self, ScratchFailure> {
         let max_live =
             usize::try_from(limits.max_live_bytes).map_err(|_| ScratchFailure::Budget)?;
         let max_operation =
@@ -62,7 +65,9 @@ impl AdmissionRamLedger {
             return Err(ScratchFailure::Ledger);
         }
         // 在任何Arc/Mutex分配前检查合并固定Layout。固定元数据随最后parent自然释放。
-        let fixed = Self::metadata_bytes()?.checked_add(other_fixed).ok_or(ScratchFailure::Ledger)?;
+        let fixed = Self::metadata_bytes()?
+            .checked_add(other_fixed)
+            .ok_or(ScratchFailure::Ledger)?;
         if fixed > max_live || fixed > max_operation {
             return Err(ScratchFailure::Budget);
         }
@@ -640,41 +645,61 @@ mod tests {
                 let row = rows.next().unwrap().unwrap();
                 let original = crate::project_raw_history_row(row);
                 let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
-                owner.codec_work().unwrap().run(|work| {
-                    match (original, project_raw_history_row(row, work)) {
-                        (Ok(original), Ok(mixed)) => assert_eq!(original, *mixed),
-                        (Err(original), Err(MixedSqlError::Sql(mixed))) => assert_eq!(original, mixed),
-                        other => panic!("SQL投影结果不一致: {other:?}"),
-                    }
-                    Ok::<_, newchan_rust::s_content::CodecError>(())
-                }).unwrap();
-                assert_eq!(owner.snapshot().unwrap().job_live, AdmissionRamLedger::metadata_bytes().unwrap());
+                owner
+                    .codec_work()
+                    .unwrap()
+                    .run(|work| {
+                        match (original, project_raw_history_row(row, work)) {
+                            (Ok(original), Ok(mixed)) => assert_eq!(original, *mixed),
+                            (Err(original), Err(MixedSqlError::Sql(mixed))) => {
+                                assert_eq!(original, mixed)
+                            }
+                            other => panic!("SQL投影结果不一致: {other:?}"),
+                        }
+                        Ok::<_, newchan_rust::s_content::CodecError>(())
+                    })
+                    .unwrap();
+                assert_eq!(
+                    owner.snapshot().unwrap().job_live,
+                    AdmissionRamLedger::metadata_bytes().unwrap()
+                );
             }
         }
     }
 
     #[test]
     fn mixed_ram_projection_replacement_keeps_old_owner_until_new_permitted() {
-        use crate::v3::business_json::scoped_legacy::{ScopedLegacyRecord, ProjectionKind, Field};
+        use crate::v3::business_json::scoped_legacy::{Field, ProjectionKind, ScopedLegacyRecord};
         use crate::v3::business_json::MixedJsonError;
         let source = serde_json::json!({"lifecycle":"active","unknown":{"preserved":[1,2,3]}});
         let next = serde_json::json!("withdrawn");
         let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
-        owner.codec_work().unwrap().run(|work| {
-            let mut record = ScopedLegacyRecord::clone_projection(ProjectionKind::AtPreviousLifecycle, &source, work)?;
-            record.replace_known_field(Field::Lifecycle, &next)?;
-            let result = record.finish();
-            assert_eq!(result["lifecycle"], next);
-            assert_eq!(result["unknown"], source["unknown"]);
-            assert_eq!(source["lifecycle"], "active");
-            Ok::<_, MixedJsonError>(())
-        }).unwrap();
-        assert_eq!(owner.snapshot().unwrap().job_live, AdmissionRamLedger::metadata_bytes().unwrap());
+        owner
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let mut record = ScopedLegacyRecord::clone_projection(
+                    ProjectionKind::AtPreviousLifecycle,
+                    &source,
+                    work,
+                )?;
+                record.replace_known_field(Field::Lifecycle, &next)?;
+                let result = record.finish();
+                assert_eq!(result["lifecycle"], next);
+                assert_eq!(result["unknown"], source["unknown"]);
+                assert_eq!(source["lifecycle"], "active");
+                Ok::<_, MixedJsonError>(())
+            })
+            .unwrap();
+        assert_eq!(
+            owner.snapshot().unwrap().job_live,
+            AdmissionRamLedger::metadata_bytes().unwrap()
+        );
     }
 
     #[test]
     fn mixed_ram_sql_object_projection_keeps_lifecycle_before_json_and_optional_reads() {
-        use crate::v3::business_json::scoped_legacy::{project_object_row,MixedSqlError};
+        use crate::v3::business_json::scoped_legacy::{project_object_row, MixedSqlError};
         let conn = rusqlite::Connection::open_in_memory().unwrap();
         let good = r#"[{"merged_index":1,"raw_refs":[{"seq":2,"revision":3,"extra":true}],"untouched":"yes"}]"#;
         for (wg, comparisons, refs, as_of) in [
@@ -684,69 +709,101 @@ mod tests {
             (None, "[]", good, None),
             (None, "{bad", "[]", None),
             (None, "[]", "{}", None),
-            (None, "[]", r#"[{"merged_index":"bad","raw_refs":[]}]"#, None),
+            (
+                None,
+                "[]",
+                r#"[{"merged_index":"bad","raw_refs":[]}]"#,
+                None,
+            ),
         ] {
-            let mut stmt = conn.prepare("SELECT 'id',2,'k','b','up','up','down',1,2,3,?2,?3,'[]',1,'cut',2,?1,99,88").unwrap();
-            let mut rows = stmt.query(rusqlite::params![wg,comparisons,refs]).unwrap();
+            let mut stmt = conn
+                .prepare(
+                    "SELECT 'id',2,'k','b','up','up','down',1,2,3,?2,?3,'[]',1,'cut',2,?1,99,88",
+                )
+                .unwrap();
+            let mut rows = stmt
+                .query(rusqlite::params![wg, comparisons, refs])
+                .unwrap();
             let row = rows.next().unwrap().unwrap();
-            let original = crate::project_object_row(row,as_of);
+            let original = crate::project_object_row(row, as_of);
             let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
-            owner.codec_work().unwrap().run(|work| {
-                match (original,project_object_row(row,as_of,work)) {
-                    (Ok(original),Ok(mixed)) => assert_eq!(original,*mixed),
-                    (Err(original),Err(MixedSqlError::Sql(mixed))) => {
-                        assert_eq!(std::mem::discriminant(&original),std::mem::discriminant(&mixed));
-                        assert_eq!(original.to_string(),mixed.to_string());
+            owner
+                .codec_work()
+                .unwrap()
+                .run(|work| {
+                    match (original, project_object_row(row, as_of, work)) {
+                        (Ok(original), Ok(mixed)) => assert_eq!(original, *mixed),
+                        (Err(original), Err(MixedSqlError::Sql(mixed))) => {
+                            assert_eq!(
+                                std::mem::discriminant(&original),
+                                std::mem::discriminant(&mixed)
+                            );
+                            assert_eq!(original.to_string(), mixed.to_string());
+                        }
+                        other => panic!("对象投影或首错漂移：{other:?}"),
                     }
-                    other => panic!("对象投影或首错漂移：{other:?}"),
-                }
-                Ok::<_, newchan_rust::s_content::CodecError>(())
-            }).unwrap();
-            assert_eq!(owner.snapshot().unwrap().job_live,AdmissionRamLedger::metadata_bytes().unwrap());
+                    Ok::<_, newchan_rust::s_content::CodecError>(())
+                })
+                .unwrap();
+            assert_eq!(
+                owner.snapshot().unwrap().job_live,
+                AdmissionRamLedger::metadata_bytes().unwrap()
+            );
         }
     }
 
     #[test]
     fn mixed_ram_fact_collect_defers_json_and_project_preserves_first_error() {
-        use crate::v3::business_json::scoped_legacy::{collect_fact_row,project_fact};
+        use crate::v3::business_json::scoped_legacy::{collect_fact_row, project_fact};
         use crate::v3::business_json::MixedJsonError;
         let conn = rusqlite::Connection::open_in_memory().unwrap();
-        for (kind,payload,refs,death) in [
-            ("CC-004.inclusion_step","{}","[]",None),
-            ("CC-004.inclusion_step","{}","[]",Some(3_i64)),
-            ("unknown","bad","bad",None),
-            ("CC-004.inclusion_step","","",None),
-            ("CC-004.inclusion_step","bad","[]",None),
-            ("CC-004.inclusion_step","{}","{}",None),
+        for (kind, payload, refs, death) in [
+            ("CC-004.inclusion_step", "{}", "[]", None),
+            ("CC-004.inclusion_step", "{}", "[]", Some(3_i64)),
+            ("unknown", "bad", "bad", None),
+            ("CC-004.inclusion_step", "", "", None),
+            ("CC-004.inclusion_step", "bad", "[]", None),
+            ("CC-004.inclusion_step", "{}", "{}", None),
         ] {
-            let mut stmt = conn.prepare("SELECT 'id',1,?1,'batch','key',?2,?3,'[]',1,'cut',2,?4,NULL,NULL").unwrap();
-            let mut rows = stmt.query(rusqlite::params![kind,payload,refs,death]).unwrap();
+            let mut stmt = conn
+                .prepare("SELECT 'id',1,?1,'batch','key',?2,?3,'[]',1,'cut',2,?4,NULL,NULL")
+                .unwrap();
+            let mut rows = stmt
+                .query(rusqlite::params![kind, payload, refs, death])
+                .unwrap();
             let row = rows.next().unwrap().unwrap();
             let original = crate::tb02a::collect_fact_row(row).unwrap();
             let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
-            owner.codec_work().unwrap().run(|work| {
-                let collected = collect_fact_row(row,work).unwrap();
-                assert_eq!(*collected,original); // graph empty placeholders and bad JSON remain raw text
-                let expected = crate::tb02a::project(&original);
-                match (expected,project_fact(&collected,work)) {
-                    (Ok(a),Ok(b)) => assert_eq!(a,*b),
-                    (Err(a),Err(MixedJsonError::Business(b))) => assert_eq!(a,b),
-                    other => panic!("fact projection mismatch {other:?}"),
-                }
-                Ok::<_,newchan_rust::s_content::CodecError>(())
-            }).unwrap();
-            assert_eq!(owner.snapshot().unwrap().job_live,AdmissionRamLedger::metadata_bytes().unwrap());
+            owner
+                .codec_work()
+                .unwrap()
+                .run(|work| {
+                    let collected = collect_fact_row(row, work).unwrap();
+                    assert_eq!(*collected, original); // graph empty placeholders and bad JSON remain raw text
+                    let expected = crate::tb02a::project(&original);
+                    match (expected, project_fact(&collected, work)) {
+                        (Ok(a), Ok(b)) => assert_eq!(a, *b),
+                        (Err(a), Err(MixedJsonError::Business(b))) => assert_eq!(a, b),
+                        other => panic!("fact projection mismatch {other:?}"),
+                    }
+                    Ok::<_, newchan_rust::s_content::CodecError>(())
+                })
+                .unwrap();
+            assert_eq!(
+                owner.snapshot().unwrap().job_live,
+                AdmissionRamLedger::metadata_bytes().unwrap()
+            );
         }
     }
 
     #[test]
     fn mixed_ram_fact_asof_filter_never_parses_excluded_json() {
-        use crate::v3::business_json::scoped_legacy::{filter_fact_lifecycle,project_fact};
-        use crate::v3::business_json::{PlainJson,MixedJsonError};
-        for (first,death,asof,skip,clear,error) in [
-            (3,None,Some(2),true,false,false),
-            (1,Some(4),Some(2),false,true,false),
-            (3,Some(2),Some(1),false,false,true),
+        use crate::v3::business_json::scoped_legacy::{filter_fact_lifecycle, project_fact};
+        use crate::v3::business_json::{MixedJsonError, PlainJson};
+        for (first, death, asof, skip, clear, error) in [
+            (3, None, Some(2), true, false, false),
+            (1, Some(4), Some(2), false, true, false),
+            (3, Some(2), Some(1), false, false, true),
         ] {
             let source = serde_json::json!({"first_known_generation":first,"withdrawn_generation":death,
                 "withdrawal_reason":"old","superseded_by":"next","payload_json":"bad"});
@@ -767,8 +824,10 @@ mod tests {
                 }
                 Ok::<_,newchan_rust::s_content::CodecError>(())
             }).unwrap();
-            assert_eq!(owner.snapshot().unwrap().job_live,AdmissionRamLedger::metadata_bytes().unwrap());
+            assert_eq!(
+                owner.snapshot().unwrap().job_live,
+                AdmissionRamLedger::metadata_bytes().unwrap()
+            );
         }
     }
-
 }

@@ -581,7 +581,11 @@ pub(super) fn save_fact(conn: &Connection, o: &Value, batch: &str) -> Result<(),
     }
     Ok(())
 }
-pub(crate) enum FactLifecycle { Skip, Keep, ClearDeath }
+pub(crate) enum FactLifecycle {
+    Skip,
+    Keep,
+    ClearDeath,
+}
 /// 只在全部SQL行与图原件替换完成后调用；不解析三列JSON。
 pub(crate) fn fact_lifecycle(o: &Value, as_of: Option<i64>) -> Result<FactLifecycle, String> {
     let first = o["first_known_generation"].as_i64().unwrap();
@@ -589,14 +593,18 @@ pub(crate) fn fact_lifecycle(o: &Value, as_of: Option<i64>) -> Result<FactLifecy
     if death.is_some_and(|w| w <= first) {
         return Err("StorageUnavailable：结构事实生命周期非法".into());
     }
-    if as_of.is_some_and(|n| first > n) { return Ok(FactLifecycle::Skip); }
+    if as_of.is_some_and(|n| first > n) {
+        return Ok(FactLifecycle::Skip);
+    }
     if matches!((as_of,death),(Some(n),Some(w)) if w>n) {
         return Ok(FactLifecycle::ClearDeath);
     }
     Ok(FactLifecycle::Keep)
 }
 pub(crate) fn collect_fact_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Value> {
-    Ok(json!({"object_id":r.get::<_,String>(0)?,"object_revision":r.get::<_,i64>(1)?,"kind":r.get::<_,String>(2)?,"batch_id":r.get::<_,String>(3)?,"fact_key":r.get::<_,String>(4)?,"payload_json":r.get::<_,String>(5)?,"input_refs_json":r.get::<_,String>(6)?,"source_coords_json":r.get::<_,String>(7)?,"first_known_generation":r.get::<_,i64>(8)?,"first_known_cut":r.get::<_,String>(9)?,"published_generation":r.get::<_,i64>(10)?,"withdrawn_generation":r.get::<_,Option<i64>>(11)?,"withdrawal_reason":r.get::<_,Option<String>>(12)?,"superseded_by":r.get::<_,Option<String>>(13)?}))
+    Ok(
+        json!({"object_id":r.get::<_,String>(0)?,"object_revision":r.get::<_,i64>(1)?,"kind":r.get::<_,String>(2)?,"batch_id":r.get::<_,String>(3)?,"fact_key":r.get::<_,String>(4)?,"payload_json":r.get::<_,String>(5)?,"input_refs_json":r.get::<_,String>(6)?,"source_coords_json":r.get::<_,String>(7)?,"first_known_generation":r.get::<_,i64>(8)?,"first_known_cut":r.get::<_,String>(9)?,"published_generation":r.get::<_,i64>(10)?,"withdrawn_generation":r.get::<_,Option<i64>>(11)?,"withdrawal_reason":r.get::<_,Option<String>>(12)?,"superseded_by":r.get::<_,Option<String>>(13)?}),
+    )
 }
 pub(super) fn read_facts(
     conn: &Connection,
@@ -610,7 +618,11 @@ pub(super) fn read_facts(
     let format = evidence_store::format(conn)?;
     let mut reader = evidence_store::Reader::new(conn, crate::EVIDENCE_READ_BUDGET);
     let mut stmt=conn.prepare("SELECT object_id,object_revision,kind,batch_id,fact_key,payload_json,input_refs_json,source_coords_json,first_known_generation,first_known_cut,published_generation,withdrawn_generation,withdrawal_reason,superseded_by FROM structure_facts ORDER BY kind,fact_key,object_id,object_revision").map_err(|e|e.to_string())?;
-    let rows = stmt.query_map([], collect_fact_row).map_err(|e|e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e|e.to_string())?;
+    let rows = stmt
+        .query_map([], collect_fact_row)
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
     let mut rows = rows;
     for o in &mut rows {
         let object_id = o["object_id"].as_str().unwrap_or("").to_string();
@@ -641,7 +653,7 @@ pub(super) fn read_facts(
     for mut o in rows {
         match fact_lifecycle(&o, as_of)? {
             FactLifecycle::Skip => continue,
-            FactLifecycle::Keep => {},
+            FactLifecycle::Keep => {}
             FactLifecycle::ClearDeath => {
                 for k in ["withdrawn_generation", "withdrawal_reason", "superseded_by"] {
                     o[k] = Value::Null;
