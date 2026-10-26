@@ -888,11 +888,12 @@ mod tests {
         }
         let conn = rusqlite::Connection::open_in_memory().unwrap();
         conn.execute_batch(crate::evidence_store::DDL).unwrap();
-        let payload = b"abc";
+        use sha2::Digest;
+        let payload = br#"{"x":1}"#;
         let id = sc::legacy_evidence::node_id(0,payload);
-        conn.execute("INSERT INTO s_evidence_nodes VALUES(?1,0,?2,3)",rusqlite::params![&id[..],&payload[..]]).unwrap();
-        conn.execute("INSERT INTO s_evidence_roots VALUES('root',?1,?2,3,?3)",
-            rusqlite::params![&id[..],&b""[..],"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"]).unwrap();
+        conn.execute("INSERT INTO s_evidence_nodes VALUES(?1,0,?2,?3)",rusqlite::params![&id[..],&payload[..],payload.len() as i64]).unwrap();
+        conn.execute("INSERT INTO s_evidence_roots VALUES('root',?1,?2,?3,?4)",
+            rusqlite::params![&id[..],&b""[..],payload.len() as i64,format!("{:x}",sha2::Sha256::digest(payload))]).unwrap();
         let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
         owner.codec_work().unwrap().run(|work| {
             let job = Job::new_started_mixed(job_limits(),Existing {store_bytes:0,staged_bytes:0},
@@ -928,8 +929,9 @@ mod tests {
                 assert_eq!(next_observer.job.borrow().snapshot().nodes,1); // oldJob资格不转移
                 {
                     let mut reader=crate::evidence_store::Reader::new_mixed(&conn,1<<20,next_work,&next_observer).unwrap();
-                    let bytes=reader.mixed_expansion_for_test("root").unwrap();
-                    assert_eq!(&*bytes,payload);
+                    let root=reader.read_root_typed("root",true).unwrap();
+                    assert_eq!(&*root.bytes,payload);
+                    assert_eq!(root.value.as_ref().unwrap().as_ref(),&serde_json::json!({"x":1}));
                     assert_eq!(next_observer.job.borrow().snapshot().nodes,1);
                 }
                 Ok::<_,sc::CodecError>(())
@@ -943,6 +945,9 @@ mod tests {
                 assert_eq!(observer.job.borrow().snapshot().nodes,1);
                 let expanded=reader.mixed_expansion_for_test("root").unwrap();
                 assert_eq!(&*expanded,payload);
+                let root=reader.read_root_typed("root",true).unwrap();
+                assert_eq!(&*root.bytes,payload);
+                assert_eq!(root.value.as_ref().unwrap().as_ref(),&serde_json::json!({"x":1}));
                 assert_eq!(observer.job.borrow().snapshot().nodes,1);
             }
             conn.execute("UPDATE s_evidence_nodes SET payload=?1",rusqlite::params![&b"bad"[..]]).unwrap();
