@@ -430,3 +430,5 @@ pub(crate) fn original_clock(conn: &Connection) -> Result<String, String> {
 pub(crate) fn original_catalog(conn: &Connection) -> Result<(), String> {
     super::verify_control_catalog_admitted(conn, None, None)
 }
+
+pub(crate) mod history;
