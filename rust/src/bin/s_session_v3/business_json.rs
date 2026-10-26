@@ -1,5 +1,6 @@
 //! #1394 业务原始账的入口存储选择与同一借用判据。Owned失败直接Err，不转回std。
 pub(crate) mod json_layout;
+pub(crate) mod scoped_legacy;
 use super::audit_store::{CodecRead, NativeAdmission, NativeTree};
 use super::*;
 use aj::{ArrayIter, ArrayView, JsonView};
@@ -1614,6 +1615,7 @@ impl std::ops::Deref for SharedEnvelope {
 enum NativeJsonLayout {
     AggregateTree,
     ItemizedArray,
+    ItemizedObject,
 }
 pub(crate) struct PlainJson {
     value: Value,

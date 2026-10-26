@@ -628,4 +628,48 @@ mod tests {
             }
         }
     }
+    #[test]
+    fn mixed_ram_sql_raw_projection_preserves_values_and_type_error_order() {
+        use crate::v3::business_json::scoped_legacy::{project_raw_history_row, MixedSqlError};
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        for head in ["'id'", "42", "CAST(X'ff' AS TEXT)"] {
+            for optional in ["NULL", "-9223372036854775808"] {
+                let sql = format!("SELECT {head}, 9223372036854775807, 'input', 'hash', 'receipt', 7, 'ns', 'epoch', 'btc', 'event', 'time', 'raw', '12.3', '123', '0.2', 'coord', {optional}");
+                let mut stmt = conn.prepare(&sql).unwrap();
+                let mut rows = stmt.query([]).unwrap();
+                let row = rows.next().unwrap().unwrap();
+                let original = crate::project_raw_history_row(row);
+                let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+                owner.codec_work().unwrap().run(|work| {
+                    match (original, project_raw_history_row(row, work)) {
+                        (Ok(original), Ok(mixed)) => assert_eq!(original, *mixed),
+                        (Err(original), Err(MixedSqlError::Sql(mixed))) => assert_eq!(original.to_string(), mixed.to_string()),
+                        other => panic!("SQL投影结果不一致: {other:?}"),
+                    }
+                    Ok::<_, newchan_rust::s_content::CodecError>(())
+                }).unwrap();
+                assert_eq!(owner.snapshot().unwrap().job_live, AdmissionRamLedger::metadata_bytes().unwrap());
+            }
+        }
+    }
+
+    #[test]
+    fn mixed_ram_projection_replacement_keeps_old_owner_until_new_permitted() {
+        use crate::v3::business_json::scoped_legacy::{ScopedLegacyRecord, ProjectionKind, Field};
+        use crate::v3::business_json::MixedJsonError;
+        let source = serde_json::json!({"lifecycle":"active","unknown":{"preserved":[1,2,3]}});
+        let next = serde_json::json!("withdrawn");
+        let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+        owner.codec_work().unwrap().run(|work| {
+            let mut record = ScopedLegacyRecord::clone_projection(ProjectionKind::AtPreviousLifecycle, &source, work)?;
+            record.replace_known_field(Field::Lifecycle, &next)?;
+            let result = record.finish();
+            assert_eq!(result["lifecycle"], next);
+            assert_eq!(result["unknown"], source["unknown"]);
+            assert_eq!(source["lifecycle"], "active");
+            Ok::<_, MixedJsonError>(())
+        }).unwrap();
+        assert_eq!(owner.snapshot().unwrap().job_live, AdmissionRamLedger::metadata_bytes().unwrap());
+    }
+
 }

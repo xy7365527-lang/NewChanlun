@@ -4800,19 +4800,7 @@ fn frontier_at_generation(conn: &Connection, gen: i64) -> Result<Option<i64>, St
     .map_err(|e| format!("读 generation {gen} 输入前沿失败：{e}"))
 }
 
-/// 源修订链（含 supersedes），可选按接纳序上限过滤（AsKnown 当时可知）。
-fn read_raw_history(conn: &Connection, max_seq: Option<i64>) -> Result<Vec<Value>, String> {
-    let sql = match max_seq {
-        None => {
-            "SELECT identity_key, revision, input_revision, payload_hash, receipt_id, seq, source_namespace, source_epoch, instrument, event_id, received_at, raw_text, price, ts, volume, source_coord, supersedes_revision FROM raw_events ORDER BY seq ASC"
-                .to_string()
-        }
-        Some(_) => {
-            "SELECT identity_key, revision, input_revision, payload_hash, receipt_id, seq, source_namespace, source_epoch, instrument, event_id, received_at, raw_text, price, ts, volume, source_coord, supersedes_revision FROM raw_events WHERE seq <= ?1 ORDER BY seq ASC"
-                .to_string()
-        }
-    };
-    let project = |r: &rusqlite::Row<'_>| -> rusqlite::Result<Value> {
+fn project_raw_history_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Value> {
         Ok(json!({
             "identity_key": r.get::<_, String>(0)?,
             "revision": r.get::<_, i64>(1)?.to_string(),
@@ -4832,7 +4820,21 @@ fn read_raw_history(conn: &Connection, max_seq: Option<i64>) -> Result<Vec<Value
             "source_coord": r.get::<_, String>(15)?,
             "supersedes_revision": r.get::<_, Option<i64>>(16)?.map(|v| v.to_string()),
         }))
+}
+
+/// 源修订链（含 supersedes），可选按接纳序上限过滤（AsKnown 当时可知）。
+fn read_raw_history(conn: &Connection, max_seq: Option<i64>) -> Result<Vec<Value>, String> {
+    let sql = match max_seq {
+        None => {
+            "SELECT identity_key, revision, input_revision, payload_hash, receipt_id, seq, source_namespace, source_epoch, instrument, event_id, received_at, raw_text, price, ts, volume, source_coord, supersedes_revision FROM raw_events ORDER BY seq ASC"
+                .to_string()
+        }
+        Some(_) => {
+            "SELECT identity_key, revision, input_revision, payload_hash, receipt_id, seq, source_namespace, source_epoch, instrument, event_id, received_at, raw_text, price, ts, volume, source_coord, supersedes_revision FROM raw_events WHERE seq <= ?1 ORDER BY seq ASC"
+                .to_string()
+        }
     };
+    let project = project_raw_history_row;
     let mut stmt = conn
         .prepare(&sql)
         .map_err(|e| format!("prepare raw_history 失败：{e}"))?;
