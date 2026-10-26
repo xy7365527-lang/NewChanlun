@@ -60,19 +60,34 @@ struct LegacyRoot {
     bytes: usize,
 }
 
-#[path="cache/mixed.rs"]
+#[path = "cache/mixed.rs"]
 pub(crate) mod mixed;
 enum Root {
     Legacy(Arc<LegacyRoot>),
     Mixed(Arc<mixed::Root>),
 }
 impl Clone for Root {
-    fn clone(&self)->Self { match self {Self::Legacy(r)=>Self::Legacy(r.clone()),Self::Mixed(r)=>Self::Mixed(r.clone())} }
+    fn clone(&self) -> Self {
+        match self {
+            Self::Legacy(r) => Self::Legacy(r.clone()),
+            Self::Mixed(r) => Self::Mixed(r.clone()),
+        }
+    }
 }
 impl Root {
-    fn bytes(&self)->usize {match self {Self::Legacy(r)=>r.bytes,Self::Mixed(r)=>r.bytes}}
+    fn bytes(&self) -> usize {
+        match self {
+            Self::Legacy(r) => r.bytes,
+            Self::Mixed(r) => r.bytes,
+        }
+    }
     #[cfg(test)]
-    fn rows_len(&self)->usize {match self {Self::Legacy(r)=>r.rows.len(),Self::Mixed(r)=>r.rows.len()}}
+    fn rows_len(&self) -> usize {
+        match self {
+            Self::Legacy(r) => r.rows.len(),
+            Self::Mixed(r) => r.rows.len(),
+        }
+    }
 }
 /// 一个唯一节点的**精确原件证书**：原始行（种类 + payload 原字节 + 声明长度）与有序直接子节点
 /// 引用。子引用就是子证书的键（内容寻址 id），故证书图不需要递归深链，也不需要第二层摘要。
@@ -331,8 +346,13 @@ impl Memo {
         self.trim_handles_admitted(budget, None)
             .expect("None admission cannot fail")
     }
-    fn trim_handles_admitted(&mut self,budget:usize,work:Option<&WorkScope>)->Result<(),String>{
-        self.trim_handles_typed(budget,work).map_err(|e|e.to_string())
+    fn trim_handles_admitted(
+        &mut self,
+        budget: usize,
+        work: Option<&WorkScope>,
+    ) -> Result<(), String> {
+        self.trim_handles_typed(budget, work)
+            .map_err(|e| e.to_string())
     }
     fn trim_handles_typed(
         &mut self,
@@ -344,16 +364,12 @@ impl Memo {
             return Ok(());
         }
         let mut order = newchan_rust::s_content::CodecVec::default();
-        admission
-            .native_vec_room(&mut order, self.handles.len())
-            ?;
+        admission.native_vec_room(&mut order, self.handles.len())?;
         for (key, entry) in &self.handles {
-            order
-                .try_push((
-                    entry.cost,
-                    TextValue::from_str_admitted_typed(key,None,work)?,
-                ))
-                ?;
+            order.try_push((
+                entry.cost,
+                TextValue::from_str_admitted_typed(key, None, work)?,
+            ))?;
         }
         order.sort_unstable_by(|a, b| b.cmp(a));
         let mut over = self.handles_bytes - budget;
@@ -381,8 +397,13 @@ impl Memo {
         self.trim_batch_headers_admitted(budget, None)
             .expect("None admission cannot fail")
     }
-    fn trim_batch_headers_admitted(&mut self,budget:usize,work:Option<&WorkScope>)->Result<(),String>{
-        self.trim_batch_headers_typed(budget,work).map_err(|e|e.to_string())
+    fn trim_batch_headers_admitted(
+        &mut self,
+        budget: usize,
+        work: Option<&WorkScope>,
+    ) -> Result<(), String> {
+        self.trim_batch_headers_typed(budget, work)
+            .map_err(|e| e.to_string())
     }
     fn trim_batch_headers_typed(
         &mut self,
@@ -394,16 +415,12 @@ impl Memo {
             return Ok(());
         }
         let mut order = newchan_rust::s_content::CodecVec::default();
-        admission
-            .native_vec_room(&mut order, self.batch_headers.len())
-            ?;
+        admission.native_vec_room(&mut order, self.batch_headers.len())?;
         for (key, entry) in &self.batch_headers {
-            order
-                .try_push((
-                    entry.cost,
-                    TextValue::from_str_admitted_typed(key,None,work)?,
-                ))
-                ?;
+            order.try_push((
+                entry.cost,
+                TextValue::from_str_admitted_typed(key, None, work)?,
+            ))?;
         }
         order.sort_unstable_by(|a, b| b.cmp(a));
         for (_, key) in order {
@@ -558,24 +575,31 @@ impl Memo {
     }
     /// 驱逐独有节点证书（单条最大者优先）与根证书，直到证书总量不超过给定预算。
     /// 证书只影响复用、不影响任何判据；根证书被驱逐时其句柄一并作废（不留永远命不中的死句柄）。
-    fn trim_certs(&mut self,budget:usize) {
-        self.trim_certs_typed(budget,None).expect("None admission cannot fail")
+    fn trim_certs(&mut self, budget: usize) {
+        self.trim_certs_typed(budget, None)
+            .expect("None admission cannot fail")
     }
-    fn trim_certs_typed(&mut self, budget:usize, work:Option<&WorkScope>)->Result<(),newchan_rust::s_content::CodecError> {
-        let admission=NativeAdmission(work);
+    fn trim_certs_typed(
+        &mut self,
+        budget: usize,
+        work: Option<&WorkScope>,
+    ) -> Result<(), newchan_rust::s_content::CodecError> {
+        let admission = NativeAdmission(work);
         if self.certs_bytes <= budget {
             return Ok(());
         }
         let mut over = self.certs_bytes - budget;
-        let mut order=newchan_rust::s_content::CodecVec::default();
-        admission.native_vec_room(&mut order,self.certs.len())?;
-        for (key,cert) in self.certs.iter() {order.try_push((cert.payload_cost(),*key))?;}
-        order.sort_unstable_by(|a,b|b.cmp(a));
+        let mut order = newchan_rust::s_content::CodecVec::default();
+        admission.native_vec_room(&mut order, self.certs.len())?;
+        for (key, cert) in self.certs.iter() {
+            order.try_push((cert.payload_cost(), *key))?;
+        }
+        order.sort_unstable_by(|a, b| b.cmp(a));
         for (cost, key) in order {
             if over == 0 {
                 break;
             }
-            self.remove_cert_typed(&key,work)?;
+            self.remove_cert_typed(&key, work)?;
             #[cfg(test)]
             counter(|c| c.node_cert_capacity_evictions += 1);
             over = over.saturating_sub(cost);
@@ -583,15 +607,21 @@ impl Memo {
         if over > 0 {
             // 排序只保留固定宽度证书身份，不从持费根键复制裸String。
             let mut order = {
-                let mut borrowed=newchan_rust::s_content::CodecVec::default();
-                admission.native_vec_room(&mut borrowed,self.root_certs.len())?;
-                for (key,cert) in self.root_certs.iter() {
-                    borrowed.try_push((cert.cost().saturating_add(key.len()),key.as_str(),cert.identity_ptr()))?;
+                let mut borrowed = newchan_rust::s_content::CodecVec::default();
+                admission.native_vec_room(&mut borrowed, self.root_certs.len())?;
+                for (key, cert) in self.root_certs.iter() {
+                    borrowed.try_push((
+                        cert.cost().saturating_add(key.len()),
+                        key.as_str(),
+                        cert.identity_ptr(),
+                    ))?;
                 }
-                borrowed.sort_unstable_by(|a,b|b.0.cmp(&a.0).then_with(||b.1.cmp(a.1)));
-                let mut order=newchan_rust::s_content::CodecVec::default();
-                admission.native_vec_room(&mut order,borrowed.len())?;
-                for (cost,_,identity) in borrowed {order.try_push((cost,identity))?;}
+                borrowed.sort_unstable_by(|a, b| b.0.cmp(&a.0).then_with(|| b.1.cmp(a.1)));
+                let mut order = newchan_rust::s_content::CodecVec::default();
+                admission.native_vec_room(&mut order, borrowed.len())?;
+                for (cost, _, identity) in borrowed {
+                    order.try_push((cost, identity))?;
+                }
                 order
             };
             let mut evicted = 0;
@@ -641,9 +671,13 @@ impl Memo {
     }
 
     fn fit_retention(&mut self) {
-        self.fit_retention_typed(None).expect("None admission cannot fail")
+        self.fit_retention_typed(None)
+            .expect("None admission cannot fail")
     }
-    fn fit_retention_typed(&mut self,work:Option<&WorkScope>)->Result<(),newchan_rust::s_content::CodecError> {
+    fn fit_retention_typed(
+        &mut self,
+        work: Option<&WorkScope>,
+    ) -> Result<(), newchan_rust::s_content::CodecError> {
         let after_root = self
             .limit
             .saturating_sub(self.root_bytes())
@@ -926,7 +960,7 @@ pub(crate) struct MixedCacheTransaction {
     saved: Option<RetainedTables>,
 }
 struct RetainedTables {
-    prefix:Option<Root>,
+    prefix: Option<Root>,
     certs: NativeMap<[u8; 32], Arc<Cert>>,
     roots: NativeMap<TextValue, Arc<RootCert>>,
     handles: NativeTree<TextValue, Handle>,
@@ -939,7 +973,9 @@ struct RetainedTables {
 impl RetainedTables {
     fn copy_from(m: &Memo, work: &WorkScope) -> Result<Self, newchan_rust::s_content::CodecError> {
         m.cert_lineage.check_retained_source()?;
-        if let Some(Root::Mixed(root))=&m.root {root.check_retained_source()?;}
+        if let Some(Root::Mixed(root)) = &m.root {
+            root.check_retained_source()?;
+        }
         let certs = m.certs.try_copy_mixed(work, |key, value| {
             value.check_retained_source()?;
             Ok((*key, value.clone()))
@@ -989,7 +1025,7 @@ impl RetainedTables {
             ))
         })?;
         Ok(Self {
-            prefix:m.root.clone(),
+            prefix: m.root.clone(),
             certs,
             roots,
             handles,
@@ -1002,7 +1038,7 @@ impl RetainedTables {
     }
     fn exchange(self, m: &mut Memo) -> Self {
         Self {
-            prefix:std::mem::replace(&mut m.root,self.prefix),
+            prefix: std::mem::replace(&mut m.root, self.prefix),
             certs: std::mem::replace(&mut m.certs, self.certs),
             roots: std::mem::replace(&mut m.root_certs, self.roots),
             handles: std::mem::replace(&mut m.handles, self.handles),
@@ -1992,7 +2028,9 @@ pub(super) fn resume(
     LAST_RESUMED.with(|v| v.set(0));
     MEMO.with(|m| {
         let m = m.borrow();
-        let Some(Root::Legacy(old)) = &m.root else { return 0 };
+        let Some(Root::Legacy(old)) = &m.root else {
+            return 0;
+        };
         if &old.identity != identity
             || rows.len() < old.rows.len()
             || rows[..old.rows.len()] != old.rows
@@ -2050,7 +2088,9 @@ pub(super) fn store_root(
             // 新 root 单独超限：保留此前仍可复用的旧前缀（仍在当前上限内、身份相同、且仍是当前行的
             // 前缀），不清空句柄缓存；判不出仍有用时只丢旧 root。
             let keep = m.root.as_ref().is_some_and(|root| {
-                let Root::Legacy(old)=root else {return false;};
+                let Root::Legacy(old) = root else {
+                    return false;
+                };
                 old.bytes <= m.limit
                     && old.identity == identity
                     && rows.len() >= old.rows.len()
