@@ -8,7 +8,6 @@ has one encoding and the signature covers what the helper displayed.
 from __future__ import annotations
 
 import base64
-import binascii
 import hashlib
 import json
 import os
@@ -293,7 +292,7 @@ def _b64(value: object, field: str) -> bytes:
         raise ProtocolError(f"{field} must be a base64 string")
     try:
         decoded = base64.b64decode(value, validate=True)
-    except binascii.Error as exc:
+    except ValueError as exc:  # binascii.Error, or non-ASCII characters
         raise ProtocolError(f"{field} is not base64") from exc
     if base64.b64encode(decoded).decode("ascii") != value:
         raise ProtocolError(f"{field} is not canonical base64")
@@ -373,7 +372,7 @@ def load_trust(path: Path = DEFAULT_TRUST_PATH) -> TrustRoot:
 def verify_receipt(data: bytes, trust: TrustRoot) -> VerifiedReceipt:
     try:
         raw = json.loads(data)
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+    except (ValueError, RecursionError) as exc:
         raise ProtocolError("receipt is not JSON") from exc
     if not isinstance(raw, dict) or set(raw) != {"format", "algorithm", "key_id", "payload", "signature"}:
         raise ProtocolError("receipt fields")
