@@ -2,6 +2,7 @@
 //! 每批原件仍完整读取。累计 batch 自身的历史字节不会凭此变成 O(page)。
 use super::*;
 use std::collections::BTreeSet;
+#[path = "audit/mixed.rs"]
 pub(crate) mod mixed;
 const WITNESSES_SQL: &str = "SELECT witness_id,published_generation,object_id,slot,merged_source_index,
                         merged_high,merged_low,merged_open,merged_close,raw_json FROM witnesses";
