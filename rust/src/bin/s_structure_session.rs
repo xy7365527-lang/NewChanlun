@@ -8199,7 +8199,7 @@ mod tests {
         advance_business(&files.db(), DEFAULT_WRITER_EPOCH).unwrap();
     }
 
-    /// 旧规则 /1 库带未检查点的 -wal（含未决 Begin）：新二进制的读、写、恢复入口全部不改写
+    /// 旧规则 /1 库带未检查点的 -wal（含未决 Begin）：业务读、写、恢复核全部不改写
     /// 主库与 -wal 字节；写与恢复在版本门拒绝；读经只读连接仍看到 -wal 中已提交的事实。
     #[test]
     fn tb1405_old_rule_store_with_hot_wal_is_never_rewritten() {
@@ -8254,7 +8254,7 @@ mod tests {
                 &test_input(&[ev("e3", "1", "3", "12000")]),
             );
             assert!(
-                cmd_accept(
+                accept_business_file(
                     &image,
                     &input,
                     &fixture("profiles/testonly_tick_1_1_ohlc.json"),
