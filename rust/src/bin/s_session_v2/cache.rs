@@ -317,11 +317,14 @@ impl Memo {
         self.trim_handles_admitted(budget, None)
             .expect("None admission cannot fail")
     }
-    fn trim_handles_admitted(
+    fn trim_handles_admitted(&mut self,budget:usize,work:Option<&WorkScope>)->Result<(),String>{
+        self.trim_handles_typed(budget,work).map_err(|e|e.to_string())
+    }
+    fn trim_handles_typed(
         &mut self,
         budget: usize,
         work: Option<&WorkScope>,
-    ) -> Result<(), String> {
+    ) -> Result<(), newchan_rust::s_content::CodecError> {
         let admission = NativeAdmission(work);
         if self.handles_bytes <= budget {
             return Ok(());
@@ -329,14 +332,14 @@ impl Memo {
         let mut order = newchan_rust::s_content::CodecVec::default();
         admission
             .native_vec_room(&mut order, self.handles.len())
-            .map_err(|e| e.to_string())?;
+            ?;
         for (key, entry) in &self.handles {
             order
                 .try_push((
                     entry.cost,
-                    admission.native_text(key).map_err(|e| e.to_string())?,
+                    admission.native_text(key)?,
                 ))
-                .map_err(|e| e.to_string())?;
+                ?;
         }
         order.sort_unstable_by(|a, b| b.cmp(a));
         let mut over = self.handles_bytes - budget;
@@ -364,11 +367,14 @@ impl Memo {
         self.trim_batch_headers_admitted(budget, None)
             .expect("None admission cannot fail")
     }
-    fn trim_batch_headers_admitted(
+    fn trim_batch_headers_admitted(&mut self,budget:usize,work:Option<&WorkScope>)->Result<(),String>{
+        self.trim_batch_headers_typed(budget,work).map_err(|e|e.to_string())
+    }
+    fn trim_batch_headers_typed(
         &mut self,
         budget: usize,
         work: Option<&WorkScope>,
-    ) -> Result<(), String> {
+    ) -> Result<(), newchan_rust::s_content::CodecError> {
         let admission = NativeAdmission(work);
         if self.batch_headers_bytes <= budget {
             return Ok(());
@@ -376,14 +382,14 @@ impl Memo {
         let mut order = newchan_rust::s_content::CodecVec::default();
         admission
             .native_vec_room(&mut order, self.batch_headers.len())
-            .map_err(|e| e.to_string())?;
+            ?;
         for (key, entry) in &self.batch_headers {
             order
                 .try_push((
                     entry.cost,
-                    admission.native_text(key).map_err(|e| e.to_string())?,
+                    admission.native_text(key)?,
                 ))
-                .map_err(|e| e.to_string())?;
+                ?;
         }
         order.sort_unstable_by(|a, b| b.cmp(a));
         for (_, key) in order {
@@ -538,22 +544,24 @@ impl Memo {
     }
     /// 驱逐独有节点证书（单条最大者优先）与根证书，直到证书总量不超过给定预算。
     /// 证书只影响复用、不影响任何判据；根证书被驱逐时其句柄一并作废（不留永远命不中的死句柄）。
-    fn trim_certs(&mut self, budget: usize) {
+    fn trim_certs(&mut self,budget:usize) {
+        self.trim_certs_typed(budget,None).expect("None admission cannot fail")
+    }
+    fn trim_certs_typed(&mut self, budget:usize, work:Option<&WorkScope>)->Result<(),newchan_rust::s_content::CodecError> {
+        let admission=NativeAdmission(work);
         if self.certs_bytes <= budget {
-            return;
+            return Ok(());
         }
         let mut over = self.certs_bytes - budget;
-        let mut order = self
-            .certs
-            .iter()
-            .map(|(k, c)| (c.payload_cost(), *k))
-            .collect::<Vec<_>>();
-        order.sort_by(|a, b| b.cmp(a));
+        let mut order=newchan_rust::s_content::CodecVec::default();
+        admission.native_vec_room(&mut order,self.certs.len())?;
+        for (key,cert) in self.certs.iter() {order.try_push((cert.payload_cost(),*key))?;}
+        order.sort_unstable_by(|a,b|b.cmp(a));
         for (cost, key) in order {
             if over == 0 {
                 break;
             }
-            self.remove_cert(&key);
+            self.remove_cert_typed(&key,work)?;
             #[cfg(test)]
             counter(|c| c.node_cert_capacity_evictions += 1);
             over = over.saturating_sub(cost);
@@ -561,22 +569,16 @@ impl Memo {
         if over > 0 {
             // 排序只保留固定宽度证书身份，不从持费根键复制裸String。
             let mut order = {
-                let mut borrowed = self
-                    .root_certs
-                    .iter()
-                    .map(|(key, cert)| {
-                        (
-                            cert.cost().saturating_add(key.len()),
-                            key.as_str(),
-                            cert.identity_ptr(),
-                        )
-                    })
-                    .collect::<Vec<_>>();
-                borrowed.sort_unstable_by(|a, b| b.0.cmp(&a.0).then_with(|| b.1.cmp(a.1)));
-                borrowed
-                    .iter()
-                    .map(|(cost, _, identity)| (*cost, *identity))
-                    .collect::<Vec<_>>()
+                let mut borrowed=newchan_rust::s_content::CodecVec::default();
+                admission.native_vec_room(&mut borrowed,self.root_certs.len())?;
+                for (key,cert) in self.root_certs.iter() {
+                    borrowed.try_push((cert.cost().saturating_add(key.len()),key.as_str(),cert.identity_ptr()))?;
+                }
+                borrowed.sort_unstable_by(|a,b|b.0.cmp(&a.0).then_with(||b.1.cmp(a.1)));
+                let mut order=newchan_rust::s_content::CodecVec::default();
+                admission.native_vec_room(&mut order,borrowed.len())?;
+                for (cost,_,identity) in borrowed {order.try_push((cost,identity))?;}
+                order
             };
             let mut evicted = 0;
             for (cost, _) in &order {
@@ -621,28 +623,35 @@ impl Memo {
             self.root_certs
                 .retain(|_, cert| !removed_cert(cert.identity_ptr()));
         }
+        Ok(())
     }
 
     fn fit_retention(&mut self) {
+        self.fit_retention_typed(None).expect("None admission cannot fail")
+    }
+    fn fit_retention_typed(&mut self,work:Option<&WorkScope>)->Result<(),newchan_rust::s_content::CodecError> {
         let after_root = self
             .limit
             .saturating_sub(self.root_bytes())
             .saturating_sub(self.capture_bytes());
-        self.trim_handles(
+        self.trim_handles_typed(
             after_root
                 .saturating_sub(self.certs_bytes)
                 .saturating_sub(self.batch_headers_bytes),
-        );
-        self.trim_batch_headers(
+            work,
+        )?;
+        self.trim_batch_headers_typed(
             after_root
                 .saturating_sub(self.certs_bytes)
                 .saturating_sub(self.handles_bytes),
-        );
-        self.trim_certs(
+            work,
+        )?;
+        self.trim_certs_typed(
             after_root
                 .saturating_sub(self.handles_bytes)
                 .saturating_sub(self.batch_headers_bytes),
-        );
+            work,
+        )?;
         // 证书驱逐会把仍活着的共享原件转入捕获；若其暂存挤占新 root，只放弃节点暂存。
         // 必要的遍历派生量/可达集合仍属当前算法工作集，根与下一次请求不能持有它们。
         if self.retained_bytes().saturating_add(self.capture_bytes()) > self.limit {
@@ -656,21 +665,25 @@ impl Memo {
             .limit
             .saturating_sub(self.root_bytes())
             .saturating_sub(self.capture_bytes());
-        self.trim_handles(
+        self.trim_handles_typed(
             after_root
                 .saturating_sub(self.certs_bytes)
                 .saturating_sub(self.batch_headers_bytes),
-        );
-        self.trim_batch_headers(
+            work,
+        )?;
+        self.trim_batch_headers_typed(
             after_root
                 .saturating_sub(self.certs_bytes)
                 .saturating_sub(self.handles_bytes),
-        );
-        self.trim_certs(
+            work,
+        )?;
+        self.trim_certs_typed(
             after_root
                 .saturating_sub(self.handles_bytes)
                 .saturating_sub(self.batch_headers_bytes),
-        );
+            work,
+        )?;
+        Ok(())
     }
 }
 
