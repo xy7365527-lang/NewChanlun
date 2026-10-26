@@ -2269,13 +2269,13 @@ pub(super) fn lookup(
     if stored != hash {
         return Err("IdentityConflict：原message身份绑定不同内容".into());
     }
-    let publication = if let Some(g) = g {
-        conn.query_row("SELECT generation,next_cut,index_frontier,catalog_revision,input_frontier FROM structure_deltas WHERE generation=?1",params![g],|r|Ok(json!({"generation":r.get::<_,i64>(0)?.to_string(),"structure_cut":r.get::<_,String>(1)?,"index_frontier":r.get::<_,String>(2)?,"catalog_revision":r.get::<_,String>(3)?,"input_frontier":r.get::<_,i64>(4)?.to_string()}))).map_err(err)?
+    let (publication, policy_records) = if let Some(g) = g {
+        conn.query_row("SELECT generation,next_cut,index_frontier,catalog_revision,input_frontier,policy_records FROM structure_deltas WHERE generation=?1",params![g],|r|Ok((json!({"generation":r.get::<_,i64>(0)?.to_string(),"structure_cut":r.get::<_,String>(1)?,"index_frontier":r.get::<_,String>(2)?,"catalog_revision":r.get::<_,String>(3)?,"input_frontier":r.get::<_,i64>(4)?.to_string()}),Value::String(r.get::<_,String>(5)?)))).map_err(err)?
     } else {
-        Value::Null
+        (Value::Null, Value::Null)
     };
     Ok(
-        json!({"ok":true,"kind":status,"original_message_id":id,"receipt_id":receipt,"accepted_seq":seq.to_string(),"publication":publication}),
+        json!({"ok":true,"kind":status,"original_message_id":id,"receipt_id":receipt,"accepted_seq":seq.to_string(),"publication":publication,"policy_records":policy_records}),
     )
 }
 fn ready(conn: &Connection) -> Result<Value, String> {
@@ -2337,12 +2337,26 @@ pub(super) fn validate_ingest_view(e: JsonView<'_>) -> Result<(), String> {
     Ok(())
 }
 
-fn handle(
+fn handle_with_policy(
     db: &Path,
     profile: &Path,
     epoch: &str,
     clock: &ClockPlan,
     e: &Value,
+    production: bool,
+) -> Result<Value, String> {
+    handle_with_policy_and_config(db, profile, epoch, clock, e, production, None)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn handle_with_policy_and_config(
+    db: &Path,
+    profile: &Path,
+    epoch: &str,
+    clock: &ClockPlan,
+    e: &Value,
+    production: bool,
+    _fixture_config: Option<&ThetaConfig>,
 ) -> Result<Value, String> {
     let conn = open_db(db)?;
     let tx = conn.unchecked_transaction().map_err(err)?;
@@ -2398,20 +2412,39 @@ fn handle(
                     Some(&c),
                 )?;
             }
-            advance_core(db, epoch, Some(&c))?;
+            let advanced = if production {
+                advance_core(db, epoch, Some(&c))?
+            } else {
+                #[cfg(test)]
+                {
+                    if let Some(config) = _fixture_config {
+                        advance_core_with_config(db, epoch, Some(&c), config)?
+                    } else {
+                        advance_core_fixture(db, epoch, Some(&c))?
+                    }
+                }
+                #[cfg(not(test))]
+                unreachable!("fixture only exists in test builds")
+            };
             let started = s_fact_cache::phase::begin();
             let conn = open_db(db)?;
             let tx = conn.unchecked_transaction().map_err(err)?;
             verify_reachable_root(&tx)?;
-            let out = lookup(
+            let mut out = lookup(
                 &tx,
                 required(e, "source_namespace")?,
                 required(e, "source_epoch")?,
                 required(e, "message_id")?,
                 required(e, "payload_hash")?,
-            );
+            )?;
             s_fact_cache::phase::record("post_advance_root_audit", started.elapsed().as_nanos());
-            out
+            if out["kind"] == "Committed" {
+                if out["policy_records"] != advanced["policy_records"] {
+                    return Err("IdentityConflict：外部回执与本次实际生成的记录版本戳不同".into());
+                }
+                out["policy_records"] = advanced["policy_records"].clone();
+            }
+            Ok(out)
         }
         _ => Err("SchemaUnsupported：未知op，恢复只允许正式监督器CLI".into()),
     }
@@ -2493,7 +2526,31 @@ pub(crate) fn verify_serve_startup(
     Ok(())
 }
 
-fn serve(
+#[cfg(test)]
+#[allow(clippy::too_many_arguments)]
+fn handle_fixture(
+    db: &Path,
+    profile: &Path,
+    epoch: &str,
+    clock: &v2::ClockPlan,
+    envelope: &Value,
+) -> Result<Value, String> {
+    handle_with_policy(db, profile, epoch, clock, envelope, false)
+}
+
+#[cfg(test)]
+fn handle_fixture_with_config(
+    db: &Path,
+    profile: &Path,
+    epoch: &str,
+    clock: &v2::ClockPlan,
+    envelope: &Value,
+    config: &ThetaConfig,
+) -> Result<Value, String> {
+    handle_with_policy_and_config(db, profile, epoch, clock, envelope, false, Some(config))
+}
+
+fn serve_with_policy(
     db: &Path,
     socket: &Path,
     profile: &Path,
@@ -2501,6 +2558,7 @@ fn serve(
     clock_path: &Path,
     bounds: Bounds,
     mut admission: crate::v3::admission_anchor::PreparedAdmission,
+    production: bool,
 ) -> Result<(), String> {
     positive(epoch, "v2 writer_epoch")?;
     cache::configure(bounds.cache_bytes);
@@ -2536,7 +2594,16 @@ fn serve(
         };
         // 此身份已持久接纳：换代只取得新推进权，不能修改原payload中的旧writer_epoch。
         scope.require_admitted()?;
-        advance_core(db, epoch, Some(&context))?;
+        if production {
+            advance_core(db, epoch, Some(&context))?;
+        } else {
+            #[cfg(test)]
+            {
+                advance_core_fixture(db, epoch, Some(&context))?;
+            }
+            #[cfg(not(test))]
+            unreachable!("fixture only exists in test builds")
+        }
     }
     scope.finish_startup()?;
     serve_unix(socket, bounds.transport(), envelope, |e| {
@@ -2544,7 +2611,7 @@ fn serve(
             e,
             scope
                 .require_admitted()
-                .and_then(|()| handle(db, profile, epoch, &clock, e)),
+                .and_then(|()| handle_with_policy(db, profile, epoch, &clock, e, production)),
             &identity,
             control_instance_id.as_deref(),
         )
@@ -2571,7 +2638,31 @@ fn arg(args: &[String], key: &str) -> Result<String, String> {
 fn positive_arg(args: &[String], key: &str) -> Result<i64, String> {
     positive(&arg(args, key)?, key)
 }
+#[cfg(test)]
+fn serve_fixture(
+    db: &Path,
+    socket: &Path,
+    profile: &Path,
+    epoch: &str,
+    clock_path: &Path,
+    bounds: Bounds,
+    admission: crate::v3::admission_anchor::PreparedAdmission,
+) -> Result<(), String> {
+    serve_with_policy(
+        db, socket, profile, epoch, clock_path, bounds, admission, false,
+    )
+}
+
 pub fn dispatch(args: &[String]) -> Result<bool, String> {
+    dispatch_with_policy(args, true)
+}
+
+#[cfg(test)]
+pub fn dispatch_fixture(args: &[String]) -> Result<bool, String> {
+    dispatch_with_policy(args, false)
+}
+
+fn dispatch_with_policy(args: &[String], production: bool) -> Result<bool, String> {
     let cmd = args.get(1).map(String::as_str).unwrap_or("");
     if cmd == "init"
         && [
@@ -2621,7 +2712,7 @@ pub fn dispatch(args: &[String]) -> Result<bool, String> {
             crate::v3::admission_anchor::ControlEnv::capture(),
         )
         .map_err(|error| error.to_string())?;
-        serve(
+        serve_with_policy(
             Path::new(&arg(args, "--db")?),
             Path::new(&arg(args, "--socket")?),
             Path::new(&arg(args, "--profile")?),
@@ -2629,6 +2720,7 @@ pub fn dispatch(args: &[String]) -> Result<bool, String> {
             Path::new(&arg(args, "--clock-plan")?),
             bounds,
             admission,
+            production,
         )?;
         return Ok(true);
     }
@@ -2972,7 +3064,7 @@ mod tests {
             });
             let started = Instant::now();
             let before = cache::counters_snapshot();
-            handle(&db, &profile, "1", &clock, &envelope(message).unwrap()).unwrap();
+            handle_fixture(&db, &profile, "1", &clock, &envelope(message).unwrap()).unwrap();
             let spent = started.elapsed();
             let after = cache::counters_snapshot();
             per_generation_audit_ms.push(format!(
@@ -3272,7 +3364,7 @@ mod tests {
         }
         fn ingest(&self, i: i64) -> Value {
             let m = envelope(self.message(i)).unwrap();
-            handle(&self.db, &self.profile, "1", &self.clock, &m).unwrap()
+            handle_fixture(&self.db, &self.profile, "1", &self.clock, &m).unwrap()
         }
         fn dump(&self) -> Vec<(String, Vec<String>)> {
             let conn = open_db(&self.db).unwrap();
@@ -3376,7 +3468,7 @@ mod tests {
         };
         let socket = f.dir.join("s.sock");
         // 对照：当前规则库的未决 Begin 仍按原口径指向 recover（该路径对当前规则可走）。
-        let current = serve(
+        let current = serve_fixture(
             &f.db,
             &socket,
             &f.profile,
@@ -3408,7 +3500,7 @@ mod tests {
         };
         let before = files(&f.db);
 
-        let msg = serve(
+        let msg = serve_fixture(
             &f.db,
             &socket,
             &f.profile,
@@ -3496,7 +3588,7 @@ mod tests {
             queue: 4,
             connections: 4,
         };
-        let msg = serve(
+        let msg = serve_fixture(
             &f.db,
             &socket,
             &f.profile,
@@ -3531,7 +3623,7 @@ mod tests {
                 f.profile.clone()
             };
             let socket = f.dir.join("prefix-must-not-bind.sock");
-            let msg = serve(
+            let msg = serve_fixture(
                 &f.db,
                 &socket,
                 &profile,
@@ -3635,7 +3727,7 @@ mod tests {
         payload["clock_event_id"] = json!("op-5");
         let replay = f.wrap(payload, "business-replay");
         assert_eq!(
-            handle(&f.db, &f.profile, "1", &f.clock, &replay).unwrap()["kind"],
+            handle_fixture(&f.db, &f.profile, "1", &f.clock, &replay).unwrap()["kind"],
             "Committed"
         );
         verify_reachable_root(&conn).unwrap();
@@ -3719,7 +3811,7 @@ mod tests {
                     Some(&c),
                 )
                 .is_err(),
-                advance_core(&f.db, "1", Some(&c)).is_err(),
+                advance_core_fixture(&f.db, "1", Some(&c)).is_err(),
                 recover_core(&f.db, "2", Some((&f.clock, "recover-1"))).is_err(),
             ] {
                 assert!(refused, "{sql}");
@@ -3779,6 +3871,224 @@ mod tests {
         assert_eq!(valid["deltas"].as_array().unwrap().len(), 2);
     }
     #[test]
+    fn v2_external_receipts_keep_historical_policy_records_across_config_versions() {
+        let f = Fixture::new(8, 2);
+        let v1 = ThetaConfig::default();
+        let mut v2 = v1.clone();
+        v2.records.risk.record.version =
+            newchan_rust::theta_v0::policy_records::PolicyVersion::Signed(2);
+        assert!(!v1.admissible());
+
+        let first_input = envelope(f.message(0)).unwrap();
+        let first = handle_fixture_with_config(&f.db, &f.profile, "1", &f.clock, &first_input, &v1)
+            .unwrap();
+        assert_eq!(first["kind"], "Committed");
+        assert!(first["policy_records"]
+            .as_str()
+            .unwrap()
+            .contains("theta-risk/1"));
+        assert!(first["policy_records"]
+            .as_str()
+            .unwrap()
+            .contains("venue-profile-diagnostic-fixture/1"));
+
+        assert_eq!(
+            handle_fixture_with_config(&f.db, &f.profile, "1", &f.clock, &first_input, &v2,)
+                .unwrap(),
+            first,
+            "配置改版后的幂等重投必须返回原生成记录戳"
+        );
+        let first_query = envelope(f.wrap(
+            json!({"op":"receipt","original_source_namespace":first_input["source_namespace"],"original_source_epoch":first_input["source_epoch"],"original_message_id":first_input["message_id"],"original_payload_hash":first_input["payload_hash"]}),
+            "receipt-query-1",
+        ))
+        .unwrap();
+        assert_eq!(
+            handle_fixture_with_config(&f.db, &f.profile, "1", &f.clock, &first_query, &v2,)
+                .unwrap(),
+            first,
+            "receipt 查询不得用当前配置改写历史"
+        );
+
+        let context = InputContext {
+            envelope: first_input.clone(),
+            clock: f.clock.clone(),
+        };
+        let repeated_advance = advance_core_with_config(&f.db, "1", Some(&context), &v2).unwrap();
+        assert_eq!(repeated_advance["idempotent"], true);
+        assert_eq!(
+            repeated_advance["policy_records"], first["policy_records"],
+            "无新输入的 advance 也必须读取原 generation，而不是当前配置"
+        );
+
+        let second_input = envelope(f.message(1)).unwrap();
+        let second =
+            handle_fixture_with_config(&f.db, &f.profile, "1", &f.clock, &second_input, &v2)
+                .unwrap();
+        assert!(second["policy_records"]
+            .as_str()
+            .unwrap()
+            .contains("theta-risk/2"));
+        assert_ne!(second["policy_records"], first["policy_records"]);
+
+        let second_query = envelope(f.wrap(
+            json!({"op":"receipt","original_source_namespace":second_input["source_namespace"],"original_source_epoch":second_input["source_epoch"],"original_message_id":second_input["message_id"],"original_payload_hash":second_input["payload_hash"]}),
+            "receipt-query-2",
+        ))
+        .unwrap();
+        assert_eq!(
+            handle_fixture_with_config(&f.db, &f.profile, "1", &f.clock, &second_query, &v1,)
+                .unwrap(),
+            second,
+            "重新打开后即使配置回退，也只能读取结果实际使用的 v2 记录戳"
+        );
+        assert_eq!(
+            handle_fixture_with_config(&f.db, &f.profile, "1", &f.clock, &first_query, &v1,)
+                .unwrap(),
+            first
+        );
+    }
+
+    #[test]
+    fn v2_legacy_policy_records_migration_preserves_history_and_new_versions() {
+        let f = Fixture::new(8, 2);
+        let v1 = ThetaConfig::default();
+        let mut v2 = v1.clone();
+        v2.records.risk.record.version =
+            newchan_rust::theta_v0::policy_records::PolicyVersion::Signed(2);
+
+        let first_input = envelope(f.message(0)).unwrap();
+        let first = handle_fixture_with_config(&f.db, &f.profile, "1", &f.clock, &first_input, &v1)
+            .unwrap();
+        assert_eq!(first["publication"]["generation"], "1");
+        let original = |conn: &Connection| {
+            conn.query_row(
+                "SELECT m.canonical_envelope,m.receipt_id,d.delta_json,d.catalog_evidence_json,d.index_frontier
+                 FROM s_input_messages m JOIN structure_deltas d ON d.generation=m.first_published_generation
+                 WHERE m.message_id='msg-0'",
+                [],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, String>(3)?,
+                        row.get::<_, String>(4)?,
+                    ))
+                },
+            )
+            .unwrap()
+        };
+        let before = original(&Connection::open(&f.db).unwrap());
+
+        // 真实旧协议表：已提交 generation 留在库内，只缺本票新增的物理列。
+        {
+            let conn = Connection::open(&f.db).unwrap();
+            conn.execute_batch("ALTER TABLE structure_deltas DROP COLUMN policy_records")
+                .unwrap();
+            assert!(conn
+                .prepare("SELECT policy_records FROM structure_deltas")
+                .is_err());
+            assert_eq!(original(&conn), before);
+        }
+
+        let mut legacy_first = first.clone();
+        legacy_first["policy_records"] = json!(crate::LEGACY_POLICY_RECORDS_UNKNOWN);
+        let first_query = envelope(f.wrap(
+            json!({"op":"receipt","original_source_namespace":first_input["source_namespace"],"original_source_epoch":first_input["source_epoch"],"original_message_id":first_input["message_id"],"original_payload_hash":first_input["payload_hash"]}),
+            "legacy-receipt-query-1",
+        ))
+        .unwrap();
+        assert_eq!(
+            handle_fixture_with_config(&f.db, &f.profile, "1", &f.clock, &first_query, &v2)
+                .unwrap(),
+            legacy_first,
+            "旧 receipt 查询须迁移并返回历史未知，不得冒充当前 v2 配置"
+        );
+        assert_eq!(
+            handle_fixture_with_config(&f.db, &f.profile, "1", &f.clock, &first_input, &v2)
+                .unwrap(),
+            legacy_first,
+            "迁移后的幂等重投仍返回原消息与原 generation"
+        );
+
+        let context = InputContext {
+            envelope: first_input.clone(),
+            clock: f.clock.clone(),
+        };
+        let repeated = advance_core_with_config(&f.db, "1", Some(&context), &v2).unwrap();
+        assert_eq!(repeated["idempotent"], true);
+        assert_eq!(repeated["generation"], "1");
+        assert_eq!(
+            repeated["policy_records"],
+            json!(crate::LEGACY_POLICY_RECORDS_UNKNOWN)
+        );
+
+        recover_core(&f.db, "2", Some((&f.clock, "recover-1"))).unwrap();
+        assert_eq!(
+            handle_fixture_with_config(&f.db, &f.profile, "2", &f.clock, &first_query, &v2)
+                .unwrap(),
+            legacy_first,
+            "恢复并重开后，旧 generation 的记录戳仍是历史未知"
+        );
+
+        let mut second_message = f.message(1);
+        second_message["payload"]["writer_epoch"] = json!("2");
+        second_message["payload_hash"] = json!(sha256_hex(
+            canonical_json(&second_message["payload"]).as_bytes()
+        ));
+        let second_input = envelope(second_message).unwrap();
+        let second =
+            handle_fixture_with_config(&f.db, &f.profile, "2", &f.clock, &second_input, &v2)
+                .unwrap();
+        assert_eq!(second["publication"]["generation"], "2");
+        assert_eq!(second["policy_records"], json!(v2.record_labels()));
+        assert!(second["policy_records"]
+            .as_str()
+            .unwrap()
+            .contains("theta-risk/2"));
+        assert_eq!(
+            handle_fixture_with_config(&f.db, &f.profile, "2", &f.clock, &first_query, &v1)
+                .unwrap(),
+            legacy_first
+        );
+
+        let conn = open_db(&f.db).unwrap();
+        verify_reachable_root(&conn).unwrap();
+        assert_eq!(original(&conn), before, "迁移和后续发布不得改写旧原件");
+        let mut stmt = conn
+            .prepare("SELECT policy_records FROM structure_deltas ORDER BY generation")
+            .unwrap();
+        let stamps = stmt
+            .query_map([], |row| row.get::<_, String>(0))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(
+            stamps,
+            vec![
+                crate::LEGACY_POLICY_RECORDS_UNKNOWN.to_string(),
+                v2.record_labels(),
+            ]
+        );
+        drop(stmt);
+        drop(conn);
+
+        let output = std::process::Command::new("python3")
+            .arg(crate::tests::fixture("tests/tb02b_verify.py"))
+            .arg("--database")
+            .arg(&f.db)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "迁移后的 Python 只读严格审计失败：stdout={} stderr={}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    #[test]
     fn v2_same_message_cannot_change_clock_or_payload() {
         let f = Fixture::new(8, 2);
         f.ingest(0);
@@ -3786,7 +4096,7 @@ mod tests {
         let mut e = f.message(0);
         e["payload"]["clock_event_id"] = json!("op-1");
         e["payload_hash"] = json!(sha256_hex(canonical_json(&e["payload"]).as_bytes()));
-        assert!(handle(&f.db, &f.profile, "1", &f.clock, &e)
+        assert!(handle_fixture(&f.db, &f.profile, "1", &f.clock, &e)
             .unwrap_err()
             .contains("IdentityConflict"));
         assert_eq!(before, f.dump());
@@ -3796,7 +4106,7 @@ mod tests {
         let f = Fixture::new(8, 2);
         let c = f.begin_only();
         recover_core(&f.db, "2", Some((&f.clock, "recover-1"))).unwrap();
-        advance_core(&f.db, "2", Some(&c)).unwrap();
+        advance_core_fixture(&f.db, "2", Some(&c)).unwrap();
         let conn = open_db(&f.db).unwrap();
         verify_reachable_root(&conn).unwrap();
         let count: i64 = conn
@@ -3829,7 +4139,7 @@ mod tests {
         let c = f.begin_only();
         recover_core(&f.db, "2", Some((&f.clock, "recover-1"))).unwrap();
         let before = f.dump();
-        assert!(advance_core(&f.db, "2", Some(&c))
+        assert!(advance_core_fixture(&f.db, "2", Some(&c))
             .unwrap_err()
             .contains("MissingDependency"));
         assert_eq!(before, f.dump());
@@ -3848,7 +4158,7 @@ mod tests {
             let before = f.dump();
             assert!(verify_reachable_root(&conn).is_err(), "{table}");
             assert!(
-                handle(&f.db, &f.profile, "1", &f.clock, &f.message(4)).is_err(),
+                handle_fixture(&f.db, &f.profile, "1", &f.clock, &f.message(4)).is_err(),
                 "{table}"
             );
             assert!(
@@ -3880,7 +4190,7 @@ mod tests {
             .unwrap();
         let before = f.dump();
         assert!(verify_reachable_root(&conn).is_err());
-        assert!(advance_core(&f.db, "1", Some(&c)).is_err());
+        assert!(advance_core_fixture(&f.db, "1", Some(&c)).is_err());
         assert_eq!(before, f.dump());
     }
     #[test]
@@ -3911,7 +4221,7 @@ mod tests {
             let before=f.dump();
             let refused=[verify_reachable_root(&conn).is_err(),
                 accept_core(&f.db,&canonical_json(&c.envelope["payload"]["raw_input"]),&f.profile,"1",Some(&c)).is_err(),
-                advance_core(&f.db,"1",Some(&c)).is_err(),
+                advance_core_fixture(&f.db,"1",Some(&c)).is_err(),
                 recover_core(&f.db,"2",Some((&f.clock,"recover-1"))).is_err()];
             if refused!=[true;4] || before!=f.dump() { failures.push((name,refused)); }
         }
@@ -3922,7 +4232,7 @@ mod tests {
         let f = Fixture::new(8, 2);
         let c = f.begin_only();
         recover_core(&f.db, "2", Some((&f.clock, "recover-1"))).unwrap();
-        advance_core(&f.db, "2", Some(&c)).unwrap();
+        advance_core_fixture(&f.db, "2", Some(&c)).unwrap();
         let mut conn = open_db(&f.db).unwrap();
         verify_reachable_root(&conn).unwrap();
         for sql in [
@@ -3984,7 +4294,7 @@ mod tests {
                 .is_err(),
                 "{sql}"
             );
-            assert!(advance_core(&f.db, "1", Some(&c)).is_err(), "{sql}");
+            assert!(advance_core_fixture(&f.db, "1", Some(&c)).is_err(), "{sql}");
             assert!(
                 recover_core(&f.db, "2", Some((&f.clock, "recover-1"))).is_err(),
                 "{sql}"

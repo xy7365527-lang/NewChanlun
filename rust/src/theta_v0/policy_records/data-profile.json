@@ -1,0 +1,15 @@
+{
+  "id": "data-profile",
+  "version": 1,
+  "kind": "data_profile",
+  "ticket": "#1602（#1586 审计 C-18；完整历史数据 profile 归 #1536 FU-14）",
+  "scope": "回测数据加载清洗阈值（backtest::data::load_symbol）",
+  "fields": {
+    "bad_tick_max_dev": {
+      "value": 0.8,
+      "unit": "四价对净化前收的最大相对偏离（倍）",
+      "source": "#922 全品种存量扫描 chanlun/review-results/issue922-bad-tick-scan-20260816.md：合法极端 ≤0.40x（CL 2020-04 负油价时代、BRN 2019-09 沙特遇袭跳空），坏 tick ≥0.999x（坍缩近零）；空档 (0.40, 0.999) 取 0.80，双侧余量 ≥2×。#1013 影子评审（坏 tick 闸 a1d09cf44a，已关）",
+      "cost": "取值越低越容易把合法跳空误标 untradable；越高越容易放过部分坍缩的坏 print"
+    }
+  }
+}

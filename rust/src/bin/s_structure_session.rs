@@ -207,6 +207,10 @@ fn identity_key(ns: &str, epoch: &str, instr: &str, event_id: &str) -> String {
 // 数据库初始化（C09.2：WAL + synchronous=FULL + 平台前件核）
 // ────────────────────────────────────────────────────────────────────────────
 
+/// #1602：新增记录戳列之前已发布的 generation 无从反推当时配置；迁移只标记历史未知。
+/// 该值不是任何记录 id/version，所有新发布路径仍须显式写入本次 `ThetaConfig::record_labels()`。
+const LEGACY_POLICY_RECORDS_UNKNOWN: &str = "legacy/unknown";
+
 const SCHEMA: &str = r#"
 CREATE TABLE IF NOT EXISTS meta (
   key TEXT PRIMARY KEY,
@@ -299,7 +303,8 @@ CREATE TABLE IF NOT EXISTS structure_deltas (
   input_frontier INTEGER NOT NULL,
   catalog_run_status TEXT NOT NULL,
   catalog_evidence_json TEXT NOT NULL,
-  delta_json TEXT NOT NULL
+  delta_json TEXT NOT NULL,
+  policy_records TEXT NOT NULL DEFAULT 'legacy/unknown'
 );
 CREATE TABLE IF NOT EXISTS writer_epoch_history (
   ordinal INTEGER PRIMARY KEY,
@@ -331,7 +336,7 @@ fn open_db(db: &Path) -> Result<Connection, String> {
         }
     }
 
-    let conn = Connection::open_with_flags(
+    let mut conn = Connection::open_with_flags(
         db,
         rusqlite::OpenFlags::default() | rusqlite::OpenFlags::SQLITE_OPEN_PRIVATE_CACHE,
     )
@@ -341,7 +346,40 @@ fn open_db(db: &Path) -> Result<Connection, String> {
     #[cfg(target_os = "macos")]
     conn.execute_batch("PRAGMA fullfsync=ON;")
         .map_err(|e| format!("设置 fullfsync 失败：{e}"))?;
+    migrate_legacy_policy_records(&mut conn)?;
     Ok(conn)
+}
+
+/// #1602：同协议旧库只有既有行缺少 `policy_records`；补列时 SQLite 以显式未知值填充，
+/// 不读取调用时配置。`BEGIN IMMEDIATE` 后重核列，保证多入口同时开门时迁移至多执行一次。
+fn migrate_legacy_policy_records(conn: &mut Connection) -> Result<(), String> {
+    let missing = |conn: &Connection| -> Result<bool, String> {
+        conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name='structure_deltas')
+             AND NOT EXISTS(SELECT 1 FROM pragma_table_info('structure_deltas') WHERE name='policy_records')",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|e| format!("检查 structure_deltas.policy_records 失败：{e}"))
+    };
+    if !missing(conn)? {
+        return Ok(());
+    }
+    let tx = conn
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(|e| format!("开 policy_records 迁移事务失败：{e}"))?;
+    if missing(&tx)? {
+        tx.execute(
+            &format!(
+                "ALTER TABLE structure_deltas ADD COLUMN policy_records TEXT NOT NULL DEFAULT '{LEGACY_POLICY_RECORDS_UNKNOWN}'"
+            ),
+            [],
+        )
+        .map_err(|e| format!("迁移旧 structure_deltas.policy_records 失败：{e}"))?;
+    }
+    tx.commit()
+        .map_err(|e| format!("提交 policy_records 迁移失败：{e}"))?;
+    Ok(())
 }
 
 /// #1405/#1420 持久边界：写连接首次读取会回滚残留的 `-journal` 热日志，末次关闭会检查点并
@@ -3221,10 +3259,43 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
     v3::admission::write_current_result(&out)
 }
 
+/// 正式生产入口：配置先于任何 Begin 或库写操作；缺 tick/成本即停，不用诊断夹具。
 fn advance_core(
     db: &Path,
     configured_epoch: &str,
     context: Option<&v2::InputContext>,
+) -> Result<Value, String> {
+    let config = ThetaConfig::for_production_profile("P0").map_err(|error| error.to_string())?;
+    if !config.admissible() {
+        return Err(format!(
+            "InvalidPolicy{{venue_profile}}：配置不得参与生产准入；records={}",
+            config.record_labels()
+        ));
+    }
+    advance_core_with_config(db, configured_epoch, context, &config)
+}
+
+/// 既有测试显式使用诊断夹具；与正式生产入口不是同一构造。
+#[cfg(test)]
+pub(crate) fn cmd_advance_fixture(db: &Path, configured_epoch: &str) -> Result<(), String> {
+    println!("{}", advance_core_fixture(db, configured_epoch, None)?);
+    Ok(())
+}
+
+#[cfg(test)]
+pub(crate) fn advance_core_fixture(
+    db: &Path,
+    configured_epoch: &str,
+    context: Option<&v2::InputContext>,
+) -> Result<Value, String> {
+    advance_core_with_config(db, configured_epoch, context, &ThetaConfig::default())
+}
+
+fn advance_core_with_config(
+    db: &Path,
+    configured_epoch: &str,
+    context: Option<&v2::InputContext>,
+    config: &ThetaConfig,
 ) -> Result<Value, String> {
     // #1394 第二段（2D）：一次 advance 共享一个捕获作用域（写入前会显式作废）。
     let _capture = cache::begin_capture(EVIDENCE_READ_BUDGET);
@@ -3279,6 +3350,13 @@ fn advance_core(
         if frontier == last_frontier && cur_gen >= 1 {
             let structure_cut = meta_get_opt(&tx, "structure_cut")?.unwrap_or_default();
             let index_frontier = meta_get_opt(&tx, "index_frontier")?.unwrap_or_default();
+            let policy_records: String = tx
+                .query_row(
+                    "SELECT policy_records FROM structure_deltas WHERE generation=?1",
+                    params![cur_gen],
+                    |row| row.get(0),
+                )
+                .map_err(|e| format!("读历史 generation 的记录版本戳失败：{e}"))?;
             drop(tx);
             return Ok(json!({
                 "ok": true,
@@ -3286,6 +3364,7 @@ fn advance_core(
                 "generation": cur_gen.to_string(),
                 "structure_cut": structure_cut,
                 "index_frontier": index_frontier,
+                "policy_records": policy_records,
                 "note": "无新输入（frontier 已提交），不产新 cut；DeliveryUnknown 请按原业务身份查询权威结果",
             }));
         }
@@ -3320,7 +3399,6 @@ fn advance_core(
         }
     }
 
-    let config = ThetaConfig::default();
     let is_ohlc = profile_id == tb02a::PROFILE;
     // #1394 2A-S：同代增量车道（库/会话/规则/档案/目录身份键；身份不符即丢弃旧车道）。
     let session_id = meta_get_opt(&conn, "session_id")?.unwrap_or_default();
@@ -4058,8 +4136,8 @@ fn advance_core(
                 delta_text.clone()
             };
             tx.execute(
-                "INSERT OR REPLACE INTO structure_deltas(generation, session_id, catalog_revision, base_cut, next_cut, seq_range_json, index_frontier, input_frontier, catalog_run_status, catalog_evidence_json, delta_json)
-                 VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                "INSERT OR REPLACE INTO structure_deltas(generation, session_id, catalog_revision, base_cut, next_cut, seq_range_json, index_frontier, input_frontier, catalog_run_status, catalog_evidence_json, delta_json, policy_records)
+                 VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
                 params![
                     gen,
                     meta_get_opt(&tx, "session_id")?.unwrap_or_default(),
@@ -4072,6 +4150,7 @@ fn advance_core(
                     run_status,
                     evidence.to_string(),
                     stored_delta,
+                    config.record_labels(),
                 ],
             )
             .map_err(|e| format!("持久 delta 失败：{e}"))?;
@@ -4153,6 +4232,7 @@ fn advance_core(
 
     Ok(json!({
         "ok": true,
+        "policy_records": config.record_labels(),
         "generation": gen.to_string(),
         "structure_cut": structure_cut,
         "batch_id": batch_id,
@@ -5776,7 +5856,7 @@ mod tests {
     }
 
     pub(crate) fn advance_business(db: &Path, configured_epoch: &str) -> Result<(), String> {
-        advance_core(db, configured_epoch, None).map(|_| ())
+        advance_core_fixture(db, configured_epoch, None).map(|_| ())
     }
 
     pub(crate) fn recover_business(db: &Path, new_epoch: &str) -> Result<(), String> {
@@ -5842,6 +5922,50 @@ mod tests {
             ("b12", 120, 11, 13, 9, 11),
             ("b13", 130, 13, 15, 11, 13),
         ]
+    }
+
+    #[test]
+    fn production_advance_rejects_unsigned_profile_before_begin() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept_ohlc(
+            &files,
+            &located_ohlc_input(&[("policy-gate", 0, 6, 12, 3, 7)]),
+        );
+        let error = advance_core(&files.db(), DEFAULT_WRITER_EPOCH, None).unwrap_err();
+        assert!(error.contains("AwaitingPolicy"), "{error}");
+        assert!(error.contains("venue_profile"), "{error}");
+        assert!(error.contains("cost_inputs"), "{error}");
+        let conn = open_db(&files.db()).unwrap();
+        assert_eq!(
+            meta_get_opt(&conn, "advance_state")
+                .unwrap()
+                .unwrap_or_default(),
+            "idle"
+        );
+        assert!(meta_get_opt(&conn, "begin_token")
+            .unwrap()
+            .unwrap_or_default()
+            .is_empty());
+    }
+
+    #[test]
+    fn fixture_advance_stamps_record_versions() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept_ohlc(
+            &files,
+            &located_ohlc_input(&[("policy-stamp", 0, 6, 12, 3, 7)]),
+        );
+        let out = advance_core_fixture(&files.db(), DEFAULT_WRITER_EPOCH, None).unwrap();
+        assert_eq!(
+            out["policy_records"],
+            json!(ThetaConfig::default().record_labels())
+        );
+        assert!(out["policy_records"]
+            .as_str()
+            .unwrap()
+            .contains("venue-profile-diagnostic-fixture/1"));
     }
 
     #[test]
@@ -8247,7 +8371,7 @@ mod tests {
                 "{rule}"
             );
             assert!(
-                cmd_advance(&image, DEFAULT_WRITER_EPOCH)
+                cmd_advance_fixture(&image, DEFAULT_WRITER_EPOCH)
                     .unwrap_err()
                     .starts_with("VersionMismatch："),
                 "{rule}"
@@ -8430,7 +8554,7 @@ mod tests {
         for err in [
             opened,
             recover_core(&image, "2", None).unwrap_err(),
-            cmd_advance(&image, DEFAULT_WRITER_EPOCH).unwrap_err(),
+            cmd_advance_fixture(&image, DEFAULT_WRITER_EPOCH).unwrap_err(),
             cmd_meta(&image).unwrap_err(),
         ] {
             assert!(err.starts_with("StorageUnavailable："), "{err}");
@@ -8457,7 +8581,7 @@ mod tests {
         assert!(recover_core(&files.db(), "2", None)
             .unwrap_err()
             .starts_with("VersionMismatch："));
-        assert!(cmd_advance(&files.db(), DEFAULT_WRITER_EPOCH)
+        assert!(cmd_advance_fixture(&files.db(), DEFAULT_WRITER_EPOCH)
             .unwrap_err()
             .starts_with("VersionMismatch："));
         cmd_meta(&files.db()).unwrap();

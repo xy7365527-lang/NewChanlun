@@ -26,7 +26,8 @@
 
 use serde_json::Value;
 
-use super::config::{LevelConfig, MacdConfig, Tangency};
+use super::config::{LevelConfig, MacdConfig, Tangency, TowerBase};
+use crate::trading::positional::TrendScope;
 
 /// 级别塔资源预算记录 id（C-09）。
 pub const TOWER_LEVEL_BUDGET_ID: &str = "tower-level-budget";
@@ -36,6 +37,10 @@ pub const MACD_FORCE_ID: &str = "macd-force";
 pub const SECOND_SEQ_SCAN_BUDGET_ID: &str = "second-seq-scan-budget";
 /// 线段构造规则记录 id（A-12，#1604；xianduan §6.3 载体）。
 pub const SEGMENT_CONSTRUCTION_ID: &str = "segment-second";
+/// 趋势作用域 policy 记录 id（A-14）。
+pub const TREND_SCOPE_ID: &str = "trend-scope";
+/// 塔底构造 policy 记录 id（A-15）。
+pub const TOWER_BASE_ID: &str = "tower-base";
 /// C-19 研究回测与验收统计记录 id（#1605；与 evidence_gate 独立）。
 pub const RESEARCH_STATS_ID: &str = "#1605/research-stats";
 /// ADR 0022 evidence_gate 记录 id（#1677；下游消费由 #1398/#1410/#1441 实施）。
@@ -56,6 +61,14 @@ pub const ACTIVE_SECOND_SEQ_SCAN_BUDGET_JSON: &str =
 /// 当前生效的线段构造规则记录（编进二进制；Python 侧读同一文件，#1604）。
 pub const ACTIVE_SEGMENT_CONSTRUCTION_JSON: &str =
     include_str!("policy_records/segment-second.json");
+/// 当前生效的趋势作用域记录。
+pub const ACTIVE_TREND_SCOPE_JSON: &str = include_str!("policy_records/trend-scope.json");
+/// 当前生效的塔底构造记录。
+pub const ACTIVE_TOWER_BASE_JSON: &str = include_str!("policy_records/tower-base.json");
+/// 旧经济臂 ARM 后次级别确认过期窗口记录 id（#1601，#1586 C-22）。
+pub const ARM_SUB_EXPIRY_ID: &str = "arm-sub-expiry";
+/// 当前生效的 `arm-sub-expiry` 记录（编进二进制）。
+pub const ACTIVE_ARM_SUB_EXPIRY_JSON: &str = include_str!("policy_records/arm-sub-expiry.json");
 /// 当前生效的 C-19 研究统计记录。
 pub const ACTIVE_RESEARCH_STATS_JSON: &str = include_str!("policy_records/research-stats.json");
 /// 当前生效的 evidence_gate 记录；与 C-19 不合并。
@@ -192,12 +205,12 @@ pub(crate) fn parse_header(
     ))
 }
 
-/// 读一个非负整数字段（`fields.<name>.value`）。
-pub(crate) fn read_u32(
+/// 取已签字段的 `value`（`fields.<name>.value`）；缺失或未签 ⟹ `AwaitingPolicy`。
+fn signed_value<'a>(
     id: &'static str,
-    fields: &serde_json::Map<String, Value>,
+    fields: &'a serde_json::Map<String, Value>,
     name: &str,
-) -> Result<u32, PolicyError> {
+) -> Result<&'a Value, PolicyError> {
     let awaiting = || PolicyError::AwaitingPolicy {
         id,
         field: name.to_string(),
@@ -211,20 +224,14 @@ pub(crate) fn read_u32(
     let entry = entry
         .as_object()
         .ok_or_else(|| invalid(id, name, format!("字段须为带 value 的对象，得 {entry}")))?;
-    let value = entry.get("value").ok_or_else(awaiting)?;
-    match value {
-        Value::Null => Err(awaiting()),
-        Value::String(s) if s == "AwaitingPolicy" => Err(awaiting()),
-        v => v
-            .as_u64()
-            .filter(|&n| n <= u64::from(u32::MAX))
-            .map(|n| n as u32)
-            .ok_or_else(|| invalid(id, name, format!("须为非负整数，得 {v}"))),
+    match entry.get("value") {
+        None | Some(Value::Null) => Err(awaiting()),
+        Some(Value::String(s)) if s == "AwaitingPolicy" => Err(awaiting()),
+        Some(v) => Ok(v),
     }
 }
 
 /// 读一个有限浮点字段。JSON 的整数也接受；NaN/Infinity 与指数溢出均判非法。
-#[cfg(any(test, feature = "backtest_bin"))]
 pub(crate) fn read_f64(
     id: &'static str,
     fields: &serde_json::Map<String, Value>,
@@ -276,6 +283,46 @@ pub(crate) fn read_str(
     }
 }
 
+/// 读一个非负整数字段（`fields.<name>.value`）。
+pub(crate) fn read_u32(
+    id: &'static str,
+    fields: &serde_json::Map<String, Value>,
+    name: &str,
+) -> Result<u32, PolicyError> {
+    let v = signed_value(id, fields, name)?;
+    v.as_u64()
+        .filter(|&n| n <= u64::from(u32::MAX))
+        .map(|n| n as u32)
+        .ok_or_else(|| invalid(id, name, format!("须为非负整数，得 {v}")))
+}
+
+/// 读一个布尔字段（`fields.<name>.value`）。
+pub(super) fn read_bool(
+    id: &'static str,
+    fields: &serde_json::Map<String, Value>,
+    name: &str,
+) -> Result<bool, PolicyError> {
+    let v = signed_value(id, fields, name)?;
+    v.as_bool()
+        .ok_or_else(|| invalid(id, name, format!("须为 true/false，得 {v}")))
+}
+
+/// 读一个定长有限浮点数组字段（`fields.<name>.value`）。
+pub(super) fn read_f64_array<const N: usize>(
+    id: &'static str,
+    fields: &serde_json::Map<String, Value>,
+    name: &str,
+) -> Result<[f64; N], PolicyError> {
+    let v = signed_value(id, fields, name)?;
+    let bad = || invalid(id, name, format!("须为 {N} 个有限数的数组，得 {v}"));
+    let arr = v.as_array().filter(|a| a.len() == N).ok_or_else(bad)?;
+    let mut out = [0.0; N];
+    for (slot, x) in out.iter_mut().zip(arr) {
+        *slot = x.as_f64().filter(|x| x.is_finite()).ok_or_else(bad)?;
+    }
+    Ok(out)
+}
+
 /// 解析 `tower-level-budget` 记录。`min_parts_per_level` 不在本记录里：它是中枢定义的三段下限
 /// （#1586 C-13 判 O，原文定义），不是自由度。
 pub fn parse_tower_level_budget(text: Option<&str>) -> Result<TowerLevelBudget, PolicyError> {
@@ -308,6 +355,32 @@ pub fn parse_macd_force(text: Option<&str>) -> Result<MacdConfig, PolicyError> {
         signal,
         record,
     })
+}
+
+/// 解析 `arm-sub-expiry` 记录（#1601，#1586 C-22）。合法性：正整数 bar 数。
+pub fn parse_arm_sub_expiry(text: Option<&str>) -> Result<ArmSubExpiry, PolicyError> {
+    let (record, fields) = parse_header(ARM_SUB_EXPIRY_ID, text)?;
+    let bars = read_u32(ARM_SUB_EXPIRY_ID, &fields, "sub_expiry_bars")?;
+    if bars == 0 {
+        return Err(invalid(
+            ARM_SUB_EXPIRY_ID,
+            "sub_expiry_bars",
+            "过期窗口须 ≥ 1 bar",
+        ));
+    }
+    Ok(ArmSubExpiry { record, bars })
+}
+
+/// `arm-sub-expiry` 记录的解析结果（旧经济臂 ARM 后次级别确认过期窗口）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ArmSubExpiry {
+    pub record: PolicyRef,
+    pub bars: u32,
+}
+
+/// 当前生效记录的 `arm-sub-expiry`。
+pub fn active_arm_sub_expiry() -> Result<ArmSubExpiry, PolicyError> {
+    parse_arm_sub_expiry(Some(ACTIVE_ARM_SUB_EXPIRY_JSON))
 }
 
 /// `tower-level-budget` 记录的解析结果。
@@ -388,18 +461,143 @@ pub fn active_segment_construction() -> Result<SegmentConstruction, PolicyError>
     parse_segment_construction(Some(ACTIVE_SEGMENT_CONSTRUCTION_JSON))
 }
 
-/// 由预算记录 + 中枢三段下限组装 [`LevelConfig`]。
-pub fn level_config_from(budget: TowerLevelBudget, min_parts_per_level: u32) -> LevelConfig {
-    LevelConfig {
+/// 趋势作用域的 profile 键。生产模式串只选择这个键，实际值由记录给出。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrendScopeProfile {
+    Default,
+    Hold26Anc,
+    FusionTa,
+}
+
+impl TrendScopeProfile {
+    fn field(self) -> &'static str {
+        match self {
+            Self::Default => "default",
+            Self::Hold26Anc => "hold26_anc",
+            Self::FusionTa => "fusion_ta",
+        }
+    }
+
+    fn expected(self) -> TrendScope {
+        match self {
+            Self::Default => TrendScope::SelfLayer,
+            Self::Hold26Anc => TrendScope::Ancestor,
+            Self::FusionTa => TrendScope::SelfOrAncestor,
+        }
+    }
+}
+
+/// 一份趋势作用域记录及其当前值。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TrendScopePolicy {
+    pub record: PolicyRef,
+    pub value: TrendScope,
+}
+
+/// 按 profile 读取趋势作用域；值必须仍对应该预注册研究臂。
+/// 缺字段/未签/非法值或跨 profile 赋值均停止，不回退模式串旧值。
+pub fn parse_trend_scope_for_profile(
+    profile: TrendScopeProfile,
+    text: Option<&str>,
+) -> Result<TrendScopePolicy, PolicyError> {
+    let (record, fields) = parse_header(TREND_SCOPE_ID, text)?;
+    let field = profile.field();
+    let raw = read_str(TREND_SCOPE_ID, &fields, field)?;
+    let value = match raw.as_str() {
+        "SelfLayer" => TrendScope::SelfLayer,
+        "Ancestor" => TrendScope::Ancestor,
+        "SelfOrAncestor" => TrendScope::SelfOrAncestor,
+        _ => {
+            return Err(invalid(
+                TREND_SCOPE_ID,
+                field,
+                format!("须为 SelfLayer / Ancestor / SelfOrAncestor，得 `{raw}`"),
+            ))
+        }
+    };
+    let expected = profile.expected();
+    if value != expected {
+        return Err(invalid(
+            TREND_SCOPE_ID,
+            field,
+            format!("profile `{field}` 的预注册作用域须为 {expected:?}，得 `{raw}`"),
+        ));
+    }
+    Ok(TrendScopePolicy { record, value })
+}
+
+/// 当前生效记录中的趋势作用域。
+pub fn active_trend_scope_for_profile(
+    profile: TrendScopeProfile,
+) -> Result<TrendScopePolicy, PolicyError> {
+    parse_trend_scope_for_profile(profile, Some(ACTIVE_TREND_SCOPE_JSON))
+}
+
+/// 塔底记录及其当前值。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TowerBasePolicy {
+    pub record: PolicyRef,
+    pub value: TowerBase,
+}
+
+/// 解析塔底记录。三种合法值均可解析；是否具备实际构件由 [`try_level_config_from`] 另行拒绝。
+pub fn parse_tower_base(text: Option<&str>) -> Result<TowerBasePolicy, PolicyError> {
+    let (record, fields) = parse_header(TOWER_BASE_ID, text)?;
+    let raw = read_str(TOWER_BASE_ID, &fields, "tower_base")?;
+    let value = match raw.as_str() {
+        "segment" => TowerBase::Segment,
+        "kline3" => TowerBase::Kline3,
+        "trade3" => TowerBase::Trade3,
+        _ => {
+            return Err(invalid(
+                TOWER_BASE_ID,
+                "tower_base",
+                format!("须为 segment / kline3 / trade3，得 `{raw}`"),
+            ))
+        }
+    };
+    Ok(TowerBasePolicy { record, value })
+}
+
+/// 当前生效的塔底记录。
+pub fn active_tower_base() -> Result<TowerBasePolicy, PolicyError> {
+    parse_tower_base(Some(ACTIVE_TOWER_BASE_JSON))
+}
+
+/// 由预算与塔底记录组装 [`LevelConfig`]。当前只有 `segment` 具备真实构件；其它合法值
+/// 在任何 L0 构造前 typed reject，不回退 `segment` 或用线段输入冒充。
+pub fn try_level_config_from(
+    budget: TowerLevelBudget,
+    tower_base: TowerBasePolicy,
+    min_parts_per_level: u32,
+) -> Result<LevelConfig, PolicyError> {
+    if tower_base.value != TowerBase::Segment {
+        return Err(invalid(
+            TOWER_BASE_ID,
+            "tower_base",
+            format!("{:?} 尚无真实构件与数据 profile", tower_base.value),
+        ));
+    }
+    Ok(LevelConfig {
         l_max: budget.l_max,
         min_parts_per_level,
         budget: budget.record,
-    }
+        tower_base: tower_base.value,
+        tower_base_policy: tower_base.record,
+    })
+}
+
+/// 由预算记录 + 中枢三段下限组装 [`LevelConfig`]。
+pub fn level_config_from(budget: TowerLevelBudget, min_parts_per_level: u32) -> LevelConfig {
+    let tower_base = active_tower_base().unwrap_or_else(|e| panic!("{e}"));
+    try_level_config_from(budget, tower_base, min_parts_per_level).unwrap_or_else(|e| panic!("{e}"))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::theta_v0::config::TowerBase;
+    use crate::trading::positional::TrendScope;
 
     const TOWER_V2_L3: &str =
         r#"{"id":"tower-level-budget","version":2,"fields":{"l_max":{"value":3}}}"#;
@@ -413,6 +611,32 @@ mod tests {
         let m = active_macd_force().expect("生效 MACD 记录可解析");
         assert_eq!((m.fast, m.slow, m.signal), (12, 26, 9));
         assert_eq!(m.record.label(), "macd-force/1");
+    }
+
+    /// #1601（C-22）：`arm-sub-expiry` v1 = 现行值 60；缺记录 / 未签 / 0 各一例负控。
+    #[test]
+    fn arm_sub_expiry_active_and_negative_controls() {
+        let s = active_arm_sub_expiry().expect("生效 arm-sub-expiry 记录可解析");
+        assert_eq!(s.bars, 60);
+        assert_eq!(s.record.label(), "arm-sub-expiry/1");
+        assert_eq!(
+            parse_arm_sub_expiry(None),
+            Err(PolicyError::RecordMissing {
+                id: ARM_SUB_EXPIRY_ID
+            })
+        );
+        let unsigned =
+            r#"{"id":"arm-sub-expiry","version":1,"fields":{"sub_expiry_bars":{"value":null}}}"#;
+        assert!(matches!(
+            parse_arm_sub_expiry(Some(unsigned)),
+            Err(PolicyError::AwaitingPolicy { .. })
+        ));
+        let zero =
+            r#"{"id":"arm-sub-expiry","version":1,"fields":{"sub_expiry_bars":{"value":0}}}"#;
+        assert!(matches!(
+            parse_arm_sub_expiry(Some(zero)),
+            Err(PolicyError::Invalid { .. })
+        ));
     }
 
     #[test]
@@ -714,5 +938,74 @@ mod tests {
                 "{bad}"
             );
         }
+    }
+    #[test]
+    fn trend_scope_profiles_read_their_own_record_values() {
+        let default = active_trend_scope_for_profile(TrendScopeProfile::Default).unwrap();
+        assert_eq!(default.value, TrendScope::SelfLayer);
+        assert_eq!(default.record.label(), "trend-scope/1");
+        let anc = active_trend_scope_for_profile(TrendScopeProfile::Hold26Anc).unwrap();
+        assert_eq!(anc.value, TrendScope::Ancestor);
+        let ta = active_trend_scope_for_profile(TrendScopeProfile::FusionTa).unwrap();
+        assert_eq!(ta.value, TrendScope::SelfOrAncestor);
+        assert_eq!(anc.record, ta.record);
+    }
+
+    #[test]
+    fn trend_scope_profile_mismatch_and_missing_values_do_not_fallback() {
+        let changed =
+            r#"{"id":"trend-scope","version":2,"fields":{"default":{"value":"Ancestor"}}}"#;
+        assert!(matches!(
+            parse_trend_scope_for_profile(TrendScopeProfile::Default, Some(changed)),
+            Err(PolicyError::Invalid { field, .. }) if field == "default"
+        ));
+
+        let legal_new_version =
+            r#"{"id":"trend-scope","version":2,"fields":{"default":{"value":"SelfLayer"}}}"#;
+        let parsed =
+            parse_trend_scope_for_profile(TrendScopeProfile::Default, Some(legal_new_version))
+                .unwrap();
+        assert_eq!(parsed.value, TrendScope::SelfLayer);
+        assert_eq!(parsed.record.label(), "trend-scope/2");
+
+        let missing = r#"{"id":"trend-scope","version":1,"fields":{}}"#;
+        assert!(matches!(
+            parse_trend_scope_for_profile(TrendScopeProfile::Default, Some(missing)),
+            Err(PolicyError::AwaitingPolicy { field, .. }) if field == "default"
+        ));
+        let invalid = r#"{"id":"trend-scope","version":1,"fields":{"default":{"value":"self"}}}"#;
+        assert!(matches!(
+            parse_trend_scope_for_profile(TrendScopeProfile::Default, Some(invalid)),
+            Err(PolicyError::Invalid { .. })
+        ));
+    }
+
+    #[test]
+    fn tower_base_record_drives_config_and_rejects_unsupported_base() {
+        let active = active_tower_base().unwrap();
+        assert_eq!(active.value, TowerBase::Segment);
+        assert_eq!(active.record.label(), "tower-base/1");
+        let budget = active_tower_level_budget().unwrap();
+        let cfg = try_level_config_from(budget, active, 3).unwrap();
+        assert_eq!(cfg.tower_base, TowerBase::Segment);
+        assert_eq!(cfg.tower_base_policy.label(), "tower-base/1");
+
+        for (token, expected) in [("kline3", TowerBase::Kline3), ("trade3", TowerBase::Trade3)] {
+            let text = format!(
+                "{{\"id\":\"tower-base\",\"version\":2,\"fields\":{{\"tower_base\":{{\"value\":\"{token}\"}}}}}}"
+            );
+            let policy = parse_tower_base(Some(&text)).unwrap();
+            assert_eq!(policy.value, expected);
+            assert!(matches!(
+                try_level_config_from(budget, policy, 3),
+                Err(PolicyError::Invalid { .. })
+            ));
+        }
+
+        let missing = r#"{"id":"tower-base","version":1,"fields":{}}"#;
+        assert!(matches!(
+            parse_tower_base(Some(missing)),
+            Err(PolicyError::AwaitingPolicy { field, .. }) if field == "tower_base"
+        ));
     }
 }

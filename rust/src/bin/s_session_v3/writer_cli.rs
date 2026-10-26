@@ -196,6 +196,20 @@ struct RecoverOptions {
 
 /// 命令分派：`Ok(Some(value))` 为要打印的命令结果，`Ok(None)` 为无结果（服务正常退出）。
 pub(super) fn run(args: &[String]) -> Result<Option<super::admission::CommandOutput>, String> {
+    run_with_policy(args, true)
+}
+
+#[cfg(test)]
+pub(super) fn run_fixture(
+    args: &[String],
+) -> Result<Option<super::admission::CommandOutput>, String> {
+    run_with_policy(args, false)
+}
+
+pub(super) fn run_with_policy(
+    args: &[String],
+    production: bool,
+) -> Result<Option<super::admission::CommandOutput>, String> {
     match args.get(1).map(String::as_str).unwrap_or("") {
         "serve" => {
             let options = ServeOptions::parse(args)?;
@@ -205,7 +219,7 @@ pub(super) fn run(args: &[String]) -> Result<Option<super::admission::CommandOut
                 super::admission_anchor::ControlEnv::capture(),
             )
             .map_err(|error| error.to_string())?;
-            serve(options, admission)
+            serve_with_policy(options, admission, production)
         }
         "advance" => {
             let options = AdvanceOptions::parse(args)?;
@@ -215,7 +229,7 @@ pub(super) fn run(args: &[String]) -> Result<Option<super::admission::CommandOut
                 super::admission_anchor::ControlEnv::capture(),
             )
             .map_err(|error| error.to_string())?;
-            advance(options, admission)
+            advance_with_policy(options, admission, production)
         }
         "recover" => {
             let options = RecoverOptions::parse(args)?;
@@ -494,9 +508,10 @@ fn verify_control_resource_digest(
 }
 
 /// 全部参数/资源核验后，先持唯一写锁、完整审计/profile/clock/pending，再监听。
-fn serve(
+fn serve_with_policy(
     options: ServeOptions,
     mut admission: super::admission_anchor::PreparedAdmission,
+    production: bool,
 ) -> Result<Option<super::admission::CommandOutput>, String> {
     let mode = s_allocation::load_testonly_environment()?;
     let resources =
@@ -532,7 +547,38 @@ fn serve(
             admission.into(),
         )?
     } else {
-        let driver = Driver::open_for_serve_with_mode(
+        let driver = if production {
+            Driver::open_for_serve_with_mode_production(
+                &options.db,
+                &options.profile,
+                &options.epoch,
+                clock,
+                resources.limit("audit_cache_source_bytes"),
+                mode,
+                admission.into(),
+            )?
+        } else {
+            #[cfg(test)]
+            {
+                Driver::open_for_serve_with_mode(
+                    &options.db,
+                    &options.profile,
+                    &options.epoch,
+                    clock,
+                    resources.limit("audit_cache_source_bytes"),
+                    mode,
+                    admission.into(),
+                )?
+            }
+            #[cfg(not(test))]
+            unreachable!("fixture only exists in test builds")
+        };
+        let identity = driver.identity()?;
+        (driver, identity)
+    };
+    #[cfg(not(feature = "s_capture_native_testonly"))]
+    let mut driver = if production {
+        Driver::open_for_serve_with_mode_production(
             &options.db,
             &options.profile,
             &options.epoch,
@@ -540,20 +586,23 @@ fn serve(
             resources.limit("audit_cache_source_bytes"),
             mode,
             admission.into(),
-        )?;
-        let identity = driver.identity()?;
-        (driver, identity)
+        )?
+    } else {
+        #[cfg(test)]
+        {
+            Driver::open_for_serve_with_mode(
+                &options.db,
+                &options.profile,
+                &options.epoch,
+                clock,
+                resources.limit("audit_cache_source_bytes"),
+                mode,
+                admission.into(),
+            )?
+        }
+        #[cfg(not(test))]
+        unreachable!("fixture only exists in test builds")
     };
-    #[cfg(not(feature = "s_capture_native_testonly"))]
-    let mut driver = Driver::open_for_serve_with_mode(
-        &options.db,
-        &options.profile,
-        &options.epoch,
-        clock,
-        resources.limit("audit_cache_source_bytes"),
-        mode,
-        admission.into(),
-    )?;
     #[cfg(not(feature = "s_capture_native_testonly"))]
     let identity = driver.identity()?;
     let control_instance_id = std::env::var("S_CONTROL_INSTANCE_ID").ok();
@@ -606,9 +655,10 @@ fn reply(
 
 /// 一次性推进：打开唯一 Driver（`open` 内部按库中原件 `resume_pending`，不重写原身份），
 /// 打印真实持久摘要后退出；不监听、不常驻。
-fn advance(
+fn advance_with_policy(
     options: AdvanceOptions,
     mut admission: super::admission_anchor::PreparedAdmission,
+    production: bool,
 ) -> Result<Option<super::admission::CommandOutput>, String> {
     let mode = s_allocation::load_testonly_environment()?;
     let clock = v2::ClockPlan::parse(
@@ -634,15 +684,32 @@ fn advance(
     if let Some(ref envelope) = input {
         preflight_input(&options, &clock, envelope, &scope, &frozen_profile)?;
     }
-    let mut driver = Driver::open_with_request_and_mode(
-        &options.db,
-        &options.profile,
-        &options.epoch,
-        clock,
-        input.as_ref(),
-        mode,
-        scope.into(),
-    )?;
+    let mut driver = if production {
+        Driver::open_production_with_request_and_mode(
+            &options.db,
+            &options.profile,
+            &options.epoch,
+            clock,
+            input.as_ref(),
+            mode,
+            scope.into(),
+        )?
+    } else {
+        #[cfg(test)]
+        {
+            Driver::open_with_request_and_mode(
+                &options.db,
+                &options.profile,
+                &options.epoch,
+                clock,
+                input.as_ref(),
+                mode,
+                scope.into(),
+            )?
+        }
+        #[cfg(not(test))]
+        unreachable!("fixture only exists in test builds")
+    };
     let out = match input {
         Some(envelope) => driver.handle(envelope)?,
         None => driver.state_summary("advance")?,

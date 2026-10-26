@@ -67,7 +67,7 @@ import Strict.Nest
 
 namespace NewChanlun.Origin.IntervalNestCertificate
 
-open Strict.Nest (Interval selKey selOrder IsSelected Sub Dir)
+open Strict.Nest (Interval selKey selOrder IsSelected Sub Dir defaultSelectorKeys defaultSelectorPolicy)
 
 /-! ═══════════════════════════════════════════════════════════════════════
     § 1. Sel_Θ 字典序：selOrder 的可判定 Bool 版 + 严格全序（三歧性）
@@ -83,15 +83,41 @@ open Strict.Nest (Interval selKey selOrder IsSelected Sub Dir)
 
   这是 `Strict.Nest.selOrder` 的可计算镜像（selectΘ 用它逐对比较选最优）。`selOrderB_iff`
   证它与 `selOrder` 同真——Bool 实现与 Prop 谓词一致（无漂移）。
+
+  ★版本化字段 `selector_keys`（qujiantao.md §14.1，ADR 0041，[#1600]）：
+  当前写死 `(endTime 降序, startTime 降序, idx 升序)`（现行键序）。完整参数化见 Q-2 清单。
 -/
+def selOrderBWithKeys (keys : Strict.Nest.SelectorKeys) (a b : Interval) : Bool :=
+  match keys with
+  | .StartDescIdxAsc =>
+      (b.endTime < a.endTime)
+        || (a.endTime == b.endTime && b.startTime < a.startTime)
+        || (a.endTime == b.endTime && a.startTime == b.startTime && a.idx < b.idx)
+  | .StartDescIdxDesc =>
+      (b.endTime < a.endTime)
+        || (a.endTime == b.endTime && b.startTime < a.startTime)
+        || (a.endTime == b.endTime && a.startTime == b.startTime && b.idx < a.idx)
+  | .StartAscIdxAsc =>
+      (b.endTime < a.endTime)
+        || (a.endTime == b.endTime && a.startTime < b.startTime)
+        || (a.endTime == b.endTime && a.startTime == b.startTime && a.idx < b.idx)
+  | .StartAscIdxDesc =>
+      (b.endTime < a.endTime)
+        || (a.endTime == b.endTime && a.startTime < b.startTime)
+        || (a.endTime == b.endTime && a.startTime == b.startTime && b.idx < a.idx)
+
+/-- Bool 与 Prop 的通用键表镜像一致。 -/
+theorem selOrderBWithKeys_iff (keys : Strict.Nest.SelectorKeys) (a b : Interval) :
+    selOrderBWithKeys keys a b = true ↔ Strict.Nest.selOrderWithKeys keys a b := by
+  cases keys <;> simp [selOrderBWithKeys, Strict.Nest.selOrderWithKeys] at * <;> omega
+
+/-- 仅显式测试默认记录的 Bool 镜像；生产使用 `selOrderBWithKeys`。 -/
 def selOrderB (a b : Interval) : Bool :=
-  (b.endTime < a.endTime)
-    || (a.endTime == b.endTime && b.startTime < a.startTime)
-    || (a.endTime == b.endTime && a.startTime == b.startTime && a.idx < b.idx)
+  selOrderBWithKeys defaultSelectorKeys a b
 
 /-- **`selOrderB` ⟺ `selOrder`（Bool/Prop 一致，L0）** —— 可计算版与谓词版同真，无漂移。 -/
 theorem selOrderB_iff (a b : Interval) : selOrderB a b = true ↔ selOrder a b := by
-  unfold selOrderB selOrder
+  unfold selOrderB selOrder selOrderBWithKeys Strict.Nest.selOrderWithKeys defaultSelectorKeys
   -- selOrderB 用 `||`（左结合），selOrder 用 `∨`（右结合）——结合性不同。两侧都是 Nat 比较的
   -- 析取，omega 理解 `<`/`=` 并跨结合性证等价（无 Mathlib tauto，本项目纯 Lean4）。
   constructor
@@ -152,7 +178,7 @@ theorem selOrder_left_congr {a a' b : Interval}
   unfold selKey at hk
   simp only [Prod.mk.injEq] at hk
   obtain ⟨h1, h2, h3⟩ := hk
-  unfold selOrder at *
+  unfold selOrder Strict.Nest.selOrderWithKeys defaultSelectorKeys at *
   rw [← h1, ← h2, ← h3]; exact h
 
 /--
@@ -163,7 +189,7 @@ theorem selOrder_right_congr {a b b' : Interval}
   unfold selKey at hk
   simp only [Prod.mk.injEq] at hk
   obtain ⟨h1, h2, h3⟩ := hk
-  unfold selOrder at *
+  unfold selOrder Strict.Nest.selOrderWithKeys defaultSelectorKeys at *
   rw [← h1, ← h2, ← h3]; exact h
 
 /-! ═══════════════════════════════════════════════════════════════════════
@@ -182,8 +208,12 @@ theorem selOrder_right_congr {a b b' : Interval}
   ★平局（键同）保留 `cur`——配合 `selectΘ` 的左折叠，键同的多候选取**首个出现**者
     （确定性：选择结果只依赖候选集合 + 顺序，键唯一时与顺序无关）。
 -/
+def selBetterWithKeys (keys : Strict.Nest.SelectorKeys) (cur x : Interval) : Interval :=
+  if selOrderBWithKeys keys x cur then x else cur
+
+/-- 仅显式测试默认记录的逐对裁决器；生产使用 `selBetterWithKeys`。 -/
 def selBetter (cur x : Interval) : Interval :=
-  if selOrderB x cur then x else cur
+  selBetterWithKeys defaultSelectorKeys cur x
 
 /--
   **Sel_Θ 选择函数 `selectΘ`** —— 从候选列表选出 Sel_Θ 最优者。
@@ -192,10 +222,15 @@ def selBetter (cur x : Interval) : Interval :=
   - `c :: cs => some (cs.foldl selBetter c)`：以首元为初值左折叠逐对裁决，选出全序最优。
 
   ★全定义（对任意列表有确定结果）：空 → none，非空 → some（确定的最优者）。无「未定义」。
+  本入口仅作显式默认对照；生产通过 `NestLevel.policy` 使用 `selectΘWithKeys`。
 -/
-def selectΘ : List Interval → Option Interval
+def selectΘWithKeys (keys : Strict.Nest.SelectorKeys) : List Interval → Option Interval
   | [] => none
-  | c :: cs => some (cs.foldl selBetter c)
+  | c :: cs => some (cs.foldl (selBetterWithKeys keys) c)
+
+/-- 仅显式测试默认记录的选择函数；生产使用 `selectΘWithKeys`。 -/
+def selectΘ : List Interval → Option Interval :=
+  selectΘWithKeys defaultSelectorKeys
 
 /-- **空候选 selectΘ 得 none（无候选，L0）** —— 对照结果包「不存在候选 ⟹ χ = 0」。 -/
 theorem selectΘ_nil : selectΘ [] = none := rfl
@@ -219,7 +254,7 @@ theorem foldl_selBetter_mem (c : Interval) (cs : List Interval) :
     have hmem := ih (selBetter c x)
     -- selBetter c x ∈ {c, x}；折叠结果 ∈ (selBetter c x) :: xs ⟹ ∈ c :: x :: xs
     have hsub : selBetter c x = c ∨ selBetter c x = x := by
-      unfold selBetter; split
+      unfold selBetter selBetterWithKeys; split
       · exact Or.inr rfl
       · exact Or.inl rfl
     rcases List.mem_cons.mp hmem with h | h
@@ -233,7 +268,7 @@ theorem foldl_selBetter_mem (c : Interval) (cs : List Interval) :
 /-- **selBetter 结果键同或严格优左操作数（L0）** —— `selBetter cur x` 对 `cur`「键同 ∨ 严格优」。 -/
 theorem selBetter_ge_cur (cur x : Interval) :
     selKey cur = selKey (selBetter cur x) ∨ selOrder (selBetter cur x) cur := by
-  unfold selBetter
+  unfold selBetter selBetterWithKeys
   split
   · rename_i hsel; exact Or.inr ((selOrderB_iff x cur).mp hsel)
   · exact Or.inl rfl
@@ -241,7 +276,7 @@ theorem selBetter_ge_cur (cur x : Interval) :
 /-- **selBetter 结果键同或严格优右操作数（L0）** —— `selBetter cur x` 对 `x`「键同 ∨ 严格优」。 -/
 theorem selBetter_ge_x (cur x : Interval) :
     selKey x = selKey (selBetter cur x) ∨ selOrder (selBetter cur x) x := by
-  unfold selBetter
+  unfold selBetter selBetterWithKeys
   split
   · exact Or.inl rfl
   · rename_i hsel
@@ -324,9 +359,14 @@ theorem selectΘ_mem (c : Interval) (cs : List Interval) :
     替代对象等），与 Strict.Nest 的 `selected_key_unique` 同构——这才是「Sel_Θ 唯一选定」的
     精确形式（选定的是**键**，多个键同对象在 Sel_Θ 下等价）。
 -/
-structure IsSelectedByKey (cands : List Interval) (J : Interval) : Prop where
+structure IsSelectedByKeyWithKeys (keys : Strict.Nest.SelectorKeys)
+    (cands : List Interval) (J : Interval) : Prop where
   mem : J ∈ cands
-  best : ∀ J', J' ∈ cands → selKey J' = selKey J ∨ selOrder J J'
+  best : ∀ J', J' ∈ cands → selKey J' = selKey J ∨ Strict.Nest.selOrderWithKeys keys J J'
+
+/-- 既有键层谓词仅是显式默认键表的别名。 -/
+def IsSelectedByKey (cands : List Interval) (J : Interval) : Prop :=
+  IsSelectedByKeyWithKeys defaultSelectorKeys cands J
 
 /-- **selectΘ 选中者满足 IsSelectedByKey（L0，构造性填充）** —— 非空候选选中者键层最优。 -/
 theorem selectΘ_isSelectedByKey (c : Interval) (cs : List Interval) :
@@ -347,6 +387,106 @@ theorem selectedByKey_unique
   · rcases h₂.best J₁ h₁.mem with hEq' | hLt'
     · exact hEq'
     · exact absurd hLt' (Strict.Nest.selOrder_asymm hLt)
+
+
+/-- 同一版本化键表下的 `IsSelectedByKey` 唯一性。 -/
+theorem selectedByKeyWithKeys_unique
+    {keys : Strict.Nest.SelectorKeys} {cands : List Interval} {J₁ J₂ : Interval}
+    (h₁ : IsSelectedByKeyWithKeys keys cands J₁)
+    (h₂ : IsSelectedByKeyWithKeys keys cands J₂) :
+    selKey J₁ = selKey J₂ := by
+  rcases h₁.best J₂ h₂.mem with hEq | hLt
+  · exact hEq.symm
+  · rcases h₂.best J₁ h₁.mem with hEq' | hLt'
+    · exact hEq'
+    · exact absurd hLt' (Strict.Nest.selOrderWithKeys_asymm hLt)
+
+/-- 通用键表折叠的结果仍属于原候选。 -/
+theorem foldl_selBetterWithKeys_mem (keys : Strict.Nest.SelectorKeys)
+    (c : Interval) (cs : List Interval) :
+    cs.foldl (selBetterWithKeys keys) c ∈ c :: cs := by
+  induction cs generalizing c with
+  | nil => exact List.mem_cons_self
+  | cons x xs ih =>
+    simp only [List.foldl_cons]
+    have hmem := ih (selBetterWithKeys keys c x)
+    have hsub : selBetterWithKeys keys c x = c ∨ selBetterWithKeys keys c x = x := by
+      unfold selBetterWithKeys; split
+      · exact Or.inr rfl
+      · exact Or.inl rfl
+    rcases List.mem_cons.mp hmem with h | h
+    · rcases hsub with hc | hx
+      · exact List.mem_cons.mpr (Or.inl (h.trans hc))
+      · exact List.mem_cons.mpr (Or.inr (List.mem_cons.mpr (Or.inl (h.trans hx))))
+    · exact List.mem_cons.mpr (Or.inr (List.mem_cons.mpr (Or.inr h)))
+
+/-- 通用键表下，裁决结果不劣于左操作数。 -/
+theorem selBetterWithKeys_ge_cur (keys : Strict.Nest.SelectorKeys) (cur x : Interval) :
+    selKey cur = selKey (selBetterWithKeys keys cur x)
+      ∨ Strict.Nest.selOrderWithKeys keys (selBetterWithKeys keys cur x) cur := by
+  unfold selBetterWithKeys
+  split
+  · rename_i hsel; exact Or.inr ((selOrderBWithKeys_iff keys x cur).mp hsel)
+  · exact Or.inl rfl
+
+/-- 通用键表下，裁决结果不劣于右操作数。 -/
+theorem selBetterWithKeys_ge_x (keys : Strict.Nest.SelectorKeys) (cur x : Interval) :
+    selKey x = selKey (selBetterWithKeys keys cur x)
+      ∨ Strict.Nest.selOrderWithKeys keys (selBetterWithKeys keys cur x) x := by
+  unfold selBetterWithKeys
+  split
+  · exact Or.inl rfl
+  · rename_i hsel
+    rcases Strict.Nest.selOrderWithKeys_trichotomy keys cur x with hco | hkey | hco
+    · exact Or.inr hco
+    · exact Or.inl (by
+        simp only [selKey, Prod.mk.injEq]
+        exact ⟨hkey.1.symm, hkey.2.1.symm, hkey.2.2.symm⟩)
+    · exact absurd ((selOrderBWithKeys_iff keys x cur).mpr hco) hsel
+
+/-- 通用键表的“键同或严格优”关系可传递。 -/
+theorem geWithKeys_trans (keys : Strict.Nest.SelectorKeys) {a b c : Interval}
+    (h₁ : selKey b = selKey a ∨ Strict.Nest.selOrderWithKeys keys a b)
+    (h₂ : selKey c = selKey b ∨ Strict.Nest.selOrderWithKeys keys b c) :
+    selKey c = selKey a ∨ Strict.Nest.selOrderWithKeys keys a c := by
+  rcases h₁ with hk₁ | hlt₁ <;> rcases h₂ with hk₂ | hlt₂
+  · exact Or.inl (hk₂.trans hk₁)
+  · exact Or.inr (Strict.Nest.selOrderWithKeys_left_congr hk₁ hlt₂)
+  · exact Or.inr (Strict.Nest.selOrderWithKeys_right_congr hk₂.symm hlt₁)
+  · exact Or.inr (Strict.Nest.selOrderWithKeys_trans hlt₁ hlt₂)
+
+/-- 通用键表折叠结果不劣于每个候选。 -/
+theorem foldl_selBetterWithKeys_best (keys : Strict.Nest.SelectorKeys)
+    (c : Interval) (cs : List Interval) :
+    ∀ y ∈ c :: cs,
+      selKey y = selKey (cs.foldl (selBetterWithKeys keys) c)
+        ∨ Strict.Nest.selOrderWithKeys keys (cs.foldl (selBetterWithKeys keys) c) y := by
+  induction cs generalizing c with
+  | nil =>
+    intro y hy
+    rcases List.mem_cons.mp hy with h | h
+    · exact Or.inl (by rw [h]; rfl)
+    · exact absurd h List.not_mem_nil
+  | cons x xs ih =>
+    intro y hy
+    simp only [List.foldl_cons]
+    have ihm := ih (selBetterWithKeys keys c x)
+    rcases List.mem_cons.mp hy with hyc | hyrest
+    · subst hyc
+      exact geWithKeys_trans keys (ihm (selBetterWithKeys keys y x) List.mem_cons_self)
+        (selBetterWithKeys_ge_cur keys y x)
+    · rcases List.mem_cons.mp hyrest with hyx | hyxs
+      · subst hyx
+        exact geWithKeys_trans keys (ihm (selBetterWithKeys keys c y) List.mem_cons_self)
+          (selBetterWithKeys_ge_x keys c y)
+      · exact ihm y (List.mem_cons_of_mem _ hyxs)
+
+/-- 记录驱动的选择结果满足同一记录的选择谓词。 -/
+theorem selectΘWithKeys_isSelectedByKey (keys : Strict.Nest.SelectorKeys)
+    (c : Interval) (cs : List Interval) :
+    IsSelectedByKeyWithKeys keys (c :: cs) (cs.foldl (selBetterWithKeys keys) c) :=
+  { mem := foldl_selBetterWithKeys_mem keys c cs
+    best := foldl_selBetterWithKeys_best keys c cs }
 
 /-! ═══════════════════════════════════════════════════════════════════════
     § 4. N^δ 递归证书（列表结构递归 + 级别比较 Confirm/Candidate 两支运行时分支）
@@ -371,6 +511,7 @@ theorem selectedByKey_unique
   - `cands`：本级别候选区间集（Sel_Θ 选 chosen）。
   - `candidateOK`：本级别候选标记 `Candidate^δ_{ℓ_j,t}`（缠论语义内容下游契约，Bool 标记）。
   - `confirmOK`：本级别（作为执行级终端时）确认标记 `Confirm^δ_{e_v,t}`（仅 lvl = e_v 时用）。
+  - `policy`：本级别选择器记录；`nestCertB` 要求相邻级别使用完全相同的记录。
 
   ★`candidateOK`/`confirmOK` 是 Bool 标记（缠论语义内容由 BSP/Center 下游契约提供）——本文件
     给 N^δ 的**结构形式**（级别比较 + 区间套 ⊆ + Sel_Θ 选 chosen），不算缠论语义内容（L0）。
@@ -380,9 +521,11 @@ structure NestLevel where
   cands : List Interval
   candidateOK : Bool
   confirmOK : Bool
+  policy : Strict.Nest.SelectorPolicy
 
-/-- **本级别 Sel_Θ 选出的 chosen 区间** —— `selectΘ cands`（无候选 = none）。 -/
-def NestLevel.chosen (ℓ : NestLevel) : Option Interval := selectΘ ℓ.cands
+/-- **本级别由实际 selector 记录选出的区间**（无候选 = none）。 -/
+def NestLevel.chosen (ℓ : NestLevel) : Option Interval :=
+  selectΘWithKeys ℓ.policy.keys ℓ.cands
 
 /--
   **区间套 ⊆ 的 Bool 判定** —— 次级别 chosen 套在本级别 chosen 之内（`J_{ℓ_{j+1}} ⊆ J_{ℓ_j}`）。
@@ -410,7 +553,7 @@ theorem subB_iff_Sub (sub par : NestLevel) (js jp : Interval)
   - **空链** ⟹ `false`（无级别 = 无候选 = 0，对照「不存在候选，值为 0」）。
   - **链头 ℓ** 且 `ℓ.lvl = ev`（到达执行级）⟹ 终端 `Confirm^δ_{e_v,t}` = `ℓ.confirmOK`（且本级有候选）。
   - **链头 ℓ + 次级 ℓ' + 余链**（`ℓ.lvl > ev`）⟹ `Candidate^δ_{ℓ} ∧ [ℓ'.chosen ⊆ ℓ.chosen] ∧ N^δ_{ℓ'↓ev}`：
-    本级候选成立 ∧ 区间套缩小 ∧ 次级递归。
+    本级候选成立 ∧ 区间套缩小 ∧ 次级递归；相邻级还必须是同一 `policy`。
   - **级别不匹配**（链头 `ℓ.lvl ≠ ev` 但已是末级，或 `ℓ.lvl < ev`）⟹ `false`（链不良构，无定位 = 0）。
 
   ★全定义（对任意输入有确定 Bool 值，**绝不未定义**）：无候选 / 链不良构 / 区间套不成立 ⟹ `false` = 0。
@@ -427,7 +570,8 @@ def nestCertB (ev : Nat) : List NestLevel → Bool
         false
       else if ℓ.lvl > ev then
         -- 操作级/中间级：候选成立 ∧ 次级套本级 ∧ 次级严格低一级 ∧ 递归
-        ℓ.candidateOK && decide (ℓ'.lvl < ℓ.lvl) && subB ℓ' ℓ
+        ℓ.candidateOK && decide (ℓ'.policy = ℓ.policy)
+          && decide (ℓ'.lvl < ℓ.lvl) && subB ℓ' ℓ
           && nestCertB ev (ℓ' :: rest)
       else
         -- ℓ.lvl < ev：链反向（越下钻级别越高，违反 o_v > … > e_v）⟹ 0
@@ -488,7 +632,7 @@ theorem chiBool_singleton_noCand_eq_zero (ev : Nat) (ℓ : NestLevel)
 
 /-- **一级的 chosen 是 Sel_Θ 选中者**：chosen 存在，且满足既有键层选择谓词。 -/
 def ChosenByΘ (ℓ : NestLevel) : Prop :=
-  ∃ j, ℓ.chosen = some j ∧ IsSelectedByKey ℓ.cands j
+  ∃ j, ℓ.chosen = some j ∧ IsSelectedByKeyWithKeys ℓ.policy.keys ℓ.cands j
 
 /-- **一对相邻级别的 chosen 区间满足子 ⊆ 父**。 -/
 def ChosenSub (sub par : NestLevel) : Prop :=
@@ -505,6 +649,7 @@ def NestCertPartialCorrect (ev : Nat) : List NestLevel → Prop
       ℓ.lvl = ev ∧ ChosenByΘ ℓ ∧ ℓ.confirmOK = true
   | ℓ :: ℓ' :: rest =>
       ℓ.candidateOK = true
+        ∧ ℓ'.policy = ℓ.policy
         ∧ ℓ'.lvl < ℓ.lvl
         ∧ ChosenByΘ ℓ
         ∧ ChosenSub ℓ' ℓ
@@ -515,11 +660,11 @@ theorem chosenByΘ_of_isSome (ℓ : NestLevel) (h : ℓ.chosen.isSome = true) :
     ChosenByΘ ℓ := by
   cases hc : ℓ.cands with
   | nil =>
-      simp [NestLevel.chosen, selectΘ, hc] at h
+      simp [NestLevel.chosen, selectΘWithKeys, hc] at h
   | cons c cs =>
-      refine ⟨cs.foldl selBetter c, ?_, ?_⟩
-      · simp [NestLevel.chosen, selectΘ, hc]
-      · simpa [hc] using selectΘ_isSelectedByKey c cs
+      refine ⟨cs.foldl (selBetterWithKeys ℓ.policy.keys) c, ?_, ?_⟩
+      · simp [NestLevel.chosen, selectΘWithKeys, hc]
+      · simpa [hc] using selectΘWithKeys_isSelectedByKey ℓ.policy.keys c cs
 
 /-- **`subB = true` 时，两级 chosen 真存在且满足 `Sub`。** -/
 theorem chosenSub_of_subB_eq_true (sub par : NestLevel) (h : subB sub par = true) :
@@ -554,14 +699,15 @@ theorem nestCertB_partial_correct (ev : Nat) (chain : List NestLevel) :
           exact ⟨h.1.1, chosenByΘ_of_isSome ℓ h.1.2, h.2⟩
       | cons ℓ' rest =>
           change (if ℓ.lvl = ev then false else if ℓ.lvl > ev then
-            ℓ.candidateOK && decide (ℓ'.lvl < ℓ.lvl) && subB ℓ' ℓ
+            ℓ.candidateOK && decide (ℓ'.policy = ℓ.policy)
+              && decide (ℓ'.lvl < ℓ.lvl) && subB ℓ' ℓ
               && nestCertB ev (ℓ' :: rest)
             else false) = true at h
           split at h
           · contradiction
           · split at h
             · simp only [Bool.and_eq_true, decide_eq_true_eq] at h
-              exact ⟨h.1.1.1, h.1.1.2,
+              exact ⟨h.1.1.1.1, h.1.1.1.2, h.1.1.2,
                 chosenByΘ_of_isSome ℓ (by
                   have hs := h.1.2
                   unfold subB at hs
@@ -589,15 +735,15 @@ def witOpInterval : Interval := { endTime := 25, startTime := 5, idx := 1 }
 
 /-- 执行级节点（level 0，confirm 成立）。 -/
 def witExec : NestLevel :=
-  { lvl := 0, cands := [witExecInterval], candidateOK := true, confirmOK := true }
+  { lvl := 0, cands := [witExecInterval], candidateOK := true, confirmOK := true, policy := defaultSelectorPolicy }
 
 /-- 中间级节点（level 1，candidate 成立）。 -/
 def witMid : NestLevel :=
-  { lvl := 1, cands := [witMidInterval], candidateOK := true, confirmOK := false }
+  { lvl := 1, cands := [witMidInterval], candidateOK := true, confirmOK := false, policy := defaultSelectorPolicy }
 
 /-- 操作级节点（level 2，candidate 成立）。 -/
 def witOp : NestLevel :=
-  { lvl := 2, cands := [witOpInterval], candidateOK := true, confirmOK := false }
+  { lvl := 2, cands := [witOpInterval], candidateOK := true, confirmOK := false, policy := defaultSelectorPolicy }
 
 /-- **★反退化见证：三级区间套链 χ^δ = 1（真跑通）** —— 操作级 2 ≻ 中间级 1 ≻ 执行级 0，
     各级 chosen 真套缩小（[5,25]⊇[8,22]⊇[10,20]）+ 各级 Candidate/Confirm 成立 ⟹ chiBool = true。 -/
@@ -614,7 +760,7 @@ def witBrokenExecInterval : Interval := { endTime := 30, startTime := 2, idx := 
 
 /-- 区间套破坏的执行级节点（level 0，区间超出操作级 ⟹ 套不住）。 -/
 def witBrokenExec : NestLevel :=
-  { lvl := 0, cands := [witBrokenExecInterval], candidateOK := true, confirmOK := true }
+  { lvl := 0, cands := [witBrokenExecInterval], candidateOK := true, confirmOK := true, policy := defaultSelectorPolicy }
 
 /-- **★反退化见证：区间套不成立 ⟹ χ^δ = 0** —— 执行级区间 [2,30] 超出操作级 [5,25]
     （2<5 ∧ 30>25 ⟹ 不被套住），区间套 ⊆ 不成立 ⟹ subB = false ⟹ chiBool = 0。 -/

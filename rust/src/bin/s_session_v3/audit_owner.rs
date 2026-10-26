@@ -4209,6 +4209,38 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
     let mut f = prepared::tests::Fixture::new();
     let (envelope, token) = f.accept_begin(1, ("r14-source", 0, 6, 12, 3, 7), 1);
     f.publish(&envelope, &token).unwrap();
+    // #1602：池的Binding持有sqlite_schema原件；新增列的DDL字节在P2-A前后都物理保留一次。
+    // 从历史DDL和具名列声明独立推导，不用封存读数或许可合计倒算基准。
+    const LEGACY_DELTA_SCHEMA: &str = r#"CREATE TABLE structure_deltas (
+  generation INTEGER PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  catalog_revision TEXT NOT NULL,
+  base_cut TEXT NOT NULL,
+  next_cut TEXT NOT NULL,
+  seq_range_json TEXT NOT NULL,
+  index_frontier TEXT NOT NULL,
+  input_frontier INTEGER NOT NULL,
+  catalog_run_status TEXT NOT NULL,
+  catalog_evidence_json TEXT NOT NULL,
+  delta_json TEXT NOT NULL
+)"#;
+    const POLICY_RECORDS_COLUMN: &str =
+        ",\n  policy_records TEXT NOT NULL DEFAULT 'legacy/unknown'";
+    let current_schema: String = f
+        .conn
+        .query_row(
+            "SELECT sql FROM sqlite_schema WHERE type='table' AND name='structure_deltas'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let expected_schema =
+        LEGACY_DELTA_SCHEMA.replace("\n)", &format!("{POLICY_RECORDS_COLUMN}\n)"));
+    assert_eq!(
+        current_schema, expected_schema,
+        "R14仅增加已批准的记录溯源列"
+    );
+    let schema_growth = POLICY_RECORDS_COLUMN.len();
     let total = 64 * 1024 * 1024;
     let mut ordinary_source_cost = 0;
     for admitted in [false, true] {
@@ -4398,7 +4430,7 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                 let contract = crate::tb02b::CURRENT_CONTRACT;
                 let current_len =
                     contract_len(contract.schema, contract.policy, contract.knowledge_domain);
-                let sealed_before_p2a = sealed_before_p2a_for(current_len);
+                let sealed_before_p2a = sealed_before_p2a_for(current_len) + schema_growth;
                 assert_eq!(nodes, R14_NODES, "独立交叉核：来源节点数");
                 assert_eq!(index_bytes % slot_now, 0, "索引许可=槽数×现槽宽");
                 let index_slots = index_bytes / slot_now;
@@ -4406,7 +4438,7 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                 eprintln!(
                     "R14_P2B_DROP {}",
                     json!({"sealed_before_p2a":sealed_before_p2a,"sealed":sealed,
-                        "contract_len":current_len,"claims_bytes":claims.1,"index_bytes":index_bytes,"index_slots":index_slots,
+                        "contract_len":current_len,"schema_growth":schema_growth,"claims_bytes":claims.1,"index_bytes":index_bytes,"index_slots":index_slots,
                         "slot_now":slot_now,"slot_before_p2a":slot_before_p2a,"layout_drop":layout_drop})
                 );
                 assert_eq!(claims.1, expected_claims(current_len), "①来源合同额之和");

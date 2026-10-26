@@ -56,6 +56,8 @@ mod fractal;
 /// 赋格引擎 v3（递归嵌套多重赋格 = 操作必然结构）。层结构四步循环操作引擎，复用
 /// spiral 信号层，核心仓 H⁰(2/3) ⊕ 机动仓 H¹(1/3 四步 1-cycle 穿 ε=−1)。`pub` 导出。
 pub mod fugue_v3;
+/// #1601：ADR 0040 资金签署记录（`Q_total`、`l_start`）的唯一读取点。
+pub mod funding_record;
 mod level;
 mod macd;
 mod moves;
@@ -1952,8 +1954,10 @@ impl PyOrganicTape {
 
 /// 单变体回测。返回 dict（trades/counters/归因表/diag）。
 /// variant ∈ {V0|O0, V1f, V1r, V2, V3, V3p, V4, VS}（v2 §8.1 矩阵）。
+/// `funding_profile`：ADR 0040 签署记录的 profile（`Q_total`/`l_start` 由此读；#1601）。
+/// 未给 ⟹ `AwaitingPolicy{funding_record}` 报错，无默认资金。输出 `records` 写出记录 id 与版本。
 #[pyfunction]
-#[pyo3(signature = (tape, variant, floor_ladder = 2, stop_mode = "none", diag = false))]
+#[pyo3(signature = (tape, variant, floor_ladder = 2, stop_mode = "none", diag = false, funding_profile = None))]
 fn run_organic_rust(
     py: Python<'_>,
     tape: &PyOrganicTape,
@@ -1961,6 +1965,7 @@ fn run_organic_rust(
     floor_ladder: usize,
     stop_mode: &str,
     diag: bool,
+    funding_profile: Option<&str>,
 ) -> PyResult<PyObject> {
     use pyo3::types::PyDict;
     let cfg = trading::config::variant(variant)
@@ -1968,10 +1973,13 @@ fn run_organic_rust(
     let sm = trading::config::StopMode::parse(stop_mode).ok_or_else(|| {
         pyo3::exceptions::PyValueError::new_err(format!("非法 stop_mode: {stop_mode:?}"))
     })?;
-    let res = trading::runner::run_organic(&tape.inner, floor_ladder, &cfg, sm, diag)
+    let rec = crate::funding_record::py_replay_records(funding_profile)?;
+    let res = trading::runner::run_organic(&tape.inner, floor_ladder, &cfg, sm, diag, &rec)
         .map_err(pyo3::exceptions::PyValueError::new_err)?;
 
     let out = PyDict::new(py);
+    out.set_item("records", &res.records)?;
+    out.set_item("q_total", rec.funding.q_total)?;
     let trades: Vec<(i64, f64, i64, f64, f64, String, u32, f64)> = res
         .trades
         .iter()
@@ -2117,8 +2125,10 @@ fn run_organic_rust(
 /// OrganicConfig 字段——递归建仓与 OrganicLedger 是不同账本范畴（从零建仓
 /// vs 满仓降成本），塞配置位即声明膨胀；run_organic 路径零接触（O0≡P5
 /// 守卫自动满足）。weight ∈ {"exp2", "linear"}。
+/// `funding_profile`：期初资金读 ADR 0040 funding-record 的 `Q_total`（#1601，无默认）。
 #[pyfunction]
-#[pyo3(signature = (tape, floor_ladder = 2, base_frac = 0.1, weight = "exp2", sell_t1_only = false, with_fills = false))]
+#[pyo3(signature = (tape, floor_ladder = 2, base_frac = 0.1, weight = "exp2", sell_t1_only = false, with_fills = false, funding_profile = None))]
+#[allow(clippy::too_many_arguments)]
 fn run_recursive_rust(
     py: Python<'_>,
     tape: &PyOrganicTape,
@@ -2127,12 +2137,14 @@ fn run_recursive_rust(
     weight: &str,
     sell_t1_only: bool,
     with_fills: bool,
+    funding_profile: Option<&str>,
 ) -> PyResult<PyObject> {
     use pyo3::types::PyDict;
     use trading::recursive_position::{run_recursive, WeightFn};
     let wf = WeightFn::parse(weight).ok_or_else(|| {
         pyo3::exceptions::PyValueError::new_err(format!("非法 weight: {weight:?}"))
     })?;
+    let funding = crate::funding_record::py_funding_record(funding_profile)?;
     let res = run_recursive(
         &tape.inner,
         floor_ladder,
@@ -2140,9 +2152,12 @@ fn run_recursive_rust(
         wf,
         sell_t1_only,
         with_fills,
+        funding.q_total_f64(),
     )
     .map_err(pyo3::exceptions::PyValueError::new_err)?;
     let out = PyDict::new(py);
+    out.set_item("funding_record", funding.label())?;
+    out.set_item("q_total", funding.q_total)?;
     out.set_item("final_return_pct", res.final_return_pct)?;
     out.set_item("max_dd_pct", res.max_dd_pct)?;
     out.set_item("avg_invested_frac", res.avg_invested_frac)?;
@@ -2183,20 +2198,25 @@ fn run_recursive_rust(
 ///         （B+C 合体家族）,
 ///         "fusion_u"（统一配置 U：fusion_t 基座 + 相位递归路由 osc 层，
 ///          2026-06-12 任务）, "fusion_uw"（U−③ 强震荡门消融臂，预注册 P5）}。
+/// `funding_profile`：`Q_total`/`l_start` 读 ADR 0040 签署记录（#1601，无默认）；输出 `records`。
 #[pyfunction]
-#[pyo3(signature = (tape, floor_ladder = 2, mode = "hold26"))]
+#[pyo3(signature = (tape, floor_ladder = 2, mode = "hold26", funding_profile = None))]
 fn run_positional_rust(
     py: Python<'_>,
     tape: &PyOrganicTape,
     floor_ladder: usize,
     mode: &str,
+    funding_profile: Option<&str>,
 ) -> PyResult<PyObject> {
     use trading::positional::{run_positional, PolarityMode};
     let pm = PolarityMode::parse(mode)
         .ok_or_else(|| pyo3::exceptions::PyValueError::new_err(format!("非法 mode: {mode:?}")))?;
-    let res = run_positional(&tape.inner, floor_ladder, pm)
+    let rec = crate::funding_record::py_replay_records(funding_profile)?;
+    let res = run_positional(&tape.inner, floor_ladder, pm, &rec)
         .map_err(pyo3::exceptions::PyValueError::new_err)?;
-    Ok(positional_result_to_dict(py, &res)?.into())
+    let out = positional_result_to_dict(py, &res)?;
+    out.set_item("q_total", rec.funding.q_total)?;
+    Ok(out.into())
 }
 
 /// `PositionalResult` → PyDict（`run_positional_rust` + `UnnStream.finish` 复用，
@@ -2207,6 +2227,7 @@ fn positional_result_to_dict<'py>(
 ) -> PyResult<pyo3::Bound<'py, pyo3::types::PyDict>> {
     use pyo3::types::PyDict;
     let out = PyDict::new(py);
+    out.set_item("records", &res.records)?;
     // trade 行 = (ladder, entry_bar, entry_price, exit_bar, exit_price,
     //             shares, weight_at_entry, deferred_bars, partial, exit_reason,
     //             polarity)。polarity ∈ {"long","short"}：Short 行现金流镜像
@@ -2245,6 +2266,10 @@ fn positional_result_to_dict<'py>(
     out.set_item("trades", trades)?;
     out.set_item("equity", res.equity.clone())?;
     out.set_item("final_nav", res.final_nav)?;
+    out.set_item(
+        "trend_scope_policy",
+        res.trend_scope_policy.map(|record| record.label()),
+    )?;
     out.set_item("n_entries_by_ladder", res.n_entries_by_ladder.to_vec())?;
     out.set_item("n_exits_by_ladder", res.n_exits_by_ladder.to_vec())?;
     out.set_item("held_bars_by_ladder", res.held_bars_by_ladder.to_vec())?;
@@ -2604,25 +2629,35 @@ fn positional_result_to_dict<'py>(
 /// 与批量 `run_positional_rust(mode="unn")` **共享 `UnnStreamCore::step/finish`** ⇒
 /// 逐 bar 累积的 `finish()` 结果与批量逐位等价（bit-exact 由构造保证，非对齐努力）。
 /// 用法（NautilusTrader on_bar 逐 bar 驱动）：
-///   s = UnnStream(floor_ladder=2)
+///   s = UnnStream(floor_ladder=2, funding_profile="P0")
 ///   for bar: signals = s.push_bar(close, buy1, ..., bsp_rows, div_rows, flip_rows)
 ///   result = s.finish()   # 与 run_positional_rust 同结构 dict
 #[pyclass(name = "UnnStream")]
 struct PyUnnStream {
     core: trading::unified_necessity::UnnStreamCore,
+    records: String,
+    q_total: i64,
 }
 
 #[pymethods]
 impl PyUnnStream {
+    /// `funding_profile`：操作级别读 derivation-input 的 `l_start`（ladder = 2 + ℓ），现金池读
+    /// funding-record 的 `Q_total`（#1601，无默认；未给 ⟹ `AwaitingPolicy{funding_record}`）。
     #[new]
-    #[pyo3(signature = (floor_ladder = 2))]
-    fn new(floor_ladder: usize) -> PyResult<Self> {
+    #[pyo3(signature = (floor_ladder = 2, funding_profile = None))]
+    fn new(floor_ladder: usize, funding_profile: Option<&str>) -> PyResult<Self> {
+        let rec = crate::funding_record::py_replay_records(funding_profile)?;
         let core = trading::unified_necessity::UnnStreamCore::new(
             floor_ladder,
-            trading::types::DEFAULT_OP_LADDER,
+            rec.op_ladder(),
+            rec.q_total(),
         )
         .map_err(pyo3::exceptions::PyValueError::new_err)?;
-        Ok(Self { core })
+        Ok(Self {
+            core,
+            records: rec.label(),
+            q_total: rec.funding.q_total,
+        })
     }
 
     /// 逐 bar 推送。事件行无 bar 字段（本 bar 内）：
@@ -2806,8 +2841,26 @@ impl PyUnnStream {
     /// `run_positional_rust(mode="unn")` 同结构）。幂等。
     fn finish(&mut self, py: Python<'_>) -> PyResult<PyObject> {
         self.core.finish();
-        Ok(positional_result_to_dict(py, self.core.result())?.into())
+        let out = positional_result_to_dict(py, self.core.result())?;
+        out.set_item("records", &self.records)?;
+        out.set_item("q_total", self.q_total)?;
+        Ok(out.into())
     }
+}
+
+/// 读 ADR 0040 funding-record（#1601）：返回 `{"funding_record": <id@profile/版本>, "q_total": int,
+/// "currency": str, "scope": str | None}`。供 Python 侧 NT 装配（venue 起始余额）读同一份记录；
+/// 未给 profile ⟹ `AwaitingPolicy{funding_record}` 报错。
+#[pyfunction]
+#[pyo3(signature = (funding_profile = None))]
+fn read_funding_record(py: Python<'_>, funding_profile: Option<&str>) -> PyResult<PyObject> {
+    let rec = crate::funding_record::py_funding_record(funding_profile)?;
+    let out = pyo3::types::PyDict::new(py);
+    out.set_item("funding_record", rec.label())?;
+    out.set_item("q_total", rec.q_total)?;
+    out.set_item("currency", &rec.currency)?;
+    out.set_item("scope", rec.scope.as_deref())?;
+    Ok(out.into())
 }
 
 /// Python 模块定义。
@@ -2818,6 +2871,7 @@ fn newchan_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(run_recursive_rust, m)?)?;
     m.add_function(wrap_pyfunction!(run_positional_rust, m)?)?;
     m.add_class::<PyUnnStream>()?;
+    m.add_function(wrap_pyfunction!(read_funding_record, m)?)?;
     // 螺旋引擎 v2（D∞ 群结构第一性原理）：流式 SpiralStream + 批量 run_spiral。
     m.add_class::<spiral::ffi::PySpiralStream>()?;
     m.add_function(wrap_pyfunction!(spiral::ffi::run_spiral, m)?)?;
