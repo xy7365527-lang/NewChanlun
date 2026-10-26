@@ -359,8 +359,8 @@ fn formal_socket_case(
 /// #1716：真实 S 单 bar 闭包上，/4 新 cap 经 E/B 正式服务进程与 Unix socket 被实际消费。cap=90 时 ChongAdvance
 /// 在 E 提交 Reserve 回执并经 B socket 提交两份 Commit，责任 20+30+40=90；cap=89 时整槽等待、两 B 不提交。
 /// 两个恢复例在 E Reserve 提交后、B:alpha Commit 提交后 SIGKILL 实际进程，recover 后以新 epoch 起新进程重送，
-/// 取回原回执且每域恰一份 Reserve/Commit。运行方式同上一测试，另需 `TB1716_ECON_BINARIES`（含
-/// `e_economic_session`、`b_chong_session`）。
+/// 取回原回执且每域恰一份 Reserve/Commit。运行方式同上一测试，另需 `TB1716_ECON_BINARIES`（含 release
+/// `e_economic_session`、`b_chong_session`，ADR 0039 的生产构建配置）。S 会话原件写在 TB03B_TEST_ROOT/formal-s-session。
 #[test]
 #[ignore = "需 TB1716_HFS_CARRIERS、TB1716_S_BINARY、TB1716_S_EXPORT、TB1716_ECON_BINARIES 与 bind Unix socket 的权限"]
 fn content_domain_activated_cap_consumed_through_formal_sockets() {
@@ -374,7 +374,12 @@ fn content_domain_activated_cap_consumed_through_formal_sockets() {
     let binaries = env_path("TB1716_ECON_BINARIES");
     let export_path = env_path("TB1716_S_EXPORT");
     let export = strict_json(&std::fs::read(&export_path).unwrap()).unwrap();
-    let session = SSession::start(&binary, &export, export_path.parent().unwrap());
+    let root = std::env::var_os("TB03B_TEST_ROOT")
+        .map(PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir);
+    let s_work = root.join("formal-s-session");
+    std::fs::create_dir_all(&s_work).unwrap();
+    let session = SSession::start(&binary, &export, &s_work);
     let real_s = real_s_from_export(&binary, &export, &session.socket);
     let cases = [
         ("equal", "90", None),
@@ -401,12 +406,6 @@ fn content_domain_activated_cap_consumed_through_formal_sockets() {
     let session_final = session.stop(&binary);
     let evidence = json!({"carriers":carriers,"reading":"SessionClosure","response_timeout_ms":"3000",
         "s_source":real_s,"s_session_ready":session_ready,"s_session_final":session_final,"cases":outcomes});
-    let root = std::env::var_os("TB03B_TEST_ROOT")
-        .map(PathBuf::from)
-        .unwrap_or_else(std::env::temp_dir);
-    save(&root, "issue1716-formal-socket-consumption.json", &evidence);
-    println!(
-        "ISSUE1716_FORMAL_SOCKET_CONSUMPTION {}",
-        canonical_json(&evidence)
-    );
+    let (path, _) = save(&root, "issue1716-formal-socket-consumption.json", &evidence);
+    println!("ISSUE1716_FORMAL_SOCKET_CONSUMPTION {path}");
 }

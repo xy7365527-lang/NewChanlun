@@ -131,7 +131,7 @@ jobs:
   #   s_structure_session 的 financial-serve 只读会话；manifest 冻结 SessionClosure 读法，reader_resources 八项与
   #   E/B response_timeout_ms 3000 保持原值。两 B Prepare 后 E 激活 cap 版本 2，Reserve 实际消费该版本。
   #   E、B:alpha、B:beta 各占一个 24 MiB 临时 HFS+ 卷（同上）。原件（会话回执、stdout/stderr、证据 JSON）总上传。
-  #   随后同一批卷上以 debug E/B 正式服务进程经 Unix socket 消费同一新 cap（含 E Reserve、B:alpha Commit 提交后
+  #   随后同一批卷上以 release E/B 正式服务进程（ADR 0039 生产构建配置）经 Unix socket 消费同一新 cap（含 E Reserve、B:alpha Commit 提交后
   #   SIGKILL 的新进程恢复），卸载前把三卷原库复制进 work/carrier-dbs 一并上传。
   issue1716-real-s:
     runs-on: macos-latest
@@ -182,18 +182,19 @@ jobs:
           df -k "$root/mnt/e" "$root/mnt/alpha" "$root/mnt/beta"
           TB1717_S_EXPORT="$root/s3/export.json" cargo test --locked --features s_session --bin s_structure_session -- \
             --ignored --exact v3::financial_session::tests::export_real_s3_fixture_for_economic_content_domain
-          cargo build --release --locked --features s_session --bin s_structure_session
-          ls -l target/release/s_structure_session
-          TB03B_TEST_ROOT="$root/work" TB1716_HFS_CARRIERS="$carriers" TB1716_S_EXPORT="$root/s3/export.json" \
+          cargo build --release --locked --features s_session --bin s_structure_session --bin e_economic_session --bin b_chong_session
+          ls -l target/release/s_structure_session target/release/e_economic_session target/release/b_chong_session
+          # 两个正控各自落日志与退出码（证据 JSON 行很长，GitHub 日志在其后会丢行）；全部跑完再按退出码定成败。
+          logged() { name=$1; shift; rc=0; "$@" > "$root/work/$name.log" 2>&1 || rc=$?; grep -v '^ISSUE1716_CONTENT_DOMAIN_REAL_S ' "$root/work/$name.log" | tail -n 80 || true; echo "$name=$rc" | tee -a "$root/work/exit-codes.txt"; }
+          logged handler-reserve env TB03B_TEST_ROOT="$root/work" TB1716_HFS_CARRIERS="$carriers" TB1716_S_EXPORT="$root/s3/export.json" \
             TB1716_S_BINARY="$PWD/target/release/s_structure_session" \
             cargo test --locked --features s_session --lib -- --ignored --exact --nocapture \
             economic_session::finance::tests::real_s::content_domain_activated_cap_consumed_by_real_s_reserve
-          cargo build --locked --features s_session --bin e_economic_session --bin b_chong_session
-          ls -l target/debug/e_economic_session target/debug/b_chong_session
-          TB03B_TEST_ROOT="$root/work" TB1716_HFS_CARRIERS="$carriers" TB1716_S_EXPORT="$root/s3/export.json" \
-            TB1716_S_BINARY="$PWD/target/release/s_structure_session" TB1716_ECON_BINARIES="$PWD/target/debug" \
+          logged formal-sockets env TB03B_TEST_ROOT="$root/work" TB1716_HFS_CARRIERS="$carriers" TB1716_S_EXPORT="$root/s3/export.json" \
+            TB1716_S_BINARY="$PWD/target/release/s_structure_session" TB1716_ECON_BINARIES="$PWD/target/release" \
             cargo test --locked --features s_session --lib -- --ignored --exact --nocapture \
             economic_session::finance::tests::real_s::content_domain_activated_cap_consumed_through_formal_sockets
+          if grep -qv '=0$' "$root/work/exit-codes.txt"; then exit 1; fi
 
       - name: 上传 issue 1716 /4 消费正控原件
         if: always()
