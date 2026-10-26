@@ -1417,6 +1417,11 @@ mod tests {
                     if case==0 {assert_eq!(actual.unwrap().2,2);}
                     Ok::<(),newchan_rust::s_content::CodecError>(())
                 }).unwrap();
+                if case==0 {
+                    let small=AdmissionRamLedger::new(limits(CodecWork::metadata_bytes()+1)).unwrap();
+                    let result=small.codec_work().unwrap().run(|work|history::validate(conn,"s-session/2",Default::default(),work));
+                    assert!(matches!(result,Err(newchan_rust::s_content::capture_allocation::scratch::WorkError::Resource(ScratchFailure::Budget))),"resource failures retain typed cause");
+                }
                 conn.execute_batch("ROLLBACK TO negative; RELEASE negative").unwrap();
             }
         });

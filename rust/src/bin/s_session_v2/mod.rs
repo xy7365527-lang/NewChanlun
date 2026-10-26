@@ -1827,8 +1827,6 @@ pub(super) fn validate_control_history_admitted(
     work: Option<&WorkScope>,
 ) -> Result<ControlHistory, String> {
     control_native_owner(owner, work)?;
-    use control_json::field;
-    use newchan_rust::session_protocol::{canonical_hash_view_with_owner, required_view};
     if !matches!(protocol_revision, "s-session/2" | "s-session/3") {
         return Err(err(format!(
             "协议版本参数只允许 s-session/2 或 s-session/3，收到 `{protocol_revision}`"
