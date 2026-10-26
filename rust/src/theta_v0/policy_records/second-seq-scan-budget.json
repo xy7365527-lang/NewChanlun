@@ -1,0 +1,24 @@
+{
+  "id": "second-seq-scan-budget",
+  "version": 2,
+  "kind": "resource_budget",
+  "ticket": "#1604（#1586 审计 C-04；ADR 0041；v1 = #1344/#1420 的具名预算，只含第二序列窗口）",
+  "fields": {
+    "second_seq_window": {
+      "value": 0,
+      "default": 0,
+      "unit": "第二特征序列扫描笔数上限；0 = 不设上限",
+      "source": "v1 原值（`ParseConfig.second_seq_scan_window` 默认 0，#1344/#1420 裁定：调度预算，不是语义）",
+      "options": "任意非负整数。取 0：全扫；取 N>0：预算耗尽时第二序列覆盖标 INCOMPLETE_RESOURCE_BOUND、语义为空，候选封段（#1493 裁定 1）",
+      "cost": "取小省扫描成本，但预算耗尽的候选不出语义结论、封住所在段；改值即新版本"
+    },
+    "tail_window": {
+      "value": 7,
+      "default": 7,
+      "unit": "主特征序列尾窗：每次分型扫描只看末 N 个标准元素；0 = 不设上限",
+      "source": "原代码常数 `parser/segment.rs` `TAIL_WINDOW = 7`（对齐 Python `_FeatureSeqState.TAIL_WINDOW=7`，O(n²) 性能妥协，非缠论可导）；#1586 AUDIT C-04 判 T（资源上界）",
+      "options": "任意非负整数。N ≥ 3 时段、尾部与段事实的判定结果与 0（全扫）逐位相同：每个候选在其窗口定型（后一元素不再是末元素）的那次扫描里一定在窗内，之后的扫描只是重复同一判定（见 `feature_seq::FeatureSeqState::probe_tail_excluded` 文档）；唯一差异是诊断轨迹 `checks`（全扫重复求值已判过的峰，多记重复检查条目，#1604 实测 tb1604 语料 360 例中 N=7 有 91 例）；N = 1、2 时尾窗会把尚未按定型窗口判过的候选挤出窗外",
+      "cost": "这是资源预算不是语义：被挤出窗外的候选若可准入（按全扫会确认或封段），输出标 INCOMPLETE_RESOURCE_BOUND（`SegmentFacts.tail_window_bound` / `ParseLayer.segments_resource_bound_from`），不冒充正常确认；改值即新版本"
+    }
+  }
+}

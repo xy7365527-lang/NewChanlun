@@ -102,7 +102,6 @@ fn profile_parse_layer_scaling() {
 #[test]
 #[ignore]
 fn diag_segment_window_effect() {
-    use crate::theta_v0::config::ParseConfig;
     let cfg = ThetaConfig::default();
     let path = data_dir().join("es_1m_databento_10y.json");
     let ds = load_symbol(&path, "ES", &cfg, 60).expect("加载 ES");
@@ -128,10 +127,8 @@ fn diag_segment_window_effect() {
         let mut base_segs = Vec::new();
         let mut eqs = [true; 3];
         for (wi, &w) in windows.iter().enumerate() {
-            let pc = ParseConfig {
-                second_seq_scan_window: w,
-                ..cfg.parse
-            };
+            let mut pc = cfg.parse;
+            pc.research_override_second_seq_window(w);
             times[wi] = bench(iters, || {
                 let _ = segment::divide_segments(&strokes, &pc);
             });

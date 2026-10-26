@@ -2,9 +2,9 @@
 use super::*;
 use crate::v3::audit_store::{CodecRead, NativeAdmission};
 use crate::v3::business_json::{self as control_json, BusinessMap, JsonOwner, TextValue};
-#[cfg(feature = "s_allocation_json_testonly")]
-use newchan_rust::s_content::capture_allocation::audit_json as control_aj;
-use newchan_rust::s_content::capture_allocation::audit_json::JsonView;
+#[cfg_attr(not(feature = "s_allocation_json_testonly"), allow(unused_imports))]
+use newchan_rust::s_content::capture_allocation::audit_json::{self as control_aj, JsonView};
+use newchan_rust::s_content::capture_allocation::native_owned::NativeValue;
 use newchan_rust::s_content::capture_allocation::scratch::WorkScope;
 use newchan_rust::s_content::{capture_allocation::OwnedBudget, CodecVec};
 pub use newchan_rust::session_protocol::strict_json;
@@ -129,7 +129,10 @@ fn active(conn: &Connection) -> Result<bool, String> {
 pub(super) fn stored_clock(conn: &Connection) -> Result<ClockPlan, String> {
     let clock = stored_control_clock(conn, None)?;
     match (clock.value, clock.hash) {
-        (JsonOwner::Plain(value), TextValue::Plain(hash)) => Ok(ClockPlan { value, hash }),
+        (JsonOwner::Plain(value), TextValue::Plain(hash)) => Ok(ClockPlan {
+            value: value.into_unscoped()?,
+            hash: hash.into_unscoped().map_err(err)?,
+        }),
         _ => Err(err("normal ClockPlan不可擦除Owned结果")),
     }
 }
@@ -161,11 +164,11 @@ fn control_decode(
         return Err("prototype_audit_allocation_incomplete：owned控制JSON未启用".into());
     }
     if legacy {
-        serde_json::from_str(raw)
-            .map(JsonOwner::Plain)
+        serde_json::from_str::<Value>(raw)
+            .map(|v| JsonOwner::Plain(v.into()))
             .map_err(|e| e.to_string())
     } else {
-        strict_json(raw.as_bytes()).map(JsonOwner::Plain)
+        strict_json(raw.as_bytes()).map(|v| JsonOwner::Plain(v.into()))
     }
 }
 fn control_native_owner(
@@ -216,17 +219,28 @@ fn control_decode_admitted(
     work: Option<&WorkScope>,
 ) -> Result<JsonOwner, String> {
     control_native_owner(owner, work)?;
-    if work.is_some() {
-        #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_capture_native_testonly")]
+    let permit = if work.is_some() {
         NativeAdmission(work)
-            .native_admit(
+            .native_reservation(
                 crate::v3::audit_owner::native::JsonShape::scan(raw.as_bytes()).parse_peak(),
             )
-            .map_err(err)?;
-        #[cfg(not(feature = "s_capture_native_testonly"))]
+            .map_err(err)?
+    } else {
+        None
+    };
+    #[cfg(not(feature = "s_capture_native_testonly"))]
+    if work.is_some() {
         return Err("prototype_audit_allocation_incomplete：Native控制JSON未启用".into());
     }
-    control_decode(raw, owner, legacy)
+    let value = control_decode(raw, owner, legacy)?;
+    #[cfg(feature = "s_capture_native_testonly")]
+    let value = match value {
+        JsonOwner::Plain(value) => JsonOwner::Plain(value.with_reservation(permit)),
+        #[cfg(feature = "s_allocation_json_testonly")]
+        owned @ JsonOwner::Owned(_) => owned,
+    };
+    Ok(value)
 }
 fn control_canonical_equal(
     value: JsonView<'_>,
@@ -972,7 +986,7 @@ pub(super) fn verify_epoch_history(
     verify_epoch_history_with_owner(conn, v2, None)?
         .into_iter()
         .map(|(s, g)| match s {
-            TextValue::Plain(s) => Ok((s, g)),
+            TextValue::Plain(s) => Ok((s.into_unscoped().map_err(err)?, g)),
             TextValue::Owned(_) => Err(err("normal epoch结果不可擦除Owned文本")),
         })
         .collect()
@@ -1118,17 +1132,9 @@ impl ControlFacts {
         if generation != self.headers.len() as i64 + 1 {
             return Err(err("owner 新控制头非连续尾"));
         }
-        admission
-            .native_admit(
-                batch
-                    .len()
-                    .checked_add(commit_ns.len())
-                    .ok_or_else(|| err(admission.native_overflow()))?,
-            )
-            .map_err(err)?;
-        let key = (generation, TextValue::Plain(batch.into()));
+        let key = (generation, admission.native_text(batch).map_err(err)?);
         let header = ControlHeader {
-            commit_ns: TextValue::Plain(commit_ns.into()),
+            commit_ns: admission.native_text(commit_ns).map_err(err)?,
             consumed: false,
         };
         retained.add(&key);
@@ -1247,15 +1253,15 @@ impl ExpectedControl {
         let Self::V2 { history } = self else {
             return Ok(());
         };
-        if header.protocol_revision.as_deref() != Some("s-session/2") {
+        if header.protocol_revision.as_deref().map(|v| v.as_str()) != Some("s-session/2") {
             return Err(err("发布batch协议标记不是 s-session/2"));
         }
         history.consume_header(
             generation,
             batch_id,
-            header.session_generation.as_deref(),
-            header.clock_plan_hash.as_deref(),
-            header.semantic_commit_ns.as_deref(),
+            header.session_generation.as_deref().map(|v| v.as_str()),
+            header.clock_plan_hash.as_deref().map(|v| v.as_str()),
+            header.semantic_commit_ns.as_deref().map(|v| v.as_str()),
         )
     }
 
@@ -1303,7 +1309,12 @@ pub(super) fn validate_control_history(
 ) -> Result<ControlHistory, String> {
     let mut facts = control_json::new_work(None);
     for (ns, g) in epoch_facts {
-        facts.try_push((TextValue::Plain(ns), g)).map_err(err)?;
+        facts
+            .try_push((
+                TextValue::Plain(NativeValue::<String>::from_unscoped(ns)),
+                g,
+            ))
+            .map_err(err)?;
     }
     validate_control_history_with_owner(conn, protocol_revision, facts, None)
 }
@@ -1349,7 +1360,9 @@ fn control_canonical_text_admitted(
         return Err("prototype_audit_allocation_incomplete：owned规范文本未启用".into());
     }
     if work.is_none() {
-        return serde_json::to_string(&v).map(TextValue::Plain).map_err(err);
+        return serde_json::to_string(&v)
+            .map(|s| TextValue::Plain(NativeValue::<String>::from_unscoped(s)))
+            .map_err(err);
     }
     struct AdmittedWriter<'a> {
         bytes: CodecVec<u8>,
@@ -2465,9 +2478,9 @@ fn serve(
     }
     if meta_get_opt(&tx, "advance_state")?.as_deref() != Some("idle") {
         // #1576：历史规则库的 recover 必拒（VersionMismatch），不能再把运维指向它；闭门本身不放松。
-        let rule = meta_get_opt(&tx, "rule_revision")?.unwrap_or_default();
-        if rule != RULE_REVISION {
-            return Err(stale_begin_on_historical_rule(&rule, db));
+        let rule = meta_get_opt(&tx, "rule_revision")?;
+        if rule.as_deref() != Some(RULE_REVISION) {
+            return Err(stale_begin_on_historical_rule(rule.as_deref(), db));
         }
         return Err("StaleWriter：未完成Begin保持闭门，请监督器先正式recover".into());
     }
@@ -2504,9 +2517,14 @@ fn serve(
 
 /// #1576：历史规则库留有未完成 Begin 时 serve 的拒绝文案。recover 对历史规则只读库必拒，
 /// 故只给实际可走的路径：CLI 只读查看，或人工以当前规则新建代际（本协议无原库迁移入口）。
-fn stale_begin_on_historical_rule(rule: &str, db: &Path) -> String {
+/// `rule_revision` 键缺失时明示缺失，不显示空值（#1653，#1576 独审 INFO-3）。
+fn stale_begin_on_historical_rule(rule: Option<&str>, db: &Path) -> String {
+    let rule = match rule {
+        Some(r) => format!("rule_revision=`{r}`"),
+        None => "meta 缺 rule_revision 键".to_string(),
+    };
     format!(
-        "VersionMismatch：历史规则会话（rule_revision=`{rule}`，本二进制为 `{RULE_REVISION}`）留有未完成Begin，永久闭门：历史规则只读，recover 同样拒绝（不换代、不清未决Begin），本库不能再以 serve 提供服务。可走路径：①只读查看用 CLI `catalog`/`snapshot`/`meta --db {}`；②恢复服务须人工以当前规则走 v2 `init` 建新路径的库（`--db <新路径> --session --catalog --profile --session-generation <新代> --clock-plan --delivery-retain-generations` 缺一不可；不带后三者会建成 v1 库，serve 不收）并重新接纳原始输入——当前无旧库迁移入口（TB-10 #1368）",
+        "VersionMismatch：历史规则会话（{rule}，本二进制为 `{RULE_REVISION}`）留有未完成Begin，永久闭门：历史规则只读，recover 同样拒绝（不换代、不清未决Begin），本库不能再以 serve 提供服务。可走路径：①只读查看用 CLI `catalog`/`snapshot`/`meta --db {}`；②恢复服务须人工以当前规则走 v2 `init` 建新路径的库（`--db <新路径> --session --catalog --profile --session-generation <新代> --clock-plan --delivery-retain-generations` 缺一不可；不带后三者会建成 v1 库，serve 不收）并重新接纳原始输入——当前无旧库迁移入口（TB-10 #1368）",
         db.display()
     )
 }
@@ -2664,10 +2682,10 @@ mod tests {
 
     fn expected_control_test_header(commit_ns: &str) -> BatchControlHeader {
         BatchControlHeader {
-            protocol_revision: Some("s-session/2".into()),
-            session_generation: Some("1".into()),
-            clock_plan_hash: Some("test-clock-hash".into()),
-            semantic_commit_ns: Some(commit_ns.into()),
+            protocol_revision: Some(share_header_text_admitted("s-session/2", None).unwrap()),
+            session_generation: Some(share_header_text_admitted("1", None).unwrap()),
+            clock_plan_hash: Some(share_header_text_admitted("test-clock-hash", None).unwrap()),
+            semantic_commit_ns: Some(share_header_text_admitted(commit_ns, None).unwrap()),
         }
     }
 
@@ -2714,7 +2732,7 @@ mod tests {
     fn v2_observe_batch_rejects_s3_marker_and_keeps_shared_consumption() {
         let mut expected = expected_control_test_state(&[(1, "batch-a", "1020")]);
         let mut s3 = expected_control_test_header("1020");
-        s3.protocol_revision = Some("s-session/3".into());
+        s3.protocol_revision = Some(share_header_text_admitted("s-session/3", None).unwrap());
         assert!(expected.observe_batch(1, "batch-a", &s3).is_err());
         // 拒绝不消费：换成真实 v2 头仍必须逐字通过并闭合。
         expected
@@ -2737,8 +2755,14 @@ mod tests {
                 1 => bad.session_generation = None,
                 2 => bad.clock_plan_hash = None,
                 3 => bad.semantic_commit_ns = None,
-                4 => bad.clock_plan_hash = Some("other-clock-hash".into()),
-                _ => bad.semantic_commit_ns = Some("01020".into()),
+                4 => {
+                    bad.clock_plan_hash =
+                        Some(share_header_text_admitted("other-clock-hash", None).unwrap())
+                }
+                _ => {
+                    bad.semantic_commit_ns =
+                        Some(share_header_text_admitted("01020", None).unwrap())
+                }
             }
             assert!(expected.verify_header(1, "batch-a", &bad).is_err());
             expected.verify_header(1, "batch-a", &correct).unwrap();
@@ -3336,6 +3360,42 @@ mod tests {
         );
     }
 
+    /// #1653（#1576 独审 INFO-3）：`rule_revision` 键缺失时文案明示缺失，不显示空值；拒绝不放松。
+    #[test]
+    fn v2_serve_stale_begin_with_missing_rule_revision_says_missing() {
+        let f = Fixture::new(8, 2);
+        f.begin_only();
+        {
+            let writer = open_db(&f.db).unwrap();
+            writer
+                .execute("DELETE FROM meta WHERE key='rule_revision'", [])
+                .unwrap();
+        }
+        let socket = f.dir.join("s.sock");
+        let bounds = Bounds {
+            frame: 65536,
+            read: Duration::from_millis(1000),
+            write: Duration::from_millis(1000),
+            response: Duration::from_millis(1000),
+            cache_bytes: 0,
+            queue: 4,
+            connections: 4,
+        };
+        let msg = serve(
+            &f.db,
+            &socket,
+            &f.profile,
+            "1",
+            &f.dir.join("clock.json"),
+            bounds,
+        )
+        .unwrap_err();
+        assert!(msg.starts_with("VersionMismatch："), "{msg}");
+        assert!(msg.contains("meta 缺 rule_revision 键"), "{msg}");
+        assert!(!msg.contains("rule_revision=``"), "{msg}");
+        assert!(!socket.exists(), "拒绝须发生在绑定 socket 之前");
+    }
+
     #[test]
     fn v2_header_capture_survives_full_handle_eviction() {
         cache::configure(268435456);
@@ -3374,7 +3434,10 @@ mod tests {
                 0 => header.protocol_revision = None,
                 1 => header.session_generation = None,
                 2 => header.clock_plan_hash = None,
-                _ => header.semantic_commit_ns = Some("01020".into()),
+                _ => {
+                    header.semantic_commit_ns =
+                        Some(share_header_text_admitted("01020", None).unwrap())
+                }
             }
             std::mem::swap(&mut reachable.batches, &mut bad);
             let expected = prepare_control(&tx).unwrap();

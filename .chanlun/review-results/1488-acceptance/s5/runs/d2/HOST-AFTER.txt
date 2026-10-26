@@ -1,0 +1,9 @@
+end=2026-10-21T05:14:14Z loadavg=5.79 5.44 5.29 6/195 29713 driver_rc=0
+  PID     ELAPSED %CPU COMMAND
+29170       08:30  386 /home/hanju/nc-remote/target-m83/debug/deps/s_structure_session-054cbefe7ff1de7c --test-threads 4
+28853       08:53 74.4 /mnt/g/AgentStorage/1488-accept/s2/bin/s_structure_session-6badaa6049 serve --db /home/hanju/nc-remote/1488-accept/a5s6/main2/session.sqlite --socket /tmp/a76-main2.sock --writer-epoch 1 --profile 
+28864       08:53 25.2 /mnt/g/AgentStorage/1488-accept/s2/bin/s_structure_session-6badaa6049 query-serve --protocol-revision s-session/3 --db /home/hanju/nc-remote/1488-accept/a5s6/main2/session.sqlite --resource-config 
+28823       08:53  0.1 python3.12 /home/hanju/nc-remote/wt/20261021-130513-2a576099bf/.chanlun/review-results/1488-acceptance/a5s6/tools/a5s6_run.py --repo /home/hanju/nc-remote/wt/20261021-130513-2a576099bf --binary /mn
+28497       09:12  0.0 /home/hanju/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo test --locked -j 16 --features s_session,s_capture_native_testonly --bin s_structure_session -- --test-threads 4
+    1    17:46:10  0.0 /init
+    9    17:46:10  0.0 plan9 --control-socket 6 --log-level 4 --server-fd 7 --pipe-fd 9 --log-truncate

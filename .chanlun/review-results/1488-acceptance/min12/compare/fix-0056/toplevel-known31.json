@@ -1,0 +1,545 @@
+{
+ "catalog.catalog_evidence.axes.CC-016.evidence.deferred_subobligations": {
+  "new": 0,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 5,
+  "old_only": 5,
+  "old_only_all_center": false,
+  "old_only_sample": [
+   "\"connector_upper_construction_1429\"",
+   "\"expansion_newborn_1424\""
+  ],
+  "path_absent_in_new": true
+ },
+ "catalog.catalog_evidence.axes.CC-016.evidence.delivered_subobligations": {
+  "new": 0,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 3,
+  "old_only": 3,
+  "old_only_all_center": false,
+  "old_only_sample": [
+   "\"c_resume_assignment_and_connectors\"",
+   "\"l0_strict_seed_vector_and_core_order\""
+  ],
+  "path_absent_in_new": true
+ },
+ "catalog.catalog_evidence.axes.CC-016.evidence.waiting_reasons": {
+  "new": 0,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 2,
+  "old_only": 2,
+  "old_only_all_center": false,
+  "old_only_sample": [
+   "\"NO_LEFT_CENTER_IN_WINDOW\"",
+   "\"UNIT_NOT_COMPLETED\""
+  ],
+  "path_absent_in_new": true
+ },
+ "catalog.catalog_evidence.axes.CC-017.evidence.deferred_subobligations": {
+  "new": 0,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 5,
+  "old_only": 5,
+  "old_only_all_center": false,
+  "old_only_sample": [
+   "\"connector_upper_construction_1429\"",
+   "\"expansion_newborn_1424\""
+  ],
+  "path_absent_in_new": true
+ },
+ "catalog.catalog_evidence.axes.CC-017.evidence.delivered_subobligations": {
+  "new": 0,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 3,
+  "old_only": 3,
+  "old_only_all_center": false,
+  "old_only_sample": [
+   "\"c_resume_assignment_and_connectors\"",
+   "\"l0_strict_seed_vector_and_core_order\""
+  ],
+  "path_absent_in_new": true
+ },
+ "catalog.catalog_evidence.axes.CC-017.evidence.waiting_reasons": {
+  "new": 0,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 2,
+  "old_only": 2,
+  "old_only_all_center": false,
+  "old_only_sample": [
+   "\"NO_LEFT_CENTER_IN_WINDOW\"",
+   "\"UNIT_NOT_COMPLETED\""
+  ],
+  "path_absent_in_new": true
+ },
+ "catalog.catalog_evidence.axes.CC-022.evidence.deferred_subobligations": {
+  "new": 0,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 5,
+  "old_only": 5,
+  "old_only_all_center": false,
+  "old_only_sample": [
+   "\"connector_upper_construction_1429\"",
+   "\"expansion_newborn_1424\""
+  ],
+  "path_absent_in_new": true
+ },
+ "catalog.catalog_evidence.axes.CC-022.evidence.delivered_subobligations": {
+  "new": 0,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 3,
+  "old_only": 3,
+  "old_only_all_center": false,
+  "old_only_sample": [
+   "\"c_resume_assignment_and_connectors\"",
+   "\"l0_strict_seed_vector_and_core_order\""
+  ],
+  "path_absent_in_new": true
+ },
+ "catalog.catalog_evidence.axes.CC-022.evidence.object_ids": {
+  "new": 0,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 2,
+  "old_only": 2,
+  "old_only_all_center": true,
+  "old_only_sample": [
+   "\"<CC-022.unit_assignment|\\\"[\\\\\\\"CC-022.unit_assignment\\\\\\\",\\\\\\\"assign:segment:1:13\\\\\\\"]\\\"|r1|g32|active>\"",
+   "\"<CC-022.unit_assignment|\\\"[\\\\\\\"CC-022.unit_assignment\\\\\\\",\\\\\\\"assign:segment:1:1\\\\\\\"]\\\"|r1|g28|active>\""
+  ],
+  "path_absent_in_new": true
+ },
+ "catalog.catalog_evidence.axes.CC-022.evidence.waiting_reasons": {
+  "new": 0,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 2,
+  "old_only": 2,
+  "old_only_all_center": false,
+  "old_only_sample": [
+   "\"NO_LEFT_CENTER_IN_WINDOW\"",
+   "\"UNIT_NOT_COMPLETED\""
+  ],
+  "path_absent_in_new": true
+ },
+ "catalog.catalog_evidence.axes.CC-056.evidence.object_ids": {
+  "new": 2,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 3,
+  "old_only": 1,
+  "old_only_all_center": true,
+  "old_only_sample": [
+   "\"<CC-056.center_version|\\\"[\\\\\\\"CC-056.center_version\\\\\\\",\\\\\\\"TB-02-E\\\\\\\"]\\\"|r1|g32|active>\""
+  ],
+  "path_absent_in_new": false
+ },
+ "catalog.catalog_evidence.axes.CC-056.evidence.replaces": {
+  "new": 36,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 38,
+  "old_only": 2,
+  "old_only_all_center": true,
+  "old_only_sample": [
+   "{\"new_object_id\": \"<CC-022.unit_assignment|\\\"[\\\\\\\"CC-022.unit_assignment\\\\\\\",\\\\\\\"assign:segment:1:13\\\\\\\"]\\\"|r1|g32|active>\", \"old_object_id\": \"<CC-022.unit_assignment|\\\"[\\\\\\\"CC-022.unit_assignment\\\\\\\",\\\\\\\"assign:segment:1:13\\\\\\\"]\\\"|r1|g31|withdrawn>\"}",
+   "{\"new_object_id\": \"<CC-056.center_version|\\\"[\\\\\\\"CC-056.center_version\\\\\\\",\\\\\\\"TB-02-E\\\\\\\"]\\\"|r1|g32|active>\", \"old_object_id\": \"<CC-056.center_version|\\\"[\\\\\\\"CC-056.center_version\\\\\\\",\\\\\\\"TB-02-E\\\\\\\"]\\\"|r1|g31|withdrawn>\"}"
+  ],
+  "path_absent_in_new": false
+ },
+ "catalog.catalog_evidence.axes.CC-056.evidence.withdrawals": {
+  "new": 38,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 40,
+  "old_only": 2,
+  "old_only_all_center": true,
+  "old_only_sample": [
+   "{\"fact_key\": \"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:13\\\"]\", \"object_id\": \"<CC-022.unit_assignment|\\\"[\\\\\\\"CC-022.unit_assignment\\\\\\\",\\\\\\\"assign:segment:1:13\\\\\\\"]\\\"|r1|g31|withdrawn>\", \"reason\": \"superseded_by_revision\", \"superseded_by\": \"<CC-022.unit_assignment|\\\"[\\\\\\\"CC-022.unit_assignment\\\\\\\",\\\\\\\"assign:segment:1:13\\\\\\\"]\\\"|r1|g32|active>\"}",
+   "{\"fact_key\": \"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\", \"object_id\": \"<CC-056.center_version|\\\"[\\\\\\\"CC-056.center_version\\\\\\\",\\\\\\\"TB-02-E\\\\\\\"]\\\"|r1|g31|withdrawn>\", \"reason\": \"superseded_by_revision\", \"superseded_by\": \"<CC-056.center_version|\\\"[\\\\\\\"CC-056.center_version\\\\\\\",\\\\\\\"TB-02-E\\\\\\\"]\\\"|r1|g32|active>\"}"
+  ],
+  "path_absent_in_new": false
+ },
+ "catalog.items.id=CC-016.evidence.deferred_subobligations": {
+  "new": 0,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 5,
+  "old_only": 5,
+  "old_only_all_center": false,
+  "old_only_sample": [
+   "\"connector_upper_construction_1429\"",
+   "\"expansion_newborn_1424\""
+  ],
+  "path_absent_in_new": true
+ },
+ "catalog.items.id=CC-016.evidence.delivered_subobligations": {
+  "new": 0,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 3,
+  "old_only": 3,
+  "old_only_all_center": false,
+  "old_only_sample": [
+   "\"c_resume_assignment_and_connectors\"",
+   "\"l0_strict_seed_vector_and_core_order\""
+  ],
+  "path_absent_in_new": true
+ },
+ "catalog.items.id=CC-016.evidence.waiting_reasons": {
+  "new": 0,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 2,
+  "old_only": 2,
+  "old_only_all_center": false,
+  "old_only_sample": [
+   "\"NO_LEFT_CENTER_IN_WINDOW\"",
+   "\"UNIT_NOT_COMPLETED\""
+  ],
+  "path_absent_in_new": true
+ },
+ "catalog.items.id=CC-017.evidence.deferred_subobligations": {
+  "new": 0,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 5,
+  "old_only": 5,
+  "old_only_all_center": false,
+  "old_only_sample": [
+   "\"connector_upper_construction_1429\"",
+   "\"expansion_newborn_1424\""
+  ],
+  "path_absent_in_new": true
+ },
+ "catalog.items.id=CC-017.evidence.delivered_subobligations": {
+  "new": 0,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 3,
+  "old_only": 3,
+  "old_only_all_center": false,
+  "old_only_sample": [
+   "\"c_resume_assignment_and_connectors\"",
+   "\"l0_strict_seed_vector_and_core_order\""
+  ],
+  "path_absent_in_new": true
+ },
+ "catalog.items.id=CC-017.evidence.waiting_reasons": {
+  "new": 0,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 2,
+  "old_only": 2,
+  "old_only_all_center": false,
+  "old_only_sample": [
+   "\"NO_LEFT_CENTER_IN_WINDOW\"",
+   "\"UNIT_NOT_COMPLETED\""
+  ],
+  "path_absent_in_new": true
+ },
+ "catalog.items.id=CC-022.evidence.deferred_subobligations": {
+  "new": 0,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 5,
+  "old_only": 5,
+  "old_only_all_center": false,
+  "old_only_sample": [
+   "\"connector_upper_construction_1429\"",
+   "\"expansion_newborn_1424\""
+  ],
+  "path_absent_in_new": true
+ },
+ "catalog.items.id=CC-022.evidence.delivered_subobligations": {
+  "new": 0,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 3,
+  "old_only": 3,
+  "old_only_all_center": false,
+  "old_only_sample": [
+   "\"c_resume_assignment_and_connectors\"",
+   "\"l0_strict_seed_vector_and_core_order\""
+  ],
+  "path_absent_in_new": true
+ },
+ "catalog.items.id=CC-022.evidence.object_ids": {
+  "new": 0,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 2,
+  "old_only": 2,
+  "old_only_all_center": true,
+  "old_only_sample": [
+   "\"<CC-022.unit_assignment|\\\"[\\\\\\\"CC-022.unit_assignment\\\\\\\",\\\\\\\"assign:segment:1:13\\\\\\\"]\\\"|r1|g32|active>\"",
+   "\"<CC-022.unit_assignment|\\\"[\\\\\\\"CC-022.unit_assignment\\\\\\\",\\\\\\\"assign:segment:1:1\\\\\\\"]\\\"|r1|g28|active>\""
+  ],
+  "path_absent_in_new": true
+ },
+ "catalog.items.id=CC-022.evidence.waiting_reasons": {
+  "new": 0,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 2,
+  "old_only": 2,
+  "old_only_all_center": false,
+  "old_only_sample": [
+   "\"NO_LEFT_CENTER_IN_WINDOW\"",
+   "\"UNIT_NOT_COMPLETED\""
+  ],
+  "path_absent_in_new": true
+ },
+ "catalog.items.id=CC-056.evidence.object_ids": {
+  "new": 2,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 3,
+  "old_only": 1,
+  "old_only_all_center": true,
+  "old_only_sample": [
+   "\"<CC-056.center_version|\\\"[\\\\\\\"CC-056.center_version\\\\\\\",\\\\\\\"TB-02-E\\\\\\\"]\\\"|r1|g32|active>\""
+  ],
+  "path_absent_in_new": false
+ },
+ "catalog.items.id=CC-056.evidence.replaces": {
+  "new": 36,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 38,
+  "old_only": 2,
+  "old_only_all_center": true,
+  "old_only_sample": [
+   "{\"new_object_id\": \"<CC-022.unit_assignment|\\\"[\\\\\\\"CC-022.unit_assignment\\\\\\\",\\\\\\\"assign:segment:1:13\\\\\\\"]\\\"|r1|g32|active>\", \"old_object_id\": \"<CC-022.unit_assignment|\\\"[\\\\\\\"CC-022.unit_assignment\\\\\\\",\\\\\\\"assign:segment:1:13\\\\\\\"]\\\"|r1|g31|withdrawn>\"}",
+   "{\"new_object_id\": \"<CC-056.center_version|\\\"[\\\\\\\"CC-056.center_version\\\\\\\",\\\\\\\"TB-02-E\\\\\\\"]\\\"|r1|g32|active>\", \"old_object_id\": \"<CC-056.center_version|\\\"[\\\\\\\"CC-056.center_version\\\\\\\",\\\\\\\"TB-02-E\\\\\\\"]\\\"|r1|g31|withdrawn>\"}"
+  ],
+  "path_absent_in_new": false
+ },
+ "catalog.items.id=CC-056.evidence.withdrawals": {
+  "new": 38,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 40,
+  "old_only": 2,
+  "old_only_all_center": true,
+  "old_only_sample": [
+   "{\"fact_key\": \"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:13\\\"]\", \"object_id\": \"<CC-022.unit_assignment|\\\"[\\\\\\\"CC-022.unit_assignment\\\\\\\",\\\\\\\"assign:segment:1:13\\\\\\\"]\\\"|r1|g31|withdrawn>\", \"reason\": \"superseded_by_revision\", \"superseded_by\": \"<CC-022.unit_assignment|\\\"[\\\\\\\"CC-022.unit_assignment\\\\\\\",\\\\\\\"assign:segment:1:13\\\\\\\"]\\\"|r1|g32|active>\"}",
+   "{\"fact_key\": \"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\", \"object_id\": \"<CC-056.center_version|\\\"[\\\\\\\"CC-056.center_version\\\\\\\",\\\\\\\"TB-02-E\\\\\\\"]\\\"|r1|g31|withdrawn>\", \"reason\": \"superseded_by_revision\", \"superseded_by\": \"<CC-056.center_version|\\\"[\\\\\\\"CC-056.center_version\\\\\\\",\\\\\\\"TB-02-E\\\\\\\"]\\\"|r1|g32|active>\"}"
+  ],
+  "path_absent_in_new": false
+ },
+ "fixed_cut.catalog_evidence.axes.CC-016.evidence.deferred_subobligations": {
+  "new": 0,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 5,
+  "old_only": 5,
+  "old_only_all_center": false,
+  "old_only_sample": [
+   "\"connector_upper_construction_1429\"",
+   "\"expansion_newborn_1424\""
+  ],
+  "path_absent_in_new": true
+ },
+ "fixed_cut.catalog_evidence.axes.CC-016.evidence.delivered_subobligations": {
+  "new": 0,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 3,
+  "old_only": 3,
+  "old_only_all_center": false,
+  "old_only_sample": [
+   "\"c_resume_assignment_and_connectors\"",
+   "\"l0_strict_seed_vector_and_core_order\""
+  ],
+  "path_absent_in_new": true
+ },
+ "fixed_cut.catalog_evidence.axes.CC-016.evidence.waiting_reasons": {
+  "new": 0,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 2,
+  "old_only": 2,
+  "old_only_all_center": false,
+  "old_only_sample": [
+   "\"NO_LEFT_CENTER_IN_WINDOW\"",
+   "\"UNIT_NOT_COMPLETED\""
+  ],
+  "path_absent_in_new": true
+ },
+ "fixed_cut.catalog_evidence.axes.CC-017.evidence.deferred_subobligations": {
+  "new": 0,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 5,
+  "old_only": 5,
+  "old_only_all_center": false,
+  "old_only_sample": [
+   "\"connector_upper_construction_1429\"",
+   "\"expansion_newborn_1424\""
+  ],
+  "path_absent_in_new": true
+ },
+ "fixed_cut.catalog_evidence.axes.CC-017.evidence.delivered_subobligations": {
+  "new": 0,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 3,
+  "old_only": 3,
+  "old_only_all_center": false,
+  "old_only_sample": [
+   "\"c_resume_assignment_and_connectors\"",
+   "\"l0_strict_seed_vector_and_core_order\""
+  ],
+  "path_absent_in_new": true
+ },
+ "fixed_cut.catalog_evidence.axes.CC-017.evidence.waiting_reasons": {
+  "new": 0,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 2,
+  "old_only": 2,
+  "old_only_all_center": false,
+  "old_only_sample": [
+   "\"NO_LEFT_CENTER_IN_WINDOW\"",
+   "\"UNIT_NOT_COMPLETED\""
+  ],
+  "path_absent_in_new": true
+ },
+ "fixed_cut.catalog_evidence.axes.CC-022.evidence.deferred_subobligations": {
+  "new": 0,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 5,
+  "old_only": 5,
+  "old_only_all_center": false,
+  "old_only_sample": [
+   "\"connector_upper_construction_1429\"",
+   "\"expansion_newborn_1424\""
+  ],
+  "path_absent_in_new": true
+ },
+ "fixed_cut.catalog_evidence.axes.CC-022.evidence.delivered_subobligations": {
+  "new": 0,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 3,
+  "old_only": 3,
+  "old_only_all_center": false,
+  "old_only_sample": [
+   "\"c_resume_assignment_and_connectors\"",
+   "\"l0_strict_seed_vector_and_core_order\""
+  ],
+  "path_absent_in_new": true
+ },
+ "fixed_cut.catalog_evidence.axes.CC-022.evidence.object_ids": {
+  "new": 0,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 2,
+  "old_only": 2,
+  "old_only_all_center": true,
+  "old_only_sample": [
+   "\"<CC-022.unit_assignment|\\\"[\\\\\\\"CC-022.unit_assignment\\\\\\\",\\\\\\\"assign:segment:1:13\\\\\\\"]\\\"|r1|g32|active>\"",
+   "\"<CC-022.unit_assignment|\\\"[\\\\\\\"CC-022.unit_assignment\\\\\\\",\\\\\\\"assign:segment:1:1\\\\\\\"]\\\"|r1|g28|active>\""
+  ],
+  "path_absent_in_new": true
+ },
+ "fixed_cut.catalog_evidence.axes.CC-022.evidence.waiting_reasons": {
+  "new": 0,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 2,
+  "old_only": 2,
+  "old_only_all_center": false,
+  "old_only_sample": [
+   "\"NO_LEFT_CENTER_IN_WINDOW\"",
+   "\"UNIT_NOT_COMPLETED\""
+  ],
+  "path_absent_in_new": true
+ },
+ "fixed_cut.catalog_evidence.axes.CC-056.evidence.object_ids": {
+  "new": 2,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 3,
+  "old_only": 1,
+  "old_only_all_center": true,
+  "old_only_sample": [
+   "\"<CC-056.center_version|\\\"[\\\\\\\"CC-056.center_version\\\\\\\",\\\\\\\"TB-02-E\\\\\\\"]\\\"|r1|g32|active>\""
+  ],
+  "path_absent_in_new": false
+ },
+ "fixed_cut.catalog_evidence.axes.CC-056.evidence.replaces": {
+  "new": 36,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 38,
+  "old_only": 2,
+  "old_only_all_center": true,
+  "old_only_sample": [
+   "{\"new_object_id\": \"<CC-022.unit_assignment|\\\"[\\\\\\\"CC-022.unit_assignment\\\\\\\",\\\\\\\"assign:segment:1:13\\\\\\\"]\\\"|r1|g32|active>\", \"old_object_id\": \"<CC-022.unit_assignment|\\\"[\\\\\\\"CC-022.unit_assignment\\\\\\\",\\\\\\\"assign:segment:1:13\\\\\\\"]\\\"|r1|g31|withdrawn>\"}",
+   "{\"new_object_id\": \"<CC-056.center_version|\\\"[\\\\\\\"CC-056.center_version\\\\\\\",\\\\\\\"TB-02-E\\\\\\\"]\\\"|r1|g32|active>\", \"old_object_id\": \"<CC-056.center_version|\\\"[\\\\\\\"CC-056.center_version\\\\\\\",\\\\\\\"TB-02-E\\\\\\\"]\\\"|r1|g31|withdrawn>\"}"
+  ],
+  "path_absent_in_new": false
+ },
+ "fixed_cut.catalog_evidence.axes.CC-056.evidence.withdrawals": {
+  "new": 38,
+  "new_only": 0,
+  "new_only_all_center": true,
+  "new_only_sample": [],
+  "old": 40,
+  "old_only": 2,
+  "old_only_all_center": true,
+  "old_only_sample": [
+   "{\"fact_key\": \"[\\\"CC-022.unit_assignment\\\",\\\"assign:segment:1:13\\\"]\", \"object_id\": \"<CC-022.unit_assignment|\\\"[\\\\\\\"CC-022.unit_assignment\\\\\\\",\\\\\\\"assign:segment:1:13\\\\\\\"]\\\"|r1|g31|withdrawn>\", \"reason\": \"superseded_by_revision\", \"superseded_by\": \"<CC-022.unit_assignment|\\\"[\\\\\\\"CC-022.unit_assignment\\\\\\\",\\\\\\\"assign:segment:1:13\\\\\\\"]\\\"|r1|g32|active>\"}",
+   "{\"fact_key\": \"[\\\"CC-056.center_version\\\",\\\"TB-02-E\\\"]\", \"object_id\": \"<CC-056.center_version|\\\"[\\\\\\\"CC-056.center_version\\\\\\\",\\\\\\\"TB-02-E\\\\\\\"]\\\"|r1|g31|withdrawn>\", \"reason\": \"superseded_by_revision\", \"superseded_by\": \"<CC-056.center_version|\\\"[\\\\\\\"CC-056.center_version\\\\\\\",\\\\\\\"TB-02-E\\\\\\\"]\\\"|r1|g32|active>\"}"
+  ],
+  "path_absent_in_new": false
+ }
+}

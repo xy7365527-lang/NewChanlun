@@ -1,0 +1,40 @@
+name: '#1488 六 driver 原成功合同诊断'
+
+on:
+  push:
+    branches: [validate/1488-driver-six]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: issue-1488-driver-six-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  driver-six:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: 精确候选，构建一次，六条逐名执行
+        timeout-minutes: 40
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+          CARGO_INCREMENTAL: '0'
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 -B .github/scripts/run-1488-driver-ci.py
+      - name: 保存本次完整原件（不改变失败结论）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-1488-driver-six-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+          path: ${{ runner.temp }}/1488-driver-six-${{ github.run_id }}-${{ github.run_attempt }}/evidence
+          if-no-files-found: error
+          include-hidden-files: true
