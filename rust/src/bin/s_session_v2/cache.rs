@@ -454,7 +454,6 @@ impl Memo {
                 header_count += 1;
             }
         }
-        // 计划构造完成；以下不分配、不再申请许可。
         for (bytes, key) in handles.into_iter().take(handle_count) {
             self.handles.remove(key.as_str());
             self.handles_bytes = self.handles_bytes.saturating_sub(bytes);
@@ -1126,7 +1125,6 @@ pub(super) fn node_put_typed(
             counter(|c| c.capture_node_admission_rejected += 1);
             return Ok(());
         }
-        // 合法不保留先于当前RAM许可；不得把旧容量策略变成资源失败。
         if m.root_bytes()
             .saturating_add(m.certs_bytes)
             .saturating_add(m.capture_bytes())
@@ -1834,7 +1832,6 @@ pub(super) fn handle_put_certified_typed(
         } else {
             None
         };
-        // 所有目标条目先构成。暂移旧handle只为精确计算替换容量；失败原样还原。
         let old_handle = m.handles.remove_entry(root_key);
         if let Some((_, old)) = &old_handle {
             m.handles_bytes = m.handles_bytes.saturating_sub(old.cost);
@@ -2581,7 +2578,7 @@ mod tests {
                     m.limit = m.retained_bytes();
                     let before = (m.handles.len(), m.batch_headers.len(), m.total_bytes());
                     assert_eq!((before.0, before.1), (1, 1));
-                    let requested = m.handles_bytes + 1; // requires all handles, then a header
+                    let requested = m.handles_bytes + 1;
                     assert!(m.make_room_typed(requested, Some(work)).is_err());
                     assert_eq!(
                         (m.handles.len(), m.batch_headers.len(), m.total_bytes()),
@@ -2625,7 +2622,6 @@ mod tests {
                 Ok(())
             });
         assert!(rejected);
-        // 第二Job仍能复制旧合法表；若失败父的元数据泄漏到MEMO，此处会拒绝。
         let next = crate::v3::audit_owner::native::Budget::new(LIMIT, 0).unwrap();
         next.codec_work()
             .unwrap()

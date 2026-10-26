@@ -589,7 +589,6 @@ fn mixed_resources_swallowed_ram_failure_cannot_seal_success() {
             .is_err());
         Ok::<_, newchan_rust::s_content::CodecError>(())
     });
-    // 即使调用者吞掉内层资源Err，失败父也不能被finish_check洗成成功。
     let _ = result;
     assert!(started.seal().is_err());
 }

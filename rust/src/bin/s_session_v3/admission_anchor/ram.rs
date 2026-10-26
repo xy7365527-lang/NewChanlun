@@ -1038,7 +1038,7 @@ mod tests {
                 assert!(!crate::v3::native_shared::NativeArc::ptr_eq(&cert,&copy));
                 assert!(copy.belongs_to_parent(next_work));
                 assert_eq!(copy.payload.as_ref(),payload);
-                assert_eq!(next_observer.job.borrow().snapshot().nodes,1); // oldJob资格不转移
+                assert_eq!(next_observer.job.borrow().snapshot().nodes,1);
                 {
                     let mut reader=crate::evidence_store::Reader::new_mixed(&conn,1<<20,next_work,&next_observer).unwrap();
                     let root=reader.read_root_typed("root",true).unwrap();

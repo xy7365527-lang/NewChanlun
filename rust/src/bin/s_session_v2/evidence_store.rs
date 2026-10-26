@@ -48,7 +48,6 @@ pub(super) fn sql_columns(error: rusqlite::Error, names: &[&str]) -> rusqlite::E
 fn work_copy<T: Copy>(bytes: &[T], owner: Option<&OwnedBudget>) -> Result<CodecVec<T>, String> {
     work_copy_admitted(bytes, owner, None)
 }
-/// 旧入口的诊断边界；mixed不得经过String桥。
 fn ordinary_read_error(error: MixedJsonError) -> String {
     match error {
         MixedJsonError::Resource(error) => error.to_string(),
