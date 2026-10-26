@@ -2683,7 +2683,7 @@ pub(super) fn mixed_strict_json_owner(
         }
     })
 }
-pub(super) fn mixed_legacy_json_owner(
+pub(crate) fn mixed_legacy_json_owner(
     bytes: &[u8],
     work: &WorkScope,
 ) -> Result<PlainJson, MixedJsonError> {
