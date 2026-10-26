@@ -61,3 +61,16 @@ class Env:
 @pytest.fixture
 def env(tmp_path):
     return Env(tmp_path)
+
+
+@pytest.fixture(autouse=True)
+def isolated_skill_source(tmp_path, monkeypatch):
+    """这里只验证技能文件加载机制，真实上游内容由 real4 集成记录验收。"""
+    from pilot1742 import agent
+
+    root = tmp_path / "skills"
+    skill = root / "poteto-mode" / "SKILL.md"
+    skill.parent.mkdir(parents=True)
+    skill.write_text("---\nname: pstack-upstream-poteto-mode\ndescription: CI fixture\n---\n# Poteto mode\n")
+    monkeypatch.setattr(agent, "SKILLS_ROOT", str(root) + "/")
+    monkeypatch.setattr(agent, "POTETO_MODE", str(skill))

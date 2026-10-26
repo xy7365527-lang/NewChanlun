@@ -1,0 +1,4 @@
+-r requirements.lock
+-r requirements-studio.txt
+ruff==0.17.2
+mypy==2.4.0

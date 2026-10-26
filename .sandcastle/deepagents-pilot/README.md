@@ -133,3 +133,20 @@ cd .sandcastle/deepagents-pilot && "$VENV/bin/python" -m pytest -q tests
 - 门与审阅：作者 checkout 外部加提交或切分支后拒绝旧批准；VERDICT 首行严格匹配；越界改动不提交；门的正负控。
 
 门测试里的批准记录是测试内合成的，不进入任何 run 的账本。
+
+## 在 CI 运行回归检查
+
+现有 `CI` 工作流的 `deepagents-pilot` 作业运行本目录全部测试、Ruff、Mypy 和依赖兼容检查。它沿用工作流的 main 推送、面向 main 的 PR 和手动触发，不另设路径过滤。
+
+在 Python 3.12 独立环境中复现该作业：
+
+```sh
+cd .sandcastle/deepagents-pilot
+python -m pip install -r requirements-ci.txt
+python -m pip check
+python -m ruff check --select F,E9,B,I .
+python -m mypy pilot1742
+LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false OTEL_SDK_DISABLED=true python -m pytest -q tests
+```
+
+测试使用脚本模型、替身工蜂、临时 Git 仓库和临时技能文件，不需要本机 pstack 安装或模型凭据。技能测试检验文件加载机制，不替代 `real4` 对完整上游技能的真实执行验收。此作业不运行真实模型、Sandcastle 工蜂或 Studio 常驻服务。

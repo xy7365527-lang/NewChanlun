@@ -5,13 +5,14 @@ from unittest.mock import patch
 
 import pytest
 from langchain_openai import ChatOpenAI
-from pilot1742 import studio
 from pydantic import SecretStr
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.testclient import TestClient
+
+from pilot1742 import studio
 
 
 def test_factory_uses_frozen_run_without_acquiring_or_writing(env, monkeypatch):

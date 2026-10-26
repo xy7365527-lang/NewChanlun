@@ -907,3 +907,39 @@ jobs:
         run: npm run typecheck
       - name: node:test — .sandcastle/*.test.{ts,mts}
         run: npx tsx --test .sandcastle/*.test.ts .sandcastle/*.test.mts
+
+  deepagents-pilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: .sandcastle/deepagents-pilot
+    env:
+      LANGSMITH_TRACING: "false"
+      LANGCHAIN_TRACING_V2: "false"
+      OTEL_SDK_DISABLED: "true"
+      LANGSMITH_API_KEY: ""
+      LANGCHAIN_API_KEY: ""
+      OPENAI_API_KEY: ""
+      CLIPROXY_LOCAL_KEY: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            .sandcastle/deepagents-pilot/requirements.lock
+            .sandcastle/deepagents-pilot/requirements*.txt
+      - name: Install frozen pilot, Studio, and check tools
+        run: python -m pip install -r requirements-ci.txt
+      - name: Check dependency compatibility
+        run: python -m pip check
+      - name: Ruff
+        run: python -m ruff check --select F,E9,B,I .
+      - name: Mypy
+        run: python -m mypy pilot1742
+      - name: Test pilot and Studio without external workers
+        run: python -m pytest -q tests

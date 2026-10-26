@@ -9,7 +9,8 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import Command
 from pydantic import SecretStr
 
-from pilot1742.agent import POTETO_MODE, build_agent
+from pilot1742 import agent as pilot_agent
+from pilot1742.agent import build_agent
 from pilot1742.run import ToolRefusal
 
 ALLOWED = {"run_worker", "commit_candidate", "check_gate", "run_status", "write_todos", "ls", "read_file", "glob", "grep"}
@@ -39,7 +40,7 @@ def call(name, **args):
 
 def test_request_tool_surface_has_no_execute_task_or_write_tools(env):
     run = env.create()
-    model = scripted(call("read_file", file_path=POTETO_MODE, limit=5), AIMessage("读到了"))
+    model = scripted(call("read_file", file_path=pilot_agent.POTETO_MODE, limit=5), AIMessage("读到了"))
     agent = build_agent(run, SqliteSaver(sqlite3.connect(run.dir / "graph.sqlite", check_same_thread=False)), model)
     result = agent.invoke({"messages": [("user", "开始")]}, {"configurable": {"thread_id": "r1"}}, durability="sync")
     assert set(model.requests[0]) == ALLOWED
