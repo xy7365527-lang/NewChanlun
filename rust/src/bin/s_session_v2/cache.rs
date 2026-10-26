@@ -869,6 +869,38 @@ pub(super) fn begin_capture_admitted(
 ) -> Result<CaptureGuard, String> {
     begin_capture_typed(node_budget, work).map_err(|e| e.to_string())
 }
+/// 跨Job仅重建容器布局与键。条目仍持原payload父，读取选中内容时另作受控复制。
+pub(crate) fn begin_capture_mixed(budget_bytes:usize,work:&WorkScope)->Result<CaptureGuard,newchan_rust::s_content::CodecError>{
+    MEMO.with(|m| {
+        let mut m=m.borrow_mut();
+        let certs=if m.certs.belongs_to_work(work) {None} else {Some(m.certs.try_copy_mixed(work,|key,value|{
+            value.check_retained_source()?;
+            Ok((*key,value.clone()))
+        })?)};
+        let roots=if m.root_certs.belongs_to_work(work) {None} else {Some(m.root_certs.try_copy_mixed(work,|key,value|{
+            value.check_retained_source()?;
+            Ok((key.try_clone_mixed(work)?,value.clone()))
+        })?)};
+        let handles=if m.handles.belongs_to_work(work) {None} else {Some(m.handles.try_copy_mixed(work,|key,value|{
+            value.bytes.check_retained_source()?;
+            if let Some(json)=&value.value {json.check_retained_source()?;}
+            Ok((key.try_clone_mixed(work)?,Handle{closure:value.closure,root_cert:value.root_cert.clone(),
+                bytes:value.bytes.clone(),value:value.value.clone(),cost:value.cost}))
+        })?)};
+        let headers=if m.batch_headers.belongs_to_work(work) {None} else {Some(m.batch_headers.try_copy_mixed(work,|key,value|{
+            Ok((key.try_clone_mixed(work)?,BatchHeaderEntry{batch_id:value.batch_id.try_clone_mixed(work)?,
+                byte_len:value.byte_len,root_cert:value.root_cert.clone(),closure:value.closure,
+                header:value.header.clone(),cost:value.cost}))
+        })?)};
+        // 全部表的副本成功后才替换；任一拒绝不部分转移持久cache。
+        if let Some(value)=certs {m.certs=value;}
+        if let Some(value)=roots {m.root_certs=value;}
+        if let Some(value)=handles {m.handles=value;}
+        if let Some(value)=headers {m.batch_headers=value;}
+        Ok::<_,newchan_rust::s_content::CodecError>(())
+    })?;
+    begin_capture_typed(budget_bytes,Some(work))
+}
 pub(super) fn begin_capture_typed(
     node_budget: usize,
     work: Option<&WorkScope>,

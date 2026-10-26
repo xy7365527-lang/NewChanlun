@@ -472,6 +472,12 @@ impl<T> CodecVec<T> {
         self.native_permit = Some(permit);
         Ok(())
     }
+    pub fn check_retained_source(&self) -> Result<(),CodecError> {
+        self.native_permit.as_ref().map_or(Ok(()),super::scratch::NativeReservation::check_retained_source)
+    }
+    pub fn native_belongs_to_work(&self,work:&super::scratch::WorkScope) -> bool {
+        self.native_permit.as_ref().is_some_and(|p|p.belongs_to_parent(work))
+    }
     pub fn is_native_bound(&self) -> bool {
         self.native_permit.is_some()
     }

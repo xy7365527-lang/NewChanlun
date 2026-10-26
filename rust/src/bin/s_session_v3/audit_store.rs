@@ -43,6 +43,24 @@ impl<K, V> Default for NativeMap<K, V> {
     }
 }
 impl<K: Eq + std::hash::Hash, V> NativeMap<K, V> {
+    pub(crate) fn belongs_to_work(&self,work:&sc::capture_allocation::scratch::WorkScope)->bool {
+        self.permit.as_ref().is_some_and(|p|p.belongs_to_parent(work))
+    }
+    pub(crate) fn try_copy_mixed(
+        &self,work:&sc::capture_allocation::scratch::WorkScope,
+        mut copy:impl FnMut(&K,&V)->Result<(K,V),CodecError>,
+    )->Result<Self,CodecError> {
+        work.check_current()?;
+        if let Some(permit)=&self.permit { permit.check_retained_source()?; }
+        let mut next=Self::default();
+        let admission=NativeAdmission(Some(work));
+        for (key,value) in &self.map {
+            let (key,value)=copy(key,value)?;
+            next.reserve_admitted(&admission)?;
+            next.insert(key,value);
+        }
+        Ok(next)
+    }
     pub(crate) fn reserve_admitted(
         &mut self,
         admission: &(impl CodecRead + ?Sized),

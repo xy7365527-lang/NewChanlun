@@ -1388,6 +1388,15 @@ impl TextValue {
             .map(|text| Self::from_str_admitted(text, owner, work))
             .transpose()
     }
+    pub(crate) fn try_clone_mixed(&self,work:&WorkScope)->Result<Self,sc::CodecError>{
+        match self {
+            Self::Plain(value)=>{
+                value.check_retained_source()?;
+                value.try_clone_admitted(work).map(Self::Plain)
+            }
+            Self::Owned(_)=>Err(work.reject(sc::capture_allocation::scratch::ScratchFailure::Ledger)),
+        }
+    }
     pub fn try_clone_admitted(&self, work: Option<&WorkScope>) -> Result<Self, String> {
         if let Some(work) = work {
             if matches!(self, Self::Owned(_)) {

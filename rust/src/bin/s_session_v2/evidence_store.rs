@@ -1366,7 +1366,7 @@ impl<'a> Reader<'a> {
         observer.precheck().map_err(MixedJsonError::Resource)?;
         Ok(Self {
             conn,conn_id:conn as *const Connection as usize,work:Some(work),owned:None,
-            _capture:Some(cache::begin_capture_typed(budget_bytes,Some(work)).map_err(MixedJsonError::Resource)?),
+            _capture:Some(cache::begin_capture_mixed(budget_bytes,work).map_err(MixedJsonError::Resource)?),
             mixed_observer:Some(observer),mixed_seen:Default::default(),touched:Default::default(),
         })
     }

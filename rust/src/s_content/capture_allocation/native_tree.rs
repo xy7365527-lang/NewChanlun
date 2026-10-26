@@ -18,6 +18,32 @@ impl<K, V> Default for NativeTree<K, V> {
     }
 }
 impl<K: Ord, V> NativeTree<K, V> {
+    pub fn belongs_to_work(&self,work:&sc::capture_allocation::scratch::WorkScope) -> bool {
+        self.permits.native_belongs_to_work(work)
+    }
+    /// 仅复制表与调用者选择的纯内容；不携带当前Job观察资格。
+    pub fn try_copy_mixed(
+        &self,work:&sc::capture_allocation::scratch::WorkScope,
+        mut copy:impl FnMut(&K,&V)->Result<(K,V),CodecError>,
+    ) -> Result<Self,CodecError> {
+        work.check_current()?;
+        self.permits.check_retained_source()?;
+        for permit in &self.permits { permit.check_retained_source()?; }
+        let mut next=Self::default();
+        struct Source<'a>(&'a sc::capture_allocation::scratch::WorkScope);
+        impl sc::NodeSource for Source<'_> {
+            fn codec_work(&self)->Option<&sc::capture_allocation::scratch::WorkScope>{Some(self.0)}
+            fn read(&mut self,_:&sc::NodeDigest)->Result<sc::NodeRead,CodecError>{
+                Err(CodecError::new(sc::code::SOURCE,"metadata copy cannot read"))
+            }
+        }
+        let source=Source(work);
+        for (key,value) in &self.tree {
+            let (key,value)=copy(key,value)?;
+            next.insert_admitted(key,value,&source)?;
+        }
+        Ok(next)
+    }
     pub fn insert_admitted(
         &mut self,
         key: K,
