@@ -447,9 +447,11 @@ fn reserve_with_distinct_s_refs(carriers: &[PathBuf], real_s: &Value) -> Value {
     let reserved = reserve_now(&mut f, "Reserve-slot");
     let elapsed_ms = t.elapsed().as_millis().to_string();
     let phases = phase_trace::take();
-    let checks = phases["phases"]
-        .as_array()
-        .map_or(0, |p| p.iter().filter(|p| p["phase"] == "structure_verify@E").count());
+    let checks = phases["phases"].as_array().map_or(0, |p| {
+        p.iter()
+            .filter(|p| p["phase"] == "structure_verify@E")
+            .count()
+    });
     let staged: Vec<String> = f
         .dbs
         .iter()
@@ -523,8 +525,7 @@ fn content_domain_activated_cap_consumed_by_real_s_reserve() {
     }));
     let session_ready = session.ready.clone();
     let session_final = session.stop(&binary);
-    let (equal, short, distinct) =
-        cases.unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+    let (equal, short, distinct) = cases.unwrap_or_else(|panic| std::panic::resume_unwind(panic));
     let evidence = json!({"carriers":carriers,"reading":"SessionClosure","response_timeout_ms":"3000",
         "s_source":real_s,"s_session_ready":session_ready,"s_session_final":session_final,
         "equal_cap":equal,"insufficient_cap":short,"distinct_s_refs":distinct});
