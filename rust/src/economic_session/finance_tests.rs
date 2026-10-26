@@ -381,6 +381,12 @@ impl Fixture {
             ] {
                 clocks[format!("tb03b-{m}")] = clocks[m].clone();
             }
+            if fault.is_some_and(|(message, _)| message == "tb03b-Reserve-slot") {
+                // 故障域的显式时钟：E 在 recover_ns 1000 换代后，B Commit 的获知不得早于实读 E 的恢复代际。
+                for (m, t) in [("CommitDecision-alpha", 1100), ("CommitDecision-beta", 1110)] {
+                    clocks[format!("tb03b-{m}")] = json!({"received_ns":t.to_string(),"first_known_ns":(t+1).to_string(),"commit_ns":(t+2).to_string()});
+                }
+            }
         }
         if let Some((resolve_first, _)) = c4a {
             manifest["book_revision"] = json!(book::TB03C_BOOK_V1);
