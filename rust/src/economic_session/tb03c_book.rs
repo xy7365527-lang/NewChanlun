@@ -392,7 +392,7 @@ fn open_book(
     doc: &Value,
     event: &Value,
     record: &Value,
-    v2: bool,
+    rules: Rules,
     funding: Option<Value>,
 ) -> Result<Value, String> {
     let transfer = super::tb03c_transfer::is_in(event);
@@ -415,12 +415,10 @@ fn open_book(
     } else {
         positive(required(o, "units")?, "opening_units")?
     };
-    // 书账版本取自域规则（评审 M4）：`/2` 域里转移开出的重同样盖 `/2`。
-    let revision = if v2 {
-        super::book::TB03C_BOOK_V2
-    } else {
-        super::book::TB03C_BOOK_V1
-    };
+    // 书账版本取自域规则（评审 M4）：`/2`、`/3` 域里转移开出的重同样盖本域版本。
+    let revision = rules
+        .revision()
+        .ok_or("StorageUnavailable：tb03c 书账缺版本")?;
     let mut book = json!({
         "book_revision": revision,
         "chong_id": target(event)?, "symbol": id["symbol"], "operation_level": id["op_level"],
@@ -457,8 +455,20 @@ fn split(book: &mut Value, ca: &Value) -> Result<(), String> {
         }
         *slot = scaled / den;
     }
+    // #1715（`/3`）：同一冻结定标派生的全部数量（Q_units、档量、C_units）随拆股按同一比例重基，
+    // 金额、报价、锚、快照与版本不变，不重新选价。
+    let funding = match book
+        .get("funding")
+        .filter(|f| f.get("quantity_calibration").is_some())
+    {
+        Some(f) => Some(super::quantity_calibration::rebase_split(f, num, den)?),
+        None => None,
+    };
     book["actual_quantity"] = json!(rebased[0].to_string());
     book["fixed_q"] = json!(rebased[1].to_string());
+    if let Some(f) = funding {
+        book["funding"] = f;
+    }
     Ok(())
 }
 
@@ -696,18 +706,26 @@ fn apply_with(
     if event.get("valuation_observation").is_some() {
         return Err("SchemaUnsupported：估值观察只记 E，不进 B 成本账（C05.4）".into());
     }
-    if event.get("q_rebase").is_some() {
-        if let Some(f) = funding {
-            // ADR 0040 裁定四末段：Q 变大不自动改现役 Q，输出 AwaitingPolicy{q_rebase, (S,ℓ)}。
-            let c = f.chong(target(&event)?)?;
-            return Err(format!(
-                "AwaitingPolicy：q_rebase (S,ℓ)=({},{})；现役 Q 不自动改写，须签新版本",
-                c.symbol(),
-                c.level()
-            ));
+    // #1715（`/3`）：只有 manifest 冻结的获批新定标版本能重基 fixed_q；其余照旧等待新签。
+    let rebased = if event.get("q_rebase").is_some() {
+        match funding {
+            Some(f) if f.rules() == Rules::Tb03cV3 => {
+                Some(f.check_q_rebase(&event, record, &doc["units"], &image["book"])?)
+            }
+            Some(f) => {
+                // ADR 0040 裁定四末段：Q 变大不自动改现役 Q，输出 AwaitingPolicy{q_rebase, (S,ℓ)}。
+                let c = f.chong(target(&event)?)?;
+                return Err(format!(
+                    "AwaitingPolicy：q_rebase (S,ℓ)=({},{})；现役 Q 不自动改写，须签新版本",
+                    c.symbol(),
+                    c.level()
+                ));
+            }
+            None => return Err("AwaitingPolicy：capacity；C(ℓ) 未签署，fixed_q 不变".into()),
         }
-        return Err("AwaitingPolicy：capacity；C(ℓ) 未签署，fixed_q 不变".into());
-    }
+    } else {
+        None
+    };
     // #1406 C4 / ADR 0032 五：E 已解析并不代表本 B 已应用前件。费用/更正沿因果原件等待，
     // 不把声明了依赖的缺开局永久记为 Unmatched，也不以迟到件触发新 Voice。
     if let Some(dependency) = super::tb03c_e::dependency_key(&event)? {
@@ -744,7 +762,11 @@ fn apply_with(
             ));
         }
         Some(f) if event.get("observed_existing_book").is_some() => {
-            Some(f.check_opening(&event, record)?)
+            Some(f.check_opening(&event, record, &doc["units"])?)
+        }
+        // #1715（`/3`）：转入目标的本金仍来自转移，数量走与开局同一激活闸并把定标写入目标账。
+        Some(f) if super::tb03c_transfer::is_in(&event) => {
+            f.check_transfer_opening(&event, record, &doc["units"])?
         }
         _ => None,
     };
@@ -772,7 +794,13 @@ fn apply_with(
         );
     } else {
         let mut book = if opening {
-            open_book(&doc, &event, record, funding.is_some(), funded.clone())?
+            open_book(
+                &doc,
+                &event,
+                record,
+                funding.map_or(Rules::Tb03cV1, |f| f.rules()),
+                funded.clone(),
+            )?
         } else {
             old.clone()
         };
@@ -808,6 +836,10 @@ fn apply_with(
                 return Err("InvalidDomain：重内不穿零：持量/欠券量不可为负".into());
             }
             book["actual_quantity"] = json!(q.to_string());
+            if let Some((fixed_q, f)) = &rebased {
+                book["fixed_q"] = json!(fixed_q);
+                book["funding"] = f.clone();
+            }
             income(&mut book, d)?;
             if let Some(p) = event.get("declared_realized_profit") {
                 let gross = add(integer(&book["realized"], "gross")?, integer(p, "gross")?)?;
@@ -870,7 +902,7 @@ fn apply_projected(
     }
     super::tb03c_corrections::predecessor(event, array(image, "recorded")?)?;
     let mut next = image.clone();
-    let unmatched = if per_leg {
+    let unmatched = if per_leg && allocation.get("unmatched_reason").is_some() {
         Some("per_leg_attribution_missing")
     } else if old.is_null() {
         Some("opening_missing_undeclared")
@@ -886,8 +918,13 @@ fn apply_projected(
             json!({"fact_key":record["fact_key"],"allocation_id":id,"reason_code":code,"reason":code,"commit_seq":seq.to_string(),"commit_ns":ns}),
         );
     } else {
+        let report = if per_leg {
+            &event["per_leg_report"]
+        } else {
+            &event["netted_fill"]
+        };
         if old["side"] != "long"
-            || old["symbol"] != event["netted_fill"]["symbol"]
+            || old["symbol"] != report["symbol"]
             || old["chong_id"] != allocation["chong_id"]
             || old["units"] != doc["units"]
         {
@@ -902,8 +939,10 @@ fn apply_projected(
             return Err("InvalidDomain：冲销后数量不得为负".into());
         }
         book["actual_quantity"] = json!(quantity.to_string());
-        // 显式原件已证明 Pi/A/W 均为零；仍调用同一收益账主干验证恒等式。
-        income(&mut book, &event["netted_fill"]["income_changes"])?;
+        // netted 显式原件已证明 Pi/A/W 均为零；per_leg 形状不声明收益账变化。
+        if !per_leg {
+            income(&mut book, &event["netted_fill"]["income_changes"])?;
+        }
         let mut comps = Vec::new();
         let correction = super::tb03c_corrections::is_correction(event);
         if correction {
@@ -912,7 +951,12 @@ fn apply_projected(
             comps.push(json!({"kind":kind,"canonical_amount":amount,"derivation":{"kind":"E_resolved_netted_correction","allocation_id":id,"manifest_hash":event["netted_fill"]["manifest_hash"],"original_fact_key":allocation["original_fact_key"],"reversal":allocation["reversal"],"resolve_cut":record["e_resolution_proof"]["receipt"]["cut"]}}));
         } else if units > 0 {
             for kind in ["acquisition_cash", "commission"] {
-                comps.push(json!({"kind":kind,"canonical_amount":allocation[kind],"derivation":{"kind":"E_resolved_netted_allocation","allocation_id":id,"manifest_hash":event["netted_fill"]["manifest_hash"],"resolve_cut":record["e_resolution_proof"]["receipt"]["cut"]}}));
+                let derivation = if per_leg {
+                    "E_resolved_per_leg_allocation"
+                } else {
+                    "E_resolved_netted_allocation"
+                };
+                comps.push(json!({"kind":kind,"canonical_amount":allocation[kind],"derivation":{"kind":derivation,"allocation_id":id,"manifest_hash":report["manifest_hash"],"resolve_cut":record["e_resolution_proof"]["receipt"]["cut"]}}));
             }
         } else if integer(allocation, "acquisition_cash")? != 0
             || integer(allocation, "commission")? != 0

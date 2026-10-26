@@ -8,6 +8,7 @@ mod finance;
 mod finance_transport;
 mod financial_reader_resources;
 mod phase_trace;
+mod quantity_calibration;
 mod service;
 mod sr_expansion;
 mod store;
@@ -22,6 +23,8 @@ mod tb03c_transfer;
 mod voice;
 pub use service::cli;
 
+#[cfg(test)]
+mod quantity_calibration_tests;
 #[cfg(test)]
 mod tb03c_allocation_tests;
 #[cfg(test)]
