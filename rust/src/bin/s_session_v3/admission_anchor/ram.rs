@@ -926,6 +926,16 @@ mod tests {
                 let text=newchan_rust::s_content::capture_allocation::native_owned::NativeValue::try_format(format_args!("{}",projected.as_ref()),Some(work))?;
                 assert_eq!(text.as_ref(),&crate::canonical_json(&projected));
             }
+            let wire_cases: [(fn(&serde_json::Value)->Result<serde_json::Value,String>,
+                fn(&serde_json::Value,&newchan_rust::s_content::capture_allocation::scratch::WorkScope)->Result<crate::v3::business_json::PlainJson,crate::v3::business_json::MixedJsonError>,serde_json::Value);4]=[
+                (crate::project_object_wire,crate::v3::business_json::scoped_legacy::project_object_wire,serde_json::json!({"object_id":"o","object_revision":1,"window_start":0,"window_mid":1,"window_end":2,"first_known_generation":1,"published_generation":1})),
+                (crate::project_witness_wire,crate::v3::business_json::scoped_legacy::project_witness_wire,serde_json::json!({"slot":1,"merged_source_index":2,"raw_bars":[{"seq":3,"revision":1}]})),
+                (crate::project_observation_wire,crate::v3::business_json::scoped_legacy::project_observation_wire,serde_json::json!({"window_start":1,"window_mid":null,"window_end":3})),
+                (crate::project_raw_event_wire,crate::v3::business_json::scoped_legacy::project_raw_event_wire,serde_json::json!({"revision":1,"seq":0,"schema_revision":"s-ohlc/1","price":"2","open":"1"})),
+            ];
+            for (ordinary,mixed,value) in wire_cases {
+                assert_eq!(ordinary(&value).unwrap(),*mixed(&value,work).unwrap());
+            }
             for (name,sql,expected) in [
                 ("witnesses", "SELECT 'w',3,'o',4,5,'h','l','o','c','[]'",serde_json::json!({"witness_id":"w","object_id":"o","slot":"4","merged_source_index":"5","merged_high":"h","merged_low":"l","merged_open":"o","merged_close":"c","raw_bars":[]})),
                 ("observations","SELECT 'ob',3,'b','k',NULL,4,5,'why','{}'",serde_json::json!({"observation_id":"ob","batch_id":"b","kind":"k","window_start":null,"window_mid":4,"window_end":5,"reason":"why","detail":{}})),
