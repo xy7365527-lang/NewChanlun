@@ -81,3 +81,72 @@ struct Reachable{
     originals:cache::mixed::Originals,
     _capture:cache::CaptureGuard,
 }
+
+fn root_keys(conn:&Connection,work:&WorkScope)->Result<CodecVec<Text>,MixedJsonError>{
+    let mut stmt=conn.prepare("SELECT root_key FROM s_evidence_roots ORDER BY root_key").map_err(|e|format!("StorageUnavailable：读私有根表失败：{e}"))?;
+    let mut rows=stmt.query([]).map_err(|e|format!("StorageUnavailable：读私有根表失败：{e}"))?;
+    let mut keys=CodecVec::default();
+    while let Some(row)=rows.next().map_err(|e|format!("StorageUnavailable：私有根行损坏：{e}"))?{
+        let key=sql_text(row,0).map_err(|e|format!("StorageUnavailable：私有根行损坏：{e}"))?;
+        push(&mut keys,text(key,work)?,work)?;
+    }
+    Ok(keys)
+}
+fn capture(conn:&Connection,work:&WorkScope,observer:&dyn LegacyObserver)->Result<Reachable,MixedJsonError>{
+    let mut ids=CodecVec::default();
+    {
+        let mut stmt=conn.prepare("SELECT d.index_frontier FROM structure_deltas d").map_err(|e|e.to_string())?;
+        let mut rows=stmt.query([]).map_err(|e|e.to_string())?;
+        while let Some(row)=rows.next().map_err(|e|e.to_string())?{
+            push(&mut ids,text(sql_text(row,0).map_err(|e|e.to_string())?,work)?,work)?;
+        }
+    }
+    let format=evidence_store::format_typed(conn,None,Some(work))?;
+    let mut reader=evidence_store::Reader::new_mixed(conn,EVIDENCE_READ_BUDGET,work,observer)?;
+    let mut batches=NativeTree::default();
+    let mut originals=cache::mixed::Originals::default();
+    for id in ids.iter(){
+        let(reference,cert)=batch_ref(conn,&mut reader,id,work)?;
+        if format.graph(){put(&mut originals,formatted(format_args!("batch/{}",id.as_ref()),work)?,cert,work)?;}
+        put(&mut batches,id.try_clone_admitted(work).map_err(MixedJsonError::Resource)?,reference,work)?;
+    }
+    let mut roots=NativeTree::default();
+    if format.graph(){
+        for key in root_keys(conn,work)?.iter(){
+            let(kind,record)=evidence_store::root_kind(key)?;
+            match kind{
+                evidence_store::RootKind::Batch=>{
+                    let present:i64=conn.query_row("SELECT COUNT(*) FROM batches WHERE batch_id=?1",params![record],|r|r.get(0)).map_err(|e|format!("StorageUnavailable：核私有根批次行失败：{e}"))?;
+                    if present!=1{return Err(format!("StorageUnavailable：私有根 `{}` 没有对应批次行（不可达残留），拒绝写入",key.as_ref()).into());}
+                    if !batches.contains_key(record){
+                        let(_,_,cert)=load_batch(conn,&mut reader,record,false,work)?;
+                        put(&mut originals,key.try_clone_admitted(work).map_err(MixedJsonError::Resource)?,cert,work)?;
+                    }
+                }
+                evidence_store::RootKind::Delta=>{
+                    if !format.records_in_graph(){return Err(format!("StorageUnavailable：格式 `{}` 未声明 Delta 根 `{}`（不得混代）",format.tag(),key.as_ref()).into());}
+                    let generation=record.parse::<i64>().map_err(|_|format!("StorageUnavailable：Delta 根 `{}` 代数非规范十进制",key.as_ref()))?;
+                    let present:i64=conn.query_row("SELECT COUNT(*) FROM structure_deltas WHERE generation=?1",params![generation],|r|r.get(0)).map_err(|e|format!("StorageUnavailable：核 Delta 根行失败：{e}"))?;
+                    if present!=1{return Err(format!("StorageUnavailable：私有根 `{}` 没有对应 Delta 行（不可达残留），拒绝写入",key.as_ref()).into());}
+                    let verified=reader.read_root_typed(key,false)?;
+                    put(&mut roots,key.try_clone_admitted(work).map_err(MixedJsonError::Resource)?,verified.closure,work)?;
+                    put(&mut originals,key.try_clone_admitted(work).map_err(MixedJsonError::Resource)?,verified.root_cert,work)?;
+                }
+                evidence_store::RootKind::Fact=>{
+                    if !format.records_in_graph(){return Err(format!("StorageUnavailable：格式 `{}` 未声明结构事实根 `{}`（不得混代）",format.tag(),key.as_ref()).into());}
+                    let present:i64=conn.query_row("SELECT COUNT(*) FROM structure_facts WHERE object_id=?1",params![record],|r|r.get(0)).map_err(|e|format!("StorageUnavailable：核结构事实根行失败：{e}"))?;
+                    if present!=1{return Err(format!("StorageUnavailable：私有根 `{}` 没有对应结构事实行（不可达残留），拒绝写入",key.as_ref()).into());}
+                    let verified=reader.read_root_typed(key,false)?;
+                    put(&mut roots,key.try_clone_admitted(work).map_err(MixedJsonError::Resource)?,verified.closure,work)?;
+                    put(&mut originals,key.try_clone_admitted(work).map_err(MixedJsonError::Resource)?,verified.root_cert,work)?;
+                }
+            }
+        }
+        evidence_store::ensure_all_nodes_reachable_mixed(conn,cache::capture_reachable_len(reader.conn_id()),work)?;
+    }else if evidence_store::graph_tables_present(conn)?{
+        let roots=root_keys(conn,work)?;
+        let(nodes,_)=evidence_store::stats(conn)?;
+        if !roots.is_empty()||nodes!=0{return Err(format!("StorageUnavailable：整块域出现私有根/节点 {} 根 / {nodes} 节点，拒绝写入",roots.len()).into());}
+    }
+    Ok(Reachable{batches,roots,originals,_capture:reader.into_capture()})
+}
