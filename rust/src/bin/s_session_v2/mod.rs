@@ -620,15 +620,15 @@ fn normalize_schema(s: &str) -> String {
     let mut out = String::new();
     normalize_schema_chunks(s, |v| {
         out.push_str(v);
-        Ok(())
+        Ok::<(),String>(())
     })
     .expect("normal String sink");
     out
 }
-fn normalize_schema_chunks(
+fn normalize_schema_chunks<E>(
     s: &str,
-    mut emit: impl FnMut(&str) -> Result<(), String>,
-) -> Result<(), String> {
+    mut emit: impl FnMut(&str) -> Result<(), E>,
+) -> Result<(), E> {
     // Original global replace then ASCII-only whitespace filtering; no SQL reinterpretation.
     for part in s.split("IF NOT EXISTS") {
         for ch in part.chars().filter(|c| !c.is_ascii_whitespace()) {
@@ -738,11 +738,11 @@ impl ControlSchema {
         })
     }
 }
-fn ddl_table_entries(
+fn ddl_table_entries<E:From<String>>(
     label: &str,
     ddl: &str,
-    mut emit: impl FnMut(&str, &str) -> Result<(), String>,
-) -> Result<(), String> {
+    mut emit: impl FnMut(&str, &str) -> Result<(), E>,
+) -> Result<(), E> {
     for stmt in ddl.split(';').map(str::trim).filter(|s| !s.is_empty()) {
         let rest = stmt
             .strip_prefix("CREATE TABLE ")
@@ -4193,3 +4193,4 @@ impl ControlFacts {
         serde_json::json!({"session_generation":self.session_generation.as_str(),"clock_plan_hash":self.clock_plan_hash.as_str(),"headers":headers})
     }
 }
+\npub(crate) mod mixed_control;\n
