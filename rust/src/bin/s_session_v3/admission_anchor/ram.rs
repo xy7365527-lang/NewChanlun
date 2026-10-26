@@ -931,7 +931,7 @@ mod tests {
                     let mut reader=crate::evidence_store::Reader::new_mixed(&conn,1<<20,next_work,&next_observer).unwrap();
                     let root=reader.read_root_typed("root",true).unwrap();
                     assert_eq!(&*root.bytes,payload);
-                    assert_eq!(root.value.as_ref().unwrap().as_ref(),&serde_json::json!({"x":1}));
+                    assert_eq!(root.value.as_ref().unwrap().as_ref().as_ref(),&serde_json::json!({"x":1}));
                     assert_eq!(next_observer.job.borrow().snapshot().nodes,1);
                 }
                 Ok::<_,sc::CodecError>(())
@@ -947,7 +947,7 @@ mod tests {
                 assert_eq!(&*expanded,payload);
                 let root=reader.read_root_typed("root",true).unwrap();
                 assert_eq!(&*root.bytes,payload);
-                assert_eq!(root.value.as_ref().unwrap().as_ref(),&serde_json::json!({"x":1}));
+                assert_eq!(root.value.as_ref().unwrap().as_ref().as_ref(),&serde_json::json!({"x":1}));
                 assert_eq!(observer.job.borrow().snapshot().nodes,1);
             }
             conn.execute("UPDATE s_evidence_nodes SET payload=?1",rusqlite::params![&b"bad"[..]]).unwrap();

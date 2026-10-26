@@ -540,3 +540,25 @@ fn mixed_resources_anchor_ram_mutation_requires_new_signed_binding() {
     assert_eq!(fixture.load().err().unwrap().kind, ErrorKind::Changed);
     assert_eq!(prepared.consume().err().unwrap().kind, ErrorKind::Changed);
 }
+
+
+#[test]
+fn mixed_resources_swallowed_ram_failure_cannot_seal_success() {
+    let raw=serde_json::to_vec(&json!({
+        "schema_revision":resources::MIXED_REVISION,
+        "measurement_domains":["s-content/1","legacy-evidence/1"],
+        "job_limits":limit_node(),
+        "native_ram":{"max_live_bytes":"1048576","max_operation_bytes":"1048576"}
+    })).unwrap();
+    let fixture=Fixture::with_raw(raw);
+    let consumed=fixture.load().unwrap().consume().unwrap();
+    let source=super::super::admission_provider::MeasuredDomain::measure(&consumed).unwrap();
+    let mut started=consumed.into_job(source.existing).unwrap();
+    let result=started.with_accounting(|account| {
+        assert!(account.mixed_scope().unwrap().reserve_native(2<<20).is_err());
+        Ok::<_,newchan_rust::s_content::CodecError>(())
+    });
+    // 即使调用者吞掉内层资源Err，失败父也不能被finish_check洗成成功。
+    let _=result;
+    assert!(started.seal().is_err());
+}
