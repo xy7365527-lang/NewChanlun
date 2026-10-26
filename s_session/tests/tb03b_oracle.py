@@ -52,6 +52,8 @@ def cap_activation(manifest_path):
     cap = {"version": 1, "cap": amount(policy["cap"]), "valid_through_ns": amount(policy["valid_through_ns"])}
     liability, imported, activations, reserves = 0, False, [], []
     for event in image["history"]:
+        if event["kind"] not in ("ImportResponsibility", "ActivateCapPolicy", "Reserve"):
+            continue
         kind, request, ns = event["kind"], event["request"]["payload"], amount(event["commit_ns"])
         if kind == "ImportResponsibility":
             liability += amount(data["baseline"]["amount"])
