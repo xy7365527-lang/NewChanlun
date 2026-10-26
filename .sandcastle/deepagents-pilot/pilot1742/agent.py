@@ -129,8 +129,9 @@ def design_mapping(run: PilotRun) -> str:
     return (f'- architect Phase B 与 arena 的并行候选 = run_worker(role="design", brief)：同一个设计任务同时派给两个固定的只读 '
             f"runner（{spec.design_models[0]} 与 {spec.design_models[1]}），各自独立 checkout，返回两份设计包。"
             f'arena Phase C 的只读交叉裁判 = run_worker(role="judge", brief=你的 rubric)，固定模型 {spec.judge_model}。'
-            "Phase D 与 E 由你自己完成：逐份读完两个设计包，按 rubric 逐条打分并与裁判对照，选 base、嫁接，"
-            f"把合成后的设计与合成说明写进你的回复，再交给作者。{required}\n")
+            "Phase D 与 E 由你自己完成：逐份读完两个设计包，按 rubric 逐条打分并与裁判对照，选 base、嫁接。"
+            "随后的 author brief 以“合成说明”开头：单独一行写 `BASE: 候选 1` 或 `BASE: 候选 2`，再写裁判推荐及你是否采纳和理由、"
+            f"每项嫁接及其来源候选、拒绝了什么及理由，然后才是合成后的设计。缺这一行时 author 会被拒绝。{required}\n")
 
 
 def system_prompt(run: PilotRun) -> str:

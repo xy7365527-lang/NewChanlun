@@ -358,6 +358,22 @@ def dispatch_refusal(facts: RunFacts, key: WorkerKey) -> str | None:
     return f"候选 {head} 没有明确的独审 BLOCK，不能再派作者"
 
 
+BASE_LINES = ("BASE: 候选 1", "BASE: 候选 2")
+
+
+def declared_base(brief: str) -> str | None:
+    found = [line.strip() for line in brief.splitlines() if line.strip() in BASE_LINES]
+    return found[0] if len(set(found)) == 1 else None
+
+
+def synthesis_refusal(facts: RunFacts, key: WorkerKey, brief: str) -> str | None:
+    """设计 arena 之后的首个作者 brief 必须恰好声明一个 base，arena Phase D 的选择因此可审计。"""
+    judged = _completed(facts.workers.get(WorkerKey(facts.run_id, "judge", key.target_head)))
+    if key.role != "author" or not judged or declared_base(brief) is not None:
+        return None
+    return "设计 arena 之后的作者 brief 要先写合成说明，并单独一行写且只写一个 `BASE: 候选 1` 或 `BASE: 候选 2`"
+
+
 Phase = Literal["needs_design", "design_running", "needs_judge", "needs_author", "author_running", "needs_commit",
                 "needs_review", "review_running", "rework", "gate", "halted", "conflict"]
 

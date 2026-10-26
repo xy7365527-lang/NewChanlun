@@ -16,6 +16,7 @@ from pilot1742.domain import (
     chain_head,
     classify_worker,
     current_head,
+    declared_base,
     derive_phase,
     dispatch_refusal,
     parse_sha,
@@ -154,3 +155,11 @@ def test_design_arena_slots_precede_the_first_author():
     assert derive_phase(facts(workers=judged, design=True)) == "needs_author"
     authored = {**judged, author: Terminal(receipt("author", BASE))}
     assert dispatch_refusal(facts(workers=authored, design=True), WorkerKey("r1", "design-a", H1)) is not None
+
+
+def test_declared_base_needs_exactly_one_legal_line():
+    assert declared_base("合成说明\nBASE: 候选 2\n理由") == "BASE: 候选 2"
+    assert declared_base("  BASE: 候选 1  ") == "BASE: 候选 1"
+    assert declared_base("BASE: 候选 1\nBASE: 候选 2") is None
+    assert declared_base("BASE: 候选 3") is None
+    assert declared_base("选 BASE: 候选 1") is None

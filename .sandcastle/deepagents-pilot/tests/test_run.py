@@ -226,7 +226,14 @@ def test_design_arena_runs_two_fixed_readonly_slots_then_judge_before_author(env
     judge_prompt = (run.dir / "prompts" / f"judge-{env.base}.md").read_text()
     assert "设计包甲" in judge_prompt and "设计包乙" in judge_prompt and "rubric：简单、可测" in judge_prompt
     assert "claude-opus-5-5" not in judge_prompt and "gpt-6.1-sol" not in judge_prompt
-    assert run.run_worker("author", "按合成设计实现").status == "completed"
+    with pytest.raises(ToolRefusal, match="BASE"):
+        run.run_worker("author", "按合成设计实现")
+    with pytest.raises(ToolRefusal, match="BASE"):
+        run.run_worker("author", "BASE: 候选 1\nBASE: 候选 2\n两个都要")
+    assert run.run_worker("author", "合成说明\nBASE: 候选 1\n裁判推荐候选 1，采纳。\n按合成设计实现").status == "completed"
+    synthesis = [json.loads(line) for line in (run.dir / "trail.jsonl").read_text().splitlines()
+                 if json.loads(line)["event"] == "synthesis"]
+    assert [(e["declared_base"], e["judge_first_line"]) for e in synthesis] == [("BASE: 候选 1", "BASE: 候选 1")]
     assert run.run_design("重放基线上的设计") == first
     run.commit_candidate()
     with pytest.raises(ToolRefusal, match="首个作者之前"):

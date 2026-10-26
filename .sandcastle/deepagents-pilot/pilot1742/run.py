@@ -49,6 +49,7 @@ from .domain import (
     classify_worker,
     current_head,
     decide_gate,
+    declared_base,
     derive_phase,
     dispatch_refusal,
     outside_allowed,
@@ -57,6 +58,7 @@ from .domain import (
     parse_sha,
     parse_verdict,
     reconcile_commit,
+    synthesis_refusal,
 )
 
 SOURCE_REPO = Path(__file__).resolve().parents[3]
@@ -472,7 +474,7 @@ class PilotRun:
         facts = self.facts()
         fresh = [key for key in keys if key not in facts.workers]
         for key in fresh:
-            refusal = dispatch_refusal(facts, key)
+            refusal = dispatch_refusal(facts, key) or synthesis_refusal(facts, key, brief)
             if refusal:
                 self.trail("refused", key=key.name, reason=refusal)
                 raise ToolRefusal(refusal)
@@ -480,6 +482,11 @@ class PilotRun:
             if key not in fresh:
                 self.trail("adopt", key=key.name, fact=type(facts.workers[key]).__name__)
         for key in fresh:
+            base = declared_base(brief) if key.role == "author" else None
+            judge = facts.workers.get(WorkerKey(self.spec.run_id, "judge", key.target_head))
+            if base is not None and isinstance(judge, Terminal):
+                self.trail("synthesis", key=key.name, declared_base=base,
+                           judge_first_line=(judge.receipt.summary.splitlines() or [""])[0])
             self._prepare_dispatch(key, brief, facts)
         return self._drive_all(keys)
 
