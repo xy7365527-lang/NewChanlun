@@ -202,7 +202,8 @@ impl Fixture {
             "CommitDecision",
             "AbortDecision",
             "CloseApplicants",
-            "ChongAdvance"
+            "ChongAdvance",
+            "ActivateCapPolicy"
         ]);
         let mut clocks = json!({});
         for (i, (op, name)) in [
@@ -233,6 +234,16 @@ impl Fixture {
             json!({"received_ns":"95","first_known_ns":"96","commit_ns":"97"});
         clocks["commit-beta-late"] =
             json!({"received_ns":"110","first_known_ns":"111","commit_ns":"112"});
+        // #1716：cap 激活消息时钟。pre 落在 Prepare 与 Reserve 之间，其余落在 Reserve 与首次 Commit 之间。
+        for (message, r, k, c) in [
+            ("ActivateCapPolicy-pre", 84, 85, 86),
+            ("ActivateCapPolicy-low", 93, 93, 94),
+            ("ActivateCapPolicy-equal", 95, 96, 96),
+            ("ActivateCapPolicy-stale", 96, 97, 97),
+            ("ActivateCapPolicy-above", 97, 98, 98),
+        ] {
+            clocks[message] = json!({"received_ns":r.to_string(),"first_known_ns":k.to_string(),"commit_ns":c.to_string()});
+        }
         if slot_spec.len() > 1 {
             // 第二个 slot 的 Reserve 时钟；只在双 slot 夹具里出现，单 slot 夹具的时钟表不变。
             clocks["Reserve-slot-b"] =
@@ -1246,4 +1257,209 @@ fn c4a_fin1_uncovered_fact_cannot_reserve_or_resolve_and_keeps_all_state() {
         .is_none());
     assert!(before.3.get("fill_allocations").is_none());
     f.audit();
+}
+
+// #1716 I1-C：cap 原子激活经 E 正式会话入口（service::handle → finance::write）提交，
+// 并由同一入口的 Reserve（#1408 授信消费点）读取当前生效 cap 版本。
+fn cap_payload(f: &Fixture, from: &str, to: &str, cap: &str, valid: &str) -> Value {
+    json!({"op":"ActivateCapPolicy","activation_id":format!("cap-{from}-{to}-{cap}-{valid}"),"policy_id":f.data["policy"]["policy_id"],"from_version":from,"to_version":to,"cap":cap,"valid_through_ns":valid,"writer_epoch":"1"})
+}
+fn reserve_via_session(f: &mut Fixture) -> Value {
+    let p = f.request("Reserve", "slot")["payload"].clone();
+    f.handle(0, "Reserve-slot", p)
+}
+fn assert_rejected_unchanged(f: &mut Fixture, message: &str, payload: Value, kind: &str) -> Value {
+    let before: Vec<_> = (0..3).map(|n| latest(&f.dbs[n]).unwrap()).collect();
+    let r = f.handle(0, message, payload.clone());
+    c4a_error(&r, kind);
+    let after: Vec<_> = (0..3).map(|n| latest(&f.dbs[n]).unwrap()).collect();
+    assert_eq!(before, after, "拒绝不得改动任何域的活跃版本或账目");
+    assert_eq!(
+        canonical_json(&before[0].3),
+        canonical_json(&after[0].3),
+        "E 图像逐字相等"
+    );
+    assert!(row(&f.dbs[0], "receipts", &key(&payload).unwrap())
+        .unwrap()
+        .is_none());
+    r
+}
+#[test]
+fn cap_activation_is_atomic() {
+    let mut f = Fixture::new("100");
+    f.prepare();
+    let reserved = reserve_via_session(&mut f);
+    assert_eq!(reserved["kind"], "ReserveReceipt", "{reserved}");
+    assert_eq!(reserved["record"]["state"], "Reserved");
+    assert!(reserved["record"].get("cap_policy").is_none());
+    assert_eq!(responsibility_total(&latest(&f.dbs[0]).unwrap().3), 90);
+    // 责任 90 > 新 cap 89：拒绝，旧 v1 与账目逐字不变。
+    let low = cap_payload(&f, "1", "2", "89", "100000");
+    let rejected_low = assert_rejected_unchanged(&mut f, "ActivateCapPolicy-low", low, "InvalidDomain");
+    assert!(rejected_low["error"].as_str().unwrap().contains("90"));
+    assert!(latest(&f.dbs[0]).unwrap().3["finance"].get("cap_policy").is_none());
+    // 责任 90 = 新 cap 90：允许，整体切到 v2。
+    let equal = cap_payload(&f, "1", "2", "90", "100000");
+    let activated = f.handle(0, "ActivateCapPolicy-equal", equal.clone());
+    assert_eq!(activated["kind"], "CapPolicyActivatedReceipt", "{activated}");
+    assert_eq!(activated["record"]["state"], "CapPolicyActivated");
+    assert_eq!(activated["record"]["from"]["policy_version"], "1");
+    assert_eq!(activated["record"]["from"]["cap"], "100");
+    assert_eq!(activated["record"]["to"]["policy_version"], "2");
+    assert_eq!(activated["record"]["to"]["cap"], "90");
+    assert_eq!(activated["record"]["liability_at_activation"], "90");
+    let image = latest(&f.dbs[0]).unwrap().3;
+    assert_eq!(image["finance"]["cap_policy"], activated["record"]["to"]);
+    assert_eq!(responsibility_total(&image), 90);
+    // 同一激活重送返回原回执，不重复切换。
+    assert_eq!(f.handle(0, "ActivateCapPolicy-equal", equal), activated);
+    // 基于已被取代的 v1 再激活：CAS 拒绝，v2 与账目逐字不变。
+    let stale = cap_payload(&f, "1", "2", "500", "100000");
+    assert_rejected_unchanged(&mut f, "ActivateCapPolicy-stale", stale, "StaleWriter");
+    // 责任 90 < 新 cap 150：允许 v2→v3。
+    let above = f.handle(
+        0,
+        "ActivateCapPolicy-above",
+        cap_payload(&f, "2", "3", "150", "100000"),
+    );
+    assert_eq!(above["kind"], "CapPolicyActivatedReceipt", "{above}");
+    assert_eq!(above["record"]["from"]["policy_version"], "2");
+    assert_eq!(above["record"]["to"]["cap"], "150");
+    // 既有 grant 仍可 Commit，激活不减仓、不挪责任。
+    for (n, name) in [(1, "alpha"), (2, "beta")] {
+        assert_eq!(f.step(n, "CommitDecision", name)["record"]["state"], "Committed");
+    }
+    assert_eq!(responsibility_total(&latest(&f.dbs[0]).unwrap().3), 90);
+    f.audit();
+    save(
+        &f.dir,
+        "issue1716-cap-activation-oracle.json",
+        &json!({"scope":"#1716 I1-C TestOnly synthetic cap fixture through service::handle; not signed instance","rejected_low":rejected_low,"activated":activated,"above":above,"e_image":latest(&f.dbs[0]).unwrap().3}),
+    );
+}
+#[test]
+fn cap_activation_and_new_liability_rejudged_in_one_atomic_order() {
+    // 先激活 v2(cap 50，原子点责任 20)，后来的 Reserve（#1408 授信消费点）按 v2 判：90 > 50 等待政策。
+    let mut first = Fixture::new("100");
+    first.prepare();
+    let a = first.handle(
+        0,
+        "ActivateCapPolicy-pre",
+        cap_payload(&first, "1", "2", "50", "100000"),
+    );
+    assert_eq!(a["kind"], "CapPolicyActivatedReceipt", "{a}");
+    assert_eq!(a["record"]["liability_at_activation"], "20");
+    let r = reserve_via_session(&mut first);
+    assert_eq!(r["kind"], "ReserveReceipt", "{r}");
+    assert_eq!(r["record"]["state"], "AwaitingAllocationPolicy");
+    assert_eq!(r["record"]["required_total"], "90");
+    assert_eq!(r["record"]["retained_total"], "20");
+    assert_eq!(r["record"]["grants"], json!([]));
+    assert_eq!(r["record"]["cap_policy"], a["record"]["to"]);
+    assert_eq!(responsibility_total(&latest(&first.dbs[0]).unwrap().3), 20);
+    first.audit();
+    // 先 Reserve 增责到 90，后来的激活 cap 50 在其原子点重判：拒绝，Reserved 与责任逐字保留。
+    let mut second = Fixture::new("100");
+    second.prepare();
+    let r = reserve_via_session(&mut second);
+    assert_eq!(r["record"]["state"], "Reserved", "{r}");
+    let late = cap_payload(&second, "1", "2", "50", "100000");
+    assert_rejected_unchanged(&mut second, "ActivateCapPolicy-low", late, "InvalidDomain");
+    assert_eq!(responsibility_total(&latest(&second.dbs[0]).unwrap().3), 90);
+    second.audit();
+}
+#[test]
+fn expired_cap_version_rejection_does_not_restore_credit() {
+    // 新版本有效期在原子点前已过：拒绝激活。
+    let mut f = Fixture::new("100");
+    f.prepare();
+    let stale = cap_payload(&f, "1", "2", "100", "50");
+    assert_rejected_unchanged(&mut f, "ActivateCapPolicy-pre", stale, "MissingDependency");
+    // v2 有效到 91；Reserve 在 92 读 v2，已过期，不授信。
+    let mut g = Fixture::new("100");
+    g.prepare();
+    let a = g.handle(
+        0,
+        "ActivateCapPolicy-pre",
+        cap_payload(&g, "1", "2", "100", "91"),
+    );
+    assert_eq!(a["kind"], "CapPolicyActivatedReceipt", "{a}");
+    let before = latest(&g.dbs[0]).unwrap();
+    c4a_error(&reserve_via_session(&mut g), "MissingDependency");
+    assert_eq!(latest(&g.dbs[0]).unwrap(), before);
+    // 换新版本被责任拒绝后，保留的是已过期 v2：仍不能恢复授信。
+    let low = cap_payload(&g, "2", "3", "10", "100000");
+    assert_rejected_unchanged(&mut g, "ActivateCapPolicy-low", low, "InvalidDomain");
+    c4a_error(&reserve_via_session(&mut g), "MissingDependency");
+    assert_eq!(latest(&g.dbs[0]).unwrap(), before);
+    assert_eq!(responsibility_total(&before.3), 20);
+    g.audit();
+}
+#[test]
+fn cap_activation_sigkill_recovers_whole_old_or_new_version() {
+    for phase in ["before_commit", "after_commit"] {
+        let mut f = Fixture::with_fault("100", Some(("ActivateCapPolicy-equal", phase)));
+        f.prepare();
+        f.step(0, "Reserve", "slot");
+        let request = envelope(
+            "ActivateCapPolicy-equal",
+            cap_payload(&f, "1", "2", "90", "100000"),
+        );
+        let witness = json!({"input_raw":canonical_json(&f.data)});
+        let previous = latest(&f.dbs[0]).unwrap();
+        let job = json!({"action":"write","manifest":f.dir.join("manifest.json"),"db":f.configs[0].db,"chong":Value::Null,"request":request,"witness":witness});
+        let mut process = child(&f.dir, &job, "persist");
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+        while !f.dir.join("fault-marker.json").exists() {
+            if let Some(status) = process.try_wait().unwrap() {
+                panic!("子进程未到故障缝即退出 {status}: {}", f.dir.display())
+            }
+            if std::time::Instant::now() >= deadline {
+                let _ = process.kill();
+                let _ = process.wait();
+                panic!("故障 marker 超时：{}", f.dir.display())
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        process.kill().unwrap();
+        let killed = process.wait().unwrap();
+        use std::os::unix::process::ExitStatusExt;
+        assert_eq!(killed.signal(), Some(9));
+        let committed = phase == "after_commit";
+        let current = latest(&f.dbs[0]).unwrap();
+        assert_eq!(current.0, previous.0 + i64::from(committed));
+        if !committed {
+            assert_eq!(current, previous);
+        }
+        let mut recovery_job = job.clone();
+        recovery_job["action"] = json!("recover");
+        assert!(child(&f.dir, &recovery_job, "recover").wait().unwrap().success());
+        assert_eq!(latest(&f.dbs[0]).unwrap(), current);
+        audit(&f.dbs[0], &f.configs[0]).unwrap();
+        let fin = &current.3["finance"];
+        if committed {
+            assert_eq!(fin["cap_policy"]["policy_version"], "2");
+            assert_eq!(fin["cap_policy"]["cap"], "90");
+        } else {
+            assert!(fin.get("cap_policy").is_none());
+        }
+        assert_eq!(responsibility_total(&current.3), 90);
+        let original = row(&f.dbs[0], "receipts", &key(&request["payload"]).unwrap()).unwrap();
+        assert_eq!(original.is_some(), committed);
+        if committed {
+            assert_eq!(
+                write(&mut f.dbs[0], &f.configs[0], 2, &request).unwrap(),
+                original.unwrap()
+            );
+        } else {
+            assert!(write(&mut f.dbs[0], &f.configs[0], 2, &request)
+                .unwrap_err()
+                .contains("StaleWriter"));
+        }
+        save(
+            &f.dir,
+            "issue1716-cap-sigkill.json",
+            &json!({"phase":phase,"signal":killed.signal(),"committed":committed,"e_image":current.3}),
+        );
+    }
 }

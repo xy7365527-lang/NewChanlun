@@ -43,6 +43,21 @@ fn revision(m: &Value) -> Result<&'static str, String> {
 const LIMIT: usize = 16 * 1024 * 1024;
 /// #1349 共同资金争用政策的具名 id（ADR 0029 裁定一：整 slot 原子等待）。版本字段与失效/重组归 #1408。
 pub(super) const ALLOCATION_POLICY_ID: &str = "#1349/atomic-slot-wait/v1";
+/// #1716 I1-C（ADR 0049 Q1）：E 当前生效 cap 版本记录。创世版本 1 由冻结原件 `policy` 派生；
+/// 只有显式 `ActivateCapPolicy` 在同一原子点核当前责任后整体切换，不提供自动排队激活。
+const CAP_POLICY_REV: &str = "funding-cap-policy/1";
+fn active_cap_policy(config: &Config, image: &Value, d: &Value) -> Result<Value, String> {
+    match finance(config, image)?.get("cap_policy") {
+        Some(active) if !active.is_null() => Ok(active.clone()),
+        _ => Ok(json!({
+            "schema_revision": CAP_POLICY_REV,
+            "policy_id": d["policy"]["policy_id"],
+            "policy_version": "1",
+            "cap": d["policy"]["cap"],
+            "valid_through_ns": d["policy"]["valid_through_ns"],
+        })),
+    }
+}
 pub(super) fn enabled(config: &Config) -> bool {
     config.manifest.get("finance").is_some_and(|v| !v.is_null())
 }
@@ -530,6 +545,7 @@ pub(super) fn is_event(v: &Value) -> bool {
                 | "CommitDecision"
                 | "AbortDecision"
                 | "CloseApplicants"
+                | "ActivateCapPolicy"
         )
     )
 }
@@ -540,6 +556,8 @@ fn operation_id<'a>(p: &'a Value) -> Result<&'a str, String> {
             "responsibility_id"
         } else if matches!(p["op"].as_str(), Some("Reserve" | "CloseApplicants")) {
             "slot_id"
+        } else if p["op"] == "ActivateCapPolicy" {
+            "activation_id"
         } else {
             "decision_id"
         },
@@ -566,6 +584,28 @@ fn validate_request(p: &Value) -> Result<(), String> {
             &["op", "decision_id", "plan_hash", "writer_epoch", "reason"],
         ),
         "CloseApplicants" => exact(p, &["op", "slot_id", "writer_epoch", "closed", "reason"]),
+        "ActivateCapPolicy" => {
+            exact(
+                p,
+                &[
+                    "op",
+                    "activation_id",
+                    "policy_id",
+                    "from_version",
+                    "to_version",
+                    "cap",
+                    "valid_through_ns",
+                    "writer_epoch",
+                ],
+            )?;
+            required(p, "activation_id")?;
+            required(p, "policy_id")?;
+            positive(required(p, "from_version")?, "cap from_version")?;
+            positive(required(p, "to_version")?, "cap to_version")?;
+            positive(required(p, "cap")?, "new cap")?;
+            nonnegative(required(p, "valid_through_ns")?, "cap valid_through_ns")?;
+            Ok(())
+        }
         _ => Err("SchemaUnsupported：未知财务操作".into()),
     }?;
     positive(required(p, "writer_epoch")?, "request writer_epoch")?;
@@ -904,8 +944,15 @@ fn reduce_with_budget(
     validate_request(p)?;
     let op = required(p, "op")?;
     let d = input(config, required(w, "input_raw")?)?;
-    if !matches!(op, "AbortDecision" | "CloseApplicants")
-        && number(&d["policy"], "valid_through_ns")? < nonnegative(ns, "commit_ns")?
+    // #1716：E 的 Reserve 读当前生效 cap 版本的有效期；激活事件自核新版本有效期，不受旧版本过期挡。
+    let active = active_cap_policy(config, previous, &d)?;
+    let validity = if op == "Reserve" {
+        number(&active, "valid_through_ns")?
+    } else {
+        number(&d["policy"], "valid_through_ns")?
+    };
+    if !matches!(op, "AbortDecision" | "CloseApplicants" | "ActivateCapPolicy")
+        && validity < nonnegative(ns, "commit_ns")?
     {
         return Err("MissingDependency：共同界/能力证据过期".into());
     }
@@ -1082,8 +1129,11 @@ fn reduce_with_budget(
                 .iter()
                 .try_fold(0i64, |a, r| add(a, number(r, "amount")?))?;
             let total = add(existing, additional)?;
-            let all_fit = total <= number(&d["policy"], "cap")?;
-            let r = json!({"slot_id":slot["slot_id"],"slot":slot,"state":if all_fit{"Reserved"}else{"AwaitingAllocationPolicy"},"policy_id":d["policy"]["policy_id"],"waiting_for":if all_fit{Value::Null}else{d["policy"]["allocation_policy_id"].clone()},"required_total":total.to_string(),"retained_total":if all_fit{total}else{existing}.to_string(),"grants":if all_fit{grants.clone()}else{vec![]},"closed_applicants":closed,"reserve_seq":seq.to_string(),"reserve_ns":ns});
+            let all_fit = total <= number(&active, "cap")?;
+            let mut r = json!({"slot_id":slot["slot_id"],"slot":slot,"state":if all_fit{"Reserved"}else{"AwaitingAllocationPolicy"},"policy_id":d["policy"]["policy_id"],"waiting_for":if all_fit{Value::Null}else{d["policy"]["allocation_policy_id"].clone()},"required_total":total.to_string(),"retained_total":if all_fit{total}else{existing}.to_string(),"grants":if all_fit{grants.clone()}else{vec![]},"closed_applicants":closed,"reserve_seq":seq.to_string(),"reserve_ns":ns});
+            if f.get("cap_policy").is_some_and(|v| !v.is_null()) {
+                r["cap_policy"] = active.clone();
+            }
             let f = &mut next["finance"];
             if all_fit {
                 for g in grants {
@@ -1197,6 +1247,41 @@ fn reduce_with_budget(
                 .unwrap() = r.clone();
             r
         }
+        "ActivateCapPolicy" => {
+            if config.domain != "E" {
+                return Err("InvalidDomain：cap 激活仅 E".into());
+            }
+            if p["policy_id"] != d["policy"]["policy_id"] {
+                return Err("IdentityConflict：激活 policy_id 不属于冻结资金政策".into());
+            }
+            if p["from_version"] != active["policy_version"] {
+                return Err(format!(
+                    "StaleWriter：激活基于 cap 版本 {}，当前生效 {}",
+                    required(p, "from_version")?,
+                    required(&active, "policy_version")?
+                ));
+            }
+            let from = positive(required(p, "from_version")?, "cap from_version")?;
+            if positive(required(p, "to_version")?, "cap to_version")? != add(from, 1)? {
+                return Err("IdentityConflict：新 cap 版本须为当前版本+1".into());
+            }
+            let commit_ns = nonnegative(ns, "commit_ns")?;
+            if nonnegative(required(p, "valid_through_ns")?, "cap valid_through_ns")? < commit_ns {
+                return Err("MissingDependency：新 cap 版本在原子点已过期".into());
+            }
+            let cap = positive(required(p, "cap")?, "new cap")?;
+            let liability = list(finance(config, previous)?, "responsibilities")?
+                .iter()
+                .try_fold(0i64, |a, r| add(a, number(r, "amount")?))?;
+            if liability > cap {
+                return Err(format!(
+                    "InvalidDomain：新 cap {cap} 低于原子点当前责任 {liability}；保留原生效版本"
+                ));
+            }
+            let new = json!({"schema_revision":CAP_POLICY_REV,"policy_id":p["policy_id"],"policy_version":p["to_version"],"cap":p["cap"],"valid_through_ns":p["valid_through_ns"],"activation_id":p["activation_id"],"replaces_version":p["from_version"],"liability_at_activation":liability.to_string(),"activated_seq":seq.to_string(),"activated_ns":ns});
+            next["finance"]["cap_policy"] = new.clone();
+            json!({"activation_id":p["activation_id"],"state":"CapPolicyActivated","from":active,"to":new,"liability_at_activation":liability.to_string()})
+        }
         "CloseApplicants" => {
             if config.domain != "E" {
                 return Err("InvalidDomain：代际关闭仅 E".into());
@@ -1247,6 +1332,7 @@ pub(super) fn receipt(config: &Config, event: &Value, cut: Value) -> Result<Valu
         "CommitDecision" => "LocalCommitReceipt",
         "AbortDecision" => "AbortReceipt",
         "CloseApplicants" => "ApplicantsClosedReceipt",
+        "ActivateCapPolicy" => "CapPolicyActivatedReceipt",
         _ => return Err("SchemaUnsupported：未知财务事件".into()),
     };
     Ok(
@@ -1479,7 +1565,7 @@ pub(super) fn write_with_ingress(
             )?;
             w["structure"] = structure(config)?;
         }
-        "ImportResponsibility" | "AbortDecision" | "CloseApplicants" => (),
+        "ImportResponsibility" | "AbortDecision" | "CloseApplicants" | "ActivateCapPolicy" => (),
         _ => return Err("SchemaUnsupported：财务操作未知".into()),
     }
     persist(c, config, epoch, e, w)
@@ -1566,7 +1652,7 @@ fn write_v2_inner(
                 receipt_key_for(config, "Reserve", required(q, "slot_id")?)?,
             ));
         }
-        "ImportResponsibility" | "AbortDecision" | "CloseApplicants" => (),
+        "ImportResponsibility" | "AbortDecision" | "CloseApplicants" | "ActivateCapPolicy" => (),
         _ => return Err("SchemaUnsupported：财务操作未知".into()),
     }
     let token = format!(
