@@ -47,7 +47,7 @@ mod tests {
     use super::super::super::parser::{parse_layer, ParseLayer, ParseLayerIncr};
     use super::super::super::types::{Bar, Direction, Segment};
     use super::super::data;
-    use super::super::prereg_windows::{OOS_START, PREREG_WINDOWS};
+    use super::super::prereg_windows::{WfWindow, OOS_START, PREREG_WINDOWS};
     use super::super::segment_gn::tests::parse_invalid_note;
 
     const FEE: f64 = 3e-4; // 单边，config.rs:228-230 冻结口径
@@ -163,6 +163,70 @@ mod tests {
                 quantile(&gs, 0.5) * 100.0,
                 mean * 100.0,
             )
+        }
+    }
+
+    struct TradeSummary {
+        dir_mismatch: usize,
+        no_theory: usize,
+        tainted: usize,
+        per_win: Vec<Agg>,
+        pooled_wf: Agg,
+        pooled_oos: Agg,
+        yearly: std::collections::BTreeMap<String, Agg>,
+    }
+
+    fn summarize_trades(
+        trades: &[TradeRec],
+        fin: &ParseLayer,
+        windows: &[WfWindow],
+        dates: &[String],
+    ) -> TradeSummary {
+        // ── 理论分母连接 + 方向对拍 ──
+        let mut dir_mismatch = 0usize;
+        let mut no_theory = 0usize;
+        let theory = |tr: &TradeRec| -> Option<f64> {
+            final_seg(fin, tr.seg_idx)
+                .map(|s| (s.start_price.max(s.end_price) - s.start_price.min(s.end_price)) as f64)
+        };
+        for tr in trades {
+            match final_seg(fin, tr.seg_idx) {
+                Some(s) if s.direction != tr.dir => dir_mismatch += 1,
+                None => no_theory += 1,
+                _ => {}
+            }
+        }
+
+        // ── 聚合 ──
+        let mut per_win: Vec<Agg> = windows.iter().map(|_| Agg::new()).collect();
+        let mut pooled_wf = Agg::new(); // 非 clipped 全 wf 窗
+        let mut pooled_oos = Agg::new(); // 非 clipped 且 test_start ≥ OOS_START
+        let mut yearly: std::collections::BTreeMap<String, Agg> = Default::default();
+        // #1585：受段解析无效污染的交易不入任何聚合（只计数）。
+        let tainted = trades.iter().filter(|tr| tr.parse_invalid).count();
+        for tr in trades.iter().filter(|tr| !tr.parse_invalid) {
+            let th = theory(tr);
+            if let Some((wi, clipped)) = tr.win {
+                per_win[wi as usize].push(tr, th);
+                if !clipped {
+                    pooled_wf.push(tr, th);
+                    if windows[wi as usize].test_start >= OOS_START {
+                        pooled_oos.push(tr, th);
+                    }
+                }
+            }
+            let y = dates[tr.entry_bar].get(..4).unwrap_or("????").to_string();
+            yearly.entry(y).or_insert_with(Agg::new).push(tr, th);
+        }
+
+        TradeSummary {
+            dir_mismatch,
+            no_theory,
+            tainted,
+            per_win,
+            pooled_wf,
+            pooled_oos,
+            yearly,
         }
     }
 
@@ -511,45 +575,15 @@ mod tests {
             ..
         } = rp;
 
-        // ── 理论分母连接 + 方向对拍 ──
-        let mut dir_mismatch = 0usize;
-        let mut no_theory = 0usize;
-        let theory = |tr: &TradeRec| -> Option<f64> {
-            final_seg(&fin, tr.seg_idx)
-                .map(|s| (s.start_price.max(s.end_price) - s.start_price.min(s.end_price)) as f64)
-        };
-        for tr in &trades {
-            match final_seg(&fin, tr.seg_idx) {
-                Some(s) if s.direction != tr.dir => dir_mismatch += 1,
-                None => no_theory += 1,
-                _ => {}
-            }
-        }
-
-        // ── 聚合 ──
-        let mut per_win: Vec<Agg> = windows.iter().map(|_| Agg::new()).collect();
-        let mut pooled_wf = Agg::new(); // 非 clipped 全 wf 窗
-        let mut pooled_oos = Agg::new(); // 非 clipped 且 test_start ≥ OOS_START
-        let mut yearly: std::collections::BTreeMap<String, Agg> = Default::default();
-        // #1585：受段解析无效污染的交易不入任何聚合（只计数）。
-        let tainted = trades.iter().filter(|tr| tr.parse_invalid).count();
-        for tr in trades.iter().filter(|tr| !tr.parse_invalid) {
-            let th = theory(tr);
-            if let Some((wi, clipped)) = tr.win {
-                per_win[wi as usize].push(tr, th);
-                if !clipped {
-                    pooled_wf.push(tr, th);
-                    if windows[wi as usize].test_start >= OOS_START {
-                        pooled_oos.push(tr, th);
-                    }
-                }
-            }
-            let y = ds.dates[tr.entry_bar]
-                .get(..4)
-                .unwrap_or("????")
-                .to_string();
-            yearly.entry(y).or_insert_with(Agg::new).push(tr, th);
-        }
+        let TradeSummary {
+            dir_mismatch,
+            no_theory,
+            tainted,
+            per_win,
+            pooled_wf,
+            pooled_oos,
+            yearly,
+        } = summarize_trades(&trades, &fin, windows, &ds.dates);
 
         println!(
             "== S3 捕获率回测（因果重放，bars={} segments={}）==",
@@ -725,10 +759,28 @@ mod tests {
                 assert_eq!(tr.exit, if exit_kind == 0 { 102.0 } else { 95.0 });
                 assert_eq!(tr.stopped, exit_kind == 2);
                 assert_eq!(boundary, usize::from(exit_kind == 0));
+                let windows = [WfWindow {
+                    i: 0,
+                    train_start: "2022-01-01",
+                    train_end: "2022-12-31",
+                    test_start: OOS_START,
+                    test_end: "2023-06-30",
+                    clipped: false,
+                }];
+                let summary =
+                    summarize_trades(&rp.trades, &layer, &windows, &[OOS_START.to_string()]);
+                let included = usize::from(!marked);
+                assert_eq!(summary.per_win[0].n, included, "逐窗");
+                assert_eq!(summary.pooled_wf.n, included, "wf");
+                assert_eq!(summary.pooled_oos.n, included, "OOS");
                 assert_eq!(
-                    rp.trades.iter().filter(|tr| !tr.parse_invalid).count(),
-                    usize::from(!marked)
+                    summary.yearly.values().map(|agg| agg.n).sum::<usize>(),
+                    included,
+                    "逐年"
                 );
+                assert_eq!(summary.tainted, usize::from(marked));
+                assert_eq!(summary.no_theory, 1, "诊断保留全部交易");
+                assert_eq!(summary.dir_mismatch, 0);
                 assert_eq!(
                     rp.invalid_runs,
                     if marked { vec![(1, 1, 0)] } else { vec![] }
