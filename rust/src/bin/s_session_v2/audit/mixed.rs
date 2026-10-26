@@ -246,6 +246,10 @@ impl Family {
         }
         Ok(())
     }
+    #[cfg(test)]
+    pub(crate) fn len(&self) -> usize {
+        self.records.len()
+    }
 }
 
 pub(crate) fn read_facts(

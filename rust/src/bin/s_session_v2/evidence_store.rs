@@ -2589,6 +2589,10 @@ impl ObservedLegacyNode<'_> {
     ) -> &newchan_rust::s_content::legacy_evidence::CheckedLegacyEvidenceRow {
         &self.checked
     }
+    #[cfg(test)]
+    pub(crate) fn payload(&self) -> &[u8] {
+        &self.payload
+    }
     /// 当前原件已核且已接纳之后才能比较持久证书；不发布新资格。
     pub(crate) fn certificate(
         &self,

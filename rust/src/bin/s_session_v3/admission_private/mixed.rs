@@ -215,10 +215,10 @@ mod tests {
                 Err(_) => panic!("mixed private work failed"),
             };
             assert_eq!(
-                sealed.protocol.as_ref().map(|p| p.as_str()),
+                sealed._protocol.as_ref().map(|p| p.as_str()),
                 Some("s-session/2")
             );
-            assert_eq!(sealed.epoch.as_str(), "1");
+            assert_eq!(sealed._epoch.as_str(), "1");
             assert!(sealed.require(&RejectionPrefix::None).is_ok());
             assert!(sealed.require(&RejectionPrefix::UnboundRecover).is_err());
             let mut finished = started.seal().unwrap();

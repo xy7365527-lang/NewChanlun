@@ -2298,7 +2298,7 @@ mod tests {
 }
 
 /// #1394：显式 Native TestOnly 当前事务捕获；普通容器，不附资源额度或生产资格。
-#[cfg(any(test, feature = "s_capture_native_testonly"))]
+#[cfg(test)]
 pub(crate) fn capture_for_prototype(
     tx: &Transaction<'_>,
 ) -> Result<s_content::AuditCapture, CodecError> {
@@ -2424,7 +2424,7 @@ impl OriginalScanScratch {
 }
 
 /// Native cold entry: checked borrowed SQL bodies are copied only after parent admission.
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
 pub(crate) fn capture_for_request_prototype_admitted(
     tx: &Transaction<'_>,
     work: Option<&WorkScope>,
@@ -2442,7 +2442,7 @@ pub(crate) fn capture_for_request_prototype_admitted_measured(
     }
     capture_originals_admitted(tx, None, work, observer).map(|(capture, count, _)| (capture, count))
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
 pub(crate) fn capture_with_original_subset_for_source_cache_admitted(
     tx: &Transaction<'_>,
     prior: Option<(&s_content::AuditCapture, usize)>,
@@ -2625,7 +2625,7 @@ pub(crate) fn current_originals_equal_for_request_with_scratch_admitted_measured
 }
 
 /// 计数取自刚构建的完整原件集合，只供私有Native请求slot核对覆盖；不增加capture字段。
-#[cfg(any(test, feature = "s_capture_native_testonly"))]
+#[cfg(test)]
 pub(crate) fn capture_for_request_prototype(
     tx: &Transaction<'_>,
 ) -> Result<(s_content::AuditCapture, usize), CodecError> {
@@ -2680,7 +2680,7 @@ pub(crate) fn current_originals_equal_for_request(
     current_originals_equal_for_request_with_scratch(tx, capture, expected_nodes, &mut scratch)
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
 pub(crate) fn current_originals_equal_for_request_with_scratch(
     tx: &Transaction<'_>,
     capture: &s_content::AuditCapture,
@@ -2748,7 +2748,7 @@ pub(crate) fn current_originals_equal_for_request_with_scratch_measured(
 
 /// #1394 隔离测试：本次完整捕获同时逐tuple绑定旧原件超集，允许正常新增节点。
 /// 不把旧memo移入新捕获；任何行的SQL/type错误均直接返回，包括已发现mismatch之后。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
 pub(crate) fn capture_with_original_subset_for_source_cache(
     tx: &Transaction<'_>,
     prior: Option<(&s_content::AuditCapture, usize)>,
