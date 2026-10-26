@@ -50,16 +50,45 @@ use crate::v3::native_shared::{NativeArc as Arc, NativeWeakArc as Weak};
 type Identity = (String, String, (String, String), String, String);
 /// 本次捕获的全部私有根证明。无法保留的根仍须带键，以 `None` 禁止前缀复用。
 pub(super) type Originals = BTreeMap<String, Option<Arc<RootCert>>>;
-struct Root {
+struct LegacyRoot {
     rows: Vec<DeltaRow>,
     identity: Identity,
     /// batch、Delta、fact 的全部私有根证明；只持弱引用，不让被驱逐原件逃出预算。
     /// 旧整块域为空，行内原件由 `rows` / `AuditWalk` 逐字节比较。
-    originals: BTreeMap<String, Option<Weak<RootCert>>>,
+    originals: BTreeMap<String, Option<Weak<()>>>,
     walk: audit::AuditWalk,
     bytes: usize,
 }
 
+#[path = "cache/mixed.rs"]
+pub(crate) mod mixed;
+enum Root {
+    Legacy(Arc<LegacyRoot>),
+    Mixed(Arc<mixed::Root>),
+}
+impl Clone for Root {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Legacy(r) => Self::Legacy(r.clone()),
+            Self::Mixed(r) => Self::Mixed(r.clone()),
+        }
+    }
+}
+impl Root {
+    fn bytes(&self) -> usize {
+        match self {
+            Self::Legacy(r) => r.bytes,
+            Self::Mixed(r) => r.bytes,
+        }
+    }
+    #[cfg(test)]
+    fn rows_len(&self) -> usize {
+        match self {
+            Self::Legacy(r) => r.rows.len(),
+            Self::Mixed(r) => r.rows.len(),
+        }
+    }
+}
 /// 一个唯一节点的**精确原件证书**：原始行（种类 + payload 原字节 + 声明长度）与有序直接子节点
 /// 引用。子引用就是子证书的键（内容寻址 id），故证书图不需要递归深链，也不需要第二层摘要。
 pub(super) struct Cert {
@@ -93,8 +122,46 @@ pub(super) struct RootCert {
     pub(super) content_sha256: TextValue,
     // 原件池一旦丢失或替换节点，这份证明失效；此令牌仅负责失效，不能替代新鲜原件比较。
     lineage: Weak<()>,
+    identity: Option<Arc<()>>,
 }
 impl RootCert {
+    pub(super) fn copy_mixed(
+        &self,
+        work: &WorkScope,
+    ) -> Result<Self, newchan_rust::s_content::CodecError> {
+        self.slots.check_retained_source()?;
+        if let Some(identity) = &self.identity {
+            identity.check_retained_source()?;
+        }
+        let mut slots = newchan_rust::s_content::CodecVec::default();
+        slots.try_reserve_native(work, self.slots.len())?;
+        for slot in &self.slots {
+            slots.try_push(*slot)?;
+        }
+        Ok(Self {
+            node: self.node,
+            slots,
+            expanded_length: self.expanded_length,
+            content_sha256: self.content_sha256.try_clone_mixed(work)?,
+            lineage: self.lineage.clone(),
+            identity: self.identity.clone(),
+        })
+    }
+    fn identity_weak(&self) -> Weak<()> {
+        self.identity
+            .as_ref()
+            .map(Arc::downgrade)
+            .unwrap_or_else(Weak::new)
+    }
+    fn identity_ptr(&self) -> usize {
+        self.identity
+            .as_ref()
+            .map_or(0, |id| Arc::as_ptr(id) as usize)
+    }
+    fn same_identity(&self, other: &Self) -> bool {
+        matches!((&self.identity,&other.identity),(Some(a),Some(b)) if Arc::ptr_eq(a,b))
+    }
+
     #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     pub(super) fn new(
         node: [u8; 32],
@@ -108,6 +175,7 @@ impl RootCert {
             expanded_length,
             content_sha256: TextValue::Plain(NativeValue::<String>::from_unscoped(content_sha256)),
             lineage: Weak::new(),
+            identity: None,
         }
     }
     pub(super) fn new_admitted(
@@ -122,6 +190,7 @@ impl RootCert {
             expanded_length,
             content_sha256: TextValue::Plain(content_sha256),
             lineage: Weak::new(),
+            identity: None,
         }
     }
     /// 逐字节比较**实际原件**：根指针、有序槽列、声明长度、内容摘要。
@@ -152,7 +221,7 @@ impl RootCert {
 /// （指针同一），故摘要相等既不是充分条件也不是唯一条件。
 struct Handle {
     closure: [u8; 32],
-    root_cert: Option<Weak<RootCert>>,
+    root_cert: Option<Weak<()>>,
     bytes: Arc<[u8]>,
     value: Option<Arc<SharedPlainJson>>,
     cost: usize,
@@ -161,7 +230,7 @@ struct Handle {
 struct BatchHeaderEntry {
     batch_id: TextValue,
     byte_len: usize,
-    root_cert: Weak<RootCert>,
+    root_cert: Weak<()>,
     closure: [u8; 32],
     header: BatchControlHeader,
     cost: usize,
@@ -259,7 +328,7 @@ impl Memo {
         self.capture.as_ref().map_or(0, |c| c.bytes)
     }
     fn root_bytes(&self) -> usize {
-        self.root.as_ref().map_or(0, |r| r.bytes)
+        self.root.as_ref().map_or(0, |r| r.bytes())
     }
     /// 跨请求**保留量**：root walk + 持久句柄 + 小控制头 + 持久原件证书。由单一 `limit` 约束。
     fn retained_bytes(&self) -> usize {
@@ -273,30 +342,36 @@ impl Memo {
         self.retained_bytes().saturating_add(self.capture_bytes())
     }
     /// 按开销从大到小驱逐句柄，直到句柄总量不超过给定预算（不整块清空）。
+    #[cfg(test)]
     fn trim_handles(&mut self, budget: usize) {
         self.trim_handles_admitted(budget, None)
             .expect("None admission cannot fail")
     }
+    #[cfg(test)]
     fn trim_handles_admitted(
         &mut self,
         budget: usize,
         work: Option<&WorkScope>,
     ) -> Result<(), String> {
+        self.trim_handles_typed(budget, work)
+            .map_err(|e| e.to_string())
+    }
+    fn trim_handles_typed(
+        &mut self,
+        budget: usize,
+        work: Option<&WorkScope>,
+    ) -> Result<(), newchan_rust::s_content::CodecError> {
         let admission = NativeAdmission(work);
         if self.handles_bytes <= budget {
             return Ok(());
         }
         let mut order = newchan_rust::s_content::CodecVec::default();
-        admission
-            .native_vec_room(&mut order, self.handles.len())
-            .map_err(|e| e.to_string())?;
+        admission.native_vec_room(&mut order, self.handles.len())?;
         for (key, entry) in &self.handles {
-            order
-                .try_push((
-                    entry.cost,
-                    admission.native_text(key).map_err(|e| e.to_string())?,
-                ))
-                .map_err(|e| e.to_string())?;
+            order.try_push((
+                entry.cost,
+                TextValue::from_str_admitted_typed(key, None, work)?,
+            ))?;
         }
         order.sort_unstable_by(|a, b| b.cmp(a));
         let mut over = self.handles_bytes - budget;
@@ -320,30 +395,36 @@ impl Memo {
             self.batch_headers_bytes = self.batch_headers_bytes.saturating_sub(old.cost);
         }
     }
+    #[cfg(test)]
     fn trim_batch_headers(&mut self, budget: usize) {
         self.trim_batch_headers_admitted(budget, None)
             .expect("None admission cannot fail")
     }
+    #[cfg(test)]
     fn trim_batch_headers_admitted(
         &mut self,
         budget: usize,
         work: Option<&WorkScope>,
     ) -> Result<(), String> {
+        self.trim_batch_headers_typed(budget, work)
+            .map_err(|e| e.to_string())
+    }
+    fn trim_batch_headers_typed(
+        &mut self,
+        budget: usize,
+        work: Option<&WorkScope>,
+    ) -> Result<(), newchan_rust::s_content::CodecError> {
         let admission = NativeAdmission(work);
         if self.batch_headers_bytes <= budget {
             return Ok(());
         }
         let mut order = newchan_rust::s_content::CodecVec::default();
-        admission
-            .native_vec_room(&mut order, self.batch_headers.len())
-            .map_err(|e| e.to_string())?;
+        admission.native_vec_room(&mut order, self.batch_headers.len())?;
         for (key, entry) in &self.batch_headers {
-            order
-                .try_push((
-                    entry.cost,
-                    admission.native_text(key).map_err(|e| e.to_string())?,
-                ))
-                .map_err(|e| e.to_string())?;
+            order.try_push((
+                entry.cost,
+                TextValue::from_str_admitted_typed(key, None, work)?,
+            ))?;
         }
         order.sort_unstable_by(|a, b| b.cmp(a));
         for (_, key) in order {
@@ -357,13 +438,14 @@ impl Memo {
         Ok(())
     }
     /// 单一预算下先丢大句柄、再丢小控制头；不为准入旋转原件池。
-    fn make_room_admitted(
+    /// #1527：先为两组驱逐计划完成所有许可，再改原cache；拒绝保留旧合法条目。
+    fn make_room_typed(
         &mut self,
         cost: usize,
         work: Option<&WorkScope>,
-    ) -> Result<bool, String> {
-        // 先判这一项在**没有句柄/控制头**时能否装下：装不下就不该为它驱逐其他仍可复用项
-        // （单条过大只跳过自己，不牵连别人）。
+    ) -> Result<bool, newchan_rust::s_content::CodecError> {
+        use newchan_rust::s_content::{capture_allocation::native_owned::NativeValue, CodecVec};
+        let admission = NativeAdmission(work);
         let floor = self
             .root_bytes()
             .saturating_add(self.certs_bytes)
@@ -375,20 +457,58 @@ impl Memo {
         if used.saturating_add(cost) <= self.limit {
             return Ok(true);
         }
-        let need = used.saturating_add(cost).saturating_sub(self.limit);
-        self.trim_handles_admitted(self.handles_bytes.saturating_sub(need), work)?;
-        let need = self
-            .retained_bytes()
-            .saturating_add(self.capture_bytes())
-            .saturating_add(cost)
-            .saturating_sub(self.limit);
-        self.trim_batch_headers_admitted(self.batch_headers_bytes.saturating_sub(need), work)?;
+        let mut need = used.saturating_add(cost).saturating_sub(self.limit);
+        let mut handles = CodecVec::default();
+        admission.native_vec_room(&mut handles, self.handles.len())?;
+        for (key, entry) in &self.handles {
+            handles.try_push((entry.cost, NativeValue::try_from_str(key, work)?))?;
+        }
+        handles.sort_unstable_by(|a, b| b.cmp(a));
+        let mut handle_count = 0;
+        for (bytes, _) in &handles {
+            if need == 0 {
+                break;
+            }
+            need = need.saturating_sub(*bytes);
+            handle_count += 1;
+        }
+        let mut headers = CodecVec::default();
+        let mut header_count = 0;
+        if need != 0 {
+            admission.native_vec_room(&mut headers, self.batch_headers.len())?;
+            for (key, entry) in &self.batch_headers {
+                headers.try_push((entry.cost, NativeValue::try_from_str(key, work)?))?;
+            }
+            headers.sort_unstable_by(|a, b| b.cmp(a));
+            for (bytes, _) in &headers {
+                if need == 0 {
+                    break;
+                }
+                need = need.saturating_sub(*bytes);
+                header_count += 1;
+            }
+        }
+        for (bytes, key) in handles.into_iter().take(handle_count) {
+            self.handles.remove(key.as_str());
+            self.handles_bytes = self.handles_bytes.saturating_sub(bytes);
+            #[cfg(test)]
+            counter(|c| {
+                c.handle_capacity_evictions += 1;
+                c.handle_capacity_evicted_bytes += bytes;
+            });
+        }
+        for (_, key) in headers.into_iter().take(header_count) {
+            self.remove_batch_header(key.as_str());
+            #[cfg(test)]
+            counter(|c| c.batch_header_capacity_evictions += 1);
+        }
         Ok(self
             .retained_bytes()
             .saturating_add(self.capture_bytes())
             .saturating_add(cost)
             <= self.limit)
     }
+
     /// 移除索引后，捕获若仍持有原件，把唯一 payload 费用转给其中一个读集条目。
     fn remove_cert(&mut self, key: &[u8; 32]) {
         self.remove_cert_admitted(key, None)
@@ -399,12 +519,19 @@ impl Memo {
         key: &[u8; 32],
         work: Option<&WorkScope>,
     ) -> Result<(), String> {
+        self.remove_cert_typed(key, work).map_err(|e| e.to_string())
+    }
+    fn remove_cert_typed(
+        &mut self,
+        key: &[u8; 32],
+        work: Option<&WorkScope>,
+    ) -> Result<(), newchan_rust::s_content::CodecError> {
         let admission = NativeAdmission(work);
         if let Some(work) = work {
-            work.check_current().map_err(|e| e.to_string())?;
+            work.check_current()?;
         }
         let next_lineage = if self.certs.contains_key(key) {
-            Some(Arc::try_new_shallow((), work).map_err(|e| e.to_string())?)
+            Some(Arc::try_new_shallow((), work)?)
         } else {
             None
         };
@@ -421,9 +548,7 @@ impl Memo {
                 .map(|(key, _)| *key)
             {
                 Some(owner) => {
-                    c.owned
-                        .insert_admitted(owner, &admission)
-                        .map_err(|e| e.to_string())?;
+                    c.owned.insert_admitted(owner, &admission)?;
                     true
                 }
                 None => false,
@@ -447,22 +572,32 @@ impl Memo {
     }
     /// 驱逐独有节点证书（单条最大者优先）与根证书，直到证书总量不超过给定预算。
     /// 证书只影响复用、不影响任何判据；根证书被驱逐时其句柄一并作废（不留永远命不中的死句柄）。
+    #[cfg(test)]
     fn trim_certs(&mut self, budget: usize) {
+        self.trim_certs_typed(budget, None)
+            .expect("None admission cannot fail")
+    }
+    fn trim_certs_typed(
+        &mut self,
+        budget: usize,
+        work: Option<&WorkScope>,
+    ) -> Result<(), newchan_rust::s_content::CodecError> {
+        let admission = NativeAdmission(work);
         if self.certs_bytes <= budget {
-            return;
+            return Ok(());
         }
         let mut over = self.certs_bytes - budget;
-        let mut order = self
-            .certs
-            .iter()
-            .map(|(k, c)| (c.payload_cost(), *k))
-            .collect::<Vec<_>>();
-        order.sort_by(|a, b| b.cmp(a));
+        let mut order = newchan_rust::s_content::CodecVec::default();
+        admission.native_vec_room(&mut order, self.certs.len())?;
+        for (key, cert) in self.certs.iter() {
+            order.try_push((cert.payload_cost(), *key))?;
+        }
+        order.sort_unstable_by(|a, b| b.cmp(a));
         for (cost, key) in order {
             if over == 0 {
                 break;
             }
-            self.remove_cert(&key);
+            self.remove_cert_typed(&key, work)?;
             #[cfg(test)]
             counter(|c| c.node_cert_capacity_evictions += 1);
             over = over.saturating_sub(cost);
@@ -470,22 +605,22 @@ impl Memo {
         if over > 0 {
             // 排序只保留固定宽度证书身份，不从持费根键复制裸String。
             let mut order = {
-                let mut borrowed = self
-                    .root_certs
-                    .iter()
-                    .map(|(key, cert)| {
-                        (
-                            cert.cost().saturating_add(key.len()),
-                            key.as_str(),
-                            Arc::as_ptr(cert) as usize,
-                        )
-                    })
-                    .collect::<Vec<_>>();
+                let mut borrowed = newchan_rust::s_content::CodecVec::default();
+                admission.native_vec_room(&mut borrowed, self.root_certs.len())?;
+                for (key, cert) in self.root_certs.iter() {
+                    borrowed.try_push((
+                        cert.cost().saturating_add(key.len()),
+                        key.as_str(),
+                        cert.identity_ptr(),
+                    ))?;
+                }
                 borrowed.sort_unstable_by(|a, b| b.0.cmp(&a.0).then_with(|| b.1.cmp(a.1)));
-                borrowed
-                    .iter()
-                    .map(|(cost, _, identity)| (*cost, *identity))
-                    .collect::<Vec<_>>()
+                let mut order = newchan_rust::s_content::CodecVec::default();
+                admission.native_vec_room(&mut order, borrowed.len())?;
+                for (cost, _, identity) in borrowed {
+                    order.try_push((cost, identity))?;
+                }
+                order
             };
             let mut evicted = 0;
             for (cost, _) in &order {
@@ -528,30 +663,41 @@ impl Memo {
                 !remove
             });
             self.root_certs
-                .retain(|_, cert| !removed_cert(Arc::as_ptr(cert) as usize));
+                .retain(|_, cert| !removed_cert(cert.identity_ptr()));
         }
+        Ok(())
     }
 
     fn fit_retention(&mut self) {
+        self.fit_retention_typed(None)
+            .expect("None admission cannot fail")
+    }
+    fn fit_retention_typed(
+        &mut self,
+        work: Option<&WorkScope>,
+    ) -> Result<(), newchan_rust::s_content::CodecError> {
         let after_root = self
             .limit
             .saturating_sub(self.root_bytes())
             .saturating_sub(self.capture_bytes());
-        self.trim_handles(
+        self.trim_handles_typed(
             after_root
                 .saturating_sub(self.certs_bytes)
                 .saturating_sub(self.batch_headers_bytes),
-        );
-        self.trim_batch_headers(
+            work,
+        )?;
+        self.trim_batch_headers_typed(
             after_root
                 .saturating_sub(self.certs_bytes)
                 .saturating_sub(self.handles_bytes),
-        );
-        self.trim_certs(
+            work,
+        )?;
+        self.trim_certs_typed(
             after_root
                 .saturating_sub(self.handles_bytes)
                 .saturating_sub(self.batch_headers_bytes),
-        );
+            work,
+        )?;
         // 证书驱逐会把仍活着的共享原件转入捕获；若其暂存挤占新 root，只放弃节点暂存。
         // 必要的遍历派生量/可达集合仍属当前算法工作集，根与下一次请求不能持有它们。
         if self.retained_bytes().saturating_add(self.capture_bytes()) > self.limit {
@@ -565,71 +711,28 @@ impl Memo {
             .limit
             .saturating_sub(self.root_bytes())
             .saturating_sub(self.capture_bytes());
-        self.trim_handles(
+        self.trim_handles_typed(
             after_root
                 .saturating_sub(self.certs_bytes)
                 .saturating_sub(self.batch_headers_bytes),
-        );
-        self.trim_batch_headers(
+            work,
+        )?;
+        self.trim_batch_headers_typed(
             after_root
                 .saturating_sub(self.certs_bytes)
                 .saturating_sub(self.handles_bytes),
-        );
-        self.trim_certs(
+            work,
+        )?;
+        self.trim_certs_typed(
             after_root
                 .saturating_sub(self.handles_bytes)
                 .saturating_sub(self.batch_headers_bytes),
-        );
+            work,
+        )?;
+        Ok(())
     }
 }
-/// 保留一份根原件证书（指针稳定：内容相同则复用既有 Arc，不换原件）。
-fn put_root_cert_admitted(
-    memo: &mut Memo,
-    root_key: &str,
-    mut cert: RootCert,
-    work: Option<&WorkScope>,
-) -> Result<Option<Arc<RootCert>>, String> {
-    let admission = NativeAdmission(work);
-    if memo.limit == 0 {
-        return Ok(None);
-    }
-    if let Some(old) = memo.root_certs.get(root_key) {
-        if Weak::ptr_eq(&old.lineage, &Arc::downgrade(&memo.cert_lineage))
-            && old.same_originals(
-                &cert.node,
-                &cert.slots,
-                cert.expanded_length,
-                &cert.content_sha256,
-            )
-        {
-            return Ok(Some(old.clone()));
-        }
-    }
-    let cost = cert.cost().saturating_add(root_key.len());
-    if let Some(old) = memo.root_certs.remove(root_key) {
-        memo.remove_batch_header(root_key);
-        memo.certs_bytes = memo
-            .certs_bytes
-            .saturating_sub(old.cost().saturating_add(root_key.len()));
-    }
-    if !memo.make_room_admitted(cost, work)? {
-        return Ok(None);
-    }
-    cert.lineage = Arc::downgrade(&memo.cert_lineage);
-    admission
-        .native_std_map_room(&mut memo.root_certs)
-        .map_err(|e| e.to_string())?;
-    let key = admission.native_text(root_key).map_err(|e| e.to_string())?;
-    let cert = Arc::try_new_shallow(cert, work).map_err(|e| e.to_string())?;
-    let old = memo.root_certs.insert(key, cert);
-    if let Some(old) = old {
-        memo.certs_bytes = memo
-            .certs_bytes
-            .saturating_sub(old.cost().saturating_add(root_key.len()));
-    }
-    memo.certs_bytes = memo.certs_bytes.saturating_add(cost);
-    Ok(memo.root_certs.get(root_key).cloned())
-}
+
 #[cfg(test)]
 thread_local! {static LAST_RESUMED: std::cell::Cell<usize> = const {std::cell::Cell::new(0)};}
 #[cfg(test)]
@@ -848,11 +951,165 @@ pub(super) fn begin_capture_admitted(
     node_budget: usize,
     work: Option<&WorkScope>,
 ) -> Result<CaptureGuard, String> {
+    begin_capture_typed(node_budget, work).map_err(|e| e.to_string())
+}
+/// mixed准入成功前保留旧合法索引；失败析构时恢复，不把失败父留作下一Job的缓存父。
+pub(crate) struct MixedCacheTransaction {
+    saved: Option<RetainedTables>,
+}
+struct RetainedTables {
+    prefix: Option<Root>,
+    certs: NativeMap<[u8; 32], Arc<Cert>>,
+    roots: NativeMap<TextValue, Arc<RootCert>>,
+    handles: NativeTree<TextValue, Handle>,
+    headers: NativeTree<TextValue, BatchHeaderEntry>,
+    certs_bytes: usize,
+    handles_bytes: usize,
+    headers_bytes: usize,
+    lineage: Arc<()>,
+}
+impl RetainedTables {
+    fn copy_from(m: &Memo, work: &WorkScope) -> Result<Self, newchan_rust::s_content::CodecError> {
+        m.cert_lineage.check_retained_source()?;
+        if let Some(Root::Mixed(root)) = &m.root {
+            root.check_retained_source()?;
+        }
+        let certs = m.certs.try_copy_mixed(work, |key, value| {
+            value.check_retained_source()?;
+            Ok((*key, value.clone()))
+        })?;
+        let roots = m.root_certs.try_copy_mixed(work, |key, value| {
+            value.check_retained_source()?;
+            Ok((key.try_clone_mixed(work)?, value.clone()))
+        })?;
+        let handles = m.handles.try_copy_mixed(work, |key, value| {
+            value.bytes.check_retained_source()?;
+            if let Some(json) = &value.value {
+                json.check_retained_source()?;
+            }
+            Ok((
+                key.try_clone_mixed(work)?,
+                Handle {
+                    closure: value.closure,
+                    root_cert: value.root_cert.clone(),
+                    bytes: value.bytes.clone(),
+                    value: value.value.clone(),
+                    cost: value.cost,
+                },
+            ))
+        })?;
+        let headers = m.batch_headers.try_copy_mixed(work, |key, value| {
+            for text in [
+                &value.header.protocol_revision,
+                &value.header.session_generation,
+                &value.header.clock_plan_hash,
+                &value.header.semantic_commit_ns,
+            ]
+            .into_iter()
+            .flatten()
+            {
+                text.check_retained_source()?;
+            }
+            Ok((
+                key.try_clone_mixed(work)?,
+                BatchHeaderEntry {
+                    batch_id: value.batch_id.try_clone_mixed(work)?,
+                    byte_len: value.byte_len,
+                    root_cert: value.root_cert.clone(),
+                    closure: value.closure,
+                    header: value.header.clone(),
+                    cost: value.cost,
+                },
+            ))
+        })?;
+        Ok(Self {
+            prefix: m.root.clone(),
+            certs,
+            roots,
+            handles,
+            headers,
+            certs_bytes: m.certs_bytes,
+            handles_bytes: m.handles_bytes,
+            headers_bytes: m.batch_headers_bytes,
+            lineage: m.cert_lineage.clone(),
+        })
+    }
+    fn exchange(self, m: &mut Memo) -> Self {
+        Self {
+            prefix: std::mem::replace(&mut m.root, self.prefix),
+            certs: std::mem::replace(&mut m.certs, self.certs),
+            roots: std::mem::replace(&mut m.root_certs, self.roots),
+            handles: std::mem::replace(&mut m.handles, self.handles),
+            headers: std::mem::replace(&mut m.batch_headers, self.headers),
+            certs_bytes: std::mem::replace(&mut m.certs_bytes, self.certs_bytes),
+            handles_bytes: std::mem::replace(&mut m.handles_bytes, self.handles_bytes),
+            headers_bytes: std::mem::replace(&mut m.batch_headers_bytes, self.headers_bytes),
+            lineage: std::mem::replace(&mut m.cert_lineage, self.lineage),
+        }
+    }
+}
+impl MixedCacheTransaction {
+    pub(crate) fn start(work: &WorkScope) -> Result<Self, newchan_rust::s_content::CodecError> {
+        MEMO.with(|m| {
+            let mut m = m.borrow_mut();
+            if m.capture.is_some() {
+                return Err(work.reject(
+                    newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Ledger,
+                ));
+            }
+            let saved = RetainedTables::copy_from(&m, work)?.exchange(&mut m);
+            Ok(Self { saved: Some(saved) })
+        })
+    }
+    pub(crate) fn commit(mut self) {
+        self.saved.take();
+    }
+}
+impl Drop for MixedCacheTransaction {
+    fn drop(&mut self) {
+        if let Some(saved) = self.saved.take() {
+            MEMO.with(|m| {
+                let mut m = m.borrow_mut();
+                m.root = saved.prefix;
+                m.certs = saved.certs;
+                m.root_certs = saved.roots;
+                m.handles = saved.handles;
+                m.batch_headers = saved.headers;
+                m.certs_bytes = saved.certs_bytes;
+                m.handles_bytes = saved.handles_bytes;
+                m.batch_headers_bytes = saved.headers_bytes;
+                m.cert_lineage = saved.lineage;
+            });
+        }
+    }
+}
+/// 跨Job仅重建容器布局与键。条目仍持原payload父，读取选中内容时另作受控复制。
+pub(crate) fn begin_capture_mixed(
+    budget_bytes: usize,
+    work: &WorkScope,
+) -> Result<CaptureGuard, newchan_rust::s_content::CodecError> {
+    MEMO.with(|m| {
+        let mut m = m.borrow_mut();
+        if !(m.certs.belongs_to_work(work)
+            && m.root_certs.belongs_to_work(work)
+            && m.handles.belongs_to_work(work)
+            && m.batch_headers.belongs_to_work(work))
+        {
+            RetainedTables::copy_from(&m, work)?.exchange(&mut m);
+        }
+        Ok::<_, newchan_rust::s_content::CodecError>(())
+    })?;
+    begin_capture_typed(budget_bytes, Some(work))
+}
+pub(super) fn begin_capture_typed(
+    node_budget: usize,
+    work: Option<&WorkScope>,
+) -> Result<CaptureGuard, newchan_rust::s_content::CodecError> {
     if let Some(work) = work {
-        work.check_current().map_err(|e| e.to_string())?;
+        work.check_current()?;
     }
     if !MEMO_INITIALIZED.with(|ready| ready.get()) {
-        let lineage = Arc::try_new_shallow((), work).map_err(|e| e.to_string())?;
+        let lineage = Arc::try_new_shallow((), work)?;
         PENDING_LINEAGE.with(|pending| *pending.borrow_mut() = Some(lineage));
     }
     Ok(begin_capture_inner(node_budget))
@@ -899,6 +1156,14 @@ pub(super) fn node_put_admitted(
     owned: bool,
     work: Option<&WorkScope>,
 ) -> Result<(), String> {
+    node_put_typed(conn_id, cert, owned, work).map_err(|e| e.to_string())
+}
+pub(super) fn node_put_typed(
+    conn_id: usize,
+    cert: Arc<Cert>,
+    owned: bool,
+    work: Option<&WorkScope>,
+) -> Result<(), newchan_rust::s_content::CodecError> {
     let admission = NativeAdmission(work);
     MEMO.with(|m| {
         let mut m = m.borrow_mut();
@@ -926,23 +1191,42 @@ pub(super) fn node_put_admitted(
             counter(|c| c.capture_node_admission_rejected += 1);
             return Ok(());
         }
-        if !m.make_room_admitted(cost, work)? {
+        if m.root_bytes()
+            .saturating_add(m.certs_bytes)
+            .saturating_add(m.capture_bytes())
+            .saturating_add(cost)
+            > m.limit
+        {
             #[cfg(test)]
             counter(|c| c.capture_node_admission_rejected += 1);
             return Ok(());
         }
         let id = cert.id;
-        let Some(c) = m.capture.as_mut() else {
-            return Ok(());
+        let inserted_owned = {
+            let Some(c) = m.capture.as_mut() else {
+                return Ok(());
+            };
+            admission.native_std_map_room(&mut c.nodes)?;
+            if owned {
+                c.owned.insert_admitted((conn_id, id), &admission)?
+            } else {
+                false
+            }
         };
-        admission
-            .native_std_map_room(&mut c.nodes)
-            .map_err(|e| e.to_string())?;
-        if owned {
-            c.owned
-                .insert_admitted((conn_id, id), &admission)
-                .map_err(|e| e.to_string())?;
+        match m.make_room_typed(cost, work) {
+            Ok(true) => {}
+            result => {
+                if inserted_owned {
+                    m.capture.as_mut().unwrap().owned.remove(&(conn_id, id));
+                }
+                #[cfg(test)]
+                if matches!(result, Ok(false)) {
+                    counter(|c| c.capture_node_admission_rejected += 1);
+                }
+                return result.map(|_| ());
+            }
         }
+        let c = m.capture.as_mut().unwrap();
         c.bytes = c.bytes.saturating_add(cost);
         c.nodes.insert((conn_id, id), cert);
         Ok(())
@@ -955,11 +1239,11 @@ pub(super) fn capture_len() -> usize {
 }
 
 /// 本捕获已算出的节点派生量（同一连接、同一次捕获内复用；跨捕获必然重算）。
-pub(super) fn derived_get_admitted(
+pub(super) fn derived_get_typed(
     conn_id: usize,
     id: &[u8; 32],
     work: Option<&WorkScope>,
-) -> Result<Option<NodeDerived>, String> {
+) -> Result<Option<NodeDerived>, newchan_rust::s_content::CodecError> {
     let admission = NativeAdmission(work);
     MEMO.with(|m| {
         let m = m.borrow();
@@ -971,11 +1255,9 @@ pub(super) fn derived_get_admitted(
             return Ok(None);
         };
         let mut slot_counts = newchan_rust::s_content::CodecVec::default();
-        admission
-            .native_vec_room(&mut slot_counts, v.slot_counts.len())
-            .map_err(|e| e.to_string())?;
+        admission.native_vec_room(&mut slot_counts, v.slot_counts.len())?;
         for n in &v.slot_counts {
-            slot_counts.try_push(*n).map_err(|e| e.to_string())?;
+            slot_counts.try_push(*n)?;
         }
         Ok(Some(NodeDerived {
             length: v.length,
@@ -993,19 +1275,17 @@ pub(super) fn derived_has(conn_id: usize, id: &[u8; 32]) -> bool {
             .is_some_and(|c| c.derived.contains_key(&(conn_id, *id)))
     })
 }
-pub(super) fn derived_put_admitted(
+pub(super) fn derived_put_typed(
     conn_id: usize,
     id: [u8; 32],
     derived: NodeDerived,
     work: Option<&WorkScope>,
-) -> Result<(), String> {
+) -> Result<(), newchan_rust::s_content::CodecError> {
     let admission = NativeAdmission(work);
     MEMO.with(|m| {
         if let Some(c) = m.borrow_mut().capture.as_mut() {
             if !c.derived.contains_key(&(conn_id, id)) {
-                admission
-                    .native_std_map_room(&mut c.derived)
-                    .map_err(|e| e.to_string())?;
+                admission.native_std_map_room(&mut c.derived)?;
             }
             c.derived.insert((conn_id, id), derived);
         }
@@ -1019,12 +1299,17 @@ pub(super) fn mark_reachable_admitted(
     id: [u8; 32],
     work: Option<&WorkScope>,
 ) -> Result<(), String> {
+    mark_reachable_typed(conn_id, id, work).map_err(|e| e.to_string())
+}
+pub(super) fn mark_reachable_typed(
+    conn_id: usize,
+    id: [u8; 32],
+    work: Option<&WorkScope>,
+) -> Result<(), newchan_rust::s_content::CodecError> {
     let admission = NativeAdmission(work);
     MEMO.with(|m| {
         if let Some(c) = m.borrow_mut().capture.as_mut() {
-            c.reachable
-                .insert_admitted((conn_id, id), &admission)
-                .map_err(|e| e.to_string())?;
+            c.reachable.insert_admitted((conn_id, id), &admission)?;
         }
         Ok(())
     })
@@ -1070,12 +1355,17 @@ pub(super) fn cert_matched_mark_admitted(
     id: [u8; 32],
     work: Option<&WorkScope>,
 ) -> Result<(), String> {
+    cert_matched_mark_typed(conn_id, id, work).map_err(|e| e.to_string())
+}
+pub(super) fn cert_matched_mark_typed(
+    conn_id: usize,
+    id: [u8; 32],
+    work: Option<&WorkScope>,
+) -> Result<(), newchan_rust::s_content::CodecError> {
     let admission = NativeAdmission(work);
     MEMO.with(|m| {
         if let Some(c) = m.borrow_mut().capture.as_mut() {
-            c.matched
-                .insert_admitted((conn_id, id), &admission)
-                .map_err(|e| e.to_string())?;
+            c.matched.insert_admitted((conn_id, id), &admission)?;
         }
         Ok(())
     })
@@ -1113,17 +1403,23 @@ pub(super) fn cert_marked(conn_id: usize, id: [u8; 32]) -> bool {
 pub(super) fn cert_certify(conn_id: usize, id: [u8; 32]) {
     cert_certify_admitted(conn_id, id, None).expect("None admission cannot fail")
 }
+#[cfg(test)]
 pub(super) fn cert_certify_admitted(
     conn_id: usize,
     id: [u8; 32],
     work: Option<&WorkScope>,
 ) -> Result<(), String> {
+    cert_certify_typed(conn_id, id, work).map_err(|e| e.to_string())
+}
+pub(super) fn cert_certify_typed(
+    conn_id: usize,
+    id: [u8; 32],
+    work: Option<&WorkScope>,
+) -> Result<(), newchan_rust::s_content::CodecError> {
     let admission = NativeAdmission(work);
     MEMO.with(|m| {
         if let Some(c) = m.borrow_mut().capture.as_mut() {
-            c.certified
-                .insert_admitted((conn_id, id), &admission)
-                .map_err(|e| e.to_string())?;
+            c.certified.insert_admitted((conn_id, id), &admission)?;
         }
         Ok(())
     })
@@ -1163,11 +1459,19 @@ impl IdSet for NativeSet<[u8; 32]> {
         self.iter()
     }
 }
+#[cfg(test)]
 pub(super) fn cert_commit_admitted(
     conn_id: usize,
     ids: &(impl IdSet + ?Sized),
     work: Option<&WorkScope>,
 ) -> Result<(), String> {
+    cert_commit_typed(conn_id, ids, work).map_err(|e| e.to_string())
+}
+pub(super) fn cert_commit_typed(
+    conn_id: usize,
+    ids: &(impl IdSet + ?Sized),
+    work: Option<&WorkScope>,
+) -> Result<(), newchan_rust::s_content::CodecError> {
     let admission = NativeAdmission(work);
     MEMO.with(|m| {
         let mut m = m.borrow_mut();
@@ -1182,7 +1486,7 @@ pub(super) fn cert_commit_admitted(
             if m.certs.get(id).is_some_and(|old| Arc::ptr_eq(old, &cert)) {
                 continue;
             }
-            m.remove_cert_admitted(id, work)?;
+            m.remove_cert_typed(id, work)?;
             let owner = m.capture.as_ref().and_then(|c| {
                 if c.owned.contains(&key) {
                     return Some(key);
@@ -1197,14 +1501,12 @@ pub(super) fn cert_commit_admitted(
                     .copied()
             });
             let owned = owner.is_some();
-            if !owned && !m.make_room_admitted(cert.payload_cost(), work)? {
+            if !owned && !m.make_room_typed(cert.payload_cost(), work)? {
                 #[cfg(test)]
                 counter(|c| c.shared_node_cert_admission_rejected += 1);
                 continue;
             }
-            admission
-                .native_std_map_room(&mut m.certs)
-                .map_err(|e| e.to_string())?;
+            admission.native_std_map_room(&mut m.certs)?;
             if owned {
                 // 独占：字节已由读集持有，只把它从瞬时读集**转记**为持久证书（总量不变）。
                 if let Some(c) = m.capture.as_mut() {
@@ -1221,11 +1523,11 @@ pub(super) fn cert_commit_admitted(
     })
 }
 /// 冷展开后，只有全部当前原件仍在池里且与本次读集为同一不可变原件，才能建立新根证明。
-pub(super) fn certify_retained_originals_admitted(
+pub(super) fn certify_retained_originals_typed(
     conn_id: usize,
     ids: &(impl IdSet + ?Sized),
     work: Option<&WorkScope>,
-) -> Result<bool, String> {
+) -> Result<bool, newchan_rust::s_content::CodecError> {
     let admission = NativeAdmission(work);
     MEMO.with(|m| {
         let mut m = m.borrow_mut();
@@ -1242,12 +1544,8 @@ pub(super) fn certify_retained_originals_admitted(
         if complete {
             let c = m.capture.as_mut().unwrap();
             for id in ids.each() {
-                c.matched
-                    .insert_admitted((conn_id, *id), &admission)
-                    .map_err(|e| e.to_string())?;
-                c.certified
-                    .insert_admitted((conn_id, *id), &admission)
-                    .map_err(|e| e.to_string())?;
+                c.matched.insert_admitted((conn_id, *id), &admission)?;
+                c.certified.insert_admitted((conn_id, *id), &admission)?;
             }
         }
         Ok(complete)
@@ -1328,11 +1626,11 @@ pub(super) fn batch_header_get(
             entry.batch_id == batch_id
                 && entry.byte_len == byte_len
                 && entry.closure == *closure
-                && Weak::ptr_eq(&entry.root_cert, &Arc::downgrade(root_cert))
+                && Weak::ptr_eq(&entry.root_cert, &root_cert.identity_weak())
                 && Weak::ptr_eq(&root_cert.lineage, &Arc::downgrade(&m.cert_lineage))
                 && m.root_certs
                     .get(root_key)
-                    .is_some_and(|current| Arc::ptr_eq(current, root_cert))
+                    .is_some_and(|current| current.same_identity(root_cert))
         });
         #[cfg(test)]
         counter(|c| {
@@ -1370,6 +1668,20 @@ pub(super) fn batch_header_put_admitted(
     header: BatchControlHeader,
     work: Option<&WorkScope>,
 ) -> Result<(), String> {
+    batch_header_put_typed(
+        root_key, batch_id, byte_len, root_cert, closure, header, work,
+    )
+    .map_err(|e| e.to_string())
+}
+pub(crate) fn batch_header_put_typed(
+    root_key: &str,
+    batch_id: &str,
+    byte_len: usize,
+    root_cert: &Arc<RootCert>,
+    closure: [u8; 32],
+    header: BatchControlHeader,
+    work: Option<&WorkScope>,
+) -> Result<(), newchan_rust::s_content::CodecError> {
     let admission = NativeAdmission(work);
     MEMO.with(|m| {
         let mut m = m.borrow_mut();
@@ -1378,7 +1690,7 @@ pub(super) fn batch_header_put_admitted(
             || !m
                 .root_certs
                 .get(root_key)
-                .is_some_and(|current| Arc::ptr_eq(current, root_cert))
+                .is_some_and(|current| current.same_identity(root_cert))
         {
             #[cfg(test)]
             counter(|c| c.batch_header_admission_rejected += 1);
@@ -1389,29 +1701,50 @@ pub(super) fn batch_header_put_admitted(
             .saturating_add(batch_id.len())
             .saturating_add(header.source_bytes())
             .saturating_add(128);
-        m.remove_batch_header(root_key);
-        if !m.make_room_admitted(cost, work)? {
+        let floor = m
+            .root_bytes()
+            .saturating_add(m.certs_bytes)
+            .saturating_add(m.capture_bytes());
+        if floor.saturating_add(cost) > m.limit {
+            m.remove_batch_header(root_key);
             #[cfg(test)]
             counter(|c| c.batch_header_admission_rejected += 1);
             return Ok(());
         }
-        let key = admission.native_text(root_key).map_err(|e| e.to_string())?;
-        let batch_id = admission.native_text(batch_id).map_err(|e| e.to_string())?;
+        let key = TextValue::from_str_admitted_typed(root_key, None, work)?;
+        let batch_id = TextValue::from_str_admitted_typed(batch_id, None, work)?;
+        m.batch_headers.reserve_entry_admitted(&key, &admission)?;
+        let old = m.batch_headers.remove_entry(root_key);
+        if let Some((_, entry)) = &old {
+            m.batch_headers_bytes = m.batch_headers_bytes.saturating_sub(entry.cost);
+        }
+        let room = match m.make_room_typed(cost, work) {
+            Ok(room) => room,
+            Err(error) => {
+                if let Some((key, entry)) = old {
+                    m.batch_headers_bytes = m.batch_headers_bytes.saturating_add(entry.cost);
+                    m.batch_headers.insert_reserved(key, entry);
+                }
+                return Err(error);
+            }
+        };
+        if !room {
+            #[cfg(test)]
+            counter(|c| c.batch_header_admission_rejected += 1);
+            return Ok(());
+        }
         m.batch_headers_bytes = m.batch_headers_bytes.saturating_add(cost);
-        m.batch_headers
-            .insert_admitted(
-                key,
-                BatchHeaderEntry {
-                    batch_id,
-                    byte_len,
-                    root_cert: Arc::downgrade(root_cert),
-                    closure,
-                    header,
-                    cost,
-                },
-                &admission,
-            )
-            .map_err(|e| e.to_string())?;
+        m.batch_headers.insert_reserved(
+            key,
+            BatchHeaderEntry {
+                batch_id,
+                byte_len,
+                root_cert: root_cert.identity_weak(),
+                closure,
+                header,
+                cost,
+            },
+        );
         Ok(())
     })
 }
@@ -1438,7 +1771,7 @@ pub(super) fn handle_get_certified(
                     && h.closure == *closure
                     && h.root_cert
                         .as_ref()
-                        .is_some_and(|c| Weak::ptr_eq(c, &Arc::downgrade(root_cert)));
+                        .is_some_and(|c| Weak::ptr_eq(c, &root_cert.identity_weak()));
                 #[cfg(test)]
                 {
                     *reuse_outcome = Some(if matches {
@@ -1483,6 +1816,7 @@ pub(super) fn handle_put_certified(
     handle_put_certified_admitted(root_key, root_cert, closure, bytes, value, None)
         .expect("None admission cannot fail")
 }
+#[cfg(test)]
 pub(super) fn handle_put_certified_admitted(
     root_key: &str,
     root_cert: &RootCert,
@@ -1491,6 +1825,17 @@ pub(super) fn handle_put_certified_admitted(
     value: Option<Arc<SharedPlainJson>>,
     work: Option<&WorkScope>,
 ) -> Result<Option<Arc<RootCert>>, String> {
+    handle_put_certified_typed(root_key, root_cert, closure, bytes, value, work)
+        .map_err(|e| e.to_string())
+}
+pub(super) fn handle_put_certified_typed(
+    root_key: &str,
+    root_cert: &RootCert,
+    closure: [u8; 32],
+    bytes: Arc<[u8]>,
+    value: Option<Arc<SharedPlainJson>>,
+    work: Option<&WorkScope>,
+) -> Result<Option<Arc<RootCert>>, newchan_rust::s_content::CodecError> {
     let admission = NativeAdmission(work);
     MEMO.with(|m| {
         let mut m = m.borrow_mut();
@@ -1499,54 +1844,128 @@ pub(super) fn handle_put_certified_admitted(
             counter(|c| c.handle_admission_rejected += 1);
             return Ok(None);
         }
-        let mut slots = newchan_rust::s_content::CodecVec::default();
-        admission
-            .native_vec_room(&mut slots, root_cert.slots.len())
-            .map_err(|e| e.to_string())?;
-        for slot in &root_cert.slots {
-            slots.try_push(*slot).map_err(|e| e.to_string())?;
-        }
-        let hash = admission
-            .native_string(&root_cert.content_sha256)
-            .map_err(|e| e.to_string())?;
-        let retained = put_root_cert_admitted(
-            &mut m,
-            root_key,
-            RootCert::new_admitted(root_cert.node, slots, root_cert.expanded_length, hash),
-            work,
-        )?;
-        let Some(retained) = retained else {
+        let matching = m
+            .root_certs
+            .get(root_key)
+            .filter(|old| {
+                Weak::ptr_eq(&old.lineage, &Arc::downgrade(&m.cert_lineage))
+                    && old.same_originals(
+                        &root_cert.node,
+                        &root_cert.slots,
+                        root_cert.expanded_length,
+                        &root_cert.content_sha256,
+                    )
+            })
+            .cloned();
+        let existing = matching
+            .as_ref()
+            .filter(|old| work.is_none_or(|work| old.belongs_to_parent(work)))
+            .cloned();
+        let old_root_cost = m
+            .root_certs
+            .get(root_key)
+            .map_or(0, |old| old.cost().saturating_add(root_key.len()));
+        let root_cost = root_cert.cost().saturating_add(root_key.len());
+        let delta = if existing.is_some() { 0 } else { root_cost };
+        let credit = if existing.is_some() { 0 } else { old_root_cost };
+        let floor = m
+            .root_bytes()
+            .saturating_add(m.certs_bytes.saturating_sub(credit))
+            .saturating_add(m.capture_bytes());
+        if floor.saturating_add(delta) > m.limit {
             #[cfg(test)]
             counter(|c| c.handle_admission_rejected += 1);
             return Ok(None);
-        };
+        }
         let cost = handle_cost(root_key.len(), bytes.len(), value.is_some());
-        if let Some(old) = m.handles.remove(root_key) {
+        let keep_handle = floor.saturating_add(delta).saturating_add(cost) <= m.limit;
+        let root_key_owned = if existing.is_none() {
+            admission.native_std_map_room(&mut m.root_certs)?;
+            Some(TextValue::from_str_admitted_typed(root_key, None, work)?)
+        } else {
+            None
+        };
+        let retained = match existing {
+            Some(old) => old,
+            None => {
+                let mut slots = newchan_rust::s_content::CodecVec::default();
+                admission.native_vec_room(&mut slots, root_cert.slots.len())?;
+                for slot in &root_cert.slots {
+                    slots.try_push(*slot)?;
+                }
+                let hash = admission.native_string(&root_cert.content_sha256)?;
+                let mut cert =
+                    RootCert::new_admitted(root_cert.node, slots, root_cert.expanded_length, hash);
+                cert.lineage = Arc::downgrade(&m.cert_lineage);
+                cert.identity = match matching.as_ref().and_then(|old| old.identity.as_ref()) {
+                    Some(identity) => {
+                        identity.check_retained_source()?;
+                        Some(identity.clone())
+                    }
+                    None => Some(Arc::try_new_shallow((), work)?),
+                };
+                Arc::try_new_shallow(cert, work)?
+            }
+        };
+        let handle_key = if keep_handle {
+            let key = TextValue::from_str_admitted_typed(root_key, None, work)?;
+            m.handles.reserve_entry_admitted(&key, &admission)?;
+            Some(key)
+        } else {
+            None
+        };
+        let old_handle = m.handles.remove_entry(root_key);
+        if let Some((_, old)) = &old_handle {
             m.handles_bytes = m.handles_bytes.saturating_sub(old.cost);
         }
-        if !m.make_room_admitted(cost, work)? {
-            #[cfg(test)]
-            counter(|c| c.handle_admission_rejected += 1);
-            return Ok(Some(retained));
+        m.certs_bytes = m.certs_bytes.saturating_sub(credit);
+        let room = m.make_room_typed(
+            delta.saturating_add(if keep_handle { cost } else { 0 }),
+            work,
+        );
+        m.certs_bytes = m.certs_bytes.saturating_add(credit);
+        match room {
+            Err(error) => {
+                if let Some((key, old)) = old_handle {
+                    m.handles_bytes = m.handles_bytes.saturating_add(old.cost);
+                    m.handles.insert_reserved(key, old);
+                }
+                return Err(error);
+            }
+            Ok(false) => {
+                if let Some((key, old)) = old_handle {
+                    m.handles_bytes = m.handles_bytes.saturating_add(old.cost);
+                    m.handles.insert_reserved(key, old);
+                }
+                return Ok(None);
+            }
+            Ok(true) => {}
         }
-        let key = admission.native_text(root_key).map_err(|e| e.to_string())?;
-        m.handles_bytes = m.handles_bytes.saturating_add(cost);
-        m.handles
-            .insert_admitted(
+        if let Some(key) = root_key_owned {
+            m.remove_batch_header(root_key);
+            m.root_certs.insert(key, retained.clone());
+            m.certs_bytes = m.certs_bytes.saturating_sub(credit).saturating_add(delta);
+        }
+        if let Some(key) = handle_key {
+            m.handles.insert_reserved(
                 key,
                 Handle {
                     closure,
-                    root_cert: Some(Arc::downgrade(&retained)),
+                    root_cert: Some(retained.identity_weak()),
                     bytes,
                     value,
                     cost,
                 },
-                &admission,
-            )
-            .map_err(|e| e.to_string())?;
+            );
+            m.handles_bytes = m.handles_bytes.saturating_add(cost);
+        } else {
+            #[cfg(test)]
+            counter(|c| c.handle_admission_rejected += 1);
+        }
         Ok(Some(retained))
     })
 }
+
 /// 记入整块域已核句柄（原件就是行内字节，无需根证书）。
 #[cfg(test)]
 pub(super) fn handle_put_blob(
@@ -1565,6 +1984,15 @@ pub(super) fn handle_put_blob_admitted(
     value: Option<Arc<SharedPlainJson>>,
     work: Option<&WorkScope>,
 ) -> Result<(), String> {
+    handle_put_blob_typed(root_key, closure, bytes, value, work).map_err(|e| e.to_string())
+}
+pub(crate) fn handle_put_blob_typed(
+    root_key: &str,
+    closure: [u8; 32],
+    bytes: Arc<[u8]>,
+    value: Option<Arc<SharedPlainJson>>,
+    work: Option<&WorkScope>,
+) -> Result<(), newchan_rust::s_content::CodecError> {
     let admission = NativeAdmission(work);
     MEMO.with(|m| {
         let mut m = m.borrow_mut();
@@ -1574,29 +2002,50 @@ pub(super) fn handle_put_blob_admitted(
             return Ok(());
         }
         let cost = handle_cost(root_key.len(), bytes.len(), value.is_some());
-        if let Some(old) = m.handles.remove(root_key) {
-            m.handles_bytes = m.handles_bytes.saturating_sub(old.cost);
-        }
-        if !m.make_room_admitted(cost, work)? {
+        let floor = m
+            .root_bytes()
+            .saturating_add(m.certs_bytes)
+            .saturating_add(m.capture_bytes());
+        if floor.saturating_add(cost) > m.limit {
+            if let Some(old) = m.handles.remove(root_key) {
+                m.handles_bytes = m.handles_bytes.saturating_sub(old.cost);
+            }
             #[cfg(test)]
             counter(|c| c.handle_admission_rejected += 1);
             return Ok(());
         }
-        let key = admission.native_text(root_key).map_err(|e| e.to_string())?;
+        let key = TextValue::from_str_admitted_typed(root_key, None, work)?;
+        m.handles.reserve_entry_admitted(&key, &admission)?;
+        let old = m.handles.remove_entry(root_key);
+        if let Some((_, old)) = &old {
+            m.handles_bytes = m.handles_bytes.saturating_sub(old.cost);
+        }
+        match m.make_room_typed(cost, work) {
+            Err(error) => {
+                if let Some((key, old)) = old {
+                    m.handles_bytes = m.handles_bytes.saturating_add(old.cost);
+                    m.handles.insert_reserved(key, old);
+                }
+                return Err(error);
+            }
+            Ok(false) => {
+                #[cfg(test)]
+                counter(|c| c.handle_admission_rejected += 1);
+                return Ok(());
+            }
+            Ok(true) => {}
+        }
         m.handles_bytes = m.handles_bytes.saturating_add(cost);
-        m.handles
-            .insert_admitted(
-                key,
-                Handle {
-                    closure,
-                    root_cert: None,
-                    bytes,
-                    value,
-                    cost,
-                },
-                &admission,
-            )
-            .map_err(|e| e.to_string())?;
+        m.handles.insert_reserved(
+            key,
+            Handle {
+                closure,
+                root_cert: None,
+                bytes,
+                value,
+                cost,
+            },
+        );
         Ok(())
     })
 }
@@ -1623,7 +2072,9 @@ pub(super) fn resume(
     LAST_RESUMED.with(|v| v.set(0));
     MEMO.with(|m| {
         let m = m.borrow();
-        let Some(old) = &m.root else { return 0 };
+        let Some(Root::Legacy(old)) = &m.root else {
+            return 0;
+        };
         if &old.identity != identity
             || rows.len() < old.rows.len()
             || rows[..old.rows.len()] != old.rows
@@ -1648,7 +2099,7 @@ pub(super) fn resume(
         for (key, old_cert) in &old.originals {
             match (old_cert, originals.get(key)) {
                 (Some(a), Some(Some(b)))
-                    if Weak::ptr_eq(a, &Arc::downgrade(b))
+                    if Weak::ptr_eq(a, &b.identity_weak())
                         && Weak::ptr_eq(&b.lineage, &Arc::downgrade(&m.cert_lineage)) => {}
                 _ => return 0,
             }
@@ -1680,7 +2131,10 @@ pub(super) fn store_root(
         if bytes > m.limit {
             // 新 root 单独超限：保留此前仍可复用的旧前缀（仍在当前上限内、身份相同、且仍是当前行的
             // 前缀），不清空句柄缓存；判不出仍有用时只丢旧 root。
-            let keep = m.root.as_ref().is_some_and(|old| {
+            let keep = m.root.as_ref().is_some_and(|root| {
+                let Root::Legacy(old) = root else {
+                    return false;
+                };
                 old.bytes <= m.limit
                     && old.identity == identity
                     && rows.len() >= old.rows.len()
@@ -1693,16 +2147,16 @@ pub(super) fn store_root(
             m.fit_retention();
             return;
         }
-        m.root = Some(Root {
+        m.root = Some(Root::Legacy(Arc::new(LegacyRoot {
             rows,
             identity,
             originals: originals
                 .iter()
-                .map(|(key, cert)| (key.clone(), cert.as_ref().map(Arc::downgrade)))
+                .map(|(key, cert)| (key.clone(), cert.as_ref().map(|cert| cert.identity_weak())))
                 .collect(),
             walk,
             bytes,
-        });
+        })));
         // root walk 优先装入，再按剩余预算驱逐句柄与原件证书（不因新 root 变大而整块清空）。
         m.fit_retention();
     });
@@ -1849,7 +2303,7 @@ mod tests {
             .collect()
     }
     fn memo_root_rows() -> Option<usize> {
-        MEMO.with(|m| m.borrow().root.as_ref().map(|r| r.rows.len()))
+        MEMO.with(|m| m.borrow().root.as_ref().map(|r| r.rows_len()))
     }
     fn memo_handle_keys() -> Vec<String> {
         MEMO.with(|m| {
@@ -2213,6 +2667,91 @@ mod tests {
         configure(0);
     }
 
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn mixed_cache_second_eviction_plan_failure_preserves_both_old_groups() {
+        configure(1 << 20);
+        let long_key = "h".repeat(8192);
+        let root = RootCert::new([1; 32], vec![], 2, "hash".into());
+        let retained =
+            handle_put_certified(&long_key, &root, [2; 32], Arc::from(&b"{}"[..]), None).unwrap();
+        let header =
+            BatchControlHeader::from_verified_batch(&json!({"protocol_revision":"s-session/2"}));
+        batch_header_put(&long_key, "public", 2, &retained, [2; 32], header);
+        evict_full_handles_for_test();
+        let (bytes, value) = handle("small", 64, false);
+        handle_put_blob("small", [0; 32], bytes, value);
+        let budget = crate::v3::audit_owner::native::Budget::new(1 << 20, 0).unwrap();
+        let mut rejected = false;
+        let _ = budget
+            .codec_work()
+            .unwrap()
+            .run(|work| -> Result<(), String> {
+                let _hog = work
+                    .reserve_native((1 << 20) - budget.live() - 4096)
+                    .unwrap();
+                MEMO.with(|m| {
+                    let mut m = m.borrow_mut();
+                    m.limit = m.retained_bytes();
+                    let before = (m.handles.len(), m.batch_headers.len(), m.total_bytes());
+                    assert_eq!((before.0, before.1), (1, 1));
+                    let requested = m.handles_bytes + 1;
+                    assert!(m.make_room_typed(requested, Some(work)).is_err());
+                    assert_eq!(
+                        (m.handles.len(), m.batch_headers.len(), m.total_bytes()),
+                        before
+                    );
+                    rejected = true;
+                });
+                Ok(())
+            });
+        assert!(rejected);
+        configure(0);
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn mixed_cache_failed_publication_restores_prior_parent_tables() {
+        const LIMIT: usize = 1 << 20;
+        configure(LIMIT);
+        let root = RootCert::new([9; 32], vec![], 2, "old".into());
+        let old = handle_put_certified("old", &root, [7; 32], Arc::from(&b"{}"[..]), None).unwrap();
+        let budget = crate::v3::audit_owner::native::Budget::new(LIMIT, 0).unwrap();
+        let mut rejected = false;
+        let _ = budget
+            .codec_work()
+            .unwrap()
+            .run(|work| -> Result<(), String> {
+                let transaction = MixedCacheTransaction::start(work).unwrap();
+                let _hog = work.reserve_native(LIMIT - budget.live() - 1).unwrap();
+                assert!(handle_put_certified_typed(
+                    "old",
+                    &root,
+                    [7; 32],
+                    Arc::from(&b"{}"[..]),
+                    None,
+                    Some(work)
+                )
+                .is_err());
+                drop(transaction);
+                assert!(Arc::ptr_eq(&root_cert_get("old").unwrap(), &old));
+                rejected = true;
+                Ok(())
+            });
+        assert!(rejected);
+        let next = crate::v3::audit_owner::native::Budget::new(LIMIT, 0).unwrap();
+        next.codec_work()
+            .unwrap()
+            .run(|work| -> Result<(), String> {
+                let transaction = MixedCacheTransaction::start(work).unwrap();
+                assert!(Arc::ptr_eq(&root_cert_get("old").unwrap(), &old));
+                drop(transaction);
+                Ok(())
+            })
+            .unwrap();
+        configure(0);
+    }
+
     /// #1488 0087 ①-F-1：owned 树高水位插入因父账不足失败时，证书 payload 不得从
     /// certs_bytes 消账而落不进读集账；失败后单一预算仍须按真实持有量拒绝超限准入。
     #[cfg(feature = "s_capture_native_testonly")]
@@ -2250,7 +2789,7 @@ mod tests {
                     assert_eq!(m.total_bytes(), total_before);
                     // 单一预算恰好容不下再一份同量 payload：漏账会把它错放进来。
                     m.limit = total_before + a.payload_cost() - 1;
-                    assert!(!m.make_room_admitted(a.payload_cost(), None).unwrap());
+                    assert!(!m.make_room_typed(a.payload_cost(), None).unwrap());
                 });
                 end_capture();
                 checked = true;

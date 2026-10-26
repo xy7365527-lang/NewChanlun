@@ -68,7 +68,7 @@ CREATE TABLE s_delivery_refs (
 "#;
 
 fn err(e: impl fmt::Display) -> String {
-    format!("StorageUnavailable：{e}")
+    crate::v3::business_json::mixed_diagnostic(format_args!("StorageUnavailable：{e}"))
 }
 
 /// `s-clock-plan/1` 是全仓唯一的 clock 规则（严格 JSON + 非负/不倒退 attempt 校验 + 规范 JSON hash）。
@@ -620,15 +620,15 @@ fn normalize_schema(s: &str) -> String {
     let mut out = String::new();
     normalize_schema_chunks(s, |v| {
         out.push_str(v);
-        Ok(())
+        Ok::<(), String>(())
     })
     .expect("normal String sink");
     out
 }
-fn normalize_schema_chunks(
+fn normalize_schema_chunks<E>(
     s: &str,
-    mut emit: impl FnMut(&str) -> Result<(), String>,
-) -> Result<(), String> {
+    mut emit: impl FnMut(&str) -> Result<(), E>,
+) -> Result<(), E> {
     // Original global replace then ASCII-only whitespace filtering; no SQL reinterpretation.
     for part in s.split("IF NOT EXISTS") {
         for ch in part.chars().filter(|c| !c.is_ascii_whitespace()) {
@@ -738,11 +738,11 @@ impl ControlSchema {
         })
     }
 }
-fn ddl_table_entries(
+fn ddl_table_entries<E: From<String>>(
     label: &str,
     ddl: &str,
-    mut emit: impl FnMut(&str, &str) -> Result<(), String>,
-) -> Result<(), String> {
+    mut emit: impl FnMut(&str, &str) -> Result<(), E>,
+) -> Result<(), E> {
     for stmt in ddl.split(';').map(str::trim).filter(|s| !s.is_empty()) {
         let rest = stmt
             .strip_prefix("CREATE TABLE ")
@@ -922,7 +922,11 @@ pub(super) fn valid_storage_cell(
     }
 }
 
-fn verify_schema(conn: &Connection, v2: bool) -> Result<(), String> {
+fn verify_schema(
+    conn: &Connection,
+    v2: bool,
+    before_write: Option<&std::cell::Cell<crate::DeltaShape>>,
+) -> Result<(), String> {
     let mut expected = BTreeMap::new();
     expect_ddl_tables(
         "schema常量",
@@ -971,6 +975,17 @@ fn verify_schema(conn: &Connection, v2: bool) -> Result<(), String> {
             return Err(err("私有证据图表不齐全（三表必须同生）"));
         }
         expect_ddl_tables("证据图 DDL", evidence_store::DDL, &mut expected)?;
+    }
+    // 写前准入：迁移前源换成迁移前的精确 structure_deltas 期望并记下形状，判别与迁移同一谓词。
+    if let Some(shape) = before_write {
+        if crate::policy_records_missing(conn)? {
+            expect_ddl_tables(
+                "#1602前Delta",
+                crate::PRE_POLICY_RECORDS_DELTAS,
+                &mut expected,
+            )?;
+            shape.set(crate::DeltaShape::PrePolicyRecords);
+        }
     }
     verify_expected_schema(conn, &expected)?;
     // 表在而登记行缺/多/未声明值：与模式损坏同门，读取与写入前一律拒绝。
@@ -1283,11 +1298,23 @@ impl ExpectedControl {
     }
 }
 
+/// #1527 私有只读连接复用根的完整 S2/legacy 审计，不另写判据。
+/// 原入口包含全部可达批次、Delta、控制史、独立索引和来源对拍。
+pub(crate) fn audit_private_startup(
+    conn: &Connection,
+    before_write: Option<&std::cell::Cell<crate::DeltaShape>>,
+) -> Result<(), String> {
+    crate::verified_root_raw_events_before_write(conn, before_write).map(|_| ())
+}
+
 /// 新鲜检查所有全局控制行，再准备逐代控制头期望；返回不代表批次控制审计通过。
 /// 不能按generation过滤未来/同代损坏或信任自报摘要。
-pub(super) fn prepare_control(conn: &Connection) -> Result<ExpectedControl, String> {
+pub(super) fn prepare_control(
+    conn: &Connection,
+    before_write: Option<&std::cell::Cell<crate::DeltaShape>>,
+) -> Result<ExpectedControl, String> {
     let enabled = active(conn)?;
-    verify_schema(conn, enabled)?;
+    verify_schema(conn, enabled, before_write)?;
     let epoch_facts = verify_epoch_history(conn, enabled)?;
     if !enabled {
         return Ok(ExpectedControl::Legacy);
@@ -1753,6 +1780,66 @@ pub(super) fn validate_control_history_with_owner(
 ) -> Result<ControlHistory, String> {
     validate_control_history_admitted(conn, protocol_revision, epoch_facts, owner, None)
 }
+fn verify_control_catalog_admitted(
+    conn: &Connection,
+    owner: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<(), String> {
+    use control_json::field;
+    use newchan_rust::session_protocol::{canonical_hash_view_with_owner, required_view};
+    let catalog_raw = control_meta_text_admitted(conn, "catalog_definition", owner, work)?
+        .ok_or_else(|| err("v2缺catalog来源"))?;
+    let catalog_hash = control_meta_text_admitted(conn, "catalog_hash", owner, work)?
+        .ok_or_else(|| err("v2缺catalog hash"))?;
+    let catalog = control_decode_admitted(&catalog_raw, owner, false, work).map_err(err)?;
+    let catalog_view = catalog.view();
+    if !control_canonical_equal(catalog_view, &catalog_raw, owner)?
+        || canonical_hash_view_with_owner(catalog_view, owner)
+            .map_err(err)?
+            .as_str()
+            != catalog_hash.as_str()
+        || field(catalog_view, "catalog_revision").as_str()
+            != control_meta_text_admitted(conn, "catalog_revision", owner, work)?.as_deref()
+    {
+        return Err(err("目录来源/hash/revision不一致"));
+    }
+    let items = field(catalog_view, "items")
+        .as_array()
+        .ok_or_else(|| err("目录源items缺失"))?;
+    let actual_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM catalog", [], |r| r.get(0))
+        .map_err(err)?;
+    if actual_count as usize != items.len() {
+        return Err(err("目录静态行数不同"));
+    }
+    for item in items.iter() {
+        let actual = control_query_row(
+            conn,
+            c"SELECT kind,title,domain,branches_json FROM catalog WHERE catalog_id=?1",
+            &[ControlBind::Text(required_view(item, "id").map_err(err)?)],
+            |r| {
+                Ok((
+                    TextValue::from_sql_admitted(r, 0, owner, work)?,
+                    TextValue::from_sql_admitted(r, 1, owner, work)?,
+                    TextValue::from_sql_admitted(r, 2, owner, work)?,
+                    TextValue::from_sql_admitted(r, 3, owner, work)?,
+                ))
+            },
+        )?;
+        if field(item, "kind").as_str() != Some(actual.0.as_str())
+            || field(item, "title").as_str() != Some(actual.1.as_str())
+            || field(item, "domain").as_str() != Some(actual.2.as_str())
+            || field(item, "branches")
+                != control_decode_admitted(&actual.3, owner, false, work)
+                    .map_err(err)?
+                    .view()
+        {
+            return Err(err("目录静态内容与来源不同"));
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn validate_control_history_admitted(
     conn: &Connection,
     protocol_revision: &str,
@@ -1761,8 +1848,6 @@ pub(super) fn validate_control_history_admitted(
     work: Option<&WorkScope>,
 ) -> Result<ControlHistory, String> {
     control_native_owner(owner, work)?;
-    use control_json::field;
-    use newchan_rust::session_protocol::{canonical_hash_view_with_owner, required_view};
     if !matches!(protocol_revision, "s-session/2" | "s-session/3") {
         return Err(err(format!(
             "协议版本参数只允许 s-session/2 或 s-session/3，收到 `{protocol_revision}`"
@@ -1818,56 +1903,7 @@ pub(super) fn validate_control_history_admitted(
     let root_g = control_meta_i64_admitted(conn, "generation", owner, work)?;
     let sid = control_meta_text_admitted(conn, "session_id", owner, work)?
         .ok_or_else(|| err("缺session"))?;
-    let catalog_raw = control_meta_text_admitted(conn, "catalog_definition", owner, work)?
-        .ok_or_else(|| err("v2缺catalog来源"))?;
-    let catalog_hash = control_meta_text_admitted(conn, "catalog_hash", owner, work)?
-        .ok_or_else(|| err("v2缺catalog hash"))?;
-    let catalog = control_decode_admitted(&catalog_raw, owner, false, work).map_err(err)?;
-    let catalog_view = catalog.view();
-    if !control_canonical_equal(catalog_view, &catalog_raw, owner)?
-        || canonical_hash_view_with_owner(catalog_view, owner)
-            .map_err(err)?
-            .as_str()
-            != catalog_hash.as_str()
-        || field(catalog_view, "catalog_revision").as_str()
-            != control_meta_text_admitted(conn, "catalog_revision", owner, work)?.as_deref()
-    {
-        return Err(err("目录来源/hash/revision不一致"));
-    }
-    let items = field(catalog_view, "items")
-        .as_array()
-        .ok_or_else(|| err("目录源items缺失"))?;
-    let actual_count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM catalog", [], |r| r.get(0))
-        .map_err(err)?;
-    if actual_count as usize != items.len() {
-        return Err(err("目录静态行数不同"));
-    }
-    for item in items.iter() {
-        let actual = control_query_row(
-            conn,
-            c"SELECT kind,title,domain,branches_json FROM catalog WHERE catalog_id=?1",
-            &[ControlBind::Text(required_view(item, "id").map_err(err)?)],
-            |r| {
-                Ok((
-                    TextValue::from_sql_admitted(r, 0, owner, work)?,
-                    TextValue::from_sql_admitted(r, 1, owner, work)?,
-                    TextValue::from_sql_admitted(r, 2, owner, work)?,
-                    TextValue::from_sql_admitted(r, 3, owner, work)?,
-                ))
-            },
-        )?;
-        if field(item, "kind").as_str() != Some(actual.0.as_str())
-            || field(item, "title").as_str() != Some(actual.1.as_str())
-            || field(item, "domain").as_str() != Some(actual.2.as_str())
-            || field(item, "branches")
-                != control_decode_admitted(&actual.3, owner, false, work)
-                    .map_err(err)?
-                    .view()
-        {
-            return Err(err("目录静态内容与来源不同"));
-        }
-    }
+    verify_control_catalog_admitted(conn, owner, work)?;
     let (ps,pi,pr,keep,first,head) = control_query_row(conn,c"SELECT session_id,session_generation,policy_revision,retain_generations,first_available_generation,head_generation FROM s_delivery_policy WHERE singleton=1", &[], |r| Ok((TextValue::from_sql_admitted(r,0,owner, work)?,TextValue::from_sql_admitted(r,1,owner, work)?,TextValue::from_sql_admitted(r,2,owner, work)?,r.integer(3).map_err(|e|e.to_string())?,r.integer(4).map_err(|e|e.to_string())?,r.integer(5).map_err(|e|e.to_string())?)))?;
     validate_delivery_policy(&ps, &pi, &pr, keep, first, head, &sid, &inc, root_g)?;
     let mut stmt = conn
@@ -2483,6 +2519,35 @@ impl Bounds {
     }
 }
 
+pub(crate) fn verify_serve_startup(
+    conn: &Connection,
+    db: &Path,
+    epoch: &str,
+    clock: &ClockPlan,
+    before_write: Option<&std::cell::Cell<crate::DeltaShape>>,
+    load_profile: impl FnOnce() -> Result<(Value, String, String), String>,
+) -> Result<(), String> {
+    verify_writer_epoch(conn, epoch)?;
+    audit_private_startup(conn, before_write)?;
+    if !active(conn)? {
+        return Err("SchemaUnsupported：serve需要显式v2初始化".into());
+    }
+    check_clock(conn, clock)?;
+    let (_, _, profile_hash) = load_profile()?;
+    if meta_get_opt(conn, "profile_hash")?.as_deref() != Some(&profile_hash) {
+        return Err("IdentityConflict：serve profile绑定不同".into());
+    }
+    if meta_get_opt(conn, "advance_state")?.as_deref() != Some("idle") {
+        // #1576：历史规则库的 recover 必拒（VersionMismatch），不能再把运维指向它；闭门本身不放松。
+        let rule = meta_get_opt(conn, "rule_revision")?;
+        if rule.as_deref() != Some(RULE_REVISION) {
+            return Err(stale_begin_on_historical_rule(rule.as_deref(), db));
+        }
+        return Err("StaleWriter：未完成Begin保持闭门，请监督器先正式recover".into());
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 #[allow(clippy::too_many_arguments)]
 fn handle_fixture(
@@ -2514,34 +2579,23 @@ fn serve_with_policy(
     epoch: &str,
     clock_path: &Path,
     bounds: Bounds,
+    mut admission: crate::v3::admission_anchor::PreparedAdmission,
     production: bool,
 ) -> Result<(), String> {
     positive(epoch, "v2 writer_epoch")?;
     cache::configure(bounds.cache_bytes);
     // 监督器nonce仅用于把Ready绑定真实启动进程；绝不进入业务payload/hash/持久事实。
     let control_instance_id = std::env::var("S_CONTROL_INSTANCE_ID").ok();
-    let _lock = process_lock(db)?;
-    let clock = ClockPlan::load(clock_path)?;
+    let clock = ClockPlan::parse(strict_json(&admission.read_file(clock_path, None)?)?)?;
+    let scope = crate::v3::admission::WriterScope::admit_legacy_serve(
+        db, admission, epoch, &clock, profile,
+    )?;
+    let _open_guard = scope.enter()?;
+    let db = scope.db_path();
+    scope.require_admitted()?;
     let conn = open_db(db)?;
     let tx = conn.unchecked_transaction().map_err(err)?;
-    verify_writer_epoch(&tx, epoch)?;
-    verify_reachable_root(&tx)?;
-    if !active(&tx)? {
-        return Err("SchemaUnsupported：serve需要显式v2初始化".into());
-    }
-    check_clock(&tx, &clock)?;
-    let (_, _, profile_hash) = load_profile(profile)?;
-    if meta_get_opt(&tx, "profile_hash")?.as_deref() != Some(&profile_hash) {
-        return Err("IdentityConflict：serve profile绑定不同".into());
-    }
-    if meta_get_opt(&tx, "advance_state")?.as_deref() != Some("idle") {
-        // #1576：历史规则库的 recover 必拒（VersionMismatch），不能再把运维指向它；闭门本身不放松。
-        let rule = meta_get_opt(&tx, "rule_revision")?;
-        if rule.as_deref() != Some(RULE_REVISION) {
-            return Err(stale_begin_on_historical_rule(rule.as_deref(), db));
-        }
-        return Err("StaleWriter：未完成Begin保持闭门，请监督器先正式recover".into());
-    }
+    verify_serve_startup(&tx, db, epoch, &clock, None, || load_profile(profile))?;
     let identity = protocol_identity(&tx)?;
     let pending = {
         let mut q=tx.prepare("SELECT canonical_envelope FROM s_input_messages WHERE status='AcceptedPending' ORDER BY accepted_seq,message_id").map_err(err)?;
@@ -2561,6 +2615,7 @@ fn serve_with_policy(
             clock: clock.clone(),
         };
         // 此身份已持久接纳：换代只取得新推进权，不能修改原payload中的旧writer_epoch。
+        scope.require_admitted()?;
         if production {
             advance_core(db, epoch, Some(&context))?;
         } else {
@@ -2572,10 +2627,13 @@ fn serve_with_policy(
             unreachable!("fixture only exists in test builds")
         }
     }
+    scope.finish_startup()?;
     serve_unix(socket, bounds.transport(), envelope, |e| {
         response(
             e,
-            handle_with_policy(db, profile, epoch, &clock, e, production),
+            scope
+                .require_admitted()
+                .and_then(|()| handle_with_policy(db, profile, epoch, &clock, e, production)),
             &identity,
             control_instance_id.as_deref(),
         )
@@ -2610,8 +2668,11 @@ fn serve_fixture(
     epoch: &str,
     clock_path: &Path,
     bounds: Bounds,
+    admission: crate::v3::admission_anchor::PreparedAdmission,
 ) -> Result<(), String> {
-    serve_with_policy(db, socket, profile, epoch, clock_path, bounds, false)
+    serve_with_policy(
+        db, socket, profile, epoch, clock_path, bounds, admission, false,
+    )
 }
 
 pub fn dispatch(args: &[String]) -> Result<bool, String> {
@@ -2666,6 +2727,13 @@ fn dispatch_with_policy(args: &[String], production: bool) -> Result<bool, Strin
             queue: usize::try_from(positive_arg(args, "--queue-capacity")?).map_err(err)?,
             connections: usize::try_from(positive_arg(args, "--max-connections")?).map_err(err)?,
         };
+        let db = PathBuf::from(arg(args, "--db")?);
+        let admission = crate::v3::admission_anchor::from_args_for_db(
+            &db,
+            args,
+            crate::v3::admission_anchor::ControlEnv::capture(),
+        )
+        .map_err(|error| error.to_string())?;
         serve_with_policy(
             Path::new(&arg(args, "--db")?),
             Path::new(&arg(args, "--socket")?),
@@ -2673,6 +2741,7 @@ fn dispatch_with_policy(args: &[String], production: bool) -> Result<bool, Strin
             &arg(args, "--writer-epoch")?,
             Path::new(&arg(args, "--clock-plan")?),
             bounds,
+            admission,
             production,
         )?;
         return Ok(true);
@@ -2683,26 +2752,72 @@ fn dispatch_with_policy(args: &[String], production: bool) -> Result<bool, Strin
             .any(|k| args.iter().any(|a| a == k))
     {
         let db = PathBuf::from(arg(args, "--db")?);
-        let _lock = process_lock(&db)?;
-        let clock = ClockPlan::load(Path::new(&arg(args, "--clock-plan")?))?;
-        let out = recover_core(
+        let mut admission = crate::v3::admission_anchor::from_args_for_db(
             &db,
+            args,
+            crate::v3::admission_anchor::ControlEnv::capture(),
+        )
+        .map_err(|error| error.to_string())?;
+        let clock = ClockPlan::parse(strict_json(
+            &admission.read_file(Path::new(&arg(args, "--clock-plan")?), None)?,
+        )?)?;
+        let scope = crate::v3::admission::WriterScope::admit(&db, admission)?;
+        let _open_guard = scope.enter()?;
+        scope.require_admitted()?;
+        let out = recover_core(
+            scope.db_path(),
             &arg(args, "--new-epoch")?,
             Some((&clock, &arg(args, "--clock-event-id")?)),
         )?;
-        println!("{out}");
+        scope.write_result(&out)?;
+        scope.finish_startup()?;
         return Ok(true);
     }
     Ok(false)
 }
 
-pub fn legacy_write_lock(args: &[String]) -> Result<Option<File>, String> {
-    if matches!(
-        args.get(1).map(String::as_str),
-        Some("init" | "reset" | "accept" | "advance" | "recover")
-    ) {
+// init/reset 保留旧锁分支，本提案不授予新库准备、重置或既存无锚接管资格。
+pub enum LegacyWriteGuard {
+    Initialization(
+        #[allow(
+            dead_code,
+            reason = "#1527：文件持有本身保持 init/reset 锁直到 guard 析构"
+        )]
+        File,
+    ),
+    Existing(crate::v3::admission::WriterScope),
+}
+impl LegacyWriteGuard {
+    pub(crate) fn enter(&self) -> Result<Option<crate::v3::admission::OpenGuard>, String> {
+        match self {
+            Self::Initialization(_) => Ok(None),
+            Self::Existing(scope) => scope.enter().map(Some),
+        }
+    }
+    pub fn require_admitted(&self) -> Result<(), String> {
+        match self {
+            Self::Initialization(_) => Ok(()),
+            Self::Existing(scope) => scope.require_admitted(),
+        }
+    }
+}
+
+pub fn legacy_write_lock(args: &[String]) -> Result<Option<LegacyWriteGuard>, String> {
+    let command = args.get(1).map(String::as_str);
+    if matches!(command, Some("accept" | "advance" | "recover")) {
         let db = PathBuf::from(arg(args, "--db")?);
-        return process_lock(&db).map(Some);
+        let prepared = crate::v3::admission_anchor::from_args_for_db(
+            &db,
+            args,
+            crate::v3::admission_anchor::ControlEnv::capture(),
+        )
+        .map_err(|error| error.to_string())?;
+        return crate::v3::admission::WriterScope::admit(&db, prepared)
+            .map(|scope| Some(LegacyWriteGuard::Existing(scope)));
+    }
+    if matches!(command, Some("init" | "reset")) {
+        let db = PathBuf::from(arg(args, "--db")?);
+        return process_lock(&db).map(|file| Some(LegacyWriteGuard::Initialization(file)));
     }
     Ok(None)
 }
@@ -3202,6 +3317,64 @@ mod tests {
     };
     use std::time::Instant;
     static N: AtomicUsize = AtomicUsize::new(0);
+    pub(super) fn with_mixed_control_fixture(run: impl FnOnce(&Connection)) {
+        let fixture = Fixture::new(4, 1);
+        fixture.ingest(0);
+        fixture.ingest(1);
+        let conn = open_db(&fixture.db).unwrap();
+        run(&conn);
+    }
+    fn dump_db(db: &Path) -> Vec<(String, Vec<String>)> {
+        let conn = open_db(db).unwrap();
+        let names = [
+            "meta",
+            "raw_events",
+            "batches",
+            "objects",
+            "witnesses",
+            "relations",
+            "observations",
+            "structure_deltas",
+            "s_storage_format",
+            "writer_epoch_history",
+            "catalog",
+            "s_protocol_meta",
+            "s_input_messages",
+            "s_clock_events",
+            "s_delivery_policy",
+            "s_delivery_refs",
+        ];
+        names
+            .iter()
+            .map(|n| {
+                let exists: i64 = conn
+                    .query_row(
+                        "SELECT COUNT(*) FROM sqlite_schema WHERE type='table' AND name=?1",
+                        params![n],
+                        |r| r.get(0),
+                    )
+                    .unwrap();
+                if exists == 0 {
+                    return (n.to_string(), vec!["<absent>".to_string()]);
+                }
+                let mut q = conn
+                    .prepare(&format!("SELECT * FROM {n} ORDER BY rowid"))
+                    .unwrap();
+                let cols = q.column_count();
+                let rows = q
+                    .query_map([], |r| {
+                        Ok((0..cols)
+                            .map(|i| format!("{:?}", r.get_ref(i).unwrap()))
+                            .collect::<Vec<_>>()
+                            .join("|"))
+                    })
+                    .unwrap()
+                    .collect::<Result<Vec<_>, _>>()
+                    .unwrap();
+                (n.to_string(), rows)
+            })
+            .collect()
+    }
     struct Fixture {
         dir: PathBuf,
         db: PathBuf,
@@ -3267,55 +3440,7 @@ mod tests {
             handle_fixture(&self.db, &self.profile, "1", &self.clock, &m).unwrap()
         }
         fn dump(&self) -> Vec<(String, Vec<String>)> {
-            let conn = open_db(&self.db).unwrap();
-            let names = [
-                "meta",
-                "raw_events",
-                "batches",
-                "objects",
-                "witnesses",
-                "relations",
-                "observations",
-                "structure_deltas",
-                "s_storage_format",
-                "writer_epoch_history",
-                "catalog",
-                "s_protocol_meta",
-                "s_input_messages",
-                "s_clock_events",
-                "s_delivery_policy",
-                "s_delivery_refs",
-            ];
-            names
-                .iter()
-                .map(|n| {
-                    let exists: i64 = conn
-                        .query_row(
-                            "SELECT COUNT(*) FROM sqlite_schema WHERE type='table' AND name=?1",
-                            params![n],
-                            |r| r.get(0),
-                        )
-                        .unwrap();
-                    if exists == 0 {
-                        return (n.to_string(), vec!["<absent>".to_string()]);
-                    }
-                    let mut q = conn
-                        .prepare(&format!("SELECT * FROM {n} ORDER BY rowid"))
-                        .unwrap();
-                    let cols = q.column_count();
-                    let rows = q
-                        .query_map([], |r| {
-                            Ok((0..cols)
-                                .map(|i| format!("{:?}", r.get_ref(i).unwrap()))
-                                .collect::<Vec<_>>()
-                                .join("|"))
-                        })
-                        .unwrap()
-                        .collect::<Result<Vec<_>, _>>()
-                        .unwrap();
-                    (n.to_string(), rows)
-                })
-                .collect()
+            dump_db(&self.db)
         }
         fn begin_only(&self) -> InputContext {
             let c = InputContext {
@@ -3368,8 +3493,16 @@ mod tests {
         };
         let socket = f.dir.join("s.sock");
         // 对照：当前规则库的未决 Begin 仍按原口径指向 recover（该路径对当前规则可走）。
-        let current =
-            serve_fixture(&f.db, &socket, &f.profile, "1", &clock_path, bounds()).unwrap_err();
+        let current = serve_fixture(
+            &f.db,
+            &socket,
+            &f.profile,
+            "1",
+            &clock_path,
+            bounds(),
+            crate::v3::admission_anchor::test_prepare(&f.db),
+        )
+        .unwrap_err();
         assert!(
             current.starts_with("StaleWriter：") && current.contains("recover"),
             "{current}"
@@ -3392,8 +3525,16 @@ mod tests {
         };
         let before = files(&f.db);
 
-        let msg =
-            serve_fixture(&f.db, &socket, &f.profile, "1", &clock_path, bounds()).unwrap_err();
+        let msg = serve_fixture(
+            &f.db,
+            &socket,
+            &f.profile,
+            "1",
+            &clock_path,
+            bounds(),
+            crate::v3::admission_anchor::test_prepare(&f.db),
+        )
+        .unwrap_err();
         assert!(msg.starts_with("VersionMismatch："), "{msg}");
         assert!(!msg.contains("请监督器先正式recover"), "{msg}");
         for path in [
@@ -3479,12 +3620,77 @@ mod tests {
             "1",
             &f.dir.join("clock.json"),
             bounds,
+            crate::v3::admission_anchor::test_prepare(&f.db),
         )
         .unwrap_err();
         assert!(msg.starts_with("VersionMismatch："), "{msg}");
         assert!(msg.contains("meta 缺 rule_revision 键"), "{msg}");
         assert!(!msg.contains("rule_revision=``"), "{msg}");
         assert!(!socket.exists(), "拒绝须发生在绑定 socket 之前");
+    }
+
+    #[test]
+    fn v2_serve_stale_prefix_preserves_profile_order_and_adapter_gate() {
+        // #1527×#1602：当前规则旧库只缺新增列时，写前前缀照样给出原首错，且不迁移源库。
+        for (bad_profile, pre_policy_records) in
+            [(false, false), (true, false), (false, true), (true, true)]
+        {
+            let f = Fixture::new(8, 2);
+            let profile = if bad_profile {
+                f.begin_only();
+                let conn = open_db(&f.db).unwrap();
+                meta_set(&conn, "rule_revision", "s2-axis-quantifiers+new-bi/1").unwrap();
+                drop(conn);
+                let mut value: Value =
+                    serde_json::from_slice(&std::fs::read(&f.profile).unwrap()).unwrap();
+                value["tick_size"] = json!("2");
+                let path = f.dir.join("different-profile.json");
+                std::fs::write(&path, canonical_json(&value)).unwrap();
+                path
+            } else {
+                f.profile.clone()
+            };
+            if pre_policy_records {
+                Connection::open(&f.db)
+                    .unwrap()
+                    .execute_batch("ALTER TABLE structure_deltas DROP COLUMN policy_records")
+                    .unwrap();
+            }
+            let before = std::fs::read(&f.db).unwrap();
+            let socket = f.dir.join("prefix-must-not-bind.sock");
+            let msg = serve_fixture(
+                &f.db,
+                &socket,
+                &profile,
+                "1",
+                &f.dir.join("clock.json"),
+                Bounds {
+                    frame: 65536,
+                    read: Duration::from_millis(1000),
+                    write: Duration::from_millis(1000),
+                    response: Duration::from_millis(1000),
+                    cache_bytes: 0,
+                    queue: 4,
+                    connections: 4,
+                },
+                crate::v3::admission_anchor::test_prepare(&f.db),
+            )
+            .unwrap_err();
+            assert!(
+                msg.starts_with(if bad_profile {
+                    "IdentityConflict：serve profile绑定不同"
+                } else {
+                    "LegacyAdmissionBudgetAdapterMissing："
+                }),
+                "{msg}"
+            );
+            assert!(!socket.exists());
+            assert_eq!(std::fs::read(&f.db).unwrap(), before);
+            assert_eq!(
+                crate::policy_records_missing(&Connection::open(&f.db).unwrap()).unwrap(),
+                pre_policy_records
+            );
+        }
     }
 
     #[test]
@@ -3505,7 +3711,7 @@ mod tests {
         cache::counters_reset();
         let tx = conn.unchecked_transaction().unwrap();
         let mut reachable = capture_reachable_batches(&tx).unwrap();
-        let expected = prepare_control(&tx).unwrap();
+        let expected = prepare_control(&tx, None).unwrap();
         assert_eq!(cache::counters_snapshot().batch_header_hits, 4);
         assert_eq!(cache::counters_snapshot().batch_full_reads, 0);
         assert_eq!(
@@ -3531,7 +3737,7 @@ mod tests {
                 }
             }
             std::mem::swap(&mut reachable.batches, &mut bad);
-            let expected = prepare_control(&tx).unwrap();
+            let expected = prepare_control(&tx, None).unwrap();
             assert!(
                 verify_reachable_root_in_tx(&tx, &reachable, expected).is_err(),
                 "控制头不得暗补或数字归一化"
@@ -3920,6 +4126,67 @@ mod tests {
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
         );
+    }
+
+    /// #1527×#1602 B 臂：当前规则 s-session/2 库只缺新增列时，mixed 写前准入只读审到迁移前精确形状；
+    /// 真实 recover 入口在 scope 内迁移后照跑严格审计，结果与原调用（无 scope 时首个开门者迁移）相同。
+    /// serve 入口的封存前缀拒绝与形状无关。
+    #[test]
+    fn v2_mixed_admission_migrates_current_rule_pre_policy_records_store_in_scope() {
+        let f = Fixture::new(4, 1);
+        f.ingest(0);
+        Connection::open(&f.db)
+            .unwrap()
+            .execute_batch("ALTER TABLE structure_deltas DROP COLUMN policy_records")
+            .unwrap();
+        assert!(crate::policy_records_missing(&Connection::open(&f.db).unwrap()).unwrap());
+        let original = f.dir.join("original-call.sqlite");
+        std::fs::copy(&f.db, &original).unwrap();
+        let bytes = || {
+            let wal = std::fs::read(format!("{}-wal", f.db.display()))
+                .ok()
+                .filter(|b| !b.is_empty());
+            (std::fs::read(&f.db).unwrap(), wal)
+        };
+        let before = bytes();
+
+        let command = crate::v3::admission_anchor::CommandAccounting::begin();
+        let prepared = crate::v3::admission_anchor::test_prepare_mixed(&f.db, 1 << 26, 1 << 26);
+        let error = crate::v3::test_with_mixed_entry(|| {
+            crate::v3::admission::WriterScope::admit_legacy_serve(
+                &f.db, prepared, "1", &f.clock, &f.profile,
+            )
+        })
+        .err()
+        .unwrap();
+        let mut output = Vec::new();
+        command.report(&error, &mut output);
+        let output: Value = serde_json::from_slice(&output).unwrap();
+        assert_eq!(output["code"], "MixedProtocolMismatch");
+        assert_eq!(bytes(), before);
+
+        let _command = crate::v3::admission_anchor::CommandAccounting::begin();
+        let prepared = crate::v3::admission_anchor::test_prepare_mixed(&f.db, 1 << 26, 1 << 26);
+        let scope = crate::v3::test_with_mixed_entry(|| {
+            crate::v3::admission::WriterScope::admit(&f.db, prepared)
+        })
+        .unwrap();
+        assert_eq!(bytes(), before, "准入只读，不迁移");
+        let out = {
+            let _guard = scope.enter().unwrap();
+            scope.require_admitted().unwrap();
+            recover_core(scope.db_path(), "2", Some((&f.clock, "recover-1"))).unwrap()
+        };
+        scope.finish_startup().unwrap();
+        drop(scope);
+        let conn = open_db(&f.db).unwrap();
+        assert!(!crate::policy_records_missing(&conn).unwrap());
+        verify_reachable_root(&conn).unwrap();
+        drop(conn);
+
+        let expected = recover_core(&original, "2", Some((&f.clock, "recover-1"))).unwrap();
+        assert_eq!(out, expected);
+        assert_eq!(dump_db(&f.db), dump_db(&original));
     }
 
     #[test]
@@ -4344,7 +4611,7 @@ fn testonly_audit_cost_breakdown() {
         let b = t.elapsed();
         let captured = retained_sample();
         let capture_counters = serde_json::to_value(cache::counters_snapshot()).unwrap();
-        let expected = prepare_control(&tx).unwrap();
+        let expected = prepare_control(&tx, None).unwrap();
         let c = t.elapsed();
         let control_counters = serde_json::to_value(cache::counters_snapshot()).unwrap();
         verify_reachable_root_in_tx(&tx, &batches, expected).unwrap();
@@ -4415,3 +4682,12 @@ impl ControlFacts {
         serde_json::json!({"session_generation":self.session_generation.as_str(),"clock_plan_hash":self.clock_plan_hash.as_str(),"headers":headers})
     }
 }
+
+pub(crate) mod mixed_control;
+
+#[cfg(test)]
+pub(crate) fn with_mixed_control_fixture(run: impl FnOnce(&Connection)) {
+    tests::with_mixed_control_fixture(run)
+}
+
+pub(crate) mod mixed_root;

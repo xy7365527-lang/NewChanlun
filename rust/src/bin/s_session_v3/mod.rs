@@ -39,7 +39,15 @@ use std::collections::BTreeSet;
 mod atomic_init;
 #[cfg(test)]
 mod atomic_init_tests;
-mod audit_budget;
+// #1527 提案：admission 由根协调恢复/资源 provider，当前基线无此模块。
+// M-01：WriterScope::admit 独占 StartedAdmission，provider 仅收
+// &mut AdmissionAccounting<'_>；禁止导出 &mut Job 或用新 Job 替代原账。
+// 原账 finish 成功且源身份后置核验完成，才保存 lease 并设置 admitted。
+pub(crate) mod admission;
+pub(crate) mod admission_anchor;
+mod admission_private;
+mod admission_provider;
+pub(crate) mod audit_budget;
 mod audit_header;
 pub(super) mod audit_owner;
 #[cfg(feature = "s_capture_native_testonly")]
@@ -94,6 +102,8 @@ mod s_allocation;
 mod source_audit;
 mod state;
 mod writer_cli;
+#[cfg(test)]
+pub(crate) use admission_private::test_with_mixed_entry;
 
 /// 本模块唯一负责的协议版本。
 pub(super) const PROTOCOL_REVISION: &str = "s-session/3";
@@ -195,7 +205,7 @@ fn dispatch_with_policy(args: &[String], production: bool) -> Result<bool, Strin
             unreachable!("fixture only exists in test builds")
         };
         if let Some(out) = out {
-            println!("{out}");
+            out.emit()?;
         }
         return Ok(true);
     }

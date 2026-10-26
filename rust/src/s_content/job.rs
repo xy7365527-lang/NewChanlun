@@ -55,6 +55,7 @@ use super::{
     MAX_FRAME_LEN,
 };
 use serde_json::{Map as JsonMap, Value as JsonNode};
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -616,21 +617,70 @@ static JOB_IDS: AtomicU64 = AtomicU64::new(0);
 ///
 /// 一个 job 从用户开始重建或一次 Watch 调用开始，覆盖其全部同代 Snapshot 对拍；
 /// 跨分页、片段、证明重传、同代对拍及重试累计，**同一个余额、同一个绝对期限**。
+enum AcceptedNodes {
+    Ordinary(BTreeSet<NodeDigest>),
+    Mixed {
+        binding: super::capture_allocation::scratch::NativeReservation,
+        content: super::capture_allocation::native_tree::NativeTree<NodeDigest, u64>,
+        legacy: super::capture_allocation::native_tree::NativeTree<NodeDigest, (i64, usize, u64)>,
+    },
+}
+
+enum OpenReservations {
+    Ordinary(BTreeMap<u64, (SpaceKind, u64)>),
+    Mixed(super::capture_allocation::native_tree::NativeTree<u64, (SpaceKind, u64)>),
+}
+impl OpenReservations {
+    fn len(&self) -> usize {
+        match self {
+            Self::Ordinary(m) => m.len(),
+            Self::Mixed(m) => m.len(),
+        }
+    }
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+    fn remove(&mut self, id: &u64) -> Option<(SpaceKind, u64)> {
+        match self {
+            Self::Ordinary(m) => m.remove(id),
+            Self::Mixed(m) => m.remove(id),
+        }
+    }
+    fn insert(
+        &mut self,
+        id: u64,
+        entry: (SpaceKind, u64),
+        work: Option<&super::capture_allocation::scratch::WorkScope>,
+    ) -> Result<(), CodecError> {
+        match self {
+            Self::Ordinary(m) => {
+                m.insert(id, entry);
+            }
+            Self::Mixed(m) => {
+                let work =
+                    work.ok_or_else(|| CodecError::new(RESERVATION, "mixed预留缺当前工作域"))?;
+                m.insert_admitted(id, entry, &MixedAllocation(work))?;
+            }
+        }
+        Ok(())
+    }
+}
+
 pub struct Job {
     id: u64,
     limits: JobLimits,
     clock: Box<dyn Clock>,
     started: Option<Instant>,
-    stopped: Option<(&'static str, String)>,
+    stopped: Option<(&'static str, Cow<'static, str>)>,
     wire_bytes: u128,
     node_bytes: u64,
     nodes: u64,
     records: u64,
     requests: u64,
-    accepted: BTreeSet<NodeDigest>,
+    accepted: AcceptedNodes,
     staged: Space,
     store: Space,
-    open: BTreeMap<u64, (SpaceKind, u64)>,
+    open: OpenReservations,
     next_grant: u64,
 }
 
@@ -699,7 +749,7 @@ impl Job {
             nodes: 0,
             records: 0,
             requests: 0,
-            accepted: BTreeSet::new(),
+            accepted: AcceptedNodes::Ordinary(BTreeSet::new()),
             staged: Space {
                 // 构造时 exposure = baseline + 0 + 0，所以峰值就是实测基线本身。
                 baseline: u128::from(existing.staged_bytes),
@@ -711,9 +761,30 @@ impl Job {
                 peak: u128::from(existing.store_bytes),
                 ..Space::default()
             },
-            open: BTreeMap::new(),
+            open: OpenReservations::Ordinary(BTreeMap::new()),
             next_grant: 1,
         })
+    }
+
+    /// #1527：沿用真实控制原件首读时刻；不制造基线、不改变旧 new 行为。
+    pub fn new_started(
+        limits: JobLimits,
+        existing: Existing,
+        clock: Box<dyn Clock>,
+        first_read_at: Instant,
+    ) -> Result<Job, CodecError> {
+        limits.validate()?;
+        let now = clock.now();
+        let deadline = first_read_at
+            .checked_add(Duration::from_millis(limits.max_elapsed_ms))
+            .ok_or_else(|| CodecError::new(DEADLINE, "首读绝对期限溢出"))?;
+        if now < first_read_at || now >= deadline {
+            return Err(CodecError::new(DEADLINE, "真实首读时刻无效或期限已到"));
+        }
+        let mut job = Self::new(limits, existing, clock)?;
+        job.started = Some(first_read_at);
+        job.check_deadline()?;
+        Ok(job)
     }
 
     /// 首次读取开始：**幂等**，重复调用不会续期（§5.6.1「不能逐片续期」）。
@@ -751,10 +822,10 @@ impl Job {
             Some(deadline) => Ok(deadline),
             None => Err(self.stop(
                 DEADLINE,
-                format!(
+                self.stop_detail(format_args!(
                     "起始 Instant 加上 max_elapsed_ms {} ms 溢出单调时钟域：无法给出绝对期限",
                     self.limits.max_elapsed_ms
-                ),
+                )),
             )),
         }
     }
@@ -789,21 +860,21 @@ impl Job {
                 self.wire_bytes = u128::MAX;
                 return Err(self.stop(
                     LIMIT_EXCEEDED,
-                    format!("{} 累计溢出内部 u128 记账域", LIMIT_FIELDS[0]),
+                    self.stop_detail(format_args!("{} 累计溢出内部 u128 记账域", LIMIT_FIELDS[0])),
                 ));
             }
         };
         if self.wire_bytes > u128::from(self.limits.max_total_wire_bytes) {
             return Err(self.stop(
                 LIMIT_EXCEEDED,
-                format!(
+                self.stop_detail(format_args!(
                     "{} 累计 {} 超过上限 {}（实际字节已先入账再停止）",
                     LIMIT_FIELDS[0], self.wire_bytes, self.limits.max_total_wire_bytes
-                ),
+                )),
             ));
         }
         if let Err(err) = self.deadline_gate() {
-            return Err(self.stop(DEADLINE, err.detail().to_string()));
+            return Err(self.stop(DEADLINE, self.stop_detail(format_args!("{}", err.detail()))));
         }
         Ok(())
     }
@@ -879,45 +950,256 @@ impl Job {
         &mut self,
         usage: &CheckedNodeUsage,
     ) -> Result<NodeAcceptance, CodecError> {
+        if !matches!(self.accepted, AcceptedNodes::Ordinary(_)) {
+            return Err(CodecError::new(
+                RESERVATION,
+                "mixed节点接纳必须携带当前WorkScope",
+            ));
+        }
         let digest = usage.digest;
-        if self.accepted.contains(&digest) {
+        if matches!(&self.accepted, AcceptedNodes::Ordinary(set) if set.contains(&digest)) {
             return Ok(NodeAcceptance::AlreadyAccepted);
         }
         let framed = usage.framed_bytes;
         let projected_bytes = match self.node_bytes.checked_add(framed) {
             Some(n) => n,
             None => {
-                return Err(self.stop(LIMIT_EXCEEDED, format!("{} 累计溢出 u64", LIMIT_FIELDS[1])))
+                return Err(self.stop(
+                    LIMIT_EXCEEDED,
+                    self.stop_detail(format_args!("{} 累计溢出 u64", LIMIT_FIELDS[1])),
+                ))
             }
         };
         let projected_nodes = match self.nodes.checked_add(1) {
             Some(n) => n,
             None => {
-                return Err(self.stop(LIMIT_EXCEEDED, format!("{} 累计溢出 u64", LIMIT_FIELDS[2])))
+                return Err(self.stop(
+                    LIMIT_EXCEEDED,
+                    self.stop_detail(format_args!("{} 累计溢出 u64", LIMIT_FIELDS[2])),
+                ))
             }
         };
         if projected_bytes > self.limits.max_total_node_bytes {
             return Err(self.stop(
                 LIMIT_EXCEEDED,
-                format!(
+                self.stop_detail(format_args!(
                     "{} 累计 {projected_bytes} 超过上限 {}",
                     LIMIT_FIELDS[1], self.limits.max_total_node_bytes
-                ),
+                )),
             ));
         }
         if projected_nodes > self.limits.max_total_nodes {
             return Err(self.stop(
                 LIMIT_EXCEEDED,
-                format!(
+                self.stop_detail(format_args!(
                     "{} 累计 {projected_nodes} 超过上限 {}",
                     LIMIT_FIELDS[2], self.limits.max_total_nodes
-                ),
+                )),
             ));
         }
         self.node_bytes = projected_bytes;
         self.nodes = projected_nodes;
-        self.accepted.insert(digest);
+        let AcceptedNodes::Ordinary(set) = &mut self.accepted else {
+            unreachable!()
+        };
+        set.insert(digest);
         Ok(NodeAcceptance::FirstAccept)
+    }
+
+    /// 原 Job 当前独占的 mixed 节点索引与开放预留许可，不含缓存。
+    pub fn mixed_tracking_native_bytes(&self) -> Result<usize, CodecError> {
+        use super::capture_allocation::scratch::ScratchFailure;
+        let AcceptedNodes::Mixed {
+            binding,
+            content,
+            legacy,
+        } = &self.accepted
+        else {
+            return Err(CodecError::scratch(ScratchFailure::Ledger));
+        };
+        let OpenReservations::Mixed(open) = &self.open else {
+            return Err(CodecError::scratch(ScratchFailure::Ledger));
+        };
+        [
+            binding.bytes(),
+            content.native_permit_bytes()?,
+            legacy.native_permit_bytes()?,
+            open.native_permit_bytes()?,
+        ]
+        .into_iter()
+        .try_fold(0usize, |total, bytes| {
+            total
+                .checked_add(bytes)
+                .ok_or_else(|| CodecError::scratch(ScratchFailure::Ledger))
+        })
+    }
+    /// #1527：具名mixed构造器；两域集合共同受当前父工作域约束。
+    pub fn new_started_mixed(
+        limits: JobLimits,
+        existing: Existing,
+        clock: Box<dyn Clock>,
+        first: Instant,
+        work: &super::capture_allocation::scratch::WorkScope,
+    ) -> Result<Self, CodecError> {
+        work.check_current()?;
+        // Mixed拒绝在构造任何动态诊断前完成；普通构造器保留原详细文本。
+        if limits
+            .entries()
+            .iter()
+            .any(|(_, value)| *value == 0 || *value > MAX_LIMIT)
+        {
+            return Err(CodecError::static_detail(
+                LIMIT_DOMAIN,
+                "mixed Job限额不在合法数域",
+            ));
+        }
+        if existing.staged_bytes > existing.store_bytes {
+            return Err(CodecError::static_detail(
+                LIMIT_DOMAIN,
+                "mixed暂存基线超过存储基线",
+            ));
+        }
+        if existing.staged_bytes > limits.max_staged_bytes
+            || existing.store_bytes > limits.max_store_bytes
+        {
+            return Err(CodecError::static_detail(
+                LIMIT_EXCEEDED,
+                "mixed既存基线超过Job帽",
+            ));
+        }
+        let now = clock.now();
+        let deadline = first
+            .checked_add(Duration::from_millis(limits.max_elapsed_ms))
+            .ok_or_else(|| CodecError::static_detail(DEADLINE, "mixed首读期限溢出"))?;
+        if now < first || now >= deadline {
+            return Err(CodecError::static_detail(
+                DEADLINE,
+                "mixed首读时刻无效或期限已到",
+            ));
+        }
+        // 上述已逐项验证new的所有拒绝条件；其成功路径只建空容器。
+        let mut job = Self::new(limits, existing, clock)?;
+        job.started = Some(first);
+        job.accepted = AcceptedNodes::Mixed {
+            binding: work.reserve_native(0)?,
+            content: Default::default(),
+            legacy: Default::default(),
+        };
+        job.open = OpenReservations::Mixed(Default::default());
+        job.check_deadline()?;
+        Ok(job)
+    }
+    pub fn accept_checked_usage_mixed(
+        &mut self,
+        usage: &CheckedNodeUsage,
+        work: &super::capture_allocation::scratch::WorkScope,
+    ) -> Result<NodeAcceptance, CodecError> {
+        self.begin_first_read()?;
+        work.check_current()?;
+        let AcceptedNodes::Mixed {
+            content, binding, ..
+        } = &self.accepted
+        else {
+            return Err(CodecError::static_detail(
+                RESERVATION,
+                "普通Job不接受mixed节点",
+            ));
+        };
+        if !binding.belongs_to_parent(work) {
+            return Err(work.reject(super::capture_allocation::scratch::ScratchFailure::Ledger));
+        }
+        if let Some(bytes) = content.get(&usage.digest) {
+            if *bytes != usage.framed_bytes {
+                return Err(CodecError::static_detail(
+                    RESERVATION,
+                    "同节点原件费用不一致",
+                ));
+            }
+            return Ok(NodeAcceptance::AlreadyAccepted);
+        }
+        let (nodes, bytes) = self.project_mixed_node(usage.framed_bytes)?;
+        let AcceptedNodes::Mixed { content, .. } = &mut self.accepted else {
+            unreachable!()
+        };
+        content.insert_admitted(usage.digest, usage.framed_bytes, &MixedAllocation(work))?;
+        self.nodes = nodes;
+        self.node_bytes = bytes;
+        Ok(NodeAcceptance::FirstAccept)
+    }
+    pub fn accept_legacy_evidence(
+        &mut self,
+        row: &super::legacy_evidence::CheckedLegacyEvidenceRow,
+        work: &super::capture_allocation::scratch::WorkScope,
+    ) -> Result<NodeAcceptance, CodecError> {
+        self.begin_first_read()?;
+        work.check_current()?;
+        let identity = (row.kind(), row.payload_len(), row.declared_length());
+        let AcceptedNodes::Mixed {
+            legacy, binding, ..
+        } = &self.accepted
+        else {
+            return Err(CodecError::static_detail(
+                RESERVATION,
+                "普通Job不接受legacy域",
+            ));
+        };
+        if !binding.belongs_to_parent(work) {
+            return Err(work.reject(super::capture_allocation::scratch::ScratchFailure::Ledger));
+        }
+        if let Some(previous) = legacy.get(row.id()) {
+            if *previous != identity {
+                return Err(CodecError::static_detail(
+                    RESERVATION,
+                    "同legacy节点原件不一致",
+                ));
+            }
+            return Ok(NodeAcceptance::AlreadyAccepted);
+        }
+        let framed = u64::try_from(row.payload_len())
+            .ok()
+            .and_then(|n| n.checked_add(1))
+            .ok_or_else(|| self.stop(LIMIT_EXCEEDED, "legacy节点费用溢出".into()))?;
+        let (nodes, bytes) = self.project_mixed_node(framed)?;
+        let AcceptedNodes::Mixed { legacy, .. } = &mut self.accepted else {
+            unreachable!()
+        };
+        legacy.insert_admitted(*row.id(), identity, &MixedAllocation(work))?;
+        self.nodes = nodes;
+        self.node_bytes = bytes;
+        Ok(NodeAcceptance::FirstAccept)
+    }
+    fn project_mixed_node(&mut self, framed: u64) -> Result<(u64, u64), CodecError> {
+        let bytes = self
+            .node_bytes
+            .checked_add(framed)
+            .ok_or_else(|| self.stop(LIMIT_EXCEEDED, "节点字节累计溢出".into()))?;
+        let nodes = self
+            .nodes
+            .checked_add(1)
+            .ok_or_else(|| self.stop(LIMIT_EXCEEDED, "节点数量累计溢出".into()))?;
+        if bytes > self.limits.max_total_node_bytes || nodes > self.limits.max_total_nodes {
+            return Err(self.stop(LIMIT_EXCEEDED, "mixed两域聚合节点费用超出签署帽".into()));
+        }
+        Ok((nodes, bytes))
+    }
+
+    fn check_reservation_scope(
+        &self,
+        work: Option<&super::capture_allocation::scratch::WorkScope>,
+    ) -> Result<(), CodecError> {
+        match (&self.accepted, work) {
+            (AcceptedNodes::Ordinary(_), None) => Ok(()),
+            (AcceptedNodes::Mixed { binding, .. }, Some(work)) => {
+                work.check_current()?;
+                if !binding.belongs_to_parent(work) {
+                    return Err(
+                        work.reject(super::capture_allocation::scratch::ScratchFailure::Ledger)
+                    );
+                }
+                Ok(())
+            }
+            _ => Err(CodecError::new(RESERVATION, "预留入口与Job计量域不匹配")),
+        }
     }
 
     /// 写前预留（暂存子集）：同一批字节**同时**占 `max_staged_bytes` 与 `max_store_bytes`，
@@ -927,7 +1209,22 @@ impl Job {
     /// 或由 [`Job::release`] 在取消／失败时退出预留。两处基线都在 [`Job::new`] 一次声明、
     /// 本接口不再接受新的既存量，所以删文件腾挪额度这条通道（§5.6.1）在本层不成立。
     pub fn reserve_staged(&mut self, requested: u64) -> Result<Grant, CodecError> {
+        self.reserve_staged_in(requested, None)
+    }
+    pub fn reserve_staged_mixed(
+        &mut self,
+        requested: u64,
+        work: &super::capture_allocation::scratch::WorkScope,
+    ) -> Result<Grant, CodecError> {
+        self.reserve_staged_in(requested, Some(work))
+    }
+    fn reserve_staged_in(
+        &mut self,
+        requested: u64,
+        work: Option<&super::capture_allocation::scratch::WorkScope>,
+    ) -> Result<Grant, CodecError> {
         self.gate()?;
+        self.check_reservation_scope(work)?;
         let staged_projected = self.project(
             "暂存",
             self.staged_exposure(),
@@ -941,11 +1238,11 @@ impl Job {
             self.limits.max_store_bytes,
         )?;
         let id = self.next_grant;
+        self.open.insert(id, (SpaceKind::Staged, requested), work)?;
         self.staged.pending += u128::from(requested);
         self.staged.record_peak(staged_projected);
         self.store.record_peak(store_projected);
         self.next_grant += 1;
-        self.open.insert(id, (SpaceKind::Staged, requested));
         Ok(Grant {
             job: self.id,
             id,
@@ -960,7 +1257,22 @@ impl Job {
     /// 所以本模块不为它开回收口（不为历史内容开任意删除通道）。可能被取消的导入内容走
     /// [`Job::reserve_staged`]，那条路有 [`Job::reclaim_staged`] 按实际删除量回收。
     pub fn reserve_store(&mut self, requested: u64) -> Result<Grant, CodecError> {
+        self.reserve_store_in(requested, None)
+    }
+    pub fn reserve_store_mixed(
+        &mut self,
+        requested: u64,
+        work: &super::capture_allocation::scratch::WorkScope,
+    ) -> Result<Grant, CodecError> {
+        self.reserve_store_in(requested, Some(work))
+    }
+    fn reserve_store_in(
+        &mut self,
+        requested: u64,
+        work: Option<&super::capture_allocation::scratch::WorkScope>,
+    ) -> Result<Grant, CodecError> {
         self.gate()?;
+        self.check_reservation_scope(work)?;
         let store_projected = self.project(
             "存储",
             self.store_exposure(),
@@ -968,10 +1280,10 @@ impl Job {
             self.limits.max_store_bytes,
         )?;
         let id = self.next_grant;
+        self.open.insert(id, (SpaceKind::Store, requested), work)?;
         self.store.pending += u128::from(requested);
         self.store.record_peak(store_projected);
         self.next_grant += 1;
-        self.open.insert(id, (SpaceKind::Store, requested));
         Ok(Grant {
             job: self.id,
             id,
@@ -1018,10 +1330,10 @@ impl Job {
         if actual > requested {
             return Err(self.stop(
                 RECONCILE,
-                format!(
+                self.stop_detail(format_args!(
                     "{kind:?} 写后实际 {actual} 字节超过预留 {requested} 字节：不足即停止；\
                      真实 actual 已按实际入账，确已删除的暂存用 reclaim_staged 回收"
-                ),
+                )),
             ));
         }
         Ok(())
@@ -1177,7 +1489,7 @@ impl Job {
         if exposure > cap {
             return Err(self.stop(
                 LIMIT_EXCEEDED,
-                format!("{name}既有敞口 {exposure} 已超上限 {cap}"),
+                self.stop_detail(format_args!("{name}既有敞口 {exposure} 已超上限 {cap}")),
             ));
         }
         // exposure ≤ cap ≤ 2^63-1、requested ≤ 2^64-1 ⟹ 和 < 2^65，u128 不可能溢出。
@@ -1185,7 +1497,9 @@ impl Job {
         if projected > cap {
             return Err(self.stop(
                 LIMIT_EXCEEDED,
-                format!("{name}预留后峰值 {projected} 超过上限 {cap}（既有敞口 {exposure}）"),
+                self.stop_detail(format_args!(
+                    "{name}预留后峰值 {projected} 超过上限 {cap}（既有敞口 {exposure}）"
+                )),
             ));
         }
         Ok(projected)
@@ -1204,22 +1518,46 @@ impl Job {
         let projected = match current.checked_add(add) {
             Some(n) => n,
             None => {
-                return Err(self.stop(LIMIT_EXCEEDED, format!("{name} 累计溢出 u64")));
+                return Err(self.stop(
+                    LIMIT_EXCEEDED,
+                    self.stop_detail(format_args!("{name} 累计溢出 u64")),
+                ));
             }
         };
         if projected > cap {
             return Err(self.stop(
                 LIMIT_EXCEEDED,
-                format!("{name} 本次 +{add} 后累计 {projected} 超过上限 {cap}"),
+                self.stop_detail(format_args!(
+                    "{name} 本次 +{add} 后累计 {projected} 超过上限 {cap}"
+                )),
             ));
         }
         Ok(projected)
     }
 
+    /// #1527：mixed 错误保留静态细节、原 code 和累计账；不渲染动态格式参数。
+    fn stop_detail(&self, detail: fmt::Arguments<'_>) -> Cow<'static, str> {
+        if matches!(self.accepted, AcceptedNodes::Mixed { .. }) {
+            Cow::Borrowed("mixed Job resource rejection; see code and snapshot counters")
+        } else {
+            Cow::Owned(detail.to_string())
+        }
+    }
+
+    fn error_detail(code: &'static str, detail: Cow<'static, str>) -> CodecError {
+        match detail {
+            Cow::Borrowed(text) => CodecError::static_detail(code, text),
+            Cow::Owned(text) => CodecError::new(code, text),
+        }
+    }
+
     fn stopped_err(&self) -> Option<CodecError> {
-        self.stopped
-            .as_ref()
-            .map(|(code, detail)| CodecError::new(code, format!("job 已停止（{code}）：{detail}")))
+        self.stopped.as_ref().map(|(code, detail)| {
+            Self::error_detail(
+                code,
+                self.stop_detail(format_args!("job 已停止（{code}）：{detail}")),
+            )
+        })
     }
 
     fn deadline_gate(&self) -> Result<(), CodecError> {
@@ -1228,12 +1566,12 @@ impl Job {
         };
         let limit = Duration::from_millis(self.limits.max_elapsed_ms);
         if elapsed >= limit {
-            return Err(CodecError::new(
+            return Err(Self::error_detail(
                 DEADLINE,
-                format!(
+                self.stop_detail(format_args!(
                     "已过绝对期限 {} ms（半开区间：必须在期限前收尾）",
                     self.limits.max_elapsed_ms
-                ),
+                )),
             ));
         }
         Ok(())
@@ -1245,17 +1583,17 @@ impl Job {
             return Err(err);
         }
         if let Err(err) = self.deadline_gate() {
-            return Err(self.stop(DEADLINE, err.detail().to_string()));
+            return Err(self.stop(DEADLINE, self.stop_detail(format_args!("{}", err.detail()))));
         }
         Ok(())
     }
 
     /// 首次超限即停止：停止不是清账，`snapshot` 仍照实显示全部累计量。
-    fn stop(&mut self, code: &'static str, detail: String) -> CodecError {
+    fn stop(&mut self, code: &'static str, detail: Cow<'static, str>) -> CodecError {
         if self.stopped.is_none() {
             self.stopped = Some((code, detail.clone()));
         }
-        CodecError::new(code, detail)
+        Self::error_detail(code, detail)
     }
 }
 
@@ -1415,5 +1753,166 @@ mod same_material_tests {
             &new_digest
         );
         assert_eq!(super::super::frame_calls_on_thread() - before, 1);
+    }
+}
+
+struct MixedAllocation<'a>(&'a super::capture_allocation::scratch::WorkScope);
+impl super::NodeSource for MixedAllocation<'_> {
+    fn codec_work(&self) -> Option<&super::capture_allocation::scratch::WorkScope> {
+        Some(self.0)
+    }
+    fn read(&mut self, _: &NodeDigest) -> Result<super::NodeRead, CodecError> {
+        Err(CodecError::new(
+            super::code::SOURCE,
+            "分配能力不提供节点原件",
+        ))
+    }
+}
+
+#[cfg(test)]
+mod mixed_domain_tests {
+    use super::super::capture_allocation::scratch::{
+        CodecWork, ScratchCharge, ScratchFailure, ScratchParent,
+    };
+    use super::*;
+    use std::sync::{Arc, Mutex};
+    struct Parent(Mutex<usize>);
+    impl ScratchParent for Parent {
+        fn reserve(&self, bytes: usize, _: ScratchCharge) -> Result<u64, ScratchFailure> {
+            let mut live = self.0.lock().unwrap();
+            *live = live.checked_add(bytes).ok_or(ScratchFailure::Budget)?;
+            Ok(0)
+        }
+        fn release(&self, bytes: usize, _: ScratchCharge, _: u64) -> Result<(), ScratchFailure> {
+            let mut live = self.0.lock().unwrap();
+            *live = live.checked_sub(bytes).ok_or(ScratchFailure::Ledger)?;
+            Ok(())
+        }
+        fn health(&self) -> Result<(), ScratchFailure> {
+            Ok(())
+        }
+        fn invalidate(&self) {
+            panic!("test ledger invalidated")
+        }
+    }
+    #[test]
+    fn mixed_forced_equal_digest_stays_separate_across_domains() {
+        // 只测域键分离：人为设同digest，不声称构造出了跨编码hash碰撞。
+        let parent = Arc::new(Parent(Mutex::new(0)));
+        let limits = JobLimits::from_canonical_json(&serde_json::json!({
+            "max_total_wire_bytes":"1000", "max_total_node_bytes":"1000", "max_total_nodes":"2",
+            "max_total_records":"100", "max_total_requests":"100", "max_elapsed_ms":"60000",
+            "max_staged_bytes":"1000", "max_store_bytes":"1000"
+        }))
+        .unwrap();
+        CodecWork::new(parent.clone(), 1 << 20)
+            .unwrap()
+            .run(|work| {
+                let mut job = Job::new_started_mixed(
+                    limits,
+                    Existing {
+                        store_bytes: 0,
+                        staged_bytes: 0,
+                    },
+                    Box::new(Instant::now),
+                    Instant::now(),
+                    work,
+                )?;
+                let legacy = super::super::legacy_evidence::CheckedLegacyEvidenceRow::verify(
+                    &super::super::legacy_evidence::node_id(0, b"abc"),
+                    0,
+                    b"abc",
+                    3,
+                )
+                .unwrap();
+                let content = CheckedNodeUsage {
+                    digest: *legacy.id(),
+                    framed_bytes: 13,
+                };
+                assert_eq!(
+                    job.accept_checked_usage_mixed(&content, work)?,
+                    NodeAcceptance::FirstAccept
+                );
+                assert_eq!(
+                    job.accept_legacy_evidence(&legacy, work)?,
+                    NodeAcceptance::FirstAccept
+                );
+                assert_eq!((job.snapshot().nodes, job.snapshot().node_bytes), (2, 17));
+                assert_eq!(
+                    job.accept_checked_usage_mixed(&content, work)?,
+                    NodeAcceptance::AlreadyAccepted
+                );
+                assert_eq!(
+                    job.accept_legacy_evidence(&legacy, work)?,
+                    NodeAcceptance::AlreadyAccepted
+                );
+                Ok::<_, CodecError>(())
+            })
+            .unwrap();
+        assert_eq!(*parent.0.lock().unwrap(), 0);
+    }
+    #[test]
+    fn mixed_stop_diagnostics_do_not_render_after_resource_rejection() {
+        struct MustNotFormat;
+        impl fmt::Display for MustNotFormat {
+            fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
+                panic!("mixed resource failure formatted dynamically");
+            }
+        }
+        let parent = Arc::new(Parent(Mutex::new(0)));
+        let limits = JobLimits::from_canonical_json(&serde_json::json!({
+            "max_total_wire_bytes":"10", "max_total_node_bytes":"1000", "max_total_nodes":"2",
+            "max_total_records":"1", "max_total_requests":"1", "max_elapsed_ms":"60000",
+            "max_staged_bytes":"1000", "max_store_bytes":"1000"
+        }))
+        .unwrap();
+        CodecWork::new(parent.clone(), 1 << 20)
+            .unwrap()
+            .run(|work| {
+                let mut job = Job::new_started_mixed(
+                    limits,
+                    Existing {
+                        store_bytes: 0,
+                        staged_bytes: 0,
+                    },
+                    Box::new(Instant::now),
+                    Instant::now(),
+                    work,
+                )?;
+                assert!(matches!(
+                    job.stop_detail(format_args!("{}", MustNotFormat)),
+                    Cow::Borrowed(_)
+                ));
+                let first = job.charge_wire_bytes(11).unwrap_err();
+                assert_eq!(first.code(), LIMIT_EXCEEDED);
+                assert_eq!(job.snapshot().wire_bytes, 11);
+                assert!(matches!(job.stopped.as_ref().unwrap().1, Cow::Borrowed(_)));
+                // Retry is rejected without clearing or fabricating the already observed bytes.
+                assert_eq!(job.charge_wire_bytes(3).unwrap_err().code(), LIMIT_EXCEEDED);
+                assert_eq!(job.snapshot().wire_bytes, 11);
+                assert_eq!(job.pre_io_check().unwrap_err().code(), LIMIT_EXCEEDED);
+                assert_eq!(job.finish_check().unwrap_err().code(), LIMIT_EXCEEDED);
+                Ok::<_, CodecError>(())
+            })
+            .unwrap();
+        assert_eq!(*parent.0.lock().unwrap(), 0);
+        // Ordinary entry keeps its original detailed diagnostic and stopped prefix.
+        let mut job = Job::new(
+            limits,
+            Existing {
+                store_bytes: 0,
+                staged_bytes: 0,
+            },
+            Box::new(Instant::now),
+        )
+        .unwrap();
+        let err = job.charge_wire_bytes(11).unwrap_err();
+        assert!(err.detail().contains("累计 11 超过上限 10"));
+        assert!(job
+            .pre_io_check()
+            .unwrap_err()
+            .detail()
+            .starts_with("job 已停止"));
+        assert!(matches!(job.stopped.as_ref().unwrap().1, Cow::Owned(_)));
     }
 }
