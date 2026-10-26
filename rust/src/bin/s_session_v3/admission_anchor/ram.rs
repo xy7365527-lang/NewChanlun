@@ -1414,7 +1414,7 @@ mod tests {
                 1=>conn.execute_batch("DELETE FROM meta WHERE key='profile_id'").unwrap(),
                 2=>conn.execute_batch("UPDATE s_protocol_meta SET protocol_revision='s-session/3'").unwrap(),
                 3=>conn.execute_batch("UPDATE s_delivery_policy SET session_id='wrong'").unwrap(),
-                4=>conn.execute_batch("INSERT INTO s_delivery_refs VALUES(1)").unwrap(),
+                4=>conn.execute_batch("PRAGMA foreign_keys=OFF; INSERT INTO s_delivery_refs VALUES(1)").unwrap(),
                 5=>conn.execute_batch("UPDATE s_protocol_meta SET logical_phase_frontier='0'").unwrap(),
                 6=>conn.execute_batch("UPDATE s_protocol_meta SET next_attempt_ordinal=2").unwrap(),
                 7=>conn.execute_batch("INSERT INTO s_input_messages VALUES('n','e','m','h','{','receipt',0,'AcceptedPending',NULL,'x',0)").unwrap(),
