@@ -15,7 +15,7 @@ use newchan_rust::s_content::{
 use sc::access::Access;
 use std::{cell::RefCell, mem::size_of};
 
-pub(super) trait Budget {
+pub(crate) trait Budget {
     fn precheck(&self) -> Result<(), sc::CodecError>;
     /// Found 后、计算 F 前；Missing 不调用。
     fn prepare_node(&self) -> Result<(), sc::CodecError>;
@@ -23,6 +23,63 @@ pub(super) trait Budget {
     fn accept_prepared_frame(&self, frame: &CheckedFrame) -> Result<(), sc::CodecError>;
     fn node(&self, digest: &NodeDigest, tag: u8, body: &[u8]) -> Result<(), sc::CodecError>;
     fn record(&self) -> Result<(), sc::CodecError>;
+    /// #1527×#1602：只有写前准入门面给出，供 S3 schema 核记录所见 structure_deltas 形状。
+    fn before_write(&self) -> Option<&std::cell::Cell<crate::DeltaShape>> {
+        None
+    }
+}
+
+/// #1527：旧域节点只能来自完整原行核验；资格只借当前Job，不进缓存。
+#[allow(dead_code, reason = "#1527：成员借用限定当前W访问，计费不再次展开成员")]
+pub(crate) enum LegacyRecordRef<'a> {
+    Json(&'a serde_json::Value),
+    Canonical(&'a str),
+}
+pub(crate) trait LegacyObserver {
+    /// 私有 mixed SQL 前缀只消费原 getter 已核过的判别；普通观察者不改变策略。
+    fn select_legacy_capture(&self, _graph: bool, _records_in_graph: bool) {}
+    fn select_legacy_tables(&self, _v2: bool, _ohlc: bool, _delta: bool, _graph: bool) {}
+    fn visit_record(
+        &self,
+        family: &'static str,
+        process: &'static str,
+        member: LegacyRecordRef<'_>,
+    ) -> Result<(), sc::CodecError>;
+    fn precheck(&self) -> Result<(), sc::CodecError>;
+    fn check_work(
+        &self,
+        work: &sc::capture_allocation::scratch::WorkScope,
+    ) -> Result<(), sc::CodecError>;
+    fn accept_checked(
+        &self,
+        row: &sc::legacy_evidence::CheckedLegacyEvidenceRow,
+    ) -> Result<(), sc::CodecError>;
+    /// #1527×#1602：只有 mixed 写前准入门面给出，供旧域 schema 核记录所见 structure_deltas 形状。
+    fn before_write(&self) -> Option<&std::cell::Cell<crate::DeltaShape>> {
+        None
+    }
+}
+/// 仅借本次审计账与截止时间；不可留存进 capture/context/memo。
+pub(crate) struct NativeMeasure<'a> {
+    pub(super) budget: Option<&'a dyn Budget>,
+    pub(super) deadline: Option<std::time::Instant>,
+}
+impl sc::CaptureReadObserver for NativeMeasure<'_> {
+    fn before_read(&self) -> Result<(), sc::CodecError> {
+        super::history::check_deadline(self.deadline)
+            .map_err(|e| sc::CodecError::new("verify_deadline", e))?;
+        self.budget.map_or(Ok(()), Budget::precheck)
+    }
+    fn prepare_node(&self) -> Result<(), sc::CodecError> {
+        self.budget.map_or(Ok(()), Budget::prepare_node)
+    }
+    fn accept_prepared_frame(&self, frame: &CheckedFrame) -> Result<(), sc::CodecError> {
+        if let Some(budget) = self.budget {
+            budget.accept_prepared_frame(frame)?;
+            budget.precheck()?;
+        }
+        Ok(())
+    }
 }
 
 pub(super) struct AuditJob<'j> {

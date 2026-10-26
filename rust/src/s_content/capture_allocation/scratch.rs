@@ -60,6 +60,14 @@ impl NativeReservation {
     pub(super) fn belongs_to_parent_arc(&self, parent: &Arc<dyn ScratchParent>) -> bool {
         Arc::ptr_eq(&self.parent, parent)
     }
+    /// #1527：正常closed父的保留载荷仍可读；失败父或来源失效不得复制洗白。
+    pub fn check_retained_source(&self) -> Result<(), CodecError> {
+        self.parent.health().map_err(CodecError::scratch)?;
+        if self.parent.origin() != self.origin {
+            return Err(CodecError::scratch(ScratchFailure::Ledger));
+        }
+        Ok(())
+    }
     /// 同级所有权容器只比较父身份，不授予当前操作域写资格。
     #[doc(hidden)]
     pub(super) fn same_parent(&self, other: &Self) -> bool {

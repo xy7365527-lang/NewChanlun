@@ -2226,9 +2226,9 @@ mod tests {
         accept_ohlc, init_test_db, located_ohlc_input, tb02b_oracle_rows, TestFiles,
     };
     use crate::{
-        canonical_bytes_of_value, cmd_advance_fixture, compute_diff, delta_storage,
-        load_batch_bytes, meta_get_opt, open_db, read_effective_events, read_stored_objects,
-        verified_root_raw_events, StoredObjects, DEFAULT_WRITER_EPOCH,
+        canonical_bytes_of_value, compute_diff, delta_storage, load_batch_bytes, meta_get_opt,
+        open_db, read_effective_events, read_stored_objects, verified_root_raw_events,
+        StoredObjects, DEFAULT_WRITER_EPOCH,
     };
     use newchan_rust::s_content::{render_canonical, MemoryNodes};
     use serde_json::json;
@@ -4185,7 +4185,9 @@ mod tests {
                 .and_then(|value| value.parse::<i64>().ok())
                 .unwrap_or(-1);
             drop(conn);
-            cmd_advance_fixture(&self.files.db(), DEFAULT_WRITER_EPOCH).expect("oracle advance");
+            // #1527 M-03：oracle 只测业务/持久态，走原 core，不建立生产准入。
+            crate::tests::advance_business(&self.files.db(), DEFAULT_WRITER_EPOCH)
+                .expect("oracle advance");
             previous_frontier
         }
 

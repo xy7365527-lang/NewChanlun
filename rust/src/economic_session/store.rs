@@ -224,6 +224,7 @@ impl Config {
                     "CommitDecision",
                     "AbortDecision",
                     "CloseApplicants",
+                    "ActivateCapPolicy",
                     "QueryDecision",
                     "QueryGrant",
                 ]

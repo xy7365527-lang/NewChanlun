@@ -138,12 +138,7 @@ impl RetainedDelta {
             .ok_or_else(|| Failure::Invalid("StorageUnavailable：历史保留费账本下溢".into()))
     }
 }
-pub(crate) fn sum(values: impl IntoIterator<Item = usize>) -> usize {
-    values.into_iter().fold(0usize, usize::saturating_add)
-}
-pub(crate) fn vec_bytes<T>(capacity: usize) -> usize {
-    capacity.saturating_mul(size_of::<T>())
-}
+pub(crate) use crate::v3::business_json::json_layout::{sum, tree_slots, vec_bytes};
 pub(crate) fn hash_slots<K, V>(capacity: usize) -> usize {
     if capacity == 0 {
         return 0;
@@ -153,14 +148,6 @@ pub(crate) fn hash_slots<K, V>(capacity: usize) -> usize {
         .saturating_mul(2)
         .saturating_add(16)
         .saturating_mul(size_of::<(K, V)>().saturating_add(1))
-}
-pub(crate) fn tree_slots<K, V>(len: usize) -> usize {
-    // 每个条目最多独占一棵含 11 key/value、12 edge 的节点；上界刻意不减费。
-    len.saturating_mul(
-        size_of::<(K, V)>()
-            .saturating_mul(11)
-            .saturating_add(16 * size_of::<usize>()),
-    )
 }
 macro_rules! scalar {
     ($($t:ty),*) => { $(impl Retained for $t { fn heap_bytes(&self)->usize {0} })* };

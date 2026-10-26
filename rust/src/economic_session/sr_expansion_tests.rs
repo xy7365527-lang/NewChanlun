@@ -1243,7 +1243,7 @@ fn sr_expansion_content_domain_publishes_real_s_basis_closure() {
     let session = SSession::start(&binary, &export, export_path.parent().unwrap());
     let real_s = real_s_from_export(&binary, &export, &session.socket);
     let (v2, v3) = socket_policies();
-    let mut f = Fixture::content_with_real_s(&carriers, authorizations(&[&v2, &v3]), &real_s);
+    let mut f = Fixture::content_with_real_s_sr(&carriers, authorizations(&[&v2, &v3]), &real_s);
     let config = f.configs[0].clone();
     assert_eq!(config.revision().unwrap(), SCHEMA_V2);
     let structure = &config.manifest["finance"]["structure"];
@@ -1387,7 +1387,7 @@ fn sr_expansion_content_domain_deadline_crossed_in_flight_leaves_no_commit() {
     let session = SSession::start(&binary, &export, &work);
     let real_s = real_s_from_export(&binary, &export, &session.socket);
     let (v2, v3) = socket_policies();
-    let mut f = Fixture::content_with_real_s(&carriers, authorizations(&[&v2, &v3]), &real_s);
+    let mut f = Fixture::content_with_real_s_sr(&carriers, authorizations(&[&v2, &v3]), &real_s);
     let config = f.configs[0].clone();
     assert_eq!(config.revision().unwrap(), SCHEMA_V2);
     let timeout_ms: u64 = required(&config.manifest["resources"], "response_timeout_ms")
