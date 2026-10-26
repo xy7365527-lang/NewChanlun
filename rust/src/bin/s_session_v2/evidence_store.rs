@@ -2879,6 +2879,49 @@ pub(super) fn unreachable_nodes(
     Ok(orphan)
 }
 
+/// N07：mixed 仍先收齐全部 SQL blob，再依原次序 decode；不把诊断扫描计作节点接纳。
+pub(crate) fn ensure_all_nodes_reachable_mixed(
+    conn: &Connection, reachable: usize, work: &WorkScope,
+) -> Result<(), MixedJsonError> {
+    let err = |e| MixedJsonError::Business(format!("StorageUnavailable：核私有节点表失败：{e}"));
+    let mut count = CheckedStatement::prepare(conn, c"SELECT COUNT(*) FROM s_evidence_nodes").map_err(err)?;
+    let mut row = count.next().map_err(err)?.ok_or_else(||err(rusqlite::Error::QueryReturnedNoRows))?;
+    let total = row.integer(0).map_err(err)?;
+    drop(row);
+    count.finalize().map_err(err)?;
+    if usize::try_from(total).ok() == Some(reachable) { return Ok(()); }
+    let orphan = unreachable_nodes_mixed(conn, &std::collections::BTreeSet::new(), work)?;
+    Err(MixedJsonError::Business(format!(
+        "StorageUnavailable：私有证据图节点覆盖不符（表内 {total} 行 / 本次可达 {reachable} 个；首例不可达 {}）",
+        orphan.first().map(|id| hex(id)).unwrap_or_else(|| "-".to_string())
+    )))
+}
+pub(crate) fn unreachable_nodes_mixed(
+    conn: &Connection, touched: &std::collections::BTreeSet<[u8;32]>, work: &WorkScope,
+) -> Result<CodecVec<[u8;32]>, MixedJsonError> {
+    let sql_error = |e| MixedJsonError::Business(format!("StorageUnavailable：读私有节点表失败：{e}"));
+    let row_error = |e| MixedJsonError::Business(format!("StorageUnavailable：私有节点行损坏：{}", sql_columns(e, &["node_id"])));
+    let mut statement = CheckedStatement::prepare(conn, c"SELECT node_id FROM s_evidence_nodes").map_err(sql_error)?;
+    let admission = NativeAdmission(Some(work));
+    let mut rows: CodecVec<CodecVec<u8>> = CodecVec::default();
+    while let Some(mut row) = statement.next().map_err(row_error)? {
+        let blob = row.blob(0).map_err(row_error)?;
+        let value = work_copy_typed(blob, None, Some(work))?;
+        admission.native_codec_room(&mut rows, 1).map_err(MixedJsonError::Resource)?;
+        rows.try_push(value).map_err(MixedJsonError::Resource)?;
+    }
+    statement.finalize().map_err(row_error)?;
+    let mut orphan = CodecVec::default();
+    for row in &rows {
+        let id = decode_id(row).ok_or_else(|| MixedJsonError::Business("StorageUnavailable：私有节点 id 非 32 字节".to_string()))?;
+        if !touched.contains(&id) {
+            admission.native_codec_room(&mut orphan, 1).map_err(MixedJsonError::Resource)?;
+            orphan.try_push(id).map_err(MixedJsonError::Resource)?;
+        }
+    }
+    Ok(orphan)
+}
+
 /// 库内全部私有根 key（升序稳定序）。
 pub(super) fn root_keys(conn: &Connection) -> Result<Vec<String>, String> {
     let mut stmt = conn

@@ -899,6 +899,24 @@ mod tests {
     }
 
     #[test]
+    fn mixed_reachability_preserves_collect_before_decode() {
+        use crate::v3::business_json::MixedJsonError;
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE s_evidence_nodes(node_id); INSERT INTO s_evidence_nodes VALUES(X'00'),('wrong-type');").unwrap();
+        let owner = AdmissionRamLedger::new(limits(1 << 20)).unwrap();
+        owner.codec_work().unwrap().run(|work| {
+            let error = crate::evidence_store::ensure_all_nodes_reachable_mixed(&conn,0,work).unwrap_err();
+            assert!(matches!(error, MixedJsonError::Business(ref s) if s.contains("私有节点行损坏") && !s.contains("非 32 字节")));
+            conn.execute("DELETE FROM s_evidence_nodes WHERE typeof(node_id)='text'",[]).unwrap();
+            let error = crate::evidence_store::ensure_all_nodes_reachable_mixed(&conn,0,work).unwrap_err();
+            assert!(matches!(error, MixedJsonError::Business(ref s) if s.contains("非 32 字节")));
+            // COUNT 相等仍按原合同直接成功，不能提前扫描诊断表。
+            crate::evidence_store::ensure_all_nodes_reachable_mixed(&conn,1,work).unwrap();
+            Ok::<_,newchan_rust::s_content::CodecError>(())
+        }).unwrap();
+    }
+
+    #[test]
     fn mixed_ram_sql_node_acceptance_is_fresh_and_rejects_corrupt_original() {
         use crate::v3::audit_budget::LegacyObserver;
         use newchan_rust::s_content::{
