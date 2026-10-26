@@ -479,11 +479,9 @@ impl Default for ExecConfig {
 }
 
 impl ExecConfig {
-    /// 生产与验收准入：touch fill_rule 只许诊断，不参与准入或验收（#1718 I3）。
-    ///
-    /// 返回 `Err` 若 `fill_rule = Touch`；生产路径（`nautilus/backtest_engine.rs`、
-    /// `nautilus/theta_strategy.rs` 等）在构造时调用此方法拒收 touch 配置。
+    /// #1718：冻结影子NT组件的配置门，不代表正式launcher验收。
     pub fn require_production_fill_rule(&self) -> Result<(), String> {
+        self.fill_rule.validate()?;
         match self.fill_rule {
             FillRule::Touch => Err(
                 "fill_rule=Touch 仅诊断，不参与准入或正式验收（ADR 0018 裁定一 + #1718 I3）"
@@ -504,6 +502,15 @@ pub enum FillRule {
     Cross(u32),
     /// 触及即成交（买单 `low <= 挂单价`），仅诊断。
     Touch,
+}
+
+impl FillRule {
+    pub fn validate(self) -> Result<(), String> {
+        match self {
+            Self::Cross(0) => Err("InvalidDomain：cross必须至少穿越1 tick".into()),
+            _ => Ok(()),
+        }
+    }
 }
 
 impl Default for FillRule {

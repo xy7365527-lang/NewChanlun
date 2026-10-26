@@ -297,8 +297,11 @@ mod tests {
             err.to_string().contains("Touch") && err.to_string().contains("诊断"),
             "错误须说明 Touch 仅诊断，实际: {err}"
         );
-        // Cross(1) 默认值须通过 fill_rule 检查（空数据集可能因其他原因失败）
+        cfg.exec.fill_rule = FillRule::Cross(0);
+        let err = run_theta_backtest(&dataset, &cfg, None).expect_err("Cross(0)拒绝");
+        assert!(err.to_string().contains("1 tick"));
         cfg.exec.fill_rule = FillRule::Cross(1);
-        let _ = run_theta_backtest(&dataset, &cfg, Some(FundingRecord::active("P0").unwrap()));
+        let err = run_theta_backtest(&dataset, &cfg, None).expect_err("跨过规则门后仍须资金签署");
+        assert!(err.to_string().contains("AwaitingPolicy{funding_record"));
     }
 }

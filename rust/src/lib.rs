@@ -58,6 +58,7 @@ mod fractal;
 pub mod fugue_v3;
 /// #1601：ADR 0040 资金签署记录（`Q_total`、`l_start`）的唯一读取点。
 pub mod funding_record;
+pub mod diagnostic_fill;
 mod level;
 mod macd;
 mod moves;
