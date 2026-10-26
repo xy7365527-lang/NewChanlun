@@ -1433,7 +1433,9 @@ fn handle_with_deadline(
             {
                 super::finance::write_with_ingress(c, config, epoch, e, ingress_response_deadline)
             }
-            "ImportResponsibility" | "Reserve" | "CloseApplicants" if config.domain == "E" => {
+            "ImportResponsibility" | "Reserve" | "CloseApplicants" | "ActivateCapPolicy"
+                if config.domain == "E" =>
+            {
                 super::finance::write_with_ingress(c, config, epoch, e, ingress_response_deadline)
             }
             "CaptureExternal" if config.domain == "E" => {

@@ -59,7 +59,15 @@ def economic_revisions(manifest: Mapping[str, object]) -> tuple[str, str]:
     if finance is None:
         if protocol == "economic-session/2":
             raise EconomicQueryError("economic-session/2 必须冻结 tb03b-finance/2")
-    elif type(finance) is not dict or finance.get("schema_revision") != finance_revision:
+    elif type(finance) is not dict:
+        raise EconomicQueryError("经济会话与财务版本混搭或未知")
+    elif protocol == "economic-session/1" and finance.get("schema_revision") == "tb03b-finance/3":
+        # #1716 I1-C：/1 域显式选择的窄测试臂（签署 cap 原子激活）；/1、/2 不变。
+        finance_revision = "tb03b-finance/3"
+    elif protocol == "economic-session/2" and finance.get("schema_revision") == "tb03b-finance/4":
+        # #1716 I1-C：/2 内容域显式选择的新合同（/2 全部语义 + 签署 cap 原子激活）。
+        finance_revision = "tb03b-finance/4"
+    elif finance.get("schema_revision") != finance_revision:
         raise EconomicQueryError("经济会话与财务版本混搭或未知")
     return protocol, finance_revision
 
