@@ -964,13 +964,19 @@ impl Job {
         let projected_bytes = match self.node_bytes.checked_add(framed) {
             Some(n) => n,
             None => {
-                return Err(self.stop(LIMIT_EXCEEDED, self.stop_detail(format_args!("{} 累计溢出 u64", LIMIT_FIELDS[1]))))
+                return Err(self.stop(
+                    LIMIT_EXCEEDED,
+                    self.stop_detail(format_args!("{} 累计溢出 u64", LIMIT_FIELDS[1])),
+                ))
             }
         };
         let projected_nodes = match self.nodes.checked_add(1) {
             Some(n) => n,
             None => {
-                return Err(self.stop(LIMIT_EXCEEDED, self.stop_detail(format_args!("{} 累计溢出 u64", LIMIT_FIELDS[2]))))
+                return Err(self.stop(
+                    LIMIT_EXCEEDED,
+                    self.stop_detail(format_args!("{} 累计溢出 u64", LIMIT_FIELDS[2])),
+                ))
             }
         };
         if projected_bytes > self.limits.max_total_node_bytes {
@@ -1414,7 +1420,9 @@ impl Job {
         if projected > cap {
             return Err(self.stop(
                 LIMIT_EXCEEDED,
-                self.stop_detail(format_args!("{name}预留后峰值 {projected} 超过上限 {cap}（既有敞口 {exposure}）")),
+                self.stop_detail(format_args!(
+                    "{name}预留后峰值 {projected} 超过上限 {cap}（既有敞口 {exposure}）"
+                )),
             ));
         }
         Ok(projected)
@@ -1433,13 +1441,18 @@ impl Job {
         let projected = match current.checked_add(add) {
             Some(n) => n,
             None => {
-                return Err(self.stop(LIMIT_EXCEEDED, self.stop_detail(format_args!("{name} 累计溢出 u64"))));
+                return Err(self.stop(
+                    LIMIT_EXCEEDED,
+                    self.stop_detail(format_args!("{name} 累计溢出 u64")),
+                ));
             }
         };
         if projected > cap {
             return Err(self.stop(
                 LIMIT_EXCEEDED,
-                self.stop_detail(format_args!("{name} 本次 +{add} 后累计 {projected} 超过上限 {cap}")),
+                self.stop_detail(format_args!(
+                    "{name} 本次 +{add} 后累计 {projected} 超过上限 {cap}"
+                )),
             ));
         }
         Ok(projected)
@@ -1463,7 +1476,10 @@ impl Job {
 
     fn stopped_err(&self) -> Option<CodecError> {
         self.stopped.as_ref().map(|(code, detail)| {
-            Self::error_detail(code, self.stop_detail(format_args!("job 已停止（{code}）：{detail}")))
+            Self::error_detail(
+                code,
+                self.stop_detail(format_args!("job 已停止（{code}）：{detail}")),
+            )
         })
     }
 
@@ -1771,32 +1787,55 @@ mod mixed_domain_tests {
             "max_total_wire_bytes":"10", "max_total_node_bytes":"1000", "max_total_nodes":"2",
             "max_total_records":"1", "max_total_requests":"1", "max_elapsed_ms":"60000",
             "max_staged_bytes":"1000", "max_store_bytes":"1000"
-        })).unwrap();
-        CodecWork::new(parent.clone(), 1 << 20).unwrap().run(|work| {
-            let mut job = Job::new_started_mixed(
-                limits, Existing { store_bytes: 0, staged_bytes: 0 },
-                Box::new(Instant::now), Instant::now(), work,
-            )?;
-            assert!(matches!(job.stop_detail(format_args!("{}", MustNotFormat)), Cow::Borrowed(_)));
-            let first = job.charge_wire_bytes(11).unwrap_err();
-            assert_eq!(first.code(), LIMIT_EXCEEDED);
-            assert_eq!(job.snapshot().wire_bytes, 11);
-            assert!(matches!(job.stopped.as_ref().unwrap().1, Cow::Borrowed(_)));
-            // Retry is rejected without clearing or fabricating the already observed bytes.
-            assert_eq!(job.charge_wire_bytes(3).unwrap_err().code(), LIMIT_EXCEEDED);
-            assert_eq!(job.snapshot().wire_bytes, 11);
-            assert_eq!(job.pre_io_check().unwrap_err().code(), LIMIT_EXCEEDED);
-            assert_eq!(job.finish_check().unwrap_err().code(), LIMIT_EXCEEDED);
-            Ok::<_, CodecError>(())
-        }).unwrap();
+        }))
+        .unwrap();
+        CodecWork::new(parent.clone(), 1 << 20)
+            .unwrap()
+            .run(|work| {
+                let mut job = Job::new_started_mixed(
+                    limits,
+                    Existing {
+                        store_bytes: 0,
+                        staged_bytes: 0,
+                    },
+                    Box::new(Instant::now),
+                    Instant::now(),
+                    work,
+                )?;
+                assert!(matches!(
+                    job.stop_detail(format_args!("{}", MustNotFormat)),
+                    Cow::Borrowed(_)
+                ));
+                let first = job.charge_wire_bytes(11).unwrap_err();
+                assert_eq!(first.code(), LIMIT_EXCEEDED);
+                assert_eq!(job.snapshot().wire_bytes, 11);
+                assert!(matches!(job.stopped.as_ref().unwrap().1, Cow::Borrowed(_)));
+                // Retry is rejected without clearing or fabricating the already observed bytes.
+                assert_eq!(job.charge_wire_bytes(3).unwrap_err().code(), LIMIT_EXCEEDED);
+                assert_eq!(job.snapshot().wire_bytes, 11);
+                assert_eq!(job.pre_io_check().unwrap_err().code(), LIMIT_EXCEEDED);
+                assert_eq!(job.finish_check().unwrap_err().code(), LIMIT_EXCEEDED);
+                Ok::<_, CodecError>(())
+            })
+            .unwrap();
         assert_eq!(*parent.0.lock().unwrap(), 0);
         // Ordinary entry keeps its original detailed diagnostic and stopped prefix.
-        let mut job = Job::new(limits, Existing { store_bytes: 0, staged_bytes: 0 },
-            Box::new(Instant::now)).unwrap();
+        let mut job = Job::new(
+            limits,
+            Existing {
+                store_bytes: 0,
+                staged_bytes: 0,
+            },
+            Box::new(Instant::now),
+        )
+        .unwrap();
         let err = job.charge_wire_bytes(11).unwrap_err();
         assert!(err.detail().contains("累计 11 超过上限 10"));
-        assert!(job.pre_io_check().unwrap_err().detail().starts_with("job 已停止"));
+        assert!(job
+            .pre_io_check()
+            .unwrap_err()
+            .detail()
+            .starts_with("job 已停止"));
         assert!(matches!(job.stopped.as_ref().unwrap().1, Cow::Owned(_)));
     }
-
 }
