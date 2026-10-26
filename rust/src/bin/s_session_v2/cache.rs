@@ -357,38 +357,57 @@ impl Memo {
         Ok(())
     }
     /// 单一预算下先丢大句柄、再丢小控制头；不为准入旋转原件池。
-    fn make_room_admitted(
-        &mut self,
-        cost: usize,
-        work: Option<&WorkScope>,
-    ) -> Result<bool, String> {
-        // 先判这一项在**没有句柄/控制头**时能否装下：装不下就不该为它驱逐其他仍可复用项
-        // （单条过大只跳过自己，不牵连别人）。
-        let floor = self
-            .root_bytes()
-            .saturating_add(self.certs_bytes)
-            .saturating_add(self.capture_bytes());
-        if floor.saturating_add(cost) > self.limit {
-            return Ok(false);
-        }
-        let used = self.retained_bytes().saturating_add(self.capture_bytes());
-        if used.saturating_add(cost) <= self.limit {
-            return Ok(true);
-        }
-        let need = used.saturating_add(cost).saturating_sub(self.limit);
-        self.trim_handles_admitted(self.handles_bytes.saturating_sub(need), work)?;
-        let need = self
-            .retained_bytes()
-            .saturating_add(self.capture_bytes())
-            .saturating_add(cost)
-            .saturating_sub(self.limit);
-        self.trim_batch_headers_admitted(self.batch_headers_bytes.saturating_sub(need), work)?;
-        Ok(self
-            .retained_bytes()
-            .saturating_add(self.capture_bytes())
-            .saturating_add(cost)
-            <= self.limit)
+    fn make_room_admitted(&mut self,cost:usize,work:Option<&WorkScope>) -> Result<bool,String> {
+        self.make_room_typed(cost,work).map_err(|e|e.to_string())
     }
+    /// #1527：先为两组驱逐计划完成所有许可，再改原cache；拒绝保留旧合法条目。
+    fn make_room_typed(&mut self,cost:usize,work:Option<&WorkScope>) -> Result<bool,newchan_rust::s_content::CodecError> {
+        use newchan_rust::s_content::{CodecVec,capture_allocation::native_owned::NativeValue};
+        let admission = NativeAdmission(work);
+        let floor = self.root_bytes().saturating_add(self.certs_bytes).saturating_add(self.capture_bytes());
+        if floor.saturating_add(cost) > self.limit { return Ok(false); }
+        let used = self.retained_bytes().saturating_add(self.capture_bytes());
+        if used.saturating_add(cost) <= self.limit { return Ok(true); }
+        let mut need = used.saturating_add(cost).saturating_sub(self.limit);
+        let mut handles = CodecVec::default();
+        admission.native_vec_room(&mut handles,self.handles.len())?;
+        for (key,entry) in &self.handles {
+            handles.try_push((entry.cost,NativeValue::try_from_str(key,work)?))?;
+        }
+        handles.sort_unstable_by(|a,b|b.cmp(a));
+        let mut handle_count = 0;
+        for (bytes,_) in &handles {
+            if need == 0 { break; }
+            need = need.saturating_sub(*bytes);
+            handle_count += 1;
+        }
+        let mut headers = CodecVec::default();
+        let mut header_count = 0;
+        if need != 0 {
+            admission.native_vec_room(&mut headers,self.batch_headers.len())?;
+            for (key,entry) in &self.batch_headers {
+                headers.try_push((entry.cost,NativeValue::try_from_str(key,work)?))?;
+            }
+            headers.sort_unstable_by(|a,b|b.cmp(a));
+            for (bytes,_) in &headers {
+                if need == 0 { break; }
+                need = need.saturating_sub(*bytes);
+                header_count += 1;
+            }
+        }
+        // 计划构造完成；以下不分配、不再申请许可。
+        for (bytes,key) in handles.into_iter().take(handle_count) {
+            self.handles.remove(key.as_str());
+            self.handles_bytes = self.handles_bytes.saturating_sub(bytes);
+            #[cfg(test)] counter(|c| {c.handle_capacity_evictions += 1; c.handle_capacity_evicted_bytes += bytes;});
+        }
+        for (_,key) in headers.into_iter().take(header_count) {
+            self.remove_batch_header(key.as_str());
+            #[cfg(test)] counter(|c|c.batch_header_capacity_evictions += 1);
+        }
+        Ok(self.retained_bytes().saturating_add(self.capture_bytes()).saturating_add(cost)<=self.limit)
+    }
+
     /// 移除索引后，捕获若仍持有原件，把唯一 payload 费用转给其中一个读集条目。
     fn remove_cert(&mut self, key: &[u8; 32]) {
         self.remove_cert_admitted(key, None)
@@ -848,11 +867,17 @@ pub(super) fn begin_capture_admitted(
     node_budget: usize,
     work: Option<&WorkScope>,
 ) -> Result<CaptureGuard, String> {
+    begin_capture_typed(node_budget, work).map_err(|e| e.to_string())
+}
+pub(super) fn begin_capture_typed(
+    node_budget: usize,
+    work: Option<&WorkScope>,
+) -> Result<CaptureGuard, newchan_rust::s_content::CodecError> {
     if let Some(work) = work {
-        work.check_current().map_err(|e| e.to_string())?;
+        work.check_current()?;
     }
     if !MEMO_INITIALIZED.with(|ready| ready.get()) {
-        let lineage = Arc::try_new_shallow((), work).map_err(|e| e.to_string())?;
+        let lineage = Arc::try_new_shallow((), work)?;
         PENDING_LINEAGE.with(|pending| *pending.borrow_mut() = Some(lineage));
     }
     Ok(begin_capture_inner(node_budget))
@@ -899,6 +924,14 @@ pub(super) fn node_put_admitted(
     owned: bool,
     work: Option<&WorkScope>,
 ) -> Result<(), String> {
+    node_put_typed(conn_id,cert,owned,work).map_err(|e|e.to_string())
+}
+pub(super) fn node_put_typed(
+    conn_id: usize,
+    cert: Arc<Cert>,
+    owned: bool,
+    work: Option<&WorkScope>,
+) -> Result<(), newchan_rust::s_content::CodecError> {
     let admission = NativeAdmission(work);
     MEMO.with(|m| {
         let mut m = m.borrow_mut();
@@ -926,23 +959,26 @@ pub(super) fn node_put_admitted(
             counter(|c| c.capture_node_admission_rejected += 1);
             return Ok(());
         }
-        if !m.make_room_admitted(cost, work)? {
-            #[cfg(test)]
-            counter(|c| c.capture_node_admission_rejected += 1);
+        // 合法不保留先于当前RAM许可；不得把旧容量策略变成资源失败。
+        if m.root_bytes().saturating_add(m.certs_bytes).saturating_add(m.capture_bytes()).saturating_add(cost) > m.limit {
+            #[cfg(test)] counter(|c| c.capture_node_admission_rejected += 1);
             return Ok(());
         }
         let id = cert.id;
-        let Some(c) = m.capture.as_mut() else {
-            return Ok(());
+        let inserted_owned = {
+            let Some(c) = m.capture.as_mut() else { return Ok(()); };
+            admission.native_std_map_room(&mut c.nodes)?;
+            if owned { c.owned.insert_admitted((conn_id,id),&admission)? } else { false }
         };
-        admission
-            .native_std_map_room(&mut c.nodes)
-            .map_err(|e| e.to_string())?;
-        if owned {
-            c.owned
-                .insert_admitted((conn_id, id), &admission)
-                .map_err(|e| e.to_string())?;
+        match m.make_room_typed(cost,work) {
+            Ok(true) => {},
+            result => {
+                if inserted_owned { m.capture.as_mut().unwrap().owned.remove(&(conn_id,id)); }
+                #[cfg(test)] if matches!(result,Ok(false)) { counter(|c|c.capture_node_admission_rejected += 1); }
+                return result.map(|_| ());
+            }
         }
+        let c = m.capture.as_mut().unwrap();
         c.bytes = c.bytes.saturating_add(cost);
         c.nodes.insert((conn_id, id), cert);
         Ok(())
@@ -960,6 +996,13 @@ pub(super) fn derived_get_admitted(
     id: &[u8; 32],
     work: Option<&WorkScope>,
 ) -> Result<Option<NodeDerived>, String> {
+    derived_get_typed(conn_id, id, work).map_err(|e| e.to_string())
+}
+pub(super) fn derived_get_typed(
+    conn_id: usize,
+    id: &[u8; 32],
+    work: Option<&WorkScope>,
+) -> Result<Option<NodeDerived>, newchan_rust::s_content::CodecError> {
     let admission = NativeAdmission(work);
     MEMO.with(|m| {
         let m = m.borrow();
@@ -973,9 +1016,9 @@ pub(super) fn derived_get_admitted(
         let mut slot_counts = newchan_rust::s_content::CodecVec::default();
         admission
             .native_vec_room(&mut slot_counts, v.slot_counts.len())
-            .map_err(|e| e.to_string())?;
+            ?;
         for n in &v.slot_counts {
-            slot_counts.try_push(*n).map_err(|e| e.to_string())?;
+            slot_counts.try_push(*n)?;
         }
         Ok(Some(NodeDerived {
             length: v.length,
@@ -999,13 +1042,21 @@ pub(super) fn derived_put_admitted(
     derived: NodeDerived,
     work: Option<&WorkScope>,
 ) -> Result<(), String> {
+    derived_put_typed(conn_id, id, derived, work).map_err(|e| e.to_string())
+}
+pub(super) fn derived_put_typed(
+    conn_id: usize,
+    id: [u8; 32],
+    derived: NodeDerived,
+    work: Option<&WorkScope>,
+) -> Result<(), newchan_rust::s_content::CodecError> {
     let admission = NativeAdmission(work);
     MEMO.with(|m| {
         if let Some(c) = m.borrow_mut().capture.as_mut() {
             if !c.derived.contains_key(&(conn_id, id)) {
                 admission
                     .native_std_map_room(&mut c.derived)
-                    .map_err(|e| e.to_string())?;
+                    ?;
             }
             c.derived.insert((conn_id, id), derived);
         }
@@ -1019,12 +1070,19 @@ pub(super) fn mark_reachable_admitted(
     id: [u8; 32],
     work: Option<&WorkScope>,
 ) -> Result<(), String> {
+    mark_reachable_typed(conn_id, id, work).map_err(|e| e.to_string())
+}
+pub(super) fn mark_reachable_typed(
+    conn_id: usize,
+    id: [u8; 32],
+    work: Option<&WorkScope>,
+) -> Result<(), newchan_rust::s_content::CodecError> {
     let admission = NativeAdmission(work);
     MEMO.with(|m| {
         if let Some(c) = m.borrow_mut().capture.as_mut() {
             c.reachable
                 .insert_admitted((conn_id, id), &admission)
-                .map_err(|e| e.to_string())?;
+                ?;
         }
         Ok(())
     })
@@ -1070,12 +1128,19 @@ pub(super) fn cert_matched_mark_admitted(
     id: [u8; 32],
     work: Option<&WorkScope>,
 ) -> Result<(), String> {
+    cert_matched_mark_typed(conn_id, id, work).map_err(|e| e.to_string())
+}
+pub(super) fn cert_matched_mark_typed(
+    conn_id: usize,
+    id: [u8; 32],
+    work: Option<&WorkScope>,
+) -> Result<(), newchan_rust::s_content::CodecError> {
     let admission = NativeAdmission(work);
     MEMO.with(|m| {
         if let Some(c) = m.borrow_mut().capture.as_mut() {
             c.matched
                 .insert_admitted((conn_id, id), &admission)
-                .map_err(|e| e.to_string())?;
+                ?;
         }
         Ok(())
     })
