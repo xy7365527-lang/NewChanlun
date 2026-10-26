@@ -4,7 +4,9 @@
 //! `Q_units`、`tier_quantity`、`C_units` 是数量 quantum；q_ref 只作身份比对，不参与算术。
 //! frozen_quote 只读锚上预封存快照中当时已知的报价，不读现价、不换锚兜底；signed_units 不依赖报价。
 //! 本模块是纯函数：同一记录、锚与快照 ⟹ 同一结果，恢复/重试据此复现，不刷新定标。
-use crate::session_protocol::{parse_canonical_i64, positive, required};
+use crate::session_protocol::{
+    canonical_json, parse_canonical_i64, positive, required, sha256_hex,
+};
 use serde_json::{json, Value};
 
 pub(crate) const QUANTITY_CALIBRATION_POLICY_ID: &str = "#1610/quantity-calibration/v1";
@@ -71,7 +73,8 @@ impl QuantityUnit {
     }
 }
 
-/// 资金币种 → 报价币种的尺度；`from` 绑定 funding-record 与原件金额币种，`to` 绑定报价计价币种。
+/// 资金币种 → 报价币种的尺度：起点是 funding-record 币种 `from` 的名义整数（ADR 0040:34），与书账金额同一尺度
+/// （B 边界由资金合同核原件 `units.money`）；`to` 绑定报价计价币种。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct CurrencyScale {
     pub from: String,
@@ -116,12 +119,14 @@ pub(crate) struct Binding {
     pub q_ref: String,
 }
 
-/// 本定标版本的签署事实（ADR 0040 签署记录同形：引用 + 签署人 + 时刻），版本号必须指向本记录（F3）。
+/// 本定标版本的签署事实（ADR 0040 签署记录同形：引用 + 签署人 + 时刻），版本号必须指向本记录；
+/// `content_sha256` 是所签内容（本记录除签署外全部字段的规范 JSON）的摘要，沿用旧签署改内容即不符（F3）。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct CalibrationSignature {
     pub signature_ref: String,
     pub authorizer: String,
     pub signed_ns: i64,
+    pub content_sha256: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -407,8 +412,8 @@ impl Calibration {
         }
     }
 
-    /// B 边界的量纲绑定：原件 `units.quantity` 必须与定标 quantity_unit 同名同 quantum，
-    /// frozen_quote 另要求原件金额币种等于尺度 `from`；同一整数不同单位即拒绝（F2）。
+    /// B 边界的数量量纲绑定：原件 `units.quantity` 必须与定标 quantity_unit 同名同 quantum；
+    /// 同一整数不同单位即拒绝（F2）。金额尺度由资金合同对 funding-record 核（R1）。
     pub(crate) fn check_units(&self, units: &Value) -> Result<(), String> {
         let q = &units["quantity"];
         let doc = QuantityUnit {
@@ -422,14 +427,6 @@ impl Calibration {
                 self.quantity_unit.quantum.num, self.quantity_unit.quantum.den
             ));
         }
-        if let Some(scale) = &self.currency_scale {
-            if units["money"]["currency"] != scale.from.as_str() {
-                return Err(format!(
-                    "IdentityConflict：原件金额币种与定标 currency_scale.from={} 不符",
-                    scale.from
-                ));
-            }
-        }
         Ok(())
     }
 
@@ -440,7 +437,8 @@ impl Calibration {
             "version": self.version,
             "supersedes": self.supersedes,
             "signature": {"signature_ref": self.signature.signature_ref, "version": self.version,
-                "authorizer": self.signature.authorizer, "signed_ns": self.signature.signed_ns.to_string()},
+                "authorizer": self.signature.authorizer, "signed_ns": self.signature.signed_ns.to_string(),
+                "content_sha256": self.signature.content_sha256},
             "quantity_unit": self.quantity_unit.to_json(),
             "quantity_basis": self.basis,
             "chong_id": self.chong_id,
@@ -649,6 +647,15 @@ fn quantity_unit(v: &Value, what: &str) -> Result<QuantityUnit, String> {
     })
 }
 
+/// 所签内容：定标记录除 `signature` 外的全部字段（规范 JSON 的 SHA-256，与信封 payload_hash 同一机制）。
+pub(crate) fn content_digest(policy: &Value) -> String {
+    let mut content = policy.clone();
+    if let Some(o) = content.as_object_mut() {
+        o.remove("signature");
+    }
+    sha256_hex(canonical_json(&content).as_bytes())
+}
+
 pub(crate) fn parse_policy(v: &Value) -> Result<CalibrationPolicy, String> {
     exact(
         v,
@@ -695,7 +702,13 @@ pub(crate) fn parse_policy(v: &Value) -> Result<CalibrationPolicy, String> {
     } else {
         exact(
             s,
-            &["signature_ref", "version", "authorizer", "signed_ns"],
+            &[
+                "signature_ref",
+                "version",
+                "authorizer",
+                "signed_ns",
+                "content_sha256",
+            ],
             "quantity-calibration signature ",
         )?;
         if s["version"] != version.as_str() {
@@ -704,10 +717,17 @@ pub(crate) fn parse_policy(v: &Value) -> Result<CalibrationPolicy, String> {
                 s["version"]
             ));
         }
+        let content_sha256 = content_digest(v);
+        if s["content_sha256"] != content_sha256.as_str() {
+            return Err(format!(
+                "IdentityConflict：签署 content_sha256 与本版本定标内容 {content_sha256} 不符，签署不覆盖当前内容"
+            ));
+        }
         Signed::Signed(CalibrationSignature {
             signature_ref: text(s, "signature_ref")?,
             authorizer: text(s, "authorizer")?,
             signed_ns: int(s, "signed_ns")?,
+            content_sha256,
         })
     };
     let basis = parse_basis(&v["quantity_basis"])?;

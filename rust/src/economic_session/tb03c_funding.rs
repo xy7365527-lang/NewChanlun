@@ -483,9 +483,70 @@ impl Contract {
         )
     }
 
-    /// `/3` 数量激活闸（#1715 I1-Q）：普通开局、转入目标与获批 q_rebase 共用——持久请求派生锚 →
-    /// 定标就绪 → 原件量纲绑定 → fixed_q = Q_units → 同维容量 Q_units ≤ C_units。返回 (定标投影, C, C_units)。
-    fn quantity_gate(
+    /// 新激活的金额域条件（ADR 0040 裁定四第 5 步与 :56/:59；ADR 0034 裁定四）：可审计 B 观察时刻落在
+    /// funding-record、policy-record 与本级容量条目的签署窗口内，且已签 C_amount(ℓ) ≥ 本重 Q_amount。
+    /// 普通开局、`/3` 转入目标与获批 q_rebase 都是新激活，共用本条；已开重的后续事实不经此门。返回 C_amount。
+    fn activation_terms(&self, c: &Chong, record: &Value) -> Result<i64, String> {
+        // #1621：known_at 绑定可审计观察时间（record["b_observation"]["first_known_ns"]），不再使用原件自报日期。
+        // 跨域不变式：S/E/B/X 时刻先后由同一观察时间源锁定（与 tb03c_transfer.rs:367 转移目标口径一致）。
+        let first_known_ns = record["b_observation"]
+            .get("first_known_ns")
+            .and_then(|v| v.as_str())
+            .ok_or("MissingDependency：b_observation 缺 first_known_ns")?;
+        let known_at = ns_to_date(first_known_ns)?;
+        // ADR 0040:56/:59：批次只能引用已生效的签署（「只作用于生效后」）——下界。
+        for (what, from) in [
+            ("funding-record", self.record["authorized_at"].as_str()),
+            ("policy-record", c.policy["authorized_at"].as_str()),
+        ] {
+            if from.is_some_and(|f| known_at.as_str() < f) {
+                return Err(format!(
+                    "PolicyNotYetEffective：原件 known_at {known_at} 早于 {what} 签署生效日"
+                ));
+            }
+        }
+        for (what, through) in [
+            ("funding-record", self.record["valid_through"].as_str()),
+            ("policy-record", c.policy["valid_through"].as_str()),
+            (
+                "capacity",
+                c.capacity().and_then(|x| x["valid_through"].as_str()),
+            ),
+        ] {
+            if through.is_some_and(|t| known_at.as_str() > t) {
+                return Err(format!(
+                    "PolicyExpired：原件 known_at {known_at} 超过 {what} 有效期"
+                ));
+            }
+        }
+        let cap = c.signed_cap()?;
+        if c.q > cap {
+            return Err(format!(
+                "InvalidDomain：Q {} 超过已签 C({}) {cap}（ADR 0034 裁定四）",
+                c.q, c.level
+            ));
+        }
+        Ok(cap)
+    }
+
+    /// 名义资金金额是 funding-record 币种的名义整数（ADR 0040:34），书账金额须与之同一尺度：原件
+    /// `units.money` 以该币种本身计、quantum 1；同一整数换个金额 quantum 就是另一名义值（独审 26AF R1）。
+    fn money_scale(&self, units: &Value) -> Result<(), String> {
+        let money = &units["money"];
+        let currency = &self.record["currency"];
+        if money["currency"] != *currency || money["unit"] != *currency || money["quantum"] != "1" {
+            return Err(format!(
+                "IdentityConflict：原件金额 {}（unit {}，quantum {}）不是 funding-record 币种 {currency} 的名义整数（quantum 1，ADR 0040:34），资金与书账不同尺度",
+                money["currency"], money["unit"], money["quantum"]
+            ));
+        }
+        Ok(())
+    }
+
+    /// `/3` 新激活闸（#1715 I1-Q）：普通开局、转入目标与获批 q_rebase 共用同一判定——持久请求派生锚 →
+    /// 定标就绪（与 E 等待同一函数）→ 原件金额与数量量纲 → fixed_q = Q_units → 金额域签署窗口与
+    /// Q_amount ≤ C_amount → 同维 Q_units ≤ C_units。返回 (定标投影, C_amount, C_units)。
+    fn activate(
         &self,
         c: &Chong,
         v: &Version,
@@ -497,6 +558,7 @@ impl Contract {
         let Some(cal) = readiness.ready() else {
             return Err(readiness.reason().unwrap_or_default());
         };
+        self.money_scale(units)?;
         cal.check_units(units)?;
         if fixed_q != cal.q_units {
             return Err(format!(
@@ -504,7 +566,7 @@ impl Contract {
                 cal.q_units
             ));
         }
-        let cap = c.signed_cap()?;
+        let cap = self.activation_terms(c, record)?;
         let c_units = cal.capacity_units(cap)?;
         if let Some(cu) = c_units {
             if cal.q_units > cu {
@@ -534,7 +596,7 @@ impl Contract {
             return Err("IdentityConflict：转入开局 (S,ℓ) 与资金合同冻结的重不符".into());
         }
         let fixed_q = positive(required(o, "fixed_q")?, "transfer fixed_q")?;
-        let (cal, cap, c_units) = self.quantity_gate(c, &q.versions[0], fixed_q, units, record)?;
+        let (cal, cap, c_units) = self.activate(c, &q.versions[0], fixed_q, units, record)?;
         let mut capacity = json!({"level": c.level, "C": cap.to_string()});
         if let Some(cu) = c_units {
             capacity["C_units"] = json!(cu.to_string());
@@ -578,7 +640,7 @@ impl Contract {
             ));
         }
         let new_q = positive(required(&event["q_rebase"], "new_q")?, "q_rebase.new_q")?;
-        let (cal, cap, c_units) = self.quantity_gate(c, v, new_q, units, record)?;
+        let (cal, cap, c_units) = self.activate(c, v, new_q, units, record)?;
         let mut out = funding.clone();
         let mut superseded = funding
             .get("superseded_calibrations")
@@ -650,65 +712,19 @@ impl Contract {
         if batch["currency"] != self.record["currency"] {
             return Err("InvalidDomain：开局批币种与 funding-record 不符".into());
         }
-        // #1621：known_at 绑定可审计观察时间（record["b_observation"]["first_known_ns"]），不再使用原件自报日期。
-        // 跨域不变式：S/E/B/X 时刻先后由同一观察时间源锁定（与 tb03c_transfer.rs:367 转移目标口径一致）。
-        let obs = &record["b_observation"];
-        let first_known_ns_str = obs
-            .get("first_known_ns")
-            .and_then(|v| v.as_str())
-            .ok_or("MissingDependency：b_observation 缺 first_known_ns")?;
-        let known_at = ns_to_date(first_known_ns_str)?;
-        let level = &c.level;
-        let capacity = c.capacity();
-        // ADR 0040:56/:59：批次只能引用已生效的签署（「只作用于生效后」）——下界。
-        for (what, from) in [
-            ("funding-record", self.record["authorized_at"].as_str()),
-            ("policy-record", c.policy["authorized_at"].as_str()),
-        ] {
-            if from.is_some_and(|f| known_at.as_str() < f) {
-                return Err(format!(
-                    "PolicyNotYetEffective：原件 known_at {known_at} 早于 {what} 签署生效日"
-                ));
-            }
-        }
-        for (what, through) in [
-            ("funding-record", self.record["valid_through"].as_str()),
-            ("policy-record", c.policy["valid_through"].as_str()),
-            (
-                "capacity",
-                capacity.and_then(|x| x["valid_through"].as_str()),
-            ),
-        ] {
-            if through.is_some_and(|t| known_at.as_str() > t) {
-                return Err(format!(
-                    "PolicyExpired：原件 known_at {known_at} 超过 {what} 有效期"
-                ));
-            }
-        }
-        let quantity = match &c.quantity {
-            None => None,
-            Some(q) => Some(self.quantity_gate(
-                c,
-                &q.versions[0],
-                positive(required(id, "fixed_q")?, "fixed_q")?,
-                units,
-                record,
-            )?),
-        };
-        let cap = match c.signed_capacity() {
-            Some(v) => positive(v, "C(ℓ)")?,
-            None => {
-                return Err(format!(
-                "AwaitingPolicy：capacity level={level}；C(ℓ) 未签署（Unknown 不是无限），不建收据"
-            ))
+        let (cap, quantity) = match &c.quantity {
+            None => (self.activation_terms(c, record)?, None),
+            Some(q) => {
+                let (cal, cap, c_units) = self.activate(
+                    c,
+                    &q.versions[0],
+                    positive(required(id, "fixed_q")?, "fixed_q")?,
+                    units,
+                    record,
+                )?;
+                (cap, Some((cal, c_units)))
             }
         };
-        if c.q > cap {
-            return Err(format!(
-                "InvalidDomain：Q {} 超过已签 C({level}) {cap}（ADR 0034 裁定四）",
-                c.q
-            ));
-        }
         let expected =
             c.q.checked_add(self.leverage - 1)
                 .ok_or("InvalidDomain：⌈Q/L⌉ 溢出")?
@@ -723,8 +739,8 @@ impl Contract {
         let mut out = json!({"authorization_ref":self.authorization_ref(),"funding_version":self.record["version"],
             "Q":c.q.to_string(),"margin_leverage":self.leverage.to_string(),"opening_batch":expected.to_string(),
             "policy_record":{"policy_id":c.policy["policy_id"],"version":c.policy["version"],"q_ref":c.policy["q_ref"]},
-            "capacity":{"level":level,"C":cap.to_string()}});
-        if let Some((cal, _, c_units)) = quantity {
+            "capacity":{"level":c.level,"C":cap.to_string()}});
+        if let Some((cal, c_units)) = quantity {
             // 数量域容量与 Q_units 同维比较，且绑定同一冻结报价（ADR 0034 裁定四；ADR 0049）。
             if let Some(cu) = c_units {
                 out["capacity"]["C_units"] = json!(cu.to_string());

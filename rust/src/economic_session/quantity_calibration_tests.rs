@@ -69,6 +69,12 @@ fn frozen(time_policy: &str, max_age: &str) -> Value {
 fn sig_ref(version: &str) -> String {
     format!("fixture://signature/{version}")
 }
+/// 合成签署覆盖当前内容：`content_sha256` 取本记录除签署外全部字段的规范 JSON 摘要（未签记录不动）。
+fn resign(cal: &mut Value) {
+    if cal["signature"].is_object() {
+        cal["signature"]["content_sha256"] = json!(qc::content_digest(cal));
+    }
+}
 /// 一份定标版本；`signed_ns = None` ⟹ 本版本未签。
 fn policy_v(
     level: &str,
@@ -83,10 +89,12 @@ fn policy_v(
         }
         None => json!("AwaitingPolicy"),
     };
-    json!({"policy_id":POLICY,"version":version,"supersedes":supersedes,
+    let mut cal = json!({"policy_id":POLICY,"version":version,"supersedes":supersedes,
         "binding":{"profile_id":PROFILE,"funding_version":"v1","symbol":"BTC","operation_level":format!("L{level}"),"q_ref":Q_REF},
         "quantity_unit":unit(),"signature":signature,
-        "quantity_basis":basis,"tiers":[{"d":"1","w":{"num":"347","den":"1000"}},{"d":"2","w":"Unmeasured"}]})
+        "quantity_basis":basis,"tiers":[{"d":"1","w":{"num":"347","den":"1000"}},{"d":"2","w":"Unmeasured"}]});
+    resign(&mut cal);
+    cal
 }
 fn policy(basis: Value) -> qc::CalibrationPolicy {
     qc::parse_policy(&policy_v("1", "qc-test-v1", "none", Some(50), basis)).unwrap()
@@ -592,6 +600,7 @@ fn policy_quantity_uses_per_chong_funding() {
     ] {
         let mut m = three_chongs();
         *m.pointer_mut(ptr).unwrap() = json!(val);
+        resign(&mut m["chongs"][1]["funding"]["quantity_calibration"]);
         assert!(
             Contract::of(&m).err().unwrap().contains("IdentityConflict"),
             "{ptr}"
@@ -719,6 +728,7 @@ fn transfer_manifest(signed: bool, quotes: Vec<Value>) -> Value {
         );
         cal["binding"] = json!({"profile_id":"P0","funding_version":"v1","symbol":"TEST-R","operation_level":format!("L{level}"),"q_ref":"#1557/funding-authorization/v1@P0"});
         cal["quantity_unit"] = json!({"unit":"TEST-UNIT","quantum":{"num":"1","den":"1"}});
+        resign(&mut cal);
         m["chongs"].as_array_mut().unwrap().push(json!({"chong_id":id,"symbol":"TEST-R","operation_level":level,
             "fixed_q":"3","db":format!("/nonexistent/{id}.db"),"socket":format!("/nonexistent/{id}.sock"),
             "funding":{"Q":"300","policy_record":p,"quantity_calibration":cal,"quote_snapshot":"s-transfer"}}));
