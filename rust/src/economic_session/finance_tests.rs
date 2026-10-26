@@ -109,10 +109,11 @@ impl Fixture {
         cap: &str,
         baseline: &str,
         real_s: &Value,
+        fault: Option<(&str, &str)>,
     ) -> Self {
         Self::build_full(
             cap,
-            None,
+            fault,
             &[("slot", &["alpha", "beta"])],
             None,
             Some((baseline, true)),
@@ -367,6 +368,18 @@ impl Fixture {
                 "reader_session",
             ] {
                 manifest["finance"]["structure"][k] = s["structure"][k].clone();
+            }
+            // E 的 ChongAdvance 以 `tb03b-<op>-<id>` 内部消息驱动 B Prepare、E Reserve 与 B Commit，正式
+            // socket 消费沿用同一组时钟值。
+            let clocks = &mut manifest["clock"]["plan"]["messages"];
+            for m in [
+                "PrepareDecision-alpha",
+                "PrepareDecision-beta",
+                "Reserve-slot",
+                "CommitDecision-alpha",
+                "CommitDecision-beta",
+            ] {
+                clocks[format!("tb03b-{m}")] = clocks[m].clone();
             }
         }
         if let Some((resolve_first, _)) = c4a {

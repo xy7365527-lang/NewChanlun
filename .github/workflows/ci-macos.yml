@@ -131,6 +131,8 @@ jobs:
   #   s_structure_session 的 financial-serve 只读会话；manifest 冻结 SessionClosure 读法，reader_resources 八项与
   #   E/B response_timeout_ms 3000 保持原值。两 B Prepare 后 E 激活 cap 版本 2，Reserve 实际消费该版本。
   #   E、B:alpha、B:beta 各占一个 24 MiB 临时 HFS+ 卷（同上）。原件（会话回执、stdout/stderr、证据 JSON）总上传。
+  #   随后同一批卷上以 debug E/B 正式服务进程经 Unix socket 消费同一新 cap（含 E Reserve、B:alpha Commit 提交后
+  #   SIGKILL 的新进程恢复），卸载前把三卷原库复制进 work/carrier-dbs 一并上传。
   issue1716-real-s:
     runs-on: macos-latest
     timeout-minutes: 60
@@ -162,7 +164,13 @@ jobs:
         run: |
           root="$RUNNER_TEMP/tb1716-real-s"
           mkdir -p "$root/work" "$root/s3" "$root/mnt"
-          detach_all() { for owner in e alpha beta; do [ -d "$root/mnt/$owner" ] && hdiutil detach "$root/mnt/$owner" -force || true; done; }
+          detach_all() {
+            for owner in e alpha beta; do
+              mkdir -p "$root/work/carrier-dbs/$owner"
+              [ -d "$root/mnt/$owner" ] && cp -p "$root/mnt/$owner"/*.db* "$root/work/carrier-dbs/$owner/" 2>/dev/null || true
+              [ -d "$root/mnt/$owner" ] && hdiutil detach "$root/mnt/$owner" -force || true
+            done
+          }
           trap detach_all EXIT
           carriers=""
           for owner in e alpha beta; do
@@ -180,6 +188,12 @@ jobs:
             TB1716_S_BINARY="$PWD/target/release/s_structure_session" \
             cargo test --locked --features s_session --lib -- --ignored --exact --nocapture \
             economic_session::finance::tests::real_s::content_domain_activated_cap_consumed_by_real_s_reserve
+          cargo build --locked --features s_session --bin e_economic_session --bin b_chong_session
+          ls -l target/debug/e_economic_session target/debug/b_chong_session
+          TB03B_TEST_ROOT="$root/work" TB1716_HFS_CARRIERS="$carriers" TB1716_S_EXPORT="$root/s3/export.json" \
+            TB1716_S_BINARY="$PWD/target/release/s_structure_session" TB1716_ECON_BINARIES="$PWD/target/debug" \
+            cargo test --locked --features s_session --lib -- --ignored --exact --nocapture \
+            economic_session::finance::tests::real_s::content_domain_activated_cap_consumed_through_formal_sockets
 
       - name: 上传 issue 1716 /4 消费正控原件
         if: always()

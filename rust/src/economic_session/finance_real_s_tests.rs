@@ -161,7 +161,7 @@ fn content_footprint(c: &rusqlite::Connection) -> (i64, i64) {
 /// 版本 2 的 cap，随后 E Reserve 读 S、导入两份 peer 证明闭包并按已激活版本判定。创世 cap 为 100（够全部
 /// 责任 90），所以结果只取决于版本 2：等于 90 时全量授信，89 时按原合同整槽等待、零授信、责任不增。
 fn reserve_under_activated_cap(carriers: &[PathBuf], real_s: &Value, cap: &str) -> Value {
-    let mut f = Fixture::content_with_real_s(carriers, "100", "20", real_s);
+    let mut f = Fixture::content_with_real_s(carriers, "100", "20", real_s, None);
     let config = f.configs[0].clone();
     assert_eq!(config.revision().unwrap(), SCHEMA_V2);
     assert_eq!(revision(&config.manifest).unwrap(), REV_V4);
@@ -309,6 +309,104 @@ fn content_domain_activated_cap_consumed_by_real_s_reserve() {
     save(&root, "issue1716-content-domain-real-s.json", &evidence);
     println!(
         "ISSUE1716_CONTENT_DOMAIN_REAL_S {}",
+        canonical_json(&evidence)
+    );
+}
+
+/// 一个 /4 正式 socket 例：夹具以生产 handler 完成开局与既有责任导入后关闭全部连接，交由
+/// `s_session/tests/tb1716_formal_consumption.py` 经 economic_service_control 起 E、两 B 正式服务进程，
+/// 经 socket 激活 cap 版本 2 并发 ChongAdvance（E 内部经 B socket Prepare、E Reserve、B socket Commit）。
+/// `fault` 为 manifest 的 TestOnly 故障缝，驱动在 marker 处 SIGKILL 实际 owner、recover 并以新 epoch 起新进程。
+fn formal_socket_case(
+    carriers: &[PathBuf],
+    real_s: &Value,
+    binaries: &Path,
+    cap: &str,
+    fault: Option<(&str, &str)>,
+) -> Value {
+    let f = Fixture::content_with_real_s(carriers, "100", "20", real_s, fault);
+    assert_eq!(responsibility_total(&latest(&f.dbs[0]).unwrap().3), 20);
+    let activation = cap_payload(&f, "1", "2", cap, "100000");
+    let fault = fault.map(|(message, phase)| {
+        let domain = message
+            .strip_prefix("tb03b-CommitDecision-")
+            .map_or("E".to_owned(), |name| format!("B:{name}"));
+        json!({"message_id":message,"phase":phase,"domain":domain,"marker_path":f.dir.join("fault-marker.json")})
+    });
+    let case = json!({"manifest":f.dir.join("manifest.json"),"activation":activation,"cap":cap,"fault":fault});
+    save(&f.dir, "formal-case.json", &case);
+    let dir = f.dir.clone();
+    drop(f);
+    let driver = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../s_session/tests/tb1716_formal_consumption.py");
+    let status = std::process::Command::new("python3")
+        .arg("-B")
+        .arg(&driver)
+        .arg("--case")
+        .arg(dir.join("formal-case.json"))
+        .arg("--binaries")
+        .arg(binaries)
+        .arg("--output")
+        .arg(dir.join("formal"))
+        .status()
+        .unwrap();
+    let result = strict_json(&std::fs::read(dir.join("formal/RESULT.json")).unwrap()).unwrap();
+    assert!(status.success(), "{result}");
+    assert_eq!(result["status"], "passed", "{result}");
+    result
+}
+
+/// #1716：真实 S 单 bar 闭包上，/4 新 cap 经 E/B 正式服务进程与 Unix socket 被实际消费。cap=90 时 ChongAdvance
+/// 在 E 提交 Reserve 回执并经 B socket 提交两份 Commit，责任 20+30+40=90；cap=89 时整槽等待、两 B 不提交。
+/// 两个恢复例在 E Reserve 提交后、B:alpha Commit 提交后 SIGKILL 实际进程，recover 后以新 epoch 起新进程重送，
+/// 取回原回执且每域恰一份 Reserve/Commit。运行方式同上一测试，另需 `TB1716_ECON_BINARIES`（含
+/// `e_economic_session`、`b_chong_session`）。
+#[test]
+#[ignore = "需 TB1716_HFS_CARRIERS、TB1716_S_BINARY、TB1716_S_EXPORT、TB1716_ECON_BINARIES 与 bind Unix socket 的权限"]
+fn content_domain_activated_cap_consumed_through_formal_sockets() {
+    let carriers: Vec<PathBuf> = std::env::var("TB1716_HFS_CARRIERS")
+        .expect("TB1716_HFS_CARRIERS 未设置")
+        .split(':')
+        .map(PathBuf::from)
+        .collect();
+    assert_eq!(carriers.len(), 3, "需要 E、B:alpha、B:beta 三个卷");
+    let binary = env_path("TB1716_S_BINARY");
+    let binaries = env_path("TB1716_ECON_BINARIES");
+    let export_path = env_path("TB1716_S_EXPORT");
+    let export = strict_json(&std::fs::read(&export_path).unwrap()).unwrap();
+    let session = SSession::start(&binary, &export, export_path.parent().unwrap());
+    let real_s = real_s_from_export(&binary, &export, &session.socket);
+    let cases = [
+        ("equal", "90", None),
+        ("insufficient", "89", None),
+        (
+            "e-reserve-after-commit",
+            "90",
+            Some(("tb03b-Reserve-slot", "after_commit")),
+        ),
+        (
+            "b-alpha-commit-after-commit",
+            "90",
+            Some(("tb03b-CommitDecision-alpha", "after_commit")),
+        ),
+    ];
+    let mut outcomes = serde_json::Map::new();
+    for (name, cap, fault) in cases {
+        outcomes.insert(
+            name.into(),
+            formal_socket_case(&carriers, &real_s, &binaries, cap, fault),
+        );
+    }
+    let session_ready = session.ready.clone();
+    let session_final = session.stop(&binary);
+    let evidence = json!({"carriers":carriers,"reading":"SessionClosure","response_timeout_ms":"3000",
+        "s_source":real_s,"s_session_ready":session_ready,"s_session_final":session_final,"cases":outcomes});
+    let root = std::env::var_os("TB03B_TEST_ROOT")
+        .map(PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir);
+    save(&root, "issue1716-formal-socket-consumption.json", &evidence);
+    println!(
+        "ISSUE1716_FORMAL_SOCKET_CONSUMPTION {}",
         canonical_json(&evidence)
     );
 }
