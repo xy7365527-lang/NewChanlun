@@ -1295,13 +1295,19 @@ fn cap_activation_is_atomic() {
     assert_eq!(responsibility_total(&latest(&f.dbs[0]).unwrap().3), 90);
     // 责任 90 > 新 cap 89：拒绝，旧 v1 与账目逐字不变。
     let low = cap_payload(&f, "1", "2", "89", "100000");
-    let rejected_low = assert_rejected_unchanged(&mut f, "ActivateCapPolicy-low", low, "InvalidDomain");
+    let rejected_low =
+        assert_rejected_unchanged(&mut f, "ActivateCapPolicy-low", low, "InvalidDomain");
     assert!(rejected_low["error"].as_str().unwrap().contains("90"));
-    assert!(latest(&f.dbs[0]).unwrap().3["finance"].get("cap_policy").is_none());
+    assert!(latest(&f.dbs[0]).unwrap().3["finance"]
+        .get("cap_policy")
+        .is_none());
     // 责任 90 = 新 cap 90：允许，整体切到 v2。
     let equal = cap_payload(&f, "1", "2", "90", "100000");
     let activated = f.handle(0, "ActivateCapPolicy-equal", equal.clone());
-    assert_eq!(activated["kind"], "CapPolicyActivatedReceipt", "{activated}");
+    assert_eq!(
+        activated["kind"], "CapPolicyActivatedReceipt",
+        "{activated}"
+    );
     assert_eq!(activated["record"]["state"], "CapPolicyActivated");
     assert_eq!(activated["record"]["from"]["policy_version"], "1");
     assert_eq!(activated["record"]["from"]["cap"], "100");
@@ -1327,7 +1333,10 @@ fn cap_activation_is_atomic() {
     assert_eq!(above["record"]["to"]["cap"], "150");
     // 既有 grant 仍可 Commit，激活不减仓、不挪责任。
     for (n, name) in [(1, "alpha"), (2, "beta")] {
-        assert_eq!(f.step(n, "CommitDecision", name)["record"]["state"], "Committed");
+        assert_eq!(
+            f.step(n, "CommitDecision", name)["record"]["state"],
+            "Committed"
+        );
     }
     assert_eq!(responsibility_total(&latest(&f.dbs[0]).unwrap().3), 90);
     f.audit();
@@ -1433,7 +1442,10 @@ fn cap_activation_sigkill_recovers_whole_old_or_new_version() {
         }
         let mut recovery_job = job.clone();
         recovery_job["action"] = json!("recover");
-        assert!(child(&f.dir, &recovery_job, "recover").wait().unwrap().success());
+        assert!(child(&f.dir, &recovery_job, "recover")
+            .wait()
+            .unwrap()
+            .success());
         assert_eq!(latest(&f.dbs[0]).unwrap(), current);
         audit(&f.dbs[0], &f.configs[0]).unwrap();
         let fin = &current.3["finance"];

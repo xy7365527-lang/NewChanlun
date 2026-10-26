@@ -951,8 +951,10 @@ fn reduce_with_budget(
     } else {
         number(&d["policy"], "valid_through_ns")?
     };
-    if !matches!(op, "AbortDecision" | "CloseApplicants" | "ActivateCapPolicy")
-        && validity < nonnegative(ns, "commit_ns")?
+    if !matches!(
+        op,
+        "AbortDecision" | "CloseApplicants" | "ActivateCapPolicy"
+    ) && validity < nonnegative(ns, "commit_ns")?
     {
         return Err("MissingDependency：共同界/能力证据过期".into());
     }
