@@ -21,7 +21,7 @@ cleanup() {
   local rc=$?
   local cleanup_failed=0
   if [[ -n "${TB03C_FIN2_EVIDENCE_DIR:-}" ]]; then
-    mkdir -p "$TB03C_FIN2_EVIDENCE_DIR/carriers"
+    mkdir -p "$TB03C_FIN2_EVIDENCE_DIR/carriers" || cleanup_failed=1
     for name in "${MOUNTED[@]}"; do
       if ! cp -R "$ROOT/$name" "$TB03C_FIN2_EVIDENCE_DIR/carriers/$name"; then
         cleanup_failed=1
