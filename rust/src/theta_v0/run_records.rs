@@ -58,6 +58,8 @@ pub const SLOT_THETA_RISK: &str = "theta_risk";
 pub const SLOT_DATA_PROFILE: &str = "data_profile";
 /// 槽位名：级别塔资源预算记录（#1603）。
 pub const SLOT_TOWER_LEVEL_BUDGET: &str = "tower_level_budget";
+/// 槽位名：塔底构造记录（#1626）。
+pub const SLOT_TOWER_BASE: &str = "tower_base";
 /// 槽位名：MACD 力度记录（#1603）。
 pub const SLOT_MACD_FORCE: &str = "macd_force";
 /// 槽位名：特征序列扫描预算与线段构造规则记录（#1604）。
@@ -405,6 +407,7 @@ pub struct RunRecordSet {
     pub risk: ThetaRisk,
     pub data: DataProfile,
     pub tower: pr::TowerLevelBudget,
+    pub level: super::config::LevelConfig,
     pub macd: super::config::MacdConfig,
     pub parse: super::config::ParseConfig,
 }
@@ -423,6 +426,13 @@ pub fn collect_run_records(
         SLOT_TOWER_LEVEL_BUDGET,
         pr::parse_tower_level_budget(Some(ACTIVE_TOWER_LEVEL_BUDGET_JSON)),
     );
+    let tower_base = err.take(SLOT_TOWER_BASE, pr::active_tower_base());
+    let level = match (tower, tower_base) {
+        (Some(budget), Some(base)) => {
+            err.take(SLOT_TOWER_BASE, pr::try_level_config_from(budget, base, 3))
+        }
+        _ => None,
+    };
     let macd = err.take(
         SLOT_MACD_FORCE,
         pr::parse_macd_force(Some(ACTIVE_MACD_FORCE_JSON)),
@@ -431,13 +441,14 @@ pub fn collect_run_records(
         SLOT_PARSE_RECORDS,
         super::config::ParseConfig::from_active_records(),
     );
-    match (venue, risk, data, tower, macd, parse) {
-        (Some(venue), Some(risk), Some(data), Some(tower), Some(macd), Some(parse)) => {
+    match (venue, risk, data, tower, level, macd, parse) {
+        (Some(venue), Some(risk), Some(data), Some(tower), Some(level), Some(macd), Some(parse)) => {
             Ok(RunRecordSet {
                 venue,
                 risk,
                 data,
                 tower,
+                level,
                 macd,
                 parse,
             })
@@ -669,5 +680,8 @@ mod tests {
         )
         .unwrap();
         assert_eq!(ok.tower.record.label(), "tower-level-budget/1");
+        assert_eq!(ok.level.budget, ok.tower.record);
+        assert_eq!(ok.level, super::super::config::LevelConfig::from_active_record().unwrap());
+        assert_eq!(ok.level.tower_base_policy.label(), "tower-base/1");
     }
 }

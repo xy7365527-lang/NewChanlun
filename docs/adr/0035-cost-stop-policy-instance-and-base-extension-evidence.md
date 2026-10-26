@@ -9,6 +9,8 @@
 
 ## 裁定
 ### 一、记录形状与读法
+`tower_base_ref` 的值域与 `zhongshu.md` §2.1.1 一致；当前 `L0 = segment`，机读记录为 `tower-base/1`（#1626）。`kline3`／`trade3` 只在相应真实构件与数据 profile 具备时可签，缺位时显式拒绝，不以线段输入冒充。
+
 政策 id 族 `#1354/cost-stop-policy/v1`。记录 ⟨policy_id, version, profile_id, symbol, granularity, tower_base_ref, inputs{fee(Known, 费率簿引用含 source_url/retrieved_at/tier/role), slippage(Known|ProxyLowerBound|Missing), latency_error(同), holding(funding/borrow 引用 | Missing)}, amplitude{pairing=ROUNDTRIP, per_level[{level, median, lower_bound_95, n, max_month_cluster, windows[]}], probe_run_ref}, threshold{form=ratio_lb_ge_theta, theta 整数对(用户签署), authorizer, authorized_at}, evidence_gate(继承 ADR 0022 裁定六/七), valid_through, supersedes⟩。比值 `r(ℓ) = A_ℓ / (2·fee + slippage + latency_error [+ holding])`，A_ℓ 取 ROUNDTRIP 波幅单边 95% 下界（按月 block bootstrap）。通过 ⟺ `lb(r) ≥ θ` ∧ 证据门；`InsufficientEvidence` 与 `Fail` 分开。θ 由用户签署；系统拒绝 θ < 1（约束，非默认值）。全部定点整数。
 
 ADR 0035 `amplitude.pairing` 保持单值 ROUNDTRIP，不恢复 AMP_EXEC。依据 [#907 resolution 评论5194145006](https://github.com/xy7365527-lang/NewChanlun/issues/907#issuecomment-5194145006) 的三步：成本每趟往返支付；与其可比的波幅是同一趟往返能吃到的幅度；相邻同向点不对应完整交易。标签 `[新缠论:推论]`，排除类别为「违已裁推论」，不以拟合好坏作选择理由。该评论的否证口逐字为：“若能论证「成本也可以按单边逐点计而不按往返计」，则 AMP_EXEC 回到候选。”逐字原件见 #907 该 resolution。若将来满足否证口，仍按现行裁定变更流程处理；后一句是流程要求，不冒称 #907 原话。

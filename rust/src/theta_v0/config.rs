@@ -199,6 +199,15 @@ impl Tangency {
     }
 }
 
+/// 塔底构件（qujiantao §14.3）。当前生产只具备 `segment` 的真实构件与数据 profile；
+/// `kline3` / `trade3` 是合法记录值，但在构造入口显式拒绝，不能拿线段输入冒充。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TowerBase {
+    Segment,
+    Kline3,
+    Trade3,
+}
+
 /// Θ_level 参数（reference-theta-v0.md:27-30）。
 ///
 /// #1603（#1586 C-09）：`l_max` 是资源预算，只从版本化记录 `tower-level-budget` 读取
@@ -213,14 +222,20 @@ pub struct LevelConfig {
     pub min_parts_per_level: u32,
     /// `l_max` 所出自的记录版本（输出随 `ClassifyOutput::policy` 写出）。
     pub budget: super::policy_records::PolicyRef,
+    /// 递归第一步的构件；只从 `tower-base` 记录读取。
+    pub tower_base: TowerBase,
+    /// `tower_base` 所出自的记录版本。
+    pub tower_base_policy: super::policy_records::PolicyRef,
 }
 
 impl LevelConfig {
     /// 由当前生效的 `tower-level-budget` 记录构造；记录缺失、未签或非法 ⟹ 报错（不回退）。
     pub fn from_active_record() -> Result<Self, super::policy_records::PolicyError> {
-        Ok(Self::from_budget(
+        super::policy_records::try_level_config_from(
             super::policy_records::active_tower_level_budget()?,
-        ))
+            super::policy_records::active_tower_base()?,
+            3,
+        )
     }
 
     /// 由已解析的塔预算记录 + 中枢三段下限组装。
@@ -746,7 +761,7 @@ impl ThetaConfig {
         Ok(ThetaConfig {
             tick: TickConfig::from_venue(&set.venue),
             parse: set.parse,
-            level: LevelConfig::from_budget(set.tower),
+            level: set.level,
             macd: set.macd,
             voice: VoiceConfig::from_record(&set.risk),
             risk: RiskConfig::from_record(&set.risk),
@@ -805,6 +820,11 @@ impl ThetaConfig {
         let data_same = self.data == DataConfig::from_record(&self.records.data);
         vec![
             self.level.budget,
+            stamp(
+                self.level.tower_base_policy,
+                super::policy_records::active_tower_base()
+                    .is_ok_and(|base| self.level.tower_base == base.value),
+            ),
             self.macd.record,
             self.parse.scan_budget,
             self.parse.construction_rule,
@@ -861,7 +881,7 @@ mod tests {
         // 坏 tick 闸来自 data-profile v1（等值对拍：与改前常数逐位相同）。
         assert_eq!(
             c.record_labels(),
-            "tower-level-budget/1, macd-force/1, second-seq-scan-budget/2, segment-second/2, \
+            "tower-level-budget/1, tower-base/1, macd-force/1, second-seq-scan-budget/2, segment-second/2, \
              venue-profile-diagnostic-fixture/1, \
              theta-risk/1, data-profile/1"
         );
@@ -1001,7 +1021,7 @@ mod tests {
         assert_eq!(c.data.bad_tick_max_dev, 0.5);
         assert_eq!(
             c.record_labels(),
-            "tower-level-budget/1, macd-force/1, second-seq-scan-budget/2, segment-second/2, \
+            "tower-level-budget/1, tower-base/1, macd-force/1, second-seq-scan-budget/2, segment-second/2, \
              venue-profile-P0/3, theta-risk/2, data-profile/2"
         );
         assert!(c.admissible());
@@ -1020,6 +1040,9 @@ mod tests {
         assert!(c.record_labels().contains("theta-risk/research-override"));
         c.data.bad_tick_max_dev = 0.5;
         assert!(c.record_labels().contains("data-profile/research-override"));
+        c.level.tower_base = TowerBase::Kline3;
+        assert!(c.record_labels().contains("tower-base/research-override"));
+        assert!(!c.admissible());
     }
 
     /// #1602 负控：缺记录 / 缺字段 / 非法值 ⟹ 配置组装报错，不回退常数。
