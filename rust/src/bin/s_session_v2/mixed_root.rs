@@ -150,3 +150,111 @@ fn capture(conn:&Connection,work:&WorkScope,observer:&dyn LegacyObserver)->Resul
     }
     Ok(Reachable{batches,roots,originals,_capture:reader.into_capture()})
 }
+
+fn meta_integer(conn:&Connection,key:&str,work:&WorkScope)->Result<i64,MixedJsonError>{
+    let value=audit::mixed_profile::meta_text(conn,key,work)?.ok_or_else(||format!("StorageUnavailable：meta.{key} 缺失"))?;
+    let field=formatted(format_args!("meta.{key}"),work)?;
+    parse_canonical_i64(&value,&field).map_err(|e|MixedJsonError::Business(format!("StorageUnavailable：{e}")))
+}
+pub(crate) fn scope(conn:&Connection,work:&WorkScope)->Result<crate::v3::business_json::PlainJson,MixedJsonError>{
+    let value=audit::mixed_profile::meta_text(conn,"scope",work)?.ok_or("StorageUnavailable：meta.scope 缺失")?;
+    let parsed=crate::json_shape_mixed(&value,JsonShape::Object,work)?;
+    validate_scope(&parsed)?;
+    Ok(parsed)
+}
+pub(crate) fn required_meta(conn: &Connection, work: &WorkScope) -> Result<i64, MixedJsonError> {
+    let session_id =
+        audit::mixed_profile::meta_text(conn, "session_id", work)?.ok_or("StorageUnavailable：meta.session_id 缺失")?;
+    if session_id.is_empty() {
+        return Err("StorageUnavailable：meta.session_id 为空".into());
+    }
+    let epoch = audit::mixed_profile::meta_text(conn, "writer_epoch", work)?.ok_or("StorageUnavailable：缺 writer_epoch")?;
+    parse_writer_epoch(&epoch, "持久 writer_epoch")
+        .map_err(|e| format!("StorageUnavailable：{e}"))?;
+    let generation = meta_integer(conn, "generation", work)?;
+    if generation < 0 {
+        return Err("StorageUnavailable：meta.generation 为负".into());
+    }
+    let cut = audit::mixed_profile::meta_text(conn, "structure_cut", work)?.unwrap_or(text("",work)?);
+    if cut.is_empty() {
+        return Err("StorageUnavailable：meta.structure_cut 缺失或为空".into());
+    }
+    let expect_cut = formatted(format_args!("cut-{generation}"),work)?;
+    if cut != expect_cut {
+        return Err(format!(
+            "StorageUnavailable：meta.structure_cut=`{cut}` 与 generation={generation} 不一致（应 `{expect_cut}`）"
+        ).into());
+    }
+    let cat = audit::mixed_profile::meta_text(conn, "catalog_revision", work)?.unwrap_or(text("",work)?);
+    if cat.is_empty() {
+        return Err("StorageUnavailable：meta.catalog_revision 缺失或为空".into());
+    }
+    let idx = audit::mixed_profile::meta_text(conn, "index_frontier", work)?.unwrap_or(text("",work)?);
+    let published_frontier = meta_integer(conn, "last_advance_frontier", work)?;
+    if published_frontier < -1 {
+        return Err(format!(
+            "StorageUnavailable：meta.last_advance_frontier=`{published_frontier}` 越域（只允许 -1 或非负）"
+        ).into());
+    }
+    // last_advance_frontier 必须与当前已发布 Delta 的 input_frontier 一致（不得由新 advance 掩盖坏值）。
+    if generation > 0 {
+        if idx.is_empty() {
+            return Err(format!(
+                "StorageUnavailable：generation={generation} 已发布却 index_frontier 为空（缺根 meta）"
+            ).into());
+        }
+        let delta_frontier: Option<i64> = conn
+            .query_row(
+                "SELECT input_frontier FROM structure_deltas WHERE generation=?1",
+                params![generation],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(|e| format!("读 delta[{generation}].input_frontier 失败：{e}"))?;
+        match delta_frontier {
+            None => {
+                return Err(format!(
+                    "StorageUnavailable：generation={generation} 无对应持久 Delta（根/历史引用断裂）"
+                ).into())
+            }
+            Some(df) if df != published_frontier => {
+                return Err(format!(
+                    "StorageUnavailable：meta.last_advance_frontier=`{published_frontier}` 与 delta[{generation}].input_frontier=`{df}` 不一致"
+                ).into())
+            }
+            Some(_) => {}
+        }
+    } else {
+        if !idx.is_empty() {
+            return Err(format!(
+                "StorageUnavailable：初态 generation=0 却存在 index_frontier=`{idx}`（不一致）"
+            ).into());
+        }
+        if published_frontier != -1 {
+            return Err(format!(
+                "StorageUnavailable：初态 generation=0 却 last_advance_frontier=`{published_frontier}`（应 -1）"
+            ).into());
+        }
+    }
+    scope(conn,work)?;
+    Ok(generation)
+}
+
+#[cfg(test)]
+pub(crate) fn test_capture(conn:&Connection,work:&WorkScope,observer:&dyn LegacyObserver)->Result<(usize,usize,usize),MixedJsonError>{
+    let reachable=capture(conn,work,observer)?;
+    let mut reader=evidence_store::Reader::new_mixed(conn,EVIDENCE_READ_BUDGET,work,observer)?;
+    for(id,_)in reachable.batches.iter(){
+        let(_,value,_)=load_batch(conn,&mut reader,id,true,work)?;
+        let value=value.ok_or("test missing full batch")?;
+        let batch_header=BatchControlHeader::from_verified_batch_typed(&value,Some(work)).map_err(MixedJsonError::Resource)?;
+        let(reference,_)=batch_ref(conn,&mut reader,id,work)?;
+        if evidence_store::format_typed(conn,Some(work))?.graph(){
+            let BatchRef::CertifiedHeader(cached)=reference else{panic!("verified header must be cached")};
+            for(a,b)in [(&batch_header.protocol_revision,&cached.protocol_revision),(&batch_header.session_generation,&cached.session_generation),(&batch_header.clock_plan_hash,&cached.clock_plan_hash),(&batch_header.semantic_commit_ns,&cached.semantic_commit_ns)]{
+                assert_eq!(a.as_deref().map(|v|v.as_str()),b.as_deref().map(|v|v.as_str()));
+            }
+        }
+    }
+    Ok((reachable.batches.len(),reachable.roots.len(),reachable.originals.len()))
+}

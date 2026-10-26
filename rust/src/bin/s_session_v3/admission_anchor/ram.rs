@@ -1392,6 +1392,101 @@ mod tests {
         }
     }
 
+
+    #[test]
+    fn mixed_real_root_capture_matches_original_and_meta_errors() {
+                use crate::v3::audit_budget::LegacyObserver;
+        use newchan_rust::s_content::{
+            self as sc,
+            job::{Existing, Job},
+        };
+        use std::cell::RefCell;
+        struct Observer<'a> {
+            job: RefCell<Job>,
+            work: &'a sc::capture_allocation::scratch::WorkScope,
+        }
+        impl LegacyObserver for Observer<'_> {
+            fn visit_record(
+                &self,
+                _family: &'static str,
+                _process: &'static str,
+                _member: crate::v3::audit_budget::LegacyRecordRef<'_>,
+            ) -> Result<(), sc::CodecError> {
+                self.job.borrow_mut().charge_records(1)
+            }
+
+            fn precheck(&self) -> Result<(), sc::CodecError> {
+                self.job.borrow_mut().pre_io_check()
+            }
+            fn check_work(
+                &self,
+                work: &sc::capture_allocation::scratch::WorkScope,
+            ) -> Result<(), sc::CodecError> {
+                let token = self.work.reserve_native(0)?;
+                if !token.belongs_to_parent(work) {
+                    return Err(work.reject(ScratchFailure::Ledger));
+                }
+                Ok(())
+            }
+            fn accept_checked(
+                &self,
+                row: &sc::legacy_evidence::CheckedLegacyEvidenceRow,
+            ) -> Result<(), sc::CodecError> {
+                self.job
+                    .borrow_mut()
+                    .accept_legacy_evidence(row, self.work)
+                    .map(|_| ())
+            }
+        }
+
+        use crate::v3::business_json::MixedJsonError;
+        crate::v2::with_mixed_control_fixture(|conn| {
+            for mutation in [
+                "",
+                "UPDATE s_evidence_roots SET expanded_length=expanded_length+1",
+                "UPDATE s_evidence_roots SET content_sha256='bad'",
+            ] {
+                conn.execute_batch("SAVEPOINT root_case").unwrap();
+                if !mutation.is_empty(){conn.execute_batch(mutation).unwrap();}
+                let expected=crate::capture_reachable_batches(conn).map(|r|(r.batches.len(),r.roots.len(),r.originals.len()));
+                let owner=AdmissionRamLedger::new(limits(1<<24)).unwrap();
+                owner.codec_work().unwrap().run(|work|{
+                    let job=Job::new_started_mixed(job_limits(),Existing{store_bytes:0,staged_bytes:0},Box::new(std::time::Instant::now),std::time::Instant::now(),work)?;
+                    let observer=Observer{job:RefCell::new(job),work};
+                    let _transaction=crate::cache::MixedCacheTransaction::start(work)?;
+                    let actual=crate::v2::mixed_root::test_capture(conn,work,&observer).map_err(|e|match e{MixedJsonError::Business(s)=>s,MixedJsonError::Resource(e)=>panic!("unexpected resource {e:?}")});
+                    assert_eq!(actual,expected,"mutation={mutation}");
+                    Ok::<_,sc::CodecError>(())
+                }).unwrap();
+                conn.execute_batch("ROLLBACK TO root_case; RELEASE root_case").unwrap();
+            }
+            for mutation in [
+                "",
+                "DELETE FROM meta WHERE key='session_id'",
+                "UPDATE meta SET value='' WHERE key='session_id'",
+                "UPDATE meta SET value='bad' WHERE key='writer_epoch'",
+                "UPDATE meta SET value='-1' WHERE key='generation'",
+                "UPDATE meta SET value='cut-99' WHERE key='structure_cut'",
+                "UPDATE meta SET value='' WHERE key='catalog_revision'",
+                "UPDATE meta SET value='' WHERE key='index_frontier'",
+                "UPDATE meta SET value='-2' WHERE key='last_advance_frontier'",
+                "UPDATE meta SET value='999' WHERE key='last_advance_frontier'",
+                "DELETE FROM meta WHERE key='scope'",
+                "UPDATE meta SET value='[]' WHERE key='scope'",
+            ] {
+                conn.execute_batch("SAVEPOINT meta_case").unwrap();
+                if !mutation.is_empty(){conn.execute_batch(mutation).unwrap();}
+                let expected=crate::verify_required_meta(conn);
+                let owner=AdmissionRamLedger::new(limits(1<<22)).unwrap();
+                owner.codec_work().unwrap().run(|work|{
+                    let actual=crate::v2::mixed_root::required_meta(conn,work).map_err(|e|match e{MixedJsonError::Business(s)=>s,MixedJsonError::Resource(e)=>panic!("unexpected resource {e:?}")});
+                    assert_eq!(actual,expected,"mutation={mutation}");
+                    Ok::<_,sc::CodecError>(())
+                }).unwrap();
+                conn.execute_batch("ROLLBACK TO meta_case; RELEASE meta_case").unwrap();
+            }
+        });
+    }
     #[test]
     fn mixed_control_history_matches_real_committed_messages() {
         use crate::v2::mixed_control::{self, history};
