@@ -76,3 +76,24 @@ jobs:
       - name: cargo test — economic_session / session_transport / session_protocol 库测试（#1394 G-1）
         if: always()
         run: cargo test --locked --features s_session --lib -- economic_session session_transport session_protocol
+
+      # #1716：tb03b-finance/4 内容域 cap 激活。economic-session/2 要求 E、B:alpha、B:beta 各占一个本地
+      #   可写固定容量 HFS+ 卷（store.rs 载体门）；按 #1394 已批载体合同各建一个 24 MiB 临时镜像
+      #   （容量约 25 MB，低于已批 max_staged_bytes 32153600），测试后卸载。
+      - name: cargo test — #1716 tb03b-finance/4 内容域 cap 激活（三个临时固定容量 HFS+ 卷）
+        if: always()
+        run: |
+          root=$(mktemp -d /tmp/tb1716-hfs.XXXXXX)
+          detach_all() { for owner in e alpha beta; do [ -d "$root/$owner" ] && hdiutil detach "$root/$owner" -force || true; done; }
+          trap detach_all EXIT
+          carriers=""
+          for owner in e alpha beta; do
+            hdiutil create -size 24m -fs HFS+ -volname "tb1716-$owner" -type UDIF "$root/$owner.dmg"
+            mkdir "$root/$owner"
+            hdiutil attach "$root/$owner.dmg" -mountpoint "$root/$owner" -nobrowse
+            carriers="$carriers${carriers:+:}$root/$owner"
+          done
+          mount | grep tb1716 || true
+          df -k "$root/e" "$root/alpha" "$root/beta"
+          TB1716_HFS_CARRIERS="$carriers" cargo test --locked --features s_session --lib -- --ignored --exact \
+            economic_session::finance::tests::content_domain_cap_activation_on_fixed_carriers --nocapture
