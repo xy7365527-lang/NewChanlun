@@ -455,13 +455,7 @@ pub struct ExecConfig {
     ///   `bin::pure_bsp_timing` / `bin::pi_bsp_timing` 各有自带 PnL 引擎，收编需逐引擎接
     ///   (qty, side) 缝，属另票。
     pub fee_schedule: Option<super::venue_fee::VenueFeeSchedule>,
-    /// 限价单成交规则（ADR 0018 裁定一 + #1599 A-05 / #1718 I3）。
-    ///
-    /// - `Cross(k)`：严格穿越 k tick 才成交（生产与验收默认，k≥1）；
-    /// - `Touch`：触及即成交（仅诊断，不参与准入或验收）。
-    ///
-    /// 默认 `Cross(1)`（最小 1 tick 严格穿越）。#1718：touch 结果不得用作正式验收证据，
-    /// 不因 cross 未成交而回退 touch。
+    /// #1718：冻结影子NT的配置回归，不是正式launcher输入。
     pub fill_rule: FillRule,
 }
 
@@ -473,27 +467,29 @@ impl Default for ExecConfig {
             slippage_bps: 2.0,
             tax_bps: 0.0,
             fee_schedule: None,
-            fill_rule: FillRule::default(), // Cross(1)
+            fill_rule: FillRule::default(),
         }
     }
 }
 
 impl ExecConfig {
-    /// #1718：冻结影子NT组件的配置门，不代表正式launcher验收。
-    pub fn require_production_fill_rule(&self) -> Result<(), String> {
+    pub fn require_shadow_fill_rule(&self) -> Result<(), String> {
         self.fill_rule.validate()?;
         match self.fill_rule {
             FillRule::Touch => Err(
                 "fill_rule=Touch 仅诊断，不参与准入或正式验收（ADR 0018 裁定一 + #1718 I3）".into(),
             ),
-            FillRule::Cross(_) => Ok(()),
+            FillRule::Cross(1) => Ok(()),
+            FillRule::Cross(_) => {
+                Err("UnsupportedFillRule：冻结影子组件只支持既有Cross(1)，其他k仅独立诊断".into())
+            }
         }
     }
 }
 
 /// 限价单成交规则（ADR 0018 裁定一 + #1599 A-05 / #1718 I3）。
 ///
-/// - `Cross(k)`：严格穿越 k tick 才成交（生产与验收默认，k≥1）；
+/// - `Cross(k)`：诊断中严格穿越 k tick，k≥1；冻结影子组件仅支持既有Cross(1)。
 /// - `Touch`：触及即成交(仅诊断，不参与准入或验收)。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum FillRule {

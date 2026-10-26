@@ -20,14 +20,19 @@ fn cross_requires_at_least_one_tick() {
     let mut cfg = ExecConfig::default();
     cfg.fill_rule = FillRule::Cross(0);
     assert!(cfg
-        .require_production_fill_rule()
+        .require_shadow_fill_rule()
         .unwrap_err()
         .contains("1 tick"));
     let mut input = request();
     input.fill_rule = FillRule::Cross(0);
     assert!(replay(input).unwrap_err().contains("1 tick"));
     cfg.fill_rule = FillRule::Cross(1);
-    assert_eq!(cfg.require_production_fill_rule(), Ok(()));
+    assert_eq!(cfg.require_shadow_fill_rule(), Ok(()));
+    cfg.fill_rule = FillRule::Cross(2);
+    assert!(cfg
+        .require_shadow_fill_rule()
+        .unwrap_err()
+        .contains("Cross(1)"));
 }
 
 #[test]
@@ -46,10 +51,7 @@ fn touch_diagnostic_not_acceptance_evidence() {
     assert!(report.warning.contains("过拟合"));
     let mut cfg = ExecConfig::default();
     cfg.fill_rule = FillRule::Touch;
-    assert!(cfg
-        .require_production_fill_rule()
-        .unwrap_err()
-        .contains("诊断"));
+    assert!(cfg.require_shadow_fill_rule().unwrap_err().contains("诊断"));
     let mut input = request();
     input.mode = "formal_acceptance".into();
     assert!(replay(input).unwrap_err().contains("DiagnosticOnly"));
@@ -142,7 +144,7 @@ fn known_frontier_and_order_submission_are_causal() {
     future.as_of = 1;
     assert!(replay(future).is_err());
     let mut late_order = request();
-    late_order.orders[0].submitted_at = 2;
+    late_order.orders[0].submitted_at = 20;
     let result = replay(late_order).unwrap();
     assert!(result.fills.iter().all(|f| f.order_id != "buy"));
     let mut invalid = request();
@@ -217,4 +219,59 @@ fn diagnostic_cli_consumes_fixture_and_recovers_in_new_process() {
     assert!(refused.stdout.is_empty());
     assert!(String::from_utf8_lossy(&refused.stderr).contains("VersionMismatch"));
     std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn checkpoint_requires_complete_first_hit_sequence_in_original_order() {
+    let mut input = request();
+    input.fill_rule = FillRule::Touch;
+    let mut state = Replay::new(input.clone()).unwrap();
+    state.advance_to(1).unwrap();
+    let saved = serde_json::to_value(state.checkpoint()).unwrap();
+    let mut missing = saved.clone();
+    missing["fills"] = serde_json::json!([]);
+    let bad: Checkpoint = serde_json::from_value(missing).unwrap();
+    assert!(Replay::restore(bad, &input).is_err());
+
+    state.advance_to(2).unwrap();
+    let saved = serde_json::to_value(state.checkpoint()).unwrap();
+    let mut non_first = saved.clone();
+    non_first["fills"][0]["bar_index"] = serde_json::json!(1);
+    non_first["fills"][0]["event_time"] = serde_json::json!(20);
+    non_first["fills"][0]["known_at"] = serde_json::json!(20);
+    non_first["fills"][0]["price_ticks"] = serde_json::json!(99);
+    let bad: Checkpoint = serde_json::from_value(non_first).unwrap();
+    assert!(Replay::restore(bad, &input).is_err());
+
+    let mut reordered = saved;
+    reordered["fills"].as_array_mut().unwrap().swap(0, 1);
+    let bad: Checkpoint = serde_json::from_value(reordered).unwrap();
+    assert!(Replay::restore(bad, &input).is_err());
+}
+
+#[test]
+fn intrabar_order_cannot_consume_earlier_open_or_extreme() {
+    let mut input = request();
+    input.fill_rule = FillRule::Touch;
+    input.orders[0].submitted_at = 5;
+    let result = replay(input.clone()).unwrap();
+    let buy = result.fills.iter().find(|f| f.order_id == "buy").unwrap();
+    assert_eq!((buy.bar_index, buy.price_ticks), (1, 99));
+    assert_eq!(
+        result.fills.iter().filter(|f| f.order_id == "buy").count(),
+        1
+    );
+    input.bars.truncate(1);
+    assert!(replay(input)
+        .unwrap()
+        .fills
+        .iter()
+        .all(|f| f.order_id != "buy"));
+
+    let mut overlapping = request();
+    overlapping.bars[1].opened_at = 9;
+    assert!(replay(overlapping).is_err());
+    let mut empty_interval = request();
+    empty_interval.bars[0].opened_at = 10;
+    assert!(replay(empty_interval).is_err());
 }

@@ -27,6 +27,7 @@ pub struct Order {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Bar {
+    pub opened_at: u64,
     pub event_time: u64,
     pub known_at: u64,
     pub open: i64,
@@ -68,7 +69,9 @@ impl Request {
                 || order.submitted_at > self.as_of
                 || !ids.insert(&order.id)
             {
-                return Err("InvalidDomain：订单身份须唯一且数量为正".into());
+                return Err(
+                    "InvalidDomain：订单身份须唯一、数量为正且提交时间不越过已知前沿".into(),
+                );
             }
         }
         let mut previous = None;
@@ -78,10 +81,11 @@ impl Request {
                 || bar.high < bar.open
                 || bar.high < bar.close
                 || bar.low > bar.high
+                || bar.opened_at >= bar.event_time
                 || bar.event_time > bar.known_at
                 || bar.known_at > self.as_of
                 || previous
-                    .is_some_and(|(event, known)| bar.event_time <= event || bar.known_at < known)
+                    .is_some_and(|(event, known)| bar.opened_at < event || bar.known_at < known)
             {
                 return Err("InvalidDomain：行情不是该快照已知前沿的有序有效OHLC".into());
             }
@@ -132,7 +136,7 @@ pub struct Replay {
 }
 
 fn matched(order: &Order, bar: &Bar, rule: FillRule) -> Option<i64> {
-    if order.submitted_at >= bar.event_time {
+    if order.submitted_at > bar.opened_at {
         return None;
     }
     let distance = match order.side {
@@ -162,7 +166,6 @@ impl Replay {
     }
 
     pub fn restore(checkpoint: Checkpoint, expected: &Request) -> Result<Self, String> {
-        expected.validate()?;
         if checkpoint.request != *expected {
             return Err(
                 "VersionMismatch：恢复必须绑定原模型、记录版本、规则、订单及行情快照".into(),
@@ -171,29 +174,12 @@ impl Replay {
         if checkpoint.next_bar > expected.bars.len() {
             return Err("InvalidCheckpoint：游标越过行情前沿".into());
         }
-        let mut filled = BTreeSet::new();
-        for fill in &checkpoint.fills {
-            let order = expected
-                .orders
-                .iter()
-                .find(|o| o.id == fill.order_id)
-                .ok_or("InvalidCheckpoint：成交无原订单")?;
-            let bar = expected
-                .bars
-                .get(fill.bar_index)
-                .ok_or("InvalidCheckpoint：成交无原行情")?;
-            if fill.bar_index >= checkpoint.next_bar
-                || !filled.insert(&fill.order_id)
-                || fill.side != order.side
-                || fill.quantity != order.quantity
-                || fill.event_time != bar.event_time
-                || fill.known_at != bar.known_at
-                || matched(order, bar, expected.fill_rule) != Some(fill.price_ticks)
-            {
-                return Err("InvalidCheckpoint：成交与冻结输入不一致".into());
-            }
+        let mut restored = Self::new(expected.clone())?;
+        restored.advance_to(checkpoint.next_bar)?;
+        if restored.checkpoint.fills != checkpoint.fills {
+            return Err("InvalidCheckpoint：成交序列不是冻结输入的完整首次命中序列".into());
         }
-        Ok(Self { checkpoint })
+        Ok(restored)
     }
 
     pub fn advance_to(&mut self, end: usize) -> Result<(), String> {

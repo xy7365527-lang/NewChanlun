@@ -145,8 +145,7 @@ pub fn require_btc_symbol(symbol: &str) -> anyhow::Result<()> {
 /// `evidence_only` 记录同样拒收。起始余额按 BTCUSDT 报价币 USDT 记账（记录币种 USDC，
 /// 1:1 名义近似，属本回测的有效域边界）。
 ///
-/// ★成交规则（#1718 I3）：`theta.exec.fill_rule = Touch` ⟹ 报错、引擎不建、不下单。
-/// touch 仅诊断，不参与正式验收或准入（ADR 0018 裁定一，#1599 A-05）。
+/// #1718：冻结影子NT组件只接受既有Cross(1)，不代表正式结果准入。
 pub fn run_theta_backtest(
     dataset: &Dataset,
     theta: &ThetaConfig,
@@ -155,7 +154,7 @@ pub fn run_theta_backtest(
     require_btc_symbol(&dataset.symbol)?;
     theta
         .exec
-        .require_production_fill_rule()
+        .require_shadow_fill_rule()
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
     let instrument = btc_instrument();
@@ -278,9 +277,8 @@ mod tests {
         );
     }
 
-    /// #1718 I3：fill_rule=Touch 仅诊断，正式验收入口拒收。
     #[test]
-    fn touch_fill_rule_refuses_production() {
+    fn shadow_backtest_rejects_unsupported_fill_rules() {
         use crate::theta_v0::config::FillRule;
         let dataset = Dataset {
             symbol: "BTC".into(),
