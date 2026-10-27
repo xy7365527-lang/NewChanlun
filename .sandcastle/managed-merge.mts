@@ -3,11 +3,9 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync, openSync, closeSync, unlinkSync, lstatSync, readlinkSync, realpathSync } from "node:fs";
 import { dirname, basename, join, resolve, relative, isAbsolute } from "node:path";
 import { parseStageReport } from "./managed-commit.mts";
+import { validateMergeInputSource, type MergeInput } from "./merge-source.mts";
 
-export interface MergeInput {
-  issue: number; branch: string; sha: string;
-  acceptance: { head: string; status: "accepted"; reviewEvidence: string; verificationEvidence: string };
-}
+export type { MergeInput } from "./merge-source.mts";
 export interface MergeManifest { runId: string; branch: string; base: string; inputs: MergeInput[] }
 export interface MergeCheck { head: string; checkId: string; status: "passed" | "failed"; evidence: unknown }
 interface Snapshot { head: string; mergeHead: string; index: string; diff: string; status: string; files: Record<string, string> }
@@ -22,6 +20,8 @@ export interface MergeOptions {
   cwd: string; checkpoint: string; manifest: MergeManifest; checkId: string;
   resolveConflict: (input: { head: string; incoming: string; files: string[] }) => Promise<string>;
   verify: (head: string, files: string[]) => Promise<MergeCheck>;
+  /** 归并某输入前的来源复核；抛错即停在该输入，不写 Git。 */
+  admit?: (input: MergeInput) => void;
   /** 只在已持久化检查点后发事件；可用于日志及中断恢复测试。 */
   onCheckpoint?: (state: MergeState) => void;
 }
@@ -55,10 +55,7 @@ function assertBranch(cwd: string, branch: string) {
 export function validateMergeManifest(value: MergeManifest): void {
   if (!value || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/.test(value.runId) || value.branch !== `sandcastle/merge-${value.runId}`) throw new Error("只接受本运行专用功能归并分支，拒绝 main/其他分支");
   if (!/^[a-f0-9]{40}$/.test(value.base) || !Array.isArray(value.inputs) || !value.inputs.length) throw new Error("归并基线或输入清单无效");
-  for (const i of value.inputs) {
-    if (!Number.isSafeInteger(i.issue) || i.issue <= 0 || i.branch !== `sandcastle/issue-${i.issue}` || !/^[a-f0-9]{40}$/.test(i.sha)) throw new Error("归并输入必须为固定单票 SHA");
-    if (i.acceptance?.head !== i.sha || i.acceptance.status !== "accepted" || typeof i.acceptance.reviewEvidence !== "string" || !i.acceptance.reviewEvidence.trim() || typeof i.acceptance.verificationEvidence !== "string" || !i.acceptance.verificationEvidence.trim()) throw new Error("缺少绑定精确 SHA 的单票验收/独审证据");
-  }
+  for (const i of value.inputs) validateMergeInputSource(i);
 }
 function canonicalPath(path: string): string {
   let current = resolve(path); const tail: string[] = [];
@@ -128,6 +125,7 @@ export async function runManagedMerge(o: MergeOptions): Promise<MergeState> {
       const input = inputs[s.position]!;
       let kind: Entry["kind"] = "merged";
       if (s.phase === "ready") {
+        o.admit?.(input);
         s.before = s.snapshot.head; s.input = input.sha; s.allowed = []; delete s.tree;
         let ancestor = false;
         try { git(o.cwd, ["merge-base", "--is-ancestor", input.sha, s.before]); ancestor = true; } catch { /* 非祖先进入真实归并 */ }
@@ -162,7 +160,8 @@ export async function runManagedMerge(o: MergeOptions): Promise<MergeState> {
         if (s.snapshot.head !== s.before || s.snapshot.mergeHead !== input.sha) throw new Error("提交前归并父集不匹配");
         git(o.cwd, ["diff", "--cached", "--check"]);
         s.tree = git(o.cwd, ["write-tree"]).trim(); save("prepared");
-        git(o.cwd, ["commit", "-m", `merge(sandcastle): #${input.issue}——受管功能归并`, "-m", `编号声明：#${input.issue} 指 GitHub Issue。\nSandcastle-Merge: ${o.manifest.runId}/${input.sha}`]);
+        const provenance = input.source === "deepagents" ? [`\nMerge-Source: deepagents ticket=${input.issue} run=${input.run.id} gen=${input.run.generation} branch=${input.branch}`] : [];
+        git(o.cwd, ["commit", "-m", `merge(sandcastle): #${input.issue}——受管功能归并`, "-m", `编号声明：#${input.issue} 指 GitHub Issue。\nSandcastle-Merge: ${o.manifest.runId}/${input.sha}${provenance.join("")}`]);
         if (git(o.cwd, ["show", "-s", "--format=%P", "HEAD"]).trim() !== `${s.before} ${input.sha}` || git(o.cwd, ["rev-parse", "HEAD^{tree}"]).trim() !== s.tree) throw new Error("归并提交父集/树不匹配");
         if (git(o.cwd, ["status", "--porcelain"]).trim()) throw new Error("提交后出现未知 WIP");
         save("committed");

@@ -4,6 +4,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, mkdirSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { runManagedMerge, validateMergeManifest, type MergeManifest, type MergeCheck } from "./managed-merge.mts";
+import { admitMergeInput } from "./merge-source.mts";
 import { verifyManagedRust } from "./managed-commit.mts";
 import { prepareFinalReviewPrompt } from "./review-context.mts";
 import { assertSwarmExecutionReady, assertDockerCliProxyReachable, swarmAgent, swarmSandbox } from "./swarm-route.mts";
@@ -34,6 +35,7 @@ export async function runAcceptedSwarmMerge(manifestPath: string, image: string,
   const repo = realpathSync(process.cwd());
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as MergeManifest;
   validateMergeManifest(manifest); // 创建工位前拒绝未验收/错误目标。
+  for (const input of manifest.inputs) admitMergeInput(repo, input); // DeepAgents 来源在任何 Git 写入前复核 PASS(head) 与交付状态。
   const cwd = join(repo, ".sandcastle", "worktrees", manifest.branch.replaceAll("/", "-"));
   // 宿主控制目录，不挂进工蜂 worktree，不允许工蜂修改验收输入/恢复记录。
   const evidenceDir = join(repo, ".sandcastle", "logs", "merges", manifest.runId);
@@ -46,6 +48,7 @@ export async function runAcceptedSwarmMerge(manifestPath: string, image: string,
   const result = await runManagedMerge({
     cwd, manifest, checkpoint: join(evidenceDir, "checkpoint.json"), checkId: MERGE_CHECK_ID,
     verify: (head, files) => verifyCombination(cwd, manifest, head, files),
+    admit: input => admitMergeInput(repo, input),
     resolveConflict: async ({ head, incoming, files }) => {
       // #1617：仅冲突需要 Docker；此时 MERGE_HEAD 与检查点已保存，失败保留现场。
       if (!conflictExecutionReady) {
