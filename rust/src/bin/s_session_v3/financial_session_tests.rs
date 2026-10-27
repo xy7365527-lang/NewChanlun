@@ -1722,9 +1722,24 @@ fn export_real_s3_w_fixture_for_q3() {
     let steps: Vec<(&str, Vec<Bar>, i64, bool)> = vec![
         ("w_first_bar", bars[0..1].to_vec(), 1, false),
         ("w_contained_waiting", bars[1..2].to_vec(), 1, false),
-        ("direction_established", bars[2..direction].to_vec(), 1, false),
-        ("recovered_epoch2_append", bars[direction..resumed].to_vec(), 1, true),
-        ("chain_first_center", bars[resumed..revise_after].to_vec(), 1, false),
+        (
+            "direction_established",
+            bars[2..direction].to_vec(),
+            1,
+            false,
+        ),
+        (
+            "recovered_epoch2_append",
+            bars[direction..resumed].to_vec(),
+            1,
+            true,
+        ),
+        (
+            "chain_first_center",
+            bars[resumed..revise_after].to_vec(),
+            1,
+            false,
+        ),
         ("revision_withdraw", vec![revised], 2, false),
         ("revision_restore", vec![bars[top].clone()], 3, false),
         ("chain_tail_pair", bars[revise_after..].to_vec(), 1, false),
