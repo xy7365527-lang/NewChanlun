@@ -511,10 +511,15 @@ async function makeServer(prepared = null) {
   };
   return server;
 }
-async function makeS16Base(generation = "3") {
-  const data = JSON.parse(
-      fs.readFileSync(__dirname + "/fixtures/q3-complete-s16-cuts345.json"),
-    ),
+const FIXTURE_CACHE = new Map();
+// file：fixtures 下的真实 Rust 导出（同一导出格式）；默认 S16 封存 cut3/4/5。
+async function makeS16Base(generation = "3", file = "q3-complete-s16-cuts345.json") {
+  if (!FIXTURE_CACHE.has(file))
+    FIXTURE_CACHE.set(
+      file,
+      fs.readFileSync(__dirname + "/fixtures/" + file),
+    );
+  const data = JSON.parse(FIXTURE_CACHE.get(file)),
     nodes = new Map(data.nodes.map((n) => [n.root, n])),
     graph = await C.GraphView.create(data.nodes),
     publication = data.publications.find((p) => p.generation === generation);
