@@ -507,7 +507,7 @@ fn b2_run_source_fault(fault: B2SourceFault) {
         };
         let observation = B2_SOURCE_FAULT_OBSERVATION
             .with(|slot| slot.borrow_mut().take())
-            .expect("真实TxStore注入hook必须已运行");
+            .unwrap_or_else(|| panic!("{fault:?}: 真实TxStore注入hook必须已运行；publish 错误：{error}"));
         assert!(observation.semantic_nodes_added);
         assert_eq!(
             error, observation.expected,

@@ -362,7 +362,8 @@ mod tests {
         assert!(budget.live() > baseline, "返回容器和内嵌文本必须继续持费");
         drop(values);
         assert_eq!(budget.live(), baseline);
-        let tiny = Budget::new(48, 0).unwrap();
+        // #1488 P2-1 后父账出生即计 ArcInner 元数据；48 B 余量放在元数据之上。
+        let tiny = Budget::new(Budget::metadata_bytes() + 48, 0).unwrap();
         let before = tiny.live();
         let failed = tiny
             .codec_work()
@@ -386,6 +387,7 @@ mod tests {
             .unwrap();
         let before = parent.live();
         let foreign = Budget::new(1 << 20, 0).unwrap();
+        let foreign_before = foreign.live();
         let result = foreign
             .codec_work()
             .unwrap()
@@ -393,8 +395,8 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(&*values, &[7]);
         assert_eq!(parent.live(), before);
-        assert_eq!(foreign.live(), 0);
+        assert_eq!(foreign.live(), foreign_before);
         drop(values);
-        assert_eq!(parent.live(), 0);
+        assert_eq!(parent.live(), Budget::metadata_bytes());
     }
 }
