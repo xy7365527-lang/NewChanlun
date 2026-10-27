@@ -3365,7 +3365,8 @@ fn persist_batch_before_publish_inner(
         .map_err(|e| format!("批次持久 commit 失败：{e}"))
 }
 
-#[cfg(any(test, feature = "s_v2_seed_testonly"))] // #1419 裁定（6265726014）：v2 写入口只在测试/种子构建存在
+// #1419 裁定（6265726014）：v2 写入口只在种子构建存在；测试种子走 `*_fixture` 诊断夹具入口。
+#[cfg(feature = "s_v2_seed_testonly")]
 fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
     let out = advance_core(db, configured_epoch, None)?;
     v3::admission::write_current_result(&out)
@@ -5662,7 +5663,8 @@ fn cmd_watch(db: &Path, after_generation: i64) -> Result<(), String> {
 /// 正式 writer 换代 / 恢复：核当前持久状态，清未决 Begin（上一 writer 已退出，门保持关闭直到本
 /// 命令合法恢复），并按 `--new-epoch` 提升 writer_epoch（与 generation 同序持久历史）。旧 epoch 进程
 /// 此后重放被 StaleWriter 拒绝。这不是「手改 SQL」——是正式入口，历史写入 writer_epoch_history。
-#[cfg(any(test, feature = "s_v2_seed_testonly"))] // #1419 裁定（6265726014）：v2 写入口只在测试/种子构建存在
+// #1419 裁定（6265726014）：v2 写入口只在种子构建存在；测试种子走 `*_fixture` 诊断夹具入口。
+#[cfg(feature = "s_v2_seed_testonly")]
 fn cmd_recover(db: &Path, new_epoch: &str) -> Result<(), String> {
     let out = recover_core(db, new_epoch, None)?;
     v3::admission::write_current_result(&out)

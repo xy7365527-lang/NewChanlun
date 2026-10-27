@@ -2892,12 +2892,18 @@ mod tests {
         let generated =
             generated(&mut fixture.store, BorrowedObject::Typed(&object)).expect("生成态");
         let generated_reads: BTreeSet<NodeDigest> = fixture.store.reads.iter().copied().collect();
+        let leaked: Vec<String> = generated_reads
+            .intersection(&payload_beyond_record)
+            .map(|d| match NodeSource::read(&mut fixture.store.nodes, d) {
+                Ok(sc::NodeRead::Found { tag, body }) => {
+                    format!("tag={tag:#04x} body={}", String::from_utf8_lossy(&body))
+                }
+                other => format!("{other:?}"),
+            })
+            .collect();
         assert!(
-            generated_reads.is_disjoint(&payload_beyond_record),
-            "生成态装配不得读取载荷子图（记录自身字段根除外）：{:?}",
-            generated_reads
-                .intersection(&payload_beyond_record)
-                .collect::<Vec<_>>()
+            leaked.is_empty(),
+            "生成态装配不得读取载荷子图（记录自身字段根除外）：{leaked:?}"
         );
         assert!(
             payload_beyond_record.len() > 8,

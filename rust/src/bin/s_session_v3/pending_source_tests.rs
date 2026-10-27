@@ -62,15 +62,18 @@ fn run_normal(scenario: &'static str, rows: [Row; 4]) {
         // meta.rule_revision），TB-02-A/B 发布内容按 #1343 同价裁定改变；三处生成根为合并后实测值，
         // 与 `813fc75fa5`、`199caedfd0`、`dccb69793c` 三点实测逐值相同（变化来自 #1405 适配合并本身）。
         // 旧值（new-bi/1）：乱序 2342365b…、顺序 2c0906de…、较早修订 408fd573…。
+        // #1393×#1419 重冻：写者规则改 W 后继串（S3 唯一写者规则）、W 初始化对象与 C/D/E/F 结构域进入生成态；
+        // 三处根为 nc-remote 实测（33a25f746c，组数先经上方逐例手算断言通过）。旧值（new-bi/2）：乱序 bf079f33…、
+        // 顺序 91761b3f…、较早修订 c3961d53…。
         let frozen = match (scenario, step) {
             ("乱序新身份且前三根同OHLC", 2) => {
-                Some("sc1-bf079f33871b67044c42e39bbf752ada90231cd4ece6a854dec2e8ef6bfd8fcd")
+                Some("sc1-df7f1dbcbc367debe6b9ac60266642f470ad3406dc377f5c1500e476438b37d9")
             }
             ("顺序新身份且前三根同OHLC", 2) => {
-                Some("sc1-91761b3f75809e3629594a5c27a88e7b96070d511d049f2302b0c9593ea5b26b")
+                Some("sc1-0f2e6a44172e30a311c000db204e35aa0d2eb93f4b14ec95554fab5c9d7dd804")
             }
             ("较早坐标修订", 4) => {
-                Some("sc1-c3961d53fd43abfa723450dbc210c1d565039bb4c9e478eb88b2c60bdc7dc68d")
+                Some("sc1-2ebf6bd87172b57b300444b6fbc9d31c22557a61cb5d13f1bda2a0213cece0c2")
             }
             _ => None,
         };
