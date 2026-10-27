@@ -1746,14 +1746,27 @@ fn export_real_s3_w_fixture_for_q3() {
                 let g = receipt.generation;
                 let current = count(&f, "SELECT kind,count(*) FROM s_content_objects WHERE first_known_generation<=?1 AND (withdrawn_generation IS NULL OR withdrawn_generation>?1) GROUP BY kind ORDER BY kind", g);
                 let withdrawn = count(&f, "SELECT kind,count(*) FROM s_content_objects WHERE withdrawn_generation=?1 GROUP BY kind ORDER BY kind", g);
+                let present = |list: &[&str]| -> Vec<String> {
+                    list.iter()
+                        .filter(|k| current.iter().any(|(x, _)| x == *k))
+                        .map(|k| k.to_string())
+                        .collect()
+                };
+                let w_present = present(&["CC-004.initialization", "CC-004.undetermined_raw"]);
+                let ef: Vec<&str> = crate::tb02e::KINDS
+                    .iter()
+                    .chain(crate::tb02f::KINDS)
+                    .copied()
+                    .collect();
+                let ef_present = present(&ef);
+                let withdrawn: serde_json::Map<String, Value> =
+                    withdrawn.iter().map(|(k, c)| (k.clone(), json!(c))).collect();
                 let kinds: serde_json::Map<String, Value> =
                     current.iter().map(|(k, c)| (k.clone(), json!(c))).collect();
                 stats.push(json!({"step":label,"generation":g.to_string(),"batch_id":receipt.batch_id.as_str(),
                     "bars":rows.len(),"revision":revision,"reopened_writer":reopen,
                     "current_by_kind":kinds,
-                    "withdrawn_by_kind":withdrawn.iter().map(|(k,c)|(k.clone(),json!(c))).collect::<serde_json::Map<_,_>>(),
-                    "w_kinds_present":["CC-004.initialization","CC-004.undetermined_raw"].iter().filter(|k| current.iter().any(|(x,_)| x==*k)).collect::<Vec<_>>(),
-                    "ef_kinds_present":crate::tb02e::KINDS.iter().chain(crate::tb02f::KINDS).filter(|k| current.iter().any(|(x,_)| x==*k)).collect::<Vec<_>>()}));
+                    "withdrawn_by_kind":withdrawn,"w_kinds_present":w_present,"ef_kinds_present":ef_present}));
             }
             Err(error) => {
                 stats.push(json!({"step":label,"bars":rows.len(),"revision":revision,"refused":error}));
