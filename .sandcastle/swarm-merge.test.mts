@@ -26,7 +26,7 @@ test("真实宿主归并入口读取 accepted 清单、保留功能 worktree，�
   const cwd = mkdtempSync(join(tmpdir(), "nc-merge-entry-"));
   // #1742 旧来源新归并须取冻结准入；测试用临时根，不触碰本机生产冻结根。
   const drainRoot = mkdtempSync(join(tmpdir(), "nc-merge-entry-drain-"));
-  const admission = <T>(action: () => T | Promise<T>) => withLegacyAdmission(action, drainRoot);
+  const admission = <T,>(action: () => T | Promise<T>) => withLegacyAdmission(action, drainRoot);
   const outer = mkdtempSync(join(tmpdir(), "nc-merge-manifest-"));
   const original = process.cwd();
   t.after(() => { process.chdir(original); for (const d of [cwd, outer, drainRoot]) rmSync(d, { recursive: true, force: true }); });
