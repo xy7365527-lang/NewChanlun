@@ -4674,6 +4674,10 @@ mod tests {
         // `271b8e8cc6` 之后的 `813fc75fa5`、`199caedfd0`、`dccb69793c` 读数与摘要逐值相同，故 +120 来自该
         // 合并本身（同价语义与规则修订），不来自后两处修复；未逐节点分解。
         // 旧摘要（new-bi/1）：read 8418acae…、budget f194dbc3…。
+        // #1393×#1419 重冻（夹具改取 S3 写者唯一规则 W 后继串）：同一 14 根原始账在 W 规则下多出
+        // 初始化事实（槽 W）与 C/D/E/F 结构域对象（81 = 76 + 5），结构域与 W 判据的读取另加
+        // 37928 reads / 38245 F；均为 nc-remote 实测（ac24e9e3eb，s_session 与 +native 两组合同值），
+        // 摘要随规则修订与发布内容改变。旧摘要（new-bi/2，76 对象）：read ffa6288e…、budget 06e35514…。
         assert_eq!(
             (
                 counts.objects,
@@ -4683,17 +4687,17 @@ mod tests {
                 counts.insufficient,
                 counts.outside_domain
             ),
-            (76, 13, 11, 14, 0, 0)
+            (81, 13, 11, 14, 0, 0)
         );
-        assert_eq!(roots.len(), 151351 + 13016 + 120, "r3完整Some读取轨迹");
-        assert_eq!(frames, 170797 + 14276 + 120, "r3完整Some F次数");
+        assert_eq!(roots.len(), 151351 + 13016 + 120 + 37928, "r3完整Some读取轨迹");
+        assert_eq!(frames, 170797 + 14276 + 120 + 38245, "r3完整Some F次数");
         assert_eq!(
             read_hash,
-            "ffa6288e00eb063d0d10c234ae2f013fff0f15ce5e94e9777c5d0bf33359f2e9"
+            "0dfe6b80acb54cf47a8afaaaed7b3542c60fe64e1021f32e12f67783c498c95b"
         );
         assert_eq!(
             budget_hash,
-            "06e35514afeb5411501d062780ddd409a1796c54a38f3eac7912596d8eeda26e"
+            "9236f0171f6eb6e523d894e338e634d55c0c69522bc03fdbe13937aa00980194"
         );
     }
     fn json_text_edge(s: &mut dyn NodeStore, value: &ContentRef) -> ContentRef {
