@@ -2589,12 +2589,13 @@ fn i1572_originals_permit_bytes(
         TextValue::Owned(_) => Err("originals文本不在候选父账（Owned）".to_string()),
     };
     let cells = |row: &newchan_rust::s_content::CodecVec<SqlCell>| {
-        row.iter().fold(row.native_retained_charge().unwrap_or(0), |a, c| {
-            a.saturating_add(match c {
-                SqlCell::Text(v) | SqlCell::Blob(v) => v.native_retained_charge().unwrap_or(0),
-                _ => 0,
-            })
-        })
+        let mut bytes = row.native_retained_charge().unwrap_or(0);
+        for cell in row.iter() {
+            if let SqlCell::Text(v) | SqlCell::Blob(v) = cell {
+                bytes = bytes.saturating_add(v.native_retained_charge().unwrap_or(0));
+            }
+        }
+        bytes
     };
     let mut total = fee;
     for e in originals.iter() {
@@ -2863,7 +2864,10 @@ mod i1572_candidate_items_tests {
         let ok = table(Some(30), Some(20)).unwrap();
         assert_eq!(
             ok["unread"],
-            serde_json::json!(["candidate.audited.historical_and_raw", "committed_raw_state"])
+            serde_json::json!([
+                "candidate.audited.historical_and_raw",
+                "committed_raw_state"
+            ])
         );
         assert_eq!(
             table(Some(31), Some(20)).unwrap_err(),

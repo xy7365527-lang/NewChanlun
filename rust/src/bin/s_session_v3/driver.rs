@@ -3343,7 +3343,11 @@ mod tests {
             // q 与 originals 已有非销毁读数（探针内已核读数=析构下降），不得退回未读。
             for read in ["candidate.q", "candidate.originals.current_sql"] {
                 assert!(
-                    !items["unread"].as_array().unwrap().iter().any(|n| n == read),
+                    !items["unread"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .any(|n| n == read),
                     "{read} 未读到：{}",
                     items["unread"]
                 );

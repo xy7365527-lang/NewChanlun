@@ -3996,7 +3996,10 @@ impl AuditCapture {
     #[doc(hidden)]
     pub fn native_physical_fast_for_testonly(&self) -> Result<NativeCapturePhysical, CodecError> {
         let CaptureNodes::Native(native) = &self.nodes else {
-            return Err(CodecError::new(code::SOURCE, "物理快读数只接Native capture"));
+            return Err(CodecError::new(
+                code::SOURCE,
+                "物理快读数只接Native capture",
+            ));
         };
         if self.original_fees.is_some() {
             return Err(CodecError::new(
