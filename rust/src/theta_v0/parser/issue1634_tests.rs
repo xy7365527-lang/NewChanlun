@@ -251,7 +251,7 @@ fn issue1634_btc_file_head_flat_prefix_does_not_collapse_to_one_group() {
 #[test]
 #[ignore = "需要 btc_1m_full.json（NC_BTC_FULL_JSON）"]
 fn issue1634_full_history_from_file_head_matches_independent_oracle() {
-    let path = std::env::var("NC_BTC_FULL_JSON").expect("设置 NC_BTC_FULL_JSON");
+    let path = std::env::var(crate::theta_v0::env_registry::NC_BTC_FULL_JSON).expect("设置 NC_BTC_FULL_JSON");
     let config = ThetaConfig::default();
     let all = super::super::backtest::data::load_symbol(
         std::path::Path::new(&path),
