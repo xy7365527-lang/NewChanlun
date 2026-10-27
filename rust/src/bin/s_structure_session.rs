@@ -2184,6 +2184,9 @@ fn testonly_pause(stage: &str) {
 /// TestOnly 诊断 sidecar：从当前传入的**真实 writer 连接**（非另开连接）回读平台前件 PRAGMA，
 /// 记录 PID/命令/DB/阶段/platform 与三项实际值。仅由 `S_SESSION_PRAGMA_SIDECAR=1` 显式启用；
 /// 不改变 stdout 回执/结构化 stderr/fence 合同。
+/// #1640：与 `testonly_pause` 同门，只编入默认 `s_session` 构建与 testonly 构建；
+/// `s_incremental` 生产构建不含此 sidecar、其环境变量名与调用点（§2.3 第 2/3 层）。
+#[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]
 fn record_connection_pragmas(conn: &Connection, stage: &str) {
     if std::env::var("S_SESSION_PRAGMA_SIDECAR").ok().as_deref() != Some("1") {
         return;
@@ -2394,6 +2397,7 @@ fn accept_core(
     if meta_get_opt(&conn, "rule_revision")?.as_deref() != Some(RULE_REVISION) {
         return Err("VersionMismatch：历史规则会话仅可读，禁止接纳新规则输入".into());
     }
+    #[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]
     record_connection_pragmas(&conn, "accept");
     let meta_session = meta_get_opt(&conn, "session_id")?.unwrap_or_default();
     if meta_session != input.session_id {
@@ -3351,6 +3355,7 @@ fn advance_core_with_config(
             "VersionMismatch：历史规则会话只读；新笔规则须新建代际，不复用旧 Open 缓存".into(),
         );
     }
+    #[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]
     record_connection_pragmas(&conn, "advance");
     // ── Begin：判定前先由短写事务核 writer_epoch、取得唯一推进权、持久 Begin/门/输入前沿 ──
     let (
@@ -5606,6 +5611,7 @@ fn recover_core(
         return Err("VersionMismatch：历史规则会话只读，禁止恢复写者或清除未决 Begin".into());
     }
     ensure_writable(&conn)?;
+    #[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]
     record_connection_pragmas(&conn, "recover");
     let tx = conn
         .transaction_with_behavior(TransactionBehavior::Immediate)

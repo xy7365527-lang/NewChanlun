@@ -17,7 +17,7 @@ if [ ! -s "$generated" ]; then
   exit 2
 fi
 NM_SUBSTRINGS=(for_test testonly inject allocation_probe b2_source_fault RECOVER_AFTER_WRITE ACCEPT_PROBE)
-FIXED_LITERALS=(S_CAPTURE_NATIVE_TESTONLY NativeTestOnly 'TestOnly staging' '须持有完整候选' S_SESSION_PAUSE)
+FIXED_LITERALS=(S_CAPTURE_NATIVE_TESTONLY NativeTestOnly 'TestOnly staging' '须持有完整候选' S_SESSION_PAUSE S_SESSION_PRAGMA_SIDECAR)
 NM_EXEMPT=(
   # theta_v0 ledger 的 C28「ν 单射」判定（injective，数学术语，非注入钩子）；若被链接进本二进制属合法生产符号。
   '^newchan_rust::theta_v0::ledger::separate::nu_injective_on(::h[0-9a-f]{16})?$'
