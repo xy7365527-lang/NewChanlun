@@ -2,8 +2,8 @@
 
 Agent Server 的线程是 UUID，run 自己的 SQLite checkpoint 用 run_id 作 thread_id。每个绑定 run 对应一个确定的
 线程 UUID；官方 `checkpointer.path` 接口挂上 RunBoundCheckpointer，把该线程的读写原样转到 run 目录的
-graph.sqlite，CLI 与 Studio 因此续的是同一条 checkpoint。未绑定线程读为空、写一律拒绝；绑定线程只有在本进程持有
-该 run 锁时才可写。
+graph.sqlite，CLI 与 Studio 因此续的是同一条 checkpoint。未绑定线程读为空、写一律拒绝；绑定线程只接受持有该 run
+锁的那次官方执行（Lease）写入。
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ import threading
 import uuid
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Any
 
@@ -53,27 +54,35 @@ def run_for_thread(thread_id: object) -> RunId | None:
     return bound_runs().get(str(thread_id)) if thread_id else None
 
 
-class _Held:
-    """本进程当前持有 run 锁、正在由官方 run 执行的 run_id。"""
+class Lease:
+    """一次官方执行在 run 锁内签出的 checkpoint 写权。
 
-    def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._runs: set[str] = set()
+    签出写进当前执行上下文（ContextVar），只有该执行及其派生的子任务看得见；同进程里的其他请求是另一条上下文，
+    拿不到它。锁释放前作废，作废后即使持有旧上下文副本也写不进。"""
 
-    def add(self, run_id: str) -> None:
-        with self._lock:
-            self._runs.add(run_id)
+    __slots__ = ("run_id", "_active")
 
-    def discard(self, run_id: str) -> None:
-        with self._lock:
-            self._runs.discard(run_id)
+    def __init__(self, run_id: RunId) -> None:
+        self.run_id = run_id
+        self._active = threading.Event()
+        self._active.set()
 
-    def __contains__(self, run_id: object) -> bool:
-        with self._lock:
-            return run_id in self._runs
+    @property
+    def active(self) -> bool:
+        return self._active.is_set()
+
+    def revoke(self) -> None:
+        self._active.clear()
 
 
-HELD = _Held()
+_LEASE: ContextVar[Lease | None] = ContextVar("pilot1742_checkpoint_lease", default=None)
+
+
+def grant(run_id: RunId) -> Lease:
+    """只在已持有该 run 锁的执行上下文里调用，且不能放进 to_thread：那里的设置不会回到调用方上下文。"""
+    lease = Lease(run_id)
+    _LEASE.set(lease)
+    return lease
 
 
 class UnboundThreadWrite(PermissionError):
@@ -114,8 +123,9 @@ class RunBoundCheckpointer(BaseCheckpointSaver[str]):
         target = self._target(config)
         if target is None:
             raise UnboundThreadWrite("未绑定已登记 v2 run 的线程不可写")
-        if target[0] not in HELD:
-            raise UnboundThreadWrite(f"run {target[0]} 的锁不在本服务进程，拒绝写 checkpoint")
+        lease = _LEASE.get()
+        if lease is None or not lease.active or lease.run_id != target[0]:
+            raise UnboundThreadWrite(f"当前请求不是持有 run {target[0]} 锁的那次执行，拒绝写 checkpoint")
         return target
 
     async def aget_tuple(self, config: RunnableConfig) -> CheckpointTuple | None:

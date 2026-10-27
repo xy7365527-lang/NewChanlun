@@ -26,7 +26,7 @@ from .agent import (
 )
 from .domain import RunId
 from .run import DEFAULT_HOME, PilotRun, ToolRefusal
-from .studio_binding import ASSISTANT_IDS, HELD, run_for_thread, state_root
+from .studio_binding import ASSISTANT_IDS, Lease, grant, run_for_thread, state_root
 
 
 @dataclass(frozen=True)
@@ -99,14 +99,17 @@ async def graph(config: RunnableConfig) -> AsyncIterator[Any]:
         run.trail("studio_official_run", thread_id=str(configurable.get("thread_id")))
         return build_agent(run, None, EXECUTION_MODEL)
 
+    lease: Lease | None = None
+
     def finish() -> None:
         run.wait_tools_idle()
-        HELD.discard(run_id)
+        if lease is not None:
+            lease.revoke()
         run.release()
 
     try:
-        HELD.add(run_id)
         agent = await asyncio.to_thread(prepare)
+        lease = grant(run_id)
         yield agent.with_config(recursion_limit=STUDIO_RECURSION_LIMIT,
                                 callbacks=[TraceRecorder(run.dir / "agent-trace.jsonl")])
     finally:
@@ -117,8 +120,37 @@ def _refuse(detail: str) -> JSONResponse:
     return JSONResponse({"detail": detail}, status_code=403)
 
 
+THREAD_CREATE_FIELDS = frozenset({"thread_id", "metadata", "if_exists"})
+RUN_FIELDS = frozenset({"assistant_id", "input", "command", "config", "metadata", "stream_mode", "stream_subgraphs",
+                        "stream_resumable", "on_disconnect", "multitask_strategy", "if_not_exists", "interrupt_before",
+                        "interrupt_after", "feedback_keys", "durability"})
+CONFIG_FIELDS = frozenset({"configurable", "tags", "recursion_limit", "metadata"})
+
+
+def _unknown(body: dict[str, Any], allowed: frozenset[str]) -> str | None:
+    extra = sorted(set(body) - allowed)
+    return "fields_not_allowed:" + ",".join(extra) if extra else None
+
+
+def thread_create_problem(body: dict[str, Any]) -> str | None:
+    """建线程只准声明绑定线程的 id 与元数据；supersteps、ttl 等会初始化状态或改生命周期的字段一律拒绝。"""
+    problem = _unknown(body, THREAD_CREATE_FIELDS)
+    if problem:
+        return problem
+    if run_for_thread(body.get("thread_id")) is None:
+        return "thread_not_bound：只能创建绑定已登记 v2 run 的线程，见 STUDIO.md"
+    if not isinstance(body.get("metadata", {}), dict):
+        return "metadata_not_object"
+    if body.get("if_exists", "raise") not in ("raise", "do_nothing"):
+        return "if_exists_not_allowed"
+    return None
+
+
 def run_request_problem(body: dict[str, Any]) -> str | None:
-    """绑定线程上的官方 run 请求只准继续或恢复，不准改状态、分叉、注入输入或打断在飞 run。"""
+    """绑定线程上的官方 run 请求只准继续或恢复，不准改状态、分叉、注入输入或打断在飞 run。字段按白名单放行。"""
+    problem = _unknown(body, RUN_FIELDS)
+    if problem:
+        return problem
     if body.get("assistant_id") not in ASSISTANT_IDS:
         return "assistant_not_pilot1742"
     if body.get("input") not in (None, {}):
@@ -126,13 +158,16 @@ def run_request_problem(body: dict[str, Any]) -> str | None:
     command = body.get("command")
     if command is not None and (not isinstance(command, dict) or set(command) - {"resume"}):
         return "command_only_resume"
-    for key in ("checkpoint", "checkpoint_id", "webhook", "after_seconds"):
-        if body.get(key) not in (None, {}):
-            return f"{key}_not_allowed"
     if body.get("multitask_strategy") not in (None, "reject", "enqueue"):
         return "multitask_strategy_not_allowed"
-    configurable = (body.get("config") or {}).get("configurable") or {}
-    if any(k.startswith("__") or k.startswith("checkpoint") for k in configurable):
+    if body.get("if_not_exists") not in (None, "reject"):
+        return "if_not_exists_not_allowed"
+    config = body.get("config") or {}
+    if not isinstance(config, dict) or _unknown(config, CONFIG_FIELDS):
+        return "config_not_allowed"
+    configurable = config.get("configurable") or {}
+    if not isinstance(configurable, dict) or any(
+            k.startswith("__") or k.startswith("checkpoint") or k == "thread_id" for k in configurable):
         return "configurable_override_not_allowed"
     return None
 
@@ -169,10 +204,11 @@ class BoundStudio:
             body = json.loads(raw) if raw else {}
         except json.JSONDecodeError:
             return _refuse("请求体不是 JSON")
+        if not isinstance(body, dict):
+            return _refuse("请求体必须是 JSON 对象")
         if method == "POST" and path == "/threads":
-            if run_for_thread(body.get("thread_id")) is None:
-                return _refuse("只能创建绑定已登记 v2 run 的线程，见 STUDIO.md")
-            return None
+            problem = thread_create_problem(body)
+            return _refuse(problem) if problem else None
         match = THREAD_PATH.fullmatch(path)
         if method != "POST" or match is None:
             return _refuse("此 Studio 入口只开放绑定 run 的继续、恢复与中断")

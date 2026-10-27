@@ -36,7 +36,8 @@ Studio 展示 `build_agent` 为 `real4` 冻结任务构建的真实 Deep Agent �
 - 中断。点取消（cancel）会被改为写入该 run 的中断请求，图在下一次工具调用前停在 checkpoint，已派出的工蜂不被杀。下一次在 Studio 或 CLI `--resume` 恢复时清除该请求。
 - 首跑由执行器 CLI 发起。Studio 不接受新输入。
 
-仍然拒绝（403）：未绑定的线程、新建或复制任意线程、改写线程状态、分叉 checkpoint、无状态 run、store 与 assistant 写入。
+仍然拒绝（403）：未绑定的线程、新建或复制任意线程、改写线程状态、分叉 checkpoint、无状态 run、store 与 assistant 写入。建线程只接受 `thread_id`、`metadata`、`if_exists`，带 `supersteps`、`ttl` 等会初始化状态或改生命周期的字段一律拒绝；run 请求同样按字段白名单放行。
+checkpoint 写入只认持有该 run 锁的那次官方执行：写权随执行上下文签出，同进程里并发的其他请求拿不到，锁释放前作废。
 
 ## 官方依据
 

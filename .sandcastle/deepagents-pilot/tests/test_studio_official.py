@@ -17,9 +17,10 @@ from pilot1742 import studio
 from pilot1742.agent import build_agent
 from pilot1742.run import Busy
 from pilot1742.studio_binding import (
-    HELD,
+    _LEASE,
     RunBoundCheckpointer,
     UnboundThreadWrite,
+    grant,
     thread_for,
 )
 
@@ -62,7 +63,7 @@ def test_bound_thread_reads_the_cli_checkpoint_and_unbound_threads_store_nothing
     assert asyncio.run(cp.aget_tuple(stranger)) is None
     with pytest.raises(UnboundThreadWrite, match="未绑定"):
         asyncio.run(cp.aput(stranger, cli.checkpoint, cli.metadata, {}))
-    with pytest.raises(UnboundThreadWrite, match="锁不在本服务进程"):
+    with pytest.raises(UnboundThreadWrite, match="不是持有 run"):
         asyncio.run(cp.aput({"configurable": {"thread_id": thread, "checkpoint_ns": ""}}, cli.checkpoint,
                             cli.metadata, {}))
 
@@ -75,12 +76,13 @@ def test_official_execution_holds_the_same_run_lock_and_continues_the_same_check
 
     async def official_run():
         async with studio.graph(config) as agent:
-            assert bound.run_id in HELD
+            lease = _LEASE.get()
+            assert lease is not None and lease.active and lease.run_id == bound.run_id
             with pytest.raises(Busy):
                 v2.run(bound)
             served = agent.copy(update={"checkpointer": RunBoundCheckpointer()})
             await served.ainvoke({"messages": [("user", "继续")]}, {"configurable": {"thread_id": thread}})
-        assert bound.run_id not in HELD
+        assert not lease.active
 
     asyncio.run(official_run())
     cli = build_agent(run, SqliteSaver(sqlite3.connect(run.dir / "graph.sqlite", check_same_thread=False)),
@@ -100,7 +102,7 @@ def test_official_execution_is_refused_while_the_cli_holds_the_run(v2, bound):
 
     with pytest.raises(Busy):
         asyncio.run(official_run())
-    assert bound.run_id not in HELD
+    assert _LEASE.get() is None
     held.release()
 
 
@@ -150,3 +152,68 @@ def test_official_protocol_is_narrowed_to_the_bound_run(v2, bound):
     cancel = c.post(f"/threads/{thread}/runs/{uuid.uuid4()}/cancel?action=interrupt")
     assert cancel.status_code == 202 and cancel.json()["interrupt_requested"]["by"] == "studio"
     assert (v2.home / "runs" / bound.run_id / "interrupt.request").exists()
+
+
+def test_checkpoint_write_needs_the_lease_of_the_execution_that_holds_the_lock(v2, bound, monkeypatch):
+    """同进程并发：持锁执行的子任务可写；并发的另一请求、借旧上下文副本的写、别的 run 的写权都被拒。"""
+    run = cli_checkpoint(v2, bound)
+    saver = SqliteSaver(sqlite3.connect(run.dir / "graph.sqlite", check_same_thread=False))
+    cli = saver.get_tuple({"configurable": {"thread_id": bound.run_id, "checkpoint_ns": ""}})
+    monkeypatch.setenv("PILOT1742_STUDIO_RUNS", f"{bound.run_id},t4242-2")
+    cp = RunBoundCheckpointer()
+    thread = thread_for(bound.run_id)
+    target = {"configurable": {"thread_id": thread, "checkpoint_ns": ""}}
+    execution = {"configurable": {"thread_id": thread, "checkpoint_ns": "", "__is_for_execution__": True}}
+
+    async def write(config=target):
+        return await cp.aput(config, cli.checkpoint, cli.metadata, {})
+
+    async def scenario():
+        entered, finish = asyncio.Event(), asyncio.Event()
+        captured = {}
+
+        async def official_run():
+            async with studio.graph(execution):
+                entered.set()
+                await asyncio.create_task(write())
+                captured["context"] = __import__("contextvars").copy_context()
+                await finish.wait()
+
+        async def concurrent_request():
+            await entered.wait()
+            with pytest.raises(UnboundThreadWrite, match="不是持有 run"):
+                await write()
+            finish.set()
+
+        await asyncio.gather(official_run(), concurrent_request())
+        with pytest.raises(UnboundThreadWrite, match="不是持有 run"):
+            await asyncio.create_task(write(), context=captured["context"])
+
+    asyncio.run(scenario())
+
+    async def other_runs_lease():
+        grant("t4242-2")
+        await write()
+
+    with pytest.raises(UnboundThreadWrite, match="不是持有 run"):
+        asyncio.run(other_runs_lease())
+    v2.run(bound).release()
+
+
+def test_thread_create_is_an_explicit_whitelist(v2, bound):
+    thread, c = thread_for(bound.run_id), client()
+    for body in ({"thread_id": thread},
+                 {"thread_id": thread, "metadata": {"graph_id": "pilot1742"}, "if_exists": "do_nothing"}):
+        assert c.post("/threads", json=body).json() == {"reached": True}, body
+    superstep = [{"updates": [{"values": {"messages": [{"type": "human", "content": "批准"}]}, "as_node": "model"}]}]
+    for body in ({"thread_id": thread, "supersteps": superstep}, {"thread_id": thread, "ttl": {"ttl": 1}},
+                 {"thread_id": thread, "graph_id": "pilot1742"}, {"thread_id": thread, "metadata": ["x"]},
+                 {"thread_id": thread, "if_exists": "update"}, [{"thread_id": thread}]):
+        assert c.post("/threads", json=body).status_code == 403, body
+    resume = {"assistant_id": "pilot1742", "command": {"resume": True}, "stream_mode": ["values"],
+              "config": {"configurable": {}}, "on_disconnect": "continue"}
+    assert c.post(f"/threads/{thread}/runs/stream", json=resume).json() == {"reached": True}
+    for extra in ({"context": {"approved": True}}, {"if_not_exists": "create"},
+                  {"config": {"configurable": {"thread_id": str(uuid.uuid4())}}}, {"config": {"callbacks": []}},
+                  {"unknown": 1}):
+        assert c.post(f"/threads/{thread}/runs/stream", json={**resume, **extra}).status_code == 403, extra
