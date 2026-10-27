@@ -30,13 +30,16 @@ Studio 展示 `build_agent` 为 `real4` 冻结任务构建的真实 Deep Agent �
 ## 在 Studio 里继续、恢复与中断一个已登记的 v2 run
 
 服务启动时用 `PILOT1742_STUDIO_RUNS=<run_id>[,<run_id>]` 列出要绑定的 run，另设 `PILOT1742_STATE_ROOT` 与 `PILOT1742_APP_PRIVATE_KEY`（私钥路径，只由已审 App 客户端读取）。
-每个绑定 run 对应一个确定的线程 `pilot1742.studio_binding.thread_for(<run_id>)`。在 Studio 线程列表里打开这个线程，看到的就是该 run 自己 `graph.sqlite` 里的 checkpoint，与 CLI 是同一条。
+每个绑定 run 对应一个确定的线程 `pilot1742.studio_binding.thread_for(<run_id>)`。`studio.sh` 在服务就绪后为每个绑定 run 建好这个线程（带 `metadata.graph_id=pilot1742`，`if_exists=do_nothing`），已有线程原样保留；已有线程缺 `graph_id` 时日志会报出来，状态读不到，换一个干净的 `STUDIO_STATE` 目录重启即可。在 Studio 线程列表里打开这个线程，看到的就是该 run 自己 `graph.sqlite` 里的 checkpoint，与 CLI 是同一条。
 
-- 继续或恢复。在该线程上点运行或恢复。官方 run 打开的是同一个 `PilotRun`，先取 run 锁、再在票级锁内复核持有，CLI 正在跑时 Studio 的 run 直接失败，Studio 在跑时 CLI 退出 75。恢复载荷的内容从不当作批准，批准只看 root 保护的签批权威链。
-- 中断。点取消（cancel）会被改为写入该 run 的中断请求，图在下一次工具调用前停在 checkpoint，已派出的工蜂不被杀。下一次在 Studio 或 CLI `--resume` 恢复时清除该请求。
-- 首跑由执行器 CLI 发起。Studio 不接受新输入。
+- 恢复。run 停在中断处（签批等待或操作员中断）时，点中断下方的 Resume。恢复载荷的内容从不当作批准，批准只看 root 保护的签批权威链。
+- 继续。run 停在待执行的任务前（例如控制进程被杀后）时，点 Submit，等同执行器 CLI 的 `run --resume`，只执行已有的待办任务，不开新一轮。
+- 中断。run 进行中点取消（cancel），改为写入该 run 的中断请求，图在下一次工具调用前停在 checkpoint，已派出的工蜂不被杀。下一次恢复时清除该请求。
+- 已结束的 run 只读：Submit 与 Resume 都拒绝。首跑由执行器 CLI 发起，Studio 不创造任务、不开新一轮。
+- 不分叉。Studio 请求里带的 `checkpoint`、`thread_ts`、`checkpoint_id` 必须就是线程当前的最新 checkpoint，入口核对后剥掉，执行时在 run 锁内再核一次，不一致即拒绝；选旧 checkpoint 运行一律拒绝。
+- 忙时拒绝。Studio 发的 `multitask_strategy=rollback` 按 `reject` 执行：线程已有 run 在飞时新请求冲突拒绝，不取消已有任务、不回滚状态。CLI 持锁时 Studio 的 run 失败，Studio 持锁时 CLI 退出 75。
 
-仍然拒绝（403）：未绑定的线程、新建或复制任意线程、改写线程状态、分叉 checkpoint、无状态 run、store 与 assistant 写入。建线程只接受 `thread_id`、`metadata`、`if_exists`，带 `supersteps`、`ttl` 等会初始化状态或改生命周期的字段一律拒绝；run 请求同样按字段白名单放行。
+仍然拒绝（403）：未绑定的线程、新建或复制任意线程、改写线程状态、带新内容的输入、`checkpoint_during=false` 或 `durability=exit`、无状态 run、store 与 assistant 写入。建线程只接受 `thread_id`、`metadata`、`if_exists`；run 请求按字段白名单放行，并由入口归一化后才交给服务端。
 checkpoint 写入只认持有该 run 锁的那次官方执行：写权随执行上下文签出，同进程里并发的其他请求拿不到，锁释放前作废。
 
 ## 官方依据

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import sqlite3
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -11,6 +12,7 @@ from typing import Any, TypeVar
 
 from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
+from langgraph.checkpoint.sqlite import SqliteSaver
 from pydantic import SecretStr
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
@@ -26,7 +28,14 @@ from .agent import (
 )
 from .domain import RunId
 from .run import DEFAULT_HOME, PilotRun, ToolRefusal
-from .studio_binding import ASSISTANT_IDS, Lease, grant, run_for_thread, state_root
+from .studio_binding import (
+    ASSISTANT_IDS,
+    Lease,
+    RunBoundCheckpointer,
+    grant,
+    run_for_thread,
+    state_root,
+)
 
 
 @dataclass(frozen=True)
@@ -41,6 +50,7 @@ THREAD_PATH = re.compile(r"/threads/([^/]+)(/.*)?")
 RUN_CREATE = frozenset({"/runs", "/runs/stream", "/runs/wait"})
 CANCEL = re.compile(r"/runs/[^/]+/cancel")
 STUDIO_RECURSION_LIMIT = 400
+EXPECT = "pilot1742_expect"
 T = TypeVar("T")
 
 
@@ -117,9 +127,15 @@ async def graph(config: RunnableConfig) -> AsyncIterator[Any]:
         yield await asyncio.to_thread(read_only)
         return
 
+    expect = configurable.get(EXPECT)
+    if not isinstance(expect, dict):
+        raise ToolRefusal("执行请求未经本服务的 Studio 入口归一化，拒绝")
     run = await _blocking(lambda: OPEN_BOUND(run_id), abandon=lambda opened: opened.release())
 
     def prepare() -> Any:
+        problem = continuation_problem(run, resume=bool(expect.get("resume")), checkpoint=expect.get("checkpoint"))
+        if problem:
+            raise ToolRefusal(problem)
         run.clear_interrupt()
         run.trail("studio_official_run", thread_id=str(configurable.get("thread_id")))
         return build_agent(run, None, EXECUTION_MODEL)
@@ -141,6 +157,29 @@ async def graph(config: RunnableConfig) -> AsyncIterator[Any]:
         await _blocking(finish)
 
 
+def continuation_problem(run: PilotRun, *, resume: bool, checkpoint: str | None) -> str | None:
+    """在 run 锁内判定这次官方执行能否推进：只推进已有 checkpoint 且未结束的 run，checkpoint 必须仍是请求时那个。"""
+    conn = sqlite3.connect(run.dir / "graph.sqlite", check_same_thread=False)
+    try:
+        agent = build_agent(run, SqliteSaver(conn), _read_only_model(run))
+        snapshot = agent.get_state({"configurable": {"thread_id": run.spec.run_id}})
+    finally:
+        conn.close()
+    interrupts = [i for task in snapshot.tasks for i in getattr(task, "interrupts", ())]
+    if not snapshot.values:
+        return "run_not_started：首跑由执行器 CLI 发起，Studio 不创造任务"
+    if not interrupts and not snapshot.next:
+        return "run_finished：该 run 的图已结束，Studio 只读"
+    current = snapshot.config["configurable"].get("checkpoint_id")
+    if checkpoint is not None and checkpoint != current:
+        return f"checkpoint_moved：请求基于 {checkpoint}，当前为 {current}，不分叉"
+    if resume and not interrupts:
+        return "nothing_to_resume：当前没有停在中断处，用继续而不是恢复"
+    if not resume and interrupts:
+        return "interrupted：该 run 停在中断处，只能在中断处恢复"
+    return None
+
+
 def _refuse(detail: str) -> JSONResponse:
     return JSONResponse({"detail": detail}, status_code=403)
 
@@ -148,7 +187,8 @@ def _refuse(detail: str) -> JSONResponse:
 THREAD_CREATE_FIELDS = frozenset({"thread_id", "metadata", "if_exists"})
 RUN_FIELDS = frozenset({"assistant_id", "input", "command", "config", "metadata", "stream_mode", "stream_subgraphs",
                         "stream_resumable", "on_disconnect", "multitask_strategy", "if_not_exists", "interrupt_before",
-                        "interrupt_after", "feedback_keys", "durability"})
+                        "interrupt_after", "feedback_keys", "durability", "checkpoint", "checkpoint_during"})
+CHECKPOINT_ALIASES = ("thread_ts", "checkpoint_id")
 CONFIG_FIELDS = frozenset({"configurable", "tags", "recursion_limit", "metadata"})
 
 
@@ -171,30 +211,77 @@ def thread_create_problem(body: dict[str, Any]) -> str | None:
     return None
 
 
-def run_request_problem(body: dict[str, Any]) -> str | None:
-    """绑定线程上的官方 run 请求只准继续或恢复，不准改状态、分叉、注入输入或打断在飞 run。字段按白名单放行。"""
+@dataclass(frozen=True)
+class RunRequest:
+    """归一化后的官方 run 请求：body 去掉了 checkpoint 指针与别名，claimed 是请求声称所基于的 checkpoint。"""
+
+    body: dict[str, Any]
+    resume: bool
+    claimed: str | None
+
+
+def normalize_run_request(body: dict[str, Any], thread_id: str) -> RunRequest | str:
+    """把官方 Studio 实际发出的继续或恢复请求归一成一种语义，或返回拒绝理由。
+
+    继续：Submit 发 input={}，等同 CLI --resume 的 input=None，只推进已有 checkpoint 的待执行任务。
+    恢复：中断处 Resume 发 command.resume。checkpoint 指针、thread_ts、checkpoint_id 只是声明“基于当前头”，
+    核对后剥掉，执行总从当时的最新 checkpoint 继续，不能分叉。rollback 改为 reject：在飞 run 时冲突拒绝，
+    不取消已有任务、不回滚状态。"""
     problem = _unknown(body, RUN_FIELDS)
     if problem:
         return problem
     if body.get("assistant_id") not in ASSISTANT_IDS:
         return "assistant_not_pilot1742"
-    if body.get("input") not in (None, {}):
-        return "input_not_allowed：首跑由执行器 CLI 发起，Studio 只继续、恢复与中断"
     command = body.get("command")
-    if command is not None and (not isinstance(command, dict) or set(command) - {"resume"}):
+    if command is not None and (not isinstance(command, dict) or set(command) != {"resume"}):
         return "command_only_resume"
-    if body.get("multitask_strategy") not in (None, "reject", "enqueue"):
+    if body.get("input") not in (None, {}) or (command is not None and body.get("input") is not None):
+        return "input_not_allowed：首跑由执行器 CLI 发起，Studio 只继续、恢复与中断"
+    strategy = body.get("multitask_strategy")
+    if strategy not in (None, "reject", "enqueue", "rollback"):
         return "multitask_strategy_not_allowed"
+    if body.get("checkpoint_during") not in (None, True):
+        return "checkpoint_during_not_allowed"
+    if body.get("durability") not in (None, "sync", "async"):
+        return "durability_not_allowed"
     if body.get("if_not_exists") not in (None, "reject"):
         return "if_not_exists_not_allowed"
     config = body.get("config") or {}
     if not isinstance(config, dict) or _unknown(config, CONFIG_FIELDS):
         return "config_not_allowed"
-    configurable = config.get("configurable") or {}
-    if not isinstance(configurable, dict) or any(
-            k.startswith("__") or k.startswith("checkpoint") or k == "thread_id" for k in configurable):
+    if not isinstance(config.get("configurable") or {}, dict):
         return "configurable_override_not_allowed"
-    return None
+    configurable = dict(config.get("configurable") or {})
+    claimed: set[str] = set()
+    for key in CHECKPOINT_ALIASES:
+        if key in configurable:
+            claimed.add(str(configurable.pop(key)))
+    if configurable.pop("thread_id", thread_id) != thread_id or configurable.pop("checkpoint_ns", "") != "":
+        return "configurable_override_not_allowed"
+    if any(k.startswith(("__", "checkpoint", "pilot1742")) for k in configurable):
+        return "configurable_override_not_allowed"
+    pointer = body.get("checkpoint")
+    if pointer is not None:
+        if not isinstance(pointer, dict) or set(pointer) - {"checkpoint_id", "thread_id", "checkpoint_ns"}:
+            return "checkpoint_not_allowed"
+        if pointer.get("thread_id", thread_id) != thread_id or pointer.get("checkpoint_ns", "") != "":
+            return "checkpoint_not_allowed"
+        if "checkpoint_id" in pointer:
+            claimed.add(str(pointer["checkpoint_id"]))
+    if len(claimed) > 1:
+        return "checkpoint_ambiguous"
+    out = {k: v for k, v in body.items() if k not in ("input", "checkpoint", "checkpoint_during")}
+    if strategy == "rollback":
+        out["multitask_strategy"] = "reject"
+    resume = command is not None
+    out["config"] = {**config, "configurable": {**configurable, EXPECT: {
+        "resume": resume, "checkpoint": next(iter(claimed), None)}}}
+    return RunRequest(out, resume, next(iter(claimed), None))
+
+
+async def current_checkpoint(thread_id: str) -> str | None:
+    item = await RunBoundCheckpointer().aget_tuple({"configurable": {"thread_id": thread_id, "checkpoint_ns": ""}})
+    return item.checkpoint["id"] if item else None
 
 
 class BoundStudio:
@@ -217,14 +304,19 @@ class BoundStudio:
                 path.startswith("/assistants/") and path.endswith("/versions"))):
             await self.app(scope, receive, send)
             return
-        body, replay = await _buffer(receive)
+        body = await _buffer(receive)
         verdict = await self._judge(method, path, body)
         if isinstance(verdict, JSONResponse):
             await verdict(scope, receive, send)
             return
-        await self.app(scope, replay, send)
+        if verdict is not None:
+            body = verdict
+            headers = [(k, v) for k, v in scope["headers"] if k.lower() != b"content-length"]
+            scope = {**scope, "headers": [*headers, (b"content-length", str(len(body)).encode())]}
+        await self.app(scope, _replay(body, receive), send)
 
-    async def _judge(self, method: str, path: str, raw: bytes) -> JSONResponse | None:
+    async def _judge(self, method: str, path: str, raw: bytes) -> JSONResponse | bytes | None:
+        """返回拒绝、改写后的请求体，或 None（原样放行）。"""
         try:
             body = json.loads(raw) if raw else {}
         except json.JSONDecodeError:
@@ -243,15 +335,21 @@ class BoundStudio:
         if rest == "/history":
             return None
         if rest in RUN_CREATE:
-            problem = run_request_problem(body)
-            return _refuse(problem) if problem else None
+            request = normalize_run_request(body, match.group(1))
+            if isinstance(request, str):
+                return _refuse(request)
+            if request.claimed is not None:
+                current = await current_checkpoint(match.group(1))
+                if request.claimed != current:
+                    return _refuse(f"checkpoint_not_current：请求基于 {request.claimed}，当前为 {current}，不分叉")
+            return json.dumps(request.body, ensure_ascii=False).encode()
         if CANCEL.fullmatch(rest):
-            request = await asyncio.to_thread(lambda: PilotRun.open(state_root(), run_id).request_interrupt("studio"))
-            return JSONResponse({"interrupt_requested": request}, status_code=202)
+            interrupt = await asyncio.to_thread(lambda: PilotRun.open(state_root(), run_id).request_interrupt("studio"))
+            return JSONResponse({"interrupt_requested": interrupt}, status_code=202)
         return _refuse("该操作会改写线程状态或存储，不开放")
 
 
-async def _buffer(receive: Receive) -> tuple[bytes, Receive]:
+async def _buffer(receive: Receive) -> bytes:
     chunks: list[bytes] = []
     while True:
         message = await receive()
@@ -260,7 +358,10 @@ async def _buffer(receive: Receive) -> tuple[bytes, Receive]:
         chunks.append(message.get("body", b""))
         if not message.get("more_body"):
             break
-    body = b"".join(chunks)
+    return b"".join(chunks)
+
+
+def _replay(body: bytes, receive: Receive) -> Receive:
     sent = False
 
     async def replay() -> Message:
@@ -270,7 +371,7 @@ async def _buffer(receive: Receive) -> tuple[bytes, Receive]:
             return {"type": "http.request", "body": body, "more_body": False}
         return await receive()
 
-    return body, replay
+    return replay
 
 
 app = Starlette(middleware=[

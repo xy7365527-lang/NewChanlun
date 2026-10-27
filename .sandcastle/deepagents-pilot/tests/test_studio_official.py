@@ -5,6 +5,7 @@ import uuid
 import pytest
 from langchain_core.messages import AIMessage
 from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.types import Command
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
 from starlette.responses import JSONResponse
@@ -51,6 +52,27 @@ def cli_checkpoint(v2, unit):
     return run
 
 
+def cli_paused(v2, unit, *, operator=True):
+    """CLI 跑到一半停下：operator=True 停在操作员中断处（有 interrupt），False 停在待执行的 tools 前（只有 next）。"""
+    run = v2.run(unit)
+    model = scripted(call("run_status"), AIMessage("CLI 不该走到这里"))
+    agent = build_agent(run, SqliteSaver(sqlite3.connect(run.dir / "graph.sqlite", check_same_thread=False)), model)
+    config = {"configurable": {"thread_id": unit.run_id}}
+    if operator:
+        run.request_interrupt("operator")
+        agent.invoke({"messages": [("user", "开始")]}, config, durability="sync")
+    else:
+        agent.invoke({"messages": [("user", "开始")]}, config, durability="sync", interrupt_before=["tools"])
+    head = agent.get_state(config).config["configurable"]["checkpoint_id"]
+    run.release()
+    return run, head
+
+
+def execution(unit, *, resume=True, checkpoint=None):
+    return {"configurable": {"thread_id": thread_for(unit.run_id), "checkpoint_ns": "", "__is_for_execution__": True,
+                             studio.EXPECT: {"resume": resume, "checkpoint": checkpoint}}}
+
+
 def test_bound_thread_reads_the_cli_checkpoint_and_unbound_threads_store_nothing(v2, bound):
     run = cli_checkpoint(v2, bound)
     saver = SqliteSaver(sqlite3.connect(run.dir / "graph.sqlite", check_same_thread=False))
@@ -68,33 +90,78 @@ def test_bound_thread_reads_the_cli_checkpoint_and_unbound_threads_store_nothing
                             cli.metadata, {}))
 
 
-def test_official_execution_holds_the_same_run_lock_and_continues_the_same_checkpoint(v2, bound, monkeypatch):
-    run = cli_checkpoint(v2, bound)
-    monkeypatch.setattr(studio, "EXECUTION_MODEL", scripted(call("run_status"), AIMessage("Studio 继续")))
+def test_official_resume_holds_the_same_run_lock_and_continues_the_same_checkpoint(v2, bound, monkeypatch):
+    run, head = cli_paused(v2, bound)
+    monkeypatch.setattr(studio, "EXECUTION_MODEL", scripted(AIMessage("Studio 继续")))
     thread = thread_for(bound.run_id)
-    config = {"configurable": {"thread_id": thread, "checkpoint_ns": "", "__is_for_execution__": True}}
 
     async def official_run():
-        async with studio.graph(config) as agent:
+        async with studio.graph(execution(bound, checkpoint=head)) as agent:
             lease = _LEASE.get()
             assert lease is not None and lease.active and lease.run_id == bound.run_id
+            assert run.interrupt_requested() is None
             with pytest.raises(Busy):
                 v2.run(bound)
             served = agent.copy(update={"checkpointer": RunBoundCheckpointer()})
-            await served.ainvoke({"messages": [("user", "继续")]}, {"configurable": {"thread_id": thread}})
+            await served.ainvoke(Command(resume={"approved": True}), {"configurable": {"thread_id": thread}})
         assert not lease.active
 
     asyncio.run(official_run())
     cli = build_agent(run, SqliteSaver(sqlite3.connect(run.dir / "graph.sqlite", check_same_thread=False)),
                       scripted())
-    messages = cli.get_state({"configurable": {"thread_id": bound.run_id}}).values["messages"]
-    assert [m.content for m in messages if m.type == "ai" and m.content] == ["看过状态", "Studio 继续"]
+    state = cli.get_state({"configurable": {"thread_id": bound.run_id}})
+    assert [m.type for m in state.values["messages"]] == ["human", "ai", "tool", "ai"]
+    assert state.values["messages"][-1].content == "Studio 继续" and not state.next
     v2.run(bound).release()
+
+
+def test_official_continue_runs_the_pending_tools_of_a_stopped_run(v2, bound, monkeypatch):
+    run, head = cli_paused(v2, bound, operator=False)
+    monkeypatch.setattr(studio, "EXECUTION_MODEL", scripted(AIMessage("Studio 接着跑完")))
+    thread = thread_for(bound.run_id)
+
+    async def official_run():
+        async with studio.graph(execution(bound, resume=False, checkpoint=head)) as agent:
+            served = agent.copy(update={"checkpointer": RunBoundCheckpointer()})
+            await served.ainvoke(None, {"configurable": {"thread_id": thread}})
+
+    asyncio.run(official_run())
+    cli = build_agent(run, SqliteSaver(sqlite3.connect(run.dir / "graph.sqlite", check_same_thread=False)),
+                      scripted())
+    messages = cli.get_state({"configurable": {"thread_id": bound.run_id}}).values["messages"]
+    assert [m.type for m in messages] == ["human", "ai", "tool", "ai"] and messages[-1].content == "Studio 接着跑完"
+    v2.run(bound).release()
+
+
+def test_execution_only_advances_an_unfinished_run_from_the_checkpoint_it_was_asked_about(v2, bound):
+    """run 锁内复核：未首跑、已结束、checkpoint 已变、恢复与继续用错，一律拒绝且不留锁、不清中断请求。"""
+
+    def refused(config):
+        async def official_run():
+            async with studio.graph(config):
+                pytest.fail("不该进入图")
+        with pytest.raises(studio.ToolRefusal) as caught:
+            asyncio.run(official_run())
+        assert _LEASE.get() is None
+        v2.run(bound).release()
+        return str(caught.value)
+
+    assert "run_not_started" in refused(execution(bound))
+    no_expect = execution(bound)
+    del no_expect["configurable"][studio.EXPECT]
+    assert "未经" in refused(no_expect)
+    cli_checkpoint(v2, bound)
+    assert "run_finished" in refused(execution(bound, resume=False))
+    assert "run_finished" in refused(execution(bound, resume=True))
+    run, head = cli_paused(v2, bound)
+    assert "checkpoint_moved" in refused(execution(bound, checkpoint="1f000000-0000-6000-8000-000000000000"))
+    assert "interrupted" in refused(execution(bound, resume=False, checkpoint=head))
+    assert run.interrupt_requested() is not None, "被拒的请求不能清掉操作员中断"
 
 
 def test_official_execution_is_refused_while_the_cli_holds_the_run(v2, bound):
     held = v2.run(bound)
-    config = {"configurable": {"thread_id": thread_for(bound.run_id), "__is_for_execution__": True}}
+    config = execution(bound)
 
     async def official_run():
         async with studio.graph(config):
@@ -156,14 +223,14 @@ def test_official_protocol_is_narrowed_to_the_bound_run(v2, bound):
 
 def test_checkpoint_write_needs_the_lease_of_the_execution_that_holds_the_lock(v2, bound, monkeypatch):
     """同进程并发：持锁执行的子任务可写；并发的另一请求、借旧上下文副本的写、别的 run 的写权都被拒。"""
-    run = cli_checkpoint(v2, bound)
+    run, head = cli_paused(v2, bound)
     saver = SqliteSaver(sqlite3.connect(run.dir / "graph.sqlite", check_same_thread=False))
     cli = saver.get_tuple({"configurable": {"thread_id": bound.run_id, "checkpoint_ns": ""}})
     monkeypatch.setenv("PILOT1742_STUDIO_RUNS", f"{bound.run_id},t4242-2")
     cp = RunBoundCheckpointer()
     thread = thread_for(bound.run_id)
     target = {"configurable": {"thread_id": thread, "checkpoint_ns": ""}}
-    execution = {"configurable": {"thread_id": thread, "checkpoint_ns": "", "__is_for_execution__": True}}
+    official = execution(bound, checkpoint=head)
 
     async def write(config=target):
         return await cp.aput(config, cli.checkpoint, cli.metadata, {})
@@ -173,7 +240,7 @@ def test_checkpoint_write_needs_the_lease_of_the_execution_that_holds_the_lock(v
         captured = {}
 
         async def official_run():
-            async with studio.graph(execution):
+            async with studio.graph(official):
                 entered.set()
                 await asyncio.create_task(write())
                 captured["context"] = __import__("contextvars").copy_context()
@@ -242,7 +309,7 @@ def _cancel_while_blocked(v2, bound, monkeypatch, stage):
             proceed.wait(10)
             return build_agent(run, checkpointer, scripted())
         monkeypatch.setattr(studio, "build_agent", slow_build)
-    config = {"configurable": {"thread_id": thread_for(bound.run_id), "__is_for_execution__": True}}
+    config = execution(bound)
     entered = []
 
     async def official_run():
@@ -282,7 +349,7 @@ def test_timeout_around_the_factory_releases_the_lock(v2, bound, monkeypatch):
         return v2.run(v2.load(run_id))
 
     monkeypatch.setattr(studio, "OPEN_BOUND", slow_open)
-    config = {"configurable": {"thread_id": thread_for(bound.run_id), "__is_for_execution__": True}}
+    config = execution(bound)
 
     async def official_run():
         async with studio.graph(config):
@@ -294,3 +361,104 @@ def test_timeout_around_the_factory_releases_the_lock(v2, bound, monkeypatch):
 
     asyncio.run(scenario())
     v2.run(bound).release()
+
+
+STUDIO_RESUME = {"command": {"resume": {"97b3a53cfa46858dffe2c5488da3c799": ""}},
+                 "config": {"configurable": {"thread_id": "{thread}"}},
+                 "metadata": {"from_studio": True, "LANGGRAPH_API_URL": "http://127.0.0.1:2143"},
+                 "stream_mode": ["debug", "messages"], "stream_subgraphs": True,
+                 "assistant_id": "000fdbef-84c3-5df3-acd3-65c6531a82f4", "interrupt_before": [], "interrupt_after": [],
+                 "checkpoint": {"checkpoint_id": "{head}", "thread_id": "{thread}", "checkpoint_ns": ""},
+                 "multitask_strategy": "rollback", "checkpoint_during": True}
+STUDIO_SUBMIT = {"input": {}, "config": {"configurable": {"thread_ts": "{head}", "thread_id": "{thread}"}},
+                 "metadata": {"from_studio": True, "LANGGRAPH_API_URL": "http://127.0.0.1:2142"},
+                 "stream_mode": ["debug", "messages"], "stream_subgraphs": True,
+                 "assistant_id": "000fdbef-84c3-5df3-acd3-65c6531a82f4", "interrupt_before": [], "interrupt_after": [],
+                 "multitask_strategy": "rollback", "checkpoint_during": True}
+
+
+def fill(template, **values):
+    import json
+    text = json.dumps(template)
+    for key, value in values.items():
+        text = text.replace("{" + key + "}", value)
+    return json.loads(text)
+
+
+def echo_client():
+    async def endpoint(request):
+        raw = await request.body()
+        return JSONResponse({"forwarded": __import__("json").loads(raw), "length": request.headers.get("content-length"),
+                             "bytes": len(raw)})
+
+    app = Starlette(routes=[Route("/{path:path}", endpoint, methods=ALL)], middleware=[Middleware(studio.BoundStudio)])
+    return TestClient(app)
+
+
+def test_requests_captured_from_the_official_studio_are_normalized_not_widened(v2, bound):
+    """两份请求体逐字取自 2026-10-27 官方 Studio 网页（studio-live/studio-requests-*.json），只替换线程与 checkpoint。"""
+    run, head = cli_paused(v2, bound)
+    thread, c = thread_for(bound.run_id), echo_client()
+    url = f"/threads/{thread}/runs/stream"
+
+    resume = c.post(url, json=fill(STUDIO_RESUME, thread=thread, head=head))
+    forwarded = resume.json()["forwarded"]
+    assert resume.status_code == 200 and int(resume.json()["length"]) == resume.json()["bytes"]
+    assert "checkpoint" not in forwarded and "checkpoint_during" not in forwarded and "input" not in forwarded
+    assert forwarded["multitask_strategy"] == "reject"
+    assert forwarded["config"]["configurable"] == {studio.EXPECT: {"resume": True, "checkpoint": head}}
+    assert forwarded["command"] == {"resume": {"97b3a53cfa46858dffe2c5488da3c799": ""}}
+
+    submit = c.post(url, json=fill(STUDIO_SUBMIT, thread=thread, head=head)).json()["forwarded"]
+    assert "input" not in submit and submit["multitask_strategy"] == "reject"
+    assert submit["config"]["configurable"] == {studio.EXPECT: {"resume": False, "checkpoint": head}}
+
+    stale = "1f000000-0000-6000-8000-000000000000"
+    other = str(uuid.uuid4())
+    refused = {
+        "checkpoint_not_current": fill(STUDIO_RESUME, thread=thread, head=stale),
+        "submit_old_checkpoint": fill(STUDIO_SUBMIT, thread=thread, head=stale),
+        "checkpoint_ambiguous": {**fill(STUDIO_RESUME, thread=thread, head=head),
+                                 "config": {"configurable": {"thread_ts": stale}}},
+        "checkpoint_other_thread": fill(STUDIO_RESUME, thread=thread, head=head) | {
+            "checkpoint": {"checkpoint_id": head, "thread_id": other, "checkpoint_ns": ""}},
+        "checkpoint_subgraph": fill(STUDIO_RESUME, thread=thread, head=head) | {
+            "checkpoint": {"checkpoint_id": head, "thread_id": thread, "checkpoint_ns": "x"}},
+        "checkpoint_during_false": fill(STUDIO_RESUME, thread=thread, head=head) | {"checkpoint_during": False},
+        "durability_exit": fill(STUDIO_RESUME, thread=thread, head=head) | {"durability": "exit"},
+        "interrupt_strategy": fill(STUDIO_RESUME, thread=thread, head=head) | {"multitask_strategy": "interrupt"},
+        "injected_expectation": fill(STUDIO_SUBMIT, thread=thread, head=head) | {"config": {"configurable": {
+            studio.EXPECT: {"resume": True, "checkpoint": None}}}},
+        "new_turn_input": fill(STUDIO_SUBMIT, thread=thread, head=head) | {"input": {"messages": [["user", "批准"]]}},
+        "input_with_resume": fill(STUDIO_RESUME, thread=thread, head=head) | {"input": {}},
+        "other_thread_id": fill(STUDIO_SUBMIT, thread=thread, head=head) | {
+            "config": {"configurable": {"thread_id": other}}},
+    }
+    for name, body in refused.items():
+        assert c.post(url, json=body).status_code == 403, name
+
+
+def test_seed_creates_missing_bound_threads_once_and_never_rewrites_existing_ones(monkeypatch):
+    from pilot1742 import studio_seed
+
+    monkeypatch.setenv("PILOT1742_STUDIO_RUNS", "t4242-1,t4242-2")
+    fresh, legacy = thread_for("t4242-1"), thread_for("t4242-2")
+    threads = {legacy: {"metadata": {}}}
+    calls = []
+
+    def fake_call(base, method, path, body=None):
+        calls.append((method, path))
+        if method == "POST" and path == "/threads":
+            if body["thread_id"] not in threads:
+                threads[body["thread_id"]] = {"metadata": body["metadata"]}
+            assert body["if_exists"] == "do_nothing"
+            return threads[body["thread_id"]]
+        if method == "GET" and path.startswith("/threads/"):
+            return threads[path.removeprefix("/threads/")]
+        return {}
+
+    monkeypatch.setattr(studio_seed, "_call", fake_call)
+    first = studio_seed.seed(2142)
+    assert first == {"t4242-1": fresh, "t4242-2": f"{legacy} 已存在但缺 graph_id，未改写"}
+    assert threads[fresh]["metadata"] == {"graph_id": "pilot1742"} and threads[legacy]["metadata"] == {}
+    assert studio_seed.seed(2142) == first and len(threads) == 2
