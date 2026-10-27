@@ -1,27 +1,18 @@
-import * as sandcastle from "@ai-hero/sandcastle";
 import {
   DEFAULT_HOST_SESSIONS_DIR,
   primeAgent,
 } from "../../prime-agent-provider.ts";
-import { fail } from "./common.ts";
 
 /**
- * 认证/模型集中配置（#1110 AC-4 第二处适配 → #1128 显式模型 registry）。
- *
- * 路由口径（#1112 裁定 A + #1128 追加路由）：
- * - 默认无 `agent:model:*` 标签 = Claude 原装路线：
- *   Sandcastle 内置 `claudeCode()`，GitHub Secret `CLAUDE_CODE_OAUTH_TOKEN`
- *   （Claude 官方 `claude setup-token` 生成）。Sonnet 实装，Opus 评审/探索/冲突调和。
- * - 显式 `agent:model:deepseek-v4-pro` = Prime Agent `deepseek` provider /
- *   `deepseek-v4-pro` 模型，作用于 `implement` / `implement-pr` / `review`
- *   （#1173 起 review 可选 DeepSeek）；探索（explore）、merge 冲突调和
- *   （update-branch）固定 Claude，与模型标签解耦，保持独立 session/model。
- * - label → provider → model → Secret 名称全部是本文件代码内 allowlist。
- *   Issue/PR 上的任意字符串只被当作标签值查表，绝不参与拼接 env key 或 secret 名。
- *   未知标签、多个冲突模型标签一律 fail-loud（ModelRegistryError → failure_reason.txt
- *   → workflow "Mark blocked on failure" 回写 agent:blocked）。
- * - 模型凭据只在构造对应 agent provider 时读取，缺失在任何模型调用前失败。
- *   DeepSeek 缺失 `DEEPSEEK_API_KEY` 不会回退 Claude，也不会先启动任何模型。
+ * hosted 模型 registry（#1617 现行合同）：
+ * - 无 `agent:model:*` 标签的 Claude 默认已退役；ubuntu-latest 没有获批的
+ *   Astra 凭据或可达 CLIProxy 端点，不能把 Claude OAuth 错用于 gpt-6-astra。
+ * - `agent:model:deepseek-v4-pro` 只作为 implement / implement-pr / review 的
+ *   显式 legacy opt-in；缺 key、未知标签或冲突标签均在模型调用前失败。
+ * - 本机受管默认不经过此 hosted registry，统一由 main-model.mts 指定
+ *   `gpt-6-astra`，经 CLIProxyLocal 自动路由。
+ * - label → provider → model → Secret 仍全部来自代码 allowlist；旧默认不得
+ *   成为任何失败的 fallback。
  *
  * remote-child 边界（#1114 裁定 B / #1128 AC-4）：
  * - 模型凭据只进入 provider 自身的 `env`（模型子进程专用）；provider env 由
@@ -35,32 +26,17 @@ import { fail } from "./common.ts";
  *   Secret 注入，禁止自动复制现有 `.sandcastle/.env` 或本机凭据目录。
  */
 
-/** 固定角色 → Claude 默认模型（#1110 AC-4；#1128 保持默认路线不变）。 */
-export const AGENT_MODELS = {
-  /** 实装（issue implement / PR implement）用 Sonnet。 */
-  implement: "claude-sonnet-4-6",
-  /** 独立评审用 Opus（与实装隔离的模型档）。 */
-  review: "claude-opus-4-8",
-  /** 只读探索/分诊用 Opus。 */
-  explore: "claude-opus-4-8",
-  /** PR 修正入口（评审意见落地）用 Sonnet。 */
-  "implement-pr": "claude-sonnet-4-6",
-  /** merge 冲突调和用 Opus。 */
-  "update-branch": "claude-opus-4-8",
-} as const;
-
-export type AgentRole = keyof typeof AGENT_MODELS;
+/** 角色名仅用于 legacy registry 的适用范围，不再映射 hosted 默认模型。 */
+export type AgentRole = "implement" | "implement-pr" | "review" | "explore" | "update-branch";
 
 export const MODEL_LABEL_PREFIX = "agent:model:";
 
 /** 模型凭据 Secret/env 名 allowlist（代码内唯一来源；标签字符串永不成为 key）。 */
 export const MODEL_SECRET_NAMES = [
-  "CLAUDE_CODE_OAUTH_TOKEN",
   "DEEPSEEK_API_KEY",
 ] as const;
 export type ModelSecretName = (typeof MODEL_SECRET_NAMES)[number];
 
-export const CLAUDE_CODE_SECRET: ModelSecretName = "CLAUDE_CODE_OAUTH_TOKEN";
 export const DEEPSEEK_SECRET: ModelSecretName = "DEEPSEEK_API_KEY";
 
 export interface ModelRegistryEntry {
@@ -74,7 +50,7 @@ export interface ModelRegistryEntry {
   readonly model: string;
   /** 该模型唯一允许读取的 GitHub Secret/env 名（allowlist 内）。 */
   readonly secretName: ModelSecretName;
-  /** 模型标签生效的角色；探索/冲突调和仍固定 Claude，不消费模型标签。 */
+  /** legacy 标签生效的角色；hosted 无标签默认已退役。 */
   readonly appliesTo: readonly AgentRole[];
 }
 
@@ -91,7 +67,7 @@ export const MODEL_REGISTRY = {
     primeProvider: "deepseek",
     model: "deepseek-v4-pro",
     secretName: DEEPSEEK_SECRET,
-    appliesTo: ["implement", "implement-pr", "review"],
+    appliesTo: ["implement", "implement-pr", "review", "update-branch"],
   },
 } as const satisfies Record<string, ModelRegistryEntry>;
 
@@ -117,7 +93,7 @@ export interface ModelSelection {
   readonly entry: ModelRegistryEntry | null;
 }
 
-const DEFAULT_CLAUDE_SELECTION: ModelSelection = { label: null, entry: null };
+const NO_MODEL_SELECTION: ModelSelection = { label: null, entry: null };
 
 const knownModelLabels = (): string => Object.keys(MODEL_REGISTRY).join(", ");
 
@@ -130,7 +106,7 @@ export const resolveModelSelection = (
 ): ModelSelection => {
   // 前缀识别不区分大小写（与 GitHub label 检索语义对齐），但 registry 查表保持
   // 精确大小写：任何大小写变体都会被识别为 model label，随后 fail-loud，
-  // 不会静默降级成默认 Claude。
+  // 不会静默进入已退役的 hosted 默认路径。
   const modelLabels = labels
     .map((label) => label.trim())
     .filter((label) =>
@@ -138,7 +114,7 @@ export const resolveModelSelection = (
     );
 
   if (modelLabels.length === 0) {
-    return DEFAULT_CLAUDE_SELECTION;
+    return NO_MODEL_SELECTION;
   }
 
   const unique = [...new Set(modelLabels)];
@@ -159,7 +135,7 @@ export const resolveModelSelection = (
     throw new ModelRegistryError(
       `Unknown model label ${label}. ` +
         `Known model labels: ${knownModelLabels()}. ` +
-        "Remove the label to use the default Claude route.",
+        "The hosted default route is retired; use the local Astra Sandcastle queue or an explicit supported legacy label.",
     );
   }
 
@@ -232,7 +208,7 @@ export const parseEventPayload = (raw: string | undefined): unknown => {
 
 /** 从进程环境读取模型标签（最小 labels EVENT_PAYLOAD）。
  * 缺少 EVENT_PAYLOAD 必须 fail-loud；仅显式 SANDCASTLE_LOCAL=1 的本地直跑
- * 允许按无标签处理，避免把 workflow 接线回归静默降级为默认 Claude。
+ * 允许按无标签处理；随后由 selectedAgent/claudeAgent 对退役默认明确报错。
  */
 export const readModelLabelsFromEnv = (
   env: NodeJS.ProcessEnv = process.env,
@@ -243,32 +219,24 @@ export const readModelLabelsFromEnv = (
 
 /**
  * 只校验标签合法性（未知/冲突 fail-loud），不读模型凭据。
- * 供固定 Claude 角色（explore/update-branch）在工作流入口调用：
- * 有合法 DeepSeek 标签时这些角色仍走 Claude，且不会因缺 DeepSeek key 失败。
+ * 供 explore/update-branch 在工作流入口调用；合法 legacy 标签不读取其凭据，
+ * 但这两个入口的无标签默认随后仍会按退役合同失败。
  */
 export const assertValidModelLabels = (labels: readonly string[]): void => {
   resolveModelSelection(labels);
 };
 
 const SECRET_HELP: Readonly<Record<ModelSecretName, string>> = {
-  CLAUDE_CODE_OAUTH_TOKEN:
-    "Generate it with `claude setup-token` and store it as a GitHub Secret (CLAUDE_CODE_OAUTH_TOKEN), then re-run.",
   DEEPSEEK_API_KEY:
     "Store a DeepSeek API key as a GitHub Secret named exactly DEEPSEEK_API_KEY, then re-run.",
 };
 
-/**
- * 读取模型凭据。secretName 只能是本文件 allowlist 的 ModelSecretName；
- * 这里显式分支访问固定 env 名，调用侧无法把标签/票面字符串变成 env key。
- */
+/** 读取显式 legacy 模型凭据；不允许从票面字符串派生 env key。 */
 export const modelCredential = (
   secretName: ModelSecretName,
   env: NodeJS.ProcessEnv = process.env,
 ): string => {
-  const value =
-    secretName === DEEPSEEK_SECRET
-      ? env.DEEPSEEK_API_KEY?.trim()
-      : env.CLAUDE_CODE_OAUTH_TOKEN?.trim();
+  const value = secretName === DEEPSEEK_SECRET ? env.DEEPSEEK_API_KEY?.trim() : undefined;
   if (!value) {
     throw new ModelRegistryError(
       `${secretName} is not set or is empty. ${SECRET_HELP[secretName]}`,
@@ -306,31 +274,26 @@ const modelProviderEnv = (
   ...remoteChildIdentityEnv(env),
 });
 
-export type SelectableRole = "implement" | "implement-pr" | "review";
+export type SelectableRole = "implement" | "implement-pr" | "review" | "update-branch";
 
-/** 固定 Claude 角色（explore/update-branch）：不消费模型标签，直接使用 claudeCode + CLAUDE_CODE_OAUTH_TOKEN。 */
+export const HOSTED_DEFAULT_RETIRED =
+  "Hosted agent default is retired (#1617): this runner has no approved Kimi credential or reachable CLIProxy endpoint. " +
+  "Use the local gpt-6-astra Sandcastle queue, or explicitly opt into agent:model:deepseek-v4-pro where supported.";
+
+/** 旧 explore 入口保留函数名，但不再启动 Claude；update-branch 由 selectedAgent 显式选路。 */
 export const claudeAgent = (
   role: AgentRole,
   env: NodeJS.ProcessEnv = process.env,
-) => {
-  // `|| fail(...)`：token 缺失或为空时 fail-loud（写 failure_reason.txt + 非零退出）。
-  // tsgo（TS 7 native）不把 never 返回的函数调用当控制流终止点，`if (!x) fail()` 无法
-  // 收窄 x；`|| fail(...)` 让表达式类型直接为 string，绕开该收窄差异。
-  const token =
-    env.CLAUDE_CODE_OAUTH_TOKEN?.trim() ||
-    fail(
-      "CLAUDE_CODE_OAUTH_TOKEN is not set. Generate it with `claude setup-token` and store it as a GitHub Secret (CLAUDE_CODE_OAUTH_TOKEN), then re-run.",
-    );
-  return sandcastle.claudeCode(AGENT_MODELS[role], {
-    env: modelProviderEnv(CLAUDE_CODE_SECRET, token, env),
-  });
+): never => {
+  void role;
+  void env;
+  throw new ModelRegistryError(HOSTED_DEFAULT_RETIRED);
 };
 
 /**
  * 按事件标签构建实装/评审 agent（implement / implement-pr / review）。
- * 默认走各角色固定 Claude 模型；`agent:model:deepseek-v4-pro` → Prime Agent deepseek。
- * explore/update-branch 不在此类型内，仍由 claudeAgent() 固定 Claude。
- * 未知/冲突标签与 DeepSeek 缺 key 都在返回 provider 前抛错，先于任何模型调用。
+ * 无标签默认在模型调用前明确退役；`agent:model:deepseek-v4-pro` 仅作显式 legacy opt-in。
+ * explore 由 claudeAgent() 拒绝旧默认；update-branch 也可显式选择 legacy。
  */
 export const selectedAgent = (
   role: SelectableRole,
@@ -377,8 +340,5 @@ export const selectedAgent = (
     );
   }
 
-  const token = modelCredential(CLAUDE_CODE_SECRET, env);
-  return sandcastle.claudeCode(AGENT_MODELS[role], {
-    env: modelProviderEnv(CLAUDE_CODE_SECRET, token, env),
-  });
+  throw new ModelRegistryError(HOSTED_DEFAULT_RETIRED);
 };

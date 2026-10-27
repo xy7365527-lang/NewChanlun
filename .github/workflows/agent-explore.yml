@@ -1,6 +1,6 @@
 name: Agent Explore
-# #1128：explore 固定 Claude Opus，不消费 `agent:model:*`；未知/冲突模型标签仍由
-# explore.ts 入口 fail-loud 并标 blocked。
+# #1617：hosted 无标签 Claude 默认已退役；explore 在模型调用前 fail-loud 并标 blocked。
+# 本机受管工蜂改走 gpt-6-astra + CLIProxyLocal；不在 ubuntu-latest 错用 Claude OAuth。
 
 on:
   issues:
@@ -47,12 +47,8 @@ jobs:
       - name: Typecheck agent-workflows
         run: npm run typecheck
 
-      - name: Install Claude Code
-        run: npm install -g @anthropic-ai/claude-code
-
-      - name: Run explore agent
+      - name: Run explore agent (hosted default retired)
         env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           EVENT_PAYLOAD: ${{ toJSON(github.event.issue.labels.*.name) }}
           OUTPUT_DIR: ${{ runner.temp }}
         run: npx tsx .sandcastle/agent-workflows/explore/explore.ts

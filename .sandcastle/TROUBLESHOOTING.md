@@ -43,13 +43,13 @@
 
 - **症状**：明明预烤了 kernel venv，沙盒内首次 ipython 调用仍要自举 1-2 分钟——预烤静默失效。
 - **成因**：prime-agent 用 `BOOTSTRAP_VERSION_FILE` 里的 runtimeIdentity 哈希判定 kernel venv 是否过期；哈希输入含 `XDG_DATA_HOME`、pythonSkills JSON 等。build 期复刻 bootstrap 时任何一个输入与运行期不一致，运行期就判定过期、重建 venv，预烤白做。
-- **对策**：不要在 Dockerfile 里手工复刻 bootstrap。用 #1004 落地的方案：起一个一次性容器（API key 仅运行时注入）跑一次**真实** bootstrap，让哈希输入天然与运行期一致；随后同进程清理残留（见上条），`docker commit` 固化并用 `--change` 清空镜像 Env（防密钥进 image config，`docker inspect` 复核为「无」）。每次改 Dockerfile 重建镜像后，跑一次 `.sandcastle/prebake-kernel.sh` 恢复预烤。验收读数：干净容器完整首跑（daemon 启动 + API 往返 + ipython 调用）约 10 秒级。（#1004）
+- **对策**：不要在 Dockerfile 里手工复刻 bootstrap。用 #1004 落地的方案：起一个一次性容器（API key 仅运行时注入）跑一次**真实** bootstrap，让哈希输入天然与运行期一致；随后同进程清理残留（见上条），`docker commit` 固化并用 `--change` 清空镜像 Env（防密钥进 image config，`docker inspect` 复核为「无」）。每次改 Dockerfile 重建镜像后，如仍使用 legacy prime-agent，须显式设置 `PRIME_PREBAKE_PROVIDER` / `PRIME_PREBAKE_MODEL` 再跑 `.sandcastle/prebake-kernel.sh`；#1617 后不再默认 `kimi-coding/k3`，本机主控同型 Claude Code 路径不需要这一步。验收读数：干净容器完整首跑（daemon 启动 + API 往返 + ipython 调用）约 10 秒级。（#1004）
 
 ## 8. 其他在案坑位（同源三票，防重复踩）
 
 - **prime-agent 不在公共 npm registry**：Dockerfile 不能 `npm install -g prime-agent`，用官方 R2 tarball，版本与宿主机对齐（当前 v0.7.2）。（#996 偏差 2）
 - **Node ESM 解析不到全局包**：编排侧（宿主机）须在仓根 `npm install --save-dev @ai-hero/sandcastle tsx`，全局装的 sandcastle 在 `npx tsx .sandcastle/main.mts` 里 import 不到。产生的 `package.json` / `package-lock.json` 已随 #996 入仓。（#996 偏差 5）
-- **git 身份不由 sandcastle 处理**：`GIT_AUTHOR_NAME` / `GIT_AUTHOR_EMAIL` / `GIT_COMMITTER_NAME` / `GIT_COMMITTER_EMAIL` 写进 `.sandcastle/.env`（sandcastle 自动解析注入）；kimi-coding 的 key 变量名是 `KIMI_API_KEY`，同样走 `.env`，不落任何已跟踪文件。（#996）
+- **git 身份不由 sandcastle 处理**：`GIT_AUTHOR_NAME` / `GIT_AUTHOR_EMAIL` / `GIT_COMMITTER_NAME` / `GIT_COMMITTER_EMAIL` 写进 `.sandcastle/.env`（sandcastle 自动解析注入）；legacy kimi-coding 的 key 变量名是 `KIMI_API_KEY`，同样走 `.env`，不落任何已跟踪文件；本机默认 Astra 则经 CLIProxyLocal 运行时 env，不读这个 legacy key（#996 / #1617）。
 - **上游 0.12.0 open bug 簇**（#999 调研登记，#1008 施工时逐条对）：provider env 丢失（上游 #925+#900，自定义 provider 的 KIMI_API_KEY 注入面会命中，冒烟必须验证沙盒内 env 真的到了）；hooks 退出码被吞（上游 #943，onSandboxReady 失败不 fail-fast）；timeoutMs 被忽略（上游 #907）。
 - **拾取闸用共享 label 会抢票**：首跑用 `ready-for-agent` 做拾取闸，把并行会话的 #1013 认领了。修正为专属 label `sandcastle`；分支确定性命名 `sandcastle/issue-<票号>`（#1003 裁定），不用时间戳名。（#1008 事故 1）
 - **`TARGET_BRANCH` 是内置 promptArg**：不可覆盖，编排脚本里不要试图传同名参数。（#1008）

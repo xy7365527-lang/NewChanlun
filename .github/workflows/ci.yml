@@ -905,8 +905,8 @@ jobs:
       - run: npm ci --ignore-scripts
       - name: typecheck (tsconfig.sandcastle.json)
         run: npm run typecheck
-      - name: node:test — .sandcastle/*.test.{ts,mts}
-        run: npx tsx --test .sandcastle/*.test.ts .sandcastle/*.test.mts
+      - name: node:test — Sandcastle + wayfinder
+        run: npx tsx --test .sandcastle/*.test.ts .sandcastle/*.test.mts scripts/wayfinder_engine.test.mts scripts/wayfinder_engine.shell.test.mts
 
   deepagents-pilot:
     runs-on: ubuntu-latest

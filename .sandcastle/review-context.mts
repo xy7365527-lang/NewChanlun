@@ -294,6 +294,23 @@ export function prepareReviewPrompt(
   }
 }
 
+/** 每次发送前重计完整提示（含精确 head、验证诊断及续跑反馈），沿用原上限和失败通道。 */
+export function prepareFinalReviewPrompt(
+  prompt: string, base: string,
+  opts: Pick<BuildReviewPromptOptions, "issue" | "branch" | "maxTokens">,
+  channels: ReviewFailureChannels,
+): BuiltReviewPrompt {
+  const estimatedTokens = estimateTokens(prompt);
+  const limit = opts.maxTokens ?? REVIEW_PROMPT_MAX_TOKENS;
+  if (estimatedTokens > limit) {
+    const error = new ReviewPromptTooLargeError(estimatedTokens, limit, prompt.length);
+    recordReviewerFailure(opts.issue, opts.branch, reviewFailureComment(opts.issue, opts.branch, error),
+      { reason: "prompt_too_large", est_tokens: estimatedTokens, limit_tokens: limit, chars: prompt.length }, channels);
+    throw error;
+  }
+  return { prompt, estimatedTokens, chars: prompt.length, base };
+}
+
 /** 评审阶段的非超限失败（渲染期 prepare_error / 运行期 run_error）：同一失败通道，调用方随后原样上抛。 */
 export function recordReviewerRunFailure(
   issue: number,

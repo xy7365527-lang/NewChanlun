@@ -4,8 +4,9 @@ name: Agent Update Branch
 # /fork PR 面，label 事件不会被不可信 PR 内容自动触发（下游注释解释为何用 pull_request_target）。
 
 on:
-  # #1128：update-branch 固定 Claude Opus，不消费 `agent:model:*`；未知/冲突模型标签仍由
-  # update-branch.ts 入口 fail-loud 并标 blocked。
+  # #1617：hosted 无标签 Claude 默认已退役，并在任何 fetch/merge/push 前 fail-loud；
+  # 显式 agent:model:deepseek-v4-pro 保留 legacy opt-in。
+  # 本机受管工蜂改走 gpt-6-astra + CLIProxyLocal；不在 ubuntu-latest 错用 Claude OAuth。
   #
   # pull_request_target rather than pull_request: the standard pull_request
   # trigger depends on a generated merge commit, which GitHub fails to
@@ -65,13 +66,37 @@ jobs:
       - name: Typecheck agent-workflows
         run: npm run typecheck
 
-      - name: Install Claude Code
-        run: npm install -g @anthropic-ai/claude-code
+      - name: Detect model route
+        id: route
+        run: |
+          if gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -qx 'agent:model:deepseek-v4-pro'; then
+            echo "use_deepseek=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "use_deepseek=false" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Run update-branch agent
+      - name: Install Prime Agent (DeepSeek v4-pro route)
+        if: steps.route.outputs.use_deepseek == 'true'
+        run: npm install -g https://pub-728493de92a943e2a9b2d17b4719f318.r2.dev/releases/v0.7.2/prime-agent-0.7.2.tgz
+
+      - name: Install uv (Prime Agent kernel bootstrap)
+        if: steps.route.outputs.use_deepseek == 'true'
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Run update-branch agent (hosted default retired)
+        if: steps.route.outputs.use_deepseek != 'true'
         id: run
         env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          EVENT_PAYLOAD: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          OUTPUT_DIR: ${{ runner.temp }}
+        run: npx tsx .sandcastle/agent-workflows/update-branch/update-branch.ts
+
+      - name: Run update-branch agent (DeepSeek v4-pro)
+        if: steps.route.outputs.use_deepseek == 'true'
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           EVENT_PAYLOAD: ${{ toJSON(github.event.pull_request.labels.*.name) }}
           OUTPUT_DIR: ${{ runner.temp }}
         run: npx tsx .sandcastle/agent-workflows/update-branch/update-branch.ts

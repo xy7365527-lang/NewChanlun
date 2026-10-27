@@ -137,7 +137,7 @@
 ## 协作设施
 
 - **Issue tracker**：GitHub `xy7365527-lang/NewChanlun`（private，`gh` 已认证）；操作口径 `docs/agents/issue-tracker.md`。
-- **Sandcastle 执行面**（[#1000](https://github.com/xy7365527-lang/NewChanlun/issues/1000) 裁定，2026-08-16）：执行类工作（AFK 探针/跑批/实施票链）默认走 `.sandcastle/` 沙盒（工蜂跨进程不在宿主 harness 子代理列表——**可见性以 `.sandcastle/logs/workers.jsonl` + `STATUS.md`（watcher.sh 滚报，launchd 每 10 分钟）+ `.chanlun/agent-roster-*.md` 为准**；harvest.sh 自动验收合入）——两段式 `main.mts`（实装+独立评审双工蜂）与蜂群 `main-swarm.mts`（planner+扇出+merger 归并），工蜂 = Sandcastle `claudeCode` 经本机 CLIProxy 统一路由（`claude-opus-5-5`，[#1547](https://github.com/xy7365527-lang/NewChanlun/issues/1547)）；拾取闸 = 专属 label `sandcastle`，已有负责人（assignee）的票不挂；例外三类与全貌见图 #1000 与 `.sandcastle/README.md`。
+- **Sandcastle 执行面**（[#1000](https://github.com/xy7365527-lang/NewChanlun/issues/1000) 裁定，2026-08-16）：执行类工作（AFK 探针/跑批/实施票链）默认走 `.sandcastle/` 沙盒（工蜂跨进程不在宿主 harness 子代理列表——**可见性以 `.sandcastle/logs/workers.jsonl` + `STATUS.md`（watcher.sh 滚报，launchd 每 10 分钟）+ `.chanlun/agent-roster-*.md` 为准**；harvest.sh 自动验收合入）——两段式 `main.mts`（实装+独立评审双工蜂）与蜂群 `main-swarm.mts`（planner+扇出+merger 归并），工蜂 = Sandcastle `codex` 经本机 CLIProxy 统一路由，与当前主控同为 `gpt-6-astra`（唯一配置 `.sandcastle/main-model.mts`，[#1547](https://github.com/xy7365527-lang/NewChanlun/issues/1547) / #1617）；拾取闸 = 专属 label `sandcastle`，已有负责人（assignee）的票不挂；例外三类与全貌见图 #1000 与 `.sandcastle/README.md`。
 - **Graph engineering**（[#1547](https://github.com/xy7365527-lang/NewChanlun/issues/1547)）：图从决策票到合入的自动化流程正本 = `.sandcastle/docs/graph-engineering.md`（决策票 T/P 分级、起草+独审、P 类 `needs-approval` 待批）。主控巡航用 `/graph-run <图号>`，用户批 P 类用 `/graph-approve`。
 - **Triage labels**：`needs-triage` / `needs-info` / `ready-for-agent` / `ready-for-human` / `wontfix`。
 - **Domain docs**：单 context——根 `CONTEXT.md` + `docs/adr/`（惰性创建）。
@@ -161,9 +161,9 @@
 ## 记忆（高信号持久事实，continual-learning 维护）
 
 - **偏好**：编排者粘贴 shell 命令时期望逐字执行；破坏性 git 操作前先备份 + 只读预检，且不打印任何密钥值。
-- **harness**：Kimi 主力（K1，2026-07-28 裁定）；实施层 = codex/claude CLI（2026-07-26 令，不废）。工位模型分配四档（永久令 2026-07-04 三令）：机械=haiku / 常规=sonnet / 高难=opus / 最难=fable；spawn 必显式传 model，拿不准取低档。**四档管常设工位**（蜂群里一个固定角色默认配哪档）；**一次性派发挑模型看 `~/.claude/CLAUDE.md` 路由表**（cost/intelligence/taste 三分数，从便宜往贵挑第一个够格的，含 codex 与 DeepSeek 两个四档没有的档位）。两套并存，改一套须同步另一套。**升档条款**（[#781](https://github.com/xy7365527-lang/NewChanlun/issues/781) 裁定③，补的是「只写了起点没写升档」这个缺口）：**产出被评审打回 = 升档信号，直接换更聪明的一档重做，不必请示**（先例 #666 被 #670 打回重推）；低档起步而无升档条款 = 同档反复重试。**留痕取最小面**（同票裁定⑤）：**升档时写一句「从 X 升到 Y」，一过就过的不记**——声明制自执行，不设巡查。
+- **harness**：主控为当前会话实际模型；原生 `spawn_agent` 默认继承主控模型与推理强度，需显式选择时只传当前工具支持的 slug。本机受管后台（Sandcastle 实装/独审、decision-claimer、wayfinder spec、main-swarm、Codex child）统一使用 `.sandcastle/main-model.mts` 的 `gpt-6-astra`，经 CLIProxyLocal 自动路由（用户 2026-10-24，#1617）。旧四档与换模型升档规则不再作为现役默认；切换主控时同步修改这一处并验真实路由。
 - **验证口径**：不全量重放——验证用靶向/原型级（差异面先全枚举再对拍，秒级）；全量仅留重型验证窗口并照实标注（用户 2026-07-26 裁定，效率纪律）。
-- **执行分工**：Claude CLI 执行层——实施票用 sonnet（快），影子评审用 opus（深）；Kimi 只做编排，不下场写码（2026-07-26 用户定）。
+- **执行分工**：实装与独立评审可与主控同型；评审独立性来自非作者、独立进程和只读证据，不靠异模型。评审打回后由同模型带具体意见重做，保留原有轮次与转 P 规则（#1617）。
 - **工作线**：涉及 branch/worktree 基线、远端默认分支、CI/自动化基线或历史镜像名分时，先读 `docs/agents/generation-constitution.md` §2「现役线名单」；该处是唯一正本。
 - **Stop-Guard**：其注入内容可能反映过期状态（已结算谱系仍列为 pending）；重复执行前先核实际状态。
 - **goal 事件**：正式 GOAL_SET/SUPERSEDE 由 Lead 直接 append 到 `.chanlun/goals/events.jsonl`（`scripts/goal_events.py` 只出草稿），随后用 reducer/scan 验证。
