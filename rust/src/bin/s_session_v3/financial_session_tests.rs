@@ -1670,40 +1670,83 @@ fn export_real_s3_fixture_for_economic_content_domain() {
     std::mem::forget(f);
 }
 
+type Q3Bar = (String, i64, i64, i64, i64, i64);
+
+/// #1419 Q3 真实导出的数据窗（28Q）：(全部 bar, 修订目标根, 修订插入点)。
+///
+/// 旧窗（458fc1a3ed，9 端点「每段三笔」链）实跑 101/101 代只成 1 个中枢、无中枢对：解析出的
+/// 段端点被相邻段吞并（段 4 个完成、第 5 个在途），第二组重叠段从未成段。本窗按同一构造
+/// （每笔 4 根、中点线性插值、上下各留 20；首两根 W 相互包含）直接给出笔端点，经
+/// `parse_layer` + `scan_center_facts_full` 逐前缀搜得：第 56 根首中枢成立、第 104 根第二中枢
+/// 成立（中枢对），窗口截在第 104 根，不多跑一代。
+fn q3_w_bars() -> (Vec<Q3Bar>, usize, usize) {
+    const PIVOTS: &[i64] = &[
+        1620, 1020, 1350, 1185, 1570, 1390, 1480, 1270, 1780, 1525, 2120, 1820, 1970, 1620, 1800,
+        1710, 1920, 1350, 1635, 970, 1360, 1165, 1620, 1470, 1545, 1370, 1970, 1670, 2370,
+    ];
+    const LEN: usize = 104;
+    let bar = |i: usize, mid: i64, half: i64| -> Q3Bar {
+        (format!("w-{i}"), i as i64, mid, mid + half, mid - half, mid)
+    };
+    let mut bars = vec![bar(0, PIVOTS[0], 40), bar(1, PIVOTS[0], 30)];
+    for w in PIVOTS.windows(2) {
+        for j in 0..4 {
+            bars.push(bar(bars.len(), w[0] + (w[1] - w[0]) * j / 4, 20));
+        }
+    }
+    bars.truncate(LEN);
+    // 修订目标：首中枢内的笔顶 2120；修订插入点在首中枢（第 56 根）成立之后。
+    let top = bars.iter().position(|b| b.2 == 2120).unwrap();
+    (bars, top, 60)
+}
+
+/// 前缀上的 (完成中枢数)；与 S3 E/F 同一共享核：`parse_layer` 段 → L0 单元 → `scan_center_facts_full`。
+fn q3_w_centers(bars: &[Q3Bar]) -> usize {
+    use newchan_rust::theta_v0::classifier::{center::center_from_segments, center_scan};
+    use newchan_rust::theta_v0::{config::ThetaConfig, parser::parse_layer, types::Bar};
+    let raw: std::vec::Vec<Bar> = bars
+        .iter()
+        .enumerate()
+        .map(|(i, b)| Bar {
+            source_index: i,
+            timestamp: b.1,
+            open: b.2,
+            high: b.3,
+            low: b.4,
+            close: b.5,
+            volume: 1.0,
+            untradable: false,
+        })
+        .collect();
+    let layer = parse_layer(&raw, &ThetaConfig::default());
+    let units = center_scan::l0_units(layer.segments_valid_prefix());
+    center_scan::scan_center_facts_full(&units, center_from_segments)
+        .windows
+        .len()
+}
+
+/// 秒级锁：导出窗在 2.5 h 实跑前就须能成中枢对（28Q：旧窗实跑到第 101 代才暴露无中枢对）。
+#[test]
+fn q3_w_export_window_forms_center_pair() {
+    let (bars, top, revise_after) = q3_w_bars();
+    assert!(top < revise_after && revise_after < bars.len());
+    assert!(q3_w_centers(&bars[..revise_after]) >= 1, "修订前无首中枢");
+    assert_eq!(
+        q3_w_centers(&bars[..bars.len() - 1]),
+        1,
+        "窗口未截在第二中枢成立处"
+    );
+    assert_eq!(q3_w_centers(&bars), 2, "导出窗不成中枢对");
+}
+
 /// #1419 Q3 真实消费验收：W 规则真实 S3 多代导出（27AZ P1）。走 init_v3 + 真实接纳/Begin/提交，逐代发布：
 /// 1 根与 2 根相互包含（W 等待期）→ 真实写者恢复（纪元 1→2）→ 方向建立的前段 → 首中枢成立
-/// → 中段顶点改价修订（撤回）→ 改回原价修订（恢复）→ 尾段（第二中枢与中枢对）。任一代被门拒绝即原样记录并停止。导出格式对齐
+/// → 首中枢内笔顶改价修订（撤回）→ 改回原价修订（恢复）→ 尾段至第二中枢成立（中枢对）。数据窗见 [`q3_w_bars`]。任一代被门拒绝即原样记录并停止。导出格式对齐
 /// `s_session/tests/fixtures/q3-complete-s16-cuts345.json`，节点取全表。
 #[test]
 #[ignore = "仅供 #1419 Q3 真实 S3 W 夹具导出"]
 fn export_real_s3_w_fixture_for_q3() {
-    type Bar = (String, i64, i64, i64, i64, i64);
-    // 段级走势链（价×10）；每段三笔：a → a+0.6d → a+0.3d → b；每笔 5 根，中点线性插值、上下各留 20。
-    // 一事件一代、每代全量来源审计 ⟹ 代数决定耗时；取 9 个段端点（8 段，两组重叠段 → 两中枢一对）。
-    const CHAIN: &[i64] = &[1000, 1800, 1400, 2000, 1450, 2600, 2000, 2800, 2300];
-    let mut pivots = vec![CHAIN[0]];
-    for w in CHAIN.windows(2) {
-        let (a, b) = (w[0], w[1]);
-        let d = b - a;
-        pivots.extend([a + 6 * d / 10, a + 3 * d / 10, b]);
-    }
-    let mut mids = Vec::new();
-    // 每笔 4 根（端点间隔 3 根 raw，满足 standard_raw_gap_3）。
-    for w in pivots.windows(2) {
-        for j in 0..4 {
-            mids.push(w[0] + (w[1] - w[0]) * j / 4);
-        }
-    }
-    mids.push(*pivots.last().unwrap());
-    let bar = |i: usize, mid: i64, half: i64| -> Bar {
-        (format!("w-{i}"), i as i64, mid, mid + half, mid - half, mid)
-    };
-    let mut bars: Vec<Bar> = vec![bar(0, 1000, 40), bar(1, 1000, 30)];
-    for (k, &m) in mids.iter().enumerate() {
-        bars.push(bar(k + 2, m, 20));
-    }
-    // 修订目标：第 6 段顶点（2600）所在根。
-    let top = 2 + mids.iter().position(|&m| m == 2600).unwrap();
+    let (bars, top, revise_after) = q3_w_bars();
     let mut revised = bars[top].clone();
     revised.2 -= 300;
     revised.3 -= 300;
@@ -1713,12 +1756,16 @@ fn export_real_s3_w_fixture_for_q3() {
     // 真实恢复放在 W 等待期（第 2 代后、未定原件仍挂起）：恢复审计对全历史逐 cut 计 wire，
     // fc51265054 在 89 代后、b3d2ca09d0 在 22 代后恢复均超 max_total_wire_bytes 1 GiB 被拒
     // （读数交 #1640 与 #1419 验收，不放宽上限）。方向确立、中枢、撤回与恢复修订均在纪元 2 发生。
-    // 修订在首中枢成立后、尾段之前做（fc51265054 导出 gen76 即 bar75 首中枢成立），使撤回/恢复
-    // 两代审计的库较小；随后追加其余全部 bar（第二中枢与中枢对需要尾段）。
-    let revise_after = 80;
+    // 修订在首中枢成立（第 56 根）后、尾段之前做，使撤回/恢复两代审计的库较小；随后追加其余
+    // bar 至第二中枢成立（第 104 根）。
     assert!(top < revise_after && revise_after < bars.len());
+    assert_eq!(
+        q3_w_centers(&bars),
+        2,
+        "导出窗不成中枢对（先跑 q3_w_export_window_forms_center_pair）"
+    );
     // S3 接纳协议：一条 ingest 恰一事件，每条消息各自 Begin/提交一代；里程碑统计取该段最后一代。
-    let steps: Vec<(&str, Vec<Bar>, i64, bool)> = vec![
+    let steps: Vec<(&str, Vec<Q3Bar>, i64, bool)> = vec![
         ("w_first_bar", bars[0..1].to_vec(), 1, false),
         ("w_contained_waiting", bars[1..2].to_vec(), 1, false),
         (
