@@ -71,7 +71,7 @@ main 运行使用同一脚本，只把耗时字面量 `20.75s` 换成该次实�
 - 常规 CI 40428705199 终态。失败则交原 owner 返修，不重跑通过的作业。
 - 工位 `/Volumes/AgentStorage/issue1672-fin2-hfs-20261025/worktree` 的处置。
 - 本目录合入 main 后，按 `docs/agents/delivery-discipline.md` 模板发布关票声明，报告路径引本目录。
-- 27 独审指出 `content_store.rs` 的过期注释 "16 MiB HFS trial" 与卷回收失败时 dmg 不上传两条 LOW，尚无承接。
+- 27 独审的两条 LOW 已移交图外 debt 票：`content_store.rs` 过期注释 "16 MiB HFS trial" 归 [#1749](https://github.com/xy7365527-lang/NewChanlun/issues/1749)，卷回收失败时 dmg 不上传归 [#1750](https://github.com/xy7365527-lang/NewChanlun/issues/1750)，移交说明见 [#1672 评论 6431666497](https://github.com/xy7365527-lang/NewChanlun/issues/1672#issuecomment-6431666497)。两票不阻本票关闭。
 
 ## 下游消费范围
 
