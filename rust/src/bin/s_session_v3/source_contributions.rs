@@ -1711,7 +1711,6 @@ impl NativeSourceState {
             .w_init
             .and_then(|handle| self.objects.get(&handle))
             .map(|entry| Rc::clone(&entry.value));
-        let mut raws = bj::new_map(None);
         let held: Vec<(i64, Rc<Object>)> = self
             .w_raws
             .iter()
@@ -1721,6 +1720,7 @@ impl NativeSourceState {
                     .map(|entry| (*coord, Rc::clone(&entry.value)))
             })
             .collect();
+        let mut raws = bj::new_map(None);
         for (coord, object) in &held {
             raws.insert(*coord, &**object).map_err(err)?;
         }
