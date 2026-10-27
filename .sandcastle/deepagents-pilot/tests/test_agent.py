@@ -27,6 +27,9 @@ class ScriptedOpenAI(ChatOpenAI):
     def _generate(self, messages, stop=None, run_manager=None, **kwargs):
         return ChatResult(generations=[ChatGeneration(message=self.script.pop(0))])
 
+    async def _agenerate(self, messages, stop=None, run_manager=None, **kwargs):
+        return self._generate(messages, stop)
+
 
 def scripted(*messages):
     model = ScriptedOpenAI(model="claude-opus-5-5", api_key=SecretStr("not-used"), base_url="http://127.0.0.1:9/v1")

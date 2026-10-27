@@ -156,7 +156,8 @@ def operator_pausable(run: PilotRun, wrapped: Any) -> Any:
     def call(*args: Any, **kwargs: Any) -> str:
         while run.interrupt_requested() is not None:
             interrupt({"ticket": run.spec.ticket, "operator_interrupt": run.interrupt_requested()})
-        return wrapped.func(*args, **kwargs)
+        with run.tool_call():
+            return wrapped.func(*args, **kwargs)
 
     return StructuredTool.from_function(call, name=wrapped.name, description=wrapped.description,
                                         args_schema=wrapped.args_schema)

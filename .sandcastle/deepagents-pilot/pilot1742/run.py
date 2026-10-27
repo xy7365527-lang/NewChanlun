@@ -372,6 +372,8 @@ class PilotRun:
         self.launcher = launcher or [shutil.which("node") or "node", "--import", "tsx", ".sandcastle/codex-child.mts"]
         self.crash_at = crash_at
         self._mutex = threading.Lock()
+        self._tools = threading.Condition()
+        self._tools_active = 0
         self._lock_fd: int | None = None
         self._children: dict[str, subprocess.Popen] = {}
 
@@ -463,6 +465,22 @@ class PilotRun:
         if self._lock_fd is not None:
             os.close(self._lock_fd)
             self._lock_fd = None
+
+    @contextmanager
+    def tool_call(self) -> Iterator[None]:
+        with self._tools:
+            self._tools_active += 1
+        try:
+            yield
+        finally:
+            with self._tools:
+                self._tools_active -= 1
+                self._tools.notify_all()
+
+    def wait_tools_idle(self) -> None:
+        """官方 run 被取消时任务先退出、同步工具仍在线程里跑；等它们返回才放 run 锁。"""
+        with self._tools:
+            self._tools.wait_for(lambda: self._tools_active == 0)
 
     def interrupt_requested(self) -> dict | None:
         path = self.dir / "interrupt.request"

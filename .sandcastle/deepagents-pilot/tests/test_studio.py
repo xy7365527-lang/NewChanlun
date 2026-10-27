@@ -23,7 +23,11 @@ def test_factory_uses_frozen_run_without_acquiring_or_writing(env, monkeypatch):
     with patch("pilot1742.agent.managed_cliproxy_key", side_effect=AssertionError("Studio 不得取真实key")), patch.object(
         studio.PilotRun, "acquire", side_effect=AssertionError("Studio 不得认领执行锁")
     ), patch.object(model.__class__, "invoke", side_effect=AssertionError("Studio 不得调用模型")):
-        graph = asyncio.run(studio.graph({"configurable": {"run_id": "other"}}))
+        async def read():
+            async with studio.graph({"configurable": {"run_id": "other"}}) as built:
+                return built
+
+        graph = asyncio.run(read())
     assert {"model", "tools", "SkillsMiddleware.before_agent"} <= set(graph.get_graph().nodes)
     assert graph.checkpointer is None
     assert {str(p): p.read_bytes() for p in run.dir.rglob("*") if p.is_file()} == before
@@ -49,15 +53,17 @@ def test_http_boundary_blocks_writes(method, path, allowed):
         return JSONResponse({"reached": True})
 
     app = Starlette(routes=[Route(path, endpoint, methods=[method])],
-                    middleware=[Middleware(studio.ReadOnlyStudio)])
+                    middleware=[Middleware(studio.BoundStudio)])
     response = TestClient(app).request(method, path)
     assert response.status_code == (200 if allowed else 403)
 
 
-def test_official_config_disables_execution_transports():
+def test_official_config_keeps_only_runs_and_threads_behind_the_bound_checkpointer():
     config = json.loads((Path(__file__).parents[1] / "langgraph.json").read_text())
-    for name in ("runs", "threads", "store", "ui", "mcp", "a2a", "webhooks"):
+    for name in ("store", "ui", "mcp", "a2a", "webhooks"):
         assert config["http"][f"disable_{name}"] is True
+    assert config["http"]["disable_runs"] is False and config["http"]["disable_threads"] is False
+    assert config["checkpointer"]["path"] == "pilot1742.studio_binding.make_checkpointer"
 
 
 def test_browser_private_network_preflight():

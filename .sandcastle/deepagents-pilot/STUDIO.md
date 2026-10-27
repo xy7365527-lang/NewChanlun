@@ -27,17 +27,16 @@ Studio 展示 `build_agent` 为 `real4` 冻结任务构建的真实 Deep Agent �
 此入口不加载或导入 `real4` 的 SQLite checkpoint，因此不会显示历史 `real4` 对话或运行轨迹。
 历史原始记录仍在试点证据目录的 `runs/real4/`，查看运行结果继续使用 README 中的 `status` 命令。
 
-## 保持只读
+## 在 Studio 里继续、恢复与中断一个已登记的 v2 run
 
-此入口用于看图和 schema。执行、恢复、状态更新和批准登记继续走现有 CLI。
-Studio 的提交、运行、修改 assistant 等操作会收到 `403`，不会调用模型、工蜂或受管提交。
-官方 `disable_runs` 关闭运行接口和 v2 事件执行通道，`disable_threads` 与 `disable_store` 关闭状态及存储接口。
-只读 HTTP 中间件另外拦截官方仍开放的 assistant 创建、修改、删除和版本切换。
-查询用的 `POST /assistants/search`、`count`、`versions` 保留。
+服务启动时用 `PILOT1742_STUDIO_RUNS=<run_id>[,<run_id>]` 列出要绑定的 run，另设 `PILOT1742_STATE_ROOT` 与 `PILOT1742_APP_PRIVATE_KEY`（私钥路径，只由已审 App 客户端读取）。
+每个绑定 run 对应一个确定的线程 `pilot1742.studio_binding.thread_for(<run_id>)`。在 Studio 线程列表里打开这个线程，看到的就是该 run 自己 `graph.sqlite` 里的 checkpoint，与 CLI 是同一条。
 
-启动脚本关闭 LangSmith tracing、OpenTelemetry 导出和 CLI analytics，并移除进程里的 LangSmith key。
-Agent Server 的开发状态单独写入 `/Volumes/AgentStorage/issue1742-deepagents-pilot-20261027/studio/server-state/`。
-它不打开 `runs/real4/graph.sqlite`，也不认领原 run 的执行锁。
+- 继续或恢复。在该线程上点运行或恢复。官方 run 打开的是同一个 `PilotRun`，先取 run 锁、再在票级锁内复核持有，CLI 正在跑时 Studio 的 run 直接失败，Studio 在跑时 CLI 退出 75。恢复载荷的内容从不当作批准，批准只看 root 保护的签批权威链。
+- 中断。点取消（cancel）会被改为写入该 run 的中断请求，图在下一次工具调用前停在 checkpoint，已派出的工蜂不被杀。下一次在 Studio 或 CLI `--resume` 恢复时清除该请求。
+- 首跑由执行器 CLI 发起。Studio 不接受新输入。
+
+仍然拒绝（403）：未绑定的线程、新建或复制任意线程、改写线程状态、分叉 checkpoint、无状态 run、store 与 assistant 写入。
 
 ## 官方依据
 

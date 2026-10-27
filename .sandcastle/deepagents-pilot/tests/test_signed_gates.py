@@ -1,6 +1,5 @@
 import json
 import sqlite3
-import time
 
 import pytest
 from approval_signing.protocol import ApprovalRequest, Decision
@@ -8,11 +7,9 @@ from langchain_core.messages import AIMessage
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import Command
 from signing_fixture import Signer
-from starlette.testclient import TestClient
 from test_agent import call, scripted
 from v2env import TICKET, SimulatedCrash, V2Env, crash_at
 
-from pilot1742 import studio
 from pilot1742.agent import build_agent
 from pilot1742.approval import SpecAuthorization
 from pilot1742.executor import AdmissionRefused
@@ -128,46 +125,3 @@ def test_operator_interrupt_stops_at_the_next_tool_without_killing_workers(v2):
     run.clear_interrupt()
     agent.invoke(Command(resume={}), config, durability="sync")
     assert not agent.get_state(config).next and run.status()["commits"]
-
-
-def control_client(v2, monkeypatch, drive):
-    plane = studio.ControlPlane(v2.home, open_run=lambda root, rid: v2.run(v2.load(rid)), drive=drive)
-    monkeypatch.setattr(studio.app.state, "control", plane)
-    return TestClient(studio.app), plane
-
-
-def test_studio_control_shares_the_run_lock_and_reads_real_state(v2, monkeypatch):
-    unit = v2.register()
-    v2.run(unit).release()
-    started = []
-
-    def drive(run, resume):
-        started.append(resume)
-        time.sleep(0.5)
-        return 0
-
-    client, plane = control_client(v2, monkeypatch, drive)
-    path = f"/pilot1742/v2/{unit.run_id}"
-    assert client.get(path).json()["status"]["v"] == 2
-    assert client.post(path + "/run", json={"resume": True}).status_code == 200
-    busy = client.post(path + "/run", json={})
-    assert busy.status_code == 409 and busy.json()["exit"] == 75
-    plane.threads[unit.run_id].join()
-    assert started == [True]
-    assert client.post(path + "/interrupt").json()["interrupt_requested"]["by"] == "studio"
-    assert client.get(path).json()["status"]["interrupt_requested"]["by"] == "studio"
-    held = v2.run(unit)
-    assert client.post(path + "/run", json={}).json()["exit"] == 75
-    held.release()
-
-
-def test_studio_refuses_v1_runs_and_unsafe_writes(env, monkeypatch):
-    run = env.create()
-    run.release()
-    plane = studio.ControlPlane(env.home)
-    monkeypatch.setattr(studio.app.state, "control", plane)
-    client = TestClient(studio.app)
-    assert client.post(f"/pilot1742/v2/{run.spec.run_id}/run", json={}).status_code == 409
-    assert client.post("/threads/x/runs", json={}).status_code == 403
-    assert client.put("/store/items", json={}).status_code == 403
-    assert client.post("/assistants", json={}).status_code == 403
