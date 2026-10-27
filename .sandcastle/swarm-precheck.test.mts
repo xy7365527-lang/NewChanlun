@@ -19,6 +19,10 @@ function fixture(t: { after: (fn: () => void) => void }, conflict = false) {
     writeFileSync(path, `#!/bin/sh\nprintf '%s\\n' '${name}' >> "$PROBE_CALLS"\nif [ '${name}' = docker ] && [ "$PROBE_NAMESPACE_OK" = 1 ]; then\n  case "$*" in *'--entrypoint unshare'*) exit 0 ;; esac\nfi\nexit 42\n`);
     chmodSync(path, 0o755);
   }
+  // #1742 旧入口准入替身：记录 drain-control 请求，不触碰本机生产冻结根；PROBE_FROZEN=1 模拟已冻结。
+  const drainCalls = join(root, "drain-calls");
+  writeFileSync(join(bin, "python3"), `#!/bin/sh\nprintf '%s\\n' "$*" >> "$PROBE_DRAIN"\nif [ "$PROBE_FROZEN" = 1 ]; then echo frozen; exit 75; fi\necho admitted\ncat >/dev/null\n`);
+  chmodSync(join(bin, "python3"), 0o755);
   const git = (...args: string[]) => execFileSync("git", args, { cwd: repo, encoding: "utf8", stdio: "pipe" }).trim();
   git("init", "-b", "main"); git("config", "user.name", "Test"); git("config", "user.email", "test@example.invalid");
   writeFileSync(join(repo, "doc.md"), "base\n"); git("add", "."); git("commit", "-m", "base");
@@ -35,14 +39,16 @@ function fixture(t: { after: (fn: () => void) => void }, conflict = false) {
   const path = join(root, "accepted.json"); writeFileSync(path, JSON.stringify(manifest));
   const worktree = join(repo, ".sandcastle/worktrees/sandcastle-merge-precheck");
   const checkpoint = join(repo, ".sandcastle/logs/merges/precheck/checkpoint.json");
-  const run = (accepted = true, namespaceReady = false) => spawnSync(process.execPath, ["--import", loader, entry], {
+  const run = (accepted = true, namespaceReady = false, frozen = false) => spawnSync(process.execPath, ["--import", loader, entry], {
     cwd: repo, encoding: "utf8", timeout: 30_000,
     env: { PATH: `${bin}:${dirname(process.execPath)}:/usr/bin:/bin`, HOME: root, PROBE_CALLS: calls,
+      PROBE_DRAIN: drainCalls, PROBE_FROZEN: frozen ? "1" : "0",
       PROBE_NAMESPACE_OK: namespaceReady ? "1" : "0", CLIPROXY_LOCAL_KEY: "fixture-no-network",
       ...(accepted ? { SANDCASTLE_SWARM_MERGE_MANIFEST: path } : {}) },
   });
   const called = () => existsSync(calls) ? readFileSync(calls, "utf8").trim().split("\n") : [];
-  return { repo, git, base, inputs, manifest, run, called, checkpoint, worktree };
+  const drained = () => existsSync(drainCalls) ? readFileSync(drainCalls, "utf8").trim().split("\n") : [];
+  return { repo, git, base, inputs, manifest, run, called, drained, checkpoint, worktree };
 }
 
 test("公共 CLI：Docker 不可用时无冲突 accepted 清单完成双父归并及幂等重入", t => {
@@ -61,6 +67,19 @@ test("公共 CLI：Docker 不可用时无冲突 accepted 清单完成双父归�
   const before = readFileSync(f.checkpoint, "utf8");
   const again = f.run(); assert.equal(again.status, 0, again.stderr);
   assert.equal(readFileSync(f.checkpoint, "utf8"), before);
+  assert.deepEqual(f.called(), []);
+  // 新归并在固定生产冻结根取一次准入；已存在的归并工位属已准入 run，重入不再申请。
+  assert.equal(f.drained().length, 1);
+  assert.match(f.drained()[0]!, / hold --root \/Volumes\/AgentStorage\/newchanlun-legacy-drain$/);
+});
+
+test("公共 CLI：旧入口已冻结时新 accepted 清单退出 75，不建归并工位、检查点或分支", t => {
+  const f = fixture(t);
+  const result = f.run(true, false, true);
+  assert.equal(result.status, 75, result.stderr); assert.match(result.stderr, /旧入口已冻结/);
+  assert.equal(existsSync(f.checkpoint), false); assert.equal(existsSync(f.worktree), false);
+  assert.equal(f.git("branch", "--list", "sandcastle/merge-precheck"), "");
+  assert.equal(f.git("rev-parse", "main"), f.base);
   assert.deepEqual(f.called(), []);
 });
 

@@ -35,7 +35,8 @@ function fixture(t: { after: (fn: () => void) => void }, conflict = false) {
   const remote = join(root, "remote.git"); const pilot = join(root, "pilot");
   mkdirSync(repo); mkdirSync(bin); mkdirSync(pilot);
   const calls = join(root, "calls");
-  for (const name of ["docker", "gh", "codex"]) {
+  // python3 替身记入同一调用表：仅含 DeepAgents 来源的清单不申请旧入口冻结准入。
+  for (const name of ["docker", "gh", "codex", "python3"]) {
     const path = join(bin, name);
     writeFileSync(path, `#!/bin/sh\nprintf '%s\\n' '${name}' >> "$PROBE_CALLS"\nexit 42\n`);
     chmodSync(path, 0o755);

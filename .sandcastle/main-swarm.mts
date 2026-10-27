@@ -70,7 +70,13 @@ function claim(issue: string) {
 
 const acceptedManifest = process.env.SANDCASTLE_SWARM_MERGE_MANIFEST;
 if (acceptedManifest) {
-  await runAcceptedSwarmMerge(acceptedManifest, IMAGE, logWorker);
+  try {
+    await runAcceptedSwarmMerge(acceptedManifest, IMAGE, logWorker);
+  } catch (error) {
+    if (!(error instanceof DrainFrozenError)) throw error;
+    console.error(error.message);
+    process.exitCode = 75;
+  }
 } else {
 // 普通 swarm 先验容器路由，再进入 planner/claim（#1617）。
 assertSwarmExecutionReady(IMAGE);
