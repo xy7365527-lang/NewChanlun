@@ -1671,8 +1671,8 @@ fn export_real_s3_fixture_for_economic_content_domain() {
 }
 
 /// #1419 Q3 真实消费验收：W 规则真实 S3 多代导出（27AZ P1）。走 init_v3 + 真实接纳/Begin/提交，逐代发布：
-/// 1 根与 2 根相互包含（W 等待期）→ 方向建立的前段 → 走势链全段（中枢/中枢对）→ 中段顶点改价修订（撤回）
-/// → 改回原价修订（恢复）→ 重开写者连接后追加尾段。任一代被门拒绝即原样记录并停止。导出格式对齐
+/// 1 根与 2 根相互包含（W 等待期）→ 方向建立的前段 → 真实写者恢复（纪元 1→2）后续接 → 首中枢成立
+/// → 中段顶点改价修订（撤回）→ 改回原价修订（恢复）→ 尾段（第二中枢与中枢对）。任一代被门拒绝即原样记录并停止。导出格式对齐
 /// `s_session/tests/fixtures/q3-complete-s16-cuts345.json`，节点取全表。
 #[test]
 #[ignore = "仅供 #1419 Q3 真实 S3 W 夹具导出"]
@@ -1709,33 +1709,25 @@ fn export_real_s3_w_fixture_for_q3() {
     revised.3 -= 300;
     revised.4 -= 300;
     revised.5 -= 300;
-    let tail = 12;
     let direction = 2 + 20;
-    let body_end = bars.len() - tail;
+    // 真实恢复放在方向确立后、库尚小处：#1419 首次导出（fc51265054）在 89 代后恢复，恢复审计累计
+    // wire 1073743222 B 超 max_total_wire_bytes 1 GiB 被拒（读数交 #1640，不放宽上限）。恢复后
+    // 纪元 2 继续接纳全部后续消息，中枢、撤回与恢复修订均在纪元 2 发生。
+    let resumed = direction + 8;
+    // 修订在首中枢成立后、尾段之前做（fc51265054 导出 gen76 即 bar75 首中枢成立），使撤回/恢复
+    // 两代审计的库较小；随后追加其余全部 bar（第二中枢与中枢对需要尾段）。
+    let revise_after = 80;
+    assert!(top < revise_after && revise_after < bars.len());
     // S3 接纳协议：一条 ingest 恰一事件，每条消息各自 Begin/提交一代；里程碑统计取该段最后一代。
     let steps: Vec<(&str, Vec<Bar>, i64, bool)> = vec![
         ("w_first_bar", bars[0..1].to_vec(), 1, false),
         ("w_contained_waiting", bars[1..2].to_vec(), 1, false),
-        (
-            "direction_established",
-            bars[2..direction].to_vec(),
-            1,
-            false,
-        ),
-        (
-            "chain_centers",
-            bars[direction..body_end].to_vec(),
-            1,
-            false,
-        ),
+        ("direction_established", bars[2..direction].to_vec(), 1, false),
+        ("recovered_epoch2_append", bars[direction..resumed].to_vec(), 1, true),
+        ("chain_first_center", bars[resumed..revise_after].to_vec(), 1, false),
         ("revision_withdraw", vec![revised], 2, false),
         ("revision_restore", vec![bars[top].clone()], 3, false),
-        (
-            "recovered_epoch2_append",
-            bars[body_end..].to_vec(),
-            1,
-            true,
-        ),
+        ("chain_tail_pair", bars[revise_after..].to_vec(), 1, false),
     ];
     let messages: i64 = steps.iter().map(|(_, rows, _, _)| rows.len() as i64).sum();
     // 真实恢复：恢复前最后一代提交（ns=k*10+2）之后、下一次接纳（ns=(k+1)*10）之前，纪元 1→2。
@@ -1804,6 +1796,12 @@ fn export_real_s3_w_fixture_for_q3() {
                         .map(|k| k.to_string())
                         .collect()
                 };
+                if *label == "chain_first_center" {
+                    assert!(
+                        current.iter().any(|(k, c)| k == "CC-016.center" && *c > 0),
+                        "首中枢里程碑无中枢：{current:?}"
+                    );
+                }
                 let w_present = present(&["CC-004.initialization", "CC-004.undetermined_raw"]);
                 let ef: Vec<&str> = crate::tb02e::KINDS
                     .iter()
@@ -1927,7 +1925,10 @@ fn export_real_s3_w_fixture_for_q3() {
         "全程无中枢对"
     );
     assert!(
-        stats[4]["withdrawn_by_kind"]
+        stats
+            .iter()
+            .find(|s| s["step"] == "revision_withdraw")
+            .unwrap()["withdrawn_by_kind"]
             .as_object()
             .is_some_and(|m| !m.is_empty()),
         "修订代无撤回"
