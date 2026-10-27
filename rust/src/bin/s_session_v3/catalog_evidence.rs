@@ -1147,7 +1147,7 @@ mod owned_catalog_temp_tests {
         let normal_axes = normal_source
             .lookup_field_ref(generated.view(), "catalog_axes")
             .unwrap();
-        let rule = audited.cuts.last().unwrap().metadata.rule_revision.clone();
+        let rule = audited.cuts.last().unwrap().metadata.rule_revision.as_str().to_string();
         let normal = axes_entries(&mut normal_source, normal_axes.view(), &rule).unwrap();
         let expected: Vec<_> = normal
             .iter()
@@ -1196,14 +1196,14 @@ mod owned_catalog_temp_tests {
                     })
                     .collect();
                 assert_eq!(actual, expected);
-                assert_eq!(entries.len(), 13);
+                assert_eq!(entries.len(), rule_axes(&rule).unwrap().len());
                 for e in &entries {
                     assert!(matches!(&e.impl_status, TextValue::Owned(_)));
                     assert!(matches!(&e.proof_status, TextValue::Owned(_)));
                     assert!(matches!(&e.run_status, TextValue::Owned(_)));
                     assert!(matches!(&e.evidence, RefValue::Owned(_)));
                 }
-                verify_current_in_store(&tx, store, axes.view()).unwrap();
+                verify_current_in_store(&tx, store, axes.view(), &rule).unwrap();
                 let axis = field_ref(store, axes.view(), "CC-001").unwrap();
                 let retained = budget.snapshot().live_requested_layout_bytes;
                 assert!(retained > capture_live);
@@ -1221,7 +1221,7 @@ mod owned_catalog_temp_tests {
                 assert_eq!(entries[0].evidence.digest().unwrap(), expected[0].4);
                 drop(ballast);
                 assert_eq!(budget.snapshot().live_requested_layout_bytes, retained);
-                verify_current_in_store(&tx, store, axes.view()).unwrap();
+                verify_current_in_store(&tx, store, axes.view(), &rule).unwrap();
             },
         );
         drop(capture);
