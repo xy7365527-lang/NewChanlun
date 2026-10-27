@@ -12,4 +12,4 @@
 - 返修考古 JSON、构建脚本与证据：`/Volumes/AgentStorage/issue1534-draft-repair-20261027/`。
 - 独审证据（报告中「本报告同目录」所指）：`/Volumes/AgentStorage/issue1709-pstack-orchestrate-20261025/1534-repair-independent27m-evidence/`。
 
-JSON 原件不复制入仓。本文书包不冒充实施或关票证据；实施票落地并按关票门验收后才关票。
+JSON 原件不复制入仓。本文书包不冒充实施或关票证据。#1534 在裁定文书合入、实施票及必要边落地后，按决策关票门关闭。下游实施票按各自验收和实施关票门关闭。

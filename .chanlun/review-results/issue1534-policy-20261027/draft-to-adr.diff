@@ -76,7 +76,7 @@
  
  **Q7 重复与乱序**
  - 默认值：按身份去重，不按内容去重。
-@@ -175,53 +186,45 @@
+@@ -175,52 +186,44 @@
    - 乱序：到达即进入 Recorded/Pending，之后按 `cause[]` 前件因果应用；
    - 批内或跨重的先后：`Unknown`。
  - 出处：#1340 C06.4/C06.7/AT-10；ADR 0008:11；ADR 0033:12；store.rs:49；s_structure_session.rs:219-238。
@@ -125,22 +125,21 @@
  ## 裁定
  
 -本条依 #1323 Notes N-1 预授权判定。
--
--正本落点：docs/adr/NNNN-per-bar-domain-event-identity-lifecycle-contract.md
 +本条依用户 2026-10-27 批复判定（P 类，见「授权引用」）。
  
+-正本落点：docs/adr/NNNN-per-bar-domain-event-identity-lifecycle-contract.md
+-
 -ADR NNNN 的三行头：
-+正本落点：本文件 `docs/adr/0051-per-bar-domain-event-identity-lifecycle-contract.md`，三行头见文首。
- 
+-
 -```
 -> 正本：本文件是逐 bar 域事件外壳、身份、epoch 分词、去重与因果、撤回与恢复幂等、snapshot/delta 续接与持久边界的教义正本。
 -> 最后裁定：#1534（FU-11，<落地日期>）
 -> 受影响代码清单：见本文「受影响票与 blocking 边变化」节
 -```
--
++正本落点：本文件 `docs/adr/0051-per-bar-domain-event-identity-lifecycle-contract.md`，三行头见文首。
+ 
  另外修改 `CONTEXT.md`，只加词条和 Avoid 译注。`.chanlun/definitions/chong-traceability.md` 不改。
  
- ### 一、域事件外壳 `domain-event/1` `[新缠论:选择]`
 @@ -261,7 +264,7 @@
  ### 二、重复、乱序与因果 `[新缠论:推论]`
  
@@ -173,7 +172,7 @@
  
  **要开的票**
  
-@@ -361,13 +364,28 @@
+@@ -361,13 +364,39 @@
  
  **blocking 边增删汇总**
  
@@ -185,7 +184,18 @@
 +
 +- B/E 外壳映射与读口：`rust/src/economic_session/store.rs:46`（commits 根链）、`:49`（`applications.fact_key UNIQUE`）、`:653-654`（StaleWriter）、`:1095-1097`（重放不等即 StorageUnavailable）；`rust/src/economic_session/book.rs:92-99`（`fact_key` 构成，保持不变）；`rust/src/economic_session/service.rs:185-192`（cut 查询，按裁定四补 delta 读口与 Gap）；`rust/src/economic_session/tb03c_book.rs:585-596`（一次提交多条事件，映射时补 `ordinal`）、`:632`（latch 单调）。
 +- S 侧：`rust/src/bin/s_structure_session.rs:219-238`（raw_events）、`:258-263`（撤回字段）、`:295-307`（structure_deltas，含 `policy_records`）、`:5506`（重复不回放、缺口显式 Gap）。字段名不改，按裁定一映射进外壳；续接沿用 #1372 的实现。
-+- Python 读者：`s_session/` 下读这些字段的非测试模块有 `s_query.py`、`economic_query.py`、`s_readonly_server.py`、`s_socket_client.py`、`s_query_integrity.py`、`economic_http.py`、`economic_service_control.py`、`s_service_control.py`、`s_tb02_contract.py`。本裁定不改既有字段名；实施票改 B/E 读口时须逐一核这些读者的兼容，本 ADR 不声称零影响。
++- Python 读者（`s_session/` 下非测试模块，按读取字段列出函数区间；均为兼容核对点，不是本 ADR 的修改点）：
++  - `s_query.py:212-230` `validate_envelope`（`source_epoch`/`producer_epoch` 信封）、`:237-252` `_order`（`fact_key` 排序与撤回代）、`:417-476` `watch_page`（`deltas`、`next_cursor`、`gap`）、`:479-490` `response_envelope`。
++  - `economic_query.py:39-47` `verify_cut`（`domain_id`/`commit_seq`/`root_hash`）、`:164-212` `_original_event`（`fact_key` 来源身份核验）、`:215-245` `_correction_predecessor`（`original_fact_key`）、`:248-365` `verify_fill_allocations`（按 `fact_key` 去重与对账）。
++  - `s_readonly_server.py:168-174` `_verify_batch_profile`（`raw_events`）、`:177-187` `_profile_at_cut`、`:292-327` 按 generation 读 `structure_deltas` 的三个函数、`:373-395` `_read_objects_view`（`withdrawn_generation`/撤回）、`:403-534` `_read_snapshot_in_tx`（`raw_events` 的 `source_epoch`/`event_id`）。
++  - `s_socket_client.py:33-46` `reply_envelope`、`:75-110` `validate_reply`（生产者 epoch）、`:277-282` `_page_cut`、`:290-308` `_page_changes`（`commit_seq` 连续）、`:311-372` `_verify_page_document`（`writer_epoch` 与固定 cut）。
++  - `s_query_integrity.py:37-81` `LEGACY_SCHEMA`（`raw_events`、`structure_deltas`、`writer_epoch_history` 表结构）、`:472-553` `evidence_sources`、`:565-594` `materialize_graph_originals`（`delta_json`）、`:731-756` `capture_digest`。
++  - `economic_http.py:10-11` `HEADER`、`:14-33` `validate_request`（信封 epoch 与因果引用）。
++  - `economic_service_control.py:19-58` `read_config`（各域 epoch 与源身份）、`:83-124` `start_owner`（回复 `writer_epoch`）。
++  - `s_service_control.py:61-93` `read_config`（`writer_epoch`）、`:552-567` `ready_request`、`:569-621` `wait_ready`（`cut` 与 `producer_epoch`）、`:763-792` `recover`（新 epoch）。
++  - `s_tb02_contract.py:61-62` `FACT_COLUMNS`/`FACT_FIELDS`、`:325-382` `_validate_fact`（`fact_key`、撤回生命周期）。
++
++  本裁定不改既有字段名；实施票改 B/E 读口时须逐一核这些读者的兼容，本 ADR 不声称零影响。
 +- Lean：`rg -l 'structure_deltas|fact_key|writer_epoch' -g '*.lean'` 在 `da03a10ee0` 上 0 命中。
 +
 +## 越界登记
@@ -204,7 +214,7 @@
  ## 引用自证
  
  | 引用 | 核实命令 | 结果摘要 |
-@@ -399,10 +417,10 @@
+@@ -399,10 +428,10 @@
  | #1533 评论 6428629112 | `gh api …/issues/comments/6428629112` | xy7365527-lang，2026-10-26T22:16Z：「本条依 #1323 Notes N-1 技术类预授权判定…正本：`.chanlun/definitions/chong-traceability.md`」 |
  | #1542 评论 6262301982 | `gh api …/issues/comments/6262301982` | xy7365527-lang，2026-10-19T07:46Z：「作废关闭；它对 FU 票的 blocking 边随关闭失效」 |
  | #1323 评论 6261281111 | `gh api …/issues/comments/6261281111` | xy7365527-lang，2026-10-19T06:38Z：「用户 2026-10-18 原话：『其实很多技术的东西 完全不需要我来做 我完全信任你的判断』」 |
@@ -217,7 +227,7 @@
  | #1330 无依赖声明 | `gh issue view 1330 --repo xy7365527-lang/NewChanlun --json body --jq .body \| grep -c -E "1534\|FU-11\|依赖"` | `0` |
  | 正本层无 X 侧分工记录（Q14） | `git grep -n -E "OwnAttempt\|MayHaveCalled" bea0a169f9 -- docs/adr .chanlun/definitions CONTEXT.md`；`gh issue view 1340 --json body --jq .body \| grep -n -E "OwnAttempt\|MayHaveCalled"` | 正本层 0 条；#1340 正文 6 行（:200/:309/:310/:311/:337/:421） |
  | store.rs:46/:49/:653-654/:1095-1097 | `sed -n 46p; 49p; 653,654p; 1095,1097p rust/src/economic_session/store.rs` | commits 表；applications 表（fact_key UNIQUE）；StaleWriter；StorageUnavailable 重放不等 |
-@@ -412,7 +430,7 @@
+@@ -412,7 +441,7 @@
  | s_structure_session.rs:219-238/:258-263/:295-307 | `sed -n 219,238p; 258,263p; 295,307p` | raw_events（PK identity_key+revision）；withdrawn_generation/withdrawal_reason/superseded_by；structure_deltas |
  | s_structure_session.rs:1099/:3349/:3676/:5506 | `sed -n 1099p; 3349p; 3676p; 5506p` | `format!("cut-{generation}")`；`);`；`&format!("cut-{gen}")`；「重复…不回放；缺口显式 Gap 并给重建 cut」 |
  | s_structure_session.rs:9257/:11556 只在测试内 | `grep -n "DELETE FROM structure_deltas"`；`grep -n "^mod \|^#\[cfg(test)\]$"` | 只有这两处；分别位于 :5799 `#[cfg(test)] mod tests` 与 :11068 `#[cfg(test)] mod staged_graph_audit_regressions` 内 |
@@ -226,7 +236,7 @@
  | feature `s_session` | `grep -n "s_session" rust/Cargo.toml`；`grep -n "pub mod economic_session" -B1 rust/src/lib.rs` | Cargo.toml:83 定义 feature；lib.rs:2915-2916 `#[cfg(feature = "s_session")] pub mod economic_session;` |
  | grilling/domain-modeling SKILL | `ls .agents/skills/grilling/SKILL.md .agents/skills/domain-modeling/SKILL.md` | 两个文件都存在 |
  
-@@ -431,6 +449,6 @@
+@@ -431,6 +460,6 @@
  | Q9 snapshot/delta 续接 | B | C08.2/C09.4/AT-04；ADR 0038 **:60-69**（考古误记 :68-73）；structure_deltas；#1372 | 裁定四：三域统一；`delta_retention` 可调 |
  | Q10 持久边界 | B | ADR 0008:12；ADR 0031:22；ADR 0038 **:73**（考古误记 :78）；CONTEXT.md:445；C08.6 | 裁定五：真相 / 投影 / AsKnown 三类 |
  | Q11 分词 | B（冲突） | CONTEXT.md:150/:166/:291；baohan.md:191；ADR 0012:108 | 裁定一末段：四个词条 + 两处 Avoid 译注；冲突写进「问题」3 |

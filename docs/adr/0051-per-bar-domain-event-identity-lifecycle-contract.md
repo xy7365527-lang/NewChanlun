@@ -371,7 +371,18 @@ X 侧 `OwnAttempt / MayHaveCalled` 和 fill→Voice 归属的实体规则归 #13
 
 - B/E 外壳映射与读口：`rust/src/economic_session/store.rs:46`（commits 根链）、`:49`（`applications.fact_key UNIQUE`）、`:653-654`（StaleWriter）、`:1095-1097`（重放不等即 StorageUnavailable）；`rust/src/economic_session/book.rs:92-99`（`fact_key` 构成，保持不变）；`rust/src/economic_session/service.rs:185-192`（cut 查询，按裁定四补 delta 读口与 Gap）；`rust/src/economic_session/tb03c_book.rs:585-596`（一次提交多条事件，映射时补 `ordinal`）、`:632`（latch 单调）。
 - S 侧：`rust/src/bin/s_structure_session.rs:219-238`（raw_events）、`:258-263`（撤回字段）、`:295-307`（structure_deltas，含 `policy_records`）、`:5506`（重复不回放、缺口显式 Gap）。字段名不改，按裁定一映射进外壳；续接沿用 #1372 的实现。
-- Python 读者：`s_session/` 下读这些字段的非测试模块有 `s_query.py`、`economic_query.py`、`s_readonly_server.py`、`s_socket_client.py`、`s_query_integrity.py`、`economic_http.py`、`economic_service_control.py`、`s_service_control.py`、`s_tb02_contract.py`。本裁定不改既有字段名；实施票改 B/E 读口时须逐一核这些读者的兼容，本 ADR 不声称零影响。
+- Python 读者（`s_session/` 下非测试模块，按读取字段列出函数区间；均为兼容核对点，不是本 ADR 的修改点）：
+  - `s_query.py:212-230` `validate_envelope`（`source_epoch`/`producer_epoch` 信封）、`:237-252` `_order`（`fact_key` 排序与撤回代）、`:417-476` `watch_page`（`deltas`、`next_cursor`、`gap`）、`:479-490` `response_envelope`。
+  - `economic_query.py:39-47` `verify_cut`（`domain_id`/`commit_seq`/`root_hash`）、`:164-212` `_original_event`（`fact_key` 来源身份核验）、`:215-245` `_correction_predecessor`（`original_fact_key`）、`:248-365` `verify_fill_allocations`（按 `fact_key` 去重与对账）。
+  - `s_readonly_server.py:168-174` `_verify_batch_profile`（`raw_events`）、`:177-187` `_profile_at_cut`、`:292-327` 按 generation 读 `structure_deltas` 的三个函数、`:373-395` `_read_objects_view`（`withdrawn_generation`/撤回）、`:403-534` `_read_snapshot_in_tx`（`raw_events` 的 `source_epoch`/`event_id`）。
+  - `s_socket_client.py:33-46` `reply_envelope`、`:75-110` `validate_reply`（生产者 epoch）、`:277-282` `_page_cut`、`:290-308` `_page_changes`（`commit_seq` 连续）、`:311-372` `_verify_page_document`（`writer_epoch` 与固定 cut）。
+  - `s_query_integrity.py:37-81` `LEGACY_SCHEMA`（`raw_events`、`structure_deltas`、`writer_epoch_history` 表结构）、`:472-553` `evidence_sources`、`:565-594` `materialize_graph_originals`（`delta_json`）、`:731-756` `capture_digest`。
+  - `economic_http.py:10-11` `HEADER`、`:14-33` `validate_request`（信封 epoch 与因果引用）。
+  - `economic_service_control.py:19-58` `read_config`（各域 epoch 与源身份）、`:83-124` `start_owner`（回复 `writer_epoch`）。
+  - `s_service_control.py:61-93` `read_config`（`writer_epoch`）、`:552-567` `ready_request`、`:569-621` `wait_ready`（`cut` 与 `producer_epoch`）、`:763-792` `recover`（新 epoch）。
+  - `s_tb02_contract.py:61-62` `FACT_COLUMNS`/`FACT_FIELDS`、`:325-382` `_validate_fact`（`fact_key`、撤回生命周期）。
+
+  本裁定不改既有字段名；实施票改 B/E 读口时须逐一核这些读者的兼容，本 ADR 不声称零影响。
 - Lean：`rg -l 'structure_deltas|fact_key|writer_epoch' -g '*.lean'` 在 `da03a10ee0` 上 0 命中。
 
 ## 越界登记
