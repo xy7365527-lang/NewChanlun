@@ -10,6 +10,7 @@
 import { drainRequested, withLegacyAdmission, DrainFrozenError } from "./drain-control.mts";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { assertDockerCliProxyReachable, assertSwarmExecutionReady, swarmAgent, swarmSandbox } from "./swarm-route.mts";
+import { hostGh, fetchQueueJson, renderPlanPrompt, runImplementer } from "./swarm-prompts.mts";
 import { assertControlledBase, controlledSwarmTicket, swarmBases, swarmBinding } from "./swarm-controlled.mts";
 import { execSync } from "node:child_process";
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
@@ -107,7 +108,8 @@ async function planAndClaim(): Promise<Array<{ id: string; title: string; branch
       name: "planner",
       maxIterations: 1,
       agent: swarmAgent(),
-      promptFile: "./.sandcastle/plan-prompt.md",
+      // 容器内没有 GitHub 凭据：队列由宿主列出后 inline 注入（过滤语义同 plan-prompt.md）。
+      prompt: renderPlanPrompt(fetchQueueJson(hostGh(GH_CLEAN_ENV))),
     });
     const m = plan.stdout.match(/<plan>([\s\S]*?)<\/plan>/);
     if (!m) throw new Error("planner 未输出 <plan> 标签");
@@ -161,11 +163,10 @@ for (let iteration = 1; iteration <= (controlledTicket ? 1 : MAX_ITERATIONS); it
           let reviewSession: string | undefined;
           return await runManagedSwarmTicket({
             cwd: sandbox.worktreePath, branch: issue.branch, issue: Number(issue.id),
-            implement: async () => (await sandbox.run({
-              name: "implementer", maxIterations: 1, agent: implementer,
-              promptFile: "./.sandcastle/codex-implement-prompt.md",
-              promptArgs: { ISSUE_NUMBER: issue.id },
-            })).stdout,
+            implement: () => runImplementer(issue.id, {
+              gh: hostGh(GH_CLEAN_ENV), agent: implementer, notify: ghIssueNotifier(GH_CLEAN_ENV),
+              run: (o) => sandbox.run(o as Parameters<typeof sandbox.run>[0]),
+            }),
             review: async (prompt) => {
               const result = await sandbox.run({
                 name: "reviewer", maxIterations: 1, agent: reviewer, prompt,
