@@ -2,31 +2,59 @@
  * 不加载 profile、不传 --security-opt/--cap-add/--privileged；内层 Codex 不再起 bwrap。 */
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { lstatSync, mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 
 export interface MountSpec { hostPath: string; sandboxPath: string; readonly?: boolean }
 
 /** worktree 内必须物理只读的子路径；不存在则不新挂（容器内可新建，但宿主封包拒收这些路径）。 */
 export const PROTECTED_SUBPATHS = [".git", ".agents", ".codex"] as const;
 
+export interface PathProbe { lstatSymlink(path: string): boolean | null; realpath(path: string): string }
+/** lstat 不跟随链接：null 表示路径不存在。 */
+export const fsProbe: PathProbe = {
+  lstatSymlink: (path) => { try { return lstatSync(path).isSymbolicLink(); } catch { return null; } },
+  realpath: (path) => realpathSync(path),
+};
+
+const within = (root: string, path: string) => path === root || path.startsWith(root.endsWith(sep) ? root : root + sep);
+/** 路径不存在时回退到最近存在祖先的真实路径再拼回，用于 hooksPath 这类可能尚未创建的目标。 */
+export function realpathLoose(path: string, probe: Pick<PathProbe, "realpath"> = fsProbe): string {
+  const missing: string[] = [];
+  let cur = resolve(path);
+  for (;;) {
+    try { return join(probe.realpath(cur), ...missing.reverse()); }
+    catch {
+      const parent = dirname(cur);
+      if (parent === cur) return resolve(path);
+      missing.push(cur.slice(parent.length + 1)); cur = parent;
+    }
+  }
+}
+
 /** 只收紧、不新增来源：worktree 以外的挂载（Sandcastle 的 git 挂载）改只读，
- * worktree 内已存在的受保护子路径用同一宿主路径再挂一次只读。 */
+ * worktree 内已存在的受保护子路径用同一宿主路径再挂一次只读。
+ * 受保护子路径若是符号链接（Docker -v 会跟随到链接目标）或真实路径逃出 worktree，一律拒绝，不静默跳过。 */
 export function hardenMounts(
   mounts: readonly MountSpec[],
   worktreeHostPath: string,
-  exists: (path: string) => boolean = existsSync,
+  probe: PathProbe = fsProbe,
 ): MountSpec[] {
   const worktree = mounts.find((m) => m.hostPath === worktreeHostPath);
   if (!worktree) throw new Error("Docker 挂载缺少 worktree 本体，拒绝猜测只读边界");
+  const root = probe.realpath(worktree.hostPath);
   const out: MountSpec[] = mounts.map((m) => (m === worktree ? { ...m } : { ...m, readonly: true }));
   for (const name of PROTECTED_SUBPATHS) {
     const sandboxPath = `${worktree.sandboxPath}/${name}`;
     const hostPath = join(worktree.hostPath, name);
+    const link = probe.lstatSymlink(hostPath);
+    if (link === true) throw new Error(`受保护路径 ${name} 是符号链接，拒绝挂载（会逃出 worktree）`);
     const present = out.find((m) => m.sandboxPath === sandboxPath);
     if (present) { present.readonly = true; continue; }
-    if (exists(hostPath)) out.push({ hostPath, sandboxPath, readonly: true });
+    if (link === null) continue;
+    if (!within(root, probe.realpath(hostPath))) throw new Error(`受保护路径 ${name} 的真实路径逃出 worktree，拒绝挂载`);
+    out.push({ hostPath, sandboxPath, readonly: true });
   }
   return out;
 }
@@ -37,12 +65,12 @@ interface HasCreate<O extends { mounts: Array<{ hostPath: string; sandboxPath: s
 /** 包一层 provider.create：只改写 mounts，其余原样交给 Sandcastle 的 docker()。 */
 export function hardenProvider<P extends object, O extends { mounts: Array<{ hostPath: string; sandboxPath: string; readonly?: boolean }>; worktreePath: string }, H>(
   base: P,
-  exists: (path: string) => boolean = existsSync,
+  probe: PathProbe = fsProbe,
 ): P {
   const inner = (base as unknown as HasCreate<O, H>).create;
   return {
     ...base,
-    create: (options: O) => inner.call(base, { ...options, mounts: hardenMounts(options.mounts, options.worktreePath, exists) }),
+    create: (options: O) => inner.call(base, { ...options, mounts: hardenMounts(options.mounts, options.worktreePath, probe) }),
   } as P;
 }
 
@@ -150,6 +178,7 @@ export function assertHostPackagingSafe(
   cwd: string,
   git: (args: string[]) => string = (args) => execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] }),
   allowedDrivers: readonly string[] = ["lfs"],
+  probe: Pick<PathProbe, "realpath"> = fsProbe,
 ): void {
   let config = "";
   try { config = git(["config", "--show-origin", "--get-regexp", "^(filter|diff|merge)\\..*\\.(clean|smudge|process|textconv|driver|command)$|^core\\.(hookspath|fsmonitor)$"]); }
@@ -163,8 +192,11 @@ export function assertHostPackagingSafe(
     if (key === "core.fsmonitor") throw new Error("宿主配置了 core.fsmonitor，拒绝封包");
     if (key === "core.hookspath") {
       const value = line.split(/\s+/).slice(2).join(" ");
-      const root = resolve(cwd);
-      if (resolve(root, value).startsWith(root + "/")) throw new Error("core.hooksPath 指向 worktree 内，拒绝封包");
+      if (!isAbsolute(value)) throw new Error("core.hooksPath 不是绝对路径，拒绝封包");
+      // realpath 跟随符号链接：目录经链接回到 worktree 内同样拒绝。
+      const root = realpathLoose(cwd, probe), target = realpathLoose(value, probe);
+      // worktree 自己的 .git 在容器内只读，其下的 hooks 目录可信。
+      if (within(root, target) && !within(join(root, ".git"), target)) throw new Error("core.hooksPath（含符号链接解析后）位于 worktree 内，拒绝封包");
     }
   }
   if (!drivers.size) return;
