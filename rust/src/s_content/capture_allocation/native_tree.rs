@@ -147,7 +147,7 @@ impl<K: Ord, V> NativeTree<K, V> {
         not(feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+            reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
         )
     )]
     pub fn allocation_bytes(&self) -> usize {
@@ -196,7 +196,7 @@ impl<K: Ord> NativeSet<K> {
         not(feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+            reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
         )
     )]
     pub fn first(&self) -> Option<&K> {
@@ -206,7 +206,7 @@ impl<K: Ord> NativeSet<K> {
         not(feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+            reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
         )
     )]
     pub fn last(&self) -> Option<&K> {
@@ -216,7 +216,7 @@ impl<K: Ord> NativeSet<K> {
         not(feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+            reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
         )
     )]
     pub fn range<Q: Ord + ?Sized, R: std::ops::RangeBounds<Q>>(
@@ -265,7 +265,7 @@ impl<K: Ord> NativeSet<K> {
         not(feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+            reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
         )
     )]
     pub fn is_empty(&self) -> bool {
@@ -278,7 +278,7 @@ impl<K: Ord> NativeSet<K> {
         not(feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+            reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
         )
     )]
     pub fn allocation_bytes(&self) -> usize {

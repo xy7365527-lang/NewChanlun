@@ -119,7 +119,7 @@ impl Fields {
     }
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     #[cfg_attr(
         feature = "s_incremental",
@@ -137,7 +137,7 @@ impl Fields {
     }
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     #[cfg_attr(
         feature = "s_incremental",
@@ -164,7 +164,7 @@ impl Fields {
     }
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     #[cfg_attr(
         feature = "s_incremental",
@@ -885,7 +885,7 @@ impl NativeProjection<'_> {
 impl HistoryObjects<'_> {
     #[cfg_attr(
         not(all(test, feature = "s_incremental")),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
     )]
     pub(super) fn native_sweep(&mut self) -> Option<HistorySweep> {
         self.native_sweep_admitted(&super::audit_store::NativeAdmission(None))
@@ -911,7 +911,7 @@ impl HistoryObjects<'_> {
     }
     #[cfg_attr(
         feature = "s_incremental",
-        allow(dead_code, reason = "#1608：s_capture_native_testonly 构建不触达此项")
+        allow(dead_code, reason = "#1608：s_incremental 构建不触达此项")
     )]
     pub(super) fn into_entries(self) -> sc::CodecVec<Entry> {
         self.entries
@@ -1090,7 +1090,7 @@ impl HistoryObjects<'_> {
         not(feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+            reason = "#1608：测试辅助，仅 s_incremental 测试使用"
         )
     )]
     fn native_dual_at_cut_scan_for_test(
@@ -1789,7 +1789,7 @@ pub(super) fn load(
 }
 #[cfg_attr(
     not(all(test, feature = "s_incremental")),
-    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
 )]
 pub(super) fn load_for_audit(
     tx: &Transaction<'_>,
@@ -2414,7 +2414,7 @@ struct HistoryEvents {
     not(feature = "s_incremental"),
     allow(
         dead_code,
-        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        reason = "#1608：测试辅助，仅 s_incremental 测试使用"
     )
 )]
 pub(super) fn take_load_lookup_counts() -> (usize, usize) {
@@ -2428,7 +2428,7 @@ pub(super) fn take_load_lookup_counts() -> (usize, usize) {
     not(feature = "s_incremental"),
     allow(
         dead_code,
-        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        reason = "#1608：测试辅助，仅 s_incremental 测试使用"
     )
 )]
 pub(super) fn load_id_capacity() -> usize {

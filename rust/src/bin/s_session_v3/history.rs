@@ -215,22 +215,22 @@ pub(super) struct IndexedHistory {
 pub(super) struct NativeRawPrefixes {
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     raw_nodes: sc::CodecVec<NodeDigest>,
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     raw_wire_nodes: sc::CodecVec<NodeDigest>,
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     prefixes: NativeHistoryPrefixes,
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     ordered: bj::RawPrefixFacts,
 }
@@ -294,14 +294,14 @@ impl NativeRawPrefixes {
     }
     #[cfg_attr(
         not(all(test, feature = "s_incremental")),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
     )]
     pub(super) fn checked_len(&self) -> usize {
         self.raw_nodes.len()
     }
     #[cfg_attr(
         not(all(test, feature = "s_incremental")),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
     )]
     pub(super) fn published_len(&self) -> u64 {
         self.prefixes.raw.count
@@ -379,7 +379,7 @@ pub(super) fn read_indexed_history(
 
 #[cfg_attr(
     not(all(test, feature = "s_incremental")),
-    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
 )]
 pub(super) fn read_indexed_history_for_audit(
     tx: &Transaction<'_>,
@@ -407,7 +407,7 @@ pub(super) fn read_indexed_history_for_audit(
 
 #[cfg_attr(
     not(all(test, feature = "s_incremental")),
-    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
 )]
 pub(super) fn read_indexed_history_for_audit_captured<'a>(
     tx: &Transaction<'_>,
@@ -432,7 +432,7 @@ pub(super) fn read_indexed_history_for_audit_captured<'a>(
 
 #[cfg_attr(
     not(all(test, feature = "s_incremental")),
-    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
 )]
 pub(super) fn read_indexed_history_for_audit_captured_with_records<'a>(
     tx: &Transaction<'_>,
@@ -459,7 +459,7 @@ pub(super) fn read_indexed_history_for_audit_captured_with_records<'a>(
 
 #[cfg_attr(
     not(all(test, feature = "s_incremental")),
-    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
 )]
 pub(super) fn read_indexed_history_for_audit_captured_with_records_admitted<'a>(
     tx: &Transaction<'_>,
@@ -1308,7 +1308,7 @@ pub(super) fn revalidate_current_for_reuse(
 
 #[cfg_attr(
     not(feature = "s_incremental"),
-    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
 )]
 pub(super) fn revalidate_current_for_reuse_admitted(
     tx: &Transaction<'_>,
@@ -1693,7 +1693,7 @@ fn field<'a>(
 }
 #[cfg_attr(
     not(all(test, feature = "s_incremental")),
-    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
 )]
 fn text<'a>(
     s: &mut (impl CodecRead + ?Sized),
@@ -2093,7 +2093,7 @@ fn record_history_prefix_leaves(index: usize, count: u64) {
     not(feature = "s_incremental"),
     allow(
         dead_code,
-        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        reason = "#1608：测试辅助，仅 s_incremental 测试使用"
     )
 )]
 fn reset_history_prefix_leaves() {
@@ -2104,7 +2104,7 @@ fn reset_history_prefix_leaves() {
     not(feature = "s_incremental"),
     allow(
         dead_code,
-        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        reason = "#1608：测试辅助，仅 s_incremental 测试使用"
     )
 )]
 fn history_prefix_leaves() -> [u64; 6] {
@@ -2653,7 +2653,7 @@ impl<'a> HashReader<'a> {
     }
     #[cfg_attr(
         not(all(test, feature = "s_incremental")),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
     )]
     pub(crate) fn verify_many(
         &mut self,

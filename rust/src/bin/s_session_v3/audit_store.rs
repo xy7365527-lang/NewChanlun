@@ -527,7 +527,7 @@ pub(crate) trait CodecRead: NodeSource {
     }
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     fn verify_audit_many_fresh(
         &mut self,
@@ -538,7 +538,7 @@ pub(crate) trait CodecRead: NodeSource {
     }
     #[cfg_attr(
         not(all(test, feature = "s_incremental")),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
     )]
     fn verify_many_fresh(
         &mut self,
@@ -1384,7 +1384,7 @@ impl RefFields<'_> {
     }
     #[cfg_attr(
         not(all(test, feature = "s_incremental")),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
     )]
     pub fn len(&self) -> usize {
         match self {

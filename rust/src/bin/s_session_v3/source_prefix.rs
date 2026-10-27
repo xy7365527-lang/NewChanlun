@@ -418,7 +418,7 @@ impl<'a> IntoIterator for &'a SourceCoords {
 pub(super) enum ParseDomain {
     #[cfg_attr(
         not(all(test, feature = "s_incremental")),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
     )]
     Public,
     JsonInner,
@@ -478,7 +478,7 @@ pub(super) struct NativeSourceMemo<'capture> {
 impl<'capture> NativeSourceMemo<'capture> {
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     pub(super) fn new(capture: &'capture sc::AuditCapture, raw: RawEventsView<'capture>) -> Self {
         #[cfg(test)]
@@ -507,7 +507,7 @@ impl<'capture> NativeSourceMemo<'capture> {
         not(feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+            reason = "#1608：测试辅助，仅 s_incremental 测试使用"
         )
     )]
     fn winner_intervals(

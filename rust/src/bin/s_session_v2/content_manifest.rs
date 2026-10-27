@@ -12,7 +12,7 @@ use crate::v3::business_json::TextValue;
     not(feature = "s_incremental"),
     allow(
         unused_imports,
-        reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+        reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
     )
 )]
 use newchan_rust::s_content::capture_allocation::native_owned::NativeValue;

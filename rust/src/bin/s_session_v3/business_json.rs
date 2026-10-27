@@ -66,7 +66,7 @@ impl RawEvents {
         not(feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+            reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
         )
     )]
     pub(crate) fn push_native(
@@ -106,7 +106,7 @@ impl RawEvents {
     }
     #[cfg_attr(
         not(all(test, feature = "s_incremental")),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
     )]
     #[cfg_attr(
         all(test, feature = "s_incremental"),
@@ -419,7 +419,7 @@ impl Default for RawPrefixFacts {
 impl RawPrefixFacts {
     #[cfg_attr(
         not(all(test, feature = "s_incremental")),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
     )]
     pub(super) fn prefix_len(&self) -> usize {
         self.prefix
@@ -495,7 +495,7 @@ impl<'raw> RawPrefixIndex<'raw> {
     }
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     pub(super) fn restore(
         raw: RawEventsView<'raw>,
@@ -549,7 +549,7 @@ impl<'raw> RawPrefixIndex<'raw> {
 
     #[cfg_attr(
         not(all(test, feature = "s_incremental")),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
     )]
     pub(super) fn is_empty(&self) -> bool {
         self.winners.is_empty()
@@ -562,7 +562,7 @@ impl<'raw> RawPrefixIndex<'raw> {
         not(feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+            reason = "#1608：测试辅助，仅 s_incremental 测试使用"
         )
     )]
     pub(super) fn retained_slots(&self) -> [usize; 3] {
@@ -580,7 +580,7 @@ impl<'raw> RawPrefixIndex<'raw> {
     }
     #[cfg_attr(
         not(all(test, feature = "s_incremental")),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
     )]
     pub(super) fn advance(&mut self, prefix: usize) -> Result<RawPrefixChanges, String> {
         self.advance_admitted(prefix, &super::audit_store::NativeAdmission(None))
@@ -882,7 +882,7 @@ pub(super) fn validate_raw_coordinate(
 /// cold 与 owner 增量账共用：seq/修订前件由同一已核索引提供，内容谓词不另写一份。
 #[cfg_attr(
     not(feature = "s_incremental"),
-    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
 )]
 pub(super) fn validate_raw_row(
     event: JsonView<'_>,
@@ -894,7 +894,7 @@ pub(super) fn validate_raw_row(
 }
 #[cfg_attr(
     not(all(test, feature = "s_incremental")),
-    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
 )]
 pub(crate) fn validate_raw_row_admitted(
     event: JsonView<'_>,
@@ -1704,7 +1704,7 @@ impl PlainJson {
         not(feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+            reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
         )
     )]
     pub(crate) fn with_reservation(mut self, permit: Option<NativeReservation>) -> Self {

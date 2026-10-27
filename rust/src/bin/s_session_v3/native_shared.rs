@@ -210,7 +210,7 @@ macro_rules! shared_family {
                 not(feature = "s_incremental"),
                 allow(
                     dead_code,
-                    reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+                    reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
                 )
             )]
             pub(crate) fn allocation_bytes(&self) -> usize {

@@ -93,7 +93,7 @@ fn err(e: impl std::fmt::Display) -> String {
     not(feature = "s_incremental"),
     allow(
         dead_code,
-        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        reason = "#1608：测试辅助，仅 s_incremental 测试使用"
     )
 )]
 fn f(k: &str) -> PathStep {
@@ -158,7 +158,7 @@ struct NativeFieldMemo<'capture> {
 impl<'capture> NativeFieldMemo<'capture> {
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     fn new(capture: &'capture sc::AuditCapture) -> Self {
         Self {
@@ -360,7 +360,7 @@ fn cv(v: &Value) -> Result<V, String> {
 }
 #[cfg_attr(
     not(all(test, feature = "s_incremental")),
-    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
 )]
 struct HashOnly;
 impl NodeSink for HashOnly {
@@ -1249,12 +1249,12 @@ pub(super) struct NativeRawLedgerStats {
 pub(super) struct NativeRawFacts {
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     winners: bj::RawPrefixFacts,
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     sources: BusinessMap<i64, Source>,
     originals: BusinessMap<usize, (i64, Source)>,
@@ -1262,14 +1262,14 @@ pub(super) struct NativeRawFacts {
 impl NativeRawFacts {
     #[cfg_attr(
         not(all(test, feature = "s_incremental")),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
     )]
     pub(super) fn prefix_len(&self) -> usize {
         self.winners.prefix_len()
     }
     #[cfg_attr(
         not(all(test, feature = "s_incremental")),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
     )]
     pub(super) fn hashed_rows(&self) -> usize {
         self.originals.len()
@@ -1310,7 +1310,7 @@ impl<'raw> NativeRawLedger<'raw> {
 
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     fn new(raw: RawEventsView<'raw>) -> Self {
         Self {
@@ -1326,7 +1326,7 @@ impl<'raw> NativeRawLedger<'raw> {
     }
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     fn restore(
         raw: RawEventsView<'raw>,
@@ -1571,7 +1571,7 @@ impl<'capture> NativeSourceAudit<'capture> {
         not(feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+            reason = "#1608：测试辅助，仅 s_incremental 测试使用"
         )
     )]
     pub(super) fn raw_ledger_stats(&self) -> NativeRawLedgerStats {

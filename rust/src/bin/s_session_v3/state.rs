@@ -57,7 +57,7 @@ pub(super) struct ImmutableHistoricalAudit {
         all(not(test), not(feature = "s_incremental")),
         allow(
             dead_code,
-            reason = "#1608：默认 feature 的非测试构建不触达；测试与 s_capture_native_testonly 构建使用"
+            reason = "#1608：默认 feature 的非测试构建不触达；测试与 s_incremental 构建使用"
         )
     )]
     pub control_facts: v2::ControlFacts,
@@ -65,7 +65,7 @@ pub(super) struct ImmutableHistoricalAudit {
         all(not(test), not(feature = "s_incremental")),
         allow(
             dead_code,
-            reason = "#1608：默认 feature 的非测试构建不触达；测试与 s_capture_native_testonly 构建使用"
+            reason = "#1608：默认 feature 的非测试构建不触达；测试与 s_incremental 构建使用"
         )
     )]
     pub raw_prefixes: Option<history::NativeRawPrefixes>,
@@ -73,7 +73,7 @@ pub(super) struct ImmutableHistoricalAudit {
         all(not(test), not(feature = "s_incremental")),
         allow(
             dead_code,
-            reason = "#1608：默认 feature 的非测试构建不触达；测试与 s_capture_native_testonly 构建使用"
+            reason = "#1608：默认 feature 的非测试构建不触达；测试与 s_incremental 构建使用"
         )
     )]
     pub raw_sources: Option<source_audit::NativeRawFacts>,
@@ -81,7 +81,7 @@ pub(super) struct ImmutableHistoricalAudit {
         all(not(test), not(feature = "s_incremental")),
         allow(
             dead_code,
-            reason = "#1608：默认 feature 的非测试构建不触达；测试与 s_capture_native_testonly 构建使用"
+            reason = "#1608：默认 feature 的非测试构建不触达；测试与 s_incremental 构建使用"
         )
     )]
     pub auxiliary_facts: Option<aux_index::NativeAuxFacts>,
@@ -90,7 +90,7 @@ pub(super) struct ImmutableHistoricalAudit {
         all(not(test), not(feature = "s_incremental")),
         allow(
             dead_code,
-            reason = "#1608：默认 feature 的非测试构建不触达；测试与 s_capture_native_testonly 构建使用"
+            reason = "#1608：默认 feature 的非测试构建不触达；测试与 s_incremental 构建使用"
         )
     )]
     pub object_facts: Option<object_index::HistorySweep>,
@@ -107,7 +107,7 @@ enum HistoricalOwner {
         not(feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+            reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
         )
     )]
     Shared(super::native_shared::NativeRc<ImmutableHistoricalAudit>),
@@ -671,7 +671,7 @@ enum RetentionReport {
         all(not(test), not(feature = "s_incremental")),
         allow(
             dead_code,
-            reason = "#1608：默认 feature 的非测试构建不触达；测试与 s_capture_native_testonly 构建使用"
+            reason = "#1608：默认 feature 的非测试构建不触达；测试与 s_incremental 构建使用"
         )
     )]
     Skip,

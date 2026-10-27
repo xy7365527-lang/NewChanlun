@@ -650,7 +650,7 @@ pub(super) fn recover(
 
 #[cfg_attr(
     not(all(test, feature = "s_incremental")),
-    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
 )]
 
 fn err(e: impl std::fmt::Display) -> String {

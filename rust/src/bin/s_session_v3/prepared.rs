@@ -189,7 +189,7 @@ impl Runtime {
         not(feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+            reason = "#1608：测试辅助，仅 s_incremental 测试使用"
         )
     )]
     pub(super) fn set_after_prepare_for_request_test(
@@ -298,7 +298,7 @@ impl Runtime {
         not(feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+            reason = "#1608：测试辅助，仅 s_incremental 测试使用"
         )
     )]
     pub(super) fn commit_in_request(
@@ -1208,7 +1208,7 @@ impl Runtime {
             not(feature = "s_incremental"),
             allow(
                 unused_variables,
-                reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+                reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
             )
         )]
         workspace_eligible: bool,

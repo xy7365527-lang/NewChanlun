@@ -28,7 +28,7 @@ impl RawAdvanceBinding {
         not(feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+            reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
         )
     )]
     pub(super) fn owner_life(self) -> u64 {
@@ -38,7 +38,7 @@ impl RawAdvanceBinding {
         not(feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+            reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
         )
     )]
     pub(crate) fn domain(self) -> RawDomain {
@@ -226,7 +226,7 @@ pub(super) struct CommittedRawState {
         not(feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+            reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
         )
     )]
     pub(super) seal: SnapshotSeal,
@@ -234,7 +234,7 @@ pub(super) struct CommittedRawState {
         not(feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+            reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
         )
     )]
     binding: RawAdvanceBinding,
@@ -242,7 +242,7 @@ pub(super) struct CommittedRawState {
         not(feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+            reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
         )
     )]
     pub(super) facts: RawPrefixFacts,
@@ -421,7 +421,7 @@ impl PendingRawState {
         not(feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+            reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
         )
     )]
     pub(super) fn advance<'raw>(
@@ -429,7 +429,7 @@ impl PendingRawState {
             not(feature = "s_incremental"),
             allow(
                 unused_mut,
-                reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+                reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
             )
         )]
         mut previous: Option<CommittedRawState>,
@@ -723,7 +723,7 @@ impl PendingRawState {
         not(feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+            reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
         )
     )]
     pub(super) fn close_effects(

@@ -76,7 +76,7 @@ pub(super) fn publish_prepared(
     all(not(test), feature = "s_incremental"),
     allow(
         dead_code,
-        reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
+        reason = "#1608：s_incremental 的非测试构建不触达此项"
     )
 )]
 pub(super) fn publish_borrowed(

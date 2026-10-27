@@ -293,7 +293,7 @@ thread_local! {
     not(feature = "s_incremental"),
     allow(
         dead_code,
-        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        reason = "#1608：测试辅助，仅 s_incremental 测试使用"
     )
 )]
 pub(crate) fn reset_native_record_field_stats() {
@@ -304,7 +304,7 @@ pub(crate) fn reset_native_record_field_stats() {
     not(feature = "s_incremental"),
     allow(
         dead_code,
-        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        reason = "#1608：测试辅助，仅 s_incremental 测试使用"
     )
 )]
 pub(crate) fn native_record_field_stats() -> NativeRecordFieldStats {
@@ -326,7 +326,7 @@ impl<'capture> NativeRecordFields<'capture> {
         all(not(test), not(feature = "s_incremental")),
         allow(
             dead_code,
-            reason = "#1608：默认 feature 的非测试构建不触达；测试与 s_capture_native_testonly 构建使用"
+            reason = "#1608：默认 feature 的非测试构建不触达；测试与 s_incremental 构建使用"
         )
     )]
     pub(crate) fn new_admitted(

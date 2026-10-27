@@ -1306,7 +1306,7 @@ thread_local! {static AUX_AUDIT_STATS:std::cell::Cell<[u64;6]>=const{std::cell::
     not(feature = "s_incremental"),
     allow(
         dead_code,
-        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        reason = "#1608：测试辅助，仅 s_incremental 测试使用"
     )
 )]
 pub(super) fn reset_aux_audit_stats() {
@@ -1317,7 +1317,7 @@ pub(super) fn reset_aux_audit_stats() {
     not(feature = "s_incremental"),
     allow(
         dead_code,
-        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        reason = "#1608：测试辅助，仅 s_incremental 测试使用"
     )
 )]
 pub(super) fn aux_audit_stats() -> [u64; 6] {
@@ -1455,7 +1455,7 @@ fn same_birth_order<'a>(
 impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
     #[cfg_attr(
         not(all(test, feature = "s_incremental")),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
     )]
     pub(super) fn from_loaded(
         s: &super::history::HashReader<'capture>,

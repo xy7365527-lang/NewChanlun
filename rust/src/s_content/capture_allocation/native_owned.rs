@@ -12,7 +12,7 @@ use std::{
     not(feature = "s_incremental"),
     allow(
         dead_code,
-        reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+        reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
     )
 )]
 pub(crate) struct NativeBox<T> {
@@ -24,7 +24,7 @@ impl<T> NativeBox<T> {
         not(feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+            reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
         )
     )]
     pub(crate) fn from_reserved(
@@ -37,7 +37,7 @@ impl<T> NativeBox<T> {
         not(feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+            reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
         )
     )]
     pub(crate) fn attach(&mut self, permit: NativeReservation) {

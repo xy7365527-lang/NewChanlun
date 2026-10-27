@@ -271,7 +271,7 @@ impl Pool {
         all(not(test), feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
+            reason = "#1608：s_incremental 的非测试构建不触达此项"
         )
     )]
     fn build_bounded_counts(
@@ -741,7 +741,7 @@ impl Keeper {
         all(not(test), feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
+            reason = "#1608：s_incremental 的非测试构建不触达此项"
         )
     )]
     pub(super) fn report(&self) -> serde_json::Value {
@@ -775,7 +775,7 @@ impl<'a> Trial<'a> {
         all(not(test), feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
+            reason = "#1608：s_incremental 的非测试构建不触达此项"
         )
     )]
     pub(super) fn new(
@@ -834,7 +834,7 @@ impl<'a> Trial<'a> {
         all(not(test), feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
+            reason = "#1608：s_incremental 的非测试构建不触达此项"
         )
     )]
     pub(super) fn record(&mut self, cut: &PublishedCut, counts: &Counts) -> Result<(), String> {
@@ -863,7 +863,7 @@ impl<'a> Trial<'a> {
         all(not(test), feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
+            reason = "#1608：s_incremental 的非测试构建不触达此项"
         )
     )]
     pub(super) fn complete(
@@ -880,7 +880,7 @@ impl<'a> Trial<'a> {
         all(not(test), feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
+            reason = "#1608：s_incremental 的非测试构建不触达此项"
         )
     )]
     pub(super) fn complete_admitted(
@@ -909,7 +909,7 @@ impl<'a> Trial<'a> {
         all(not(test), feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
+            reason = "#1608：s_incremental 的非测试构建不触达此项"
         )
     )]
     pub(super) fn seal(self, tx: &Transaction<'_>, frontier: i64) -> Result<PendingPool, String> {

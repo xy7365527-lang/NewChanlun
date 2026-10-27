@@ -379,7 +379,7 @@ pub(super) struct RequestAuditContext {
         not(feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+            reason = "#1608：测试辅助，仅 s_incremental 测试使用"
         )
     )]
     binding_hook: Option<fn(&Transaction<'_>)>,
@@ -388,7 +388,7 @@ pub(super) struct RequestAuditContext {
         not(feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+            reason = "#1608：测试辅助，仅 s_incremental 测试使用"
         )
     )]
     pub(super) cold: usize,
@@ -397,7 +397,7 @@ pub(super) struct RequestAuditContext {
         not(feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+            reason = "#1608：测试辅助，仅 s_incremental 测试使用"
         )
     )]
     pub(super) hits: usize,
@@ -418,22 +418,22 @@ impl Drop for RequestAuditContext {
 pub(super) struct VerifiedHistoricalSlot {
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     pub(super) binding: HistoricalDependencyBinding,
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     pub(super) capture: AuditCapture,
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     pub(super) node_count: usize,
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     pub(super) result: Rc<ImmutableHistoricalAudit>,
     #[cfg(feature = "s_incremental")]
@@ -451,7 +451,7 @@ impl RequestAuditContext {
         all(not(test), feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
+            reason = "#1608：s_incremental 的非测试构建不触达此项"
         )
     )]
     pub(super) fn original_scan_scratch_capacity_nodes(&self) -> usize {
@@ -462,7 +462,7 @@ impl RequestAuditContext {
         all(not(test), feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
+            reason = "#1608：s_incremental 的非测试构建不触达此项"
         )
     )]
     pub(super) fn with_source_keeper(keeper: super::cross_request_source_cache::Keeper) -> Self {
@@ -646,7 +646,7 @@ impl RequestAuditContext {
     }
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     pub(super) fn retain(
         &mut self,
@@ -683,7 +683,7 @@ impl RequestAuditContext {
         not(feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+            reason = "#1608：测试辅助，仅 s_incremental 测试使用"
         )
     )]
     pub(super) fn before_binding(&mut self, tx: &Transaction<'_>) {
@@ -696,7 +696,7 @@ impl RequestAuditContext {
         not(feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+            reason = "#1608：测试辅助，仅 s_incremental 测试使用"
         )
     )]
     pub(super) fn has_slot(&self) -> bool {
@@ -709,17 +709,17 @@ impl RequestAuditContext {
 pub(super) enum SqlCell {
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     Null,
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     Integer(i64),
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     Real(u64),
     Text(CodecVec<u8>),
@@ -729,7 +729,7 @@ pub(super) enum SqlCell {
 #[derive(Clone, Copy)]
 #[cfg_attr(
     not(feature = "s_incremental"),
-    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
 )]
 pub(super) enum SqlCellView<'a> {
     Null,
@@ -754,7 +754,7 @@ pub(super) fn push_cell<T>(
     not(feature = "s_incremental"),
     allow(
         dead_code,
-        reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+        reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
     )
 )]
 fn reserve_cells<T>(
@@ -770,7 +770,7 @@ fn reserve_cells<T>(
 impl SqlCellView<'_> {
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     fn copy_admitted(self, store: &NativeAdmission<'_>) -> Result<SqlCell, String> {
         Ok(match self {
@@ -859,7 +859,7 @@ impl ExactRows {
     /// SQLite 自身转换先经 CheckedStatement/CheckedRow 的 NOMEM 门再开放借用。
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     pub(super) fn read_admitted(
         tx: &Transaction<'_>,
@@ -935,7 +935,7 @@ impl ExactRows {
     }
     #[cfg_attr(
         not(all(test, feature = "s_incremental")),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
     )]
     pub(super) fn read(
         tx: &Transaction<'_>,
@@ -977,7 +977,7 @@ impl ExactRows {
 }
 #[cfg_attr(
     not(feature = "s_incremental"),
-    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
 )]
 fn storage(e: impl std::fmt::Display) -> String {
     format!("StorageUnavailable：历史原件绑定读取失败：{e}")
@@ -1003,7 +1003,7 @@ impl HistoricalDependencyBinding {
     }
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     pub(super) fn read_admitted(
         tx: &Transaction<'_>,
@@ -1090,7 +1090,7 @@ impl HistoricalDependencyBinding {
     }
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     fn read_source(
         tx: &Transaction<'_>,
@@ -2647,7 +2647,7 @@ impl ExactRows {
         all(not(test), feature = "s_incremental"),
         allow(
             dead_code,
-            reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
+            reason = "#1608：s_incremental 的非测试构建不触达此项"
         )
     )]
     pub(super) fn read_optional_bounded(
