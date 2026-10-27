@@ -4,11 +4,15 @@
 没有 `s_content_*`；v2 写者规则串不含 `bounded-layout`。本文件锁三件事：v2 读者对象次序与 Rust v2
 读者 SQL（`s_structure_session.rs` 的 `OBJECT_*_SQL`）同口径；`project_state` 的撤回数组按
 first_known_generation；任何布局组件在 v2 读面上一律拒收（负控）。具名夹具，不代替真实 S/Q 验收。
+文件名取 `test_tb01c_*` 前缀，使 CI 的 `unittest discover -s s_session/tests -p 'test_tb01c_*.py'` 实际执行本锁。
 """
 import re
 import sqlite3
+import sys
 import unittest
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import s_query_integrity as graph
 import s_readonly_server as readonly

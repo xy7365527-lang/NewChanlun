@@ -134,8 +134,43 @@ const V2_INIT_FLAGS: [&str; 7] = [
     "--delivery-retain-generations",
 ];
 
+#[cfg(test)]
+thread_local! {
+    /// #1491 ADR 0037（仅测试）：本线程的写者规则注入。未注入时 init 与写者门同现行为；注入后
+    /// init 写该串、写者门只放行该串，不同时接受 `V3_RULE_REVISION`（#799/#804 不设两档）。
+    static TEST_WRITER_RULE: std::cell::RefCell<Option<String>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// #1491（仅测试）：在 `f` 内注入写者规则（`None` 即不注入）；返回或展开时恢复原值。
+#[cfg(test)]
+fn with_test_writer_rule<T>(rule: Option<&str>, f: impl FnOnce() -> T) -> T {
+    struct Restore(Option<String>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            let previous = self.0.take();
+            TEST_WRITER_RULE.with(|r| *r.borrow_mut() = previous);
+        }
+    }
+    let injected = rule.map(str::to_owned);
+    let _restore = Restore(TEST_WRITER_RULE.with(|r| r.replace(injected)));
+    f()
+}
+
+#[cfg(test)]
+fn test_writer_rule() -> Option<String> {
+    TEST_WRITER_RULE.with(|r| r.borrow().clone())
+}
+
 /// #1405：历史 /1 仅供 Q/AsKnown 读取；新 writer 不自动续写或恢复旧规则库。
 fn require_current_writer_rule(rule: &str) -> Result<(), String> {
+    #[cfg(test)]
+    if let Some(injected) = test_writer_rule() {
+        if rule != injected {
+            return Err(format!("VersionUnsupported：测试注入写者规则 {injected}，库中 {rule}"));
+        }
+        return Ok(());
+    }
     if rule != V3_RULE_REVISION {
         return Err(format!("VersionUnsupported：S3写者要求规则 {V3_RULE_REVISION}，库中规则 {rule} 只可按原版本读取"));
     }
@@ -529,6 +564,10 @@ fn build_domain(
     meta_set(&tx, "advance_state", "idle")?;
     // #1394 整合 W-2：v3 只发布 TB-02-A/B，写自己的规则修订（见 `V3_RULE_REVISION`）。
     meta_set(&tx, "rule_revision", V3_RULE_REVISION)?;
+    #[cfg(test)]
+    if let Some(rule) = test_writer_rule() {
+        meta_set(&tx, "rule_revision", &rule)?;
+    }
     meta_set(
         &tx,
         "scope",
@@ -1716,5 +1755,28 @@ mod transaction_view_multiple_bad_fixture {
             Err(e) => e,
         };
         println!("AB_TWO_BAD {}", error);
+    }
+}
+
+#[cfg(test)]
+mod layout_writer_rule_injection {
+    use super::*;
+
+    /// #1491：测试写者规则注入只放行所注入的一个串；未注入时写者门与现行为相同。
+    #[test]
+    fn layout_writer_rule_injection_admits_only_the_injected_rule() {
+        let bounded = format!("{V3_RULE_REVISION}+bounded-layout/1");
+        assert!(require_current_writer_rule(V3_RULE_REVISION).is_ok());
+        assert!(require_current_writer_rule(&bounded).is_err());
+        with_test_writer_rule(Some(&bounded), || {
+            assert!(require_current_writer_rule(&bounded).is_ok());
+            assert!(require_current_writer_rule(V3_RULE_REVISION).is_err());
+        });
+        with_test_writer_rule(None, || {
+            assert!(require_current_writer_rule(V3_RULE_REVISION).is_ok());
+            assert!(require_current_writer_rule(&bounded).is_err());
+        });
+        assert!(require_current_writer_rule(V3_RULE_REVISION).is_ok());
+        assert!(require_current_writer_rule(&bounded).is_err());
     }
 }

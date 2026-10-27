@@ -447,15 +447,29 @@ fn ordering(a: &Entry, b: &Entry, dead: bool) -> std::cmp::Ordering {
 /// [`Layout::rank`] 取（代际前缀，[`order_key`]）。活动成员取首获知代，撤回成员取撤回代；
 /// layout/1 前缀恒 0，与 [`ordering`] 逐位同序。diff 与 changes 不是公开数组，仍沿
 /// [`ordering`] 的 layout/1 原键（#1491 第 1 轮作者评论），两者判的不是同一个序。
-fn public_rank(layout: Layout, e: &Entry, dead: bool) -> (i64, OrderKey<&str>) {
+/// 撤回成员缺撤回代即报错（fail-closed），不以默认代吸收（#1491 独审 LOW-1）。
+fn public_rank(layout: Layout, e: &Entry, dead: bool) -> Result<(i64, OrderKey<&str>), String> {
     let event = if dead {
-        // 撤回集成员按筛选条件必有撤回代；未撤回身份从不以撤回键入序。
-        e.life.withdrawn_generation.unwrap_or(i64::MAX)
+        e.life
+            .withdrawn_generation
+            .ok_or_else(|| err(format!("撤回成员 {} 缺撤回代", e.id.as_str())))?
     } else {
         e.life.first_known_generation
     };
-    layout.rank(event, order_key(e, dead))
+    Ok(layout.rank(event, order_key(e, dead)))
 }
+/// 排序前一次性校验：比较器不能传播错误，故先经本函数把缺撤回代的成员拒在排序之外。
+fn check_public_ranks<'e>(
+    layout: Layout,
+    members: impl IntoIterator<Item = &'e Entry>,
+    dead: bool,
+) -> Result<(), String> {
+    for e in members {
+        public_rank(layout, e, dead)?;
+    }
+    Ok(())
+}
+/// 仅在 [`check_public_ranks`] 通过后用于排序；两侧均为 `Ok`，比较即公开主序。
 fn public_ordering(layout: Layout, a: &Entry, b: &Entry, dead: bool) -> std::cmp::Ordering {
     public_rank(layout, a, dead).cmp(&public_rank(layout, b, dead))
 }
@@ -1154,6 +1168,7 @@ impl HistoryObjects<'_> {
             .filter(|(_, e)| e.life.withdrawn_generation.is_some_and(|d| d <= g))
             .collect::<Vec<_>>();
         let layout = self.layout;
+        check_public_ranks(layout, dead.iter().map(|m| m.1), true)?;
         active
             .sort_unstable_by(|a, b| public_ordering(layout, a.1, b.1, false).then(a.0.cmp(&b.0)));
         dead.sort_unstable_by(|a, b| public_ordering(layout, a.1, b.1, true).then(a.0.cmp(&b.0)));
@@ -1275,6 +1290,7 @@ fn at_cut_projected(
         s.native_codec_room(&mut dead, 1).map_err(err)?;
         dead.try_push((ordinal, e)).map_err(err)?;
     }
+    check_public_ranks(layout, dead.iter().map(|m| m.1), true)?;
     active.sort_unstable_by(|a, b| public_ordering(layout, a.1, b.1, false).then(a.0.cmp(&b.0)));
     dead.sort_unstable_by(|a, b| public_ordering(layout, a.1, b.1, true).then(a.0.cmp(&b.0)));
     let mut births = bj::new_work(allocation.as_ref());
@@ -2591,7 +2607,7 @@ fn native_rank(
     dead: bool,
     store: &(impl CodecRead + ?Sized),
 ) -> Result<PublicRank, String> {
-    let (epoch, key) = public_rank(layout, e, dead);
+    let (epoch, key) = public_rank(layout, e, dead)?;
     Ok((epoch, key.owned_admitted(store)?))
 }
 fn diff_rank(rank: &NativeRank, store: &(impl CodecRead + ?Sized)) -> Result<PublicRank, String> {
@@ -2633,13 +2649,16 @@ fn remove_rank(
     let key = (rank, ordinal);
     #[cfg(feature = "s_capture_native_testonly")]
     let before = set.allocation_bytes();
-    if let Some((old, ())) = set.remove_entry(&key) {
-        #[cfg(feature = "s_capture_native_testonly")]
-        retained.release(&old);
-        drop(old);
-        if set.is_empty() {
-            set.clear();
-        }
+    // #1491 独审 LOW-1：出集键由当场生命期取得；键缺失说明入集与出集取键不一致（如撤回代被
+    // 改写），留下陈旧成员会静默改变公开数组，故 fail-closed。
+    let Some((old, ())) = set.remove_entry(&key) else {
+        return Err(err(format!("RankSet出集键不存在（序号 {ordinal}）：入集与出集取键不一致")));
+    };
+    #[cfg(feature = "s_capture_native_testonly")]
+    retained.release(&old);
+    drop(old);
+    if set.is_empty() {
+        set.clear();
     }
     #[cfg(feature = "s_capture_native_testonly")]
     retained.release_bytes(before.saturating_sub(set.allocation_bytes()));
@@ -5496,6 +5515,10 @@ mod tests {
         for a in &entries {
             for b in &entries {
                 for dead in [false, true] {
+                    let withdrawn = |e: &Entry| e.life.withdrawn_generation.is_some();
+                    if dead && !(withdrawn(a) && withdrawn(b)) {
+                        continue;
+                    }
                     assert_eq!(
                         public_ordering(Layout::Sorted, a, b, dead),
                         ordering(a, b, dead),
@@ -5539,6 +5562,50 @@ mod tests {
                 assert_eq!(incremental, full, "{layout:?} cut={g}");
             }
         }
+    }
+
+    /// #1491 独审 LOW-1 负控：撤回代在入集后被改写（4→3），bounded 撤回键随之改变而不在集内；
+    /// 旧实现静默放行并留下陈旧成员，现须报错。layout/1 的 Shape 撤回键取首获知代、不随撤回代
+    /// 变化，同一改写下照常出集（正控）。
+    #[test]
+    fn layout_object_index_remove_rank_missing_key_fails_closed() {
+        let store = super::super::audit_store::NativeAdmission(None);
+        for layout in [Layout::Sorted, Layout::Bounded1] {
+            let (_, entries) = staggered_withdrawal_fixture();
+            let (_, mut rewritten) = staggered_withdrawal_fixture();
+            assert_eq!(rewritten[1].life.withdrawn_generation, Some(4));
+            rewritten[1].life.withdrawn_generation = Some(3);
+            let mut sweep = ProjectionSweep::new(&entries);
+            sweep.seek(4, layout, &entries);
+            let result = sweep.seek_admitted(1, layout, &rewritten, &store);
+            match layout {
+                Layout::Sorted => result.unwrap(),
+                Layout::Bounded1 => {
+                    let error = result.unwrap_err();
+                    assert!(error.contains("RankSet出集键不存在"), "{error}");
+                }
+            }
+        }
+    }
+
+    /// #1491 独审 LOW-1 负控：撤回成员缺撤回代时公开主序键报错，不以 `i64::MAX` 吸收；
+    /// 撤回事件已入游标、生命期却丢了撤回代时，入撤回集即拒。
+    #[test]
+    fn layout_object_index_withdrawn_without_generation_fails_closed() {
+        let (_, mut entries) = staggered_withdrawal_fixture();
+        assert_eq!(entries[2].life.withdrawn_generation, None);
+        for layout in [Layout::Sorted, Layout::Bounded1] {
+            let error = public_rank(layout, &entries[2], true).unwrap_err();
+            assert!(error.contains("缺撤回代"), "{error}");
+            assert!(public_rank(layout, &entries[2], false).is_ok());
+        }
+        let store = super::super::audit_store::NativeAdmission(None);
+        let mut sweep = ProjectionSweep::new(&entries);
+        entries[1].life.withdrawn_generation = None;
+        let error = sweep
+            .seek_admitted(4, Layout::Bounded1, &entries, &store)
+            .unwrap_err();
+        assert!(error.contains("缺撤回代"), "{error}");
     }
 
     #[cfg(feature = "s_capture_native_testonly")]

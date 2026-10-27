@@ -20,7 +20,12 @@ pub(crate) enum Layout {
 impl Layout {
     /// 从完整 `rule_revision` 串取布局组件；同串至多一个布局组件。
     pub(crate) fn of_rule(rule_revision: &str) -> Result<Self, String> {
-        Ok(split(rule_revision)?.1)
+        let layout = split(rule_revision)?.1;
+        #[cfg(test)]
+        if let Some(forced) = FORCED_LAYOUT.with(std::cell::Cell::get) {
+            return Ok(forced);
+        }
+        Ok(layout)
     }
 
     /// 库内 meta `rule_revision` 的布局：写者、历史审计与 owner 恢复同源只取此处或
@@ -48,6 +53,28 @@ impl Layout {
     pub(crate) fn rank<K>(self, generation: i64, key: K) -> (i64, K) {
         (self.epoch(generation), key)
     }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// #1491（仅测试，负控故障注入）：本线程强制布局；只供历史测试让真实写者在库规则串之外的
+    /// 布局下产出错序发布字节，审计侧不经此处放宽（不是准入兜底，#799/#804）。
+    static FORCED_LAYOUT: std::cell::Cell<Option<Layout>> = const { std::cell::Cell::new(None) };
+}
+
+/// #1491（仅测试）：在 `f` 内令 [`Layout::of_rule`] 恒返回 `layout`（规则串仍先经 [`split`]
+/// 校验；`None` 即不强制）；返回或展开时恢复原值。
+#[cfg(test)]
+pub(crate) fn with_forced_layout_for_test<T>(layout: Option<Layout>, f: impl FnOnce() -> T) -> T {
+    struct Restore(Option<Layout>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            let previous = self.0;
+            FORCED_LAYOUT.with(|forced| forced.set(previous));
+        }
+    }
+    let _restore = Restore(FORCED_LAYOUT.with(|forced| forced.replace(layout)));
+    f()
 }
 
 /// 去掉布局组件后的规则串（教义组件部分）与布局；目录轴表等教义侧判据只看前者。
@@ -110,6 +137,8 @@ mod tests {
     }
 
     /// 五族代表键（活动/撤回对象的 OrderKey 形状、见证、关系、观察）：(出生代, 原键)。
+    /// 本模块两个 rank 测试只验 [`Layout::rank`] 元组字典序本身，不覆盖六族接线；接线由
+    /// `object_index`、`aux_index` 与 `history` 的 `layout` 测试锁。
     fn sorted_by<K: Ord + Clone>(layout: Layout, rows: &[(i64, K)]) -> Vec<usize> {
         let mut order: Vec<usize> = (0..rows.len()).collect();
         order.sort_by(|a, b| {

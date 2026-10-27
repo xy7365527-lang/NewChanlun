@@ -1515,6 +1515,7 @@ pub(crate) mod tests {
         path: PathBuf,
         pub(crate) conn: Connection,
         runtime: Runtime,
+        rule: Option<String>,
     }
     impl Drop for Fixture {
         fn drop(&mut self) {
@@ -1526,6 +1527,14 @@ pub(crate) mod tests {
             Self::with_retain(4)
         }
         pub(crate) fn with_retain(retain: i64) -> Self {
+            Self::build(retain, 4, None)
+        }
+        /// #1491：在测试写者规则注入（`with_test_writer_rule`）下建库与发布，库 meta 与各代
+        /// manifest 天然同带 `rule`；时钟 6 个事件、保留 6 代，使修订与撤回落在不同代。
+        pub(crate) fn with_rule(rule: &str) -> Self {
+            Self::build(6, 6, Some(rule.to_owned()))
+        }
+        fn build(retain: i64, clock_events: i64, rule: Option<String>) -> Self {
             let path = std::env::temp_dir().join(format!(
                 "s1394-real-{}-{}-{}",
                 std::process::id(),
@@ -1534,7 +1543,7 @@ pub(crate) mod tests {
             ));
             std::fs::create_dir(&path).unwrap();
             let mut events = serde_json::Map::new();
-            for n in 1..=4 {
+            for n in 1..=clock_events {
                 events.insert(format!("input-{n}"),json!({"accept_ns":(n*10).to_string(),"attempts":[{"begin_ns":(n*10+1).to_string(),"commit_ns":(n*10+2).to_string()}]}));
             }
             let clock = json!({"schema_revision":"s-clock-plan/1","clock_plan_id":"real-content-commit","origin_utc":"2026-09-18T00:00:00Z","unit":"ns","events":events});
@@ -1545,15 +1554,17 @@ pub(crate) mod tests {
                 .unwrap()
                 .join("s_session");
             let db = path.join("s.sqlite");
-            init_v3(
-                &db,
-                "s-session-testonly-001",
-                &base.join("catalog/signed-catalog.json"),
-                &base.join("profiles/ohlc_integer_tb02a_v1.json"),
-                "1",
-                &clock_path,
-                retain,
-            )
+            super::super::with_test_writer_rule(rule.as_deref(), || {
+                init_v3(
+                    &db,
+                    "s-session-testonly-001",
+                    &base.join("catalog/signed-catalog.json"),
+                    &base.join("profiles/ohlc_integer_tb02a_v1.json"),
+                    "1",
+                    &clock_path,
+                    retain,
+                )
+            })
             .unwrap();
             let conn = open_db(&db).unwrap();
             let runtime = Runtime::new();
@@ -1561,6 +1572,7 @@ pub(crate) mod tests {
                 path,
                 conn,
                 runtime,
+                rule,
             }
         }
         /// 库文件路径：只读入口测试用来开第二条 `query_only=ON` 连接。
@@ -1603,8 +1615,11 @@ pub(crate) mod tests {
             envelope: &Value,
             token: &str,
         ) -> Result<commit::CommitReceipt, String> {
+            let rule = self.rule.clone();
             let tx = self.conn.transaction().map_err(err)?;
-            self.runtime.commit(tx, token, envelope)
+            super::super::with_test_writer_rule(rule.as_deref(), || {
+                self.runtime.commit(tx, token, envelope)
+            })
         }
     }
 

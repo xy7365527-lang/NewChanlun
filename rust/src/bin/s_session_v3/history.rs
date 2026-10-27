@@ -5067,6 +5067,250 @@ mod tests {
         assert_ne!(cut.roots.publication_template, cut.snapshot);
         assert_ne!(cut.roots.delta_template, cut.delta);
     }
+
+    /// #1491 ADR 0037 多代输入：b、c 跨代修订（撤回落在第 4、6 两个不同代），d 在第 5 代以更小
+    /// 坐标新增，使出生序与内容键序分离；见证/关系/观察随各代输入跨代新增。
+    const LAYOUT_MULTICUT_INPUTS: [(i64, (&str, i64, i64, i64, i64, i64), i64); 6] = [
+        (1, ("a", 0, 6, 12, 3, 7), 1),
+        (2, ("b", 10, 8, 16, 6, 12), 1),
+        (3, ("c", 20, 8, 13, 4, 7), 1),
+        (4, ("b", 10, 8, 17, 6, 12), 2),
+        (5, ("d", 5, 8, 17, 6, 12), 1),
+        (6, ("c", 20, 8, 14, 4, 7), 2),
+    ];
+    /// 快照五个累计数组（ADR 0037 §一）。
+    const LAYOUT_ARRAYS: [&str; 5] = [
+        "objects",
+        "withdrawn_objects",
+        "witnesses",
+        "relations",
+        "observations",
+    ];
+
+    /// 同一输入写出一库（测试写者规则注入：库 meta 与各代 manifest 同带 `rule`）。`forced` 仅供
+    /// 负控：令真实写者在库规则串之外的布局下发布，产出错序但自洽的发布字节。
+    fn layout_multicut_library(
+        rule: &str,
+        forced: Option<super::layout::Layout>,
+    ) -> super::prepared::tests::Fixture {
+        let mut fixture = super::prepared::tests::Fixture::with_rule(rule);
+        for (n, row, revision) in LAYOUT_MULTICUT_INPUTS {
+            let (envelope, token) = fixture.accept_begin(n, row, revision);
+            super::layout::with_forced_layout_for_test(forced, || {
+                fixture.publish(&envelope, &token)
+            })
+            .unwrap();
+        }
+        fixture
+    }
+
+    /// 写者发布值：各已发布 cut 快照的五个累计数组摘要（按代序）。
+    fn layout_published_arrays(conn: &mut Connection) -> Vec<(i64, [NodeDigest; 5])> {
+        let tx = conn.transaction().unwrap();
+        let mut s = content_store::TxStore::new(&tx).unwrap();
+        let roots = {
+            let mut stmt = tx
+                .prepare("SELECT generation,snapshot_root FROM s_content_publications ORDER BY 1")
+                .unwrap();
+            let rows = stmt
+                .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+                .unwrap();
+            rows.collect::<Result<Vec<(i64, Vec<u8>)>, _>>().unwrap()
+        };
+        roots
+            .into_iter()
+            .map(|(g, root)| {
+                let snapshot = root_ref_bytes(&mut s, &root).unwrap();
+                let arrays = LAYOUT_ARRAYS
+                    .map(|name| field(&mut s, &snapshot, name).unwrap().digest().unwrap());
+                (g, arrays)
+            })
+            .collect()
+    }
+
+    /// 独立重建：对象经 `object_index::at_cut`，见证/关系/观察经 `aux_index::cut_members`，
+    /// 均按调用方给定布局的公开主序键（`Layout::rank`）排序后取整数组摘要。
+    fn layout_rebuilt_arrays(
+        conn: &mut Connection,
+        layout: super::layout::Layout,
+        generations: &[i64],
+    ) -> Vec<[NodeDigest; 5]> {
+        let tx = conn.transaction().unwrap();
+        let mut s = content_store::TxStore::new(&tx).unwrap();
+        let latest = *generations.last().unwrap();
+        let entries = object_index::load(&tx, &mut s, latest).unwrap();
+        let auxiliary = aux_index::load(&tx, &mut s, latest).unwrap();
+        generations
+            .iter()
+            .map(|&g| {
+                let (active, withdrawn, _) =
+                    object_index::at_cut(&mut s, layout, &entries, g).unwrap();
+                let [witnesses, relations, observations] =
+                    aux_index::cut_members(&auxiliary, layout, g, false).unwrap();
+                [
+                    active.digest,
+                    withdrawn.digest,
+                    hash_array(&witnesses).unwrap(),
+                    hash_array(&relations).unwrap(),
+                    hash_array(&observations).unwrap(),
+                ]
+            })
+            .collect()
+    }
+
+    /// bounded 次序：见证/关系的 `cut_members(Bounded1)` 快照成员 ＝ layout/1 成员按出生代
+    /// （表列 `published_generation`）稳定重排——代际单调不减，同代内沿 layout/1 原键。
+    fn assert_layout_birth_order(conn: &mut Connection, generations: &[i64]) {
+        use super::layout::Layout;
+        let tx = conn.transaction().unwrap();
+        let mut s = content_store::TxStore::new(&tx).unwrap();
+        let auxiliary = aux_index::load(&tx, &mut s, *generations.last().unwrap()).unwrap();
+        let mut crossed = false;
+        for (family, table, column) in [
+            (0, "s_content_witnesses", "wire_root"),
+            (1, "s_content_relations", "generated_root"),
+        ] {
+            let sql = format!("SELECT {column},published_generation FROM {table}");
+            let mut stmt = tx.prepare(&sql).unwrap();
+            let rows = stmt
+                .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+                .unwrap();
+            let births = rows
+                .collect::<Result<std::collections::HashMap<Vec<u8>, i64>, _>>()
+                .unwrap();
+            for &g in generations {
+                let sorted = aux_index::cut_members(&auxiliary, Layout::Sorted, g, false).unwrap();
+                let bounded =
+                    aux_index::cut_members(&auxiliary, Layout::Bounded1, g, false).unwrap();
+                let mut expected = sorted[family].to_vec();
+                expected.sort_by_key(|digest| births[&digest[..]]);
+                assert_eq!(&bounded[family][..], &expected[..], "g={g} family={family}");
+                crossed |= sorted[family][..] != bounded[family][..];
+            }
+        }
+        assert!(crossed, "见证/关系的出生序与原键序须在某个 cut 分离");
+    }
+
+    /// #1491 ADR 0037 多代逐位锁：同一输入写出 layout/1 与 bounded-layout/1 两库。每个已发布
+    /// cut 的五个累计数组：写者发布 ＝ 历史审计（`read_history` 逐 cut 经
+    /// `audit_one_published_cut` 按库布局重建并整数组比对，Ok 即逐位相等）＝ 按库布局独立重建；
+    /// 按另一布局重建则在某个 cut 不等，两库发布值确有区分。bounded 库的见证/关系/观察即写者
+    /// `Runtime::plan(Bounded1)` 的产物，与 `cut_members(Bounded1)` 对拍。
+    #[test]
+    fn history_layout_multicut_publish_equals_audit_rebuild() {
+        use super::layout::Layout;
+        let bounded_rule = format!("{}+bounded-layout/1", crate::V3_RULE_REVISION);
+        let mut sorted = layout_multicut_library(crate::V3_RULE_REVISION, None);
+        let mut bounded = layout_multicut_library(&bounded_rule, None);
+        let mut views = Vec::new();
+        for (layout, other, fixture) in [
+            (Layout::Sorted, Layout::Bounded1, &mut sorted),
+            (Layout::Bounded1, Layout::Sorted, &mut bounded),
+        ] {
+            let conn = &mut fixture.conn;
+            assert_eq!(Layout::of_library(conn).unwrap(), layout);
+            let (deaths, crossed): (i64, i64) = conn
+                .query_row(
+                    "SELECT COUNT(DISTINCT withdrawn_generation),\
+                     COALESCE(SUM(withdrawn_generation>first_known_generation),0) \
+                     FROM s_content_objects",
+                    [],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .unwrap();
+            assert!(deaths >= 2, "撤回须落在至少两个不同代：{deaths}");
+            assert!(crossed >= 1, "须有跨代修订（撤回代晚于首获知代）：{crossed}");
+            for table in [
+                "s_content_witnesses",
+                "s_content_relations",
+                "s_content_observations",
+            ] {
+                let births: i64 = conn
+                    .query_row(
+                        &format!("SELECT COUNT(DISTINCT published_generation) FROM {table}"),
+                        [],
+                        |row| row.get(0),
+                    )
+                    .unwrap();
+                assert!(births >= 2, "{table} 须跨代新增：{births}");
+            }
+            let published = layout_published_arrays(conn);
+            let generations: Vec<i64> = published.iter().map(|(g, _)| *g).collect();
+            assert_eq!(generations, [1, 2, 3, 4, 5, 6]);
+            let cuts = audit(conn).unwrap();
+            assert_eq!(cuts.len(), generations.len());
+            let own = layout_rebuilt_arrays(conn, layout, &generations);
+            for ((g, arrays), rebuilt) in published.iter().zip(&own) {
+                for (i, name) in LAYOUT_ARRAYS.iter().enumerate() {
+                    assert_eq!(arrays[i], rebuilt[i], "{layout:?} g={g} {name}");
+                }
+            }
+            let foreign = layout_rebuilt_arrays(conn, other, &generations);
+            assert!(
+                published
+                    .iter()
+                    .zip(&foreign)
+                    .any(|((_, arrays), rebuilt)| arrays != rebuilt),
+                "{layout:?} 库的发布值须与 {other:?} 重建在某个 cut 不同"
+            );
+            assert_layout_birth_order(conn, &generations);
+            views.push(published);
+        }
+        assert_ne!(views[0], views[1]);
+    }
+
+    /// #1491 真负控：真实写者在测试强制布局下产出错序发布字节（bounded 库按内容键序，layout/1
+    /// 库按出生序），库 meta 与各代 manifest 仍一致带原规则串。历史审计按库布局重建后拒收，
+    /// 错误指向数组次序（`<数组>与独立依据不同`），不是 manifest 冻结域。
+    #[test]
+    fn history_layout_multicut_wrong_array_order_rejects() {
+        use super::layout::Layout;
+        let bounded_rule = format!("{}+bounded-layout/1", crate::V3_RULE_REVISION);
+        for (rule, forced) in [
+            (bounded_rule.as_str(), Layout::Sorted),
+            (crate::V3_RULE_REVISION, Layout::Bounded1),
+        ] {
+            let mut fixture = layout_multicut_library(rule, Some(forced));
+            assert_ne!(Layout::of_library(&fixture.conn).unwrap(), forced);
+            let failure = audit(&mut fixture.conn).err().unwrap();
+            let array = |name: &&str| failure.contains(&format!("{name}与独立依据不同"));
+            assert!(LAYOUT_ARRAYS.iter().any(array), "{failure}");
+            assert!(!failure.contains("冻结域"), "{failure}");
+        }
+    }
+
+    /// #1491：native 双投影（`ProjectionSweep` 增量游标按库布局维护 RankSet）在两库上逐 cut
+    /// 与普通历史审计的快照/增量根逐位相等。owner 恢复（`append_owner_cut`/`restore_for_owner`）
+    /// 须经 audit_owner 构造 `BoundOriginals`，本测试不覆盖。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn history_layout_multicut_native_projection_equals_plain_audit() {
+        let bounded_rule = format!("{}+bounded-layout/1", crate::V3_RULE_REVISION);
+        for rule in [crate::V3_RULE_REVISION, bounded_rule.as_str()] {
+            let mut fixture = layout_multicut_library(rule, None);
+            let plain = audit(&mut fixture.conn).unwrap();
+            let tx = fixture.conn.transaction().unwrap();
+            let raw = read_raw_events(&tx).unwrap();
+            let capture = content_store::capture_for_prototype(&tx).unwrap();
+            let native = read_indexed_history_for_audit_captured(
+                &tx,
+                &raw,
+                control_audit::prepare_s3_control_history(&tx).unwrap(),
+                None,
+                None,
+                None,
+                Some(&capture),
+            )
+            .unwrap();
+            assert_eq!(native.cuts.len(), LAYOUT_MULTICUT_INPUTS.len());
+            assert_eq!(plain.len(), native.cuts.len());
+            for (a, b) in plain.iter().zip(native.cuts.iter()) {
+                assert_eq!(a.metadata.generation, b.metadata.generation);
+                assert_eq!(a.snapshot, b.snapshot);
+                assert_eq!(a.delta, b.delta);
+            }
+        }
+    }
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn r9a_new_cut_manifest_consumes_scoped_sql_source_and_publication() {
