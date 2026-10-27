@@ -398,41 +398,8 @@ EXPECTED_SQL = _expected_sql(
     LEGACY_SCHEMA + CONTROL_SCHEMA + tb02.SCHEMA + STORAGE_FORMAT_SCHEMA + EVIDENCE_GRAPH_SCHEMA)
 
 
-_LAYOUT_COMPONENT = "bounded-layout/"
-LAYOUT_SORTED, LAYOUT_BOUNDED1 = "layout/1", "bounded-layout/1"
-
-
-def _rule_layout(rule_revision):
-    """#1491（ADR 0037 §五/§六）：与 Rust `layout::split` 同口径取（教义部分, 布局）。
-
-    组件按 `+` 拆；无布局组件即 layout/1（ADR 0037 之前的写者，按定义而非兜底）；
-    `bounded-layout/1` 为出生序布局；未知 `bounded-layout/<n>` 或多个布局组件一律拒绝。
-    """
-    layout, rest = None, []
-    for component in rule_revision.split("+"):
-        if not component.startswith(_LAYOUT_COMPONENT):
-            rest.append(component)
-            continue
-        if component != LAYOUT_BOUNDED1:
-            raise ValueError(f"VersionUnsupported：未知布局组件 {component}")
-        if layout is not None:
-            raise ValueError("VersionUnsupported：rule_revision 含多个布局组件")
-        layout = LAYOUT_BOUNDED1
-    return "+".join(rest), layout or LAYOUT_SORTED
-
-
-def _public_rank(layout, generation, key):
-    """六族公开主序键＝（代际前缀, layout/1 原键）；layout/1 前缀恒 0，逐位退化为原键序。
-
-    活动对象传 first_known_generation，撤回对象传 withdrawn_generation，见证/关系/观察传
-    published_generation；raw_history 按 seq，不经本键。只读重建，不重算教义比较。
-    """
-    return (0 if layout == LAYOUT_SORTED else int(generation), key)
-
-
 def _published_axes(rule_revision):
-    """按已存规则选择其当时的轴，不向旧 B cut 追补未来 C 轴；布局组件不改目录轴。"""
-    rule_revision = _rule_layout(rule_revision)[0]
+    """按已存规则选择其当时的轴，不向旧 B cut 追补未来 C 轴。"""
     known = {
         "s2-axis-quantifiers": tb02.LEGACY_AXES,
         "s2-axis-quantifiers+new-bi/1": tb02.BI_AXES,
@@ -1661,24 +1628,6 @@ def _verify_image(image, h, deadline, memo, _parse_pool):
     return proof
 
 
-def order_public_arrays(snapshot, active, withdrawn, wires, gen, layout):
-    """#1491：五个累计数组按库布局的唯一公开主序键（`_public_rank`）重建次序。"""
-    def published(table):
-        return [(pg, v) for pg, v in wires[table] if pg <= gen]
-    snapshot["objects"] = sorted(active, key=lambda o: _public_rank(
-        layout, o["first_known_generation"], (1, o["kind"], o["fact_key"], o["object_id"])
-        if o["kind"] in tb02.KINDS else (0, int(o["window_start"]))))
-    snapshot["withdrawn_objects"] = sorted(withdrawn, key=lambda o: _public_rank(
-        layout, o["withdrawn_generation"], int(o["first_known_generation"])))
-    snapshot["witnesses"] = [v for _pg, v in sorted(published("witnesses"), key=lambda r: _public_rank(
-        layout, r[0], (r[1]["object_id"], int(r[1]["slot"]))))]
-    snapshot["relations"] = [v for _pg, v in sorted(published("relations"), key=lambda r: _public_rank(
-        layout, r[0], (r[1]["subject"], r[1]["relation_type"], r[1]["object"])))]
-    snapshot["observations"] = [v for _pg, v in sorted(published("observations"), key=lambda r: _public_rank(
-        layout, r[0], (r[1]["kind"], -1 if r[1]["window_start"] is None else int(r[1]["window_start"]))))]
-    return snapshot
-
-
 def project_state(proof, as_of, h):
     """从已核不可变图像投影一个 cut；不查询 SQLite，也不重新做结构判定。"""
     current = proof["generation"]
@@ -1711,8 +1660,15 @@ def project_state(proof, as_of, h):
                                superseded_by=None, lifecycle="active"))
         else:
             withdrawn.append(obj)
-    order_public_arrays(snapshot, active, withdrawn, proof["wires"], gen,
-                        _rule_layout(meta["rule_revision"])[1])
+    snapshot["objects"] = sorted(active, key=lambda o: (1, o["kind"], o["fact_key"], o["object_id"])
+                                 if o["kind"] in tb02.KINDS else (0, int(o["window_start"])))
+    snapshot["withdrawn_objects"] = sorted(withdrawn, key=lambda o: int(o["first_known_generation"]))
+    snapshot["witnesses"] = sorted([v for pg, v in proof["wires"]["witnesses"] if pg <= gen],
+                                    key=lambda v: (v["object_id"], int(v["slot"])))
+    snapshot["relations"] = sorted([v for pg, v in proof["wires"]["relations"] if pg <= gen],
+                                    key=lambda v: (v["subject"], v["relation_type"], v["object"]))
+    snapshot["observations"] = sorted([v for pg, v in proof["wires"]["observations"] if pg <= gen],
+        key=lambda v: (v["kind"], -1 if v["window_start"] is None else int(v["window_start"])))
     snapshot["raw_history"] = proof["raw"][:int(publication["input_frontier"])+1]
     items = []
     for row in proof["tables"]["catalog"]:
