@@ -17,12 +17,18 @@ pub(crate) enum Layout {
     Bounded1,
 }
 
-// #1491：发布比较器（object_index/aux_index 公开主序）接线前仅测试消费；接线后删除本豁免。
-#[cfg_attr(not(test), allow(dead_code))]
 impl Layout {
     /// 从完整 `rule_revision` 串取布局组件；同串至多一个布局组件。
     pub(crate) fn of_rule(rule_revision: &str) -> Result<Self, String> {
         Ok(split(rule_revision)?.1)
+    }
+
+    /// 库内 meta `rule_revision` 的布局：写者、历史审计与 owner 恢复同源只取此处或
+    /// 由同一 meta 读出的串经 [`Self::of_rule`]，不另设默认布局。
+    pub(crate) fn of_library(conn: &rusqlite::Connection) -> Result<Self, String> {
+        let rule = crate::meta_get_opt(conn, "rule_revision")?
+            .ok_or_else(|| "VersionUnsupported：库缺 meta.rule_revision".to_string())?;
+        Self::of_rule(&rule)
     }
 
     /// 公开主序的代际前缀：layout/1 恒为 0（同一代际桶，退化为原键序）；
@@ -33,6 +39,14 @@ impl Layout {
             Self::Sorted => 0,
             Self::Bounded1 => generation,
         }
+    }
+
+    /// 六族公开主序键（ADR 0037 §一）＝（[`Self::epoch`] 代际前缀，layout/1 原键）。
+    /// 活动对象传首获知代，撤回对象传撤回代，见证/关系/观察传出生代（表列
+    /// `published_generation`）；raw_history 按 seq，不经本键。快照数组排序、RankSet 键、
+    /// 增量维护、恢复与历史审计的次序判据只经本函数取键；layout/1 前缀恒 0，逐位退化为原键序。
+    pub(crate) fn rank<K>(self, generation: i64, key: K) -> (i64, K) {
+        (self.epoch(generation), key)
     }
 }
 
@@ -93,5 +107,54 @@ mod tests {
     fn epoch_is_birth_order_only_under_bounded_layout() {
         assert_eq!(Layout::Sorted.epoch(7), 0);
         assert_eq!(Layout::Bounded1.epoch(7), 7);
+    }
+
+    /// 五族代表键（活动/撤回对象的 OrderKey 形状、见证、关系、观察）：(出生代, 原键)。
+    fn sorted_by<K: Ord + Clone>(layout: Layout, rows: &[(i64, K)]) -> Vec<usize> {
+        let mut order: Vec<usize> = (0..rows.len()).collect();
+        order.sort_by(|a, b| {
+            let (ga, ka) = &rows[*a];
+            let (gb, kb) = &rows[*b];
+            layout
+                .rank(*ga, ka.clone())
+                .cmp(&layout.rank(*gb, kb.clone()))
+                .then(a.cmp(b))
+        });
+        order
+    }
+
+    #[test]
+    fn layout_rank_sorted_equals_original_key_order_for_all_families() {
+        let objects = [(3, (0, "", 7)), (1, (1, "z", 1)), (2, (1, "a", 2)), (1, (0, "", 9))];
+        let withdrawn = [(4, (1, "b", 1)), (2, (0, "", 1)), (3, (1, "a", 1))];
+        let witnesses = [(2, ("o-b", 1)), (1, ("o-a", 2)), (3, ("o-a", 0))];
+        let relations = [(2, ("s", "r", "b")), (1, ("s", "r", "c")), (3, ("a", "r", "x"))];
+        let observations = [(5, ("k", Some(9))), (1, ("k", None)), (2, ("j", Some(1)))];
+        fn original<K: Ord>(rows: &[(i64, K)]) -> Vec<usize> {
+            let mut order: Vec<usize> = (0..rows.len()).collect();
+            order.sort_by(|a, b| rows[*a].1.cmp(&rows[*b].1).then(a.cmp(b)));
+            order
+        }
+        assert_eq!(sorted_by(Layout::Sorted, &objects), original(&objects));
+        assert_eq!(sorted_by(Layout::Sorted, &withdrawn), original(&withdrawn));
+        assert_eq!(sorted_by(Layout::Sorted, &witnesses), original(&witnesses));
+        assert_eq!(sorted_by(Layout::Sorted, &relations), original(&relations));
+        assert_eq!(sorted_by(Layout::Sorted, &observations), original(&observations));
+    }
+
+    #[test]
+    fn layout_rank_bounded_is_generation_monotone_then_original_key() {
+        // 修订对象（新出生代 3）落尾；撤回代较晚者移入撤回尾；同代内沿原键。
+        let objects = [(3, (0, "", 7)), (1, (1, "z", 1)), (1, (0, "", 9)), (2, (1, "a", 2))];
+        assert_eq!(sorted_by(Layout::Bounded1, &objects), vec![2, 1, 3, 0]);
+        let withdrawn = [(4, (0, "", 1)), (2, (1, "b", 1)), (2, (1, "a", 1))];
+        assert_eq!(sorted_by(Layout::Bounded1, &withdrawn), vec![2, 1, 0]);
+        for rows in [&objects[..], &withdrawn[..]] {
+            let order = sorted_by(Layout::Bounded1, rows);
+            assert!(order.windows(2).all(|w| {
+                let (a, b) = (&rows[w[0]], &rows[w[1]]);
+                a.0 < b.0 || (a.0 == b.0 && a.1 <= b.1)
+            }));
+        }
     }
 }

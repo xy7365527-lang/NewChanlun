@@ -42,6 +42,9 @@ pub(crate) struct NativeCutProjection<'scope, 'connection, 'capture> {
     snapshot_members: [sc::CodecVec<NodeDigest>; 3],
     delta_members: [sc::CodecVec<NodeDigest>; 3],
 }
+/// 次序判据：`nodes` 已由库内 `rule_revision` 的布局经唯一公开主序键
+/// （[`super::layout::Layout::rank`]）重建——layout/1 为原内容键序；bounded-layout/1 为
+/// 代际单调不减、同代内沿原键（ADR 0037 §一）。此处只做整数组摘要相等，不另设第二档次序判据。
 fn compare_cut_array(
     s: &mut HashReader<'_>,
     public: &RefValue,
@@ -157,10 +160,11 @@ fn native_cut_projection<'scope, 'connection, 'capture>(
         return Ok(None);
     };
     let o = objects.native_dual_at_cut(s, m.generation, batch)?;
+    let layout = objects.layout();
     let (snapshot_members, snapshot_template) =
-        aux_index::native_cut_members(aux, s, m.generation, false, batch)?;
+        aux_index::native_cut_members(aux, s, layout, m.generation, false, batch)?;
     let (delta_members, delta_template) =
-        aux_index::native_cut_members(aux, s, m.generation, true, batch)?;
+        aux_index::native_cut_members(aux, s, layout, m.generation, true, batch)?;
     let public_array =
         |s: &mut HashReader<'_>, nodes: &[NodeDigest]| -> Result<sc::Built, String> {
             let mut values = sc::CodecVec::default();
@@ -921,6 +925,7 @@ fn audit_one_published_cut<'capture>(
         }
     }
     same_json(store, &delta, "replaces", replaces.view())?;
+    let layout = objects.layout();
     for (public, is_delta) in [(&snapshot, false), (&delta, true)] {
         if let Some(p) = &dual {
             let members = if is_delta {
@@ -935,7 +940,8 @@ fn audit_one_published_cut<'capture>(
                 compare_cut_array(store, public, name, nodes, deadline, budget, allocation)?;
             }
         } else {
-            let members = aux_index::cut_members_metered(auxiliary, generation, is_delta, budget)?;
+            let members =
+                aux_index::cut_members_metered(auxiliary, layout, generation, is_delta, budget)?;
             // Preserve ordinary/Owned by-value consuming iterator and per-item owner drop.
             for (name, nodes) in ["witnesses", "relations", "observations"]
                 .into_iter()
@@ -6935,8 +6941,15 @@ pub(super) fn append_owner_cut(
         &mut retained,
     )
     .map_err(|e| format!("{e} [owner aux effects g={generation}]"))?;
-    let mut objects =
-        object_index::restore_for_owner(old.objects, &store, &mut sweep, bound, &mut retained)?;
+    let layout = super::layout::Layout::of_library(tx).map_err(err)?;
+    let mut objects = object_index::restore_for_owner(
+        old.objects,
+        layout,
+        &store,
+        &mut sweep,
+        bound,
+        &mut retained,
+    )?;
     let mut object_sweep = Some(sweep);
     let mut native_aux = Some(aux_index::NativeAuxAudit::restore(
         &store,

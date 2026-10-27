@@ -748,6 +748,7 @@ impl Runtime {
                 state::trace_stage("object_plan", "delta", generation);
                 let objects = object_index::plan_native_union_for_testonly(
                     &mut store,
+                    super::layout::Layout::of_rule(&metadata.rule_revision)?,
                     &generated.objects,
                     &audited.objects,
                     generation,
@@ -1124,19 +1125,33 @@ impl Runtime {
         };
         #[cfg(test)]
         state::trace_stage("object_plan", path, generation);
+        let layout = super::layout::Layout::of_rule(&metadata.rule_revision)?;
         #[cfg(feature = "s_capture_native_testonly")]
         let objects = if matches!(self.mode, s_allocation::Mode::CapturedNative) {
             object_index::plan_native_union_for_testonly(
                 store,
+                layout,
                 &generated.objects,
                 &audited.objects,
                 generation,
             )?
         } else {
-            object_index::plan(store, &generated.objects, &audited.objects, generation)?
+            object_index::plan_for_layout(
+                store,
+                layout,
+                &generated.objects,
+                &audited.objects,
+                generation,
+            )?
         };
         #[cfg(not(feature = "s_capture_native_testonly"))]
-        let objects = object_index::plan(store, &generated.objects, &audited.objects, generation)?;
+        let objects = object_index::plan_for_layout(
+            store,
+            layout,
+            &generated.objects,
+            &audited.objects,
+            generation,
+        )?;
         generated.finish_axes(store, previous, &objects.withdrawals, &objects.replaces)?;
         let axes = store
             .native_plain_ref(
@@ -1200,6 +1215,7 @@ impl Runtime {
         state::trace_stage("assemble_manifest", "-", generation);
         let auxiliary = self.auxiliary.plan(
             store,
+            super::layout::Layout::of_rule(&metadata.rule_revision)?,
             &audited.auxiliary,
             &generated,
             &objects.replaces,
@@ -1342,6 +1358,9 @@ fn cv(v: &Value) -> Result<V, String> {
 fn edge(r: &ContentRef) -> Result<V, String> {
     Ok(V::Edge(r.digest().map_err(err)?))
 }
+/// 六数组（active/withdrawn 对象、witnesses、relations、observations）的元素次序不在此处
+/// 决定：`o`、`a` 已按库内 `rule_revision` 的布局组件（[`super::layout::Layout::rank`]，
+/// ADR 0037 §一）排好，本函数只按既有次序装配模板；raw_history 仍按 seq。
 fn templates(
     s: &mut dyn NodeStore,
     m: &ManifestMetadata,
