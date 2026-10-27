@@ -362,8 +362,15 @@ mod tests {
         assert!(budget.live() > baseline, "返回容器和内嵌文本必须继续持费");
         drop(values);
         assert_eq!(budget.live(), baseline);
-        // #1488 P2-1 后父账出生即计 ArcInner 元数据；48 B 余量放在元数据之上。
-        let tiny = Budget::new(Budget::metadata_bytes() + 48, 0).unwrap();
+        // #1488 v4 L10/L34（同 request_audit 先例）：父账出生先计自身元数据 M，工作域再计其元数据；
+        // 48 B 余量放在两者之上，原意“文本准入后扩容必拒”不变。
+        let tiny = Budget::new(
+            Budget::metadata_bytes()
+                + sc::capture_allocation::scratch::CodecWork::metadata_bytes()
+                + 48,
+            0,
+        )
+        .unwrap();
         let before = tiny.live();
         let failed = tiny
             .codec_work()
