@@ -2874,8 +2874,12 @@ mod tests {
         // 内容寻址按值去重：记录自身的字段根可能与载荷子图里的同值节点共用一个 digest
         // （本夹具里 `source_coords = ["10"]` 与 `high_sources` 同值即一例）。判据是
         // 「除记录自身的字段节点外，载荷子图一个不读」，不是「与整个载荷闭包无交集」。
+        // 记录自身结构（对象节点、字段序列、键叶）按路径定位全部字段时读到的节点也按值与载荷共享
+        // （W seed 的载荷带 `direction_evidence.source_coords` 等同名键/同值数组）。
+        fixture.store.reads.clear();
         let mut allowed: BTreeSet<NodeDigest> =
             record_field_digests(&mut fixture.store, &object.record);
+        allowed.extend(fixture.store.reads.iter().copied());
         allowed.insert(object.record.digest);
         // #1393 W：seed 步来源 = 建立前缀 raw[..=e]（多于一根），其坐标数组与载荷内方向证据的
         // `source_coords` 同值同根；记录自身 `input_refs`/`source_coords` 两条公开边的整棵子树按值
