@@ -93,7 +93,7 @@ test("公共 CLI：旧入口已冻结时新 accepted 清单退出 75，不建归
 test("公共 CLI：冲突时 Docker 预检失败，保留 MERGE_HEAD/checkpoint 且不启动工蜂", t => {
   const f = fixture(t, true);
   const first = f.run();
-  assert.equal(first.status, 1); assert.match(first.stderr, /尚无精确验收 receipt.*receipt 缺失/);
+  assert.equal(first.status, 1); assert.match(first.stderr, /尚无精确验收 receipt.*未声明受控验收行/);
   assert.ok(existsSync(f.checkpoint), "须在冲突现场检查准入，而不是入口直接拒绝");
   const before = readFileSync(f.checkpoint, "utf8"); const state = JSON.parse(before);
   assert.equal(state.phase, "conflict"); assert.equal(state.position, 1);
