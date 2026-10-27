@@ -588,6 +588,19 @@ impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
                 .map(RefValue::Plain)
         }
     }
+    fn lookup_optional_field_ref(
+        &mut self,
+        r: sc::RefView<'_>,
+        key: &str,
+    ) -> Result<Option<RefValue>, sc::CodecError> {
+        if self.source.owned_codec_active() {
+            // 结构实体引用核（source_structure::references）走此口；Owned 下同 lookup_field_ref 交原角色，
+            // 默认实现经 generic_source 擦除为动态 NodeSource 会被 closed codec 拒绝。
+            self.owned_role(|s| s.lookup_optional_field_ref(r, key))
+        } else {
+            sc::path::lookup_optional_field_native(self, r, key).map(|v| v.map(RefValue::Plain))
+        }
+    }
     fn lookup_fields_ref<'a>(
         &mut self,
         r: sc::RefView<'_>,
