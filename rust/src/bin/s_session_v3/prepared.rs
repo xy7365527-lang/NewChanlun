@@ -1644,7 +1644,7 @@ pub(crate) mod tests {
             let frontier = read_raw_events(&tx).unwrap().len() as i64 - 1;
             let base = meta_get_opt(&tx, "structure_cut").unwrap().unwrap();
             let token = control
-                .begin(&view, generation, frontier, &base, "1")
+                .begin(&view, generation, frontier, &base, &self.writer_epoch)
                 .unwrap();
             tx.commit().unwrap();
             (envelope, token)
