@@ -3232,6 +3232,9 @@ mod native_wire_tests {
                 candidate_extreme: 99,
             },
             3,
+            newchan_rust::theta_v0::config::ThetaConfig::default()
+                .parse
+                .scan_budget,
         );
         let mut nodes = sc::MemoryNodes::new();
         assert_eq!(

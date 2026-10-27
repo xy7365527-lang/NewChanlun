@@ -654,11 +654,11 @@ pub(super) fn expected_requests(
 mod tests {
     use super::*;
     pub(super) fn put(nodes: &mut sc::MemoryNodes, value: &Value) -> RefValue {
-        RefValue::Plain(
+        RefValue::Plain(newchan_rust::s_content::capture_allocation::native_owned::NativeValue::from_unscoped(
             sc::write_value(nodes, &cv(value).unwrap())
                 .unwrap()
                 .content_ref(),
-        )
+        ))
     }
     pub(super) fn object(
         nodes: &mut sc::MemoryNodes,
@@ -680,8 +680,8 @@ mod tests {
         );
         let refs = put(nodes, &json!([]));
         Object {
-            id: bj::TextValue::Plain(id.into()),
-            kind: bj::TextValue::Plain(kind.into()),
+            id: bj::TextValue::Plain(newchan_rust::s_content::capture_allocation::native_owned::NativeValue::from_unscoped(id.into())),
+            kind: bj::TextValue::Plain(newchan_rust::s_content::capture_allocation::native_owned::NativeValue::from_unscoped(kind.into())),
             fields: SourceFields::read_subset(nodes, record.view(), &["payload_json", "fact_key"])
                 .unwrap(),
             refs,
@@ -1600,8 +1600,8 @@ mod real_factory_repair_tests {
                     "CC-056.segment_version" => version = Some(o.record.clone()),
                     "CC-055.segment_change" => {
                         seen += 1;
-                        let p = RefValue::Plain(o.payload.content_ref());
-                        let source = RefValue::Plain(o.source_coords.content_ref());
+                        let p = RefValue::Plain(newchan_rust::s_content::capture_allocation::native_owned::NativeValue::from_unscoped(o.payload.content_ref()));
+                        let source = RefValue::Plain(newchan_rust::s_content::capture_allocation::native_owned::NativeValue::from_unscoped(o.source_coords.content_ref()));
                         let sources = SourceCoords::Original(coords(&mut n, &source).unwrap());
                         assert_eq!(text(&mut n, &p, "object_generation").unwrap(), "1");
                         audit_payload(

@@ -1783,8 +1783,12 @@ fn catalog_axes_oracle<'a, 'objects, 'changes>(
             _ => None,
         };
         if let Some(version_kind) = structure_version {
-            for o in objects.iter().filter(|o| o["kind"] == version_kind) {
-                let p: Value = serde_json::from_str(o["payload_json"].as_str().unwrap()).unwrap();
+            for o in objects
+                .iter()
+                .filter(|o| field(*o, "kind").as_str() == Some(version_kind))
+            {
+                let p: Value =
+                    serde_json::from_str(field(o, "payload_json").as_str().unwrap()).unwrap();
                 waiting.extend(p["data"]["waiting_reasons"].as_array().unwrap().clone());
             }
         }
@@ -1903,16 +1907,19 @@ mod catalog_axis_owner_tests {
         limit: usize,
     }
     impl ScratchParent for Parent {
-        fn reserve(&self, n: usize, _: ScratchCharge) -> Result<(), ScratchFailure> {
+        fn reserve(&self, n: usize, _: ScratchCharge) -> Result<u64, ScratchFailure> {
             let mut live = self.live.lock().unwrap();
             let next = live.checked_add(n).ok_or(ScratchFailure::Budget)?;
             if next > self.limit {
                 return Err(ScratchFailure::Budget);
             }
             *live = next;
-            Ok(())
+            Ok(0)
         }
-        fn release(&self, n: usize, _: ScratchCharge) -> Result<(), ScratchFailure> {
+        fn release(&self, n: usize, _: ScratchCharge, origin: u64) -> Result<(), ScratchFailure> {
+            if origin != 0 {
+                return Err(ScratchFailure::Ledger);
+            }
             let mut live = self.live.lock().unwrap();
             *live = live.checked_sub(n).ok_or(ScratchFailure::Ledger)?;
             Ok(())
