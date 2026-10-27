@@ -457,7 +457,7 @@ fn migrate_legacy_policy_records(conn: &mut Connection) -> Result<(), String> {
 /// - 已初始化且 `rule_revision` 不是本二进制的 `RULE_REVISION` ⟹ 返回只读连接（SQLite 层拒写，
 ///   不设 WAL、不检查点；只读连接最多留下空 `-wal` 与 `-shm` 索引，主库与既有 `-wal` 字节不变）；
 /// - 残留回滚热日志（`SQLITE_READONLY_ROLLBACK`）⟹ 不改写就读不出规则，拒绝打开；
-/// - 当前规则（v2 `RULE_REVISION` 或 v3 `V3_RULE_REVISION`）或未初始化 ⟹ `None`，交回原写连接路径。
+/// - 当前规则（v2 `RULE_REVISION` 或 S3 `W_STRUCTURE_RULE_REVISION`）或未初始化 ⟹ `None`，交回原写连接路径。
 fn open_historical_readonly(db: &Path) -> Result<Option<Connection>, String> {
     let ro = Connection::open_with_flags(
         db,
@@ -488,12 +488,14 @@ fn open_historical_readonly(db: &Path) -> Result<Option<Connection>, String> {
     if !has_meta || meta_get_opt(&ro, "session_id")?.is_none() {
         return Ok(None);
     }
-    // #1394 合入：两个写者各有当前规则——v2 的 `RULE_REVISION` 与 v3（s-session/3）的
-    // `V3_RULE_REVISION`；二者之外（含 `LEGACY_V3_RULE_REVISION` 等旧规则）一律只读。
+    // #1394 合入：两个写者各有当前规则——v2 的 `RULE_REVISION` 与 S3（s-session/3）的当前规则；
+    // 二者之外（含 `LEGACY_V3_RULE_REVISION` 等旧规则）一律只读。
+    // #1419：S3 写者只写 `W_STRUCTURE_RULE_REVISION`（`v3::require_current_writer_rule`），
+    // `V3_RULE_REVISION` 与 CF22 `V3_STRUCTURE_RULE_REVISION` 库随之归历史只读（AsKnown）。
     let rule = meta_get_opt(&ro, "rule_revision")?;
     if matches!(
         rule.as_deref(),
-        Some(RULE_REVISION) | Some(V3_RULE_REVISION)
+        Some(RULE_REVISION) | Some(W_STRUCTURE_RULE_REVISION)
     ) {
         return Ok(None);
     }
