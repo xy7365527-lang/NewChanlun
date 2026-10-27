@@ -476,6 +476,11 @@ pub(crate) struct NativeSourceState {
     step_handles: Map<Handle, i64>,
     step_subjects: Map<TextValue, i64>,
     knowledge: Option<Handle>,
+    /// #1393/#1565 W：初始化事实、未定原件（坐标↔句柄）与 W 三类请求（0 初始化/1 未定/2 待决组）。
+    w_init: Option<Handle>,
+    w_raws: Map<i64, Handle>,
+    w_raw_handles: Map<Handle, i64>,
+    w_requests: Map<Handle, i64>,
     pending: Tree<i64>,
     members: Map<i64, Tree<(i64, usize)>>,
     overlaps: Tree<(i64, usize)>,
@@ -541,6 +546,10 @@ impl NativeSourceState {
             step_handles: Map::default(),
             step_subjects: Map::default(),
             knowledge: None,
+            w_init: None,
+            w_raws: Map::default(),
+            w_raw_handles: Map::default(),
+            w_requests: Map::default(),
             pending: Tree::default(),
             members: Map::default(),
             overlaps: Tree::default(),
@@ -589,6 +598,9 @@ impl NativeSourceState {
             self.step_coords.heap_bytes(),
             self.step_handles.heap_bytes(),
             self.step_subjects.heap_bytes(),
+            self.w_raws.heap_bytes(),
+            self.w_raw_handles.heap_bytes(),
+            self.w_requests.heap_bytes(),
             self.pending.heap_bytes(),
             self.members.heap_bytes(),
             self.overlaps.heap_bytes(),
@@ -1328,13 +1340,49 @@ impl NativeSourceState {
         let mut old = Map::default();
         let mut events = Tree::default();
         let mut knowledge_changed = false;
+        let mut w_dirty = false;
         for handle in changed.iter().copied() {
             knowledge_changed |= self.knowledge == Some(handle);
             self.remove_step(s, handle, &mut dirty_requests, &mut sequence, &mut old)?;
+            if w {
+                if self.w_init == Some(handle) {
+                    self.w_init = None;
+                    w_dirty = true;
+                }
+                if let Some(coord) = self.w_raw_handles.remove(&handle)? {
+                    if self.w_raws.get(&coord) == Some(&handle) {
+                        self.w_raws.remove(&coord)?;
+                    }
+                    w_dirty = true;
+                }
+            }
             if self.objects.get(&handle).is_some_and(|entry| {
                 entry.value.kind == CC004_STEP_KIND || entry.value.kind == CC054_KNOWLEDGE_KIND
             }) {
                 schedule(s, &self.object_order, &mut events, handle)?;
+            }
+        }
+        // #1393/#1565 W：初始化事实与未定原件按句柄登记（先撤后增，重复按同 cut 原件拒绝）。
+        if w {
+            for handle in changed.iter().copied() {
+                let Some(object) = self.objects.get(&handle).map(|e| Rc::clone(&e.value)) else {
+                    continue;
+                };
+                if object.kind == crate::content_producer::CC004_INITIALIZATION_KIND {
+                    if self.w_init.is_some_and(|other| other != handle) {
+                        return Err(err("同cut W初始化事实重复"));
+                    }
+                    self.w_init = Some(handle);
+                    w_dirty = true;
+                } else if object.kind == crate::content_producer::CC004_UNDETERMINED_KIND {
+                    let coord = source_pending::w_raw_slot(s, &object)?;
+                    if self.w_raws.get(&coord).is_some_and(|other| *other != handle) {
+                        return Err(err("同cut W未定原件坐标重复"));
+                    }
+                    self.w_raws.put(s, coord, handle)?;
+                    self.w_raw_handles.put(s, handle, coord)?;
+                    w_dirty = true;
+                }
             }
         }
         while let Some((rank, handle)) = events.first().copied() {
@@ -1408,7 +1456,9 @@ impl NativeSourceState {
                 }
             }
         }
-        if self.steps.len() != self.raw.len() {
+        // #1393 W：等待期零正式步骤；建立后步骤与生效原件一一对应。
+        let w_unsettled = w && self.steps.is_empty();
+        if !w_unsettled && self.steps.len() != self.raw.len() {
             return Err(err("同cut CC004未一一覆盖生效原始账"));
         }
         // 真实 raw 成员前缀改变的后缀都是受影响依赖；只枚举这一实际 fanout。
@@ -1544,6 +1594,17 @@ impl NativeSourceState {
         {
             return Err(err("CC054来源不是同cut全部生效原始账"));
         }
+        if w {
+            self.w_phase(
+                s,
+                knowledge,
+                w_unsettled,
+                w_dirty || knowledge_changed || sequence_changed || raw_membership.is_some(),
+                dirty_groups,
+                &mut dirty_requests,
+                raw_membership.is_some(),
+            )?;
+        }
         let ordinal = self.object_order.rank(knowledge)?;
         self.request_phase(s, ordinal, dirty_requests)?;
         if crate::is_structure_rule(&self.rule) {
@@ -1563,6 +1624,129 @@ impl NativeSourceState {
         }
         Ok(())
     }
+    /// #1393/#1565 W：初始化/未定原件/组初始化证据与知识态方向状态（同全量 `source_pending::audit_w`）。
+    ///
+    /// `full` = 初始化、知识态、seed 或原始账有变：整体重核（等待期规模 = 未定原件数，建立后只读
+    /// 建立前缀与全部组）；否则只核脏组的初始化证据。等待期把全部生效原件登记为未定覆盖。
+    #[allow(clippy::too_many_arguments)]
+    fn w_phase(
+        &mut self,
+        s: &mut SourceMaterial<'_, '_, '_, '_>,
+        knowledge: Handle,
+        unsettled: bool,
+        full: bool,
+        dirty_groups: &Tree<i64>,
+        dirty_requests: &mut Tree<Handle>,
+        raw_changed: bool,
+    ) -> Result<(), String> {
+        if unsettled {
+            if full {
+                for coord in self.pending.iter().copied().collect::<Vec<_>>() {
+                    if !self.raw.contains_key(&coord) {
+                        self.pending.remove(&coord)?;
+                        self.coverage_at(s, coord)?;
+                    }
+                }
+                for coord in self.raw_order.iter().copied().collect::<Vec<_>>() {
+                    if self.pending.insert(s, coord)? {
+                        self.coverage_at(s, coord)?;
+                    }
+                }
+            }
+        } else if !self.pending.is_empty() {
+            for coord in self.pending.iter().copied().collect::<Vec<_>>() {
+                self.pending.remove(&coord)?;
+                self.coverage_at(s, coord)?;
+            }
+        }
+        if raw_changed {
+            for (handle, class) in self.w_requests.iter() {
+                if *class == source_pending::W_REQ_PENDING {
+                    dirty_requests.insert(s, *handle)?;
+                }
+            }
+        }
+        let first_step = if unsettled {
+            None
+        } else {
+            let first = *self
+                .raw_order
+                .first()
+                .ok_or_else(|| err("raw缺当前CC004步骤"))?;
+            Some(first)
+        };
+        let established = match first_step {
+            None => None,
+            Some(first) => {
+                let step = self
+                    .steps
+                    .get(&first)
+                    .ok_or_else(|| err("raw缺当前CC004步骤"))?;
+                let end = *step
+                    .data
+                    .object
+                    .sources
+                    .last()
+                    .ok_or_else(|| err("W seed来源为空"))?;
+                let evidence = step.data.fields().get_admitted(s, "direction_evidence")?;
+                Some((evidence, end))
+            }
+        };
+        if !full {
+            if let Some((evidence, _)) = &established {
+                let first_digest = digest(evidence)?;
+                for index in dirty_groups.iter() {
+                    if let Some(group) = self.groups.get(index) {
+                        source_pending::w_group(s, group, first_digest)?;
+                    }
+                }
+            }
+            return Ok(());
+        }
+        let ordered: Vec<i64> = match &established {
+            None => self.raw_order.iter().copied().collect(),
+            Some((_, end)) => self.raw_order.range(..=*end).copied().collect(),
+        };
+        let init = self
+            .w_init
+            .and_then(|handle| self.objects.get(&handle))
+            .map(|entry| Rc::clone(&entry.value));
+        let mut raws = bj::new_map(None);
+        let held: Vec<(i64, Rc<Object>)> = self
+            .w_raws
+            .iter()
+            .filter_map(|(coord, handle)| {
+                self.objects
+                    .get(handle)
+                    .map(|entry| (*coord, Rc::clone(&entry.value)))
+            })
+            .collect();
+        for (coord, object) in &held {
+            raws.insert(*coord, &**object).map_err(err)?;
+        }
+        let knowledge_object = Rc::clone(
+            &self
+                .objects
+                .get(&knowledge)
+                .ok_or_else(|| err("知识贡献悬空"))?
+                .value,
+        );
+        let knowledge_payload = source_structure::payload(s, &knowledge_object)?;
+        source_pending::audit_w(
+            s,
+            init.as_ref().map(|object| &**object),
+            &raws,
+            &ordered,
+            &self.raw,
+            &self.groups,
+            established
+                .as_ref()
+                .map(|(evidence, _)| (evidence, ordered.len() - 1)),
+            &knowledge_payload,
+            true,
+            &mut None,
+        )
+    }
     fn remove_request(
         &mut self,
         s: &(impl CodecRead + ?Sized),
@@ -1574,6 +1758,7 @@ impl NativeSourceState {
             .remove(&handle)?
             .ok_or_else(|| err("请求贡献悬空"))?;
         forget(&mut self.request_keys, request.key.as_str(), handle)?;
+        self.w_requests.remove(&handle)?;
         if let Some(subject) = request.subject {
             touched.insert(s, owned(s, &subject)?)?;
             unlink(&mut self.request_subjects, subject.as_str(), handle)?;
@@ -1594,6 +1779,8 @@ impl NativeSourceState {
         mut dirty: Tree<Handle>,
     ) -> Result<(), String> {
         let equal_is_evidence = source_pending::equal_is_evidence(self.rule.as_str())?;
+        let w = source_pending::is_w_rule(self.rule.as_str());
+        let w_unsettled = w && self.steps.is_empty();
         let mut touched = Tree::default();
         let stream = Stream::Requests(u64::try_from(knowledge).map_err(|_| err("知识位置溢出"))?);
         let changes = apply_order(
@@ -1637,6 +1824,16 @@ impl NativeSourceState {
                     entities: &self.structure_entities,
                 },
             };
+            let w_class = if w {
+                let all_raw: Vec<i64> = if w_unsettled {
+                    self.raw_order.iter().copied().collect()
+                } else {
+                    Vec::new()
+                };
+                source_pending::w_request(s, &request, &lookup, &all_raw, w_unsettled)?
+            } else {
+                None
+            };
             let mut keys = RequestKeys {
                 at: handle,
                 order: &self.request_order,
@@ -1644,15 +1841,26 @@ impl NativeSourceState {
                 keys: &mut self.request_keys,
                 bound: &mut self.request_bound,
             };
-            source_pending::request_record_with_slots(
-                s,
-                &request,
-                &lookup,
-                &mut keys,
-                equal_is_evidence,
-                &self.rule,
-            )?;
+            if w_class.is_some() {
+                // W 三类请求：键唯一性仍登记在同一张请求槽表里。
+                let key = text(s, &request, "request_id")?;
+                if keys.insert_request(s, key.as_str())? {
+                    return Err(err("同cut知识请求重复"));
+                }
+            } else {
+                source_pending::request_record_with_slots(
+                    s,
+                    &request,
+                    &lookup,
+                    &mut keys,
+                    equal_is_evidence,
+                    &self.rule,
+                )?;
+            }
             drop(keys);
+            if let Some(class) = w_class {
+                self.w_requests.put(s, handle, class)?;
+            }
             // 成功后才记录逆依赖，不提前解码未来请求以构造索引。
             let key = text(s, &request, "request_id")?;
             let parsed = parsed_json(s, key.as_bytes())?;
@@ -1715,6 +1923,13 @@ impl NativeSourceState {
         }
         if !self.missing_requests.is_empty() {
             return Err(err("CC004缺一一绑定的知识请求"));
+        }
+        if w {
+            let mut seen = source_pending::WRequestSeen::default();
+            for (_, class) in self.w_requests.iter() {
+                seen.note(*class);
+            }
+            seen.check(self.w_raws.len(), w_unsettled)?;
         }
         for (handle, _) in changes.removed {
             self.request_order.reclaim(s, handle)?;

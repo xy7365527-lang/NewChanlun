@@ -607,6 +607,8 @@ pub(super) fn audit_w(
     groups: &(impl GroupLookup + ?Sized),
     established: Option<(&RefValue, usize)>,
     knowledge: &RefValue,
+    check_groups: bool,
+    first_out: &mut Option<NodeDigest>,
 ) -> Result<(), String> {
     let init = init.ok_or_else(|| err("W同cut缺初始化事实"))?;
     let p = payload(s, init)?;
@@ -680,17 +682,15 @@ pub(super) fn audit_w(
             if undetermined.len() != 0 {
                 return Err(err("W方向已建立仍有未定原件"));
             }
-            for index in 0..groups.len() {
-                let group = groups
-                    .get(&(index as i64))
-                    .ok_or_else(|| err("组合并序号不连续"))?;
-                if text(s, &group.payload, "initialization_policy_revision")? != W_POLICY
-                    || digest(&field(s, &group.payload, "initial_direction_evidence")?)?
-                        != first_digest
-                {
-                    return Err(err("W组初始化证据与初始化事实不同"));
+            if check_groups {
+                for index in 0..groups.len() {
+                    let group = groups
+                        .get(&(index as i64))
+                        .ok_or_else(|| err("组合并序号不连续"))?;
+                    w_group(s, group, first_digest)?;
                 }
             }
+            *first_out = Some(first_digest);
             "Established"
         }
     };
@@ -702,6 +702,24 @@ pub(super) fn audit_w(
     Ok(())
 }
 
+pub(super) const W_REQ_INIT: i64 = 0;
+pub(super) const W_REQ_RAW: i64 = 1;
+pub(super) const W_REQ_PENDING: i64 = 2;
+
+/// #1393 W：组载荷的初始化证据与本 cut 初始化事实的首个严格对逐值相同（增量入口按脏组调用）。
+pub(super) fn w_group(
+    s: &mut (impl SourceFieldStore + ?Sized),
+    group: &Group,
+    first_digest: NodeDigest,
+) -> Result<(), String> {
+    if text(s, &group.payload, "initialization_policy_revision")? != W_POLICY
+        || digest(&field(s, &group.payload, "initial_direction_evidence")?)? != first_digest
+    {
+        return Err(err("W组初始化证据与初始化事实不同"));
+    }
+    Ok(())
+}
+
 /// W 请求计数：初始化 1 条、未定原件逐一、等待期另 1 条待决组请求。
 #[derive(Default)]
 pub(super) struct WRequestSeen {
@@ -709,18 +727,34 @@ pub(super) struct WRequestSeen {
     pub raws: usize,
     pub pending: usize,
 }
+impl WRequestSeen {
+    pub(super) fn note(&mut self, class: i64) {
+        match class {
+            W_REQ_INIT => self.init += 1,
+            W_REQ_RAW => self.raws += 1,
+            _ => self.pending += 1,
+        }
+    }
+    /// 一一绑定：初始化恰 1 条、未定原件逐一、待决组请求恰在等待期出现一次。
+    pub(super) fn check(&self, raws: usize, unsettled: bool) -> Result<(), String> {
+        if self.init != 1 || self.raws != raws || self.pending != usize::from(unsettled) {
+            return Err(err("W初始化/未定原件缺一一绑定的知识请求"));
+        }
+        Ok(())
+    }
+}
 
 /// #1393 W：初始化/未定原件/待决组三类请求的主体、来源、原因与四轴逐项绑定。
 ///
-/// 返回 `true` = 该请求属 W 三类且已核；`false` = 非 W 请求（由既有通道处理）。
+/// 返回 `Some(类)` = 该请求属 W 三类且已核（`W_REQ_INIT`/`W_REQ_RAW`/`W_REQ_PENDING`）；
+/// `None` = 非 W 请求（由既有通道处理）。等待期才需要 `all_raw`（待决组请求来源）。
 pub(super) fn w_request(
     s: &mut (impl SourceFieldStore + ?Sized),
     request: &RefValue,
     objects: &(impl source_structure::Lookup + ?Sized),
     all_raw: &[i64],
     unsettled: bool,
-    seen: &mut WRequestSeen,
-) -> Result<bool, String> {
+) -> Result<Option<i64>, String> {
     exact(request, Kind::Object, 5)?;
     let fields = SourceFields::read_subset(
         s,
@@ -761,11 +795,9 @@ pub(super) fn w_request(
             if tail != Some("W") {
                 return Err(err("W初始化请求槽位不是W"));
             }
-            seen.init += 1;
-            unsettled
+            (W_REQ_INIT, unsettled)
         } else {
-            seen.raws += 1;
-            true
+            (W_REQ_RAW, true)
         }
     } else if kind == CC005_GROUP_KIND && tail == Some("pending") {
         if !unsettled {
@@ -774,11 +806,11 @@ pub(super) fn w_request(
         if !subject.view().is_null() || &*sources != all_raw {
             return Err(err("W待决组请求主体/来源不符"));
         }
-        seen.pending += 1;
-        true
+        (W_REQ_PENDING, true)
     } else {
-        return Ok(false);
+        return Ok(None);
     };
+    let (class, initial) = initial;
     let want: &[&str] = if initial { &[INITIAL] } else { &[] };
     strings(s, &reasons, want)?;
     let axes = fields.get_admitted(s, "axes")?;
@@ -801,7 +833,7 @@ pub(super) fn w_request(
             return Err(err("W请求四轴不同"));
         }
     }
-    Ok(true)
+    Ok(Some(class))
 }
 
 pub(super) trait StepLookup: source_structure::Lookup {
@@ -1146,6 +1178,8 @@ pub(super) fn audit<'a>(
             groups,
             evidence.as_ref().map(|e| (e, established_at)),
             &knowledge,
+            true,
+            &mut None,
         )?;
         if w_unsettled {
             // 等待期：组成员为空，生效原件全部由未定原件承担（与组成员的不交完备并集由调用方核）。
@@ -1182,8 +1216,8 @@ pub(super) fn audit<'a>(
                 }
             }
         }
-        if w
-            && w_request(
+        let class = if w {
+            w_request(
                 s,
                 &request,
                 &FullStepLookup {
@@ -1193,9 +1227,12 @@ pub(super) fn audit<'a>(
                 },
                 &prefix,
                 w_unsettled,
-                &mut w_seen,
             )?
-        {
+        } else {
+            None
+        };
+        if let Some(class) = class {
+            w_seen.note(class);
             // 键唯一性仍由同一请求槽登记（与其它请求共用一张表）。
             let key = text(s, &request, "request_id")?;
             if (FullRequestSlots {
@@ -1220,12 +1257,8 @@ pub(super) fn audit<'a>(
             equal_is_evidence,
         )?;
     }
-    if w
-        && (w_seen.init != 1
-            || w_seen.raws != w_raws.len()
-            || w_seen.pending != usize::from(w_unsettled))
-    {
-        return Err(err("W初始化/未定原件缺一一绑定的知识请求"));
+    if w {
+        w_seen.check(w_raws.len(), w_unsettled)?;
     }
     for (_, object) in structure_objects.iter() {
         if source_structure::is_kind(rule, object.kind.as_str())

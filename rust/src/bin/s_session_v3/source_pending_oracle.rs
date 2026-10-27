@@ -504,6 +504,8 @@ pub(super) fn audit(
             groups,
             evidence.as_ref().map(|e| (e, established_at)),
             &knowledge,
+            true,
+            &mut None,
         )?;
         if w_unsettled {
             for (coord, _) in ordered.iter() {
@@ -547,8 +549,13 @@ pub(super) fn audit(
         {
             return Err(err("同cut知识请求重复"));
         }
-        if w && live::w_request(s, &request, &w_lookup, &prefix, w_unsettled, &mut w_seen)? {
-            continue;
+        if w {
+            if let Some(class) =
+                live::w_request(s, &request, &w_lookup, &prefix, w_unsettled)?
+            {
+                w_seen.note(class);
+                continue;
+            }
         }
         if view.index(0).and_then(|v| v.as_str()) != Some(CC004_STEP_KIND) {
             // 非步骤请求可共存，但不能换一个 key 重复声明同一等待主体。
@@ -634,12 +641,8 @@ pub(super) fn audit(
     if bound.len() != steps.len() {
         return Err(err("CC004缺一一绑定的知识请求"));
     }
-    if w
-        && (w_seen.init != 1
-            || w_seen.raws != w_raws.len()
-            || w_seen.pending != usize::from(w_unsettled))
-    {
-        return Err(err("W初始化/未定原件缺一一绑定的知识请求"));
+    if w {
+        w_seen.check(w_raws.len(), w_unsettled)?;
     }
     Ok(pending)
 }
