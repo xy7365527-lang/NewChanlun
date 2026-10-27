@@ -3340,6 +3340,14 @@ mod tests {
             let items = &probe["candidate_items"];
             assert_eq!(items["physical"], probe["parent_live_before"]);
             assert_eq!(items["physical"], items["l0"]);
+            // q 与 originals 已有非销毁读数（探针内已核读数=析构下降），不得退回未读。
+            for read in ["candidate.q", "candidate.originals.current_sql"] {
+                assert!(
+                    !items["unread"].as_array().unwrap().iter().any(|n| n == read),
+                    "{read} 未读到：{}",
+                    items["unread"]
+                );
+            }
             // #1572 任务D：快读数可得时与清单之和、析构下降三方相等；不可得时留缺口原因。
             let fast = &capture["retention"]["fast_physical"];
             assert!(fast.is_null() || fast.as_u64() == dropped, "{fast}");

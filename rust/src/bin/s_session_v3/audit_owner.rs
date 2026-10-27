@@ -1352,6 +1352,8 @@ impl AuditConnection {
         // 析构前的非销毁读数；静止点 mark 只持弱引用，不改 live。
         let mark = parent.quiescent_mark();
         let inline_reading = c._inline_permit.on_ledger_for_test(&mark);
+        let q_reading = Some(c.q.permit_bytes());
+        let originals_reading = i1572_originals_permit_bytes(&c.originals)?;
         let raw = self
             .construction
             .borrow()
@@ -1440,6 +1442,8 @@ impl AuditConnection {
             slot_alive,
             inline_reading,
             capture_reading,
+            q_reading,
+            originals_reading,
             raw: (raw.map_or(0, |r| r.0), raw_dropped),
             residual,
             l0: start,
@@ -2568,6 +2572,45 @@ impl I1572CaptureListing {
         }))
     }
 }
+/// #1572 逐项U：originals（Q 全集原件）在候选父账上持有的全部许可字节（非销毁读数）：外层
+/// 容器许可，加每份 `ExactRows` 的 sql 文本、scope/columns/rows 各层 `CodecVec` 块与 Text/Blob 单元
+/// 的 Native 许可。未绑定许可的块不进父账，读数与析构下降都计 0。外层无许可返回 None。
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+fn i1572_originals_permit_bytes(
+    originals: &native::Tracked<Vec<request_audit::ExactRows>>,
+) -> Result<Option<usize>, String> {
+    use super::business_json::TextValue;
+    use request_audit::SqlCell;
+    let Some(fee) = originals.fee_bytes() else {
+        return Ok(None);
+    };
+    let text = |t: &TextValue| match t {
+        TextValue::Plain(v) => Ok(v.retained_charge().unwrap_or(0)),
+        TextValue::Owned(_) => Err("originals文本不在候选父账（Owned）".to_string()),
+    };
+    let cells = |row: &newchan_rust::s_content::CodecVec<SqlCell>| {
+        row.iter().fold(row.native_retained_charge().unwrap_or(0), |a, c| {
+            a.saturating_add(match c {
+                SqlCell::Text(v) | SqlCell::Blob(v) => v.native_retained_charge().unwrap_or(0),
+                _ => 0,
+            })
+        })
+    };
+    let mut total = fee;
+    for e in originals.iter() {
+        total = total.saturating_add(text(&e.sql)?);
+        total = total.saturating_add(cells(&e.scope));
+        total = total.saturating_add(e.columns.native_retained_charge().unwrap_or(0));
+        for c in e.columns.iter() {
+            total = total.saturating_add(text(c)?);
+        }
+        total = total.saturating_add(e.rows.native_retained_charge().unwrap_or(0));
+        for row in e.rows.iter() {
+            total = total.saturating_add(cells(row));
+        }
+    }
+    Ok(Some(total))
+}
 /// #1572 任务E：候选组逐项名，与 `request_audit::OldPoolPartition` 的 LISTED 行一一对应。
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
 pub(super) const I1572_CANDIDATE_ITEMS: [&str; 9] = [
@@ -2626,6 +2669,8 @@ struct I1572CandidateDrops<'a> {
     slot_alive: bool,
     inline_reading: Option<usize>,
     capture_reading: Option<usize>,
+    q_reading: Option<usize>,
+    originals_reading: Option<usize>,
     raw: (usize, usize),
     residual: usize,
     l0: usize,
@@ -2712,16 +2757,16 @@ fn i1572_candidate_items(d: I1572CandidateDrops<'_>) -> Result<serde_json::Value
             "q：q::Facts",
             ("charge.q_capacity", c.q_capacity),
             dropped("q"),
-            None,
-            "q::Facts的Reserved许可、raw_capacity、raw_fees无字节访问器（q.rs只读）",
+            d.q_reading,
+            "q::Facts::permit_bytes未读到",
         ),
         I1572CandidateItem::new(
             names[6],
             "originals：native::Tracked<Vec<ExactRows>>",
             ("charge.current_sql_capacity", c.current_sql_capacity),
             dropped("originals"),
-            None,
-            "native::Tracked.fee无字节访问器（native.rs只读，只有has_permit）",
+            d.originals_reading,
+            "originals外层容器无父账许可（Tracked.fee为None）",
         ),
         I1572CandidateItem::new(
             names[7],
@@ -2767,6 +2812,68 @@ fn i1572_candidate_items(d: I1572CandidateDrops<'_>) -> Result<serde_json::Value
         "uncovered": sum(rows.iter().map(|r| r.uncovered)),
         "unread": unread,
     }))
+}
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+mod i1572_candidate_items_tests {
+    use super::*;
+    fn charge() -> CompleteCharge {
+        CompleteCharge {
+            node_source_and_certificates: 0,
+            node_capacity: 100,
+            historical_and_raw_capacity: 50,
+            historical_binding_capacity: 0,
+            slot_result_capacity: 0,
+            source_pool_charge: 0,
+            current_sql_capacity: 20,
+            q_capacity: 30,
+            effects_peak: 0,
+            incremental_steps: 0,
+            inline: 10,
+            total: 210,
+            entry_reserved_bytes: 0,
+            handoff_peak: 0,
+        }
+    }
+    fn table(q: Option<usize>, originals: Option<usize>) -> Result<serde_json::Value, String> {
+        let steps = [
+            serde_json::json!(["capture", 100]),
+            serde_json::json!(["audited(raw+historical)", 50]),
+            serde_json::json!(["q", 30]),
+            serde_json::json!(["originals", 20]),
+            serde_json::json!(["_inline_permit", 10]),
+        ];
+        let m = native::Budget::metadata_bytes();
+        i1572_candidate_items(I1572CandidateDrops {
+            charge: &charge(),
+            steps: &steps,
+            slot_alive: false,
+            inline_reading: Some(10),
+            capture_reading: Some(100),
+            q_reading: q,
+            originals_reading: originals,
+            raw: (8, 7),
+            residual: m,
+            l0: 217 + m,
+        })
+    }
+    /// q 与 originals 的非销毁读数进入逐项表：相等时只剩 audited 与 raw 两项未读；
+    /// 任一读数与其析构下降差 1 字节即被拒，文本点名该项。
+    #[test]
+    fn i1572_candidate_items_reject_q_and_originals_reading_mismatch() {
+        let ok = table(Some(30), Some(20)).unwrap();
+        assert_eq!(
+            ok["unread"],
+            serde_json::json!(["candidate.audited.historical_and_raw", "committed_raw_state"])
+        );
+        assert_eq!(
+            table(Some(31), Some(20)).unwrap_err(),
+            "候选项candidate.q读数≠析构下降30"
+        );
+        assert_eq!(
+            table(Some(30), Some(19)).unwrap_err(),
+            "候选项candidate.originals.current_sql读数≠析构下降20"
+        );
+    }
 }
 #[cfg(feature = "s_capture_native_testonly")]
 struct CompleteCandidate {
