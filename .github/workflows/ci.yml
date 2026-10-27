@@ -228,6 +228,11 @@ jobs:
         working-directory: .
         run: python3 .github/scripts/check-prod-no-test-hooks.py
 
+      # #1640 §2.3 第 3 层：入仓禁串清单须与源码同步，漂移即红（产物检查读的就是这份清单）。
+      - name: 产物禁串清单与源码一致（#1640）
+        working-directory: .
+        run: python3 .github/scripts/gen-prod-banned-literals.py --check .
+
       # #1640 §2.3 第 2 层检查器自身的单测（cfg 求值、ROOTS、门控判定）。
       - name: 生产增量构建无测试钩子检查器单测（#1640）
         working-directory: .
