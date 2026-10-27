@@ -25,6 +25,8 @@ use std::time::{Duration, Instant};
 const MANIFEST_REVISION: &str = "production-session-manifest/1";
 const PROFILES: [&str; 4] = ["simulation", "dry-run", "experiment", "production"];
 const STOP_GRACE: Duration = Duration::from_secs(10);
+/// S 子进程从 launcher 环境放回的 admission 声明变量；凭据不在其中。
+const S_PASS: [&str; 2] = ["S_CONTROL_ADMISSION_SHA256", "S_CONTROL_ADMISSION_IDENTITY"];
 
 static STOP: AtomicBool = AtomicBool::new(false);
 
@@ -284,7 +286,6 @@ fn run() -> Result<i32, String> {
         libc::signal(libc::SIGTERM, on_stop as *const () as libc::sighandler_t);
         libc::signal(libc::SIGINT, on_stop as *const () as libc::sighandler_t);
     }
-    const S_PASS: [&str; 2] = ["S_CONTROL_ADMISSION_SHA256", "S_CONTROL_ADMISSION_IDENTITY"];
 
     // ── init：只对尚不存在的库；S 一律带声明 init ──
     if !s_db.exists() {
@@ -333,74 +334,12 @@ fn run() -> Result<i32, String> {
         }
     }
 
-    // ── 拉起：每域独立进程 ──
+    // ── 拉起：每域独立进程；中途失败也先回收已拉起的子进程再报错，不留孤儿 ──
     let mut children: Vec<Supervised> = Vec::new();
-    let mut spawn = |domain: String, mut c: Command, critical: bool| -> Result<(), String> {
-        c.stdout(Stdio::null());
-        let child = c
-            .spawn()
-            .map_err(|e| format!("MissingDependency：{domain} 启动失败：{e}"))?;
-        log("spawn", json!({"domain": domain, "pid": child.id()}));
-        children.push(Supervised {
-            domain,
-            child,
-            status: None,
-            critical,
-        });
-        Ok(())
-    };
-    let mut s = clean(Command::new(&s_bin), &S_PASS);
-    s.args(["serve", "--protocol-revision", "s-session/3"])
-        .args([
-            "--admission-job-limits",
-            text(raw, "s.admission_job_limits")?,
-        ])
-        .arg("--db")
-        .arg(&s_db)
-        .args(["--profile", text(raw, "s.profile")?])
-        .args(["--writer-epoch", text(raw, "s.writer_epoch")?])
-        .args(["--clock-plan", text(raw, "s.clock_plan")?])
-        .args(["--socket", text(raw, "s.socket")?])
-        .args(["--resource-config", text(raw, "s.resource_config")?]);
-    spawn("S".into(), s, true)?;
-    let e_epoch = text(raw, "economic.e.epoch")?;
-    let mut e = clean(Command::new(&e_bin), &[]);
-    e.args([
-        "serve",
-        "--manifest",
-        econ,
-        "--db",
-        e_db,
-        "--epoch",
-        e_epoch,
-    ]);
-    spawn("E".into(), e, true)?;
-    for b in &chongs {
-        let chong = text(b, "chong")?;
-        let mut c = clean(Command::new(&b_bin), &[]);
-        c.args(["serve", "--manifest", econ, "--db", text(b, "db")?])
-            .args([
-                "--chong",
-                chong,
-                "--epoch",
-                text(b, "epoch")?,
-                "--e-epoch",
-                e_epoch,
-            ]);
-        spawn(format!("B:{chong}"), c, true)?;
-    }
-    let mut x = clean(Command::new(&x_bin), &[]);
-    x.args(["serve", "--db", text(raw, "x.db")?])
-        .arg("--profile")
-        .arg(&m.x_profile)
-        .args(["--writer-epoch", text(raw, "x.writer_epoch")?]);
-    if let Some((key, value)) = &m.credential {
-        x.env(key, value);
-    }
-    spawn("X".into(), x, false)?;
+    let spawned = spawn_domains(&m, &s_bin, &e_bin, &b_bin, &x_bin, &mut children);
+    let mut failed = spawned.is_err();
 
     // ── 监督 ──
-    let mut failed = false;
     while !STOP.load(Ordering::SeqCst) && !failed {
         for sup in children.iter_mut().filter(|c| c.status.is_none()) {
             if let Ok(Some(status)) = sup.child.try_wait() {
@@ -438,8 +377,88 @@ fn run() -> Result<i32, String> {
             }
         }
     }
+    spawned?;
     log("stopped", json!({"failed": failed}));
     Ok(if failed { 1 } else { 0 })
+}
+
+/// 按 S、E、各 Bᵢ、X 顺序拉起；已拉起的子进程即刻登记进 `children`，供调用方统一回收。
+fn spawn_domains(
+    m: &Manifest,
+    s_bin: &Path,
+    e_bin: &Path,
+    b_bin: &Path,
+    x_bin: &Path,
+    children: &mut Vec<Supervised>,
+) -> Result<(), String> {
+    let raw = &m.raw;
+    let s_db = text(raw, "s.db")?;
+    let econ = text(raw, "economic.manifest")?;
+    let e_db = text(raw, "economic.e.db")?;
+    let chongs = raw["economic"]["b"].as_array().cloned().unwrap_or_default();
+    let mut spawn = |domain: String, mut c: Command, critical: bool| -> Result<(), String> {
+        c.stdout(Stdio::null());
+        let child = c
+            .spawn()
+            .map_err(|e| format!("MissingDependency：{domain} 启动失败：{e}"))?;
+        log("spawn", json!({"domain": domain, "pid": child.id()}));
+        children.push(Supervised {
+            domain,
+            child,
+            status: None,
+            critical,
+        });
+        Ok(())
+    };
+    let mut s = clean(Command::new(s_bin), &S_PASS);
+    s.args(["serve", "--protocol-revision", "s-session/3"])
+        .args([
+            "--admission-job-limits",
+            text(raw, "s.admission_job_limits")?,
+        ])
+        .arg("--db")
+        .arg(s_db)
+        .args(["--profile", text(raw, "s.profile")?])
+        .args(["--writer-epoch", text(raw, "s.writer_epoch")?])
+        .args(["--clock-plan", text(raw, "s.clock_plan")?])
+        .args(["--socket", text(raw, "s.socket")?])
+        .args(["--resource-config", text(raw, "s.resource_config")?]);
+    spawn("S".into(), s, true)?;
+    let e_epoch = text(raw, "economic.e.epoch")?;
+    let mut e = clean(Command::new(e_bin), &[]);
+    e.args([
+        "serve",
+        "--manifest",
+        econ,
+        "--db",
+        e_db,
+        "--epoch",
+        e_epoch,
+    ]);
+    spawn("E".into(), e, true)?;
+    for b in &chongs {
+        let chong = text(b, "chong")?;
+        let mut c = clean(Command::new(b_bin), &[]);
+        c.args(["serve", "--manifest", econ, "--db", text(b, "db")?])
+            .args([
+                "--chong",
+                chong,
+                "--epoch",
+                text(b, "epoch")?,
+                "--e-epoch",
+                e_epoch,
+            ]);
+        spawn(format!("B:{chong}"), c, true)?;
+    }
+    let mut x = clean(Command::new(x_bin), &[]);
+    x.args(["serve", "--db", text(raw, "x.db")?])
+        .arg("--profile")
+        .arg(&m.x_profile)
+        .args(["--writer-epoch", text(raw, "x.writer_epoch")?]);
+    if let Some((key, value)) = &m.credential {
+        x.env(key, value);
+    }
+    spawn("X".into(), x, false)
 }
 
 fn main() {

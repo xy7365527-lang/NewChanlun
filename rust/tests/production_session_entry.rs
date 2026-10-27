@@ -374,17 +374,24 @@ fn stop(launcher: &mut Child) -> std::process::ExitStatus {
     launcher.wait().unwrap()
 }
 
+/// 域进程出现在 launcher 名下不等于已持锁/建库/开 socket；就绪类断言一律限时轮询。
+fn eventually(what: &str, ready: impl Fn() -> bool) {
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while !ready() {
+        assert!(Instant::now() < deadline, "{what} 未就绪");
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
 fn assert_lock_held(db: &Path) {
-    let lock = std::fs::OpenOptions::new()
-        .read(true)
-        .write(true)
-        .open(format!("{}.writer.lock", db.display()))
-        .unwrap();
-    assert!(
-        lock.try_lock().is_err(),
-        "{} 的 writer.lock 未被持有",
-        db.display()
-    );
+    let path = format!("{}.writer.lock", db.display());
+    eventually(&format!("{path} 被持有"), || {
+        std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&path)
+            .is_ok_and(|lock| lock.try_lock().is_err())
+    });
 }
 
 /// 完整 simulation 夹具：S 带声明 init + 锚；返回 (manifest, s_db)。
@@ -419,19 +426,18 @@ fn simulation_profile_spawns_isolated_domain_processes() {
     }
     assert!(meta(&s_db, "SELECT value FROM meta WHERE key='writer_epoch'").is_some());
     for db in ["e.db", "b.db"] {
-        assert!(
-            meta(&space.path(db), "SELECT v FROM meta WHERE k='writer_epoch'").is_some(),
-            "{db} 缺 writer_epoch"
-        );
+        eventually(&format!("{db} 的 writer_epoch"), || {
+            meta(&space.path(db), "SELECT v FROM meta WHERE k='writer_epoch'").is_some()
+        });
     }
-    assert_eq!(
+    eventually("x.db 的 writer_epoch=1", || {
         meta(
             &space.path("x.db"),
-            "SELECT value FROM x_meta WHERE key='writer_epoch'"
+            "SELECT value FROM x_meta WHERE key='writer_epoch'",
         )
-        .as_deref(),
-        Some("1")
-    );
+        .as_deref()
+            == Some("1")
+    });
     let status = stop(&mut launcher);
     assert_eq!(status.code(), Some(0), "{}", launcher_stderr(&mut launcher));
     for (_, pid) in kids {
@@ -645,6 +651,7 @@ fn s_keeps_committing_while_x_is_stopped() {
     let generation = |db: &Path| meta(db, "SELECT value FROM meta WHERE key='generation'").unwrap();
     let before = generation(&s_db);
     unsafe { libc::kill(x as libc::pid_t, libc::SIGSTOP) };
+    eventually("S socket", || space.path("s.sock").exists());
     let reply = s_ingest(&space.path("s.sock"), DECLARED_NS, 1);
     let deadline = Instant::now() + Duration::from_secs(20);
     while generation(&s_db) == before {
