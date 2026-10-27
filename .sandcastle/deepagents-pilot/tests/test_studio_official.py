@@ -217,3 +217,80 @@ def test_thread_create_is_an_explicit_whitelist(v2, bound):
                   {"config": {"configurable": {"thread_id": str(uuid.uuid4())}}}, {"config": {"callbacks": []}},
                   {"unknown": 1}):
         assert c.post(f"/threads/{thread}/runs/stream", json={**resume, **extra}).status_code == 403, extra
+
+
+def _cancel_while_blocked(v2, bound, monkeypatch, stage):
+    """官方 worker 用 wait_for 包住整个 run；取消或超时可能落在图工厂打开/准备 run 的阻塞线程里。
+    线程跑完后取得的 run 必须被释放，同一 run 随后能再次打开。"""
+    import threading
+
+    started, proceed = threading.Event(), threading.Event()
+    opened = []
+
+    def slow_open(run_id):
+        if stage == "open":
+            started.set()
+            proceed.wait(10)
+        run = v2.run(v2.load(run_id))
+        opened.append(run)
+        return run
+
+    monkeypatch.setattr(studio, "OPEN_BOUND", slow_open)
+    if stage == "prepare":
+        def slow_build(run, checkpointer, model):
+            started.set()
+            proceed.wait(10)
+            return build_agent(run, checkpointer, scripted())
+        monkeypatch.setattr(studio, "build_agent", slow_build)
+    config = {"configurable": {"thread_id": thread_for(bound.run_id), "__is_for_execution__": True}}
+    entered = []
+
+    async def official_run():
+        async with studio.graph(config):
+            entered.append(True)
+
+    async def scenario():
+        task = asyncio.create_task(official_run())
+        await asyncio.to_thread(started.wait, 10)
+        task.cancel()
+        await asyncio.sleep(0.05)
+        assert not task.done(), "取消须等阻塞线程跑完、收回资源后才交回"
+        proceed.set()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    asyncio.run(scenario())
+    assert not entered and len(opened) == 1 and _LEASE.get() is None
+    v2.run(bound).release()
+
+
+def test_cancel_while_opening_the_run_releases_the_lock_it_acquired(v2, bound, monkeypatch):
+    _cancel_while_blocked(v2, bound, monkeypatch, "open")
+
+
+def test_cancel_while_preparing_the_run_releases_the_lock(v2, bound, monkeypatch):
+    _cancel_while_blocked(v2, bound, monkeypatch, "prepare")
+
+
+def test_timeout_around_the_factory_releases_the_lock(v2, bound, monkeypatch):
+    import threading
+
+    gate = threading.Event()
+
+    def slow_open(run_id):
+        gate.wait(0.5)
+        return v2.run(v2.load(run_id))
+
+    monkeypatch.setattr(studio, "OPEN_BOUND", slow_open)
+    config = {"configurable": {"thread_id": thread_for(bound.run_id), "__is_for_execution__": True}}
+
+    async def official_run():
+        async with studio.graph(config):
+            pass
+
+    async def scenario():
+        with pytest.raises(asyncio.TimeoutError):
+            await asyncio.wait_for(official_run(), 0.05)
+
+    asyncio.run(scenario())
+    v2.run(bound).release()

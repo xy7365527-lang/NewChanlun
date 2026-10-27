@@ -3,11 +3,11 @@ from __future__ import annotations
 import asyncio
 import json
 import re
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
@@ -41,6 +41,7 @@ THREAD_PATH = re.compile(r"/threads/([^/]+)(/.*)?")
 RUN_CREATE = frozenset({"/runs", "/runs/stream", "/runs/wait"})
 CANCEL = re.compile(r"/runs/[^/]+/cancel")
 STUDIO_RECURSION_LIMIT = 400
+T = TypeVar("T")
 
 
 def _read_only_model(run: PilotRun) -> ChatOpenAI:
@@ -74,6 +75,30 @@ OPEN_BOUND = _open_bound
 EXECUTION_MODEL: Any = None
 
 
+async def _to_completion(fn: Callable[[], T]) -> tuple[asyncio.Future[T], bool]:
+    """在线程里把阻塞调用跑完。线程不能被取消，等待期间到达的取消先记下，等线程真正结束后再交回调用方，
+    否则调用方的清理会和仍在运行的线程并发，线程取得的资源也会无人接管。"""
+    done: asyncio.Future[T] = asyncio.ensure_future(asyncio.to_thread(fn))
+    cancelled = False
+    while not done.done():
+        try:
+            await asyncio.wait({done})
+        except asyncio.CancelledError:
+            cancelled = True
+    return done, cancelled
+
+
+async def _blocking(fn: Callable[[], T], *, abandon: Callable[[T], object] | None = None) -> T:
+    """跑完 fn 再返回其结果。期间被取消时，fn 取得的资源交给 abandon 收回（同样跑完），然后把取消传下去。"""
+    done, cancelled = await _to_completion(fn)
+    if not cancelled:
+        return done.result()
+    if abandon is not None and not done.cancelled() and done.exception() is None:
+        resource = done.result()
+        await _to_completion(lambda: abandon(resource))
+    raise asyncio.CancelledError
+
+
 @asynccontextmanager
 async def graph(config: RunnableConfig) -> AsyncIterator[Any]:
     """官方图工厂。绑定线程的执行请求打开同一个 v2 PilotRun，在整个官方 run 期间持有 run 锁；
@@ -92,7 +117,7 @@ async def graph(config: RunnableConfig) -> AsyncIterator[Any]:
         yield await asyncio.to_thread(read_only)
         return
 
-    run = await asyncio.to_thread(OPEN_BOUND, run_id)
+    run = await _blocking(lambda: OPEN_BOUND(run_id), abandon=lambda opened: opened.release())
 
     def prepare() -> Any:
         run.clear_interrupt()
@@ -108,12 +133,12 @@ async def graph(config: RunnableConfig) -> AsyncIterator[Any]:
         run.release()
 
     try:
-        agent = await asyncio.to_thread(prepare)
+        agent = await _blocking(prepare)
         lease = grant(run_id)
         yield agent.with_config(recursion_limit=STUDIO_RECURSION_LIMIT,
                                 callbacks=[TraceRecorder(run.dir / "agent-trace.jsonl")])
     finally:
-        await asyncio.to_thread(finish)
+        await _blocking(finish)
 
 
 def _refuse(detail: str) -> JSONResponse:
