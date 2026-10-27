@@ -1415,15 +1415,20 @@ mod tests {
 
     #[test]
     fn request_native_scan_scratch_cold_warm_and_legal_append_full_output_equal() {
-        scan_scratch_cold_warm_append_full_output_equal(false);
+        scan_scratch_cold_warm_append_full_output_equal(false, false);
     }
 
     #[test]
     fn r11_request_native_shared_scope_cold_warm_append_full_output_equal() {
-        scan_scratch_cold_warm_append_full_output_equal(true);
+        scan_scratch_cold_warm_append_full_output_equal(true, false);
     }
 
-    fn scan_scratch_cold_warm_append_full_output_equal(admitted: bool) {
+    #[test]
+    fn measured_native_admitted_cold_hit_append_preserves_full_output_and_refunds() {
+        scan_scratch_cold_warm_append_full_output_equal(true, true);
+    }
+
+    fn scan_scratch_cold_warm_append_full_output_equal(admitted: bool, measured: bool) {
         use super::super::{audit_owner::native::Budget, content_store};
         use newchan_rust::s_content as sc;
         let mut f = Fixture::new();
@@ -1458,14 +1463,43 @@ mod tests {
                 let before = content_store::prototype_capture_work_on_thread();
                 let tx = f.conn.transaction().unwrap();
                 let cold = state::audit_native_current(&tx).unwrap();
-                let current = super::super::s_allocation::audit_in_request_admitted(
-                    &tx,
-                    &super::super::s_allocation::Mode::CapturedNative,
-                    super::super::s_allocation::Phase::Handle,
-                    &mut context,
-                    work,
-                )
-                .unwrap();
+                let current = if measured {
+                    use newchan_rust::s_content::job::{Existing, Job, JobLimits};
+                    let limits = JobLimits::from_canonical_json(&serde_json::json!({
+                        "max_total_wire_bytes":"1048576", "max_total_node_bytes":"1048576",
+                        "max_total_nodes":"100000", "max_total_records":"100000",
+                        "max_total_requests":"20", "max_elapsed_ms":"10000",
+                        "max_staged_bytes":"1048576", "max_store_bytes":"33554432"
+                    }))
+                    .unwrap();
+                    let mut job = Job::new(
+                        limits,
+                        Existing {
+                            store_bytes: 0,
+                            staged_bytes: 0,
+                        },
+                        Box::new(std::time::Instant::now),
+                    )
+                    .unwrap();
+                    let meter = super::super::audit_budget::AuditJob::new(&mut job);
+                    state::audit_native_in_request_measured(
+                        &tx,
+                        &mut context,
+                        work,
+                        None,
+                        Some(&meter),
+                    )
+                    .unwrap()
+                } else {
+                    super::super::s_allocation::audit_in_request_admitted(
+                        &tx,
+                        &super::super::s_allocation::Mode::CapturedNative,
+                        super::super::s_allocation::Phase::Handle,
+                        &mut context,
+                        work,
+                    )
+                    .unwrap()
+                };
                 assert_eq!(
                     complete_native_output(&tx, &current),
                     complete_native_output(&tx, &cold),
@@ -1579,6 +1613,139 @@ mod tests {
         let tx = f.conn.transaction().unwrap();
         state::audit_native_in_request(&tx, context).map(|_| ())
     }
+    #[test]
+    fn measured_default_context_cold_hit_and_limit_clear_slot_without_parent() {
+        use super::super::audit_budget::AuditJob;
+        use newchan_rust::s_content::job::{Existing, Job, JobLimits};
+        let make_job = |records: u64| {
+            Job::new(
+                JobLimits::from_canonical_json(&serde_json::json!({
+                    "max_total_wire_bytes":"1048576", "max_total_node_bytes":"1048576",
+                    "max_total_nodes":"100000", "max_total_records":records.to_string(),
+                    "max_total_requests":"20", "max_elapsed_ms":"10000",
+                    "max_staged_bytes":"1048576", "max_store_bytes":"33554432"
+                }))
+                .unwrap(),
+                Existing {
+                    store_bytes: 0,
+                    staged_bytes: 0,
+                },
+                Box::new(std::time::Instant::now),
+            )
+            .unwrap()
+        };
+        let mut f = Fixture::new();
+        publish_one(&mut f);
+        let mut context = RequestAuditContext::default();
+        let mut job = make_job(100000);
+        let expected;
+        {
+            let tx = f.conn.transaction().unwrap();
+            expected = complete_native_output(&tx, &state::audit_native_current(&tx).unwrap());
+            let audit = AuditJob::new(&mut job);
+            let got = state::audit_native_in_request_measured(
+                &tx,
+                &mut context,
+                None,
+                None,
+                Some(&audit),
+            )
+            .unwrap();
+            assert_eq!(complete_native_output(&tx, &got), expected);
+        }
+        let first_records = job.snapshot().records;
+        assert!(first_records > 0 && job.snapshot().nodes > 0);
+        {
+            let tx = f.conn.transaction().unwrap();
+            let audit = AuditJob::new(&mut job);
+            let got = state::audit_native_in_request_measured(
+                &tx,
+                &mut context,
+                None,
+                None,
+                Some(&audit),
+            )
+            .unwrap();
+            assert_eq!(complete_native_output(&tx, &got), expected);
+            assert_eq!(got.raw.len(), 1);
+        }
+        assert_eq!((context.cold, context.hits), (1, 1));
+        assert_eq!(
+            job.snapshot().records - first_records,
+            5,
+            "hit仍逐次读取、OHLC、validate、raw hash、RawWire"
+        );
+        let mut limited = make_job(1);
+        let tx = f.conn.transaction().unwrap();
+        let audit = AuditJob::new(&mut limited);
+        assert!(state::audit_native_in_request_measured(
+            &tx,
+            &mut context,
+            None,
+            None,
+            Some(&audit)
+        )
+        .is_err());
+        assert!(context.slot.is_none());
+        drop(audit);
+        drop(tx);
+        for limit in [3, 4] {
+            let mut context = RequestAuditContext::default();
+            {
+                let tx = f.conn.transaction().unwrap();
+                state::audit_native_in_request(&tx, &mut context).unwrap();
+            }
+            let mut job = make_job(limit);
+            let tx = f.conn.transaction().unwrap();
+            let meter = AuditJob::new(&mut job);
+            let error = state::audit_native_in_request_measured(
+                &tx,
+                &mut context,
+                None,
+                None,
+                Some(&meter),
+            )
+            .err()
+            .unwrap();
+            assert!(error.contains("job_limit_exceeded"), "{error}");
+            assert!(context.slot.is_none());
+            drop(meter);
+            assert_eq!(
+                job.snapshot().records,
+                limit,
+                "3允许SQL/OHLC/validate，4再允许raw hash；下一独立访问被原Job拒收，不虚增已接纳账"
+            );
+        }
+        for armed in [false, true] {
+            let mut keeper =
+                super::super::cross_request_source_cache::Keeper::new(64 * 1024 * 1024);
+            {
+                let tx = f.conn.transaction().unwrap();
+                state::audit_native_with_source_keeper_for_testonly(&tx, &mut keeper).unwrap();
+            }
+            assert!(keeper.retained_source_bytes() > 0);
+            let mut context = RequestAuditContext::with_source_keeper(keeper);
+            context.arm_source_pool_return(armed);
+            let mut job = make_job(1);
+            let tx = f.conn.transaction().unwrap();
+            let meter = AuditJob::new(&mut job);
+            let error = state::audit_native_in_request_measured(
+                &tx,
+                &mut context,
+                None,
+                None,
+                Some(&meter),
+            )
+            .err()
+            .unwrap();
+            assert!(error.contains("job_limit_exceeded"), "{error}");
+            assert!(context.slot.is_none());
+            assert_eq!(context.take_source_pool().is_some(), armed);
+            drop(meter);
+            assert_eq!(job.snapshot().records, 1);
+        }
+    }
+
     #[test]
     fn request_history_fresh_transactions_bind_exactly_and_drop_at_request_end() {
         let mut f = Fixture::new();
@@ -2193,6 +2360,49 @@ mod tests {
         assert_eq!(after.capture_builds, before.capture_builds);
         assert_eq!(after.decoded_rows - before.decoded_rows, 1);
     }
+    #[test]
+    fn measured_capture_and_rebind_preserve_late_type_error_over_early_bad_frame() {
+        use super::super::{audit_budget::NativeMeasure, content_store};
+        for fault in [
+            "UPDATE s_content_nodes SET tag='7' WHERE rowid=2",
+            "UPDATE s_content_nodes SET body='text' WHERE rowid=2",
+            "UPDATE s_content_nodes SET digest=x'01' WHERE rowid=2",
+        ] {
+            let (mut conn, capture) = node_material_fixture();
+            conn.execute_batch("UPDATE s_content_nodes SET body=x'ff' WHERE rowid=1")
+                .unwrap();
+            conn.execute_batch(fault).unwrap();
+            let tx = conn.transaction().unwrap();
+            let measure = NativeMeasure {
+                budget: None,
+                deadline: Some(std::time::Instant::now() + std::time::Duration::from_secs(10)),
+            };
+            let original = content_store::capture_for_prototype(&tx)
+                .err()
+                .unwrap()
+                .to_string();
+            let cold = content_store::capture_for_request_prototype_measured(&tx, Some(&measure))
+                .err()
+                .unwrap()
+                .to_string();
+            let mut scratch = content_store::OriginalScanScratch::default();
+            let hit =
+                content_store::current_originals_equal_for_request_with_scratch_admitted_measured(
+                    &tx,
+                    &capture,
+                    2,
+                    &mut scratch,
+                    None,
+                    Some(&measure),
+                )
+                .err()
+                .unwrap()
+                .to_string();
+            assert_eq!(cold, original, "{fault}");
+            assert_eq!(hit, original, "{fault}");
+        }
+    }
+
     #[test]
     fn request_history_exact_cells_preserve_type_null_and_raw_bytes() {
         let mut conn = rusqlite::Connection::open_in_memory().unwrap();

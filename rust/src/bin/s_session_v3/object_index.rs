@@ -3017,7 +3017,9 @@ pub(super) fn verify_generated_members_swept_with_records<'a>(
         }
         // #1394：全部原record检查通过之后，只交接同capture的exact字段材料。
         if let Some(records) = records.as_deref_mut() {
-            records.seed(object.view(), names, &fields.0).map_err(err)?;
+            records
+                .seed_measured(object.view(), names, &fields.0, s.native_measure().as_ref())
+                .map_err(err)?;
         }
         s.native_codec_room(&mut new, 1).map_err(err)?;
         new.try_push(object_diff::Key {

@@ -60,7 +60,14 @@ pub(super) fn publish_prepared(
     roots: &(impl ManifestRootSource + ?Sized),
     manifest: &UnpublishedManifest,
 ) -> Result<CommitReceipt, String> {
-    let receipt = publish_borrowed(&mut tx, begin_token, metadata, roots, manifest)?;
+    let receipt = publish_borrowed(
+        &mut tx,
+        begin_token,
+        metadata,
+        roots,
+        manifest,
+        &ThetaConfig::default().record_labels(),
+    )?;
     tx.commit().map_err(err)?;
     Ok(receipt)
 }
@@ -78,6 +85,7 @@ pub(super) fn publish_borrowed(
     metadata: &ManifestMetadata,
     roots: &(impl ManifestRootSource + ?Sized),
     manifest: &UnpublishedManifest,
+    policy_records: &str,
 ) -> Result<CommitReceipt, String> {
     publish_prepared_inner(
         tx,
@@ -85,6 +93,7 @@ pub(super) fn publish_borrowed(
         metadata,
         roots,
         manifest,
+        policy_records,
         #[cfg(all(test, feature = "s_capture_native_testonly"))]
         None,
         #[cfg(all(test, feature = "s_capture_native_testonly"))]
@@ -101,6 +110,7 @@ pub(super) fn publish_borrowed_staged(
     m: &ManifestMetadata,
     roots: &(impl ManifestRootSource + ?Sized),
     manifest: &UnpublishedManifest,
+    policy_records: &str,
     stage: &staged_nodes::StageOwner,
     runtime: &[sc::NodeDigest],
     workspace: Option<content_manifest::PreparedManifestWorkspace>,
@@ -112,6 +122,7 @@ pub(super) fn publish_borrowed_staged(
         m,
         roots,
         manifest,
+        policy_records,
         Some(stage),
         runtime,
         workspace,
@@ -129,9 +140,19 @@ pub(super) fn publish_borrowed_with_workspace(
     m: &ManifestMetadata,
     roots: &(impl ManifestRootSource + ?Sized),
     manifest: &UnpublishedManifest,
+    policy_records: &str,
     workspace: Option<content_manifest::PreparedManifestWorkspace>,
 ) -> Result<CommitReceipt, String> {
-    publish_borrowed_with_workspace_admitted(tx, token, m, roots, manifest, workspace, None)
+    publish_borrowed_with_workspace_admitted(
+        tx,
+        token,
+        m,
+        roots,
+        manifest,
+        policy_records,
+        workspace,
+        None,
+    )
 }
 #[cfg(feature = "s_capture_native_testonly")]
 pub(super) fn publish_borrowed_with_workspace_admitted(
@@ -140,6 +161,7 @@ pub(super) fn publish_borrowed_with_workspace_admitted(
     m: &ManifestMetadata,
     roots: &(impl ManifestRootSource + ?Sized),
     manifest: &UnpublishedManifest,
+    policy_records: &str,
     workspace: Option<content_manifest::PreparedManifestWorkspace>,
     work: Option<&WorkScope>,
 ) -> Result<CommitReceipt, String> {
@@ -149,6 +171,7 @@ pub(super) fn publish_borrowed_with_workspace_admitted(
         m,
         roots,
         manifest,
+        policy_records,
         #[cfg(test)]
         None,
         #[cfg(test)]
@@ -163,6 +186,7 @@ fn publish_prepared_inner(
     metadata: &ManifestMetadata,
     roots: &(impl ManifestRootSource + ?Sized),
     manifest: &UnpublishedManifest,
+    policy_records: &str,
     #[cfg(all(test, feature = "s_capture_native_testonly"))] stage: Option<
         &staged_nodes::StageOwner,
     >,
@@ -264,11 +288,11 @@ fn publish_prepared_inner(
     // 先建真实 Delta 控制行，delivery 的外键随后才能引用本代；大值存显式内容引用。
     tx.execute(
         "INSERT INTO structure_deltas(generation,session_id,catalog_revision,base_cut,next_cut,
-         seq_range_json,index_frontier,input_frontier,catalog_run_status,catalog_evidence_json,delta_json)
-         VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
+         seq_range_json,index_frontier,input_frontier,catalog_run_status,catalog_evidence_json,delta_json,policy_records)
+         VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)",
         params![m.generation,m.session_id,m.catalog_revision,m.base_cut,m.structure_cut,
             seq_range,manifest.batch_id,m.input_frontier,run,
-            reference_json(&evidence_ref)?,reference_json(&resolved.delta)?],
+            reference_json(&evidence_ref)?,reference_json(&resolved.delta)?,policy_records],
     ).map_err(err)?;
     tx.execute(
         "INSERT INTO s_content_publications(generation,batch_id,manifest_root,snapshot_root,delta_root)

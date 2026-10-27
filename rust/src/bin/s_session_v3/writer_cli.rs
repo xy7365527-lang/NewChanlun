@@ -9,7 +9,9 @@ use super::driver::Driver;
 use super::*;
 use newchan_rust::session_protocol::{positive, validate_envelope};
 use newchan_rust::session_transport::{serve_unix, TransportBounds};
+#[cfg(test)]
 use std::io::Read;
+#[cfg(test)]
 use std::os::unix::fs::OpenOptionsExt;
 use std::time::Duration;
 
@@ -31,7 +33,8 @@ pub(super) const GATE_FIELDS: [&str; 7] = [
 /// 旧启动器对 Unix socket 路径的 100 字节上限（`s_service_control.py`），本入口沿用。
 const SOCKET_PATH_BYTES: usize = 100;
 
-const SERVE_FLAGS: [&str; 7] = [
+const SERVE_FLAGS: [&str; 8] = [
+    "--admission-job-limits",
     "--protocol-revision",
     "--db",
     "--profile",
@@ -40,7 +43,8 @@ const SERVE_FLAGS: [&str; 7] = [
     "--socket",
     "--resource-config",
 ];
-const ADVANCE_FLAGS: [&str; 7] = [
+const ADVANCE_FLAGS: [&str; 8] = [
+    "--admission-job-limits",
     "--protocol-revision",
     "--db",
     "--profile",
@@ -49,7 +53,8 @@ const ADVANCE_FLAGS: [&str; 7] = [
     "--input",
     "--max-input-bytes",
 ];
-const RECOVER_FLAGS: [&str; 5] = [
+const RECOVER_FLAGS: [&str; 6] = [
+    "--admission-job-limits",
     "--protocol-revision",
     "--db",
     "--new-epoch",
@@ -121,6 +126,7 @@ impl SResources {
         })
     }
     /// 读整个文件；超过上限的文件由 `parse` 拒绝，不做截断解析。
+    #[cfg(test)]
     pub(super) fn load(path: &Path) -> Result<Self, String> {
         let mut bytes = Vec::new();
         // O_NONBLOCK 避免路径核验后被替换成 FIFO 时永久卡在 open；打开后再核 fd 类型。
@@ -189,11 +195,52 @@ struct RecoverOptions {
 }
 
 /// 命令分派：`Ok(Some(value))` 为要打印的命令结果，`Ok(None)` 为无结果（服务正常退出）。
-pub(super) fn run(args: &[String]) -> Result<Option<Value>, String> {
+pub(super) fn run(args: &[String]) -> Result<Option<super::admission::CommandOutput>, String> {
+    run_with_policy(args, true)
+}
+
+#[cfg(test)]
+pub(super) fn run_fixture(
+    args: &[String],
+) -> Result<Option<super::admission::CommandOutput>, String> {
+    run_with_policy(args, false)
+}
+
+pub(super) fn run_with_policy(
+    args: &[String],
+    production: bool,
+) -> Result<Option<super::admission::CommandOutput>, String> {
     match args.get(1).map(String::as_str).unwrap_or("") {
-        "serve" => serve(ServeOptions::parse(args)?),
-        "advance" => advance(AdvanceOptions::parse(args)?),
-        "recover" => recover(RecoverOptions::parse(args)?),
+        "serve" => {
+            let options = ServeOptions::parse(args)?;
+            let admission = super::admission_anchor::from_args_for_db(
+                &options.db,
+                args,
+                super::admission_anchor::ControlEnv::capture(),
+            )
+            .map_err(|error| error.to_string())?;
+            serve_with_policy(options, admission, production)
+        }
+        "advance" => {
+            let options = AdvanceOptions::parse(args)?;
+            let admission = super::admission_anchor::from_args_for_db(
+                &options.db,
+                args,
+                super::admission_anchor::ControlEnv::capture(),
+            )
+            .map_err(|error| error.to_string())?;
+            advance_with_policy(options, admission, production)
+        }
+        "recover" => {
+            let options = RecoverOptions::parse(args)?;
+            let admission = super::admission_anchor::from_args_for_db(
+                &options.db,
+                args,
+                super::admission_anchor::ControlEnv::capture(),
+            )
+            .map_err(|error| error.to_string())?;
+            recover(options, admission)
+        }
         other => Err(format!(
             "VersionUnsupported：S3 写入口只分派 serve/advance/recover，收到 `{other}`"
         )),
@@ -294,12 +341,19 @@ fn socket_path(raw: &str) -> Result<PathBuf, String> {
     Ok(path)
 }
 
-fn checked_profile(path: &Path) -> Result<(), String> {
-    let (_, profile_id, _) = load_profile(path)?;
-    if profile_id != tb02a::PROFILE {
-        return Err("VersionUnsupported：S3写入口尚未实现非OHLC生成".into());
+fn checked_profile_bytes(bytes: &[u8]) -> Result<(String, String), String> {
+    let profile: Value = serde_json::from_slice(bytes).map_err(err)?;
+    let declared: Value = serde_json::from_str(include_str!(
+        "../../../../s_session/profiles/ohlc_integer_tb02a_v1.json"
+    ))
+    .map_err(err)?;
+    if profile != declared || profile["profile_id"] != tb02a::PROFILE {
+        return Err("InvalidDomain：OHLC profile必须为已声明的完整固定配置".into());
     }
-    Ok(())
+    Ok((
+        tb02a::PROFILE.to_owned(),
+        sha256_hex(&canonical_bytes_of_value(&profile)),
+    ))
 }
 
 impl ServeOptions {
@@ -357,28 +411,18 @@ impl AdvanceOptions {
     }
 }
 
-fn load_input(path: &Path, max_bytes: usize) -> Result<Value, String> {
-    let mut bytes = Vec::new();
-    std::fs::File::open(path)
-        .map_err(err)?
-        .take(u64::try_from(max_bytes).map_err(err)? + 1)
-        .read_to_end(&mut bytes)
-        .map_err(err)?;
-    if bytes.len() > max_bytes {
-        return Err("S3WriterArgsUnsupported：输入字节超过显式 --max-input-bytes".into());
-    }
-    driver::validate_request(strict_json(&bytes)?)
-}
-
 /// 只读预检现有库身份；Driver 持排他锁后仍完整复核，竞态不会借此放行。
 /// 非法 input 在本步骤之前不会触发 Driver::open 的 pending 自动推进。
 fn preflight_input(
     options: &AdvanceOptions,
     clock: &v2::ClockPlan,
     input: &Value,
+    scope: &super::admission::WriterScope,
+    profile: &(String, String),
 ) -> Result<(), String> {
-    let conn =
-        Connection::open_with_flags(&options.db, OpenFlags::SQLITE_OPEN_READ_ONLY).map_err(err)?;
+    scope.require_admitted()?;
+    let conn = Connection::open_with_flags(scope.db_path(), OpenFlags::SQLITE_OPEN_READ_ONLY)
+        .map_err(err)?;
     let tx = conn.unchecked_transaction().map_err(err)?;
     state::audit(&tx)?;
     verify_writer_epoch(&tx, &options.epoch)?;
@@ -387,8 +431,8 @@ fn preflight_input(
     if input["session_id"] != session || input["session_generation"] != incarnation {
         return Err("IdentityConflict：one-shot输入不属于已初始化会话/化身".into());
     }
-    let (_, profile_id, profile_hash) = load_profile(&options.profile)?;
-    if profile_id != tb02a::PROFILE
+    let (profile_id, profile_hash) = profile;
+    if profile_id.as_str() != tb02a::PROFILE
         || meta_get_opt(&tx, "profile_hash")?.as_deref() != Some(profile_hash.as_str())
     {
         return Err("IdentityConflict：one-shot profile与冻结档案不符".into());
@@ -464,9 +508,15 @@ fn verify_control_resource_digest(
 }
 
 /// 全部参数/资源核验后，先持唯一写锁、完整审计/profile/clock/pending，再监听。
-fn serve(options: ServeOptions) -> Result<Option<Value>, String> {
+fn serve_with_policy(
+    options: ServeOptions,
+    mut admission: super::admission_anchor::PreparedAdmission,
+    production: bool,
+) -> Result<Option<super::admission::CommandOutput>, String> {
     let mode = s_allocation::load_testonly_environment()?;
-    let resources = SResources::load(&options.resources)?;
+    let resources =
+        SResources::parse(&admission.read_file(&options.resources, Some(RESOURCE_FILE_BYTES))?)
+            .map_err(|e| admission.diagnostic(e))?;
     let expected = match std::env::var("S_CONTROL_RESOURCE_SHA256") {
         Ok(value) => Some(value),
         Err(std::env::VarError::NotPresent) => None,
@@ -475,8 +525,13 @@ fn serve(options: ServeOptions) -> Result<Option<Value>, String> {
         }
     };
     verify_control_resource_digest(&resources, expected.as_deref())?;
-    let clock = v2::ClockPlan::load(&options.clock)?;
-    checked_profile(&options.profile)?;
+    let clock = v2::ClockPlan::parse(
+        strict_json(&admission.read_file(&options.clock, None)?)
+            .map_err(|e| admission.diagnostic(e))?,
+    )
+    .map_err(|e| admission.diagnostic(e))?;
+    let _frozen_profile = checked_profile_bytes(&admission.read_file(&options.profile, None)?)
+        .map_err(|e| admission.diagnostic(e))?;
     serve_authorization(&resources)?;
     #[cfg(feature = "s_capture_native_testonly")]
     let native_bootstrap = matches!(mode, s_allocation::Mode::CapturedNative);
@@ -489,31 +544,69 @@ fn serve(options: ServeOptions) -> Result<Option<Value>, String> {
             clock,
             resources.limit("audit_cache_source_bytes"),
             mode,
+            admission.into(),
         )?
     } else {
-        let driver = Driver::open_for_serve_with_mode(
+        let driver = if production {
+            Driver::open_for_serve_with_mode_production(
+                &options.db,
+                &options.profile,
+                &options.epoch,
+                clock,
+                resources.limit("audit_cache_source_bytes"),
+                mode,
+                admission.into(),
+            )?
+        } else {
+            #[cfg(test)]
+            {
+                Driver::open_for_serve_with_mode(
+                    &options.db,
+                    &options.profile,
+                    &options.epoch,
+                    clock,
+                    resources.limit("audit_cache_source_bytes"),
+                    mode,
+                    admission.into(),
+                )?
+            }
+            #[cfg(not(test))]
+            unreachable!("fixture only exists in test builds")
+        };
+        let identity = driver.identity()?;
+        (driver, identity)
+    };
+    #[cfg(not(feature = "s_capture_native_testonly"))]
+    let mut driver = if production {
+        Driver::open_for_serve_with_mode_production(
             &options.db,
             &options.profile,
             &options.epoch,
             clock,
             resources.limit("audit_cache_source_bytes"),
             mode,
-        )?;
-        let identity = driver.identity()?;
-        (driver, identity)
+            admission.into(),
+        )?
+    } else {
+        #[cfg(test)]
+        {
+            Driver::open_for_serve_with_mode(
+                &options.db,
+                &options.profile,
+                &options.epoch,
+                clock,
+                resources.limit("audit_cache_source_bytes"),
+                mode,
+                admission.into(),
+            )?
+        }
+        #[cfg(not(test))]
+        unreachable!("fixture only exists in test builds")
     };
-    #[cfg(not(feature = "s_capture_native_testonly"))]
-    let mut driver = Driver::open_for_serve_with_mode(
-        &options.db,
-        &options.profile,
-        &options.epoch,
-        clock,
-        resources.limit("audit_cache_source_bytes"),
-        mode,
-    )?;
     #[cfg(not(feature = "s_capture_native_testonly"))]
     let identity = driver.identity()?;
     let control_instance_id = std::env::var("S_CONTROL_INSTANCE_ID").ok();
+    driver.finish_startup()?;
     let bounds = resources.transport_bounds();
     serve_unix(
         &options.socket,
@@ -562,42 +655,87 @@ fn reply(
 
 /// 一次性推进：打开唯一 Driver（`open` 内部按库中原件 `resume_pending`，不重写原身份），
 /// 打印真实持久摘要后退出；不监听、不常驻。
-fn advance(options: AdvanceOptions) -> Result<Option<Value>, String> {
+fn advance_with_policy(
+    options: AdvanceOptions,
+    mut admission: super::admission_anchor::PreparedAdmission,
+    production: bool,
+) -> Result<Option<super::admission::CommandOutput>, String> {
     let mode = s_allocation::load_testonly_environment()?;
-    let clock = v2::ClockPlan::load(&options.clock)?;
-    checked_profile(&options.profile)?;
+    let clock = v2::ClockPlan::parse(
+        strict_json(&admission.read_file(&options.clock, None)?)
+            .map_err(|e| admission.diagnostic(e))?,
+    )
+    .map_err(|e| admission.diagnostic(e))?;
+    let frozen_profile = checked_profile_bytes(&admission.read_file(&options.profile, None)?)
+        .map_err(|e| admission.diagnostic(e))?;
     let input = options
         .input
         .as_ref()
-        .map(|path| load_input(path, options.max_input_bytes.expect("paired input limit")))
+        .map(|path| {
+            admission
+                .read_file(path, options.max_input_bytes)
+                .and_then(|bytes| {
+                    driver::validate_request(strict_json(&bytes)?)
+                        .map_err(|e| admission.diagnostic(e))
+                })
+        })
         .transpose()?;
+    let scope = super::admission::WriterScope::admit(&options.db, admission)?;
     if let Some(ref envelope) = input {
-        preflight_input(&options, &clock, envelope)?;
+        preflight_input(&options, &clock, envelope, &scope, &frozen_profile)?;
     }
-    let mut driver = Driver::open_with_request_and_mode(
-        &options.db,
-        &options.profile,
-        &options.epoch,
-        clock,
-        input.as_ref(),
-        mode,
-    )?;
-    match input {
-        Some(envelope) => Ok(Some(driver.handle(envelope)?)),
-        None => Ok(Some(driver.state_summary("advance")?)),
-    }
+    let mut driver = if production {
+        Driver::open_production_with_request_and_mode(
+            &options.db,
+            &options.profile,
+            &options.epoch,
+            clock,
+            input.as_ref(),
+            mode,
+            scope.into(),
+        )?
+    } else {
+        #[cfg(test)]
+        {
+            Driver::open_with_request_and_mode(
+                &options.db,
+                &options.profile,
+                &options.epoch,
+                clock,
+                input.as_ref(),
+                mode,
+                scope.into(),
+            )?
+        }
+        #[cfg(not(test))]
+        unreachable!("fixture only exists in test builds")
+    };
+    let out = match input {
+        Some(envelope) => driver.handle(envelope)?,
+        None => driver.state_summary("advance")?,
+    };
+    Ok(Some(driver.into_output(out)))
 }
 
 /// 监督器换代：清未完成 Begin 只经 `driver::recover`（完整状态有效 + epoch 严格上升）；
 /// 不重写已接纳消息，不另造 Release，不碰 v1/v2 的 recover 路径。
-fn recover(options: RecoverOptions) -> Result<Option<Value>, String> {
-    let clock = v2::ClockPlan::load(&options.clock)?;
-    Ok(Some(driver::recover(
+fn recover(
+    options: RecoverOptions,
+    mut admission: super::admission_anchor::PreparedAdmission,
+) -> Result<Option<super::admission::CommandOutput>, String> {
+    let clock = v2::ClockPlan::parse(
+        strict_json(&admission.read_file(&options.clock, None)?)
+            .map_err(|e| admission.diagnostic(e))?,
+    )
+    .map_err(|e| admission.diagnostic(e))?;
+    let (out, scope) = driver::recover_scoped(
         &options.db,
         &options.new_epoch,
         &clock,
         &options.clock_event,
-    )?))
+        admission.into(),
+    )?;
+    Ok(Some(super::admission::CommandOutput::new(out, scope)))
 }
 
 #[cfg(test)]

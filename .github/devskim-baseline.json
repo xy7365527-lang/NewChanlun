@@ -63362,7 +63362,8 @@
     "DS197836|.chanlun/review-results/issue1414-tb02d-20261012/run-package/remaining-driver.py|255",
     "DS197836|s_session/tests/fixtures/q3-complete-onebar.json|1",
     "DS197836|s_session/tests/fixtures/tb02b/independent-source-oracle.json|39",
-    "DS197836|s_session/tests/fixtures/tb03b-changes-only-browser.json|1"
+    "DS197836|s_session/tests/fixtures/tb03b-changes-only-browser.json|1",
+    "DS173237|s_session/tests/fixtures/tb03c_allocation/PER-LEG-RAW.json|169"
   ],
   "updates": [
     {
@@ -63531,6 +63532,20 @@
         "s_session/tests/fixtures/ (*.json, *.jsonl)"
       ],
       "reason": "用户 2026-10-21 裁定：不做整目录排除；两个目录现有文件的现有告警按精确键追加，新写入文件仍被扫描，与 #1474 不凭目录放行一致。键取自 PR 上 DevSkim 的真实扫描产物；基线文件自身的条目是新键路径文本被规则命中所致。入基线前全量凭据核实 0 命中，证据：.chanlun/review-results/eng-debt-20261020/devskim/DEVSKIM-TRIAGE.md、classify-excluded-output.txt、credential-scan-output.txt。原有清单顺序不变，新键仅追加。"
+    },
+    {
+      "issue": 1670,
+      "pull_request": 1697,
+      "source_head": "f441419401de",
+      "actions_run": 40082025796,
+      "added_findings": 1,
+      "rule_counts": {
+        "DS173237": 1
+      },
+      "scope": [
+        "s_session/tests/fixtures/tb03c_allocation/PER-LEG-RAW.json"
+      ],
+      "reason": "该行是 generate_per_leg_fixtures.py 从 FROZEN-MANIFEST.json 改 projection_kind=per_leg 后重算的 SHA-256 manifest_hash，非凭据；与同目录 C4B-RAW.json、RAW.json 的既有摘要告警同类。只追加精确 rule|path|line 键，不作目录排除。"
     }
   ]
 }

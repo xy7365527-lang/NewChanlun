@@ -2267,6 +2267,10 @@ fn positional_result_to_dict<'py>(
     out.set_item("trades", trades)?;
     out.set_item("equity", res.equity.clone())?;
     out.set_item("final_nav", res.final_nav)?;
+    out.set_item(
+        "trend_scope_policy",
+        res.trend_scope_policy.map(|record| record.label()),
+    )?;
     out.set_item("n_entries_by_ladder", res.n_entries_by_ladder.to_vec())?;
     out.set_item("n_exits_by_ladder", res.n_exits_by_ladder.to_vec())?;
     out.set_item("held_bars_by_ladder", res.held_bars_by_ladder.to_vec())?;

@@ -2362,6 +2362,20 @@ mod tests {
     }
 
     #[test]
+    fn trend_scope_policy_is_stamped_from_active_record() {
+        for mode in ["hold26_anc", "fusion_ta", "fusion_t"] {
+            let r = run_with_rows(warmup34(), mode, Some(vec![]), Some(vec![]));
+            assert_eq!(
+                r.trend_scope_policy
+                    .expect("Fusion 必须携带趋势记录")
+                    .label(),
+                "trend-scope/1",
+                "{mode}"
+            );
+        }
+    }
+
+    #[test]
     fn anc_ancestor_trend_suppresses_self_layer_trim() {
         // 层2 自层震荡（无 trend 行置位），祖先层3 kind==Trend ∧ dir==Up
         // ⇒ hold26_anc 豁免层2 卖点削减（26:80 下沉）；fusion_t 不豁免。

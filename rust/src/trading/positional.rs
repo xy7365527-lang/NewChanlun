@@ -108,6 +108,8 @@ pub struct LayerTrade {
 
 #[derive(Debug, Default)]
 pub struct PositionalResult {
+    /// Fusion 实际使用的趋势作用域记录；非 Fusion 没有这份记录，保持 None。
+    pub trend_scope_policy: Option<crate::theta_v0::policy_records::PolicyRef>,
     pub trades: Vec<LayerTrade>,
     /// (bar, nav) 采样（含末 bar）。
     pub equity: Vec<(i64, f64)>,
@@ -1074,7 +1076,7 @@ pub fn run_positional(
     mode: PolarityMode,
     rec: &ReplayRecords,
 ) -> Result<PositionalResult, String> {
-    let mut res = run_positional_records(tape, floor_ladder, mode, rec)?;
+    let mut res = run_positional_with_trend_scope_record(tape, floor_ladder, mode, rec, None)?;
     res.records = rec.label();
     Ok(res)
 }
@@ -1094,11 +1096,14 @@ pub(crate) fn run_positional_fx(
     )
 }
 
-fn run_positional_records(
+/// 与 [`run_positional`] 同一生产路径；`None` 读取当前生效的趋势作用域记录。
+/// 传入记录文本时也只走同一 profile 解析与准入门，供新版本及变异验收使用。
+fn run_positional_with_trend_scope_record(
     tape: &SignalTape,
     floor_ladder: usize,
     mode: PolarityMode,
     rec: &ReplayRecords,
+    trend_scope_record: Option<&str>,
 ) -> Result<PositionalResult, String> {
     let q_total = rec.q_total();
     let op_ladder = rec.op_ladder();
@@ -1177,7 +1182,21 @@ fn run_positional_records(
         seq38_sub,
     } = mode
     {
-        return super::positional_fusion::run_fusion(
+        let profile = match trend_scope {
+            TrendScope::SelfLayer => crate::theta_v0::policy_records::TrendScopeProfile::Default,
+            TrendScope::Ancestor => crate::theta_v0::policy_records::TrendScopeProfile::Hold26Anc,
+            TrendScope::SelfOrAncestor => {
+                crate::theta_v0::policy_records::TrendScopeProfile::FusionTa
+            }
+        };
+        let policy = match trend_scope_record {
+            Some(text) => {
+                crate::theta_v0::policy_records::parse_trend_scope_for_profile(profile, Some(text))
+            }
+            None => crate::theta_v0::policy_records::active_trend_scope_for_profile(profile),
+        }
+        .map_err(|e| e.to_string())?;
+        let mut result = super::positional_fusion::run_fusion(
             tape,
             floor_ladder,
             trend_hold,
@@ -1187,7 +1206,7 @@ fn run_positional_records(
             osc,
             phase_clock,
             r2_gate,
-            trend_scope,
+            policy.value,
             nest_forward,
             short_mask,
             short_anc_gate,
@@ -1195,7 +1214,9 @@ fn run_positional_records(
             seq38_sub,
             op_ladder,
             q_total,
-        );
+        )?;
+        result.trend_scope_policy = Some(policy.record);
+        return Ok(result);
     }
     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {
         return Err(format!(
@@ -1862,6 +1883,104 @@ mod tests {
         assert_eq!(r.n_deferred_by_ladder[4], 1);
         assert_eq!(r.n_pending_cancels_by_ladder[4], 1);
         assert_eq!(r.n_entries_by_ladder[4], 0);
+    }
+
+    fn run_with_trend_scope_record(
+        mode_name: &str,
+        field: &str,
+        value: &str,
+    ) -> Result<PositionalResult, String> {
+        let record = format!(
+            "{{\"id\":\"trend-scope\",\"version\":2,\"fields\":{{\"{field}\":{{\"value\":\"{value}\"}}}}}}"
+        );
+        let tape = SignalTape {
+            bars: warmup_bars(),
+            dir_flips: Some(vec![]),
+            trend_flips: Some(vec![]),
+            ..Default::default()
+        };
+        run_positional_with_trend_scope_record(
+            &tape,
+            2,
+            PolarityMode::parse(mode_name).unwrap(),
+            &ReplayRecords::legacy_parity_fixture(),
+            Some(&record),
+        )
+    }
+
+    #[test]
+    fn fusion_t_rejects_unregistered_ancestor_scopes_before_fusion() {
+        for value in ["Ancestor", "SelfOrAncestor"] {
+            let err = run_with_trend_scope_record("fusion_t", "default", value).unwrap_err();
+            assert!(err.contains("InvalidPolicy{trend-scope.default}"), "{err}");
+            assert!(err.contains("预注册作用域"), "{err}");
+        }
+    }
+
+    #[test]
+    fn ancestor_profiles_reject_cross_profile_values_before_fusion() {
+        for (mode, field, value) in [
+            ("hold26_anc", "hold26_anc", "SelfLayer"),
+            ("hold26_anc", "hold26_anc", "SelfOrAncestor"),
+            ("fusion_ta", "fusion_ta", "SelfLayer"),
+            ("fusion_ta", "fusion_ta", "Ancestor"),
+        ] {
+            let err = run_with_trend_scope_record(mode, field, value).unwrap_err();
+            assert!(
+                err.contains(&format!("InvalidPolicy{{trend-scope.{field}}}")),
+                "{mode}: {err}"
+            );
+            assert!(err.contains("预注册作用域"), "{mode}: {err}");
+        }
+    }
+
+    #[test]
+    fn legal_new_scope_versions_keep_their_preregistered_identities() {
+        for (mode, field, value) in [
+            ("fusion_t", "default", "SelfLayer"),
+            ("hold26_anc", "hold26_anc", "Ancestor"),
+            ("fusion_ta", "fusion_ta", "SelfOrAncestor"),
+        ] {
+            let result = run_with_trend_scope_record(mode, field, value).unwrap();
+            assert_eq!(result.trend_scope_policy.unwrap().label(), "trend-scope/2");
+        }
+    }
+
+    #[test]
+    fn fusion_preserves_funding_and_trend_scope_records_together() {
+        let mut rec = ReplayRecords::legacy_parity_fixture();
+        rec.funding.q_total = 500;
+        let tape = SignalTape {
+            bars: warmup_bars(),
+            dir_flips: Some(vec![]),
+            trend_flips: Some(vec![]),
+            ..Default::default()
+        };
+        for mode in ["fusion_t", "hold26_anc", "fusion_ta"] {
+            let result = run_positional(&tape, 2, PolarityMode::parse(mode).unwrap(), &rec)
+                .expect("资金与趋势记录共用生产入口");
+            assert_eq!(result.final_nav, rec.q_total(), "{mode}");
+            assert_eq!(result.records, rec.label(), "{mode}");
+            assert_eq!(
+                result.trend_scope_policy.expect("趋势记录").label(),
+                "trend-scope/1",
+                "{mode}"
+            );
+        }
+    }
+
+    #[test]
+    fn fusion_rejects_record_op_ladder_without_fixture_fallback() {
+        let rec = ReplayRecords::active("P1-hl-testnet").unwrap();
+        let tape = SignalTape {
+            bars: warmup_bars(),
+            dir_flips: Some(vec![]),
+            trend_flips: Some(vec![]),
+            ..Default::default()
+        };
+        let err =
+            run_positional(&tape, 2, PolarityMode::parse("fusion_t").unwrap(), &rec).unwrap_err();
+        assert!(err.contains("op_ladder=2"), "{err}");
     }
 
     #[test]

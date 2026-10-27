@@ -15,6 +15,15 @@ name: CI macOS
 # 估时：冷缓存 debug 编译约 6–10 min，两步执行约 5–8 min（本机该模块 29 条 wall 283 s，3 核 runner 估计）。
 on:
   workflow_dispatch:
+    inputs:
+      issue1716_real_s_only:
+        description: '只跑 #1716 真实 S 内容域 cap 消费正控作业，跳过已有读数的 macos-session'
+        type: boolean
+        default: false
+      issue1717_real_s_only:
+        description: '只跑 #1717 真实 S 内容域正控与在途越期负控作业，跳过已有读数的 macos-session'
+        type: boolean
+        default: false
   workflow_call:
   push:
     branches: [main]
@@ -27,6 +36,7 @@ on:
 
 jobs:
   macos-session:
+    if: ${{ !inputs.issue1716_real_s_only && !inputs.issue1717_real_s_only }}
     runs-on: macos-latest
     timeout-minutes: 60
     env:
@@ -73,6 +83,246 @@ jobs:
       - name: cargo test — v3::financial_session（macOS 保留量读数与 peer uid，#1394 根裁定 A）
         run: cargo test --locked --features s_session --bin s_structure_session v3::financial_session
 
+      # #1672：E + 3B 各自独立 32 MiB HFS+ 卷上的 FIN/2 首个完整正例。
+      # 只有这里创建真实载体；Linux/ubuntu 不生成 FIN/2 伪通过项。
+      - name: FIN/2 WE7 — four independent HFS+ carriers（#1672）
+        if: always()
+        env:
+          TB03C_FIN2_EVIDENCE_DIR: ${{ runner.temp }}/issue1672-fin2-evidence
+        run: ../s_session/tests/drive_tb03c_fin2_hfs.sh cargo test --locked --features s_session --lib tb03c_fin2 -- --ignored --nocapture --test-threads=1
+
+      - name: Archive FIN/2 originals and carrier cleanup (#1672)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue1672-fin2-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/issue1672-fin2-evidence
+          if-no-files-found: error
+
+      # #1717：sr-expansion/1 在 economic-session/2 内容域上的评估。E、B:alpha、B:beta 各占一个本地可写
+      #   固定容量 HFS+ 卷（store.rs 载体门）；按 #1394 已批载体合同各建一个 24 MiB 临时镜像（容量低于
+      #   已批 max_staged_bytes 32153600）。测试经子进程正式 owner socket 服务，结束后卸载。
+      - name: cargo test — #1717 SR 扩量评估内容域（三个临时固定容量 HFS+ 卷）
+        if: always()
+        run: |
+          root=$(mktemp -d /tmp/tb1717-hfs.XXXXXX)
+          detach_all() { for owner in e alpha beta; do [ -d "$root/$owner" ] && hdiutil detach "$root/$owner" -force || true; done; }
+          trap detach_all EXIT
+          carriers=""
+          for owner in e alpha beta; do
+            hdiutil create -size 24m -fs HFS+ -volname "tb1717-$owner" -type UDIF "$root/$owner.dmg"
+            mkdir "$root/$owner"
+            hdiutil attach "$root/$owner.dmg" -mountpoint "$root/$owner" -nobrowse
+            carriers="$carriers${carriers:+:}$root/$owner"
+          done
+          mount | grep tb1717 || true
+          df -k "$root/e" "$root/alpha" "$root/beta"
+          mkdir "$root/work"
+          TB03B_TEST_ROOT="$root/work" TB1717_HFS_CARRIERS="$carriers" cargo test --locked --features s_session --lib -- --ignored --exact \
+            economic_session::finance::tests::sr_expansion::sr_expansion_content_domain_on_fixed_carriers --nocapture
+
       - name: cargo test — economic_session / session_transport / session_protocol 库测试（#1394 G-1）
         if: always()
         run: cargo test --locked --features s_session --lib -- economic_session session_transport session_protocol
+
+      # #1716：tb03b-finance/4 内容域 cap 激活。economic-session/2 要求 E、B:alpha、B:beta 各占一个本地
+      #   可写固定容量 HFS+ 卷（store.rs 载体门）；按 #1394 已批载体合同各建一个 24 MiB 临时镜像
+      #   （容量约 25 MB，低于已批 max_staged_bytes 32153600）。先跑 Rust 内容域测试，再用同一批原件
+      #   跑 E 正式服务进程的 SIGKILL 恢复驱动；原件上传为 artifact，镜像用后卸载。
+      - name: "cargo test + 服务故障 — #1716 tb03b-finance/4 内容域 cap 激活（三个临时固定容量 HFS+ 卷）"
+        if: always()
+        run: |
+          root=/tmp/tb1716-hfs
+          rm -rf "$root"; mkdir -p "$root/fixtures" "$root/evidence"
+          detach_all() {
+            for owner in e alpha beta; do
+              [ -d "$root/$owner" ] && cp -p "$root/$owner"/*.db* "$root/evidence/" 2>/dev/null
+              [ -d "$root/$owner" ] && hdiutil detach "$root/$owner" -force || true
+            done
+          }
+          trap detach_all EXIT
+          carriers=""
+          for owner in e alpha beta; do
+            hdiutil create -size 24m -fs HFS+ -volname "tb1716-$owner" -type UDIF "$root/$owner.dmg"
+            mkdir "$root/$owner"
+            hdiutil attach "$root/$owner.dmg" -mountpoint "$root/$owner" -nobrowse
+            carriers="$carriers${carriers:+:}$root/$owner"
+          done
+          mount | grep tb1716 || true
+          df -k "$root/e" "$root/alpha" "$root/beta" | tee "$root/evidence/df.txt"
+          TB03B_TEST_ROOT="$root/fixtures" TB1716_HFS_CARRIERS="$carriers" \
+            cargo test --locked --features s_session --lib -- --ignored --exact \
+            economic_session::finance::tests::content_domain_cap_activation_on_fixed_carriers --nocapture
+          cargo build --locked --features s_session --bin e_economic_session --bin b_chong_session
+          shasum -a 256 target/debug/e_economic_session target/debug/b_chong_session | tee "$root/evidence/binaries.sha256"
+          python3 -B ../s_session/tests/tb03b_cap_service_faults.py --fixtures "$root/fixtures" \
+            --carriers "$carriers" --binaries target/debug --output "$root/service-faults"
+
+      - name: "Upload #1716 内容域原件"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue1716-content-domain-${{ github.sha }}
+          path: |
+            /tmp/tb1716-hfs/fixtures
+            /tmp/tb1716-hfs/service-faults
+            /tmp/tb1716-hfs/evidence
+          if-no-files-found: warn
+
+  # #1716 /4 正控：S 侧单 bar 真实 S3 夹具导出库（#1717 PR #1736 同一导出测试），测试内起停 release
+  #   s_structure_session 的 financial-serve 只读会话；manifest 冻结 SessionClosure 读法，reader_resources 八项与
+  #   E/B response_timeout_ms 3000 保持原值。两 B Prepare 后 E 激活 cap 版本 2，Reserve 实际消费该版本。
+  #   E、B:alpha、B:beta 各占一个 24 MiB 临时 HFS+ 卷（同上）。原件（会话回执、stdout/stderr、证据 JSON）总上传。
+  #   随后同一批卷上以 release E/B 正式服务进程（ADR 0039 生产构建配置）经 Unix socket 消费同一新 cap（含 E Reserve、B:alpha Commit 提交后
+  #   SIGKILL 的新进程恢复），卸载前把三卷原库复制进 work/carrier-dbs 一并上传。
+  issue1716-real-s:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      CARGO_INCREMENTAL: "0"
+    defaults:
+      run:
+        working-directory: rust
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12 for pyo3
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache cargo registry + git
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-registry-v1-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-cargo-registry-v1-
+
+      - name: cargo test — issue 1716 真实 S 内容域 /4 cap 消费正控（单 bar 会话读法，三个临时固定容量 HFS+ 卷）
+        run: |
+          root="$RUNNER_TEMP/tb1716-real-s"
+          mkdir -p "$root/work" "$root/s3" "$root/mnt"
+          detach_all() {
+            for owner in e alpha beta; do
+              mkdir -p "$root/work/carrier-dbs/$owner"
+              [ -d "$root/mnt/$owner" ] && cp -p "$root/mnt/$owner"/*.db* "$root/work/carrier-dbs/$owner/" 2>/dev/null || true
+              [ -d "$root/mnt/$owner" ] && hdiutil detach "$root/mnt/$owner" -force || true
+            done
+          }
+          trap detach_all EXIT
+          carriers=""
+          for owner in e alpha beta; do
+            hdiutil create -size 24m -fs HFS+ -volname "tb1716-$owner" -type UDIF "$root/mnt/$owner.dmg"
+            mkdir "$root/mnt/$owner"
+            hdiutil attach "$root/mnt/$owner.dmg" -mountpoint "$root/mnt/$owner" -nobrowse
+            carriers="$carriers${carriers:+:}$root/mnt/$owner"
+          done
+          df -k "$root/mnt/e" "$root/mnt/alpha" "$root/mnt/beta"
+          TB1717_S_EXPORT="$root/s3/export.json" cargo test --locked --features s_session --bin s_structure_session -- \
+            --ignored --exact v3::financial_session::tests::export_real_s3_fixture_for_economic_content_domain
+          cargo build --release --locked --features s_session --bin s_structure_session --bin e_economic_session --bin b_chong_session
+          ls -l target/release/s_structure_session target/release/e_economic_session target/release/b_chong_session
+          # 两个正控各自落日志与退出码（证据 JSON 行很长，GitHub 日志在其后会丢行）；全部跑完再按退出码定成败。
+          logged() { name=$1; shift; rc=0; "$@" > "$root/work/$name.log" 2>&1 || rc=$?; grep -v '^ISSUE1716_CONTENT_DOMAIN_REAL_S ' "$root/work/$name.log" | tail -n 80 || true; echo "$name=$rc" | tee -a "$root/work/exit-codes.txt"; }
+          logged handler-reserve env TB03B_TEST_ROOT="$root/work" TB1716_HFS_CARRIERS="$carriers" TB1716_S_EXPORT="$root/s3/export.json" \
+            TB1716_S_BINARY="$PWD/target/release/s_structure_session" \
+            cargo test --locked --features s_session --lib -- --ignored --exact --nocapture \
+            economic_session::finance::tests::real_s::content_domain_activated_cap_consumed_by_real_s_reserve
+          logged formal-sockets env TB03B_TEST_ROOT="$root/work" TB1716_HFS_CARRIERS="$carriers" TB1716_S_EXPORT="$root/s3/export.json" \
+            TB1716_S_BINARY="$PWD/target/release/s_structure_session" TB1716_ECON_BINARIES="$PWD/target/release" \
+            cargo test --locked --features s_session --lib -- --ignored --exact --nocapture \
+            economic_session::finance::tests::real_s::content_domain_activated_cap_consumed_through_formal_sockets
+          if grep -qv '=0$' "$root/work/exit-codes.txt"; then exit 1; fi
+
+      - name: 上传 issue 1716 /4 消费正控原件
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue1716-real-s-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/tb1716-real-s/work
+            ${{ runner.temp }}/tb1716-real-s/s3
+          if-no-files-found: warn
+
+  # #1717 R3 正控：S 侧单 bar 真实 S3 夹具导出库，测试内起停 release s_structure_session 的 financial-serve
+  #   只读会话；manifest 冻结 SessionClosure 读法，reader_resources 八项与 E/B response_timeout_ms 3000 保持原值。
+  #   E、B:alpha、B:beta 各占一个 24 MiB 临时 HFS+ 卷（同上）。负控在同一场景的 SR 评估第二事务内越过 3000 ms
+  #   期限，须不留提交；与正控分两次 cargo test 顺序执行，各起一个 S 会话。原件（会话回执、stdout/stderr、证据 JSON）总上传。
+  #   判定构建为现存 [profile.release]（ADR 0039 生产二进制取 release；主控 26BC 采纳 26BB）。这是 s_session 下
+  #   E 业务核接真实 S 的组件验收，不是完整 production_session、回放或 paper/live 链。debug 两次失败留在 run
+  #   40313246715 原件里，不在此重跑。
+  issue1717-real-s:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      CARGO_INCREMENTAL: "0"
+    defaults:
+      run:
+        working-directory: rust
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12 for pyo3
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache cargo registry + git
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-registry-v1-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-cargo-registry-v1-
+
+      - name: cargo test --release — issue 1717 release 组件验收：真实 S 内容域正控与在途越期负控（单 bar 会话读法，三个临时固定容量 HFS+ 卷）
+        run: |
+          root="$RUNNER_TEMP/tb1717-real-s"
+          mkdir -p "$root/work" "$root/s3" "$root/mnt"
+          detach_all() { for owner in e alpha beta; do [ -d "$root/mnt/$owner" ] && hdiutil detach "$root/mnt/$owner" -force || true; done; }
+          trap detach_all EXIT
+          carriers=""
+          for owner in e alpha beta; do
+            hdiutil create -size 24m -fs HFS+ -volname "tb1717-$owner" -type UDIF "$root/mnt/$owner.dmg"
+            mkdir "$root/mnt/$owner"
+            hdiutil attach "$root/mnt/$owner.dmg" -mountpoint "$root/mnt/$owner" -nobrowse
+            carriers="$carriers${carriers:+:}$root/mnt/$owner"
+          done
+          df -k "$root/mnt/e" "$root/mnt/alpha" "$root/mnt/beta"
+          TB1717_S_EXPORT="$root/s3/export.json" cargo test --locked --features s_session --bin s_structure_session -- \
+            --ignored --exact v3::financial_session::tests::export_real_s3_fixture_for_economic_content_domain
+          cargo build --release --locked --features s_session --bin s_structure_session
+          ls -l target/release/s_structure_session
+          # 正控与负控各跑一次 release、各记退出码与日志；任一非零本步失败。
+          run1717() {
+            label=$1; test=$2
+            set +e
+            TB03B_TEST_ROOT="$root/work" TB1717_HFS_CARRIERS="$carriers" TB1717_S_EXPORT="$root/s3/export.json" \
+              TB1717_S_BINARY="$PWD/target/release/s_structure_session" \
+              cargo test --release --locked --features s_session --lib -- --ignored --exact --nocapture \
+              "economic_session::finance::tests::sr_expansion::$test" 2>&1 | tee "$root/work/$label.log"
+            rc=${PIPESTATUS[0]}
+            set -e
+            echo "$label=$rc" | tee -a "$root/work/exit-codes.txt"
+            grep -q '^test result: ok. 1 passed; 0 failed' "$root/work/$label.log" || { echo "$label 未恰好通过 1 条测试"; rc=1; }
+          }
+          run1717 positive-release sr_expansion_content_domain_publishes_real_s_basis_closure; positive=$rc
+          run1717 negative-release sr_expansion_content_domain_deadline_crossed_in_flight_leaves_no_commit; negative=$rc
+          if [ "$positive" -ne 0 ] || [ "$negative" -ne 0 ]; then exit 1; fi
+
+      - name: 上传 issue 1717 正控与负控原件
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue1717-real-s
+          path: |
+            ${{ runner.temp }}/tb1717-real-s/work
+            ${{ runner.temp }}/tb1717-real-s/s3
+          if-no-files-found: warn

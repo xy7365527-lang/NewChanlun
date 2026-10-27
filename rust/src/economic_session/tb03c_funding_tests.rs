@@ -256,7 +256,12 @@ fn rules_resolve_exactly_three_values() {
     assert_eq!(book::Rules::Tb03cV2.revision(), Some("tb03c-book/2"));
     assert_eq!(book::Rules::Tb03cV1.revision(), Some("tb03c-book/1"));
     assert_eq!(book::Rules::Legacy.revision(), None);
-    for bad in ["tb03c-book/3", "tb03c-book/0", "tb03c-book/2 "] {
+    // #1715：`/3` 是 `/2` + 逐重数量定标的并列新版本（见 quantity_calibration_tests），闭集外样本改用 `/4`。
+    assert_eq!(
+        book::rules(&json!({"book_revision":"tb03c-book/3"})).unwrap(),
+        book::Rules::Tb03cV3
+    );
+    for bad in ["tb03c-book/4", "tb03c-book/0", "tb03c-book/2 "] {
         assert!(book::rules(&json!({ "book_revision": bad }))
             .unwrap_err()
             .starts_with("SchemaUnsupported"));
@@ -804,7 +809,7 @@ fn unknown_capacity_opening_waits_in_e_and_resolve_cannot_clear_it() {
     // `/2` 下已签容量的开局不挂 capacity 等待（P0 的 L0）。
     let reason = tb03c_funding::pending_reason(
         &profile_manifest(&space, P0),
-        &serde_json::from_str::<Value>(&raw_for("0")).unwrap()["events"][0],
+        &json!({"event":serde_json::from_str::<Value>(&raw_for("0")).unwrap()["events"][0]}),
     )
     .unwrap();
     assert_eq!(reason, None);

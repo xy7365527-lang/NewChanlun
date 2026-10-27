@@ -49,12 +49,13 @@ pub(super) fn prepare_s3_control_history_with_owner(
     conn: &Connection,
     owner: Option<&OwnedBudget>,
 ) -> Result<v2::ControlHistory, String> {
-    prepare_s3_control_history_admitted(conn, owner, None)
+    prepare_s3_control_history_admitted(conn, owner, None, None)
 }
 pub(super) fn prepare_s3_control_history_admitted(
     conn: &Connection,
     owner: Option<&OwnedBudget>,
     work: Option<&WorkScope>,
+    before_write: Option<&std::cell::Cell<crate::DeltaShape>>,
 ) -> Result<v2::ControlHistory, String> {
     if let Some(work) = work {
         if owner.is_some() {
@@ -70,7 +71,7 @@ pub(super) fn prepare_s3_control_history_admitted(
         return Err("prototype_audit_allocation_incomplete：owned控制审计未启用".into());
     }
     verify_s3_markers_admitted(conn, owner, work)?;
-    verify_s3_schema_admitted(conn, owner, work)?;
+    verify_s3_schema_admitted(conn, owner, work, before_write)?;
     let _profile = crate::verify_profile_binding_admitted(conn, owner, work)?;
     let epoch = v2::verify_epoch_history_admitted(conn, true, owner, work)?;
     let history =
@@ -187,16 +188,25 @@ pub(crate) fn verify_s3_schema_with_owner(
     conn: &Connection,
     owner: Option<&OwnedBudget>,
 ) -> Result<(), String> {
-    verify_s3_schema_admitted(conn, owner, None)
+    verify_s3_schema_admitted(conn, owner, None, None)
 }
+/// `before_write` 只由写前准入门面给出：源库缺 #1602 列时，期望改为迁移前的精确
+/// structure_deltas，并记下所见形状；其余表与比较核不变。开库后的审计传 None，只认当前 schema。
 pub(crate) fn verify_s3_schema_admitted(
     conn: &Connection,
     owner: Option<&OwnedBudget>,
     work: Option<&WorkScope>,
+    before_write: Option<&std::cell::Cell<crate::DeltaShape>>,
 ) -> Result<(), String> {
     let mut expected = v2::ControlSchema::new(owner);
     for ddl in schema_ddls_admitted(conn, owner, work)? {
         expected.add_ddl_admitted("S3固定DDL", ddl, work)?;
+    }
+    if let Some(shape) = before_write {
+        if crate::policy_records_missing(conn)? {
+            expected.add_ddl_admitted("#1602前Delta", crate::PRE_POLICY_RECORDS_DELTAS, work)?;
+            shape.set(crate::DeltaShape::PrePolicyRecords);
+        }
     }
     v2::verify_control_schema_admitted(conn, &expected, work)?;
     content_store::ensure_format(conn).map_err(|e| format!("StorageUnavailable：{e}"))?;
@@ -487,7 +497,7 @@ mod tests {
     .map_err(|e| e.to_string())?;
                 let before = budget.live();
                 let mut native =
-                    prepare_s3_control_history_admitted(&domain.fixture.conn, None, Some(scope))?;
+                    prepare_s3_control_history_admitted(&domain.fixture.conn, None, Some(scope), None)?;
                 assert_eq!(native.session_generation(), plain.session_generation());
                 assert_eq!(native.clock_plan_hash(), plain.clock_plan_hash());
                 assert_eq!(
@@ -541,7 +551,7 @@ mod tests {
             .codec_work()
             .unwrap()
             .run(|scope| {
-                let native = prepare_s3_control_history_admitted(&conn, None, Some(scope))?;
+                let native = prepare_s3_control_history_admitted(&conn, None, Some(scope), None)?;
                 assert_eq!(native.session_generation(), plain.session_generation());
                 assert_eq!(native.clock_plan_hash(), plain.clock_plan_hash());
                 assert_eq!(

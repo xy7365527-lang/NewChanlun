@@ -85,7 +85,7 @@ def _fixture(conn):
         header = dict(session_id=meta['session_id'],catalog_revision=meta['catalog_revision'],base_cut=f'cut-{generation-1}',next_cut=f'cut-{generation}',
                       index_frontier=batch_id,catalog_run_status='run' if active else 'not_run',generation=str(generation),input_frontier='0',seq_range=seq_range,catalog_evidence=evidence)
         delta = dict(header,upserts=upserts if active else [],withdrawals=[] if active else withdrawals,replaces=[],witnesses=[],relations=[],observations=[],raw_history_added=[wire] if generation==1 else [])
-        insert('structure_deltas',dict(generation=generation,session_id=meta['session_id'],catalog_revision=meta['catalog_revision'],base_cut=header['base_cut'],next_cut=header['next_cut'],index_frontier=batch_id,input_frontier=0,catalog_run_status=header['catalog_run_status'],seq_range_json=audit.canonical(seq_range).decode(),catalog_evidence_json=audit.canonical(evidence).decode(),delta_json=audit.canonical(delta).decode()))
+        insert('structure_deltas',dict(generation=generation,session_id=meta['session_id'],catalog_revision=meta['catalog_revision'],base_cut=header['base_cut'],next_cut=header['next_cut'],index_frontier=batch_id,input_frontier=0,catalog_run_status=header['catalog_run_status'],seq_range_json=audit.canonical(seq_range).decode(),catalog_evidence_json=audit.canonical(evidence).decode(),delta_json=audit.canonical(delta).decode(),policy_records='parse-pool-fixture/1'))
         meta['index_frontier']=batch_id
     for fact in facts:
         fact['batch_id']=first_batch

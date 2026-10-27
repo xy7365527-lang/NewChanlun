@@ -87,6 +87,12 @@ impl<T> NativeValue<T> {
     pub fn retained_charge(&self) -> Option<usize> {
         self.permit.as_ref().map(NativeReservation::bytes)
     }
+    /// #1527：正常关闭的保留源可读；failed父不能经复制洗掉失败。
+    pub fn check_retained_source(&self) -> Result<(), CodecError> {
+        self.permit
+            .as_ref()
+            .map_or(Ok(()), NativeReservation::check_retained_source)
+    }
     pub fn is_native_admitted(&self) -> bool {
         self.permit.is_some()
     }
