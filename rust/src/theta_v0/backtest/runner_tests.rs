@@ -10330,7 +10330,14 @@ fn p1605_r3_runner_and_overlay_share_policy_failure_boundary() {
     }
 }
 
+/// R8 前内核的历史记录：期望由 #1605 改前提交 `13ed4d45c8ff85175819ca987690328ab2a247a4` 的公开
+/// runner 生成，只在续扫 `i=j` 的旧结构核上逐位成立。#1419 R8（#812 Z-5，续扫 last+2）改变本窗口的
+/// 中枢序列与交易，适用域不再覆盖当前内核；只回退 R8 即逐位复现本快照（差异归因见
+/// `1419-1605-DIVERGENCE-LOCATE27BA.md`，独审 `1419-1605-REVIEW27BJ.md`）。#1605 合同在当前内核上
+/// 由 `p1605_r3_golden_tape_metrics_match_pre_change_baseline`（改前数值）与 `p1605_public_*`
+/// （公开入口读取记录，变异负控见 `rust/tests/p1605_public_caller_mutation.py`）承担。
 #[test]
+#[ignore = "R8 前内核历史记录（13ed4d45 续扫 i=j）；#1419 R8 后不适用，见 27BA/27BJ"]
 fn p1605_r3_public_runner_matches_independent_baseline() {
     let config = ThetaConfig::default();
     let ds = super::super::data::load_symbol(
@@ -10360,4 +10367,160 @@ fn p1605_r3_public_runner_matches_independent_baseline() {
     ))
     .unwrap();
     assert_eq!(frozen, expected);
+}
+
+
+fn p1605_frozen_baseline() -> serde_json::Value {
+    serde_json::from_str(include_str!(
+        "../../../tests/fixtures/issue1605/baseline-13ed4d45-bits.json"
+    ))
+    .unwrap()
+}
+
+fn p1605_f64s(v: &serde_json::Value) -> Vec<f64> {
+    v.as_array()
+        .unwrap()
+        .iter()
+        .map(|x| f64::from_bits(x.as_u64().unwrap()))
+        .collect()
+}
+
+fn p1605_btc_window() -> Dataset {
+    let config = ThetaConfig::default();
+    let ds = super::super::data::load_symbol(
+        std::path::Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/issue1605/btc-20170817-20170831.json"
+        )),
+        "BTC",
+        &config,
+        60,
+    )
+    .unwrap();
+    assert_eq!(ds.bars.len(), 21360);
+    ds
+}
+
+fn p1605_metric_bits(m: &metrics::Metrics) -> Vec<u64> {
+    [
+        m.cagr,
+        m.sharpe,
+        m.sortino,
+        m.max_drawdown,
+        m.calmar,
+        m.cvar_5,
+        m.win_rate,
+        m.profit_factor,
+        m.top5_pnl_ratio,
+        m.strat_return,
+        m.bh_return,
+    ]
+    .iter()
+    .map(|x| x.to_bits())
+    .collect()
+}
+
+/// 改前数值锁：固定 fill tape 与期望全部取自 13ed4d45 冻结文件，经当前公开 `metrics::compute`
+/// 复算 11 项指标与交易数，与改前逐位相同。不依赖结构核，#1429 改分类结果不影响本锁。
+#[test]
+fn p1605_r3_golden_tape_metrics_match_pre_change_baseline() {
+    let frozen = p1605_frozen_baseline();
+    let equity = p1605_f64s(&frozen["equity"]);
+    let daily = p1605_f64s(&frozen["daily"]);
+    let with_forced = p1605_f64s(&frozen["with_forced"]);
+    let expected: Vec<u64> = frozen["metrics"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|x| x.as_u64().unwrap())
+        .collect();
+    assert_eq!(
+        (equity.len(), daily.len(), with_forced.len(), expected.len()),
+        (21360, 21359, 801, 11)
+    );
+    let bh_return = f64::from_bits(expected[10]);
+    let m = metrics::compute(&equity, &daily, &with_forced, 1.0, bh_return).unwrap();
+    assert_eq!(p1605_metric_bits(&m), expected);
+    assert_eq!(m.n_trades as u64, frozen["n_trades"].as_u64().unwrap());
+    assert_eq!(m.n_trades, 801);
+}
+
+/// 公开 runner 接线：`run_theta_v0_pi` 的指标等于同一 fill 输出在当前生效记录上的计算，且有非零
+/// 订单/交易见证。职责是接线与「记录只动指标」，不是独立改前对拍（改前数值由
+/// `p1605_r3_golden_tape_metrics_match_pre_change_baseline` 承担）。非默认记录必须改变指标、
+/// 不改变 equity/逐 bar 收益/盈亏/交易/订单。
+/// 变异负控：`rust/tests/p1605_public_caller_mutation.py` 把生效记录改为非默认值、公开入口改读旧常数
+/// 记录（两侧均 Signed(2)），本测试须在指标断言处红。
+#[test]
+fn p1605_public_runner_reads_active_record_and_record_only_moves_metrics() {
+    let config = ThetaConfig::default();
+    let ds = p1605_btc_window();
+    let r = run_theta_v0_pi(&ds, &config, 1.0, 1e6).unwrap();
+    assert!(r.n_orders > 0);
+    assert!(!r.trade_pnls.is_empty());
+    let stats = super::super::research_stats::active_research_stats().unwrap();
+    let expected = metrics::compute_with_policy(
+        &r.equity_curve,
+        &r.daily_returns,
+        &r.trade_pnls_with_forced,
+        1.0,
+        r.metrics.bh_return,
+        &stats,
+    );
+    assert!(expected.sharpe.abs() > 1e-10);
+    assert_eq!(r.metrics, expected);
+
+    let mut record: serde_json::Value = serde_json::from_str(ACTIVE_RESEARCH_STATS_JSON).unwrap();
+    let version = record["version"].as_u64().unwrap() + 1;
+    record["version"] = version.into();
+    record["fields"]["annualization_days"]["value"] = 63.0.into();
+    record["fields"]["cvar_tail"]["value"] = 0.2.into();
+    let text = record.to_string();
+    let nd = run_theta_v0_pi_inner(&ds, &config, 1.0, 1e6, None, Some(&text)).unwrap();
+    let bits = |xs: &[f64]| xs.iter().map(|x| x.to_bits()).collect::<Vec<_>>();
+    let tape = |x: &RunResult| {
+        (
+            x.n_orders,
+            bits(&x.equity_curve),
+            bits(&x.daily_returns),
+            bits(&x.trade_pnls),
+            bits(&x.trade_pnls_with_forced),
+            x.trades
+                .iter()
+                .map(|t| (t.entry_bar, t.exit_bar, t.hold_bars, t.qty.to_bits(), t.long, t.forced_close))
+                .collect::<Vec<_>>(),
+        )
+    };
+    assert!(tape(&nd) == tape(&r), "统计参数不得改变 fill 输出");
+    let nd_stats = super::super::research_stats::parse_research_stats(Some(&text)).unwrap();
+    assert_eq!(
+        nd.metrics,
+        metrics::compute_with_policy(
+            &r.equity_curve,
+            &r.daily_returns,
+            &r.trade_pnls_with_forced,
+            1.0,
+            r.metrics.bh_return,
+            &nd_stats,
+        )
+    );
+    assert_ne!(nd.metrics.sharpe.to_bits(), r.metrics.sharpe.to_bits());
+    assert_ne!(nd.metrics.cvar_5.to_bits(), r.metrics.cvar_5.to_bits());
+}
+
+/// metrics 公开入口接线：`compute`/`significance` 读当前生效记录。变异负控同上。
+#[test]
+fn p1605_public_metrics_entries_read_active_record() {
+    let stats = super::super::research_stats::active_research_stats().unwrap();
+    let daily = [0.01, -0.02, 0.03, -0.01, 0.02, -0.04, 0.03];
+    let equity = [1.0, 1.01, 0.99, 1.03, 1.02];
+    let pnls = [2.0, -1.0, 3.0, -2.0, 4.0, 1.0];
+    assert_eq!(
+        metrics::compute(&equity, &daily, &pnls, 1.0, 0.05).unwrap(),
+        metrics::compute_with_policy(&equity, &daily, &pnls, 1.0, 0.05, &stats)
+    );
+    assert_eq!(
+        metrics::significance(&pnls, &daily, &[], &[], 0.0, 0.0).unwrap(),
+        metrics::significance_with_policy(&pnls, &daily, &[], &[], 0.0, 0.0, &stats)
+    );
 }
