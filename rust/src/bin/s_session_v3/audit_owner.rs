@@ -1361,16 +1361,21 @@ impl AuditConnection {
             match k.source_home() {
                 // #1488 P1-2：池按其所在父账的物理live单列一组（与候选同父则由分区拒绝），
                 // 控制块M与池合同额同为该组合同项；不在任何账上的池只能按合同额计。
+                // #1572：keeper组逐项实测——池按其持有者逐张清点的许可，M按控制块常量；
+                // Σ必须恰等于K的L0，U逐项落在池名下。
                 Some(home) => {
                     partition.keeper_home(home)?;
-                    partition.item(
+                    let physical = k.retained_source_physical()?.unwrap_or(0);
+                    partition.item_measured(
                         "source_keeper_pool",
                         P::KEEPER_PARENT,
                         k.retained_source_bytes(),
+                        physical,
                     )?;
-                    partition.item(
+                    partition.item_measured(
                         "keeper_parent.metadata_M",
                         P::KEEPER_PARENT,
+                        native::Budget::metadata_bytes(),
                         native::Budget::metadata_bytes(),
                     )?;
                 }
@@ -4063,6 +4068,24 @@ fn p1_2_keeper_pool_on_other_ledger_counts_physical_live_after_discard() {
     );
     let carried = partition.carried();
     assert_eq!(carried, physical, "K物理live恰好计一次");
+    // #1572：keeper组逐项实测——池逐张清点+M恰等于L0，U逐项落在池名下，组U=Σ逐项U。
+    assert!(group.itemized, "keeper组须逐项对账");
+    let items: Vec<_> = partition
+        .items()
+        .iter()
+        .filter(|i| i.origin == request_audit::OldPoolPartition::KEEPER_PARENT)
+        .collect();
+    assert_eq!(
+        items.iter().map(|i| i.physical.unwrap()).sum::<usize>(),
+        physical,
+        "Σ逐项物理额=L0"
+    );
+    assert_eq!(items.iter().map(|i| i.uncovered).sum::<usize>(), group.uncovered);
+    assert!(items.iter().all(|i| !i.source.is_empty()));
+    let listed = partition.uncovered_items();
+    assert_eq!(listed.len(), 1);
+    assert_eq!(listed[0].2, &["source_keeper_pool"][..]);
+    assert_eq!(listed[0].3, physical - contract - m);
     // 旧口径：keeper只按合同额进O（无M_K、无U）。
     let old_allowance = total - contract;
     // 冻结后T的物理占用：E(0)+K物理live+A ≤ T。

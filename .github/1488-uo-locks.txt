@@ -57,6 +57,8 @@ v3::driver::tests::p3_d_cold_root_residue_after_clear_handles_is_rejected
 v3::audit_owner::p1_alpha_stray_on_keeper_ledger_survives_discard_retry_and_is_rejected
 v3::cross_request_source_cache::tests::p3b_seal_rejects_missing_source_claim_on_charged_body
 v3::audit_owner::native::u2_exit_adopt_tests::p3g_codec_vec_grow_and_scratch_never_double_reserve_same_allocation
+# #1572 keeper组U逐项对账（Σ逐项物理=L0；未列清单/漏列/重复计入/部分实测负控）
+v3::request_audit::handoff_domain_tests::i1572_itemized_group_reconciles_and_rejects_unlisted_omitted_or_double_counted
 # #1488 受控同owner Recover迁移（0031）
 v3::driver::tests::recover_lock_same_owner_promotes_and_voids_old_epoch_token_and_lease
 v3::driver::tests::recover_lock_rejects_non_increasing_epoch
