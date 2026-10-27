@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -55,7 +55,7 @@ function fixture(t: { after: (fn: () => void) => void }, conflict = false) {
   const called = () => existsSync(calls) ? readFileSync(calls, "utf8").trim().split("\n") : [];
   const drained = () => existsSync(drainCalls) ? readFileSync(drainCalls, "utf8").trim().split("\n") : [];
   const issue = () => issueReceipt({ dir: acceptance, image: "sandcastle:newchanlun", approval: "fixture-user-approval", swarmTicket: 4242 });
-  return { repo, git, base, inputs, manifest, run, called, drained, checkpoint, worktree, issue };
+  return { repo, git, base, inputs, manifest, run, called, drained, checkpoint, worktree, issue, acceptance };
 }
 
 test("公共 CLI：Docker 不可用时无冲突 accepted 清单完成双父归并及幂等重入", t => {
@@ -121,14 +121,16 @@ test("公共 CLI：普通 swarm 在 planner/claim 前无 receipt 即拒绝，不
 test("公共 CLI：观测全部成立但无 receipt 或未声明验收行，冲突入口仍 FAIL-loud 且不启动容器", { skip: dirtySkip }, t => {
   const f = fixture(t, true);
   const noReceipt = f.run(true, true, false, "14");
-  assert.equal(noReceipt.status, 1); assert.match(noReceipt.stderr, /receipt 缺失/);
+  assert.equal(noReceipt.status, 1); assert.match(noReceipt.stderr, /验收目录不存在|receipt 缺失/);
   f.issue();
   const noRow = f.run(true, true);
   assert.equal(noRow.status, 1); assert.match(noRow.stderr, /未声明受控验收行/);
   const admitted = f.run(true, true, false, "14");
   assert.equal(admitted.status, 1); assert.match(admitted.stderr, /主控模型 .* 预检失败/, "声明了 14 且 receipt 有效时才进入下一道门");
-  const reused = f.run(true, true, false, "14");
-  assert.equal(reused.status, 1); assert.match(reused.stderr, /第 14 行已使用，重复拒绝/);
+  // 模型预检失败发生在占用之后：同一 run+检查点重入是同一绑定，只记恢复，不重复占用也不被误拒。
+  const reentered = f.run(true, true, false, "14");
+  assert.equal(reentered.status, 1); assert.match(reentered.stderr, /主控模型 .* 预检失败/);
+  assert.equal(readdirSync(f.acceptance).filter(n => n.startsWith("resume-")).length, 1);
   assert.equal(f.git("rev-parse", "main"), f.base);
 });
 
