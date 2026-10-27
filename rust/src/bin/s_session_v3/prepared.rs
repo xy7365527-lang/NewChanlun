@@ -1527,6 +1527,10 @@ pub(crate) mod tests {
             Self::with_retain(4)
         }
         pub(crate) fn with_retain(retain: i64) -> Self {
+            Self::with_clock_events(retain, 4)
+        }
+        /// 时钟计划含 `input-1..=events`；多代真实导出需要超过默认 4 个接纳事件。
+        pub(crate) fn with_clock_events(retain: i64, clock_events: i64) -> Self {
             let path = std::env::temp_dir().join(format!(
                 "s1394-real-{}-{}-{}",
                 std::process::id(),
@@ -1535,7 +1539,7 @@ pub(crate) mod tests {
             ));
             std::fs::create_dir(&path).unwrap();
             let mut events = serde_json::Map::new();
-            for n in 1..=4 {
+            for n in 1..=clock_events {
                 events.insert(format!("input-{n}"),json!({"accept_ns":(n*10).to_string(),"attempts":[{"begin_ns":(n*10+1).to_string(),"commit_ns":(n*10+2).to_string()}]}));
             }
             let clock = json!({"schema_revision":"s-clock-plan/1","clock_plan_id":"real-content-commit","origin_utc":"2026-09-18T00:00:00Z","unit":"ns","events":events});
@@ -1568,14 +1572,30 @@ pub(crate) mod tests {
         pub(crate) fn db_path(&self) -> PathBuf {
             self.path.join("s.sqlite")
         }
+        /// 重开写者连接与运行时（同库、同 writer_epoch）；不清 Begin、不换代。
+        pub(crate) fn reopen_writer(&mut self) {
+            self.conn = open_db(&self.db_path()).unwrap();
+            self.runtime = Runtime::new();
+        }
         pub(crate) fn accept_begin(
             &mut self,
             n: i64,
             row: (&str, i64, i64, i64, i64, i64),
             revision: i64,
         ) -> (Value, String) {
-            let mut raw = located_ohlc_input(&[row]);
-            raw["events"][0]["revision"] = json!(revision.to_string());
+            self.accept_begin_rows(n, &[row], revision)
+        }
+        /// 一条接纳消息携带多根原始事件（同一修订号）。
+        pub(crate) fn accept_begin_rows(
+            &mut self,
+            n: i64,
+            rows: &[(&str, i64, i64, i64, i64, i64)],
+            revision: i64,
+        ) -> (Value, String) {
+            let mut raw = located_ohlc_input(rows);
+            for event in raw["events"].as_array_mut().unwrap() {
+                event["revision"] = json!(revision.to_string());
+            }
             let payload = json!({"op":"ingest","target_session_id":"s-session-testonly-001","target_session_generation":"1","writer_epoch":"1","clock_event_id":format!("input-{n}"),"raw_input":raw});
             let envelope = json!({"schema_revision":"s-session/3","session_id":"s-session-testonly-001","session_generation":"1","source_namespace":"testonly.ohlc","source_epoch":"1","message_id":format!("message-{n}"),"producer_id":"real-content-test","producer_epoch":"1","payload_hash":sha256_hex(canonical_json(&payload).as_bytes()),"causal_refs":[],"payload":payload});
             let clock = v2::stored_clock(&self.conn).unwrap();

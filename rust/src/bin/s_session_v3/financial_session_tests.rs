@@ -1669,3 +1669,170 @@ fn export_real_s3_fixture_for_economic_content_domain() {
     std::fs::write(&out, canonical_json(&export)).unwrap();
     std::mem::forget(f);
 }
+
+/// #1419 Q3 真实消费验收：W 规则真实 S3 多代导出（27AZ P1）。走 init_v3 + 真实接纳/Begin/提交，逐代发布：
+/// 1 根与 2 根相互包含（W 等待期）→ 方向建立的前段 → 走势链全段（中枢/中枢对）→ 中段顶点改价修订（撤回）
+/// → 改回原价修订（恢复）→ 重开写者连接后追加尾段。任一代被门拒绝即原样记录并停止。导出格式对齐
+/// `s_session/tests/fixtures/q3-complete-s16-cuts345.json`，节点取全表。
+#[test]
+#[ignore = "仅供 #1419 Q3 真实 S3 W 夹具导出"]
+fn export_real_s3_w_fixture_for_q3() {
+    type Bar = (String, i64, i64, i64, i64, i64);
+    // 段级走势链（价×10）；每段三笔：a → a+0.6d → a+0.3d → b；每笔 5 根，中点线性插值、上下各留 20。
+    const CHAIN: &[i64] = &[
+        1000, 1800, 1400, 2000, 1450, 2600, 2000, 3000, 2200, 2800, 2400, 3500, 3000, 3600, 3050,
+        4000, 3300, 3900,
+    ];
+    let mut pivots = vec![CHAIN[0]];
+    for w in CHAIN.windows(2) {
+        let (a, b) = (w[0], w[1]);
+        let d = b - a;
+        pivots.extend([a + 6 * d / 10, a + 3 * d / 10, b]);
+    }
+    let mut mids = Vec::new();
+    for w in pivots.windows(2) {
+        for j in 0..5 {
+            mids.push(w[0] + (w[1] - w[0]) * j / 5);
+        }
+    }
+    mids.push(*pivots.last().unwrap());
+    let bar = |i: usize, mid: i64, half: i64| -> Bar {
+        (format!("w-{i}"), i as i64, mid, mid + half, mid - half, mid)
+    };
+    let mut bars: Vec<Bar> = vec![bar(0, 1000, 40), bar(1, 1000, 30)];
+    for (k, &m) in mids.iter().enumerate() {
+        bars.push(bar(k + 2, m, 20));
+    }
+    // 修订目标：第 6 段顶点（2600）所在根。
+    let top = 2 + mids.iter().position(|&m| m == 2600).unwrap();
+    let mut revised = bars[top].clone();
+    revised.2 -= 300;
+    revised.3 -= 300;
+    revised.4 -= 300;
+    revised.5 -= 300;
+    let tail = 15;
+    let direction = 2 + 30;
+    let body_end = bars.len() - tail;
+    let steps: Vec<(&str, Vec<Bar>, i64, bool)> = vec![
+        ("w_first_bar", bars[0..1].to_vec(), 1, false),
+        ("w_contained_waiting", bars[1..2].to_vec(), 1, false),
+        ("direction_established", bars[2..direction].to_vec(), 1, false),
+        ("chain_centers", bars[direction..body_end].to_vec(), 1, false),
+        ("revision_withdraw", vec![revised], 2, false),
+        ("revision_restore", vec![bars[top].clone()], 3, false),
+        ("reopen_writer_append", bars[body_end..].to_vec(), 1, true),
+    ];
+    let mut f = Fixture::with_clock_events(64, steps.len() as i64);
+    let mut stats = Vec::new();
+    let count = |f: &Fixture, sql: &str, g: i64| -> Vec<(String, i64)> {
+        let mut q = f.conn.prepare(sql).unwrap();
+        q.query_map([g], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect()
+    };
+    for (i, (label, rows, revision, reopen)) in steps.iter().enumerate() {
+        let n = i as i64 + 1;
+        if *reopen {
+            f.reopen_writer();
+        }
+        let rows: Vec<_> = rows
+            .iter()
+            .map(|(id, c, o, h, l, cl)| (id.as_str(), *c, *o, *h, *l, *cl))
+            .collect();
+        let (envelope, token) = f.accept_begin_rows(n, &rows, *revision);
+        match f.publish(&envelope, &token) {
+            Ok(receipt) => {
+                let g = receipt.generation;
+                let current = count(&f, "SELECT kind,count(*) FROM s_content_objects WHERE first_known_generation<=?1 AND (withdrawn_generation IS NULL OR withdrawn_generation>?1) GROUP BY kind ORDER BY kind", g);
+                let withdrawn = count(&f, "SELECT kind,count(*) FROM s_content_objects WHERE withdrawn_generation=?1 GROUP BY kind ORDER BY kind", g);
+                let present = |list: &[&str]| -> Vec<String> {
+                    list.iter()
+                        .filter(|k| current.iter().any(|(x, _)| x == *k))
+                        .map(|k| k.to_string())
+                        .collect()
+                };
+                let w_present = present(&["CC-004.initialization", "CC-004.undetermined_raw"]);
+                let ef: Vec<&str> = crate::tb02e::KINDS
+                    .iter()
+                    .chain(crate::tb02f::KINDS)
+                    .copied()
+                    .collect();
+                let ef_present = present(&ef);
+                let withdrawn: serde_json::Map<String, Value> =
+                    withdrawn.iter().map(|(k, c)| (k.clone(), json!(c))).collect();
+                let kinds: serde_json::Map<String, Value> =
+                    current.iter().map(|(k, c)| (k.clone(), json!(c))).collect();
+                stats.push(json!({"step":label,"generation":g.to_string(),"batch_id":receipt.batch_id.as_str(),
+                    "bars":rows.len(),"revision":revision,"reopened_writer":reopen,
+                    "current_by_kind":kinds,
+                    "withdrawn_by_kind":withdrawn,"w_kinds_present":w_present,"ef_kinds_present":ef_present}));
+            }
+            Err(error) => {
+                stats.push(json!({"step":label,"bars":rows.len(),"revision":revision,"refused":error}));
+                break;
+            }
+        }
+    }
+    let mut q = f
+        .conn
+        .prepare("SELECT generation,batch_id,manifest_root,snapshot_root,delta_root FROM s_content_publications ORDER BY generation")
+        .unwrap();
+    let root = |v: Vec<u8>| sc::root_string(&<[u8; 32]>::try_from(v.as_slice()).unwrap());
+    let publications: Vec<Value> = q
+        .query_map([], |r| {
+            Ok(json!({"generation":r.get::<_,i64>(0)?.to_string(),"batch_id":r.get::<_,String>(1)?,
+                "manifest_root":root(r.get(2)?),"snapshot_root":root(r.get(3)?),"delta_root":root(r.get(4)?)}))
+        })
+        .unwrap()
+        .map(|r| r.unwrap())
+        .collect();
+    drop(q);
+    let mut q = f
+        .conn
+        .prepare("SELECT digest,tag,body FROM s_content_nodes ORDER BY digest")
+        .unwrap();
+    let hex = |b: &[u8]| b.iter().map(|x| format!("{x:02x}")).collect::<String>();
+    let nodes: Vec<Value> = q
+        .query_map([], |r| {
+            Ok(json!({"root":root(r.get(0)?),"tag":r.get::<_,i64>(1)?.to_string(),
+                "body_hex":hex(&r.get::<_,Vec<u8>>(2)?)}))
+        })
+        .unwrap()
+        .map(|r| r.unwrap())
+        .collect();
+    drop(q);
+    let mut q = f.conn.prepare("SELECT key,value FROM meta ORDER BY key").unwrap();
+    let meta: serde_json::Map<String, Value> = q
+        .query_map([], |r| Ok((r.get::<_, String>(0)?, json!(r.get::<_, String>(1)?))))
+        .unwrap()
+        .map(|r| r.unwrap())
+        .collect();
+    drop(q);
+    let catalog: Value = serde_json::from_str(meta["catalog_definition"].as_str().unwrap()).unwrap();
+    let catalog_rows: Vec<Value> = catalog["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|item| {
+            let mut row = item.clone();
+            row.as_object_mut().unwrap().remove("acceptance_mode");
+            row
+        })
+        .collect();
+    let export = json!({
+        "provenance":{"kind":"TestOnly real S3 W-rule multi-cut export (init_v3 + real accept/Begin/commit, file WAL)",
+            "test":"v3::financial_session::tests::export_real_s3_w_fixture_for_q3",
+            "head":std::env::var("Q3_EXPORT_HEAD").unwrap_or_default(),
+            "rule_revision":meta["rule_revision"],"steps":stats},
+        "publications":publications,"nodes":nodes,"meta":meta,
+        "session_generation":"1","catalog_rows":catalog_rows});
+    let text = canonical_json(&export);
+    if let Ok(path) = std::env::var("Q3_REAL_EXPORT") {
+        std::fs::write(path, &text).unwrap();
+    }
+    println!("=====Q3-REAL-S3-EXPORT-BEGIN=====");
+    println!("{text}");
+    println!("=====Q3-REAL-S3-EXPORT-END=====");
+    println!("Q3-STATS {}", canonical_json(&json!(stats)));
+}
