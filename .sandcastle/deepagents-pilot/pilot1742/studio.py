@@ -223,7 +223,7 @@ class RunRequest:
 def normalize_run_request(body: dict[str, Any], thread_id: str) -> RunRequest | str:
     """把官方 Studio 实际发出的继续或恢复请求归一成一种语义，或返回拒绝理由。
 
-    继续：Submit 发 input={}，等同 CLI --resume 的 input=None，只推进已有 checkpoint 的待执行任务。
+    继续：线程运行记录的 Continue 不带 input，未选 As Node 时输入面板的 Submit 发 input={}，都等同 CLI --resume 的 input=None，只推进已有 checkpoint 的待执行任务（As Node 选为 tools 时 Submit 先改写线程状态，BoundStudio 返回 403）。
     恢复：中断处 Resume 发 command.resume。checkpoint 指针、thread_ts、checkpoint_id 只是声明“基于当前头”，
     核对后剥掉，执行总从当时的最新 checkpoint 继续，不能分叉。rollback 改为 reject：在飞 run 时冲突拒绝，
     不取消已有任务、不回滚状态。"""
