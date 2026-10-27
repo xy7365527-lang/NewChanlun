@@ -5,11 +5,10 @@
 ## 开始前
 
 - 确认 run 已由执行器 CLI 登记并首跑过。
-- 确认 `executor status --run-id "$RUN_ID"` 能读到这个 run。
 - 准备已安装 `requirements-studio.txt` 依赖的 venv。
 - 准备 App 私钥文件的绝对路径。文件须位于所有 Git 检出之外，属于当前用户，权限为 `600` 或 `400`。把路径传给服务，不要把私钥内容放入命令或 Studio。
 
-**如果 run 只登记、从未首跑，不要把它放进 `PILOT1742_STUDIO_RUNS`，先用 CLI 首跑。** Studio 不发起首跑，但对这种 run 点 **Submit** 会在拒绝前先持有这个 run，并向 GitHub 加标签、发持有评论。
+**如果 run 只登记、从未首跑，不要把它放进 `PILOT1742_STUDIO_RUNS`，先用 CLI 首跑。** Studio 不发起首跑。不要尝试从 Studio 继续或恢复这种 run。执行请求可能在拒绝前先持有这个 run，并向 GitHub 加标签、发持有评论。
 
 在检出根目录、同一个 shell 中定义 CLI 入口。函数使用下一节设置的环境变量。
 
@@ -68,10 +67,10 @@ executor run --run-id "$RUN_ID" --private-key "$PILOT1742_APP_PRIVATE_KEY"
 | `PORT` | 本地服务端口。网页 `baseUrl` 的端口必须与它相同。 | 使用 `2024`。 |
 | `VENV` | 已安装 Studio 依赖的 venv。CLI 函数和启动脚本使用同一环境。 | 启动脚本使用机器上的固定环境路径。请显式设置；CLI 函数不提供缺省路径。 |
 | `STUDIO_STATE` | Studio 服务自己的线程记录目录，不是 run 的 checkpoint 所在目录。首次使用指定一个空目录。 | 使用机器上的固定 Studio 目录，可能含旧线程记录。请显式设置。 |
-| `PILOT1742_STATE_ROOT` | 执行器状态根，必须与 CLI 的 `--state-root` 相同。设错时绑定线程会读为空。 | 使用实现中的固定状态根。请显式设置，避免读到别处。 |
+| `PILOT1742_STATE_ROOT` | 执行器状态根，必须与 CLI 的 `--state-root` 相同。设错时读取绑定线程通常报 `FileNotFoundError: run <run_id> 不存在：<路径>`。 | 使用实现中的固定状态根。请显式设置，避免读到别处。 |
 | `RUN_ID` | 本指南命令使用的目标 run id。 | 命令没有目标参数。 |
 | `PILOT1742_STUDIO_RUNS` | 要绑定的 run id，多个用逗号分隔，且每个都已由 CLI 首跑。 | 没有绑定线程。非法 id 会报 `run-id 只能是小写字母、数字与连字符，最长 41 位`。 |
-| `PILOT1742_APP_PRIVATE_KEY` | App 私钥文件路径。仅执行 **Submit** 或 **Resume** 时读取。 | 查看和 **Cancel** 不需要它；继续或恢复会拒绝。 |
+| `PILOT1742_APP_PRIVATE_KEY` | App 私钥文件路径。执行 **Continue** 或 **Resume** 时读取。 | 查看和 **Cancel** 不需要它。继续或恢复会拒绝。 |
 
 脚本只监听 `127.0.0.1`，关闭 tracing 并清掉传给服务的 LangSmith key。本地连接不需要 LangSmith API key。
 
@@ -95,26 +94,38 @@ PYTHONPATH=.sandcastle/deepagents-pilot:.sandcastle/approval-signing "$VENV/bin/
 
 | 你看到的现象 | 状态名 |
 | --- | --- |
-| 线程没有任何消息。 | [未首跑，返回开始前](#开始前) |
+| 读取线程报 `FileNotFoundError: run <run_id> 不存在：<路径>`。 | [核对状态根、run id 和是否已首跑，返回开始前](#开始前) |
 | 本线程有一次从 Studio 发起、仍在运行的 run。 | [运行中](#运行中) |
 | 最新 checkpoint 有中断，内容含 `awaiting_approval`。 | [停在签批处](#停在签批处) |
 | 最新 checkpoint 有中断，内容含 `operator_interrupt`。 | [停在操作员中断处](#停在操作员中断处) |
 | 没有中断，但有待执行节点，且没有控制进程在推进。 | [控制进程被杀后停在待办任务前](#控制进程被杀后停在待办任务前) |
 | 没有中断，也没有待执行节点。 | [已结束](#已结束) |
 
-`executor status --run-id "$RUN_ID"` 只读本机，显示业务阶段和 `interrupt_requested`。中断请求存在不代表图已暂停，以线程最新 checkpoint 为准。如果 CLI 还在推进，等它停止或退出后再从 Studio 操作。
+`executor status --run-id "$RUN_ID"` 只读本机，显示业务阶段和 `interrupt_requested`。中断请求存在不代表图已暂停，以线程最新 checkpoint 为准。
+
+按 run id 查找执行器进程，再核对输出中的子命令是否为 `run`。
+
+```sh
+pgrep -fl "pilot1742[.]executor .*--run-id[ =]${RUN_ID}([[:space:]]|$)"
+```
+
+如果还有该 run 的 `executor run` 进程，等它停止或退出后再从 Studio 操作。同时确认本线程没有 Studio 运行在飞。run 锁负责兜底。两个控制进程同时推进时，后到的 Studio 执行会失败。后到的 CLI 会报持锁错误并以退出码 `75` 退出。
 
 ## 按状态操作
+
+如果你点过 **Cancel** 但图还没停下，先等实际中断或控制进程退出。Studio 发起的继续和恢复在取得 run 锁、通过 checkpoint 复核后，都会先清除操作员中断请求，包括尚未生效的请求。如果控制进程退出后该请求仍在，点 **Continue** 会清掉它。不带 `--resume` 的 CLI 继续会保留该请求，并在下一次工具调用前停在 `operator_interrupt`。
 
 ### 控制进程被杀后停在待办任务前
 
 适用条件：run 已首跑，最新 checkpoint 没有中断、有待执行节点，控制进程已被杀或退出。
 
-1. 确认没有 `executor run` 进程正在推进这个 run。如果有，等它停止或退出。
-2. 保持输入框为空。
-3. 点 **Submit**。
+不要用输入面板的 **Submit** 继续待办。网页会把 **As Node** 预选为待办节点，例如 `tools`。此时点 **Submit** 会先发送 `POST /threads/<thread_id>/state` 来改写线程状态。服务以 `403` 拒绝，原文为 `该操作会改写线程状态或存储，不开放`。这次拒绝没有副作用，状态与 `trail` 都不变。
 
-结果：服务取得 run 锁，在锁内核对 checkpoint 仍是最新，然后执行已有待办。它等同于不带 `--resume` 重跑 `executor run --run-id "$RUN_ID" --private-key "$PILOT1742_APP_PRIVATE_KEY"`。已派工蜂按原键和回执收养，不重复派发。
+1. 确认没有 `executor run` 进程正在推进这个 run。如果有，等它停止或退出。
+2. 在线程视图底部找到待办节点。
+3. 点该节点旁的 **Continue**。
+
+结果：网页发送 `POST /threads/<thread_id>/runs/stream`，不带 `input`，带当前 checkpoint、`multitask_strategy=rollback` 和 `checkpoint_during=true`。服务取得 run 锁后，在锁内核对 checkpoint 仍是最新。复核通过后，服务先清除中断请求，再执行已有待办。已派工蜂按原键和回执收养，不重复派发。
 
 不会发生的事：服务不会开新一轮任务，也不接受新内容输入。
 
@@ -127,7 +138,7 @@ PYTHONPATH=.sandcastle/deepagents-pilot:.sandcastle/approval-signing "$VENV/bin/
 3. 点中断下方的 **Resume**。
 4. 查看最新 checkpoint。如果又停在签批处，核对当前请求及签批结果，不要反复恢复来代替签批。
 
-结果：执行器忽略恢复载荷，在票级锁内重读签批权威链。签批成立时发布并继续；不成立时再次停在签批处。
+结果：执行器接受恢复载荷并忽略其内容，在票级锁内重读签批权威链。签批成立时发布并继续。不成立时再次停在签批处。
 
 不会发生的事：恢复载荷不会成为批准，也不会绕过当前请求的签批判定。
 
@@ -161,7 +172,7 @@ PYTHONPATH=.sandcastle/deepagents-pilot:.sandcastle/approval-signing "$VENV/bin/
 适用条件：最新 checkpoint 没有中断，也没有待执行节点，且没有控制进程在推进。
 
 1. 只查看线程消息和状态。
-2. 不点任何执行按钮，包括 **Submit**、**Resume** 和 **Cancel**。
+2. 不点任何执行按钮，包括 **Continue**、**Submit**、**Resume** 和 **Cancel**。
 3. 需要业务阶段时，用 `executor status --run-id "$RUN_ID"` 查看。
 
 结果：你读取现有结果。继续和恢复会以 `run_finished` 被拒；取消不会被拒，但只会留下没有意义的中断请求。
@@ -179,27 +190,28 @@ PYTHONPATH=.sandcastle/deepagents-pilot:.sandcastle/approval-signing "$VENV/bin/
 | `checkpoint_not_allowed` | checkpoint 指针格式、线程或命名空间不被允许。 | 回到原绑定线程的最新 checkpoint，不发起分叉或跨线程请求。 |
 | `checkpoint_ambiguous` | 请求里的 checkpoint 指针互相不一致。相同指针值会去重，不因此拒绝。 | 回到最新 checkpoint，用网页默认请求。 |
 | `configurable_override_not_allowed` | 请求试图覆盖线程、命名空间或保留配置，或者配置格式不对。 | 回到原绑定线程的最新 checkpoint，不修改高级配置。 |
-| `该操作会改写线程状态或存储，不开放` | 正在编辑状态、复制线程，或进行其他未开放的写操作。 | 保留原绑定线程，只按对应状态小节操作。 |
+| `该操作会改写线程状态或存储，不开放` | 点了输入面板的 **Submit**，或进行了其他改写状态的操作。服务以 `403` 拒绝，状态与 `trail` 都不变。 | 不要用 **Submit** 继续待办。若停在待办任务前，改点线程视图待办节点旁的 **Continue**。其他状态按对应小节操作。 |
 | Studio 这次运行失败，报 `run <run_id> 已有控制进程持锁，本进程未做任何副作用` | CLI 正持有 run 锁，后到的 Studio 执行失败且没做副作用。 | 等 CLI 停止或退出，刷新线程，重新判断状态。 |
 | `executor run` 退出码为 `75`，stderr 为 `run <run_id> 已有控制进程持锁，本进程未做任何副作用` | Studio 正持有 run 锁，后到的 CLI 退出且没做副作用。也可能是另一个 CLI 持锁。 | 等正在推进的那次运行结束或停下。同一 run 同一时间只用一边推进。 |
 | `409`，`Thread is already running a task. Wait for it to finish or choose a different multitask strategy.` | 同一线程已有一次 Studio 运行。 | 等它结束，不改 `multitask_strategy`。 |
-| `该线程未绑定已登记的 v2 run`；`该线程未绑定已登记的 v2 run，不能执行`；`thread_not_bound：只能创建绑定已登记 v2 run 的线程，见 STUDIO.md` | 线程不在绑定列表里，或打开了新建线程。 | 在没有 Studio 运行在飞时停服务。核对 run id 和状态根，把已首跑的 run id 加进 `PILOT1742_STUDIO_RUNS` 后重启，打开 `thread_for` 算出的线程。 |
-| `input_not_allowed：首跑由执行器 CLI 发起，Studio 只继续、恢复与中断` | 请求带了新内容，或恢复请求同时带输入。 | 清空输入框。如果停在待办任务前，点 **Submit**；如果已中断，点中断下方的 **Resume**。 |
+| `该线程未绑定已登记的 v2 run` 或 `该线程未绑定已登记的 v2 run，不能执行` 或 `thread_not_bound：只能创建绑定已登记 v2 run 的线程，见 STUDIO.md` | 线程不在绑定列表里，或打开了新建线程。 | 先核对 run id 和状态根。如果目标 run 已在服务的 `PILOT1742_STUDIO_RUNS` 里，直接打开 `thread_for` 算出的线程，不必重启。否则，在没有 Studio 运行在飞时停服务，把已首跑的目标 run 加进绑定列表后重启。 |
+| `input_not_allowed：首跑由执行器 CLI 发起，Studio 只继续、恢复与中断` | 输入面板请求带了新内容，或恢复请求同时带非 `null` 的 `input`，包括 `{}`。`command.resume` 的内容不受这条限制。 | 清空输入框。如果停在待办任务前，点待办节点旁的 **Continue**。如果已中断，点中断下方的 **Resume**。恢复时不要同时发送 `input`。 |
 | `command_only_resume` | 请求中的 command 不是仅含 resume 的恢复命令。 | 用网页默认的恢复操作，不修改 command。 |
-| `fields_not_allowed:<字段>` | 请求含字段白名单之外的字段。 | 用网页默认的 **Submit** 或 **Resume**，不改高级选项。 |
+| `fields_not_allowed:<字段>` | 请求含字段白名单之外的字段。 | 按当前状态用待办节点旁的 **Continue** 或中断下方的 **Resume**，不改高级选项。 |
 | `checkpoint_during_not_allowed` | 请求带了不开放的 checkpoint 写入选项，例如 `checkpoint_during=false`。 | 使用网页默认选项。 |
 | `durability_not_allowed` | 请求带了不开放的持久化选项，例如 `durability=exit`。 | 使用网页默认选项。 |
-| `nothing_to_resume：当前没有停在中断处，用继续而不是恢复` | 当前有待办，但没有中断。 | 先确认没有控制进程在推进，再按[待办任务前](#控制进程被杀后停在待办任务前)操作，使用 **Submit**。 |
+| `nothing_to_resume：当前没有停在中断处，用继续而不是恢复` | 当前有待办，但没有中断。 | 先确认没有控制进程在推进，再按[待办任务前](#控制进程被杀后停在待办任务前)操作，点待办节点旁的 **Continue**。 |
 | `interrupted：该 run 停在中断处，只能在中断处恢复` | 当前 checkpoint 有中断。 | 先按中断内容判断类型，再用中断下方的 **Resume**。签批中断须先完成签批。 |
 | `run_not_started：首跑由执行器 CLI 发起，Studio 不创造任务` | run 没有首跑 checkpoint。 | 返回[开始前](#开始前)，用 CLI 首跑后再绑定到 Studio。 |
+| `FileNotFoundError: run <run_id> 不存在：<路径>` | 状态根或 run id 不对，或 run 只登记、从未首跑，尚无 `run.json`。 | 核对 `PILOT1742_STATE_ROOT` 和 run id。如果尚未首跑，返回[开始前](#开始前)，先用 CLI 首跑。 |
 | `run_finished：该 run 的图已结束，Studio 只读` | 图没有中断和待执行节点。 | 不再使用执行按钮，保留只读查看。 |
 | 启动终端打印 `已存在但缺 graph_id，未改写` | `STUDIO_STATE` 含缺少 `graph_id` 的旧线程，Studio 列不出或读不到它。 | 在没有 Studio 运行在飞时按 `Ctrl-C`，按下方命令仅换一个空的 `STUDIO_STATE` 重启。 |
 | 启动后没有任何 `pilot1742 studio thread` 行 | 绑定列表为空、服务在 120 秒内未就绪，或建线程时出错。 | 检查 `PILOT1742_STUDIO_RUNS` 和终端报错，排除问题后重启。 |
 | `Studio 服务未配置 PILOT1742_APP_PRIVATE_KEY，不能执行 v2 run` | 执行服务缺私钥路径。 | 设置 `PILOT1742_APP_PRIVATE_KEY` 后重启。 |
-| `私钥必须通过绝对文件路径明确指定` | 私钥路径不是绝对路径。 | 改成仓库外文件的绝对路径后重启。 |
-| `私钥必须保存在所有 Git 检出之外` | 私钥文件位于某个 Git 检出内。 | 改用所有 Git 检出之外的私钥路径后重启。 |
-| `私钥须由当前用户持有且权限为 600 或 400` | 私钥不是普通文件、属主不对或权限不合要求。 | 改正文件类型、属主或权限后重启。 |
-| `无法读取明确指定的私钥文件` | 文件无法打开，例如路径不存在或不可读。 | 核对路径和读取权限后重启，不展示文件内容。 |
+| `私钥必须通过绝对文件路径明确指定` | 私钥路径不是绝对路径。 | 将 `PILOT1742_APP_PRIVATE_KEY` 改成仓库外文件的绝对路径后重启。 |
+| `私钥必须保存在所有 Git 检出之外` | 私钥文件位于某个 Git 检出内。 | 将 `PILOT1742_APP_PRIVATE_KEY` 改成所有 Git 检出之外的私钥路径后重启。 |
+| `私钥须由当前用户持有且权限为 600 或 400` | 私钥不是普通文件、属主不对或权限不合要求。 | 改正文件类型、属主或权限后重试，无须重启。只有改了私钥路径环境变量才需要重启服务。 |
+| `无法读取明确指定的私钥文件` | 文件无法打开，例如路径不存在或不可读。 | 不展示文件内容。修正原路径上的文件或读取权限后重试，无须重启。如果改了私钥路径环境变量，再重启服务。 |
 | `run <run_id> 的持有已是 halted，只能由主控以新 run 重新持有`；`run <run_id> 的持有已是 released，只能由主控以新 run 重新持有` | 持有已经终止。 | Studio 不能推进这个 run。本指南不提供恢复手段，交给主控处理。 |
 | 浏览器显示 `Failed to fetch` | 网页连不上本地服务。 | 确认启动终端仍在运行，执行下方就绪检查，核对链接端口后刷新 Studio。 |
 
@@ -221,9 +233,9 @@ curl --fail "http://127.0.0.1:${PORT}/ok"
 
 ## 批准只看签批权威链
 
-恢复载荷从不当作批准，载荷里写什么都不算数。在签批处恢复后，执行器不使用载荷内容判定批准，而是在票级锁内重读 root 保护的 Secure Enclave 签批权威链。只有权威链判定成立，发布动作才继续。
+恢复载荷 `command.resume` 无论写什么都会被接受，但执行器会忽略其内容。在签批处恢复后，执行器在票级锁内重读 root 保护的 Secure Enclave 签批权威链。只有权威链判定成立，发布动作才继续。
 
-中断内容和 `executor status` 里的签批状态只供查看，不是批准来源。在 Studio 输入框写“批准”不会改变结果，而且会以 `input_not_allowed` 被拒。
+中断内容和 `executor status` 里的签批状态只供查看，不是批准来源。不要把恢复载荷与输入面板的新内容混淆。输入面板里带“批准”等新内容的请求会以 `input_not_allowed` 被拒，恢复载荷中的同样内容会被接受并忽略。
 
 ## 不要这样恢复
 
