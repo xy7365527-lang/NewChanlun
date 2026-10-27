@@ -1739,6 +1739,69 @@ fn q3_w_export_window_forms_center_pair() {
     assert_eq!(q3_w_centers(&bars), 2, "导出窗不成中枢对");
 }
 
+/// 同一窗经 S3 生成核（`GenerationRuntime::generate`，W 写者规则）一代全量生成：第 104 根才有
+/// `CC-020.center_pair`。这是导出逐代发布所调的同一生成函数，只省去逐代提交与来源审计。
+#[test]
+fn q3_w_export_window_s3_generation_publishes_center_pair() {
+    use super::super::business_json::{self as bj, RawEventsView};
+    use super::super::generation::{GenerationInput, GenerationRuntime, StructurePriors};
+    let (bars, _, _) = q3_w_bars();
+    let rows: std::vec::Vec<Value> = bars
+        .iter()
+        .enumerate()
+        .map(|(seq, (id, c, o, h, l, cl))| {
+            json!({"identity_key":id,"source_coord":c.to_string(),"revision":1,"seq":seq+1,
+                "ts":c.to_string(),"open":o.to_string(),"high":h.to_string(),"low":l.to_string(),
+                "close":cl.to_string(),"input_revision":"1","payload_hash":format!("payload-{seq}"),
+                "receipt_id":format!("receipt-{seq}"),"event_id":format!("event-{id}")})
+        })
+        .collect();
+    let count = |n: usize| -> (usize, usize) {
+        let raw = RawEventsView::plain(&rows[..n]);
+        let effective = bj::effective(raw, None).unwrap();
+        let scope = json!({});
+        let input = GenerationInput {
+            all_events: raw,
+            effective: effective.raw_view(),
+            generation: 1,
+            structure_cut: "cut-1",
+            input_frontier: n as i64,
+            profile_id: crate::tb02a::PROFILE,
+            profile_hash: "q3-window-profile",
+            rule_revision: crate::W_STRUCTURE_RULE_REVISION,
+            catalog_revision: "q3-window-catalog",
+            scope: &scope,
+            semantic_commit_ns: Some("123456789"),
+            prior: crate::content_bi::PriorState {
+                bi_records: vec![],
+                version_record: None,
+            },
+            structure_prior: StructurePriors::default(),
+        };
+        let mut nodes = sc::MemoryNodes::new();
+        let mut runtime = GenerationRuntime::new(
+            "q3-window".into(),
+            crate::tb02a::PROFILE,
+            crate::W_STRUCTURE_RULE_REVISION,
+        );
+        let generated = runtime.generate(&mut nodes, &input).unwrap();
+        let of = |kind: &str| {
+            generated
+                .objects
+                .iter()
+                .filter(|o| o.kind() == kind)
+                .count()
+        };
+        (of("CC-016.center"), of("CC-020.center_pair"))
+    };
+    let (centers, pairs) = count(bars.len());
+    assert!(
+        centers >= 2 && pairs >= 1,
+        "全窗：中枢 {centers}、中枢对 {pairs}"
+    );
+    assert_eq!(count(bars.len() - 1).1, 0, "窗口未截在中枢对首现处");
+}
+
 /// #1419 Q3 真实消费验收：W 规则真实 S3 多代导出（27AZ P1）。走 init_v3 + 真实接纳/Begin/提交，逐代发布：
 /// 1 根与 2 根相互包含（W 等待期）→ 真实写者恢复（纪元 1→2）→ 方向建立的前段 → 首中枢成立
 /// → 首中枢内笔顶改价修订（撤回）→ 改回原价修订（恢复）→ 尾段至第二中枢成立（中枢对）。数据窗见 [`q3_w_bars`]。任一代被门拒绝即原样记录并停止。导出格式对齐
