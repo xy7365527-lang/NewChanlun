@@ -1716,11 +1716,26 @@ fn export_real_s3_w_fixture_for_q3() {
     let steps: Vec<(&str, Vec<Bar>, i64, bool)> = vec![
         ("w_first_bar", bars[0..1].to_vec(), 1, false),
         ("w_contained_waiting", bars[1..2].to_vec(), 1, false),
-        ("direction_established", bars[2..direction].to_vec(), 1, false),
-        ("chain_centers", bars[direction..body_end].to_vec(), 1, false),
+        (
+            "direction_established",
+            bars[2..direction].to_vec(),
+            1,
+            false,
+        ),
+        (
+            "chain_centers",
+            bars[direction..body_end].to_vec(),
+            1,
+            false,
+        ),
         ("revision_withdraw", vec![revised], 2, false),
         ("revision_restore", vec![bars[top].clone()], 3, false),
-        ("recovered_epoch2_append", bars[body_end..].to_vec(), 1, true),
+        (
+            "recovered_epoch2_append",
+            bars[body_end..].to_vec(),
+            1,
+            true,
+        ),
     ];
     let messages: i64 = steps.iter().map(|(_, rows, _, _)| rows.len() as i64).sum();
     // 真实恢复：恢复前最后一代提交（ns=k*10+2）之后、下一次接纳（ns=(k+1)*10）之前，纪元 1→2。
@@ -1729,11 +1744,7 @@ fn export_real_s3_w_fixture_for_q3() {
         .take_while(|(_, _, _, recover)| !recover)
         .map(|(_, rows, _, _)| rows.len() as i64)
         .sum();
-    let mut f = Fixture::with_clock_plan(
-        64,
-        messages,
-        &[("recover-1", before_recover * 10 + 5)],
-    );
+    let mut f = Fixture::with_clock_plan(64, messages, &[("recover-1", before_recover * 10 + 5)]);
     let mut n: i64 = 0;
     let mut stats = Vec::new();
     let count = |f: &Fixture, sql: &str, g: i64| -> Vec<(String, i64)> {
@@ -1752,7 +1763,8 @@ fn export_real_s3_w_fixture_for_q3() {
         let mut withdrawn_total: std::collections::BTreeMap<String, i64> = Default::default();
         for (id, c, o, h, l, cl) in rows {
             n += 1;
-            let (envelope, token) = f.accept_begin(n, (id.as_str(), *c, *o, *h, *l, *cl), *revision);
+            let (envelope, token) =
+                f.accept_begin(n, (id.as_str(), *c, *o, *h, *l, *cl), *revision);
             let started = std::time::Instant::now();
             match f.publish(&envelope, &token) {
                 Ok(receipt) => {
@@ -1799,8 +1811,10 @@ fn export_real_s3_w_fixture_for_q3() {
                     .copied()
                     .collect();
                 let ef_present = present(&ef);
-                let withdrawn: serde_json::Map<String, Value> =
-                    withdrawn_total.iter().map(|(k, c)| (k.clone(), json!(c))).collect();
+                let withdrawn: serde_json::Map<String, Value> = withdrawn_total
+                    .iter()
+                    .map(|(k, c)| (k.clone(), json!(c)))
+                    .collect();
                 let kinds: serde_json::Map<String, Value> =
                     current.iter().map(|(k, c)| (k.clone(), json!(c))).collect();
                 stats.push(json!({"step":label,"generation":g.to_string(),"batch_id":receipt.batch_id.as_str(),
@@ -1810,7 +1824,9 @@ fn export_real_s3_w_fixture_for_q3() {
             }
             (_, error) => {
                 let error = error.unwrap_or_else(|| "空里程碑".to_string());
-                stats.push(json!({"step":label,"bars":rows.len(),"revision":revision,"refused":error}));
+                stats.push(
+                    json!({"step":label,"bars":rows.len(),"revision":revision,"refused":error}),
+                );
                 println!("Q3-STATS {}", canonical_json(&json!(stats)));
                 panic!("真实 S3 W 导出（{label}）被拒：{error}");
             }
@@ -1837,21 +1853,29 @@ fn export_real_s3_w_fixture_for_q3() {
     let hex = |b: &[u8]| b.iter().map(|x| format!("{x:02x}")).collect::<String>();
     let nodes: Vec<Value> = q
         .query_map([], |r| {
-            Ok(json!({"root":root(r.get(0)?),"tag":r.get::<_,i64>(1)?.to_string(),
-                "body_hex":hex(&r.get::<_,Vec<u8>>(2)?)}))
+            Ok(
+                json!({"root":root(r.get(0)?),"tag":r.get::<_,i64>(1)?.to_string(),
+                "body_hex":hex(&r.get::<_,Vec<u8>>(2)?)}),
+            )
         })
         .unwrap()
         .map(|r| r.unwrap())
         .collect();
     drop(q);
-    let mut q = f.conn.prepare("SELECT key,value FROM meta ORDER BY key").unwrap();
+    let mut q = f
+        .conn
+        .prepare("SELECT key,value FROM meta ORDER BY key")
+        .unwrap();
     let meta: serde_json::Map<String, Value> = q
-        .query_map([], |r| Ok((r.get::<_, String>(0)?, json!(r.get::<_, String>(1)?))))
+        .query_map([], |r| {
+            Ok((r.get::<_, String>(0)?, json!(r.get::<_, String>(1)?)))
+        })
         .unwrap()
         .map(|r| r.unwrap())
         .collect();
     drop(q);
-    let catalog: Value = serde_json::from_str(meta["catalog_definition"].as_str().unwrap()).unwrap();
+    let catalog: Value =
+        serde_json::from_str(meta["catalog_definition"].as_str().unwrap()).unwrap();
     let catalog_rows: Vec<Value> = catalog["items"]
         .as_array()
         .unwrap()
@@ -1886,8 +1910,14 @@ fn export_real_s3_w_fixture_for_q3() {
             .as_object()
             .is_some_and(|m| m.get(kind).and_then(Value::as_i64).unwrap_or(0) > 0)
     };
-    assert!(has(1, "current_by_kind", "CC-004.undetermined_raw"), "等待期缺未定原件");
-    assert!(has(1, "current_by_kind", "CC-004.initialization"), "等待期缺初始化事实");
+    assert!(
+        has(1, "current_by_kind", "CC-004.undetermined_raw"),
+        "等待期缺未定原件"
+    );
+    assert!(
+        has(1, "current_by_kind", "CC-004.initialization"),
+        "等待期缺初始化事实"
+    );
     assert!(
         (0..stats.len()).any(|i| has(i, "current_by_kind", "CC-016.center")),
         "全程无非空中枢"
@@ -1902,9 +1932,5 @@ fn export_real_s3_w_fixture_for_q3() {
             .is_some_and(|m| !m.is_empty()),
         "修订代无撤回"
     );
-    assert_eq!(
-        writer_epoch,
-        json!("2"),
-        "恢复必须真实递增写者纪元"
-    );
+    assert_eq!(writer_epoch, json!("2"), "恢复必须真实递增写者纪元");
 }

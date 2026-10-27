@@ -1057,7 +1057,14 @@ impl GenerationRuntime {
             )?;
             let object = self
                 .producer
-                .build_group_object(store, index, &view, state.initial_direction_node(), gen, cut)
+                .build_group_object(
+                    store,
+                    index,
+                    &view,
+                    state.initial_direction_node(),
+                    gen,
+                    cut,
+                )
                 .map_err(producer_error)?;
             push_gen(
                 &mut group_requests,

@@ -1035,9 +1035,9 @@ pub(super) fn read_prior_undetermined(
         }
     }
     let pending_since_cut = scalar_text(store, &payload, &field_path("pending_since_cut"))?;
-    let well_formed = pending_since_cut
-        .strip_prefix("cut-")
-        .is_some_and(|n| !n.is_empty() && !n.starts_with('0') && n.bytes().all(|b| b.is_ascii_digit()));
+    let well_formed = pending_since_cut.strip_prefix("cut-").is_some_and(|n| {
+        !n.is_empty() && !n.starts_with('0') && n.bytes().all(|b| b.is_ascii_digit())
+    });
     if !well_formed {
         return Err(BiError::Prior {
             what: "pending_since_cut",

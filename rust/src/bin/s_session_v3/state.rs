@@ -1415,7 +1415,15 @@ fn verify_unrun_catalog_admitted(
         let proof = text(&mut row, 2)?;
         let run = text(&mut row, 3)?;
         let evidence = text(&mut row, 4)?;
-        validate_unrun_row(&id, &implemented, &proof, &run, &evidence, initial, live_axes)?;
+        validate_unrun_row(
+            &id,
+            &implemented,
+            &proof,
+            &run,
+            &evidence,
+            initial,
+            live_axes,
+        )?;
     }
     stmt.finalize().map_err(err)
 }

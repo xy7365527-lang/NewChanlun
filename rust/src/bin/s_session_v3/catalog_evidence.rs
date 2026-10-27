@@ -60,7 +60,13 @@ pub(super) fn rule_axes(rule: &str) -> Result<&'static [&'static str], String> {
 }
 
 /// 段/中枢/中枢对轴的范围与具名子义务（与写者 `catalog_axes_admitted` 同一组常量）。
-fn axis_scope(id: &str) -> (&'static str, &'static [&'static str], &'static [&'static str]) {
+fn axis_scope(
+    id: &str,
+) -> (
+    &'static str,
+    &'static [&'static str],
+    &'static [&'static str],
+) {
     const SEGMENT_DELIVERED: [&str; 2] = [
         "finite_complete_prefix_strict_second",
         "independent_stroke_and_segment_break_facts",
@@ -1147,7 +1153,14 @@ mod owned_catalog_temp_tests {
         let normal_axes = normal_source
             .lookup_field_ref(generated.view(), "catalog_axes")
             .unwrap();
-        let rule = audited.cuts.last().unwrap().metadata.rule_revision.as_str().to_string();
+        let rule = audited
+            .cuts
+            .last()
+            .unwrap()
+            .metadata
+            .rule_revision
+            .as_str()
+            .to_string();
         let normal = axes_entries(&mut normal_source, normal_axes.view(), &rule).unwrap();
         let expected: Vec<_> = normal
             .iter()

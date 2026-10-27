@@ -574,7 +574,10 @@ const W_INIT_KIND: &str = crate::content_producer::CC004_INITIALIZATION_KIND;
 const W_RAW_KIND: &str = crate::content_producer::CC004_UNDETERMINED_KIND;
 
 /// #1393/#1565 W：未定原件槽位 `["CC-004.undetermined_raw", coord]` 的源坐标。
-pub(super) fn w_raw_slot(s: &mut (impl SourceFieldStore + ?Sized), object: &Object) -> Result<i64, String> {
+pub(super) fn w_raw_slot(
+    s: &mut (impl SourceFieldStore + ?Sized),
+    object: &Object,
+) -> Result<i64, String> {
     let key = object.fields.text(s, "fact_key")?;
     let parsed = parsed_json(s, key.as_bytes())?;
     let coord = parsed
@@ -821,12 +824,26 @@ pub(super) fn w_request(
         &["input_quality", "applicability", "computation", "validity"],
     )?;
     for (name, want) in [
-        ("input_quality", if initial { "INSUFFICIENT" } else { "SUFFICIENT" }),
+        (
+            "input_quality",
+            if initial {
+                "INSUFFICIENT"
+            } else {
+                "SUFFICIENT"
+            },
+        ),
         (
             "applicability",
-            if initial { "DOMAIN_PROOF_MISSING" } else { "IN_DOMAIN" },
+            if initial {
+                "DOMAIN_PROOF_MISSING"
+            } else {
+                "IN_DOMAIN"
+            },
         ),
-        ("computation", if initial { "INCOMPLETE" } else { "COMPLETE" }),
+        (
+            "computation",
+            if initial { "INCOMPLETE" } else { "COMPLETE" },
+        ),
         ("validity", "CURRENT"),
     ] {
         if axes.text(s, name)? != want {

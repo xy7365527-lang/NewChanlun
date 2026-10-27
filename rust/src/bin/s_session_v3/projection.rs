@@ -615,23 +615,22 @@ fn build_catalog(
     while let Some(mut row) = stmt.next().map_err(err)? {
         s.job.pre_io_check().map_err(err)?;
         let id = TextValue::from_sql(&mut row, 0, budget.as_ref()).map_err(err)?;
-        let (implemented, proof, run, ev) =
-            if live_axes.contains(&id.as_str()) && axes.is_some() {
-                let axis = field(s, axes.as_ref().unwrap().view(), &id)?;
-                (
-                    text(s, axis.view(), "impl_status")?,
-                    text(s, axis.view(), "proof_status")?,
-                    text(s, axis.view(), "run_status")?,
-                    field(s, axis.view(), "evidence")?,
-                )
-            } else {
-                (
-                    TextValue::from_str("not_implemented", budget.as_ref())?,
-                    TextValue::from_str("not_proved", budget.as_ref())?,
-                    TextValue::from_str("not_run", budget.as_ref())?,
-                    s.native_ref_clone(empty).map_err(err)?,
-                )
-            };
+        let (implemented, proof, run, ev) = if live_axes.contains(&id.as_str()) && axes.is_some() {
+            let axis = field(s, axes.as_ref().unwrap().view(), &id)?;
+            (
+                text(s, axis.view(), "impl_status")?,
+                text(s, axis.view(), "proof_status")?,
+                text(s, axis.view(), "run_status")?,
+                field(s, axis.view(), "evidence")?,
+            )
+        } else {
+            (
+                TextValue::from_str("not_implemented", budget.as_ref())?,
+                TextValue::from_str("not_proved", budget.as_ref())?,
+                TextValue::from_str("not_run", budget.as_ref())?,
+                s.native_ref_clone(empty).map_err(err)?,
+            )
+        };
         if let Some(i) = names.iter().position(|name| *name == implemented.as_str()) {
             counts[i] += 1;
         }

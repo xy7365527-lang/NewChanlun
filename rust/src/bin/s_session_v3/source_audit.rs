@@ -4690,7 +4690,11 @@ mod tests {
             ),
             (81, 13, 11, 14, 0, 0)
         );
-        assert_eq!(roots.len(), 151351 + 13016 + 120 + 37928, "r3完整Some读取轨迹");
+        assert_eq!(
+            roots.len(),
+            151351 + 13016 + 120 + 37928,
+            "r3完整Some读取轨迹"
+        );
         assert_eq!(frames, 170797 + 14276 + 120 + 38245, "r3完整Some F次数");
         assert_eq!(
             read_hash,

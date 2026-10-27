@@ -1376,7 +1376,11 @@ impl NativeSourceState {
                     w_dirty = true;
                 } else if object.kind == crate::content_producer::CC004_UNDETERMINED_KIND {
                     let coord = source_pending::w_raw_slot(s, &object)?;
-                    if self.w_raws.get(&coord).is_some_and(|other| *other != handle) {
+                    if self
+                        .w_raws
+                        .get(&coord)
+                        .is_some_and(|other| *other != handle)
+                    {
                         return Err(err("同cut W未定原件坐标重复"));
                     }
                     self.w_raws.put(s, coord, handle)?;

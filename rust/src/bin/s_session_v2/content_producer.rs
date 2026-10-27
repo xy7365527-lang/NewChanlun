@@ -1425,7 +1425,9 @@ impl Cc004Producer {
         cut: &str,
     ) -> Result<WInitialization, ProducerError> {
         if state.degraded() {
-            return Err(ProducerError::Degraded("source 坐标非严格递增：共享证据不可用"));
+            return Err(ProducerError::Degraded(
+                "source 坐标非严格递增：共享证据不可用",
+            ));
         }
         let unsettled = state.unsettled();
         let initial = state.initial_direction_node();
@@ -1444,7 +1446,14 @@ impl Cc004Producer {
             ),
             (
                 "direction_state".to_string(),
-                CValue::String(if unsettled { "Undetermined" } else { "Established" }.to_string()),
+                CValue::String(
+                    if unsettled {
+                        "Undetermined"
+                    } else {
+                        "Established"
+                    }
+                    .to_string(),
+                ),
             ),
             ("first_raw_pair".to_string(), first_raw_pair),
         ]);
@@ -4943,8 +4952,11 @@ mod tests {
                 .expect("构造 W 初始化");
             for object in &init.objects {
                 id_map.insert(
-                    oracle_fact(&oracle, &kind_of_fact_key(&object.fact_key), &object.fact_key)
-                        ["object_id"]
+                    oracle_fact(
+                        &oracle,
+                        &kind_of_fact_key(&object.fact_key),
+                        &object.fact_key,
+                    )["object_id"]
                         .as_str()
                         .expect("旧身份")
                         .to_string(),
@@ -6680,8 +6692,11 @@ mod tests {
             assert_eq!(w.objects.len(), oracle_count, "{label}: W 对象数");
             assert_eq!(w.objects.len(), 1 + fixture.state.pending_raw().len());
             for object in &w.objects {
-                let want =
-                    oracle_fact(&oracle, &kind_of_fact_key(&object.fact_key), &object.fact_key);
+                let want = oracle_fact(
+                    &oracle,
+                    &kind_of_fact_key(&object.fact_key),
+                    &object.fact_key,
+                );
                 assert_object_matches_oracle(&mut fixture, object, want, label);
                 assert_request_matches_oracle(
                     &mut fixture,

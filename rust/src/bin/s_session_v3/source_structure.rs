@@ -949,23 +949,88 @@ enum Arity {
 /// 所以端点撤回或改版时依赖方必然重核。before/previous 是历史快照，不入表；
 /// position 的 center_revision 是原事实版本，只要求不超过当前中心修订。
 const ENTITY_FIELDS: &[(&str, &str, &str, Arity)] = &[
-    ("CC-016.center_seed_attempt", "center_id", "CC-016.center", Arity::Optional),
-    ("CC-016.center", "seed_attempt_id", "CC-016.center_seed_attempt", Arity::One),
+    (
+        "CC-016.center_seed_attempt",
+        "center_id",
+        "CC-016.center",
+        Arity::Optional,
+    ),
+    (
+        "CC-016.center",
+        "seed_attempt_id",
+        "CC-016.center_seed_attempt",
+        Arity::One,
+    ),
     ("CC-016.center", "seed_units", "CC-013.segment", Arity::Many),
     ("CC-016.center", "members", "CC-013.segment", Arity::Many),
     ("CC-016.center", "zn_members", "CC-013.segment", Arity::Many),
-    ("CC-016.center", "break_unit", "CC-013.segment", Arity::Optional),
-    ("CC-016.center", "next_tested_unit", "CC-013.segment", Arity::Optional),
+    (
+        "CC-016.center",
+        "break_unit",
+        "CC-013.segment",
+        Arity::Optional,
+    ),
+    (
+        "CC-016.center",
+        "next_tested_unit",
+        "CC-013.segment",
+        Arity::Optional,
+    ),
     // 嵌套字段以点分路径登记；resume_anchor 未结算时为 null，按 Optional 跳过。
-    ("CC-016.center", "resume_anchor.after_unit_id", "CC-013.segment", Arity::Optional),
-    ("CC-016.center", "roles_id", "CC-017.center_roles", Arity::One),
-    ("CC-017.center_roles", "center_id", "CC-016.center", Arity::One),
-    ("CC-022.unit_assignment", "center_id", "CC-016.center", Arity::Optional),
-    ("CC-022.unit_assignment", "left_center_id", "CC-016.center", Arity::Optional),
-    ("CC-022.unit_assignment", "right_center_id", "CC-016.center", Arity::Optional),
-    ("CC-018.unit_core_position", "center_id", "CC-016.center", Arity::One),
-    ("CC-020.center_pair", "a_center_id", "CC-016.center", Arity::One),
-    ("CC-020.center_pair", "b_center_id", "CC-016.center", Arity::One),
+    (
+        "CC-016.center",
+        "resume_anchor.after_unit_id",
+        "CC-013.segment",
+        Arity::Optional,
+    ),
+    (
+        "CC-016.center",
+        "roles_id",
+        "CC-017.center_roles",
+        Arity::One,
+    ),
+    (
+        "CC-017.center_roles",
+        "center_id",
+        "CC-016.center",
+        Arity::One,
+    ),
+    (
+        "CC-022.unit_assignment",
+        "center_id",
+        "CC-016.center",
+        Arity::Optional,
+    ),
+    (
+        "CC-022.unit_assignment",
+        "left_center_id",
+        "CC-016.center",
+        Arity::Optional,
+    ),
+    (
+        "CC-022.unit_assignment",
+        "right_center_id",
+        "CC-016.center",
+        Arity::Optional,
+    ),
+    (
+        "CC-018.unit_core_position",
+        "center_id",
+        "CC-016.center",
+        Arity::One,
+    ),
+    (
+        "CC-020.center_pair",
+        "a_center_id",
+        "CC-016.center",
+        Arity::One,
+    ),
+    (
+        "CC-020.center_pair",
+        "b_center_id",
+        "CC-016.center",
+        Arity::One,
+    ),
 ];
 fn entity_field_ids(
     s: &mut (impl SourceFieldStore + ?Sized),
@@ -2063,7 +2128,10 @@ mod ef_entity_tests {
             let rows = &c.rows;
             let report = coverage(rows);
             assert!(data_of(rows, "CC-016.center").len() >= 2, "{report}");
-            assert!(data_of(rows, "CC-018.unit_core_position").len() >= 1, "{report}");
+            assert!(
+                data_of(rows, "CC-018.unit_core_position").len() >= 1,
+                "{report}"
+            );
             assert!(data_of(rows, "CC-020.center_pair").len() >= 1, "{report}");
             assert!(
                 data_of(rows, "CC-022.unit_assignment")
@@ -2101,12 +2169,22 @@ mod ef_entity_tests {
         };
         let centers = data_of(rows, "CC-016.center");
         let (c0, c1) = (centers[0].clone(), centers[1].clone());
-        let roles = pick("CC-017.center_roles", &|d| d["center_id"] == c0["entity_id"]);
+        let roles = pick("CC-017.center_roles", &|d| {
+            d["center_id"] == c0["entity_id"]
+        });
         let center = pick("CC-016.center", &|d| d["entity_id"] == c0["entity_id"]);
-        let member = pick("CC-022.unit_assignment", &|d| d["status"] == "CENTER_MEMBER");
+        let member = pick("CC-022.unit_assignment", &|d| {
+            d["status"] == "CENTER_MEMBER"
+        });
         let position = pick("CC-018.unit_core_position", &|_| true);
         let attempt = pick("CC-016.center_seed_attempt", &|d| !d["center_id"].is_null());
-        let other_center = |id: &Value| if *id == c0["entity_id"] { c1["entity_id"].clone() } else { c0["entity_id"].clone() };
+        let other_center = |id: &Value| {
+            if *id == c0["entity_id"] {
+                c1["entity_id"].clone()
+            } else {
+                c0["entity_id"].clone()
+            }
+        };
         let at = |i: usize| rows[i].payload["data"].clone();
         let with = |i: usize, k: &str, v: Value| {
             let mut d = at(i);
@@ -2125,21 +2203,104 @@ mod ef_entity_tests {
             .unwrap()
             .push(json!("segment:missing"));
         vec![
-            ("roles.center_id 悬空（27BD 反例）", roles, with(roles, "center_id", json!("center:missing")), "端点悬空"),
-            ("roles.center_id 指段", roles, with(roles, "center_id", json!("segment:0")), "端点种类错绑"),
-            ("roles.center_id 指另一中心", roles, with(roles, "center_id", c1["entity_id"].clone()), "roles中心互指错绑"),
-            ("center.roles_id 指另一中心roles", center, with(center, "roles_id", c1["roles_id"].clone()), "中心roles互指错绑"),
-            ("center.seed_attempt_id 指另一中心attempt", center, with(center, "seed_attempt_id", c1["seed_attempt_id"].clone()), "中心seed attempt互指错绑"),
+            (
+                "roles.center_id 悬空（27BD 反例）",
+                roles,
+                with(roles, "center_id", json!("center:missing")),
+                "端点悬空",
+            ),
+            (
+                "roles.center_id 指段",
+                roles,
+                with(roles, "center_id", json!("segment:0")),
+                "端点种类错绑",
+            ),
+            (
+                "roles.center_id 指另一中心",
+                roles,
+                with(roles, "center_id", c1["entity_id"].clone()),
+                "roles中心互指错绑",
+            ),
+            (
+                "center.roles_id 指另一中心roles",
+                center,
+                with(center, "roles_id", c1["roles_id"].clone()),
+                "中心roles互指错绑",
+            ),
+            (
+                "center.seed_attempt_id 指另一中心attempt",
+                center,
+                with(center, "seed_attempt_id", c1["seed_attempt_id"].clone()),
+                "中心seed attempt互指错绑",
+            ),
             ("center.members 悬空成员", center, members, "端点悬空"),
-            ("center.break_unit 指中心", center, with(center, "break_unit", c1["entity_id"].clone()), "端点种类错绑"),
-            ("center.resume_anchor.after_unit_id 悬空", settled, anchor(json!("segment:missing")), "端点悬空"),
-            ("center.resume_anchor.after_unit_id 指中心", settled, anchor(c1["entity_id"].clone()), "端点种类错绑"),
-            ("attempt.center_id 指另一中心", attempt, { let d = at(attempt); with(attempt, "center_id", other_center(&d["center_id"])) }, "seed attempt与中心互指错绑"),
-            ("member assignment 指另一中心", member, { let d = at(member); with(member, "center_id", other_center(&d["center_id"])) }, "成员归属不在当前中心成员中"),
-            ("assignment.center_id 悬空", member, with(member, "center_id", json!("center:missing")), "端点悬空"),
-            ("position.center_id 悬空", position, with(position, "center_id", json!("center:missing")), "端点悬空"),
-            ("position.center_id 指roles", position, { let d = at(position); with(position, "center_id", json!(format!("roles:{}", d["center_id"].as_str().unwrap()))) }, "端点种类错绑"),
-            ("position.center_revision 超前", position, with(position, "center_revision", json!("999")), "位置中心修订超出当前中心"),
+            (
+                "center.break_unit 指中心",
+                center,
+                with(center, "break_unit", c1["entity_id"].clone()),
+                "端点种类错绑",
+            ),
+            (
+                "center.resume_anchor.after_unit_id 悬空",
+                settled,
+                anchor(json!("segment:missing")),
+                "端点悬空",
+            ),
+            (
+                "center.resume_anchor.after_unit_id 指中心",
+                settled,
+                anchor(c1["entity_id"].clone()),
+                "端点种类错绑",
+            ),
+            (
+                "attempt.center_id 指另一中心",
+                attempt,
+                {
+                    let d = at(attempt);
+                    with(attempt, "center_id", other_center(&d["center_id"]))
+                },
+                "seed attempt与中心互指错绑",
+            ),
+            (
+                "member assignment 指另一中心",
+                member,
+                {
+                    let d = at(member);
+                    with(member, "center_id", other_center(&d["center_id"]))
+                },
+                "成员归属不在当前中心成员中",
+            ),
+            (
+                "assignment.center_id 悬空",
+                member,
+                with(member, "center_id", json!("center:missing")),
+                "端点悬空",
+            ),
+            (
+                "position.center_id 悬空",
+                position,
+                with(position, "center_id", json!("center:missing")),
+                "端点悬空",
+            ),
+            (
+                "position.center_id 指roles",
+                position,
+                {
+                    let d = at(position);
+                    with(
+                        position,
+                        "center_id",
+                        json!(format!("roles:{}", d["center_id"].as_str().unwrap())),
+                    )
+                },
+                "端点种类错绑",
+            ),
+            (
+                "position.center_revision 超前",
+                position,
+                with(position, "center_revision", json!("999")),
+                "位置中心修订超出当前中心",
+            ),
         ]
     }
     struct Current(std::vec::Vec<(Option<String>, Object)>);
@@ -2166,7 +2327,9 @@ mod ef_entity_tests {
                 let mut current = std::vec::Vec::new();
                 for r in &rows {
                     let o = build(&mut n, r);
-                    let e = entity_id(&mut n, &o).unwrap().map(|e| e.as_str().to_string());
+                    let e = entity_id(&mut n, &o)
+                        .unwrap()
+                        .map(|e| e.as_str().to_string());
                     current.push((e, o));
                 }
                 let lookup = Current(current);
@@ -2226,7 +2389,10 @@ mod ef_entity_tests {
                     .collect();
                 let edge = build(&mut n, &bad);
                 let got = super::super::source_contributions::entity_removal_control_for_test(
-                    &mut n, others, edge, "segment:0",
+                    &mut n,
+                    others,
+                    edge,
+                    "segment:0",
                 )
                 .expect_err(what);
                 assert!(got.contains(want), "{what}: {got}");

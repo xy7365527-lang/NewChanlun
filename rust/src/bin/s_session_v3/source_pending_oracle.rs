@@ -550,9 +550,7 @@ pub(super) fn audit(
             return Err(err("同cut知识请求重复"));
         }
         if w {
-            if let Some(class) =
-                live::w_request(s, &request, &w_lookup, &prefix, w_unsettled)?
-            {
+            if let Some(class) = live::w_request(s, &request, &w_lookup, &prefix, w_unsettled)? {
                 w_seen.note(class);
                 continue;
             }
