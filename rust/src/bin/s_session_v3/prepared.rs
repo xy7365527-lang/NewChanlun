@@ -850,7 +850,12 @@ impl Runtime {
                         &products.manifest.batch_id,
                         Some(material),
                     )?;
-                    catalog_evidence::stage_current(tx, &mut store, &products.axes)?;
+                    catalog_evidence::stage_current(
+                        tx,
+                        &mut store,
+                        &products.axes,
+                        &metadata.rule_revision,
+                    )?;
                     *source_slot = Some(source);
                     Ok(products)
                 },
@@ -1009,7 +1014,7 @@ impl Runtime {
                     )
                 },
             )?;
-            catalog_evidence::stage_current(tx, &mut store, &axes)?;
+            catalog_evidence::stage_current(tx, &mut store, &axes, &metadata.rule_revision)?;
             return Ok(Prepared {
                 metadata,
                 roots,
@@ -1098,7 +1103,7 @@ impl Runtime {
             object_index::stage(tx, &mut store, &objects, &manifest.batch_id)?;
             aux_index::stage(tx, &mut store, &auxiliary, &manifest.batch_id)?;
         }
-        catalog_evidence::stage_current(tx, &mut store, &axes)?;
+        catalog_evidence::stage_current(tx, &mut store, &axes, &metadata.rule_revision)?;
         Ok(Prepared {
             metadata,
             roots,

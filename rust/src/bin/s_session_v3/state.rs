@@ -1007,7 +1007,12 @@ fn audit_core_fresh_with_policy(
         trace_event("catalog_current", None);
         // 6''. 当前 13 轴 catalog 行必须与本代最终生成态同根。
         let axes = field(&mut store, &last.roots.generated_state, "catalog_axes")?;
-        catalog_evidence::verify_current_for_audit(tx, &mut store, &axes)?;
+        catalog_evidence::verify_current_for_audit(
+            tx,
+            &mut store,
+            &axes,
+            &last.metadata.rule_revision,
+        )?;
     }
     // 7b. 辅助索引也来自同次history的完整加载，既不跨事务也不减少业务来源核验。
     history::check_deadline(deadline)?;
@@ -2911,7 +2916,12 @@ impl AuditedState {
             source_check,
         )?;
         let axes = field(&mut store, &cut.roots.generated_state, "catalog_axes")?;
-        catalog_evidence::verify_current_for_audit(tx, &mut store, &axes)?;
+        catalog_evidence::verify_current_for_audit(
+            tx,
+            &mut store,
+            &axes,
+            &cut.metadata.rule_revision,
+        )?;
         #[cfg(test)]
         trace_event("owner_suffix_complete", Some(g));
         let raw_sources = source.map(|source| source.into_raw_facts_retained(&mut retained));
