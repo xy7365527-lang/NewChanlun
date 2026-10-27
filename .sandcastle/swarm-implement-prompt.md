@@ -9,7 +9,7 @@
 {{ISSUE_JSON}}
 ```
 
-你只干这一张票。claim 已由编排层完成（ready-for-agent 已摘、已 assign）。
+你只干这一张票。认领与分支由编排层负责，你不需要也无法认领、评论或改动票面。
 
 # Task
 

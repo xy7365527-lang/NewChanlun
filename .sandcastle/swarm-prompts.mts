@@ -10,9 +10,37 @@ export const hostGh = (env: NodeJS.ProcessEnv): HostGh => (args) =>
 
 /** 与原 plan-prompt.md 的内联命令相同：label sandcastle、open、limit 50、无 assignee，输出 {number,title,labels}。 */
 export const QUEUE_ARGS = ["issue", "list", "--label", "sandcastle", "--state", "open", "--limit", "50", "--json", "number,title,body,labels,assignees"];
-export function fetchQueueJson(gh: HostGh): string {
+export interface QueueItem { number: number; title: string; labels: string[] }
+export function fetchQueue(gh: HostGh): QueueItem[] {
   const rows = JSON.parse(gh(QUEUE_ARGS)) as Array<{ number: number; title: string; labels: Array<{ name: string }>; assignees: unknown[] }>;
-  return JSON.stringify(rows.filter((r) => r.assignees.length === 0).map((r) => ({ number: r.number, title: r.title, labels: r.labels.map((l) => l.name) })));
+  return rows.filter((r) => r.assignees.length === 0).map((r) => ({ number: r.number, title: r.title, labels: r.labels.map((l) => l.name) }));
+}
+/** `<` 转成 \u003c：标题里的 `</issues-json>` 不能提前闭合模板里的标签；JSON 语义不变。 */
+export function queueToJson(queue: readonly QueueItem[]): string {
+  return JSON.stringify(queue).replaceAll("<", "\\u003c");
+}
+export function fetchQueueJson(gh: HostGh): string {
+  return queueToJson(fetchQueue(gh));
+}
+
+export interface PlannedIssue { id: string; title: string; branch: string }
+/** planner 输出是不可信输入：id 只允许十进制正整数且必须在宿主本轮实际取到的队列里，branch 必须逐字等于 sandcastle/issue-<id>，id 不重复。
+ * 任何一项不满足就在认领之前整体拒绝。 */
+export function validatePlan(planned: readonly PlannedIssue[], queue: readonly QueueItem[]): void {
+  const inQueue = new Set(queue.map((q) => String(q.number)));
+  const seen = new Set<string>();
+  for (const p of planned) {
+    if (!/^[1-9][0-9]{0,9}$/.test(p.id)) throw new Error(`[FAIL-loud #1742] planner 输出的 id ${JSON.stringify(p.id).slice(0, 60)} 不是十进制正整数，拒绝认领`);
+    if (!inQueue.has(p.id)) throw new Error(`[FAIL-loud #1742] planner 放行的 #${p.id} 不在宿主本轮取到的队列里，拒绝认领`);
+    if (p.branch !== `sandcastle/issue-${p.id}`) throw new Error(`[FAIL-loud #1742] planner 为 #${p.id} 给的分支 ${JSON.stringify(p.branch).slice(0, 80)} 不是 sandcastle/issue-${p.id}，拒绝认领`);
+    if (seen.has(p.id)) throw new Error(`[FAIL-loud #1742] planner 重复放行 #${p.id}，拒绝认领`);
+    seen.add(p.id);
+  }
+}
+/** 认领（#1007 裁 3 + #1013 教训：摘专属 label + assign，host 侧先行）。参数数组直传 gh，不经 shell。 */
+export function claimIssue(gh: HostGh, id: string): void {
+  if (!/^[1-9][0-9]{0,9}$/.test(id)) throw new Error(`[FAIL-loud #1742] 非法票号 ${JSON.stringify(id).slice(0, 60)}`);
+  gh(["issue", "edit", id, "--remove-label", "sandcastle", "--add-assignee", "@me"]);
 }
 export function fetchIssueJson(gh: HostGh, issue: number | string): string {
   return gh(["issue", "view", String(issue), "--json", "number,title,body,labels,comments"]).trim();
