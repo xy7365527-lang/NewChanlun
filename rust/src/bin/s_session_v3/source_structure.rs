@@ -1872,28 +1872,39 @@ mod ef_entity_tests {
     fn plain(v: &str) -> bj::TextValue {
         bj::TextValue::Plain(NativeValue::<String>::from_unscoped(v.into()))
     }
+    /// 经共享工厂写出记录（payload_json 为 0x07 文本视图），与已发布对象同一读法。
     fn build(n: &mut sc::MemoryNodes, r: &Row) -> Object {
-        let key = canonical_json(&json!([r.kind, r.payload["slot"]]));
-        let record = put(
-            n,
-            &json!({"payload_json":canonical_json(&r.payload),"fact_key":key}),
-        );
-        let refs = put(n, &json!([]));
+        let producer = Cc004Producer::new(tb02a::PROFILE, crate::V3_STRUCTURE_RULE_REVISION);
+        let empty = sc::write_value(n, &cv(&json!([])).unwrap()).unwrap();
+        let typed = producer
+            .build_object(
+                n,
+                &r.kind,
+                canonical_json(&json!([r.kind, r.payload["slot"]])),
+                cv(&r.payload).unwrap(),
+                empty.clone(),
+                empty,
+                1,
+                "cut-1",
+            )
+            .unwrap();
+        let record = RefValue::Plain(NativeValue::<sc::ContentRef>::from_unscoped(
+            typed.record.content_ref(),
+        ));
         Object {
             id: plain(&r.id),
             kind: plain(&r.kind),
             fields: SourceFields::read_subset(n, record.view(), &["payload_json", "fact_key"])
                 .unwrap(),
-            refs,
+            refs: put(n, &json!([])),
             sources: SourceCoords::Original(sc::CodecVec::from_plain(r.sources.clone())),
         }
     }
     fn unit(n: &sc::MemoryNodes, k: usize, completed: bool) -> SegUnit {
-        let (lo, hi) = RANGES[k];
         SegUnit {
             unit_id: SText::new(&format!("segment:{k}"), n).unwrap(),
             object_id: SText::new(&format!("obj3-seg{k}"), n).unwrap(),
-            range: completed.then_some(UnitRange {
+            range: completed.then(|| UnitRange {
                 start_index: k * 10,
                 end_index: k * 10 + 10,
                 direction: if k % 2 == 0 {
@@ -1901,8 +1912,8 @@ mod ef_entity_tests {
                 } else {
                     Direction::Down
                 },
-                lo,
-                hi,
+                lo: RANGES[k].0,
+                hi: RANGES[k].1,
             }),
             sources: SVec::from_iter([k], n).unwrap(),
         }
