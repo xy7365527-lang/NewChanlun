@@ -20,7 +20,7 @@ export interface MergeOptions {
   cwd: string; checkpoint: string; manifest: MergeManifest; checkId: string;
   resolveConflict: (input: { head: string; incoming: string; files: string[] }) => Promise<string>;
   verify: (head: string, files: string[]) => Promise<MergeCheck>;
-  /** 归并某输入前的来源复核；抛错即停在该输入，不写 Git。 */
+  /** 来源复核：每个输入归并前、提交前、成功记账前调用；抛错即停，现场与检查点保持可恢复。 */
   admit?: (input: MergeInput) => void;
   /** 只在已持久化检查点后发事件；可用于日志及中断恢复测试。 */
   onCheckpoint?: (state: MergeState) => void;
@@ -157,6 +157,8 @@ export async function runManagedMerge(o: MergeOptions): Promise<MergeState> {
         save("prepared");
       }
       if (s.phase === "prepared") {
+        // 冲突工蜂可能等待很久；提交前重新复核来源，失效则停在已保存的 prepared 检查点，MERGE_HEAD 保留。
+        o.admit?.(input);
         if (s.snapshot.head !== s.before || s.snapshot.mergeHead !== input.sha) throw new Error("提交前归并父集不匹配");
         git(o.cwd, ["diff", "--cached", "--check"]);
         s.tree = git(o.cwd, ["write-tree"]).trim(); save("prepared");
@@ -167,6 +169,8 @@ export async function runManagedMerge(o: MergeOptions): Promise<MergeState> {
         save("committed");
       }
       const result = await check(s.snapshot.head);
+      // 成功记账前复核到目前为止的全部输入，验证期间来源失效则停在 committed，不记 done。
+      for (const prior of inputs.slice(0, s.position + 1)) o.admit?.(prior);
       s.entries.push({ sha: input.sha, head: s.snapshot.head, kind, check: result });
       s.position++; s.allowed = []; delete s.before; delete s.input; delete s.tree;
       save(s.position === inputs.length ? "done" : "ready");
