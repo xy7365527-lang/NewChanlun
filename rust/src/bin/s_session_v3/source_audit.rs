@@ -2771,7 +2771,10 @@ mod tests {
         let profile_hash = get("profile_hash");
         // #1394 整合 W-2：本夹具借 v2 的 `init_test_db` 建库取原始账，但跑的是 v3 生成；规则修订
         // 取 v3 写者自己的（v2 写者合并后是 `…+segment-second/1`，它进对象身份配方，冻结轨迹随之变）。
-        let rule = crate::V3_RULE_REVISION.to_string();
+        // #1393×#1419：S3 写者唯一规则改为 W 后继串（`mod.rs::require_current_writer_rule`；
+        // `s_structure_session.rs` W_STRUCTURE_RULE_REVISION 注释「S3 写者只写本串；CF22 及更早各串只读
+        // AsKnown」）。生成夹具随写者规则走；`V3_RULE_REVISION` 退为只读历史域，不再由生成器产出。
+        let rule = crate::W_STRUCTURE_RULE_REVISION.to_string();
         let catalog = get("catalog_revision");
         let scope = serde_json::from_str(&get("scope")).unwrap();
         let mut store = MemoryNodes::default();
@@ -2814,7 +2817,8 @@ mod tests {
         let effective = read_effective_events(&raw).unwrap();
         let get = |k| meta_get_opt(&c, k).unwrap().unwrap();
         let profile_hash = get("profile_hash");
-        let rule = crate::V3_RULE_REVISION.to_string();
+        // #1393×#1419：同 `fixture`，生成夹具取 S3 写者唯一规则（W 后继串）。
+        let rule = crate::W_STRUCTURE_RULE_REVISION.to_string();
         let catalog = get("catalog_revision");
         let scope = serde_json::from_str(&get("scope")).unwrap();
         let mut store = MemoryNodes::default();
