@@ -651,11 +651,15 @@ pub(super) fn expected_requests(
 mod tests {
     use super::*;
     pub(super) fn put(nodes: &mut sc::MemoryNodes, value: &Value) -> RefValue {
-        RefValue::Plain(newchan_rust::s_content::capture_allocation::native_owned::NativeValue::<newchan_rust::s_content::ContentRef>::from_unscoped(
-            sc::write_value(nodes, &cv(value).unwrap())
-                .unwrap()
-                .content_ref(),
-        ))
+        RefValue::Plain(
+            newchan_rust::s_content::capture_allocation::native_owned::NativeValue::<
+                newchan_rust::s_content::ContentRef,
+            >::from_unscoped(
+                sc::write_value(nodes, &cv(value).unwrap())
+                    .unwrap()
+                    .content_ref(),
+            ),
+        )
     }
     pub(super) fn object(
         nodes: &mut sc::MemoryNodes,
@@ -1508,9 +1512,7 @@ mod real_factory_repair_tests {
         build_cd, StructureContext, StructureEvidence, StructurePrior,
     };
     use newchan_rust::theta_v0::{
-        config::ThetaConfig,
-        parser::parse_layer_with_inclusion_facts_store,
-        types::Bar,
+        config::ThetaConfig, parser::parse_layer_with_inclusion_facts_store, types::Bar,
     };
     #[test]
     fn real_cd_factory_fact_one_event_28_then_warm_29_does_not_carry_old_changes() {
@@ -1598,8 +1600,18 @@ mod real_factory_repair_tests {
                     "CC-056.segment_version" => version = Some(o.record.clone()),
                     "CC-055.segment_change" => {
                         seen += 1;
-                        let p = RefValue::Plain(newchan_rust::s_content::capture_allocation::native_owned::NativeValue::<newchan_rust::s_content::ContentRef>::from_unscoped(o.payload.content_ref()));
-                        let source = RefValue::Plain(newchan_rust::s_content::capture_allocation::native_owned::NativeValue::<newchan_rust::s_content::ContentRef>::from_unscoped(o.source_coords.content_ref()));
+                        let p = RefValue::Plain(
+                            newchan_rust::s_content::capture_allocation::native_owned::NativeValue::<
+                                newchan_rust::s_content::ContentRef,
+                            >::from_unscoped(o.payload.content_ref()),
+                        );
+                        let source = RefValue::Plain(
+                            newchan_rust::s_content::capture_allocation::native_owned::NativeValue::<
+                                newchan_rust::s_content::ContentRef,
+                            >::from_unscoped(
+                                o.source_coords.content_ref()
+                            ),
+                        );
                         let sources = SourceCoords::Original(coords(&mut n, &source).unwrap());
                         assert_eq!(text(&mut n, &p, "object_generation").unwrap(), "1");
                         audit_payload(

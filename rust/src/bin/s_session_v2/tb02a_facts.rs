@@ -394,13 +394,15 @@ impl<'a> InitializationView<'a> {
         state: &'a newchan_rust::theta_v0::parser::inclusion::IncrFactsState,
     ) -> Self {
         Self {
-            evidence: state.initial_direction_node().map(|node| InclusionDirectionEvidence {
-                direction: node.direction,
-                previous_acc: node.previous_acc,
-                incoming: node.incoming,
-                // #1597：共享句柄，不展开（逻辑内容与扁平展开逐位相同）。
-                source_coords: SourceCoords::from_shared(node.coords.clone()),
-            }),
+            evidence: state
+                .initial_direction_node()
+                .map(|node| InclusionDirectionEvidence {
+                    direction: node.direction,
+                    previous_acc: node.previous_acc,
+                    incoming: node.incoming,
+                    // #1597：共享句柄，不展开（逻辑内容与扁平展开逐位相同）。
+                    source_coords: SourceCoords::from_shared(node.coords.clone()),
+                }),
             unsettled: state.unsettled(),
             unmapped: state.unmapped_sources(),
             pending: state.pending_raw(),
@@ -1739,18 +1741,17 @@ fn catalog_axes_oracle<'a, 'objects, 'changes>(
                 for request in k["requests"].as_array().unwrap() {
                     let key: Value =
                         serde_json::from_str(request["request_id"].as_str().unwrap()).unwrap();
-                    let matches_axis = if table.has_center_pair()
-                        && key[1][2] == "structure-classification/1"
-                    {
-                        // 同一 CC-013 对象可承载 CC-013/014 的不同请求；
-                        // 新结构请求以具名请求槽中的轴归属，不能按对象种类合并。
-                        key[1][0] == axis
-                    } else {
-                        key[0] == kind
-                            || key[0][0] == kind
-                            || (kind.ends_with('.')
-                                && key[0].as_str().is_some_and(|k| k.starts_with(kind)))
-                    };
+                    let matches_axis =
+                        if table.has_center_pair() && key[1][2] == "structure-classification/1" {
+                            // 同一 CC-013 对象可承载 CC-013/014 的不同请求；
+                            // 新结构请求以具名请求槽中的轴归属，不能按对象种类合并。
+                            key[1][0] == axis
+                        } else {
+                            key[0] == kind
+                                || key[0][0] == kind
+                                || (kind.ends_with('.')
+                                    && key[0].as_str().is_some_and(|k| k.starts_with(kind)))
+                        };
                     if matches_axis {
                         waiting.extend(request["reasons"].as_array().unwrap().clone());
                     }

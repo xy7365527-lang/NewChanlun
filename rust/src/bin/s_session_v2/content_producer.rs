@@ -4071,7 +4071,8 @@ mod tests {
             let mut fixture = fixture(bars);
             let objects = build_all(&mut fixture);
             let facts = fixture.state.materialize_facts();
-            let (oracle, _) = tb02a_facts::build(&facts, &fixture.raw, &[], &[], GENERATION, CUT, 0);
+            let (oracle, _) =
+                tb02a_facts::build(&facts, &fixture.raw, &[], &[], GENERATION, CUT, 0);
             assert_eq!(objects.len(), facts.steps.len(), "{label}: 步数");
             for (index, object) in objects.iter().enumerate() {
                 let coord = facts.steps[index].incoming.source_index.to_string();
@@ -4142,12 +4143,18 @@ mod tests {
     fn cc005_group_matches_full_oracle_bytes() {
         for (case, bars, want_equal_extreme, want_any_direction) in [
             ("merge/new-group/direction", CASE_MERGE, true, true),
-            ("establish-at-third/refold", CASE_ESTABLISH_AT_THIRD, false, true),
+            (
+                "establish-at-third/refold",
+                CASE_ESTABLISH_AT_THIRD,
+                false,
+                true,
+            ),
             // 永不建立样例（零正式组、组请求 pending）的 S3 发布形态阻塞于 #1565。
         ] {
             let mut fixture = fixture(bars);
             let facts = fixture.state.materialize_facts();
-            let (oracle, _) = tb02a_facts::build(&facts, &fixture.raw, &[], &[], GENERATION, CUT, 0);
+            let (oracle, _) =
+                tb02a_facts::build(&facts, &fixture.raw, &[], &[], GENERATION, CUT, 0);
             let wants = oracle_requests(&oracle);
             assert_eq!(fixture.state.group_count(), facts.groups.len());
             assert!(
@@ -4964,7 +4971,8 @@ mod tests {
             records.len()
         );
         let shapes: Vec<Value> = records.iter().map(|(_, want)| want.clone()).collect();
-        let (oracle, _) = tb02a_facts::build(&facts, &fixture.raw, &shapes, &[], GENERATION, CUT, 0);
+        let (oracle, _) =
+            tb02a_facts::build(&facts, &fixture.raw, &shapes, &[], GENERATION, CUT, 0);
         let wants = oracle_requests(&oracle);
         let raw_bars: Vec<Bar> = fixture.state.raw_iter().copied().collect();
         let mut saw_future = false;
@@ -6389,8 +6397,13 @@ mod tests {
         assert!(!established_facts.initial_direction_unsettled);
         assert_eq!(established_facts.steps.len(), 3);
         assert_eq!(established_facts.steps[0].action, "seed");
-        assert!(established_facts.steps.iter().all(|step| step.action != "waiting"
-            && !step.waiting_reasons.contains(&"initial_direction_unsettled")));
+        assert!(established_facts
+            .steps
+            .iter()
+            .all(|step| step.action != "waiting"
+                && !step
+                    .waiting_reasons
+                    .contains(&"initial_direction_unsettled")));
         assert_eq!(established_facts.groups[0].members, vec![0, 1]);
         for step in &established_facts.steps {
             assert_eq!(step.source_coords, vec![0, 1, 2]);

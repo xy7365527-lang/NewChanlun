@@ -793,7 +793,8 @@ impl GenerationRuntime {
             (layer, evidence, Some(fold))
         } else {
             // 历史 A/B 域仍使用原输入路径，不将结构域失败切回这里。
-            let (layer, evidence) = parser::parse_layer_with_group_evidence(state, &self.theta_config);
+            let (layer, evidence) =
+                parser::parse_layer_with_group_evidence(state, &self.theta_config);
             (layer, evidence, None)
         };
         let merged_rc = layer.merged_bars.clone();

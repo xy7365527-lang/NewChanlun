@@ -977,7 +977,12 @@ impl IncrFactsState {
     }
 
     /// 新组：紧凑组事实 + 共享句柄成对推入。
-    fn push_group(&mut self, bar: Bar, evidence: InclusionDirectionEvidence, node: Rc<EvidenceNode>) {
+    fn push_group(
+        &mut self,
+        bar: Bar,
+        evidence: InclusionDirectionEvidence,
+        node: Rc<EvidenceNode>,
+    ) {
         self.groups.push(InclusionGroupFact {
             bar,
             members: vec![bar.source_index],
@@ -1644,7 +1649,14 @@ mod tests {
             assert_eq!(&before.merged[..merged], &after.merged[..merged]);
             // #1393：建立方向那一代从 raw0 重折，步骤如实从 0 起脏；其余只追加一步。
             let steps = changes.step_dirty_from();
-            assert_eq!(steps, if changes.replayed_from_zero() { 0 } else { index });
+            assert_eq!(
+                steps,
+                if changes.replayed_from_zero() {
+                    0
+                } else {
+                    index
+                }
+            );
             assert_eq!(&before.steps[..steps], &after.steps[..steps]);
             if changes.group_dirty_from().is_none() {
                 assert_eq!(before.groups, after.groups);

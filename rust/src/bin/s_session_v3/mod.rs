@@ -736,7 +736,10 @@ fn build_domain(
 
 #[cfg_attr(
     not(any(test, feature = "s_v2_seed_testonly")),
-    expect(dead_code, reason = "#1419 机械锁：只被已退役的 v2 写入口调用，发布构建不得有调用路径")
+    expect(
+        dead_code,
+        reason = "#1419 机械锁：只被已退役的 v2 写入口调用，发布构建不得有调用路径"
+    )
 )]
 fn reset_refusal(db: &Path, detail: &str) -> String {
     format!(
@@ -754,7 +757,10 @@ fn reset_refusal(db: &Path, detail: &str) -> String {
 /// 不保留「损坏库可直接删」的旧偶发行为。本切片不实现新迁移/重置功能。
 #[cfg_attr(
     not(any(test, feature = "s_v2_seed_testonly")),
-    expect(dead_code, reason = "#1419 机械锁：只被已退役的 v2 写入口调用，发布构建不得有调用路径")
+    expect(
+        dead_code,
+        reason = "#1419 机械锁：只被已退役的 v2 写入口调用，发布构建不得有调用路径"
+    )
 )]
 pub(super) fn refuse_reset_of_new_domain(db: &Path) -> Result<(), String> {
     if !db.exists() {

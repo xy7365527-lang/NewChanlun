@@ -675,8 +675,10 @@ impl DeltaLane {
                 }
                 // #1393：建立方向那一代从 raw0 重折，前缀步骤如实变脏。
                 if appended.replayed_from_zero() {
-                    changes.effective_dirty_from =
-                        min_frontier(changes.effective_dirty_from, Some(appended.step_dirty_from()));
+                    changes.effective_dirty_from = min_frontier(
+                        changes.effective_dirty_from,
+                        Some(appended.step_dirty_from()),
+                    );
                 }
                 changes.group_dirty_from =
                     min_frontier(changes.group_dirty_from, appended.group_dirty_from());

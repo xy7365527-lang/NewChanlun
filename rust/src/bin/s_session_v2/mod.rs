@@ -618,7 +618,10 @@ pub(super) fn record_recover_context(
 
 #[cfg_attr(
     not(any(test, feature = "s_v2_seed_testonly")),
-    expect(dead_code, reason = "#1419 机械锁：只被已退役的 v2 写入口调用，发布构建不得有调用路径")
+    expect(
+        dead_code,
+        reason = "#1419 机械锁：只被已退役的 v2 写入口调用，发布构建不得有调用路径"
+    )
 )]
 fn envelope(value: Value) -> Result<Value, String> {
     validate_envelope(value, "s-session/2")
@@ -2310,7 +2313,10 @@ pub(super) fn lookup(
 }
 #[cfg_attr(
     not(any(test, feature = "s_v2_seed_testonly")),
-    expect(dead_code, reason = "#1419 机械锁：只被已退役的 v2 写入口调用，发布构建不得有调用路径")
+    expect(
+        dead_code,
+        reason = "#1419 机械锁：只被已退役的 v2 写入口调用，发布构建不得有调用路径"
+    )
 )]
 fn ready(conn: &Connection) -> Result<Value, String> {
     ready_for_protocol(conn, "s-session/2")
@@ -2385,7 +2391,10 @@ fn handle_with_policy(
 
 #[cfg_attr(
     not(any(test, feature = "s_v2_seed_testonly")),
-    expect(dead_code, reason = "#1419 机械锁：只被已退役的 v2 写入口调用，发布构建不得有调用路径")
+    expect(
+        dead_code,
+        reason = "#1419 机械锁：只被已退役的 v2 写入口调用，发布构建不得有调用路径"
+    )
 )]
 #[allow(clippy::too_many_arguments)]
 fn handle_with_policy_and_config(

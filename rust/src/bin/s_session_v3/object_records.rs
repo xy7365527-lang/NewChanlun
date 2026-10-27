@@ -2308,7 +2308,8 @@ mod tests {
             shapes.push(row);
             shape_windows.push((start, shape));
         }
-        let (oracle, _) = tb02a_facts::build(&facts, &fixture.raw, &shapes, &[], GENERATION, CUT, 0);
+        let (oracle, _) =
+            tb02a_facts::build(&facts, &fixture.raw, &shapes, &[], GENERATION, CUT, 0);
 
         let mut fractals = 0usize;
         for (start, shape) in &shape_windows {

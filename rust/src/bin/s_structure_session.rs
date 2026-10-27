@@ -148,7 +148,10 @@ const V2_SEED_INFO: &str = "v2-seed-info";
 
 /// v2 写入口子命令集合（含 v2 `init --session-generation`、`serve`、带时钟 `recover`）。
 fn is_v2_write_command(cmd: &str) -> bool {
-    matches!(cmd, "init" | "reset" | "accept" | "advance" | "recover" | "serve")
+    matches!(
+        cmd,
+        "init" | "reset" | "accept" | "advance" | "recover" | "serve"
+    )
 }
 
 /// S 唯一结构写者的默认 writer_epoch（可经 `--writer-epoch` / `recover` 换代）。
@@ -2274,7 +2277,10 @@ fn cmd_reset(db: &Path, session: &str, catalog_path: &Path) -> Result<(), String
 
 #[cfg_attr(
     not(any(test, feature = "s_v2_seed_testonly")),
-    expect(dead_code, reason = "#1419 机械锁：发布构建不得有任何调用 v2 核心写函数的路径")
+    expect(
+        dead_code,
+        reason = "#1419 机械锁：发布构建不得有任何调用 v2 核心写函数的路径"
+    )
 )]
 fn init_core(db: &Path, session: &str, catalog_path: &Path) -> Result<Value, String> {
     // H4：init 只允许不存在的目标——拒绝覆盖既有库（既有持久事实可恢复）。
@@ -2415,7 +2421,10 @@ fn cmd_accept(
 
 #[cfg_attr(
     not(any(test, feature = "s_v2_seed_testonly")),
-    expect(dead_code, reason = "#1419 机械锁：发布构建不得有任何调用 v2 核心写函数的路径")
+    expect(
+        dead_code,
+        reason = "#1419 机械锁：发布构建不得有任何调用 v2 核心写函数的路径"
+    )
 )]
 fn accept_core(
     db: &Path,
@@ -3363,7 +3372,10 @@ fn cmd_advance(db: &Path, configured_epoch: &str) -> Result<(), String> {
 /// 正式生产入口：配置先于任何 Begin 或库写操作；缺 tick/成本即停，不用诊断夹具。
 #[cfg_attr(
     not(any(test, feature = "s_v2_seed_testonly")),
-    expect(dead_code, reason = "#1419 机械锁：发布构建不得有任何调用 v2 核心写函数的路径")
+    expect(
+        dead_code,
+        reason = "#1419 机械锁：发布构建不得有任何调用 v2 核心写函数的路径"
+    )
 )]
 fn advance_core(
     db: &Path,
@@ -5656,7 +5668,10 @@ fn cmd_recover(db: &Path, new_epoch: &str) -> Result<(), String> {
 
 #[cfg_attr(
     not(any(test, feature = "s_v2_seed_testonly")),
-    expect(dead_code, reason = "#1419 机械锁：发布构建不得有任何调用 v2 核心写函数的路径")
+    expect(
+        dead_code,
+        reason = "#1419 机械锁：发布构建不得有任何调用 v2 核心写函数的路径"
+    )
 )]
 fn recover_core(
     db: &Path,
@@ -5771,7 +5786,10 @@ fn arg_value(args: &[String], name: &str) -> Option<String> {
 
 #[cfg_attr(
     not(any(test, feature = "s_v2_seed_testonly")),
-    expect(dead_code, reason = "#1419 机械锁：只被已退役的 v2 写入口调用，发布构建不得有调用路径")
+    expect(
+        dead_code,
+        reason = "#1419 机械锁：只被已退役的 v2 写入口调用，发布构建不得有调用路径"
+    )
 )]
 fn remove_db_files(db: &Path) {
     let _ = std::fs::remove_file(db);
@@ -5887,8 +5905,12 @@ fn seed_dispatch(args: &[String]) -> Result<bool, String> {
         )?,
         "accept" => cmd_accept(
             &db.ok_or("缺 --db".to_string())?,
-            &arg_value(args, "--input").map(PathBuf::from).ok_or("缺 --input".to_string())?,
-            &arg_value(args, "--profile").map(PathBuf::from).ok_or("缺 --profile".to_string())?,
+            &arg_value(args, "--input")
+                .map(PathBuf::from)
+                .ok_or("缺 --input".to_string())?,
+            &arg_value(args, "--profile")
+                .map(PathBuf::from)
+                .ok_or("缺 --profile".to_string())?,
             &configured_epoch,
         )?,
         "advance" => cmd_advance(&db.ok_or("缺 --db".to_string())?, &configured_epoch)?,
@@ -5944,12 +5966,18 @@ mod tests {
         init_test_db(&old);
         accept_ohlc(&old, &ohlc_input(&[(0, 10), (2, 8), (3, 11)], false));
         cmd_advance(&old.db(), DEFAULT_WRITER_EPOCH).unwrap();
-        accept_ohlc(&old, &ohlc_input(&[(0, 10), (2, 8), (3, 11), (1, 12)], false));
+        accept_ohlc(
+            &old,
+            &ohlc_input(&[(0, 10), (2, 8), (3, 11), (1, 12)], false),
+        );
         cmd_advance(&old.db(), DEFAULT_WRITER_EPOCH).unwrap();
         let input = old.0.join("next-input.json");
         std::fs::write(
             &input,
-            canonical_json(&ohlc_input(&[(0, 10), (2, 8), (3, 11), (1, 12), (4, 13)], false)),
+            canonical_json(&ohlc_input(
+                &[(0, 10), (2, 8), (3, 11), (1, 12), (4, 13)],
+                false,
+            )),
         )
         .unwrap();
         let input = input.to_str().unwrap().to_string();
@@ -5962,13 +5990,62 @@ mod tests {
         let old_db = old_db.to_str().unwrap();
         let writes = |db: &str| {
             vec![
-                argv(&["s", "init", "--db", db, "--session", "s-session-testonly-001", "--catalog", catalog]),
-                argv(&["s", "reset", "--db", db, "--session", "s-session-testonly-001", "--catalog", catalog]),
-                argv(&["s", "accept", "--db", db, "--input", &input, "--profile", profile, "--writer-epoch", "1"]),
+                argv(&[
+                    "s",
+                    "init",
+                    "--db",
+                    db,
+                    "--session",
+                    "s-session-testonly-001",
+                    "--catalog",
+                    catalog,
+                ]),
+                argv(&[
+                    "s",
+                    "reset",
+                    "--db",
+                    db,
+                    "--session",
+                    "s-session-testonly-001",
+                    "--catalog",
+                    catalog,
+                ]),
+                argv(&[
+                    "s",
+                    "accept",
+                    "--db",
+                    db,
+                    "--input",
+                    &input,
+                    "--profile",
+                    profile,
+                    "--writer-epoch",
+                    "1",
+                ]),
                 argv(&["s", "advance", "--db", db, "--writer-epoch", "1"]),
                 argv(&["s", "recover", "--db", db, "--new-epoch", "2"]),
-                argv(&["s", "serve", "--db", db, "--profile", profile, "--writer-epoch", "1"]),
-                argv(&["s", "init", "--protocol-revision", "s-session/2", "--db", db, "--session", "s-session-testonly-001", "--catalog", catalog]),
+                argv(&[
+                    "s",
+                    "serve",
+                    "--db",
+                    db,
+                    "--profile",
+                    profile,
+                    "--writer-epoch",
+                    "1",
+                ]),
+                argv(&[
+                    "s",
+                    "init",
+                    "--protocol-revision",
+                    "s-session/2",
+                    "--db",
+                    db,
+                    "--session",
+                    "s-session-testonly-001",
+                    "--catalog",
+                    catalog,
+                ]),
             ]
         };
         for args in writes(fresh_db) {
@@ -5993,8 +6070,14 @@ mod tests {
             assert_eq!(dir_bytes(&old.0), before, "{args:?} 不得改动旧库");
         }
         let conn = open_db(&old.db()).unwrap();
-        assert_eq!(meta_get_opt(&conn, "rule_revision").unwrap().as_deref(), Some(RULE_REVISION));
-        assert_eq!(meta_get_opt(&conn, "generation").unwrap().as_deref(), Some("2"));
+        assert_eq!(
+            meta_get_opt(&conn, "rule_revision").unwrap().as_deref(),
+            Some(RULE_REVISION)
+        );
+        assert_eq!(
+            meta_get_opt(&conn, "generation").unwrap().as_deref(),
+            Some("2")
+        );
         drop(conn);
 
         // 旧会话只读：查询子命令照常；--as-of 为 AsKnown 且与种子当时一致。
