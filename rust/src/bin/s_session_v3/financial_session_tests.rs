@@ -1679,10 +1679,8 @@ fn export_real_s3_fixture_for_economic_content_domain() {
 fn export_real_s3_w_fixture_for_q3() {
     type Bar = (String, i64, i64, i64, i64, i64);
     // 段级走势链（价×10）；每段三笔：a → a+0.6d → a+0.3d → b；每笔 5 根，中点线性插值、上下各留 20。
-    const CHAIN: &[i64] = &[
-        1000, 1800, 1400, 2000, 1450, 2600, 2000, 3000, 2200, 2800, 2400, 3500, 3000, 3600, 3050,
-        4000, 3300, 3900,
-    ];
+    // 一事件一代、每代全量来源审计 ⟹ 代数决定耗时；取 9 个段端点（8 段，两组重叠段 → 两中枢一对）。
+    const CHAIN: &[i64] = &[1000, 1800, 1400, 2000, 1450, 2600, 2000, 2800, 2300];
     let mut pivots = vec![CHAIN[0]];
     for w in CHAIN.windows(2) {
         let (a, b) = (w[0], w[1]);
@@ -1690,9 +1688,10 @@ fn export_real_s3_w_fixture_for_q3() {
         pivots.extend([a + 6 * d / 10, a + 3 * d / 10, b]);
     }
     let mut mids = Vec::new();
+    // 每笔 4 根（端点间隔 3 根 raw，满足 standard_raw_gap_3）。
     for w in pivots.windows(2) {
-        for j in 0..5 {
-            mids.push(w[0] + (w[1] - w[0]) * j / 5);
+        for j in 0..4 {
+            mids.push(w[0] + (w[1] - w[0]) * j / 4);
         }
     }
     mids.push(*pivots.last().unwrap());
@@ -1710,8 +1709,8 @@ fn export_real_s3_w_fixture_for_q3() {
     revised.3 -= 300;
     revised.4 -= 300;
     revised.5 -= 300;
-    let tail = 15;
-    let direction = 2 + 30;
+    let tail = 12;
+    let direction = 2 + 20;
     let body_end = bars.len() - tail;
     // S3 接纳协议：一条 ingest 恰一事件，每条消息各自 Begin/提交一代；里程碑统计取该段最后一代。
     let steps: Vec<(&str, Vec<Bar>, i64, bool)> = vec![
@@ -1754,8 +1753,20 @@ fn export_real_s3_w_fixture_for_q3() {
         for (id, c, o, h, l, cl) in rows {
             n += 1;
             let (envelope, token) = f.accept_begin(n, (id.as_str(), *c, *o, *h, *l, *cl), *revision);
+            let started = std::time::Instant::now();
             match f.publish(&envelope, &token) {
                 Ok(receipt) => {
+                    let live = count(
+                        &f,
+                        "SELECT kind,count(*) FROM s_content_objects WHERE first_known_generation<=?1 AND (withdrawn_generation IS NULL OR withdrawn_generation>?1) AND kind IN ('CC-010.bi','CC-013.segment','CC-016.center','CC-020.center_pair') GROUP BY kind",
+                        receipt.generation,
+                    );
+                    eprintln!(
+                        "Q3-PROGRESS gen={} step={label} ms={} {:?}",
+                        receipt.generation,
+                        started.elapsed().as_millis(),
+                        live
+                    );
                     for (kind, count) in count(
                         &f,
                         "SELECT kind,count(*) FROM s_content_objects WHERE withdrawn_generation=?1 GROUP BY kind",
