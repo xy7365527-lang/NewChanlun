@@ -163,20 +163,20 @@ test("公共 CLI：来源失效或远端事实不可得时，旧证据在任何 
 test("公共 CLI：冲突仍先调原 Docker 检查并保留 MERGE_HEAD；之后执行器写 stale.json，重入在 Docker 前拒绝且现场不变", t => {
   const f = fixture(t, true);
   const first = f.run();
-  assert.equal(first.status, 1); assert.match(first.stderr, /Docker 隔离合同/);
+  assert.equal(first.status, 1); assert.match(first.stderr, /尚无精确验收 receipt/);
   const saved = readFileSync(f.checkpoint, "utf8"); const state = JSON.parse(saved);
   assert.equal(state.phase, "conflict"); assert.equal(state.position, 1); assert.deepEqual(state.allowed, ["doc.md"]);
   assert.equal(state.snapshot.mergeHead, f.sources[1]!.sha);
   assert.equal(execFileSync("git", ["rev-parse", "MERGE_HEAD"], { cwd: f.worktree, encoding: "utf8" }).trim(), f.sources[1]!.sha);
   const conflict = readFileSync(join(f.worktree, "doc.md"), "utf8"); assert.match(conflict, /<<<<<<< HEAD/);
-  assert.deepEqual(f.called(), ["docker"]);
+  assert.deepEqual(f.called(), [], "无 receipt 时不得启动容器");
   markStale(f.sources[1]!.dir, f.sources[1]!.sha, f.base);
   const again = f.run();
   assert.equal(again.status, 1); assert.match(again.stderr, /已被执行器判 stale/);
   assert.equal(readFileSync(f.checkpoint, "utf8"), saved);
   assert.equal(readFileSync(join(f.worktree, "doc.md"), "utf8"), conflict);
   assert.equal(execFileSync("git", ["rev-parse", "MERGE_HEAD"], { cwd: f.worktree, encoding: "utf8" }).trim(), f.sources[1]!.sha);
-  assert.deepEqual(f.called(), ["docker"]);
+  assert.deepEqual(f.called(), []);
   assert.equal(f.git("rev-parse", "main"), f.base);
 });
 

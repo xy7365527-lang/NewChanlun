@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { installCargoGuard } from "./cargo-guard.mts";
 import { MAIN_MODEL } from "./main-model.mts";
 import { providerOverrides, providerEnvironment } from "./codex-child.ts";
+import { DOCKER_INNER_SANDBOX } from "./docker-isolation.mts";
 
 const quote = (value: string) => "'" + value.replaceAll("'", "'\\''") + "'";
 export function codexRouteEnv(): Record<string, string> {
@@ -38,7 +39,7 @@ export function codexWorker(options: { docker?: boolean; effort?: "low" | "mediu
         throw new Error("Sandcastle Codex 命令契约已变，拒绝猜测权限替换");
       }
       // Docker：容器与只读挂载承担文件隔离（#1742 方案B），内层不再起 bwrap；宿主路径保持 workspace-write。
-      const innerSandbox = docker ? "danger-full-access" : "workspace-write";
+      const innerSandbox = docker ? DOCKER_INNER_SANDBOX : "workspace-write";
       const command = built.command.replace(bypass, "")
         .replace("codex exec", `codex -a never -s ${innerSandbox} exec --ignore-user-config`)
         + overrides.map((value) => ` -c ${quote(value)}`).join("")

@@ -4,6 +4,7 @@ import { execFileSync } from "node:child_process";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { codexWorker, codexRouteEnv } from "./codex-route.mts";
 import { assertContainerIsolationContract, hardenProvider, type IsolationObservation } from "./docker-isolation.mts";
+import { checkAdmission, type Admission } from "./docker-acceptance.mts";
 
 import { MAIN_MODEL } from "./main-model.mts";
 
@@ -87,10 +88,14 @@ export function assertDockerCliProxyReachable(
   }
 }
 
-/** #1617/#1742：领票前逐项观测容器隔离合同（docker-default、seccomp、无 cap、只读挂载 EROFS、读写可写）。 */
+/** #1617/#1742：领票前先验精确 acceptance receipt（缺失/漂移/重复即 FAIL-loud），再逐项观测容器隔离合同；
+ * 观测成立只是必要条件，不代替验收。受控入口在观测通过后才占用对应验收行。 */
 export function assertSwarmExecutionReady(
   imageName: string,
   probe?: (image: string) => IsolationObservation,
+  admit: (image: string) => Admission = checkAdmission,
 ): void {
+  const admission = admit(imageName);
   assertContainerIsolationContract(imageName, probe);
+  admission.consume();
 }

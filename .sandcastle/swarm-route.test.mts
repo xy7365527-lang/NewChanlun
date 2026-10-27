@@ -121,25 +121,45 @@ test("main-swarm 路由门失败后保留非零退出码", () => {
   }
 });
 
-// #1617/#1742：路由连通不代表容器隔离合同成立。
-test("隔离合同不成立时在 planner 和 claim 前阻塞，不永久禁用 swarm", async () => {
+// #1617/#1742：路由连通和容器观测都不代替精确验收 receipt。
+test("准入先于探针、占用后于探针；观测不成立不烧掉验收行", async () => {
   const { assertSwarmExecutionReady } = await import("./swarm-route.mts");
   const { violations } = await import("./docker-isolation.mts");
   const good = {
-    apparmor: "docker-default (enforce)", seccomp: "2", capEff: "0000000000000000",
-    capBnd: "00000000a80425fb",
+    apparmor: "docker-default (enforce)", seccomp: "2", capEff: "0000000000000000", capBnd: "00000000a80425fb",
     roWrite: "touch: cannot touch '/probe/ro/x': Read-only file system", rwWrite: "ok",
     roChildInRw: "Read-only file system", roFileAppend: "Read-only file system",
     renameMountpoint: "mv: Device or resource busy", hardlinkAcross: "ln: Invalid cross-device link",
     symlinkIntoRo: "Read-only file system",
   };
   assert.deepEqual(violations(good), []);
-  assert.throws(() => assertSwarmExecutionReady("fixture", () => { throw new Error("EPERM"); }), /FAIL-loud #1617/);
-  assert.throws(() => assertSwarmExecutionReady("fixture", () => ({ ...good, roWrite: "ok" })), /EROFS/);
-  assert.throws(() => assertSwarmExecutionReady("fixture", () => ({ ...good, capBnd: "000001ffffffffff" })), /CapBnd/);
-  assert.throws(() => assertSwarmExecutionReady("fixture", () => ({ ...good, seccomp: "0" })), /Seccomp/);
+  const events: string[] = [];
+  const admit = (image: string) => { events.push(`admit:${image}`); return { consume: () => { events.push("consume"); } }; };
+  const probe = (obs: object) => (image: string) => { events.push(`probe:${image}`); return obs as typeof good; };
+  assertSwarmExecutionReady("fixture", probe(good), admit);
+  assert.deepEqual(events, ["admit:fixture", "probe:fixture", "consume"]);
+  events.length = 0;
+  assert.throws(() => assertSwarmExecutionReady("fixture", probe({ ...good, roWrite: "ok" }), admit), /EROFS/);
+  assert.deepEqual(events, ["admit:fixture", "probe:fixture"], "合同不成立时不占用验收行");
+  events.length = 0;
+  assert.throws(() => assertSwarmExecutionReady("fixture", probe(good), () => { throw new Error("[FAIL-loud #1617] receipt 缺失"); }), /receipt 缺失/);
+  assert.deepEqual(events, [], "无准入时不启动任何探针容器");
+  assert.throws(() => assertSwarmExecutionReady("fixture", () => { throw new Error("EPERM"); }, admit), /FAIL-loud #1617/);
+  assert.throws(() => assertSwarmExecutionReady("fixture", probe({ ...good, capBnd: "000001ffffffffff" }), admit), /CapBnd/);
+  assert.throws(() => assertSwarmExecutionReady("fixture", probe({ ...good, seccomp: "0" }), admit), /Seccomp/);
   assert.deepEqual(violations({ ...good, capBnd: "0000000000000000" }), []);
-  let seen = ""; assertSwarmExecutionReady("fixture", (image) => { seen = image; return good; }); assert.equal(seen, "fixture");
   const source = readFileSync(new URL("./main-swarm.mts", import.meta.url), "utf8");
   assert.ok(source.indexOf("assertSwarmExecutionReady(IMAGE)") < source.indexOf("for (let iteration"));
+});
+
+test("默认入口不带 receipt 时即使观测全部成立也拒绝（不注入 admit）", async () => {
+  const { assertSwarmExecutionReady } = await import("./swarm-route.mts");
+  const previous = { ...process.env };
+  process.env.SANDCASTLE_DOCKER_ACCEPTANCE_DIR = "/nonexistent-acceptance-dir";
+  delete process.env.SANDCASTLE_DOCKER_ACCEPTANCE_ROW;
+  try {
+    let probed = false;
+    assert.throws(() => assertSwarmExecutionReady("fixture", () => { probed = true; throw new Error("不应到达"); }), /尚无精确验收 receipt/);
+    assert.equal(probed, false);
+  } finally { process.env = previous; }
 });

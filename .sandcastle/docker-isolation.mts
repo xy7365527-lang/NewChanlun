@@ -82,7 +82,9 @@ export interface IsolationObservation {
 const EROFS = /read-only file system/i;
 /** Docker 默认 capability 集合（chown dac_override fowner fsetid kill setgid setuid setpcap net_bind_service net_raw
  * sys_chroot mknod audit_write setfcap）。bounding set 只能是它的子集：cap-add/privileged 会越界，cap-drop 只会缩小。 */
-const DEFAULT_CAP_MASK = 0xa80425fbn;
+export const DEFAULT_CAP_MASK = 0xa80425fbn;
+/** Docker 内层 Codex 沙箱模式；改动即改合同摘要。 */
+export const DOCKER_INNER_SANDBOX = "danger-full-access";
 
 /** 观测值全部满足才 Ready；缺一项即返回原因列表（不缓存、不推断）。 */
 export function violations(o: IsolationObservation): string[] {
