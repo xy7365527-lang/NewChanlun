@@ -51,7 +51,7 @@ APPROVE="/Library/Application Support/NewChanlun/newchanlun-approve"
 主控给你一份验收用的请求（`run_id=enrollment-check`，随机 nonce，任何执行器都不会发出同一 nonce，所以它不放行任何真实动作）。依次做：
 
 1. `status`：应显示还没有已发布决定。
-2. `sign --decision approve`，Touch ID 弹窗时取消。应无回执、不出现 sudo 提示；`status` 仍为空。
+2. `sign --decision approve`，Touch ID 弹窗时取消。应无回执、不出现管理员认证窗口；`status` 仍为空。
 3. `sign --decision approve`，完成 Touch ID，管理员认证窗口出现时点取消。应提示“未发布，尚未生效”；`status` 仍为空。
 4. 按提示 `publish-pending --receipt <待发布文件>`，核对内容后在管理员认证窗口认证。`status` 显示当前生效为批准（第 1 条）。
 5. `sign --decision reject`。这一次必须再次弹出 Touch ID；若没有弹窗就签出来了，验收失败。完成管理员认证。`status` 显示当前生效为拒绝（第 2 条）。
@@ -92,7 +92,7 @@ ASCII，LF 结尾，字段顺序固定，十进制无前导零，十六进制小
 
 ## 能防什么，不能防什么
 
-代理和工蜂与你同一个 macOS 账户运行，可以读写你的文件、启动程序，但 `sudo` 要你的密码。
+代理和工蜂与你同一个 macOS 账户运行，可以读写你的文件、启动程序，但取得 root 要你的密码（sudo 或 macOS 管理员认证窗口）。
 
 能防的：代理不能自己产出生效的决定，因为签名要你在场认证，发布要你在 macOS 管理员认证窗口里当场认证；那份授权只属于发起它的 osascript 进程，别的进程拿不到。手工安装的 `sudo -k` 不用也不留缓存；平时别在代理也在用的终端里留 sudo 缓存。它改不了 root 所有的信任配置、签批工具和权威记录，所以删不掉、也回滚不了已发布的拒绝；在记录里塞进或改动任何文件都需要 root。换钥句柄只会得到验不过的回执。它诱导你在 Touch ID 弹窗上点了通过，得到的也只是一份未发布、不生效的回执。
 
