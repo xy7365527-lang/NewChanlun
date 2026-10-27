@@ -2098,6 +2098,8 @@ impl SourceClaim {
 #[doc(hidden)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum CapturePermitRole {
+    OwnerCodec,
+    NodeProof,
     MemoSeen,
     NodeIndex,
     NodeBody,
@@ -2414,6 +2416,21 @@ impl<K: Ord + Copy, V: Copy> OwnerProofTree<K, V> {
     fn retained_layout_bytes(&self) -> usize {
         self.retained_bytes
     }
+    /// #1572：逐节点列出本树持有的Native许可（AVL节点盒）。
+    fn permit_entries(&self, out: &mut Vec<CapturePermitEntry>) {
+        let mut stack: Vec<&OwnerProofLink<K, V>> = vec![&self.root];
+        while let Some(link) = stack.pop() {
+            if let Some(node) = link {
+                out.extend(node.permit().map(|p| CapturePermitEntry {
+                    id: p.permit_id(),
+                    bytes: p.bytes(),
+                    role: CapturePermitRole::OwnerCodec,
+                }));
+                stack.push(&node.left);
+                stack.push(&node.right);
+            }
+        }
+    }
 
     fn insert(
         &mut self,
@@ -2541,6 +2558,13 @@ struct NativeOwnerCodecMemo {
 }
 #[cfg(feature = "s_capture_native_testonly")]
 impl NativeOwnerCodecMemo {
+    fn permit_entries(&self, out: &mut Vec<CapturePermitEntry>) {
+        self.seen.permit_entries(out);
+        self.bytes.permit_entries(out);
+        self.elems.permit_entries(out);
+        self.fields.permit_entries(out);
+        self.key_cmp.permit_entries(out);
+    }
     fn retained_bytes(&self) -> usize {
         // 精确 Box 节点 Layout 随成功插入累计；只取常数张树的计数，不扫描旧证明。
         [
@@ -3826,6 +3850,29 @@ impl AuditCapture {
         &self,
         out: &mut Vec<CapturePermitEntry>,
     ) -> Result<(), CodecError> {
+        self.list_native_permits(out, true)
+    }
+    /// #1572：存活候选的完整清单——在封存清单之外再列 owner codec 证书节点与节点证明盒的许可，
+    /// 不要求二者已清空（封存池仍用上面的严格版本）。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[doc(hidden)]
+    pub fn native_live_permit_entries_for_testonly(
+        &self,
+        out: &mut Vec<CapturePermitEntry>,
+    ) -> Result<(), CodecError> {
+        {
+            let owner = self.owner_codec.borrow();
+            owner.public.permit_entries(out);
+            owner.template.permit_entries(out);
+        }
+        self.list_native_permits(out, false)
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn list_native_permits(
+        &self,
+        out: &mut Vec<CapturePermitEntry>,
+        sealed: bool,
+    ) -> Result<(), CodecError> {
         use capture_allocation::scratch::NativeReservation;
         use CapturePermitRole as R;
         let held = |p: &NativeReservation, role| CapturePermitEntry {
@@ -3836,7 +3883,7 @@ impl AuditCapture {
         let codec = |entry: Option<(capture_allocation::scratch::PermitId, usize)>, role| {
             entry.map(|(id, bytes)| CapturePermitEntry { id, bytes, role })
         };
-        if self.owner_codec_retained_bytes_for_testonly() != 0 {
+        if sealed && self.owner_codec_retained_bytes_for_testonly() != 0 {
             return Err(CodecError::new(
                 code::SOURCE,
                 "许可清单：owner codec证书未清空",
@@ -3853,9 +3900,16 @@ impl AuditCapture {
         if let CaptureNodes::Native(native) = &self.nodes {
             out.extend(native.index_permit.as_ref().map(|p| held(p, R::NodeIndex)));
             for node in native.nodes.values() {
-                if node.proof.borrow().is_some() {
+                let proof = node.proof.borrow();
+                if sealed && proof.is_some() {
                     return Err(CodecError::new(code::SOURCE, "许可清单：节点证明未清空"));
                 }
+                out.extend(
+                    proof
+                        .as_ref()
+                        .and_then(|b| b.permit())
+                        .map(|p| held(p, R::NodeProof)),
+                );
                 out.extend(codec(node.body.native_permit_entry(), R::NodeBody));
             }
         }

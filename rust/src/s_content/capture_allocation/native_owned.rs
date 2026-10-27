@@ -44,6 +44,11 @@ impl<T> NativeBox<T> {
         assert!(self.permit.is_none());
         self.permit = Some(permit);
     }
+    /// #1572：本盒持有的Native许可（只读）。
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(crate) fn permit(&self) -> Option<&NativeReservation> {
+        self.permit.as_ref()
+    }
 }
 impl<T> Deref for NativeBox<T> {
     type Target = T;

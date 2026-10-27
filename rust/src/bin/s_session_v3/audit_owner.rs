@@ -1365,7 +1365,7 @@ impl AuditConnection {
         let capture_roles = capture.as_ref().map(|capture| {
             use newchan_rust::s_content::AuditCapture as A;
             let mut entries = Vec::new();
-            if let Err(e) = capture.native_permit_entries_for_testonly(&mut entries) {
+            if let Err(e) = capture.native_live_permit_entries_for_testonly(&mut entries) {
                 return serde_json::json!({
                     "inventory_error": e.to_string(),
                     "owner_codec_retained": capture.owner_codec_retained_bytes_for_testonly(),
