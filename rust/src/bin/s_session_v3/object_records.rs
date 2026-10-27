@@ -2877,6 +2877,13 @@ mod tests {
         let mut allowed: BTreeSet<NodeDigest> =
             record_field_digests(&mut fixture.store, &object.record);
         allowed.insert(object.record.digest);
+        // #1393 W：seed 步来源 = 建立前缀 raw[..=e]（多于一根），其坐标数组与载荷内方向证据的
+        // `source_coords` 同值同根；记录自身 `input_refs`/`source_coords` 两条公开边的整棵子树按值
+        // 与载荷共享，读它们不是展开载荷子图。只放行这两条记录自身边的闭包，载荷其余子图仍须零读。
+        for own in [&object.input_refs, &object.source_coords] {
+            let shared = closure_reads(&mut fixture.store, &own.content_ref());
+            allowed.extend(shared);
+        }
         let payload_beyond_record: BTreeSet<NodeDigest> =
             payload_inner.difference(&allowed).copied().collect();
 
@@ -2887,7 +2894,10 @@ mod tests {
         let generated_reads: BTreeSet<NodeDigest> = fixture.store.reads.iter().copied().collect();
         assert!(
             generated_reads.is_disjoint(&payload_beyond_record),
-            "生成态装配不得读取载荷子图（记录自身字段根除外）"
+            "生成态装配不得读取载荷子图（记录自身字段根除外）：{:?}",
+            generated_reads
+                .intersection(&payload_beyond_record)
+                .collect::<Vec<_>>()
         );
         assert!(
             payload_beyond_record.len() > 8,

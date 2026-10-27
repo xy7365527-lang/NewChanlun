@@ -5937,7 +5937,10 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    include!("s_session_v2/tb02u_tests.rs");
+    // #1393×#1419：原 `tb02u_tests.rs` 两测试（v2 种子在旧串下承载 W）已按裁定 (a)
+    // （issuecomment-6264324752：不另授带 W 后缀的 v2 串）与 ②（6265209957：迁 S3）迁出，
+    // 原判据 → S3 新锁见 .chanlun/review-results/issue1419-cfw-integrate-20261019/v2-writer-test-migration.md
+    // 「#1565 后 W 承载迁 S3」节。
 
     /// #1419 裁定②负控（issuecomment-6265209957）：v2 写入口对新旧会话一律拒写且不动库字节；
     /// 旧会话（测试种子写出的 RULE_REVISION 库）只读子命令照常、`--as-of` 为 AsKnown。
@@ -6355,21 +6358,8 @@ mod tests {
             recover_business(&files.db(), "2").unwrap();
             assert_eq!(snapshot_of(&files, Some(16)), old);
             assert_eq!(snapshot_of(&files, None), current);
-            let out = std::process::Command::new("python3")
-                .arg(fixture("tests/tb02c_verify.py"))
-                .arg("--database")
-                .arg(files.db())
-                .arg("--case")
-                .arg(case)
-                .arg("--node")
-                .arg("node")
-                .output()
-                .unwrap();
-            assert!(
-                out.status.success(),
-                "{case}: {}",
-                String::from_utf8_lossy(&out.stderr)
-            );
+            // #1419 裁定 (a)/②：同 tb02b_persisted——旧串种子库不再交旧串 Python 合同真实读
+            // （冻结语料 test_tb02c_*.py 保留旧串覆盖；S3 真实消费归 Q3 公共入口）。
         }
     }
 
@@ -6706,20 +6696,11 @@ mod tests {
             .any(|o| o["kind"] == "CC-010.bi" && o["payload"]["data"]["entity_id"] == "bi:2:1"));
         let conn = open_db(&files.db()).unwrap();
         verify_reachable_root(&conn).unwrap();
-        let verifier = fixture("tests/tb02b_verify.py");
-        let result = std::process::Command::new("python3")
-            .arg(verifier)
-            .arg("--database")
-            .arg(files.db())
-            .arg("--node")
-            .arg("node")
-            .output()
-            .unwrap();
-        assert!(
-            result.status.success(),
-            "Q/前端合同真实库验证失败：{}",
-            String::from_utf8_lossy(&result.stderr)
-        );
+        // #1419 裁定 (a)（issuecomment-6264324752）/②（6265209957）：本库由 v2 测试种子在旧串
+        // RULE_REVISION 下写出，而共享 parser 已是 W ⟹ 内容带 W 字段，正是「同串混两代」；旧串
+        // Python 合同按签署规则拒读是正确的。旧串只读覆盖留在冻结夹具（test_tb02b_contract.py 语料，
+        // CI s-observer），真实库的 Q/前端消费改由 S3（W 后继串）真实导出经 Q3 公共入口承接
+        // （`export_real_s3_w_fixture_for_q3`）。本测试保留种子写者的 Rust 侧行为锁。
     }
 
     #[test]
@@ -7106,10 +7087,9 @@ mod tests {
             .iter()
             .find(|o| o["kind"] == "CC-054.knowledge_state")
             .unwrap();
-        assert_eq!(
-            knowledge["payload"]["domain"],
-            "established_direction_with_extreme_root_sets"
-        );
+        // #1419 裁定 (a)/②：知识域随规则串的签署合同走；本库是旧串种子却带 W parser 产物，域判断在
+        // S3 承接（来源审计 `contract_for_rule(W)` 核 CC-054 域，source_audit.rs「TB-02-A 知识域与cut
+        // 规则版本不符」及其测试），此处不再对种子库断言旧串域。
         assert!(!knowledge["payload"]["waiting_reasons"]
             .as_array()
             .unwrap()

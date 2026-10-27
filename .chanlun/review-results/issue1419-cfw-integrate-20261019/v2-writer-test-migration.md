@@ -128,3 +128,17 @@
 以下脚本调用 v2 写子命令造库，裁定②后被二进制拒绝（`V2_WRITER_RETIRED`），**未改，列为待决**：
 `s_session/launch_s.sh`（一次性 init→accept→advance 路径与 `service` v2 配置）、`tests/r9_contract.py`、`tests/r13_integrity.py`、`tests/tb01c_query_tests.py`（及继承它的 `test_tb02d_projection_cache.py`）、`tests/tb01c_query_v2.py`、`tests/tb02a_query_tests.py`、`tests/tb02a_runtime.py`、`tests/tb01c_runtime.py`、`tests/tb03b_runtime.py`。
 它们测的是 Q 层读旧会话，需要旧 v2 库作输入。建议（待主控定）：按仓内 `*_testonly` feature 先例加 `s_v2_seed_testonly`，仅该 feature 的构建放开 v2 写子命令造种子库；生产构建（`s_session`）保持全拒。备选：用 S3 库重写这些 Q 测试（量大）。
+
+## #1565 后 W 承载迁 S3（27BV 返修，依据 #1419 issuecomment-6264324752 裁定 (a) 与 6265209957 ②）
+
+v2 测试种子在旧串 `RULE_REVISION` 下用统一 W parser 写库，内容必带 W 字段——即 (a) 要避免的「同串混两代」，旧串 Python/JS 合同按签署规则拒读是正确行为。不新增任何规则串、不恢复 v2 写口、不用 W 新造旧库；旧串 AsKnown 只读覆盖保留在既有冻结夹具。逐条：
+
+| 原测试 | 原判据 | 处置 | S3 / 冻结夹具承接 |
+|---|---|---|---|
+| `tb02u_old_cut_explicit_replaces_revision_and_recovery`（原 `s_session_v2/tb02u_tests.rs:14`） | 等待期未定原件逐原件发布、首次发生 cut、方向建立后组 `replaces` 未定原件、raw 修订使未定原件换身份、恢复后 AsKnown 历史 cut 不变 | 删除（v2 种子承载 W） | `content_producer::tests::w_initialization_matches_v2_oracle_and_pending_since_cut_carries`（W 对象逐字节对拍、pending_since_cut 只读上代 payload、原件不变身份不变、无 prior 取当代、非未定记录拒作 prior）；`v3::generation::tests::oracle_*`（S3 发 W 对象与 v2 oracle 对象数/字段逐项相等）；`v3::financial_session::tests::export_real_s3_w_fixture_for_q3`（真实正式入口：等待期→建立→修订撤回→恢复修订→纪元 1→2 真实 recover 后续发，导出后断言 W 两 kind、撤回非空、纪元递增），其导出由 Q3 公共 Client 读 |
+| `tb02u_pending_append_keeps_first_known_and_policy_gate`（原 `:140`） | 连续等待期 append 时未定原件首获知不变、零正式组、可达根；旧规则改写后 advance 报 VersionMismatch | 删除 | 首获知不变 = 同上 pending_since_cut 跨代锁（身份逐代相同 ⟹ 独立出生索引判既有对象）；零正式组 = `v3::source_audit::tests::tb1405_initial_unsettled_and_seed_fallback_still_audit`（W 下前两根/单根零组）与 `pending_source_tests`（W 逐例组数）；规则门 = `s_session_v3::mod` `require_current_writer_rule` 负控测试 |
+| `tb02b_persisted_identity_lifecycle_revision_and_old_cuts` | 种子库交 `tb02b_verify.py` 旧串 Python 真实读 | 去掉该真实读一步，保留 Rust 侧种子行为锁 | 旧串合同：`s_session/tests/test_tb02b_contract.py`/`.cjs` 冻结语料（CI）；S3 真实读：Q3 真实导出 |
+| `tb02c_persistent_first_kind_and_normal_recovery` | 种子库交 `tb02c_verify.py` 旧串 Python 真实读 | 同上 | `test_tb02c_*` 冻结语料（CI）；Q3 真实导出 |
+| `tb02a_three_groups_with_equal_roots_publish_shape_with_root_set` | 种子库 CC-054 域 = 旧串合同域 | 去掉域断言，余下 #1405 同价根集判据保留 | S3 来源审计 CC-054 域按 `contract_for_rule(W)` 核（`source_audit.rs`「TB-02-A 知识域与cut规则版本不符」及 `reidentified_legacy_bi_header_and_knowledge_domain_are_rejected_in_v2`） |
+| `v3::tests::selectors_route_to_the_matching_contract` | 显式 s-session/2 init 走 v2 | 改断言：返回 `V2_WRITER_RETIRED` 且不建库 | 同测试 |
+| `v2_writer_retired_…`、`tb02u_*` 种子步 | 用正式 `cmd_advance`/`advance_core`（#1602 后停在 AwaitingPolicy） | 种子改用 `cmd_advance_fixture`/`advance_core_fixture`（main 既有约定） | — |
