@@ -3380,7 +3380,8 @@ mod tests {
         let raw = read_raw_events(&c).unwrap();
         let get = |k| meta_get_opt(&c, k).unwrap().unwrap();
         let profile_hash = get("profile_hash");
-        let rule = get("rule_revision");
+        // #1393×#1419：生成夹具取 S3 写者唯一规则（W 后继串），不取 v2 测试库的历史规则串。
+        let rule = crate::W_STRUCTURE_RULE_REVISION.to_string();
         let catalog = get("catalog_revision");
         let scope = serde_json::from_str(&get("scope")).unwrap();
         let mut nodes = MemoryNodes::default();
