@@ -766,6 +766,7 @@ fn proof_inner(
     } else {
         audit(&tx, &other)?;
     }
+    super::phase_trace::mark("peer_audit", domain);
     let receipt = row(&tx, "receipts", key)?.ok_or("MissingDependency：原身份尚未持久")?;
     let seq = positive(required(&receipt["cut"], "commit_seq")?, "proof seq")?;
     let (prev, ns, raw): (String, String, String) = tx
@@ -796,6 +797,7 @@ fn proof_inner(
         );
         super::content_store::import_peer_refs_with_deadline(&tx, &refs, stage, job, deadline)
             .map_err(|e| format!("MissingDependency：peer closed refs 导入失败：{e}"))?;
+        super::phase_trace::mark("peer_import", domain);
     }
     tx.commit().map_err(err)?;
     Ok(result)
@@ -954,7 +956,22 @@ fn verify_structure_for_domain(
         job,
         plan.map(|p| &p["s_ref"]),
     )?;
+    super::phase_trace::mark("structure_verify", &config.domain);
     budget.before()
+}
+/// 结构校验只取决于同一 witness 与 plan 的 s_ref；同一 slot 内同值 s_ref 只核一次，不同值各核一次。
+fn verify_structure_once(
+    verified: &mut BTreeSet<String>,
+    c: &Connection,
+    config: &Config,
+    budget: &mut super::store::ReadBudget<'_>,
+    evidence: &Value,
+    plan: &Value,
+) -> Result<(), String> {
+    if verified.insert(canonical_json(&plan["s_ref"])) {
+        verify_structure_for_domain(c, config, budget, evidence, Some(plan))?;
+    }
+    Ok(())
 }
 fn knowledge_floor(witness: &Value, first: &str) -> Result<(), String> {
     let known = nonnegative(first, "first_known_ns")?;
@@ -1204,6 +1221,7 @@ fn reduce_with_budget(
                 return Err("MissingDependency：完整同 slot 原 Prepared 证据不齐".into());
             }
             let mut seen = BTreeSet::new();
+            let mut verified_refs = BTreeSet::new();
             let mut grants = Vec::new();
             let mut additional = 0i64;
             for q in &active {
@@ -1233,7 +1251,7 @@ fn reduce_with_budget(
                 if latest_proof_seq(pf)? != expected_version {
                     return Err("InvalidDomain：Prepared 后本地账本版本已改变".into());
                 }
-                verify_structure_for_domain(c, config, budget, &w["structure"], Some(q))?;
+                verify_structure_once(&mut verified_refs, c, config, budget, &w["structure"], q)?;
                 if bound(q)? != number(&original["prepared"], "locked_amount")? {
                     return Err("IdentityConflict：私有锁不是原计划全额".into());
                 }
@@ -1616,6 +1634,7 @@ pub(super) fn write_with_ingress(
     e: &Value,
     ingress_response_deadline: Option<std::time::Instant>,
 ) -> Result<Value, String> {
+    super::phase_trace::begin();
     let p = &e["payload"];
     validate_request(p)?;
     if p["op"] == "ActivateCapPolicy" {
@@ -1632,6 +1651,10 @@ pub(super) fn write_with_ingress(
     } else {
         None
     };
+    if let Some(at) = deadline {
+        super::phase_trace::deadline(at);
+    }
+    super::phase_trace::mark("job_and_deadline", &config.domain);
     // DeliveryUnknown 原身份优先查回，外部证据不可读不能推翻已提交结果。
     {
         let tx = immediate(c)?;
@@ -1640,6 +1663,7 @@ pub(super) fn write_with_ingress(
         // Audit local committed truth and return its original receipt first;
         // only a genuinely new admission is subject to that deadline.
         audit_with_job(&tx, config, shared_job.as_mut())?;
+        super::phase_trace::mark("initial_audit", &config.domain);
         if let Some(r) = super::service::previous_message(&tx, e)? {
             return Ok(r);
         }
@@ -1659,6 +1683,7 @@ pub(super) fn write_with_ingress(
     if p["writer_epoch"] != epoch.to_string() {
         return Err("StaleWriter：财务请求 writer_epoch 陈旧".into());
     }
+    super::phase_trace::mark("identity_lookup", &config.domain);
     check_operation_deadline(shared_job.as_mut(), deadline)?;
     if contract(&config.manifest)?.content {
         return write_v2(
@@ -1740,7 +1765,9 @@ fn write_v2(
     // cleanup uses only the fixed carrier envelope and touches staging rows.
     match write_v2_inner(c, config, epoch, e, job, deadline) {
         Ok(receipt) => Ok(receipt),
-        Err(error) => match super::content_store::discard_unpublished(c, &config.db) {
+        Err(error) => match super::content_store::discard_unpublished(c, &config.db).inspect(|_| {
+            super::phase_trace::mark("failure_cleanup", &config.domain);
+        }) {
             Ok((removed, before, after)) => Err(format!("{error}; staged_cleanup rows={removed} allocated_before={before} allocated_after={after}")),
             Err(cleanup) => Err(format!("{error}; staged_cleanup_pending_recover={cleanup}")),
         },
@@ -1830,6 +1857,7 @@ fn write_v2_inner(
     let mut stage =
         super::content_store::Stage::new(c, &config.db, resources.job_limits, token.clone())
             .map_err(|e| format!("Incomplete：E/B 暂存不可用：{e}"))?;
+    super::phase_trace::mark("input_and_stage", &config.domain);
     if !peer_requests.is_empty() {
         let mut proofs = Vec::with_capacity(peer_requests.len());
         for (domain, receipt_key) in &peer_requests {
@@ -1840,6 +1868,7 @@ fn write_v2_inner(
                 Some((&mut stage, job)),
                 Some(deadline),
             )?);
+            super::phase_trace::mark("peer_proof", domain);
         }
         if p["op"] == "Reserve" {
             witness["prepared_proofs"] = json!(proofs);
@@ -1862,6 +1891,7 @@ fn write_v2_inner(
             &mut stage,
         )?;
         witness["structure"] = basis.evidence;
+        super::phase_trace::mark("s_read_current", &config.domain);
     }
     drop(stage);
     persist_with_job(
@@ -1909,9 +1939,11 @@ fn persist_with_job(
     } else {
         None
     };
+    super::phase_trace::mark("final_reserve", &config.domain);
     let tx = immediate(c)?;
     check_epoch(&tx, epoch)?;
     audit_with_deadline(&tx, config, job.as_deref_mut(), deadline)?;
+    super::phase_trace::mark("final_audit", &config.domain);
     if e["payload"]["writer_epoch"] != epoch.to_string() {
         return Err("StaleWriter：财务 writer 已换代".into());
     }
@@ -1942,6 +1974,7 @@ fn persist_with_job(
         &ns,
         &mut super::store::ReadBudget::new(job.as_deref_mut(), deadline),
     )?;
+    super::phase_trace::mark("reduce", &config.domain);
     // C06.5：已核覆盖 token 的清除须与 E 本事务持久状态一致，不能只改返回 JSON。
     super::store::sync_pending(&tx, &next)?;
     let event = json!({"kind":e["payload"]["op"],"record":record,"request":e,"witness":w,"received_ns":received,"first_known_ns":first,"commit_ns":ns,"commit_seq":seq.to_string()});
@@ -1956,6 +1989,7 @@ fn persist_with_job(
                 .ok_or("MissingDependency：新域缺统一证据 job")?,
         )
         .map_err(|e| format!("MissingDependency：本地内容闭包未完整持久：{e}"))?;
+        super::phase_trace::mark("publish", &config.domain);
         job.as_deref_mut()
             .ok_or("MissingDependency：新域缺统一证据 job")?
             .pre_io_check()
@@ -1967,8 +2001,10 @@ fn persist_with_job(
     put(&tx, "receipts", &k, &r)?;
     super::service::bind_message(&tx, e, &k)?;
     config.pause(required(e, "message_id")?, "before_commit")?;
+    super::phase_trace::mark("append_and_receipt", &config.domain);
     check_operation_deadline(job.as_deref_mut(), deadline)?;
     tx.commit().map_err(err)?;
+    super::phase_trace::mark("commit", &config.domain);
     if let Some((grant, before, ceiling)) = final_budget {
         super::content_store::reconcile_final(
             c,

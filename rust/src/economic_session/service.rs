@@ -1356,6 +1356,7 @@ fn read(
             json!({"kind":"EconomicChanges","domain_id":config.domain,"cut":cut(config,s,&h),"changes":changes,"writer_epoch":epoch.to_string()})
         }
         "QueryDecision" | "QueryGrant" => super::finance::query(&tx, config, p)?,
+        super::sr_expansion::QUERY => super::sr_expansion::query(&tx, config, p)?,
         "QueryFact" => {
             exact(p, &["op", "fact_key"])?;
             let k = required(p, "fact_key")?;
@@ -1444,6 +1445,9 @@ fn handle_with_deadline(
             "ResolveEvidence" if config.domain == "E" => {
                 resolve_evidence(c, config, epoch, e, ingress_response_deadline)
             }
+            super::sr_expansion::OP if config.domain == "E" => {
+                super::sr_expansion::write(c, config, epoch, e, ingress_response_deadline)
+            }
             "ApplyAllocation" if config.domain.starts_with("B:") => apply_allocation_with_ingress(
                 c,
                 config,
@@ -1455,8 +1459,14 @@ fn handle_with_deadline(
             "BindVoice" if config.domain.starts_with("B:") => {
                 bind_voice(c, config, epoch, e, ingress_response_deadline)
             }
-            "ReadView" | "Watch" | "QueryFact" | "QueryAllocation" | "QueryVoice"
-            | "QueryDecision" | "QueryGrant" => read(c, config, epoch, runtime, &e["payload"]),
+            "ReadView"
+            | "Watch"
+            | "QueryFact"
+            | "QueryAllocation"
+            | "QueryVoice"
+            | "QueryDecision"
+            | "QueryGrant"
+            | super::sr_expansion::QUERY => read(c, config, epoch, runtime, &e["payload"]),
             _ => Err("SchemaUnsupported：操作不属于本域".into()),
         }
     })();
@@ -1477,6 +1487,45 @@ fn handle_with_deadline(
         ),
         Err(error) => json!({"kind":"Error","domain_id":config.domain,"error":error}),
     }
+}
+/// 正式 owner 服务循环。cli `serve` 取得同一域独占锁后调用；测试子进程同样先取锁再调用。
+pub(super) fn serve(config: &Config, epoch: i64, e_epoch: i64) -> Result<(), String> {
+    let (mut c, runtime) = open(&config.db, false)?;
+    check_epoch(&c, epoch)?;
+    audit(&c, config)?;
+    let r = &config.manifest["resources"];
+    let n = |k: &str| -> Result<usize, String> {
+        usize::try_from(positive(required(r, k)?, k)?).map_err(err)
+    };
+    let bounds = TransportBounds {
+        frame: n("max_frame_bytes")?,
+        read: Duration::from_millis(n("read_timeout_ms")? as u64),
+        write: Duration::from_millis(n("write_timeout_ms")? as u64),
+        response: Duration::from_millis(n("response_timeout_ms")? as u64),
+        queue: n("queue_capacity")?,
+        connections: n("max_connections")?,
+    };
+    // 信封校验按本域登记的版本派发；未知版本在 Config::load 就已拒绝。
+    let validator: EnvelopeValidator = if config.revision()? == SCHEMA_V2 {
+        validate_v2
+    } else {
+        validate_v1
+    };
+    let mut reads = ReadTransfers::default();
+    let revision = config.revision()?;
+    serve_unix_with_deadline(&config.socket, bounds, validator, |e, deadline| {
+        if matches!(
+            e["payload"]["op"].as_str(),
+            Some("EconomicReadOpen" | "EconomicReadPage" | "EconomicReadClose")
+        ) {
+            handle_paged_read(&mut c, config, epoch, &runtime, e, deadline, &mut reads)
+        } else if revision == SCHEMA_V2 {
+            handle_with_deadline(&mut c, config, epoch, e_epoch, &runtime, e, Some(deadline))
+        } else {
+            // /1 金融写入口保持原有语义；只读分页使用新 transport 截止。
+            handle(&mut c, config, epoch, e_epoch, &runtime, e)
+        }
+    })
 }
 /// 正式 owner 入口。init/recover/serve 共用同一域独占锁；不给客户端创建替代权威路径。
 pub fn cli(is_b: bool) -> Result<(), String> {
@@ -1520,50 +1569,7 @@ pub fn cli(is_b: bool) -> Result<(), String> {
             } else {
                 epoch
             };
-            let (mut c, runtime) = open(&config.db, false)?;
-            check_epoch(&c, epoch)?;
-            audit(&c, &config)?;
-            let r = &config.manifest["resources"];
-            let n = |k: &str| -> Result<usize, String> {
-                usize::try_from(positive(required(r, k)?, k)?).map_err(err)
-            };
-            let bounds = TransportBounds {
-                frame: n("max_frame_bytes")?,
-                read: Duration::from_millis(n("read_timeout_ms")? as u64),
-                write: Duration::from_millis(n("write_timeout_ms")? as u64),
-                response: Duration::from_millis(n("response_timeout_ms")? as u64),
-                queue: n("queue_capacity")?,
-                connections: n("max_connections")?,
-            };
-            // 信封校验按本域登记的版本派发；未知版本在 Config::load 就已拒绝。
-            let validator: EnvelopeValidator = if config.revision()? == SCHEMA_V2 {
-                validate_v2
-            } else {
-                validate_v1
-            };
-            let mut reads = ReadTransfers::default();
-            let revision = config.revision()?;
-            serve_unix_with_deadline(&config.socket, bounds, validator, |e, deadline| {
-                if matches!(
-                    e["payload"]["op"].as_str(),
-                    Some("EconomicReadOpen" | "EconomicReadPage" | "EconomicReadClose")
-                ) {
-                    handle_paged_read(&mut c, &config, epoch, &runtime, e, deadline, &mut reads)
-                } else if revision == SCHEMA_V2 {
-                    handle_with_deadline(
-                        &mut c,
-                        &config,
-                        epoch,
-                        e_epoch,
-                        &runtime,
-                        e,
-                        Some(deadline),
-                    )
-                } else {
-                    // /1 金融写入口保持原有语义；只读分页使用新 transport 截止。
-                    handle(&mut c, &config, epoch, e_epoch, &runtime, e)
-                }
-            })?;
+            serve(&config, epoch, e_epoch)?;
         }
         _ => return Err("InvalidDomain：未知子命令".into()),
     }

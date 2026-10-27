@@ -1,0 +1,32 @@
+[
+  {
+    "id": 28,
+    "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/budget-handoff-checkout",
+    "present": false
+  },
+  {
+    "id": 29,
+    "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/budget-handoff-fix-v2-checkout",
+    "present": false
+  },
+  {
+    "id": 30,
+    "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/budget-handoff-review-checkout",
+    "present": false
+  },
+  {
+    "id": 31,
+    "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/checkout",
+    "present": false
+  },
+  {
+    "id": 32,
+    "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/coverage-checkout",
+    "present": false
+  },
+  {
+    "id": 43,
+    "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/worktree-fix-p2-resume-20261023",
+    "present": false
+  }
+]
