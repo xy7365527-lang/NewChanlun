@@ -161,7 +161,7 @@ fn b2_fault_reidentify(
         .ok_or_else(|| b2_fault_error("fact_key缺文本"))?;
     let payload = b2_fault_json_inner(store, object, "payload_json")?;
     let refs = b2_fault_json_inner(store, object, "input_refs_json")?;
-    let id = B2FaultProducer::new(tb02a::PROFILE, crate::V3_RULE_REVISION)
+    let id = B2FaultProducer::new(tb02a::PROFILE, crate::W_STRUCTURE_RULE_REVISION)
         .typed_object_id(
             kind,
             key,
@@ -417,7 +417,7 @@ fn b2_source_fault_hook(
             &base,
             &raw,
             tb02a::PROFILE,
-            crate::V3_RULE_REVISION,
+            crate::W_STRUCTURE_RULE_REVISION,
             None,
             None,
         )
@@ -432,7 +432,7 @@ fn b2_source_fault_hook(
             &changed,
             &raw,
             tb02a::PROFILE,
-            crate::V3_RULE_REVISION,
+            crate::W_STRUCTURE_RULE_REVISION,
             None,
             None,
         )

@@ -2651,7 +2651,7 @@ mod tests {
             input_frontier: events.len() as i64,
             profile_id: crate::tb02a::PROFILE,
             profile_hash: "profile-hash",
-            rule_revision: "r",
+            rule_revision: crate::V3_RULE_REVISION,
             catalog_revision: "catalog",
             scope: &scope,
             semantic_commit_ns: None,
@@ -2662,14 +2662,14 @@ mod tests {
         };
         let mut plain_nodes = MemoryNodes::new();
         let mut plain_runtime =
-            GenerationRuntime::new("native-parity/plain".into(), crate::tb02a::PROFILE, "r");
+            GenerationRuntime::new("native-parity/plain".into(), crate::tb02a::PROFILE, crate::V3_RULE_REVISION);
         let mut plain = plain_runtime.generate(&mut plain_nodes, &input).unwrap();
         plain.finish_axes(&mut plain_nodes, -1, &[], &[]).unwrap();
         let budget = super::super::audit_owner::native::Budget::new(16 * 1024 * 1024, 0).unwrap();
         let baseline = budget.live();
         let mut native_nodes = MemoryNodes::new();
         let mut runtime =
-            GenerationRuntime::new("native-parity/native".into(), crate::tb02a::PROFILE, "r");
+            GenerationRuntime::new("native-parity/native".into(), crate::tb02a::PROFILE, crate::V3_RULE_REVISION);
         let generated = budget
             .codec_work()
             .unwrap()
@@ -2739,7 +2739,7 @@ mod tests {
             input_frontier: events.len() as i64,
             profile_id: crate::tb02a::PROFILE,
             profile_hash: "profile-hash",
-            rule_revision: "r",
+            rule_revision: crate::V3_RULE_REVISION,
             catalog_revision: "catalog",
             scope: &scope,
             semantic_commit_ns: None,
@@ -2750,7 +2750,7 @@ mod tests {
         };
         let mut nodes = MemoryNodes::new();
         let mut runtime =
-            GenerationRuntime::new("native-finish-reject".into(), crate::tb02a::PROFILE, "r");
+            GenerationRuntime::new("native-finish-reject".into(), crate::tb02a::PROFILE, crate::V3_RULE_REVISION);
         let mut generated = runtime.generate(&mut nodes, &input).unwrap();
         generated.finish_axes(&mut nodes, -1, &[], &[]).unwrap();
         let state = generated.generated_state.as_ref().clone();
