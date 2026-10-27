@@ -64,6 +64,17 @@ def env(tmp_path):
 
 
 @pytest.fixture(autouse=True)
+def no_operator_credential(monkeypatch):
+    """测试从不读取操作员的 CLIProxy 凭据（本机 launchctl 里是真值，CI 上没有 launchctl）。
+    需要构造生产模型时拿到占位值；真去调用模型会失败。"""
+    from pydantic import SecretStr
+
+    from pilot1742 import agent
+
+    monkeypatch.setattr(agent, "managed_cliproxy_key", lambda: SecretStr("pytest"))
+
+
+@pytest.fixture(autouse=True)
 def isolated_skill_source(tmp_path, monkeypatch):
     """这里只验证技能文件加载机制，真实上游内容由 real4 集成记录验收。"""
     from pilot1742 import agent
