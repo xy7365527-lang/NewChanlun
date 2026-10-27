@@ -675,10 +675,24 @@ mod tests {
             tb02b::CURRENT_CONTRACT.policy,
         ));
         let p = json!({"schema_revision":schema,"semantic_version":semantic,"policy_version":policy,"view_role":"main","object_generation":"1","slot":slot,"data":d});
-        let key = canonical_json(&json!([kind, slot]));
-        let record = put(
-            nodes,
-            &json!({"payload_json":canonical_json(&p),"fact_key":key}),
+        // 经共享工厂写记录：payload_json 是 0x07 文本视图，与已发布对象同一读法。
+        let empty = sc::write_value(nodes, &cv(&json!([])).unwrap()).unwrap();
+        let typed = Cc004Producer::new(tb02a::PROFILE, crate::V3_STRUCTURE_RULE_REVISION)
+            .build_object(
+                nodes,
+                kind,
+                canonical_json(&json!([kind, slot])),
+                cv(&p).unwrap(),
+                empty.clone(),
+                empty,
+                1,
+                "cut-1",
+            )
+            .unwrap();
+        let record = RefValue::Plain(
+            newchan_rust::s_content::capture_allocation::native_owned::NativeValue::<
+                newchan_rust::s_content::ContentRef,
+            >::from_unscoped(typed.record.content_ref()),
         );
         let refs = put(nodes, &json!([]));
         Object {
@@ -1835,7 +1849,7 @@ mod real_factory_repair_tests {
 /// 负控在同一份真实载荷上错绑单个字段，全读（`audit_full`）与增量（Native 逆依赖 + 端点撤回）两路都必须拒绝。
 #[cfg(test)]
 mod ef_entity_tests {
-    use super::tests::put;
+    use super::tests::object;
     use super::*;
     use crate::tb02e::{SegUnit, UnitInputs};
     use crate::v3::content_structure::{build_ef_units, EfPrior, StructureContext};
@@ -1869,36 +1883,16 @@ mod ef_entity_tests {
         payload: Value,
         sources: std::vec::Vec<i64>,
     }
-    fn plain(v: &str) -> bj::TextValue {
-        bj::TextValue::Plain(NativeValue::<String>::from_unscoped(v.into()))
-    }
-    /// 经共享工厂写出记录（payload_json 为 0x07 文本视图），与已发布对象同一读法。
     fn build(n: &mut sc::MemoryNodes, r: &Row) -> Object {
-        let producer = Cc004Producer::new(tb02a::PROFILE, crate::V3_STRUCTURE_RULE_REVISION);
-        let empty = sc::write_value(n, &cv(&json!([])).unwrap()).unwrap();
-        let typed = producer
-            .build_object(
-                n,
-                &r.kind,
-                canonical_json(&json!([r.kind, r.payload["slot"]])),
-                cv(&r.payload).unwrap(),
-                empty.clone(),
-                empty,
-                1,
-                "cut-1",
-            )
-            .unwrap();
-        let record = RefValue::Plain(NativeValue::<sc::ContentRef>::from_unscoped(
-            typed.record.content_ref(),
-        ));
-        Object {
-            id: plain(&r.id),
-            kind: plain(&r.kind),
-            fields: SourceFields::read_subset(n, record.view(), &["payload_json", "fact_key"])
-                .unwrap(),
-            refs: put(n, &json!([])),
-            sources: SourceCoords::Original(sc::CodecVec::from_plain(r.sources.clone())),
-        }
+        let mut o = object(
+            n,
+            &r.kind,
+            &r.id,
+            r.payload["slot"].clone(),
+            r.payload["data"].clone(),
+        );
+        o.sources = SourceCoords::Original(sc::CodecVec::from_plain(r.sources.clone()));
+        o
     }
     fn unit(n: &sc::MemoryNodes, k: usize, completed: bool) -> SegUnit {
         SegUnit {
