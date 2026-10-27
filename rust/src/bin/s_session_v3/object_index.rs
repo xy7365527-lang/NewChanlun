@@ -1154,9 +1154,8 @@ impl HistoryObjects<'_> {
             .filter(|(_, e)| e.life.withdrawn_generation.is_some_and(|d| d <= g))
             .collect::<Vec<_>>();
         let layout = self.layout;
-        active.sort_unstable_by(|a, b| {
-            public_ordering(layout, a.1, b.1, false).then(a.0.cmp(&b.0))
-        });
+        active
+            .sort_unstable_by(|a, b| public_ordering(layout, a.1, b.1, false).then(a.0.cmp(&b.0)));
         dead.sort_unstable_by(|a, b| public_ordering(layout, a.1, b.1, true).then(a.0.cmp(&b.0)));
         let births = self
             .entries
@@ -4734,10 +4733,12 @@ mod tests {
             budget: Some(OwnedBudget::new(1_000_000)),
             ..Default::default()
         };
-        assert!(plan_native_union_for_testonly(&mut mixed, Layout::Sorted, objects, &[], 1)
-            .err()
-            .unwrap()
-            .contains("拒绝allocation预算"));
+        assert!(
+            plan_native_union_for_testonly(&mut mixed, Layout::Sorted, objects, &[], 1)
+                .err()
+                .unwrap()
+                .contains("拒绝allocation预算")
+        );
         assert_eq!(
             (mixed.reads, mixed.puts, mixed.singles, mixed.unions),
             (0, 0, 0, 0)

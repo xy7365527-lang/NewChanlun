@@ -125,10 +125,19 @@ mod tests {
 
     #[test]
     fn layout_rank_sorted_equals_original_key_order_for_all_families() {
-        let objects = [(3, (0, "", 7)), (1, (1, "z", 1)), (2, (1, "a", 2)), (1, (0, "", 9))];
+        let objects = [
+            (3, (0, "", 7)),
+            (1, (1, "z", 1)),
+            (2, (1, "a", 2)),
+            (1, (0, "", 9)),
+        ];
         let withdrawn = [(4, (1, "b", 1)), (2, (0, "", 1)), (3, (1, "a", 1))];
         let witnesses = [(2, ("o-b", 1)), (1, ("o-a", 2)), (3, ("o-a", 0))];
-        let relations = [(2, ("s", "r", "b")), (1, ("s", "r", "c")), (3, ("a", "r", "x"))];
+        let relations = [
+            (2, ("s", "r", "b")),
+            (1, ("s", "r", "c")),
+            (3, ("a", "r", "x")),
+        ];
         let observations = [(5, ("k", Some(9))), (1, ("k", None)), (2, ("j", Some(1)))];
         fn original<K: Ord>(rows: &[(i64, K)]) -> Vec<usize> {
             let mut order: Vec<usize> = (0..rows.len()).collect();
@@ -139,13 +148,21 @@ mod tests {
         assert_eq!(sorted_by(Layout::Sorted, &withdrawn), original(&withdrawn));
         assert_eq!(sorted_by(Layout::Sorted, &witnesses), original(&witnesses));
         assert_eq!(sorted_by(Layout::Sorted, &relations), original(&relations));
-        assert_eq!(sorted_by(Layout::Sorted, &observations), original(&observations));
+        assert_eq!(
+            sorted_by(Layout::Sorted, &observations),
+            original(&observations)
+        );
     }
 
     #[test]
     fn layout_rank_bounded_is_generation_monotone_then_original_key() {
         // 修订对象（新出生代 3）落尾；撤回代较晚者移入撤回尾；同代内沿原键。
-        let objects = [(3, (0, "", 7)), (1, (1, "z", 1)), (1, (0, "", 9)), (2, (1, "a", 2))];
+        let objects = [
+            (3, (0, "", 7)),
+            (1, (1, "z", 1)),
+            (1, (0, "", 9)),
+            (2, (1, "a", 2)),
+        ];
         assert_eq!(sorted_by(Layout::Bounded1, &objects), vec![2, 1, 3, 0]);
         let withdrawn = [(4, (0, "", 1)), (2, (1, "b", 1)), (2, (1, "a", 1))];
         assert_eq!(sorted_by(Layout::Bounded1, &withdrawn), vec![2, 1, 0]);

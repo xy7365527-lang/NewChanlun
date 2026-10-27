@@ -4004,10 +4004,7 @@ mod tests {
             let bounded = cut_members(&stored, Layout::Bounded1, g, false).unwrap();
             let mut witnesses: Vec<_> = p.snapshot.witnesses.iter().collect();
             witnesses.sort_by_key(|r| r.first);
-            let witnesses: Vec<_> = witnesses
-                .iter()
-                .map(|r| digest(&r.wire).unwrap())
-                .collect();
+            let witnesses: Vec<_> = witnesses.iter().map(|r| digest(&r.wire).unwrap()).collect();
             assert_eq!(&bounded[0][..], &witnesses[..]);
             let mut relations: Vec<_> = p.snapshot.relations.iter().collect();
             relations.sort_by_key(|r| r.first);
