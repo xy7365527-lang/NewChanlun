@@ -1711,7 +1711,7 @@ pub(super) fn build_ef(
     let inputs = segment_units(evidence, cd_segments, nodes)?;
     build_ef_units(producer, nodes, &inputs, prior, ctx)
 }
-fn build_ef_units(
+pub(super) fn build_ef_units(
     producer: &mut Cc004Producer,
     nodes: &mut dyn NodeStore,
     inputs: &crate::tb02e::UnitInputs,

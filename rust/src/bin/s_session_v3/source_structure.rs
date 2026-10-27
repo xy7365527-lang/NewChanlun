@@ -305,6 +305,7 @@ pub(super) fn audit_links(
             unit(s, &u, lookup)?;
         }
     }
+    audit_entity_fields(s, object, &d, lookup)?;
     if object.kind.ends_with("_relation") {
         audit_relation(s, object, &d, lookup)?;
     }
@@ -902,31 +903,194 @@ pub(super) fn entity_references(
 ) -> Result<sc::CodecVec<bj::TextValue>, String> {
     let allocation = source_allocation(s)?;
     let mut out = bj::new_work(allocation.as_ref());
-    let fields: &[&str] = if object.kind.ends_with("_change") {
+    let kind = object.kind.as_str();
+    let fields: &[&str] = if kind.ends_with("_change") {
         &["entity_id"]
-    } else if object.kind.ends_with("_relation") {
+    } else if kind.ends_with("_relation") {
         &["source_id", "target_id"]
-    } else if object.kind == "CC-020.center_pair" {
-        &["a_center_id", "b_center_id"]
-    } else if object.kind == "CC-022.unit_assignment" {
-        &["left_center_id", "right_center_id"]
-    } else if object.kind == "CC-018.unit_core_position" {
-        &["center_id"]
     } else {
         &[]
     };
-    if !fields.is_empty() {
-        let d = data(s, object)?;
-        for name in fields {
-            let value = field(s, &d, name)?;
-            if value.kind() != Kind::Null {
-                let value = text_value(s, value.view(), name)?;
-                s.native_codec_room(&mut out, 1).map_err(err)?;
-                out.try_push(value).map_err(err)?;
+    let table = ENTITY_FIELDS.iter().any(|f| f.0 == kind);
+    if fields.is_empty() && !table {
+        return Ok(out);
+    }
+    let d = data(s, object)?;
+    for name in fields {
+        entity_field_ids(s, &d, name, Arity::Optional, &mut out)?;
+    }
+    for &(_, name, _, arity) in ENTITY_FIELDS.iter().filter(|f| f.0 == kind) {
+        entity_field_ids(s, &d, name, arity, &mut out)?;
+    }
+    Ok(out)
+}
+
+#[derive(Clone, Copy)]
+enum Arity {
+    One,
+    Optional,
+    Many,
+}
+/// E/F 实体字段端点表（种类, 字段, 目标种类, 元数）。全读审计与 Native 逆依赖登记共用此表，
+/// 所以端点撤回或改版时依赖方必然重核。before/previous 是历史快照，不入表；
+/// position 的 center_revision 是原事实版本，只要求不超过当前中心修订。
+const ENTITY_FIELDS: &[(&str, &str, &str, Arity)] = &[
+    ("CC-016.center_seed_attempt", "center_id", "CC-016.center", Arity::Optional),
+    ("CC-016.center", "seed_attempt_id", "CC-016.center_seed_attempt", Arity::One),
+    ("CC-016.center", "seed_units", "CC-013.segment", Arity::Many),
+    ("CC-016.center", "members", "CC-013.segment", Arity::Many),
+    ("CC-016.center", "zn_members", "CC-013.segment", Arity::Many),
+    ("CC-016.center", "break_unit", "CC-013.segment", Arity::Optional),
+    ("CC-016.center", "next_tested_unit", "CC-013.segment", Arity::Optional),
+    ("CC-016.center", "roles_id", "CC-017.center_roles", Arity::One),
+    ("CC-017.center_roles", "center_id", "CC-016.center", Arity::One),
+    ("CC-022.unit_assignment", "center_id", "CC-016.center", Arity::Optional),
+    ("CC-022.unit_assignment", "left_center_id", "CC-016.center", Arity::Optional),
+    ("CC-022.unit_assignment", "right_center_id", "CC-016.center", Arity::Optional),
+    ("CC-018.unit_core_position", "center_id", "CC-016.center", Arity::One),
+    ("CC-020.center_pair", "a_center_id", "CC-016.center", Arity::One),
+    ("CC-020.center_pair", "b_center_id", "CC-016.center", Arity::One),
+];
+fn entity_field_ids(
+    s: &mut (impl SourceFieldStore + ?Sized),
+    d: &RefValue,
+    name: &str,
+    arity: Arity,
+    out: &mut sc::CodecVec<bj::TextValue>,
+) -> Result<(), String> {
+    let value = field(s, d, name)?;
+    match (arity, value.kind()) {
+        (Arity::Optional, Kind::Null) => {}
+        (Arity::Many, Kind::Array) => {
+            for item in elements(s, &value)? {
+                push_entity_id(s, item.view(), name, out)?;
+            }
+        }
+        (Arity::Many, _) => return Err(err("结构实体字段不是数组")),
+        _ => push_entity_id(s, value.view(), name, out)?,
+    }
+    Ok(())
+}
+fn push_entity_id(
+    s: &mut (impl SourceFieldStore + ?Sized),
+    value: sc::RefView<'_>,
+    name: &str,
+    out: &mut sc::CodecVec<bj::TextValue>,
+) -> Result<(), String> {
+    let id = text_value(s, value, name)?;
+    s.native_codec_room(out, 1).map_err(err)?;
+    out.try_push(id).map_err(err)
+}
+fn points_back(
+    s: &mut (impl SourceFieldStore + ?Sized),
+    other: &Object,
+    name: &str,
+    me: &bj::TextValue,
+) -> Result<bool, String> {
+    let od = data(s, other)?;
+    let value = field(s, &od, name)?;
+    Ok(value.kind() != Kind::Null && text_value(s, value.view(), name)?.as_str() == me.as_str())
+}
+fn field_entity<'a>(
+    s: &mut (impl SourceFieldStore + ?Sized),
+    d: &RefValue,
+    name: &str,
+    lookup: &'a impl Lookup,
+) -> Result<Option<&'a Object>, String> {
+    let value = field(s, d, name)?;
+    if value.kind() == Kind::Null {
+        return Ok(None);
+    }
+    let id = text_value(s, value.view(), name)?;
+    Ok(lookup.entity(id.as_str()))
+}
+/// 字段表逐一核当前端点存在且种类正确，再核表内互指与绑定。只读已发布载荷，不重算几何。
+fn audit_entity_fields(
+    s: &mut (impl SourceFieldStore + ?Sized),
+    object: &Object,
+    d: &RefValue,
+    lookup: &impl Lookup,
+) -> Result<(), String> {
+    let kind = object.kind.as_str();
+    if !ENTITY_FIELDS.iter().any(|f| f.0 == kind) {
+        return Ok(());
+    }
+    let allocation = source_allocation(s)?;
+    for &(_, name, target, arity) in ENTITY_FIELDS.iter().filter(|f| f.0 == kind) {
+        let mut ids = bj::new_work(allocation.as_ref());
+        entity_field_ids(s, d, name, arity, &mut ids)?;
+        for id in ids.iter() {
+            let end = lookup
+                .entity(id.as_str())
+                .ok_or_else(|| err("结构实体字段端点悬空"))?;
+            if end.kind != target {
+                return Err(err("结构实体字段端点种类错绑"));
             }
         }
     }
-    Ok(out)
+    let me = text(s, d, "entity_id")?;
+    match kind {
+        "CC-016.center_seed_attempt" => {
+            if let Some(center) = field_entity(s, d, "center_id", lookup)? {
+                if !points_back(s, center, "seed_attempt_id", &me)? {
+                    return Err(err("seed attempt与中心互指错绑"));
+                }
+            }
+        }
+        "CC-016.center" => {
+            let attempt = field_entity(s, d, "seed_attempt_id", lookup)?
+                .ok_or_else(|| err("结构实体字段端点悬空"))?;
+            if !points_back(s, attempt, "center_id", &me)? {
+                return Err(err("中心seed attempt互指错绑"));
+            }
+            let ad = data(s, attempt)?;
+            let units = field(s, &ad, "units")?;
+            let units = elements(s, &units)?;
+            let seed = field(s, d, "seed_units")?;
+            let seed = elements(s, &seed)?;
+            if units.len() != seed.len() {
+                return Err(err("中心seed单元与attempt不符"));
+            }
+            for (u, id) in units.iter().zip(seed.iter()) {
+                if text(s, u, "unit_id")? != text_value(s, id.view(), "seed_units")? {
+                    return Err(err("中心seed单元与attempt不符"));
+                }
+            }
+            let roles = field_entity(s, d, "roles_id", lookup)?
+                .ok_or_else(|| err("结构实体字段端点悬空"))?;
+            if !points_back(s, roles, "center_id", &me)? {
+                return Err(err("中心roles互指错绑"));
+            }
+        }
+        "CC-017.center_roles" => {
+            let center = field_entity(s, d, "center_id", lookup)?
+                .ok_or_else(|| err("结构实体字段端点悬空"))?;
+            if !points_back(s, center, "roles_id", &me)? {
+                return Err(err("roles中心互指错绑"));
+            }
+        }
+        "CC-022.unit_assignment" => {
+            if let Some(center) = field_entity(s, d, "center_id", lookup)? {
+                let unit = field(s, d, "unit")?;
+                let unit = text(s, &unit, "unit_id")?;
+                let cd = data(s, center)?;
+                let members = field(s, &cd, "members")?;
+                if !listed(s, &members, unit.as_str())? {
+                    return Err(err("成员归属不在当前中心成员中"));
+                }
+            }
+        }
+        "CC-018.unit_core_position" => {
+            let center = field_entity(s, d, "center_id", lookup)?
+                .ok_or_else(|| err("结构实体字段端点悬空"))?;
+            let cd = data(s, center)?;
+            if revision(s, d, "center_revision")? > revision(s, &cd, "entity_revision")? {
+                return Err(err("位置中心修订超出当前中心"));
+            }
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 fn current_entity<'a>(lookup: &'a impl Lookup, id: &str, kind: &str) -> Result<&'a Object, String> {
@@ -1664,5 +1828,374 @@ mod real_factory_repair_tests {
             );
         }
         assert!(seen > 0, "必须实际覆盖工厂生成的change，不能空真");
+    }
+}
+
+/// #1419 27BD：E/F 实体字段端点。正控用真实 `build_ef_units` 工厂两代输出（含 previous/before 历史）；
+/// 负控在同一份真实载荷上错绑单个字段，全读（`audit_full`）与增量（Native 逆依赖 + 端点撤回）两路都必须拒绝。
+#[cfg(test)]
+mod ef_entity_tests {
+    use super::tests::put;
+    use super::*;
+    use crate::tb02e::{SegUnit, UnitInputs};
+    use crate::v3::content_structure::{build_ef_units, EfPrior, StructureContext};
+    use crate::v3::structure_value::{Text as SText, Vec as SVec};
+    use newchan_rust::s_content::capture_allocation::native_owned::NativeValue;
+    use newchan_rust::theta_v0::{classifier::center::UnitRange, types::Direction};
+
+    /// 真实走势链：A 核 [140,180]、B 核 [220,280]、C 核 [305,360]；第 15 单元在第二代完成并加入 C。
+    const RANGES: &[(i64, i64)] = &[
+        (100, 180),
+        (140, 180),
+        (140, 200),
+        (145, 200),
+        (145, 260),
+        (200, 260),
+        (200, 300),
+        (220, 300),
+        (220, 280),
+        (240, 280),
+        (240, 350),
+        (300, 350),
+        (300, 360),
+        (305, 360),
+        (305, 400),
+        (330, 400),
+    ];
+    #[derive(Clone)]
+    struct Row {
+        kind: String,
+        id: String,
+        payload: Value,
+        sources: std::vec::Vec<i64>,
+    }
+    fn plain(v: &str) -> bj::TextValue {
+        bj::TextValue::Plain(NativeValue::<String>::from_unscoped(v.into()))
+    }
+    fn build(n: &mut sc::MemoryNodes, r: &Row) -> Object {
+        let key = canonical_json(&json!([r.kind, r.payload["slot"]]));
+        let record = put(
+            n,
+            &json!({"payload_json":canonical_json(&r.payload),"fact_key":key}),
+        );
+        let refs = put(n, &json!([]));
+        Object {
+            id: plain(&r.id),
+            kind: plain(&r.kind),
+            fields: SourceFields::read_subset(n, record.view(), &["payload_json", "fact_key"])
+                .unwrap(),
+            refs,
+            sources: SourceCoords::Original(sc::CodecVec::from_plain(r.sources.clone())),
+        }
+    }
+    fn unit(n: &sc::MemoryNodes, k: usize, completed: bool) -> SegUnit {
+        let (lo, hi) = RANGES[k];
+        SegUnit {
+            unit_id: SText::new(&format!("segment:{k}"), n).unwrap(),
+            object_id: SText::new(&format!("obj3-seg{k}"), n).unwrap(),
+            range: completed.then_some(UnitRange {
+                start_index: k * 10,
+                end_index: k * 10 + 10,
+                direction: if k % 2 == 0 {
+                    Direction::Up
+                } else {
+                    Direction::Down
+                },
+                lo,
+                hi,
+            }),
+            sources: SVec::from_iter([k], n).unwrap(),
+        }
+    }
+    fn segment_row(k: usize) -> Row {
+        let id = format!("segment:{k}");
+        Row {
+            kind: "CC-013.segment".into(),
+            id: format!("obj3-seg{k}"),
+            payload: json!({"slot":id,"data":{"entity_id":id,"sequence_id":null,"sequence_object_id":null,"second_sequence_id":null,"second_sequence_object_id":null}}),
+            sources: vec![k as i64],
+        }
+    }
+    struct Cut {
+        rows: std::vec::Vec<Row>,
+        records: std::vec::Vec<Built>,
+    }
+    fn cut(
+        n: &mut sc::MemoryNodes,
+        producer: &mut Cc004Producer,
+        completed: usize,
+        generation: i64,
+        prior: &[Built],
+    ) -> Cut {
+        let inputs = UnitInputs {
+            completed: SVec::from_iter((0..completed).map(|k| unit(n, k, true)), n).unwrap(),
+            in_progress: Some(unit(n, completed, false)),
+        };
+        let known = sc::write_value(
+            n,
+            &cv(&json!({"generation":generation.to_string(),"input_frontier":completed.to_string(),"receipt_id":null,"received_at":null,"semantic_commit_ns":null}))
+                .unwrap(),
+        )
+        .unwrap();
+        let sources: std::vec::Vec<usize> = (0..=completed).collect();
+        let cut_name = format!("cut-{generation}");
+        let output = build_ef_units(
+            producer,
+            n,
+            &inputs,
+            &EfPrior { records: prior },
+            &StructureContext {
+                fact_generation: 1,
+                generation,
+                cut: &cut_name,
+                frontier: completed as i64,
+                known_at: &known,
+                all_sources: &sources,
+            },
+        )
+        .unwrap();
+        let mut rows: std::vec::Vec<Row> = (0..=completed).map(segment_row).collect();
+        rows.push(Row {
+            kind: "CC-056.segment_version".into(),
+            id: "obj3-segment-version".into(),
+            payload: json!({"slot":"TB-02-W","data":{}}),
+            sources: vec![],
+        });
+        let mut records = std::vec::Vec::new();
+        for o in output.objects.iter() {
+            let p = RefValue::Plain(NativeValue::<sc::ContentRef>::from_unscoped(
+                o.payload.content_ref(),
+            ));
+            let mut bytes = std::vec::Vec::new();
+            n.render_ref(p.view(), &mut bytes).unwrap();
+            let key: Value = serde_json::from_str(&o.fact_key).unwrap();
+            let source = RefValue::Plain(NativeValue::<sc::ContentRef>::from_unscoped(
+                o.source_coords.content_ref(),
+            ));
+            let kind = key[0].as_str().unwrap().to_string();
+            if !kind.starts_with("CC-055.") {
+                records.push(o.record.clone());
+            }
+            rows.push(Row {
+                kind,
+                id: o.object_id.clone(),
+                payload: serde_json::from_slice(&bytes).unwrap(),
+                sources: coords(n, &source).unwrap().iter().copied().collect(),
+            });
+        }
+        Cut { rows, records }
+    }
+    fn cuts() -> (sc::MemoryNodes, Cut, Cut) {
+        let mut n = sc::MemoryNodes::default();
+        let mut producer = Cc004Producer::new(tb02a::PROFILE, crate::V3_STRUCTURE_RULE_REVISION);
+        for i in 0..RANGES.len() + 1 {
+            producer
+                .bind_source(
+                    &mut n,
+                    i as i64,
+                    content_producer::RawRefSpec {
+                        identity_key: format!("raw-{i}"),
+                        payload_hash: "h".into(),
+                        receipt_id: format!("receipt-{i}"),
+                        event_id: format!("bar-{i}"),
+                        input_revision: "1".into(),
+                        revision: 1,
+                        seq: i as i64,
+                        source_coord: i.to_string(),
+                    },
+                )
+                .unwrap();
+        }
+        let first = cut(&mut n, &mut producer, RANGES.len() - 1, 28, &[]);
+        let records = first.records.clone();
+        let second = cut(&mut n, &mut producer, RANGES.len(), 29, &records);
+        (n, first, second)
+    }
+    fn full(n: &mut sc::MemoryNodes, rows: &[Row]) -> Result<(), String> {
+        let objects: std::vec::Vec<_> = rows.iter().map(|r| build(n, r)).collect();
+        audit_full(n, &objects, crate::V3_STRUCTURE_RULE_REVISION)
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn table_kind(kind: &str) -> bool {
+        ENTITY_FIELDS.iter().any(|f| f.0 == kind)
+    }
+    fn data_of<'a>(rows: &'a [Row], kind: &str) -> std::vec::Vec<&'a Value> {
+        rows.iter()
+            .filter(|r| r.kind == kind)
+            .map(|r| &r.payload["data"])
+            .collect()
+    }
+    fn coverage(rows: &[Row]) -> String {
+        let mut counts = std::collections::BTreeMap::<&str, usize>::new();
+        for r in rows {
+            *counts.entry(r.kind.as_str()).or_default() += 1;
+        }
+        format!("{counts:?}")
+    }
+
+    #[test]
+    fn real_ef_factory_two_cuts_pass_full_entity_field_audit() {
+        let (mut n, first, second) = cuts();
+        for c in [&first, &second] {
+            let rows = &c.rows;
+            let report = coverage(rows);
+            assert!(data_of(rows, "CC-016.center").len() >= 2, "{report}");
+            assert!(data_of(rows, "CC-018.unit_core_position").len() >= 1, "{report}");
+            assert!(data_of(rows, "CC-020.center_pair").len() >= 1, "{report}");
+            assert!(
+                data_of(rows, "CC-022.unit_assignment")
+                    .iter()
+                    .any(|d| d["status"] == "CENTER_MEMBER"),
+                "{report}"
+            );
+            assert!(
+                data_of(rows, "CC-016.center_seed_attempt")
+                    .iter()
+                    .any(|d| !d["center_id"].is_null()),
+                "{report}"
+            );
+            full(&mut n, rows).unwrap();
+        }
+        // 第二代必须真实带出历史快照：roles.previous 或 center_change.before；历史值不入当前端点表。
+        assert!(
+            data_of(&second.rows, "CC-017.center_roles")
+                .iter()
+                .any(|d| !d["previous"].is_null())
+                || data_of(&second.rows, "CC-055.center_change")
+                    .iter()
+                    .any(|d| !d["before"].is_null()),
+            "{}",
+            coverage(&second.rows)
+        );
+    }
+
+    /// (说明, 被改对象下标, 改写后的 data, 该对象自身审计的期望错误片段)
+    fn mutations(rows: &[Row]) -> std::vec::Vec<(&'static str, usize, Value, &'static str)> {
+        let pick = |kind: &str, pred: &dyn Fn(&Value) -> bool| {
+            rows.iter()
+                .position(|r| r.kind == kind && pred(&r.payload["data"]))
+                .unwrap_or_else(|| panic!("缺 {kind}：{}", coverage(rows)))
+        };
+        let centers = data_of(rows, "CC-016.center");
+        let (c0, c1) = (centers[0].clone(), centers[1].clone());
+        let roles = pick("CC-017.center_roles", &|d| d["center_id"] == c0["entity_id"]);
+        let center = pick("CC-016.center", &|d| d["entity_id"] == c0["entity_id"]);
+        let member = pick("CC-022.unit_assignment", &|d| d["status"] == "CENTER_MEMBER");
+        let position = pick("CC-018.unit_core_position", &|_| true);
+        let attempt = pick("CC-016.center_seed_attempt", &|d| !d["center_id"].is_null());
+        let other_center = |id: &Value| if *id == c0["entity_id"] { c1["entity_id"].clone() } else { c0["entity_id"].clone() };
+        let at = |i: usize| rows[i].payload["data"].clone();
+        let with = |i: usize, k: &str, v: Value| {
+            let mut d = at(i);
+            d[k] = v;
+            d
+        };
+        let mut members = at(center);
+        members["members"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!("segment:missing"));
+        vec![
+            ("roles.center_id 悬空（27BD 反例）", roles, with(roles, "center_id", json!("center:missing")), "端点悬空"),
+            ("roles.center_id 指段", roles, with(roles, "center_id", json!("segment:0")), "端点种类错绑"),
+            ("roles.center_id 指另一中心", roles, with(roles, "center_id", c1["entity_id"].clone()), "roles中心互指错绑"),
+            ("center.roles_id 指另一中心roles", center, with(center, "roles_id", c1["roles_id"].clone()), "中心roles互指错绑"),
+            ("center.seed_attempt_id 指另一中心attempt", center, with(center, "seed_attempt_id", c1["seed_attempt_id"].clone()), "中心seed attempt互指错绑"),
+            ("center.members 悬空成员", center, members, "端点悬空"),
+            ("center.break_unit 指中心", center, with(center, "break_unit", c1["entity_id"].clone()), "端点种类错绑"),
+            ("attempt.center_id 指另一中心", attempt, { let d = at(attempt); with(attempt, "center_id", other_center(&d["center_id"])) }, "seed attempt与中心互指错绑"),
+            ("member assignment 指另一中心", member, { let d = at(member); with(member, "center_id", other_center(&d["center_id"])) }, "成员归属不在当前中心成员中"),
+            ("assignment.center_id 悬空", member, with(member, "center_id", json!("center:missing")), "端点悬空"),
+            ("position.center_id 悬空", position, with(position, "center_id", json!("center:missing")), "端点悬空"),
+            ("position.center_id 指roles", position, { let d = at(position); with(position, "center_id", json!(format!("roles:{}", d["center_id"].as_str().unwrap()))) }, "端点种类错绑"),
+            ("position.center_revision 超前", position, with(position, "center_revision", json!("999")), "位置中心修订超出当前中心"),
+        ]
+    }
+    struct Current(std::vec::Vec<(Option<String>, Object)>);
+    impl Lookup for Current {
+        fn object(&self, id: &str) -> Option<&Object> {
+            self.0.iter().map(|(_, o)| o).find(|o| o.id.as_str() == id)
+        }
+        fn entity(&self, id: &str) -> Option<&Object> {
+            self.0
+                .iter()
+                .find(|(e, _)| e.as_deref() == Some(id))
+                .map(|(_, o)| o)
+        }
+    }
+    /// 全读入口整体必须拒绝；互指字段两侧任一先报都算拒绝，所以另对被改对象本身核具名错误。
+    #[test]
+    fn full_audit_rejects_each_wrong_entity_field_on_real_payload() {
+        let (mut n, first, second) = cuts();
+        for c in [&first, &second] {
+            for (what, i, d, want) in mutations(&c.rows) {
+                let mut rows = c.rows.clone();
+                rows[i].payload["data"] = d;
+                let got = full(&mut n, &rows).expect_err(what);
+                let mut current = std::vec::Vec::new();
+                for r in &rows {
+                    let o = build(&mut n, r);
+                    let e = entity_id(&mut n, &o).unwrap().map(|e| e.as_str().to_string());
+                    current.push((e, o));
+                }
+                let lookup = Current(current);
+                let own = audit_links(&mut n, &lookup.0[i].1, &lookup).expect_err(what);
+                assert!(own.contains(want), "{what}: 自身 {own}；全读 {got}");
+            }
+        }
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_incremental_accepts_real_cut_and_rejects_wrong_or_withdrawn_endpoints() {
+        let (mut n, first, second) = cuts();
+        let mut withdrawn = 0;
+        for c in [&first, &second] {
+            for (i, row) in c.rows.iter().enumerate() {
+                if !table_kind(&row.kind) {
+                    continue;
+                }
+                let edge = build(&mut n, row);
+                let targets: std::vec::Vec<String> = entity_references(&mut n, &edge)
+                    .unwrap()
+                    .iter()
+                    .map(|t| t.as_str().to_string())
+                    .collect();
+                assert!(!targets.is_empty(), "{} 未登记实体逆依赖", row.kind);
+                for target in targets {
+                    let others: std::vec::Vec<_> = c
+                        .rows
+                        .iter()
+                        .enumerate()
+                        .filter(|(j, _)| *j != i)
+                        .map(|(_, r)| build(&mut n, r))
+                        .collect();
+                    let edge = build(&mut n, row);
+                    super::super::source_contributions::entity_removal_control_for_test(
+                        &mut n, others, edge, &target,
+                    )
+                    .unwrap_or_else(|e| panic!("{} 撤回 {target}：{e}", row.kind));
+                    withdrawn += 1;
+                }
+            }
+            for (what, i, d, want) in mutations(&c.rows) {
+                let mut bad = c.rows[i].clone();
+                bad.payload["data"] = d;
+                let others: std::vec::Vec<_> = c
+                    .rows
+                    .iter()
+                    .enumerate()
+                    .filter(|(j, _)| *j != i)
+                    .map(|(_, r)| build(&mut n, r))
+                    .collect();
+                let edge = build(&mut n, &bad);
+                let got = super::super::source_contributions::entity_removal_control_for_test(
+                    &mut n, others, edge, "segment:0",
+                )
+                .expect_err(what);
+                assert!(got.contains(want), "{what}: {got}");
+            }
+        }
+        assert!(withdrawn > 50, "撤回负控覆盖过少：{withdrawn}");
     }
 }
