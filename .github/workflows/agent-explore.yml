@@ -8,7 +8,7 @@ on:
 
 jobs:
   explore:
-    if: github.event.label.name == 'agent:explore'
+    if: vars.SANDCASTLE_LEGACY_FREEZE != '1' && github.event.label.name == 'agent:explore'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     concurrency:

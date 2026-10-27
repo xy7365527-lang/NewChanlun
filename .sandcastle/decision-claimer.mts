@@ -16,6 +16,7 @@
  * 模型通道：claude -p 经本机统一路由 127.0.0.1:8318；令牌运行时从 CLIProxyLocal config
  * 读取，只进子进程环境变量，不打印、不写日志、不落文件。
  */
+import { DRAIN_ROOT, DrainFrozenError, drainRequested, withLegacyAdmission } from "./drain-control.mts";
 import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -935,6 +936,7 @@ ${draft}`;
 
 export interface Deps {
   mode: Mode;
+  drainRoot?: string;
   /** ADR 编号预留表与锁所在目录；缺省 outRoot。 */
   stateDir?: string;
   gh: GhRunner;
@@ -1142,12 +1144,14 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
 
     // claim 先行防重复；续做时允许票仍挂在自己名下（上次没来得及取消认领）。
     if (d.mode === "live") {
-      const mine = resume && d.me && t.assignees.length === 1 && t.assignees[0] === d.me;
-      if (t.assignees.length > 0 && !mine) throw new Error(`票已被 ${t.assignees.join(",")} 认领`);
-      if (!mine) d.gh(["issue", "edit", String(n), "--add-assignee", "@me"]);
-      claimed = true;
-      const after = loadTicket(d.gh, n).assignees;
-      if (after.length !== 1 || (d.me && after[0] !== d.me)) throw new Error(`claim 竞争：assignees=${after.join(",")}`);
+      await withLegacyAdmission(() => {
+        const mine = resume && d.me && t.assignees.length === 1 && t.assignees[0] === d.me;
+        if (t.assignees.length > 0 && !mine) throw new Error(`票已被 ${t.assignees.join(",")} 认领`);
+        if (!mine) d.gh(["issue", "edit", String(n), "--add-assignee", "@me"]);
+        claimed = true;
+        const after = loadTicket(d.gh, n).assignees;
+        if (after.length !== 1 || (d.me && after[0] !== d.me)) throw new Error(`claim 竞争：assignees=${after.join(",")}`);
+      }, d.drainRoot);
     } else summary.plannedWrites.push(`claim：assign #${n}`);
 
     const persist = () => writeJson(join(dir, "summary.json"), summary);
@@ -1333,6 +1337,12 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
     if (s.phase === "review_parse_error") write(`取消认领 #${n}（审查解析失败，待重跑）`, ["issue", "edit", String(n), "--remove-assignee", "@me"]);
     summary.phase = s.phase === "land_t" || s.phase === "shadow_p" || s.phase === "review_parse_error" ? s.phase : "done";
   } catch (e) {
+    if (e instanceof DrainFrozenError) {
+      skipPersist = true;
+      summary.phase = "skipped";
+      summary.error = e.message;
+      return summary;
+    }
     summary.phase = "error";
     summary.error = e instanceof Error ? e.message : String(e);
     if (claimed) {
@@ -1528,7 +1538,7 @@ async function main() {
   const gh = guardGh(a.mode, realGh);
   const srcDir = join(a.outRoot, ".src");
   const d: Deps = {
-    mode: a.mode, gh, git, model: makeClaudeRunner(), outRoot: a.outRoot, srcDir, repoRoot: REPO_ROOT, now: Date.now,
+    mode: a.mode, drainRoot: DRAIN_ROOT, gh, git, model: makeClaudeRunner(), outRoot: a.outRoot, srcDir, repoRoot: REPO_ROOT, now: Date.now,
     me: a.mode === "live" ? gh(["api", "user", "--jq", ".login"]).trim() : undefined,
   };
   if (a.archaeologyOnly) {
@@ -1536,7 +1546,7 @@ async function main() {
     log(`考古 only：取证检出对齐远端 main ${sha.slice(0, 10)}`);
     for (const n of a.tickets) {
       try {
-        const r = await archaeologyOnly(n, d);
+        const r = await withLegacyAdmission(() => archaeologyOnly(n, d));
         log(`#${n} 考古 A ${r.counts.A} / B ${r.counts.B} / C ${r.counts.C}；机械校验${r.problems.length ? `问题 ${r.problems.length} 条：${r.problems.join("；")}` : "通过"}；${r.dir}/${ARCHAEOLOGY_FILE}`);
       } catch (e) {
         log(`#${n} 考古失败：${e instanceof Error ? e.message : String(e)}`);
@@ -1546,6 +1556,7 @@ async function main() {
     return;
   }
   for (;;) {
+    if (drainRequested()) { log("旧入口冻结，已领工作收尾后退出"); return; }
     try {
       const sha = ensureSrc(REPO_ROOT, srcDir, git);
       log(`取证检出对齐远端 main ${sha.slice(0, 10)}`);
