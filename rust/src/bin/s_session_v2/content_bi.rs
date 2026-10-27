@@ -975,6 +975,82 @@ fn verify_prior_object(
     Ok(PriorRecord { payload, slot })
 }
 
+/// #1565：读上一代一条**已核活动** `CC-004.undetermined_raw` 的原件身份与 `pending_since_cut`。
+///
+/// 与 [`verify_prior_object`] 同一套核验（全闭包 → kind → 事实键 → 六字段身份按本档案/规则修订
+/// 重导），载荷头改核 W 两常量（政策修订、`Undetermined`）。只读 payload，不读生命周期字段；
+/// 任一项不符即拒绝，不降级为取本代 cut（#799）。
+pub(super) fn read_prior_undetermined(
+    store: &mut dyn NodeStore,
+    producer: &Cc004Producer,
+    record: &Built,
+) -> Result<crate::content_producer::PriorUndetermined, BiError> {
+    use crate::content_producer::{PriorUndetermined, CC004_UNDETERMINED_KIND};
+    verify_prior_root(store, record)?;
+    let reference = record.content_ref();
+    let kind = scalar_text(store, &reference, &field_path("kind"))?;
+    if kind != CC004_UNDETERMINED_KIND {
+        return Err(BiError::Prior {
+            what: "kind",
+            detail: format!("上一代记录 kind 实为 `{kind}`，应为 `{CC004_UNDETERMINED_KIND}`"),
+        });
+    }
+    let fact_key = scalar_text(store, &reference, &field_path("fact_key"))?;
+    fact_key_slot(&fact_key, CC004_UNDETERMINED_KIND)?;
+    let payload = resolve(store, &reference, &field_path("payload"))?;
+    let input_refs = resolve(store, &reference, &field_path("input_refs"))?;
+    if payload.kind != Kind::Object || input_refs.kind != Kind::Array {
+        return Err(BiError::Prior {
+            what: "payload/input_refs",
+            detail: "上一代未定原件的载荷不是对象或输入引用不是数组".to_string(),
+        });
+    }
+    let input_refs = built_of(&input_refs)?;
+    let claimed = scalar_text(store, &reference, &field_path("object_id"))?;
+    let derived = producer.typed_object_id(
+        CC004_UNDETERMINED_KIND,
+        &fact_key,
+        &built_of(&payload)?,
+        &input_refs,
+    )?;
+    if claimed != derived {
+        return Err(BiError::Prior {
+            what: "object_id",
+            detail: format!("记录声明 `{claimed}`，按本档案/规则修订重导为 `{derived}`"),
+        });
+    }
+    for (field, expected) in [
+        (
+            "initialization_policy_revision",
+            newchan_rust::theta_v0::parser::inclusion::INITIALIZATION_POLICY,
+        ),
+        ("direction_state", "Undetermined"),
+    ] {
+        let actual = scalar_text(store, &payload, &field_path(field))?;
+        if actual != expected {
+            return Err(BiError::Prior {
+                what: field,
+                detail: format!("未定原件 `{field}` 实为 `{actual}`，应为 `{expected}`"),
+            });
+        }
+    }
+    let pending_since_cut = scalar_text(store, &payload, &field_path("pending_since_cut"))?;
+    let well_formed = pending_since_cut
+        .strip_prefix("cut-")
+        .is_some_and(|n| !n.is_empty() && !n.starts_with('0') && n.bytes().all(|b| b.is_ascii_digit()));
+    if !well_formed {
+        return Err(BiError::Prior {
+            what: "pending_since_cut",
+            detail: format!("未定发生 cut `{pending_since_cut}` 不是 `cut-<正整数>`"),
+        });
+    }
+    Ok(PriorUndetermined {
+        fact_key,
+        input_refs: input_refs.digest,
+        pending_since_cut,
+    })
+}
+
 /// 上一代载荷头四常量：`schema_revision` / `semantic_version` / `policy_version` / `view_role`
 /// 必须逐字等于本域协议指定值（与产出侧 [`payload_value`] 同一条配方）。
 ///

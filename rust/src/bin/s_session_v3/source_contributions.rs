@@ -1323,6 +1323,7 @@ impl NativeSourceState {
     ) -> Result<(), String> {
         // #1405：步骤等待原因按会话规则合同版本化（与全量 source_pending::audit 同口径）。
         let equal_is_evidence = source_pending::equal_is_evidence(self.rule.as_str())?;
+        let w = source_pending::is_w_rule(self.rule.as_str());
         let mut sequence = Tree::default();
         let mut old = Map::default();
         let mut events = Tree::default();
@@ -1453,9 +1454,30 @@ impl NativeSourceState {
             } else {
                 2
             };
+            // #1393 W：步骤来源闭式 raw[..=max(k, e)]，e = 同 cut seed 来源末端（与全量入口同口径）。
+            let target = if w {
+                let first = *self
+                    .raw_order
+                    .first()
+                    .ok_or_else(|| err("raw缺当前CC004步骤"))?;
+                let seed_sources = if first == coord {
+                    &step.data.object.sources
+                } else {
+                    &self
+                        .steps
+                        .get(&first)
+                        .ok_or_else(|| err("raw缺当前CC004步骤"))?
+                        .data
+                        .object
+                        .sources
+                };
+                (*seed_sources.last().ok_or_else(|| err("W seed来源为空"))?).max(coord)
+            } else {
+                coord
+            };
             let prefix_equal = step.data.object.sources.iter().copied().eq(self
                 .raw_order
-                .range(..=coord)
+                .range(..=target)
                 .copied()
                 .inspect(|_| self.work.prefix_members_checked += 1));
             let mut pending = bj::new_work(None);
@@ -1468,6 +1490,7 @@ impl NativeSourceState {
                 &mut seed,
                 &mut unsettled,
                 &mut pending,
+                w,
             )?;
             let boundary_changed = step.seed != seed || step.unsettled != unsettled;
             let waiting = !pending.is_empty();

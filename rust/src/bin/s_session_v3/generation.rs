@@ -91,6 +91,9 @@ pub(super) struct StructurePriors<'a> {
     pub segment_records: &'a [Built],
     pub segment_version: Option<&'a Built>,
     pub ef_records: &'a [Built],
+    /// #1565：上一代已核活动 `CC-004.undetermined_raw` 记录根（与 bi/version 同一口径，只读
+    /// payload 取 `pending_since_cut`）；首代/方向已建立前一代为空。
+    pub w_undetermined: &'a [Built],
 }
 
 /// 生成输入：全部取调用方**同一读集**的真实值；本文不读库、不重排、不补默认。
@@ -958,7 +961,49 @@ impl GenerationRuntime {
         let mut step_requests: CodecVec<Built> = CodecVec::default();
         let mut group_requests: CodecVec<Built> = CodecVec::default();
         let mut all_reasons: CodecVec<&'static str> = CodecVec::default();
-        for index in 0..state.step_count() {
+        // #1393/#1565 W：初始化事实（槽 W）与逐原件未定记录；请求线序在步骤之前（同 v2）。
+        let mut init_requests: CodecVec<Built> = CodecVec::default();
+        {
+            let mut prior_w = Vec::with_capacity(input.structure_prior.w_undetermined.len());
+            for record in input.structure_prior.w_undetermined {
+                prior_w.push(
+                    crate::content_bi::read_prior_undetermined(store, &self.producer, record)
+                        .map_err(|error| format!("GenError：上一代未定原件不可核：{error}"))?,
+                );
+            }
+            let w = self
+                .producer
+                .build_initialization(store, state, &prior_w, gen, cut)
+                .map_err(producer_error)?;
+            extend_gen(&mut init_requests, w.requests, store)?;
+            for object in w.objects {
+                let kind = typed_kind(store, &object)?;
+                let generated = object_records::generated(
+                    store,
+                    object_records::BorrowedObject::Typed(&object),
+                )
+                .map_err(record_error)?;
+                push_gen(
+                    &mut typed,
+                    ProducedObject {
+                        kind,
+                        fact_key: Some(native_text(store, &object.fact_key)?),
+                        object_id: native_text(store, &object.object_id)?,
+                        generated,
+                        body: ObjectBody::Typed(object),
+                    },
+                    store,
+                )?;
+            }
+        }
+        // #1393 W 审查 B2：等待期的 waiting 步由未定原件承担，不发布为 CC-004 步骤；建立方向后
+        // 状态机已从 raw0 重折，步骤序列里不再有 waiting 步。
+        let published_steps = if state.unsettled() {
+            0
+        } else {
+            state.step_count()
+        };
+        for index in 0..published_steps {
             let view = state
                 .shared_step(index)
                 .map_err(|error| format!("GenError：共享步骤证据不可用：{}", error.reason))?
@@ -1012,7 +1057,7 @@ impl GenerationRuntime {
             )?;
             let object = self
                 .producer
-                .build_group_object(store, index, &view, gen, cut)
+                .build_group_object(store, index, &view, state.initial_direction_node(), gen, cut)
                 .map_err(producer_error)?;
             push_gen(
                 &mut group_requests,
@@ -1037,6 +1082,7 @@ impl GenerationRuntime {
             )?;
         }
         let mut requests: CodecVec<Built> = CodecVec::default();
+        extend_gen(&mut requests, init_requests, store)?;
         extend_gen(&mut requests, step_requests, store)?;
         extend_gen(&mut requests, group_requests, store)?;
         for (shape_request, fractal_requests) in &shape_requests {
@@ -2898,6 +2944,7 @@ mod tests {
                 segment_records: &segment_records,
                 segment_version: segment_version.as_ref(),
                 ef_records: &ef_records,
+                ..Default::default()
             },
             ..input
         };

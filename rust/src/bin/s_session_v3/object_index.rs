@@ -2204,6 +2204,8 @@ pub(super) struct StructurePriorRecords {
     segments: sc::CodecVec<Built>,
     segment_version: Option<Built>,
     ef: sc::CodecVec<Built>,
+    /// #1565：上一代已核活动 W 未定原件根（只读 payload 取 `pending_since_cut`）。
+    w_undetermined: sc::CodecVec<Built>,
 }
 impl StructurePriorRecords {
     pub(super) fn borrowed(&self) -> super::generation::StructurePriors<'_> {
@@ -2211,6 +2213,7 @@ impl StructurePriorRecords {
             segment_records: &self.segments,
             segment_version: self.segment_version.as_ref(),
             ef_records: &self.ef,
+            w_undetermined: &self.w_undetermined,
         }
     }
 }
@@ -2222,6 +2225,7 @@ pub(super) fn structure_prior_records(
         segments: sc::CodecVec::default(),
         segment_version: None,
         ef: sc::CodecVec::default(),
+        w_undetermined: sc::CodecVec::default(),
     };
     let mut center_version = false;
     let mut pair_version = false;
@@ -2257,6 +2261,14 @@ pub(super) fn structure_prior_records(
                 }
                 s.native_codec_room(&mut prior.ef, 1).map_err(err)?;
                 prior.ef.try_push(entry.internal.clone()).map_err(err)?;
+            }
+            "CC-004.undetermined_raw" => {
+                s.native_codec_room(&mut prior.w_undetermined, 1)
+                    .map_err(err)?;
+                prior
+                    .w_undetermined
+                    .try_push(entry.internal.clone())
+                    .map_err(err)?;
             }
             "CC-016.center_seed_attempt"
             | "CC-016.center"

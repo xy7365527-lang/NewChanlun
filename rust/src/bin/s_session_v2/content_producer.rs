@@ -53,6 +53,11 @@ pub(super) const CC006_SHAPE_KIND: &str = "CC-006.local_shape";
 pub(super) const CC007_FRACTAL_KIND: &str = "CC-007.fractal_description";
 /// CC-054 知识状态的 kind（与全量配方同名；身份走泛型六字段配方）。
 pub(super) const CC054_KNOWLEDGE_KIND: &str = "CC-054.knowledge_state";
+/// #1393/#1565 W：初始化事实（槽 W）与逐原件未定记录的 kind（与 v2 `tb02a_facts` 同名）。
+pub(super) const CC004_INITIALIZATION_KIND: &str = "CC-004.initialization";
+pub(super) const CC004_UNDETERMINED_KIND: &str = "CC-004.undetermined_raw";
+/// W 等待期唯一的等待原因（与 v2 `tb02a_facts` 同词）。
+pub(super) const INITIAL_UNSETTLED: &str = "initial_direction_unsettled";
 /// 对象发布修订。内容身份不含修订，修订只进记录（与全量配方同值）。
 const OBJECT_REVISION: i64 = 1;
 /// §5.3 的类型化对象身份帧：`F(0x20, V)`。
@@ -1287,6 +1292,8 @@ impl Cc004Producer {
                 "fewer_than_three_merged_bars"
                     | "no_subsequent_bar"
                     | "direction_not_yet_established"
+                    // #1393 W：与 v2 `tb02a_facts::request` 同一词表（等待期的初始化/未定请求）。
+                    | INITIAL_UNSETTLED
             )
         });
         let axes = CValue::Object(vec![
@@ -2496,18 +2503,29 @@ impl Cc004Producer {
             .map_err(|error| ProducerError::Degraded(error.reason))?;
         match view {
             Some(view) => self
-                .build_group_object(store, index, &view, generation, cut)
+                .build_group_object(
+                    store,
+                    index,
+                    &view,
+                    state.initial_direction_node(),
+                    generation,
+                    cut,
+                )
                 .map(Some),
             None => Ok(None),
         }
     }
 
     /// 从借用视图构造 CC-005 组对象（`build_group` 的视图面）。
+    ///
+    /// #1393 W：`initial` = 同次 parser 的初始化证据节点（`IncrFactsState::initial_direction_node`），
+    /// 进组载荷 `initial_direction_evidence`（与 v2 `tb02a_facts::group_payload` 同字段同值）。
     pub(super) fn build_group_object(
         &mut self,
         store: &mut dyn NodeStore,
         index: usize,
         view: &GroupEvidenceView<'_>,
+        initial: Option<&Rc<EvidenceNode>>,
         generation: i64,
         cut: &str,
     ) -> Result<TypedObject, ProducerError> {
@@ -2516,7 +2534,7 @@ impl Cc004Producer {
         // 来源集合与全量配方 `group_sources` 同值：共享链拼接，不展开证据前缀。
         let sources = group_sources_coords(view);
         let fact_key = canonical_json(&json!([CC005_GROUP_KIND, anchor.to_string()]));
-        let payload_value = self.group_payload_value(store, index, view, &reasons)?;
+        let payload_value = self.group_payload_value(store, index, view, initial, &reasons)?;
         let input_refs = self.source_refs_array(&mut *store, &sources)?;
         let source_coords = self.coords_array(&mut *store, &sources)?;
         let mut object = self.typed_object(
@@ -2626,6 +2644,7 @@ impl Cc004Producer {
         store: &mut dyn NodeStore,
         index: usize,
         view: &GroupEvidenceView<'_>,
+        initial: Option<&Rc<EvidenceNode>>,
         reasons: &[&'static str],
     ) -> Result<CValue, ProducerError> {
         // #1405：标签保留在原件里，请求原因仅反映方向未建立。
@@ -2648,7 +2667,19 @@ impl Cc004Producer {
             Some(node) => CValue::String(dir_str(node.direction).to_string()),
             None => CValue::Null,
         };
+        let initial_direction_evidence = match initial {
+            Some(node) => self.evidence_value(&mut *store, node)?,
+            None => CValue::Null,
+        };
         Ok(CValue::Object(vec![
+            (
+                "initialization_policy_revision".to_string(),
+                CValue::String(INITIALIZATION_POLICY.to_string()),
+            ),
+            (
+                "initial_direction_evidence".to_string(),
+                initial_direction_evidence,
+            ),
             ("group_index".to_string(), CValue::String(index.to_string())),
             (
                 "group_anchor".to_string(),

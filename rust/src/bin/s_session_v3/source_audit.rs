@@ -1862,6 +1862,13 @@ fn audit_object_record_with_slots(
         .contains(&kind.as_str())
             && !tb02b::KINDS.contains(&kind.as_str())
             && !source_structure::is_kind(rule, kind.as_str())
+            // #1393/#1565 W：初始化事实与未定原件只在 W 后继串的 cut 里声明（内容由 source_pending 核）。
+            && !(source_pending::is_w_rule(rule)
+                && [
+                    content_producer::CC004_INITIALIZATION_KIND,
+                    content_producer::CC004_UNDETERMINED_KIND,
+                ]
+                .contains(&kind.as_str()))
         {
             return Err(err("未声明typed事实种类"));
         }
