@@ -50,7 +50,6 @@ struct B2FaultObservation {
 thread_local! {
     static B2_SOURCE_FAULT: std::cell::Cell<Option<B2SourceFault>> = const { std::cell::Cell::new(None) };
     static B2_SOURCE_FAULT_OBSERVATION: std::cell::RefCell<Option<B2FaultObservation>> = const { std::cell::RefCell::new(None) };
-    static B2_PRIOR_GROUP: std::cell::RefCell<Option<b2sc::ContentRef>> = const { std::cell::RefCell::new(None) };
 }
 struct B2FaultGuard;
 impl B2FaultGuard {
@@ -264,15 +263,34 @@ fn b2_fault_mutate(
             root = b2_fault_collection(store, &root, "objects", &objects)?;
         }
         B2SourceFault::UnsettledOtherGroup => {
-            // 本 cut 为 W 等待期（无正式组）；把上一已建立 cut 的真实组原样混入。
+            // 本 cut 为 W 等待期（实际生成无正式组）。用本 cut 现行原件构造一个非零正式组混入：
+            // 只引用首个未定原件的现行原始来源、无方向/封口证据，组身份按真实工厂重算；
+            // 使它在来源引用与组成员/来源并集各核上都合法，首错只能是 W 等待期判据。
             assert!(
                 b2_fault_find_kind(store, &objects, B2_GROUP).is_err(),
                 "W等待期实际生成不得有正式组"
             );
-            let prior = B2_PRIOR_GROUP
-                .with(|slot| slot.borrow_mut().take())
-                .ok_or_else(|| b2_fault_error("缺上一 cut 的真实非零组"))?;
-            objects.push(prior);
+            let at = b2_fault_find_kind(store, &objects, "CC-004.undetermined_raw")?;
+            let undetermined = objects[at].clone();
+            let inner = b2_fault_json_inner(store, &undetermined, "payload_json")?;
+            let raw = b2_fault_json(store, &inner)?["raw"].clone();
+            let coord = raw["source_coord"].clone();
+            let payload = json!({"close":raw["close"],"confirmation_evidence":null,"confirmed":false,
+                "direction":"UP","direction_evidence":null,"group_anchor":coord,"group_index":"1",
+                "high":raw["high"],"high_sources":[coord],"initial_direction_evidence":null,
+                "initialization_policy_revision":"raw-initialization-w/1","low":raw["low"],
+                "low_sources":[coord],"members":[coord],"open":raw["open"],"waiting_reasons":[]});
+            let fact_key = json!([B2_GROUP, coord]).to_string();
+            let group = b2_fault_edit_fields(
+                store,
+                &undetermined,
+                vec![
+                    ("kind", Some(b2sc::Value::String(B2_GROUP.into()))),
+                    ("fact_key", Some(b2sc::Value::String(fact_key))),
+                ],
+            )?;
+            let group = b2_fault_replace_json_inner(store, &group, "payload_json", &payload)?;
+            objects.push(b2_fault_reidentify(store, &group)?);
             root = b2_fault_collection(store, &root, "objects", &objects)?;
         }
         B2SourceFault::PartitionBeforeBadWitness => {
@@ -413,26 +431,7 @@ fn b2_source_fault_hook(
     let before_nodes: i64 = tx
         .query_row("SELECT count(*) FROM s_content_nodes", [], |r| r.get(0))
         .map_err(b2_fault_error)?;
-    let prior_group: Option<Vec<u8>> = if matches!(fault, B2SourceFault::UnsettledOtherGroup) {
-        let mut q = tx
-            .prepare("SELECT generated_root FROM s_content_objects WHERE kind=?1 AND first_known_generation<=3 ORDER BY rowid DESC")
-            .map_err(b2_fault_error)?;
-        let rows: Vec<Vec<u8>> = q
-            .query_map([B2_GROUP], |r| r.get(0))
-            .map_err(b2_fault_error)?
-            .collect::<Result<_, _>>()
-            .map_err(b2_fault_error)?;
-        Some(rows.into_iter().next().ok_or_else(|| b2_fault_error("上一已建立 cut 无真实组"))?)
-    } else {
-        None
-    };
     let mut store = crate::content_store::TxStore::new(tx).map_err(b2_fault_error)?;
-    if let Some(digest) = prior_group {
-        let digest: [u8; 32] = digest.try_into().map_err(|_| b2_fault_error("组根不是32字节"))?;
-        let reference = b2sc::path::content_ref_of_native(&mut store, &b2sc::root_string(&digest))
-            .map_err(b2_fault_error)?;
-        B2_PRIOR_GROUP.with(|slot| *slot.borrow_mut() = Some((*reference).clone()));
-    }
     let base = root.clone();
     {
         let mut reader = super::super::history::HashReader::new(&mut store);
@@ -494,13 +493,13 @@ fn b2_run_source_fault(fault: B2SourceFault) {
     let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
     let mut c = context();
     let _guard = B2FaultGuard::enter(fault);
-    // W：a→b 严格上行在第 2 代建立方向（有正式组）；第 4 代把 b 改价为与 a、c 同价，前缀回到等待期。
+    // W：四根同价全程等待期（无正式组）。
     let rows = if matches!(fault, B2SourceFault::UnsettledOtherGroup) {
         [
             ("a", 0, 6, 12, 3, 7, 1),
-            ("b", 10, 8, 16, 6, 12, 1),
+            ("b", 10, 6, 12, 3, 7, 1),
             ("c", 20, 6, 12, 3, 7, 1),
-            ("b", 10, 6, 12, 3, 7, 2),
+            ("d", 30, 6, 12, 3, 7, 1),
         ]
     } else {
         [
