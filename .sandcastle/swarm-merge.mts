@@ -1,8 +1,9 @@
 /** #1617：主控验收清单驱动的归并入口；与自动领票分离，不自动升级验收。 */
 import * as sandcastle from "@ai-hero/sandcastle";
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, mkdirSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, mkdirSync, realpathSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import { runManagedMerge, validateMergeManifest, type MergeManifest, type MergeCheck } from "./managed-merge.mts";
 import { admitMergeInput, appRemoteFacts, type RemoteFactsReader } from "./merge-source.mts";
 import { verifyManagedRust } from "./managed-commit.mts";
@@ -36,6 +37,12 @@ export async function verifyCombination(cwd: string, manifest: MergeManifest, he
   }
 }
 
+/** 准入事实只认完全相同的 run、清单、仓库、工位与验证配置；缺失、损坏或不符都要重新取准入。 */
+function admittedBefore(path: string, fact: unknown): boolean {
+  try { return isDeepStrictEqual(JSON.parse(readFileSync(path, "utf8")), fact); }
+  catch { return false; }
+}
+
 export async function runAcceptedSwarmMerge(manifestPath: string, image: string, logWorker: (e: Record<string, unknown>) => void, options: AcceptedMergeOptions = {}) {
   const repo = realpathSync(options.repo ?? process.cwd());
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as MergeManifest;
@@ -46,16 +53,25 @@ export async function runAcceptedSwarmMerge(manifestPath: string, image: string,
   const cwd = join(repo, ".sandcastle", "worktrees", manifest.branch.replaceAll("/", "-"));
   // 宿主控制目录，不挂进工蜂 worktree，不允许工蜂修改验收输入/恢复记录。
   const evidenceDir = join(repo, ".sandcastle", "logs", "merges", manifest.runId);
+  // #1742 冻结语义：含旧 sandcastle 来源的归并是手工点名的旧入口。首次副作用前在冻结共享锁内落一份准入事实，
+  // 绑定 run、固定清单、仓库、工位与组合验证配置；只有同一事实才能在冻结后续做。目录或检查点存在都不算准入。
+  // 仅含 DeepAgents 来源的清单属于新执行器，不受旧入口冻结约束。
+  const admissionPath = join(evidenceDir, "admission.json");
+  const fact = { v: 1, repo, cwd, checkId: MERGE_CHECK_ID, manifest };
   const start = () => {
     mkdirSync(evidenceDir, { recursive: true });
     if (!existsSync(cwd)) {
       execFileSync("git", ["worktree", "add", "-b", manifest.branch, cwd, manifest.base], { cwd: repo, stdio: "pipe" });
     }
   };
-  // #1742 冻结语义：含旧 sandcastle 来源的新归并是手工点名的旧入口，首个副作用（建归并工位）在准入锁内，冻结后拒绝。
-  // 归并工位已存在即为冻结前已准入的同一 run，续做收尾。仅含 DeepAgents 来源的清单属于新执行器，不受旧入口冻结约束。
-  if (!existsSync(cwd) && manifest.inputs.some(i => i.source === undefined)) await (options.admission ?? withLegacyAdmission)(start);
-  else start();
+  if (manifest.inputs.some(i => i.source === undefined) && !admittedBefore(admissionPath, fact)) {
+    await (options.admission ?? withLegacyAdmission)(() => {
+      mkdirSync(evidenceDir, { recursive: true });
+      writeFileSync(`${admissionPath}.tmp`, JSON.stringify(fact, null, 2) + "\n", { mode: 0o600 });
+      renameSync(`${admissionPath}.tmp`, admissionPath);
+      start();
+    });
+  } else start();
   if (realpathSync(manifestPath).startsWith(realpathSync(cwd) + "/")) throw new Error("验收清单不得位于工蜂 worktree");
   let conflictExecutionReady = false;
   const result = await runManagedMerge({
