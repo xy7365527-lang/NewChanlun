@@ -2086,8 +2086,11 @@ impl SourceClaim {
                 "来源合同项指不到已物理计费的正文块",
             ));
         }
-        let bytes = body
-            .len()
+        Self::on_len(body.len())
+    }
+
+    fn on_len(len: usize) -> Result<Self, CodecError> {
+        let bytes = len
             .checked_add(97)
             .ok_or_else(|| CodecError::new(code::SOURCE, "来源合同额溢出"))?;
         Ok(Self { bytes })
@@ -3942,26 +3945,15 @@ impl AuditCapture {
     ) -> Result<Vec<SourceClaimEntry>, CodecError> {
         let unbacked = || CodecError::new(code::SOURCE, "来源合同项指不到已物理计费的正文块");
         let mut out = Vec::new();
-        if let CaptureNodes::Native(native) = &self.nodes {
-            for (node, claim) in native
-                .nodes
-                .values()
-                .filter_map(|node| node.source_claim.as_ref().map(|claim| (node, claim)))
-            {
-                let backed = SourceClaim::on_body(&node.body)?;
-                if backed.bytes != claim.bytes {
-                    return Err(CodecError::scratch(
-                        capture_allocation::scratch::ScratchFailure::Ledger,
-                    ));
-                }
-                let (backing, _) = node.body.native_permit_entry().ok_or_else(unbacked)?;
-                out.push(SourceClaimEntry {
-                    amount: claim.bytes,
-                    backing,
-                    site: CapturePermitRole::NodeBody,
-                });
-            }
-        }
+        self.visit_node_source_claims(|node, bytes| {
+            let (backing, _) = node.body.native_permit_entry().ok_or_else(unbacked)?;
+            out.push(SourceClaimEntry {
+                amount: bytes,
+                backing,
+                site: CapturePermitRole::NodeBody,
+            });
+            Ok(())
+        })?;
         if let Some(fees) = &self.original_fees {
             for (_, permit, claim) in fees.bodies.iter() {
                 if let Some(amount) = claim {
@@ -4021,31 +4013,46 @@ impl AuditCapture {
         Ok(out)
     }
 
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn visit_node_source_claims(
+        &self,
+        mut visit: impl FnMut(&NativeNode, usize) -> Result<(), CodecError>,
+    ) -> Result<(), CodecError> {
+        let CaptureNodes::Native(native) = &self.nodes else {
+            return Ok(());
+        };
+        for (node, claim) in native
+            .nodes
+            .values()
+            .filter_map(|node| node.source_claim.as_ref().map(|claim| (node, claim)))
+        {
+            let backed = SourceClaim::on_body(&node.body)?;
+            if backed.bytes != claim.bytes {
+                return Err(CodecError::scratch(
+                    capture_allocation::scratch::ScratchFailure::Ledger,
+                ));
+            }
+            visit(node, claim.bytes)?;
+        }
+        Ok(())
+    }
+
     /// #1488 P2-A：逐节点复核来源合同项——每项须指到同节点已物理计费（Native绑定）的正文块，
     /// 且合同额=正文+97；指不到即拒。返回（合同项数，合同额和）；无项的节点不计。
     #[cfg(feature = "s_capture_native_testonly")]
     #[doc(hidden)]
     pub fn native_source_claims_for_testonly(&self) -> Result<(usize, usize), CodecError> {
-        let CaptureNodes::Native(native) = &self.nodes else {
-            return Ok((0, 0));
-        };
-        native
-            .nodes
-            .values()
-            .filter_map(|node| node.source_claim.as_ref().map(|claim| (node, claim)))
-            .try_fold((0usize, 0usize), |(count, sum), (node, claim)| {
-                let backed = SourceClaim::on_body(&node.body)?;
-                if backed.bytes != claim.bytes {
-                    return Err(CodecError::scratch(
-                        capture_allocation::scratch::ScratchFailure::Ledger,
-                    ));
-                }
-                Ok((
-                    count + 1,
-                    sum.checked_add(claim.bytes)
-                        .ok_or_else(|| CodecError::new(code::SOURCE, "来源合同额溢出"))?,
-                ))
-            })
+        let mut acc = (0usize, 0usize);
+        self.visit_node_source_claims(|_, bytes| {
+            acc = (
+                acc.0 + 1,
+                acc.1
+                    .checked_add(bytes)
+                    .ok_or_else(|| CodecError::new(code::SOURCE, "来源合同额溢出"))?,
+            );
+            Ok(())
+        })?;
+        Ok(acc)
     }
     /// #1488 P3-β：正文块已物理计费（Native绑定）的节点数；与合同项数对拍，漏签claim即可检出。
     #[cfg(feature = "s_capture_native_testonly")]

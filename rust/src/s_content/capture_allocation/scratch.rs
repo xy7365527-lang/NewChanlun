@@ -31,7 +31,7 @@ pub enum ScratchCharge {
 pub struct PermitId(usize);
 impl PermitId {
     #[doc(hidden)]
-    pub fn of<T>(holder: &T) -> Self {
+    pub(crate) fn of<T>(holder: &T) -> Self {
         Self(holder as *const T as usize)
     }
 }
@@ -67,6 +67,16 @@ impl NativeReservation {
     #[doc(hidden)]
     pub fn permit_id(&self) -> PermitId {
         PermitId::of(self)
+    }
+    #[cfg(any(test, feature = "s_capture_native_testonly"))]
+    #[doc(hidden)]
+    pub fn ledger_id(&self) -> usize {
+        Arc::as_ptr(&self.parent) as *const () as usize
+    }
+    #[cfg(any(test, feature = "s_capture_native_testonly"))]
+    #[doc(hidden)]
+    pub fn origin(&self) -> u64 {
+        self.origin
     }
 
     /// 只核父账身份；有效操作域仍由本次reserve_native检查。
@@ -413,6 +423,16 @@ impl CodecWork {
             .pad_to_align()
             .size()
     }
+    #[cfg(any(test, feature = "s_capture_native_testonly"))]
+    #[doc(hidden)]
+    pub fn ledger_id(&self) -> usize {
+        Arc::as_ptr(&self.handle.core().parent) as *const () as usize
+    }
+    #[cfg(any(test, feature = "s_capture_native_testonly"))]
+    #[doc(hidden)]
+    pub fn current_origin(&self) -> u64 {
+        self.handle.core().origin
+    }
     pub fn new(parent: Arc<dyn ScratchParent>, limit: usize) -> Result<Self, ScratchFailure> {
         let origin = parent.origin();
         Self::new_in_origin(parent, limit, origin)
@@ -474,6 +494,16 @@ impl Drop for CodecWork {
     }
 }
 impl WorkScope {
+    #[cfg(any(test, feature = "s_capture_native_testonly"))]
+    #[doc(hidden)]
+    pub fn ledger_id(&self) -> usize {
+        Arc::as_ptr(&self.handle.core().parent) as *const () as usize
+    }
+    #[cfg(any(test, feature = "s_capture_native_testonly"))]
+    #[doc(hidden)]
+    pub fn current_origin(&self) -> u64 {
+        self.handle.core().origin
+    }
     /// #1488：无增长/替换也先核当前域；不预留零字节、不改变账本观察值。
     pub fn check_current(&self) -> Result<(), CodecError> {
         self.handle.check_write()
