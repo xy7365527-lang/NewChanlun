@@ -92,6 +92,7 @@ test("SDK bypass 被精确收紧，prompt 不进入 argv，模型、推理档与
       `model_providers.cliproxy-local.requires_openai_auth=true`,
       `model_providers.cliproxy-local.env_key="CLIPROXY_LOCAL_KEY"`,
     ]) assert.ok(command.command.includes(` -c '${override}'`), override);
+    for (const flag of [`features.apps=false`, `features.plugins=false`]) assert.ok(command.command.includes(` -c '${flag}'`), flag);
     assert.ok(command.command.endsWith(" --disable multi_agent -"));
     assert.ok(!/(^|[\s'"])(mf|yd)\//.test(command.command));
     assert.ok(!/dangerously|danger-full-access|merge-to-head|prime-agent|touch/.test(command.command));
