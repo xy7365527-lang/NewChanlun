@@ -1,7 +1,10 @@
 """隔离 Studio 实测夹具：在官方 Agent Server 里挂一个明确的测试 run。
 
-GitHub 是进程内 FakeGitHub，工蜂是 fake_codex_child，模型是脚本替身，签批信任未安装。图工厂、自定义
-checkpointer、HTTP 收窄面与 run 锁都是生产代码。只由 langgraph.live-fixture.json 加载。
+GitHub 是进程内 FakeGitHub，工蜂是 fake_codex_child，模型是脚本替身，签批读本机已装的信任配置（未装时为
+not_configured）。图工厂、自定义 checkpointer、HTTP 收窄面与 run 锁都是生产代码。只由 langgraph.live-fixture.json 加载。
+
+PILOT1742_LIVE_GITHUB_DELAY 设为秒数时，Studio 执行期间替身 GitHub 的每个请求先等这么久，让网页上的取消按钮
+在 run 进行中可点。只作用于夹具的替身传输，CLI 首跑与生产代码时序不变。
 """
 
 from __future__ import annotations
@@ -10,6 +13,7 @@ import os
 import sqlite3
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -40,6 +44,15 @@ def _start_like_cli() -> None:
 
 
 _start_like_cli()
+_DELAY = float(os.environ.get("PILOT1742_LIVE_GITHUB_DELAY", "0"))
+if _DELAY > 0:
+    _fake = ENV.github
+
+    def _slow_github(request):
+        time.sleep(_DELAY)
+        return _fake(request)
+
+    ENV.github = _slow_github
 os.environ["PILOT1742_STATE_ROOT"] = str(ENV.home)
 os.environ["PILOT1742_STUDIO_RUNS"] = UNIT.run_id
 studio.OPEN_BOUND = lambda run_id: ENV.run(ENV.load(run_id))
