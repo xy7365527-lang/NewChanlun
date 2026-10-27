@@ -38,10 +38,20 @@ fn run_normal(scenario: &'static str, rows: [Row; 4]) {
                     && object.life.withdrawn_generation.is_none()
             })
             .count();
-        let expected_groups = match scenario {
-            "较早坐标修订" if step == 2 || step == 3 => 2,
-            "正常首来源修订使未定后缀重新完成映射" if step == 4 => 3,
-            _ => 1,
+        // #1393 W（raw-initialization-w/1，S3 写者唯一规则）：等待期零正式组；首个相邻严格非包含对
+        // 出现时从 raw0 按其方向重折（逐例手算，(high,low) 按 source_coord 序）：
+        // - 同 OHLC 三根互含，第 4 根 (17,6) 对 (12,3) 严格向上 ⟹ 第 4 步重折为 2 组；
+        // - 较早修订：(12,3)→(16,6) 严格向上 2 组；a 改 (13,4) 仍严格向上 2 组；a 改 (17,6) 包含 b ⟹ 回到等待期；
+        // - 首来源修订：a=b 互含；c (17,6) 严格向上 ⟹ 2 组；a 改 (9,1) 后 a→b 严格向上 ⟹ 3 组；
+        // - 后根包含初始根：b (14,2) 包含 a；c (16,4) 对 b 严格向上 ⟹ UP 重折 {a,b},{c} 2 组；d 再一组 3 组。
+        let expected_groups = match (scenario, step) {
+            ("乱序新身份且前三根同OHLC" | "顺序新身份且前三根同OHLC", 4) => 2,
+            ("较早坐标修订", 2 | 3) => 2,
+            ("正常首来源修订使未定后缀重新完成映射", 3) => 2,
+            ("正常首来源修订使未定后缀重新完成映射", 4) => 3,
+            ("正常后根包含初始根且后继保持未定", 3) => 2,
+            ("正常后根包含初始根且后继保持未定", 4) => 3,
+            _ => 0,
         };
         assert_eq!(
             live_groups, expected_groups,
