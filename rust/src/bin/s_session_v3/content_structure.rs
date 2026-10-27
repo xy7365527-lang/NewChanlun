@@ -1326,8 +1326,13 @@ fn vec_fields(value: CV) -> Result<Vec<(Text, CV)>, String> {
         _ => Err("内部字段非对象".into()),
     }
 }
+/// 值边（如 roles 子树）直接比摘要；编码层不允许把既有边写成根。
 fn root_eq(old: &Built, key: &str, new: CV, nodes: &mut dyn NodeStore) -> Result<bool, String> {
-    Ok(field(nodes, old, key)?.digest == put(&(new), nodes)?.digest)
+    let old = field(nodes, old, key)?.digest;
+    Ok(match new {
+        CV::Edge(digest) => old == digest,
+        new => old == put(&new, nodes)?.digest,
+    })
 }
 fn revision_of(nodes: &mut dyn NodeStore, old: Option<&Built>) -> Result<i64, String> {
     match old {
