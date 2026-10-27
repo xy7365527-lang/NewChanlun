@@ -1,5 +1,5 @@
 > 正本：本文件是生产入口清单与唯一正式 launcher 的正本。
-> 最后裁定：#1530（2026-10-20）
+> 最后裁定：#1530（2026-10-20）；修订：#1523（2026-10-28，见文末「修订」节）
 > 受影响代码清单：见「二、生产入口完整清单」节
 
 ## 问题
@@ -473,3 +473,16 @@ ADR 0039 的编号按 main 顺序分配：落地时取 `docs/adr/` 现有最大�
 | #1527 票面 :24（范围第 1 项） | `gh issue view 1527 --json body --jq .body \| grep -n '精确的 producer 入口路径'` | :24「精确的 producer 入口路径（文件:行号）」 |
 | lib.rs:2811-2832 导出标识符 | `sed -n 2811,2832p rust/src/lib.rs` | 2811 `PyOrganicTape`；2812 `run_organic_rust`；2813 `run_recursive_rust`；2814 `run_positional_rust`；2815 `PyUnnStream`；2817 `PySpiralStream`；2818 `run_spiral`；2820 `PyFugueV3Stream`；2821 `run_fugue_v3`；2823 `run_recursive_t`；2829 `PyTFugueStream`；2832 `PyRecStream`（后三项均带 `#[cfg(not(test))]`） |
 | #1383/#1401/#1365 边（第二次修订后） | `gh api graphql` 查 blockedBy/blocking | 1383 blockedBy=1523,1351,1362、blocking=1401；1401 blocking=空；1365 blockedBy 不含 1383；1523 blocking=1383,1527,1525 |
+
+## 修订（#1523，汇总回环与来源边界，2026-10-28）
+
+（append-only：裁定一至七原文不改，本节为现行修订。依据 #1523 P 类裁定稿 28G，用户 2026-10-28 批复，异家族独审 28E、28H PASS；草稿、考古与审查原件在 `/Volumes/AgentStorage/decisions/1523/`。）
+
+**原因**：原「受影响票与 blocking 边变化」节的无环论证只看原生 blocked_by。#1362、#1365、#1366 的 AC 第一条都要求全部内部子片交付，汇总票关闭须等每张 open 子票。把这种等待计为边后，实图有一个 29 票的强连通分量，经 #1383、#1524、#1525 三处回到 TB 链。本修订把三者改为等待 #1523 下的两张组件叶，#1523 保留全部原义务。
+
+1. **无环论证补记汇总边。** 原「新增（已实接，2026-10-20）#1523 → #1383」一条的「不成环」论证，在计入「#1365 汇总等 #1383」后不成立。本修订把 #1383 的前置由 #1523 改接到组件叶 [#1769](https://github.com/xy7365527-lang/NewChanlun/issues/1769)（C-L，launcher 与 X 骨架）；#1525 改等 [#1770](https://github.com/xy7365527-lang/NewChanlun/issues/1770)（C-API）、#1422、#1425；#1524 改等 #1769 与 #1366，父票由 #1362 改为 #1382。改后对全图（计入汇总隐式边）跑 Tarjan SCC，结果为空。
+2. **验收 A8 改写。** 原 A8 在本修订前成立，现改为：`gh api repos/xy7365527-lang/NewChanlun/issues/1383/dependencies/blocked_by --jq 'map(.number)|contains([1769,1530])'` 输出 `true`。
+3. **B10、B11 的验收票**写作「#1523（经子票 #1769）」。B12、B13 不变，仍归 #1383，测试写在 `production_session_entry`，运行对象是 #1769 交付的两个二进制。
+4. **「原始输入来源」只指 S 的结构源声明**（裁定三·2）。取值受 ADR 0020 重写的裁定二与 ADR 0023 个股线约束，只能是个股线美股 tick 或显式 TestOnly 结构输入。场所执行行情（HL 永续成交与 bar）只出现在 X 的「adapter 选择」下，不进 `S.AcceptInput`。本条是澄清，不改任何裁定。
+5. **A4 写权闭包列表**在 #1770 合入时加入其 HL adapter 源文件路径，作为 X 内唯一合法的场所写代码；原 10 个旧文件不变。在 #1770 合入前，A4 命令按原列表执行。
+6. **实时漂移记录。** 原节记 #1523 阻塞 #1383、#1525、#1527。本修订落地后读数为：#1523 阻塞 #1413、#1675；#1769 阻塞 #1383、#1524、#1770；#1770 阻塞 #1525；#1527 不再被 #1523 阻塞（该边已移到 #1675）。#1523 的 blocked_by 保持 #1362、#1363、#1365、#1366。
