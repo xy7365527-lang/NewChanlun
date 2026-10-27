@@ -1459,7 +1459,14 @@ fn handle_with_deadline(
             "BindVoice" if config.domain.starts_with("B:") => {
                 bind_voice(c, config, epoch, e, ingress_response_deadline)
             }
-            super::domain_event::WITHDRAW_OP => super::domain_event::withdraw(c, config, epoch, e),
+            // #1778：只对已选择 `domain-event-withdrawal/1`、且 init 已绑定的域分派（audit 核绑定）。
+            super::domain_event::WITHDRAW_OP => {
+                if super::domain_event::withdrawal_bound(config)? {
+                    super::domain_event::withdraw(c, config, epoch, e)
+                } else {
+                    Err("InvalidDomain：本域未选择撤回子合同 domain-event-withdrawal/1".into())
+                }
+            }
             "ReadView"
             | "Watch"
             | "QueryFact"

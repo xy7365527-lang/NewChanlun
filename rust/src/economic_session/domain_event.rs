@@ -1,6 +1,7 @@
 //! #1768 TB-07-E：B/E 持久事件的 `domain-event/1` 外壳投影与 snapshot/delta 读口（ADR 0051 裁定一/四）。
 //!
-//! 只读投影：不新增表、不新增 wire op、不改既有字段名，也不改 `fact_key` 构成（book.rs:92-99）。
+//! 外壳是只读投影：不新增表、不改既有字段名，也不改 `fact_key` 构成（book.rs:92-99）。
+//! 唯一的写口是持久撤回，属并列子合同 `domain-event-withdrawal/1`（#1778，见 `WITHDRAW_OP`）。
 //! 外壳从 commits 根链、图像 history、`book.phase.events` 与永久回执逐条导出；
 //! 状态载体是根链加 transition，外壳本身从不内联前后完整图像。
 use super::book::hash;
@@ -507,8 +508,38 @@ pub(super) fn append_withdrawal(log: &[Value], w: &Value) -> Result<Vec<Value>, 
 
 /// 持久撤回的 wire op 与永久回执类型（ADR 0051 裁定三/五）：撤回是一次追加提交，
 /// history 追加一条撤回条目，旧提交、旧事件、旧物化行一律不动；权限照例须 manifest 显式授予。
+///
+/// #1778：写口与回执属并列子合同 `domain-event-withdrawal/1`，不属 `economic-session/1`、`/2`：
+/// manifest 顶层 `domain_event_withdrawal` 显式选择，作用于该会话全部 E 与 Bᵢ（同 `book_revision`），
+/// 各域 init 绑定 meta、audit/recover 核对；未选择的域不认识本 op，持久图像出现撤回即域损坏。
 pub(super) const WITHDRAW_OP: &str = "WithdrawDomainEvent";
 pub(super) const WITHDRAW_RECEIPT: &str = "DomainEventWithdrawn";
+pub(super) const WITHDRAWAL_CONTRACT_FIELD: &str = "domain_event_withdrawal";
+pub(super) const WITHDRAWAL_CONTRACT_REVISION: &str = "domain-event-withdrawal/1";
+pub(super) const WITHDRAWAL_META_KEY: &str = "domain_event_withdrawal_revision";
+
+/// 子合同选择子：缺省或 null 即未选择；只认 exact `{"schema_revision":"domain-event-withdrawal/1"}`。
+pub(super) fn withdrawal_selected(manifest: &Value) -> Result<bool, String> {
+    let section = match manifest.get(WITHDRAWAL_CONTRACT_FIELD) {
+        None | Some(Value::Null) => return Ok(false),
+        Some(section) => section,
+    };
+    if section.as_object().map(|o| o.len()) != Some(1)
+        || section["schema_revision"] != WITHDRAWAL_CONTRACT_REVISION
+    {
+        return Err("SchemaUnsupported：撤回子合同只认 domain-event-withdrawal/1".into());
+    }
+    Ok(true)
+}
+
+/// init 绑定、audit/recover 核对的持久子合同版本：选择后 E 与每个 Bᵢ 都有此 meta 行（不按域过滤）。
+/// audit 先核 meta 与本值相等，故审计与写路径里「已选择」即「本域已在 init 绑定」。
+pub(super) fn withdrawal_bound_revision(config: &Config) -> Result<Option<&'static str>, String> {
+    Ok(withdrawal_selected(&config.manifest)?.then_some(WITHDRAWAL_CONTRACT_REVISION))
+}
+pub(super) fn withdrawal_bound(config: &Config) -> Result<bool, String> {
+    Ok(withdrawal_bound_revision(config)?.is_some())
+}
 const WITHDRAW_FIELDS: [&str; 5] = [
     "op",
     "target",

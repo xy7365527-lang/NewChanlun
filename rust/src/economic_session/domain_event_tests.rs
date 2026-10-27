@@ -31,6 +31,7 @@ fn manifest(space: &Space, steps: usize) -> Value {
         clock(format!("late-wd-{i}"), 300_000 + offset);
     }
     json!({"schema_revision":"economic-manifest/1","session_id":SESSION,"session_generation":"1","book_revision":"tb03c-book/1",
+        "domain_event_withdrawal":{"schema_revision":"domain-event-withdrawal/1"},
         "e":{"db":space.0.join("e.db"),"socket":space.0.join("e.sock")},
         "chongs":[{"chong_id":"chong-L1","symbol":"TEST-L1","operation_level":"1","fixed_q":"10","db":space.0.join("b.db"),"socket":space.0.join("b.sock")}],
         "authorized_sources":[{"source_namespace":"testonly-tb1406","source_epoch":"fixture-epoch-1","producer_id":SESSION,"producer_epoch":"1","operations":["CaptureExternal","ApplyAllocation","ReadView","QueryAllocation","WithdrawDomainEvent"]}],
@@ -856,4 +857,367 @@ fn event_id_fact_key_command_id_bitwise_equal_across_process_and_time() {
     let mutant = |run: &Value, k: &str| canonical_json(&json!([run["ids"], run[k]]));
     assert_ne!(mutant(&first, "pid"), mutant(&second, "pid"));
     assert_ne!(mutant(&first, "at_ns"), mutant(&second, "at_ns"));
+}
+
+// ---- #1778：并列子合同 `domain-event-withdrawal/1` 的选择、绑定、审计与旧域不扩义 ----
+
+const WITHDRAWAL_META: &str = "SELECT v FROM meta WHERE k='domain_event_withdrawal_revision'";
+
+/// 本票夹具的变体：`selected=false` 去掉顶层选择子（`keep_op` 决定来源是否仍授予撤回 op）；
+/// `two_chongs` 再加一个 Bᵢ，使「E 与每个 Bᵢ」可逐一验证。
+fn variant(space: &Space, selected: bool, keep_op: bool, two_chongs: bool) -> Value {
+    let mut m = manifest(space, 3);
+    if !selected {
+        m.as_object_mut().unwrap().remove("domain_event_withdrawal");
+    }
+    if !keep_op {
+        m["authorized_sources"][0]["operations"]
+            .as_array_mut()
+            .unwrap()
+            .retain(|op| op != "WithdrawDomainEvent");
+    }
+    if two_chongs {
+        m["chongs"].as_array_mut().unwrap().push(
+            json!({"chong_id":"chong-L2","symbol":"TEST-L2","operation_level":"1","fixed_q":"10",
+            "db":space.0.join("b2.db"),"socket":space.0.join("b2.sock")}),
+        );
+    }
+    m
+}
+fn save_manifest(space: &Space, name: &str, m: &Value) -> std::path::PathBuf {
+    let path = space.0.join(name);
+    std::fs::write(&path, canonical_json(m)).unwrap();
+    path
+}
+/// E 与每个 Bᵢ 的 (chong, db) 列表。
+fn all_domains(space: &Space, two_chongs: bool) -> Vec<(Option<&'static str>, std::path::PathBuf)> {
+    let mut v = vec![
+        (None, space.0.join("e.db")),
+        (Some("chong-L1"), space.0.join("b.db")),
+    ];
+    if two_chongs {
+        v.push((Some("chong-L2"), space.0.join("b2.db")));
+    }
+    v
+}
+fn load_all(
+    space: &Space,
+    path: &std::path::Path,
+    two_chongs: bool,
+) -> Vec<Result<store::Config, String>> {
+    all_domains(space, two_chongs)
+        .into_iter()
+        .map(|(chong, db)| store::Config::load(path, &db, chong))
+        .collect()
+}
+fn meta_of(cfg: &store::Config) -> Option<String> {
+    let (c, _) = store::open(&cfg.db, true).unwrap();
+    use rusqlite::OptionalExtension;
+    c.query_row(WITHDRAWAL_META, [], |r| r.get(0))
+        .optional()
+        .unwrap()
+}
+
+#[test]
+fn domain_event_withdrawal_op_unknown_without_selection() {
+    let space = Space::new("1778-unknown");
+    // 来源授予撤回 op 而未选择子合同：E 与每个 Bᵢ 加载即拒，与 `/1` 封闭集合逐字一致。
+    for (name, m) in [
+        ("absent.json", variant(&space, false, true, true)),
+        ("null.json", {
+            let mut m = variant(&space, false, true, true);
+            m["domain_event_withdrawal"] = Value::Null;
+            m
+        }),
+    ] {
+        let path = save_manifest(&space, name, &m);
+        for r in load_all(&space, &path, true) {
+            let refusal = r.err().expect("未选择子合同却认识撤回 op");
+            assert!(
+                refusal.starts_with("InvalidDomain：操作权限未知或重复"),
+                "{name}: {refusal}"
+            );
+        }
+    }
+    // 选择后 E 与每个 Bᵢ 都加载成功。
+    let path = save_manifest(&space, "selected.json", &variant(&space, true, true, true));
+    for r in load_all(&space, &path, true) {
+        r.unwrap();
+    }
+    // 版本串与形状只认 exact `{"schema_revision":"domain-event-withdrawal/1"}`。
+    for (n, section) in [
+        json!({"schema_revision":"domain-event-withdrawal/2"}),
+        json!({"schema_revision":"domain-event-withdrawal/1","extra":"1"}),
+        json!({}),
+        json!("domain-event-withdrawal/1"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut m = variant(&space, true, true, true);
+        m["domain_event_withdrawal"] = section;
+        let path = save_manifest(&space, &format!("bad-{n}.json"), &m);
+        for r in load_all(&space, &path, true) {
+            let refusal = r.err().unwrap();
+            assert!(refusal.starts_with("SchemaUnsupported"), "{n}: {refusal}");
+        }
+    }
+}
+
+#[test]
+fn domain_event_withdrawal_selection_binds_e_and_every_b() {
+    for selected in [true, false] {
+        let space = Space::new(if selected {
+            "1778-bind-on"
+        } else {
+            "1778-bind-off"
+        });
+        let path = save_manifest(
+            &space,
+            "manifest.json",
+            &variant(&space, selected, selected, true),
+        );
+        let configs: Vec<store::Config> = load_all(&space, &path, true)
+            .into_iter()
+            .map(Result::unwrap)
+            .collect();
+        for cfg in &configs {
+            store::init(cfg).unwrap();
+            assert_eq!(
+                meta_of(cfg).as_deref(),
+                selected.then_some("domain-event-withdrawal/1"),
+                "{}",
+                cfg.domain
+            );
+            let (c, _) = store::open(&cfg.db, true).unwrap();
+            store::audit(&c, cfg).unwrap();
+        }
+        assert_eq!(configs.len(), 3, "E、B:chong-L1、B:chong-L2 都要验");
+    }
+}
+
+#[test]
+fn domain_event_withdrawal_recover_without_init_binding_is_identity_conflict() {
+    let rebind = |cfg: &store::Config, sql: &str| {
+        let (c, _) = store::open(&cfg.db, false).unwrap();
+        c.execute_batch(sql).unwrap();
+    };
+    // 已选择：E 与 B 各删 meta / 改值后 recover 报 IdentityConflict；恢复原行后照常。
+    let space = Space::new("1778-recover-selected");
+    let d = setup(&space, 3);
+    step(&d, 0, "", 1);
+    for cfg in [&d.ec, &d.bc] {
+        for tamper in [
+            "DELETE FROM meta WHERE k='domain_event_withdrawal_revision'",
+            "UPDATE meta SET v='domain-event-withdrawal/0' WHERE k='domain_event_withdrawal_revision'",
+        ] {
+            rebind(cfg, tamper);
+            let refusal = store::recover(cfg).unwrap_err();
+            assert!(
+                refusal.starts_with("IdentityConflict：撤回子合同版本未由 init 显式绑定"),
+                "{}: {refusal}",
+                cfg.domain
+            );
+            rebind(cfg, "INSERT OR REPLACE INTO meta VALUES('domain_event_withdrawal_revision','domain-event-withdrawal/1')");
+        }
+    }
+    store::recover(&d.ec).unwrap();
+    store::recover(&d.bc).unwrap();
+    // 未选择：E 与 B 手工补写 meta 同样 IdentityConflict——未在 init 绑定的域不得补绑。
+    let space = Space::new("1778-recover-unselected");
+    let path = save_manifest(
+        &space,
+        "manifest.json",
+        &variant(&space, false, false, false),
+    );
+    for cfg in load_all(&space, &path, false)
+        .into_iter()
+        .map(Result::unwrap)
+    {
+        store::init(&cfg).unwrap();
+        rebind(&cfg, "INSERT INTO meta VALUES('domain_event_withdrawal_revision','domain-event-withdrawal/1')");
+        let refusal = store::recover(&cfg).unwrap_err();
+        assert!(
+            refusal.starts_with("IdentityConflict：撤回子合同版本未由 init 显式绑定"),
+            "{}: {refusal}",
+            cfg.domain
+        );
+    }
+}
+
+#[test]
+fn domain_event_withdrawal_entry_in_unbound_domain_is_storage_unavailable() {
+    // 未选择子合同的会话：B 做两步业务提交；图像中注入撤回条目或回执即域损坏。
+    let space = Space::new("1778-unbound");
+    let path = save_manifest(
+        &space,
+        "manifest.json",
+        &variant(&space, false, false, false),
+    );
+    let ec = store::Config::load(&path, &space.0.join("e.db"), None).unwrap();
+    let bc = store::Config::load(&path, &space.0.join("b.db"), Some("chong-L1")).unwrap();
+    store::init(&ec).unwrap();
+    store::init(&bc).unwrap();
+    let raw = raw_named("raw/chong-L1.json");
+    let d = Domains {
+        ec,
+        bc,
+        raw,
+        doc: serde_json::from_str(raw).unwrap(),
+    };
+    step(&d, 0, "", 1);
+    step(&d, 1, "", 1);
+    let target = events(&d.bc)[0]["event_id"].clone();
+    {
+        let (c, _) = store::open(&d.bc.db, true).unwrap();
+        store::audit(&c, &d.bc).unwrap();
+    }
+    // 写口本身：未选择的域收到撤回请求，来源权限闸与分派都不放行。
+    let r = send(
+        &d.bc,
+        1,
+        envelope("wd-0", withdraw_payload(&target, "x", Value::Null)),
+    );
+    assert!(
+        r["error"].as_str().unwrap().starts_with("InvalidDomain"),
+        "{r}"
+    );
+
+    // (a) 注入一条按 withdrawal_image 判据构造、根链完全正确的撤回提交。
+    {
+        let (mut c, _) = store::open(&d.bc.db, false).unwrap();
+        let tx = c.transaction().unwrap();
+        let (seq, root, ns, image) = store::latest(&tx).unwrap();
+        let next_seq = seq + 1;
+        let next_ns = (ns.parse::<i64>().unwrap() + 1).to_string();
+        let entry = json!({"kind":"WithdrawDomainEvent","target":target,"withdrawn_generation":"1",
+            "withdrawal_reason":"x","superseded_by":null,
+            "origin_message":{"source_namespace":"testonly-tb1406","source_epoch":"fixture-epoch-1","message_id":"wd-0","payload_hash":"0"},
+            "commit_seq":next_seq.to_string(),"commit_ns":next_ns});
+        let next = de::withdrawal_image(&d.bc, &image, &entry).unwrap();
+        store::append(&tx, &d.bc, next_seq, &root, &next_ns, &next).unwrap();
+        let error = store::audit(&tx, &d.bc).unwrap_err();
+        assert!(
+            error.starts_with("StorageUnavailable：域损坏：未绑定撤回子合同的域含撤回条目"),
+            "{error}"
+        );
+        // 不 commit：回滚注入。
+    }
+    {
+        let (c, _) = store::open(&d.bc.db, true).unwrap();
+        store::audit(&c, &d.bc).unwrap();
+    }
+    // (b) 注入一条撤回回执（替换既有一条回执的内容，回执数不变）。
+    {
+        let (mut c, _) = store::open(&d.bc.db, false).unwrap();
+        let tx = c.transaction().unwrap();
+        let k: String = tx
+            .query_row("SELECT k FROM receipts ORDER BY k LIMIT 1", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        let fake = json!({"kind":"DomainEventWithdrawn","domain_id":d.bc.domain,"target":target,
+            "withdrawn_generation":"1","withdrawal_reason":"x","superseded_by":null,"commit_ns":"1",
+            "cut":cut_at(&d.bc, 1)});
+        tx.execute(
+            "UPDATE receipts SET json=? WHERE k=?",
+            rusqlite::params![canonical_json(&fake), k],
+        )
+        .unwrap();
+        let error = store::audit(&tx, &d.bc).unwrap_err();
+        assert!(
+            error.starts_with("StorageUnavailable：域损坏：未绑定撤回子合同的域含撤回回执"),
+            "{error}"
+        );
+    }
+    // 变异负控：同一注入在已选择并绑定的域上走正常撤回判据（不是「未绑定」分支）。
+    let space = Space::new("1778-bound-control");
+    let d = setup(&space, 3);
+    step(&d, 0, "", 1);
+    let target = events(&d.bc)[0]["event_id"].clone();
+    let receipt = send(
+        &d.bc,
+        1,
+        envelope("wd-0", withdraw_payload(&target, "x", Value::Null)),
+    );
+    assert_eq!(receipt["kind"], "DomainEventWithdrawn", "{receipt}");
+    let (c, _) = store::open(&d.bc.db, true).unwrap();
+    store::audit(&c, &d.bc).unwrap();
+}
+
+#[test]
+fn domain_event_withdrawal_v1_v2_known_ops_and_tables_unchanged() {
+    // main 基线（origin/main c0c5a369 store.rs:207-231）逐字：`/1`、`/2` 共用的封闭已知 op 集合。
+    const MAIN_OPS: [&str; 22] = [
+        "CaptureExternal",
+        "ResolveEvidence",
+        "ApplyAllocation",
+        "ReadView",
+        "Watch",
+        "EconomicReadOpen",
+        "EconomicReadPage",
+        "EconomicReadClose",
+        "QueryFact",
+        "QueryAllocation",
+        "BindVoice",
+        "QueryVoice",
+        "ImportResponsibility",
+        "ChongAdvance",
+        "PrepareDecision",
+        "Reserve",
+        "CommitDecision",
+        "AbortDecision",
+        "CloseApplicants",
+        "ActivateCapPolicy",
+        "QueryDecision",
+        "QueryGrant",
+    ];
+    assert_eq!(store::BASE_OPS, MAIN_OPS);
+    assert!(!store::BASE_OPS.contains(&de::WITHDRAW_OP));
+    let mut v1 = vec![
+        "meta",
+        "epochs",
+        "commits",
+        "facts",
+        "pending",
+        "applications",
+        "unmatched",
+        "book",
+        "messages",
+        "receipts",
+    ];
+    v1.sort();
+    let mut v2 = v1.clone();
+    v2.extend(["content_meta", "content_nodes", "content_staging"]);
+    v2.sort();
+    assert_eq!(store::domain_tables("economic-session/1"), v1);
+    assert_eq!(store::domain_tables("economic-session/2"), v2);
+    // `/1` 实库：选择与否，E、B 都恰好 10 表（子合同不加表）。
+    for selected in [false, true] {
+        let space = Space::new(if selected {
+            "1778-tables-on"
+        } else {
+            "1778-tables-off"
+        });
+        let path = save_manifest(
+            &space,
+            "manifest.json",
+            &variant(&space, selected, selected, false),
+        );
+        for cfg in load_all(&space, &path, false)
+            .into_iter()
+            .map(Result::unwrap)
+        {
+            assert_eq!(cfg.revision().unwrap(), "economic-session/1");
+            store::init(&cfg).unwrap();
+            let names: Vec<String> = dump(
+                &cfg,
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+            )
+            .into_iter()
+            .map(|r| r[0].trim_start_matches("Text(\"").trim_end_matches("\")").to_owned())
+            .collect();
+            assert_eq!(names, v1, "{}", cfg.domain);
+        }
+    }
 }
