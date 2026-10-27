@@ -11,10 +11,11 @@ let usage = """
   newchanlun-approve status --request FILE
   newchanlun-approve show --request FILE --decision approve|reject [--raw]
   newchanlun-approve sign --request FILE --decision approve|reject [--key-dir DIR]
-  sudo -k "\(installedHelperPath)" publish --receipt FILE
+  newchanlun-approve publish-pending --receipt FILE
 
-sign 先显示待签内容，再弹出系统认证签名，随后用 sudo 把回执发布到 root 所有的权威记录。
-只有发布成功的决定才生效。认证取消则不签名；sudo 取消或失败则回执停在“待发布”，未生效。
+sign 先显示待签内容，再弹出系统认证签名，随后弹出 macOS 管理员认证窗口，把回执发布到 root 所有的权威记录。
+只有发布成功的决定才生效。签名认证取消则不签名；管理员认证取消或失败则回执停在“待发布”，未生效。
+publish-pending 用同样的管理员认证窗口补发布一份待发布回执。
 status 显示权威记录里这一请求当前生效的决定。
 """
 
@@ -113,32 +114,38 @@ func verdictLine(_ link: VerifiedReceipt) -> String {
     return "第 \(link.payload.sequence) 条 \(verb)  receipt_id \(link.receiptID)"
 }
 
-/// Publish through sudo with the root-installed helper. The receipt goes over a pipe, never through a file.
-/// `sudo -k` asks for the password every time and leaves no cached credential behind. True only on success.
-func publishWithSudo(_ receiptJSON: Data) -> Bool {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/sudo")
-    process.arguments = ["-k", installedHelperPath, "publish", "--stdin"]
-    let input = Pipe()
-    process.standardInput = input
-    // Ctrl-C at the sudo prompt, or sudo exiting before it reads the pipe, must stop sudo only,
-    // so the "not published" notice still prints.
-    signal(SIGINT, SIG_IGN)
-    signal(SIGPIPE, SIG_IGN)
-    defer {
-        signal(SIGINT, SIG_DFL)
-        signal(SIGPIPE, SIG_DFL)
+/// Publish through macOS's administrator dialog with the root-installed helper. The verified receipt bytes
+/// travel in the command line, never through a file. True only once the record reads back with this receipt.
+func publishWithAdminDialog(_ receipt: VerifiedReceipt, trust: TrustRoot) -> Bool {
+    print(receipt.payload.rendered(raw: receipt.payloadBytes))
+    print("现在发布到权威记录：macOS 会弹出管理员认证窗口。")
+    let outcome = runAdminDialog([installedHelperPath, "publish", "--receipt-b64", receipt.canonicalJSON.base64EncodedString()],
+                                 prompt: publishPrompt(receipt.payload))
+    if !outcome.output.isEmpty { print(outcome.output, terminator: "") }
+    if !outcome.succeeded {
+        FileHandle.standardError.write(Data((outcome.cancelled ? "管理员认证已取消。\n" : outcome.error).utf8))
+        return false
     }
-    do {
-        try process.run()
-        try input.fileHandleForWriting.write(contentsOf: receiptJSON)
-        try input.fileHandleForWriting.close()
-    } catch {
-        FileHandle.standardError.write(Data("无法运行 sudo: \(error)\n".utf8))
-        if process.isRunning { process.terminate() }
+    let sequence = receipt.payload.sequence
+    guard let chain = try? AuthorityStore().chain(nonce: receipt.payload.request.requestNonce, trust: trust),
+          chain.count >= sequence, chain[sequence - 1].receiptID == receipt.receiptID
+    else {
+        FileHandle.standardError.write(Data("权威记录读回时没有这份回执。\n".utf8))
+        return false
     }
-    if process.processIdentifier != 0 { process.waitUntilExit() }
-    return process.processIdentifier != 0 && process.terminationReason == .exit && process.terminationStatus == 0
+    print("已发布到权威记录：\(verdictLine(chain[sequence - 1]))。现在生效。")
+    return true
+}
+
+func notPublished(_ decision: Decision, pending: String?) -> Never {
+    let retry = pending.map { "回执存于 \($0)。确认后重试：\"\(installedHelperPath)\" publish-pending --receipt \"\($0)\"" }
+        ?? "回执未能存盘，需重新 sign。"
+    print("""
+
+    !!!!!!!! 未发布：这个\(decision == .approve ? "批准" : "拒绝")还没有生效，执行器看不到它。 !!!!!!!!
+    \(retry)
+    """)
+    exit(3)
 }
 
 func savePending(_ receipt: Receipt, keyDir: URL) -> String? {
@@ -218,23 +225,32 @@ func run(_ args: [String]) throws {
         let head = try AuthorityStore().chain(nonce: request.requestNonce, trust: trust).last
         let receipt = try signDecision(request: request, decision: decision, after: head, signer: signer) { print($0) }
         let pending = savePending(receipt, keyDir: dir)
-        print("已签名，尚未生效。现在发布到权威记录，sudo 会要你的密码。")
-        if publishWithSudo(receipt.json) { return }
-        let retry = pending.map { "回执存于 \($0)。确认后重试：sudo -k \"\(installedHelperPath)\" publish --receipt \"\($0)\"" }
-            ?? "回执未能存盘，需重新 sign。"
-        print("""
-
-        !!!!!!!! 未发布：这个\(decision == .approve ? "批准" : "拒绝")还没有生效，执行器看不到它。 !!!!!!!!
-        \(retry)
-        """)
-        exit(3)
-    case "publish":
-        let opts = try options(rest, allowed: ["--receipt"], flags: ["--stdin"])
-        guard (opts["--receipt"] == nil) != (opts["--stdin"] == nil) else { throw Failure(description: usage) }
-        guard geteuid() == 0 else { throw Failure(description: "publish 只能用 sudo 运行") }
+        print("已签名，尚未生效。")
+        guard let verified = try? verifyReceipt(receipt.json, trust: trust),
+              publishWithAdminDialog(verified, trust: trust)
+        else { notPublished(decision, pending: pending) }
+    case "publish-pending":
+        let opts = try options(rest, allowed: ["--receipt"])
+        guard let path = opts["--receipt"] else { throw Failure(description: usage) }
         let trust = try loadInstalledTrust()
-        let raw = try opts["--receipt"].map { try Data(contentsOf: URL(fileURLWithPath: $0)) }
-            ?? FileHandle.standardInput.readData(ofLength: 65_537)
+        let receipt = try verifyReceipt(Data(contentsOf: URL(fileURLWithPath: path)), trust: trust)
+        print("待发布回执 \(path)：")
+        guard publishWithAdminDialog(receipt, trust: trust) else { notPublished(receipt.payload.decision, pending: path) }
+    case "publish":
+        // Root side, reached through the administrator dialog (--receipt-b64) or by hand as `sudo -k ... --receipt FILE`.
+        let opts = try options(rest, allowed: ["--receipt", "--receipt-b64"])
+        guard (opts["--receipt"] == nil) != (opts["--receipt-b64"] == nil) else { throw Failure(description: usage) }
+        guard geteuid() == 0 else { throw Failure(description: "publish 只能以 root 运行；请用 sign 或 publish-pending") }
+        let trust = try loadInstalledTrust()
+        let raw: Data
+        if let path = opts["--receipt"] {
+            raw = try Data(contentsOf: URL(fileURLWithPath: path))
+        } else {
+            guard let text = opts["--receipt-b64"], text.utf8.count <= 87_384, let data = Data(base64Encoded: text) else {
+                throw Failure(description: "--receipt-b64 不是 base64 或过大")
+            }
+            raw = data
+        }
         guard raw.count <= 65_536 else { throw Failure(description: "回执过大") }
         let receipt = try verifyReceipt(raw, trust: trust)
         print(receipt.payload.rendered(raw: receipt.payloadBytes))

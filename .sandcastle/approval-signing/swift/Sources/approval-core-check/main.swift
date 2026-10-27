@@ -181,6 +181,17 @@ try withChange("a stray dot-file in a chain directory fails closed", {
 try Data().write(to: URL(fileURLWithPath: scratch + "/.staging/leftover"))
 check((try? store.chain(nonce: request.requestNonce, trust: trust).count) == 2, "staging leftovers are outside every chain")
 
+let tricky = ["a b", "it's", "$HOME", "x\"y", "`id`", "; echo pwned"]
+let echoed = runAdminDialog(["/bin/echo"] + tricky, prompt: "unused", administrator: false)
+// osascript prints the handler result followed by its own newline.
+check(echoed.succeeded && echoed.output == tricky.joined(separator: " ") + "\n\n",
+      "dialog command arguments reach the shell verbatim, one argument each")
+check(adminDialogArguments(["/bin/echo"], prompt: "p").contains { $0.contains("with administrator privileges") }
+      && !adminDialogArguments(["/bin/echo"], prompt: "p", administrator: false).contains { $0.contains("administrator") },
+      "administrator privileges requested only when asked")
+check(DialogOutcome(status: 1, output: "", error: "execution error: User canceled. (-128)\n").cancelled,
+      "cancel in the dialog is recognised")
+
 if CommandLine.arguments.count == 2 {
     let dir = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
