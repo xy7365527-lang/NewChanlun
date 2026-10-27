@@ -5,7 +5,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Literal, cast
 
-from .approval import ApprovalRef
+from .approval import SpecAuthorization
 from .domain import RunId, Sha, parse_run_id, parse_sha
 
 REPO = "xy7365527-lang/NewChanlun"
@@ -116,7 +116,7 @@ class Takeover:
     """SPEC 7.3 未实施：形状保留，准入一律关闭。"""
 
     handoff: dict[str, Any]
-    spec_auth: ApprovalRef
+    spec_auth: SpecAuthorization
     kind: Literal["takeover"] = "takeover"
 
 
@@ -133,11 +133,17 @@ class WorkUnit:
     require_design: bool
     admission: Admission
     run_id: RunId
+    candidate_approval: bool = False
     v: Literal[2] = 2
 
     @property
     def branch(self) -> str:
         return f"codex/deepagents/t{self.ticket}"
+
+    @property
+    def requires_candidate_approval(self) -> bool:
+        """发布前须有对确切候选 head 的真人签批：接管票一律需要，专用票由登记方显式要求。"""
+        return self.candidate_approval or isinstance(self.admission, Takeover)
 
     def to_json(self) -> dict[str, Any]:
         admission: dict[str, Any]
@@ -149,9 +155,12 @@ class WorkUnit:
         else:
             admission = {"kind": "takeover", "handoff": self.admission.handoff,
                          "spec_auth": self.admission.spec_auth.to_json()}
-        return {"v": 2, "ticket": self.ticket, "graph": self.graph, "base": self.base,
+        data = {"v": 2, "ticket": self.ticket, "graph": self.graph, "base": self.base,
                 "allowed_prefixes": list(self.allowed_prefixes), "playbook": self.playbook,
                 "require_design": self.require_design, "admission": admission, "run_id": self.run_id}
+        if self.candidate_approval:
+            data["candidate_approval"] = True
+        return data
 
 
 def parse_unit_run_id(ticket: int, raw: str) -> RunId:
@@ -179,7 +188,7 @@ def parse_work_unit(data: dict[str, Any]) -> WorkUnit:
             raise ValueError("EligibilityProof 含禁用标签")
         admission = DedicatedPilot(EligibilityProof(ticket, labels, False, False, ()), str(raw["scope_ref"]))
     elif raw.get("kind") == "takeover":
-        admission = Takeover(dict(raw.get("handoff") or {}), ApprovalRef.from_json(raw["spec_auth"]))
+        admission = Takeover(dict(raw.get("handoff") or {}), SpecAuthorization.from_json(raw["spec_auth"]))
     else:
         raise ValueError("未知准入类型")
     prefixes = tuple(data["allowed_prefixes"])
@@ -193,5 +202,9 @@ def parse_work_unit(data: dict[str, Any]) -> WorkUnit:
         raise ValueError("graph 须为整数或 null")
     if not isinstance(data["require_design"], bool):
         raise ValueError("require_design 须为布尔值")
+    candidate_approval = data.get("candidate_approval", False)
+    if type(candidate_approval) is not bool or ("candidate_approval" in data and not candidate_approval):
+        raise ValueError("candidate_approval 只能省略或为 true")
     return WorkUnit(ticket, graph, parse_sha(data["base"]), prefixes, cast(Playbook, data["playbook"]),
-                    data["require_design"], admission, parse_unit_run_id(ticket, data["run_id"]))
+                    data["require_design"], admission, parse_unit_run_id(ticket, data["run_id"]),
+                    candidate_approval)

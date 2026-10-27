@@ -1,70 +1,133 @@
-import json
+from datetime import datetime, timedelta, timezone
 
 import pytest
+from approval_signing.protocol import (
+    ApprovalRequest,
+    CommitTarget,
+    Decision,
+    Scope,
+    spec_target,
+)
+from signing_fixture import Signer
 
 from pilot1742.approval import (
-    ApprovalObject,
-    ApprovalRef,
-    ApprovalRejected,
-    ApprovalValid,
-    AwaitingHuman,
-    ClosedVerifier,
-    ExclusiveAuthorVerifier,
-    SpecTarget,
-    judge_spec_authorization,
-    load_approvers,
+    ApprovalDesk,
+    Approved,
+    Pending,
+    SignedApprovals,
+    SpecAuthorization,
 )
 from pilot1742.delivery import Unpublishable, commit_payload
 
-TARGET = SpecTarget(1340, "rev-7")
-REF = ApprovalRef(4242, TARGET, "c-2")
+HEAD = "1" * 40
+OTHER = "2" * 40
+NOW = datetime(2026, 10, 27, 12, tzinfo=timezone.utc)
+CANDIDATE = CommitTarget(HEAD)
 
 
-def obj(object_id, order, *, author="alice", kind="User", decision="approve", ticket=4242, scope="spec_authorization",
-        target=TARGET):
-    return ApprovalObject(object_id, author, kind, ticket, scope, target, decision, order)
+@pytest.fixture
+def signer(tmp_path):
+    return Signer(tmp_path / "approval-receipts")
 
 
-def judge(objects, approvers=frozenset({"alice"}), ref=REF, current=TARGET):
-    return judge_spec_authorization(ref, ticket=4242, current_target=current, objects=objects, approvers=approvers)
+@pytest.fixture
+def desk(tmp_path, signer, monkeypatch):
+    return ApprovalDesk(tmp_path / "run" / "approvals", 4242, "t4242-1", signer.protect(monkeypatch))
 
 
-def test_empty_exclusive_set_always_waits_for_a_human():
-    assert judge([obj("c-2", 2)], approvers=frozenset()) == AwaitingHuman(("human_exclusive_approvers_empty",))
-    assert isinstance(ClosedVerifier().verify(REF, ticket=4242, current_target=TARGET), AwaitingHuman)
+def check(desk, target=CANDIDATE, generation=1, now=NOW, scope=Scope.CANDIDATE_HEAD):
+    return desk.check(scope, generation, target, now=now)
 
 
-def test_member_in_the_set_releases_exactly_the_referenced_latest_object():
-    assert judge([obj("c-1", 1, decision="reject"), obj("c-2", 2)]) == ApprovalValid("c-2")
-    assert ExclusiveAuthorVerifier((obj("c-2", 2),), frozenset({"alice"})).verify(
-        REF, ticket=4242, current_target=TARGET) == ApprovalValid("c-2")
+def test_without_trust_or_protected_root_nothing_releases(tmp_path, signer):
+    real = ApprovalDesk(tmp_path / "a", 4242, "t4242-1", SignedApprovals(tmp_path / "missing-trust.json"))
+    assert check(real) == Pending("not_configured", str(real.path(Scope.CANDIDATE_HEAD)), check(real).reason)
+    default = check(ApprovalDesk(tmp_path / "b", 4242, "t4242-1"))
+    assert isinstance(default, Pending) and default.status == "not_configured"
 
 
-@pytest.mark.parametrize("objects, expected", [
-    ([obj("c-2", 2, author="agent")], AwaitingHuman(("no_exclusive_approval",))),
-    ([obj("c-2", 2, author="alice", kind="Bot")], AwaitingHuman(("no_exclusive_approval",))),
-    ([obj("c-2", 2, ticket=9)], AwaitingHuman(("no_exclusive_approval",))),
-    ([obj("c-2", 2, scope="main_merge")], AwaitingHuman(("no_exclusive_approval",))),
-    ([obj("c-2", 2), obj("c-3", 3, decision="reject")], ApprovalRejected(("rejected",))),
-    ([obj("c-2", 2), obj("c-3", 3)], ApprovalRejected(("ref_points_elsewhere",))),
-    ([obj("c-2", 2, target=SpecTarget(1340, "rev-6"))], AwaitingHuman(("no_exclusive_approval",))),
-])
-def test_refusals(objects, expected):
-    assert judge(objects) == expected
+def test_user_owned_record_is_never_authoritative(tmp_path, signer, monkeypatch):
+    from approval_signing import decision
+
+    monkeypatch.setattr(decision, "load_trust", lambda path: signer.trust)
+    desk = ApprovalDesk(tmp_path / "run", 4242, "t4242-1", SignedApprovals(authority_root=signer.root))
+    check(desk)
+    request = ApprovalRequest.parse(desk.path(Scope.CANDIDATE_HEAD).read_bytes())
+    folder = signer.root / request.request_nonce
+    folder.mkdir()
+    (folder / "1.json").write_bytes(signer.receipt(request, Decision.APPROVE, 1, None))
+    result = check(desk)
+    assert isinstance(result, Pending) and result.status == "needs_reconciliation"
 
 
-def test_changed_target_and_cross_ticket_refs_do_not_release():
-    assert judge([obj("c-2", 2)], current=SpecTarget(1340, "rev-8")) == AwaitingHuman(("target_changed",))
-    other = ApprovalRef(9, TARGET, "c-2")
-    assert judge([obj("c-2", 2)], ref=other) == ApprovalRejected(("ref_for_other_ticket_or_scope",))
+def test_request_is_the_exact_bytes_the_cli_signs_and_binds_every_field(desk):
+    assert check(desk).status == "awaiting_human"
+    request = ApprovalRequest.parse(desk.path(Scope.CANDIDATE_HEAD).read_bytes())
+    assert (request.repository_id, request.ticket, request.run_id, request.claim_generation, request.scope,
+            request.target) == (1150335160, 4242, "t4242-1", 1, Scope.CANDIDATE_HEAD, CommitTarget(HEAD))
+    assert request.expires_at == NOW + timedelta(hours=24)
+    assert check(desk, now=NOW + timedelta(hours=1)).request_path == str(desk.path(Scope.CANDIDATE_HEAD))
+    assert ApprovalRequest.parse(desk.path(Scope.CANDIDATE_HEAD).read_bytes()) == request
 
 
-def test_approver_config_defaults_empty_and_refuses_bots(tmp_path):
-    path = tmp_path / "registrar.json"
-    assert load_approvers(path) == frozenset()
-    path.write_text(json.dumps({"human_exclusive_approvers": ["newchanlun-deepagents-1742[bot]"]}))
-    with pytest.raises(ValueError, match="bot"):
-        load_approvers(path)
+def test_published_approve_releases_and_later_published_reject_dominates(desk, signer):
+    check(desk)
+    signer.publish(desk.path(Scope.CANDIDATE_HEAD), Decision.APPROVE)
+    assert isinstance(check(desk), Approved)
+    signer.publish(desk.path(Scope.CANDIDATE_HEAD), Decision.REJECT)
+    assert check(desk).status == "rejected"
+    signer.publish(desk.path(Scope.CANDIDATE_HEAD), Decision.APPROVE)
+    assert isinstance(check(desk), Approved)
+
+
+def test_signed_but_unpublished_decision_does_not_exist(desk, signer):
+    check(desk)
+    request = ApprovalRequest.parse(desk.path(Scope.CANDIDATE_HEAD).read_bytes())
+    pending = desk.folder / "pending-receipt.json"
+    pending.write_bytes(signer.receipt(request, Decision.APPROVE, 1, None))
+    assert check(desk).status == "awaiting_human"
+
+
+@pytest.mark.parametrize("change", ["head", "generation", "expiry"])
+def test_new_target_generation_or_expiry_reissues_and_old_approval_releases_nothing(desk, signer, change):
+    check(desk)
+    old = desk.path(Scope.CANDIDATE_HEAD).read_bytes()
+    signer.publish(desk.path(Scope.CANDIDATE_HEAD), Decision.APPROVE)
+    kw = {"head": {"target": CommitTarget(OTHER)}, "generation": {"generation": 2},
+          "expiry": {"now": NOW + timedelta(hours=24)}}[change]
+    result = check(desk, **kw)
+    assert result.status == "awaiting_human"
+    assert desk.path(Scope.CANDIDATE_HEAD).read_bytes() != old
+    assert old in [p.read_bytes() for p in (desk.folder / "history").iterdir()]
+    if change == "head":
+        assert check(desk).status == "awaiting_human"
+
+
+def test_spec_body_digest_change_reissues(desk, signer):
+    first = spec_target(1340, "SPEC r3\n".encode())
+    check(desk, target=first, scope=Scope.SPEC_AUTHORIZATION)
+    signer.publish(desk.path(Scope.SPEC_AUTHORIZATION), Decision.APPROVE)
+    assert isinstance(check(desk, target=first, scope=Scope.SPEC_AUTHORIZATION), Approved)
+    edited = spec_target(1340, "SPEC r3 \n".encode())
+    assert check(desk, target=edited, scope=Scope.SPEC_AUTHORIZATION).status == "awaiting_human"
+
+
+def test_tampered_or_replayed_request_file_never_borrows_an_approval(desk, signer, tmp_path):
+    other = ApprovalDesk(tmp_path / "other" / "approvals", 4242, "t4242-2", desk.approvals)
+    check(other)
+    signer.publish(other.path(Scope.CANDIDATE_HEAD), Decision.APPROVE)
+    desk.folder.mkdir(parents=True, exist_ok=True)
+    desk.path(Scope.CANDIDATE_HEAD).write_bytes(other.path(Scope.CANDIDATE_HEAD).read_bytes())
+    assert check(desk).status == "awaiting_human"
+    desk.path(Scope.CANDIDATE_HEAD).write_bytes(b"newchanlun-approval-request/v1\nticket=4242\n")
+    assert check(desk).status == "awaiting_human"
+
+
+def test_spec_authorization_shape_is_only_the_spec_issue():
+    assert SpecAuthorization.from_json({"spec_issue": 1340}) == SpecAuthorization(1340)
+    for bad in ({"spec_issue": 0}, {"spec_issue": 1340, "github_object": "c-1"}, {"spec_issue": "1340"}):
+        with pytest.raises(ValueError):
+            SpecAuthorization.from_json(bad)
 
 
 def test_signed_or_encoded_commits_are_unpublishable_before_any_ref():

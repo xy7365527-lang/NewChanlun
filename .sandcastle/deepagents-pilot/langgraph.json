@@ -1,5 +1,5 @@
 {
-  "dependencies": ["."],
+  "dependencies": [".", "../approval-signing"],
   "graphs": {"pilot1742": "pilot1742.studio:graph"},
   "http": {
     "app": "pilot1742.studio:app",

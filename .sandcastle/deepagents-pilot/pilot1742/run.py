@@ -464,6 +464,23 @@ class PilotRun:
             os.close(self._lock_fd)
             self._lock_fd = None
 
+    def interrupt_requested(self) -> dict | None:
+        path = self.dir / "interrupt.request"
+        return json.loads(path.read_text()) if path.exists() else None
+
+    def request_interrupt(self, by: str) -> dict:
+        """操作员中断请求：只写一个文件，控制循环在下一次工具调用前停在 checkpoint。不需要锁，也不杀工蜂。"""
+        request = self.interrupt_requested() or {"at": _now(), "by": by}
+        if not (self.dir / "interrupt.request").exists():
+            _write_once(self.dir / "interrupt.request", request)
+            self.trail("operator_interrupt_requested", by=by)
+        return request
+
+    def clear_interrupt(self) -> None:
+        """只由持有 run 锁的恢复入口调用。"""
+        assert self._lock_fd is not None
+        (self.dir / "interrupt.request").unlink(missing_ok=True)
+
     def trail(self, event: str, **fields) -> None:
         with open(self.dir / "trail.jsonl", "a") as fh:
             fh.write(json.dumps({"at": _now(), "pid": os.getpid(), "event": event, **fields}, ensure_ascii=False) + "\n")
@@ -820,10 +837,12 @@ class PilotRun:
         conflict = candidate_conflict(facts)
         extra: dict[str, Any] = {}
         if not v1:
+            from .approval import pending_view
             from .executor import delivery_status
 
             extra = {"v": 2, "work_unit": self.spec.work_unit, "generation": self.generation,
-                     "delivery": delivery_status(self.dir)}
+                     "delivery": delivery_status(self.dir), "approvals": pending_view(self.dir / "approvals"),
+                     "interrupt_requested": self.interrupt_requested()}
             if phase == "gate" and extra["delivery"]["phase"] is not None:
                 phase = extra["delivery"]["phase"]
         return {

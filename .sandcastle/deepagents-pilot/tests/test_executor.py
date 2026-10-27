@@ -12,7 +12,7 @@ from test_agent import call, scripted
 from v2env import DEMO, TICKET, V2_TASK, SimulatedCrash, V2Env, crash_at
 
 from pilot1742.agent import build_agent
-from pilot1742.approval import ApprovalRef, ExclusiveAuthorVerifier, SpecTarget
+from pilot1742.approval import SpecAuthorization
 from pilot1742.claims import ClaimRefused, ClaimStore, Fenced
 from pilot1742.delivery import EffectPending
 from pilot1742.executor import (
@@ -80,14 +80,12 @@ def test_missing_or_bad_evidence_is_never_an_empty_set(v2, break_it):
 
 
 def test_takeover_waits_for_human_never_claims_and_ignores_local_receipts(v2):
-    ref = ApprovalRef(TICKET, SpecTarget(1340, "rev-1"), "comment-1")
-    unit = WorkUnit(TICKET, 1323, v2.base, ("demo/",), "feature", False, Takeover({}, ref), f"t{TICKET}-1")
+    v2.github.add_issue(1340, body="SPEC r3\n")
+    unit = WorkUnit(TICKET, 1323, v2.base, ("demo/",), "feature", False, Takeover({}, SpecAuthorization(1340)),
+                    f"t{TICKET}-1")
     (v2.home / "approvals.jsonl").write_text(json.dumps({"ticket": TICKET, "decision": "approve"}) + "\n")
-    with pytest.raises(AdmissionRefused, match="awaiting_human"):
+    with pytest.raises(AdmissionRefused, match="not_configured"):
         v2.run(unit)
-    verifier = ExclusiveAuthorVerifier((), frozenset({"someone"}))
-    with pytest.raises(AdmissionRefused, match="awaiting_human"):
-        v2.executor(unit, verifier=verifier).claim(v2.home / "runs" / unit.run_id)
     assert v2.writes() == [] and not (v2.claims_root / f"{TICKET}.json").exists()
 
 

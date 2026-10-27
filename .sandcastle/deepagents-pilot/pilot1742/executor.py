@@ -13,7 +13,15 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from .approval import ApprovalValid, ApprovalVerifier, ClosedVerifier
+from approval_signing.protocol import CommitTarget, Scope
+
+from .approval import (
+    ApprovalDesk,
+    Pending,
+    SignedApprovals,
+    decision_json,
+    spec_body_target,
+)
 from .claims import (
     ClaimRefused,
     ClaimStore,
@@ -69,6 +77,14 @@ EXECUTOR_ERRORS = (ClaimRefused, Fenced, LockTimeout, EffectPending, IdentityErr
 
 class AdmissionRefused(ClaimRefused):
     pass
+
+
+class ApprovalRequired(Exception):
+    """动作需要的真人签批此刻不成立。不执行副作用，不转 halted；请求文件路径随异常给出。"""
+
+    def __init__(self, decision: Pending):
+        super().__init__(f"{decision.status}：{decision.reason}；请求 {decision.request_path}")
+        self.decision = decision
 
 
 class PullRequestRefused(Exception):
@@ -146,28 +162,42 @@ class TicketExecutor:
     """一张票在新执行器里的持有、动作锁与精确交付。所有 GitHub 写都经 App 身份。"""
 
     def __init__(self, unit: WorkUnit, gateway: RepoGateway, *, claims: ClaimStore, workers_log: Path = WORKERS_LOG,
-                 verifier: ApprovalVerifier | None = None, crash: Callable[[str], None] = _no_crash):
+                 approvals: SignedApprovals | None = None, crash: Callable[[str], None] = _no_crash):
         self.unit = unit
         self.gateway = gateway
         self.claims = claims
         self.workers_log = workers_log
-        self.verifier = verifier or ClosedVerifier()
+        self.approvals = approvals or SignedApprovals()
         self.crash = crash
 
     def _marker(self, kind: str, run_id: str, generation: int, head: str) -> str:
         return marker(kind, ticket=self.unit.ticket, run_id=run_id, generation=generation, head=head)
 
-    def admit(self) -> None:
+    def desk(self, run_dir: Path) -> ApprovalDesk:
+        return ApprovalDesk(run_dir / "approvals", self.unit.ticket, self.unit.run_id, self.approvals)
+
+    def spec_approval(self, run_dir: Path, generation: int) -> Pending | None:
+        """接管票的 SPEC 授权：目标是 SPEC 票此刻正文的原始字节摘要，正文一变就换请求。"""
         admission = self.unit.admission
-        if isinstance(admission, DedicatedPilot):
+        assert not isinstance(admission, DedicatedPilot)
+        target = spec_body_target(admission.spec_auth.spec_issue, self.gateway.issue(admission.spec_auth.spec_issue))
+        decision = self.desk(run_dir).check(Scope.SPEC_AUTHORIZATION, generation, target)
+        return decision if isinstance(decision, Pending) else None
+
+    def candidate_approval(self, run_dir: Path, generation: int, head: Sha) -> Pending | None:
+        decision = self.desk(run_dir).check(Scope.CANDIDATE_HEAD, generation, CommitTarget(head))
+        return decision if isinstance(decision, Pending) else None
+
+    def admit(self, run_dir: Path, generation: int) -> None:
+        if isinstance(self.unit.admission, DedicatedPilot):
             proof = judge_eligibility(gather_evidence(self.gateway, self.unit.ticket, self.workers_log))
             if isinstance(proof, Ineligible):
                 raise AdmissionRefused("专用票准入不成立：" + ", ".join(proof.reasons))
             return
-        decision = self.verifier.verify(admission.spec_auth, ticket=self.unit.ticket, current_target=None)
-        if not isinstance(decision, ApprovalValid):
-            raise AdmissionRefused("awaiting_human：" + ", ".join(getattr(decision, "reasons", ())))
-        raise AdmissionRefused("takeover_barrier_unimplemented：旧票冻结排空屏障（SPEC 7.3）未实施")
+        pending = self.spec_approval(run_dir, generation)
+        if pending is not None:
+            raise AdmissionRefused(f"{pending.status}：{pending.reason}；请求 {pending.request_path}")
+        raise AdmissionRefused("takeover_barrier_unimplemented：旧票冻结排空屏障（SPEC 7.3）未实施，签批有效也不接管")
 
     def _previous_run_quiet(self, previous: TicketClaim) -> None:
         run_dir = Path(previous.run_dir)
@@ -201,7 +231,7 @@ class TicketExecutor:
                     raise ClaimRefused(f"票 #{unit.ticket} 已由 {record.run_id} 持有（{record.state}）")
                 if record is not None:
                     self._previous_run_quiet(record)
-                self.admit()
+                self.admit(run_dir, record.generation + 1 if record else 1)
                 labels = self.gateway.label_names(self.gateway.issue(unit.ticket))
                 if record is None and MIRROR_LABEL in labels:
                     raise ClaimRefused("票面已有 deepagents 镜像但本机无持有记录，拒绝收养")
@@ -264,7 +294,7 @@ class TicketExecutor:
             return "; withdraw_incomplete"
         return ""
 
-    def _boundary_problem(self, pr_number: int | None) -> str | None:
+    def _boundary_problem(self, pr_number: int | None, run_dir: Path, generation: int) -> str | None:
         issue = self.gateway.issue(self.unit.ticket)
         labels = self.gateway.label_names(issue)
         if issue.get("state") != "open":
@@ -278,18 +308,26 @@ class TicketExecutor:
             pr_hits = forbidden(self.gateway.label_names(self.gateway.issue(pr_number)))
             if pr_hits:
                 return "pr_forbidden_label:" + ",".join(pr_hits)
+        if not isinstance(self.unit.admission, DedicatedPilot):
+            pending = self.spec_approval(run_dir, generation)
+            if pending is not None:
+                return f"spec_authorization:{pending.status}"
         return None
 
     @contextmanager
-    def action(self, effect: str, run_dir: Path, generation: int,
-               pr_number: int | None = None) -> Iterator[Boundary]:
+    def action(self, effect: str, run_dir: Path, generation: int, pr_number: int | None = None,
+               head: Sha | None = None) -> Iterator[Boundary]:
         """SPEC 6：取票级锁 → 锁内复核持有与实时票面 → 锁内执行并记账 → 释放。复核不符即 halted，不执行。
-        派工、本地提交与每一次 GitHub 写都经这里。"""
+        派工、本地提交与每一次 GitHub 写都经这里。发布动作带 head，需要候选签批的票在锁内重读权威链。"""
         with self.claims.locked(self.unit.ticket) as txn:
             boundary = Boundary(txn, txn.require_holder(self.unit.run_id, run_dir, generation))
-            problem = self._boundary_problem(pr_number)
+            problem = self._boundary_problem(pr_number, run_dir, generation)
             if problem is not None:
                 raise boundary.halt(f"{effect}:{problem}")
+            if head is not None and self.unit.requires_candidate_approval:
+                pending = self.candidate_approval(run_dir, generation, head)
+                if pending is not None:
+                    raise ApprovalRequired(pending)
             yield boundary
 
     def _assert_frozen(self, run: PilotRun, head: Sha, chain: set[str]) -> None:
@@ -397,7 +435,7 @@ class TicketExecutor:
         spec = run.spec
         branch = self.unit.branch
         try:
-            with self.action("push", run.dir, generation):
+            with self.action("push", run.dir, generation, head=head):
                 self._assert_frozen(run, head, chain)
                 checkout = run.spec.checkout_for("author")
                 journal.converge(f"push-{head}", lambda: self._ref_probe(head),
@@ -405,7 +443,7 @@ class TicketExecutor:
                                  what={"kind": "ref", "branch": branch, "sha": head},
                                  prepare=lambda: ExactUpload(self.gateway, checkout, self.unit.base).upload(head),
                                  crash=self.crash)
-            with self.action("pr", run.dir, generation) as boundary:
+            with self.action("pr", run.dir, generation, head=head) as boundary:
                 try:
                     if not journal.done(f"pr-{head}"):
                         self._require_ref(head)
@@ -420,7 +458,7 @@ class TicketExecutor:
                 except PullRequestRefused as refused:
                     raise boundary.halt(f"pr:{refused}") from None
             if observed == "open":
-                with self.action("status", run.dir, generation, pr_number=number) as boundary:
+                with self.action("status", run.dir, generation, pr_number=number, head=head) as boundary:
                     observed = self._checked(boundary, head, number)
                     if observed == "open":
                         journal.converge(
@@ -432,7 +470,7 @@ class TicketExecutor:
                 text = self._marker("deliver", spec.run_id, generation, head)
                 body = (f"[deepagents run={spec.run_id} gen={generation}]\n\n交付冻结 head `{head}` 到 "
                         f"`{branch}`，PR {pr.get('url')}，等待人合入。\n\n{text}")
-                with self.action("deliver", run.dir, generation, pr_number=number) as boundary:
+                with self.action("deliver", run.dir, generation, pr_number=number, head=head) as boundary:
                     observed = self._checked(boundary, head, number)
                     if observed == "open":
                         journal.converge(f"deliver-{head}", lambda: self.gateway.find_marker(self.unit.ticket, text),
@@ -440,6 +478,10 @@ class TicketExecutor:
                                          what={"kind": "comment", "issue": self.unit.ticket, "marker": text},
                                          crash=self.crash)
                         observed = self._checked(boundary, head, number)
+        except ApprovalRequired as required:
+            run.trail("publish_awaiting_approval", head=head, **decision_json(required.decision))
+            return {"ok": False, "decision": "awaiting_approval", "head": head,
+                    "approval": decision_json(required.decision)}
         except Stale as stale:
             _write_json(run.dir / "delivery" / "stale.json", {"head": head, "observed": stale.observed, "at": _now()})
             run.trail("publish_stale", head=head, observed=stale.observed)
@@ -500,7 +542,8 @@ def _task_json(task: TaskSpec) -> dict[str, Any]:
 
 
 def register(state_root: Path, gateway: RepoGateway, *, ticket: int, run_id: str, base: str, task: TaskSpec,
-             playbook: Playbook, scope_ref: str, workers_log: Path, source_repo: Path) -> WorkUnit:
+             playbook: Playbook, scope_ref: str, workers_log: Path, source_repo: Path,
+             candidate_approval: bool = False) -> WorkUnit:
     """登记器：主控 CLI 专用，不在 Deep Agents 工具面里。只生成首证专用票的 WorkUnit。"""
     run = parse_unit_run_id(ticket, run_id)
     sha = parse_sha(base)
@@ -513,7 +556,7 @@ def register(state_root: Path, gateway: RepoGateway, *, ticket: int, run_id: str
     if isinstance(proof, Ineligible):
         raise AdmissionRefused("专用票准入不成立：" + ", ".join(proof.reasons))
     unit = WorkUnit(ticket, None, sha, task.allowed_prefixes, playbook, task.require_design,
-                    DedicatedPilot(proof, scope_ref), run)
+                    DedicatedPilot(proof, scope_ref), run, candidate_approval)
     record = {"work_unit": unit.to_json(), "task": _task_json(task)}
     path = unit_path(state_root, run)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -579,12 +622,16 @@ def main(argv: list[str] | None = None) -> int:
     reg.add_argument("--playbook", choices=("feature", "bug-fix", "refactoring"), required=True)
     reg.add_argument("--scope-ref", required=True, help="用户批准本 SPEC 的记录引用，只作引用")
     reg.add_argument("--workers-log", type=Path, default=WORKERS_LOG)
+    reg.add_argument("--require-candidate-approval", action="store_true",
+                     help="发布前要求对确切候选 head 的真人 Secure Enclave 签批")
     reg.add_argument("--private-key", type=Path, required=True)
     run = sub.add_parser("run", help="持有并运行或恢复一个已登记的 v2 run")
     run.add_argument("--run-id", required=True)
     run.add_argument("--workers-log", type=Path, default=WORKERS_LOG)
     run.add_argument("--private-key", type=Path, required=True)
     run.add_argument("--crash-at", choices=V2_CRASH_POINTS, help="受控故障注入：在该点对本进程 SIGKILL")
+    run.add_argument("--resume", action="store_true",
+                     help="停在中断处时恢复：清除操作员中断请求，按权威签批链重新判定，恢复载荷不作批准")
     status = sub.add_parser("status", help="只读本机状态，不访问 GitHub")
     status.add_argument("--run-id", required=True)
     reconcile = sub.add_parser("reconcile", help="主控核实 pending 效果在 GitHub 上没有生效后，允许再发一次")
@@ -622,7 +669,8 @@ def main(argv: list[str] | None = None) -> int:
                 unit = register(args.state_root, gateway, ticket=args.ticket, run_id=args.run_id, base=args.base,
                                 task=parse_task(args.task.read_text()), playbook=args.playbook,
                                 scope_ref=args.scope_ref, workers_log=args.workers_log,
-                                source_repo=Path(__file__).resolve().parents[3])
+                                source_repo=Path(__file__).resolve().parents[3],
+                                candidate_approval=args.require_candidate_approval)
                 print(json.dumps(unit.to_json(), ensure_ascii=False, indent=2))
                 return 0
             from .cli import EXIT_BUSY, drive
@@ -636,7 +684,7 @@ def main(argv: list[str] | None = None) -> int:
             except Busy as error:
                 print(str(error), file=sys.stderr)
                 return EXIT_BUSY
-            return drive(pilot, recheck_approval=False)
+            return drive(pilot, recheck_approval=args.resume)
     except (*EXECUTOR_ERRORS, Halted, ToolRefusal, ValueError, FileNotFoundError) as error:
         print(f"{type(error).__name__}: {error}", file=sys.stderr)
         return 2

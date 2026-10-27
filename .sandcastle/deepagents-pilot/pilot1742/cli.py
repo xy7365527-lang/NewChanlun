@@ -84,6 +84,8 @@ def drive(run: PilotRun, *, recheck_approval: bool) -> int:
             print(json.dumps({"graph": graph, "status": run.status()}, ensure_ascii=False, indent=2))
             return 0
         run.trail("graph_resume_approval_recheck")
+        if run.spec.v == 2:
+            run.clear_interrupt()
         agent.invoke(Command(resume={"recheck": True}), config, durability="sync")
     elif graph["next"]:
         run.trail("graph_resume_after_crash", next=graph["next"])

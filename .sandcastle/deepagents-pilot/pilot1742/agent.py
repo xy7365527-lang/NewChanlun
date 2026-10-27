@@ -19,7 +19,7 @@ from deepagents.backends import CompositeBackend, FilesystemBackend, StateBacken
 from langchain.agents.middleware import AgentMiddleware, TodoListMiddleware
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.language_models import BaseChatModel
-from langchain_core.tools import tool
+from langchain_core.tools import StructuredTool, tool
 from langchain_openai import ChatOpenAI
 from langgraph.types import interrupt
 from pydantic import SecretStr
@@ -131,7 +131,11 @@ def build_tools(run: PilotRun) -> list:
         写 deepagents/review 状态与票面交付标记，停在 awaiting_merge。远端出现任何其他 head 时返回 stale，不覆盖。
         重复调用会先读回已有结果，不会重复推送、开 PR 或发评论。合入 main 由人决定。"""
         try:
-            return json.dumps(run.publish_candidate(), ensure_ascii=False)
+            result = run.publish_candidate()
+            while result.get("decision") == "awaiting_approval":
+                interrupt({"ticket": run.spec.ticket, "awaiting_approval": result["approval"]})
+                result = run.publish_candidate()
+            return json.dumps(result, ensure_ascii=False)
         except errors as error:
             return json.dumps({"ok": False, type(error).__name__: str(error)}, ensure_ascii=False)
 
@@ -141,8 +145,21 @@ def build_tools(run: PilotRun) -> list:
         return json.dumps(run.status(), ensure_ascii=False)
 
     if run.spec.v == 2:
-        return [run_worker, commit_candidate, publish_candidate, run_status]
+        return [operator_pausable(run, t) for t in (run_worker, commit_candidate, publish_candidate, run_status)]
     return [run_worker, commit_candidate, check_gate, run_status]
+
+
+def operator_pausable(run: PilotRun, wrapped: Any) -> Any:
+    """操作员中断：每次工具调用前若有中断请求，图在此 checkpoint 处停下。已派出的工蜂不被杀，恢复时按回执收养。
+    恢复载荷的内容一律不用；中断请求由恢复入口清除后才放行。"""
+
+    def call(*args: Any, **kwargs: Any) -> str:
+        while run.interrupt_requested() is not None:
+            interrupt({"ticket": run.spec.ticket, "operator_interrupt": run.interrupt_requested()})
+        return wrapped.func(*args, **kwargs)
+
+    return StructuredTool.from_function(call, name=wrapped.name, description=wrapped.description,
+                                        args_schema=wrapped.args_schema)
 
 
 def design_mapping(run: PilotRun) -> str:

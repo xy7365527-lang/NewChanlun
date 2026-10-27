@@ -12,7 +12,7 @@ from fake_github import FakeGitHub
 
 from pilot1742.claims import ClaimStore
 from pilot1742.delivery import RepoGateway
-from pilot1742.executor import TicketExecutor, open_v2_run, register
+from pilot1742.executor import TicketExecutor, load_unit, open_v2_run, register
 from pilot1742.github_app import WRITE_PERMISSIONS, AppIdentity, GitHubAppClient
 from pilot1742.run import PilotRun, TaskSpec
 from pilot1742.workunit import DEDICATED_MARKER, WorkUnit
@@ -52,17 +52,23 @@ class V2Env(Env):
         self.claims_root = tmp / "claims"
         self.workers_log = tmp / "workers.jsonl"
         self.workers_log.write_text(json.dumps({"ticket": 1715, "branch": "sandcastle/issue-1715"}) + "\n")
+        self.approvals = None
 
     def gateway(self) -> RepoGateway:
         return RepoGateway(GitHubAppClient(self.identity, transport=httpx.MockTransport(self.github),
                                            permissions=WRITE_PERMISSIONS))
 
-    def register(self, run_id: str = f"t{TICKET}-1", state_root: Path | None = None, ticket: int = TICKET) -> WorkUnit:
+    def register(self, run_id: str = f"t{TICKET}-1", state_root: Path | None = None, ticket: int = TICKET,
+                 candidate_approval: bool = False) -> WorkUnit:
         return register(state_root or self.home, self.gateway(), ticket=ticket, run_id=run_id, base=self.base,
                         task=V2_TASK, playbook="feature", scope_ref="pytest-scope", workers_log=self.workers_log,
-                        source_repo=self.source)
+                        source_repo=self.source, candidate_approval=candidate_approval)
+
+    def load(self, run_id: str) -> WorkUnit:
+        return load_unit(self.home, run_id)[0]
 
     def executor(self, unit: WorkUnit, **kw) -> TicketExecutor:
+        kw.setdefault("approvals", self.approvals)
         return TicketExecutor(unit, self.gateway(), claims=ClaimStore(self.claims_root, lock_timeout=10),
                               workers_log=self.workers_log, **kw)
 
