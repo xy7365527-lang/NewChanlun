@@ -417,7 +417,10 @@ mod version_contract_tests {
     #[test]
     fn layout_component_is_orthogonal_to_contract_and_axes() {
         let bounded = format!("{}+bounded-layout/1", crate::V3_RULE_REVISION);
-        assert_eq!(contract_for_rule(&bounded), contract_for_rule(crate::V3_RULE_REVISION));
+        assert_eq!(
+            contract_for_rule(&bounded),
+            contract_for_rule(crate::V3_RULE_REVISION)
+        );
         assert_eq!(
             tb02a_facts::CatalogAxisTable::for_rule_revision(&bounded),
             tb02a_facts::CatalogAxisTable::for_rule_revision(crate::V3_RULE_REVISION)
