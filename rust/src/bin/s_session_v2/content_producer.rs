@@ -585,6 +585,30 @@ pub(super) struct Cc054Assembly {
     pub observations: Vec<Built>,
 }
 
+/// #1393/#1565 W：一代的初始化事实（槽 W）与逐原件未定记录，连同按 v2 线序的全部请求。
+///
+/// `objects` = `[CC-004.initialization, CC-004.undetermined_raw…]`（未定原件按到达序）；
+/// `requests` = 初始化请求 →（等待期）CC-005 待决组请求 → 逐原件请求，与
+/// `tb02a_facts::add_initialization` 同序同值。
+#[derive(Debug, Clone)]
+pub(super) struct WInitialization {
+    pub objects: Vec<TypedObject>,
+    pub requests: Vec<Built>,
+}
+
+/// #1565：上一代**已核活动** `CC-004.undetermined_raw` 的原件身份与到达事实。
+///
+/// 只携 payload 取值（`pending_since_cut`）；不携也不读任何生命周期字段。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct PriorUndetermined {
+    /// 规范槽位文本 `["CC-004.undetermined_raw", coord]`。
+    pub fact_key: String,
+    /// 输入引用数组值根（原件身份含 raw 修订）。
+    pub input_refs: NodeDigest,
+    /// 上一代 payload 的 `pending_since_cut`。
+    pub pending_since_cut: String,
+}
+
 /// 一个 CC-007 分型描述对象的构造结果（含三条知识请求）。
 #[derive(Debug, Clone)]
 pub(super) struct Cc007Object {
@@ -1388,6 +1412,131 @@ impl Cc004Producer {
     /// - `raw_coords`：本代全部原始坐标的**共享链**（生产入口用 [`raw_prefix_coords`] 借出；
     ///   观察的 `source_coords` 直接复用本对象的同一条边）；
     /// - `frontier`：`input_frontier`，规范十进制文本进载荷与观察。
+    /// #1393/#1565 W：构造初始化事实与逐原件未定记录（`tb02a_facts::add_initialization` 的 S3 面）。
+    ///
+    /// `pending_since_cut` 取值只有一条通道：同原件身份（槽 + 输入引用）的上一代已核对象
+    /// payload 原样延续，否则取本代 cut；不读首获知等生命周期字段，也不降级兜底（#1565）。
+    pub(super) fn build_initialization(
+        &mut self,
+        store: &mut dyn NodeStore,
+        state: &IncrFactsState,
+        prior: &[PriorUndetermined],
+        generation: i64,
+        cut: &str,
+    ) -> Result<WInitialization, ProducerError> {
+        if state.degraded() {
+            return Err(ProducerError::Degraded("source 坐标非严格递增：共享证据不可用"));
+        }
+        let unsettled = state.unsettled();
+        let initial = state.initial_direction_node();
+        let sources = match initial {
+            Some(node) => node.coords.clone(),
+            None => coords_ref_from_slice(state.unmapped_sources()),
+        };
+        let first_raw_pair = match initial {
+            Some(node) => self.evidence_value(&mut *store, node)?,
+            None => CValue::Null,
+        };
+        let payload = CValue::Object(vec![
+            (
+                "initialization_policy_revision".to_string(),
+                CValue::String(INITIALIZATION_POLICY.to_string()),
+            ),
+            (
+                "direction_state".to_string(),
+                CValue::String(if unsettled { "Undetermined" } else { "Established" }.to_string()),
+            ),
+            ("first_raw_pair".to_string(), first_raw_pair),
+        ]);
+        let slot = CValue::Array(vec![
+            CValue::String(CC004_INITIALIZATION_KIND.to_string()),
+            CValue::String("W".to_string()),
+        ]);
+        let input_refs = self.source_refs_array(&mut *store, &sources)?;
+        let source_coords = self.coords_array(&mut *store, &sources)?;
+        let mut init = self.typed_object(
+            store,
+            CC004_INITIALIZATION_KIND,
+            canonical_text(&slot)?,
+            payload,
+            input_refs,
+            source_coords,
+            generation,
+            cut,
+        )?;
+        let init_reasons: &[&str] = if unsettled { &[INITIAL_UNSETTLED] } else { &[] };
+        let request = self.request_value(
+            slot,
+            Some(&init.object_id),
+            init_reasons,
+            &init.source_coords,
+        )?;
+        let built = sc::write_value(&mut *store, &request)?;
+        init.request = Some(built.clone());
+        let mut requests = vec![built];
+        if unsettled {
+            let unmapped = coords_ref_from_slice(state.unmapped_sources());
+            requests.push(self.pending_request(
+                &mut *store,
+                CValue::Array(vec![
+                    CValue::String(CC005_GROUP_KIND.to_string()),
+                    CValue::String("pending".to_string()),
+                ]),
+                &[INITIAL_UNSETTLED],
+                &unmapped,
+            )?);
+        }
+        let mut objects = vec![init];
+        for raw_bar in state.pending_raw() {
+            let coord = CoordsRef::single(raw_bar.source_index);
+            let slot = CValue::Array(vec![
+                CValue::String(CC004_UNDETERMINED_KIND.to_string()),
+                CValue::String(raw_bar.source_index.to_string()),
+            ]);
+            let fact_key = canonical_text(&slot)?;
+            let input_refs = self.source_refs_array(&mut *store, &coord)?;
+            let source_coords = self.coords_array(&mut *store, &coord)?;
+            let since = prior
+                .iter()
+                .find(|old| old.fact_key == fact_key && old.input_refs == input_refs.digest)
+                .map_or(cut, |old| old.pending_since_cut.as_str())
+                .to_string();
+            let payload = CValue::Object(vec![
+                ("raw".to_string(), bar_value(raw_bar)),
+                (
+                    "direction_state".to_string(),
+                    CValue::String("Undetermined".to_string()),
+                ),
+                (
+                    "initialization_policy_revision".to_string(),
+                    CValue::String(INITIALIZATION_POLICY.to_string()),
+                ),
+                ("pending_since_cut".to_string(), CValue::String(since)),
+            ]);
+            let mut object = self.typed_object(
+                store,
+                CC004_UNDETERMINED_KIND,
+                fact_key,
+                payload,
+                input_refs,
+                source_coords,
+                generation,
+                cut,
+            )?;
+            let request = self.request_value(
+                slot,
+                Some(&object.object_id),
+                &[INITIAL_UNSETTLED],
+                &object.source_coords,
+            )?;
+            let built = sc::write_value(&mut *store, &request)?;
+            object.request = Some(built.clone());
+            requests.push(built);
+            objects.push(object);
+        }
+        Ok(WInitialization { objects, requests })
+    }
+
     pub(super) fn build_knowledge_state(
         &mut self,
         store: &mut dyn NodeStore,
@@ -2608,6 +2757,19 @@ impl Cc004Producer {
                 None => empty_array(store),
             };
         };
+        // #1393 W：建立前缀重折出的组（锚早于建立对右端 e）方向证据 = raw[..=e]，末元素不是本组锚，
+        // 上面的归纳前提不成立 ⟹ 按定义 `(dir ∪ conf) \ members` 直接求（规模 ≤ 建立前缀）。
+        if dir.coords.max() != Some(view.bar.source_index) {
+            let mut coords = dir.coords.materialize();
+            if let Some(conf) = view.confirmation_evidence {
+                coords.extend(conf.coords.materialize());
+            }
+            coords.sort_unstable();
+            coords.dedup();
+            let members = group_members_coords(view).materialize();
+            coords.retain(|coord| members.binary_search(coord).is_err());
+            return self.source_refs_array_in(store, &coords_ref_from_slice(&coords), encoding);
+        }
         let entry = self.ref_array_over(
             &mut *store,
             dir.coords.root_node().expect("方向证据链非空"),
@@ -3303,7 +3465,12 @@ pub(super) fn group_sources_coords(view: &GroupEvidenceView<'_>) -> CoordsRef {
         return node.coords.clone();
     }
     match view.direction_evidence {
-        Some(node) => CoordsRef::concat(&node.coords, view.member_tail),
+        // 非退化域：方向证据集最大值 = 组锚 ⟹ 成员尾严格在其后，可直接拼接。
+        Some(node) if node.coords.max() == Some(view.bar.source_index) => {
+            CoordsRef::concat(&node.coords, view.member_tail)
+        }
+        // #1393 W：建立前缀内重折的组，证据集 = raw[..=e] 可能已含成员尾 ⟹ 取并集。
+        Some(node) => node.coords.union(view.member_tail),
         None => group_members_coords(view),
     }
 }
