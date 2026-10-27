@@ -83,6 +83,22 @@ jobs:
       - name: cargo test — v3::financial_session（macOS 保留量读数与 peer uid，#1394 根裁定 A）
         run: cargo test --locked --features s_session --bin s_structure_session v3::financial_session
 
+      # #1672：E + 3B 各自独立 32 MiB HFS+ 卷上的 FIN/2 首个完整正例。
+      # 只有这里创建真实载体；Linux/ubuntu 不生成 FIN/2 伪通过项。
+      - name: FIN/2 WE7 — four independent HFS+ carriers（#1672）
+        if: always()
+        env:
+          TB03C_FIN2_EVIDENCE_DIR: ${{ runner.temp }}/issue1672-fin2-evidence
+        run: ../s_session/tests/drive_tb03c_fin2_hfs.sh cargo test --locked --features s_session --lib tb03c_fin2 -- --ignored --nocapture --test-threads=1
+
+      - name: Archive FIN/2 originals and carrier cleanup (#1672)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue1672-fin2-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/issue1672-fin2-evidence
+          if-no-files-found: error
+
       # #1717：sr-expansion/1 在 economic-session/2 内容域上的评估。E、B:alpha、B:beta 各占一个本地可写
       #   固定容量 HFS+ 卷（store.rs 载体门）；按 #1394 已批载体合同各建一个 24 MiB 临时镜像（容量低于
       #   已批 max_staged_bytes 32153600）。测试经子进程正式 owner socket 服务，结束后卸载。
