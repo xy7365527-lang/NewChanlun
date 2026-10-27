@@ -458,6 +458,11 @@ fn open_historical_readonly(db: &Path) -> Result<Option<Connection>, String> {
     ) {
         return Ok(None);
     }
+    // #1491（仅测试）：本线程注入的测试写者规则视同当前规则，交回写连接路径。
+    #[cfg(test)]
+    if rule.is_some() && rule == v3::test_writer_rule() {
+        return Ok(None);
+    }
     Ok(Some(ro))
 }
 

@@ -1554,7 +1554,7 @@ pub(crate) mod tests {
                 .unwrap()
                 .join("s_session");
             let db = path.join("s.sqlite");
-            super::super::with_test_writer_rule(rule.as_deref(), || {
+            let conn = super::super::with_test_writer_rule(rule.as_deref(), || {
                 init_v3(
                     &db,
                     "s-session-testonly-001",
@@ -1563,10 +1563,10 @@ pub(crate) mod tests {
                     "1",
                     &clock_path,
                     retain,
-                )
+                )?;
+                open_db(&db)
             })
             .unwrap();
-            let conn = open_db(&db).unwrap();
             let runtime = Runtime::new();
             Self {
                 path,

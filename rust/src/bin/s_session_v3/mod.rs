@@ -158,7 +158,7 @@ fn with_test_writer_rule<T>(rule: Option<&str>, f: impl FnOnce() -> T) -> T {
 }
 
 #[cfg(test)]
-fn test_writer_rule() -> Option<String> {
+pub(crate) fn test_writer_rule() -> Option<String> {
     TEST_WRITER_RULE.with(|r| r.borrow().clone())
 }
 
@@ -167,7 +167,9 @@ fn require_current_writer_rule(rule: &str) -> Result<(), String> {
     #[cfg(test)]
     if let Some(injected) = test_writer_rule() {
         if rule != injected {
-            return Err(format!("VersionUnsupported：测试注入写者规则 {injected}，库中 {rule}"));
+            return Err(format!(
+                "VersionUnsupported：测试注入写者规则 {injected}，库中 {rule}"
+            ));
         }
         return Ok(());
     }

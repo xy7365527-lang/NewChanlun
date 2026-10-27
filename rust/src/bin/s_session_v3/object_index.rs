@@ -2652,7 +2652,9 @@ fn remove_rank(
     // #1491 独审 LOW-1：出集键由当场生命期取得；键缺失说明入集与出集取键不一致（如撤回代被
     // 改写），留下陈旧成员会静默改变公开数组，故 fail-closed。
     let Some((old, ())) = set.remove_entry(&key) else {
-        return Err(err(format!("RankSet出集键不存在（序号 {ordinal}）：入集与出集取键不一致")));
+        return Err(err(format!(
+            "RankSet出集键不存在（序号 {ordinal}）：入集与出集取键不一致"
+        )));
     };
     #[cfg(feature = "s_capture_native_testonly")]
     retained.release(&old);

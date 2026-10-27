@@ -5219,7 +5219,10 @@ mod tests {
                 )
                 .unwrap();
             assert!(deaths >= 2, "撤回须落在至少两个不同代：{deaths}");
-            assert!(crossed >= 1, "须有跨代修订（撤回代晚于首获知代）：{crossed}");
+            assert!(
+                crossed >= 1,
+                "须有跨代修订（撤回代晚于首获知代）：{crossed}"
+            );
             for table in [
                 "s_content_witnesses",
                 "s_content_relations",
