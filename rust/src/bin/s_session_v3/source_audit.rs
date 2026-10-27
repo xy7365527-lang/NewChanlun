@@ -171,15 +171,20 @@ impl<'capture> NativeFieldMemo<'capture> {
             field_hits: 0,
         }
     }
-    fn qualified(&self, r: sc::RefView<'_>) -> Result<bool, sc::CodecError> {
+    fn qualified(
+        &self,
+        r: sc::RefView<'_>,
+        measure: Option<&super::audit_budget::NativeMeasure<'_>>,
+    ) -> Result<bool, sc::CodecError> {
         // Root presence is insufficient; original public validation includes format/root/header
         // and the complete immutable closure. Overlay-only records never obtain a handle.
         if let sc::RefView::Normal(original) = r {
             if self.capture.contains(&original.digest()?) {
-                super::audit_store::NativeAdmission(self.work).native_verify_original(
+                super::audit_store::NativeAdmission(self.work).native_verify_original_measured(
                     self.capture,
                     original.into(),
                     sc::Mode::Public,
+                    measure,
                 )?;
                 return Ok(true);
             }
@@ -458,7 +463,7 @@ impl NodeSource for ArrayAuditSource<'_, '_, '_, '_> {
         self.source.codec_work()
     }
     fn audit_full_array_scan(&self) -> bool {
-        self.full_arrays && self.deadline.is_none()
+        self.full_arrays && (self.source.native_measure().is_some() || self.deadline.is_none())
     }
     fn read(&mut self, d: &NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
         self.source.read(d)
@@ -503,13 +508,13 @@ impl SourceFieldStore for ArrayAuditSource<'_, '_, '_, '_> {
     fn decoded_scalar(&mut self, r: sc::RefView<'_>) -> Result<bj::JsonOwner, String> {
         let eligible = self.full_arrays
             && !self.source.owned_codec_active()
-            && self.deadline.is_none()
+            && (self.source.native_measure().is_some() || self.deadline.is_none())
             && self.source.allocation_budget().is_none()
             && self.max_render_bytes().is_none()
             && self
                 .fields
                 .as_ref()
-                .map(|m| m.qualified(r))
+                .map(|m| m.qualified(r, self.source.native_measure().as_ref()))
                 .transpose()
                 .map_err(err)?
                 .unwrap_or(false);
@@ -544,6 +549,9 @@ impl SourceFieldStore for ArrayAuditSource<'_, '_, '_, '_> {
     }
 }
 impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
+    fn native_measure(&self) -> Option<super::audit_budget::NativeMeasure<'_>> {
+        self.source.native_measure()
+    }
     fn parse_rendered_plain(&self, bytes: &[u8]) -> Result<bj::PlainJson, String> {
         self.source.parse_rendered_plain(bytes)
     }
@@ -599,13 +607,13 @@ impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
             self.owned_role(|s| s.lookup_subset_ref(r, n))
         } else {
             let eligible = self.full_arrays
-                && self.deadline.is_none()
+                && (self.source.native_measure().is_some() || self.deadline.is_none())
                 && self.source.allocation_budget().is_none()
                 && self.max_render_bytes().is_none()
                 && self
                     .fields
                     .as_ref()
-                    .map(|m| m.qualified(r))
+                    .map(|m| m.qualified(r, self.source.native_measure().as_ref()))
                     .transpose()?
                     .unwrap_or(false);
             if eligible {
@@ -1344,12 +1352,22 @@ impl<'raw> NativeRawLedger<'raw> {
         self.reset_progress();
         self.originals.retain(|_, _| false);
     }
+    #[cfg(test)]
     fn advance(
         &mut self,
         s: &mut (impl CodecRead + ?Sized),
         prefix: usize,
     ) -> Result<&BusinessMap<i64, Source>, String> {
-        if let Err(error) = self.advance_inner(s, prefix) {
+        self.advance_measured(s, prefix, None, None)
+    }
+    fn advance_measured(
+        &mut self,
+        s: &mut (impl CodecRead + ?Sized),
+        prefix: usize,
+        deadline: Option<std::time::Instant>,
+        budget: Option<&dyn super::audit_budget::Budget>,
+    ) -> Result<&BusinessMap<i64, Source>, String> {
+        if let Err(error) = self.advance_inner(s, prefix, deadline, budget) {
             self.clear();
             return Err(error);
         }
@@ -1359,8 +1377,10 @@ impl<'raw> NativeRawLedger<'raw> {
         &mut self,
         s: &mut (impl CodecRead + ?Sized),
         prefix: usize,
+        deadline: Option<std::time::Instant>,
+        budget: Option<&dyn super::audit_budget::Budget>,
     ) -> Result<(), String> {
-        let changes = self.winners.advance_admitted(prefix, s)?;
+        let changes = self.winners.advance_measured(prefix, s, deadline, budget)?;
         if changes.rewound {
             #[cfg(feature = "s_capture_native_testonly")]
             self.retained
@@ -1383,16 +1403,25 @@ impl<'raw> NativeRawLedger<'raw> {
             let source = if let Some((_, source)) = self.originals.get(&ordinal) {
                 *source
             } else {
+                super::history::check_deadline(deadline)?;
                 let event = self.raw.get(ordinal).expect("winner original");
+                if let Some(budget) = budget {
+                    budget.record().map_err(err)?;
+                }
                 let wire = bj::RawReference::new(event, false)?;
                 let numeric = bj::RawReference::new(event, true)?;
                 // hash_json_in_store 用 Discard 丢弃节点，不写 reader overlay。
                 // 后续只比较摘要（含 r3 的五字段 bar 投影），从不以它们读取节点。
                 let source = Source {
-                    wire: super::history::hash_json_in_store(s, wire.view(), None, None)?,
-                    numeric: super::history::hash_json_in_store(s, numeric.view(), None, None)?,
-                    raw: super::history::hash_json_in_store(s, event, None, None)?,
-                    bar: source_pending::raw_bar(s, event, None, None)?,
+                    wire: super::history::hash_json_in_store(s, wire.view(), deadline, budget)?,
+                    numeric: super::history::hash_json_in_store(
+                        s,
+                        numeric.view(),
+                        deadline,
+                        budget,
+                    )?,
+                    raw: super::history::hash_json_in_store(s, event, deadline, budget)?,
+                    bar: source_pending::raw_bar(s, event, deadline, budget)?,
                 };
                 #[cfg(test)]
                 {
@@ -1481,6 +1510,26 @@ impl<'capture> NativeSourceAudit<'capture> {
         records: Option<super::history::NativeRecordFields<'capture>>,
         work: Option<&'capture sc::capture_allocation::scratch::WorkScope>,
     ) -> Result<Self, String> {
+        Self::new_with_records_measured(
+            capture,
+            raw,
+            records,
+            work,
+            None,
+            None,
+            super::history::SourcePolicy::Ordinary,
+        )
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn new_with_records_measured(
+        capture: &'capture sc::AuditCapture,
+        raw: RawEventsView<'capture>,
+        records: Option<super::history::NativeRecordFields<'capture>>,
+        work: Option<&'capture sc::capture_allocation::scratch::WorkScope>,
+        budget: Option<&'capture dyn super::audit_budget::Budget>,
+        deadline: Option<std::time::Instant>,
+        policy: super::history::SourcePolicy,
+    ) -> Result<Self, String> {
         if raw.budget().is_some() {
             return Err(err("Native来源memo不接收Owned原始账"));
         }
@@ -1499,6 +1548,8 @@ impl<'capture> NativeSourceAudit<'capture> {
             fields,
             raw,
             reader: super::history::HashReader::captured(capture, None)
+                .with_source_policy(policy)
+                .with_audit_gate(budget, deadline)
                 .with_native_scope(work)
                 .map_err(err)?,
             memo: NativeWitnessIdentityMemo::new(capture)?,
@@ -1533,6 +1584,7 @@ impl<'capture> NativeSourceAudit<'capture> {
         profile: &str,
         rule: &str,
     ) -> Result<Counts, String> {
+        let measure = self.reader.native_measure();
         let result = (|| {
             audit_generated_in_store(
                 &mut super::audit_store::StoreView::for_audit(&mut self.reader),
@@ -1540,8 +1592,8 @@ impl<'capture> NativeSourceAudit<'capture> {
                 self.raw.prefix(prefix_len)?,
                 profile,
                 rule,
-                None,
-                None,
+                measure.as_ref().and_then(|m| m.deadline),
+                measure.as_ref().and_then(|m| m.budget),
                 Some(&mut self.memo),
                 Some(&mut self.source_memo),
                 Some(&mut self.fields),
@@ -2245,9 +2297,10 @@ fn audit_generated_in_store(
     #[cfg(test)]
     super::state::trace_event("source_closure", None);
     s.verify_ref(state, sc::Mode::Public).map_err(err)?;
+    let full_arrays = s.native_measure().is_some() || budget.is_none();
     let mut array_source = ArrayAuditSource {
         source: s,
-        full_arrays: budget.is_none(),
+        full_arrays,
         deadline,
         fields: native_fields,
     };
@@ -2265,7 +2318,7 @@ fn audit_generated_in_store(
     let mut ordinary_raw;
     let raw = if let Some(ledger) = native_ledger {
         allocation = source_allocation(s)?;
-        ledger.advance(s, raw_prefix.len())?
+        ledger.advance_measured(s, raw_prefix.len(), deadline, budget)?
     } else {
         ordinary_effective = bj::effective(raw_prefix, deadline)?;
         allocation = source_allocation(s)?;
@@ -2703,6 +2756,102 @@ mod tests {
             .map(|(coord, source)| (*coord, *source))
             .collect()
     }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_raw_ledger_measured_visits_hits_rewind_and_failure() {
+        use super::super::audit_budget::AuditJob;
+        use sc::job::{Existing, Job, JobLimits};
+        use std::time::Instant;
+        let make_job = |records: u64, nodes: u64| {
+            let limits = JobLimits::from_canonical_json(&json!({
+                "max_total_wire_bytes": "1048576",
+                "max_total_node_bytes": "1048576",
+                "max_total_nodes": nodes.to_string(),
+                "max_total_records": records.to_string(),
+                "max_total_requests": "20", "max_elapsed_ms": "10000",
+                "max_staged_bytes": "1048576", "max_store_bytes": "33554432"
+            }))
+            .unwrap();
+            Job::new(
+                limits,
+                Existing {
+                    store_bytes: 0,
+                    staged_bytes: 0,
+                },
+                Box::new(Instant::now),
+            )
+            .unwrap()
+        };
+        let mut fixture = super::super::prepared::tests::Fixture::new();
+        fixture.accept_begin(1, ("a", 0, 6, 12, 3, 7), 1);
+        fixture.accept_begin(2, ("b", 1, 8, 16, 6, 12), 1);
+        let raw = read_raw_events(&fixture.conn).unwrap();
+        let capture = sc::AuditCapture::new(MemoryNodes::default());
+        let mut reader = super::super::history::HashReader::captured(&capture, None);
+        let mut ledger = NativeRawLedger::new((&raw).into());
+        let mut job = make_job(100, 10000);
+        {
+            let audit = AuditJob::new(&mut job);
+            let got = ledger
+                .advance_measured(&mut reader, 2, None, Some(&audit))
+                .unwrap();
+            assert_eq!(
+                source_entries(got),
+                source_entries(&original_sources(&raw, 2).unwrap())
+            );
+        }
+        assert_eq!(job.snapshot().records, 6, "每行新增、坐标和来源各访问一次");
+        assert!(job.snapshot().nodes > 0, "四投影进入同一 Job 节点核");
+        let before = job.snapshot();
+        {
+            let audit = AuditJob::new(&mut job);
+            ledger
+                .advance_measured(&mut reader, 2, None, Some(&audit))
+                .unwrap();
+        }
+        assert_eq!(job.snapshot().records, before.records);
+        assert_eq!(job.snapshot().nodes, before.nodes);
+        {
+            let audit = AuditJob::new(&mut job);
+            ledger
+                .advance_measured(&mut reader, 1, None, Some(&audit))
+                .unwrap();
+            ledger
+                .advance_measured(&mut reader, 2, None, Some(&audit))
+                .unwrap();
+        }
+        assert_eq!(
+            job.snapshot().records,
+            8,
+            "回退后独立扫描收费，坐标及来源命中不虚收"
+        );
+        for records in [1, 3, 4] {
+            let mut limited = make_job(records, 10000);
+            let mut ledger = NativeRawLedger::new((&raw).into());
+            let audit = AuditJob::new(&mut limited);
+            assert!(ledger
+                .advance_measured(&mut reader, 2, None, Some(&audit))
+                .is_err());
+            assert!(ledger.sources.is_empty());
+            assert!(ledger.originals.is_empty());
+            assert!(ledger.winners.is_empty());
+            let got = ledger.advance(&mut reader, 2).unwrap();
+            assert_eq!(
+                source_entries(got),
+                source_entries(&original_sources(&raw, 2).unwrap())
+            );
+        }
+        let mut limited = make_job(100, 1);
+        let mut ledger = NativeRawLedger::new((&raw).into());
+        let audit = AuditJob::new(&mut limited);
+        assert!(ledger
+            .advance_measured(&mut reader, 2, None, Some(&audit))
+            .is_err());
+        assert!(ledger.sources.is_empty());
+        assert!(ledger.originals.is_empty());
+        assert!(ledger.winners.is_empty());
+    }
+
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn cold_raw_index_normal_revisions_unordered_duplicate_prices_and_replay_view() {
@@ -3290,7 +3439,7 @@ mod tests {
         assert!(fresh.fields.is_empty() && fresh.scalars.values.is_empty());
         let other = sc::AuditCapture::new(MemoryNodes::default());
         assert!(!NativeFieldMemo::new(&other)
-            .qualified((&root).into())
+            .qualified((&root).into(), None)
             .unwrap());
     }
     #[cfg(feature = "s_capture_native_testonly")]
@@ -3527,6 +3676,84 @@ mod tests {
         assert!(fresh.entries.is_empty());
         assert_ne!(key, fresh.key(&reader, "obj3-first", 0, 1, &bars).unwrap());
     }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_source_measured_preserves_fields_witness_and_failure_cleanup() {
+        use super::super::audit_budget::AuditJob;
+        use sc::job::{Existing, Job, JobLimits};
+        let make_job = |records: u64| {
+            Job::new(
+                JobLimits::from_canonical_json(&json!({
+                    "max_total_wire_bytes":"1048576", "max_total_node_bytes":"1048576",
+                    "max_total_nodes":"100000", "max_total_records":records.to_string(),
+                    "max_total_requests":"20", "max_elapsed_ms":"10000",
+                    "max_staged_bytes":"1048576", "max_store_bytes":"33554432"
+                }))
+                .unwrap(),
+                Existing {
+                    store_bytes: 0,
+                    staged_bytes: 0,
+                },
+                Box::new(std::time::Instant::now),
+            )
+            .unwrap()
+        };
+        let (nodes, state, raw, rule) = fixture();
+        let capture = sc::AuditCapture::new(nodes)
+            .enable_native_frame_reuse_for_testonly()
+            .unwrap();
+        let expected = NativeSourceAudit::new(&capture, (&raw).into())
+            .unwrap()
+            .audit(&state, raw.len(), tb02a::PROFILE, &rule)
+            .unwrap();
+        let mut job = make_job(100000);
+        {
+            let audit = AuditJob::new(&mut job);
+            let mut native = NativeSourceAudit::new_with_records_measured(
+                &capture,
+                (&raw).into(),
+                None,
+                None,
+                Some(&audit),
+                Some(std::time::Instant::now() + std::time::Duration::from_secs(10)),
+                super::super::history::SourcePolicy::NativeMeasured,
+            )
+            .unwrap();
+            let got = native
+                .audit(&state, raw.len(), tb02a::PROFILE, &rule)
+                .unwrap();
+            assert_eq!(format!("{got:?}"), format!("{expected:?}"));
+            let decoded = native.fields.field_decodes;
+            assert!(decoded > 0);
+            native
+                .audit(&state, raw.len(), tb02a::PROFILE, &rule)
+                .unwrap();
+            assert_eq!(native.fields.field_decodes, decoded);
+            assert!(native.fields.field_hits > 0);
+            assert!(native.memo.stats.hits > 0);
+        }
+        assert!(job.snapshot().records >= (raw.len() * 3) as u64);
+        assert!(job.snapshot().nodes > 0);
+        let mut limited = make_job(1);
+        let audit = AuditJob::new(&mut limited);
+        let mut native = NativeSourceAudit::new_with_records_measured(
+            &capture,
+            (&raw).into(),
+            None,
+            None,
+            Some(&audit),
+            None,
+            super::super::history::SourcePolicy::NativeMeasured,
+        )
+        .unwrap();
+        assert!(native
+            .audit(&state, raw.len(), tb02a::PROFILE, &rule)
+            .is_err());
+        assert!(native.fields.fields.is_empty() && native.fields.scalars.values.is_empty());
+        assert!(native.ledger.sources.is_empty() && native.ledger.originals.is_empty());
+        assert!(native.memo.entries.is_empty());
+    }
+
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn native_witness_identity_keeps_current_cut_faults() {

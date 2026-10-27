@@ -59,16 +59,28 @@ def economic_revisions(manifest: Mapping[str, object]) -> tuple[str, str]:
     if finance is None:
         if protocol == "economic-session/2":
             raise EconomicQueryError("economic-session/2 必须冻结 tb03b-finance/2")
-    elif type(finance) is not dict or finance.get("schema_revision") != finance_revision:
+    elif type(finance) is not dict:
+        raise EconomicQueryError("经济会话与财务版本混搭或未知")
+    elif protocol == "economic-session/1" and finance.get("schema_revision") == "tb03b-finance/3":
+        # #1716 I1-C：/1 域显式选择的窄测试臂（签署 cap 原子激活）；/1、/2 不变。
+        finance_revision = "tb03b-finance/3"
+    elif protocol == "economic-session/2" and finance.get("schema_revision") == "tb03b-finance/4":
+        # #1716 I1-C：/2 内容域显式选择的新合同（/2 全部语义 + 签署 cap 原子激活）。
+        finance_revision = "tb03b-finance/4"
+    elif finance.get("schema_revision") != finance_revision:
         raise EconomicQueryError("经济会话与财务版本混搭或未知")
     return protocol, finance_revision
 
 
+TB03C_BOOKS = ("tb03c-book/1", "tb03c-book/2", "tb03c-book/3")
+
+
 def book_revision(manifest):
-    """#1406/#1620：null/缺省仍属旧书账。Rust book::rules 认 tb03c-book/1 与 /2（C8 资金签署）；
-    本读者接受两者——/2 只在公共查询字段上与 /1 等效（不处理资金合同，只读取公共图像）。"""
+    """#1406/#1620/#1715：null/缺省仍属旧书账。Rust book::rules 认 tb03c-book/1、/2（C8 资金签署）
+    与 /3（/2 + 逐重数量定标）；本读者接受三者——/2、/3 只在公共查询字段上与 /1 等效
+    （不处理资金合同或定标，只读取公共图像）。"""
     revision = manifest.get("book_revision")
-    if revision is not None and (type(revision) is not str or revision not in ("tb03c-book/1", "tb03c-book/2")):
+    if revision is not None and (type(revision) is not str or revision not in TB03C_BOOKS):
         raise EconomicQueryError("未知书账版本")
     return revision
 
@@ -92,11 +104,11 @@ def _signed_integer(value, name):
 
 def allocation_sources(manifest, revision):
     """冻结来源身份，不实现份额或金额 reducer。无政策的清单仍可等待。
-    #1620：tb03c-book/2 在外效分配字段上与 /1 等效（资金签署不影响此读者）。"""
+    #1620/#1715：tb03c-book/2、/3 在外效分配字段上与 /1 等效（资金签署与数量定标不影响此读者）。"""
     if "fill_manifests" not in manifest and "fill_allocation_policy" not in manifest:
         return None, {}
-    if revision not in ("tb03c-book/1", "tb03c-book/2"):
-        raise EconomicQueryError("外效分配来源须冻结 tb03c-book/1 或 tb03c-book/2")
+    if revision not in TB03C_BOOKS:
+        raise EconomicQueryError("外效分配来源须冻结 tb03c-book/1、/2 或 /3")
     policy = manifest.get("fill_allocation_policy")
     policies = {"netted": "frozen-manifest-proportional-cumulative/2",
                 "per_leg": "per-leg-source-attribution/1"}
@@ -774,7 +786,7 @@ class EconomicQuery:
         fields = {"book", "recorded", "pending", "applied", "unmatched", "history"}
         fields |= {"finance"} if self.manifest.get("finance") else set()
         allowed = [fields]
-        if self.book_revision in ("tb03c-book/1", "tb03c-book/2") and domain == "E":
+        if self.book_revision in TB03C_BOOKS and domain == "E":
             allowed.append(fields | {"fill_allocations"})
         if (type(image) is not dict
                 or set(image) not in allowed

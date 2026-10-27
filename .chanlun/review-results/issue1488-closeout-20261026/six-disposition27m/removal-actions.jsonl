@@ -1,0 +1,5 @@
+{"id": 29, "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/budget-handoff-fix-v2-checkout", "method": "shutil.rmtree exact approved independent clone", "exit": 0, "absent": true, "at": "2026-10-26T22:58:55.733696+00:00"}
+{"id": 30, "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/budget-handoff-review-checkout", "method": "shutil.rmtree exact approved independent clone", "exit": 0, "absent": true, "at": "2026-10-26T22:58:56.166181+00:00"}
+{"id": 32, "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/coverage-checkout", "method": "shutil.rmtree exact approved independent clone", "exit": 0, "absent": true, "at": "2026-10-26T22:58:56.596069+00:00"}
+{"id": 28, "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/budget-handoff-checkout", "method": "shutil.rmtree exact approved independent clone", "exit": 0, "absent": true, "at": "2026-10-26T22:58:57.045234+00:00"}
+{"id": 31, "path": "/Volumes/AgentStorage/issue1488-ticket-manager-20261018/checkout", "method": "shutil.rmtree exact approved independent clone", "exit": 0, "absent": true, "at": "2026-10-26T22:58:57.509489+00:00"}

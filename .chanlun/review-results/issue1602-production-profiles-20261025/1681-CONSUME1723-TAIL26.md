@@ -1,0 +1,4 @@
+# PR1681 无冲突集成非作者尾审
+主控固定7dc86ef26e5db906325834bd376d720a6036b2e8实查。
+git show --remerge-diff无人工差异；枚举相对main3a6866ad全部净差异文件并逐文件对照原已审a9ad34d5，git diff全部退出0；工作流与main相同、diff-check通过。
+静态集成PASS，既有R2非默认政策/恢复语义证据保留。新CI40249496659与DevSkim40249496658仍待终态；draft不提前解除。

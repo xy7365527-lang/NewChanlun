@@ -6,22 +6,25 @@ use serde_json::{json, Value};
 
 /// #1406 / 根裁定 OQ-7：书账子合同版本，冻结在 manifest 顶层 `book_revision`。
 /// 缺省（或 null）= 旧书账规则（#1374 的 `/1` 域与 #1394 的 `/2` 域逐字重放）；
-/// 显式只认 `tb03c-book/1` 与 `tb03c-book/2`（C8：ADR 0040 资金签署记录接入开局批）；
-/// 其余值当场拒绝，无回落（#799）。
+/// 显式只认 `tb03c-book/1`、`tb03c-book/2`（C8：ADR 0040 资金签署记录接入开局批）与
+/// `tb03c-book/3`（#1715 I1-Q：`/2` + 逐重数量定标，ADR 0049）；其余值当场拒绝，无回落（#799）。
 pub(crate) const BOOK_REVISION_FIELD: &str = "book_revision";
 pub(crate) const TB03C_BOOK_V1: &str = "tb03c-book/1";
 pub(crate) const TB03C_BOOK_V2: &str = "tb03c-book/2";
+pub(crate) const TB03C_BOOK_V3: &str = "tb03c-book/3";
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Rules {
     Legacy,
     Tb03cV1,
     /// `tb03c-book/1` 全部规则 + manifest 冻结的资金三件（ADR 0040 裁定四第 4/5 步）。
     Tb03cV2,
+    /// `tb03c-book/2` 全部规则 + 逐重冻结数量定标（#1715 I1-Q，ADR 0049 Q4/Q3）。
+    Tb03cV3,
 }
 impl Rules {
     /// tb03c 书账族（`/1` 与 `/2` 共用原件形状与金额主干；`/2` 只在开局批、追加批、q_rebase 上更严）。
     pub(crate) fn is_tb03c(self) -> bool {
-        matches!(self, Rules::Tb03cV1 | Rules::Tb03cV2)
+        matches!(self, Rules::Tb03cV1 | Rules::Tb03cV2 | Rules::Tb03cV3)
     }
     /// init 绑定进 meta 的版本文本；旧域无此行。
     pub(crate) fn revision(self) -> Option<&'static str> {
@@ -29,6 +32,7 @@ impl Rules {
             Rules::Legacy => None,
             Rules::Tb03cV1 => Some(TB03C_BOOK_V1),
             Rules::Tb03cV2 => Some(TB03C_BOOK_V2),
+            Rules::Tb03cV3 => Some(TB03C_BOOK_V3),
         }
     }
 }
@@ -37,8 +41,10 @@ pub(crate) fn rules(manifest: &Value) -> Result<Rules, String> {
         None | Some(Value::Null) => Ok(Rules::Legacy),
         Some(Value::String(v)) if v == TB03C_BOOK_V1 => Ok(Rules::Tb03cV1),
         Some(Value::String(v)) if v == TB03C_BOOK_V2 => Ok(Rules::Tb03cV2),
+        Some(Value::String(v)) if v == TB03C_BOOK_V3 => Ok(Rules::Tb03cV3),
         Some(_) => Err(
-            "SchemaUnsupported：书账版本只有缺省（旧规则）、tb03c-book/1 与 tb03c-book/2".into(),
+            "SchemaUnsupported：书账版本只有缺省（旧规则）、tb03c-book/1、tb03c-book/2 与 tb03c-book/3"
+                .into(),
         ),
     }
 }
@@ -392,7 +398,7 @@ pub(crate) fn apply_in(
     ns: &str,
 ) -> Result<(Value, bool), String> {
     match rules(manifest)? {
-        Rules::Tb03cV2 => {
+        Rules::Tb03cV2 | Rules::Tb03cV3 => {
             let funding = super::tb03c_funding::Contract::of(manifest)?
                 .ok_or("StorageUnavailable：tb03c-book/2 缺资金合同")?;
             super::tb03c_book::apply_v2(image, record, seq, ns, &funding)
@@ -411,7 +417,7 @@ pub(crate) fn apply(
 ) -> Result<(Value, bool), String> {
     match rules {
         Rules::Tb03cV1 => return super::tb03c_book::apply(image, record, seq, ns),
-        Rules::Tb03cV2 => {
+        Rules::Tb03cV2 | Rules::Tb03cV3 => {
             return Err(
                 "MissingDependency：tb03c-book/2 须经 apply_in 读 manifest 冻结的资金合同".into(),
             )
