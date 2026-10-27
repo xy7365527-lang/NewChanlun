@@ -1876,7 +1876,7 @@ impl Cc004Producer {
                 let value = CValue::Array(relations);
                 #[cfg(feature = "s_incremental")]
                 let built = if shared.is_some() {
-                    sc::write_value_native_local_for_testonly(&mut *store, &value)?
+                    sc::write_value_native_local(&mut *store, &value)?
                 } else {
                     sc::write_value(&mut *store, &value)?
                 };
@@ -5642,7 +5642,7 @@ mod tests {
         let mut old = CountingStore::default();
         let mut local = CountingStore::default();
         let expected = sc::write_value(&mut old, &value).unwrap();
-        let actual = sc::write_value_native_local_for_testonly(&mut local, &value).unwrap();
+        let actual = sc::write_value_native_local(&mut local, &value).unwrap();
         assert_eq!(actual, expected);
         assert_eq!(old.puts, 1128);
         assert_eq!(local.puts, local.nodes.len());
@@ -5656,7 +5656,7 @@ mod tests {
         verify(&mut local, &actual.content_ref()).unwrap();
         let per_call = local.puts;
         assert_eq!(
-            sc::write_value_native_local_for_testonly(&mut local, &value).unwrap(),
+            sc::write_value_native_local(&mut local, &value).unwrap(),
             actual
         );
         assert_eq!(local.puts, 2 * per_call, "第二次调用重新写入全部唯一材料");

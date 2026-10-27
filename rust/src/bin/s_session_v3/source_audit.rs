@@ -3694,7 +3694,7 @@ mod tests {
         };
         let (nodes, state, raw, rule) = fixture();
         let capture = sc::AuditCapture::new(nodes)
-            .enable_native_frame_reuse_for_testonly()
+            .enable_native_frame_reuse()
             .unwrap();
         let expected = NativeSourceAudit::new(&capture, (&raw).into())
             .unwrap()

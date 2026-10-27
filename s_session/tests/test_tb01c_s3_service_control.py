@@ -38,8 +38,8 @@ class S3LifecycleTests(unittest.TestCase):
                 "delivery_retain_generations": "1", "startup_timeout_ms": startup_timeout_ms, "s_resources": resources}
 
     @staticmethod
-    def response(request, nonce="current"):
-        return reply_envelope(request, {"kind": "Ready", "control_instance_id": nonce},
+    def response(request, nonce="current", **extra):
+        return reply_envelope(request, {"kind": "Ready", "control_instance_id": nonce, **extra},
                               session_id=request["session_id"], session_generation=request["session_generation"],
                               namespace="s-session/replies", producer_id="S:" + request["session_id"],
                               producer_epoch="1")
@@ -284,6 +284,54 @@ class S3LifecycleTests(unittest.TestCase):
                         controller.wait_ready("s", "1")
             finally:
                 controller.close()
+
+    def test_ready_build_profile_rejects_testonly_before_record_and_admits_production(self):
+        # #1640 C4：假写者经 Ready 自报构建身份；testonly 在核活进程与登记 Ready 之前即拒绝。
+        cases = (("s-launcher/4", {"build_profile": "testonly"}, "TestOnlyBuild"),
+                 ("s-launcher/3", {"build_profile": "testonly"}, "TestOnlyBuild"),
+                 ("s-launcher/4", {}, "build_profile=production"),
+                 ("s-launcher/4", {"build_profile": "Production"}, "build_profile=production"))
+        record = {"state": "running", "service": "s", "pid": 123456,
+                  "process_identity": "exact current", "control_instance_id": "current"}
+        for revision, extra, message in cases:
+            with self.subTest(revision=revision, extra=extra), \
+                 tempfile.TemporaryDirectory(prefix="s3-profile-") as directory:
+                config = self.config(directory, revision, startup_timeout_ms="2000")
+                controller = anchored_controller(config, Path(directory) / "state")
+                try:
+                    response = self.response(controller.ready_request("1"), **extra)
+                    with patch.object(controller, "status", return_value=record), \
+                         patch.object(control, "exchange",
+                                      return_value={"transport": "Received", "response": response}), \
+                         patch.object(controller, "confirm_ready_process") as confirm:
+                        with self.assertRaisesRegex(ValueError, message):
+                            controller.wait_ready("s", "1")
+                    confirm.assert_not_called()
+                    self.assertFalse(controller.record_path("s").exists())
+                finally:
+                    controller.close()
+        with self.assertRaises(control.TestOnlyBuildError):
+            control.check_build_profile(self.config("/owned", "s-launcher/4"), {"build_profile": "testonly"})
+        # 正控：s-launcher/4 的 production 自报照常就绪并登记；s-launcher/3 无此字段的旧回复原样放行。
+        for revision, extra in (("s-launcher/4", {"build_profile": "production"}), ("s-launcher/3", {})):
+            with self.subTest(revision=revision, extra=extra), \
+                 tempfile.TemporaryDirectory(prefix="s3-profile-") as directory:
+                config = self.config(directory, revision, startup_timeout_ms="2000")
+                controller = anchored_controller(config, Path(directory) / "state")
+                identity = {"path": config["socket"], "device": 1, "inode": 2, "uid": os.getuid()}
+                try:
+                    response = self.response(controller.ready_request("1"), **extra)
+                    with patch.object(controller, "status", return_value=record), \
+                         patch.object(control, "exchange",
+                                      return_value={"transport": "Received", "response": response}), \
+                         patch.object(controller, "socket_identity", return_value=identity):
+                        result = controller.wait_ready("s", "1")
+                    self.assertEqual(result["state"], "ready")
+                    self.assertEqual(result["reply"]["payload"].get("build_profile"), extra.get("build_profile"))
+                    self.assertEqual(json.loads(controller.record_path("s").read_text())["socket_identity"],
+                                     identity)
+                finally:
+                    controller.close()
 
     def test_nonpython_argv_is_exact_and_process_probe_uses_remaining_deadline(self):
         command = ["/owned/s_structure_session", "serve", "--protocol-revision", "s-session/3"]

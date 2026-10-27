@@ -953,35 +953,29 @@ mod native_local_tests {
             ..ProbeSink::default()
         };
         assert_eq!(
-            write_value_native_local_for_testonly(&mut sink, &value)
+            write_value_native_local(&mut sink, &value)
                 .unwrap_err()
                 .code(),
             code::SINK
         );
         assert_eq!(sink.calls, 1);
         sink.fail_at = None;
-        let first = write_value_native_local_for_testonly(&mut sink, &value).unwrap();
+        let first = write_value_native_local(&mut sink, &value).unwrap();
         let per_call = sink.calls - 1;
         assert_eq!(per_call, sink.nodes.len());
         let before = sink.calls;
-        assert_eq!(
-            write_value_native_local_for_testonly(&mut sink, &value).unwrap(),
-            first
-        );
+        assert_eq!(write_value_native_local(&mut sink, &value).unwrap(), first);
         assert_eq!(sink.calls - before, per_call);
         sink.fail_at = Some(sink.calls + 2);
         assert_eq!(
-            write_value_native_local_for_testonly(&mut sink, &value)
+            write_value_native_local(&mut sink, &value)
                 .unwrap_err()
                 .code(),
             code::SINK
         );
         sink.fail_at = None;
         let before = sink.calls;
-        assert_eq!(
-            write_value_native_local_for_testonly(&mut sink, &value).unwrap(),
-            first
-        );
+        assert_eq!(write_value_native_local(&mut sink, &value).unwrap(), first);
         assert_eq!(sink.calls - before, per_call);
     }
 
@@ -1001,17 +995,15 @@ mod native_local_tests {
             (Value::Edge([0xab; 32]), code::KIND),
         ] {
             assert_eq!(
-                write_value_native_local_for_testonly(&mut sink, &value)
+                write_value_native_local(&mut sink, &value)
                     .unwrap_err()
                     .code(),
                 expected
             );
         }
-        let built = write_value_native_local_for_testonly(
-            &mut sink,
-            &Value::Array(vec![Value::Edge([0xab; 32])]),
-        )
-        .unwrap();
+        let built =
+            write_value_native_local(&mut sink, &Value::Array(vec![Value::Edge([0xab; 32])]))
+                .unwrap();
         assert_eq!(
             verify(&mut sink.nodes, &built.content_ref())
                 .unwrap_err()

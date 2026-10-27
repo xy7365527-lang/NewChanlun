@@ -2564,8 +2564,8 @@ fn capture_originals_admitted(
     })?;
     same &= prior.is_some_and(|(_, count)| matched == count);
     let count = nodes.len();
-    let capture = s_content::AuditCapture::new(nodes)
-        .with_original_fees_for_testonly(tree_permit, body_permits)?;
+    let capture =
+        s_content::AuditCapture::new(nodes).with_original_fees(tree_permit, body_permits)?;
     Ok((capture, count, same))
 }
 #[cfg(feature = "s_incremental")]

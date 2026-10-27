@@ -1408,7 +1408,7 @@ pub(super) fn audit_native_source(
                     return Err(construction_state::stale("实际effects新增原件缺失"));
                 };
                 let appended = match body.into_parts() {
-                    (body, None) => capture.append_original_for_owner_testonly(
+                    (body, None) => capture.append_original_for_owner(
                         *digest,
                         tag,
                         body,
@@ -1418,7 +1418,7 @@ pub(super) fn audit_native_source(
                     (body, Some(fee)) => {
                         let mut body = sc::CodecVec::from_plain(body);
                         body.attach_native_reservation(fee).and_then(|()| {
-                            capture.append_original_codec_for_owner_testonly(
+                            capture.append_original_codec_for_owner(
                                 *digest,
                                 tag,
                                 body,
@@ -1433,7 +1433,7 @@ pub(super) fn audit_native_source(
                 }
             }
             capture
-                .verify_owner_refview_for_testonly(root, sc::Mode::Public, access.work)
+                .verify_owner_refview(root, sc::Mode::Public, access.work)
                 .map_err(invalid)?;
             let seed = j
                 .set_seed

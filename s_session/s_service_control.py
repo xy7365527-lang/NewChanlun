@@ -43,6 +43,20 @@ def is_s3(config):
     return launcher_revision(config) in S3_LAUNCHER_RESOURCES
 
 
+class TestOnlyBuildError(ValueError):
+    """#1640 C4：CLI 错误只露类型名，具名类型使 TestOnlyBuild 拒绝在脱敏输出里仍可辨认。"""
+
+
+def check_build_profile(config, payload):
+    # #1640 C4：Ready 发布前核写者自报的构建身份；testonly 构建一律不得作生产会话启动。
+    # s-launcher/4 只配 s_incremental 写者，须显式自报 production；旧构建与 s-launcher/3 不发此字段，原样放行。
+    profile = payload.get("build_profile")
+    if profile == "testonly":
+        raise TestOnlyBuildError("TestOnlyBuild：写者自报 testonly 构建，拒绝启动生产会话")
+    if launcher_revision(config) == "s-launcher/4" and profile != "production":
+        raise ValueError("s-launcher/4 Ready 必须自报 build_profile=production")
+
+
 def validate_s_resources(config):
     resources = config.get("s_resources")
     if type(resources) is not dict:
@@ -610,6 +624,7 @@ class Controller:
                         and nonce == expected.get("control_instance_id")):
                     validate_reply(request, response, producer="S", producer_epoch=writer_epoch,
                                    allow_control_instance=not s3)
+                    check_build_profile(self.config, payload)
                     self.confirm_ready_process(service, expected, deadline)
                     # 只有正式Ready nonce与本次活PID同时成立，才登记此路径的清理资格。
                     record = {k: v for k, v in self.status("s", deadline=deadline).items() if k != "state"}

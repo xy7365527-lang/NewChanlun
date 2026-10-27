@@ -2932,7 +2932,7 @@ impl NodeSink for HashReader<'_> {
                 // #1394：无计费Native完整审计保留同原件的source读取归属。
                 // 后续仍实际复制当前正文并核首次F；本put不预核摘要或减少访问trace。
                 #[cfg(feature = "s_incremental")]
-                if capture.native_frame_reuse_active_for_testonly()
+                if capture.native_frame_reuse_active()
                     && self.audit_full_arrays
                     && self.owned.is_none()
                     && (self.native_measured()
@@ -3502,9 +3502,9 @@ mod tests {
         nodes.insert_unchecked(digest, sc::tag::BYTES_CHUNK, body.clone());
         let placeholder = sc::write_template(&mut nodes, &V::BatchSelf).unwrap();
         let capture = sc::AuditCapture::new(nodes)
-            .enable_native_frame_reuse_for_testonly()
+            .enable_native_frame_reuse()
             .unwrap();
-        assert!(capture.native_frame_reuse_active_for_testonly());
+        assert!(capture.native_frame_reuse_active());
         let mut reader = HashReader::captured_for_audit(&capture, None).unwrap();
         reader.enable_full_arrays_for_test();
         let before = sc::frame_calls_on_thread();
@@ -3568,7 +3568,7 @@ mod tests {
         nodes.insert_unchecked(digest, sc::tag::BYTES_CHUNK, body.to_vec());
         nodes.insert_unchecked(bad_digest, sc::tag::BYTES_CHUNK, body.to_vec());
         let capture = sc::AuditCapture::new(nodes)
-            .enable_native_frame_reuse_for_testonly()
+            .enable_native_frame_reuse()
             .unwrap();
         let mut reader = HashReader::captured(&capture, None);
         reader.enable_full_arrays_for_test();
@@ -3649,7 +3649,7 @@ mod tests {
         let mut nodes = sc::MemoryNodes::new();
         nodes.insert_unchecked(digest, sc::tag::BYTES_CHUNK, body.to_vec());
         let capture = sc::AuditCapture::new(nodes)
-            .enable_native_frame_reuse_for_testonly()
+            .enable_native_frame_reuse()
             .unwrap();
         let meter = Meter::default();
         let deadline = Some(std::time::Instant::now() + std::time::Duration::from_secs(10));
@@ -3706,9 +3706,9 @@ mod tests {
         nodes.insert_unchecked(digest, sc::tag::BYTES_CHUNK, body.to_vec());
         let legacy = sc::AuditCapture::new(nodes.clone());
         let native = sc::AuditCapture::new(nodes.clone())
-            .enable_native_frame_reuse_for_testonly()
+            .enable_native_frame_reuse()
             .unwrap();
-        assert!(!legacy.native_frame_reuse_active_for_testonly());
+        assert!(!legacy.native_frame_reuse_active());
         let meter = Meter::default();
         for excluded in [
             "legacy", "partial", "render", "deadline", "budget", "bounded",
@@ -3748,7 +3748,7 @@ mod tests {
         let mut slab = CaptureSlab::new(1, body.len(), &budget).unwrap();
         slab.push(digest, sc::tag::BYTES_CHUNK, body).unwrap();
         let owned = sc::AuditCapture::from_slab_for_allocation_prototype(slab.finish().unwrap());
-        assert!(!owned.native_frame_reuse_active_for_testonly());
+        assert!(!owned.native_frame_reuse_active());
         let mut reader = HashReader::captured(&owned, None);
         reader.enable_full_arrays_for_test();
         reader.put(digest, sc::tag::BYTES_CHUNK, body).unwrap();

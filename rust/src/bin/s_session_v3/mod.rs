@@ -107,6 +107,12 @@ pub(crate) use admission_private::test_with_mixed_entry;
 
 /// 本模块唯一负责的协议版本。
 pub(super) const PROTOCOL_REVISION: &str = "s-session/3";
+/// #1640 C4：增量写者二进制的构建身份，随 Ready 回复自报，launcher 据此在发布 Ready 前拒绝
+/// testonly 构建；默认 `s_session` 构建不发此字段，旧 Ready 回复与 launcher/3 用法不变。
+#[cfg(feature = "s_capture_native_testonly")]
+pub(super) const BUILD_PROFILE: &str = "testonly";
+#[cfg(all(feature = "s_incremental", not(feature = "s_capture_native_testonly")))]
+pub(super) const BUILD_PROFILE: &str = "production";
 /// 旧 v2 合同版本号；显式给出时仍由既有 v2 初始化入口执行。
 pub(super) const PREVIOUS_REVISION: &str = "s-session/2";
 const SELECTOR: &str = "--protocol-revision";

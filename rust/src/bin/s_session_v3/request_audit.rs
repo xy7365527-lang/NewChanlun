@@ -2222,7 +2222,7 @@ mod tests {
         let mut nodes = MemoryNodes::new();
         nodes.insert_unchecked([1; 32], 7, vec![1, 2, 3]);
         let original = AuditCapture::new(nodes.clone())
-            .enable_native_frame_reuse_for_testonly()
+            .enable_native_frame_reuse()
             .unwrap();
         assert!(original
             .exact_original_tuples_equal(&AuditCapture::new(nodes.clone()))
@@ -2261,7 +2261,7 @@ mod tests {
         let tx = conn.transaction().unwrap();
         let (capture, count) = content_store::capture_for_request_prototype(&tx).unwrap();
         assert_eq!(count, 2);
-        let capture = capture.enable_native_frame_reuse_for_testonly().unwrap();
+        let capture = capture.enable_native_frame_reuse().unwrap();
         drop(tx);
         (conn, capture)
     }

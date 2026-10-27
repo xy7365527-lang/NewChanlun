@@ -82,7 +82,7 @@ mod r6_codec_work_tests {
         let mut expected = Vec::new();
         sc::render_canonical(&mut nodes, &reference, &mut expected).unwrap();
         let capture = sc::AuditCapture::new(nodes)
-            .enable_native_frame_reuse_for_testonly()
+            .enable_native_frame_reuse()
             .unwrap();
         let before = capture.retention();
         for _ in 0..2 {
@@ -181,7 +181,7 @@ mod r6_codec_work_tests {
             .unwrap()
             .content_ref();
         let capture = sc::AuditCapture::new(nodes)
-            .enable_native_frame_reuse_for_testonly()
+            .enable_native_frame_reuse()
             .unwrap();
         let budget = Budget::new(65_536, 0).unwrap();
         let base = budget.live();
@@ -1866,7 +1866,7 @@ mod r8_native_admission_tests {
         let digest = sc::frame(sc::tag::BYTES_CHUNK, &body);
         sc::NodeSink::put(&mut nodes, digest, sc::tag::BYTES_CHUNK, &body).unwrap();
         let capture = sc::AuditCapture::new(nodes)
-            .enable_native_frame_reuse_for_testonly()
+            .enable_native_frame_reuse()
             .unwrap();
         let budget = Budget::new(65536, 0).unwrap();
         let base = budget.live();
@@ -1942,7 +1942,7 @@ mod r8_native_admission_tests {
             work: None,
             calls: 0,
         };
-        let expected = sc::write_value_native_local_for_testonly(&mut plain, &value).unwrap();
+        let expected = sc::write_value_native_local(&mut plain, &value).unwrap();
         let budget = Budget::new(1024 * 1024, 0).unwrap();
         let base = budget.live();
         budget
@@ -1953,7 +1953,7 @@ mod r8_native_admission_tests {
                     work: Some(scope),
                     calls: 0,
                 };
-                let actual = sc::write_value_native_local_for_testonly(&mut sink, &value)?;
+                let actual = sc::write_value_native_local(&mut sink, &value)?;
                 assert_eq!(actual, expected);
                 assert_eq!(sink.calls, plain.calls, "完整正文 memo 保持真实 put 次数");
                 assert!(scope.snapshot().attempts > 0);
@@ -1968,7 +1968,7 @@ mod r8_native_admission_tests {
                 work: Some(scope),
                 calls: 0,
             };
-            let result = sc::write_value_native_local_for_testonly(&mut sink, &value);
+            let result = sc::write_value_native_local(&mut sink, &value);
             assert_eq!(sink.calls, 0, "真实 put 前拒绝工作集分配");
             result
         });

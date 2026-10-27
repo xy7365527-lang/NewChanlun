@@ -327,7 +327,7 @@ impl Pool {
                 .map_err(|e| e.to_string())?;
         }
         let (originals, certificates, selection) = originals
-            .into_counts_original_subset_admitted_for_testonly(groups, fixed, cap, work)
+            .into_counts_original_subset_admitted(groups, fixed, cap, work)
             .map_err(|e| e.to_string())?;
         let remove = proofs
             .len()
@@ -342,7 +342,7 @@ impl Pool {
         }
         proofs.try_compact_native(work).map_err(|e| e.to_string())?;
         let nodes = originals
-            .native_retention_numbers_for_testonly()
+            .native_retention_numbers()
             .ok_or("CountsSubsetNodeCountInvalid")?
             .nodes;
         let mut pool = Self::build(originals, nodes, binding, proofs)?;
@@ -362,7 +362,7 @@ impl Pool {
                         mul(pool.proofs.capacity(), std::mem::size_of::<Proof>())?
                     }
                     SealFault::NodeSourcePermits => {
-                        for bytes in pool.originals.native_source_claim_amounts_for_testonly() {
+                        for bytes in pool.originals.native_source_claim_amounts() {
                             pool.seal_fault_node_source
                                 .push(work.reserve_native(bytes).map_err(|e| e.to_string())?);
                         }
@@ -383,14 +383,14 @@ impl Pool {
     ) -> Result<Self, String> {
         // Drop全部Public/Template/Frame memo，保留原件owner及两份纯codec成功根集合。
         let originals = originals
-            .into_originals_and_codec_roots_for_testonly()
+            .into_originals_and_codec_roots()
             .map_err(|e| e.to_string())?;
         let retained = originals
-            .native_retention_numbers_for_testonly()
+            .native_retention_numbers()
             .ok_or("SourceCachePrototypeRetentionInvalid")?;
         // #1488 P2-A：来源合同项只进O合同账；封存时逐项复核都指到已物理计费的正文块，指不到即拒。
         let (claims, claimed) = originals
-            .native_source_claims_for_testonly()
+            .native_source_claim_totals()
             .map_err(|e| e.to_string())?;
         let mut source_cost = SourceCost {
             node_body_bytes: retained.body_len,
@@ -491,7 +491,7 @@ impl Pool {
         .try_fold(8, add)?;
         // #1488 P3-β：claims==0也要核——只要有正文块已物理计费，就必须每节点一项；
         // 只有全无物理计费正文（无工作域的捕获）时才允许无合同项。
-        let bound = originals.native_bound_body_nodes_for_testonly();
+        let bound = originals.native_bound_body_nodes();
         if (claims != 0 || bound != 0)
             && (claims != nodes
                 || claimed
@@ -534,11 +534,11 @@ impl Pool {
     /// CodecVec/文本/单元、proofs块与Key/证书值）。负控注入的 seal_fault_duplicate 不属任何
     /// 持有者，故不在清单内；普查以清单对拍逐张归还，确定地识别多签。
     #[cfg(all(test, feature = "s_incremental"))]
-    pub(super) fn native_permit_inventory_for_testonly(&self) -> Result<Vec<usize>, String> {
+    pub(super) fn native_permit_inventory(&self) -> Result<Vec<usize>, String> {
         use super::business_json::TextValue;
         let mut out = Vec::new();
         self.originals
-            .native_permit_inventory_for_testonly(&mut out)
+            .native_permit_inventory(&mut out)
             .map_err(|e| e.to_string())?;
         let text = |out: &mut Vec<usize>, value: &TextValue| match value {
             TextValue::Plain(v) => out.extend(v.retained_charge()),
@@ -964,7 +964,7 @@ mod tests {
             let mut nodes = sc::MemoryNodes::new();
             nodes.insert_unchecked(digest, tag, body.clone());
             sc::AuditCapture::new(nodes)
-                .with_original_fees_for_testonly(sc::CodecVec::default(), Fees::from_plain(fees))
+                .with_original_fees(sc::CodecVec::default(), Fees::from_plain(fees))
         };
         budget
             .codec_work()
@@ -983,17 +983,17 @@ mod tests {
                 let mut live = Vec::new();
                 for source in [None, Some(claim)] {
                     let native = capture(vec![(digest, fee().map_err(e)?, source)])
-                        .and_then(|c| c.enable_native_frame_reuse_admitted_for_testonly(Some(work)))
+                        .and_then(|c| c.enable_native_frame_reuse_admitted(Some(work)))
                         .map_err(e)?;
                     live.push(budget.live());
-                    let claims = native.native_source_claims_for_testonly().map_err(e)?;
+                    let claims = native.native_source_claim_totals().map_err(e)?;
                     assert_eq!(claims, if source.is_some() { (1, claim) } else { (0, 0) });
                     if source.is_some() {
                         // Native捕获上以无正文许可的明文正文追加，来源合同项指不到即拒。
                         let plain = b"p2a-plain".to_vec();
                         let mut native = native;
                         let error = native
-                            .append_original_for_owner_testonly(
+                            .append_original_for_owner(
                                 sc::frame(tag, &plain),
                                 tag,
                                 plain,
@@ -1005,10 +1005,7 @@ mod tests {
                             error.to_string().contains("指不到已物理计费的正文块"),
                             "{error}"
                         );
-                        assert_eq!(
-                            native.native_source_claims_for_testonly().map_err(e)?,
-                            (1, claim)
-                        );
+                        assert_eq!(native.native_source_claim_totals().map_err(e)?, (1, claim));
                     }
                 }
                 assert_eq!(live[0], live[1], "来源合同项不得在父账物理reserve");
@@ -1077,20 +1074,17 @@ mod tests {
                     let mut nodes = sc::MemoryNodes::new();
                     nodes.insert_unchecked(digest, tag, body.clone());
                     sc::AuditCapture::new(nodes)
-                        .with_original_fees_for_testonly(
+                        .with_original_fees(
                             sc::CodecVec::default(),
                             Fees::from_plain(vec![(digest, fee, source)]),
                         )
-                        .and_then(|c| c.enable_native_frame_reuse_admitted_for_testonly(Some(work)))
+                        .and_then(|c| c.enable_native_frame_reuse_admitted(Some(work)))
                         .map_err(e)
                 };
                 // 负控：正文块已物理计费、漏签claim。
                 let missing = native(Some(work.reserve_native(body.len()).map_err(e)?), None)?;
-                assert_eq!(
-                    missing.native_source_claims_for_testonly().map_err(e)?,
-                    (0, 0)
-                );
-                assert_eq!(missing.native_bound_body_nodes_for_testonly(), 1);
+                assert_eq!(missing.native_source_claim_totals().map_err(e)?, (0, 0));
+                assert_eq!(missing.native_bound_body_nodes(), 1);
                 assert_eq!(
                     seal(missing),
                     Err("SourceClaimContractMismatch".to_string())
@@ -1101,14 +1095,11 @@ mod tests {
                     Some(work.reserve_native(body.len()).map_err(e)?),
                     Some(claim),
                 )?;
-                assert_eq!(
-                    signed.native_source_claims_for_testonly().map_err(e)?,
-                    (1, claim)
-                );
+                assert_eq!(signed.native_source_claim_totals().map_err(e)?, (1, claim));
                 seal(signed).unwrap();
                 // 对照：全无物理计费正文的捕获（无许可、无claim）仍可封存。
                 let plain = native(None, None)?;
-                assert_eq!(plain.native_bound_body_nodes_for_testonly(), 0);
+                assert_eq!(plain.native_bound_body_nodes(), 0);
                 seal(plain).unwrap();
                 assert_eq!(budget.live(), base);
                 Ok::<_, String>(())
@@ -1241,7 +1232,7 @@ mod tests {
         //   封存后live = 残余M + 封存池逐张许可之和，池析构后父账回到M；三负控（重复计费、
         //   事后追认、挂错父账）见 REPORT。父帽取最小必要值：实测同父完整审计峰 149,307,139B
         //   （峰值点 Native 149,306,915 + metadata_live 96 + 根控制块 M 128，Layout 0；峰由
-        //   enable_native_frame_reuse_admitted_for_testonly 一笔 14,749,200B 推上），⌈峰/1MiB⌉=143MiB；
+        //   enable_native_frame_reuse_admitted 一笔 14,749,200B 推上），⌈峰/1MiB⌉=143MiB；
         //   142MiB=148,897,792B 小于峰，负界复跑 BudgetExceeded。此帽是夹具 Budget，不是生产资源帽。
         const R14_PARENT_CAP: usize = 143 * 1024 * 1024;
         for cap in [usize::MAX, first_group_cap] {
@@ -1359,14 +1350,8 @@ mod tests {
                     assert_eq!(body.as_ptr() as usize, pointer, "稀疏owner只移动原件正文");
                 }
             }
-            let actual_retention = actual
-                .originals
-                .native_retention_numbers_for_testonly()
-                .unwrap();
-            let expected_retention = oracle
-                .originals
-                .native_retention_numbers_for_testonly()
-                .unwrap();
+            let actual_retention = actual.originals.native_retention_numbers().unwrap();
+            let expected_retention = oracle.originals.native_retention_numbers().unwrap();
             assert_eq!(
                 actual_retention.public_roots,
                 expected_retention.public_roots
@@ -1384,7 +1369,7 @@ mod tests {
             // B11（第十六处，账目恒等式/重复计费）：封存后live = 残余M + 封存池逐张许可之和；
             // 池析构后父账回到M。重复计费的许可不属任何持有者，不在清单内，差额即露出。
             let inventory = actual
-                .native_permit_inventory_for_testonly()
+                .native_permit_inventory()
                 .unwrap()
                 .into_iter()
                 .try_fold(0usize, |sum, bytes| sum.checked_add(bytes))
@@ -2332,7 +2317,7 @@ mod counts_footprint_tests {
             pending.proofs,
         )
         .unwrap();
-        assert!(pool.originals.native_frame_reuse_active_for_testonly());
+        assert!(pool.originals.native_frame_reuse_active());
         let full_retention = pool.originals.retention();
         assert_eq!(
             full_retention["captured_nodes"].as_u64().unwrap() as usize,

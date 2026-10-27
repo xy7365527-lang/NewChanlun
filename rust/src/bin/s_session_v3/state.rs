@@ -185,7 +185,7 @@ pub(super) fn audit_native_current_measured(
         )
         .map(|(capture, _)| capture)
         .map_err(err)?
-        .enable_native_frame_reuse_for_testonly()
+        .enable_native_frame_reuse()
         .map_err(err)?;
         let (audited, _) = audit_core_fresh_with_policy(
             tx,
@@ -274,13 +274,13 @@ pub(super) fn audit_native_in_request_measured(
                     (capture, count, false)
                 };
                 let capture = capture
-                    .enable_native_frame_reuse_admitted_for_testonly(work)
+                    .enable_native_frame_reuse_admitted(work)
                     .map_err(err)?;
                 if source_same {
                     if let Some(pool) = source_prior.as_ref() {
                         // source_same只减少无谓尝试；封闭API仍自行逐tuple比较完整原件。
                         capture
-                            .seed_codec_roots_admitted_for_testonly(&pool.originals, work)
+                            .seed_codec_roots_admitted(&pool.originals, work)
                             .map_err(err)?;
                     }
                 }
@@ -305,7 +305,7 @@ pub(super) fn audit_native_in_request_measured(
                         let (capture, count, source_same) = capture_fresh()?;
                         // 同handler合法追加也只复用纯codec根；完整history结果仍走fresh审计。
                         capture
-                            .seed_codec_roots_admitted_for_testonly(&prior.capture, work)
+                            .seed_codec_roots_admitted(&prior.capture, work)
                             .map_err(err)?;
                         (capture, count, source_same)
                     };
@@ -458,13 +458,11 @@ pub(super) fn audit_native_with_source_keeper_for_testonly(
                 prior.as_ref().map(|pool| (&pool.originals, pool.nodes)),
             )
             .map_err(err)?;
-        let capture = capture
-            .enable_native_frame_reuse_for_testonly()
-            .map_err(err)?;
+        let capture = capture.enable_native_frame_reuse().map_err(err)?;
         if same_nodes {
             if let Some(pool) = prior.as_ref() {
                 capture
-                    .seed_codec_roots_from_native_capture_for_testonly(&pool.originals)
+                    .seed_codec_roots_admitted(&pool.originals, None)
                     .map_err(err)?;
             }
         }
@@ -790,9 +788,7 @@ fn audit_core_fresh_with_policy(
                 let capture = content_store::capture_for_prototype(tx).map_err(err)?;
                 #[cfg(feature = "s_incremental")]
                 let capture = if max_render_bytes.is_none() {
-                    capture
-                        .enable_native_frame_reuse_for_testonly()
-                        .map_err(err)?
+                    capture.enable_native_frame_reuse().map_err(err)?
                 } else {
                     capture
                 };
@@ -2454,7 +2450,7 @@ mod audit_capture_gate_tests {
         // 即使已opt-in且帧已热，BudgetSome仍逐次走原read→prepare→F→accept门序。
         let capture = content_store::capture_for_prototype(&tx)
             .unwrap()
-            .enable_native_frame_reuse_for_testonly()
+            .enable_native_frame_reuse()
             .unwrap();
         let digest = native.cuts[0].snapshot.view().digest().unwrap();
         let original = sc::NodeSource::checked_read(&mut capture.reader(), &digest)

@@ -1277,7 +1277,7 @@ mod ref_value_tests {
             Some(sc::Kind::JsonText),
         ];
         let capture = sc::AuditCapture::new(nodes.clone())
-            .enable_native_frame_reuse_for_testonly()
+            .enable_native_frame_reuse()
             .unwrap();
         let ((), stats) = with_native_store_probe(&capture, 8 * 1024 * 1024, |store, _| {
             for (root, kind) in roots.iter().zip(expected) {

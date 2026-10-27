@@ -134,8 +134,11 @@ fn audit_impl(
     Ok(audited)
 }
 
+#[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]
 const TESTONLY_MARKER: &str = "S_ALLOCATION_JSON_TESTONLY";
+#[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]
 const NATIVE_MARKER: &str = "S_CAPTURE_NATIVE_TESTONLY";
+#[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]
 const INPUTS: [&str; 4] = [
     TESTONLY_MARKER,
     "AUDIT_PROTOTYPE_OWNED_PAYLOAD_BYTES",
@@ -144,41 +147,33 @@ const INPUTS: [&str; 4] = [
 ];
 
 /// 仅 serve/advance 的模式入口；启动和恢复 pending 之前一次冻结。
-/// 所有输入缺省时返回 Ordinary；部分/混合输入、非 UTF-8、坏值与无 feature 激活都拒绝。
-/// #1640（ADR 0042 D1）：`s_incremental` 生产构建无运行时开关，编译期固定为 CapturedNative，
-/// 任一私有选择输入出现即拒绝；只有 testonly 构建保留对照臂的 env 选择。
+/// #1640（ADR 0042 D1 / 计划 §1.1）：`s_incremental` 生产构建无运行时开关，编译期固定为
+/// CapturedNative，不读取任何私有选择输入；env 选择只编入默认构建与 testonly 对照臂。
+/// 默认构建所有输入缺省时返回 Ordinary；部分/混合输入、非 UTF-8、坏值与无 feature 激活都拒绝。
 pub(super) fn load_environment_mode() -> Result<Mode, String> {
-    let read = |name: &str| match std::env::var(name) {
+    #[cfg(all(feature = "s_incremental", not(feature = "s_capture_native_testonly")))]
+    return incremental_mode();
+    #[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]
+    parse_selection_environment(read_selection_input)
+}
+
+/// #1640：生产增量构建的唯一模式；不读环境，不回落 Ordinary/Owned。
+#[cfg(all(feature = "s_incremental", not(feature = "s_capture_native_testonly")))]
+fn incremental_mode() -> Result<Mode, String> {
+    let mode = Mode::CapturedNative;
+    mode.validate()?;
+    Ok(mode)
+}
+
+#[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]
+fn read_selection_input(name: &str) -> Result<Option<String>, String> {
+    match std::env::var(name) {
         Ok(value) => Ok(Some(value)),
         Err(std::env::VarError::NotPresent) => Ok(None),
         Err(std::env::VarError::NotUnicode(_)) => {
             Err(format!("SAllocationTestOnlyInvalid：{name} 必须是 UTF-8"))
         }
-    };
-    #[cfg(all(feature = "s_incremental", not(feature = "s_capture_native_testonly")))]
-    return parse_incremental_environment(read);
-    #[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]
-    parse_testonly_environment(read)
-}
-
-/// #1640：生产增量构建的唯一模式；私有选择输入（含非 UTF-8）一律拒绝，不回落 Ordinary/Owned。
-#[cfg(all(
-    feature = "s_incremental",
-    any(not(feature = "s_capture_native_testonly"), test)
-))]
-fn parse_incremental_environment(
-    mut read: impl FnMut(&str) -> Result<Option<String>, String>,
-) -> Result<Mode, String> {
-    for name in std::iter::once(NATIVE_MARKER).chain(INPUTS) {
-        if read(name)?.is_some() {
-            return Err(format!(
-                "SIncrementalBuildSelectionRejected：s_incremental 构建无运行时开关，不接受 {name}"
-            ));
-        }
     }
-    let mode = Mode::CapturedNative;
-    mode.validate()?;
-    Ok(mode)
 }
 
 // #1640 §2.3 第 1 层：生产增量构建不得同时带分配 JSON 实验钩子。
@@ -191,12 +186,8 @@ fn parse_incremental_environment(
 compile_error!("s_incremental 生产构建不得启用 s_allocation_json_testonly（#1640 / ADR 0042）");
 
 // #1640：生产增量构建不编入 env 选择臂；默认构建的 Ordinary 入口与 testonly 对照臂仍走这里。
-#[cfg(any(
-    not(feature = "s_incremental"),
-    feature = "s_capture_native_testonly",
-    test
-))]
-fn parse_testonly_environment(
+#[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]
+fn parse_selection_environment(
     mut read: impl FnMut(&str) -> Result<Option<String>, String>,
 ) -> Result<Mode, String> {
     let native = read(NATIVE_MARKER)?;
@@ -242,14 +233,15 @@ fn parse_testonly_environment(
 mod tests {
     use super::*;
 
+    #[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]
     #[test]
     fn explicit_testonly_activation_has_no_defaults_and_rejects_partial_or_bad_inputs() {
         assert!(matches!(
-            parse_testonly_environment(|_| Ok(None)).unwrap(),
+            parse_selection_environment(|_| Ok(None)).unwrap(),
             Mode::Ordinary
         ));
         for missing in 0..4 {
-            let result = parse_testonly_environment(|name| {
+            let result = parse_selection_environment(|name| {
                 if name == NATIVE_MARKER {
                     return Ok(None);
                 }
@@ -258,7 +250,7 @@ mod tests {
             });
             assert!(result.is_err(), "missing {missing}");
         }
-        assert!(parse_testonly_environment(|name| {
+        assert!(parse_selection_environment(|name| {
             if name == NATIVE_MARKER {
                 return Ok(None);
             }
@@ -267,10 +259,10 @@ mod tests {
             ))
         })
         .is_err());
-        assert!(parse_testonly_environment(|_| Err("non-UTF8".into())).is_err());
+        assert!(parse_selection_environment(|_| Err("non-UTF8".into())).is_err());
         for bad in ["0", "-1", "01", "1.0", "", "184467440737095516160"] {
             assert!(
-                parse_testonly_environment(|name| {
+                parse_selection_environment(|name| {
                     if name == NATIVE_MARKER {
                         return Ok(None);
                     }
@@ -281,7 +273,7 @@ mod tests {
             );
         }
         let complete =
-            parse_testonly_environment(|name| Ok((name != NATIVE_MARKER).then(|| "1".into())));
+            parse_selection_environment(|name| Ok((name != NATIVE_MARKER).then(|| "1".into())));
         #[cfg(feature = "s_allocation_json_testonly")]
         match complete.unwrap() {
             Mode::Owned(profile) => assert_eq!(profile.budget.snapshot().limit_bytes, 1),
@@ -293,11 +285,12 @@ mod tests {
             .unwrap()
             .contains("prototype_audit_allocation_incomplete"));
     }
+    #[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]
     #[test]
     fn native_selection_is_explicit_mutually_exclusive_and_feature_gated() {
         for old in INPUTS {
             assert!(
-                parse_testonly_environment(|name| {
+                parse_selection_environment(|name| {
                     Ok((name == NATIVE_MARKER || name == old).then(|| "1".into()))
                 })
                 .is_err(),
@@ -306,14 +299,14 @@ mod tests {
         }
         for bad in ["", "0", "01", "true", "-1"] {
             assert!(
-                parse_testonly_environment(|name| {
+                parse_selection_environment(|name| {
                     Ok((name == NATIVE_MARKER).then(|| bad.into()))
                 })
                 .is_err(),
                 "native {bad}"
             );
         }
-        assert!(parse_testonly_environment(|name| {
+        assert!(parse_selection_environment(|name| {
             if name == NATIVE_MARKER {
                 Err("native non-UTF8".into())
             } else {
@@ -322,7 +315,7 @@ mod tests {
         })
         .is_err());
         let native =
-            parse_testonly_environment(|name| Ok((name == NATIVE_MARKER).then(|| "1".into())));
+            parse_selection_environment(|name| Ok((name == NATIVE_MARKER).then(|| "1".into())));
         #[cfg(feature = "s_incremental")]
         assert!(matches!(native.unwrap(), Mode::CapturedNative));
         #[cfg(not(feature = "s_incremental"))]
@@ -331,30 +324,14 @@ mod tests {
             .unwrap()
             .starts_with("SNativeCaptureTestOnlyUnsupported："));
         // 从Owned失败不会切Native，混合完整Owned档也在feature/额度核验前拒绝。
-        assert!(parse_testonly_environment(|_| Ok(Some("1".into()))).is_err());
+        assert!(parse_selection_environment(|_| Ok(Some("1".into()))).is_err());
     }
-    /// #1640 D1：生产增量构建无运行时开关——缺省即 CapturedNative，任一私有选择输入都拒绝。
-    #[cfg(feature = "s_incremental")]
+    /// #1640 D1：生产增量构建无运行时开关——编译期固定 CapturedNative，入口不编入任何 env 选择臂。
+    #[cfg(all(feature = "s_incremental", not(feature = "s_capture_native_testonly")))]
     #[test]
-    fn incremental_build_mode_is_compile_time_fixed_and_rejects_any_selection() {
-        assert!(matches!(
-            parse_incremental_environment(|_| Ok(None)).unwrap(),
-            Mode::CapturedNative
-        ));
-        for selected in std::iter::once(NATIVE_MARKER).chain(INPUTS) {
-            for value in ["1", "0", ""] {
-                let error = parse_incremental_environment(|name| {
-                    Ok((name == selected).then(|| value.into()))
-                })
-                .err()
-                .unwrap();
-                assert!(
-                    error.starts_with("SIncrementalBuildSelectionRejected："),
-                    "{selected}={value}: {error}"
-                );
-            }
-        }
-        assert!(parse_incremental_environment(|_| Err("non-UTF8".into())).is_err());
+    fn incremental_build_mode_is_compile_time_fixed_captured_native() {
+        assert!(matches!(incremental_mode().unwrap(), Mode::CapturedNative));
+        assert!(matches!(load_environment_mode().unwrap(), Mode::CapturedNative));
     }
 }
 

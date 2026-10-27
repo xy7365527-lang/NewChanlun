@@ -2271,7 +2271,7 @@ impl CompleteCandidate {
             .as_ref()
             .ok_or_else(|| invalid("缺Native owner原件"))?;
         let r = capture
-            .native_retention_numbers_for_testonly()
+            .native_retention_numbers()
             .ok_or_else(|| invalid("缺Native原件费用"))?;
         self.node_count = r.nodes;
         self.charge.node_source_and_certificates = sum([
@@ -2287,7 +2287,7 @@ impl CompleteCandidate {
             sum([r.public_capacity, r.template_capacity])
                 .saturating_mul(66)
                 .saturating_add(32),
-            capture.owner_codec_retained_bytes_for_testonly(),
+            capture.owner_codec_retained_bytes(),
         ]);
         self.charge.total = sum([
             self.charge.node_source_and_certificates,
@@ -2315,11 +2315,11 @@ impl CompleteCandidate {
         // 丢掉事务 memo，仅原件和纯 codec 成功证书移动到候选；不复制节点正文。
         slot.capture = slot
             .capture
-            .into_originals_and_codec_roots_for_testonly()
+            .into_originals_and_codec_roots()
             .map_err(invalid)?;
         let retained = slot
             .capture
-            .native_retention_numbers_for_testonly()
+            .native_retention_numbers()
             .ok_or_else(|| invalid("完整候选缺少 Native 原件"))?;
         let mut charge = CompleteCharge {
             node_source_and_certificates: sum([
@@ -2742,7 +2742,7 @@ impl CompleteCandidate {
                 };
                 let existed = capture.contains(&digest);
                 if !capture
-                    .append_original_codec_for_owner_testonly(digest, tag, body, usize::MAX, scope)
+                    .append_original_codec_for_owner(digest, tag, body, usize::MAX, scope)
                     .map_err(invalid)?
                 {
                     return Err(invalid("Native 节点许可未被消费"));
@@ -2926,14 +2926,14 @@ impl CompleteCandidate {
             self.capture
                 .take()
                 .unwrap()
-                .finish_owner_step_for_testonly()
+                .finish_owner_step()
                 .map_err(invalid)?,
         );
         let retained = self
             .capture
             .as_ref()
             .unwrap()
-            .native_retention_numbers_for_testonly()
+            .native_retention_numbers()
             .ok_or_else(|| invalid("缺 Native 原件费用"))?;
         self.charge.node_source_and_certificates = sum([
             retained.body_len,
@@ -3748,7 +3748,7 @@ fn r13_optional_sql_rows_share_parent_without_changing_cells() {
 
 /// #1488 P2-4：封存池逐许可普查（独立于live差额）。`seal`=审计开始至封存后本父账全部
 /// 签发/归还事件；`released`=封存池析构期间事件，`inventory`=析构前按持有者逐张列出的池许可
-/// （`Pool::native_permit_inventory_for_testonly`，不含不属任何持有者的许可）。
+/// （`Pool::native_permit_inventory`，不含不属任何持有者的许可）。
 /// C1 残余+逐张存活许可之和=封存后live；C2 无未匹配归还；C3 存活许可均为Native；
 /// C4 池析构恰好归还封存存活多重集且不签发；C5（#1488 P2-A主控裁定后）来源合同项每节点一项、
 /// 和=正文+digest/tag/证书，且都指到已物理计费的正文块；析构逐张归还多重集=持有者清单多重集
@@ -3926,10 +3926,10 @@ fn p2_4_seal_census_flags_duplicate_permit_on_real_seal_path() {
             let after_seal = parent.live();
             let pool = keeper.take().expect("封存池存活");
             let nodes = pool.nodes;
-            let claims = pool.originals.native_source_claims_for_testonly().unwrap();
-            let claim_amounts = pool.originals.native_source_claim_amounts_for_testonly();
+            let claims = pool.originals.native_source_claim_totals().unwrap();
+            let claim_amounts = pool.originals.native_source_claim_amounts();
             parent.census_arm();
-            let inventory = pool.native_permit_inventory_for_testonly().unwrap();
+            let inventory = pool.native_permit_inventory().unwrap();
             drop(pool);
             let released = parent.census_take();
             let sealed = after_seal
@@ -4166,7 +4166,7 @@ fn p1_alpha_stray_on_keeper_ledger_survives_discard_retry_and_is_rejected() {
     );
 }
 
-#[cfg(all(test, feature = "s_incremental"))]
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
 #[test]
 fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
     fn complete(a: &state::AuditedState) -> Value {
@@ -4347,13 +4347,13 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                 }
                 let pool = keeper.take().expect("封存池存活");
                 let nodes = pool.nodes;
-                let claims = pool.originals.native_source_claims_for_testonly().unwrap();
-                let claim_amounts = pool.originals.native_source_claim_amounts_for_testonly();
+                let claims = pool.originals.native_source_claim_totals().unwrap();
+                let claim_amounts = pool.originals.native_source_claim_amounts();
                 assert_eq!(claim_amounts.len(), nodes);
                 let (index_bytes, slot_now, slot_before_p2a) =
                     pool.originals.native_index_layout_for_testonly().unwrap();
                 parent.census_arm();
-                let inventory = pool.native_permit_inventory_for_testonly().unwrap();
+                let inventory = pool.native_permit_inventory().unwrap();
                 drop(pool);
                 let released = parent.census_take();
                 // P2-4：逐许可普查独立于下方live差额恒等式，核封存池无重复计费。
@@ -6283,6 +6283,7 @@ thread_local! {
 mod publication_degrade_verdict_tests {
     use super::*;
     use newchan_rust::s_content::capture_allocation::scratch::{ScratchFailure, WorkScope};
+    #[cfg(feature = "s_capture_native_testonly")]
     use newchan_rust::s_content::CodecError;
 
     /// 真实 codec 工作域 + 真实类型化记录，与 publish_attempt 同构：返回判据结果。
@@ -6386,24 +6387,27 @@ mod publication_degrade_verdict_tests {
                 "R2：Ledger 类 scratch 错误与桥同字也须拒绝"
             );
             // R2：不记入任何作用域的直接 Ledger 构造（SourceClaim 字节不符、check_write 域关闭等）。
-            assert!(
-                verdict(|w| {
-                    let _ = CodecError::scratch_unscoped_for_test(ScratchFailure::Ledger);
-                    Err(invalid(w.reject(failure)))
-                })
-                .is_err(),
-                "R2：闭包期间任何 Ledger 构造都须拒绝"
-            );
-            assert!(
-                verdict(|w| {
-                    let _ = w.reject(failure);
-                    let _ = CodecError::scratch_unscoped_for_test(ScratchFailure::Ledger);
-                    Ok(())
-                })
-                .unwrap_err()
-                .contains("工作账损坏"),
-                "R2：闭包 Ok 但期间有 Ledger → 工作账损坏"
-            );
+            #[cfg(feature = "s_capture_native_testonly")]
+            {
+                assert!(
+                    verdict(|w| {
+                        let _ = CodecError::scratch_unscoped_for_test(ScratchFailure::Ledger);
+                        Err(invalid(w.reject(failure)))
+                    })
+                    .is_err(),
+                    "R2：闭包期间任何 Ledger 构造都须拒绝"
+                );
+                assert!(
+                    verdict(|w| {
+                        let _ = w.reject(failure);
+                        let _ = CodecError::scratch_unscoped_for_test(ScratchFailure::Ledger);
+                        Ok(())
+                    })
+                    .unwrap_err()
+                    .contains("工作账损坏"),
+                    "R2：闭包 Ok 但期间有 Ledger → 工作账损坏"
+                );
+            }
         }
         // #1488 0077 P55（0073 G1）：语义失败一维——闭包期间工作域观察到非 scratch codec 错误，
         // 即使作用域分类为 Budget/Allocation 且错误确由过桥上抛，也一律拒绝（`semantic==0` 门）。
@@ -6449,21 +6453,24 @@ mod publication_degrade_verdict_tests {
             "无资源失败记录时闭包错误不降级"
         );
         // 记录只在 capture 内发生，嵌套时并入外层。
-        let (_, outer) = failure_trace::capture(|| {
-            let _ = CodecError::scratch_unscoped_for_test(ScratchFailure::Budget);
-            let (_, inner) = failure_trace::capture(|| {
-                let _ = CodecError::scratch_unscoped_for_test(ScratchFailure::Ledger);
+        #[cfg(feature = "s_capture_native_testonly")]
+        {
+            let (_, outer) = failure_trace::capture(|| {
+                let _ = CodecError::scratch_unscoped_for_test(ScratchFailure::Budget);
+                let (_, inner) = failure_trace::capture(|| {
+                    let _ = CodecError::scratch_unscoped_for_test(ScratchFailure::Ledger);
+                });
+                assert!(!inner.only_resource());
             });
-            assert!(!inner.only_resource());
-        });
-        assert!(!outer.only_resource(), "内层 Ledger 须并入外层");
-        let _ = CodecError::scratch_unscoped_for_test(ScratchFailure::Ledger);
-        let (_, idle) = failure_trace::capture(|| ());
-        assert_eq!(
-            idle,
-            failure_trace::FailureTrace::default(),
-            "capture 外不记录"
-        );
+            assert!(!outer.only_resource(), "内层 Ledger 须并入外层");
+            let _ = CodecError::scratch_unscoped_for_test(ScratchFailure::Ledger);
+            let (_, idle) = failure_trace::capture(|| ());
+            assert_eq!(
+                idle,
+                failure_trace::FailureTrace::default(),
+                "capture 外不记录"
+            );
+        }
     }
 }
 

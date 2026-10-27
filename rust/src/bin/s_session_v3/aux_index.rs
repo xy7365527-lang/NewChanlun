@@ -2713,7 +2713,7 @@ mod tests {
                     content_store::capture_for_request_prototype_admitted(&tx, Some(scope))
                         .map_err(err)?;
                 let scoped_capture = scoped_capture
-                    .enable_native_frame_reuse_admitted_for_testonly(Some(scope))
+                    .enable_native_frame_reuse_admitted(Some(scope))
                     .map_err(err)?;
                 let mut reader = HashReader::captured_for_audit(&scoped_capture, None)
                     .unwrap()
@@ -2792,7 +2792,7 @@ mod tests {
     /// 全额计入本请求 scope（转换期峰值越过转换前 live + 许可）；漏计控制字节（M2a）或不经 scope
     /// 预留都变红。槽数按转换前 Legacy 节点数
     /// 独立推得（next_pow2(n)×4+16），不读被测实现的中间值。
-    #[cfg(feature = "s_incremental")]
+    #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn p50_legacy_to_native_index_permit_counts_control_byte_per_slot() {
         use super::super::audit_owner::native::Budget;
@@ -2822,7 +2822,7 @@ mod tests {
                 assert!(legacy.native_index_layout_for_testonly().is_none(), "转换前须为 Legacy");
                 let (before, peak_before) = (budget.live(), budget.peak());
                 let native = legacy
-                    .enable_native_frame_reuse_admitted_for_testonly(Some(scope))
+                    .enable_native_frame_reuse_admitted(Some(scope))
                     .map_err(err)?;
                 let (index_bytes, slot_now, _) = native
                     .native_index_layout_for_testonly()
