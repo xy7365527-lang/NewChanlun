@@ -34,7 +34,7 @@ pub struct NativeReservation {
 impl NativeReservation {
     /// #1488：只消费父账已有的未分配原件费；不签发新额度。
     /// #1488 P3-a：生产父账（trait默认）恒拒且无生产调用方，只随测试/Native测试臂编译。
-    #[cfg(any(test, feature = "s_capture_native_testonly"))]
+    #[cfg(any(test, feature = "s_incremental"))]
     #[doc(hidden)]
     pub fn adopt(
         parent: Arc<dyn ScratchParent>,
@@ -139,7 +139,7 @@ pub trait ScratchParent: Send + Sync {
     fn origin(&self) -> u64 {
         0
     }
-    #[cfg(any(test, feature = "s_capture_native_testonly"))]
+    #[cfg(any(test, feature = "s_incremental"))]
     fn adopt_native(&self, _bytes: usize, _expected: u64) -> Result<u64, ScratchFailure> {
         Err(ScratchFailure::Ledger)
     }
@@ -461,7 +461,7 @@ impl WorkScope {
     pub fn check_current(&self) -> Result<(), CodecError> {
         self.handle.check_write()
     }
-    #[cfg(any(test, feature = "s_capture_native_testonly"))]
+    #[cfg(any(test, feature = "s_incremental"))]
     pub(crate) fn adopt_native(&self, bytes: usize) -> Result<NativeReservation, CodecError> {
         self.check_current()?;
         NativeReservation::adopt(
@@ -543,13 +543,13 @@ impl<T> std::ops::Deref for ScratchVec<T> {
 // 不记录、不改变行为。记录只在 `failure_trace::capture` 活动期间、且仅 testonly 构建发生。
 #[inline(always)]
 pub(crate) fn traced(failure: ScratchFailure) -> ScratchFailure {
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     failure_trace::record(failure);
     failure
 }
 #[inline(always)]
 pub(crate) fn traced_semantic(semantic: bool) -> bool {
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     if semantic {
         failure_trace::record_semantic();
     }
@@ -558,7 +558,7 @@ pub(crate) fn traced_semantic(semantic: bool) -> bool {
 /// `CodecError` 的 Display 挂点：scratch 错误渲染进 String 即为“过桥”。
 #[inline(always)]
 pub(crate) fn shown(error: &CodecError) -> &std::borrow::Cow<'static, str> {
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     failure_trace::record_bridge(error);
     &error.detail
 }
@@ -571,7 +571,7 @@ pub(crate) fn shown(error: &CodecError) -> &std::borrow::Cow<'static, str> {
 /// - `record_bridge`：scratch 错误被渲染为 String（经 `invalid`/`err`/`stale` 等任意前缀包装上抛的起点）。
 ///
 /// 记录是线程局部的 Copy 计数，访问不分配；`WorkScope` 不可 Send，同一闭包的 codec 工作都在本线程。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub mod failure_trace {
     use super::ScratchFailure;
     use crate::s_content::CodecError;
@@ -671,7 +671,7 @@ pub mod failure_trace {
 
 /// #1488 0077 P55：测试面——以真实 `observe` 挂点（`traced_semantic`）登记一次非 scratch codec
 /// 错误，供 bin 侧降级判据真值表构造“语义失败”行。生产构建无此方法；置于文件末尾，生产行号不动。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl WorkScope {
     #[doc(hidden)]
     pub fn observe_for_test(&self, error: &CodecError) {

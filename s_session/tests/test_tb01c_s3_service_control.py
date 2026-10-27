@@ -25,6 +25,8 @@ class S3LifecycleTests(unittest.TestCase):
         root = Path(directory)
         resources = {key: str(index + 1) for index, key in enumerate(sorted(control.S_RESOURCE_FIELDS))}
         resources["max_frame_bytes"] = "8192"
+        if revision == "s-launcher/4":
+            resources["incremental_retention_bytes"] = "268435456"
         return {"schema_revision": revision, "db": str(root / "owned.sqlite"),
                 "socket": str(root / "s.sock"), "binary": "/owned/s_structure_session",
                 "python": sys.executable, "catalog": str(root / "catalog.json"),
@@ -45,11 +47,11 @@ class S3LifecycleTests(unittest.TestCase):
     def test_named_configuration_selects_exact_version_and_resources(self):
         with tempfile.TemporaryDirectory(prefix="s3-cfg-") as directory:
             path = Path(directory) / "launcher.json"
-            for revision in ("s-launcher/2", "s-launcher/3"):
+            for revision in ("s-launcher/2", "s-launcher/3", "s-launcher/4"):
                 config = self.config(directory, revision)
                 path.write_text(json.dumps(config))
                 self.assertEqual(control.read_config(path)["schema_revision"], revision)
-            for revision in (None, "s-launcher/4", "s-launcher/03"):
+            for revision in (None, "s-launcher/5", "s-launcher/03"):
                 config = self.config(directory, revision)
                 path.write_text(json.dumps(config))
                 with self.assertRaises(ValueError):
@@ -103,6 +105,52 @@ class S3LifecycleTests(unittest.TestCase):
                 self.assertEqual(request["schema_revision"], "s-session/3")
                 self.assertEqual(request["payload"], {"op": "ready"})
                 self.assertEqual(request["payload_hash"], hashlib.sha256(control.canonical({"op": "ready"})).hexdigest())
+            finally:
+                controller.close()
+
+    def test_launcher4_requires_exact_eighth_gate_and_launcher3_refuses_it(self):
+        # #1640（ADR 0042 D4）：/4 只配 s_incremental 写者，exact 八字段；/3 仍 exact 原七字段，不静默接受第八门。
+        with tempfile.TemporaryDirectory(prefix="s3-cfg4-") as directory:
+            path = Path(directory) / "launcher.json"
+            eight = self.config(directory, "s-launcher/4")["s_resources"]
+            seven = self.config(directory, "s-launcher/3")["s_resources"]
+            for revision, invalid in (("s-launcher/4", seven),
+                                      ("s-launcher/4", {**eight, "incremental_retention_bytes": "0"}),
+                                      ("s-launcher/4", {**eight, "incremental_retention_bytes": 1}),
+                                      ("s-launcher/4", {**eight, "extra": "1"}),
+                                      ("s-launcher/3", eight)):
+                with self.subTest(revision=revision, fields=sorted(invalid)):
+                    config = self.config(directory, revision)
+                    config["s_resources"] = invalid
+                    path.write_text(json.dumps(config))
+                    with self.assertRaises(ValueError):
+                        control.read_config(path)
+
+    def test_start_launcher4_freezes_structure_resources_2_with_eight_values(self):
+        with tempfile.TemporaryDirectory(prefix="s3-select4-") as directory:
+            config = self.config(directory, "s-launcher/4")
+            clock = [0.0]
+            controller = anchored_controller(config, Path(directory) / "state", clock=lambda: clock[0])
+            try:
+                with patch.object(control.time, "monotonic", side_effect=lambda: clock[0]), \
+                     patch.object(controller, "runtime_environment", return_value={}), \
+                     patch.object(controller, "prepare_socket", return_value=None), \
+                     patch.object(controller, "start_process") as start, \
+                     patch.object(controller, "wait_ready", return_value={"state": "ready"}):
+                    controller.start_s("1")
+                command = start.call_args.args[1]
+                self.assertEqual(command[command.index("--protocol-revision") + 1], "s-session/3")
+                identity = start.call_args.kwargs["resource_identity"]
+                frozen = Path(identity["path"]).read_bytes()
+                self.assertEqual(json.loads(frozen), {"schema_revision": "s-structure-resources/2",
+                                                     "s_resources": config["s_resources"]})
+                controller.validate_resource_identity(identity, command, require_current=True)
+                self.assertEqual(controller.ready_request("1")["schema_revision"], "s-session/3")
+                # 同一冻结件不得冒充 /3 启动配置的当前预算。
+                controller.config = {**config, "schema_revision": "s-launcher/3",
+                                     "s_resources": self.config(directory)["s_resources"]}
+                with self.assertRaises(ValueError):
+                    controller.validate_resource_identity(identity, command, require_current=True)
             finally:
                 controller.close()
 

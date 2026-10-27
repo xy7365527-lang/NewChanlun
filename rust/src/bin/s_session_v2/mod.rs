@@ -219,7 +219,7 @@ fn control_decode_admitted(
     work: Option<&WorkScope>,
 ) -> Result<JsonOwner, String> {
     control_native_owner(owner, work)?;
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     let permit = if work.is_some() {
         NativeAdmission(work)
             .native_reservation(
@@ -229,12 +229,12 @@ fn control_decode_admitted(
     } else {
         None
     };
-    #[cfg(not(feature = "s_capture_native_testonly"))]
+    #[cfg(not(feature = "s_incremental"))]
     if work.is_some() {
         return Err("prototype_audit_allocation_incomplete：Native控制JSON未启用".into());
     }
     let value = control_decode(raw, owner, legacy)?;
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     let value = match value {
         JsonOwner::Plain(value) => JsonOwner::Plain(value.with_reservation(permit)),
         #[cfg(feature = "s_allocation_json_testonly")]
@@ -1134,7 +1134,7 @@ pub(super) struct ControlHistory {
     pending: usize,
 }
 impl ControlFacts {
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn resume_owner(
         mut self,
         generation: i64,
@@ -1166,7 +1166,7 @@ impl ControlFacts {
             pending: 1,
         })
     }
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn len(&self) -> usize {
         self.headers.len()
     }
@@ -1520,7 +1520,7 @@ pub(super) struct AuditMessage {
     pub(super) event: TextValue,
     pub(super) count: i64,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(super) fn read_audit_message(
     r: &mut CheckedRow<'_>,
     owner: Option<&OwnedBudget>,
@@ -1558,7 +1558,7 @@ pub(super) fn read_audit_message_admitted(
         count,
     })
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(super) fn validate_audit_message(
     conn: &Connection,
     m: &AuditMessage,
@@ -4647,7 +4647,7 @@ fn testonly_audit_cost_breakdown() {
     }
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 mod owner_retention {
     use super::*;
     use crate::v3::audit_retention::retained_struct;

@@ -429,7 +429,7 @@ impl Drop for Permit {
 }
 impl Permit {
     /// #1488 Recover 锁：许可挂在 mark 所指父账上时返回许可字节（只读，不延长父账寿命）。
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(crate) fn on_ledger_for_test(&self, mark: &LedgerMark) -> Option<usize> {
         mark.live_for(&self.budget).map(|_| self.bytes)
     }
@@ -711,13 +711,13 @@ impl Budget {
         Arc::ptr_eq(&self.0, &other.0)
     }
     /// #1488 P1-1/P1-2：请求收尾静止点的物理live读数；弱引用，不延长父账寿命、不进Ledger布局。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(crate) fn quiescent_mark(&self) -> LedgerMark {
         LedgerMark(Arc::downgrade(&self.0), self.live())
     }
     /// #1488 0034 P3-1：Recover 交接所见父账身份与冻结域摘要（域序号、请求号、额度、总容量帽）。
     /// 弱引用，不延长父账寿命、不进Ledger布局；读不到当前冻结域即拒绝出摘要。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(crate) fn handoff_stamp(&self) -> Result<BudgetStamp, BudgetExceeded> {
         Ok(BudgetStamp {
             ledger: Arc::downgrade(&self.0),
@@ -728,13 +728,13 @@ impl Budget {
         })
     }
     /// 测试读数：本句柄冻结域额度（构造正额度真实换域用）。
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(crate) fn allowance_for_test(&self) -> usize {
         self.3
     }
 }
 /// #1488 0034 P3-1：Recover 换代证明绑定的父账身份与冻结预算摘要；迁移时逐项比对事务实际父账。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 #[derive(Clone, Debug)]
 pub(crate) struct BudgetStamp {
     ledger: std::sync::Weak<Ledger>,
@@ -743,7 +743,7 @@ pub(crate) struct BudgetStamp {
     allowance: usize,
     total_limit: usize,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl BudgetStamp {
     /// 同一Ledger、同一冻结域（序号/请求号/额度）且总容量帽读数一致才算同账同域。
     /// 原Ledger已释放（strong=0）即不匹配，地址复用不会冒充原账。
@@ -789,10 +789,10 @@ impl BudgetStamp {
     }
 }
 /// #1488 P1-1/P1-2：某父账在请求收尾静止点（请求局部持有者已析构）的live；只认同一Ledger。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 #[derive(Clone)]
 pub(crate) struct LedgerMark(std::sync::Weak<Ledger>, usize);
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl LedgerMark {
     pub(crate) fn live_for(&self, budget: &Budget) -> Option<usize> {
         std::ptr::eq(self.0.as_ptr(), Arc::as_ptr(&budget.0)).then_some(self.1)
@@ -958,7 +958,7 @@ impl Budget {
         CodecWork::new_in_origin(self.0.clone(), allowance, self.1).map_err(Failure::from)
     }
     #[cfg_attr(
-        all(not(test), feature = "s_capture_native_testonly"),
+        all(not(test), feature = "s_incremental"),
         allow(
             dead_code,
             reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
@@ -1214,7 +1214,7 @@ pub(crate) struct BootstrapGrant {
     domain: u64,
 }
 impl BootstrapGrant {
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(crate) fn from_freeze(seal: super::super::request_audit::FreezeSeal) -> Self {
         Self {
             limit: seal.limit(),

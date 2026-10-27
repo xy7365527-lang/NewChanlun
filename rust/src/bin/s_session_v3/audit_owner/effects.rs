@@ -3136,7 +3136,7 @@ mod construction_coverage_tests {
     }
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 mod e_owner_move_tests {
     use super::*;
     #[test]

@@ -128,7 +128,7 @@ impl StepView for Step<'_> {
     }
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(super) struct StepContribution {
     pub(super) object: super::super::native_shared::NativeRc<Object>,
     pub(super) fields: SourceFields<'static>,
@@ -138,7 +138,7 @@ pub(super) struct StepContribution {
     pub(super) insufficient: bool,
     pub(super) incomplete: bool,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl StepContribution {
     pub(super) fn bind(
         s: &mut (impl SourceFieldStore + ?Sized),
@@ -170,7 +170,7 @@ impl StepContribution {
         ))
     }
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl StepView for StepContribution {
     fn object(&self) -> &Object {
         &self.object

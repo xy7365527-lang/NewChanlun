@@ -303,7 +303,7 @@ pub fn checked_frame_len(n: u64) -> Result<[u8; 8], CodecError> {
 std::thread_local! {
     /// 本线程内 `frame` 的实际调用次数（诊断探针，见 [`frame_calls_on_thread`]）。
     static FRAME_CALLS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     static FRAME_BYTES: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
 
@@ -318,7 +318,7 @@ pub fn frame_calls_on_thread() -> u64 {
 }
 
 /// 与实际 frame 同位置累计 SHA256 输入字节，仅 Native 诊断使用。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 #[doc(hidden)]
 pub fn frame_bytes_on_thread() -> u64 {
     FRAME_BYTES.with(std::cell::Cell::get)
@@ -327,7 +327,7 @@ pub fn frame_bytes_on_thread() -> u64 {
 /// F(tag, body) = SHA256(D || one_byte(tag) || U64(len(body)) || body)。
 pub fn frame(t: u8, body: &[u8]) -> NodeDigest {
     FRAME_CALLS.with(|calls| calls.set(calls.get().wrapping_add(1)));
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     FRAME_BYTES.with(|bytes| {
         bytes.set(
             bytes
@@ -1003,7 +1003,7 @@ pub fn write_value(sink: &mut dyn NodeSink, value: &Value) -> Result<Built, Code
 /// 只按标签和完整 body 复用本次成功写入的材料，不证明当前存储、闭包或来源资格。
 /// 调用方仅用于已取得同次 parser 资格的固定 24 关系树；发布仍须完整冷核验。
 /// 普通/Owned 入口不经此处，也不由此声称任意大 Value 的 heap 资源合格。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 #[doc(hidden)]
 pub fn write_value_native_local_for_testonly(
     sink: &mut dyn NodeSink,
@@ -2033,13 +2033,13 @@ impl AuditMemo {
 /// 仅复用本捕获内 Public/Template 独立验证上下文，不授予来源或业务资格。
 enum CaptureNodes {
     Legacy(BTreeMap<NodeDigest, (u8, Vec<u8>)>),
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     Native(NativeCaptureNodes),
     AllocationPrototype(capture_allocation::CaptureSlab),
 }
 // #1394 Native TestOnly：原件与纯 F 证明共用完整摘要索引。
 // #1488 R 正文可持原 CodecVec 许可；旧 Vec 入口仍保持其既有来源计费合同。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 struct NativeNode {
     tag: u8,
     body: CodecVec<u8>,
@@ -2051,7 +2051,7 @@ struct NativeNode {
     owner_dirty: std::cell::Cell<bool>,
     owner_next: std::cell::Cell<Option<NodeDigest>>,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl NativeNode {
     #[cfg_attr(not(test), allow(dead_code))]
     fn new(tag: u8, body: Vec<u8>) -> Self {
@@ -2072,12 +2072,12 @@ impl NativeNode {
 /// 不在父账物理reserve；父账物理只由正文块自身的Native许可计一次。只能对同一节点内已物理计费
 /// （Native绑定）的正文块签出，指不到即拒。原先这里是一张同额物理许可（r14：803张/111,334B），
 /// 与正文块许可对同一allocation双计。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 #[derive(Debug)]
 struct SourceClaim {
     bytes: usize,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl SourceClaim {
     fn on_body(body: &CodecVec<u8>) -> Result<Self, CodecError> {
         if !body.is_native_bound() {
@@ -2093,7 +2093,7 @@ impl SourceClaim {
         Ok(Self { bytes })
     }
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 struct NativeCaptureNodes {
     // 标准 RandomState；未核摘要不使用弱哈希。
     nodes: std::collections::HashMap<NodeDigest, NativeNode>,
@@ -2105,7 +2105,7 @@ struct NativeCaptureNodes {
     #[cfg(test)]
     index_lookups: std::cell::Cell<u64>,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl NativeCaptureNodes {
     fn get(&self, digest: &NodeDigest) -> Option<&NativeNode> {
         #[cfg(test)]
@@ -2115,12 +2115,12 @@ impl NativeCaptureNodes {
         self.nodes.get(digest)
     }
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 struct NativeFrameProof {
     frame: job::CheckedFrame,
     body_capacity: usize,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 struct NativeFrameMemo {
     entry_limit: usize,
     body_capacity_limit: usize,
@@ -2133,7 +2133,7 @@ struct NativeFrameMemo {
     failed_f_calls: u64,
     retention_skips: u64,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl NativeFrameMemo {
     fn new(entry_limit: usize, body_capacity_limit: usize) -> Self {
         Self {
@@ -2276,7 +2276,7 @@ impl NativeFrameMemo {
 }
 // #1394 私有成功根证书。修改codec判据时须同步递增版本；不序列化、不接受外来构造。
 // format与版本来自当前codec；集合分别固定Mode，所有根只对应Flavor::Value。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 struct NativeCodecRootCertificates {
     format: &'static str,
     predicate_revision: u32,
@@ -2285,7 +2285,7 @@ struct NativeCodecRootCertificates {
     template: std::collections::HashSet<NodeDigest>,
     public_permit: Option<capture_allocation::scratch::NativeReservation>,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl Default for NativeCodecRootCertificates {
     fn default() -> Self {
         Self {
@@ -2300,10 +2300,10 @@ impl Default for NativeCodecRootCertificates {
 }
 // #1488 成功证明用确定性 AVL 索引：每次只沿索引路径/旋转，无历史整表重哈希。
 // key/value 均为固定 Copy tuple；节点 Layout 含左右 Box、height、padding，无带外 heap。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 type OwnerProofLink<K, V> =
     Option<capture_allocation::native_owned::NativeBox<OwnerProofNode<K, V>>>;
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 struct OwnerProofNode<K, V> {
     key: K,
     value: V,
@@ -2311,7 +2311,7 @@ struct OwnerProofNode<K, V> {
     right: OwnerProofLink<K, V>,
     height: usize,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl<K, V> OwnerProofNode<K, V> {
     fn height(link: &OwnerProofLink<K, V>) -> usize {
         link.as_ref().map_or(0, |node| node.height)
@@ -2323,13 +2323,13 @@ impl<K, V> OwnerProofNode<K, V> {
         Self::height(&self.left) as isize - Self::height(&self.right) as isize
     }
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 struct OwnerProofTree<K, V> {
     root: OwnerProofLink<K, V>,
     len: usize,
     retained_bytes: usize,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl<K, V> Default for OwnerProofTree<K, V> {
     fn default() -> Self {
         Self {
@@ -2339,12 +2339,12 @@ impl<K, V> Default for OwnerProofTree<K, V> {
         }
     }
 }
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 thread_local! {
     // 比较、旋转、新节点数；不参与资格，不由生产输入设置。
     static OWNER_CODEC_INDEX_TRACE: std::cell::Cell<(usize, usize, usize)> = const { std::cell::Cell::new((0, 0, 0)) };
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl<K: Ord + Copy, V: Copy> OwnerProofTree<K, V> {
     fn get(&self, key: &K) -> Option<&V> {
         let mut link = &self.root;
@@ -2488,7 +2488,7 @@ impl<K: Ord + Copy, V: Copy> OwnerProofTree<K, V> {
 // #1488 封闭 owner 的跨操作纯 codec 证明。与 Value 根证书及 AuditMemo 分离：
 // 不持 WorkBudget，不存 pushed/todo；只在整根完整成功后接纳本轮 delta。
 // 表键保存完整解释上下文；Public/Template 两套表从不互借。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 #[derive(Default)]
 struct NativeOwnerCodecMemo {
     seen: OwnerProofTree<(NodeDigest, Flavor), ()>,
@@ -2497,7 +2497,7 @@ struct NativeOwnerCodecMemo {
     fields: OwnerProofTree<(NodeDigest, Flavor), FieldAgg>,
     key_cmp: OwnerProofTree<(NodeDigest, NodeDigest), std::cmp::Ordering>,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl NativeOwnerCodecMemo {
     fn retained_bytes(&self) -> usize {
         // 精确 Box 节点 Layout 随成功插入累计；只取常数张树的计数，不扫描旧证明。
@@ -2546,7 +2546,7 @@ impl NativeOwnerCodecMemo {
     }
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 struct NativeOwnerCodecCertificates {
     format: &'static str,
     predicate_revision: u32,
@@ -2554,7 +2554,7 @@ struct NativeOwnerCodecCertificates {
     public: NativeOwnerCodecMemo,
     template: NativeOwnerCodecMemo,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl Default for NativeOwnerCodecCertificates {
     fn default() -> Self {
         Self {
@@ -2566,7 +2566,7 @@ impl Default for NativeOwnerCodecCertificates {
         }
     }
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl NativeOwnerCodecCertificates {
     fn clear(&mut self) {
         self.public = NativeOwnerCodecMemo::default();
@@ -2583,14 +2583,14 @@ impl NativeOwnerCodecCertificates {
 
 /// #1394 私有构造：同次全新核验器完成导航与三个完整Public闭包后才生成。
 /// 此证书只描述Counts依据；仅整组接纳的三个Value根可封存codec资格，不授予来源业务资格。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub struct NativeCountsSubsetCertificate {
     state: capture_allocation::native_owned::NativeValue<ContentRef>,
     codec_revision: u32,
     dependency_revision: u32,
     roots: [capture_allocation::native_owned::NativeValue<ContentRef>; 3],
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl NativeCountsSubsetCertificate {
     #[doc(hidden)]
     pub fn source_bytes(&self) -> Result<usize, CodecError> {
@@ -2625,7 +2625,7 @@ impl NativeCountsSubsetCertificate {
     }
 }
 /// 诊断计数不充当单组依赖列表；实际持有的闭包证书另逐字计费。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 #[derive(Default, serde::Serialize)]
 pub struct NativeCountsSubsetReport {
     pub attempted_groups: usize,
@@ -2638,10 +2638,10 @@ pub struct NativeCountsSubsetReport {
 }
 /// Counts封存的Plain容器许可；完整新块在旧块仍存活时先入同父账。
 /// Native许可保守留到父作用域结束，codec工作集仍由真实Layout账释放。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 #[derive(Clone, Copy)]
 struct NativeCountsSubsetAdmission<'a>(Option<&'a capture_allocation::scratch::WorkScope>);
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl NativeCountsSubsetAdmission<'_> {
     fn failure(&self, failure: capture_allocation::scratch::ScratchFailure) -> CodecError {
         self.0.map_or_else(
@@ -2729,7 +2729,7 @@ impl NativeCountsSubsetAdmission<'_> {
     }
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 #[derive(Default)]
 struct NativeCountsSubsetLedger {
     digests: std::collections::HashSet<NodeDigest>,
@@ -2737,7 +2737,7 @@ struct NativeCountsSubsetLedger {
     source_bytes: usize,
     digests_permit: Option<capture_allocation::scratch::NativeReservation>,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl NativeCountsSubsetLedger {
     fn record(
         &mut self,
@@ -2776,13 +2776,13 @@ impl NativeCountsSubsetLedger {
         removed
     }
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 struct NativeCountsSubsetReader<'a> {
     capture: &'a AuditCapture,
     ledger: &'a std::cell::RefCell<NativeCountsSubsetLedger>,
     admission: NativeCountsSubsetAdmission<'a>,
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl NodeSource for NativeCountsSubsetReader<'_> {
     fn codec_work(&self) -> Option<&capture_allocation::scratch::WorkScope> {
         self.admission.0
@@ -2865,7 +2865,7 @@ impl NodeSource for NativeCountsSubsetReader<'_> {
         true
     }
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl AuditCapture {
     /// 按调用方给出的新到旧顺序，仅接纳整组导航+三完整闭包。
     /// fixed费用含SQL及一次codec固定费，group费用含Key/Counts；不提供验证资格。
@@ -3058,7 +3058,7 @@ impl AuditCapture {
 }
 
 /// Native owner 的无分配计费读数；不构造诊断 JSON 或赋予审计资格。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 #[doc(hidden)]
 pub struct NativeCaptureRetention {
     pub nodes: usize,
@@ -3072,7 +3072,7 @@ pub struct NativeCaptureRetention {
     pub template_capacity: usize,
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 struct OriginalFees {
     bodies: CodecVec<(
         NodeDigest,
@@ -3087,18 +3087,18 @@ pub struct AuditCapture {
     public: std::cell::RefCell<AuditMemo>,
     template: std::cell::RefCell<AuditMemo>,
     reads: std::cell::Cell<u64>,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     codec_roots: std::cell::RefCell<NativeCodecRootCertificates>,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     owner_codec: std::cell::RefCell<NativeOwnerCodecCertificates>,
     // nodes先释放；无复制初始费用随对应Legacy原件直到按值转换。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     original_fees: Option<OriginalFees>,
 }
 impl AuditCapture {
     /// #1394 隔离来源缓存：消费审计捕获，只保留原始tuple owner，清除全部验证和帧证明。
     /// 不复制正文、不重新读SQL；返回值的存在不表示其中每个无关节点都被验证过。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[doc(hidden)]
     pub fn into_originals_only_for_testonly(mut self) -> Result<Self, CodecError> {
         *self.codec_roots.get_mut() = NativeCodecRootCertificates::default();
@@ -3108,7 +3108,7 @@ impl AuditCapture {
 
     /// #1394 同一成功handler封存原件与纯codec根证书；全部语义memo和Frame均清空。
     /// 原件证明须由下一次当前Native capture重新逐tuple绑定，证书不授予业务资格。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[doc(hidden)]
     pub fn into_originals_and_codec_roots_for_testonly(mut self) -> Result<Self, CodecError> {
         if !matches!(&self.nodes, CaptureNodes::Native(_)) {
@@ -3118,7 +3118,7 @@ impl AuditCapture {
         Ok(self)
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn clear_request_codec_and_frames_for_testonly(&mut self) -> Result<(), CodecError> {
         if matches!(self.nodes, CaptureNodes::AllocationPrototype(_)) {
             return Err(CodecError::new(
@@ -3146,7 +3146,7 @@ impl AuditCapture {
     /// #1394 APPROVED-SOURCE.md:65、286：本次完整原件相同包含旧capture全部tuple才复用。
     /// 调用方不能传same资格；Legacy/Owned、上下文不兼容或材料不包含时保持当前冷路径。
     /// 仅在新的独立memo.seen播种已成功的Value根，所有其余工作集与用量收据均冷。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[doc(hidden)]
     pub fn seed_codec_roots_from_native_capture_for_testonly(
         &self,
@@ -3154,7 +3154,7 @@ impl AuditCapture {
     ) -> Result<usize, CodecError> {
         self.seed_codec_roots_admitted_for_testonly(prior, None)
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[doc(hidden)]
     pub fn seed_codec_roots_admitted_for_testonly(
         &self,
@@ -3231,7 +3231,7 @@ impl AuditCapture {
 
     /// #1394 owner 已在锁内回读的追加 tuple。只保持内容关系，不能签发 Q/C 资格。
     /// cap 是调用方扣除全部共存归属后给出的索引扩容余量；正文按值移动。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[doc(hidden)]
     pub fn append_original_for_owner_testonly(
         &mut self,
@@ -3255,7 +3255,7 @@ impl AuditCapture {
     }
     /// #1488 R 正文移交：只接受已有 Native 绑定，原 backing 与许可随节点移动。
     /// 来源 body.len()+97 与索引旧费用另计；旧 E retain 通道仍未迁移。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[doc(hidden)]
     pub fn append_original_codec_for_owner_testonly(
         &mut self,
@@ -3281,7 +3281,7 @@ impl AuditCapture {
         }
         result
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn append_original_for_owner_inner(
         &mut self,
         digest: NodeDigest,
@@ -3345,7 +3345,7 @@ impl AuditCapture {
 
     /// #1394 owner正常追加的热交接：只清本步实际生成过proof的节点。
     /// 完整原件与根证书继续保留；不扫描旧节点求body总量。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[doc(hidden)]
     pub fn finish_owner_step_for_testonly(mut self) -> Result<Self, CodecError> {
         let CaptureNodes::Native(native) = &mut self.nodes else {
@@ -3367,7 +3367,7 @@ impl AuditCapture {
         self.reads.set(0);
         Ok(self)
     }
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     fn assert_owner_retention_oracle(&self) {
         let CaptureNodes::Native(native) = &self.nodes else {
             panic!("Native oracle");
@@ -3387,7 +3387,7 @@ impl AuditCapture {
     }
 
     /// #1394 私有Native请求复用的原件绑定：比较完整digest/tag/body集合；不读取证明或摘要替代正文。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[doc(hidden)]
     pub fn exact_original_tuples_equal(&self, other: &Self) -> Result<bool, CodecError> {
         let count = |nodes: &CaptureNodes| match nodes {
@@ -3437,11 +3437,11 @@ impl AuditCapture {
             public: Default::default(),
             template: Default::default(),
             reads: Default::default(),
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             codec_roots: Default::default(),
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             owner_codec: Default::default(),
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             original_fees: None,
         }
     }
@@ -3453,15 +3453,15 @@ impl AuditCapture {
             public: std::cell::RefCell::new(AuditMemo::new(Some(&budget))),
             template: std::cell::RefCell::new(AuditMemo::new(Some(&budget))),
             reads: Default::default(),
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             codec_roots: Default::default(),
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             owner_codec: Default::default(),
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             original_fees: None,
         }
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[doc(hidden)]
     pub fn with_original_fees_for_testonly(
         mut self,
@@ -3502,12 +3502,12 @@ impl AuditCapture {
     }
     /// #1394：显式 Native TestOnly opt-in；资格只来自本捕获的节点数和原 body 总长度。
     /// 不适用于 Owned/AllocationPrototype，不声明整 heap 或 S 资源准入。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[doc(hidden)]
     pub fn enable_native_frame_reuse_for_testonly(self) -> Result<Self, CodecError> {
         self.enable_native_frame_reuse_admitted_for_testonly(None)
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[doc(hidden)]
     pub fn enable_native_frame_reuse_admitted_for_testonly(
         mut self,
@@ -3613,7 +3613,7 @@ impl AuditCapture {
         self.original(digest).is_some()
     }
     /// #1394：只读见证实际Native owner，不扫描原件或改变任何证明。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[doc(hidden)]
     pub fn native_frame_reuse_active_for_testonly(&self) -> bool {
         matches!(&self.nodes, CaptureNodes::Native(_))
@@ -3621,7 +3621,7 @@ impl AuditCapture {
     pub fn original(&self, digest: &NodeDigest) -> Option<(u8, &[u8])> {
         match &self.nodes {
             CaptureNodes::Legacy(nodes) => nodes.get(digest).map(|(t, b)| (*t, b.as_slice())),
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             CaptureNodes::Native(nodes) => nodes.get(digest).map(|n| (n.tag, &n.body[..])),
             CaptureNodes::AllocationPrototype(slab) => slab.original(digest),
         }
@@ -3670,7 +3670,7 @@ impl AuditCapture {
         // 出错不保留 run() 提前插入的 seen/pushed，不能让下一根继承半成功。
         if let Ok((digest, _, _)) = &result {
             *slot.borrow_mut() = verifier.into_memo();
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             if matches!(&self.nodes, CaptureNodes::Native(_)) {
                 let mut roots = self.codec_roots.borrow_mut();
                 // 已封存的Native表没有本次WorkScope，不能从旧许可新签扩容。
@@ -3685,7 +3685,7 @@ impl AuditCapture {
                     set.insert(*digest);
                 }
             }
-            #[cfg(not(feature = "s_capture_native_testonly"))]
+            #[cfg(not(feature = "s_incremental"))]
             let _ = digest;
         }
         result.map(|_| ())
@@ -3693,7 +3693,7 @@ impl AuditCapture {
     /// #1488 仅供实际 owner 的 append-only/effects 续接：持同一个原件 owner，
     /// 不接受外来 source、成功集合或资格 bool。调用方负责真实事务/effects/COMMIT。
     /// 新 scratch 只借本轮父账；成功证明无旧 WorkBudget，跨轮不会污染新操作账。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[doc(hidden)]
     pub fn verify_owner_refview_for_testonly(
         &self,
@@ -3752,7 +3752,7 @@ impl AuditCapture {
     }
 
     /// 持久证明实际 heap Layout；常数张表，固定头由 enclosing capture owner 计费。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[doc(hidden)]
     pub fn owner_codec_retained_bytes_for_testonly(&self) -> usize {
         let certificates = self.owner_codec.borrow();
@@ -3765,7 +3765,7 @@ impl AuditCapture {
     /// #1488 P3-c：逐个列出本capture实际持有的Native许可字节（索引、正文块、codec根、
     /// 未转换原件费及其容器、memo seen）；按持有者枚举，不由live差额或释放读数推导。
     /// 证明、owner codec证书仍存活时拒绝（封存后应已清空，不得漏列）。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[doc(hidden)]
     pub fn native_permit_inventory_for_testonly(
         &self,
@@ -3805,7 +3805,7 @@ impl AuditCapture {
 
     /// #1488 P2-A：逐节点复核来源合同项——每项须指到同节点已物理计费（Native绑定）的正文块，
     /// 且合同额=正文+97；指不到即拒。返回（合同项数，合同额和）；无项的节点不计。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[doc(hidden)]
     pub fn native_source_claims_for_testonly(&self) -> Result<(usize, usize), CodecError> {
         let CaptureNodes::Native(native) = &self.nodes else {
@@ -3830,7 +3830,7 @@ impl AuditCapture {
             })
     }
     /// #1488 P3-β：正文块已物理计费（Native绑定）的节点数；与合同项数对拍，漏签claim即可检出。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[doc(hidden)]
     pub fn native_bound_body_nodes_for_testonly(&self) -> usize {
         let CaptureNodes::Native(native) = &self.nodes else {
@@ -3843,7 +3843,7 @@ impl AuditCapture {
             .count()
     }
     /// #1488 P3-α：逐节点来源合同额（多重集），供普查实测“与合同额同额、却无持有者的物理许可”张数。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[doc(hidden)]
     pub fn native_source_claim_amounts_for_testonly(&self) -> Vec<usize> {
         let CaptureNodes::Native(native) = &self.nodes else {
@@ -3858,7 +3858,7 @@ impl AuditCapture {
     /// #1488 P2-β：索引许可布局实测——（索引许可字节，现槽宽=size_of<(NodeDigest,NativeNode)>+1，
     /// P2-A前槽宽：同布局镜像但`source_permit: Option<NativeReservation>`）。索引许可=槽数×槽宽，
     /// 故P2-A的布局连带降幅=槽数×(旧槽宽−现槽宽)。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[doc(hidden)]
     pub fn native_index_layout_for_testonly(&self) -> Option<(usize, usize, usize)> {
         #[allow(dead_code)]
@@ -3884,7 +3884,7 @@ impl AuditCapture {
             std::mem::size_of::<(NodeDigest, NativeNodeBeforeP2a)>() + 1,
         ))
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[doc(hidden)]
     pub fn native_retention_numbers_for_testonly(&self) -> Option<NativeCaptureRetention> {
         let CaptureNodes::Native(native) = &self.nodes else {
@@ -3930,7 +3930,7 @@ impl AuditCapture {
                 nodes.values().map(|(_, b)| b.capacity()).sum::<usize>(),
                 serde_json::Value::Null,
             ),
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             CaptureNodes::Native(native) => (
                 native.nodes.len(),
                 native.nodes.values().map(|n| n.body.len()).sum::<usize>(),
@@ -3955,7 +3955,7 @@ impl AuditCapture {
             "first_f_calls":0,"changed_f_calls":0,"strict_f_calls":0,"failed_f_calls":0,
             "retention_skips":0
         });
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         let native_frame_reuse = match &self.nodes {
             CaptureNodes::Native(native) => {
                 let m = native.memo.borrow();
@@ -3974,7 +3974,7 @@ impl AuditCapture {
             }
             _ => native_frame_reuse,
         };
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         let codec_root_certificates = {
             let r = self.codec_roots.borrow();
             serde_json::json!({"format":r.format,"predicate_revision":r.predicate_revision,
@@ -3982,7 +3982,7 @@ impl AuditCapture {
                 "public_roots":r.public.len(),"template_roots":r.template.len(),
                 "public_capacity":r.public.capacity(),"template_capacity":r.template.capacity()})
         };
-        #[cfg(not(feature = "s_capture_native_testonly"))]
+        #[cfg(not(feature = "s_incremental"))]
         let codec_root_certificates = serde_json::Value::Null;
         serde_json::json!({"captured_nodes":nodes,"body_len_bytes":body_len,
             "body_vec_capacity_bytes":body_capacity,"capture_allocation_prototype":allocation,
@@ -3995,7 +3995,7 @@ impl AuditCapture {
 }
 struct CaptureReader<'a>(&'a AuditCapture);
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 mod codec_root_success_tests {
     use super::*;
 
@@ -4214,7 +4214,7 @@ mod codec_root_success_tests {
     }
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 mod counts_subset_codec_root_tests {
     use super::*;
 
@@ -4427,7 +4427,7 @@ mod counts_subset_codec_root_tests {
     }
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 mod source_cache_original_owner_tests {
     use super::*;
     #[test]
@@ -4515,7 +4515,7 @@ impl CaptureReader<'_> {
         let _ = digest;
         self.0.reads.set(self.0.reads.get().saturating_add(1));
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn checked_native_current(
         &self,
         digest: &NodeDigest,
@@ -4577,7 +4577,7 @@ impl CaptureReader<'_> {
         digest: &NodeDigest,
         observer: Option<&dyn CaptureReadObserver>,
     ) -> Result<Option<job::CheckedFrame>, CodecError> {
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         if let CaptureNodes::Native(native) = &self.0.nodes {
             return self.checked_native_current(digest, native, |node| {
                 let read = match node {
@@ -4607,7 +4607,7 @@ impl CaptureReader<'_> {
     }
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 mod native_frame_reuse_tests {
     use super::*;
 
@@ -5213,7 +5213,7 @@ mod native_frame_reuse_tests {
 
 struct Verifier<'a, 'capture> {
     source: CodecContext<'a, 'capture>,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     owner_codec: Option<&'a NativeOwnerCodecMemo>,
     mode: Mode,
     work: Option<WorkBudget>,
@@ -5255,7 +5255,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
         };
         Self {
             source,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             owner_codec: None,
             mode,
             work: memo.budget,
@@ -5299,7 +5299,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
     }
 
     fn push_work(&mut self, digest: NodeDigest, flavor: Flavor) -> Result<(), CodecError> {
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         if self
             .owner_codec
             .is_some_and(|prior| prior.seen.contains_key(&(digest, flavor)))
@@ -5342,7 +5342,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
         while let Some(step) = steps.pop() {
             match step {
                 Step::Enter { digest, utf8, num } => {
-                    #[cfg(feature = "s_capture_native_testonly")]
+                    #[cfg(feature = "s_incremental")]
                     if let Some(agg) = self
                         .owner_codec
                         .and_then(|p| p.bytes.get(&(digest, utf8, num)))
@@ -5505,7 +5505,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
         while let Some(step) = steps.pop() {
             match step {
                 Step::Enter(digest) => {
-                    #[cfg(feature = "s_capture_native_testonly")]
+                    #[cfg(feature = "s_incremental")]
                     if let Some(count) = self
                         .owner_codec
                         .and_then(|p| p.elems.get(&(digest, flavor)))
@@ -5614,7 +5614,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
         while let Some(step) = steps.pop() {
             match step {
                 Step::Enter(digest) => {
-                    #[cfg(feature = "s_capture_native_testonly")]
+                    #[cfg(feature = "s_incremental")]
                     if let Some(agg) = self
                         .owner_codec
                         .and_then(|p| p.fields.get(&(digest, flavor)))
@@ -5802,7 +5802,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
         if a == b {
             return Ok(Ordering::Equal);
         }
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         if let Some(ord) = self.owner_codec.and_then(|p| p.key_cmp.get(&(*a, *b))) {
             return Ok(*ord);
         }
@@ -8001,7 +8001,7 @@ mod sha256_backend_tests {
     }
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 mod request_original_tuple_tests {
     use super::*;
     #[test]
@@ -8113,7 +8113,7 @@ mod r6_codec_memo_tests {
     }
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 mod native_owner_codec_bridge_tests {
     use super::*;
     use capture_allocation::scratch::{
@@ -9224,7 +9224,7 @@ mod native_owner_codec_bridge_tests {
     }
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 impl CodecError {
     /// #1488 0072 测试面：不经任何作用域直接构造 scratch 错误，与 SourceClaim 字节不符、
     /// check_write 域关闭等 Ledger 构造点同一入口（经类型化失败记录）。

@@ -372,7 +372,7 @@ pub(super) struct GenerationRuntime {
 }
 
 impl GenerationRuntime {
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn visit_runtime_roots(&self, f: &mut dyn FnMut(&'static str, NodeDigest)) {
         self.producer.visit_runtime_roots(f);
         self.bi.visit_runtime_roots(f);
@@ -425,7 +425,7 @@ impl GenerationRuntime {
         }
     }
 
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn parser_config_for_test(&self) -> &ThetaConfig {
         &self.theta_config
     }
@@ -1455,7 +1455,7 @@ pub(super) struct SequenceMemo {
 }
 
 impl SequenceMemo {
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn visit_runtime_roots(
         &self,
         name: &'static str,
@@ -2233,12 +2233,12 @@ mod tests {
     use newchan_rust::s_content::{render_canonical, MemoryNodes};
     use serde_json::json;
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     struct NativeFixture<'a> {
         inner: &'a mut MemoryNodes,
         work: &'a sc::capture_allocation::scratch::WorkScope,
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     impl sc::NodeSource for NativeFixture<'_> {
         fn read(&mut self, digest: &NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
             self.inner.read(digest)
@@ -2247,7 +2247,7 @@ mod tests {
             Some(self.work)
         }
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     impl sc::NodeSink for NativeFixture<'_> {
         fn put(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), sc::CodecError> {
             self.inner.put(digest, tag, body)
@@ -2257,7 +2257,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn event_radix_memo_hit_requires_current_native_scope_and_keeps_root_recipe() {
         let event = serde_json::json!({"source_coord":"0","revision":1,"value":7});
@@ -2340,7 +2340,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_stable_sort_matches_old_equal_key_order_and_refuses_atomically() {
         let input = (0..128usize).map(|i| ((i * 37) % 9, i)).collect::<Vec<_>>();
@@ -2385,7 +2385,7 @@ mod tests {
         assert_eq!(tiny.live(), tiny_baseline);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_sequence_cross_generation_same_parent_foreign_refusal_and_discard() {
         let mut nodes = MemoryNodes::new();
@@ -2456,7 +2456,7 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_generated_results_match_plain_and_keep_permits_until_drop() {
         let events = delta_raw_fixture();
@@ -2543,7 +2543,7 @@ mod tests {
         assert_eq!(budget.live(), baseline, "实际持有者析构后归还原账");
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn finish_axes_resource_rejection_preserves_published_roots() {
         let events = delta_raw_fixture();

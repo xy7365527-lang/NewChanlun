@@ -526,7 +526,7 @@ pub(crate) trait CodecRead: NodeSource {
         }
     }
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
+        not(feature = "s_incremental"),
         allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
     )]
     fn verify_audit_many_fresh(
@@ -537,7 +537,7 @@ pub(crate) trait CodecRead: NodeSource {
         sc::audit_verify_many(self.generic_source(), r, mode)
     }
     #[cfg_attr(
-        not(all(test, feature = "s_capture_native_testonly")),
+        not(all(test, feature = "s_incremental")),
         allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
     )]
     fn verify_many_fresh(
@@ -1148,7 +1148,7 @@ impl serde::Serialize for RefValue {
 mod ref_value_tests {
     use super::*;
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_tree_removed_entry_keeps_payload_charge_after_tree_and_scope_drop() {
         let budget = crate::v3::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
@@ -1187,7 +1187,7 @@ mod ref_value_tests {
         assert_eq!(budget.live(), baseline);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn r9a_ref_outputs_charge_plain_text_and_preserve_values() {
         let built = sc::Built {
@@ -1247,7 +1247,7 @@ mod ref_value_tests {
         assert_eq!(budget.scratch_observation().2, 0);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn r9a_optional_fields_preserve_absence_kind_and_scoped_reads() {
         let mut nodes = sc::MemoryNodes::new();
@@ -1383,7 +1383,7 @@ impl RefFields<'_> {
         }
     }
     #[cfg_attr(
-        not(all(test, feature = "s_capture_native_testonly")),
+        not(all(test, feature = "s_incremental")),
         allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
     )]
     pub fn len(&self) -> usize {
@@ -1395,7 +1395,7 @@ impl RefFields<'_> {
 }
 
 /// 仅测试：真实capture/overlay/config进入实际HashReader backend，不制作owned成功token。
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 pub(crate) fn with_native_store_probe<T>(
     capture: &sc::AuditCapture,
     limit: usize,

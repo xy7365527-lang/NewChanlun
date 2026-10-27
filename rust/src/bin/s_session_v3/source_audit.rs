@@ -28,15 +28,15 @@ use serde_json::{json, Value};
 #[cfg(test)]
 #[path = "source_audit_oracle.rs"]
 mod frozen_oracle;
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 #[path = "source_contributions.rs"]
 mod source_contributions;
 #[cfg(test)]
 #[path = "source_delta.rs"]
 mod source_delta;
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 pub(crate) use source_contributions::SourceWork;
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(crate) use source_contributions::{audit_native_bound, NativeSourceState};
 #[path = "source_pending.rs"]
 mod source_pending;
@@ -63,7 +63,7 @@ pub(crate) struct SourceCallStats {
 thread_local! { static SOURCE_CALL_STATS: std::cell::Cell<SourceCallStats> = const { std::cell::Cell::new(SourceCallStats {full_source_calls:0,full_pending_calls:0,fixture_bind_calls:0,full_members_enumerations:0}) }; }
 #[cfg(test)]
 #[cfg_attr(
-    all(test, not(feature = "s_capture_native_testonly")),
+    all(test, not(feature = "s_incremental")),
     allow(dead_code, reason = "#1488 再合 #1608：s_session 测试 构建不触达")
 )]
 pub(crate) fn reset_source_call_stats() {
@@ -71,7 +71,7 @@ pub(crate) fn reset_source_call_stats() {
 }
 #[cfg(test)]
 #[cfg_attr(
-    all(test, not(feature = "s_capture_native_testonly")),
+    all(test, not(feature = "s_incremental")),
     allow(dead_code, reason = "#1488 再合 #1608：s_session 测试 构建不触达")
 )]
 pub(crate) fn source_call_stats() -> SourceCallStats {
@@ -90,7 +90,7 @@ fn err(e: impl std::fmt::Display) -> String {
 }
 #[cfg(test)]
 #[cfg_attr(
-    not(feature = "s_capture_native_testonly"),
+    not(feature = "s_incremental"),
     allow(
         dead_code,
         reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
@@ -157,7 +157,7 @@ struct NativeFieldMemo<'capture> {
 }
 impl<'capture> NativeFieldMemo<'capture> {
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
+        not(feature = "s_incremental"),
         allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
     )]
     fn new(capture: &'capture sc::AuditCapture) -> Self {
@@ -218,7 +218,7 @@ impl<'names> SourceFields<'names> {
         s.lookup_subset_ref(r, names).map(Self).map_err(err)
     }
     #[cfg_attr(
-        not(all(test, feature = "s_capture_native_testonly")),
+        not(all(test, feature = "s_incremental")),
         allow(
             dead_code,
             reason = "#1488 再合 #1608：native 非测试、s_session 非测试、s_session 测试 构建不触达"
@@ -359,7 +359,7 @@ fn cv(v: &Value) -> Result<V, String> {
     })
 }
 #[cfg_attr(
-    not(all(test, feature = "s_capture_native_testonly")),
+    not(all(test, feature = "s_incremental")),
     allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
 )]
 struct HashOnly;
@@ -1143,7 +1143,7 @@ pub(super) fn native_witness_identity_stats() -> Option<NativeWitnessIdentitySta
     NATIVE_WITNESS_IDENTITY_STATS.with(|s| s.get())
 }
 impl<'capture> NativeWitnessIdentityMemo<'capture> {
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn new(capture: &'capture sc::AuditCapture) -> Result<Self, String> {
         if capture.is_allocation_prototype() {
             return Err(err("Native身份memo不接收Owned capture"));
@@ -1248,12 +1248,12 @@ pub(super) struct NativeRawLedgerStats {
 /// 不包含 capture/reader/RawEventsView，不能单独授予新事务的来源资格。
 pub(super) struct NativeRawFacts {
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
+        not(feature = "s_incremental"),
         allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
     )]
     winners: bj::RawPrefixFacts,
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
+        not(feature = "s_incremental"),
         allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
     )]
     sources: BusinessMap<i64, Source>,
@@ -1261,14 +1261,14 @@ pub(super) struct NativeRawFacts {
 }
 impl NativeRawFacts {
     #[cfg_attr(
-        not(all(test, feature = "s_capture_native_testonly")),
+        not(all(test, feature = "s_incremental")),
         allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
     )]
     pub(super) fn prefix_len(&self) -> usize {
         self.winners.prefix_len()
     }
     #[cfg_attr(
-        not(all(test, feature = "s_capture_native_testonly")),
+        not(all(test, feature = "s_incremental")),
         allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
     )]
     pub(super) fn hashed_rows(&self) -> usize {
@@ -1280,7 +1280,7 @@ struct NativeRawLedger<'raw> {
     winners: bj::RawPrefixIndex<'raw>,
     sources: BusinessMap<i64, Source>,
     originals: BusinessMap<usize, (i64, Source)>,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     retained: super::audit_retention::RetainedDelta,
     #[cfg(test)]
     stats: NativeRawLedgerStats,
@@ -1294,7 +1294,7 @@ impl<'raw> NativeRawLedger<'raw> {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn into_facts_retained(
         self,
         delta: &mut super::audit_retention::RetainedDelta,
@@ -1309,7 +1309,7 @@ impl<'raw> NativeRawLedger<'raw> {
     }
 
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
+        not(feature = "s_incremental"),
         allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
     )]
     fn new(raw: RawEventsView<'raw>) -> Self {
@@ -1318,14 +1318,14 @@ impl<'raw> NativeRawLedger<'raw> {
             winners: bj::RawPrefixIndex::new(raw),
             sources: bj::new_map(None),
             originals: bj::new_map(None),
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             retained: Default::default(),
             #[cfg(test)]
             stats: Default::default(),
         }
     }
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
+        not(feature = "s_incremental"),
         allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
     )]
     fn restore(
@@ -1338,7 +1338,7 @@ impl<'raw> NativeRawLedger<'raw> {
             winners: bj::RawPrefixIndex::restore(raw, facts.winners, bound)?,
             sources: facts.sources,
             originals: facts.originals,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             retained: Default::default(),
             #[cfg(test)]
             stats: Default::default(),
@@ -1382,13 +1382,13 @@ impl<'raw> NativeRawLedger<'raw> {
     ) -> Result<(), String> {
         let changes = self.winners.advance_measured(prefix, s, deadline, budget)?;
         if changes.rewound {
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             self.retained
                 .hash_capacity::<i64, Source>(self.sources.capacity(), 0);
             self.sources = bj::new_map(None);
         }
         // 修订先 remove 后重插同一坐标；跨完整变更量容量，不能把中间墓碑当释放。
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         let source_capacity = self.sources.capacity();
         #[cfg(test)]
         {
@@ -1429,13 +1429,13 @@ impl<'raw> NativeRawLedger<'raw> {
                 }
                 #[cfg(test)]
                 super::state::trace_raw_hashes(true, 4);
-                #[cfg(feature = "s_capture_native_testonly")]
+                #[cfg(feature = "s_incremental")]
                 let capacity = self.originals.capacity();
                 s.native_map_room(&mut self.originals).map_err(err)?;
                 self.originals
                     .insert(ordinal, (coord, source))
                     .map_err(err)?;
-                #[cfg(feature = "s_capture_native_testonly")]
+                #[cfg(feature = "s_incremental")]
                 self.retained
                     .hash_capacity::<usize, (i64, Source)>(capacity, self.originals.capacity());
                 source
@@ -1449,7 +1449,7 @@ impl<'raw> NativeRawLedger<'raw> {
                 self.stats.map_updates += 1;
             }
         }
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         self.retained
             .hash_capacity::<i64, Source>(source_capacity, self.sources.capacity());
         Ok(())
@@ -1466,7 +1466,7 @@ pub(super) struct NativeSourceAudit<'capture> {
     raw: RawEventsView<'capture>,
 }
 impl<'capture> NativeSourceAudit<'capture> {
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn with_codec_work(
         mut self,
         scope: &'capture sc::capture_allocation::scratch::WorkScope,
@@ -1480,7 +1480,7 @@ impl<'capture> NativeSourceAudit<'capture> {
     pub(super) fn into_raw_facts(self) -> NativeRawFacts {
         self.ledger.into_facts()
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn into_raw_facts_retained(
         self,
         delta: &mut super::audit_retention::RetainedDelta,
@@ -1488,14 +1488,14 @@ impl<'capture> NativeSourceAudit<'capture> {
         self.ledger.into_facts_retained(delta)
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn new(
         capture: &'capture sc::AuditCapture,
         raw: RawEventsView<'capture>,
     ) -> Result<Self, String> {
         Self::new_with_records(capture, raw, None)
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn new_with_records(
         capture: &'capture sc::AuditCapture,
         raw: RawEventsView<'capture>,
@@ -1503,7 +1503,7 @@ impl<'capture> NativeSourceAudit<'capture> {
     ) -> Result<Self, String> {
         Self::new_with_records_admitted(capture, raw, records, None)
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn new_with_records_admitted(
         capture: &'capture sc::AuditCapture,
         raw: RawEventsView<'capture>,
@@ -1520,7 +1520,7 @@ impl<'capture> NativeSourceAudit<'capture> {
             super::history::SourcePolicy::Ordinary,
         )
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn new_with_records_measured(
         capture: &'capture sc::AuditCapture,
         raw: RawEventsView<'capture>,
@@ -1555,7 +1555,7 @@ impl<'capture> NativeSourceAudit<'capture> {
             memo: NativeWitnessIdentityMemo::new(capture)?,
         })
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn restore(
         capture: &'capture sc::AuditCapture,
         raw: RawEventsView<'capture>,
@@ -1568,7 +1568,7 @@ impl<'capture> NativeSourceAudit<'capture> {
     }
     #[cfg(test)]
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
+        not(feature = "s_incremental"),
         allow(
             dead_code,
             reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
@@ -1683,7 +1683,7 @@ pub(super) fn audit_generated_for_audit<'a>(
 // #1488 SFT-M1：故障对拍必须调用冻结旧核，不能借用重构后的同一实现。
 #[cfg(test)]
 #[cfg_attr(
-    all(test, not(feature = "s_capture_native_testonly")),
+    all(test, not(feature = "s_incremental")),
     allow(dead_code, reason = "#1488 再合 #1608：s_session 测试 构建不触达")
 )]
 pub(super) fn audit_generated_frozen_for_test<'a>(
@@ -2717,13 +2717,13 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn ledger_event(identity: &str, coord: &str, revision: i64, seq: i64) -> Value {
         json!({"identity_key": identity, "source_coord": coord, "revision": revision,
             "seq": seq, "payload_hash": "same-price", "receipt_id": format!("r-{seq}"),
             "event_id": format!("e-{seq}"), "input_revision": "1"})
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn original_sources(raw: &[Value], n: usize) -> Result<BusinessMap<i64, Source>, String> {
         let effective = bj::effective(RawEventsView::plain(&raw[..n]), None)?;
         let mut sources = bj::new_map(None);
@@ -2750,13 +2750,13 @@ mod tests {
         }
         Ok(sources)
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn source_entries(map: &BusinessMap<i64, Source>) -> std::collections::BTreeMap<i64, Source> {
         map.iter()
             .map(|(coord, source)| (*coord, *source))
             .collect()
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_raw_ledger_measured_visits_hits_rewind_and_failure() {
         use super::super::audit_budget::AuditJob;
@@ -2852,7 +2852,7 @@ mod tests {
         assert!(ledger.winners.is_empty());
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn cold_raw_index_normal_revisions_unordered_duplicate_prices_and_replay_view() {
         use crate::v3::audit_retention::{Retained, RetainedDelta};
@@ -2922,7 +2922,7 @@ mod tests {
             "重复借用视图不增加赢家 key"
         );
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_raw_facts_keep_original_bucket_permits_across_scope_and_move() {
         let raw = vec![
@@ -2963,7 +2963,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn source_identity_producer_outlives_scope_without_freeing_initial_strings() {
         let mut nodes = MemoryNodes::default();
@@ -3006,7 +3006,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn cold_source_normal_fixture_oracle() {
         let (mut nodes, state, raw, rule) = fixture();
@@ -3021,7 +3021,7 @@ mod tests {
         assert_eq!(format!("{expected:?}"), format!("{actual:?}"));
         eprintln!("既有正常 OHLC oracle：14条原件，完整 Counts={actual:?}");
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_raw_ledger_incremental_winners_rewind_and_overlay_clear() {
         let raw = vec![
@@ -3063,7 +3063,7 @@ mod tests {
         let fresh = NativeRawLedger::new((&raw).into());
         assert!(fresh.sources.is_empty() && fresh.originals.is_empty() && fresh.winners.is_empty());
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_raw_ledger_jump_skips_invalid_transients_and_checks_final_collisions_first() {
         let mut bad = ledger_event("a", "-1", 2, 2);
@@ -3123,7 +3123,7 @@ mod tests {
         assert!(ledger.advance(&mut reader, 3).is_err());
         assert!(ledger.sources.is_empty() && ledger.originals.is_empty());
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_raw_ledger_invalid_source_only_checked_for_final_winner() {
         let mut bad = ledger_event("a", "5", 2, 1);
@@ -3145,7 +3145,7 @@ mod tests {
         );
         assert!(ledger.originals.is_empty());
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_raw_ledger_real_multicut_matches_full_source_audit() {
         // 复用已通过的不同 OHLC 夹具；每个前缀有实际来源变化及合法组/形状依赖。
@@ -3241,7 +3241,7 @@ mod tests {
             std::mem::align_of::<super::super::audit_store::RefFields<'static>>()
         );
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_history_record_handoff_eliminates_both_source_field_lookups() {
         let (nodes, state, raw, rule) = fixture();
@@ -3294,7 +3294,7 @@ mod tests {
         let wrong = super::super::history::NativeRecordFields::new(&other).unwrap();
         assert!(NativeSourceAudit::new_with_records(&capture, (&raw).into(), Some(wrong)).is_err());
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_fields_multi_cut_reuses_only_decoding_and_error_clears() {
         let (mut nodes, first, raw, rule) = fixture();
@@ -3351,7 +3351,7 @@ mod tests {
         let fresh = NativeSourceAudit::new(&capture, (&raw).into()).unwrap();
         assert!(fresh.fields.fields.is_empty() && fresh.fields.scalars.values.is_empty());
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_fields_exact_headers_names_and_overlay_isolation() {
         let mut nodes = MemoryNodes::default();
@@ -3442,7 +3442,7 @@ mod tests {
             .qualified((&root).into(), None)
             .unwrap());
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_field_memo_scoped_hit_copies_clear_and_drop_keep_original_permits() {
         let mut nodes = MemoryNodes::default();
@@ -3539,7 +3539,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_witness_memo_scoped_hits_clear_and_drop_keep_original_permits() {
         let mut nodes = MemoryNodes::default();
@@ -3608,7 +3608,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_witness_identity_exact_inputs_and_success_only() {
         let mut nodes = MemoryNodes::default();
@@ -3676,7 +3676,7 @@ mod tests {
         assert!(fresh.entries.is_empty());
         assert_ne!(key, fresh.key(&reader, "obj3-first", 0, 1, &bars).unwrap());
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_source_measured_preserves_fields_witness_and_failure_cleanup() {
         use super::super::audit_budget::AuditJob;
@@ -3754,7 +3754,7 @@ mod tests {
         assert!(native.memo.entries.is_empty());
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_witness_identity_keeps_current_cut_faults() {
         let (mut nodes, state, raw, rule) = fixture();
@@ -3897,7 +3897,7 @@ mod tests {
         assert!(run(&mut wrong_source, &state, &raw).is_err());
         assert!(wrong_source.memo.entries.is_empty());
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_witness_identity_requires_original_complete_closure() {
         let mut nodes = MemoryNodes::default();
@@ -5330,7 +5330,7 @@ fn elements_ref(
     Ok(out)
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 mod owner_retention {
     use super::*;
     use crate::v3::audit_retention::retained_struct;

@@ -301,7 +301,7 @@ pub(super) struct Relation {
 }
 impl Relation {
     #[cfg_attr(
-        not(all(test, feature = "s_capture_native_testonly")),
+        not(all(test, feature = "s_incremental")),
         allow(
             dead_code,
             reason = "#1488 再合 #1608：native 非测试、s_session 非测试、s_session 测试 构建不触达"
@@ -514,7 +514,7 @@ pub(super) struct Runtime {
     sequences: [SequenceMemo; 8],
 }
 impl Runtime {
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn visit_runtime_roots(
         &self,
         f: &mut dyn FnMut(&'static str, NodeDigest),
@@ -1303,7 +1303,7 @@ fn state_members(
 thread_local! {static AUX_AUDIT_STATS:std::cell::Cell<[u64;6]>=const{std::cell::Cell::new([0;6])};}
 #[cfg(test)]
 #[cfg_attr(
-    not(feature = "s_capture_native_testonly"),
+    not(feature = "s_incremental"),
     allow(
         dead_code,
         reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
@@ -1314,7 +1314,7 @@ pub(super) fn reset_aux_audit_stats() {
 }
 #[cfg(test)]
 #[cfg_attr(
-    not(feature = "s_capture_native_testonly"),
+    not(feature = "s_incremental"),
     allow(
         dead_code,
         reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
@@ -1430,7 +1430,7 @@ pub(super) struct NativeAuxAudit<'index, 'capture, 'raw> {
     index: &'index Index,
     raw: RawEventsView<'raw>,
     facts: NativeAuxFacts,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     retained_raw_capacity: usize,
     relation_memo: bj::BusinessMap<RelationRefKey, RelationCore>,
     raw_memo: bj::BusinessMap<usize, Option<RefValue>>,
@@ -1454,7 +1454,7 @@ fn same_birth_order<'a>(
 }
 impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
     #[cfg_attr(
-        not(all(test, feature = "s_capture_native_testonly")),
+        not(all(test, feature = "s_incremental")),
         allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
     )]
     pub(super) fn from_loaded(
@@ -1507,13 +1507,13 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
                 raw_scanned: 0,
                 raw_revisions: bj::new_work(None),
             },
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             retained_raw_capacity: 0,
             relation_memo: bj::new_map(None),
             raw_memo: bj::new_map(None),
         }))
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn restore(
         s: &super::history::HashReader<'capture>,
         index: &'index Index,
@@ -1569,7 +1569,7 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
     pub(super) fn into_facts(self) -> NativeAuxFacts {
         self.facts
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn into_facts_retained(
         self,
         delta: &mut super::audit_retention::RetainedDelta,
@@ -2050,7 +2050,7 @@ pub(super) fn load(
     stmt.finalize().map_err(err)?;
     Ok(out)
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(super) fn update_from_owner(
     tx: &Transaction<'_>,
     s: &mut super::history::HashReader<'_>,
@@ -2480,7 +2480,7 @@ fn check_batch(batch: &str) -> Result<(), String> {
 
 /// manifest 已得到真实身份之后调用；任何后续错误由调用方回滚整个事务。无 INSERT OR IGNORE。
 #[cfg_attr(
-    all(not(test), feature = "s_capture_native_testonly"),
+    all(not(test), feature = "s_incremental"),
     allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
 )]
 pub(super) fn stage(
@@ -2494,7 +2494,7 @@ pub(super) fn stage(
         s,
         p,
         batch,
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         None,
     )
 }
@@ -2503,7 +2503,7 @@ pub(super) fn stage_in_material(
     s: &mut (impl CodecStore + ?Sized),
     p: &Plan,
     batch: &str,
-    #[cfg(feature = "s_capture_native_testonly")] material: Option<
+    #[cfg(feature = "s_incremental")] material: Option<
         &super::audit_owner::MaterialAccess<'_, '_, '_>,
     >,
 ) -> Result<(), String> {
@@ -2512,7 +2512,7 @@ pub(super) fn stage_in_material(
         if w.first != p.generation {
             return Err(err("见证出生代错绑"));
         }
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         let construction_stage = super::audit_owner::begin_construction_stage(
             tx,
             super::audit_owner::StageKind::Witness,
@@ -2530,14 +2530,14 @@ pub(super) fn stage_in_material(
             ],
         )
         .map_err(err)?;
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         construction_stage.finish(material)?;
     }
     for r in &p.births.relations {
         if r.first != p.generation {
             return Err(err("关系出生代错绑"));
         }
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         let construction_stage = super::audit_owner::begin_construction_stage(
             tx,
             super::audit_owner::StageKind::Relation,
@@ -2554,14 +2554,14 @@ pub(super) fn stage_in_material(
             ],
         )
         .map_err(err)?;
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         construction_stage.finish(material)?;
     }
     for o in &p.births.observations {
         if o.first != p.generation || o.batch.is_some() {
             return Err(err("观察出生代/模板错绑"));
         }
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         let construction_stage = super::audit_owner::begin_construction_stage(
             tx,
             super::audit_owner::StageKind::Observation,
@@ -2584,7 +2584,7 @@ pub(super) fn stage_in_material(
             ],
         )
         .map_err(err)?;
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         construction_stage.finish(material)?;
     }
     Ok(())
@@ -2592,7 +2592,7 @@ pub(super) fn stage_in_material(
 
 #[cfg(test)]
 mod tests {
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_aux_tables_retain_owners_across_scope_and_release_on_drop() {
         let rows = [("alpha", 3), ("beta", 1), ("alpha", 2)];
@@ -2617,7 +2617,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_aux_failed_table_construction_releases_partial_owners() {
         let rows = [("alpha", 1), ("beta", 2)];
@@ -2645,7 +2645,7 @@ mod tests {
             .unwrap()
     }
     #[cfg_attr(
-        all(test, not(feature = "s_capture_native_testonly")),
+        all(test, not(feature = "s_incremental")),
         allow(dead_code, reason = "#1488 再合 #1608：s_session 测试 构建不触达")
     )]
     fn clone_refs(values: &[RefValue]) -> Vec<RefValue> {
@@ -2661,7 +2661,7 @@ mod tests {
     };
     use rusqlite::Connection;
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn r12_cold_object_aux_shared_scope_matches_complete_plain_outputs() {
         use super::super::{audit_owner::native::Budget, history::HashReader, object_index};
@@ -2798,7 +2798,7 @@ mod tests {
     /// 全额计入本请求 scope（转换期峰值越过转换前 live + 许可）；漏计控制字节（M2a）或不经 scope
     /// 预留都变红。槽数按转换前 Legacy 节点数
     /// 独立推得（next_pow2(n)×4+16），不读被测实现的中间值。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn p50_legacy_to_native_index_permit_counts_control_byte_per_slot() {
         use super::super::audit_owner::native::Budget;
@@ -2857,7 +2857,7 @@ mod tests {
     }
 
     // 此夹具只验证真实生成器→辅助索引→SQLite，不声称完整 S3 控制/对象发布已接线。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_aux_owner_prefix_duplicates_reference_and_overlay_matrix() {
         fn state(s: &mut impl CodecStore, relations: &[RefValue]) -> RefValue {
@@ -3687,7 +3687,7 @@ mod tests {
                 g,
             )
             .unwrap();
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             {
                 let capture = content_store::capture_for_prototype(&tx).unwrap();
                 let mut reader =
@@ -4275,7 +4275,7 @@ mod tests {
     }
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 mod owner_retention {
     use super::*;
     use crate::v3::audit_retention::{retained_struct, Retained};

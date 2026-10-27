@@ -55,7 +55,7 @@ mod delta_storage;
 mod content_store;
 #[path = "s_session_v2/evidence_store.rs"]
 mod evidence_store;
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 #[path = "s_session_v2/staged_nodes.rs"]
 mod staged_nodes;
 // #1394 采纳 C §5.2/5.3：S 生产侧从同核共享证据直接构造 CC-004 内容对象（生产构造器，
@@ -2636,7 +2636,7 @@ fn decode_raw_row_admitted(
 }
 
 /// Q固定追加与cold路径复用完全相同的列解码/OHLC借视图核。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 fn read_raw_event_at_admitted(
     conn: &Connection,
     seq: i64,
@@ -2685,7 +2685,7 @@ fn decode_raw_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Value> {
     }))
 }
 /// 固定 Accept 的实际 seq 回读；沿完整读取相同解码，不构造旧 raw 副本。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 fn read_raw_event_at(conn: &Connection, seq: i64) -> Result<Value, String> {
     let mut value = conn.query_row(
         "SELECT identity_key,revision,input_revision,payload_hash,receipt_id,seq,source_namespace,source_epoch,instrument,event_id,received_at,raw_text,price,ts,volume,source_coord,supersedes_revision FROM raw_events WHERE seq=?1", [seq], decode_raw_row).map_err(|e| format!("StorageUnavailable：{e}"))?;
@@ -4546,7 +4546,7 @@ fn json_shape_with_owner_admitted(
     owner: Option<&newchan_rust::s_content::capture_allocation::OwnedBudget>,
     work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
 ) -> Result<v3::business_json::JsonOwner, String> {
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     let permit = if let Some(work) = work {
         if owner.is_some() {
             return Err(work
@@ -4564,14 +4564,14 @@ fn json_shape_with_owner_admitted(
     } else {
         None
     };
-    #[cfg(not(feature = "s_capture_native_testonly"))]
+    #[cfg(not(feature = "s_incremental"))]
     if let Some(work) = work {
         return Err(work
             .reject(newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Ledger)
             .to_string());
     }
     let value = json_shape_with_owner(text, shape, owner)?;
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     let value = match value {
         v3::business_json::JsonOwner::Plain(value) => {
             v3::business_json::JsonOwner::Plain(value.with_reservation(permit))
@@ -7907,7 +7907,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn native_batch_header_shares_original_text_permits_until_last_drop() {
         let budget = v3::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
         let baseline = budget.live();
@@ -7934,7 +7934,7 @@ mod tests {
         assert_eq!(budget.live(), baseline);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn assert_native_raw_matches_plain(conn: &Connection, expected_len: usize, ohlc: bool) {
         let expected = read_raw_events_until(conn, None).unwrap();
         assert_eq!(expected.len(), expected_len);
@@ -7987,7 +7987,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn native_cold_raw_sql_json_hash_receipt_revision_matches_plain() {
         let files = TestFiles::new();
         init_test_db(&files);
@@ -8010,7 +8010,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn native_raw_column_errors_precede_ohlc_cardinality_and_earlier_row_faults() {
         // 两个真正双故障；用BLOB并核typeof，避免TEXT affinity把INTEGER自动转成文本。
         for cardinality_fault in [true, false] {
@@ -8097,7 +8097,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn native_cold_raw_ohlc_and_revision_matches_plain() {
         let files = TestFiles::new();
         init_test_db(&files);
@@ -12181,7 +12181,7 @@ mod legacy_profile_owner_regressions {
         )
         .unwrap();
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn r13_native_legacy_profile_blob_matches_none_on_parent_scope() {
         use v3::audit_store::{CodecRead, NativeAdmission};
@@ -12230,7 +12230,7 @@ mod legacy_profile_owner_regressions {
         cache::configure(0);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn r13_native_legacy_profile_graph_roots_match_none_and_keep_cache_gates() {
         use v3::audit_store::{CodecRead, NativeAdmission};

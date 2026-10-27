@@ -50,13 +50,13 @@ pub(super) fn configure_and_log(conn: &Connection) -> Result<(), String> {
     if let Some(kib) = requested {
         let target = -kib;
         conn.pragma_update(None, "cache_size", target)
-            .map_err(|e| format!("NativeTestOnlySqliteCacheInvalid：设置 cache_size 失败：{e}"))?;
+            .map_err(|e| format!("WriterSqliteCacheInvalid：设置 cache_size 失败：{e}"))?;
         let actual: i32 = conn
             .pragma_query_value(None, "cache_size", |r| r.get(0))
-            .map_err(|e| format!("NativeTestOnlySqliteCacheInvalid：回读 cache_size 失败：{e}"))?;
+            .map_err(|e| format!("WriterSqliteCacheInvalid：回读 cache_size 失败：{e}"))?;
         if actual != target {
             return Err(format!(
-                "NativeTestOnlySqliteCacheInvalid：cache_size 回读 {actual}，预期 {target}"
+                "WriterSqliteCacheInvalid：cache_size 回读 {actual}，预期 {target}"
             ));
         }
     }
@@ -85,7 +85,7 @@ pub(super) fn configure_and_log(conn: &Connection) -> Result<(), String> {
         pragmas.insert(name.into(), value);
     }
     log(
-        json!({"diagnostic":"NativeTestOnlySqlitePager", "schema_revision":1,
+        json!({"diagnostic":"WriterSqlitePager", "schema_revision":1,
         "stage":"startup-before-first-transaction", "requested_cache_kib":requested,
         "cache_size_semantics":"connection-session suggested pager cache; negative value is KiB; not heap/RSS peak bound",
         "pragmas":pragmas, "snapshot":snapshot(conn).value()}),
@@ -94,7 +94,7 @@ pub(super) fn configure_and_log(conn: &Connection) -> Result<(), String> {
 }
 
 fn invalid_cache() -> String {
-    format!("NativeTestOnlySqliteCacheInvalid：{CACHE_ENV} 必须是规范十进制正整数 1..262144 KiB")
+    format!("WriterSqliteCacheInvalid：{CACHE_ENV} 必须是规范十进制正整数 1..262144 KiB")
 }
 
 fn sqlite_rc(error: &rusqlite::Error) -> Option<i32> {
@@ -222,7 +222,7 @@ pub(super) fn log_handle(before: Snapshot, after: Snapshot, message_id: Option<V
         delta.insert(name.into(), json!({"value":value, "interpretation":reason}));
     }
     log(
-        json!({"diagnostic":"NativeTestOnlySqlitePager", "schema_revision":1,
+        json!({"diagnostic":"WriterSqlitePager", "schema_revision":1,
         "stage":"handle-before-after", "message_id":message_id, "business_result_ok":ok,
         "before":before.value(), "after":after.value(), "cumulative_delta":delta,
         "cache_write_semantics":"dirty pages written; undefined after SQLite IO/write error",

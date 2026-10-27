@@ -22,7 +22,7 @@ mod tests {
     use super::super::HashReader;
     use super::*;
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn record_sidecar_shared_scope_seed_subset_matches_plain() {
         let mut nodes = sc::MemoryNodes::default();
@@ -83,7 +83,7 @@ mod tests {
             .unwrap();
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn record_sidecar_subset_outlives_scope_and_drops_its_own_permits() {
         let mut nodes = sc::MemoryNodes::default();
@@ -129,7 +129,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn record_sidecar_failed_replacement_keeps_original_and_releases_temporaries() {
         let mut nodes = sc::MemoryNodes::default();
@@ -290,7 +290,7 @@ thread_local! {
 }
 #[cfg(test)]
 #[cfg_attr(
-    not(feature = "s_capture_native_testonly"),
+    not(feature = "s_incremental"),
     allow(
         dead_code,
         reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
@@ -301,7 +301,7 @@ pub(crate) fn reset_native_record_field_stats() {
 }
 #[cfg(test)]
 #[cfg_attr(
-    not(feature = "s_capture_native_testonly"),
+    not(feature = "s_incremental"),
     allow(
         dead_code,
         reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
@@ -323,7 +323,7 @@ impl<'capture> NativeRecordFields<'capture> {
         Self::new_admitted(capture, None)
     }
     #[cfg_attr(
-        all(not(test), not(feature = "s_capture_native_testonly")),
+        all(not(test), not(feature = "s_incremental")),
         allow(
             dead_code,
             reason = "#1608：默认 feature 的非测试构建不触达；测试与 s_capture_native_testonly 构建使用"

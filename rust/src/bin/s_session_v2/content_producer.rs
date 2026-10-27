@@ -686,7 +686,7 @@ impl Cc004Producer {
         })
     }
 
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn visit_runtime_roots(&self, f: &mut dyn FnMut(&'static str, NodeDigest)) {
         for (_, root) in self.sources.values() {
             f("producer.sources", *root);
@@ -1874,13 +1874,13 @@ impl Cc004Producer {
                 #[cfg(test)]
                 let _phase = tests::emission_phase("fractal_relations_write_value");
                 let value = CValue::Array(relations);
-                #[cfg(feature = "s_capture_native_testonly")]
+                #[cfg(feature = "s_incremental")]
                 let built = if shared.is_some() {
                     sc::write_value_native_local_for_testonly(&mut *store, &value)?
                 } else {
                     sc::write_value(&mut *store, &value)?
                 };
-                #[cfg(not(feature = "s_capture_native_testonly"))]
+                #[cfg(not(feature = "s_incremental"))]
                 let built = sc::write_value(&mut *store, &value)?;
                 built
             };
@@ -5624,7 +5624,7 @@ mod tests {
     }
 
     /// #1394 固定真实 24 关系树：保留四轴、六参考与全部实际价格，仅减少重复材料写入。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_local_fractal_relations_preserve_full_material_and_render_with_fewer_puts() {
         let mut tail = bar(123, 35, -5);

@@ -217,6 +217,17 @@ jobs:
           df -B1 -T .
           du -sx -B1 target 2>/dev/null || true
 
+      # #1640（ADR 0042 D1）：S 写者增量生产构建；testonly = 增量 + 测试钩子，此步只验生产形态。
+      - name: cargo check — s_session,s_incremental 生产增量构建（#1640）
+        env:
+          RUSTFLAGS: "-D warnings"
+        run: cargo check --all-targets --features s_session,s_incremental
+
+      # #1640 §2.3 第 2 层：生产增量构建不含测试钩子（源码机检，不编译）。
+      - name: 生产增量构建无测试钩子（#1640）
+        working-directory: .
+        run: python3 .github/scripts/check-prod-no-test-hooks.py
+
       - name: cargo fmt --check（#611：归零后防回潮）
         run: |
           set -x
@@ -389,6 +400,11 @@ jobs:
       - name: cargo test — s_capture_native_testonly 特性新增的测试（#1394）
         if: ${{ !cancelled() && matrix.group == 'native' }}
         run: ../.github/scripts/run-cargo-with-telemetry.sh ../.github/scripts/test-feature-delta.sh s_capture_native_testonly
+
+      # #1640：生产增量构建的编译期模式、`/2` 资源档与出生锁在无测试钩子 feature 下另跑一遍（env 选择臂只在 testonly）。
+      - name: cargo test — s_incremental 生产增量构建（#1640）
+        if: ${{ !cancelled() && matrix.group == 'native' }}
+        run: '../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session,s_incremental --bin s_structure_session --jobs 1 -- s_allocation:: s3_serve incremental_build_full_branch_only_at_birth'
 
       # #1394 整合（根裁定 A）：v3 history 的 Owned 文本/分配原型用例只在 s_allocation_json_testonly
       #   构建编译；只编译不执行的锁按无锁计（#799），故单列一步执行。不依赖前面各步的产物。

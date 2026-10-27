@@ -11,7 +11,7 @@ use super::business_json::{self as bj, RawEventsView};
 use super::business_json::{BusinessMap, JsonOwner};
 use super::*;
 use crate::v3::audit_store::{CodecRead, CodecStore};
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 use content_manifest::ManifestRoots;
 #[cfg(test)]
 use newchan_rust::s_content::path::lookup_path;
@@ -28,7 +28,7 @@ use sc::capture_allocation::{audit_json::JsonView, OwnedBudget};
 #[path = "native_record_fields.rs"]
 mod native_record_fields;
 pub(super) use native_record_fields::NativeRecordFields;
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 pub(super) use native_record_fields::{native_record_field_stats, reset_native_record_field_stats};
 
 /// Opaque per-cut proof: constructed only in this module's complete-load read-only chain.
@@ -214,28 +214,28 @@ pub(super) struct IndexedHistory {
 /// 两者不能混为一个进度，未发布尾不会进入旧 cut 的前缀树。
 pub(super) struct NativeRawPrefixes {
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
+        not(feature = "s_incremental"),
         allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
     )]
     raw_nodes: sc::CodecVec<NodeDigest>,
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
+        not(feature = "s_incremental"),
         allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
     )]
     raw_wire_nodes: sc::CodecVec<NodeDigest>,
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
+        not(feature = "s_incremental"),
         allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
     )]
     prefixes: NativeHistoryPrefixes,
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
+        not(feature = "s_incremental"),
         allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
     )]
     ordered: bj::RawPrefixFacts,
 }
 impl NativeRawPrefixes {
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn check_appended(
         &mut self,
         capture: &sc::AuditCapture,
@@ -251,7 +251,7 @@ impl NativeRawPrefixes {
                 sc::capture_allocation::scratch::WorkError::Operation(e) => e,
             })
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn check_appended_work(
         &mut self,
         capture: &sc::AuditCapture,
@@ -293,14 +293,14 @@ impl NativeRawPrefixes {
         retained.apply(0)
     }
     #[cfg_attr(
-        not(all(test, feature = "s_capture_native_testonly")),
+        not(all(test, feature = "s_incremental")),
         allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
     )]
     pub(super) fn checked_len(&self) -> usize {
         self.raw_nodes.len()
     }
     #[cfg_attr(
-        not(all(test, feature = "s_capture_native_testonly")),
+        not(all(test, feature = "s_incremental")),
         allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
     )]
     pub(super) fn published_len(&self) -> u64 {
@@ -378,7 +378,7 @@ pub(super) fn read_indexed_history(
 }
 
 #[cfg_attr(
-    not(all(test, feature = "s_capture_native_testonly")),
+    not(all(test, feature = "s_incremental")),
     allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
 )]
 pub(super) fn read_indexed_history_for_audit(
@@ -406,7 +406,7 @@ pub(super) fn read_indexed_history_for_audit(
 }
 
 #[cfg_attr(
-    not(all(test, feature = "s_capture_native_testonly")),
+    not(all(test, feature = "s_incremental")),
     allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
 )]
 pub(super) fn read_indexed_history_for_audit_captured<'a>(
@@ -431,7 +431,7 @@ pub(super) fn read_indexed_history_for_audit_captured<'a>(
 }
 
 #[cfg_attr(
-    not(all(test, feature = "s_capture_native_testonly")),
+    not(all(test, feature = "s_incremental")),
     allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
 )]
 pub(super) fn read_indexed_history_for_audit_captured_with_records<'a>(
@@ -458,7 +458,7 @@ pub(super) fn read_indexed_history_for_audit_captured_with_records<'a>(
 }
 
 #[cfg_attr(
-    not(all(test, feature = "s_capture_native_testonly")),
+    not(all(test, feature = "s_incremental")),
     allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
 )]
 pub(super) fn read_indexed_history_for_audit_captured_with_records_admitted<'a>(
@@ -564,13 +564,13 @@ fn read_indexed_history_inner(
     policy: SourcePolicy,
 ) -> Result<IndexedHistory, String> {
     check_deadline(deadline)?;
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     if let Some(work) = work {
         verify_required_meta_admitted(tx, work)?;
     } else {
         verify_required_meta(tx)?;
     }
-    #[cfg(not(feature = "s_capture_native_testonly"))]
+    #[cfg(not(feature = "s_incremental"))]
     verify_required_meta(tx)?;
     let mut reader = content_store::ReadStore::new(tx).map_err(err)?;
     if audit_same_material {
@@ -725,11 +725,11 @@ fn read_indexed_history_inner(
         auxiliary_facts,
         cuts: output,
         objects: {
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             {
                 objects.into_entries_preserving(&mut object_sweep)
             }
-            #[cfg(not(feature = "s_capture_native_testonly"))]
+            #[cfg(not(feature = "s_incremental"))]
             {
                 objects.into_entries()
             }
@@ -1307,7 +1307,7 @@ pub(super) fn revalidate_current_for_reuse(
 }
 
 #[cfg_attr(
-    not(feature = "s_capture_native_testonly"),
+    not(feature = "s_incremental"),
     allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
 )]
 pub(super) fn revalidate_current_for_reuse_admitted(
@@ -1342,13 +1342,13 @@ pub(super) fn revalidate_current_for_reuse_measured(
     budget: Option<&dyn super::audit_budget::Budget>,
     policy: SourcePolicy,
 ) -> Result<(), String> {
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     if let Some(work) = work {
         verify_required_meta_admitted(tx, work)?;
     } else {
         verify_required_meta(tx)?;
     }
-    #[cfg(not(feature = "s_capture_native_testonly"))]
+    #[cfg(not(feature = "s_incremental"))]
     verify_required_meta(tx)?;
     let mut store = HashReader::captured_for_audit(capture, None)
         .map_err(err)?
@@ -1692,7 +1692,7 @@ fn field<'a>(
     field_meta(s, r.into(), k)
 }
 #[cfg_attr(
-    not(all(test, feature = "s_capture_native_testonly")),
+    not(all(test, feature = "s_incremental")),
     allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
 )]
 fn text<'a>(
@@ -2020,7 +2020,7 @@ impl NativeHistoryPrefixes {
         }
         Ok(())
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn retained_capacities(&self) -> [usize; 3] {
         [
             self.raw.stack.capacity(),
@@ -2090,7 +2090,7 @@ fn record_history_prefix_leaves(index: usize, count: u64) {
 }
 #[cfg(test)]
 #[cfg_attr(
-    not(feature = "s_capture_native_testonly"),
+    not(feature = "s_incremental"),
     allow(
         dead_code,
         reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
@@ -2101,7 +2101,7 @@ fn reset_history_prefix_leaves() {
 }
 #[cfg(test)]
 #[cfg_attr(
-    not(feature = "s_capture_native_testonly"),
+    not(feature = "s_incremental"),
     allow(
         dead_code,
         reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
@@ -2249,7 +2249,7 @@ pub(crate) struct HashReader<'a> {
     overlay: OverlayOwner,
     owned: Option<sc::ClosedCapturedOwner<'a>>,
     work: Option<&'a sc::capture_allocation::scratch::WorkScope>,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     native_budget: Option<&'a super::audit_owner::native::Budget>,
     deadline: Option<std::time::Instant>,
     max_render_bytes: Option<u64>,
@@ -2327,7 +2327,7 @@ impl<'a> HashReader<'a> {
             ReadOwner::Dynamic(_) => Ok(None),
         }
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(crate) fn with_codec_work(
         mut self,
         work: &'a sc::capture_allocation::scratch::WorkScope,
@@ -2341,7 +2341,7 @@ impl<'a> HashReader<'a> {
     /// 仅本轮 Native captured 历史审计可取到 owner；Owned、普通 reader、Q 与有门路径
     /// 均不开投影 memo。返回 owner 自身寿命，不借用或延长任何临时 overlay body。
     pub(crate) fn native_projection_capture(&self) -> Option<&'a sc::AuditCapture> {
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         if self.audit_full_arrays
             && self.owned.is_none()
             && (self.native_measured() || (self.budget.is_none() && self.deadline.is_none()))
@@ -2354,13 +2354,13 @@ impl<'a> HashReader<'a> {
         }
         None
     }
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(crate) fn native_publication_fields_for_test(capture: &'a sc::AuditCapture) -> Self {
         let mut reader = Self::captured(capture, None);
         reader.enable_full_arrays_for_test();
         reader
     }
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(crate) fn with_native_publication_deadline_for_test(
         self,
         deadline: std::time::Instant,
@@ -2581,7 +2581,7 @@ impl<'a> HashReader<'a> {
             overlay: OverlayOwner::Dynamic(Default::default()),
             owned: None,
             work: None,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             native_budget: None,
             deadline: None,
             max_render_bytes,
@@ -2652,7 +2652,7 @@ impl<'a> HashReader<'a> {
         sc::audit_verify(self, r, mode)
     }
     #[cfg_attr(
-        not(all(test, feature = "s_capture_native_testonly")),
+        not(all(test, feature = "s_incremental")),
         allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
     )]
     pub(crate) fn verify_many(
@@ -2683,7 +2683,7 @@ impl<'a> HashReader<'a> {
             overlay: OverlayOwner::Dynamic(Default::default()),
             owned: None,
             work: None,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             native_budget: None,
             deadline: None,
             max_render_bytes: None,
@@ -2702,7 +2702,7 @@ impl<'a> HashReader<'a> {
             overlay: OverlayOwner::Dynamic(Default::default()),
             owned: None,
             work: None,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             native_budget: None,
             deadline,
             max_render_bytes: None,
@@ -2722,7 +2722,7 @@ impl<'a> HashReader<'a> {
             overlay: OverlayOwner::Dynamic(Default::default()),
             owned: None,
             work: None,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             native_budget: None,
             deadline,
             max_render_bytes,
@@ -2742,7 +2742,7 @@ impl<'a> HashReader<'a> {
             overlay: OverlayOwner::Dynamic(Default::default()),
             owned: None,
             work: None,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             native_budget: None,
             deadline,
             max_render_bytes,
@@ -2937,7 +2937,7 @@ impl NodeSink for HashReader<'_> {
                 }
                 // #1394：无计费Native完整审计保留同原件的source读取归属。
                 // 后续仍实际复制当前正文并核首次F；本put不预核摘要或减少访问trace。
-                #[cfg(feature = "s_capture_native_testonly")]
+                #[cfg(feature = "s_incremental")]
                 if capture.native_frame_reuse_active_for_testonly()
                     && self.audit_full_arrays
                     && self.owned.is_none()
@@ -3423,7 +3423,7 @@ mod tests {
         assert!(overflow.array_root().is_err(), "算法错误必须直传");
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn owner_retained_prefix_normal_append_and_revision_matches_oracle() {
         use crate::v3::audit_retention::{Retained, RetainedDelta};
@@ -3457,7 +3457,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_history_prefix_effective_topology_keeps_last_coord_overwrite() {
         let capture = sc::AuditCapture::new(sc::MemoryNodes::new());
@@ -3499,7 +3499,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_full_audit_duplicate_put_keeps_current_source_vec_and_first_f() {
         let body = vec![0x5a; 4096];
@@ -3564,7 +3564,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_full_audit_duplicate_put_keeps_conflict_bad_f_missing_and_existing_overlay() {
         let body = b"source";
@@ -3624,7 +3624,7 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_measured_reader_retains_source_role_and_actual_frame_observation() {
         #[derive(Default)]
@@ -3679,7 +3679,7 @@ mod tests {
         assert!(ordinary.native_projection_capture().is_none());
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_full_audit_duplicate_put_excludes_non_native_owned_bounded_and_gates() {
         use sc::capture_allocation::{CaptureSlab, OwnedBudget};
@@ -3782,7 +3782,7 @@ mod tests {
         assert!(!expired.overlay.contains_key(&digest));
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_cut_projection_gate_excludes_reader_dynamic_owned_and_deadline_native_publication_fields(
     ) {
@@ -5061,7 +5061,7 @@ mod tests {
         assert_ne!(cut.roots.publication_template, cut.snapshot);
         assert_ne!(cut.roots.delta_template, cut.delta);
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn r9a_new_cut_manifest_consumes_scoped_sql_source_and_publication() {
         let mut fixture = published();
@@ -5121,7 +5121,7 @@ mod tests {
         assert!(stats.1 > 0);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_history_prefix_real_multicut_roots_and_linear_leaf_visits() {
         let bars = [(6, 12, 3, 7), (8, 16, 6, 12), (8, 13, 4, 7), (8, 17, 6, 12)];
@@ -5219,7 +5219,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_history_prefix_bad_cut_and_unpublished_future_material_still_reject() {
         let mut fixture = super::prepared::tests::Fixture::new();
@@ -5366,7 +5366,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_cut_projection_full_history_matches_ordinary_and_rejects_fresh_damage() {
         let mut f = published();
@@ -5424,7 +5424,7 @@ mod tests {
         .is_err());
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_dual_real_multicut_roots_and_scoped_projection() {
         let mut fixture = super::prepared::tests::Fixture::new();
@@ -5594,7 +5594,7 @@ mod tests {
         .is_err());
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_dual_actual_template_negative_matrix() {
         // Component-level valid-Merkle negatives, not service/e2e acceptance.
@@ -6788,7 +6788,7 @@ mod borrowed_change_consumer_probe {
     }
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 mod owner_retention {
     use super::*;
     use crate::v3::audit_retention::retained_struct;
@@ -6818,7 +6818,7 @@ mod owner_retention {
 /// owner 已闭合全局 Q 和共同保持前件后，只消费实际新增的一代完整历史。
 /// 原 verify_required_meta 的共享判据仍原位执行。先借同一事务的原列，给它实际
 /// 会构造的文本和 scope 树预留；不复制判据，不在失败后换另一套检查。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 fn verify_required_meta_admitted(
     tx: &Transaction<'_>,
     work: &sc::capture_allocation::scratch::WorkScope,
@@ -6875,7 +6875,7 @@ fn verify_required_meta_admitted(
 }
 
 /// owner 已闭合全局 Q 和共同保持前件后，只消费实际新增的一代完整历史。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(super) fn append_owner_cut(
     tx: &Transaction<'_>,
     raw: RawEventsView<'_>,
@@ -7052,7 +7052,7 @@ pub(super) fn append_owner_cut(
     ))
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 mod native_reader_owner_tests {
     use super::*;
 

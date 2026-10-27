@@ -11,7 +11,7 @@
 #[cfg(test)]
 use super::meta_get_opt;
 use super::{canonical_json, content_manifest, content_store, v2};
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 use crate::staged_nodes;
 use crate::v3::audit_store::HashReader;
 use crate::v3::audit_store::{CodecRead, CodecStore, NativeAdmission};
@@ -67,11 +67,11 @@ pub(super) fn resolve_current_births(
         roots,
         manifest,
         None,
-        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        #[cfg(all(test, feature = "s_incremental"))]
         None,
     )
 }
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 pub(super) fn resolve_current_births_staged(
     tx: &mut Transaction<'_>,
     token: &str,
@@ -100,7 +100,7 @@ pub(super) fn resolve_current_births_staged(
         resolve_current_births_inner(tx, token, m, roots, manifest, work, Some(stage))
     }
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(super) fn resolve_current_births_with_workspace(
     tx: &mut Transaction<'_>,
     token: &str,
@@ -111,7 +111,7 @@ pub(super) fn resolve_current_births_with_workspace(
 ) -> Result<ResolvedTemplates, String> {
     resolve_current_births_with_workspace_admitted(tx, token, m, roots, manifest, workspace, None)
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(super) fn resolve_current_births_with_workspace_admitted(
     tx: &mut Transaction<'_>,
     token: &str,
@@ -135,11 +135,11 @@ pub(super) fn resolve_current_births_with_workspace_admitted(
     };
     workspace.resolve_in_publication_admitted(tx, token, m, roots, manifest, work)
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(super) fn current_publication_frontier(tx: &Transaction<'_>) -> Result<i64, String> {
     current_publication_frontier_admitted(tx, None)
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(crate) fn current_publication_frontier_admitted(
     tx: &Transaction<'_>,
     work: Option<&WorkScope>,
@@ -157,16 +157,14 @@ fn resolve_current_births_inner(
     roots: &(impl ManifestRootSource + ?Sized),
     manifest: &UnpublishedManifest,
     work: Option<&WorkScope>,
-    #[cfg(all(test, feature = "s_capture_native_testonly"))] stage: Option<
-        &staged_nodes::StageOwner,
-    >,
+    #[cfg(all(test, feature = "s_incremental"))] stage: Option<&staged_nodes::StageOwner>,
 ) -> Result<ResolvedTemplates, String> {
     verify_current_begin_admitted(tx, begin_token, metadata.view(), work)?;
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     let mut store = content_store::TxStore::new_with_stage(tx, stage)
         .map_err(err)?
         .with_work(work);
-    #[cfg(not(all(test, feature = "s_capture_native_testonly")))]
+    #[cfg(not(all(test, feature = "s_incremental")))]
     let mut store = content_store::TxStore::new(tx)
         .map_err(err)?
         .with_work(work);
@@ -763,13 +761,13 @@ fn strict_json_admitted(
     raw: &str,
     admission: &NativeAdmission<'_>,
 ) -> Result<NativeValue<serde_json::Value>, String> {
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     let permit = admission
         .native_reservation(
             crate::v3::audit_owner::native::JsonShape::scan(raw.as_bytes()).parse_peak(),
         )
         .map_err(err)?;
-    #[cfg(not(feature = "s_capture_native_testonly"))]
+    #[cfg(not(feature = "s_incremental"))]
     let permit: Option<sc::capture_allocation::scratch::NativeReservation> =
         if admission.0.is_some() {
             return Err(err(admission
@@ -789,13 +787,13 @@ fn canonical_admitted(
     value: &serde_json::Value,
     admission: &NativeAdmission<'_>,
 ) -> Result<NativeValue<String>, String> {
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     let permit = admission
         .native_reservation(
             crate::v3::audit_owner::native::JsonShape::of_value(value).canonical_peak(),
         )
         .map_err(err)?;
-    #[cfg(not(feature = "s_capture_native_testonly"))]
+    #[cfg(not(feature = "s_incremental"))]
     let permit: Option<sc::capture_allocation::scratch::NativeReservation> =
         if admission.0.is_some() {
             return Err(err(admission
@@ -1444,7 +1442,7 @@ mod tests {
     use sc::{NumberToken, Value as V};
     use serde_json::Value as J;
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn admitted_sql_text_and_publication_path_keep_their_own_permits() {
         use sc::path::PathStepView;
@@ -1492,7 +1490,7 @@ mod tests {
     }
 
     /// #1394：独立只读诊断；完整 fresh 验证两根，普通 capture 不授予资源或生产资格。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     #[ignore = "仅主控新拥有的 owned.sqlite；两臂各执行一次"]
     fn native_publication_fresh_sql_vs_current_capture_diagnostic() {
@@ -1705,9 +1703,9 @@ mod tests {
         Observations,
         OldObservationPlaceholder,
         LegacyFullDelta,
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         LifeMismatch,
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         ForeignIdentity,
     }
 
@@ -1812,7 +1810,7 @@ mod tests {
                 V::String(format!("batch3-{}", "d".repeat(64))),
             );
         }
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         match change {
             FixtureChange::LifeMismatch => field_set(&mut old, "lifecycle", text("withdrawn")),
             FixtureChange::ForeignIdentity => field_set(&mut old, "object_id", text("foreign-id")),
@@ -1921,7 +1919,7 @@ mod tests {
         sc::render_canonical(store, r, &mut out).unwrap();
         serde_json::from_slice(&out).unwrap()
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn native_publication_fields_nodes(tx: &Transaction<'_>) -> sc::MemoryNodes {
         let mut nodes = sc::MemoryNodes::new();
         let mut statement = tx
@@ -1938,7 +1936,7 @@ mod tests {
         }
         nodes
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_publication_fields_same_roots_output_and_fewer_real_lookups() {
         use crate::v3::audit_store::CodecRead;
@@ -2053,7 +2051,7 @@ mod tests {
             "已命中memo仍须核当前权限门"
         );
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_publication_fields_exact_declaration_failures_and_overlay_not_cached() {
         use crate::v3::audit_store::CodecRead;
@@ -2130,7 +2128,7 @@ mod tests {
             10
         );
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_publication_fields_retains_per_cut_rejection_matrix() {
         use crate::v3::audit_store::HashReader;
@@ -2377,7 +2375,7 @@ mod tests {
         drop(capture);
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_publication_begin_and_consumers_share_parent_scope() {
         let mut db = Connection::open_in_memory().unwrap();

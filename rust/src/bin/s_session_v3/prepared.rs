@@ -13,7 +13,7 @@ use newchan_rust::theta_v0::config::ThetaConfig;
 use rusqlite::Transaction;
 use sc::capture_allocation::scratch::WorkScope;
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 fn publication_read_lease<'a, 'db>(
     tx: &'a mut Transaction<'db>,
     work: Option<&'a WorkScope>,
@@ -27,7 +27,7 @@ fn publication_read_lease<'a, 'db>(
     }
     content_store::NativeReadLease::new_admitted(tx, work)
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 fn publication_material<T>(
     tx: &Transaction<'_>,
     work: Option<&WorkScope>,
@@ -47,12 +47,12 @@ fn publication_material<T>(
     }
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 enum PublicationRuntimeRoots {
     Plain(Vec<sc::NodeDigest>),
     Admitted(sc::capture_allocation::scratch::ScratchVec<sc::NodeDigest>),
 }
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 impl PublicationRuntimeRoots {
     fn as_slice(&self) -> &[sc::NodeDigest] {
         match self {
@@ -127,16 +127,21 @@ pub(super) struct Runtime {
     auxiliary: aux_index::Runtime,
     #[cfg(test)]
     after_prepare: Option<fn(&Transaction<'_>) -> Result<(), String>>,
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     before_native_source: Option<fn(&Transaction<'_>, &ContentRef) -> Result<ContentRef, String>>,
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     stage_new_nodes: bool,
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    /// #1640 D6：增量路径的读取租约资格常驻；生产恒真，只有测试可关闭以验证拒绝。
+    #[cfg(feature = "s_incremental")]
     native_read_lease: bool,
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     manifest_workspace: bool,
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     last_stage_report: Option<Value>,
+    /// #1640 D2 出生锁：下一次完整分支（`generate_impl(None)`）的入口标签。
+    /// startup＝新 Runtime；discard＝出错丢弃后；abandon＝降级放弃后；任一代生成后置 steady。
+    #[cfg(all(test, feature = "s_incremental"))]
+    birth_entry: &'static str,
 }
 
 impl Runtime {
@@ -164,22 +169,24 @@ impl Runtime {
             auxiliary: Default::default(),
             #[cfg(test)]
             after_prepare: None,
-            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            #[cfg(all(test, feature = "s_incremental"))]
             before_native_source: None,
-            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            #[cfg(all(test, feature = "s_incremental"))]
             stage_new_nodes: false,
-            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            #[cfg(feature = "s_incremental")]
             native_read_lease: true,
-            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            #[cfg(all(test, feature = "s_incremental"))]
             manifest_workspace: true,
-            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            #[cfg(all(test, feature = "s_incremental"))]
             last_stage_report: None,
+            #[cfg(all(test, feature = "s_incremental"))]
+            birth_entry: "startup",
         }
     }
 
     #[cfg(test)]
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
+        not(feature = "s_incremental"),
         allow(
             dead_code,
             reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
@@ -194,7 +201,7 @@ impl Runtime {
 
     /// 只测试：在真实producer/object-plan/axes完成后，用实际TxStore写入坏件。
     /// 不提供raw token、capture或成功标记，返回根仍必须通过正式材料与来源核。
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn set_before_native_source_for_test(
         &mut self,
         hook: Option<fn(&Transaction<'_>, &ContentRef) -> Result<ContentRef, String>>,
@@ -202,18 +209,18 @@ impl Runtime {
         self.before_native_source = hook;
     }
 
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn parser_config_for_test(&self) -> Option<&ThetaConfig> {
         self.generator
             .as_ref()
             .map(GenerationRuntime::parser_config_for_test)
     }
 
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn disable_manifest_workspace_for_test(&mut self) {
         self.manifest_workspace = false;
     }
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn visit_runtime_roots(
         &self,
     ) -> Result<Vec<(&'static str, sc::NodeDigest)>, String> {
@@ -226,7 +233,7 @@ impl Runtime {
         Ok(roots)
     }
 
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn enable_staging_for_native_test(&mut self) -> Result<(), String> {
         if !matches!(self.mode, s_allocation::Mode::CapturedNative) {
             return Err("TestOnly staging只允许Native".into());
@@ -234,7 +241,7 @@ impl Runtime {
         self.stage_new_nodes = true;
         Ok(())
     }
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn staging_report_for_native_test(&self) -> Option<&Value> {
         self.last_stage_report.as_ref()
     }
@@ -244,6 +251,20 @@ impl Runtime {
             generator.discard_runtime_state();
         }
         self.auxiliary.discard();
+        #[cfg(all(test, feature = "s_incremental"))]
+        {
+            self.birth_entry = "discard";
+        }
+    }
+
+    /// #1640 D2：0065 降级放弃后丢弃运行态，下一次完整分支记为 abandon 入口。
+    #[cfg(all(test, feature = "s_incremental"))]
+    pub(super) fn mark_abandon_birth_for_test(&mut self) {
+        self.birth_entry = "abandon";
+    }
+    #[cfg(all(test, feature = "s_incremental"))]
+    pub(super) fn birth_entry_for_test(&self) -> &'static str {
+        self.birth_entry
     }
 
     /// 按值接管事务；包括准备阶段节点、独立索引和目录在内，同成同败。
@@ -260,7 +281,7 @@ impl Runtime {
                 token,
                 envelope,
                 None,
-                #[cfg(feature = "s_capture_native_testonly")]
+                #[cfg(feature = "s_incremental")]
                 None,
             )?;
             tx.commit()
@@ -274,7 +295,7 @@ impl Runtime {
     }
     #[cfg(test)]
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
+        not(feature = "s_incremental"),
         allow(
             dead_code,
             reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
@@ -293,7 +314,7 @@ impl Runtime {
                 token,
                 envelope,
                 Some(context),
-                #[cfg(feature = "s_capture_native_testonly")]
+                #[cfg(feature = "s_incremental")]
                 None,
             )?;
             tx.commit()
@@ -315,7 +336,7 @@ impl Runtime {
         phase.publish(self, token, envelope, context)
     }
     #[cfg_attr(
-        all(not(test), feature = "s_capture_native_testonly"),
+        all(not(test), feature = "s_incremental"),
         allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
     )]
     pub(super) fn publish_impl(
@@ -324,19 +345,19 @@ impl Runtime {
         token: &str,
         envelope: &Value,
         context: Option<&mut request_audit::RequestAuditContext>,
-        #[cfg(feature = "s_capture_native_testonly")] bound_audit: Option<&state::AuditedState>,
+        #[cfg(feature = "s_incremental")] bound_audit: Option<&state::AuditedState>,
     ) -> Result<commit::CommitReceipt, String> {
         self.publish_impl_admitted(
             tx,
             token,
             envelope,
             context,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             bound_audit,
             None,
         )
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn publish_impl_bound(
         &mut self,
         tx: &mut Transaction<'_>,
@@ -364,7 +385,7 @@ impl Runtime {
     }
     /// 调用者在 prepare 之前开启唯一父域，并保持到 Commit 返回；此入口本身不签发整堆资格。
     #[cfg_attr(
-        all(not(test), feature = "s_capture_native_testonly"),
+        all(not(test), feature = "s_incremental"),
         allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
     )]
     pub(super) fn publish_impl_admitted(
@@ -373,7 +394,7 @@ impl Runtime {
         token: &str,
         envelope: &Value,
         context: Option<&mut request_audit::RequestAuditContext>,
-        #[cfg(feature = "s_capture_native_testonly")] bound_audit: Option<&state::AuditedState>,
+        #[cfg(feature = "s_incremental")] bound_audit: Option<&state::AuditedState>,
         work: Option<&WorkScope>,
     ) -> Result<commit::CommitReceipt, String> {
         self.publish_impl_admitted_bound(
@@ -381,16 +402,16 @@ impl Runtime {
             token,
             envelope,
             context,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             bound_audit,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             None,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             None,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             None,
             work,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             None,
         )
     }
@@ -400,36 +421,34 @@ impl Runtime {
         token: &str,
         envelope: &Value,
         context: Option<&mut request_audit::RequestAuditContext>,
-        #[cfg(feature = "s_capture_native_testonly")] bound_audit: Option<&state::AuditedState>,
-        #[cfg(feature = "s_capture_native_testonly")] bound_raw: Option<
+        #[cfg(feature = "s_incremental")] bound_audit: Option<&state::AuditedState>,
+        #[cfg(feature = "s_incremental")] bound_raw: Option<
             &super::audit_owner::BoundRawAdvance<'_>,
         >,
-        #[cfg(feature = "s_capture_native_testonly")] bound_capture: Option<&mut sc::AuditCapture>,
-        #[cfg(feature = "s_capture_native_testonly")] bound_source: Option<
+        #[cfg(feature = "s_incremental")] bound_capture: Option<&mut sc::AuditCapture>,
+        #[cfg(feature = "s_incremental")] bound_source: Option<
             &mut Option<source_audit::NativeSourceState>,
         >,
         work: Option<&WorkScope>,
-        #[cfg(feature = "s_capture_native_testonly")] parent: Option<
-            &super::audit_owner::PublicationScope<'_>,
-        >,
+        #[cfg(feature = "s_incremental")] parent: Option<&super::audit_owner::PublicationScope<'_>>,
     ) -> Result<commit::CommitReceipt, String> {
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         if let Some(parent) = parent {
             parent.check_transaction(tx)?;
         }
         if work.is_some() {
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             if !matches!(self.mode, s_allocation::Mode::CapturedNative) {
                 return Err("PublicationInvalid：Native工作域不能覆盖Owned或普通模式".into());
             }
-            #[cfg(not(feature = "s_capture_native_testonly"))]
+            #[cfg(not(feature = "s_incremental"))]
             return Err("PublicationInvalid：Native工作域需要相应feature".into());
         }
-        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        #[cfg(all(test, feature = "s_incremental"))]
         if work.is_some() && self.stage_new_nodes && parent.is_none() {
             return Err("PublicationInvalid：staged发布工作域尚未接入，不能丢弃父scope".into());
         }
-        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        #[cfg(all(test, feature = "s_incremental"))]
         let stage = if self.stage_new_nodes {
             if !matches!(self.mode, s_allocation::Mode::CapturedNative) {
                 return Err("TestOnly staging只允许Native".into());
@@ -447,18 +466,18 @@ impl Runtime {
                 token,
                 envelope,
                 context,
-                #[cfg(feature = "s_capture_native_testonly")]
+                #[cfg(feature = "s_incremental")]
                 bound_audit,
-                #[cfg(feature = "s_capture_native_testonly")]
+                #[cfg(feature = "s_incremental")]
                 bound_raw,
-                #[cfg(feature = "s_capture_native_testonly")]
+                #[cfg(feature = "s_incremental")]
                 bound_capture,
-                #[cfg(feature = "s_capture_native_testonly")]
+                #[cfg(feature = "s_incremental")]
                 bound_source,
-                #[cfg(all(test, feature = "s_capture_native_testonly"))]
+                #[cfg(all(test, feature = "s_incremental"))]
                 stage.as_ref(),
                 work,
-                #[cfg(feature = "s_capture_native_testonly")]
+                #[cfg(feature = "s_incremental")]
                 parent,
             )?;
             #[cfg(test)]
@@ -467,7 +486,7 @@ impl Runtime {
             if let Some(inject) = self.after_prepare {
                 inject(&tx)?;
             }
-            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            #[cfg(all(test, feature = "s_incremental"))]
             if let Some(stage) = &stage {
                 let mut roots = match work {
                     Some(work) => PublicationRuntimeRoots::Admitted(work.vector()),
@@ -507,7 +526,7 @@ impl Runtime {
                     work,
                 );
             }
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             return commit::publish_borrowed_with_workspace_admitted(
                 tx,
                 token,
@@ -518,7 +537,7 @@ impl Runtime {
                 prepared.workspace,
                 work,
             );
-            #[cfg(not(feature = "s_capture_native_testonly"))]
+            #[cfg(not(feature = "s_incremental"))]
             commit::publish_borrowed(
                 tx,
                 token,
@@ -530,7 +549,7 @@ impl Runtime {
         })();
         #[cfg(test)]
         state::trace_stage("publish_end", "-", -1);
-        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        #[cfg(all(test, feature = "s_incremental"))]
         {
             self.last_stage_report = stage.as_ref().map(|owner| owner.report());
         }
@@ -546,28 +565,24 @@ impl Runtime {
         token: &str,
         envelope: &Value,
         context: Option<&mut request_audit::RequestAuditContext>,
-        #[cfg(feature = "s_capture_native_testonly")] bound_audit: Option<&state::AuditedState>,
-        #[cfg(feature = "s_capture_native_testonly")] bound_raw: Option<
+        #[cfg(feature = "s_incremental")] bound_audit: Option<&state::AuditedState>,
+        #[cfg(feature = "s_incremental")] bound_raw: Option<
             &super::audit_owner::BoundRawAdvance<'_>,
         >,
-        #[cfg(feature = "s_capture_native_testonly")] bound_capture: Option<&mut sc::AuditCapture>,
-        #[cfg(feature = "s_capture_native_testonly")] bound_source: Option<
+        #[cfg(feature = "s_incremental")] bound_capture: Option<&mut sc::AuditCapture>,
+        #[cfg(feature = "s_incremental")] bound_source: Option<
             &mut Option<source_audit::NativeSourceState>,
         >,
-        #[cfg(all(test, feature = "s_capture_native_testonly"))] stage: Option<
-            &staged_nodes::StageOwner,
-        >,
+        #[cfg(all(test, feature = "s_incremental"))] stage: Option<&staged_nodes::StageOwner>,
         work: Option<&WorkScope>,
-        #[cfg(feature = "s_capture_native_testonly")] parent: Option<
-            &super::audit_owner::PublicationScope<'_>,
-        >,
+        #[cfg(feature = "s_incremental")] parent: Option<&super::audit_owner::PublicationScope<'_>>,
     ) -> Result<Prepared, String> {
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         let workspace_budget = context
             .as_deref()
             .and_then(request_audit::RequestAuditContext::manifest_workspace_budget);
         // 完整旧状态审计（读写共用同一份 state::audit）先于节点、索引、目录等第一次写入完成。
-        #[cfg(not(feature = "s_capture_native_testonly"))]
+        #[cfg(not(feature = "s_incremental"))]
         let bound_audit: Option<&state::AuditedState> = None;
         let fresh;
         let audited = if let Some(bound) = bound_audit {
@@ -694,14 +709,18 @@ impl Runtime {
             ));
             self.binding = Some(binding);
         }
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         if let Some(raw) = bound_raw {
             if !matches!(self.mode, s_allocation::Mode::CapturedNative) || audited.budget.is_some()
             {
                 return Err(err("owner增量路径只接受Native原件"));
             }
+            // #1640 D6：租约资格检查常驻生产；staged 夹具的父域缺失只在测试构建可达。
             #[cfg(test)]
-            if !self.native_read_lease || (stage.is_some() && parent.is_none()) {
+            let staged_without_parent = stage.is_some() && parent.is_none();
+            #[cfg(not(test))]
+            let staged_without_parent = false;
+            if !self.native_read_lease || staged_without_parent {
                 return Err(err("owner增量路径必须使用真实Native读取租约"));
             }
             let capture = bound_capture.ok_or_else(|| err("owner增量缺同pending原件capture"))?;
@@ -725,6 +744,10 @@ impl Runtime {
                 let generator = self.generator.as_mut().ok_or_else(|| err("生成器未绑定"))?;
                 #[cfg(test)]
                 state::trace_stage("generate", "delta", generation);
+                #[cfg(all(test, feature = "s_incremental"))]
+                {
+                    self.birth_entry = "steady";
+                }
                 let mut generated = generator.generate_bound(
                     &mut store,
                     raw,
@@ -746,7 +769,7 @@ impl Runtime {
                 )?;
                 #[cfg(test)]
                 state::trace_stage("object_plan", "delta", generation);
-                let objects = object_index::plan_native_union_for_testonly(
+                let objects = object_index::plan_native_union(
                     &mut store,
                     &generated.objects,
                     &audited.objects,
@@ -892,7 +915,7 @@ impl Runtime {
                 version_record: prior_version.as_ref(),
             },
         };
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         let use_lease = matches!(self.mode, s_allocation::Mode::CapturedNative) && {
             #[cfg(test)]
             {
@@ -900,12 +923,12 @@ impl Runtime {
             }
             #[cfg(not(test))]
             {
-                true
+                self.native_read_lease
             }
         };
-        #[cfg(not(feature = "s_capture_native_testonly"))]
+        #[cfg(not(feature = "s_incremental"))]
         let use_lease = false;
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         if use_lease {
             if audited.budget.is_some() {
                 return Err(err("Native读取租约不允许Owned业务预算"));
@@ -1010,11 +1033,11 @@ impl Runtime {
         }
         let _ = use_lease;
         let mut store = BusinessTxStore {
-            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            #[cfg(all(test, feature = "s_incremental"))]
             inner: content_store::TxStore::new_with_stage(tx, stage)
                 .map_err(err)?
                 .with_work(work),
-            #[cfg(not(all(test, feature = "s_capture_native_testonly")))]
+            #[cfg(not(all(test, feature = "s_incremental")))]
             inner: content_store::TxStore::new(tx)
                 .map_err(err)?
                 .with_work(work),
@@ -1030,12 +1053,12 @@ impl Runtime {
             evidence: _evidence,
             roots,
             manifest,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             workspace,
         } = self.generate_node_products(
             &mut store,
             None,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             workspace_budget,
             &input,
             &audited,
@@ -1048,7 +1071,7 @@ impl Runtime {
         let policy_records = generated.policy_records.clone();
         #[cfg(test)]
         state::trace_stage("stage_indexes", "full", generation);
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         publication_material(
             tx,
             work,
@@ -1078,7 +1101,7 @@ impl Runtime {
                 )
             },
         )?;
-        #[cfg(not(feature = "s_capture_native_testonly"))]
+        #[cfg(not(feature = "s_incremental"))]
         {
             object_index::stage(tx, &mut store, &objects, &manifest.batch_id)?;
             aux_index::stage(tx, &mut store, &auxiliary, &manifest.batch_id)?;
@@ -1089,7 +1112,7 @@ impl Runtime {
             roots,
             manifest,
             policy_records,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             workspace,
         })
     }
@@ -1097,7 +1120,7 @@ impl Runtime {
         &mut self,
         store: &mut BusinessTxStore<S>,
         native: Option<&NativeGeneration>,
-        #[cfg(feature = "s_capture_native_testonly")] workspace_budget: Option<
+        #[cfg(feature = "s_incremental")] workspace_budget: Option<
             request_audit::ManifestWorkspaceBudget,
         >,
         input: &GenerationInput<'raw>,
@@ -1118,15 +1141,21 @@ impl Runtime {
         };
         #[cfg(test)]
         state::trace_stage("generate", path, generation);
+        // #1640 D2 出生锁：完整分支只容许 startup/abandon/discard 三种入口，steady 出现即违例。
+        #[cfg(all(test, feature = "s_incremental"))]
+        {
+            state::trace_birth(self.birth_entry, generation);
+            self.birth_entry = "steady";
+        }
         let mut generated = match native {
             Some(native) => generator.generate_native_lease(store, input, native)?,
             None => generator.generate_with_allocation(store, input, audited.budget.as_ref())?,
         };
         #[cfg(test)]
         state::trace_stage("object_plan", path, generation);
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         let objects = if matches!(self.mode, s_allocation::Mode::CapturedNative) {
-            object_index::plan_native_union_for_testonly(
+            object_index::plan_native_union(
                 store,
                 &generated.objects,
                 &audited.objects,
@@ -1135,7 +1164,7 @@ impl Runtime {
         } else {
             object_index::plan(store, &generated.objects, &audited.objects, generation)?
         };
-        #[cfg(not(feature = "s_capture_native_testonly"))]
+        #[cfg(not(feature = "s_incremental"))]
         let objects = object_index::plan(store, &generated.objects, &audited.objects, generation)?;
         generated.finish_axes(store, previous, &objects.withdrawals, &objects.replaces)?;
         let axes = store
@@ -1159,7 +1188,7 @@ impl Runtime {
         self.finish_node_products(
             store,
             native.is_some(),
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             workspace_budget,
             generated,
             objects,
@@ -1176,14 +1205,14 @@ impl Runtime {
         &mut self,
         store: &mut BusinessTxStore<S>,
         #[cfg_attr(
-            not(feature = "s_capture_native_testonly"),
+            not(feature = "s_incremental"),
             allow(
                 unused_variables,
                 reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
             )
         )]
         workspace_eligible: bool,
-        #[cfg(feature = "s_capture_native_testonly")] workspace_budget: Option<
+        #[cfg(feature = "s_incremental")] workspace_budget: Option<
             request_audit::ManifestWorkspaceBudget,
         >,
         generated: generation::Generated<'raw>,
@@ -1234,7 +1263,7 @@ impl Runtime {
             publication_template: snapshot,
             delta_template: delta,
         };
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         let (manifest, workspace) = if workspace_eligible && workspace_budget.is_some() && {
             #[cfg(test)]
             {
@@ -1258,10 +1287,10 @@ impl Runtime {
                 None,
             )
         };
-        #[cfg(not(feature = "s_capture_native_testonly"))]
+        #[cfg(not(feature = "s_incremental"))]
         let manifest =
             content_manifest::assemble_unpublished(store, metadata, &roots).map_err(err)?;
-        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        #[cfg(all(test, feature = "s_incremental"))]
         if workspace.is_some() {
             state::trace_event("s4_manifest_workspace", Some(generation));
         }
@@ -1275,7 +1304,7 @@ impl Runtime {
             evidence,
             roots,
             manifest,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             workspace,
         })
     }
@@ -1293,7 +1322,7 @@ struct NodeProducts<'raw> {
     evidence: audit_store::RefValue,
     roots: NativeManifestRoots,
     manifest: UnpublishedManifest,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     workspace: Option<content_manifest::PreparedManifestWorkspace>,
 }
 
@@ -1318,7 +1347,7 @@ struct Prepared {
     roots: NativeManifestRoots,
     manifest: UnpublishedManifest,
     policy_records: String,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     workspace: Option<content_manifest::PreparedManifestWorkspace>,
 }
 fn err(e: impl std::fmt::Display) -> String {
@@ -1429,7 +1458,7 @@ pub(crate) mod tests {
     use crate::tests::located_ohlc_input;
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_manifest_roots_keep_three_permits_after_scope_until_owner_drop() {
         use super::super::audit_store::NativeAdmission;
@@ -1589,7 +1618,7 @@ pub(crate) mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     #[ignore]
     fn staged_new_nodes_complete_commit_observation() {
@@ -1687,7 +1716,7 @@ pub(crate) mod tests {
         }
         std::fs::write(out.join("STAGED-OBSERVATION.json"),serde_json::to_vec_pretty(&json!({"stages":stages,"Native_testonly":true,"shared_owner_all_three_stores":true,"old_material_audit_unchanged":true,"read_modes":"both Runtime Mode::CapturedNative, eager default stage=false vs explicit staged=true; no silent fallback","physical_INSERT_failure_timing_equivalent":false,"105_or_9011_qualification":false,"Job_max_store_or_strict_heap_qualification":false})).unwrap()).unwrap();
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn staged_node_material(c: &Connection) -> std::collections::BTreeMap<Vec<u8>, (u8, Vec<u8>)> {
         c.prepare("SELECT digest,tag,body FROM s_content_nodes ORDER BY digest")
             .unwrap()
@@ -1701,7 +1730,7 @@ pub(crate) mod tests {
             .collect::<Result<_, _>>()
             .unwrap()
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     #[ignore]
     fn runtime_roots_append_revision_error_observation() {
@@ -1831,7 +1860,7 @@ pub(crate) mod tests {
             })
             .collect()
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(crate) fn runtime_root_compare_reachable_bytes(left: &Connection, right: &Connection) {
         use std::collections::{BTreeMap, BTreeSet};
         let nodes = |c: &Connection| {
@@ -1927,7 +1956,7 @@ pub(crate) mod tests {
             }
         }
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn runtime_roots_snapshot(
         f: &Fixture,
         out: &Path,
@@ -2174,7 +2203,7 @@ pub(crate) mod tests {
             std::mem::align_of::<Before<'static, 'static>>()
         );
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_candidate_union_four_real_commits_match_ordinary_roots_rows_and_revision() {
         let mut native = Fixture::new();
@@ -2262,7 +2291,7 @@ pub(crate) mod tests {
     /// #1488 S3 assemble_manifest 读量锁：§5.4 三根（scope/生成态/两模板）全闭包核验之外的
     /// 单次组装读量是与 g 无关的常数；全闭包核验本身随状态增长、请求审计逐 cut 重组随历史增长，
     /// 按 D6 归段 B（报告实测）。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn assemble_manifest_reads_beyond_closure_verify_stay_constant() {
         let mut f = Fixture::new();
@@ -2301,17 +2330,17 @@ pub(crate) mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_manifest_workspace_four_normal_commits_match_cold_and_ordinary_full_rows() {
         manifest_workspace_normal_commits(false);
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn r10_native_manifest_workspace_shared_scope_normal_commits_match_full_rows() {
         manifest_workspace_normal_commits(true);
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn manifest_workspace_normal_commits(admitted: bool) {
         let mut warm = Fixture::new();
         warm.runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
@@ -2476,7 +2505,7 @@ pub(crate) mod tests {
         eprintln!("manifest workspace stats: before={before:?} after={after:?}");
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_read_lease_boundary_cold_publish_fault_matrix_discards_runtime() {
         for fault in 0..3 {
@@ -2513,7 +2542,7 @@ pub(crate) mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_local_material_memo_cannot_publish_trigger_damaged_deep_key() {
         for delete in [true, false] {
@@ -2673,7 +2702,7 @@ pub(crate) mod tests {
         assert!(!budget.ledger_health().invariant_broken);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_capture_sqlite_commit_failure_retries_with_new_current_capture() {
         s_allocation::probe::start(None);

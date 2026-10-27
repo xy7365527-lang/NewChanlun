@@ -9,7 +9,7 @@ use std::{
 
 /// 堆块必须先真实deallocate，再归还其原来源许可；不能把许可塞进Box载荷内提前释放。
 #[cfg_attr(
-    not(feature = "s_capture_native_testonly"),
+    not(feature = "s_incremental"),
     allow(
         dead_code,
         reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
@@ -21,7 +21,7 @@ pub(crate) struct NativeBox<T> {
 }
 impl<T> NativeBox<T> {
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
+        not(feature = "s_incremental"),
         allow(
             dead_code,
             reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
@@ -34,7 +34,7 @@ impl<T> NativeBox<T> {
         Self { value, permit }
     }
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
+        not(feature = "s_incremental"),
         allow(
             dead_code,
             reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"

@@ -153,7 +153,7 @@ pub(super) struct Pool {
     capacity: RetainedCapacity,
     subset_selection: Option<sc::NativeCountsSubsetReport>,
     // #1488 P1-2：池在其中封存的父账（只读live；池的许可本就持有该Ledger，不额外延长寿命）。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     home: Option<super::audit_owner::native::Budget>,
 }
 
@@ -268,7 +268,7 @@ fn codec_root_source_bytes(roots: usize) -> Result<usize, String> {
 }
 impl Pool {
     #[cfg_attr(
-        all(not(test), feature = "s_capture_native_testonly"),
+        all(not(test), feature = "s_incremental"),
         allow(
             dead_code,
             reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
@@ -529,14 +529,14 @@ impl Pool {
             source_cost,
             capacity,
             subset_selection: None,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             home: None,
         })
     }
     /// #1488 P3-c：按持有者逐张列出池实际持有的Native许可字节（原件capture、binding各层
     /// CodecVec/文本/单元、proofs块与Key/证书值）。负控注入的 seal_fault_duplicate 不属任何
     /// 持有者，故不在清单内；普查以清单对拍逐张归还，确定地识别多签。
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn native_permit_inventory_for_testonly(&self) -> Result<Vec<usize>, String> {
         use super::business_json::TextValue;
         let mut out = Vec::new();
@@ -630,7 +630,7 @@ impl Keeper {
         }
     }
     #[cfg_attr(
-        all(not(test), feature = "s_capture_native_testonly"),
+        all(not(test), feature = "s_incremental"),
         allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
     )]
     pub(super) fn retention_cap(&self) -> usize {
@@ -646,11 +646,11 @@ impl Keeper {
         }
     }
     /// #1488 P1-2：保留池所在的物理父账；分区按该账live计，不只按合同额。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn source_home(&self) -> Option<&super::audit_owner::native::Budget> {
         self.pool.as_ref().and_then(|pool| pool.home.as_ref())
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn has_pool(&self) -> bool {
         self.pool.is_some()
     }
@@ -738,7 +738,7 @@ impl Keeper {
         self.rejected = self.rejected.saturating_add(1);
     }
     #[cfg_attr(
-        all(not(test), feature = "s_capture_native_testonly"),
+        all(not(test), feature = "s_incremental"),
         allow(
             dead_code,
             reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
@@ -772,7 +772,7 @@ pub(super) struct Trial<'a> {
 }
 impl<'a> Trial<'a> {
     #[cfg_attr(
-        all(not(test), feature = "s_capture_native_testonly"),
+        all(not(test), feature = "s_incremental"),
         allow(
             dead_code,
             reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
@@ -831,7 +831,7 @@ impl<'a> Trial<'a> {
         }
     }
     #[cfg_attr(
-        all(not(test), feature = "s_capture_native_testonly"),
+        all(not(test), feature = "s_incremental"),
         allow(
             dead_code,
             reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
@@ -860,7 +860,7 @@ impl<'a> Trial<'a> {
         Ok(())
     }
     #[cfg_attr(
-        all(not(test), feature = "s_capture_native_testonly"),
+        all(not(test), feature = "s_incremental"),
         allow(
             dead_code,
             reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
@@ -877,7 +877,7 @@ impl<'a> Trial<'a> {
         self.complete_admitted(tx, capture, nodes, frontier, cap, None)
     }
     #[cfg_attr(
-        all(not(test), feature = "s_capture_native_testonly"),
+        all(not(test), feature = "s_incremental"),
         allow(
             dead_code,
             reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
@@ -906,7 +906,7 @@ impl<'a> Trial<'a> {
         ))
     }
     #[cfg_attr(
-        all(not(test), feature = "s_capture_native_testonly"),
+        all(not(test), feature = "s_incremental"),
         allow(
             dead_code,
             reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
@@ -2205,7 +2205,7 @@ mod tests {
 }
 
 /// 正常副本的离线来源体积测量；不接入业务、Keeper接纳或旧codec根播种。
-#[cfg(all(test, feature = "s_capture_native_testonly", unix))]
+#[cfg(all(test, feature = "s_incremental", unix))]
 mod counts_footprint_tests {
     use super::super::{request_audit::RequestAuditContext, state};
     use super::*;

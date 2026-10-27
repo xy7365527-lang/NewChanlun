@@ -50,7 +50,7 @@ mod admission_provider;
 pub(crate) mod audit_budget;
 mod audit_header;
 pub(super) mod audit_owner;
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(crate) mod audit_retention;
 pub(crate) mod audit_store;
 pub(super) mod aux_index;
@@ -61,7 +61,7 @@ mod catalog_evidence;
 mod commit;
 mod control;
 mod control_audit;
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 mod cross_request_source_cache;
 mod driver;
 mod financial_reader;
@@ -96,7 +96,7 @@ mod q_watch;
 mod q_wire;
 mod reader;
 mod request_audit;
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(crate) use request_audit::ManifestWorkspaceBudget;
 mod s_allocation;
 mod source_audit;
