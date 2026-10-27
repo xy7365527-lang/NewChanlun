@@ -3265,6 +3265,43 @@ mod tests {
         );
     }
 
+    /// #1572 测量：暖 driver 第 2、3 次入口前的候选组，逐持有者析构读数与合同额并列导出，
+    /// 用于补齐候选组逐项清单；只核读数守恒，不改任何生产判据。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn i1572_warm_candidate_holder_drop_probe() {
+        for done in 1..=2 {
+            let fixture = Fixture::new();
+            let mut warm = complete_driver(&fixture);
+            for n in 1..=done {
+                warm.handle(Fixture::ingest(n)).unwrap();
+            }
+            let partition = {
+                let keeper = warm.conn.source_keeper_for_test();
+                warm.conn.old_pool_partition(keeper.as_ref()).unwrap()
+            };
+            let probe = warm
+                .conn
+                .i1572_candidate_drop_probe_for_test()
+                .expect("暖入口有完整候选");
+            let released: u64 = probe["steps"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|s| s[1].as_u64().unwrap())
+                .sum();
+            assert_eq!(
+                released,
+                probe["parent_live_before"].as_u64().unwrap()
+                    - probe["parent_live_after_holders"].as_u64().unwrap()
+            );
+            eprintln!(
+                "I1572_DROP_PROBE {}",
+                json!({"entry": done + 1, "partition": partition, "probe": probe})
+            );
+        }
+    }
+
     /// #1488 P3-1：冷根审计失败（1024 不足）且 legacy cache 保留开启时，根析构前根上不得残留许可；
     /// 回复与基线一致。
     #[cfg(feature = "s_capture_native_testonly")]

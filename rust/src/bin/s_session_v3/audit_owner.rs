@@ -1314,6 +1314,77 @@ impl AuditConnection {
         all(not(test), feature = "s_capture_native_testonly"),
         allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
     )]
+    /// #1572 测量探针（只在测试中调用；会销毁候选）：按字段声明顺序逐个析构完整候选，记录每步候选
+    /// 父账 live 的实际下降，与该时刻的合同额并列导出。共享Rc块记在最后一个持有者析构的那一步。
+    /// 这是逐持有者物理额的事实读数，不是生产冻结口径；生产须非破坏地得到同一读数。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn i1572_candidate_drop_probe_for_test(&self) -> Option<serde_json::Value> {
+        let c = self.complete.borrow_mut().take()?;
+        let parent = c.resources.clone();
+        let contract = serde_json::to_value(&c.charge).unwrap();
+        let start = parent.live();
+        let mut before = start;
+        let mut steps = Vec::new();
+        let mut step = |name: &str, steps: &mut Vec<serde_json::Value>| {
+            let now = parent.live();
+            steps.push(serde_json::json!([name, before - now]));
+            before = now;
+        };
+        let CompleteCandidate {
+            seal,
+            slot,
+            capture,
+            audited,
+            q,
+            originals,
+            charge,
+            _inline_permit,
+            resources,
+            ..
+        } = c;
+        drop(seal);
+        step("seal", &mut steps);
+        let slot_alive = slot.is_some();
+        if let Some(slot) = slot {
+            let request_audit::VerifiedHistoricalSlot {
+                binding,
+                capture,
+                result,
+                source_pending,
+                ..
+            } = slot;
+            drop(binding);
+            step("slot.binding", &mut steps);
+            drop(capture);
+            step("slot.capture", &mut steps);
+            drop(result);
+            step("slot.result(Rc)", &mut steps);
+            drop(source_pending);
+            step("slot.source_pending", &mut steps);
+        }
+        drop(capture);
+        step("capture", &mut steps);
+        drop(audited);
+        step("audited(raw+historical)", &mut steps);
+        drop(q);
+        step("q", &mut steps);
+        drop(originals);
+        step("originals", &mut steps);
+        drop(charge);
+        drop(_inline_permit);
+        step("_inline_permit", &mut steps);
+        let after = parent.live();
+        drop(resources);
+        Some(serde_json::json!({
+            "slot_alive": slot_alive,
+            "parent_live_before": start,
+            "parent_live_after_holders": after,
+            "metadata_M": native::Budget::metadata_bytes(),
+            "raw_state_retained_contract": self.construction.borrow().as_ref().map(|r| r.retained_bytes()),
+            "steps": steps,
+            "contract": contract,
+        }))
+    }
     pub(super) fn complete_retained_bytes(&self) -> usize {
         self.complete
             .borrow()
