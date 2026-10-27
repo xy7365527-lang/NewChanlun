@@ -61,11 +61,14 @@ fn parent_proj(p: Option<super::classifier::recursive_tower::ElementId>) -> Opti
 pub struct PyThetaStream {
     core: ThetaPiStream,
     tick_size: f64,
-    /// `push_bar_selfstate` 的 nav：ADR 0040 funding-record 的 `Q_total`（#1601 C-03，取代 1e6）。
     initial_nav: f64,
-    /// 所读 funding-record 的 id 与版本。
     funding_record: String,
+    records: Vec<String>,
+    admissible: bool,
 }
+
+/// 诊断夹具预设名（#1602）：场所 profile 用 `venue-profile-diagnostic-fixture`，不参与准入。
+pub const DIAGNOSTIC_FIXTURE_PRESET: &str = "diagnostic-fixture";
 
 /// `push_bar` 的 nav 准入（#1601 C-03）：nav 必须是正有限数；≤0 或非有限 ⟹ 报错，不换成任何备用值。
 fn checked_nav(nav: f64) -> PyResult<f64> {
@@ -80,30 +83,57 @@ fn checked_nav(nav: f64) -> PyResult<f64> {
 
 #[pymethods]
 impl PyThetaStream {
-    /// symbol/config 预设名。本票只支持 `None`（`ThetaConfig::default()`）；传值 ⟹ 报错（诚实拒绝，
-    /// 不静默吞掉未知预设）。`funding_profile`：ADR 0040 funding-record 的 profile（如 `"P0"`），
-    /// `push_bar_selfstate` 的 nav 读其 `Q_total`；未给 ⟹ `AwaitingPolicy{funding_record}` 报错，
-    /// `evidence_only` 记录拒收（本出口是 NT 生产下单的信号源，#1601）。
+    /// 构造（#1602 记录口径）：
+    ///
+    /// - `venue_profile="P0"` 等 ⟹ 生产场所 profile；profile 缺 tick 或成本项 ⟹ `ValueError`
+    ///   （`AwaitingPolicy{venue_profile|cost_inputs}`），不回退任何旧常数；
+    /// - `preset="diagnostic-fixture"` ⟹ 诊断夹具场所 profile，[`admissible`](Self::admissible) 为 `False`，
+    ///   不参与准入；
+    /// - 两者都不给 ⟹ 没有场所 profile，同样 `ValueError`。两者同时给或给未知预设 ⟹ `ValueError`。
+    ///
+    /// `funding_profile` 必须指定有效生产资金记录；诊断场所仍不参与准入。
     #[new]
-    #[pyo3(signature = (preset=None, funding_profile=None))]
-    fn new(preset: Option<String>, funding_profile: Option<&str>) -> PyResult<Self> {
-        if let Some(name) = preset {
-            return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                "preset {name:?} 未实装：本票只支持 preset=None（ThetaConfig::default()）"
-            )));
+    #[pyo3(signature = (preset=None, funding_profile=None, venue_profile=None))]
+    fn new(
+        preset: Option<String>,
+        funding_profile: Option<&str>,
+        venue_profile: Option<String>,
+    ) -> PyResult<Self> {
+        let err = |m: String| pyo3::exceptions::PyValueError::new_err(m);
+        let config = match (preset.as_deref(), venue_profile.as_deref()) {
+            (Some(DIAGNOSTIC_FIXTURE_PRESET), None) => ThetaConfig::diagnostic_fixture(),
+            (Some(name), None) => {
+                return Err(err(format!(
+                    "preset {name:?} 未实装：只支持 preset={DIAGNOSTIC_FIXTURE_PRESET:?}"
+                )))
+            }
+            (Some(_), Some(_)) => return Err(err("preset 与 venue_profile 只能给一个".into())),
+            (None, Some(profile)) => ThetaConfig::for_production_profile(profile),
+            (None, None) => Err(super::run_records::no_venue_profile()),
         }
-        // #1603：塔预算与 MACD 记录缺失/未签/非法 ⟹ 报错停止，不回退旧常数。
-        let config = ThetaConfig::try_from_active_records()
-            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
-        let funding = FundingRecord::production(funding_profile)
-            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        .map_err(|e| err(e.to_string()))?;
+        let funding = FundingRecord::production(funding_profile).map_err(|e| err(e.to_string()))?;
         let tick_size = config.tick.tick_size;
+        let records = config.record_refs().iter().map(|r| r.label()).collect();
+        let admissible = config.admissible();
         Ok(Self {
             core: ThetaPiStream::new(config),
             tick_size,
             initial_nav: funding.q_total_f64(),
             funding_record: funding.label(),
+            records,
+            admissible,
         })
+    }
+
+    /// 所用记录的 `id/版本` 列表（#1602；塔预算、MACD、场所 profile、Θ_risk、数据 profile）。
+    fn records(&self) -> Vec<String> {
+        self.records.clone()
+    }
+
+    /// 本流的输出能否参与准入（诊断夹具 ⟹ `False`）。
+    fn admissible(&self) -> bool {
+        self.admissible
     }
 
     /// 推一根 bar。`p_t` = 调用方真实净持仓（手数，有符号）；`nav` = 账户净值（须 >0 且有限，
@@ -320,13 +350,51 @@ mod tests {
     /// #1601：缺 profile ⟹ 构造报错；evidence_only ⟹ 拒收；P0 ⟹ nav 基数 = Q_total 100,000，
     /// 并写出记录 id 与版本（改回常数的变异体在此变红）。push_bar 在 nav≤0 时报错且不推进 bar。
     #[test]
+    fn funding_and_venue_profiles_are_independent_and_both_required() {
+        pyo3::prepare_freethreaded_python();
+        assert!(PyThetaStream::new(None, Some("P0"), None).is_err());
+        let venue_error = PyThetaStream::new(None, Some("P0"), Some("P0".into()))
+            .err()
+            .expect("unsigned venue cannot borrow funding authorization");
+        assert!(venue_error.to_string().contains("venue_profile"));
+        assert!(PyThetaStream::new(
+            Some(DIAGNOSTIC_FIXTURE_PRESET.into()),
+            Some("P0"),
+            Some("P0".into())
+        )
+        .is_err());
+        let stream = PyThetaStream::new(
+            Some(DIAGNOSTIC_FIXTURE_PRESET.into()),
+            Some("P1-hl-testnet"),
+            None,
+        )
+        .unwrap();
+        assert_eq!(stream.q_total(), 500.0);
+        assert!(!stream.admissible());
+        assert!(stream
+            .records()
+            .contains(&"venue-profile-diagnostic-fixture/1".into()));
+    }
+
+    #[test]
     fn stream_reads_funding_record_and_rejects_bad_nav() {
-        assert!(PyThetaStream::new(None, None).is_err());
-        assert!(PyThetaStream::new(None, Some("P0-acceptance-5m")).is_err());
-        let mut s = PyThetaStream::new(None, Some("P0")).expect("P0 生效记录");
+        assert!(PyThetaStream::new(Some(DIAGNOSTIC_FIXTURE_PRESET.into()), None, None).is_err());
+        assert!(PyThetaStream::new(
+            Some(DIAGNOSTIC_FIXTURE_PRESET.into()),
+            Some("P0-acceptance-5m"),
+            None
+        )
+        .is_err());
+        let mut s = PyThetaStream::new(Some(DIAGNOSTIC_FIXTURE_PRESET.into()), Some("P0"), None)
+            .expect("P0 生效记录");
         assert_eq!(s.q_total(), 100_000.0);
         assert_eq!(s.funding_record(), "#1557/funding-authorization/v1@P0/v1");
-        let p1 = PyThetaStream::new(None, Some("P1-hl-testnet")).expect("P1 生效记录");
+        let p1 = PyThetaStream::new(
+            Some(DIAGNOSTIC_FIXTURE_PRESET.into()),
+            Some("P1-hl-testnet"),
+            None,
+        )
+        .expect("P1 生效记录");
         assert_eq!(p1.q_total(), 500.0);
         assert!(s.push_bar(100.0, 100.1, 99.9, 100.0, 0.0, 0.0).is_err());
         assert!(s.push_bar(100.0, 100.1, 99.9, 100.0, 0.0, -5.0).is_err());

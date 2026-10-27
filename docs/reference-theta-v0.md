@@ -12,7 +12,7 @@
   - 形式化蜂群（Parse/LevelState/Nest/Fugue/RiskProj/Chain）继续收尾；**若与 Θ v0 冲突，必须开 explicit change request，不能边写边漂**。
 
 ## 全局约定
-- 所有价格量化为整数 tick；无 `tick_size` 默认 `1e-8`。[设计选择,默认值]
+- 所有价格量化为整数 tick；无 `tick_size` 默认 `1e-8`。[设计选择,默认值]〔#1602 订正：tick 是场所事实，只从场所 profile 记录读取；`1e-8` 只留在诊断夹具记录 `venue-profile-diagnostic-fixture`，不参与准入。〕
 - 所有平局按 `(timestamp, source_index)` 升序裁决；已确认结构不可回写重分解。[设计选择,默认值]
 
 ## Θ_parse（解析）
@@ -44,13 +44,13 @@
 - **资金帽**：深度权重 `w=[0.60,0.30,0.10]`，未用部分保留现金不重分配。[设计选择,默认值]
 
 ## Θ_risk（风险）
-- 单声部风险 `ρ=0.005 NAV`；父子仓位比 `β=0.5`；总名义上限 `γ=1.0 NAV`；成本倍数 `κ=2.0`。[设计选择,默认值;L3经验待标定]
+- 单声部风险 `ρ=0.005 NAV`；父子仓位比 `β=0.5`；总名义上限 `γ=1.0 NAV`；成本倍数 `κ=2.0`。[设计选择,默认值;L3经验待标定]〔#1602 订正：这些值与声部 `max_depth`、`w_grade` 登记在带版本号的 `theta-risk` 记录里，代码只从记录读取；数值签署归 #1557/#1560。〕
 - **结构止损**：1/2买止损=对应买点 pivot low；3买止损=`ZG`；卖/空镜像 pivot high 或 `ZD`。[缠论可导结构失效；触发设计选择]
 - **sizing**：`qty=min(floor(ρ*NAV/(|entry-stop|+κ*cost_per_unit)), floor(w_depth*γ*NAV/entry), parent_cap)`；`qty≤0` 不交易；默认 lot=1。[设计选择,默认值]
 
 ## Θ_exec（执行）
 - 信号确认后延迟 1 根基础 K，以下一根 open 成交；无下一根等下一可交易 open。[设计选择,默认值]
-- **费用**：commission `1bp/side`，slippage `2bp/side`，tax `0bp`；买入加 slippage、卖出减。[设计选择,默认值;L3经验待标定]
+- **费用**：commission `1bp/side`，slippage `2bp/side`，tax `0bp`；买入加 slippage、卖出减。[设计选择,默认值;L3经验待标定]〔#1602 订正：费用三项与入场延迟只从场所 profile 记录读取；上述值只留在诊断夹具记录。生产 P0 profile 的 commission 取 ADR 0044 的 10bp，slippage/tax/延迟未签 ⟹ 生产与验收回放停在 `AwaitingPolicy{venue_profile, cost_inputs}`。〕
 - **止损成交**：long bar open 低于止损按 open 出，否则 low 触及止损按 stop 出；short 镜像。[设计选择,默认值]
 - **不可交易**：缺 OHLC、`high<max(open,close,low)`、`low>min(open,close,high)`、volume=0、halt flag、或显式 limit flag 阻止该方向。[设计选择,默认值]
 - **冲突顺序**：止损/退出先于开仓；高 level 先于低 level；同 level 按 1/2/3 类顺序；仍平局按 timestamp/source_index。[设计选择,默认值]

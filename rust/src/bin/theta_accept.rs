@@ -25,7 +25,14 @@
 //!   --months N          从数据集末往前 N 个月（与 --window 二选一；省略 = 全量）
 //!   --parallel          多品种并行（默认顺序；报告顺序恒为 SYMBOLS 表序）
 //!   --out DIR           报告写盘（每品种一份 <SYMBOL>.md + summary.md；默认只打 stdout）
+//!   --diagnostic-fixture  用诊断夹具场所 profile 跑（输出标「诊断夹具，不参与准入」）
 //! ```
+//!
+//! ## 记录（#1602）
+//!
+//! 默认按品种取生产场所 profile（[`ThetaConfig::for_production_symbol`]）；profile 缺 tick 或成本项 ⟹
+//! 该品种停在 `AwaitingPolicy{venue_profile|cost_inputs}`、不产读数，不回退任何旧常数。每份报告写明
+//! 所用记录的 id 与版本。
 //!
 //! ## 认识论等级（formalization-validity-domain 231号）
 //!
@@ -52,6 +59,19 @@ struct SymbolReport {
     /// 对拍是否权威（窗内无不可交易 bar ⟹ true；含则 #1306 v1 seam ⟹ advisory）。
     diff_authoritative: bool,
     elapsed: std::time::Duration,
+    /// 所用记录 `id/版本`（#1602）。
+    records: String,
+    /// 能否参与准入（诊断夹具或研究覆写 ⟹ false）。
+    admissible: bool,
+}
+
+/// 准入标注（#1602）：诊断夹具或研究覆写跑出的报告不参与准入。
+fn admission_note(admissible: bool) -> &'static str {
+    if admissible {
+        "可参与准入"
+    } else {
+        "诊断夹具，不参与准入"
+    }
 }
 
 impl SymbolReport {
@@ -110,13 +130,46 @@ fn subtract_months(date: &str, n: u32) -> String {
     format!("{ny:04}-{nm:02}-{:02}", d.min(days))
 }
 
+/// 单品种失败：配置/政策缺口必须决定整批失败；数据加载失败/空窗仍按原规则处理。
+#[derive(Debug)]
+enum SymbolFailure {
+    Policy(String),
+    Data(String),
+}
+
+impl From<String> for SymbolFailure {
+    fn from(error: String) -> Self {
+        Self::Data(error)
+    }
+}
+
+impl std::fmt::Display for SymbolFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Policy(error) | Self::Data(error) => f.write_str(error),
+        }
+    }
+}
+
+/// 即使另一品种成功，配置/政策失败也不能从总判定里消失。
+fn batch_succeeds(successful_reports: usize, all_pass: bool, has_policy_failure: bool) -> bool {
+    successful_reports > 0 && all_pass && !has_policy_failure
+}
+
 /// 跑单品种（回放双跑 + 三面对拍）。
 fn run_symbol(
     symbol: &str,
     window: Option<(&str, &str)>,
     months: Option<u32>,
-) -> Result<SymbolReport, String> {
-    let config = ThetaConfig::default();
+    diagnostic: bool,
+) -> Result<SymbolReport, SymbolFailure> {
+    // #1602：生产路径按品种取场所 profile；缺值 ⟹ 停在 AwaitingPolicy，不回退旧常数。
+    let config = if diagnostic {
+        ThetaConfig::diagnostic_fixture()
+    } else {
+        ThetaConfig::for_production_symbol(symbol)
+    }
+    .map_err(|e| SymbolFailure::Policy(format!("停止（不产读数）：{e}")))?;
     let full = load_by_symbol(symbol, &config)?;
 
     // ── 解析有效窗 (start, end)；None = 全量。 ──
@@ -125,7 +178,7 @@ fn run_symbol(
     match window {
         Some((s, e)) => {
             if s > e {
-                return Err(format!("日期窗非法: START `{s}` > END `{e}`"));
+                return Err(format!("日期窗非法: START `{s}` > END `{e}`").into());
             }
             slice = full.slice_date_window(s, e);
             resolved = Some((s.to_string(), e.to_string()));
@@ -149,7 +202,7 @@ fn run_symbol(
     }
 
     if slice.bars.is_empty() {
-        return Err(format!("品种 {symbol} 在指定窗内无 bar（空数据集）"));
+        return Err(format!("品种 {symbol} 在指定窗内无 bar（空数据集）").into());
     }
 
     let started = Instant::now();
@@ -176,6 +229,8 @@ fn run_symbol(
         diff: report,
         diff_authoritative,
         elapsed,
+        records: config.record_labels(),
+        admissible: config.admissible(),
     })
 }
 
@@ -191,6 +246,8 @@ fn print_symbol_report(r: &SymbolReport) {
     println!("bar 数        : {}", r.replay.n_bars);
     println!("不可交易占比  : {:.2}%", r.replay.untradable_ratio * 100.0);
     println!("总耗时        : {:.2}s", r.elapsed.as_secs_f64());
+    println!("记录          : {}", r.records);
+    println!("准入          : {}", admission_note(r.admissible));
     println!();
     println!("── 回放侧（theta_replay，#1305）──────────────────────────────");
     println!(
@@ -253,6 +310,8 @@ fn write_symbol_report_md(r: &SymbolReport, dir: &std::path::Path) -> std::io::R
         "- 检查单条目：#1279 B 组「生产路径历史回放验收」（#1308 一键验收命令产出）"
     );
     let _ = writeln!(md, "- 判定：**{}**", r.verdict());
+    let _ = writeln!(md, "- 记录：{}", r.records);
+    let _ = writeln!(md, "- 准入：{}", admission_note(r.admissible));
     match &r.window {
         Some((s, e)) => {
             let _ = writeln!(md, "- 数据窗：{s} .. {e}（≈{:.1} 个月）", r.months);
@@ -298,12 +357,13 @@ fn print_summary(reports: &[SymbolReport]) {
     println!("════════════════════════════════════════════════════════════════");
     for r in reports {
         println!(
-            "{:<6} {:<38} 信号分歧 {}  预期内 {}  预期外 {}",
+            "{:<6} {:<38} 信号分歧 {}  预期内 {}  预期外 {}  [{}]",
             r.symbol,
             r.verdict(),
             r.diff.n_signal_diffs(),
             r.diff.n_expected(),
             r.diff.n_unexpected(),
+            admission_note(r.admissible),
         );
     }
     let n_pass = reports.iter().filter(|r| r.pass()).count();
@@ -318,6 +378,7 @@ fn main() -> std::process::ExitCode {
     let mut months: Option<u32> = None;
     let mut parallel = false;
     let mut out_dir: Option<&str> = None;
+    let mut diagnostic = false;
 
     let mut rest = args.iter().skip(1).peekable();
     while let Some(a) = rest.next() {
@@ -343,6 +404,7 @@ fn main() -> std::process::ExitCode {
                 }
             },
             "--parallel" => parallel = true,
+            "--diagnostic-fixture" => diagnostic = true,
             "--out" => match rest.next() {
                 Some(p) => out_dir = Some(p),
                 None => {
@@ -379,12 +441,20 @@ fn main() -> std::process::ExitCode {
     }
     println!("品种        : {}", symbols.join(", "));
     println!("模式        : {}", if parallel { "并行" } else { "顺序" });
+    println!(
+        "场所 profile: {}",
+        if diagnostic {
+            "诊断夹具（venue-profile-diagnostic-fixture，不参与准入）"
+        } else {
+            "生产（按品种取，缺值即停在 AwaitingPolicy）"
+        }
+    );
 
     // ── 逐品种执行。并行用 thread::scope：diff_capture/signal_capture 均为 thread_local，
     //    各线程隔离；报告仍按 SYMBOLS 表序（输入序）汇总，确定性输出。 ──
-    let run_one = |sym: &str| run_symbol(sym, window, months);
+    let run_one = |sym: &str| run_symbol(sym, window, months, diagnostic);
 
-    let reports: Vec<Result<SymbolReport, String>> = if parallel {
+    let reports: Vec<Result<SymbolReport, SymbolFailure>> = if parallel {
         std::thread::scope(|scope| {
             let handles: Vec<_> = symbols
                 .iter()
@@ -398,21 +468,31 @@ fn main() -> std::process::ExitCode {
 
     // 失败品种收集（load 失败/空窗）不与成功品种混序：先打成功报告，再打失败。
     let mut ok_reports: Vec<SymbolReport> = Vec::new();
-    let mut failures: Vec<(String, String)> = Vec::new();
+    let mut policy_failures: Vec<(String, String)> = Vec::new();
+    let mut data_failures: Vec<(String, String)> = Vec::new();
     for (sym, r) in symbols.iter().zip(reports) {
         match r {
             Ok(rep) => ok_reports.push(rep),
-            Err(e) => failures.push((sym.clone(), e)),
+            Err(SymbolFailure::Policy(error)) => policy_failures.push((sym.clone(), error)),
+            Err(SymbolFailure::Data(error)) => data_failures.push((sym.clone(), error)),
         }
     }
+    let has_policy_failure = !policy_failures.is_empty();
 
     for r in &ok_reports {
         print_symbol_report(r);
     }
-    if !failures.is_empty() {
+    if !policy_failures.is_empty() {
         println!();
-        println!("── 失败/空窗（不参与判定）──────────────────────────────────");
-        for (sym, e) in &failures {
+        println!("── 配置/政策失败（整批失败）────────────────────────────────");
+        for (sym, e) in &policy_failures {
+            println!("  {sym:<6} {e}");
+        }
+    }
+    if !data_failures.is_empty() {
+        println!();
+        println!("── 数据加载失败/空窗（不参与判定）─────────────────────────");
+        for (sym, e) in &data_failures {
             println!("  {sym:<6} {e}");
         }
     }
@@ -442,13 +522,21 @@ fn main() -> std::process::ExitCode {
         for r in &ok_reports {
             let _ = writeln!(
                 summary,
-                "- {:<6} {}（信号分歧 {} / 预期内 {} / 预期外 {}）",
+                "- {:<6} {}（信号分歧 {} / 预期内 {} / 预期外 {}；{}；记录 {}）",
                 r.symbol,
                 r.verdict(),
                 r.diff.n_signal_diffs(),
                 r.diff.n_expected(),
                 r.diff.n_unexpected(),
+                admission_note(r.admissible),
+                r.records,
             );
+        }
+        for (sym, e) in &policy_failures {
+            let _ = writeln!(summary, "- {sym:<6} 配置/政策失败：{e}");
+        }
+        for (sym, e) in &data_failures {
+            let _ = writeln!(summary, "- {sym:<6} 未跑：{e}");
         }
         if let Err(e) = std::fs::write(dir.join("summary.md"), summary) {
             eprintln!("写 summary.md 失败: {e}");
@@ -457,7 +545,11 @@ fn main() -> std::process::ExitCode {
         println!("\n报告已写入: {dir:?}");
     }
 
-    if ok_reports.iter().all(|r| r.pass()) {
+    if batch_succeeds(
+        ok_reports.len(),
+        ok_reports.iter().all(|r| r.pass()),
+        has_policy_failure,
+    ) {
         std::process::ExitCode::SUCCESS
     } else {
         std::process::ExitCode::FAILURE
@@ -466,7 +558,15 @@ fn main() -> std::process::ExitCode {
 
 #[cfg(test)]
 mod tests {
-    use super::subtract_months;
+    use super::{batch_succeeds, subtract_months};
+
+    #[test]
+    fn policy_failure_is_fatal_even_when_another_symbol_succeeds() {
+        assert!(!batch_succeeds(1, true, true));
+        assert!(batch_succeeds(1, true, false));
+        assert!(!batch_succeeds(0, true, false));
+        assert!(!batch_succeeds(2, false, false));
+    }
 
     /// `subtract_months` 跨年/跨月/闰年二月日钳制（#1308 --months 窗切分的单调键前提）。
     #[test]

@@ -1,4 +1,6 @@
 //! #1373：OHLC 输入、同核包含事实的持久投影。所有结构判断来自 parser。
+pub(crate) const FACTS_READ_SQL: &str = "SELECT object_id,object_revision,kind,batch_id,fact_key,payload_json,input_refs_json,source_coords_json,first_known_generation,first_known_cut,published_generation,withdrawn_generation,withdrawal_reason,superseded_by FROM structure_facts ORDER BY kind,fact_key,object_id,object_revision";
+
 use super::*;
 
 pub(super) const PROFILE: &str = "ohlc_integer_tb02a_v1";
@@ -260,7 +262,7 @@ pub(super) fn save_raw(
         "INSERT INTO raw_ohlc VALUES(?1,?2,?3,?4,?5,?6,?7)",
         params![identity, revision, RAW_SCHEMA, p.open, p.high, p.low, p.close],
     )
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
     Ok(())
 }
 pub(super) fn enrich_raw(conn: &Connection, rows: &mut [Value]) -> Result<(), String> {
@@ -272,12 +274,26 @@ pub(super) fn enrich_raw_until(
     rows: &mut [Value],
     deadline: Option<std::time::Instant>,
 ) -> Result<(), String> {
+    enrich_raw_until_measured(conn, rows, deadline, None)
+}
+
+pub(super) fn enrich_raw_until_measured(
+    conn: &Connection,
+    rows: &mut [Value],
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn crate::v3::audit_budget::Budget>,
+) -> Result<(), String> {
     crate::check_read_deadline(deadline)?;
     if !prepare_raw_enrichment_admitted(conn, None)? {
         return Ok(());
     }
     for row in rows {
         crate::check_read_deadline(deadline)?;
+        if let Some(budget) = budget {
+            budget
+                .record()
+                .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
+        }
         enrich_raw_row(conn, row)?;
     }
     Ok(())
@@ -305,22 +321,27 @@ pub(super) fn enabled_admitted(
         conn,
         c"SELECT value FROM meta WHERE key = ?1",
     )
-    .map_err(|e| format!("读 meta.profile_id 失败：{e}"))?;
-    stmt.bind_text(1, "profile_id")
-        .map_err(|e| format!("读 meta.profile_id 失败：{e}"))?;
-    let enabled = match stmt
-        .next()
-        .map_err(|e| format!("读 meta.profile_id 失败：{e}"))?
-    {
+    .map_err(|e| {
+        crate::v3::business_json::mixed_diagnostic(format_args!("读 meta.profile_id 失败：{e}"))
+    })?;
+    stmt.bind_text(1, "profile_id").map_err(|e| {
+        crate::v3::business_json::mixed_diagnostic(format_args!("读 meta.profile_id 失败：{e}"))
+    })?;
+    let enabled = match stmt.next().map_err(|e| {
+        crate::v3::business_json::mixed_diagnostic(format_args!("读 meta.profile_id 失败：{e}"))
+    })? {
         Some(mut row) => {
-            row.text(0)
-                .map_err(|e| format!("读 meta.profile_id 失败：{e}"))?
-                == PROFILE
+            row.text(0).map_err(|e| {
+                crate::v3::business_json::mixed_diagnostic(format_args!(
+                    "读 meta.profile_id 失败：{e}"
+                ))
+            })? == PROFILE
         }
         None => false,
     };
-    stmt.finalize()
-        .map_err(|e| format!("读 meta.profile_id 失败：{e}"))?;
+    stmt.finalize().map_err(|e| {
+        crate::v3::business_json::mixed_diagnostic(format_args!("读 meta.profile_id 失败：{e}"))
+    })?;
     Ok(enabled)
 }
 /// 旧无scope变更入口：唯一借视图核固定None，再显式拒Native裸化。
@@ -363,7 +384,11 @@ pub(super) fn enrich_raw_view_admitted(
     } else {
         return Err("StorageUnavailable：revision类型非法".into());
     };
-    let missing = |e| format!("StorageUnavailable：OHLC原件缺失 {e}");
+    let missing = |e| {
+        crate::v3::business_json::mixed_diagnostic(format_args!(
+            "StorageUnavailable：OHLC原件缺失 {e}"
+        ))
+    };
     let mut stmt = newchan_rust::sqlite_checked::CheckedStatement::prepare(
         conn, c"SELECT schema_revision,open,high,low,close FROM raw_ohlc WHERE identity_key=?1 AND revision=?2",
     ).map_err(missing)?;
@@ -388,27 +413,30 @@ pub(super) fn enrich_raw_view_admitted(
         *text = Some(
             admission
                 .native_string(sql.text(column).map_err(missing)?)
-                .map_err(|e| e.to_string())?,
+                .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?,
         );
     }
     let mut fields = newchan_rust::s_content::CodecVec::default();
     let object = row.as_object().ok_or("StorageUnavailable：raw非对象")?;
     admission
         .native_codec_room(&mut fields, object.len().saturating_add(5))
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
     for (key, value) in object.iter() {
         if !names.contains(&key) {
-            fields.try_push((key, value)).map_err(|e| e.to_string())?;
+            fields
+                .try_push((key, value))
+                .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
         }
     }
     for (key, text) in names.iter().zip(texts.iter()) {
         fields
             .try_push((*key, JsonView::String(text.as_ref().unwrap().as_str())))
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
     }
     let owner = v3::business_json::json_from_view_admitted(
         &admission,
-        JsonView::object_fields(&fields).map_err(|e| e.to_string())?,
+        JsonView::object_fields(&fields)
+            .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?,
     )?;
     drop(fields);
     drop(sql);
@@ -428,7 +456,7 @@ pub(super) fn raw_wire(wire: &mut Value, raw: &Value) {
 pub(super) fn typed(o: &Value) -> bool {
     o.get("fact_key").is_some()
 }
-pub(super) fn project(o: &Value) -> Result<Value, String> {
+pub(crate) fn checked_fact_kind(o: &Value) -> Result<&str, String> {
     let kind = o["kind"]
         .as_str()
         .ok_or("StorageUnavailable：事实kind缺失")?;
@@ -443,6 +471,10 @@ pub(super) fn project(o: &Value) -> Result<Value, String> {
     {
         return Err("StorageUnavailable：未知结构事实kind".into());
     }
+    Ok(kind)
+}
+pub(super) fn project(o: &Value) -> Result<Value, String> {
+    let kind = checked_fact_kind(o)?;
     let mut result = json!({"object_id":o["object_id"],"object_revision":num_to_str(&o["object_revision"])?,"kind":kind,
         "batch_id":o.get("batch_id").cloned().unwrap_or(Value::Null),"fact_key":o["fact_key"],
         "payload":json_shape(o["payload_json"].as_str().ok_or("StorageUnavailable：事实payload缺失")?,JsonShape::Object)?,
@@ -514,7 +546,9 @@ pub(super) fn save_fact(conn: &Connection, o: &Value, batch: &str) -> Result<(),
             },
         )
         .optional()
-        .map_err(|e| format!("读既有结构事实失败：{e}"))?;
+        .map_err(|e| {
+            crate::v3::business_json::mixed_diagnostic(format_args!("读既有结构事实失败：{e}"))
+        })?;
     if let Some((old_revision, old_kind, old_key, old_payload, old_refs, old_coords)) = existing {
         if old_revision != revision || old_kind != kind || old_key != fact_key {
             return Err(format!(
@@ -551,7 +585,7 @@ pub(super) fn save_fact(conn: &Connection, o: &Value, batch: &str) -> Result<(),
         None => (payload.to_string(), refs.to_string(), coords.to_string()),
     };
     conn.execute("INSERT INTO structure_facts(object_id,object_revision,kind,batch_id,fact_key,payload_json,input_refs_json,source_coords_json,first_known_generation,first_known_cut,published_generation) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
-        params![object_id,revision,kind,batch,fact_key,stored_payload,stored_refs,stored_coords,o["first_known_generation"].as_i64(),o["first_known_cut"].as_str(),o["published_generation"].as_i64()]).map_err(|e|format!("持久结构事实失败：{e}"))?;
+        params![object_id,revision,kind,batch,fact_key,stored_payload,stored_refs,stored_coords,o["first_known_generation"].as_i64(),o["first_known_cut"].as_str(),o["published_generation"].as_i64()]).map_err(|e|crate::v3::business_json::mixed_diagnostic(format_args!("持久结构事实失败：{e}")))?;
     if staged.is_some() {
         // 写后立刻重读核：行内必须是空占位，且私有根可无损展开成同一份原件。
         let mut reader = evidence_store::Reader::new(conn, crate::EVIDENCE_READ_BUDGET);
@@ -565,6 +599,31 @@ pub(super) fn save_fact(conn: &Connection, o: &Value, batch: &str) -> Result<(),
     }
     Ok(())
 }
+pub(crate) enum FactLifecycle {
+    Skip,
+    Keep,
+    ClearDeath,
+}
+/// 只在全部SQL行与图原件替换完成后调用；不解析三列JSON。
+pub(crate) fn fact_lifecycle(o: &Value, as_of: Option<i64>) -> Result<FactLifecycle, String> {
+    let first = o["first_known_generation"].as_i64().unwrap();
+    let death = o["withdrawn_generation"].as_i64();
+    if death.is_some_and(|w| w <= first) {
+        return Err("StorageUnavailable：结构事实生命周期非法".into());
+    }
+    if as_of.is_some_and(|n| first > n) {
+        return Ok(FactLifecycle::Skip);
+    }
+    if matches!((as_of,death),(Some(n),Some(w)) if w>n) {
+        return Ok(FactLifecycle::ClearDeath);
+    }
+    Ok(FactLifecycle::Keep)
+}
+pub(crate) fn collect_fact_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Value> {
+    Ok(
+        json!({"object_id":r.get::<_,String>(0)?,"object_revision":r.get::<_,i64>(1)?,"kind":r.get::<_,String>(2)?,"batch_id":r.get::<_,String>(3)?,"fact_key":r.get::<_,String>(4)?,"payload_json":r.get::<_,String>(5)?,"input_refs_json":r.get::<_,String>(6)?,"source_coords_json":r.get::<_,String>(7)?,"first_known_generation":r.get::<_,i64>(8)?,"first_known_cut":r.get::<_,String>(9)?,"published_generation":r.get::<_,i64>(10)?,"withdrawn_generation":r.get::<_,Option<i64>>(11)?,"withdrawal_reason":r.get::<_,Option<String>>(12)?,"superseded_by":r.get::<_,Option<String>>(13)?}),
+    )
+}
 pub(super) fn read_facts(
     conn: &Connection,
     as_of: Option<i64>,
@@ -576,8 +635,14 @@ pub(super) fn read_facts(
     // 同一次读取共用一个捕获作用域与读取器，唯一节点原行只读一次。
     let format = evidence_store::format(conn)?;
     let mut reader = evidence_store::Reader::new(conn, crate::EVIDENCE_READ_BUDGET);
-    let mut stmt=conn.prepare("SELECT object_id,object_revision,kind,batch_id,fact_key,payload_json,input_refs_json,source_coords_json,first_known_generation,first_known_cut,published_generation,withdrawn_generation,withdrawal_reason,superseded_by FROM structure_facts ORDER BY kind,fact_key,object_id,object_revision").map_err(|e|e.to_string())?;
-    let rows=stmt.query_map([],|r|Ok(json!({"object_id":r.get::<_,String>(0)?,"object_revision":r.get::<_,i64>(1)?,"kind":r.get::<_,String>(2)?,"batch_id":r.get::<_,String>(3)?,"fact_key":r.get::<_,String>(4)?,"payload_json":r.get::<_,String>(5)?,"input_refs_json":r.get::<_,String>(6)?,"source_coords_json":r.get::<_,String>(7)?,"first_known_generation":r.get::<_,i64>(8)?,"first_known_cut":r.get::<_,String>(9)?,"published_generation":r.get::<_,i64>(10)?,"withdrawn_generation":r.get::<_,Option<i64>>(11)?,"withdrawal_reason":r.get::<_,Option<String>>(12)?,"superseded_by":r.get::<_,Option<String>>(13)?}))).map_err(|e|e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e|e.to_string())?;
+    let mut stmt = conn
+        .prepare(FACTS_READ_SQL)
+        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
+    let rows = stmt
+        .query_map([], collect_fact_row)
+        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
     let mut rows = rows;
     for o in &mut rows {
         let object_id = o["object_id"].as_str().unwrap_or("").to_string();
@@ -606,17 +671,13 @@ pub(super) fn read_facts(
     let mut active = vec![];
     let mut withdrawn = vec![];
     for mut o in rows {
-        let first = o["first_known_generation"].as_i64().unwrap();
-        let death = o["withdrawn_generation"].as_i64();
-        if death.is_some_and(|w| w <= first) {
-            return Err("StorageUnavailable：结构事实生命周期非法".into());
-        }
-        if as_of.is_some_and(|n| first > n) {
-            continue;
-        }
-        if matches!((as_of,death),(Some(n),Some(w)) if w>n) {
-            for k in ["withdrawn_generation", "withdrawal_reason", "superseded_by"] {
-                o[k] = Value::Null;
+        match fact_lifecycle(&o, as_of)? {
+            FactLifecycle::Skip => continue,
+            FactLifecycle::Keep => {}
+            FactLifecycle::ClearDeath => {
+                for k in ["withdrawn_generation", "withdrawal_reason", "superseded_by"] {
+                    o[k] = Value::Null;
+                }
             }
         }
         if o["withdrawn_generation"].is_null() {
@@ -706,7 +767,7 @@ pub(super) fn enrich_raw_owned(
         return Ok(());
     }
     verify_raw_ohlc_cardinality(conn)?;
-    let mut stmt=conn.prepare("SELECT schema_revision,open,high,low,close FROM raw_ohlc WHERE identity_key=?1 AND revision=?2").map_err(|e|e.to_string())?;
+    let mut stmt=conn.prepare("SELECT schema_revision,open,high,low,close FROM raw_ohlc WHERE identity_key=?1 AND revision=?2").map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
     for i in 0..tree.view().as_array().unwrap().len() {
         crate::check_read_deadline(deadline)?;
         let event = tree.view().index(i).unwrap();
@@ -719,21 +780,35 @@ pub(super) fn enrich_raw_owned(
                 event.get("identity_key").and_then(|v| v.as_str()),
                 revision
             ])
-            .map_err(|e| format!("StorageUnavailable：OHLC原件缺失 {e}"))?;
+            .map_err(|e| {
+                crate::v3::business_json::mixed_diagnostic(format_args!(
+                    "StorageUnavailable：OHLC原件缺失 {e}"
+                ))
+            })?;
         let row = rows
             .next()
-            .map_err(|e| format!("StorageUnavailable：OHLC原件缺失 {e}"))?
+            .map_err(|e| {
+                crate::v3::business_json::mixed_diagnostic(format_args!(
+                    "StorageUnavailable：OHLC原件缺失 {e}"
+                ))
+            })?
             .ok_or("StorageUnavailable：OHLC原件缺失")?;
         let get = |i| -> Result<&str, String> {
             row.get_ref(i)
-                .map_err(|e| format!("StorageUnavailable：OHLC原件缺失 {e}"))?
+                .map_err(|e| {
+                    crate::v3::business_json::mixed_diagnostic(format_args!(
+                        "StorageUnavailable：OHLC原件缺失 {e}"
+                    ))
+                })?
                 .as_str()
-                .map_err(|e| e.to_string())
+                .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))
         };
         if get(0)? != RAW_SCHEMA || event.get("price").and_then(|v| v.as_str()) != Some(get(4)?) {
             return Err("StorageUnavailable：OHLC schema/close索引矛盾".into());
         }
-        let mut object = tree.object_at_mut(i).map_err(|e| e.to_string())?;
+        let mut object = tree
+            .object_at_mut(i)
+            .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
         for (i, k) in [
             (0, "schema_revision"),
             (1, "open"),
@@ -741,7 +816,9 @@ pub(super) fn enrich_raw_owned(
             (3, "low"),
             (4, "close"),
         ] {
-            object.insert_str(k, get(i)?).map_err(|e| e.to_string())?;
+            object
+                .insert_str(k, get(i)?)
+                .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
         }
     }
     Ok(())
@@ -749,10 +826,10 @@ pub(super) fn enrich_raw_owned(
 fn verify_raw_ohlc_cardinality(conn: &Connection) -> Result<(), String> {
     let count: i64 = conn
         .query_row("SELECT COUNT(*) FROM raw_ohlc", [], |r| r.get(0))
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
     let raw_count: i64 = conn
         .query_row("SELECT COUNT(*) FROM raw_events", [], |r| r.get(0))
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
     if count != raw_count {
         return Err("StorageUnavailable：raw_ohlc与原始账不一一对应".into());
     }

@@ -1,0 +1,54 @@
+{
+  "id": "theta-risk",
+  "version": 1,
+  "kind": "theta_risk",
+  "ticket": "#1602（#1586 审计 C-08；ADR 0041）",
+  "scope": "Θ_risk 与声部参数现行值登记。数值签署归 #1557（共同 cap）/#1558/#1560，本版只把改前 `impl Default` 常数连同出处落成带版本号的记录（等值对拍 #804）。depth_weights 属 C-07（审计判 E），不在本记录",
+  "fields": {
+    "rho": {
+      "value": 0.005,
+      "unit": "NAV/声部",
+      "source": "reference-theta-v0.md:46「单声部风险 ρ=0.005 NAV」[设计选择,默认值;L3经验待标定]"
+    },
+    "beta": {
+      "value": 0.5,
+      "source": "reference-theta-v0.md:46「父子仓位比 β=0.5」[设计选择,默认值;L3经验待标定]"
+    },
+    "gamma": {
+      "value": 1.0,
+      "unit": "NAV",
+      "source": "reference-theta-v0.md:46「总名义上限 γ=1.0 NAV」[设计选择,默认值;L3经验待标定]；毛 cap 复用本值（#122）"
+    },
+    "kappa": {
+      "value": 2.0,
+      "source": "reference-theta-v0.md:46「成本倍数 κ=2.0」[设计选择,默认值;L3经验待标定]；sizing 成本倍数，与 risk_policy 的 barrier κ 同名不同义（A10 附则A）"
+    },
+    "default_lot": {
+      "value": 1,
+      "unit": "手",
+      "source": "reference-theta-v0.md:48 sizing 默认 lot"
+    },
+    "chi_z_alpha": {
+      "value": 0.0,
+      "source": "严格alpha.pdf p25 §12 LCB 置信分位；0.0 ⟹ n≥2 类退化回裸 μ 门（frozen 默认 chi_theta=None 不走此路）"
+    },
+    "enforce_gross_cap": {
+      "value": false,
+      "source": "#890 重估、#937 问 1 条件式裁定：生效条件 = 逐笔独立场所落地（与 ADR 0021 重启同步），生效前保持 false"
+    },
+    "enforce_level_cap": {
+      "value": false,
+      "source": "M4 级别级风险帽开关（multi-level-native-execution-design-20260719 §D M4）；false ⟹ M0–M3 不经级别帽裁剪"
+    },
+    "max_depth": {
+      "value": 3,
+      "unit": "层",
+      "source": "reference-theta-v0.md:41 声部树最大层数（L*, L*-1, L*-2）[设计选择,默认值]"
+    },
+    "w_grade": {
+      "value": [1.0, 1.0],
+      "unit": "[SameLevel, SubLevel]",
+      "source": "prereg-wg 推荐 (c) 因子化；identity ⟹ G 轴 sizing 无差异"
+    }
+  }
+}

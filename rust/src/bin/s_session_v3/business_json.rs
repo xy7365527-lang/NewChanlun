@@ -1,4 +1,6 @@
 //! #1394 业务原始账的入口存储选择与同一借用判据。Owned失败直接Err，不转回std。
+pub(crate) mod json_layout;
+pub(crate) mod scoped_legacy;
 use super::audit_store::{CodecRead, NativeAdmission, NativeTree};
 use super::*;
 use aj::{ArrayIter, ArrayView, JsonView};
@@ -588,7 +590,16 @@ impl<'raw> RawPrefixIndex<'raw> {
         prefix: usize,
         admission: &(impl super::audit_store::CodecRead + ?Sized),
     ) -> Result<RawPrefixChanges, String> {
-        let result = self.advance_inner(prefix, admission);
+        self.advance_measured(prefix, admission, None, None)
+    }
+    pub(super) fn advance_measured(
+        &mut self,
+        prefix: usize,
+        admission: &(impl super::audit_store::CodecRead + ?Sized),
+        deadline: Option<Instant>,
+        budget: Option<&dyn super::audit_budget::Budget>,
+    ) -> Result<RawPrefixChanges, String> {
+        let result = self.advance_inner(prefix, admission, deadline, budget);
         if result.is_err() {
             self.clear();
         }
@@ -598,6 +609,8 @@ impl<'raw> RawPrefixIndex<'raw> {
         &mut self,
         prefix: usize,
         admission: &(impl super::audit_store::CodecRead + ?Sized),
+        deadline: Option<Instant>,
+        budget: Option<&dyn super::audit_budget::Budget>,
     ) -> Result<RawPrefixChanges, String> {
         if self.raw.budget().is_some() {
             return Err("prototype_audit_allocation_incomplete：有序raw索引不接收Owned原件".into());
@@ -612,7 +625,11 @@ impl<'raw> RawPrefixIndex<'raw> {
         let raw = self.raw;
         let mut changed = NativeTree::<&str, (i64, usize)>::default();
         for ordinal in self.prefix..prefix {
+            super::history::check_deadline(deadline)?;
             let event = raw.get(ordinal).expect("已截前缀");
+            if let Some(budget) = budget {
+                budget.record().map_err(|e| e.to_string())?;
+            }
             let identity = field(event, "identity_key").as_str().unwrap_or("");
             let revision = field(event, "revision").as_i64().unwrap_or(0);
             let previous = changed
@@ -638,7 +655,12 @@ impl<'raw> RawPrefixIndex<'raw> {
             let c = match self.coordinates.get(&ordinal) {
                 Some(c) => *c,
                 None => {
-                    let c = coord(self.raw.get(ordinal).expect("赢家原件"))?;
+                    super::history::check_deadline(deadline)?;
+                    let event = self.raw.get(ordinal).expect("赢家原件");
+                    if let Some(budget) = budget {
+                        budget.record().map_err(|e| e.to_string())?;
+                    }
+                    let c = coord(event)?;
                     #[cfg(feature = "s_capture_native_testonly")]
                     let capacity = self.coordinates.capacity();
                     admission
@@ -785,16 +807,27 @@ pub(crate) fn sha_json_admitted(
     Ok(out.hash.finalize().into())
 }
 
+#[allow(dead_code, reason = "#1527：保留原无计量入口，measured 入口共用原核")]
 pub(crate) fn validate_raw(
     rows: RawEventsView<'_>,
     deadline: Option<Instant>,
 ) -> Result<(), String> {
     validate_raw_admitted(rows, deadline, None)
 }
+#[allow(dead_code, reason = "#1527：保留原无计量入口，measured 入口共用原核")]
 pub(crate) fn validate_raw_admitted(
     rows: RawEventsView<'_>,
     deadline: Option<Instant>,
     work: Option<&WorkScope>,
+) -> Result<(), String> {
+    validate_raw_measured(rows, deadline, work, None)
+}
+
+pub(crate) fn validate_raw_measured(
+    rows: RawEventsView<'_>,
+    deadline: Option<Instant>,
+    work: Option<&WorkScope>,
+    budget: Option<&dyn super::audit_budget::Budget>,
 ) -> Result<(), String> {
     check_native_owner(rows.budget(), work).map_err(|e| e.to_string())?;
     let admission = NativeAdmission(work);
@@ -803,6 +836,9 @@ pub(crate) fn validate_raw_admitted(
     let mut prior = workmap::<&str, i64>(rows.budget());
     for (expected_seq, event) in rows.iter().enumerate() {
         check_read_deadline(deadline)?;
+        if let Some(budget) = budget {
+            budget.record().map_err(|e| e.to_string())?;
+        }
         let c = coord(event)?;
         let identity = text(event, "identity_key")?;
         admission
@@ -875,7 +911,59 @@ fn validate_raw_row_core(
     budget: Option<&OwnedBudget>,
     work: Option<&WorkScope>,
 ) -> Result<(), String> {
-    check_native_owner(budget, work).map_err(|e| e.to_string())?;
+    validate_raw_row_typed(event, expected_seq, previous, budget, work).map_err(|e| match e {
+        MixedJsonError::Business(e) => e,
+        MixedJsonError::Resource(e) => e.to_string(),
+    })
+}
+pub(crate) fn validate_raw_mixed(
+    rows: &[PlainJson],
+    work: &WorkScope,
+    observer: &dyn super::audit_budget::LegacyObserver,
+) -> Result<(), MixedJsonError> {
+    observer
+        .check_work(work)
+        .map_err(MixedJsonError::Resource)?;
+    let admission = NativeAdmission(Some(work));
+    let mut owners = super::audit_store::NativeTree::default();
+    let mut positions = super::audit_store::NativeTree::default();
+    let mut prior = super::audit_store::NativeTree::default();
+    for (expected_seq, record) in rows.iter().enumerate() {
+        observer.precheck().map_err(MixedJsonError::Resource)?;
+        observer
+            .visit_record(
+                "raw_history",
+                "validate-raw",
+                super::audit_budget::LegacyRecordRef::Json(record.as_ref()),
+            )
+            .map_err(MixedJsonError::Resource)?;
+        let event: JsonView<'_> = record.as_ref().into();
+        let coordinate = coord(event)?;
+        let identity = text(event, "identity_key")?;
+        let previous_identity = owners
+            .insert_admitted(coordinate, identity, &admission)
+            .map_err(MixedJsonError::Resource)?;
+        let previous_coordinate = positions
+            .insert_admitted(identity, coordinate, &admission)
+            .map_err(MixedJsonError::Resource)?;
+        validate_raw_coordinate(identity, coordinate, previous_identity, previous_coordinate)?;
+        let revision = parse_canonical_i64(text(event, "input_revision")?, "input_revision")
+            .map_err(|e| format!("StorageUnavailable：{e}"))?;
+        let previous = prior
+            .insert_admitted(identity, revision, &admission)
+            .map_err(MixedJsonError::Resource)?;
+        validate_raw_row_typed(event, expected_seq, previous, None, Some(work))?;
+    }
+    observer.precheck().map_err(MixedJsonError::Resource)
+}
+fn validate_raw_row_typed(
+    event: JsonView<'_>,
+    expected_seq: usize,
+    previous: Option<i64>,
+    budget: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<(), MixedJsonError> {
+    check_native_owner(budget, work).map_err(MixedJsonError::Resource)?;
     let identity = text(event, "identity_key")?;
     let price = text(event, "price")?;
     let volume = text(event, "volume")?;
@@ -1319,14 +1407,18 @@ impl TextValue {
         owner: Option<&OwnedBudget>,
         work: Option<&WorkScope>,
     ) -> Result<Self, String> {
-        check_native_owner(owner, work).map_err(|e| e.to_string())?;
+        Self::from_str_admitted_typed(text, owner, work).map_err(|e| e.to_string())
+    }
+    pub fn from_str_admitted_typed(
+        text: &str,
+        owner: Option<&OwnedBudget>,
+        work: Option<&WorkScope>,
+    ) -> Result<Self, sc::CodecError> {
+        check_native_owner(owner, work)?;
         if work.is_some() {
-            return NativeAdmission(work)
-                .native_string(text)
-                .map(Self::Plain)
-                .map_err(|e| e.to_string());
+            return NativeAdmission(work).native_string(text).map(Self::Plain);
         }
-        Self::from_str(text, owner)
+        Self::from_str_typed(text, owner)
     }
     pub fn from_sql_admitted(
         row: &mut CheckedRow<'_>,
@@ -1348,6 +1440,17 @@ impl TextValue {
             .map_err(|e| e.to_string())?
             .map(|text| Self::from_str_admitted(text, owner, work))
             .transpose()
+    }
+    pub(crate) fn try_clone_mixed(&self, work: &WorkScope) -> Result<Self, sc::CodecError> {
+        match self {
+            Self::Plain(value) => {
+                value.check_retained_source()?;
+                value.try_clone_admitted(work).map(Self::Plain)
+            }
+            Self::Owned(_) => {
+                Err(work.reject(sc::capture_allocation::scratch::ScratchFailure::Ledger))
+            }
+        }
     }
     pub fn try_clone_admitted(&self, work: Option<&WorkScope>) -> Result<Self, String> {
         if let Some(work) = work {
@@ -1579,6 +1682,7 @@ impl std::ops::Deref for SharedEnvelope {
 enum NativeJsonLayout {
     AggregateTree,
     ItemizedArray,
+    ItemizedObject,
 }
 pub(crate) struct PlainJson {
     value: Value,
@@ -1652,6 +1756,20 @@ impl PlainJson {
             );
         }
         Ok(self.value)
+    }
+    pub(crate) fn check_retained_source(&self) -> Result<(), sc::CodecError> {
+        if let Some(permit) = &self.permit {
+            permit.check_retained_source()?;
+        }
+        self.child_permits.check_retained_source()?;
+        for permit in &self.child_permits {
+            permit.check_retained_source()?;
+        }
+        Ok(())
+    }
+    pub(crate) fn try_clone_mixed(&self, work: &WorkScope) -> Result<Self, sc::CodecError> {
+        self.check_retained_source()?;
+        Self::try_clone_from(self.as_ref(), Some(work))
     }
     pub(crate) fn try_clone_from(
         value: &Value,
@@ -2536,6 +2654,164 @@ fn admit_json_parse(
     }
     Ok(None)
 }
+/// #1527 mixed专用：许可先于唯一原parser，不受Native测试feature控制。
+#[derive(Debug)]
+pub(crate) enum MixedJsonError {
+    Resource(sc::CodecError),
+    Business(String),
+}
+
+// #1527: SQL may report SQLITE_INTERRUPT after a VFS budget refusal. Preserve
+// that original typed cause before any SQL wrapper renders a dynamic String.
+// The guard is scoped to one actual private mixed operation, never ordinary use.
+thread_local! {
+    static MIXED_CALLBACK_FAILURE: std::cell::RefCell<Option<Option<sc::CodecError>>> =
+        const { std::cell::RefCell::new(None) };
+}
+pub(crate) struct MixedFailureScope;
+impl MixedFailureScope {
+    pub(crate) fn enter() -> Result<Self, &'static str> {
+        MIXED_CALLBACK_FAILURE.with(|slot| {
+            let mut slot = slot.borrow_mut();
+            if slot.is_some() {
+                return Err("NestedMixedFailureScope");
+            }
+            *slot = Some(None);
+            Ok(Self)
+        })
+    }
+}
+impl Drop for MixedFailureScope {
+    fn drop(&mut self) {
+        MIXED_CALLBACK_FAILURE.with(|s| {
+            s.borrow_mut().take();
+        });
+    }
+}
+pub(crate) fn mixed_callback_failed(error: &sc::CodecError) {
+    MIXED_CALLBACK_FAILURE.with(|s| {
+        if let Some(first) = s.borrow_mut().as_mut() {
+            if first.is_none() {
+                *first = Some(error.clone());
+            }
+        }
+    });
+}
+pub(crate) fn mixed_callback_failure() -> Option<sc::CodecError> {
+    MIXED_CALLBACK_FAILURE.with(|s| s.borrow().as_ref().and_then(|e| e.clone()))
+}
+pub(crate) fn mixed_diagnostic(detail: std::fmt::Arguments<'_>) -> String {
+    if mixed_callback_failure().is_some() {
+        String::new()
+    } else {
+        detail.to_string()
+    }
+}
+pub(crate) fn mixed_callback_metadata_bytes() -> usize {
+    std::mem::size_of::<std::cell::RefCell<Option<Option<sc::CodecError>>>>()
+}
+
+impl MixedJsonError {
+    pub(crate) fn diagnostic(detail: std::fmt::Arguments<'_>) -> Self {
+        match mixed_callback_failure() {
+            Some(error) => Self::Resource(error),
+            None => Self::Business(detail.to_string()),
+        }
+    }
+}
+pub(crate) fn mixed_resource_diagnostic(error: &sc::CodecError) -> String {
+    let active = MIXED_CALLBACK_FAILURE.with(|s| s.borrow().is_some());
+    if active {
+        mixed_callback_failed(error);
+        String::new()
+    } else {
+        error.to_string()
+    }
+}
+impl From<String> for MixedJsonError {
+    fn from(error: String) -> Self {
+        mixed_callback_failure()
+            .map(Self::Resource)
+            .unwrap_or(Self::Business(error))
+    }
+}
+impl From<&str> for MixedJsonError {
+    fn from(error: &str) -> Self {
+        match mixed_callback_failure() {
+            Some(error) => Self::Resource(error),
+            None => Self::Business(error.to_owned()),
+        }
+    }
+}
+
+/// mixed资源拒绝保持原静态CodecError；只有许可成功才进入原解析核。
+pub(crate) fn mixed_parse_admitted(
+    bytes: &[u8],
+    work: &WorkScope,
+    parse: impl FnOnce() -> Result<PlainJson, MixedJsonError>,
+) -> Result<PlainJson, MixedJsonError> {
+    let permit = work
+        .reserve_native(json_layout::JsonShape::scan(bytes).parse_peak())
+        .map_err(MixedJsonError::Resource)?;
+    parse().map(|value| value.with_reservation(Some(permit)))
+}
+
+pub(crate) fn mixed_strict_json_owner(
+    bytes: &[u8],
+    work: &WorkScope,
+) -> Result<PlainJson, MixedJsonError> {
+    mixed_parse_admitted(bytes, work, || {
+        let parsed = strict_json_owner(bytes, None).map_err(|error| match error {
+            StrictOwnerError::Syntax(e) => {
+                MixedJsonError::Business(format!("SchemaUnsupported：{e}"))
+            }
+            StrictOwnerError::Allocation(e) => MixedJsonError::Resource(e),
+            #[cfg(feature = "s_allocation_json_testonly")]
+            StrictOwnerError::OwnedSyntax(e) => {
+                MixedJsonError::Business(format!("SchemaUnsupported：{e}"))
+            }
+        })?;
+        match parsed {
+            JsonOwner::Plain(value) => Ok(value),
+            #[cfg(feature = "s_allocation_json_testonly")]
+            JsonOwner::Owned(_) => unreachable!("mixed None-owner原parser产出Plain"),
+        }
+    })
+}
+pub(crate) fn mixed_batch_json_owner(
+    bytes: &[u8],
+    id: &str,
+    work: &WorkScope,
+) -> Result<PlainJson, MixedJsonError> {
+    mixed_parse_admitted(bytes, work, || {
+        let parsed = strict_json_owner(bytes, None).map_err(|e| match e {
+            StrictOwnerError::Syntax(e) => MixedJsonError::Business(format!(
+                "StorageUnavailable：batch {id} 规范字节非严格 JSON：{e}"
+            )),
+            StrictOwnerError::Allocation(e) => MixedJsonError::Resource(e),
+            #[cfg(feature = "s_allocation_json_testonly")]
+            StrictOwnerError::OwnedSyntax(e) => MixedJsonError::Business(format!(
+                "StorageUnavailable：batch {id} 规范字节非严格 JSON：{e}"
+            )),
+        })?;
+        match parsed {
+            JsonOwner::Plain(value) => Ok(value),
+            #[cfg(feature = "s_allocation_json_testonly")]
+            JsonOwner::Owned(_) => unreachable!("mixed parser uses plain storage"),
+        }
+    })
+}
+pub(crate) fn mixed_legacy_json_owner(
+    bytes: &[u8],
+    work: &WorkScope,
+) -> Result<PlainJson, MixedJsonError> {
+    mixed_parse_admitted(bytes, work, || {
+        serde_json::from_slice(bytes)
+            .map(|v| PlainJson::from_reserved(v, None))
+            .map_err(|e| MixedJsonError::Business(e.to_string()))
+    })
+}
+
 pub(crate) fn strict_json_owner_admitted(
     bytes: &[u8],
     owner: Option<&OwnedBudget>,

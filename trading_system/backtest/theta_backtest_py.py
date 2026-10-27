@@ -90,6 +90,10 @@ def main() -> int:
         default=None,
         help="ADR 0040 funding-record profile（如 P0）；未给 ⟹ AwaitingPolicy，不建引擎、不下单（#1601）",
     )
+    parser.add_argument(
+        "--diagnostic-fixture", action="store_true",
+        help="用诊断夹具场所 profile 跑，不参与准入（#1602）；仍须给资金记录",
+    )
     args = parser.parse_args()
 
     if not args.data.exists():
@@ -109,6 +113,8 @@ def main() -> int:
                 instrument_id=instrument.id,
                 bar_type=bar_type,
                 funding_profile=args.funding_profile,
+                venue_profile=None if args.diagnostic_fixture else "P0",
+                preset="diagnostic-fixture" if args.diagnostic_fixture else None,
             ),
         )
     except ValueError as e:
@@ -154,6 +160,9 @@ def main() -> int:
     d = strategy.engine.finish_full()
     print("\n========== theta_v0 π × NautilusTrader BTC 回测 ==========")
     print(f"bars={len(bars)}  run={run_secs:.1f}s")
+    print(f"记录: {', '.join(strategy.engine.records())}")
+    if not strategy.engine.admissible():
+        print("准入: 诊断夹具，不参与准入")
     print(f"资金记录: {strategy.engine.funding_record}")
     print(f"NT 真账本: 起始={q_total:.0f} 期末={final_bal:.2f}  strat={strat_pct:+.2f}%")
     print(f"BH={bh_pct:+.2f}%  (closes[0]={closes[0]:.2f} → closes[-1]={closes[-1]:.2f})")

@@ -54,12 +54,14 @@
 //!
 //! ## 平局裁决全局约定（reference-theta-v0.md:15-16）
 //!
-//! - 所有价格量化为整数 tick；无 `tick_size` 默认 `1e-8`。
+//! - 所有价格量化为整数 tick；`tick_size` 取自场所 profile（#1602：1e-8 只在诊断夹具记录里）。
 //! - 所有平局按 `(timestamp, source_index)` 升序裁决；已确认结构不可回写重分解。
 
 pub mod config;
 /// #1603：级别塔上界与 MACD 力度参数的版本化记录（ADR 0041；#1586 C-09/C-10）。
 pub mod policy_records;
+/// #1602：场所 profile、Θ_risk 与数据 profile 的版本化记录（ADR 0041；#1586 C-06/C-08/C-17/C-18）。
+pub mod run_records;
 pub mod types;
 
 /// C2：46 个直读 env 键的单一登记处（map #743，spec #756）——键名/语义/行为门|观测门/默认臂/

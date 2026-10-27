@@ -2,6 +2,16 @@
 //! 每批原件仍完整读取。累计 batch 自身的历史字节不会凭此变成 O(page)。
 use super::*;
 use std::collections::BTreeSet;
+#[path = "audit/mixed.rs"]
+pub(crate) mod mixed;
+const WITNESSES_SQL: &str =
+    "SELECT witness_id,published_generation,object_id,slot,merged_source_index,
+                        merged_high,merged_low,merged_open,merged_close,raw_json FROM witnesses";
+const OBSERVATIONS_SQL: &str =
+    "SELECT observation_id,published_generation,batch_id,kind,window_start,window_mid,
+                        window_end,reason,detail_json FROM observations";
+const RELATIONS_SQL: &str =
+    "SELECT subject,relation_type,object,published_generation FROM relations";
 
 fn number(v: &Value, key: &str) -> Result<i64, String> {
     parse_canonical_i64(
@@ -50,69 +60,58 @@ impl Family {
             &str,
             fn(&rusqlite::Row<'_>) -> rusqlite::Result<(String, Option<i64>, Value)>,
         ) = match name {
-            "witnesses" => (
-                "SELECT witness_id,published_generation,object_id,slot,merged_source_index,
-                        merged_high,merged_low,merged_open,merged_close,raw_json FROM witnesses",
-                |r| {
-                    Ok((
-                        r.get::<_, String>(0)?,
-                        Some(r.get::<_, i64>(1)?),
-                        json!({
-                            "witness_id": r.get::<_, String>(0)?,
-                            "object_id": r.get::<_, String>(2)?,
-                            "slot": r.get::<_, i64>(3)?.to_string(),
-                            "merged_source_index": r.get::<_, i64>(4)?.to_string(),
-                            "merged_high": r.get::<_, String>(5)?,
-                            "merged_low": r.get::<_, String>(6)?,
-                            "merged_open": r.get::<_, String>(7)?,
-                            "merged_close": r.get::<_, String>(8)?,
-                            "raw_bars": project_raw_bars(&json_column(r, 9, JsonShape::Array)?)
-                                .map_err(|e| json_column_error(9, e))?,
-                        }),
-                    ))
-                },
-            ),
-            "observations" => (
-                "SELECT observation_id,published_generation,batch_id,kind,window_start,window_mid,
-                        window_end,reason,detail_json FROM observations",
-                |r| {
-                    Ok((
-                        r.get::<_, String>(0)?,
-                        Some(r.get::<_, i64>(1)?),
-                        json!({
-                            "observation_id": r.get::<_, String>(0)?,
-                            "batch_id": r.get::<_, String>(2)?,
-                            "kind": r.get::<_, String>(3)?,
-                            "window_start": r.get::<_, Option<i64>>(4)?,
-                            "window_mid": r.get::<_, Option<i64>>(5)?,
-                            "window_end": r.get::<_, Option<i64>>(6)?,
-                            "reason": r.get::<_, String>(7)?,
-                            "detail": json_column(r, 8, JsonShape::Object)?,
-                        }),
-                    ))
-                },
-            ),
-            "relations" => (
-                "SELECT subject,relation_type,object,published_generation FROM relations",
-                |r| {
-                    let subject: String = r.get(0)?;
-                    let relation_type: String = r.get(1)?;
-                    let object: String = r.get(2)?;
-                    Ok((
-                        canonical_json(&json!({
-                            "subject": subject,
-                            "relation_type": relation_type,
-                            "object": object,
-                        })),
-                        Some(r.get::<_, i64>(3)?),
-                        json!({
-                            "subject": subject,
-                            "relation_type": relation_type,
-                            "object": object,
-                        }),
-                    ))
-                },
-            ),
+            "witnesses" => (WITNESSES_SQL, |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    Some(r.get::<_, i64>(1)?),
+                    json!({
+                        "witness_id": r.get::<_, String>(0)?,
+                        "object_id": r.get::<_, String>(2)?,
+                        "slot": r.get::<_, i64>(3)?.to_string(),
+                        "merged_source_index": r.get::<_, i64>(4)?.to_string(),
+                        "merged_high": r.get::<_, String>(5)?,
+                        "merged_low": r.get::<_, String>(6)?,
+                        "merged_open": r.get::<_, String>(7)?,
+                        "merged_close": r.get::<_, String>(8)?,
+                        "raw_bars": project_raw_bars(&json_column(r, 9, JsonShape::Array)?)
+                            .map_err(|e| json_column_error(9, e))?,
+                    }),
+                ))
+            }),
+            "observations" => (OBSERVATIONS_SQL, |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    Some(r.get::<_, i64>(1)?),
+                    json!({
+                        "observation_id": r.get::<_, String>(0)?,
+                        "batch_id": r.get::<_, String>(2)?,
+                        "kind": r.get::<_, String>(3)?,
+                        "window_start": r.get::<_, Option<i64>>(4)?,
+                        "window_mid": r.get::<_, Option<i64>>(5)?,
+                        "window_end": r.get::<_, Option<i64>>(6)?,
+                        "reason": r.get::<_, String>(7)?,
+                        "detail": json_column(r, 8, JsonShape::Object)?,
+                    }),
+                ))
+            }),
+            "relations" => (RELATIONS_SQL, |r| {
+                let subject: String = r.get(0)?;
+                let relation_type: String = r.get(1)?;
+                let object: String = r.get(2)?;
+                Ok((
+                    canonical_json(&json!({
+                        "subject": subject,
+                        "relation_type": relation_type,
+                        "object": object,
+                    })),
+                    Some(r.get::<_, i64>(3)?),
+                    json!({
+                        "subject": subject,
+                        "relation_type": relation_type,
+                        "object": object,
+                    }),
+                ))
+            }),
             _ => return Err("StorageUnavailable：未知索引族".into()),
         };
         let mut result = Self {
@@ -666,3 +665,6 @@ impl AuditWalk {
         self.observations.finish()
     }
 }
+
+#[path = "audit/mixed_profile.rs"]
+pub(crate) mod mixed_profile;

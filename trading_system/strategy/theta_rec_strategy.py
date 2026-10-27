@@ -28,6 +28,8 @@ class ThetaRecStrategyConfig(StrategyConfig, frozen=True):
     """theta_v0 π 目标敞口跟踪策略配置。
 
     min_rebalance_units : 目标敞口变化阈值——小于此不提单（避免微小 churn / size 精度噪声）。
+    venue_profile       : 生产场所 profile；未签则停止，不回退诊断夹具（#1602）。
+    preset              : diagnostic-fixture 为显式诊断场所，不参与准入（#1602）。
     funding_profile     : ADR 0040 funding-record 的 profile（如 "P0"）。无默认（#1601）：未给 ⟹
                           构造 `ThetaStream` 报 AwaitingPolicy{funding_record}，策略不构造、不下单；
                           `evidence_only` 记录同样拒收。
@@ -37,6 +39,8 @@ class ThetaRecStrategyConfig(StrategyConfig, frozen=True):
     bar_type: BarType
     min_rebalance_units: float = 1e-4
     funding_profile: str | None = None
+    venue_profile: str | None = None
+    preset: str | None = None
 
 
 class ThetaRecStrategy(Strategy):
@@ -49,7 +53,11 @@ class ThetaRecStrategy(Strategy):
 
     def __init__(self, config: ThetaRecStrategyConfig) -> None:
         super().__init__(config)
-        self.engine = newchan_rust.ThetaStream(funding_profile=config.funding_profile)
+        self.engine = newchan_rust.ThetaStream(
+            preset=config.preset,
+            funding_profile=config.funding_profile,
+            venue_profile=config.venue_profile,
+        )
         self.instrument = None
         self._watermark_ns: int | None = None
         self.n_bars = 0

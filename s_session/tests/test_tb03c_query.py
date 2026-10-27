@@ -289,8 +289,8 @@ class BookQueryTests(unittest.TestCase):
         self.assertNotIn("fill_allocations", result["domains"]["E"]["image"])
 
     def test_unknown_book_version_rejects_before_owner_io(self):
-        """#1620：tb03c-book/2 已接受，负控改用 /3。"""
-        for revision in (False, 1, [], {}, "tb03c-book/3", "economic-session/2"):
+        """#1620/#1715：tb03c-book/2、/3 已接受，负控改用 /4。"""
+        for revision in (False, 1, [], {}, "tb03c-book/4", "economic-session/2"):
             with self.subTest(revision=revision), patch("economic_query.exchange") as owner:
                 with self.assertRaises(EconomicQueryError):
                     self.load({**self.manifest, "book_revision": revision})
@@ -314,12 +314,38 @@ class BookQueryTests(unittest.TestCase):
                 q.view("B:chong-N1")
 
     def test_new_domain_rejects_old_or_unknown_book(self):
-        """#1620：tb03c-book/2 已接受，负控改用 /3。"""
-        for book in ({}, {"book_revision": None}, {"book_revision": "tb03c-book/3"}):
+        """#1620/#1715：tb03c-book/2、/3 已接受，负控改用 /4。"""
+        for book in ({}, {"book_revision": None}, {"book_revision": "tb03c-book/4"}):
             self.states["B:chong-N1"]["image"]["book"] = book
             self.rehash("B:chong-N1")
             with self.subTest(book=book), self.assertRaises(EconomicQueryError):
                 self.q.view("B:chong-N1")
+
+    def test_book_v3_view_carries_frozen_calibration_unchanged(self):
+        """#1715：/3 书账的冻结定标（版本、签署、量纲、锚、快照、Q_units/C_units）经公共视图逐字读出；
+        改一位而不重算 image_hash 即被拒，读者不重新定标。"""
+        self.manifest["book_revision"] = "tb03c-book/3"
+        q = self.load(self.manifest)
+        q.owner = self.owner
+        calibration = {"policy_id": "#1610/quantity-calibration/v1", "version": "qc-chain-v2",
+                       "supersedes": "qc-test-v1", "Q_amount": "3200000", "Q_units": "53333",
+                       "signature": {"signature_ref": "fixture://signature/qc-chain-v2", "version": "qc-chain-v2",
+                                     "authorizer": "合成签署（TestOnly）", "signed_ns": "1792540800000001010"},
+                       "quantity_unit": {"unit": "BTC-UNIT", "quantum": {"num": "1", "den": "1"}},
+                       "quote": {"quote_id": "C2", "anchor_id": "fact-q-rebase", "anchor_kind": "activation_request_asof",
+                                 "t_anchor": "1792540800000001021", "snapshot_id": "s-rebase",
+                                 "snapshot_sealed_ns": "1792540800000001015"}}
+        book = {"book_revision": "tb03c-book/3", "fixed_q": "53333",
+                "funding": {"quantity_calibration": calibration,
+                            "capacity": {"level": "L1", "C": "3200000", "C_units": "53333"}}}
+        self.states["B:chong-N1"]["image"]["book"] = copy.deepcopy(book)
+        self.states["E"]["image"]["book"] = {"book_revision": "tb03c-book/3"}
+        self.rehash("B:chong-N1")
+        self.rehash("E")
+        self.assertEqual(q.view("B:chong-N1")["image"]["book"], book)
+        self.states["B:chong-N1"]["image"]["book"]["funding"]["quantity_calibration"]["Q_units"] = "53334"
+        with self.assertRaises(EconomicQueryError):
+            q.view("B:chong-N1")
 
     def test_book_v2_accepts_and_reads_like_v1(self):
         """#1620：tb03c-book/2 与 /1 在公共查询字段上完整对拍（资金签署不影响此读者）。
@@ -397,18 +423,18 @@ class BookQueryTests(unittest.TestCase):
         self.assertIn(0, units_values, "应有零数量分配")
         self.assertGreater(sum(units_values), 0, "至少有一个非零分配")
 
-        # === 第三阶段：负控（未知版本 /3 拒绝，与 /1 /2 形成对照）===
-        self.manifest["book_revision"] = "tb03c-book/3"
+        # === 第三阶段：负控（未知版本 /4 拒绝，与 /1 /2 形成对照）===
+        self.manifest["book_revision"] = "tb03c-book/4"
         with self.assertRaises(EconomicQueryError) as ctx:
             self.load(self.manifest)
         self.assertIn("未知书账版本", str(ctx.exception))
 
-        # 负控：冻结 /2 但图像返回未知 /3
+        # 负控：冻结 /2 但图像返回未知 /4
         self.manifest["book_revision"] = "tb03c-book/2"
         q_neg = self.load(self.manifest)
         q_neg.owner = self.owner
         states_neg = copy.deepcopy(states_v2)
-        states_neg["B:chong-N1"]["image"]["book"]["book_revision"] = "tb03c-book/3"
+        states_neg["B:chong-N1"]["image"]["book"]["book_revision"] = "tb03c-book/4"
         states_neg["B:chong-N1"]["image_hash"] = digest(states_neg["B:chong-N1"]["image"])
         self.states = states_neg
         with self.assertRaises(EconomicQueryError) as ctx:

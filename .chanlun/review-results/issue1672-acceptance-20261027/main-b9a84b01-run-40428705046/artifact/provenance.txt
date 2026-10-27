@@ -1,0 +1,10 @@
+command=cargo test --locked --features s_session --lib tb03c_fin2 -- --ignored --nocapture --test-threads=1 
+source_sha=b9a84b01467772d847f9d222207a305136761bf4
+source_status
+ProductName:		macOS
+ProductVersion:		26.6.2
+BuildVersion:		25G83
+/dev/disk7s1 on /private/var/folders/n6/hn37q6pj7sj_9dmqqc2113800000gn/T/tb03c-fin2-hfs.nwXGWF/e (hfs, local, nodev, nosuid, noowners, nobrowse, mounted by runner)
+/dev/disk8s1 on /private/var/folders/n6/hn37q6pj7sj_9dmqqc2113800000gn/T/tb03c-fin2-hfs.nwXGWF/b0 (hfs, local, nodev, nosuid, noowners, nobrowse, mounted by runner)
+/dev/disk9s1 on /private/var/folders/n6/hn37q6pj7sj_9dmqqc2113800000gn/T/tb03c-fin2-hfs.nwXGWF/b1 (hfs, local, nodev, nosuid, noowners, nobrowse, mounted by runner)
+/dev/disk10s1 on /private/var/folders/n6/hn37q6pj7sj_9dmqqc2113800000gn/T/tb03c-fin2-hfs.nwXGWF/b2 (hfs, local, nodev, nosuid, noowners, nobrowse, mounted by runner)

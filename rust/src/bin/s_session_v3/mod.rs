@@ -39,7 +39,15 @@ use std::collections::BTreeSet;
 mod atomic_init;
 #[cfg(test)]
 mod atomic_init_tests;
-mod audit_budget;
+// #1527 提案：admission 由根协调恢复/资源 provider，当前基线无此模块。
+// M-01：WriterScope::admit 独占 StartedAdmission，provider 仅收
+// &mut AdmissionAccounting<'_>；禁止导出 &mut Job 或用新 Job 替代原账。
+// 原账 finish 成功且源身份后置核验完成，才保存 lease 并设置 admitted。
+pub(crate) mod admission;
+pub(crate) mod admission_anchor;
+mod admission_private;
+mod admission_provider;
+pub(crate) mod audit_budget;
 mod audit_header;
 pub(super) mod audit_owner;
 #[cfg(feature = "s_capture_native_testonly")]
@@ -94,6 +102,8 @@ mod s_allocation;
 mod source_audit;
 mod state;
 mod writer_cli;
+#[cfg(test)]
+pub(crate) use admission_private::test_with_mixed_entry;
 
 /// 本模块唯一负责的协议版本。
 pub(super) const PROTOCOL_REVISION: &str = "s-session/3";
@@ -133,6 +143,15 @@ fn require_current_writer_rule(rule: &str) -> Result<(), String> {
 
 /// 版本选择器分派：`Ok(true)` 表示本次调用已处理，调用方直接结束；无选择器时 `Ok(false)`。
 pub(super) fn dispatch(args: &[String]) -> Result<bool, String> {
+    dispatch_with_policy(args, true)
+}
+
+#[cfg(test)]
+pub(super) fn dispatch_fixture(args: &[String]) -> Result<bool, String> {
+    dispatch_with_policy(args, false)
+}
+
+fn dispatch_with_policy(args: &[String], production: bool) -> Result<bool, String> {
     let cmd = args.get(1).map(String::as_str).unwrap_or("");
     let mut positions = Vec::new();
     for (index, arg) in args.iter().enumerate() {
@@ -175,8 +194,18 @@ pub(super) fn dispatch(args: &[String]) -> Result<bool, String> {
         return Err("VersionUnsupported：Q3监听入口当前需要Unix平台".into());
     }
     if matches!(cmd, "serve" | "advance" | "recover") && value == PROTOCOL_REVISION {
-        if let Some(out) = writer_cli::run(args)? {
-            println!("{out}");
+        let out = if production {
+            writer_cli::run(args)?
+        } else {
+            #[cfg(test)]
+            {
+                writer_cli::run_fixture(args)?
+            }
+            #[cfg(not(test))]
+            unreachable!("fixture only exists in test builds")
+        };
+        if let Some(out) = out {
+            out.emit()?;
         }
         return Ok(true);
     }
@@ -1182,7 +1211,7 @@ mod tests {
 
         // 既有 v2 旧库同样拒绝（无热迁移）。
         let old = temp.path("v2.sqlite");
-        assert!(v2::dispatch(&init_args(&old, &clock)).unwrap());
+        assert!(v2::dispatch_fixture(&init_args(&old, &clock)).unwrap());
         let old_before = std::fs::read(&old).unwrap();
         assert!(init_v3(
             &old,
@@ -1321,7 +1350,7 @@ mod tests {
         // v2 旧域：reset 仍沿旧行为（先删后建 v1），不因本次加固改变。
         let v2_db = temp.path("v2-old.sqlite");
         let clock = write_clock(&temp, "ns");
-        assert!(v2::dispatch(&init_args(&v2_db, &clock)).unwrap());
+        assert!(v2::dispatch_fixture(&init_args(&v2_db, &clock)).unwrap());
         cmd_reset(&v2_db, "v2-reset", &catalog).unwrap();
         let conn = open_db(&v2_db).unwrap();
         assert!(meta_get_opt(&conn, "protocol_revision").unwrap().is_none());
@@ -1444,7 +1473,7 @@ mod tests {
         let plain_db = temp.path("plain.sqlite");
         let plain = init_args(&plain_db, &clock);
         assert!(!dispatch(&plain).unwrap());
-        assert!(v2::dispatch(&plain).unwrap());
+        assert!(v2::dispatch_fixture(&plain).unwrap());
         let conn = open_db(&plain_db).unwrap();
         assert_eq!(
             meta_get_opt(&conn, "protocol_revision").unwrap().as_deref(),
@@ -1590,11 +1619,11 @@ mod tests {
         let temp = Temp::new();
         let db = init_domain(&temp);
         let clock = write_clock(&temp, "ns");
-        assert!(cmd_advance(&db, DEFAULT_WRITER_EPOCH).is_err());
+        assert!(cmd_advance_fixture(&db, DEFAULT_WRITER_EPOCH).is_err());
         assert!(cmd_snapshot(&db, None).is_err());
         assert!(cmd_catalog(&db, None).is_err());
         assert!(cmd_query(&db, "testonly.ohlc|1|TEST.OHLC|event-1").is_err());
-        assert!(v2::dispatch(&init_args(&db, &clock)).is_err());
+        assert!(v2::dispatch_fixture(&init_args(&db, &clock)).is_err());
         let before = std::fs::read(&db).unwrap();
         assert!(init_v3(
             &db,
