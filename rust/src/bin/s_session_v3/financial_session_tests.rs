@@ -1720,9 +1720,10 @@ fn export_real_s3_w_fixture_for_q3() {
         ("chain_centers", bars[direction..body_end].to_vec(), 1, false),
         ("revision_withdraw", vec![revised], 2, false),
         ("revision_restore", vec![bars[top].clone()], 3, false),
-        ("reopen_writer_append", bars[body_end..].to_vec(), 1, true),
+        ("recovered_epoch2_append", bars[body_end..].to_vec(), 1, true),
     ];
-    let mut f = Fixture::with_clock_events(64, steps.len() as i64);
+    // 真实恢复：第 6 代提交（ns=62）之后、第 7 次接纳（ns=70）之前，纪元 1→2。
+    let mut f = Fixture::with_clock_plan(64, steps.len() as i64, &[("recover-1", 65)]);
     let mut stats = Vec::new();
     let count = |f: &Fixture, sql: &str, g: i64| -> Vec<(String, i64)> {
         let mut q = f.conn.prepare(sql).unwrap();
@@ -1734,7 +1735,7 @@ fn export_real_s3_w_fixture_for_q3() {
     for (i, (label, rows, revision, reopen)) in steps.iter().enumerate() {
         let n = i as i64 + 1;
         if *reopen {
-            f.reopen_writer();
+            f.recover_writer("2", "recover-1");
         }
         let rows: Vec<_> = rows
             .iter()
@@ -1764,13 +1765,14 @@ fn export_real_s3_w_fixture_for_q3() {
                 let kinds: serde_json::Map<String, Value> =
                     current.iter().map(|(k, c)| (k.clone(), json!(c))).collect();
                 stats.push(json!({"step":label,"generation":g.to_string(),"batch_id":receipt.batch_id.as_str(),
-                    "bars":rows.len(),"revision":revision,"reopened_writer":reopen,
+                    "bars":rows.len(),"revision":revision,"recovered_writer":reopen,
                     "current_by_kind":kinds,
                     "withdrawn_by_kind":withdrawn,"w_kinds_present":w_present,"ef_kinds_present":ef_present}));
             }
             Err(error) => {
                 stats.push(json!({"step":label,"bars":rows.len(),"revision":revision,"refused":error}));
-                break;
+                println!("Q3-STATS {}", canonical_json(&json!(stats)));
+                panic!("真实 S3 W 导出第 {n} 代（{label}）被拒：{error}");
             }
         }
     }
@@ -1820,6 +1822,7 @@ fn export_real_s3_w_fixture_for_q3() {
             row
         })
         .collect();
+    let writer_epoch = meta["writer_epoch"].clone();
     let export = json!({
         "provenance":{"kind":"TestOnly real S3 W-rule multi-cut export (init_v3 + real accept/Begin/commit, file WAL)",
             "test":"v3::financial_session::tests::export_real_s3_w_fixture_for_q3",
@@ -1835,4 +1838,33 @@ fn export_real_s3_w_fixture_for_q3() {
     println!("{text}");
     println!("=====Q3-REAL-S3-EXPORT-END=====");
     println!("Q3-STATS {}", canonical_json(&json!(stats)));
+    // 验收覆盖（导出已打印后再断言，失败时数据仍可取回）：各代均已发布；W 等待期两 kind 出现；
+    // 中枢与中枢对非空；修订代确有撤回；恢复后纪元 2 的一代已发布。
+    assert_eq!(stats.len(), steps.len(), "每一代都必须真实发布");
+    let has = |i: usize, key: &str, kind: &str| {
+        stats[i][key]
+            .as_object()
+            .is_some_and(|m| m.get(kind).and_then(Value::as_i64).unwrap_or(0) > 0)
+    };
+    assert!(has(1, "current_by_kind", "CC-004.undetermined_raw"), "等待期缺未定原件");
+    assert!(has(1, "current_by_kind", "CC-004.initialization"), "等待期缺初始化事实");
+    assert!(
+        (0..stats.len()).any(|i| has(i, "current_by_kind", "CC-016.center")),
+        "全程无非空中枢"
+    );
+    assert!(
+        (0..stats.len()).any(|i| has(i, "current_by_kind", "CC-020.center_pair")),
+        "全程无中枢对"
+    );
+    assert!(
+        stats[4]["withdrawn_by_kind"]
+            .as_object()
+            .is_some_and(|m| !m.is_empty()),
+        "修订代无撤回"
+    );
+    assert_eq!(
+        writer_epoch,
+        json!("2"),
+        "恢复必须真实递增写者纪元"
+    );
 }
