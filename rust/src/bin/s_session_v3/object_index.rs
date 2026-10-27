@@ -4869,6 +4869,7 @@ mod tests {
         c.execute_batch(crate::SCHEMA).unwrap();
         c.execute_batch(crate::v2::SCHEMA_V2).unwrap();
         meta_set(&c, "protocol_revision", "s-session/3").unwrap();
+        meta_set(&c, "rule_revision", crate::V3_RULE_REVISION).unwrap();
         c.execute(
             "INSERT INTO s_protocol_meta VALUES(1,'s-session/3','1','test','{}',1,'0')",
             [],
