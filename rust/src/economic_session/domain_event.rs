@@ -224,7 +224,7 @@ fn writer_epoch_at(epochs: &[(i64, i64)], ns: &str) -> Result<i64, String> {
     let n = nonnegative(ns, "commit_ns")?;
     let mut found = None;
     for &(epoch, at) in epochs {
-        if at < n || epoch == 1 && at == n {
+        if at < n || (epoch == 1 && at == n) {
             found = Some(epoch);
         } else if at == n {
             return Err(
@@ -388,11 +388,12 @@ fn events_in(
             .as_array()
             .map(|a| a.iter().map(|k| json!({"fact_key":k})).collect())
             .unwrap_or_default()
-    } else if let (Some((k, _)), false) = (&fact, config.domain == "E") {
-        // B 的应用以 E 已提交原事实为前件。
-        vec![json!({"fact_key":k})]
     } else {
-        Vec::new()
+        match &fact {
+            // B 的应用以 E 已提交原事实为前件。
+            Some((k, _)) if config.domain != "E" => vec![json!({"fact_key":k})],
+            _ => Vec::new(),
+        }
     };
     let transition = if event["kind"] == "BindVoice" {
         let (from, to) = (

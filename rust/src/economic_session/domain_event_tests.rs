@@ -20,12 +20,12 @@ fn manifest(space: &Space, steps: usize) -> Value {
         );
     };
     for i in 0..steps {
-        let i64_i = i as i64;
-        clock(format!("cap-{i}"), 1000 + 10 * i64_i);
-        clock(format!("app-{i}"), 5000 + 10 * i64_i);
+        let offset = 10 * i as i64;
+        clock(format!("cap-{i}"), 1000 + offset);
+        clock(format!("app-{i}"), 5000 + offset);
         // 恢复之后的晚到步：时刻晚于 recover_ns。
-        clock(format!("late-cap-{i}"), 100_000 + 10 * i64_i);
-        clock(format!("late-app-{i}"), 200_000 + 10 * i64_i);
+        clock(format!("late-cap-{i}"), 100_000 + offset);
+        clock(format!("late-app-{i}"), 200_000 + offset);
     }
     json!({"schema_revision":"economic-manifest/1","session_id":SESSION,"session_generation":"1","book_revision":"tb03c-book/1",
         "e":{"db":space.0.join("e.db"),"socket":space.0.join("e.sock")},
