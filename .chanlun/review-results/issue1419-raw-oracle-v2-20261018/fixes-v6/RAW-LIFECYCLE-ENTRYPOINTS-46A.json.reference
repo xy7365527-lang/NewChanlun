@@ -1,0 +1,833 @@
+{
+  "classification": "1419工作草稿，只读AST入口索引，不是正确性证明",
+  "source": "46a11d1cbdeecab3444efbfd324be29a73ecb293",
+  "modules": [
+    {
+      "path": "driver/driver_v2.py",
+      "source": "46a11d1cbdeecab3444efbfd324be29a73ecb293",
+      "sha256": "1cb02275c511afe68321a0b6006eae5e411e05255478232c0d891ff4d1cce0f8",
+      "functions": [
+        {
+          "name": "plain",
+          "line": 57,
+          "calls": [
+            "graph.budget.charge",
+            "int",
+            "isinstance",
+            "plain",
+            "require",
+            "v.items",
+            "v.token.lstrip",
+            "v.token.lstrip('-').isdigit"
+          ]
+        },
+        {
+          "name": "records",
+          "line": 73,
+          "calls": [
+            "graph.budget.charge",
+            "graph.decode",
+            "isinstance",
+            "out.append",
+            "payload.get",
+            "plain",
+            "r.get",
+            "require",
+            "selected.append",
+            "verified.get"
+          ]
+        },
+        {
+          "name": "compare_domain",
+          "line": 97,
+          "calls": [
+            "a.get",
+            "all",
+            "attempt_ids.add",
+            "bi_ids.add",
+            "bykind.get",
+            "bykind.setdefault",
+            "bykind.setdefault(r['kind'], []).append",
+            "center_map.values",
+            "d.get",
+            "dict",
+            "e.get",
+            "e['contributors'].get",
+            "e['matrix16'].items",
+            "endpoint",
+            "equal",
+            "expected_centers.get",
+            "fields",
+            "formation",
+            "isinstance",
+            "len",
+            "list",
+            "mapped",
+            "next",
+            "nullable",
+            "object_id_set.add",
+            "r.get",
+            "range",
+            "records",
+            "require",
+            "seen.add",
+            "segment_facts",
+            "set",
+            "str",
+            "tuple",
+            "unit_ref",
+            "want.update",
+            "xy.split",
+            "zip"
+          ]
+        },
+        {
+          "name": "compare_named_runs",
+          "line": 235,
+          "calls": [
+            "canonical",
+            "require",
+            "set"
+          ]
+        },
+        {
+          "name": "reject_live",
+          "line": 242,
+          "calls": [
+            "RuntimeError"
+          ]
+        },
+        {
+          "name": "compare_first_visibility",
+          "line": 245,
+          "calls": [
+            "canonical",
+            "enumerate",
+            "expected.update",
+            "first.setdefault",
+            "hashlib.sha256",
+            "hashlib.sha256(canonical(bars[:count])).hexdigest",
+            "len",
+            "mapped",
+            "natural",
+            "plain",
+            "records",
+            "require",
+            "str",
+            "tuple",
+            "verified['graph'].decode",
+            "zip"
+          ]
+        },
+        {
+          "name": "closed_snapshot",
+          "line": 13,
+          "calls": [
+            "Graph",
+            "WorkBudget",
+            "canonical",
+            "close_projection",
+            "deque",
+            "enqueue",
+            "enumerate",
+            "graph.resolve",
+            "hasattr",
+            "int",
+            "len",
+            "pages.append",
+            "projection",
+            "queue.append",
+            "queue.popleft",
+            "require",
+            "seen.add",
+            "self.content",
+            "self.snapshot",
+            "set",
+            "str",
+            "work_budget.charge",
+            "work_budget.iter",
+            "work_budget.scan"
+          ]
+        },
+        {
+          "name": "unit_ref",
+          "line": 155,
+          "calls": [
+            "equal",
+            "mapped",
+            "want.update"
+          ]
+        },
+        {
+          "name": "enqueue",
+          "line": 40,
+          "calls": [
+            "len",
+            "queue.append",
+            "require",
+            "work_budget.charge"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "driver/fixed_cut_driver.py",
+      "source": "46a11d1cbdeecab3444efbfd324be29a73ecb293",
+      "sha256": "202711033c9c99e4fd831241248a862668c2153661e2903807f6017dd0987191",
+      "functions": [
+        {
+          "name": "canonical",
+          "line": 28,
+          "calls": [
+            "json.dumps",
+            "json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'), allow_nan=False).encode"
+          ]
+        },
+        {
+          "name": "sha",
+          "line": 32,
+          "calls": [
+            "hashlib.sha256",
+            "hashlib.sha256(value).hexdigest"
+          ]
+        },
+        {
+          "name": "require",
+          "line": 36,
+          "calls": [
+            "ValueError"
+          ]
+        },
+        {
+          "name": "strict_load",
+          "line": 41,
+          "calls": [
+            "ValueError",
+            "json.loads",
+            "require"
+          ]
+        },
+        {
+          "name": "exact",
+          "line": 53,
+          "calls": [
+            "isinstance",
+            "require",
+            "set"
+          ]
+        },
+        {
+          "name": "natural",
+          "line": 57,
+          "calls": [
+            "int",
+            "isinstance",
+            "re.fullmatch",
+            "require"
+          ]
+        },
+        {
+          "name": "bind_named_submissions",
+          "line": 62,
+          "calls": [
+            "all",
+            "canonical",
+            "deepcopy",
+            "exact",
+            "isinstance",
+            "len",
+            "natural",
+            "require",
+            "seen.add",
+            "set",
+            "sha",
+            "str",
+            "zip"
+          ]
+        },
+        {
+          "name": "checksum",
+          "line": 89,
+          "calls": [
+            "bool",
+            "canonical",
+            "exact",
+            "re.fullmatch",
+            "require",
+            "sha",
+            "token.items"
+          ]
+        },
+        {
+          "name": "compare_expected",
+          "line": 316,
+          "calls": [
+            "actual.get",
+            "canonical",
+            "expected.get",
+            "isinstance",
+            "len",
+            "require"
+          ]
+        },
+        {
+          "name": "compare_replay_bytes",
+          "line": 328,
+          "calls": [
+            "differences.append",
+            "isinstance",
+            "len",
+            "require",
+            "set",
+            "sha",
+            "sorted"
+          ]
+        },
+        {
+          "name": "main",
+          "line": 340,
+          "calls": [
+            "SystemExit",
+            "argparse.ArgumentParser",
+            "args.contract.read_bytes",
+            "json.dumps",
+            "parser.add_argument",
+            "parser.parse_args",
+            "print",
+            "require",
+            "strict_load"
+          ]
+        },
+        {
+          "name": "pairs",
+          "line": 42,
+          "calls": [
+            "require"
+          ]
+        },
+        {
+          "name": "invalid",
+          "line": 48,
+          "calls": [
+            "ValueError"
+          ]
+        },
+        {
+          "name": "__init__",
+          "line": 98,
+          "calls": [
+            "clock",
+            "require",
+            "type"
+          ]
+        },
+        {
+          "name": "check",
+          "line": 103,
+          "calls": [
+            "require",
+            "self.clock"
+          ]
+        },
+        {
+          "name": "charge",
+          "line": 106,
+          "calls": [
+            "require",
+            "self.check",
+            "type"
+          ]
+        },
+        {
+          "name": "__init__",
+          "line": 114,
+          "calls": [
+            "Path",
+            "deepcopy",
+            "exact",
+            "natural",
+            "require",
+            "self.output.mkdir"
+          ]
+        },
+        {
+          "name": "work",
+          "line": 123,
+          "calls": [
+            "budget.charge",
+            "budget.scan",
+            "getattr",
+            "self.budget.check"
+          ]
+        },
+        {
+          "name": "call",
+          "line": 129,
+          "calls": [
+            "canonical",
+            "exact",
+            "len",
+            "prefix.with_suffix",
+            "prefix.with_suffix('.meta.json').write_bytes",
+            "prefix.with_suffix('.reply').write_bytes",
+            "prefix.with_suffix('.request').write_bytes",
+            "reply['payload'].get",
+            "require",
+            "self.budget.charge",
+            "self.budget.check",
+            "self.exchange",
+            "self.work",
+            "sha",
+            "str",
+            "strict_load"
+          ]
+        },
+        {
+          "name": "snapshot",
+          "line": 167,
+          "calls": [
+            "Counter",
+            "FAMILIES.index",
+            "all",
+            "bool",
+            "canonical",
+            "checksum",
+            "deepcopy",
+            "exact",
+            "isinstance",
+            "len",
+            "min",
+            "natural",
+            "re.fullmatch",
+            "require",
+            "rows.append",
+            "seen.add",
+            "self.call",
+            "self.work",
+            "set",
+            "str",
+            "sum",
+            "type"
+          ]
+        },
+        {
+          "name": "content",
+          "line": 225,
+          "calls": [
+            "checksum",
+            "deepcopy",
+            "exact",
+            "min",
+            "natural",
+            "pages.append",
+            "require",
+            "self.call",
+            "self.work",
+            "str",
+            "type",
+            "{'anchor': anchor, 'path': path, 'target_ref': target, 'unit': unit, 'offset': str(end), 'limit': str(limit), 'issued_capture_digest': issued}.items"
+          ]
+        },
+        {
+          "name": "watch",
+          "line": 258,
+          "calls": [
+            "'deltas next_cursor observed_head delivery_frontier has_more gap validated_capture_digest ok'.split",
+            "accepted_commits.get",
+            "all",
+            "cursor.update",
+            "deepcopy",
+            "exact",
+            "isinstance",
+            "len",
+            "min",
+            "natural",
+            "require",
+            "results.append",
+            "seen_commits.add",
+            "self.call",
+            "set",
+            "str"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "driver/content_closure.py",
+      "source": "46a11d1cbdeecab3444efbfd324be29a73ecb293",
+      "sha256": "65aa1aa87939bb11a019c215a636f46a01ef4045bc3f4a2276fce5940f713d82",
+      "functions": [
+        {
+          "name": "u64",
+          "line": 17,
+          "calls": [
+            "n.to_bytes",
+            "require",
+            "type"
+          ]
+        },
+        {
+          "name": "frame",
+          "line": 22,
+          "calls": [
+            "bytes",
+            "hashlib.sha256",
+            "hashlib.sha256(DOMAIN + bytes([tag]) + u64(len(body)) + body).hexdigest",
+            "len",
+            "u64"
+          ]
+        },
+        {
+          "name": "root_bytes",
+          "line": 26,
+          "calls": [
+            "bytes.fromhex",
+            "isinstance",
+            "re.fullmatch",
+            "require"
+          ]
+        },
+        {
+          "name": "ref_check",
+          "line": 46,
+          "calls": [
+            "int",
+            "re.fullmatch",
+            "require",
+            "root_bytes",
+            "set",
+            "type",
+            "u64"
+          ]
+        },
+        {
+          "name": "header_from_raw",
+          "line": 153,
+          "calls": [
+            "ValueError",
+            "int.from_bytes",
+            "len",
+            "require"
+          ]
+        },
+        {
+          "name": "projection",
+          "line": 296,
+          "calls": [
+            "Edge",
+            "Encoder",
+            "FAMILIES.index",
+            "all",
+            "canonical",
+            "counts.items",
+            "dict",
+            "enc.encode",
+            "enc.nodes.values",
+            "frame",
+            "len",
+            "list",
+            "require",
+            "root_bytes",
+            "seen.add",
+            "set",
+            "str",
+            "sum",
+            "value.update",
+            "work_budget.charge",
+            "work_budget.scan"
+          ]
+        },
+        {
+          "name": "close_projection",
+          "line": 320,
+          "calls": [
+            "Graph",
+            "WorkBudget",
+            "chain",
+            "graph.byte_value",
+            "graph.byte_value(target)[start:end].hex",
+            "graph.checked",
+            "graph.decode",
+            "graph.entries",
+            "graph.resolve",
+            "int",
+            "isinstance",
+            "len",
+            "map",
+            "page_nodes",
+            "projection",
+            "require",
+            "work_budget.charge",
+            "work_budget.iter",
+            "work_budget.scan"
+          ]
+        },
+        {
+          "name": "__init__",
+          "line": 57,
+          "calls": [
+            "self.charge"
+          ]
+        },
+        {
+          "name": "charge",
+          "line": 62,
+          "calls": [
+            "self.budget.charge"
+          ]
+        },
+        {
+          "name": "add",
+          "line": 66,
+          "calls": [
+            "body.hex",
+            "frame",
+            "len",
+            "root_bytes",
+            "self.charge"
+          ]
+        },
+        {
+          "name": "merkle",
+          "line": 72,
+          "calls": [
+            "(n - 1).bit_length",
+            "len",
+            "self.add",
+            "self.charge",
+            "self.merkle",
+            "u64"
+          ]
+        },
+        {
+          "name": "encode",
+          "line": 80,
+          "calls": [
+            "Number",
+            "ValueError",
+            "all",
+            "isinstance",
+            "k.encode",
+            "len",
+            "len(v).bit_length",
+            "max",
+            "range",
+            "re.fullmatch",
+            "ref_check",
+            "require",
+            "root.hex",
+            "root_bytes",
+            "self.add",
+            "self.charge",
+            "self.encode",
+            "self.merkle",
+            "sorted",
+            "str",
+            "token.encode",
+            "type",
+            "u64",
+            "v.ref.copy"
+          ]
+        },
+        {
+          "name": "__init__",
+          "line": 113,
+          "calls": [
+            "require",
+            "type"
+          ]
+        },
+        {
+          "name": "charge",
+          "line": 117,
+          "calls": [
+            "require",
+            "self.check",
+            "type"
+          ]
+        },
+        {
+          "name": "iter",
+          "line": 125,
+          "calls": [
+            "iter",
+            "next",
+            "self.charge"
+          ]
+        },
+        {
+          "name": "scan",
+          "line": 135,
+          "calls": [
+            "chain",
+            "isinstance",
+            "item.keys",
+            "item.values",
+            "iter",
+            "len",
+            "next",
+            "require",
+            "self.charge",
+            "stack.append",
+            "stack.pop"
+          ]
+        },
+        {
+          "name": "__init__",
+          "line": 170,
+          "calls": [
+            "WorkBudget",
+            "bytes.fromhex",
+            "frame",
+            "header_from_raw",
+            "int",
+            "isinstance",
+            "len",
+            "re.fullmatch",
+            "require",
+            "root_bytes",
+            "self.budget.charge",
+            "self.budget.iter",
+            "set",
+            "type"
+          ]
+        },
+        {
+          "name": "work",
+          "line": 202,
+          "calls": []
+        },
+        {
+          "name": "node",
+          "line": 204,
+          "calls": [
+            "require",
+            "self.budget.charge"
+          ]
+        },
+        {
+          "name": "ref",
+          "line": 210,
+          "calls": [
+            "int",
+            "int.from_bytes",
+            "len",
+            "require",
+            "self.node",
+            "str",
+            "u64"
+          ]
+        },
+        {
+          "name": "checked",
+          "line": 218,
+          "calls": [
+            "ref_check",
+            "require",
+            "self.budget.charge",
+            "self.ref"
+          ]
+        },
+        {
+          "name": "r",
+          "line": 224,
+          "calls": [
+            "b.hex"
+          ]
+        },
+        {
+          "name": "leaves",
+          "line": 226,
+          "calls": [
+            "(n - 1).bit_length",
+            "int.from_bytes",
+            "len",
+            "require",
+            "self.leaves",
+            "self.node",
+            "self.r"
+          ]
+        },
+        {
+          "name": "entries",
+          "line": 234,
+          "calls": [
+            "int",
+            "key.encode",
+            "last.encode",
+            "len",
+            "out.append",
+            "require",
+            "self.checked",
+            "self.decode",
+            "self.leaves",
+            "self.node",
+            "self.r",
+            "self.ref"
+          ]
+        },
+        {
+          "name": "byte_value",
+          "line": 248,
+          "calls": [
+            "b''.join",
+            "enumerate",
+            "int",
+            "len",
+            "min",
+            "out.append",
+            "require",
+            "self.checked",
+            "self.leaves",
+            "self.node",
+            "self.r"
+          ]
+        },
+        {
+          "name": "decode",
+          "line": 257,
+          "calls": [
+            "JSONText",
+            "Number",
+            "ValueError",
+            "re.fullmatch",
+            "require",
+            "self.byte_value",
+            "self.byte_value(ref).decode",
+            "self.checked",
+            "self.decode",
+            "self.entries",
+            "self.node",
+            "self.r",
+            "self.ref"
+          ]
+        },
+        {
+          "name": "resolve",
+          "line": 279,
+          "calls": [
+            "ValueError",
+            "int",
+            "len",
+            "re.fullmatch",
+            "require",
+            "self.budget.iter",
+            "self.checked",
+            "self.entries",
+            "self.node",
+            "self.r",
+            "self.ref",
+            "type"
+          ]
+        },
+        {
+          "name": "page_nodes",
+          "line": 328,
+          "calls": [
+            "work_budget.iter"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -20,6 +20,7 @@ from pathlib import Path
 
 from s_socket_client import decode_frame, exchange, validate_reply
 from recovery_admission import AdmissionError, RecoveryAdmission
+from v2_seed import require_seed_binary
 
 S_RESOURCE_FIELDS = {"max_frame_bytes", "read_timeout_ms", "write_timeout_ms", "response_timeout_ms",
                      "audit_cache_source_bytes", "queue_capacity", "max_connections"}
@@ -634,6 +635,8 @@ class Controller:
         config = self.config
         deadline = self.admission_deadline
         s3 = launcher_revision(config) == "s-launcher/3"
+        if not s3:  # #1419：s-launcher/2 写 v2 库，只许种子构建
+            require_seed_binary(config["binary"])
         validate_s_resources(config)
         positive(writer_epoch, "writer_epoch")
         if "admission_job_limits" in config:
@@ -767,6 +770,8 @@ class Controller:
             raise ValueError("须有本控制器记录且已确认原 S 停止，才可恢复换代")
         positive(new_epoch, "new_epoch")
         config = self.config
+        if launcher_revision(config) != "s-launcher/3":  # #1419：s-launcher/2 换代写 v2 库，只许种子构建
+            require_seed_binary(config["binary"])
         self._action_stage = "admission"
         if "admission_job_limits" in config:
             self.admission.crosscheck_limits(config["admission_job_limits"])

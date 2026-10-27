@@ -398,7 +398,7 @@ pub(crate) fn append_incr_layer(
     bar: Bar,
     parse_config: &super::config::ParseConfig,
 ) -> ParseLayer {
-    // 旧包含状态没有本票的初始未定与极值根事实；只保留调用者字段兼容。
+    // #1393：生产只推进 IncrStrokes 持有的同源 W 状态；旧字段保留调用合同。
     let _ = incr_inclusion;
     let previous_strokes_len = incr_strokes.to_result().len();
     incr_strokes.append_bar_incremental(bar);
@@ -590,6 +590,9 @@ mod tb1493_replay_tests;
 pub(crate) mod tb1581_tests;
 #[cfg(test)]
 mod tb1604_tests;
+
+#[cfg(test)]
+mod tb02u_tests;
 
 #[cfg(test)]
 mod tests {

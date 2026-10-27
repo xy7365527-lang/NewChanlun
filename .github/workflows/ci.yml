@@ -365,6 +365,34 @@ jobs:
         if: ${{ !cancelled() && matrix.group == 'content' }}
         run: ../.github/scripts/check-compile-negatives-1394.sh
 
+      # #1419 裁定（issuecomment-6265726014）：v2 写者机械锁，发布构建（只开 s_session）。
+      #   ① 可达性：v2 核心写函数（init/accept/advance/recover_core）在源码以 cfg 条件 expect(dead_code) 标注；
+      #      -D unfulfilled_lint_expectations 让任何新接上的生产调用路径直接编译失败。入口函数（cmd_*、
+      #      v2 init_v2/serve/handle）在非测试、非种子构建里不存在（cfg 门）。
+      #   ② 发布构建未开 s_v2_seed_testonly：release 下该 feature 本就 compile_error；再对产物断言种子自报
+      #      子命令为「未知子命令」，全部 v2 写子命令返回退役错误且不建库。
+      - name: v2 写者机械锁 — 发布构建（#1419）
+        if: always()
+        env:
+          RUSTFLAGS: -D unfulfilled_lint_expectations
+        run: |
+          set -euo pipefail
+          ../.github/scripts/run-cargo-with-telemetry.sh cargo build --locked --release --features s_session --bin s_structure_session --jobs 1
+          bin=target/release/s_structure_session
+          lock_dir=$(mktemp -d)
+          if "$bin" v2-seed-info >"$lock_dir/out" 2>"$lock_dir/err"; then
+            echo "发布构建认 v2-seed-info：s_v2_seed_testonly 被打开"; exit 1
+          fi
+          grep -q '未知子命令' "$lock_dir/err" || { cat "$lock_dir/err"; exit 1; }
+          for sub in init reset accept advance recover serve; do
+            if "$bin" "$sub" --db "$lock_dir/v2.db" --session lock --catalog ../s_session/catalog/signed-catalog.json \
+                >"$lock_dir/out" 2>"$lock_dir/err"; then
+              echo "发布构建 $sub 未拒"; exit 1
+            fi
+            grep -q 'v2 结构写者已退役' "$lock_dir/err" || { echo "$sub:"; cat "$lock_dir/err"; exit 1; }
+          done
+          test ! -e "$lock_dir/v2.db"
+
       # #1394 C：内容编码在 s_session feature 下供多个 owner 共用；只测 S bin 不会执行库测试。
       - name: cargo test — 完整内容编码与共享图校验（#1394）
         if: ${{ !cancelled() && matrix.group == 'content' }}
@@ -886,6 +914,11 @@ jobs:
       - name: Build formal (lake build)
         # formal/lean-toolchain 固定 leanprover/lean4:v4.31.0，elan 首次调用自动装该工具链
         run: lake build
+        working-directory: formal
+
+      # #1393：此单文件不在 lake 默认 roots；常规 CI 必须持续显式核验。
+      - name: Check raw inclusion initialization (Lean, #1393)
+        run: lake env lean Origin/RawInclusionInitialization.lean
         working-directory: formal
 
       - name: Fixture drift check (Lean → fixtures)

@@ -59,6 +59,7 @@ pub(super) mod business_json;
 mod capture;
 mod catalog_evidence;
 mod commit;
+pub(crate) mod content_structure;
 mod control;
 mod control_audit;
 #[cfg(feature = "s_capture_native_testonly")]
@@ -96,6 +97,7 @@ mod q_watch;
 mod q_wire;
 mod reader;
 mod request_audit;
+pub(crate) mod structure_value;
 #[cfg(feature = "s_capture_native_testonly")]
 pub(crate) use request_audit::ManifestWorkspaceBudget;
 mod s_allocation;
@@ -122,21 +124,12 @@ const V3_INIT_FLAGS: [&str; 8] = [
     "--clock-plan",
     "--delivery-retain-generations",
 ];
-/// 显式 `s-session/2` 必须齐全的初始化参数（与 `v2::dispatch` init 分支同一份合同）。
-const V2_INIT_FLAGS: [&str; 7] = [
-    "--db",
-    "--session",
-    "--catalog",
-    "--profile",
-    "--session-generation",
-    "--clock-plan",
-    "--delivery-retain-generations",
-];
 
-/// #1405：历史 /1 仅供 Q/AsKnown 读取；新 writer 不自动续写或恢复旧规则库。
+/// #1419/#1424：旧 A/B 及 /1 域仅供原版本读取；新 writer 不自动续写旧规则库。
+/// #1393：写者只写 CF22 的 W 后继串；CF22 本身只读 AsKnown。整串逐字比对，不剥后缀推断。
 fn require_current_writer_rule(rule: &str) -> Result<(), String> {
-    if rule != V3_RULE_REVISION {
-        return Err(format!("VersionUnsupported：S3写者要求规则 {V3_RULE_REVISION}，库中规则 {rule} 只可按原版本读取"));
+    if rule != W_STRUCTURE_RULE_REVISION {
+        return Err(format!("VersionUnsupported：S3写者要求规则 {W_STRUCTURE_RULE_REVISION}，库中规则 {rule} 只可按原版本读取"));
     }
     Ok(())
 }
@@ -241,20 +234,9 @@ fn dispatch_with_policy(args: &[String], production: bool) -> Result<bool, Strin
         return Ok(true);
     }
     if value == PREVIOUS_REVISION {
-        // 显式 s-session/2：强制走既有 v2 初始化；缺参不得回落旧 v1 入口（那会静默建错域）。
-        for key in V2_INIT_FLAGS {
-            if !args.iter().any(|a| a == key) {
-                return Err(format!(
-                    "VersionUnsupported：显式 {PREVIOUS_REVISION} 缺 {key}（v2 初始化合同要求全参）"
-                ));
-            }
-        }
-        if !v2::dispatch(args)? {
-            return Err(format!(
-                "VersionUnsupported：显式 {PREVIOUS_REVISION} 未进入 v2 初始化分派；拒绝回落旧域"
-            ));
-        }
-        return Ok(true);
+        // #1419 裁定②（issuecomment-6265209957）：显式 s-session/2 init 是 v2 写入口，一律拒绝；
+        // 不回落旧 v1 入口（那会静默建错域）。旧 v2 库只读 AsKnown。
+        return Err(crate::V2_WRITER_RETIRED.to_string());
     }
     Err(format!(
         "VersionUnsupported：未知协议版本选择 `{value}`；支持 {PREVIOUS_REVISION}（旧合同）与 {PROTOCOL_REVISION}（新域）"
@@ -526,8 +508,9 @@ fn build_domain(
     meta_set(&tx, "platform", std::env::consts::OS)?;
     meta_set(&tx, "writer_epoch", DEFAULT_WRITER_EPOCH)?;
     meta_set(&tx, "advance_state", "idle")?;
-    // #1394 整合 W-2：v3 只发布 TB-02-A/B，写自己的规则修订（见 `V3_RULE_REVISION`）。
-    meta_set(&tx, "rule_revision", V3_RULE_REVISION)?;
+    // #1419/#1424：只为新库声明 A…F 域，不改旧库原始规则身份。
+    // #1393：新库声明 W 后继串（CF22 轴 + W 初始化）；旧库保持原串只读。
+    meta_set(&tx, "rule_revision", W_STRUCTURE_RULE_REVISION)?;
     meta_set(
         &tx,
         "scope",
@@ -871,6 +854,73 @@ mod tests {
 
     const OHLC_PROFILE: &str = "profiles/ohlc_integer_tb02a_v1.json";
     const CATALOG: &str = "catalog/signed-catalog.json";
+
+    #[test]
+    fn structure_writer_does_not_rewrite_historical_rule_domains() {
+        assert!(require_current_writer_rule(W_STRUCTURE_RULE_REVISION).is_ok());
+        for historical in [
+            V3_STRUCTURE_RULE_REVISION,
+            V3_RULE_REVISION,
+            LEGACY_V3_RULE_REVISION,
+            RULE_REVISION,
+        ] {
+            assert!(require_current_writer_rule(historical)
+                .unwrap_err()
+                .starts_with("VersionUnsupported"));
+            assert!(tb02a_facts::CatalogAxisTable::for_rule_revision(historical).is_some());
+        }
+        assert!(tb02b::contract_for_rule(V3_STRUCTURE_RULE_REVISION).is_some());
+        assert_eq!(
+            tb02b::contract_for_rule(W_STRUCTURE_RULE_REVISION),
+            Some(tb02b::W_CONTRACT)
+        );
+    }
+
+    /// #1393：后继串只有一条显式映射；未知/重复/错序/跨 revision/剥后缀一律拒绝。
+    #[test]
+    fn w_successor_rule_is_exact_and_maps_to_cf22_axes() {
+        assert_eq!(
+            W_STRUCTURE_RULE_REVISION,
+            format!("{V3_STRUCTURE_RULE_REVISION}+raw-initialization-w/1")
+        );
+        assert!(is_structure_rule(W_STRUCTURE_RULE_REVISION));
+        assert!(is_structure_rule(V3_STRUCTURE_RULE_REVISION));
+        assert_eq!(
+            tb02a_facts::CatalogAxisTable::for_rule_revision(W_STRUCTURE_RULE_REVISION)
+                .unwrap()
+                .axes(),
+            tb02a_facts::CatalogAxisTable::for_rule_revision(V3_STRUCTURE_RULE_REVISION)
+                .unwrap()
+                .axes()
+        );
+        let base = "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1";
+        assert_eq!(base, V3_STRUCTURE_RULE_REVISION);
+        for rejected in [
+            "unknown".to_string(),
+            format!("{W_STRUCTURE_RULE_REVISION}+raw-initialization-w/1"),
+            "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+raw-initialization-w/1+center-pair/1".to_string(),
+            // #1419 recompose：重合成前的两串（段教义缺 #1493/#1604 组件）不再是任何写者或读表的规则。
+            "s2-axis-quantifiers+new-bi/2+segment-second/2+center-seed/1+center-pair/1".to_string(),
+            "s2-axis-quantifiers+new-bi/2+segment-second/2+center-seed/1+center-pair/1+raw-initialization-w/1".to_string(),
+            format!("{base}+raw-initialization-w/2"),
+            "s2-axis-quantifiers+new-bi/2+segment-second/2+raw-initialization-w/1".to_string(),
+            "s2-axis-quantifiers+new-bi/1+segment-second/1+raw-initialization-w/1".to_string(),
+            format!("{W_STRUCTURE_RULE_REVISION} "),
+        ] {
+            assert!(
+                require_current_writer_rule(&rejected)
+                    .unwrap_err()
+                    .starts_with("VersionUnsupported"),
+                "{rejected}"
+            );
+            assert!(tb02b::contract_for_rule(&rejected).is_none(), "{rejected}");
+            assert!(
+                tb02a_facts::CatalogAxisTable::for_rule_revision(&rejected).is_none(),
+                "{rejected}"
+            );
+            assert!(!is_structure_rule(&rejected), "{rejected}");
+        }
+    }
 
     struct Temp(PathBuf);
 

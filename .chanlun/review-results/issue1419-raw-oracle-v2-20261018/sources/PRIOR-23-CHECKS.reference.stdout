@@ -1,0 +1,28 @@
+test_nine_members_keep_upgrade_pending (test_preparation.DefinitionTests.test_nine_members_keep_upgrade_pending) ... ok
+test_outer_touch_is_expansion_not_newbirth (test_preparation.DefinitionTests.test_outer_touch_is_expansion_not_newbirth) ... ok
+test_strict_seed_rejects_point_core (test_preparation.DefinitionTests.test_strict_seed_rejects_point_core) ... ok
+test_two_centers_connector_and_tail_with_explicit_toy_only_scope (test_preparation.DefinitionTests.test_two_centers_connector_and_tail_with_explicit_toy_only_scope) ... ok
+test_zn_excludes_reverse_member_and_core_is_frozen (test_preparation.DefinitionTests.test_zn_excludes_reverse_member_and_core_is_frozen) ... ok
+test_absolute_deadline_does_not_reset (test_preparation.DriverTests.test_absolute_deadline_does_not_reset) ... ok
+test_complete_snapshot_preserves_raw_replies_and_all_six_counts (test_preparation.DriverTests.test_complete_snapshot_preserves_raw_replies_and_all_six_counts) ... ok
+test_content_continuation_and_closure_boundary (test_preparation.DriverTests.test_content_continuation_and_closure_boundary) ... ok
+test_content_foreign_anchor_rejected (test_preparation.DriverTests.test_content_foreign_anchor_rejected) ... ok
+test_cumulative_budget_does_not_reset_for_next_page (test_preparation.DriverTests.test_cumulative_budget_does_not_reset_for_next_page) ... ok
+test_duplicate_json_and_bad_payload_hash_rejected (test_preparation.DriverTests.test_duplicate_json_and_bad_payload_hash_rejected) ... ok
+test_duplicate_records_rejected (test_preparation.DriverTests.test_duplicate_records_rejected) ... ok
+test_early_done_rejected (test_preparation.DriverTests.test_early_done_rejected) ... ok
+test_foreign_causal_reply_rejected (test_preparation.DriverTests.test_foreign_causal_reply_rejected) ... ok
+test_incomplete_oracle_cannot_make_product_success (test_preparation.DriverTests.test_incomplete_oracle_cannot_make_product_success) ... ok
+test_missing_family_count_rejected (test_preparation.DriverTests.test_missing_family_count_rejected) ... ok
+test_mixed_cut_rejected_even_when_reply_hash_is_valid (test_preparation.DriverTests.test_mixed_cut_rejected_even_when_reply_hash_is_valid) ... ok
+test_replay_byte_difference_is_not_normalized_away (test_preparation.DriverTests.test_replay_byte_difference_is_not_normalized_away) ... ok
+test_validly_resigned_wrong_offset_rejected (test_preparation.DriverTests.test_validly_resigned_wrong_offset_rejected) ... ok
+test_watch_contiguous_link_and_requested_bound (test_preparation.DriverTests.test_watch_contiguous_link_and_requested_bound) ... ok
+test_watch_gap_is_not_success (test_preparation.DriverTests.test_watch_gap_is_not_success) ... ok
+test_watch_revision_affected_range_cannot_replace_frontier (test_preparation.DriverTests.test_watch_revision_affected_range_cannot_replace_frontier) ... ok
+test_watch_revision_cursor_uses_input_frontier_not_affected_seq_range (test_preparation.DriverTests.test_watch_revision_cursor_uses_input_frontier_not_affected_seq_range) ... ok
+
+----------------------------------------------------------------------
+Ran 23 tests in 0.017s
+
+OK

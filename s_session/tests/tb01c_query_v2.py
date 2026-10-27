@@ -19,12 +19,14 @@ import threading
 import time
 
 from tb01c_query_tests import resources, reader, query, audit, ROOT
+from v2_seed import require_seed_binary
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, required=True)
     args = parser.parse_args()
+    require_seed_binary(args.binary.resolve())
     with tempfile.TemporaryDirectory(prefix="tqv2-", dir="/tmp") as directory:
         base = Path(directory)
         db, endpoint = base/"s.sqlite", base/"s.sock"

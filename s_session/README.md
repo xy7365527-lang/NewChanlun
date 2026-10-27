@@ -17,9 +17,10 @@ S_LIBDIR="$("$S_PYTHON" -c 'import sysconfig; print(sysconfig.get_config_var("LI
 export LD_LIBRARY_PATH="$S_LIBDIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export DYLD_LIBRARY_PATH="$S_LIBDIR${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
 export CARGO_TARGET_DIR="$S_RUN_ROOT/build"
-cargo build --manifest-path "$S_REPO/rust/Cargo.toml" --release \
-  --features s_session --bin s_structure_session
-export S_BINARY="$CARGO_TARGET_DIR/release/s_structure_session"
+# #1419：s-launcher/2 写 v2 库，v2 写者只在 s_v2_seed_testonly 的 debug 构建存在（发布构建一律拒写）。
+cargo build --manifest-path "$S_REPO/rust/Cargo.toml" \
+  --features s_session,s_v2_seed_testonly --bin s_structure_session
+export S_BINARY="$CARGO_TARGET_DIR/debug/s_structure_session"
 "$S_PYTHON" -c 'import hashlib,os,pathlib; p=pathlib.Path(os.environ["S_BINARY"]); print(p,hashlib.sha256(p.read_bytes()).hexdigest())'
 ```
 

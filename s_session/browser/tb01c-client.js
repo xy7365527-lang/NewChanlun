@@ -2600,7 +2600,7 @@ if (typeof module !== 'object' || !module.exports) {
   });
 });
 
-/* exact source q3-typed.js SHA256 9cafe0184fe8bcb87f408b5a529d2c6e885aef26b20185f136fd4531f35be4f7 */
+/* exact source q3-typed.js SHA256 fa14d645a0fce739bc6a033068fa3b49af02f4793769de02ef2bee80ed1fdd1a */
 /* #1394：typed 与形态来源的同一判据；只把访问迁为完整异步 Value 遍历。 */
 (function (root, factory) {
   const api = factory(typeof module === "object" && module.exports ? require("./q3-values.js") : root.Q3Values);
@@ -2632,6 +2632,19 @@ if (typeof module !== 'object' || !module.exports) {
   TB02_KINDS.push(...BI_KINDS);
   const SEGMENT_KINDS = ["CC-011.segment_seed", "CC-012.feature_sequence", "CC-013.segment", "CC-055.segment_relation", "CC-055.segment_change", "CC-056.segment_version", "CC-011.seed_candidate"];
   TB02_KINDS.push(...SEGMENT_KINDS);
+  // #1393 W（raw-initialization-w/1）：新增 kind 仅此二者，归 CC-004 轴；字段逐字取 W 冻结源 de73545cbf。
+  const INITIALIZATION_POLICY = "raw-initialization-w/1";
+  const INITIALIZATION_KINDS = ["CC-004.initialization", "CC-004.undetermined_raw"];
+  const W_KNOWLEDGE_DOMAIN = "raw_adjacent_W_initialization";
+  TB02_KINDS.push(...INITIALIZATION_KINDS);
+  // #1393×#1419：完整规则串精确白名单——无后缀者即自身基规则；带 W 后缀者逐条显式映射，不剥后缀推断。
+  // 本表管 s-session/1 写者历史 cut 与 W 单域历史（主控裁定 (a)：v2 写者对新会话只读）。
+  const RULE_BASES = new Map(Object.keys(RULE_CONTRACTS).map(rule => [rule, rule]));
+  RULE_BASES.set("s2-axis-quantifiers+new-bi/1+segment-second/1+" + INITIALIZATION_POLICY, "s2-axis-quantifiers+new-bi/1+segment-second/1");
+  // 拒绝文本保留 CF 既有原因词与 W 的「完整规则组合」，两侧负控都按原文匹配。
+  function baseRule(rule, reason = "cut规则修订未声明") { need(typeof rule === "string" && RULE_BASES.has(rule), reason + "：未获准的完整规则组合"); return RULE_BASES.get(rule); }
+  async function initializationPolicy(p) { need(await eqField(p, "initialization_policy_revision", INITIALIZATION_POLICY), "初始化政策版本未声明"); }
+  async function directionState(p) { await enumValue(await field(p, "direction_state"), ["Undetermined", "Established"], "初始化方向状态未声明"); }
   const REF_KEYS = ["identity_key", "payload_hash", "receipt_id", "event_id", "input_revision", "revision", "seq", "source_coord"];
   const {need, keys, T, S, I, N, equal} = V;
   const field = (v, k) => V.field(v, k);
@@ -2707,7 +2720,15 @@ if (typeof module !== 'object' || !module.exports) {
     const p = await field(record, "payload");
     if (SEGMENT_KINDS.includes(kind)) validateSegmentPayload(kind, await plain(p));
     else if (BI_KINDS.includes(kind)) await validateBiPayload(kind, p);
-    else if (kind === TB02_KINDS[0]) {
+    else if (kind === "CC-004.initialization") {
+      await keys(p, ["initialization_policy_revision", "direction_state", "first_raw_pair"], "初始化");
+      await initializationPolicy(p); await directionState(p); const pair = await field(p, "first_raw_pair"); await directionEvidence(pair);
+      need((await eqField(p, "direction_state", "Undetermined")) === isNull(pair), "初始化状态与首对证据不一致");
+    } else if (kind === "CC-004.undetermined_raw") {
+      await keys(p, ["raw", "direction_state", "initialization_policy_revision", "pending_since_cut"], "未定原件");
+      await initializationPolicy(p); await barRef(await field(p, "raw"));
+      need(await eqField(p, "direction_state", "Undetermined") && await equal(await field(p, "pending_since_cut"), await field(record, "first_known_cut")), "未定状态/发生cut不符");
+    } else if (kind === TB02_KINDS[0]) {
       await keys(p, ["action", "incoming", "acc_before", "acc_after", "direction", "direction_evidence", "comparisons", "endpoint_order", "contains", "high_sources", "low_sources", "waiting_reasons"], "包含步骤");
       await enumValue(await field(p, "action"), ["seed", "establish_direction", "merge", "new_group", "waiting"], "步骤动作不符"); await barRef(await field(p, "incoming"));
       for (const k of ["acc_before", "acc_after"]) { const value = await field(p, k); if (!(isNull(value))) await barRef(value); }
@@ -2729,7 +2750,9 @@ if (typeof module !== 'object' || !module.exports) {
       const contains = await field(p, "contains"); need(["null", "bool"].includes(contains.kind), "contains 不是 bool/null");
       if (isNull(await field(p, "acc_before"))) need(count === 0n && await comparisons.length() === 0n && isNull(contains), "seed 虚构比较");
     } else if (kind === TB02_KINDS[1]) {
-      await keys(p, ["group_index", "group_anchor", "members", "open", "high", "low", "close", "high_sources", "low_sources", "confirmed", "direction", "direction_evidence", "confirmation_evidence", "waiting_reasons"], "包含组");
+      const extra = await V.of(p).has("initialization_policy_revision") ? ["initialization_policy_revision", "initial_direction_evidence"] : [];
+      await keys(p, ["group_index", "group_anchor", "members", "open", "high", "low", "close", "high_sources", "low_sources", "confirmed", "direction", "direction_evidence", "confirmation_evidence", "waiting_reasons", ...extra], "包含组");
+      if (extra.length) { await initializationPolicy(p); const initial = await field(p, "initial_direction_evidence"); await directionEvidence(initial); need(!isNull(initial), "W 正式组缺初始化证据"); }
       await I(await field(p, "group_index")); await I(await field(p, "group_anchor"));
       const members = await coordinates(await field(p, "members")), memberSet = await coordinateSet(members), firstMember = await members.items()[Symbol.asyncIterator]().next();
       need(!firstMember.done && await equal(firstMember.value, await field(p, "group_anchor")), "组首未绑定首成员");
@@ -2769,8 +2792,11 @@ if (typeof module !== 'object' || !module.exports) {
         }
       }
     } else {
-      await keys(p, ["scope", "input_frontier", "known_facts", "waiting_reasons", "domain", "requests"], "知识状态");
-      need(await eqField(p, "scope", "TB-02-A") && KNOWLEDGE_DOMAINS.includes(await S(await field(p, "domain"))) && await eqField(p, "known_facts", ["raw_ohlc", "inclusion_trace", "group_provenance"]), "知识域/已知事实不符");
+      const extra = await V.of(p).has("initialization_policy_revision") ? ["initialization_policy_revision", "direction_state"] : [];
+      await keys(p, ["scope", "input_frontier", "known_facts", "waiting_reasons", "domain", "requests", ...extra], "知识状态");
+      if (extra.length) { await initializationPolicy(p); await directionState(p); }
+      const domainValue = await S(await field(p, "domain"));
+      need(await eqField(p, "scope", "TB-02-A") && (extra.length ? domainValue === W_KNOWLEDGE_DOMAIN : KNOWLEDGE_DOMAINS.includes(domainValue)) && await eqField(p, "known_facts", ["raw_ohlc", "inclusion_trace", "group_provenance"]), "知识域/已知事实不符");
       await I(await field(p, "input_frontier"), false, true); await texts(await field(p, "waiting_reasons")); const requests = await array(await field(p, "requests"), "逐请求集合不完整"), ids = new Set();
       const enums = {input_quality:["SUFFICIENT", "INSUFFICIENT", "INCONSISTENT"], applicability:["IN_DOMAIN", "OUTSIDE_DOMAIN", "DOMAIN_PROOF_MISSING"], computation:["COMPLETE", "INCOMPLETE"], validity:["CURRENT", "SUPERSEDED", "WITHDRAWN"]};
       for await (const r of requests.items()) {
@@ -2779,7 +2805,7 @@ if (typeof module !== 'object' || !module.exports) {
         for (const k of Object.keys(enums)) await enumValue(await field(axes, k), enums[k], "请求四轴枚举不符"); await texts(await field(r, "reasons")); await coordinates(await field(r, "source_coords"));
       }
     }
-    const slot = [...BI_KINDS, ...SEGMENT_KINDS].includes(kind) ? await field(p, "slot") : kind === TB02_KINDS[0] ? await field(await field(p, "incoming"), "source_coord") : kind === TB02_KINDS[1] ? await field(p, "group_anchor") : kind === TB02_KINDS[2] ? await field(p, "window") : "TB-02-A";
+    const slot = kind === "CC-004.initialization" ? "W" : kind === "CC-004.undetermined_raw" ? await field(await field(p, "raw"), "source_coord") : [...BI_KINDS, ...SEGMENT_KINDS].includes(kind) ? await field(p, "slot") : kind === TB02_KINDS[0] ? await field(await field(p, "incoming"), "source_coord") : kind === TB02_KINDS[1] ? await field(p, "group_anchor") : kind === TB02_KINDS[2] ? await field(p, "window") : "TB-02-A";
     need(await canonicalMatches([kind, slot], await S(await field(record, "fact_key"))), "事实语义槽未绑定 payload");
   }
   // #1404/#1414/#1420：s-segment/1、/2、/3 段合同沿用已审同步判据（单一实现，含 K1 游标）。
@@ -3300,11 +3326,11 @@ if (typeof module !== 'object' || !module.exports) {
     need(await coords.length() === BigInt(all.size), "形态来源不是成员与构造/边界依据并集");
     for await (const coord of coords.items()) need(all.has(await S(coord)), "形态来源不是成员与构造/边界依据并集");
   }
-  return Object.freeze({RULE_CONTRACTS, validateTyped, validateBiPayload, validateSegmentPayload, turnLinks: (d, f) => segmentTurnLinks(d, f), PARSE_INVALID_REASON, RESULT_SEMANTIC_BRANCH, validateTB02ShapeRefs, plain,
+  return Object.freeze({RULE_CONTRACTS, RULE_BASES, baseRule, INITIALIZATION_POLICY, INITIALIZATION_KINDS, W_KNOWLEDGE_DOMAIN, validateTyped, validateBiPayload, validateSegmentPayload, turnLinks: (d, f) => segmentTurnLinks(d, f), PARSE_INVALID_REASON, RESULT_SEMANTIC_BRANCH, validateTB02ShapeRefs, plain,
     TB02_KINDS: Object.freeze(TB02_KINDS), BI_KINDS, SEGMENT_KINDS: Object.freeze(SEGMENT_KINDS)});
 });
 
-/* exact source q3-consumer.js SHA256 c1a9eefdc4b94f433f2dad0094fa478327718374d271505f8817c39655be6369 */
+/* exact source q3-consumer.js SHA256 2d6666f18cdd28e31b7a421cb77def254daa39a68d6c7aaddab327fa5ceb1a2d */
 /* #1394：Q3完整消费者；只供既有tb01c页面调用，没有产品路由或默认资源。 */
 (function (root, factory) {
   const common = typeof module === "object" && module.exports;
@@ -3715,11 +3741,99 @@ if (typeof module !== 'object' || !module.exports) {
       index++;
     }
   }
+  // #1393 W：W 字段中的原始 bar 必须逐值等于其八键引用的原始修订；逐发生边界核同 cut 初始化链接。
+  // #1393×#1419：typed 对象的规则版本绑定与内容身份（单对象判据；候选全量校验与公开入口共用）。
+  async function tb02Identity(record, rule, profile, protocol) {
+    const baseRule = typed.baseRule(rule), wPolicy = baseRule !== rule, kind = await t(record, "kind");
+    const [biSchema, segmentSchema, contractDomain] = typed.RULE_CONTRACTS[baseRule];
+    const domain = wPolicy ? typed.W_KNOWLEDGE_DOMAIN : contractDomain;
+    const payload = await f(record, "payload");
+    if (typed.INITIALIZATION_KINDS.includes(kind)) need(wPolicy, "旧规则cut混入W对象");
+    if (["CC-005.inclusion_group", "CC-054.knowledge_state"].includes(kind))
+      need(wPolicy === (await of(payload).has("initialization_policy_revision")), "初始化字段与cut规则不符");
+    if (typed.SEGMENT_KINDS.includes(kind))
+      need(await equal(await f(payload, "schema_revision"), segmentSchema), "段合同与cut规则版本不符");
+    if (typed.BI_KINDS.includes(kind))
+      need(await equal(await f(payload, "schema_revision"), biSchema), "新笔合同与cut规则版本不符");
+    if (kind === "CC-054.knowledge_state" && domain !== null)
+      need(await equal(await f(payload, "domain"), domain), "TB-02-A 知识域与cut规则版本不符");
+    const p = {};
+    for (const k of ["kind", "fact_key", "payload", "input_refs"]) p[k] = await f(record, k);
+    p.profile_id = profile;
+    p.rule_revision = rule;
+    return protocol === "s-session/3" ? await identity(0x20, p, "obj3-") : "obj-" + (await sha(p));
+  }
+  async function validateTB02Identity(record, fixed) {
+    need((await t(record, "object_id")) === (await tb02Identity(record, fixed.rule_revision, fixed.profile_id, fixed.protocol || "s-session/2")), "对象内容身份不符");
+  }
+  async function bindInitialization(snapshot, raw, wRecords) {
+    const ruleText = await s(snapshot, "rule_revision"),
+      wPolicy = typed.baseRule(ruleText) !== ruleText;
+    for (const r of wRecords) {
+      const refs = new Map(r.input_refs.map((x) => [x.source_coord, x])), p = r.payload, bars = [];
+      if (r.kind === "CC-004.undetermined_raw") bars.push(p.raw);
+      if (r.kind === "CC-004.initialization" && p.first_raw_pair !== null)
+        bars.push(p.first_raw_pair.previous_acc, p.first_raw_pair.incoming);
+      if (r.kind === "CC-005.inclusion_group")
+        bars.push(p.initial_direction_evidence.previous_acc, p.initial_direction_evidence.incoming);
+      for (const bar of bars) {
+        const ref = refs.get(bar.source_coord);
+        need(ref, "typed payload 使用未绑定的原始坐标");
+        const source = raw.byId.get(JSON.stringify([ref.identity_key, ref.revision]));
+        need(source, "typed payload 使用未绑定的原始坐标");
+        for (const k of ["source_coord", "open", "high", "low", "close"])
+          need(await s(source, k) === bar[k], "事实中原始 OHLC 值与真实源记录不符");
+      }
+    }
+    if (!wPolicy || (await s(snapshot, "generation")) === "0") return;
+    const current = await i(snapshot, "generation"), events = new Map(), active = new Map();
+    const event = (cut) => { const key = cut.toString(); if (!events.has(key)) events.set(key, {cut, born: [], died: []}); return events.get(key); };
+    event(1n); event(current);
+    for (const r of wRecords) {
+      event(BigInt(r.first_known_generation)).born.push(r);
+      if (r.withdrawn_generation !== null) event(BigInt(r.withdrawn_generation)).died.push(r);
+    }
+    // 逐发生边界投影历史活动集，撤回组不能借当前初始化对象通过校验。
+    for (const e of [...events.values()].filter((e) => e.cut <= current).sort((a, b) => a.cut < b.cut ? -1 : a.cut > b.cut ? 1 : 0)) {
+      for (const r of e.died) active.delete(r.object_id);
+      for (const r of e.born) active.set(r.object_id, r);
+      initializationLinks([...active.values()]);
+    }
+  }
+  function initializationLinks(records) {
+    const initial = records.filter((r) => r.kind === "CC-004.initialization");
+    need(initial.length === 1, "同 cut 缺少唯一初始化对象");
+    const p = initial[0].payload, initialRefs = new Map(initial[0].input_refs.map((r) => [r.source_coord, r]));
+    const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+    for (const record of records) {
+      if (record.kind === "CC-005.inclusion_group") {
+        need(p.direction_state === "Established" && same(record.payload.initial_direction_evidence, p.first_raw_pair), "组初始化证据与同 cut 初始化对象不一致");
+        const refs = new Map(record.input_refs.map((r) => [r.source_coord, r]));
+        for (const [coord, ref] of initialRefs) need(same(refs.get(coord), ref), "组初始化引用与同 cut 原始修订不同");
+      } else if (record.kind === "CC-004.undetermined_raw") {
+        need(p.direction_state === "Undetermined", "已定初始化混入未定原件");
+        for (const ref of record.input_refs) need(same(initialRefs.get(ref.source_coord), ref), "未定原件引用与同 cut 初始化不同");
+      } else if (record.kind === "CC-054.knowledge_state") {
+        need(record.payload.direction_state === p.direction_state, "知识方向状态与同 cut 初始化不同");
+      }
+    }
+  }
+  // #1393：W 初始化来源门的独立入口（只读 W 对象与其引用的原始修订；完整候选校验经 bindSources 调同一函数）。
+  async function validateTB02InitializationSources(snapshot) {
+    const plainSnapshot = await typed.plain(snapshot), byId = new Map();
+    for (const r of plainSnapshot.raw_history) byId.set(JSON.stringify([r.identity_key, r.revision]), of(r));
+    const wRecords = [...plainSnapshot.objects, ...plainSnapshot.withdrawn_objects].filter((r) =>
+      typed.INITIALIZATION_KINDS.includes(r.kind) || r.kind === "CC-054.knowledge_state" ||
+      (r.kind === "CC-005.inclusion_group" && Object.hasOwn(r.payload, "initialization_policy_revision")));
+    await bindInitialization(of(plainSnapshot), { byId }, wRecords);
+  }
   async function bindSources(snapshot, charge = () => {}) {
     const raw = await auditRaw(snapshot, charge),
       groups = new Map(),
       shapes = new Map(),
-      records = [];
+      records = [],
+      wRecords = [],
+      pendingCoords = [];
     for (const family of ["objects", "withdrawn_objects"])
       for await (const record of (await f(snapshot, family)).items()) {
         charge();
@@ -3759,6 +3873,13 @@ if (typeof module !== 'object' || !module.exports) {
             for (const name of ["raw_refs", "dependency_refs"])
               for await (const ref of (await f(group, name)).items())
                 await checkRef(ref);
+        if (typed.INITIALIZATION_KINDS.includes(kind) || kind === "CC-054.knowledge_state" ||
+            (kind === "CC-005.inclusion_group" && await of(await f(record, "payload")).has("initialization_policy_revision"))) {
+          // #1393 W：初始化相关对象收原件，供下方 raw 值绑定与逐发生边界链接校验。
+          wRecords.push(await typed.plain(record));
+        }
+        if (kind === "CC-004.undetermined_raw" && active)
+          pendingCoords.push(await s(await f(await f(record, "payload"), "raw"), "source_coord"));
         if (kind === "CC-005.inclusion_group") {
           const anchor = await s(await f(record, "payload"), "group_anchor");
           let versions = groups.get(anchor);
@@ -3790,6 +3911,12 @@ if (typeof module !== 'object' || !module.exports) {
         partition.add(coord);
       }
     }
+    // #1393 W：未定原件不进正式组；生效原始历史 = 组成员 ⊎ 活动未定原件（两两不交）。
+    for (const coord of pendingCoords) {
+      need(!partition.has(coord), "同cut组成员重叠");
+      partition.add(coord);
+    }
+    await bindInitialization(snapshot, raw, wRecords);
     need(
       partition.size === raw.effective.size &&
         [...partition].every((c) => raw.effective.has(c)),
@@ -4567,7 +4694,9 @@ if (typeof module !== 'object' || !module.exports) {
         ph = await s(snapshot, "profile_hash"),
         rule = await s(snapshot, "rule_revision");
       // 空会话也必须先声明已知规则，不能等首次发布才选择合同。
-      need(RULE_AXES.has(rule), "cut规则修订未声明");
+      // #1393×#1419：完整规则串先经精确白名单映射基规则（未知/剥后缀串在此拒绝）。
+      const baseRule = typed.baseRule(rule), wPolicy = baseRule !== rule;
+      need(RULE_AXES.has(baseRule), "cut规则修订未声明");
       if (generation === "0") {
         need(profile && /^[0-9a-f]{64}$/.test(ph), "cut0无冻结profile");
       } else {
@@ -4654,7 +4783,7 @@ if (typeof module !== 'object' || !module.exports) {
       if (generation !== "0")
         await keys(
           await f(await f(snapshot, "catalog_evidence"), "axes"),
-          RULE_AXES.get(rule),
+          RULE_AXES.get(baseRule),
           "cut规则目录轴",
         );
       await catalogValidate(catalog, snapshot);
@@ -4679,23 +4808,7 @@ if (typeof module !== 'object' || !module.exports) {
         }
         const kind = await t(record, "kind");
         if (typed.TB02_KINDS.includes(kind)) {
-          const [biSchema, segmentSchema, domain] = Object.hasOwn(typed.RULE_CONTRACTS, rule) ? typed.RULE_CONTRACTS[rule] : [null, null, null];
-          const payload = await f(record, "payload");
-          if (typed.SEGMENT_KINDS.includes(kind))
-            need(await equal(await f(payload, "schema_revision"), segmentSchema), "段合同与cut规则版本不符");
-          if (typed.BI_KINDS.includes(kind))
-            need(await equal(await f(payload, "schema_revision"), biSchema), "新笔合同与cut规则版本不符");
-          if (kind === "CC-054.knowledge_state" && domain !== null)
-            need(await equal(await f(payload, "domain"), domain), "TB-02-A 知识域与cut规则版本不符");
-          const p = {};
-          for (const k of ["kind", "fact_key", "payload", "input_refs"])
-            p[k] = await f(record, k);
-          p.profile_id = profile;
-          p.rule_revision = rule;
-          want =
-            protocol === "s-session/3"
-              ? await identity(0x20, p, "obj3-")
-              : "obj-" + (await sha(p));
+          want = await tb02Identity(record, rule, profile, protocol);
         } else {
           const p = await shapeIdentity(
             record,
@@ -6184,6 +6297,8 @@ if (typeof module !== 'object' || !module.exports) {
       axesValidate,
       rawValidate,
       bindSources,
+      validateTB02Identity,
+      validateTB02InitializationSources,
       auditWitnesses,
       completeValue,
       typed,
@@ -7657,6 +7772,9 @@ if (typeof module !== 'object' || !module.exports) {
   publicAPI.validateTB02Axes = Q3.axesValidate;
   publicAPI.validateTB02Raw = Q3.rawValidate;
   publicAPI.validateTB02CutSources = Q3.bindSources;
+  // #1393×#1419：单对象规则版本绑定与内容身份（与 Q3 候选全量校验同一判据）。
+  publicAPI.validateTB02Identity = Q3.validateTB02Identity;
+  publicAPI.validateTB02InitializationSources = Q3.validateTB02InitializationSources;
   publicAPI.LegacyClient = Client;
   publicAPI.Client = function (options) {
     return options?.protocol === "s-session/3" ||

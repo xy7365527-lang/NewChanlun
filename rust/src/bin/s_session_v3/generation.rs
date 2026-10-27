@@ -29,6 +29,8 @@
 //!
 //! ## 本域边界（照实）
 //!
+//! - **规则域**：历史 A/B 域保留原构造面；`V3_STRUCTURE_RULE_REVISION` 从同次 parser 事实与
+//!   已核 prior 接 C/D/E/F，恢复游标先于唯一一次 parser。目录跟实际规则域选择，未知域拒绝。
 //! - **只接线 OHLC 档案**（`tb02a::PROFILE`）。旧生成段对非 OHLC 档案另有一套 CC-006
 //!   `source_coords` 配方（三个锚坐标，而非三组来源链），producer 没有实现那一支；本模块
 //!   **显式拒绝**，不静默降级、不产出与旧配方不同的对象。
@@ -54,7 +56,7 @@
 use super::audit_store::{CodecRead, CodecStore};
 use super::business_json::{self as bj, JsonOwner, RawEventsView, TextValue};
 use super::fixed_radix::FixedRadix;
-use super::object_records;
+use super::{content_structure, object_records};
 use crate::content_bi::{BiBuildInputView, BiLedgerView, ContentBi, PriorState};
 use crate::content_producer::{
     array_from_sequence, group_reasons_admitted, raw_prefix_coords, Cc004Producer, Cc006Object,
@@ -83,8 +85,16 @@ use sc::{CodecVec, ValueView as VV};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
+/// 同一已核活跃发布索引选择的 C/D/E/F 前代根；空值仅用于首代/旧 A/B 域。
+#[derive(Default)]
+pub(super) struct StructurePriors<'a> {
+    pub segment_records: &'a [Built],
+    pub segment_version: Option<&'a Built>,
+    pub ef_records: &'a [Built],
+}
+
 /// 生成输入：全部取调用方**同一读集**的真实值；本文不读库、不重排、不补默认。
-pub(super) struct GenerationInput<'a> {
+pub(super) struct GenerationInput<'a, 'p> {
     /// 全修订史（`read_raw_events` 的 seq 序，含历史修订）。
     pub all_events: RawEventsView<'a>,
     /// 当前生效账（每个业务身份的最新 revision，按 source_coord 升序）。
@@ -105,10 +115,11 @@ pub(super) struct GenerationInput<'a> {
     pub semantic_commit_ns: Option<&'a str>,
     /// 上一代发布态的**已核** CC-010.bi / CC-056.version 记录根（调用方独立索引给出）。
     pub prior: PriorState<'a>,
+    pub structure_prior: StructurePriors<'p>,
 }
 
 /// #1488：raw/effective 不可由调用者另给；仅含当前元数据与已核 prior。
-pub(super) struct BoundGenerationInput<'a> {
+pub(super) struct BoundGenerationInput<'a, 'p> {
     pub generation: i64,
     pub structure_cut: &'a str,
     pub input_frontier: i64,
@@ -119,12 +130,13 @@ pub(super) struct BoundGenerationInput<'a> {
     pub scope: &'a Value,
     pub semantic_commit_ns: Option<&'a str>,
     pub prior: PriorState<'a>,
+    pub structure_prior: StructurePriors<'p>,
 }
 
 /// 一条已构造对象：身份 + 生成态记录 + 可复用的构造结果。
 ///
 /// 顺序（生成态 `objects` 数组）＝旧 sealed 批次：CC-006 形态（窗序）→ 已按
-/// `(kind, fact_key, object_id)` 排序的泛型事实 → TB-02-B 对象（线序）。
+/// `(kind, fact_key, object_id)` 排序的泛型事实 → TB-02-B 对象（线序）→ 新结构域的 C/D/E/F。
 pub(super) struct ProducedObject {
     kind: NativeValue<String>,
     fact_key: Option<NativeValue<String>>,
@@ -157,6 +169,7 @@ impl ShapeBuild {
 
 enum ObjectBody {
     Typed(TypedObject),
+    Structure(crate::content_producer::NativeStructureObject),
     Fractal(Cc007Object),
     Shape(Cc006Object),
 }
@@ -209,6 +222,7 @@ impl ProducedObject {
     pub(super) fn borrowed(&self) -> object_records::BorrowedObject<'_> {
         match &self.body {
             ObjectBody::Typed(object) => object_records::BorrowedObject::Typed(object),
+            ObjectBody::Structure(object) => object_records::BorrowedObject::Typed(object),
             ObjectBody::Fractal(object) => object_records::BorrowedObject::Fractal(object),
             ObjectBody::Shape(object) => object_records::BorrowedObject::Shape(object),
         }
@@ -218,6 +232,7 @@ impl ProducedObject {
     fn payload(&self) -> Option<&Built> {
         match &self.body {
             ObjectBody::Typed(object) => Some(&object.payload),
+            ObjectBody::Structure(object) => Some(&object.payload),
             ObjectBody::Fractal(object) => Some(&object.payload),
             ObjectBody::Shape(_) => None,
         }
@@ -327,8 +342,8 @@ impl<'a> Generated<'a> {
         // 与原目录轴函数同一判据；借入实际 owner，不擦成裸 Value 数组。
         let axes_owner = crate::tb02a_facts::catalog_axes_admitted(
             &*store,
-            crate::tb02a_facts::CatalogAxisTable::for_rule_revision(crate::V3_RULE_REVISION)
-                .expect("v3 写者的规则修订必有目录轴表"),
+            crate::tb02a_facts::CatalogAxisTable::for_rule_revision(&self.meta.rule_revision)
+                .ok_or("VersionUnsupported：规则域没有已审目录轴表")?,
             &projection,
             self.all_events,
             previous_frontier,
@@ -583,7 +598,7 @@ impl GenerationRuntime {
     pub(super) fn generate<'b>(
         &mut self,
         store: &mut dyn NodeStore,
-        input: &GenerationInput<'b>,
+        input: &GenerationInput<'b, '_>,
     ) -> Result<Generated<'b>, String> {
         self.generate_with_allocation(store, input, None)
     }
@@ -592,7 +607,7 @@ impl GenerationRuntime {
     pub(super) fn generate_with_allocation<'b>(
         &mut self,
         store: &mut dyn NodeStore,
-        input: &GenerationInput<'b>,
+        input: &GenerationInput<'b, '_>,
         budget: Option<&sc::capture_allocation::OwnedBudget>,
     ) -> Result<Generated<'b>, String> {
         let result = self.generate_impl(store, input, budget, None, None);
@@ -606,7 +621,7 @@ impl GenerationRuntime {
     pub(super) fn generate_native_lease<'b>(
         &mut self,
         store: &mut dyn NodeStore,
-        input: &GenerationInput<'b>,
+        input: &GenerationInput<'b, '_>,
         native: &super::prepared::NativeGeneration,
     ) -> Result<Generated<'b>, String> {
         let result = self.generate_impl(store, input, None, Some(native), None);
@@ -621,7 +636,7 @@ impl GenerationRuntime {
         &mut self,
         store: &mut dyn NodeStore,
         bound: &super::audit_owner::BoundRawAdvance<'b>,
-        input: BoundGenerationInput<'b>,
+        input: BoundGenerationInput<'b, '_>,
     ) -> Result<Generated<'b>, String> {
         let result = (|| {
             bound.ensure_current()?;
@@ -649,6 +664,7 @@ impl GenerationRuntime {
                 scope: input.scope,
                 semantic_commit_ns: input.semantic_commit_ns,
                 prior: input.prior,
+                structure_prior: input.structure_prior,
             };
             let generated =
                 self.generate_impl(store, &full_input, None, None, Some((view, raw_delta)))?;
@@ -687,7 +703,7 @@ impl GenerationRuntime {
     fn generate_impl<'b>(
         &mut self,
         store: &mut dyn NodeStore,
-        input: &GenerationInput<'b>,
+        input: &GenerationInput<'b, '_>,
         budget: Option<&sc::capture_allocation::OwnedBudget>,
         native: Option<&super::prepared::NativeGeneration>,
         delta: Option<(s_fact_cache::EffectiveRawView<'_>, RawGenerationDelta)>,
@@ -763,8 +779,25 @@ impl GenerationRuntime {
                 lane.state()
             }
         };
-        let (layer, evidence) = parser::parse_layer_with_group_evidence(state, &self.theta_config);
-        let merged: &[Bar] = layer.merged_bars.as_ref();
+        let structure_enabled = crate::is_structure_rule(&input.rule_revision);
+        let cd_prior = content_structure::StructurePrior {
+            segment_records: input.structure_prior.segment_records,
+            version_record: input.structure_prior.segment_version,
+        };
+        let (layer, evidence, second_store) = if structure_enabled {
+            // 恢复只读上一代已核发布根；随后仅调用一次共享 parser 并保留同次游标簿。
+            let mut fold = parser::second_fold::SecondFoldStore::new(crate::tb02c::round_budget());
+            content_structure::restore_second_cursors(store, &self.producer, &cd_prior, &mut fold)?;
+            let (layer, evidence, fold) =
+                parser::parse_layer_with_group_evidence_store(state, &self.theta_config, fold);
+            (layer, evidence, Some(fold))
+        } else {
+            // 历史 A/B 域仍使用原输入路径，不将结构域失败切回这里。
+            let (layer, evidence) = parser::parse_layer_with_group_evidence(state, &self.theta_config);
+            (layer, evidence, None)
+        };
+        let merged_rc = layer.merged_bars.clone();
+        let merged: &[Bar] = merged_rc.as_ref();
         let prepared = match delta_view {
             Some(view) => self.producer.prepare_raw_history_delta(store, view),
             None => self.producer.prepare_raw_history(&raw_bars),
@@ -1034,39 +1067,7 @@ impl GenerationRuntime {
         extend_gen(&mut typed, fractals, store)?;
         stable_sort_typed_admitted(&mut typed, store)?;
 
-        // ── CC-054 知识状态（旧配方在泛型事实之后、TB-02-B 之前）──
-        let raw_coords = raw_prefix_coords(state).map_err(producer_error)?;
-        let knowledge = self
-            .producer
-            .build_knowledge_state(
-                store,
-                &raw_coords,
-                frontier,
-                &requests,
-                &all_reasons,
-                gen,
-                cut,
-            )
-            .map_err(producer_error)?;
-        for observation in &knowledge.observations {
-            push_gen(&mut observations, (true, observation.clone()), store)?;
-        }
-        let generated = object_records::generated(
-            store,
-            object_records::BorrowedObject::Typed(&knowledge.object),
-        )
-        .map_err(record_error)?;
-        push_gen(
-            &mut typed,
-            ProducedObject {
-                kind: native_text(store, CC054_KNOWLEDGE_KIND)?,
-                fact_key: Some(native_text(store, &knowledge.object.fact_key)?),
-                object_id: native_text(store, &knowledge.object.object_id)?,
-                generated,
-                body: ObjectBody::Typed(knowledge.object),
-            },
-            store,
-        )?;
+        let knowledge_position = typed.len();
 
         // ── TB-02-B：七个 kind 的新笔证据（上一代记录由调用方给根）──
         let bi = self
@@ -1113,6 +1114,125 @@ impl GenerationRuntime {
                 store,
             )?;
         }
+
+        if structure_enabled {
+            let known_at = crate::content_bi::known_root(
+                store,
+                raw_ledger,
+                gen,
+                frontier,
+                input.semantic_commit_ns,
+            )?;
+            let fact_generation = crate::content_bi::fact_generation(
+                JsonView::BorrowedArray(&input.all_events)
+                    .as_array()
+                    .unwrap(),
+            )
+            .map_err(|e| format!("GenError：结构事实代际不可用：{e}"))?;
+            let mut all_sources = CodecVec::default();
+            for coord in raw_ledger.coords() {
+                push_gen(
+                    &mut all_sources,
+                    usize::try_from(coord).map_err(|_| "原始坐标溢出")?,
+                    store,
+                )?;
+            }
+            let context = content_structure::StructureContext {
+                fact_generation,
+                generation: gen,
+                cut,
+                frontier,
+                known_at: &known_at,
+                all_sources: &all_sources,
+            };
+            let structure_evidence = content_structure::StructureEvidence {
+                segments: &layer.segments,
+                segment_facts: &evidence.segment_facts,
+                stroke_facts: &evidence.stroke_facts,
+                second_store: second_store
+                    .as_ref()
+                    .ok_or_else(|| "GenError：结构域缺同次 parser store".to_string())?,
+            };
+            let cd = content_structure::build_cd(
+                &mut self.producer,
+                store,
+                &structure_evidence,
+                &cd_prior,
+                &context,
+            )?;
+            let ef = content_structure::build_ef(
+                &mut self.producer,
+                store,
+                &structure_evidence,
+                &cd.segments,
+                &content_structure::EfPrior {
+                    records: input.structure_prior.ef_records,
+                },
+                &context,
+            )?;
+            for output in [cd, ef] {
+                extend_gen(&mut all_reasons, output.waiting_reasons, store)?;
+                extend_gen(&mut relations, output.relations, store)?;
+                // 包含一对象多子轴的完整唯一集合；不再从 TypedObject.request 重复收集。
+                extend_gen(&mut requests, output.requests, store)?;
+                for object in output.objects {
+                    let kind = typed_kind(store, &object)?;
+                    let generated = object_records::generated(
+                        store,
+                        object_records::BorrowedObject::Typed(&object),
+                    )
+                    .map_err(record_error)?;
+                    push_gen(
+                        &mut typed,
+                        ProducedObject {
+                            kind,
+                            fact_key: Some(native_text(store, &object.fact_key)?),
+                            object_id: native_text(store, &object.object_id)?,
+                            generated,
+                            body: ObjectBody::Structure(object),
+                        },
+                        store,
+                    )?;
+                }
+            }
+        }
+
+        // 所有本次请求/等待原因收齐后才生成知识态；对象序仍保留历史 CC-054 槽位。
+        let raw_coords = raw_prefix_coords(state).map_err(producer_error)?;
+        let knowledge = self
+            .producer
+            .build_knowledge_state(
+                store,
+                &raw_coords,
+                frontier,
+                &requests,
+                &all_reasons,
+                gen,
+                cut,
+                state.unsettled(),
+            )
+            .map_err(producer_error)?;
+        for observation in &knowledge.observations {
+            push_gen(&mut observations, (true, observation.clone()), store)?;
+        }
+        let generated = object_records::generated(
+            store,
+            object_records::BorrowedObject::Typed(&knowledge.object),
+        )
+        .map_err(record_error)?;
+        let knowledge_object = ProducedObject {
+            kind: native_text(store, CC054_KNOWLEDGE_KIND)?,
+            fact_key: Some(native_text(store, &knowledge.object.fact_key)?),
+            object_id: native_text(store, &knowledge.object.object_id)?,
+            generated,
+            body: ObjectBody::Typed(knowledge.object),
+        };
+        if let Some(work) = store.codec_work() {
+            typed.try_insert_native(knowledge_position, knowledge_object, work)
+        } else {
+            typed.try_insert(knowledge_position, knowledge_object)
+        }
+        .map_err(codec_error)?;
 
         // ── 生成态六条数组：跨代共享序列 + 旧配方等价去重 ──
         let mut objects: CodecVec<ProducedObject> = shape_objects;
@@ -1783,7 +1903,13 @@ fn catalog_projection_entry(
             store,
             JsonView::object_fields(&fields).map_err(codec_error)?,
         )?
-    } else if object.kind() == "CC-056.version" {
+    } else if matches!(
+        object.kind(),
+        "CC-056.version"
+            | "CC-056.segment_version"
+            | "CC-056.center_version"
+            | "CC-056.pair_version"
+    ) {
         let waiting = projection_field(store, payload()?, &["data", "waiting_reasons"])?;
         let inner = [("waiting_reasons", waiting.view())];
         let outer = [(
@@ -1951,9 +2077,7 @@ pub(super) fn witness_identity(
 ) -> Result<String, String> {
     let bytes = witness_identity_bytes(store, object_id, slot, mi, raw_bars)?;
     // 旧裸 String 接口；Native 来源核改走下方携原许可的输出。
-    if store.codec_work().is_some() {
-        return Err("Native witness身份必须使用witness_identity_native持有原许可".into());
-    }
+    store.native_admit(bytes.len()).map_err(codec_error)?;
     let mut result = String::with_capacity(bytes.len());
     result.extend(bytes.into_iter().map(char::from));
     Ok(result)
@@ -2463,6 +2587,7 @@ mod tests {
         let effective = bj::effective(events.as_slice().into(), None).unwrap();
         let scope = json!({"instrument":"native-generation", "exchange":"fixture"});
         let input = GenerationInput {
+            structure_prior: Default::default(),
             all_events: events.as_slice().into(),
             effective: effective.raw_view(),
             generation: 1,
@@ -2550,6 +2675,7 @@ mod tests {
         let effective = bj::effective(events.as_slice().into(), None).unwrap();
         let scope = json!({"instrument":"native-finish-reject", "exchange":"fixture"});
         let input = GenerationInput {
+            structure_prior: Default::default(),
             all_events: events.as_slice().into(),
             effective: effective.raw_view(),
             generation: 1,
@@ -2621,20 +2747,214 @@ mod tests {
         .collect()
     }
 
+    /// 新结构域的真实生成接线：双构造同根、全目录与原因闭合，恢复只认同域的已核根。
+    #[test]
+    fn structure_domain_wires_versions_knowledge_axes_and_rejects_foreign_prior() {
+        let rows = delta_raw_fixture();
+        let raw = RawEventsView::plain(&rows[..4]);
+        let effective = bj::effective(raw, None).unwrap();
+        let scope = json!({});
+        let input = GenerationInput {
+            all_events: raw,
+            effective: effective.raw_view(),
+            generation: 1,
+            structure_cut: "cut-1",
+            input_frontier: 4,
+            profile_id: crate::tb02a::PROFILE,
+            profile_hash: "structure-profile",
+            rule_revision: crate::V3_STRUCTURE_RULE_REVISION,
+            catalog_revision: "structure-catalog",
+            scope: &scope,
+            semantic_commit_ns: Some("123456789"),
+            prior: PriorState {
+                bi_records: vec![],
+                version_record: None,
+            },
+            structure_prior: StructurePriors::default(),
+        };
+        let mut nodes = MemoryNodes::new();
+        let mut first = GenerationRuntime::new(
+            "structure-wire-first".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_STRUCTURE_RULE_REVISION,
+        );
+        let mut generated = first.generate(&mut nodes, &input).unwrap();
+        generated.finish_axes(&mut nodes, -1, &[], &[]).unwrap();
+        generated.verify_new_closure(&mut nodes).unwrap();
+        #[cfg(feature = "s_capture_native_testonly")]
+        {
+            let budget =
+                super::super::audit_owner::native::Budget::new(16 * 1024 * 1024, 0).unwrap();
+            let baseline = budget.live();
+            let mut native_nodes = MemoryNodes::new();
+            let mut native_runtime = GenerationRuntime::new(
+                "structure-wire-native".into(),
+                crate::tb02a::PROFILE,
+                crate::V3_STRUCTURE_RULE_REVISION,
+            );
+            let result = budget
+                .codec_work()
+                .unwrap()
+                .run(|work| -> Result<_, String> {
+                    let mut store = NativeFixture {
+                        inner: &mut native_nodes,
+                        work,
+                    };
+                    let mut output = native_runtime.generate(&mut store, &input)?;
+                    output.finish_axes(&mut store, -1, &[], &[])?;
+                    Ok(output)
+                })
+                .unwrap();
+            assert_eq!(result.generated_state, generated.generated_state);
+            assert!(result
+                .objects
+                .iter()
+                .any(|o| matches!(&o.body, ObjectBody::Structure(_))));
+            assert!(budget.live() > baseline, "C/D/E/F结果离域后仍持父账许可");
+            drop(result);
+            drop(native_runtime);
+            assert_eq!(budget.live(), baseline);
+        }
+        let mut canonical = Vec::new();
+        render_canonical(&mut nodes, &generated.generated_state, &mut canonical).unwrap();
+        let state: Value = serde_json::from_slice(&canonical).unwrap();
+        assert_eq!(state["catalog_axes"].as_object().unwrap().len(), 22);
+        let objects = state["objects"].as_array().unwrap();
+        let knowledge: Value = serde_json::from_str(
+            objects
+                .iter()
+                .find(|o| o["kind"] == CC054_KNOWLEDGE_KIND)
+                .unwrap()["payload_json"]
+                .as_str()
+                .unwrap(),
+        )
+        .unwrap();
+        for kind in [
+            "CC-056.segment_version",
+            "CC-056.center_version",
+            "CC-056.pair_version",
+        ] {
+            let matches: Vec<_> = objects.iter().filter(|o| o["kind"] == kind).collect();
+            assert_eq!(matches.len(), 1, "{kind} 应由本次事实实际构造");
+            let version: Value =
+                serde_json::from_str(matches[0]["payload_json"].as_str().unwrap()).unwrap();
+            for reason in version["data"]["waiting_reasons"].as_array().unwrap() {
+                assert!(
+                    knowledge["waiting_reasons"]
+                        .as_array()
+                        .unwrap()
+                        .contains(reason),
+                    "{kind} 原因未进入 CC-054：{reason}"
+                );
+            }
+        }
+        let mut other_nodes = MemoryNodes::new();
+        let mut other = GenerationRuntime::new(
+            "structure-wire-independent".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_STRUCTURE_RULE_REVISION,
+        );
+        let mut independent = other.generate(&mut other_nodes, &input).unwrap();
+        independent
+            .finish_axes(&mut other_nodes, -1, &[], &[])
+            .unwrap();
+        assert_eq!(generated.generated_state, independent.generated_state);
+
+        let mut segment_records = Vec::new();
+        let mut segment_version = None;
+        let mut ef_records = Vec::new();
+        for object in &generated.objects {
+            let typed: &TypedObject = match &object.body {
+                ObjectBody::Typed(typed) => typed,
+                ObjectBody::Structure(typed) => typed,
+                _ => continue,
+            };
+            match object.kind() {
+                "CC-013.segment" => segment_records.push(typed.record.clone()),
+                "CC-056.segment_version" => segment_version = Some(typed.record.clone()),
+                "CC-016.center_seed_attempt"
+                | "CC-016.center"
+                | "CC-017.center_roles"
+                | "CC-022.unit_assignment"
+                | "CC-018.unit_core_position"
+                | "CC-020.center_pair"
+                | "CC-056.center_version"
+                | "CC-056.pair_version" => ef_records.push(typed.record.clone()),
+                _ => {}
+            }
+        }
+        let (bi_records, bi_version) = clone_prior(&generated);
+        let next = GenerationInput {
+            generation: 2,
+            structure_cut: "cut-2",
+            prior: PriorState {
+                bi_records: bi_records.iter().collect(),
+                version_record: bi_version.as_ref(),
+            },
+            structure_prior: StructurePriors {
+                segment_records: &segment_records,
+                segment_version: segment_version.as_ref(),
+                ef_records: &ef_records,
+            },
+            ..input
+        };
+        let warm = first.generate(&mut nodes, &next).unwrap();
+        let mut cold = GenerationRuntime::new(
+            "structure-wire-restart-valid".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_STRUCTURE_RULE_REVISION,
+        );
+        let restarted = cold.generate(&mut nodes, &next).unwrap();
+        assert_eq!(
+            warm.generated_state, restarted.generated_state,
+            "重启与续跑必须使用同份已授权 prior"
+        );
+
+        // B 版本虽自身内容有效，也不能作为 C/D 的发布恢复许可。
+        let wrong = generated
+            .objects
+            .iter()
+            .find_map(|o| match &o.body {
+                ObjectBody::Typed(object) if o.kind() == "CC-056.version" => {
+                    Some(object.record.clone())
+                }
+                _ => None,
+            })
+            .unwrap();
+        let forged = GenerationInput {
+            structure_prior: StructurePriors {
+                segment_version: Some(&wrong),
+                ..Default::default()
+            },
+            ..next
+        };
+        let mut restart = GenerationRuntime::new(
+            "structure-wire-restart-reject".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_STRUCTURE_RULE_REVISION,
+        );
+        let error = match restart.generate(&mut nodes, &forged) {
+            Ok(_) => panic!("错误 prior 版本不得恢复或切旧核兜底"),
+            Err(error) => error,
+        };
+        assert!(error.contains("prior kind"), "{error}");
+    }
+
     fn delta_bound_input<'a>(
         scope: &'a Value,
         cut: &'a str,
         gen: i64,
         frontier: i64,
         prior: PriorState<'a>,
-    ) -> BoundGenerationInput<'a> {
+    ) -> BoundGenerationInput<'a, 'a> {
         BoundGenerationInput {
+            structure_prior: StructurePriors::default(),
             generation: gen,
             structure_cut: cut,
             input_frontier: frontier,
             profile_id: crate::tb02a::PROFILE,
             profile_hash: "profile-hash",
-            rule_revision: "r",
+            rule_revision: crate::V3_RULE_REVISION,
             catalog_revision: "catalog",
             scope,
             semantic_commit_ns: Some("123456789"),
@@ -2651,11 +2971,15 @@ mod tests {
         use super::super::audit_owner::RawAdvanceFixture;
         let fixture = RawAdvanceFixture::new();
         let mut index = bj::RawPrefixIndex::new(events.into());
-        let mut delta = GenerationRuntime::new("A2 delta".into(), crate::tb02a::PROFILE, "r");
+        let mut delta = GenerationRuntime::new(
+            "A2 delta".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_RULE_REVISION,
+        );
         let mut full = GenerationRuntime::new(
             "A2 full independent raw/parser".into(),
             crate::tb02a::PROFILE,
-            "r",
+            crate::V3_RULE_REVISION,
         );
         let mut ds = MemoryNodes::new();
         let mut fs = MemoryNodes::new();
@@ -2694,6 +3018,7 @@ mod tests {
                 .generate(
                     &mut fs,
                     &GenerationInput {
+                        structure_prior: StructurePriors::default(),
                         all_events: raw,
                         effective: effective.raw_view(),
                         generation: gen,
@@ -2701,7 +3026,7 @@ mod tests {
                         input_frontier: prefix as i64,
                         profile_id: crate::tb02a::PROFILE,
                         profile_hash: "profile-hash",
-                        rule_revision: "r",
+                        rule_revision: crate::V3_RULE_REVISION,
                         catalog_revision: "catalog",
                         scope: &scope,
                         semantic_commit_ns: Some("123456789"),
@@ -2906,6 +3231,7 @@ mod tests {
                 &mut store,
                 &bound,
                 BoundGenerationInput {
+                    structure_prior: StructurePriors::default(),
                     generation: oracle.generation,
                     structure_cut: &cut,
                     input_frontier: oracle.batch["input_frontier"].as_i64().unwrap(),
@@ -2939,7 +3265,11 @@ mod tests {
         let edits = index.advance(4).unwrap();
         let fixture = RawAdvanceFixture::new();
         let bound = fixture.bind(raw, 0, &edits.winner_edits).unwrap();
-        let mut runtime = GenerationRuntime::new("A2 failure".into(), crate::tb02a::PROFILE, "r");
+        let mut runtime = GenerationRuntime::new(
+            "A2 failure".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_RULE_REVISION,
+        );
         let mut store = MemoryNodes::new();
         let scope = json!({});
         runtime
@@ -3032,13 +3362,13 @@ mod tests {
             (
                 crate::tb02a::PROFILE,
                 "wrong-profile",
-                "r",
+                crate::V3_RULE_REVISION,
                 "IdentityConflict",
             ),
             (
                 "unsupported-profile",
                 "unsupported-profile",
-                "r",
+                crate::V3_RULE_REVISION,
                 "VersionUnsupported",
             ),
         ] {
@@ -3055,10 +3385,16 @@ mod tests {
                 let bound = fixture.bind(raw, 0, &edits.winner_edits).unwrap();
                 let scope = json!({});
                 let effective = bj::effective(raw, None).unwrap();
-                let mut full =
-                    GenerationRuntime::new("A2 identity full".into(), runtime_profile, "r");
-                let mut delta =
-                    GenerationRuntime::new("A2 identity delta".into(), runtime_profile, "r");
+                let mut full = GenerationRuntime::new(
+                    "A2 identity full".into(),
+                    runtime_profile,
+                    crate::V3_RULE_REVISION,
+                );
+                let mut delta = GenerationRuntime::new(
+                    "A2 identity delta".into(),
+                    runtime_profile,
+                    crate::V3_RULE_REVISION,
+                );
                 let mut full_store = SequenceTestStore {
                     writes_left: Some(0),
                     ..Default::default()
@@ -3071,6 +3407,7 @@ mod tests {
                     .generate(
                         &mut full_store,
                         &GenerationInput {
+                            structure_prior: StructurePriors::default(),
                             all_events: raw,
                             effective: effective.raw_view(),
                             generation: 1,
@@ -3095,6 +3432,7 @@ mod tests {
                         &mut delta_store,
                         &bound,
                         BoundGenerationInput {
+                            structure_prior: StructurePriors::default(),
                             generation: 1,
                             structure_cut: "cut-1",
                             input_frontier: 4,
@@ -3137,8 +3475,11 @@ mod tests {
         let owner = RawAdvanceFixture::new();
         let bound = owner.bind(raw, 0, &edits.winner_edits).unwrap();
         let mut counted = SequenceTestStore::default();
-        let mut successful =
-            GenerationRuntime::new("A2 write count".into(), crate::tb02a::PROFILE, "r");
+        let mut successful = GenerationRuntime::new(
+            "A2 write count".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_RULE_REVISION,
+        );
         successful
             .generate_bound(
                 &mut counted,
@@ -3164,8 +3505,11 @@ mod tests {
                 writes_left: Some(fail_at),
                 ..Default::default()
             };
-            let mut runtime =
-                GenerationRuntime::new("A2 write refusal".into(), crate::tb02a::PROFILE, "r");
+            let mut runtime = GenerationRuntime::new(
+                "A2 write refusal".into(),
+                crate::tb02a::PROFILE,
+                crate::V3_RULE_REVISION,
+            );
             assert!(runtime
                 .generate_bound(
                     &mut store,
@@ -3218,8 +3562,11 @@ mod tests {
         let bound = fixture
             .bind(originals.view(), 0, &edits.winner_edits)
             .unwrap();
-        let mut runtime =
-            GenerationRuntime::new("A2 Owned rejection".into(), crate::tb02a::PROFILE, "r");
+        let mut runtime = GenerationRuntime::new(
+            "A2 Owned rejection".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_RULE_REVISION,
+        );
         let mut store = SequenceTestStore::default();
         let scope = json!({});
         let error = runtime
@@ -3267,8 +3614,11 @@ mod tests {
         // 这不声称 Owned RawPrefixIndex / owner 生产签发已经接通。
         let mut index = bj::RawPrefixIndex::new(RawEventsView::plain(&events));
         let fixture = RawAdvanceFixture::new();
-        let mut runtime =
-            GenerationRuntime::new("delta raw fixture".into(), crate::tb02a::PROFILE, "r");
+        let mut runtime = GenerationRuntime::new(
+            "delta raw fixture".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_RULE_REVISION,
+        );
         let mut store = MemoryNodes::new();
         let mut previous = 0;
         for prefix in [0, 1, 2, 4, 5, 6, 8, 8, 9, 11] {
@@ -3358,8 +3708,11 @@ mod tests {
         let mut index = bj::RawPrefixIndex::new(RawEventsView::plain(&events));
         let first = index.advance(2).unwrap();
         let fixture = RawAdvanceFixture::new();
-        let mut runtime =
-            GenerationRuntime::new("delta invalidation".into(), crate::tb02a::PROFILE, "r");
+        let mut runtime = GenerationRuntime::new(
+            "delta invalidation".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_RULE_REVISION,
+        );
         let mut store = MemoryNodes::new();
         let bound = fixture
             .bind(RawEventsView::plain(&events[..2]), 0, &first.winner_edits)
@@ -3411,8 +3764,11 @@ mod tests {
         let bound = owner
             .bind(RawEventsView::plain(&events[..2]), 0, &changes.winner_edits)
             .unwrap();
-        let mut runtime =
-            GenerationRuntime::new("delta failure".into(), crate::tb02a::PROFILE, "r");
+        let mut runtime = GenerationRuntime::new(
+            "delta failure".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_RULE_REVISION,
+        );
         let mut store = SequenceTestStore::default();
         store.writes_left = Some(0);
         assert!(runtime
@@ -4105,12 +4461,19 @@ mod tests {
     /// - `catalog_axes` 在限制后的对象上用 v3 那张 13 轴表重算，withdrawals/replaces 由调用方
     ///   在限制后的对象与已存身份上跑同一生产 diff 得到（旧身份空间）。目录函数本就与生产共用
     ///   （见模块头），对拍的仍是「同一批输入」；不重算就等于拿 17 轴目录对 13 轴写者。
+    /// - 投影的规则标识显式映射到历史 V3 A/B 域；不改封存库或 raw 原件。
+    ///   生产目录现在由规则域选表，保留 V2 标识会错误地给 A/B 投影选择 17 轴。
     fn restrict_oracle_to_tb02ab(
         oracle: &mut OracleGeneration,
         previous_frontier: i64,
         withdrawals: &[Value],
         replaces: &[Value],
     ) {
+        assert_eq!(
+            oracle.batch["rule_revision"],
+            crate::RULE_REVISION,
+            "A/B oracle 投影只接受真实 V2 源域"
+        );
         let objects = oracle.batch["objects"].as_array().expect("oracle objects");
         let mut segment_edges = std::collections::BTreeSet::new();
         for object in objects {
@@ -4150,6 +4513,7 @@ mod tests {
         oracle.batch["objects"] = Value::Array(kept);
         oracle.batch["relations"] = Value::Array(relations);
         oracle.batch["catalog_axes"] = axes;
+        oracle.batch["rule_revision"] = json!(crate::V3_RULE_REVISION);
     }
 
     /// 一代 oracle：封存批次原件（完整生成态）+ 同一读集的真实两账。
@@ -4232,6 +4596,7 @@ mod tests {
         prior: PriorState<'b>,
     ) -> Generated<'b> {
         let input = GenerationInput {
+            structure_prior: StructurePriors::default(),
             all_events: (&oracle.all_events).into(),
             effective: (&oracle.effective).into(),
             generation: oracle.generation,
@@ -4353,8 +4718,9 @@ mod tests {
             .collect()
     }
 
-    /// 逐字段对拍：15 项标量/数组全部来自**封存批次原件**，只有旧 `obj-`/`wit-` 身份
-    /// 按顺序映射到本域真实新身份；最后再核映射后的规范字节逐字节相等。
+    /// 逐字段对拍：先按 restrict_oracle_to_tb02ab 明示投影 A/B 对象、目录与规则域，
+    /// 再把旧 `obj-`/`wit-` 身份按顺序映射到本域真实新身份；原始两账与业务载荷不变，
+    /// 最后核映射后的规范字节逐字节相等。
     fn assert_state_matches_oracle(
         label: &str,
         store: &mut MemoryNodes,

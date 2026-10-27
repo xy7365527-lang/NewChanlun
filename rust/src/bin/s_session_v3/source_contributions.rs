@@ -162,6 +162,9 @@ impl<K: Ord, V> Retained for Map<K, V> {
     }
 }
 impl RawLookup for Map<i64, Source> {
+    fn len(&self) -> usize {
+        self.values.len()
+    }
     fn get(&self, coord: &i64) -> Option<&Source> {
         self.values.get(coord)
     }
@@ -445,6 +448,11 @@ pub(crate) struct NativeSourceState {
     object_order: Order,
     object_sequence: Option<sc::SequenceRef>,
     ids: Map<TextValue, Handle>,
+    structure_dependents: Map<TextValue, Tree<Handle>>,
+    structure_entities: Map<TextValue, Handle>,
+    structure_entity_dependents: Map<TextValue, Tree<Handle>>,
+    structure_versions: Map<TextValue, Handle>,
+    structure_changes: Tree<Handle>,
     groups: Map<i64, Group>,
     group_ids: Map<i64, Handle>,
     group_indices: Tree<i64>,
@@ -505,6 +513,11 @@ impl NativeSourceState {
             object_order: Order::default(),
             object_sequence: None,
             ids: Map::default(),
+            structure_dependents: Map::default(),
+            structure_entities: Map::default(),
+            structure_entity_dependents: Map::default(),
+            structure_versions: Map::default(),
+            structure_changes: Tree::default(),
             groups: Map::default(),
             group_ids: Map::default(),
             group_indices: Tree::default(),
@@ -553,6 +566,11 @@ impl NativeSourceState {
             self.objects.heap_bytes(),
             self.object_order.retained_bytes(),
             self.ids.heap_bytes(),
+            self.structure_dependents.heap_bytes(),
+            self.structure_entities.heap_bytes(),
+            self.structure_entity_dependents.heap_bytes(),
+            self.structure_versions.heap_bytes(),
+            self.structure_changes.heap_bytes(),
             self.groups.heap_bytes(),
             self.group_ids.heap_bytes(),
             self.group_indices.heap_bytes(),
@@ -836,15 +854,62 @@ impl NativeSourceState {
     }
     fn remove_object(
         &mut self,
-        s: &(impl CodecRead + ?Sized),
+        s: &mut (impl SourceFieldStore + ?Sized),
         handle: Handle,
         dirty_groups: &mut Tree<i64>,
         dirty_witness: &mut Tree<Handle>,
+        dirty_structures: &mut Tree<Handle>,
+        dirty_requests: &mut Tree<Handle>,
     ) -> Result<Entry, String> {
         let entry = self
             .objects
             .remove(&handle)?
             .ok_or_else(|| err("来源对象贡献缺失"))?;
+        dirty_from(
+            s,
+            &self.structure_dependents,
+            entry.value.id.as_str(),
+            dirty_structures,
+        )?;
+        dirty_from(
+            s,
+            &self.request_subjects,
+            entry.value.id.as_str(),
+            dirty_requests,
+        )?;
+        if crate::is_structure_rule(&self.rule) {
+            if let Some(entity) = source_structure::entity_id(s, &entry.value)? {
+                dirty_from(
+                    s,
+                    &self.structure_entity_dependents,
+                    entity.as_str(),
+                    dirty_structures,
+                )?;
+                forget(&mut self.structure_entities, entity.as_str(), handle)?;
+            }
+        }
+        if source_structure::is_kind(&self.rule, entry.value.kind.as_str()) {
+            for entity in source_structure::entity_references(s, &entry.value)? {
+                unlink(
+                    &mut self.structure_entity_dependents,
+                    entity.as_str(),
+                    handle,
+                )?;
+            }
+            for id in source_structure::references(s, &entry.value)? {
+                unlink(&mut self.structure_dependents, id.as_str(), handle)?;
+            }
+        }
+        if source_structure::is_kind(&self.rule, entry.value.kind.as_str())
+            && entry.value.kind.starts_with("CC-056.")
+        {
+            forget(
+                &mut self.structure_versions,
+                entry.value.kind.as_str(),
+                handle,
+            )?;
+        }
+        self.structure_changes.remove(&handle)?;
         forget(&mut self.ids, entry.value.id.as_str(), handle)?;
         for coord in entry.value.sources.iter() {
             unlink(&mut self.raw_objects, coord, handle)?;
@@ -972,12 +1037,15 @@ impl NativeSourceState {
         s: &mut SourceMaterial<'_, '_, '_, '_>,
         producer: &Cc004Producer,
         prefix: usize,
+        current_generation: i64,
         mut dirty: Tree<Handle>,
         dirty_groups: &mut Tree<i64>,
         dirty_shapes: &mut Tree<Handle>,
         dirty_witness: &mut Tree<Handle>,
         pending_changed: &mut Tree<Handle>,
+        dirty_requests: &mut Tree<Handle>,
     ) -> Result<(), String> {
+        let mut dirty_structures = Tree::default();
         let changes = apply_order(
             s,
             Stream::Array(SourceArray::Objects),
@@ -988,11 +1056,25 @@ impl NativeSourceState {
         for (handle, _) in &changes.removed {
             dirty.remove(handle)?;
             pending_changed.insert(s, *handle)?;
-            self.remove_object(s, *handle, dirty_groups, dirty_witness)?;
+            self.remove_object(
+                s,
+                *handle,
+                dirty_groups,
+                dirty_witness,
+                &mut dirty_structures,
+                dirty_requests,
+            )?;
         }
         let mut events = Tree::default();
         for handle in dirty.iter().copied() {
-            self.remove_object(s, handle, dirty_groups, dirty_witness)?;
+            self.remove_object(
+                s,
+                handle,
+                dirty_groups,
+                dirty_witness,
+                &mut dirty_structures,
+                dirty_requests,
+            )?;
             pending_changed.insert(s, handle)?;
             schedule(s, &self.object_order, &mut events, handle)?;
         }
@@ -1007,7 +1089,14 @@ impl NativeSourceState {
             if self.objects.contains_key(&handle) {
                 // A newly inserted earlier duplicate scheduled this retained record. Read at its
                 // original stage so id failure precedes payload, group failure follows payload.
-                self.remove_object(s, handle, dirty_groups, dirty_witness)?;
+                self.remove_object(
+                    s,
+                    handle,
+                    dirty_groups,
+                    dirty_witness,
+                    &mut dirty_structures,
+                    dirty_requests,
+                )?;
                 pending_changed.insert(s, handle)?;
             }
             let record = member(s, Stream::Array(SourceArray::Objects), rank)?;
@@ -1028,6 +1117,8 @@ impl NativeSourceState {
                 &record,
                 &self.raw,
                 producer,
+                &self.rule,
+                current_generation,
                 &mut keys,
                 &mut checked,
                 None,
@@ -1038,6 +1129,71 @@ impl NativeSourceState {
             )?;
             let group = keys.group;
             drop(keys);
+            dirty_from(
+                s,
+                &self.structure_dependents,
+                object.id.as_str(),
+                &mut dirty_structures,
+            )?;
+            dirty_from(
+                s,
+                &self.request_subjects,
+                object.id.as_str(),
+                dirty_requests,
+            )?;
+            if crate::is_structure_rule(&self.rule) {
+                if let Some(entity) = source_structure::entity_id(s, &object)? {
+                    dirty_from(
+                        s,
+                        &self.structure_entity_dependents,
+                        entity.as_str(),
+                        &mut dirty_structures,
+                    )?;
+                    if self.structure_entities.contains_key(entity.as_str()) {
+                        return Err(err("当前结构实体身份重复"));
+                    }
+                    self.structure_entities
+                        .put(s, owned(s, entity.as_str())?, handle)?;
+                }
+            }
+            if source_structure::is_kind(&self.rule, object.kind.as_str()) {
+                for entity in source_structure::entity_references(s, &object)? {
+                    link(
+                        s,
+                        &mut self.structure_entity_dependents,
+                        owned(s, entity.as_str())?,
+                        handle,
+                    )?;
+                    link_ref(
+                        s,
+                        &mut self.structure_entity_dependents,
+                        entity.as_str(),
+                        handle,
+                    )?;
+                }
+
+                if object.kind.ends_with("_change") {
+                    self.structure_changes.insert(s, handle)?;
+                }
+                if object.kind.starts_with("CC-056.") {
+                    if self.structure_versions.contains_key(object.kind.as_str()) {
+                        return Err(err("同cut结构版本重复"));
+                    }
+                    self.structure_versions
+                        .put(s, owned(s, object.kind.as_str())?, handle)?;
+                }
+                dirty_structures.insert(s, handle)?;
+                for id in source_structure::references(s, &object)? {
+                    link(
+                        s,
+                        &mut self.structure_dependents,
+                        owned(s, id.as_str())?,
+                        handle,
+                    )?;
+                    link_ref(s, &mut self.structure_dependents, id.as_str(), handle)?;
+                }
+            }
+
             self.work.object_local += 1;
             for coord in object.sources.iter() {
                 link(s, &mut self.raw_objects, *coord, handle)?;
@@ -1064,6 +1220,52 @@ impl NativeSourceState {
                     group,
                 },
             )?;
+        }
+        let lookup = NativeObjects {
+            ids: &self.ids,
+            objects: &self.objects,
+            entities: &self.structure_entities,
+        };
+        if crate::is_structure_rule(&self.rule) {
+            if self.structure_versions.len() != 3 {
+                return Err(err("结构域缺三个版本根"));
+            }
+            for (_, handle) in self.structure_versions.iter() {
+                let object = &self
+                    .objects
+                    .get(handle)
+                    .ok_or_else(|| err("结构版本悬空"))?
+                    .value;
+                if object.sources.len() != self.raw.len() {
+                    return Err(err("结构版本未覆盖当前全原始账"));
+                }
+            }
+        }
+
+        // 当前 generation 是所有活跃 change 的显式依赖；即使内容根未变也必须核验。
+        for handle in self.structure_changes.iter() {
+            let object = &self
+                .objects
+                .get(handle)
+                .ok_or_else(|| err("结构change索引悬空"))?
+                .value;
+            let payload = source_structure::payload(s, object)?;
+            let key = object.fields.text(s, "fact_key")?;
+            let key = parsed_json(s, key.as_bytes())?;
+            source_structure::audit_payload(
+                s,
+                object.kind.as_str(),
+                &payload,
+                key.view().index(1).ok_or_else(|| err("change缺slot"))?,
+                &object.sources,
+                &self.raw,
+                current_generation,
+            )?;
+        }
+        for handle in dirty_structures.iter() {
+            if let Some(entry) = self.objects.get(handle) {
+                source_structure::audit_links(s, &entry.value, &lookup)?;
+            }
         }
         for (handle, _) in changes.removed {
             self.object_order.reclaim(s, handle)?;
@@ -1117,11 +1319,11 @@ impl NativeSourceState {
         changed: &Tree<Handle>,
         raw_membership: Option<i64>,
         dirty_groups: &Tree<i64>,
+        mut dirty_requests: Tree<Handle>,
     ) -> Result<(), String> {
         // #1405：步骤等待原因按会话规则合同版本化（与全量 source_pending::audit 同口径）。
         let equal_is_evidence = source_pending::equal_is_evidence(self.rule.as_str())?;
         let mut sequence = Tree::default();
-        let mut dirty_requests = Tree::default();
         let mut old = Map::default();
         let mut events = Tree::default();
         let mut knowledge_changed = false;
@@ -1321,12 +1523,28 @@ impl NativeSourceState {
         }
         let ordinal = self.object_order.rank(knowledge)?;
         self.request_phase(s, ordinal, dirty_requests)?;
+        if crate::is_structure_rule(&self.rule) {
+            for handle in changed.iter() {
+                if let Some(entry) = self.objects.get(handle) {
+                    if source_structure::is_kind(&self.rule, entry.value.kind.as_str()) {
+                        let count = self
+                            .request_subjects
+                            .get(entry.value.id.as_str())
+                            .map_or(0, |set| set.len());
+                        if count != source_structure::expected_requests(s, &entry.value)? {
+                            return Err(err("结构对象缺一一具名分类请求"));
+                        }
+                    }
+                }
+            }
+        }
         Ok(())
     }
     fn remove_request(
         &mut self,
         s: &(impl CodecRead + ?Sized),
         handle: Handle,
+        touched: &mut Tree<String>,
     ) -> Result<(), String> {
         let request = self
             .requests
@@ -1334,6 +1552,7 @@ impl NativeSourceState {
             .ok_or_else(|| err("请求贡献悬空"))?;
         forget(&mut self.request_keys, request.key.as_str(), handle)?;
         if let Some(subject) = request.subject {
+            touched.insert(s, owned(s, &subject)?)?;
             unlink(&mut self.request_subjects, subject.as_str(), handle)?;
         }
         if let Some(coord) = request.coord {
@@ -1352,6 +1571,7 @@ impl NativeSourceState {
         mut dirty: Tree<Handle>,
     ) -> Result<(), String> {
         let equal_is_evidence = source_pending::equal_is_evidence(self.rule.as_str())?;
+        let mut touched = Tree::default();
         let stream = Stream::Requests(u64::try_from(knowledge).map_err(|_| err("知识位置溢出"))?);
         let changes = apply_order(
             s,
@@ -1362,12 +1582,12 @@ impl NativeSourceState {
         )?;
         for (handle, _) in &changes.removed {
             dirty.remove(handle)?;
-            self.remove_request(s, *handle)?;
+            self.remove_request(s, *handle, &mut touched)?;
         }
         let mut events = Tree::default();
         for handle in dirty.iter().copied() {
             if self.requests.contains_key(&handle) {
-                self.remove_request(s, handle)?;
+                self.remove_request(s, handle, &mut touched)?;
                 schedule(s, &self.request_order, &mut events, handle)?;
             }
         }
@@ -1379,7 +1599,7 @@ impl NativeSourceState {
             self.work.order_events += 1;
             self.work.request_local += 1;
             if self.requests.contains_key(&handle) {
-                self.remove_request(s, handle)?;
+                self.remove_request(s, handle, &mut touched)?;
             }
             let request = member(s, stream, rank)?;
             if digest(&request)? != self.request_order.value(handle)? {
@@ -1388,6 +1608,11 @@ impl NativeSourceState {
             let lookup = NativeSteps {
                 steps: &self.steps,
                 subjects: &self.step_subjects,
+                objects: NativeObjects {
+                    ids: &self.ids,
+                    objects: &self.objects,
+                    entities: &self.structure_entities,
+                },
             };
             let mut keys = RequestKeys {
                 at: handle,
@@ -1402,6 +1627,7 @@ impl NativeSourceState {
                 &lookup,
                 &mut keys,
                 equal_is_evidence,
+                &self.rule,
             )?;
             drop(keys);
             // 成功后才记录逆依赖，不提前解码未来请求以构造索引。
@@ -1423,6 +1649,7 @@ impl NativeSourceState {
             let subject = scalar(s, &request, "subject_id")?;
             let subject = subject.view().as_str().map(|id| owned(s, id)).transpose()?;
             if let Some(id) = &subject {
+                touched.insert(s, owned(s, id)?)?;
                 link(s, &mut self.request_subjects, owned(s, id)?, handle)?;
                 link_ref(s, &mut self.request_subjects, id.as_str(), handle)?;
             }
@@ -1441,6 +1668,25 @@ impl NativeSourceState {
                 },
             )?;
         }
+        if crate::is_structure_rule(&self.rule) {
+            for id in touched.iter() {
+                if let Some(object) = source_structure::Lookup::object(
+                    &NativeObjects {
+                        ids: &self.ids,
+                        objects: &self.objects,
+                        entities: &self.structure_entities,
+                    },
+                    id,
+                ) {
+                    if source_structure::is_kind(&self.rule, object.kind.as_str())
+                        && self.request_subjects.get(id).map_or(0, |set| set.len())
+                            != source_structure::expected_requests(s, object)?
+                    {
+                        return Err(err("结构对象缺一一具名分类请求"));
+                    }
+                }
+            }
+        }
         if !self.missing_requests.is_empty() {
             return Err(err("CC004缺一一绑定的知识请求"));
         }
@@ -1450,9 +1696,34 @@ impl NativeSourceState {
         Ok(())
     }
 }
+struct NativeObjects<'a> {
+    ids: &'a Map<TextValue, Handle>,
+    entities: &'a Map<TextValue, Handle>,
+    objects: &'a Map<Handle, Entry>,
+}
+impl source_structure::Lookup for NativeObjects<'_> {
+    fn entity(&self, id: &str) -> Option<&Object> {
+        self.entities
+            .get(id)
+            .and_then(|h| self.objects.get(h))
+            .map(|entry| entry.value.as_ref())
+    }
+    fn object(&self, id: &str) -> Option<&Object> {
+        self.ids
+            .get(id)
+            .and_then(|h| self.objects.get(h))
+            .map(|entry| entry.value.as_ref())
+    }
+}
 struct NativeSteps<'a> {
     steps: &'a Map<i64, StepState>,
     subjects: &'a Map<TextValue, i64>,
+    objects: NativeObjects<'a>,
+}
+impl source_structure::Lookup for NativeSteps<'_> {
+    fn object(&self, id: &str) -> Option<&Object> {
+        source_structure::Lookup::object(&self.objects, id)
+    }
 }
 impl StepLookup for NativeSteps<'_> {
     fn get_step(&self, coord: i64) -> Option<&dyn StepView> {
@@ -1831,20 +2102,35 @@ pub(crate) fn audit_native_bound(
         let mut dirty_shapes = Tree::default();
         let mut dirty_witness = Tree::default();
         let mut pending_changed = Tree::default();
+        let mut dirty_requests = Tree::default();
         let membership = state.raw_advance(material, raw, &mut dirty_objects)?;
         #[cfg(test)]
         super::super::state::trace_event("source_objects", None);
+        let current_generation = if crate::is_structure_rule(rule) {
+            let root = material.root().content_ref();
+            number(material, &root, "generation")?
+        } else {
+            0
+        };
         state.object_phase(
             material,
             &producer,
             raw.current_prefix(),
+            current_generation,
             dirty_objects,
             &mut dirty_groups,
             &mut dirty_shapes,
             &mut dirty_witness,
             &mut pending_changed,
+            &mut dirty_requests,
         )?;
-        state.pending_phase(material, &pending_changed, membership, &dirty_groups)?;
+        state.pending_phase(
+            material,
+            &pending_changed,
+            membership,
+            &dirty_groups,
+            dirty_requests,
+        )?;
         state.partition_phase()?;
         #[cfg(test)]
         super::super::state::trace_event("source_shapes", None);
@@ -1977,4 +2263,71 @@ mod component_tests {
         )
         .unwrap());
     }
+}
+
+#[cfg(test)]
+pub(super) fn entity_removal_control_for_test(
+    s: &mut sc::MemoryNodes,
+    objects: Vec<Object>,
+    edge: Object,
+    target: &str,
+) -> Result<(), String> {
+    let mut values = Map::default();
+    let mut ids = Map::default();
+    let mut entities = Map::default();
+    let mut dependencies = Map::default();
+    for (handle, object) in objects.into_iter().enumerate() {
+        ids.put(s, owned(s, object.id.as_str())?, handle)?;
+        if let Some(entity) = source_structure::entity_id(s, &object)? {
+            entities.put(s, owned(s, entity.as_str())?, handle)?;
+        }
+        values.put(
+            s,
+            handle,
+            Entry {
+                value: Rc::new(object),
+                group: None,
+            },
+        )?;
+    }
+    let handle = values.len();
+    for entity in source_structure::entity_references(s, &edge)? {
+        link(s, &mut dependencies, owned(s, entity.as_str())?, handle)?;
+        link_ref(s, &mut dependencies, entity.as_str(), handle)?;
+    }
+    source_structure::audit_links(
+        s,
+        &edge,
+        &NativeObjects {
+            ids: &ids,
+            entities: &entities,
+            objects: &values,
+        },
+    )?;
+    let mut dirty = Tree::default();
+    dirty_from(s, &dependencies, target, &mut dirty)?;
+    let deleted = entities
+        .remove(target)?
+        .ok_or_else(|| err("负控缺待删端点"))?;
+    let deleted = values
+        .remove(&deleted)?
+        .ok_or_else(|| err("负控缺端点原件"))?;
+    ids.remove(deleted.value.id.as_str())?;
+    if !dirty.contains(&handle) {
+        return Err(err("删除端点未使原关系失效"));
+    }
+    if source_structure::audit_links(
+        s,
+        &edge,
+        &NativeObjects {
+            ids: &ids,
+            entities: &entities,
+            objects: &values,
+        },
+    )
+    .is_ok()
+    {
+        return Err(err("删除端点后悬空关系误放行"));
+    }
+    Ok(())
 }

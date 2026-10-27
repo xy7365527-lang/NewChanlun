@@ -76,7 +76,7 @@ pub(super) const KINDS: &[&str] = &[
     "CC-011.seed_candidate",
 ];
 
-fn wire(v: Value) -> Value {
+pub(super) fn wire(v: Value) -> Value {
     match v {
         Value::Number(n) => json!(n.to_string()),
         Value::Array(a) => Value::Array(a.into_iter().map(wire).collect()),

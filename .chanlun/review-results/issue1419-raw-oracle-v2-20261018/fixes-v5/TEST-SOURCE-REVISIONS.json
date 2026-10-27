@@ -1,0 +1,777 @@
+{
+  "qualification": "逐次真实源hash，不用最终源码冒充早期失败/通过运行",
+  "runs": [
+    {
+      "label": "initial",
+      "tests": 3,
+      "failures": 3,
+      "errors": 0,
+      "sources": [
+        {
+          "logical_path": "driver/assemble_evidence.py",
+          "bytes": 16440,
+          "sha256": "b9cca7d3fbf1965da125925f8caaf7932718410232f72d303687ede6a31c74b4",
+          "resolved_source": {
+            "path": "driver/assemble_evidence.py"
+          }
+        },
+        {
+          "logical_path": "driver/content_closure.py",
+          "bytes": 16713,
+          "sha256": "65aa1aa87939bb11a019c215a636f46a01ef4045bc3f4a2276fce5940f713d82",
+          "resolved_source": {
+            "commit": "46a11d1cbdeecab3444efbfd324be29a73ecb293",
+            "path": ".chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/content_closure.py"
+          }
+        },
+        {
+          "logical_path": "driver/driver_v2.py",
+          "bytes": 18528,
+          "sha256": "1cb02275c511afe68321a0b6006eae5e411e05255478232c0d891ff4d1cce0f8",
+          "resolved_source": {
+            "commit": "46a11d1cbdeecab3444efbfd324be29a73ecb293",
+            "path": ".chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/driver_v2.py"
+          }
+        },
+        {
+          "logical_path": "driver/fixed_cut_driver.py",
+          "bytes": 21831,
+          "sha256": "202711033c9c99e4fd831241248a862668c2153661e2903807f6017dd0987191",
+          "resolved_source": {
+            "commit": "46a11d1cbdeecab3444efbfd324be29a73ecb293",
+            "path": ".chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/fixed_cut_driver.py"
+          }
+        },
+        {
+          "logical_path": "driver/prepare_candidate.py",
+          "bytes": 9867,
+          "sha256": "b251d99d366ebc7c68dd2fe8f2bdf5b0ff6b48009118d5e9c96c67f2aaebba00",
+          "resolved_source": {
+            "path": "driver/prepare_candidate.py"
+          }
+        },
+        {
+          "logical_path": "driver/raw_oracle.py",
+          "bytes": 14593,
+          "sha256": "4500a308a22bb763f273aa807def13405550993eef0e8196dca58d8aa09cb76e",
+          "resolved_source": {
+            "path": "driver/raw_oracle.py"
+          }
+        },
+        {
+          "logical_path": "driver/seal_bundle.py",
+          "bytes": 3854,
+          "sha256": "c90b87e529b37a497aa3e86940f4ec8906b9c5a614e41b74f26ba21825cd2575",
+          "resolved_source": {
+            "path": "driver/seal_bundle.py"
+          }
+        },
+        {
+          "logical_path": "driver/test_v2.py",
+          "bytes": 17385,
+          "sha256": "89f917cd0283a8c3bfa7082dd40a8eca473d638121e9fdab62126f5f1a6aaf7b",
+          "resolved_source": {
+            "commit": "46a11d1cbdeecab3444efbfd324be29a73ecb293",
+            "path": ".chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/test_v2.py"
+          }
+        },
+        {
+          "logical_path": "driver/toy_supervisor.py",
+          "bytes": 5543,
+          "sha256": "7f5a5e7fc90b4c33e551db1808b5ca1b4b29e81d8d5d1fe3347b2d3615ed5ff5",
+          "resolved_source": {
+            "path": "driver/toy_supervisor.py"
+          }
+        },
+        {
+          "logical_path": "driver/verify_delivery.py",
+          "bytes": 4363,
+          "sha256": "3402c467f96f3d4fda9d822aa97f1933e8bddfb1d33400428f32f4a6eeaa9e30",
+          "resolved_source": {
+            "path": "driver/verify_delivery.py"
+          }
+        },
+        {
+          "logical_path": "fixes-v5/run_checks.py",
+          "bytes": 1644,
+          "sha256": "0fa67e652a98dd8514b45f66869232be1859c5603982a8f96b6fbf0491b8be4b",
+          "resolved_source": {
+            "path": "fixes-v5/run_checks.py.initial.reference"
+          }
+        },
+        {
+          "logical_path": "fixes-v5/test_v5.py",
+          "bytes": 6071,
+          "sha256": "8198f96d1c52810f243807bdfd87263c9be4e9e6852ffa56580d882e7f682c6f",
+          "resolved_source": {
+            "path": "fixes-v5/test_v5.py.initial.reference"
+          }
+        },
+        {
+          "logical_path": "fixes-v4/test_v4.py",
+          "bytes": 17182,
+          "sha256": "b820ea1a3b143bf38b7bc25800bb36b8eb589581574ce2458d00d2a46f9bd95a",
+          "resolved_source": {
+            "path": "fixes-v4/test_v4.py"
+          }
+        },
+        {
+          "logical_path": "fixes-v3/domain_fields.py",
+          "bytes": 5414,
+          "sha256": "a7bc1295c8478926b3217433e4dc7b080b58022ce81e4a9aad2926f8e82a0591",
+          "resolved_source": {
+            "path": "fixes-v3/domain_fields.py"
+          }
+        },
+        {
+          "logical_path": "fixes-v3/independent_fixture.py",
+          "bytes": 7367,
+          "sha256": "49104b53631deeba220f3ff8cd586beed2b7d325bd6a7125e2bb367e709c243e",
+          "resolved_source": {
+            "path": "fixes-v3/independent_fixture.py"
+          }
+        }
+      ]
+    },
+    {
+      "label": "repaired",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "sources": [
+        {
+          "logical_path": "driver/assemble_evidence.py",
+          "bytes": 16440,
+          "sha256": "b9cca7d3fbf1965da125925f8caaf7932718410232f72d303687ede6a31c74b4",
+          "resolved_source": {
+            "path": "driver/assemble_evidence.py"
+          }
+        },
+        {
+          "logical_path": "driver/content_closure.py",
+          "bytes": 16908,
+          "sha256": "e602b90a20e5028e2859a10404e244f0d413079cbf7a24d9b96de40fd8fc23d8",
+          "resolved_source": {
+            "path": "driver/content_closure.py"
+          }
+        },
+        {
+          "logical_path": "driver/driver_v2.py",
+          "bytes": 19632,
+          "sha256": "6d8b4aeed034fe2eb92b7de674a823c8dc1d864c678655bd9df8bdd07a40b7f2",
+          "resolved_source": {
+            "path": "fixes-v5/driver_v2.py.repaired.reference"
+          }
+        },
+        {
+          "logical_path": "driver/fixed_cut_driver.py",
+          "bytes": 25602,
+          "sha256": "806b239197ec66b45782e50ab5cc4cb9668090ef32050344303a84cf598f85b6",
+          "resolved_source": {
+            "path": "fixes-v5/fixed_cut_driver.py.repaired.reference"
+          }
+        },
+        {
+          "logical_path": "driver/prepare_candidate.py",
+          "bytes": 9867,
+          "sha256": "b251d99d366ebc7c68dd2fe8f2bdf5b0ff6b48009118d5e9c96c67f2aaebba00",
+          "resolved_source": {
+            "path": "driver/prepare_candidate.py"
+          }
+        },
+        {
+          "logical_path": "driver/raw_oracle.py",
+          "bytes": 14593,
+          "sha256": "4500a308a22bb763f273aa807def13405550993eef0e8196dca58d8aa09cb76e",
+          "resolved_source": {
+            "path": "driver/raw_oracle.py"
+          }
+        },
+        {
+          "logical_path": "driver/seal_bundle.py",
+          "bytes": 3854,
+          "sha256": "c90b87e529b37a497aa3e86940f4ec8906b9c5a614e41b74f26ba21825cd2575",
+          "resolved_source": {
+            "path": "driver/seal_bundle.py"
+          }
+        },
+        {
+          "logical_path": "driver/test_v2.py",
+          "bytes": 17572,
+          "sha256": "55946f115533faec5ebc2be6cc2be6c03867b7faabdead46a7f26683ce436028",
+          "resolved_source": {
+            "path": "driver/test_v2.py"
+          }
+        },
+        {
+          "logical_path": "driver/toy_supervisor.py",
+          "bytes": 5543,
+          "sha256": "7f5a5e7fc90b4c33e551db1808b5ca1b4b29e81d8d5d1fe3347b2d3615ed5ff5",
+          "resolved_source": {
+            "path": "driver/toy_supervisor.py"
+          }
+        },
+        {
+          "logical_path": "driver/verify_delivery.py",
+          "bytes": 4363,
+          "sha256": "3402c467f96f3d4fda9d822aa97f1933e8bddfb1d33400428f32f4a6eeaa9e30",
+          "resolved_source": {
+            "path": "driver/verify_delivery.py"
+          }
+        },
+        {
+          "logical_path": "fixes-v5/run_checks.py",
+          "bytes": 1644,
+          "sha256": "0fa67e652a98dd8514b45f66869232be1859c5603982a8f96b6fbf0491b8be4b",
+          "resolved_source": {
+            "path": "fixes-v5/run_checks.py.initial.reference"
+          }
+        },
+        {
+          "logical_path": "fixes-v5/test_v5.py",
+          "bytes": 6071,
+          "sha256": "8198f96d1c52810f243807bdfd87263c9be4e9e6852ffa56580d882e7f682c6f",
+          "resolved_source": {
+            "path": "fixes-v5/test_v5.py.initial.reference"
+          }
+        },
+        {
+          "logical_path": "fixes-v4/test_v4.py",
+          "bytes": 17182,
+          "sha256": "b820ea1a3b143bf38b7bc25800bb36b8eb589581574ce2458d00d2a46f9bd95a",
+          "resolved_source": {
+            "path": "fixes-v4/test_v4.py"
+          }
+        },
+        {
+          "logical_path": "fixes-v3/domain_fields.py",
+          "bytes": 5414,
+          "sha256": "a7bc1295c8478926b3217433e4dc7b080b58022ce81e4a9aad2926f8e82a0591",
+          "resolved_source": {
+            "path": "fixes-v3/domain_fields.py"
+          }
+        },
+        {
+          "logical_path": "fixes-v3/independent_fixture.py",
+          "bytes": 7367,
+          "sha256": "49104b53631deeba220f3ff8cd586beed2b7d325bd6a7125e2bb367e709c243e",
+          "resolved_source": {
+            "path": "fixes-v3/independent_fixture.py"
+          }
+        }
+      ]
+    },
+    {
+      "label": "acceptance",
+      "tests": 24,
+      "failures": 0,
+      "errors": 8,
+      "sources": [
+        {
+          "logical_path": "driver/assemble_evidence.py",
+          "bytes": 16440,
+          "sha256": "b9cca7d3fbf1965da125925f8caaf7932718410232f72d303687ede6a31c74b4",
+          "resolved_source": {
+            "path": "driver/assemble_evidence.py"
+          }
+        },
+        {
+          "logical_path": "driver/content_closure.py",
+          "bytes": 16908,
+          "sha256": "e602b90a20e5028e2859a10404e244f0d413079cbf7a24d9b96de40fd8fc23d8",
+          "resolved_source": {
+            "path": "driver/content_closure.py"
+          }
+        },
+        {
+          "logical_path": "driver/driver_v2.py",
+          "bytes": 19632,
+          "sha256": "6d8b4aeed034fe2eb92b7de674a823c8dc1d864c678655bd9df8bdd07a40b7f2",
+          "resolved_source": {
+            "path": "fixes-v5/driver_v2.py.repaired.reference"
+          }
+        },
+        {
+          "logical_path": "driver/fixed_cut_driver.py",
+          "bytes": 25462,
+          "sha256": "0833c4e4bca2f04c20298cc00b37807e31ae05faa7b61c283f5ad11cb0024464",
+          "resolved_source": {
+            "path": "fixes-v5/fixed_cut_driver.py.accepted.reference"
+          }
+        },
+        {
+          "logical_path": "driver/prepare_candidate.py",
+          "bytes": 9867,
+          "sha256": "b251d99d366ebc7c68dd2fe8f2bdf5b0ff6b48009118d5e9c96c67f2aaebba00",
+          "resolved_source": {
+            "path": "driver/prepare_candidate.py"
+          }
+        },
+        {
+          "logical_path": "driver/raw_oracle.py",
+          "bytes": 14593,
+          "sha256": "4500a308a22bb763f273aa807def13405550993eef0e8196dca58d8aa09cb76e",
+          "resolved_source": {
+            "path": "driver/raw_oracle.py"
+          }
+        },
+        {
+          "logical_path": "driver/seal_bundle.py",
+          "bytes": 3854,
+          "sha256": "c90b87e529b37a497aa3e86940f4ec8906b9c5a614e41b74f26ba21825cd2575",
+          "resolved_source": {
+            "path": "driver/seal_bundle.py"
+          }
+        },
+        {
+          "logical_path": "driver/test_v2.py",
+          "bytes": 17572,
+          "sha256": "55946f115533faec5ebc2be6cc2be6c03867b7faabdead46a7f26683ce436028",
+          "resolved_source": {
+            "path": "driver/test_v2.py"
+          }
+        },
+        {
+          "logical_path": "driver/toy_supervisor.py",
+          "bytes": 5543,
+          "sha256": "7f5a5e7fc90b4c33e551db1808b5ca1b4b29e81d8d5d1fe3347b2d3615ed5ff5",
+          "resolved_source": {
+            "path": "driver/toy_supervisor.py"
+          }
+        },
+        {
+          "logical_path": "driver/verify_delivery.py",
+          "bytes": 4363,
+          "sha256": "3402c467f96f3d4fda9d822aa97f1933e8bddfb1d33400428f32f4a6eeaa9e30",
+          "resolved_source": {
+            "path": "driver/verify_delivery.py"
+          }
+        },
+        {
+          "logical_path": "fixes-v5/run_checks.py",
+          "bytes": 2757,
+          "sha256": "1efcf4ffef40bab9e3fa1ce791d0ff28eecdc548996488afe2f29a397872894c",
+          "resolved_source": {
+            "path": "fixes-v5/run_checks.py"
+          }
+        },
+        {
+          "logical_path": "fixes-v5/test_v5.py",
+          "bytes": 23644,
+          "sha256": "eea1430b927a7dfd36cf67b7dad9139120554028e30218762ff1cd39e6d093ca",
+          "resolved_source": {
+            "path": "fixes-v5/test_v5.py.acceptance.reference"
+          }
+        },
+        {
+          "logical_path": "fixes-v4/test_v4.py",
+          "bytes": 17182,
+          "sha256": "b820ea1a3b143bf38b7bc25800bb36b8eb589581574ce2458d00d2a46f9bd95a",
+          "resolved_source": {
+            "path": "fixes-v4/test_v4.py"
+          }
+        },
+        {
+          "logical_path": "fixes-v3/domain_fields.py",
+          "bytes": 5414,
+          "sha256": "a7bc1295c8478926b3217433e4dc7b080b58022ce81e4a9aad2926f8e82a0591",
+          "resolved_source": {
+            "path": "fixes-v3/domain_fields.py"
+          }
+        },
+        {
+          "logical_path": "fixes-v3/independent_fixture.py",
+          "bytes": 7367,
+          "sha256": "49104b53631deeba220f3ff8cd586beed2b7d325bd6a7125e2bb367e709c243e",
+          "resolved_source": {
+            "path": "fixes-v3/independent_fixture.py"
+          }
+        }
+      ]
+    },
+    {
+      "label": "final",
+      "tests": 24,
+      "failures": 0,
+      "errors": 0,
+      "sources": [
+        {
+          "logical_path": "driver/assemble_evidence.py",
+          "bytes": 16440,
+          "sha256": "b9cca7d3fbf1965da125925f8caaf7932718410232f72d303687ede6a31c74b4",
+          "resolved_source": {
+            "path": "driver/assemble_evidence.py"
+          }
+        },
+        {
+          "logical_path": "driver/content_closure.py",
+          "bytes": 16908,
+          "sha256": "e602b90a20e5028e2859a10404e244f0d413079cbf7a24d9b96de40fd8fc23d8",
+          "resolved_source": {
+            "path": "driver/content_closure.py"
+          }
+        },
+        {
+          "logical_path": "driver/driver_v2.py",
+          "bytes": 19632,
+          "sha256": "6d8b4aeed034fe2eb92b7de674a823c8dc1d864c678655bd9df8bdd07a40b7f2",
+          "resolved_source": {
+            "path": "fixes-v5/driver_v2.py.repaired.reference"
+          }
+        },
+        {
+          "logical_path": "driver/fixed_cut_driver.py",
+          "bytes": 25462,
+          "sha256": "0833c4e4bca2f04c20298cc00b37807e31ae05faa7b61c283f5ad11cb0024464",
+          "resolved_source": {
+            "path": "fixes-v5/fixed_cut_driver.py.accepted.reference"
+          }
+        },
+        {
+          "logical_path": "driver/prepare_candidate.py",
+          "bytes": 9867,
+          "sha256": "b251d99d366ebc7c68dd2fe8f2bdf5b0ff6b48009118d5e9c96c67f2aaebba00",
+          "resolved_source": {
+            "path": "driver/prepare_candidate.py"
+          }
+        },
+        {
+          "logical_path": "driver/raw_oracle.py",
+          "bytes": 14593,
+          "sha256": "4500a308a22bb763f273aa807def13405550993eef0e8196dca58d8aa09cb76e",
+          "resolved_source": {
+            "path": "driver/raw_oracle.py"
+          }
+        },
+        {
+          "logical_path": "driver/seal_bundle.py",
+          "bytes": 3854,
+          "sha256": "c90b87e529b37a497aa3e86940f4ec8906b9c5a614e41b74f26ba21825cd2575",
+          "resolved_source": {
+            "path": "driver/seal_bundle.py"
+          }
+        },
+        {
+          "logical_path": "driver/test_v2.py",
+          "bytes": 17572,
+          "sha256": "55946f115533faec5ebc2be6cc2be6c03867b7faabdead46a7f26683ce436028",
+          "resolved_source": {
+            "path": "driver/test_v2.py"
+          }
+        },
+        {
+          "logical_path": "driver/toy_supervisor.py",
+          "bytes": 5543,
+          "sha256": "7f5a5e7fc90b4c33e551db1808b5ca1b4b29e81d8d5d1fe3347b2d3615ed5ff5",
+          "resolved_source": {
+            "path": "driver/toy_supervisor.py"
+          }
+        },
+        {
+          "logical_path": "driver/verify_delivery.py",
+          "bytes": 4363,
+          "sha256": "3402c467f96f3d4fda9d822aa97f1933e8bddfb1d33400428f32f4a6eeaa9e30",
+          "resolved_source": {
+            "path": "driver/verify_delivery.py"
+          }
+        },
+        {
+          "logical_path": "fixes-v5/run_checks.py",
+          "bytes": 2757,
+          "sha256": "1efcf4ffef40bab9e3fa1ce791d0ff28eecdc548996488afe2f29a397872894c",
+          "resolved_source": {
+            "path": "fixes-v5/run_checks.py"
+          }
+        },
+        {
+          "logical_path": "fixes-v5/test_v5.py",
+          "bytes": 24171,
+          "sha256": "2a61001e13a27bf775d2cc309b60f5c72b19655b7407d8e4d9957ee5dceef0af",
+          "resolved_source": {
+            "path": "fixes-v5/test_v5.py.final.reference"
+          }
+        },
+        {
+          "logical_path": "fixes-v4/test_v4.py",
+          "bytes": 17182,
+          "sha256": "b820ea1a3b143bf38b7bc25800bb36b8eb589581574ce2458d00d2a46f9bd95a",
+          "resolved_source": {
+            "path": "fixes-v4/test_v4.py"
+          }
+        },
+        {
+          "logical_path": "fixes-v3/domain_fields.py",
+          "bytes": 5414,
+          "sha256": "a7bc1295c8478926b3217433e4dc7b080b58022ce81e4a9aad2926f8e82a0591",
+          "resolved_source": {
+            "path": "fixes-v3/domain_fields.py"
+          }
+        },
+        {
+          "logical_path": "fixes-v3/independent_fixture.py",
+          "bytes": 7367,
+          "sha256": "49104b53631deeba220f3ff8cd586beed2b7d325bd6a7125e2bb367e709c243e",
+          "resolved_source": {
+            "path": "fixes-v3/independent_fixture.py"
+          }
+        }
+      ]
+    },
+    {
+      "label": "accepted",
+      "tests": 25,
+      "failures": 0,
+      "errors": 0,
+      "sources": [
+        {
+          "logical_path": "driver/assemble_evidence.py",
+          "bytes": 16440,
+          "sha256": "b9cca7d3fbf1965da125925f8caaf7932718410232f72d303687ede6a31c74b4",
+          "resolved_source": {
+            "path": "driver/assemble_evidence.py"
+          }
+        },
+        {
+          "logical_path": "driver/content_closure.py",
+          "bytes": 16908,
+          "sha256": "e602b90a20e5028e2859a10404e244f0d413079cbf7a24d9b96de40fd8fc23d8",
+          "resolved_source": {
+            "path": "driver/content_closure.py"
+          }
+        },
+        {
+          "logical_path": "driver/driver_v2.py",
+          "bytes": 19663,
+          "sha256": "28fdf641623ddc2f66f335e407c2a0dc61d3353afa8cdd1ae8f9294d35c0792f",
+          "resolved_source": {
+            "path": "driver/driver_v2.py"
+          }
+        },
+        {
+          "logical_path": "driver/fixed_cut_driver.py",
+          "bytes": 25462,
+          "sha256": "0833c4e4bca2f04c20298cc00b37807e31ae05faa7b61c283f5ad11cb0024464",
+          "resolved_source": {
+            "path": "fixes-v5/fixed_cut_driver.py.accepted.reference"
+          }
+        },
+        {
+          "logical_path": "driver/prepare_candidate.py",
+          "bytes": 9867,
+          "sha256": "b251d99d366ebc7c68dd2fe8f2bdf5b0ff6b48009118d5e9c96c67f2aaebba00",
+          "resolved_source": {
+            "path": "driver/prepare_candidate.py"
+          }
+        },
+        {
+          "logical_path": "driver/raw_oracle.py",
+          "bytes": 14593,
+          "sha256": "4500a308a22bb763f273aa807def13405550993eef0e8196dca58d8aa09cb76e",
+          "resolved_source": {
+            "path": "driver/raw_oracle.py"
+          }
+        },
+        {
+          "logical_path": "driver/seal_bundle.py",
+          "bytes": 3854,
+          "sha256": "c90b87e529b37a497aa3e86940f4ec8906b9c5a614e41b74f26ba21825cd2575",
+          "resolved_source": {
+            "path": "driver/seal_bundle.py"
+          }
+        },
+        {
+          "logical_path": "driver/test_v2.py",
+          "bytes": 17572,
+          "sha256": "55946f115533faec5ebc2be6cc2be6c03867b7faabdead46a7f26683ce436028",
+          "resolved_source": {
+            "path": "driver/test_v2.py"
+          }
+        },
+        {
+          "logical_path": "driver/toy_supervisor.py",
+          "bytes": 5543,
+          "sha256": "7f5a5e7fc90b4c33e551db1808b5ca1b4b29e81d8d5d1fe3347b2d3615ed5ff5",
+          "resolved_source": {
+            "path": "driver/toy_supervisor.py"
+          }
+        },
+        {
+          "logical_path": "driver/verify_delivery.py",
+          "bytes": 4363,
+          "sha256": "3402c467f96f3d4fda9d822aa97f1933e8bddfb1d33400428f32f4a6eeaa9e30",
+          "resolved_source": {
+            "path": "driver/verify_delivery.py"
+          }
+        },
+        {
+          "logical_path": "fixes-v5/run_checks.py",
+          "bytes": 2757,
+          "sha256": "1efcf4ffef40bab9e3fa1ce791d0ff28eecdc548996488afe2f29a397872894c",
+          "resolved_source": {
+            "path": "fixes-v5/run_checks.py"
+          }
+        },
+        {
+          "logical_path": "fixes-v5/test_v5.py",
+          "bytes": 25085,
+          "sha256": "82385a698ad78f26ae3d5f6c7376383d219c135915a9907348a12ff64d32f05f",
+          "resolved_source": {
+            "path": "fixes-v5/test_v5.py.accepted.reference"
+          }
+        },
+        {
+          "logical_path": "fixes-v4/test_v4.py",
+          "bytes": 17182,
+          "sha256": "b820ea1a3b143bf38b7bc25800bb36b8eb589581574ce2458d00d2a46f9bd95a",
+          "resolved_source": {
+            "path": "fixes-v4/test_v4.py"
+          }
+        },
+        {
+          "logical_path": "fixes-v3/domain_fields.py",
+          "bytes": 5414,
+          "sha256": "a7bc1295c8478926b3217433e4dc7b080b58022ce81e4a9aad2926f8e82a0591",
+          "resolved_source": {
+            "path": "fixes-v3/domain_fields.py"
+          }
+        },
+        {
+          "logical_path": "fixes-v3/independent_fixture.py",
+          "bytes": 7367,
+          "sha256": "49104b53631deeba220f3ff8cd586beed2b7d325bd6a7125e2bb367e709c243e",
+          "resolved_source": {
+            "path": "fixes-v3/independent_fixture.py"
+          }
+        }
+      ]
+    },
+    {
+      "label": "verified",
+      "tests": 26,
+      "failures": 0,
+      "errors": 0,
+      "sources": [
+        {
+          "logical_path": "driver/assemble_evidence.py",
+          "bytes": 16440,
+          "sha256": "b9cca7d3fbf1965da125925f8caaf7932718410232f72d303687ede6a31c74b4",
+          "resolved_source": {
+            "path": "driver/assemble_evidence.py"
+          }
+        },
+        {
+          "logical_path": "driver/content_closure.py",
+          "bytes": 16908,
+          "sha256": "e602b90a20e5028e2859a10404e244f0d413079cbf7a24d9b96de40fd8fc23d8",
+          "resolved_source": {
+            "path": "driver/content_closure.py"
+          }
+        },
+        {
+          "logical_path": "driver/driver_v2.py",
+          "bytes": 19663,
+          "sha256": "28fdf641623ddc2f66f335e407c2a0dc61d3353afa8cdd1ae8f9294d35c0792f",
+          "resolved_source": {
+            "path": "driver/driver_v2.py"
+          }
+        },
+        {
+          "logical_path": "driver/fixed_cut_driver.py",
+          "bytes": 25601,
+          "sha256": "8873c5ee0fb57a6946f4b07abe2d6962b98aef3c50a8b4cccac7dc2907a2ecd0",
+          "resolved_source": {
+            "path": "driver/fixed_cut_driver.py"
+          }
+        },
+        {
+          "logical_path": "driver/prepare_candidate.py",
+          "bytes": 9867,
+          "sha256": "b251d99d366ebc7c68dd2fe8f2bdf5b0ff6b48009118d5e9c96c67f2aaebba00",
+          "resolved_source": {
+            "path": "driver/prepare_candidate.py"
+          }
+        },
+        {
+          "logical_path": "driver/raw_oracle.py",
+          "bytes": 14593,
+          "sha256": "4500a308a22bb763f273aa807def13405550993eef0e8196dca58d8aa09cb76e",
+          "resolved_source": {
+            "path": "driver/raw_oracle.py"
+          }
+        },
+        {
+          "logical_path": "driver/seal_bundle.py",
+          "bytes": 3854,
+          "sha256": "c90b87e529b37a497aa3e86940f4ec8906b9c5a614e41b74f26ba21825cd2575",
+          "resolved_source": {
+            "path": "driver/seal_bundle.py"
+          }
+        },
+        {
+          "logical_path": "driver/test_v2.py",
+          "bytes": 17572,
+          "sha256": "55946f115533faec5ebc2be6cc2be6c03867b7faabdead46a7f26683ce436028",
+          "resolved_source": {
+            "path": "driver/test_v2.py"
+          }
+        },
+        {
+          "logical_path": "driver/toy_supervisor.py",
+          "bytes": 5543,
+          "sha256": "7f5a5e7fc90b4c33e551db1808b5ca1b4b29e81d8d5d1fe3347b2d3615ed5ff5",
+          "resolved_source": {
+            "path": "driver/toy_supervisor.py"
+          }
+        },
+        {
+          "logical_path": "driver/verify_delivery.py",
+          "bytes": 4363,
+          "sha256": "3402c467f96f3d4fda9d822aa97f1933e8bddfb1d33400428f32f4a6eeaa9e30",
+          "resolved_source": {
+            "path": "driver/verify_delivery.py"
+          }
+        },
+        {
+          "logical_path": "fixes-v5/run_checks.py",
+          "bytes": 2757,
+          "sha256": "1efcf4ffef40bab9e3fa1ce791d0ff28eecdc548996488afe2f29a397872894c",
+          "resolved_source": {
+            "path": "fixes-v5/run_checks.py"
+          }
+        },
+        {
+          "logical_path": "fixes-v5/test_v5.py",
+          "bytes": 26902,
+          "sha256": "21160d525e1eacee72f05f0aca0f966cee3d2c6b3272f0d2bed3939d9b229ed4",
+          "resolved_source": {
+            "path": "fixes-v5/test_v5.py"
+          }
+        },
+        {
+          "logical_path": "fixes-v4/test_v4.py",
+          "bytes": 17182,
+          "sha256": "b820ea1a3b143bf38b7bc25800bb36b8eb589581574ce2458d00d2a46f9bd95a",
+          "resolved_source": {
+            "path": "fixes-v4/test_v4.py"
+          }
+        },
+        {
+          "logical_path": "fixes-v3/domain_fields.py",
+          "bytes": 5414,
+          "sha256": "a7bc1295c8478926b3217433e4dc7b080b58022ce81e4a9aad2926f8e82a0591",
+          "resolved_source": {
+            "path": "fixes-v3/domain_fields.py"
+          }
+        },
+        {
+          "logical_path": "fixes-v3/independent_fixture.py",
+          "bytes": 7367,
+          "sha256": "49104b53631deeba220f3ff8cd586beed2b7d325bd6a7125e2bb367e709c243e",
+          "resolved_source": {
+            "path": "fixes-v3/independent_fixture.py"
+          }
+        }
+      ]
+    }
+  ]
+}

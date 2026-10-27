@@ -29,6 +29,19 @@
   TB02_KINDS.push(...BI_KINDS);
   const SEGMENT_KINDS = ["CC-011.segment_seed", "CC-012.feature_sequence", "CC-013.segment", "CC-055.segment_relation", "CC-055.segment_change", "CC-056.segment_version", "CC-011.seed_candidate"];
   TB02_KINDS.push(...SEGMENT_KINDS);
+  // #1393 W（raw-initialization-w/1）：新增 kind 仅此二者，归 CC-004 轴；字段逐字取 W 冻结源 de73545cbf。
+  const INITIALIZATION_POLICY = "raw-initialization-w/1";
+  const INITIALIZATION_KINDS = ["CC-004.initialization", "CC-004.undetermined_raw"];
+  const W_KNOWLEDGE_DOMAIN = "raw_adjacent_W_initialization";
+  TB02_KINDS.push(...INITIALIZATION_KINDS);
+  // #1393×#1419：完整规则串精确白名单——无后缀者即自身基规则；带 W 后缀者逐条显式映射，不剥后缀推断。
+  // 本表管 s-session/1 写者历史 cut 与 W 单域历史（主控裁定 (a)：v2 写者对新会话只读）。
+  const RULE_BASES = new Map(Object.keys(RULE_CONTRACTS).map(rule => [rule, rule]));
+  RULE_BASES.set("s2-axis-quantifiers+new-bi/1+segment-second/1+" + INITIALIZATION_POLICY, "s2-axis-quantifiers+new-bi/1+segment-second/1");
+  // 拒绝文本保留 CF 既有原因词与 W 的「完整规则组合」，两侧负控都按原文匹配。
+  function baseRule(rule, reason = "cut规则修订未声明") { need(typeof rule === "string" && RULE_BASES.has(rule), reason + "：未获准的完整规则组合"); return RULE_BASES.get(rule); }
+  async function initializationPolicy(p) { need(await eqField(p, "initialization_policy_revision", INITIALIZATION_POLICY), "初始化政策版本未声明"); }
+  async function directionState(p) { await enumValue(await field(p, "direction_state"), ["Undetermined", "Established"], "初始化方向状态未声明"); }
   const REF_KEYS = ["identity_key", "payload_hash", "receipt_id", "event_id", "input_revision", "revision", "seq", "source_coord"];
   const {need, keys, T, S, I, N, equal} = V;
   const field = (v, k) => V.field(v, k);
@@ -104,7 +117,15 @@
     const p = await field(record, "payload");
     if (SEGMENT_KINDS.includes(kind)) validateSegmentPayload(kind, await plain(p));
     else if (BI_KINDS.includes(kind)) await validateBiPayload(kind, p);
-    else if (kind === TB02_KINDS[0]) {
+    else if (kind === "CC-004.initialization") {
+      await keys(p, ["initialization_policy_revision", "direction_state", "first_raw_pair"], "初始化");
+      await initializationPolicy(p); await directionState(p); const pair = await field(p, "first_raw_pair"); await directionEvidence(pair);
+      need((await eqField(p, "direction_state", "Undetermined")) === isNull(pair), "初始化状态与首对证据不一致");
+    } else if (kind === "CC-004.undetermined_raw") {
+      await keys(p, ["raw", "direction_state", "initialization_policy_revision", "pending_since_cut"], "未定原件");
+      await initializationPolicy(p); await barRef(await field(p, "raw"));
+      need(await eqField(p, "direction_state", "Undetermined") && await equal(await field(p, "pending_since_cut"), await field(record, "first_known_cut")), "未定状态/发生cut不符");
+    } else if (kind === TB02_KINDS[0]) {
       await keys(p, ["action", "incoming", "acc_before", "acc_after", "direction", "direction_evidence", "comparisons", "endpoint_order", "contains", "high_sources", "low_sources", "waiting_reasons"], "包含步骤");
       await enumValue(await field(p, "action"), ["seed", "establish_direction", "merge", "new_group", "waiting"], "步骤动作不符"); await barRef(await field(p, "incoming"));
       for (const k of ["acc_before", "acc_after"]) { const value = await field(p, k); if (!(isNull(value))) await barRef(value); }
@@ -126,7 +147,9 @@
       const contains = await field(p, "contains"); need(["null", "bool"].includes(contains.kind), "contains 不是 bool/null");
       if (isNull(await field(p, "acc_before"))) need(count === 0n && await comparisons.length() === 0n && isNull(contains), "seed 虚构比较");
     } else if (kind === TB02_KINDS[1]) {
-      await keys(p, ["group_index", "group_anchor", "members", "open", "high", "low", "close", "high_sources", "low_sources", "confirmed", "direction", "direction_evidence", "confirmation_evidence", "waiting_reasons"], "包含组");
+      const extra = await V.of(p).has("initialization_policy_revision") ? ["initialization_policy_revision", "initial_direction_evidence"] : [];
+      await keys(p, ["group_index", "group_anchor", "members", "open", "high", "low", "close", "high_sources", "low_sources", "confirmed", "direction", "direction_evidence", "confirmation_evidence", "waiting_reasons", ...extra], "包含组");
+      if (extra.length) { await initializationPolicy(p); const initial = await field(p, "initial_direction_evidence"); await directionEvidence(initial); need(!isNull(initial), "W 正式组缺初始化证据"); }
       await I(await field(p, "group_index")); await I(await field(p, "group_anchor"));
       const members = await coordinates(await field(p, "members")), memberSet = await coordinateSet(members), firstMember = await members.items()[Symbol.asyncIterator]().next();
       need(!firstMember.done && await equal(firstMember.value, await field(p, "group_anchor")), "组首未绑定首成员");
@@ -166,8 +189,11 @@
         }
       }
     } else {
-      await keys(p, ["scope", "input_frontier", "known_facts", "waiting_reasons", "domain", "requests"], "知识状态");
-      need(await eqField(p, "scope", "TB-02-A") && KNOWLEDGE_DOMAINS.includes(await S(await field(p, "domain"))) && await eqField(p, "known_facts", ["raw_ohlc", "inclusion_trace", "group_provenance"]), "知识域/已知事实不符");
+      const extra = await V.of(p).has("initialization_policy_revision") ? ["initialization_policy_revision", "direction_state"] : [];
+      await keys(p, ["scope", "input_frontier", "known_facts", "waiting_reasons", "domain", "requests", ...extra], "知识状态");
+      if (extra.length) { await initializationPolicy(p); await directionState(p); }
+      const domainValue = await S(await field(p, "domain"));
+      need(await eqField(p, "scope", "TB-02-A") && (extra.length ? domainValue === W_KNOWLEDGE_DOMAIN : KNOWLEDGE_DOMAINS.includes(domainValue)) && await eqField(p, "known_facts", ["raw_ohlc", "inclusion_trace", "group_provenance"]), "知识域/已知事实不符");
       await I(await field(p, "input_frontier"), false, true); await texts(await field(p, "waiting_reasons")); const requests = await array(await field(p, "requests"), "逐请求集合不完整"), ids = new Set();
       const enums = {input_quality:["SUFFICIENT", "INSUFFICIENT", "INCONSISTENT"], applicability:["IN_DOMAIN", "OUTSIDE_DOMAIN", "DOMAIN_PROOF_MISSING"], computation:["COMPLETE", "INCOMPLETE"], validity:["CURRENT", "SUPERSEDED", "WITHDRAWN"]};
       for await (const r of requests.items()) {
@@ -176,7 +202,7 @@
         for (const k of Object.keys(enums)) await enumValue(await field(axes, k), enums[k], "请求四轴枚举不符"); await texts(await field(r, "reasons")); await coordinates(await field(r, "source_coords"));
       }
     }
-    const slot = [...BI_KINDS, ...SEGMENT_KINDS].includes(kind) ? await field(p, "slot") : kind === TB02_KINDS[0] ? await field(await field(p, "incoming"), "source_coord") : kind === TB02_KINDS[1] ? await field(p, "group_anchor") : kind === TB02_KINDS[2] ? await field(p, "window") : "TB-02-A";
+    const slot = kind === "CC-004.initialization" ? "W" : kind === "CC-004.undetermined_raw" ? await field(await field(p, "raw"), "source_coord") : [...BI_KINDS, ...SEGMENT_KINDS].includes(kind) ? await field(p, "slot") : kind === TB02_KINDS[0] ? await field(await field(p, "incoming"), "source_coord") : kind === TB02_KINDS[1] ? await field(p, "group_anchor") : kind === TB02_KINDS[2] ? await field(p, "window") : "TB-02-A";
     need(await canonicalMatches([kind, slot], await S(await field(record, "fact_key"))), "事实语义槽未绑定 payload");
   }
   // #1404/#1414/#1420：s-segment/1、/2、/3 段合同沿用已审同步判据（单一实现，含 K1 游标）。
@@ -697,6 +723,6 @@
     need(await coords.length() === BigInt(all.size), "形态来源不是成员与构造/边界依据并集");
     for await (const coord of coords.items()) need(all.has(await S(coord)), "形态来源不是成员与构造/边界依据并集");
   }
-  return Object.freeze({RULE_CONTRACTS, validateTyped, validateBiPayload, validateSegmentPayload, turnLinks: (d, f) => segmentTurnLinks(d, f), PARSE_INVALID_REASON, RESULT_SEMANTIC_BRANCH, validateTB02ShapeRefs, plain,
+  return Object.freeze({RULE_CONTRACTS, RULE_BASES, baseRule, INITIALIZATION_POLICY, INITIALIZATION_KINDS, W_KNOWLEDGE_DOMAIN, validateTyped, validateBiPayload, validateSegmentPayload, turnLinks: (d, f) => segmentTurnLinks(d, f), PARSE_INVALID_REASON, RESULT_SEMANTIC_BRANCH, validateTB02ShapeRefs, plain,
     TB02_KINDS: Object.freeze(TB02_KINDS), BI_KINDS, SEGMENT_KINDS: Object.freeze(SEGMENT_KINDS)});
 });

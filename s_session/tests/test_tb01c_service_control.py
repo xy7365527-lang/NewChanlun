@@ -18,6 +18,12 @@ from r4_anchor_fixture import anchored_controller
 
 
 class LifecycleTests(unittest.TestCase):
+    def setUp(self):
+        # #1419：生命周期用例以假 binary 驱动 s-launcher/2；种子构建闸另有专测，这里放行。
+        seed_gate = patch.object(control, "require_seed_binary", side_effect=lambda binary: binary)
+        seed_gate.start()
+        self.addCleanup(seed_gate.stop)
+
     @staticmethod
     def ps_reply(command, *, uid=None, started="Sun Sep 13 16:17:43 2026"):
         uid = control.os.getuid() if uid is None else uid
@@ -723,6 +729,24 @@ class LifecycleTests(unittest.TestCase):
             finally:
                 controller.close()
 
+
+class V2SeedGateTests(unittest.TestCase):
+    """#1419 裁定（issuecomment-6265726014）：s-launcher/2 写 v2 库，发布构建在任何子进程动作前被拒。"""
+
+    def test_v2_start_and_recover_require_seed_binary(self):
+        with tempfile.TemporaryDirectory(prefix="tb01c-seed-gate-") as directory:
+            fake = Path(directory) / "s_structure_session"
+            fake.write_text('#!/bin/sh\necho \'{"ok":false,"error":"未知子命令 v2-seed-info"}\' >&2\nexit 1\n')
+            fake.chmod(0o755)
+            controller = control.Controller({"binary": str(fake), "db": str(Path(directory) / "db"),
+                                             "startup_timeout_ms": "1000", "clock_plan": "c"}, Path(directory))
+            with patch.object(control.Controller, "status", return_value={"state": "stopped"}), \
+                    patch.object(control.Controller, "runtime_environment") as environment:
+                with self.assertRaisesRegex(SystemExit, "s_v2_seed_testonly"):
+                    controller.start_s("1")
+                with self.assertRaisesRegex(SystemExit, "s_v2_seed_testonly"):
+                    controller.recover("2", "recover-1")
+            environment.assert_not_called()
 
 if __name__ == "__main__":
     unittest.main()

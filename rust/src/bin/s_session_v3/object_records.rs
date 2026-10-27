@@ -2238,7 +2238,7 @@ mod tests {
     fn typed_generated_and_wire_match_sealed_row_and_public_projection() {
         let mut fixture = fixture();
         let facts = fixture.state.materialize_facts();
-        let (oracle, _) = tb02a_facts::build(&facts, &fixture.raw, &[], GENERATION, CUT, 0);
+        let (oracle, _) = tb02a_facts::build(&facts, &fixture.raw, &[], &[], GENERATION, CUT, 0);
 
         let mut steps = 0usize;
         for index in 0..fixture.state.step_count() {
@@ -2308,7 +2308,7 @@ mod tests {
             shapes.push(row);
             shape_windows.push((start, shape));
         }
-        let (oracle, _) = tb02a_facts::build(&facts, &fixture.raw, &shapes, GENERATION, CUT, 0);
+        let (oracle, _) = tb02a_facts::build(&facts, &fixture.raw, &shapes, &[], GENERATION, CUT, 0);
 
         let mut fractals = 0usize;
         for (start, shape) in &shape_windows {

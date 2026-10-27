@@ -1,0 +1,246 @@
+{
+  "authorization_boundary": "消息和摘要仅作溯源；根需在最终 E/F 固定前后独审完整合同及唯一动作，并分别控制 E 的 False 预发布与 F 单次 push。",
+  "base_commit": "41e8a326743eabb10c1b07df01ce956235c5ad3d",
+  "branch": "codex/1393-validation-ci-20261018",
+  "contract_draft": "PREPARED_NOT_AUTHORIZED / UNBOUND",
+  "end_head": "41e8a326743eabb10c1b07df01ce956235c5ad3d",
+  "files": {
+    ".chanlun/review-results/issue1393-validation-ci-20261018/CONTRACT-DRAFT.json": {
+      "bytes": 1138,
+      "sha256": "848845d8db296a1f733cff2cb8182f8bfe31deec87111031880de3792da1a11a"
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/TRANSPORT-REPORT.md": {
+      "bytes": 10986,
+      "sha256": "6f6047555a28f8d845caef2f79de2977348f5098d0e654efe19dbf7ac30fe39b"
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/transport-receipt-round01.stderr": {
+      "bytes": 89,
+      "sha256": "a9ac2d01f73684097a907ecfdf15649987af7bc9ba8a734bd5144212a4c92775"
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/transport-static-final.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/transport-static-final.stdout": {
+      "bytes": 587,
+      "sha256": "99da3e92f6a9effd938f116718bef8a4f6b0f4ba46cc639cda88a513fc7df7f8"
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/transport-static-verified.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/transport-static-verified.stdout": {
+      "bytes": 587,
+      "sha256": "99da3e92f6a9effd938f116718bef8a4f6b0f4ba46cc639cda88a513fc7df7f8"
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/transport-toy-final.stderr": {
+      "bytes": 4599,
+      "sha256": "b43ab8fcaa3f4eb81b2a5005b0dead3079314059deb457fc72ecd4454fd2915b"
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/transport-toy-final.stdout": {
+      "bytes": 1311,
+      "sha256": "993d60f61cb64c5f096de77591f27f32ff9db8bad7f67024079fa9a6efb01f56"
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/transport-toy-round01.stderr": {
+      "bytes": 4415,
+      "sha256": "0e3cd38a71c41f06f73c14f09331e9799b9c6ffc12eadb9c3b644c4112708d79"
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/transport-toy-round01.stdout": {
+      "bytes": 1311,
+      "sha256": "993d60f61cb64c5f096de77591f27f32ff9db8bad7f67024079fa9a6efb01f56"
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/transport-toy-verified.stderr": {
+      "bytes": 4599,
+      "sha256": "cebcbb986132e6ad48e3768241231b072a1c80edbe7ef4e90633ce1fe3c5bcd6"
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/transport-toy-verified.stdout": {
+      "bytes": 1311,
+      "sha256": "993d60f61cb64c5f096de77591f27f32ff9db8bad7f67024079fa9a6efb01f56"
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/verify_static.py": {
+      "bytes": 5766,
+      "sha256": "0dc380d4ead1c17ff15a87e2c8522a4663398105e6b25348daee17453fd30833"
+    },
+    ".github/scripts/issue1393_validate.py": {
+      "bytes": 34869,
+      "sha256": "a98e7e6f54dacef35476f245a1f938df6cd0a952191fd7ea67938dd7185b1830"
+    },
+    ".github/scripts/test_issue1393_validate.py": {
+      "bytes": 29051,
+      "sha256": "1ebd7289e05551bc508de22370e102b5e205283f94108c38f3dc1c526fb35eb7"
+    },
+    ".github/workflows/issue1393-validation.yml": {
+      "bytes": 4877,
+      "sha256": "47c31701f9f2c9b34291721dab1623ede0bb54bbbb97ba58cb34efc5272ffe5b"
+    }
+  },
+  "manifest_boundary": "逐文件摘要不包括本收据自身，避免自引用。",
+  "not_run": [
+    "cargo/rustc",
+    "产品/Long",
+    "Lean 构建/fixture",
+    "网络/真实 CI",
+    "push/dispatch/commit/merge",
+    "其他工蜂/凭据读取"
+  ],
+  "pending": [
+    "最终业务 S/tree 及业务独审",
+    "最终 False E/tree 与完整合同摘要",
+    "管理者对本增量的独审",
+    "根对 E 预发布/F 单次 push 的独立许可",
+    "真实 run ID 与 GitHub 结果"
+  ],
+  "previous_history_byte_preserved": {
+    ".chanlun/review-results/issue1393-validation-ci-20261018/REPORT.md": {
+      "bytes": 13070,
+      "sha256": "d059b81dcdae5d53f88270024581dad701639326373c44bd788a26d0d40d37aa",
+      "unchanged": true
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/REUSE.md": {
+      "bytes": 2211,
+      "sha256": "595331c0bf7a642547ebd730221752d6431d86d06636eab683abbf21519f0f98",
+      "unchanged": true
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/VALIDATION.json": {
+      "bytes": 1364,
+      "sha256": "7d8bdf512537e2bff64cb504e0f56f1c7f40613f4d3401b685d45ca7bd2eaa3f",
+      "unchanged": true
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/WIP-MANIFEST.json": {
+      "bytes": 4291,
+      "sha256": "09ef8c0f3c15c0a998f452cd55feaa619f0a7065c51fdda05997257b1ce720e7",
+      "unchanged": true
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/WIP-MANIFEST.sha256": {
+      "bytes": 84,
+      "sha256": "cbb92ecccff77d8474f9a792f17f059097f3cd56e04ddd2797d751228a29f922",
+      "unchanged": true
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/static-final.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "unchanged": true
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/static-final.stdout": {
+      "bytes": 329,
+      "sha256": "c675213882a2635b3fceacf87f340f592960a48a42a0835e7fa5f3246db18ad5",
+      "unchanged": true
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/static-round01.stderr": {
+      "bytes": 331,
+      "sha256": "2231f0ce665e92f48d47d226fadf01652ad28d921b4b380ef4e09fa2ce3aedb5",
+      "unchanged": true
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/static-round01.stdout": {
+      "bytes": 277,
+      "sha256": "c2e2a8b45e5f6d90b5601c755fd96f407e53df6ec497cbc670a386f33adaed8d",
+      "unchanged": true
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/toy-final.stderr": {
+      "bytes": 2985,
+      "sha256": "69b64473afe63fb698f56b70b541f5de994932d378f4e5035f90d5547a251721",
+      "unchanged": true
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/toy-final.stdout": {
+      "bytes": 156,
+      "sha256": "3f0db6bc92bfd7aec97cb31382492bda8a65c7925034752155a51d5660b206d1",
+      "unchanged": true
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/toy-round01.stderr": {
+      "bytes": 6199,
+      "sha256": "10b58368824a6dea001e7964477809d79ab02f6e7e58be54b0587072db86ddac",
+      "unchanged": true
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/toy-round01.stdout": {
+      "bytes": 143,
+      "sha256": "cc42c7320bb015924d768b222327d8deb4f28b905b5d5c715671a3901f5d5ab3",
+      "unchanged": true
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/toy-round02.stderr": {
+      "bytes": 2512,
+      "sha256": "62df0d07fd8ae10303b73af1d00c98a6a8ac532071c2db61386954151c64d617",
+      "unchanged": true
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/toy-round02.stdout": {
+      "bytes": 156,
+      "sha256": "3f0db6bc92bfd7aec97cb31382492bda8a65c7925034752155a51d5660b206d1",
+      "unchanged": true
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/toy-round03.stderr": {
+      "bytes": 2825,
+      "sha256": "a2390883cf084da3717d9c4d5a8d2ac4952908d7bf766844fe7e9c97d550f146",
+      "unchanged": true
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/toy-round03.stdout": {
+      "bytes": 156,
+      "sha256": "3f0db6bc92bfd7aec97cb31382492bda8a65c7925034752155a51d5660b206d1",
+      "unchanged": true
+    }
+  },
+  "product_changes": [],
+  "receipt_generation_history": "首次静态输出行数误计导致断言退出，已订正；错误原件 transport-receipt-round01.stderr。",
+  "references_1488": {
+    "issue-1488-driver-six.yml": {
+      "bytes": 1221,
+      "mode": "只读参考，不继承业务或执行授权",
+      "sha256": "9c5cf48e969d06fecfbe0dcfd76f149bf09a2a0598dab4685dec90ca055c0790"
+    },
+    "run-1488-driver-ci.py": {
+      "bytes": 96961,
+      "mode": "只读参考，不继承业务或执行授权",
+      "sha256": "05360b7b0777165e82c2bdf0b8b338e6ee7c3e00f93ac933d07c5001eee440bf"
+    }
+  },
+  "schema": "issue1393-transport-validation/1",
+  "staged_changes": [],
+  "static": {
+    "checks": [
+      "AST + py_compile PASS: .github/scripts/issue1393_validate.py",
+      "AST + py_compile PASS: .github/scripts/test_issue1393_validate.py",
+      "YAML + False gate + 60-minute job + embedded Python/shell syntax PASS; PyYAML 6.0.3",
+      "ci.yml exact additive-only comparison PASS; original build/fixture preserved",
+      "fixed base + unchanged existing CI / build / exact / Lean / fixture / budget / package AST PASS",
+      "read-only Git stdin identity protocol + parent tree syntax PASS; no Git mutation",
+      "write scope + product unchanged + previous 19-toy history byte preservation PASS",
+      "tracked + new code whitespace check PASS"
+    ],
+    "command": "python3 -B .chanlun/review-results/issue1393-validation-ci-20261018/verify_static.py",
+    "exit": 0,
+    "originals": [
+      "transport-static-verified.stdout",
+      "transport-static-verified.stderr"
+    ]
+  },
+  "status": "PREPARED_NOT_AUTHORIZED",
+  "tests": {
+    "command": "python3 -B -m unittest discover -s .github/scripts -p test_issue1393_validate.py -v",
+    "count": 29,
+    "exit": 0,
+    "originals": [
+      "transport-toy-verified.stdout",
+      "transport-toy-verified.stderr"
+    ],
+    "scope": "标准库模型与临时 toy；原 19 项覆盖保留，新增 10 项",
+    "seconds": 2.315
+  },
+  "workflow_gate": "False",
+  "xerj_reused_before_coding": {
+    "xerj-nautilus-reference-all.json": {
+      "bytes": 953196,
+      "sha256": "8f2304838253c51889429c41871542f467d22764b0ec7dbb8faec956c0278dda"
+    },
+    "xerj-nautilus-state-reference.json": {
+      "bytes": 91586,
+      "sha256": "f7853a247fb99bb255f79397108dcf6a79db2109add34239499864ef50a3ec16"
+    },
+    "xerj-nc1320src-inclusion.json": {
+      "bytes": 137552,
+      "sha256": "3eadeee397574adcfbe11b37a2e1d3e01d809904427653ab0a2cffe8b27a7563"
+    },
+    "xerj-nc1419gate-inclusion.json": {
+      "bytes": 136840,
+      "sha256": "0d2f4ecf2f4a4c3a72f50dfbf36263871991dca970bc12782dda6062ed915668"
+    }
+  },
+  "说明": "专属 push 运输准备已完成；自查不替代管理者独审，未执行真实 CI。"
+}

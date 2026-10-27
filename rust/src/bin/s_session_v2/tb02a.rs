@@ -463,6 +463,8 @@ pub(crate) fn checked_fact_kind(o: &Value) -> Result<&str, String> {
     if !matches!(
         kind,
         "CC-004.inclusion_step"
+            | "CC-004.initialization"
+            | "CC-004.undetermined_raw"
             | "CC-005.inclusion_group"
             | "CC-007.fractal_description"
             | "CC-054.knowledge_state"

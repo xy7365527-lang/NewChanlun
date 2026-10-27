@@ -1,0 +1,133 @@
+[
+  {
+    "toy": "success",
+    "identity": {
+      "pid": 51829,
+      "pgid": 51829,
+      "popen_started_monotonic": 67956.91635475,
+      "supervisor_pid": 51825
+    },
+    "reason": null,
+    "signals": [],
+    "returncode": 0,
+    "reaped": true,
+    "log_bytes_saved": 12,
+    "logs_complete": true,
+    "elapsed_seconds": 0.021665457999915816,
+    "product_run": "NOT_RUN",
+    "os_memory_hard_cap": "UNQUALIFIED",
+    "disk_quota": "UNQUALIFIED",
+    "scope": "仅本Popen直接子进程与其新进程组；不认证产品后代追踪/同步IO硬截止"
+  },
+  {
+    "toy": "wait",
+    "identity": {
+      "pid": 51830,
+      "pgid": 51830,
+      "popen_started_monotonic": 67956.938608041,
+      "supervisor_pid": 51825
+    },
+    "reason": "总截止toy",
+    "signals": [
+      "SIGTERM"
+    ],
+    "returncode": -15,
+    "reaped": true,
+    "log_bytes_saved": 9,
+    "logs_complete": true,
+    "elapsed_seconds": 0.21051979200274218,
+    "product_run": "NOT_RUN",
+    "os_memory_hard_cap": "UNQUALIFIED",
+    "disk_quota": "UNQUALIFIED",
+    "scope": "仅本Popen直接子进程与其新进程组；不认证产品后代追踪/同步IO硬截止"
+  },
+  {
+    "toy": "ignore-term",
+    "identity": {
+      "pid": 51831,
+      "pgid": 51831,
+      "popen_started_monotonic": 67957.15070975,
+      "supervisor_pid": 51825
+    },
+    "reason": "总截止toy",
+    "signals": [
+      "SIGTERM",
+      "SIGKILL"
+    ],
+    "returncode": -9,
+    "reaped": true,
+    "log_bytes_saved": 16,
+    "logs_complete": true,
+    "elapsed_seconds": 0.27281150000635535,
+    "product_run": "NOT_RUN",
+    "os_memory_hard_cap": "UNQUALIFIED",
+    "disk_quota": "UNQUALIFIED",
+    "scope": "仅本Popen直接子进程与其新进程组；不认证产品后代追踪/同步IO硬截止"
+  },
+  {
+    "toy": "flood",
+    "identity": {
+      "pid": 51832,
+      "pgid": 51832,
+      "popen_started_monotonic": 67957.425315875,
+      "supervisor_pid": 51825
+    },
+    "reason": "日志预算toy",
+    "signals": [
+      "SIGTERM"
+    ],
+    "returncode": -15,
+    "reaped": true,
+    "log_bytes_saved": 128,
+    "logs_complete": false,
+    "elapsed_seconds": 0.11345949998940341,
+    "product_run": "NOT_RUN",
+    "os_memory_hard_cap": "UNQUALIFIED",
+    "disk_quota": "UNQUALIFIED",
+    "scope": "仅本Popen直接子进程与其新进程组；不认证产品后代追踪/同步IO硬截止"
+  },
+  {
+    "toy": "wait",
+    "identity": {
+      "pid": 51833,
+      "pgid": 51833,
+      "popen_started_monotonic": 67957.539261666,
+      "supervisor_pid": 51825
+    },
+    "reason": "owner失联toy",
+    "signals": [
+      "SIGTERM"
+    ],
+    "returncode": -15,
+    "reaped": true,
+    "log_bytes_saved": 0,
+    "logs_complete": true,
+    "elapsed_seconds": 0.002188541999203153,
+    "product_run": "NOT_RUN",
+    "os_memory_hard_cap": "UNQUALIFIED",
+    "disk_quota": "UNQUALIFIED",
+    "scope": "仅本Popen直接子进程与其新进程组；不认证产品后代追踪/同步IO硬截止"
+  },
+  {
+    "toy": "wait",
+    "identity": {
+      "pid": 51834,
+      "pgid": 51834,
+      "popen_started_monotonic": 67957.541729958,
+      "supervisor_pid": 51825
+    },
+    "reason": "人工取消toy",
+    "signals": [
+      "SIGTERM"
+    ],
+    "returncode": -15,
+    "reaped": true,
+    "log_bytes_saved": 0,
+    "logs_complete": true,
+    "elapsed_seconds": 0.0016908749967115,
+    "product_run": "NOT_RUN",
+    "os_memory_hard_cap": "UNQUALIFIED",
+    "disk_quota": "UNQUALIFIED",
+    "scope": "仅本Popen直接子进程与其新进程组；不认证产品后代追踪/同步IO硬截止"
+  }
+]

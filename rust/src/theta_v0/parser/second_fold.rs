@@ -486,7 +486,57 @@ fn normalized(v: serde_json::Value) -> serde_json::Value {
     }
 }
 
+/// #1419：K1 的只借用序列化视图；字段与 `to_wire` 完全同义，不拥有 JSON 树。
+pub struct SecondFoldWire<'a>(&'a SecondFoldCursor);
+impl serde::Serialize for SecondFoldWire<'_> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        #[derive(serde::Serialize)]
+        struct Candidate<'a> {
+            seg_dir: &'a str,
+            b_stroke: usize,
+            candidate_extreme: Tick,
+        }
+        let c = self.0;
+        let f = &c.state.facts;
+        let mut hex = [b'0'; 16];
+        for (i, byte) in hex.iter_mut().enumerate() {
+            *byte =
+                b"0123456789abcdef"[((c.state.consumed_digest >> ((15 - i) * 4)) & 15) as usize];
+        }
+        let digest = std::str::from_utf8(&hex).expect("十六进制ASCII");
+        let mut out = serializer.serialize_struct("SecondFoldWire", 16)?;
+        out.serialize_field("schema", &c.schema)?;
+        out.serialize_field("rule_revision", &c.rule_revision)?;
+        out.serialize_field("budget_policy", &c.budget_policy)?;
+        out.serialize_field("budget_granted", &c.budget_granted)?;
+        out.serialize_field(
+            "candidate",
+            &Candidate {
+                seg_dir: dir_name(c.candidate.seg_dir),
+                b_stroke: c.candidate.b_stroke,
+                candidate_extreme: c.candidate.candidate_extreme,
+            },
+        )?;
+        out.serialize_field("input_stroke_count", &c.input_stroke_count)?;
+        out.serialize_field("from_stroke", &f.from_stroke)?;
+        out.serialize_field("through_stroke", &f.through_stroke)?;
+        out.serialize_field("consumed_len", &c.state.consumed_len)?;
+        out.serialize_field("consumed_digest", digest)?;
+        out.serialize_field("dir_state", &c.state.dir_state.map(dir_name))?;
+        out.serialize_field("standard", &f.standard)?;
+        out.serialize_field("breach_watermark", &f.breach_watermark)?;
+        out.serialize_field("semantic_state", &f.semantic_state)?;
+        out.serialize_field("killed_by", &f.killed_by)?;
+        out.serialize_field("matched", &f.matched)?;
+        out.end()
+    }
+}
+
 impl SecondFoldCursor {
+    pub fn wire_view(&self) -> SecondFoldWire<'_> {
+        SecondFoldWire(self)
+    }
     /// K1 线形（字段见模块头）。
     pub fn to_wire(&self) -> serde_json::Value {
         let f = &self.state.facts;
@@ -680,14 +730,16 @@ impl SecondFoldStore {
 
     /// 本 cut 的续扫检查点：只含调度相关的游标——累计预算大于每轮预算，或本轮预算已耗尽。其余
     /// 游标下一轮以每轮预算新建即与续扫逐位相同，不必存；预算 0（无限）时恒为空。
-    pub fn checkpoint(&self) -> Vec<serde_json::Value> {
+    pub fn checkpoint_cursors(&self) -> impl Iterator<Item = &SecondFoldCursor> {
         let round = self.round_budget as usize;
-        self.cursors
-            .values()
-            .filter(|c| {
-                c.budget_granted
-                    .is_some_and(|g| (round != 0 && g > round) || c.exhausted())
-            })
+        self.cursors.values().filter(move |c| {
+            c.budget_granted
+                .is_some_and(|g| (round != 0 && g > round) || c.exhausted())
+        })
+    }
+
+    pub fn checkpoint(&self) -> Vec<serde_json::Value> {
+        self.checkpoint_cursors()
             .map(SecondFoldCursor::to_wire)
             .collect()
     }

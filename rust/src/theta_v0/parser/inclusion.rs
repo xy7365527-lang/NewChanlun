@@ -7,7 +7,7 @@
 //! - **向下合并**：`low=min, high=min`（取两者较低的 low 与较低的 high）。
 //! - **方向决定**：方向按**前一对非包含 K** 的严格高低变化决定。
 //! - **开头无方向**：向前看第一个非包含对（开头 tie-break 是设计选择）。
-//! - **全程无方向**：只输出 open-tail（无 confirmed 结构）。
+//! - **全程无方向**：逐 raw 原件保持未定，正式组为空（#1342 / #1393）。
 //!
 //! ## 包含关系定义（缠论 62/65课）
 //!
@@ -87,63 +87,53 @@ pub(crate) fn strict_dir(prev: &Bar, cur: &Bar) -> Option<Direction> {
     }
 }
 
-/// 包含合并输出：合并后的 K 序列 + 是否全程无方向（only_open_tail）。
-#[derive(Debug, Clone, PartialEq, Default)]
+/// #1393 / #1342：W 的政策版本独立于 raw、结构切面及对象修订。
+pub const INITIALIZATION_POLICY: &str = "raw-initialization-w/1";
+
+/// 正式合并组与未定原件分开；快照保存真实折叠方向，单组也可精确恢复。
+#[derive(Debug, Clone, PartialEq)]
 pub struct InclusionResult {
-    /// 包含处理后的 K 序列（合并完成）。
     pub merged: Vec<Bar>,
-    /// 全程无方向 ⟹ 只输出 open-tail（reference-theta-v0.md:19）。
     pub only_open_tail: bool,
+    pub pending_raw: Vec<Bar>,
+    pub final_direction: Option<Direction>,
 }
 
-/// K线包含合并主流程（reference-theta-v0.md:19）。
-///
-/// 算法（有方向左折叠）：
-/// 1. 找开头方向：向前扫描第一对**非包含**且**严格**单调的 K，定 `dir`。
-///    全程无非包含严格对 ⟹ `only_open_tail=true`（方向悬空）。
-/// 2. 从该方向起左折叠：遇包含则按当前 `dir` 合并进 acc；遇非包含则 acc 定稿，更新
-///    `dir`（由 acc 与新 K 的严格高低变化），新 K 成为新 acc。
-///
-/// 边界条件：
-/// - 空输入 / 单根 ⟹ merged 原样返回，`only_open_tail=true`（无法定方向）。
-/// - 全程包含（始终无非包含严格对）⟹ 合并成一根，`only_open_tail=true`。
-pub fn process_inclusion(bars: &[Bar]) -> InclusionResult {
-    if bars.len() < 2 {
-        return InclusionResult {
-            merged: bars.to_vec(),
+impl Default for InclusionResult {
+    fn default() -> Self {
+        Self {
+            merged: vec![],
             only_open_tail: true,
+            pending_raw: vec![],
+            final_direction: None,
+        }
+    }
+}
+
+/// #1393：只检查 raw 相邻对；无证据时不发布正式组，不造 envelope。
+fn first_raw_direction(bars: &[Bar]) -> Option<(usize, Direction)> {
+    bars.windows(2).enumerate().find_map(|(i, pair)| {
+        if contains(&pair[0], &pair[1]) {
+            None
+        } else {
+            strict_dir(&pair[0], &pair[1]).map(|direction| (i, direction))
+        }
+    })
+}
+
+pub fn process_inclusion(bars: &[Bar]) -> InclusionResult {
+    let Some((_, direction)) = first_raw_direction(bars) else {
+        return InclusionResult {
+            pending_raw: bars.to_vec(),
+            ..InclusionResult::default()
         };
-    }
-
-    // 步骤 1：找开头方向（第一对非包含且严格单调的 K）。
-    let mut start_dir: Option<MergeDir> = None;
-    for w in bars.windows(2) {
-        if !contains(&w[0], &w[1]) {
-            if let Some(d) = strict_dir(&w[0], &w[1]) {
-                start_dir = Some(d);
-                break;
-            }
-        }
-    }
-
-    let dir0 = match start_dir {
-        Some(d) => d,
-        None => {
-            // 全程无方向：只输出 open-tail。merged 仍做无方向的包含吸收
-            // （把连续包含吸成单段，保留原始极值上下界）——但语义上无 confirmed。
-            return InclusionResult {
-                merged: bars.to_vec(),
-                only_open_tail: true,
-            };
-        }
     };
-
-    // 步骤 2：有方向左折叠。
-    let (merged, _) = fold_all(bars, dir0);
-
+    let (merged, final_direction) = fold_all(bars, direction);
     InclusionResult {
         merged,
         only_open_tail: false,
+        pending_raw: vec![],
+        final_direction: Some(final_direction),
     }
 }
 
@@ -186,12 +176,12 @@ pub fn merged_group_index(merged: &[Bar], source_index: usize) -> Option<usize> 
 /// 更短的新序列，判断逻辑一行不改。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DenseBarAnnotation {
-    /// 所属标准化组的组号（= merged 下标 = 合并位置）。
-    pub group: usize,
+    /// 所属标准化组号；#1393 未定原件为 None，不伪造组号。
+    pub group: Option<usize>,
     /// 该组标准化后的 high（组内所有成员同一值）。
-    pub group_high: Tick,
+    pub group_high: Option<Tick>,
     /// 该组标准化后的 low（组内所有成员同一值）。
-    pub group_low: Tick,
+    pub group_low: Option<Tick>,
     /// 已确认（true）／暂定（false）——尾巴不稳定明账化：新 bar 只改最后一组边界、前缀
     /// 不动（与 fractal 增量「前缀不动、只重算尾部两组」同源纪律抬到地基层）。
     pub confirmed: bool,
@@ -214,26 +204,23 @@ pub struct DenseBarAnnotation {
 /// bit-exact 验收门：由本标注重建的合并序列与 `process_inclusion(bars).merged` 逐字段相同
 /// （见测试 `dense_annotation_roundtrip_bit_exact`）。
 pub fn dense_annotation(bars: &[Bar], result: &InclusionResult) -> Vec<DenseBarAnnotation> {
-    if bars.is_empty() {
-        return Vec::new();
-    }
-    let merged = &result.merged;
-    let mut ann = Vec::with_capacity(bars.len());
-    for b in bars {
-        // merged 非空（bars 非空 ⟹ process_inclusion 输出非空）且 `source_index` 单调
-        // （左折叠前提）⟹ 必命中组号；`unwrap_or(0)` 仅防御非法输入，不改变合法路径。
-        let group = merged_group_index(merged, b.source_index).unwrap_or(0);
-        let g = &merged[group];
-        ann.push(DenseBarAnnotation {
-            group,
-            group_high: g.high,
-            group_low: g.low,
-            confirmed: !result.only_open_tail && group + 1 < merged.len(),
-            high: b.high,
-            low: b.low,
-        });
-    }
-    ann
+    bars.iter()
+        .map(|b| {
+            let group = if result.only_open_tail {
+                None
+            } else {
+                merged_group_index(&result.merged, b.source_index)
+            };
+            DenseBarAnnotation {
+                group,
+                group_high: group.map(|i| result.merged[i].high),
+                group_low: group.map(|i| result.merged[i].low),
+                confirmed: group.is_some_and(|i| i + 1 < result.merged.len()),
+                high: b.high,
+                low: b.low,
+            }
+        })
+        .collect()
 }
 
 // ============================================================================
@@ -321,39 +308,19 @@ impl IncrInclusion {
         }
     }
 
-    /// 从已有 `InclusionResult`（全量版输出）恢复增量状态。
-    ///
-    /// 用途：从全量基线起继续增量追加（如断点续算）。**仅当 `prev.only_open_tail=false`
-    /// 时可精确恢复 left-fold 状态**——此时 `prev.merged` 直接成为相 B 的 `merged`
-    /// （末根即 acc）。`dir` 从末两根严格高低变化推断（若末尾不足定方向，保持前序）。
-    ///
-    /// 边界条件：
-    /// - `prev.only_open_tail=true` ⟹ 回退到相 A，`raw_pending = prev.merged.clone()`，
-    ///   `start_dir=None`（与全量从头扫描语义一致）。
-    /// - `prev.merged` 为空 ⟹ `empty()`。
+    /// #1393：只使用快照保存的方向；不得从末两组猜测或为单组默认 UP。
     pub fn from_result(prev: &InclusionResult) -> Self {
-        if prev.merged.is_empty() {
-            return IncrInclusion::empty();
-        }
         if prev.only_open_tail {
-            // 全程无方向：原始 bar 序列 = merged（未合并）。回到相 A 等待方向出现。
-            return IncrInclusion {
-                raw_pending: prev.merged.clone(),
-                merged: Rc::new(Vec::new()),
-                dir: Direction::Up,
-                start_dir: None,
+            assert!(prev.merged.is_empty() && prev.final_direction.is_none());
+            return Self {
+                raw_pending: prev.pending_raw.clone(),
+                ..Self::empty()
             };
         }
-        // 有方向相 B：末根为 acc，前缀定稿。dir 从末两根严格高低变化推断（与全量
-        // 左折叠中"acc 与新 bar 的 strict_dir 更新"语义一致——取末两根若有严格对）。
-        let acc = prev.merged[prev.merged.len() - 1];
-        let prefix = &prev.merged[..prev.merged.len() - 1];
-        let dir = match (prefix.last(), Some(&acc)) {
-            (Some(p), Some(a)) => strict_dir(p, a).unwrap_or(Direction::Up),
-            _ => Direction::Up, // 仅一根 merged（合并成一根），无前对照——占位 Up。
-        };
-        IncrInclusion {
-            raw_pending: Vec::new(),
+        assert!(!prev.merged.is_empty() && prev.pending_raw.is_empty());
+        let dir = prev.final_direction.expect("已定快照必须保存实际方向");
+        Self {
+            raw_pending: vec![],
             merged: Rc::new(prev.merged.clone()),
             dir,
             start_dir: Some(dir),
@@ -382,83 +349,57 @@ impl IncrInclusion {
         InclusionResult {
             merged: merged.to_vec(),
             only_open_tail,
+            pending_raw: self.raw_pending.clone(),
+            final_direction: self.start_dir.map(|_| self.dir),
         }
     }
 
     /// 当前状态快照的借用视图（零 clone，与全量输出 bit-exact）。
     ///
-    /// 返回 `merged: &[Bar]` 指向内部连续存储（相 A = `raw_pending`，相 B = `merged`），
-    /// 内容与 `to_result().merged` 逐字段相同。
+    /// `merged` 只承载正式组；相 A 的原件由 `pending_raw` 单独提供。
     pub fn to_result_ref(&self) -> InclusionResultRef<'_> {
         let (merged, only_open_tail) = self.merged_view();
         InclusionResultRef {
             merged,
             only_open_tail,
+            pending_raw: &self.raw_pending,
+            final_direction: self.start_dir.map(|_| self.dir),
         }
     }
 
     /// 合并序列的 Rc 共享句柄（O(1) refcount bump，#93 incr_total ceiling 突破）。
     ///
     /// 相 B 返回 `Rc::clone(&self.merged)`（与 `to_result_ref().merged` 内容 bit-exact，
-    /// 共享同一分配）；相 A 返回 `Rc::new(self.raw_pending.clone())`（相 A 稀少，一次性
-    /// O(n) 可接受——仅全程无方向时停留相 A）。供热路径 `ParseLayerIncr::append` 替代
+    /// 共享同一分配）；相 A 返回空正式组。供热路径 `ParseLayerIncr::append` 替代
     /// `to_result_ref().merged.to_vec()` 的每 bar O(n) clone。
     ///
     /// bit-exact：返回的 Rc<Vec<Bar>> 内容 == `to_result().merged` 逐字段。
     pub fn merged_rc(&self) -> Rc<Vec<Bar>> {
-        match self.start_dir {
-            None => Rc::new(self.raw_pending.clone()),
-            Some(_) => Rc::clone(&self.merged),
-        }
+        Rc::clone(&self.merged)
     }
 
     /// 内部：返回合并序列的借用切片 + only_open_tail 标志。
     fn merged_view(&self) -> (&[Bar], bool) {
         match self.start_dir {
-            None => (&self.raw_pending, true),
+            None => (&self.merged, true),
             Some(_) => (self.merged.as_slice(), false),
         }
     }
 
-    /// 相 A 推进：追加到 raw_pending，增量判定开头方向是否出现。
-    ///
-    /// 增量扫描性质：全量开头扫描查"第一对非包含严格单调对"。旧前缀已扫无非包含严格对
-    /// （否则已进入相 B），故只需判 `raw_pending` 末根 与 `new_bar` 这一对。若严格 →
-    /// 进入相 B，一次性全量左折叠 `raw_pending ++ [new_bar]`。
-    ///
-    /// mem::take 重用 raw_pending Vec 缓冲（仅 push 尾部，前缀不动），消除 clone。
+    /// W 等待期只判新增的最后一对；建立时一次性从 raw0 重折。
     fn append_pending(self, new_bar: Bar) -> IncrInclusion {
         let mut raw = self.raw_pending;
         raw.push(new_bar);
-        // 增量判定：旧前缀（追加前 raw_pending）已无非包含严格对（否则已进相 B）。
-        // 故全量开头扫描的"第一对非包含严格对"只可能在新增的末尾对 (last, new_bar) 出现。
-        let n = raw.len();
-        let start_dir = if n >= 2 {
-            let prev = &raw[n - 2];
-            if !contains(prev, &new_bar) {
-                strict_dir(prev, &new_bar)
-            } else {
-                None
-            }
-        } else {
-            None
-        };
+        let start_dir = first_raw_direction(&raw[raw.len().saturating_sub(2)..]);
         match start_dir {
-            None => {
-                // 仍 only_open_tail。
-                IncrInclusion {
-                    raw_pending: raw,
-                    merged: Rc::new(Vec::new()),
-                    dir: Direction::Up,
-                    start_dir: None,
-                }
-            }
-            Some(dir0) => {
-                // 进入相 B：从 raw 全量左折叠（一次性 O(n)，全程仅一次）。
-                // fold_all 返回连续 merged（confirmed 前缀 + 末尾 acc）。
+            None => Self {
+                raw_pending: raw,
+                ..Self::empty()
+            },
+            Some((_, dir0)) => {
                 let (merged, dir) = fold_all(&raw, dir0);
-                IncrInclusion {
-                    raw_pending: Vec::new(),
+                Self {
+                    raw_pending: vec![],
                     merged: Rc::new(merged),
                     dir,
                     start_dir: Some(dir0),
@@ -498,6 +439,8 @@ impl IncrInclusion {
 pub struct InclusionResultRef<'a> {
     pub merged: &'a [Bar],
     pub only_open_tail: bool,
+    pub pending_raw: &'a [Bar],
+    pub final_direction: Option<Direction>,
 }
 
 /// 左折叠单步（镜像全量 `process_inclusion` 循环体，inclusion.rs:137-148）。
@@ -596,19 +539,21 @@ pub struct InclusionFacts {
     pub groups: Vec<InclusionGroupFact>,
     pub steps: Vec<InclusionStepFact>,
     pub initial_direction_unsettled: bool,
+    pub initial_direction_evidence: Option<InclusionDirectionEvidence>,
+    pub pending_raw: Vec<Bar>,
     pub unmapped_sources: Vec<usize>,
 }
 
-/// #1373 已批有界入口：与全量/增量共享 fold_step，额外保存该步事实。
-/// 未建方向的包含前缀不借未来方向回折；同价来源保留全集，不选择身份。
-/// 这是知识域限制，不改变 contains/strict_dir/merge 的判据。
+/// #1393：完整 facts 与生产热路径共用一个状态机；仅证据展开成本不同。
+///
+/// 全量入口与增量热路径是同一个 [`IncrFactsState`]：`record_steps` 只决定是否同时展开
+/// 历史 `source_coords` 与 `steps`，不改变任何判据。
 ///
 /// #1597：source 坐标严格递增（真实 S 输入恒满足）时，本入口经 [`IncrFactsState`] 构造、
 /// 由 [`IncrFactsState::materialize_facts`] 导出——来源坐标是共享树（[`SourceCoords`]），
-/// 整份事实留存 O(n log n)，不再是逐步展开的 Θ(n²)。两条构造的逐位相同由
-/// `#1394` 的逐前缀对拍与 #1597 的扁平参照对拍锁定（测试
-/// `shared_full_facts_match_flat_reference_for_every_prefix`）。非单调输入走扁平参照构造
-/// [`process_inclusion_with_facts_flat`]（共享拼接前提不成立，不以近似冒充）。
+/// 整份事实留存 O(n log n)，不逐步展开 Θ(n²)。非单调输入（共享拼接前提不成立）走
+/// [`process_inclusion_with_facts_flat`] 的逐步展开；两条导出是同一状态机、同一判据，
+/// 逐位相同由逐前缀对拍锁定（`shared_full_facts_match_flat_reference_for_every_prefix`）。
 pub fn process_inclusion_with_facts(bars: &[Bar]) -> InclusionFacts {
     if bars
         .windows(2)
@@ -624,238 +569,77 @@ pub fn process_inclusion_with_facts(bars: &[Bar]) -> InclusionFacts {
     process_inclusion_with_facts_flat(bars)
 }
 
-/// #1597：完整事实的**扁平参照构造**（#1597 前的唯一实现，逐步展开来源坐标，Θ(n²) 留存）。
+/// 完整事实的**逐步展开构造**：同一 [`IncrFactsState`]（W 初始化语义）开 `record_steps`，
+/// 每步现场展开来源坐标（Θ(n²) 留存）。
 ///
-/// 只服务非单调 source 坐标输入（共享表示的前提不成立）与对拍参照；判据与
-/// [`process_inclusion_with_facts`] 同一 `contains`/`strict_dir`/`fold_step`。
+/// #1393 × #1597 整合：#1597 前的旧扁平构造带「建立前遇包含即永久未定」判据，已随 W
+/// 删除；本入口不是第二套判据，只服务非单调 source 坐标输入（降级域）与共享导出的对拍参照。
 pub fn process_inclusion_with_facts_flat(bars: &[Bar]) -> InclusionFacts {
-    let mut result = InclusionFacts::default();
-    let mut evidence: Option<InclusionDirectionEvidence> = None;
-    let mut processed = 0usize;
-    for (i, &incoming) in bars.iter().enumerate() {
-        let before = result.merged.last().copied();
-        if result.initial_direction_unsettled {
-            result.unmapped_sources.push(incoming.source_index);
-            result.steps.push(InclusionStepFact {
-                action: "waiting",
-                incoming,
-                acc_before: before,
-                acc_after: None,
-                contains: None,
-                direction_evidence: None,
-                source_coords: bars[..=i].iter().map(|b| b.source_index).collect(),
-                high_sources: vec![],
-                low_sources: vec![],
-                waiting_reasons: vec!["initial_direction_unsettled"],
-            });
-            continue;
-        }
-        if let Some(acc) = before {
-            // 仅初始化知识门调用同一 contains；已建方向后的分支取自实际 fold_step 输出。
-            if evidence.is_none() && contains(&acc, &incoming) {
-                result.initial_direction_unsettled = true;
-                result.unmapped_sources.push(incoming.source_index);
-                result.steps.push(InclusionStepFact {
-                    action: "waiting",
-                    incoming,
-                    acc_before: Some(acc),
-                    acc_after: None,
-                    contains: Some(true),
-                    direction_evidence: None,
-                    source_coords: vec![acc.source_index, incoming.source_index].into(),
-                    high_sources: vec![],
-                    low_sources: vec![],
-                    waiting_reasons: vec!["initial_direction_unsettled"],
-                });
-                continue;
-            }
-            let direction = evidence
-                .as_ref()
-                .map(|e| e.direction)
-                .or_else(|| strict_dir(&acc, &incoming))
-                .expect("合法非包含区间必有严格方向");
-            let previous_members = result.groups.last().unwrap().members.clone();
-            let was_established = evidence.is_some();
-            result.merged.pop();
-            let prefix_len = result.merged.len();
-            let (after, new_direction) = fold_step(&acc, incoming, direction, &mut result.merged);
-            let included = result.merged.len() == prefix_len;
-            result.merged.push(after);
-            if !included {
-                let mut sources = previous_members.clone();
-                if let Some(e) = &evidence {
-                    sources.extend(&e.source_coords);
-                }
-                sources.push(incoming.source_index);
-                sources.sort_unstable();
-                sources.dedup();
-                evidence = Some(InclusionDirectionEvidence {
-                    direction: new_direction,
-                    previous_acc: acc,
-                    incoming,
-                    source_coords: sources.into(),
-                });
-                result.groups.last_mut().unwrap().confirmation_evidence = evidence.clone();
-                result.groups.push(InclusionGroupFact {
-                    bar: after,
-                    members: vec![incoming.source_index],
-                    high_sources: vec![incoming.source_index],
-                    low_sources: vec![incoming.source_index],
-                    confirmed: false,
-                    confirmation_evidence: None,
-                    direction_evidence: evidence.clone(),
-                });
-            } else {
-                let group = result.groups.last_mut().unwrap();
-                let prev_bar = group.bar;
-                group.bar = after;
-                group.members.push(incoming.source_index);
-                // 数值来源投影（#1392）：同核 `merge` 输出 ⟹ `after.high ∈ {prev_bar.high,
-                // incoming.high}`，故「成员中取到组极值者」这一集合可 O(1) 归并维护
-                // （旧集不变量 = 旧成员中取到旧组极值者），无需每步重扫 `bars[..=i]`。
-                // 判据与旧 `filter(high == after.high)` 逐位相同：merge_up 取 max、merge_down
-                // 取 min，等价于「值等于新组极值的成员」，顺序仍按到达序（同 `bars` 序）。
-                if incoming.high == after.high {
-                    if prev_bar.high == after.high {
-                        group.high_sources.push(incoming.source_index);
-                    } else {
-                        group.high_sources = vec![incoming.source_index];
-                    }
-                }
-                if incoming.low == after.low {
-                    if prev_bar.low == after.low {
-                        group.low_sources.push(incoming.source_index);
-                    } else {
-                        group.low_sources = vec![incoming.source_index];
-                    }
-                }
-            }
-            let group = result.groups.last().unwrap();
-            let mut sources = previous_members;
-            sources.push(incoming.source_index);
-            if let Some(e) = &evidence {
-                sources.extend(&e.source_coords);
-            }
-            sources.sort_unstable();
-            sources.dedup();
-            result.steps.push(InclusionStepFact {
-                action: if included {
-                    "merge"
-                } else if was_established {
-                    "new_group"
-                } else {
-                    "establish_direction"
-                },
-                incoming,
-                acc_before: Some(acc),
-                acc_after: Some(after),
-                contains: Some(included),
-                direction_evidence: evidence.clone(),
-                source_coords: sources.into(),
-                high_sources: group.high_sources.clone(),
-                low_sources: group.low_sources.clone(),
-                waiting_reasons: if group.high_sources.len() > 1 || group.low_sources.len() > 1 {
-                    vec!["equal_extreme_identity"]
-                } else {
-                    vec![]
-                },
-            });
-        } else {
-            result.merged.push(incoming);
-            result.groups.push(InclusionGroupFact {
-                bar: incoming,
-                members: vec![incoming.source_index],
-                high_sources: vec![incoming.source_index],
-                low_sources: vec![incoming.source_index],
-                confirmed: false,
-                confirmation_evidence: None,
-                direction_evidence: None,
-            });
-            result.steps.push(InclusionStepFact {
-                action: "seed",
-                incoming,
-                acc_before: None,
-                acc_after: Some(incoming),
-                contains: None,
-                direction_evidence: None,
-                source_coords: vec![incoming.source_index].into(),
-                high_sources: vec![incoming.source_index],
-                low_sources: vec![incoming.source_index],
-                waiting_reasons: vec![],
-            });
-        }
-        processed += 1;
+    let mut state = IncrFactsState {
+        record_steps: true,
+        ..IncrFactsState::empty()
+    };
+    for bar in bars {
+        state.append(*bar);
     }
-    // 正式成员映射复用 S9 稠密标注；未裁前缀之后的 raw 不冒充已分组。
-    let annotations = dense_annotation(
-        &bars[..processed],
-        &InclusionResult {
-            merged: result.merged.clone(),
-            only_open_tail: evidence.is_none(),
-        },
-    );
-    let group_count = result.groups.len();
-    for (index, group) in result.groups.iter_mut().enumerate() {
-        group.members = bars[..processed]
-            .iter()
-            .zip(&annotations)
-            .filter(|(_, a)| a.group == index)
-            .map(|(b, _)| b.source_index)
-            .collect();
-        group.confirmed = evidence.is_some() && index + 1 < group_count;
+    InclusionFacts {
+        initial_direction_unsettled: state.unsettled(),
+        unmapped_sources: state.unmapped.clone(),
+        pending_raw: state.pending_raw,
+        initial_direction_evidence: state.initial_evidence,
+        merged: state.merged.as_ref().clone(),
+        groups: state.groups,
+        steps: state.full_steps,
+        ..InclusionFacts::default()
     }
-    result
 }
 
-/// #1392：热路径逐 bar 的**紧凑同源包含状态**。
+/// #1392：热路径逐 bar 的**紧凑同源包含状态**；#1393：W 初始化语义的唯一状态机。
 ///
-/// 与 [`process_inclusion_with_facts`] **逐句同源**：同一 `contains`/`strict_dir`/`fold_step`、
-/// 同一分支顺序（先判初始方向未定、再判建立方向、再分 merge / new_group）。差别只是状态化后
-/// 只推进末组，不重扫历史：
+/// ## #1393 W 初始化（`raw-initialization-w/1`）
 ///
-/// - `merged`：`Rc` 共享的连续合并序列（末根 = acc）。前缀一经定稿不再改写 ⟹ 可直接作为
-///   `ParseLayer.merged_bars` 的 O(1) 句柄，`merged_confirmed_len = len-1` 有实际发证。
-/// - `groups`：末组 O(1) 归并 `members`/`high_sources`/`low_sources`（见上 `merge` 分支注释），
-///   new_group 只改前一组的封口证据并追加一组。三组 high/low 根的**唯一性**与
-///   `waiting_reasons` 因此仍是同一读数，不另立判据。
-/// - `evidence`：方向证据链（仅 new_group 时换指向），与全量同一更新点。
-/// - `positions`：raw 序位映射（`source_index → 第几根 raw`，同坐标后者覆盖）。这是
-///   `Endpoint.raw_first/raw_last` 的唯一来源，**不能**用源坐标相减冒充。
+/// 方向只由首个 raw 相邻**非包含严格**对建立。此前 raw 全部是未定原件（`pending_raw`），
+/// 不发布正式组、不造 envelope；全程无方向时正式组为空。建立那一次 append 从 raw0
+/// 一次性重折：seed raw0（方向证据 = 初始化证据），其后 raw[1..] 逐根走**同一条**已建方向
+/// 折叠路径（[`IncrFactsState::fold`]），故批量重折与逐根增量共享证据逐位相同。没有
+/// 「严格失败后退回旧初始化」的第二判据——旧「建立前遇包含即永久未定」已删除。
 ///
-/// ## 与全量入口的**唯一**差别：历史 `source_coords` 的展开时机
+/// ## 证据表示
 ///
-/// 本状态**不**逐 bar 展开历史来源链：`InclusionGroupFact.direction_evidence` /
-/// `confirmation_evidence` 的 `source_coords` 在热路径留空，`steps` 不物化。
-/// 全量 [`process_inclusion_with_facts`] 保持完整展开（schema 与内容不变）——这是
-/// 「观察/完整 facts 请求才展开历史」的落地，**不是**判据分档：`Endpoint` 的结构字段
-/// （`kind`/`merged_index`/`group_anchor`/`price`/`extreme_roots`/`raw_first`/`raw_last`/`sealed_at`）
-/// 与 `waiting_reasons` 两条路径逐位相同（`source_coords` 是纯证据面字段，不进任何判据）。
+/// - 紧凑字段（`merged`/`groups`/`positions`）供生产热路径；`groups` 内的方向/封口证据在
+///   紧凑模式不展开 `source_coords`。
+/// - #1394 共享表示：每步、每组方向/封口证据的真实坐标集合以 [`CoordsRef`] 结构共享保存，
+///   [`IncrFactsState::materialize_facts`] 可逐位还原全量入口。W 下非 waiting 步与方向证据
+///   的来源集合恰为「到该刻为止全部 raw 坐标」（建立前缀整体参与初始化），故直接取到达序
+///   前缀 `raw_prefix` 的快照，每根 O(log n) 共享节点、不复制历史。
+/// - `record_steps`（全量入口）额外按 W 的集合定义逐步展开，供降级域（源坐标非严格递增）
+///   回落使用；降级域不签发共享证据。
 ///
-/// ## #1394：完整证据的**共享表示**
-///
-/// 热路径的紧凑字段（`merged`/`groups`/`positions`）不动；本状态**并行**保存一份完整证据的
-/// 结构共享表示（见 [`super::evidence`]），使 `direction_evidence`/`confirmation_evidence`
-/// 的真实 `source_coords`、每步 `incoming`/`acc_before`/`acc_after`/`contains`、组成员与
-/// 极值实际来源集合在不展开的前提下**逐位可还原**（[`IncrFactsState::materialize_facts`]）。
-///
-/// 代价边界：每追加 1 根只新建 O(1) 个共享节点（右倾坐标链 + 拼接节点），**不**复制历史前缀；
-/// 展开（materialize）仍按集合大小线性付出——这是「公开兼容导出」的剩余成本，不是增量路径的
-/// 每代成本。坐标集合一律保留**排序 + 去重**与非连续 source 坐标，不做区间化。
-///
-/// 前提守卫：共享拼接要求 source 坐标**严格递增**（见 [`CoordsRef::concat`]）。真实 S 的
-/// 输入按源坐标升序构造，恒满足；一旦违反（裸调用方的非单调输入），本状态置
-/// [`IncrFactsState::degraded`]，`materialize_facts` 直接回落到全量入口，**不以近似冒充完整**。
+/// `positions`/`ordinal`/`raw`/`raw_prefix`/`last_source_index`/`degraded` 按到达序记录，
+/// 等待期照常推进，不随重折重置。
 #[derive(Debug, Clone, Default)]
 pub struct IncrFactsState {
     merged: Rc<Vec<Bar>>,
     groups: Vec<InclusionGroupFact>,
+    /// 当前方向证据（紧凑模式 `source_coords` 为空）；None ⟺ 方向尚未建立。
     evidence: Option<InclusionDirectionEvidence>,
-    unsettled: bool,
+    /// #1393：初始化证据（建立时的首个 raw 相邻非包含严格对）。
+    initial_evidence: Option<InclusionDirectionEvidence>,
+    initial_node: Option<Rc<EvidenceNode>>,
+    /// #1393：方向建立前的全部原件（按到达序）。
+    pending_raw: Vec<Bar>,
+    /// #1393：建立方向时已到达的 raw 数（= 该刻步骤数）；None = 仍在等待期。
+    established_at: Option<usize>,
+    /// #1393：本次 append 从 raw0 重折——该代没有可复用的旧正式前缀。
+    replayed_from_zero: bool,
+    /// 全量入口：同时按 W 集合定义展开 `steps`/证据坐标。
+    record_steps: bool,
+    full_steps: Vec<InclusionStepFact>,
     positions: std::collections::BTreeMap<usize, usize>,
     ordinal: usize,
-    /// #1394：已处理 raw（按到达序）——稠密成员重算与 waiting 全前缀的来源。
+    /// #1394：已到达 raw（按到达序）。
     raw: super::evidence::ChunkedSeq<Bar>,
-    /// #1394：全量入口 `processed` 的同一计数（waiting 分支不计入）。
+    /// #1394：已进入折叠的 raw 数（等待期为 0）。
     processed: usize,
     /// #1394：每步完整事实（不可变节点句柄）。
     steps: Vec<StepRecord>,
@@ -864,15 +648,15 @@ pub struct IncrFactsState {
     group_confirmation: Vec<Option<Rc<EvidenceNode>>>,
     /// #1394：当前方向证据（= 末组 `direction_evidence` 的同一节点）。
     current_evidence: Option<Rc<EvidenceNode>>,
-    /// #1394：waiting 步的 `source_coords`（全量入口为 `bars[..=i]` 的全坐标）。
+    /// #1394：到达序 raw 坐标前缀。
     raw_prefix: super::evidence::CoordsRef,
     /// #1394：每组「组锚之后」的成员坐标链（组内到达序，严格递增）。
     group_tail: Vec<super::evidence::CoordsRef>,
-    /// #1394：`initial_direction_unsettled` 之后每根 raw 的未映射坐标（与全量同序）。
+    /// #1393：未定原件坐标（= `pending_raw` 坐标）。
     unmapped: Vec<usize>,
-    /// #1394：每组内容版本号（成员/极值/封口任一处变化即 +1）——S 侧稳定对象复用的变更探针。
+    /// #1394：每组内容版本号（成员/极值/封口任一处变化即 +1）。
     group_versions: Vec<u64>,
-    /// #1394：每步 `high_sources`/`low_sources` 的共享快照（集合变化才新建节点）。
+    /// #1394：每组 `high_sources`/`low_sources` 的共享快照。
     group_high: Vec<Rc<Vec<usize>>>,
     group_low: Vec<Rc<Vec<usize>>>,
     last_source_index: Option<usize>,
@@ -981,11 +765,13 @@ pub use super::evidence::{CoordNode, CoordsRef, SourceCoords, SourceCoordsIter};
 ///
 /// 前缀由本核的写入点给出，不比较旧 bars、不猜尾部长度。组的范围还包括前组封口，
 /// merged 范围只含数值序列的写入；waiting 不改两者，但会追加 step/未映射来源。
-/// 字段只读，调用者不能把自己猜的边界包装成本核见证。
+/// #1393：建立方向那一次 append 从 raw0 重折，步骤、组、merged 一律如实标为从 0 起脏
+/// （等待期 waiting 步被 seed/折叠步取代）。字段只读，调用者不能把自己猜的边界包装成本核见证。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct InclusionAppendChanges {
     old_steps: usize,
     new_steps: usize,
+    step_dirty_from: usize,
     old_groups: usize,
     new_groups: usize,
     old_merged: usize,
@@ -1000,6 +786,10 @@ pub struct InclusionAppendChanges {
 impl InclusionAppendChanges {
     pub fn step_counts(&self) -> (usize, usize) {
         (self.old_steps, self.new_steps)
+    }
+    /// 第一个被本次 append 改写或新增的步骤下标；普通 append = 旧步数，重折 = 0。
+    pub fn step_dirty_from(&self) -> usize {
+        self.step_dirty_from
     }
     pub fn group_counts(&self) -> (usize, usize) {
         (self.old_groups, self.new_groups)
@@ -1016,6 +806,10 @@ impl InclusionAppendChanges {
     pub fn unsettled_transition(&self) -> (bool, bool) {
         (self.was_unsettled, self.is_unsettled)
     }
+    /// #1393：本次 append 是否从 raw0 重折（建立方向）。
+    pub fn replayed_from_zero(&self) -> bool {
+        self.was_unsettled && !self.is_unsettled
+    }
     /// false 时不准消费共享证据；不是触发另一套判据的开关。
     pub fn shared_available(&self) -> bool {
         self.shared_available
@@ -1027,28 +821,26 @@ impl IncrFactsState {
         Self::default()
     }
 
-    /// 追加 1 根 raw bar——`process_inclusion_with_facts` 循环体的状态化版本（逐句对应）。
-    ///
-    /// #1394：同一次调用同时写完整证据的共享节点（步骤日志、证据坐标链、组尾链、极值快照）；
-    /// 坐标前缀沿 O(log n) 平衡路径共享，展开留给 [`IncrFactsState::materialize_facts`]。
+    /// 追加 1 根 raw bar（丢弃变化见证）。
     pub fn append(&mut self, incoming: Bar) {
         self.append_with_changes(incoming);
     }
 
-    /// #1488：在同一 append 核的写入点产变化见证；旧 append 只丢弃该定长值。
-    /// 不增加判断、不持有历史快照、不另建变化日志。
+    /// #1488：在同一 append 核的写入点产变化见证；不增加判断、不持有历史快照。
     pub fn append_with_changes(&mut self, incoming: Bar) -> InclusionAppendChanges {
+        self.replayed_from_zero = false;
         let mut changes = InclusionAppendChanges {
             old_steps: self.steps.len(),
             new_steps: self.steps.len() + 1,
+            step_dirty_from: self.steps.len(),
             old_groups: self.groups.len(),
             new_groups: self.groups.len(),
             old_merged: self.merged.len(),
             new_merged: self.merged.len(),
             group_dirty_from: None,
             merged_dirty_from: None,
-            was_unsettled: self.unsettled,
-            is_unsettled: self.unsettled,
+            was_unsettled: self.unsettled(),
+            is_unsettled: self.unsettled(),
             shared_available: !self.degraded,
         };
         self.positions.insert(incoming.source_index, self.ordinal);
@@ -1064,93 +856,163 @@ impl IncrFactsState {
         self.last_source_index = Some(incoming.source_index);
         self.raw.push(incoming);
         self.raw_prefix = self.raw_prefix.append_greater(incoming.source_index);
-        // 初始方向永久未定：此后 raw 不再进入折叠（与全量同一 continue）。
-        if self.unsettled {
+        if self.evidence.is_some() {
+            self.fold(incoming, &mut changes);
+            changes.new_groups = self.groups.len();
+            changes.new_merged = self.merged.len();
+            return changes;
+        }
+        // #1393 W：等待期只判新增的最后一对 raw（更早的相邻对均已判过且未建立）。
+        self.pending_raw.push(incoming);
+        let n = self.pending_raw.len();
+        let Some((_, direction)) = first_raw_direction(&self.pending_raw[n.saturating_sub(2)..])
+        else {
             self.unmapped.push(incoming.source_index);
+            if self.record_steps {
+                self.full_steps.push(InclusionStepFact {
+                    action: "waiting",
+                    incoming,
+                    acc_before: None,
+                    acc_after: None,
+                    contains: None,
+                    direction_evidence: None,
+                    source_coords: vec![incoming.source_index].into(),
+                    high_sources: vec![],
+                    low_sources: vec![],
+                    waiting_reasons: vec!["initial_direction_unsettled"],
+                });
+            }
             self.steps.push(StepRecord {
                 action: "waiting",
                 incoming,
-                acc_before: self.merged.last().copied(),
-                acc_after: None,
-                contains: None,
-                evidence: None,
-                coords: self.raw_prefix.clone(),
-                high: None,
-                low: None,
-                waiting_reasons: vec!["initial_direction_unsettled"],
-            });
-            return changes;
-        }
-        let Some(acc) = self.merged.last().copied() else {
-            // seed：首根 raw 原样入 merged 与 groups。
-            Rc::make_mut(&mut self.merged).push(incoming);
-            self.groups.push(InclusionGroupFact {
-                bar: incoming,
-                members: vec![incoming.source_index],
-                high_sources: vec![incoming.source_index],
-                low_sources: vec![incoming.source_index],
-                confirmed: false,
-                confirmation_evidence: None,
-                direction_evidence: None,
-            });
-            let snapshot = Rc::new(vec![incoming.source_index]);
-            self.group_tail.push(super::evidence::CoordsRef::empty());
-            self.group_direction.push(None);
-            self.group_confirmation.push(None);
-            self.group_high.push(Rc::clone(&snapshot));
-            self.group_low.push(Rc::clone(&snapshot));
-            self.group_versions.push(0);
-            self.steps.push(StepRecord {
-                action: "seed",
-                incoming,
                 acc_before: None,
-                acc_after: Some(incoming),
+                acc_after: None,
                 contains: None,
                 evidence: None,
                 coords: super::evidence::CoordsRef::single(incoming.source_index),
-                high: Some(snapshot.clone()),
-                low: Some(snapshot),
-                waiting_reasons: vec![],
-            });
-            self.processed += 1;
-            changes.group_dirty_from = Some(0);
-            changes.merged_dirty_from = Some(0);
-            changes.new_groups = 1;
-            changes.new_merged = 1;
-            return changes;
-        };
-        // 未建方向前的包含 —— 不借未来方向回折，转「永久未定」（#1392 语义保留）。
-        if self.evidence.is_none() && contains(&acc, &incoming) {
-            self.unsettled = true;
-            changes.is_unsettled = true;
-            self.unmapped.push(incoming.source_index);
-            self.steps.push(StepRecord {
-                action: "waiting",
-                incoming,
-                acc_before: Some(acc),
-                acc_after: None,
-                contains: Some(true),
-                evidence: None,
-                // 全量入口此处为 `vec![acc, incoming]`（未排序两元素）。
-                coords: super::evidence::CoordsRef::concat(
-                    &super::evidence::CoordsRef::single(acc.source_index),
-                    &super::evidence::CoordsRef::single(incoming.source_index),
-                ),
                 high: None,
                 low: None,
                 waiting_reasons: vec!["initial_direction_unsettled"],
             });
             return changes;
+        };
+        self.establish(direction, &mut changes);
+        changes
+    }
+
+    /// #1393：建立方向——从 raw0 一次性重折；变化见证记为一次原子变化（从 0 起脏）。
+    fn establish(&mut self, direction: Direction, changes: &mut InclusionAppendChanges) {
+        let raw = std::mem::take(&mut self.pending_raw);
+        let n = raw.len();
+        debug_assert!(n >= 2 && self.groups.is_empty() && self.merged.is_empty());
+        let node = Rc::new(EvidenceNode {
+            direction,
+            previous_acc: raw[n - 2],
+            incoming: raw[n - 1],
+            coords: self.raw_prefix.clone(),
+        });
+        let evidence = InclusionDirectionEvidence {
+            direction,
+            previous_acc: raw[n - 2],
+            incoming: raw[n - 1],
+            // 首对之前无严格对也是初始化依据；修订该前缀须改变结构身份。
+            source_coords: if self.record_steps {
+                raw.iter().map(|b| b.source_index).collect()
+            } else {
+                // 热路径不展开历史链（见类型头）：完整事实由 `materialize_facts` 共享导出。
+                SourceCoords::new()
+            },
+        };
+        self.initial_node = Some(Rc::clone(&node));
+        self.initial_evidence = Some(evidence.clone());
+        self.evidence = Some(evidence.clone());
+        self.current_evidence = Some(Rc::clone(&node));
+        // 等待期只有 waiting 步与未映射坐标；折叠态本为空，此处整体换成重折结果。
+        self.steps.clear();
+        self.full_steps.clear();
+        self.unmapped.clear();
+        self.established_at = Some(n);
+        self.replayed_from_zero = true;
+        let seed = raw[0];
+        Rc::make_mut(&mut self.merged).push(seed);
+        self.push_group(seed, evidence.clone(), Rc::clone(&node));
+        let snapshot = Rc::clone(self.group_high.last().expect("刚推入"));
+        if self.record_steps {
+            self.full_steps.push(InclusionStepFact {
+                action: "seed",
+                incoming: seed,
+                acc_before: None,
+                acc_after: Some(seed),
+                contains: None,
+                direction_evidence: Some(evidence.clone()),
+                source_coords: evidence.source_coords.clone(),
+                high_sources: vec![seed.source_index],
+                low_sources: vec![seed.source_index],
+                waiting_reasons: vec![],
+            });
         }
-        let direction = self
-            .evidence
-            .as_ref()
-            .map(|e| e.direction)
-            .or_else(|| strict_dir(&acc, &incoming))
-            .expect("合法非包含区间必有严格方向");
-        let was_established = self.evidence.is_some();
-        let previous_tail = self.group_tail.last().cloned().expect("有 acc ⟹ 至少一组");
-        let previous_coords = self.current_evidence.clone();
+        self.steps.push(StepRecord {
+            action: "seed",
+            incoming: seed,
+            acc_before: None,
+            acc_after: Some(seed),
+            contains: None,
+            evidence: Some(node),
+            coords: self.raw_prefix.clone(),
+            high: Some(Rc::clone(&snapshot)),
+            low: Some(snapshot),
+            waiting_reasons: vec![],
+        });
+        self.processed = 1;
+        for bar in &raw[1..] {
+            self.fold(*bar, changes);
+        }
+        changes.step_dirty_from = 0;
+        changes.new_steps = self.steps.len();
+        changes.group_dirty_from = Some(0);
+        changes.merged_dirty_from = Some(0);
+        changes.new_groups = self.groups.len();
+        changes.new_merged = self.merged.len();
+        changes.is_unsettled = false;
+    }
+
+    /// 新组：紧凑组事实 + 共享句柄成对推入。
+    fn push_group(&mut self, bar: Bar, evidence: InclusionDirectionEvidence, node: Rc<EvidenceNode>) {
+        self.groups.push(InclusionGroupFact {
+            bar,
+            members: vec![bar.source_index],
+            high_sources: vec![bar.source_index],
+            low_sources: vec![bar.source_index],
+            confirmed: false,
+            confirmation_evidence: None,
+            direction_evidence: Some(evidence),
+        });
+        let snapshot = Rc::new(vec![bar.source_index]);
+        self.group_tail.push(super::evidence::CoordsRef::empty());
+        self.group_direction.push(Some(node));
+        self.group_confirmation.push(None);
+        self.group_high.push(Rc::clone(&snapshot));
+        self.group_low.push(snapshot);
+        self.group_versions.push(0);
+    }
+
+    /// 已建方向后的唯一折叠路径（逐根增量与建立时重折共用）。
+    fn fold(&mut self, incoming: Bar, changes: &mut InclusionAppendChanges) {
+        let acc = *self.merged.last().expect("已建方向必有 acc");
+        let direction = self.evidence.as_ref().expect("已建方向").direction;
+        // W 集合定义：末组成员 ∪ 当前方向证据来源 ∪ {incoming}（升序去重）。
+        let full_sources = if self.record_steps {
+            let mut sources = self.groups.last().expect("已建方向必有组").members.clone();
+            sources.extend(&self.evidence.as_ref().expect("已建方向").source_coords);
+            sources.push(incoming.source_index);
+            sources.sort_unstable();
+            sources.dedup();
+            SourceCoords::from(sources)
+        } else {
+            SourceCoords::new()
+        };
+        // 共享表示：非降级域里上式恰为到达序全部 raw 坐标（含建立前缀）。
+        let coords = self.raw_prefix.clone();
         let previous_high = Rc::clone(self.group_high.last().expect("有 acc ⟹ 至少一组"));
         let previous_low = Rc::clone(self.group_low.last().expect("有 acc ⟹ 至少一组"));
         let merged = Rc::make_mut(&mut self.merged);
@@ -1160,100 +1022,41 @@ impl IncrFactsState {
         let included = merged.len() == prefix_len;
         merged.push(after);
         // fold_step 在非包含分支原样保留旧 acc，仅追加 after；包含分支改旧末根。
-        changes.merged_dirty_from = Some(if included {
-            changes.old_merged - 1
-        } else {
-            changes.old_merged
-        });
-        changes.group_dirty_from = Some(changes.old_groups - 1);
-        changes.new_merged = merged.len();
-        if !included {
-            // new_group：改前一组的封口证据，追加新组。证据链只在此处换指向。
-            //
-            // #1394 完整证据：新证据坐标集 = 前组成员的**组锚之后尾链** ∪ 旧证据坐标 ∪ {锚}。
-            // 旧证据坐标的最大值即前组锚（该组创建时的 incoming），故拼接前提成立：
-            // 旧证据坐标 < 锚 ≤ 尾链坐标 < 新 incoming。
-            //
-            // 尚未建立方向证据时（首次 establish_direction），前缀没有旧证据可依赖——
-            // 取本组自身的成员链（锚 ++ 组尾），与前组成员的来源集合逐位相同。
-            let base = match &previous_coords {
-                Some(evidence) => {
-                    super::evidence::CoordsRef::concat(&evidence.coords, &previous_tail)
-                }
-                None => super::evidence::CoordsRef::concat(
-                    &super::evidence::CoordsRef::single(acc.source_index),
-                    &previous_tail,
-                ),
-            };
-            let coords = base.append_greater(incoming.source_index);
+        changes.merged_dirty_from = Some(if included { prefix_len } else { prefix_len + 1 });
+        changes.group_dirty_from = Some(self.groups.len() - 1);
+        let (high, low) = if !included {
             let node = Rc::new(EvidenceNode {
                 direction: new_direction,
                 previous_acc: acc,
                 incoming,
-                coords,
+                coords: coords.clone(),
             });
             let evidence = InclusionDirectionEvidence {
                 direction: new_direction,
                 previous_acc: acc,
                 incoming,
-                // 热路径不展开历史链（见类型头）：完整事实由 `materialize_facts` 共享导出。
-                source_coords: SourceCoords::new(),
+                source_coords: full_sources.clone(),
             };
             let previous = self.groups.last_mut().unwrap();
-            previous.confirmation_evidence = Some(evidence.clone());
             previous.confirmed = true;
-            if let Some(slot) = self.group_confirmation.last_mut() {
-                *slot = Some(Rc::clone(&node));
-            }
+            previous.confirmation_evidence = Some(evidence.clone());
+            *self.group_confirmation.last_mut().unwrap() = Some(Rc::clone(&node));
             // 封口改了前一组的内容（confirmed + confirmation_evidence）⟹ 版本 +1。
-            if let Some(version) = self.group_versions.last_mut() {
-                *version += 1;
-            }
-            self.groups.push(InclusionGroupFact {
-                bar: after,
-                members: vec![incoming.source_index],
-                high_sources: vec![incoming.source_index],
-                low_sources: vec![incoming.source_index],
-                confirmed: false,
-                confirmation_evidence: None,
-                direction_evidence: Some(evidence.clone()),
-            });
+            *self.group_versions.last_mut().unwrap() += 1;
+            self.push_group(after, evidence.clone(), Rc::clone(&node));
             self.evidence = Some(evidence);
-            let snapshot = Rc::new(vec![incoming.source_index]);
-            self.group_tail.push(super::evidence::CoordsRef::empty());
-            self.group_direction.push(Some(Rc::clone(&node)));
-            self.group_confirmation.push(None);
-            self.group_high.push(Rc::clone(&snapshot));
-            self.group_low.push(Rc::clone(&snapshot));
-            self.group_versions.push(0);
-            self.current_evidence = Some(Rc::clone(&node));
-            let coords = node.coords.clone();
-            self.steps.push(StepRecord {
-                action: if was_established {
-                    "new_group"
-                } else {
-                    "establish_direction"
-                },
-                incoming,
-                acc_before: Some(acc),
-                acc_after: Some(after),
-                contains: Some(false),
-                evidence: Some(node),
-                coords,
-                high: Some(Rc::clone(&snapshot)),
-                low: Some(snapshot),
-                waiting_reasons: vec![],
-            });
+            self.current_evidence = Some(node);
+            let snapshot = Rc::clone(self.group_high.last().unwrap());
+            (Rc::clone(&snapshot), snapshot)
         } else {
-            // merge：改末组的 bar/members/high&low 根（不换证据指向）。
             let group = self.groups.last_mut().unwrap();
-            let prev_bar = group.bar;
             group.bar = after;
             group.members.push(incoming.source_index);
+            // #1343 RD-02：保留按到达序的全部同价根。
             let mut high_changed = false;
             let mut low_changed = false;
             if incoming.high == after.high {
-                if prev_bar.high == after.high {
+                if acc.high == after.high {
                     group.high_sources.push(incoming.source_index);
                 } else {
                     group.high_sources = vec![incoming.source_index];
@@ -1261,7 +1064,7 @@ impl IncrFactsState {
                 high_changed = true;
             }
             if incoming.low == after.low {
-                if prev_bar.low == after.low {
+                if acc.low == after.low {
                     group.low_sources.push(incoming.source_index);
                 } else {
                     group.low_sources = vec![incoming.source_index];
@@ -1278,60 +1081,58 @@ impl IncrFactsState {
             } else {
                 previous_low
             };
-            if let Some(slot) = self.group_high.last_mut() {
-                *slot = Rc::clone(&high);
-            }
-            if let Some(slot) = self.group_low.last_mut() {
-                *slot = Rc::clone(&low);
-            }
-            if let Some(version) = self.group_versions.last_mut() {
-                *version += 1;
-            }
-            let tail = previous_tail.append_greater(incoming.source_index);
-            let coords = super::evidence::CoordsRef::concat(
-                &super::evidence::CoordsRef::concat(
-                    &previous_coords
-                        .as_ref()
-                        .map(|e| e.coords.clone())
-                        .unwrap_or_default(),
-                    &previous_tail,
-                ),
-                &super::evidence::CoordsRef::single(incoming.source_index),
-            );
-            if let Some(slot) = self.group_tail.last_mut() {
-                *slot = tail;
-            }
-            let equal_extreme = group.high_sources.len() > 1 || group.low_sources.len() > 1;
-            self.steps.push(StepRecord {
-                action: "merge",
+            *self.group_high.last_mut().unwrap() = Rc::clone(&high);
+            *self.group_low.last_mut().unwrap() = Rc::clone(&low);
+            *self.group_versions.last_mut().unwrap() += 1;
+            let tail = self.group_tail.last_mut().unwrap();
+            *tail = tail.append_greater(incoming.source_index);
+            (high, low)
+        };
+        let equal_extreme = high.len() > 1 || low.len() > 1;
+        let waiting_reasons = if equal_extreme {
+            vec!["equal_extreme_identity"]
+        } else {
+            vec![]
+        };
+        let action = if included { "merge" } else { "new_group" };
+        if self.record_steps {
+            self.full_steps.push(InclusionStepFact {
+                action,
                 incoming,
                 acc_before: Some(acc),
                 acc_after: Some(after),
-                contains: Some(true),
-                evidence: self.current_evidence.clone(),
-                coords,
-                high: Some(high),
-                low: Some(low),
-                waiting_reasons: if equal_extreme {
-                    vec!["equal_extreme_identity"]
-                } else {
-                    vec![]
-                },
+                contains: Some(included),
+                direction_evidence: self.evidence.clone(),
+                source_coords: full_sources,
+                high_sources: high.as_ref().clone(),
+                low_sources: low.as_ref().clone(),
+                waiting_reasons: waiting_reasons.clone(),
             });
         }
+        self.steps.push(StepRecord {
+            action,
+            incoming,
+            acc_before: Some(acc),
+            acc_after: Some(after),
+            contains: Some(included),
+            evidence: self.current_evidence.clone(),
+            coords,
+            high: Some(high),
+            low: Some(low),
+            waiting_reasons,
+        });
         self.processed += 1;
-        changes.new_groups = self.groups.len();
-        changes
     }
 
     /// #1488：按既有单步快照撤回到给定 raw rank，再由 append 重算变化后缀。
     ///
-    /// 不扫未变 raw、不克隆完整状态、不重新判断包含关系。封口只会改前一末组；merge
-    /// 只会改当前末组，acc_before 与前一步 high/low 共享快照给出全部逆操作。
-    /// 极值未换值时只截来源尾；换值时恢复被替换的那一组来源，不展开其他历史。
+    /// 已建方向且目标不早于建立点：封口只会改前一末组，merge 只会改当前末组，acc_before
+    /// 与前一步 high/low 共享快照给出全部逆操作，不扫未变 raw。
+    /// #1393：目标早于建立点时，结果是只含 raw[..rank] 的等待期——这些原件之间不可能有
+    /// 建立对（否则早已建立），按到达序重放只做逐对 O(1) 判定，不发生折叠。
     ///
     /// 正式 S 的有效账由坐标唯一且升序的 raw winner 索引给出，属于本口的严格递增域。
-    /// 非递增的通用 parser 降级域仍可由旧全量入口处理，但不能取得可回退的共享资格。
+    /// 非递增的通用 parser 降级域不能取得可回退的共享资格。
     pub fn rewind_to(&mut self, steps: usize) -> Result<(), SharedEvidenceUnavailable> {
         if self.degraded || steps > self.steps.len() {
             return Err(SharedEvidenceUnavailable {
@@ -1342,8 +1143,23 @@ impl IncrFactsState {
                 },
             });
         }
+        if self.established_at.is_some_and(|at| steps < at) {
+            let bars: Vec<Bar> = self.raw.iter().take(steps).copied().collect();
+            *self = Self {
+                record_steps: self.record_steps,
+                ..Self::empty()
+            };
+            for bar in bars {
+                self.append(bar);
+            }
+            debug_assert!(self.unsettled());
+            return Ok(());
+        }
         while self.steps.len() > steps {
             let step = self.steps.pop().expect("已核非空");
+            if self.record_steps {
+                self.full_steps.pop();
+            }
             let incoming = self.raw.pop().expect("每步对应一条 raw");
             debug_assert_eq!(incoming.source_index, step.incoming.source_index);
             self.positions.remove(&incoming.source_index);
@@ -1353,10 +1169,8 @@ impl IncrFactsState {
             if step.action == "waiting" {
                 let unmapped = self.unmapped.pop();
                 debug_assert_eq!(unmapped, Some(incoming.source_index));
-                // 只有第一次 waiting 带 contains=true；其后 continue 的 contains=None。
-                if step.contains == Some(true) {
-                    self.unsettled = false;
-                }
+                let pending = self.pending_raw.pop();
+                debug_assert_eq!(pending.map(|b| b.source_index), Some(incoming.source_index));
                 continue;
             }
             self.processed -= 1;
@@ -1388,10 +1202,8 @@ impl IncrFactsState {
                 *self.group_versions.last_mut().unwrap() -= 1;
                 continue;
             }
-            debug_assert!(matches!(
-                step.action,
-                "seed" | "establish_direction" | "new_group"
-            ));
+            // 目标不早于建立点 ⟹ 只会撤回建立之后的 new_group（seed 与重折步都在建立点之前）。
+            debug_assert_eq!(step.action, "new_group");
             Rc::make_mut(&mut self.merged).pop();
             self.groups.pop();
             self.group_tail.pop();
@@ -1400,18 +1212,15 @@ impl IncrFactsState {
             self.group_high.pop();
             self.group_low.pop();
             self.group_versions.pop();
-            if let Some(group) = self.groups.last_mut() {
-                group.confirmed = false;
-                group.confirmation_evidence = None;
-                *self.group_confirmation.last_mut().unwrap() = None;
-                *self.group_versions.last_mut().unwrap() -= 1;
-                self.evidence = group.direction_evidence.clone();
-                self.current_evidence = self.group_direction.last().unwrap().clone();
-            } else {
-                self.evidence = None;
-                self.current_evidence = None;
-            }
+            let group = self.groups.last_mut().expect("seed 组不在撤回范围内");
+            group.confirmed = false;
+            group.confirmation_evidence = None;
+            *self.group_confirmation.last_mut().unwrap() = None;
+            *self.group_versions.last_mut().unwrap() -= 1;
+            self.evidence = group.direction_evidence.clone();
+            self.current_evidence = self.group_direction.last().unwrap().clone();
         }
+        self.replayed_from_zero = self.established_at == Some(self.steps.len());
         Ok(())
     }
 
@@ -1431,14 +1240,36 @@ impl IncrFactsState {
         &self.positions
     }
 
+    /// #1393 W：方向尚未建立（等待期，正式组为空）。
     pub fn unsettled(&self) -> bool {
-        self.unsettled
+        self.evidence.is_none()
+    }
+
+    /// #1393 W：方向建立前的未定原件（按到达序）。
+    pub fn pending_raw(&self) -> &[Bar] {
+        &self.pending_raw
+    }
+
+    /// #1393 W：初始化证据（紧凑模式不展开 `source_coords`）。
+    pub fn initial_direction_evidence(&self) -> Option<&InclusionDirectionEvidence> {
+        self.initial_evidence.as_ref()
+    }
+
+    /// #1393 W：初始化证据的共享节点（`coords` = 建立前缀全部 raw 坐标）。
+    pub fn initial_direction_node(&self) -> Option<&Rc<EvidenceNode>> {
+        self.initial_node.as_ref()
+    }
+
+    /// #1393 W：最近一次 append 是否从 raw0 重折。
+    pub fn replayed_from_zero(&self) -> bool {
+        self.replayed_from_zero
     }
 
     /// 跨 bar 稳定的 merged 前缀长度（实际发证）：末根 acc 仍可被下一根改写，其余**一经
     /// 定稿不再改写**（`fold_step` 只 push 已定稿的 acc）。初始只有 seed 时为 0。
     pub fn merged_confirmed_len(&self) -> usize {
-        if self.unsettled {
+        // #1393：重折这一代没有旧正式前缀可复用；下一 append 才能发证。
+        if self.unsettled() || self.replayed_from_zero {
             return 0;
         }
         self.merged.len().saturating_sub(1)
@@ -1449,6 +1280,13 @@ impl IncrFactsState {
     /// 已记录的步骤数（= 全量入口 `steps.len()`）。
     pub fn step_count(&self) -> usize {
         self.steps.len()
+    }
+
+    /// 当前完整 raw 前缀（到达序坐标）的共享句柄。#1393 W 等待期步只绑定 incoming，
+    /// 末步 `coords` 不再是前缀；需要「同 cut 全部生效原始账」的调用方取本句柄。
+    /// 退化态（坐标非递增）下返回 `None`，调用方回落全量入口。
+    pub fn shared_raw_prefix(&self) -> Option<&CoordsRef> {
+        (!self.degraded).then_some(&self.raw_prefix)
     }
 
     pub fn group_count(&self) -> usize {
@@ -1636,7 +1474,7 @@ impl IncrFactsState {
                 .iter()
                 .take(self.processed)
                 .zip(&annotations)
-                .filter(|(_, a)| a.group == index)
+                .filter(|(_, a)| a.group == Some(index))
                 .map(|(b, _)| b.source_index)
                 .collect(),
             confirmed: self.evidence.is_some() && index + 1 < self.groups.len(),
@@ -1681,7 +1519,9 @@ impl IncrFactsState {
         let annotations = self.dense_annotations();
         let mut members_by_group = vec![Vec::new(); self.groups.len()];
         for (bar, annotation) in self.raw.iter().take(self.processed).zip(&annotations) {
-            members_by_group[annotation.group].push(bar.source_index);
+            if let Some(group) = annotation.group {
+                members_by_group[group].push(bar.source_index);
+            }
         }
         let mut groups: Vec<InclusionGroupFact> = Vec::with_capacity(self.groups.len());
         for (index, base) in self.groups.iter().enumerate() {
@@ -1723,7 +1563,9 @@ impl IncrFactsState {
             merged,
             groups,
             steps,
-            initial_direction_unsettled: self.unsettled,
+            initial_direction_unsettled: self.unsettled(),
+            initial_direction_evidence: self.initial_node.as_ref().map(expand_evidence),
+            pending_raw: self.pending_raw.clone(),
             unmapped_sources: self.unmapped.clone(),
         }
     }
@@ -1736,6 +1578,7 @@ impl IncrFactsState {
             &InclusionResult {
                 merged: self.merged.to_vec(),
                 only_open_tail: self.evidence.is_none(),
+                ..InclusionResult::default()
             },
         )
     }
@@ -1751,6 +1594,14 @@ fn expand_evidence(node: &Rc<EvidenceNode>) -> InclusionDirectionEvidence {
         source_coords: SourceCoords::from_shared(node.coords.clone()),
     }
 }
+
+#[cfg(test)]
+#[path = "inclusion_tb02u_tests.rs"]
+mod tb02u_tests;
+
+#[cfg(test)]
+#[path = "inclusion_wreview_tests.rs"]
+mod wreview_tests;
 
 #[cfg(test)]
 mod tests {
@@ -1791,7 +1642,10 @@ mod tests {
             let merged = changes.merged_dirty_from().unwrap_or(before.merged.len());
             assert_eq!(&before.groups[..groups], &after.groups[..groups]);
             assert_eq!(&before.merged[..merged], &after.merged[..merged]);
-            assert_eq!(&before.steps[..], &after.steps[..index]);
+            // #1393：建立方向那一代从 raw0 重折，步骤如实从 0 起脏；其余只追加一步。
+            let steps = changes.step_dirty_from();
+            assert_eq!(steps, if changes.replayed_from_zero() { 0 } else { index });
+            assert_eq!(&before.steps[..steps], &after.steps[..steps]);
             if changes.group_dirty_from().is_none() {
                 assert_eq!(before.groups, after.groups);
             }
@@ -1819,7 +1673,7 @@ mod tests {
                 }
             }
         }
-        // 首次包含进入永久 waiting，随后方向不能回折修复；两条也对独立全量核。
+        // #1393：建立前的包含原件保持未定，首个 raw 相邻严格对出现时从 raw0 重折。
         assert_delta_prefixes(&[bar(2, 10, 5), bar(7, 9, 6), bar(12, 14, 11)]);
         assert_delta_prefixes(&[bar(2, 10, 5), bar(7, 12, 4), bar(12, 14, 11)]);
     }
@@ -1827,30 +1681,39 @@ mod tests {
     #[test]
     fn delta_append_distinguishes_group_confirmation_merge_and_waiting() {
         let mut state = IncrFactsState::empty();
-        let seed = state.append_with_changes(bar(2, 10, 5));
-        assert_eq!(seed.group_dirty_from(), Some(0));
-        assert_eq!(seed.merged_dirty_from(), Some(0));
+        let first = state.append_with_changes(bar(2, 10, 5));
+        assert_eq!(first.unsettled_transition(), (true, true));
+        assert_eq!(first.group_dirty_from(), None);
+        assert_eq!(first.merged_dirty_from(), None);
         let establish = state.append_with_changes(bar(7, 12, 7));
-        assert_eq!(establish.group_dirty_from(), Some(0), "前组封口必须脏");
-        assert_eq!(
-            establish.merged_dirty_from(),
-            Some(1),
-            "旧 acc 数值原样定稿"
-        );
+        assert!(establish.replayed_from_zero());
+        assert_eq!(establish.step_dirty_from(), 0);
+        assert_eq!(establish.group_counts(), (0, 2));
+        assert_eq!(establish.group_dirty_from(), Some(0));
+        assert_eq!(establish.merged_dirty_from(), Some(0));
+        assert_eq!(state.merged_confirmed_len(), 0, "重折这一代不发证");
         let merge = state.append_with_changes(bar(12, 11, 8));
+        assert_eq!(merge.step_dirty_from(), 2);
         assert_eq!(merge.group_dirty_from(), Some(1));
         assert_eq!(merge.merged_dirty_from(), Some(1));
+        assert_eq!(state.merged_confirmed_len(), 1);
+        let seal = state.append_with_changes(bar(17, 14, 9));
+        assert_eq!(seal.group_dirty_from(), Some(1), "前组封口必须脏");
+        assert_eq!(seal.merged_dirty_from(), Some(2), "旧 acc 数值原样定稿");
 
         let mut waiting = IncrFactsState::empty();
         waiting.append(bar(2, 10, 5));
-        let first = waiting.append_with_changes(bar(7, 9, 6));
-        assert_eq!(first.unsettled_transition(), (false, true));
-        assert_eq!(first.group_dirty_from(), None);
-        assert_eq!(first.merged_dirty_from(), None);
+        let contained = waiting.append_with_changes(bar(7, 9, 6));
+        assert_eq!(contained.unsettled_transition(), (true, true));
+        assert_eq!(contained.group_dirty_from(), None);
+        assert_eq!(waiting.pending_raw().len(), 2);
+        assert!(waiting.groups_slice().is_empty());
         let later = waiting.append_with_changes(bar(12, 20, 15));
-        assert_eq!(later.unsettled_transition(), (true, true));
+        assert_eq!(later.unsettled_transition(), (true, false));
         assert_eq!(later.step_counts(), (2, 3));
-        assert_eq!(later.group_dirty_from(), None);
+        assert_eq!(later.step_dirty_from(), 0);
+        assert_eq!(later.group_dirty_from(), Some(0));
+        assert_eq!(waiting.groups_slice()[0].members, vec![2, 7]);
     }
 
     #[test]
@@ -2042,16 +1905,21 @@ mod tests {
     }
 
     #[test]
-    fn tb02a_initial_inclusion_does_not_borrow_future_direction() {
+    fn tb02u_initial_inclusion_waits_then_replays_at_current_cut() {
         let bars = vec![bar(0, 5, 1), bar(1, 4, 2), bar(2, 6, 3)];
+        let old = process_inclusion_with_facts(&bars[..2]);
+        assert!(old.initial_direction_unsettled);
+        assert!(old.merged.is_empty() && old.groups.is_empty());
+        assert_eq!(old.pending_raw, bars[..2]);
         let facts = process_inclusion_with_facts(&bars);
-        assert!(facts.initial_direction_unsettled);
-        assert_eq!(facts.merged, vec![bars[0]]);
-        assert_eq!(facts.groups[0].members, vec![0]);
-        assert_eq!(facts.unmapped_sources, vec![1, 2]);
-        assert!(facts.steps[1..].iter().all(|s| s.action == "waiting"
-            && s.direction_evidence.is_none()
-            && s.acc_after.is_none()));
+        assert!(!facts.initial_direction_unsettled);
+        assert_eq!(facts.merged, process_inclusion(&bars).merged);
+        assert_eq!(facts.groups[0].members, vec![0, 1]);
+        assert!(facts.pending_raw.is_empty());
+        assert!(old
+            .steps
+            .iter()
+            .all(|s| s.action == "waiting" && s.acc_after.is_none()));
     }
 
     #[test]
@@ -2179,11 +2047,11 @@ mod tests {
         assert_eq!(ann.len(), bars.len());
         assert_eq!(
             ann.iter().map(|a| a.group).collect::<Vec<_>>(),
-            vec![0, 1, 1, 2, 3]
+            vec![Some(0), Some(1), Some(1), Some(2), Some(3)]
         );
         // 组 1 标准化高低 = bar1、bar2 向上合并 = [12, 8]。
-        assert_eq!((ann[1].group_high, ann[1].group_low), (12, 8));
-        assert_eq!((ann[2].group_high, ann[2].group_low), (12, 8));
+        assert_eq!((ann[1].group_high, ann[1].group_low), (Some(12), Some(8)));
+        assert_eq!((ann[2].group_high, ann[2].group_low), (Some(12), Some(8)));
         // 组内逐根高低：组 1 内两根本身的高/低（供「组内 high 最大的那根」判据读数）。
         assert_eq!((ann[1].high, ann[1].low), (12, 7));
         assert_eq!((ann[2].high, ann[2].low), (11, 8));
@@ -2192,7 +2060,7 @@ mod tests {
         assert!(!ann[4].confirmed);
     }
 
-    /// open-tail（全程无方向）⟹ 每根自成一格、全部暂定（无 confirmed 结构）。
+    /// #1393：未定原件不冒充正式组，数值与组号全部为 None。
     #[test]
     fn dense_annotation_open_tail_all_tentative() {
         let bars = vec![bar(0, 20, 1), bar(1, 10, 5), bar(2, 8, 6)];
@@ -2201,9 +2069,11 @@ mod tests {
         let ann = dense_annotation(&bars, &r);
         assert_eq!(
             ann.iter().map(|a| a.group).collect::<Vec<_>>(),
-            vec![0, 1, 2]
+            vec![None, None, None]
         );
-        assert!(ann.iter().all(|a| !a.confirmed));
+        assert!(ann
+            .iter()
+            .all(|a| !a.confirmed && a.group_high.is_none() && a.group_low.is_none()));
         // 单根与空输入。
         assert!(dense_annotation(&[], &process_inclusion(&[])).is_empty());
         let one = vec![bar(0, 10, 5)];
@@ -2216,13 +2086,15 @@ mod tests {
     /// 从稠密标注 + 原始 K 重建合并序列（bit-exact 对拍验收门）。
     fn reconstruct_merged(bars: &[Bar], ann: &[DenseBarAnnotation]) -> Vec<Bar> {
         assert_eq!(bars.len(), ann.len());
-        if bars.is_empty() {
+        let Some(last_group) = ann.iter().filter_map(|a| a.group).max() else {
             return Vec::new();
-        }
-        let num_groups = ann.iter().map(|a| a.group).max().unwrap_or(0) + 1;
+        };
+        let num_groups = last_group + 1;
         let mut merged = Vec::with_capacity(num_groups);
         for g in 0..num_groups {
-            let members: Vec<usize> = (0..bars.len()).filter(|&i| ann[i].group == g).collect();
+            let members: Vec<usize> = (0..bars.len())
+                .filter(|&i| ann[i].group == Some(g))
+                .collect();
             let first = members[0];
             let last = members[members.len() - 1];
             // 与 `merge()` 同一左折叠顺序累加 volume，逐字段 bit-exact。
@@ -2234,8 +2106,8 @@ mod tests {
                 source_index: bars[first].source_index,
                 timestamp: bars[first].timestamp,
                 open: bars[first].open,
-                high: ann[first].group_high,
-                low: ann[first].group_low,
+                high: ann[first].group_high.unwrap(),
+                low: ann[first].group_low.unwrap(),
                 close: bars[last].close,
                 volume,
                 untradable: members.iter().any(|&i| bars[i].untradable),
@@ -3141,7 +3013,7 @@ mod tests {
         }
         assert!(!state.degraded());
         assert!(state.group_count() >= 2, "夹具应已建立方向并换组");
-        // 组 0 带封口证据（无方向证据）、组 1 带方向证据——两侧都只取 O(1) 共享句柄
+        // 组 0 带封口证据与 #1393 初始化证据、组 1 带方向证据——两侧都只取 O(1) 共享句柄
         // （不展开历史前缀）；末组尚未封口，单独核其封口位为空。
         let sealed = state.group_fact(0).expect("组 0 在域内");
         let directed = state.group_fact(1).expect("组 1 在域内");
@@ -3151,7 +3023,13 @@ mod tests {
                 .expect("共享态可用")
                 .expect("组 0 在域内");
             assert!(view.confirmation_evidence.is_some(), "组 0 应带封口证据");
-            assert!(view.direction_evidence.is_none(), "组 0 尚无方向证据");
+            assert!(
+                Rc::ptr_eq(
+                    view.direction_evidence.expect("组 0 携初始化证据"),
+                    state.initial_direction_node().expect("已建立方向")
+                ),
+                "组 0 的方向证据就是初始化证据"
+            );
             (
                 view.confirmation_evidence.map(Rc::clone),
                 view.members.to_vec(),

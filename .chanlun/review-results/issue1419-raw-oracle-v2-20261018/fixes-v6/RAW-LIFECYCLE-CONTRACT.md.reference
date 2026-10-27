@@ -1,0 +1,11 @@
+# #1419 公共入口与Collector全生命周期验收合同
+
+根在v4独审后要求将原始类型、全部元数据预算和跨调用身份作为一个入口/会话合同，不能只补三个局部if。本工作草稿绑定#1419及原资源帽，不新增运行授权；基准46a入口索引RAW-LIFECYCLE-ENTRYPOINTS-46A.json只作分诊，不替代语义复审。
+
+1. 原始公共字节/类型在任何归一化前验证：compare_domain与records的直接调用、CollectorV2.closed_snapshot收集后调用必须执行同一公共门面。plain可以是内部通用解码器，但任何公共payload子树的JSONText不能先被擦除再获准。逐受测kind、直接/嵌套/数组均要重建合法hash反例；保已通过F5与ContentRef来源锁。
+2. 入口全费用链：Collector.call的exchange回包body、headers及其他外来信封字段，snapshot/content/watch以及V2闭包投影/队列，直到metadata/canonical/hash/写出，全部使用同一WorkBudget先准入后分配/工作。已有预算不得在后续调用中重置；已到期/小帽/大header/大嵌套字段须在序列化写出前拒绝。区分逻辑计量与未验OS/同步IO硬帽，不能以后者豁免前者。
+3. 同Collector持续身份：可信初始固定切面、profile/rule/history/scope/catalog/session与上次已接受切面/游标/前沿必须跨watch调用保留。将合法1/65/65序列合并调用、逐次调用、交错snapshot/content后调用，固定身份和最终结果相同；漂移/游标冲突/同代cut冲突应无论如何分组都拒绝。
+4. 失败原子性：在一批中前段合法后段非法、预算中途耗尽、metadata拒绝或传输fake异常时，身份/前沿/游标不能被半更新并放行下一次。明确哪一步构成成功接纳/提交，在只读fake测试中比较失败前后可观察状态，原输入/cut对象不得被修改。
+5. 入口与状态完整枚举：逐列Collector.__init__/call/snapshot/content/watch、CollectorV2.closed_snapshot、bind_named_submissions、records/compare_domain及其直调/组合路径，写出唯一校验/收费/状态提交责任。内部helper若无需独立准入，说明唯一受控调用链；不得以命名“内部”掩盖实际公共可达路径。
+
+独立复审须自写跨入口/跨调用轨迹负控，不只复跑单次toy；复用未变F5、frontier冲突和几何证据，新增量只针对本轮变化。若发现仍未闭环，给入口/状态/触发/调用次数/预算值与最小修复；所有产品/类型/生命周期/全历史/非空full-group/双跑/恢复真实运行继续未验。

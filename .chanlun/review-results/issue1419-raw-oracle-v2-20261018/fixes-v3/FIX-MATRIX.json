@@ -1,0 +1,174 @@
+{
+  "ticket": 1419,
+  "authorization": false,
+  "product_run": "NOT_RUN",
+  "review_status": "PENDING_INDEPENDENT_REVIEW_OF_V3_DIFF",
+  "field_paths_base": "父目录",
+  "items": [
+    {
+      "id": "F1",
+      "change": "静态字段链完整接入，生命周期逐项UNVERIFIED",
+      "files": [
+        "driver/driver_v2.py",
+        "fixes-v3/domain_fields.py"
+      ],
+      "tests": [
+        "test_f1_independent_static_fixture",
+        "test_f1_rehashed_field_mutations",
+        "test_f1_lifecycle_is_not_silently_verified",
+        "test_f1_first_visibility_binding_interface",
+        "test_f1_strict_role_encoding_and_null_exclusion"
+      ],
+      "actual_output": "239合法重哈希字段篡改拒绝；已通过子量词与未验证项拆开",
+      "status": "IMPLEMENTED_TARGETED_PASS",
+      "evidence": [
+        "CHECK-OUTPUT.json",
+        "SUPPLEMENT-OUTPUT.json",
+        "tests.initial.stdout",
+        "tests.supplement.stdout",
+        "tests.f8-recheck.stdout"
+      ]
+    },
+    {
+      "id": "F2",
+      "change": "共享DAG展开沿用累计预算",
+      "files": [
+        "driver/content_closure.py",
+        "driver/driver_v2.py"
+      ],
+      "tests": [
+        "test_f2_shared_dag_budget_boundary",
+        "test_f2_unselected_families_are_not_plain_expanded",
+        "test_f2_other_families_keep_shared_dag"
+      ],
+      "actual_output": "51节点2380B/166解码work；1001/1000确定拒绝",
+      "status": "IMPLEMENTED_TARGETED_PASS",
+      "evidence": [
+        "CHECK-OUTPUT.json",
+        "SUPPLEMENT-OUTPUT.json",
+        "tests.initial.stdout",
+        "tests.supplement.stdout",
+        "tests.f8-recheck.stdout"
+      ]
+    },
+    {
+      "id": "F3",
+      "change": "原始受测kind全集先验payload",
+      "files": [
+        "driver/driver_v2.py"
+      ],
+      "tests": [
+        "test_f3_all_tested_kinds_reject_bad_payload"
+      ],
+      "actual_output": "8种kind×5非法payload，共40拒绝",
+      "status": "IMPLEMENTED_TARGETED_PASS",
+      "evidence": [
+        "CHECK-OUTPUT.json",
+        "SUPPLEMENT-OUTPUT.json",
+        "tests.initial.stdout",
+        "tests.supplement.stdout",
+        "tests.f8-recheck.stdout"
+      ]
+    },
+    {
+      "id": "F4",
+      "change": "严格wire null与真实实体引用",
+      "files": [
+        "driver/driver_v2.py",
+        "fixes-v3/domain_fields.py"
+      ],
+      "tests": [
+        "test_f4_wire_null_and_dangling_references",
+        "test_f4_missing_null_and_center_members"
+      ],
+      "actual_output": "成员/连接/尾部、pair两端、缺字段、中心成员悬空拒绝",
+      "status": "IMPLEMENTED_TARGETED_PASS",
+      "evidence": [
+        "CHECK-OUTPUT.json",
+        "SUPPLEMENT-OUTPUT.json",
+        "tests.initial.stdout",
+        "tests.supplement.stdout",
+        "tests.f8-recheck.stdout"
+      ]
+    },
+    {
+      "id": "F5",
+      "change": "检查原snapshot ContentRef元数据",
+      "files": [
+        "driver/content_closure.py"
+      ],
+      "tests": [
+        "test_f5_original_snapshot_contentref_metadata"
+      ],
+      "actual_output": "仅元数据改动9负控拒绝",
+      "status": "IMPLEMENTED_TARGETED_PASS",
+      "evidence": [
+        "CHECK-OUTPUT.json",
+        "SUPPLEMENT-OUTPUT.json",
+        "tests.initial.stdout",
+        "tests.supplement.stdout",
+        "tests.f8-recheck.stdout"
+      ]
+    },
+    {
+      "id": "F6",
+      "change": "Popen之后全部初始化处于cleanup保护",
+      "files": [
+        "driver/toy_supervisor.py"
+      ],
+      "tests": [
+        "test_f6_partial_initialization_cleanup",
+        "test_changed_supervisor_normal_paths"
+      ],
+      "actual_output": "6种fake异常kill/wait/关闭；6条固定toy回归通过",
+      "status": "IMPLEMENTED_TARGETED_PASS",
+      "evidence": [
+        "CHECK-OUTPUT.json",
+        "SUPPLEMENT-OUTPUT.json",
+        "tests.initial.stdout",
+        "tests.supplement.stdout",
+        "tests.f8-recheck.stdout"
+      ]
+    },
+    {
+      "id": "F7",
+      "change": "逐元素执行无包含域门",
+      "files": [
+        "driver/raw_oracle.py"
+      ],
+      "tests": [
+        "test_f7_review_19bar_inclusion_rejected",
+        "test_f7_third_pending_element_and_fixed_domains"
+      ],
+      "actual_output": "19bar原反例与无strict第三元素反例拒绝；四固定输入新增域门不误拒",
+      "status": "IMPLEMENTED_TARGETED_PASS",
+      "evidence": [
+        "CHECK-OUTPUT.json",
+        "SUPPLEMENT-OUTPUT.json",
+        "tests.initial.stdout",
+        "tests.supplement.stdout",
+        "tests.f8-recheck.stdout"
+      ]
+    },
+    {
+      "id": "F8",
+      "change": "规范前沿、单调性与具名接纳数",
+      "files": [
+        "driver/fixed_cut_driver.py"
+      ],
+      "tests": [
+        "test_f8_frontier_validation_and_cross_epoch",
+        "test_f8_bind_frozen_named_messages"
+      ],
+      "actual_output": "回退/非规范/计数不符拒绝；跨epoch1/65/65通过",
+      "status": "IMPLEMENTED_TARGETED_PASS",
+      "evidence": [
+        "CHECK-OUTPUT.json",
+        "SUPPLEMENT-OUTPUT.json",
+        "tests.initial.stdout",
+        "tests.supplement.stdout",
+        "tests.f8-recheck.stdout"
+      ]
+    }
+  ]
+}

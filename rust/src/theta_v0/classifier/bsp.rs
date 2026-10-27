@@ -672,7 +672,9 @@ mod tests {
             // #1394 整合行号漂移：FIN `cabb255633`（#1394 2C）把原 237/247/273 三处同一组锚查询
             // 收成一处（窗口三组一次取出交 `cc007_add`，三种用途不变），不新增豁免。
             // #1405 整合（main 271b8e8cc6）：tb02a_facts.rs 上方行变动 ⟹ 564 → 556，同条目重登记。
-            "bin/s_session_v2/tb02a_facts.rs:556",
+            // #1419 recompose（main da03a10e 上重合成 CF+W）：W 初始化对象构造与组载荷新增字段
+            // 插在其上方 ⟹ 556 → 707；逐点重核仍是同一组锚查询，内容与理由不变，不新增豁免。
+            "bin/s_session_v2/tb02a_facts.rs:707",
             // #1488 A2：raw_bar_at 在 RawBars 的原始 Bar 账中二分定位后核对精确坐标，
             // 供 CC-007 descriptive_labels.raw_ohlc 读取三组成员的原始 OHLC；不查询
             // BspPoint/买卖位，不能改调 BSP 绑定 API。只豁免此点，扫描与 stale 检查不变。
@@ -683,7 +685,9 @@ mod tests {
             // `.filter(|bar| bar.source_index == coord)`，内容不变，同条目重登记。
             // close-0085 P58：squash 面全量 cargo fmt 在上方改排版 ⟹ 3109 → 3114；重核仍为
             // raw_bar_at 的同一 `.filter` 行，内容不变，同条目重登记。）
-            "bin/s_session_v2/content_producer.rs:3114",
+            // #1419 recompose：CF 结构事实接入在上方增行 ⟹ 3114 → 3197；重核仍为 raw_bar_at 的
+            // 同一 `.filter` 行，内容不变，同条目重登记。
+            "bin/s_session_v2/content_producer.rs:3197",
             // #[ignore] 死探针（已被 runner::newly_confirmed_step 取代，issue #747 条目6 登记不入
             // 18 处枚举）。（#885 S4-d：上方 slice_step 增一行 ⟹ 596→597，同条目重登记。
             // #1605：上方探针记录读取与输出追溯共增 15 行 ⟹ 603→618，内容不变。）
@@ -775,7 +779,13 @@ mod tests {
             // 同条目重登记。
             // 2026-10-25 #1626：compose_level 调用增加 TowerBase 参数并多行化（+15 行）⟹
             // 夹具点同内容随迁 1720 → 1735，重核仍为 source_index 过滤，同条目重登记。
-            "theta_v0/classifier/tests/pipeline_geometry.rs:1735",
+            // 2026-10-13 #1419 S1：R8 连接段夹具（B2 / 类二买测试改调 three_group_segments，
+            // −23 行）⟹ 夹具点随迁 1720 → 1697，重核内容不变（source_index 过滤），同条目重登记。
+            // 2026-10-14 #1419 根裁定 r2 第 1 条：B2 夹具注释区分中枢外缘与走势区间（+1 行）⟹
+            // 1697 → 1698，重核内容不变，同条目重登记。
+            // #1419 recompose：main #1626（+15 行）与 #1419 R8 夹具（−23+1 行）合成 ⟹ 1713；
+            // 夹具坐标随 R8 连接段为 32，重核仍为 source_index 过滤，同条目重登记。
+            "theta_v0/classifier/tests/pipeline_geometry.rs:1713",
             // 「时刻分组键」过滤（spec §12 语义，合法契约非泄漏，非身份 join，不入本族）。
             // （2026-08-16 #903/#919 注释与 fmt ⟹ +2 漂移，七处再重锚，内容不变。）
             // （2026-08-16 #993 fixture 修复 ⟹ signal.rs 测试区再位移，七处夹具点重锚，内容不变。

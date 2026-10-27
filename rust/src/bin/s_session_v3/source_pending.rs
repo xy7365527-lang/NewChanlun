@@ -25,7 +25,8 @@ const EQUAL_EXTREME: &str = "equal_extreme_identity";
 pub(super) fn equal_is_evidence(rule: &str) -> Result<bool, String> {
     let contract =
         tb02b::contract_for_rule(rule).ok_or_else(|| err("步骤知识来源审计规则修订未声明"))?;
-    Ok(contract == tb02b::CURRENT_CONTRACT)
+    // #1419 独审 B1 同族：W 后继串的合同即 /2 加 W 知识域（`..CURRENT_CONTRACT`），同价证据口径同 /2。
+    Ok(contract == tb02b::CURRENT_CONTRACT || contract == tb02b::W_CONTRACT)
 }
 
 fn is_waiting_reason(reason: &str, equal_is_evidence: bool) -> bool {
@@ -534,7 +535,7 @@ pub(super) fn unsettled_seed_group(
     Ok(())
 }
 
-pub(super) trait StepLookup {
+pub(super) trait StepLookup: source_structure::Lookup {
     fn get_step(&self, coord: i64) -> Option<&dyn StepView>;
     fn contains_subject(&self, id: &str) -> bool;
 }
@@ -545,6 +546,12 @@ pub(super) trait RequestSlots {
 struct FullStepLookup<'a, 'b, 'c> {
     steps: &'a BusinessMap<i64, Step<'b>>,
     subjects: &'a BusinessMap<&'c str, i64>,
+    objects: &'a BusinessMap<&'b str, &'b Object>,
+}
+impl source_structure::Lookup for FullStepLookup<'_, '_, '_> {
+    fn object(&self, id: &str) -> Option<&Object> {
+        self.objects.get(id).copied()
+    }
 }
 impl StepLookup for FullStepLookup<'_, '_, '_> {
     fn get_step(&self, coord: i64) -> Option<&dyn StepView> {
@@ -577,6 +584,8 @@ fn request_record(
     request: &RefValue,
     steps: &BusinessMap<i64, Step<'_>>,
     step_subjects: &BusinessMap<&str, i64>,
+    objects: &BusinessMap<&str, &Object>,
+    rule: &str,
     requests: &mut BusinessMap<bj::TextValue, ()>,
     bound: &mut BusinessMap<i64, ()>,
     equal_is_evidence: bool,
@@ -587,9 +596,11 @@ fn request_record(
         &FullStepLookup {
             steps,
             subjects: step_subjects,
+            objects,
         },
         &mut FullRequestSlots { requests, bound },
         equal_is_evidence,
+        rule,
     )
 }
 
@@ -599,6 +610,7 @@ pub(super) fn request_record_with_slots(
     steps: &impl StepLookup,
     slots: &mut impl RequestSlots,
     equal_is_evidence: bool,
+    rule: &str,
 ) -> Result<(), String> {
     exact(request, Kind::Object, 5)?;
     let fields = SourceFields::read_subset(
@@ -623,6 +635,31 @@ pub(super) fn request_record_with_slots(
         return Err(err("同cut知识请求重复"));
     }
     if view.index(0).and_then(|v| v.as_str()) != Some(CC004_STEP_KIND) {
+        if crate::is_structure_rule(rule)
+            && (view
+                .index(0)
+                .and_then(|v| v.index(0))
+                .and_then(|v| v.as_str())
+                .is_some_and(|kind| source_structure::is_kind(rule, kind))
+                || view
+                    .index(1)
+                    .and_then(|v| v.index(2))
+                    .and_then(|v| v.as_str())
+                    == Some("structure-classification/1"))
+        {
+            return source_structure::audit_request(s, request, view, steps);
+        }
+        if crate::is_structure_rule(rule) {
+            let subject = fields.scalar(s, "subject_id")?;
+            if subject
+                .view()
+                .as_str()
+                .and_then(|id| source_structure::Lookup::object(steps, id))
+                .is_some_and(|o| source_structure::is_kind(rule, o.kind.as_str()))
+            {
+                return Err(err("结构主体不能绑定到其它请求槽位"));
+            }
+        }
         // 非步骤请求可共存，但不能换一个 key 重复声明同一等待主体。
         let subject = fields.scalar(s, "subject_id")?;
         if subject
@@ -721,10 +758,17 @@ pub(super) fn audit<'a>(
     let mut steps = bj::new_map(allocation.as_ref());
     let mut step_subjects = bj::new_map(allocation.as_ref());
     let mut knowledge = None;
+    let mut structure_objects = bj::new_map(allocation.as_ref());
     #[cfg(test)]
     super::source_call_note(|n| n.full_members_enumerations += 1);
     for object in objects {
         super::super::history::check_deadline(deadline)?;
+        if crate::is_structure_rule(rule) {
+            s.native_map_room(&mut structure_objects).map_err(err)?;
+            structure_objects
+                .insert(object.id.as_str(), object)
+                .map_err(err)?;
+        }
         if object.kind == CC054_KNOWLEDGE_KIND {
             knowledge_record(s, object, &mut knowledge)?;
         } else if object.kind == CC004_STEP_KIND {
@@ -775,20 +819,52 @@ pub(super) fn audit<'a>(
     }
     let mut requests = bj::new_map(allocation.as_ref());
     let mut bound = bj::new_map(allocation.as_ref());
+    let mut structure_counts = bj::new_map(allocation.as_ref());
     let request_array = field(s, &knowledge, "requests")?;
     #[cfg(test)]
     super::source_call_note(|n| n.full_members_enumerations += 1);
     for request in elements(s, &request_array)? {
         super::super::history::check_deadline(deadline)?;
+        if crate::is_structure_rule(rule) {
+            let subject = scalar(s, &request, "subject_id")?;
+            if let Some(id) = subject.view().as_str() {
+                if structure_objects
+                    .get(id)
+                    .is_some_and(|o| source_structure::is_kind(rule, o.kind.as_str()))
+                {
+                    let count = structure_counts.get(id).copied().unwrap_or(0usize);
+                    s.native_map_room(&mut structure_counts).map_err(err)?;
+                    structure_counts
+                        .insert(
+                            s.native_text(id)?,
+                            count.checked_add(1).ok_or_else(|| err("结构请求数溢出"))?,
+                        )
+                        .map_err(err)?;
+                }
+            }
+        }
         request_record(
             s,
             &request,
             &steps,
             &step_subjects,
+            &structure_objects,
+            rule,
             &mut requests,
             &mut bound,
             equal_is_evidence,
         )?;
+    }
+    for (_, object) in structure_objects.iter() {
+        if source_structure::is_kind(rule, object.kind.as_str())
+            && structure_counts
+                .get(object.id.as_str())
+                .copied()
+                .unwrap_or(0)
+                != source_structure::expected_requests(s, object)?
+        {
+            return Err(err("结构对象缺一一具名分类请求"));
+        }
     }
     if bound.len() != steps.len() {
         return Err(err("CC004缺一一绑定的知识请求"));
