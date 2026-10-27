@@ -659,8 +659,18 @@ pub(crate) fn cut(config: &Config, seq: i64, root: &str) -> Value {
     json!({"domain_id":config.domain,"commit_seq":seq.to_string(),"root_hash":root})
 }
 pub(super) fn root(config: &Config, seq: i64, prev: &str, ns: &str, image: &Value) -> String {
+    root_with_image_hash(config, seq, prev, ns, &hash(image))
+}
+/// #1768：同一根式只按图像摘要计算；delta 续接据此逐链核根，不另抄公式。
+pub(super) fn root_with_image_hash(
+    config: &Config,
+    seq: i64,
+    prev: &str,
+    ns: &str,
+    image_hash: &str,
+) -> String {
     hash(
-        &json!({"domain_id":config.domain,"session_id":config.session,"session_generation":config.generation,"commit_seq":seq.to_string(),"previous_root":prev,"commit_ns":ns,"image_hash":hash(image)}),
+        &json!({"domain_id":config.domain,"session_id":config.session,"session_generation":config.generation,"commit_seq":seq.to_string(),"previous_root":prev,"commit_ns":ns,"image_hash":image_hash}),
     )
 }
 pub(crate) fn latest(c: &Connection) -> Result<(i64, String, String, Value), String> {
