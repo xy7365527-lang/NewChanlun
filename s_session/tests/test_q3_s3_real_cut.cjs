@@ -2,7 +2,7 @@
  * 夹具 fixtures/q3-real-s3-w-recover-revise.json 由 Rust
  * v3::financial_session::tests::export_real_s3_w_fixture_for_q3 真实 init_v3 + 接纳/Begin/提交逐代导出，
  * provenance 记 head、命令与逐里程碑的 Rust 侧当前对象计数；本套以该计数为对拍 oracle，不另建读链。
- * 覆盖：cut0 首根、W 等待期两 kind、方向确立、真实写者恢复（纪元 1→2）跨代 Watch、首中枢、
+ * 覆盖：cut0 首根、W 等待期两 kind、自等待期跨真实写者恢复（纪元 1→2）至方向确立的逐代 Watch、首中枢、
  * 改价修订撤回与改回恢复两代 Watch、尾段中枢对。 */
 "use strict";
 const assert = require("node:assert/strict"),
@@ -87,7 +87,7 @@ test("真实S3 W：导出出自 W 唯一写者规则串且恢复后写者纪元�
   assert.equal(data.meta.rule_revision, API.Q3.typed.W_STRUCTURE_RULE);
   assert.equal(data.provenance.rule_revision, data.meta.rule_revision);
   assert.equal(data.meta.writer_epoch, "2");
-  assert.equal(steps.recovered_epoch2_append.recovered_writer, true);
+  assert.equal(steps.recovered_epoch2_direction.recovered_writer, true);
 });
 
 test("真实S3 W cut0 首根与等待期：AsKnown 对象族逐 kind 与 Rust 同代一致，等待期有 W 两 kind", async () => {
@@ -101,15 +101,15 @@ test("真实S3 W cut0 首根与等待期：AsKnown 对象族逐 kind 与 Rust �
 });
 
 test("真实S3 W 跨真实写者恢复（纪元1→2）逐代 Watch 与同代 AsKnown 一致", async () => {
-  const from = gen("direction_established"),
-    to = gen("recovered_epoch2_append"),
+  const from = gen("w_contained_waiting"),
+    to = gen("recovered_epoch2_direction"),
     server = await watchServer(range(from, to)),
     client = makeClient(server);
   await client.load(discovery(server), "RecomputedWithRevision", from);
   await server.advance(to);
   await client.watch();
   assert.equal(client.committed.cursor.after_generation, to);
-  assert.deepEqual(await kindsOf(client), rustKinds("recovered_epoch2_append"));
+  assert.deepEqual(await kindsOf(client), rustKinds("recovered_epoch2_direction"));
 });
 
 test("真实S3 W 首中枢非空，改价修订撤回与改回恢复两代 Watch 各自与 Rust 同代一致", async () => {
