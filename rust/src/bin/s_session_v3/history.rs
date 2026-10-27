@@ -5665,11 +5665,13 @@ mod tests {
                 .content_ref()
         }
         let mut fixture = super::prepared::tests::Fixture::new();
+        // #1419 W：第 4 代原为 b 的前缀改价，W 下前缀改价令同 cut 全部对象重生，快照里没有
+        // 非模板批旧记录；改为第 4 代追加新 bar，旧代对象（a/b/c 的步骤等）原样存活，同时有本代新生记录。
         for (n, row, revision) in [
             (1, ("a", 0, 6, 12, 3, 7), 1),
             (2, ("b", 10, 8, 16, 6, 12), 1),
             (3, ("c", 20, 8, 13, 4, 7), 1),
-            (4, ("b", 10, 8, 17, 6, 12), 2),
+            (4, ("d", 30, 9, 18, 7, 15), 1),
         ] {
             let (e, token) = fixture.accept_begin(n, row, revision);
             fixture.publish(&e, &token).unwrap();

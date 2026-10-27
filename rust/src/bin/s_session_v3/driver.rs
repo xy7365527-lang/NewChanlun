@@ -3381,7 +3381,7 @@ mod tests {
     }
 
     /// #1488 0079（P24-adj，0078 探针 H 形态）：同一 writer 内冷根自然失败（1M）后无票重跑提交，
-    /// 之后 allowance 变大（改 16M）使候选重新出生；后续 ingest 必须走 Carry 提交且与 ordinary 一致。
+    /// 之后 allowance 变大（改 16M；#1419 W 起为 31M）使候选重新出生；后续 ingest 必须走 Carry 提交且与 ordinary 一致。
     /// 负控：去掉 `renew_after_cold_root_rerun` 的续租 → ingest-2 报“Carry租约已撤销”。
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
@@ -3422,7 +3422,9 @@ mod tests {
                 first,
                 ordinary.handle(Fixture::ingest(1)).unwrap(),
             );
-            d.audit_cache_source_bytes = Some(16 << 20);
+            // #1419 W：候选重新出生所需 allowance 实测下限 30MiB（29.5MiB 下 ingest-2 放弃候选、20MiB 下
+            // ingest-3 StaleWriter），同 #1488 先例取下限+1MiB＝31MiB；1M 冷根自然失败不变。
+            d.audit_cache_source_bytes = Some(31 << 20);
             let steps = [
                 ("ready-a", envelope("p24adj-ready-a", json!({"op":"ready"}))),
                 ("ingest-2", Fixture::ingest(2)),
@@ -3461,7 +3463,7 @@ mod tests {
             )
         };
         let cold = run(1 << 20);
-        let control = run(16 << 20);
+        let control = run(31 << 20);
         eprintln!(
             "{}",
             json!({"scenario":"p24adj-cold-root-then-larger-cap",
@@ -3481,7 +3483,7 @@ mod tests {
         );
         assert!(
             cold.3.is_empty() && control.0.is_empty(),
-            "16M 下冷根不应失败"
+            "31M 下冷根不应失败"
         );
         assert!(
             cold.5.is_empty(),
@@ -3499,7 +3501,7 @@ mod tests {
             ("ingest-2", true, true, false, false),
             "候选重新出生后 ingest-2 须命中完整候选、经 Carry 提交资格且租约有效"
         );
-        assert_eq!(cold.4[1], control.4[1], "ingest-3 须与全程 16M 对照组同路");
+        assert_eq!(cold.4[1], control.4[1], "ingest-3 须与全程 31M 对照组同路");
         assert!(cold.4.iter().all(|c| !c.4), "租约不得撤销：{:?}", cold.4);
     }
 
@@ -3532,7 +3534,7 @@ mod tests {
         let mut d = open(&f);
         let a1 = d.handle(Fixture::ingest(1)).map(|_| ());
         let a_notes = probe::take();
-        d.audit_cache_source_bytes = Some(16 << 20);
+        d.audit_cache_source_bytes = Some(31 << 20); // #1419 W：同 p24adj 主锁实测下限 30MiB+1
         let a2 = d.handle(ready("p24adj-neg-ready-a")).map(|_| ());
         let a3 = d.handle(Fixture::ingest(2)).map(|_| ());
         let carried = d.conn.recover_probe_for_test();
@@ -3551,7 +3553,7 @@ mod tests {
         let b2 = e.handle(Fixture::ingest(1)).map(|_| ());
         let b_notes = probe::take();
         let not_renewed = e.conn.recover_probe_for_test();
-        e.audit_cache_source_bytes = Some(16 << 20);
+        e.audit_cache_source_bytes = Some(31 << 20); // #1419 W：同上
         let b3 = e.handle(ready("p24adj-neg-ready-c")).map(|_| ());
         let b4 = e.handle(Fixture::ingest(2));
         crate::cache::configure(0);
@@ -3631,7 +3633,10 @@ mod tests {
         let held = native.conn.complete_retained_bytes();
         assert!(held > 0);
         assert_eq!(before["charge"]["slot_result_capacity"], 0);
-        let workspace = 16 * 1024 * 1024;
+        // #1419 W（主控 2026-10-28 裁定：只调 TestOnly 夹具额度，生产帽不动）：W 结构体量下候选
+        // 父工作域实测下限（nc-remote 971cb5cbbf 扫描，512KiB 步长）：legacy+held+X 写期保留
+        // 候选需 X≥25MiB（24.5MiB 放弃并冷路径）；同 #1488 先例取下限+1MiB。
+        let workspace = 26 * 1024 * 1024;
         let old_gate_lower_bound = held.checked_mul(32).unwrap().checked_add(65536).unwrap();
         assert!(
             workspace < old_gate_lower_bound,
@@ -3706,7 +3711,10 @@ mod tests {
         let held = native.conn.complete_retained_bytes();
         assert!(held > 0);
         let legacy = crate::cache::retained_bytes();
-        let total = legacy + held + 8 * 1024 * 1024;
+        // #1419 W（主控 2026-10-28 裁定：只调 TestOnly 夹具额度，生产帽不动）：W 结构体量下候选
+        // 父工作域实测下限（nc-remote 971cb5cbbf 扫描，512KiB 步长）：legacy+held+X 写期保留
+        // 候选需 X≥25MiB（24.5MiB 放弃并冷路径）；同 #1488 先例取下限+1MiB。
+        let total = legacy + held + 26 * 1024 * 1024;
         // 仅收紧本测试 Driver 的同一 S7 额度，不修改任何默认额度。
         native.audit_cache_source_bytes = Some(total);
         let memory = Window::start();
