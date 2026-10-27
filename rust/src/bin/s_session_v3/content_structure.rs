@@ -1326,8 +1326,15 @@ fn vec_fields(value: CV) -> Result<Vec<(Text, CV)>, String> {
         _ => Err("内部字段非对象".into()),
     }
 }
+/// 值边（roles 子树、known_at 等）直接取摘要；编码层不允许把既有边写成根。
+fn value_digest(value: &CV, nodes: &mut dyn NodeStore) -> Result<sc::NodeDigest, String> {
+    match value {
+        CV::Edge(digest) => Ok(*digest),
+        value => Ok(put(value, nodes)?.digest),
+    }
+}
 fn root_eq(old: &Built, key: &str, new: CV, nodes: &mut dyn NodeStore) -> Result<bool, String> {
-    Ok(field(nodes, old, key)?.digest == put(&(new), nodes)?.digest)
+    Ok(field(nodes, old, key)?.digest == value_digest(&new, nodes)?)
 }
 fn revision_of(nodes: &mut dyn NodeStore, old: Option<&Built>) -> Result<i64, String> {
     match old {
@@ -1367,7 +1374,7 @@ fn same_fields(
     for (key, value) in fresh {
         if !bookkeeping.contains(&key.as_str()) {
             let old = fields.get(key.as_str()).ok_or("旧对象缺事实字段")?;
-            if old.digest().map_err(|e| e.to_string())? != put(value, nodes)?.digest {
+            if old.digest().map_err(|e| e.to_string())? != value_digest(value, nodes)? {
                 return Ok(false);
             }
         }
@@ -1711,7 +1718,7 @@ pub(super) fn build_ef(
     let inputs = segment_units(evidence, cd_segments, nodes)?;
     build_ef_units(producer, nodes, &inputs, prior, ctx)
 }
-fn build_ef_units(
+pub(super) fn build_ef_units(
     producer: &mut Cc004Producer,
     nodes: &mut dyn NodeStore,
     inputs: &crate::tb02e::UnitInputs,
