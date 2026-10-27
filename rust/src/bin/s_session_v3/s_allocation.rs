@@ -331,7 +331,10 @@ mod tests {
     #[test]
     fn incremental_build_mode_is_compile_time_fixed_captured_native() {
         assert!(matches!(incremental_mode().unwrap(), Mode::CapturedNative));
-        assert!(matches!(load_environment_mode().unwrap(), Mode::CapturedNative));
+        assert!(matches!(
+            load_environment_mode().unwrap(),
+            Mode::CapturedNative
+        ));
     }
 }
 

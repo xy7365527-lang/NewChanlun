@@ -3147,7 +3147,10 @@ impl AuditCapture {
     /// #1394 APPROVED-SOURCE.md:65、286：本次完整原件相同包含旧capture全部tuple才复用。
     /// 调用方不能传same资格；Legacy/Owned、上下文不兼容或材料不包含时保持当前冷路径。
     /// 仅在新的独立memo.seen播种已成功的Value根，所有其余工作集与用量收据均冷。
-    #[cfg(all(feature = "s_incremental", any(test, feature = "s_capture_native_testonly")))]
+    #[cfg(all(
+        feature = "s_incremental",
+        any(test, feature = "s_capture_native_testonly")
+    ))]
     #[doc(hidden)]
     pub fn seed_codec_roots_from_native_capture_for_testonly(
         &self,
@@ -3856,7 +3859,10 @@ impl AuditCapture {
     /// #1488 P2-β：索引许可布局实测——（索引许可字节，现槽宽=size_of<(NodeDigest,NativeNode)>+1，
     /// P2-A前槽宽：同布局镜像但`source_permit: Option<NativeReservation>`）。索引许可=槽数×槽宽，
     /// 故P2-A的布局连带降幅=槽数×(旧槽宽−现槽宽)。
-    #[cfg(all(feature = "s_incremental", any(test, feature = "s_capture_native_testonly")))]
+    #[cfg(all(
+        feature = "s_incremental",
+        any(test, feature = "s_capture_native_testonly")
+    ))]
     #[doc(hidden)]
     pub fn native_index_layout_for_testonly(&self) -> Option<(usize, usize, usize)> {
         #[allow(dead_code)]
@@ -8603,9 +8609,8 @@ mod native_owner_codec_bridge_tests {
         let parent = Parent::new(32 << 20, capture.owner_codec_retained_bytes());
         let work = CodecWork::new(parent.clone(), parent.limit).unwrap();
         parent.failed.store(true, Ordering::SeqCst);
-        let result = work.run(|scope| {
-            capture.verify_owner_refview((&root).into(), Mode::Public, scope)
-        });
+        let result =
+            work.run(|scope| capture.verify_owner_refview((&root).into(), Mode::Public, scope));
         assert!(matches!(
             result,
             Err(WorkError::Resource(ScratchFailure::Ledger))
@@ -9000,14 +9005,13 @@ mod native_owner_codec_bridge_tests {
         let body = codec_body(&original, b"");
         assert!(body.is_native_bound());
         assert!(matches!(
-            run(&foreign, |work| capture
-                .append_original_codec_for_owner(
-                    frame(tag::BYTES_CHUNK, b""),
-                    tag::BYTES_CHUNK,
-                    body,
-                    usize::MAX,
-                    work,
-                )),
+            run(&foreign, |work| capture.append_original_codec_for_owner(
+                frame(tag::BYTES_CHUNK, b""),
+                tag::BYTES_CHUNK,
+                body,
+                usize::MAX,
+                work,
+            )),
             Err(WorkError::Resource(ScratchFailure::Ledger))
         ));
         assert!(capture.owner_codec.borrow().revoked);
@@ -9196,7 +9200,10 @@ mod native_owner_codec_bridge_tests {
     }
 }
 
-#[cfg(all(feature = "s_incremental", any(test, feature = "s_capture_native_testonly")))]
+#[cfg(all(
+    feature = "s_incremental",
+    any(test, feature = "s_capture_native_testonly")
+))]
 impl CodecError {
     /// #1488 0072 测试面：不经任何作用域直接构造 scratch 错误，与 SourceClaim 字节不符、
     /// check_write 域关闭等 Ledger 构造点同一入口（经类型化失败记录）。
