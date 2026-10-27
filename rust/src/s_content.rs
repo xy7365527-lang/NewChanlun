@@ -2518,7 +2518,11 @@ impl<K: Ord + Copy, V: Copy> OwnerProofTree<K, V> {
         while let Some(link) = stack.pop() {
             if let Some(node) = link {
                 if let Some(p) = node.permit() {
-                    out.push(CapturePermitEntry::held(p, CapturePermitRole::OwnerCodec, None));
+                    out.push(CapturePermitEntry::held(
+                        p,
+                        CapturePermitRole::OwnerCodec,
+                        None,
+                    ));
                 }
                 stack.push(&node.left);
                 stack.push(&node.right);
@@ -8713,7 +8717,12 @@ mod native_owner_codec_bridge_tests {
     #[test]
     fn i1572_source_claim_backs_single_body_permit_and_rejects_tampering() {
         use capture_allocation::scratch::PermitId;
-        type Built = (AuditCapture, Arc<Parent>, (usize, usize, usize), (usize, u64));
+        type Built = (
+            AuditCapture,
+            Arc<Parent>,
+            (usize, usize, usize),
+            (usize, u64),
+        );
         fn appended(base: &str, members: [&str; 2]) -> Built {
             let mut nodes = MemoryNodes::new();
             write_value(&mut nodes, &Value::string(base)).unwrap();
@@ -8839,7 +8848,10 @@ mod native_owner_codec_bridge_tests {
         swapped[0] = swapped[0].with_backing_for_test(second);
         swapped[1] = swapped[1].with_backing_for_test(first);
         let error = reject(&entries, &swapped);
-        assert!(error.contains("来源合同项与所指正文块不是同一节点"), "{error}");
+        assert!(
+            error.contains("来源合同项与所指正文块不是同一节点"),
+            "{error}"
+        );
         // 改一项合同额：按 backing 正文长度独立推出的合同额不符。
         let mut amended = claims.clone();
         amended[0] = amended[0].with_amount_for_test(amended[0].amount() + 1);
