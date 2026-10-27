@@ -1309,11 +1309,6 @@ impl AuditConnection {
                 .retain_mut(|mark| mark.settle_release(before.next().flatten()));
         }
     }
-    #[cfg(feature = "s_capture_native_testonly")]
-    #[cfg_attr(
-        all(not(test), feature = "s_capture_native_testonly"),
-        allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
-    )]
     /// #1572 测量探针（只在测试中调用；会销毁候选）：按字段声明顺序逐个析构完整候选，记录每步候选
     /// 父账 live 的实际下降，与该时刻的合同额并列导出。共享Rc块记在最后一个持有者析构的那一步。
     /// 这是逐持有者物理额的事实读数，不是生产冻结口径；生产须非破坏地得到同一读数。
@@ -1415,6 +1410,11 @@ impl AuditConnection {
             "contract": contract,
         }))
     }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg_attr(
+        all(not(test), feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
+    )]
     pub(super) fn complete_retained_bytes(&self) -> usize {
         self.complete
             .borrow()
