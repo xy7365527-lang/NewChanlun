@@ -1147,7 +1147,8 @@ mod owned_catalog_temp_tests {
         let normal_axes = normal_source
             .lookup_field_ref(generated.view(), "catalog_axes")
             .unwrap();
-        let normal = axes_entries(&mut normal_source, normal_axes.view()).unwrap();
+        let rule = audited.cuts.last().unwrap().metadata.rule_revision.clone();
+        let normal = axes_entries(&mut normal_source, normal_axes.view(), &rule).unwrap();
         let expected: Vec<_> = normal
             .iter()
             .map(|e| {
@@ -1181,7 +1182,7 @@ mod owned_catalog_temp_tests {
                 let axes = store
                     .lookup_field_ref(generated.view(), "catalog_axes")
                     .unwrap();
-                let entries = axes_entries(store, axes.view()).unwrap();
+                let entries = axes_entries(store, axes.view(), &rule).unwrap();
                 let actual: Vec<_> = entries
                     .iter()
                     .map(|e| {
@@ -1448,7 +1449,8 @@ mod tests {
         let profile_id = text("profile_id");
         assert_eq!(profile_id, tb02a::PROFILE);
         let profile_hash = text("profile_hash");
-        let rule = text("rule_revision");
+        // #1393×#1419：生成夹具取 S3 写者唯一规则（W 后继串，22 轴）；v2 测试库的历史规则串只读。
+        let rule = crate::W_STRUCTURE_RULE_REVISION.to_string();
         let catalog = text("catalog_revision");
         let scope: Value = strict_json(text("scope").as_bytes()).unwrap();
         let frontier = raw.len() as i64 - 1;
@@ -1490,7 +1492,7 @@ mod tests {
             &rule,
         )
         .unwrap();
-        let axes = generated_axes(&mut store, &generated.generated_state).unwrap();
+        let axes = generated_axes(&mut store, &generated.generated_state, &rule).unwrap();
         let scope_ref = sc::write_value(&mut store, &cv(&scope).unwrap())
             .unwrap()
             .content_ref();
@@ -1844,7 +1846,7 @@ mod tests {
         let axes = rebuild(
             &mut f.store,
             &f.axes,
-            &AXIS_IDS,
+            rule_axes(&f.metadata.rule_revision).unwrap(),
             "CC-056",
             V::Edge(cc056.digest().unwrap()),
         );
@@ -1968,8 +1970,8 @@ mod tests {
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .unwrap();
-        stage_current(&tx, &mut f.store, &f.axes).unwrap();
-        verify_current(&tx, &mut f.store, &f.axes).unwrap();
+        stage_current(&tx, &mut f.store, &f.axes, &f.metadata.rule_revision).unwrap();
+        verify_current(&tx, &mut f.store, &f.axes, &f.metadata.rule_revision).unwrap();
         let staged = read_row(&tx, "CC-001");
         assert_eq!(staged.0, "implemented");
         assert_eq!(staged.1, "not_proved");
@@ -1980,16 +1982,24 @@ mod tests {
         tx.rollback().unwrap();
         assert_eq!(read_row(&f.conn, "CC-001"), before);
 
-        // 真提交一次暂写，13 行逐轴可核。
+        // 真提交一次暂写，规则轴表逐轴可核（W 后继串 22 轴；段后三轴与中枢/对各轴写者声明 not_implemented）。
         let tx = f
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .unwrap();
-        stage_current(&tx, &mut f.store, &f.axes).unwrap();
+        stage_current(&tx, &mut f.store, &f.axes, &f.metadata.rule_revision).unwrap();
         tx.commit().unwrap();
-        for id in AXIS_IDS {
+        for &id in rule_axes(&f.metadata.rule_revision).unwrap() {
             let (impl_status, proof_status, run_status, evidence_json) = read_row(&f.conn, id);
-            assert_eq!(impl_status, "implemented", "{id}");
+            assert_eq!(
+                impl_status,
+                if axis_implemented(id) {
+                    "implemented"
+                } else {
+                    "not_implemented"
+                },
+                "{id}"
+            );
             assert_eq!(proof_status, "not_proved", "{id}");
             assert!(
                 matches!(run_status.as_str(), "run" | "not_run" | "waiting"),
@@ -2003,7 +2013,7 @@ mod tests {
             );
         }
         let tx = f.conn.transaction().unwrap();
-        verify_current(&tx, &mut f.store, &f.axes).unwrap();
+        verify_current(&tx, &mut f.store, &f.axes, &f.metadata.rule_revision).unwrap();
         tx.rollback().unwrap();
 
         // 12 轴（缺一轴）→ 暂写拒绝且不写任何行。
@@ -2011,7 +2021,7 @@ mod tests {
         let twelve = rebuild(
             &mut f.store,
             &f.axes,
-            &AXIS_IDS[..12],
+            &rule_axes(&f.metadata.rule_revision).unwrap()[..12],
             "CC-001",
             V::Edge(cc001.digest().unwrap()),
         );
@@ -2019,8 +2029,9 @@ mod tests {
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .unwrap();
-        let error = stage_current(&tx, &mut f.store, &twelve).unwrap_err();
-        assert!(error.contains("13轴"), "{error}");
+        let error =
+            stage_current(&tx, &mut f.store, &twelve, &f.metadata.rule_revision).unwrap_err();
+        assert!(error.contains("22轴"), "{error}");
         tx.rollback().unwrap();
 
         // 状态列篡改 → 回读拒绝。
@@ -2031,7 +2042,7 @@ mod tests {
             )
             .unwrap();
         let tx = f.conn.transaction().unwrap();
-        assert!(verify_current(&tx, &mut f.store, &f.axes).is_err());
+        assert!(verify_current(&tx, &mut f.store, &f.axes, &f.metadata.rule_revision).is_err());
         tx.rollback().unwrap();
 
         // 旧整段大 JSON（非规范四字段引用）→ 拒绝。
@@ -2042,7 +2053,7 @@ mod tests {
             )
             .unwrap();
         let tx = f.conn.transaction().unwrap();
-        assert!(verify_current(&tx, &mut f.store, &f.axes).is_err());
+        assert!(verify_current(&tx, &mut f.store, &f.axes, &f.metadata.rule_revision).is_err());
         tx.rollback().unwrap();
 
         // 引用闭包：藏掉证据里一个真实存在、路径核验不会触碰的叶子 → 仍须拒绝。
@@ -2069,8 +2080,8 @@ mod tests {
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .unwrap();
-        assert!(stage_current(&tx, &mut f.store, &f.axes).is_err());
-        assert!(verify_current(&tx, &mut f.store, &f.axes).is_err());
+        assert!(stage_current(&tx, &mut f.store, &f.axes, &f.metadata.rule_revision).is_err());
+        assert!(verify_current(&tx, &mut f.store, &f.axes, &f.metadata.rule_revision).is_err());
         tx.rollback().unwrap();
         assert_eq!(read_row(&f.conn, "CC-001").0, "implemented");
     }
