@@ -71,6 +71,7 @@ mod financial_session;
 pub(crate) mod fixed_radix;
 mod generation;
 mod history;
+pub(crate) mod layout;
 pub(crate) mod native_shared;
 pub(super) mod object_index;
 mod object_records;

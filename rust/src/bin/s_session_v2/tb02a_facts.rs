@@ -923,8 +923,11 @@ pub(super) enum CatalogAxisTable {
 }
 
 impl CatalogAxisTable {
+    /// #1491：按组件解析——布局组件（ADR 0037 §五）与目录轴正交，先剥离再按教义部分整串选表；
+    /// 无布局组件的旧整串照旧映射（只读旧库）；未知布局版本不选表。
     pub(super) fn for_rule_revision(rule_revision: &str) -> Option<Self> {
-        match rule_revision {
+        let (doctrine, _) = crate::v3::layout::split(rule_revision).ok()?;
+        match doctrine.as_str() {
             crate::LEGACY_V3_RULE_REVISION | crate::V3_RULE_REVISION => Some(Self::NewBi),
             // #1394 合入 #1420：上一代 v2 规则 `+new-bi/2+segment-second/1` 只读仍取 17 轴。
             "s2-axis-quantifiers+new-bi/1+segment-second/1"

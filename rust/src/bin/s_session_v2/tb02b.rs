@@ -26,8 +26,10 @@ const LEGACY_CONTRACT: BiContract = BiContract {
     policy: "standard_raw_gap_3",
     knowledge_domain: "established_direction_without_extreme_identity_competition",
 };
+/// #1491：布局组件（ADR 0037 §五）与笔合同正交，剥离后按教义部分整串选合同。
 pub(super) fn contract_for_rule(rule: &str) -> Option<BiContract> {
-    match rule {
+    let (doctrine, _) = crate::v3::layout::split(rule).ok()?;
+    match doctrine.as_str() {
         crate::LEGACY_V3_RULE_REVISION
         | "s2-axis-quantifiers+new-bi/1+segment-first/1"
         | "s2-axis-quantifiers+new-bi/1+segment-second/1" => Some(LEGACY_CONTRACT),
@@ -409,5 +411,21 @@ mod version_contract_tests {
             17
         );
         assert!(tb02a_facts::CatalogAxisTable::for_rule_revision("unknown").is_none());
+    }
+
+    /// #1491：布局组件正交——加 `bounded-layout/1` 不改笔合同与目录轴表；未知布局版本不选。
+    #[test]
+    fn layout_component_is_orthogonal_to_contract_and_axes() {
+        let bounded = format!("{}+bounded-layout/1", crate::V3_RULE_REVISION);
+        assert_eq!(contract_for_rule(&bounded), contract_for_rule(crate::V3_RULE_REVISION));
+        assert_eq!(
+            tb02a_facts::CatalogAxisTable::for_rule_revision(&bounded),
+            tb02a_facts::CatalogAxisTable::for_rule_revision(crate::V3_RULE_REVISION)
+        );
+        let legacy = format!("{}+bounded-layout/1", crate::LEGACY_V3_RULE_REVISION);
+        assert_eq!(contract_for_rule(&legacy), Some(LEGACY_CONTRACT));
+        let unknown = format!("{}+bounded-layout/9", crate::V3_RULE_REVISION);
+        assert!(contract_for_rule(&unknown).is_none());
+        assert!(tb02a_facts::CatalogAxisTable::for_rule_revision(&unknown).is_none());
     }
 }
