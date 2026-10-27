@@ -10482,3 +10482,41 @@ fn div1605_probe_layers() {
         }
     }
 }
+
+/// #1419/#1605 经济消融探针（仅诊断，ignored）：公开 runner 全 21360 根，对冻结基线报首分歧。
+#[test]
+#[ignore = "div1605 econ probe"]
+fn div1605_probe_econ() {
+    let config = ThetaConfig::default();
+    let ds = super::super::data::load_symbol(
+        std::path::Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/issue1605/btc-20170817-20170831.json"
+        )),
+        "BTC",
+        &config,
+        60,
+    )
+    .unwrap();
+    let result = run_theta_v0_pi(&ds, &config, 1.0, 1e6).unwrap();
+    let m = &result.metrics;
+    let bits = |xs: &[f64]| xs.iter().map(|x| x.to_bits()).collect::<Vec<_>>();
+    let frozen = serde_json::json!({
+    "n_orders":result.n_orders,"n_trades":m.n_trades,
+    "metrics":bits(&[m.cagr,m.sharpe,m.sortino,m.max_drawdown,m.calmar,m.cvar_5,m.win_rate,m.profit_factor,m.top5_pnl_ratio,m.strat_return,m.bh_return]),
+    "equity":bits(&result.equity_curve),"daily":bits(&result.daily_returns),"realized":bits(&result.trade_pnls),"with_forced":bits(&result.trade_pnls_with_forced),
+    "trades":result.trades.iter().map(|t|serde_json::json!([t.entry_bar,t.exit_bar,t.hold_bars,t.qty.to_bits(),t.long,t.forced_close])).collect::<Vec<_>>()
+    });
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../tests/fixtures/issue1605/baseline-13ed4d45-bits.json"
+    ))
+    .unwrap();
+    println!("ECON n_orders={} n_trades={} equal_baseline={}", result.n_orders, m.n_trades, frozen == expected);
+    for k in ["equity", "daily", "trades", "realized"] {
+        let a = frozen[k].as_array().unwrap();
+        let b = expected[k].as_array().unwrap();
+        let first = a.iter().zip(b.iter()).position(|(x, y)| x != y);
+        println!("ECON {k} len={}/{} first_diff={:?}", a.len(), b.len(), first);
+    }
+    println!("ECON first_trades {:?}", &frozen["trades"].as_array().unwrap()[..3.min(frozen["trades"].as_array().unwrap().len())]);
+}
