@@ -643,7 +643,7 @@ pub fn scan_center_facts<S: ScanSink>(
                 // 突破段、未结算）时停在 j：没有可跳过的段，尾部追加单元按 frontier 协议 pop 本窗重扫；
                 // 写 `j + 1` 会让 `consumed` 越界到 `len + 1`。Lean 对应 `refStep` 的 `endE + 2`
                 // （`formal/Origin/CenterConstruct.lean`）。
-                i = if j < units.len() { j + 1 } else { j };
+                i = if j < units.len() && !super::center::probe_no_r8() { j + 1 } else { j };
             }
             None => {
                 i += 1;

@@ -387,7 +387,19 @@ fn compute_zd(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> Tick {
 /// seed 外缘（`compute_gg/compute_dd`）与延伸外缘（`recursive_tower::detect_centers_windowed_resume`）
 /// 都只经本谓词判 Zn。
 pub(super) fn is_zn(u: &UnitRange, seed_first: &UnitRange) -> bool {
-    u.direction == seed_first.direction
+    probe_no_zn() || u.direction == seed_first.direction
+}
+
+/// div1605 探针消融开关（仅诊断）：PROBE_NO_ZN=1 ⟹ 外缘回退为全部成员。
+pub(crate) fn probe_no_zn() -> bool {
+    static F: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *F.get_or_init(|| std::env::var("PROBE_NO_ZN").is_ok())
+}
+
+/// div1605 探针消融开关（仅诊断）：PROBE_NO_R8=1 ⟹ 续扫回退为 i=j。
+pub(crate) fn probe_no_r8() -> bool {
+    static F: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *F.get_or_init(|| std::env::var("PROBE_NO_R8").is_ok())
 }
 
 /// 中枢成员里 **Zn** 的四个极值（★#1419 S1；`020-第20课.md:52`【正文】「GG=max(gn),G=min(gn),
