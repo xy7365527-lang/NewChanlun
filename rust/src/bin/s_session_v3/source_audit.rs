@@ -2549,14 +2549,14 @@ mod tests {
                 "cut-1",
             )
             .unwrap();
-        let record = RefValue::Plain(NativeValue::from_unscoped(object.record.content_ref()));
+        let record = RefValue::Plain(NativeValue::<sc::ContentRef>::from_unscoped(object.record.content_ref()));
         // 工厂记录还含三个内部值边；来源核消费现有 TYPED 定义的十字段公开投影。
         let mut public_fields = vec![];
         for key in TYPED {
             let value = field(nodes, &record, key).unwrap();
             public_fields.push(((*key).to_string(), V::Edge(digest(&value).unwrap())));
         }
-        let record = RefValue::Plain(NativeValue::from_unscoped(
+        let record = RefValue::Plain(NativeValue::<sc::ContentRef>::from_unscoped(
             sc::write_value(nodes, &V::Object(public_fields))
                 .unwrap()
                 .content_ref(),

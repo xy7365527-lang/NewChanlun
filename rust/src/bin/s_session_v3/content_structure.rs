@@ -20,8 +20,6 @@ use super::audit_store::CodecRead;
 use super::structure_value::{
     self as sv, CloneIn, Map as BTreeMap, Set as BTreeSet, Text, Value as CV, Vec,
 };
-#[cfg(test)]
-use serde_json::Value;
 
 /// 调用者必须一次 parser 取得这些值；恢复先于 parser，不在投影器里恢复或重算。
 pub(super) struct StructureEvidence<'a> {
@@ -1262,14 +1260,14 @@ fn header(kind: &str) -> (&'static str, &'static str, &'static str) {
     if crate::tb02e::KINDS.contains(&kind) {
         (
             crate::tb02e::SCHEMA_REVISION,
-            "center-seed/1",
-            "strict_seed_zn_outer_c_resume",
+            crate::tb02e::SEMANTIC_VERSION,
+            crate::tb02e::POLICY_VERSION,
         )
     } else if crate::tb02f::KINDS.contains(&kind) {
         (
             crate::tb02f::SCHEMA_REVISION,
-            "center-pair/1",
-            "zn_outer_five_leaf_pending_ge9",
+            crate::tb02f::SEMANTIC_VERSION,
+            crate::tb02f::POLICY_VERSION,
         )
     } else {
         (

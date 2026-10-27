@@ -16,9 +16,9 @@ pub(super) const KINDS: &[&str] = &[
     "CC-056.pair_version",
 ];
 pub(super) const SCHEMA_REVISION: &str = "s-center-pair/1";
-const SEMANTIC_VERSION: &str = "center-pair/1";
-const POLICY_VERSION: &str = "zn_outer_five_leaf_pending_ge9";
-const DELIVERED_SCOPE: &str = "l0_adjacent_pair_five_leaf_zn_outer_and_unit_core_position";
+pub(super) const SEMANTIC_VERSION: &str = "center-pair/1";
+pub(super) const POLICY_VERSION: &str = "zn_outer_five_leaf_pending_ge9";
+pub(super) const DELIVERED_SCOPE: &str = "l0_adjacent_pair_five_leaf_zn_outer_and_unit_core_position";
 /// 版本对象与 CC-018/CC-020 目录轴的延后范围（带实票号）。
 pub(super) const DEFERRED_SCOPE: [&str; 6] = [
     "upper_level_pairs_1429",

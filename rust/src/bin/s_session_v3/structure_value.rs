@@ -1,6 +1,5 @@
 //! #1419：结构投影的临时值与返回容器。每次扩容先在当前 WorkScope 准入，
 //! 文本和 buffer 各自携带原许可；不跨租约保存 reader，不创建 serde 全对象树。
-use super::audit_store::CodecRead;
 use newchan_rust::s_content::{self as sc, Built, CodecVec, NodeSource, NodeStore, ValueView};
 use sc::capture_allocation::native_owned::NativeValue;
 use std::{
@@ -164,9 +163,6 @@ impl<T> Vec<T> {
             }
         }
         self.0.truncate(write);
-    }
-    pub fn remove(&mut self, at: usize) -> T {
-        self.0.remove(at)
     }
 }
 impl<T> Deref for Vec<T> {

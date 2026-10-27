@@ -5769,6 +5769,10 @@ fn arg_value(args: &[String], name: &str) -> Option<String> {
         .and_then(|i| args.get(i + 1).cloned())
 }
 
+#[cfg_attr(
+    not(any(test, feature = "s_v2_seed_testonly")),
+    expect(dead_code, reason = "#1419 机械锁：只被已退役的 v2 写入口调用，发布构建不得有调用路径")
+)]
 fn remove_db_files(db: &Path) {
     let _ = std::fs::remove_file(db);
     let _ = std::fs::remove_file(PathBuf::from(format!("{}-wal", db.display())));

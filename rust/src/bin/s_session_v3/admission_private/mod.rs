@@ -215,6 +215,10 @@ pub(super) enum RejectionPrefix<'a> {
         work: Option<&'a sc::capture_allocation::scratch::WorkScope>,
     },
     UnboundRecover,
+    #[cfg_attr(
+        not(any(test, feature = "s_v2_seed_testonly")),
+        expect(dead_code, reason = "#1419 机械锁：只被已退役的 v2 写入口调用，发布构建不得有调用路径")
+    )]
     LegacyServe {
         db: &'a std::path::Path,
         epoch: &'a str,

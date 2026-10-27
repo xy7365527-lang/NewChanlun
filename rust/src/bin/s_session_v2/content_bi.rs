@@ -53,9 +53,9 @@ use newchan_rust::s_content::{
     self as sc, Built, CodecError, ContentRef, Kind, NodeDigest, NodeStore, SequenceRef,
     Value as CValue,
 };
-use newchan_rust::theta_v0::parser::stroke::{
-    Conditions, Confirmation, Endpoint, PairFact, StrokeFacts, RULE,
-};
+#[cfg(test)]
+use newchan_rust::theta_v0::parser::stroke::{Conditions, Confirmation, PairFact};
+use newchan_rust::theta_v0::parser::stroke::{Endpoint, StrokeFacts, RULE};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 

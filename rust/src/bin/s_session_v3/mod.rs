@@ -734,6 +734,10 @@ fn build_domain(
     }))
 }
 
+#[cfg_attr(
+    not(any(test, feature = "s_v2_seed_testonly")),
+    expect(dead_code, reason = "#1419 机械锁：只被已退役的 v2 写入口调用，发布构建不得有调用路径")
+)]
 fn reset_refusal(db: &Path, detail: &str) -> String {
     format!(
         "S3DomainResetRefused：reset 拒绝删除 {}（{detail}）；旧 reset 只懂 v1/v2 合同，域不可确定即 fail closed，本切片不提供新迁移/重置",
@@ -748,6 +752,10 @@ fn reset_refusal(db: &Path, detail: &str) -> String {
 /// 不认识的标记值，都拒绝；只有「meta 表在、无协议标记、无控制表、无内容表」的 v1 与「两处标记都
 /// 恰为 `s-session/2`」的 v2 放行。缺 `meta` 表（空文件/半建库/外来库）不可判定，同样拒绝——
 /// 不保留「损坏库可直接删」的旧偶发行为。本切片不实现新迁移/重置功能。
+#[cfg_attr(
+    not(any(test, feature = "s_v2_seed_testonly")),
+    expect(dead_code, reason = "#1419 机械锁：只被已退役的 v2 写入口调用，发布构建不得有调用路径")
+)]
 pub(super) fn refuse_reset_of_new_domain(db: &Path) -> Result<(), String> {
     if !db.exists() {
         return Ok(());
