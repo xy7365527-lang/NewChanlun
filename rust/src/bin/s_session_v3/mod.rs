@@ -1557,17 +1557,12 @@ mod tests {
         assert_eq!(count(&conn, "s_content_nodes"), 0, "init 不应写内容节点");
         drop(conn);
 
-        // 显式 s-session/2：仍走旧 v2 初始化。
+        // 显式 s-session/2：#1419 裁定②（issuecomment-6265209957）v2 结构写者退役，选择器分派到 v2
+        // 写入口即拒（同 `V2_WRITER_RETIRED`），不创建库；旧库只读 AsKnown 由其它测试覆盖。
         let v2_db = temp.path("explicit-v2.sqlite");
         let v2_args = with_selector(&init_args(&v2_db, &clock), PREVIOUS_REVISION);
-        assert!(dispatch(&v2_args).unwrap());
-        let conn = open_db(&v2_db).unwrap();
-        assert_eq!(
-            meta_get_opt(&conn, "protocol_revision").unwrap().as_deref(),
-            Some(PREVIOUS_REVISION)
-        );
-        let old_tables = table_names(&conn);
-        assert!(old_tables.iter().any(|name| name == delta_storage::TABLE));
+        assert_eq!(dispatch(&v2_args).unwrap_err(), crate::V2_WRITER_RETIRED);
+        assert!(!v2_db.exists(), "退役写入口不得创建新库");
     }
 
     #[test]

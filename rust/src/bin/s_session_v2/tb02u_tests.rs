@@ -36,7 +36,7 @@ fn tb02u_old_cut_explicit_replaces_revision_and_recovery() {
             None,
         )
         .unwrap();
-        advance_core(&files.db(), &epoch, None).unwrap();
+        advance_core_fixture(&files.db(), &epoch, None).unwrap();
         let conn = open_db(&files.db()).unwrap();
         verify_reachable_root(&conn).unwrap();
         let now = snapshot_of(&files, None);
@@ -129,7 +129,7 @@ fn tb02u_old_cut_explicit_replaces_revision_and_recovery() {
         // （recover 段同为测试种子写者；S3 承接阻塞于 #1565。）
         epoch = (index + 2).to_string();
         cmd_recover(&files.db(), &epoch).unwrap();
-        advance_core(&files.db(), &epoch, None).unwrap();
+        advance_core_fixture(&files.db(), &epoch, None).unwrap();
         assert_eq!(snapshot_of(&files, None), now);
     }
     assert_eq!(histories[0]["raw_history"].as_array().unwrap().len(), 2);
@@ -143,7 +143,7 @@ fn tb02u_pending_append_keeps_first_known_and_policy_gate() {
     let mut first = Value::Null;
     for n in 1..=3 {
         accept_ohlc(&files, &ohlc_input(&[(0, 10), (2, 8), (1, 11)][..n], false));
-        advance_core(&files.db(), DEFAULT_WRITER_EPOCH, None).unwrap();
+        advance_core_fixture(&files.db(), DEFAULT_WRITER_EPOCH, None).unwrap();
         let snapshot = snapshot_of(&files, None);
         let pending = tb02u_kind(&snapshot, "CC-004.undetermined_raw");
         assert_eq!(pending.len(), n);
@@ -166,6 +166,6 @@ fn tb02u_pending_append_keeps_first_known_and_policy_gate() {
         "s2-axis-quantifiers+new-bi/1+segment-second/1",
     )
     .unwrap();
-    let error = advance_core(&files.db(), DEFAULT_WRITER_EPOCH, None).unwrap_err();
+    let error = advance_core_fixture(&files.db(), DEFAULT_WRITER_EPOCH, None).unwrap_err();
     assert!(error.contains("VersionMismatch"));
 }

@@ -5967,12 +5967,14 @@ mod tests {
         let old = TestFiles::new();
         init_test_db(&old);
         accept_ohlc(&old, &ohlc_input(&[(0, 10), (2, 8), (3, 11)], false));
-        cmd_advance(&old.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        // 测试种子显式用诊断夹具（#1602 后正式入口停在 AwaitingPolicy，与种子不是同一构造）。
+        cmd_advance_fixture(&old.db(), DEFAULT_WRITER_EPOCH).unwrap();
         accept_ohlc(
             &old,
             &ohlc_input(&[(0, 10), (2, 8), (3, 11), (1, 12)], false),
         );
-        cmd_advance(&old.db(), DEFAULT_WRITER_EPOCH).unwrap();
+        // 测试种子显式用诊断夹具（#1602 后正式入口停在 AwaitingPolicy，与种子不是同一构造）。
+        cmd_advance_fixture(&old.db(), DEFAULT_WRITER_EPOCH).unwrap();
         let input = old.0.join("next-input.json");
         std::fs::write(
             &input,
