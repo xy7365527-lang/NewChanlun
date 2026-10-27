@@ -2068,8 +2068,9 @@ mod tests {
             inner: &mut f.store,
             hidden,
         };
+        let rule = f.metadata.rule_revision.clone();
         let tx = f.conn.transaction().unwrap();
-        assert!(verify_current(&tx, &mut source, &f.axes).is_err());
+        assert!(verify_current(&tx, &mut source, &f.axes, &rule).is_err());
         tx.rollback().unwrap();
 
         // 缺行 → stage/verify 都拒绝；失败事务回滚后已提交的新值不受影响。

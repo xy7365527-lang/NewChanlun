@@ -596,6 +596,13 @@ fn build_catalog(
     } else {
         Some(field(s, evidence.view(), "axes")?)
     };
+    // #1419：运行轴集合 = 本 cut 规则的目录轴表（与写者/目录证据同一张表）。
+    let live_axes: &[&str] = if axes.is_some() {
+        let rule = text(s, evidence.view(), "rule_revision")?;
+        catalog_evidence::rule_axes(rule.as_str())?
+    } else {
+        &[]
+    };
     let mut stmt = CheckedStatement::prepare(
         tx,
         c"SELECT catalog_id,kind,title,domain,branches_json FROM catalog ORDER BY catalog_id",
@@ -609,7 +616,7 @@ fn build_catalog(
         s.job.pre_io_check().map_err(err)?;
         let id = TextValue::from_sql(&mut row, 0, budget.as_ref()).map_err(err)?;
         let (implemented, proof, run, ev) =
-            if catalog_evidence::AXIS_IDS.contains(&id.as_str()) && axes.is_some() {
+            if live_axes.contains(&id.as_str()) && axes.is_some() {
                 let axis = field(s, axes.as_ref().unwrap().view(), &id)?;
                 (
                     text(s, axis.view(), "impl_status")?,
