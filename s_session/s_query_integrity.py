@@ -414,7 +414,7 @@ def _published_axes(rule_revision):
         "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2": tb02.AXES,
     }
     # #1393×#1419：先经精确白名单映射基规则（未知串在此拒绝），再按基规则取已签目录轴。
-    rule_revision = tb02.base_rule(rule_revision, "未声明的目录规则修订")
+    rule_revision = tb02.base_rule(rule_revision)
     if rule_revision not in known:
         raise ValueError("cut规则修订未声明")
     return known[rule_revision]

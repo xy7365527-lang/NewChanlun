@@ -738,8 +738,12 @@ class V2SeedGateTests(unittest.TestCase):
             fake = Path(directory) / "s_structure_session"
             fake.write_text('#!/bin/sh\necho \'{"ok":false,"error":"未知子命令 v2-seed-info"}\' >&2\nexit 1\n')
             fake.chmod(0o755)
+            # main #1527：S 控制器要求既存库并在写入口先消费准入锚；本锁只核种子门先于任何
+            # 准入发布、运行时探测与子进程，故以空库文件与已就绪的准入替身构造。
+            (Path(directory) / "db").touch()
             controller = control.Controller({"binary": str(fake), "db": str(Path(directory) / "db"),
                                              "startup_timeout_ms": "1000", "clock_plan": "c"}, Path(directory))
+            controller.admission = Mock()
             with patch.object(control.Controller, "status", return_value={"state": "stopped"}), \
                     patch.object(control.Controller, "runtime_environment") as environment:
                 with self.assertRaisesRegex(SystemExit, "s_v2_seed_testonly"):
@@ -747,6 +751,7 @@ class V2SeedGateTests(unittest.TestCase):
                 with self.assertRaisesRegex(SystemExit, "s_v2_seed_testonly"):
                     controller.recover("2", "recover-1")
             environment.assert_not_called()
+            controller.admission.publish.assert_not_called()
 
 if __name__ == "__main__":
     unittest.main()
