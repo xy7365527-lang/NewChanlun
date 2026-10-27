@@ -24,6 +24,18 @@ pub enum ScratchCharge {
     Native,
 }
 
+/// #1572：一张存活许可的身份，即许可对象自身的地址。只在同一冻结静止点内比较：
+/// 该点上每张许可恰有一个地址，经共享容器（Rc/Arc）从不同持有者到达时地址相同。
+/// 只读，不签发、不转移额度，也不跨静止点持久化。
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PermitId(usize);
+impl PermitId {
+    #[doc(hidden)]
+    pub fn of<T>(holder: &T) -> Self {
+        Self(holder as *const T as usize)
+    }
+}
+
 /// Native 容器许可；只在实际载荷析构后释放，或保守留在父账到父作用域结束。
 /// 它不改变业务值的 Plain/Owned 归属，也不写入 Owned requested Layout 账。
 pub struct NativeReservation {
@@ -50,6 +62,11 @@ impl NativeReservation {
     }
     pub fn bytes(&self) -> usize {
         self.bytes
+    }
+    /// #1572：本许可在当前静止点的身份（见 [`PermitId`]）。
+    #[doc(hidden)]
+    pub fn permit_id(&self) -> PermitId {
+        PermitId::of(self)
     }
 
     /// 只核父账身份；有效操作域仍由本次reserve_native检查。
