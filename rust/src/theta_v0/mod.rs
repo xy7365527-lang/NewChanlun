@@ -54,10 +54,14 @@
 //!
 //! ## 平局裁决全局约定（reference-theta-v0.md:15-16）
 //!
-//! - 所有价格量化为整数 tick；无 `tick_size` 默认 `1e-8`。
+//! - 所有价格量化为整数 tick；`tick_size` 取自场所 profile（#1602：1e-8 只在诊断夹具记录里）。
 //! - 所有平局按 `(timestamp, source_index)` 升序裁决；已确认结构不可回写重分解。
 
 pub mod config;
+/// #1603：级别塔上界与 MACD 力度参数的版本化记录（ADR 0041；#1586 C-09/C-10）。
+pub mod policy_records;
+/// #1602：场所 profile、Θ_risk 与数据 profile 的版本化记录（ADR 0041；#1586 C-06/C-08/C-17/C-18）。
+pub mod run_records;
 pub mod types;
 
 /// C2：46 个直读 env 键的单一登记处（map #743，spec #756）——键名/语义/行为门|观测门/默认臂/
@@ -113,7 +117,7 @@ pub mod complete;
 /// 回测 harness（Phase 4，task #81）。门控为 `any(test, feature = "backtest_bin")`——
 /// [`backtest::data`] 依赖 serde_json（test 走 dev-dependency；CLI 走 backtest_bin feature 的
 /// optional dep）。默认 cdylib（Python 扩展）构建**两者都不开** ⟹ 零依赖膨胀（acceptance[5]
-/// CLI 生产入口解门控：let theta_backtest bin 链接 run_theta_v0_pi/load_by_symbol）。
+/// 历史名「CLI 生产入口」解门控（theta_backtest 为冻结影子，ADR 0048，#1532）：let theta_backtest bin 链接 run_theta_v0_pi/load_by_symbol）。
 #[cfg(any(test, feature = "backtest_bin"))]
 pub mod backtest;
 

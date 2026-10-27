@@ -1,0 +1,43 @@
+{
+ "schema": "1488-acceptance/s86-input-manifest/1",
+ "definition": "S86 = 冻结 9011 合成源 RW05_u57_l12_40_a400_2000_r25_70_d2 的前 86 根 bar，按 rust/src/bin/s_session_v3/driver.rs testonly_s3_prefix_measurement（S3_CONTENT_MEASURE_PREFIX）配方组成 86 条 s-session/3 ingest 信封与 86 事件时钟（ns=100+3n）。",
+ "files_sha256": {
+  "messages.jsonl": "b6429b2e5a0f02ea2419b251d10a0cb7c7ca59ca998084bccb85d5d43053bfc5",
+  "clock-plan.s86.json": "fba1bdfb1d5753877b41c13ca4313553c6e123109378c2ca2b69262ee91750d8",
+  "bars.s86.json": "ed62acd411c825c5115a9fc20a69538ea8742d280c468dcc0fe2d7dff9875a05",
+  "signed-catalog.json": "938b0ef59282e689c114cdcb211e2709c86e64c618e4ec0573862bda43508069",
+  "ohlc_integer_tb02a_v1.json": "482250254133ba120afdd5cd428d1a32d4e5cb40cd7876c556b7007320e599d6",
+  "s-resources.json": "a1243e98a4823e311499e80b86e2b2f5259108ac16d9c96d3bb7a596a5209bea"
+ },
+ "messages": {
+  "count": 86,
+  "line_sha256_matches": "018-FULL9011-MATERIAL-RECHECK ordered_request_hashes[0:86]",
+  "equals_prefix_of": "envelopes.draft.jsonl（9011 行，sha256 cd69fef24d6e05a9950e14131095eef40dd9c9f16738958ea89d4900a8462283）前 86 行逐字节"
+ },
+ "clock": {
+  "clock_plan_id": "s3-frozen-prefix-cost",
+  "events": 86,
+  "equals_subset_of": "clock-plan.full9011.draft.json（sha256 b02ac2444161e1e7e327fcf2a2bb79b294356a3dd95a59a6404c5b92deb04f01）同名 86 事件逐值相等，头字段相同"
+ },
+ "source": {
+  "bars_file": "RW05_u57_l12_40_a400_2000_r25_70_d2.bars.json",
+  "bars_sha256": "76472995cbf0825ceeeaa94e89bd60d1b1416d6c7e0a7ec3a1b0ec5a90c60087",
+  "bars_bytes": 1006026,
+  "bars_count": 9011,
+  "params_sha256": "ffb54d8b92867142bc34b18620af195b96a0bc59d0f2134a97f350e17e328f3f（generator issue1394-gen/2, seed 139605）",
+  "archive": "/Volumes/AgentStorage/issue1394-cleanup-archive-20261020/worktrees/Users__silencehan__Projects__NewChanlun-1394-tb03b/untracked.tar.zst → .scratch/issue1394-long-source-search/runs/",
+  "full9011_envelopes_archive": "/Volumes/AgentStorage/issue1394-cleanup-archive-20261020/worktrees/Users__silencehan__Projects__NewChanlun-1394-content-v3/untracked.tar.zst → .scratch/issue1394-full-history-formal-prep-20261001/inputs/",
+  "in_repo_receipt": ".chanlun/review-results/issue1394-financial-owner-20260930/current-build-inputs/018-FULL9011-MATERIAL-RECHECK.json.raw.json"
+ },
+ "frozen_copies": {
+  "signed-catalog.json": "s_session/catalog/signed-catalog.json @ main 6badaa6049",
+  "ohlc_integer_tb02a_v1.json": "s_session/profiles/ohlc_integer_tb02a_v1.json @ main 6badaa6049"
+ },
+ "session": {
+  "session_id": "s-session-testonly-001",
+  "session_generation": "1",
+  "writer_epoch": "1",
+  "delivery_retain_generations": 4
+ },
+ "rebuild": "python3 build_s86_inputs.py --bars <bars.json> --check"
+}

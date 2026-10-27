@@ -53,14 +53,14 @@ pub(crate) enum Edit {
 pub(crate) struct SequenceDelta {
     pub(crate) old: Option<SequenceRef>,
     pub(crate) current: Option<SequenceRef>,
-    pub(crate) edits: Vec<Edit>,
+    pub(crate) edits: native::Reserved<Vec<Edit>>,
 }
 impl SequenceDelta {
     fn retained_bytes(&self) -> usize {
         vec_bytes::<Edit>(self.edits.capacity())
     }
 }
-fn grow<T>(b: &native::Budget, v: &mut Vec<T>, value: T) -> Result<(), String> {
+fn grow<T>(b: &native::Budget, v: &mut native::Reserved<Vec<T>>, value: T) -> Result<(), String> {
     b.vec_grow(v, 1).map_err(|_| stale("集合差异额度不足"))?;
     v.push(value);
     Ok(())
@@ -68,7 +68,7 @@ fn grow<T>(b: &native::Budget, v: &mut Vec<T>, value: T) -> Result<(), String> {
 fn split(
     s: &mut (impl CodecRead + ?Sized),
     b: &native::Budget,
-    stack: &mut Vec<Span>,
+    stack: &mut native::Reserved<Vec<Span>>,
 ) -> Result<(), String> {
     let span = stack.pop().ok_or_else(|| stale("空序列前沿"))?;
     match sc::path::sequence_fragment(s.generic_source(), span.sequence)
@@ -111,8 +111,8 @@ fn difference(
     old: Option<SequenceRef>,
     current: Option<SequenceRef>,
 ) -> Result<SequenceDelta, String> {
-    let mut before = Vec::new();
-    let mut after = Vec::new();
+    let mut before = b.empty().map_err(|_| stale("集合差异许可不足"))?;
+    let mut after = b.empty().map_err(|_| stale("集合差异许可不足"))?;
     for (sequence, stack) in [(old, &mut before), (current, &mut after)] {
         if let Some(sequence) = sequence {
             if sequence.is_empty() {
@@ -131,7 +131,7 @@ fn difference(
             }
         }
     }
-    let mut edits = Vec::new();
+    let mut edits = b.empty().map_err(|_| stale("集合差异许可不足"))?;
     while let (Some(a), Some(z)) = (before.last().copied(), after.last().copied()) {
         if a.sequence == z.sequence {
             before.pop();
@@ -187,9 +187,7 @@ fn difference(
             }
         }
     }
-    let released = vec_bytes::<Span>(before.capacity()) + vec_bytes::<Span>(after.capacity());
     drop((before, after));
-    b.release(released);
     Ok(SequenceDelta {
         old,
         current,
@@ -256,6 +254,7 @@ impl Seed {
 }
 /// 非 Clone；材料事实和 effects 闭合分开。构造只可从 owner 安装的 Seed 进入。
 pub(super) struct PendingSet {
+    #[allow(dead_code, reason = "#1488：8组合探针无读取，保留来源状态")]
     pub(super) previous: Option<Declaration>,
     pub(super) current: Declaration,
     pub(super) raw: RawAdvanceBinding,
@@ -268,8 +267,8 @@ pub(super) struct PendingSet {
     stages: Option<StageSeal>,
     closed: bool,
     // 字段最后析构：差异Vec先真实释放，再归还原work父账的C2 cap许可。
-    parent_charge: Option<sc::capture_allocation::scratch::NativeReservation>,
     resource_hold: Option<super::native::Budget>,
+    parent_charge: Option<sc::capture_allocation::scratch::NativeReservation>,
 }
 /// 只由实际S成功结果构造；原完整投影核可复用其来源counts，不能跳过其它判据。
 pub(crate) struct OwnerSourceCheck {
@@ -750,6 +749,30 @@ mod tests {
             }
         }
     }
+    #[test]
+    // NOT_RUN：本轮只静态检查。
+    fn sequence_delta_retains_charge_and_drop_does_not_refill_next_request() {
+        let mut nodes = sc::MemoryNodes::default();
+        let before = sequence(&mut nodes, &[1, 2, 3]);
+        let after = sequence(&mut nodes, &[1, 3, 4, 5]);
+        let budget = native::Budget::new(1 << 20, 0).unwrap();
+        let budget = budget.bind_initial(50, 1 << 20).unwrap();
+        let base = budget.live();
+        let delta = difference(&mut nodes, &budget, Some(before), Some(after)).unwrap();
+        assert!(delta
+            .edits
+            .iter()
+            .any(|edit| matches!(edit, Edit::Add { .. })));
+        assert_eq!(budget.live(), base + delta.retained_bytes());
+        let next = budget.handoff(51, 64).unwrap();
+        let all = next.reserve(64).unwrap();
+        drop(delta);
+        assert_eq!(next.live(), base + 64);
+        assert_eq!(next.remaining(), 0);
+        drop(all);
+        assert_eq!(next.live(), base);
+    }
+
     #[test]
     fn owner_set_sequence_exhaustive_occurrences_and_order() {
         let inputs: Vec<Vec<u8>> = (0..=5)

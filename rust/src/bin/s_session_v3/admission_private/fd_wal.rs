@@ -98,6 +98,7 @@ impl Source {
 
 struct Context<'a> {
     account: RefCell<&'a mut dyn IoAccounting>,
+    mixed_tables: Option<&'a std::cell::Cell<super::mixed_sql::MixedPolicy>>,
     main: Source,
     wal: Option<Source>,
     main_name: CString,
@@ -105,7 +106,6 @@ struct Context<'a> {
     journal_name: CString,
     shm_name: CString,
 
-    trace_overflow: AtomicBool,
     main_open: AtomicBool,
     wal_open: AtomicBool,
     active: AtomicUsize,
@@ -115,7 +115,6 @@ struct Context<'a> {
     close_errors: AtomicUsize,
     sql_denials: AtomicUsize,
     read_bytes: AtomicU64,
-    retries: AtomicUsize,
 }
 
 impl Context<'_> {
@@ -642,11 +641,10 @@ unsafe extern "C" fn current_time(_: *mut ffi::sqlite3_vfs, out: *mut f64) -> c_
     .unwrap_or(ffi::SQLITE_ERROR)
 }
 
-// #1527：业务审计里不带 WHERE 的 count(*) 会以「无库名、空列名」的 SQLITE_READ 上报整表读取。
-// 白名单来源：探针提交 f3624c5d 在 windows-5090 跑全套 `cargo test --features s_session
-// --bin s_structure_session`，记录到的零列整表读共 768 次，全部 db=<none>、origin=<none>，
-// 恰为下列 9 张表（见 #1527 issuecomment-6267843338 之后的评论）。审计新增此类读前须同步本表。
-const COUNT_SCAN_TABLES: &[&[u8]] = &[
+// #1527：count(*) 优化以 db=None、空列的 SQLITE_READ 上报整表读取。
+// 探针 f3624c5d 记录到 9 张业务表，见 issuecomment-6267843338 后续评论。
+// 旧证据完整审计另读 s_evidence_nodes 的总数；仅补该表，不开放任意空列读。
+pub(super) const COUNT_SCAN_TABLES: &[&[u8]] = &[
     b"catalog",
     b"raw_events",
     b"raw_ohlc",
@@ -654,12 +652,13 @@ const COUNT_SCAN_TABLES: &[&[u8]] = &[
     b"s_content_publications",
     b"s_delivery_policy",
     b"s_delivery_refs",
+    b"s_evidence_nodes",
     b"s_protocol_meta",
     b"structure_deltas",
 ];
 
 // #1527：只列原完整审计实际使用的只读动作；无 DDL/DML/ATTACH/SAVEPOINT/未知函数。
-fn audit_sql_allowed(
+pub(super) fn audit_sql_allowed(
     action: c_int,
     a: Option<&[u8]>,
     b: Option<&[u8]>,
@@ -718,14 +717,12 @@ unsafe extern "C" fn authorizer(
 ) -> c_int {
     let ctx = unsafe { &*data.cast::<Context>() };
     let rc = guarded(ctx, || {
-        let allowed = audit_sql_allowed(
-            action,
-            unsafe { bytes(a) },
-            unsafe { bytes(b) },
-            unsafe { bytes(db) },
-            unsafe { bytes(origin) },
-            ctx.exclusive_armed.load(Ordering::SeqCst),
-        );
+        let (a, b, db, origin) = unsafe { (bytes(a), bytes(b), bytes(db), bytes(origin)) };
+        let armed = ctx.exclusive_armed.load(Ordering::SeqCst);
+        let allowed = match ctx.mixed_tables {
+            Some(policy) => policy.get().allows(action, a, b, db, origin, armed),
+            None => audit_sql_allowed(action, a, b, db, origin, armed),
+        };
         if allowed {
             ffi::SQLITE_OK
         } else {
@@ -961,6 +958,24 @@ impl<'a> Registration<'a> {
         wal_file: Option<File>,
         account: &'a mut dyn IoAccounting,
     ) -> Result<Self> {
+        Self::new_with_policy(main_file, wal_file, account, None)
+    }
+
+    pub(super) fn new_mixed(
+        main_file: File,
+        wal_file: Option<File>,
+        account: &'a mut dyn IoAccounting,
+        expected: &'a std::cell::Cell<super::mixed_sql::MixedPolicy>,
+    ) -> Result<Self> {
+        Self::new_with_policy(main_file, wal_file, account, Some(expected))
+    }
+
+    fn new_with_policy(
+        main_file: File,
+        wal_file: Option<File>,
+        account: &'a mut dyn IoAccounting,
+        mixed_tables: Option<&'a std::cell::Cell<super::mixed_sql::MixedPolicy>>,
+    ) -> Result<Self> {
         account.before_io()?;
         // D1 机制与固定 bundled SQLite source id 绑定，不换成宿主 SQLite 重试。
         let source_id = unsafe { CStr::from_ptr(ffi::sqlite3_sourceid()) };
@@ -985,7 +1000,7 @@ impl<'a> Registration<'a> {
             journal_name: CString::new(format!("{main_name}-journal"))?,
             shm_name: CString::new(format!("{main_name}-shm"))?,
             account: RefCell::new(account),
-            trace_overflow: AtomicBool::new(false),
+            mixed_tables,
             main_open: AtomicBool::new(false),
             wal_open: AtomicBool::new(false),
             active: AtomicUsize::new(0),
@@ -995,7 +1010,6 @@ impl<'a> Registration<'a> {
             close_errors: AtomicUsize::new(0),
             sql_denials: AtomicUsize::new(0),
             read_bytes: AtomicU64::new(0),
-            retries: AtomicUsize::new(0),
         });
         let mut vfs = Box::new(ffi::sqlite3_vfs {
             iVersion: 1,
@@ -1037,9 +1051,11 @@ impl<'a> Registration<'a> {
     fn ctx(&self) -> &Context<'a> {
         self.ctx.as_deref().expect("live registration")
     }
+    #[allow(dead_code, reason = "#1527：受限故障注入入口，真实 I4/I5 验证尚未执行")]
     pub fn inject(&self, fault: Fault) {
         self.ctx().fault.store(fault as i32, Ordering::SeqCst);
     }
+    #[allow(dead_code, reason = "#1527：授权拒绝诊断读数，不能影响准入判定")]
     pub fn sql_denials(&self) -> usize {
         self.ctx().sql_denials.load(Ordering::SeqCst)
     }

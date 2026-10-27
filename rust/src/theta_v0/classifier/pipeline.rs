@@ -191,6 +191,10 @@ pub(crate) fn unit_to_segment(u: &UnitRange) -> Segment {
 /// 因此同向续行后的配对、同一价格带的晚框穿越、或首个 leave/retest 已失败后出现的远期
 /// 相邻对，均不能回填旧框。
 /// 九段升级同核心不设分支：接线层给出首次绑定时冻结的完整框，天然按该框四边判定。
+#[cfg_attr(
+    not(feature = "backtest_bin"),
+    allow(dead_code, reason = "#1608：仅 backtest_bin 下的 backtest 模块消费")
+)]
 pub(crate) fn historical_bound_third_cert(
     classification: &Classification,
     tower: &[Rc<Vec<LeveledMove>>],
@@ -212,6 +216,10 @@ pub(crate) fn historical_bound_third_cert(
 }
 
 /// 把 `tower[level][idx]` 按该级生产投影的同一方向/外缘口径还原成 `Segment`。
+#[cfg_attr(
+    not(feature = "backtest_bin"),
+    allow(dead_code, reason = "#1608：仅 backtest_bin 下的 backtest 模块消费")
+)]
 fn historical_bound_segment(
     classification: &Classification,
     level_moves: &[LeveledMove],
@@ -390,13 +398,149 @@ pub struct ClassifyOutput {
     pub candidate_streams: cand_event::CandidateStreams,
     /// 各操作级别的口径 S 操作序列（同旧 `classify_with_operations`，按 `level` 升序）。
     pub operations: Vec<operation::OperationSequence>,
+    /// #1603：塔如何停下——自然终止，或达 `l_max` 资源上界截断（覆盖不完整）；
+    /// #1653：段账本拒读另记 [`TowerTermination::ParseInvalid`]。
+    pub termination: TowerTermination,
+    /// #1603：本次输出所用的版本化记录（塔预算 + MACD 力度）；#1604 加段层两份记录
+    /// （`second-seq-scan-budget` 与 `segment-second`）。
+    pub policy: TowerPolicyStamp,
+    /// #1604（#1586 C-04）：L0 段账本的扫描覆盖——尾窗 `tail_window` 挤掉可准入候选时
+    /// （`ParseLayer::segments_resource_bound_from`）记 [`SegmentCoverage::IncompleteResourceBound`]，
+    /// 与塔终止态 `termination` 正交（段层资源截断 vs 塔层资源截断 / 拒读）。
+    pub segment_coverage: SegmentCoverage,
+}
+
+impl ClassifyOutput {
+    /// 塔是否在 `l_max` 资源上界处被截断（覆盖不完整）。
+    pub fn is_resource_truncated(&self) -> bool {
+        matches!(self.termination, TowerTermination::ResourceBound { .. })
+    }
+
+    /// L0 段账本是否被尾窗截断（#1604）：自 `from` 起的段及其上构造的中枢/走势/买卖点覆盖不完整。
+    pub fn is_segment_resource_bound(&self) -> bool {
+        matches!(
+            self.segment_coverage,
+            SegmentCoverage::IncompleteResourceBound { .. }
+        )
+    }
+}
+
+/// #1604（#1586 C-04）：L0 段账本的扫描覆盖。
+///
+/// 尾窗截断（记录 `second-seq-scan-budget` 的 `tail_window`）只标记、不拒读：段层已把截断点之后的
+/// 段与正常确认区分开（`SegmentFacts::tail_window_bound`），classifier 照常构造，但把同一标记与起点
+/// 带进输出，下游不得把 `from` 起的结构当作完整覆盖。签署值 `tail_window = 7` 下恒为 `Complete`
+/// （`tb1604_tail_window_ge3_equals_unbounded_and_tw1_is_marked`）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SegmentCoverage {
+    Complete,
+    IncompleteResourceBound {
+        /// 首个被尾窗挡掉实质候选的段起点笔号（同 `ParseLayer::segments_resource_bound_from`）。
+        from: usize,
+        /// 尾窗所出自的预算记录版本。
+        budget: crate::theta_v0::policy_records::PolicyRef,
+    },
+}
+
+impl SegmentCoverage {
+    /// 与 `TowerTermination::INCOMPLETE_RESOURCE_BOUND` 同名的覆盖标记。
+    pub const INCOMPLETE_RESOURCE_BOUND: &'static str = "INCOMPLETE_RESOURCE_BOUND";
+    pub const COMPLETE: &'static str = "COMPLETE";
+
+    pub fn of(l0: &ParseLayer, config: &ThetaConfig) -> Self {
+        match l0.segments_resource_bound_from {
+            None => SegmentCoverage::Complete,
+            Some(from) => SegmentCoverage::IncompleteResourceBound {
+                from,
+                budget: config.parse.scan_budget,
+            },
+        }
+    }
+
+    pub fn code(&self) -> &'static str {
+        match self {
+            SegmentCoverage::Complete => Self::COMPLETE,
+            SegmentCoverage::IncompleteResourceBound { .. } => Self::INCOMPLETE_RESOURCE_BOUND,
+        }
+    }
+}
+
+/// #1603（#1586 C-09）：级别塔的停止原因。
+///
+/// 自然终止 ＝ 某级可用单元数 < `min_parts_per_level`（含空 ParseLayer、某级投影为空），塔已到顶；
+/// 资源截断 ＝ 跑完 `l_max` 级后，下一级仍有 ≥ `min_parts_per_level` 个单元可升级——塔被预算截住，
+/// 更高级别的覆盖不完整。两者不得混为一类（旧口径把后者也记作「自然终止」）。
+/// 段账本拒读 ＝ L0 带段端门 fail-closed 标记（#1581 / X-37），整层不构造（#1653：与「输入为空、
+/// 塔已到顶」的自然终止分开，下游可区分「无结构」与「结构无效」）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TowerTermination {
+    Natural,
+    ParseInvalid {
+        /// 失败段起点笔号（同 `ParseLayer::segments_parse_invalid_from`）。
+        from: usize,
+    },
+    ResourceBound {
+        /// 截断时生效的上界。
+        l_max: u32,
+        /// 第 `l_max + 1` 级本可消费的单元数（≥ `min_parts_per_level`）。
+        pending_units: usize,
+        /// 上界所出自的记录版本。
+        budget: crate::theta_v0::policy_records::PolicyRef,
+    },
+}
+
+impl TowerTermination {
+    /// 资源截断的覆盖标记（与 #1344 `second-seq-scan-budget` 同名）。
+    pub const INCOMPLETE_RESOURCE_BOUND: &'static str = "INCOMPLETE_RESOURCE_BOUND";
+    /// 自然终止的标记。
+    pub const NATURAL: &'static str = "NATURAL";
+    /// 段账本拒读的标记（#1653）。
+    pub const PARSE_INVALID: &'static str = "PARSE_INVALID";
+
+    /// 输出/报告用的标记串。
+    pub fn code(&self) -> &'static str {
+        match self {
+            TowerTermination::Natural => Self::NATURAL,
+            TowerTermination::ParseInvalid { .. } => Self::PARSE_INVALID,
+            TowerTermination::ResourceBound { .. } => Self::INCOMPLETE_RESOURCE_BOUND,
+        }
+    }
+}
+
+/// #1603：输出所用记录版本戳。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TowerPolicyStamp {
+    /// `tower-level-budget` 记录版本。
+    pub level_budget: crate::theta_v0::policy_records::PolicyRef,
+    /// `tower-base` 记录版本。
+    pub tower_base: crate::theta_v0::policy_records::PolicyRef,
+    /// `macd-force` 记录版本。
+    pub macd: crate::theta_v0::policy_records::PolicyRef,
+    /// #1604：段层尾窗 / 第二序列窗口所出自的 `second-seq-scan-budget` 记录版本。
+    pub scan_budget: crate::theta_v0::policy_records::PolicyRef,
+    /// #1604：相切口径所出自的线段构造规则记录版本（`segment-second/…`）。
+    pub construction_rule: crate::theta_v0::policy_records::PolicyRef,
+}
+
+impl TowerPolicyStamp {
+    pub fn of(config: &ThetaConfig) -> Self {
+        TowerPolicyStamp {
+            level_budget: config.level.budget,
+            tower_base: config.level.tower_base_policy,
+            macd: config.macd.record,
+            scan_budget: config.parse.scan_budget,
+            construction_rule: config.parse.construction_rule,
+        }
+    }
 }
 
 /// Θ_level + Θ_signal 顶层入口（reference-theta-v0.md:27-37）。
 ///
-/// 递归构造 L0..Lmax：L0=parser 线段账本；每级由下级已完成走势单元构造中枢 + 裁决走势，
-/// 走势成为上级输入单元。自然终止：某级单元数 < `min_parts_per_level`（无法产生完整走势），
-/// 或达 `l_max` 上界。
+/// 递归构造 L0..Lmax：L0 按 `tower-base` 记录取构件（当前 segment=parser 线段账本）；
+/// 每级由下级已完成走势单元构造中枢 + 裁决走势，走势成为上级输入单元。
+/// 自然终止：某级单元数 < `min_parts_per_level`（无法产生完整走势）。
+/// 达 `l_max` 上界时若下一级仍可升级，记为资源截断（#1603，[`TowerTermination::ResourceBound`]，
+/// 标 `INCOMPLETE_RESOURCE_BOUND`），不作自然终止。
 ///
 /// ★#1054：全量入口 = 唯一增量循环 + 空 [`TowerCache`]（空缓存 == 全量，见 #1053）。返回统一
 /// 输出模块 [`ClassifyOutput`]。`operating_levels` 为 #881 S3 操作级别挂载点（ADR 0011 裁定
@@ -473,6 +617,11 @@ pub fn classify(l0: &ParseLayer, config: &ThetaConfig, operating_levels: &[u32])
 /// ## 边界
 ///
 /// - 空 ParseLayer（无线段）⟹ `Classification::default()` + 空 tower，cache 清空。
+/// - L0 带尾窗截断标记（`segments_resource_bound_from.is_some()`，#1604）⟹ 照常构造，输出
+///   `segment_coverage` 记 [`SegmentCoverage::IncompleteResourceBound`]（含起点与预算记录版本）。
+/// - L0 带段端门 fail-closed 标记（`segments_parse_invalid_from.is_some()`，#1581 / X-37）⟹ 拒读：
+///   `Classification::default()` + 空 tower + 空 operations，可重导缓存清空，候选事件簿只读不写；
+///   `termination` 记 [`TowerTermination::ParseInvalid`]（#1653）。
 /// - 段账本前缩（`segments.len() < last_l0_segments_len`）⟹ cache 清空 + 全量重扫（bit-exact 退化）。
 /// - merged_bars 前缀改写（inclusion 合并回退）⟹ MACD cache 局部重建（bit-exact 退化）。
 pub fn classify_incremental(
@@ -481,13 +630,41 @@ pub fn classify_incremental(
     cache: &mut TowerCache,
     operating_levels: &[u32],
 ) -> ClassifyOutput {
-    let (classification, tower, operations) =
+    assert!(
+        config.level.tower_base == crate::theta_v0::config::TowerBase::Segment,
+        "tower_base={:?} 尚无真实构件与数据 profile，拒绝在任何 L0 构造前停止",
+        config.level.tower_base
+    );
+    // #1581（xianduan §15 X-37，§7.1 第 6 条「下游不得在其上构造」，#1493 裁定 4b）：段端门
+    // fail-closed 后 L0 段账本自失败段起点起无效。入口拒读：不构造任何级别的中枢/走势/买卖点，
+    // 清空可重导塔缓存（下个无标记的 bar 全量重建）；不可回填的候选事件簿只读不写，本 bar 不产新事件。
+    // 整层拒读而非截到失败点前：各级末端判定（活中枢、末段走势、背驰）以账本末端为「当下」，截断后
+    // 仍会把失败前的结构当作当下状态输出，等于在无效划分旁构造。
+    // #1604：尾窗截断标记先于拒读判定取出，两条返回路径都带上（拒读不吞掉截断标记）。
+    let segment_coverage = SegmentCoverage::of(l0, config);
+    if let Some(from) = l0.segments_parse_invalid_from {
+        cache.clear();
+        return ClassifyOutput {
+            classification: Classification::default(),
+            tower: Vec::new(),
+            candidate_streams: cache.candidate_book.streams(),
+            operations: Vec::new(),
+            // #1653：拒读既非资源截断也非自然终止（空输入/到顶），单列 ParseInvalid。
+            termination: TowerTermination::ParseInvalid { from },
+            policy: TowerPolicyStamp::of(config),
+            segment_coverage,
+        };
+    }
+    let (classification, tower, operations, termination) =
         classify_incremental_inner(l0, config, cache, operating_levels);
     ClassifyOutput {
         classification,
         tower,
         candidate_streams: cache.candidate_book.streams(),
         operations,
+        termination,
+        policy: TowerPolicyStamp::of(config),
+        segment_coverage,
     }
 }
 
@@ -500,6 +677,7 @@ fn classify_incremental_inner(
     Classification,
     Vec<Rc<Vec<LeveledMove>>>,
     Vec<operation::OperationSequence>,
+    TowerTermination,
 ) {
     let mounts: std::collections::BTreeSet<u32> = operating_levels.iter().copied().collect();
     let mut operations: Vec<operation::OperationSequence> = Vec::new();
@@ -620,7 +798,12 @@ fn classify_incremental_inner(
         }
         cache.clear();
         cache.candidate_book.advance(&[], as_of);
-        return (Classification::default(), Vec::new(), Vec::new());
+        return (
+            Classification::default(),
+            Vec::new(),
+            Vec::new(),
+            TowerTermination::Natural,
+        );
     }
 
     cache.last_l0_segments_len = l0.segments.len();
@@ -757,9 +940,13 @@ fn classify_incremental_inner(
     // 「ordinal 位置号复用」分开（调研 §5.3 递归链接组）。仅当上一条恰是本级的下一级时使用。
     let mut txn_lower: Option<(usize, u64, rebase_txn::LowerMap)> = None;
 
+    // #1603：循环经 `break` 退出 ＝ 自然终止；跑满 `0..=l_max` 未 break ＝ 到达资源上界（是否截断看
+    // 循环后下一级单元数）。
+    let mut stopped_naturally = false;
     for level_idx in 0..=l_max {
         // 自然终止：单元数 < min_parts ⟹ 停止。
         if units.len() < min_parts {
+            stopped_naturally = true;
             // ★§2.6：level_idx 及所有更高级本 bar 全跳过（循环顶部 break，lc 未触碰）——truncate 掉
             // 这段不可达尾巴的陈旧 LevelCache，令其恢复时走 LevelCache::default() 全扫（血缘自洽，
             // 防 stable=dirty_from.min(scanned) 坍缩假阴）。
@@ -847,6 +1034,13 @@ fn classify_incremental_inner(
             // ★增量失效边界（设计 §1.2/§3.4）：保留 `read_end_src < e` 的前缀 P（读域上界含停止哨兵，
             // 覆盖 codex §1.2.1 反例）。win_meta 与 centers 1:1 对齐、read_end_src 升序（源单调 S1）⟹
             // partition_point 定位 P。升级子中枢共享父窗口 read_end_src ⟹ 整窗保留或整窗失效（§3.5）。
+            #[cfg_attr(
+                not(test),
+                allow(
+                    unused_mut,
+                    reason = "#1608：p 仅在 test 构建的全清对照分支（CASCADE_FULLCLEAR）被改写"
+                )
+            )]
             let mut p = lc.win_meta.partition_point(|w| w.read_end_src < dirty_e);
             // ★放行条件3 keep_frac 探针（test+eprobe，release 剥离）：真实 P/len（不再用 end_index 代理）。
             #[cfg(test)]
@@ -1089,6 +1283,7 @@ fn classify_incremental_inner(
                     prefix_count,
                     // #897：前缀中枢（pop 后保留段，与 prefix_count 1:1）供 tail run 计算。
                     &lc.centers,
+                    config.level.tower_base,
                 )
             });
         // frontier pop/recompose 若产出同一个 B_p/c_p 身份，继承已扫描对象态，只从 dirty_from 推进。
@@ -1573,6 +1768,7 @@ fn classify_incremental_inner(
             #[cfg(test)]
             oracle_probe::on_empty_break(level_idx + 1 < cache.levels.len());
             cache.levels.truncate(level_idx + 1);
+            stopped_naturally = true;
             break;
         }
         // ★O(n) 重构：moves_tower = Rc::clone(&lc.upper_moves) —— O(1) 引用计数，消除 per-bar 全塔
@@ -1582,6 +1778,16 @@ fn classify_incremental_inner(
         // bit-exact：Rc 指向同一 Vec，逐字段与旧 clone 等价。
         moves_tower = Rc::clone(&lc.upper_moves);
     }
+    // #1603：跑满 l_max 级且第 l_max+1 级仍有 ≥ min_parts 个单元 ⟹ 资源截断；不足 ⟹ 本就到顶。
+    let termination = if !stopped_naturally && units.len() >= min_parts {
+        TowerTermination::ResourceBound {
+            l_max: config.level.l_max,
+            pending_units: units.len(),
+            budget: config.level.budget,
+        }
+    } else {
+        TowerTermination::Natural
+    };
 
     // ★#543 D1a 产出点⑥b 收尾：整塔全清后本 bar 未被重扫触达的级别（`min_parts`/空 units 提前
     // break，或 l_max 收缩）——其旧输出没有任何新对象与之配对，逐级补一条 removed-only 证书。
@@ -1647,7 +1853,12 @@ fn classify_incremental_inner(
     );
 
     debug_assert_l0_units_in_sync(cache, &tower_snapshots);
-    (Classification { levels }, tower_snapshots, operations)
+    (
+        Classification { levels },
+        tower_snapshots,
+        operations,
+        termination,
+    )
 }
 
 /// ★#613（#609 F2，#712 收 #645 MED-1 随入）：[`TowerCache::level_scan_units`]（level=1，即

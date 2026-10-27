@@ -1,8 +1,0 @@
-Traceback (most recent call last):
-  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/.chanlun/review-results/issue1527-python-h1-r3-repair-20261018/run_h1_review.py", line 52, in <module>
-    main()
-    ~~~~^^
-  File "/Volumes/AgentStorage/issue1527-sandcastle-manager-20261018/python-r4-worktree/.chanlun/review-results/issue1527-python-h1-r3-repair-20261018/run_h1_review.py", line 48, in main
-    assert failures == (["float_mode", "float_payload"] if mode == "baseline" else []), failures
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-AssertionError: ['owner2_half', 'owner3_half', 'mode644', 'null', 'float_mode', 'float_payload']

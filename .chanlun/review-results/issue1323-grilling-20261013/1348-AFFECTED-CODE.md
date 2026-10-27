@@ -26,13 +26,19 @@
 | Rust | `rust/src/economic_session/finance.rs:234-239` | FIN `0d8a6017` | 引用：`baseline.amount` 是 E 共同责任界，与本金 P 禁止互代，不改 | Q1 |
 | Lean | `formal/Origin/TotalWealth.lean:97` | main `465174240b` | `TWState.notional_in` 登记为非本金批次名分；不改定义 | Q1 |
 | Lean | `formal/Origin/TotalWealth.lean:140` | main `465174240b` | `advanceTo` 不改 | Q3 |
-| Lean | `formal/Origin/TotalWealth.lean:194` | main `465174240b` | `stage_rank_monotone` 不改；新增对拍义务：全域单向不变式 `growth_eligible ⇒ latch = EarningShares`（#1406 OQ-2 订正：原「无费用事件时二者一致」被回本后无费用亏损往返反证），Rust 侧 growth_eligible 另有同输入同输出锁 | Q3 → #1406 |
+| Lean | `formal/Origin/TotalWealth.lean:194` | main `465174240b` | `stage_rank_monotone` 不改；#1406 OQ-2a 义务：多头 `growth_eligible ⇒ latch = EarningShares`，空头 `growth_eligible ⇒ latch = CapitalRecovered` 且无第三相；非双向等价，latch 不作资格输入；Lean 覆盖面与 Rust 同输入同输出锁见下节 | Q3 → #1406 |
 | Lean | `formal/Origin/TotalWealth.lean:208` | main `465174240b` | EarningShares 不可回退（`earning_no_regress`）不改 | Q3 |
 | Lean | `formal/Origin/LedgerReconciliation.lean:467` | main `465174240b` | `hAlloc` 前件不改；不从中推本金 | Q1 |
 | Python | `s_session/economic_query.py:72` | main `465174240b` | 只透传 principal / capital_phase / unit_cost 的 typed 结构 | Q1-Q4 |
 | Python | `s_session/economic_http.py:36/62` | main `465174240b` | GET/POST 入口只透传，不新判 | Q1-Q4 |
 | JS | `s_session/browser/economic.html:67` | main `465174240b` | 「本金与阶段」卡片显示 NotComputable 原因与 K/q 整数对，不计算比率 | Q2,Q4 |
 | JS | `s_session/browser/tb03a-client.js:124` | main `465174240b` | 图像校验键集若扩 principal/phase_events 须同步 | Q1,Q3 |
+
+## #1406 OQ-2a 补裁同步（2026-10-15）
+
+按 2026-10-14 OQ-2a 补裁，资格蕴含按多空分写；依据为 ADR 0031 裁定一／三与 SPEC C05.5。原「无费用事件时二者一致」被回本后无费用亏损往返反证；OQ-2 的无方向 `⇒ EarningShares` 又与空头无第三相冲突，均不再作为义务。既有 latch 只记事件史、不作资格输入。
+
+证明与对拍归 #1406：既有 `stage_rank_monotone` 不证明资格蕴含。交付报告须声明候选 Lean 模型的实际覆盖面；若只覆盖多头，空头条由 Rust 同输入同输出锁（#804）承担，不得声称空头资格关系已形式证明。教义正本同步见 `sanjieduan.md` §2／§5。
 
 ## 本轮复核订正（相对工位草稿，基线 f95a7f3e → 465174240b）
 

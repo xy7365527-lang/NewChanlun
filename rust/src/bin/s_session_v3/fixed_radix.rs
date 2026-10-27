@@ -209,12 +209,14 @@ impl<K: FixedKey, V> Default for FixedRadix<K, V> {
     }
 }
 impl<K: FixedKey, V> FixedRadix<K, V> {
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     pub(crate) fn new() -> Self {
         Self::default()
     }
     pub(crate) fn len(&self) -> usize {
         self.len
     }
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     pub(crate) fn is_empty(&self) -> bool {
         self.len == 0
     }
@@ -371,6 +373,7 @@ impl<K: FixedKey, V> FixedRadix<K, V> {
             }
         }
     }
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     pub(crate) fn clear_admitted(
         &mut self,
         admission: &(impl CodecRead + ?Sized),
@@ -385,6 +388,13 @@ impl<K: FixedKey, V> FixedRadix<K, V> {
     pub(crate) fn iter(&self) -> Iter<'_, K, V> {
         self.range(..)
     }
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(
+            dead_code,
+            reason = "#1488 再合 #1608：native 非测试、s_session 非测试、s_session 测试 构建不触达"
+        )
+    )]
     pub(crate) fn values(&self) -> impl DoubleEndedIterator<Item = &V> {
         self.iter().map(|(_, v)| v)
     }
@@ -551,7 +561,7 @@ mod tests {
         }
     }
     impl ScratchParent for Parent {
-        fn reserve(&self, n: usize, kind: ScratchCharge) -> Result<(), ScratchFailure> {
+        fn reserve(&self, n: usize, kind: ScratchCharge) -> Result<u64, ScratchFailure> {
             if n != 0 && matches!(kind, ScratchCharge::Native) {
                 let attempt = self.attempts.fetch_add(1, Ordering::SeqCst) + 1;
                 if attempt == self.fail_on.load(Ordering::SeqCst) {
@@ -560,9 +570,12 @@ mod tests {
             }
             let live = self.live.fetch_add(n, Ordering::SeqCst) + n;
             self.peak.fetch_max(live, Ordering::SeqCst);
-            Ok(())
+            Ok(0)
         }
-        fn release(&self, n: usize, _: ScratchCharge) -> Result<(), ScratchFailure> {
+        fn release(&self, n: usize, _: ScratchCharge, origin: u64) -> Result<(), ScratchFailure> {
+            if origin != 0 {
+                return Err(ScratchFailure::Ledger);
+            }
             assert!(self.live.fetch_sub(n, Ordering::SeqCst) >= n);
             Ok(())
         }
@@ -737,6 +750,32 @@ mod tests {
         run(&parent, |a| tree.insert_admitted(0, 1, a)).unwrap();
         let leaf = Layout::new::<Leaf<i64, usize>>().size();
         let branch = Layout::new::<Branch<i64, usize>>().size();
+        // #1488 主控裁定：v4 合同 :28 要求工作域控制块元数据 M 计费；每次 run() 的
+        // CodecWork::new 先预留 M（不计 attempts、计入 peak、run 结束释放）。独立常量交叉核 M。
+        // 独立表达式（不调用 metadata_bytes）：ArcInner 头 strong/weak 两个 usize，接 ScratchCore
+        // 同型字段镜像（dyn 父胖指针、limit/metadata_charge/origin、四个原子计数、active）。
+        // 当前 Rust 1.98 x86_64 上为 16 + pad(16+8+8+8+4*8+1 → 80) = 96 字节。
+        #[allow(dead_code)]
+        struct CoreMirror(
+            std::sync::Arc<dyn Send + Sync>,
+            usize,
+            usize,
+            u64,
+            [std::sync::atomic::AtomicUsize; 4],
+            std::sync::atomic::AtomicBool,
+        );
+        let independent = Layout::new::<[usize; 2]>()
+            .extend(Layout::new::<CoreMirror>())
+            .unwrap()
+            .0
+            .pad_to_align()
+            .size();
+        assert_eq!(independent, 96, "独立布局推导与字面 96B 不符");
+        let scope_metadata = CodecWork::metadata_bytes();
+        assert_eq!(
+            scope_metadata, independent,
+            "工作域元数据 M 与独立布局推导不符"
+        );
         assert_eq!(parent.live.load(Ordering::SeqCst), leaf);
         for offset in [1, 2] {
             let attempts = parent.attempts.load(Ordering::SeqCst);
@@ -751,7 +790,11 @@ mod tests {
             assert_eq!(entries(&tree), old);
             assert_eq!(
                 parent.peak.load(Ordering::SeqCst),
-                if offset == 1 { leaf } else { 2 * leaf },
+                if offset == 1 {
+                    leaf + scope_metadata
+                } else {
+                    2 * leaf + scope_metadata
+                },
                 "staged leaf stays charged until rejected branch preparation unwinds"
             );
             assert_eq!(parent.live.load(Ordering::SeqCst), leaf);
@@ -767,7 +810,7 @@ mod tests {
         run(&parent, |a| tree.insert_admitted(7, 2, a)).unwrap();
         assert_eq!(
             parent.peak.load(Ordering::SeqCst),
-            2 * leaf + branch,
+            2 * leaf + branch + scope_metadata,
             "old leaf plus both prepared blocks are simultaneously charged"
         );
         assert_eq!(parent.live.load(Ordering::SeqCst), 2 * leaf + branch);

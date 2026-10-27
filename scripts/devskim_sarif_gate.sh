@@ -15,7 +15,13 @@ Usage: devskim_sarif_gate.sh \
   [--expected-tool-name NAME] \
   [--expected-tool-version VERSION] \
   [--baseline PATH] \
-  [--summary PATH]
+  [--false-positives PATH --source-root PATH] \
+  [--summary PATH] \
+  [--summary-max-new COUNT]
+
+--summary-max-new caps how many baseline-external keys are listed in the
+--summary file (default 200; GitHub rejects step summaries over 1 MiB).
+Stdout always carries the complete list; the gate verdict is unaffected.
 EOF
 }
 
@@ -27,7 +33,12 @@ retention_days=''
 expected_tool_name=''
 expected_tool_version=''
 baseline_path=''
+false_positives_path=''
+source_root=''
+reviewed_result=''
+excluded_count=0
 summary_path=''
+summary_max_new=200
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -71,9 +82,24 @@ while [[ $# -gt 0 ]]; do
       baseline_path="$2"
       shift 2
       ;;
+    --false-positives)
+      [[ $# -ge 2 ]] || { usage >&2; exit 2; }
+      false_positives_path="$2"
+      shift 2
+      ;;
+    --source-root)
+      [[ $# -ge 2 ]] || { usage >&2; exit 2; }
+      source_root="$2"
+      shift 2
+      ;;
     --summary)
       [[ $# -ge 2 ]] || { usage >&2; exit 2; }
       summary_path="$2"
+      shift 2
+      ;;
+    --summary-max-new)
+      [[ $# -ge 2 ]] || { usage >&2; exit 2; }
+      summary_max_new="$2"
       shift 2
       ;;
     -h|--help)
@@ -95,9 +121,20 @@ if [[ -z "$sarif_path" || -z "$scanner_outcome" || -z "$artifact_name" || \
   exit 2
 fi
 
+if [[ ! "$summary_max_new" =~ ^[0-9]+$ ]]; then
+  printf -- '--summary-max-new must be a non-negative integer, got: %s\n' "$summary_max_new" >&2
+  usage >&2
+  exit 2
+fi
+# 按十进制规范化：(( )) 会把前导零当八进制（08 报错、0200 变 128）。
+summary_max_new=$((10#$summary_max_new))
+
 errors=''
 error_lines=()
 has_errors=0
+# #1588：新增键清单在 error_lines 中的起点与条数，供摘要文件截断；判红不看这两个值。
+new_rows_start=0
+new_rows_count=0
 add_error() {
   # #1372：收集后一次拼接，避免大差集反复复制已有全文；保留顺序及原字节。
   error_lines+=("- $1")
@@ -110,6 +147,20 @@ fi
 
 if [[ "$artifact_outcome" != 'success' ]]; then
   add_error "Ordinary artifact upload outcome was \`$artifact_outcome\`, not \`success\`."
+fi
+
+if [[ -n "$false_positives_path" ]]; then
+  if [[ -z "$source_root" ]] || ! reviewed_result="$(python3 "$(dirname "$0")/devskim_reviewed_false_positives.py" \
+      --sarif "$sarif_path" --false-positives "$false_positives_path" \
+      --source-root "$source_root" 2>&1)"; then
+    add_error 'Reviewed false-positive identity validation failed.'
+    printf '%s\n' "$reviewed_result" >&2
+    reviewed_result=''
+  else
+    excluded_count="$(jq -er '.excluded_results' <<< "$reviewed_result")"
+  fi
+elif [[ -n "$source_root" ]]; then
+  add_error '--source-root requires --false-positives.'
 fi
 
 finding_count='unknown'
@@ -172,12 +223,18 @@ else
       if [[ ! -f "$baseline_path" ]]; then
         add_error "Baseline file is missing: \`$baseline_path\`."
       else
-        if ! current_keys="$(jq -r '
-          [.runs[] | (.results // [])[]
-           | (.ruleId // "?") + "|" +
-             ((.locations[0].physicalLocation.artifactLocation.uri // "?") | sub("^file://"; "")) + "|" +
-             (((.locations[0].physicalLocation.region.startLine // 0) | tostring))]
-          | unique | .[]' "$sarif_path" 2>&1)"; then
+        extract_current_keys() {
+          if [[ -n "$reviewed_result" ]]; then
+            jq -r '.keys[]' <<< "$reviewed_result"
+          else
+            jq -r '[.runs[] | (.results // [])[]
+              | (.ruleId // "?") + "|" +
+                ((.locations[0].physicalLocation.artifactLocation.uri // "?") | sub("^file://"; "")) + "|" +
+                (((.locations[0].physicalLocation.region.startLine // 0) | tostring))]
+              | unique | .[]' "$sarif_path"
+          fi
+        }
+        if ! current_keys="$(extract_current_keys 2>&1)"; then
           add_error 'SARIF finding keys could not be extracted.'
           printf '%s\n' "$current_keys" >&2
         else
@@ -200,9 +257,11 @@ else
             if [[ -n "$new_findings" ]]; then
               new_count="$(printf '%s\n' "$new_findings" | wc -l | tr -d ' ')"
               add_error "SARIF contains $new_count finding(s) not in the baseline (total $finding_count). New findings:"
+              new_rows_start=${#error_lines[@]}
               while IFS= read -r key; do
                 add_error "  - \`$key\`"
               done <<< "$new_findings"
+              new_rows_count=$(( ${#error_lines[@]} - new_rows_start ))
             fi
             if [[ "$fixed_count" != "0" ]]; then
               baseline_fixed_note="Fixed since baseline: $fixed_count finding(s)."
@@ -212,22 +271,41 @@ else
           fi
         fi
       fi
-    elif [[ "$finding_count" -gt 0 ]]; then
+    elif (( finding_count > excluded_count )); then
       add_error "SARIF contains $finding_count finding(s); this gate requires zero."
     fi
   fi
 fi
 
+summary_errors=''
 if [[ "$has_errors" == 1 ]]; then
   # 非空才展开数组，兼容 set -u 下的 Bash 3.2；只去掉 printf 新增的末尾 LF。
   printf -v errors '%s\n' "${error_lines[@]}"
   errors="${errors%$'\n'}"
+  summary_errors="$errors"
+  if (( new_rows_count > summary_max_new )); then
+    # #1588：摘要文件只列前 summary_max_new 条新增键（GitHub 拒收 >1 MiB 的
+    # step summary）；stdout 仍是全量清单，退出码不受影响。
+    omitted=$(( new_rows_count - summary_max_new ))
+    kept_end=$(( new_rows_start + summary_max_new ))
+    rest_start=$(( new_rows_start + new_rows_count ))
+    summary_lines=("${error_lines[@]:0:kept_end}")
+    summary_lines+=("- Step summary truncated: listed the first $summary_max_new of $new_rows_count new finding(s); $omitted more omitted to stay under GitHub's 1 MiB step-summary limit. Complete list: this step's job log (stdout) and the \`$artifact_name\` artifact (raw SARIF).")
+    if (( rest_start < ${#error_lines[@]} )); then
+      summary_lines+=("${error_lines[@]:rest_start}")
+    fi
+    printf -v summary_errors '%s\n' "${summary_lines[@]}"
+    summary_errors="${summary_errors%$'\n'}"
+    unset summary_lines
+  fi
 fi
 unset error_lines
 
 if [[ -z "$errors" ]]; then
   if [[ -n "$baseline_path" ]]; then
     gate_conclusion='PASS — scanner and artifact upload succeeded, SARIF/tool contract matched, and no findings beyond the baseline.'
+  elif [[ -n "$false_positives_path" ]]; then
+    gate_conclusion='PASS — scanner and artifact upload succeeded, SARIF/tool contract matched, and all findings have exact reviewed identities.'
   else
     gate_conclusion='PASS — scanner and artifact upload succeeded, SARIF/tool contract matched, and findings are zero.'
   fi
@@ -252,6 +330,9 @@ else
   summary="$summary"$'\n'"- **DevSkim tool version:** \`$tool_version\` (no expected version configured)"
 fi
 summary="$summary"$'\n'"- **SARIF findings:** \`$finding_count\`"
+if [[ -n "$false_positives_path" ]]; then
+  summary="$summary"$'\n'"- **Reviewed false-positive results:** \`$excluded_count\` (exact identity and immutable file binding)"
+fi
 if [[ -n "$baseline_path" ]]; then
   summary="$summary"$'\n'"- **Baseline:** \`$baseline_path\`"
   if [[ -n "${baseline_fixed_note:-}" ]]; then
@@ -260,11 +341,14 @@ if [[ -n "$baseline_path" ]]; then
 fi
 summary="$summary"$'\n'"- **Gate conclusion:** $gate_conclusion"
 
+# report = stdout 全量；summary 只在新增清单超限时比 report 短（#1588）。
+report="$summary"
 if [[ -n "$errors" ]]; then
-  summary="$summary"$'\n\n'"### Failure details"$'\n\n'"$errors"
+  report="$report"$'\n\n'"### Failure details"$'\n\n'"$errors"
+  summary="$summary"$'\n\n'"### Failure details"$'\n\n'"$summary_errors"
 fi
 
-printf '%s\n' "$summary"
+printf '%s\n' "$report"
 if [[ -n "$summary_path" ]] && ! printf '%s\n' "$summary" >>"$summary_path"; then
   printf 'Failed to append the DevSkim gate summary to %s.\n' "$summary_path" >&2
   exit 1

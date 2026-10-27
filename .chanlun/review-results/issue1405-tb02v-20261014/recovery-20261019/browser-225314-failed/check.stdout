@@ -1,0 +1,17 @@
+Traceback (most recent call last):
+  File "/home/hanju/nc-remote/wt/20261019-225250-c4bbdd9f8a/s_session/tests/tb02v_runtime.py", line 231, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/home/hanju/nc-remote/wt/20261019-225250-c4bbdd9f8a/s_session/tests/tb02v_runtime.py", line 225, in main
+    report = {"prepare": prepare, "session": session, "check-browser": check_browser}[args.command](args)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hanju/nc-remote/wt/20261019-225250-c4bbdd9f8a/s_session/tests/tb02v_runtime.py", line 193, in check_browser
+    browser = json.loads((run / "browser" / "RESULT.json").read_text())
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/pathlib.py", line 1029, in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/pathlib.py", line 1015, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/home/hanju/tb1405-browser/20261019-225314/browser-run/browser/RESULT.json'

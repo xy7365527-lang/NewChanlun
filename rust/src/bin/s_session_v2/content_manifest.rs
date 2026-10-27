@@ -8,9 +8,20 @@
 use crate::v3::audit_store::{CodecRead, CodecStore};
 use crate::v3::audit_store::{RefFields, RefValue};
 use crate::v3::business_json::TextValue;
+#[cfg_attr(
+    not(feature = "s_capture_native_testonly"),
+    allow(
+        unused_imports,
+        reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+    )
+)]
 use newchan_rust::s_content::capture_allocation::native_owned::NativeValue;
 #[cfg(feature = "s_capture_native_testonly")]
 use newchan_rust::s_content::capture_allocation::scratch::WorkScope;
+#[allow(
+    unused_imports,
+    reason = "#1488 再合 #1608：8组合实测无调用方，保留不删"
+)]
 use newchan_rust::s_content::{
     self, Built, CodecError, ContentRef, Kind, NodeDigest, NodeStore, NumberToken, Value as V,
 };
@@ -657,6 +668,44 @@ impl PreparedManifestWorkspace {
         manifest: &UnpublishedManifest,
         work: Option<&s_content::capture_allocation::scratch::WorkScope>,
     ) -> Result<super::content_publication::ResolvedTemplates, String> {
+        self.resolve_in_publication_inner(
+            tx,
+            token,
+            metadata,
+            roots,
+            manifest,
+            work,
+            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            None,
+        )
+    }
+    /// staged 臂：本租约新写节点只进暂存，由 Commit 的 Final cut 仅落可达闭包；
+    /// 原件重绑仍只读真实 SQL，暂存层不冒充素材。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(crate) fn resolve_in_publication_staged(
+        self,
+        tx: &mut rusqlite::Transaction<'_>,
+        token: &str,
+        metadata: &ManifestMetadata,
+        roots: &(impl ManifestRootSource + ?Sized),
+        manifest: &UnpublishedManifest,
+        work: Option<&s_content::capture_allocation::scratch::WorkScope>,
+        stage: &super::staged_nodes::StageOwner<'_>,
+    ) -> Result<super::content_publication::ResolvedTemplates, String> {
+        self.resolve_in_publication_inner(tx, token, metadata, roots, manifest, work, Some(stage))
+    }
+    fn resolve_in_publication_inner(
+        self,
+        tx: &mut rusqlite::Transaction<'_>,
+        token: &str,
+        metadata: &ManifestMetadata,
+        roots: &(impl ManifestRootSource + ?Sized),
+        manifest: &UnpublishedManifest,
+        work: Option<&s_content::capture_allocation::scratch::WorkScope>,
+        #[cfg(all(test, feature = "s_capture_native_testonly"))] stage: Option<
+            &super::staged_nodes::StageOwner<'_>,
+        >,
+    ) -> Result<super::content_publication::ResolvedTemplates, String> {
         // No qualified originals exist across these actual Begin/scope/frontier SELECTs.
         // The issuer itself performs them; callers cannot substitute a scope/frontier token.
         super::content_publication::verify_current_begin_admitted(
@@ -669,7 +718,16 @@ impl PreparedManifestWorkspace {
             super::content_publication::current_publication_frontier_admitted(tx, work)?;
         NativePublicationLease::new(tx)
             .map_err(|e| format!("PublicationInvalid：{e}"))?
-            .resolve(self, metadata, roots, manifest, previous_frontier, work)
+            .resolve(
+                self,
+                metadata,
+                roots,
+                manifest,
+                previous_frontier,
+                work,
+                #[cfg(all(test, feature = "s_capture_native_testonly"))]
+                stage,
+            )
     }
 }
 
@@ -695,12 +753,19 @@ impl<'lease, 'conn> NativePublicationLease<'lease, 'conn> {
         manifest: &UnpublishedManifest,
         previous_frontier: i64,
         work: Option<&s_content::capture_allocation::scratch::WorkScope>,
+        #[cfg(all(test, feature = "s_capture_native_testonly"))] stage: Option<
+            &super::staged_nodes::StageOwner<'_>,
+        >,
     ) -> Result<super::content_publication::ResolvedTemplates, String> {
         let budget = workspace.budget;
         let source_cost = workspace.source_cost;
         let before = manifest_workspace_stats();
         let tx = &*self.tx;
         let mut store = PublicationMaterialStore::new(tx, self.insert_can_preserve).with_work(work);
+        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        {
+            store.stage = stage;
+        }
         let mut issued_owner = false;
         let mut bound_originals = 0usize;
         let mut owner_body_capacity = 0usize;
@@ -802,6 +867,12 @@ struct PublicationMaterialStore<'a, 'conn> {
     poisoned: bool,
     work: Option<&'a s_content::capture_allocation::scratch::WorkScope>,
     tree_permit: Option<s_content::capture_allocation::scratch::NativeReservation>,
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    stage: Option<&'a super::staged_nodes::StageOwner<'a>>,
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    rebinding: bool,
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    staged_puts: std::collections::BTreeSet<NodeDigest>,
 }
 #[cfg(feature = "s_capture_native_testonly")]
 impl<'a, 'conn> PublicationMaterialStore<'a, 'conn> {
@@ -814,6 +885,12 @@ impl<'a, 'conn> PublicationMaterialStore<'a, 'conn> {
             poisoned: false,
             work: None,
             tree_permit: None,
+            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            stage: None,
+            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            rebinding: false,
+            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            staged_puts: Default::default(),
         }
     }
     fn with_work(
@@ -838,6 +915,22 @@ impl<'a, 'conn> PublicationMaterialStore<'a, 'conn> {
         &mut self,
         originals: &std::collections::BTreeMap<NodeDigest, (u8, s_content::CodecVec<u8>)>,
     ) -> Result<bool, CodecError> {
+        // 重绑只认真实 SQL 原件，暂存层新节点不冒充素材。
+        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        {
+            self.rebinding = true;
+        }
+        let result = self.rebind_originals_inner(originals);
+        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        {
+            self.rebinding = false;
+        }
+        result
+    }
+    fn rebind_originals_inner(
+        &mut self,
+        originals: &std::collections::BTreeMap<NodeDigest, (u8, s_content::CodecVec<u8>)>,
+    ) -> Result<bool, CodecError> {
         let mut equal = true;
         for (digest, (tag, body)) in originals {
             record_workspace_stats(|stats| stats.rebind_rows += 1);
@@ -853,7 +946,7 @@ impl<'a, 'conn> PublicationMaterialStore<'a, 'conn> {
         digest: &NodeDigest,
     ) -> Result<Option<s_content::job::CheckedFrame>, CodecError> {
         self.current_scoped(digest)
-            .map(|f| f.map(s_content::job::ScopedFrame::into_frame))
+            .and_then(|f| f.map(s_content::job::ScopedFrame::into_frame).transpose())
     }
     fn current_scoped(
         &mut self,
@@ -868,7 +961,20 @@ impl<'a, 'conn> PublicationMaterialStore<'a, 'conn> {
                 Ok(Some(s_content::job::ScopedFrame::new(frame, permit)))
             } else {
                 record_workspace_stats(|stats| stats.publication_fallback_sql_reads += 1);
-                super::content_store::publication_read_checked(self.tx, digest, self.work)
+                #[cfg(all(test, feature = "s_capture_native_testonly"))]
+                if let Some(stage) = self.stage {
+                    stage.check_transaction(self.tx)?;
+                }
+                let current =
+                    super::content_store::publication_read_checked(self.tx, digest, self.work)?;
+                #[cfg(all(test, feature = "s_capture_native_testonly"))]
+                // 只回读本租约自己 put 进暂存的新节点；其余暂存不冒充素材。
+                if current.is_none() && !self.rebinding && self.staged_puts.contains(digest) {
+                    if let Some(stage) = self.stage {
+                        return stage.read_scoped(digest);
+                    }
+                }
+                Ok(current)
             }
         })();
         if result.is_err() {
@@ -923,7 +1029,15 @@ impl s_content::NodeSink for PublicationMaterialStore<'_, '_> {
             tag,
             body,
             self.work,
+            #[cfg(all(test, feature = "s_capture_native_testonly"))]
+            self.stage,
         );
+        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        if self.stage.is_some()
+            && matches!(result, Ok(super::content_store::PublicationPutEffect::Noop))
+        {
+            self.staged_puts.insert(digest);
+        }
         match result {
             Ok(
                 super::content_store::PublicationPutEffect::Noop
@@ -1083,14 +1197,16 @@ impl ManifestRecordingStore<'_> {
             return Ok(());
         };
         let admission = crate::v3::audit_store::NativeAdmission(self.inner.codec_work());
-        let next_len = originals
+        originals
             .len()
             .checked_add(1)
             .ok_or_else(|| admission.native_overflow())?;
-        let tree_permit = super::content_store::native_tree_storage::<
+        // #1488 0035：增量许可——只为新增条目取一份树槽上界并入已持许可；
+        // 不再整树重许可，旧许可不与整树新许可并存（单条上界与整树上界逐条相加相等）。
+        let mut tree_step = super::content_store::native_tree_storage::<
             NodeDigest,
             (u8, s_content::CodecVec<u8>),
-        >(self.inner.codec_work(), next_len)?;
+        >(self.inner.codec_work(), 1)?;
         let mut owned_body = s_content::CodecVec::default();
         admission.native_codec_room(&mut owned_body, body.len())?;
         owned_body.try_extend_bytes(body)?;
@@ -1110,7 +1226,16 @@ impl ManifestRecordingStore<'_> {
         self.accepted_entries = entries;
         self.accepted_body_len = len;
         originals.insert(digest, (tag, body));
-        self.tree_permit = tree_permit;
+        if let Some(mut step) = tree_step.take() {
+            if let Some(held) = self.tree_permit.as_mut() {
+                if let Err(failure) = held.merge(&mut step) {
+                    let work = self.inner.codec_work().expect("树许可来自当前操作域");
+                    return Err(work.reject(failure));
+                }
+            } else {
+                self.tree_permit = Some(step);
+            }
+        }
         Ok(())
     }
 }
@@ -1320,11 +1445,34 @@ pub(crate) fn assemble_unpublished_view_in_store(
     metadata: MetadataView<'_>,
     roots: RootsView<'_>,
 ) -> Result<UnpublishedManifest, CodecError> {
+    #[cfg(test)]
+    let (sql, verify) = (
+        super::content_store::sql_reads_on_thread(),
+        ASSEMBLE_VERIFY_SQL_READS.with(std::cell::Cell::get),
+    );
     let body = assemble_manifest_body(store, metadata, roots)?;
+    #[cfg(test)]
+    ASSEMBLE_CALL_READS.with(|calls| {
+        calls.borrow_mut().push((
+            super::content_store::sql_reads_on_thread() - sql,
+            ASSEMBLE_VERIFY_SQL_READS.with(std::cell::Cell::get) - verify,
+        ))
+    });
     Ok(UnpublishedManifest {
         value: body.value,
         batch_id: TextValue::Plain(store.native_string(batch_text(&body.identity).as_str())?),
     })
+}
+#[cfg(test)]
+thread_local! {
+    static ASSEMBLE_CALL_READS: std::cell::RefCell<Vec<(u64, u64)>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+#[cfg(test)]
+thread_local! { static ASSEMBLE_VERIFY_SQL_READS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) }; }
+/// #1488 S3 探针：取走本线程各次 assemble_manifest_body 的 SQL 节点读（总量, 其中 §5.4 三根全闭包核验）。
+#[cfg(test)]
+pub(crate) fn take_assemble_call_reads_for_test() -> Vec<(u64, u64)> {
+    ASSEMBLE_CALL_READS.with(|calls| std::mem::take(&mut *calls.borrow_mut()))
 }
 struct ManifestBody {
     value: Built,
@@ -1340,6 +1488,8 @@ fn assemble_manifest_body(
     let frontier = Decimal::new(metadata.input_frontier);
     let attempt = Decimal::new(metadata.source_commit.attempt_index);
     // 同一次读集核完整闭包；路径算子只核触碰边界，不能替代这里的全闭包校验。
+    #[cfg(test)]
+    let sql = super::content_store::sql_reads_on_thread();
     store.verify_ref(metadata.scope, s_content::Mode::Public)?;
     require_kind(metadata.scope, Kind::Object, "scope")?;
     store.verify_ref(roots.generated_state, s_content::Mode::Public)?;
@@ -1347,6 +1497,9 @@ fn assemble_manifest_body(
         [roots.publication_template, roots.delta_template],
         s_content::Mode::Template,
     )?;
+    #[cfg(test)]
+    ASSEMBLE_VERIFY_SQL_READS
+        .with(|reads| reads.set(reads.get() + super::content_store::sql_reads_on_thread() - sql));
     let generated_fields = exact_object(store, roots.generated_state, GENERATED_FIELDS, true)?;
     let publication_fields =
         exact_object(store, roots.publication_template, SNAPSHOT_FIELDS, false)?;
@@ -1863,6 +2016,60 @@ mod tests {
         assert_eq!(budget.live(), baseline);
     }
 
+    // #1488 0035：originals 树增量许可——每个新条目只并入一份单条上界，峰值不含整树重复许可。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_manifest_originals_tree_permit_is_incremental_without_whole_tree_coexistence() {
+        use s_content::NodeSink;
+        let mut conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE s_protocol_meta(singleton INTEGER PRIMARY KEY,protocol_revision TEXT NOT NULL); INSERT INTO s_protocol_meta VALUES(1,'s-session/3');").unwrap();
+        let tx = conn.transaction().unwrap();
+        super::super::content_store::init_schema(&tx).unwrap();
+        let budget = crate::v3::audit_owner::native::Budget::new(4 * 1024 * 1024, 0).unwrap();
+        let baseline = budget.live();
+        let tag = s_content::tag::BYTES_CHUNK;
+        let per =
+            crate::v3::audit_retention::tree_slots::<NodeDigest, (u8, s_content::CodecVec<u8>)>(1);
+        let entries = 8usize;
+        let tree_permit = budget
+            .codec_work()
+            .unwrap()
+            .run(|work| {
+                let mut inner =
+                    super::super::content_store::TxStore::new(&tx)?.with_work(Some(work));
+                let mut recording = ManifestRecordingStore {
+                    inner: &mut inner,
+                    allowance: 1024 * 1024,
+                    certificate_cost: 0,
+                    source_cost: 0,
+                    originals: Some(Default::default()),
+                    retained_capacity: 0,
+                    accepted_entries: 0,
+                    accepted_body_len: 0,
+                    puts: Default::default(),
+                    tree_permit: None,
+                };
+                for index in 0..entries {
+                    let body = [index as u8 + 10, 1, 2];
+                    recording.put(s_content::frame(tag, &body), tag, &body)?;
+                    let held = recording.tree_permit.as_ref().map_or(0, |p| p.bytes());
+                    assert_eq!(held, (index + 1) * per, "树许可逐条累加");
+                    assert!(
+                        budget.peak() - budget.live() < per,
+                        "峰值不得含整树重复许可：peak={} live={} per={per}",
+                        budget.peak(),
+                        budget.live()
+                    );
+                }
+                assert_eq!(recording.originals.as_ref().unwrap().len(), entries);
+                Ok::<_, CodecError>(recording.tree_permit.take())
+            })
+            .unwrap();
+        assert_eq!(tree_permit.as_ref().map(|p| p.bytes()), Some(entries * per));
+        drop(tree_permit);
+        assert_eq!(budget.live(), baseline);
+    }
+
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn native_publication_material_owner_normal_puts_keep_base_and_read_targets_cold() {
@@ -2183,7 +2390,7 @@ mod tests {
     #[cfg(feature = "s_allocation_json_testonly")]
     #[test]
     fn owned_manifest_real_capture_body_matches_normal_identity_and_f() {
-        let (mut nodes, metadata, roots, _, _, _) = fixture();
+        let (nodes, metadata, roots, _, _, _) = fixture();
         let legacy = s_content::AuditCapture::new(nodes.clone());
         let legacy_budget = OwnedBudget::new(512 * 1024);
         let (ordinary, normal_f) = crate::v3::audit_store::with_owned_store_probe(

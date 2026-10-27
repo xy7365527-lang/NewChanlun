@@ -1,0 +1,111 @@
+{
+  "review": "1405-recovery-review-0001",
+  "checkout_sha": "299485822f06af217f85b49a06f3fca96295ca1a",
+  "range": "5baeb030a6..1870e95895",
+  "verdict": "PASS",
+  "findings": {
+    "BLOCK": [],
+    "WARN": [
+      {
+        "id": "WARN-1",
+        "title": "补记引用的 REVIEW-1571-full-opus.md 在检出中不存在；关票前须落盘或改指针",
+        "locations": [
+          ".chanlun/review-results/issue1405-tb02v-20261014/recovery-20261019/RECOVERY-DELIVERY.md:47",
+          "docs/agents/delivery-discipline.md:12",
+          "docs/agents/delivery-discipline.md:15"
+        ]
+      },
+      {
+        "id": "WARN-2",
+        "title": "「S 在 SIGTERM 后 10 s 多才退出」及检查点/关闭时序成因无据（S 无信号处理），应改为观察事实",
+        "locations": [
+          ".chanlun/review-results/issue1405-tb02v-20261014/recovery-20261019/RECOVERY-DELIVERY.md:41",
+          ".chanlun/review-results/issue1405-tb02v-20261014/recovery-20261019/RECOVERY-DELIVERY.md:43",
+          "s_session/s_service_control.py:491-505",
+          "s_session/s_service_control.py:144-145",
+          "rust/Cargo.toml:65"
+        ]
+      },
+      {
+        "id": "WARN-3",
+        "title": "旧规则库带未决 Begin 时 serve 指引先 recover，而 recover 已被版本门禁止，形成死路",
+        "locations": [
+          "rust/src/bin/s_session_v2/mod.rs:1224-1225",
+          "rust/src/bin/s_structure_session.rs:4033-4034"
+        ]
+      }
+    ],
+    "INFO": [
+      {
+        "id": "INFO-1",
+        "title": "干净关闭例对只读探测不构成区分（字节断言在去探测变异下仍会过；推理未实跑）",
+        "locations": [
+          "rust/src/bin/s_structure_session.rs:6659-6684",
+          ".chanlun/review-results/issue1405-tb02v-20261014/recovery-20261019/RECOVERY-DELIVERY.md:25"
+        ]
+      },
+      {
+        "id": "INFO-2",
+        "title": "hot-wal 例在变异下先死于拒写断言，字节对拍半边未被收据单独证明",
+        "locations": [
+          ".chanlun/review-results/issue1405-tb02v-20261014/recovery-20261019/mutant-be4268a1af.txt:436-437",
+          "rust/src/bin/s_structure_session.rs:6553"
+        ]
+      },
+      {
+        "id": "INFO-3",
+        "title": "测试矩阵缺口：rule_revision 缺失、当前规则热日志、CLI 端到端、#1569 后上一代生产规则串",
+        "locations": [
+          "rust/src/bin/s_structure_session.rs:329",
+          "rust/src/bin/s_structure_session.rs:319",
+          "rust/src/bin/s_structure_session.rs:66",
+          "rust/src/bin/s_structure_session.rs:6487-6494"
+        ]
+      },
+      {
+        "id": "INFO-4",
+        "title": "范围外既有路径：未初始化库仍被写连接设 WAL；非 recover 入口仍会新建缺失库",
+        "locations": [
+          "rust/src/bin/s_structure_session.rs:284-286",
+          "rust/src/bin/s_structure_session.rs:1223",
+          "rust/src/bin/s_structure_session.rs:3753",
+          "rust/src/bin/s_session_v2/mod.rs:1212"
+        ]
+      },
+      {
+        "id": "INFO-5",
+        "title": "探测与写连接之间 TOCTOU 在产品代码内不可达；当前规则库热日志拒开为不可达行为差异",
+        "locations": [
+          "rust/src/bin/s_structure_session.rs:277-290",
+          "rust/src/bin/s_structure_session.rs:1252"
+        ]
+      },
+      {
+        "id": "INFO-6",
+        "title": "cmd_pragma 注释易误读：只读连接 journal_mode 仍读出持久值 wal",
+        "locations": [
+          "rust/src/bin/s_structure_session.rs:3874-3875"
+        ]
+      },
+      {
+        "id": "INFO-7",
+        "title": "session 检查门控 runtime 状态而 check_browser 不门控（不同判断，不构成 #799 违规）",
+        "locations": [
+          "s_session/tests/tb02v_runtime.py:158",
+          "s_session/tests/tb02v_runtime.py:189-205",
+          "AGENTS.md:54"
+        ]
+      },
+      {
+        "id": "INFO-8",
+        "title": "c4bbdd9f8a 二进制对 1870e95895 有代表性；共享 CARGO_TARGET_DIR 与「终版」措辞的边界",
+        "locations": [
+          ".chanlun/review-results/issue1405-tb02v-20261014/recovery-20261019/browser.sh",
+          "s_session/tests/tb02a_runtime.py:107-108",
+          ".chanlun/review-results/issue1405-tb02v-20261014/DELIVERY.md:87",
+          ".chanlun/review-results/issue1405-tb02v-20261014/recovery-20261019/RECOVERY-DELIVERY.md:27-29"
+        ]
+      }
+    ]
+  }
+}

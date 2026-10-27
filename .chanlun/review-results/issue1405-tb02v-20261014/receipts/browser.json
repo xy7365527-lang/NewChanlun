@@ -1,0 +1,40 @@
+{
+ "command": "/opt/homebrew/bin/python3 -B /Users/silencehan/.codex/worktrees/goal1323-tb1405/NewChanlun/s_session/tests/tb02b_runtime.py --config /private/tmp/goal1323-native-20261012/tb1405-impl/runtime/realC-r1/config-browser.json --messages /private/tmp/goal1323-native-20261012/tb1405-impl/runtime/realC-r1/messages.jsonl --output /private/tmp/goal1323-native-20261012/tb1405-impl/runtime/realC-r1/browser-run --node /Users/silencehan/.local/bin/node --playwright-module /Users/silencehan/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright\nTB02B_CHROMIUM_EXECUTABLE=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\n",
+ "exit_code": "0",
+ "started": "2026-10-13T20:45:39Z",
+ "finished": "2026-10-13T20:47:55Z",
+ "runtime_result_status": "CAPTURED_REQUIRES_DOUBLE_RUN_ORACLE_AND_BROWSER",
+ "browser_result": {
+  "status": "passed",
+  "page_errors": [],
+  "base_url": "http://127.0.0.1:18951/",
+  "generation": "27",
+  "lifecycle_assertion": null,
+  "screenshot_scope": "viewport",
+  "executable_path": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  "browser_version": "155.0.8059.40"
+ },
+ "page_check": {
+  "status": "PASS",
+  "runtime_status": "CAPTURED_REQUIRES_DOUBLE_RUN_ORACLE_AND_BROWSER",
+  "missing_visible_fields": {
+   "CC-008": [],
+   "CC-009": [],
+   "CC-010": [],
+   "CC-056": []
+  },
+  "retired_waiting_visible": {
+   "CC-008": [],
+   "CC-009": [],
+   "CC-010": [],
+   "CC-056": []
+  },
+  "text_sha256": {
+   "CC-008": "20975065a0ff…",
+   "CC-009": "3eda5f52ba3b…",
+   "CC-010": "f90ee4cd5680…",
+   "CC-056": "d3f144c2b5d4…"
+  }
+ },
+ "reaping": "结束 3 s 后（提权 ps/lsof）：无 playwright_chromiumdev_profile 进程、无本票 S/Q（session.sqlite 指向 realC-r1）进程，18950–18951 无监听；launcher 留下两个 socket 文件已手删。其余列出的进程是其它代理的 cargo test。"
+}

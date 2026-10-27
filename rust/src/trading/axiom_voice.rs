@@ -60,9 +60,7 @@ use super::positional::{
 };
 use super::positional_fusion::{PhaseView, SUB_FRICTION_RT};
 use super::tape::SignalTape;
-use super::types::{
-    BspClass, BspEvent, DivEvent, Polarity, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER,
-};
+use super::types::{BspClass, BspEvent, DivEvent, Polarity, FIRST_BSP_LADDER, MAX_LADDER};
 use crate::buysellpoint::Side;
 use crate::stroke::Direction;
 
@@ -137,6 +135,7 @@ fn nav_va(
 pub(crate) fn run_axiom_voice(
     tape: &SignalTape,
     floor_ladder: usize,
+    q_total: f64,
 ) -> Result<PositionalResult, String> {
     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {
         return Err(format!(
@@ -167,7 +166,7 @@ pub(crate) fn run_axiom_voice(
     let mut res = PositionalResult::default();
     let mut layers: [LayerState; MAX_LADDER] = [LayerState::Flat; MAX_LADDER];
     let mut pairs: [Option<PairedOut>; MAX_LADDER] = [None; MAX_LADDER];
-    let mut pool = INITIAL_CAPITAL;
+    let mut pool = q_total;
     let mut book = CenterBook::new();
     let mut depth_ref = DepthRef::new(DEPTH_REF_WINDOW);
 
@@ -364,11 +363,11 @@ pub(crate) fn run_axiom_voice(
                 "全抛/如数接回 ⇒ 股数恒等"
             );
             // 接回闭包（M=N：同股数，049:64"如数接回"）。
-            let mut restore = |reason: &'static str,
-                               pool: &mut f64,
-                               layers: &mut [LayerState; MAX_LADDER],
-                               pairs: &mut [Option<PairedOut>; MAX_LADDER],
-                               res: &mut PositionalResult|
+            let restore = |reason: &'static str,
+                           pool: &mut f64,
+                           layers: &mut [LayerState; MAX_LADDER],
+                           pairs: &mut [Option<PairedOut>; MAX_LADDER],
+                           res: &mut PositionalResult|
              -> bool {
                 let cost = po.shares * c;
                 if cost > *pool {
@@ -717,7 +716,7 @@ pub(crate) fn run_axiom_voice(
 
 #[cfg(test)]
 mod tests {
-    use super::super::positional::{run_positional, PolarityMode};
+    use super::super::positional::{run_positional_fx, PolarityMode};
     use super::*;
     use crate::trading::config::SUB_COST_MIN_OBS;
     use crate::trading::tape::BarSig;
@@ -803,7 +802,7 @@ mod tests {
             trend_flips: Some(trend_flips),
             ..Default::default()
         };
-        run_positional(&t, 2, PolarityMode::AxiomVoice).unwrap()
+        run_positional_fx(&t, 2, PolarityMode::AxiomVoice).unwrap()
     }
 
     #[test]

@@ -397,7 +397,7 @@ fn oddeven_causation_counterfactual() {
     let s_obs = s_stat(&b_next);
     let deltas: Vec<i8> = sig.iter().map(|s| s.1).collect();
     let mut seed: u64 = 0x9E3779B97F4A7C15;
-    let mut next = |seed: &mut u64, m: usize| -> usize {
+    let next = |seed: &mut u64, m: usize| -> usize {
         *seed = seed
             .wrapping_mul(6364136223846793005)
             .wrapping_add(1442695040888963407);

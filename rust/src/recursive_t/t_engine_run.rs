@@ -21,12 +21,13 @@
 //!
 //! ## 认识论等级：**L3**（真实数据，可否证）。strat 偏乐观（确认滞后口径，见 stream.rs 模块头）。
 
-use super::backtest::BacktestMode;
-use super::backtest_run::{load_clean_ohlc, SYMBOLS};
+// 已退役 backtest/backtest_run，见 analysis/deprecated/...
+// use super::backtest::BacktestMode;
+// use super::backtest_run::{load_clean_ohlc, SYMBOLS};
 use super::stream::TFugueStreamCore;
 use super::t_engine::BASE_LADDER;
 use crate::fugue_v3::layer::FugueResult;
-use crate::fugue_v3::INITIAL_CAPITAL;
+use crate::trading::types::FIXTURE_Q_TOTAL;
 use crate::trading::types::MAX_LADDER;
 use std::path::PathBuf;
 
@@ -153,6 +154,7 @@ fn dump_trades_json(res: &FugueResult, sym: &str, mode: &str, n_bars: usize) -> 
     s
 }
 
+#[cfg(not(feature = "recursive_t_deprecated"))]
 #[test]
 #[ignore = "重型全量回测，需 analysis/data_cache/*.json；显式 --ignored 运行"]
 fn t_engine_8x3() {
@@ -216,7 +218,7 @@ fn t_engine_8x3() {
             }
             core.finish();
             let res = core.result();
-            let strat = (res.final_nav / INITIAL_CAPITAL - 1.0) * 100.0;
+            let strat = (res.final_nav / FIXTURE_Q_TOTAL - 1.0) * 100.0;
             let dd = max_drawdown(res);
 
             row.strat[mi] = strat;
@@ -417,10 +419,11 @@ fn t_engine_8x3() {
 /// trades.json 同口径）；batch 最终塔 = stream 最后一次 rerun 塔（同 segments，纯结构不读 MACD）。
 ///
 /// 跑法：`BT_SYMBOLS=BTC cargo test --release recursive_t::t_engine_run::t_level_structure_dump -- --ignored --nocapture`
+#[cfg(not(feature = "recursive_t_deprecated"))]
 #[test]
 #[ignore = "诊断: dump T per-level 结构（走势类型/中枢/BSP），BT_SYMBOLS 选标的"]
 fn t_level_structure_dump() {
-    use super::backtest::build_a0_from_segments;
+    // use super::backtest::build_a0_from_segments;
     use super::iterate;
     use super::types::{BSPKind, PerfectionMode, TrendKind};
     use crate::orchestrator::RecursiveOrchestrator;
@@ -518,10 +521,11 @@ fn t_level_structure_dump() {
 /// 回答「为什么下跌走势在 lad6 从未产出 type1_buy」。
 ///
 /// 跑法：`BT_SYMBOLS=BTC cargo test --release recursive_t::t_engine_run::t_downtrend_diagnosis -- --ignored --nocapture`
+#[cfg(not(feature = "recursive_t_deprecated"))]
 #[test]
 #[ignore = "诊断: lad6/5 下跌走势逐条件背驰诊断"]
 fn t_downtrend_diagnosis() {
-    use super::backtest::build_a0_from_segments;
+    // use super::backtest::build_a0_from_segments;
     use super::divergence::judge_divergence;
     use super::iterate;
     use super::types::{Direction, PerfectionMode, TrendKind, Unit};
@@ -664,10 +668,11 @@ fn t_downtrend_diagnosis() {
 /// `merged_to_raw[bsp.bar].1`（raw_end，BSP 可见时点）对齐 closes。structural 口径。
 ///
 /// 跑法：`BT_SYMBOLS=BTC cargo test --release recursive_t::t_engine_run::t_bsp_dump -- --ignored --nocapture`
+#[cfg(not(feature = "recursive_t_deprecated"))]
 #[test]
 #[ignore = "诊断: dump 全 BSP 列表到 CSV（level,kind,raw_bar,close,bsp_price）"]
 fn t_bsp_dump() {
-    use super::backtest::build_a0_from_segments;
+    // use super::backtest::build_a0_from_segments;
     use super::iterate;
     use super::types::PerfectionMode;
     use crate::orchestrator::RecursiveOrchestrator;
@@ -720,6 +725,7 @@ fn t_bsp_dump() {
 /// enter），回答：(1) 卖点是减1/3 还是清全塔翻空？(2) 核心层 units 变化？(3) 翻空在强牛做空亏钱否？
 ///
 /// 跑法：`BT_SYMBOLS=BTC cargo test --release recursive_t::t_engine_run::t_bsp_op_diagnosis -- --ignored --nocapture`
+#[cfg(not(feature = "recursive_t_deprecated"))]
 #[test]
 #[ignore = "诊断: BSP 操作类型统计（sink/drain/flip）+ 翻空强牛做空，需数据"]
 fn t_bsp_op_diagnosis() {
@@ -762,7 +768,7 @@ fn t_bsp_op_diagnosis() {
         core.finish();
         let res = core.result();
         let d = core.op_diag();
-        let strat = (res.final_nav / INITIAL_CAPITAL - 1.0) * 100.0;
+        let strat = (res.final_nav / FIXTURE_Q_TOTAL - 1.0) * 100.0;
 
         let sells = d.sell_sink
             + d.sell_drain

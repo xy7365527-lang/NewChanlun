@@ -1,0 +1,151 @@
+{
+  "events": [
+    {
+      "allocation_id": "alloc-T1-in",
+      "chong_id": "chong-G2",
+      "component_witnesses": [
+        {
+          "kind": "settled_quantity_increase",
+          "source_ref": "T1-in:w0",
+          "value": "5"
+        },
+        {
+          "fields": [
+            "Pi",
+            "A",
+            "W"
+          ],
+          "kind": "no_other_income_book_changes_in_this_allocation",
+          "source_ref": "T1-in:wN"
+        }
+      ],
+      "deltas": {
+        "A": "0",
+        "Pi": "0",
+        "W": "0",
+        "units": "5"
+      },
+      "event": "tb03c-c5-T1-in",
+      "family_id": "fam-chong-G2",
+      "known_cost_components": [],
+      "source": {
+        "claimed_origin": "TestOnly fixture tb03c C5",
+        "external_fact_id": "T1-in",
+        "received_time": "source-received-11",
+        "source_cursor": "11",
+        "source_epoch": "fixture-epoch-1",
+        "source_event_time": "source-event-11",
+        "source_namespace": "testonly-tb1406-c5"
+      },
+      "stable_point": {
+        "profile": "TestOnly",
+        "seq": "211",
+        "source_ref": "T1-in:sp"
+      },
+      "transfer": {
+        "claim": {
+          "authorization_ref": "testonly-transfer-authorization/T1",
+          "growth_source": {
+            "fact": {
+              "allocation_id": "alloc-G6",
+              "external_fact_id": "G6",
+              "source_epoch": "fixture-epoch-1",
+              "source_namespace": "testonly-tb1406-c5"
+            },
+            "lot_id": "WE3-units-5"
+          },
+          "kind": "capital_overflow",
+          "payload": {
+            "carrying_cost": "0",
+            "cash": "0",
+            "units": "5"
+          },
+          "policy_versions": {
+            "quantity_policy_ref": "TestOnly-frozen-WE3-T1"
+          },
+          "profile": "TestOnly",
+          "revision": "tb03c-transfer/1",
+          "source_chong": "chong-G1",
+          "source_fact": {
+            "allocation_id": "alloc-T1-out",
+            "external_fact_id": "T1-out",
+            "source_epoch": "fixture-epoch-1",
+            "source_namespace": "testonly-tb1406-c5"
+          },
+          "target_chong": "chong-G2",
+          "target_fact": {
+            "allocation_id": "alloc-T1-in",
+            "external_fact_id": "T1-in",
+            "source_epoch": "fixture-epoch-1",
+            "source_namespace": "testonly-tb1406-c5"
+          },
+          "transfer_id": "T1",
+          "trigger_evidence_ref": "testonly-completed-transfer/T1",
+          "units": {
+            "money": {
+              "currency": "TEST-CASH",
+              "quantum": "1",
+              "unit": "TEST-CASH"
+            },
+            "numeric_encoding": "exact_decimal_integer_text",
+            "quantity": {
+              "quantum": "1",
+              "unit": "TEST-UNIT"
+            }
+          }
+        },
+        "role": "in",
+        "source_ref": "T1-in:transfer"
+      },
+      "transfer_opening": {
+        "fixed_q": "5",
+        "op_level": "2",
+        "side": "long",
+        "source_ref": "T1-in:opening",
+        "symbol": "TEST-G"
+      }
+    }
+  ],
+  "evidence_index": {
+    "fragments": {
+      "T1-in:opening": [
+        {
+          "json_pointer": "/events/0/transfer_opening"
+        }
+      ],
+      "T1-in:sp": [
+        {
+          "json_pointer": "/events/0/stable_point"
+        }
+      ],
+      "T1-in:transfer": [
+        {
+          "json_pointer": "/events/0/transfer"
+        }
+      ],
+      "T1-in:w0": [
+        {
+          "json_pointer": "/events/0/component_witnesses/0"
+        }
+      ],
+      "T1-in:wN": [
+        {
+          "json_pointer": "/events/0/component_witnesses/1"
+        }
+      ]
+    }
+  },
+  "format": "neutral TestOnly economic raw originals; not production transport wire",
+  "units": {
+    "money": {
+      "currency": "TEST-CASH",
+      "quantum": "1",
+      "unit": "TEST-CASH"
+    },
+    "numeric_encoding": "exact_decimal_integer_text",
+    "quantity": {
+      "quantum": "1",
+      "unit": "TEST-UNIT"
+    }
+  }
+}

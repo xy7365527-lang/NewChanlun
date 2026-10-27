@@ -1,0 +1,21 @@
+{
+  "ticket": 1495,
+  "source_commit": "9e1b22aa8b50de9097f4ce6d0247281707f8506c",
+  "source_parent": "dedf11f047b9c809c167b35e728e4a2ee8bf3494",
+  "source_branch": "codex/1495-lean-recovery-20261015",
+  "source_files": [
+    {
+      "path": "formal/Origin/SegmentFeatureSeq.lean",
+      "sha256": "a9978ce332cea564ab324114859a9d7a4baaea55c11bf924dd5e1af6b988ba01",
+      "bytes": 40273
+    },
+    {
+      "path": "formal/Phase2/Claim10_SegmentV1.lean",
+      "sha256": "dec380404b1bc208cec004dd80a5770c64c969b22617236ae00a188d4c8ac71d",
+      "bytes": 32033
+    }
+  ],
+  "patch_sha256": "40bafbe01f26f3472ccf4d2384de23ee0fdfec9ec9efd7e0e0b7485bca839b6d",
+  "patch_byte_identical_to_reviewed_candidate": true,
+  "external_volume_current_bytes_verified": false
+}

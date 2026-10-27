@@ -1,6 +1,45 @@
 //! #1392：同次生产新笔证据的持久投影；不重新求值判据。
+//!
+//! #1405（#1343）：发布合同升 `s-new-bi/2`——端点带极值根集首末 raw 序位
+//! （`raw_first`/`raw_last`），同型取舍只有 KEEP/REPLACE 并带 `evidence`，`policy_version`
+//! 并列记录 raw 间隔门与同价策略。旧 `s-new-bi/1` 对象按 AsKnown 保留，不回填。
 use super::*;
 use newchan_rust::theta_v0::parser::stroke::{StrokeFacts, RULE};
+
+/// #1405：规则修订具名绑定合同；历史 /1 只读，不把当前事实重解释成旧端点。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct BiContract {
+    pub schema: &'static str,
+    pub semantic: &'static str,
+    pub policy: &'static str,
+    pub knowledge_domain: &'static str,
+}
+pub(super) const CURRENT_CONTRACT: BiContract = BiContract {
+    schema: "s-new-bi/2",
+    semantic: RULE,
+    policy: "standard_raw_gap_3;same-price/keep-earlier+extreme-region/1",
+    knowledge_domain: "established_direction_with_extreme_root_sets",
+};
+const LEGACY_CONTRACT: BiContract = BiContract {
+    schema: "s-new-bi/1",
+    semantic: "new-bi-dual-coordinate/1",
+    policy: "standard_raw_gap_3",
+    knowledge_domain: "established_direction_without_extreme_identity_competition",
+};
+pub(super) fn contract_for_rule(rule: &str) -> Option<BiContract> {
+    match rule {
+        crate::LEGACY_V3_RULE_REVISION
+        | "s2-axis-quantifiers+new-bi/1+segment-first/1"
+        | "s2-axis-quantifiers+new-bi/1+segment-second/1" => Some(LEGACY_CONTRACT),
+        // #1394 合入 #1420：上一代 v2 规则 `+new-bi/2+segment-second/1` 仍是新笔 /2 合同（只读）。
+        crate::V3_RULE_REVISION
+        | "s2-axis-quantifiers+new-bi/2+segment-second/1"
+        // #1604：#1493 的段规则只读后仍是新笔 /2 合同。
+        | "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1"
+        | crate::RULE_REVISION => Some(CURRENT_CONTRACT),
+        _ => None,
+    }
+}
 
 pub(super) const KINDS: &[&str] = &[
     "CC-008.endpoint",
@@ -21,7 +60,7 @@ fn wire(v: Value) -> Value {
     }
 }
 fn payload(slot: Value, generation: i64, data: Value) -> Value {
-    json!({"schema_revision":"s-new-bi/1","semantic_version":RULE,"policy_version":"standard_raw_gap_3",
+    json!({"schema_revision":CURRENT_CONTRACT.schema,"semantic_version":CURRENT_CONTRACT.semantic,"policy_version":CURRENT_CONTRACT.policy,
         "view_role":"main","object_generation":generation.to_string(),"slot":slot,"data":wire(data)})
 }
 fn add(
@@ -132,7 +171,7 @@ pub(super) fn build(
             json!(endpoint_id(generation, ep.group_anchor)),
             generation,
             serde_json::to_value(ep).unwrap(),
-            ep.source_coords.clone(),
+            ep.source_coords.to_vec(),
         );
     }
     for p in &facts.pairs {
@@ -151,7 +190,11 @@ pub(super) fn build(
             ]),
             generation,
             serde_json::to_value(p).unwrap(),
-            interval_sources(raw, &p.old.source_coords, &p.new.source_coords),
+            interval_sources(
+                raw,
+                &p.old.source_coords.to_vec(),
+                &p.new.source_coords.to_vec(),
+            ),
         );
     }
     let mut relations = vec![];
@@ -216,7 +259,11 @@ pub(super) fn build(
         } else {
             json!(changes)
         };
-        let mut deps = interval_sources(raw, &bi.start.source_coords, &bi.end.source_coords);
+        let mut deps = interval_sources(
+            raw,
+            &bi.start.source_coords.to_vec(),
+            &bi.end.source_coords.to_vec(),
+        );
         // 延续的确认原证据也必须随对象保留。
         if let Some(cs) = data["confirmation"]["source_coords"].as_array() {
             deps = union(
@@ -255,9 +302,10 @@ pub(super) fn build(
                 entity.clone(),
             ));
         }
-        for (_, member) in
-            raw.range(bi.start.extreme_roots[0] as i64..=bi.end.extreme_roots[0] as i64)
-        {
+        // #1343 Q2：成员范围覆盖两端完整极值区——起点极值区首根 ..= 终点极值区末根。
+        let first = *bi.start.extreme_roots.iter().min().expect("极值根集非空");
+        let last = *bi.end.extreme_roots.iter().max().expect("极值根集非空");
+        for (_, member) in raw.range(first as i64..=last as i64) {
             edges.push((
                 format!(
                     "raw:{}@{}",
@@ -280,6 +328,8 @@ pub(super) fn build(
             );
             relations.push(json!({"subject":source,"relation_type":kind,"object":target}));
         }
+        // 事件时点取终点极值区首根的 ts，只作代表（多根同价时不进任何判据，#1343 Q2）。
+        let event_root = *bi.end.extreme_roots.iter().min().expect("极值根集非空");
         for change in changes {
             add(
                 &mut b,
@@ -287,7 +337,7 @@ pub(super) fn build(
                 json!([gen.to_string(), entity, change]),
                 generation,
                 json!({"entity_id":entity,"change":change,"before":old,"after":data,"known_at":known,
-                    "event_at":raw[&(bi.end.extreme_roots[0] as i64)]["ts"],"causes":[RULE],"object_id":id}),
+                    "event_at":raw[&(event_root as i64)]["ts"],"causes":[RULE],"object_id":id}),
                 sources.clone(),
             );
         }
@@ -317,4 +367,47 @@ pub(super) fn build(
         sources,
     );
     (b.objects, relations)
+}
+
+#[cfg(test)]
+mod version_contract_tests {
+    use super::*;
+
+    #[test]
+    fn named_bi_revisions_never_fallback_or_relabel_history() {
+        let legacy = contract_for_rule(crate::LEGACY_V3_RULE_REVISION).unwrap();
+        assert_eq!(legacy.schema, "s-new-bi/1");
+        assert_eq!(legacy.semantic, "new-bi-dual-coordinate/1");
+        assert_eq!(
+            contract_for_rule(crate::V3_RULE_REVISION),
+            Some(CURRENT_CONTRACT)
+        );
+        assert_eq!(
+            contract_for_rule(crate::RULE_REVISION),
+            Some(CURRENT_CONTRACT)
+        );
+        assert!(contract_for_rule("s2-axis-quantifiers+new-bi/unknown").is_none());
+        assert_eq!(
+            CURRENT_CONTRACT.policy,
+            format!(
+                "standard_raw_gap_3;{}",
+                newchan_rust::theta_v0::parser::stroke::SAME_PRICE_POLICY
+            )
+        );
+        assert_eq!(
+            tb02a_facts::CatalogAxisTable::for_rule_revision(crate::V3_RULE_REVISION)
+                .unwrap()
+                .axes()
+                .len(),
+            13
+        );
+        assert_eq!(
+            tb02a_facts::CatalogAxisTable::for_rule_revision(crate::RULE_REVISION)
+                .unwrap()
+                .axes()
+                .len(),
+            17
+        );
+        assert!(tb02a_facts::CatalogAxisTable::for_rule_revision("unknown").is_none());
+    }
 }

@@ -32,6 +32,8 @@
 """
 # 冻结声明：本模块判定面已冻结退役（#1286，2026-08-27）：名分=历史对照，不参生产准入、
 # 不同拍对齐（#1276 为末次同拍）；消费仅限 analysis/ 分析脚本。
+# #1493（#1490 裁定，xianduan.md §7.1）：本模块为历史参考；#1490 后 `_FeatureSeqState.append`（:322-369，
+# 「先试不合并」）与 `_try_trigger_segment`（:459-491，其中 L78 后置 :480-491）非正本，正本为 Rust feature_seq.rs/segment.rs。
 
 from __future__ import annotations
 
@@ -40,6 +42,11 @@ from typing import Literal
 
 from newchan.a_segment_v0 import BreakEvidence, Segment
 from newchan.a_stroke import Stroke
+from newchan.segment_policy import (
+    SegmentPolicyError,
+    active_scan_budget,
+    active_segment_construction,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +65,9 @@ def _three_stroke_overlap(s1: Stroke, s2: Stroke, s3: Stroke) -> bool:
     `segment.rs` 同批切换，Rust↔Python 逐位等价在新口径下继续成立。
     裁定书：chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md
     """
-    return max(s1.low, s2.low, s3.low) <= min(s1.high, s2.high, s3.high)
+    # #1604（#1586 A-12）：相切口径读记录 `segment-second`（签署值 `closed` 即上述 `<=`）。
+    rule = active_segment_construction()
+    return rule.meets(max(s1.low, s2.low, s3.low), min(s1.high, s2.high, s3.high))
 
 
 def _find_overlap_start(strokes: list[Stroke], from_s: int) -> int | None:
@@ -274,20 +283,33 @@ def _is_fractal_and_gap(
     逐位等价在新口径下继续成立。
     裁定书：chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md
     """
+    # #1604（#1586 A-12）：缺口与重合读同一记录值（签署值 `closed` 即上述严格 `>`）。
+    rule = active_segment_construction()
     if seg_direction == "up":
         is_fractal = b_h > a_h and b_h > c_h
-        has_gap = b_l > a_h if is_fractal else False
+        has_gap = rule.separates(b_l, a_h) if is_fractal else False
     else:
         is_fractal = b_l < a_l and b_l < c_l
-        has_gap = a_l > b_h if is_fractal else False
+        has_gap = rule.separates(a_l, b_h) if is_fractal else False
     return is_fractal, has_gap
+
+
+def _tail_window() -> int:
+    """记录给的尾窗。Python v1 没有 Rust 侧的尾窗截断标记（`INCOMPLETE_RESOURCE_BOUND`）；尾窗 1、2
+    会把未判过的候选挤出窗外（见记录 `tail_window.options`），这里拒绝而不是静默截断。"""
+    tw = active_scan_budget().tail_window
+    if tw in (1, 2):
+        raise SegmentPolicyError(
+            f"`second-seq-scan-budget.tail_window`={tw}：Python v1 未实现尾窗截断标记，只接受 0 或 ≥ 3"
+        )
+    return tw
 
 
 class _FeatureSeqState:
     """增量维护标准特征序列的状态。"""
 
-    # 尾窗扫描大小：分型检测只在最近 N 个元素内进行
-    TAIL_WINDOW: int = 7
+    # #1604（#1586 C-04 / L1）：尾窗大小不再是类常数，构造时读记录 `second-seq-scan-budget` 的
+    # `tail_window`（与 Rust 同读一值，#804）；0 = 不设上限。
 
     def __init__(
         self,
@@ -302,6 +324,7 @@ class _FeatureSeqState:
         self.last_checked: int = 0  # 上次分型检查的起始位置
         self._skip_until_stroke: int = -1  # 跳过 stroke_idx <= 此值的分型
         self._extend_mode: str = extend_mode
+        self.tail_window: int = _tail_window()
 
     def reset(self, seg_direction: str = "up") -> None:
         self.std = []
@@ -412,7 +435,7 @@ class _FeatureSeqState:
         if n < 3:
             return None
 
-        start = max(1, self.last_checked, n - self.TAIL_WINDOW)
+        start = max(1, self.last_checked, n - self.tail_window if self.tail_window else 0)
         for i in range(start, n - 1):
             b_stroke = int(self.std[i][2])
             if b_stroke <= self._skip_until_stroke:

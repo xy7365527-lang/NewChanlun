@@ -4,6 +4,7 @@
 //! owner可按实际无写终结接收完整slot；只有owner绑定同连接当前快照后才能免重核。
 //! 旧来源池本身仍不能授予完整history或提交许可。
 use super::audit_store::{CodecRead, NativeAdmission};
+use super::native_shared::NativeRc as Rc;
 use super::{audit_header::AuditSourceCommit, state::ImmutableHistoricalAudit};
 use newchan_rust::{
     s_content::{capture_allocation::scratch::WorkScope, AuditCapture, CodecVec},
@@ -13,22 +14,337 @@ use rusqlite::{
     types::{Type, ValueRef},
     Params, Transaction,
 };
-use std::{ffi::CStr, rc::Rc};
+use std::ffi::CStr;
 
 /// #1394 frozen entry allocation within the existing S7 source budget. Releasing the
 /// old pool later does not enlarge this request's workspace allowance.
 #[cfg(feature = "s_capture_native_testonly")]
 #[derive(Clone, Copy, Debug, serde::Serialize)]
 pub(crate) struct ManifestWorkspaceBudget {
+    #[serde(skip)]
+    domain: u64,
     total: usize,
     legacy: usize,
     old_pool: usize,
+    // #1488 P1-1：同父物理账L0中未被任何合同项覆盖的真实分配；消耗A，不进O。
+    uncovered: usize,
+    // 映射所依据的同父L0；绑定时同锁复核，不等即映射过期而拒绝。
+    #[serde(skip)]
+    frozen_live: Option<usize>,
     allowance: usize,
 }
 #[cfg(feature = "s_capture_native_testonly")]
 impl ManifestWorkspaceBudget {
     pub(crate) fn allowance(self) -> usize {
         self.allowance
+    }
+}
+
+/// #1488 P1-1/P1-2（v4「冻结old_pool费用分区」）：冻结入口逐项列(owner role, contract item, origin)。
+/// 合同额逐项照收进O（双份角色义务保留，共享不是减费依据）；物理账按“所在Ledger”分组，每个Ledger的
+/// live只读一次、只计一次：候选父账与keeper池所在父账各为一组（池与候选同父即拒绝保留池）。
+/// 每组L0必须等于上一请求收尾静止点的读数（`LedgerMark`，此时请求局部持有者已析构，组内持有者
+/// 恰为所列合同项的owner）；不等即有来源不明的许可/释放，拒绝冻结。组内L0超出该组合同额的部分
+/// 作为该组owner名下的“未覆盖新增真实分配”逐组列出并消耗A；O中从不加L，也不以max补差。
+/// 无法证明映射（缺父、无静止点读数、L0≠读数、L0装不下M、溢出、池候选同父、U>A、绑定时L0已变/换父）
+/// 一律拒绝，不改T/E/O/A。
+#[cfg(feature = "s_capture_native_testonly")]
+#[derive(Clone, Debug, serde::Serialize)]
+pub(crate) struct OldPoolItem {
+    pub(crate) role: &'static str,
+    pub(crate) item: &'static str,
+    pub(crate) origin: &'static str,
+    pub(crate) contract: usize,
+}
+/// 一个物理Ledger分组：静止点读数、本次L0、组内合同额与覆盖/未覆盖。
+#[cfg(feature = "s_capture_native_testonly")]
+#[derive(Clone, serde::Serialize)]
+pub(crate) struct OldPoolHome {
+    pub(crate) origin: &'static str,
+    #[serde(skip)]
+    ledger: super::audit_owner::native::Budget,
+    pub(crate) attested: Option<usize>,
+    pub(crate) l0: usize,
+    pub(crate) contract: usize,
+    pub(crate) covered: usize,
+    pub(crate) uncovered: usize,
+    pub(crate) owners: Vec<&'static str>,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+#[derive(Clone, serde::Serialize)]
+pub(crate) struct OldPoolPartition {
+    items: Vec<OldPoolItem>,
+    homes: Vec<OldPoolHome>,
+    #[serde(skip)]
+    parent: Option<super::audit_owner::native::Budget>,
+    parent_l0: usize,
+    l0: usize,
+    on_parent_contract: usize,
+    parent_paid: usize,
+    external: usize,
+    uncovered: usize,
+    old_pool: usize,
+    sealed: bool,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl OldPoolPartition {
+    pub(crate) const ON_PARENT: &'static str = "candidate-parent";
+    pub(crate) const KEEPER_PARENT: &'static str = "keeper-parent";
+    pub(crate) const ELSEWHERE: &'static str = "no-ledger";
+    pub(crate) fn new(parent: Option<&super::audit_owner::native::Budget>) -> Self {
+        Self {
+            items: Vec::new(),
+            homes: parent
+                .map(|p| OldPoolHome {
+                    origin: Self::ON_PARENT,
+                    ledger: p.clone(),
+                    attested: None,
+                    l0: 0,
+                    contract: 0,
+                    covered: 0,
+                    uncovered: 0,
+                    owners: Vec::new(),
+                })
+                .into_iter()
+                .collect(),
+            parent: parent.cloned(),
+            parent_l0: 0,
+            l0: 0,
+            on_parent_contract: 0,
+            parent_paid: 0,
+            external: 0,
+            uncovered: 0,
+            old_pool: 0,
+            sealed: false,
+        }
+    }
+    fn open(&self) -> Result<(), String> {
+        if self.sealed {
+            return Err("S3WriterResourcesInvalid：old_pool映射已封口".into());
+        }
+        Ok(())
+    }
+    /// keeper池所在父账单列一组；与候选同父即拒绝保留池（同一L0不得被两组各读一次）。
+    pub(crate) fn keeper_home(
+        &mut self,
+        ledger: &super::audit_owner::native::Budget,
+    ) -> Result<(), String> {
+        self.open()?;
+        if self.homes.iter().any(|h| h.ledger.same_parent(ledger)) {
+            return Err("S3WriterResourcesInvalid：keeper池与候选同父，拒绝保留池".into());
+        }
+        self.homes.push(OldPoolHome {
+            origin: Self::KEEPER_PARENT,
+            ledger: ledger.clone(),
+            attested: None,
+            l0: 0,
+            contract: 0,
+            covered: 0,
+            uncovered: 0,
+            owners: Vec::new(),
+        });
+        Ok(())
+    }
+    /// 记入某组的静止点读数；读数只认同一Ledger（他账的读数不能证明本组来源）。
+    pub(crate) fn attest(
+        &mut self,
+        mark: &super::audit_owner::native::LedgerMark,
+    ) -> Result<(), String> {
+        self.open()?;
+        for home in &mut self.homes {
+            if let Some(live) = mark.live_for(&home.ledger) {
+                home.attested = Some(live);
+            }
+        }
+        Ok(())
+    }
+    /// 只列O角色合同项；E（legacy）由冻结入口单列。origin取ON_PARENT/KEEPER_PARENT/ELSEWHERE。
+    pub(crate) fn item(
+        &mut self,
+        item: &'static str,
+        origin: &'static str,
+        contract: usize,
+    ) -> Result<(), String> {
+        self.open()?;
+        let overflow = || "S3WriterResourcesInvalid：old_pool合同额溢出".to_string();
+        if origin != Self::ELSEWHERE {
+            let home = self
+                .homes
+                .iter_mut()
+                .find(|h| h.origin == origin)
+                .ok_or_else(|| {
+                    format!("S3WriterResourcesInvalid：old_pool项{item}缺{origin}父账，无法映射")
+                })?;
+            home.contract = home.contract.checked_add(contract).ok_or_else(overflow)?;
+            home.owners.push(item);
+        }
+        self.old_pool = self.old_pool.checked_add(contract).ok_or_else(overflow)?;
+        if origin == Self::ON_PARENT {
+            self.on_parent_contract = self
+                .on_parent_contract
+                .checked_add(contract)
+                .ok_or_else(overflow)?;
+        }
+        self.items.push(OldPoolItem {
+            role: "O",
+            item,
+            origin,
+            contract,
+        });
+        Ok(())
+    }
+    /// 每组读一次L0并与静止点读数对拍，形成覆盖额/外部余额/逐组uncovered；之后不可再加项。
+    pub(crate) fn seal(mut self) -> Result<Self, String> {
+        self.open()?;
+        let m = super::audit_owner::native::Budget::metadata_bytes();
+        let overflow = || "S3WriterResourcesInvalid：old_pool物理账溢出".to_string();
+        for home in &mut self.homes {
+            let l0 = home.ledger.live();
+            // 同父控制块M本身就在L0中；L0装不下M说明物理账与合同布局对不上。
+            if l0 < m {
+                return Err(format!(
+                    "S3WriterResourcesInvalid：{}L0不含控制块M，old_pool无法映射",
+                    home.origin
+                ));
+            }
+            if home.attested != Some(l0) {
+                return Err(format!(
+                    "S3WriterResourcesInvalid：{}L0={l0}与收尾静止点读数{:?}不符，存在来源不明的许可，拒绝冻结",
+                    home.origin, home.attested
+                ));
+            }
+            home.l0 = l0;
+            home.covered = l0.min(home.contract);
+            home.uncovered = l0 - home.covered;
+            self.l0 = self.l0.checked_add(l0).ok_or_else(overflow)?;
+            self.parent_paid = self
+                .parent_paid
+                .checked_add(home.covered)
+                .ok_or_else(overflow)?;
+            self.uncovered = self
+                .uncovered
+                .checked_add(home.uncovered)
+                .ok_or_else(overflow)?;
+            if home.origin == Self::ON_PARENT {
+                self.parent_l0 = l0;
+            }
+        }
+        self.external = self.old_pool - self.parent_paid;
+        self.sealed = true;
+        Ok(self)
+    }
+    #[cfg_attr(
+        all(not(test), feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
+    )]
+    pub(crate) fn old_pool(&self) -> usize {
+        self.old_pool
+    }
+    #[cfg_attr(
+        all(not(test), feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
+    )]
+    pub(crate) fn uncovered(&self) -> usize {
+        self.uncovered
+    }
+    /// 各物理组L0之和（每个Ledger只计一次）。
+    #[cfg_attr(
+        all(not(test), feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
+    )]
+    pub(crate) fn l0(&self) -> usize {
+        self.l0
+    }
+    #[cfg_attr(
+        all(not(test), feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
+    )]
+    pub(crate) fn parent_paid(&self) -> usize {
+        self.parent_paid
+    }
+    #[cfg_attr(
+        all(not(test), feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
+    )]
+    pub(crate) fn external(&self) -> usize {
+        self.external
+    }
+    #[cfg_attr(
+        all(not(test), feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
+    )]
+    pub(crate) fn items(&self) -> &[OldPoolItem] {
+        &self.items
+    }
+    #[cfg_attr(
+        all(not(test), feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
+    )]
+    pub(crate) fn homes(&self) -> &[OldPoolHome] {
+        &self.homes
+    }
+    /// 未覆盖新增真实分配逐组列出：(role U, 来源组, 组内owner, 字节)。
+    #[cfg_attr(
+        all(not(test), feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
+    )]
+    pub(crate) fn uncovered_items(
+        &self,
+    ) -> Vec<(&'static str, &'static str, &[&'static str], usize)> {
+        self.homes
+            .iter()
+            .filter(|h| h.uncovered != 0)
+            .map(|h| ("U", h.origin, h.owners.as_slice(), h.uncovered))
+            .collect()
+    }
+    /// 本请求入口已占的旧费：O + uncovered（uncovered从A中扣，不改O）。
+    pub(crate) fn carried(&self) -> usize {
+        self.old_pool.saturating_add(self.uncovered)
+    }
+}
+
+/// #1488 P3-4：冷出生许可的铸造凭据。字段与构造只在本模块（冻结入口）可见，不可Clone/Copy；
+/// `BootstrapGrant::from_freeze`消费它，同crate其它代码无法伪造冷出生许可。
+#[cfg(feature = "s_capture_native_testonly")]
+pub(crate) struct FreezeSeal {
+    domain: u64,
+    limit: usize,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl FreezeSeal {
+    pub(crate) fn domain(&self) -> u64 {
+        self.domain
+    }
+    pub(crate) fn limit(&self) -> usize {
+        self.limit
+    }
+}
+
+/// #1488 v4：唯一真实分配父与（R13兼容需要时）只读观察句柄；后者不可隐式转成Budget。
+#[cfg(feature = "s_capture_native_testonly")]
+#[cfg_attr(
+    all(not(test), feature = "s_capture_native_testonly"),
+    allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
+)]
+pub(super) struct ParentPreparation {
+    parent: super::audit_owner::native::Budget,
+    observer: Option<super::audit_owner::native::BudgetObserver>,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl ParentPreparation {
+    #[cfg_attr(
+        all(not(test), feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
+    )]
+    pub(super) fn allocation_parent(&self) -> &super::audit_owner::native::Budget {
+        &self.parent
+    }
+    #[cfg_attr(
+        all(not(test), feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
+    )]
+    pub(super) fn observer(&self) -> Option<&super::audit_owner::native::BudgetObserver> {
+        self.observer.as_ref()
     }
 }
 
@@ -43,12 +359,47 @@ pub(super) struct RequestAuditContext {
     workspace_budget: Option<ManifestWorkspaceBudget>,
     // #1394 显式接线域；普通预算冻结不自动启用强制cold准入。
     #[cfg(feature = "s_capture_native_testonly")]
-    cold_parent: Option<super::audit_owner::native::Budget>,
+    cold_parent: std::cell::RefCell<Option<super::audit_owner::native::Budget>>,
+    #[cfg(feature = "s_capture_native_testonly")]
+    handoff_parent: std::cell::RefCell<Option<super::audit_owner::native::Budget>>,
+    // #1488 v4：本次冻结签发的唯一冷出生许可；prepare_parent(None)或冷候选出生时消费一次。
+    #[cfg(feature = "s_capture_native_testonly")]
+    bootstrap: Option<super::audit_owner::native::BootstrapGrant>,
+    // #1488 P1-1：old_pool映射所依据的同父账；绑定只接受同一父且L0未变。
+    #[cfg(feature = "s_capture_native_testonly")]
+    old_pool_parent: std::cell::RefCell<Option<super::audit_owner::native::Budget>>,
+    // #1488 P1-2：退回本context的slot其capture许可所在的父账（冷根）；只用于记下封存池的物理父账。
+    #[cfg(feature = "s_capture_native_testonly")]
+    slot_home: Option<super::audit_owner::native::Budget>,
+    // #1488 wide16-0058：仅冷根首跑期间置位；首跑失败时旧来源池交还keeper供无票重跑。
+    #[cfg(feature = "s_capture_native_testonly")]
+    source_pool_return_armed: bool,
     #[cfg(test)]
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        )
+    )]
     binding_hook: Option<fn(&Transaction<'_>)>,
     #[cfg(test)]
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        )
+    )]
     pub(super) cold: usize,
     #[cfg(test)]
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        )
+    )]
     pub(super) hits: usize,
 }
 impl Drop for RequestAuditContext {
@@ -57,15 +408,33 @@ impl Drop for RequestAuditContext {
         drop(self.slot.take());
         #[cfg(feature = "s_capture_native_testonly")]
         drop(std::mem::take(&mut self.original_scan_scratch));
+        #[cfg(feature = "s_capture_native_testonly")]
+        drop(self.old_pool_parent.get_mut().take());
         #[cfg(test)]
         super::state::trace_event("request_history_context_released", None);
     }
 }
 
 pub(super) struct VerifiedHistoricalSlot {
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     pub(super) binding: HistoricalDependencyBinding,
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     pub(super) capture: AuditCapture,
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     pub(super) node_count: usize,
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     pub(super) result: Rc<ImmutableHistoricalAudit>,
     #[cfg(feature = "s_capture_native_testonly")]
     pub(super) source_pending: Option<super::cross_request_source_cache::PendingPool>,
@@ -78,10 +447,24 @@ impl RequestAuditContext {
         &mut self.original_scan_scratch
     }
     #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg_attr(
+        all(not(test), feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
+        )
+    )]
     pub(super) fn original_scan_scratch_capacity_nodes(&self) -> usize {
         self.original_scan_scratch.capacity_nodes()
     }
     #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg_attr(
+        all(not(test), feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
+        )
+    )]
     pub(super) fn with_source_keeper(keeper: super::cross_request_source_cache::Keeper) -> Self {
         let mut context = Self::default();
         context.source_keeper = Some(keeper);
@@ -94,30 +477,74 @@ impl RequestAuditContext {
     ) {
         self.source_keeper = Some(keeper);
     }
+    /// 无同父候选的冻结（冷入口与fixture）：old_pool整体是他父/无父的O合同项。
     #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg_attr(
+        all(not(test), feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
+    )]
     pub(super) fn freeze_manifest_workspace_budget(
         &mut self,
         total: usize,
         legacy: usize,
         old_pool: usize,
     ) -> Result<(), String> {
+        let mut partition = OldPoolPartition::new(None);
+        partition.item(
+            "unpartitioned-old-pool",
+            OldPoolPartition::ELSEWHERE,
+            old_pool,
+        )?;
+        self.freeze_manifest_workspace_partition(total, legacy, partition.seal()?)
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn freeze_manifest_workspace_partition(
+        &mut self,
+        total: usize,
+        legacy: usize,
+        partition: OldPoolPartition,
+    ) -> Result<(), String> {
         if self.workspace_budget.is_some() {
             return Err("S3WriterResourcesInvalid：workspace预算已冻结，不得重新分配".into());
         }
+        if !partition.sealed {
+            return Err("S3WriterResourcesInvalid：old_pool映射未封口".into());
+        }
+        let old_pool = partition.old_pool;
+        let uncovered = partition.uncovered;
         super::state::check_audit_source_retention(total)?;
         let used = legacy
             .checked_add(old_pool)
+            .and_then(|n| n.checked_add(uncovered))
             .ok_or("S3WriterResourcesInvalid：共享来源费用加法溢出")?;
         super::state::check_audit_source_retention_bytes(total, used)?;
         let allowance = total
             .checked_sub(used)
             .ok_or("S3WriterResourcesInvalid：共享来源费用超过S7")?;
+        static NEXT_FREEZE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        let domain = NEXT_FREEZE
+            .try_update(
+                std::sync::atomic::Ordering::Relaxed,
+                std::sync::atomic::Ordering::Relaxed,
+                |n| n.checked_add(1),
+            )
+            .map_err(|_| "S3WriterResourcesInvalid：冻结域编号耗尽")?;
         self.workspace_budget = Some(ManifestWorkspaceBudget {
+            domain,
             total,
             legacy,
             old_pool,
+            uncovered,
+            frozen_live: partition.parent.as_ref().map(|_| partition.parent_l0),
             allowance,
         });
+        *self.old_pool_parent.get_mut() = partition.parent;
+        self.bootstrap = Some(super::audit_owner::native::BootstrapGrant::from_freeze(
+            FreezeSeal {
+                domain,
+                limit: allowance,
+            },
+        ));
         Ok(())
     }
     #[cfg(feature = "s_capture_native_testonly")]
@@ -131,6 +558,25 @@ impl RequestAuditContext {
     #[cfg(feature = "s_capture_native_testonly")]
     pub(super) fn take_source_pool(&mut self) -> Option<super::cross_request_source_cache::Pool> {
         self.source_keeper.as_mut()?.take()
+    }
+    /// #1488 wide16-0058：冷根首跑前后置位/复位；只影响首跑失败时旧来源池的去向。
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn arm_source_pool_return(&mut self, armed: bool) {
+        self.source_pool_return_armed = armed;
+    }
+    /// 未置位（非冷根首跑）时按原口径丢弃：任一错误不留可继续使用的旧池。
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn return_source_pool_for_cold_rerun(
+        &mut self,
+        pool: Option<super::cross_request_source_cache::Pool>,
+    ) {
+        if let (true, Some(pool), Some(keeper)) = (
+            self.source_pool_return_armed,
+            pool,
+            self.source_keeper.as_mut(),
+        ) {
+            keeper.restore(pool);
+        }
     }
     pub(super) fn retained_source_bytes(&self) -> usize {
         #[cfg(feature = "s_capture_native_testonly")]
@@ -163,7 +609,7 @@ impl RequestAuditContext {
             drop(slot.result);
             drop(slot.binding);
             if let Some(pending) = slot.source_pending {
-                if let Some(parent) = self.cold_parent_budget() {
+                if let Some(parent) = self.request_parent_budget() {
                     // 可选封存使用同一父账的独立工作域；只在域结束后处理拒绝。
                     // 强制cold已完成，不能将这里的失败重判为cold成功或重跑None。
                     let retained = match parent.codec_work() {
@@ -174,6 +620,7 @@ impl RequestAuditContext {
                                     slot.node_count,
                                     pending,
                                     Some(scope),
+                                    Some(&parent),
                                 )
                             })
                             .is_ok(),
@@ -184,6 +631,11 @@ impl RequestAuditContext {
                     }
                 } else {
                     keeper.retain_completed(slot.capture, slot.node_count, pending);
+                    // #1488 P1-2：无请求父时池不在工作域内封存，但capture许可仍挂其出生的冷根；
+                    // 记下该账，下次冻结按其物理live计，不只按合同额。
+                    if let Some(home) = self.slot_home.take() {
+                        keeper.set_source_home(&home);
+                    }
                 }
             }
         }
@@ -192,6 +644,10 @@ impl RequestAuditContext {
     pub(super) fn take(&mut self) -> Option<VerifiedHistoricalSlot> {
         self.slot.take()
     }
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     pub(super) fn retain(
         &mut self,
         binding: HistoricalDependencyBinding,
@@ -223,12 +679,26 @@ impl RequestAuditContext {
         });
     }
     #[cfg(test)]
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        )
+    )]
     pub(super) fn before_binding(&mut self, tx: &Transaction<'_>) {
         if let Some(hook) = self.binding_hook.take() {
             hook(tx);
         }
     }
     #[cfg(test)]
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        )
+    )]
     pub(super) fn has_slot(&self) -> bool {
         self.slot.is_some()
     }
@@ -237,14 +707,30 @@ impl RequestAuditContext {
 /// SQLite storage class/NULL/原文字节均保留；REAL按原bits比较，绝不JSON规范化。
 #[derive(Debug, PartialEq, Eq)]
 pub(super) enum SqlCell {
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     Null,
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     Integer(i64),
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     Real(u64),
     Text(CodecVec<u8>),
     Blob(CodecVec<u8>),
 }
 /// 参数与依赖 scope 在准入前只借用，不提前创建 Vec/String owner。
 #[derive(Clone, Copy)]
+#[cfg_attr(
+    not(feature = "s_capture_native_testonly"),
+    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+)]
 pub(super) enum SqlCellView<'a> {
     Null,
     Integer(i64),
@@ -264,6 +750,13 @@ pub(super) fn push_cell<T>(
     }
     .map_err(storage)
 }
+#[cfg_attr(
+    not(feature = "s_capture_native_testonly"),
+    allow(
+        dead_code,
+        reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+    )
+)]
 fn reserve_cells<T>(
     values: &mut CodecVec<T>,
     n: usize,
@@ -275,6 +768,10 @@ fn reserve_cells<T>(
     Ok(())
 }
 impl SqlCellView<'_> {
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     fn copy_admitted(self, store: &NativeAdmission<'_>) -> Result<SqlCell, String> {
         Ok(match self {
             Self::Null => SqlCell::Null,
@@ -360,6 +857,10 @@ impl ExactRows {
     }
     /// 原 SQL、原顺序与完整 storage class 绑定；唯一 Native 父域在复制前准入。
     /// SQLite 自身转换先经 CheckedStatement/CheckedRow 的 NOMEM 门再开放借用。
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     pub(super) fn read_admitted(
         tx: &Transaction<'_>,
         sql: &CStr,
@@ -432,6 +933,10 @@ impl ExactRows {
             rows,
         })
     }
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    )]
     pub(super) fn read(
         tx: &Transaction<'_>,
         sql: &str,
@@ -470,6 +975,10 @@ impl ExactRows {
         })
     }
 }
+#[cfg_attr(
+    not(feature = "s_capture_native_testonly"),
+    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+)]
 fn storage(e: impl std::fmt::Display) -> String {
     format!("StorageUnavailable：历史原件绑定读取失败：{e}")
 }
@@ -482,12 +991,20 @@ pub(super) struct HistoricalDependencyBinding {
     material: CodecVec<ExactRows>,
 }
 impl HistoricalDependencyBinding {
+    #[allow(
+        dead_code,
+        reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删"
+    )]
     pub(super) fn read(
         tx: &Transaction<'_>,
         history: &ImmutableHistoricalAudit,
     ) -> Result<Self, String> {
         Self::read_admitted(tx, history, None)
     }
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     pub(super) fn read_admitted(
         tx: &Transaction<'_>,
         history: &ImmutableHistoricalAudit,
@@ -571,6 +1088,10 @@ impl HistoricalDependencyBinding {
         }
         Ok(Self { frontier, material })
     }
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     fn read_source(
         tx: &Transaction<'_>,
         source: &AuditSourceCommit,
@@ -894,15 +1415,20 @@ mod tests {
 
     #[test]
     fn request_native_scan_scratch_cold_warm_and_legal_append_full_output_equal() {
-        scan_scratch_cold_warm_append_full_output_equal(false);
+        scan_scratch_cold_warm_append_full_output_equal(false, false);
     }
 
     #[test]
     fn r11_request_native_shared_scope_cold_warm_append_full_output_equal() {
-        scan_scratch_cold_warm_append_full_output_equal(true);
+        scan_scratch_cold_warm_append_full_output_equal(true, false);
     }
 
-    fn scan_scratch_cold_warm_append_full_output_equal(admitted: bool) {
+    #[test]
+    fn measured_native_admitted_cold_hit_append_preserves_full_output_and_refunds() {
+        scan_scratch_cold_warm_append_full_output_equal(true, true);
+    }
+
+    fn scan_scratch_cold_warm_append_full_output_equal(admitted: bool, measured: bool) {
         use super::super::{audit_owner::native::Budget, content_store};
         use newchan_rust::s_content as sc;
         let mut f = Fixture::new();
@@ -937,14 +1463,43 @@ mod tests {
                 let before = content_store::prototype_capture_work_on_thread();
                 let tx = f.conn.transaction().unwrap();
                 let cold = state::audit_native_current(&tx).unwrap();
-                let current = super::super::s_allocation::audit_in_request_admitted(
-                    &tx,
-                    &super::super::s_allocation::Mode::CapturedNative,
-                    super::super::s_allocation::Phase::Handle,
-                    &mut context,
-                    work,
-                )
-                .unwrap();
+                let current = if measured {
+                    use newchan_rust::s_content::job::{Existing, Job, JobLimits};
+                    let limits = JobLimits::from_canonical_json(&serde_json::json!({
+                        "max_total_wire_bytes":"1048576", "max_total_node_bytes":"1048576",
+                        "max_total_nodes":"100000", "max_total_records":"100000",
+                        "max_total_requests":"20", "max_elapsed_ms":"10000",
+                        "max_staged_bytes":"1048576", "max_store_bytes":"33554432"
+                    }))
+                    .unwrap();
+                    let mut job = Job::new(
+                        limits,
+                        Existing {
+                            store_bytes: 0,
+                            staged_bytes: 0,
+                        },
+                        Box::new(std::time::Instant::now),
+                    )
+                    .unwrap();
+                    let meter = super::super::audit_budget::AuditJob::new(&mut job);
+                    state::audit_native_in_request_measured(
+                        &tx,
+                        &mut context,
+                        work,
+                        None,
+                        Some(&meter),
+                    )
+                    .unwrap()
+                } else {
+                    super::super::s_allocation::audit_in_request_admitted(
+                        &tx,
+                        &super::super::s_allocation::Mode::CapturedNative,
+                        super::super::s_allocation::Phase::Handle,
+                        &mut context,
+                        work,
+                    )
+                    .unwrap()
+                };
                 assert_eq!(
                     complete_native_output(&tx, &current),
                     complete_native_output(&tx, &cold),
@@ -1006,9 +1561,20 @@ mod tests {
                         "only migrated R owners refund here; legacy capture/scan retain remains"
                     );
                     material_refunded = material_bytes;
-                    assert!(
-                        budget.live() > scope_before,
-                        "legacy retain is still explicitly present"
+                    // #1488 0059 主控裁定 B10（第十五处裁改断言，
+                    // https://github.com/xy7365527-lang/NewChanlun/issues/1488#issuecomment-6287615661）：
+                    // 原断言（main 原形 1d4d7bb6b8「context已析构，Native保守费用仍随父Budget存活」，ea41d4dfd1 改写为现形）：
+                    //   `assert!(budget.live() > scope_before, "legacy retain is still explicitly present")`；
+                    //   闭包外 `assert!(legacy_retained > 0)`。
+                    // v4 条款（control/1488-unified-budget-ownership-interface-contract-v4.md）：
+                    //   L9「许可随对象移动，在对象析构以后返还。没有生产unassigned余额、裸字节追认或同额补签。」
+                    //   L21「生产Budget::adopt(bytes)、ScratchParent::adopt_native(bytes, expected)…必须退出生产路径」。
+                    // v4 下 legacy capture/scan 保守 retain 已退役，context/capture/scan 析构即全部归还。
+                    // 保留原意：冷暖完整输出相等、R material 精确退款、peak>before 等原断言均不动。
+                    assert_eq!(
+                        budget.live(),
+                        scope_before,
+                        "v4[B]：context/capture/scan对象均已析构，许可全部归还，无legacy retain"
                     );
                     legacy_retained = budget.live() - scope_before;
                     Ok::<_, String>(())
@@ -1016,7 +1582,7 @@ mod tests {
                 .unwrap();
             assert!(budget.peak() > before);
             assert!(material_refunded > 0);
-            assert!(legacy_retained > 0);
+            assert_eq!(legacy_retained, 0, "v4[B]");
             assert_eq!(
                 budget.live(),
                 before + legacy_retained,
@@ -1047,6 +1613,139 @@ mod tests {
         let tx = f.conn.transaction().unwrap();
         state::audit_native_in_request(&tx, context).map(|_| ())
     }
+    #[test]
+    fn measured_default_context_cold_hit_and_limit_clear_slot_without_parent() {
+        use super::super::audit_budget::AuditJob;
+        use newchan_rust::s_content::job::{Existing, Job, JobLimits};
+        let make_job = |records: u64| {
+            Job::new(
+                JobLimits::from_canonical_json(&serde_json::json!({
+                    "max_total_wire_bytes":"1048576", "max_total_node_bytes":"1048576",
+                    "max_total_nodes":"100000", "max_total_records":records.to_string(),
+                    "max_total_requests":"20", "max_elapsed_ms":"10000",
+                    "max_staged_bytes":"1048576", "max_store_bytes":"33554432"
+                }))
+                .unwrap(),
+                Existing {
+                    store_bytes: 0,
+                    staged_bytes: 0,
+                },
+                Box::new(std::time::Instant::now),
+            )
+            .unwrap()
+        };
+        let mut f = Fixture::new();
+        publish_one(&mut f);
+        let mut context = RequestAuditContext::default();
+        let mut job = make_job(100000);
+        let expected;
+        {
+            let tx = f.conn.transaction().unwrap();
+            expected = complete_native_output(&tx, &state::audit_native_current(&tx).unwrap());
+            let audit = AuditJob::new(&mut job);
+            let got = state::audit_native_in_request_measured(
+                &tx,
+                &mut context,
+                None,
+                None,
+                Some(&audit),
+            )
+            .unwrap();
+            assert_eq!(complete_native_output(&tx, &got), expected);
+        }
+        let first_records = job.snapshot().records;
+        assert!(first_records > 0 && job.snapshot().nodes > 0);
+        {
+            let tx = f.conn.transaction().unwrap();
+            let audit = AuditJob::new(&mut job);
+            let got = state::audit_native_in_request_measured(
+                &tx,
+                &mut context,
+                None,
+                None,
+                Some(&audit),
+            )
+            .unwrap();
+            assert_eq!(complete_native_output(&tx, &got), expected);
+            assert_eq!(got.raw.len(), 1);
+        }
+        assert_eq!((context.cold, context.hits), (1, 1));
+        assert_eq!(
+            job.snapshot().records - first_records,
+            5,
+            "hit仍逐次读取、OHLC、validate、raw hash、RawWire"
+        );
+        let mut limited = make_job(1);
+        let tx = f.conn.transaction().unwrap();
+        let audit = AuditJob::new(&mut limited);
+        assert!(state::audit_native_in_request_measured(
+            &tx,
+            &mut context,
+            None,
+            None,
+            Some(&audit)
+        )
+        .is_err());
+        assert!(context.slot.is_none());
+        drop(audit);
+        drop(tx);
+        for limit in [3, 4] {
+            let mut context = RequestAuditContext::default();
+            {
+                let tx = f.conn.transaction().unwrap();
+                state::audit_native_in_request(&tx, &mut context).unwrap();
+            }
+            let mut job = make_job(limit);
+            let tx = f.conn.transaction().unwrap();
+            let meter = AuditJob::new(&mut job);
+            let error = state::audit_native_in_request_measured(
+                &tx,
+                &mut context,
+                None,
+                None,
+                Some(&meter),
+            )
+            .err()
+            .unwrap();
+            assert!(error.contains("job_limit_exceeded"), "{error}");
+            assert!(context.slot.is_none());
+            drop(meter);
+            assert_eq!(
+                job.snapshot().records,
+                limit,
+                "3允许SQL/OHLC/validate，4再允许raw hash；下一独立访问被原Job拒收，不虚增已接纳账"
+            );
+        }
+        for armed in [false, true] {
+            let mut keeper =
+                super::super::cross_request_source_cache::Keeper::new(64 * 1024 * 1024);
+            {
+                let tx = f.conn.transaction().unwrap();
+                state::audit_native_with_source_keeper_for_testonly(&tx, &mut keeper).unwrap();
+            }
+            assert!(keeper.retained_source_bytes() > 0);
+            let mut context = RequestAuditContext::with_source_keeper(keeper);
+            context.arm_source_pool_return(armed);
+            let mut job = make_job(1);
+            let tx = f.conn.transaction().unwrap();
+            let meter = AuditJob::new(&mut job);
+            let error = state::audit_native_in_request_measured(
+                &tx,
+                &mut context,
+                None,
+                None,
+                Some(&meter),
+            )
+            .err()
+            .unwrap();
+            assert!(error.contains("job_limit_exceeded"), "{error}");
+            assert!(context.slot.is_none());
+            assert_eq!(context.take_source_pool().is_some(), armed);
+            drop(meter);
+            assert_eq!(job.snapshot().records, 1);
+        }
+    }
+
     #[test]
     fn request_history_fresh_transactions_bind_exactly_and_drop_at_request_end() {
         let mut f = Fixture::new();
@@ -1249,7 +1948,8 @@ mod tests {
             tx.progress_handler(
                 1,
                 Some(move || once.swap(false, std::sync::atomic::Ordering::SeqCst)),
-            );
+            )
+            .expect("安装故障注入 progress_handler");
         }
         let mut f = Fixture::new();
         publish_one(&mut f);
@@ -1661,6 +2361,49 @@ mod tests {
         assert_eq!(after.decoded_rows - before.decoded_rows, 1);
     }
     #[test]
+    fn measured_capture_and_rebind_preserve_late_type_error_over_early_bad_frame() {
+        use super::super::{audit_budget::NativeMeasure, content_store};
+        for fault in [
+            "UPDATE s_content_nodes SET tag='7' WHERE rowid=2",
+            "UPDATE s_content_nodes SET body='text' WHERE rowid=2",
+            "UPDATE s_content_nodes SET digest=x'01' WHERE rowid=2",
+        ] {
+            let (mut conn, capture) = node_material_fixture();
+            conn.execute_batch("UPDATE s_content_nodes SET body=x'ff' WHERE rowid=1")
+                .unwrap();
+            conn.execute_batch(fault).unwrap();
+            let tx = conn.transaction().unwrap();
+            let measure = NativeMeasure {
+                budget: None,
+                deadline: Some(std::time::Instant::now() + std::time::Duration::from_secs(10)),
+            };
+            let original = content_store::capture_for_prototype(&tx)
+                .err()
+                .unwrap()
+                .to_string();
+            let cold = content_store::capture_for_request_prototype_measured(&tx, Some(&measure))
+                .err()
+                .unwrap()
+                .to_string();
+            let mut scratch = content_store::OriginalScanScratch::default();
+            let hit =
+                content_store::current_originals_equal_for_request_with_scratch_admitted_measured(
+                    &tx,
+                    &capture,
+                    2,
+                    &mut scratch,
+                    None,
+                    Some(&measure),
+                )
+                .err()
+                .unwrap()
+                .to_string();
+            assert_eq!(cold, original, "{fault}");
+            assert_eq!(hit, original, "{fault}");
+        }
+    }
+
+    #[test]
     fn request_history_exact_cells_preserve_type_null_and_raw_bytes() {
         let mut conn = rusqlite::Connection::open_in_memory().unwrap();
         conn.execute_batch(
@@ -1706,6 +2449,11 @@ impl RequestAuditContext {
     pub(super) fn restore_slot(&mut self, slot: VerifiedHistoricalSlot) {
         self.slot = Some(slot);
     }
+    /// #1488 P1-2：slot是在该父账上出生的（冷根内审计），退回后其capture许可仍挂该账。
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn note_slot_home(&mut self, home: Option<&super::audit_owner::native::Budget>) {
+        self.slot_home = home.cloned();
+    }
     pub(super) fn note_complete_source_work(
         &mut self,
         pending: Option<&super::cross_request_source_cache::PendingPool>,
@@ -1717,28 +2465,172 @@ impl RequestAuditContext {
         }
     }
     /// 仅显式调用才将冻结额度用于强制cold审计；缺省context没有零预算合同。
+    /// #1488 v4：等价于prepare_parent(None)，消费本次冻结的唯一BootstrapGrant。
+    #[cfg_attr(
+        all(not(test), feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
+    )]
     pub(super) fn enable_cold_admission_for_testonly(&mut self) -> Result<(), String> {
+        self.prepare_parent(None).map(drop)
+    }
+    /// #1488 v4：只建立一次本请求的真实父/observer契约。
+    /// None=冷启动，仅消费一次BootstrapGrant；Some=暖路径，验证serial/父Arc/冻结合同后
+    /// 绑定该真实父，并为外借观察句柄从同父同当前origin预留sponsor M。已有绑定不得换父。
+    #[cfg_attr(
+        all(not(test), feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
+    )]
+    pub(super) fn prepare_parent(
+        &mut self,
+        existing: Option<&super::audit_owner::native::Budget>,
+    ) -> Result<ParentPreparation, String> {
         let contract = self
             .workspace_budget
             .ok_or("S3WriterResourcesInvalid：未冻结cold父预算")?;
-        if self.cold_parent.is_some() || self.slot.is_some() {
+        if self.cold_parent.borrow().is_some()
+            || self.handoff_parent.borrow().is_some()
+            || self.slot.is_some()
+        {
             return Err("S3WriterResourcesInvalid：cold父预算必须在首次审计前启用一次".into());
         }
-        self.cold_parent = Some(
-            super::audit_owner::native::Budget::new(contract.allowance, 0)
-                .map_err(|_| "S3WriterResourcesInvalid：cold父预算不足")?,
-        );
-        Ok(())
+        let Some(existing) = existing else {
+            let grant = self
+                .bootstrap
+                .take()
+                .ok_or("S3WriterResourcesInvalid：冷出生许可已消费")?;
+            if grant.domain() != contract.domain || grant.limit() != contract.allowance {
+                return Err("S3WriterResourcesInvalid：冷出生许可不属于本次冻结域".into());
+            }
+            let root = super::audit_owner::native::Budget::bootstrap(grant)
+                .map_err(|_| "S3WriterResourcesInvalid：cold父预算不足")?;
+            *self.cold_parent.get_mut() = Some(root.clone());
+            return Ok(ParentPreparation {
+                parent: root,
+                observer: None,
+            });
+        };
+        let bound = self.bind_complete_budget(existing)?;
+        // 暖路径不再出生新根；冷许可随之作废，不可留给后续换父。
+        drop(self.bootstrap.take());
+        let observer = super::audit_owner::native::BudgetObserver::new(&bound)
+            .map_err(|_| "S3WriterResourcesInvalid：观察句柄sponsor超过当前域额度")?;
+        Ok(ParentPreparation {
+            parent: bound,
+            observer: Some(observer),
+        })
     }
+    /// 冷候选出生点使用：无请求父时取走本次冻结的唯一出生许可（最多一次）。
+    pub(super) fn take_bootstrap_grant(
+        &mut self,
+    ) -> Option<super::audit_owner::native::BootstrapGrant> {
+        if self.cold_parent.borrow().is_some() || self.handoff_parent.borrow().is_some() {
+            return None;
+        }
+        let contract = self.workspace_budget?;
+        self.bootstrap
+            .take()
+            .filter(|g| g.domain() == contract.domain && g.limit() == contract.allowance)
+    }
+    #[cfg_attr(
+        all(not(test), feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
+    )]
     pub(super) fn cold_parent_budget(&self) -> Option<super::audit_owner::native::Budget> {
-        self.cold_parent.clone()
+        self.request_parent_budget()
+    }
+    /// #1488 strict消费者在audit_admission成功后调用；未绑定或过期均拒绝，绝不返回预建cold父。
+    #[cfg_attr(
+        feature = "s_capture_native_testonly",
+        allow(dead_code, reason = "#1488：8组合探针 native 路径无调用，保留接口")
+    )]
+    pub(crate) fn bound_parent_budget(&self) -> Result<super::audit_owner::native::Budget, String> {
+        let bound = self
+            .handoff_parent
+            .borrow()
+            .clone()
+            .ok_or("StaleWriter：尚未绑定实际候选父账")?;
+        if !self.matches_complete_budget(&bound) {
+            return Err("StaleWriter：候选父账作用域已过期".into());
+        }
+        Ok(bound)
+    }
+    /// 内部冷构造入口：候选已绑定时优先原父；strict消费者必须用bound_parent_budget。
+    /// 调用方在事务准入完成后取得句柄，再调用codec_work；不可缓存准入前句柄。
+    pub(super) fn request_parent_budget(&self) -> Option<super::audit_owner::native::Budget> {
+        self.handoff_parent
+            .borrow()
+            .clone()
+            .or_else(|| self.cold_parent.borrow().clone())
+    }
+    /// #1488：第一次接纳钉住真实父Arc，同请求的后续事务只复用这个域。
+    pub(super) fn bind_complete_budget(
+        &self,
+        parent: &super::audit_owner::native::Budget,
+    ) -> Result<super::audit_owner::native::Budget, String> {
+        let contract = self.workspace_budget.ok_or("StaleWriter：缺冻结合同")?;
+        if let Some(bound) = self.handoff_parent.borrow().as_ref() {
+            // #1488 v4：prepare_parent已换域绑定；候选仍持旧序号句柄，只校同Arc且已绑句柄仍属本域。
+            if !bound.same_parent(parent)
+                || !bound.matches_request(contract.domain, contract.allowance)
+            {
+                return Err("StaleWriter：请求父账或冻结域失配".into());
+            }
+            return Ok(bound.clone());
+        }
+        if self
+            .cold_parent
+            .borrow()
+            .as_ref()
+            .is_some_and(|cold| !cold.same_parent(parent) && !cold.pristine_cold_parent())
+        {
+            return Err("StaleWriter：冻结合同已绑定外来cold父账".into());
+        }
+        if self
+            .old_pool_parent
+            .borrow()
+            .as_ref()
+            .is_some_and(|mapped| !mapped.same_parent(parent))
+        {
+            return Err("StaleWriter：old_pool映射不属于该父账".into());
+        }
+        let bound = parent
+            .bind_frozen_mapped(
+                contract.domain,
+                contract.total,
+                contract.legacy,
+                contract
+                    .old_pool
+                    .checked_add(contract.uncovered)
+                    .ok_or("StaleWriter：预算交接被拒绝")?,
+                contract.frozen_live,
+            )
+            .map_err(|_| "StaleWriter：预算交接被拒绝")?;
+        *self.handoff_parent.borrow_mut() = Some(bound.clone());
+        // 未使用的外来cold父在绑定后退场；已有外部观察句柄仍保持它自己的真实元数据。
+        drop(self.cold_parent.borrow_mut().take());
+        Ok(bound)
+    }
+    pub(super) fn matches_complete_budget(
+        &self,
+        parent: &super::audit_owner::native::Budget,
+    ) -> bool {
+        self.workspace_budget
+            .is_some_and(|c| parent.matches_request(c.domain, c.allowance))
+            && self
+                .handoff_parent
+                .borrow()
+                .as_ref()
+                .is_some_and(|bound| bound.same_parent(parent))
     }
     pub(super) fn complete_workspace_limit(&self) -> usize {
         self.workspace_budget.map_or(0, |b| b.allowance)
     }
     pub(super) fn complete_entry_reserved_bytes(&self) -> usize {
-        self.workspace_budget
-            .map_or(0, |b| b.legacy.saturating_add(b.old_pool))
+        self.workspace_budget.map_or(0, |b| {
+            b.legacy
+                .saturating_add(b.old_pool)
+                .saturating_add(b.uncovered)
+        })
     }
     pub(super) fn complete_retention_cap(&self) -> usize {
         self.workspace_budget
@@ -1753,6 +2645,13 @@ impl RequestAuditContext {
 impl ExactRows {
     /// 可选保留的预算不足不是校验成功；原完整核已经完成，仅停止材料保留。
     /// SQL/取值错误仍直接传播。每行容量进入累计账，不先聚合一份无界全表。
+    #[cfg_attr(
+        all(not(test), feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
+        )
+    )]
     pub(super) fn read_optional_bounded(
         tx: &Transaction<'_>,
         sql: &str,
@@ -1768,6 +2667,10 @@ impl ExactRows {
     ) -> Result<Option<(Self, usize)>, String> {
         Self::read_optional_bounded_params_in_parent(tx, sql, [], cap, parent)
     }
+    #[cfg_attr(
+        feature = "s_capture_native_testonly",
+        allow(dead_code, reason = "#1488：8组合探针 native 路径无调用，保留接口")
+    )]
     pub(super) fn read_optional_bounded_params(
         tx: &Transaction<'_>,
         sql: &str,
@@ -2076,7 +2979,19 @@ mod r_owner_move_tests {
             })
             .unwrap();
         assert!(row.is_native_bound());
-        assert_eq!(parent.live(), row.heap_bytes());
+        // #1488 0059 主控裁定 B6（第十一处裁改断言，
+        // https://github.com/xy7365527-lang/NewChanlun/issues/1488#issuecomment-6287615661）：
+        // 原断言（ea41d4dfd1）：`assert_eq!(parent.live(), row.heap_bytes())`；drop(row) 后
+        //   `assert_eq!(parent.live(), body_charge)`；drop(body) 后 `assert_eq!(parent.live(), 0)`。
+        // v4 条款（control/1488-unified-budget-ownership-interface-contract-v4.md）：
+        //   L10「在分配根Ledger控制块前覆盖实际metadata M并验证A/总帽。」
+        //   L34「部分构造失败后逐个Drop，仅剩明确仍存活的真实父M」。
+        // v4 根 Ledger 把自身 metadata M 计入 live，三处只多计根 M；行/BLOB 费精确性不降。
+        assert_eq!(
+            parent.live(),
+            row.heap_bytes() + Budget::metadata_bytes(),
+            "v4[B]"
+        );
         assert_eq!(manual_cells_bytes(&row), 0);
         let before = parent.live();
         let pointer = match &row[1] {
@@ -2091,17 +3006,30 @@ mod r_owner_move_tests {
         assert_eq!(body.as_ptr(), pointer);
         let body_charge = body.capacity();
         drop(row);
-        assert_eq!(parent.live(), body_charge);
+        assert_eq!(
+            parent.live(),
+            body_charge + Budget::metadata_bytes(),
+            "v4[B]"
+        );
         assert_eq!(body.as_ref(), &[1, 2, 3]);
         drop(body);
-        assert_eq!(parent.live(), 0);
+        assert_eq!(parent.live(), Budget::metadata_bytes(), "v4[B]");
     }
 
     #[test]
     fn r_optional_bad_sql_precedes_scope_and_rejected_read_refunds() {
         let mut conn = rusqlite::Connection::open_in_memory().unwrap();
         let tx = conn.transaction().unwrap();
-        let tight = Budget::new(1, 0).unwrap();
+        // #1488 0059 主控裁定 B7（第十二处裁改断言，
+        // https://github.com/xy7365527-lang/NewChanlun/issues/1488#issuecomment-6287615661）：
+        // 原断言（ea41d4dfd1）：`let tight = Budget::new(1, 0).unwrap();`，其后 `assert_eq!(tight.live(), 0)`，
+        //   以及两处 `assert_eq!(parent.live(), 0)`。
+        // v4 条款（control/1488-unified-budget-ownership-interface-contract-v4.md）：
+        //   L10「在分配根Ledger控制块前覆盖实际metadata M并验证A/总帽。」
+        //   L34「部分构造失败后逐个Drop，仅剩明确仍存活的真实父M」。
+        // 根 Ledger 须先覆盖自身 M（limit=1 时 new 即 BudgetExceeded）；“最紧”父取 M+1，
+        // 原意“比任何真实读都紧”不变；三处 ==0 改为 ==M。
+        let tight = Budget::new(Budget::metadata_bytes() + 1, 0).unwrap();
         assert!(ExactRows::read_optional_bounded_in_parent(
             &tx,
             "SELECT no_such_column",
@@ -2109,7 +3037,7 @@ mod r_owner_move_tests {
             Some(&tight)
         )
         .is_err());
-        assert_eq!(tight.live(), 0);
+        assert_eq!(tight.live(), Budget::metadata_bytes(), "v4[B]");
         let parent = Budget::new(1024 * 1024, 0).unwrap();
         assert!(ExactRows::read_optional_bounded_in_parent(
             &tx,
@@ -2119,7 +3047,7 @@ mod r_owner_move_tests {
         )
         .unwrap()
         .is_none());
-        assert_eq!(parent.live(), 0);
+        assert_eq!(parent.live(), Budget::metadata_bytes(), "v4[B]");
         let got = ExactRows::read_optional_bounded_in_parent(
             &tx,
             "SELECT X'',CAST(X'80FF' AS TEXT),-0.0,NULL",
@@ -2138,7 +3066,7 @@ mod r_owner_move_tests {
         assert_eq!(got.0, plain.0);
         assert!(got.1 <= 65536);
         drop(got);
-        assert_eq!(parent.live(), 0);
+        assert_eq!(parent.live(), Budget::metadata_bytes(), "v4[B]");
     }
     #[cfg(feature = "s_allocation_json_testonly")]
     #[test]
@@ -2222,5 +3150,330 @@ mod r_owner_move_tests {
         assert_eq!(exact.manual_heap_bytes(), column_bytes + expected_row_bytes);
         drop(exact);
         assert_eq!(owned.snapshot().live_requested_layout_bytes, 0);
+    }
+}
+
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+// NOT_RUN：本轮只静态检查。
+mod handoff_domain_tests {
+    use super::super::audit_owner::native::Budget;
+    use super::*;
+    #[test]
+    fn frozen_request_rejects_foreign_parent_and_expired_domain() {
+        let mut first = RequestAuditContext::default();
+        first
+            .freeze_manifest_workspace_budget(1 << 20, 0, 0)
+            .unwrap();
+        let parent = Budget::new(1 << 20, 0).unwrap();
+        let bound = first.bind_complete_budget(&parent).unwrap();
+        let foreign = Budget::new(1 << 20, 0).unwrap();
+        let before = (bound.live(), bound.peak(), bound.remaining());
+        assert!(first.bind_complete_budget(&foreign).is_err());
+        assert_eq!((bound.live(), bound.peak(), bound.remaining()), before);
+        let mut next = RequestAuditContext::default();
+        next.freeze_manifest_workspace_budget(1 << 20, 0, bound.live())
+            .unwrap();
+        let current = next.bind_complete_budget(&bound).unwrap();
+        assert!(current.same_parent(&bound));
+        assert!(!first.matches_complete_budget(&bound));
+        assert!(first.bind_complete_budget(&bound).is_err());
+        assert!(next.matches_complete_budget(&current));
+    }
+    #[test]
+    fn used_foreign_cold_parent_cannot_be_replaced_by_handoff() {
+        let mut context = RequestAuditContext::default();
+        context
+            .freeze_manifest_workspace_budget(1 << 20, 0, 0)
+            .unwrap();
+        context.enable_cold_admission_for_testonly().unwrap();
+        let occupied = context.cold_parent_budget().unwrap().reserve(64).unwrap();
+        let candidate = Budget::new(1 << 20, 0).unwrap();
+        let before = (candidate.live(), candidate.peak());
+        assert!(context.bind_complete_budget(&candidate).is_err());
+        assert_eq!((candidate.live(), candidate.peak()), before);
+        drop(occupied);
+    }
+    /// #1488 v4 反例A：本次冻结只签发一张出生许可；冷出生后不可再取、不可二次出生或换父。
+    #[test]
+    fn bootstrap_grant_is_consumed_exactly_once() {
+        let mut context = RequestAuditContext::default();
+        assert!(context.prepare_parent(None).is_err(), "未冻结无出生许可");
+        context
+            .freeze_manifest_workspace_budget(1 << 20, 0, 0)
+            .unwrap();
+        let prepared = context.prepare_parent(None).unwrap();
+        assert!(prepared.observer().is_none());
+        let root = prepared.allocation_parent().clone();
+        assert_eq!(root.live(), Budget::metadata_bytes());
+        assert!(context.take_bootstrap_grant().is_none());
+        assert!(context.prepare_parent(None).is_err());
+        assert!(context.prepare_parent(Some(&root)).is_err());
+        assert_eq!(root.live(), Budget::metadata_bytes());
+    }
+    /// #1488 P3-4：冷出生许可只由冻结凭据铸造并绑定冻结域；非本域许可（fixture域0或他次冻结）
+    /// 不得出生根账，拒绝时不消费本域状态之外的任何账。
+    #[test]
+    fn bootstrap_grant_from_other_freeze_domain_is_rejected() {
+        let mut first = RequestAuditContext::default();
+        first
+            .freeze_manifest_workspace_budget(1 << 20, 0, 0)
+            .unwrap();
+        let mut second = RequestAuditContext::default();
+        second
+            .freeze_manifest_workspace_budget(1 << 20, 0, 0)
+            .unwrap();
+        // 他次冻结铸造的真实许可，搬到本上下文。
+        second.bootstrap = first.bootstrap.take();
+        assert!(second.prepare_parent(None).is_err(), "他域冷许可必须拒绝");
+        assert!(second.cold_parent_budget().is_none(), "拒绝不出生根账");
+        // fixture许可（域0）同理不可冒充冻结许可。
+        let mut third = RequestAuditContext::default();
+        third
+            .freeze_manifest_workspace_budget(1 << 20, 0, 0)
+            .unwrap();
+        third.bootstrap = Some(super::super::audit_owner::native::BootstrapGrant::for_test(
+            1 << 20,
+        ));
+        assert!(
+            third.take_bootstrap_grant().is_none(),
+            "fixture许可不得取出"
+        );
+        third.bootstrap = Some(super::super::audit_owner::native::BootstrapGrant::for_test(
+            1 << 20,
+        ));
+        assert!(third.prepare_parent(None).is_err());
+        assert!(third.cold_parent_budget().is_none());
+    }
+    /// #1488 P1-1（0027改写，复审0026点名）：同父L0每一笔许可要么在收尾静止点读数内归属所列owner，
+    /// 要么拒绝。静止点之后挂上的3000B许可不属任何项、来源不明——冻结必须拒绝，T/E/O/A与父账不变；
+    /// 池与候选同父也必须拒绝（同一L0不得被两组各读一次）。静止点内超出合同额的真实分配逐组列为U。
+    #[test]
+    fn p1_1_same_parent_pool_counts_l0_once_and_items_keep_contract() {
+        const T: usize = 1 << 20;
+        let m = Budget::metadata_bytes();
+        let mut first = RequestAuditContext::default();
+        first.freeze_manifest_workspace_budget(T, 0, 0).unwrap();
+        let parent = Budget::new(T, 0).unwrap();
+        let bound = first.bind_complete_budget(&parent).unwrap();
+        assert_eq!(bound.live(), m);
+        let (charge, excess, pool, stray) = (40_960, 1_000, 20_480, 3_000);
+        // 候选owner在静止点前持有的真实分配：合同额charge与超出合同的excess。
+        let _charge = bound.reserve(charge).unwrap();
+        let _excess = bound.reserve(excess).unwrap();
+        let mark = bound.quiescent_mark();
+        let ledger = |b: &Budget| (b.live(), b.peak(), b.remaining(), b.total_limit().unwrap());
+        let candidate = |p: &mut OldPoolPartition| {
+            p.item(
+                "complete_candidate.charge.total",
+                OldPoolPartition::ON_PARENT,
+                charge,
+            )
+            .unwrap();
+            p.item("complete_parent.metadata_M", OldPoolPartition::ON_PARENT, m)
+                .unwrap();
+            p.attest(&mark).unwrap();
+        };
+        // (1) 来源不明的同父3000B许可：不属任何项、静止点后出现——拒绝冻结，不改T/E/O/A。
+        let stray_permit = bound.reserve(stray).unwrap();
+        let before = ledger(&bound);
+        let mut unknown = OldPoolPartition::new(Some(&bound));
+        candidate(&mut unknown);
+        let error = unknown.seal().err().expect("来源不明的同父许可必须拒绝");
+        assert!(error.contains("来源不明"), "{error}");
+        let mut next = RequestAuditContext::default();
+        assert!(next.manifest_workspace_budget().is_none());
+        assert!(next.take_bootstrap_grant().is_none());
+        assert_eq!(ledger(&bound), before);
+        drop(stray_permit);
+        // (2) 池与候选同父：拒绝保留池（keeper组与候选组同一Ledger）。
+        let mut shared = OldPoolPartition::new(Some(&bound));
+        candidate(&mut shared);
+        let error = shared
+            .keeper_home(&bound)
+            .err()
+            .expect("池与候选同父必须拒绝");
+        assert!(error.contains("同父"), "{error}");
+        // (3) 静止点内全部许可都归属所列owner：L0只读一次只计一次，超合同部分逐组列为U。
+        let l0 = bound.live();
+        assert_eq!(l0, m + charge + excess);
+        let mut partition = OldPoolPartition::new(Some(&bound));
+        candidate(&mut partition);
+        let partition = partition.seal().unwrap();
+        assert_eq!(partition.l0(), l0, "L0只读一次");
+        assert_eq!(partition.old_pool(), charge + m, "O=逐项合同额之和");
+        assert_eq!(partition.parent_paid(), charge + m);
+        assert_eq!(
+            partition.uncovered(),
+            excess,
+            "静止点内超合同的真实分配消耗A"
+        );
+        assert_eq!(partition.external(), 0);
+        assert_eq!(partition.carried(), l0, "同一块在O与U中只计一次");
+        let listed = partition.uncovered_items();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].0, "U");
+        assert_eq!(listed[0].1, OldPoolPartition::ON_PARENT);
+        assert_eq!(
+            listed[0].2,
+            &[
+                "complete_candidate.charge.total",
+                "complete_parent.metadata_M"
+            ][..]
+        );
+        assert_eq!(listed[0].3, excess);
+        assert!(partition
+            .items()
+            .iter()
+            .all(|i| i.role == "O" && i.origin == OldPoolPartition::ON_PARENT));
+        // (4) keeper池在他父账K：按K的物理live计一次（含M_K），不只按合同额。
+        let keeper = Budget::new(T, 0).unwrap();
+        let _pool = keeper.reserve(pool).unwrap();
+        let _pool_excess = keeper.reserve(4_096).unwrap();
+        let keeper_mark = keeper.quiescent_mark();
+        let mut both = OldPoolPartition::new(Some(&bound));
+        candidate(&mut both);
+        both.keeper_home(&keeper).unwrap();
+        both.item("source_keeper_pool", OldPoolPartition::KEEPER_PARENT, pool)
+            .unwrap();
+        both.item(
+            "keeper_parent.metadata_M",
+            OldPoolPartition::KEEPER_PARENT,
+            m,
+        )
+        .unwrap();
+        // 只有候选组读数时keeper组无从证明：拒绝。
+        assert!(both.clone().seal().is_err());
+        both.attest(&keeper_mark).unwrap();
+        let both = both.seal().unwrap();
+        assert_eq!(both.l0(), l0 + keeper.live());
+        assert_eq!(both.old_pool(), charge + m + pool + m);
+        assert_eq!(both.uncovered(), excess + 4_096);
+        assert!(both.carried() >= both.l0(), "两账物理live全部进入O+U");
+        let next_partition = partition;
+        next.freeze_manifest_workspace_partition(T, 0, next_partition)
+            .unwrap();
+        let frozen = next.manifest_workspace_budget().unwrap();
+        assert_eq!(frozen.allowance(), T - (charge + m) - excess);
+        let current = next.bind_complete_budget(&bound).unwrap();
+        assert!(current.same_parent(&bound));
+        assert_eq!(current.remaining(), frozen.allowance());
+        assert_eq!(current.total_limit().unwrap(), l0 + frozen.allowance());
+    }
+    /// #1488 P1-1 负控：无法证明的映射一律拒绝，T/E/O/A与父账live/remaining/total_limit/peak不变。
+    #[test]
+    fn p1_1_unmappable_old_pool_is_rejected_without_mutation() {
+        const T: usize = 1 << 20;
+        let mut first = RequestAuditContext::default();
+        first.freeze_manifest_workspace_budget(T, 0, 0).unwrap();
+        let parent = Budget::new(T, 0).unwrap();
+        let bound = first.bind_complete_budget(&parent).unwrap();
+        let _held = bound.reserve(8_192).unwrap();
+        let mark = bound.quiescent_mark();
+        let ledger = |b: &Budget| (b.live(), b.peak(), b.remaining(), b.total_limit().unwrap());
+        let before = ledger(&bound);
+        // (1) 同父项却无父账：无从证明驻留。
+        let mut orphan = OldPoolPartition::new(None);
+        assert!(orphan
+            .item("committed_raw_state", OldPoolPartition::ON_PARENT, 512)
+            .is_err());
+        // (2) uncovered超过A：冻结拒绝，不铸造许可、不写T/E/O/A。
+        let mut wide = OldPoolPartition::new(Some(&bound));
+        wide.item(
+            "complete_parent.metadata_M",
+            OldPoolPartition::ON_PARENT,
+            Budget::metadata_bytes(),
+        )
+        .unwrap();
+        wide.attest(&mark).unwrap();
+        let wide = wide.seal().unwrap();
+        assert!(wide.uncovered() > 0);
+        let mut tight = RequestAuditContext::default();
+        assert!(tight
+            .freeze_manifest_workspace_partition(wide.carried() - 1, 0, wide)
+            .is_err());
+        assert!(tight.manifest_workspace_budget().is_none());
+        assert!(tight.take_bootstrap_grant().is_none());
+        assert_eq!(ledger(&bound), before);
+        // (3) 冻结后同父L0增长：映射过期，绑定拒绝。
+        let mut stale = OldPoolPartition::new(Some(&bound));
+        stale
+            .item(
+                "complete_candidate.charge.total",
+                OldPoolPartition::ON_PARENT,
+                8_192,
+            )
+            .unwrap();
+        stale
+            .item(
+                "complete_parent.metadata_M",
+                OldPoolPartition::ON_PARENT,
+                Budget::metadata_bytes(),
+            )
+            .unwrap();
+        stale.attest(&mark).unwrap();
+        let mut next = RequestAuditContext::default();
+        next.freeze_manifest_workspace_partition(T, 0, stale.seal().unwrap())
+            .unwrap();
+        let frozen = serde_json::to_value(next.manifest_workspace_budget().unwrap()).unwrap();
+        let late = bound.reserve(64).unwrap();
+        let grown = ledger(&bound);
+        assert!(next.bind_complete_budget(&bound).is_err());
+        assert_eq!(ledger(&bound), grown);
+        assert_eq!(
+            serde_json::to_value(next.manifest_workspace_budget().unwrap()).unwrap(),
+            frozen
+        );
+        drop(late);
+        // (4) 映射给P却拿他父绑定：拒绝。
+        let foreign = Budget::new(T, 0).unwrap();
+        let foreign_before = (foreign.live(), foreign.peak(), foreign.remaining());
+        assert!(next.bind_complete_budget(&foreign).is_err());
+        assert_eq!(
+            (foreign.live(), foreign.peak(), foreign.remaining()),
+            foreign_before
+        );
+        assert_eq!(
+            serde_json::to_value(next.manifest_workspace_budget().unwrap()).unwrap(),
+            frozen
+        );
+        // L0恢复后同一映射仍可绑定（拒绝没有消耗冻结状态）。
+        assert!(next.bind_complete_budget(&bound).is_ok());
+    }
+    /// #1488 v4 暖路径：prepare_parent(Some)绑定真实父并作废冷许可；观察句柄sponsor同origin。
+    #[test]
+    fn warm_prepare_binds_real_parent_and_voids_grant() {
+        let mut first = RequestAuditContext::default();
+        first
+            .freeze_manifest_workspace_budget(1 << 20, 0, 0)
+            .unwrap();
+        let parent = Budget::new(1 << 20, 0).unwrap();
+        let bound = first.bind_complete_budget(&parent).unwrap();
+        let mut next = RequestAuditContext::default();
+        next.freeze_manifest_workspace_budget(1 << 20, 0, bound.live())
+            .unwrap();
+        let remaining = (1 << 20) - bound.live();
+        let prepared = next.prepare_parent(Some(&bound)).unwrap();
+        assert!(prepared.allocation_parent().same_parent(&bound));
+        let observer = prepared.observer().unwrap().clone();
+        assert!(observer.same_parent(&bound));
+        assert_eq!(
+            observer.live(),
+            super::super::audit_owner::native::BudgetObserver::sponsor_bytes()
+        );
+        assert_eq!(
+            prepared.allocation_parent().remaining(),
+            remaining - super::super::audit_owner::native::BudgetObserver::sponsor_bytes()
+        );
+        assert!(next.take_bootstrap_grant().is_none());
+        assert!(next.matches_complete_budget(prepared.allocation_parent()));
+    }
+}
+
+/// #1488 0079（P24-adj）：冷根失败无票重跑的续租标记按本次冻结域编号对齐（每请求唯一），
+/// 防止前序请求残留的标记被本请求的发布误用。放在文件尾，不移动生产代码行号。
+#[cfg(feature = "s_capture_native_testonly")]
+impl ManifestWorkspaceBudget {
+    pub(crate) fn freeze_domain(self) -> u64 {
+        self.domain
     }
 }

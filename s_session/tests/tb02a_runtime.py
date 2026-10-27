@@ -126,7 +126,7 @@ class Tb02aRun(Run):
             self.helper_stderr = (self.output / "http-helper.stderr").open("x")
             self.helper = subprocess.Popen(
                 [self.node, str(self.root / "tests/tb01c_http_capture.cjs"),
-                 "--base-url", "http://127.0.0.1:" + self.config["port"],
+                 "--base-url", "http://127.0.0.1:" + self.config["port"],  # DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
                  "--output-dir", str(self.output / "http")],
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=self.helper_stderr,
                 bufsize=0,

@@ -67,9 +67,7 @@ use super::positional::{
 };
 use super::positional_fusion::PhaseView;
 use super::tape::SignalTape;
-use super::types::{
-    BspClass, BspEvent, DivEvent, Polarity, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER,
-};
+use super::types::{BspClass, BspEvent, DivEvent, Polarity, FIRST_BSP_LADDER, MAX_LADDER};
 use super::unified_osc::{OscLayer, OscOut};
 use crate::buysellpoint::Side;
 use crate::stroke::Direction;
@@ -143,6 +141,7 @@ pub(crate) fn run_unified_voice(
     tape: &SignalTape,
     floor_ladder: usize,
     anc_freeze: bool,
+    q_total: f64,
 ) -> Result<PositionalResult, String> {
     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {
         return Err(format!(
@@ -171,7 +170,7 @@ pub(crate) fn run_unified_voice(
     let n = tape.bars.len();
     let mut res = PositionalResult::default();
     let mut layers: [LayerState; MAX_LADDER] = [LayerState::Flat; MAX_LADDER];
-    let mut pool = INITIAL_CAPITAL;
+    let mut pool = q_total;
     let mut book = CenterBook::new();
     let mut depth_ref = DepthRef::new(DEPTH_REF_WINDOW);
     let mut osc_layer = OscLayer::new();
@@ -881,7 +880,7 @@ pub(crate) fn run_unified_voice(
 #[cfg(test)]
 mod tests {
     use super::super::config::SUB_COST_MIN_OBS;
-    use super::super::positional::{run_positional, PolarityMode};
+    use super::super::positional::{run_positional_fx, PolarityMode};
     use super::*;
     use crate::theta_v0::classifier::{TurnClassEvidence, TurnClassRow, XzdSecondCandidate};
     use crate::trading::tape::BarSig;
@@ -964,7 +963,7 @@ mod tests {
             trend_flips: Some(trend_flips),
             ..Default::default()
         };
-        run_positional(&t, 2, full_v()).unwrap()
+        run_positional_fx(&t, 2, full_v()).unwrap()
     }
 
     #[test]
@@ -986,7 +985,7 @@ mod tests {
             bars: warmup(2),
             ..Default::default()
         };
-        assert!(run_positional(&t, 2, full_v()).is_err());
+        assert!(run_positional_fx(&t, 2, full_v()).is_err());
         // 无 div 行 ⇒ 拒绝（nest/osc 词汇残缺）。
         let no_div: Vec<BarSig> = warmup(2)
             .into_iter()
@@ -1001,7 +1000,7 @@ mod tests {
             trend_flips: Some(vec![]),
             ..Default::default()
         };
-        assert!(run_positional(&t2, 2, full_v()).is_err());
+        assert!(run_positional_fx(&t2, 2, full_v()).is_err());
     }
 
     #[test]
@@ -1255,7 +1254,7 @@ mod tests {
             turn_class_rows: Some(rows),
             ..Default::default()
         };
-        run_positional(&t, 2, full_v()).unwrap()
+        run_positional_fx(&t, 2, full_v()).unwrap()
     }
 
     #[test]
@@ -1378,7 +1377,7 @@ mod tests {
             xzd_second_candidates: Some(cands),
             ..Default::default()
         };
-        run_positional(&t, 2, full_v()).unwrap()
+        run_positional_fx(&t, 2, full_v()).unwrap()
     }
 
     #[test]
@@ -1521,7 +1520,7 @@ mod tests {
             xzd_second_candidates: None, // guard：事件层未产出
             ..Default::default()
         };
-        let r = run_positional(&t, 2, full_v()).unwrap();
+        let r = run_positional_fx(&t, 2, full_v()).unwrap();
         assert_eq!(r.trades.len(), baseline.trades.len());
         for (a, b) in r.trades.iter().zip(baseline.trades.iter()) {
             assert_eq!(format!("{a:?}"), format!("{b:?}"), "None = 零行为变化");

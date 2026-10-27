@@ -4,13 +4,15 @@ use super::audit_store::RefValue;
 use super::audit_store::{CodecRead, CodecStore};
 use super::business_json::BusinessMap;
 use super::business_json::{self as bj, RawEventsView};
+#[cfg(test)]
+use super::read_effective_events;
 use crate::{
     canonical_json,
     content_producer::{
         self, Cc004Producer, ShapeIdentityView, CC004_STEP_KIND, CC005_GROUP_KIND,
         CC006_SHAPE_KIND, CC007_FRACTAL_KIND, CC054_KNOWLEDGE_KIND,
     },
-    read_effective_events, stored_source_coord, tb02a, tb02a_facts, tb02b,
+    tb02a, tb02b,
 };
 use newchan_rust::s_content::{
     self as sc,
@@ -18,6 +20,10 @@ use newchan_rust::s_content::{
     Built, ContentRef, Kind, NodeDigest, NodeSink, NodeSource, NodeStore, Value as V,
 };
 use sc::capture_allocation::native_owned::{NativeRefFields, NativeValue};
+#[cfg_attr(
+    not(test),
+    allow(unused_imports, reason = "#1488 再合 #1608：仅测试使用")
+)]
 use serde_json::{json, Value};
 #[cfg(test)]
 #[path = "source_audit_oracle.rs"]
@@ -28,10 +34,10 @@ mod source_contributions;
 #[cfg(test)]
 #[path = "source_delta.rs"]
 mod source_delta;
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+pub(crate) use source_contributions::SourceWork;
 #[cfg(feature = "s_capture_native_testonly")]
-pub(crate) use source_contributions::{
-    audit_native_bound, NativeSourceState, NativeSourceVerdict, SourceWork,
-};
+pub(crate) use source_contributions::{audit_native_bound, NativeSourceState};
 #[path = "source_pending.rs"]
 mod source_pending;
 #[path = "source_prefix.rs"]
@@ -56,10 +62,18 @@ pub(crate) struct SourceCallStats {
 #[cfg(test)]
 thread_local! { static SOURCE_CALL_STATS: std::cell::Cell<SourceCallStats> = const { std::cell::Cell::new(SourceCallStats {full_source_calls:0,full_pending_calls:0,fixture_bind_calls:0,full_members_enumerations:0}) }; }
 #[cfg(test)]
+#[cfg_attr(
+    all(test, not(feature = "s_capture_native_testonly")),
+    allow(dead_code, reason = "#1488 再合 #1608：s_session 测试 构建不触达")
+)]
 pub(crate) fn reset_source_call_stats() {
     SOURCE_CALL_STATS.with(|v| v.set(SourceCallStats::default()));
 }
 #[cfg(test)]
+#[cfg_attr(
+    all(test, not(feature = "s_capture_native_testonly")),
+    allow(dead_code, reason = "#1488 再合 #1608：s_session 测试 构建不触达")
+)]
 pub(crate) fn source_call_stats() -> SourceCallStats {
     SOURCE_CALL_STATS.with(std::cell::Cell::get)
 }
@@ -75,6 +89,13 @@ fn err(e: impl std::fmt::Display) -> String {
     format!("SourceAuditInvalid：{e}")
 }
 #[cfg(test)]
+#[cfg_attr(
+    not(feature = "s_capture_native_testonly"),
+    allow(
+        dead_code,
+        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+    )
+)]
 fn f(k: &str) -> PathStep {
     PathStep::Field(k.into())
 }
@@ -135,6 +156,10 @@ struct NativeFieldMemo<'capture> {
     field_hits: u64,
 }
 impl<'capture> NativeFieldMemo<'capture> {
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     fn new(capture: &'capture sc::AuditCapture) -> Self {
         Self {
             capture,
@@ -146,15 +171,20 @@ impl<'capture> NativeFieldMemo<'capture> {
             field_hits: 0,
         }
     }
-    fn qualified(&self, r: sc::RefView<'_>) -> Result<bool, sc::CodecError> {
+    fn qualified(
+        &self,
+        r: sc::RefView<'_>,
+        measure: Option<&super::audit_budget::NativeMeasure<'_>>,
+    ) -> Result<bool, sc::CodecError> {
         // Root presence is insufficient; original public validation includes format/root/header
         // and the complete immutable closure. Overlay-only records never obtain a handle.
         if let sc::RefView::Normal(original) = r {
             if self.capture.contains(&original.digest()?) {
-                super::audit_store::NativeAdmission(self.work).native_verify_original(
+                super::audit_store::NativeAdmission(self.work).native_verify_original_measured(
                     self.capture,
                     original.into(),
                     sc::Mode::Public,
+                    measure,
                 )?;
                 return Ok(true);
             }
@@ -187,6 +217,13 @@ impl<'names> SourceFields<'names> {
     ) -> Result<Self, String> {
         s.lookup_subset_ref(r, names).map(Self).map_err(err)
     }
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(
+            dead_code,
+            reason = "#1488 再合 #1608：native 非测试、s_session 非测试、s_session 测试 构建不触达"
+        )
+    )]
     fn get(&self, k: &str) -> Result<sc::RefView<'_>, String> {
         self.0.get(k).ok_or_else(|| err(format!("原件缺字段{k}")))
     }
@@ -306,6 +343,7 @@ fn built<'a>(r: impl Into<sc::RefView<'a>>) -> Result<Built, String> {
         extent: r.extent(),
     })
 }
+#[cfg(test)]
 fn cv(v: &Value) -> Result<V, String> {
     Ok(match v {
         Value::Null => V::Null,
@@ -320,12 +358,20 @@ fn cv(v: &Value) -> Result<V, String> {
         ),
     })
 }
+#[cfg_attr(
+    not(all(test, feature = "s_capture_native_testonly")),
+    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+)]
 struct HashOnly;
 impl NodeSink for HashOnly {
     fn put(&mut self, _: NodeDigest, _: u8, _: &[u8]) -> Result<(), sc::CodecError> {
         Ok(())
     }
 }
+#[allow(
+    dead_code,
+    reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删"
+)]
 fn hash(v: &Value) -> Result<NodeDigest, String> {
     Ok(sc::write_json_view(&mut HashOnly, v.into())
         .map_err(err)?
@@ -417,7 +463,7 @@ impl NodeSource for ArrayAuditSource<'_, '_, '_, '_> {
         self.source.codec_work()
     }
     fn audit_full_array_scan(&self) -> bool {
-        self.full_arrays && self.deadline.is_none()
+        self.full_arrays && (self.source.native_measure().is_some() || self.deadline.is_none())
     }
     fn read(&mut self, d: &NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
         self.source.read(d)
@@ -462,13 +508,13 @@ impl SourceFieldStore for ArrayAuditSource<'_, '_, '_, '_> {
     fn decoded_scalar(&mut self, r: sc::RefView<'_>) -> Result<bj::JsonOwner, String> {
         let eligible = self.full_arrays
             && !self.source.owned_codec_active()
-            && self.deadline.is_none()
+            && (self.source.native_measure().is_some() || self.deadline.is_none())
             && self.source.allocation_budget().is_none()
             && self.max_render_bytes().is_none()
             && self
                 .fields
                 .as_ref()
-                .map(|m| m.qualified(r))
+                .map(|m| m.qualified(r, self.source.native_measure().as_ref()))
                 .transpose()
                 .map_err(err)?
                 .unwrap_or(false);
@@ -503,6 +549,9 @@ impl SourceFieldStore for ArrayAuditSource<'_, '_, '_, '_> {
     }
 }
 impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
+    fn native_measure(&self) -> Option<super::audit_budget::NativeMeasure<'_>> {
+        self.source.native_measure()
+    }
     fn parse_rendered_plain(&self, bytes: &[u8]) -> Result<bj::PlainJson, String> {
         self.source.parse_rendered_plain(bytes)
     }
@@ -558,13 +607,13 @@ impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
             self.owned_role(|s| s.lookup_subset_ref(r, n))
         } else {
             let eligible = self.full_arrays
-                && self.deadline.is_none()
+                && (self.source.native_measure().is_some() || self.deadline.is_none())
                 && self.source.allocation_budget().is_none()
                 && self.max_render_bytes().is_none()
                 && self
                     .fields
                     .as_ref()
-                    .map(|m| m.qualified(r))
+                    .map(|m| m.qualified(r, self.source.native_measure().as_ref()))
                     .transpose()?
                     .unwrap_or(false);
             if eligible {
@@ -822,7 +871,7 @@ struct Shape {
     groups: [i64; 3],
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct Counts {
+pub(crate) struct Counts {
     pub objects: usize,
     pub groups: usize,
     pub windows: usize,
@@ -1198,14 +1247,30 @@ pub(super) struct NativeRawLedgerStats {
 /// 单代来源核完成后的纯所有权账；保留已访问 seq 的四类摘要、身份赢家和有序坐标。
 /// 不包含 capture/reader/RawEventsView，不能单独授予新事务的来源资格。
 pub(super) struct NativeRawFacts {
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     winners: bj::RawPrefixFacts,
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     sources: BusinessMap<i64, Source>,
     originals: BusinessMap<usize, (i64, Source)>,
 }
 impl NativeRawFacts {
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    )]
     pub(super) fn prefix_len(&self) -> usize {
         self.winners.prefix_len()
     }
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    )]
     pub(super) fn hashed_rows(&self) -> usize {
         self.originals.len()
     }
@@ -1243,6 +1308,10 @@ impl<'raw> NativeRawLedger<'raw> {
         }
     }
 
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     fn new(raw: RawEventsView<'raw>) -> Self {
         Self {
             raw,
@@ -1255,6 +1324,10 @@ impl<'raw> NativeRawLedger<'raw> {
             stats: Default::default(),
         }
     }
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     fn restore(
         raw: RawEventsView<'raw>,
         facts: NativeRawFacts,
@@ -1279,12 +1352,22 @@ impl<'raw> NativeRawLedger<'raw> {
         self.reset_progress();
         self.originals.retain(|_, _| false);
     }
+    #[cfg(test)]
     fn advance(
         &mut self,
         s: &mut (impl CodecRead + ?Sized),
         prefix: usize,
     ) -> Result<&BusinessMap<i64, Source>, String> {
-        if let Err(error) = self.advance_inner(s, prefix) {
+        self.advance_measured(s, prefix, None, None)
+    }
+    fn advance_measured(
+        &mut self,
+        s: &mut (impl CodecRead + ?Sized),
+        prefix: usize,
+        deadline: Option<std::time::Instant>,
+        budget: Option<&dyn super::audit_budget::Budget>,
+    ) -> Result<&BusinessMap<i64, Source>, String> {
+        if let Err(error) = self.advance_inner(s, prefix, deadline, budget) {
             self.clear();
             return Err(error);
         }
@@ -1294,8 +1377,10 @@ impl<'raw> NativeRawLedger<'raw> {
         &mut self,
         s: &mut (impl CodecRead + ?Sized),
         prefix: usize,
+        deadline: Option<std::time::Instant>,
+        budget: Option<&dyn super::audit_budget::Budget>,
     ) -> Result<(), String> {
-        let changes = self.winners.advance_admitted(prefix, s)?;
+        let changes = self.winners.advance_measured(prefix, s, deadline, budget)?;
         if changes.rewound {
             #[cfg(feature = "s_capture_native_testonly")]
             self.retained
@@ -1318,16 +1403,25 @@ impl<'raw> NativeRawLedger<'raw> {
             let source = if let Some((_, source)) = self.originals.get(&ordinal) {
                 *source
             } else {
+                super::history::check_deadline(deadline)?;
                 let event = self.raw.get(ordinal).expect("winner original");
+                if let Some(budget) = budget {
+                    budget.record().map_err(err)?;
+                }
                 let wire = bj::RawReference::new(event, false)?;
                 let numeric = bj::RawReference::new(event, true)?;
                 // hash_json_in_store 用 Discard 丢弃节点，不写 reader overlay。
                 // 后续只比较摘要（含 r3 的五字段 bar 投影），从不以它们读取节点。
                 let source = Source {
-                    wire: super::history::hash_json_in_store(s, wire.view(), None, None)?,
-                    numeric: super::history::hash_json_in_store(s, numeric.view(), None, None)?,
-                    raw: super::history::hash_json_in_store(s, event, None, None)?,
-                    bar: source_pending::raw_bar(s, event, None, None)?,
+                    wire: super::history::hash_json_in_store(s, wire.view(), deadline, budget)?,
+                    numeric: super::history::hash_json_in_store(
+                        s,
+                        numeric.view(),
+                        deadline,
+                        budget,
+                    )?,
+                    raw: super::history::hash_json_in_store(s, event, deadline, budget)?,
+                    bar: source_pending::raw_bar(s, event, deadline, budget)?,
                 };
                 #[cfg(test)]
                 {
@@ -1416,6 +1510,26 @@ impl<'capture> NativeSourceAudit<'capture> {
         records: Option<super::history::NativeRecordFields<'capture>>,
         work: Option<&'capture sc::capture_allocation::scratch::WorkScope>,
     ) -> Result<Self, String> {
+        Self::new_with_records_measured(
+            capture,
+            raw,
+            records,
+            work,
+            None,
+            None,
+            super::history::SourcePolicy::Ordinary,
+        )
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn new_with_records_measured(
+        capture: &'capture sc::AuditCapture,
+        raw: RawEventsView<'capture>,
+        records: Option<super::history::NativeRecordFields<'capture>>,
+        work: Option<&'capture sc::capture_allocation::scratch::WorkScope>,
+        budget: Option<&'capture dyn super::audit_budget::Budget>,
+        deadline: Option<std::time::Instant>,
+        policy: super::history::SourcePolicy,
+    ) -> Result<Self, String> {
         if raw.budget().is_some() {
             return Err(err("Native来源memo不接收Owned原始账"));
         }
@@ -1434,6 +1548,8 @@ impl<'capture> NativeSourceAudit<'capture> {
             fields,
             raw,
             reader: super::history::HashReader::captured(capture, None)
+                .with_source_policy(policy)
+                .with_audit_gate(budget, deadline)
                 .with_native_scope(work)
                 .map_err(err)?,
             memo: NativeWitnessIdentityMemo::new(capture)?,
@@ -1451,6 +1567,13 @@ impl<'capture> NativeSourceAudit<'capture> {
         Ok(result)
     }
     #[cfg(test)]
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        )
+    )]
     pub(super) fn raw_ledger_stats(&self) -> NativeRawLedgerStats {
         self.ledger.stats
     }
@@ -1461,6 +1584,7 @@ impl<'capture> NativeSourceAudit<'capture> {
         profile: &str,
         rule: &str,
     ) -> Result<Counts, String> {
+        let measure = self.reader.native_measure();
         let result = (|| {
             audit_generated_in_store(
                 &mut super::audit_store::StoreView::for_audit(&mut self.reader),
@@ -1468,8 +1592,8 @@ impl<'capture> NativeSourceAudit<'capture> {
                 self.raw.prefix(prefix_len)?,
                 profile,
                 rule,
-                None,
-                None,
+                measure.as_ref().and_then(|m| m.deadline),
+                measure.as_ref().and_then(|m| m.budget),
                 Some(&mut self.memo),
                 Some(&mut self.source_memo),
                 Some(&mut self.fields),
@@ -1495,6 +1619,10 @@ pub(super) fn audit_generated<'a>(
 ) -> Result<Counts, String> {
     audit_generated_metered(s, state, raw_prefix, profile, rule, None, None)
 }
+#[allow(
+    dead_code,
+    reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删"
+)]
 pub(super) fn audit_generated_until<'a>(
     s: &mut dyn NodeStore,
     state: impl Into<sc::RefView<'a>>,
@@ -1554,6 +1682,10 @@ pub(super) fn audit_generated_for_audit<'a>(
 
 // #1488 SFT-M1：故障对拍必须调用冻结旧核，不能借用重构后的同一实现。
 #[cfg(test)]
+#[cfg_attr(
+    all(test, not(feature = "s_capture_native_testonly")),
+    allow(dead_code, reason = "#1488 再合 #1608：s_session 测试 构建不触达")
+)]
 pub(super) fn audit_generated_frozen_for_test<'a>(
     s: &mut super::history::HashReader<'_>,
     state: impl Into<sc::RefView<'a>>,
@@ -1610,6 +1742,10 @@ impl ObjectSlots for FullObjectSlots<'_> {
     }
     fn insert_group(
         &mut self,
+        #[allow(
+            unused_variables,
+            reason = "#1488 再合 #1608：8组合实测无调用方，保留不删"
+        )]
         s: &(impl CodecRead + ?Sized),
         index: i64,
         group: Group,
@@ -1767,13 +1903,12 @@ fn audit_object_record_with_slots(
             return Err(err("typed obj3身份与来源/载荷原件不符"));
         }
         if tb02b::KINDS.contains(&kind.as_str()) {
+            let contract = tb02b::contract_for_rule(producer.rule_revision())
+                .ok_or_else(|| err("新笔来源审计规则修订未声明"))?;
             for (k, want) in [
-                ("schema_revision", "s-new-bi/1"),
-                (
-                    "semantic_version",
-                    newchan_rust::theta_v0::parser::stroke::RULE,
-                ),
-                ("policy_version", "standard_raw_gap_3"),
+                ("schema_revision", contract.schema),
+                ("semantic_version", contract.semantic),
+                ("policy_version", contract.policy),
                 ("view_role", "main"),
             ] {
                 if text(s, &payload, k)? != want {
@@ -1791,6 +1926,13 @@ fn audit_object_record_with_slots(
                 )?
             {
                 return Err(err("新笔payload槽位与fact_key不同"));
+            }
+        }
+        if kind == CC054_KNOWLEDGE_KIND {
+            let contract = tb02b::contract_for_rule(producer.rule_revision())
+                .ok_or_else(|| err("知识域来源审计规则修订未声明"))?;
+            if text(s, &payload, "domain")? != contract.knowledge_domain {
+                return Err(err("TB-02-A 知识域与cut规则版本不符"));
             }
         }
         if kind == CC005_GROUP_KIND {
@@ -2155,9 +2297,10 @@ fn audit_generated_in_store(
     #[cfg(test)]
     super::state::trace_event("source_closure", None);
     s.verify_ref(state, sc::Mode::Public).map_err(err)?;
+    let full_arrays = s.native_measure().is_some() || budget.is_none();
     let mut array_source = ArrayAuditSource {
         source: s,
-        full_arrays: budget.is_none(),
+        full_arrays,
         deadline,
         fields: native_fields,
     };
@@ -2175,7 +2318,7 @@ fn audit_generated_in_store(
     let mut ordinary_raw;
     let raw = if let Some(ledger) = native_ledger {
         allocation = source_allocation(s)?;
-        ledger.advance(s, raw_prefix.len())?
+        ledger.advance_measured(s, raw_prefix.len(), deadline, budget)?
     } else {
         ordinary_effective = bj::effective(raw_prefix, deadline)?;
         allocation = source_allocation(s)?;
@@ -2236,7 +2379,7 @@ fn audit_generated_in_store(
         objects.try_push(object).map_err(err)?;
     }
     // #1394 r3：先绑定已发布未定事实，再核组成员与 pending 的不交完备并集。
-    let pending = source_pending::audit(s, objects.iter(), raw, &groups, deadline)?;
+    let pending = source_pending::audit(s, objects.iter(), raw, &groups, rule, deadline)?;
     let mut partition = bj::new_map(allocation.as_ref());
     let ordered_groups = sorted_numeric_entries(s, &groups)?;
     #[cfg(test)]
@@ -2443,6 +2586,137 @@ mod tests {
         let root = generated.generated_state.clone();
         (store, root, raw, rule)
     }
+
+    fn tb1405_pending_fixture(
+        rows: &[(&str, i64, i64, i64, i64, i64)],
+    ) -> (MemoryNodes, ContentRef, Vec<Value>, String) {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        accept_ohlc(&files, &located_ohlc_input(rows));
+        let c = open_db(&files.db()).unwrap();
+        let raw = read_raw_events(&c).unwrap();
+        let effective = read_effective_events(&raw).unwrap();
+        let get = |k| meta_get_opt(&c, k).unwrap().unwrap();
+        let profile_hash = get("profile_hash");
+        let rule = crate::V3_RULE_REVISION.to_string();
+        let catalog = get("catalog_revision");
+        let scope = serde_json::from_str(&get("scope")).unwrap();
+        let mut store = MemoryNodes::default();
+        let mut runtime =
+            GenerationRuntime::new("tb1405-pending".to_string(), tb02a::PROFILE, &rule);
+        let generated = runtime
+            .generate(
+                &mut store,
+                &GenerationInput {
+                    all_events: (&raw).into(),
+                    effective: (&effective).into(),
+                    generation: 1,
+                    structure_cut: "cut-1",
+                    input_frontier: raw.len() as i64 - 1,
+                    profile_id: tb02a::PROFILE,
+                    profile_hash: &profile_hash,
+                    rule_revision: &rule,
+                    catalog_revision: &catalog,
+                    scope: &scope,
+                    semantic_commit_ns: None,
+                    prior: PriorState {
+                        bi_records: vec![],
+                        version_record: None,
+                    },
+                },
+            )
+            .unwrap();
+        let state = generated.generated_state.clone();
+        (store, state, raw, rule)
+    }
+
+    const TB1405_EQUAL_STEP_ROWS: &[(&str, i64, i64, i64, i64, i64)] = &[
+        ("e0", 0, 0, 1, 0, 1),
+        ("e1", 1, 3, 10, 3, 10),
+        ("e2", 2, 5, 10, 5, 10),
+        ("e3", 3, 20, 30, 20, 30),
+    ];
+
+    fn tb1405_none_some_read_only(
+        s: &mut MemoryNodes,
+        state: &ContentRef,
+        raw: &[Value],
+        rule: &str,
+    ) -> Counts {
+        let before: Vec<_> = s.iter().map(|(d, t, b)| (*d, t, b.to_vec())).collect();
+        let none = audit_generated(s, state, raw, tb02a::PROFILE, rule).unwrap();
+        let meter = Meter::default();
+        let mut reader = super::super::history::HashReader::metered(s, None, None, Some(&meter));
+        let some = audit_generated_metered(
+            &mut reader,
+            state,
+            raw,
+            tb02a::PROFILE,
+            rule,
+            None,
+            Some(&meter),
+        )
+        .unwrap();
+        drop(reader);
+        assert_eq!(none, some);
+        let after: Vec<_> = s.iter().map(|(d, t, b)| (*d, t, b.to_vec())).collect();
+        assert_eq!(before, after, "来源审计不得改写任何原件节点");
+        none
+    }
+
+    #[test]
+    fn tb1405_equal_step_evidence_audits_in_none_and_some() {
+        let (mut s, state, raw, rule) = tb1405_pending_fixture(TB1405_EQUAL_STEP_ROWS);
+        let counts = tb1405_none_some_read_only(&mut s, &state, &raw, &rule);
+        assert_eq!((counts.groups, counts.windows, counts.effective), (3, 1, 4));
+        let mut bytes = Vec::new();
+        sc::render_canonical(&mut s, &state, &mut bytes).unwrap();
+        let value: Value = serde_json::from_slice(&bytes).unwrap();
+        let objects = value["objects"].as_array().unwrap();
+        let key = canonical_json(&json!([CC004_STEP_KIND, "2"]));
+        let step = objects.iter().find(|o| o["fact_key"] == key).unwrap();
+        let payload: Value = serde_json::from_str(step["payload_json"].as_str().unwrap()).unwrap();
+        assert_eq!(payload["action"], "merge");
+        assert!(!payload["direction_evidence"].is_null());
+        assert_eq!(
+            payload["waiting_reasons"],
+            json!(["equal_extreme_identity"])
+        );
+        let knowledge = objects
+            .iter()
+            .find(|o| o["kind"] == CC054_KNOWLEDGE_KIND)
+            .unwrap();
+        let payload: Value =
+            serde_json::from_str(knowledge["payload_json"].as_str().unwrap()).unwrap();
+        let request = payload["requests"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["request_id"] == key)
+            .unwrap();
+        assert_eq!(request["reasons"], json!([]));
+        assert_eq!(
+            request["axes"],
+            json!({"input_quality":"SUFFICIENT", "applicability":"IN_DOMAIN", "computation":"COMPLETE", "validity":"CURRENT"})
+        );
+    }
+
+    #[test]
+    fn tb1405_initial_unsettled_and_seed_fallback_still_audit() {
+        let initial = [
+            ("i0", 0, 0, 10, 0, 10),
+            ("i1", 1, 1, 9, 1, 9),
+            ("i2", 2, 20, 30, 20, 30),
+        ];
+        for rows in [&initial[..], &initial[..1]] {
+            let (mut s, state, raw, rule) = tb1405_pending_fixture(rows);
+            let counts = tb1405_none_some_read_only(&mut s, &state, &raw, &rule);
+            assert_eq!(counts.effective, rows.len());
+            assert_eq!(counts.groups, 1);
+            assert_eq!(counts.windows, 0);
+        }
+    }
+
     #[cfg(feature = "s_capture_native_testonly")]
     fn ledger_event(identity: &str, coord: &str, revision: i64, seq: i64) -> Value {
         json!({"identity_key": identity, "source_coord": coord, "revision": revision,
@@ -2482,6 +2756,102 @@ mod tests {
             .map(|(coord, source)| (*coord, *source))
             .collect()
     }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_raw_ledger_measured_visits_hits_rewind_and_failure() {
+        use super::super::audit_budget::AuditJob;
+        use sc::job::{Existing, Job, JobLimits};
+        use std::time::Instant;
+        let make_job = |records: u64, nodes: u64| {
+            let limits = JobLimits::from_canonical_json(&json!({
+                "max_total_wire_bytes": "1048576",
+                "max_total_node_bytes": "1048576",
+                "max_total_nodes": nodes.to_string(),
+                "max_total_records": records.to_string(),
+                "max_total_requests": "20", "max_elapsed_ms": "10000",
+                "max_staged_bytes": "1048576", "max_store_bytes": "33554432"
+            }))
+            .unwrap();
+            Job::new(
+                limits,
+                Existing {
+                    store_bytes: 0,
+                    staged_bytes: 0,
+                },
+                Box::new(Instant::now),
+            )
+            .unwrap()
+        };
+        let mut fixture = super::super::prepared::tests::Fixture::new();
+        fixture.accept_begin(1, ("a", 0, 6, 12, 3, 7), 1);
+        fixture.accept_begin(2, ("b", 1, 8, 16, 6, 12), 1);
+        let raw = read_raw_events(&fixture.conn).unwrap();
+        let capture = sc::AuditCapture::new(MemoryNodes::default());
+        let mut reader = super::super::history::HashReader::captured(&capture, None);
+        let mut ledger = NativeRawLedger::new((&raw).into());
+        let mut job = make_job(100, 10000);
+        {
+            let audit = AuditJob::new(&mut job);
+            let got = ledger
+                .advance_measured(&mut reader, 2, None, Some(&audit))
+                .unwrap();
+            assert_eq!(
+                source_entries(got),
+                source_entries(&original_sources(&raw, 2).unwrap())
+            );
+        }
+        assert_eq!(job.snapshot().records, 6, "每行新增、坐标和来源各访问一次");
+        assert!(job.snapshot().nodes > 0, "四投影进入同一 Job 节点核");
+        let before = job.snapshot();
+        {
+            let audit = AuditJob::new(&mut job);
+            ledger
+                .advance_measured(&mut reader, 2, None, Some(&audit))
+                .unwrap();
+        }
+        assert_eq!(job.snapshot().records, before.records);
+        assert_eq!(job.snapshot().nodes, before.nodes);
+        {
+            let audit = AuditJob::new(&mut job);
+            ledger
+                .advance_measured(&mut reader, 1, None, Some(&audit))
+                .unwrap();
+            ledger
+                .advance_measured(&mut reader, 2, None, Some(&audit))
+                .unwrap();
+        }
+        assert_eq!(
+            job.snapshot().records,
+            8,
+            "回退后独立扫描收费，坐标及来源命中不虚收"
+        );
+        for records in [1, 3, 4] {
+            let mut limited = make_job(records, 10000);
+            let mut ledger = NativeRawLedger::new((&raw).into());
+            let audit = AuditJob::new(&mut limited);
+            assert!(ledger
+                .advance_measured(&mut reader, 2, None, Some(&audit))
+                .is_err());
+            assert!(ledger.sources.is_empty());
+            assert!(ledger.originals.is_empty());
+            assert!(ledger.winners.is_empty());
+            let got = ledger.advance(&mut reader, 2).unwrap();
+            assert_eq!(
+                source_entries(got),
+                source_entries(&original_sources(&raw, 2).unwrap())
+            );
+        }
+        let mut limited = make_job(100, 1);
+        let mut ledger = NativeRawLedger::new((&raw).into());
+        let audit = AuditJob::new(&mut limited);
+        assert!(ledger
+            .advance_measured(&mut reader, 2, None, Some(&audit))
+            .is_err());
+        assert!(ledger.sources.is_empty());
+        assert!(ledger.originals.is_empty());
+        assert!(ledger.winners.is_empty());
+    }
+
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn cold_raw_index_normal_revisions_unordered_duplicate_prices_and_replay_view() {
@@ -3069,7 +3439,7 @@ mod tests {
         assert!(fresh.fields.is_empty() && fresh.scalars.values.is_empty());
         let other = sc::AuditCapture::new(MemoryNodes::default());
         assert!(!NativeFieldMemo::new(&other)
-            .qualified((&root).into())
+            .qualified((&root).into(), None)
             .unwrap());
     }
     #[cfg(feature = "s_capture_native_testonly")]
@@ -3306,6 +3676,84 @@ mod tests {
         assert!(fresh.entries.is_empty());
         assert_ne!(key, fresh.key(&reader, "obj3-first", 0, 1, &bars).unwrap());
     }
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn native_source_measured_preserves_fields_witness_and_failure_cleanup() {
+        use super::super::audit_budget::AuditJob;
+        use sc::job::{Existing, Job, JobLimits};
+        let make_job = |records: u64| {
+            Job::new(
+                JobLimits::from_canonical_json(&json!({
+                    "max_total_wire_bytes":"1048576", "max_total_node_bytes":"1048576",
+                    "max_total_nodes":"100000", "max_total_records":records.to_string(),
+                    "max_total_requests":"20", "max_elapsed_ms":"10000",
+                    "max_staged_bytes":"1048576", "max_store_bytes":"33554432"
+                }))
+                .unwrap(),
+                Existing {
+                    store_bytes: 0,
+                    staged_bytes: 0,
+                },
+                Box::new(std::time::Instant::now),
+            )
+            .unwrap()
+        };
+        let (nodes, state, raw, rule) = fixture();
+        let capture = sc::AuditCapture::new(nodes)
+            .enable_native_frame_reuse_for_testonly()
+            .unwrap();
+        let expected = NativeSourceAudit::new(&capture, (&raw).into())
+            .unwrap()
+            .audit(&state, raw.len(), tb02a::PROFILE, &rule)
+            .unwrap();
+        let mut job = make_job(100000);
+        {
+            let audit = AuditJob::new(&mut job);
+            let mut native = NativeSourceAudit::new_with_records_measured(
+                &capture,
+                (&raw).into(),
+                None,
+                None,
+                Some(&audit),
+                Some(std::time::Instant::now() + std::time::Duration::from_secs(10)),
+                super::super::history::SourcePolicy::NativeMeasured,
+            )
+            .unwrap();
+            let got = native
+                .audit(&state, raw.len(), tb02a::PROFILE, &rule)
+                .unwrap();
+            assert_eq!(format!("{got:?}"), format!("{expected:?}"));
+            let decoded = native.fields.field_decodes;
+            assert!(decoded > 0);
+            native
+                .audit(&state, raw.len(), tb02a::PROFILE, &rule)
+                .unwrap();
+            assert_eq!(native.fields.field_decodes, decoded);
+            assert!(native.fields.field_hits > 0);
+            assert!(native.memo.stats.hits > 0);
+        }
+        assert!(job.snapshot().records >= (raw.len() * 3) as u64);
+        assert!(job.snapshot().nodes > 0);
+        let mut limited = make_job(1);
+        let audit = AuditJob::new(&mut limited);
+        let mut native = NativeSourceAudit::new_with_records_measured(
+            &capture,
+            (&raw).into(),
+            None,
+            None,
+            Some(&audit),
+            None,
+            super::super::history::SourcePolicy::NativeMeasured,
+        )
+        .unwrap();
+        assert!(native
+            .audit(&state, raw.len(), tb02a::PROFILE, &rule)
+            .is_err());
+        assert!(native.fields.fields.is_empty() && native.fields.scalars.values.is_empty());
+        assert!(native.ledger.sources.is_empty() && native.ledger.originals.is_empty());
+        assert!(native.memo.entries.is_empty());
+    }
+
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn native_witness_identity_keeps_current_cut_faults() {
@@ -3996,6 +4444,11 @@ mod tests {
         // #1394 r3：相同原 fixture 新增 CC004/CC054 绑定及 raw bar 投影费用。
         // dc425df7 旧轨迹为 151351 reads / 170797 F；本次未缩减原访问，
         // 新轨迹增加 13016 reads / 14276 F，固定以下实测计数和完整有序摘要。
+        // #1394 合入 #1405 后重冻：对象/组/窗口计数不变，读取与 F 各多 120，为合并后实测值；
+        // 规则修订升 new-bi/2，发布内容按 #1343 同价裁定改变，摘要随之改变。三点对比：#1405 适配合并
+        // `271b8e8cc6` 之后的 `813fc75fa5`、`199caedfd0`、`dccb69793c` 读数与摘要逐值相同，故 +120 来自该
+        // 合并本身（同价语义与规则修订），不来自后两处修复；未逐节点分解。
+        // 旧摘要（new-bi/1）：read 8418acae…、budget f194dbc3…。
         assert_eq!(
             (
                 counts.objects,
@@ -4007,15 +4460,15 @@ mod tests {
             ),
             (76, 13, 11, 14, 0, 0)
         );
-        assert_eq!(roots.len(), 151351 + 13016, "r3完整Some读取轨迹");
-        assert_eq!(frames, 170797 + 14276, "r3完整Some F次数");
+        assert_eq!(roots.len(), 151351 + 13016 + 120, "r3完整Some读取轨迹");
+        assert_eq!(frames, 170797 + 14276 + 120, "r3完整Some F次数");
         assert_eq!(
             read_hash,
-            "8418acae04255ccc19c4cdd3d76b746e57fcf3be9636a716d5aba8055a1d6012"
+            "ffa6288e00eb063d0d10c234ae2f013fff0f15ce5e94e9777c5d0bf33359f2e9"
         );
         assert_eq!(
             budget_hash,
-            "f194dbc3abaa5e2228f97c51a3825082975dcdedd44090e20428a9583dfe82d1"
+            "06e35514afeb5411501d062780ddd409a1796c54a38f3eac7912596d8eeda26e"
         );
     }
     fn json_text_edge(s: &mut dyn NodeStore, value: &ContentRef) -> ContentRef {
@@ -4166,6 +4619,133 @@ mod tests {
             "CC006 obj3与同cut组事实身份不符",
         );
     }
+    #[test]
+    fn reidentified_legacy_bi_header_and_knowledge_domain_are_rejected_in_v2() {
+        for (kind, key, replacement, reason) in [
+            (
+                "CC-008.endpoint",
+                "schema_revision",
+                "s-new-bi/1",
+                "新笔载荷语义头不同",
+            ),
+            (
+                CC054_KNOWLEDGE_KIND,
+                "domain",
+                "established_direction_without_extreme_identity_competition",
+                "TB-02-A 知识域与cut规则版本不符",
+            ),
+        ] {
+            let (mut s, state, raw, rule) = fixture();
+            let objects_root = field(&mut s, &state, "objects").unwrap();
+            let objects = elements(&mut s, &objects_root).unwrap();
+            let index = objects
+                .iter()
+                .position(|object| text(&mut s, object, "kind").unwrap() == kind)
+                .unwrap();
+            let payload = field(&mut s, &objects[index], "payload_json").unwrap();
+            let payload =
+                sc::path::lookup_path_refview(&mut s, payload.view(), &[PathStep::JsonText])
+                    .unwrap();
+            let mut bytes = Vec::new();
+            sc::render_canonical(&mut s, &payload, &mut bytes).unwrap();
+            let mut value: Value = newchan_rust::session_protocol::strict_json(&bytes).unwrap();
+            value[key] = json!(replacement);
+            let changed_payload = sc::write_value(&mut s, &cv(&value).unwrap())
+                .unwrap()
+                .content_ref();
+            let refs = field(&mut s, &objects[index], "input_refs_json").unwrap();
+            let refs =
+                sc::path::lookup_path_refview(&mut s, refs.view(), &[PathStep::JsonText]).unwrap();
+            let fact_key = text(&mut s, &objects[index], "fact_key").unwrap();
+            let id = Cc004Producer::new(tb02a::PROFILE, &rule)
+                .typed_object_id(
+                    kind,
+                    &fact_key,
+                    &built(&changed_payload).unwrap(),
+                    &built(&refs).unwrap(),
+                )
+                .unwrap();
+            let payload_json = json_text_edge(&mut s, &changed_payload);
+            let changed = replace_field(
+                &mut s,
+                &objects[index],
+                TYPED,
+                "payload_json",
+                V::Edge(digest(&payload_json).unwrap()),
+            );
+            let changed = replace_field(&mut s, &changed, TYPED, "object_id", V::String(id));
+            let forged = replace_member(&mut s, &state, "objects", index, changed);
+            assert_rejected_in_both_modes(&mut s, &forged, &raw, &rule, reason);
+        }
+    }
+
+    #[test]
+    fn tb1405_reidentified_equal_step_request_regressions_are_rejected() {
+        for (axis, wrong) in [
+            ("reasons", "equal_extreme_identity"),
+            ("input_quality", "INSUFFICIENT"),
+            ("applicability", "DOMAIN_PROOF_MISSING"),
+            ("computation", "INCOMPLETE"),
+            ("validity", "STALE"),
+        ] {
+            let (mut s, state, raw, rule) = tb1405_pending_fixture(TB1405_EQUAL_STEP_ROWS);
+            let objects_root = field(&mut s, &state, "objects").unwrap();
+            let objects = elements(&mut s, &objects_root).unwrap();
+            let index = objects
+                .iter()
+                .position(|object| text(&mut s, object, "kind").unwrap() == CC054_KNOWLEDGE_KIND)
+                .unwrap();
+            let payload = field(&mut s, &objects[index], "payload_json").unwrap();
+            let payload =
+                sc::path::lookup_path_refview(&mut s, payload.view(), &[PathStep::JsonText])
+                    .unwrap();
+            let mut bytes = Vec::new();
+            sc::render_canonical(&mut s, &payload, &mut bytes).unwrap();
+            let mut value: Value = serde_json::from_slice(&bytes).unwrap();
+            let key = canonical_json(&json!([CC004_STEP_KIND, "2"]));
+            let request = value["requests"]
+                .as_array_mut()
+                .unwrap()
+                .iter_mut()
+                .find(|request| request["request_id"] == key)
+                .unwrap();
+            let expected_error = if axis == "reasons" {
+                request["reasons"] = json!([wrong]);
+                "CC004知识请求未绑定版本化等待reasons"
+            } else {
+                request["axes"][axis] = json!(wrong);
+                "CC004知识请求四轴不同"
+            };
+            let changed_payload = sc::write_value(&mut s, &cv(&value).unwrap())
+                .unwrap()
+                .content_ref();
+            let refs = field(&mut s, &objects[index], "input_refs_json").unwrap();
+            let refs =
+                sc::path::lookup_path_refview(&mut s, refs.view(), &[PathStep::JsonText]).unwrap();
+            let fact_key = text(&mut s, &objects[index], "fact_key").unwrap();
+            let id = Cc004Producer::new(tb02a::PROFILE, &rule)
+                .typed_object_id(
+                    CC054_KNOWLEDGE_KIND,
+                    &fact_key,
+                    &built(&changed_payload).unwrap(),
+                    &built(&refs).unwrap(),
+                )
+                .unwrap();
+            let payload_json = json_text_edge(&mut s, &changed_payload);
+            let changed = replace_field(
+                &mut s,
+                &objects[index],
+                TYPED,
+                "payload_json",
+                V::Edge(digest(&payload_json).unwrap()),
+            );
+            let changed = replace_field(&mut s, &changed, TYPED, "object_id", V::String(id));
+            let forged = replace_member(&mut s, &state, "objects", index, changed);
+            // Merkle与六字段身份均合法，必须由版本化请求/四轴语义拒绝。
+            assert_rejected_in_both_modes(&mut s, &forged, &raw, &rule, expected_error);
+        }
+    }
+
     #[test]
     fn real_ohlc_objects_and_witnesses_bind_to_sources_without_reclassification() {
         let (mut s, state, raw, rule) = fixture();

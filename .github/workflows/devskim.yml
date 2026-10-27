@@ -43,6 +43,13 @@ jobs:
         # Every ignore-glob has path-specific provenance in the #1111 baseline report.
         # The zero-findings gate remains unchanged; this removes only derived fixtures,
         # ignored tmp material, and byte-identical/upstream-locked third-party skills.
+        # #1588: no directory-level exclusion for the review archive or test data
+        # (user decision 2026-10-21, consistent with #1474 "no pass by directory alone").
+        # Existing findings in .chanlun/review-results/** and
+        # s_session/tests/fixtures/**/*.json{,l} are appended to
+        # .github/devskim-baseline.json as exact rule|path|line keys; files written
+        # there later are still scanned. Evidence and full-population credential scan:
+        # .chanlun/review-results/eng-debt-20261020/devskim/DEVSKIM-TRIAGE.md
         shell: bash
         run: |
           docker run --rm \
@@ -76,4 +83,6 @@ jobs:
             --expected-tool-name 'devskim' \
             --expected-tool-version '1.0.90+fb2d676ce4' \
             --baseline .github/devskim-baseline.json \
+            --false-positives .github/devskim-reviewed-1488.json \
+            --source-root "$GITHUB_WORKSPACE" \
             --summary "$GITHUB_STEP_SUMMARY"

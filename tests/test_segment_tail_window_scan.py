@@ -1,4 +1,4 @@
-"""线段尾窗扫描测试 — TAIL_WINDOW 正确性验证
+"""线段尾窗扫描测试 — 尾窗（记录 `second-seq-scan-budget.tail_window`，#1604 前为类常数 TAIL_WINDOW）正确性验证
 
 覆盖 2 个场景：
   1. 尾窗 N=7 vs 全量扫描 → 结果完全一致
@@ -9,8 +9,20 @@ from __future__ import annotations
 
 import pytest
 
+import newchan.a_segment_v1 as v1
 from newchan.a_segment_v1 import segments_from_strokes_v1, _FeatureSeqState
 from newchan.a_stroke import Stroke
+from newchan.segment_policy import ScanBudget, active_scan_budget
+
+# #1604：尾窗读记录；签署值（7）。
+TAIL_WINDOW = active_scan_budget().tail_window
+
+
+def _full_scan(strokes, monkeypatch):
+    """记录 tail_window 改为 0（不设上限）= 全量扫描。"""
+    monkeypatch.setattr(v1, "active_scan_budget", lambda: ScanBudget(
+        record_id="second-seq-scan-budget", version=99, second_seq_window=0, tail_window=0))
+    return segments_from_strokes_v1(strokes)
 
 
 # ── helpers ──
@@ -50,9 +62,9 @@ def _generate_zigzag(n_strokes: int, base: float = 10.0, step: float = 0.5):
 # =====================================================================
 
 class TestTailWindowConsistency:
-    """TAIL_WINDOW=7 和全量扫描应产生完全一致的结果。"""
+    """记录尾窗（7）和全量扫描应产生完全一致的结果。"""
 
-    def test_same_segments_short(self):
+    def test_same_segments_short(self, monkeypatch):
         """短序列（7 笔）下尾窗和全量结果一致。"""
         strokes = [
             _s(0, 5, "up",    15, 5),
@@ -65,13 +77,8 @@ class TestTailWindowConsistency:
         ]
         segs_normal = segments_from_strokes_v1(strokes)
 
-        # 临时修改 TAIL_WINDOW 到极大值（模拟全量扫描）
-        old_tw = _FeatureSeqState.TAIL_WINDOW
-        try:
-            _FeatureSeqState.TAIL_WINDOW = 1000
-            segs_full = segments_from_strokes_v1(strokes)
-        finally:
-            _FeatureSeqState.TAIL_WINDOW = old_tw
+        # 记录尾窗改 0（全量扫描）
+        segs_full = _full_scan(strokes, monkeypatch)
 
         assert len(segs_normal) == len(segs_full)
         for a, b in zip(segs_normal, segs_full):
@@ -79,34 +86,24 @@ class TestTailWindowConsistency:
             assert a.direction == b.direction
             assert a.confirmed == b.confirmed
 
-    def test_same_segments_medium(self):
+    def test_same_segments_medium(self, monkeypatch):
         """中等序列（15 笔）下尾窗和全量结果一致。"""
         strokes = _generate_zigzag(15)
         segs_normal = segments_from_strokes_v1(strokes)
 
-        old_tw = _FeatureSeqState.TAIL_WINDOW
-        try:
-            _FeatureSeqState.TAIL_WINDOW = 1000
-            segs_full = segments_from_strokes_v1(strokes)
-        finally:
-            _FeatureSeqState.TAIL_WINDOW = old_tw
+        segs_full = _full_scan(strokes, monkeypatch)
 
         assert len(segs_normal) == len(segs_full)
         for a, b in zip(segs_normal, segs_full):
             assert a.s0 == b.s0 and a.s1 == b.s1
             assert a.direction == b.direction
 
-    def test_same_segments_long(self):
+    def test_same_segments_long(self, monkeypatch):
         """长序列（31 笔）下尾窗和全量结果一致。"""
         strokes = _generate_zigzag(31)
         segs_normal = segments_from_strokes_v1(strokes)
 
-        old_tw = _FeatureSeqState.TAIL_WINDOW
-        try:
-            _FeatureSeqState.TAIL_WINDOW = 1000
-            segs_full = segments_from_strokes_v1(strokes)
-        finally:
-            _FeatureSeqState.TAIL_WINDOW = old_tw
+        segs_full = _full_scan(strokes, monkeypatch)
 
         assert len(segs_normal) == len(segs_full)
         for a, b in zip(segs_normal, segs_full):
@@ -150,10 +147,10 @@ class TestTailWindowEfficiency:
             fs.scan_trigger("up", dummy_strokes)
 
         # 在长序列中 last_checked 不应为 0
-        if len(fs.std) > _FeatureSeqState.TAIL_WINDOW:
+        if len(fs.std) > TAIL_WINDOW:
             assert fs.last_checked > 0, (
                 f"last_checked={fs.last_checked} 不应为 0 "
-                f"（std 长度 {len(fs.std)} 远超 TAIL_WINDOW={_FeatureSeqState.TAIL_WINDOW}）"
+                f"（std 长度 {len(fs.std)} 远超 TAIL_WINDOW={TAIL_WINDOW}）"
             )
 
     def test_scan_trigger_start_bounded(self):
@@ -168,9 +165,9 @@ class TestTailWindowEfficiency:
             fs.append(idx, h, l)
 
         n = len(fs.std)
-        if n > _FeatureSeqState.TAIL_WINDOW:
+        if n > TAIL_WINDOW:
             # 验证扫描不会从位置 1 开始（应从 n - TAIL_WINDOW 或更后）
-            expected_start = max(1, fs.last_checked, n - _FeatureSeqState.TAIL_WINDOW)
+            expected_start = max(1, fs.last_checked, n - TAIL_WINDOW)
             assert expected_start > 1, (
                 f"expected_start={expected_start} 应 > 1（说明尾窗生效）"
             )

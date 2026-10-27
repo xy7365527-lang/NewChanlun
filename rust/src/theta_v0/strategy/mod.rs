@@ -126,6 +126,7 @@ pub mod risk;
 /// #196 阶段 A：shadow 双链比对（零行为变更）——组合层裁决点之后并行跑 channel 适配层，
 /// 仅记录分歧，不改裁决与订单流（coverage tests `t2_cross_level_confirmed_certificate_holds_l1_position_end_to_end`
 /// 同构断言思路的全量化）。
+#[cfg(any(test, feature = "backtest_bin"))] // #1608：唯一消费者 backtest::fill 同门控
 pub(crate) mod shadow;
 /// 短差盈亏桶 + TW 桥（SPEC #287 T3，issue #293）：`CenterOscillationAction` 单源记账
 /// （报告层桶 + `TwEvent::ShortDiff`）+ 恒仓断言（Σ|units| 守恒，违规显式失败）+

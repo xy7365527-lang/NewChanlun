@@ -486,6 +486,7 @@ fn rusage_json() -> Value {
     let tv = |t: libc::timeval| format!("{}.{:06}", t.tv_sec, t.tv_usec);
     json!({"ru_maxrss":ru.ru_maxrss.to_string(),"user_s":tv(ru.ru_utime),"sys_s":tv(ru.ru_stime)})
 }
+#[cfg(target_os = "macos")]
 fn sqlite_memory_used() -> i64 {
     // SAFETY: 无参只读统计。
     unsafe { rusqlite::ffi::sqlite3_memory_used() }

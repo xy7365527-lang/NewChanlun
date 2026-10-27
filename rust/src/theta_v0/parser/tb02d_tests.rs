@@ -65,7 +65,7 @@ fn tb02d_second_frontier_and_independent_break_facts() {
 fn tb02d_complete_prefix_and_resource_bound_are_distinct() {
     let ss = chain(&[0, 20, 10, 40, 25, 35, 22, 30, 23, 33], 1);
     let mut config = ThetaConfig::default();
-    config.parse.second_seq_scan_window = 3;
+    config.parse.research_override_second_seq_window(3);
     let (_, _, facts) = segment::divide_segments_with_facts(&ss, &config.parse);
     let c = &facts.candidates[0];
     assert_eq!(c.result, "PENDING_CASE_TWO");
@@ -139,7 +139,8 @@ fn tb02d_frozen_raw_oracle_and_all_prefix_incremental() {
             };
             let sf = facts.segment_facts.unwrap();
             let c = &sf.candidates[0];
-            let actual = serde_json::to_value(c).unwrap();
+            // #1493：冻结 raw 神谕早于窗成员字段，剥去后与神谕逐键对比（见下方函数注）。
+            let actual = tb1493_strip_empty_window_members(serde_json::to_value(c).unwrap());
             assert_eq!(actual["result"], e["result"], "{name}/{} result", i + 1);
             assert_eq!(
                 actual["trigger_stroke"],
@@ -250,5 +251,119 @@ fn tb02d_new_first_identity_does_not_inherit_old_gap_freeze() {
         assert!(!c.strict.as_ref().unwrap().raw_gap);
         assert!(c.second.is_none());
         assert!(c.fact_vector.termination_witness.is_some());
+    }
+}
+
+/// #1493：剥去 segment-turn/1 新增的 `window_members` 键，其余键与冻结神谕逐键对比。
+/// 义务 11 审计（`tb1493_audit_tb02_fixtures`）：`second_inclusion_*` 在第 7 笔起 R1（`boundary_pair`）、
+/// 第 9 笔窗成员，`second_nondual_*` 在第 9 笔 R1；它们只改 FIRST 序列步骤，神谕所比的
+/// result/trigger/end/strict/SECOND 各键在 segment-turn/1 下不变，故期望不重算。
+fn tb1493_strip_empty_window_members(mut v: serde_json::Value) -> serde_json::Value {
+    fn walk(v: &mut serde_json::Value) {
+        match v {
+            serde_json::Value::Object(m) => {
+                m.remove("window_members");
+                m.values_mut().for_each(walk);
+            }
+            serde_json::Value::Array(a) => a.iter_mut().for_each(walk),
+            _ => {}
+        }
+    }
+    walk(&mut v);
+    v
+}
+
+/// #1493 义务 11：审计 tb02c/tb02d 冻结夹具在 segment-turn/1 下的差异（只读打印，不断言）。
+/// `cargo test -- --ignored tb1493_audit_tb02_fixtures --nocapture`。
+#[test]
+#[ignore]
+fn tb1493_audit_tb02_fixtures() {
+    let bars_of = |rows: &[serde_json::Value]| -> Vec<Bar> {
+        rows.iter()
+            .enumerate()
+            .map(|(i, row)| Bar {
+                source_index: i,
+                timestamp: i as i64,
+                open: row["open"].as_i64().unwrap(),
+                high: row["high"].as_i64().unwrap(),
+                low: row["low"].as_i64().unwrap(),
+                close: row["close"].as_i64().unwrap(),
+                volume: 1.0,
+                untradable: false,
+            })
+            .collect()
+    };
+    let config = ThetaConfig::default();
+    for (label, raw_src) in [
+        (
+            "tb02c",
+            include_str!("../../../../s_session/tests/fixtures/tb02c/raw-ledger.json"),
+        ),
+        (
+            "tb02d",
+            include_str!("../../../../s_session/tests/fixtures/tb02d/raw-ledger.json"),
+        ),
+    ] {
+        let raw: serde_json::Value = serde_json::from_str(raw_src).unwrap();
+        let oracle: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../s_session/tests/fixtures/tb02d/hand-oracle.json"
+        ))
+        .unwrap();
+        for (name, rows) in raw["cases"].as_object().unwrap() {
+            let bars = bars_of(rows.as_array().unwrap());
+            for n in 1..=bars.len() {
+                let (layer, facts) = parse_layer_with_inclusion_facts(&bars[..n], &config);
+                let sf = facts.segment_facts.unwrap();
+                for (ci, c) in sf.candidates.iter().enumerate() {
+                    let turn: Vec<_> = c
+                        .first
+                        .steps
+                        .iter()
+                        .filter(|s| s.scope == "TURN_HYPOTHESIS")
+                        .map(|s| format!("{}@{}", s.action, s.incoming.stroke_idx))
+                        .collect();
+                    if !turn.is_empty()
+                        || !c.window_members.is_empty()
+                        || c.result == "PENDING_CASE_ONE"
+                        || c.result == "FAILED_GEOMETRY"
+                    {
+                        let acts: Vec<_> = c
+                            .first
+                            .steps
+                            .iter()
+                            .map(|s| format!("{}@{}", s.action, s.incoming.stroke_idx))
+                            .collect();
+                        let std: Vec<_> = c
+                            .first
+                            .standard
+                            .iter()
+                            .map(|e| (e.stroke_idx, e.low, e.high, e.window_members.clone()))
+                            .collect();
+                        eprintln!(
+                            "AUDITX {label}/{name}/{n} acts={acts:?} std={std:?} open={:?} wm={:?}",
+                            c.first.open_turn.as_ref().map(|o| o.turn_hypothesis_pair),
+                            c.window_members
+                        );
+                        eprintln!(
+                            "AUDIT {label}/{name}/{n} cand{ci} start={} result={} end={:?} turn={turn:?} state={:?} segs={}",
+                            c.start_stroke, c.result, c.end_stroke, c.turn_hypothesis_state, layer.segments.len()
+                        );
+                    }
+                }
+                if label == "tb02d" {
+                    if let Some(e) = oracle["cases"][name]["cuts"].get(n.to_string()) {
+                        let a = serde_json::to_value(&sf.candidates[0]).unwrap();
+                        for key in ["result", "trigger_stroke", "end_stroke"] {
+                            if a[key] != e[key] {
+                                eprintln!(
+                                    "DIFF tb02d/{name}/{n} {key}: rust={} oracle={}",
+                                    a[key], e[key]
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

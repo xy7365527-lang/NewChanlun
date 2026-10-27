@@ -22,16 +22,18 @@
 
 use super::audit_store::{CodecRead, CodecStore, RefValue};
 use super::business_json::{self as bj, JsonOwner, RawEventsView, TextValue};
-use crate::{
-    canonical_json, content_manifest, content_manifest::ManifestMetadata, tb02a, tb02a_facts,
-};
+#[cfg_attr(
+    not(test),
+    allow(unused_imports, reason = "#1488 再合 #1608：仅测试使用")
+)]
+use crate::{canonical_json, content_manifest, content_manifest::ManifestMetadata, tb02a};
 #[cfg(test)]
 use newchan_rust::s_content::path::{lookup_path, PathStep};
 use newchan_rust::s_content::{
     self as sc, ContentRef, Kind, NodeDigest, NodeSink, NodeSource, NodeStore, Value as V,
 };
 use newchan_rust::session_protocol::{parse_canonical_i64, strict_json};
-use rusqlite::{params, OptionalExtension, Transaction};
+use rusqlite::{params, Transaction};
 use sc::capture_allocation::audit_json::JsonView;
 use serde_json::Value;
 
@@ -533,10 +535,9 @@ pub(super) fn verify_cut_for_audit<'a, 'r>(
 ) -> Result<(), String> {
     let raw_prefix = raw_prefix.into();
     // 唯一调用者 state 已完整读取并核过 raw 的 seq=ordinal 及所有历史前沿。
-    // Native 无预算冷审计只物理访问新增区间；其他入口保留原逻辑收费/期限顺序。
+    // Native 保持原新增区间角色；短借计量不改变索引资格，Owned 仍拒绝。
     if indexed_start.is_some()
-        && (budget.is_some()
-            || deadline.is_some()
+        && (((budget.is_some() || deadline.is_some()) && store.native_measure().is_none())
             || raw_prefix.budget().is_some()
             || store.allocation_budget().is_some())
     {
@@ -677,12 +678,24 @@ fn verify_cut_in_store(
         .ok_or_else(|| err("目录轴缺 CC-056"))?;
     let allocation = store.allocation_budget();
     let mut revisions = bj::ReferenceArray(bj::new_work(allocation.as_ref()));
+    let native_measured = store.native_measure().is_some();
     for ordinal in raw_start..raw_prefix.len() {
+        if native_measured {
+            super::history::check_deadline(deadline)?;
+            if let Some(account) = budget {
+                account.precheck().map_err(err)?;
+            }
+        }
         #[cfg(test)]
         RAW_VISITS.with(|n| n.set(n.get() + 1));
         let event = raw_prefix
             .get(ordinal)
             .ok_or_else(|| err("目录raw序号越界"))?;
+        if native_measured {
+            if let Some(account) = budget {
+                account.record().map_err(err)?;
+            }
+        }
         super::history::check_deadline(deadline)?;
         let seq = bj::field(event, "seq")
             .as_i64()
@@ -703,6 +716,12 @@ fn verify_cut_in_store(
         .native_codec_room(&mut withdrawals_view.0, withdrawals_array.len())
         .map_err(err)?;
     for v in withdrawals_array.iter() {
+        if native_measured {
+            super::history::check_deadline(deadline)?;
+            if let Some(account) = budget {
+                account.record().map_err(err)?;
+            }
+        }
         super::history::check_deadline(deadline)?;
         withdrawals_view
             .0
@@ -1141,7 +1160,6 @@ mod tests {
     use crate::content_bi::PriorState;
     use crate::tests::fixture as fixture_path;
     use crate::tests::{located_ohlc_input, tb02b_oracle_rows};
-    use crate::v3::business_json::{self as bj, RawEventsView};
     use crate::{meta_get_opt, open_db, read_effective_events, read_raw_events, sha256_hex, v2};
     use newchan_rust::s_content::{MemoryNodes, NodeRead};
     use rusqlite::{Connection, TransactionBehavior};

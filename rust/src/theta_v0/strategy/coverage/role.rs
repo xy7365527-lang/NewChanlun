@@ -209,6 +209,7 @@ pub fn build_prev_sibling_index(
 
 /// ponytail: H5 带预建索引的 operation_role 变体——热循环（strategy_target_legs）单次建索引、
 /// 多次查，消除每元素 O(e_idx) 线性扫。bit-exact == operation_role（同 prev 判定逻辑）。
+#[cfg(test)]
 fn operation_role_indexed(
     elements: &ElementView,
     e_idx: usize,

@@ -1,5 +1,8 @@
 //! #1527：私有 SQLite 仅通过固定只读 FD VFS。无源 RW、无默认 VFS 兜底、无文件 clone。
 mod fd_wal;
+mod mixed;
+mod mixed_accounting;
+mod mixed_sql;
 use super::admission_anchor::AdmissionAccounting;
 use super::admission_provider::{MeasuredDomain, Medium};
 use super::audit_budget::Budget;
@@ -126,6 +129,8 @@ impl ObservedErrors {
 struct SharedAccounting<'s, 'j> {
     account: RefCell<&'s mut AdmissionAccounting<'j>>,
     errors: &'s RefCell<ObservedErrors>,
+    // 准入先于任何写：S3 schema 核在此记下源库是否仍是 #1602 迁移前形状。
+    delta: &'s std::cell::Cell<crate::DeltaShape>,
 }
 impl SharedAccounting<'_, '_> {
     fn observed<T>(&self, result: Result<T, sc::CodecError>) -> Result<T, sc::CodecError> {
@@ -166,6 +171,9 @@ impl Budget for SharedAccounting<'_, '_> {
     fn record(&self) -> Result<(), sc::CodecError> {
         self.with_account(|account| account.charge_records(1))
     }
+    fn before_write(&self) -> Option<&std::cell::Cell<crate::DeltaShape>> {
+        Some(self.delta)
+    }
 }
 fn reentrant() -> sc::CodecError {
     sc::CodecError::new("admission_reentrant", "私有审计记账重入，拒绝继续")
@@ -195,9 +203,51 @@ impl IoAccounting for &SharedAccounting<'_, '_> {
     }
 }
 
+/// #1527 rejection-only 前缀；成功不携带可转移资格，实际连接仍完整重核。
+pub(super) enum RejectionPrefix<'a> {
+    None,
+    OrdinaryStartup {
+        epoch: &'a str,
+    },
+    NativeStartup {
+        epoch: &'a str,
+        context: Option<&'a mut super::request_audit::RequestAuditContext>,
+        work: Option<&'a sc::capture_allocation::scratch::WorkScope>,
+    },
+    UnboundRecover,
+    LegacyServe {
+        db: &'a std::path::Path,
+        epoch: &'a str,
+        clock: &'a crate::v2::ClockPlan,
+        profile: &'a std::path::Path,
+    },
+}
+
+fn audit_legacy_serve_prefix(
+    conn: &rusqlite::Connection,
+    account: &SharedAccounting<'_, '_>,
+    db: &std::path::Path,
+    epoch: &str,
+    clock: &crate::v2::ClockPlan,
+    profile: &std::path::Path,
+) -> Result<(), String> {
+    crate::v2::verify_serve_startup(conn, db, epoch, clock, Some(account.delta), || {
+        let bytes = {
+            let mut access = account
+                .account
+                .try_borrow_mut()
+                .map_err(|_| reentrant().to_string())?;
+            super::admission::read_startup_accounted(&mut **access, profile, None)?
+        };
+        let text = String::from_utf8(bytes).map_err(|_| "StartupProfileUtf8Invalid")?;
+        crate::parse_profile_text(&text)
+    })
+}
+
 fn audit_business(
     conn: &rusqlite::Connection,
     account: &SharedAccounting<'_, '_>,
+    prefix: &mut RejectionPrefix<'_>,
 ) -> Result<(), String> {
     account.precheck().map_err(|e| e.to_string())?;
     let deadline = account
@@ -207,11 +257,62 @@ fn audit_business(
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
     let result = (|| match crate::meta_get_opt(&tx, "protocol_revision")?.as_deref() {
         Some(super::PROTOCOL_REVISION) => {
-            super::state::audit_with_budget(&tx, Some(deadline), None, Some(account)).map(|_| ())
+            match prefix {
+                RejectionPrefix::NativeStartup { context, work, .. } => {
+                    if let Some(context) = context.as_deref_mut() {
+                        super::state::audit_native_in_request_measured(
+                            &tx,
+                            context,
+                            *work,
+                            Some(deadline),
+                            Some(account),
+                        )?;
+                    } else {
+                        super::state::audit_native_current_measured(
+                            &tx,
+                            Some(deadline),
+                            Some(account),
+                        )?;
+                    }
+                }
+                _ => {
+                    super::state::audit_with_budget(&tx, Some(deadline), None, Some(account))?;
+                }
+            }
+            match prefix {
+                RejectionPrefix::None => Ok(()),
+                RejectionPrefix::LegacyServe {
+                    db,
+                    epoch,
+                    clock,
+                    profile,
+                } => audit_legacy_serve_prefix(&tx, account, db, epoch, clock, profile),
+                RejectionPrefix::OrdinaryStartup { epoch }
+                | RejectionPrefix::NativeStartup { epoch, .. } => {
+                    crate::verify_writer_epoch(&tx, epoch)?;
+                    super::require_current_writer_rule(
+                        &crate::meta_get_opt(&tx, "rule_revision")?
+                            .ok_or_else(|| super::audit_owner::invalid("缺rule_revision"))?,
+                    )
+                }
+                RejectionPrefix::UnboundRecover => super::require_current_writer_rule(
+                    &crate::meta_get_opt(&tx, "rule_revision")?
+                        .ok_or_else(|| super::audit_owner::invalid("缺rule_revision"))?,
+                ),
+            }
         }
         None | Some(super::PREVIOUS_REVISION) => {
             // 完整原判据原样运行；旧证据图不是 s-content 分帧域，不能伪造 CheckedNodeUsage。
-            crate::v2::audit_private_startup(&tx)?;
+            crate::v2::audit_private_startup(&tx, Some(account.delta))?;
+            if let RejectionPrefix::LegacyServe {
+                db,
+                epoch,
+                clock,
+                profile,
+            } = prefix
+            {
+                audit_legacy_serve_prefix(&tx, account, db, epoch, clock, profile)?;
+            }
             Err("LegacyAdmissionBudgetAdapterMissing：完整旧域审计已调用，但旧证据图节点与Snapshot/Delta尚无Job同源费用适配，禁止签发准入".into())
         }
         _ => Err("PrivateAuditProtocolUnsupported".into()),
@@ -224,7 +325,13 @@ fn audit_business(
     account.errors.borrow_mut().phase = ErrorPhase::Rollback;
     // 显式结束事务后再关闭 connection；原审计错误优先，清理错误不会变成成功。
     // 仅撤下 VM 计算门完成回滚/关闭；VFS 实际 I/O 门仍在，不能再作业务查询。
-    conn.progress_handler(0, None::<fn() -> bool>);
+    let disabled = conn
+        .progress_handler(0, None::<fn() -> bool>)
+        .map_err(|e| e.to_string());
+    account
+        .errors
+        .borrow_mut()
+        .returned(ErrorPhase::Rollback, &disabled);
     let ended = tx.rollback().map_err(|e| e.to_string());
     account
         .errors
@@ -236,7 +343,7 @@ fn audit_business(
         .errors
         .borrow_mut()
         .returned(ErrorPhase::Gate, &gate);
-    result.and(ended).and(gate)
+    result.and(disabled).and(ended).and(gate)
 }
 
 /// C 回调只看受限门面；不得取得 Job、StartedAdmission 或结束资格。
@@ -253,11 +360,35 @@ impl IoAccounting for AdmissionAccounting<'_> {
     }
 }
 
-pub(super) fn validate(
+/// 成功返回源库的 structure_deltas 形状；`PrePolicyRecords` 由 scope 带到开库迁移。
+pub(super) fn validate_prefix(
     source: &MeasuredDomain,
     account: &mut AdmissionAccounting<'_>,
-) -> Result<(), String> {
+    mut prefix: RejectionPrefix<'_>,
+) -> Result<crate::DeltaShape, String> {
+    let result = validate_prefix_inner(source, account, &mut prefix);
+    if result.is_err() {
+        if let RejectionPrefix::NativeStartup {
+            context: Some(context),
+            ..
+        } = &mut prefix
+        {
+            drop(context.take());
+        }
+    }
+    result
+}
+
+fn validate_prefix_inner(
+    source: &MeasuredDomain,
+    account: &mut AdmissionAccounting<'_>,
+    prefix: &mut RejectionPrefix<'_>,
+) -> Result<crate::DeltaShape, String> {
     account.pre_io_check().map_err(|e| e.to_string())?;
+    if account.is_mixed() {
+        // #1527：父账已可消费，旧域SQL/walker完整闭合前仍不发布服务准入。
+        return Err("MixedAdmissionNotEnabled".into());
+    }
     match source.medium {
         Medium::RollbackJournal => return Err("D2ProductionCapacityMissing：JobLimits8/SResources7没有已裁的overlay payload、metadata与SQLite heap额度映射；禁止采用D2-SMALL六参数默认".into()),
         Medium::MainOnly | Medium::Wal => {}
@@ -266,12 +397,14 @@ pub(super) fn validate(
     // 因而此机制的新增磁盘 allocation_upper 精确为 0，不是未知上界填 0。
     let grant = account.reserve_staged(0).map_err(|e| e.to_string())?;
     let errors = RefCell::new(ObservedErrors::new());
+    let delta = std::cell::Cell::new(crate::DeltaShape::Current);
     let result = (|| {
         let main = source.main_fd()?;
         let wal = source.wal_fd()?;
         let shared = SharedAccounting {
             account: RefCell::new(&mut *account),
             errors: &errors,
+            delta: &delta,
         };
         let mut io = &shared;
         let registration = fd_wal::Registration::new(main, wal, &mut io)
@@ -299,7 +432,7 @@ pub(super) fn validate(
                 }
                 drop(rows);
                 drop(stmt);
-                audit_business(session.connection(), &shared)
+                audit_business(session.connection(), &shared, prefix)
             })();
             // quick_check/业务结果在任何 close 回调之前保存。
             errors.borrow_mut().returned(ErrorPhase::Business, &check);
@@ -330,7 +463,7 @@ pub(super) fn validate(
     errors.borrow_mut().phase = ErrorPhase::Deadline;
     let budget = account.check_deadline().map_err(|e| e.to_string());
     errors.borrow_mut().returned(ErrorPhase::Deadline, &budget);
-    errors.into_inner().finish()
+    errors.into_inner().finish().map(|()| delta.get())
 }
 
 #[cfg(test)]
@@ -362,6 +495,7 @@ mod tests {
             let shared = SharedAccounting {
                 account: RefCell::new(&mut account),
                 errors: &errors,
+                delta: &std::cell::Cell::new(crate::DeltaShape::Current),
             };
             let mut io = &shared;
             io.before_io().unwrap();
@@ -474,6 +608,7 @@ mod tests {
             let shared = SharedAccounting {
                 account: RefCell::new(&mut account),
                 errors: &errors,
+                delta: &std::cell::Cell::new(crate::DeltaShape::Current),
             };
             let mut io = &shared;
             first = io.after_read(actual).unwrap_err().to_string();
@@ -505,4 +640,52 @@ mod tests {
         drop(source);
         std::fs::remove_dir_all(dir).unwrap();
     }
+}
+
+#[cfg(test)]
+pub(crate) fn test_progressive_mixed_sql_policy<T>(
+    conn: &rusqlite::Connection,
+    observer: &dyn super::audit_budget::LegacyObserver,
+    run: impl FnOnce(&dyn super::audit_budget::LegacyObserver) -> T,
+) -> T {
+    mixed_sql::test_progressive_policy(conn, observer, run)
+}
+
+pub(crate) fn mixed_fixed_metadata_bytes() -> usize {
+    mixed_accounting::fixed_metadata_bytes() + std::mem::size_of::<MixedSealedPrefix>()
+}
+
+pub(crate) use mixed::SealedPrefix as MixedSealedPrefix;
+pub(crate) fn validate_mixed_prefix(
+    source: &MeasuredDomain,
+    account: &mut AdmissionAccounting<'_>,
+    prefix: &RejectionPrefix<'_>,
+) -> Result<MixedSealedPrefix, super::admission_anchor::terminal::FixedFailure> {
+    let enabled = false;
+    #[cfg(test)]
+    let enabled = enabled || MIXED_TEST_ENTRY.with(|value| value.get());
+    if !enabled {
+        return Err(super::admission_anchor::terminal::FixedFailure::new(
+            "MixedAdmissionNotEnabled",
+            "business",
+            "MixedAdmissionNotEnabled",
+        ));
+    }
+    let sealed = mixed::validate(source, account)?;
+    sealed.require(prefix)?;
+    Ok(sealed)
+}
+#[cfg(test)]
+thread_local! {static MIXED_TEST_ENTRY:std::cell::Cell<bool>=const{std::cell::Cell::new(false)};}
+#[cfg(test)]
+pub(crate) fn test_with_mixed_entry<T>(run: impl FnOnce() -> T) -> T {
+    struct Reset;
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            MIXED_TEST_ENTRY.with(|v| v.set(false));
+        }
+    }
+    MIXED_TEST_ENTRY.with(|v| assert!(!v.replace(true)));
+    let _reset = Reset;
+    run()
 }

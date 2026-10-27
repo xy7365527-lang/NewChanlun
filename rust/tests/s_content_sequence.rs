@@ -20,7 +20,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::PathBuf;
 
 /// 已批准输入的 SHA256（§5.10 记录值；向量是输入，不是本实现自己产出的期望值）。
-const VECTORS_SHA256: &str = "78984501cbb465be8251e3d212e34c0cb6fb33a5aab9a4999a3f1db592ce71f0";
+const VECTORS_SHA256: &str = "78984501cbb465be8251e3d212e34c0cb6fb33a5aab9a4999a3f1db592ce71f0"; // DevSkim: ignore DS173237 SHA-256 摘要/测试向量，非凭据
 /// 预算门被触发时的测试码（仪表码，不是生产码）。
 const BUDGET_CODE: &str = "test_budget";
 

@@ -400,3 +400,195 @@ fn duplicate_missing_or_alias_cli_budget_never_becomes_authority_and_errors_do_n
         ErrorKind::Identity
     );
 }
+
+fn start_gate_pipe() -> (File, File) {
+    let mut fds = [-1; 2];
+    assert_eq!(unsafe { libc::pipe(fds.as_mut_ptr()) }, 0);
+    // SAFETY：pipe成功返回两个独占新fd，各转交一个File释放。
+    unsafe { (File::from_raw_fd(fds[0]), File::from_raw_fd(fds[1])) }
+}
+#[test]
+fn start_gate_accepts_only_release_and_charges_original_wire() {
+    for value in [Some(b'R'), Some(b'X'), None] {
+        let f = Fixture::new();
+        let mut prepared = f.load().unwrap();
+        let first = prepared.prelude.first_read_at;
+        let wire = prepared.prelude.wire_bytes;
+        let (read, mut write) = start_gate_pipe();
+        if let Some(byte) = value {
+            write.write_all(&[byte]).unwrap();
+        }
+        drop(write);
+        let result = prepared.wait_start_gate(read.as_raw_fd());
+        assert_eq!(result.is_ok(), value == Some(b'R'));
+        assert_eq!(prepared.prelude.first_read_at, first);
+        assert_eq!(
+            prepared.prelude.wire_bytes,
+            wire + u64::from(value.is_some())
+        );
+    }
+}
+
+#[test]
+fn start_gate_wait_consumes_original_deadline() {
+    let mut node = limit_node();
+    node["max_elapsed_ms"] = json!("80");
+    let f = Fixture::with_raw(serde_json::to_vec(&node).unwrap());
+    let mut prepared = f.load().unwrap();
+    let (read, _write) = start_gate_pipe();
+    let first = prepared.prelude.first_read_at;
+    let error = prepared.wait_start_gate(read.as_raw_fd()).unwrap_err();
+    assert_eq!(error.kind, ErrorKind::Deadline);
+    assert_eq!(error.first_read_at, first);
+}
+#[test]
+fn start_gate_does_not_accept_changed_anchor_or_nonpipe() {
+    let f = Fixture::new();
+    let mut prepared = f.load().unwrap();
+    let (read, mut write) = start_gate_pipe();
+    std::fs::write(&f.limits, b"changed").unwrap();
+    write.write_all(b"R").unwrap();
+    assert_eq!(
+        prepared.wait_start_gate(read.as_raw_fd()).unwrap_err().kind,
+        ErrorKind::Changed
+    );
+    let f = Fixture::new();
+    let mut prepared = f.load().unwrap();
+    let file = File::open(&f.db).unwrap();
+    assert_eq!(
+        prepared.wait_start_gate(file.as_raw_fd()).unwrap_err().kind,
+        ErrorKind::ControlMismatch
+    );
+}
+
+#[test]
+fn mixed_resources_anchor_starts_same_job_and_closes_retained_parent() {
+    use newchan_rust::s_content::{self as sc, job::CheckedNodeUsage};
+    let mut limits = limit_node();
+    limits["max_store_bytes"] = json!("1048576");
+    limits["max_total_node_bytes"] = json!("1048576");
+    limits["max_total_nodes"] = json!("2");
+    let raw = serde_json::to_vec(&json!({
+        "schema_revision":resources::MIXED_REVISION,
+        "measurement_domains":["s-content/1","legacy-evidence/1"],
+        "job_limits":limits,
+        "native_ram":{"max_live_bytes":"1048576","max_operation_bytes":"1048576"}
+    }))
+    .unwrap();
+    let fixture = Fixture::with_raw(raw);
+    let prepared = fixture.load().unwrap();
+    let first = prepared.prelude.first_read_at.unwrap();
+    assert_eq!(prepared.prelude.wire_bytes, fixture.total());
+    let consumed = prepared.consume().unwrap();
+    let source = super::super::admission_provider::MeasuredDomain::measure(&consumed).unwrap();
+    let mut started = consumed.into_job(source.existing).unwrap();
+    assert_eq!(started.first_read_at, first);
+    assert_eq!(
+        started.accounting().snapshot().wire_bytes,
+        fixture.total() as u128
+    );
+    let retained = started
+        .with_accounting(|account| {
+            let content = CheckedNodeUsage::checked(
+                &sc::frame(sc::tag::BYTES_CHUNK, b"x"),
+                sc::tag::BYTES_CHUNK,
+                b"x",
+            )?;
+            let legacy = sc::legacy_evidence::CheckedLegacyEvidenceRow::verify(
+                &sc::legacy_evidence::node_id(0, b"x"),
+                0,
+                b"x",
+                1,
+            )
+            .unwrap();
+            account.accept_checked_usage(&content)?;
+            account.accept_legacy_evidence(&legacy)?;
+            account.charge_records(1)?;
+            let grant = account.reserve_staged(0)?;
+            account.release(&grant)?;
+            assert_eq!(account.snapshot().nodes, 2);
+            account
+                .mixed_scope()
+                .unwrap()
+                .reserve_native(31)
+                .map(|permit| permit.hold([0u8; 31]))
+        })
+        .unwrap();
+    let finished = started.seal().unwrap();
+    let ram = finished.ram.as_ref().unwrap();
+    let before = ram.snapshot().unwrap();
+    assert!(!before.active);
+    assert!(ram.codec_work().is_err(), "seal后不能创建新分配域");
+    drop(retained);
+    assert_eq!(ram.snapshot().unwrap().job_live, before.job_live - 31);
+    assert_eq!(finished.job.borrow().snapshot().nodes, 2);
+}
+
+#[test]
+fn mixed_resources_fixed_job_layout_refusal_precedes_owner_publication() {
+    let raw = serde_json::to_vec(&json!({
+        "schema_revision":resources::MIXED_REVISION,
+        "measurement_domains":["s-content/1","legacy-evidence/1"],
+        "job_limits":limit_node(),
+        "native_ram":{"max_live_bytes":"0","max_operation_bytes":"0"}
+    }))
+    .unwrap();
+    let fixture = Fixture::with_raw(raw);
+    let consumed = fixture.load().unwrap().consume().unwrap();
+    let error = consumed
+        .into_job(admission_job::Existing {
+            store_bytes: 0,
+            staged_bytes: 0,
+        })
+        .err()
+        .unwrap();
+    assert_eq!(error.kind, ErrorKind::Limit);
+    assert_eq!(error.stage, Stage::E7);
+    assert_eq!(error.wire_bytes, fixture.total());
+}
+
+#[test]
+fn mixed_resources_anchor_ram_mutation_requires_new_signed_binding() {
+    let raw = serde_json::to_vec(&json!({
+        "schema_revision":resources::MIXED_REVISION,
+        "measurement_domains":["s-content/1","legacy-evidence/1"],
+        "job_limits":limit_node(),
+        "native_ram":{"max_live_bytes":"4096","max_operation_bytes":"1024"}
+    }))
+    .unwrap();
+    let fixture = Fixture::with_raw(raw);
+    let prepared = fixture.load().unwrap();
+    let changed = String::from_utf8(fixture.raw.clone())
+        .unwrap()
+        .replace("4096", "81920");
+    std::fs::write(&fixture.limits, changed).unwrap();
+    assert_eq!(fixture.load().err().unwrap().kind, ErrorKind::Changed);
+    assert_eq!(prepared.consume().err().unwrap().kind, ErrorKind::Changed);
+}
+
+#[test]
+fn mixed_resources_swallowed_ram_failure_cannot_seal_success() {
+    let mut limits = limit_node();
+    limits["max_store_bytes"] = json!("1048576");
+    let raw = serde_json::to_vec(&json!({
+        "schema_revision":resources::MIXED_REVISION,
+        "measurement_domains":["s-content/1","legacy-evidence/1"],
+        "job_limits":limits,
+        "native_ram":{"max_live_bytes":"1048576","max_operation_bytes":"1048576"}
+    }))
+    .unwrap();
+    let fixture = Fixture::with_raw(raw);
+    let consumed = fixture.load().unwrap().consume().unwrap();
+    let source = super::super::admission_provider::MeasuredDomain::measure(&consumed).unwrap();
+    let mut started = consumed.into_job(source.existing).unwrap();
+    let result = started.with_accounting(|account| {
+        assert!(account
+            .mixed_scope()
+            .unwrap()
+            .reserve_native(2 << 20)
+            .is_err());
+        Ok::<_, newchan_rust::s_content::CodecError>(())
+    });
+    let _ = result;
+    assert!(started.seal().is_err());
+}

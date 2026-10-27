@@ -28,6 +28,7 @@ impl DescendLocator {
     }
 
     /// 下沉深度（0 = 首级即终止）。
+    #[cfg(test)]
     pub(super) fn depth(&self) -> usize {
         self.depth
     }

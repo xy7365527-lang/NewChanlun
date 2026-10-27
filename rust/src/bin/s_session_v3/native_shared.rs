@@ -87,11 +87,39 @@ macro_rules! shared_family {
             value: $ptr<T>,
             lease: $lease,
         }
+        #[cfg_attr(
+            all(not(test), not(feature = "s_capture_native_testonly")),
+            allow(dead_code, reason = "#1488 再合 #1608：s_session 非测试 构建不触达")
+        )]
         pub(crate) struct $weak<T: ?Sized> {
             value: $weak_ptr<T>,
             lease: $lease,
         }
         impl<T> $strong<T> {
+            /// #1527 mixed缓存：同父仅共享；异父先核源健康，再由封闭字段工厂复制纯内容。
+            /// 不携带任何Job/capture资格，调用者仍须完成fresh原件核验。
+            #[allow(
+                dead_code,
+                reason = "#1527：共享宏的Rc/Arc实例消费者不同，保留同一父账接口"
+            )]
+            pub(crate) fn share_or_copy_mixed(
+                &self,
+                work: &WorkScope,
+                copy: impl FnOnce(&T, &WorkScope) -> Result<T, CodecError>,
+            ) -> Result<Self, CodecError> {
+                work.check_current()?;
+                self.check_retained_source()?;
+                if self.belongs_to_parent(work) {
+                    return Ok(self.clone());
+                }
+                let value = copy(&self.value, work)?;
+                Self::try_new_shallow(value, Some(work))
+            }
+            /// 原无工作域入口；Native消费者使用try_new_shallow并显式传当前scope。
+            #[allow(dead_code, reason = "#1488：8组合探针部分宏实例无调用方，保留共享接口")]
+            pub(crate) fn new(value: T) -> Self {
+                Self::try_new_shallow(value, None).expect("unscoped shared layout")
+            }
             /// 只准入新共享块；value 的动态字段须已各自持费。None 仅供原无域入口。
             pub(crate) fn try_new_shallow(
                 value: T,
@@ -105,26 +133,86 @@ macro_rules! shared_family {
                 })
             }
         }
+        impl<T> $strong<T> {
+            #[allow(dead_code, reason = "#1488：8组合探针部分宏实例无调用方，保留共享接口")]
+            pub(crate) fn try_unwrap(this: Self) -> Result<T, Self> {
+                let Self { value, lease } = this;
+                match $ptr::try_unwrap(value) {
+                    Ok(value) => {
+                        drop(lease);
+                        Ok(value)
+                    }
+                    Err(value) => Err(Self { value, lease }),
+                }
+            }
+        }
         impl<T: ?Sized> $strong<T> {
+            #[cfg_attr(
+                all(not(test), not(feature = "s_capture_native_testonly")),
+                allow(dead_code, reason = "#1488 再合 #1608：s_session 非测试 构建不触达")
+            )]
             pub(crate) fn downgrade(this: &Self) -> $weak<T> {
                 $weak {
                     value: $ptr::downgrade(&this.value),
                     lease: this.lease.clone(),
                 }
             }
+            /// #1527：只比较真实分配父；不能把该结果当Job/capture资格。
+            #[allow(
+                dead_code,
+                reason = "#1527：共享宏的Rc/Arc实例消费者不同，保留同一父账接口"
+            )]
+            pub(crate) fn belongs_to_parent(&self, work: &WorkScope) -> bool {
+                self.lease
+                    .0
+                    .as_ref()
+                    .is_some_and(|lease| lease._permit.belongs_to_parent(work))
+            }
+            /// 同父共享或异父复制前核旧父健康；closed不是failed。
+            #[allow(
+                dead_code,
+                reason = "#1527：共享宏的Rc/Arc实例消费者不同，保留同一父账接口"
+            )]
+            pub(crate) fn check_retained_source(&self) -> Result<(), CodecError> {
+                self.lease
+                    .0
+                    .as_ref()
+                    .map_or(Ok(()), |lease| lease._permit.check_retained_source())
+            }
+            #[allow(
+                dead_code,
+                reason = "#1527：共享宏的Rc/Arc实例消费者不同，保留同一父账接口"
+            )]
             pub(crate) fn ptr_eq(this: &Self, other: &Self) -> bool {
                 $ptr::ptr_eq(&this.value, &other.value)
             }
+            /// 仅作身份比较用的地址；不暴露可解引用的原始句柄。
+            #[allow(dead_code, reason = "#1488：8组合探针部分宏实例无调用方，保留共享接口")]
+            pub(crate) fn as_ptr(this: &Self) -> *const T {
+                $ptr::as_ptr(&this.value)
+            }
             /// 保留标准库“唯一强且无弱”的条件，不按 lease 数量推断唯一性。
             /// 调用方仅能通过受准入字段操作改变动态内容；不提供 DerefMut/make_mut。
+            #[cfg_attr(
+                all(not(test), not(feature = "s_capture_native_testonly")),
+                allow(dead_code, reason = "#1488 再合 #1608：s_session 非测试 构建不触达")
+            )]
             pub(crate) fn get_mut(this: &mut Self) -> Option<&mut T> {
                 $ptr::get_mut(&mut this.value)
             }
+            #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
             pub(crate) fn is_native_admitted(&self) -> bool {
                 self.lease.0.is_some()
             }
             /// 共享块的结构预算；不含 T 动态子分配，不是退款额度或 RSS 读数。
             /// 按归属统计时每个拥有者可保守全计，不能据此重复签发父账许可。
+            #[cfg_attr(
+                not(feature = "s_capture_native_testonly"),
+                allow(
+                    dead_code,
+                    reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+                )
+            )]
             pub(crate) fn allocation_bytes(&self) -> usize {
                 let payload = Layout::for_value(self.value.as_ref());
                 if self.lease.0.is_some() {
@@ -185,6 +273,10 @@ macro_rules! shared_family {
             }
         }
         impl<T> $weak<T> {
+            #[cfg_attr(
+                all(not(test), not(feature = "s_capture_native_testonly")),
+                allow(dead_code, reason = "#1488 再合 #1608：s_session 非测试 构建不触达")
+            )]
             pub(crate) fn new() -> Self {
                 Self {
                     value: $weak_ptr::new(),
@@ -198,14 +290,46 @@ macro_rules! shared_family {
             }
         }
         impl<T: ?Sized> $weak<T> {
+            #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
             pub(crate) fn upgrade(&self) -> Option<$strong<T>> {
                 self.value.upgrade().map(|value| $strong {
                     value,
                     lease: self.lease.clone(),
                 })
             }
+            /// #1527：只比较真实分配父；不能把该结果当Job/capture资格。
+            #[allow(
+                dead_code,
+                reason = "#1527：共享宏的Rc/Arc实例消费者不同，保留同一父账接口"
+            )]
+            pub(crate) fn belongs_to_parent(&self, work: &WorkScope) -> bool {
+                self.lease
+                    .0
+                    .as_ref()
+                    .is_some_and(|lease| lease._permit.belongs_to_parent(work))
+            }
+            /// 同父共享或异父复制前核旧父健康；closed不是failed。
+            #[allow(
+                dead_code,
+                reason = "#1527：共享宏的Rc/Arc实例消费者不同，保留同一父账接口"
+            )]
+            pub(crate) fn check_retained_source(&self) -> Result<(), CodecError> {
+                self.lease
+                    .0
+                    .as_ref()
+                    .map_or(Ok(()), |lease| lease._permit.check_retained_source())
+            }
+            #[allow(
+                dead_code,
+                reason = "#1527：共享宏的Rc/Arc实例消费者不同，保留同一父账接口"
+            )]
             pub(crate) fn ptr_eq(this: &Self, other: &Self) -> bool {
                 $weak_ptr::ptr_eq(&this.value, &other.value)
+            }
+            /// 仅作身份比较用的地址；与强句柄 as_ptr 同址。
+            #[allow(dead_code, reason = "#1488：8组合探针部分宏实例无调用方，保留共享接口")]
+            pub(crate) fn as_ptr(&self) -> *const T {
+                self.value.as_ptr()
             }
         }
         impl<T: ?Sized> Clone for $weak<T> {
@@ -231,6 +355,23 @@ shared_family!(NativeArc, NativeWeakArc, Arc, ArcWeak, ArcLease);
 macro_rules! slice_copy {
     ($strong:ident, $ptr:ident, $lease:ident, $element:ty) => {
         impl $strong<[$element]> {
+            #[allow(
+                dead_code,
+                reason = "#1527：共享宏的Rc/Arc实例消费者不同，保留同一父账接口"
+            )]
+            pub(crate) fn share_or_copy_slice_mixed(
+                &self,
+                work: &WorkScope,
+            ) -> Result<Self, CodecError> {
+                work.check_current()?;
+                self.check_retained_source()?;
+                if self.belongs_to_parent(work) {
+                    Ok(self.clone())
+                } else {
+                    Self::try_copy_slice(self, Some(work))
+                }
+            }
+            #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
             pub(crate) fn try_copy_slice(
                 values: &[$element],
                 work: Option<&WorkScope>,
@@ -251,6 +392,17 @@ slice_copy!(NativeRc, Rc, RcLease, i64);
 slice_copy!(NativeRc, Rc, RcLease, u8);
 slice_copy!(NativeArc, Arc, ArcLease, i64);
 slice_copy!(NativeArc, Arc, ArcLease, u8);
+
+impl From<&[u8]> for NativeArc<[u8]> {
+    fn from(bytes: &[u8]) -> Self {
+        Self::try_copy_slice(bytes, None).expect("unscoped byte layout")
+    }
+}
+impl From<Vec<u8>> for NativeArc<[u8]> {
+    fn from(bytes: Vec<u8>) -> Self {
+        Self::from(bytes.as_slice())
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -293,7 +445,7 @@ mod tests {
         }
     }
     impl ScratchParent for Parent {
-        fn reserve(&self, bytes: usize, kind: ScratchCharge) -> Result<(), ScratchFailure> {
+        fn reserve(&self, bytes: usize, kind: ScratchCharge) -> Result<u64, ScratchFailure> {
             let mut c = self.counts.lock().unwrap();
             let next = c.live.checked_add(bytes).ok_or(ScratchFailure::Budget)?;
             if next > self.limit {
@@ -303,9 +455,17 @@ mod tests {
             if matches!(kind, ScratchCharge::Native) {
                 c.native += bytes;
             }
-            Ok(())
+            Ok(0)
         }
-        fn release(&self, bytes: usize, kind: ScratchCharge) -> Result<(), ScratchFailure> {
+        fn release(
+            &self,
+            bytes: usize,
+            kind: ScratchCharge,
+            origin: u64,
+        ) -> Result<(), ScratchFailure> {
+            if origin != 0 {
+                return Err(ScratchFailure::Ledger);
+            }
             let mut c = self.counts.lock().unwrap();
             c.live = c.live.checked_sub(bytes).ok_or(ScratchFailure::Ledger)?;
             if matches!(kind, ScratchCharge::Native) {

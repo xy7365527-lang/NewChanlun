@@ -47,16 +47,30 @@ P1 按 Netting 验证（[ADR 0014](0014-intra-chong-unidirectional-inter-chong-n
 
 **人工层**：`P2` 首次新发送是一次具名动作授权，由用户在机器层通过后签署。实验 profile 的证据不得被读为生产有效。
 
-## 被否方案
+## 合法候选及启用前置（#1599）
 
-- **A 只做回放/模拟**：作为首个范围不回答票面问题，TB-08/09 五张叶片会继续没有范围；它保留为裁定一前置读数失败时的退回范围。
-- **C 主网独立地址/子账户最小额**：真实外效；#942 第 1/3 问未测；用户已裁不做强平；暴露于 ADR 0021 裁定三的部署者权力。
-- **D IBKR paper**：#1283 第二轮；需本地 TWS；ADR 0021 `:29` 记 IBKR 维持保证金与强平合并计算；ROADMAP 支柱 IV 下单执行器未实现。
-- **E Binance 只读**：验不了发送与回报；子账户未开通；需 VPN。
+> #1599（用户 2026-10-26 批准）：字段进入所属具名版本，一次运行只读一个已签版本，改值即新版本并重推导；不得因失败换值放行。
+
+- **A/P0 回放与受控模拟**：保留；P1 余额读数不可用时退回此证据范围，不主网存款。P0 不证明真实发送/回报能力。
+- **P1-hl-testnet**：仍为首个验证默认；主 DEX、experiment、Netting、独立 API wallet、trade_no_transfer。范围与授权按裁定一，不扩 builder DEX、子账户、强平或生产 X 排他结论。
+- **C/P2 主网最小额候选**：本图不做真钱首次发送，#1561 不解除。日后另票按 ADR 0021 裁定五重启，重跑 #942 问 1/3/4/5、执行 #937 四裁切换；主网存款及数额走 ADR 0040 的 P2 新版本；具名权限签署、用户本人首次发送授权及 TB-09 重核缺一不可，不做强平实验。
+- **D/IBKR paper**：需本地 TWS、paper 账户配置与支柱 IV 执行器接通；保证金与强平合并口径不证明逐重隔离。配置函数不等于完整 adapter。
+- **E/Binance 只读**：历史曾验通：[#953 收口评论](https://github.com/xy7365527-lang/NewChanlun/issues/953#issuecomment-5397752334)记录只读 API 已开通且交易、转账、提现全关；[#932 收口评论](https://github.com/xy7365527-lang/NewChanlun/issues/932#issuecomment-5399028001)记录成交层 BUY×2、单仓、平仓至零及余额回笼验通。两项记录不证明使用同一凭据，也不代表当前账户能力与权限；当前接线、子账户能力、权限及 VPN 前置须实时核验。E 仍仅为只读候选，只读不证明发送与回报，不授权开子账户或交易。
+
+D/E 的 profile id 随实施接线记录，不擅定已生效 P3/P4。保留候选不改变下节 P2 处置及 P1/P0 验收边界。
 
 ## 与 ADR 0021 的关系
 
 不构成重启（裁定五的条件未触发）。本 ADR 在「暂不选定生产场所」的框架内只钉首个能力验证范围；ADR 0021 全部有效域原样保留。
+
+## P2 处置
+
+> 2026-10-21 补记（[#1561](https://github.com/xy7365527-lang/NewChanlun/issues/1561)，用户批复 [评论 6310811399](https://github.com/xy7365527-lang/NewChanlun/issues/1561#issuecomment-6310811399) 原话「我暂时不用真钱」与 [评论 6310848771](https://github.com/xy7365527-lang/NewChanlun/issues/1561#issuecomment-6310848771)；先例同 ADR 0021:75 补记）。签署单、考古与独审：`/Volumes/AgentStorage/decisions/1561/{draft.md,archaeology.md,review.attempt3.json}`。
+
+1. **本图不做 P2 真钱首次发送**。`P2` 保持槽位，状态「未启用（#1561）」；本图 Destination 不含真钱发送。依据：用户 2026-08-08 原话「我们暂时只有回测也是可以的」（[ADR 0021](0021-venue-selection-deferred.md):9）与 2026-10-21 原话「我暂时不用真钱」；SPEC #1340 范围外「未经批准的真实订单、资金投入/划转、账户权限或退出操作；模拟通过不授予这些权限」。ADR 0021 不重启（裁定五四条均未触发），#937 四裁切换件继续挂在 ADR 0021:73。
+2. **TB-09/TB-10 以 `P1-hl-testnet` 验收**（`experiment`）；裁定一前置读数失败时退回 `P0`。只有目标生产部署才能证明的义务——生产旧凭据/launcher/OS 身份隔离、带仓身份映射、生产首次新发送前 TB-09 重核、默认启用批准——保持为「生产首次新发送前」的具名门，未触发；P1 证据不得读成已满足（`CONTEXT.md` 证据类词条）。
+3. **首次新发送授权记录格式**：⟨authorization_id, profile_id@version, tb09_evidence_fingerprint_ref, scope, authorizer, authorized_at⟩。签署人只能是用户本人（本 ADR 裁定四人工层；#1351 第二问：代理与自动化无自主权）；本图下只登记格式、不执行。该格式是 TB-10-H/I（[#1402](https://github.com/xy7365527-lang/NewChanlun/issues/1402)/[#1413](https://github.com/xy7365527-lang/NewChanlun/issues/1413)）的实施输入，不另定第二套。组合成一条记录是 `[新缠论:推论]`（字段出处：本 ADR 裁定一 authorization 行、裁定四机器层与人工层；[ADR 0030](0030-exit-authorization-and-liability-retirement.md):19）。
+4. **日后要上真钱**另起票：按 ADR 0021 裁定五重启（重跑 #942 第 1/3/4/5 问并同步执行 #937 四裁切换），需主网存款（SPEC 范围外「资金投入」），数额走 [ADR 0040](0040-funding-signature-and-chong-derivation.md) 的 P2 新版本；P2 v1 字段随该重启票落其新 ADR，本节只留指针。
 
 ## 受影响代码清单
 
@@ -69,3 +83,7 @@ TB-08-A/B/C [#1382](https://github.com/xy7365527-lang/NewChanlun/issues/1382)/[#
 ## 溯源标签
 
 全部 `[新缠论:选择]`。缠师原文对程序化执行场所无论述；`.chanlun/definitions/qujiantao.md:462`（§5 正本硬条款，#817）已定「参数……按场所与执行系统给，不入正本」。
+
+## #1599 批复与受影响清单
+
+[用户批复](https://github.com/xy7365527-lang/NewChanlun/issues/1599#issuecomment-6403278294)；[受影响清单](../../.chanlun/review-results/issue1599-policy-20261026/affected-code.md)含固定基线、Rust/Python/Lean 接缝及下游未承接项。本次为政策文书，不声称实现或关票；新增自由度为 `[新缠论:选择]`，既裁不变量不变。

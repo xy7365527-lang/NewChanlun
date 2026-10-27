@@ -1,29 +1,30 @@
-// Sequential Reviewer（prime-agent 版）—— #1001/#1002/#1003 裁定落地。
+// Sequential Reviewer（claudeCode 版，#1547）—— #1001/#1002/#1003 裁定落地。
 // 每票：host 侧 frontier 取票 + claim → createSandbox（确定性分支，baseBranch=main）
 //   → Phase 1 实装工蜂 → Phase 2 独立评审工蜂（直接在分支上修正）
 //   → 不合 main（人工闸，#1003 裁 3）。
 // 跑法：npx tsx .sandcastle/main.mts
 
 import * as sandcastle from "@ai-hero/sandcastle";
-import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
+// #1547：沙盒后端暂用 noSandbox（agent 直接在宿主上、于 sandcastle 自建的独立 worktree 内运行）。
+// 切回 docker 的条件：Docker daemon 在宿主常驻运行，且 `docker image inspect sandcastle:newchanlun`
+// 成功（镜像已按 .sandcastle/Dockerfile 构建）；届时 sandboxProvider() 换回
+// docker({ imageName: "sandcastle:newchanlun", env: { ...resolveSandboxGithubEnv(), ...cliProxyEnv() } })，
+// 并注意容器内 127.0.0.1:8318 不指向宿主，claude-route.ts 的 BASE_URL 要改成 host.docker.internal。
+import { noSandbox } from "@ai-hero/sandcastle/sandboxes/no-sandbox";
 import type { AgentProvider, Sandbox, SandboxRunResult } from "@ai-hero/sandcastle";
 import { execSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-// #1283 Q2 nautilus/codex 切换暂停（OAuth/依赖问题），回退 deepseek primeAgent
-import { claudeCode } from "@ai-hero/sandcastle";
-// 订阅额度认证——token 文件由终端上下文提取（launchd 读不了 Keychain；过期后重跑提取命令刷新）
-// 提取命令：security find-generic-password -s "Claude Code-credentials" -w | python3 -c "import sys,json,os; d=json.loads(sys.stdin.read())['claudeAiOauth']; open(os.path.expanduser('~/.sandcastle/claude_oauth_token'),'w').write(d['accessToken'])"
-const CLAUDE_OAUTH = (() => {
-  try {
-    return readFileSync("/Users/silencehan/.sandcastle/claude_oauth_token", "utf8").trim();
-  } catch { return ""; }
-})();
-if (!CLAUDE_OAUTH) console.error("[main.mts] claude_oauth_token 文件缺失或为空——沙盒 claude 将无认证");
-// #1283 Q2 裁定 (c)+Q1：执行面全量切 Claude 订阅额度 opus-5（2026-08-29 编排者令）
-import { primeAgent } from "./prime-agent-provider.ts";
-import { execSync } from "node:child_process";
-import { readFileSync } from "node:fs";
 import { appendFileSync, existsSync, mkdirSync } from "node:fs";
+import { cargoGuardEnv, installCargoGuard } from "./cargo-guard.mts";
+import { claudeWorker, cliProxyEnv } from "./claude-route.mts";
+import {
+  ghIssueFetcher,
+  ghIssueNotifier,
+  hostGit,
+  readReviewTemplate,
+  resolveReviewBase,
+  ReviewPromptTooLargeError,
+  runGuardedReview,
+} from "./review-context.mts";
 
 const TOKEN_ROTATION_MARKER = "/Users/silencehan/Projects/NewChanlun/.sandcastle/logs/GH_TOKEN_ROTATION_REQUIRED";
 if (existsSync(TOKEN_ROTATION_MARKER)) {
@@ -32,11 +33,11 @@ if (existsSync(TOKEN_ROTATION_MARKER)) {
 }
 
 // ── 顶部常量（#1002 裁 3：模型面集中在此，升档改这里重跑） ────────────────
-// 2026-08-18 升档：kimi-coding 配额耗尽（403 billing cycle）→ deepseek（宿主同款，当日验证可用）
-const IMPLEMENTER_MODEL = "deepseek-v4-pro";
-const REVIEWER_MODEL = "deepseek-v4-pro";
-const PROVIDER = "deepseek";
-// #1066：每票每阶段（implementer/reviewer）最多续跑轮数；续跑复用原 prime-agent 会话
+// #1547：实装与独审都走 Claude Code CLI → 本机 CLIProxyLocal 统一路由（无前缀模型名，自动路由）。
+const IMPLEMENTER_MODEL = "claude-opus-5-5";
+const REVIEWER_MODEL = "claude-opus-5-5";
+const EFFORT = "medium" as const;
+// #1066：每票每阶段（implementer/reviewer）最多续跑轮数；续跑复用原 agent 会话
 // （runWithResume），而非 sandcastle 内建 maxIterations 的「多轮各自全新会话」。
 const MAX_ITERATIONS = 3;
 // 每次运行认领并处理的最大票数（与每阶段续跑轮数无关；本票不扩大取票吞吐，#1066 未涉此闸）。
@@ -54,11 +55,16 @@ const GH_CLEAN_ENV = {
 };
 
 // ── #1183：宿主分支 FAIL-loud 校验（启动即查） ────────────────────────────────
-// 评审面的 TARGET_BRANCH 是 sandcastle 内置 promptArg，解析自宿主 cwd 的当前分支
-// （TROUBLESHOOTING #8：#1008 记录「内置 promptArg，不可覆盖」）。宿主 worktree
-// 常驻他人 ticket 分支时，评审基线被带偏成「别线 WIP + 本票」混合 diff——
-// #1180 实测：ticket-919-final → ~900179 tokens、评审 agent 14s 空转、实际零评审。
-// 故启动即校验宿主分支 = main，非 main 直接 FAIL-loud 退出（不取票、不起沙盒）。
+// 由来：评审面曾用 sandcastle 内置 promptArg TARGET_BRANCH（解析自宿主 cwd 当前分支，
+// TROUBLESHOOTING #8 / #1008「不可覆盖」）。宿主 worktree 常驻他人 ticket 分支时，评审基线被带偏成
+// 「别线 WIP + 本票」混合 diff——#1180 实测：ticket-919-final → ~900179 tokens、评审 agent 14s 空转。
+// #1588 起评审提示改在宿主侧渲染，不再依赖内置 TARGET_BRANCH；diff 基准也不再取宿主本地 main，
+// 而是渲染前现 fetch 的 origin/main 提交（resolveReviewBase：宿主 main 落后时别线提交会混进摘要，
+// 领先/分叉即 FAIL-loud）。本校验仍保留，理由：
+//  - 宿主 cwd 是 main 的干净检出这一前提，claim-loop refreshHostMain（reset --hard origin/main）依赖它；
+//  - 内置 TARGET_BRANCH 仍按宿主当前分支解析，任何仍走 promptFile 的模板若引用它，须与 main 同源；
+//  - .sandcastle/logs/workers.jsonl 等相对路径以宿主 cwd 为根，别线 worktree 下运行会写错地方。
+// 非 main 直接 FAIL-loud 退出（不取票、不起沙盒）。
 function assertHostBranchIsMain(): void {
   let branch: string;
   try {
@@ -71,8 +77,9 @@ function assertHostBranchIsMain(): void {
   }
   if (branch !== "main") {
     console.error(
-      `[FAIL-loud #1183] 宿主分支 = ${branch}（期望 main）。评审 TARGET_BRANCH 是 sandcastle 内置 promptArg、解析自宿主 cwd 当前分支，` +
-        `非 main 会把别线 WIP 混进评审面（#1180 实测：ticket-919-final 基线 → 评审空转）。` +
+      `[FAIL-loud #1183] 宿主分支 = ${branch}（期望 main）。编排须在 main 的干净检出下运行：` +
+        `claim-loop 刷新宿主 main、sandcastle 内置 TARGET_BRANCH、workers.jsonl 路径都以宿主 cwd 为准，` +
+        `非 main 会把别线 WIP 混进编排面（#1180 实测：ticket-919-final 基线 → 评审空转）。` +
         `请在 main 的干净 worktree（main-pstack）下重跑：npx tsx .sandcastle/main.mts`,
     );
     process.exit(2);
@@ -91,11 +98,13 @@ function resolveSandboxGithubEnv(): Record<string, string> {
   }
 }
 
+// #1588 ④：本机 cargo 垫片（固定目录 $TMPDIR/nc-cargo-guard，每次运行原地刷新），前置到工蜂 PATH；
+// Rust 验证走 nc-remote / CI。
+const CARGO_GUARD = installCargoGuard();
+
 function sandboxProvider() {
-  return docker({
-    imageName: "sandcastle:newchanlun",
-    env: resolveSandboxGithubEnv(),
-  });
+  // 路由变量走沙盒后端 env（理由见 claude-route.mts claudeWorker 注释）。
+  return noSandbox({ env: { ...resolveSandboxGithubEnv(), ...cliProxyEnv(), ...cargoGuardEnv(CARGO_GUARD) } });
 }
 
 function hasOpenBlocker(issue: number): boolean {
@@ -203,7 +212,7 @@ function repoReadyForAgentCount(): number {
   return Number(out);
 }
 
-// ── 多轮续跑（#1066）：同一票的 implementer/reviewer 续跑必须复用原 prime-agent 会话。
+// ── 多轮续跑（#1066）：同一票的 implementer/reviewer 续跑必须复用原 agent 会话。
 // sandcastle 的 maxIterations>1 是「多轮各自全新会话」，不构成续跑（#1066 评论查实）；
 // 故每轮 maxIterations=1，靠 provider 会话捕获 + resumeSession 显式续同一 session。
 // 终止：出现完成信号（<promise>COMPLETE</promise>）或拿不到可恢复的 session id。
@@ -214,8 +223,8 @@ async function runWithResume(
   options: {
     name: string;
     agent: AgentProvider;
-    promptFile: string;
-    promptArgs: Record<string, string>;
+    // promptFile + promptArgs（sandcastle 展开 `!`cmd``），或宿主侧已渲染好的 inline prompt（#1588 评审面）。
+    prompt: { promptFile: string; promptArgs: Record<string, string> } | { prompt: string };
     idleTimeoutSeconds?: number;
   },
 ): Promise<SandboxRunResult> {
@@ -226,8 +235,7 @@ async function runWithResume(
       name: options.name,
       maxIterations: 1,
       agent: options.agent,
-      promptFile: options.promptFile,
-      promptArgs: options.promptArgs,
+      ...options.prompt,
       ...(options.idleTimeoutSeconds !== undefined ? { idleTimeoutSeconds: options.idleTimeoutSeconds } : {}),
       ...(resumeSession !== undefined ? { resumeSession } : {}),
     });
@@ -237,6 +245,41 @@ async function runWithResume(
   }
   if (!result) throw new Error(`runWithResume: ${options.name} 未产生运行结果`);
   return result;
+}
+
+// ── #1588 ③：评审阶段。提示在宿主侧渲染（只放变更摘要，不放整段 diff）并过体积闸；
+// 渲染与运行包在同一失败通道（runGuardedReview）：超限 / 渲染失败（gh、git、fetch 基准）/ 运行失败
+// 都显式落 workers.jsonl（phase=reviewer status=failed reason=prompt_too_large|prepare_error|run_error）
+// + 票面评论，再原样上抛。旧形态失败时 workers.jsonl 停在 reviewer/started → sandbox/closed，
+// 票保持认领、无人知晓（#1406）。
+// diff 基准不用宿主本地 main，而是渲染前现取的 origin/main 提交（resolveReviewBase，理由见其注释，#1588 N3）。
+const REVIEW_TARGET_BRANCH = "main";
+
+async function runReviewer(sandbox: Sandbox, issue: number, branch: string): Promise<void> {
+  const git = hostGit();
+  await runGuardedReview(
+    {
+      template: readReviewTemplate(),
+      branch,
+      target: REVIEW_TARGET_BRANCH,
+      resolveBase: () => resolveReviewBase(git),
+      issue,
+      git,
+      fetchIssue: ghIssueFetcher(GH_CLEAN_ENV),
+    },
+    { logWorker, notify: ghIssueNotifier(GH_CLEAN_ENV) },
+    async ({ prompt, estimatedTokens, base }) => {
+      logWorker({
+        ticket: issue, branch, phase: "reviewer", status: "started", prompt_est_tokens: estimatedTokens, review_base: base,
+      });
+      await runWithResume(sandbox, {
+        name: "reviewer",
+        agent: claudeWorker(REVIEWER_MODEL, EFFORT),
+        prompt: { prompt },
+      });
+    },
+  );
+  logWorker({ ticket: issue, branch, phase: "reviewer", status: "completed" });
 }
 
 // ── REVIEW_ONLY 模式（#879 补派 Phase 2 引入）：env SANDCASTLE_REVIEW_ONLY="分支名:票号" 时
@@ -257,14 +300,13 @@ if (REVIEW_ONLY) {
     baseBranch: "main",
     sandbox: sandboxProvider(),
   });
-  logWorker({ ticket: issue, branch, phase: "reviewer", status: "started" });
-  await runWithResume(sandbox, {
-    name: "reviewer",
-    agent: primeAgent(REVIEWER_MODEL, { provider: PROVIDER }),
-    promptFile: "./.sandcastle/review-prompt.md",
-    promptArgs: { BRANCH: branch, ISSUE_NUMBER: String(issue) },
-  });
-  logWorker({ ticket: issue, branch, phase: "reviewer", status: "completed" });
+  try {
+    await runReviewer(sandbox, issue, branch);
+  } catch (e) {
+    await sandbox.close();
+    if (e instanceof ReviewPromptTooLargeError) process.exit(e.exitCode);
+    throw e;
+  }
   console.log(`REVIEW_ONLY 完成：${branch} 待验收合入（人工闸）。`);
   await sandbox.close();
   process.exit(0);
@@ -306,9 +348,8 @@ for (let iter = 1; iter <= MAX_TICKETS_PER_RUN; iter++) {
     logWorker({ ticket: issue, branch, phase: "implementer", status: "started" });
     const implement = await runWithResume(sandbox, {
       name: "implementer",
-      agent: primeAgent(REVIEWER_MODEL, { provider: PROVIDER }),
-      promptFile: "./.sandcastle/implement-prompt.md",
-      promptArgs: { ISSUE_NUMBER: String(issue) },
+      agent: claudeWorker(IMPLEMENTER_MODEL, EFFORT),
+      prompt: { promptFile: "./.sandcastle/implement-prompt.md", promptArgs: { ISSUE_NUMBER: String(issue) } },
       idleTimeoutSeconds: IMPLEMENTER_IDLE_TIMEOUT_SECONDS,
     });
     if (!implement.commits.length) {
@@ -320,14 +361,14 @@ for (let iter = 1; iter <= MAX_TICKETS_PER_RUN; iter++) {
     console.log(`实装完成：${implement.commits.length} 个 commit`);
 
     // Phase 2：独立评审（不同子代理，#1001 裁 1；直接在分支上修正；#1066 多轮续跑）
-    logWorker({ ticket: issue, branch, phase: "reviewer", status: "started" });
-    await runWithResume(sandbox, {
-      name: "reviewer",
-      agent: primeAgent(REVIEWER_MODEL, { provider: PROVIDER }),
-      promptFile: "./.sandcastle/review-prompt.md",
-      promptArgs: { BRANCH: branch, ISSUE_NUMBER: String(issue) },
-    });
-    logWorker({ ticket: issue, branch, phase: "reviewer", status: "completed" });
+    // #1588：提示超限 → 已落失败记录与票面通知，以专用退出码收尾（票保持认领，不回滚重跑实装）。
+    try {
+      await runReviewer(sandbox, issue, branch);
+    } catch (e) {
+      if (!(e instanceof ReviewPromptTooLargeError)) throw e;
+      process.exitCode = e.exitCode;
+      break;
+    }
     console.log(`两段完成：${branch} 待验收合入（人工闸）。`);
   } finally {
     logWorker({ ticket: issue, branch, phase: "sandbox", status: "closed" });

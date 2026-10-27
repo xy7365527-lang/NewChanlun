@@ -1,0 +1,16 @@
+{
+  "id": "segment-second",
+  "version": 2,
+  "kind": "segment_construction_rule",
+  "ticket": "#1604（#1586 审计 A-12；xianduan §6.3 / #1600；ADR 0041）",
+  "note": "线段构造规则的版本化记录。`id/version` 即现行规则 token `segment-second/2`（`parser::segment::CONSTRUCTION_RULE`，S rule_revision 的一段），本记录不新增 token；改任何字段 ＝ 改签新版本 ＝ 新 rule_revision、按新值重推导（xianduan §6.3 适用条件）",
+  "fields": {
+    "tangency": {
+      "value": "closed",
+      "default": "closed",
+      "source": "xianduan §6.3：默认 `closed` 承 #246 裁定（相切算重合 ⟹ 相切处无缺口），与 #1604 前生产代码 `max_lo <= min_hi` / 缺口严格 `>` 等价",
+      "options": "`closed`：相切算重合、相切处无缺口；`open`：相切不算重合、相切即缺口（Lead #84 点3 旧口径）。同一个值同时管重合与缺口两谓词（`gap_iff_not_overlap`），一次运行里全级、全落点只读这一个值（#804）",
+      "cost": "改签 `open` 须按新值重测（xianduan §6.3 可选值 `open` 一栏的在案读数只对当时的窗口成立）；Lean `HasGap`／`Overlaps` 写死 `closed`，签 `open` 前须由 #1626 参数化并重证互补定理；与 `closed` 的 bit-exact 基线不可比"
+    }
+  }
+}

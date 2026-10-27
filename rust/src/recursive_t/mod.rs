@@ -19,7 +19,8 @@
 //!
 //! T 属于 H⁰ 形态学构造轴（设计文档 §0.4）：它生成结构和方向。它**不**包含：
 //! - 操作 / 仓位（H¹ 轴，设计文档 §4）；
-//! - a₀ 构造（分型→包含处理→笔→线段是 `T₀`，独立于 T，由调用方提供笔序列）。
+//! - a₀ 构造（分型→包含处理→笔→线段是 `T₀`，独立于 T，由调用方提供塔底单元序列；
+//!   默认线段，值域正本 zhongshu §2.1.1，#1627——笔不是 a₀ 合法值，`A0Source::Stroke` 仅为对照臂）。
 //!
 //! MACD 度量背驰（groupoid 轴精化，设计文档 §6.5）原为 T 外部；编排者 2026-06-18 裁决
 //! 「三条路实测」后曾经 [`PerfectionMode`] 可选接入 MACD 面积判据（`And` 收紧 / `Or` 放宽）。
@@ -54,9 +55,9 @@
 // `ffi`（混合，PyRecStream 段落已单独标现役）/`prove_guards`/`stream`/`t_engine`/
 // `t_engine_run` = 现役（详见 `stream.rs` 头部）；
 // `center`/`divergence`/`operator`/`trend`/`types` = (a) standalone T 算子，现役（#761 已标）。
-pub mod backtest;
-#[cfg(test)]
-mod backtest_run;
+// pub mod backtest;  // 已退役（2026-10-17），备份至 analysis/deprecated/recursive_t_backtest_20261017/
+// #[cfg(test)]
+// mod backtest_run;  // 已退役（2026-10-17），备份至 analysis/deprecated/recursive_t_backtest_20261017/
 pub mod center;
 pub mod divergence;
 pub mod ffi;
@@ -78,7 +79,7 @@ pub use types::{
     RecursiveTree, TLevelOutput, TrendKind, TrendType, Unit, Zhongshu, BSP,
 };
 
-/// Tᵏ 迭代驱动器：从 a₀（笔序列）迭代到涌现上界 r*。
+/// Tᵏ 迭代驱动器：从 a₀（塔底单元序列，默认线段，zhongshu §2.1.1）迭代到涌现上界 r*。
 ///
 /// 设计文档 §1.5 终止条件：
 /// - 向上：每级只能迭代到 r*(t)（已有足够次级别走势构成的最高级别）。

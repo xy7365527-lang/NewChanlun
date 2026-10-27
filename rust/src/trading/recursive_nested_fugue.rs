@@ -79,9 +79,7 @@ use super::nested_fugue::{
 use super::positional::{PositionalResult, EQUITY_SAMPLE_BARS};
 use super::positional_fusion::{SUB_COST_K, SUB_FRICTION_RT, SUB_SPAWN_FRAC};
 use super::tape::SignalTape;
-use super::types::{
-    BspClass, BspEvent, DivEvent, Polarity, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER,
-};
+use super::types::{BspClass, BspEvent, DivEvent, Polarity, FIRST_BSP_LADDER, MAX_LADDER};
 use super::unified_necessity::prove_theta_sigma_invariant;
 use crate::buysellpoint::Side;
 use crate::stroke::Direction;
@@ -124,6 +122,7 @@ fn check_invariants(
 pub(crate) fn run_recursive_nested_fugue(
     tape: &SignalTape,
     floor_ladder: usize,
+    q_total: f64,
 ) -> Result<PositionalResult, String> {
     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {
         return Err(format!(
@@ -145,7 +144,7 @@ pub(crate) fn run_recursive_nested_fugue(
     let n = tape.bars.len();
     let mut res = PositionalResult::default();
     let mut chain: Vec<Voice> = Vec::with_capacity(MAX_LADDER);
-    let mut free = INITIAL_CAPITAL;
+    let mut free = q_total;
     let mut n_base = 0.0f64;
     let mut book = CenterBook::new();
     let mut depth_ref = DepthRef::new(DEPTH_REF_WINDOW);
@@ -515,7 +514,7 @@ pub(crate) fn run_recursive_nested_fugue(
 
 #[cfg(test)]
 mod tests {
-    use super::super::positional::{run_positional, PolarityMode};
+    use super::super::positional::{run_positional_fx, PolarityMode};
     use super::*;
     use crate::trading::tape::BarSig;
     use crate::trading::types::LadderMask;
@@ -597,7 +596,7 @@ mod tests {
             dir_flips: Some(Vec::new()),
             ..Default::default()
         };
-        run_positional(&t, 2, RNF).unwrap()
+        run_positional_fx(&t, 2, RNF).unwrap()
     }
 
     #[test]
@@ -613,7 +612,9 @@ mod tests {
             dir_flips: Some(Vec::new()),
             ..Default::default()
         };
-        assert!(run_positional(&t, 2, RNF).unwrap_err().contains("背驰磁带"));
+        assert!(run_positional_fx(&t, 2, RNF)
+            .unwrap_err()
+            .contains("背驰磁带"));
     }
 
     #[test]

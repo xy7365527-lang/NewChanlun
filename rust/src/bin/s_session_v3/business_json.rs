@@ -1,8 +1,17 @@
 //! #1394 业务原始账的入口存储选择与同一借用判据。Owned失败直接Err，不转回std。
+pub(crate) mod json_layout;
+pub(crate) mod scoped_legacy;
 use super::audit_store::{CodecRead, NativeAdmission, NativeTree};
 use super::*;
 use aj::{ArrayIter, ArrayView, JsonView};
 use newchan_rust::s_content as sc;
+#[cfg_attr(
+    not(all(test, feature = "s_capture_native_testonly")),
+    allow(
+        unused_imports,
+        reason = "#1488 再合 #1608：native 非测试、s_session 非测试、s_session 测试 构建不触达"
+    )
+)]
 use newchan_rust::sqlite_checked::{CheckedRow, CheckedStatement};
 use sc::capture_allocation::native_owned::NativeValue;
 use sc::capture_allocation::scratch::{NativeReservation, WorkScope};
@@ -53,6 +62,13 @@ impl RawEvents {
             }
         }
     }
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+        )
+    )]
     pub(crate) fn push_native(
         &mut self,
         value: JsonView<'_>,
@@ -81,12 +97,21 @@ impl RawEvents {
     pub fn len(&self) -> usize {
         self.view().len()
     }
+    #[cfg(test)]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
     pub fn iter(&self) -> RawIter<'_> {
         self.view().iter()
     }
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    )]
+    #[cfg_attr(
+        all(test, feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1488：native 测试不使用旧 plain 入口")
+    )]
     pub fn plain(&self) -> Result<&[Value], String> {
         match self {
             Self::Plain(v) => Ok(v),
@@ -118,6 +143,10 @@ impl std::fmt::Debug for RawEvents {
 #[derive(Clone, Copy)]
 enum RawStorage<'a> {
     Plain(&'a [Value]),
+    #[cfg_attr(
+        not(feature = "s_allocation_json_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_allocation_json_testonly 下使用")
+    )]
     Arena(ArrayView<'a>),
     Borrowed(&'a [JsonView<'a>]),
 }
@@ -138,6 +167,7 @@ impl<'a> RawEventsView<'a> {
     pub fn len(self) -> usize {
         self.len
     }
+    #[allow(dead_code, reason = "#1608：类型配套访问器，当前无调用方；保留不删")]
     pub fn is_empty(self) -> bool {
         self.len == 0
     }
@@ -260,7 +290,7 @@ pub(crate) fn new_work<T>(b: Option<&OwnedBudget>) -> sc::CodecVec<T> {
     let _ = b;
     sc::CodecVec::from_plain(Vec::new())
 }
-pub(crate) use aj::{BusinessIter, BusinessMap};
+pub(crate) use aj::BusinessMap;
 pub(crate) fn new_map<K: Eq + std::hash::Hash, V>(b: Option<&OwnedBudget>) -> BusinessMap<K, V> {
     #[cfg(feature = "s_allocation_json_testonly")]
     if let Some(b) = b {
@@ -272,6 +302,10 @@ pub(crate) fn new_map<K: Eq + std::hash::Hash, V>(b: Option<&OwnedBudget>) -> Bu
 fn workmap<K: Eq + std::hash::Hash, V>(b: Option<&OwnedBudget>) -> BusinessMap<K, V> {
     new_map(b)
 }
+#[cfg_attr(
+    not(all(test, feature = "s_allocation_json_testonly")),
+    allow(dead_code, reason = "#1608：仅 s_allocation_json_testonly 测试使用")
+)]
 pub(crate) fn bytes_extend(bytes: &mut sc::CodecVec<u8>, value: &[u8]) -> Result<(), String> {
     bytes.try_extend_bytes(value).map_err(|e| e.to_string())
 }
@@ -287,12 +321,14 @@ impl<'a> Effective<'a> {
             budget: self.budget,
         }
     }
+    #[allow(dead_code, reason = "#1608：类型配套访问器，当前无调用方；保留不删")]
     pub fn len(&self) -> usize {
         self.values.len()
     }
     pub fn iter(&self) -> impl Iterator<Item = JsonView<'a>> + '_ {
         self.values.iter().copied()
     }
+    #[allow(dead_code, reason = "#1608：类型配套访问器，当前无调用方；保留不删")]
     pub fn view(&self) -> JsonView<'_> {
         JsonView::ArraySlice(&self.values)
     }
@@ -381,6 +417,10 @@ impl Default for RawPrefixFacts {
     }
 }
 impl RawPrefixFacts {
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    )]
     pub(super) fn prefix_len(&self) -> usize {
         self.prefix
     }
@@ -412,6 +452,7 @@ pub(super) struct RawPrefixChanges {
     pub added: sc::CodecVec<(i64, usize)>,
     /// 按 identity 排序，每个 identity 只含最终赢家；消费时先撤全部 old 再加全部 new。
     pub winner_edits: sc::CodecVec<RawWinnerEdit>,
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     pub raw_visits: usize,
     pub coord_decodes: usize,
     pub rewound: bool,
@@ -452,6 +493,10 @@ impl<'raw> RawPrefixIndex<'raw> {
             retained: Default::default(),
         }
     }
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     pub(super) fn restore(
         raw: RawEventsView<'raw>,
         facts: RawPrefixFacts,
@@ -480,18 +525,32 @@ impl<'raw> RawPrefixIndex<'raw> {
     }
     fn clear_winners(&mut self) {
         #[cfg(feature = "s_capture_native_testonly")]
-        {
-            for (key, _) in self.facts.winners.iter() {
-                self.retained.release(key);
-            }
-            self.retained
-                .tree_len::<i64, usize>(self.facts.ordered.len(), 0);
+        for (key, _) in self.facts.winners.iter() {
+            self.retained.release(key);
         }
+        #[cfg(feature = "s_capture_native_testonly")]
+        let ordered_before = self.facts.ordered.allocation_bytes();
         // HashMap clear 保留桶；BTree clear 真实释放根。
         self.facts.winners.retain(|_, _| false);
         self.facts.ordered.clear();
+        #[cfg(feature = "s_capture_native_testonly")]
+        self.ordered_retained(ordered_before);
+    }
+    /// 有序树按其实际许可/节点上界（allocation_bytes）记增量，与全量 heap_bytes 同口径。
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn ordered_retained(&mut self, before: usize) {
+        let after = self.facts.ordered.allocation_bytes();
+        if after >= before {
+            self.retained.add_bytes(after - before);
+        } else {
+            self.retained.release_bytes(before - after);
+        }
     }
 
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    )]
     pub(super) fn is_empty(&self) -> bool {
         self.winners.is_empty()
     }
@@ -499,6 +558,13 @@ impl<'raw> RawPrefixIndex<'raw> {
         self.ordered.iter().map(|(c, i)| (*c, *i))
     }
     #[cfg(test)]
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        )
+    )]
     pub(super) fn retained_slots(&self) -> [usize; 3] {
         // HashMap 实际 capacity；BTreeMap 只报条目，不冒充节点布局/allocator开销。
         [
@@ -512,6 +578,10 @@ impl<'raw> RawPrefixIndex<'raw> {
         self.clear_winners();
         self.facts.coordinates.retain(|_, _| false);
     }
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    )]
     pub(super) fn advance(&mut self, prefix: usize) -> Result<RawPrefixChanges, String> {
         self.advance_admitted(prefix, &super::audit_store::NativeAdmission(None))
     }
@@ -520,7 +590,16 @@ impl<'raw> RawPrefixIndex<'raw> {
         prefix: usize,
         admission: &(impl super::audit_store::CodecRead + ?Sized),
     ) -> Result<RawPrefixChanges, String> {
-        let result = self.advance_inner(prefix, admission);
+        self.advance_measured(prefix, admission, None, None)
+    }
+    pub(super) fn advance_measured(
+        &mut self,
+        prefix: usize,
+        admission: &(impl super::audit_store::CodecRead + ?Sized),
+        deadline: Option<Instant>,
+        budget: Option<&dyn super::audit_budget::Budget>,
+    ) -> Result<RawPrefixChanges, String> {
+        let result = self.advance_inner(prefix, admission, deadline, budget);
         if result.is_err() {
             self.clear();
         }
@@ -530,6 +609,8 @@ impl<'raw> RawPrefixIndex<'raw> {
         &mut self,
         prefix: usize,
         admission: &(impl super::audit_store::CodecRead + ?Sized),
+        deadline: Option<Instant>,
+        budget: Option<&dyn super::audit_budget::Budget>,
     ) -> Result<RawPrefixChanges, String> {
         if self.raw.budget().is_some() {
             return Err("prototype_audit_allocation_incomplete：有序raw索引不接收Owned原件".into());
@@ -544,7 +625,11 @@ impl<'raw> RawPrefixIndex<'raw> {
         let raw = self.raw;
         let mut changed = NativeTree::<&str, (i64, usize)>::default();
         for ordinal in self.prefix..prefix {
+            super::history::check_deadline(deadline)?;
             let event = raw.get(ordinal).expect("已截前缀");
+            if let Some(budget) = budget {
+                budget.record().map_err(|e| e.to_string())?;
+            }
             let identity = field(event, "identity_key").as_str().unwrap_or("");
             let revision = field(event, "revision").as_i64().unwrap_or(0);
             let previous = changed
@@ -570,7 +655,12 @@ impl<'raw> RawPrefixIndex<'raw> {
             let c = match self.coordinates.get(&ordinal) {
                 Some(c) => *c,
                 None => {
-                    let c = coord(self.raw.get(ordinal).expect("赢家原件"))?;
+                    super::history::check_deadline(deadline)?;
+                    let event = self.raw.get(ordinal).expect("赢家原件");
+                    if let Some(budget) = budget {
+                        budget.record().map_err(|e| e.to_string())?;
+                    }
+                    let c = coord(event)?;
                     #[cfg(feature = "s_capture_native_testonly")]
                     let capacity = self.coordinates.capacity();
                     admission
@@ -622,14 +712,13 @@ impl<'raw> RawPrefixIndex<'raw> {
                 .map_err(|e| e.to_string())?;
             if let Some((_, _, old)) = previous {
                 #[cfg(feature = "s_capture_native_testonly")]
-                let len = self.ordered.len();
+                let ordered_before = self.facts.ordered.allocation_bytes();
                 self.ordered.remove(&old);
                 if self.ordered.is_empty() {
                     self.ordered.clear();
                 }
                 #[cfg(feature = "s_capture_native_testonly")]
-                self.retained
-                    .tree_len::<i64, usize>(len, self.facts.ordered.len());
+                self.ordered_retained(ordered_before);
                 admission
                     .native_codec_room(&mut updates.removed, 1)
                     .map_err(|e| e.to_string())?;
@@ -646,9 +735,7 @@ impl<'raw> RawPrefixIndex<'raw> {
         updates.added.sort_unstable_by_key(|(c, _)| *c);
         for &(c, ordinal) in &updates.added {
             #[cfg(feature = "s_capture_native_testonly")]
-            let len = self.ordered.len();
-            #[cfg(feature = "s_capture_native_testonly")]
-            let permit_capacity = self.ordered.permit_capacity();
+            let ordered_before = self.facts.ordered.allocation_bytes();
             if self
                 .ordered
                 .insert_admitted(c, ordinal, admission)
@@ -658,15 +745,7 @@ impl<'raw> RawPrefixIndex<'raw> {
                 return Err("StorageUnavailable：有效源坐标碰撞，拒绝覆盖业务身份".into());
             }
             #[cfg(feature = "s_capture_native_testonly")]
-            {
-                self.retained
-                    .tree_len::<i64, usize>(len, self.facts.ordered.len());
-                self.retained
-                    .vec_capacity::<sc::capture_allocation::scratch::NativeReservation>(
-                        permit_capacity,
-                        self.facts.ordered.permit_capacity(),
-                    );
-            }
+            self.ordered_retained(ordered_before);
         }
         self.prefix = prefix;
         Ok(updates)
@@ -728,16 +807,27 @@ pub(crate) fn sha_json_admitted(
     Ok(out.hash.finalize().into())
 }
 
+#[allow(dead_code, reason = "#1527：保留原无计量入口，measured 入口共用原核")]
 pub(crate) fn validate_raw(
     rows: RawEventsView<'_>,
     deadline: Option<Instant>,
 ) -> Result<(), String> {
     validate_raw_admitted(rows, deadline, None)
 }
+#[allow(dead_code, reason = "#1527：保留原无计量入口，measured 入口共用原核")]
 pub(crate) fn validate_raw_admitted(
     rows: RawEventsView<'_>,
     deadline: Option<Instant>,
     work: Option<&WorkScope>,
+) -> Result<(), String> {
+    validate_raw_measured(rows, deadline, work, None)
+}
+
+pub(crate) fn validate_raw_measured(
+    rows: RawEventsView<'_>,
+    deadline: Option<Instant>,
+    work: Option<&WorkScope>,
+    budget: Option<&dyn super::audit_budget::Budget>,
 ) -> Result<(), String> {
     check_native_owner(rows.budget(), work).map_err(|e| e.to_string())?;
     let admission = NativeAdmission(work);
@@ -746,6 +836,9 @@ pub(crate) fn validate_raw_admitted(
     let mut prior = workmap::<&str, i64>(rows.budget());
     for (expected_seq, event) in rows.iter().enumerate() {
         check_read_deadline(deadline)?;
+        if let Some(budget) = budget {
+            budget.record().map_err(|e| e.to_string())?;
+        }
         let c = coord(event)?;
         let identity = text(event, "identity_key")?;
         admission
@@ -787,6 +880,10 @@ pub(super) fn validate_raw_coordinate(
     Ok(())
 }
 /// cold 与 owner 增量账共用：seq/修订前件由同一已核索引提供，内容谓词不另写一份。
+#[cfg_attr(
+    not(feature = "s_capture_native_testonly"),
+    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+)]
 pub(super) fn validate_raw_row(
     event: JsonView<'_>,
     expected_seq: usize,
@@ -795,6 +892,10 @@ pub(super) fn validate_raw_row(
 ) -> Result<(), String> {
     validate_raw_row_core(event, expected_seq, previous, budget, None)
 }
+#[cfg_attr(
+    not(all(test, feature = "s_capture_native_testonly")),
+    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+)]
 pub(crate) fn validate_raw_row_admitted(
     event: JsonView<'_>,
     expected_seq: usize,
@@ -810,7 +911,59 @@ fn validate_raw_row_core(
     budget: Option<&OwnedBudget>,
     work: Option<&WorkScope>,
 ) -> Result<(), String> {
-    check_native_owner(budget, work).map_err(|e| e.to_string())?;
+    validate_raw_row_typed(event, expected_seq, previous, budget, work).map_err(|e| match e {
+        MixedJsonError::Business(e) => e,
+        MixedJsonError::Resource(e) => e.to_string(),
+    })
+}
+pub(crate) fn validate_raw_mixed(
+    rows: &[PlainJson],
+    work: &WorkScope,
+    observer: &dyn super::audit_budget::LegacyObserver,
+) -> Result<(), MixedJsonError> {
+    observer
+        .check_work(work)
+        .map_err(MixedJsonError::Resource)?;
+    let admission = NativeAdmission(Some(work));
+    let mut owners = super::audit_store::NativeTree::default();
+    let mut positions = super::audit_store::NativeTree::default();
+    let mut prior = super::audit_store::NativeTree::default();
+    for (expected_seq, record) in rows.iter().enumerate() {
+        observer.precheck().map_err(MixedJsonError::Resource)?;
+        observer
+            .visit_record(
+                "raw_history",
+                "validate-raw",
+                super::audit_budget::LegacyRecordRef::Json(record.as_ref()),
+            )
+            .map_err(MixedJsonError::Resource)?;
+        let event: JsonView<'_> = record.as_ref().into();
+        let coordinate = coord(event)?;
+        let identity = text(event, "identity_key")?;
+        let previous_identity = owners
+            .insert_admitted(coordinate, identity, &admission)
+            .map_err(MixedJsonError::Resource)?;
+        let previous_coordinate = positions
+            .insert_admitted(identity, coordinate, &admission)
+            .map_err(MixedJsonError::Resource)?;
+        validate_raw_coordinate(identity, coordinate, previous_identity, previous_coordinate)?;
+        let revision = parse_canonical_i64(text(event, "input_revision")?, "input_revision")
+            .map_err(|e| format!("StorageUnavailable：{e}"))?;
+        let previous = prior
+            .insert_admitted(identity, revision, &admission)
+            .map_err(MixedJsonError::Resource)?;
+        validate_raw_row_typed(event, expected_seq, previous, None, Some(work))?;
+    }
+    observer.precheck().map_err(MixedJsonError::Resource)
+}
+fn validate_raw_row_typed(
+    event: JsonView<'_>,
+    expected_seq: usize,
+    previous: Option<i64>,
+    budget: Option<&OwnedBudget>,
+    work: Option<&WorkScope>,
+) -> Result<(), MixedJsonError> {
+    check_native_owner(budget, work).map_err(MixedJsonError::Resource)?;
     let identity = text(event, "identity_key")?;
     let price = text(event, "price")?;
     let volume = text(event, "volume")?;
@@ -1216,6 +1369,7 @@ impl aj::JsonArray for ReferenceArray<'_> {
         self.0.get(index).map(RawReference::view)
     }
 }
+#[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
 pub(crate) struct ValuesArray<'a>(pub &'a [Value]);
 impl aj::JsonArray for ValuesArray<'_> {
     fn len(&self) -> usize {
@@ -1244,6 +1398,7 @@ impl serde::Serialize for RawReference<'_> {
 /// 新业务返回文本的入口存储选择。Owned实际字节持续持账；Clone只开放fallible深复制。
 pub(crate) enum TextValue {
     Plain(NativeValue<String>),
+    #[cfg_attr(not(feature = "s_allocation_json_testonly"), allow(dead_code))]
     Owned(aj::TextOwner),
 }
 impl TextValue {
@@ -1252,14 +1407,18 @@ impl TextValue {
         owner: Option<&OwnedBudget>,
         work: Option<&WorkScope>,
     ) -> Result<Self, String> {
-        check_native_owner(owner, work).map_err(|e| e.to_string())?;
+        Self::from_str_admitted_typed(text, owner, work).map_err(|e| e.to_string())
+    }
+    pub fn from_str_admitted_typed(
+        text: &str,
+        owner: Option<&OwnedBudget>,
+        work: Option<&WorkScope>,
+    ) -> Result<Self, sc::CodecError> {
+        check_native_owner(owner, work)?;
         if work.is_some() {
-            return NativeAdmission(work)
-                .native_string(text)
-                .map(Self::Plain)
-                .map_err(|e| e.to_string());
+            return NativeAdmission(work).native_string(text).map(Self::Plain);
         }
-        Self::from_str(text, owner)
+        Self::from_str_typed(text, owner)
     }
     pub fn from_sql_admitted(
         row: &mut CheckedRow<'_>,
@@ -1281,6 +1440,17 @@ impl TextValue {
             .map_err(|e| e.to_string())?
             .map(|text| Self::from_str_admitted(text, owner, work))
             .transpose()
+    }
+    pub(crate) fn try_clone_mixed(&self, work: &WorkScope) -> Result<Self, sc::CodecError> {
+        match self {
+            Self::Plain(value) => {
+                value.check_retained_source()?;
+                value.try_clone_admitted(work).map(Self::Plain)
+            }
+            Self::Owned(_) => {
+                Err(work.reject(sc::capture_allocation::scratch::ScratchFailure::Ledger))
+            }
+        }
     }
     pub fn try_clone_admitted(&self, work: Option<&WorkScope>) -> Result<Self, String> {
         if let Some(work) = work {
@@ -1390,6 +1560,10 @@ impl TextValue {
         let value = row.text(i).map_err(|e| e.to_string())?;
         Self::from_str(value, b)
     }
+    #[cfg_attr(
+        not(all(test, feature = "s_allocation_json_testonly")),
+        allow(dead_code, reason = "#1488：仅 JSON testonly 测试调用")
+    )]
     pub fn optional_sql(
         row: &mut CheckedRow<'_>,
         i: usize,
@@ -1508,6 +1682,7 @@ impl std::ops::Deref for SharedEnvelope {
 enum NativeJsonLayout {
     AggregateTree,
     ItemizedArray,
+    ItemizedObject,
 }
 pub(crate) struct PlainJson {
     value: Value,
@@ -1524,6 +1699,18 @@ impl PlainJson {
             layout: NativeJsonLayout::AggregateTree,
             child_permits: sc::CodecVec::default(),
         }
+    }
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+        )
+    )]
+    pub(crate) fn with_reservation(mut self, permit: Option<NativeReservation>) -> Self {
+        assert!(self.permit.is_none());
+        self.permit = permit;
+        self
     }
     // 只供ScopedJsonArray空数组/空替换buffer构造；每个子树许可由push逐项携入。
     fn itemized_array(permit: NativeReservation, rows: Vec<Value>) -> Self {
@@ -1544,7 +1731,11 @@ impl PlainJson {
     #[cfg(feature = "s_capture_native_testonly")]
     pub(crate) fn retained_heap_bytes(&self) -> usize {
         use super::audit_retention::Retained;
-        self.value.heap_bytes().saturating_add(
+        let admitted = self.child_permits.iter().fold(
+            self.permit.as_ref().map_or(0, NativeReservation::bytes),
+            |n, p| n.saturating_add(p.bytes()),
+        );
+        self.value.heap_bytes().max(admitted).saturating_add(
             self.child_permits
                 .capacity()
                 .saturating_mul(std::mem::size_of::<NativeReservation>()),
@@ -1565,6 +1756,20 @@ impl PlainJson {
             );
         }
         Ok(self.value)
+    }
+    pub(crate) fn check_retained_source(&self) -> Result<(), sc::CodecError> {
+        if let Some(permit) = &self.permit {
+            permit.check_retained_source()?;
+        }
+        self.child_permits.check_retained_source()?;
+        for permit in &self.child_permits {
+            permit.check_retained_source()?;
+        }
+        Ok(())
+    }
+    pub(crate) fn try_clone_mixed(&self, work: &WorkScope) -> Result<Self, sc::CodecError> {
+        self.check_retained_source()?;
+        Self::try_clone_from(self.as_ref(), Some(work))
     }
     pub(crate) fn try_clone_from(
         value: &Value,
@@ -1741,7 +1946,12 @@ impl<'work> ScopedJsonArray<'work> {
         let Some(work) = self.work else {
             return self.owner.push(value);
         };
-        let JsonOwner::Plain(parent) = &mut self.owner else {
+        #[cfg_attr(
+            not(feature = "s_allocation_json_testonly"),
+            allow(irrefutable_let_patterns)
+        )]
+        let JsonOwner::Plain(parent) = &mut self.owner
+        else {
             return Err(work
                 .reject(sc::capture_allocation::scratch::ScratchFailure::Ledger)
                 .to_string());
@@ -1814,7 +2024,12 @@ fn push_native_array(
         None
     };
     let child = json_from_view_admitted(&NativeAdmission(Some(work)), value)?;
-    let JsonOwner::Plain(mut child) = child else {
+    #[cfg_attr(
+        not(feature = "s_allocation_json_testonly"),
+        allow(irrefutable_let_patterns)
+    )]
+    let JsonOwner::Plain(mut child) = child
+    else {
         return Err(work
             .reject(sc::capture_allocation::scratch::ScratchFailure::Ledger)
             .to_string());
@@ -2439,6 +2654,164 @@ fn admit_json_parse(
     }
     Ok(None)
 }
+/// #1527 mixed专用：许可先于唯一原parser，不受Native测试feature控制。
+#[derive(Debug)]
+pub(crate) enum MixedJsonError {
+    Resource(sc::CodecError),
+    Business(String),
+}
+
+// #1527: SQL may report SQLITE_INTERRUPT after a VFS budget refusal. Preserve
+// that original typed cause before any SQL wrapper renders a dynamic String.
+// The guard is scoped to one actual private mixed operation, never ordinary use.
+thread_local! {
+    static MIXED_CALLBACK_FAILURE: std::cell::RefCell<Option<Option<sc::CodecError>>> =
+        const { std::cell::RefCell::new(None) };
+}
+pub(crate) struct MixedFailureScope;
+impl MixedFailureScope {
+    pub(crate) fn enter() -> Result<Self, &'static str> {
+        MIXED_CALLBACK_FAILURE.with(|slot| {
+            let mut slot = slot.borrow_mut();
+            if slot.is_some() {
+                return Err("NestedMixedFailureScope");
+            }
+            *slot = Some(None);
+            Ok(Self)
+        })
+    }
+}
+impl Drop for MixedFailureScope {
+    fn drop(&mut self) {
+        MIXED_CALLBACK_FAILURE.with(|s| {
+            s.borrow_mut().take();
+        });
+    }
+}
+pub(crate) fn mixed_callback_failed(error: &sc::CodecError) {
+    MIXED_CALLBACK_FAILURE.with(|s| {
+        if let Some(first) = s.borrow_mut().as_mut() {
+            if first.is_none() {
+                *first = Some(error.clone());
+            }
+        }
+    });
+}
+pub(crate) fn mixed_callback_failure() -> Option<sc::CodecError> {
+    MIXED_CALLBACK_FAILURE.with(|s| s.borrow().as_ref().and_then(|e| e.clone()))
+}
+pub(crate) fn mixed_diagnostic(detail: std::fmt::Arguments<'_>) -> String {
+    if mixed_callback_failure().is_some() {
+        String::new()
+    } else {
+        detail.to_string()
+    }
+}
+pub(crate) fn mixed_callback_metadata_bytes() -> usize {
+    std::mem::size_of::<std::cell::RefCell<Option<Option<sc::CodecError>>>>()
+}
+
+impl MixedJsonError {
+    pub(crate) fn diagnostic(detail: std::fmt::Arguments<'_>) -> Self {
+        match mixed_callback_failure() {
+            Some(error) => Self::Resource(error),
+            None => Self::Business(detail.to_string()),
+        }
+    }
+}
+pub(crate) fn mixed_resource_diagnostic(error: &sc::CodecError) -> String {
+    let active = MIXED_CALLBACK_FAILURE.with(|s| s.borrow().is_some());
+    if active {
+        mixed_callback_failed(error);
+        String::new()
+    } else {
+        error.to_string()
+    }
+}
+impl From<String> for MixedJsonError {
+    fn from(error: String) -> Self {
+        mixed_callback_failure()
+            .map(Self::Resource)
+            .unwrap_or(Self::Business(error))
+    }
+}
+impl From<&str> for MixedJsonError {
+    fn from(error: &str) -> Self {
+        match mixed_callback_failure() {
+            Some(error) => Self::Resource(error),
+            None => Self::Business(error.to_owned()),
+        }
+    }
+}
+
+/// mixed资源拒绝保持原静态CodecError；只有许可成功才进入原解析核。
+pub(crate) fn mixed_parse_admitted(
+    bytes: &[u8],
+    work: &WorkScope,
+    parse: impl FnOnce() -> Result<PlainJson, MixedJsonError>,
+) -> Result<PlainJson, MixedJsonError> {
+    let permit = work
+        .reserve_native(json_layout::JsonShape::scan(bytes).parse_peak())
+        .map_err(MixedJsonError::Resource)?;
+    parse().map(|value| value.with_reservation(Some(permit)))
+}
+
+pub(crate) fn mixed_strict_json_owner(
+    bytes: &[u8],
+    work: &WorkScope,
+) -> Result<PlainJson, MixedJsonError> {
+    mixed_parse_admitted(bytes, work, || {
+        let parsed = strict_json_owner(bytes, None).map_err(|error| match error {
+            StrictOwnerError::Syntax(e) => {
+                MixedJsonError::Business(format!("SchemaUnsupported：{e}"))
+            }
+            StrictOwnerError::Allocation(e) => MixedJsonError::Resource(e),
+            #[cfg(feature = "s_allocation_json_testonly")]
+            StrictOwnerError::OwnedSyntax(e) => {
+                MixedJsonError::Business(format!("SchemaUnsupported：{e}"))
+            }
+        })?;
+        match parsed {
+            JsonOwner::Plain(value) => Ok(value),
+            #[cfg(feature = "s_allocation_json_testonly")]
+            JsonOwner::Owned(_) => unreachable!("mixed None-owner原parser产出Plain"),
+        }
+    })
+}
+pub(crate) fn mixed_batch_json_owner(
+    bytes: &[u8],
+    id: &str,
+    work: &WorkScope,
+) -> Result<PlainJson, MixedJsonError> {
+    mixed_parse_admitted(bytes, work, || {
+        let parsed = strict_json_owner(bytes, None).map_err(|e| match e {
+            StrictOwnerError::Syntax(e) => MixedJsonError::Business(format!(
+                "StorageUnavailable：batch {id} 规范字节非严格 JSON：{e}"
+            )),
+            StrictOwnerError::Allocation(e) => MixedJsonError::Resource(e),
+            #[cfg(feature = "s_allocation_json_testonly")]
+            StrictOwnerError::OwnedSyntax(e) => MixedJsonError::Business(format!(
+                "StorageUnavailable：batch {id} 规范字节非严格 JSON：{e}"
+            )),
+        })?;
+        match parsed {
+            JsonOwner::Plain(value) => Ok(value),
+            #[cfg(feature = "s_allocation_json_testonly")]
+            JsonOwner::Owned(_) => unreachable!("mixed parser uses plain storage"),
+        }
+    })
+}
+pub(crate) fn mixed_legacy_json_owner(
+    bytes: &[u8],
+    work: &WorkScope,
+) -> Result<PlainJson, MixedJsonError> {
+    mixed_parse_admitted(bytes, work, || {
+        serde_json::from_slice(bytes)
+            .map(|v| PlainJson::from_reserved(v, None))
+            .map_err(|e| MixedJsonError::Business(e.to_string()))
+    })
+}
+
 pub(crate) fn strict_json_owner_admitted(
     bytes: &[u8],
     owner: Option<&OwnedBudget>,
@@ -2446,6 +2819,10 @@ pub(crate) fn strict_json_owner_admitted(
 ) -> Result<JsonOwner, StrictOwnerError> {
     let permit = admit_json_parse(bytes, owner, work).map_err(StrictOwnerError::Allocation)?;
     let mut parsed = strict_json_owner(bytes, owner)?;
+    #[cfg_attr(
+        not(feature = "s_allocation_json_testonly"),
+        allow(irrefutable_let_patterns)
+    )]
     if let JsonOwner::Plain(value) = &mut parsed {
         value.permit = permit;
     }
@@ -2543,6 +2920,10 @@ impl StrictOwnerSeed {
                     .push(child.into_unscoped().map_err(E::custom)?);
                 Ok(())
             }
+            #[cfg_attr(
+                not(feature = "s_allocation_json_testonly"),
+                allow(unreachable_patterns)
+            )]
             _ => Err(E::custom("Q owner representation mismatch")),
         }
     }
@@ -2562,6 +2943,10 @@ impl StrictOwnerSeed {
                     .insert(key, child.into_unscoped().map_err(E::custom)?);
                 Ok(())
             }
+            #[cfg_attr(
+                not(feature = "s_allocation_json_testonly"),
+                allow(unreachable_patterns)
+            )]
             _ => Err(E::custom("Q owner representation mismatch")),
         }
     }
@@ -2643,6 +3028,13 @@ impl<'de> serde::de::Visitor<'de> for StrictKeySeed {
 }
 
 #[cfg(test)]
+#[cfg_attr(
+    not(feature = "s_allocation_json_testonly"),
+    allow(
+        dead_code,
+        reason = "#1608：测试辅助，仅 s_allocation_json_testonly 测试使用"
+    )
+)]
 pub(crate) fn strict_owner_protocol_matrix() -> Vec<Vec<u8>> {
     let mut cases: Vec<Vec<u8>> = [
         r#"{"x":1,"x":2}"#,
@@ -3055,7 +3447,12 @@ mod plain_raii_tests {
         assert!(json.push(JsonView::Null).is_err());
         assert_eq!(json.view().as_array().unwrap().len(), 2);
         assert_eq!(budget.live(), held);
-        let JsonOwner::Plain(json) = json else {
+        #[cfg_attr(
+            not(feature = "s_allocation_json_testonly"),
+            allow(irrefutable_let_patterns)
+        )]
+        let JsonOwner::Plain(json) = json
+        else {
             panic!("Native解析必须保留Plain名分")
         };
         assert!(json.into_unscoped().is_err());
@@ -3086,7 +3483,12 @@ mod scoped_json_array_tests {
                 })
                 .unwrap();
             assert_eq!(owner.view(), JsonView::Plain(&expected));
-            let JsonOwner::Plain(value) = &owner else {
+            #[cfg_attr(
+                not(feature = "s_allocation_json_testonly"),
+                allow(irrefutable_let_patterns)
+            )]
+            let JsonOwner::Plain(value) = &owner
+            else {
                 panic!("Native必须保持Plain名分")
             };
             assert!(value.is_native_admitted());
@@ -3125,7 +3527,12 @@ mod scoped_json_array_tests {
                     budget.peak() >= before + new_blocks,
                     "两个旧buffer保留到两个新块同时准入完成"
                 );
-                let JsonOwner::Plain(value) = &array.owner else {
+                #[cfg_attr(
+                    not(feature = "s_allocation_json_testonly"),
+                    allow(irrefutable_let_patterns)
+                )]
+                let JsonOwner::Plain(value) = &array.owner
+                else {
                     panic!("Native必须保持Plain名分")
                 };
                 assert_eq!(value.child_permits.capacity(), 8);
@@ -3165,7 +3572,12 @@ mod scoped_json_array_tests {
                 let held = budget.reserve(limit - budget.live() - available).unwrap();
                 let before = budget.live();
                 let error = array.push(JsonView::String(text)).unwrap_err();
-                let JsonOwner::Plain(value) = &array.owner else {
+                #[cfg_attr(
+                    not(feature = "s_allocation_json_testonly"),
+                    allow(irrefutable_let_patterns)
+                )]
+                let JsonOwner::Plain(value) = &array.owner
+                else {
                     panic!("Native必须保持Plain名分")
                 };
                 assert_eq!(value.as_ref(), &serde_json::json!([null, null, null, null]));
@@ -3347,7 +3759,12 @@ mod raw_events_layout_tests {
                     assert!(budget.live() > baseline);
                     assert!(RawEvents::from_json_owner(aggregate).is_err());
                     assert_eq!(budget.live(), baseline, "转换拒绝消费owner后一次归还");
-                    let JsonOwner::Plain(aggregate) = make()? else {
+                    #[cfg_attr(
+                        not(feature = "s_allocation_json_testonly"),
+                        allow(irrefutable_let_patterns)
+                    )]
+                    let JsonOwner::Plain(aggregate) = make()?
+                    else {
                         unreachable!()
                     };
                     let mut bypass = RawEvents::Native(aggregate);

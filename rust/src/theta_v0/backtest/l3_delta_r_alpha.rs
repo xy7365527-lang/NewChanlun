@@ -69,14 +69,24 @@ use super::super::strategy::voice::VoiceSide;
 use super::super::types::{Bar, BspBits};
 use super::data::{self, Dataset};
 use super::incremental::IncrementalClassifier;
+use super::l3_probe_profile::{active_l3_probe_profile, ProbeProfile};
 use super::mu_estimator::{
     chi_dimension_three_return, h_bucket, marginal_return, MuClass, MuEstimator, MuObservation,
     PositionState, ResidualTrade,
 };
 use super::prereg_windows::PREREG_WINDOWS;
+use super::research_stats::{active_research_stats, ResearchStats};
 use super::runner::run_theta_v0_pi_chi;
 use super::selector::{z_of_candidate, ZExt};
 use std::rc::Rc;
+
+fn research_stats() -> ResearchStats {
+    active_research_stats().expect("C-19 research stats record")
+}
+
+fn probe_profile() -> ProbeProfile {
+    active_l3_probe_profile().expect("L3 probe profile record")
+}
 
 /// 预注册随机种子（§4，与 metrics 同值，bit-exact 可复现）。
 const PREREG_SEED: u64 = 20260625;
@@ -105,8 +115,6 @@ impl SplitMix64 {
 /// 可行子集窗 bar 数（与 [`super::l3_pi_falsify`] 同口径，O(n²) 全窗不可行）。
 /// 32K 一窗 ⟹ train+test 各 16K（OOS 内 split）。
 const MAX_BARS: usize = 32_000;
-/// 统计功效门槛（协议 §5.5：real 样本 <30 inconclusive）。ΔR 序列以 bar 计，门槛指 test 有效 bar。
-const MIN_TEST_BARS: usize = 252; // ≥1 交易年（日聚合等价）的 bar 量级下限（保守）
 
 /// 买卖点身份判别 u8（与 runner `bsp_bits_disc` 同口径，seen-set diff 键）。
 fn bsp_disc(b: &BspBits) -> u8 {
@@ -265,6 +273,7 @@ pub fn build_mu_from_bars(
     time_block_base: u32,
 ) -> (MuEstimator, Vec<ResidualTrade>) {
     let n = bars.len();
+    let stats = research_stats();
     let fee_rate =
         (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
     let tick = config.tick.tick_size;
@@ -314,7 +323,7 @@ pub fn build_mu_from_bars(
             resid_base: h - b_hat, // r_i = H_i − B̂_i（δ-free；Y=δ·r−C 见 ResidualTrade::y）
             cost: c,
             h_bucket: h_bucket(hold),
-            time_block: time_block_base + (t.entry_bar / TIME_BLOCK_BARS) as u32,
+            time_block: time_block_base + (t.entry_bar / stats.time_block_bars) as u32,
             // A6（prereg-rev2-20260704）：入场止损距离 d（μ_R=E[Y/d] 分母）。None（不可得）⟹ NAN
             // ⟹ wverify μ_R 侧剔除该笔（raw μ 保留）；raw μ 现口径 bit-exact 不受影响（不读 d）。
             d: t.entry_stop_dist.unwrap_or(f64::NAN),
@@ -325,11 +334,6 @@ pub fn build_mu_from_bars(
 
     (est, records)
 }
-
-/// 时间块 bar 宽度（alpha分离.pdf §4.2 分层维 time block）。1-min bar ≈ 30 天/块（控月级 regime 漂移）。
-/// ponytail: 固定 30 天块；若需按标的日历切块（对齐涨/跌 regime 窗）改按 `dates` 分段。窗间碰撞由
-/// 调用方 `time_block_base` 偏移隔开（wverify 逐窗 `win.i·stride`）。
-const TIME_BLOCK_BARS: usize = 43_200;
 
 /// [`build_mu_from_bars`] 的 Dataset 包装（walk-forward 调用点复用，保原 `(est, n_obs)` 签名）。
 /// `n_obs` = 兑现残差记录数（诊断信号密度；调用方均丢弃此值）。单窗 train ⟹ time_block_base=0。
@@ -366,6 +370,7 @@ fn delta_r_stats(
     chi_eq: &[f64],
     nav0: f64,
     bars_per_year: f64,
+    stats: &ResearchStats,
 ) -> DeltaRStats {
     // 逐 bar 绝对增量配对差 = ΔR/nav0（§10 线性可加；E 已÷nav0，∴增量配对差直接是 ΔR/nav0）。
     let len = baseline_eq.len().min(chi_eq.len());
@@ -394,15 +399,15 @@ fn delta_r_stats(
 
     // ΔR 序列 block bootstrap（H0：mean ≤ 0）——seed 冻结，块长保留 bar 级自相关。
     let mut rng = SplitMix64::new(PREREG_SEED);
-    const N_RESAMPLE: usize = 1000;
-    const BLOCK: usize = 20; // 协议 §3.4 块长 20（bar 序列自相关）
+    let n_resample = stats.delta_r_n_resample;
+    let block = stats.delta_r_block_len;
     let mut n_le_0 = 0usize;
-    for _ in 0..N_RESAMPLE {
+    for _ in 0..n_resample {
         let mut total = 0.0;
         let mut filled = 0usize;
         while filled < n {
             let start = rng.next_below(n);
-            let take = BLOCK.min(n - filled);
+            let take = block.min(n - filled);
             for k in 0..take {
                 total += dr_norm[(start + k) % n];
             }
@@ -412,7 +417,7 @@ fn delta_r_stats(
             n_le_0 += 1;
         }
     }
-    let boot_pvalue = n_le_0 as f64 / N_RESAMPLE as f64;
+    let boot_pvalue = n_le_0 as f64 / n_resample as f64;
     let _ = nav0; // mean/sharpe 在归一化口径上，nav0 仅文档语义
 
     DeltaRStats {
@@ -422,6 +427,17 @@ fn delta_r_stats(
         boot_pvalue,
         chi_changed_trades: chi_changed,
     }
+}
+
+/// 当前显著性门下，符号检验全正也能拒绝零假设的最小品种数。
+fn min_sign_test_power(stats: &ResearchStats) -> usize {
+    let mut n = 1;
+    let mut p = 0.5;
+    while p >= stats.significance_p_threshold {
+        p *= 0.5;
+        n += 1;
+    }
+    n
 }
 
 /// 二项符号检验单边 p 值（H0：ΔR 均值符号随机，p=0.5）。
@@ -455,6 +471,13 @@ fn sign_test_pvalue(n_pos: usize, n: usize) -> f64 {
 #[ignore = "Phase-3 ΔR alpha 否证；O(n²) OOS-split walk-forward；需 8 品种数据；--release"]
 fn delta_r_alpha_multi_symbol() {
     let config = ThetaConfig::default();
+    let stats = research_stats();
+    let probe_profile = probe_profile();
+    eprintln!(
+        "policy records: {} | {}",
+        stats.record.label(),
+        probe_profile.record.label()
+    );
     // θ 常数（成本/风险门槛 Θ_risk 参数，非缠论可导；不从样本 μ 分布选 = 无 in-sample 泄漏）。
     // θ=0：只滤负边际期望类（§13 θ≥0 下界，θ=0 滤 μ≤0 已观测类）。
     let theta: f64 = 0.0;
@@ -510,7 +533,7 @@ fn delta_r_alpha_multi_symbol() {
         };
         let train = mk(0, split);
         let test = mk(split, cut);
-        if train.bars.len() < MIN_TEST_BARS || test.bars.len() < MIN_TEST_BARS {
+        if train.bars.len() < stats.min_test_bars || test.bars.len() < stats.min_test_bars {
             eprintln!(
                 "{:<6} train/test 样本不足（train={} test={}）⟹ inconclusive",
                 w.symbol,
@@ -527,28 +550,30 @@ fn delta_r_alpha_multi_symbol() {
         let (est, n_sig) = build_walk_forward_mu(&train, &config);
 
         // test 窗 NAV（首可交易价×1000，下限 1e6——与 l3_pi_falsify 同口径）。
-        let first_px = test
-            .bars
-            .iter()
-            .find(|b| !b.untradable && b.close > 0)
-            .map(|b| b.close as f64 * config.tick.tick_size)
-            .unwrap_or(1.0);
-        let nav = (first_px * 1000.0).max(1.0e6);
+        let nav = probe_profile.nav_for(&test, &config);
         let bars_per_year = data::bars_per_year(60);
         let years = (test.bars.len() as f64 / bars_per_year).max(0.01);
 
         // χ≡1 baseline（chi_theta=None）。
         let mut base_cfg = config.clone();
         base_cfg.risk.chi_theta = None;
-        let base = run_theta_v0_pi_chi(&test, &base_cfg, years, nav, &est, true);
+        let base = run_theta_v0_pi_chi(&test, &base_cfg, years, nav, &est, true)
+            .expect("C-19 research stats record");
 
         // χ 过滤（chi_theta=Some(θ)，treat_empty_as_pass=false=最诚实：无 μ 证据不交易，codex Q3）。
         let mut chi_cfg = config.clone();
         chi_cfg.risk.chi_theta = Some(theta);
-        let chi = run_theta_v0_pi_chi(&test, &chi_cfg, years, nav, &est, false);
+        let chi = run_theta_v0_pi_chi(&test, &chi_cfg, years, nav, &est, false)
+            .expect("C-19 research stats record");
 
         // ΔR 序列统计（delta-r-audit P0 修复：绝对增量配对差 = ΔR/nav0，用 equity_curve 不用百分比）。
-        let st = delta_r_stats(&base.equity_curve, &chi.equity_curve, nav, bars_per_year);
+        let st = delta_r_stats(
+            &base.equity_curve,
+            &chi.equity_curve,
+            nav,
+            bars_per_year,
+            &stats,
+        );
 
         // 分层诊断（强制；(a)/(c)/(d) 严禁谎报否证 (b) 或确认 (c')）。
         // ★(d) χ 退化空仓 guard（实证发现 + codex Q3）：chi.n_orders==0 ∧ base.n_orders>0 ⟹
@@ -566,10 +591,10 @@ fn delta_r_alpha_multi_symbol() {
             // χ 未改变交易集（μ 表全 pass）⟹ ΔR≡0，非否证，是 χ 无作用。
             n_inconclusive += 1;
             "(c)χ未改交易集ΔN≡0"
-        } else if st.n < MIN_TEST_BARS {
+        } else if st.n < stats.min_test_bars {
             n_inconclusive += 1;
             "(c)ΔR样本饥饿"
-        } else if st.mean > 0.0 && st.boot_pvalue <= 0.05 {
+        } else if st.mean > 0.0 && st.boot_pvalue <= stats.significance_p_threshold {
             n_l2_confirm += 1;
             "(c')L2确认:ΔR>0且p≤.05"
         } else {
@@ -659,9 +684,11 @@ fn delta_r_alpha_multi_symbol() {
         "完成品种数                          : {n_done}/{}",
         PREREG_WINDOWS.len()
     );
+    let alpha = stats.significance_p_threshold;
+    let min_l3_power = min_sign_test_power(&stats);
     eprintln!("(a)/(c) inconclusive(断流/χ未改/饥饿): {n_inconclusive}");
-    eprintln!("(b) L2 否证(mean(ΔR)≤0 或 p>.05)     : {n_l2_falsify}");
-    eprintln!("(c') L2 确认(mean(ΔR)>0 且 p≤.05)     : {n_l2_confirm}");
+    eprintln!("(b) L2 否证(mean(ΔR)≤0 或 p>{alpha})     : {n_l2_falsify}");
+    eprintln!("(c') L2 确认(mean(ΔR)>0 且 p≤{alpha})     : {n_l2_confirm}");
     eprintln!("\n--- L3 系统性 alpha（χ 真改交易集的有效品种）---");
     eprintln!("有效品种数 n_L3                      : {n_l3}");
     eprintln!("ΔR 均值>0 的品种数 n_pos             : {n_pos}/{n_l3}");
@@ -669,11 +696,11 @@ fn delta_r_alpha_multi_symbol() {
     eprintln!("符号检验单边 p（H0:符号随机 p=.5）    : {sign_p:.4}");
     eprintln!(
         "\n★诚实裁定（codex Q4 三层 + formalization-validity-domain 231号 + alpha2 §11 鞅定理）：\n  \
-         - **L3 系统性 alpha 成立** ⟺ n_pos/n_L3 符号检验 p<0.05（8 品种需 ≥7/8 正）∧ 池均值>0。\n  \
+         - **L3 系统性 alpha 成立** ⟺ n_pos/n_L3 符号检验 p<{alpha} ∧ 池均值>0。\n  \
          - 否则：若多数 (a)/(c) ⟹ substrate/工程缺口（O(n²) 截断致结构饥饿/χ 未改交易集），inconclusive。\n  \
          - 若多数 (b) 且 χ 真改交易集 ⟹ **χ 选择器不产生系统性净额增量 alpha**（鞅定理预言的真否证：\n    \
            walk-forward μ 表未捕获持续可预测性，ΔR 符号跨品种随机）——**否定性结果，缩小有效域**。\n  \
-         - 单品种 ΔSharpe≠0 不算 alpha（codex：8 品种里 ≥1 偶然为正概率 99.6%）——必须看跨品种系统性。\n  \
+         - 单品种 ΔSharpe≠0 不算 alpha（codex：多品种里 ≥1 偶然为正不能当系统性）——必须看跨品种系统性。\n  \
          - 有效域 caveat：保守欠对冲版 pi（ρ漂移剪枝）+ {MAX_BARS}bar 截断 + OOS 内 split（非独立 train 历史）。"
     );
 
@@ -684,22 +711,19 @@ fn delta_r_alpha_multi_symbol() {
         "分层完备：每完成品种恰归一类",
     );
     // L3 系统性 alpha 判定（诚实记录，非强制 PASS——否定性结果是合法产出，231号）。
-    // ★n=5 功效门（delta-r-audit-2 攻击点3，定理类）：符号检验 8 品种需 ≥7/8 正才到 p<0.05；
-    // n_L3<5 时无论符号如何都达不到 p<0.05（C(n,n)/2^n: 4/4=0.0625, 3/3=0.125 均>0.05）⟹
-    // 检验功效不足，禁用"无系统性alpha"措辞（缺乏否证它的统计功效，非否证成立）。
-    const MIN_L3_POWER: usize = 5; // 符号检验达 p<.05 的最小品种数下界（5/5=1/32=0.03125<0.05）
-    let l3_systematic = n_l3 >= 2 && sign_p < 0.05 && l3_mean > 0.0;
+    // 最小有效品种数由显著性记录推导；不足时全正也过不了符号门，不得声称否证。
+    let l3_systematic = n_l3 >= 2 && sign_p < alpha && l3_mean > 0.0;
     eprintln!(
         "\n★★最终判定：{}",
         if l3_systematic {
-            "L3 系统性净额增量 alpha 成立（符号检验 p<.05 ∧ 池均值>0）——χ 选择器捕获持续可预测性"
-        } else if n_l3 < MIN_L3_POWER {
-            // 功效不足：n_L3<5 时符号检验无论全正都达不到 p<.05 ⟹ inconclusive(功效不足)，
-            // 不得声称"无系统性alpha"（缺乏否证的统计功效）。
-            "L3 inconclusive(功效不足)：χ 真改交易集的有效品种<5——符号检验全正也达不到 p<.05，\
-             无法否证亦无法确认系统性 alpha（缩小样本量是 substrate/工程缺口，非 alpha 结论）"
+            format!("L3 系统性净额增量 alpha 成立（符号检验 p<{alpha} ∧ 池均值>0）——χ 选择器捕获持续可预测性")
+        } else if n_l3 < min_l3_power {
+            format!(
+                "L3 inconclusive(功效不足)：χ 真改交易集的有效品种<{min_l3_power}——符号检验全正也达不到 p<{alpha}，\
+                 无法否证亦无法确认系统性 alpha（缩小样本量是 substrate/工程缺口，非 alpha 结论）"
+            )
         } else {
-            "L3 系统性 alpha 不成立（n_L3≥5 且符号检验未达 p<.05 或池均值≤0）——χ 选择器无系统性 alpha（鞅定理否证）"
+            format!("L3 系统性 alpha 不成立（n_L3≥{min_l3_power} 且符号检验未达 p<{alpha} 或池均值≤0）——χ 选择器无系统性 alpha（鞅定理否证）")
         }
     );
 }
@@ -730,6 +754,14 @@ const CROSSFIT_GAP: usize = 200; // ponytail: 退出持有跨度上界（保守�
 #[ignore = "cross-fit OOS K-fold purged；O(n²) 8 品种 × 5 fold × 32K bar；--release"]
 fn crossfit_l2() {
     let config = ThetaConfig::default();
+    let stats = research_stats();
+    let probe_profile = probe_profile();
+    eprintln!(
+        "policy records: {} | {}",
+        stats.record.label(),
+        probe_profile.record.label()
+    );
+    let min_test_bars = stats.min_test_bars;
     let theta: f64 = 0.0;
 
     eprintln!("\n===== ★cross-fit OOS K-fold purged（PDF §34, K={CROSSFIT_K}, gap={CROSSFIT_GAP}, θ={theta}）=====");
@@ -762,9 +794,9 @@ fn crossfit_l2() {
         }
         let cut = MAX_BARS.min(oos_full.bars.len());
         let fold_len = cut / CROSSFIT_K;
-        if fold_len < MIN_TEST_BARS {
+        if fold_len < stats.min_test_bars {
             eprintln!(
-                "{:<6} fold 太短（fold_len={fold_len}<{MIN_TEST_BARS}）⟹ inconclusive",
+                "{:<6} fold 太短（fold_len={fold_len}<{min_test_bars}）⟹ inconclusive",
                 w.symbol
             );
             continue;
@@ -792,18 +824,18 @@ fn crossfit_l2() {
                 (k + 1) * fold_len
             };
             let held = mk(ho_lo, ho_hi);
-            if held.bars.len() < MIN_TEST_BARS {
+            if held.bars.len() < stats.min_test_bars {
                 continue;
             }
 
             // train = 其余 fold 的连续段，各段从 held-out 边界向外 purge GAP（防退出兑现跨界）。
             // 前段 [0, ho_lo−gap)、后段 [ho_hi+gap, cut)，各段独立估 μ 后 merge（不拼接）。
             let mut est = MuEstimator::new();
-            if ho_lo >= CROSSFIT_GAP + MIN_TEST_BARS {
+            if ho_lo >= CROSSFIT_GAP + stats.min_test_bars {
                 let (e, _) = build_walk_forward_mu(&mk(0, ho_lo - CROSSFIT_GAP), &config);
                 est.merge(&e);
             }
-            if ho_hi + CROSSFIT_GAP + MIN_TEST_BARS <= cut {
+            if ho_hi + CROSSFIT_GAP + stats.min_test_bars <= cut {
                 let (e, _) = build_walk_forward_mu(&mk(ho_hi + CROSSFIT_GAP, cut), &config);
                 est.merge(&e);
             }
@@ -812,28 +844,30 @@ fn crossfit_l2() {
             }
             total_classes = total_classes.max(est.n_classes());
 
-            let first_px = held
-                .bars
-                .iter()
-                .find(|b| !b.untradable && b.close > 0)
-                .map(|b| b.close as f64 * config.tick.tick_size)
-                .unwrap_or(1.0);
-            let nav = (first_px * 1000.0).max(1.0e6);
+            let nav = probe_profile.nav_for(&held, &config);
             let years = (held.bars.len() as f64 / bars_per_year).max(0.01);
 
             let mut base_cfg = config.clone();
             base_cfg.risk.chi_theta = None;
-            let base = run_theta_v0_pi_chi(&held, &base_cfg, years, nav, &est, true);
+            let base = run_theta_v0_pi_chi(&held, &base_cfg, years, nav, &est, true)
+                .expect("C-19 research stats record");
 
             let mut chi_cfg = config.clone();
             chi_cfg.risk.chi_theta = Some(theta);
-            let chi = run_theta_v0_pi_chi(&held, &chi_cfg, years, nav, &est, false);
+            let chi = run_theta_v0_pi_chi(&held, &chi_cfg, years, nav, &est, false)
+                .expect("C-19 research stats record");
 
             // 退化空仓 fold（χ 全滤）= 弃权 PnL 非选择 alpha（161号），不计入 cross-fitted ΔR。
             if chi.n_orders == 0 && base.n_orders > 0 {
                 continue;
             }
-            let st = delta_r_stats(&base.equity_curve, &chi.equity_curve, nav, bars_per_year);
+            let st = delta_r_stats(
+                &base.equity_curve,
+                &chi.equity_curve,
+                nav,
+                bars_per_year,
+                &stats,
+            );
             if st.chi_changed_trades {
                 chi_changed_any = true;
                 // 逐 bar ΔR/nav0 拼进 cf_dr（与 delta_r_stats 内部绝对增量配对差口径一致）。
@@ -860,11 +894,11 @@ fn crossfit_l2() {
             };
             let mut rng = SplitMix64::new(PREREG_SEED);
             let mut n_le_0 = 0usize;
-            for _ in 0..1000 {
+            for _ in 0..stats.delta_r_n_resample {
                 let (mut total, mut filled) = (0.0, 0usize);
                 while filled < cf_n {
                     let start = rng.next_below(cf_n);
-                    let take = 20.min(cf_n - filled);
+                    let take = stats.delta_r_block_len.min(cf_n - filled);
                     for j in 0..take {
                         total += cf_dr[(start + j) % cf_n];
                     }
@@ -874,19 +908,23 @@ fn crossfit_l2() {
                     n_le_0 += 1;
                 }
             }
-            (mean, sharpe, n_le_0 as f64 / 1000.0)
+            (
+                mean,
+                sharpe,
+                n_le_0 as f64 / stats.delta_r_n_resample as f64,
+            )
         } else {
             (0.0, 0.0, 1.0)
         };
 
-        let verdict = if !chi_changed_any || cf_n < MIN_TEST_BARS {
+        let verdict = if !chi_changed_any || cf_n < stats.min_test_bars {
             "(c)cross-fit饥饿/χ未改"
-        } else if cf_mean > 0.0 && cf_boot_p <= 0.05 {
+        } else if cf_mean > 0.0 && cf_boot_p <= stats.significance_p_threshold {
             "(c')cf-L2确认:ΔR>0且p≤.05"
         } else {
             "(b)cf-L2否证:ΔR≤0或p>.05"
         };
-        let l3_valid = chi_changed_any && cf_n >= MIN_TEST_BARS;
+        let l3_valid = chi_changed_any && cf_n >= stats.min_test_bars;
         cf_means.push((w.symbol.to_string(), cf_mean, l3_valid));
 
         eprintln!(
@@ -915,7 +953,7 @@ fn crossfit_l2() {
         0.0
     };
     let sign_p = sign_test_pvalue(n_pos, n_l3);
-    const MIN_L3_POWER: usize = 5;
+    let min_l3_power = min_sign_test_power(&stats);
 
     eprintln!("\n===== cross-fit 跨品种聚合（vs delta_r_alpha_multi_symbol 单次 split）=====");
     eprintln!("完成品种数      : {n_done}/{}", PREREG_WINDOWS.len());
@@ -923,23 +961,24 @@ fn crossfit_l2() {
     eprintln!("cf ΔR 均值>0 品种: {n_pos}/{n_l3}");
     eprintln!("cf 跨品种池均值  : {l3_mean:.3e}");
     eprintln!("符号检验单边 p   : {sign_p:.4}");
+    let alpha = stats.significance_p_threshold;
     eprintln!(
         "\n★诚实裁定（PDF §34 + formalization-validity-domain 231号 + winner's curse §6）：\n  \
-         - cross-fit L3 系统性 alpha 成立 ⟺ n_L3≥5 ∧ 符号检验 p<0.05 ∧ 池均值>0。\n  \
+         - cross-fit L3 系统性 alpha 成立 ⟺ n_L3≥{min_l3_power} ∧ 符号检验 p<{alpha} ∧ 池均值>0。\n  \
          - vs 单次 split：若单次 split 正 ΔR 而 cross-fit 归零 ⟹ 单次的 alpha 是 winner's curse 伪影\n    \
            （训练选赢家污染 OOS），cross-fit 揭示真实 OOS 无 alpha（否定性结果，缩小有效域）。\n  \
          - 若两者一致（都正/都负）⟹ 选择性偏差非主导，单次 split 结论稳健。\n  \
-         - n_L3<5 ⟹ inconclusive（功效不足，K-fold 进一步缩短 train ⟹ 更少非退化品种）。"
+         - n_L3<{min_l3_power} ⟹ inconclusive（功效不足，K-fold 进一步缩短 train ⟹ 更少非退化品种）。"
     );
-    let cf_systematic = n_l3 >= 2 && sign_p < 0.05 && l3_mean > 0.0;
+    let cf_systematic = n_l3 >= 2 && sign_p < alpha && l3_mean > 0.0;
     eprintln!(
         "\n★★最终判定：{}",
         if cf_systematic {
-            "cross-fit L3 系统性 alpha 成立（选/评分离后仍 p<.05 ∧ 池均值>0）——非 winner's curse 伪影"
-        } else if n_l3 < MIN_L3_POWER {
-            "cross-fit inconclusive(功效不足 n_L3<5)：K-fold 缩短 train ⟹ 更少非退化品种，符号检验全正也达不到 p<.05"
+            format!("cross-fit L3 系统性 alpha 成立（选/评分离后仍 p<{alpha} ∧ 池均值>0）——非 winner's curse 伪影")
+        } else if n_l3 < min_l3_power {
+            format!("cross-fit inconclusive(功效不足 n_L3<{min_l3_power})：K-fold 缩短 train ⟹ 更少非退化品种，符号检验全正也达不到 p<{alpha}")
         } else {
-            "cross-fit L3 系统性 alpha 不成立（n_L3≥5 但 p≥.05 或池均值≤0）——选/评分离后无系统性 alpha"
+            format!("cross-fit L3 系统性 alpha 不成立（n_L3≥{min_l3_power} 但 p≥{alpha} 或池均值≤0）——选/评分离后无系统性 alpha")
         }
     );
 }
@@ -998,7 +1037,7 @@ fn rebuild_cost_series(res: &super::runner::RunResult, n_bars: usize, nav0: f64)
 ///
 /// 鞅守卫用双边（H0:E[ΔGross]=0），区别于 [`delta_r_stats`] 的单边（H0:mean≤0，净 alpha 方向性）。
 /// 双边 p = `2·min(P(boot≤0), P(boot≥0))`（block bootstrap 重采样均值分布，seed 冻结，BLOCK=20）。
-fn gross_stats(gross: &[f64], bars_per_year: f64) -> (f64, f64, f64) {
+fn gross_stats(gross: &[f64], bars_per_year: f64, stats: &ResearchStats) -> (f64, f64, f64) {
     let n = gross.len();
     if n < 2 {
         return (0.0, 0.0, 1.0);
@@ -1013,15 +1052,15 @@ fn gross_stats(gross: &[f64], bars_per_year: f64) -> (f64, f64, f64) {
     };
 
     let mut rng = SplitMix64::new(PREREG_SEED);
-    const N_RESAMPLE: usize = 1000;
-    const BLOCK: usize = 20;
+    let n_resample = stats.delta_r_n_resample;
+    let block = stats.delta_r_block_len;
     let (mut n_le, mut n_ge) = (0usize, 0usize);
-    for _ in 0..N_RESAMPLE {
+    for _ in 0..n_resample {
         let mut total = 0.0;
         let mut filled = 0usize;
         while filled < n {
             let start = rng.next_below(n);
-            let take = BLOCK.min(n - filled);
+            let take = block.min(n - filled);
             for k in 0..take {
                 total += gross[(start + k) % n];
             }
@@ -1034,8 +1073,8 @@ fn gross_stats(gross: &[f64], bars_per_year: f64) -> (f64, f64, f64) {
             n_ge += 1;
         }
     }
-    let frac_le = n_le as f64 / N_RESAMPLE as f64;
-    let frac_ge = n_ge as f64 / N_RESAMPLE as f64;
+    let frac_le = n_le as f64 / n_resample as f64;
+    let frac_ge = n_ge as f64 / n_resample as f64;
     let two_sided = (2.0 * frac_le.min(frac_ge)).min(1.0);
     (mean, sharpe, two_sided)
 }
@@ -1109,6 +1148,13 @@ fn synthetic_martingale(n: usize, seed: u64, start_tick: i64) -> Dataset {
 #[ignore = "鞅守卫；O(n²) 8 种子 × 32K bar；--release"]
 fn martingale_impossibility_guard() {
     let config = ThetaConfig::default();
+    let stats = research_stats();
+    let probe_profile = probe_profile();
+    eprintln!(
+        "policy records: {} | {}",
+        stats.record.label(),
+        probe_profile.record.label()
+    );
     let theta: f64 = 0.0; // 与 multi_symbol 同 θ 口径（滤 μ≤0 类）。
     let n = MAX_BARS; // 与真实数据同窗长（train+test 各 16K）。
     let seeds: [u64; 8] = [
@@ -1163,24 +1209,26 @@ fn martingale_impossibility_guard() {
         // walk-forward μ 表（train 窗，frozen——与 multi_symbol 同函数，因果保证一致）。
         let (est, _n_sig) = build_walk_forward_mu(&train, &config);
 
-        let first_px = test
-            .bars
-            .iter()
-            .find(|b| !b.untradable && b.close > 0)
-            .map(|b| b.close as f64 * config.tick.tick_size)
-            .unwrap_or(1.0);
-        let nav = (first_px * 1000.0).max(1.0e6);
+        let nav = probe_profile.nav_for(&test, &config);
         let years = (test.bars.len() as f64 / bars_per_year).max(0.01);
 
         let mut base_cfg = config.clone();
         base_cfg.risk.chi_theta = None;
-        let base = run_theta_v0_pi_chi(&test, &base_cfg, years, nav, &est, true);
+        let base = run_theta_v0_pi_chi(&test, &base_cfg, years, nav, &est, true)
+            .expect("C-19 research stats record");
 
         let mut chi_cfg = config.clone();
         chi_cfg.risk.chi_theta = Some(theta);
-        let chi = run_theta_v0_pi_chi(&test, &chi_cfg, years, nav, &est, false);
+        let chi = run_theta_v0_pi_chi(&test, &chi_cfg, years, nav, &est, false)
+            .expect("C-19 research stats record");
 
-        let st = delta_r_stats(&base.equity_curve, &chi.equity_curve, nav, bars_per_year);
+        let st = delta_r_stats(
+            &base.equity_curve,
+            &chi.equity_curve,
+            nav,
+            bars_per_year,
+            &stats,
+        );
 
         // 毛收益剥离（codex 裁决 + delta-r-audit P0 修复）：ΔGross_t = ΔR_t + ΔC_t。净配对差用
         // **绝对增量** (E^χ_t−E^χ_{t−1})−(E^0_t−E^0_{t−1})（含成本，成本已扣进 equity，口径同
@@ -1196,7 +1244,8 @@ fn martingale_impossibility_guard() {
                 net + (cost_chi[i] - cost_base[i])
             })
             .collect();
-        let (gross_mean, gross_sharpe, gross_two_sided_p) = gross_stats(&gross, bars_per_year);
+        let (gross_mean, gross_sharpe, gross_two_sided_p) =
+            gross_stats(&gross, bars_per_year, &stats);
 
         // 跨种子符号检验输入（仅 χ 真改交易集的有效种子计入——χ 未改交易集时 ΔGross≡0，符号无意义）。
         if st.chi_changed_trades {
@@ -1240,7 +1289,7 @@ fn martingale_impossibility_guard() {
     let extreme = n_pos.max(n_neg);
     let two_sided_sign_p = (2.0 * sign_test_pvalue(extreme, n_eff)).min(1.0);
     // 泄漏判据：跨独立路径系统性同号（双边符号 p≤0.05）= 总体 E[ΔGross]≠0 = harness 泄漏。
-    let leak = n_eff >= 2 && two_sided_sign_p <= 0.05;
+    let leak = n_eff >= 2 && two_sided_sign_p <= stats.significance_p_threshold;
 
     eprintln!("\n===== 鞅守卫聚合（跨独立种子符号检验，主判据）=====");
     eprintln!(
@@ -1250,9 +1299,10 @@ fn martingale_impossibility_guard() {
     eprintln!("ΔGross 均值 +/− 分布            : {n_pos} 正 / {n_neg} 负（共 {n_eff}）");
     eprintln!("跨种子双边符号检验 p（H0:E=0）   : {two_sided_sign_p:.4}");
     eprintln!("检出未来函数泄漏（系统性同号）   : {leak}");
+    let alpha = stats.significance_p_threshold;
     eprintln!(
         "\n★诚实裁定（acc-martingale-guard + alpha2 §11 鞅定理 + codex 异质审 2026-06-30 + 231号）：\n  \
-         - **harness 因果纯净（PASS）** ⟺ 跨独立种子 ΔGross 均值符号检验不显著（双边 p>0.05）——\n    \
+         - **harness 因果纯净（PASS）** ⟺ 跨独立种子 ΔGross 均值符号检验不显著（双边 p>{alpha}）——\n    \
            符号随机分布在 0 两侧，独立鞅路径上毛额总体 E[ΔGross]=0，与鞅定理 E[ΔN·ΔP]=0 自洽。\n  \
          - **认识论修正（单路径 bootstrap 否证）**：单条鞅路径样本均值必偏离 0（√n 波动），单路径\n    \
            boot p 把噪声误判为泄漏；正确判据是跨独立路径的符号随机性（与 L3 跨品种符号检验同构）。\n  \
@@ -1266,7 +1316,7 @@ fn martingale_impossibility_guard() {
     // acceptance（acc-martingale-guard 可证伪门）：跨独立鞅路径毛额不得系统性同号（无未来函数泄漏）。
     assert!(
         !leak,
-        "鞅守卫 FAIL：跨独立鞅路径 ΔGross 均值系统性同号（双边符号 p={two_sided_sign_p:.4}≤0.05）\
+        "鞅守卫 FAIL：跨独立鞅路径 ΔGross 均值系统性同号（双边符号 p={two_sided_sign_p:.4}≤{alpha}）\
          ——总体 E[ΔGross]≠0 = harness 未来函数泄漏，须定位修复（{n_pos}正/{n_neg}负/{n_eff}有效）"
     );
     // 跨种子符号检验需 ≥2 有效种子（χ 真改交易集）；否则检验空转/不可判。
@@ -1313,8 +1363,15 @@ fn martingale_impossibility_guard() {
 #[ignore = "LCB vs 裸 μ L2 对比；O(n²) 8 品种 × 2 z_alpha × 32K bar；--release"]
 fn lcb_vs_naive_l2() {
     let config = ThetaConfig::default();
+    let stats = research_stats();
+    let probe_profile = probe_profile();
+    eprintln!(
+        "policy records: {} | {}",
+        stats.record.label(),
+        probe_profile.record.label()
+    );
     let theta: f64 = 0.0; // 与 multi_symbol 同 θ 口径（滤 μ≤0 类）。
-    let z_alpha_lcb: f64 = 1.645; // 95% 单边 LCB（防高维 z 过拟合，p25 §12）。
+    let z_alpha_lcb = stats.z_alpha;
 
     eprintln!("\n===== ★LCB(μ) vs 裸 μ 选择器 L2 对比（acc-lcb-l2-vs-naive, θ={theta}, z_α_LCB={z_alpha_lcb}）=====");
     eprintln!("★唯一变量 = config.risk.chi_z_alpha（0=裸 μ baseline vs {z_alpha_lcb}=95% LCB）；同 μ 表/同 split/同 θ");
@@ -1364,7 +1421,7 @@ fn lcb_vs_naive_l2() {
         };
         let train = mk(0, split);
         let test = mk(split, cut);
-        if train.bars.len() < MIN_TEST_BARS || test.bars.len() < MIN_TEST_BARS {
+        if train.bars.len() < stats.min_test_bars || test.bars.len() < stats.min_test_bars {
             eprintln!("{:<6} train/test 样本不足 ⟹ inconclusive", w.symbol);
             continue;
         }
@@ -1372,35 +1429,44 @@ fn lcb_vs_naive_l2() {
 
         let (est, _n_sig) = build_walk_forward_mu(&train, &config);
 
-        let first_px = test
-            .bars
-            .iter()
-            .find(|b| !b.untradable && b.close > 0)
-            .map(|b| b.close as f64 * config.tick.tick_size)
-            .unwrap_or(1.0);
-        let nav = (first_px * 1000.0).max(1.0e6);
+        let nav = probe_profile.nav_for(&test, &config);
         let bars_per_year = data::bars_per_year(60);
         let years = (test.bars.len() as f64 / bars_per_year).max(0.01);
 
         // χ≡1 baseline（chi_theta=None，与 z_alpha 无关——baseline 不过滤）。
         let mut base_cfg = config.clone();
         base_cfg.risk.chi_theta = None;
-        let base = run_theta_v0_pi_chi(&test, &base_cfg, years, nav, &est, true);
+        let base = run_theta_v0_pi_chi(&test, &base_cfg, years, nav, &est, true)
+            .expect("C-19 research stats record");
 
         // 裸 μ selector（chi_z_alpha=0 ⟹ LCB=mean ⟹ 退化裸 μ 门；treat_empty=false 最诚实）。
         let mut naive_cfg = config.clone();
         naive_cfg.risk.chi_theta = Some(theta);
         naive_cfg.risk.chi_z_alpha = 0.0;
-        let naive = run_theta_v0_pi_chi(&test, &naive_cfg, years, nav, &est, false);
+        let naive = run_theta_v0_pi_chi(&test, &naive_cfg, years, nav, &est, false)
+            .expect("C-19 research stats record");
 
         // LCB selector（chi_z_alpha=1.645 ⟹ 准入用 LCB=mean−z_α·std/√n）。
         let mut lcb_cfg = config.clone();
         lcb_cfg.risk.chi_theta = Some(theta);
         lcb_cfg.risk.chi_z_alpha = z_alpha_lcb;
-        let lcb = run_theta_v0_pi_chi(&test, &lcb_cfg, years, nav, &est, false);
+        let lcb = run_theta_v0_pi_chi(&test, &lcb_cfg, years, nav, &est, false)
+            .expect("C-19 research stats record");
 
-        let st_naive = delta_r_stats(&base.equity_curve, &naive.equity_curve, nav, bars_per_year);
-        let st_lcb = delta_r_stats(&base.equity_curve, &lcb.equity_curve, nav, bars_per_year);
+        let st_naive = delta_r_stats(
+            &base.equity_curve,
+            &naive.equity_curve,
+            nav,
+            bars_per_year,
+            &stats,
+        );
+        let st_lcb = delta_r_stats(
+            &base.equity_curve,
+            &lcb.equity_curve,
+            nav,
+            bars_per_year,
+            &stats,
+        );
 
         // 退化（χ 全滤空仓）判定（与 multi_symbol (d) 同口径）——先于 src_b 归因，
         // 因 src_b 的 alpha 论证须排除退化品种（codex 攻击点1+4）。
@@ -1512,7 +1578,7 @@ fn lcb_vs_naive_l2() {
     );
 
     // ── 维度② 功效：L3 符号检验在两 selector 下（纪律1，与维度①同源非正交——同一 rejection mass 两投影）──
-    const MIN_L3_POWER: usize = 5;
+    let min_l3_power = min_sign_test_power(&stats);
     let l3 = |pool: &[f64]| -> (usize, usize, f64, f64) {
         let n = pool.len();
         let n_pos = pool.iter().filter(|&&m| m > 0.0).count();
@@ -1533,9 +1599,9 @@ fn lcb_vs_naive_l2() {
         "L3 符号检验（LCB） : n_L3={n_l} n_pos={pos_l}/{n_l} 池均值={mean_l:.3e} 符号 p={p_l:.4}"
     );
     let verdict = |n: usize, p: f64, mean: f64| -> &'static str {
-        if n >= 2 && p < 0.05 && mean > 0.0 {
+        if n >= 2 && p < stats.significance_p_threshold && mean > 0.0 {
             "系统性 alpha 成立"
-        } else if n < MIN_L3_POWER {
+        } else if n < min_l3_power {
             "inconclusive(功效不足 n_L3<5，全正也达不到 p<.05)"
         } else {
             "系统性 alpha 不成立（n≥5 但 p≥.05 或均值≤0）"
@@ -1597,8 +1663,15 @@ fn lcb_vs_naive_l2() {
 #[ignore = "三路对比 L2；O(n²) 8 品种 × 3 selector × 32K bar；--release"]
 fn three_way_l2() {
     let config = ThetaConfig::default();
+    let stats = research_stats();
+    let probe_profile = probe_profile();
+    eprintln!(
+        "policy records: {} | {}",
+        stats.record.label(),
+        probe_profile.record.label()
+    );
     let theta: f64 = 0.0;
-    let z_alpha_lcb: f64 = 1.645;
+    let z_alpha_lcb = stats.z_alpha;
     let tau_sq: f64 = 1.0; // 级别间先验方差 τ²（PDF §8 θ_ℓ~N(0,τ²)）；可调旋钮，1.0 = 中性先验。
 
     eprintln!("\n===== ★三路对比 裸μ vs LCB vs shrinkage L2（acc-three-way-l2, θ={theta}, z_α={z_alpha_lcb}, τ²={tau_sq}）=====");
@@ -1638,7 +1711,7 @@ fn three_way_l2() {
         };
         let train = mk(0, split);
         let test = mk(split, cut);
-        if train.bars.len() < MIN_TEST_BARS || test.bars.len() < MIN_TEST_BARS {
+        if train.bars.len() < stats.min_test_bars || test.bars.len() < stats.min_test_bars {
             eprintln!("{:<6} train/test 样本不足 ⟹ inconclusive", w.symbol);
             continue;
         }
@@ -1647,39 +1720,55 @@ fn three_way_l2() {
         let (est, _n_sig) = build_walk_forward_mu(&train, &config);
         let est_shrunk = est.shrunk_view(tau_sq); // 解 C：收缩视图，保留原 n。
 
-        let first_px = test
-            .bars
-            .iter()
-            .find(|b| !b.untradable && b.close > 0)
-            .map(|b| b.close as f64 * config.tick.tick_size)
-            .unwrap_or(1.0);
-        let nav = (first_px * 1000.0).max(1.0e6);
+        let nav = probe_profile.nav_for(&test, &config);
         let bars_per_year = data::bars_per_year(60);
         let years = (test.bars.len() as f64 / bars_per_year).max(0.01);
 
         let mut base_cfg = config.clone();
         base_cfg.risk.chi_theta = None;
-        let base = run_theta_v0_pi_chi(&test, &base_cfg, years, nav, &est, true);
+        let base = run_theta_v0_pi_chi(&test, &base_cfg, years, nav, &est, true)
+            .expect("C-19 research stats record");
 
         let mut naive_cfg = config.clone();
         naive_cfg.risk.chi_theta = Some(theta);
         naive_cfg.risk.chi_z_alpha = 0.0;
-        let naive = run_theta_v0_pi_chi(&test, &naive_cfg, years, nav, &est, false);
+        let naive = run_theta_v0_pi_chi(&test, &naive_cfg, years, nav, &est, false)
+            .expect("C-19 research stats record");
 
         let mut lcb_cfg = config.clone();
         lcb_cfg.risk.chi_theta = Some(theta);
         lcb_cfg.risk.chi_z_alpha = z_alpha_lcb;
-        let lcb = run_theta_v0_pi_chi(&test, &lcb_cfg, years, nav, &est, false);
+        let lcb = run_theta_v0_pi_chi(&test, &lcb_cfg, years, nav, &est, false)
+            .expect("C-19 research stats record");
 
         // shrinkage：裸门（z_alpha=0）但喂收缩 est ⟹ mu_shrink>θ 准入（解 C）。
         let mut shrink_cfg = config.clone();
         shrink_cfg.risk.chi_theta = Some(theta);
         shrink_cfg.risk.chi_z_alpha = 0.0;
-        let shrink = run_theta_v0_pi_chi(&test, &shrink_cfg, years, nav, &est_shrunk, false);
+        let shrink = run_theta_v0_pi_chi(&test, &shrink_cfg, years, nav, &est_shrunk, false)
+            .expect("C-19 research stats record");
 
-        let st_naive = delta_r_stats(&base.equity_curve, &naive.equity_curve, nav, bars_per_year);
-        let st_lcb = delta_r_stats(&base.equity_curve, &lcb.equity_curve, nav, bars_per_year);
-        let st_shrink = delta_r_stats(&base.equity_curve, &shrink.equity_curve, nav, bars_per_year);
+        let st_naive = delta_r_stats(
+            &base.equity_curve,
+            &naive.equity_curve,
+            nav,
+            bars_per_year,
+            &stats,
+        );
+        let st_lcb = delta_r_stats(
+            &base.equity_curve,
+            &lcb.equity_curve,
+            nav,
+            bars_per_year,
+            &stats,
+        );
+        let st_shrink = delta_r_stats(
+            &base.equity_curve,
+            &shrink.equity_curve,
+            nav,
+            bars_per_year,
+            &stats,
+        );
 
         let degen_naive = naive.n_orders == 0 && base.n_orders > 0;
         let degen_lcb = lcb.n_orders == 0 && base.n_orders > 0;
@@ -1751,11 +1840,11 @@ fn three_way_l2() {
     eprintln!(
         "L3 符号检验（shrink）: n_L3={n_s} n_pos={pos_s}/{n_s} 池均值={mean_s:.3e} 符号 p={p_s:.4}"
     );
-    const MIN_L3_POWER: usize = 5;
+    let min_l3_power = min_sign_test_power(&stats);
     let verdict = |n: usize, p: f64, mean: f64| -> &'static str {
-        if n >= 2 && p < 0.05 && mean > 0.0 {
+        if n >= 2 && p < stats.significance_p_threshold && mean > 0.0 {
             "系统性 alpha 成立"
-        } else if n < MIN_L3_POWER {
+        } else if n < min_l3_power {
             "inconclusive(功效不足 n_L3<5)"
         } else {
             "系统性 alpha 不成立（n≥5 但 p≥.05 或均值≤0）"
@@ -2082,12 +2171,14 @@ fn pooling_icc_multi_symbol() {
     use super::pooling_icc::{collect_by_class, icc, leave_one_asset_out, AssetClassStat};
 
     let config = ThetaConfig::default();
+    let stats = research_stats();
     /// 类内方差可估的最小品种样本量门（n≥2 才有 within 方差）。
     const MIN_CLASS_N: u64 = 2;
     /// 该 z 类计入「高功效 ICC 统计」的最小品种数（≥3 品种才有可信 between 散布）。
     const MIN_ASSETS_FOR_ICC: usize = 3;
 
     eprintln!("\n===== ★跨品种 pooling 同质性检验 L2/L3（acc-pooling-icc, task #86）=====");
+    eprintln!("统计记录={}", stats.record.label());
     eprintln!("★§15 随机效应：μ_{{a,z}}=μ_z+η, η~N(0,τ²)；τ²=0→同分布→pooling 有效；τ²大→异质→强 pooling 引偏差");
     eprintln!("★§16 ICC=τ²/(τ²+σ²)∈[0,1]：→0 噪声主导(pooling 安全)；→1 品种差异主导(慎 pooling)");
     eprintln!(
@@ -2118,7 +2209,7 @@ fn pooling_icc_multi_symbol() {
             dates: oos_full.dates[0..split.min(oos_full.dates.len())].to_vec(),
             bar_seconds: 60,
         };
-        if train.bars.len() < MIN_TEST_BARS {
+        if train.bars.len() < stats.min_test_bars {
             eprintln!("{:<6} train 样本不足 ⟹ 跳过", w.symbol);
             continue;
         }
@@ -2225,8 +2316,14 @@ fn pooling_icc_multi_symbol() {
     } else {
         icc_pool.iter().sum::<f64>() / icc_pool.len() as f64
     };
-    let n_low_icc = icc_pool.iter().filter(|&&v| v < 0.3).count(); // 同质阈（ICC<0.3 弱品种相关）
-    let n_high_icc = icc_pool.iter().filter(|&&v| v > 0.7).count(); // 异质阈（ICC>0.7 强品种相关）
+    let n_low_icc = icc_pool
+        .iter()
+        .filter(|&&v| v < stats.icc_low_threshold)
+        .count(); // 同质阈（ICC<0.3 弱品种相关）
+    let n_high_icc = icc_pool
+        .iter()
+        .filter(|&&v| v > stats.icc_high_threshold)
+        .count(); // 异质阈（ICC>0.7 强品种相关）
     let mut terr_sorted = transfer_errs.clone();
     let terr_median = median(&mut terr_sorted);
 
@@ -2238,8 +2335,10 @@ fn pooling_icc_multi_symbol() {
     );
     eprintln!("≥{MIN_ASSETS_FOR_ICC} 品种共享且 within 可估的 z 类 : {n_shared_classes}");
     eprintln!("ICC 中位数 / 均值                   : {icc_median:.4} / {icc_mean:.4}");
+    let icc_low = stats.icc_low_threshold;
+    let icc_high = stats.icc_high_threshold;
     eprintln!(
-        "低 ICC(<0.3 同质) / 高 ICC(>0.7 异质): {n_low_icc} / {n_high_icc}（共 {} 类）",
+        "低 ICC(<{icc_low} 同质) / 高 ICC(>{icc_high} 异质): {n_low_icc} / {n_high_icc}（共 {} 类）",
         icc_pool.len()
     );
     eprintln!(
@@ -2248,8 +2347,8 @@ fn pooling_icc_multi_symbol() {
     );
     eprintln!(
         "\n★诚实裁定（§15/§16 + formalization-validity-domain 231号）：\n  \
-         - (a) 跨品种同质（pooling 有效）⟺ ICC 多数低(<0.3) ∧ 迁移误差小 ⟹ τ²≈0 ⟹ pooling 安全提升功效。\n  \
-         - (b) 跨品种异质（强 pooling 引偏差）⟺ ICC 多数高(>0.7) 或迁移误差大 ⟹ τ²>0 ⟹ 应收缩(pooling_weight)非全 pool。\n  \
+         - (a) 跨品种同质（pooling 有效）⟺ ICC 多数低(<{icc_low}) ∧ 迁移误差小 ⟹ τ²≈0 ⟹ pooling 安全提升功效。\n  \
+         - (b) 跨品种异质（强 pooling 引偏差）⟺ ICC 多数高(>{icc_high}) 或迁移误差大 ⟹ τ²>0 ⟹ 应收缩(pooling_weight)非全 pool。\n  \
          - 功效边界：n_shared_classes 小（{MAX_BARS}bar 截断 + 8 品种）⟹ ICC 统计本身功效不足，\n    \
            诚实报 blocked 而非「同质确认」（缺乏否证同质性的统计功效 ≠ 同质成立）。\n  \
          - 单品种类（<{MIN_ASSETS_FOR_ICC} 品种）不计入——无法谈「品种间」相关（ICC 定义需 ≥2 品种 between 散布）。"
@@ -2263,6 +2362,35 @@ fn pooling_icc_multi_symbol() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn p1605_r4_power_respects_strict_boundary_and_subnormal_domain() {
+        let mut stats = active_research_stats().unwrap();
+        for (alpha, expected) in [
+            (0.05, 5),
+            (1e-30, 100),
+            (0.5, 2),
+            (0.125, 4),
+            (f64::from_bits(1), 1075),
+        ] {
+            stats.significance_p_threshold = alpha;
+            assert_eq!(min_sign_test_power(&stats), expected, "alpha={alpha}");
+        }
+    }
+
+    #[test]
+    fn p1605_r4_valid_tiny_threshold_has_finite_power_bound() {
+        let mut record: serde_json::Value =
+            serde_json::from_str(crate::theta_v0::policy_records::ACTIVE_RESEARCH_STATS_JSON)
+                .unwrap();
+        record["fields"]["significance_p_threshold"]["value"] = 1e-30.into();
+        let text = record.to_string();
+        let stats =
+            crate::theta_v0::backtest::research_stats::parse_research_stats(Some(&text)).unwrap();
+        assert!(sign_test_pvalue(99, 99) >= stats.significance_p_threshold);
+        assert!(sign_test_pvalue(100, 100) < stats.significance_p_threshold);
+        assert_eq!(min_sign_test_power(&stats), 100);
+    }
 
     /// 量纲③重锚（#65 裁定 2026-07-21）：ledger χ 观测必须是费扣后持仓期相对收益。
     #[test]
@@ -2399,6 +2527,7 @@ mod tests {
     /// 不跑 harness（O(n²)，那是 ignored 慢测的事）——验证「选/评分离 + gap」的边界正确性。
     #[test]
     fn crossfit_folds_purged_no_overlap() {
+        let stats = research_stats();
         let cut = MAX_BARS; // 32000
         let fold_len = cut / CROSSFIT_K; // 6400
         let gap = CROSSFIT_GAP;
@@ -2410,7 +2539,7 @@ mod tests {
                 (k + 1) * fold_len
             };
             // 前段 train [0, ho_lo−gap)：末端到 held-out 起隔 gap。
-            if ho_lo >= gap + MIN_TEST_BARS {
+            if ho_lo >= gap + stats.min_test_bars {
                 let pre_hi = ho_lo - gap;
                 assert!(pre_hi <= ho_lo, "前段 train 不进 held-out");
                 assert!(
@@ -2420,7 +2549,7 @@ mod tests {
                 );
             }
             // 后段 train [ho_hi+gap, cut)：起点到 held-out 末隔 gap。
-            if ho_hi + gap + MIN_TEST_BARS <= cut {
+            if ho_hi + gap + stats.min_test_bars <= cut {
                 let post_lo = ho_hi + gap;
                 assert!(post_lo >= ho_hi, "后段 train 不进 held-out");
                 assert!(
@@ -2453,7 +2582,7 @@ mod tests {
     fn delta_r_identical_returns_zero() {
         // equity_curve 口径：归一化绝对权益序列（E_t）。χ==baseline ⟹ 绝对增量配对差≡0。
         let eq = vec![1.0, 1.01, 0.99, 1.02, 1.02, 1.03];
-        let st = delta_r_stats(&eq, &eq, 1.0e6, 252.0);
+        let st = delta_r_stats(&eq, &eq, 1.0e6, 252.0, &research_stats());
         assert!(!st.chi_changed_trades, "χ==baseline ⟹ ΔR≡0 ⟹ χ 未改交易集");
         assert!(st.mean.abs() < 1e-15, "ΔR 均值=0");
     }
@@ -2464,7 +2593,7 @@ mod tests {
         // baseline 权益恒定（增量 0）；χ 每 bar 绝对权益 +0.001（增量恒 +0.001>0）⟹ ΔR/nav0 恒正。
         let base = vec![1.0; 300];
         let chi: Vec<f64> = (0..300).map(|i| 1.0 + 0.001 * i as f64).collect();
-        let st = delta_r_stats(&base, &chi, 1.0e6, 252.0);
+        let st = delta_r_stats(&base, &chi, 1.0e6, 252.0, &research_stats());
         assert!(st.chi_changed_trades, "χ≠baseline ⟹ ΔN 非全等");
         assert!(st.mean > 0.0, "χ 主导 ⟹ mean(ΔR)>0，实得 {}", st.mean);
         assert!(
@@ -2474,12 +2603,46 @@ mod tests {
         );
     }
 
+    /// ΔR 与跨品种功效门的真实消费域：重采样参数和显著性门必须改变实际读数。
+    #[test]
+    fn research_stats_reach_delta_r_bootstrap_and_sign_test_power() {
+        let active = research_stats();
+        let base = vec![1.0; 300];
+        let mut equity = 1.0;
+        let chi: Vec<f64> = (0..300)
+            .map(|i| {
+                if i > 0 {
+                    equity += if i % 2 == 0 { 0.001 } else { -0.001 };
+                }
+                equity
+            })
+            .collect();
+        let baseline = delta_r_stats(&base, &chi, 1.0e6, 252.0, &active);
+        let mut changed = active.clone();
+        changed.delta_r_n_resample = 37;
+        changed.delta_r_block_len = 7;
+        let resampled = delta_r_stats(&base, &chi, 1.0e6, 252.0, &changed);
+        assert_eq!(baseline.mean, resampled.mean, "重采样不得改变原始 ΔR 均值");
+        assert_ne!(
+            baseline.boot_pvalue, resampled.boot_pvalue,
+            "恢复固定块长/重采样数会使此负控变红"
+        );
+
+        assert_eq!(
+            min_sign_test_power(&active),
+            5,
+            "v1 0.05 门下全正至少 5 个品种"
+        );
+        changed.significance_p_threshold = 0.01;
+        assert_eq!(min_sign_test_power(&changed), 7);
+    }
+
     /// ΔR 序列统计：χ 权益增量恒小于 baseline ⟹ mean(ΔR)<0 ∧ boot p≈1（否证能力——不冒充正 alpha）。
     #[test]
     fn delta_r_negative_when_chi_worse() {
         let base: Vec<f64> = (0..300).map(|i| 1.0 + 0.001 * i as f64).collect(); // baseline 增量 +0.001
         let chi = vec![1.0; 300]; // χ 权益恒定（增量 0）⟹ ΔR=0−base 增量<0
-        let st = delta_r_stats(&base, &chi, 1.0e6, 252.0);
+        let st = delta_r_stats(&base, &chi, 1.0e6, 252.0, &research_stats());
         assert!(st.mean < 0.0, "χ 劣于 baseline ⟹ mean(ΔR)<0");
         assert!(
             st.boot_pvalue > 0.95,
@@ -2502,7 +2665,7 @@ mod tests {
         let chi = vec![2.0, 2.10, 2.20, 2.30, 2.40, 2.50]; // 同绝对增量 +0.10/bar，E_{t−1} 发散
 
         // (1) 现口径（绝对增量配对差）：增量都 +0.10 ⟹ 配对差恒 0 ⟹ mean=0。
-        let st = delta_r_stats(&base, &chi, 1.0e6, 252.0);
+        let st = delta_r_stats(&base, &chi, 1.0e6, 252.0, &research_stats());
         assert!(
             st.mean.abs() < 1e-15,
             "绝对增量相同 ⟹ §10 ΔR 配对差≡0（与 NAV 发散无关），实得 mean={}",
@@ -2563,6 +2726,33 @@ mod tests {
         eprintln!(
             "[m3-partition-synth] |ledger|={} kept={kept} same_bar={same_bar} nonpos={nonpos} |records|={}",
             ledger.len(), records.len()
+        );
+    }
+
+    /// #1493 段层连续性锁（#1588 tests 分片 REPORT §C 建议）：`m3_partition_synthetic_holds` 只要求 ledger 非空，
+    /// 锁不住段层停产（main `6badaa6049` 上该种子停在 14 段，m3 照样绿）。本锁在同一合成鞅（3000 bar，种子
+    /// 20260704）上直接断言段层：段数下限与末段终点贴近笔流右缘。
+    #[test]
+    fn m3_synthetic_segment_layer_does_not_stall() {
+        let cfg = ThetaConfig::default();
+        let ds = synthetic_martingale(3000, 20260704, 100);
+        let layer = crate::theta_v0::parser::parse_layer(&ds.bars, &cfg);
+        let segs = layer.segments.len();
+        let last_seg_end = layer.segments.last().map_or(0, |s| s.end_index);
+        let last_stroke_end = layer.strokes.last().map_or(0, |s| s.end_index);
+        eprintln!(
+            "TB1493_M3_SEGS segments={segs} strokes={} last_segment_end={last_seg_end} last_stroke_end={last_stroke_end} bars={}",
+            layer.strokes.len(),
+            ds.bars.len()
+        );
+        assert!(
+            segs >= 30,
+            "合成鞅段层停产：{segs} 段（segment-turn/1 读数 32；main 6badaa6049 为 14）"
+        );
+        // segment-turn/1 读数：末段终点 2958、末笔终点 2997（差 39 根）。
+        assert!(
+            last_stroke_end - last_seg_end <= 150,
+            "末段终点离笔流右缘过远：{last_seg_end} vs {last_stroke_end}"
         );
     }
 

@@ -92,7 +92,7 @@ def prepare(output, binary, python, node, playwright_module, port_base, *, extra
             'fixture_sha256': {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in (ledger_path, oracle_path)},
             # #1394：新 writer 的 init 会一并落私有存储格式登记表，权威表清单须含它。
             'expected_tables': sorted(re.findall(r'CREATE TABLE(?: IF NOT EXISTS)? (\w+)', __import__('s_query_integrity').LEGACY_SCHEMA + __import__('s_query_integrity').CONTROL_SCHEMA + __import__('s_query_integrity').tb02.SCHEMA + __import__('s_query_integrity').STORAGE_FORMAT_SCHEMA + __import__('s_query_integrity').EVIDENCE_GRAPH_SCHEMA)),
-            'binary_sha256': hashlib.sha256(binary.read_bytes()).hexdigest(), 'rule': 'new-bi-dual-coordinate/1',
+            'binary_sha256': hashlib.sha256(binary.read_bytes()).hexdigest(), 'rule': 'new-bi-dual-coordinate/2',
             'fault_boundaries': ['持久Begin后', '不可变批次后', '对象/关系/变化/索引提交前', '提交后回执前']
                 + (['首个新批次节点页已刷入未提交事务、根行写入前'] if extra_fault_stages else []), 'runs': runs}
     dump(output / 'RUN-PLAN.json', plan)

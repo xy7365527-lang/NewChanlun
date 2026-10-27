@@ -103,9 +103,9 @@ def remaining(deadline):
 def read_health(port, deadline):
     """短 HTTP/1.0 控制请求，头和正文共享绝对期限及字节上限。"""
     limit = 1024 * 1024
-    with socket.create_connection(("127.0.0.1", int(port)), timeout=remaining(deadline)) as connection:
+    with socket.create_connection(("127.0.0.1", int(port)), timeout=remaining(deadline)) as connection:  # DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
         connection.settimeout(remaining(deadline))
-        connection.sendall(b"GET /api/ready HTTP/1.0\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n")
+        connection.sendall(b"GET /api/ready HTTP/1.0\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n")  # DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
         raw = bytearray()
         header_end = -1
         while True:
@@ -161,8 +161,15 @@ def process_identity(pid, command=None, *, deadline=None):
     if type(pid) is not int or pid <= 1:
         return None
     timeout = 1 if deadline is None else min(1, remaining(deadline))
+    # #1609：Linux procps-ng 在无终端时把行数取成 1，往 stderr 打
+    # 「your NxM screen size is bogus」；进程不存在时这会让 rc=1 带上 stderr，
+    # 被下方判成查询失败，退出永远观察不到。显式给 LINES 消掉这条告警，
+    # 判据本身不变：其余任何 stderr 仍按查询失败处理。导出的 COLUMNS 会让 procps
+    # 截断 command= 列（命令核对随之失败），一并去掉，非终端输出回到不限宽。
+    environment = dict(os.environ, LINES="24")
+    environment.pop("COLUMNS", None)
     result = subprocess.run(["ps", "-p", str(pid), "-o", "uid=,stat=,lstart=,command="],
-                            capture_output=True, text=True, check=False, timeout=timeout)
+                            capture_output=True, text=True, check=False, timeout=timeout, env=environment)
     if deadline is not None:
         remaining(deadline)
     if result.returncode == 1 and not result.stdout.strip() and not result.stderr.strip():
@@ -501,18 +508,31 @@ class Controller:
         environment = dict(os.environ if environment is None else environment)
         # 私有声明只由本次已核冻结原件产生，ambient 值不能替代它或串到旧服务/Q。
         environment.pop("S_CONTROL_RESOURCE_SHA256", None)
+        environment.pop("S_CONTROL_START_GATE", None)
+        start_gate = service == "s" and self.socket_service == "s"
+        if start_gate:
+            environment["S_CONTROL_START_GATE"] = "stdin-v1"
         if resource_identity is not None:
             environment["S_CONTROL_RESOURCE_SHA256"] = resource_identity["sha256"]
         instance_key = "SESSION_CONTROL_INSTANCE_ID" if self.socket_service == "owner" else "S_CONTROL_INSTANCE_ID"
         environment[instance_key] = instance_id
         with (self.state_dir / (service + ".log")).open("ab") as log:
             remaining(deadline)
-            process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
-                                       start_new_session=True, env=environment)
+            process = subprocess.Popen(command, stdin=subprocess.PIPE if start_gate else subprocess.DEVNULL,
+                                       stdout=log, stderr=log,
+                                       start_new_session=True, env=environment, bufsize=0)
         try:
             self.record(service, process.pid, command, instance_id, child=process, deadline=deadline,
                         resource_identity=resource_identity)
+            if start_gate:
+                # #1527：登记原子替换完成后，才允许子进程固定整个源域。
+                remaining(deadline)
+                if process.stdin.write(b"R") != 1:
+                    raise ValueError("S 启动放行管道未完整写入")
+                process.stdin.close()
         except Exception as exc:
+            if start_gate:
+                process.stdin.close()
             # 仅善后本次尚未登记的直接子进程，不触碰其他已运行服务。
             if process.poll() is None:
                 process.terminate()
@@ -720,7 +740,7 @@ class Controller:
                 raise ValueError("Q3结构入口不承载economic_query_config，不得静默丢弃")
             command = [config["binary"], "query-serve", "--protocol-revision", "s-session/3",
                        "--db", config["db"], "--resource-config", config["query_resource_config"],
-                       "--producer-epoch", query_epoch, "--host", "127.0.0.1", "--port", config["port"]]
+                       "--producer-epoch", query_epoch, "--host", "127.0.0.1", "--port", config["port"]]  # DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
             environment = self.runtime_environment(deadline)
         elif revision == "legacy/2":
             # 旧十九字段文件保留Python入口及其严格验证，不接纳新版值或token。
@@ -760,7 +780,8 @@ class Controller:
                         "signal": signal.Signals(requested_signal).name,
                         "exit_observation_warnings": observations}
             time.sleep(0.05)
-        raise TimeoutError(service + " 尚未退出，不自动升级信号")
+        detail = "；观察期间的异常：" + " | ".join(observations) if observations else ""
+        raise TimeoutError(service + " 尚未退出，不自动升级信号" + detail)
 
     @admission_action
     def recover(self, new_epoch, clock_event_id):

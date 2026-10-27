@@ -39,9 +39,9 @@
 use super::capture_allocation::work::WorkMap;
 use super::capture_allocation::OwnedBudget;
 use super::{
-    be_u64, checked_frame_len, digest_at, frame, length_overflow_error, parse_root, read_checked,
-    root_string, sequence_shape_error, split_index, tag, CodecError, NodeDigest, NodeSink,
-    NodeSource, MAX_FRAME_LEN,
+    be_u64, checked_frame_len, digest_at, frame, length_overflow_error, parse_root,
+    read_scoped_checked, root_string, sequence_shape_error, split_index, tag, CodecError,
+    NodeDigest, NodeSink, NodeSource, MAX_FRAME_LEN,
 };
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -147,7 +147,8 @@ fn read_header(
         }
         return Ok(SeqNode::Empty);
     }
-    let (t, body) = read_checked(&mut *store, digest)?;
+    // 活动工作域下读取签发的原正文许可随 body 持有，核完形状随 body 释放。
+    let (t, body) = read_scoped_checked(&mut *store, digest)?;
     if count == 1 {
         if t != tag::SEQ_LEAF {
             return Err(sequence_shape_error(format!(

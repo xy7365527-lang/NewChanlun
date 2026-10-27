@@ -1,3 +1,5 @@
+import Origin.Tangency
+
 /-
   线段划分 v1 特征序列法·真完全分类（Phase 2, claim10 / task #37）
   工位：claim10-segment-v1（与 claim5/6/9 并发，integrator=formalization-lead）
@@ -45,7 +47,8 @@
     * 两种情况完全分类（:24-48）：第一种(分型第1、2元素无缺口→该高/低点即终点)、
       第二种(第1、2元素有缺口→须第二特征序列出反向分型才终结)。"只有两种可能。"
     * 第二种简化（:46）：第二特征序列的分型不再分第一二种情况，只要有分型即可。
-  - 第71课（在 067 第四/五种情况引文 :122/126 + 077 提及）：包含关系作用域——
+    * 第二种候选的失效出口见第78课:52（下条）与下文 `SecondKindTerminal`（#1344 裁定）。
+  - 第71课（正本 `docs/chanlun/text/blog/071-第71课.md`:26/:28/:32/:42）：包含关系作用域——
     特征序列元素做包含处理的前提是元素 **同属一个特征序列**；转折点两边（不同性质）
     不能包含；第三笔完全在第一笔范围内 → 待定（旧段延续 or 新段成立两结果）。
   - 第77课（077-第77课.md，方向与奇数性）：
@@ -57,6 +60,8 @@
     * 古怪线段唯一原因（:30）："所有古怪的线段，都是因为线段出现第一种情况的笔破坏后
       最终没有在该方向由该笔发展形成线段破坏。"
     * 笔破坏≠线段破坏（:34）：笔破坏后不一定在该方向发展成线段破坏。
+    * 第二种候选失效（:52）："线段C没有形成第二特征序列的分型又直接新高或新低了，这时候，
+      不能认为这是三个线段，线段A、B、C加起来只能算是一个线段。"
     * "顶高于底"硬约束（:20）："同一线段中，两端的一顶一底，顶肯定要高于底，
       如果你划出一个不符合这基本要求的线段，那肯定是划错了。"——定义的一部分，非后置过滤。
     * 第二种情况第二特征序列必须严格按包含处理（:54）：不存在第一种情况"分界点两边不
@@ -92,15 +97,24 @@ structure Interval where
   valid : lo ≤ hi
 deriving Repr
 
-/-- 两区间有公共重叠（交集非空）。缺口 = 无重叠（第67课:18）。 -/
-def Interval.overlaps (a b : Interval) : Prop := a.lo ≤ b.hi ∧ b.lo ≤ a.hi
+/-- 两区间有公共重叠（交集非空）。缺口 = 无重叠（第67课:18）。
+
+  ★ 版本化字段 `tangency`（xianduan.md §6.3 X-38，ADR 0041，[#1600]）：
+  当前写死 `closed` 模式（相切算重合，`≤`，现行取值）。完整参数化见 X-38 清单。
+-/
+def Interval.overlaps (t : NewChanlun.Origin.Tangency) (a b : Interval) : Prop :=
+  match t with
+  | .closed => a.lo ≤ b.hi ∧ b.lo ≤ a.hi
+  | .open => a.lo < b.hi ∧ b.lo < a.hi
 
 /-- 缺口：两相邻特征序列元素 **没有** 重合区间（第67课:18 缺口定义）。 -/
-def Interval.gap (a b : Interval) : Prop := ¬ a.overlaps b
+def Interval.gap (t : NewChanlun.Origin.Tangency) (a b : Interval) : Prop := ¬ Interval.overlaps t a b
 
 /-- 缺口判定（Decidable 镜像，用于完全性枚举）。 -/
-def Interval.hasGap (a b : Interval) : Bool :=
-  decide (a.hi < b.lo ∨ b.hi < a.lo)
+def Interval.hasGap (t : NewChanlun.Origin.Tangency) (a b : Interval) : Bool :=
+  match t with
+  | .closed => decide (a.hi < b.lo ∨ b.hi < a.lo)
+  | .open => decide (a.hi ≤ b.lo ∨ b.hi ≤ a.lo)
 
 /-! ## 笔（构成线段的原子）—— v1 输入
 
@@ -183,6 +197,8 @@ def expectedFractalKind : Dir → FeatureFractalKind
     缺口。**即使该分型已形成也不直接终结**，须 **从该分型极值点开始的反向笔序列的特征序列
     出现反向分型**（第二特征序列分型）才确认终结（第67课:38；067 答疑:196"麻烦的是第二
     种情况，并不是任何三笔都能构成破坏"）。第二特征序列分型不再分第一二种情况（第67课:46）。
+  若第二特征序列成分型之前原方向价格先严格越过分型极值，候选失效、原线段延续（第78课:52，
+  #1344），见下文 `SecondKindTerminal`。
 
   ★口径依据声明（复核吸收 + no-workaround，CLAUDE.md 三级权威链：博文 > 编纂版）：
   本二分类的 **终结语义** 依据 **第67课博文原文**（067:28 第一种=分型形成即终结 /
@@ -229,24 +245,64 @@ theorem termination_case_dichotomy (c : TerminationCase) :
     "进入有缺口分支、待第二特征序列分型确认"。
   这是 `TerminationCase` **分支** 的忠实判定（缺口 ⟺ 进入 secondKind 分支）。
 -/
-def classifyTermination (e1 e2 : Interval) : TerminationCase :=
-  if e1.hasGap e2 then TerminationCase.secondKind else TerminationCase.firstKind
+def classifyTermination (t : NewChanlun.Origin.Tangency) (e1 e2 : Interval) : TerminationCase :=
+  if Interval.hasGap t e1 e2 then TerminationCase.secondKind else TerminationCase.firstKind
 
 /-- 判定忠实：第一种情况 ⟺ 第一、二元素无缺口（第67课:28）。 -/
-theorem firstKind_iff_no_gap (e1 e2 : Interval) :
-    classifyTermination e1 e2 = TerminationCase.firstKind ↔ ¬ (e1.hasGap e2 = true) := by
+theorem firstKind_iff_no_gap (t : NewChanlun.Origin.Tangency) (e1 e2 : Interval) :
+    classifyTermination t e1 e2 = TerminationCase.firstKind ↔ ¬ (Interval.hasGap t e1 e2 = true) := by
   unfold classifyTermination
-  cases h : e1.hasGap e2 <;> simp_all
+  cases h : Interval.hasGap t e1 e2 <;> simp_all
 
 /-- 判定忠实：第二种情况 ⟺ 第一、二元素有缺口（第67课:38）。 -/
-theorem secondKind_iff_gap (e1 e2 : Interval) :
-    classifyTermination e1 e2 = TerminationCase.secondKind ↔ e1.hasGap e2 = true := by
+theorem secondKind_iff_gap (t : NewChanlun.Origin.Tangency) (e1 e2 : Interval) :
+    classifyTermination t e1 e2 = TerminationCase.secondKind ↔ Interval.hasGap t e1 e2 = true := by
   unfold classifyTermination
-  cases h : e1.hasGap e2 <;> simp_all
+  cases h : Interval.hasGap t e1 e2 <;> simp_all
+
+/-! ## 第78课:52：第二种候选的语义终点三态（#1344 裁定，#1420）
+
+  第67课:38 只给了确认出口（第二特征序列出现分型）。第78课:52【正文】给了另一出口："线段C没有
+  形成第二特征序列的分型又直接新高或新低了，这时候，不能认为这是三个线段，线段A、B、C加起来
+  只能算是一个线段。" 故进入 `secondKind` 分支的候选（主序列分型极值 P）自 b 笔后逐笔推进，
+  语义终点三选一（`.chanlun/definitions/xianduan.md` §5.1）：
+  - `confirmed`：第二特征序列先成分型（067:38），唯一终结原线段的出口；
+  - `killedByNewExtreme`：原方向价格先 **严格** 越过 P（078:52），候选作废、不复活，原线段延续；
+  - `openAtPrefixEnd`：到已知前缀末端二者皆未发生（065:28 "被分析的K线已经走出来"），不是否定。
+  同一笔内先做包含处理与分型检查、后做越界检查（#1344 第二问，`[新缠论:推论]`）。
+
+  ★有效域声明：本节只给终点的 **静态三分类** 与"只有 confirmed 终结"的判定。"哪一个先到"的
+  逐笔折叠与上文第二特征序列一样是动态过程，**不在** 本模块形式化范围（实现在
+  `rust/src/theta_v0/parser/second_fold.rs`，由含失效的独立 oracle 与批处理/增量/恢复三路逐位
+  对拍锁定）。上文 `classifyTermination` 返回 `secondKind` 的读法"待第二特征序列分型确认"
+  据此读作"待三态终点"：失效先到的输入上它不会再被确认。
+-/
+inductive SecondKindTerminal where
+  | confirmed            -- 第二特征序列先成分型（067:38）
+  | killedByNewExtreme   -- 原方向先严格越过 P（078:52），作废不复活
+  | openAtPrefixEnd      -- 已知前缀末端二者皆未发生（065:28），不是否定
+deriving DecidableEq, Repr
+
+/-- 只有 `confirmed` 终结原线段；失效与未决都不终结。 -/
+def SecondKindTerminal.terminatesSegment : SecondKindTerminal → Bool
+  | .confirmed => true
+  | .killedByNewExtreme => false
+  | .openAtPrefixEnd => false
+
+/-- 第二种候选的语义终点三态穷尽（L0，构造子归纳）。 -/
+theorem second_kind_terminal_trichotomy (t : SecondKindTerminal) :
+    t = .confirmed ∨ t = .killedByNewExtreme ∨ t = .openAtPrefixEnd := by
+  cases t <;> simp
+
+/-- 终结 ⟺ 确认：失效候选不终结原线段（078:52 "线段A、B、C加起来只能算是一个线段"）。 -/
+theorem terminates_iff_confirmed (t : SecondKindTerminal) :
+    t.terminatesSegment = true ↔ t = .confirmed := by
+  cases t <;> simp [SecondKindTerminal.terminatesSegment]
 
 /-! ## 第71课：包含关系作用域 + 第78课：第二种情况第二特征序列严格性
 
-  第71课（067:122/126 引文）：特征序列元素做包含处理的前提是元素 **同属一个特征序列**；
+  第71课（正本 `docs/chanlun/text/blog/071-第71课.md`:28/:42【正文】）：
+  特征序列元素做包含处理的前提是元素 **同属一个特征序列**；
   转折点两边（性质不同）不能包含。
   第78课:54：但 **第二种情况的第二特征序列** 必须严格按包含处理，不存在"分界点两边
   不包含"的要求（方向与原线段一致，包含=能量充足）。
@@ -260,7 +316,8 @@ theorem secondKind_iff_gap (e1 e2 : Interval) :
   **不是** 整个特征序列的包含规则——同一特征序列内部的元素永远按包含处理（第67课:20
   标准特征序列的常规）。本对偶仅针对"转折点两边/第二特征序列"这一 **分界处** 的特殊作用域：
 
-  - 第一种情况（`firstKind`）：分界点两边 **不允许** 包含（第71课:122：转折点后第一笔
+  - 第一种情况（`firstKind`）：分界点两边 **不允许** 包含（正本 `docs/chanlun/text/blog/`
+    `071-第71课.md`:26/:42【正文】：转折点后第一笔
     属"中间地带"，似有包含也不算；第78课:54"假设分界点两边不能进行包含关系处理"）。
     这 **不** 意味 firstKind 全程禁包含——仅分界处禁。
   - 第二种情况第二特征序列（`secondKind`）：**必须** 按包含处理（第78课:54"必须严格

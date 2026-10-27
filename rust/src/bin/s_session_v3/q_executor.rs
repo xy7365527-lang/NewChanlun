@@ -167,6 +167,7 @@ pub(super) struct Executor {
     allocation: Option<super::q_allocation::Profile>,
 }
 impl Executor {
+    #[cfg(test)]
     pub(super) fn new(path: PathBuf, resources: Arc<QResources>) -> Result<Self, String> {
         Self::new_with_allocation(path, resources, None)
     }
@@ -281,6 +282,7 @@ impl Executor {
     pub(crate) fn allocation_budget(&self) -> Option<&OwnedBudget> {
         self.allocation.as_ref().map(|p| &p.budget)
     }
+    #[cfg(test)]
     pub(super) fn try_submit<R, F>(&self, task: F) -> Result<Pending<R>, String>
     where
         R: Send + 'static,
@@ -290,6 +292,7 @@ impl Executor {
     {
         self.try_submit_at(Instant::now(), task)
     }
+    #[cfg(test)]
     fn try_submit_at<R, F>(&self, queued_at: Instant, task: F) -> Result<Pending<R>, String>
     where
         R: Send + 'static,

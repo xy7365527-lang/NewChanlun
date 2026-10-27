@@ -45,11 +45,9 @@
 //!
 //! ## 需要的 producer 最小公开口（一行，root 裁定）
 //!
-//! CC-005 组的等待原因只有一份实现（`content_producer::group_reasons`，约第 2524 行）。
-//! 知识状态的 `waiting_reasons` 必须逐项等于旧配方，故本模块**调用**它而**不复写**判据：
-//! 需把该函数从 `fn` 提升为 `pub(super) fn`。竞争极值窗判定不需要新口——直接用
-//! `Cc004Producer::build_shape` 的 `Ok(None)`（其内部就是同一份
-//! `shape_window_has_competing_extremes`）。
+//! CC-005 请求的等待原因复用 `content_producer::group_reasons`（#1488 经
+//! `group_reasons_admitted` 先准入容量，原因同序同值）。
+//! #1405：同价标签只作证据，极值身份为根集合，多根窗口照常发布。
 
 #![allow(dead_code)]
 
@@ -59,10 +57,9 @@ use super::fixed_radix::FixedRadix;
 use super::object_records;
 use crate::content_bi::{BiBuildInputView, BiLedgerView, ContentBi, PriorState};
 use crate::content_producer::{
-    array_from_sequence, group_reasons_admitted, group_window_sources, raw_prefix_coords,
-    Cc004Producer, Cc006Object, Cc007Object, ParserFractalShape, ProducerError, RawRefSpec,
-    TypedObject, CC004_STEP_KIND, CC005_GROUP_KIND, CC006_SHAPE_KIND, CC007_FRACTAL_KIND,
-    CC054_KNOWLEDGE_KIND,
+    array_from_sequence, group_reasons_admitted, raw_prefix_coords, Cc004Producer, Cc006Object,
+    Cc007Object, ParserFractalShape, ProducerError, RawRefSpec, TypedObject, CC004_STEP_KIND,
+    CC005_GROUP_KIND, CC006_SHAPE_KIND, CC007_FRACTAL_KIND, CC054_KNOWLEDGE_KIND,
 };
 use crate::s_fact_cache;
 use newchan_rust::s_content::path::PathStep;
@@ -70,6 +67,10 @@ use newchan_rust::s_content::{
     self as sc, Built, ContentRef, Kind, NodeDigest, NodeStore, NumberToken, SequenceRef,
     Value as CValue,
 };
+#[allow(
+    unused_imports,
+    reason = "#1488 再合 #1608：8组合实测无调用方，保留不删"
+)]
 use newchan_rust::session_protocol::parse_canonical_i64;
 use newchan_rust::theta_v0::classifier::local_shape::{classify_local_shape, Cc006LocalShape};
 use newchan_rust::theta_v0::config::ThetaConfig;
@@ -279,6 +280,8 @@ pub(super) struct Generated<'a> {
     pub state_without_axes: NativeValue<ContentRef>,
     /// 当前最终生成态根（OHLC 在 `finish_axes` 成功后更新）。
     pub generated_state: NativeValue<ContentRef>,
+    /// 生成配置的记录版本戳；只是运行元数据，不进生成态内容字节。
+    pub policy_records: String,
     meta: StateMeta,
     roots: StateRoots,
     /// 本代知识请求线序（仅供目录轴最小投影消费，不进生成态对象）。
@@ -354,6 +357,8 @@ pub(super) struct GenerationRuntime {
     /// 会话冻结身份（进身份配方）；逐代输入必须与之一致，不一致即拒绝。
     profile_id: String,
     rule_revision: String,
+    /// 本生成链的唯一配置来源；生产与诊断由调用方显式注入。
+    theta_config: ThetaConfig,
     /// `(source_coord, revision)` → 已写事件节点摘要（原件不可变；见模块文档）。
     event_nodes: FixedRadix<(i64, i64), NodeDigest>,
     /// #1488：owner 绑定的 raw/parser pending 状态；不混用旧线程 Lane 的全指纹路径。
@@ -390,13 +395,25 @@ impl GenerationRuntime {
     }
 
     /// `lane_key` 按 `s_fact_cache::lane_key` 的持久身份口径给出（库/会话/规则/档案/目录）。
+    #[cfg(test)]
     pub(super) fn new(lane_key: String, profile_id: &str, rule_revision: &str) -> Self {
+        Self::with_config(lane_key, profile_id, rule_revision, ThetaConfig::default())
+    }
+
+    /// 显式注入配置；生产由 Driver 给当前生效记录，测试给诊断夹具。
+    pub(super) fn with_config(
+        lane_key: String,
+        profile_id: &str,
+        rule_revision: &str,
+        theta_config: ThetaConfig,
+    ) -> Self {
         GenerationRuntime {
             lane_key,
             producer: Cc004Producer::new(profile_id, rule_revision),
             bi: ContentBi::new(),
             profile_id: profile_id.to_string(),
             rule_revision: rule_revision.to_string(),
+            theta_config,
             event_nodes: FixedRadix::default(),
             delta_lane: None,
             raw_events_seq: SequenceMemo::default(),
@@ -406,6 +423,15 @@ impl GenerationRuntime {
             relations_seq: SequenceMemo::default(),
             observations_seq: SequenceMemo::default(),
         }
+    }
+
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn parser_config_for_test(&self) -> &ThetaConfig {
+        &self.theta_config
+    }
+
+    pub(super) fn policy_records(&self) -> String {
+        self.theta_config.record_labels()
     }
 
     /// 事务回滚 / 换库 / 换来源域之后必须调用：清掉同核运行态与全部跨代序列记忆。
@@ -679,8 +705,6 @@ impl GenerationRuntime {
         let gen = input.generation;
         let cut = input.structure_cut;
         let frontier = input.input_frontier;
-        let config = ThetaConfig::default();
-
         // ── 原始账：生效账 → coord 表 + Bar 序列 + 事件节点；全修订史 → 事件节点 ──
         let mut raw_by_coord: FixedRadix<i64, JsonView<'_>> = FixedRadix::default();
         let mut raw_bars: CodecVec<Bar> = CodecVec::default();
@@ -739,7 +763,7 @@ impl GenerationRuntime {
                 lane.state()
             }
         };
-        let (layer, evidence) = parser::parse_layer_with_group_evidence(state, &config);
+        let (layer, evidence) = parser::parse_layer_with_group_evidence(state, &self.theta_config);
         let merged: &[Bar] = layer.merged_bars.as_ref();
         let prepared = match delta_view {
             Some(view) => self.producer.prepare_raw_history_delta(store, view),
@@ -758,7 +782,7 @@ impl GenerationRuntime {
             None
         };
 
-        // ── 形态窗：竞争极值判决取 producer 的同一条判据（build_shape 的 Ok(None)）──
+        // ── 形态窗：多根极值身份按 #1405 根集合语义发布──
         let wins = (0..merged.len().saturating_sub(2)).map(|start| {
             (
                 start,
@@ -769,7 +793,6 @@ impl GenerationRuntime {
         let mut witnesses: CodecVec<WitnessRecord> = CodecVec::default();
         let mut relations: CodecVec<Built> = CodecVec::default();
         let mut observations: CodecVec<(bool, Built)> = CodecVec::default();
-        let mut competing: CodecVec<usize> = CodecVec::default();
         // 逐形态的请求组（旧配方线序：形态请求 → 该形态的 CC-007 三条请求）。
         let mut shape_requests: CodecVec<(Built, CodecVec<Built>)> = CodecVec::default();
         let mut fractals: CodecVec<ProducedObject> = CodecVec::default();
@@ -786,7 +809,7 @@ impl GenerationRuntime {
                     .map(|shape| shape.map(ShapeBuild::Ordinary)),
             };
             match (shape, built_shape) {
-                (_, Ok(None)) => push_gen(&mut competing, start, store)?,
+                (_, Ok(None)) => return Err(format!("GenError：形态窗 {start} 缺同次三组证据")),
                 (_, Ok(Some(built_shape))) => {
                     let object = built_shape.object();
                     let views = group_views(state, start)?;
@@ -896,7 +919,7 @@ impl GenerationRuntime {
             }
         }
 
-        // ── 泛型事实：步骤 → 组 → 竞争窗待决请求 → 形态/分型请求 → 不足三根待决请求 ──
+        // ── 泛型事实：步骤 → 组 → 形态/分型请求 → 不足三根待决请求 ──
         let mut typed: CodecVec<ProducedObject> = CodecVec::default();
         let mut step_requests: CodecVec<Built> = CodecVec::default();
         let mut group_requests: CodecVec<Built> = CodecVec::default();
@@ -908,7 +931,10 @@ impl GenerationRuntime {
                 .ok_or_else(|| format!("GenError：步骤 {index} 缺共享证据"))?;
             extend_gen(
                 &mut all_reasons,
-                view.waiting_reasons.iter().copied(),
+                view.waiting_reasons
+                    .iter()
+                    .copied()
+                    .filter(|reason| *reason != "equal_extreme_identity"),
                 store,
             )?;
             let object = self
@@ -979,30 +1005,6 @@ impl GenerationRuntime {
         let mut requests: CodecVec<Built> = CodecVec::default();
         extend_gen(&mut requests, step_requests, store)?;
         extend_gen(&mut requests, group_requests, store)?;
-        for start in &competing {
-            let views = group_views(state, *start)?;
-            let key = CValue::Array(vec![
-                CValue::String(CC006_SHAPE_KIND.to_string()),
-                CValue::Array(
-                    [
-                        views[0].bar.source_index.to_string(),
-                        views[1].bar.source_index.to_string(),
-                        views[2].bar.source_index.to_string(),
-                    ]
-                    .into_iter()
-                    .map(CValue::String)
-                    .collect(),
-                ),
-            ]);
-            let sources = group_window_sources(&views);
-            push_gen(
-                &mut requests,
-                self.producer
-                    .pending_request(store, key, &["equal_extreme_identity"], &sources)
-                    .map_err(producer_error)?,
-                store,
-            )?;
-        }
         for (shape_request, fractal_requests) in &shape_requests {
             push_gen(&mut requests, shape_request.clone(), store)?;
             extend_gen(&mut requests, fractal_requests.iter().cloned(), store)?;
@@ -1181,6 +1183,7 @@ impl GenerationRuntime {
             )
             .map_err(codec_error)?,
             generated_state: state_without_axes,
+            policy_records: self.policy_records(),
             meta,
             roots,
             requests,
@@ -1403,7 +1406,7 @@ impl SequenceKeys {
             #[cfg(feature = "s_allocation_json_testonly")]
             Self::Owned(keys) => {
                 keys.clear();
-                // reserve_owned已在改变原keys/seq前保证容量，try_push不会另作增长。
+                // reserve_admitted已在改变原keys/seq前保证容量，try_push不会另作增长。
                 for digest in elements {
                     keys.try_push(*digest).map_err(codec_error)?;
                 }
@@ -1948,7 +1951,9 @@ pub(super) fn witness_identity(
 ) -> Result<String, String> {
     let bytes = witness_identity_bytes(store, object_id, slot, mi, raw_bars)?;
     // 旧裸 String 接口；Native 来源核改走下方携原许可的输出。
-    store.native_admit(bytes.len()).map_err(codec_error)?;
+    if store.codec_work().is_some() {
+        return Err("Native witness身份必须使用witness_identity_native持有原许可".into());
+    }
     let mut result = String::with_capacity(bytes.len());
     result.extend(bytes.into_iter().map(char::from));
     Ok(result)
@@ -2221,9 +2226,9 @@ mod tests {
         accept_ohlc, init_test_db, located_ohlc_input, tb02b_oracle_rows, TestFiles,
     };
     use crate::{
-        canonical_bytes_of_value, cmd_advance, compute_diff, delta_storage, load_batch_bytes,
-        meta_get_opt, open_db, read_effective_events, read_stored_objects,
-        verified_root_raw_events, StoredObjects, DEFAULT_WRITER_EPOCH,
+        canonical_bytes_of_value, compute_diff, delta_storage, load_batch_bytes, meta_get_opt,
+        open_db, read_effective_events, read_stored_objects, verified_root_raw_events,
+        StoredObjects, DEFAULT_WRITER_EPOCH,
     };
     use newchan_rust::s_content::{render_canonical, MemoryNodes};
     use serde_json::json;
@@ -3497,11 +3502,13 @@ mod tests {
         let other = sc::capture_allocation::OwnedBudget::new(96);
         let first = [1; 32];
         let second = [2; 32];
+        // Owned 臂不读 store；空 MemoryNodes 只为满足 reserve_admitted 签名。
+        let scratch = MemoryNodes::new();
         let mut keys = SequenceKeys::owned(&budget).unwrap();
-        keys.reserve_owned(1).unwrap();
+        keys.reserve_admitted(&scratch, 1).unwrap();
         keys.replace_reserved(&[first]).unwrap();
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 32);
-        let error = keys.reserve_owned(2).unwrap_err();
+        let error = keys.reserve_admitted(&scratch, 2).unwrap_err();
         assert!(error.contains(sc::capture_allocation::LIMIT), "{error}");
         let probe = budget.allocation_request_probe();
         assert_eq!(probe.refused_bytes, 64);
@@ -3512,9 +3519,9 @@ mod tests {
         drop(keys);
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
         let mut keys = SequenceKeys::owned(&other).unwrap();
-        keys.reserve_owned(1).unwrap();
+        keys.reserve_admitted(&scratch, 1).unwrap();
         keys.replace_reserved(&[first]).unwrap();
-        keys.reserve_owned(2).unwrap();
+        keys.reserve_admitted(&scratch, 2).unwrap();
         keys.replace_reserved(&[first, second]).unwrap();
         assert_eq!(other.snapshot().live_requested_layout_bytes, 64);
         assert_eq!(other.snapshot().peak_requested_layout_bytes, 96);
@@ -3544,7 +3551,7 @@ mod tests {
         let root = sc::write_sequence(&mut store, &[first]).unwrap();
         let mut keys = SequenceKeys::owned(&budget).unwrap();
         // 预留两项，隔离调用内右脊栈拒绝，避免先卡在 keys 增长。
-        keys.reserve_owned(2).unwrap();
+        keys.reserve_admitted(&store, 2).unwrap();
         keys.replace_reserved(&[first]).unwrap();
         let original = SequenceRef::from_parts_unchecked(root, 1);
         let mut memo = SequenceMemo {
@@ -4246,9 +4253,11 @@ mod tests {
             semantic_commit_ns: None,
             prior,
         };
-        runtime
+        let generated = runtime
             .generate(&mut *store, &input)
-            .unwrap_or_else(|error| panic!("S3 生成失败：{error}"))
+            .unwrap_or_else(|error| panic!("S3 生成失败：{error}"));
+        assert_eq!(generated.policy_records, runtime.policy_records());
+        generated
     }
 
     /// 我方同核生成 + 第二段目录轴 finish（参数与旧段同一口径）。

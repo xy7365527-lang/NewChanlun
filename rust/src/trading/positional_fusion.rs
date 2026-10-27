@@ -29,7 +29,7 @@
 //!    开腿谓词的 Short 侧逐字镜像）全抛本层 slice，k−1 级买证据
 //!    （confirmed Buy1/Buy3 ∨ 盘背买；counterseg_close_trigger 镜像）
 //!    如数接回。35课成本门（θ_q(k−1) 因果滚动中位数 ≥ k×friction）守卫
-//!    级别可操作性；笔=a0（77/78课）⇒ k−1 < FIRST_BSP_LADDER 不开。
+//!    级别可操作性；阶梯下限（笔层不开一类点，77/78课；#1654）⇒ k−1 < FIRST_BSP_LADDER 不开。
 //!
 //! ## 44课铰链（044:44，两线均未实现的新轴）
 //!
@@ -74,9 +74,7 @@ use super::positional::{
     TrendAxisOpts, TrendScope, EQUITY_SAMPLE_BARS,
 };
 use super::tape::SignalTape;
-use super::types::{
-    BspClass, BspEvent, DivEvent, Polarity, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER,
-};
+use super::types::{BspClass, BspEvent, DivEvent, Polarity, FIRST_BSP_LADDER, MAX_LADDER};
 use super::unified_osc::{OscLayer, OscOut};
 use crate::buysellpoint::Side;
 use crate::divergence::DivKind;
@@ -363,6 +361,7 @@ pub(crate) fn run_fusion(
     short_ghost: bool,
     seq38_sub: bool,
     op_ladder: usize,
+    q_total: f64,
 ) -> Result<PositionalResult, String> {
     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {
         return Err(format!(
@@ -370,7 +369,7 @@ pub(crate) fn run_fusion(
              （BSP 承载层）；floor_ladder={floor_ladder}"
         ));
     }
-    // 操作绑定级别（操作者参数，#1278 L0 裁定）：默认 = DEFAULT_OP_LADDER（维持现行为）。
+    // 操作绑定级别（操作者参数，#1278 L0 裁定）：由回放记录 `l_start` 给出（#1601，`funding_record`）。
     // segment 非势源（85-91% 坍缩实测 + 540 号为操作层依据），下界 = FIRST_BSP_LADDER+1。
     if !(FIRST_BSP_LADDER + 1..MAX_LADDER).contains(&op_ladder) {
         return Err(format!(
@@ -638,7 +637,7 @@ pub(crate) fn run_fusion(
     let mut res = PositionalResult::default();
     let mut layers: [LayerState; MAX_LADDER] = [LayerState::Flat; MAX_LADDER];
     let mut subs: [Option<SubOut>; MAX_LADDER] = [None; MAX_LADDER];
-    let mut pool = INITIAL_CAPITAL;
+    let mut pool = q_total;
     let mut book = CenterBook::new();
     let mut depth_ref = DepthRef::new(DEPTH_REF_WINDOW);
     // 统一配置 U 的 osc 层（Off 时恒空——fusion_t 在册路径零接触退化）。
@@ -1338,7 +1337,7 @@ pub(crate) fn run_fusion(
                 let LayerState::Long { shares, .. } = layers[k] else {
                     continue;
                 };
-                let sk = k - 1; // 笔=a0（77/78课）：循环下界已保证 sk ≥ FIRST_BSP_LADDER
+                let sk = k - 1; // 阶梯下限（笔层不开一类点，77/78课）：循环下界已保证 sk ≥ FIRST_BSP_LADDER
                 if !sub_open_trigger(&evrows[sk], &devrows[sk]) {
                     continue;
                 }
@@ -1503,30 +1502,29 @@ pub(crate) fn run_fusion(
                 } => {
                     res.short_held_bars_by_ladder[k] += 1;
                     let equity_k = margin + units * (entry_price - c);
-                    let mut cover =
-                        |exit_price: f64,
-                         exit_reason: &'static str,
-                         pool: &mut f64,
-                         res: &mut PositionalResult| {
-                            // 1x 逐仓：损失上界 = margin（强平价记账 ⇒ 现金
-                            // 流出恰为全部 margin，逐 trade 重建零渗漏）。
-                            *pool += margin + units * (entry_price - exit_price);
-                            res.short_net_cash_by_ladder[k] += units * (entry_price - exit_price);
-                            res.trades.push(LayerTrade {
-                                ladder: k as u8,
-                                entry_bar,
-                                entry_price,
-                                exit_bar: i as i64,
-                                exit_price,
-                                shares: units,
-                                weight_at_entry: weight,
-                                deferred_bars: 0,
-                                partial: false,
-                                exit_reason,
-                                polarity: Polarity::Short,
-                            });
-                            res.n_exits_by_ladder[k] += 1;
-                        };
+                    let cover = |exit_price: f64,
+                                 exit_reason: &'static str,
+                                 pool: &mut f64,
+                                 res: &mut PositionalResult| {
+                        // 1x 逐仓：损失上界 = margin（强平价记账 ⇒ 现金
+                        // 流出恰为全部 margin，逐 trade 重建零渗漏）。
+                        *pool += margin + units * (entry_price - exit_price);
+                        res.short_net_cash_by_ladder[k] += units * (entry_price - exit_price);
+                        res.trades.push(LayerTrade {
+                            ladder: k as u8,
+                            entry_bar,
+                            entry_price,
+                            exit_bar: i as i64,
+                            exit_price,
+                            shares: units,
+                            weight_at_entry: weight,
+                            deferred_bars: 0,
+                            partial: false,
+                            exit_reason,
+                            polarity: Polarity::Short,
+                        });
+                        res.n_exits_by_ladder[k] += 1;
+                    };
                     if equity_k <= 0.0 {
                         // 虚拟逐仓强平：1x 解析强平价 = 2×entry_price
                         // （margin = units×entry_price 的 equity=0 解）。
@@ -1721,10 +1719,11 @@ pub(crate) fn run_fusion(
 
 #[cfg(test)]
 mod tests {
-    use super::super::positional::{run_positional, PolarityMode};
+    use super::super::positional::{run_positional_fx, PolarityMode};
     use super::*;
     use crate::trading::tape::BarSig;
     use crate::trading::types::LadderMask;
+    use crate::trading::types::FIXTURE_Q_TOTAL;
 
     fn bar(close: f64) -> BarSig {
         BarSig {
@@ -1833,7 +1832,7 @@ mod tests {
             trend_flips,
             ..Default::default()
         };
-        run_positional(&t, 2, PolarityMode::parse(mode).unwrap()).unwrap()
+        run_positional_fx(&t, 2, PolarityMode::parse(mode).unwrap()).unwrap()
     }
 
     #[test]
@@ -1912,19 +1911,19 @@ mod tests {
             bars: warmup34(),
             ..Default::default()
         };
-        assert!(run_positional(&t, 2, fz(false, false, false)).is_err());
+        assert!(run_positional_fx(&t, 2, fz(false, false, false)).is_err());
         // decoupled 无 counter_sub = 专款无对象 ⇒ 拒绝
         let td = SignalTape {
             bars: warmup34(),
             ..Default::default()
         };
-        assert!(run_positional(&td, 2, fz(true, false, true)).is_err());
+        assert!(run_positional_fx(&td, 2, fz(true, false, true)).is_err());
         // trend_hold 无 trend/dir 行 ⇒ 拒绝
         let t2 = SignalTape {
             bars: warmup34(),
             ..Default::default()
         };
-        assert!(run_positional(&t2, 2, fz(true, false, false)).is_err());
+        assert!(run_positional_fx(&t2, 2, fz(true, false, false)).is_err());
         // counter_sub 无 div 磁带 ⇒ 拒绝（warmup34 不带 div 行时）
         let no_div: Vec<BarSig> = bars
             .into_iter()
@@ -1937,7 +1936,7 @@ mod tests {
             bars: no_div,
             ..Default::default()
         };
-        assert!(run_positional(&t3, 2, fz(false, true, false)).is_err());
+        assert!(run_positional_fx(&t3, 2, fz(false, true, false)).is_err());
     }
 
     #[test]
@@ -1990,7 +1989,7 @@ mod tests {
             bars: warmup34(),
             ..Default::default()
         };
-        assert!(run_positional(
+        assert!(run_positional_fx(
             &t,
             2,
             PolarityMode::Fusion {
@@ -2027,7 +2026,7 @@ mod tests {
             trend_flips: Some(vec![]),
             ..Default::default()
         };
-        assert!(run_positional(
+        assert!(run_positional_fx(
             &t2,
             2,
             PolarityMode::Fusion {
@@ -2162,7 +2161,7 @@ mod tests {
             trend_flips: Some(vec![]),
             ..Default::default()
         };
-        assert!(run_positional(&t, 2, nm(false)).is_err());
+        assert!(run_positional_fx(&t, 2, nm(false)).is_err());
         // × counter_sub 未预注册 ⇒ 拒绝
         let t2 = SignalTape {
             bars: nest_warmup(),
@@ -2170,7 +2169,7 @@ mod tests {
             trend_flips: Some(vec![]),
             ..Default::default()
         };
-        assert!(run_positional(
+        assert!(run_positional_fx(
             &t2,
             2,
             PolarityMode::Fusion {
@@ -2346,7 +2345,7 @@ mod tests {
                 trend_flips: Some(vec![]),
                 ..Default::default()
             };
-            assert!(run_positional(&t, 2, m).is_err());
+            assert!(run_positional_fx(&t, 2, m).is_err());
         };
         // 无 trend_hold = 时钟无对象
         reject(anc_mode_with(TrendScope::Ancestor, false, true, false));
@@ -2359,7 +2358,21 @@ mod tests {
             bars: warmup34(),
             ..Default::default()
         };
-        assert!(run_positional(&t, 2, anc_mode(TrendScope::Ancestor)).is_err());
+        assert!(run_positional_fx(&t, 2, anc_mode(TrendScope::Ancestor)).is_err());
+    }
+
+    #[test]
+    fn trend_scope_policy_is_stamped_from_active_record() {
+        for mode in ["hold26_anc", "fusion_ta", "fusion_t"] {
+            let r = run_with_rows(warmup34(), mode, Some(vec![]), Some(vec![]));
+            assert_eq!(
+                r.trend_scope_policy
+                    .expect("Fusion 必须携带趋势记录")
+                    .label(),
+                "trend-scope/1",
+                "{mode}"
+            );
+        }
     }
 
     #[test]
@@ -2801,8 +2814,8 @@ mod tests {
         bars2.push(sellpt(bar(100.0), 4));
         bars2.push(bar(100.0));
         let r2 = run(bars2, "fusion_se");
-        assert!((r2.final_nav - INITIAL_CAPITAL).abs() < 1e-9);
-        let mut pool = INITIAL_CAPITAL;
+        assert!((r2.final_nav - FIXTURE_Q_TOTAL).abs() < 1e-9);
+        let mut pool = FIXTURE_Q_TOTAL;
         for t in &r2.trades {
             pool += t.shares * (t.exit_price - t.entry_price);
         }
@@ -2819,9 +2832,9 @@ mod tests {
         bars.push(sellpt(bar(100.0), 4));
         bars.push(bar(100.0));
         let r = run(bars, "fusion_s");
-        assert!((r.final_nav - INITIAL_CAPITAL).abs() < 1e-9);
+        assert!((r.final_nav - FIXTURE_Q_TOTAL).abs() < 1e-9);
         // trade 行现金流重建 = final_nav（脚本 assert 的 Rust 侧前哨）
-        let mut pool = INITIAL_CAPITAL;
+        let mut pool = FIXTURE_Q_TOTAL;
         for t in &r.trades {
             pool += t.shares * (t.exit_price - t.entry_price);
         }
@@ -3016,7 +3029,7 @@ mod tests {
             bars: warmup34(),
             ..Default::default()
         };
-        assert!(run_positional(
+        assert!(run_positional_fx(
             &t,
             2,
             PolarityMode::Fusion {
@@ -3046,7 +3059,7 @@ mod tests {
             trend_flips: Some(vec![]),
             ..Default::default()
         };
-        assert!(run_positional(
+        assert!(run_positional_fx(
             &t2,
             2,
             PolarityMode::Fusion {
@@ -3076,7 +3089,7 @@ mod tests {
             trend_flips: Some(vec![]),
             ..Default::default()
         };
-        assert!(run_positional(
+        assert!(run_positional_fx(
             &t3,
             2,
             PolarityMode::Fusion {
@@ -3437,7 +3450,7 @@ mod tests {
             dir_flips: Some(vec![]),
             ..Default::default()
         };
-        assert!(run_positional(
+        assert!(run_positional_fx(
             &t,
             2,
             PolarityMode::Fusion {
@@ -3463,7 +3476,7 @@ mod tests {
             dir_flips: Some(vec![]),
             ..Default::default()
         };
-        assert!(run_positional(
+        assert!(run_positional_fx(
             &t2,
             2,
             PolarityMode::Fusion {
@@ -3499,20 +3512,20 @@ mod tests {
             dir_flips: Some(vec![]),
             ..Default::default()
         };
-        assert!(run_positional(&t3, 2, PolarityMode::parse("fusion_p").unwrap()).is_err());
+        assert!(run_positional_fx(&t3, 2, PolarityMode::parse("fusion_p").unwrap()).is_err());
         // 缺 dir 行（方向兜底出口无数据基础）⇒ 拒
         let t4 = SignalTape {
             bars: warmup34(),
             ..Default::default()
         };
-        assert!(run_positional(&t4, 2, PolarityMode::parse("fusion_p").unwrap()).is_err());
+        assert!(run_positional_fx(&t4, 2, PolarityMode::parse("fusion_p").unwrap()).is_err());
         // kind 行不要求：trend_flips=None 合法运行（错位时钟退役的能力面）
         let t5 = SignalTape {
             bars: warmup34(),
             dir_flips: Some(vec![]),
             ..Default::default()
         };
-        assert!(run_positional(&t5, 2, PolarityMode::parse("fusion_p").unwrap()).is_ok());
+        assert!(run_positional_fx(&t5, 2, PolarityMode::parse("fusion_p").unwrap()).is_ok());
     }
 
     /// candidate 离开窗口停削（049:68 当下读法）；价格回中枢否定 = "校正"
@@ -3706,7 +3719,7 @@ mod tests {
             trend_flips: Some(vec![]),
             ..Default::default()
         };
-        assert!(run_positional(
+        assert!(run_positional_fx(
             &t,
             2,
             PolarityMode::Fusion {
@@ -3733,7 +3746,7 @@ mod tests {
             trend_flips: Some(vec![]),
             ..Default::default()
         };
-        assert!(run_positional(
+        assert!(run_positional_fx(
             &t2,
             2,
             PolarityMode::Fusion {
@@ -3876,7 +3889,7 @@ mod tests {
             short_ghost: false,
             seq38_sub: false,
         };
-        assert!(run_positional(&t, 2, bad).is_err());
+        assert!(run_positional_fx(&t, 2, bad).is_err());
     }
 
     /// 翻转断面往返（§5.2 四步序 + 数字推演同构）：卖点平多+开空两行 trade、
@@ -3905,7 +3918,7 @@ mod tests {
         assert_eq!(t4[1].shares, t4[0].shares, "M = N 同股数定理（26:34）");
         assert_eq!(t4[2].polarity, Polarity::Long);
         // 会计核验：750×(110−100) 多头段 + 750×(110−45) 空头段
-        let expect = INITIAL_CAPITAL + 750.0 * 10.0 + 750.0 * 65.0;
+        let expect = FIXTURE_Q_TOTAL + 750.0 * 10.0 + 750.0 * 65.0;
         assert!(
             (r.final_nav - expect).abs() < 1e-6,
             "{} ≠ {expect}",
@@ -4050,7 +4063,7 @@ mod tests {
         // 会计：多头段 750×10 + 持币穿越下跌 + @45 回复（无空头收割）
         let t4: Vec<_> = r.trades.iter().filter(|t| t.ladder == 4).collect();
         assert_eq!(t4.len(), 2, "削减行 + 回复eod 行（无空头腿）");
-        assert!((r.final_nav - (INITIAL_CAPITAL + 7_500.0)).abs() < 1e-6);
+        assert!((r.final_nav - (FIXTURE_Q_TOTAL + 7_500.0)).abs() < 1e-6);
     }
 
     #[test]
@@ -4087,7 +4100,7 @@ mod tests {
             short_ghost: true,
             seq38_sub: false,
         };
-        assert!(run_positional(&t, 2, bad).is_err());
+        assert!(run_positional_fx(&t, 2, bad).is_err());
     }
 
     /// 翻转断面会计无渗漏：同价开平往返 ⇒ NAV 守恒（零摩擦语法前提）。
@@ -4102,7 +4115,7 @@ mod tests {
         // 会计守恒，eod 收口同价平空：NAV 必须回到初始。
         let r = run_with_rows(bars, "fusion_btr_s4", Some(vec![]), Some(vec![]));
         assert!(
-            (r.final_nav - INITIAL_CAPITAL).abs() < 1e-9,
+            (r.final_nav - FIXTURE_Q_TOTAL).abs() < 1e-9,
             "{}",
             r.final_nav
         );
@@ -4156,15 +4169,15 @@ mod tests {
             ..Default::default()
         };
         assert!(
-            run_positional(&t, 2, mk(false, false)).is_err(),
+            run_positional_fx(&t, 2, mk(false, false)).is_err(),
             "btr+nest 未预注册"
         );
         assert!(
-            run_positional(&t, 2, mk(false, true)).is_err(),
+            run_positional_fx(&t, 2, mk(false, true)).is_err(),
             "btrg+nest 未预注册"
         );
         assert!(
-            run_positional(&t, 2, mk(true, false)).is_ok(),
+            run_positional_fx(&t, 2, mk(true, false)).is_ok(),
             "btran 形态放行"
         );
     }
@@ -4303,7 +4316,7 @@ mod tests {
             short_ghost: false,
             seq38_sub: true,
         };
-        assert!(run_positional(&t, 2, bad).is_err(), "q×btr 未预注册");
+        assert!(run_positional_fx(&t, 2, bad).is_err(), "q×btr 未预注册");
     }
 
     /// H1 candidate 冻结：未决 candidate type3 离开段 ⇒ osc 不开（btrauf）；

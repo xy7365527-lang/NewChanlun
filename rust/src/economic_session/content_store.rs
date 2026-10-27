@@ -4,7 +4,7 @@
 //! are still measured with st_blocks for actual Job reconciliation. A node's
 //! framed bytes or SQLite's logical page count never stand in for disk use.
 use super::financial_content::FinancialStage;
-use super::store::SCHEMA_V2;
+use super::store::{ReadBudget, SCHEMA_V2};
 use crate::s_content::{
     self, code,
     job::{Existing, Job, JobLimits},
@@ -15,6 +15,7 @@ use std::collections::BTreeSet;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
+#[cfg(target_os = "macos")] // #1608：唯一消费点在 configure 的 macOS 分支
 const SQLITE_SOURCE_ID: &str =
     "2026-06-03 19:12:13 d6e03d8c777cfa2d35e3b60d8ec3e0187f3e9f99d8e2ee9cac695fd6fcdf1a24";
 
@@ -133,6 +134,10 @@ pub(super) fn carrier_capacity(db: &Path) -> Result<u64, CodecError> {
         ))
     }
 }
+#[cfg_attr(
+    not(target_os = "macos"),
+    allow(dead_code, reason = "#1608：唯一调用点在 configure 的 macOS 分支")
+)]
 fn pragma_i64(c: &Connection, name: &str) -> Result<i64, CodecError> {
     c.query_row(&format!("PRAGMA {name}"), [], |row| row.get(0))
         .map_err(io)
@@ -141,8 +146,22 @@ fn pragma_i64(c: &Connection, name: &str) -> Result<i64, CodecError> {
 /// after a failed stage, including a killed process resumed by recover.
 /// This intentionally narrows the named 16 MiB HFS trial's usable DB pages.
 fn cleanup_room(c: &Connection, db: &Path, include_next_write: bool) -> Result<(), CodecError> {
-    let pages = u128::from(u64::try_from(pragma_i64(c, "max_page_count")?).map_err(io)?);
-    let size = u128::from(u64::try_from(pragma_i64(c, "page_size")?).map_err(io)?);
+    cleanup_room_metered(c, db, include_next_write, &mut ReadBudget::new(None, None))
+}
+fn cleanup_room_metered(
+    c: &Connection,
+    db: &Path,
+    include_next_write: bool,
+    budget: &mut ReadBudget<'_>,
+) -> Result<(), CodecError> {
+    let pages: i64 = budget
+        .one(c, "PRAGMA max_page_count", [], |r| r.get(0))
+        .map_err(io)?;
+    let size: i64 = budget
+        .one(c, "PRAGMA page_size", [], |r| r.get(0))
+        .map_err(io)?;
+    let pages = u128::from(u64::try_from(pages).map_err(io)?);
+    let size = u128::from(u64::try_from(size).map_err(io)?);
     let one = pages * (size + 24) + 65536;
     let needed = if include_next_write { 4 * one } else { 2 * one };
     #[cfg(target_os = "macos")]
@@ -170,13 +189,17 @@ fn cleanup_room(c: &Connection, db: &Path, include_next_write: bool) -> Result<(
     }
 }
 fn format_guard(c: &Connection) -> Result<(), CodecError> {
-    let revision: String = c
-        .query_row("SELECT v FROM meta WHERE k='schema_revision'", [], |r| {
+    format_guard_metered(c, &mut ReadBudget::new(None, None))
+}
+fn format_guard_metered(c: &Connection, budget: &mut ReadBudget<'_>) -> Result<(), CodecError> {
+    let revision: String = budget
+        .one(c, "SELECT v FROM meta WHERE k='schema_revision'", [], |r| {
             r.get(0)
         })
         .map_err(io)?;
-    let format: String = c
-        .query_row(
+    let format: String = budget
+        .one(
+            c,
             "SELECT content_format FROM content_meta WHERE singleton=1",
             [],
             |r| r.get(0),
@@ -188,8 +211,11 @@ fn format_guard(c: &Connection) -> Result<(), CodecError> {
     Ok(())
 }
 fn checkpoint(c: &Connection) -> Result<(), CodecError> {
-    let (busy, _, _): (i64, i64, i64) = c
-        .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |r| {
+    checkpoint_metered(c, &mut ReadBudget::new(None, None))
+}
+fn checkpoint_metered(c: &Connection, budget: &mut ReadBudget<'_>) -> Result<(), CodecError> {
+    let (busy, _, _): (i64, i64, i64) = budget
+        .one(c, "PRAGMA wal_checkpoint(TRUNCATE)", [], |r| {
             Ok((r.get(0)?, r.get(1)?, r.get(2)?))
         })
         .map_err(io)?;
@@ -216,18 +242,43 @@ fn charged_checkpoint(
     ceiling: u64,
     staged: bool,
 ) -> Result<(), CodecError> {
+    charged_checkpoint_with_budget(
+        c,
+        db,
+        &mut ReadBudget::new(Some(job), None),
+        ceiling,
+        staged,
+    )
+}
+fn charged_checkpoint_with_budget(
+    c: &Connection,
+    db: &Path,
+    budget: &mut ReadBudget<'_>,
+    ceiling: u64,
+    staged: bool,
+) -> Result<(), CodecError> {
+    budget.before().map_err(io)?;
     let before = allocated(db)?;
     let worst = ceiling
         .checked_sub(before)
         .ok_or_else(|| error("allocation above checkpoint ceiling"))?;
+    let job = budget
+        .job
+        .as_deref_mut()
+        .ok_or_else(|| error("checkpoint Job missing"))?;
     let grant = if staged {
         job.reserve_staged(worst)?
     } else {
         job.reserve_store(worst)?
     };
-    let result = checkpoint(c);
+    let result = checkpoint_metered(c, budget);
     let after = allocated(db)?;
-    job.reconcile(&grant, after.saturating_sub(before))?;
+    // checkpoint may already allocate before read accounting reports expiry/limit.
+    budget
+        .job
+        .as_deref_mut()
+        .ok_or_else(|| error("checkpoint Job missing"))?
+        .reconcile(&grant, after.saturating_sub(before))?;
     result?;
     if after > ceiling {
         return Err(error("checkpoint exceeded fixed carrier capacity"));
@@ -318,14 +369,23 @@ fn checked(digest: &NodeDigest, tag: i64, body: Vec<u8>) -> Result<NodeRead, Cod
     Ok(NodeRead::Found { tag, body })
 }
 fn read_table(c: &Connection, table: &str, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+    read_table_metered(c, table, digest, &mut ReadBudget::new(None, None))
+}
+pub(super) fn read_table_metered(
+    c: &Connection,
+    table: &str,
+    digest: &NodeDigest,
+    budget: &mut ReadBudget<'_>,
+) -> Result<NodeRead, CodecError> {
     let sql = match table {
         "content_nodes" => "SELECT tag,body FROM content_nodes WHERE digest=?1",
         "content_staging" => "SELECT tag,body FROM content_staging WHERE digest=?1",
         _ => return Err(error("unknown content table")),
     };
-    let row: Option<(i64, Vec<u8>)> = c
-        .query_row(sql, params![&digest[..]], |r| Ok((r.get(0)?, r.get(1)?)))
-        .optional()
+    // The actual SQL payload (i64 tag + BLOB body) is charged by the common
+    // row reader before tag conversion or digest checks, including failures.
+    let row: Option<(i64, Vec<u8>)> = budget
+        .optional(c, sql, params![&digest[..]], |r| Ok((r.get(0)?, r.get(1)?)))
         .map_err(io)?;
     match row {
         Some((tag, body)) => checked(digest, tag, body),
@@ -333,8 +393,15 @@ fn read_table(c: &Connection, table: &str, digest: &NodeDigest) -> Result<NodeRe
     }
 }
 fn read_any(c: &Connection, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
-    let a = read_table(c, "content_nodes", digest)?;
-    let b = read_table(c, "content_staging", digest)?;
+    read_any_metered(c, digest, &mut ReadBudget::new(None, None))
+}
+pub(super) fn read_any_metered(
+    c: &Connection,
+    digest: &NodeDigest,
+    budget: &mut ReadBudget<'_>,
+) -> Result<NodeRead, CodecError> {
+    let a = read_table_metered(c, "content_nodes", digest, budget)?;
+    let b = read_table_metered(c, "content_staging", digest, budget)?;
     if let (NodeRead::Found { tag: at, body: ab }, NodeRead::Found { tag: bt, body: bb }) = (&a, &b)
     {
         if at != bt || ab != bb {
@@ -381,13 +448,22 @@ impl NodeSource for Stage<'_> {
 }
 /// #1394 第三问选项 A：一块里尚未在本地（公开或暂存）的节点，按摘要升序、块内去重。
 /// 先逐个重算 F(tag, body)；同根不同字节（块内或与本地）一律拒绝，不写任何行。
+#[cfg(test)]
 fn batch_missing<'n>(
     c: &Connection,
     nodes: &'n [(NodeDigest, u8, Vec<u8>)],
 ) -> Result<Vec<&'n (NodeDigest, u8, Vec<u8>)>, CodecError> {
+    batch_missing_metered(c, nodes, &mut ReadBudget::new(None, None))
+}
+fn batch_missing_metered<'n>(
+    c: &Connection,
+    nodes: &'n [(NodeDigest, u8, Vec<u8>)],
+    budget: &mut ReadBudget<'_>,
+) -> Result<Vec<&'n (NodeDigest, u8, Vec<u8>)>, CodecError> {
     let mut chosen: std::collections::BTreeMap<NodeDigest, &'n (NodeDigest, u8, Vec<u8>)> =
         std::collections::BTreeMap::new();
     for node in nodes {
+        budget.before().map_err(io)?;
         let (digest, tag, body) = node;
         if s_content::frame(*tag, body) != *digest {
             return Err(error("node digest mismatch"));
@@ -398,7 +474,7 @@ fn batch_missing<'n>(
             }
             continue;
         }
-        match read_any(c, digest)? {
+        match read_any_metered(c, digest, budget)? {
             NodeRead::Found {
                 tag: old_tag,
                 body: old_body,
@@ -415,16 +491,27 @@ fn batch_missing<'n>(
     Ok(chosen.into_values().collect())
 }
 /// 一块 = 一个 SQLite 事务：调用方持有事务，失败即整块回滚（drop 未提交事务）。返回写入的摘要。
+#[cfg(test)]
 fn insert_staging_batch(
     tx: &Transaction<'_>,
     token: &str,
     nodes: &[&(NodeDigest, u8, Vec<u8>)],
 ) -> Result<Vec<NodeDigest>, CodecError> {
+    insert_staging_batch_metered(tx, token, nodes, &mut ReadBudget::new(None, None))
+}
+fn insert_staging_batch_metered(
+    tx: &Transaction<'_>,
+    token: &str,
+    nodes: &[&(NodeDigest, u8, Vec<u8>)],
+    budget: &mut ReadBudget<'_>,
+) -> Result<Vec<NodeDigest>, CodecError> {
+    budget.before().map_err(io)?;
     let mut insert = tx
         .prepare_cached("INSERT INTO content_staging(digest,tag,body,stage)VALUES(?1,?2,?3,?4)")
         .map_err(io)?;
     let mut inserted = Vec::with_capacity(nodes.len());
     for (digest, tag, body) in nodes.iter().copied() {
+        budget.before().map_err(io)?;
         insert
             .execute(params![&digest[..], i64::from(*tag), body, token])
             .map_err(io)?;
@@ -448,36 +535,44 @@ fn delete_staged_rows(
     }
     Ok(removed)
 }
-impl FinancialStage for Stage<'_> {
+impl Stage<'_> {
     /// 与 `put_budgeted` 同一组物理判据（cleanup_room、charged_checkpoint、整余量预留、写后对账、
     /// TRUNCATE checkpoint、载体上限），只把逐节点的三次持久动作合成每块一次：一次预留、一个事务、
     /// 一次 checkpoint。块内全部已在本地则不预留、不写。
     /// r2（独审 N1）：块事务一提交，本块实际插入的摘要立即追加到 `inserted`，然后才做 checkpoint、
     /// 对账、WAL 与载体上限这些可能失败的提交后步骤；只追加本块插入的行，块里已在本地的节点不追加。
-    fn put_batch_budgeted(
+    fn put_batch_inner(
         &mut self,
         job: &mut Job,
         nodes: &[(NodeDigest, u8, Vec<u8>)],
         inserted: &mut Vec<NodeDigest>,
+        deadline: Option<std::time::Instant>,
     ) -> Result<(), CodecError> {
-        job.pre_io_check()?;
-        let missing = batch_missing(self.c, nodes)?;
+        let mut budget = ReadBudget::new(Some(job), deadline);
+        budget.before().map_err(io)?;
+        let missing = batch_missing_metered(self.c, nodes, &mut budget)?;
         if missing.is_empty() {
-            return Ok(());
+            return budget.before().map_err(io);
         }
-        cleanup_room(self.c, &self.db, true)?;
-        charged_checkpoint(self.c, &self.db, job, self.ceiling, true)?;
-        cleanup_room(self.c, &self.db, true)?;
+        cleanup_room_metered(self.c, &self.db, true, &mut budget)?;
+        charged_checkpoint_with_budget(self.c, &self.db, &mut budget, self.ceiling, true)?;
+        cleanup_room_metered(self.c, &self.db, true, &mut budget)?;
         let before = allocated(&self.db)?;
         let worst = self
             .ceiling
             .checked_sub(before)
             .ok_or_else(|| error("physical allocation above ceiling"))?;
-        let reservation = job.reserve_staged(worst)?;
+        let reservation = budget
+            .job
+            .as_deref_mut()
+            .ok_or_else(|| error("stage Job missing"))?
+            .reserve_staged(worst)?;
         let token = self.token.clone();
         let written = (|| -> Result<Vec<NodeDigest>, CodecError> {
+            budget.before().map_err(io)?;
             let tx = self.c.transaction().map_err(io)?;
-            let rows = insert_staging_batch(&tx, &token, &missing)?;
+            let rows = insert_staging_batch_metered(&tx, &token, &missing, &mut budget)?;
+            budget.before().map_err(io)?;
             tx.commit().map_err(io)?;
             Ok(rows)
         })();
@@ -487,22 +582,132 @@ impl FinancialStage for Stage<'_> {
             Err(e) => {
                 // 未提交的块已随事务回滚；物理分配照实对账。
                 let after = allocated(&self.db)?;
-                job.reconcile(&reservation, after.saturating_sub(before))?;
+                budget
+                    .job
+                    .as_deref_mut()
+                    .ok_or_else(|| error("stage Job missing"))?
+                    .reconcile(&reservation, after.saturating_sub(before))?;
                 return Err(e);
             }
         }
-        let check = checkpoint(self.c);
+        let check = checkpoint_metered(self.c, &mut budget);
         let after = allocated(&self.db)?;
-        job.reconcile(&reservation, after.saturating_sub(before))?;
+        budget
+            .job
+            .as_deref_mut()
+            .ok_or_else(|| error("stage Job missing"))?
+            .reconcile(&reservation, after.saturating_sub(before))?;
         check?;
         wal_empty(&self.db)?;
-        cleanup_room(self.c, &self.db, false)?;
+        cleanup_room_metered(self.c, &self.db, false, &mut budget)?;
         if after > self.ceiling {
             return Err(error(
                 "actual SQLite allocation exceeded fixed carrier capacity",
             ));
         }
-        Ok(())
+        budget.before().map_err(io)
+    }
+    fn put_node_inner(
+        &mut self,
+        job: &mut Job,
+        digest: NodeDigest,
+        tag: u8,
+        body: &[u8],
+        deadline: Option<std::time::Instant>,
+    ) -> Result<(), CodecError> {
+        let mut budget = ReadBudget::new(Some(job), deadline);
+        budget.before().map_err(io)?;
+        if s_content::frame(tag, body) != digest {
+            return Err(error("node digest mismatch"));
+        }
+        if let NodeRead::Found {
+            tag: old_tag,
+            body: old_body,
+        } = read_any_metered(self.c, &digest, &mut budget)?
+        {
+            if old_tag != tag || old_body != body {
+                return Err(error("same digest conflict"));
+            }
+            return budget.before().map_err(io);
+        }
+        cleanup_room_metered(self.c, &self.db, true, &mut budget)?;
+        charged_checkpoint_with_budget(self.c, &self.db, &mut budget, self.ceiling, true)?;
+        cleanup_room_metered(self.c, &self.db, true, &mut budget)?;
+        let before = allocated(&self.db)?;
+        let worst = self
+            .ceiling
+            .checked_sub(before)
+            .ok_or_else(|| error("physical allocation above ceiling"))?;
+        let reservation = budget
+            .job
+            .as_deref_mut()
+            .ok_or_else(|| error("stage Job missing"))?
+            .reserve_staged(worst)?;
+        let inserted = budget.before().map_err(io).and_then(|()| {
+            self.c
+                .execute(
+                    "INSERT INTO content_staging(digest,tag,body,stage)VALUES(?1,?2,?3,?4)",
+                    params![&digest[..], i64::from(tag), body, &self.token],
+                )
+                .map_err(io)
+        });
+        if let Err(e) = inserted {
+            let after = allocated(&self.db)?;
+            budget
+                .job
+                .as_deref_mut()
+                .ok_or_else(|| error("stage Job missing"))?
+                .reconcile(&reservation, after.saturating_sub(before))?;
+            return Err(e);
+        }
+        // Checkpoint here makes the next write start from an empty WAL. The
+        // maximum physical pages were already reserved before the insertion.
+        // This second checkpoint was itself covered by the same reservation:
+        // before the write the WAL was empty and no second writer can enter
+        // the owner process lock. Its full peak is <= the global envelope.
+        let check = checkpoint_metered(self.c, &mut budget);
+        let after = allocated(&self.db)?;
+        budget
+            .job
+            .as_deref_mut()
+            .ok_or_else(|| error("stage Job missing"))?
+            .reconcile(&reservation, after.saturating_sub(before))?;
+        check?;
+        wal_empty(&self.db)?;
+        cleanup_room_metered(self.c, &self.db, false, &mut budget)?;
+        if after > self.ceiling {
+            return Err(error(
+                "actual SQLite allocation exceeded fixed carrier capacity",
+            ));
+        }
+        budget.before().map_err(io)
+    }
+}
+impl FinancialStage for Stage<'_> {
+    fn read_budgeted(
+        &mut self,
+        digest: &NodeDigest,
+        job: &mut Job,
+        deadline: Option<std::time::Instant>,
+    ) -> Result<NodeRead, CodecError> {
+        read_any_metered(self.c, digest, &mut ReadBudget::new(Some(job), deadline))
+    }
+    fn put_batch_budgeted(
+        &mut self,
+        job: &mut Job,
+        nodes: &[(NodeDigest, u8, Vec<u8>)],
+        inserted: &mut Vec<NodeDigest>,
+    ) -> Result<(), CodecError> {
+        self.put_batch_inner(job, nodes, inserted, None)
+    }
+    fn put_batch_budgeted_with_deadline(
+        &mut self,
+        job: &mut Job,
+        nodes: &[(NodeDigest, u8, Vec<u8>)],
+        inserted: &mut Vec<NodeDigest>,
+        deadline: Option<std::time::Instant>,
+    ) -> Result<(), CodecError> {
+        self.put_batch_inner(job, nodes, inserted, deadline)
     }
     /// 闭包尝试失败时的回滚：一个事务删去本尝试写下的暂存行，使暂存集合回到尝试前。删除只用
     /// 每次写后已核的 cleanup_room 余量，不经 Job（Job 可能已停止）；同 `discard_unpublished`。
@@ -526,55 +731,17 @@ impl FinancialStage for Stage<'_> {
         tag: u8,
         body: &[u8],
     ) -> Result<(), CodecError> {
-        job.pre_io_check()?;
-        if s_content::frame(tag, body) != digest {
-            return Err(error("node digest mismatch"));
-        }
-        if let NodeRead::Found {
-            tag: old_tag,
-            body: old_body,
-        } = read_any(self.c, &digest)?
-        {
-            if old_tag != tag || old_body != body {
-                return Err(error("same digest conflict"));
-            }
-            return Ok(());
-        }
-        cleanup_room(self.c, &self.db, true)?;
-        charged_checkpoint(self.c, &self.db, job, self.ceiling, true)?;
-        cleanup_room(self.c, &self.db, true)?;
-        let before = allocated(&self.db)?;
-        let worst = self
-            .ceiling
-            .checked_sub(before)
-            .ok_or_else(|| error("physical allocation above ceiling"))?;
-        let reservation = job.reserve_staged(worst)?;
-        let inserted = self.c.execute(
-            "INSERT INTO content_staging(digest,tag,body,stage)VALUES(?1,?2,?3,?4)",
-            params![&digest[..], i64::from(tag), body, &self.token],
-        );
-        if let Err(e) = inserted {
-            let after = allocated(&self.db)?;
-            job.reconcile(&reservation, after.saturating_sub(before))?;
-            return Err(io(e));
-        }
-        // Checkpoint here makes the next write start from an empty WAL. The
-        // maximum physical pages were already reserved before the insertion.
-        // This second checkpoint was itself covered by the same reservation:
-        // before the write the WAL was empty and no second writer can enter
-        // the owner process lock. Its full peak is <= the global envelope.
-        let check = checkpoint(self.c);
-        let after = allocated(&self.db)?;
-        job.reconcile(&reservation, after.saturating_sub(before))?;
-        check?;
-        wal_empty(&self.db)?;
-        cleanup_room(self.c, &self.db, false)?;
-        if after > self.ceiling {
-            return Err(error(
-                "actual SQLite allocation exceeded fixed carrier capacity",
-            ));
-        }
-        Ok(())
+        self.put_node_inner(job, digest, tag, body, None)
+    }
+    fn put_budgeted_with_deadline(
+        &mut self,
+        job: &mut Job,
+        digest: NodeDigest,
+        tag: u8,
+        body: &[u8],
+        deadline: Option<std::time::Instant>,
+    ) -> Result<(), CodecError> {
+        self.put_node_inner(job, digest, tag, body, deadline)
     }
 }
 struct Closure<'a> {
@@ -739,12 +906,25 @@ fn image_evidence(image: &serde_json::Value) -> Result<Vec<&serde_json::Value>, 
             .as_array()
             .ok_or_else(|| error("recorded is not array"))?
         {
-            if let Some(proof) = record.get("e_commit_proof") {
-                images.push(
-                    proof
-                        .get("image")
-                        .ok_or_else(|| error("E commit image missing"))?,
-                );
+            for key in [
+                "e_commit_proof",
+                "e_resolution_proof",
+                "b_source_debit_proof",
+            ] {
+                if let Some(proof) = record.get(key) {
+                    images.push(
+                        proof
+                            .get("image")
+                            .ok_or_else(|| error("E commit image missing"))?,
+                    );
+                    if key == "e_resolution_proof" || key == "b_source_debit_proof" {
+                        images.push(
+                            proof
+                                .get("previous_image")
+                                .ok_or_else(|| error("E resolution previous image missing"))?,
+                        );
+                    }
+                }
             }
         }
     }
@@ -758,14 +938,35 @@ pub(super) fn image_refs(image: &serde_json::Value) -> Result<Vec<ContentRef>, C
 }
 /// Offline closure audit reads only this owner's immutable table. It never
 /// asks S or a peer, and a missing nested historical node rejects recovery.
+#[cfg_attr(
+    not(test),
+    allow(
+        dead_code,
+        reason = "#1608：#1616 合入后非测试构建无调用方，现仅 economic_session 的闭包/恢复测试使用；去留见 #1635"
+    )
+)]
 pub(super) fn verify_image(
     c: &Connection,
     image: &serde_json::Value,
     structure: &serde_json::Value,
     job: &mut Job,
 ) -> Result<(), CodecError> {
-    format_guard(c)?;
-    let evidence = image_evidence(image)?;
+    verify_image_with_budget(c, image, structure, &mut ReadBudget::new(Some(job), None))
+}
+pub(super) fn verify_image_with_budget(
+    c: &Connection,
+    image: &serde_json::Value,
+    structure: &serde_json::Value,
+    budget: &mut ReadBudget<'_>,
+) -> Result<(), CodecError> {
+    format_guard_metered(c, budget)?;
+    // 同一份 FinancialBasisEvidence 会在 witness、record、decision 与嵌套 proof 图像里重复出现；
+    // 校验只取决于证据值与本 owner 同一张内容表，按值去重后每份只核一次。
+    let mut seen = BTreeSet::new();
+    let evidence: Vec<&serde_json::Value> = image_evidence(image)?
+        .into_iter()
+        .filter(|item| seen.insert(crate::session_protocol::canonical_json(item)))
+        .collect();
     let refs: Vec<ContentRef> = evidence
         .iter()
         .map(|e| evidence_root(e))
@@ -773,24 +974,62 @@ pub(super) fn verify_image(
     if refs.is_empty() {
         return Ok(());
     }
-    let mut source = Closure {
-        c,
-        seen: BTreeSet::new(),
-        published_only: true,
-    };
-    let mut metered = s_content::job::JobNodeSource::new(job, &mut source);
-    s_content::verify_many(&mut metered, refs)?;
+    struct AuditSource<'a, 'b> {
+        c: &'a Connection,
+        budget: &'a mut ReadBudget<'b>,
+    }
+    impl NodeSource for AuditSource<'_, '_> {
+        fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+            let node = read_table_metered(self.c, "content_nodes", digest, self.budget)?;
+            if let NodeRead::Found { tag, body } = &node {
+                self.budget
+                    .job
+                    .as_deref_mut()
+                    .ok_or_else(|| error("audit Job missing"))?
+                    .accept_node(digest, *tag, body)?;
+            }
+            Ok(node)
+        }
+    }
+    s_content::verify_many(
+        &mut AuditSource {
+            c,
+            budget: &mut *budget,
+        },
+        refs,
+    )?;
+    super::phase_trace::mark("image_codec_verify", "-");
     // The codec proves anonymous reachable nodes. Each actual six-family row
     // visit is separately checked and charged by the financial validator.
     for item in evidence {
-        let mut local = PublishedSource { c };
-        super::financial_content::verify_evidence(structure, item, &mut local, job, None)
+        let deadline = budget.deadline;
+        let mut read = |digest: &NodeDigest, job: &mut Job| {
+            read_table_metered(
+                c,
+                "content_nodes",
+                digest,
+                &mut ReadBudget::new(Some(job), deadline),
+            )
+        };
+        let job = budget
+            .job
+            .as_deref_mut()
+            .ok_or_else(|| error("audit Job missing"))?;
+        super::financial_content::verify_evidence_with_read(structure, item, &mut read, job, None)
             .map_err(error)?;
+        super::phase_trace::mark("image_evidence_verify", "-");
     }
-    Ok(())
+    budget.before().map_err(error)
 }
 
 /// Immutable published-node source for recovery, replay and current evidence.
+#[cfg_attr(
+    not(test),
+    allow(
+        dead_code,
+        reason = "#1608：#1616 合入后非测试构建无调用方，现仅 economic_session 的闭包/恢复测试使用；去留见 #1635"
+    )
+)]
 pub(super) struct PublishedSource<'a> {
     pub c: &'a Connection,
 }
@@ -801,6 +1040,10 @@ impl NodeSource for PublishedSource<'_> {
 }
 /// Current owner transaction sees its own verified staging rows before the
 /// final atomic move; replay and recovery use PublishedSource instead.
+#[allow(
+    dead_code,
+    reason = "#1608：#1616 合入后全仓无构造点（当前事务暂存读取的 NodeSource）；去留见 #1635"
+)]
 pub(super) struct LocalSource<'a> {
     pub c: &'a Connection,
 }
@@ -816,16 +1059,33 @@ pub(super) const PEER_IMPORT_BATCH_NODES: usize = 4096;
 /// and charged to the caller's one Job before it is staged locally.
 /// #1394 第三问选项 A：写入改为每 `PEER_IMPORT_BATCH_NODES` 个节点一块（`put_batch_budgeted`，
 /// 一块一个事务）；任何失败由调用方 `discard_unpublished` 清掉本操作全部暂存，同逐节点版本。
+#[cfg_attr(
+    not(test),
+    allow(
+        dead_code,
+        reason = "#1608：#1616 合入后非测试构建无调用方，现仅 economic_session 的闭包/恢复测试使用；去留见 #1635"
+    )
+)]
 pub(super) fn import_peer_refs(
     peer: &Connection,
     refs: &[ContentRef],
     stage: &mut Stage<'_>,
     job: &mut Job,
 ) -> Result<(), CodecError> {
+    import_peer_refs_with_deadline(peer, refs, stage, job, None)
+}
+pub(super) fn import_peer_refs_with_deadline(
+    peer: &Connection,
+    refs: &[ContentRef],
+    stage: &mut Stage<'_>,
+    job: &mut Job,
+    deadline: Option<std::time::Instant>,
+) -> Result<(), CodecError> {
     struct Import<'a, 'b> {
         peer: &'a Connection,
         stage: &'a mut Stage<'b>,
         job: &'a mut Job,
+        deadline: Option<std::time::Instant>,
         pending: Vec<(NodeDigest, u8, Vec<u8>)>,
     }
     impl Import<'_, '_> {
@@ -833,25 +1093,30 @@ pub(super) fn import_peer_refs(
             if self.pending.is_empty() {
                 return Ok(());
             }
+            #[cfg(test)]
+            {
+                self.deadline = tb03c_c5_stage_tests::before_peer_flush(self.deadline);
+            }
             let nodes = std::mem::take(&mut self.pending);
             // peer 导入失败由调用方 `discard_unpublished` 清掉本操作全部暂存，不用逐块回滚清单。
             let mut written = Vec::new();
-            self.stage
-                .put_batch_budgeted(self.job, &nodes, &mut written)
+            self.stage.put_batch_budgeted_with_deadline(
+                self.job,
+                &nodes,
+                &mut written,
+                self.deadline,
+            )
         }
     }
     impl NodeSource for Import<'_, '_> {
         fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
-            self.job.pre_io_check()?;
-            let result = read_table(self.peer, "content_nodes", digest)?;
+            let result = read_table_metered(
+                self.peer,
+                "content_nodes",
+                digest,
+                &mut ReadBudget::new(Some(&mut *self.job), self.deadline),
+            )?;
             if let NodeRead::Found { tag, body } = &result {
-                let framed = u64::try_from(body.len())
-                    .map_err(io)?
-                    .checked_add(
-                        u64::try_from(s_content::DOMAIN_SEPARATOR.len()).map_err(io)? + 1 + 8,
-                    )
-                    .ok_or_else(|| error("peer frame overflow"))?;
-                self.job.charge_wire_bytes(framed)?;
                 self.job.accept_node(digest, *tag, body)?;
                 self.pending.push((*digest, *tag, body.clone()));
                 if self.pending.len() >= PEER_IMPORT_BATCH_NODES {
@@ -865,11 +1130,16 @@ pub(super) fn import_peer_refs(
         peer,
         stage,
         job,
+        deadline,
         pending: Vec::new(),
     };
     s_content::verify_many(&mut importer, refs.iter().cloned())?;
     importer.flush()
 }
+
+#[cfg(test)]
+#[path = "tb03c_c5_stage_tests.rs"]
+mod tb03c_c5_stage_tests;
 /// Reserve the entire remaining physical envelope before the final economic
 /// transaction; it covers the WAL append and eventual checkpoint growth.
 pub(super) fn reserve_final(
@@ -1064,6 +1334,118 @@ mod batch_tests {
         assert_eq!(rows(&c, "content_staging"), 1, "他 token 的暂存仍在");
         assert_eq!(rows(&c, "content_nodes"), 1, "公开行不动");
         drop(c);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+    /// #1406 C4a：Resolve 两个历史图像中的真实内容节点都须在本 owner 闭包。
+    /// 此锁验证恢复所调用的闭包读取层；业务 FIN 证据语义由既有 verify_evidence 锁另核。
+    #[test]
+    fn resolution_proof_content_closure_reopens_locally_and_rejects_missing_node() {
+        use serde_json::json;
+        let (dir, c) = fresh("resolution-closure");
+        let mut nodes = s_content::MemoryNodes::new();
+        let mut refs = Vec::new();
+        for label in ["capture", "resolve", "resolve-previous"] {
+            refs.push(
+                s_content::write_value(
+                    &mut nodes,
+                    &s_content::Value::Object(vec![(
+                        "history".into(),
+                        s_content::Value::string(label.to_owned()),
+                    )]),
+                )
+                .unwrap()
+                .content_ref(),
+            );
+        }
+        for (digest, tag, body) in nodes.iter() {
+            c.execute(
+                "INSERT INTO content_nodes VALUES(?1,?2,?3)",
+                params![&digest[..], i64::from(tag), body],
+            )
+            .unwrap();
+        }
+        let peer_image = |reference: &ContentRef| json!({"recorded":[],"history":[{"record":{"structure_evidence":{"schema_revision":"s-financial-evidence/1","content_format":s_content::CONTENT_FORMAT,"kind":"FinancialBasisEvidence","session_id":"closure-fixture","session_generation":"1","writer_epoch":"1","pending_revision":false,"commit_ns":"1","basis_ref":reference.to_transport_json()}}}]});
+        let image = json!({"history":[],"recorded":[{"e_commit_proof":{"image":peer_image(&refs[0])},"e_resolution_proof":{"image":peer_image(&refs[1]),"previous_image":peer_image(&refs[2])}}]});
+        let observed = image_refs(&image).unwrap();
+        assert_eq!(observed.len(), 3);
+        for reference in &refs {
+            assert!(observed.contains(reference));
+        }
+        drop(c);
+        let reopened = Connection::open(dir.join("eb.sqlite")).unwrap();
+        s_content::verify_many(&mut PublishedSource { c: &reopened }, observed.clone()).unwrap();
+        let missing = refs[2].digest().unwrap();
+        assert_eq!(
+            reopened
+                .execute(
+                    "DELETE FROM content_nodes WHERE digest=?1",
+                    params![&missing[..]]
+                )
+                .unwrap(),
+            1
+        );
+        assert!(s_content::verify_many(&mut PublishedSource { c: &reopened }, observed).is_err());
+        let mut malformed = image.clone();
+        malformed["recorded"][0]["e_resolution_proof"]
+            .as_object_mut()
+            .unwrap()
+            .remove("previous_image");
+        assert!(image_refs(&malformed).is_err());
+        drop(reopened);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+    /// #1406 C5：目标必须自持源扣账前后两份图像的真实闭包；缺任一份禁止恢复。
+    #[test]
+    fn transfer_source_proof_closure_reopens_and_rejects_missing_previous_node() {
+        use serde_json::json;
+        let (dir, c) = fresh("transfer-source-closure");
+        let mut nodes = s_content::MemoryNodes::new();
+        let refs: Vec<_> = ["source-applied", "source-before"]
+            .into_iter()
+            .map(|label| {
+                s_content::write_value(
+                    &mut nodes,
+                    &s_content::Value::Object(vec![(
+                        "history".into(),
+                        s_content::Value::string(label.to_owned()),
+                    )]),
+                )
+                .unwrap()
+                .content_ref()
+            })
+            .collect();
+        for (digest, tag, body) in nodes.iter() {
+            c.execute(
+                "INSERT INTO content_nodes VALUES(?1,?2,?3)",
+                params![&digest[..], i64::from(tag), body],
+            )
+            .unwrap();
+        }
+        let peer = |r: &ContentRef| json!({"recorded":[],"history":[{"record":{"structure_evidence":{"schema_revision":"s-financial-evidence/1","content_format":s_content::CONTENT_FORMAT,"kind":"FinancialBasisEvidence","session_id":"transfer-closure","session_generation":"1","writer_epoch":"1","pending_revision":false,"commit_ns":"1","basis_ref":r.to_transport_json()}}}]});
+        let image = json!({"history":[],"recorded":[{"b_source_debit_proof":{"image":peer(&refs[0]),"previous_image":peer(&refs[1])}}]});
+        let observed = image_refs(&image).unwrap();
+        assert_eq!(observed.len(), 2);
+        for r in &refs {
+            assert!(observed.contains(r));
+        }
+        drop(c);
+        let reopened = Connection::open(dir.join("eb.sqlite")).unwrap();
+        s_content::verify_many(&mut PublishedSource { c: &reopened }, observed.clone()).unwrap();
+        let missing = refs[1].digest().unwrap();
+        reopened
+            .execute(
+                "DELETE FROM content_nodes WHERE digest=?1",
+                params![&missing[..]],
+            )
+            .unwrap();
+        assert!(s_content::verify_many(&mut PublishedSource { c: &reopened }, observed).is_err());
+        let mut malformed = image;
+        malformed["recorded"][0]["b_source_debit_proof"]
+            .as_object_mut()
+            .unwrap()
+            .remove("previous_image");
+        assert!(image_refs(&malformed).is_err());
+        drop(reopened);
         std::fs::remove_dir_all(dir).unwrap();
     }
 }

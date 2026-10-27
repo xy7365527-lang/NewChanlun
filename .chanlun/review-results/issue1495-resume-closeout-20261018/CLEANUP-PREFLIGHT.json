@@ -1,0 +1,49 @@
+{
+  "backup_sha256sums_sha256": "4eb084a4645f32b0095b27dbe77e4bb3936a5f319e447e3717d96d4d11450054",
+  "all_ten_digest_checks_pass": true,
+  "head": "dedf11f047b9c809c167b35e728e4a2ee8bf3494",
+  "status": " M formal/Origin/SegmentFeatureSeq.lean\n",
+  "untracked": "",
+  "original_file_sha256": "2f87dd64dc52d7b4c7babb5a3cd3dd41cba28e22346560f718013edc05d8647f",
+  "diff_matches_backup": true,
+  "ignored_count": 1144,
+  "ignored_all_lake": true,
+  "registration": [
+    {
+      "directory": "/Users/silencehan/Projects/NewChanlun/.git/worktrees/1495",
+      "gitdir": "/Volumes/AgentStorage/sc-wt/1495/.git",
+      "HEAD": "ref: refs/heads/codex/1495-lean-segment-turn-20261014",
+      "locked": false
+    },
+    {
+      "directory": "/Users/silencehan/Projects/NewChanlun/.git/worktrees/wt-1495-recovery",
+      "gitdir": "/private/tmp/goal1323-native-20261012/wt-1495-recovery/.git",
+      "HEAD": "ref: refs/heads/codex/1495-lean-recovery-20261015",
+      "locked": false
+    }
+  ],
+  "cwd_hits": [],
+  "open_file_hits": [],
+  "process_path_or_branch_argument_hits": [],
+  "roster_hits": [
+    [
+      "/Users/silencehan/Projects/NewChanlun/.chanlun/agent-roster-2026-10-18-goal1323.md",
+      136,
+      "- resume_1495_formal：1495 WIP备份对照完成，转r5下一验证批合同，只读不执行。"
+    ],
+    [
+      "/Users/silencehan/Projects/NewChanlun/.chanlun/agent-roster-2026-10-18-goal1323.md",
+      137,
+      "- 主控：图、准入及1495工位处置决策；本机重型禁令与main门保持。"
+    ]
+  ],
+  "branch_heads": {
+    "codex/1495-lean-segment-turn-20261014": "dedf11f047b9c809c167b35e728e4a2ee8bf3494",
+    "codex/1495-lean-recovery-20261015": "859886fdb7dc664f59358fc427db23122122adc0"
+  },
+  "unmerged_vs_delivery": {
+    "codex/1495-lean-segment-turn-20261014": [],
+    "codex/1495-lean-recovery-20261015": []
+  },
+  "performed_cleanup": false
+}

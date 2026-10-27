@@ -621,7 +621,7 @@ fn staged_nodes_flush_counts_rows_and_traverses_old_parent_to_new_child() {
 }
 
 #[test]
-fn staged_nodes_preserve_frame_and_current_SQL_error_gates() {
+fn staged_nodes_preserve_frame_and_current_sql_error_gates() {
     let mut conn = rusqlite::Connection::open_in_memory().unwrap();
     conn.execute_batch("CREATE TABLE s_protocol_meta(singleton INTEGER PRIMARY KEY,protocol_revision TEXT NOT NULL);INSERT INTO s_protocol_meta VALUES(1,'s-session/3');").unwrap();
     let tx = conn.transaction().unwrap();
@@ -665,26 +665,27 @@ fn staged_scoped_copies_hold_distinct_permits_until_payload_drop() {
         .codec_work()
         .unwrap()
         .run(|work| -> Result<(), String> {
-            let baseline = work.snapshot().live;
+            // StageOwner 存储/读帧许可经 WorkScope::reserve_native 记父 Budget，不进 scratch live。
+            let baseline = budget.live();
             let mut stage = StageOwner::new(&tx);
             stage.work = Some(work); // 测试模块内部装配；不签发publication资格。
             let bytes = b"independent-copy";
             let digest = sc::frame(sc::tag::BYTES_CHUNK, bytes);
             stage.put_new(digest, sc::tag::BYTES_CHUNK, bytes).unwrap();
-            let stored = work.snapshot().live;
+            let stored = budget.live();
             assert!(stored > baseline + bytes.len()); // 含暂存树上界。
             let first = stage.read_scoped(&digest).unwrap().unwrap();
-            assert_eq!(work.snapshot().live, stored + bytes.len());
+            assert_eq!(budget.live(), stored + bytes.len());
             let second = stage.read_scoped(&digest).unwrap().unwrap();
-            assert_eq!(work.snapshot().live, stored + 2 * bytes.len());
+            assert_eq!(budget.live(), stored + 2 * bytes.len());
             drop(first);
-            assert_eq!(work.snapshot().live, stored + bytes.len());
+            assert_eq!(budget.live(), stored + bytes.len());
             assert_eq!(second.body(), bytes);
             drop(stage); // 返回帧的许可不能依附StageOwner存储许可。
-            assert_eq!(work.snapshot().live, baseline + bytes.len());
+            assert_eq!(budget.live(), baseline + bytes.len());
             assert_eq!(second.body(), bytes);
             drop(second);
-            assert_eq!(work.snapshot().live, baseline);
+            assert_eq!(budget.live(), baseline);
             Ok(())
         })
         .unwrap();
@@ -701,6 +702,7 @@ fn staged_selective_cut_follows_sql_parent_and_keeps_unselected_payload_charged(
         .codec_work()
         .unwrap()
         .run(|work| -> Result<(), String> {
+            let entry = budget.live(); // 含本 CodecWork 元数据；费用记父账（reserve_native → 父 Budget）。
             let mut stage = StageOwner::new(&tx);
             stage.work = Some(work);
             let child = sc::frame(sc::tag::BYTES_CHUNK, b"selected");
@@ -716,24 +718,24 @@ fn staged_selective_cut_follows_sql_parent_and_keeps_unselected_payload_charged(
                 .unwrap()
                 .with_work(Some(work));
             sql.put(parent, sc::tag::SEQ_LEAF, &child).unwrap();
-            let before = work.snapshot().live;
+            let before = budget.live();
             stage.flush_cut(&tx, FlushCut::Row(&[parent])).unwrap();
-            assert_eq!(work.snapshot().live, before - b"selected".len());
+            assert_eq!(budget.live(), before - b"selected".len());
             assert!(sql.checked_read_scoped(&child).unwrap().is_some());
             assert!(sql.checked_read_scoped(&orphan).unwrap().is_none());
             assert!(stage.nodes.borrow().contains_key(&orphan));
             assert!(!stage.nodes.borrow().contains_key(&child));
             assert_eq!(stage.flushed.get(), 1);
-            let retained = work.snapshot().live;
+            let retained = budget.live();
             stage.flush_cut(&tx, FlushCut::Final(&[parent])).unwrap();
             assert_eq!(stage.flushed.get(), 1); // 同根重复cut无新的真实INSERT。
-            assert_eq!(work.snapshot().live, retained);
+            assert_eq!(budget.live(), retained);
             stage.flush_cut(&tx, FlushCut::Final(&[orphan])).unwrap();
             assert_eq!(stage.flushed.get(), 2);
             assert!(stage.nodes.borrow().is_empty());
-            assert!(work.snapshot().live > 0); // 树许可不能按len=0提前归零。
+            assert!(budget.live() > entry); // 树许可不能按len=0提前归零。
             drop(stage);
-            assert_eq!(work.snapshot().live, 0);
+            assert_eq!(budget.live(), entry);
             Ok(())
         })
         .unwrap();
@@ -759,12 +761,12 @@ fn staged_native_lease_uses_overlay_without_sql_material_cache_and_poison_cannot
                     content_store::NativeReadLease::new_admitted_staged(&mut tx, work, &stage)
                         .unwrap();
                 lease.put(digest, sc::tag::BYTES_CHUNK, bytes).unwrap();
-                let retained = work.snapshot().live;
+                let retained = budget.live();
                 let frame = lease.checked_read_scoped(&digest).unwrap().unwrap();
                 assert_eq!(frame.body(), bytes);
-                assert_eq!(work.snapshot().live, retained + bytes.len());
+                assert_eq!(budget.live(), retained + bytes.len());
                 drop(frame);
-                assert_eq!(work.snapshot().live, retained); // overlay未进入SQL SameMaterial缓存。
+                assert_eq!(budget.live(), retained); // overlay未进入SQL SameMaterial缓存。
             }
             assert_eq!(
                 tx.query_row("SELECT count(*) FROM s_content_nodes", [], |r| r

@@ -65,6 +65,8 @@ struct Inner {
     // 资格必须与文件锁同寿命，控制 lease 的 Arc 不能单独授权开库。
     writer: Lock,
     maintenance: Lock,
+    // 准入所见源形状；只有 PrePolicyRecords 授权开库时那次 #1602 迁移写。
+    delta: std::cell::Cell<crate::DeltaShape>,
 }
 impl Inner {
     fn startup_gate(&self) -> Result<(), String> {
@@ -72,10 +74,14 @@ impl Inner {
             return Err(error.clone());
         }
         if let Some(account) = self.accounting.borrow_mut().as_mut() {
-            account
-                .accounting()
-                .check_deadline()
-                .map_err(|e| e.to_string())?;
+            let mixed = account.is_mixed();
+            account.accounting().check_deadline().map_err(|e| {
+                if mixed {
+                    mixed_failure(e.code(), "startup", e.detail())
+                } else {
+                    e.to_string()
+                }
+            })?;
         }
         Ok(())
     }
@@ -112,6 +118,46 @@ impl From<WriterScope> for WriterAdmission {
     }
 }
 impl WriterAdmission {
+    pub(super) fn admit_prefix(
+        self,
+        db: &Path,
+        prefix: super::admission_private::RejectionPrefix<'_>,
+    ) -> Result<WriterScope, String> {
+        match self {
+            Self::Prepared(p) => WriterScope::admit_prefix(db, p, prefix),
+            Self::Admitted(s) => {
+                s.inner.require(db)?;
+                let mut state = s.inner.accounting.borrow_mut();
+                let finished = state.as_mut().ok_or("StartupAccountingFinished")?;
+                if finished.is_mixed() {
+                    // 封存后不再创建 WorkScope；资格只复用完整未变源上的既有结果。
+                    s.inner
+                        .source
+                        .verify_before_open()
+                        .map_err(|e| mixed_failure("MixedSourceChanged", "reuse", &e))?;
+                    finished
+                        .require_mixed_prefix(&prefix)
+                        .map_err(record_mixed_failure)?;
+                    finished
+                        .accounting()
+                        .check_deadline()
+                        .map_err(|e| mixed_failure(e.code(), "reuse", e.detail()))?;
+                } else {
+                    let mut account = finished.accounting();
+                    let delta = super::admission_private::validate_prefix(
+                        &s.inner.source,
+                        &mut account,
+                        prefix,
+                    )
+                    .map_err(|e| format!("{e}；原准入账={:?}", account.snapshot()))?;
+                    s.inner.delta.set(delta);
+                }
+                drop(state);
+                s.inner.require(db)?;
+                Ok(s)
+            }
+        }
+    }
     pub(crate) fn admit(self, db: &Path) -> Result<WriterScope, String> {
         match self {
             Self::Prepared(p) => WriterScope::admit(db, p),
@@ -123,7 +169,37 @@ impl WriterAdmission {
     }
 }
 impl WriterScope {
+    pub(crate) fn admit_legacy_serve(
+        db: &Path,
+        prepared: PreparedAdmission,
+        epoch: &str,
+        clock: &crate::v2::ClockPlan,
+        profile: &Path,
+    ) -> Result<Self, String> {
+        Self::admit_prefix(
+            db,
+            prepared,
+            super::admission_private::RejectionPrefix::LegacyServe {
+                db,
+                epoch,
+                clock,
+                profile,
+            },
+        )
+    }
     pub(crate) fn admit(db: &Path, prepared: PreparedAdmission) -> Result<Self, String> {
+        Self::admit_prefix(
+            db,
+            prepared,
+            super::admission_private::RejectionPrefix::None,
+        )
+    }
+    fn admit_prefix(
+        db: &Path,
+        prepared: PreparedAdmission,
+        prefix: super::admission_private::RejectionPrefix<'_>,
+    ) -> Result<Self, String> {
+        let mixed_resources = prepared.is_mixed();
         let consumed = prepared.consume().map_err(|e| e.to_string())?;
         if std::fs::canonicalize(db).map_err(|_| consumed.failure("SourcePathLost"))?
             != consumed.lease().db_path()
@@ -138,30 +214,78 @@ impl WriterScope {
         consumed.check(Stage::E5).map_err(|e| e.to_string())?;
         let maintenance = maintenance_result.map_err(|e| consumed.failure(&e))?;
         let source = MeasuredDomain::measure(&consumed)?;
-        let mut started = consumed
-            .into_job(source.existing)
-            .map_err(|e| e.to_string())?;
-        {
-            let mut account = started.accounting();
-            let result = super::admission_private::validate(&source, &mut account);
-            if let Err(e) = result {
-                return Err(format!("{e}；原准入账={:?}", account.snapshot()));
+        let mut started = consumed.into_job(source.existing).map_err(|e| {
+            if mixed_resources {
+                record_mixed_failure(super::admission_anchor::terminal::FixedFailure::formatted(
+                    "MixedAdmissionRejected",
+                    "start",
+                    format_args!("{e}"),
+                ))
+            } else {
+                e.to_string()
             }
-        }
-        let mut finished = started.seal().map_err(|e| e.to_string())?;
+        })?;
+        let mixed = started.is_mixed();
+        let delta = if mixed {
+            let sealed = started
+                .with_accounting(|account| {
+                    super::admission_private::validate_mixed_prefix(&source, account, &prefix)
+                })
+                .map_err(|error| match error {
+                    newchan_rust::s_content::capture_allocation::scratch::WorkError::Operation(
+                        error,
+                    ) => record_mixed_failure(error),
+                    newchan_rust::s_content::capture_allocation::scratch::WorkError::Resource(
+                        _,
+                    ) => mixed_failure("MixedResourceFailure", "business", "mixed工作域资源拒绝"),
+                })?;
+            let delta = sealed.delta();
+            started.set_mixed_prefix(sealed);
+            delta
+        } else {
+            let mut account = started.accounting();
+            let result = super::admission_private::validate_prefix(&source, &mut account, prefix);
+            match result {
+                Ok(delta) => delta,
+                Err(e) => return Err(format!("{e}；原准入账={:?}", account.snapshot())),
+            }
+        };
+        let mut finished = started.seal().map_err(|e| {
+            if mixed {
+                record_mixed_failure(super::admission_anchor::terminal::FixedFailure::formatted(
+                    "MixedSealFailed",
+                    "seal",
+                    format_args!("{e}"),
+                ))
+            } else {
+                e.to_string()
+            }
+        })?;
         // finish 之后仍核源；同步调用返回后核同一原期限，才创建有资格的 Inner。
         let post = source.verify_before_open();
-        finished
-            .accounting()
-            .check_deadline()
-            .map_err(|e| e.to_string())?;
-        post.map_err(|e| format!("{e}；原准入账={:?}", finished.accounting().snapshot()))?;
+        finished.accounting().check_deadline().map_err(|e| {
+            if mixed {
+                mixed_failure(e.code(), "seal", e.detail())
+            } else {
+                e.to_string()
+            }
+        })?;
+        post.map_err(|e| {
+            if mixed {
+                mixed_failure("MixedSourceChanged", "seal", &e)
+            } else {
+                format!("{e}；原准入账={:?}", finished.accounting().snapshot())
+            }
+        })?;
         writer.check()?;
         maintenance.check()?;
-        finished
-            .accounting()
-            .check_deadline()
-            .map_err(|e| e.to_string())?;
+        finished.accounting().check_deadline().map_err(|e| {
+            if mixed {
+                mixed_failure(e.code(), "seal", e.detail())
+            } else {
+                e.to_string()
+            }
+        })?;
         Ok(Self {
             inner: Rc::new(Inner {
                 lease: Arc::clone(finished.lease()),
@@ -170,6 +294,7 @@ impl WriterScope {
                 startup_failure: RefCell::new(None),
                 writer,
                 maintenance,
+                delta: std::cell::Cell::new(delta),
             }),
         })
     }
@@ -293,6 +418,26 @@ pub(crate) fn require_current(db: &Path) -> Result<(), String> {
     })
 }
 
+/// #1602 迁移是开库时的写。读命令/显式初始化不持 scope，保持 #1602 原合同；
+/// 写者 scope 只能执行其准入已审到的那次迁移。
+pub(crate) fn require_policy_records_migration() -> Result<(), String> {
+    ACTIVE.with(|slot| match &*slot.borrow() {
+        None => Ok(()),
+        Some(w) => match w
+            .upgrade()
+            .ok_or_else(|| "WriterScopeExpired".to_string())?
+            .delta
+            .get()
+        {
+            crate::DeltaShape::PrePolicyRecords => Ok(()),
+            crate::DeltaShape::Current => Err(
+                "PolicyRecordsMigrationNotAdmitted：准入所见源已是当前 structure_deltas，开库时不得再迁移"
+                    .into(),
+            ),
+        },
+    })
+}
+
 fn current_scope() -> Result<Option<WriterScope>, String> {
     ACTIVE.with(|slot| {
         slot.borrow()
@@ -348,18 +493,21 @@ pub(crate) fn read_startup(
 ) -> Result<Vec<u8>, String> {
     let mut state = scope.inner.accounting.borrow_mut();
     let account = state.as_mut().ok_or("StartupAccountingFinished")?;
-    account
-        .accounting()
-        .pre_io_check()
-        .map_err(|e| e.to_string())?;
+    let result = read_startup_accounted(&mut account.accounting(), path, maximum);
+    result
+}
+
+pub(super) fn read_startup_accounted(
+    account: &mut super::admission_anchor::AdmissionAccounting<'_>,
+    path: &Path,
+    maximum: Option<usize>,
+) -> Result<Vec<u8>, String> {
+    account.pre_io_check().map_err(|e| e.to_string())?;
     let opened = OpenOptions::new()
         .read(true)
         .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC)
         .open(path);
-    account
-        .accounting()
-        .check_deadline()
-        .map_err(|e| e.to_string())?;
+    account.check_deadline().map_err(|e| e.to_string())?;
     let mut f = opened.map_err(|_| "StartupInputOpenFailed")?;
     if !f
         .metadata()
@@ -371,10 +519,7 @@ pub(crate) fn read_startup(
     let mut bytes = Vec::new();
     let mut buf = [0u8; 8192];
     loop {
-        account
-            .accounting()
-            .pre_io_check()
-            .map_err(|e| e.to_string())?;
+        account.pre_io_check().map_err(|e| e.to_string())?;
         let room = maximum.map_or(buf.len(), |m| {
             m.saturating_sub(bytes.len())
                 .saturating_add(1)
@@ -383,7 +528,6 @@ pub(crate) fn read_startup(
         match f.read(&mut buf[..room]) {
             Ok(n) => {
                 account
-                    .accounting()
                     .charge_wire_bytes(n as u64)
                     .map_err(|e| e.to_string())?;
                 if maximum.is_some_and(|m| bytes.len().saturating_add(n) > m) {
@@ -398,10 +542,7 @@ pub(crate) fn read_startup(
                 }
             }
             Err(_) => {
-                account
-                    .accounting()
-                    .check_deadline()
-                    .map_err(|e| e.to_string())?;
+                account.check_deadline().map_err(|e| e.to_string())?;
                 return Err("StartupInputReadFailed".into());
             }
         }
@@ -412,3 +553,123 @@ pub(crate) fn read_startup(
 #[cfg(test)]
 #[path = "../../../../s_session/tests/issue1527_recovery/provider_tests.rs"]
 mod tests;
+
+fn record_mixed_failure(error: super::admission_anchor::terminal::FixedFailure) -> String {
+    super::admission_anchor::terminal::note_failure(error);
+    // Err is retained; the command's fixed slot owns the actual diagnostic.
+    String::new()
+}
+fn mixed_failure(code: &'static str, phase: &'static str, detail: &str) -> String {
+    record_mixed_failure(super::admission_anchor::terminal::FixedFailure::new(
+        code, phase, detail,
+    ))
+}
+
+#[cfg(test)]
+mod mixed_writer_tests {
+    use super::*;
+    #[test]
+    fn mixed_writer_initial_ram_refusal_uses_fixed_terminal_without_job() {
+        crate::v2::with_mixed_control_fixture(|conn| {
+            let original: String = conn
+                .query_row("PRAGMA database_list", [], |r| r.get(2))
+                .unwrap();
+            let path = std::path::Path::new(&original).with_file_name("mixed-initial-ram.sqlite");
+            conn.execute("VACUUM INTO ?1", rusqlite::params![path.to_str().unwrap()])
+                .unwrap();
+            let command = super::super::admission_anchor::CommandAccounting::begin();
+            let prepared = super::super::admission_anchor::test_prepare_mixed(&path, 1, 1);
+            assert!(WriterScope::admit(&path, prepared).is_err());
+            let mut output = Vec::new();
+            let receipt = command.report("", &mut output);
+            assert!(receipt.job.is_none());
+            let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
+            assert_eq!(value["code"], "MixedAdmissionRejected");
+            assert_eq!(value["phase"], "start");
+            assert_eq!(value["admission_accounting"]["job_present"], false);
+        });
+    }
+    #[test]
+    fn mixed_writer_reuses_only_sealed_unchanged_source_without_new_work() {
+        crate::v2::with_mixed_control_fixture(|conn| {
+            let original: String = conn
+                .query_row("PRAGMA database_list", [], |r| r.get(2))
+                .unwrap();
+            let path = std::path::Path::new(&original).with_file_name("mixed-writer.sqlite");
+            conn.execute("VACUUM INTO ?1", rusqlite::params![path.to_str().unwrap()])
+                .unwrap();
+            let prepared =
+                super::super::admission_anchor::test_prepare_mixed(&path, 1 << 26, 1 << 26);
+            let command = super::super::admission_anchor::CommandAccounting::begin();
+            let scope = super::super::admission_private::test_with_mixed_entry(|| {
+                WriterScope::admit(&path, prepared)
+            })
+            .unwrap();
+            let identity = Rc::as_ptr(&scope.inner);
+            let before = scope
+                .inner
+                .accounting
+                .borrow_mut()
+                .as_mut()
+                .unwrap()
+                .accounting()
+                .snapshot();
+            assert!(before.nodes > 0 && before.records > 0);
+            let scope = WriterAdmission::Admitted(scope)
+                .admit_prefix(
+                    &path,
+                    super::super::admission_private::RejectionPrefix::None,
+                )
+                .unwrap();
+            assert_eq!(Rc::as_ptr(&scope.inner), identity);
+            let after = scope
+                .inner
+                .accounting
+                .borrow_mut()
+                .as_mut()
+                .unwrap()
+                .accounting()
+                .snapshot();
+            assert_eq!(
+                (
+                    before.wire_bytes,
+                    before.nodes,
+                    before.node_bytes,
+                    before.records
+                ),
+                (
+                    after.wire_bytes,
+                    after.nodes,
+                    after.node_bytes,
+                    after.records
+                )
+            );
+            assert!(scope
+                .inner
+                .accounting
+                .borrow_mut()
+                .as_mut()
+                .unwrap()
+                .accounting()
+                .mixed_scope()
+                .is_none());
+            // runtime身份门允许合法写后变化；封存复用门必须额外拒绝完整stamp变化。
+            std::fs::OpenOptions::new()
+                .append(true)
+                .open(&path)
+                .unwrap()
+                .write_all(b"x")
+                .unwrap();
+            assert!(WriterAdmission::Admitted(scope)
+                .admit_prefix(
+                    &path,
+                    super::super::admission_private::RejectionPrefix::None
+                )
+                .is_err());
+            let mut output = Vec::new();
+            command.report("", &mut output);
+            let output: serde_json::Value = serde_json::from_slice(&output).unwrap();
+            assert_eq!(output["code"], "MixedSourceChanged");
+        });
+    }
+}

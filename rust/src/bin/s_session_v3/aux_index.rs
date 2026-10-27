@@ -8,6 +8,10 @@ use crate::{content_store, meta_get_opt};
 use aj::JsonView;
 use bj::TextValue;
 use newchan_rust::s_content::capture_allocation::native_owned::NativeValue;
+#[cfg_attr(
+    not(test),
+    allow(unused_imports, reason = "#1488 再合 #1608：仅测试使用")
+)]
 use newchan_rust::s_content::{
     self as sc, path::PathStep, Built, ContentRef, Kind, NodeDigest, NodeStore,
 };
@@ -15,6 +19,7 @@ use newchan_rust::sqlite_checked::CheckedStatement;
 use rusqlite::{params, Transaction};
 use sc::capture_allocation::{audit_json as aj, OwnedBudget};
 use sc::{CodecVec, ValueView as VV};
+#[cfg(test)]
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
@@ -269,6 +274,7 @@ pub(super) struct Witness {
     pub first: i64,
 }
 impl Witness {
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     fn try_clone(&self) -> Result<Self, String> {
         self.try_clone_admitted(&super::audit_store::NativeAdmission(None))
     }
@@ -294,6 +300,13 @@ pub(super) struct Relation {
     pub first: i64,
 }
 impl Relation {
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(
+            dead_code,
+            reason = "#1488 再合 #1608：native 非测试、s_session 非测试、s_session 测试 构建不触达"
+        )
+    )]
     fn try_clone(&self) -> Result<Self, String> {
         self.try_clone_admitted(&super::audit_store::NativeAdmission(None))
     }
@@ -319,6 +332,7 @@ pub(super) struct Observation {
     pub first: i64,
 }
 impl Observation {
+    #[allow(dead_code, reason = "#1488 再合 #1608：8组合实测无调用方，保留不删")]
     fn try_clone(&self) -> Result<Self, String> {
         self.try_clone_admitted(&super::audit_store::NativeAdmission(None))
     }
@@ -354,9 +368,11 @@ impl Index {
             budget,
         }
     }
+    #[cfg(test)]
     pub(super) fn try_clone(&self) -> Result<Self, String> {
         self.clone_in(self.budget.clone())
     }
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     fn clone_in(&self, budget: Option<OwnedBudget>) -> Result<Self, String> {
         self.clone_in_admitted(budget, &super::audit_store::NativeAdmission(None))
     }
@@ -419,6 +435,7 @@ pub(super) struct PublicSets {
 }
 pub(super) struct Plan {
     pub generation: i64,
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1608：仅测试使用"))]
     pub snapshot: Index,
     pub births: Index,
     pub snapshot_values: PublicSets,
@@ -708,7 +725,23 @@ impl Runtime {
             ws.insert(row.id.try_clone_admitted(s.codec_work())?, i)
                 .map_err(err)?;
         }
+        // 未变行跳过（#1488 S3）：生成态逐代给全量见证/关系/观察，但旧快照已含同内容
+        // 行时，冷口重算只得到同一行并在下方比对后丢弃。按生成记录摘要直接跳过，
+        // 读量只随本代新内容；换内容仍走完整路径并照旧报冲突。
+        let unchanged = incremental_plan();
+        let mut known_witnesses = work_map(owned_budget.as_ref());
+        if unchanged {
+            for row in snapshot.witnesses.iter() {
+                s.native_map_room(&mut known_witnesses).map_err(err)?;
+                known_witnesses
+                    .insert(digest(&row.generated)?, ())
+                    .map_err(err)?;
+            }
+        }
         for w in &generated.witnesses {
+            if known_witnesses.get(&w.built.digest).is_some() {
+                continue;
+            }
             let object = generated
                 .objects
                 .iter()
@@ -759,8 +792,20 @@ impl Runtime {
             rs.insert(row.id.try_clone_admitted(s.codec_work())?, i)
                 .map_err(err)?;
         }
+        let mut known_relations = work_map(owned_budget.as_ref());
+        if unchanged {
+            for row in snapshot.relations.iter() {
+                s.native_map_room(&mut known_relations).map_err(err)?;
+                known_relations
+                    .insert(digest(&row.generated)?, ())
+                    .map_err(err)?;
+            }
+        }
         let mut candidates = bj::new_work(owned_budget.as_ref());
         for b in &generated.relations {
+            if known_relations.get(&b.digest).is_some() {
+                continue;
+            }
             s.native_codec_room(&mut candidates, 1).map_err(err)?;
             candidates.try_push(built_ref(s, b)?).map_err(err)?;
         }
@@ -770,7 +815,14 @@ impl Runtime {
                 .try_push(replacement_relation(s, r)?)
                 .map_err(err)?;
         }
-        for event in raw.prefix(frontier as usize + 1)? {
+        // 旧前缀的 supersedes 关系已由前代出生入旧快照；只扫本代新增原始事件（Δ_R）。
+        let supersedes_from = if unchanged {
+            (previous_frontier + 1) as usize
+        } else {
+            0
+        };
+        for n in supersedes_from..=frontier as usize {
+            let event = raw.get(n).ok_or_else(|| err("原始前缀越界"))?;
             if let Some(r) = supersedes_relation(s, event)? {
                 s.native_codec_room(&mut candidates, 1).map_err(err)?;
                 candidates.try_push(r).map_err(err)?;
@@ -805,7 +857,19 @@ impl Runtime {
             obs.insert(row.id.try_clone_admitted(s.codec_work())?, i)
                 .map_err(err)?;
         }
+        let mut known_observations = work_map(owned_budget.as_ref());
+        if unchanged {
+            for row in snapshot.observations.iter() {
+                s.native_map_room(&mut known_observations).map_err(err)?;
+                known_observations
+                    .insert(digest(&row.generated)?, ())
+                    .map_err(err)?;
+            }
+        }
         for b in &generated.observations {
+            if known_observations.get(&b.digest).is_some() {
+                continue;
+            }
             let row = self.observation(s, b, g)?;
             if let Some(i) = obs.get(&row.id) {
                 // 旧非 tb02a 配方不把 detail 纳入身份：重现保留首版，绝不覆盖；
@@ -891,6 +955,24 @@ impl Runtime {
             snapshot_values,
             delta_values,
         })
+    }
+}
+
+#[cfg(test)]
+thread_local! { static FULL_PLAN_FOR_TEST: std::cell::Cell<bool> = const { std::cell::Cell::new(false) }; }
+/// 测试离线对照臂：置位后 plan 走旧完整重算（逐行回读、全原始前缀扫 supersedes）。
+#[cfg(test)]
+pub(super) fn set_full_plan_for_test(full: bool) {
+    FULL_PLAN_FOR_TEST.with(|f| f.set(full));
+}
+fn incremental_plan() -> bool {
+    #[cfg(test)]
+    {
+        !FULL_PLAN_FOR_TEST.with(std::cell::Cell::get)
+    }
+    #[cfg(not(test))]
+    {
+        true
     }
 }
 
@@ -1220,10 +1302,24 @@ fn state_members(
 #[cfg(test)]
 thread_local! {static AUX_AUDIT_STATS:std::cell::Cell<[u64;6]>=const{std::cell::Cell::new([0;6])};}
 #[cfg(test)]
+#[cfg_attr(
+    not(feature = "s_capture_native_testonly"),
+    allow(
+        dead_code,
+        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+    )
+)]
 pub(super) fn reset_aux_audit_stats() {
     AUX_AUDIT_STATS.with(|s| s.set([0; 6]));
 }
 #[cfg(test)]
+#[cfg_attr(
+    not(feature = "s_capture_native_testonly"),
+    allow(
+        dead_code,
+        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+    )
+)]
 pub(super) fn aux_audit_stats() -> [u64; 6] {
     AUX_AUDIT_STATS.with(std::cell::Cell::get)
 }
@@ -1357,6 +1453,10 @@ fn same_birth_order<'a>(
     generated.len() == actual.len() && generated.iter().zip(actual).all(|(a, b)| a.as_str() == b)
 }
 impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    )]
     pub(super) fn from_loaded(
         s: &super::history::HashReader<'capture>,
         index: &'index Index,
@@ -1600,6 +1700,7 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
 /// 这里只消费调用方已核过的原始前缀；不重跑结构分类，也不展开观察 detail 或 raw_bars
 /// 的整段 JSON。生成态当前成员必须能在独立索引找到并逐根相等；本代首次成员则另核
 /// 独立索引的首次插入顺序，避免只凭索引自洽放过出生漏项、幽灵行或错绑原件。
+#[cfg(test)]
 pub(super) fn verify_generated_members<'a>(
     s: &mut (impl CodecStore + ?Sized),
     index: &Index,
@@ -2157,6 +2258,7 @@ fn check_generation(first: i64, latest: i64) -> Result<(), String> {
 
 /// 历史 cut 的独立成员方程：Snapshot 全历史按旧公开顺序；Delta 仅本代首次、按插入序。
 /// load 按 rowid 返回，保留首次插入顺序。
+#[cfg(test)]
 pub(super) fn cut_members(
     index: &Index,
     generation: i64,
@@ -2377,6 +2479,10 @@ fn check_batch(batch: &str) -> Result<(), String> {
 }
 
 /// manifest 已得到真实身份之后调用；任何后续错误由调用方回滚整个事务。无 INSERT OR IGNORE。
+#[cfg_attr(
+    all(not(test), feature = "s_capture_native_testonly"),
+    allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
+)]
 pub(super) fn stage(
     tx: &Transaction<'_>,
     s: &mut (impl CodecStore + ?Sized),
@@ -2518,7 +2624,10 @@ mod tests {
         let limit = 1 << 20;
         let budget = super::super::audit_owner::native::Budget::new(limit, 0).unwrap();
         let baseline = budget.live();
-        let occupied = budget.reserve(limit - baseline).unwrap();
+        // 只给工作域元数据留位：开域本身须计父账，父满时连 codec_work 都开不成，到不了被测表构造。
+        let work_metadata =
+            newchan_rust::s_content::capture_allocation::scratch::CodecWork::metadata_bytes();
+        let occupied = budget.reserve(limit - baseline - work_metadata).unwrap();
         let before = budget.live();
         let result = budget.codec_work().unwrap().run(|scope| {
             let store = super::super::audit_store::NativeAdmission(Some(scope));
@@ -2535,6 +2644,10 @@ mod tests {
             .native_ref_clone(value)
             .unwrap()
     }
+    #[cfg_attr(
+        all(test, not(feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1488 再合 #1608：s_session 测试 构建不触达")
+    )]
     fn clone_refs(values: &[RefValue]) -> Vec<RefValue> {
         values.iter().map(clone_ref).collect()
     }
@@ -2675,6 +2788,68 @@ mod tests {
                     budget.live(),
                     budget.peak(),
                     scope.snapshot()
+                );
+                Ok::<_, String>(())
+            })
+            .unwrap();
+    }
+
+    /// #1488 0077 P50（mut-0057 M2a 盲区）：Legacy→Native 转换期的索引许可须按「槽数×(size_of+1)」
+    /// 全额计入本请求 scope（转换期峰值越过转换前 live + 许可）；漏计控制字节（M2a）或不经 scope
+    /// 预留都变红。槽数按转换前 Legacy 节点数
+    /// 独立推得（next_pow2(n)×4+16），不读被测实现的中间值。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn p50_legacy_to_native_index_permit_counts_control_byte_per_slot() {
+        use super::super::audit_owner::native::Budget;
+        let mut fixture = super::super::prepared::tests::Fixture::new();
+        for (n, row, revision) in [
+            (1, ("a", 0, 6, 12, 3, 7), 1),
+            (2, ("b", 10, 8, 16, 6, 12), 1),
+            (3, ("c", 20, 8, 13, 4, 7), 1),
+        ] {
+            let (event, token) = fixture.accept_begin(n, row, revision);
+            fixture.publish(&event, &token).unwrap();
+        }
+        let tx = fixture.conn.transaction().unwrap();
+        let stored: i64 = tx
+            .query_row("SELECT COUNT(*) FROM s_content_nodes", [], |row| row.get(0))
+            .unwrap();
+        let stored = usize::try_from(stored).unwrap();
+        let budget = Budget::new(64 * 1024 * 1024, 0).unwrap();
+        budget
+            .codec_work()
+            .unwrap()
+            .run(|scope| {
+                let (legacy, node_count) =
+                    content_store::capture_for_request_prototype_admitted(&tx, Some(scope))
+                        .map_err(err)?;
+                assert!(node_count > 0 && node_count <= stored, "{node_count}/{stored}");
+                assert!(legacy.native_index_layout_for_testonly().is_none(), "转换前须为 Legacy");
+                let (before, peak_before) = (budget.live(), budget.peak());
+                let native = legacy
+                    .enable_native_frame_reuse_admitted_for_testonly(Some(scope))
+                    .map_err(err)?;
+                let (index_bytes, slot_now, _) = native
+                    .native_index_layout_for_testonly()
+                    .expect("转换后须为 Native");
+                let slots = node_count.next_power_of_two() * 4 + 16;
+                assert_eq!(
+                    index_bytes,
+                    slots * slot_now,
+                    "索引许可须为槽数×(size_of+1)：slots={slots} slot={slot_now}"
+                );
+                // 转换期瞬时共存：索引许可先于 Legacy 原件释放计入，峰值须越过「转换前 live + 许可」。
+                // （净 live 增量因 Legacy 释放小于许可，不作判据。）
+                assert!(
+                    peak_before < before + index_bytes && budget.peak() >= before + index_bytes,
+                    "索引许可须在转换期计入本 scope：live {before}，峰值 {peak_before} → {}，许可 {index_bytes}",
+                    budget.peak()
+                );
+                eprintln!(
+                    "P50_INDEX nodes={node_count} stored={stored} slots={slots} slot={slot_now} index={index_bytes} live={before}->{} peak={peak_before}->{}",
+                    budget.live(),
+                    budget.peak()
                 );
                 Ok::<_, String>(())
             })
@@ -3848,6 +4023,164 @@ mod tests {
             assert_eq!(count(&conn, old), 0);
         }
         assert!(count(&conn, "s_content_witnesses") > 0);
+    }
+
+    /// #1488 S3：plan 的暖口（跨代 Runtime 记忆）与冷口（每代新 Runtime）逐位相同，
+    /// 并打出每代暖口 SQL 读量，供 D6「读量 ∝ 本代重建后缀与 Δ_R」核对。
+    #[test]
+    fn aux_plan_warm_matches_cold_and_reads_track_delta() {
+        fn rows_of(index: &Index) -> Value {
+            json!({
+                "witnesses": index.witnesses.iter().map(|r| json!([r.id.as_str(), r.object_id.as_str(), r.slot, r.merged_index, r.generated.digest().unwrap().to_vec(), r.wire.digest().unwrap().to_vec(), r.first])).collect::<Vec<_>>(),
+                "relations": index.relations.iter().map(|r| json!([r.id.as_str(), r.subject.as_str(), r.relation_type.as_str(), r.object.as_str(), r.generated.digest().unwrap().to_vec(), r.first])).collect::<Vec<_>>(),
+                "observations": index.observations.iter().map(|r| json!([r.id.as_str(), r.kind.as_str(), r.window_start, r.generated.digest().unwrap().to_vec(), r.wire.digest().unwrap().to_vec(), r.batch.as_ref().map(|b| b.as_str().to_owned()), r.first])).collect::<Vec<_>>(),
+            })
+        }
+        fn sets_of(p: &PublicSets) -> [NodeDigest; 4] {
+            [
+                p.witnesses.digest,
+                p.relations.digest,
+                p.observations.digest,
+                p.raw_history.digest,
+            ]
+        }
+        fn bar(i: usize) -> (String, i64, i64, i64, i64, i64) {
+            let (high, low) = if i % 2 == 0 {
+                (20 + (i % 7) as i64, 12 + (i % 5) as i64)
+            } else {
+                (14 + (i % 3) as i64, 5 + (i % 4) as i64)
+            };
+            (
+                format!("x{i}"),
+                (i * 10) as i64,
+                low + 1,
+                high,
+                low,
+                low + 1,
+            )
+        }
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let mut conn = database();
+        let mut runtime = Runtime::default();
+        let mut previous = -1;
+        let mut next = 0usize;
+        for g in 1..=10i64 {
+            let grow = if g == 1 { 8 } else { 3 };
+            let mut rows = (next..next + grow).map(bar).collect::<Vec<_>>();
+            next += grow;
+            let mut input = {
+                let borrowed = rows
+                    .iter()
+                    .map(|(id, c, o, h, l, cl)| (id.as_str(), *c, *o, *h, *l, *cl))
+                    .collect::<Vec<_>>();
+                located_ohlc_input(&borrowed)
+            };
+            if g == 5 || g == 8 {
+                let at = if g == 5 { 3 } else { 10 };
+                let (id, c, o, h, l, cl) = bar(at);
+                rows = vec![(id, c, o, h + 2, l, cl)];
+                let borrowed = rows
+                    .iter()
+                    .map(|(id, c, o, h, l, cl)| (id.as_str(), *c, *o, *h, *l, *cl))
+                    .collect::<Vec<_>>();
+                let mut revision = located_ohlc_input(&borrowed);
+                revision["events"][0]["revision"] = json!("2");
+                accept_ohlc(&files, &revision);
+            }
+            accept_ohlc(&files, &input.take());
+            let source = open_db(&files.db()).unwrap();
+            let raw = read_raw_events(&source).unwrap();
+            let effective = read_effective_events(&raw).unwrap();
+            let profile_hash = meta_get_opt(&source, "profile_hash").unwrap().unwrap();
+            let rule = meta_get_opt(&source, "rule_revision").unwrap().unwrap();
+            let catalog = meta_get_opt(&source, "catalog_revision").unwrap().unwrap();
+            let scope =
+                serde_json::from_str(&meta_get_opt(&source, "scope").unwrap().unwrap()).unwrap();
+            let cut = format!("cut-{g}");
+            let frontier = raw.len() as i64 - 1;
+            let tx = conn.transaction().unwrap();
+            let mut s = content_store::TxStore::new(&tx).unwrap();
+            let old = load(&tx, &mut s, g - 1).unwrap();
+            let mut generator = GenerationRuntime::new(
+                format!("aux-s3/{}/{g}", files.db().display()),
+                tb02a::PROFILE,
+                &rule,
+            );
+            let input = GenerationInput {
+                all_events: (&raw).into(),
+                effective: (&effective).into(),
+                generation: g,
+                structure_cut: &cut,
+                input_frontier: frontier,
+                profile_id: tb02a::PROFILE,
+                profile_hash: &profile_hash,
+                rule_revision: &rule,
+                catalog_revision: &catalog,
+                scope: &scope,
+                semantic_commit_ns: None,
+                prior: PriorState {
+                    bi_records: vec![],
+                    version_record: None,
+                },
+            };
+            let generated = generator.generate(&mut s, &input).unwrap();
+            let sql = content_store::sql_reads_on_thread();
+            let frames = sc::frame_calls_on_thread();
+            let warm = runtime
+                .plan(&mut s, &old, &generated, &[], &raw, previous, frontier, g)
+                .unwrap();
+            let warm_sql = content_store::sql_reads_on_thread() - sql;
+            let warm_frames = sc::frame_calls_on_thread() - frames;
+            let sql = content_store::sql_reads_on_thread();
+            set_full_plan_for_test(true);
+            let cold =
+                Runtime::default().plan(&mut s, &old, &generated, &[], &raw, previous, frontier, g);
+            set_full_plan_for_test(false);
+            let cold = cold.unwrap();
+            let cold_sql = content_store::sql_reads_on_thread() - sql;
+            assert_eq!(
+                rows_of(&warm.snapshot),
+                rows_of(&cold.snapshot),
+                "g={g} snapshot"
+            );
+            assert_eq!(rows_of(&warm.births), rows_of(&cold.births), "g={g} births");
+            assert_eq!(
+                sets_of(&warm.snapshot_values),
+                sets_of(&cold.snapshot_values),
+                "g={g}"
+            );
+            assert_eq!(
+                sets_of(&warm.delta_values),
+                sets_of(&cold.delta_values),
+                "g={g}"
+            );
+            let state = warm.snapshot.witnesses.len()
+                + warm.snapshot.relations.len()
+                + warm.snapshot.observations.len();
+            let births = warm.births.witnesses.len()
+                + warm.births.relations.len()
+                + warm.births.observations.len();
+            eprintln!(
+                "S3_AUX_PLAN g={g} raw={} delta_raw={} state_rows={state} birth_rows={births} generated_witnesses={} warm_sql={warm_sql} warm_frames={warm_frames} cold_sql={cold_sql}",
+                raw.len(),
+                frontier - previous,
+                generated.witnesses.len(),
+            );
+            // 读量锁（D6）：暖口 SQL 读 ≤ 常数 ×（本代出生行 + Δ_R），常数与 g 无关。
+            // 实测每行约 1.0–1.3k（g=1..10）；旧完整重算到 g=4 即超 2k/行并随状态线性增长。
+            let delta = births as u64 + (frontier - previous) as u64;
+            assert!(
+                warm_sql <= 1600 * delta,
+                "g={g} 暖口读量 {warm_sql} 超出 1600×(出生行{births}+Δ_R{})",
+                frontier - previous
+            );
+            let batch = format!("batch3-{}", (g % 10).to_string().repeat(64));
+            stage(&tx, &mut s, &warm, &batch).unwrap();
+            drop(s);
+            tx.commit().unwrap();
+            previous = frontier;
+        }
     }
 
     #[test]

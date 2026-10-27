@@ -21,6 +21,11 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+mod ram;
+mod resources;
+pub(crate) mod terminal;
+use resources::AdmissionResources;
+
 const CONTROL_BYTES: usize = 65_536;
 const PUBLISHED: &str = "s-admission";
 const PENDING: &str = ".s-admission-pending";
@@ -39,6 +44,7 @@ pub(crate) enum Stage {
     E6,
     E7,
     E8,
+    #[allow(dead_code, reason = "#1527：保留固定 R4 阶段词汇，当前尚无 E9 消费者")]
     E9,
 }
 
@@ -62,6 +68,10 @@ pub(crate) enum ErrorKind {
 
 /// 仅带稳定类别、阶段和真实累计，不包含原文、路径、env 或下层错误文本。
 #[derive(Debug)]
+#[allow(
+    dead_code,
+    reason = "#1527：保留原账诊断字段；公开错误有意不输出原 t0/完整快照"
+)]
 pub(crate) struct AdmissionError {
     pub(crate) kind: ErrorKind,
     pub(crate) stage: Stage,
@@ -391,6 +401,7 @@ impl BudgetLease {
 /// 不 Clone，不公开构造字段，不提供重置/修改限额或重取 pathname 内容的入口。
 pub(crate) struct PreparedAdmission {
     limits: JobLimits,
+    resources: AdmissionResources,
     lease: Arc<BudgetLease>,
     prelude: ControlPrelude,
 }
@@ -399,8 +410,31 @@ pub(crate) struct PreparedAdmission {
 /// 最终 into_job(self, measured_existing) 的准确补丁另交根协调 Job::new_started。
 pub(crate) struct ConsumedAdmission {
     limits: JobLimits,
+    mixed: Option<PreparedMixedAdmission>,
     lease: Arc<BudgetLease>,
     prelude: ControlPrelude,
+}
+
+/// 已经完整核验原件/租约的mixed资源，只能由PreparedAdmission消费产生。
+struct PreparedMixedAdmission {
+    native_ram: resources::NativeRamLimits,
+}
+fn mixed_fixed_metadata(
+) -> Result<usize, newchan_rust::s_content::capture_allocation::scratch::ScratchFailure> {
+    use newchan_rust::s_content::capture_allocation::scratch::ScratchFailure;
+    use std::alloc::Layout;
+    // Rc强/弱计数及原Job；终端固定槽随原命令存活，不按失败临时扩容。
+    let job = Layout::new::<[usize; 2]>()
+        .extend(Layout::new::<RefCell<admission_job::Job>>())
+        .map_err(|_| ScratchFailure::Ledger)?
+        .0
+        .pad_to_align()
+        .size();
+    job.checked_add(Layout::new::<TerminalState>().size())
+        .and_then(|n| n.checked_add(Layout::new::<crate::cache::MixedCacheTransaction>().size()))
+        .and_then(|n| n.checked_add(super::admission_private::mixed_fixed_metadata_bytes()))
+        .and_then(|n| n.checked_add(super::business_json::mixed_callback_metadata_bytes()))
+        .ok_or(ScratchFailure::Ledger)
 }
 
 impl fmt::Debug for PreparedAdmission {
@@ -412,6 +446,74 @@ impl fmt::Debug for PreparedAdmission {
 }
 
 impl PreparedAdmission {
+    pub(crate) fn is_mixed(&self) -> bool {
+        self.resources.is_mixed()
+    }
+    /// #1527：在冻结源域前等父进程登记，借用管道，不重起钟或另建账。
+    fn wait_start_gate(&mut self, fd: libc::c_int) -> Result<(), AdmissionError> {
+        let stage = Stage::E4;
+        self.prelude.gate(stage)?;
+        let start = self
+            .prelude
+            .first_read_at
+            .ok_or_else(|| self.prelude.error(ErrorKind::Deadline, stage))?;
+        let deadline = start
+            .checked_add(Duration::from_millis(self.limits.max_elapsed_ms))
+            .ok_or_else(|| self.prelude.error(ErrorKind::Deadline, stage))?;
+        // SAFETY：stat 为有效输出地址；fd 仅借用，不关闭或转移 stdin 所有权。
+        let mut meta = std::mem::MaybeUninit::<libc::stat>::uninit();
+        if unsafe { libc::fstat(fd, meta.as_mut_ptr()) } != 0 {
+            return Err(self.prelude.error(ErrorKind::ControlMismatch, stage));
+        }
+        let meta = unsafe { meta.assume_init() };
+        if meta.st_mode & libc::S_IFMT != libc::S_IFIFO {
+            return Err(self.prelude.error(ErrorKind::ControlMismatch, stage));
+        }
+        loop {
+            self.prelude.gate(stage)?;
+            let left = deadline.saturating_duration_since(Instant::now());
+            let millis = left.as_millis().saturating_add(1).min(i32::MAX as u128) as i32;
+            let mut poll = libc::pollfd {
+                fd,
+                events: libc::POLLIN,
+                revents: 0,
+            };
+            // SAFETY：一个有效 pollfd；超时只来自同一原绝对期限。
+            let result = unsafe { libc::poll(&mut poll, 1, millis) };
+            self.prelude.gate(stage)?;
+            if result < 0 {
+                if io::Error::last_os_error().kind() == io::ErrorKind::Interrupted {
+                    continue;
+                }
+                return Err(self.prelude.error(ErrorKind::ReadFailed, stage));
+            }
+            if result == 0 {
+                continue;
+            }
+            if poll.revents & (libc::POLLERR | libc::POLLNVAL) != 0 {
+                return Err(self.prelude.error(ErrorKind::ReadFailed, stage));
+            }
+            let mut byte = [0u8; 1];
+            // SAFETY：有效单字节缓冲区；该管道仅本启动线程读取，POLLIN/HUP 后不阻塞。
+            let count = unsafe { libc::read(fd, byte.as_mut_ptr().cast(), 1) };
+            if count > 0 {
+                self.prelude.wire_bytes = self
+                    .prelude
+                    .wire_bytes
+                    .checked_add(count as u64)
+                    .ok_or_else(|| self.prelude.error(ErrorKind::Limit, stage))?;
+            }
+            self.prelude.gate(stage)?;
+            if count < 0 && io::Error::last_os_error().kind() == io::ErrorKind::Interrupted {
+                continue;
+            }
+            if count != 1 || byte[0] != b'R' {
+                return Err(self.prelude.error(ErrorKind::ControlMismatch, stage));
+            }
+            return check_lease(&self.lease, &self.prelude, stage);
+        }
+    }
+
     pub(crate) fn diagnostic(&self, message: impl fmt::Display) -> String {
         format!(
             "{message}；{}",
@@ -425,8 +527,15 @@ impl PreparedAdmission {
 
     pub(crate) fn consume(self) -> Result<ConsumedAdmission, AdmissionError> {
         check_lease(&self.lease, &self.prelude, Stage::E5)?;
+        let mixed = match self.resources {
+            AdmissionResources::Ordinary(_) => None,
+            AdmissionResources::Mixed { native_ram, .. } => {
+                Some(PreparedMixedAdmission { native_ram })
+            }
+        };
         Ok(ConsumedAdmission {
             limits: self.limits,
+            mixed,
             lease: self.lease,
             prelude: self.prelude,
         })
@@ -460,12 +569,19 @@ use newchan_rust::s_content::{
 /// #1527 M-01：原 Job 只属于此持有者；provider 只借用受限记账门面。
 /// 不向 provider 移交本持有者或其可变引用；finish 永远检查这里的原账。
 pub(crate) struct StartedAdmission {
+    cache_transaction: Option<crate::cache::MixedCacheTransaction>,
+    mixed_prefix: Option<super::admission_private::MixedSealedPrefix>,
     job: Rc<RefCell<admission_job::Job>>,
+    ram: Option<ram::AdmissionRamLedger>,
     lease: Arc<BudgetLease>,
     first_read_at: Instant,
 }
 
 #[derive(Debug)]
+#[allow(
+    dead_code,
+    reason = "#1527：保留原账诊断字段；公开错误有意不输出原 t0/完整快照"
+)]
 pub(crate) struct JobAdmissionError {
     pub(crate) kind: ErrorKind,
     pub(crate) stage: Stage,
@@ -498,6 +614,10 @@ fn job_error_kind(error: &newchan_rust::s_content::CodecError) -> ErrorKind {
 // #1527 B2：仅根命令拥有终端收尾槽。它延长同一本 Job 的寿命，不给 provider
 // Job/Rc/可替换槽位。线程局部且不可 Send；启动成功后显式撤下，长驻请求不继承。
 #[derive(Debug)]
+#[allow(
+    dead_code,
+    reason = "#1527：保留原账诊断字段；公开错误有意不输出原 t0/完整快照"
+)]
 pub(crate) struct PreludeObservation {
     pub(crate) first_read_at: Option<Instant>,
     pub(crate) wire_bytes: u64,
@@ -509,28 +629,37 @@ struct TerminalState {
     prelude: Option<PreludeObservation>,
     job: Option<Rc<RefCell<admission_job::Job>>>,
     first_read_at: Option<Instant>,
+    mixed: Option<terminal::MixedTerminal>,
+    ram: Option<ram::RamObservation>,
 }
 thread_local! {
     static TERMINAL: RefCell<Option<TerminalState>> = const { RefCell::new(None) };
 }
 pub(crate) struct CommandAccounting;
 #[derive(Debug)]
+#[allow(
+    dead_code,
+    reason = "#1527：保留原账诊断字段；公开错误有意不输出原 t0/完整快照"
+)]
 pub(crate) struct TerminalReceipt {
     pub(crate) prelude: Option<PreludeObservation>,
     pub(crate) first_read_at: Option<Instant>,
     pub(crate) job: Option<admission_job::JobSnapshot>,
+    ram_before_stderr: Option<ram::RamSnapshot>,
+    ram_final: Option<ram::RamSnapshot>,
     pub(crate) actual_stderr_bytes: u128,
     pub(crate) unaccepted_stderr_bytes: u128,
-    pub(crate) accounting_error: Option<String>,
-    pub(crate) write_error: Option<String>,
+    pub(crate) accounting_error: Option<std::borrow::Cow<'static, str>>,
+    pub(crate) write_error: Option<std::borrow::Cow<'static, str>>,
 }
-fn retain_terminal_job(job: &Rc<RefCell<admission_job::Job>>, first: Instant) {
+fn retain_terminal_job(job: &Rc<RefCell<admission_job::Job>>, first: Instant, mixed: bool) {
     TERMINAL.with(|slot| {
         if let Some(state) = slot.borrow_mut().as_mut() {
             // 一个命令只消费一次准备态，拒绝在已有账上续一份新账。
             assert!(state.job.is_none(), "nested admission Job");
             state.job = Some(Rc::clone(job));
             state.first_read_at = Some(first);
+            state.mixed = mixed.then(terminal::MixedTerminal::new);
         }
     });
 }
@@ -562,11 +691,19 @@ impl CommandAccounting {
                 .or_else(|| state.prelude.as_ref().and_then(|p| p.first_read_at)),
             prelude: state.prelude,
             job: None,
+            ram_before_stderr: state.ram.as_ref().and_then(|ram| ram.snapshot().ok()),
+            ram_final: None,
             actual_stderr_bytes: 0,
             unaccepted_stderr_bytes: 0,
             accounting_error: None,
             write_error: None,
         };
+        if let Some(mixed) = state.mixed {
+            let mut receipt = mixed.report(error, sink, state.job.as_ref(), receipt);
+            drop(state.job);
+            receipt.ram_final = state.ram.as_ref().and_then(|ram| ram.snapshot().ok());
+            return receipt;
+        }
         // 仅声明写之前已知的账状态，不把尚未发生的写量嵌回本条消息。
         let before = state.job.as_ref().map(|j| j.borrow().snapshot());
         let value = if before.is_none() && receipt.prelude.is_none() {
@@ -592,7 +729,7 @@ impl CommandAccounting {
                         if let Err(e) = job.charge_wire_bytes(n as u64) {
                             receipt
                                 .accounting_error
-                                .get_or_insert_with(|| e.to_string());
+                                .get_or_insert_with(|| e.to_string().into());
                         }
                         let accepted = job.snapshot().wire_bytes - before;
                         receipt.unaccepted_stderr_bytes += (n as u128).saturating_sub(accepted);
@@ -607,7 +744,7 @@ impl CommandAccounting {
                 }
                 Err(e) => {
                     // 包括 EINTR：保留之前成功 n，不重试、不报完整输出成功。
-                    receipt.write_error = Some(e.kind().to_string());
+                    receipt.write_error = Some(e.kind().to_string().into());
                     break;
                 }
             }
@@ -617,7 +754,7 @@ impl CommandAccounting {
             if let Err(e) = job.finish_check() {
                 receipt
                     .accounting_error
-                    .get_or_insert_with(|| e.to_string());
+                    .get_or_insert_with(|| e.to_string().into());
             }
             receipt.job = Some(job.snapshot());
         }
@@ -640,22 +777,79 @@ impl ConsumedAdmission {
         measured: newchan_rust::s_content::job::Existing,
     ) -> Result<StartedAdmission, AdmissionError> {
         use newchan_rust::s_content::job::Job;
+        if self.mixed.is_some() {
+            TERMINAL.with(|slot| {
+                if let Some(state) = slot.borrow_mut().as_mut() {
+                    if state.mixed.is_none() {
+                        state.mixed = Some(terminal::MixedTerminal::new());
+                    }
+                }
+            });
+        }
         self.check(Stage::E7)?;
         let first = self
             .prelude
             .first_read_at
             .ok_or_else(|| self.prelude.error(ErrorKind::Deadline, Stage::E7))?;
-        let job = Rc::new(RefCell::new(
-            Job::new_started(self.limits, measured, Box::new(Instant::now), first)
+        use newchan_rust::s_content::capture_allocation::scratch::{ScratchFailure, WorkError};
+        let resource_error = |failure: ScratchFailure| {
+            self.prelude.error(
+                if failure == ScratchFailure::Budget {
+                    ErrorKind::Limit
+                } else {
+                    ErrorKind::ResourcesInvalid
+                },
+                Stage::E7,
+            )
+        };
+        let ram = self
+            .mixed
+            .map(|prepared| {
+                ram::AdmissionRamLedger::new_with_fixed(
+                    prepared.native_ram,
+                    mixed_fixed_metadata()?,
+                )
+            })
+            .transpose()
+            .map_err(resource_error)?;
+        TERMINAL.with(|slot| {
+            if let Some(state) = slot.borrow_mut().as_mut() {
+                state.ram = ram.as_ref().map(|ram| ram.observation());
+            }
+        });
+        let core = match &ram {
+            Some(ram) => ram
+                .codec_work()
+                .map_err(resource_error)?
+                .run(|work| {
+                    Job::new_started_mixed(
+                        self.limits,
+                        measured,
+                        Box::new(Instant::now),
+                        first,
+                        work,
+                    )
+                })
+                .map_err(|error| match error {
+                    WorkError::Resource(failure) => resource_error(failure),
+                    WorkError::Operation(error) => {
+                        self.prelude.error(job_error_kind(&error), Stage::E7)
+                    }
+                })?,
+            None => Job::new_started(self.limits, measured, Box::new(Instant::now), first)
                 .map_err(|e| self.prelude.error(job_error_kind(&e), Stage::E7))?,
-        ));
-        retain_terminal_job(&job, first);
+        };
+        let job = Rc::new(RefCell::new(core));
+        retain_terminal_job(&job, first, ram.is_some());
         // check 已先追认 deadline/wire；本次仅回灌一次实际值，没有新的 I/O。
         job.borrow_mut()
             .charge_wire_bytes(self.prelude.wire_bytes)
             .map_err(|e| self.prelude.error(job_error_kind(&e), Stage::E7))?;
         Ok(StartedAdmission {
+            cache_transaction: None,
+            mixed_prefix: None,
             job,
+            ram,
             lease: self.lease,
             first_read_at: first,
         })
@@ -663,9 +857,45 @@ impl ConsumedAdmission {
 }
 
 impl StartedAdmission {
+    pub(crate) fn is_mixed(&self) -> bool {
+        self.ram.is_some()
+    }
+    pub(crate) fn set_mixed_prefix(&mut self, prefix: super::admission_private::MixedSealedPrefix) {
+        self.mixed_prefix = Some(prefix);
+    }
     pub(crate) fn accounting(&mut self) -> AdmissionAccounting<'_> {
         AdmissionAccounting {
             job: self.job.borrow_mut(),
+            work: None,
+            mixed: self.ram.is_some(),
+        }
+    }
+
+    pub(crate) fn with_accounting<T, E>(
+        &mut self,
+        run: impl FnOnce(&mut AdmissionAccounting<'_>) -> Result<T, E>,
+    ) -> Result<T, newchan_rust::s_content::capture_allocation::scratch::WorkError<E>> {
+        use newchan_rust::s_content::capture_allocation::scratch::WorkError;
+        if let Some(ram) = &self.ram {
+            if self.cache_transaction.is_none() {
+                let transaction=ram.codec_work().map_err(WorkError::Resource)?
+                    .run(crate::cache::MixedCacheTransaction::start)
+                    .map_err(|error|match error{
+                        WorkError::Resource(error)=>WorkError::Resource(error),
+                        WorkError::Operation(error)=>WorkError::Resource(error.scratch_failure().unwrap_or(newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Ledger)),
+                    })?;
+                self.cache_transaction = Some(transaction);
+            }
+        }
+        match &self.ram {
+            Some(ram) => ram.codec_work().map_err(WorkError::Resource)?.run(|work| {
+                run(&mut AdmissionAccounting {
+                    job: self.job.borrow_mut(),
+                    work: Some(work),
+                    mixed: true,
+                })
+            }),
+            None => run(&mut self.accounting()).map_err(WorkError::Operation),
         }
     }
 
@@ -680,7 +910,7 @@ impl StartedAdmission {
         }
     }
 
-    pub(crate) fn seal(self) -> Result<FinishedAdmission, JobAdmissionError> {
+    pub(crate) fn seal(mut self) -> Result<FinishedAdmission, JobAdmissionError> {
         let paths = self.lease.revalidate_paths();
         self.job
             .borrow()
@@ -689,13 +919,27 @@ impl StartedAdmission {
         paths.map_err(|_| self.error(ErrorKind::Changed))?;
         let finished = self.job.borrow_mut().finish_check();
         finished.map_err(|e| self.error(job_error_kind(&e)))?;
+        if let Some(ram) = &self.ram {
+            ram.close()
+                .map_err(|_| self.error(ErrorKind::ResourcesInvalid))?;
+        }
+        if let Some(transaction) = self.cache_transaction.take() {
+            transaction.commit();
+        }
         Ok(FinishedAdmission {
+            mixed_prefix: self.mixed_prefix,
             job: self.job,
+            ram: self.ram,
             lease: self.lease,
         })
     }
 
     /// 私有准入/清理完成后一次性收尾；源侧身份仍须由 WriterScope 接着核验。
+    #[cfg(test)]
+    #[allow(
+        dead_code,
+        reason = "#1527：特征夹具使用的终结路径；生产使用 seal 保留启动账"
+    )]
     pub(crate) fn finish(self) -> Result<Arc<BudgetLease>, JobAdmissionError> {
         let paths = self.lease.revalidate_paths();
         // 原 Job 的 stopped/期限语义照旧；这里不重排 charge_wire_bytes 的首错。
@@ -712,16 +956,38 @@ impl StartedAdmission {
 
 /// 私有恢复已收尾后的同一本账，仅用于启动外围 I/O，不能重新准入或换 Job。
 pub(crate) struct FinishedAdmission {
+    mixed_prefix: Option<super::admission_private::MixedSealedPrefix>,
     job: Rc<RefCell<admission_job::Job>>,
+    ram: Option<ram::AdmissionRamLedger>,
     lease: Arc<BudgetLease>,
 }
 impl FinishedAdmission {
+    pub(crate) fn is_mixed(&self) -> bool {
+        self.ram.is_some()
+    }
+    pub(super) fn require_mixed_prefix(
+        &self,
+        prefix: &super::admission_private::RejectionPrefix<'_>,
+    ) -> Result<(), terminal::FixedFailure> {
+        self.mixed_prefix
+            .as_ref()
+            .ok_or_else(|| {
+                terminal::FixedFailure::new(
+                    "MixedSealedProofMissing",
+                    "reuse",
+                    "缺完整审计封存结果",
+                )
+            })?
+            .require(prefix)
+    }
     pub(crate) fn lease(&self) -> &Arc<BudgetLease> {
         &self.lease
     }
     pub(crate) fn accounting(&mut self) -> AdmissionAccounting<'_> {
         AdmissionAccounting {
             job: self.job.borrow_mut(),
+            work: None,
+            mixed: self.ram.is_some(),
         }
     }
     pub(crate) fn finish_output(&mut self) -> Result<(), AccountingError> {
@@ -734,9 +1000,28 @@ impl FinishedAdmission {
 /// 丢弃门面不自动释放 Grant；未结预留仍由原账 finish_check 拒绝。
 pub(crate) struct AdmissionAccounting<'a> {
     job: RefMut<'a, admission_job::Job>,
+    work: Option<&'a newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
+    mixed: bool,
 }
 
-impl AdmissionAccounting<'_> {
+impl<'a> AdmissionAccounting<'a> {
+    pub(crate) fn is_mixed(&self) -> bool {
+        self.mixed
+    }
+    pub(crate) fn mixed_scope(
+        &self,
+    ) -> Option<&'a newchan_rust::s_content::capture_allocation::scratch::WorkScope> {
+        self.work
+    }
+    pub(crate) fn accept_legacy_evidence(
+        &mut self,
+        row: &newchan_rust::s_content::legacy_evidence::CheckedLegacyEvidenceRow,
+    ) -> Result<admission_job::NodeAcceptance, AccountingError> {
+        let work = self
+            .work
+            .ok_or_else(|| AccountingError::new("job_reservation", "legacy接纳缺mixed工作域"))?;
+        self.job.accept_legacy_evidence(row, work)
+    }
     pub(crate) fn begin_first_read(&mut self) -> Result<(), AccountingError> {
         self.job.begin_first_read()
     }
@@ -761,10 +1046,18 @@ impl AdmissionAccounting<'_> {
         self.job.charge_records(accesses)
     }
 
+    #[allow(
+        dead_code,
+        reason = "#1527：原账受限门面；旧域/真实恢复尚未完成接线，不授新额度"
+    )]
     pub(crate) fn charge_requests(&mut self, attempts: u64) -> Result<(), AccountingError> {
         self.job.charge_requests(attempts)
     }
 
+    #[allow(
+        dead_code,
+        reason = "#1527：原账受限门面；旧域/真实恢复尚未完成接线，不授新额度"
+    )]
     pub(crate) fn accept_node(
         &mut self,
         digest: &NodeDigest,
@@ -774,6 +1067,10 @@ impl AdmissionAccounting<'_> {
         self.job.accept_node(digest, tag, body)
     }
 
+    #[allow(
+        dead_code,
+        reason = "#1527：原账受限门面；旧域/真实恢复尚未完成接线，不授新额度"
+    )]
     pub(crate) fn accept_frame(
         &mut self,
         digest: &NodeDigest,
@@ -787,21 +1084,34 @@ impl AdmissionAccounting<'_> {
         &mut self,
         usage: &admission_job::CheckedNodeUsage,
     ) -> Result<admission_job::NodeAcceptance, AccountingError> {
-        self.job.accept_checked_usage(usage)
+        match self.work {
+            Some(work) => self.job.accept_checked_usage_mixed(usage, work),
+            None => self.job.accept_checked_usage(usage),
+        }
     }
 
     pub(crate) fn reserve_staged(
         &mut self,
         requested: u64,
     ) -> Result<admission_job::Grant, AccountingError> {
-        self.job.reserve_staged(requested)
+        match self.work {
+            Some(work) => self.job.reserve_staged_mixed(requested, work),
+            None => self.job.reserve_staged(requested),
+        }
     }
 
+    #[allow(
+        dead_code,
+        reason = "#1527：原账受限门面；旧域/真实恢复尚未完成接线，不授新额度"
+    )]
     pub(crate) fn reserve_store(
         &mut self,
         requested: u64,
     ) -> Result<admission_job::Grant, AccountingError> {
-        self.job.reserve_store(requested)
+        match self.work {
+            Some(work) => self.job.reserve_store_mixed(requested, work),
+            None => self.job.reserve_store(requested),
+        }
     }
 
     pub(crate) fn reconcile(
@@ -812,10 +1122,18 @@ impl AdmissionAccounting<'_> {
         self.job.reconcile(grant, actual)
     }
 
+    #[allow(
+        dead_code,
+        reason = "#1527：原账受限门面；旧域/真实恢复尚未完成接线，不授新额度"
+    )]
     pub(crate) fn release(&mut self, grant: &admission_job::Grant) -> Result<(), AccountingError> {
         self.job.release(grant)
     }
 
+    #[allow(
+        dead_code,
+        reason = "#1527：原账受限门面；旧域/真实恢复尚未完成接线，不授新额度"
+    )]
     pub(crate) fn reclaim_staged(&mut self, actual_deleted: u64) -> Result<(), AccountingError> {
         self.job.reclaim_staged(actual_deleted)
     }
@@ -826,6 +1144,10 @@ impl AdmissionAccounting<'_> {
 
     // JobNodeSource 的 job/inner 字段均私有，也不导出 Job 借用。
     // 包装仍只做原节点计费；实际 wire/request 必须由 adapter 另外照实计入。
+    #[allow(
+        dead_code,
+        reason = "#1527：原账受限门面；旧域/真实恢复尚未完成接线，不授新额度"
+    )]
     pub(crate) fn node_source<'b>(
         &'b mut self,
         inner: &'b mut dyn NodeSource,
@@ -936,7 +1258,19 @@ pub(crate) fn from_args_for_db(
         }
     }
     let path = path.ok_or_else(|| prelude.error(ErrorKind::ResourcesMissing, Stage::E0))?;
-    load_for_db(db, &path, env)
+    let mut prepared = load_for_db(db, &path, env)?;
+    // #1527：独立 CLI 不要求 launcher 握手；托管 serve 等父进程登记完成。
+    if args.get(1).is_some_and(|arg| arg == "serve") {
+        if let Some(marker) = std::env::var_os("S_CONTROL_START_GATE") {
+            if marker != "stdin-v1" {
+                return Err(prepared
+                    .prelude
+                    .error(ErrorKind::ControlMismatch, Stage::E4));
+            }
+            prepared.wait_start_gate(libc::STDIN_FILENO)?;
+        }
+    }
+    Ok(prepared)
 }
 
 /// 消费既有 R4：DB → 外置 owner → 已发布 binding → 原 limits 字节 → 最终原 FD 复核。
@@ -1051,8 +1385,9 @@ pub(crate) fn load_for_db(
     }
     let node = strict_json(&limits._raw)
         .map_err(|_| prelude.error(ErrorKind::ResourcesInvalid, Stage::E3))?;
-    let values = JobLimits::from_canonical_json(&node)
+    let resources = AdmissionResources::parse(&node)
         .map_err(|_| prelude.error(ErrorKind::ResourcesInvalid, Stage::E3))?;
+    let values = resources.job_limits();
     prelude.trusted = Some(values);
     prelude.gate(Stage::E4)?;
     if environment
@@ -1078,6 +1413,7 @@ pub(crate) fn load_for_db(
     check_lease(&lease, &prelude, Stage::E4)?;
     Ok(PreparedAdmission {
         limits: values,
+        resources,
         lease,
         prelude,
     })
@@ -1303,6 +1639,70 @@ mod test_support;
 #[cfg(test)]
 pub(crate) fn test_prepare(db: &Path) -> PreparedAdmission {
     test_support::prepare(db)
+}
+
+// TestOnly：真实签锚、实测源与原 Job，只替换 Job 已有时钟接口；无生产构造口。
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+pub(super) fn test_with_clock_account<T>(
+    db: &Path,
+    first: Instant,
+    clock: Box<dyn admission_job::Clock>,
+    run: impl FnOnce(&super::admission_provider::MeasuredDomain, &mut AdmissionAccounting<'_>) -> T,
+) -> T {
+    let consumed = test_prepare(db).consume().unwrap();
+    let source = super::admission_provider::MeasuredDomain::measure(&consumed).unwrap();
+    let job = RefCell::new(
+        admission_job::Job::new_started(consumed.limits, source.existing, clock, first).unwrap(),
+    );
+    job.borrow_mut()
+        .charge_wire_bytes(consumed.prelude.wire_bytes)
+        .unwrap();
+    let result = run(
+        &source,
+        &mut AdmissionAccounting {
+            job: job.borrow_mut(),
+            work: None,
+            mixed: false,
+        },
+    );
+    result
+}
+
+#[cfg(test)]
+pub(crate) fn test_mixed_account<'a>(
+    job: &'a RefCell<admission_job::Job>,
+    work: &'a newchan_rust::s_content::capture_allocation::scratch::WorkScope,
+) -> AdmissionAccounting<'a> {
+    AdmissionAccounting {
+        job: job.borrow_mut(),
+        work: Some(work),
+        mixed: true,
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn test_prepare_mixed(db: &Path, live: u64, operation: u64) -> PreparedAdmission {
+    test_support::prepare_with_ram(db, Some((live, operation)))
+}
+
+#[cfg(test)]
+pub(crate) fn test_prepare_mixed_wire(
+    db: &Path,
+    live: u64,
+    operation: u64,
+    wire: u64,
+) -> PreparedAdmission {
+    test_support::prepare_with_ram_wire(db, Some((live, operation)), Some(wire))
+}
+
+#[cfg(test)]
+pub(crate) fn test_prepare_mixed_caps(
+    db: &Path,
+    live: u64,
+    operation: u64,
+    fields: &[(&str, u64)],
+) -> PreparedAdmission {
+    test_support::prepare_with_fields(db, Some((live, operation)), fields)
 }
 
 #[path = "admission_issuance.rs"]

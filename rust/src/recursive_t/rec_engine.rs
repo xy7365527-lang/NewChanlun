@@ -174,7 +174,7 @@ pub struct EngineConfig {
     /// ⇒ 大额做空是否吃熊」。net-up 灾难（CL L4 单笔 −40928，539）；有效域 ⊂ 真 bear。env `T_PAIR_CORE_SHORT_T3`。
     pub enable_pair_core_short_open: bool,
     /// **Face B 均匀基准单元定仓（做空腿赚 #110，shortleg-profit-spec §5.3/§6.3）**：true ⇒ LegPair
-    /// open_long_leg/open_short_leg 用 `uniform_base_units`（= INITIAL_CAPITAL×MOBILE_FRAC，级别无关，
+    /// open_long_leg/open_short_leg 用 `uniform_base_units`（= 期初资金×MOBILE_FRAC，级别无关，
     /// 无 depth 衰减）取代 `geom_tower_quota`（恒仓归一化 Σ=free≤1× = 压制副作用，msb §14.1）。多级别独立
     /// 叠加 → 杠杆来源A 涌现（579），否定线 [ZD,ZG] 封顶每条腿（liq=0）。**同时**令信号层（rec_stream）
     /// 填充 `view.zd/zg`（进场中枢边界）⇒ pair_stop_loss_step 真生效（RB_PAIR 下 zd/zg 恒 None=死代码，
@@ -993,6 +993,10 @@ pub struct TRoot {
     nest_consumed: bool,
     /// **读法B/读法乙递归（任务18）**：每级别独立腿 + 触发器。enable_reading_b=true ⇒ on_bar 走 consume_legs。
     enable_reading_b: bool,
+    #[allow(
+        dead_code,
+        reason = "#1608：读法B 背驰开关的引擎侧镜像，配置侧已消费、引擎内尚未读取"
+    )]
     reading_b_diverge: bool,
     /// **读法B 一对多空腿（任务57=53.1）**：enable_reading_b_pair=true ⇒ on_bar 走 consume_leg_pairs。
     enable_reading_b_pair: bool,
@@ -1684,6 +1688,10 @@ impl TRoot {
         self.sink_impl(parent, sub, sub_node, c, protect_core);
     }
 
+    #[allow(
+        dead_code,
+        reason = "#1608：sink_impl 的不保护核心便捷入口，当前调用方均直传 protect_core"
+    )]
     fn sink(&mut self, parent: usize, sub: usize, sub_node: TrendNode, c: f64) {
         self.sink_impl(parent, sub, sub_node, c, false);
     }
@@ -3492,7 +3500,7 @@ mod orbit9_add_dispatch_tests {
     }
 
     #[test]
-    fn add_short_τ镜像_父空卖回对称() {
+    fn add_short_tau镜像_父空卖回对称() {
         // τ 镜像：父空 @ L2，sink 出 L0 多头短差，add 卖回。
         let mut r = root_with_sunk_short(Polarity::Short, 2, 0);
         assert_eq!(

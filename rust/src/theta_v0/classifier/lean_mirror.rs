@@ -44,7 +44,7 @@ fn tick_to_price(tick: i64, tick_size: f64) -> f64 {
 pub fn issue1087_config() -> ThetaConfig {
     let mut config = ThetaConfig::default();
     config.tick.tick_size = EQUS_MINI_TICK_SIZE;
-    config.level.l_max = 8;
+    config.level.research_override_l_max(8);
     config
 }
 

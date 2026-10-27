@@ -10,21 +10,25 @@
 
 ## 裁定
 
-### 一、同点争用 = 整 slot 原子等待（政策 id `#1349/atomic-slot-wait/v1`）
+### 一、同点争用默认整 slot 原子等待（政策 id `#1349/atomic-slot-wait/v1`）
 
-同一 slot 全部申请者的毛锁额（数量 × 限价 + 费用尾）加既有责任 ≤ cap 才整 slot 授信，否则整 slot 进入 `AwaitingAllocationPolicy`。不排序、不缩量、不拆单、不拒绝。理由：[ADR 0014](0014-intra-chong-unidirectional-inter-chong-no-arbitration.md) 裁定二无仲裁人；[ADR 0016](0016-chong-quantity-layer-capacity-frequency-shift.md)/[ADR 0017](0017-chong-quantity-numerator-shortdiff-amplitude.md) 的 w(d)×Q 不动；与在制行为同构。
+在默认 await_slot 下，同一 slot 全部申请者的毛锁额（数量 × 限价 + 费用尾）加既有责任 ≤ cap 才整 slot 授信，否则整 slot 进入 `AwaitingAllocationPolicy`。不排序、不缩量、不拆单；默认 await_slot 不拒绝。理由：[ADR 0014](0014-intra-chong-unidirectional-inter-chong-no-arbitration.md) 裁定二无仲裁人；[ADR 0016](0016-chong-quantity-layer-capacity-frequency-shift.md)/[ADR 0017](0017-chong-quantity-numerator-shortdiff-amplitude.md) 的 w(d)×Q 不动；与在制行为同构。
 
 - 等待无时钟时限。失效只来自三类事实：任一申请者在后续稳定点重新 Prepare 或撤回（剩余者构成新 slot 重判）；政策版本到期（`PolicyExpired`）；注入或释放使全体放得下（裁定二）。
 - 后来 slot 不越过等待中的 slot。这是算术推论：等待成立时既有加等待者全额已 > cap，任何追加都放不下；允许小 slot 用余量通过，等于按大小选人，即被否的 B/D。
 - **跨 slot 次序 = S 稳定点的结构顺序。这是本裁定的显式具名选择**（根复核确认），不是把 FIFO 当默认（RESIDUAL FU-03 所禁）。理由：ADR 0014 下没有仲裁人，任何其他次序都要另造一个来源。
 
+> #1599（用户 2026-10-26 批准）：字段进入所属具名版本，一次运行只读一个已签版本，改值即新版本并重推导；不得因失败换值放行。
+
+`on_contention={await_slot,reject}`，默认 await_slot；reject 是合法政策动作，但会增加重试。`withdraw_rule={partial_up_to_free,deny_if_liability}`，默认 partial_up_to_free；deny_if_liability 保留为有责任即禁取的选择，代价是降低流动性。两者都不改变 `Σ责任≤cap` 真值判据，也不允许选择赢家、缩放 w(d)×Q 或运行中失败换值。
+
 ### 二、注入与释放 = 政策版本事件，落地即重算
 
 公用资金注入产生新政策版本（cap、version、authorizer、authorized_at 随之变化）；责任释放（[ADR 0030](0030-exit-authorization-and-liability-retirement.md) 裁定四的退休、撤回）同样是触发源。事件落地即对等待中的 slot 按结构顺序逐个重算；授信记录写 `policy_version`。注入不划给具名重作新 Q（那是 FU-02/#1357）。
 
-### 三、取出只限空闲部分
+### 三、取出默认只限空闲部分
 
-可取 = cap − Σ既有责任；等待中的 slot 不占用。超出部分当场拒绝并写原因，不排队。这保住 Σ责任 ≤ cap（ADR 0024 裁定一/五），也不让资金政策内部产生减仓压力——退出来源只认 ADR 0030 的三类。原文边界：`026-第26课.md:26`【正文】「一旦钱是有限期的，那么等于自动设置了一个停止交易的时限」。
+在默认 partial_up_to_free 下，可取 = cap − Σ既有责任；等待中的 slot 不占用。超出部分当场拒绝并写原因，不排队。这保住 Σ责任 ≤ cap（ADR 0024 裁定一/五），也不让资金政策内部产生减仓压力——退出来源只认 ADR 0030 的三类。原文边界：`026-第26课.md:26`【正文】「一旦钱是有限期的，那么等于自动设置了一个停止交易的时限」。
 
 ### 四、cap 来源 = 人工具名数额（不填默认金额）
 
@@ -34,7 +38,7 @@
 
 ## 被否方案
 
-B 具名优先序（需发明来源、引入仲裁人）；C 按比例（改 w(d)×Q、取整残量）；D 覆盖最大（隐式 B、需平局规则）；E 超限即拒（不换来任何不变量，只制造重试）；I2 只对新申请生效（会永久等待）；I3 划给具名重（FU-02）；O2 允许 cap < 责任（破坏不变量、隐含退出来源）；O3 有责任即禁取（过度）；C2/C3（P1 权益无经营意义，系数未填）。
+B 具名优先序（需发明来源、引入仲裁人）；C 按比例（改 w(d)×Q、取整残量）；D 覆盖最大（隐式 B、需平局规则）；I2 只对新申请生效（会永久等待）；I3 划给具名重（FU-02）；O2 允许 cap < 责任（破坏不变量、隐含退出来源）；C2/C3（P1 权益无经营意义，系数未填）。
 
 ## 手算对账
 
@@ -51,3 +55,7 @@ W1：既有 20、cap 80、{30, 40} 等待；后到 10 不越过；40 撤回后 {
 ## 溯源标签
 
 四问全部 `[新缠论:选择]`；原文只给边界。
+
+## #1599 批复与受影响清单
+
+[用户批复](https://github.com/xy7365527-lang/NewChanlun/issues/1599#issuecomment-6403278294)；[受影响清单](../../.chanlun/review-results/issue1599-policy-20261026/affected-code.md)含固定基线、Rust/Python/Lean 接缝及下游未承接项。本次为政策文书，不声称实现或关票；新增自由度为 `[新缠论:选择]`，既裁不变量不变。

@@ -34,9 +34,7 @@ use super::prove::{
     count_chiral_violations, prove_conservation, prove_epsilon_symmetry, prove_nav_neutral,
     prove_no_double_act, prove_recursive_consistency,
 };
-use super::{
-    EQUITY_SAMPLE_BARS, INITIAL_CAPITAL, PENDING_LO, SUB_COST_K, SUB_FRICTION_RT, SUB_LIQ_FACTOR,
-};
+use super::{EQUITY_SAMPLE_BARS, PENDING_LO, SUB_COST_K, SUB_FRICTION_RT, SUB_LIQ_FACTOR};
 
 /// 核心仓涌现归属级别 E*（T5/A5 第20环）：核心仓操作级别随走势向更高级别发展向上单调生长——
 /// 会计重组（relabel），不触发物理交易。通过 MorphologyAxis 读方向/锚/上界。
@@ -98,18 +96,23 @@ pub struct OperateEngine {
     dbg_rf_sub_wrongdir: [u64; MAX_LADDER],
     dbg_rf_parent_occ: [u64; MAX_LADDER],
     dbg_rf_other: [u64; MAX_LADDER],
+    #[allow(
+        dead_code,
+        reason = "#1608：dbg_* 诊断计数族的预留槽，当前无写入/读出点"
+    )]
     dbg_sink_ok: [u64; MAX_LADDER],
     dbg_ascend: u64,
 }
 
 impl OperateEngine {
-    pub fn new() -> Self {
+    /// `q_total`：期初现金池（ADR 0040 funding-record `cap`，#1601；调用方从记录读）。
+    pub fn new(q_total: f64) -> Self {
         let layers = (0..MAX_LADDER).map(Layer::idle).collect();
         OperateEngine {
             res: FugueResult::default(),
             layers,
             n_base: 0.0,
-            free: INITIAL_CAPITAL,
+            free: q_total,
             core_ladder: 0,
             core_entry_bar: -1,
             core_polarity: Polarity::Long, // 无仓位时无意义，F 建仓时覆写
@@ -260,22 +263,6 @@ impl OperateEngine {
         let navv = nav(&self.layers, self.free, c);
         let (lu, su) = exposure(&self.layers);
         (navv, lu, su, active_voice_count(&self.layers))
-    }
-
-    /// 测试只读访问器。
-    #[cfg(test)]
-    pub(crate) fn total_long_at_entry(&self) -> f64 {
-        self.layers
-            .iter()
-            .filter(|l| l.direction == Polarity::Long)
-            .map(|l| l.units)
-            .sum()
-    }
-}
-
-impl Default for OperateEngine {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

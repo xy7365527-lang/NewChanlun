@@ -20,6 +20,7 @@
 //! 这**不**提升经验等级——不是缠论盈利/实盘有效声明。
 
 use newchan_rust::theta_v0::parser::segment::Interval;
+use newchan_rust::theta_v0::policy_records::active_segment_construction;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -112,6 +113,11 @@ fn load_fixture() -> ParityFixture {
 #[test]
 fn lean_gap_overlap_tangent_bit_exact() {
     let fx = load_fixture();
+    // #1604：相切口径读签署记录 `segment-second`；Lean 侧当前只证 closed（参数化见 #1626），
+    // 记录若改签 `open` 本测试即红——这是有意的跨实现对拍锁。
+    let tangency = active_segment_construction()
+        .expect("segment-second 记录须可读")
+        .tangency;
     // (Lean 机器导出用例, 用例名)——区间端点与真值同源于 fixture 的 gap_overlap 段（#319）。
     let cases: [(&GapOverlapCase, &str); 5] = [
         (
@@ -144,12 +150,12 @@ fn lean_gap_overlap_tangent_bit_exact() {
         // **集合级**（5 例作为一组，覆盖了接反会翻真值的情形）而非逐用例级，如实登记。
         let (a, b) = expected.intervals();
         assert_eq!(
-            a.gap(&b),
+            a.gap(&b, tangency),
             expected.has_gap,
             "{name}: rust Interval::gap == Lean decide(HasGap)（bit-exact）"
         );
         assert_eq!(
-            a.overlaps(&b),
+            a.overlaps(&b, tangency),
             expected.overlaps,
             "{name}: rust Interval::overlaps == Lean decide(¬HasGap)（经 gap_iff_not_overlap ↔ Overlaps）"
         );

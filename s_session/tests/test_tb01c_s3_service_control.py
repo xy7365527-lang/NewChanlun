@@ -20,7 +20,8 @@ from s_socket_client import reply_envelope
 
 class S3LifecycleTests(unittest.TestCase):
     @staticmethod
-    def config(directory, revision="s-launcher/3"):
+    def config(directory, revision="s-launcher/3", startup_timeout_ms="25"):
+        # 25ms 只适用于注入假钟的用例；真钟下驱动 R4 闸的用例须给真实启动期限。
         root = Path(directory)
         resources = {key: str(index + 1) for index, key in enumerate(sorted(control.S_RESOURCE_FIELDS))}
         resources["max_frame_bytes"] = "8192"
@@ -32,7 +33,7 @@ class S3LifecycleTests(unittest.TestCase):
                 "session_id": "owned-session", "session_generation": "1",
                 "source_namespace": "owned.test", "source_epoch": "1", "producer_id": "owned-launcher",
                 "producer_epoch": "1", "writer_epoch": "1", "query_epoch": "1", "port": "12345",
-                "delivery_retain_generations": "1", "startup_timeout_ms": "25", "s_resources": resources}
+                "delivery_retain_generations": "1", "startup_timeout_ms": startup_timeout_ms, "s_resources": resources}
 
     @staticmethod
     def response(request, nonce="current"):
@@ -178,7 +179,7 @@ class S3LifecycleTests(unittest.TestCase):
 
     def test_resource_identity_is_saved_with_pid_nonce_and_exact_argv(self):
         with tempfile.TemporaryDirectory(prefix="s3-record-") as directory:
-            config = self.config(directory)
+            config = self.config(directory, startup_timeout_ms="2000")
             controller = anchored_controller(config, Path(directory) / "state")
             deadline = time.monotonic() + 2
             try:
@@ -253,7 +254,8 @@ class S3LifecycleTests(unittest.TestCase):
 
     def test_s3_recover_selects_new_domain_and_never_falls_back(self):
         with tempfile.TemporaryDirectory(prefix="s3-recover-") as directory:
-            controller = anchored_controller(self.config(directory), Path(directory) / "state")
+            controller = anchored_controller(self.config(directory, startup_timeout_ms="2000"),
+                                             Path(directory) / "state")
             try:
                 with patch.object(controller, "status", return_value={"state": "stopped"}), \
                      patch.object(controller, "runtime_environment", return_value={}), \
@@ -288,8 +290,7 @@ class S3LifecycleTests(unittest.TestCase):
     def test_stopped_s3_record_allows_new_explicit_budget_but_live_or_tampered_owner_refuses(self):
         for case in ("stopped", "live", "tampered"):
             with self.subTest(case=case), tempfile.TemporaryDirectory(prefix="s3-restart-") as directory:
-                config = self.config(directory)
-                config["startup_timeout_ms"] = "2000"
+                config = self.config(directory, startup_timeout_ms="2000")
                 Path(config["db"]).touch()
                 state_dir = Path(directory) / "state"
                 controller = anchored_controller(config, state_dir)
@@ -314,7 +315,7 @@ class S3LifecycleTests(unittest.TestCase):
                         return "old identity" if case == "live" else None
                     self.assertEqual(pid, 234567)
                     return "new identity"
-                child = Mock(pid=234567, **{"poll.return_value": None})
+                child = Mock(pid=234567, **{"poll.return_value": None, "stdin.write.return_value": 1})
                 try:
                     with patch.object(control, "process_identity", side_effect=observation), \
                          patch.object(controller, "runtime_environment", return_value={}), \
@@ -341,7 +342,7 @@ class S3LifecycleTests(unittest.TestCase):
 
     def test_new_child_cannot_reuse_old_frozen_budget_after_configuration_change(self):
         with tempfile.TemporaryDirectory(prefix="s3-budget-binding-") as directory:
-            config = self.config(directory)
+            config = self.config(directory, startup_timeout_ms="2000")
             controller = anchored_controller(config, Path(directory) / "state")
             deadline = time.monotonic() + 2
             try:
@@ -365,7 +366,7 @@ class S3LifecycleTests(unittest.TestCase):
     def test_private_resource_digest_comes_only_from_verified_s3_identity_and_never_old_launcher(self):
         for revision in ("s-launcher/3", "s-launcher/2"):
             with self.subTest(revision=revision), tempfile.TemporaryDirectory(prefix="s3-child-digest-") as directory:
-                config = self.config(directory, revision)
+                config = self.config(directory, revision, startup_timeout_ms="2000")
                 controller = anchored_controller(config, Path(directory) / "state")
                 deadline = time.monotonic() + 2
                 environment = {"S_CONTROL_RESOURCE_SHA256": "f" * 64, "PRESERVE": "owned"}
@@ -373,7 +374,7 @@ class S3LifecycleTests(unittest.TestCase):
                 command = [config["binary"], "serve"]
                 if identity is not None:
                     command += ["--protocol-revision", "s-session/3", "--resource-config", identity["path"]]
-                child = Mock(pid=234567, **{"poll.return_value": None})
+                child = Mock(pid=234567, **{"poll.return_value": None, "stdin.write.return_value": 1})
                 try:
                     with patch.object(control, "process_identity", return_value="owned argv"), \
                          patch.object(control.subprocess, "Popen", return_value=child) as spawn:

@@ -289,10 +289,24 @@ thread_local! {
     static STATS: std::cell::Cell<NativeRecordFieldStats> = const { std::cell::Cell::new(NativeRecordFieldStats { full_record_seeds: 0, source_subset_hits: 0 }) };
 }
 #[cfg(test)]
+#[cfg_attr(
+    not(feature = "s_capture_native_testonly"),
+    allow(
+        dead_code,
+        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+    )
+)]
 pub(crate) fn reset_native_record_field_stats() {
     STATS.with(|s| s.set(NativeRecordFieldStats::default()));
 }
 #[cfg(test)]
+#[cfg_attr(
+    not(feature = "s_capture_native_testonly"),
+    allow(
+        dead_code,
+        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+    )
+)]
 pub(crate) fn native_record_field_stats() -> NativeRecordFieldStats {
     STATS.with(std::cell::Cell::get)
 }
@@ -304,9 +318,17 @@ pub(crate) struct NativeRecordFields<'capture> {
     records: BusinessMap<RecordKey, NativeRefFields>,
 }
 impl<'capture> NativeRecordFields<'capture> {
+    #[cfg(test)]
     pub(crate) fn new(capture: &'capture sc::AuditCapture) -> Option<Self> {
         Self::new_admitted(capture, None)
     }
+    #[cfg_attr(
+        all(not(test), not(feature = "s_capture_native_testonly")),
+        allow(
+            dead_code,
+            reason = "#1608：默认 feature 的非测试构建不触达；测试与 s_capture_native_testonly 构建使用"
+        )
+    )]
     pub(crate) fn new_admitted(
         capture: &'capture sc::AuditCapture,
         work: Option<&'capture WorkScope>,
@@ -320,12 +342,22 @@ impl<'capture> NativeRecordFields<'capture> {
     pub(crate) fn belongs_to(&self, capture: &sc::AuditCapture) -> bool {
         std::ptr::eq(self.capture, capture)
     }
-    /// 仅在 history 成功 exact 读取完整 generated record 后调用。
+    /// 原无计量包装继续供既有测试使用。
+    #[cfg(test)]
     pub(crate) fn seed(
         &mut self,
         r: sc::RefView<'_>,
         names: &[&str],
         fields: &RefFields<'_>,
+    ) -> Result<(), sc::CodecError> {
+        self.seed_measured(r, names, fields, None)
+    }
+    pub(crate) fn seed_measured(
+        &mut self,
+        r: sc::RefView<'_>,
+        names: &[&str],
+        fields: &RefFields<'_>,
+        measure: Option<&super::super::audit_budget::NativeMeasure<'_>>,
     ) -> Result<(), sc::CodecError> {
         let sc::RefView::Normal(original) = r else {
             return Ok(());
@@ -334,7 +366,7 @@ impl<'capture> NativeRecordFields<'capture> {
             return Ok(());
         }
         let admission = NativeAdmission(self.work);
-        admission.native_verify_original(self.capture, r, sc::Mode::Public)?;
+        admission.native_verify_original_measured(self.capture, r, sc::Mode::Public, measure)?;
         // 不从 Owned 结果或不完整字段集补造原件。
         let RefFields::Plain(fields) = fields else {
             return Ok(());

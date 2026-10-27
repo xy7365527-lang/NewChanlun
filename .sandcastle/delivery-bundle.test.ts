@@ -340,3 +340,37 @@ test("manifest 多出的自动批准字段被拒绝，不执行任何附带操�
   assert.ok(result.diagnostics.some(item => item.code === "INVALID_MANIFEST"));
   assert.equal(f.git("rev-parse", "HEAD"), f.manifest.head);
 });
+
+test("交付预检的 git 子进程拿不到 CLIProxy 密钥及其他凭据变量（#1588）", t => {
+  const f = fixture(t);
+  const names = ["CLIPROXY_LOCAL_KEY", "GH_TOKEN", "OPENAI_API_KEY", "PATH"] as const;
+  const saved = Object.fromEntries(names.map(name => [name, process.env[name]]));
+  t.after(() => {
+    for (const name of names) {
+      if (saved[name] === undefined) delete process.env[name];
+      else process.env[name] = saved[name];
+    }
+  });
+  // 包一层 git：只记录收到的变量名（不记值），再转交真实 git。
+  const realGit = execFileSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).trim();
+  const gitBin = join(f.directory, "git-bin");
+  const log = join(f.directory, "git-env.jsonl");
+  mkdirSync(gitBin);
+  writeFileSync(join(gitBin, "git"), `#!${process.execPath}\n`
+    + `require('node:fs').appendFileSync(${JSON.stringify(log)}, JSON.stringify(Object.keys(process.env)) + '\\n');\n`
+    + `const r = require('node:child_process').spawnSync(${JSON.stringify(realGit)}, process.argv.slice(2), { stdio: 'inherit' });\n`
+    + `process.exit(r.status ?? 1);\n`);
+  chmodSync(join(gitBin, "git"), 0o700);
+  process.env.PATH = gitBin + ":" + saved.PATH;
+  process.env.CLIPROXY_LOCAL_KEY = "fixture-not-a-real-key";
+  process.env.GH_TOKEN = "fixture";
+  process.env.OPENAI_API_KEY = "fixture";
+  const result = preflightDelivery(f.repo, f.manifest);
+  assert.equal(result.status, "READY_FOR_APPROVAL", JSON.stringify(result));
+  const calls = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line) as string[]);
+  assert.ok(calls.length >= 5, `交付预检应至少调用 5 次 git，实际 ${calls.length}`);
+  for (const keys of calls) {
+    for (const name of ["CLIPROXY_LOCAL_KEY", "GH_TOKEN", "OPENAI_API_KEY"]) assert.ok(!keys.includes(name), `git 环境含 ${name}`);
+    assert.ok(keys.includes("GIT_OPTIONAL_LOCKS"));
+  }
+});

@@ -7,12 +7,64 @@ use std::{
     ops::Deref,
 };
 
+/// 堆块必须先真实deallocate，再归还其原来源许可；不能把许可塞进Box载荷内提前释放。
+#[cfg_attr(
+    not(feature = "s_capture_native_testonly"),
+    allow(
+        dead_code,
+        reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+    )
+)]
+pub(crate) struct NativeBox<T> {
+    value: allocator_api2::boxed::Box<T>,
+    permit: Option<NativeReservation>,
+}
+impl<T> NativeBox<T> {
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+        )
+    )]
+    pub(crate) fn from_reserved(
+        value: allocator_api2::boxed::Box<T>,
+        permit: Option<NativeReservation>,
+    ) -> Self {
+        Self { value, permit }
+    }
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+        )
+    )]
+    pub(crate) fn attach(&mut self, permit: NativeReservation) {
+        assert!(self.permit.is_none());
+        self.permit = Some(permit);
+    }
+}
+impl<T> Deref for NativeBox<T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        &self.value
+    }
+}
+impl<T> std::ops::DerefMut for NativeBox<T> {
+    fn deref_mut(&mut self) -> &mut T {
+        &mut self.value
+    }
+}
 pub struct NativeValue<T> {
     value: T,
     // 声明顺序保证 value（含其 allocation）先析构。
     permit: Option<NativeReservation>,
 }
 impl<T> NativeValue<T> {
+    pub fn without_reservation(value: T) -> Self {
+        Self::from_reserved(value, None)
+    }
     pub(crate) fn from_reserved(value: T, permit: Option<NativeReservation>) -> Self {
         Self { value, permit }
     }
@@ -21,10 +73,26 @@ impl<T> NativeValue<T> {
         self.permit = permit;
         self
     }
+    /// 同一实际载荷的消费式重包装；调用方新增分配须另持许可。
+    pub fn try_map<U, E>(self, f: impl FnOnce(T) -> Result<U, E>) -> Result<NativeValue<U>, E> {
+        let Self { value, permit } = self;
+        let value = f(value)?;
+        Ok(NativeValue::from_reserved(value, permit))
+    }
     pub fn as_ref(&self) -> &T {
         &self.value
     }
     /// 只说明本值是否持有原 Native 许可，不授予新作用域的扩容或复制资格。
+    /// 当前真实持有的准入上界；不是退款或新许可签发接口。
+    pub fn retained_charge(&self) -> Option<usize> {
+        self.permit.as_ref().map(NativeReservation::bytes)
+    }
+    /// #1527：正常关闭的保留源可读；failed父不能经复制洗掉失败。
+    pub fn check_retained_source(&self) -> Result<(), CodecError> {
+        self.permit
+            .as_ref()
+            .map_or(Ok(()), NativeReservation::check_retained_source)
+    }
     pub fn is_native_admitted(&self) -> bool {
         self.permit.is_some()
     }
@@ -385,7 +453,7 @@ mod tests {
         }
     }
     impl ScratchParent for Parent {
-        fn reserve(&self, bytes: usize, kind: ScratchCharge) -> Result<(), ScratchFailure> {
+        fn reserve(&self, bytes: usize, kind: ScratchCharge) -> Result<u64, ScratchFailure> {
             let mut counts = self.counts.lock().unwrap();
             let next = counts
                 .live
@@ -399,9 +467,17 @@ mod tests {
                 counts.native += bytes;
             }
             counts.peak = counts.peak.max(next);
-            Ok(())
+            Ok(0)
         }
-        fn release(&self, bytes: usize, kind: ScratchCharge) -> Result<(), ScratchFailure> {
+        fn release(
+            &self,
+            bytes: usize,
+            kind: ScratchCharge,
+            origin: u64,
+        ) -> Result<(), ScratchFailure> {
+            if origin != 0 {
+                return Err(ScratchFailure::Ledger);
+            }
             let mut counts = self.counts.lock().unwrap();
             counts.live = counts
                 .live

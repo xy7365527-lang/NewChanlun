@@ -1,4 +1,5 @@
 use super::super::super::classifier::divergence::DivergenceGauge;
+use super::super::research_stats::active_research_stats;
 use super::*;
 
 // ── ★#399（#786 Q4 改写稿）：ECON_L2_MAX_BARS 截窗骨架共享 helper——八点收敛 ──
@@ -3264,6 +3265,7 @@ fn winrate(pos: usize, n: usize) -> f64 {
 #[test]
 #[ignore]
 fn acc_walkforward_trainonly() {
+    let stats = active_research_stats().expect("C-19 research stats record");
     use super::super::data;
     use std::fmt::Write as _;
 
@@ -3323,12 +3325,12 @@ fn acc_walkforward_trainonly() {
 
     // 任务4：neff vs nraw（holdout 赢家类逐笔 PnL 自相关）。
     let nraw = hd_pnls.len();
-    let (neff, sum_rho) = neff_autocorr(&hd_pnls, 20);
-    let (mu_oos, se_oos, lcb_oos) = mean_se_lcb(&hd_pnls, neff);
+    let (neff, sum_rho) = neff_autocorr(&hd_pnls, stats.econ_neff_lag);
+    let (mu_oos, se_oos, lcb_oos) = mean_se_lcb(&hd_pnls, neff, stats.z_alpha);
 
     // 任务5/Q4：剔最大赢家 + block bootstrap p。
     let (q4_full, q4_d1, q4_d3, q4_d5) = drop_top_winners(&hd_pnls);
-    let q4_p = block_bootstrap_pvalue(&hd_pnls, 20, 2000);
+    let q4_p = block_bootstrap_pvalue(&hd_pnls, stats.econ_block_len, stats.econ_n_resample);
 
     // ══ 任务3：多窗滚动 walk-forward（除 Q5 单切分脆弱）══
     let k_windows: usize = std::env::var(crate::theta_v0::env_registry::ECON_WF_WINDOWS)
@@ -3365,8 +3367,8 @@ fn acc_walkforward_trainonly() {
                     .filter(|d| d.level == lv && d.delta == dl && d.bsp_class == bc)
                     .map(|d| d.actual_pnl)
                     .collect();
-                let (nf, _) = neff_autocorr(&pnls, 20);
-                let (_, _, lcb) = mean_se_lcb(&pnls, nf);
+                let (nf, _) = neff_autocorr(&pnls, stats.econ_neff_lag);
+                let (_, _, lcb) = mean_se_lcb(&pnls, nf, stats.z_alpha);
                 (pnls.len(), pnls.iter().sum::<f64>(), lcb)
             }
             None => (0, 0.0, 0.0),
@@ -3385,7 +3387,10 @@ fn acc_walkforward_trainonly() {
 
     // PDF §7.3 强判据 χ=1[LCB>θ]（θ=0）：μ>0 不够，须扣除不确定性后仍正。
     // §11 全验收 = LCB>0 ∧ Q4 剔最大5仍正 ∧ bootstrap p<0.05 ∧ 多窗 LCB>0 占比高。
-    let oos_robust = lcb_oos > 0.0 && q4_d5 > 0.0 && q4_p < 0.05 && lcb_pos_ratio >= 100.0;
+    let oos_robust = lcb_oos > 0.0
+        && q4_d5 > 0.0
+        && q4_p < stats.significance_p_threshold
+        && lcb_pos_ratio >= 100.0;
 
     // ══ 报告 ══
     let cls_str = |c: Option<(u32, i8, u8)>| {
@@ -3393,6 +3398,7 @@ fn acc_walkforward_trainonly() {
             .unwrap_or_else(|| "None(train无正类)".into())
     };
     let mut rpt = String::new();
+    let _ = writeln!(rpt, "**统计记录**：`{}`。", stats.record.label());
     let _ = writeln!(
         rpt,
         "# PDF §11 walk-forward 验收：train-only 挑类（除 codex Q2 BIAS-FATAL 选择偏差）"
@@ -3439,7 +3445,7 @@ fn acc_walkforward_trainonly() {
     let _ = writeln!(rpt, "| holdout Σab_rev | {hd_ab:.4e} |");
     let _ = writeln!(rpt, "| μ_OOS | {mu_oos:.4e} |");
     let _ = writeln!(rpt, "| se（用 neff） | {se_oos:.4e} |");
-    let _ = writeln!(rpt, "| **LCB（μ−1.645·se，单侧5%）** | **{lcb_oos:.4e}** |");
+    write_walkforward_lcb(&mut rpt, lcb_oos, &stats);
     let _ = writeln!(rpt);
     let _ = writeln!(
         rpt,
@@ -3500,7 +3506,7 @@ fn acc_walkforward_trainonly() {
         "| 剔最大 5 | {q4_d5:.4e} | {} |",
         if q4_d5 > 0.0 { "是" } else { "否" }
     );
-    let _ = writeln!(rpt, "- **block bootstrap p（H0:μ≤0，block_len=20，B=2000，固定种子）= {q4_p:.4}**（p<0.05 ⟹ 正均值稳健远离 0）。");
+    write_walkforward_bootstrap(&mut rpt, q4_p, &stats);
     if q4_d5 <= 0.0 && q4_full > 0.0 {
         let _ = writeln!(rpt, "→ **Q4 坐实少数大赢家驱动**：剔最大 5 后转负 ⟹ holdout 正总和由极少数大赢家撑起，非稳健 alpha。");
     } else if q4_d5 > 0.0 {
@@ -3569,7 +3575,7 @@ fn acc_walkforward_trainonly() {
             if oos_robust { "通过 §11 全验收（缠论买卖点首个干净稳健 OOS alpha 证据，单标的 L2）" }
             else if is_level0_sell && oos_mu_positive { "Q2 选择偏差消除（level0卖确为 train-only 赢家），但 §11 稳健性验收未过——LCB≤0/少数大赢家驱动/多窗不稳之一以上成立 ⟹ +7.87e3 不达可交易 alpha 阈值（诚实否证，161/formalization-validity-domain）" }
             else { "level0卖 +7.87e3 是选择偏差/窗口产物（否证）" });
-    let _ = writeln!(rpt, "2. **定义依据**：actual_pnl=δ(Pτout−Pτin)−Ce（664-Q3 真实成交口径）；train-only 挑类=PDF§11「train 决定规则」；neff=nraw/(1+2Σρk)=PDF§6 条件二；LCB=μ−1.645se=PDF§7.3。");
+    let _ = writeln!(rpt, "2. **定义依据**：actual_pnl=δ(Pτout−Pτin)−Ce（664-Q3 真实成交口径）；train-only 挑类=PDF§11「train 决定规则」；neff=nraw/(1+2Σρk)=PDF§6 条件二；LCB=μ−{}se=PDF§7.3。", stats.z_alpha);
     let _ = writeln!(rpt, "3. **边界条件**：单标的 BTC L2——结论翻转条件：(a) L3 跨标的若 level0卖不普遍赢则 BTC 是品种特例；(b) train_frac/窗数 K 改变 train 赢家身份则选类不稳；(c) holdout 仍为下跌段则卖优势含方向效应。");
     let _ = writeln!(
         rpt,
@@ -3650,8 +3656,8 @@ fn neff_autocorr(pnls: &[f64], lag_max: usize) -> (f64, f64) {
     (neff.max(1.0).min(n as f64), sum_rho)
 }
 
-/// 单侧 5% LCB = μ − 1.645·se，se=σ/√neff（PDF §7.3，neff 而非 nraw）。返回 (mu, se, lcb)。
-fn mean_se_lcb(pnls: &[f64], neff: f64) -> (f64, f64, f64) {
+/// 单侧 LCB = μ − z_alpha·se，se=σ/√neff（PDF §7.3，neff 而非 nraw）。返回 (mu, se, lcb)。
+fn mean_se_lcb(pnls: &[f64], neff: f64, z_alpha: f64) -> (f64, f64, f64) {
     let n = pnls.len();
     if n == 0 {
         return (0.0, 0.0, 0.0);
@@ -3663,7 +3669,7 @@ fn mean_se_lcb(pnls: &[f64], neff: f64) -> (f64, f64, f64) {
     } else {
         f64::INFINITY
     };
-    (mu, se, mu - 1.645 * se)
+    (mu, se, mu - z_alpha * se)
 }
 
 /// Q4 剔最大赢家：降序剔除 top-k 后剩余 Σ（>0 ⟹ 非少数大赢家驱动）。返回 (sum_full, sum_drop1, sum_drop3, sum_drop5)。
@@ -3848,7 +3854,7 @@ fn walkforward_helpers_l1() {
     );
 
     // LCB：μ>0 但 se 大 ⟹ LCB 可能<0（压制噪声赢家）。
-    let (mu, se, lcb) = mean_se_lcb(&[2.0, -1.0, 3.0, -2.0], 4.0);
+    let (mu, se, lcb) = mean_se_lcb(&[2.0, -1.0, 3.0, -2.0], 4.0, 1.645);
     assert!(
         (mu - 0.5).abs() < 1e-9 && se > 0.0 && lcb < mu,
         "LCB=μ−1.645se<μ，实得 mu={mu} lcb={lcb}"
@@ -3867,9 +3873,31 @@ fn walkforward_helpers_l1() {
     let strong_pos = vec![5.0; 20];
     let p_pos = block_bootstrap_pvalue(&strong_pos, 3, 500);
     assert!(
-        p_pos <= 0.05,
+        p_pos <= 0.05, // 合成 L1 夹具固定门，不是真实验收记录消费点
         "强正信号 block bootstrap p 应小，实得 {p_pos}"
     );
+}
+
+/// C-19 记录字段必须抵达 econ 真实验收所用的同一组 helper，而非只改报告文字。
+#[test]
+fn research_stats_reach_econ_acceptance_helpers() {
+    let stats = active_research_stats().unwrap();
+    let pnls = vec![1.0, 1.0, 1.0, 1.0, -1.0, -1.0, -1.0, -1.0];
+    let (baseline_neff, _) = neff_autocorr(&pnls, stats.econ_neff_lag);
+    let (_, _, baseline_lcb) = mean_se_lcb(&pnls, baseline_neff, stats.z_alpha);
+    let baseline_p = block_bootstrap_pvalue(&pnls, stats.econ_block_len, stats.econ_n_resample);
+
+    let mut changed = stats.clone();
+    changed.econ_neff_lag = 0;
+    let (changed_neff, _) = neff_autocorr(&pnls, changed.econ_neff_lag);
+    assert_ne!(baseline_neff, changed_neff, "lag 截断必须改变 neff");
+    changed.z_alpha = 2.0;
+    let (_, _, changed_lcb) = mean_se_lcb(&pnls, baseline_neff, changed.z_alpha);
+    assert_ne!(baseline_lcb, changed_lcb, "z_alpha 必须改变 LCB");
+    changed.econ_block_len = 7;
+    changed.econ_n_resample = 37;
+    let changed_p = block_bootstrap_pvalue(&pnls, changed.econ_block_len, changed.econ_n_resample);
+    assert_ne!(baseline_p, changed_p, "块长/重采样数必须改变 bootstrap p");
 }
 
 /// **全历史多级别信号分布 + level2+ 逐级别 train-only holdout μ̂/LCB/p（acc-multilevel-sample + acc-highlevel-mu）**。
@@ -3896,6 +3924,7 @@ fn walkforward_helpers_l1() {
 #[test]
 #[ignore]
 fn acc_multilevel_highlevel_mu() {
+    let stats = active_research_stats().expect("C-19 research stats record");
     use super::super::data;
     use std::collections::BTreeMap;
     use std::fmt::Write as _;
@@ -3991,6 +4020,7 @@ fn acc_multilevel_highlevel_mu() {
         lcb: f64,
         neff: f64,
         nraw: usize,
+        #[allow(dead_code, reason = "#1608：holdout 结果字段，计算后当前无读出点")]
         sum_rho: f64,
         drop_d5: f64,
         bootstrap_p: f64,
@@ -4005,10 +4035,11 @@ fn acc_multilevel_highlevel_mu() {
             .map(|d| d.actual_pnl)
             .collect();
         let nraw = pnls.len();
-        let (neff, sum_rho) = neff_autocorr(&pnls, 20);
-        let (mu_oos, se_oos, lcb) = mean_se_lcb(&pnls, neff);
+        let (neff, sum_rho) = neff_autocorr(&pnls, stats.econ_neff_lag);
+        let (mu_oos, se_oos, lcb) = mean_se_lcb(&pnls, neff, stats.z_alpha);
         let (_, _, _, drop_d5) = drop_top_winners(&pnls);
-        let bootstrap_p = block_bootstrap_pvalue(&pnls, 20, 2000);
+        let bootstrap_p =
+            block_bootstrap_pvalue(&pnls, stats.econ_block_len, stats.econ_n_resample);
         hl_results.push(HighLevelResult {
             level: lv,
             delta: dl,
@@ -4030,6 +4061,7 @@ fn acc_multilevel_highlevel_mu() {
 
     // ── 报告 ──
     let mut rpt = String::new();
+    let _ = writeln!(rpt, "**统计记录**：`{}`。", stats.record.label());
     let _ = writeln!(
         rpt,
         "# acc-multilevel-sample + acc-highlevel-mu：BTC 全历史多级别 alpha 检验"
@@ -4112,7 +4144,11 @@ fn acc_multilevel_highlevel_mu() {
         "## acc-highlevel-mu：level2+ 逐级别 train-only holdout μ̂/LCB/p"
     );
     let _ = writeln!(rpt, "train_frac={train_frac}，切分日 {split_day}。每个 (level,δ) 独立评估（不从 train-only 挑类——无跨级别选择偏差）。");
-    let _ = writeln!(rpt, "LCB=μ−1.645·se（单侧5%，se 用 neff），block bootstrap p（H0:μ≤0，block=20，B=2000，固定种子）。");
+    let _ = writeln!(
+        rpt,
+        "LCB=μ−{}·se（se 用 neff），block bootstrap p（H0:μ≤0，block={}，B={}，固定种子）。",
+        stats.z_alpha, stats.econ_block_len, stats.econ_n_resample
+    );
     let _ = writeln!(rpt);
     let _ = writeln!(rpt, "| level | δ | train_n | train_Σpnl | holdout_n | holdout_Σpnl | μ̂_OOS | se | LCB | neff/nraw | drop_d5 | bootstrap_p | LCB>0? |");
     let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|---|---|---|---|---|");
@@ -4179,7 +4215,7 @@ fn acc_multilevel_highlevel_mu() {
     let _ = writeln!(rpt, "   - acc-highlevel-mu：level2+ holdout LCB>0 占比={lcb_pos_count}/{total_hl}（{lcb_pos_ratio:.0}%）。{}",
             if lcb_pos_count == 0 { "全否证，高级别无稳健 OOS alpha（L2）。" }
             else { "部分或全部通过 §7.3 强判据（见明细表）。" });
-    let _ = writeln!(rpt, "2. **定义依据**：actual_pnl=δ(Pτout−Pτin)−Ce（664-Q3 真实成交口径）；LCB=μ−1.645se（PDF §7.3，se 用 neff_autocorr 修正）；train-only 每级独立评估（无跨级选择偏差）；Le Cam 硬墙判定（n<30）。");
+    let _ = writeln!(rpt, "2. **定义依据**：actual_pnl=δ(Pτout−Pτin)−Ce（664-Q3 真实成交口径）；LCB=μ−{}se（PDF §7.3，se 用 neff_autocorr 修正，lag={}）；train-only 每级独立评估（无跨级选择偏差）；Le Cam 硬墙判定（n<30）。", stats.z_alpha, stats.econ_neff_lag);
     let _ = writeln!(rpt, "3. **边界条件**：单标的 BTC L2——结论翻转条件：(a) max_bars={max_bars}（若<461万则为截断窗结论）；(b) train_frac={train_frac} 改变切分点结论可能变化；(c) 高级别 n 过少（Le Cam 约束）时 LCB 由 se 主导而非 μ；(d) 不同 bootstrap 种子理论上可影响 p（本实现固定 LCG 种子确定性）。");
     let _ = writeln!(rpt, "4. **下游推论**：若 level2+ 全否证 ⟹ 策略信号层仅可依赖 level0/1（需 L3 跨品种升基座）。若存在 LCB>0 ⟹ 该 (level,δ) 可作 entry 候选（仍需 L3）。否定性结果意味着高级别配额应为 0 或纯结构性（不依赖 alpha 预期）。");
     let _ = writeln!(rpt, "5. **谱系引用**：663 econpositive（可交易性=μ(z,a)>0）；664-Q3（真实成交口径）；formalization-validity-domain（L2 有效域<定义域，L3 待 L2 完成后）；testing-override 生成态例外（测试目的=产出可证伪结果，非通过）；161（否定性结果照实报）。不确定是否有 level2+ alpha 的独立谱系记录，保守声明无关联已知谱系。");
@@ -12570,4 +12606,49 @@ fn cond1_structural_trend_dx() {
         "[p1223] 落盘 {out_path}：候选={} missing_end={missing_end} missing_fwd={missing_fwd}",
         cands.len()
     );
+}
+
+fn write_walkforward_lcb(
+    rpt: &mut String,
+    lcb_oos: f64,
+    stats: &super::super::research_stats::ResearchStats,
+) {
+    use std::fmt::Write;
+    let _ = writeln!(
+        rpt,
+        "| **LCB（μ−{}·se）** | **{lcb_oos:.4e}** |",
+        stats.z_alpha
+    );
+}
+
+fn write_walkforward_bootstrap(
+    rpt: &mut String,
+    q4_p: f64,
+    stats: &super::super::research_stats::ResearchStats,
+) {
+    use std::fmt::Write;
+    let _ = writeln!(rpt, "- **block bootstrap p（H0:μ≤0，block_len={}，B={}，固定种子）= {q4_p:.4}**（p<{} ⟹ 正均值稳健远离 0）。", stats.econ_block_len, stats.econ_n_resample, stats.significance_p_threshold);
+}
+
+#[test]
+fn p1605_r2_report_contains_readings_and_policy_values() {
+    let mut stats = active_research_stats().unwrap();
+    stats.z_alpha = 2.5;
+    stats.econ_block_len = 7;
+    stats.econ_n_resample = 123;
+    stats.significance_p_threshold = 0.1;
+    let mut report = String::new();
+    write_walkforward_lcb(&mut report, 0.0125, &stats);
+    write_walkforward_bootstrap(&mut report, 0.0125, &stats);
+    for expected in [
+        "μ−2.5·se",
+        "1.2500e-2",
+        "block_len=7",
+        "B=123",
+        "= 0.0125",
+        "p<0.1",
+    ] {
+        assert!(report.contains(expected), "缺少 {expected}: {report}");
+    }
+    assert!(!report.contains('{'));
 }

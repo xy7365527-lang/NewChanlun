@@ -9,6 +9,7 @@ use content_manifest::{ManifestMetadata, SourceCommit, UnpublishedManifest};
 use generation::{GenerationInput, GenerationRuntime};
 use newchan_rust::s_content::{self as sc, ContentRef, NodeStore, Value as V};
 use newchan_rust::session_protocol::required;
+use newchan_rust::theta_v0::config::ThetaConfig;
 use rusqlite::Transaction;
 use sc::capture_allocation::scratch::WorkScope;
 
@@ -19,7 +20,7 @@ fn publication_read_lease<'a, 'db>(
     #[cfg(test)] stage: Option<&'a staged_nodes::StageOwner<'a>>,
 ) -> Result<content_store::NativeReadLease<'a, 'db>, sc::CodecError> {
     #[cfg(test)]
-    if let Some(stage) = stage {
+    if let Some(stage) = super::audit_owner::prepare_fault(work)?.and(stage) {
         let work =
             work.ok_or_else(|| sc::CodecError::new(sc::code::SOURCE, "staged租约缺父工作域"))?;
         return content_store::NativeReadLease::new_admitted_staged(tx, work, stage);
@@ -119,6 +120,8 @@ impl<T: NodeStore> audit_store::CodecStore for BusinessTxStore<T> {
 pub(super) struct Runtime {
     /// 与 Driver 同一启动模式；不持 capture/审计结果，Owned 业务缓存按真实生命周期计费。
     mode: s_allocation::Mode,
+    /// 生成链配置；生产与诊断由 Driver 显式区分。
+    theta_config: ThetaConfig,
     binding: Option<Vec<String>>,
     generator: Option<GenerationRuntime>,
     auxiliary: aux_index::Runtime,
@@ -137,17 +140,25 @@ pub(super) struct Runtime {
 }
 
 impl Runtime {
+    #[cfg(test)]
     pub(super) fn new() -> Self {
         Self::with_allocation(None)
     }
 
+    #[cfg(test)]
     pub(super) fn with_allocation(allocation: Option<q_allocation::Profile>) -> Self {
         Self::with_mode(allocation.into())
     }
 
+    #[cfg(test)]
     pub(super) fn with_mode(mode: s_allocation::Mode) -> Self {
+        Self::with_config(mode, ThetaConfig::default())
+    }
+
+    pub(super) fn with_config(mode: s_allocation::Mode, theta_config: ThetaConfig) -> Self {
         Self {
             mode,
+            theta_config,
             binding: None,
             generator: None,
             auxiliary: Default::default(),
@@ -167,6 +178,13 @@ impl Runtime {
     }
 
     #[cfg(test)]
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        )
+    )]
     pub(super) fn set_after_prepare_for_request_test(
         &mut self,
         hook: Option<fn(&Transaction<'_>) -> Result<(), String>>,
@@ -182,6 +200,13 @@ impl Runtime {
         hook: Option<fn(&Transaction<'_>, &ContentRef) -> Result<ContentRef, String>>,
     ) {
         self.before_native_source = hook;
+    }
+
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn parser_config_for_test(&self) -> Option<&ThetaConfig> {
+        self.generator
+            .as_ref()
+            .map(GenerationRuntime::parser_config_for_test)
     }
 
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
@@ -248,6 +273,13 @@ impl Runtime {
         result
     }
     #[cfg(test)]
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        )
+    )]
     pub(super) fn commit_in_request(
         &mut self,
         mut tx: Transaction<'_>,
@@ -282,6 +314,10 @@ impl Runtime {
     ) -> Result<commit::CommitReceipt, String> {
         phase.publish(self, token, envelope, context)
     }
+    #[cfg_attr(
+        all(not(test), feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
+    )]
     pub(super) fn publish_impl(
         &mut self,
         tx: &mut Transaction<'_>,
@@ -327,6 +363,10 @@ impl Runtime {
         )
     }
     /// 调用者在 prepare 之前开启唯一父域，并保持到 Commit 返回；此入口本身不签发整堆资格。
+    #[cfg_attr(
+        all(not(test), feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
+    )]
     pub(super) fn publish_impl_admitted(
         &mut self,
         tx: &mut Transaction<'_>,
@@ -422,6 +462,8 @@ impl Runtime {
                 parent,
             )?;
             #[cfg(test)]
+            state::trace_stage("publish_borrowed", "-", prepared.metadata.generation);
+            #[cfg(test)]
             if let Some(inject) = self.after_prepare {
                 inject(&tx)?;
             }
@@ -458,6 +500,7 @@ impl Runtime {
                     &prepared.metadata,
                     &prepared.roots,
                     &prepared.manifest,
+                    &prepared.policy_records,
                     stage,
                     roots.as_slice(),
                     prepared.workspace,
@@ -471,6 +514,7 @@ impl Runtime {
                 &prepared.metadata,
                 &prepared.roots,
                 &prepared.manifest,
+                &prepared.policy_records,
                 prepared.workspace,
                 work,
             );
@@ -481,8 +525,11 @@ impl Runtime {
                 &prepared.metadata,
                 &prepared.roots,
                 &prepared.manifest,
+                &prepared.policy_records,
             )
         })();
+        #[cfg(test)]
+        state::trace_stage("publish_end", "-", -1);
         #[cfg(all(test, feature = "s_capture_native_testonly"))]
         {
             self.last_stage_report = stage.as_ref().map(|owner| owner.report());
@@ -601,6 +648,7 @@ impl Runtime {
             catalog_revision: get("catalog_revision")?,
             scope: scope_root,
         };
+        super::require_current_writer_rule(&metadata.rule_revision)?;
         content_publication::verify_current_begin_admitted(tx, token, metadata.view(), work)?;
         if metadata.profile_id != tb02a::PROFILE {
             return Err(err("非OHLC档生成/来源接线仍未实现"));
@@ -638,10 +686,11 @@ impl Runtime {
                 return Err(err("运行缓存绑定了另一库/会话/冻结域；必须创建新运行实例"));
             }
         } else {
-            self.generator = Some(GenerationRuntime::new(
+            self.generator = Some(GenerationRuntime::with_config(
                 lane_key,
                 &metadata.profile_id,
                 &metadata.rule_revision,
+                self.theta_config.clone(),
             ));
             self.binding = Some(binding);
         }
@@ -660,6 +709,7 @@ impl Runtime {
             let (prior_bi, prior_version) = object_index::prior_records(&audited.objects)?;
             drop(control);
             // 第一次租约只覆盖生成、对象计划与axes；结束后才能借实际tx材料。
+            #[cfg_attr(not(test), allow(unused_mut))]
             let (mut generated, objects, axes) = {
                 let mut store = BusinessTxStore {
                     inner: publication_read_lease(
@@ -673,6 +723,8 @@ impl Runtime {
                 };
                 sc::write_value(&mut store, &scope_value).map_err(err)?;
                 let generator = self.generator.as_mut().ok_or_else(|| err("生成器未绑定"))?;
+                #[cfg(test)]
+                state::trace_stage("generate", "delta", generation);
                 let mut generated = generator.generate_bound(
                     &mut store,
                     raw,
@@ -692,6 +744,8 @@ impl Runtime {
                         },
                     },
                 )?;
+                #[cfg(test)]
+                state::trace_stage("object_plan", "delta", generation);
                 let objects = object_index::plan_native_union_for_testonly(
                     &mut store,
                     &generated.objects,
@@ -741,6 +795,8 @@ impl Runtime {
                 stage,
                 |material| {
                     let material = material.ok_or_else(|| err("owner增量缺实际材料能力"))?;
+                    #[cfg(test)]
+                    state::trace_stage("prepare_source_audit", "delta", generation);
                     let (counts, source) = super::audit_owner::audit_native_source_cut(
                         material,
                         capture,
@@ -775,6 +831,8 @@ impl Runtime {
                         frontier,
                         generation,
                     )?;
+                    #[cfg(test)]
+                    state::trace_stage("stage_indexes", "delta", generation);
                     object_index::stage_in_material(
                         tx,
                         &mut store,
@@ -795,7 +853,7 @@ impl Runtime {
                 },
             )?;
             let NodeProducts {
-                generated: _generated,
+                generated,
                 objects: _objects,
                 axes: _axes,
                 counts: _counts,
@@ -806,10 +864,12 @@ impl Runtime {
                 manifest,
                 workspace,
             } = products;
+            let policy_records = generated.policy_records.clone();
             return Ok(Prepared {
                 metadata,
                 roots,
                 manifest,
+                policy_records,
                 workspace,
             });
         }
@@ -876,8 +936,10 @@ impl Runtime {
                     frontier,
                 )?
             }; // The lease ends before raw SQL; the frozen workspace is inert until row rebinding.
+            #[cfg(test)]
+            state::trace_stage("stage_indexes", "full_lease", generation);
             let NodeProducts {
-                generated: _generated,
+                generated,
                 objects,
                 axes,
                 counts: _counts,
@@ -888,6 +950,7 @@ impl Runtime {
                 manifest,
                 workspace,
             } = products;
+            let policy_records = generated.policy_records.clone();
             #[cfg(test)]
             if let Some(stage) = stage {
                 stage.flush_cut(
@@ -941,6 +1004,7 @@ impl Runtime {
                 metadata,
                 roots,
                 manifest,
+                policy_records,
                 workspace,
             });
         }
@@ -957,7 +1021,7 @@ impl Runtime {
             budget: audited.budget.clone(),
         };
         let NodeProducts {
-            generated: _generated,
+            generated,
             objects,
             axes,
             counts: _counts,
@@ -981,6 +1045,9 @@ impl Runtime {
             generation,
             frontier,
         )?;
+        let policy_records = generated.policy_records.clone();
+        #[cfg(test)]
+        state::trace_stage("stage_indexes", "full", generation);
         #[cfg(feature = "s_capture_native_testonly")]
         publication_material(
             tx,
@@ -1021,6 +1088,7 @@ impl Runtime {
             metadata,
             roots,
             manifest,
+            policy_records,
             #[cfg(feature = "s_capture_native_testonly")]
             workspace,
         })
@@ -1042,10 +1110,20 @@ impl Runtime {
     ) -> Result<NodeProducts<'raw>, String> {
         sc::write_value(store, scope_value).map_err(err)?;
         let generator = self.generator.as_mut().ok_or_else(|| err("生成器未绑定"))?;
+        #[cfg(test)]
+        let path = if native.is_some() {
+            "full_lease"
+        } else {
+            "full"
+        };
+        #[cfg(test)]
+        state::trace_stage("generate", path, generation);
         let mut generated = match native {
             Some(native) => generator.generate_native_lease(store, input, native)?,
             None => generator.generate_with_allocation(store, input, audited.budget.as_ref())?,
         };
+        #[cfg(test)]
+        state::trace_stage("object_plan", path, generation);
         #[cfg(feature = "s_capture_native_testonly")]
         let objects = if matches!(self.mode, s_allocation::Mode::CapturedNative) {
             object_index::plan_native_union_for_testonly(
@@ -1069,6 +1147,8 @@ impl Runtime {
                     .into(),
             )
             .map_err(err)?;
+        #[cfg(test)]
+        state::trace_stage("prepare_source_audit", path, generation);
         let counts = source_audit::audit_generated(
             store,
             &generated.generated_state,
@@ -1095,6 +1175,13 @@ impl Runtime {
     fn finish_node_products<'raw, S: NodeStore>(
         &mut self,
         store: &mut BusinessTxStore<S>,
+        #[cfg_attr(
+            not(feature = "s_capture_native_testonly"),
+            allow(
+                unused_variables,
+                reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
+            )
+        )]
         workspace_eligible: bool,
         #[cfg(feature = "s_capture_native_testonly")] workspace_budget: Option<
             request_audit::ManifestWorkspaceBudget,
@@ -1109,6 +1196,8 @@ impl Runtime {
         frontier: i64,
         generation: i64,
     ) -> Result<NodeProducts<'raw>, String> {
+        #[cfg(test)]
+        state::trace_stage("assemble_manifest", "-", generation);
         let auxiliary = self.auxiliary.plan(
             store,
             &audited.auxiliary,
@@ -1172,6 +1261,10 @@ impl Runtime {
         #[cfg(not(feature = "s_capture_native_testonly"))]
         let manifest =
             content_manifest::assemble_unpublished(store, metadata, &roots).map_err(err)?;
+        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        if workspace.is_some() {
+            state::trace_event("s4_manifest_workspace", Some(generation));
+        }
         Ok(NodeProducts {
             generated,
             objects,
@@ -1224,6 +1317,7 @@ struct Prepared {
     metadata: ManifestMetadata,
     roots: NativeManifestRoots,
     manifest: UnpublishedManifest,
+    policy_records: String,
     #[cfg(feature = "s_capture_native_testonly")]
     workspace: Option<content_manifest::PreparedManifestWorkspace>,
 }
@@ -1244,6 +1338,7 @@ fn cv(v: &Value) -> Result<V, String> {
         ),
     })
 }
+#[allow(dead_code, reason = "#1488 再合 #1608：8组合实测无调用方，保留不删")]
 fn edge(r: &ContentRef) -> Result<V, String> {
     Ok(V::Edge(r.digest().map_err(err)?))
 }
@@ -2062,6 +2157,10 @@ pub(crate) mod tests {
     }
     #[test]
     fn generic_business_store_keeps_legacy_owned_layout() {
+        #[allow(
+            dead_code,
+            reason = "#1608：布局对照结构，只用于 size_of/align_of 测量，字段不读"
+        )]
         struct Before<'a, 'c> {
             inner: content_store::TxStore<'a, 'c>,
             budget: Option<sc::capture_allocation::OwnedBudget>,
@@ -2160,6 +2259,48 @@ pub(crate) mod tests {
     }
 
     /// Normal append/revision only. Does not call the older observation/fault entries.
+    /// #1488 S3 assemble_manifest 读量锁：§5.4 三根（scope/生成态/两模板）全闭包核验之外的
+    /// 单次组装读量是与 g 无关的常数；全闭包核验本身随状态增长、请求审计逐 cut 重组随历史增长，
+    /// 按 D6 归段 B（报告实测）。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn assemble_manifest_reads_beyond_closure_verify_stay_constant() {
+        let mut f = Fixture::new();
+        let mut rest = Vec::new();
+        for (n, row, revision) in [
+            (1, ("a", 0, 6, 12, 3, 7), 1),
+            (2, ("b", 10, 8, 16, 6, 12), 1),
+            (3, ("c", 20, 8, 13, 4, 7), 1),
+            (4, ("b", 10, 8, 17, 6, 12), 2),
+        ] {
+            let (e, t) = f.accept_begin(n, row, revision);
+            content_manifest::take_assemble_call_reads_for_test();
+            f.publish(&e, &t).unwrap();
+            let calls = content_manifest::take_assemble_call_reads_for_test();
+            eprintln!("S3_ASSEMBLE_READS g={n} calls(total,closure_verify)={calls:?}");
+            rest.push(
+                calls
+                    .iter()
+                    .map(|(total, verify)| total - verify)
+                    .collect::<Vec<_>>(),
+            );
+        }
+        // 每次 publish：请求审计逐个重组已发布 cut（g-1 次）+ 本代组装与发布核对（2 次）。
+        // 单次调用的核验外读量只分两档（本代首读 / 历史 cut 复读），各自与 g 无关。
+        for (g, calls) in rest.iter().enumerate() {
+            assert_eq!(calls.len(), g + 2, "g={} 组装调用次数", g + 1);
+            let (history, current) = calls.split_at(g);
+            assert!(
+                current.iter().all(|r| *r == rest[0][0]),
+                "本代组装核验外读量须与 g 无关：{rest:?}"
+            );
+            assert!(
+                history.iter().all(|r| *r == rest[1][0]),
+                "历史 cut 组装核验外读量须与 g 无关：{rest:?}"
+            );
+        }
+    }
+
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn native_manifest_workspace_four_normal_commits_match_cold_and_ordinary_full_rows() {
@@ -2182,6 +2323,11 @@ pub(crate) mod tests {
         let total = 536_870_912;
         let mut keeper = Some(super::super::cross_request_source_cache::Keeper::new(total));
         let mut shared_old_pool_seen = false;
+        // Explicit finite prototype heap cap, independent of the S7 source allowance.
+        // v4：同一生产路径只有一个真实分配父；warm runtime 跨请求的 Native memo 已绑定该父，
+        // 每代新建父即换父（wrong-parent 拒绝），故四代共用同一父账，live/peak 连续。
+        let shared_parent = admitted
+            .then(|| super::super::audit_owner::native::Budget::new(64 * 1024 * 1024, 0).unwrap());
         let before = content_manifest::manifest_workspace_stats();
         for (n, row, revision) in [
             (1, ("a", 0, 6, 12, 3, 7), 1),
@@ -2210,9 +2356,7 @@ pub(crate) mod tests {
             let start = std::time::Instant::now();
             let mut tx = warm.conn.transaction().unwrap();
             let wr = if admitted {
-                // Explicit finite prototype heap cap, independent of the S7 source allowance.
-                let parent =
-                    super::super::audit_owner::native::Budget::new(64 * 1024 * 1024, 0).unwrap();
+                let parent = shared_parent.as_ref().unwrap();
                 let baseline = parent.live();
                 let receipt = parent
                     .codec_work()
@@ -2403,13 +2547,15 @@ pub(crate) mod tests {
             // Arc计数不受随后SQL回滚影响，表本身则必须一起回滚。
             let fired = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
             let observed = fired.clone();
-            f.conn.update_hook(Some(
-                move |_: rusqlite::hooks::Action, _: &str, table: &str, _: i64| {
-                    if table == "native_local_fault_seen" {
-                        observed.fetch_add(1, Ordering::SeqCst);
-                    }
-                },
-            ));
+            f.conn
+                .update_hook(Some(
+                    move |_: rusqlite::hooks::Action, _: &str, table: &str, _: i64| {
+                        if table == "native_local_fault_seen" {
+                            observed.fetch_add(1, Ordering::SeqCst);
+                        }
+                    },
+                ))
+                .expect("安装故障观察 update_hook");
             let hex = sc::root_string(&target);
             let hex = hex.strip_prefix("sc1-").unwrap();
             let damage = if delete {

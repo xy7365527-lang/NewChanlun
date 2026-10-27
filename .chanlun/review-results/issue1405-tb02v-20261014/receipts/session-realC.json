@@ -1,0 +1,296 @@
+{
+ "realC-r1": {
+  "head": "1f90227633",
+  "check": {
+   "run_status": "CAPTURED_REQUIRES_DOUBLE_RUN_ORACLE_AND_BROWSER",
+   "run_error": null,
+   "contract_all_cuts": {
+    "status": "passed",
+    "cuts": 27,
+    "case": null,
+    "scope": "真实库的Q/前端合同定点验证；非launcher/HTTP/GUI验收"
+   },
+   "status": "PASS",
+   "cuts": 27,
+   "extension_chain": [
+    [
+     18,
+     16,
+     "1"
+    ],
+    [
+     19,
+     16,
+     "2"
+    ],
+    [
+     20,
+     16,
+     "2"
+    ],
+    [
+     21,
+     16,
+     "2"
+    ],
+    [
+     22,
+     16,
+     "2"
+    ],
+    [
+     23,
+     16,
+     "2"
+    ],
+    [
+     24,
+     21,
+     "3"
+    ],
+    [
+     25,
+     21,
+     "4"
+    ],
+    [
+     26,
+     21,
+     "4"
+    ],
+    [
+     27,
+     21,
+     "4"
+    ]
+   ],
+   "first_stroke_cuts": 14,
+   "scope": "正式 launcher + socket 接纳 + HTTP 公共查询（live/AsKnown/重访）；浏览器另由 check-browser 核"
+  },
+  "final_cut_object_counts": {
+   "CC-006.local_shape": 10,
+   "CC-004.inclusion_step": 27,
+   "CC-005.inclusion_group": 19,
+   "CC-007.fractal_description": 6,
+   "CC-008.endpoint": 10,
+   "CC-008.new_bi_pair": 6,
+   "CC-009.same_kind": 3,
+   "CC-010.bi": 2,
+   "CC-011.seed_candidate": 1,
+   "CC-054.knowledge_state": 1,
+   "CC-055.relation": 28,
+   "CC-056.segment_version": 1,
+   "CC-056.version": 1
+  },
+  "knowledge_domain": "established_direction_without_extreme_identity_competition",
+  "knowledge_waiting_reasons": [
+   "direction_not_yet_established",
+   "equal_extreme_identity",
+   "no_settled_numeric_rule"
+  ],
+  "null_subject_requests": 7,
+  "catalog_evidence": {
+   "classified_objects": "115",
+   "windows_total": "17",
+   "insufficient_knowledge": "0",
+   "domain_not_satisfied": "0",
+   "rule_revision": "s2-axis-quantifiers+new-bi/1+segment-second/1"
+  }
+ },
+ "realC-r2-rule": {
+  "head": "12d1f1223f（工作区）",
+  "check": {
+   "run_status": "CAPTURED_REQUIRES_DOUBLE_RUN_ORACLE_AND_BROWSER",
+   "run_error": null,
+   "contract_all_cuts": {
+    "status": "passed",
+    "cuts": 27,
+    "case": null,
+    "scope": "真实库的Q/前端合同定点验证；非launcher/HTTP/GUI验收"
+   },
+   "status": "PASS",
+   "cuts": 27,
+   "extension_chain": [
+    [
+     18,
+     16,
+     "1"
+    ],
+    [
+     19,
+     16,
+     "2"
+    ],
+    [
+     20,
+     16,
+     "2"
+    ],
+    [
+     21,
+     16,
+     "2"
+    ],
+    [
+     22,
+     16,
+     "2"
+    ],
+    [
+     23,
+     16,
+     "2"
+    ],
+    [
+     24,
+     21,
+     "3"
+    ],
+    [
+     25,
+     21,
+     "4"
+    ],
+    [
+     26,
+     21,
+     "4"
+    ],
+    [
+     27,
+     21,
+     "4"
+    ]
+   ],
+   "first_stroke_cuts": 14,
+   "scope": "正式 launcher + socket 接纳 + HTTP 公共查询（live/AsKnown/重访）；浏览器另由 check-browser 核"
+  },
+  "final_cut_object_counts": {
+   "CC-006.local_shape": 10,
+   "CC-004.inclusion_step": 27,
+   "CC-005.inclusion_group": 19,
+   "CC-007.fractal_description": 6,
+   "CC-008.endpoint": 10,
+   "CC-008.new_bi_pair": 6,
+   "CC-009.same_kind": 3,
+   "CC-010.bi": 2,
+   "CC-011.seed_candidate": 1,
+   "CC-054.knowledge_state": 1,
+   "CC-055.relation": 28,
+   "CC-056.segment_version": 1,
+   "CC-056.version": 1
+  },
+  "knowledge_domain": "established_direction_without_extreme_identity_competition",
+  "knowledge_waiting_reasons": [
+   "direction_not_yet_established",
+   "equal_extreme_identity",
+   "no_settled_numeric_rule"
+  ],
+  "null_subject_requests": 7,
+  "catalog_evidence": {
+   "classified_objects": "115",
+   "windows_total": "17",
+   "insufficient_knowledge": "0",
+   "domain_not_satisfied": "0",
+   "rule_revision": "s2-axis-quantifiers+new-bi/2+segment-second/1"
+  }
+ },
+ "realC-r3-tb02a": {
+  "head": "93e9097915（工作区）",
+  "check": {
+   "run_status": "CAPTURED_REQUIRES_DOUBLE_RUN_ORACLE_AND_BROWSER",
+   "run_error": null,
+   "contract_all_cuts": {
+    "status": "passed",
+    "cuts": 27,
+    "case": null,
+    "scope": "真实库的Q/前端合同定点验证；非launcher/HTTP/GUI验收"
+   },
+   "status": "PASS",
+   "cuts": 27,
+   "extension_chain": [
+    [
+     18,
+     16,
+     "1"
+    ],
+    [
+     19,
+     16,
+     "2"
+    ],
+    [
+     20,
+     16,
+     "2"
+    ],
+    [
+     21,
+     16,
+     "2"
+    ],
+    [
+     22,
+     16,
+     "2"
+    ],
+    [
+     23,
+     16,
+     "2"
+    ],
+    [
+     24,
+     21,
+     "3"
+    ],
+    [
+     25,
+     21,
+     "4"
+    ],
+    [
+     26,
+     21,
+     "4"
+    ],
+    [
+     27,
+     21,
+     "4"
+    ]
+   ],
+   "first_stroke_cuts": 14,
+   "scope": "正式 launcher + socket 接纳 + HTTP 公共查询（live/AsKnown/重访）；浏览器另由 check-browser 核"
+  },
+  "final_cut_object_counts": {
+   "CC-006.local_shape": 17,
+   "CC-004.inclusion_step": 27,
+   "CC-005.inclusion_group": 19,
+   "CC-007.fractal_description": 10,
+   "CC-008.endpoint": 10,
+   "CC-008.new_bi_pair": 6,
+   "CC-009.same_kind": 3,
+   "CC-010.bi": 2,
+   "CC-011.seed_candidate": 1,
+   "CC-054.knowledge_state": 1,
+   "CC-055.relation": 28,
+   "CC-056.segment_version": 1,
+   "CC-056.version": 1
+  },
+  "knowledge_domain": "established_direction_with_extreme_root_sets",
+  "knowledge_waiting_reasons": [
+   "direction_not_yet_established",
+   "no_settled_numeric_rule",
+   "no_subsequent_bar"
+  ],
+  "null_subject_requests": 0,
+  "catalog_evidence": {
+   "classified_objects": "126",
+   "windows_total": "17",
+   "insufficient_knowledge": "0",
+   "domain_not_satisfied": "0",
+   "rule_revision": "s2-axis-quantifiers+new-bi/2+segment-second/1"
+  }
+ }
+}

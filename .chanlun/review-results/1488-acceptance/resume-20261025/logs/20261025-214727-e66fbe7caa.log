@@ -1,0 +1,516 @@
+ref=codex/1488-fix-p2-resume-20261023 sha=e66fbe7caa5f5d8425c1a4308f07b169cd5adccd sub=rust target=/home/hanju/nc-remote/target-r88 cmd=bash -c set\ +e\;\ rustc\ --version\;\ for\ pair\ in\ default:\ backtest_bin:backtest_bin\ s_session:s_session\ native:s_session\,s_capture_native_testonly\;\ do\ label=$\{pair%%:\*\}\;\ features=$\{pair#\*:\}\;\ echo\ "===\ BEGIN\ $label\ ==="\;\ if\ \[\ -n\ "$features"\ \]\;\ then\ RUSTFLAGS="-D\ warnings"\ cargo\ check\ --locked\ --all-targets\ --features\ "$features"\;\ else\ RUSTFLAGS="-D\ warnings"\ cargo\ check\ --locked\ --all-targets\;\ fi\;\ echo\ "===\ END\ $label\ RC=$\?\ ==="\;\ done 
+rustc 1.99.1 (58cf8f9c3 2026-10-13)
+=== BEGIN default ===
+   Compiling target-lexicon v0.12.16
+   Compiling once_cell v1.21.4
+   Compiling proc-macro2 v1.0.106
+   Compiling unicode-ident v1.0.24
+   Compiling quote v1.0.45
+   Compiling libc v0.2.189
+    Checking cfg-if v1.0.4
+   Compiling serde_core v1.0.229
+   Compiling autocfg v1.5.1
+   Compiling heck v0.5.0
+   Compiling zmij v1.0.21
+   Compiling memoffset v0.9.1
+   Compiling serde_json v1.0.151
+   Compiling serde v1.0.229
+    Checking unindent v0.2.4
+   Compiling pyo3-build-config v0.23.5
+   Compiling indoc v2.0.7
+    Checking itoa v1.0.18
+    Checking memchr v2.8.2
+   Compiling version_check v0.9.5
+   Compiling generic-array v0.14.7
+    Checking typenum v1.20.1
+   Compiling syn v2.0.117
+   Compiling syn v3.0.4
+   Compiling rustix v1.1.5
+   Compiling getrandom v0.4.3
+    Checking bitflags v2.13.0
+    Checking linux-raw-sys v0.12.1
+    Checking allocator-api2 v0.2.21
+    Checking crypto-common v0.1.7
+    Checking block-buffer v0.10.4
+    Checking digest v0.10.7
+    Checking fastrand v2.5.0
+    Checking cpufeatures v0.2.17
+    Checking hashbrown v0.17.1
+    Checking sha2 v0.10.9
+   Compiling pyo3-ffi v0.23.5
+   Compiling pyo3-macros-backend v0.23.5
+   Compiling pyo3 v0.23.5
+   Compiling serde_derive v1.0.229
+    Checking tempfile v3.27.0
+   Compiling pyo3-macros v0.23.5
+    Checking newchan_rust v0.1.0 (/home/hanju/nc-remote/wt/20261025-214727-e66fbe7caa/rust)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 20.17s
+=== END default RC=0 ===
+=== BEGIN backtest_bin ===
+   Compiling proc-macro2 v1.0.106
+   Compiling serde_core v1.0.229
+   Compiling serde v1.0.229
+   Compiling strsim v0.11.1
+   Compiling ident_case v1.0.1
+   Compiling winnow v1.0.3
+    Checking memchr v2.8.2
+   Compiling rustversion v1.0.22
+   Compiling num-traits v0.2.19
+   Compiling parking_lot_core v0.9.12
+   Compiling fnv v1.0.7
+    Checking rand_core v0.10.1
+   Compiling getrandom v0.4.3
+   Compiling getrandom v0.3.4
+   Compiling equivalent v1.0.2
+   Compiling prettyplease v0.2.37
+   Compiling quote v1.0.45
+   Compiling toml_parser v1.1.3+spec-1.1.0
+   Compiling hashbrown v0.17.1
+   Compiling syn v2.0.117
+   Compiling syn v3.0.4
+    Checking futures-core v0.3.34
+   Compiling zerocopy v0.8.52
+    Checking scopeguard v1.2.0
+   Compiling semver v1.0.28
+    Checking lock_api v0.4.14
+   Compiling rustc_version v0.4.1
+   Compiling aho-corasick v1.1.4
+   Compiling indexmap v2.14.0
+   Compiling toml_datetime v1.1.1+spec-1.1.0
+   Compiling serde_spanned v1.1.1
+   Compiling ahash v0.8.12
+    Checking cpufeatures v0.3.0
+   Compiling toml v1.1.4+spec-1.1.0
+    Checking pin-project-lite v0.2.17
+   Compiling regex-syntax v0.8.11
+    Checking futures-sink v0.3.34
+   Compiling toml_edit v0.25.12+spec-1.1.0
+    Checking futures-channel v0.3.34
+   Compiling rstest_macros v0.26.1
+   Compiling crossbeam-utils v0.8.21
+    Checking futures-task v0.3.34
+   Compiling rust_decimal v1.42.1
+   Compiling regex-automata v0.4.18
+    Checking arrayvec v0.7.7
+   Compiling darling_core v0.20.11
+   Compiling darling_core v0.23.0
+    Checking slab v0.4.12
+   Compiling serde_json v1.0.151
+   Compiling anyhow v1.0.104
+   Compiling serde_derive v1.0.229
+   Compiling futures-macro v0.3.34
+   Compiling thiserror v2.0.20
+    Checking futures-io v0.3.34
+   Compiling thiserror-impl v2.0.20
+   Compiling proc-macro-crate v3.5.0
+   Compiling regex v1.13.1
+   Compiling nautilus-core v0.62.0
+   Compiling darling_macro v0.20.11
+    Checking rmp v0.8.15
+    Checking chacha20 v0.10.1
+    Checking futures-util v0.3.34
+   Compiling relative-path v1.9.3
+   Compiling darling_macro v0.23.0
+   Compiling cfg-if v1.0.4
+   Compiling darling v0.20.11
+    Checking byteorder v1.5.0
+   Compiling derive_builder_core v0.20.2
+    Checking jiff-tzdb v0.1.8
+   Compiling glob v0.3.3
+    Checking value-bag v1.12.0
+    Checking bytecount v0.6.9
+    Checking jiff-core v0.1.0
+    Checking unicode-width v0.2.2
+    Checking lazy_static v1.5.0
+   Compiling implied-vol v2.0.0
+    Checking papergrid v0.18.0
+   Compiling darling v0.23.0
+   Compiling bon-macros v3.9.3
+   Compiling derive_builder_macro v0.20.2
+    Checking jiff v0.2.35
+    Checking log v0.4.33
+    Checking rand v0.10.2
+   Compiling strum_macros v0.28.0
+    Checking uuid v1.26.0
+    Checking arc-swap v1.9.2
+    Checking hashbrown v0.14.5
+   Compiling ruint-macro v1.2.1
+    Checking futures-timer v3.0.4
+    Checking smallvec v1.15.2
+    Checking parking_lot v0.12.5
+    Checking bytes v1.12.1
+    Checking ustr v1.1.0
+    Checking rmp-serde v1.3.1
+    Checking dashmap v6.2.1
+    Checking derive_builder v0.20.2
+    Checking tabled v0.21.0
+   Compiling enum_dispatch v0.3.13
+   Compiling rust_decimal_macros v1.40.0
+    Checking ruint v1.20.0
+   Compiling async-stream-impl v0.3.6
+    Checking strum v0.28.0
+   Compiling nautilus-common v0.62.0
+    Checking futures v0.3.34
+   Compiling async-trait v0.1.92
+    Checking sysinfo v0.39.6
+    Checking rstest v0.26.1
+   Compiling shlex v2.0.1
+   Compiling find-msvc-tools v0.1.9
+   Compiling pyo3-macros-backend v0.23.5
+   Compiling cc v1.2.65
+    Checking constant_time_eq v0.4.2
+    Checking tempfile v3.27.0
+    Checking async-stream v0.3.6
+    Checking bon v3.9.3
+    Checking nautilus-model v0.62.0
+   Compiling blake3 v1.8.7
+   Compiling pyo3-macros v0.23.5
+    Checking pyo3 v0.23.5
+    Checking nautilus-analysis v0.62.0
+    Checking nautilus-execution v0.62.0
+    Checking nautilus-portfolio v0.62.0
+    Checking nautilus-data v0.62.0
+    Checking nautilus-risk v0.62.0
+    Checking nautilus-trading v0.62.0
+    Checking nautilus-system v0.62.0
+    Checking nautilus-backtest v0.62.0
+    Checking newchan_rust v0.1.0 (/home/hanju/nc-remote/wt/20261025-214727-e66fbe7caa/rust)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 33.37s
+=== END backtest_bin RC=0 ===
+=== BEGIN s_session ===
+   Compiling pkg-config v0.3.34
+   Compiling vcpkg v0.2.15
+    Checking foldhash v0.2.0
+    Checking fallible-streaming-iterator v0.1.9
+    Checking fallible-iterator v0.3.0
+    Checking smallvec v1.15.2
+    Checking hashbrown v0.17.1
+   Compiling libsqlite3-sys v0.38.2
+    Checking hashlink v0.12.2
+    Checking rusqlite v0.40.2
+    Checking newchan_rust v0.1.0 (/home/hanju/nc-remote/wt/20261025-214727-e66fbe7caa/rust)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 24.53s
+=== END s_session RC=0 ===
+=== BEGIN native ===
+    Checking newchan_rust v0.1.0 (/home/hanju/nc-remote/wt/20261025-214727-e66fbe7caa/rust)
+error[E0425]: cannot find type `SourceWork` in module `super::super::source_audit`
+   --> src/bin/s_session_v3/construction_state.rs:270:76
+    |
+270 | ...t::SourceWork> {
+    |       ^^^^^^^^^^ not found in `super::super::source_audit`
+    |
+note: struct `crate::v3::source_audit::source_contributions::SourceWork` exists but is inaccessible
+   --> src/bin/s_session_v3/source_contributions.rs:404:1
+    |
+404 | pub(c...eWork {
+    | ^^^^^...^^^^^ not accessible
+
+error[E0425]: cannot find type `PublicationStageIdentity` in this scope
+   --> src/bin/s_session_v3/audit_owner.rs:170:17
+    |
+170 | ...lt<Publi...ntity, S...
+    |       ^^^^^...^^^^^ not found in this scope
+    |
+help: consider importing this struct
+    |
+  6 + use crate::v3::audit_owner::effects::PublicationStageIdentity;
+    |
+
+error[E0425]: cannot find type `PublicationStageIdentity` in module `crate::v3::audit_owner`
+    --> src/bin/s_session_v2/staged_nodes.rs:62:46
+     |
+  62 | ...r::Publi...ntity>,
+     |       ^^^^^...^^^^^ not found in `crate::v3::audit_owner`
+     |
+note: struct `crate::v3::audit_owner::effects::PublicationStageIdentity` exists but is inaccessible
+    --> src/bin/s_session_v3/audit_owner/effects.rs:1507:1
+     |
+1507 | pub(c...ntity {
+     | ^^^^^...^^^^^ not accessible
+
+error: variable does not need to be mutable
+    --> src/bin/s_session_v3/audit_owner.rs:2863:17
+     |
+2863 | ...et mut a...d_cut =
+     |       ----^...^^^^^
+     |       |
+     |       help: remove this `mut`
+     |
+     = note: `-D unused-mut` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(unused_mut)]`
+
+error: method `remaining` is never used
+   --> src/bin/s_session_v3/audit_owner.rs:184:8
+    |
+150 | impl<...e<'w> {
+    | -----...----- method in this implementation
+...
+184 |     fn remaining(&self) -> usize {
+    |        ^^^^^^^^^
+    |
+    = note: `-D dead-code` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[expect(dead_code)]` or `#[allow(dead_code)]`
+
+error: method `complete_retained_bytes` is never used
+    --> src/bin/s_session_v3/audit_owner.rs:1310:19
+     |
+1281 | impl ...ction {
+     | -----...----- method in this implementation
+...
+1310 |     pub(super) fn compl...bytes(&s...
+     |                   ^^^^^...^^^^^
+
+error: method `bind_frozen` is never used
+   --> src/bin/s_session_v3/audit_owner/native.rs:582:19
+    |
+497 | impl Budget {
+    | ----------- method in this implementation
+...
+582 |     pub(crate) fn bind_frozen(
+    |                   ^^^^^^^^^^^
+
+error: methods `bind_or_handoff`, `bind_initial`, and `handoff` are never used
+   --> src/bin/s_session_v3/audit_owner/native.rs:822:19
+    |
+821 | impl Budget {
+    | ----------- methods in this implementation
+822 |     pub(crate) fn bind_...ndoff(
+    |                   ^^^^^...^^^^^
+...
+833 |     pub(crate) fn bind_initial(
+    |                   ^^^^^^^^^^^^
+...
+850 |     pub(crate) fn handoff(&self, req...
+    |                   ^^^^^^^
+
+error: struct `BudgetObserver` is never constructed
+    --> src/bin/s_session_v3/audit_owner/native.rs:1313:19
+     |
+1313 | ...ct Budge...erver(Ar...
+     |       ^^^^^...^^^^^
+
+error: struct `ObserverInner` is never constructed
+    --> src/bin/s_session_v3/audit_owner/native.rs:1314:8
+     |
+1314 | ...ct ObserverInner {
+     |       ^^^^^^^^^^^^^
+
+error: associated items `sponsor_bytes`, `new`, `live`, `peak`, `total_live`, and `same_parent` are never used
+    --> src/bin/s_session_v3/audit_owner/native.rs:1321:19
+     |
+1319 | impl ...erver {
+     | -----...----- associated items in this implementation
+1320 |     /// sponsor按根Ledger元数据M...
+1321 |     pub(crate) fn sponsor_bytes() ...
+     |                   ^^^^^^^^^^^^^
+...
+1324 |     pub(crate) fn new(budget: &Bud...
+     |                   ^^^
+...
+1343 |     pub(crate) fn live(&self) -> u...
+     |                   ^^^^
+...
+1347 |     pub(crate) fn peak(&self) -> u...
+     |                   ^^^^
+...
+1350 |     pub(crate) fn total_live(&self...
+     |                   ^^^^^^^^^^
+...
+1353 |     pub(crate) fn same_parent(&sel...
+     |                   ^^^^^^^^^^^
+
+error: method `is_empty` is never used
+    --> src/bin/s_session_v3/audit_owner/native.rs:1445:19
+     |
+1435 | impl<...ee<V> {
+     | -----...----- method in this implementation
+...
+1445 |     pub(crate) fn is_empty(&s...
+     |                   ^^^^^^^^
+
+error: field `previous` is never read
+   --> src/bin/s_session_v3/construction_set.rs:257:16
+    |
+256 | ...truct PendingSet {
+    |          ---------- field in this struct
+257 | ...r) previous: Option...
+    |       ^^^^^^^^
+
+error: methods `tree_len`, `tree_remove`, and `tree_insert` are never used
+   --> src/bin/s_session_v3/audit_retention.rs:86:19
+    |
+ 24 | impl ...Delta {
+    | -----...----- methods in this implementation
+...
+ 86 |     pub(crate) fn tree_len<K, V>...
+    |                   ^^^^^^^^
+...
+ 96 |     pub(crate) fn tree_remove<K:...
+    |                   ^^^^^^^^^^^
+...
+105 |     pub(crate) fn tree_insert<K:...
+    |                   ^^^^^^^^^^^
+
+error: function `stage` is never used
+    --> src/bin/s_session_v3/aux_index.rs:2485:15
+     |
+2485 | ...fn stage(
+     |       ^^^^^
+
+error: method `retention_cap` is never used
+   --> src/bin/s_session_v3/cross_request_source_cache.rs:632:19
+    |
+595 | impl Keeper {
+    | ----------- method in this implementation
+...
+632 |     pub(super) fn retention_cap(&s...
+    |                   ^^^^^^^^^^^^^
+
+error: methods `text`, `integer`, and `slot` are never used
+   --> src/bin/s_session_v3/object_index.rs:122:19
+    |
+ 94 | impl Fields {
+    | ----------- methods in this implementation
+...
+122 |     pub(super) fn text(
+    |                   ^^^^
+...
+136 |     pub(super) fn integer(
+    |                   ^^^^^^^
+...
+159 |     fn slot(&self, s: &mut (...
+    |        ^^^^
+
+error: function `stage` is never used
+    --> src/bin/s_session_v3/object_index.rs:2188:15
+     |
+2188 | ...fn stage(
+     |       ^^^^^
+
+error: methods `publish_impl` and `publish_impl_admitted` are never used
+   --> src/bin/s_session_v3/prepared.rs:301:19
+    |
+139 | impl Runtime {
+    | ------------ methods in this implementation
+...
+301 |     pub(super) fn publish_impl(
+    |                   ^^^^^^^^^^^^
+...
+346 |     pub(super) fn publi...itted(
+    |                   ^^^^^...^^^^^
+
+error: multiple methods are never used
+   --> src/bin/s_session_v3/request_audit.rs:236:19
+    |
+ 90 | impl ...ition {
+    | -----...----- methods in this implementation
+...
+236 |     pub(crate) fn old_pool(&self) ->...
+    |                   ^^^^^^^^
+...
+239 |     pub(crate) fn uncovered(&self) -...
+    |                   ^^^^^^^^^
+...
+243 |     pub(crate) fn l0(&self) -> usize {
+    |                   ^^
+...
+246 |     pub(crate) fn parent_paid(&self)...
+    |                   ^^^^^^^^^^^
+...
+249 |     pub(crate) fn external(&self) ->...
+    |                   ^^^^^^^^
+...
+252 |     pub(crate) fn items(&self) -> &[...
+    |                   ^^^^^
+...
+255 |     pub(crate) fn homes(&self) -> &[...
+    |                   ^^^^^
+...
+259 |     pub(crate) fn uncov...items(
+    |                   ^^^^^...^^^^^
+
+error: struct `ParentPreparation` is never constructed
+   --> src/bin/s_session_v3/request_audit.rs:293:19
+    |
+293 | ...ct Paren...ation {
+    |       ^^^^^...^^^^^
+
+error: methods `allocation_parent` and `observer` are never used
+   --> src/bin/s_session_v3/request_audit.rs:299:19
+    |
+298 | impl ...ation {
+    | -----...----- methods in this implementation
+299 |     pub(super) fn alloc...arent(&s...
+    |                   ^^^^^...^^^^^
+...
+302 |     pub(super) fn observer(&self) -> O...
+    |                   ^^^^^^^^
+
+error: method `freeze_manifest_workspace_budget` is never used
+   --> src/bin/s_session_v3/request_audit.rs:438:19
+    |
+398 | impl ...ntext {
+    | -----...----- method in this implementation
+...
+438 |     pub(super) fn freez...udget(
+    |                   ^^^^^...^^^^^
+
+error: methods `enable_cold_admission_for_testonly`, `prepare_parent`, `cold_parent_budget`, and `bound_parent_budget` are never used
+    --> src/bin/s_session_v3/request_audit.rs:2211:19
+     |
+2190 | impl ...ntext {
+     | -----...----- methods in this implementation
+...
+2211 |     pub(super) fn enabl...tonly(&m...
+     |                   ^^^^^...^^^^^
+...
+2217 |     pub(super) fn prepa...arent(
+     |                   ^^^^^...^^^^^
+...
+2268 |     pub(super) fn cold_...udget(&self) -> Option<s...
+     |                   ^^^^^...^^^^^
+...
+2272 |     pub(crate) fn bound...udget(&self) -> Result<...
+     |                   ^^^^^...^^^^^
+
+error: associated function `read_optional_bounded_params` is never used
+    --> src/bin/s_session_v3/request_audit.rs:2396:19
+     |
+2371 | impl ...tRows {
+     | -----...----- associated function in this implementation
+...
+2396 |     pub(super) fn read_...arams(
+     |                   ^^^^^...^^^^^
+
+error: fields `full_source_calls`, `full_pending_calls`, and `full_members_enumerations` are never read
+   --> src/bin/s_session_v3/source_contributions.rs:405:16
+    |
+404 | ...truct SourceWork {
+    |          ---------- fields in this struct
+405 | ...e) full_...calls: usize,
+    |       ^^^^^...^^^^^
+406 | ...e) full_...calls: usize,
+    |       ^^^^^...^^^^^
+407 | ...e) full_...tions: u...
+    |       ^^^^^...^^^^^
+    |
+    = note: `SourceWork` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+error: could not compile `newchan_rust` (bin "s_structure_session") due to 23 previous errors
+warning: build failed, waiting for other jobs to finish...
+error[E0594]: cannot assign to `generated.generated_state`, as `generated` is not declared as mutable
+   --> src/bin/s_session_v3/prepared.rs:747:17
+    |
+747 | ...   gener...state = ...
+    |       ^^^^^...^^^^^ cannot assign
+    |
+help: consider changing this to be mutable
+    |
+684 |             let (mut generated, objects, axes) = {
+    |                  +++
+
+Some errors have detailed explanations: E0425, E0594.
+For more information about an error, try `rustc --explain E0425`.
+error: could not compile `newchan_rust` (bin "s_structure_session" test) due to 5 previous errors
+=== END native RC=101 ===
+EXIT=0 SECONDS=99

@@ -1231,10 +1231,11 @@ def main():
     ap.add_argument("--db", required=True)
     ap.add_argument("--port", type=int, default=8787)
     ap.add_argument("--browser", required=True)
-    ap.add_argument("--host", default="127.0.0.1")
+    ap.add_argument("--host", default="127.0.0.1")  # DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
     ap.add_argument("--resource-config", required=True)
     ap.add_argument("--producer-epoch", required=True)
     ap.add_argument("--economic-config")
+    ap.add_argument("--economic-wire-evidence", help="显式保存 TestOnly 经济 owner RPC 原wire至新目录")
     args = ap.parse_args()
     query = _query_module("s_query")
     epoch = query._integer(args.producer_epoch, "producer_epoch", ValueError, True)
@@ -1243,7 +1244,14 @@ def main():
     Handler.browser_path = os.path.abspath(args.browser)
     server = QueryHTTPServer((args.host, args.port), Handler, Handler.db_path, resources, epoch)
     if args.economic_config:
-        server.economic_query = _query_module("economic_query").EconomicQuery(args.economic_config)
+        economic = _query_module("economic_query")
+        evidence = None
+        if args.economic_wire_evidence:
+            from s_socket_client import EconomicWireEvidence
+            evidence = EconomicWireEvidence(args.economic_wire_evidence)
+        server.economic_query = economic.EconomicQuery(args.economic_config, wire_evidence=evidence)
+    elif args.economic_wire_evidence:
+        ap.error("--economic-wire-evidence 需要 --economic-config")
     sys.stderr.write(
         "[readonly] serving S 只读查询 {host}:{port} (db={db})\n".format(
             host=args.host, port=args.port, db=Handler.db_path

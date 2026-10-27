@@ -2,7 +2,6 @@
 
 use super::super::super::types::Direction;
 use super::super::*;
-use super::fixtures::*;
 
 /// ★ADR 补充十三 / #486 / Spec #485：L≥1 一/三类的方向锚均取单元结构方向。
 /// provenance endpoint fallback（anchor=None）仍是序列成员，不再阻断几何合法的一/三类。

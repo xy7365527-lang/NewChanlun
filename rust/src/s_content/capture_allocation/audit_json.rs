@@ -21,6 +21,13 @@ struct Span {
     len: usize,
 }
 #[derive(Clone, Debug)]
+#[cfg_attr(
+    not(feature = "s_allocation_json_testonly"),
+    allow(
+        dead_code,
+        reason = "#1608：OwnedJson 业务 JSON 树的构造与读写面只在 s_allocation_json_testonly 实验档接线"
+    )
+)]
 enum Node {
     Null,
     Bool(bool),
@@ -52,6 +59,13 @@ pub struct OwnedJson {
     array_index: ArrayIndex,
     budget: OwnedBudget,
 }
+#[cfg_attr(
+    not(feature = "s_allocation_json_testonly"),
+    allow(
+        dead_code,
+        reason = "#1608：OwnedJson 业务 JSON 树的构造与读写面只在 s_allocation_json_testonly 实验档接线"
+    )
+)]
 impl OwnedJson {
     fn empty(budget: &OwnedBudget) -> Self {
         Self {
@@ -1075,10 +1089,12 @@ impl<'a> Parser<'a> {
         }
     }
 }
+#[cfg(feature = "s_allocation_json_testonly")]
 trait JsonBytes {
     fn try_push(&mut self, b: u8) -> Result<(), CodecError>;
     fn extend_from_slice(&mut self, b: &[u8]) -> Result<(), CodecError>;
 }
+#[cfg(feature = "s_allocation_json_testonly")]
 impl JsonBytes for CodecVec<u8> {
     fn try_push(&mut self, b: u8) -> Result<(), CodecError> {
         CodecVec::try_push(self, b)
@@ -1122,6 +1138,7 @@ impl<F: FnMut() -> Result<(), CodecError>> JsonBytes for BoundedJsonOutput<F> {
         self.bytes.extend_from_slice(b)
     }
 }
+#[cfg(feature = "s_allocation_json_testonly")]
 fn quoted(out: &mut impl JsonBytes, s: &str) -> Result<(), CodecError> {
     out.try_push(b'"')?;
     let mut start = 0;
@@ -2105,6 +2122,14 @@ impl<K: Eq + std::hash::Hash, V> BusinessMap<K, V> {
         additional: usize,
     ) -> Result<(), CodecError> {
         use super::scratch::ScratchFailure;
+        work.check_current()?;
+        if self
+            .1
+            .as_ref()
+            .is_some_and(|permit| !permit.belongs_to_parent(work))
+        {
+            return Err(work.reject(ScratchFailure::Ledger));
+        }
         let super::work::WorkMap::Plain(map) = &mut self.0 else {
             return Err(work.reject(ScratchFailure::Ledger));
         };

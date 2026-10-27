@@ -1,0 +1,120 @@
+# 原六 driver（判据逐字不变）
+v3::driver::tests::audit_owner_complete_accept_tail_begin_recover_retry_and_revision_qualification
+v3::driver::tests::audit_owner_complete_normal_second_connection_and_new_life_are_cold
+v3::driver::tests::audit_owner_incremental_normal_writes_full_oracle_and_suffix
+v3::driver::tests::audit_owner_normal_append_keeps_candidate_below_old_multiplier_gate
+v3::driver::tests::audit_owner_staged_normal_append_consumes_actual_nodes_and_suffix
+# 新增锁由实施者追加
+# 原 128B probe / 1024 不保留仍成功 / R13 观察（断言逐字保留）
+v3::audit_owner::audit_owner_q_itemized_normal_cold_growth_and_typed_limit
+v3::driver::tests::audit_owner_complete_optional_budget_releases_without_changing_reply
+v3::driver::tests::p3_1_cold_root_audit_failure_leaves_no_permit_on_destroyed_root
+v3::audit_owner::r13_cold_candidate_and_q_share_parent_and_preserve_complete_output
+v3::audit_owner::r13_optional_sql_rows_share_parent_without_changing_cells
+v3::audit_owner::r14_source_keeper_seal_and_next_request_share_explicit_parent
+v3::request_audit::handoff_domain_tests::frozen_request_rejects_foreign_parent_and_expired_domain
+v3::request_audit::handoff_domain_tests::used_foreign_cold_parent_cannot_be_replaced_by_handoff
+v3::driver::tests::cross_request_ready_first_write_and_two_requests_preserve_parent
+# #1488 v4 新增锁（A/B/D/E 账本层；round7 起）
+v3::audit_owner::native::unified_ownership_v4_tests::observer_sponsor_counts_in_allowance_and_old_drop_never_refills
+v3::audit_owner::native::unified_ownership_v4_tests::observer_rejects_when_sponsor_exceeds_allowance_without_mutation
+v3::audit_owner::native::unified_ownership_v4_tests::move_in_reserves_splits_and_returns_rest_without_partial_mutation
+v3::audit_owner::native::unified_ownership_v4_tests::move_in_rejects_legacy_moved_in_without_mutation
+v3::audit_owner::native::unified_ownership_v4_tests::handoff_ends_move_in_and_old_rest_never_refills_new_allowance
+v3::audit_owner::native::lifecycle_repair_v2_tests::frozen_increment_accepts_700_old_and_20_new_with_200_allowance
+v3::request_audit::handoff_domain_tests::bootstrap_grant_is_consumed_exactly_once
+v3::request_audit::handoff_domain_tests::warm_prepare_binds_real_parent_and_voids_grant
+v3::request_audit::handoff_domain_tests::bootstrap_grant_from_other_freeze_domain_is_rejected
+v3::audit_owner::construction_tests::owner_cold_candidate_born_from_grant_before_first_allocation
+v3::audit_owner::construction_tests::owner_raw_pending_state_holds_its_fee_until_drop
+# #1488 U2 追认点退出生产路径（0022；每处正/负各一）
+v3::audit_owner::native::u2_exit_adopt_tests::u2_material_parent_born_empty_and_journal_fee_reserved
+v3::audit_owner::native::u2_exit_adopt_tests::u2_material_parent_rejects_fee_beyond_real_room_instead_of_moved_in
+v3::audit_owner::native::u2_exit_adopt_tests::u2_q_raw_rebirth_reserves_new_block_and_fee_moves_with_vec
+v3::audit_owner::native::u2_exit_adopt_tests::u2_q_raw_rebirth_never_draws_moved_in
+v3::audit_owner::native::u2_exit_adopt_tests::u2_effects_rows_accept_same_parent_born_without_charge
+v3::audit_owner::native::u2_exit_adopt_tests::u2_effects_rows_reject_plain_and_foreign_without_adopt
+v3::audit_owner::effects::u2_row_owned_tests::u2_effects_row_owned_accepts_cells_born_under_parent
+v3::audit_owner::effects::u2_row_owned_tests::u2_effects_row_owned_rejects_plain_cell_or_foreign_parent_without_adopt
+v3::audit_owner::native::u2_exit_adopt_tests::u2_history_prefix_rebirth_binds_new_block_under_parent
+v3::audit_owner::native::u2_exit_adopt_tests::u2_history_prefix_rebirth_never_draws_moved_in_or_foreign
+v3::audit_owner::native::u2_exit_adopt_tests::u2_fresh_parent_codec_vec_grow_never_adopts_allocated_plain
+v3::audit_owner::native::u2_exit_adopt_tests::p2_3_rebirth_vec_peak_counts_old_and_new_blocks
+v3::audit_owner::native::u2_exit_adopt_tests::p2_3_rebirth_codec_vec_peak_counts_old_and_new_blocks
+v3::fixed_radix::tests::native_each_new_block_refusal_preserves_contents_and_real_layout_ledger
+v3::audit_owner::effects::construction_coverage_tests::p2_2_journal_permit_taken_before_recording_allocation
+v3::audit_owner::effects::construction_coverage_tests::p2_2_private_journal_parent_born_before_allocation_and_material_adds_no_fee
+# #1488 P1-1 冻结old_pool逐项分区（0025）
+v3::request_audit::handoff_domain_tests::p1_1_same_parent_pool_counts_l0_once_and_items_keep_contract
+v3::request_audit::handoff_domain_tests::p1_1_unmappable_old_pool_is_rejected_without_mutation
+v3::driver::tests::p1_1_driver_warm_old_pool_partition_counts_l0_once
+v3::audit_owner::p2_4_seal_census_flags_duplicate_permit_on_real_seal_path
+v3::audit_owner::p1_2_keeper_pool_on_other_ledger_counts_physical_live_after_discard
+v3::cross_request_source_cache::tests::p2a_source_claim_points_to_charged_body_and_duplicate_reserve_rejected
+v3::audit_owner::native::u2_exit_adopt_tests::p3a_production_reserve_native_rejects_allocated_plain_without_adopting
+v3::audit_owner::effects::construction_coverage_tests::p3b_start_on_keeps_pre_p2_2_result_categories
+v3::driver::tests::p3_d_cold_root_residue_after_clear_handles_is_rejected
+v3::audit_owner::p1_alpha_stray_on_keeper_ledger_survives_discard_retry_and_is_rejected
+v3::cross_request_source_cache::tests::p3b_seal_rejects_missing_source_claim_on_charged_body
+v3::audit_owner::native::u2_exit_adopt_tests::p3g_codec_vec_grow_and_scratch_never_double_reserve_same_allocation
+# #1488 受控同owner Recover迁移（0031）
+v3::driver::tests::recover_lock_same_owner_promotes_and_voids_old_epoch_token_and_lease
+v3::driver::tests::recover_lock_rejects_non_increasing_epoch
+v3::driver::tests::recover_lock_rejects_unclosed_recover_effects
+v3::driver::tests::recover_lock_commit_failure_and_rollback_never_promote
+v3::driver::tests::recover_lock_external_write_and_read_domain_change_still_revoke
+v3::driver::tests::recover_lock_handoff_failure_revokes
+v3::driver::tests::recover_lock_budget_live_and_peak_continue_across_recover
+v3::driver::tests::recover_lock_fee_permit_moves_on_same_parent_ledger
+v3::driver::tests::recover_lock_rejects_missing_candidate_or_parent_ledger
+v3::driver::tests::recover_lock_old_raw_token_and_begin_token_rejected_after_promotion
+v3::driver::tests::recover_lock_schema_and_material_change_revoke
+v3::driver::tests::recover_lock_rejects_stale_qualification_stamp
+v3::driver::tests::recover_lock_rejects_confirm_epoch_mismatch
+v3::driver::tests::recover_lock_rejects_foreign_ledger_budget_handoff
+# #1488 收据 key 合并 + originals 增量许可（0035，裁定 issuecomment-6278995984 二、三）
+v3::audit_owner::effects::construction_coverage_tests::owner_set_ordered_node_receipts_keep_repeated_noop_and_unreachable_nodes
+v3::audit_owner::effects::construction_coverage_tests::owner_set_merged_receipts_reject_dropped_misplaced_or_miscounted_event
+v3::audit_owner::effects::construction_coverage_tests::owner_set_receipt_events_grow_alone_and_overflow_like_keys
+v3::audit_owner::effects::native_journal_only_reserves_the_container_that_grows
+content_manifest::tests::native_manifest_originals_tree_permit_is_incremental_without_whole_tree_coexistence
+content_manifest::tests::native_manifest_recorded_body_and_puts_keep_original_permits_after_scope
+# #1488 Recover 父账绑定返修（0037，独审 0036 P2-1；裁定 issuecomment-6278995984 一）
+v3::driver::tests::recover_lock_rejects_qualification_recorded_on_other_parent_or_domain
+v3::driver::tests::recover_lock_holds_gate_rejects_fee_permit_on_foreign_ledger
+# write_budget 锁：0042 第四处裁改断言，原 releases_candidate 锁与 0039 正控合并（issuecomment-6281614540）；最终形态：`handoff_peak − entry ≤ candidate.limit`（0045 P3-B / R-21 要求登记，P18；f49db3d7e7、cc5e324736）
+v3::driver::tests::audit_owner_write_budget_retains_candidate_within_retention_cap_and_parent_limit
+# #1488 Recover 合法重绑点推进资格记录（0041，独审 0040 P2-1；主控裁定 (a)）
+v3::driver::tests::recover_lock_promotes_after_new_request_readonly_rebind
+v3::driver::tests::recover_lock_rejects_qualification_without_parent_record
+# #1488 0044 返修锁（复审 0043 P3-1/P3-2）
+v3::driver::tests::recover_lock_rebind_does_not_advance_foreign_or_stale_qualification_record
+v3::driver::tests::recover_lock_promotes_after_new_request_receipt_rebind
+# #1488 S3 fractal/bi 批量后缀：不可达节点计数 + 暖冷逐位（D5；负控 c6cec75372/03334fc9d0）
+content_producer::tests::fractal_history_suffix_writes_no_orphans_and_matches_cold
+content_bi::tests::raw_coords_sync_writes_no_orphans_and_matches_cold
+# #1488 S3 stage_indexes/aux plan：暖口≡旧完整重算（#804）+ 读量 ≤ 1600×(出生行+Δ_R)（D6；负控 N3 读量、N4 supersedes 起点）
+v3::aux_index::tests::aux_plan_warm_matches_cold_and_reads_track_delta
+# #1488 S3 assemble_manifest：单次组装全闭包核验外读量与 g 无关（D6；负控 N5 73f26f2e1a 核验外再核生成态）
+v3::prepared::tests::assemble_manifest_reads_beyond_closure_verify_stay_constant
+# #1488 0065 P1（v4 L13）：候选 publication 父工作域预算不足→放弃候选、无候选发布成功、回复≡oracle、后续代可接纳；负控 Ledger 尾检失败仍拒绝
+v3::driver::tests::publication_candidate_budget_shortfall_degrades_and_keeps_admitting
+v3::driver::tests::publication_real_tail_failure_still_rejects_without_degrade
+# #1488 0065：pager 诊断探针配置不得永久撤销 Carry 租约（S_MANIFEST_WORKSPACE_DIAGNOSTICS=1 的 serve 首个 Carry）
+v3::driver::tests::pager_probe_configure_keeps_carry_lease_open
+# #1488 0069（独审 0068 F1/I3）：降级判据收紧——资源失败已记后闭包返回非预算真实错误须拒绝不降级（红证 refs/f69-red/a f15020bf76）；真实追加原件位置的 Allocation 经真实调用链仍降级（红证 b ba9336203a）；判据真值表；第二次 runtime.discard 必要性由降级锁承担（0068 红证 d 049d284e0c，0069 重建 ba722f7c9e）
+v3::driver::tests::publication_real_error_after_budget_failure_rejects_without_degrade
+v3::driver::tests::publication_source_append_allocation_failure_degrades
+v3::audit_owner::publication_degrade_verdict_tests::publication_degrade_verdict_only_for_pure_budget_shortfall
+# #1488 0072（独审 0070 R1/R2）：降级判据改为类型化失败记录——prepared 包装（S3PrepareInvalid）的真实候选 Allocation 降级；先记 Allocation 后返回别作用域 Ledger 类 scratch 错误（与桥同字）须拒绝；真值表改为真实记录驱动（同名锁）
+v3::driver::tests::publication_prepare_wrapped_allocation_failure_degrades
+v3::driver::tests::publication_ledger_after_budget_failure_rejects_without_degrade
+# #1488 0077 P3 本票修（P3-REGISTER）：P08 同快照缺完整原件分支注入锁（不可达分支 fail-closed）；P12 已提交重复 ingest + C→D 链式重绑推进后 Recover 晋升；P50 Legacy→Native 转换期索引许可按槽数×(size_of+1) 计入 scope（M2a 负控）
+v3::driver::tests::recover_lock_rejects_missing_same_snapshot_complete
+v3::driver::tests::recover_lock_promotes_after_duplicate_ingest_and_chained_rebinds
+v3::aux_index::tests::p50_legacy_to_native_index_permit_counts_control_byte_per_slot
+# #1488 0079 P24-adj：冷根失败（left==0）无票重跑提交后按 renew_lease_after_abandon 同组条件续租，allowance 变大后 ingest 经 Carry 提交且与 ordinary 一致（负控：去续租→红）；续租不清真实撤销（续租后外写仍撤销、前序回滚撤销不被清除）；p3_d 扩展（0078 optional_lock：残留报错后同一 driver ready 须 Ok=expected，负控：该分支 retired→红，同名锁）
+v3::driver::tests::p24adj_cold_root_rerun_renews_lease_and_larger_cap_ingest_commits
+v3::driver::tests::p24adj_cold_root_renewal_keeps_real_revocations
+# #1488 S4 整代 增量≡冷全量 六阶段对拍锁（主控 D4/D6，#799/#804）：release-only，已移入
+#   .github/1488-uo-release-locks.txt（--release --ignored --exact；fix-0089 负责人裁定）

@@ -30,9 +30,11 @@
 //! **动态过程**（状态机职责）。本文件的 `divide_segments` 实装该状态机：firstKind（无缺口）分型形成
 //! 即断段；secondKind（有缺口）进入待确认态，扫描第二特征序列分型确认/否定。
 
-use super::super::config::ParseConfig;
+use super::super::config::{ParseConfig, Tangency};
 use super::super::types::{Direction, Segment, Stroke, Tick};
-use super::feature_seq::{ExtendMode, FeatureSeqState};
+use super::feature_seq::{
+    ExtendMode, FeatElem, FeatureElement, FeatureSeqState, TriggerHit, TURN_NOT_CASE_ONE,
+};
 use super::second_kind;
 use std::rc::Rc;
 
@@ -71,13 +73,6 @@ pub fn overlap_tangent_probe_snapshot() -> OverlapTangentProbe {
     OVERLAP_TANGENT_PROBE.with(|p| *p.borrow())
 }
 
-/// 尾窗大小（对齐 Python `_FeatureSeqState.TAIL_WINDOW=7`）。
-///
-/// ★L2 实测（OKLO 2000 笔，analysis/segment_refsem_cert.py）：窗口从 7 扩到 ∞ 输出不变
-/// （237→237），证 7 在目标数据域非约束性（第二特征序列分型若有效必在窗口内）。保留 7 以
-/// bit-exact 对齐参考默认；改值 = 改 Θ。这是单数据集 L2 观察，**非** L0 结构证明（不裸剥）。
-pub const TAIL_WINDOW: u32 = 7;
-
 /// 价格区间 [lo, hi]（特征序列元素 / 笔的几何投影，`lo <= hi` 不变量）。
 /// 契约锚 `Origin.SegmentFeatureSeq.FeatureElem`（`low <= high` valid 不变量）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -87,13 +82,15 @@ pub struct Interval {
 }
 
 impl Interval {
-    /// 两区间有公共重叠（交集非空）。对齐 `Interval.overlaps`。
-    pub fn overlaps(&self, b: &Interval) -> bool {
-        self.lo <= b.hi && b.lo <= self.hi
+    /// 两区间有公共重叠（交集非空）。对齐 `Interval.overlaps`。端点相切是否算重叠由记录字段
+    /// `tangency` 决定（xianduan §6.3，#1604）：`Closed` 即 `lo <= hi`（#1604 前的生产口径）。
+    pub fn overlaps(&self, b: &Interval, t: Tangency) -> bool {
+        t.meets(self.lo, b.hi) && t.meets(b.lo, self.hi)
     }
-    /// 缺口：两相邻特征序列元素无重叠（第67课:18）。对齐 `Interval.gap`/`hasGap`。
-    pub fn gap(&self, b: &Interval) -> bool {
-        !self.overlaps(b)
+    /// 缺口：两相邻特征序列元素无重叠（第67课:18）。对齐 `Interval.gap`/`hasGap`；与
+    /// [`Interval::overlaps`] 读同一个 `tangency`，严格互补（`gap_iff_not_overlap`）。
+    pub fn gap(&self, b: &Interval, t: Tangency) -> bool {
+        !self.overlaps(b, t)
     }
     /// 包含：self 区间包含 b 区间（特征序列元素当 K 线，第67课:20）。对齐 `Interval.contains`。
     pub fn contains(&self, b: &Interval) -> bool {
@@ -127,7 +124,8 @@ pub(super) fn stroke_interval(s: &Stroke) -> Interval {
 /// #84 其余条款（方案一 + 五 seam 拆分等）不受影响。
 /// ★与既有原语 [`Interval::overlaps`]（本文件 :90-93，闭区间 `≤`）**同口径**（相切算重合）；保留
 /// 独立实现仅为避免构造三个 `Interval` 的开销，非另起口径（#249 SPEC「优先复用既有原语」条）。
-fn three_stroke_overlap(a: &Stroke, b: &Stroke, c: &Stroke) -> bool {
+/// #1604：相切口径改读记录字段 `tangency`（默认 `closed` = 上述 `<=`），与缺口谓词读同一个值。
+fn three_stroke_overlap(a: &Stroke, b: &Stroke, c: &Stroke, t: Tangency) -> bool {
     let (ia, ib, ic) = (stroke_interval(a), stroke_interval(b), stroke_interval(c));
     let max_lo = ia.lo.max(ib.lo).max(ic.lo);
     let min_hi = ia.hi.min(ib.hi).min(ic.hi);
@@ -137,18 +135,18 @@ fn three_stroke_overlap(a: &Stroke, b: &Stroke, c: &Stroke) -> bool {
             p.tangent += 1;
         }
     });
-    max_lo <= min_hi
+    t.meets(max_lo, min_hi)
 }
 
 /// 从 `from` 起找首个三笔重叠的起点（第77课 H4，对齐 Python `_find_overlap_start`）。
 ///
 /// 线段起点必须满足前三笔重叠（第77课:64）。从 `from` 向后扫描，返回首个满足的起点偏移；
 /// 无满足起点 ⟹ `None`（剩余笔无法起合法线段）。
-fn find_overlap_start(strokes: &[Stroke], from: usize) -> Option<usize> {
+fn find_overlap_start(strokes: &[Stroke], from: usize, t: Tangency) -> Option<usize> {
     let n = strokes.len();
     let mut j = from;
     while j + 2 < n {
-        if three_stroke_overlap(&strokes[j], &strokes[j + 1], &strokes[j + 2]) {
+        if three_stroke_overlap(&strokes[j], &strokes[j + 1], &strokes[j + 2], t) {
             return Some(j);
         }
         j += 1;
@@ -156,7 +154,8 @@ fn find_overlap_start(strokes: &[Stroke], from: usize) -> Option<usize> {
     None
 }
 
-pub const CONSTRUCTION_RULE: &str = "segment-second/1";
+/// #1420：第二种候选三态终点（078:52 失效）改变段语义 ⟹ 新语义版本；旧版对象不回改。
+pub const CONSTRUCTION_RULE: &str = "segment-second/2";
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct ConstructionFact {
@@ -176,8 +175,9 @@ impl ConstructionFact {
     }
 }
 
-/// #1404 CC-011：seed 与段端门使用相同完整条件，非观察器另算宽档。
-pub fn construction(strokes: &[Stroke], start: usize, end: usize) -> ConstructionFact {
+/// #1404 CC-011：seed 与段端门使用相同完整条件，非观察器另算宽档。`t` 为相切口径（#1604）；
+/// `overlap_relation` 只描述几何（`TOUCH` 即相切），是否算重合看 `vector[1]`。
+pub fn construction(strokes: &[Stroke], start: usize, end: usize, t: Tangency) -> ConstructionFact {
     let ss = &strokes[start..end];
     let n = ss.len();
     let length = match n {
@@ -201,7 +201,7 @@ pub fn construction(strokes: &[Stroke], start: usize, end: usize) -> Constructio
     let vector = (n >= 3 && n % 2 == 1).then(|| {
         [
             ss.windows(2).all(|w| w[0].direction != w[1].direction),
-            three_stroke_overlap(&ss[0], &ss[1], &ss[2]),
+            three_stroke_overlap(&ss[0], &ss[1], &ss[2], t),
             match ss[0].direction {
                 Direction::Up => ss[n - 1].end_price > ss[0].start_price,
                 Direction::Down => ss[n - 1].end_price < ss[0].start_price,
@@ -270,6 +270,13 @@ pub struct SegmentCandidateFact {
     pub end_stroke: Option<usize>,
     pub trigger_stroke: Option<usize>,
     pub termination_attempts: Vec<SegmentEndCheck>,
+    /// #1490 §7.1 第 1 条：本候选相关的第一种情况候选态（`CONFIRMED`／`KILLED_BY_NEW_EXTREME`／
+    /// `OPEN_AT_PREFIX_END`）；无第一种情况候选（含已发射的第二种终结）为 `None`。
+    pub turn_hypothesis_state: Option<&'static str>,
+    /// 上述候选 b 的窗成员（§7.1 第 3 条）。
+    pub window_members: Vec<usize>,
+    /// #1490 §7.1 第 6 条：本候选扫描中段端门失败时的段起点（fail-closed）；否则 `None`。
+    pub parse_invalid_from: Option<usize>,
 }
 /// #1414 G4：明确绑定 FIRST a/b 缺口与 c；不增加 later-FIRST 封闭门。
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
@@ -367,6 +374,153 @@ pub struct SegmentFacts {
     pub seeds: Vec<ConstructionFact>,
     pub candidates: Vec<SegmentCandidateFact>,
     pub waiting_reasons: Vec<&'static str>,
+    /// #1490 §7.1 第 6 条：最早一次段端门失败（「自 seg_start 起划分无效」）及其最小复现；
+    /// 非空即 fail-closed，下游不得在其上构造。生产流目标恒为 `None`。
+    pub parse_invalid_from: Option<ParseInvalid>,
+    /// #1604（#1586 C-04）：最早一次「尾窗挤掉可准入候选」所在段——该段起的输出覆盖为
+    /// `INCOMPLETE_RESOURCE_BOUND`，不是正常确认。签署记录（`tail_window = 7`）下恒为 `None`。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tail_window_bound: Option<TailWindowBound>,
+    /// #1604：本次划分所读记录（id/版本与字段值）。由划分入口写入，`Default` 构造为 `None`。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy: Option<SegmentPolicy>,
+}
+
+/// #1604：段层所读的两份版本化记录（`second-seq-scan-budget`、`segment-second`）及其字段值。
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct SegmentPolicy {
+    /// 例 `second-seq-scan-budget/2`；研究覆写为 `…/research-override`。
+    pub scan_budget: String,
+    /// 例 `segment-second/2`（= [`CONSTRUCTION_RULE`]）；研究覆写为 `…/research-override`。
+    pub construction_rule: String,
+    pub tail_window: u32,
+    pub second_seq_window: u32,
+    pub tangency: &'static str,
+}
+
+impl SegmentPolicy {
+    pub fn from_config(config: &ParseConfig) -> Self {
+        SegmentPolicy {
+            scan_budget: config.scan_budget.label(),
+            construction_rule: config.construction_rule.label(),
+            tail_window: config.tail_window,
+            second_seq_window: config.second_seq_scan_window,
+            tangency: config.tangency.as_str(),
+        }
+    }
+}
+
+/// #1604（#1586 C-04）：尾窗资源上界标记。
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct TailWindowBound {
+    /// 被挤掉候选所在段的起点笔号；该段及其后的输出不冒充正常确认。
+    pub seg_start: usize,
+    /// 恒为 `INCOMPLETE_RESOURCE_BOUND`。
+    pub coverage: super::feature_seq::ScanCoverage,
+    /// 所读预算记录（`second-seq-scan-budget/…`）。
+    pub policy: String,
+}
+
+impl TailWindowBound {
+    fn new(seg_start: usize, config: &ParseConfig) -> Self {
+        TailWindowBound {
+            seg_start,
+            coverage: super::feature_seq::ScanCoverage::IncompleteResourceBound,
+            policy: config.scan_budget.label(),
+        }
+    }
+}
+
+/// 段端门失败的最小复现（#1490 §7.1 第 6 条）。
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct ParseInvalid {
+    pub seg_start: usize,
+    pub end_stroke: usize,
+    pub construction_vector: Option<[bool; 4]>,
+    pub failed_conditions: Vec<&'static str>,
+    pub elements: [FeatureElement; 3],
+}
+
+impl ParseInvalid {
+    fn new(
+        strokes: &[Stroke],
+        seg_start: usize,
+        end_stroke: usize,
+        hit: &TriggerHit,
+        t: Tangency,
+    ) -> Self {
+        let c = construction(strokes, seg_start, end_stroke + 1, t);
+        let elem = |e: FeatElem| FeatureElement {
+            high: e.high,
+            low: e.low,
+            stroke_idx: e.stroke_idx,
+            stroke_indices: vec![e.stroke_idx],
+            window_members: vec![],
+        };
+        ParseInvalid {
+            seg_start,
+            end_stroke,
+            construction_vector: c.vector,
+            failed_conditions: c.failed_conditions,
+            elements: hit.window.map(elem),
+        }
+    }
+}
+
+/// #1490 §7.1 第 5 条：流首段（无前段可破）的起点 = `[seed, end]` 内与段同向的笔中，起点在段方向
+/// 反向最极端者（向上段取起点最低的向上笔，向下段镜像；并列取最早）。`078:22`／`:24`。
+/// 种子 `seed` 只定扫描起点；非流首段一律不适用。
+fn first_segment_start(strokes: &[Stroke], seed: usize, end: usize, seg_dir: Direction) -> usize {
+    #[cfg(test)]
+    if FIRST_START_AT_SEED.with(|c| c.get()) {
+        return seed;
+    }
+    let mut best = seed;
+    for j in (seed..=end).filter(|&j| strokes[j].direction == seg_dir) {
+        let better = match seg_dir {
+            Direction::Up => strokes[j].start_price < strokes[best].start_price,
+            Direction::Down => strokes[j].start_price > strokes[best].start_price,
+        };
+        if better {
+            best = j;
+        }
+    }
+    best
+}
+
+#[cfg(test)]
+thread_local! {
+    /// TestOnly（#1493）：流首段起点退回种子（§7.1 第 5 条之前的口径），仅用于在测试里构造段端门失败、
+    /// 检验 fail-closed 路径；不参与生产准入（#799 限定词 2）。按 §7.1 第 5 条定义起点时首段门恒过
+    /// （起点是最低的同向笔起点 ⟹ 顶>底与前三笔重叠必成立）。
+    pub(super) static FIRST_START_AT_SEED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// 段端门的单一判定（全量主循环与增量续扫共用，#804）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EndGate {
+    /// 构造完整 ⟹ 发射。
+    Emit,
+    /// 最少笔数未满足 ⟹ 跳过该触发、段继续（不是几何失败）。
+    MinCount,
+    /// 构造门（`078:20` 顶>底等不变式）失败 ⟹ fail-closed：跳过并上报，不回退、不改起点重判。
+    Invalid,
+}
+
+fn end_gate(
+    strokes: &[Stroke],
+    start: usize,
+    end_stroke: usize,
+    min_seg: usize,
+    t: Tangency,
+) -> EndGate {
+    if end_stroke < start || end_stroke - start < min_seg.saturating_sub(1) {
+        EndGate::MinCount
+    } else if !construction(strokes, start, end_stroke + 1, t).valid() {
+        EndGate::Invalid
+    } else {
+        EndGate::Emit
+    }
 }
 
 fn record_candidate(
@@ -378,23 +532,26 @@ fn record_candidate(
     end: Option<usize>,
     mut attempts: Vec<SegmentEndCheck>,
     min_seg: usize,
+    first_seed: Option<usize>,
+    invalid_from: Option<usize>,
 ) {
+    let t = feat.tangency();
     let first = feat.facts();
-    let active_check = first
-        .checks
-        .iter()
-        .rev()
-        .find(|c| !c.provisional && c.first_fractal);
+    let active_check = first.checks.iter().rev().find(|c| c.first_fractal);
     // 即使有 gap、尚未触发终结，当前第一分型的几何条件仍然可判。
     // CC-013 的 FAILED_GEOMETRY 优先于第二种等待，不能用等待掩盖已知失败。
     if let Some(check) = active_check {
         let apex = check.elements[1].stroke_idx;
-        if apex > start && attempts.last().is_none_or(|a| a.end_stroke != apex - 1) {
+        // #1490 §7.1 第 5 条：流首段的起点按定义随终结尝试而定。
+        let s = first_seed.map_or(start, |seed| {
+            first_segment_start(strokes, seed, apex - 1, strokes[seed].direction)
+        });
+        if apex > s && attempts.last().is_none_or(|a| a.end_stroke != apex - 1) {
             attempts.push(SegmentEndCheck {
                 end_stroke: apex - 1,
                 trigger_stroke: cursor,
-                minimum_count_met: apex - start >= min_seg,
-                construction: construction(strokes, start, apex),
+                minimum_count_met: apex - s >= min_seg,
+                construction: construction(strokes, s, apex, t),
             });
         }
     }
@@ -413,7 +570,8 @@ fn record_candidate(
             } else {
                 "CASE_ONE"
             },
-            closure_operator: if up { "<=" } else { ">=" },
+            // 「c 封闭缺口」与缺口谓词同读 `tangency`（#1604）：closed 含等号，open 严格。
+            closure_operator: t.meets_operator(up),
             closure_left: if up {
                 c.elements[2].low
             } else {
@@ -429,9 +587,45 @@ fn record_candidate(
     let deferred = strict
         .as_ref()
         .is_some_and(|c| c.effective_case == "CASE_TWO");
+    // #1490 §7.1 第 6 条：段端门（构造不变式）失败才是 FAILED_GEOMETRY；最少笔数不足（流首段起点按定义
+    // 落得太近）只是该触发不成终结、段继续，不是几何失败。
     let invalid = attempts
         .last()
-        .is_some_and(|a| !a.construction.valid() || !a.minimum_count_met);
+        .is_some_and(|a| a.minimum_count_met && !a.construction.valid());
+    let min_unmet = attempts.last().is_some_and(|a| !a.minimum_count_met);
+    // #1344：活动第二种候选已被越界作废时，不得写成「待第二序列分型」。
+    let killed = deferred
+        && second.as_ref().is_some_and(|s| {
+            s.semantic_state == Some(super::feature_seq::SecondTerminal::KilledByNewExtreme)
+        });
+    // #1420：预算耗尽的候选封住本段（含假设转折点试探中遇到的），其扫描事实即本段的等待依据。
+    let resource_bound = second
+        .as_ref()
+        .is_some_and(|s| s.resource_truncated && s.matched.is_none());
+    // #1490 §7.1 第 1/3 条：本候选相关的第一种情况候选态。已发射 ⟹ 命中检查的状态；未发射 ⟹
+    // 前缀末端的开窗候选优先，否则最近一次第一种情况检查。
+    let turn_source = if end.is_some() {
+        active_check
+            .filter(|c| c.turn_hypothesis_state != TURN_NOT_CASE_ONE)
+            .map(|c| (c.turn_hypothesis_state, &c.elements[1]))
+    } else if let Some(o) = &first.open_turn {
+        Some((o.turn_hypothesis_state, &o.elements[1]))
+    } else {
+        first
+            .checks
+            .iter()
+            .rev()
+            .find(|c| c.turn_hypothesis_state != TURN_NOT_CASE_ONE)
+            .map(|c| (c.turn_hypothesis_state, &c.elements[1]))
+    };
+    let turn_hypothesis_state = turn_source.map(|(s, _)| s);
+    let window_members = turn_source.map_or(vec![], |(_, b)| b.window_members.clone());
+    // §7.1 第 3 条（`071:32`）：第三笔完全在第一笔范围内 ⟹ 待定。尚无第三笔的开窗候选只报候选态，
+    // 不改结果分类。
+    let pending_one = first.open_turn.as_ref().is_some_and(|o| {
+        o.turn_hypothesis_state == super::feature_seq::TURN_OPEN
+            && !o.elements[1].window_members.is_empty()
+    });
     let result = if invalid {
         "FAILED_GEOMETRY"
     } else if end.is_some() {
@@ -440,30 +634,47 @@ fn record_candidate(
         } else {
             "CASE_ONE"
         }
-    } else if deferred {
+    } else if killed {
+        "KILLED_CASE_TWO"
+    } else if deferred || resource_bound {
         "PENDING_CASE_TWO"
+    } else if pending_one {
+        "PENDING_CASE_ONE"
     } else {
         "NO_FIRST"
     };
     let end = end.filter(|_| !invalid);
     // 等待/失败事实只能引用同次实际扫描到的笔，不能借未来输入扩张见证。
-    let built = construction(strokes, start, end.map_or(observed_through + 1, |e| e + 1));
+    let built = construction(
+        strokes,
+        start,
+        end.map_or(observed_through + 1, |e| e + 1),
+        t,
+    );
     let mut waiting_reasons = if invalid || end.is_some() {
         vec![]
-    } else if deferred {
+    } else if killed {
+        vec!["second_candidate_killed_by_new_extreme"]
+    } else if deferred || resource_bound {
         vec![if second.as_ref().is_some_and(|s| s.resource_truncated) {
             "second_sequence_resource_bound"
         } else {
             "no_second_fractal_in_current_prefix"
         }]
+    } else if pending_one {
+        vec!["first_kind_third_stroke_within_first"]
     } else if first.standard.len() < 3 {
         vec!["fewer_than_three_standard_elements"]
+    } else if min_unmet {
+        vec![]
     } else {
         vec!["no_admissible_first_fractal"]
     };
     if end.is_none() {
         if let Some(a) = attempts.last() {
-            waiting_reasons.extend(&a.construction.failed_conditions);
+            if invalid {
+                waiting_reasons.extend(&a.construction.failed_conditions);
+            }
             if !a.minimum_count_met {
                 waiting_reasons.push("minimum_segment_length_not_met");
             }
@@ -472,7 +683,7 @@ fn record_candidate(
     let termination_witness = end.and_then(|e| {
         let strict = strict.clone()?;
         let second_match = second.as_ref().and_then(|s| s.matched.clone());
-        let constructed = construction(strokes, start, e + 1);
+        let constructed = construction(strokes, start, e + 1, t);
         let minimum_count_met = e - start + 1 >= min_seg;
         (constructed.valid()
             && minimum_count_met
@@ -491,7 +702,7 @@ fn record_candidate(
         .is_some_and(|s| s.resource_truncated && s.matched.is_none());
     facts.candidates.push(SegmentCandidateFact {
         start_stroke: start,
-        seed: construction(strokes, start, (start + 3).min(strokes.len())),
+        seed: construction(strokes, start, (start + 3).min(strokes.len()), t),
         construction: built,
         first,
         second,
@@ -509,6 +720,9 @@ fn record_candidate(
         end_stroke: end,
         trigger_stroke: end.map(|_| observed_through),
         termination_attempts: attempts,
+        turn_hypothesis_state,
+        window_members,
+        parse_invalid_from: invalid_from,
     });
 }
 
@@ -534,8 +748,8 @@ pub enum TerminationCase {
 
 /// 从特征序列分型相邻两元素判定进入哪个分支（第67课:28/38 缺口判据，全函数）。
 /// 对齐 `Origin.SegmentFeatureSeq.{SegmentEndUp,SegmentEndDown}` 的 `HasGap` 分支：有缺口 → SecondKind，无缺口 → FirstKind。
-pub fn classify_termination(e1: &Interval, e2: &Interval) -> TerminationCase {
-    if e1.gap(e2) {
+pub fn classify_termination(e1: &Interval, e2: &Interval, t: Tangency) -> TerminationCase {
+    if e1.gap(e2, t) {
         TerminationCase::SecondKind
     } else {
         TerminationCase::FirstKind
@@ -633,8 +847,8 @@ fn segment_end_from_apex(apex_off: usize) -> Option<usize> {
 /// 分支的动态确认（resolve_second_kind）是 **L1**（对 67课博文 frozen 定义忠实 + Python 交叉验证，
 /// **非对 Origin Lean bit-exact**——动态状态机有意不形式化，见 second_kind.rs 模块头）。
 ///
-/// `strokes` 的首笔方向 = 线段方向。返回该方向线段的首个终结情形。
-pub fn analyze_termination(strokes: &[Stroke]) -> SegmentTermination {
+/// `strokes` 的首笔方向 = 线段方向。返回该方向线段的首个终结情形。`t` 为相切口径（#1604）。
+pub fn analyze_termination(strokes: &[Stroke], t: Tangency) -> SegmentTermination {
     if strokes.is_empty() {
         return SegmentTermination::NoFractal;
     }
@@ -644,13 +858,13 @@ pub fn analyze_termination(strokes: &[Stroke]) -> SegmentTermination {
     let Some((_fi, e1, e2)) = find_feature_fractal(seg_dir, &std_feat) else {
         return SegmentTermination::NoFractal;
     };
-    match classify_termination(&e1, &e2) {
+    match classify_termination(&e1, &e2, t) {
         TerminationCase::FirstKind => {
             // 无缺口：分型形成即终结。定位贡献分型中心元素 e2 的反向笔（apex 反向笔偏移）。
             let rev = seg_dir.flip();
             let Some(apex_off) = strokes
                 .iter()
-                .position(|s| s.direction == rev && stroke_interval(s).overlaps(&e2))
+                .position(|s| s.direction == rev && stroke_interval(s).overlaps(&e2, t))
             else {
                 return SegmentTermination::NoFractal;
             };
@@ -666,7 +880,7 @@ pub fn analyze_termination(strokes: &[Stroke]) -> SegmentTermination {
         // e2 = 首特征序列分型中心元素（apex），承载分型极值。确认成功 → SecondKindConfirmed，
         // 否则 SecondKindPending（留 tail，严格不强断）。
         TerminationCase::SecondKind => {
-            match second_kind::resolve_second_kind(strokes, &e2) {
+            match second_kind::resolve_second_kind(strokes, &e2, t) {
                 // resolve 返回 apex 反向笔偏移；段端 = 其前一根同向笔（方向一致性，同 FirstKind）。
                 second_kind::SecondKindResult::Confirmed {
                     end_offset: apex_off,
@@ -725,16 +939,15 @@ fn make_segment(strokes: &[Stroke], s0: usize, s1: usize, seg_dir: Direction) ->
     }
 }
 
-/// 线段划分（reference-theta-v0.md:22，第67/71课）——增量「假设转折点」状态机。
+/// 线段划分（reference-theta-v0.md:22，第67/71/78课）——增量「假设转折点」状态机。
 ///
-/// ★bit-exact 移植 Python `a_segment_v1.segments_from_strokes_v1`（编排者裁定 v1 唯一口径，
-/// 37 测试）。L1（对参考 spec 忠实，认证 harness `analysis/segment_refsem_cert.py`），**非**
-/// 对 Origin Lean bit-exact——动态划分算法在 Origin 有意不形式化（静态层锚
-/// `Origin.SegmentConstruction`/`SegmentFeatureComplete`，见 feature_seq.rs 模块头）。
+/// 第一种情况按 `071:30/:32/:42` 直落（#1490 裁定，`xianduan.md` §7.1；#1493）：候选三态、转折点窗、
+/// 先破判据；流首段起点按 `078:22/:24` 定义；段端门（`078:20`）失败 fail-closed 上报。Python v1
+/// `a_segment_v1.segments_from_strokes_v1` 为历史参考，非正本。动态划分算法在 Origin 有意不形式化
+/// （静态层锚 `Origin.SegmentConstruction`/`SegmentFeatureComplete`，见 feature_seq.rs 模块头）。
 ///
-/// ★为何增量（cc-refsem-harness 归因，#84）：旧批处理「找首个分型即断段」对参考认证失败
-/// （406 段 vs 参考 237 段，70% 过分段）。真因是缺第71课「假设转折点」逻辑（包含时先试不合并
-/// 看是否触发分型）——批处理无状态，无法表达此动态过程。本函数用 `FeatureSeqState` 状态机修复。
+/// ★为何增量（#84）：无状态批处理「找首个分型即断段」表达不了第71课「假设转折点」这一动态过程，
+/// 本函数用 `FeatureSeqState` 状态机实现。
 ///
 /// 返回 `(confirmed segments, pending_start)`：
 /// - `confirmed segments`：已确认线段（交易可用，对齐 `Origin.SegmentConstruction.segmentsOf` 输出）。
@@ -748,7 +961,7 @@ pub fn divide_segments_with_tail(
     strokes: &[Stroke],
     config: &ParseConfig,
 ) -> (Vec<Segment>, Option<usize>) {
-    let (segments, tail, _) = divide_segments_core(strokes, config, false);
+    let (segments, tail, _) = divide_segments_core(strokes, config, false, &mut None);
     (segments, tail)
 }
 
@@ -757,29 +970,54 @@ pub fn divide_segments_with_facts(
     strokes: &[Stroke],
     config: &ParseConfig,
 ) -> (Vec<Segment>, Option<usize>, SegmentFacts) {
-    divide_segments_core(strokes, config, true)
+    divide_segments_core(strokes, config, true, &mut None)
+}
+
+/// #1420：同 [`divide_segments_with_facts`]，第二种候选经 S 层游标簿（K1）折叠并带回簿。
+pub fn divide_segments_with_facts_store(
+    strokes: &[Stroke],
+    config: &ParseConfig,
+    store: super::second_fold::SecondFoldStore,
+) -> (
+    Vec<Segment>,
+    Option<usize>,
+    SegmentFacts,
+    super::second_fold::SecondFoldStore,
+) {
+    let (round_budget, policy) = (store.round_budget, store.policy);
+    let mut slot = Some(store);
+    let (segments, pending, facts) = divide_segments_core(strokes, config, true, &mut slot);
+    // 游标簿未被消费（无第二种候选）时原样归还；若被取走未还，以同一预算与记录版本新建空簿。
+    let store =
+        slot.unwrap_or_else(|| super::second_fold::SecondFoldStore::new(round_budget, policy));
+    (segments, pending, facts, store)
 }
 
 fn divide_segments_core(
     strokes: &[Stroke],
     config: &ParseConfig,
     observe: bool,
+    store: &mut Option<super::second_fold::SecondFoldStore>,
 ) -> (Vec<Segment>, Option<usize>, SegmentFacts) {
-    let mut facts = SegmentFacts::default();
+    let t = config.tangency;
+    let mut facts = SegmentFacts {
+        policy: Some(SegmentPolicy::from_config(config)),
+        ..SegmentFacts::default()
+    };
     let mut segments = Vec::new();
     let n = strokes.len();
     if n < 3 {
         if observe {
-            facts.seeds.push(construction(strokes, 0, n));
+            facts.seeds.push(construction(strokes, 0, n, t));
             facts.waiting_reasons.push("fewer_than_three_strokes");
         }
         return (segments, if n > 0 { Some(0) } else { None }, facts);
     }
     // 第77课 H4：起点必须满足前三笔重叠（对齐 Python `_find_overlap_start`）。
-    let start = find_overlap_start(strokes, 0);
+    let start = find_overlap_start(strokes, 0, t);
     if observe {
         for i in 0..=start.unwrap_or(n - 3) {
-            facts.seeds.push(construction(strokes, i, i + 3));
+            facts.seeds.push(construction(strokes, i, i + 3, t));
         }
     }
     let Some(mut seg_start) = start else {
@@ -789,24 +1027,33 @@ fn divide_segments_core(
         return (segments, Some(0), facts);
     };
     let min_seg = config.seg_min_strokes as usize;
+    let seed = seg_start;
     let mut seg_dir = strokes[seg_start].direction;
     let mut feat = FeatureSeqState::new(
         seg_dir,
         ExtendMode::Strict,
-        TAIL_WINDOW,
+        config.tail_window,
         config.second_seq_scan_window,
+        t,
     );
+    feat.set_second_store(store.take());
     if observe {
         feat.observe();
     }
     let mut cursor = seg_start;
     let mut attempts = Vec::new();
+    // #1490 §7.1 第 6 条：本候选扫描中的段端门失败起点（候选级）。
+    let mut cand_invalid: Option<usize> = None;
 
-    // 主循环（bit-exact Python `segments_from_strokes_v1` :591-610 + `_try_trigger_segment`）。
+    // 主循环（#1493：第一种情况按 #1490 §7.1；Python `segments_from_strokes_v1` 为历史参考）。
     while cursor < n {
         let sk = &strokes[cursor];
         let opposite = seg_dir.flip();
         if sk.direction != opposite {
+            if observe {
+                let (h, l) = super::feature_seq::stroke_high_low(sk);
+                feat.observe_trend_stroke(cursor, h, l);
+            }
             cursor += 1;
             continue;
         }
@@ -817,43 +1064,64 @@ fn divide_segments_core(
         };
         feat.append(cursor, h, l, strokes);
         // _try_trigger_segment：scan_trigger + min_seg 门控 + skip_trigger 去重。
-        let Some(hit) = feat.scan_trigger(strokes) else {
+        let trig = feat.scan_trigger(strokes);
+        if feat.tail_truncated() && facts.tail_window_bound.is_none() {
+            facts.tail_window_bound = Some(TailWindowBound::new(seg_start, config));
+        }
+        let Some(hit) = trig else {
             cursor += 1;
             continue;
         };
         let k = hit.k;
         let end_stroke = k - 1;
-        if observe && end_stroke >= seg_start {
+        // #1490 §7.1 第 5 条：流首段起点按定义（随每次终结尝试），其余段即 seg_start。
+        let start = if segments.is_empty() {
+            first_segment_start(strokes, seed, end_stroke, seg_dir)
+        } else {
+            seg_start
+        };
+        if observe && end_stroke >= start {
             attempts.push(SegmentEndCheck {
                 end_stroke,
                 trigger_stroke: hit.through_stroke.max(cursor),
-                minimum_count_met: end_stroke - seg_start >= min_seg.saturating_sub(1),
-                construction: construction(strokes, seg_start, end_stroke + 1),
+                minimum_count_met: end_stroke - start >= min_seg.saturating_sub(1),
+                construction: construction(strokes, start, end_stroke + 1, t),
             });
         }
-        // min_seg 门控（Python :457）：段端-起点 < min-1 ⟹ 拒绝该触发，skip 后继续延伸。
-        if end_stroke < seg_start
-            || end_stroke - seg_start < min_seg.saturating_sub(1)
-            || !construction(strokes, seg_start, end_stroke + 1).valid()
-        {
-            feat.skip_trigger(k);
-            cursor += 1;
-            continue;
+        match end_gate(strokes, start, end_stroke, min_seg, t) {
+            EndGate::Emit => {}
+            gate => {
+                // 最少笔数不足 ⟹ 跳过该触发、段继续；构造门失败 ⟹ 同样跳过，但 fail-closed 上报
+                // （#1490 §7.1 第 6 条：不回退上一段、不改起点重判）。
+                if gate == EndGate::Invalid {
+                    cand_invalid.get_or_insert(start);
+                    if observe && facts.parse_invalid_from.is_none() {
+                        facts.parse_invalid_from =
+                            Some(ParseInvalid::new(strokes, start, end_stroke, &hit, t));
+                    }
+                }
+                feat.skip_trigger(k);
+                cursor += 1;
+                continue;
+            }
         }
         if observe {
             record_candidate(
                 &mut facts,
                 strokes,
-                seg_start,
+                start,
                 cursor,
                 &feat,
                 Some(end_stroke),
                 std::mem::take(&mut attempts),
                 min_seg,
+                segments.is_empty().then_some(seed),
+                cand_invalid.take(),
             );
         }
-        // 发射旧段（Python `_emit_segment`：end_stroke = k-1）。
-        segments.push(make_segment(strokes, seg_start, end_stroke, seg_dir));
+        cand_invalid = None;
+        // 发射旧段（end_stroke = k-1）。
+        segments.push(make_segment(strokes, start, end_stroke, seg_dir));
         // 新段从 k（分型中心反向笔）起，方向反转（Python :608-610）。
         seg_start = k;
         seg_dir = opposite;
@@ -861,21 +1129,44 @@ fn divide_segments_core(
         cursor = k;
     }
 
-    // 末段（未触发终结）= active 尾部。pending_start = seg_start（若剩余笔非空）。
-    let pending_start = if seg_start < n { Some(seg_start) } else { None };
-    if observe && seg_start < n {
-        record_candidate(
-            &mut facts,
-            strokes,
-            seg_start,
-            n - 1,
-            &feat,
-            None,
-            attempts,
-            min_seg,
-        );
+    // 末段（未触发终结）= active 尾部。流首段未确认时其起点按定义随前缀变化（§7.1 第 5 条，不发布）。
+    let pending_start = pending_segment_start(strokes, &segments, seed, seg_start, seg_dir);
+    if observe {
+        if let Some(p) = pending_start {
+            record_candidate(
+                &mut facts,
+                strokes,
+                p,
+                n - 1,
+                &feat,
+                None,
+                attempts,
+                min_seg,
+                segments.is_empty().then_some(seed),
+                cand_invalid,
+            );
+        }
     }
+    *store = feat.take_second_store();
     (segments, pending_start, facts)
+}
+
+/// 未确认尾段的起点：流首段未确认 ⟹ 按 §7.1 第 5 条定义（`[seed, n-1]`），否则即 seg_start。
+fn pending_segment_start(
+    strokes: &[Stroke],
+    segments: &[Segment],
+    seed: usize,
+    seg_start: usize,
+    seg_dir: Direction,
+) -> Option<usize> {
+    let n = strokes.len();
+    (seg_start < n).then(|| {
+        if segments.is_empty() {
+            first_segment_start(strokes, seed, n - 1, seg_dir)
+        } else {
+            seg_start
+        }
+    })
 }
 
 /// 线段划分（reference-theta-v0.md:22）——只取确认段（薄封装 `divide_segments_with_tail`）。
@@ -903,7 +1194,7 @@ pub fn divide_segments(strokes: &[Stroke], config: &ParseConfig) -> Vec<Segment>
 // ponytail: 保留 confirmed 前缀 + pending 段重扫（O(pending_strokes)/bar，非 O(n)）。
 // ============================================================================
 
-/// 增量 segment 状态（bit-exact 对齐 `divide_segments_with_tail`）。
+/// 增量 segment 状态（与 `divide_segments_with_tail` 逐字段相同，#804）。
 #[derive(Debug, Clone, PartialEq)]
 pub struct IncrSegments {
     /// confirmed segments 前缀（Rc 共享——`to_result_rc()` O(1) clone 给 `ParseLayer.segments`）。
@@ -926,14 +1217,28 @@ pub struct IncrSegments {
     /// 不与历史取 min**（advancing）。
     ///
     /// **为何需要回退**：`second_seq_scan_window=0`（无限）下，新 bar 引入的同向笔可让 SecondKindPending
-    /// 复活（第二特征序列出现分形），级联改写已 confirmed 的更早段（#88 报告反例 seg[404]<confirmed_len=406）。
+    /// 改判（第二特征序列出现分形），级联改写已 confirmed 的更早段（#88 报告反例 seg[404]<confirmed_len=406）。
     /// 故 `append` 的 `confirmed_bound = min(末段end, earliest_unsealed_from)` 回退到 unsealed 起点前。
+    ///
+    /// #1344 / #1420（xianduan §5.1 检查点安全边界）：只有 `OPEN_AT_PREFIX_END` 与预算耗尽的候选
+    /// 记入本字段；`KILLED_BY_NEW_EXTREME` 不复活，失效笔不再是输入末笔后即封闭，边界随之前移。
+    ///
+    /// #1493 裁定 1（§7.1 第 8 条）：未决候选封住所在段，其后不再有已确认段，故 unsealed 只剩两类——
+    /// 末段（pending）里的未决候选，与「末笔可改写」（确认/失效笔是输入末笔）；不再有「后续已确认段
+    /// 被复活改写」。上文 #88 的级联改写反例在新规则下不可达，回退机制保留作末笔可改写的边界。
     ///
     /// **advancing soundness**（codex #91 §二）：second_seq_has_fractal 一旦真则永真（构建由既定前缀
     /// 决定）+ 段连续性 ⟹ 未 resolve 的候选必在下轮重扫被重新发现；候选 resolve 后 euf 前移/清零 ⟹
     /// confirmed_bound 前移 ⟹ 退回 O(n)（#93 H2 探针 late_repro=0 坐实）。取代 #88 的历史最小值持久化
     /// （后者 euf 单调非增锚死早点 ⟹ O(n²)，边界条件3）。
     earliest_unsealed_from: Option<usize>,
+    /// #1490 §7.1 第 6 条（#1493）：最早一次段端门失败的段起点（fail-closed），与全量
+    /// `SegmentFacts::parse_invalid_from` 的 `seg_start` 同一判定（#804）。保留前缀内的记录跨 append
+    /// 保留，重扫区间内的重算。
+    parse_invalid_from: Option<usize>,
+    /// #1604（#1586 C-04）：尾窗资源上界起点，与全量 `SegmentFacts::tail_window_bound` 的 `seg_start`
+    /// 同一判定（#804）；保留/重算规则同 `parse_invalid_from`。
+    resource_bound_from: Option<usize>,
 }
 
 impl Default for IncrSegments {
@@ -946,6 +1251,8 @@ impl Default for IncrSegments {
             confirmed_len: 0,
             last_stroke: None,
             earliest_unsealed_from: None,
+            parse_invalid_from: None,
+            resource_bound_from: None,
         }
     }
 }
@@ -960,13 +1267,29 @@ impl IncrSegments {
     ///
     /// ★#88 边界（诚实声明，no-patch-mentality）：本函数**不重建** `earliest_unsealed_from`
     /// skip 历史——全量结果不记录哪些段曾跳过 SecondKind 候选。故恢复态设 `None`，首次 append 仅
-    /// 1 段回退。**仅在恢复前缀无 unsealed 候选时 bit-exact 安全**。生产路径是 `empty()` + 逐 bar
-    /// `append`（skip 历史跨 append 持久累积），**不经** `from_full`（当前无生产调用者）。若未来要
-    /// 在有 unsealed 前缀处恢复，须同时持久化/重建 `earliest_unsealed_from`。
+    /// 1 段回退。**仅在恢复前缀无 unsealed 候选时 bit-exact 安全**。#1344：已失效（非末笔触发）的
+    /// 候选不复活，不构成 unsealed，在此前提内可安全恢复（tb02w_tests 锁）。生产路径是 `empty()` + 逐 bar
+    /// `append`（skip 历史跨 append 持久累积），**不经** `from_full`（当前无生产调用者）。在有 unsealed
+    /// 前缀处恢复须带检查点边界，用 [`Self::from_checkpoint`]。
     pub fn from_full(
         segments: &[Segment],
         pending_start: Option<usize>,
         strokes: &[Stroke],
+    ) -> Self {
+        Self::from_checkpoint(segments, pending_start, strokes, None)
+    }
+
+    /// #1420（xianduan §5.1）：从全量结果 + 检查点安全边界恢复增量状态。
+    ///
+    /// `earliest_unsealed_from` 取自存检查点时的 [`Self::earliest_unsealed_from`]：最早未封闭第二种
+    /// 候选（`OPEN_AT_PREFIX_END` 或预算耗尽）所在段起点，随确认/失效前移；失效候选不复活，不入边界。
+    /// 带边界恢复后续扫，与同一完整输入的无中断全量逐位相同（对任意切点成立，tb02w 三路锁）；
+    /// `from_full` 是边界为空的特例。单个候选的续扫用 `second_fold::SecondFoldCursor`（K1）。
+    pub fn from_checkpoint(
+        segments: &[Segment],
+        pending_start: Option<usize>,
+        strokes: &[Stroke],
+        earliest_unsealed_from: Option<usize>,
     ) -> Self {
         // 重建 end_array_idx：段端 = strokes[s1].end_index，找 s1 在 strokes 中的位置。
         let mut end_indices: Vec<usize> = Vec::with_capacity(segments.len());
@@ -996,7 +1319,10 @@ impl IncrSegments {
             strokes_len: strokes.len(),
             confirmed_len,
             last_stroke: strokes.last().copied(),
-            earliest_unsealed_from: None,
+            earliest_unsealed_from,
+            // 全量结果不带门失败历史；恢复前缀上的 fail-closed 记录须由调用方另核（生产不经此入口）。
+            parse_invalid_from: None,
+            resource_bound_from: None,
         }
     }
 
@@ -1031,6 +1357,8 @@ impl IncrSegments {
             confirmed_len: _,
             last_stroke: _,
             earliest_unsealed_from: euf_persisted,
+            parse_invalid_from: invalid_persisted,
+            resource_bound_from: bound_persisted,
         } = self;
 
         // #88 frontier 修复（codex #87 修补版 A）：confirmed_bound 回退到
@@ -1074,6 +1402,9 @@ impl IncrSegments {
                         confirmed_len: keep,
                         last_stroke,
                         earliest_unsealed_from: euf_persisted,
+                        // 与续扫路径同一过滤：只留续扫起点之前的门失败记录（笔数回缩时不带过期标记）。
+                        parse_invalid_from: invalid_persisted.filter(|&p| p < resume_seg_start),
+                        resource_bound_from: bound_persisted.filter(|&p| p < resume_seg_start),
                     };
                 }
                 resume_seg_dir = strokes[resume_seg_start].direction;
@@ -1089,9 +1420,12 @@ impl IncrSegments {
                         confirmed_len: keep,
                         last_stroke,
                         earliest_unsealed_from: euf_persisted,
+                        // 无已确认段且无可扫种子：全量在同一输入上也无门失败（#804）。
+                        parse_invalid_from: None,
+                        resource_bound_from: None,
                     };
                 }
-                let Some(start) = find_overlap_start(strokes, 0) else {
+                let Some(start) = find_overlap_start(strokes, 0, config.tangency) else {
                     return IncrSegments {
                         segments_rc,
                         end_indices,
@@ -1100,6 +1434,9 @@ impl IncrSegments {
                         confirmed_len: keep,
                         last_stroke,
                         earliest_unsealed_from: euf_persisted,
+                        // 无已确认段且无可扫种子：全量在同一输入上也无门失败（#804）。
+                        parse_invalid_from: None,
+                        resource_bound_from: None,
                     };
                 };
                 resume_seg_start = start;
@@ -1118,13 +1455,18 @@ impl IncrSegments {
 
         // 从 resume_seg_start 续扫（镜像 divide_segments_with_tail 主循环）。
         let min_seg = config.seg_min_strokes as usize;
+        // 保留前缀内（< resume）的门失败记录不随重扫改变；重扫区间内的重算。
+        let mut parse_invalid_from = invalid_persisted.filter(|&p| p < resume_seg_start);
+        let mut resource_bound_from = bound_persisted.filter(|&p| p < resume_seg_start);
+        let seed = resume_seg_start;
         let mut seg_start = resume_seg_start;
         let mut seg_dir = resume_seg_dir;
         let mut feat = FeatureSeqState::new(
             seg_dir,
             ExtendMode::Strict,
-            TAIL_WINDOW,
+            config.tail_window,
             config.second_seq_scan_window,
+            config.tangency,
         );
         let mut cursor = seg_start;
         // #88：本次重扫区间内跳过过 SecondKind 候选的最早 seg_start（含 pending 尾段）。
@@ -1149,21 +1491,33 @@ impl IncrSegments {
             if feat.skipped_secondkind() {
                 euf_rescan = Some(euf_rescan.map_or(seg_start, |e| e.min(seg_start)));
             }
+            if feat.tail_truncated() {
+                resource_bound_from.get_or_insert(seg_start);
+            }
             let Some(hit) = trig else {
                 cursor += 1;
                 continue;
             };
             let k = hit.k;
             let end_stroke = k - 1;
-            if end_stroke < seg_start
-                || end_stroke - seg_start < min_seg.saturating_sub(1)
-                || !construction(strokes, seg_start, end_stroke + 1).valid()
-            {
-                feat.skip_trigger(k);
-                cursor += 1;
-                continue;
+            // 与全量主循环同一判定（#804）：流首段起点按定义，门失败 fail-closed。
+            let start = if new_segments.is_empty() {
+                first_segment_start(strokes, seed, end_stroke, seg_dir)
+            } else {
+                seg_start
+            };
+            match end_gate(strokes, start, end_stroke, min_seg, config.tangency) {
+                EndGate::Emit => {}
+                gate => {
+                    if gate == EndGate::Invalid {
+                        parse_invalid_from.get_or_insert(start);
+                    }
+                    feat.skip_trigger(k);
+                    cursor += 1;
+                    continue;
+                }
             }
-            let seg = make_segment(strokes, seg_start, end_stroke, seg_dir);
+            let seg = make_segment(strokes, start, end_stroke, seg_dir);
             new_segments.push(seg);
             end_indices.push(end_stroke);
             seg_start = k;
@@ -1172,8 +1526,9 @@ impl IncrSegments {
             cursor = k;
         }
 
-        let pending_start = if seg_start < n { Some(seg_start) } else { None };
+        let pending_start = pending_segment_start(strokes, new_segments, seed, seg_start, seg_dir);
         // #93 advancing 变体（codex #91 补充裁定 §五）：直接持久化本轮重扫的新鲜 euf，**不**与历史取 min。
+        // #1344：确认/失效由非末笔决定后即终局（逐笔左折叠，先到者定），故下句对三态同样成立。
         // soundness（§二）：second_seq_has_fractal 一旦真则永真（构建由既定前缀决定，追加笔不改已算
         // elements）+ 段连续性（resume_seg_start 精确重合 flag 位置，见 append 内 debug_assert）⟹ 未
         // resolve 的候选必在下轮从 resume 重扫时被重新发现；仅当从 resume 到 n 全程零 flag（euf_rescan
@@ -1188,7 +1543,19 @@ impl IncrSegments {
             confirmed_len: keep,
             last_stroke,
             earliest_unsealed_from,
+            parse_invalid_from,
+            resource_bound_from,
         }
+    }
+
+    /// #1490 §7.1 第 6 条：最早一次段端门失败的段起点；`None` = 无失败。
+    pub fn parse_invalid_from(&self) -> Option<usize> {
+        self.parse_invalid_from
+    }
+
+    /// #1604（#1586 C-04）：尾窗资源上界起点（`INCOMPLETE_RESOURCE_BOUND`）；`None` = 覆盖完整。
+    pub fn resource_bound_from(&self) -> Option<usize> {
+        self.resource_bound_from
     }
 
     /// 当前快照 segments（Vec<Segment>，与 `divide_segments_with_tail` bit-exact）。
@@ -1273,6 +1640,12 @@ pub fn segment_force_l(strokes: &[Stroke], seg_start: usize, seg_end: usize) -> 
 mod tests {
     use super::*;
 
+    /// 签署记录 `segment-second` 的相切口径（#1604）。以下 #246 / Lean 对拍用例读记录值：记录若改签
+    /// `open` 而 Lean 未参数化（#1626），这些用例即红。
+    fn rec() -> Tangency {
+        ParseConfig::default().tangency
+    }
+
     fn stroke(dir: Direction, si: usize, ei: usize, sp: Tick, ep: Tick) -> Stroke {
         Stroke {
             direction: dir,
@@ -1288,10 +1661,10 @@ mod tests {
         let a = Interval { lo: 5, hi: 10 };
         let b = Interval { lo: 8, hi: 12 };
         let c = Interval { lo: 11, hi: 15 };
-        assert!(a.overlaps(&b)); // 5<=12 && 8<=10
-        assert!(!a.overlaps(&c)); // 5<=15 但 11<=10 false → 无重叠
-        assert!(a.gap(&c));
-        assert!(!a.gap(&b));
+        assert!(a.overlaps(&b, rec())); // 5<=12 && 8<=10
+        assert!(!a.overlaps(&c, rec())); // 5<=15 但 11<=10 false → 无重叠
+        assert!(a.gap(&c, rec()));
+        assert!(!a.gap(&b, rec()));
     }
 
     // ★相切用例（#246 裁定：相切=重合，supersede Lead #84 点3 的严格 `<` 口径）。
@@ -1304,10 +1677,10 @@ mod tests {
         let a = stroke(Direction::Up, 0, 4, 5, 10);
         let b = stroke(Direction::Down, 4, 8, 12, 8);
         let c = stroke(Direction::Up, 8, 12, 10, 14);
-        assert!(three_stroke_overlap(&a, &b, &c));
+        assert!(three_stroke_overlap(&a, &b, &c, rec()));
         // 对照：严格分离（无公共端点）仍无重合。
         let d = stroke(Direction::Up, 8, 12, 11, 14);
-        assert!(!three_stroke_overlap(&a, &b, &d)); // max_lo=11 > min_hi=10
+        assert!(!three_stroke_overlap(&a, &b, &d, rec())); // max_lo=11 > min_hi=10
     }
 
     #[test]
@@ -1334,7 +1707,7 @@ mod tests {
             let sa = stroke(Direction::Up, 0, 4, case.a.0, case.a.1);
             let sb = stroke(Direction::Up, 4, 8, case.b.0, case.b.1);
             assert_eq!(
-                three_stroke_overlap(&sa, &sb, &sb),
+                three_stroke_overlap(&sa, &sb, &sb, rec()),
                 case.overlaps,
                 "{}: three_stroke_overlap(a,b,b) 须 == Lean decide(Overlaps a b)（bit-exact）",
                 case.name
@@ -1350,7 +1723,7 @@ mod tests {
         let b = stroke(Direction::Up, 4, 8, 8, 12);
         let c = stroke(Direction::Down, 8, 12, 15, 10);
         assert!(
-            three_stroke_overlap(&a, &b, &c),
+            three_stroke_overlap(&a, &b, &c, rec()),
             "三笔互异相切（max_lo==min_hi==10）须判有重合——#246 新口径 `<=`；若红，口径被改回旧 `<`"
         );
     }
@@ -1361,9 +1734,31 @@ mod tests {
         let a = stroke(Direction::Up, 0, 4, 5, 10);
         let b = stroke(Direction::Up, 4, 8, 8, 12);
         let c_in = stroke(Direction::Down, 8, 12, 11, 9); // [9,11]：max_lo=9 < min_hi=10 → 重叠
-        assert!(three_stroke_overlap(&a, &b, &c_in));
+        assert!(three_stroke_overlap(&a, &b, &c_in, rec()));
         let c_out = stroke(Direction::Up, 8, 12, 13, 20); // [13,20]：max_lo=13 > min_hi=10 → 无重叠
-        assert!(!three_stroke_overlap(&a, &b, &c_out));
+        assert!(!three_stroke_overlap(&a, &b, &c_out, rec()));
+    }
+
+    /// #1604 A-12：相切取值两档各一条 fixture——相切形态在 `closed` 与 `open` 下翻转，
+    /// 严格形态两档一致。谓词若回退为常量（任一档硬编码），本用例必红。
+    #[test]
+    fn tangency_fixture_per_value_flips_only_tangent_case() {
+        let a = Interval { lo: 5, hi: 10 };
+        let touch = Interval { lo: 10, hi: 15 };
+        let inner = Interval { lo: 8, hi: 12 };
+        assert!(a.overlaps(&touch, Tangency::Closed));
+        assert!(!a.gap(&touch, Tangency::Closed));
+        assert!(!a.overlaps(&touch, Tangency::Open));
+        assert!(a.gap(&touch, Tangency::Open));
+        for t in [Tangency::Closed, Tangency::Open] {
+            assert!(a.overlaps(&inner, t));
+            assert!(!a.gap(&inner, t));
+        }
+        let sa = stroke(Direction::Up, 0, 4, 5, 10);
+        let sb = stroke(Direction::Up, 4, 8, 8, 12);
+        let sc = stroke(Direction::Down, 8, 12, 15, 10);
+        assert!(three_stroke_overlap(&sa, &sb, &sc, Tangency::Closed));
+        assert!(!three_stroke_overlap(&sa, &sb, &sc, Tangency::Open));
     }
 
     #[test]
@@ -1386,10 +1781,16 @@ mod tests {
         // 无缺口 → FirstKind。
         let e1 = Interval { lo: 5, hi: 12 };
         let e2 = Interval { lo: 8, hi: 15 };
-        assert_eq!(classify_termination(&e1, &e2), TerminationCase::FirstKind);
+        assert_eq!(
+            classify_termination(&e1, &e2, rec()),
+            TerminationCase::FirstKind
+        );
         // 有缺口 → SecondKind。
         let e3 = Interval { lo: 20, hi: 25 };
-        assert_eq!(classify_termination(&e1, &e3), TerminationCase::SecondKind);
+        assert_eq!(
+            classify_termination(&e1, &e3, rec()),
+            TerminationCase::SecondKind
+        );
     }
 
     #[test]
@@ -1428,7 +1829,7 @@ mod tests {
             stroke(Direction::Down, 20, 24, 18, 9),
         ];
         // 仅验证 analyze_termination 不 panic 且返回三态之一（结构契约）。
-        let t = analyze_termination(&strokes);
+        let t = analyze_termination(&strokes, rec());
         matches!(
             t,
             SegmentTermination::FirstKindConfirmed { .. }
@@ -1439,7 +1840,10 @@ mod tests {
 
     #[test]
     fn analyze_termination_empty_no_fractal() {
-        assert_eq!(analyze_termination(&[]), SegmentTermination::NoFractal);
+        assert_eq!(
+            analyze_termination(&[], rec()),
+            SegmentTermination::NoFractal
+        );
     }
 
     /// property：特征序列只含反向笔（向上线段特征序列里无向上笔）。
@@ -1542,49 +1946,44 @@ mod tests {
         out
     }
 
-    /// ★#88 级联复活 bit-exact（验收项3）：早期 SecondKindPending 后续被确认，改写其后已 confirm
-    /// 的段——修复前 1 段回退永不重访该段（div），修复后 earliest_unsealed_from 回退到其前重扫。
+    /// ★#88 级联复活 bit-exact（验收项3）→ #1493 裁定 1（§7.1 第 8 条）改写：未决第二种候选封住所在段，
+    /// 「早期候选后来确认、改写其后已发射段」的深回退在新规则下不可达。
     ///
-    /// 逐 strokes 长度断言增量 `IncrSegments::append` == 全量 `divide_segments_with_tail`。
-    /// **覆盖率自证**（防「always-run 但覆盖为零」）：断言运行期间 (a) `earliest_unsealed_from`
-    /// 曾被置 Some（SecondKind-skip 路径确被触发）；(b) 至少一次深回退（euf < 末段端 ⟹ confirmed_len
-    /// 比"仅丢末段"更靠前，即多段回退）——这正是修复前会 div 的结构。
+    /// 逐 strokes 长度断言增量 `IncrSegments::append` == 全量 `divide_segments_with_tail`，并断言已发射
+    /// 段序列逐前缀单调（前一前缀的段序列是后一前缀的前缀；笔前缀固定，无「末笔可改写」）。
+    /// **覆盖率自证**：断言 `earliest_unsealed_from` 曾被置 Some（未决候选路径确被触发）。
     #[test]
     fn cascade_revival_bit_exact_incr_vs_full() {
         let cfg = ParseConfig::default();
         let strokes = gappy_strokes(1200, 0xC0FF_EE12_3456_789A);
         let mut incr = IncrSegments::empty();
         let mut euf_ever_some = false;
-        let mut deep_rollback_seen = false;
+        let mut prev_segs: Vec<Segment> = Vec::new();
         for end in 3..=strokes.len() {
             incr = incr.append(&strokes[..end], &cfg);
             let (full_segs, full_pending) = divide_segments_with_tail(&strokes[..end], &cfg);
             let (incr_segs, incr_pending) = incr.to_result_vec();
             assert_eq!(
                 incr_segs, full_segs,
-                "strokes len {end}: 级联复活场景增量 != 全量（bit-exact 破裂）"
+                "strokes len {end}: 增量 != 全量（bit-exact 破裂）"
             );
             assert_eq!(
                 incr_pending, full_pending,
-                "strokes len {end}: 级联复活场景 pending != 全量"
+                "strokes len {end}: pending != 全量"
             );
-            if let Some(euf) = incr.earliest_unsealed_from() {
+            assert!(
+                full_segs.len() >= prev_segs.len() && full_segs[..prev_segs.len()] == prev_segs[..],
+                "strokes len {end}: 已发射段被改写（#1493 裁定 1：未决候选封段后不应再有级联复活）"
+            );
+            prev_segs = full_segs;
+            if incr.earliest_unsealed_from().is_some() {
                 euf_ever_some = true;
-                // 深回退：unsealed 起点落在某个已 confirm 段的端点之前（confirmed_len 因此比
-                // 「仅末段」更靠前）。用全量段数 vs confirmed_len 判定多段回退。
-                if incr.confirmed_len() + 1 < full_segs.len() && euf < end {
-                    deep_rollback_seen = true;
-                }
             }
         }
         assert!(
             euf_ever_some,
-            "覆盖为零：gappy 序列从未触发 SecondKind-skip（earliest_unsealed_from 恒 None）——\
-             本测试未实际覆盖 #88 修复路径，须调 gappy_strokes 参数"
-        );
-        assert!(
-            deep_rollback_seen,
-            "覆盖为零：从未发生深回退（euf < 末段端）——未覆盖「改写已 confirm 段」的级联路径"
+            "覆盖为零：gappy 序列从未触发未决第二种候选（earliest_unsealed_from 恒 None）——\
+             须调 gappy_strokes 参数"
         );
     }
 
@@ -1736,7 +2135,7 @@ mod tests {
         // 反查区间内笔全部与段区间相交（封闭性第一半）。
         if let Some((f, l)) = stroke_span_of_segment(&strokes, 0, 21) {
             for st in &strokes[f..=l] {
-                assert!(st.end_index >= 0 && st.start_index <= 21);
+                assert!(st.start_index <= 21);
             }
         }
     }

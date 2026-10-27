@@ -171,7 +171,7 @@ class LifecycleTests(unittest.TestCase):
                 env.assert_called_once_with(0.025)
                 start.assert_called_once_with("q", [config["binary"], "query-serve", "--protocol-revision",
                     "s-session/3", "--db", config["db"], "--resource-config", str(resources),
-                    "--producer-epoch", "7", "--host", "127.0.0.1", "--port", "12345"],
+                    "--producer-epoch", "7", "--host", "127.0.0.1", "--port", "12345"],  # DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
                     {"PYO3_PYTHON": config["python"]}, deadline=0.025)
                 ready.assert_called_once_with("q", query_epoch="7", deadline=0.025)
             finally:
@@ -554,7 +554,7 @@ class LifecycleTests(unittest.TestCase):
 
     def test_slow_drip_header_cannot_extend_total_health_deadline(self):
         listener = socket.socket()
-        listener.bind(("127.0.0.1", 0))
+        listener.bind(("127.0.0.1", 0))  # DevSkim: ignore DS162092 有意使用本机回环（本地服务/测试），非调试残留
         listener.listen(1)
         port = listener.getsockname()[1]
         def drip():
@@ -599,6 +599,77 @@ class LifecycleTests(unittest.TestCase):
                 for process in processes:
                     if process.poll() is None:
                         process.terminate()
+                    process.wait(timeout=3)
+                controller.close()
+
+    def test_stop_observes_exit_after_another_parent_reaps_the_process(self):
+        # #1609：Linux/WSL 上 S/Q 的父进程是 init，退出后立刻被回收、不留僵尸；
+        # 此时 ps 对不存在的 PID 返回 1，procps 还可能往 stderr 打终端尺寸告警。
+        # 这里在发信号后立即由本测试回收，复现「进程已不存在」这一观察路径。
+        with tempfile.TemporaryDirectory(prefix="tb01c-reaped-exit-") as directory:
+            config = {"db": str(Path(directory) / "owned.sqlite"), "startup_timeout_ms": "3000"}
+            controller = anchored_controller(config, Path(directory))
+            process = None
+            real_kill = control.os.kill
+            try:
+                process = controller.start_process("q", [sys.executable, "-c", "import time; time.sleep(60)", "q"])
+
+                def kill_and_reap(pid, sent):
+                    real_kill(pid, sent)
+                    process.wait(timeout=3)
+
+                with patch.object(control.os, "kill", side_effect=kill_and_reap), patch.dict(control.os.environ):
+                    control.os.environ.pop("LINES", None)
+                    result = controller.stop("q", signal.SIGTERM)
+                self.assertEqual(result["state"], "stopped")
+                self.assertEqual(result["exit_observation_warnings"], [])
+                self.assertEqual(controller.status("q")["state"], "stopped")
+            finally:
+                if process is not None and process.poll() is None:
+                    process.kill()
+                    process.wait(timeout=3)
+                controller.close()
+
+    def test_absent_process_is_stopped_even_where_ps_warns_about_screen_size(self):
+        # #1609：与平台无关地锁住 procps-ng 4.0.4 的行为——没有 LINES 时它对任何查询都往
+        # stderr 打终端尺寸告警。不传 LINES 的实现在此会把「进程不存在」判成查询失败。
+        finished = control.subprocess.Popen([sys.executable, "-c", "pass"])
+        finished.wait(timeout=5)
+        real_run = control.subprocess.run
+
+        def procps_404(argv, **kwargs):
+            result = real_run(argv, **kwargs)
+            environment = kwargs.get("env") or control.os.environ
+            if argv[0] == "ps" and not environment.get("LINES"):
+                result.stderr = (result.stderr or "") + "your 131072x1 screen size is bogus. expect trouble\n"
+            return result
+
+        with patch.dict(control.os.environ), patch.object(control.subprocess, "run", side_effect=procps_404):
+            control.os.environ.pop("LINES", None)
+            control.os.environ["COLUMNS"] = "20"
+            self.assertIsNone(control.process_identity(finished.pid))
+
+    def test_stop_still_times_out_when_the_process_ignores_the_signal(self):
+        with tempfile.TemporaryDirectory(prefix="tb01c-ignored-signal-") as directory:
+            ready = Path(directory) / "ready"
+            config = {"db": str(Path(directory) / "owned.sqlite"), "startup_timeout_ms": "1500"}
+            controller = anchored_controller(config, Path(directory))
+            process = None
+            try:
+                script = ("import pathlib, signal, sys, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+                          "pathlib.Path(sys.argv[1]).touch(); time.sleep(60)")
+                process = controller.start_process("q", [sys.executable, "-c", script, str(ready)])
+                limit = time.monotonic() + 5
+                while not ready.exists() and time.monotonic() < limit:
+                    time.sleep(0.01)
+                self.assertTrue(ready.exists())
+                with self.assertRaisesRegex(TimeoutError, "尚未退出，不自动升级信号"):
+                    controller.stop("q", signal.SIGTERM)
+                self.assertIsNone(process.poll())
+                self.assertEqual(controller.status("q")["state"], "running")
+            finally:
+                if process is not None and process.poll() is None:
+                    process.kill()
                     process.wait(timeout=3)
                 controller.close()
 

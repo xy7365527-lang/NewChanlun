@@ -47,7 +47,8 @@ use super::content_producer::{array_from_sequence, Cc004Producer, ProducerError,
 use super::v3::fixed_radix::{FixedRadix, Iter as RadixIter};
 use super::*;
 use newchan_rust::s_content::capture_allocation::audit_json::{ArrayView, JsonArray, JsonView};
-use newchan_rust::s_content::path::{lookup_path, PathStep};
+use newchan_rust::s_content::capture_allocation::native_owned::NativeValue;
+use newchan_rust::s_content::path::{lookup_path_native, PathStep};
 use newchan_rust::s_content::{
     self as sc, Built, CodecError, ContentRef, Kind, NodeDigest, NodeStore, SequenceRef,
     Value as CValue,
@@ -78,8 +79,8 @@ const VERSION_KIND: &str = "CC-056.version";
 /// CC-056 的槽位常量（`TB-02-B` 版本对象）。
 const VERSION_SLOT: &str = "TB-02-B";
 /// 载荷头三常量（与旧配方逐字相同）。
-const PAYLOAD_SCHEMA: &str = "s-new-bi/1";
-const PAYLOAD_POLICY: &str = "standard_raw_gap_3";
+const PAYLOAD_SCHEMA: &str = tb02b::CURRENT_CONTRACT.schema;
+const PAYLOAD_POLICY: &str = tb02b::CURRENT_CONTRACT.policy;
 const PAYLOAD_VIEW_ROLE: &str = "main";
 /// 变更事件的固定原因轴（与旧配方同值 `stroke::RULE`）。
 const CHANGE_CAUSE: &str = RULE;
@@ -321,7 +322,7 @@ pub(super) struct DepsArrays {
 ///   故永不失效；
 /// - `refs`：叶 = 当前源版本的八字段引用值根；`refs_leaves` 是与 `coords` 对齐的**水位索引**。
 ///   `RawCoords::sync` 逐位与 `Cc004Producer::source_root` 比对，**实际变化**的最早位置起
-///   重建尾部（`sequence_rebuild_suffix` 只构造保留前缀 + 逐叶 `sequence_append`），
+///   重建尾部（`sequence_rebuild_suffix` 保留前缀 + 整段新尾一次构造，不落逐叶中间根），
 ///   不构造被丢弃的旧右段，未变前缀的节点原样保留；
 /// - `coords` 是区间定位用的升序坐标索引（与调用方账本同量级），不是内容物化。
 struct RawCoords {
@@ -384,22 +385,21 @@ impl RawCoords {
         if first == self.coords.len() && self.coords.len() == ledger.rows.len() {
             return Ok(());
         }
-        let text_prefix = sc::sequence_rebuild_suffix(&mut *store, &self.text, first as u64, &[])?;
-        let refs_prefix = sc::sequence_rebuild_suffix(&mut *store, &self.refs, first as u64, &[])?;
-        let mut text = text_prefix;
-        let mut refs = refs_prefix;
         let mut tail: Vec<i64> = Vec::new();
+        let mut tail_text: Vec<NodeDigest> = Vec::new();
         let mut tail_refs: Vec<NodeDigest> = Vec::new();
         for (coord, _) in ledger.rows.iter().skip(first) {
             let leaf = producer.coord_text_leaf(&mut *store, coord)?;
-            text = sc::sequence_append(&mut *store, &text, &leaf)?;
             let source = producer
                 .source_root(coord)
                 .ok_or(ProducerError::MissingSource(coord))?;
-            refs = sc::sequence_append(&mut *store, &refs, &source)?;
             tail.push(coord);
+            tail_text.push(leaf);
             tail_refs.push(source);
         }
+        // 与 delta 口同一做法：一次构造最终后缀，不逐 leaf 落作废中间根（#1488 S3）。
+        let text = sc::sequence_rebuild_suffix(&mut *store, &self.text, first as u64, &tail_text)?;
+        let refs = sc::sequence_rebuild_suffix(&mut *store, &self.refs, first as u64, &tail_refs)?;
         self.coords.truncate(first);
         self.refs_leaves.truncate(first);
         self.coords.extend(tail);
@@ -765,16 +765,16 @@ struct PriorBi {
     entity_id: String,
     entity_revision: i64,
     end_group_anchor: i64,
-    start: ContentRef,
-    end: ContentRef,
-    data: ContentRef,
-    confirmation: Option<ContentRef>,
+    start: NativeValue<ContentRef>,
+    end: NativeValue<ContentRef>,
+    data: NativeValue<ContentRef>,
+    confirmation: Option<NativeValue<ContentRef>>,
     confirmation_successor_start: Option<String>,
     confirmation_source_coords: Option<Vec<usize>>,
-    formed_known_at: ContentRef,
-    formed_evidence: ContentRef,
-    confirmed_known_at: Option<ContentRef>,
-    version_causes: ContentRef,
+    formed_known_at: NativeValue<ContentRef>,
+    formed_evidence: NativeValue<ContentRef>,
+    confirmed_known_at: Option<NativeValue<ContentRef>>,
+    version_causes: NativeValue<ContentRef>,
 }
 
 /// 上一代发布态的索引：活跃 bi 记录 + 由版本对象给出的当前事实代际。
@@ -890,7 +890,7 @@ impl PriorBi {
 
 /// 上一代一条 `obj3` 记录的公共核验结果：已核的载荷边 + 事实键槽位。
 struct PriorRecord {
-    payload: ContentRef,
+    payload: NativeValue<ContentRef>,
     slot: String,
 }
 
@@ -1208,7 +1208,7 @@ impl ContentBi {
             let slot = Value::String(format!("fx:{fact_generation}:{}", endpoint.group_anchor));
             let deps = self
                 .coords
-                .coord_set(&mut *store, &endpoint.source_coords)?;
+                .coord_set(&mut *store, &endpoint.source_coords.to_vec())?;
             objects.push(build_typed(
                 producer,
                 &mut *store,
@@ -1237,8 +1237,8 @@ impl ContentBi {
             ]);
             let deps = self.coords.interval(
                 &mut *store,
-                &pair.old.source_coords,
-                &pair.new.source_coords,
+                &pair.old.source_coords.to_vec(),
+                &pair.new.source_coords.to_vec(),
                 &[],
             )?;
             objects.push(build_typed(
@@ -1374,8 +1374,8 @@ impl ContentBi {
             let data = sc::write_value(&mut *store, &data_value)?;
             let deps = self.coords.interval(
                 &mut *store,
-                &stroke.start.source_coords,
-                &stroke.end.source_coords,
+                &stroke.start.source_coords.to_vec(),
+                &stroke.end.source_coords.to_vec(),
                 &confirmation_coords,
             )?;
             let slot = Value::String(entity.clone());
@@ -1420,8 +1420,10 @@ impl ContentBi {
                 ));
             }
             let start_root = first_extreme_root(&stroke.start)?;
-            let end_root = first_extreme_root(&stroke.end)?;
-            for (coord, row) in input.raw.range(start_root, end_root) {
+            // #1405 / #1343 Q2：成员覆盖完整终点极值区，事件代表仍取首根。
+            let member_end_root = last_extreme_root(&stroke.end)?;
+            let event_root = first_extreme_root(&stroke.end)?;
+            for (coord, row) in input.raw.range(start_root, member_end_root) {
                 let identity =
                     row.get("identity_key")
                         .and_then(JsonView::as_str)
@@ -1483,7 +1485,7 @@ impl ContentBi {
 
             // 就地变更事件：依赖面是**全账本**（与旧配方 `sources` 同一条）；`before`/`after`
             // 直接引用上一代与新写出的数据根。
-            let event_at = ledger.text(end_root, "ts")?.to_string();
+            let event_at = ledger.text(event_root, "ts")?.to_string();
             for change in &changes {
                 let slot = slot_of(&[generation_text.as_str(), entity.as_str(), *change]);
                 let before = match previous {
@@ -1779,12 +1781,16 @@ fn endpoint_value(endpoint: &Endpoint) -> CValue {
             usize_array(&endpoint.extreme_roots),
         ),
         (
-            "raw_position".to_string(),
-            optional_usize(endpoint.raw_position),
+            "raw_first".to_string(),
+            CValue::String(endpoint.raw_first.to_string()),
+        ),
+        (
+            "raw_last".to_string(),
+            CValue::String(endpoint.raw_last.to_string()),
         ),
         (
             "source_coords".to_string(),
-            usize_array(&endpoint.source_coords),
+            usize_array(&endpoint.source_coords.to_vec()),
         ),
         ("sealed_at".to_string(), optional_usize(endpoint.sealed_at)),
         (
@@ -1803,7 +1809,7 @@ fn conditions_value(conditions: &Conditions) -> CValue {
         ),
         (
             "raw_between_actual_extrema".to_string(),
-            optional_usize(conditions.raw_between_actual_extrema),
+            CValue::String(conditions.raw_between_actual_extrema.to_string()),
         ),
         (
             "top_price".to_string(),
@@ -1858,7 +1864,7 @@ fn confirmation_value(confirmation: &Confirmation) -> CValue {
         ),
         (
             "source_coords".to_string(),
-            usize_array(&confirmation.source_coords),
+            usize_array(&confirmation.source_coords.to_vec()),
         ),
     ])
 }
@@ -1885,6 +1891,7 @@ fn pair_value(pair: &PairFact) -> CValue {
             "retained_anchors".to_string(),
             usize_array(&pair.retained_anchors),
         ),
+        ("evidence".to_string(), str_array(&pair.evidence)),
         (
             "waiting_reasons".to_string(),
             str_array(&pair.waiting_reasons),
@@ -1939,6 +1946,21 @@ fn first_extreme_root(endpoint: &Endpoint) -> Result<i64, BiError> {
         })
 }
 
+/// 终点极值根末项（成员闭区间的上界；与首根一样拒绝空集及坐标溢出）。
+fn last_extreme_root(endpoint: &Endpoint) -> Result<i64, BiError> {
+    endpoint
+        .extreme_roots
+        .last()
+        .map(|root| coord_i64(*root))
+        .transpose()?
+        .ok_or_else(|| BiError::Facts {
+            detail: format!(
+                "端点 {} 没有极值根，无法定位关系成员区间",
+                endpoint.group_anchor
+            ),
+        })
+}
+
 /// 路径读点：单步 `{field: name}`。
 fn field_path(name: &str) -> Vec<PathStep> {
     vec![PathStep::Field(name.to_string())]
@@ -1953,12 +1975,13 @@ fn nested_path(names: &[&str]) -> Vec<PathStep> {
 }
 
 /// 按路径定位（只核路径触碰到的节点与序列形状，见 `s_content::path`）。
+/// 活动工作域下查找签发的原正文许可随引用持有，至持有者（上一代索引）释放。
 fn resolve(
     store: &mut dyn NodeStore,
     reference: &ContentRef,
     path: &[PathStep],
-) -> Result<ContentRef, BiError> {
-    Ok(lookup_path(&mut *store, reference, path)?)
+) -> Result<NativeValue<ContentRef>, BiError> {
+    Ok(lookup_path_native(&mut *store, reference.into(), path)?)
 }
 
 /// 单个**叶**值的规范渲染（字符串 / 数字叶没有子树，闭包即该节点；容器不许走这里）。
@@ -2013,7 +2036,7 @@ fn optional_object(
     store: &mut dyn NodeStore,
     reference: &ContentRef,
     path: &[PathStep],
-) -> Result<Option<ContentRef>, BiError> {
+) -> Result<Option<NativeValue<ContentRef>>, BiError> {
     let target = resolve(store, reference, path)?;
     if target.kind == Kind::Null {
         return Ok(None);
@@ -2878,6 +2901,199 @@ mod tests {
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
     }
 
+    /// #1405：共享内容路径在同一 parser 事实上与 v2 投影对拍，多根极值坐标仍按 raw 序位。
+    #[test]
+    fn parity_tb1405_root_sets_and_equal_price_evidence() {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../../tests/fixtures/tb02v_same_price/syn2_multi_root_group.json"
+        ))
+        .unwrap();
+        let highs = fixture["highs"].as_array().unwrap();
+        let lows = fixture["lows"].as_array().unwrap();
+        let rows: Vec<Row> = highs
+            .iter()
+            .zip(lows)
+            .enumerate()
+            .map(|(index, (high, low))| Row {
+                coord: index as i64 * 10,
+                high: high.as_f64().unwrap() as i64,
+                low: low.as_f64().unwrap() as i64,
+                revision: 1,
+                seq: index as i64,
+            })
+            .collect();
+        let mut harness = Harness::new();
+        let mut previous = None;
+        let mut saw_roots = false;
+        for prefix in 3..=rows.len() {
+            let (bars, _, _) = ledger(&rows[..prefix]);
+            saw_roots |= facts_of(&bars)
+                .endpoints
+                .iter()
+                .any(|endpoint| endpoint.extreme_roots.len() > 1);
+            previous = Some(run_generation(
+                &mut harness,
+                &rows[..prefix],
+                previous.as_ref(),
+                "#1405根集合",
+            ));
+        }
+        assert!(saw_roots, "夹具必须实际产生多根极值端点");
+    }
+
+    #[test]
+    fn tb1405_member_bounds_reject_empty_or_unrepresentable_roots() {
+        let (bars, _, _) = ledger(&fixture_rows());
+        let mut endpoint = facts_of(&bars).endpoints[0].clone();
+        endpoint.extreme_roots.clear();
+        assert!(matches!(
+            first_extreme_root(&endpoint),
+            Err(BiError::Facts { .. })
+        ));
+        assert!(matches!(
+            last_extreme_root(&endpoint),
+            Err(BiError::Facts { .. })
+        ));
+        if let Some(overflow) = usize::try_from(i64::MAX)
+            .ok()
+            .and_then(|n| n.checked_add(1))
+        {
+            endpoint.extreme_roots = vec![overflow];
+            assert!(matches!(
+                first_extreme_root(&endpoint),
+                Err(BiError::Facts { .. })
+            ));
+            assert!(matches!(
+                last_extreme_root(&endpoint),
+                Err(BiError::Facts { .. })
+            ));
+        }
+    }
+
+    /// #1405 HIGH-MEMBER-ROOT-TAIL：已成笔的多根终点必须逐前缀保留全部成员。
+    #[test]
+    fn parity_tb1405_formed_multi_root_tail_members_every_prefix() {
+        use newchan_rust::theta_v0::types::quantize;
+
+        for (name, fixture, start, end, tail) in [
+            (
+                "syn3_multi_root_replace",
+                include_str!("../../../tests/fixtures/tb02v_same_price/syn3_multi_root_replace.json"),
+                3usize,
+                9usize,
+                10usize,
+            ),
+            (
+                "real_C_bars14_40_multi_root_second_gate",
+                include_str!("../../../tests/fixtures/tb02v_same_price/real_C_bars14_40_multi_root_second_gate.json"),
+                12,
+                21,
+                22,
+            ),
+        ] {
+            let fixture: Value = serde_json::from_str(fixture).unwrap();
+            let highs = fixture["highs"].as_array().unwrap();
+            let lows = fixture["lows"].as_array().unwrap();
+            assert_eq!(highs.len(), lows.len());
+            for stride in [1usize, 10] {
+                let label = format!("{name} stride={stride}");
+                // 与见证原入口 load_symbol 使用同一量化函数；real_C 的小数价不可截断。
+                let tick_size = ThetaConfig::default().tick.tick_size;
+                let rows: Vec<Row> = highs
+                    .iter()
+                    .zip(lows)
+                    .enumerate()
+                    .map(|(index, (high, low))| Row {
+                        coord: (index * stride) as i64,
+                        high: quantize(high.as_f64().unwrap(), tick_size),
+                        low: quantize(low.as_f64().unwrap(), tick_size),
+                        revision: 1,
+                        seq: index as i64,
+                    })
+                    .collect();
+                let mut harness = Harness::new();
+                let mut previous = None;
+                let mut saw_formed_multi_root = false;
+                let mut saw_multi_root_event = false;
+                for prefix in 3..=rows.len() {
+                    let label = format!("{label} prefix={prefix}");
+                    let (bars, raw, _) = ledger(&rows[..prefix]);
+                    let facts = facts_of(&bars);
+                    // 完整 v2/v3 对象、载荷、记录和关系逐字段对拍，不能只检查端点根集。
+                    let generation = run_generation(
+                        &mut harness,
+                        &rows[..prefix],
+                        previous.as_ref(),
+                        &label,
+                    );
+                    let relations: Vec<Value> =
+                        generation.relations.iter().map(render_value).collect();
+                    for stroke in &facts.strokes {
+                        let entity = format!("bi:1:{}", stroke.identity_anchor);
+                        let first = *stroke.start.extreme_roots.iter().min().unwrap() as i64;
+                        let last = *stroke.end.extreme_roots.iter().max().unwrap() as i64;
+                        let expected: Vec<String> = raw
+                            .range(first..=last)
+                            .map(|(_, row)| {
+                                format!(
+                                    "raw:{}@{}",
+                                    row["identity_key"].as_str().unwrap(),
+                                    row["revision"]
+                                )
+                            })
+                            .collect();
+                        let actual: Vec<String> = relations
+                            .iter()
+                            .filter(|relation| {
+                                relation["relation_type"] == "member_of"
+                                    && relation["object"] == entity
+                            })
+                            .map(|relation| relation["subject"].as_str().unwrap().to_string())
+                            .collect();
+                        assert_eq!(actual, expected, "{label} {entity} 完整成员闭区间");
+                        if stroke.end.extreme_roots.len() <= 1 {
+                            continue;
+                        }
+                        saw_formed_multi_root = true;
+                        assert_eq!(stroke.start.group_anchor, start * stride, "{label}");
+                        assert_eq!(stroke.end.group_anchor, end * stride, "{label}");
+                        assert_eq!(
+                            stroke.end.extreme_roots,
+                            vec![end * stride, tail * stride],
+                            "{label} 必须触达已审多根成笔见证"
+                        );
+                        assert!(
+                            actual.contains(&format!("raw:k-{}@1", tail * stride)),
+                            "{label} 必须包含 syn3 raw 10 / real_C raw 22（按 stride 映射）"
+                        );
+                        let event_root = *stroke.end.extreme_roots.iter().min().unwrap() as i64;
+                        for object in &generation.objects {
+                            if object_kind(object) != CHANGE_KIND {
+                                continue;
+                            }
+                            let payload: Value = serde_json::from_str(&render_built(
+                                &mut harness.store,
+                                &object.payload,
+                            ))
+                            .unwrap();
+                            if payload["data"]["entity_id"] == entity {
+                                saw_multi_root_event = true;
+                                assert_eq!(
+                                    payload["data"]["event_at"], raw[&event_root]["ts"],
+                                    "{label} event_at 必须继续取终点首根"
+                                );
+                                assert_ne!(raw[&event_root]["ts"], raw[&last]["ts"], "{label}");
+                            }
+                        }
+                    }
+                    previous = Some(generation);
+                }
+                assert!(saw_formed_multi_root, "{label} 必须实际产生多根成笔终点");
+                assert!(saw_multi_root_event, "{label} 必须实际检查多根终点变更事件");
+            }
+        }
+    }
+
     /// 多前缀普通 append：覆盖同代确认沿用、端点延伸、稀疏坐标与七个 kind 齐备。
     #[test]
     fn parity_every_prefix_append_confirm_extension_and_sparse_coords() {
@@ -3177,6 +3393,109 @@ mod tests {
             measured[1] <= measured[0] + 32,
             "账本从 64 涨到 1024 时区间写次数不得随之线性增长（实际 {measured:?}）"
         );
+    }
+
+    /// `verify` 全闭包实际读到的节点即可达集（空序列按规范不读节点，单独豁免）。
+    fn reachable_nodes(nodes: &mut MemoryNodes, refs: &[ContentRef]) -> BTreeSet<NodeDigest> {
+        struct Reads<'a> {
+            nodes: &'a mut MemoryNodes,
+            seen: BTreeSet<NodeDigest>,
+        }
+        impl NodeSource for Reads<'_> {
+            fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+                self.seen.insert(*digest);
+                self.nodes.read(digest)
+            }
+        }
+        let mut reads = Reads {
+            nodes,
+            seen: BTreeSet::new(),
+        };
+        // 同一核验器内共享子树只读一次；读集 = 全部根的公开全闭包。
+        sc::verify_many(&mut reads, refs.iter().cloned()).expect("产出全闭包可核");
+        reads.seen.insert(SequenceRef::empty().root());
+        reads.seen
+    }
+
+    /// #1488 S3 锁：非 delta `RawCoords::sync` 多代续接（追加 + 中段源修订）每代新写节点
+    /// 全部可从本代全账本数组闭包到达（不可达 = 0，不落逐叶作废中间根），且末代根与冷构建逐位相同。
+    #[test]
+    fn raw_coords_sync_writes_no_orphans_and_matches_cold() {
+        let row = |index: usize, revision: i64| Row {
+            coord: index as i64 * 10,
+            high: 100 + index as i64,
+            low: 50 + index as i64,
+            revision,
+            seq: index as i64,
+        };
+        let mut rows: Vec<Row> = (0..24).map(|index| row(index, 1)).collect();
+        let mut harness = Harness::new();
+        let mut coords = RawCoords::new();
+        let mut steps = 0usize;
+        // 0..3：每代追加 5 行；3：第 12 行源修订（截断重建尾部）；4：修订 + 再追加 7 行。
+        for step in 0..5usize {
+            match step {
+                3 => rows[12] = row(12, 2),
+                4 => {
+                    rows[20] = row(20, 2);
+                    let base = rows.len();
+                    rows.extend((base..base + 7).map(|index| row(index, 1)));
+                }
+                _ if step > 0 => {
+                    let base = rows.len();
+                    rows.extend((base..base + 5).map(|index| row(index, 1)));
+                }
+                _ => {}
+            }
+            let (_, raw, _) = ledger(&rows);
+            harness.bind(&raw);
+            let before: BTreeSet<NodeDigest> = harness
+                .store
+                .nodes
+                .iter()
+                .map(|(digest, _, _)| *digest)
+                .collect();
+            coords
+                .sync(
+                    &mut harness.store,
+                    &mut harness.producer,
+                    &Ledger::new(&raw),
+                )
+                .expect("对齐坐标序列");
+            let whole = coords.whole(&mut harness.store).expect("全账本数组");
+            let reachable = reachable_nodes(
+                &mut harness.store.nodes,
+                &[
+                    whole.input_refs.content_ref(),
+                    whole.source_coords.content_ref(),
+                ],
+            );
+            let orphans: Vec<NodeDigest> = harness
+                .store
+                .nodes
+                .iter()
+                .map(|(digest, _, _)| *digest)
+                .filter(|digest| !before.contains(digest) && !reachable.contains(digest))
+                .collect();
+            assert!(
+                orphans.is_empty(),
+                "第 {step} 代 RawCoords::sync 留下 {} 个不可达节点",
+                orphans.len()
+            );
+            steps += 1;
+        }
+        assert_eq!(steps, 5, "逐代不可达锁不是假空");
+        let (_, raw, _) = ledger(&rows);
+        let mut cold = Harness::new();
+        cold.bind(&raw);
+        let mut cold_coords = RawCoords::new();
+        cold_coords
+            .sync(&mut cold.store, &mut cold.producer, &Ledger::new(&raw))
+            .expect("冷对齐");
+        assert_eq!(coords.coords, cold_coords.coords);
+        assert_eq!(coords.refs_leaves, cold_coords.refs_leaves);
+        assert_eq!(coords.text, cold_coords.text, "暖/冷坐标文本序列逐位相同");
+        assert_eq!(coords.refs, cold_coords.refs, "暖/冷源引用序列逐位相同");
     }
 
     /// 增量内容序列与共享 coords 树是**同一条判据**：同一逻辑坐标集必须给出同根
@@ -3565,6 +3884,15 @@ mod tests {
             .expect("首代车道");
         let head_coords: Vec<i64> = raw_head.keys().copied().collect();
         assert_eq!(lane.coords, head_coords, "首代车道坐标");
+        // 新源先登记：sync 先收齐尾部叶再一次构造后缀（sequence_rebuild_suffix，#1488 S3），
+        // 未登记源会在构造后缀前即以 MissingSource 退出，测不到半途拒写。
+        for (coord, row) in &raw_full {
+            if !raw_head.contains_key(coord) {
+                producer
+                    .bind_source(&mut store, *coord, spec_of(row))
+                    .expect("登记新源版本");
+            }
+        }
         let before = store.puts;
         store.refuse_put_after = Some(before + 3);
         let error = lane
@@ -3585,13 +3913,6 @@ mod tests {
             "半途失败后引用叶车道必须保持上一代整根"
         );
         store.refuse_put_after = None;
-        for (coord, row) in &raw_full {
-            if !raw_head.contains_key(coord) {
-                producer
-                    .bind_source(&mut store, *coord, spec_of(row))
-                    .expect("登记新源版本");
-            }
-        }
         lane.sync(&mut store, &mut producer, &Ledger::new(&raw_full))
             .expect("解除拒写后必须可恢复");
 

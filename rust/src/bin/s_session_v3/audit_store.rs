@@ -27,89 +27,112 @@ impl CodecRead for NativeAdmission<'_> {
     }
 }
 
-/// #1488：节点上界许可随树拥有者移动；remove 不猜物理节点释放，clear 真释放。
-/// 声明顺序保证树先析构，原 reserve token 最后析构；没有裸容器消费出口。
-pub(crate) struct NativeTree<K, V> {
-    tree: std::collections::BTreeMap<K, V>,
-    high_water: usize,
-    permits: sc::CodecVec<sc::capture_allocation::scratch::NativeReservation>,
+pub(crate) use sc::capture_allocation::native_tree::{NativeSet, NativeTree};
+
+/// std HashMap的表容量原许可；字段顺序保证旧块先释放再返费。
+pub(crate) struct NativeMap<K, V> {
+    map: std::collections::HashMap<K, V>,
+    permit: Option<sc::capture_allocation::scratch::NativeReservation>,
 }
-impl<K, V> Default for NativeTree<K, V> {
+impl<K, V> Default for NativeMap<K, V> {
     fn default() -> Self {
         Self {
-            tree: Default::default(),
-            high_water: 0,
-            permits: Default::default(),
+            map: Default::default(),
+            permit: None,
         }
     }
 }
-impl<K: Ord, V> NativeTree<K, V> {
-    pub(crate) fn insert_admitted(
-        &mut self,
-        key: K,
-        value: V,
-        admission: &(impl CodecRead + ?Sized),
-    ) -> Result<Option<V>, CodecError> {
-        if !self.tree.contains_key(&key) && self.tree.len() >= self.high_water {
-            if let Some(work) = admission.codec_work() {
-                let depth = usize::BITS as usize - self.tree.len().leading_zeros() as usize + 2;
-                let bytes = std::mem::size_of::<(K, V)>()
-                    .checked_mul(11)
-                    .and_then(|n| n.checked_add(16 * std::mem::size_of::<usize>()))
-                    .and_then(|n| n.checked_mul(depth))
-                    .ok_or_else(|| admission.native_overflow())?;
-                self.permits.try_reserve_native(work, 1)?;
-                let permit = work.reserve_native(bytes)?;
-                self.permits.try_push(permit)?;
-            }
-            self.high_water = self.tree.len() + 1;
+impl<K: Eq + std::hash::Hash, V> NativeMap<K, V> {
+    pub(crate) fn belongs_to_work(
+        &self,
+        work: &sc::capture_allocation::scratch::WorkScope,
+    ) -> bool {
+        self.permit
+            .as_ref()
+            .map_or(self.map.capacity() == 0, |p| p.belongs_to_parent(work))
+    }
+    pub(crate) fn try_copy_mixed(
+        &self,
+        work: &sc::capture_allocation::scratch::WorkScope,
+        mut copy: impl FnMut(&K, &V) -> Result<(K, V), CodecError>,
+    ) -> Result<Self, CodecError> {
+        work.check_current()?;
+        if let Some(permit) = &self.permit {
+            permit.check_retained_source()?;
         }
-        Ok(self.tree.insert(key, value))
+        let mut next = Self::default();
+        let admission = NativeAdmission(Some(work));
+        for (key, value) in &self.map {
+            let (key, value) = copy(key, value)?;
+            next.reserve_admitted(&admission)?;
+            next.insert(key, value);
+        }
+        Ok(next)
     }
-    pub(crate) fn remove<Q: Ord + ?Sized>(&mut self, key: &Q) -> Option<V>
+    pub(crate) fn reserve_admitted(
+        &mut self,
+        admission: &(impl CodecRead + ?Sized),
+    ) -> Result<(), CodecError> {
+        let Some(work) = admission.codec_work() else {
+            if self.permit.is_some() {
+                return Err(CodecError::new(
+                    sc::capture_allocation::INCOMPLETE,
+                    "Native map缺当前工作域",
+                ));
+            }
+            return self
+                .map
+                .try_reserve(1)
+                .map_err(|_| CodecError::new(sc::capture_allocation::LIMIT, "map扩容失败"));
+        };
+        work.check_current()?;
+        if self
+            .permit
+            .as_ref()
+            .is_some_and(|p| !p.belongs_to_parent(work))
+            || (self.permit.is_none() && self.map.capacity() != 0)
+        {
+            return Err(work.reject(sc::capture_allocation::scratch::ScratchFailure::Ledger));
+        }
+        let bytes = admission.native_hash_bytes::<K, V>(self.map.len(), self.map.capacity())?;
+        if bytes == 0 {
+            return Ok(());
+        }
+        let permit = work.reserve_native(bytes)?;
+        let mut next = std::collections::HashMap::new();
+        next.try_reserve(self.map.len() + 1).map_err(|_| {
+            work.reject(sc::capture_allocation::scratch::ScratchFailure::Allocation)
+        })?;
+        next.extend(self.map.drain());
+        drop(std::mem::replace(&mut self.map, next));
+        self.permit = Some(permit);
+        Ok(())
+    }
+    pub(crate) fn insert(&mut self, key: K, value: V) -> Option<V> {
+        assert!(
+            self.permit.is_none()
+                || self.map.contains_key(&key)
+                || self.map.len() < self.map.capacity()
+        );
+        self.map.insert(key, value)
+    }
+    pub(crate) fn remove<Q: std::hash::Hash + Eq + ?Sized>(&mut self, key: &Q) -> Option<V>
     where
         K: std::borrow::Borrow<Q>,
     {
-        self.tree.remove(key)
-    }
-    /// 仅借出既有值；值的动态增长仍必须由其持费接口准入，不能改变树键或容量。
-    pub(crate) fn get_mut<Q: Ord + ?Sized>(&mut self, key: &Q) -> Option<&mut V>
-    where
-        K: std::borrow::Borrow<Q>,
-    {
-        self.tree.get_mut(key)
-    }
-    /// 移出键值及其各自许可；树节点的保守高水位费仍留到 clear/drop。
-    pub(crate) fn remove_entry<Q: Ord + ?Sized>(&mut self, key: &Q) -> Option<(K, V)>
-    where
-        K: std::borrow::Borrow<Q>,
-    {
-        self.tree.remove_entry(key)
+        self.map.remove(key)
     }
     pub(crate) fn clear(&mut self) {
-        self.tree.clear();
-        self.high_water = 0;
-        self.permits.clear();
+        self.map.clear();
     }
-    pub(crate) fn permit_capacity(&self) -> usize {
-        self.permits.capacity()
-    }
-    /// 仅供保留结构统计：含尚未 clear 的节点上界与许可缓冲；不用于父账退款。
-    pub(crate) fn allocation_bytes(&self) -> usize {
-        let node_bound = std::mem::size_of::<(K, V)>()
-            .saturating_mul(11)
-            .saturating_add(16 * std::mem::size_of::<usize>());
-        self.high_water.saturating_mul(node_bound).saturating_add(
-            self.permits.capacity().saturating_mul(std::mem::size_of::<
-                sc::capture_allocation::scratch::NativeReservation,
-            >()),
-        )
+    pub(crate) fn retain(&mut self, f: impl FnMut(&K, &mut V) -> bool) {
+        self.map.retain(f);
     }
 }
-impl<K, V> std::ops::Deref for NativeTree<K, V> {
-    type Target = std::collections::BTreeMap<K, V>;
+impl<K, V> std::ops::Deref for NativeMap<K, V> {
+    type Target = std::collections::HashMap<K, V>;
     fn deref(&self) -> &Self::Target {
-        &self.tree
+        &self.map
     }
 }
 
@@ -125,6 +148,7 @@ impl sc::path::PathView for BorrowedFieldPath<'_> {
 }
 
 /// 字段路径的文本与原许可共同存活；使用 PathView 而非拆出裸 String。
+#[allow(dead_code, reason = "#1488 再合 #1608：8组合实测无调用方，保留不删")]
 pub(crate) struct NativeFieldPath(NativeValue<String>);
 impl sc::path::PathView for NativeFieldPath {
     fn len(&self) -> usize {
@@ -137,11 +161,17 @@ impl sc::path::PathView for NativeFieldPath {
 
 /// 仅bin内的静态codec门；具体捕获owner不可擦除成外来来源。
 pub(crate) trait CodecRead: NodeSource {
-    fn native_admit(&self, bytes: usize) -> Result<(), CodecError> {
-        if let Some(work) = self.codec_work() {
-            work.reserve_native(bytes)?.retain();
-        }
-        Ok(())
+    fn native_measure(&self) -> Option<super::audit_budget::NativeMeasure<'_>> {
+        None
+    }
+    #[must_use = "原许可必须由实际载荷持有至析构"]
+    fn native_reservation(
+        &self,
+        bytes: usize,
+    ) -> Result<Option<sc::capture_allocation::scratch::NativeReservation>, CodecError> {
+        self.codec_work()
+            .map(|work| work.reserve_native(bytes))
+            .transpose()
     }
     fn native_overflow(&self) -> CodecError {
         self.codec_work().map_or_else(
@@ -149,36 +179,15 @@ pub(crate) trait CodecRead: NodeSource {
             |w| w.reject(sc::capture_allocation::scratch::ScratchFailure::Budget),
         )
     }
-    fn native_vec_room<T>(&self, values: &mut Vec<T>, additional: usize) -> Result<(), CodecError> {
-        if self.codec_work().is_none() {
-            return Ok(());
+    fn native_vec_room<T>(
+        &self,
+        values: &mut sc::CodecVec<T>,
+        additional: usize,
+    ) -> Result<(), CodecError> {
+        match self.codec_work() {
+            Some(work) => values.try_reserve_native(work, additional),
+            None => values.try_reserve(additional),
         }
-        let needed = values
-            .len()
-            .checked_add(additional)
-            .ok_or_else(|| self.native_overflow())?;
-        if needed <= values.capacity() {
-            return Ok(());
-        }
-        let next = needed
-            .max(
-                values
-                    .capacity()
-                    .checked_mul(2)
-                    .ok_or_else(|| self.native_overflow())?,
-            )
-            .max(4);
-        let bytes = next
-            .checked_mul(std::mem::size_of::<T>())
-            .ok_or_else(|| self.native_overflow())?;
-        let permit = self.codec_work().unwrap().reserve_native(bytes)?;
-        values.try_reserve_exact(next - values.len()).map_err(|_| {
-            self.codec_work()
-                .unwrap()
-                .reject(sc::capture_allocation::scratch::ScratchFailure::Allocation)
-        })?;
-        permit.retain();
-        Ok(())
     }
     fn native_codec_room<T>(
         &self,
@@ -225,30 +234,9 @@ pub(crate) trait CodecRead: NodeSource {
     }
     fn native_std_map_room<K: Eq + std::hash::Hash, V>(
         &self,
-        map: &mut std::collections::HashMap<K, V>,
+        map: &mut NativeMap<K, V>,
     ) -> Result<(), CodecError> {
-        let bytes = self.native_hash_bytes::<K, V>(map.len(), map.capacity())?;
-        if bytes > 0 {
-            let work = self.codec_work().unwrap();
-            let permit = work.reserve_native(bytes)?;
-            map.try_reserve(1).map_err(|_| {
-                work.reject(sc::capture_allocation::scratch::ScratchFailure::Allocation)
-            })?;
-            permit.retain();
-        }
-        Ok(())
-    }
-    fn native_tree_room<K, V>(&self, len: usize) -> Result<(), CodecError> {
-        if self.codec_work().is_none() {
-            return Ok(());
-        }
-        let depth = usize::BITS as usize - len.leading_zeros() as usize + 2;
-        let bytes = std::mem::size_of::<(K, V)>()
-            .checked_mul(11)
-            .and_then(|n| n.checked_add(16 * std::mem::size_of::<usize>()))
-            .and_then(|n| n.checked_mul(depth))
-            .ok_or_else(|| self.native_overflow())?;
-        self.native_admit(bytes)
+        map.reserve_admitted(self)
     }
     /// #1488 新消费面必须持有返回 owner；不会经过旧 retain 接口后二次收费。
     fn native_owned_text(
@@ -302,6 +290,7 @@ pub(crate) trait CodecRead: NodeSource {
     fn native_string(&self, text: &str) -> Result<NativeValue<String>, CodecError> {
         self.native_owned_text(text)
     }
+    #[allow(dead_code, reason = "#1488 再合 #1608：8组合实测无调用方，保留不删")]
     fn native_field(&self, key: &str) -> Result<NativeFieldPath, CodecError> {
         self.native_string(key).map(NativeFieldPath)
     }
@@ -311,53 +300,61 @@ pub(crate) trait CodecRead: NodeSource {
     ) -> Result<NativeValue<String>, CodecError> {
         NativeValue::<String>::try_format(args, self.codec_work())
     }
-    fn native_ref_fields_bytes<'a>(
-        &self,
-        fields: impl IntoIterator<Item = (&'a str, &'a ContentRef)>,
-    ) -> Result<(), CodecError> {
-        let node =
-            11 * std::mem::size_of::<(String, ContentRef)>() + 16 * std::mem::size_of::<usize>();
-        for (name, reference) in fields {
-            let bytes = node
-                .checked_add(name.len())
-                .and_then(|n| n.checked_add(reference.format.len()))
-                .and_then(|n| n.checked_add(reference.root.len()))
-                .ok_or_else(|| self.native_overflow())?;
-            self.native_admit(bytes)?;
-        }
-        Ok(())
-    }
     fn native_verify_original(
         &self,
         capture: &sc::AuditCapture,
         reference: sc::RefView<'_>,
         mode: sc::Mode,
     ) -> Result<(), CodecError> {
+        self.native_verify_original_measured(
+            capture,
+            reference,
+            mode,
+            self.native_measure().as_ref(),
+        )
+    }
+    fn native_verify_original_measured(
+        &self,
+        capture: &sc::AuditCapture,
+        reference: sc::RefView<'_>,
+        mode: sc::Mode,
+        measure: Option<&super::audit_budget::NativeMeasure<'_>>,
+    ) -> Result<(), CodecError> {
+        let observer = measure.map(|m| m as &dyn sc::CaptureReadObserver);
         let Some(scope) = self.codec_work() else {
-            return capture.verify_refview(reference, mode);
+            return capture.verify_refview_observed(reference, mode, observer);
         };
         struct Current<'a> {
             capture: &'a sc::AuditCapture,
             scope: &'a sc::capture_allocation::scratch::WorkScope,
+            observer: Option<&'a dyn sc::CaptureReadObserver>,
         }
         impl NodeSource for Current<'_> {
             fn codec_work(&self) -> Option<&sc::capture_allocation::scratch::WorkScope> {
                 Some(self.scope)
             }
             fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+                self.read_scoped(digest)?.into_plain()
+            }
+            fn read_scoped(
+                &mut self,
+                digest: &NodeDigest,
+            ) -> Result<sc::job::ScopedNodeRead, CodecError> {
                 let permit = self
                     .scope
                     .reserve_native(self.capture.original(digest).map_or(0, |(_, b)| b.len()))?;
-                let value = self.capture.reader().read(digest)?;
-                permit.retain();
-                Ok(value)
+                let value = match self.observer {
+                    Some(observer) => self.capture.reader_observed(observer).read(digest)?,
+                    None => self.capture.reader().read(digest)?,
+                };
+                Ok(sc::job::ScopedNodeRead::from_plain(value, Some(permit)))
             }
             fn checked_read(
                 &mut self,
                 digest: &NodeDigest,
             ) -> Result<Option<sc::job::CheckedFrame>, CodecError> {
                 self.checked_read_scoped(digest)
-                    .map(|f| f.map(sc::job::ScopedFrame::into_frame))
+                    .and_then(|f| f.map(sc::job::ScopedFrame::into_frame).transpose())
             }
             fn checked_read_scoped(
                 &mut self,
@@ -366,11 +363,25 @@ pub(crate) trait CodecRead: NodeSource {
                 let permit = self
                     .scope
                     .reserve_native(self.capture.original(digest).map_or(0, |(_, b)| b.len()))?;
-                let value = self.capture.reader().checked_read(digest)?;
+                let value = match self.observer {
+                    Some(observer) => self
+                        .capture
+                        .reader_observed(observer)
+                        .checked_read(digest)?,
+                    None => self.capture.reader().checked_read(digest)?,
+                };
                 Ok(value.map(|f| sc::job::ScopedFrame::new(f, Some(permit))))
             }
         }
-        sc::verify_refview(&mut Current { capture, scope }, reference, mode)
+        sc::verify_refview(
+            &mut Current {
+                capture,
+                scope,
+                observer,
+            },
+            reference,
+            mode,
+        )
     }
     fn native_text(&self, text: &str) -> Result<super::business_json::TextValue, String> {
         if self.codec_work().is_some() && self.allocation_budget().is_none() {
@@ -462,6 +473,7 @@ pub(crate) trait CodecRead: NodeSource {
         sc::render_refview(self.generic_source(), r, out)
     }
     fn generic_source(&mut self) -> &mut dyn NodeSource;
+    #[allow(dead_code, reason = "#1608：特质默认方法，当前无调用方；保留不删")]
     fn new_ref_result(&mut self) -> sc::CodecVec<ContentRef> {
         sc::CodecVec::from_plain(Vec::new())
     }
@@ -471,12 +483,14 @@ pub(crate) trait CodecRead: NodeSource {
     fn lookup_path(&mut self, r: &ContentRef, p: &[PathStep]) -> Result<ContentRef, CodecError> {
         sc::path::lookup_path(self.generic_source(), r, p)
     }
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1608：仅测试使用"))]
     fn lookup_array_items(
         &mut self,
         r: &ContentRef,
     ) -> Result<sc::CodecVec<ContentRef>, CodecError> {
         sc::path::lookup_array_items(self.generic_source(), r).map(sc::CodecVec::from_plain)
     }
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     fn lookup_object_fields(
         &mut self,
         r: &ContentRef,
@@ -495,6 +509,10 @@ pub(crate) trait CodecRead: NodeSource {
     fn render_canonical(&mut self, r: &ContentRef, w: &mut dyn Write) -> Result<(), CodecError> {
         sc::render_canonical(self.generic_source(), r, w)
     }
+    #[cfg_attr(
+        not(all(test, feature = "s_allocation_json_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_allocation_json_testonly 测试使用")
+    )]
     fn verify_fresh(&mut self, r: &ContentRef, mode: sc::Mode) -> Result<(), CodecError> {
         match mode {
             sc::Mode::Public => sc::verify(self.generic_source(), r).map(|_| ()),
@@ -507,6 +525,10 @@ pub(crate) trait CodecRead: NodeSource {
             sc::Mode::Template => sc::audit_verify(self.generic_source(), r, mode),
         }
     }
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
     fn verify_audit_many_fresh(
         &mut self,
         r: impl IntoIterator<Item = ContentRef>,
@@ -514,6 +536,10 @@ pub(crate) trait CodecRead: NodeSource {
     ) -> Result<(), CodecError> {
         sc::audit_verify_many(self.generic_source(), r, mode)
     }
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    )]
     fn verify_many_fresh(
         &mut self,
         r: impl IntoIterator<Item = ContentRef>,
@@ -524,9 +550,17 @@ pub(crate) trait CodecRead: NodeSource {
             sc::Mode::Template => sc::verify_template_many(self.generic_source(), r).map(|_| ()),
         }
     }
+    #[cfg_attr(
+        not(all(test, feature = "s_allocation_json_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_allocation_json_testonly 测试使用")
+    )]
     fn verify_cached(&mut self, r: &ContentRef, mode: sc::Mode) -> Result<(), CodecError> {
         self.verify_fresh(r, mode)
     }
+    #[cfg_attr(
+        not(all(test, feature = "s_allocation_json_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_allocation_json_testonly 测试使用")
+    )]
     fn verify_many_cached(
         &mut self,
         r: impl IntoIterator<Item = ContentRef>,
@@ -558,12 +592,21 @@ pub(crate) trait CodecStore: CodecRead + NodeSink {
         sc::write_json_view(self.generic_store(), v)
     }
     fn generic_store(&mut self) -> &mut dyn NodeStore;
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     fn write_value(&mut self, v: &sc::Value) -> Result<sc::Built, CodecError> {
         sc::write_value(self.generic_store(), v)
     }
+    #[cfg_attr(
+        not(all(test, feature = "s_allocation_json_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_allocation_json_testonly 测试使用")
+    )]
     fn write_template(&mut self, v: &sc::Value) -> Result<sc::Built, CodecError> {
         sc::write_template(self.generic_store(), v)
     }
+    #[cfg_attr(
+        not(all(test, feature = "s_allocation_json_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_allocation_json_testonly 测试使用")
+    )]
     fn replace_batch_placeholder(
         &mut self,
         r: &ContentRef,
@@ -657,12 +700,17 @@ impl<'a, 'source> StoreView<'a, 'source> {
             Backend::Audit(s) => s.swap_codec_full_array_role(enabled),
         }
     }
+    #[cfg(test)]
     pub(crate) fn verify_public(&mut self, r: &ContentRef) -> Result<(), CodecError> {
         match &mut self.backend {
             Backend::Generic(s) => sc::verify(&mut **s, r).map(|_| ()),
             Backend::Audit(s) => s.verify_public(r),
         }
     }
+    #[allow(
+        dead_code,
+        reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删"
+    )]
     pub(crate) fn verify_many(
         &mut self,
         r: impl IntoIterator<Item = ContentRef>,
@@ -675,6 +723,12 @@ impl<'a, 'source> StoreView<'a, 'source> {
     }
 }
 impl CodecRead for StoreView<'_, '_> {
+    fn native_measure(&self) -> Option<super::audit_budget::NativeMeasure<'_>> {
+        match &self.backend {
+            Backend::Generic(_) => None,
+            Backend::Audit(s) => s.native_measure(),
+        }
+    }
     fn parse_rendered_plain(
         &self,
         bytes: &[u8],
@@ -989,7 +1043,6 @@ impl NodeSink for StoreView<'_, '_> {
 
 // 单独cargo rustc -- --cfg issue1394_closed_owner_refusal实际编译本段，预期拒绝。
 // 普通构建不包含本编译反例；它不用stub类型冒充真实边界。
-#[allow(unexpected_cfgs)]
 #[cfg(issue1394_closed_owner_refusal)]
 mod compile_refusal {
     use super::*;
@@ -1329,6 +1382,10 @@ impl RefFields<'_> {
             Self::Owned(f) => f.get(key).map(sc::RefOwner::view),
         }
     }
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    )]
     pub fn len(&self) -> usize {
         match self {
             Self::Plain(f) => f.len(),

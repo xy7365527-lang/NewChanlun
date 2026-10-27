@@ -12,7 +12,7 @@
   - 形式化蜂群（Parse/LevelState/Nest/Fugue/RiskProj/Chain）继续收尾；**若与 Θ v0 冲突，必须开 explicit change request，不能边写边漂**。
 
 ## 全局约定
-- 所有价格量化为整数 tick；无 `tick_size` 默认 `1e-8`。[设计选择,默认值]
+- 所有价格量化为整数 tick；无 `tick_size` 默认 `1e-8`。[设计选择,默认值]〔#1602 订正：tick 是场所事实，只从场所 profile 记录读取；`1e-8` 只留在诊断夹具记录 `venue-profile-diagnostic-fixture`，不参与准入。〕
 - 所有平局按 `(timestamp, source_index)` 升序裁决；已确认结构不可回写重分解。[设计选择,默认值]
 
 ## Θ_parse（解析）
@@ -20,6 +20,7 @@
 - **分型**：包含处理后，顶分型=中 K 高低都严格高于左右；底分型=中 K 高低都严格低于左右；等价不成立；第三根 K 收盘确认。[缠论可导,62课；严格等号处理设计选择]
 - **笔**：启用**新笔**，旧笔禁用。顶/底分型不共用 K；两极值 K 间按原始 K 计数排除两端至少 3 根；同类连续分型，顶保留更高、底保留更低、等价保留更早。[缠论可导,77/81课；等价 tie-break 设计选择]
 - **线段**：67 课特征序列法。向上线段看反向笔特征序列顶分型，向下反之；第一二元素无缺口直接确认段端，有缺口等反向特征序列出现相反分型确认。[缠论可导,67课]
+  - #1604 订正（#1586 C-04 / A-12）：线段的两个调度/口径量改读版本化记录，代码里不写常数。**相切边界** `tangency ∈ {closed, open}` 取自 `rust/src/theta_v0/policy_records/segment-second.json`（v2 = `closed`：相切算重合、相切处无缺口，`.chanlun/definitions/xianduan.md` §6.3 承 #246），重合与缺口两谓词、Rust 与 Python（`src/newchan/segment_policy.py`）全级同读一值。**主特征序列尾窗** `tail_window` 与**第二序列窗口** `second_seq_window` 取自 `second-seq-scan-budget.json`（v2 = 7 / 0，0 = 不设上限）；尾窗挤掉可准入候选时不冒充正常确认，标 `INCOMPLETE_RESOURCE_BOUND`。输出字段：`SegmentFacts.policy`（两份记录的 id/版本与字段值）、`SegmentFacts.tail_window_bound`（截断段起点 + 覆盖 + 预算版本）、`ParseLayer.segments_resource_bound_from`（同一起点）；classifier 输出 `ClassifyOutput.policy.scan_budget` / `.construction_rule`（记录戳）与 `ClassifyOutput.segment_coverage`（`COMPLETE` 或 `INCOMPLETE_RESOURCE_BOUND{from, budget}`，只标记不拒读，与塔终止态 `termination` 正交）。S 写者 TB-02-C 的 `scan_budget.policy`、SECOND `budget.policy`、K1 游标 `budget_policy` 写本次所读记录（现为 `second-seq-scan-budget/2`）；该必填值变更随会话规则加 token `+second-seq-scan-budget/2`、段合同升 `s-segment/5`（形状同 `/4`），`s-segment/4`（v1）留作历史合同。记录缺失、未签或非法即报错停止，不回退。
 - **中枢边界**：前三连续完成次级别走势 A,B,C，`ZD=max(low_A,low_B,low_C)`，`ZG=min(high_A,high_B,high_C)`；闭区间 `[ZD,ZG]`，`ZD<ZG`（**严格**）成立即中枢成立——单点核心 `ZD==ZG` **不**成立。[缠论可导,17/18课；严格开口径设计选择] ⚠**作废注（更新版，#321 裁定 2026-07-26 用户裁决）**：成立口径三方矛盾（Lean/Python/Rust，见 #290 裁定 B 与旧票 #321）已裁决——**从严**。Python（`a_center_v0`/`a_zhongshu_v1`）与 Rust（`center.rs` `center_from_segments`/`center_from_window`，#323 落码）**均严格**（单点不成立）；**Lean `Origin.CenterConstruction.centerHolds` 仍是弱口径 `ZD≤ZG`**（单点成立），未随裁定跟进。**该落点（成立谓词端点分支）的 Lean↔Python/Rust 对齐声明在此边界上作废、不作机械锁用**；Lean 侧跟进留对方线。
 - **canonical 分解**：从左到右扫描；候选取最早确认端点；按最早确认时间、最低递归层、最早原始 index 破平局。[设计选择,默认值]
 - **未完成尾部**：显式保存 `PendingFractal|PendingStroke|PendingSegment|AliveCenter|PendingMove`（含方向/起点/当前极值/确认条件）；不输出为 confirmed。[设计选择,默认值]
@@ -28,6 +29,7 @@
 - **最低观察级别**：1 分钟 K；无 1 分钟则禁止 Reference v0 回测。[缠论允许1/5分,17课；选1分设计选择]
 - **递归**：`L0=1分钟线段账本`；`L(k+1)` 只由 `Lk` 已完成走势类型/Move 构造；禁跳级混级。[缠论可导,17/18课]
 - **最高研究级别**：`Lmax=6`；某层无法产生≥3 完成部件则自然终止。[设计选择,默认值]
+  - #1603 订正：`Lmax` 是资源预算，取自版本化记录 `tower-level-budget`（`rust/src/theta_v0/policy_records/tower-level-budget.json`，v1 = 6）；到 `Lmax` 时下一级仍有 ≥3 个单元可升级 ⟹ 输出标 `INCOMPLETE_RESOURCE_BOUND`（覆盖不完整），不算自然终止。MACD 参数同改读记录 `macd-force`（v1 = 12/26/9，出处 `025-第25课.md:16`【正文】）。
 
 ## Θ_signal（信号）
 - **中枢确认**：前三完成次级别走势**严格重叠**即确认（单点相切**不**算重叠，#321 裁定 2026-07-26 用户裁决从严）；`GG=max(highs)`/`DD=min(lows)` 外包络，`ZD/ZG` 核心区间。[缠论可导,17/18课；严格重叠口径见 #321]
@@ -42,13 +44,13 @@
 - **资金帽**：深度权重 `w=[0.60,0.30,0.10]`，未用部分保留现金不重分配。[设计选择,默认值]
 
 ## Θ_risk（风险）
-- 单声部风险 `ρ=0.005 NAV`；父子仓位比 `β=0.5`；总名义上限 `γ=1.0 NAV`；成本倍数 `κ=2.0`。[设计选择,默认值;L3经验待标定]
+- 单声部风险 `ρ=0.005 NAV`；父子仓位比 `β=0.5`；总名义上限 `γ=1.0 NAV`；成本倍数 `κ=2.0`。[设计选择,默认值;L3经验待标定]〔#1602 订正：这些值与声部 `max_depth`、`w_grade` 登记在带版本号的 `theta-risk` 记录里，代码只从记录读取；数值签署归 #1557/#1560。〕
 - **结构止损**：1/2买止损=对应买点 pivot low；3买止损=`ZG`；卖/空镜像 pivot high 或 `ZD`。[缠论可导结构失效；触发设计选择]
 - **sizing**：`qty=min(floor(ρ*NAV/(|entry-stop|+κ*cost_per_unit)), floor(w_depth*γ*NAV/entry), parent_cap)`；`qty≤0` 不交易；默认 lot=1。[设计选择,默认值]
 
 ## Θ_exec（执行）
 - 信号确认后延迟 1 根基础 K，以下一根 open 成交；无下一根等下一可交易 open。[设计选择,默认值]
-- **费用**：commission `1bp/side`，slippage `2bp/side`，tax `0bp`；买入加 slippage、卖出减。[设计选择,默认值;L3经验待标定]
+- **费用**：commission `1bp/side`，slippage `2bp/side`，tax `0bp`；买入加 slippage、卖出减。[设计选择,默认值;L3经验待标定]〔#1602 订正：费用三项与入场延迟只从场所 profile 记录读取；上述值只留在诊断夹具记录。生产 P0 profile 的 commission 取 ADR 0044 的 10bp，slippage/tax/延迟未签 ⟹ 生产与验收回放停在 `AwaitingPolicy{venue_profile, cost_inputs}`。〕
 - **止损成交**：long bar open 低于止损按 open 出，否则 low 触及止损按 stop 出；short 镜像。[设计选择,默认值]
 - **不可交易**：缺 OHLC、`high<max(open,close,low)`、`low>min(open,close,high)`、volume=0、halt flag、或显式 limit flag 阻止该方向。[设计选择,默认值]
 - **冲突顺序**：止损/退出先于开仓；高 level 先于低 level；同 level 按 1/2/3 类顺序；仍平局按 timestamp/source_index。[设计选择,默认值]

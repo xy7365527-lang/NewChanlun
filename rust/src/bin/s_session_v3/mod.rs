@@ -19,9 +19,10 @@
 //! 缺口保持启动前拒绝，one-shot 和监督恢复可用；reader 仍未注册。旧命令打到本域会被既有控制行核验
 //! （`v2::prepare_control` → 协议标记/控制表不支持）在任何写入之前拒绝，不冒充可用。
 //!
-//! ⚠️ 边界如实（独评 F2）：输入预验证保证坏输入不落盘，事务保证建表/登记同成同败；但**「创建 db
-//! 文件」与「事务提交」不是同一个原子动作**——`open` 之后、`commit` 之前中断会留下不完整库文件。
-//! 此时本模块不自动清理、不覆盖：拒绝已存在路径本身就是 fail-closed，重试要换新路径。
+//! 原子发布（#1568，取代独评 F2 的「中断留半成品库、重试换新路径」边界）：建库、提交、回读全在同目录
+//! 暂存文件上进行，核对通过并关闭连接后才以不覆盖的原子 rename 出现在目标路径（`atomic_init`）。
+//! 目标路径只有「不存在」与「完整已核对库」两态；中断只留可识别暂存文件，下次 init 在锁内清扫，
+//! 原路径可直接重试。既有目标仍一律拒绝、不改动。
 //!
 //! ⚠️ 旧 `reset` 路由（独评 F1，含二次收紧）：无 selector 的旧 `reset` 是「先删后建 v1」，只懂
 //! v1/v2 合同。`refuse_reset_of_new_domain` 在任何删除之前**只读**判定域：读不出/锁冲突/非 SQLite/
@@ -35,6 +36,9 @@ use newchan_rust::session_transport;
 use rusqlite::OpenFlags;
 use std::collections::BTreeSet;
 
+mod atomic_init;
+#[cfg(test)]
+mod atomic_init_tests;
 // #1527 提案：admission 由根协调恢复/资源 provider，当前基线无此模块。
 // M-01：WriterScope::admit 独占 StartedAdmission，provider 仅收
 // &mut AdmissionAccounting<'_>；禁止导出 &mut Job 或用新 Job 替代原账。
@@ -43,7 +47,7 @@ pub(crate) mod admission;
 pub(crate) mod admission_anchor;
 mod admission_private;
 mod admission_provider;
-mod audit_budget;
+pub(crate) mod audit_budget;
 mod audit_header;
 pub(super) mod audit_owner;
 #[cfg(feature = "s_capture_native_testonly")]
@@ -98,6 +102,8 @@ mod s_allocation;
 mod source_audit;
 mod state;
 mod writer_cli;
+#[cfg(test)]
+pub(crate) use admission_private::test_with_mixed_entry;
 
 /// 本模块唯一负责的协议版本。
 pub(super) const PROTOCOL_REVISION: &str = "s-session/3";
@@ -127,8 +133,25 @@ const V2_INIT_FLAGS: [&str; 7] = [
     "--delivery-retain-generations",
 ];
 
+/// #1405：历史 /1 仅供 Q/AsKnown 读取；新 writer 不自动续写或恢复旧规则库。
+fn require_current_writer_rule(rule: &str) -> Result<(), String> {
+    if rule != V3_RULE_REVISION {
+        return Err(format!("VersionUnsupported：S3写者要求规则 {V3_RULE_REVISION}，库中规则 {rule} 只可按原版本读取"));
+    }
+    Ok(())
+}
+
 /// 版本选择器分派：`Ok(true)` 表示本次调用已处理，调用方直接结束；无选择器时 `Ok(false)`。
 pub(super) fn dispatch(args: &[String]) -> Result<bool, String> {
+    dispatch_with_policy(args, true)
+}
+
+#[cfg(test)]
+pub(super) fn dispatch_fixture(args: &[String]) -> Result<bool, String> {
+    dispatch_with_policy(args, false)
+}
+
+fn dispatch_with_policy(args: &[String], production: bool) -> Result<bool, String> {
     let cmd = args.get(1).map(String::as_str).unwrap_or("");
     let mut positions = Vec::new();
     for (index, arg) in args.iter().enumerate() {
@@ -171,7 +194,17 @@ pub(super) fn dispatch(args: &[String]) -> Result<bool, String> {
         return Err("VersionUnsupported：Q3监听入口当前需要Unix平台".into());
     }
     if matches!(cmd, "serve" | "advance" | "recover") && value == PROTOCOL_REVISION {
-        if let Some(out) = writer_cli::run(args)? {
+        let out = if production {
+            writer_cli::run(args)?
+        } else {
+            #[cfg(test)]
+            {
+                writer_cli::run_fixture(args)?
+            }
+            #[cfg(not(test))]
+            unreachable!("fixture only exists in test builds")
+        };
+        if let Some(out) = out {
             out.emit()?;
         }
         return Ok(true);
@@ -358,10 +391,12 @@ fn load_catalog_strict(path: &Path) -> Result<(Value, String, usize), String> {
     Ok((definition, revision, item_count))
 }
 
-/// 拒绝覆盖已有路径（独评 F2）：不提供重置建议，也不自动清理；换新路径是唯一去处。
+/// 拒绝覆盖已有路径（独评 F2）：不提供重置，也不清理既有文件。#1568 原子发布后，中断的 init 不会在
+/// 目标路径留下任何东西（原路径可直接重试），所以走到这里时目标必是已发布的完整库或他人文件（#1666 L5）。
 fn existing_db_error(db: &Path) -> String {
     format!(
-        "库已存在（{}）：{PROTOCOL_REVISION} init 拒绝覆盖（无热迁移，也不提供重置；请换新路径）",
+        "库已存在（{}）：{PROTOCOL_REVISION} init 拒绝覆盖，既有文件原样保留（无热迁移，也不提供重置）；\
+         中断的 init 不会留下目标文件，此处的文件是已发布的库或他人文件，新建库请另选路径",
         db.display()
     )
 }
@@ -416,6 +451,47 @@ pub(super) fn init_v3(
     if db.exists() {
         return Err(existing_db_error(db));
     }
+    // #1568：锁内清扫本库名下死去 init 的暂存残留，再在新暂存文件上建库；目标只在完整核对后
+    // 以不覆盖的原子 rename 出现。失败时守卫删暂存，目标保持不存在，可原样重试。
+    atomic_init::refuse_foreign_sides(db)?;
+    atomic_init::sweep_stale(db)?;
+    let staging = atomic_init::Staging::new(db)?;
+    let mut out = build_domain(
+        staging.path(),
+        session,
+        &clock,
+        (&profile_def, &profile_id, &profile_hash),
+        (
+            &catalog_def,
+            &catalog_revision,
+            catalog_items,
+            &catalog_hash,
+        ),
+        session_generation,
+        delivery_retain,
+    )?;
+    // #1666 L2：目标名出现后的收尾失败不改判 init 成败，作为告警附在回执上；无告警不加字段。
+    let warnings = staging.publish()?;
+    if !warnings.is_empty() {
+        out["publish_warnings"] = json!(warnings);
+    }
+    Ok(out)
+}
+
+/// 在暂存路径上建库、提交并逐项回读核对；返回前关闭连接（WAL 检查点合并），供原子发布。
+fn build_domain(
+    db: &Path,
+    session: &str,
+    clock: &v2::ClockPlan,
+    profile: (&Value, &str, &str),
+    catalog: (&Value, &str, usize, &str),
+    session_generation: &str,
+    delivery_retain: i64,
+) -> Result<Value, String> {
+    let (profile_def, profile_id, profile_hash) = profile;
+    let (profile_id, profile_hash) = (profile_id.to_string(), profile_hash.to_string());
+    let (catalog_def, catalog_revision, catalog_items, catalog_hash) = catalog;
+    let (catalog_revision, catalog_hash) = (catalog_revision.to_string(), catalog_hash.to_string());
     let mut conn = open_db(db)?;
     let sqlite_version: String = conn
         .query_row("SELECT sqlite_version()", [], |r| r.get(0))
@@ -462,9 +538,9 @@ pub(super) fn init_v3(
     meta_set(&tx, "profile_id", &profile_id)?;
     meta_set(&tx, "profile_hash", &profile_hash)?;
     meta_set(&tx, "input_profile", &profile_id)?;
-    meta_set(&tx, "profile_definition", &canonical_json(&profile_def))?;
+    meta_set(&tx, "profile_definition", &canonical_json(profile_def))?;
     meta_set(&tx, "catalog_revision", &catalog_revision)?;
-    meta_set(&tx, "catalog_definition", &canonical_json(&catalog_def))?;
+    meta_set(&tx, "catalog_definition", &canonical_json(catalog_def))?;
     meta_set(&tx, "catalog_hash", &catalog_hash)?;
     tx.execute(
         "INSERT INTO s_protocol_meta(singleton, protocol_revision, session_generation, clock_plan_hash,
@@ -648,6 +724,8 @@ pub(super) fn init_v3(
             "StorageUnavailable：回读 catalog 行数={stored_catalog_items} 与 items 定义={catalog_items} 不符"
         ));
     }
+    conn.close()
+        .map_err(|(_, e)| format!("StorageUnavailable：关闭暂存库失败：{e}"))?;
     Ok(json!({
         "ok": true,
         "session_id": session_id,
@@ -1133,7 +1211,7 @@ mod tests {
 
         // 既有 v2 旧库同样拒绝（无热迁移）。
         let old = temp.path("v2.sqlite");
-        assert!(v2::dispatch(&init_args(&old, &clock)).unwrap());
+        assert!(v2::dispatch_fixture(&init_args(&old, &clock)).unwrap());
         let old_before = std::fs::read(&old).unwrap();
         assert!(init_v3(
             &old,
@@ -1272,7 +1350,7 @@ mod tests {
         // v2 旧域：reset 仍沿旧行为（先删后建 v1），不因本次加固改变。
         let v2_db = temp.path("v2-old.sqlite");
         let clock = write_clock(&temp, "ns");
-        assert!(v2::dispatch(&init_args(&v2_db, &clock)).unwrap());
+        assert!(v2::dispatch_fixture(&init_args(&v2_db, &clock)).unwrap());
         cmd_reset(&v2_db, "v2-reset", &catalog).unwrap();
         let conn = open_db(&v2_db).unwrap();
         assert!(meta_get_opt(&conn, "protocol_revision").unwrap().is_none());
@@ -1395,7 +1473,7 @@ mod tests {
         let plain_db = temp.path("plain.sqlite");
         let plain = init_args(&plain_db, &clock);
         assert!(!dispatch(&plain).unwrap());
-        assert!(v2::dispatch(&plain).unwrap());
+        assert!(v2::dispatch_fixture(&plain).unwrap());
         let conn = open_db(&plain_db).unwrap();
         assert_eq!(
             meta_get_opt(&conn, "protocol_revision").unwrap().as_deref(),
@@ -1541,11 +1619,11 @@ mod tests {
         let temp = Temp::new();
         let db = init_domain(&temp);
         let clock = write_clock(&temp, "ns");
-        assert!(cmd_advance(&db, DEFAULT_WRITER_EPOCH).is_err());
+        assert!(cmd_advance_fixture(&db, DEFAULT_WRITER_EPOCH).is_err());
         assert!(cmd_snapshot(&db, None).is_err());
         assert!(cmd_catalog(&db, None).is_err());
         assert!(cmd_query(&db, "testonly.ohlc|1|TEST.OHLC|event-1").is_err());
-        assert!(v2::dispatch(&init_args(&db, &clock)).is_err());
+        assert!(v2::dispatch_fixture(&init_args(&db, &clock)).is_err());
         let before = std::fs::read(&db).unwrap();
         assert!(init_v3(
             &db,

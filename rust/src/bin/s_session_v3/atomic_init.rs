@@ -1,0 +1,365 @@
+//! #1568：`s-session/3` init 的「暂存建库 → 原子发布」。
+//!
+//! 目标路径只会出现两种状态：**不存在**，或**已完整提交、已回读核对的库**。建库全程发生在同目录
+//! 暂存文件 `.<库名>.s3-init.<pid>.<nanos>.tmp`（及其 SQLite 旁文件 `-wal/-shm/-journal`）上；
+//! 核对完毕、连接关闭（WAL 检查点并删除）后 fsync，再用**不覆盖**的原子 rename 发布到目标：
+//! Linux `renameat2(RENAME_NOREPLACE)`，macOS `renamex_np(RENAME_EXCL)`。目标此时若已被他人
+//! 创建，rename 以 EEXIST 失败，既有文件一个字节都不动。
+//!
+//! 失败分三类：
+//! - 进程内可观察的失败（磁盘满 EFBIG/ENOSPC、fd 耗尽等）：守卫删除本次暂存文件，目标不存在；
+//! - 进程被杀（SIGKILL/SIGXFSZ 等）：只会留下可识别的暂存文件，目标仍不存在；
+//! - 下一次 init 在持有同一把域进程锁之后，**只**清扫严格匹配本库名暂存格式的残留——锁保证
+//!   同库没有活着的 init 在用它们；库名不同、格式不符的文件一律不碰，更不碰目标本身。
+//!
+//! 「已发布」的分界是目标名出现（rename 或 link 成功）。此后的收尾失败（#1666 L2：父目录 fsync
+//! 失败、link 回退后删暂存名失败）不再回报为 init 失败——目标已是完整核对库，报错只会让同路径重试
+//! 撞上「库已存在」。这类失败作为告警随成功回执返回（`publish_warnings`），并写明需人工处理的事项。
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+use std::ffi::CString;
+use std::ffi::{OsStr, OsString};
+use std::os::unix::ffi::OsStrExt;
+use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+const STAGING_TAG: &str = ".s3-init.";
+const STAGING_EXT: &str = ".tmp";
+/// SQLite 可能为暂存库生成的旁文件后缀（附加在暂存文件名之后）。
+const SIDE_SUFFIXES: [&str; 3] = ["-wal", "-shm", "-journal"];
+
+fn parent_dir(db: &Path) -> &Path {
+    db.parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."))
+}
+
+fn staging_prefix(db: &Path) -> Result<OsString, String> {
+    let name = db.file_name().ok_or("InvalidDomain：数据库路径缺文件名")?;
+    let mut prefix = OsString::from(".");
+    prefix.push(name);
+    prefix.push(STAGING_TAG);
+    Ok(prefix)
+}
+
+/// 判定 `entry` 是否是 `db` 的暂存文件或其 SQLite 旁文件：`<prefix><digits>.<digits>.tmp[-wal|-shm|-journal]`。
+pub(super) fn is_staging_entry(db: &Path, entry: &OsStr) -> bool {
+    let Ok(prefix) = staging_prefix(db) else {
+        return false;
+    };
+    let entry = entry.as_bytes();
+    let Some(rest) = entry.strip_prefix(prefix.as_bytes()) else {
+        return false;
+    };
+    let rest = SIDE_SUFFIXES
+        .iter()
+        .find_map(|s| rest.strip_suffix(s.as_bytes()))
+        .unwrap_or(rest);
+    let Some(core) = rest.strip_suffix(STAGING_EXT.as_bytes()) else {
+        return false;
+    };
+    let mut parts = core.split(|b| *b == b'.');
+    let digits =
+        |p: Option<&[u8]>| p.is_some_and(|p| !p.is_empty() && p.iter().all(u8::is_ascii_digit));
+    digits(parts.next()) && digits(parts.next()) && parts.next().is_none()
+}
+
+/// 清扫本库名下死去 init 留下的暂存残留。调用方必须已持有该库的域进程锁。
+pub(super) fn sweep_stale(db: &Path) -> Result<Vec<PathBuf>, String> {
+    let dir = parent_dir(db);
+    let mut removed = Vec::new();
+    for entry in
+        std::fs::read_dir(dir).map_err(|e| format!("读目录 {} 失败：{e}", dir.display()))?
+    {
+        let entry = entry.map_err(|e| format!("读目录项失败：{e}"))?;
+        if !is_staging_entry(db, &entry.file_name()) {
+            continue;
+        }
+        let path = entry.path();
+        let kind = entry
+            .file_type()
+            .map_err(|e| format!("读 {} 类型失败：{e}", path.display()))?;
+        if !kind.is_file() {
+            // 名字像暂存但不是普通文件：不认识的东西不删，交由人工处理。
+            continue;
+        }
+        std::fs::remove_file(&path)
+            .map_err(|e| format!("清扫暂存残留 {} 失败：{e}", path.display()))?;
+        removed.push(path);
+    }
+    Ok(removed)
+}
+
+/// 一次 init 的暂存文件；未发布即 drop 时删除暂存文件与旁文件（绝不触及目标）。
+pub(super) struct Staging {
+    target: PathBuf,
+    path: PathBuf,
+    published: bool,
+}
+
+impl Staging {
+    pub(super) fn new(db: &Path) -> Result<Self, String> {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|e| format!("读系统时钟失败：{e}"))?
+            .as_nanos();
+        let mut name = staging_prefix(db)?;
+        name.push(format!("{}.{nanos}{STAGING_EXT}", std::process::id()));
+        let path = parent_dir(db).join(name);
+        if path.exists() {
+            return Err(format!("暂存路径已存在（{}）", path.display()));
+        }
+        Ok(Self {
+            target: db.to_path_buf(),
+            path,
+            published: false,
+        })
+    }
+
+    pub(super) fn path(&self) -> &Path {
+        &self.path
+    }
+
+    fn side(&self, suffix: &str) -> PathBuf {
+        let mut name = self.path.as_os_str().to_os_string();
+        name.push(suffix);
+        PathBuf::from(name)
+    }
+
+    /// 发布：调用方必须已关闭全部连接。旁文件残留（WAL 未检查点）即拒绝发布。
+    /// 目标名出现之前的失败返回 Err（目标不存在）；之后的收尾失败作为告警返回（见模块文档）。
+    pub(super) fn publish(mut self) -> Result<Vec<String>, String> {
+        for suffix in ["-wal", "-journal"] {
+            let side = self.side(suffix);
+            match std::fs::metadata(&side) {
+                Ok(m) if m.len() > 0 => {
+                    return Err(format!(
+                        "StorageUnavailable：暂存库关闭后仍有未合并的 {}（{} 字节），拒绝发布",
+                        side.display(),
+                        m.len()
+                    ))
+                }
+                Ok(_) => {}
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => {
+                    return Err(format!(
+                        "StorageUnavailable：检查 {} 失败：{e}，拒绝发布",
+                        side.display()
+                    ))
+                }
+            }
+        }
+        std::fs::File::open(&self.path)
+            .and_then(|f| f.sync_all())
+            .map_err(|e| format!("StorageUnavailable：fsync 暂存库失败：{e}"))?;
+        let mut warnings = Vec::new();
+        match publish_noreplace(&self.path, &self.target) {
+            Ok(Published::Renamed | Published::Linked { unlink: Ok(()) }) => {}
+            Ok(Published::Linked { unlink: Err(e) }) => warnings.push(format!(
+                "PublishedWithLeftover：库已经 link 回退发布到 {}，但删除暂存名 {} 失败：{e}；该名与库是同一文件的硬链接，\
+                 目标存在后 init 不再清扫，请确认无进程使用后手工删除",
+                self.target.display(),
+                self.path.display()
+            )),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                return Err(super::existing_db_error(&self.target))
+            }
+            Err(e) => return Err(format!("StorageUnavailable：原子发布暂存库失败：{e}")),
+        }
+        self.published = true;
+        self.remove_sides();
+        if let Err(e) = sync_dir(parent_dir(&self.target)) {
+            warnings.push(format!(
+                "PublishedUnsynced：库已发布到 {}，但 fsync 所在目录失败：{e}；掉电可能使目录项丢失（目标回到不存在，\
+                 届时原路径重试即可），如需持久保证请检查该文件系统",
+                self.target.display()
+            ));
+        }
+        Ok(warnings)
+    }
+
+    fn remove_sides(&self) {
+        for suffix in SIDE_SUFFIXES {
+            let _ = std::fs::remove_file(self.side(suffix));
+        }
+    }
+}
+
+impl Drop for Staging {
+    fn drop(&mut self) {
+        if !self.published {
+            let _ = std::fs::remove_file(&self.path);
+            self.remove_sides();
+        }
+    }
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn c_path(path: &Path) -> std::io::Result<CString> {
+    CString::new(path.as_os_str().as_bytes())
+        .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidInput, "路径含 NUL"))
+}
+
+/// 目标名旁若已有 `-wal/-journal`（外来或旧库遗留），新库首次打开会回放它们；拒绝 init，不删除。
+pub(super) fn refuse_foreign_sides(db: &Path) -> Result<(), String> {
+    for suffix in ["-wal", "-journal"] {
+        let mut name = db.as_os_str().to_os_string();
+        name.push(suffix);
+        let side = PathBuf::from(name);
+        match std::fs::symlink_metadata(&side) {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Ok(_) => {
+                return Err(format!(
+                    "StorageUnavailable：目标旁已有 {}（来历不明，新库打开会回放它）；init 拒绝且不删除，请人工核对",
+                    side.display()
+                ))
+            }
+            Err(e) => return Err(format!("StorageUnavailable：检查 {} 失败：{e}", side.display())),
+        }
+    }
+    Ok(())
+}
+
+/// #1666：测试用故障注入（仅 `cfg(test)`，按线程生效），模拟真实文件系统上难以稳定复现的失败。
+#[cfg(test)]
+pub(super) mod fault {
+    use std::cell::Cell;
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub(in super::super) enum Fault {
+        /// 不覆盖 rename 以给定 errno 失败（驱动 link 回退分支）。
+        RenameErrno(i32),
+        /// 同上，并让 link 回退后的删暂存名失败。
+        RenameUnsupportedUnlinkFails,
+        /// 发布后 fsync 父目录失败。
+        DirSync,
+    }
+
+    thread_local! {
+        static ACTIVE: Cell<Option<Fault>> = const { Cell::new(None) };
+    }
+
+    /// 在 `f` 执行期间注入 `fault`，返回（含 panic 展开）后撤销。
+    pub(in super::super) fn with<T>(fault: Fault, f: impl FnOnce() -> T) -> T {
+        struct Reset;
+        impl Drop for Reset {
+            fn drop(&mut self) {
+                ACTIVE.with(|a| a.set(None));
+            }
+        }
+        ACTIVE.with(|a| a.set(Some(fault)));
+        let _reset = Reset;
+        f()
+    }
+
+    pub(super) fn active() -> Option<Fault> {
+        ACTIVE.with(Cell::get)
+    }
+}
+
+#[cfg(test)]
+fn injected(code: i32) -> std::io::Error {
+    std::io::Error::from_raw_os_error(code)
+}
+
+fn sync_dir(dir: &Path) -> std::io::Result<()> {
+    #[cfg(test)]
+    {
+        if fault::active() == Some(fault::Fault::DirSync) {
+            return Err(injected(libc::EIO));
+        }
+    }
+    std::fs::File::open(dir).and_then(|d| d.sync_all())
+}
+
+/// 目标名已出现的方式；link 回退时附带删暂存名的结果（失败不撤销发布）。
+enum Published {
+    Renamed,
+    Linked { unlink: std::io::Result<()> },
+}
+
+/// 不覆盖地把暂存库放到目标名：优先原子 rename；文件系统不支持该 rename 标志时改用
+/// `link`（同样原子、目标存在即 EEXIST）后删除暂存名。两者都不支持则报错，不退回可覆盖的 rename。
+fn publish_noreplace(from: &Path, to: &Path) -> std::io::Result<Published> {
+    match rename_noreplace(from, to) {
+        Ok(()) => Ok(Published::Renamed),
+        Err(e) if rename_flag_unsupported(&e) => {
+            std::fs::hard_link(from, to)?;
+            #[cfg(test)]
+            {
+                if fault::active() == Some(fault::Fault::RenameUnsupportedUnlinkFails) {
+                    return Ok(Published::Linked {
+                        unlink: Err(injected(libc::EACCES)),
+                    });
+                }
+            }
+            Ok(Published::Linked {
+                unlink: std::fs::remove_file(from),
+            })
+        }
+        Err(e) => Err(e),
+    }
+}
+
+/// 「文件系统不支持不覆盖 rename」的判定（#1666 L3 按平台手册收窄）：
+/// - Linux `renameat2(2)`：`EINVAL` 明列为「文件系统不支持 flags 中的某个标志」，`ENOSYS` 为内核
+///   无此系统调用；本处只传 `RENAME_NOREPLACE`、源为普通文件，`EINVAL` 的其余成因（非法标志组合、
+///   把目录移入其自身子目录）不会出现。
+/// - macOS `renamex_np(2)`：不支持 `RENAME_EXCL` 的文件系统返回 `ENOTSUP`；`EINVAL` 只表示非法标志
+///   或 `.`/`..` 末段，不是「不支持」，不回退。
+///
+/// 即便误判，回退的 `link` 同样不覆盖（目标存在即 EEXIST），只会多走一条安全路径。
+fn rename_flag_unsupported(e: &std::io::Error) -> bool {
+    if e.kind() == std::io::ErrorKind::Unsupported {
+        return true;
+    }
+    let Some(code) = e.raw_os_error() else {
+        return false;
+    };
+    #[cfg(target_os = "linux")]
+    let unsupported = [libc::EINVAL, libc::ENOTSUP, libc::ENOSYS];
+    #[cfg(not(target_os = "linux"))]
+    let unsupported = [libc::ENOTSUP, libc::ENOSYS];
+    unsupported.contains(&code)
+}
+
+/// 不覆盖的原子 rename；目标已存在时返回 `AlreadyExists`。
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn rename_noreplace(from: &Path, to: &Path) -> std::io::Result<()> {
+    #[cfg(test)]
+    {
+        match fault::active() {
+            Some(fault::Fault::RenameErrno(code)) => return Err(injected(code)),
+            Some(fault::Fault::RenameUnsupportedUnlinkFails) => {
+                return Err(injected(libc::ENOTSUP))
+            }
+            _ => {}
+        }
+    }
+    let (from, to) = (c_path(from)?, c_path(to)?);
+    #[cfg(target_os = "linux")]
+    let rc = unsafe {
+        libc::renameat2(
+            libc::AT_FDCWD,
+            from.as_ptr(),
+            libc::AT_FDCWD,
+            to.as_ptr(),
+            libc::RENAME_NOREPLACE,
+        )
+    };
+    #[cfg(target_os = "macos")]
+    let rc = unsafe { libc::renamex_np(from.as_ptr(), to.as_ptr(), libc::RENAME_EXCL) };
+    if rc == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+fn rename_noreplace(_from: &Path, _to: &Path) -> std::io::Result<()> {
+    Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "本平台无不覆盖原子 rename，s-session/3 init 拒绝执行",
+    ))
+}

@@ -1,9 +1,0 @@
-#1527：本日志只记本轮本地静态/纯模型验证。
-执行：python3 .chanlun/review-results/issue1527-legacy-pure-firsterror-20261018/verify.py
-首轮：M-03逆替换核验器多删空行，断言失败；无产品故障推断。
-修正核验器后：PASS_STATIC_AND_MODEL_ONLY；47项检查；旧报告34文件不变；M-03直接函数72、调用替换188。
-定向补充：库存分类=78个测试+4个辅助函数；新增模块和本报告目录之外无未跟踪文件；verify.py经AST解析。
-五份Rust增量均用 rustfmt --edition 2021 --emit stdout --config skip_children=true 从stdin解析，退出0。
-五文件PRODUCT.patch零fuzz内存重建一致。没有操作Git index。
-Rust测试、cargo/rustc/build、SQLite、正式S/Q、旧binary、历史重型：NOT_RUN。
-旧27/160套件不重跑；不将模型、静态检查、解析次数当作Rust测试通过数。

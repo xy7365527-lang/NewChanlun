@@ -289,14 +289,15 @@ impl Contributions {
             push(s, &mut recheck, (ordinal, record))?;
         }
         recheck.sort_unstable_by_key(|(ordinal, _)| *ordinal);
-        s.native_admit(
-            tb02a::PROFILE
-                .len()
-                .checked_add(self.rule.as_str().len())
-                .and_then(|n| n.checked_add(2 * std::mem::size_of::<[usize; 2]>()))
-                .ok_or_else(|| err(s.native_overflow()))?,
-        )
-        .map_err(err)?;
+        let _producer_fee = s
+            .native_reservation(
+                tb02a::PROFILE
+                    .len()
+                    .checked_add(self.rule.as_str().len())
+                    .and_then(|n| n.checked_add(2 * std::mem::size_of::<[usize; 2]>()))
+                    .ok_or_else(|| err(s.native_overflow()))?,
+            )
+            .map_err(err)?;
         let producer = Cc004Producer::new(tb02a::PROFILE, self.rule.as_str());
         let mut checked = bj::new_map(allocation.as_ref());
         // #1488 B2：唯一性只看当前 occurrence 之前的成员。旧贡献可复用其局部
@@ -390,6 +391,7 @@ impl Contributions {
                 .map(|key| &self.objects.get(key).expect("fixture成员完整性已核").value),
             &self.raw,
             &self.groups,
+            self.rule.as_str(),
             None,
         )?;
         self.work.pending_objects = cut.objects.order.len();

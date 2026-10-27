@@ -8,12 +8,20 @@ use super::business_json::{self as bj, TextValue};
 pub(crate) use super::history::NativeCutProjection;
 use super::native_shared::NativeArc;
 use super::object_records::{BatchOwner, BatchView, LifeOwner, LifeView};
+#[cfg_attr(
+    not(test),
+    allow(unused_imports, reason = "#1488 再合 #1608：仅测试使用")
+)]
 use super::{
     generation::ProducedObject,
     object_records::{self, BatchRef, BorrowedObject, PublicationLife},
 };
 use crate::v3::audit_store::{CodecRead, CodecStore};
 use crate::{canonical_json, content_store, object_diff};
+#[cfg_attr(
+    not(test),
+    allow(unused_imports, reason = "#1488 再合 #1608：仅测试使用")
+)]
 use newchan_rust::s_content::{
     self as sc, path::PathStep, Built, ContentRef, Kind, NodeDigest, NodeSource, NodeStore,
     Value as V,
@@ -23,7 +31,13 @@ use rusqlite::{params, Transaction};
 use sc::capture_allocation::native_owned::NativeValue;
 use sc::capture_allocation::{audit_json as aj, OwnedBudget};
 use serde_json::{json, Value};
-use std::collections::{BTreeSet, HashSet};
+#[allow(unused_imports, reason = "#1488：8组合探针 BTreeSet 无调用方")]
+use std::collections::BTreeSet;
+#[cfg_attr(
+    not(all(test, feature = "s_capture_native_testonly")),
+    allow(unused_imports, reason = "#1488：HashSet 仅 native 测试使用")
+)]
+use std::collections::HashSet;
 
 pub(super) const SCHEMA: &str = "CREATE TABLE IF NOT EXISTS s_content_objects (
  object_id TEXT PRIMARY KEY, object_revision INTEGER NOT NULL, kind TEXT NOT NULL,
@@ -45,12 +59,17 @@ fn err(e: impl std::fmt::Display) -> String {
 fn f(k: &str) -> PathStep {
     PathStep::Field(k.into())
 }
+#[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
 fn field(s: &mut (impl CodecRead + ?Sized), r: &ContentRef, k: &str) -> Result<ContentRef, String> {
     s.lookup_path(r, &[f(k)]).map_err(err)
 }
 fn digest(r: &ContentRef) -> Result<NodeDigest, String> {
     r.digest().map_err(err)
 }
+#[allow(
+    dead_code,
+    reason = "#1608：私有辅助函数，当前无调用方；先量再动，保留不删"
+)]
 fn built(r: ContentRef) -> Result<Built, String> {
     Ok(Built {
         digest: digest(&r)?,
@@ -58,6 +77,7 @@ fn built(r: ContentRef) -> Result<Built, String> {
         extent: r.extent,
     })
 }
+#[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
 fn scalar(s: &mut (impl CodecRead + ?Sized), r: &ContentRef, k: &str) -> Result<Value, String> {
     let r = field(s, r, k)?;
     scalar_value(s, &r)
@@ -74,6 +94,7 @@ fn scalar_value(s: &mut (impl CodecRead + ?Sized), r: &ContentRef) -> Result<Val
 /// 同一原件绑定调用中的固定小字段；大载荷只保存引用，不持久缓存或信任摘要替代闭包。
 pub(super) struct Fields(sc::CodecFields);
 impl Fields {
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     fn read(
         s: &mut (impl CodecStore + ?Sized),
         root: &ContentRef,
@@ -81,6 +102,7 @@ impl Fields {
     ) -> Result<Self, String> {
         s.lookup_object_fields(root, names).map(Self).map_err(err)
     }
+    #[allow(dead_code, reason = "#1608：类型配套访问器，当前无调用方；保留不删")]
     pub(super) fn read_subset(
         s: &mut (impl CodecStore + ?Sized),
         root: &ContentRef,
@@ -95,6 +117,14 @@ impl Fields {
             .get(name)
             .ok_or_else(|| err(format!("原件缺字段{name}")))
     }
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
+    #[cfg_attr(
+        feature = "s_capture_native_testonly",
+        allow(dead_code, reason = "#1488：8组合探针 native 路径无调用，保留接口")
+    )]
     pub(super) fn text(
         &self,
         s: &mut (impl CodecStore + ?Sized),
@@ -105,6 +135,14 @@ impl Fields {
             .map(str::to_owned)
             .ok_or_else(|| err(format!("{name}不是文本")))
     }
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
+    #[cfg_attr(
+        feature = "s_capture_native_testonly",
+        allow(dead_code, reason = "#1488：8组合探针 native 路径无调用，保留接口")
+    )]
     pub(super) fn integer(
         &self,
         s: &mut (impl CodecStore + ?Sized),
@@ -114,12 +152,24 @@ impl Fields {
             .as_i64()
             .ok_or_else(|| err(format!("{name}不是i64")))
     }
+    #[allow(
+        dead_code,
+        reason = "#1608：私有辅助函数，当前无调用方；先量再动，保留不删"
+    )]
     fn equal(&self, key: &str, other: &Self, other_key: &str) -> Result<(), String> {
         if self.get(key)? != other.get(other_key)? {
             return Err(err(format!("{key}/{other_key}内容边不同")));
         }
         Ok(())
     }
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    )]
+    #[cfg_attr(
+        feature = "s_capture_native_testonly",
+        allow(dead_code, reason = "#1488：8组合探针 native 路径无调用，保留接口")
+    )]
     fn slot(&self, s: &mut (impl CodecStore + ?Sized), kind: &str) -> Result<Slot, String> {
         if kind == SHAPE {
             Ok(Slot::Shape([
@@ -134,6 +184,7 @@ impl Fields {
             })
         }
     }
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     fn immutable(&self, s: &mut (impl CodecStore + ?Sized), shape: bool) -> Result<Built, String> {
         let names = if shape {
             SHAPE_IMMUTABLE
@@ -150,6 +201,10 @@ impl Fields {
         }
         s.write_value(&V::Object(fields)).map_err(err)
     }
+    #[allow(
+        dead_code,
+        reason = "#1608：私有辅助函数，当前无调用方；先量再动，保留不删"
+    )]
     fn bind_json_text(
         &self,
         s: &mut (impl CodecStore + ?Sized),
@@ -165,18 +220,24 @@ impl Fields {
         Ok(())
     }
 }
+#[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
 fn text(s: &mut (impl CodecRead + ?Sized), r: &ContentRef, k: &str) -> Result<String, String> {
     scalar(s, r, k)?
         .as_str()
         .map(str::to_owned)
         .ok_or_else(|| err(format!("{k}不是文本")))
 }
+#[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
 fn integer(s: &mut (impl CodecRead + ?Sized), r: &ContentRef, k: &str) -> Result<i64, String> {
     scalar(s, r, k)?
         .as_i64()
         .ok_or_else(|| err(format!("{k}不是i64")))
 }
 /// 本口只取真实节点头；load返回前统一验证这些根的全部闭包。
+#[allow(
+    dead_code,
+    reason = "#1608：私有辅助函数，当前无调用方；先量再动，保留不删"
+)]
 fn root_header(s: &mut (impl CodecRead + ?Sized), b: Vec<u8>) -> Result<Built, String> {
     let d: NodeDigest = b.try_into().map_err(|_| err("根不是32字节"))?;
     let r = s.content_ref_of(&sc::root_string(&d)).map_err(err)?;
@@ -214,6 +275,10 @@ pub(super) enum Slot {
     },
 }
 impl Slot {
+    #[allow(
+        dead_code,
+        reason = "#1608：私有辅助函数，当前无调用方；先量再动，保留不删"
+    )]
     fn key(&self) -> String {
         match self {
             Self::Shape(w) => canonical_json(&json!([0, w[0], w[1], w[2]])),
@@ -238,6 +303,7 @@ pub(super) struct Entry {
 }
 pub(super) struct Plan {
     pub generation: i64,
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     pub index: sc::CodecVec<Entry>,
     pub births: sc::CodecVec<Entry>,
     pub withdrawals: bj::JsonOwner,
@@ -279,6 +345,10 @@ fn immutable(
     .immutable(s, is_shape)
 }
 #[cfg(test)]
+#[cfg_attr(
+    all(test, not(feature = "s_capture_native_testonly")),
+    allow(dead_code, reason = "#1488 再合 #1608：s_session 测试 构建不触达")
+)]
 fn raw_withdrawal(e: &Entry, reason: &str, sup: Option<&str>) -> Value {
     match &e.slot {
         Slot::Shape(w) => {
@@ -813,6 +883,10 @@ impl NativeProjection<'_> {
     }
 }
 impl HistoryObjects<'_> {
+    #[cfg_attr(
+        not(all(test, feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    )]
     pub(super) fn native_sweep(&mut self) -> Option<HistorySweep> {
         self.native_sweep_admitted(&super::audit_store::NativeAdmission(None))
             .expect("无scope的Native事件构造")
@@ -835,6 +909,10 @@ impl HistoryObjects<'_> {
     pub(super) fn entries(&self) -> &[Entry] {
         &self.entries
     }
+    #[cfg_attr(
+        feature = "s_capture_native_testonly",
+        allow(dead_code, reason = "#1608：s_capture_native_testonly 构建不触达此项")
+    )]
     pub(super) fn into_entries(self) -> sc::CodecVec<Entry> {
         self.entries
     }
@@ -1008,6 +1086,13 @@ impl HistoryObjects<'_> {
 impl HistoryObjects<'_> {
     // #1394冻结旧扫描算法，只作合法生命周期对照，不接生产失败分支。
     /// Only this complete-load Native owner can produce both projections. No arbitrary arrays.
+    #[cfg_attr(
+        not(feature = "s_capture_native_testonly"),
+        allow(
+            dead_code,
+            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+        )
+    )]
     fn native_dual_at_cut_scan_for_test(
         &mut self,
         s: &mut super::history::HashReader<'_>,
@@ -1521,6 +1606,10 @@ fn bind_originals(
     }
     Ok(())
 }
+#[allow(
+    dead_code,
+    reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删"
+)]
 fn bind_shape_refs(
     s: &mut (impl CodecStore + ?Sized),
     generated: &ContentRef,
@@ -1684,6 +1773,7 @@ fn bind_shape_refs_view(
     Ok(())
 }
 /// 顺序保留真实出生插入序；公开视图和 diff 在各自边界按原合同排序。
+#[cfg(test)]
 pub(super) fn load(
     tx: &Transaction<'_>,
     s: &mut dyn NodeStore,
@@ -1697,6 +1787,10 @@ pub(super) fn load(
         None,
     )
 }
+#[cfg_attr(
+    not(all(test, feature = "s_capture_native_testonly")),
+    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+)]
 pub(super) fn load_for_audit(
     tx: &Transaction<'_>,
     s: &mut super::history::HashReader<'_>,
@@ -2105,6 +2199,10 @@ pub(super) fn prior_records(index: &[Entry]) -> Result<(Vec<Built>, Option<Built
     }
     Ok((bi, version))
 }
+#[cfg_attr(
+    all(not(test), feature = "s_capture_native_testonly"),
+    allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
+)]
 pub(super) fn stage(
     tx: &Transaction<'_>,
     s: &mut (impl CodecStore + ?Sized),
@@ -2234,6 +2332,7 @@ fn push_replace(
 }
 /// 独立生命周期导出的本代变化集合，顺序沿上一代活动主序。
 /// 旧接口仅消费同一核心的普通数组，Owned所有者不能擦除为普通Vec。
+#[cfg(test)]
 pub(super) fn changes_at(index: &[Entry], g: i64) -> Result<(Vec<Value>, Vec<Value>), String> {
     let (withdrawals, replaces) = changes_at_budgeted(index, g, None)?;
     let plain = |owner| match owner {
@@ -2246,6 +2345,7 @@ pub(super) fn changes_at(index: &[Entry], g: i64) -> Result<(Vec<Value>, Vec<Val
     Ok((plain(withdrawals)?, plain(replaces)?))
 }
 /// dead排序工作集和真实返回JSON所有者持续使用调用方实际OwnedBudget。
+#[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
 pub(super) fn changes_at_budgeted(
     index: &[Entry],
     g: i64,
@@ -2310,6 +2410,13 @@ struct HistoryEvents {
     sort_passes: usize,
 }
 #[cfg(test)]
+#[cfg_attr(
+    not(feature = "s_capture_native_testonly"),
+    allow(
+        dead_code,
+        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+    )
+)]
 pub(super) fn take_load_lookup_counts() -> (usize, usize) {
     (
         LOAD_ID_VISITS.with(|n| n.replace(0)),
@@ -2317,6 +2424,13 @@ pub(super) fn take_load_lookup_counts() -> (usize, usize) {
     )
 }
 #[cfg(test)]
+#[cfg_attr(
+    not(feature = "s_capture_native_testonly"),
+    allow(
+        dead_code,
+        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
+    )
+)]
 pub(super) fn load_id_capacity() -> usize {
     LOAD_ID_CAPACITY.with(|n| n.get())
 }
@@ -2609,6 +2723,7 @@ impl HistorySweep {
     fn advance(&mut self, g: i64) -> Result<(), String> {
         self.advance_admitted(g, &super::audit_store::NativeAdmission(None))
     }
+    #[cfg(test)]
     pub(super) fn changes(
         &self,
         index: &[Entry],
@@ -2770,6 +2885,10 @@ impl ProjectionSweep {
         Ok(())
     }
     #[cfg(test)]
+    #[cfg_attr(
+        all(test, not(feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1488 再合 #1608：s_session 测试 构建不触达")
+    )]
     fn new(index: &[Entry]) -> Self {
         Self::new_admitted(index, &super::audit_store::NativeAdmission(None))
             .expect("无scope的Native投影构造")
@@ -2792,12 +2911,17 @@ impl ProjectionSweep {
         }
     }
     #[cfg(test)]
+    #[cfg_attr(
+        all(test, not(feature = "s_capture_native_testonly")),
+        allow(dead_code, reason = "#1488 再合 #1608：s_session 测试 构建不触达")
+    )]
     fn seek(&mut self, g: i64) {
         self.seek_admitted(g, &super::audit_store::NativeAdmission(None))
             .expect("无scope测试游标");
     }
 }
 /// 按该代真实候选序复用同一diff判据，再对拍独立生命周期；不假定候选槽位唯一。
+#[cfg(test)]
 pub(super) fn verify_generated_members<'a>(
     s: &mut (impl CodecStore + ?Sized),
     index: &[Entry],
@@ -2806,6 +2930,7 @@ pub(super) fn verify_generated_members<'a>(
 ) -> Result<(), String> {
     verify_generated_members_swept(s, index, state, g, None)
 }
+#[cfg(test)]
 pub(super) fn verify_generated_members_swept<'a>(
     s: &mut (impl CodecStore + ?Sized),
     index: &[Entry],
@@ -2892,7 +3017,9 @@ pub(super) fn verify_generated_members_swept_with_records<'a>(
         }
         // #1394：全部原record检查通过之后，只交接同capture的exact字段材料。
         if let Some(records) = records.as_deref_mut() {
-            records.seed(object.view(), names, &fields.0).map_err(err)?;
+            records
+                .seed_measured(object.view(), names, &fields.0, s.native_measure().as_ref())
+                .map_err(err)?;
         }
         s.native_codec_room(&mut new, 1).map_err(err)?;
         new.try_push(object_diff::Key {
@@ -4932,10 +5059,12 @@ mod tests {
                 .iter()
                 .map(|e| e.try_clone().unwrap())
                 .collect::<Vec<_>>();
-            let mut expected_withdrawals = Vec::new();
+            let mut shape_withdrawals = Vec::new();
+            let mut typed_withdrawals = Vec::new();
             let mut expected_replaces = Vec::new();
             // 旧公开顺序为 shape 在前、typed 在后。这里直接按场景构建oracle，
-            // 不经新plan或其push_raw_withdrawal辅助函数。
+            // 不经新plan或其push_raw_withdrawal辅助函数；index仍按old原序，
+            // 撤回行按 kind 分桶后 shape 桶在前拼接（夹具每桶至多一行）。
             for e in &mut expected_index {
                 let superseded = e.slot.is_shape() == shape_replacement;
                 let reason = if superseded {
@@ -4946,7 +5075,12 @@ mod tests {
                     "fact_removed"
                 };
                 let sup = superseded.then_some(fresh.id.as_str());
-                expected_withdrawals.push(raw_withdrawal(e, reason, sup));
+                if e.slot.is_shape() {
+                    &mut shape_withdrawals
+                } else {
+                    &mut typed_withdrawals
+                }
+                .push(raw_withdrawal(e, reason, sup));
                 if superseded {
                     expected_replaces.push(json!({
                         "old_object_id":e.id,
@@ -4957,6 +5091,7 @@ mod tests {
                 e.life.withdrawal_reason = Some(reason.into());
                 e.life.superseded_by = sup.map(Into::into);
             }
+            let expected_withdrawals = [shape_withdrawals, typed_withdrawals].concat();
             expected_index.push(fresh.try_clone().unwrap());
             let expected_roots = at_cut(&mut expected_nodes, &expected_index, 3).unwrap();
             let (nodes, _, _) = plan_input_fixture(shape_replacement);
@@ -6128,6 +6263,7 @@ impl Slot {
     }
 }
 impl Entry {
+    #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     pub fn try_clone(&self) -> Result<Self, String> {
         self.try_clone_admitted(&super::audit_store::NativeAdmission(None))
     }

@@ -18,7 +18,6 @@
 use crate::macd::OnlineMacdState;
 use crate::orchestrator::RecursiveOrchestrator;
 use crate::segment::SegKind;
-use crate::trading::types::INITIAL_CAPITAL;
 
 use super::iterate;
 use super::rec_driver::{extract_view, RecDriver};
@@ -43,7 +42,7 @@ fn bsp_kind_idx(k: crate::recursive_t::types::BSPKind) -> u8 {
 pub struct RecStream {
     orch: RecursiveOrchestrator,
     mode: PerfectionMode,
-    /// a₀ 来源（线段=默认 bit-exact / 笔=递归底座下移，526号）。决定门控计数口径与 build_a0 过滤。
+    /// 塔底来源（线段=默认 bit-exact / 笔=已否证对照臂，#1627）。决定门控计数口径与 build_a0 过滤。
     a0_source: A0Source,
     driver: RecDriver,
     macd: OnlineMacdState,
@@ -116,15 +115,18 @@ pub struct RecStream {
 }
 
 impl RecStream {
-    /// a₀ 来源默认 `Segment`（保 bit-exact）。
+    /// a₀ 来源默认 `Segment`（保 bit-exact）。测试夹具：期初资金取等值夹具 `FIXTURE_Q_TOTAL`
+    /// （#1601；生产走 `new_production` 显式传 `q_total`）。
+    #[cfg(test)]
     pub fn new(mode: PerfectionMode) -> Self {
         Self::new_with_a0(mode, A0Source::Segment)
     }
 
-    /// 显式指定 a₀ 来源（线段=基线 / 笔=递归底座下移，526号）。`new(mode)` 委托此构造默认 Segment。
+    /// 显式指定塔底来源（线段=基线 / 笔=已否证对照臂，#1627 zhongshu §2.1.1）。`new(mode)` 委托此构造默认 Segment。
     /// 引擎配置从 env 读（= 当前 main 行为，OFF 基线）。**rec≡flat bit-exact 守卫 + 合成单测 base**——
     /// **不改默认**（改默认会破 `rec_flat_btc_bit_exact` 等 OFF 守卫）。生产「默认开启 Face A」走
     /// `new_production`（FFI/python 回测入口），见 #113 spec §8.1。
+    #[cfg(test)]
     pub fn new_with_a0(mode: PerfectionMode, a0_source: A0Source) -> Self {
         Self::new_with_config(mode, a0_source, super::rec_engine::EngineConfig::from_env())
     }
@@ -134,26 +136,40 @@ impl RecStream {
     /// env `T_OFF_BASELINE` ⇒ instances OFF 基线（bit-exact 回归守卫），显式实验变体 env ⇒ 尊重（受控
     /// 实验）。**FFI/python 回测入口走此**（`PyRecStream::new`）⇒ 生产默认开启 Face A。Rust 内部测试/
     /// bit-exact 守卫继续走 `new`/`new_with_a0`（OFF 基线不变）。
-    pub fn new_production(mode: PerfectionMode, a0_source: A0Source) -> Self {
-        Self::new_with_config(
+    ///
+    /// `q_total`：根账本期初资金（ADR 0040 funding-record `cap`，#1601；调用方从记录读）。
+    pub fn new_production(mode: PerfectionMode, a0_source: A0Source, q_total: f64) -> Self {
+        Self::with_capital(
             mode,
             a0_source,
             super::rec_engine::EngineConfig::production(),
+            q_total,
         )
     }
 
-    /// 显式引擎配置（OFF / ANCHOR / NEST 受控对照，单进程多变体）。
+    /// 显式引擎配置（OFF / ANCHOR / NEST 受控对照，单进程多变体）。测试夹具：期初资金取
+    /// `FIXTURE_Q_TOTAL`（#1601）。
+    #[cfg(test)]
     pub fn new_with_config(
         mode: PerfectionMode,
         a0_source: A0Source,
         cfg: super::rec_engine::EngineConfig,
+    ) -> Self {
+        Self::with_capital(mode, a0_source, cfg, crate::trading::types::FIXTURE_Q_TOTAL)
+    }
+
+    fn with_capital(
+        mode: PerfectionMode,
+        a0_source: A0Source,
+        cfg: super::rec_engine::EngineConfig,
+        q_total: f64,
     ) -> Self {
         RecStream {
             // orch 配置与 flat stream / backtest_run 逐字一致（segments bit-exact）。
             orch: RecursiveOrchestrator::new(6, "wide", 5, false, 3, false, false, false),
             mode,
             a0_source,
-            driver: RecDriver::new_with_config(INITIAL_CAPITAL, cfg),
+            driver: RecDriver::new_with_config(q_total, cfg),
             macd: OnlineMacdState::new(12, 26, 9),
             prefix_pos: vec![0.0],
             prefix_neg: vec![0.0],
@@ -800,8 +816,10 @@ impl RecStream {
 }
 
 #[cfg(test)]
+#[cfg(not(feature = "recursive_t_deprecated"))]
 mod tests {
     use super::*;
+    use crate::trading::types::FIXTURE_Q_TOTAL;
 
     #[test]
     fn 递归流式合成序列零panic() {
@@ -824,7 +842,7 @@ mod tests {
     #[test]
     fn 递归流式零bar不panic() {
         let mut s = RecStream::new(PerfectionMode::And);
-        assert!((s.finish() - INITIAL_CAPITAL).abs() < 1e-6);
+        assert!((s.finish() - FIXTURE_Q_TOTAL).abs() < 1e-6);
     }
 
     /// **L_confirm 第四轴会计：OFF bit-exact（task#95 W-lconfirm，编排者硬约束）**。
@@ -1266,7 +1284,7 @@ mod tests {
         assert!(!r.leg_trades.is_empty(), "至少一笔腿平仓（守卫非平凡）");
     }
 
-    /// **递归流式笔底座零 panic + 有限正 final_nav**（TW 守恒守卫每操作，a0=笔 526号）。
+    /// **递归流式笔对照臂零 panic + 有限正 final_nav**（TW 守恒守卫每操作；#1627 对照臂，非 a₀ 合法值）。
     #[test]
     fn 递归流式笔底座零panic() {
         let mut s = RecStream::new_with_a0(PerfectionMode::Structural, A0Source::Stroke);
@@ -1378,7 +1396,7 @@ mod tests {
     #[test]
     #[ignore = "rec≡flat BTC bit-exact（走势完成路径 clears>0），需 btc_1m_full.json"]
     fn rec_flat_btc_bit_exact() {
-        use crate::recursive_t::backtest_run::load_clean_ohlc;
+        // use crate::recursive_t::backtest_run::load_clean_ohlc;
         use crate::recursive_t::stream::TFugueStreamCore;
         use std::path::PathBuf;
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -1500,7 +1518,7 @@ mod tests {
     #[test]
     #[ignore = "盘整 no_leave 诊断，需 analysis/data_cache/btc_1m_full.json"]
     fn rec_btc_consol_no_leave() {
-        use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
+        // use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
         use std::path::PathBuf;
 
         let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -1552,11 +1570,11 @@ mod tests {
     /// 递归引擎 **8 标的 × 3 模式**回测（L3 验证）：vs flat 引擎（t_backtest_8x3）vs BH。
     /// 跑法：`cargo test --release recursive_t::rec_stream::tests::rec_btc -- --ignored --nocapture`
     /// `BT_SYMBOLS=CL,BTC` 过滤标的（默认全 8）。
-    /// `T_A0=stroke` 切 a₀=笔（递归底座下移，526号；默认 segment=线段基线）——A/B 对比级别增量。
+    /// `T_A0=stroke` 切笔对照臂（#1627：已否证、非 a₀ 合法值，仅复现 526 号 A/B；默认 segment=线段基线）。
     #[test]
     #[ignore = "递归引擎全量回测，需 analysis/data_cache/*.json"]
     fn rec_btc() {
-        use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
+        // use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
         use std::path::PathBuf;
 
         let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -1572,7 +1590,7 @@ mod tests {
                     .collect()
             })
             .unwrap_or_default();
-        // a₀ 来源 A/B 开关（默认 Segment=bit-exact 基线）。
+        // 塔底来源开关（默认 Segment=bit-exact 基线；stroke=#1627 已否证对照臂）。
         let a0_source = match std::env::var("T_A0").ok().as_deref() {
             Some("stroke") | Some("bi") => A0Source::Stroke,
             _ => A0Source::Segment,
@@ -1626,7 +1644,7 @@ mod tests {
                     s.push_bar(o[i], h[i], l[i], c[i]);
                 }
                 let fin = s.finish();
-                strat[mi] = (fin / INITIAL_CAPITAL - 1.0) * 100.0;
+                strat[mi] = (fin / FIXTURE_Q_TOTAL - 1.0) * 100.0;
                 let r = s.driver().root();
                 spnl[mi] = r.short_leg_pnl;
                 nshort[mi] = 100.0 * s.net_short_bars as f64 / n.max(1) as f64;
@@ -1859,7 +1877,7 @@ mod tests {
     #[ignore = "命题4 读法乙 L3 全量回测，需 analysis/data_cache/*.json"]
     fn prop4_nest_l3() {
         use super::super::rec_engine::EngineConfig;
-        use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
+        // use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
         use std::path::PathBuf;
 
         let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -1943,7 +1961,7 @@ mod tests {
                     s.push_bar(o[i], h[i], l[i], c[i]);
                 }
                 let fin = s.finish();
-                strat[vi] = (fin / INITIAL_CAPITAL - 1.0) * 100.0;
+                strat[vi] = (fin / FIXTURE_Q_TOTAL - 1.0) * 100.0;
                 let r = s.driver().root();
                 assert!(
                     fin.is_finite(),
@@ -2075,7 +2093,7 @@ mod tests {
     #[ignore = "命题4 读法乙 consume L3，需 analysis/data_cache/*.json"]
     fn prop4_consume_l3() {
         use super::super::rec_engine::EngineConfig;
-        use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
+        // use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
         use std::path::PathBuf;
 
         let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -2145,7 +2163,7 @@ mod tests {
                 let fin = s.finish();
                 assert!(fin.is_finite(), "[{sym}/{vname}] final_nav 非有限");
                 let r = s.driver().root();
-                row.strat[vi] = (fin / INITIAL_CAPITAL - 1.0) * 100.0;
+                row.strat[vi] = (fin / FIXTURE_Q_TOTAL - 1.0) * 100.0;
                 row.flips[vi] = r.n_nest_flips;
                 row.consumes[vi] = r.n_nest_consumes;
                 row.short_pnl[vi] = r.short_leg_pnl;
@@ -2219,7 +2237,7 @@ mod tests {
     #[ignore = "命题4 读法乙递归 L3，需 analysis/data_cache/*.json"]
     fn prop4_reading_b_recursive_l3() {
         use super::super::rec_engine::EngineConfig;
-        use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
+        // use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
         use std::path::PathBuf;
 
         let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -2288,7 +2306,7 @@ mod tests {
                 }
                 let fin = s.finish();
                 assert!(fin.is_finite(), "[{sym}/{vname}] final_nav 非有限");
-                row.strat[vi] = (fin / INITIAL_CAPITAL - 1.0) * 100.0;
+                row.strat[vi] = (fin / FIXTURE_Q_TOTAL - 1.0) * 100.0;
                 let r = s.driver().root();
                 if vi >= 1 {
                     let bi = vi - 1; // DTOP=0, DIVERGE=1
@@ -2375,7 +2393,7 @@ mod tests {
     #[ignore = "task#84 子5 逐级配额 L3 否证，需 analysis/data_cache/*.json（8 标的 1m databento）"]
     fn prop4_intrinsic_quota_l3() {
         use super::super::rec_engine::EngineConfig;
-        use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
+        // use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
         use std::path::PathBuf;
 
         let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -2444,7 +2462,7 @@ mod tests {
                 }
                 let fin = s.finish();
                 assert!(fin.is_finite(), "[{sym}/{vname}] final_nav 非有限");
-                row.strat[vi] = (fin / INITIAL_CAPITAL - 1.0) * 100.0;
+                row.strat[vi] = (fin / FIXTURE_Q_TOTAL - 1.0) * 100.0;
                 row.nav_bits[vi] = fin.to_bits();
                 let r = s.driver().root();
                 row.ceiling = r
@@ -2519,7 +2537,7 @@ mod tests {
     #[ignore = "任务57 读法B LegPair L3，需 analysis/data_cache/*.json"]
     fn prop4_reading_b_pair_l3() {
         use super::super::rec_engine::EngineConfig;
-        use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
+        // use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
         use std::path::PathBuf;
 
         let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -2573,7 +2591,7 @@ mod tests {
                 }
                 let fin = s.finish();
                 assert!(fin.is_finite(), "[{sym}/{vname}] final_nav 非有限");
-                let strat = (fin / INITIAL_CAPITAL - 1.0) * 100.0;
+                let strat = (fin / FIXTURE_Q_TOTAL - 1.0) * 100.0;
                 let r = s.driver().root();
                 if vname.starts_with("RB_PAIR") {
                     if *vname == "RB_PAIR" {
@@ -2638,7 +2656,7 @@ mod tests {
     #[ignore = "L_confirm 第四轴 L3 裁定，需 analysis/data_cache/*.json（8 标的 1m databento）"]
     fn lconfirm_4axis_l3() {
         use super::super::rec_engine::{ConfDepth, EngineConfig};
-        use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
+        // use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
         use std::path::PathBuf;
 
         let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -2747,7 +2765,7 @@ mod tests {
     #[ignore = "Face B L2（做空腿赚 #110），需 analysis/data_cache/*.json"]
     fn faceb_l2_validate() {
         use super::super::rec_engine::EngineConfig;
-        use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
+        // use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
         use std::path::PathBuf;
 
         let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -2803,7 +2821,7 @@ mod tests {
                     fin.is_finite() && fin > 0.0,
                     "[{sym}/{vname}] final_nav 须有限正，得 {fin}"
                 );
-                let strat = (fin / INITIAL_CAPITAL - 1.0) * 100.0;
+                let strat = (fin / FIXTURE_Q_TOTAL - 1.0) * 100.0;
                 let r = s.driver().root();
                 if *vname == "OFF" {
                     // OFF=instances/sink 路径：mid-scale 失血基线 short_leg_pnl + per-level short_pnl_by_level。
@@ -2876,7 +2894,7 @@ mod tests {
     #[ignore = "Face B L2 bear 窗（做空腿吃跌幅 #110），需 analysis/data_cache/*_databento_10y.json"]
     fn faceb_l2_bear_window() {
         use super::super::rec_engine::EngineConfig;
-        use crate::recursive_t::backtest_run::load_clean_ohlc_window;
+        // use crate::recursive_t::backtest_run::load_clean_ohlc_window;
         use std::path::PathBuf;
 
         let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -2938,7 +2956,7 @@ mod tests {
                     fin.is_finite() && fin > 0.0,
                     "[{label}/{vname}] final_nav 须有限正"
                 );
-                let strat = (fin / INITIAL_CAPITAL - 1.0) * 100.0;
+                let strat = (fin / FIXTURE_Q_TOTAL - 1.0) * 100.0;
                 let r = s.driver().root();
                 if *vname == "FACE_B" {
                     any = true;
@@ -2991,7 +3009,7 @@ mod tests {
     #[ignore = "Face A L2（做空腿赚 #113），需 analysis/data_cache/*.json"]
     fn facea_l2_validate() {
         use super::super::rec_engine::EngineConfig;
-        use crate::recursive_t::backtest_run::{load_clean_ohlc, load_clean_ohlc_window, SYMBOLS};
+        // use crate::recursive_t::backtest_run::{load_clean_ohlc, load_clean_ohlc_window, SYMBOLS};
         use std::path::PathBuf;
 
         let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -3028,7 +3046,7 @@ mod tests {
                 fin.is_finite() && fin > 0.0,
                 "[{label}/{vname}] final_nav 须有限正，得 {fin}"
             );
-            let strat = (fin / INITIAL_CAPITAL - 1.0) * 100.0;
+            let strat = (fin / FIXTURE_Q_TOTAL - 1.0) * 100.0;
             let r = s.driver().root();
             let short_pnl: f64 = (0..MAX_LEVEL).map(|k| r.pair_short_pnl[k]).sum();
             let long_pnl: f64 = (0..MAX_LEVEL).map(|k| r.pair_long_pnl[k]).sum();
@@ -3137,7 +3155,7 @@ mod tests {
     #[ignore = "任务 bear-validate 大额吃熊 L3，需 analysis/data_cache/*.json（dates 列窗切片）"]
     fn bear_validate_core_short_l3() {
         use super::super::rec_engine::EngineConfig;
-        use crate::recursive_t::backtest_run::load_clean_ohlc_window;
+        // use crate::recursive_t::backtest_run::load_clean_ohlc_window;
         use std::path::PathBuf;
 
         let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -3219,7 +3237,7 @@ mod tests {
                 }
                 let fin = s.finish();
                 assert!(fin.is_finite(), "[{label}/{vname}] final_nav 非有限");
-                let strat = (fin / INITIAL_CAPITAL - 1.0) * 100.0;
+                let strat = (fin / FIXTURE_Q_TOTAL - 1.0) * 100.0;
                 let r = s.driver().root();
                 if *vname == "OFF" {
                     eprintln!(
@@ -3275,7 +3293,7 @@ mod tests {
     #[test]
     #[ignore = "BTC 牛熊段归因诊断，需 btc_1m_full.json"]
     fn btc_bull_bear_segments() {
-        use crate::recursive_t::backtest_run::load_clean_ohlc;
+        // use crate::recursive_t::backtest_run::load_clean_ohlc;
         use std::path::PathBuf;
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .parent()
@@ -3536,10 +3554,10 @@ mod tests {
     #[test]
     #[ignore = "1s prove 守卫尺度不变性 L3 交叉验证，需 analysis/data_cache 1s 文件 + CHANLUN_DATA_DIR"]
     fn scale_invariance_1s() {
-        use crate::recursive_t::backtest_run::{
-            load_clean_ohlc, load_clean_ohlc_window, load_clean_ohlc_window_ns,
-        };
-        use std::path::PathBuf;
+        // use crate::recursive_t::backtest_run::{
+        //     load_clean_ohlc, load_clean_ohlc_window, load_clean_ohlc_window_ns,
+        // };
+        // use std::path::PathBuf;
         // 数据目录：默认 `<repo>/analysis/data_cache`；worktree 隔离运行时大 JSON 被 gitignore
         // 不在 worktree 内，用 CHANLUN_DATA_DIR 指向主仓库 data_cache（绝对路径）。
         let data_dir = match std::env::var("CHANLUN_DATA_DIR") {
@@ -3975,7 +3993,7 @@ mod tests {
     #[test]
     #[ignore = "2019后不入场追踪，需 btc_1m_full.json"]
     fn btc_no_reentry_trace() {
-        use crate::recursive_t::backtest_run::load_clean_ohlc;
+        // use crate::recursive_t::backtest_run::load_clean_ohlc;
         use std::path::PathBuf;
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .parent()

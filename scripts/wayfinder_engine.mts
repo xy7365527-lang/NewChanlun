@@ -9,7 +9,7 @@
  *   - stateless：不建状态库，tracker 即账本。
  *
  * 自动动作边界（#1078 裁定 4）：
- *   1. 图清（子票全关、frontier 空）→ 派 rlm 子代理起草 spec 草案 → 开图内 spec 票
+ *   1. 图清（子票全关、frontier 空）→ 派 Claude 起草子代理（经 CLIProxyLocal，#1588）起草 spec 草案 → 开图内 spec 票
  *      → @编排者批【闸一】；
  *   2. spec 批准（编排者 comment 批）→ 自动拆 tracer-bullet 实装票
  *      （blocking 边 + 票面逐条挂裁定票）+ 挂 sandcastle 标签 → 工蜂拾取；
@@ -37,10 +37,11 @@
  *   npx tsx scripts/wayfinder_engine.mts --live --once      真实执行一轮
  */
 
-import { execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { cliProxyEnv } from "../.sandcastle/claude-route.mts";
 
 // ── 顶部常量（编排者 / 周期 / 起草子代理模型） ──────────────────────────────
 // 环境变量覆盖：WAYFINDER_ORCHESTRATOR / WAYFINDER_POLL_SECONDS /
@@ -48,8 +49,13 @@ import { join } from "node:path";
 // 默认 dry-run（安全默认）；真实执行须显式 --live。
 const DEFAULT_ORCHESTRATOR = "xy7365527-lang";
 const DEFAULT_POLL_SECONDS = 240; // 4 分钟（dispatcher 先例）
-const DEFAULT_SPEC_MODEL = "deepseek-v4-pro";
-const DEFAULT_SPEC_PROVIDER = "deepseek";
+// 起草子代理只用 Claude 家族（用户规定，#1588）：Claude Code CLI 经本机 CLIProxyLocal 统一路由，
+// 与 sandcastle 工蜂同一份接线（.sandcastle/claude-route.mts，#1547）。prime-agent 不走：其
+// cliproxy-local provider 只登记了带上游前缀的 mf/yd 型号、无 fable，anthropic provider 直连官方不过 CLIProxy。
+export const DEFAULT_SPEC_MODEL = "claude-opus-5-5";
+export const DEFAULT_SPEC_PROVIDER = "claude-cliproxy";
+/** WAYFINDER_SPEC_MODEL 白名单：配置值不在此列即 fail-loud，不回退默认。 */
+export const CLAUDE_FAMILY_SPEC_MODELS: readonly string[] = ["claude-opus-5-5", "claude-fable-5-1"];
 // 闸一待批的 spec 票标签：编排者需人工批，故挂 ready-for-human（三态 triage 标签之一）。
 const SPEC_AWAIT_LABEL = "ready-for-human";
 // 实装票标签：ready-for-agent（已就绪）+ sandcastle（工蜂拾取闸，main.mts 读取）。
@@ -83,6 +89,13 @@ export interface ChildIssue {
   /** open 阻塞边的数量（issue_dependencies_summary.blocked_by，非阻塞票号清单）。 */
   blockedBy: number;
   comments: IssueComment[];
+  /**
+   * 本票的 sub_issues（递归）。analyzeMap 只看 map 直挂层，不读此字段；
+   * buildSpecApprovalIndex 递归它，让 SPEC 子树（TB 汇总 → 叶 → 纵片）拿到批准态。
+   */
+  children?: ChildIssue[];
+  /** sub_issues_summary 的 open 子票数（total − completed）；递归截断时仍可判汇总票。 */
+  openSubIssues?: number;
 }
 
 export interface MapState {
@@ -123,15 +136,37 @@ export function isDecisionTicket(c: Pick<ChildIssue, "labels">): boolean {
   return c.labels.some((l) => DECISION_LABELS.includes(l));
 }
 
-/** spec 票：标题以 📋 SPEC 或 [spec] 开头（#775/#1077 惯例）。 */
+/**
+ * spec 票：标题以 📋 SPEC 或 [spec] 开头（#775/#1077 惯例），或以「SPEC：」「SPEC:」开头
+ * （#1340 曾用标题「SPEC：完整生产程序…」失配，图审计 2026-10-20 第 15 条）。
+ */
 export function isSpecTicket(c: Pick<ChildIssue, "title">): boolean {
-  return /^\s*📋\s*SPEC/i.test(c.title) || /^\s*\[spec\]/i.test(c.title);
+  return (
+    /^\s*📋\s*SPEC/i.test(c.title) ||
+    /^\s*\[spec\]/i.test(c.title) ||
+    /^\s*SPEC\s*[：:]/.test(c.title)
+  );
 }
 
 /** 实装票：标题以 [impl] 开头（#1077 拆出的 S1–S5 惯例）。 */
 export function isImplTicket(c: Pick<ChildIssue, "title">): boolean {
   return /^\s*\[impl\]/i.test(c.title);
 }
+
+/** 实装票标签（/to-tickets 拆出的 tracer-bullet 叶子；#1340 TB 叶子多只带此标签、不带 [impl] 标题）。 */
+export const IMPL_LABEL = "wayfinder:impl";
+
+/**
+ * 放行用的实装票判据：标题 [impl] 或带 wayfinder:impl 标签，且不是决策票。
+ * 只用于队列交棒（classifyTicket）；analyzeMap 的拆票/关图仍按标题判，口径不动。
+ */
+export function isImplCandidate(c: Pick<ChildIssue, "title" | "labels">): boolean {
+  if (isDecisionTicket(c)) return false;
+  return isImplTicket(c) || c.labels.includes(IMPL_LABEL);
+}
+
+/** 显式要人或待补信息的标签：带任一即不放行（人闸 / triage 未完）。 */
+export const HOLD_LABELS = ["needs-approval", "ready-for-human", "needs-info", "needs-triage", "wontfix"];
 
 /**
  * 纯决策图（v1 不碰，spec 出图走人工）：Notes 显式声明「本图为纯决策图，不带实装——理由：…」。
@@ -390,6 +425,10 @@ export interface ReadyTicket {
   blockedBy: number;
   /** 所属 open map 的 spec 是否已批准；null = 不在任何 open map 下（含图外 spec/无主票）。 */
   specApproved: boolean | null;
+  /** 本票 open 的 sub_issues 数（来自 map 子树；不在子树里为 undefined）。>0 = 汇总票，不放行。 */
+  openChildren?: number;
+  /** 祖先链上确有 SPEC 节点（区别于只继承 map 的 SPEC 批准态的 map 直挂票）。 */
+  underSpec?: boolean;
 }
 
 /** 每轮五桶 + 待释放清单，一次算清（分类判据见 classifyTicket）。 */
@@ -418,34 +457,119 @@ export function openBlockerCount(b: BlockedBySummary | undefined): number {
 export function classifyTicket(t: ReadyTicket): TicketBucket {
   const hasSandcastle = t.labels.includes("sandcastle");
   if (t.blockedBy > 0) return "blocked";
+  // 已有负责人（任何 assignee）一律不放行：负责人是否仍活跃由人/审计判断，引擎不替人释放认领。
   if (t.assignees.length > 0) return hasSandcastle ? "running" : "claimed";
   if (hasSandcastle) return "released";
-  if (isImplTicket(t) && t.specApproved === true) return "eligible";
+  if (t.labels.some((l) => HOLD_LABELS.includes(l))) return "held";
+  // 汇总票（TB 汇验等）的工作由子票承担，子票未全关前不放行。
+  if ((t.openChildren ?? 0) > 0) return "held";
+  if (isImplCandidate(t) && t.specApproved === true && enteredByRule(t)) return "eligible";
   return "held";
 }
 
-/** 图内子票号 → 所属 open map 的 spec 是否已批准（纯函数）。 */
-export function buildSpecApprovalIndex(
-  maps: MapState[],
-  orchestrator: string,
-): Map<number, boolean> {
-  const idx = new Map<number, boolean>();
+/**
+ * 进放行队列的两条路：
+ *   - 带 ready-for-agent（#1084 原口径，含 map 直挂实装票）；
+ *   - 只带 wayfinder:impl 的票，须祖先链上确有一张 SPEC（/to-tickets 从 SPEC 拆出的叶子）。
+ * map 直挂、未挂 ready-for-agent 的 wayfinder:impl 票不因加扫标签而被放行。
+ */
+function enteredByRule(t: ReadyTicket): boolean {
+  return t.labels.includes("ready-for-agent") || t.underSpec === true;
+}
+
+/** 单票不放行/放行原因（纯函数，供 --explain 与 dry-run 报告）。 */
+export function explainTicket(t: ReadyTicket): string {
+  const b = classifyTicket(t);
+  if (b === "blocked") return `blocked（open blocker ${t.blockedBy}）`;
+  if (b === "claimed") return `claimed（assignee ${t.assignees.join(",")}）`;
+  if (b === "running") return "running（已 assign 且带 sandcastle）";
+  if (b === "released") return "released（已带 sandcastle）";
+  if (b === "eligible") return "eligible（实装票 + 祖先链 SPEC 已批准 + 未 assign + 无 blocker）";
+  const hold = t.labels.filter((l) => HOLD_LABELS.includes(l));
+  if (hold.length) return `held（人闸标签 ${hold.join(",")}）`;
+  if (!isImplCandidate(t)) return "held（非实装票：无 [impl] 标题 / wayfinder:impl 标签，或为决策票）";
+  if ((t.openChildren ?? 0) > 0) return `held（汇总票，open 子票 ${t.openChildren}）`;
+  if (t.specApproved === null) return "held（不在任何 open map 子树内）";
+  if (t.specApproved === false) return "held（所属 SPEC 未批准）";
+  return "held（map 直挂票未挂 ready-for-agent，且祖先链上无 SPEC）";
+}
+
+/** 子树遍历结果：批准态 + 祖先链上是否确有 SPEC（纯函数产物）。 */
+export interface SpecTreeFacts {
+  approved: Map<number, boolean>;
+  underSpec: Set<number>;
+}
+
+/**
+ * 图内子票 → 批准态（纯函数）。
+ *
+ * 判据（wayfinder-workflow.md「队列交棒」：只放行「已批准 spec/DAG」下的实装票）：
+ *   - 祖先链上有 SPEC 节点的票：链上每一张 SPEC 都已批准才算批准（嵌套 SPEC 不能绕过上层驳回）；
+ *     #1323 → SPEC #1340 → TB 汇总 → 叶 → 纵片 全链由此拿到 #1340 的批准态（图审计 2026-10-20 第 14 条）；
+ *   - 祖先链上没有 SPEC 的票（map 直挂票及其子票）：继承 map 直挂 SPEC 的批准态（#1084 原口径）。
+ * 不在任何 open map 子树里的票不进索引（specApproved=null）。
+ */
+export function buildSpecTreeFacts(maps: MapState[], orchestrator: string): SpecTreeFacts {
+  const approved = new Map<number, boolean>();
+  const underSpec = new Set<number>();
+  const specOk = (s: ChildIssue) => s.state === "OPEN" && isSpecApproved(s, orchestrator);
   for (const m of maps) {
     if (m.state !== "OPEN") continue;
     const spec = m.children.find(isSpecTicket);
-    const approved =
-      spec !== undefined && spec.state === "OPEN" && isSpecApproved(spec, orchestrator);
-    for (const c of m.children) idx.set(c.number, approved);
+    const mapApproved = spec !== undefined && specOk(spec);
+    const visited = new Set<number>();
+    // chain：祖先链上的 SPEC 情况；null = 链上尚无 SPEC。
+    const visit = (node: ChildIssue, chain: boolean | null) => {
+      if (visited.has(node.number)) return;
+      visited.add(node.number);
+      const value = chain === null ? mapApproved : chain;
+      // 同一票若被多处挂（理论上 sub_issue 单父），任一路径未批准即按未批准，宁严勿宽。
+      const prev = approved.get(node.number);
+      approved.set(node.number, prev === undefined ? value : prev && value);
+      if (chain !== null) underSpec.add(node.number);
+      const next = isSpecTicket(node) ? (chain === null ? specOk(node) : chain && specOk(node)) : chain;
+      for (const c of node.children ?? []) visit(c, next);
+    };
+    for (const c of m.children) visit(c, null);
   }
+  return { approved, underSpec };
+}
+
+/** 兼容旧签名：只要批准态。 */
+export function buildSpecApprovalIndex(maps: MapState[], orchestrator: string): Map<number, boolean> {
+  return buildSpecTreeFacts(maps, orchestrator).approved;
+}
+
+/** 子树内每张有 sub_issues 的票 → open 子票数（纯函数）。 */
+export function buildOpenChildIndex(maps: MapState[]): Map<number, number> {
+  const idx = new Map<number, number>();
+  const visited = new Set<number>();
+  const visit = (node: ChildIssue) => {
+    if (visited.has(node.number)) return;
+    visited.add(node.number);
+    const kids = node.children ?? [];
+    const fromKids = kids.filter((k) => k.state === "OPEN").length;
+    const open = Math.max(fromKids, node.openSubIssues ?? 0);
+    if (kids.length || node.openSubIssues !== undefined) idx.set(node.number, open);
+    for (const k of kids) visit(k);
+  };
+  for (const m of maps) if (m.state === "OPEN") for (const c of m.children) visit(c);
   return idx;
 }
 
-/** 把 spec 批准态并入 ready 视图（纯函数）。 */
+/** 把 spec 批准态（及可选的 open 子票数）并入 ready 视图（纯函数）。 */
 export function withSpecApproval(
   ready: ReadyTicket[],
   specIdx: Map<number, boolean>,
+  openChildIdx?: Map<number, number>,
+  underSpec?: Set<number>,
 ): ReadyTicket[] {
-  return ready.map((t) => ({ ...t, specApproved: specIdx.get(t.number) ?? null }));
+  return ready.map((t) => ({
+    ...t,
+    specApproved: specIdx.get(t.number) ?? null,
+    ...(openChildIdx?.has(t.number) ? { openChildren: openChildIdx.get(t.number)! } : {}),
+    ...(underSpec ? { underSpec: underSpec.has(t.number) } : {}),
+  }));
 }
 
 /** 队列汇总（纯函数）：五桶计数 + 待释放（合资格实装票）号码清单。 */
@@ -541,6 +665,7 @@ interface RawChild {
   labels?: Array<{ name: string }>;
   assignees?: Array<{ login: string }>;
   issue_dependencies_summary?: { blocked_by?: number };
+  sub_issues_summary?: { total?: number; completed?: number };
 }
 
 interface RawComment {
@@ -549,7 +674,14 @@ interface RawComment {
   created_at: string;
 }
 
-function fetchChildren(mapNumber: number): ChildIssue[] {
+/** 子树递归深度上限（map → SPEC → TB → 叶 → 纵片 = 4 层，留余量）。 */
+const MAX_TREE_DEPTH = 8;
+
+function fetchChildren(
+  mapNumber: number,
+  depth = 0,
+  visited: Set<number> = new Set([mapNumber]),
+): ChildIssue[] {
   const raw = JSON.parse(
     gh(`api --paginate repos/${GH_ENV.GH_REPO}/issues/${mapNumber}/sub_issues`),
   ) as RawChild[];
@@ -564,8 +696,16 @@ function fetchChildren(mapNumber: number): ChildIssue[] {
       blockedBy: c.issue_dependencies_summary?.blocked_by ?? 0,
       comments: [],
     };
+    if (c.sub_issues_summary?.total !== undefined) {
+      child.openSubIssues = Math.max(0, c.sub_issues_summary.total - (c.sub_issues_summary.completed ?? 0));
+    }
     // 只对 spec 子票拉评论（批准检测需要）；决策票的评论在起草 spec 时才按需拉。
     if (isSpecTicket(child)) child.comments = fetchComments(child.number);
+    // 递归子树（只对确有 sub_issues 的票发请求）；防环 + 深度上限。
+    if ((c.sub_issues_summary?.total ?? 0) > 0 && depth + 1 < MAX_TREE_DEPTH && !visited.has(c.number)) {
+      visited.add(c.number);
+      child.children = fetchChildren(c.number, depth + 1, visited);
+    }
     return child;
   });
 }
@@ -581,7 +721,7 @@ function fetchComments(issueNumber: number): IssueComment[] {
   }));
 }
 
-function fetchOpenMaps(): MapState[] {
+export function fetchOpenMaps(): MapState[] {
   const out = gh(
     `issue list --label wayfinder:map --state open --limit 100 --json number,title,body,state,labels`,
   );
@@ -602,10 +742,27 @@ function fetchOpenMaps(): MapState[] {
   }));
 }
 
-/** 全仓 ready-for-agent 票（spec 批准态由 withSpecApproval 并入）。 */
-function fetchReadyTickets(): ReadyTicket[] {
+/**
+ * 扫描集 = open 的 ready-for-agent ∪ wayfinder:impl（spec 批准态由 withSpecApproval 并入）。
+ * #1340 正文约定「ready-for-agent 表示已批准可拆票，不是可直接拾取」，TB 叶子多只带 wayfinder:impl，
+ * 只扫 ready-for-agent 会让它们永远不进扫描集（图审计 2026-10-20 结论 2）。
+ */
+export function fetchReadyTickets(): ReadyTicket[] {
+  const seen = new Map<number, ReadyTicket>();
+  for (const label of SCAN_LABELS) {
+    const got = fetchLabelled(label);
+    if (got.length >= SCAN_LIMIT) console.error(`[wayfinder_engine] ⚠ ${label} 扫描到 ${got.length} 张，已达上限 ${SCAN_LIMIT}，可能截断`);
+    for (const t of got) if (!seen.has(t.number)) seen.set(t.number, t);
+  }
+  return [...seen.values()].sort((a, b) => a.number - b.number);
+}
+
+const SCAN_LABELS = ["ready-for-agent", IMPL_LABEL];
+const SCAN_LIMIT = 500;
+
+function fetchLabelled(label: string): ReadyTicket[] {
   const out = gh(
-    `issue list --label ready-for-agent --state open --limit 200 --json number,title,labels,assignees,blockedBy`,
+    `issue list --label ${shellQuote(label)} --state open --limit ${SCAN_LIMIT} --json number,title,labels,assignees,blockedBy`,
   );
   const raw = JSON.parse(out) as Array<{
     number: number;
@@ -624,9 +781,36 @@ function fetchReadyTickets(): ReadyTicket[] {
   }));
 }
 
-/** 释放一张合资格实装票：挂 sandcastle（add-label 幂等，写路径 ghOnce）。 */
-function releaseTicket(number: number): void {
-  ghOnce(`issue edit ${number} --add-label sandcastle`);
+/** 写前复核（纯函数）：读到的单票现状仍可放行才返回 null，否则返回原因。 */
+export function recheckBeforeRelease(v: {
+  state?: string;
+  labels?: Array<{ name: string }>;
+  assignees?: Array<{ login: string }>;
+  blockedBy?: BlockedBySummary;
+}): string | null {
+  if ((v.state ?? "OPEN").toUpperCase() !== "OPEN") return "票已关闭";
+  if ((v.assignees ?? []).length > 0) return `已有负责人 ${(v.assignees ?? []).map((a) => a.login).join(",")}`;
+  if (openBlockerCount(v.blockedBy) > 0) return "有 open blocker";
+  const names = (v.labels ?? []).map((l) => l.name);
+  if (names.includes("sandcastle")) return "已带 sandcastle";
+  const hold = names.filter((l) => HOLD_LABELS.includes(l));
+  if (hold.length) return `人闸标签 ${hold.join(",")}`;
+  return null;
+}
+
+/**
+ * 释放一张合资格实装票：挂 sandcastle（add-label 幂等，写路径 ghOnce）。
+ * 挂前重读单票，缩小「扫描后才被人认领 / 新增 blocker」的竞态窗口。返回 null = 已挂。
+ */
+export function releaseTicket(
+  number: number,
+  io: { read: (args: string) => string; write: (args: string) => string } = { read: gh, write: ghOnce },
+): string | null {
+  const v = JSON.parse(io.read(`issue view ${number} --json state,labels,assignees,blockedBy`));
+  const why = recheckBeforeRelease(v);
+  if (why) return why;
+  io.write(`issue edit ${number} --add-label sandcastle`);
+  return null;
 }
 
 // ── 状态页（#1084 追加：五桶分明，不把 sandcastle 空误写成 ready-for-agent 空） ──
@@ -648,13 +832,13 @@ export function renderStatus(
     `# wayfinder_engine 控制面状态（${opts.stamp}，${opts.dryRun ? "dry-run" : "live"}）`,
     "",
     `- open wayfinder:map：${maps.length} 张`,
-    `- 全仓 ready-for-agent（open）：${ready.length} 张`,
+    `- 扫描集 open（ready-for-agent ∪ wayfinder:impl）：${ready.length} 张`,
     `  - 已获 sandcastle 拾取权（可拾取）：${b.released}`,
     `  - blocked（有 open blocker）：${b.blocked}`,
     `  - claimed（已 assign）：${b.claimed}`,
     `  - running（已 assign 且带 sandcastle）：${b.running}`,
     `  - 待释放（合资格实装票，本轮挂 sandcastle）：${b.eligible}${eligibleList}`,
-    `  - 不合资格（决策/spec/未批准 spec 等，不放行）：${b.held}`,
+    `  - 不合资格（决策/spec/未批准 spec/人闸标签等，不放行）：${b.held}`,
     "",
   ].join("\n");
 }
@@ -679,6 +863,8 @@ export interface EngineConfig {
   specModel: string;
   specProvider: string;
   once: boolean;
+  /** 逐票打印分桶与原因（dry-run 报告用）。 */
+  explain: boolean;
 }
 
 function createIssue(
@@ -725,13 +911,68 @@ function issueDbId(number: number): number {
   return Number(gh(`api repos/${GH_ENV.GH_REPO}/issues/${number} --jq .id`));
 }
 
-/** 起草 spec 的 rlm 子代理：无头 prime-agent，只读、无工具，输出即 spec 正文。 */
+/**
+ * 纯函数：解析并校验 spec 起草子代理配置（#1588）。
+ * provider 只认 claude-cliproxy；model 只认 Claude 家族白名单。非法值 throw，不静默回退默认。
+ */
+export function resolveSpecDrafter(env: Record<string, string | undefined>): {
+  specProvider: string;
+  specModel: string;
+} {
+  const specProvider = env.WAYFINDER_SPEC_PROVIDER ?? DEFAULT_SPEC_PROVIDER;
+  const specModel = env.WAYFINDER_SPEC_MODEL ?? DEFAULT_SPEC_MODEL;
+  if (specProvider !== DEFAULT_SPEC_PROVIDER) {
+    throw new Error(
+      `[FAIL-loud #1588] WAYFINDER_SPEC_PROVIDER=${specProvider} 不受支持：起草子代理只走 ${DEFAULT_SPEC_PROVIDER}（Claude Code CLI 经 CLIProxyLocal）`,
+    );
+  }
+  if (!CLAUDE_FAMILY_SPEC_MODELS.includes(specModel)) {
+    throw new Error(
+      `[FAIL-loud #1588] WAYFINDER_SPEC_MODEL=${specModel} 不属于 Claude 家族白名单（${CLAUDE_FAMILY_SPEC_MODELS.join(" / ")}）`,
+    );
+  }
+  return { specProvider, specModel };
+}
+
+/** 纯函数：起草子代理的 Claude Code CLI 调用（无头 -p、禁用全部工具、不落会话）。prompt 走 stdin。 */
+export function specDrafterCommand(specModel: string): { file: string; args: string[] } {
+  return {
+    file: "claude",
+    args: ["-p", "--model", specModel, "--output-format", "text", "--tools", "", "--no-session-persistence"],
+  };
+}
+
+/**
+ * 纯函数：起草子代理的子进程 env = 宿主 env + CLIProxyLocal 路由变量，并剔除 ANTHROPIC_API_KEY
+ * （Claude Code 优先认它，继承下来会绕开 CLIProxyLocal；decision-claimer.mts claudeOnce 同款）。
+ */
+export function specDrafterEnv(
+  base: NodeJS.ProcessEnv,
+  proxyEnv: Record<string, string>,
+): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...base, ...proxyEnv };
+  delete env.ANTHROPIC_API_KEY;
+  return env;
+}
+
+/**
+ * 起草 spec 的子代理：Claude Code CLI 经 CLIProxyLocal，只读、无工具，输出即 spec 正文。
+ * cwd 取临时目录，不让仓内 CLAUDE.md / 项目 hooks 混进起草上下文；路由密钥只进子进程 env。
+ */
 function runSpecDrafter(prompt: string, cfg: EngineConfig): string {
-  const out = execSync(
-    `prime-agent -p --mode text --thinking off -nt --no-session ` +
-      `--provider ${shellQuote(cfg.specProvider)} --model ${shellQuote(cfg.specModel)}`,
-    { encoding: "utf8", input: prompt, env: process.env, maxBuffer: 32 * 1024 * 1024, timeout: 15 * 60 * 1000 },
-  );
+  const { specModel } = resolveSpecDrafter({
+    WAYFINDER_SPEC_PROVIDER: cfg.specProvider,
+    WAYFINDER_SPEC_MODEL: cfg.specModel,
+  });
+  const { file, args } = specDrafterCommand(specModel);
+  const out = execFileSync(file, args, {
+    encoding: "utf8",
+    input: prompt,
+    cwd: tmpdir(),
+    env: specDrafterEnv(process.env, cliProxyEnv()),
+    maxBuffer: 32 * 1024 * 1024,
+    timeout: 15 * 60 * 1000,
+  });
   return out.trim();
 }
 
@@ -936,7 +1177,7 @@ function executeAction(action: Action, cfg: EngineConfig): void {
 function describeAction(a: Action): string {
   switch (a.kind) {
     case "draft_spec":
-      return `起草 spec 草案（rlm 子代理）→ 开图内 spec 票 → @编排者批【闸一】  (map #${a.map})`;
+      return `起草 spec 草案（Claude 起草子代理）→ 开图内 spec 票 → @编排者批【闸一】  (map #${a.map})`;
     case "split_impl_tickets":
       return `拆 tracer-bullet 实装票（blocking 边 + 逐条挂裁定票）+ sandcastle 标签  (map #${a.map}, spec #${a.spec})`;
     case "close_graph":
@@ -954,7 +1195,8 @@ async function runOnce(cfg: EngineConfig): Promise<void> {
   try {
     maps = fetchOpenMaps();
     // 队列交棒视图：全仓 ready-for-agent × 父图 spec 批准态。
-    ready = withSpecApproval(fetchReadyTickets(), buildSpecApprovalIndex(maps, cfg.orchestrator));
+    const facts = buildSpecTreeFacts(maps, cfg.orchestrator);
+    ready = withSpecApproval(fetchReadyTickets(), facts.approved, buildOpenChildIndex(maps), facts.underSpec);
   } catch (e) {
     console.error(`[wayfinder_engine] 拉取 tracker 状态失败（网络/鉴权？已重试，本轮跳过）：${e}`);
     return;
@@ -982,16 +1224,22 @@ async function runOnce(cfg: EngineConfig): Promise<void> {
   //    不把全部历史 ready-for-agent 无差别放行。
   const summary = summarizeQueue(ready);
   console.log(
-    `  全仓 ready-for-agent ${ready.length} 张：可拾取 ${summary.buckets.released} / blocked ${summary.buckets.blocked} / ` +
+    `  扫描集（ready-for-agent ∪ wayfinder:impl）${ready.length} 张：可拾取 ${summary.buckets.released} / blocked ${summary.buckets.blocked} / ` +
       `claimed ${summary.buckets.claimed} / running ${summary.buckets.running} / 待释放 ${summary.buckets.eligible} / 不放行 ${summary.buckets.held}`,
   );
+  if (cfg.explain) {
+    for (const t of ready) console.log(
+        `    · #${t.number} ${explainTicket(t)} [spec=${t.specApproved === null ? "图外" : t.specApproved ? "已批准" : "未批准"}] — ${t.title.slice(0, 60)}`,
+      );
+  }
   for (const n of summary.eligible) {
     if (cfg.dryRun) {
       console.log(`    [dry-run] 将释放（挂 sandcastle）：#${n}`);
     } else {
       try {
-        releaseTicket(n);
-        console.log(`    ✓ 已释放（挂 sandcastle）：#${n}`);
+        const why = releaseTicket(n);
+        if (why) console.log(`    · 写前复核不放行 #${n}：${why}`);
+        else console.log(`    ✓ 已释放（挂 sandcastle）：#${n}`);
       } catch (e) {
         console.error(`    ✗ 释放失败（#${n}）：${e}`);
       }
@@ -1006,12 +1254,14 @@ async function runOnce(cfg: EngineConfig): Promise<void> {
 function parseArgs(argv: string[]): EngineConfig {
   let dryRun = true;
   let once = false;
+  let explain = false;
   let pollSeconds = Number(process.env.WAYFINDER_POLL_SECONDS ?? DEFAULT_POLL_SECONDS);
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!;
     if (a === "--live") dryRun = false;
     else if (a === "--dry-run") dryRun = true;
     else if (a === "--once") once = true;
+    else if (a === "--explain") explain = true;
     else if (a === "--poll-seconds") {
       const n = Number(argv[i + 1]);
       if (Number.isFinite(n) && n > 0) {
@@ -1024,9 +1274,10 @@ function parseArgs(argv: string[]): EngineConfig {
     orchestrator: process.env.WAYFINDER_ORCHESTRATOR ?? DEFAULT_ORCHESTRATOR,
     dryRun,
     pollSeconds,
-    specModel: process.env.WAYFINDER_SPEC_MODEL ?? DEFAULT_SPEC_MODEL,
-    specProvider: process.env.WAYFINDER_SPEC_PROVIDER ?? DEFAULT_SPEC_PROVIDER,
+    // 启动即校验（非 Claude 家族直接 fail-loud，不等到图清起草时才炸）。
+    ...resolveSpecDrafter(process.env),
     once,
+    explain,
   };
 }
 

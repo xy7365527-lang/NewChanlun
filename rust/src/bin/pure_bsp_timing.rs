@@ -96,7 +96,7 @@ fn main() -> std::process::ExitCode {
     let mut trades: Vec<TradeRecord> = Vec::new();
 
     // 平/开一笔（close 成交口径，与 metrics::significance trade_abs_pnl 一致）。
-    let mut close_trade = |trades: &mut Vec<TradeRecord>, entry: usize, exit: usize, long: bool| {
+    let close_trade = |trades: &mut Vec<TradeRecord>, entry: usize, exit: usize, long: bool| {
         if exit > entry {
             trades.push(TradeRecord {
                 entry_bar: entry,
@@ -244,7 +244,8 @@ fn main() -> std::process::ExitCode {
     } else {
         0.0
     };
-    let m = metrics::compute(&equity_curve, &daily_returns, &trade_pnls, years, bh_return);
+    let m = metrics::compute(&equity_curve, &daily_returns, &trade_pnls, years, bh_return)
+        .expect("C-19 research stats record");
     let sig = metrics::significance(
         &trade_pnls,
         &daily_returns,
@@ -252,9 +253,11 @@ fn main() -> std::process::ExitCode {
         &prices,
         fee_rate,
         m.strat_return,
-    );
+    )
+    .expect("C-19 research stats record");
 
     println!("=== 纯买卖点择时回测（pure_bsp_timing，离散状态机，非 π_Θ 覆盖）===");
+    println!("统计记录        : {}", m.research_stats.label());
     println!("品种            : {}", dataset.symbol);
     println!("bar 数          : {n}");
     println!("年化基数(years) : {years:.4}");

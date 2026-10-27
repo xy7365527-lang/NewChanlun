@@ -95,6 +95,10 @@ impl<'a> IncrementalClassifier<'a> {
             "classify_at({i}) 越界 bars.len={}",
             self.bars.len()
         );
+        // ★#1588：append 前先丢上一 bar 的 ParseLayer。它与增量状态共享 merged/fractals/strokes/
+        // segments 的 Rc 缓冲；append 期间仍持有 ⟹ 各子模块 `Rc::make_mut` 每 bar 整表深拷贝
+        // （O(n)/bar，累计 O(n²)）。丢弃后引用计数回 1，make_mut 原地追加；输出逐位不变。
+        self.last_l0 = None;
         // 增量 parse：append bar i（O(1) inclusion + O(merged_i) 下游）。
         let l0_i = self.parser_incr.append(self.bars[i]);
         // 增量塔：cache 跨 bar 复用（身份稳定），bit-exact == 全量 classify。
@@ -167,9 +171,13 @@ mod tests {
                 let base = 1000i64 + (i as i64) * 2;
                 // 振幅/周期须使 cycle 的逐 bar 斜率能超过 base 斜率（2/bar）且波形非单一频率
                 // （否则特征序列过于规则，线段划分状态机——67课——永不出顶底分型，segments 恒空）：
-                // 双频叠加（主周期 22 + 短周期 6）打破规则性，实测末 bar strokes=85 / segments=8。
-                let cycle =
-                    ((((i as f64) / 22.0).sin() * 60.0) + (((i as f64) / 6.0).sin() * 25.0)) as i64;
+                // 主周期 22 + 短周期 6 打破规则性；慢周期 150（振幅 900，斜率可达 6/bar）给出真实回撤。
+                // #1420：第二种候选越界先到即失效、不复活（078:52，#1344），旧双频单调上行序列唯一
+                // 的一段靠「复活」而来（S8 候选 P=2901648 在 S11 被越过，旧口径在 S23 才确认），
+                // 新口径下 segments=0。三频实测末 bar strokes=47 / segments=3。
+                let cycle = ((((i as f64) / 22.0).sin() * 60.0)
+                    + (((i as f64) / 6.0).sin() * 25.0)
+                    + (((i as f64) / 150.0).sin() * 900.0)) as i64;
                 let close = base + cycle;
                 Bar {
                     source_index: i,
@@ -922,6 +930,61 @@ mod tests {
             "fixture2 未触发 units.is_empty 早停 break（truncate(level_idx+1) 代码路径未执行）"
         );
     }
+
+    /// ★#1588：`classify_at` 跨 bar 不触发共享解析表的写时深拷贝。`merged_bars`/`strokes` 的 Rc
+    /// 由增量状态全程持有、只经 `Rc::make_mut` 原地改写，`fractals` 在 merged ≥3 后同理——上一
+    /// bar 的 ParseLayer 若在 append 期间仍存活，make_mut 会在旧块存活时另分配新块，Rc 地址
+    /// 必变。反例臂用 `ParseLayerIncr` 显式持有上一轮 layer，证明本断言能区分两种持有方式。
+    #[test]
+    fn classify_at_keeps_shared_parse_tables_in_place() {
+        use std::rc::Rc;
+        fn ptrs(l: &parser::ParseLayer) -> (usize, usize, usize) {
+            (
+                Rc::as_ptr(&l.merged_bars) as usize,
+                Rc::as_ptr(&l.strokes) as usize,
+                Rc::as_ptr(&l.fractals) as usize,
+            )
+        }
+        let bars = pseudo_walk(1500, 0x1588_0000_0000_0001, 34, 700, 3300);
+        let config = ThetaConfig::default();
+
+        let mut clf = IncrementalClassifier::new(&bars, &config);
+        let mut prev: Option<((usize, usize, usize), usize)> = None;
+        for i in 0..bars.len() {
+            clf.classify_at(i);
+            let l0 = clf.last_l0().expect("classify_at 后有 L0");
+            let cur = (ptrs(l0), l0.merged_bars.len());
+            if let Some(((pm, ps, pf), pn)) = prev {
+                assert_eq!(cur.0 .0, pm, "bar {i}: merged_bars 被整表拷贝");
+                assert_eq!(cur.0 .1, ps, "bar {i}: strokes 被整表拷贝");
+                if pn >= 3 {
+                    assert_eq!(cur.0 .2, pf, "bar {i}: fractals 被整表拷贝");
+                }
+            }
+            prev = Some(cur);
+        }
+        let l0 = clf.last_l0().unwrap();
+        assert!(
+            l0.strokes.len() > 1 && l0.fractals.len() > 3,
+            "夹具退化：strokes={} fractals={}",
+            l0.strokes.len(),
+            l0.fractals.len()
+        );
+
+        // 反例臂：append 期间持有上一轮 layer ⟹ merged_bars 至少一次换块。
+        let mut incr = parser::ParseLayerIncr::new(&config);
+        let mut held = incr.append(bars[0]);
+        let mut moved = 0usize;
+        for bar in &bars[1..] {
+            let next = incr.append(*bar);
+            moved += usize::from(!Rc::ptr_eq(&next.merged_bars, &held.merged_bars));
+            held = next;
+        }
+        assert!(
+            moved > 0,
+            "持有上一轮 layer 时未观察到写时拷贝，断言失去区分力"
+        );
+    }
 }
 
 #[cfg(test)]
@@ -1018,7 +1081,8 @@ mod profile {
             };
             let years = (n as f64) / (252.0 * 390.0); // 名义年数（仅 metrics 用，不影响标度）
             let t = std::time::Instant::now();
-            let _ = run_theta_v0_pi(&prefix, &config, years, 1.0);
+            let _ =
+                run_theta_v0_pi(&prefix, &config, years, 1.0).expect("C-19 research stats record");
             let t_engine = t.elapsed().as_secs_f64();
 
             // strategy 净额 = engine − classify − closed_loop（coverage/interp/registry/risk_gate/fill）。
@@ -1112,7 +1176,8 @@ mod profile {
             };
             let years = (n as f64) / (252.0 * 390.0);
             let t = std::time::Instant::now();
-            let _ = run_theta_v0_pi(&prefix, &config, years, 1.0);
+            let _ =
+                run_theta_v0_pi(&prefix, &config, years, 1.0).expect("C-19 research stats record");
             eprintln!(
                 "\n===== profile_cand_stages n={n}（墙钟={:.2}s）=====",
                 t.elapsed().as_secs_f64()

@@ -55,12 +55,17 @@ hashbrown = { version = "=0.17.1", default-features = false, features = ["alloca
 [target.'cfg(all(target_arch = "aarch64", target_os = "macos"))'.dependencies]
 sha2 = { version = "0.10", optional = true, features = ["asm"] }
 
+# #1608：#1394 的两个编译负例只在手工/CI 负例入口以 `--cfg` 打开（见 .github/scripts/check-compile-negatives-1394.sh），
+#   在此声明，普通构建不再报 unexpected_cfgs。
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(issue1394_capture_callback_refusal)", "cfg(issue1394_closed_owner_refusal)"] }
+
 [features]
 default = []
 extension-module = ["pyo3/extension-module"]
 # Nautilus 集成 feature：激活 theta_v0::nautilus 真实类型适配（②③）+ CLI BacktestEngine（⑥）。
 nautilus = ["dep:nautilus-model", "dep:nautilus-common", "dep:nautilus-trading", "dep:nautilus-backtest", "dep:nautilus-core", "dep:anyhow", "dep:rust_decimal", "dep:rust_decimal_macros"]
-# CLI 生产入口：解 theta_v0::backtest 的 #[cfg(test)] 门控为公开 API，链接 run_theta_v0_pi/load_by_symbol。
+# 历史名「CLI 生产入口」（theta_backtest 为 π 组件证据 CLI、冻结影子，非生产 launcher；ADR 0039 裁定二、ADR 0048，#1532）：解 theta_v0::backtest 的 #[cfg(test)] 门控为公开 API，链接 run_theta_v0_pi/load_by_symbol。
 #   含 nautilus：CLI ⑥ 用真实 BacktestEngine（task#8 acceptance[5]）。
 backtest_bin = ["nautilus", "dep:sha2"]
 # #1087 Rust 生产输出 + 逐段 sink → Lean 独立重算逐字段对拍。只打开只读诊断面；普通构建不编译。
@@ -77,7 +82,7 @@ s_allocation_json_testonly = ["s_session"]
 s_capture_native_testonly = ["s_session"]
 s_session = ["dep:sha2", "dep:rusqlite", "dep:libc", "dep:allocator-api2", "dep:hashbrown"]
 
-# ── CLI 生产入口（goal acceptance[5]：CLI 能驱动 S_Θ 产回测结果）。 ──
+# ── theta_backtest：π 组件证据 CLI（历史名「CLI 生产入口」；冻结影子，非生产 launcher；ADR 0048，#1532） ──
 # required-features：默认 cargo build 不编译它（cdylib 构建不受影响）。
 #   构建/运行：cargo run --features backtest_bin --bin theta_backtest -- <symbol>
 [[bin]]
@@ -245,6 +250,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # venue 费率 datum 的 sha256 校验（#360）：cargo test 下 `cfg(test)` 解 venue_fee::datum_io 门控。
 sha2 = "0.10"
+# task #1518：双跑对拍测试需要创建临时 dump 文件。
+tempfile = "3"
 
 [profile.release]
 # 逐位等价硬约束：禁止任何会改变浮点约简顺序的优化。
@@ -264,3 +271,9 @@ required-features = ["s_session"]
 name = "b_chong_session"
 path = "src/bin/b_chong_session.rs"
 required-features = ["s_session"]
+
+# #1588 memory 分片：解析入口内存/持有拷贝增长探针（只读诊断）。
+[[bin]]
+name = "issue1588_parse_mem_probe"
+path = "src/bin/issue1588_parse_mem_probe.rs"
+required-features = ["backtest_bin"]

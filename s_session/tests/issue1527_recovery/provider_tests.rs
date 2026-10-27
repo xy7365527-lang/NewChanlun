@@ -310,3 +310,228 @@ fn successful_finish_clears_startup_account_once_and_keeps_runtime_qualification
     scope.require_admitted().unwrap();
     require_current(&f.db).unwrap();
 }
+
+#[test]
+fn external_state_member_after_freeze_is_still_rejected() {
+    let f = Fixture::new();
+    let scope = WriterScope::admit(&f.db, f.prepared()).unwrap();
+    scope.inner.source.verify_before_open().unwrap();
+    std::fs::write(
+        f.root.join("i1527-state-main.sqlite").join("external.json"),
+        b"external",
+    )
+    .unwrap();
+    let error = scope.inner.source.verify_before_open().unwrap_err();
+    assert!(
+        error.contains("SourceIdentityChanged") || error.contains("SourceMembershipChanged"),
+        "{error}"
+    );
+}
+
+fn with_legacy_mixed_copy(name: &str, run: impl FnOnce(&Path)) {
+    crate::v2::with_mixed_control_fixture(|conn| {
+        let original: String = conn
+            .query_row("PRAGMA database_list", [], |r| r.get(2))
+            .unwrap();
+        let path = Path::new(&original).with_file_name(name);
+        conn.execute("VACUUM INTO ?1", rusqlite::params![path.to_str().unwrap()])
+            .unwrap();
+        run(&path);
+    });
+}
+
+fn assert_private_mixed_rejected(
+    path: &Path,
+    prefix: super::super::admission_private::RejectionPrefix<'_>,
+    code: &str,
+    detail: &str,
+) {
+    let command = super::super::admission_anchor::CommandAccounting::begin();
+    let prepared = super::super::admission_anchor::test_prepare_mixed(path, 1 << 26, 1 << 26);
+    let result = super::super::admission_private::test_with_mixed_entry(|| {
+        WriterScope::admit_prefix(path, prepared, prefix)
+    });
+    assert!(
+        result.is_err(),
+        "失败不得返回持 FinishedAdmission 的 WriterScope"
+    );
+    let error = result.err().unwrap();
+    let mut output = Vec::new();
+    let receipt = command.report(&error, &mut output);
+    let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(value["code"], code);
+    assert_eq!(value["error"], detail);
+    assert!(receipt.job.is_some());
+    assert!(receipt.accounting_error.is_none());
+    assert_eq!(
+        value["admission_accounting"]["before_stderr"]["open_reservations"],
+        0
+    );
+    assert_eq!(
+        value["admission_accounting"]["ram_before_stderr"]["operation_closed"],
+        true
+    );
+}
+
+fn assert_clean_mixed_admission(path: &Path) {
+    let _command = super::super::admission_anchor::CommandAccounting::begin();
+    let prepared = super::super::admission_anchor::test_prepare_mixed(path, 1 << 26, 1 << 26);
+    let scope = super::super::admission_private::test_with_mixed_entry(|| {
+        WriterScope::admit(path, prepared)
+    })
+    .unwrap();
+    scope.require_admitted().unwrap();
+    scope.finish_startup().unwrap();
+}
+
+#[test]
+fn mixed_private_business_failure_preserves_original_diagnostic_and_recovers() {
+    with_legacy_mixed_copy("mixed-business-recovery.sqlite", |path| {
+        let conn = rusqlite::Connection::open(path).unwrap();
+        let original: String = conn
+            .query_row("SELECT value FROM meta WHERE key='profile_hash'", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        conn.execute("UPDATE meta SET value='wrong' WHERE key='profile_hash'", [])
+            .unwrap();
+        let expected = crate::verified_root_raw_events(&conn).unwrap_err();
+        conn.close().unwrap();
+        let before = std::fs::read(path).unwrap();
+        assert_private_mixed_rejected(
+            path,
+            super::super::admission_private::RejectionPrefix::None,
+            "MixedBusinessRejected",
+            &expected,
+        );
+        assert_eq!(std::fs::read(path).unwrap(), before);
+        let conn = rusqlite::Connection::open(path).unwrap();
+        conn.execute(
+            "UPDATE meta SET value=?1 WHERE key='profile_hash'",
+            [&original],
+        )
+        .unwrap();
+        conn.close().unwrap();
+        assert_clean_mixed_admission(path);
+    });
+}
+
+#[test]
+fn mixed_private_actual_s3_protocol_rejection_does_not_poison_next_legacy_admission() {
+    let s3 = Fixture::new();
+    let before = std::fs::read(&s3.db).unwrap();
+    assert_private_mixed_rejected(
+        &s3.db,
+        super::super::admission_private::RejectionPrefix::None,
+        "MixedProtocolUnsupported",
+        "mixed旧域SQL合同不接纳此协议",
+    );
+    assert_eq!(std::fs::read(&s3.db).unwrap(), before);
+    with_legacy_mixed_copy("mixed-after-protocol.sqlite", assert_clean_mixed_admission);
+}
+
+#[test]
+fn mixed_private_non_none_prefix_rejects_after_real_vfs_and_recovers() {
+    with_legacy_mixed_copy("mixed-prefix-recovery.sqlite", |path| {
+        let before = std::fs::read(path).unwrap();
+        assert_private_mixed_rejected(
+            path,
+            super::super::admission_private::RejectionPrefix::OrdinaryStartup { epoch: "1" },
+            "MixedProtocolMismatch",
+            "旧域封存结果不得充当 s-session/3 启动审计",
+        );
+        assert_eq!(std::fs::read(path).unwrap(), before);
+        assert_clean_mixed_admission(path);
+    });
+}
+
+const DROP_POLICY_RECORDS: &str = "ALTER TABLE structure_deltas DROP COLUMN policy_records";
+
+/// 原调用的首错：首个开门者先按 #1602 迁移再跑严格审计（在副本上取，原件不动）。
+fn original_first_error(path: &Path) -> String {
+    let copy = path.with_extension("original.sqlite");
+    std::fs::copy(path, &copy).unwrap();
+    crate::verified_root_raw_events(&crate::open_db(&copy).unwrap()).unwrap_err()
+}
+
+#[test]
+fn mixed_private_rejected_pre_policy_records_store_keeps_original_first_error_unmigrated() {
+    with_legacy_mixed_copy("mixed-pre-policy-rejected.sqlite", |path| {
+        let conn = rusqlite::Connection::open(path).unwrap();
+        conn.execute_batch(DROP_POLICY_RECORDS).unwrap();
+        conn.execute("UPDATE meta SET value='wrong' WHERE key='profile_hash'", [])
+            .unwrap();
+        conn.close().unwrap();
+        let expected = original_first_error(path);
+        let before = std::fs::read(path).unwrap();
+        assert_private_mixed_rejected(
+            path,
+            super::super::admission_private::RejectionPrefix::None,
+            "MixedBusinessRejected",
+            &expected,
+        );
+        assert_eq!(std::fs::read(path).unwrap(), before);
+        assert!(crate::policy_records_missing(&rusqlite::Connection::open(path).unwrap()).unwrap());
+    });
+}
+
+#[test]
+fn mixed_private_pre_policy_records_admission_rejects_every_other_shape_deviation() {
+    for (i, sql) in [
+        "ALTER TABLE structure_deltas DROP COLUMN policy_records; ALTER TABLE catalog ADD COLUMN extra TEXT",
+        "ALTER TABLE structure_deltas DROP COLUMN policy_records; ALTER TABLE structure_deltas ADD COLUMN extra TEXT",
+        "ALTER TABLE structure_deltas DROP COLUMN policy_records; ALTER TABLE structure_deltas DROP COLUMN delta_json",
+        "ALTER TABLE structure_deltas DROP COLUMN policy_records; ALTER TABLE structure_deltas ADD COLUMN policy_records TEXT NOT NULL DEFAULT 'x'",
+        "ALTER TABLE structure_deltas DROP COLUMN policy_records; ALTER TABLE structure_deltas ADD COLUMN policy_records TEXT",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        with_legacy_mixed_copy(&format!("mixed-pre-policy-shape-{i}.sqlite"), |path| {
+            let conn = rusqlite::Connection::open(path).unwrap();
+            conn.execute_batch(sql).unwrap();
+            let missing = crate::policy_records_missing(&conn).unwrap();
+            conn.close().unwrap();
+            let expected = original_first_error(path);
+            assert!(expected.contains("模式/约束不匹配 table/"), "{sql}: {expected}");
+            let before = std::fs::read(path).unwrap();
+            assert_private_mixed_rejected(
+                path,
+                super::super::admission_private::RejectionPrefix::None,
+                "MixedBusinessRejected",
+                &expected,
+            );
+            assert_eq!(std::fs::read(path).unwrap(), before, "{sql}");
+            assert_eq!(
+                crate::policy_records_missing(&rusqlite::Connection::open(path).unwrap()).unwrap(),
+                missing,
+                "{sql}"
+            );
+        });
+    }
+}
+
+#[test]
+fn mixed_private_scope_admitted_on_current_source_refuses_an_unaudited_migration() {
+    with_legacy_mixed_copy("mixed-current-scope.sqlite", |path| {
+        let _command = super::super::admission_anchor::CommandAccounting::begin();
+        let prepared = super::super::admission_anchor::test_prepare_mixed(path, 1 << 26, 1 << 26);
+        let scope = super::super::admission_private::test_with_mixed_entry(|| {
+            WriterScope::admit(path, prepared)
+        })
+        .unwrap();
+        let guard = scope.enter().unwrap();
+        rusqlite::Connection::open(path)
+            .unwrap()
+            .execute_batch(DROP_POLICY_RECORDS)
+            .unwrap();
+        let error = crate::open_db(path).err().unwrap();
+        assert!(
+            error.starts_with("PolicyRecordsMigrationNotAdmitted："),
+            "{error}"
+        );
+        assert!(crate::policy_records_missing(&rusqlite::Connection::open(path).unwrap()).unwrap());
+        drop(guard);
+        drop(scope);
+    });
+}

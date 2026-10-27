@@ -81,7 +81,7 @@ fn profile_parse_layer_scaling() {
         // tail 子步：build_tail 不再重跑段划分，须先算 (segments, pending_start) 再传入。
         let (segs_v, pend_v) = segment::divide_segments_with_tail(&strokes, &cfg.parse);
         let t_tail = bench(iters, || {
-            let _ = tail::build_tail(&incl.merged, &fractals, &strokes, &segs_v, pend_v);
+            let _ = tail::build_tail(&incl.merged, &fractals, &strokes, &segs_v, pend_v, None);
         });
 
         let e = match prev {
@@ -102,7 +102,6 @@ fn profile_parse_layer_scaling() {
 #[test]
 #[ignore]
 fn diag_segment_window_effect() {
-    use crate::theta_v0::config::ParseConfig;
     let cfg = ThetaConfig::default();
     let path = data_dir().join("es_1m_databento_10y.json");
     let ds = load_symbol(&path, "ES", &cfg, 60).expect("加载 ES");
@@ -120,7 +119,7 @@ fn diag_segment_window_effect() {
         }
         let bars = &ds.bars[..n];
         let incl = inclusion::process_inclusion_with_facts(bars);
-        let fractals = fractal::detect_fractals(&incl.merged);
+        let _fractals = fractal::detect_fractals(&incl.merged);
         let strokes = stroke::build_strokes(&incl, &cfg.parse);
         let iters = if n <= 16000 { 10 } else { 3 };
 
@@ -128,10 +127,8 @@ fn diag_segment_window_effect() {
         let mut base_segs = Vec::new();
         let mut eqs = [true; 3];
         for (wi, &w) in windows.iter().enumerate() {
-            let pc = ParseConfig {
-                second_seq_scan_window: w,
-                ..cfg.parse
-            };
+            let mut pc = cfg.parse;
+            pc.research_override_second_seq_window(w);
             times[wi] = bench(iters, || {
                 let _ = segment::divide_segments(&strokes, &pc);
             });
@@ -230,7 +227,7 @@ fn profile_parse_layer_incr_scaling() {
             }
         });
         let incl = inclusion::process_inclusion_with_facts(bars);
-        let fractals = fractal::detect_fractals(&incl.merged);
+        let _fractals = fractal::detect_fractals(&incl.merged);
         let strokes = stroke::build_strokes(&incl, &cfg.parse);
         let t_fractal = bench(5, || {
             let _ = fractal::detect_fractals(&incl.merged);
@@ -363,7 +360,7 @@ fn diag_incr_strokes_scaling() {
         let bars = &ds.bars[..n];
         let incl = inclusion::process_inclusion_with_facts(bars);
         let merged = &incl.merged;
-        let fractals_all = fractal::detect_fractals(merged);
+        let _fractals_all = fractal::detect_fractals(merged);
 
         // 逐 fractals 长度 append，测总耗时。
         let t = bench(1, || {
