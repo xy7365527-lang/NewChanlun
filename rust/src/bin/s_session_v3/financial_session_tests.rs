@@ -1713,6 +1713,7 @@ fn export_real_s3_w_fixture_for_q3() {
     let tail = 15;
     let direction = 2 + 30;
     let body_end = bars.len() - tail;
+    // S3 接纳协议：一条 ingest 恰一事件，每条消息各自 Begin/提交一代；里程碑统计取该段最后一代。
     let steps: Vec<(&str, Vec<Bar>, i64, bool)> = vec![
         ("w_first_bar", bars[0..1].to_vec(), 1, false),
         ("w_contained_waiting", bars[1..2].to_vec(), 1, false),
@@ -1722,8 +1723,19 @@ fn export_real_s3_w_fixture_for_q3() {
         ("revision_restore", vec![bars[top].clone()], 3, false),
         ("recovered_epoch2_append", bars[body_end..].to_vec(), 1, true),
     ];
-    // 真实恢复：第 6 代提交（ns=62）之后、第 7 次接纳（ns=70）之前，纪元 1→2。
-    let mut f = Fixture::with_clock_plan(64, steps.len() as i64, &[("recover-1", 65)]);
+    let messages: i64 = steps.iter().map(|(_, rows, _, _)| rows.len() as i64).sum();
+    // 真实恢复：恢复前最后一代提交（ns=k*10+2）之后、下一次接纳（ns=(k+1)*10）之前，纪元 1→2。
+    let before_recover: i64 = steps
+        .iter()
+        .take_while(|(_, _, _, recover)| !recover)
+        .map(|(_, rows, _, _)| rows.len() as i64)
+        .sum();
+    let mut f = Fixture::with_clock_plan(
+        64,
+        messages,
+        &[("recover-1", before_recover * 10 + 5)],
+    );
+    let mut n: i64 = 0;
     let mut stats = Vec::new();
     let count = |f: &Fixture, sql: &str, g: i64| -> Vec<(String, i64)> {
         let mut q = f.conn.prepare(sql).unwrap();
@@ -1732,21 +1744,37 @@ fn export_real_s3_w_fixture_for_q3() {
             .map(|r| r.unwrap())
             .collect()
     };
-    for (i, (label, rows, revision, reopen)) in steps.iter().enumerate() {
-        let n = i as i64 + 1;
+    for (label, rows, revision, reopen) in steps.iter() {
         if *reopen {
             f.recover_writer("2", "recover-1");
         }
-        let rows: Vec<_> = rows
-            .iter()
-            .map(|(id, c, o, h, l, cl)| (id.as_str(), *c, *o, *h, *l, *cl))
-            .collect();
-        let (envelope, token) = f.accept_begin_rows(n, &rows, *revision);
-        match f.publish(&envelope, &token) {
-            Ok(receipt) => {
+        let mut published = None;
+        let mut refused = None;
+        let mut withdrawn_total: std::collections::BTreeMap<String, i64> = Default::default();
+        for (id, c, o, h, l, cl) in rows {
+            n += 1;
+            let (envelope, token) = f.accept_begin(n, (id.as_str(), *c, *o, *h, *l, *cl), *revision);
+            match f.publish(&envelope, &token) {
+                Ok(receipt) => {
+                    for (kind, count) in count(
+                        &f,
+                        "SELECT kind,count(*) FROM s_content_objects WHERE withdrawn_generation=?1 GROUP BY kind",
+                        receipt.generation,
+                    ) {
+                        *withdrawn_total.entry(kind).or_default() += count;
+                    }
+                    published = Some(receipt);
+                }
+                Err(error) => {
+                    refused = Some(format!("message-{n}：{error}"));
+                    break;
+                }
+            }
+        }
+        match (published, refused) {
+            (Some(receipt), None) => {
                 let g = receipt.generation;
                 let current = count(&f, "SELECT kind,count(*) FROM s_content_objects WHERE first_known_generation<=?1 AND (withdrawn_generation IS NULL OR withdrawn_generation>?1) GROUP BY kind ORDER BY kind", g);
-                let withdrawn = count(&f, "SELECT kind,count(*) FROM s_content_objects WHERE withdrawn_generation=?1 GROUP BY kind ORDER BY kind", g);
                 let present = |list: &[&str]| -> Vec<String> {
                     list.iter()
                         .filter(|k| current.iter().any(|(x, _)| x == *k))
@@ -1761,7 +1789,7 @@ fn export_real_s3_w_fixture_for_q3() {
                     .collect();
                 let ef_present = present(&ef);
                 let withdrawn: serde_json::Map<String, Value> =
-                    withdrawn.iter().map(|(k, c)| (k.clone(), json!(c))).collect();
+                    withdrawn_total.iter().map(|(k, c)| (k.clone(), json!(c))).collect();
                 let kinds: serde_json::Map<String, Value> =
                     current.iter().map(|(k, c)| (k.clone(), json!(c))).collect();
                 stats.push(json!({"step":label,"generation":g.to_string(),"batch_id":receipt.batch_id.as_str(),
@@ -1769,10 +1797,11 @@ fn export_real_s3_w_fixture_for_q3() {
                     "current_by_kind":kinds,
                     "withdrawn_by_kind":withdrawn,"w_kinds_present":w_present,"ef_kinds_present":ef_present}));
             }
-            Err(error) => {
+            (_, error) => {
+                let error = error.unwrap_or_else(|| "空里程碑".to_string());
                 stats.push(json!({"step":label,"bars":rows.len(),"revision":revision,"refused":error}));
                 println!("Q3-STATS {}", canonical_json(&json!(stats)));
-                panic!("真实 S3 W 导出第 {n} 代（{label}）被拒：{error}");
+                panic!("真实 S3 W 导出（{label}）被拒：{error}");
             }
         }
     }
