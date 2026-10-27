@@ -433,7 +433,13 @@ fn r2_move_interval_is_all_sub_extremes_not_center_outer() {
             )
         })
         .collect();
-    let (centers, upper, _) = compose_level(&units, &moves, true, 1);
+    let (centers, upper, _) = compose_level(
+        &units,
+        &moves,
+        true,
+        1,
+        crate::theta_v0::config::TowerBase::Segment,
+    );
     assert_eq!(
         (centers[0].dd, centers[0].gg),
         (10, 40),

@@ -508,7 +508,7 @@ impl serde::Serialize for SecondFoldWire<'_> {
         let mut out = serializer.serialize_struct("SecondFoldWire", 16)?;
         out.serialize_field("schema", &c.schema)?;
         out.serialize_field("rule_revision", &c.rule_revision)?;
-        out.serialize_field("budget_policy", &c.budget_policy)?;
+        out.serialize_field("budget_policy", &c.budget_policy.label())?;
         out.serialize_field("budget_granted", &c.budget_granted)?;
         out.serialize_field(
             "candidate",
