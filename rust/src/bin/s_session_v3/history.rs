@@ -3378,7 +3378,7 @@ fn report_owned_overlay_peak((x, y): (usize, usize)) {
 }
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use super::*;
 
     #[test]
@@ -5070,7 +5070,7 @@ mod tests {
 
     /// #1491 ADR 0037 多代输入：b、c 跨代修订（撤回落在第 4、6 两个不同代），d 在第 5 代以更小
     /// 坐标新增，使出生序与内容键序分离；见证/关系/观察随各代输入跨代新增。
-    const LAYOUT_MULTICUT_INPUTS: [(i64, (&str, i64, i64, i64, i64, i64), i64); 6] = [
+    pub(crate) const LAYOUT_MULTICUT_INPUTS: [(i64, (&str, i64, i64, i64, i64, i64), i64); 6] = [
         (1, ("a", 0, 6, 12, 3, 7), 1),
         (2, ("b", 10, 8, 16, 6, 12), 1),
         (3, ("c", 20, 8, 13, 4, 7), 1),
@@ -5079,7 +5079,7 @@ mod tests {
         (6, ("c", 20, 8, 14, 4, 7), 2),
     ];
     /// 快照五个累计数组（ADR 0037 §一）。
-    const LAYOUT_ARRAYS: [&str; 5] = [
+    pub(crate) const LAYOUT_ARRAYS: [&str; 5] = [
         "objects",
         "withdrawn_objects",
         "witnesses",
@@ -5105,7 +5105,7 @@ mod tests {
     }
 
     /// 写者发布值：各已发布 cut 快照的五个累计数组摘要（按代序）。
-    fn layout_published_arrays(conn: &mut Connection) -> Vec<(i64, [NodeDigest; 5])> {
+    pub(crate) fn layout_published_arrays(conn: &mut Connection) -> Vec<(i64, [NodeDigest; 5])> {
         let tx = conn.transaction().unwrap();
         let mut s = content_store::TxStore::new(&tx).unwrap();
         let roots = {
@@ -5130,7 +5130,7 @@ mod tests {
 
     /// 独立重建：对象经 `object_index::at_cut`，见证/关系/观察经 `aux_index::cut_members`，
     /// 均按调用方给定布局的公开主序键（`Layout::rank`）排序后取整数组摘要。
-    fn layout_rebuilt_arrays(
+    pub(crate) fn layout_rebuilt_arrays(
         conn: &mut Connection,
         layout: super::layout::Layout,
         generations: &[i64],
@@ -5284,7 +5284,10 @@ mod tests {
 
     /// #1491：native 双投影（`ProjectionSweep` 增量游标按库布局维护 RankSet）在两库上逐 cut
     /// 与普通历史审计的快照/增量根逐位相等。owner 恢复（`append_owner_cut`/`restore_for_owner`）
-    /// 须经 audit_owner 构造 `BoundOriginals`，本测试不覆盖。
+    /// 须经 audit_owner 构造 `BoundOriginals`，本测试不覆盖；由
+    /// `audit_owner::construction_tests` 的
+    /// `b2_native_owner_restore_bounded_multicut_matches_writer_and_rebuild`（正向）与
+    /// `b2_native_owner_restore_wrong_library_layout_rejects_in_append_owner_cut`（负控）覆盖。
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn history_layout_multicut_native_projection_equals_plain_audit() {

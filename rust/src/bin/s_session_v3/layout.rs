@@ -33,6 +33,11 @@ impl Layout {
     pub(crate) fn of_library(conn: &rusqlite::Connection) -> Result<Self, String> {
         let rule = crate::meta_get_opt(conn, "rule_revision")?
             .ok_or_else(|| "VersionUnsupported：库缺 meta.rule_revision".to_string())?;
+        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        if let Some(forced) = FORCED_LIBRARY_LAYOUT.with(std::cell::Cell::get) {
+            split(&rule)?;
+            return Ok(forced);
+        }
         Self::of_rule(&rule)
     }
 
@@ -57,13 +62,16 @@ impl Layout {
 
 #[cfg(test)]
 thread_local! {
-    /// #1491（仅测试，负控故障注入）：本线程强制布局；只供历史测试让真实写者在库规则串之外的
-    /// 布局下产出错序发布字节，审计侧不经此处放宽（不是准入兜底，#799/#804）。
+    /// #1491（仅测试，负控故障注入）：本线程强制 [`Layout::of_rule`] 的结果。`of_library`
+    /// 内部也经 `of_rule`，故作用域内写者、历史审计与 owner 恢复同被强制；负控有效只靠
+    /// 作用域——历史测试只包写者发布调用，审计在作用域外按库布局取序才拒收。包住整个
+    /// `owner.publish` 会令写者与恢复两侧同改、不拒收，owner 恢复臂负控改用只作用于
+    /// `of_library` 的 `FORCED_LIBRARY_LAYOUT`。不是准入兜底（#799/#804）。
     static FORCED_LAYOUT: std::cell::Cell<Option<Layout>> = const { std::cell::Cell::new(None) };
 }
 
 /// #1491（仅测试）：在 `f` 内令 [`Layout::of_rule`] 恒返回 `layout`（规则串仍先经 [`split`]
-/// 校验；`None` 即不强制）；返回或展开时恢复原值。
+/// 校验；`None` 即不强制；经 `of_library` 取库布局亦然）；返回或展开时恢复原值。
 #[cfg(test)]
 pub(crate) fn with_forced_layout_for_test<T>(layout: Option<Layout>, f: impl FnOnce() -> T) -> T {
     struct Restore(Option<Layout>);
@@ -74,6 +82,35 @@ pub(crate) fn with_forced_layout_for_test<T>(layout: Option<Layout>, f: impl FnO
         }
     }
     let _restore = Restore(FORCED_LAYOUT.with(|forced| forced.replace(layout)));
+    f()
+}
+
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+thread_local! {
+    /// #1491（仅测试，owner 恢复臂负控）：本线程只强制 [`Layout::of_library`]，即历史审计
+    /// 与 owner 恢复（`append_owner_cut` → `restore_for_owner`）取库布局处；写者经
+    /// [`Layout::of_rule`] 取 `metadata.rule_revision` 的布局，不受影响。与 `FORCED_LAYOUT`
+    /// 的区别：后者作用于 `of_rule`，写者与恢复两侧同改；本注入只改恢复/审计侧，使同一
+    /// `owner.publish` 内写者按库布局发布、恢复按另一布局重建。不是准入兜底（#799/#804）。
+    static FORCED_LIBRARY_LAYOUT: std::cell::Cell<Option<Layout>> =
+        const { std::cell::Cell::new(None) };
+}
+
+/// #1491（仅测试）：在 `f` 内令 [`Layout::of_library`] 恒返回 `layout`（库规则串仍先经
+/// [`split`] 校验；`None` 即不强制）；返回或展开时恢复原值。写者侧 [`Layout::of_rule`] 不受影响。
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+pub(crate) fn with_forced_library_layout_for_test<T>(
+    layout: Option<Layout>,
+    f: impl FnOnce() -> T,
+) -> T {
+    struct Restore(Option<Layout>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            let previous = self.0;
+            FORCED_LIBRARY_LAYOUT.with(|forced| forced.set(previous));
+        }
+    }
+    let _restore = Restore(FORCED_LIBRARY_LAYOUT.with(|forced| forced.replace(layout)));
     f()
 }
 
