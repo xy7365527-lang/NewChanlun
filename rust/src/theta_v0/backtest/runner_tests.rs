@@ -10369,7 +10369,6 @@ fn p1605_r3_public_runner_matches_independent_baseline() {
     assert_eq!(frozen, expected);
 }
 
-
 fn p1605_frozen_baseline() -> serde_json::Value {
     serde_json::from_str(include_str!(
         "../../../tests/fixtures/issue1605/baseline-13ed4d45-bits.json"
@@ -10487,7 +10486,16 @@ fn p1605_public_runner_reads_active_record_and_record_only_moves_metrics() {
             bits(&x.trade_pnls_with_forced),
             x.trades
                 .iter()
-                .map(|t| (t.entry_bar, t.exit_bar, t.hold_bars, t.qty.to_bits(), t.long, t.forced_close))
+                .map(|t| {
+                    (
+                        t.entry_bar,
+                        t.exit_bar,
+                        t.hold_bars,
+                        t.qty.to_bits(),
+                        t.long,
+                        t.forced_close,
+                    )
+                })
                 .collect::<Vec<_>>(),
         )
     };
