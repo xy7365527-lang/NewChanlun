@@ -6407,30 +6407,33 @@ mod publication_degrade_verdict_tests {
         }
         // #1488 0077 P55（0073 G1）：语义失败一维——闭包期间工作域观察到非 scratch codec 错误，
         // 即使作用域分类为 Budget/Allocation 且错误确由过桥上抛，也一律拒绝（`semantic==0` 门）。
-        let semantic = || CodecError::new("S3P55Semantic", "测试语义失败");
-        for failure in [ScratchFailure::Budget, ScratchFailure::Allocation] {
-            assert!(
-                verdict(|w| {
-                    let _ = w.reject(failure);
-                    w.observe_for_test(&semantic());
-                    Ok(())
-                })
-                .unwrap_err()
-                .contains("工作账损坏"),
-                "P55：闭包 Ok 但期间有语义失败 → 工作账损坏"
-            );
-            let bridged = std::cell::RefCell::new(String::new());
-            assert_eq!(
-                verdict(|w| {
-                    // 先记资源失败使作用域分类为 Budget/Allocation，再观察语义失败（分类不变，记录 +1）。
-                    let e = invalid(w.reject(failure));
-                    w.observe_for_test(&semantic());
-                    *bridged.borrow_mut() = e.clone();
-                    Err(e)
-                }),
-                Err(bridged.borrow().clone()),
-                "P55：过桥的 {failure:?} 期间有语义失败也不得降级，原样拒绝"
-            );
+        #[cfg(feature = "s_capture_native_testonly")]
+        {
+            let semantic = || CodecError::new("S3P55Semantic", "测试语义失败");
+            for failure in [ScratchFailure::Budget, ScratchFailure::Allocation] {
+                assert!(
+                    verdict(|w| {
+                        let _ = w.reject(failure);
+                        w.observe_for_test(&semantic());
+                        Ok(())
+                    })
+                    .unwrap_err()
+                    .contains("工作账损坏"),
+                    "P55：闭包 Ok 但期间有语义失败 → 工作账损坏"
+                );
+                let bridged = std::cell::RefCell::new(String::new());
+                assert_eq!(
+                    verdict(|w| {
+                        // 先记资源失败使作用域分类为 Budget/Allocation，再观察语义失败（分类不变，记录 +1）。
+                        let e = invalid(w.reject(failure));
+                        w.observe_for_test(&semantic());
+                        *bridged.borrow_mut() = e.clone();
+                        Err(e)
+                    }),
+                    Err(bridged.borrow().clone()),
+                    "P55：过桥的 {failure:?} 期间有语义失败也不得降级，原样拒绝"
+                );
+            }
         }
         // 作用域分类 Ledger / Operation 照旧拒绝。
         assert!(verdict(|w| {

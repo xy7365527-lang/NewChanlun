@@ -671,7 +671,7 @@ pub mod failure_trace {
 
 /// #1488 0077 P55：测试面——以真实 `observe` 挂点（`traced_semantic`）登记一次非 scratch codec
 /// 错误，供 bin 侧降级判据真值表构造“语义失败”行。生产构建无此方法；置于文件末尾，生产行号不动。
-#[cfg(feature = "s_incremental")]
+#[cfg(all(feature = "s_incremental", feature = "s_capture_native_testonly"))]
 impl WorkScope {
     #[doc(hidden)]
     pub fn observe_for_test(&self, error: &CodecError) {
