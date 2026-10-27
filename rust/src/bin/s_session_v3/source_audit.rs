@@ -2929,11 +2929,14 @@ mod tests {
             ("i1", 1, 1, 9, 1, 9),
             ("i2", 2, 20, 30, 20, 30),
         ];
-        for rows in [&initial[..], &initial[..1]] {
+        // #1393 W（raw-initialization-w/1）：(i0,i1) 包含、(i1,i2) 严格向上 ⟹ 第三根建立方向并从 raw0
+        // 重折为两组；前两根/单根永不建立 ⟹ 零正式组，全部生效原件由未定原件承担（旧核「唯一 seed
+        // 组 + waiting 后缀」的形态随写者规则退场，只在旧规则 cut 的只读审计里保留）。
+        for (rows, groups) in [(&initial[..], 2), (&initial[..2], 0), (&initial[..1], 0)] {
             let (mut s, state, raw, rule) = tb1405_pending_fixture(rows);
             let counts = tb1405_none_some_read_only(&mut s, &state, &raw, &rule);
             assert_eq!(counts.effective, rows.len());
-            assert_eq!(counts.groups, 1);
+            assert_eq!(counts.groups, groups);
             assert_eq!(counts.windows, 0);
         }
     }
