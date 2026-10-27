@@ -933,6 +933,7 @@ jobs:
           cache-dependency-path: |
             .sandcastle/deepagents-pilot/requirements.lock
             .sandcastle/deepagents-pilot/requirements*.txt
+            .sandcastle/approval-signing/pyproject.toml
       - name: Install frozen pilot, Studio, and check tools
         run: python -m pip install -r requirements-ci.txt
       - name: Check dependency compatibility
@@ -942,4 +943,7 @@ jobs:
       - name: Mypy
         run: python -m mypy pilot1742
       - name: Test pilot and Studio without external workers
+        run: python -m pytest -q tests
+      - name: Test approval-signing reader
+        working-directory: .sandcastle/approval-signing
         run: python -m pytest -q tests
