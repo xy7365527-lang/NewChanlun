@@ -201,11 +201,19 @@ ENV_READ = [("ident", "env"), ("punct", ":"), ("punct", ":")]
 
 def walk(path: Path, chain, is_dir_owner: bool, literals: list, queue: list, env_reads: list | None = None) -> None:
     tokens = list(lex(path.read_text(encoding="utf-8")))
+    consts = {}
+    for position, (kind, value) in enumerate(tokens):
+        if kind == "str" and tokens[position - 1] == ("punct", "="):
+            head = tokens[max(0, position - 9) : position]
+            names = [i for i, token in enumerate(head) if token == ("ident", "const")]
+            if names and names[-1] + 1 < len(head) and head[names[-1] + 1][0] == "ident":
+                consts[head[names[-1] + 1][1]] = value
     file_chain = list(chain)
     frames: list[tuple[list, int]] = []
     pending: list[tuple[object, int]] = []
     explicit_path = None
     depth = 0
+    signature = False  # fn 签名内（到 `{`/`;` 为止）：返回类型泛型里的逗号不结束该 fn 的 cfg
     for position, (kind, value) in enumerate(tokens):
         scope = file_chain + [tree for gates, _ in frames for tree in gates]
         if kind == "attr":
@@ -217,17 +225,24 @@ def walk(path: Path, chain, is_dir_owner: bool, literals: list, queue: list, env
                 explicit_path = value.split('"')[1]
         elif kind == "str":
             literals.append((value, scope + [tree for tree, _ in pending]))
+        if kind in ("str", "ident") and env_reads is not None:
             call = tokens[position - 5 : position]
-            if (env_reads is not None and call[:3] == ENV_READ and call[4] == ("punct", "(")
+            if (call[:3] == ENV_READ and call[4] == ("punct", "(")
                     and call[3] in (("ident", "var"), ("ident", "var_os"))):
-                env_reads.append((value, literals[-1][1], path))
-        elif kind == "punct":
+                # 参数是同文件 const 时取其字面；其余非字面参数原样记为不可解析，名单外即判违规。
+                name = value if kind == "str" else consts.get(value, "<非字面量参数 " + value + ">")
+                env_reads.append((name, scope + [tree for tree, _ in pending], path))
+        if kind == "ident" and value == "fn":
+            signature = True
+        if kind == "punct":
+            if value in "{;":
+                signature = False
             if value in "([":
                 depth += 1
             elif value in ")]":
                 depth -= 1
                 pending = [(tree, at) for tree, at in pending if at <= depth]
-            elif value == ",":
+            elif value == "," and not signature:
                 pending = [(tree, at) for tree, at in pending if at < depth]
             elif value == "{":
                 frames.append(([tree for tree, _ in pending], depth))

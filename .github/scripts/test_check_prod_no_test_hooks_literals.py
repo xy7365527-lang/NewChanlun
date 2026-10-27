@@ -19,6 +19,9 @@ pub fn live() -> &'static str { "生产诊断：完整候选已持有并发布" 
 fn pause() { let _ = std::env::var("S_SESSION_PAUSE_DB"); }
 #[cfg(feature = "backtest_bin")]
 fn other_feature() -> &'static str { "其他 feature 的非测试字面量不收录" }
+#[cfg(test)]
+fn load() -> Result<u8, String> { Err("测试门内：返回类型泛型里的逗号不得丢掉 cfg".into()) }
+pub fn after_load() -> &'static str { "生产诊断：紧随测试函数之后仍属生产" }
 '''
 TESTS = '''
 #[test]
@@ -51,6 +54,8 @@ class BannedLiteralGeneratorTests(unittest.TestCase):
         self.assertIn("TestOnly 臂：只在对照构建出现的诊断", banned)
         self.assertIn("S1394_PUBLICATION_PROBE_DB", banned)
         self.assertIn("raw 测试串：injected write failure", banned)
+        self.assertIn("测试门内：返回类型泛型里的逗号不得丢掉 cfg", banned)
+        self.assertNotIn("生产诊断：紧随测试函数之后仍属生产", banned)
         for absent in ("生产诊断：完整候选已持有并发布", "完整候选已持有", "S_SESSION_PAUSE_DB",
                        "allocation_probe_total", "其他 feature 的非测试字面量不收录",
                        "带占位 {} 的测试格式串不收"):

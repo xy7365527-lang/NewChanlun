@@ -7,8 +7,10 @@
 test=false 求值；任一集合为真即生产可达，判违规。未知谓词（unix、target_os、debug_assertions
 等）真假两可，保守地按「可能为真」求值，即视为生产可达。
 已知生产例外列在 ALLOWLIST，新增例外须评审。
-第二条轴不看名字：沿 crate 模块图找管辖面内的 `std::env::var` / `var_os` 读取，增量生产构建可达的
-只准读 PRODUCTION_ENV，默认构建另准 DEFAULT_BUILD_ONLY_ENV；改函数名绕不过此轴。
+第二条轴不看名字：沿 crate 模块图找管辖面内的 `env::var` / `var_os` 读取（参数为字面量、同文件 const，
+或其他表达式——后者记为不可解析，名单外即违规），增量生产构建可达的只准读 PRODUCTION_ENV，
+默认构建另准 DEFAULT_BUILD_ONLY_ENV / DEFAULT_BUILD_ONLY_ENV_ARGS；改函数名绕不过此轴。
+已知盲区：`use std::env::var` 后裸调 `var(..)`、别名 `use std::env as e`、turbofish、`env::vars()` 遍历。
 
 用法：python3 .github/scripts/check-prod-no-test-hooks.py [仓根]
 exit 0 = 无违规；exit 1 = 有违规（逐条打出 文件:行）。
@@ -80,6 +82,7 @@ PR_WRITE_SET = (
     "rust/src/s_content/capture_allocation/work.rs",
     "rust/src/s_content/closed.rs",
     "rust/src/session_protocol.rs",
+    "rust/src/session_transport.rs",
 )
 MODULE_DIRS = (
     "rust/src/s_content",
@@ -126,6 +129,9 @@ PRODUCTION_ENV: dict[str, str] = {
     "S_CONTROL_START_GATE": "#1527 托管 serve 的父进程登记握手（admission_anchor）",
     "S_CONTROL_RESOURCE_SHA256": "launcher 下发的资源档摘要（writer_cli）",
     "S_MANIFEST_WORKSPACE_DIAGNOSTICS": "ADR 0042 D8 门外既有生产诊断（与 sqlite_pager_probe 同一开关）",
+    # 待裁定：模块自述「仅 Native TestOnly opt-in 的私有缓存实验」，却随 ALLOWLIST 整文件豁免进生产，
+    # 且会改连接 cache_size。归 D8 生产诊断还是门控出增量构建，由 #1640 主控裁定后改此处。
+    "S_NATIVE_SQLITE_CACHE_KIB": "待 #1640 裁定：sqlite_pager_probe 私有缓存实验（经 const CACHE_ENV 读取）",
 }
 # 只在默认 {s_session} 构建可达的环境变量（与 DEFAULT_BUILD_ONLY 同一豁免口径：增量生产构建须门控排除）。
 DEFAULT_BUILD_ONLY_ENV: dict[str, str] = {
@@ -136,7 +142,14 @@ DEFAULT_BUILD_ONLY_ENV: dict[str, str] = {
     "S_SESSION_PRAGMA_SIDECAR": "#1371 record_connection_pragmas 诊断 sidecar",
     "S_SESSION_PRAGMA_SIDECAR_DB": "#1371 record_connection_pragmas 诊断 sidecar",
     "S_SESSION_PRAGMA_SIDECAR_PATH": "#1371 record_connection_pragmas 诊断 sidecar",
+    "SESSION_TRANSPORT_TESTONLY_TRACE_DIR": "#1374 输送读轨迹（#1640 A9 与 testonly_pause 同门）",
 }
+# 参数不是字面量也不是同文件 const 的读取：文件 → 允许的参数名（同样只准默认构建可达）。
+DEFAULT_BUILD_ONLY_ENV_ARGS: dict[str, set[str]] = {
+    # #1394 对照臂选择：S_CAPTURE_NATIVE_TESTONLY 与 Owned 私有输入，增量生产构建走 incremental_mode()。
+    "rust/src/bin/s_session_v3/s_allocation.rs": {"name"},
+}
+NON_LITERAL = "<非字面量参数 "
 
 
 def parse_cfg(text: str):
@@ -286,7 +299,8 @@ def env_violations(root: Path) -> list[str]:
         rel = path.resolve().relative_to(root).as_posix()
         if gen.reachable(chain, INCREMENTAL_BUILD, False):
             violations.append(f"{rel}: 环境变量 {name} 在 s_incremental 生产构建可达（未列入 PRODUCTION_ENV）")
-        elif gen.reachable(chain, DEFAULT_BUILD, False) and name not in DEFAULT_BUILD_ONLY_ENV:
+        elif (gen.reachable(chain, DEFAULT_BUILD, False) and name not in DEFAULT_BUILD_ONLY_ENV
+              and name.removeprefix(NON_LITERAL).rstrip(">") not in DEFAULT_BUILD_ONLY_ENV_ARGS.get(rel, set())):
             violations.append(f"{rel}: 环境变量 {name} 在默认 s_session 构建可达（未列入 DEFAULT_BUILD_ONLY_ENV）")
     return violations
 

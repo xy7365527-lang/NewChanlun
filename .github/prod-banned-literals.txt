@@ -28,6 +28,7 @@ B11 恒等式：封存后live = 残余M + 封存池逐张许可之和
 B11：同父峰须在夹具帽内
 B11：审计前父账残余只有根控制块M
 Begin不能使A2或S漏过本次raw变化
+C4 池析构期间签发新许可
 CC-054 载荷 JSON
 CC-054 载荷是合法 JSON
 CC-054 载荷是文本
@@ -63,8 +64,11 @@ Fractal 不得接受非 CC-007 kind
 GenError：原始行出现非整数 JSON 数字 `1.5`（不把 token 静默改写）
 HANDLE_RUNNING
 ISSUE1394_MEASURE_PREFIX
+Incomplete/ContentAnchorUnavailable：Delta已退出保留窗口，须沿Watch Gap重建
 Incomplete/RetainedBytes：保留图像未移出原始账树
 Incomplete/X：z
+Incomplete：Watch批数越过冻结上限
+Incomplete：完整Q回复超过max_reply_bytes
 InvalidDomain：session_generation 必须大于0
 JSON和scope都析构后父账回到原基线
 JSON真实载荷析构归还原许可
@@ -182,6 +186,8 @@ S_AUDIT_COST_DB
 S_AUDIT_COST_EXPECT_GENERATION
 S_EVIDENCE_MEASURE
 S_TEST_AUDIT_CACHE_SOURCE_BYTES
+SchemaUnsupported：history_mode不符
+SchemaUnsupported：projection anchor必须是exact四字段
 SchemaUnsupported：仅s-session/3
 SchemaUnsupported：仅unsupported/1
 SchemaUnsupported：缺非空字符串 payload_hash
@@ -214,6 +220,7 @@ TB1717_S_EXPORT 未设置
 TOP 窗口应产对象
 TOP/BOTTOM 窗口应产对象
 TOP/BOTTOM 窗口必产 CC007
+TestOnly staging只允许Native
 TestOnly two-input real OHLC production paths; no serve, no writer limits acceptance, no full9011
 TestOnly：Budget 故障仅用于 Owned 模式
 TestOnly：stop_after_accept
@@ -241,6 +248,7 @@ begin 校验沿同一父账出生
 bi 对象冒充版本记录必须拒绝
 birth==g不在before
 births实体与容量许可独立释放
+body 字节数溢出
 borrowed字段入口不得先造owned PathStep
 borrowed字段入口不得擦除codec
 borrowed字段入口不得退回generic read
@@ -264,6 +272,7 @@ commit 后读事务可核
 commit 语义时刻被篡改
 concat必须Owned
 control_ms 仅含全局控制检查与逐代期望准备，逐批控制头核对计入 structure_ms。沿原累积 Instant 分段；测试采样开销含在墙钟内。内部 audit_ns 与墙钟重叠，不相加。
+cursor代号越过已核永久发布历史
 cut SQL与暂存原件冲突
 cut 与首获知代不符
 cut暂存原件消失
@@ -343,6 +352,7 @@ original business；
 original wire cap；
 overlay覆写不能改变已有读取副本
 owned fragment不能擦除为std JSON
+owned manifest必须来自实际capture预算
 owned request须借anchor_view，不能擦std
 owned.sqlite 必须是普通文件
 owner不得经symlink
@@ -353,6 +363,7 @@ owning iterator消费首项仍持有原数组allocation
 pending 与 token 的真实 owner 全部析构才归零
 prepare 不提前生成数组
 producer 公开根
+projection实际owner与anchor预算不一致
 prototype_audit_allocation_incomplete：normal JSON shape不可擦除Owned
 prototype_audit_allocation_incomplete：owned原始账不可擦除为std值
 publication尾检身份不符
@@ -612,6 +623,7 @@ writer/recover闭合后无SHM
 发布索引根长度不足 32 字节（CHECK 被旁路）
 发布索引行被删除
 取消后不能重建成功scope
+变化JSON不是普通数组
 变化原件不得沿用旧证明
 变形 flag 不得创建库
 变形 flag 必须拒绝
@@ -677,6 +689,7 @@ writer/recover闭合后无SHM
 回退时钟必须拒绝
 回退时钟拒绝后不得留下 msg-2 的接纳行
 回退重走仍复用同一原件
+固定写父账重复附接
 固定输出复用相同exact判据
 坏 JSON 必须在建库前拒绝
 坏 clock 必须在建库前拒绝
@@ -903,7 +916,9 @@ writer/recover闭合后无SHM
 整数与浮点有别
 整组接纳不应被后续超额组驱逐
 文本在reader/capture释放后仍持有原账本字节
+文本字节不是UTF8
 文本析构单独归还其许可
+文本消费入口只接受实际Owned字节所有者
 新 message replay 必须由实际 Accept Q 效果取得写后资格
 新 store 闭包可核
 新写节点在表
@@ -996,6 +1011,7 @@ writer/recover闭合后无SHM
 暂存owner不属于当前事务连接
 暂存owner已失败，不可重试
 暂存必须属于尚未完成的事务
+暂存租约必须继承同一已签发工作域
 暂存节点数溢出
 暖/冷坐标文本序列逐位相同
 暖/冷源引用序列逐位相同
@@ -1075,6 +1091,7 @@ writer/recover闭合后无SHM
 来源文本是合法 JSON
 来源版本变了必须真正撤销旧事实
 来源证书不签发完整候选资格
+来源证书身份坐标不可固定
 来源贡献前根不匹配
 来源贡献原账旧赢家不匹配
 来源贡献跨工作账本
@@ -1318,12 +1335,14 @@ writer/recover闭合后无SHM
 缺原wire不得产生Plan
 缺字段失败不缓存
 缺字段必须拒绝
+缺当前候选原件
 缺当前形态原件
 缺源前写入门序相同
 缺选择器值不得创建库
 耗尽游标须进检查点
 联合闭包缺节点
 节点证书应被保留
+节点长度越界
 补上子节点后闭包可核
 被拒合同项不留物理账
 被拒封存不留物理账
@@ -1385,6 +1404,7 @@ writer/recover闭合后无SHM
 负控许可析构后父账回到残余
 资格所记冻结域须随合法重绑前进
 资源拒绝到跨层返回之间不得分配错误String或JSON
+资源档须为普通文件
 超出 i64 语法的实体必须拒绝
 超帽不留半张表
 超限清空后重算必须给出逐字段相同的原件

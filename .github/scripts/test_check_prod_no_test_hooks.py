@@ -100,6 +100,19 @@ class ProdHookCheckerTests(unittest.TestCase):
                "#[cfg(test)]\nmod tests;\n")
         self.assertEqual(self.env_violations(lib), [])
 
+    def test_env_axis_resolves_const_and_rejects_unresolved_arguments(self):
+        lib = ('const CACHE: &str = "S_UNLISTED_CACHE_SWITCH";\n'
+               "fn a() { let _ = std::env::var_os(CACHE); }\n"
+               "fn b(key: &str) { let _ = std::env::var(key); }\n")
+        found = self.env_violations(lib)
+        self.assertTrue(any("S_UNLISTED_CACHE_SWITCH" in v for v in found))
+        self.assertTrue(any("非字面量参数 key" in v for v in found))
+
+    def test_env_axis_keeps_fn_gate_across_generic_return_comma(self):
+        gate = '#[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]\n'
+        lib = gate + 'fn r() -> Result<Option<String>, String> { Ok(std::env::var("S_SESSION_PAUSE").ok()) }\n'
+        self.assertEqual(self.env_violations(lib), [])
+
     def test_env_axis_default_only_requires_listing(self):
         gate = '#[cfg(not(feature = "s_incremental"))]\n'
         lib = gate + 'fn other() { let _ = std::env::var("S_UNLISTED_DIAG_SWITCH"); }\n'
