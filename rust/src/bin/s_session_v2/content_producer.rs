@@ -4209,6 +4209,12 @@ mod tests {
         }
     }
 
+    /// 规范事实键 `[kind, slot]` 的 kind。
+    fn kind_of_fact_key(fact_key: &str) -> String {
+        let value: Value = serde_json::from_str(fact_key).expect("事实键是 JSON");
+        value[0].as_str().expect("事实键首项是 kind").to_string()
+    }
+
     /// oracle 里按 kind + 槽位找一条事实（找不到即失败，不静默回退）。
     fn oracle_fact<'a>(oracle: &'a [Value], kind: &str, fact_key: &str) -> &'a Value {
         oracle
@@ -4930,8 +4936,29 @@ mod tests {
             let mut requests: Vec<Built> = Vec::new();
             let mut reasons: Vec<&'static str> = Vec::new();
             let mut id_map: BTreeMap<String, String> = BTreeMap::new();
-            // 1) 步骤
-            for index in 0..fixture.state.step_count() {
+            // 0) #1393/#1565 W：初始化事实与未定原件（请求线序在步骤之前，同 v2）。
+            let init = fixture
+                .producer
+                .build_initialization(&mut fixture.store, &fixture.state, &[], GENERATION, CUT)
+                .expect("构造 W 初始化");
+            for object in &init.objects {
+                id_map.insert(
+                    oracle_fact(&oracle, &kind_of_fact_key(&object.fact_key), &object.fact_key)
+                        ["object_id"]
+                        .as_str()
+                        .expect("旧身份")
+                        .to_string(),
+                    object.object_id.clone(),
+                );
+            }
+            requests.extend(init.requests.iter().cloned());
+            // 1) 步骤（W：等待期不发布 waiting 步）
+            let published = if fixture.state.unsettled() {
+                0
+            } else {
+                fixture.state.step_count()
+            };
+            for index in 0..published {
                 let object = fixture
                     .producer
                     .build_step(&mut fixture.store, &fixture.state, index, GENERATION, CUT)
@@ -6577,9 +6604,12 @@ mod tests {
             .steps
             .iter()
             .any(|step| step.high_sources.len() > 1 || step.low_sources.len() > 1));
+        // #1393 W：首对 (10,11) 严格非包含 ⟹ e = 11；seed 来源 = raw[..=e]，此后各步 = 截至 incoming
+        // 的完整前缀。稀疏坐标逐个保留，不区间化。
+        assert_eq!(merge_facts.steps[0].source_coords, vec![10, 11]);
         assert_eq!(
-            merge_facts.steps[0].source_coords,
-            vec![10],
+            merge_facts.steps[2].source_coords,
+            vec![10, 11, 37],
             "稀疏坐标不得被区间化"
         );
         assert_eq!(merge_objects.len(), merge_facts.steps.len());
@@ -6620,6 +6650,111 @@ mod tests {
             assert_eq!(step.waiting_reasons, vec!["initial_direction_unsettled"]);
             assert_eq!(step.source_coords, vec![index]);
         }
+    }
+
+    /// #1393/#1565 W：初始化事实与未定原件逐字节对拍 v2 种子写者（`tb02a_facts::build`），
+    /// 并锁 `pending_since_cut` 只读上一代已核 payload 的跨代延续。
+    #[test]
+    fn w_initialization_matches_v2_oracle_and_pending_since_cut_carries() {
+        for (label, bars, unsettled) in [
+            ("never-established", CASE_NEVER_ESTABLISHED, true),
+            ("establish-at-third/refold", CASE_ESTABLISH_AT_THIRD, false),
+            ("merge/new-group/direction", CASE_MERGE, false),
+        ] {
+            let mut fixture = fixture(bars);
+            assert_eq!(fixture.state.unsettled(), unsettled, "{label}: 覆盖口径");
+            let facts = fixture.state.materialize_facts();
+            let (oracle, _) =
+                tb02a_facts::build(&facts, &fixture.raw, &[], &[], GENERATION, CUT, 0);
+            let wants = oracle_requests(&oracle);
+            let w = fixture
+                .producer
+                .build_initialization(&mut fixture.store, &fixture.state, &[], GENERATION, CUT)
+                .expect("构造 W");
+            let oracle_count = oracle
+                .iter()
+                .filter(|o| {
+                    o["kind"] == CC004_INITIALIZATION_KIND || o["kind"] == CC004_UNDETERMINED_KIND
+                })
+                .count();
+            assert_eq!(w.objects.len(), oracle_count, "{label}: W 对象数");
+            assert_eq!(w.objects.len(), 1 + fixture.state.pending_raw().len());
+            for object in &w.objects {
+                let want =
+                    oracle_fact(&oracle, &kind_of_fact_key(&object.fact_key), &object.fact_key);
+                assert_object_matches_oracle(&mut fixture, object, want, label);
+                assert_request_matches_oracle(
+                    &mut fixture,
+                    object.request.as_ref().expect("W 对象带请求"),
+                    &object.object_id,
+                    &wants,
+                    label,
+                );
+            }
+            // 线序：v2 请求表的 W 前缀逐条同值（初始化 →（等待期）待决组 → 逐原件）。
+            assert_eq!(
+                w.requests.len(),
+                w.objects.len() + usize::from(unsettled),
+                "{label}: W 请求数"
+            );
+            for (index, built) in w.requests.iter().enumerate() {
+                let rendered: Value =
+                    serde_json::from_str(&render(&mut fixture.store, built)).expect("请求 JSON");
+                let mut want = wants[index].clone();
+                if !want["subject_id"].is_null() {
+                    want["subject_id"] = rendered["subject_id"].clone();
+                }
+                assert_eq!(rendered, want, "{label}: W 请求 {index}");
+            }
+        }
+
+        // #1565：未定原件跨代只读上一代已核 payload；原件不变 ⟹ 内容身份逐字相同。
+        let mut fixture = fixture(CASE_NEVER_ESTABLISHED);
+        let mut first = IncrFactsState::empty();
+        for (coord, high, low) in &CASE_NEVER_ESTABLISHED[..2] {
+            first.append(bar(*coord, *high, *low));
+        }
+        let gen1 = fixture
+            .producer
+            .build_initialization(&mut fixture.store, &first, &[], 1, "cut-1")
+            .expect("gen1");
+        let prior: Vec<PriorUndetermined> = gen1.objects[1..]
+            .iter()
+            .map(|object| {
+                crate::content_bi::read_prior_undetermined(
+                    &mut fixture.store,
+                    &fixture.producer,
+                    &object.record,
+                )
+                .expect("上一代未定原件可核")
+            })
+            .collect();
+        assert_eq!(prior.len(), 2);
+        assert!(prior.iter().all(|p| p.pending_since_cut == "cut-1"));
+        let gen2 = fixture
+            .producer
+            .build_initialization(&mut fixture.store, &fixture.state, &prior, 2, "cut-2")
+            .expect("gen2");
+        assert_eq!(gen2.objects.len(), 4);
+        for (old, new) in gen1.objects[1..].iter().zip(&gen2.objects[1..3]) {
+            assert_eq!(old.object_id, new.object_id, "原件不变 ⟹ 身份逐代不变");
+        }
+        let third: Value =
+            serde_json::from_str(&render(&mut fixture.store, &gen2.objects[3].payload)).unwrap();
+        assert_eq!(third["pending_since_cut"], "cut-2", "新到原件取当代 cut");
+        // 无上一代输入 ⟹ 全取当代 cut（身份随之不同）：取值只有 payload 一条通道。
+        let fresh = fixture
+            .producer
+            .build_initialization(&mut fixture.store, &fixture.state, &[], 2, "cut-2")
+            .expect("无 prior");
+        assert_ne!(fresh.objects[1].object_id, gen2.objects[1].object_id);
+        // 非未定原件的记录不得当作上一代未定原件（拒绝，不回落当代 cut）。
+        assert!(crate::content_bi::read_prior_undetermined(
+            &mut fixture.store,
+            &fixture.producer,
+            &gen1.objects[0].record,
+        )
+        .is_err());
     }
 
     /// 派生链逐前缀对拍 ①：任一前缀状态下，`raw_prefix_coords` 返回该前缀的完整 raw 坐标链
