@@ -26,11 +26,14 @@ fn manifest(space: &Space, steps: usize) -> Value {
         // 恢复之后的晚到步：时刻晚于 recover_ns。
         clock(format!("late-cap-{i}"), 100_000 + offset);
         clock(format!("late-app-{i}"), 200_000 + offset);
+        // 持久撤回：恢复前一批、恢复后一批。
+        clock(format!("wd-{i}"), 7000 + offset);
+        clock(format!("late-wd-{i}"), 300_000 + offset);
     }
     json!({"schema_revision":"economic-manifest/1","session_id":SESSION,"session_generation":"1","book_revision":"tb03c-book/1",
         "e":{"db":space.0.join("e.db"),"socket":space.0.join("e.sock")},
         "chongs":[{"chong_id":"chong-L1","symbol":"TEST-L1","operation_level":"1","fixed_q":"10","db":space.0.join("b.db"),"socket":space.0.join("b.sock")}],
-        "authorized_sources":[{"source_namespace":"testonly-tb1406","source_epoch":"fixture-epoch-1","producer_id":SESSION,"producer_epoch":"1","operations":["CaptureExternal","ApplyAllocation","ReadView","QueryAllocation"]}],
+        "authorized_sources":[{"source_namespace":"testonly-tb1406","source_epoch":"fixture-epoch-1","producer_id":SESSION,"producer_epoch":"1","operations":["CaptureExternal","ApplyAllocation","ReadView","QueryAllocation","WithdrawDomainEvent"]}],
         "resources":{"max_frame_bytes":"1048576","read_timeout_ms":"1000","write_timeout_ms":"1000","response_timeout_ms":"2000","queue_capacity":"2","max_connections":"2"},
         "clock":{"kind":"TestOnly","plan":{"init_ns":"1","recover_ns":["90000","90001"],"messages":messages}}})
 }
@@ -319,22 +322,38 @@ fn domain_event_same_fact_key_different_content_persists_identity_conflict() {
     assert_ne!(admit_by_content(&e_before, &altered), Admission::Conflict);
 }
 
+fn withdraw_payload(target: &Value, reason: &str, superseded_by: Value) -> Value {
+    json!({"op":"WithdrawDomainEvent","target":target,"withdrawn_generation":"1","withdrawal_reason":reason,"superseded_by":superseded_by})
+}
+
 #[test]
 fn domain_event_withdrawn_is_appended_and_old_rows_unchanged() {
     let space = Space::new("1768-withdrawn");
-    let d = setup(&space, 2);
+    let d = setup(&space, 3);
     step(&d, 0, "", 1);
     step(&d, 1, "", 1);
     let log = events(&d.bc);
     let (commits, apps) = (dump(&d.bc, COMMITS), dump(&d.bc, APPLICATIONS));
-    let (c, _) = store::open(&d.bc.db, true).unwrap();
-    let (seq, root, _, _) = store::latest(&c).unwrap();
-    drop(c);
-    let original = &log[0];
-    // TestOnly 撤回位置：紧接当前链尾的下一提交。
-    let at = json!({"cut":{"domain_id":d.bc.domain,"commit_seq":(seq+1).to_string(),"root_hash":"testonly-withdrawal-root"},
-        "prev_root":root,"writer_epoch":"1","ordinal":"0"});
-    let w = de::withdrawn(original, &at, "1", "testonly-superseded", Value::Null).unwrap();
+    let original = log[0].clone();
+    let target = original["event_id"].clone();
+    // 经 service::handle 持久撤回：追加一次提交，不改任何旧行。
+    let receipt = send(
+        &d.bc,
+        1,
+        envelope(
+            "wd-0",
+            withdraw_payload(&target, "testonly-superseded", Value::Null),
+        ),
+    );
+    assert_eq!(receipt["kind"], "DomainEventWithdrawn", "{receipt}");
+    let after = dump(&d.bc, COMMITS);
+    assert_eq!(after.len(), commits.len() + 1);
+    assert_eq!(after[..commits.len()], commits[..]);
+    assert_eq!(dump(&d.bc, APPLICATIONS), apps);
+    let next = events(&d.bc);
+    assert_eq!(next.len(), log.len() + 1);
+    assert_eq!(next[..log.len()], log[..]);
+    let w = next.last().unwrap().clone();
     assert_eq!(w["kind"], "withdrawn");
     assert_eq!(
         w["transition"],
@@ -344,41 +363,154 @@ fn domain_event_withdrawn_is_appended_and_old_rows_unchanged() {
         w["payload"],
         json!({"withdrawn_generation":"1","withdrawal_reason":"testonly-superseded","superseded_by":null})
     );
-    assert_eq!(w["cause"], json!([{"event_id":original["event_id"]}]));
+    assert_eq!(w["cause"], json!([{"event_id":target}]));
     assert_eq!(w["identity"], original["identity"]);
-    let next = de::append_withdrawal(&log, &w).unwrap();
-    assert_eq!(next.len(), log.len() + 1);
-    assert_eq!(next[..log.len()], log[..]);
-    assert_eq!(next.last(), Some(&w));
-    // 不得复用已有 event_id，不得改写原身份。
-    assert!(de::append_withdrawal(&next, &w)
-        .unwrap_err()
-        .starts_with("IdentityConflict"));
-    let mut reminted = w.clone();
-    reminted["identity"]["fact_key"] = json!("reminted");
-    assert!(de::append_withdrawal(&log, &reminted).is_err());
-    // 旧行、旧 cut 逐字不动。
-    assert_eq!(dump(&d.bc, COMMITS), commits);
-    assert_eq!(dump(&d.bc, APPLICATIONS), apps);
-    assert_eq!(events(&d.bc), log);
-    // 变异负控：删行式撤回。日志层丢失原事件，前缀不再保持；持久层被审计判 StorageUnavailable。
+    assert_eq!(w["source"], original["source"]);
+    assert_eq!(w["cut"], receipt["cut"]);
+    assert_eq!(w["event_id"]["commit_seq"], receipt["cut"]["commit_seq"]);
+    // 持久撤回在内存日志层同样只追加：外壳与 append_withdrawal 的口径一致。
+    assert_eq!(de::append_withdrawal(&log, &w).unwrap(), next);
+    // 同 target 同内容重投 = no-op 返回原回执；同 target 异内容 = IdentityConflict；均不新增提交。
+    let again = send(
+        &d.bc,
+        1,
+        envelope(
+            "wd-1",
+            withdraw_payload(&target, "testonly-superseded", Value::Null),
+        ),
+    );
+    assert_eq!(again, receipt);
+    assert_eq!(
+        send(
+            &d.bc,
+            1,
+            envelope(
+                "wd-0",
+                withdraw_payload(&target, "testonly-superseded", Value::Null)
+            )
+        ),
+        receipt
+    );
+    let conflict = send(
+        &d.bc,
+        1,
+        envelope(
+            "wd-2",
+            withdraw_payload(&target, "testonly-other", Value::Null),
+        ),
+    );
+    assert!(
+        conflict["error"]
+            .as_str()
+            .unwrap()
+            .starts_with("IdentityConflict"),
+        "{conflict}"
+    );
+    // 撤回事件不可再撤回；不存在的事件不可撤回。
+    let r = send(
+        &d.bc,
+        1,
+        envelope("wd-2", withdraw_payload(&w["event_id"], "x", Value::Null)),
+    );
+    assert!(
+        r["error"].as_str().unwrap().starts_with("InvalidDomain"),
+        "{r}"
+    );
+    let missing = de::event_id(&d.bc.domain, 1, 9);
+    let r = send(
+        &d.bc,
+        1,
+        envelope("wd-2", withdraw_payload(&missing, "x", Value::Null)),
+    );
+    assert!(
+        r["error"]
+            .as_str()
+            .unwrap()
+            .starts_with("MissingDependency"),
+        "{r}"
+    );
+    assert_eq!(dump(&d.bc, COMMITS), after);
+    // 撤回跨进程边界、恢复、晚到写入、snapshot/delta 都在：恢复后外壳逐字不变。
+    let recovered = store::recover(&d.bc).unwrap();
+    assert_eq!(recovered["cut"], receipt["cut"]);
+    assert_eq!(events(&d.bc), next);
+    let (captured, applied) = step(&d, 2, "late-", 2);
+    assert_eq!(applied["kind"], "Applied", "{applied} {captured}");
+    let full = events(&d.bc);
+    assert_eq!(full[..next.len()], next[..]);
+    let (c, _) = store::open(&d.bc.db, true).unwrap();
+    store::audit(&c, &d.bc).unwrap();
+    let base = cut_at(&d.bc, 1);
+    let s_base = de::snapshot(&c, &d.bc, 2, &json!({ "cut": base })).unwrap();
+    let delta = de::delta(&c, &d.bc, 2, &base).unwrap();
+    assert!(delta["events"].as_array().unwrap().contains(&w));
+    assert_eq!(
+        de::resume(&d.bc, &s_base, &delta),
+        de::snapshot(&c, &d.bc, 2, &json!({})).unwrap()
+    );
+    drop(c);
+    // 变异负控：删行式撤回（直接删撤回提交）与篡改撤回条目，审计均判 StorageUnavailable。
+    let wseq: i64 = receipt["cut"]["commit_seq"]
+        .as_str()
+        .unwrap()
+        .parse()
+        .unwrap();
+    for mutation in ["delete", "retarget"] {
+        let copy = Space::new(&format!("1768-withdrawn-{mutation}"));
+        std::fs::copy(&d.bc.db, copy.0.join("b.db")).unwrap();
+        let (c, _) = store::open(&copy.0.join("b.db"), false).unwrap();
+        if mutation == "delete" {
+            c.execute("DELETE FROM commits WHERE seq>=?", [wseq])
+                .unwrap();
+        } else {
+            let raw: String = c
+                .query_row("SELECT image FROM commits WHERE seq=?", [wseq], |r| {
+                    r.get(0)
+                })
+                .unwrap();
+            let mut image: Value = serde_json::from_str(&raw).unwrap();
+            let last = image["history"].as_array_mut().unwrap().last_mut().unwrap();
+            last["target"] = de::event_id(&d.bc.domain, 2, 0);
+            c.execute(
+                "UPDATE commits SET image=? WHERE seq=?",
+                rusqlite::params![canonical_json(&image), wseq],
+            )
+            .unwrap();
+        }
+        assert!(
+            store::audit(&c, &d.bc)
+                .unwrap_err()
+                .starts_with("StorageUnavailable"),
+            "{mutation}"
+        );
+    }
+    // E 域同一写口：撤回 E 原事实事件，审计与外壳同样成立。
+    let e_target = events(&d.ec)[0]["event_id"].clone();
+    let r = send(
+        &d.ec,
+        1,
+        envelope(
+            "late-wd-0",
+            withdraw_payload(&e_target, "testonly-e", Value::Null),
+        ),
+    );
+    assert_eq!(r["kind"], "DomainEventWithdrawn", "{r}");
+    let e_log = events(&d.ec);
+    assert_eq!(e_log.last().unwrap()["kind"], "withdrawn");
+    assert_eq!(
+        e_log.last().unwrap()["cause"],
+        json!([{"event_id":e_target}])
+    );
+    let (c, _) = store::open(&d.ec.db, true).unwrap();
+    store::audit(&c, &d.ec).unwrap();
+    drop(c);
+    // 变异负控：删行式撤回的内存日志层也被拒——前件不在日志内。
     let deleted: Vec<Value> = log
         .iter()
-        .filter(|e| e["event_id"] != original["event_id"])
+        .filter(|e| e["event_id"] != target)
         .cloned()
-        .chain([w.clone()])
         .collect();
-    assert_ne!(deleted[..log.len()], log[..]);
-    assert!(de::append_withdrawal(&deleted[..deleted.len() - 1], &w).is_err());
-    let (c, _) = store::open(&d.bc.db, false).unwrap();
-    c.execute(
-        "DELETE FROM applications WHERE fact_key=?",
-        [original["identity"]["fact_key"].as_str().unwrap()],
-    )
-    .unwrap();
-    assert!(store::audit(&c, &d.bc)
-        .unwrap_err()
-        .starts_with("StorageUnavailable"));
+    assert!(de::append_withdrawal(&deleted, &w).is_err());
 }
 
 #[test]
@@ -426,9 +558,28 @@ fn recovery_replay_root_equals_original_commit_root_or_storage_unavailable() {
     assert!(store::audit(&c, &d.bc)
         .unwrap_err()
         .starts_with("StorageUnavailable"));
-    let s = de::snapshot(&c, &d.bc, 2, &json!({ "cut": base })).unwrap();
-    let delta = de::delta(&c, &d.bc, 2, &base).unwrap();
-    assert_eq!(de::resume(&d.bc, &s, &delta)["kind"], "Gap");
+    // snapshot 直接请求被篡改的目标 cut（存储根未变）、请求其前的 cut、以及 delta，一律 StorageUnavailable。
+    let target = cut_at(&d.bc, 3);
+    assert_eq!(target, before);
+    for query in [json!({ "cut": target }), json!({ "cut": base }), json!({})] {
+        assert!(
+            de::snapshot(&c, &d.bc, 2, &query)
+                .unwrap_err()
+                .starts_with("StorageUnavailable"),
+            "{query}"
+        );
+    }
+    assert!(de::delta(&c, &d.bc, 2, &base)
+        .unwrap_err()
+        .starts_with("StorageUnavailable"));
+    // 变异负控：只比对请求 cut 与存储根（旧 snapshot 的做法）会放行篡改图像——重算根即可证伪。
+    let (seq, root, ns, image) = service::select_cut(&c, &d.bc, &json!({ "cut": target })).unwrap();
+    let prev: String = c
+        .query_row("SELECT prev_root FROM commits WHERE seq=?", [seq], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    assert_ne!(store::root(&d.bc, seq, &prev, &ns, &image), root);
     drop(c);
     let r = send(
         &d.bc,
@@ -560,6 +711,39 @@ fn be_snapshot_delta_resume_equals_same_cut_snapshot_fieldwise_and_gap_on_lag() 
         let mut bad = delta.clone();
         bad["writer_epoch"] = json!("2");
         assert_eq!(de::resume(cfg, &s_base, &bad)["kind"], "Gap");
+        // 事件集合逐位核对：删中间事件、重复、换序、改内容、改位置一律 Gap。
+        let all = delta["events"].as_array().unwrap().clone();
+        assert!(all.len() >= 2, "{delta}");
+        let mutate = |f: &dyn Fn(&mut Vec<Value>)| {
+            let mut bad = delta.clone();
+            f(bad["events"].as_array_mut().unwrap());
+            bad
+        };
+        let truncated = mutate(&|e| {
+            e.remove(0);
+        });
+        for bad in [
+            truncated.clone(),
+            mutate(&|e| e.push(e[0].clone())),
+            mutate(&|e| e.swap(0, 1)),
+            mutate(&|e| e[0]["payload"]["commit_ns"] = json!("1")),
+            mutate(&|e| e[0]["prev_root"] = json!("forged")),
+            mutate(&|e| e.clear()),
+        ] {
+            assert_eq!(de::resume(cfg, &s_base, &bad)["kind"], "Gap", "{bad}");
+        }
+        // 变异负控：只核「事件 cut 属于本批」（旧判据）会放行删事件的 delta。
+        let cuts: Vec<Value> = delta["links"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|l| l["cut"].clone())
+            .collect();
+        assert!(truncated["events"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|e| cuts.contains(&e["cut"])));
         // 变异负控：合并 cut 字段（基点只认 commit_seq、不认 root）⟹ 错基点被 Gap 拦下。
         let other = de::snapshot(&c, cfg, 1, &json!({ "cut": cut_at(cfg, 1) })).unwrap();
         assert_eq!(de::resume(cfg, &other, &delta)["kind"], "Gap");

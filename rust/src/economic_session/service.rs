@@ -1459,6 +1459,7 @@ fn handle_with_deadline(
             "BindVoice" if config.domain.starts_with("B:") => {
                 bind_voice(c, config, epoch, e, ingress_response_deadline)
             }
+            super::domain_event::WITHDRAW_OP => super::domain_event::withdraw(c, config, epoch, e),
             "ReadView"
             | "Watch"
             | "QueryFact"

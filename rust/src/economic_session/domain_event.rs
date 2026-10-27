@@ -4,7 +4,9 @@
 //! 外壳从 commits 根链、图像 history、`book.phase.events` 与永久回执逐条导出；
 //! 状态载体是根链加 transition，外壳本身从不内联前后完整图像。
 use super::book::hash;
-use super::store::{check_epoch, cut, err, latest, root_with_image_hash, Config};
+use super::store::{
+    append, audit, check_epoch, cut, err, immediate, latest, put, root_with_image_hash, row, Config,
+};
 use crate::session_protocol::{nonnegative, positive, required, strict_json};
 use rusqlite::{Connection, OptionalExtension};
 use serde_json::{json, Value};
@@ -339,6 +341,9 @@ fn events_in(
         return Err("StorageUnavailable：域损坏：业务提交未恰追加一条history".into());
     }
     let event = history.last().unwrap();
+    if event["kind"] == WITHDRAW_OP {
+        return withdrawal_event(c, config, context, seq, &prev_root, &root, &ns, event);
+    }
     let (receipt_key, receipt) = context
         .receipts
         .get(&seq.to_string())
@@ -451,7 +456,7 @@ fn events_in(
 }
 
 /// 撤回外壳（裁定三）：身份沿用原事件，不重铸 ID；前件指向被撤回事件。
-/// #1768：B/E 现无持久撤回操作，本函数只构造外壳；持久化须新子合同版本，已交主控裁定。
+/// 持久撤回由 [`withdraw`] 追加一次提交；外壳由 `events_in` 从该提交的 history 条目经本函数导出。
 pub(super) fn withdrawn(
     original: &Value,
     at: &Value,
@@ -500,6 +505,240 @@ pub(super) fn append_withdrawal(log: &[Value], w: &Value) -> Result<Vec<Value>, 
     Ok(out)
 }
 
+/// 持久撤回的 wire op 与永久回执类型（ADR 0051 裁定三/五）：撤回是一次追加提交，
+/// history 追加一条撤回条目，旧提交、旧事件、旧物化行一律不动；权限照例须 manifest 显式授予。
+pub(super) const WITHDRAW_OP: &str = "WithdrawDomainEvent";
+pub(super) const WITHDRAW_RECEIPT: &str = "DomainEventWithdrawn";
+const WITHDRAW_FIELDS: [&str; 5] = [
+    "op",
+    "target",
+    "withdrawn_generation",
+    "withdrawal_reason",
+    "superseded_by",
+];
+const WITHDRAW_ENTRY_FIELDS: [&str; 8] = [
+    "kind",
+    "target",
+    "withdrawn_generation",
+    "withdrawal_reason",
+    "superseded_by",
+    "origin_message",
+    "commit_seq",
+    "commit_ns",
+];
+
+/// 撤回的去重键是被撤回事件的身份（裁定二），不是内容：同一事件只能被撤回一次。
+pub(super) fn withdrawal_receipt_key(target: &Value) -> String {
+    format!("domain-event-withdrawn:{}", hash(target))
+}
+pub(super) fn withdrawal_receipt(config: &Config, entry: &Value, cut: Value) -> Value {
+    json!({"kind":WITHDRAW_RECEIPT,"domain_id":config.domain,"target":entry["target"],
+        "withdrawn_generation":entry["withdrawn_generation"],"withdrawal_reason":entry["withdrawal_reason"],
+        "superseded_by":entry["superseded_by"],"commit_ns":entry["commit_ns"],"cut":cut})
+}
+/// 请求、history 条目与回执三处共有的撤回内容。
+fn withdrawal_content(v: &Value) -> Value {
+    json!([
+        v["target"],
+        v["withdrawn_generation"],
+        v["withdrawal_reason"],
+        v["superseded_by"]
+    ])
+}
+fn event_ref(config: &Config, v: &Value, what: &str) -> Result<(i64, usize), String> {
+    exact(v, &["domain_id", "commit_seq", "ordinal"], what)?;
+    if v["domain_id"] != config.domain {
+        return Err(format!("IdentityConflict：{what}跨域"));
+    }
+    let seq = positive(required(v, "commit_seq")?, what)?;
+    let ordinal = nonnegative(required(v, "ordinal")?, what)? as usize;
+    if *v != event_id(&config.domain, seq, ordinal) {
+        return Err(format!("InvalidDomain：{what}非规范event_id"));
+    }
+    Ok((seq, ordinal))
+}
+fn withdrawal_request(config: &Config, p: &Value) -> Result<(), String> {
+    exact(p, &WITHDRAW_FIELDS, "撤回请求")?;
+    event_ref(config, &p["target"], "撤回target")?;
+    required(p, "withdrawn_generation")?;
+    required(p, "withdrawal_reason")?;
+    if !p["superseded_by"].is_null() {
+        event_ref(config, &p["superseded_by"], "superseded_by")?;
+    }
+    Ok(())
+}
+/// 在 `seq` 之前的图像里定位一条已存在的域事件，返回其所在提交的 history 条目。
+/// ordinal 0 是该提交的 history 条目；ordinal k≥1 是该提交追加的第 k 条阶段事件。
+fn existing_event<'a>(
+    config: &Config,
+    previous: &'a Value,
+    v: &Value,
+    seq: i64,
+    what: &str,
+) -> Result<&'a Value, String> {
+    let (t_seq, ordinal) = event_ref(config, v, what)?;
+    if t_seq >= seq {
+        return Err(format!("MissingDependency：{what}不在本提交之前"));
+    }
+    let history = previous["history"]
+        .as_array()
+        .ok_or("StorageUnavailable：域损坏：history形状")?;
+    let entry = history
+        .get((t_seq - 1) as usize)
+        .ok_or_else(|| format!("MissingDependency：{what}不存在"))?;
+    if ordinal > 0 {
+        let n = previous["book"]["phase"]["events"]
+            .as_array()
+            .map(|a| {
+                a.iter()
+                    .filter(|e| e["commit_seq"] == t_seq.to_string())
+                    .count()
+            })
+            .unwrap_or(0);
+        if ordinal > n {
+            return Err(format!("MissingDependency：{what}不存在"));
+        }
+    }
+    Ok(entry)
+}
+/// 撤回提交的唯一判据（#804）：写路径与审计重放共用。返回追加撤回条目后的完整图像。
+pub(super) fn withdrawal_image(
+    config: &Config,
+    previous: &Value,
+    entry: &Value,
+) -> Result<Value, String> {
+    exact(entry, &WITHDRAW_ENTRY_FIELDS, "撤回条目")?;
+    if entry["kind"] != WITHDRAW_OP {
+        return Err("InvalidDomain：非撤回条目".into());
+    }
+    let seq = positive(required(entry, "commit_seq")?, "撤回commit_seq")?;
+    nonnegative(required(entry, "commit_ns")?, "撤回commit_ns")?;
+    let history = previous["history"]
+        .as_array()
+        .ok_or("StorageUnavailable：域损坏：history形状")?;
+    if history.len() as i64 != seq - 1 {
+        return Err("InvalidDomain：撤回条目不是紧接链尾的提交".into());
+    }
+    let target = existing_event(config, previous, &entry["target"], seq, "撤回target")?;
+    let (t_seq, t_ordinal) = event_ref(config, &entry["target"], "撤回target")?;
+    if target["kind"] == WITHDRAW_OP && t_ordinal == 0 {
+        return Err(format!("InvalidDomain：撤回事件不可再撤回（seq {t_seq}）"));
+    }
+    if history
+        .iter()
+        .any(|h| h["kind"] == WITHDRAW_OP && h["target"] == entry["target"])
+    {
+        return Err("IdentityConflict：该事件已被撤回".into());
+    }
+    if !entry["superseded_by"].is_null() {
+        existing_event(
+            config,
+            previous,
+            &entry["superseded_by"],
+            seq,
+            "superseded_by",
+        )?;
+        if entry["superseded_by"] == entry["target"] {
+            return Err("InvalidDomain：superseded_by不得指向被撤回事件本身".into());
+        }
+    }
+    let mut next = previous.clone();
+    next["history"].as_array_mut().unwrap().push(entry.clone());
+    Ok(next)
+}
+
+/// 持久撤回（裁定三）：经既有写纪律（纪元、审计、消息绑定、回执）追加一次提交。
+/// 同一 target 同内容重投为 no-op 返回原回执；同 target 异内容为 IdentityConflict。
+pub(super) fn withdraw(
+    c: &mut Connection,
+    config: &Config,
+    epoch: i64,
+    e: &Value,
+) -> Result<Value, String> {
+    let p = &e["payload"];
+    withdrawal_request(config, p)?;
+    let key = withdrawal_receipt_key(&p["target"]);
+    let tx = immediate(c)?;
+    check_epoch(&tx, epoch)?;
+    audit(&tx, config)?;
+    if let Some(r) = super::service::previous_message(&tx, e)? {
+        return Ok(r);
+    }
+    if let Some(r) = row(&tx, "receipts", &key)? {
+        if r["kind"] != WITHDRAW_RECEIPT || withdrawal_content(&r) != withdrawal_content(p) {
+            return Err("IdentityConflict：该事件已以不同内容撤回".into());
+        }
+        super::service::bind_message(&tx, e, &key)?;
+        tx.commit().map_err(err)?;
+        return Ok(r);
+    }
+    let (last, previous_root, last_ns, image) = latest(&tx)?;
+    let seq = last
+        .checked_add(1)
+        .ok_or("InvalidDomain：commit seq 溢出")?;
+    let recovered_ns: String = tx
+        .query_row(
+            "SELECT at_ns FROM epochs ORDER BY epoch DESC LIMIT 1",
+            [],
+            |r| r.get(0),
+        )
+        .map_err(err)?;
+    let floor = nonnegative(&last_ns, "last commit")?
+        .max(nonnegative(&recovered_ns, "epoch at_ns")?)
+        .to_string();
+    let (_, _, ns) = super::service::clocks(config, e, &floor, epoch)?;
+    let entry = json!({"kind":WITHDRAW_OP,"target":p["target"],"withdrawn_generation":p["withdrawn_generation"],
+        "withdrawal_reason":p["withdrawal_reason"],"superseded_by":p["superseded_by"],
+        "origin_message":{"source_namespace":e["source_namespace"],"source_epoch":e["source_epoch"],"message_id":e["message_id"],"payload_hash":e["payload_hash"]},
+        "commit_seq":seq.to_string(),"commit_ns":ns});
+    let next = withdrawal_image(config, &image, &entry)?;
+    let cut = append(&tx, config, seq, &previous_root, &ns, &next)?;
+    let receipt = withdrawal_receipt(config, &entry, cut);
+    put(&tx, "receipts", &key, &receipt)?;
+    super::service::bind_message(&tx, e, &key)?;
+    tx.commit().map_err(err)?;
+    Ok(receipt)
+}
+
+/// 撤回提交的外壳：身份、来源、政策沿用被撤回事件（经 [`withdrawn`]），位置取本提交。
+#[allow(clippy::too_many_arguments)]
+fn withdrawal_event(
+    c: &Connection,
+    config: &Config,
+    context: &Context,
+    seq: i64,
+    prev_root: &str,
+    root: &str,
+    ns: &str,
+    entry: &Value,
+) -> Result<Vec<Value>, String> {
+    let (t_seq, t_ordinal) = event_ref(config, &entry["target"], "撤回target")?;
+    let original = events_in(c, config, context, t_seq)?
+        .into_iter()
+        .nth(t_ordinal)
+        .ok_or("StorageUnavailable：域损坏：撤回target不存在")?;
+    let at = json!({"cut":cut(config,seq,root),"prev_root":prev_root,
+        "writer_epoch":writer_epoch_at(&context.epochs, ns)?.to_string(),"ordinal":"0"});
+    Ok(vec![withdrawn(
+        &original,
+        &at,
+        required(entry, "withdrawn_generation")?,
+        required(entry, "withdrawal_reason")?,
+        entry["superseded_by"].clone(),
+    )?])
+}
+/// 根绑定图像里某提交 ordinal 0 应有的 (kind, payload)：撤回条目投影为 withdrawn。
+fn first_expected(entry: &Value) -> (Value, Value) {
+    if entry["kind"] == WITHDRAW_OP {
+        (
+            json!("withdrawn"),
+            json!({"withdrawn_generation":entry["withdrawn_generation"],"withdrawal_reason":entry["withdrawal_reason"],"superseded_by":entry["superseded_by"]}),
+        )
+    } else {
+        (entry["kind"].clone(), entry.clone())
+    }
+}
+
 fn rule_revision(c: &Connection, config: &Config) -> Result<Value, String> {
     let book: Option<String> = c
         .query_row("SELECT v FROM meta WHERE k='book_revision'", [], |r| {
@@ -526,14 +765,18 @@ fn snapshot_value(
 }
 
 /// snapshot 读口（裁定四.1）：先核写者纪元，再按 service 既有 cut/AsKnown 选择（二者互斥）。
+/// 与 ReadView 同一读纪律：同一读事务内先全域审计（逐提交重算
+/// root(seq, prev_root, commit_ns, image) 并重放），任一不合即 StorageUnavailable，不返回图像。
 pub(super) fn snapshot(
     c: &Connection,
     config: &Config,
     writer_epoch: i64,
     query: &Value,
 ) -> Result<Value, String> {
-    check_epoch(c, writer_epoch)?;
-    let (seq, root, ns, image) = super::service::select_cut(c, config, query)?;
+    let tx = c.unchecked_transaction().map_err(err)?;
+    check_epoch(&tx, writer_epoch)?;
+    audit(&tx, config)?;
+    let (seq, root, ns, image) = super::service::select_cut(&tx, config, query)?;
     snapshot_value(
         config,
         &writer_epoch.to_string(),
@@ -570,7 +813,10 @@ pub(super) fn delta_within(
     base_cut: &Value,
     floor: i64,
 ) -> Result<Value, String> {
+    let tx = c.unchecked_transaction().map_err(err)?;
+    let c: &Connection = &tx;
     check_epoch(c, writer_epoch)?;
+    audit(c, config)?;
     let (last, last_root, last_ns, image) = latest(c)?;
     let rebuild = cut(config, last, &last_root);
     if base_cut["domain_id"] != config.domain {
@@ -625,7 +871,7 @@ fn resume_checked(config: &Config, base: &Value, delta: &Value) -> Result<Value,
     let mut prev = required(&base["cut"], "root_hash")?.to_owned();
     let mut ns = required(&base["frontier"], "commit_ns")?.to_owned();
     let mut image_hash = base["image_hash"].clone();
-    let mut cuts = Vec::new();
+    let mut links_by_seq = Vec::new();
     for link in delta["links"].as_array().ok_or("links形状")? {
         exact(
             link,
@@ -642,7 +888,7 @@ fn resume_checked(config: &Config, base: &Value, delta: &Value) -> Result<Value,
         {
             return Err(format!("提交链在 seq {seq} 断开"));
         }
-        cuts.push(link["cut"].clone());
+        links_by_seq.push((seq, link.clone(), prev.clone()));
         prev = root;
         ns = link_ns.to_owned();
         image_hash = json!(link_hash);
@@ -658,18 +904,78 @@ fn resume_checked(config: &Config, base: &Value, delta: &Value) -> Result<Value,
     if delta["image_hash"] != image_hash || hash(&delta["image"]) != image_hash {
         return Err("delta 图像不等于链终点根所承诺的图像".into());
     }
-    for e in delta["events"].as_array().ok_or("events形状")? {
-        validate(e)?;
-        if !cuts.contains(&e["cut"]) {
-            return Err("delta 事件不属于本批提交".into());
-        }
-    }
+    check_events(config, delta, &links_by_seq, seq)?;
     let mut out = base.clone();
     out["cut"] = next.clone();
     out["frontier"] = json!({"commit_seq":next["commit_seq"],"commit_ns":ns});
     out["image_hash"] = image_hash;
     out["image"] = delta["image"].clone();
     Ok(out)
+}
+
+/// 事件集合逐位核对（裁定四.3）：每个链接提交应有的事件由链尾根绑定图像推出——
+/// ordinal 0 是该提交的 history 条目，ordinal 1.. 是该提交追加的阶段事件。
+/// delta.events 必须恰好是这组事件，按 (commit_seq, ordinal) 升序、无缺项、无重复、无多余，
+/// 且每条的 kind/payload 与图像一致、cut/prev_root/root 与对应链接一致。
+fn check_events(
+    config: &Config,
+    delta: &Value,
+    links: &[(i64, Value, String)],
+    last: i64,
+) -> Result<(), String> {
+    let history = delta["image"]["history"]
+        .as_array()
+        .ok_or("delta 图像 history 形状")?;
+    let phase = delta["image"]["book"]["phase"]["events"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    if history.len() as i64 != last {
+        return Err("delta 图像 history 长度与链终点不一致".into());
+    }
+    let mut expected = Vec::new();
+    for (seq, link, prev_root) in links {
+        let entry = &history[(*seq - 1) as usize];
+        let (kind, payload) = first_expected(entry);
+        expected.push((
+            event_id(&config.domain, *seq, 0),
+            kind,
+            payload,
+            link,
+            prev_root,
+        ));
+        let own = phase.iter().filter(|e| e["commit_seq"] == seq.to_string());
+        for (i, e) in own.enumerate() {
+            expected.push((
+                event_id(&config.domain, *seq, i + 1),
+                e["kind"].clone(),
+                e.clone(),
+                link,
+                prev_root,
+            ));
+        }
+    }
+    let events = delta["events"].as_array().ok_or("events形状")?;
+    if events.len() != expected.len() {
+        return Err(format!(
+            "delta 事件数 {} 不等于链上应有的 {}",
+            events.len(),
+            expected.len()
+        ));
+    }
+    for (e, (id, kind, payload, link, prev_root)) in events.iter().zip(&expected) {
+        validate(e)?;
+        if e["event_id"] != *id
+            || e["kind"] != *kind
+            || e["payload"] != *payload
+            || e["cut"] != link["cut"]
+            || e["prev_root"] != **prev_root
+            || e["root"] != link["cut"]["root_hash"]
+        {
+            return Err(format!("delta 事件 {id} 与链上应有事件不一致"));
+        }
+    }
+    Ok(())
 }
 
 /// 逐字段比对：返回取值不同（含一侧缺失）的顶层字段名。

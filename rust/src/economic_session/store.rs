@@ -227,6 +227,7 @@ impl Config {
                     "ActivateCapPolicy",
                     "QueryDecision",
                     "QueryGrant",
+                    super::domain_event::WITHDRAW_OP,
                 ]
                 .contains(&op)
                     || (sr_expansion
@@ -1099,6 +1100,21 @@ pub(super) fn audit_with_budget(
         } else if image["history"]
             .as_array()
             .and_then(|a| a.last())
+            .is_some_and(|e| e["kind"] == super::domain_event::WITHDRAW_OP)
+        {
+            // #1768：撤回提交与写路径共用 withdrawal_image 判据；只追加 history，不动其余任何部分。
+            let event = image["history"].as_array().unwrap().last().unwrap();
+            if event["commit_seq"] != seq.to_string() || event["commit_ns"] != ns {
+                return Err("StorageUnavailable：撤回条目序号/时间不属于该实际提交".into());
+            }
+            let expected = super::domain_event::withdrawal_image(config, &previous_image, event)
+                .map_err(|e| format!("StorageUnavailable：撤回重放失败：{e}"))?;
+            if image != expected {
+                return Err("StorageUnavailable：撤回重放不等于完整提交图像".into());
+            }
+        } else if image["history"]
+            .as_array()
+            .and_then(|a| a.last())
             .is_some_and(|e| e["kind"] == "ResolveEvidence")
         {
             let event = image["history"].as_array().unwrap().last().unwrap();
@@ -1209,6 +1225,30 @@ pub(super) fn audit_with_budget(
         return Err("StorageUnavailable：域损坏：永久回执数不等于业务提交数".into());
     }
     for r in receipt_rows {
+        if r["kind"] == super::domain_event::WITHDRAW_RECEIPT {
+            let seq = positive(required(&r["cut"], "commit_seq")?, "撤回回执 commit_seq")?;
+            let (actual_root, raw): (String, String) = budget.one(
+                c,
+                "SELECT root,image FROM commits WHERE seq=?",
+                [seq],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )?;
+            let image = strict_json(raw.as_bytes())?;
+            let entry = image["history"]
+                .as_array()
+                .and_then(|a| a.last())
+                .ok_or("StorageUnavailable：撤回回执的实际提交缺条目")?;
+            if entry["kind"] != super::domain_event::WITHDRAW_OP
+                || r != super::domain_event::withdrawal_receipt(
+                    config,
+                    entry,
+                    cut(config, seq, &actual_root),
+                )
+            {
+                return Err("StorageUnavailable：撤回回执不等于实际提交".into());
+            }
+            continue;
+        }
         if r["kind"] == "Resolved" {
             super::tb03c_e::audit_receipt(c, config, &previous_image, &r, budget)?;
             continue;
@@ -1326,17 +1366,20 @@ pub(super) fn audit_with_budget(
         while let Some(r) = budget.next(&mut rs)? {
             let (k, s): (String, String) = (r.get(0).map_err(err)?, r.get(1).map_err(err)?);
             let v = strict_json(s.as_bytes())?;
-            let expected_key = if table == "receipts" && v["kind"] == "Resolved" {
-                super::tb03c_e::receipt_key(required(&v, "evidence_id")?)
-            } else if table == "receipts" && v["kind"] == super::sr_expansion::RECEIPT {
-                super::sr_expansion::receipt_key(required(&v, "evaluation_id")?)
-            } else if table == "receipts" && v.get("receipt_key").is_some() {
-                required(&v, "receipt_key")?.to_owned()
-            } else if table == "receipts" && v["kind"] == "VoiceBound" {
-                super::voice::receipt_key(required(&v, "binding_id")?)
-            } else {
-                required(&v, field)?.to_owned()
-            };
+            let expected_key =
+                if table == "receipts" && v["kind"] == super::domain_event::WITHDRAW_RECEIPT {
+                    super::domain_event::withdrawal_receipt_key(&v["target"])
+                } else if table == "receipts" && v["kind"] == "Resolved" {
+                    super::tb03c_e::receipt_key(required(&v, "evidence_id")?)
+                } else if table == "receipts" && v["kind"] == super::sr_expansion::RECEIPT {
+                    super::sr_expansion::receipt_key(required(&v, "evaluation_id")?)
+                } else if table == "receipts" && v.get("receipt_key").is_some() {
+                    required(&v, "receipt_key")?.to_owned()
+                } else if table == "receipts" && v["kind"] == "VoiceBound" {
+                    super::voice::receipt_key(required(&v, "binding_id")?)
+                } else {
+                    required(&v, field)?.to_owned()
+                };
             if expected_key != k {
                 return Err(format!(
                     "StorageUnavailable：域损坏：{table}主键与内容不一致"
@@ -1380,7 +1423,21 @@ pub(super) fn audit_with_budget(
         let receipt = metered_row(c, "receipts", &rk, budget)?
             .ok_or("StorageUnavailable：域损坏：消息缺原回执")?;
         let payload = &request["payload"];
-        if receipt["kind"] == "Resolved" {
+        if receipt["kind"] == super::domain_event::WITHDRAW_RECEIPT {
+            if payload["op"] != super::domain_event::WITHDRAW_OP
+                || rk != super::domain_event::withdrawal_receipt_key(&payload["target"])
+                || [
+                    "target",
+                    "withdrawn_generation",
+                    "withdrawal_reason",
+                    "superseded_by",
+                ]
+                .iter()
+                .any(|k| payload[*k] != receipt[*k])
+            {
+                return Err("StorageUnavailable：撤回消息与永久回执不一致".into());
+            }
+        } else if receipt["kind"] == "Resolved" {
             let event =
                 super::tb03c_e::event_for(&previous_image, required(&receipt, "evidence_id")?)?;
             if config.domain != "E"
