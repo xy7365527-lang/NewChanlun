@@ -956,6 +956,8 @@ const ENTITY_FIELDS: &[(&str, &str, &str, Arity)] = &[
     ("CC-016.center", "zn_members", "CC-013.segment", Arity::Many),
     ("CC-016.center", "break_unit", "CC-013.segment", Arity::Optional),
     ("CC-016.center", "next_tested_unit", "CC-013.segment", Arity::Optional),
+    // 嵌套字段以点分路径登记；resume_anchor 未结算时为 null，按 Optional 跳过。
+    ("CC-016.center", "resume_anchor.after_unit_id", "CC-013.segment", Arity::Optional),
     ("CC-016.center", "roles_id", "CC-017.center_roles", Arity::One),
     ("CC-017.center_roles", "center_id", "CC-016.center", Arity::One),
     ("CC-022.unit_assignment", "center_id", "CC-016.center", Arity::Optional),
@@ -972,7 +974,7 @@ fn entity_field_ids(
     arity: Arity,
     out: &mut sc::CodecVec<bj::TextValue>,
 ) -> Result<(), String> {
-    let value = field(s, d, name)?;
+    let value = field_path(s, d, name)?;
     match (arity, value.kind()) {
         (Arity::Optional, Kind::Null) => {}
         (Arity::Many, Kind::Array) => {
@@ -984,6 +986,22 @@ fn entity_field_ids(
         _ => push_entity_id(s, value.view(), name, out)?,
     }
     Ok(())
+}
+/// 点分路径逐级取字段；中途遇 null 即返回该 null（由元数决定是否允许）。
+fn field_path(
+    s: &mut (impl SourceFieldStore + ?Sized),
+    d: &RefValue,
+    name: &str,
+) -> Result<RefValue, String> {
+    let mut parts = name.split('.');
+    let mut value = field(s, d, parts.next().unwrap_or(name))?;
+    for part in parts {
+        if value.kind() == Kind::Null {
+            break;
+        }
+        value = field(s, &value, part)?;
+    }
+    Ok(value)
 }
 fn push_entity_id(
     s: &mut (impl SourceFieldStore + ?Sized),
@@ -2095,6 +2113,12 @@ mod ef_entity_tests {
             d[k] = v;
             d
         };
+        let settled = pick("CC-016.center", &|d| !d["resume_anchor"].is_null());
+        let anchor = |v: Value| {
+            let mut d = at(settled);
+            d["resume_anchor"]["after_unit_id"] = v;
+            d
+        };
         let mut members = at(center);
         members["members"]
             .as_array_mut()
@@ -2108,6 +2132,8 @@ mod ef_entity_tests {
             ("center.seed_attempt_id 指另一中心attempt", center, with(center, "seed_attempt_id", c1["seed_attempt_id"].clone()), "中心seed attempt互指错绑"),
             ("center.members 悬空成员", center, members, "端点悬空"),
             ("center.break_unit 指中心", center, with(center, "break_unit", c1["entity_id"].clone()), "端点种类错绑"),
+            ("center.resume_anchor.after_unit_id 悬空", settled, anchor(json!("segment:missing")), "端点悬空"),
+            ("center.resume_anchor.after_unit_id 指中心", settled, anchor(c1["entity_id"].clone()), "端点种类错绑"),
             ("attempt.center_id 指另一中心", attempt, { let d = at(attempt); with(attempt, "center_id", other_center(&d["center_id"])) }, "seed attempt与中心互指错绑"),
             ("member assignment 指另一中心", member, { let d = at(member); with(member, "center_id", other_center(&d["center_id"])) }, "成员归属不在当前中心成员中"),
             ("assignment.center_id 悬空", member, with(member, "center_id", json!("center:missing")), "端点悬空"),
