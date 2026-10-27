@@ -3266,24 +3266,51 @@ mod tests {
     }
 
     /// #1572 测量：暖 driver 第 2、3 次入口前的候选组，逐持有者析构读数与合同额并列导出，
-    /// 用于补齐候选组逐项清单；只核读数守恒，不改任何生产判据。
+    /// 用于补齐候选组逐项清单；不改任何生产判据。capture 清点或来源对账失败、清单之和不等于
+    /// capture 析构下降、正文合同三元组不等于独立预期、删一张或重复列一张的变异未被拒，均令本测试
+    /// 失败（探针返回 Err）。
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn i1572_warm_candidate_holder_drop_probe() {
         for done in 1..=2 {
             let fixture = Fixture::new();
             let mut warm = complete_driver(&fixture);
+            // 期望父账与来源域：开启后与每个请求收尾的静止点读候选父账身份与当前域（无候选不读、
+            // 不建工作域），在析构探针首尾 live 之外取。
+            let mut ledger = None;
+            let mut origins = Vec::new();
+            let mut record = |warm: &Driver| {
+                let domain = warm.conn.i1572_candidate_domain_for_test().unwrap();
+                if let Some((id, origin)) = domain {
+                    ledger = Some(id);
+                    if !origins.contains(&origin) {
+                        origins.push(origin);
+                    }
+                }
+            };
+            record(&warm);
             for n in 1..=done {
                 warm.handle(Fixture::ingest(n)).unwrap();
+                record(&warm);
             }
+            let ledger = ledger.expect("暖入口有完整候选");
             let partition = {
                 let keeper = warm.conn.source_keeper_for_test();
                 warm.conn.old_pool_partition(keeper.as_ref()).unwrap()
             };
             let probe = warm
                 .conn
-                .i1572_candidate_drop_probe_for_test()
-                .expect("暖入口有完整候选");
+                .i1572_candidate_drop_probe_for_test(ledger, &origins)
+                .unwrap_or_else(|e| panic!("暖候选清单核对失败：{e}"));
+            let capture = &probe["capture_inventory"];
+            let dropped = probe["steps"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|s| s[0] == "capture")
+                .map(|s| s[1].as_u64().unwrap());
+            assert_eq!(capture["listed_bytes"].as_u64(), dropped);
+            assert_eq!(capture["dropped"].as_u64(), dropped);
             let released: u64 = probe["steps"]
                 .as_array()
                 .unwrap()
@@ -3297,7 +3324,17 @@ mod tests {
             );
             eprintln!(
                 "I1572_DROP_PROBE {}",
-                json!({"entry": done + 1, "partition": partition, "probe": probe})
+                json!({
+                    "entry": done + 1,
+                    "partition": partition,
+                    "capture_check": [
+                        capture["listed_bytes"],
+                        capture["dropped"],
+                        capture["source_claims"],
+                    ],
+                    "origins": origins,
+                    "probe": probe,
+                })
             );
         }
     }

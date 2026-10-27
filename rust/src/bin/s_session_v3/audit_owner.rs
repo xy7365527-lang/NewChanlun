@@ -1309,12 +1309,42 @@ impl AuditConnection {
                 .retain_mut(|mark| mark.settle_release(before.next().flatten()));
         }
     }
+    /// #1572：候选父账身份与当前来源域（静止点读数）。只为读身份临建一个工作域，建前读 live、
+    /// 析构后核 live 复原；由调用方在析构探针首尾 live 计量之外取，不进入任何一步差额。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn i1572_candidate_domain_for_test(&self) -> Result<Option<(usize, u64)>, String> {
+        let complete = self.complete.borrow();
+        let Some(c) = complete.as_ref() else {
+            return Ok(None);
+        };
+        let before = c.resources.live();
+        let work = c
+            .resources
+            .codec_work()
+            .map_err(|e| format!("读候选来源域：{e:?}"))?;
+        let domain = (work.ledger_id(), work.current_origin());
+        drop(work);
+        if c.resources.live() != before {
+            return Err("读候选来源域后父账live未复原".into());
+        }
+        Ok(Some(domain))
+    }
     /// #1572 测量探针（只在测试中调用；会销毁候选）：按字段声明顺序逐个析构完整候选，记录每步候选
     /// 父账 live 的实际下降，与该时刻的合同额并列导出。共享Rc块记在最后一个持有者析构的那一步。
     /// 这是逐持有者物理额的事实读数，不是生产冻结口径；生产须非破坏地得到同一读数。
+    /// capture 清点、来源对账、独立预期与析构下降任一不符即返回 Err；`ledger`/`origins` 由调用方
+    /// 在本探针首尾 live 计量之外取得。
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
-    pub(super) fn i1572_candidate_drop_probe_for_test(&self) -> Option<serde_json::Value> {
-        let c = self.complete.borrow_mut().take()?;
+    pub(super) fn i1572_candidate_drop_probe_for_test(
+        &self,
+        ledger: usize,
+        origins: &[u64],
+    ) -> Result<serde_json::Value, String> {
+        let c = self
+            .complete
+            .borrow_mut()
+            .take()
+            .ok_or_else(|| "暖入口无完整候选".to_string())?;
         let parent = c.resources.clone();
         let contract = serde_json::to_value(&c.charge).unwrap();
         let start = parent.live();
@@ -1356,38 +1386,24 @@ impl AuditConnection {
             drop(source_pending);
             step("slot.source_pending", &mut steps);
         }
-        // capture按所保护载荷分组的逐张清单，及来源合同对正文许可的对账。
-        let capture_roles = capture.as_ref().map(|capture| {
-            use newchan_rust::s_content::AuditCapture as A;
-            let mut entries = Vec::new();
-            if let Err(e) = capture.native_live_permit_entries_for_testonly(&mut entries) {
-                return serde_json::json!({
-                    "inventory_error": e.to_string(),
-                    "owner_codec_retained": capture.owner_codec_retained_bytes_for_testonly(),
-                });
-            }
-            let mut roles = std::collections::BTreeMap::<String, (usize, usize)>::new();
-            for e in &entries {
-                let slot = roles.entry(format!("{:?}", e.role)).or_default();
-                slot.0 += 1;
-                slot.1 += e.bytes;
-            }
-            let claims = capture.native_source_claim_entries_for_testonly().unwrap();
-            let reconciled = A::reconcile_native_source_claims_for_testonly(&entries, &claims)
-                .map(|r| serde_json::json!([r.claims, r.claim_amount, r.backing_bytes]))
-                .unwrap_or_else(|e| serde_json::json!(e.to_string()));
-            serde_json::json!({
-                "listed_bytes": entries.iter().map(|e| e.bytes).sum::<usize>(),
-                "roles": roles,
-                "source_claims": reconciled,
-                "retention": capture.native_retention_numbers_for_testonly().map(|r| serde_json::json!({
-                    "body_len": r.body_len, "body_capacity": r.body_capacity, "nodes": r.nodes,
-                    "public_roots": r.public_roots, "template_roots": r.template_roots,
-                })),
-            })
-        });
+        // capture按所保护载荷分组的逐张清单及来源对账；条目借用 capture，析构前只留无借用的读数。
+        let listing = capture
+            .as_ref()
+            .map(|capture| I1572CaptureListing::take(capture, ledger, origins))
+            .transpose()?;
         drop(capture);
         step("capture", &mut steps);
+        let capture_check = match listing {
+            Some(listing) => {
+                let dropped = steps
+                    .last()
+                    .and_then(|s| s[1].as_u64())
+                    .ok_or_else(|| "缺capture析构读数".to_string())?;
+                let dropped = usize::try_from(dropped).map_err(|e| e.to_string())?;
+                Some(listing.against_drop(dropped)?)
+            }
+            None => None,
+        };
         drop(audited);
         step("audited(raw+historical)", &mut steps);
         drop(q);
@@ -1399,14 +1415,14 @@ impl AuditConnection {
         step("_inline_permit", &mut steps);
         let after = parent.live();
         drop(resources);
-        Some(serde_json::json!({
+        Ok(serde_json::json!({
             "slot_alive": slot_alive,
             "parent_live_before": start,
             "parent_live_after_holders": after,
             "metadata_M": native::Budget::metadata_bytes(),
             "raw_state_retained_contract": self.construction.borrow().as_ref().map(|r| r.retained_bytes()),
             "steps": steps,
-            "capture_inventory": capture_roles,
+            "capture_inventory": capture_check,
             "contract": contract,
         }))
     }
@@ -2351,6 +2367,160 @@ struct CompleteCharge {
     total: usize,
     entry_reserved_bytes: usize,
     handoff_peak: usize,
+}
+/// #1572：暖候选 capture 逐许可清单核对的独立预期，不由被测清单算出。父账身份与来源域由调用方
+/// 在析构计量之外取得；正文合同数、合同额、backing 总额取自持有者既有标量
+/// （`native_bound_body_nodes_for_testonly`，`native_retention_numbers_for_testonly` 的
+/// nodes/body_len/body_capacity）。
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+struct I1572CaptureExpect<'o> {
+    ledger: usize,
+    origins: &'o [u64],
+    bound_nodes: usize,
+    nodes: usize,
+    body_len: usize,
+    body_capacity: usize,
+}
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+impl I1572CaptureExpect<'_> {
+    /// #1572 可复用核对：来源合同对账（同父同域、节点与 backing 配对、按正文长度推额）后，
+    /// 对账三元组须等于独立预期。只在全部正文已 Native 绑定（bound=nodes）时成立：合同数=nodes、
+    /// 合同额=body_len+97×nodes、backing 总额=body_capacity。返回清单字节之和与对账三元组。
+    fn check(
+        &self,
+        entries: &[newchan_rust::s_content::CapturePermitEntry<'_>],
+        claims: &[newchan_rust::s_content::SourceClaimEntry<'_>],
+    ) -> Result<(usize, [usize; 3]), String> {
+        use newchan_rust::s_content::AuditCapture as A;
+        let r = A::reconcile_native_source_claims_for_testonly(
+            entries,
+            claims,
+            self.ledger,
+            self.origins,
+        )
+        .map_err(|e| format!("来源合同对账：{e}"))?;
+        if self.bound_nodes != self.nodes {
+            return Err(format!(
+                "暖候选有未绑定正文：bound={} nodes={}",
+                self.bound_nodes, self.nodes
+            ));
+        }
+        let amount = self
+            .nodes
+            .checked_mul(97)
+            .and_then(|n| n.checked_add(self.body_len))
+            .ok_or_else(|| "独立合同额溢出".to_string())?;
+        let independent = [self.nodes, amount, self.body_capacity];
+        let got = [r.claims, r.claim_amount, r.backing_bytes];
+        if got != independent {
+            return Err(format!("来源合同三元组{got:?}≠独立预期{independent:?}"));
+        }
+        let listed = entries
+            .iter()
+            .try_fold(0usize, |sum, e| sum.checked_add(e.bytes()))
+            .ok_or_else(|| "清单字节溢出".to_string())?;
+        Ok((listed, got))
+    }
+}
+/// #1572：capture 清单字节之和须等于 capture 那一步的真实析构下降。
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+fn i1572_capture_matches_drop(listed: usize, dropped: usize) -> Result<(), String> {
+    if listed == dropped {
+        Ok(())
+    } else {
+        Err(format!("capture清单之和{listed}≠析构下降{dropped}"))
+    }
+}
+/// #1572：暖候选 capture 清单核对的无借用读数，可跨 capture 析构保留。
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+struct I1572CaptureListing {
+    listed_bytes: usize,
+    source_claims: [usize; 3],
+    roles: std::collections::BTreeMap<String, (usize, usize)>,
+    retention: serde_json::Value,
+    mutants: Vec<(&'static str, Result<usize, String>)>,
+}
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+impl I1572CaptureListing {
+    /// 清点 capture 的存活许可与来源合同并核对；清点或核对失败即 Err。另在同一份真实清单上
+    /// 做两种变异（删去字节最大的一张、重复列一张），留待析构下降后核对。
+    fn take(
+        capture: &newchan_rust::s_content::AuditCapture,
+        ledger: usize,
+        origins: &[u64],
+    ) -> Result<Self, String> {
+        let mut entries = Vec::new();
+        capture
+            .native_live_permit_entries_for_testonly(&mut entries)
+            .map_err(|e| format!("capture清点：{e}"))?;
+        let claims = capture
+            .native_source_claim_entries_for_testonly()
+            .map_err(|e| format!("来源合同清点：{e}"))?;
+        let retention = capture
+            .native_retention_numbers_for_testonly()
+            .ok_or_else(|| "暖候选capture缺Native原件".to_string())?;
+        let expect = I1572CaptureExpect {
+            ledger,
+            origins,
+            bound_nodes: capture.native_bound_body_nodes_for_testonly(),
+            nodes: retention.nodes,
+            body_len: retention.body_len,
+            body_capacity: retention.body_capacity,
+        };
+        let (listed_bytes, source_claims) = expect.check(&entries, &claims)?;
+        let largest = entries
+            .iter()
+            .enumerate()
+            .max_by_key(|(_, e)| e.bytes())
+            .map(|(i, _)| i)
+            .ok_or_else(|| "capture清单为空".to_string())?;
+        let mut deleted = entries.clone();
+        deleted.remove(largest);
+        let mut doubled = entries.clone();
+        doubled.push(entries[largest]);
+        let mutants = vec![
+            ("deleted", expect.check(&deleted, &claims).map(|c| c.0)),
+            ("doubled", expect.check(&doubled, &claims).map(|c| c.0)),
+        ];
+        let mut roles = std::collections::BTreeMap::<String, (usize, usize)>::new();
+        for e in &entries {
+            let slot = roles.entry(format!("{:?}", e.role())).or_default();
+            slot.0 += 1;
+            slot.1 += e.bytes();
+        }
+        Ok(Self {
+            listed_bytes,
+            source_claims,
+            roles,
+            retention: serde_json::json!({
+                "body_len": retention.body_len, "body_capacity": retention.body_capacity,
+                "nodes": retention.nodes, "bound_body_nodes": expect.bound_nodes,
+                "public_roots": retention.public_roots, "template_roots": retention.template_roots,
+            }),
+            mutants,
+        })
+    }
+    /// 清单字节之和须等于 capture 那一步的真实析构下降；每种变异都须被对账或析构下降拒绝。
+    fn against_drop(self, dropped: usize) -> Result<serde_json::Value, String> {
+        i1572_capture_matches_drop(self.listed_bytes, dropped)?;
+        let mut mutants = serde_json::Map::new();
+        for (name, mutant) in self.mutants {
+            match mutant.and_then(|listed| i1572_capture_matches_drop(listed, dropped)) {
+                Ok(()) => return Err(format!("变异负控未被拒：{name}")),
+                Err(e) => {
+                    mutants.insert(name.into(), e.into());
+                }
+            }
+        }
+        Ok(serde_json::json!({
+            "listed_bytes": self.listed_bytes,
+            "dropped": dropped,
+            "source_claims": self.source_claims,
+            "roles": self.roles,
+            "retention": self.retention,
+            "mutants": mutants,
+        }))
+    }
 }
 #[cfg(feature = "s_capture_native_testonly")]
 struct CompleteCandidate {
