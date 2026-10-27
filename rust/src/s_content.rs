@@ -3837,20 +3837,17 @@ impl AuditCapture {
         &self,
         out: &mut Vec<usize>,
     ) -> Result<(), CodecError> {
-        let mut entries = Vec::new();
-        self.native_permit_entries_for_testonly(&mut entries)?;
-        out.extend(entries.iter().map(|e| e.bytes));
-        Ok(())
+        self.visit_native_permits(true, &mut |entry: CapturePermitEntry| out.push(entry.bytes))
     }
     /// #1572：同上清单，逐张带身份与所保护载荷；字节序列与 `native_permit_inventory_for_testonly`
-    /// 逐项相同（后者由本函数投影）。
+    /// 逐项相同（二者共用逐许可 visitor，边遍历边写入调用者的 out）。
     #[cfg(feature = "s_capture_native_testonly")]
     #[doc(hidden)]
     pub fn native_permit_entries_for_testonly(
         &self,
         out: &mut Vec<CapturePermitEntry>,
     ) -> Result<(), CodecError> {
-        self.list_native_permits(out, true)
+        self.visit_native_permits(true, &mut |entry: CapturePermitEntry| out.push(entry))
     }
     /// #1572：存活候选的完整清单——在封存清单之外再列 owner codec 证书节点与节点证明盒的许可，
     /// 不要求二者已清空（封存池仍用上面的严格版本）。
@@ -3865,13 +3862,13 @@ impl AuditCapture {
             owner.public.permit_entries(out);
             owner.template.permit_entries(out);
         }
-        self.list_native_permits(out, false)
+        self.visit_native_permits(false, &mut |entry: CapturePermitEntry| out.push(entry))
     }
     #[cfg(feature = "s_capture_native_testonly")]
-    fn list_native_permits(
+    fn visit_native_permits(
         &self,
-        out: &mut Vec<CapturePermitEntry>,
         sealed: bool,
+        visit: &mut impl FnMut(CapturePermitEntry),
     ) -> Result<(), CodecError> {
         use capture_allocation::scratch::NativeReservation;
         use CapturePermitRole as R;
@@ -3890,48 +3887,49 @@ impl AuditCapture {
             ));
         }
         for memo in [&self.public, &self.template] {
-            out.extend(
-                memo.borrow()
-                    .native_seen_permit
-                    .as_ref()
-                    .map(|p| held(p, R::MemoSeen)),
-            );
+            let memo = memo.borrow();
+            if let Some(p) = memo.native_seen_permit.as_ref() {
+                visit(held(p, R::MemoSeen));
+            }
         }
         if let CaptureNodes::Native(native) = &self.nodes {
-            out.extend(native.index_permit.as_ref().map(|p| held(p, R::NodeIndex)));
+            if let Some(p) = native.index_permit.as_ref() {
+                visit(held(p, R::NodeIndex));
+            }
             for node in native.nodes.values() {
                 let proof = node.proof.borrow();
                 if sealed && proof.is_some() {
                     return Err(CodecError::new(code::SOURCE, "许可清单：节点证明未清空"));
                 }
-                out.extend(
-                    proof
-                        .as_ref()
-                        .and_then(|b| b.permit())
-                        .map(|p| held(p, R::NodeProof)),
-                );
-                out.extend(codec(node.body.native_permit_entry(), R::NodeBody));
+                if let Some(p) = proof.as_ref().and_then(|b| b.permit()) {
+                    visit(held(p, R::NodeProof));
+                }
+                if let Some(entry) = codec(node.body.native_permit_entry(), R::NodeBody) {
+                    visit(entry);
+                }
             }
         }
-        out.extend(
-            self.codec_roots
-                .borrow()
-                .public_permit
-                .as_ref()
-                .map(|p| held(p, R::CodecRoots)),
-        );
+        {
+            let roots = self.codec_roots.borrow();
+            if let Some(p) = roots.public_permit.as_ref() {
+                visit(held(p, R::CodecRoots));
+            }
+        }
         if let Some(fees) = &self.original_fees {
-            out.extend(codec(
-                fees.bodies.native_permit_entry(),
-                R::OriginalFeeBodies,
-            ));
-            out.extend(
-                fees.bodies.iter().filter_map(|(_, permit, _)| {
-                    permit.as_ref().map(|p| held(p, R::OriginalFeeBody))
-                }),
-            );
-            out.extend(codec(fees.table.native_permit_entry(), R::OriginalFeeTable));
-            out.extend(fees.table.iter().map(|p| held(p, R::OriginalFeeTableEntry)));
+            if let Some(entry) = codec(fees.bodies.native_permit_entry(), R::OriginalFeeBodies) {
+                visit(entry);
+            }
+            for (_, permit, _) in fees.bodies.iter() {
+                if let Some(p) = permit.as_ref() {
+                    visit(held(p, R::OriginalFeeBody));
+                }
+            }
+            if let Some(entry) = codec(fees.table.native_permit_entry(), R::OriginalFeeTable) {
+                visit(entry);
+            }
+            for p in fees.table.iter() {
+                visit(held(p, R::OriginalFeeTableEntry));
+            }
         }
         Ok(())
     }
@@ -4028,13 +4026,23 @@ impl AuditCapture {
     #[cfg(feature = "s_capture_native_testonly")]
     #[doc(hidden)]
     pub fn native_source_claims_for_testonly(&self) -> Result<(usize, usize), CodecError> {
-        self.native_source_claim_entries_for_testonly()?
-            .iter()
-            .filter(|c| c.site == CapturePermitRole::NodeBody)
-            .try_fold((0usize, 0usize), |(count, sum), c| {
+        let CaptureNodes::Native(native) = &self.nodes else {
+            return Ok((0, 0));
+        };
+        native
+            .nodes
+            .values()
+            .filter_map(|node| node.source_claim.as_ref().map(|claim| (node, claim)))
+            .try_fold((0usize, 0usize), |(count, sum), (node, claim)| {
+                let backed = SourceClaim::on_body(&node.body)?;
+                if backed.bytes != claim.bytes {
+                    return Err(CodecError::scratch(
+                        capture_allocation::scratch::ScratchFailure::Ledger,
+                    ));
+                }
                 Ok((
                     count + 1,
-                    sum.checked_add(c.amount)
+                    sum.checked_add(claim.bytes)
                         .ok_or_else(|| CodecError::new(code::SOURCE, "来源合同额溢出"))?,
                 ))
             })
