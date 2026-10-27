@@ -2,6 +2,7 @@ import importlib.util
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 SCRIPT = Path(__file__).with_name("check-prod-no-test-hooks.py")
 SPEC = importlib.util.spec_from_file_location("check_prod_no_test_hooks", SCRIPT)
@@ -70,6 +71,51 @@ class ProdHookCheckerTests(unittest.TestCase):
                 self.assertTrue(any("testonly_pause" in v for v in scan_source(source, rel)))
         self.assertTrue(any("testonly_pause" in v
                             for v in scan_source(gate + "fn testonly_pause(stage: &str) {}\n")))
+
+    def env_violations(self, lib):
+        gen = checker.load_gen()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            (root / "src").mkdir()
+            (root / "src/lib.rs").write_text(lib, encoding="utf-8")
+            with patch.object(gen, "CRATE_ROOTS", ("src/lib.rs",)), \
+                 patch.object(gen._checker, "ROOTS", ("src",)):
+                return checker.env_violations(root)
+
+    def test_env_axis_reports_ungated_sidecar_under_any_function_name(self):
+        for name in ("record_connection_pragmas", "observe", "x"):
+            lib = (f"fn {name}() {{\n"
+                   '    if std::env::var("S_SESSION_PRAGMA_SIDECAR").ok().as_deref() != Some("1") { return; }\n'
+                   "}\n")
+            with self.subTest(name=name):
+                self.assertTrue(any("S_SESSION_PRAGMA_SIDECAR" in v and "s_incremental" in v
+                                    for v in self.env_violations(lib)))
+        self.assertEqual(scan_source('fn record_connection_pragmas() {}\n',
+                                     "rust/src/bin/s_structure_session.rs"), [])
+
+    def test_env_axis_accepts_incremental_gate_and_production_env(self):
+        gate = '#[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]\n'
+        lib = (gate + 'fn sidecar() { let _ = std::env::var("S_SESSION_PRAGMA_SIDECAR_PATH"); }\n'
+               'fn live() { let _ = std::env::var_os("S_CONTROL_INSTANCE_ID"); }\n'
+               "#[cfg(test)]\nmod tests;\n")
+        self.assertEqual(self.env_violations(lib), [])
+
+    def test_env_axis_default_only_requires_listing(self):
+        gate = '#[cfg(not(feature = "s_incremental"))]\n'
+        lib = gate + 'fn other() { let _ = std::env::var("S_UNLISTED_DIAG_SWITCH"); }\n'
+        self.assertTrue(any("S_UNLISTED_DIAG_SWITCH" in v and "默认" in v for v in self.env_violations(lib)))
+
+    def test_env_axis_ignores_test_module_files(self):
+        gen = checker.load_gen()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            (root / "src").mkdir()
+            (root / "src/lib.rs").write_text("#[cfg(test)]\nmod probe;\n", encoding="utf-8")
+            (root / "src/probe.rs").write_text('fn f() { let _ = std::env::var("S1394_PROBE_DB"); }\n',
+                                               encoding="utf-8")
+            with patch.object(gen, "CRATE_ROOTS", ("src/lib.rs",)), \
+                 patch.object(gen._checker, "ROOTS", ("src",)):
+                self.assertEqual(checker.env_violations(root), [])
 
     def test_roots_cover_pr_write_set_and_exist(self):
         root = Path(__file__).resolve().parents[2]

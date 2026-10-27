@@ -7,6 +7,8 @@
 test=false 求值；任一集合为真即生产可达，判违规。未知谓词（unix、target_os、debug_assertions
 等）真假两可，保守地按「可能为真」求值，即视为生产可达。
 已知生产例外列在 ALLOWLIST，新增例外须评审。
+第二条轴不看名字：沿 crate 模块图找管辖面内的 `std::env::var` / `var_os` 读取，增量生产构建可达的
+只准读 PRODUCTION_ENV，默认构建另准 DEFAULT_BUILD_ONLY_ENV；改函数名绕不过此轴。
 
 用法：python3 .github/scripts/check-prod-no-test-hooks.py [仓根]
 exit 0 = 无违规；exit 1 = 有违规（逐条打出 文件:行）。
@@ -14,6 +16,7 @@ exit 0 = 无违规；exit 1 = 有违规（逐条打出 文件:行）。
 
 from __future__ import annotations
 
+import importlib.util
 import re
 import sys
 from pathlib import Path
@@ -112,6 +115,28 @@ DEFAULT_BUILD_ONLY: dict[str, set[str]] = {
     "rust/src/bin/s_structure_session.rs": {"testonly_pause"},
 }
 DEFAULT_BUILD = frozenset({"s_session"})
+INCREMENTAL_BUILD = frozenset({"s_session", "s_incremental"})
+
+# 第二条轴（不看函数名）：管辖面内生产可达的运行时环境变量读取（`std::env::var` / `var_os`）。
+# 生产写者只准读下列变量；其余读取一律视为测试/诊断开关入口，须 cfg 门控出生产构建。
+PRODUCTION_ENV: dict[str, str] = {
+    "S_CONTROL_INSTANCE_ID": "launcher 下发的控制实例身份（writer_cli / q_serve / v2 回执）",
+    "S_CONTROL_ADMISSION_SHA256": "launcher 下发的准入锚摘要（admission_anchor）",
+    "S_CONTROL_ADMISSION_IDENTITY": "launcher 下发的准入锚身份（admission_anchor）",
+    "S_CONTROL_START_GATE": "#1527 托管 serve 的父进程登记握手（admission_anchor）",
+    "S_CONTROL_RESOURCE_SHA256": "launcher 下发的资源档摘要（writer_cli）",
+    "S_MANIFEST_WORKSPACE_DIAGNOSTICS": "ADR 0042 D8 门外既有生产诊断（与 sqlite_pager_probe 同一开关）",
+}
+# 只在默认 {s_session} 构建可达的环境变量（与 DEFAULT_BUILD_ONLY 同一豁免口径：增量生产构建须门控排除）。
+DEFAULT_BUILD_ONLY_ENV: dict[str, str] = {
+    "S_SESSION_PAUSE": "#1371 testonly_pause",
+    "S_SESSION_PAUSE_DB": "#1371 testonly_pause",
+    "S_SESSION_PAUSE_MARKER": "#1371 testonly_pause",
+    "S_SESSION_PAUSE_RELEASE": "#1371 testonly_pause",
+    "S_SESSION_PRAGMA_SIDECAR": "#1371 record_connection_pragmas 诊断 sidecar",
+    "S_SESSION_PRAGMA_SIDECAR_DB": "#1371 record_connection_pragmas 诊断 sidecar",
+    "S_SESSION_PRAGMA_SIDECAR_PATH": "#1371 record_connection_pragmas 诊断 sidecar",
+}
 
 
 def parse_cfg(text: str):
@@ -234,6 +259,38 @@ def scan(path: Path, rel: str) -> list[str]:
     return violations
 
 
+_GEN = None
+
+
+def load_gen():
+    """crate 模块图遍历与 cfg 链求值复用第 3 层生成器（它反向载入本文件求 cfg）。"""
+    global _GEN
+    if _GEN is None:
+        spec = importlib.util.spec_from_file_location(
+            "gen_prod_banned_literals", Path(__file__).with_name("gen-prod-banned-literals.py")
+        )
+        _GEN = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(_GEN)
+    return _GEN
+
+
+def env_violations(root: Path) -> list[str]:
+    """沿 crate 模块图（含 `#[cfg] mod x;` 与 fn/块作用域）求每处环境变量读取的 cfg 链。"""
+    gen = load_gen()
+    reads: list = []
+    gen.collect(root, reads)
+    violations = []
+    for name, chain, path in reads:
+        if not gen.in_scope(root, path.resolve()) or name in PRODUCTION_ENV:
+            continue
+        rel = path.resolve().relative_to(root).as_posix()
+        if gen.reachable(chain, INCREMENTAL_BUILD, False):
+            violations.append(f"{rel}: 环境变量 {name} 在 s_incremental 生产构建可达（未列入 PRODUCTION_ENV）")
+        elif gen.reachable(chain, DEFAULT_BUILD, False) and name not in DEFAULT_BUILD_ONLY_ENV:
+            violations.append(f"{rel}: 环境变量 {name} 在默认 s_session 构建可达（未列入 DEFAULT_BUILD_ONLY_ENV）")
+    return violations
+
+
 def main() -> int:
     root = Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
     violations: list[str] = []
@@ -249,6 +306,7 @@ def main() -> int:
                 continue
             seen.add(path)
             violations.extend(scan(path, path.relative_to(root).as_posix()))
+    violations.extend(env_violations(root))
     for violation in violations:
         print(f"::error::{violation}")
     print(f"check-prod-no-test-hooks violations={len(violations)}")

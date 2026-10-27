@@ -196,7 +196,10 @@ def child_path(current: Path, name: str, explicit: str | None, is_dir_owner: boo
     return None
 
 
-def walk(path: Path, chain, is_dir_owner: bool, literals: list, queue: list) -> None:
+ENV_READ = [("ident", "env"), ("punct", ":"), ("punct", ":")]
+
+
+def walk(path: Path, chain, is_dir_owner: bool, literals: list, queue: list, env_reads: list | None = None) -> None:
     tokens = list(lex(path.read_text(encoding="utf-8")))
     file_chain = list(chain)
     frames: list[tuple[list, int]] = []
@@ -214,6 +217,10 @@ def walk(path: Path, chain, is_dir_owner: bool, literals: list, queue: list) -> 
                 explicit_path = value.split('"')[1]
         elif kind == "str":
             literals.append((value, scope + [tree for tree, _ in pending]))
+            call = tokens[position - 5 : position]
+            if (env_reads is not None and call[:3] == ENV_READ and call[4] == ("punct", "(")
+                    and call[3] in (("ident", "var"), ("ident", "var_os"))):
+                env_reads.append((value, literals[-1][1], path))
         elif kind == "punct":
             if value in "([":
                 depth += 1
@@ -248,7 +255,7 @@ def in_scope(root: Path, path: Path) -> bool:
     return False
 
 
-def collect(root: Path):
+def collect(root: Path, env_reads: list | None = None):
     literals: list = []
     queue = [(root / crate, [], True) for crate in CRATE_ROOTS]
     seen: set[Path] = set()
@@ -259,7 +266,7 @@ def collect(root: Path):
             continue
         seen.add(path)
         start = len(literals)
-        walk(path, chain, is_dir_owner, literals, queue)
+        walk(path, chain, is_dir_owner, literals, queue, env_reads)
         scoped = in_scope(root, path)
         for index in range(start, len(literals)):
             literals[index] = (*literals[index], scoped)
