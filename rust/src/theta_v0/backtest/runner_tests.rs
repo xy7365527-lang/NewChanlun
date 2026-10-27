@@ -10361,3 +10361,124 @@ fn p1605_r3_public_runner_matches_independent_baseline() {
     .unwrap();
     assert_eq!(frozen, expected);
 }
+
+/// #1419/#1605 差异定位探针（仅诊断，ignored）。逐 bar 输出各层指纹；PROBE_DETAIL=i,j 输出全量对象。
+#[test]
+#[ignore = "div1605 probe"]
+fn div1605_probe_layers() {
+    use std::fmt::Write as _;
+    fn fnv(s: &str) -> u64 {
+        let mut h: u64 = 0xcbf29ce484222325;
+        for b in s.bytes() {
+            h ^= b as u64;
+            h = h.wrapping_mul(0x100000001b3);
+        }
+        h
+    }
+    fn mv_key(m: &classifier::recursive_tower::LeveledMove) -> String {
+        let cs = match &m.rmove {
+            classifier::descend::RMove::Compose { centers, .. } => format!("{:?}", centers),
+            _ => String::new(),
+        };
+        format!(
+            "({},{},L{},{},{},{}){}",
+            m.start_index,
+            m.end_index,
+            m.rmove.level(),
+            m.rmove.lo(),
+            m.rmove.hi(),
+            m.sub_moves.len(),
+            cs
+        )
+    }
+    let config = ThetaConfig::default();
+    let ds = super::super::data::load_symbol(
+        std::path::Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/issue1605/btc-20170817-20170831.json"
+        )),
+        "BTC",
+        &config,
+        60,
+    )
+    .unwrap();
+    let end: usize = std::env::var("PROBE_END").ok().and_then(|v| v.parse().ok()).unwrap_or(4945);
+    let detail: Vec<usize> = std::env::var("PROBE_DETAIL")
+        .ok()
+        .map(|v| v.split(',').filter_map(|x| x.trim().parse().ok()).collect())
+        .unwrap_or_default();
+    let quiet = std::env::var("PROBE_QUIET").is_ok();
+    let config = super::super::admission::chain_driven_level_projection(&config);
+    let bars = &ds.bars[..];
+    let mut inc = super::super::incremental::IncrementalClassifier::new(bars, &config);
+    let mut seen: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
+    for i in 0..=end.min(bars.len() - 1) {
+        let b = bars[i];
+        if b.untradable || b.close <= 0 {
+            continue;
+        }
+        let out = inc.classify_at(i);
+        let l0 = inc.last_l0().unwrap();
+        let step = super::super::signal::newly_confirmed_step(&out.classification, &mut seen);
+        let mut line = String::new();
+        let mh = fnv(&format!("{:?}", &l0.merged_bars[..]));
+        let fh = fnv(&format!("{:?}", &l0.fractals[..]));
+        let sh = fnv(&format!("{:?}", &l0.strokes[..]));
+        let gh = fnv(&format!("{:?}", &l0.segments[..]));
+        write!(
+            line,
+            "B {i} m={}:{mh:x} f={}:{fh:x} s={}:{sh:x} g={}:{gh:x}",
+            l0.merged_bars.len(),
+            l0.fractals.len(),
+            l0.strokes.len(),
+            l0.segments.len()
+        )
+        .unwrap();
+        for (l, ls) in out.classification.levels.iter().enumerate() {
+            let ch = fnv(&format!("{:?}", &ls.centers[..]));
+            let bh = fnv(&format!("{:?}", &ls.bsp[..]));
+            let vh = fnv(&format!("{:?}", &ls.moves));
+            write!(
+                line,
+                " |L{l} c={}:{ch:x} b={}:{bh:x} mv={}:{vh:x}",
+                ls.centers.len(),
+                ls.bsp.len(),
+                ls.moves.len()
+            )
+            .unwrap();
+        }
+        for (l, t) in out.tower.iter().enumerate() {
+            let s: String = t.iter().map(mv_key).collect::<Vec<_>>().join(";");
+            write!(line, " |T{l}={}:{:x}", t.len(), fnv(&s)).unwrap();
+        }
+        let news: Vec<String> = step
+            .levels
+            .iter()
+            .enumerate()
+            .flat_map(|(l, ls)| ls.bsp.iter().map(move |p| format!("{l}@{}:{:?}", p.source_index, p.bits)))
+            .collect();
+        if !news.is_empty() {
+            write!(line, " NEW[{}]", news.join(",")).unwrap();
+        }
+        if !quiet {
+            println!("{line}");
+        }
+        if detail.contains(&i) {
+            println!("D {i} strokes {:?}", &l0.strokes[..]);
+            println!("D {i} segments {:?}", &l0.segments[..]);
+            for (l, ls) in out.classification.levels.iter().enumerate() {
+                println!("D {i} L{l} centers {:?}", &ls.centers[..]);
+                println!("D {i} L{l} moves {:?}", &ls.moves);
+                println!("D {i} L{l} bsp {:?}", &ls.bsp[..]);
+            }
+            for (l, t) in out.tower.iter().enumerate() {
+                for m in t.iter() {
+                    println!("D {i} T{l} {}", mv_key(m));
+                }
+            }
+            for (l, ls) in step.levels.iter().enumerate() {
+                println!("D {i} STEP L{l} {:?}", &ls.bsp[..]);
+            }
+        }
+    }
+}
