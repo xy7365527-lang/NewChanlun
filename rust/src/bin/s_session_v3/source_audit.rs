@@ -91,10 +91,7 @@ fn err(e: impl std::fmt::Display) -> String {
 #[cfg(test)]
 #[cfg_attr(
     not(feature = "s_incremental"),
-    allow(
-        dead_code,
-        reason = "#1608：测试辅助，仅 s_incremental 测试使用"
-    )
+    allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
 )]
 fn f(k: &str) -> PathStep {
     PathStep::Field(k.into())
@@ -1569,10 +1566,7 @@ impl<'capture> NativeSourceAudit<'capture> {
     #[cfg(test)]
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(
-            dead_code,
-            reason = "#1608：测试辅助，仅 s_incremental 测试使用"
-        )
+        allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
     )]
     pub(super) fn raw_ledger_stats(&self) -> NativeRawLedgerStats {
         self.ledger.stats

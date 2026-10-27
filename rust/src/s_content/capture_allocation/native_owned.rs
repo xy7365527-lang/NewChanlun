@@ -10,10 +10,7 @@ use std::{
 /// 堆块必须先真实deallocate，再归还其原来源许可；不能把许可塞进Box载荷内提前释放。
 #[cfg_attr(
     not(feature = "s_incremental"),
-    allow(
-        dead_code,
-        reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
-    )
+    allow(dead_code, reason = "#1488 再合 #1608：非 s_incremental 构建不触达")
 )]
 pub(crate) struct NativeBox<T> {
     value: allocator_api2::boxed::Box<T>,
@@ -22,10 +19,7 @@ pub(crate) struct NativeBox<T> {
 impl<T> NativeBox<T> {
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(
-            dead_code,
-            reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
-        )
+        allow(dead_code, reason = "#1488 再合 #1608：非 s_incremental 构建不触达")
     )]
     pub(crate) fn from_reserved(
         value: allocator_api2::boxed::Box<T>,
@@ -35,10 +29,7 @@ impl<T> NativeBox<T> {
     }
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(
-            dead_code,
-            reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
-        )
+        allow(dead_code, reason = "#1488 再合 #1608：非 s_incremental 构建不触达")
     )]
     pub(crate) fn attach(&mut self, permit: NativeReservation) {
         assert!(self.permit.is_none());

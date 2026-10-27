@@ -505,10 +505,7 @@ impl<'capture> NativeSourceMemo<'capture> {
     #[cfg(test)]
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(
-            dead_code,
-            reason = "#1608：测试辅助，仅 s_incremental 测试使用"
-        )
+        allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
     )]
     fn winner_intervals(
         raw: RawEventsView<'_>,

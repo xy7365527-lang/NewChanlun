@@ -291,10 +291,7 @@ thread_local! {
 #[cfg(test)]
 #[cfg_attr(
     not(feature = "s_incremental"),
-    allow(
-        dead_code,
-        reason = "#1608：测试辅助，仅 s_incremental 测试使用"
-    )
+    allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
 )]
 pub(crate) fn reset_native_record_field_stats() {
     STATS.with(|s| s.set(NativeRecordFieldStats::default()));
@@ -302,10 +299,7 @@ pub(crate) fn reset_native_record_field_stats() {
 #[cfg(test)]
 #[cfg_attr(
     not(feature = "s_incremental"),
-    allow(
-        dead_code,
-        reason = "#1608：测试辅助，仅 s_incremental 测试使用"
-    )
+    allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
 )]
 pub(crate) fn native_record_field_stats() -> NativeRecordFieldStats {
     STATS.with(std::cell::Cell::get)

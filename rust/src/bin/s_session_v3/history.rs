@@ -2091,10 +2091,7 @@ fn record_history_prefix_leaves(index: usize, count: u64) {
 #[cfg(test)]
 #[cfg_attr(
     not(feature = "s_incremental"),
-    allow(
-        dead_code,
-        reason = "#1608：测试辅助，仅 s_incremental 测试使用"
-    )
+    allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
 )]
 fn reset_history_prefix_leaves() {
     HISTORY_PREFIX_LEAVES.with(|stats| stats.set([0; 6]));
@@ -2102,10 +2099,7 @@ fn reset_history_prefix_leaves() {
 #[cfg(test)]
 #[cfg_attr(
     not(feature = "s_incremental"),
-    allow(
-        dead_code,
-        reason = "#1608：测试辅助，仅 s_incremental 测试使用"
-    )
+    allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
 )]
 fn history_prefix_leaves() -> [u64; 6] {
     HISTORY_PREFIX_LEAVES.with(std::cell::Cell::get)

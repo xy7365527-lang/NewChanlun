@@ -187,10 +187,7 @@ impl Runtime {
     #[cfg(test)]
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(
-            dead_code,
-            reason = "#1608：测试辅助，仅 s_incremental 测试使用"
-        )
+        allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
     )]
     pub(super) fn set_after_prepare_for_request_test(
         &mut self,
@@ -296,10 +293,7 @@ impl Runtime {
     #[cfg(test)]
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(
-            dead_code,
-            reason = "#1608：测试辅助，仅 s_incremental 测试使用"
-        )
+        allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
     )]
     pub(super) fn commit_in_request(
         &mut self,

@@ -1088,10 +1088,7 @@ impl HistoryObjects<'_> {
     /// Only this complete-load Native owner can produce both projections. No arbitrary arrays.
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(
-            dead_code,
-            reason = "#1608：测试辅助，仅 s_incremental 测试使用"
-        )
+        allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
     )]
     fn native_dual_at_cut_scan_for_test(
         &mut self,
@@ -2412,10 +2409,7 @@ struct HistoryEvents {
 #[cfg(test)]
 #[cfg_attr(
     not(feature = "s_incremental"),
-    allow(
-        dead_code,
-        reason = "#1608：测试辅助，仅 s_incremental 测试使用"
-    )
+    allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
 )]
 pub(super) fn take_load_lookup_counts() -> (usize, usize) {
     (
@@ -2426,10 +2420,7 @@ pub(super) fn take_load_lookup_counts() -> (usize, usize) {
 #[cfg(test)]
 #[cfg_attr(
     not(feature = "s_incremental"),
-    allow(
-        dead_code,
-        reason = "#1608：测试辅助，仅 s_incremental 测试使用"
-    )
+    allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
 )]
 pub(super) fn load_id_capacity() -> usize {
     LOAD_ID_CAPACITY.with(|n| n.get())

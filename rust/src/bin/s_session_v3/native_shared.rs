@@ -208,10 +208,7 @@ macro_rules! shared_family {
             /// 按归属统计时每个拥有者可保守全计，不能据此重复签发父账许可。
             #[cfg_attr(
                 not(feature = "s_incremental"),
-                allow(
-                    dead_code,
-                    reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
-                )
+                allow(dead_code, reason = "#1488 再合 #1608：非 s_incremental 构建不触达")
             )]
             pub(crate) fn allocation_bytes(&self) -> usize {
                 let payload = Layout::for_value(self.value.as_ref());

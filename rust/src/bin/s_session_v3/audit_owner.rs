@@ -1918,10 +1918,7 @@ impl AuditTxn<'_> {
         &self,
         #[cfg_attr(
             not(feature = "s_incremental"),
-            allow(
-                unused_variables,
-                reason = "#1608：仅 s_incremental 分支读取"
-            )
+            allow(unused_variables, reason = "#1608：仅 s_incremental 分支读取")
         )]
         envelope: &Value,
         mode: &s_allocation::Mode,
@@ -2218,10 +2215,7 @@ struct SnapshotSeal {
 impl SnapshotSeal {
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(
-            dead_code,
-            reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
-        )
+        allow(dead_code, reason = "#1488 再合 #1608：非 s_incremental 构建不触达")
     )]
     fn same_snapshot(&self, next: &Self) -> bool {
         self.life != 0

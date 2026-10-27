@@ -105,10 +105,7 @@ enum HistoricalOwner {
     Unique(ImmutableHistoricalAudit),
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(
-            dead_code,
-            reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
-        )
+        allow(dead_code, reason = "#1488 再合 #1608：非 s_incremental 构建不触达")
     )]
     Shared(super::native_shared::NativeRc<ImmutableHistoricalAudit>),
 }

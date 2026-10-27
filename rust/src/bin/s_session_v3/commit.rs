@@ -74,10 +74,7 @@ pub(super) fn publish_prepared(
 
 #[cfg_attr(
     all(not(test), feature = "s_incremental"),
-    allow(
-        dead_code,
-        reason = "#1608：s_incremental 的非测试构建不触达此项"
-    )
+    allow(dead_code, reason = "#1608：s_incremental 的非测试构建不触达此项")
 )]
 pub(super) fn publish_borrowed(
     tx: &mut Transaction<'_>,

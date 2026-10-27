@@ -269,10 +269,7 @@ fn codec_root_source_bytes(roots: usize) -> Result<usize, String> {
 impl Pool {
     #[cfg_attr(
         all(not(test), feature = "s_incremental"),
-        allow(
-            dead_code,
-            reason = "#1608：s_incremental 的非测试构建不触达此项"
-        )
+        allow(dead_code, reason = "#1608：s_incremental 的非测试构建不触达此项")
     )]
     fn build_bounded_counts(
         originals: sc::AuditCapture,
@@ -739,10 +736,7 @@ impl Keeper {
     }
     #[cfg_attr(
         all(not(test), feature = "s_incremental"),
-        allow(
-            dead_code,
-            reason = "#1608：s_incremental 的非测试构建不触达此项"
-        )
+        allow(dead_code, reason = "#1608：s_incremental 的非测试构建不触达此项")
     )]
     pub(super) fn report(&self) -> serde_json::Value {
         serde_json::json!({"cap":self.cap,"hits":self.hits,"cold":self.cold,"rejected":self.rejected,"last_required":self.last_required,
@@ -773,10 +767,7 @@ pub(super) struct Trial<'a> {
 impl<'a> Trial<'a> {
     #[cfg_attr(
         all(not(test), feature = "s_incremental"),
-        allow(
-            dead_code,
-            reason = "#1608：s_incremental 的非测试构建不触达此项"
-        )
+        allow(dead_code, reason = "#1608：s_incremental 的非测试构建不触达此项")
     )]
     pub(super) fn new(
         tx: &Transaction<'_>,
@@ -832,10 +823,7 @@ impl<'a> Trial<'a> {
     }
     #[cfg_attr(
         all(not(test), feature = "s_incremental"),
-        allow(
-            dead_code,
-            reason = "#1608：s_incremental 的非测试构建不触达此项"
-        )
+        allow(dead_code, reason = "#1608：s_incremental 的非测试构建不触达此项")
     )]
     pub(super) fn record(&mut self, cut: &PublishedCut, counts: &Counts) -> Result<(), String> {
         self.record_admitted(cut, counts, None)
@@ -861,10 +849,7 @@ impl<'a> Trial<'a> {
     }
     #[cfg_attr(
         all(not(test), feature = "s_incremental"),
-        allow(
-            dead_code,
-            reason = "#1608：s_incremental 的非测试构建不触达此项"
-        )
+        allow(dead_code, reason = "#1608：s_incremental 的非测试构建不触达此项")
     )]
     pub(super) fn complete(
         self,
@@ -878,10 +863,7 @@ impl<'a> Trial<'a> {
     }
     #[cfg_attr(
         all(not(test), feature = "s_incremental"),
-        allow(
-            dead_code,
-            reason = "#1608：s_incremental 的非测试构建不触达此项"
-        )
+        allow(dead_code, reason = "#1608：s_incremental 的非测试构建不触达此项")
     )]
     pub(super) fn complete_admitted(
         self,
@@ -907,10 +889,7 @@ impl<'a> Trial<'a> {
     }
     #[cfg_attr(
         all(not(test), feature = "s_incremental"),
-        allow(
-            dead_code,
-            reason = "#1608：s_incremental 的非测试构建不触达此项"
-        )
+        allow(dead_code, reason = "#1608：s_incremental 的非测试构建不触达此项")
     )]
     pub(super) fn seal(self, tx: &Transaction<'_>, frontier: i64) -> Result<PendingPool, String> {
         self.seal_admitted(tx, frontier, None)

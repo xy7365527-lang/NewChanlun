@@ -959,10 +959,7 @@ impl Budget {
     }
     #[cfg_attr(
         all(not(test), feature = "s_incremental"),
-        allow(
-            dead_code,
-            reason = "#1608：s_incremental 的非测试构建不触达此项"
-        )
+        allow(dead_code, reason = "#1608：s_incremental 的非测试构建不触达此项")
     )]
     pub(crate) fn scratch_observation(&self) -> (usize, usize, usize, usize) {
         (

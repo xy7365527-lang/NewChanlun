@@ -377,28 +377,19 @@ pub(super) struct RequestAuditContext {
     #[cfg(test)]
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(
-            dead_code,
-            reason = "#1608：测试辅助，仅 s_incremental 测试使用"
-        )
+        allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
     )]
     binding_hook: Option<fn(&Transaction<'_>)>,
     #[cfg(test)]
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(
-            dead_code,
-            reason = "#1608：测试辅助，仅 s_incremental 测试使用"
-        )
+        allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
     )]
     pub(super) cold: usize,
     #[cfg(test)]
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(
-            dead_code,
-            reason = "#1608：测试辅助，仅 s_incremental 测试使用"
-        )
+        allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
     )]
     pub(super) hits: usize,
 }
@@ -449,10 +440,7 @@ impl RequestAuditContext {
     #[cfg(feature = "s_incremental")]
     #[cfg_attr(
         all(not(test), feature = "s_incremental"),
-        allow(
-            dead_code,
-            reason = "#1608：s_incremental 的非测试构建不触达此项"
-        )
+        allow(dead_code, reason = "#1608：s_incremental 的非测试构建不触达此项")
     )]
     pub(super) fn original_scan_scratch_capacity_nodes(&self) -> usize {
         self.original_scan_scratch.capacity_nodes()
@@ -460,10 +448,7 @@ impl RequestAuditContext {
     #[cfg(feature = "s_incremental")]
     #[cfg_attr(
         all(not(test), feature = "s_incremental"),
-        allow(
-            dead_code,
-            reason = "#1608：s_incremental 的非测试构建不触达此项"
-        )
+        allow(dead_code, reason = "#1608：s_incremental 的非测试构建不触达此项")
     )]
     pub(super) fn with_source_keeper(keeper: super::cross_request_source_cache::Keeper) -> Self {
         let mut context = Self::default();
@@ -681,10 +666,7 @@ impl RequestAuditContext {
     #[cfg(test)]
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(
-            dead_code,
-            reason = "#1608：测试辅助，仅 s_incremental 测试使用"
-        )
+        allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
     )]
     pub(super) fn before_binding(&mut self, tx: &Transaction<'_>) {
         if let Some(hook) = self.binding_hook.take() {
@@ -694,10 +676,7 @@ impl RequestAuditContext {
     #[cfg(test)]
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(
-            dead_code,
-            reason = "#1608：测试辅助，仅 s_incremental 测试使用"
-        )
+        allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
     )]
     pub(super) fn has_slot(&self) -> bool {
         self.slot.is_some()
@@ -752,10 +731,7 @@ pub(super) fn push_cell<T>(
 }
 #[cfg_attr(
     not(feature = "s_incremental"),
-    allow(
-        dead_code,
-        reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
-    )
+    allow(dead_code, reason = "#1488 再合 #1608：非 s_incremental 构建不触达")
 )]
 fn reserve_cells<T>(
     values: &mut CodecVec<T>,
@@ -2645,10 +2621,7 @@ impl ExactRows {
     /// SQL/取值错误仍直接传播。每行容量进入累计账，不先聚合一份无界全表。
     #[cfg_attr(
         all(not(test), feature = "s_incremental"),
-        allow(
-            dead_code,
-            reason = "#1608：s_incremental 的非测试构建不触达此项"
-        )
+        allow(dead_code, reason = "#1608：s_incremental 的非测试构建不触达此项")
     )]
     pub(super) fn read_optional_bounded(
         tx: &Transaction<'_>,

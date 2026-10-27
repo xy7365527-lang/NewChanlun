@@ -64,10 +64,7 @@ impl RawEvents {
     }
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(
-            dead_code,
-            reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
-        )
+        allow(dead_code, reason = "#1488 再合 #1608：非 s_incremental 构建不触达")
     )]
     pub(crate) fn push_native(
         &mut self,
@@ -560,10 +557,7 @@ impl<'raw> RawPrefixIndex<'raw> {
     #[cfg(test)]
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(
-            dead_code,
-            reason = "#1608：测试辅助，仅 s_incremental 测试使用"
-        )
+        allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
     )]
     pub(super) fn retained_slots(&self) -> [usize; 3] {
         // HashMap 实际 capacity；BTreeMap 只报条目，不冒充节点布局/allocator开销。
@@ -1702,10 +1696,7 @@ impl PlainJson {
     }
     #[cfg_attr(
         not(feature = "s_incremental"),
-        allow(
-            dead_code,
-            reason = "#1488 再合 #1608：非 s_incremental 构建不触达"
-        )
+        allow(dead_code, reason = "#1488 再合 #1608：非 s_incremental 构建不触达")
     )]
     pub(crate) fn with_reservation(mut self, permit: Option<NativeReservation>) -> Self {
         assert!(self.permit.is_none());
