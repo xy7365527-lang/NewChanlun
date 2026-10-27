@@ -43,18 +43,18 @@ function fixture(t: { after: (fn: () => void) => void }, conflict = false) {
   const path = join(root, "accepted.json"); writeFileSync(path, JSON.stringify(manifest));
   const worktree = join(repo, ".sandcastle/worktrees/sandcastle-merge-precheck");
   const checkpoint = join(repo, ".sandcastle/logs/merges/precheck/checkpoint.json");
-  const acceptance = join(root, "acceptance");
+  const acceptance = join(root, ".sandcastle-host", "docker-acceptance-1742"); // 子进程 HOME=root，生产固定目录
   const run = (accepted = true, namespaceReady = false, frozen = false, row?: "13" | "14" | "15") => spawnSync(process.execPath, ["--import", loader, entry], {
     cwd: repo, encoding: "utf8", timeout: 30_000,
     env: { PATH: `${bin}:${dirname(process.execPath)}:/usr/bin:/bin`, HOME: root, PROBE_CALLS: calls,
       PROBE_DRAIN: drainCalls, PROBE_FROZEN: frozen ? "1" : "0",
       PROBE_NAMESPACE_OK: namespaceReady ? "1" : "0", CLIPROXY_LOCAL_KEY: "fixture-no-network",
-      SANDCASTLE_DOCKER_ACCEPTANCE_DIR: acceptance, ...(row ? { SANDCASTLE_DOCKER_ACCEPTANCE_ROW: row } : {}),
+      ...(row ? { SANDCASTLE_DOCKER_ACCEPTANCE_ROW: row } : {}),
       ...(accepted ? { SANDCASTLE_SWARM_MERGE_MANIFEST: path } : {}) },
   });
   const called = () => existsSync(calls) ? readFileSync(calls, "utf8").trim().split("\n") : [];
   const drained = () => existsSync(drainCalls) ? readFileSync(drainCalls, "utf8").trim().split("\n") : [];
-  const issue = () => issueReceipt({ dir: acceptance, image: "sandcastle:newchanlun", approval: "fixture-user-approval" });
+  const issue = () => issueReceipt({ dir: acceptance, image: "sandcastle:newchanlun", approval: "fixture-user-approval", swarmTicket: 4242 });
   return { repo, git, base, inputs, manifest, run, called, drained, checkpoint, worktree, issue };
 }
 

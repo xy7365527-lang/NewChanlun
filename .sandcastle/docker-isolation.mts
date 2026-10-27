@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { lstatSync, mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve, sep } from "node:path";
+import { assertMountsExcludeAcceptance } from "./acceptance-dir.mts";
 
 export interface MountSpec { hostPath: string; sandboxPath: string; readonly?: boolean }
 
@@ -43,6 +44,7 @@ export function hardenMounts(
 ): MountSpec[] {
   const worktree = mounts.find((m) => m.hostPath === worktreeHostPath);
   if (!worktree) throw new Error("Docker 挂载缺少 worktree 本体，拒绝猜测只读边界");
+  assertMountsExcludeAcceptance(mounts); // 验收状态目录（含其祖先）不得进入容器
   const root = probe.realpath(worktree.hostPath);
   const out: MountSpec[] = mounts.map((m) => (m === worktree ? { ...m } : { ...m, readonly: true }));
   for (const name of PROTECTED_SUBPATHS) {

@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { codexWorker, codexRouteEnv } from "./codex-route.mts";
 import { assertContainerIsolationContract, hardenProvider, type IsolationObservation } from "./docker-isolation.mts";
-import { checkAdmission, type Admission } from "./docker-acceptance.mts";
+import { checkAdmission, type Admission, type AcceptanceRow, type AdmissionContext } from "./docker-acceptance.mts";
 
 import { MAIN_MODEL } from "./main-model.mts";
 
@@ -88,14 +88,20 @@ export function assertDockerCliProxyReachable(
   }
 }
 
-/** #1617/#1742：领票前先验精确 acceptance receipt（缺失/漂移/重复即 FAIL-loud），再逐项观测容器隔离合同；
- * 观测成立只是必要条件，不代替验收。受控入口在观测通过后才占用对应验收行。 */
-export function assertSwarmExecutionReady(
-  imageName: string,
-  probe?: (image: string) => IsolationObservation,
-  admit: (image: string) => Admission = checkAdmission,
-): void {
-  const admission = admit(imageName);
-  assertContainerIsolationContract(imageName, probe);
+export interface ReadyOptions {
+  probe?: (image: string) => IsolationObservation;
+  admit?: (image: string, ctx: AdmissionContext) => Admission;
+  /** 受控验收的运行绑定：13=验收票，14/15=归并 run+检查点。已登记验收后的普通放行不需要。 */
+  binding?: string;
+  /** 此入口允许的验收行（普通 swarm 只接受 13，归并冲突只接受 14/15）。 */
+  rows?: readonly AcceptanceRow[];
+}
+
+/** #1617/#1742：领票前先验精确 acceptance 事实（缺失/漂移/重复/越权即 FAIL-loud），再逐项观测容器隔离合同；
+ * 观测成立只是必要条件，不代替验收。受控入口在观测通过后才占用（或恢复）对应验收行。 */
+export function assertSwarmExecutionReady(imageName: string, options: ReadyOptions = {}): void {
+  const admit = options.admit ?? ((image: string, ctx: AdmissionContext) => checkAdmission(image, ctx));
+  const admission = admit(imageName, { binding: options.binding, rows: options.rows });
+  assertContainerIsolationContract(imageName, options.probe);
   admission.consume();
 }

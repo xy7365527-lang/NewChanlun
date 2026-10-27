@@ -8,6 +8,7 @@ import { runManagedMerge, validateMergeManifest, type MergeManifest, type MergeC
 import { admitMergeInput, appRemoteFacts, type RemoteFactsReader } from "./merge-source.mts";
 import { verifyManagedRust } from "./managed-commit.mts";
 import { prepareFinalReviewPrompt } from "./review-context.mts";
+import { mergeBinding } from "./docker-acceptance.mts";
 import { assertSwarmExecutionReady, assertDockerCliProxyReachable, swarmAgent, swarmSandbox } from "./swarm-route.mts";
 import { withLegacyAdmission } from "./drain-control.mts";
 
@@ -81,7 +82,8 @@ export async function runAcceptedSwarmMerge(manifestPath: string, image: string,
     resolveConflict: async ({ head, incoming, files }) => {
       // #1617：仅冲突需要 Docker；此时 MERGE_HEAD 与检查点已保存，失败保留现场。
       if (!conflictExecutionReady) {
-        assertSwarmExecutionReady(image);
+        // 14/15：绑定到本 run 与此冲突检查点，SIGKILL 后同检查点重入是同一绑定，不重复占用；新运行绑定不同。
+        assertSwarmExecutionReady(image, { rows: ["14", "15"], binding: mergeBinding({ runId: manifest.runId, base: manifest.base, head, incoming }) });
         assertDockerCliProxyReachable(image);
         conflictExecutionReady = true;
       }

@@ -10,6 +10,7 @@
 import { drainRequested, withLegacyAdmission, DrainFrozenError } from "./drain-control.mts";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { assertDockerCliProxyReachable, assertSwarmExecutionReady, swarmAgent, swarmSandbox } from "./swarm-route.mts";
+import { controlledSwarmTicket, swarmBinding } from "./swarm-controlled.mts";
 import { execSync } from "node:child_process";
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { z } from "zod";
@@ -79,14 +80,13 @@ if (acceptedManifest) {
   }
 } else {
 // 普通 swarm 先验容器路由，再进入 planner/claim（#1617）。
-assertSwarmExecutionReady(IMAGE);
+// 受控验收（SANDCASTLE_DOCKER_ACCEPTANCE_ROW=13）只处理 receipt 绑定的专用验收票：不读线上 sandcastle 队列、不认领任何票。
+const controlledTicket = controlledSwarmTicket();
+assertSwarmExecutionReady(IMAGE, { rows: ["13"], binding: controlledTicket ? swarmBinding(controlledTicket) : undefined });
 assertDockerCliProxyReachable(IMAGE);
 
-for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
-  if (drainRequested()) break;
-  console.log(`\n=== Iteration ${iteration}/${MAX_ITERATIONS} ===\n`);
-
-  // Phase 1: Plan
+/** 普通路径：planner 读线上队列 → 放行 → host 侧认领。返回 null 表示本轮收束。 */
+async function planAndClaim(): Promise<Array<{ id: string; title: string; branch: string }> | null> {
   // 用 createSandbox 而非顶层 run()：顶层 run（merge-to-head）在本仓 clone/多远端
   // 环境下实测 agent 进程 ~11s 被 SIGKILL（exit 137，在案未决怪癖，见 #1009）；
   // createSandbox 路径两段式全程验证过。planner 无产出，分支随关随弃。
@@ -95,7 +95,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     baseBranch: "main",
     sandbox: swarmSandbox(IMAGE),
   });
-  let issues: Array<{ id: string; title: string; branch: string }>;
+  let planned: Array<{ id: string; title: string; branch: string }>;
   try {
     // 注：sandbox.run 不支持 Output.object（顶层 run 才支持），手动从 stdout 解析 <plan>。
     const plan = await planSandbox.run({
@@ -106,25 +106,37 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     });
     const m = plan.stdout.match(/<plan>([\s\S]*?)<\/plan>/);
     if (!m) throw new Error("planner 未输出 <plan> 标签");
-    issues = planSchema.parse(JSON.parse(m[1])).issues;
+    planned = planSchema.parse(JSON.parse(m[1])).issues;
   } finally {
     await planSandbox.close();
   }
-  if (issues.length === 0) {
+  if (planned.length === 0) {
     console.log("无可并行 issue，停。");
-    break;
+    return null;
   }
-  console.log(`planner 放行 ${issues.length} 张：`);
-  for (const i of issues) console.log(`  #${i.id}: ${i.title} → ${i.branch}`);
+  console.log(`planner 放行 ${planned.length} 张：`);
+  for (const i of planned) console.log(`  #${i.id}: ${i.title} → ${i.branch}`);
 
   // host 侧认领（扇出前一次性完成）
   try {
-    await withLegacyAdmission(() => { for (const i of issues) claim(i.id); });
+    await withLegacyAdmission(() => { for (const i of planned) claim(i.id); });
   } catch (error) {
     if (!(error instanceof DrainFrozenError)) throw error;
     console.log(error.message);
-    break;
+    return null;
   }
+  return planned;
+}
+
+for (let iteration = 1; iteration <= (controlledTicket ? 1 : MAX_ITERATIONS); iteration++) {
+  if (drainRequested()) break;
+  console.log(`\n=== Iteration ${iteration}/${controlledTicket ? 1 : MAX_ITERATIONS} ===\n`);
+
+  // Phase 1: Plan（受控验收：输入就是 receipt 绑定的专用验收票，其余票一律不碰；分支仍以本地 main 为 baseBranch，nothing 写回 main）
+  const issues = controlledTicket
+    ? [{ id: String(controlledTicket), title: `#1742 Docker 受控验收票 #${controlledTicket}`, branch: `sandcastle/issue-${controlledTicket}` }]
+    : await planAndClaim();
+  if (!issues) break;
 
   // Phase 2: Execute + Review（信号量限流扇出）
   const withLimit = semaphore(MAX_PARALLEL);

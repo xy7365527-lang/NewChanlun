@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { execFile } from "node:child_process";
 import { createServer } from "node:http";
 import { once } from "node:events";
@@ -136,30 +138,33 @@ test("准入先于探针、占用后于探针；观测不成立不烧掉验收�
   const events: string[] = [];
   const admit = (image: string) => { events.push(`admit:${image}`); return { consume: () => { events.push("consume"); } }; };
   const probe = (obs: object) => (image: string) => { events.push(`probe:${image}`); return obs as typeof good; };
-  assertSwarmExecutionReady("fixture", probe(good), admit);
+  assertSwarmExecutionReady("fixture", { probe: probe(good), admit });
   assert.deepEqual(events, ["admit:fixture", "probe:fixture", "consume"]);
+  let seenCtx: unknown;
+  assertSwarmExecutionReady("fixture", { probe: probe(good), admit: (image, c) => { seenCtx = c; return { consume: () => undefined }; }, binding: "swarm-ticket:4242", rows: ["13"] });
+  assert.deepEqual(seenCtx, { binding: "swarm-ticket:4242", rows: ["13"] });
   events.length = 0;
-  assert.throws(() => assertSwarmExecutionReady("fixture", probe({ ...good, roWrite: "ok" }), admit), /EROFS/);
+  assert.throws(() => assertSwarmExecutionReady("fixture", { probe: probe({ ...good, roWrite: "ok" }), admit }), /EROFS/);
   assert.deepEqual(events, ["admit:fixture", "probe:fixture"], "合同不成立时不占用验收行");
   events.length = 0;
-  assert.throws(() => assertSwarmExecutionReady("fixture", probe(good), () => { throw new Error("[FAIL-loud #1617] receipt 缺失"); }), /receipt 缺失/);
+  assert.throws(() => assertSwarmExecutionReady("fixture", { probe: probe(good), admit: () => { throw new Error("[FAIL-loud #1617] receipt 缺失"); } }), /receipt 缺失/);
   assert.deepEqual(events, [], "无准入时不启动任何探针容器");
-  assert.throws(() => assertSwarmExecutionReady("fixture", () => { throw new Error("EPERM"); }, admit), /FAIL-loud #1617/);
-  assert.throws(() => assertSwarmExecutionReady("fixture", probe({ ...good, capBnd: "000001ffffffffff" }), admit), /CapBnd/);
-  assert.throws(() => assertSwarmExecutionReady("fixture", probe({ ...good, seccomp: "0" }), admit), /Seccomp/);
+  assert.throws(() => assertSwarmExecutionReady("fixture", { probe: () => { throw new Error("EPERM"); }, admit }), /FAIL-loud #1617/);
+  assert.throws(() => assertSwarmExecutionReady("fixture", { probe: probe({ ...good, capBnd: "000001ffffffffff" }), admit }), /CapBnd/);
+  assert.throws(() => assertSwarmExecutionReady("fixture", { probe: probe({ ...good, seccomp: "0" }), admit }), /Seccomp/);
   assert.deepEqual(violations({ ...good, capBnd: "0000000000000000" }), []);
   const source = readFileSync(new URL("./main-swarm.mts", import.meta.url), "utf8");
-  assert.ok(source.indexOf("assertSwarmExecutionReady(IMAGE)") < source.indexOf("for (let iteration"));
+  assert.ok(source.indexOf("assertSwarmExecutionReady(IMAGE,") < source.indexOf("for (let iteration"));
 });
 
 test("默认入口不带 receipt 时即使观测全部成立也拒绝（不注入 admit）", async () => {
   const { assertSwarmExecutionReady } = await import("./swarm-route.mts");
   const previous = { ...process.env };
-  process.env.SANDCASTLE_DOCKER_ACCEPTANCE_DIR = "/nonexistent-acceptance-dir";
+  process.env.HOME = mkdtempSync(join(tmpdir(), "swarm-route-home-"));
   delete process.env.SANDCASTLE_DOCKER_ACCEPTANCE_ROW;
   try {
     let probed = false;
-    assert.throws(() => assertSwarmExecutionReady("fixture", () => { probed = true; throw new Error("不应到达"); }), /尚无精确验收 receipt/);
+    assert.throws(() => assertSwarmExecutionReady("fixture", { probe: () => { probed = true; throw new Error("不应到达"); } }), /尚无精确验收 receipt/);
     assert.equal(probed, false);
   } finally { process.env = previous; }
 });
