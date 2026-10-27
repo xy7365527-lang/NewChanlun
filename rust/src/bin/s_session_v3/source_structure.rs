@@ -2172,7 +2172,12 @@ mod ef_entity_tests {
                     .iter()
                     .map(|t| t.as_str().to_string())
                     .collect();
-                assert!(!targets.is_empty(), "{} 未登记实体逆依赖", row.kind);
+                // 未归属的 assignment 合法地没有中心端点；其余表内种类必有当前实体边。
+                assert!(
+                    !targets.is_empty() || row.kind == "CC-022.unit_assignment",
+                    "{} 未登记实体逆依赖",
+                    row.kind
+                );
                 for target in targets {
                     let others: std::vec::Vec<_> = c
                         .rows
