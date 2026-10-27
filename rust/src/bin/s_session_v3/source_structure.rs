@@ -1540,7 +1540,7 @@ mod real_factory_repair_tests {
             let (layer, facts, fold) = parse_layer_with_inclusion_facts_store(
                 &bars,
                 &ThetaConfig::default(),
-                SecondFoldStore::new(crate::tb02c::round_budget()),
+                crate::tb02c::second_store(&ThetaConfig::default().parse),
             );
             let evidence = StructureEvidence {
                 segments: &layer.segments,

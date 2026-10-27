@@ -4717,6 +4717,7 @@ mod tests {
                 &facts,
                 &fixture.raw,
                 &shapes_json,
+                &[],
                 GENERATION,
                 CUT,
                 frontier,

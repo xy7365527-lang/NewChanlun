@@ -7,9 +7,9 @@ use crate::content_producer::{
 use newchan_rust::s_content::{self as sc, Built, NodeStore};
 use newchan_rust::theta_v0::{
     parser::{
-        feature_seq::{SecondTerminal, SECOND_SEQ_SCAN_BUDGET_POLICY},
+        feature_seq::SecondTerminal,
         second_fold::{SecondCandidateId, SecondFoldStore},
-        segment::{ConstructionFact, SegmentFacts, CONSTRUCTION_RULE, TAIL_WINDOW},
+        segment::{ConstructionFact, SegmentFacts, CONSTRUCTION_RULE},
         stroke::StrokeFacts,
     },
     types::{Direction, Segment},
@@ -548,6 +548,20 @@ pub(super) fn build_cd(
     let old = read_prior(nodes, producer, prior)?;
     let facts = evidence.segment_facts;
     let strokes = evidence.stroke_facts;
+    // #1604（#1586 C-04，与 v2 `tb02c::build` 同一口径）：尾窗与预算读段事实所带记录，不读代码常数；
+    // 记录缺失即拒写（不回退）；游标簿与段事实须读同一份预算记录，不同即拒写。
+    let budget = facts
+        .policy
+        .as_ref()
+        .ok_or("TB-02-C：段事实未携带所读记录（#1604）")?;
+    if evidence.second_store.policy.label() != budget.scan_budget {
+        return Err(format!(
+            "TB-02-C：游标簿预算记录 `{}` 与段事实所读 `{}` 不同（#1604）",
+            evidence.second_store.policy.label(),
+            budget.scan_budget
+        ));
+    }
+    let truncated_from = facts.tail_window_bound.as_ref().map(|b| b.seg_start);
     let mut out = StructureOutput {
         requests: Vec::new(),
         objects: Vec::new(),
@@ -659,8 +673,11 @@ pub(super) fn build_cd(
                             nodes,
                         )?,
                     ),
-                    ("resource_truncated", CV::Bool(false)),
-                    ("tail_cache_window", s(TAIL_WINDOW, nodes)?),
+                    (
+                        "resource_truncated",
+                        CV::Bool(truncated_from.is_some_and(|f| c.start_stroke >= f)),
+                    ),
+                    ("tail_cache_window", s(budget.tail_window, nodes)?),
                 ],
                 nodes,
             )?),
@@ -724,7 +741,7 @@ pub(super) fn build_cd(
             let second_root = fact(nodes, second)?;
             let semantic = fact(nodes, &second.semantic_state)?;
             let coverage = fact(nodes, &second.coverage)?;
-            let budget = fact(nodes, &cursor.budget_granted)?;
+            let granted = fact(nodes, &cursor.budget_granted)?;
             let scan = put(
                 &(obj(
                     [
@@ -732,15 +749,15 @@ pub(super) fn build_cd(
                         ("through_stroke", s(second.through_stroke, nodes)?),
                         ("input_stroke_count", s(second.input_stroke_count, nodes)?),
                         ("resource_truncated", CV::Bool(second.resource_truncated)),
-                        ("tail_cache_window", s(0, nodes)?),
+                        ("tail_cache_window", s(budget.second_seq_window, nodes)?),
                         ("semantic_state", edge(&semantic)),
                         ("coverage", edge(&coverage)),
                         (
                             "budget",
                             obj(
                                 [
-                                    ("policy", s(SECOND_SEQ_SCAN_BUDGET_POLICY, nodes)?),
-                                    ("granted", edge(&budget)),
+                                    ("policy", s(cursor.budget_policy.label(), nodes)?),
+                                    ("granted", edge(&granted)),
                                 ],
                                 nodes,
                             )?,
@@ -829,6 +846,17 @@ pub(super) fn build_cd(
         let waiting = fact(nodes, &c.waiting_reasons)?;
         let attempts = fact(nodes, &c.termination_attempts)?;
         let trigger = fact(nodes, &c.trigger_stroke)?;
+        // #1493 §7.1 第 7 条（与 v2 `tb02c::build` 同一字段集）：第一种情况候选态、窗成员与段端门 fail-closed。
+        let turn_state = fact(nodes, &c.turn_hypothesis_state)?;
+        let window_members = fact(nodes, &c.window_members)?;
+        let parse_invalid_from = fact(nodes, &c.parse_invalid_from)?;
+        let parse_invalid = fact(
+            nodes,
+            &facts
+                .parse_invalid_from
+                .as_ref()
+                .filter(|p| Some(p.seg_start) == c.parse_invalid_from),
+        )?;
         let CV::Object(mut fields) = obj(
             [
                 ("entity_id", s(&entity, nodes)?),
@@ -871,6 +899,10 @@ pub(super) fn build_cd(
                 ("trigger_stroke", edge(&trigger)),
                 ("formed_known_at", edge(&formed)),
                 ("terminated_known_at", edge(&terminated)),
+                ("turn_hypothesis_state", edge(&turn_state)),
+                ("window_members", edge(&window_members)),
+                ("parse_invalid_from", edge(&parse_invalid_from)),
+                ("parse_invalid", edge(&parse_invalid)),
                 ("stroke_refs", edge(&refs)),
             ],
             nodes,
@@ -1157,6 +1189,10 @@ pub(super) fn build_cd(
             out.objects.push(emit(producer, ctx, crate::tb02c::KINDS[4], CV::Array(vec_in![nodes;s(ctx.generation, nodes)?, s(entity, nodes)?, s("withdrawn", nodes)?]), &data, &all_sources, nodes)?, nodes)?;
         }
     }
+    if facts.parse_invalid_from.is_some() {
+        out.waiting_reasons
+            .push(crate::tb02c::PARSE_INVALID_REASON, nodes)?;
+    }
     out.waiting_reasons.sort_unstable();
     out.waiting_reasons.dedup();
     let waiting = fact(nodes, &out.waiting_reasons)?;
@@ -1187,7 +1223,7 @@ pub(super) fn build_cd(
                     "scan_budget",
                     obj(
                         [
-                            ("policy", s(SECOND_SEQ_SCAN_BUDGET_POLICY, nodes)?),
+                            ("policy", s(evidence.second_store.policy.label(), nodes)?),
                             (
                                 "round_strokes",
                                 s(evidence.second_store.round_budget, nodes)?,

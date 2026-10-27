@@ -11,7 +11,7 @@ const EQUAL_EXTREME_IDENTITY: &str = "equal_extreme_identity";
 const KNOWLEDGE_DOMAIN: &str = tb02b::W_CONTRACT.knowledge_domain;
 use newchan_rust::theta_v0::parser::inclusion::{
     InclusionDirectionEvidence, InclusionFacts, InclusionGroupFact, InclusionStepFact,
-    INITIALIZATION_POLICY,
+    SourceCoords, INITIALIZATION_POLICY,
 };
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
@@ -398,7 +398,8 @@ impl<'a> InitializationView<'a> {
                 direction: node.direction,
                 previous_acc: node.previous_acc,
                 incoming: node.incoming,
-                source_coords: node.coords.materialize(),
+                // #1597：共享句柄，不展开（逻辑内容与扁平展开逐位相同）。
+                source_coords: SourceCoords::from_shared(node.coords.clone()),
             }),
             unsettled: state.unsettled(),
             unmapped: state.unmapped_sources(),
@@ -423,7 +424,7 @@ fn add_initialization(
     let initial_sources: Vec<usize> = init
         .evidence
         .as_ref()
-        .map(|e| e.source_coords.clone())
+        .map(|e| e.source_coords.to_vec())
         .unwrap_or_else(|| init.unmapped.to_vec());
     let init_slot = json!(["CC-004.initialization", "W"]);
     let init_id = b.add(
@@ -1442,8 +1443,6 @@ pub(super) fn catalog_axes_admitted<'a, 'objects, 'changes>(
         let mut withdrawal_rows;
         let revisions_view;
         let withdrawals_view;
-        let mut evidence_fields =
-            bj::new_work::<(&str, JsonView<'_>)>(store.allocation_budget().as_ref());
         let segment = matches!(axis, "CC-011" | "CC-012" | "CC-013" | "CC-014");
         let center = matches!(axis, "CC-016" | "CC-017" | "CC-022");
         let pair = matches!(axis, "CC-018" | "CC-020");
@@ -1469,6 +1468,8 @@ pub(super) fn catalog_axes_admitted<'a, 'objects, 'changes>(
         } else {
             ("TB-02-A", &[], &[])
         };
+        let mut evidence_fields =
+            bj::new_work::<(&str, JsonView<'_>)>(store.allocation_budget().as_ref());
         push(
             store,
             &mut evidence_fields,

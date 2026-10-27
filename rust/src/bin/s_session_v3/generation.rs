@@ -786,7 +786,7 @@ impl GenerationRuntime {
         };
         let (layer, evidence, second_store) = if structure_enabled {
             // 恢复只读上一代已核发布根；随后仅调用一次共享 parser 并保留同次游标簿。
-            let mut fold = parser::second_fold::SecondFoldStore::new(crate::tb02c::round_budget());
+            let mut fold = crate::tb02c::second_store(&self.theta_config.parse);
             content_structure::restore_second_cursors(store, &self.producer, &cd_prior, &mut fold)?;
             let (layer, evidence, fold) =
                 parser::parse_layer_with_group_evidence_store(state, &self.theta_config, fold);
