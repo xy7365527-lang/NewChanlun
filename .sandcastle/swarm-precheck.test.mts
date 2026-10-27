@@ -16,7 +16,7 @@ function fixture(t: { after: (fn: () => void) => void }, conflict = false) {
   const calls = join(root, "calls");
   for (const name of ["docker", "gh", "codex"]) {
     const path = join(bin, name);
-    writeFileSync(path, `#!/bin/sh\nprintf '%s\\n' '${name}' >> "$PROBE_CALLS"\nif [ '${name}' = docker ] && [ "$PROBE_NAMESPACE_OK" = 1 ]; then\n  case "$*" in *'--entrypoint unshare'*) exit 0 ;; esac\nfi\nexit 42\n`);
+    writeFileSync(path, `#!/bin/sh\nprintf '%s\\n' '${name}' >> "$PROBE_CALLS"\nif [ '${name}' = docker ] && [ "$PROBE_NAMESPACE_OK" = 1 ]; then\n  case "$*" in *'--entrypoint sh'*) printf '%s\\n' 'apparmor=docker-default (enforce)' 'seccomp=2' 'capEff=0000000000000000' 'capBnd=00000000a80425fb' 'roWrite=touch: Read-only file system' 'rwWrite=ok' 'roChildInRw=Read-only file system' 'roFileAppend=Read-only file system' 'renameMountpoint=Device or resource busy' 'hardlinkAcross=Invalid cross-device link' 'symlinkIntoRo=Read-only file system'; exit 0 ;; esac\nfi\nexit 42\n`);
     chmodSync(path, 0o755);
   }
   // #1742 旧入口准入替身：记录 drain-control 请求，不触碰本机生产冻结根；PROBE_FROZEN=1 模拟已冻结。
@@ -86,7 +86,7 @@ test("公共 CLI：旧入口已冻结时新 accepted 清单退出 75，不建归
 test("公共 CLI：冲突时 Docker 预检失败，保留 MERGE_HEAD/checkpoint 且不启动工蜂", t => {
   const f = fixture(t, true);
   const first = f.run();
-  assert.equal(first.status, 1); assert.match(first.stderr, /默认 Docker namespace 不可用/);
+  assert.equal(first.status, 1); assert.match(first.stderr, /Docker 隔离合同/);
   assert.ok(existsSync(f.checkpoint), "须在冲突现场检查 Docker，而不是入口直接拒绝");
   const before = readFileSync(f.checkpoint, "utf8"); const state = JSON.parse(before);
   assert.equal(state.phase, "conflict"); assert.equal(state.position, 1);
@@ -96,7 +96,7 @@ test("公共 CLI：冲突时 Docker 预检失败，保留 MERGE_HEAD/checkpoint 
   const conflict = readFileSync(join(f.worktree, "doc.md"), "utf8"); assert.match(conflict, /<<<<<<< HEAD/);
   assert.equal(f.git("rev-parse", "main"), f.base);
   assert.deepEqual(f.called(), ["docker"]);
-  const again = f.run(); assert.equal(again.status, 1); assert.match(again.stderr, /默认 Docker namespace 不可用/);
+  const again = f.run(); assert.equal(again.status, 1); assert.match(again.stderr, /Docker 隔离合同/);
   assert.equal(readFileSync(f.checkpoint, "utf8"), before);
   assert.equal(readFileSync(join(f.worktree, "doc.md"), "utf8"), conflict);
   assert.deepEqual(f.called(), ["docker", "docker"]);
@@ -104,7 +104,7 @@ test("公共 CLI：冲突时 Docker 预检失败，保留 MERGE_HEAD/checkpoint 
 
 test("公共 CLI：普通 swarm 在 planner/claim 前仍因 Docker 不可用拒绝", t => {
   const f = fixture(t); const result = f.run(false);
-  assert.equal(result.status, 1); assert.match(result.stderr, /默认 Docker namespace 不可用/);
+  assert.equal(result.status, 1); assert.match(result.stderr, /Docker 隔离合同/);
   assert.deepEqual(f.called(), ["docker"]);
   assert.equal(existsSync(f.checkpoint), false);
   assert.equal(f.git("worktree", "list", "--porcelain").match(/^worktree /gm)?.length, 1);

@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync, openSync, closeSync, unlinkSync, lstatSync, readlinkSync, realpathSync } from "node:fs";
 import { dirname, basename, join, resolve, relative, isAbsolute } from "node:path";
 import { parseStageReport } from "./managed-commit.mts";
+import { assertHostPackagingSafe } from "./docker-isolation.mts";
 import { validateMergeInputSource, type MergeInput } from "./merge-source.mts";
 
 export type { MergeInput } from "./merge-source.mts";
@@ -159,6 +160,7 @@ export async function runManagedMerge(o: MergeOptions): Promise<MergeState> {
       if (s.phase === "prepared") {
         // 冲突工蜂可能等待很久；提交前重新复核来源，失效则停在已保存的 prepared 检查点，MERGE_HEAD 保留。
         o.admit?.(input);
+        assertHostPackagingSafe(o.cwd); // #1742：容器可写的仓内属性不得触发宿主命令型 filter/diff/merge 驱动
         if (s.snapshot.head !== s.before || s.snapshot.mergeHead !== input.sha) throw new Error("提交前归并父集不匹配");
         git(o.cwd, ["diff", "--cached", "--check"]);
         s.tree = git(o.cwd, ["write-tree"]).trim(); save("prepared");

@@ -163,7 +163,7 @@ test("公共 CLI：来源失效或远端事实不可得时，旧证据在任何 
 test("公共 CLI：冲突仍先调原 Docker 检查并保留 MERGE_HEAD；之后执行器写 stale.json，重入在 Docker 前拒绝且现场不变", t => {
   const f = fixture(t, true);
   const first = f.run();
-  assert.equal(first.status, 1); assert.match(first.stderr, /默认 Docker namespace 不可用/);
+  assert.equal(first.status, 1); assert.match(first.stderr, /Docker 隔离合同/);
   const saved = readFileSync(f.checkpoint, "utf8"); const state = JSON.parse(saved);
   assert.equal(state.phase, "conflict"); assert.equal(state.position, 1); assert.deepEqual(state.allowed, ["doc.md"]);
   assert.equal(state.snapshot.mergeHead, f.sources[1]!.sha);

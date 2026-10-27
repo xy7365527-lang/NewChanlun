@@ -121,11 +121,25 @@ test("main-swarm 路由门失败后保留非零退出码", () => {
   }
 });
 
-// #1617：路由连通不代表 Docker 工具可运行。
-test("默认 namespace 失败时在 planner 和 claim 前阻塞，不永久禁用 swarm", async () => {
+// #1617/#1742：路由连通不代表容器隔离合同成立。
+test("隔离合同不成立时在 planner 和 claim 前阻塞，不永久禁用 swarm", async () => {
   const { assertSwarmExecutionReady } = await import("./swarm-route.mts");
-  assert.throws(() => assertSwarmExecutionReady("fixture", () => { throw new Error("EPERM"); }), /namespace/);
-  let seen = ""; assertSwarmExecutionReady("fixture", image => { seen = image; }); assert.equal(seen, "fixture");
+  const { violations } = await import("./docker-isolation.mts");
+  const good = {
+    apparmor: "docker-default (enforce)", seccomp: "2", capEff: "0000000000000000",
+    capBnd: "00000000a80425fb",
+    roWrite: "touch: cannot touch '/probe/ro/x': Read-only file system", rwWrite: "ok",
+    roChildInRw: "Read-only file system", roFileAppend: "Read-only file system",
+    renameMountpoint: "mv: Device or resource busy", hardlinkAcross: "ln: Invalid cross-device link",
+    symlinkIntoRo: "Read-only file system",
+  };
+  assert.deepEqual(violations(good), []);
+  assert.throws(() => assertSwarmExecutionReady("fixture", () => { throw new Error("EPERM"); }), /FAIL-loud #1617/);
+  assert.throws(() => assertSwarmExecutionReady("fixture", () => ({ ...good, roWrite: "ok" })), /EROFS/);
+  assert.throws(() => assertSwarmExecutionReady("fixture", () => ({ ...good, capBnd: "000001ffffffffff" })), /CapBnd/);
+  assert.throws(() => assertSwarmExecutionReady("fixture", () => ({ ...good, seccomp: "0" })), /Seccomp/);
+  assert.deepEqual(violations({ ...good, capBnd: "0000000000000000" }), []);
+  let seen = ""; assertSwarmExecutionReady("fixture", (image) => { seen = image; return good; }); assert.equal(seen, "fixture");
   const source = readFileSync(new URL("./main-swarm.mts", import.meta.url), "utf8");
   assert.ok(source.indexOf("assertSwarmExecutionReady(IMAGE)") < source.indexOf("for (let iteration"));
 });

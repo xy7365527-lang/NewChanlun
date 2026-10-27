@@ -3,6 +3,7 @@ import type { AgentProvider, SandboxProvider } from "@ai-hero/sandcastle";
 import { execFileSync } from "node:child_process";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { codexWorker, codexRouteEnv } from "./codex-route.mts";
+import { assertContainerIsolationContract, hardenProvider, type IsolationObservation } from "./docker-isolation.mts";
 
 import { MAIN_MODEL } from "./main-model.mts";
 
@@ -17,7 +18,8 @@ export function swarmSandbox(
   imageName: string,
   env: Record<string, string> = dockerCliProxyEnv(),
 ): SandboxProvider {
-  return docker({ imageName, env });
+  // #1742 方案B：git 挂载与受保护子路径只读；其余启动参数仍是 Sandcastle 的 docker()，不加 security-opt/cap。
+  return hardenProvider(docker({ imageName, env }));
 }
 
 /** planner/implementer/reviewer/merger 各自调用，保留独立 session。 */
@@ -85,10 +87,10 @@ export function assertDockerCliProxyReachable(
   }
 }
 
-/** #1617：先证实默认容器允许工具所需 namespace，再碰 planner/认领。 */
-export function assertSwarmExecutionReady(imageName: string, probe = (image: string) => {
-  execFileSync("docker", ["run", "--rm", "--network", "none", "--entrypoint", "unshare", image, "-Ur", "true"], { stdio: "pipe", timeout: 30_000 });
-}): void {
-  try { probe(imageName); }
-  catch { throw new Error("[FAIL-loud #1617] 默认 Docker namespace 不可用；不认领、不扩大容器权限。Docker 提交合同另待验收。"); }
+/** #1617/#1742：领票前逐项观测容器隔离合同（docker-default、seccomp、无 cap、只读挂载 EROFS、读写可写）。 */
+export function assertSwarmExecutionReady(
+  imageName: string,
+  probe?: (image: string) => IsolationObservation,
+): void {
+  assertContainerIsolationContract(imageName, probe);
 }

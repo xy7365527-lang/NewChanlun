@@ -1,0 +1,177 @@
+/** #1742 方案B：容器即沙箱。Git 元数据与受保护子路径只读挂载，门禁逐项观测真实合同。
+ * 不加载 profile、不传 --security-opt/--cap-add/--privileged；内层 Codex 不再起 bwrap。 */
+import { execFileSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join, resolve } from "node:path";
+
+export interface MountSpec { hostPath: string; sandboxPath: string; readonly?: boolean }
+
+/** worktree 内必须物理只读的子路径；不存在则不新挂（容器内可新建，但宿主封包拒收这些路径）。 */
+export const PROTECTED_SUBPATHS = [".git", ".agents", ".codex"] as const;
+
+/** 只收紧、不新增来源：worktree 以外的挂载（Sandcastle 的 git 挂载）改只读，
+ * worktree 内已存在的受保护子路径用同一宿主路径再挂一次只读。 */
+export function hardenMounts(
+  mounts: readonly MountSpec[],
+  worktreeHostPath: string,
+  exists: (path: string) => boolean = existsSync,
+): MountSpec[] {
+  const worktree = mounts.find((m) => m.hostPath === worktreeHostPath);
+  if (!worktree) throw new Error("Docker 挂载缺少 worktree 本体，拒绝猜测只读边界");
+  const out: MountSpec[] = mounts.map((m) => (m === worktree ? { ...m } : { ...m, readonly: true }));
+  for (const name of PROTECTED_SUBPATHS) {
+    const sandboxPath = `${worktree.sandboxPath}/${name}`;
+    const hostPath = join(worktree.hostPath, name);
+    const present = out.find((m) => m.sandboxPath === sandboxPath);
+    if (present) { present.readonly = true; continue; }
+    if (exists(hostPath)) out.push({ hostPath, sandboxPath, readonly: true });
+  }
+  return out;
+}
+
+interface HasCreate<O extends { mounts: Array<{ hostPath: string; sandboxPath: string; readonly?: boolean }>; worktreePath: string }, H> {
+  create: (options: O) => Promise<H>;
+}
+/** 包一层 provider.create：只改写 mounts，其余原样交给 Sandcastle 的 docker()。 */
+export function hardenProvider<P extends object, O extends { mounts: Array<{ hostPath: string; sandboxPath: string; readonly?: boolean }>; worktreePath: string }, H>(
+  base: P,
+  exists: (path: string) => boolean = existsSync,
+): P {
+  const inner = (base as unknown as HasCreate<O, H>).create;
+  return {
+    ...base,
+    create: (options: O) => inner.call(base, { ...options, mounts: hardenMounts(options.mounts, options.worktreePath, exists) }),
+  } as P;
+}
+
+export interface IsolationObservation {
+  apparmor: string; seccomp: string; capEff: string; capBnd: string;
+  roWrite: string; rwWrite: string; roChildInRw: string; roFileAppend: string; renameMountpoint: string; hardlinkAcross: string; symlinkIntoRo: string;
+}
+
+const EROFS = /read-only file system/i;
+/** Docker 默认 capability 集合（chown dac_override fowner fsetid kill setgid setuid setpcap net_bind_service net_raw
+ * sys_chroot mknod audit_write setfcap）。bounding set 只能是它的子集：cap-add/privileged 会越界，cap-drop 只会缩小。 */
+const DEFAULT_CAP_MASK = 0xa80425fbn;
+
+/** 观测值全部满足才 Ready；缺一项即返回原因列表（不缓存、不推断）。 */
+export function violations(o: IsolationObservation): string[] {
+  const bad: string[] = [];
+  if (!/^docker-default \(enforce\)/.test(o.apparmor)) bad.push(`AppArmor=${o.apparmor}`);
+  if (o.seccomp !== "2") bad.push(`Seccomp=${o.seccomp}`);
+  if (!/^0+$/.test(o.capEff)) bad.push(`CapEff=${o.capEff}`);
+  if (!/^[0-9a-f]+$/i.test(o.capBnd) || (BigInt("0x" + o.capBnd) & ~DEFAULT_CAP_MASK) !== 0n) bad.push(`CapBnd=${o.capBnd} 超出 Docker 默认集合`);
+  if (!EROFS.test(o.roWrite)) bad.push(`只读挂载写入未返回 EROFS: ${o.roWrite}`);
+  if (o.rwWrite !== "ok") bad.push(`读写挂载不可写: ${o.rwWrite}`);
+  if (!EROFS.test(o.roChildInRw)) bad.push(`读写挂载内的只读子挂载可写: ${o.roChildInRw}`);
+  if (!EROFS.test(o.roFileAppend)) bad.push(`只读文件挂载可写: ${o.roFileAppend}`);
+  if (o.renameMountpoint === "ok") bad.push("只读子挂载点可被 rename");
+  if (o.hardlinkAcross === "ok") bad.push("可从只读挂载硬链接到读写挂载");
+  if (!EROFS.test(o.symlinkIntoRo)) bad.push(`经符号链接写只读挂载未返回 EROFS: ${o.symlinkIntoRo}`);
+  return bad;
+}
+
+export const PROBE_SCRIPT = String.raw`
+r() { out=$("$@" 2>&1) && echo ok || echo "$out"; }
+echo "apparmor=$(cat /proc/self/attr/current 2>&1 | tr -d '\0')"
+echo "seccomp=$(sed -n 's/^Seccomp:[[:space:]]*//p' /proc/self/status)"
+echo "capEff=$(sed -n 's/^CapEff:[[:space:]]*//p' /proc/self/status)"
+echo "capBnd=$(sed -n 's/^CapBnd:[[:space:]]*//p' /proc/self/status)"
+echo "roWrite=$(r touch /probe/ro/x | tr '\n' ' ')"
+echo "rwWrite=$(r touch /probe/rw/x | tr '\n' ' ')"
+echo "roChildInRw=$(r touch /probe/rw/child/x | tr '\n' ' ')"
+echo "roFileAppend=$(r sh -c 'echo x >> /probe/rw/gitfile' | tr '\n' ' ')"
+echo "renameMountpoint=$(r mv /probe/rw/child /probe/rw/child2 | tr '\n' ' ')"
+echo "hardlinkAcross=$(r ln /probe/ro/seed /probe/rw/hl | tr '\n' ' ')"
+ln -s /probe/ro /probe/rw/lnk 2>/dev/null
+echo "symlinkIntoRo=$(r touch /probe/rw/lnk/x | tr '\n' ' ')"
+`;
+
+export type DockerCli = (args: string[]) => string;
+const dockerCli: DockerCli = (args) => execFileSync("docker", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 60_000, killSignal: "SIGKILL" });
+
+export function parseObservation(logs: string): IsolationObservation {
+  const kv = new Map<string, string>();
+  for (const line of logs.split("\n")) { const i = line.indexOf("="); if (i > 0) kv.set(line.slice(0, i), line.slice(i + 1).trim()); }
+  const get = (k: string) => kv.get(k) ?? "";
+  return {
+    apparmor: get("apparmor"), seccomp: get("seccomp"), capEff: get("capEff"), capBnd: get("capBnd"),
+    roWrite: get("roWrite"), rwWrite: get("rwWrite"), roChildInRw: get("roChildInRw"), roFileAppend: get("roFileAppend"),
+    renameMountpoint: get("renameMountpoint"), hardlinkAcross: get("hardlinkAcross"), symlinkIntoRo: get("symlinkIntoRo"),
+  };
+}
+
+/** 用与 Sandcastle 相同的启动形态（--user 宿主 uid:gid，无 cap/security 参数）起一次临时探针容器；
+ * 无网络、无凭据、只挂临时目录；容器按名删除。 */
+export function probeDockerIsolation(imageName: string, cli: DockerCli = dockerCli): IsolationObservation {
+  // Colima 只共享 $HOME：探针目录必须在其下，否则容器看到的是 VM 内空目录，观测无意义。
+  const base = join(homedir(), ".cache", "sandcastle-isolation-probe");
+  mkdirSync(base, { recursive: true });
+  const root = mkdtempSync(join(base, "run-"));
+  const name = `sandcastle-probe-${randomUUID()}`;
+  try {
+    const ro = join(root, "ro"), rw = join(root, "rw"), child = join(root, "child"), gitfile = join(root, "gitfile");
+    for (const d of [ro, rw, child]) mkdirSync(d);
+    writeFileSync(join(ro, "seed"), "seed");
+    writeFileSync(gitfile, "gitdir: x\n");
+    // 子挂载点需存在于 rw 之下：宿主侧预建，容器内才能叠加挂载。
+    mkdirSync(join(rw, "child"));
+    writeFileSync(join(rw, "gitfile"), "");
+    const uid = process.getuid?.() ?? 1000, gid = process.getgid?.() ?? 1000;
+    const logs = cli(["run", "--rm", "--name", name, "--network", "none", "--user", `${uid}:${gid}`,
+      "-v", `${ro}:/probe/ro:ro`, "-v", `${rw}:/probe/rw`,
+      "-v", `${child}:/probe/rw/child:ro`, "-v", `${gitfile}:/probe/rw/gitfile:ro`,
+      "--entrypoint", "sh", imageName, "-c", PROBE_SCRIPT]);
+    return parseObservation(logs);
+  } catch (error) {
+    // 超时/中断时 --rm 不一定生效：只按本次名字回收。
+    if ((error as { killed?: boolean; signal?: string }).killed || (error as { signal?: string }).signal) { try { cli(["rm", "-f", name]); } catch { /* 无残留 */ } }
+    throw error;
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+/** #1617：门禁——合同在这个 daemon 上逐项成立才放行；否则 FAIL-loud，不认领、保留 checkpoint/MERGE_HEAD。 */
+export function assertContainerIsolationContract(imageName: string, probe: (image: string) => IsolationObservation = probeDockerIsolation): IsolationObservation {
+  let observation: IsolationObservation;
+  try { observation = probe(imageName); }
+  catch (error) { throw new Error(`[FAIL-loud #1617] Docker 隔离合同探针无法运行；不认领、不扩大容器权限。${String(error).slice(0, 240)}`); }
+  const bad = violations(observation);
+  if (bad.length) throw new Error(`[FAIL-loud #1617] Docker 隔离合同不成立：${bad.join("；")}。不认领、不扩大容器权限。`);
+  return observation;
+}
+
+/** 宿主封包前：仓内可控文件不得触发宿主配置的命令型 filter/diff/merge 驱动（仅 lfs 白名单），
+ * hooksPath 必须指向 worktree 之外。配置只来自宿主 config 与（只读的）.git/config。 */
+export function assertHostPackagingSafe(
+  cwd: string,
+  git: (args: string[]) => string = (args) => execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] }),
+  allowedDrivers: readonly string[] = ["lfs"],
+): void {
+  let config = "";
+  try { config = git(["config", "--show-origin", "--get-regexp", "^(filter|diff|merge)\\..*\\.(clean|smudge|process|textconv|driver|command)$|^core\\.(hookspath|fsmonitor)$"]); }
+  catch { config = ""; }
+  const drivers = new Set<string>();
+  for (const line of config.split("\n").filter(Boolean)) {
+    const m = line.match(/^\S+\s+(\S+)\s/);
+    const key = (m?.[1] ?? "").toLowerCase();
+    const driver = key.match(/^(?:filter|diff|merge)\.(.+)\.(?:clean|smudge|process|textconv|driver|command)$/);
+    if (driver && !allowedDrivers.includes(driver[1]!)) drivers.add(driver[1]!);
+    if (key === "core.fsmonitor") throw new Error("宿主配置了 core.fsmonitor，拒绝封包");
+    if (key === "core.hookspath") {
+      const value = line.split(/\s+/).slice(2).join(" ");
+      const root = resolve(cwd);
+      if (resolve(root, value).startsWith(root + "/")) throw new Error("core.hooksPath 指向 worktree 内，拒绝封包");
+    }
+  }
+  if (!drivers.size) return;
+  const files = git(["ls-files", "-z"]).split("\0").filter(Boolean);
+  if (!files.length) return;
+  const attrs = execFileSync("git", ["-C", cwd, "check-attr", "-z", "--stdin", "filter", "diff", "merge"], { input: files.join("\0") + "\0", encoding: "utf8", maxBuffer: 256 * 1024 * 1024 }).split("\0");
+  for (let i = 0; i + 2 < attrs.length; i += 3) {
+    if (drivers.has(attrs[i + 2]!)) throw new Error(`仓内文件 ${attrs[i]} 引用宿主命令型驱动 ${attrs[i + 2]}，拒绝封包`);
+  }
+}

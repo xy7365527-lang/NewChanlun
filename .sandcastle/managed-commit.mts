@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { isAbsolute, normalize, join } from "node:path";
 import { realpathSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { assertHostPackagingSafe } from "./docker-isolation.mts";
 export interface ManagedStage { cwd: string; branch: string; head: string; issue: number; phase: "implementer" | "reviewer" }
 export interface StageReport { status: "ready" | "blocked"; files: string[]; verification: string[] }
 const git = (cwd: string, args: string[]) => execFileSync("git", args, { cwd, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
@@ -42,6 +43,7 @@ export function finishManagedStage(stage: ManagedStage, stdout: string): { head:
   const actual = changed(cwd);
   if (JSON.stringify(actual) !== JSON.stringify([...report.files].sort())) throw new Error("实际变更与工蜂文件清单不一致，保留全部改动");
   if (!actual.length) return { head, committed: false, report };
+  assertHostPackagingSafe(cwd); // #1742：封包前拒绝仓内属性引用宿主命令型驱动
   const staged = paths(git(cwd, ["diff", "--cached", "--name-only", "--no-renames", "-z"]));
   if (staged.some(file => !actual.includes(file))) throw new Error("索引含其他改动");
   git(cwd, ["--literal-pathspecs", "add", "--", ...actual]);
