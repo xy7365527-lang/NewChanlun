@@ -910,7 +910,8 @@ fn raw_bar(raw: &Value) -> Value {
 
 /// #1394 整合 W-3：目录轴表随规则修订走——每个写者按自己发布的对象集声明目录。
 ///
-/// v3（[`crate::V3_RULE_REVISION`]）只发布 TB-02-A/B，取 13 轴（与 FIN 线逐字同口径）；
+/// v3（[`crate::V3_DOCTRINE_RULE`]，v3 规则串剥离布局后的教义部分）只发布 TB-02-A/B，
+/// 取 13 轴（与 FIN 线逐字同口径）；
 /// v2 写者（[`crate::RULE_REVISION`]）另发布 TB-02-C/D，取 17 轴（main #1392/#1404 口径）。
 /// 两张表各对应一个规则修订、由调用方按自己的修订选定，不存在「一张判不出再换另一张」
 /// 的兜底（#799）。退场条件同 `V3_RULE_REVISION`：v3 承载 TB-02-C/D 后只剩一张表。
@@ -928,7 +929,7 @@ impl CatalogAxisTable {
     pub(super) fn for_rule_revision(rule_revision: &str) -> Option<Self> {
         let (doctrine, _) = crate::v3::layout::split(rule_revision).ok()?;
         match doctrine.as_str() {
-            crate::LEGACY_V3_RULE_REVISION | crate::V3_RULE_REVISION => Some(Self::NewBi),
+            crate::LEGACY_V3_RULE_REVISION | crate::V3_DOCTRINE_RULE => Some(Self::NewBi),
             // #1394 合入 #1420：上一代 v2 规则 `+new-bi/2+segment-second/1` 只读仍取 17 轴。
             "s2-axis-quantifiers+new-bi/1+segment-second/1"
             | "s2-axis-quantifiers+new-bi/2+segment-second/1"
