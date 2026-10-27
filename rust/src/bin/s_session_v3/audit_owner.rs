@@ -1362,6 +1362,31 @@ impl AuditConnection {
             drop(source_pending);
             step("slot.source_pending", &mut steps);
         }
+        // capture按所保护载荷分组的逐张清单，及来源合同对正文许可的对账。
+        let capture_roles = capture.as_ref().map(|capture| {
+            use newchan_rust::s_content::AuditCapture as A;
+            let mut entries = Vec::new();
+            capture.native_permit_entries_for_testonly(&mut entries).unwrap();
+            let mut roles = std::collections::BTreeMap::<String, (usize, usize)>::new();
+            for e in &entries {
+                let slot = roles.entry(format!("{:?}", e.role)).or_default();
+                slot.0 += 1;
+                slot.1 += e.bytes;
+            }
+            let claims = capture.native_source_claim_entries_for_testonly().unwrap();
+            let reconciled = A::reconcile_native_source_claims_for_testonly(&entries, &claims)
+                .map(|r| serde_json::json!([r.claims, r.claim_amount, r.backing_bytes]))
+                .unwrap_or_else(|e| serde_json::json!(e.to_string()));
+            serde_json::json!({
+                "listed_bytes": entries.iter().map(|e| e.bytes).sum::<usize>(),
+                "roles": roles,
+                "source_claims": reconciled,
+                "retention": capture.native_retention_numbers_for_testonly().map(|r| serde_json::json!({
+                    "body_len": r.body_len, "body_capacity": r.body_capacity, "nodes": r.nodes,
+                    "public_roots": r.public_roots, "template_roots": r.template_roots,
+                })),
+            })
+        });
         drop(capture);
         step("capture", &mut steps);
         drop(audited);
@@ -1382,6 +1407,7 @@ impl AuditConnection {
             "metadata_M": native::Budget::metadata_bytes(),
             "raw_state_retained_contract": self.construction.borrow().as_ref().map(|r| r.retained_bytes()),
             "steps": steps,
+            "capture_inventory": capture_roles,
             "contract": contract,
         }))
     }
