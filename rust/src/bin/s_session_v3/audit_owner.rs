@@ -4430,11 +4430,7 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                     "established_direction_without_extreme_identity_competition",
                 );
                 assert_eq!(legacy_len, 10 + 18 + 58, "#1405前合同串长");
-                assert_eq!(
-                    legacy_claims(legacy_len),
-                    111_334,
-                    "旧串推导须回到111,334"
-                );
+                assert_eq!(legacy_claims(legacy_len), 111_334, "旧串推导须回到111,334");
                 assert_eq!(
                     legacy_sealed_before_p2a_for(legacy_len),
                     527_048,
