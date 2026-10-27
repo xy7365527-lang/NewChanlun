@@ -408,6 +408,24 @@ jobs:
           EXTRAS_RESULT: ${{ needs.rust-test-s-session-extra-groups.result }}
         run: test "$EXTRAS_RESULT" = success
 
+  # #1769（ADR 0039 迁移步骤 1，C-L 验收第 4 项）：唯一生产 launcher 与 X 骨架入口测试。
+  rust-test-production-session:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CARGO_INCREMENTAL: "0"
+    defaults:
+      run:
+        working-directory: rust
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/rust-job-setup
+
+      - name: cargo test — production_session_entry
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --release --locked --features production_session --test production_session_entry --jobs 1 -- --test-threads 1
+
   rust-test-backtest-bin:
     runs-on: ubuntu-latest
     # 拆前本步约 9.3 分钟（run 39358379553）。

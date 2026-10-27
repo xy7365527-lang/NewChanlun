@@ -2222,6 +2222,28 @@ fn cmd_init(db: &Path, session: &str, catalog_path: &Path) -> Result<(), String>
     Ok(())
 }
 
+/// #1769：带结构源声明的 v1 init。声明在建库前完整校验；建库后立即作为库的固定属性写入
+/// `meta.structure_source`，此后 S.AcceptInput 只接纳声明内 namespace。不带声明的 init 不变。
+fn cmd_init_declared(
+    db: &Path,
+    session: &str,
+    catalog_path: &Path,
+    source_path: &Path,
+) -> Result<(), String> {
+    let declaration = newchan_rust::structure_source::Declaration::load(source_path)?;
+    let mut out = init_core(db, session, catalog_path)?;
+    let conn = open_db(db)?;
+    meta_set(
+        &conn,
+        newchan_rust::structure_source::META_KEY,
+        &declaration.canonical(),
+    )?;
+    out["structure_source"] =
+        serde_json::from_str(&declaration.canonical()).map_err(|e| e.to_string())?;
+    println!("{out}");
+    Ok(())
+}
+
 /// 旧 reset（先删后建 v1）语义不变；#1394 独评 F1 只加一道门：已有 `s-session/3` 域在任何删除
 /// 之前 fail closed（旧 reset 只懂 v1/v2 合同，本切片不提供新迁移/重置功能）。
 fn cmd_reset(db: &Path, session: &str, catalog_path: &Path) -> Result<(), String> {
@@ -5744,7 +5766,10 @@ fn run() -> Result<(), String> {
         "init" => {
             let d = db.ok_or("缺 --db".to_string())?;
             let c = catalog.ok_or("缺 --catalog".to_string())?;
-            cmd_init(&d, &session, &c)
+            match arg_value(&args, "--structure-source") {
+                Some(source) => cmd_init_declared(&d, &session, &c, Path::new(&source)),
+                None => cmd_init(&d, &session, &c),
+            }
         }
         "reset" => {
             let d = db.ok_or("缺 --db".to_string())?;

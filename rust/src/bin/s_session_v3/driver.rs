@@ -656,6 +656,25 @@ mod tests {
             )
         }
         fn with_clock(clock_value: Value) -> Self {
+            Self::with_clock_declared(clock_value, None)
+        }
+        /// #1769：带结构源声明建库（默认三输入时钟）。
+        fn declared(namespace: &str) -> Self {
+            let source = newchan_rust::structure_source::Declaration::parse(
+                &json!({"category":"TestOnlyStructure","namespaces":[namespace]}),
+            )
+            .unwrap();
+            Self::with_clock_declared(
+                json!({"schema_revision":"s-clock-plan/1","clock_plan_id":"s3-driver","origin_utc":"2026-09-18T00:00:00Z","unit":"ns","events":{
+                "input-1":{"accept_ns":"10","attempts":[{"begin_ns":"11","commit_ns":"12"},{"begin_ns":"14","commit_ns":"15"}]},
+                "input-2":{"accept_ns":"20","attempts":[{"begin_ns":"21","commit_ns":"22"},{"begin_ns":"24","commit_ns":"25"}]}}}),
+                Some(&source),
+            )
+        }
+        fn with_clock_declared(
+            clock_value: Value,
+            source: Option<&newchan_rust::structure_source::Declaration>,
+        ) -> Self {
             let path = std::env::temp_dir().join(format!(
                 "s1394-driver-{}-{}-{}",
                 std::process::id(),
@@ -671,7 +690,7 @@ mod tests {
                 .join("s_session");
             let profile = base.join("profiles/ohlc_integer_tb02a_v1.json");
             let db = path.join("s.sqlite");
-            init_v3(
+            super::super::init_v3_declared(
                 &db,
                 "s-session-testonly-001",
                 &base.join("catalog/signed-catalog.json"),
@@ -679,6 +698,7 @@ mod tests {
                 "1",
                 &cp,
                 4,
+                source,
             )
             .unwrap();
             Self {
@@ -742,6 +762,30 @@ mod tests {
     fn count(c: &Connection, t: &str) -> i64 {
         c.query_row(&format!("SELECT COUNT(*) FROM {t}"), [], |r| r.get(0))
             .unwrap()
+    }
+
+    /// #1769：带声明的库经正式写入口（handle → accept_events）只接纳声明内 namespace；
+    /// 声明外的同形 bar 以 InvalidDomain 拒收且不落行。
+    #[test]
+    fn declared_structure_source_gates_accept_input() {
+        let rejected = Fixture::declared("hl.perp.BTC");
+        let outcome = rejected.open("1").unwrap().handle(Fixture::ingest(1));
+        let text = match &outcome {
+            Ok(reply) => reply.to_string(),
+            Err(error) => error.clone(),
+        };
+        assert!(text.contains("InvalidDomain"), "{text}");
+        assert!(text.contains("source_namespace"), "{text}");
+        assert_eq!(count(&open_db(&rejected.db).unwrap(), "raw_events"), 0);
+
+        let admitted = Fixture::declared("testonly.ohlc");
+        let reply = admitted
+            .open("1")
+            .unwrap()
+            .handle(Fixture::ingest(1))
+            .unwrap();
+        assert!(!reply.to_string().contains("InvalidDomain"), "{reply}");
+        assert_eq!(count(&open_db(&admitted.db).unwrap(), "raw_events"), 1);
     }
 
     /// #1405：只有规则元数据为历史 /1 的空库也不准新写者接纳/恢复；Q 的只读审计仍可读。
