@@ -1,0 +1,12 @@
+{
+  "43_read_tree_exit": 0,
+  "43_checkout_index_exit": 0,
+  "untracked_recovered_equal": [
+    ".chanlun/review-results/1488-acceptance/fix-p2-0092/REPORT-resume-20261023.md",
+    "fix_all.py",
+    "fix_p2_windows.sh"
+  ],
+  "41_commit_readable": true,
+  "source_paths_absent": true,
+  "restore_alternates_absent": true
+}
