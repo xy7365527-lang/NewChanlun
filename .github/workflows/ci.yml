@@ -862,6 +862,9 @@ jobs:
       #   只把这条锁连同其判据（钩子不再验、重载命中重放计费、Reader 根变化必重验）单独成套执行。
       - name: Q3 v3 validate-once lock (#1394)
         run: node --test s_session/tests/test_q3_v3_validate_once.cjs
+      # #1419/#1424：Q3 读 S3 结构写者（W 后继规则串）的规则/22 轴/中枢族 typed 合同锁。
+      - name: Q3 S3 center-family contract (#1419)
+        run: node --test s_session/tests/test_q3_s3_center_contract.cjs
       - name: TB-02-W terminal and cursor contract tests (#1420)
         if: ${{ !cancelled() }}
         working-directory: s_session/tests
