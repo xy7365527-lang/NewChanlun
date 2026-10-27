@@ -39,3 +39,11 @@ export function assertControlledBase(admission: Admission, ticket: number, repoD
   }
   return head;
 }
+
+/** 评审基准与候选清单基线：普通 swarm 保持原行为（origin/main 经 fetch 复核、本地 main）；
+ * 受控第 13 行两处都用 receipt.head（baseRef），否则评审会把整条迁移当本票改动，且要等第 13 行被占用后才 FAIL-loud。 */
+export function swarmBases(o: { controlled: boolean; baseRef: string; reviewBase: () => string; mainSha: () => string }): { reviewBase: () => string; candidateBase: () => string } {
+  return o.controlled
+    ? { reviewBase: () => o.baseRef, candidateBase: () => o.baseRef }
+    : { reviewBase: o.reviewBase, candidateBase: o.mainSha };
+}

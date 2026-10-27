@@ -76,3 +76,31 @@ test("main-swarm 受控分支用 receipt.head 建工蜂 worktree；普通 swarm 
   assert.equal(src.match(/baseBranch: "main"/g)?.length, 1, "仅 planner（只在普通分支）保留 main");
   assert.ok(existsSync(new URL("./swarm-controlled.mts", import.meta.url)));
 });
+
+import { buildReviewPrompt, hostGit } from "./review-context.mts";
+import { swarmBases } from "./swarm-controlled.mts";
+
+test("受控第 13 行：评审摘要与候选清单基线都是 receipt.head，只含本票在其上的提交；普通 swarm 保持原基线", () => {
+  const r = repo();
+  // 在候选之上做本票的一个提交，并让本地 main 与 origin/main 各自走远（模拟 33d0c2fd 场景：三者互不包含）。
+  r.git("branch", "main-before", "HEAD");
+  r.git("checkout", "-q", "-b", `sandcastle/issue-${TICKET}`);
+  writeFileSync(join(r.dir, "ticket.txt"), "only this ticket\n"); r.git("add", "."); r.git("commit", "-qm", "ticket work");
+  r.git("checkout", "-q", "main");
+  for (const n of [1, 2, 3, 4]) { writeFileSync(join(r.dir, `drift${n}`), String(n)); r.git("add", "."); r.git("commit", "-qm", `main drift ${n}`); }
+  const git = hostGit(r.dir);
+  const template = "BASE={{BASE}} TARGET={{TARGET_BRANCH}}\nCOMMITS:\n{{COMMITS}}\nFILES:\n{{FILES}}\n";
+  const bases = swarmBases({ controlled: true, baseRef: r.candidate, reviewBase: () => { throw new Error("受控模式不得解析 origin/main"); }, mainSha: () => { throw new Error("受控模式不得取本地 main"); } });
+  const prompt = buildReviewPrompt({ template, target: r.candidate, resolveBase: bases.reviewBase, git, branch: `sandcastle/issue-${TICKET}`, issue: TICKET, fetchIssue: () => "issue" });
+  assert.equal(prompt.base, r.candidate);
+  assert.match(prompt.prompt, /ticket work/); assert.match(prompt.prompt, /ticket\.txt/);
+  assert.doesNotMatch(prompt.prompt, /main drift/); assert.doesNotMatch(prompt.prompt, /drift\d/, "不含 main 漂移的提交或文件");
+  assert.equal(bases.candidateBase(), r.candidate, "候选清单 base=receipt.head，而不是 rev-parse main");
+  // 普通 swarm：原行为——评审基准与候选基线来自传入的解析器
+  const normal = swarmBases({ controlled: false, baseRef: "main", reviewBase: () => "REVIEW", mainSha: () => "MAIN" });
+  assert.equal(normal.reviewBase(), "REVIEW"); assert.equal(normal.candidateBase(), "MAIN");
+  const src = readFileSync(new URL("./main-swarm.mts", import.meta.url), "utf8");
+  assert.match(src, /target: baseRef, resolveBase: \(\) => swarmBases\(\{ controlled: !!controlledTicket/);
+  assert.match(src, /candidateBase\(\)/);
+  assert.doesNotMatch(src, /target: "main"/);
+});

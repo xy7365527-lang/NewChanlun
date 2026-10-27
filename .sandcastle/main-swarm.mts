@@ -10,7 +10,7 @@
 import { drainRequested, withLegacyAdmission, DrainFrozenError } from "./drain-control.mts";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { assertDockerCliProxyReachable, assertSwarmExecutionReady, swarmAgent, swarmSandbox } from "./swarm-route.mts";
-import { assertControlledBase, controlledSwarmTicket, swarmBinding } from "./swarm-controlled.mts";
+import { assertControlledBase, controlledSwarmTicket, swarmBases, swarmBinding } from "./swarm-controlled.mts";
 import { execSync } from "node:child_process";
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { z } from "zod";
@@ -176,7 +176,7 @@ for (let iteration = 1; iteration <= (controlledTicket ? 1 : MAX_ITERATIONS); it
             },
             reviewOptions: {
               template: readReviewTemplate("./.sandcastle/codex-review-prompt.md"),
-              target: "main", resolveBase: () => resolveReviewBase(git), git,
+              target: baseRef, resolveBase: () => swarmBases({ controlled: !!controlledTicket, baseRef, reviewBase: () => resolveReviewBase(git), mainSha: () => "" }).reviewBase(), git,
               fetchIssue: ghIssueFetcher(GH_CLEAN_ENV),
             },
             channels: { logWorker, notify: ghIssueNotifier(GH_CLEAN_ENV) },
@@ -207,7 +207,7 @@ for (let iteration = 1; iteration <= (controlledTicket ? 1 : MAX_ITERATIONS); it
   const runId = String(Date.now());
   const draftPath = `.sandcastle/logs/merge-candidates-${runId}.json`;
   const draft = {
-    runId, branch: `sandcastle/merge-${runId}`, base: hostGit()(["rev-parse", "main"]).trim(),
+    runId, branch: `sandcastle/merge-${runId}`, base: swarmBases({ controlled: !!controlledTicket, baseRef, reviewBase: () => "", mainSha: () => hostGit()(["rev-parse", "main"]).trim() }).candidateBase(),
     inputs: completed.map(i => ({ issue: Number(i.id), branch: i.branch, sha: i.result.verification!.head,
       acceptance: { head: i.result.verification!.head, status: "pending",
         reviewEvidence: resolve(".sandcastle/logs/workers.jsonl"),
