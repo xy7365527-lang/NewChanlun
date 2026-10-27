@@ -3236,6 +3236,49 @@ pub struct NativeCaptureRetention {
     pub template_capacity: usize,
 }
 
+/// #1572 任务D：Native capture 物理许可的常数时间读数（固定个数标量与单张许可字节，不扫节点、
+/// 不分配）。逐项依据见 [`AuditCapture::native_physical_fast_for_testonly`]。正文项不在此给出
+/// 总额：`body_capacity` 计全部节点正文容量（含未绑定的 Plain 正文），只在全部正文已 Native 绑定
+/// 时才等于正文许可之和，而“全部已绑定”不是 Native capture 的构造不变式。
+#[cfg(feature = "s_capture_native_testonly")]
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NativeCapturePhysical {
+    pub memo_seen: usize,
+    pub node_index: usize,
+    pub codec_roots: usize,
+    pub owner_codec: usize,
+    pub nodes: usize,
+    pub body_capacity: usize,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl NativeCapturePhysical {
+    /// capture 物理总额。`bound_nodes` 须由调用方独立取得（如
+    /// `native_bound_body_nodes_for_testonly`，O(n)）；≠nodes 时拒给总额——常数时间判定缺
+    /// `NativeCaptureNodes` 的“已绑定正文数（或已绑定正文许可字节）”增量标量。
+    pub fn total_if_all_bound(&self, bound_nodes: usize) -> Result<usize, CodecError> {
+        if bound_nodes != self.nodes {
+            return Err(CodecError::new(
+                code::SOURCE,
+                format!(
+                    "物理快读数：正文未全绑定（bound={bound_nodes} nodes={}）",
+                    self.nodes
+                ),
+            ));
+        }
+        [
+            self.memo_seen,
+            self.node_index,
+            self.codec_roots,
+            self.owner_codec,
+            self.body_capacity,
+        ]
+        .into_iter()
+        .try_fold(0usize, usize::checked_add)
+        .ok_or_else(|| CodecError::new(code::SOURCE, "物理快读数溢出"))
+    }
+}
+
 #[cfg(feature = "s_capture_native_testonly")]
 struct OriginalFees {
     bodies: CodecVec<(
@@ -3924,6 +3967,66 @@ impl AuditCapture {
             .public
             .retained_bytes()
             .saturating_add(certificates.template.retained_bytes())
+    }
+
+    /// #1572 任务D：capture 物理许可的常数时间读数（逐项见 [`NativeCapturePhysical`]）。
+    /// - MemoSeen：Public/Template 两份 memo 的 `native_seen_permit` 各一张许可；
+    /// - NodeIndex：`index_permit` 一张许可；CodecRoots：`public_permit` 一张许可（Template 根集合无许可）；
+    /// - OwnerCodec：两份证书各五棵树的 `retained_bytes` 之和。`OwnerProofTree::insert` 只在
+    ///   `insert_absent` 以 `reserve_native(Layout::new::<OwnerProofNode<K, V>>().size())` 签出许可并
+    ///   `NativeBox::from_reserved(node, Some(permit))` 挂上之后，才累加同一个 `layout.size()`；
+    ///   预留或分配失败不累加（许可随错误出口归还）；旋转只移指针不动许可；无单节点删除，树只经
+    ///   `clear`/`revoke` 整体换成 Default（计数同时归零）⟹ 每棵树 `retained_bytes` 恒等于其节点盒
+    ///   许可之和；
+    /// - 节点证明盒：许可额=原件长+`size_of::<NativeFrameProof>()`（`checked_read_scoped` 预留后
+    ///   `attach`），但 `NativeFrameMemo::retain_copy` 也建无许可的盒，memo 只计帧正文容量与盒数、
+    ///   不计已附许可额 ⟹ 只在 `retained_entries==0`（无盒：盒只由 `retain_copy` 建且同步计数，
+    ///   拆盒经 `remove` 同步减计数，整体清空处同时重置 memo）时可证为 0，否则 Err——缺
+    ///   `NativeFrameMemo` 的“已附证明许可字节”增量；
+    /// - 未转换原件费：只在 Legacy 上存在——`with_original_fees_for_testonly` 只接 Legacy，转换末尾
+    ///   `drop(self.original_fees.take())`，其余构造均置 None；Native 上若出现即 Err；
+    /// - 正文：只给 `body_capacity` 与 nodes，总额须经 [`NativeCapturePhysical::total_if_all_bound`]。
+    ///   绑定正文的许可额恒等于其 capacity（`attach_native_reservation` 核 bytes==capacity；
+    ///   `reserve_native_work`/`try_reserve_native_adopting`/`try_compact_native` 均按新块精确容量签许可；
+    ///   已绑定后 `reserve`/`reserve_exact` 拒绝越容量增长），`body_capacity` 在转换、追加、稀疏保留
+    ///   三处按 capacity 维护；但“每个正文都已绑定”不由构造保证：无原件费转换（
+    ///   `enable_native_frame_reuse_for_testonly`）、原件费表中 fee=None 的条目、
+    ///   `append_original_for_owner_testonly(.., None)` 都留下 Plain 正文。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[doc(hidden)]
+    pub fn native_physical_fast_for_testonly(&self) -> Result<NativeCapturePhysical, CodecError> {
+        let CaptureNodes::Native(native) = &self.nodes else {
+            return Err(CodecError::new(code::SOURCE, "物理快读数只接Native capture"));
+        };
+        if self.original_fees.is_some() {
+            return Err(CodecError::new(
+                code::SOURCE,
+                "物理快读数：Native capture 不应持未转换原件费",
+            ));
+        }
+        if native.memo.borrow().retained_entries != 0 {
+            return Err(CodecError::new(
+                code::SOURCE,
+                "物理快读数：存活节点证明盒无常数时间许可读数",
+            ));
+        }
+        let bytes = capture_allocation::scratch::NativeReservation::bytes;
+        let mut memo_seen = 0usize;
+        for memo in [&self.public, &self.template] {
+            let permit = memo.borrow().native_seen_permit.as_ref().map_or(0, bytes);
+            memo_seen = memo_seen
+                .checked_add(permit)
+                .ok_or_else(|| CodecError::new(code::SOURCE, "物理快读数溢出"))?;
+        }
+        let roots = self.codec_roots.borrow();
+        Ok(NativeCapturePhysical {
+            memo_seen,
+            node_index: native.index_permit.as_ref().map_or(0, bytes),
+            codec_roots: roots.public_permit.as_ref().map_or(0, bytes),
+            owner_codec: self.owner_codec_retained_bytes_for_testonly(),
+            nodes: native.nodes.len(),
+            body_capacity: native.body_capacity,
+        })
     }
 
     /// #1488 P3-c：逐个列出本capture实际持有的Native许可字节（索引、正文块、codec根、
@@ -8709,6 +8812,66 @@ mod native_owner_codec_bridge_tests {
             "真实析构全额还原父账"
         );
         assert_eq!(Arc::strong_count(&old_parent), 1, "析构后不留旧父引用");
+    }
+
+    /// #1572 任务D：capture 物理总额的常数时间读数=逐许可清单之和=capture 析构下降（三方对拍）；
+    /// 有未绑定的 Plain 正文时快读数拒给总额。
+    #[test]
+    fn i1572_native_physical_fast_matches_listing_and_drop() {
+        let members = ["alpha", "beta-gamma"];
+        let mut additions = MemoryNodes::new();
+        let root = write_value(
+            &mut additions,
+            &Value::Array(members.iter().map(|m| Value::string(*m)).collect()),
+        )
+        .unwrap()
+        .content_ref();
+        let mut capture = native(MemoryNodes::new());
+        let parent = Parent::new(32 << 20, 0);
+        run(&parent, |work| {
+            for (digest, (tag, body)) in additions.nodes {
+                let mut codec = CodecVec::default();
+                // 容量故意大于长度：正文许可按真实容量。
+                codec.try_reserve_native(work, body.len() + 5)?;
+                for byte in &body {
+                    codec.try_push_native(*byte, work)?;
+                }
+                assert!(capture.append_original_codec_for_owner_testonly(
+                    digest,
+                    tag,
+                    codec,
+                    usize::MAX,
+                    work
+                )?);
+            }
+            capture.verify_owner_refview_for_testonly((&root).into(), Mode::Public, work)
+        })
+        .unwrap();
+        let fast = capture.native_physical_fast_for_testonly().unwrap();
+        assert!(fast.owner_codec > 0 && fast.node_index > 0);
+        assert!(fast.nodes >= 3);
+        let total = fast
+            .total_if_all_bound(capture.native_bound_body_nodes_for_testonly())
+            .unwrap();
+        let mut entries = Vec::new();
+        capture
+            .native_live_permit_entries_for_testonly(&mut entries)
+            .unwrap();
+        let listed = entries.iter().map(|e| e.bytes()).sum::<usize>();
+        drop(entries);
+        let before = parent.native.load(Ordering::SeqCst);
+        drop(capture);
+        let dropped = before - parent.native.load(Ordering::SeqCst);
+        assert_eq!((total, listed), (dropped, dropped), "三方对拍");
+        // 负控：无原件费转换留下 Plain 正文，bound<nodes，快读数拒给总额。
+        let mut plain = MemoryNodes::new();
+        write_value(&mut plain, &Value::string("plain")).unwrap();
+        let plain = native(plain);
+        let fast = plain.native_physical_fast_for_testonly().unwrap();
+        let error = fast
+            .total_if_all_bound(plain.native_bound_body_nodes_for_testonly())
+            .unwrap_err();
+        assert!(error.to_string().contains("正文未全绑定"), "{error}");
     }
 
     /// #1572：同一正文的来源合同（ns 的 len+97）与物理容量（nc 的 capacity）指同一张许可。

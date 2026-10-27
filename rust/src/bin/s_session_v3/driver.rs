@@ -3336,7 +3336,94 @@ mod tests {
                     "probe": probe,
                 })
             );
+            // #1572 任务E：候选组逐项表 Σphysical 恰等于组L0（探针内另核非销毁读数=析构下降）。
+            let items = &probe["candidate_items"];
+            assert_eq!(items["physical"], probe["parent_live_before"]);
+            assert_eq!(items["physical"], items["l0"]);
+            // #1572 任务D：快读数可得时与清单之和、析构下降三方相等；不可得时留缺口原因。
+            let fast = &capture["retention"]["fast_physical"];
+            assert!(fast.is_null() || fast.as_u64() == dropped, "{fast}");
+            eprintln!(
+                "I1572_CANDIDATE_ITEMS {}",
+                json!({"entry": done + 1, "items": items})
+            );
         }
+    }
+
+    /// #1572 任务E 负控：候选组逐项表（暖探针 entry 2 的逐项合同额与析构读数）喂给逐项分区。
+    /// 正控封口逐项、组U=Σ逐项U；删一项物理读数、同一持有者计入两项、未列入清单的项名、
+    /// 只部分项实测，各自被拒且文本可辨。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn i1572_candidate_items_partition_reconciles_and_rejects_tampering() {
+        use super::super::audit_owner::native::Budget;
+        use super::super::audit_owner::I1572_CANDIDATE_ITEMS as NAMES;
+        use super::super::request_audit::OldPoolPartition as P;
+        type Row = (&'static str, usize, Option<usize>);
+        let m = Budget::metadata_bytes();
+        let rows: [Row; 9] = [
+            (NAMES[0], 10_344, Some(10_344)),
+            (NAMES[1], 1_881_795, Some(1_885_347)),
+            (NAMES[2], 264_982, Some(0)),
+            (NAMES[3], 69_365, Some(160_216)),
+            (NAMES[4], 0, Some(0)),
+            (NAMES[5], 26_988, Some(26_988)),
+            (NAMES[6], 468_249, Some(468_249)),
+            (NAMES[7], 152_529, Some(147_326)),
+            (NAMES[8], m, Some(m)),
+        ];
+        let ledger = Budget::new(64 << 20, 0).unwrap();
+        let _held = rows[..8]
+            .iter()
+            .filter_map(|r| r.2.filter(|p| *p > 0))
+            .map(|p| ledger.reserve(p).unwrap())
+            .collect::<Vec<_>>();
+        let mark = ledger.quiescent_mark();
+        let l0 = ledger.live();
+        assert_eq!(l0, 2_698_470 + m);
+        let build = |rows: &[Row]| -> Result<P, String> {
+            let mut p = P::new(Some(&ledger));
+            for &(item, contract, physical) in rows {
+                match physical {
+                    Some(physical) => p.item_measured(item, P::ON_PARENT, contract, physical)?,
+                    None => p.item(item, P::ON_PARENT, contract)?,
+                }
+            }
+            p.attest(&mark)?;
+            p.seal()
+        };
+        // 正控：逐项封口，U只落在 capture 与 audited 名下，组U=Σ逐项U，covered+U=L0。
+        let ok = build(&rows).unwrap();
+        let home = &ok.homes()[0];
+        assert!(home.itemized);
+        assert_eq!(home.covered + home.uncovered, l0);
+        assert_eq!(home.uncovered, 3_552 + 90_851);
+        assert_eq!(
+            ok.items().iter().map(|i| i.uncovered).sum::<usize>(),
+            home.uncovered
+        );
+        // 删一项物理读数（漏计 capture）：Σ<L0。
+        let mut omitted = rows.to_vec();
+        omitted.remove(1);
+        let error = build(&omitted).err().expect("漏计必须拒绝");
+        assert!(error.contains("未列入清单的来源"), "{error}");
+        // 同一持有者计入两项：capture 物理额再记到证书项。
+        let mut doubled = rows;
+        doubled[2].2 = doubled[1].2;
+        let error = build(&doubled).err().expect("重复计入必须拒绝");
+        assert!(error.contains("有项重复计入"), "{error}");
+        // 未列入 LISTED 的项名。
+        let mut unlisted = rows;
+        unlisted[5].0 = "candidate.mystery";
+        let error = build(&unlisted).err().expect("未列入清单的项名必须拒绝");
+        assert!(error.contains("未列入v4:38清单"), "{error}");
+        // 只部分项实测：首项无实测、其余有实测。
+        let mut partial = rows;
+        partial[0].2 = None;
+        let error = build(&partial).err().expect("部分实测必须拒绝");
+        assert!(error.contains("仅部分项有实测物理额"), "{error}");
+        // 同输入正控：上述篡改恢复后仍封口。
+        assert!(build(&rows).is_ok());
     }
 
     /// #1488 P3-1：冷根审计失败（1024 不足）且 legacy cache 保留开启时，根析构前根上不得残留许可；

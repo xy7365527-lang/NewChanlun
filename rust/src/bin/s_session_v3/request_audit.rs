@@ -50,7 +50,9 @@ impl ManifestWorkspaceBudget {
 /// 一律拒绝，不改T/E/O/A。
 /// #1572：项名须在v4:38清单（`LISTED`）内；组内各项都有实测物理额时改为逐项对账——Σ逐项物理额
 /// 必须恰等于组L0（少=未列入清单的来源，多=重复计入），U逐项为max(0,物理−合同)、组U=Σ逐项U。
-/// 目前只有keeper组逐项实测；候选组各持有者尚无逐张清单，仍按组净额（见#1572卡点评论）。
+/// 目前只有keeper组逐项实测；候选组生产冻结仍按组净额（`complete_candidate.charge.total` 聚合行）：
+/// 候选持有者 audited/q/originals/raw 状态尚无非销毁的物理许可读数。`candidate.*` 逐项行只供
+/// #1572 析构探针重放与负控使用，项名与 `audit_owner::I1572_CANDIDATE_ITEMS` 一一对应。
 #[cfg(feature = "s_capture_native_testonly")]
 #[derive(Clone, Debug, serde::Serialize)]
 pub(crate) struct OldPoolItem {
@@ -108,6 +110,19 @@ impl OldPoolPartition {
             "complete_candidate.charge.total",
             "candidate inline/capture index/证书+history/raw+slot双份+Q/effects/working set（聚合，未逐项）",
         ),
+        ("candidate.inline", "candidate inline/capture index/证书"),
+        (
+            "candidate.capture.node_capacity",
+            "candidate inline/capture index/证书",
+        ),
+        (
+            "candidate.capture.node_source_and_certificates",
+            "candidate inline/capture index/证书",
+        ),
+        ("candidate.audited.historical_and_raw", "history/raw"),
+        ("candidate.slot", "slot双份"),
+        ("candidate.q", "Q/effects/working set"),
+        ("candidate.originals.current_sql", "SQL行与cell"),
         ("complete_parent.metadata_M", "Observer及父元数据"),
         ("committed_raw_state", "construction/PendingRawState"),
         ("source_keeper_pool", "source keeper池"),
