@@ -851,16 +851,23 @@ mod tests {
             "payload_hash":sha256_hex(canonical_json(&payload).as_bytes()),"causal_refs":[],"payload":payload})
     }
 
-    /// #1640 C4：增量构建只在 Ready 回复的摘要 payload 内自报构建身份；testonly 构建必须自报 testonly。
-    #[cfg(feature = "s_incremental")]
+    /// #1640 C4：增量构建只在 Ready 回复的摘要 payload 内自报构建身份，testonly 构建必须自报
+    /// testonly；默认 s_session 构建不发 build_profile，旧 Ready 回复与 launcher/3 用法不变。
+    /// 本测试在所有构建都编译（feature-delta 不得出现 removed），按 cfg 分支断言。
     #[test]
     fn ready_reply_reports_build_profile_in_hashed_payload() {
-        let expected = if cfg!(feature = "s_capture_native_testonly") {
-            "testonly"
+        #[cfg(feature = "s_incremental")]
+        let declared = Some(BUILD_PROFILE);
+        #[cfg(not(feature = "s_incremental"))]
+        let declared: Option<&str> = None;
+        let expected = if !cfg!(feature = "s_incremental") {
+            None
+        } else if cfg!(feature = "s_capture_native_testonly") {
+            Some("testonly")
         } else {
-            "production"
+            Some("production")
         };
-        assert_eq!(BUILD_PROFILE, expected);
+        assert_eq!(declared, expected);
         let request = owned_ready_request();
         let identity = ("owned".into(), "1".into(), "2".into());
         let ready = reply(
@@ -869,7 +876,23 @@ mod tests {
             &identity,
             Some("current"),
         );
-        assert_eq!(ready["payload"]["build_profile"], expected);
+        let fields = ready["payload"].as_object().unwrap();
+        match expected {
+            Some(profile) => {
+                assert_eq!(fields["build_profile"], profile);
+                assert_eq!(fields.len(), 3);
+                let mut unprofiled = ready["payload"].clone();
+                unprofiled.as_object_mut().unwrap().remove("build_profile");
+                assert_ne!(
+                    ready["payload_hash"],
+                    sha256_hex(canonical_json(&unprofiled).as_bytes())
+                );
+            }
+            None => {
+                assert!(fields.get("build_profile").is_none());
+                assert_eq!(fields.len(), 2);
+            }
+        }
         assert_eq!(ready["payload"]["control_instance_id"], "current");
         assert_eq!(
             ready["payload_hash"],
@@ -885,22 +908,6 @@ mod tests {
         assert!(receipt["payload"].get("build_profile").is_none());
         let error = reply(&request, Err("Busy".into()), &identity, None);
         assert!(error["payload"].get("build_profile").is_none());
-    }
-
-    /// #1640 C4：默认 s_session 构建不发 build_profile，旧 Ready 回复与 launcher/3 用法不变。
-    #[cfg(not(feature = "s_incremental"))]
-    #[test]
-    fn default_build_ready_reply_omits_build_profile() {
-        let request = owned_ready_request();
-        let identity = ("owned".into(), "1".into(), "2".into());
-        let ready = reply(
-            &request,
-            Ok(json!({"kind":"Ready"})),
-            &identity,
-            Some("current"),
-        );
-        assert!(ready["payload"].get("build_profile").is_none());
-        assert_eq!(ready["payload"].as_object().unwrap().len(), 2);
     }
 
     #[test]

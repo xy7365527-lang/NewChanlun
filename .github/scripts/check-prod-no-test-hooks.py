@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """#1640 §2.3 第 2 层：s_incremental 生产构建不含测试钩子（源码机检，不编译）。
 
-扫描 `rust/src/s_content.rs`、`rust/src/s_content/`、`rust/src/bin/s_session_v3`、
-`rust/src/bin/s_session_v2` 里名字像测试钩子的 `fn` / `static` / `thread_local!`。cfg 门由小型
-求值器（any/all/not/feature/test）在生产 feature 集合 {s_session}、{s_session, s_incremental}
-下以 test=false 求值；任一集合为真即生产可达，判违规。
+扫描本 PR 写集（`PR_WRITE_SET`，含 `rust/src/bin/s_structure_session.rs`）及其模块目录
+（`MODULE_DIRS`）里名字像测试钩子的 `fn` / `static` / `thread_local!`。cfg 门由小型求值器
+（any/all/not/feature/test）在生产 feature 集合 {s_session}、{s_session, s_incremental} 下以
+test=false 求值；任一集合为真即生产可达，判违规。未知谓词（unix、target_os、debug_assertions
+等）真假两可，保守地按「可能为真」求值，即视为生产可达。
 已知生产例外列在 ALLOWLIST，新增例外须评审。
 
 用法：python3 .github/scripts/check-prod-no-test-hooks.py [仓根]
@@ -17,12 +18,72 @@ import re
 import sys
 from pathlib import Path
 
-ROOTS = (
+# #1640 写集：`git diff --name-only da03a10ee028..HEAD -- rust/src` 的全部 `.rs`（显式列出，运行时不调 git），
+# 另加这些文件所在的模块目录；新增写集文件须同步补入。
+PR_WRITE_SET = (
+    "rust/src/bin/s_session_v2/cache.rs",
+    "rust/src/bin/s_session_v2/content_bi.rs",
+    "rust/src/bin/s_session_v2/content_manifest.rs",
+    "rust/src/bin/s_session_v2/content_producer.rs",
+    "rust/src/bin/s_session_v2/content_publication.rs",
+    "rust/src/bin/s_session_v2/content_store.rs",
+    "rust/src/bin/s_session_v2/mod.rs",
+    "rust/src/bin/s_session_v2/tb02a_facts.rs",
+    "rust/src/bin/s_session_v3/admission_anchor.rs",
+    "rust/src/bin/s_session_v3/admission_anchor/ram.rs",
+    "rust/src/bin/s_session_v3/audit_header.rs",
+    "rust/src/bin/s_session_v3/audit_owner.rs",
+    "rust/src/bin/s_session_v3/audit_owner/effects.rs",
+    "rust/src/bin/s_session_v3/audit_owner/native.rs",
+    "rust/src/bin/s_session_v3/audit_owner/q.rs",
+    "rust/src/bin/s_session_v3/audit_retention.rs",
+    "rust/src/bin/s_session_v3/audit_store.rs",
+    "rust/src/bin/s_session_v3/aux_index.rs",
+    "rust/src/bin/s_session_v3/business_json.rs",
+    "rust/src/bin/s_session_v3/business_json/json_layout.rs",
+    "rust/src/bin/s_session_v3/catalog_evidence.rs",
+    "rust/src/bin/s_session_v3/commit.rs",
+    "rust/src/bin/s_session_v3/construction_state.rs",
+    "rust/src/bin/s_session_v3/control_audit.rs",
+    "rust/src/bin/s_session_v3/cross_request_source_cache.rs",
+    "rust/src/bin/s_session_v3/driver.rs",
+    "rust/src/bin/s_session_v3/fixed_radix.rs",
+    "rust/src/bin/s_session_v3/generation.rs",
+    "rust/src/bin/s_session_v3/history.rs",
+    "rust/src/bin/s_session_v3/mod.rs",
+    "rust/src/bin/s_session_v3/native_record_fields.rs",
+    "rust/src/bin/s_session_v3/native_shared.rs",
+    "rust/src/bin/s_session_v3/object_diff.rs",
+    "rust/src/bin/s_session_v3/object_index.rs",
+    "rust/src/bin/s_session_v3/object_records.rs",
+    "rust/src/bin/s_session_v3/pending_source_tests.rs",
+    "rust/src/bin/s_session_v3/prepared.rs",
+    "rust/src/bin/s_session_v3/q_retained.rs",
+    "rust/src/bin/s_session_v3/request_audit.rs",
+    "rust/src/bin/s_session_v3/s_allocation.rs",
+    "rust/src/bin/s_session_v3/source_audit.rs",
+    "rust/src/bin/s_session_v3/source_order.rs",
+    "rust/src/bin/s_session_v3/source_pending.rs",
+    "rust/src/bin/s_session_v3/source_prefix.rs",
+    "rust/src/bin/s_session_v3/sqlite_pager_probe.rs",
+    "rust/src/bin/s_session_v3/state.rs",
+    "rust/src/bin/s_session_v3/writer_cli.rs",
+    "rust/src/bin/s_structure_session.rs",
     "rust/src/s_content.rs",
+    "rust/src/s_content/capture_allocation/native_owned.rs",
+    "rust/src/s_content/capture_allocation/native_tree.rs",
+    "rust/src/s_content/capture_allocation/scratch.rs",
+    "rust/src/s_content/capture_allocation/sqlite.rs",
+    "rust/src/s_content/capture_allocation/work.rs",
+    "rust/src/s_content/closed.rs",
+    "rust/src/session_protocol.rs",
+)
+MODULE_DIRS = (
     "rust/src/s_content",
     "rust/src/bin/s_session_v3",
     "rust/src/bin/s_session_v2",
 )
+ROOTS = PR_WRITE_SET + MODULE_DIRS
 PRODUCTION_FEATURE_SETS = (
     frozenset({"s_session"}),
     frozenset({"s_session", "s_incremental"}),
@@ -43,6 +104,14 @@ ALLOWLIST: dict[str, set[str]] = {
     # #1527 受限故障注入入口：dead_code、无调用方，产物不含；真实 I4/I5 验证票收口时再门控。
     "rust/src/bin/s_session_v3/admission_private/fd_wal.rs": {"inject"},
 }
+
+# 文件相对路径 → 只在默认 {s_session} 构建可达的名字。豁免仅当该条目在 {s_session, s_incremental}
+# 生产增量构建下不可达时成立；去掉门控即重新判违规。
+DEFAULT_BUILD_ONLY: dict[str, set[str]] = {
+    # #1371 默认构建 SIGKILL 试验钩子，s_incremental 生产构建已门控排除，#1640 待主控分类。
+    "rust/src/bin/s_structure_session.rs": {"testonly_pause"},
+}
+DEFAULT_BUILD = frozenset({"s_session"})
 
 
 def parse_cfg(text: str):
@@ -72,22 +141,35 @@ def parse_cfg(text: str):
     return node()
 
 
-def evaluate_cfg(tree, features) -> bool:
+def cfg_outcomes(tree, features) -> frozenset:
+    """cfg 在给定 feature 集合、test=false 下可能取到的真值；未知谓词两值皆可能。"""
     if tree[0] == "call":
         _, name, args = tree
-        if name == "any":
-            return any(evaluate_cfg(arg, features) for arg in args)
-        if name == "all":
-            return all(evaluate_cfg(arg, features) for arg in args)
-        if name == "not":
-            return not evaluate_cfg(args[0], features)
-        return False
-    if tree[0] == "pair":
-        return tree[1] == "feature" and tree[2] in features
-    return False
+        if name in ("any", "all"):
+            outcomes = [cfg_outcomes(arg, features) for arg in args]
+            if name == "any":
+                can_true = any(True in o for o in outcomes)
+                can_false = all(False in o for o in outcomes)
+            else:
+                can_true = all(True in o for o in outcomes)
+                can_false = any(False in o for o in outcomes)
+            return frozenset(v for v, ok in ((True, can_true), (False, can_false)) if ok)
+        if name == "not" and len(args) == 1:
+            return frozenset(not v for v in cfg_outcomes(args[0], features))
+        return frozenset({True, False})
+    if tree[0] == "pair" and tree[1] == "feature":
+        return frozenset({tree[2] in features})
+    if tree == ("word", "test"):
+        return frozenset({False})
+    return frozenset({True, False})
 
 
-def production_reachable(cfg_text: str) -> bool:
+def evaluate_cfg(tree, features) -> bool:
+    """可能为真即判真：未知谓词（unix、target_os、debug_assertions 等）保守视为生产可达。"""
+    return True in cfg_outcomes(tree, features)
+
+
+def reachable_in(cfg_text: str, features) -> bool:
     body = cfg_text.strip()
     if body.startswith("#[cfg("):
         body = body[len("#[cfg(") :]
@@ -97,7 +179,11 @@ def production_reachable(cfg_text: str) -> bool:
         tree = parse_cfg(body)
     except (IndexError, ValueError):
         return True
-    return any(evaluate_cfg(tree, features) for features in PRODUCTION_FEATURE_SETS)
+    return evaluate_cfg(tree, features)
+
+
+def production_reachable(cfg_text: str) -> bool:
+    return any(reachable_in(cfg_text, features) for features in PRODUCTION_FEATURE_SETS)
 
 
 def gate_is_test(cfg_text: str) -> bool:
@@ -113,7 +199,7 @@ def scan(path: Path, rel: str) -> list[str]:
     violations: list[str] = []
     pending: list[str] = []  # 当前条目之前累积的 #[cfg(...)] 文本（cfg_attr 不门控编译，不计）
     attr: list[str] = []  # 跨行属性的累积
-    stack: list[list] = []  # [块起始深度, 该 mod/impl 是否测试门控, 是否已见到 `{`]
+    stack: list[list] = []  # [块起始深度, 该 mod/impl 自身的 cfg 列表, 是否已见到 `{`]
     depth = 0
     for number, line in enumerate(lines, 1):
         stripped = line.strip()
@@ -127,13 +213,16 @@ def scan(path: Path, rel: str) -> list[str]:
                     pending.append(text)
                 attr = []
             continue
-        in_test_scope = any(flag for _, flag, _ in stack)
-        gated = in_test_scope or any(gate_is_test(c) for c in pending)
+        chain = [c for _, gates, _ in stack for c in gates] + pending
+        reachable = [f for f in PRODUCTION_FEATURE_SETS if all(reachable_in(c, f) for c in chain)]
+        gated = not reachable
         if BLOCK.match(line):
-            stack.append([depth, gated, False])
+            stack.append([depth, list(pending), False])
         else:
             item = ITEM.match(line) or THREAD_LOCAL_ITEM.match(line)
-            if item and HOOK_NAME.search(item.group(1)) and item.group(1) not in allowed and not gated:
+            default_only = item and item.group(1) in DEFAULT_BUILD_ONLY.get(rel, set()) and reachable == [DEFAULT_BUILD]
+            if (item and HOOK_NAME.search(item.group(1)) and item.group(1) not in allowed and not gated
+                    and not default_only):
                 violations.append(f"{rel}:{number}: {item.group(1)} 未受 cfg(test)/testonly 门控")
         if stripped:
             pending = []
@@ -148,10 +237,17 @@ def scan(path: Path, rel: str) -> list[str]:
 def main() -> int:
     root = Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
     violations: list[str] = []
+    seen: set[Path] = set()
     for base in ROOTS:
         target = root / base
+        if not target.exists():
+            violations.append(f"{base}: ROOTS 条目不存在（写集或模块目录已改名，须同步检查器）")
+            continue
         paths = [target] if target.is_file() else sorted(target.rglob("*.rs"))
         for path in paths:
+            if path in seen:
+                continue
+            seen.add(path)
             violations.extend(scan(path, path.relative_to(root).as_posix()))
     for violation in violations:
         print(f"::error::{violation}")

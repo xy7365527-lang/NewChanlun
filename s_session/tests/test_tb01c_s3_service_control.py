@@ -303,10 +303,12 @@ class S3LifecycleTests(unittest.TestCase):
                     with patch.object(controller, "status", return_value=record), \
                          patch.object(control, "exchange",
                                       return_value={"transport": "Received", "response": response}), \
-                         patch.object(controller, "confirm_ready_process") as confirm:
+                         patch.object(controller, "confirm_ready_process") as confirm, \
+                         patch.object(controller, "discard_rejected_start") as discard:
                         with self.assertRaisesRegex(ValueError, message):
                             controller.wait_ready("s", "1")
                     confirm.assert_not_called()
+                    discard.assert_called_once_with("s")
                     self.assertFalse(controller.record_path("s").exists())
                 finally:
                     controller.close()
@@ -324,14 +326,77 @@ class S3LifecycleTests(unittest.TestCase):
                     with patch.object(controller, "status", return_value=record), \
                          patch.object(control, "exchange",
                                       return_value={"transport": "Received", "response": response}), \
-                         patch.object(controller, "socket_identity", return_value=identity):
+                         patch.object(controller, "socket_identity", return_value=identity), \
+                         patch.object(controller, "discard_rejected_start") as discard:
                         result = controller.wait_ready("s", "1")
+                    discard.assert_not_called()
                     self.assertEqual(result["state"], "ready")
                     self.assertEqual(result["reply"]["payload"].get("build_profile"), extra.get("build_profile"))
                     self.assertEqual(json.loads(controller.record_path("s").read_text())["socket_identity"],
                                      identity)
                 finally:
                     controller.close()
+
+    def test_ready_build_profile_testonly_rejection_stops_real_child_and_clears_registration(self):
+        # #1640 C4：真实子进程按 S3 协议在配置 socket 上回 Ready 并自报 testonly；拒绝后该进程须已退出、
+        # 本次 record 已删、socket 路径不再接受连接，原错误照抛。
+        writer = """
+import os, socket, sys
+sys.path.insert(0, sys.argv[1])
+from s_socket_client import canonical, decode_frame, reply_envelope
+path = sys.argv[sys.argv.index("--socket") + 1]
+nonce = os.environ["S_CONTROL_INSTANCE_ID"]
+sys.stdin.buffer.read(1)
+server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+server.bind(path)
+server.listen(8)
+while True:
+    connection, _ = server.accept()
+    with connection:
+        raw = b""
+        while True:
+            chunk = connection.recv(65536)
+            if not chunk:
+                break
+            raw += chunk
+        request = decode_frame(raw.rstrip(b"\\n"))
+        payload = {"kind": "Ready", "control_instance_id": nonce, "build_profile": "testonly"}
+        response = reply_envelope(request, payload, session_id=request["session_id"],
+                                  session_generation=request["session_generation"],
+                                  namespace="s-session/replies",
+                                  producer_id="S:" + request["session_id"], producer_epoch="1")
+        connection.sendall(canonical(response) + b"\\n")
+"""
+        with tempfile.TemporaryDirectory(prefix="s3-reject-") as directory:
+            config = self.config(directory, "s-launcher/3", startup_timeout_ms="10000")
+            controller = anchored_controller(config, Path(directory) / "state")
+            script = Path(directory) / "testonly_writer.py"
+            script.write_text(writer)
+            process = None
+            try:
+                deadline = time.monotonic() + 10
+                identity = controller.freeze_s_resources(deadline)
+                command = [sys.executable, str(script), str(Path(control.__file__).resolve().parent),
+                           "serve", "--protocol-revision", "s-session/3",
+                           "--resource-config", identity["path"], "--socket", config["socket"]]
+                process = controller.start_process("s", command, deadline=deadline,
+                                                   resource_identity=identity)
+                with self.assertRaisesRegex(control.TestOnlyBuildError, "TestOnlyBuild"):
+                    controller.wait_ready("s", "1", deadline=deadline)
+                self.assertIsNotNone(process.poll())
+                self.assertIsNone(control.process_identity(process.pid))
+                self.assertFalse(controller.record_path("s").exists())
+                self.assertEqual(controller.status("s")["state"], "not_started")
+                self.assertFalse(os.path.lexists(config["socket"]))
+                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as probe:
+                    probe.settimeout(1)
+                    with self.assertRaises(OSError):
+                        probe.connect(config["socket"])
+            finally:
+                if process is not None and process.poll() is None:
+                    process.kill()
+                    process.wait(timeout=5)
+                controller.close()
 
     def test_nonpython_argv_is_exact_and_process_probe_uses_remaining_deadline(self):
         command = ["/owned/s_structure_session", "serve", "--protocol-revision", "s-session/3"]

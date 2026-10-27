@@ -624,7 +624,11 @@ class Controller:
                         and nonce == expected.get("control_instance_id")):
                     validate_reply(request, response, producer="S", producer_epoch=writer_epoch,
                                    allow_control_instance=not s3)
-                    check_build_profile(self.config, payload)
+                    try:
+                        check_build_profile(self.config, payload)
+                    except ValueError:
+                        self.discard_rejected_start(service)
+                        raise
                     self.confirm_ready_process(service, expected, deadline)
                     # 只有正式Ready nonce与本次活PID同时成立，才登记此路径的清理资格。
                     record = {k: v for k, v in self.status("s", deadline=deadline).items() if k != "state"}
@@ -660,6 +664,25 @@ class Controller:
                 or not expected.get("control_instance_id")):
             raise ValueError("健康回执返回时本次启动进程身份已失效")
         remaining(deadline)
+
+    def discard_rejected_start(self, service):
+        # #1640 C4：构建身份被拒时本次子进程已登记且在监听配置 socket。先经 stop 终止并确认退出，
+        # 再撤本次 socket 与进程登记，由调用方抛原错误；不留被拒写者继续持写者锁、接受连接。
+        deadline = time.monotonic() + int(self.config["startup_timeout_ms"]) / 1000
+        record = self.status(service, deadline=deadline)
+        if record["state"] == "not_started":
+            raise ValueError(service + " 被拒启动缺少本次登记，无法确认子进程已退出")
+        owns_socket = service == self.socket_service and os.path.lexists(self.config["socket"])
+        if owns_socket:
+            # prepare_socket 已在本次启动前清空原路径，现存 socket 只能由本次子进程所建；
+            # 先登记其身份，退出后再由 prepare_socket 核身份、核无监听者后删除。
+            record = {k: v for k, v in record.items() if k != "state"}
+            record["socket_identity"] = self.socket_identity()
+            self.save_record(service, record)
+        self.stop(service, signal.SIGTERM)
+        if owns_socket:
+            self.prepare_socket(deadline)
+        self.record_path(service).unlink()
 
     @admission_action
     def start_s(self, writer_epoch):

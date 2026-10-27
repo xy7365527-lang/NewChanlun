@@ -2149,6 +2149,9 @@ fn parse_profile_text(text: &str) -> Result<(Value, String, String), String> {
 /// 具名 TestOnly 受控暂停点：暴露真实阶段供外部对精确 S PID 发 SIGKILL。只由
 /// `S_SESSION_PAUSE`（阶段名）+ `S_SESSION_PAUSE_MARKER`（标记文件路径）激活；生产时序不变，
 /// 不改提交路径。marker 写入自身 PID/阶段/DB/可执行文件，供外部核身份后 kill。
+/// #1640：只编入默认 `s_session` 构建（#1371 SIGKILL 试验所用）与 testonly 构建；
+/// `s_incremental` 生产构建不含此钩子及其调用点（§2.3 第 2/3 层）。
+#[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]
 fn testonly_pause(stage: &str) {
     if std::env::var("S_SESSION_PAUSE").ok().as_deref() != Some(stage) {
         return;
@@ -3428,6 +3431,7 @@ fn advance_core_with_config(
     };
 
     // ★测试暂停点 1：Begin 已持久、解释尚未开始（供 SIGKILL）。
+    #[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]
     testonly_pause("after_begin");
 
     // ── 同次真实 Rust parser：按「有效源位置」在源坐标序上取每个身份的最新 revision ──
@@ -3841,6 +3845,7 @@ fn advance_core_with_config(
     let started_commit = s_fact_cache::phase::begin();
 
     // ★测试暂停点 2：完整不可变批次已独立持久、Commit 尚未发生（供 SIGKILL）。
+    #[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]
     testonly_pause("after_batch");
 
     // ── Commit：核 Begin/epoch/前沿仍有效后，同一事务原子应用对象/边/端点 + 撤回/替代 + delta ──
@@ -4248,6 +4253,7 @@ fn advance_core_with_config(
     if frontier_moved {
         drop(tx);
     } else {
+        #[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]
         testonly_pause("before_commit");
         tx.commit()
             .map_err(|e| format!("advance commit 失败：{e}"))?;
@@ -4269,6 +4275,7 @@ fn advance_core_with_config(
     }
 
     // ★测试暂停点 3：Commit 已持久、回执尚未送达（供 SIGKILL）。
+    #[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]
     testonly_pause("after_commit");
 
     Ok(json!({
