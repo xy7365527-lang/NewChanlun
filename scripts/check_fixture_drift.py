@@ -15,12 +15,15 @@ fixture 做字段级 diff——Lean 改了值但 fixture 未重落盘 = 漂移�
        → rust/tests/fixtures/theta_v0_center_parity.json
   3. formal/Origin/CertificateChainParity.lean（#eval 输出证书链 parity JSON）
        → rust/tests/fixtures/certificate_chain_parity.json
+  4. formal/Origin/CenterPairFixtureExport.lean（#1419/#1424，#eval 输出五叶 8 例 JSON；不在 lake roots）
+       → rust/tests/fixtures/center_pair_1424_lean.json
 
 跑法：
   python3 scripts/check_fixture_drift.py                    # 查三个 fixture（缺省）
   python3 scripts/check_fixture_drift.py --fixture parity   # 只查 theta_v0_parity.json
   python3 scripts/check_fixture_drift.py --fixture center   # 只查 theta_v0_center_parity.json
   python3 scripts/check_fixture_drift.py --fixture certificate_chain  # 只查证书链 fixture
+  python3 scripts/check_fixture_drift.py --fixture center_pair  # 只查五叶 fixture（#1419/#1424）
 
 退出码（真漂移与环境失败严格区分，#263 要求可辨识）：
   0  无漂移（绿）
@@ -75,6 +78,12 @@ FIXTURES = {
     "certificate_chain": {
         "exporter": "Origin/CertificateChainParity.lean",
         "fixture": "rust/tests/fixtures/certificate_chain_parity.json",
+    },
+    # #1419/#1424：五叶判据 8 例；导出器同 ParityFixtureExport 不进 lake roots（#eval 入口），
+    # 由本 gate 的 `lake env lean` 求值同时承担编译与漂移锁。
+    "center_pair": {
+        "exporter": "Origin/CenterPairFixtureExport.lean",
+        "fixture": "rust/tests/fixtures/center_pair_1424_lean.json",
     },
 }
 
