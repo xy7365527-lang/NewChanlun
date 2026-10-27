@@ -272,6 +272,10 @@ fn b2_fault_mutate(
             let prior = B2_PRIOR_GROUP
                 .with(|slot| slot.borrow_mut().take())
                 .ok_or_else(|| b2_fault_error("缺上一 cut 的真实非零组"))?;
+            eprintln!("DBG-PRIOR {}", b2_fault_json(store, &prior)?);
+            let pi = b2_fault_json_inner(store, &prior, "payload_json")?;
+            eprintln!("DBG-PRIOR-PAYLOAD {}", b2_fault_json(store, &pi)?);
+            for o in &objects { let j = b2_fault_json(store, o)?; if j["kind"].as_str().unwrap_or("").starts_with("CC-004.undetermined") { eprintln!("DBG-UND {j}"); let ui = b2_fault_json_inner(store, o, "payload_json")?; eprintln!("DBG-UND-PAYLOAD {}", b2_fault_json(store, &ui)?); break; } }
             objects.push(prior);
             root = b2_fault_collection(store, &root, "objects", &objects)?;
         }
