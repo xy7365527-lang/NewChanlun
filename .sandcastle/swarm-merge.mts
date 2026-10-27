@@ -8,13 +8,13 @@ import { runManagedMerge, validateMergeManifest, type MergeManifest, type MergeC
 import { admitMergeInput, appRemoteFacts, type RemoteFactsReader } from "./merge-source.mts";
 import { verifyManagedRust } from "./managed-commit.mts";
 import { prepareFinalReviewPrompt } from "./review-context.mts";
-import { mergeBinding } from "./docker-acceptance.mts";
-import { assertSwarmExecutionReady, assertDockerCliProxyReachable, swarmAgent, swarmSandbox } from "./swarm-route.mts";
+import { mergeBinding, mergeInstance } from "./docker-acceptance.mts";
+import { assertSwarmExecutionReady, type ReadyOptions, assertDockerCliProxyReachable, swarmAgent, swarmSandbox } from "./swarm-route.mts";
 import { withLegacyAdmission } from "./drain-control.mts";
 
 /** 旧入口准入：生产固定用 drain-control 的共享根；测试注入临时根。 */
 export type LegacyAdmission = <T>(action: () => T | Promise<T>) => Promise<T>;
-export interface AcceptedMergeOptions { repo?: string; admission?: LegacyAdmission }
+export interface AcceptedMergeOptions { repo?: string; admission?: LegacyAdmission; acceptance?: ReadyOptions["acceptance"] }
 
 export const MERGE_CHECK_ID = "combination-v1:git-diff-check,cargo-check-locked,tsc-noEmit";
 export async function verifyCombination(cwd: string, manifest: MergeManifest, head: string, files: string[]): Promise<MergeCheck> {
@@ -74,18 +74,21 @@ export async function runAcceptedSwarmMerge(manifestPath: string, image: string,
     });
   } else start();
   if (realpathSync(manifestPath).startsWith(realpathSync(cwd) + "/")) throw new Error("验收清单不得位于工蜂 worktree");
-  let conflictExecutionReady = false;
+  const readiedCheckpoints = new Set<string>();
+  let routeChecked = false;
   const result = await runManagedMerge({
     cwd, manifest, checkpoint: join(evidenceDir, "checkpoint.json"), checkId: MERGE_CHECK_ID,
     verify: (head, files) => verifyCombination(cwd, manifest, head, files),
     admit: input => admitMergeInput(repo, input, facts),
     resolveConflict: async ({ head, incoming, files }) => {
       // #1617：仅冲突需要 Docker；此时 MERGE_HEAD 与检查点已保存，失败保留现场。
-      if (!conflictExecutionReady) {
-        // 14/15：绑定到本 run 与此冲突检查点，SIGKILL 后同检查点重入是同一绑定，不重复占用；新运行绑定不同。
-        assertSwarmExecutionReady(image, { rows: ["14", "15"], binding: mergeBinding({ runId: manifest.runId, base: manifest.base, head, incoming }) });
-        assertDockerCliProxyReachable(image);
-        conflictExecutionReady = true;
+      // 14/15：每个冲突检查点都过一次门禁，绑定各自的 run+基线+HEAD+入站 SHA；同一检查点在本进程内只过一次，
+      // SIGKILL 后重入（新进程）得到相同绑定，按恢复放行；别的 run 或基线被拒绝。
+      const binding = mergeBinding({ runId: manifest.runId, base: manifest.base, instance: mergeInstance(evidenceDir, manifest.runId, manifest.base), head, incoming });
+      if (!readiedCheckpoints.has(binding)) {
+        assertSwarmExecutionReady(image, { rows: ["14", "15"], binding, acceptance: options.acceptance });
+        if (!routeChecked) { assertDockerCliProxyReachable(image); routeChecked = true; }
+        readiedCheckpoints.add(binding);
       }
       const final = prepareFinalReviewPrompt(
         `你只解决当前功能分支的这一次 merge 冲突。原 HEAD=${head}，输入=${incoming}。\n` +

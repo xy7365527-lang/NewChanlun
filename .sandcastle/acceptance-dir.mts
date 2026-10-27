@@ -2,15 +2,24 @@
  * receipt / used / accepted 是准入事实，只有宿主主控进程可写；容器与工蜂 worktree 触不到这里。 */
 import { execFileSync } from "node:child_process";
 import { lstatSync, mkdirSync, realpathSync } from "node:fs";
-import { homedir } from "node:os";
+import { userInfo } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const ACCEPTANCE_DIR_NAME = join(".sandcastle-host", "docker-acceptance-1742");
 
-/** 固定位置：$HOME 下的宿主私有目录（HOME 由宿主进程决定，容器内进程改不了宿主进程的 HOME）。 */
-export function acceptanceRoot(home: string = homedir()): string {
+/** 固定位置：passwd 记录的账号主目录（os.userInfo().homedir），不读 $HOME 环境变量——HOME 是普通调用方可设的环境变量。 */
+export function accountHome(): string {
+  return userInfo().homedir;
+}
+export function acceptanceRoot(home: string = accountHome()): string {
   return join(home, ACCEPTANCE_DIR_NAME);
+}
+/** 生产路径用：进程的 $HOME 若与 passwd 主目录不同（被重定向），直接 FAIL-loud，不静默选其一。 */
+export function assertHomeNotRedirected(env: NodeJS.ProcessEnv = process.env, account: string = accountHome()): void {
+  const home = env.HOME;
+  if (home === undefined || home === "") return;
+  if (realpathLoose(home) !== realpathLoose(account)) throw new Error(`$HOME（${home}）与账号主目录（${account}）不一致，疑似被重定向，拒绝读取验收状态`);
 }
 
 const within = (root: string, path: string) => path === root || path.startsWith(root.endsWith(sep) ? root : root + sep);

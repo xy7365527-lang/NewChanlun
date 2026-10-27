@@ -95,13 +95,18 @@ export interface ReadyOptions {
   binding?: string;
   /** 此入口允许的验收行（普通 swarm 只接受 13，归并冲突只接受 14/15）。 */
   rows?: readonly AcceptanceRow[];
+  /** 准入通过后、探针与占用之前的入口自检（失败即拒绝，不烧验收行）。 */
+  verify?: (admission: Admission) => void;
+  /** 仅供进程内调用方（单元测试）注入验收目录/代码身份/验收行；生产入口不传，走宿主固定目录。 */
+  acceptance?: Pick<AdmissionContext, "dir" | "env" | "identity" | "now" | "roots">;
 }
 
 /** #1617/#1742：领票前先验精确 acceptance 事实（缺失/漂移/重复/越权即 FAIL-loud），再逐项观测容器隔离合同；
  * 观测成立只是必要条件，不代替验收。受控入口在观测通过后才占用（或恢复）对应验收行。 */
 export function assertSwarmExecutionReady(imageName: string, options: ReadyOptions = {}): void {
   const admit = options.admit ?? ((image: string, ctx: AdmissionContext) => checkAdmission(image, ctx));
-  const admission = admit(imageName, { binding: options.binding, rows: options.rows });
+  const admission = admit(imageName, { ...options.acceptance, binding: options.binding, rows: options.rows });
+  options.verify?.(admission);
   assertContainerIsolationContract(imageName, options.probe);
   admission.consume();
 }

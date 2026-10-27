@@ -6,13 +6,14 @@ import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { codeIdentity, issueReceipt } from "./docker-acceptance.mts";
+import { runAcceptedSwarmMerge } from "./swarm-merge.mts";
 
 const entry = fileURLToPath(new URL("./main-swarm.mts", import.meta.url));
 const loader = import.meta.resolve("tsx");
 const identity = codeIdentity();
 /** 子进程里 receipt 核对用的是真实 checkout 身份；.sandcastle 有未提交改动时精确 head 不成立，该类用例只在干净提交上跑。 */
 const dirtySkip = identity.dirty ? ".sandcastle 有未提交改动，receipt 不精确（提交后重跑）" : false;
-function fixture(t: { after: (fn: () => void) => void }, conflict = false) {
+function fixture(t: { after: (fn: () => void) => void }, conflict = false, runId = "precheck") {
   const root = mkdtempSync(join(tmpdir(), "nc-precheck-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const repo = join(root, "repo"); const bin = join(root, "bin");
@@ -39,11 +40,11 @@ function fixture(t: { after: (fn: () => void) => void }, conflict = false) {
       acceptance: { head: sha, status: "accepted", reviewEvidence: "fixture-review", verificationEvidence: "fixture-validation" } };
   });
   git("checkout", "main");
-  const manifest = { runId: "precheck", branch: "sandcastle/merge-precheck", base, inputs };
+  const manifest = { runId, branch: `sandcastle/merge-${runId}`, base, inputs };
   const path = join(root, "accepted.json"); writeFileSync(path, JSON.stringify(manifest));
-  const worktree = join(repo, ".sandcastle/worktrees/sandcastle-merge-precheck");
-  const checkpoint = join(repo, ".sandcastle/logs/merges/precheck/checkpoint.json");
-  const acceptance = join(root, ".sandcastle-host", "docker-acceptance-1742"); // 子进程 HOME=root，生产固定目录
+  const worktree = join(repo, `.sandcastle/worktrees/sandcastle-merge-${runId}`);
+  const checkpoint = join(repo, `.sandcastle/logs/merges/${runId}/checkpoint.json`);
+  const acceptance = join(root, "accept"); // 进程内注入的验收目录（生产路径固定在账号主目录，子进程 HOME 重定向会被拒绝）
   const run = (accepted = true, namespaceReady = false, frozen = false, row?: "13" | "14" | "15") => spawnSync(process.execPath, ["--import", loader, entry], {
     cwd: repo, encoding: "utf8", timeout: 30_000,
     env: { PATH: `${bin}:${dirname(process.execPath)}:/usr/bin:/bin`, HOME: root, PROBE_CALLS: calls,
@@ -54,8 +55,20 @@ function fixture(t: { after: (fn: () => void) => void }, conflict = false) {
   });
   const called = () => existsSync(calls) ? readFileSync(calls, "utf8").trim().split("\n") : [];
   const drained = () => existsSync(drainCalls) ? readFileSync(drainCalls, "utf8").trim().split("\n") : [];
+  /** 进程内跑同一入口 runAcceptedSwarmMerge：验收目录经参数注入（生产不可注入），docker/gh/python 仍是 PATH 上的替身。 */
+  const merge = async (o: { row?: "13" | "14" | "15"; namespaceReady?: boolean; dir?: string }) => {
+    const keep = { cwd: process.cwd(), exitCode: process.exitCode, env: { ...process.env } };
+    Object.assign(process.env, { PATH: `${bin}:${dirname(process.execPath)}:/usr/bin:/bin`, PROBE_CALLS: calls, PROBE_DRAIN: drainCalls,
+      PROBE_FROZEN: "0", PROBE_NAMESPACE_OK: o.namespaceReady ? "1" : "0", CLIPROXY_LOCAL_KEY: "fixture-no-network" });
+    process.chdir(repo);
+    try {
+      await runAcceptedSwarmMerge(path, "sandcastle:newchanlun", () => undefined, { repo, acceptance: { dir: o.dir ?? acceptance, env: o.row ? { SANDCASTLE_DOCKER_ACCEPTANCE_ROW: o.row } : {} } });
+      return { error: "" };
+    } catch (error) { return { error: error instanceof Error ? error.message : String(error) }; }
+    finally { process.chdir(keep.cwd); process.exitCode = keep.exitCode; for (const k of Object.keys(process.env)) if (!(k in keep.env)) delete process.env[k]; Object.assign(process.env, keep.env); }
+  };
   const issue = () => issueReceipt({ dir: acceptance, image: "sandcastle:newchanlun", approval: "fixture-user-approval", swarmTicket: 4242 });
-  return { repo, git, base, inputs, manifest, run, called, drained, checkpoint, worktree, issue, acceptance };
+  return { repo, git, base, inputs, manifest, run, merge, called, drained, checkpoint, worktree, issue, acceptance };
 }
 
 test("公共 CLI：Docker 不可用时无冲突 accepted 清单完成双父归并及幂等重入", t => {
@@ -118,25 +131,31 @@ test("公共 CLI：普通 swarm 在 planner/claim 前无 receipt 即拒绝，不
   assert.equal(f.git("rev-parse", "main"), f.base);
 });
 
-test("公共 CLI：观测全部成立但无 receipt 或未声明验收行，冲突入口仍 FAIL-loud 且不启动容器", { skip: dirtySkip }, t => {
+test("冲突入口：观测全部成立但无 receipt 或未声明验收行仍 FAIL-loud；同一 run 实例重入记为恢复；runId 不同的清单撞已占用行被拒", { skip: dirtySkip }, async t => {
   const f = fixture(t, true);
-  const noReceipt = f.run(true, true, false, "14");
-  assert.equal(noReceipt.status, 1); assert.match(noReceipt.stderr, /验收目录不存在|receipt 缺失/);
+  const noReceipt = await f.merge({ row: "14", namespaceReady: true });
+  assert.match(noReceipt.error, /验收目录不存在|receipt 缺失/);
   f.issue();
-  const noRow = f.run(true, true);
-  assert.equal(noRow.status, 1); assert.match(noRow.stderr, /未声明受控验收行/);
-  const admitted = f.run(true, true, false, "14");
-  assert.equal(admitted.status, 1); assert.match(admitted.stderr, /主控模型 .* 预检失败/, "声明了 14 且 receipt 有效时才进入下一道门");
-  // 模型预检失败发生在占用之后：同一 run+检查点重入是同一绑定，只记恢复，不重复占用也不被误拒。
-  const reentered = f.run(true, true, false, "14");
-  assert.equal(reentered.status, 1); assert.match(reentered.stderr, /主控模型 .* 预检失败/);
+  const noRow = await f.merge({ namespaceReady: true });
+  assert.match(noRow.error, /未声明受控验收行/);
+  const admitted = await f.merge({ row: "14", namespaceReady: true });
+  assert.match(admitted.error, /主控模型 .* 预检失败/, "声明了 14 且 receipt 有效时才进入下一道门");
+  // 模型预检失败发生在占用之后：同一 run 实例+检查点重入是同一绑定，只记恢复，不重复占用也不被误拒。
+  const reentered = await f.merge({ row: "14", namespaceReady: true });
+  assert.match(reentered.error, /主控模型 .* 预检失败/);
   assert.equal(readdirSync(f.acceptance).filter(n => n.startsWith("resume-")).length, 1);
   assert.equal(f.git("rev-parse", "main"), f.base);
+  // 另一份 runId 不同的清单撞上已占用的第 14 行：新运行不得复用，且不进入下一道门。
+  const other = fixture(t, true, "precheck-other");
+  const refused = await other.merge({ row: "14", namespaceReady: true, dir: f.acceptance });
+  assert.match(refused.error, /新运行不得复用/);
+  assert.deepEqual(other.called(), [], "被拒的新运行不得为观测启动容器");
+  assert.equal(JSON.parse(readFileSync(other.checkpoint, "utf8")).phase, "conflict", "冲突现场仍然保留");
 });
 
-test("公共 CLI：冲突 receipt 有效、观测成立但模型路由拒绝时仍不启动冲突工蜂", { skip: dirtySkip }, t => {
-  const f = fixture(t, true); f.issue(); const result = f.run(true, true, false, "14");
-  assert.equal(result.status, 1); assert.match(result.stderr, /主控模型 .* 预检失败/);
+test("冲突 receipt 有效、观测成立但模型路由拒绝时仍不启动冲突工蜂，现场保留", { skip: dirtySkip }, async t => {
+  const f = fixture(t, true); f.issue(); const result = await f.merge({ row: "14", namespaceReady: true });
+  assert.match(result.error, /主控模型 .* 预检失败/);
   const state = JSON.parse(readFileSync(f.checkpoint, "utf8"));
   assert.equal(state.phase, "conflict"); assert.equal(state.position, 1);
   assert.equal(state.snapshot.mergeHead, f.inputs[1]!.sha);

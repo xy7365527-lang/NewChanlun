@@ -10,7 +10,7 @@
 import { drainRequested, withLegacyAdmission, DrainFrozenError } from "./drain-control.mts";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { assertDockerCliProxyReachable, assertSwarmExecutionReady, swarmAgent, swarmSandbox } from "./swarm-route.mts";
-import { controlledSwarmTicket, swarmBinding } from "./swarm-controlled.mts";
+import { assertControlledBase, controlledSwarmTicket, swarmBinding } from "./swarm-controlled.mts";
 import { execSync } from "node:child_process";
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { z } from "zod";
@@ -82,7 +82,12 @@ if (acceptedManifest) {
 // 普通 swarm 先验容器路由，再进入 planner/claim（#1617）。
 // 受控验收（SANDCASTLE_DOCKER_ACCEPTANCE_ROW=13）只处理 receipt 绑定的专用验收票：不读线上 sandcastle 队列、不认领任何票。
 const controlledTicket = controlledSwarmTicket();
-assertSwarmExecutionReady(IMAGE, { rows: ["13"], binding: controlledTicket ? swarmBinding(controlledTicket) : undefined });
+// 受控第 13 行以 receipt.head 为工蜂基线（不是会漂移的本地 main），核对发生在占用验收行、认领和启动工蜂之前。
+let baseRef = "main";
+assertSwarmExecutionReady(IMAGE, {
+  rows: ["13"], binding: controlledTicket ? swarmBinding(controlledTicket) : undefined,
+  verify: controlledTicket ? (admission) => { baseRef = assertControlledBase(admission, controlledTicket); } : undefined,
+});
 assertDockerCliProxyReachable(IMAGE);
 
 /** 普通路径：planner 读线上队列 → 放行 → host 侧认领。返回 null 表示本轮收束。 */
@@ -132,7 +137,7 @@ for (let iteration = 1; iteration <= (controlledTicket ? 1 : MAX_ITERATIONS); it
   if (drainRequested()) break;
   console.log(`\n=== Iteration ${iteration}/${controlledTicket ? 1 : MAX_ITERATIONS} ===\n`);
 
-  // Phase 1: Plan（受控验收：输入就是 receipt 绑定的专用验收票，其余票一律不碰；分支仍以本地 main 为 baseBranch，nothing 写回 main）
+  // Phase 1: Plan（受控验收：输入就是 receipt 绑定的专用验收票，其余票一律不碰；工蜂基线=receipt.head，不写回 main）
   const issues = controlledTicket
     ? [{ id: String(controlledTicket), title: `#1742 Docker 受控验收票 #${controlledTicket}`, branch: `sandcastle/issue-${controlledTicket}` }]
     : await planAndClaim();
@@ -145,7 +150,7 @@ for (let iteration = 1; iteration <= (controlledTicket ? 1 : MAX_ITERATIONS); it
       withLimit(async () => {
         const sandbox = await sandcastle.createSandbox({
           branch: issue.branch,
-          baseBranch: "main", // 与检出分支解耦（#1003）
+          baseBranch: baseRef, // 普通 swarm=main（与检出分支解耦，#1003）；受控第 13 行=receipt.head
           sandbox: swarmSandbox(IMAGE),
         });
         try {
