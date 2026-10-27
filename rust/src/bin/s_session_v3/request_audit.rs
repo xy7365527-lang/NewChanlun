@@ -3589,17 +3589,19 @@ mod handoff_domain_tests {
         assert!(home.itemized);
         assert_eq!(home.covered + home.uncovered, l0);
         assert_eq!(home.uncovered, excess);
-        assert_eq!(ok.items().iter().map(|i| i.uncovered).sum::<usize>(), excess);
+        assert_eq!(
+            ok.items().iter().map(|i| i.uncovered).sum::<usize>(),
+            excess
+        );
         assert_eq!(ok.uncovered(), excess);
         assert_eq!(ok.carried(), l0, "物理live恰计一次，不超发");
         assert_eq!(
             ok.uncovered_items(),
             vec![("U", P::KEEPER_PARENT, &["source_keeper_pool"][..], excess)]
         );
-        assert!(ok
-            .items()
+        assert!(ok.items().iter().all(|i| P::LISTED
             .iter()
-            .all(|i| P::LISTED.iter().any(|(n, s)| *n == i.item && *s == i.source)));
+            .any(|(n, s)| *n == i.item && *s == i.source)));
         // (2) 漏列M：Σ<L0，有未列入清单的来源。
         let error = build(&[pool]).err().expect("漏列必须拒绝");
         assert!(error.contains("未列入清单的来源"), "{error}");
@@ -3634,7 +3636,18 @@ mod handoff_domain_tests {
             .item_measured(meta.0, P::KEEPER_PARENT, meta.1, meta.2)
             .unwrap();
         partial.attest(&mark).unwrap();
-        assert!(partial.seal().is_err());
+        let error = partial.seal().err().expect("部分实测必须拒绝");
+        assert!(error.contains("逐项映射不完整"), "{error}");
+        // 反序（实测项在前、未实测项在后）同样拒绝。
+        let mut partial = P::new(None);
+        partial.keeper_home(&keeper).unwrap();
+        partial
+            .item_measured(meta.0, P::KEEPER_PARENT, meta.1, meta.2)
+            .unwrap();
+        partial.item(pool.0, P::KEEPER_PARENT, pool.1).unwrap();
+        partial.attest(&mark).unwrap();
+        let error = partial.seal().err().expect("部分实测必须拒绝");
+        assert!(error.contains("逐项映射不完整"), "{error}");
         // (7) 不在任何Ledger上的项无从实测。
         assert!(P::new(None)
             .item_measured(pool.0, P::ELSEWHERE, pool.1, pool.2)
@@ -3646,7 +3659,12 @@ mod handoff_domain_tests {
         let parent_mark = parent.quiescent_mark();
         let mut split = P::new(Some(&parent));
         split
-            .item_measured("complete_candidate.charge.total", P::ON_PARENT, 1_000, 3_000)
+            .item_measured(
+                "complete_candidate.charge.total",
+                P::ON_PARENT,
+                1_000,
+                3_000,
+            )
             .unwrap();
         split
             .item_measured("committed_raw_state", P::ON_PARENT, 5_000, 1_000)

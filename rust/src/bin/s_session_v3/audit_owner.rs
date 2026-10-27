@@ -4080,7 +4080,10 @@ fn p1_2_keeper_pool_on_other_ledger_counts_physical_live_after_discard() {
         physical,
         "Σ逐项物理额=L0"
     );
-    assert_eq!(items.iter().map(|i| i.uncovered).sum::<usize>(), group.uncovered);
+    assert_eq!(
+        items.iter().map(|i| i.uncovered).sum::<usize>(),
+        group.uncovered
+    );
     assert!(items.iter().all(|i| !i.source.is_empty()));
     let listed = partition.uncovered_items();
     assert_eq!(listed.len(), 1);
