@@ -3,7 +3,23 @@
  * v3::financial_session::tests::export_real_s3_w_fixture_for_q3 真实 init_v3 + 接纳/Begin/提交逐代导出，
  * provenance 记 head、命令与逐里程碑的 Rust 侧当前对象计数；本套以该计数为对拍 oracle，不另建读链。
  * 覆盖：cut0 首根、W 等待期两 kind、自等待期跨真实写者恢复（纪元 1→2）至方向确立的逐代 Watch、首中枢、
- * 改价修订撤回与改回恢复两代 Watch、尾段中枢对。 */
+ * 改价修订撤回与改回恢复两代 Watch、尾段中枢对。
+ *
+ * 夹具载体（主控裁定，#1419 28U）：普通 blob 入仓（91,895,732 B < 100 MB，不走 LFS/外置），
+ * sha256 2a83c1808b21fdc6647d37a602d782622b2d74c5bfb4342e16cb69f7d0490a2a；取自 f11ff5847d 远端双跑导出 A，与 B 逐字节相同。
+ *
+ * 验收分层（主控裁定，#1419 28AO/28U）：
+ * - 第 1、2 条（规则串、cut0 与等待期）进 CI 真跑：ci.yml `Q3 S3 real cut0 consumption (#1419)`，
+ *   `node --max-old-space-size=4096 --test --test-name-pattern="规则串|cut0" s_session/tests/test_q3_s3_real_cut.cjs`（约 30 s，峰值 RSS 1.4 GB）。
+ * - 第 3–5 条不进 CI，属重型验证窗口：单条峰值 RSS 12–15 GB、单条耗时 12–50 分钟，超出 GitHub runner（7 GB）。
+ *   每条单独一个进程跑（整文件一个进程峰值 17.6 GB），本机或远端均为：
+ *     Q3_WIRE_PROBE=1 node --max-old-space-size=16000 --test --test-name-pattern="跨真实写者恢复" s_session/tests/test_q3_s3_real_cut.cjs
+ *     Q3_WIRE_PROBE=1 node --max-old-space-size=16000 --test --test-name-pattern="首中枢" s_session/tests/test_q3_s3_real_cut.cjs
+ *     Q3_WIRE_PROBE=1 node --max-old-space-size=16000 --test --test-name-pattern="尾段" s_session/tests/test_q3_s3_real_cut.cjs
+ *   收据（head 3d7e5b0f1e，5/5 ok）：/Volumes/AgentStorage/issue1709-pstack-orchestrate-20261025/1419-q3-export/receipts-28u/t1..t5.log，
+ *   导出双跑日志同目录 20261028-120621-f11ff5847d-28u-a.log、20261028-150416-f11ff5847d-28u-b.log。
+ *   重跑触发面：q3-consumer.js、q3-center.js、q3-typed.js、s-content-v3.js、q3_complete_fixture.cjs 或本夹具任一改动，
+ *   合入前须重跑第 3–5 条并更新收据；改动面之外的 PR 不要求。 */
 "use strict";
 const assert = require("node:assert/strict"),
   test = require("node:test");
@@ -23,9 +39,12 @@ const makeClient = (server) => {
   if (process.env.Q3_WIRE_PROBE) {
     const fetch = server.fetch;
     server.fetch = async (url, options) => {
-      const body = Buffer.from(await (await fetch(url, options)).arrayBuffer());
+      const response = await fetch(url, options);
+      const body = Buffer.from(await response.arrayBuffer());
       wire += body.length;
-      return new Response(body);
+      // 保留 status/headers，探针路径与非探针路径对 Client 判定一致（28AO LOW-3）。
+      const init = { status: response.status, statusText: response.statusText, headers: response.headers };
+      return new Response([101, 103, 204, 205, 304].includes(response.status) ? null : body, init);
     };
   }
   const client = makeClientWith(server, REAL_CONFIG);

@@ -1,6 +1,7 @@
 /* #1419/#1424：Q3 读 S3 结构写者（W_STRUCTURE_RULE_REVISION）的规则/22 轴/中枢族 typed 合同。
  * 夹具是按当前 Rust 构造规则（s_session_v3/content_structure.rs 中枢/对段、tb02a_facts catalog_axes）手工封装的最小 cut，
- * 非真实 Rust 产物；真实 S3 产物沿公开 Client 入口的验收见 test_q3_s3_real_cut.cjs（待 owner W 初始化修复后导出）。 */
+ * 非真实 Rust 产物；真实 S3 产物（fixtures/q3-real-s3-w-recover-revise.json）沿公开 Client 入口的验收见 test_q3_s3_real_cut.cjs，
+ * 其第 1、2 条进 CI、第 3–5 条属重型验证窗口，运行命令与收据见该文件头注释。 */
 "use strict";
 const assert = require("node:assert/strict"),
   test = require("node:test");
