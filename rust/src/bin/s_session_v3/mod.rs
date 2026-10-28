@@ -1865,6 +1865,8 @@ mod layout_writer_rule_injection {
             assert!(!is_structure_rule(&unknown), "{unknown}");
             assert!(!source_pending::is_w_rule(&unknown), "{unknown}");
         }
-        assert!(!is_structure_rule(&format!("{V3_RULE_REVISION}+bounded-layout/1")));
+        assert!(!is_structure_rule(&format!(
+            "{V3_RULE_REVISION}+bounded-layout/1"
+        )));
     }
 }

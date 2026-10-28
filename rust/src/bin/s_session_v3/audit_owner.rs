@@ -5213,7 +5213,11 @@ pub(super) mod construction_tests {
         let bounded_rule = format!("{}+bounded-layout/1", crate::W_STRUCTURE_RULE_REVISION);
         let mut views = Vec::new();
         for (rule, layout, other) in [
-            (crate::W_STRUCTURE_RULE_REVISION, Layout::Sorted, Layout::Bounded1),
+            (
+                crate::W_STRUCTURE_RULE_REVISION,
+                Layout::Sorted,
+                Layout::Bounded1,
+            ),
             (bounded_rule.as_str(), Layout::Bounded1, Layout::Sorted),
         ] {
             let mut warm = Fixture::with_rule(rule);
