@@ -5199,8 +5199,8 @@ pub(super) mod tests {
     #[test]
     fn history_layout_multicut_publish_equals_audit_rebuild() {
         use super::layout::Layout;
-        let bounded_rule = format!("{}+bounded-layout/1", crate::V3_RULE_REVISION);
-        let mut sorted = layout_multicut_library(crate::V3_RULE_REVISION, None);
+        let bounded_rule = format!("{}+bounded-layout/1", crate::W_STRUCTURE_RULE_REVISION);
+        let mut sorted = layout_multicut_library(crate::W_STRUCTURE_RULE_REVISION, None);
         let mut bounded = layout_multicut_library(&bounded_rule, None);
         let mut views = Vec::new();
         for (layout, other, fixture) in [
@@ -5268,10 +5268,10 @@ pub(super) mod tests {
     #[test]
     fn history_layout_multicut_wrong_array_order_rejects() {
         use super::layout::Layout;
-        let bounded_rule = format!("{}+bounded-layout/1", crate::V3_RULE_REVISION);
+        let bounded_rule = format!("{}+bounded-layout/1", crate::W_STRUCTURE_RULE_REVISION);
         for (rule, forced) in [
             (bounded_rule.as_str(), Layout::Sorted),
-            (crate::V3_RULE_REVISION, Layout::Bounded1),
+            (crate::W_STRUCTURE_RULE_REVISION, Layout::Bounded1),
         ] {
             let mut fixture = layout_multicut_library(rule, Some(forced));
             assert_ne!(Layout::of_library(&fixture.conn).unwrap(), forced);
@@ -5291,8 +5291,8 @@ pub(super) mod tests {
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn history_layout_multicut_native_projection_equals_plain_audit() {
-        let bounded_rule = format!("{}+bounded-layout/1", crate::V3_RULE_REVISION);
-        for rule in [crate::V3_RULE_REVISION, bounded_rule.as_str()] {
+        let bounded_rule = format!("{}+bounded-layout/1", crate::W_STRUCTURE_RULE_REVISION);
+        for rule in [crate::W_STRUCTURE_RULE_REVISION, bounded_rule.as_str()] {
             let mut fixture = layout_multicut_library(rule, None);
             let plain = audit(&mut fixture.conn).unwrap();
             let tx = fixture.conn.transaction().unwrap();

@@ -126,9 +126,16 @@ const V3_STRUCTURE_RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/2+segment-s
 /// S3 写者只写本串；CF22 及更早各串只读 AsKnown。
 const W_STRUCTURE_RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1+raw-initialization-w/1";
 
-/// 共享事实结构写者域（CF22 及其 W 后继）：两串各自逐字列名，不剥后缀推断。
+/// 共享事实结构写者域（CF22 及其 W 后继）：两串各自逐字列名，不剥教义后缀推断。
+/// #1491 × #1419（ADR 0037 §五）：布局组件 `bounded-layout/<n>` 与教义正交，先经
+/// [`v3::layout::split`] 剥离布局再整串比对教义部分（与目录轴表、笔合同同口径）；未知布局版本不认。
 fn is_structure_rule(rule: &str) -> bool {
-    matches!(rule, V3_STRUCTURE_RULE_REVISION | W_STRUCTURE_RULE_REVISION)
+    v3::layout::split(rule).is_ok_and(|(doctrine, _)| {
+        matches!(
+            doctrine.as_str(),
+            V3_STRUCTURE_RULE_REVISION | W_STRUCTURE_RULE_REVISION
+        )
+    })
 }
 
 /// #1419 主控裁定②（issuecomment-6265209957）：v2 结构写者（本文件 `init_core`/`accept_core`/

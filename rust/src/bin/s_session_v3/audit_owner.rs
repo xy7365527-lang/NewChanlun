@@ -5210,10 +5210,10 @@ pub(super) mod construction_tests {
         use super::super::prepared::tests::{
             runtime_root_compare_reachable_bytes, runtime_root_tables, Fixture,
         };
-        let bounded_rule = format!("{}+bounded-layout/1", crate::V3_RULE_REVISION);
+        let bounded_rule = format!("{}+bounded-layout/1", crate::W_STRUCTURE_RULE_REVISION);
         let mut views = Vec::new();
         for (rule, layout, other) in [
-            (crate::V3_RULE_REVISION, Layout::Sorted, Layout::Bounded1),
+            (crate::W_STRUCTURE_RULE_REVISION, Layout::Sorted, Layout::Bounded1),
             (bounded_rule.as_str(), Layout::Bounded1, Layout::Sorted),
         ] {
             let mut warm = Fixture::with_rule(rule);
@@ -5341,10 +5341,10 @@ pub(super) mod construction_tests {
         };
         use super::super::layout::Layout;
         use super::super::prepared::tests::Fixture;
-        let bounded_rule = format!("{}+bounded-layout/1", crate::V3_RULE_REVISION);
+        let bounded_rule = format!("{}+bounded-layout/1", crate::W_STRUCTURE_RULE_REVISION);
         for (rule, forced) in [
             (bounded_rule.as_str(), Layout::Sorted),
-            (crate::V3_RULE_REVISION, Layout::Bounded1),
+            (crate::W_STRUCTURE_RULE_REVISION, Layout::Bounded1),
         ] {
             let warm = Fixture::with_rule(rule);
             let mut ordinary = Fixture::with_rule(rule);

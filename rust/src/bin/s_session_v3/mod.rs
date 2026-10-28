@@ -1842,4 +1842,29 @@ mod layout_writer_rule_injection {
         assert!(require_current_writer_rule(W_STRUCTURE_RULE_REVISION).is_ok());
         assert!(require_current_writer_rule(&bounded).is_err());
     }
+
+    /// #1491 × #1419：结构域/W 判据与目录轴表、笔合同同口径——剥离布局组件后按教义整串比对；
+    /// 生产写者门仍只认无布局组件的 W 串，未知布局版本一律不认。
+    #[test]
+    fn structure_rule_predicates_strip_layout_like_axes_and_contract() {
+        let bounded_w = format!("{W_STRUCTURE_RULE_REVISION}+bounded-layout/1");
+        let bounded_cf22 = format!("{V3_STRUCTURE_RULE_REVISION}+bounded-layout/1");
+        assert!(is_structure_rule(&bounded_w));
+        assert!(is_structure_rule(&bounded_cf22));
+        assert!(source_pending::is_w_rule(&bounded_w));
+        assert!(!source_pending::is_w_rule(&bounded_cf22));
+        assert_eq!(
+            tb02a_facts::CatalogAxisTable::for_rule_revision(&bounded_w),
+            tb02a_facts::CatalogAxisTable::for_rule_revision(W_STRUCTURE_RULE_REVISION)
+        );
+        assert!(require_current_writer_rule(&bounded_w).is_err());
+        for unknown in [
+            format!("{W_STRUCTURE_RULE_REVISION}+bounded-layout/9"),
+            format!("{W_STRUCTURE_RULE_REVISION}+bounded-layout/1+bounded-layout/1"),
+        ] {
+            assert!(!is_structure_rule(&unknown), "{unknown}");
+            assert!(!source_pending::is_w_rule(&unknown), "{unknown}");
+        }
+        assert!(!is_structure_rule(&format!("{V3_RULE_REVISION}+bounded-layout/1")));
+    }
 }
