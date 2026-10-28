@@ -1300,6 +1300,25 @@ pub(super) fn audit<'a>(
 mod tests {
     use super::*;
 
+    /// #1491 × #1419：W 判据剥离布局组件后按教义整串比对；CF22 不是 W；未知/重复布局不认。
+    #[test]
+    fn w_rule_strips_layout_component() {
+        let bounded_w = format!("{}+bounded-layout/1", crate::W_STRUCTURE_RULE_REVISION);
+        let bounded_cf22 = format!("{}+bounded-layout/1", crate::V3_STRUCTURE_RULE_REVISION);
+        assert!(is_w_rule(crate::W_STRUCTURE_RULE_REVISION));
+        assert!(is_w_rule(&bounded_w));
+        assert!(!is_w_rule(&bounded_cf22));
+        for unknown in [
+            format!("{}+bounded-layout/9", crate::W_STRUCTURE_RULE_REVISION),
+            format!(
+                "{}+bounded-layout/1+bounded-layout/1",
+                crate::W_STRUCTURE_RULE_REVISION
+            ),
+        ] {
+            assert!(!is_w_rule(&unknown), "{unknown}");
+        }
+    }
+
     fn reason_array(s: &mut sc::MemoryNodes, values: &[&str]) -> RefValue {
         // #1488：RefValue::Plain 携带 Native 准入包装；测试片段无作用域，按未准入构造。
         RefValue::Plain(NativeValue::<ContentRef>::from_unscoped(
