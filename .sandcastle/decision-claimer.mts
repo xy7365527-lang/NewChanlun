@@ -3,7 +3,7 @@
  * decision-claimer.mts —— graph engineering 裁决面（#1547）。
  *
  * 设计正本：.sandcastle/docs/graph-engineering.md「裁决流程」。每张 grilling 票：
- *   分级（Fable 5.1）→ 考古（Fable 5.1，两路搜，逐点 A/B/C）→ 起草（Fable 5.1）→ 独审（Opus 5.5，独立进程，只读草稿与源）
+ *   分级（Opus 5.5）→ 考古（Opus 5.5，两路搜，逐点 A/B/C）→ 起草（Opus 5.5）→ 独审（Opus 5.5，独立进程，只读草稿与源）
  *   → T 类 PASS：decision/<票号> 分支落正本 + resolution 评论；P 类：挂 needs-approval。
  *   其他 BLOCK：一次升档 Opus 5.5 带审查意见重做；仍 BLOCK：转 P 类。
  *
@@ -21,6 +21,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, w
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { MAIN_MODEL } from "./main-model.mts";
 
 // ───────────────────────── 常量 ─────────────────────────
 
@@ -469,7 +470,7 @@ export interface ModelResult { text: string; durationMs: number; attempts: numbe
 export type ModelRunner = (c: ModelCall) => Promise<ModelResult>;
 
 /**
- * Fable 安全拦截（#1785）：「API Error: Fable 5's safeguards flagged this message (…aup)」。
+ * 安全拦截（#1785）：「API Error: 起草模型 5's safeguards flagged this message (…aup)」。
  * 这不是临时错误（同一提示重发照样拦），也不是参数/权限错误；换模型即可继续。只认这一特征。
  */
 const SAFEGUARD_BLOCK = /safeguards? flagged this message|safety.{0,20}(blocked|refused)/i;
@@ -477,7 +478,7 @@ export function isSafeguardBlock(output: string): boolean {
   return SAFEGUARD_BLOCK.test(output);
 }
 
-/** 被安全拦截时改用的另一档；只有 Fable 有这道拦截，其他模型没有改派目标。 */
+/** 被安全拦截时改用的另一档；只有 起草模型 有这道拦截，其他模型没有改派目标。 */
 export function safeguardFallbackModel(model: string): string | null {
   return model === MODEL_DRAFTER ? MODEL_REVIEW : model === MODEL_REVIEW ? MODEL_DRAFTER : null;
 }
@@ -485,7 +486,7 @@ export function safeguardFallbackModel(model: string): string | null {
 export interface ModelSwitch { role: ModelCall["role"]; from: string; to: string; reason: "safeguard" }
 
 /**
- * 包一层：某角色调用被 Fable 安全拦截时，同一步改用另一档重试一次，并经 onSwitch 记录。
+ * 包一层：某角色调用被 安全拦截时，同一步改用另一档重试一次，并经 onSwitch 记录。
  * 改派在本票内对该角色粘住（考古第二遍、落点重写不再先撞一次拦截）；改派后的调用再失败照常抛错。
  */
 export function withSafeguardFallback(run: ModelRunner, onSwitch: (s: ModelSwitch) => void = () => {}): ModelRunner {
@@ -508,7 +509,7 @@ export function withSafeguardFallback(run: ModelRunner, onSwitch: (s: ModelSwitc
 }
 
 /**
- * 独审模型（#1785）：默认 Opus。起草本应 Fable、因安全拦截实际由 Opus 写成时，独审改用 Fable，
+ * 独审模型（#1785）：默认 Opus。起草本应 起草模型、因安全拦截实际由 Opus 写成时，独审改用 起草模型，
  * 保证该轮起草与独审不是同一模型；升档重做轮（计划即 Opus）维持原设计。
  */
 export function reviewerModel(drafterPlanned: string, drafterUsed: string): string {
@@ -1308,7 +1309,7 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
         ...archaeologyCoverageProblems(draft, ar.arch),
       ];
       const basePrompt = reviewPrompt(t, effCls, draft, ar.md);
-      // 起草与独审各起一次调用；起草因拦截改派 Opus 时独审改用 Fable（reviewerModel）。
+      // 起草与独审各起一次调用；起草因拦截改派 Opus 时独审改用 起草模型（reviewerModel）。
       const drafterUsed = dr.model ?? s.drafterModel;
       const reviewer = reviewerModel(s.drafterModel, drafterUsed);
       let rr = await d.model({ model: reviewer, prompt: basePrompt, cwd: d.srcDir, role: "review" });
