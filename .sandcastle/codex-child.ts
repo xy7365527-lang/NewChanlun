@@ -15,7 +15,7 @@ import { MAIN_MODEL } from "./main-model.mts";
 /** 与主控同型，经本机 CLIProxyLocal 的 OAuth 订阅路由；不带中转前缀（#1617）。缺省调用者使用它。 */
 export const MODEL = MAIN_MODEL;
 /** #1742：调用者可显式选的模型；缺省仍是 MODEL。GPT 作者配 Opus 独审需要两个家族同走本入口。 */
-export const ALLOWED_MODELS = [MODEL, "claude-opus-5-5", "gpt-6.1-sol"] as const;
+export const ALLOWED_MODELS = [MODEL, "claude-opus-5-5"] as const;
 export type ChildModel = typeof ALLOWED_MODELS[number];
 export const EFFORT = "xhigh";
 /** 命令带 --ignore-user-config，不读用户 config.toml；provider 由下方具名定义经 -c 显式给出。 */

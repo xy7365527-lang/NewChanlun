@@ -58,7 +58,7 @@
    - #1617 现行合同：GitHub-hosted runner 没有获批的 Astra 凭据或可达 CLIProxy 端点，
      无标签 Claude 默认在模型调用前退役；不再注入 `CLAUDE_CODE_OAUTH_TOKEN` 或按角色分档；
    - `agent:model:deepseek-v4-pro` 仅作 implement / implement-pr / review 的显式 legacy opt-in；
-   - 本机受管默认统一为 `.sandcastle/main-model.mts` 的 `gpt-6-astra`，经 CLIProxyLocal；
+   - 本机受管默认统一为 `.sandcastle/main-model.mts` 的 `gpt-6.1-sol`，经 CLIProxyLocal；
    - 缺 secret、未知标签、冲突标签与退役默认均 fail-loud（写 `failure_reason.txt` → blocked）。
 
 ## 本仓必要接线（非语义适配）

@@ -299,7 +299,7 @@ test("外部异家族独审：首个非空行必须是 VERDICT: PASS，HEAD 绑�
   assert.throws(() => attempt(trick), /多个 VERDICT/);
   writeFileSync(trick, `VERDICT: PASS\nHEAD: ${HEAD}\nHEAD: ${"f".repeat(40)}\nREVIEWER_MODEL: claude-opus-5-5\n`);
   assert.throws(() => attempt(trick), /HEAD 必须恰好出现一次/);
-  writeFileSync(trick, `VERDICT: PASS\nHEAD: ${HEAD}\nREVIEWER_MODEL: claude-opus-5-5\nREVIEWER_MODEL: gpt-6-astra\n`);
+  writeFileSync(trick, `VERDICT: PASS\nHEAD: ${HEAD}\nREVIEWER_MODEL: claude-opus-5-5\nREVIEWER_MODEL: gpt-6.1-sol\n`);
   assert.throws(() => attempt(trick), /REVIEWER_MODEL 必须恰好出现一次/);
   writeFileSync(trick, `\n\nVERDICT: PASS\nHEAD: ${HEAD}\nREVIEWER_MODEL: claude-opus-5-5\n`);
   const rec = attempt(trick);
@@ -311,7 +311,7 @@ test("登记后每次放行都重读外部独审报告：篡改 HEAD/首行/模�
   const file = read(d, "accepted.json").crossFamily.file as string;
   assert.ok(acceptedFor(IMAGE, ctx(d)));
   const original = readFileSync(file, "utf8");
-  for (const tampered of [original.replace(HEAD, "f".repeat(40)), original.replace("VERDICT: PASS", "VERDICT: BLOCK"), original.replace("claude-opus-5-5", "gpt-6-astra"), original.replace("claude-opus-5-5", "auto-free"), "VERDICT: PASS\n"]) {
+  for (const tampered of [original.replace(HEAD, "f".repeat(40)), original.replace("VERDICT: PASS", "VERDICT: BLOCK"), original.replace("claude-opus-5-5", "gpt-6.1-sol"), original.replace("claude-opus-5-5", "auto-free"), "VERDICT: PASS\n"]) {
     writeFileSync(file, tampered);
     assert.equal(acceptedFor(IMAGE, ctx(d)), null, tampered.slice(0, 40));
   }
@@ -320,7 +320,7 @@ test("登记后每次放行都重读外部独审报告：篡改 HEAD/首行/模�
 });
 
 test("模型家族表", () => {
-  for (const [name, fam] of [["gpt-6-astra", "openai"], ["codex-auto-review", "openai"], ["GPT_6_astra", "openai"], ["o3-mini", "openai"], ["mf/gpt-5.5", "openai"], ["claude-opus-5-5", "anthropic"], ["yd/claude-sonnet-5", "anthropic"], ["gemini-4-argon-high", "google"], ["kimi-k3", "moonshot"]] as const) {
+  for (const [name, fam] of [["gpt-6.1-sol", "openai"], ["codex-auto-review", "openai"], ["GPT_6_astra", "openai"], ["o3-mini", "openai"], ["mf/gpt-5.5", "openai"], ["claude-opus-5-5", "anthropic"], ["yd/claude-sonnet-5", "anthropic"], ["gemini-4-argon-high", "google"], ["kimi-k3", "moonshot"]] as const) {
     assert.equal(modelFamily(name), fam, name);
   }
   for (const bad of ["auto-free", "openrouter-free", "beam-free", "local-llm", "", "who-knows", "auto-review"]) {

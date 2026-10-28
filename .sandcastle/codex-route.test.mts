@@ -11,7 +11,7 @@ test("实装和独审默认 Codex/Astra，独立 home，同阶段 resume 保留"
   const other = review.buildPrintCommand(options);
   assert.equal(author.name, "codex");
   assert.match(first.command, /codex -a never -s workspace-write exec --ignore-user-config/);
-  assert.match(first.command, /gpt-6-astra/);
+  assert.match(first.command, /gpt-6.1-sol/);
   assert.match(first.command, /model_provider="cliproxy-local"/);
   assert.doesNotMatch(first.command, /dangerously|claude|kimi/);
   assert.notEqual(first.command, other.command);

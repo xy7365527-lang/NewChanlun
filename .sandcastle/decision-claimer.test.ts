@@ -593,7 +593,7 @@ const writesOf = (calls: string[][]) => calls.filter(isWrite).map((a) => a.slice
 test("live T 类：审查 PASS 后落地失败记 reviewed_pass，下一轮只做落地不重审", async () => {
   const { d, replies, ghCalls, modelCalls, gitCalls } = liveDeps([
     fence({ class: "T", reason: "接口" }), goodDraft, fence(pass()),
-    new Error("land gpt-6-astra 调用失败（exit 1，第 6 次）：API Error: 模型服务暂时不可用"),
+    new Error("land gpt-6.1-sol 调用失败（exit 1，第 6 次）：API Error: 模型服务暂时不可用"),
   ]);
   const s1 = await processTicket(1565, d);
   assert.equal(s1.phase, "error");
@@ -804,7 +804,7 @@ test("断点续做 × 跳过：reviewed_pass 且 resolution 评论其实已发�
 test("断点续做 × 退回：reviewed_pass 之后出现退回，下一轮整链重跑，不沿用旧 PASS 落地", async () => {
   const h = liveDeps([
     fence({ class: "T", reason: "接口" }), goodDraft, fence(pass()),
-    new Error("land gpt-6-astra 调用失败（exit 1，第 6 次）：API Error: 模型服务暂时不可用"),
+    new Error("land gpt-6.1-sol 调用失败（exit 1，第 6 次）：API Error: 模型服务暂时不可用"),
   ]);
   const s1 = await processTicket(1565, h.d);
   assert.equal(s1.stage, "reviewed_pass");
@@ -823,7 +823,7 @@ test("断点续做 × 退回：reviewed_pass 之后出现退回，下一轮整�
 test("断点续做：退回出现在断点之前，或之后只有普通评论，仍只补落地", async () => {
   const h = liveDeps([
     fence({ class: "T", reason: "接口" }), goodDraft, fence(pass()),
-    new Error("land gpt-6-astra 调用失败（exit 1，第 6 次）：API Error: 模型服务暂时不可用"),
+    new Error("land gpt-6.1-sol 调用失败（exit 1，第 6 次）：API Error: 模型服务暂时不可用"),
   ]);
   h.comments.push({ author: { login: "xy7365527-lang" }, body: "## 退回重写\n上一稿不要" });
   const s1 = await processTicket(1565, h.d);

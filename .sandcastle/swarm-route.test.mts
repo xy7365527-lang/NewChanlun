@@ -20,7 +20,7 @@ const ID = "sha256:" + "3".repeat(64);
 test("swarm 四角色共用主控模型，provider 命令不显式换档", () => {
   const provider = swarmAgent();
   const command = provider.buildPrintCommand({ prompt: "hi", dangerouslySkipPermissions: true });
-  assert.equal(MAIN_MODEL, "gpt-6-astra");
+  assert.equal(MAIN_MODEL, "gpt-6.1-sol");
   assert.ok(command.command.includes(MAIN_MODEL));
   assert.ok(!command.command.includes("prime-agent"));
 });

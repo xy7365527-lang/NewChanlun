@@ -78,7 +78,7 @@ test("SDK bypass 被精确收紧，prompt 不进入 argv，模型、推理档与
     assert.ok(command.command.startsWith("codex -a never exec --json --sandbox "));
     assert.ok(command.command.includes(mode === "review" ? "--sandbox read-only" : "--sandbox workspace-write"));
     assert.ok(command.command.includes("--ignore-user-config"));
-    assert.ok(command.command.includes(" -m 'gpt-6-astra'"));
+    assert.ok(command.command.includes(" -m 'gpt-6.1-sol'"));
     assert.ok(command.command.includes('model_reasoning_effort="xhigh"'));
     assert.ok(command.command.includes("network_access=false"));
     // --ignore-user-config 不读用户 provider；入口必须显式给出 cliproxy-local 的完整定义。
@@ -105,10 +105,10 @@ test("认证沿用目录，环境只留白名单与 CLIProxy 密钥变量，不�
 });
 
 test("路由门：模型不得带 mf/、yd/ 等中转前缀，provider 只能是 cliproxy-local", () => {
-  assert.equal(MODEL, "gpt-6-astra");
+  assert.equal(MODEL, "gpt-6.1-sol");
   assert.equal(MODEL_PROVIDER, "cliproxy-local");
   assert.doesNotThrow(() => assertRoute());
-  for (const model of ["mf/gpt-6-astra", "yd/gpt-6-astra", "any/gpt-6-astra"]) {
+  for (const model of ["mf/gpt-6.1-sol", "yd/gpt-6.1-sol", "any/gpt-6.1-sol"]) {
     assert.throws(() => assertRoute(model), /中转前缀/);
   }
   assert.throws(() => assertRoute("claude opus"), /格式无效/);
@@ -262,12 +262,12 @@ test("真实子进程：直接 SDK provider 完成，保存 session/parent 映�
     // CLIProxy 密钥只进工蜂环境，不进 argv 和任何运行记录。
     assert.ok(JSON.parse(readFileSync(join(f.dir, "worker-env.json"), "utf8")).includes(PROVIDER_KEY_ENV));
     const argv: string[] = JSON.parse(readFileSync(join(f.dir, "argv.json"), "utf8"));
-    assert.ok(argv.includes("gpt-6-astra") && argv.includes('model_provider="cliproxy-local"'));
+    assert.ok(argv.includes("gpt-6.1-sol") && argv.includes('model_provider="cliproxy-local"'));
     assert.ok(!argv.some((item) => item.includes(fixtureKey)));
     for (const file of ["state.json", "events.jsonl", "result.json", "prompt.md", "codex.stdout.jsonl", "codex.stderr.log"]) {
       assert.ok(!readFileSync(join(f.options.outputDir, file), "utf8").includes(fixtureKey), file);
     }
-    assert.equal(result.model, "gpt-6-astra");
+    assert.equal(result.model, "gpt-6.1-sol");
     assert.equal(result.model_provider, "cliproxy-local");
     assert.ok(readFileSync(join(f.dir, "received-prompt.md"), "utf8").includes("$(touch"));
     assert.ok(!existsSync(join(f.dir, "injection")));
