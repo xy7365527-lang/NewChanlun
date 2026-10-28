@@ -1704,3 +1704,6 @@ pub(crate) fn test_prepare_mixed_caps(
 ) -> PreparedAdmission {
     test_support::prepare_with_fields(db, Some((live, operation)), fields)
 }
+
+#[path = "admission_issuance.rs"]
+pub(crate) mod issuance;

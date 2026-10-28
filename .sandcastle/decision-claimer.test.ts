@@ -1,15 +1,14 @@
 import { test } from "node:test";
-import { execFileSync } from "node:child_process";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  ADR_FORMAT_LINE, AUTH_LINE, MAX_ROUNDS, isCitationOnlyBlock, landingProblem, revisePrompt, CITATION_SECTION, DRAFT_SECTIONS, GH_API_WRITE_DENY, READ_TOOLS, hasCitationTable, toolArgs, FETCH_URL, MAIN_REF, MODEL_MAIN, DryRunWriteError,
+  ADR_FORMAT_LINE, AUTH_LINE, MAX_ROUNDS, isCitationOnlyBlock, landingProblem, revisePrompt, CITATION_SECTION, DRAFT_SECTIONS, GH_API_WRITE_DENY, READ_TOOLS, hasCitationTable, toolArgs, FETCH_URL, MAIN_REF, MODEL_FABLE, MODEL_OPUS, DryRunWriteError,
   allocateAdr, applyReclass, draftPrompt, ensureSrc, extractFirstApiKey, guardGh, reclassSuggestion, renumberDraft, reviewPrompt, initialState, isGhWrite, landingTarget, missingDraftSections,
   nextAfterReview, parseArgs, parseClassification, parseReview, processTicket, selectCandidates,
   resolvedReason, pickUnresolved, finishedTickets,
-  isRetryable, makeClaudeRunner, loadResume, resumeStaleBecauseReopen,
+  isRetryable, makeClaudeRunner, loadResume, isSafeguardBlock, safeguardFallbackModel, withSafeguardFallback, reviewerModel, resumeStaleBecauseReopen,
   RULES, ARCH_SECTION, ARCHAEOLOGY_FILE, parseArchaeology, archaeologyProblems, renderArchaeology, archaeologyCoverageProblems,
   archaeologyPrompt, archaeologyAsks, archaeologyOnly, shadowComment, flowSectionsIn, stripFlowSections,
   type Deps, type GhRunner, type ModelCall, type OnceResult,
@@ -87,18 +86,18 @@ test("草稿七段与正本落点校验", () => {
   assert.equal(landingTarget("正本落点：docs/adr/../../etc"), null);
 });
 
-test("状态转移：PASS 落地；BLOCK 同模型带意见重做；再 BLOCK 转 P", () => {
+test("状态转移：PASS 落地；BLOCK 升档 Opus 重做；再 BLOCK 转 P", () => {
   const passR = parseReview(fence(pass()));
   const blockR = parseReview(fence({ ...pass(), R3: { verdict: "BLOCK", basis: "验收项不可执行" } }));
   const t = initialState("T");
-  assert.equal(t.drafterModel, MODEL_MAIN);
+  assert.equal(t.drafterModel, MODEL_FABLE);
   assert.equal(nextAfterReview(t, passR).phase, "land_t");
   assert.equal(nextAfterReview(initialState("P"), passR).phase, "shadow_p");
 
   const t2 = nextAfterReview(t, blockR);
   assert.equal(t2.phase, "draft");
   assert.equal(t2.attempt, 2);
-  assert.equal(t2.drafterModel, MODEL_MAIN);
+  assert.equal(t2.drafterModel, MODEL_OPUS);
   assert.match(t2.reviewFeedback ?? "", /R3 BLOCK：验收项不可执行/);
 
   const t3 = nextAfterReview(t2, blockR);
@@ -152,7 +151,6 @@ function fakeDeps(mode: "dry-run" | "live", replies: string[], archReplies: stri
   };
   const d: Deps = {
     mode,
-    drainRoot: mkdtempSync(join(tmpdir(), "decision-drain-")),
     gh: guardGh(mode, raw),
     git: () => { throw new Error("dry-run 不应调 git"); },
     model: async (c) => {
@@ -180,7 +178,7 @@ test("dry-run 全流程：T 类 PASS 只落本地三份文件，不调任何 gh 
   const s = await processTicket(1531, d);
   assert.equal(s.phase, "land_t");
   assert.equal(s.error, undefined);
-  assert.deepEqual(modelCalls.map((c) => [c.role, c.model]), [["classify", MODEL_MAIN], ["draft", MODEL_MAIN], ["review", MODEL_MAIN]]);
+  assert.deepEqual(modelCalls.map((c) => [c.role, c.model]), [["classify", MODEL_FABLE], ["draft", MODEL_FABLE], ["review", MODEL_OPUS]]);
   assert.ok(modelCalls.every((c) => !c.allowWrite));
   assert.equal(ghCalls.filter(isWrite).length, 0);
   const dir = join(d.outRoot, "1531");
@@ -190,14 +188,14 @@ test("dry-run 全流程：T 类 PASS 只落本地三份文件，不调任何 gh 
   assert.ok(s.plannedWrites.some((w) => w.startsWith("分支 decision/1531")));
 });
 
-test("dry-run 两轮 BLOCK：第二稿同模型带审查意见重做，最终转 P，仍不写 GitHub", async () => {
+test("dry-run 两轮 BLOCK：第二稿由 Opus 起草并带审查意见，最终转 P，仍不写 GitHub", async () => {
   const block = fence({ ...pass(), R1: { verdict: "BLOCK", basis: "行号漂移" }, R3: { verdict: "BLOCK", basis: "验收项不可执行" } });
   const { d, ghCalls, modelCalls } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), goodDraft, block, goodDraft, block]);
   const s = await processTicket(1531, d);
   assert.equal(s.phase, "shadow_p");
   assert.equal(s.klass, "P");
   assert.equal(s.convertedToP, true);
-  assert.equal(modelCalls[3].model, MODEL_MAIN);
+  assert.equal(modelCalls[3].model, MODEL_OPUS);
   assert.match(modelCalls[3].prompt, /R1 BLOCK：行号漂移/);
   assert.equal(ghCalls.filter(isWrite).length, 0);
   assert.ok(existsSync(join(d.outRoot, "1531", "review.attempt1.json")));
@@ -294,7 +292,7 @@ test("审查解析：无 JSON 记 parseError，与真 BLOCK 分开", () => {
   assert.equal(real.verdict, "BLOCK");
 });
 
-test("dry-run：审查首次解析失败重试一次，仍失败记 review_parse_error 不重做", async () => {
+test("dry-run：审查首次解析失败重试一次，仍失败记 review_parse_error 不升档", async () => {
   const { d, modelCalls } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), goodDraft, "抱歉无法完成", "还是没有"]);
   const s = await processTicket(1531, d);
   assert.equal(s.phase, "review_parse_error");
@@ -441,23 +439,23 @@ test("isCitationOnlyBlock：只有 R1 且依据指向具体引用才算", () => 
   assert.equal(isCitationOnlyBlock(parseReview(r1Block("行号差一行"), ["授权引用"])), false);
 });
 
-test("状态转移：R1 引用 BLOCK 进修订轮，其他 BLOCK 重做，总轮次上限 3", () => {
+test("状态转移：R1 引用 BLOCK 进修订轮，其他 BLOCK 升档，总轮次上限 3", () => {
   const cite = parseReview(r1Block("x.md:12 行号差一行"));
   const other = parseReview(r3Block);
   let s = nextAfterReview(initialState("T"), cite);
-  assert.deepEqual([s.phase, s.attempt, s.draftMode, s.drafterModel], ["draft", 2, "revise", MODEL_MAIN]);
+  assert.deepEqual([s.phase, s.attempt, s.draftMode, s.drafterModel], ["draft", 2, "revise", MODEL_OPUS]);
   s = nextAfterReview(s, other);
   assert.deepEqual([s.phase, s.attempt, s.draftMode], ["draft", 3, "redo"]);
   assert.equal(nextAfterReview(s, cite).phase, "shadow_p");
   assert.equal(MAX_ROUNDS, 3);
-  // 重做后剩 R1 引用 BLOCK：第三轮修订；修订后仍 BLOCK 转 P
+  // 升档后剩 R1 引用 BLOCK：第三轮修订；修订后仍 BLOCK 转 P
   let u = nextAfterReview(initialState("T"), other);
   assert.equal(u.draftMode, "redo");
   u = nextAfterReview(u, cite);
   assert.deepEqual([u.attempt, u.draftMode], [3, "revise"]);
   const end = nextAfterReview(u, cite);
   assert.deepEqual([end.phase, end.klass, end.convertedToP], ["shadow_p", "P", true]);
-  // 修订用过后再遇 R1 引用 BLOCK 不再修订，走重做
+  // 修订用过后再遇 R1 引用 BLOCK 不再修订，走升档
   const v = nextAfterReview(nextAfterReview(initialState("T"), cite), cite);
   assert.equal(v.draftMode, "redo");
 });
@@ -468,14 +466,14 @@ test("dry-run 修订轮：只拿上一稿与引用意见，不改裁定，再审
   assert.equal(s.phase, "land_t");
   assert.equal(s.attempts, 2);
   const rev = modelCalls[3];
-  assert.equal(rev.model, MODEL_MAIN);
+  assert.equal(rev.model, MODEL_OPUS);
   assert.match(rev.prompt, /只改引用」的修订轮/);
   assert.match(rev.prompt, /===== 上一稿开始 =====/);
   assert.match(rev.prompt, /R1 BLOCK：AGENTS\.md:1 行号差一行/);
   assert.deepEqual(s.rounds!.map((r) => [r.mode, r.verdict]), [["initial", "BLOCK"], ["revise", "PASS"]]);
 });
 
-test("dry-run 三轮仍 BLOCK 转 P：首稿 R3→重做→R1 引用→修订→仍 BLOCK", async () => {
+test("dry-run 三轮仍 BLOCK 转 P：首稿 R3→升档→R1 引用→修订→仍 BLOCK", async () => {
   const cite = r1Block("x.md:3 转述多出内容");
   const { d, modelCalls } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), goodDraft, r3Block, goodDraft, cite, goodDraft, cite]);
   const s = await processTicket(8, d);
@@ -513,7 +511,7 @@ test("isRetryable：429/5xx/暂时不可用/超时算临时，参数与权限错
 
 const okOnce = (text: string): OnceResult => ({ code: 0, stdout: JSON.stringify({ result: text, is_error: false }), stderr: "" });
 const errOnce = (msg: string): OnceResult => ({ code: 1, stdout: JSON.stringify({ result: msg, is_error: true }), stderr: "" });
-const call: ModelCall = { model: MODEL_MAIN, prompt: "p", cwd: "/", role: "land" };
+const call: ModelCall = { model: MODEL_OPUS, prompt: "p", cwd: "/", role: "land" };
 
 test("makeClaudeRunner：临时错误指数退避重试直到成功", async () => {
   const seq = [errOnce("API Error: 模型服务暂时不可用，请稍后重试。"), errOnce("API Error: 503"), { code: 143, stdout: "", stderr: "claude 子进程超时（1800s timed out）" }, okOnce("好")];
@@ -560,7 +558,6 @@ function liveDeps(replies: Array<string | Error>, opts: { failGh?: (a: string[])
   const gitCalls: string[][] = [];
   const d: Deps = {
     mode: "live", gh, me: "me",
-    drainRoot: mkdtempSync(join(tmpdir(), "decision-drain-live-")),
     git: (_cwd, args) => {
       gitCalls.push(args);
       if (args[0] === "status") return `?? ${target}\n`;
@@ -593,7 +590,7 @@ const writesOf = (calls: string[][]) => calls.filter(isWrite).map((a) => a.slice
 test("live T 类：审查 PASS 后落地失败记 reviewed_pass，下一轮只做落地不重审", async () => {
   const { d, replies, ghCalls, modelCalls, gitCalls } = liveDeps([
     fence({ class: "T", reason: "接口" }), goodDraft, fence(pass()),
-    new Error("land gpt-6.1-sol 调用失败（exit 1，第 6 次）：API Error: 模型服务暂时不可用"),
+    new Error("land claude-opus-5-5 调用失败（exit 1，第 6 次）：API Error: 模型服务暂时不可用"),
   ]);
   const s1 = await processTicket(1565, d);
   assert.equal(s1.phase, "error");
@@ -804,7 +801,7 @@ test("断点续做 × 跳过：reviewed_pass 且 resolution 评论其实已发�
 test("断点续做 × 退回：reviewed_pass 之后出现退回，下一轮整链重跑，不沿用旧 PASS 落地", async () => {
   const h = liveDeps([
     fence({ class: "T", reason: "接口" }), goodDraft, fence(pass()),
-    new Error("land gpt-6.1-sol 调用失败（exit 1，第 6 次）：API Error: 模型服务暂时不可用"),
+    new Error("land claude-opus-5-5 调用失败（exit 1，第 6 次）：API Error: 模型服务暂时不可用"),
   ]);
   const s1 = await processTicket(1565, h.d);
   assert.equal(s1.stage, "reviewed_pass");
@@ -823,7 +820,7 @@ test("断点续做 × 退回：reviewed_pass 之后出现退回，下一轮整�
 test("断点续做：退回出现在断点之前，或之后只有普通评论，仍只补落地", async () => {
   const h = liveDeps([
     fence({ class: "T", reason: "接口" }), goodDraft, fence(pass()),
-    new Error("land gpt-6.1-sol 调用失败（exit 1，第 6 次）：API Error: 模型服务暂时不可用"),
+    new Error("land claude-opus-5-5 调用失败（exit 1，第 6 次）：API Error: 模型服务暂时不可用"),
   ]);
   h.comments.push({ author: { login: "xy7365527-lang" }, body: "## 退回重写\n上一稿不要" });
   const s1 = await processTicket(1565, h.d);
@@ -912,7 +909,7 @@ test("dry-run 全流程：分级后先考古，archaeology.md 落盘，起草与
   const s = await processTicket(1531, d);
   assert.equal(s.phase, "land_t");
   assert.equal(archCalls.length, 1);
-  assert.equal(archCalls[0].model, MODEL_MAIN);
+  assert.equal(archCalls[0].model, MODEL_FABLE);
   assert.ok(!archCalls[0].allowWrite);
   assert.deepEqual(s.archaeology, { A: 1, B: 1, C: 1, problems: [] });
   const dir = join(d.outRoot, "1531");
@@ -937,9 +934,9 @@ test("考古不合格：带问题重跑一次；仍不合格则问题交审查�
   const rv = JSON.parse(readFileSync(join(d.outRoot, "1531", "review.attempt1.json"), "utf8"));
   assert.equal(rv.verdict, "BLOCK");
   assert.ok(rv.problems.some((x: string) => /^考古：Q3/.test(x)));
-  assert.equal(archCalls.length, 4, "审查重做时重跑考古");
+  assert.equal(archCalls.length, 4, "升档重做时重跑考古");
   assert.match(archCalls[2].prompt, /上一次考古产物没过机械校验[\s\S]*Q3：C 类须列出至少两个/, "重跑首次即带上轮问题");
-  assert.equal(archCalls[2].model, MODEL_MAIN, "与起草者同型");
+  assert.equal(archCalls[2].model, MODEL_OPUS, "随起草者升档");
   assert.notEqual(s.phase, "land_t");
 });
 
@@ -1016,7 +1013,7 @@ test("考古有 research/probe 事实缺口：T 类不自动落地，转 P 起�
   assert.doesNotMatch(body.split("\n")[0], /审查仍 BLOCK/);
 });
 
-test("重做时重跑考古后新出现事实缺口：T 类同样转 P，不落地", async () => {
+test("升档重跑考古后新出现事实缺口：T 类同样转 P，不落地", async () => {
   const noGap = structuredClone(goodArchObj) as { points: Array<Record<string, unknown>> };
   noGap.points[2].gap = "";
   const probe = structuredClone(goodArchObj) as { points: Array<Record<string, unknown>> };
@@ -1048,59 +1045,162 @@ test("--archaeology-only 与 processTicket 共用目录锁", async () => {
   await assert.rejects(archaeologyOnly(1531, d), /另一进程正在处理/);
 });
 
+// ───────────── #1785：Fable 安全拦截改派 Opus ─────────────
 
-const drainHelper = join(__dirname, "drain-control.py");
-const drainCli = (d: Deps, command: "freeze" | "resume", ...args: string[]) =>
-  execFileSync("python3", [drainHelper, command, "--root", d.drainRoot!, ...args]);
+/** #1532/#1783 实际落进 decision-claimer.stdout.log 的错误（runner 抛出的整句）。 */
+const FABLE_BLOCK = (role: string) =>
+  `${role} ${MODEL_FABLE} 调用失败（exit 1，第 1 次）：API Error: Fable 5's safeguards flagged this message (https://www.anthropic.com/legal/aup). This sometimes happens with safe, normal conversations. Claude Code can't respond to this message with Fable 5.`;
 
-test("冻结保留 T 类已推送断点及认领，解冻只补 resolution 不重复提交", async () => {
-  const h = liveDeps([fence({ class: "T", reason: "接口" }), goodDraft, fence(pass()), "已写入"]);
-  h.fail((a) => (a[1] === "comment" && h.comments.length > 0) || a[3] === "--remove-assignee");
-  const first = await processTicket(1565, h.d);
-  assert.equal(first.stage, "reviewed_pass");
-  assert.equal(first.landedSha, "abcdef1234567890");
-  h.stopFail();
-  const dir = join(h.d.outRoot, "1565");
-  const before = readFileSync(join(dir, "summary.json"), "utf8");
-  h.ghCalls.length = h.modelCalls.length = h.gitCalls.length = 0;
-  drainCli(h.d, "freeze");
-  const frozen = await processTicket(1565, h.d);
-  assert.equal(frozen.phase, "skipped");
-  assert.equal(readFileSync(join(dir, "summary.json"), "utf8"), before);
-  assert.equal(loadResume(dir)?.prev.stage, "reviewed_pass");
-  assert.deepEqual(writesOf(h.ghCalls), []);
-  assert.deepEqual(h.modelCalls, []);
-  drainCli(h.d, "resume", "--generation", "1");
-  const resumed = await processTicket(1565, h.d);
-  assert.equal(resumed.resumedFrom, "reviewed_pass");
-  assert.equal(resumed.phase, "land_t");
-  assert.deepEqual(writesOf(h.ghCalls), ["issue comment 1565 --body-file"]);
-  assert.deepEqual(h.modelCalls, []);
-  assert.deepEqual(h.gitCalls, []);
+/** 按 (role, model) 脚本化的假模型：命中 block 集合的 Fable 调用抛拦截错误，其余按角色给合格产物。 */
+function blockingDeps(block: Set<string>, opts: { reviewText?: string; hardError?: string } = {}) {
+  const { d } = fakeDeps("dry-run", []);
+  const calls: ModelCall[] = [];
+  d.model = async (c) => {
+    calls.push(c);
+    if (opts.hardError && c.role === "archaeology") throw new Error(opts.hardError);
+    if (block.has(c.role) && c.model === MODEL_FABLE) throw new Error(FABLE_BLOCK(c.role));
+    const text = c.role === "classify" ? fence({ class: "T", reason: "测试锁" })
+      : c.role === "archaeology" ? goodArch
+      : c.role === "draft" ? goodDraft
+      : opts.reviewText ?? fence(pass());
+    return { text, durationMs: 5, attempts: 1 };
+  };
+  return { d, calls };
+}
+const seq = (calls: ModelCall[]) => calls.map((c) => [c.role, c.model]);
+
+test("isSafeguardBlock：只认 Fable 安全拦截文本；临时错误、参数错误、泛泛的 safeguard 字样都不算", () => {
+  assert.ok(isSafeguardBlock(FABLE_BLOCK("archaeology")));
+  assert.ok(isSafeguardBlock("API Error: Fable 5.1's safeguards flagged this message"));
+  for (const x of ["API Error: 429 Too Many Requests", "Invalid model name", "safeguards", "Opus safeguards flagged", "模型服务暂时不可用"]) {
+    assert.equal(isSafeguardBlock(x), false, x);
+  }
+  assert.equal(isRetryable(FABLE_BLOCK("archaeology")), false, "拦截不是临时错误，runner 不退避重发");
+  assert.equal(safeguardFallbackModel(MODEL_FABLE), MODEL_OPUS);
+  assert.equal(safeguardFallbackModel(MODEL_OPUS), null);
 });
 
-test("冻结保留 P 类 pDone，解冻只补标签和取消认领而不重复影子评论", async () => {
-  const h = liveDeps([fence({ class: "P", reason: "资金参数" }), goodDraft, fence(pass())]);
-  h.fail((a) => a[3] === "--add-label");
-  const first = await processTicket(1565, h.d);
-  assert.equal(first.stage, "shadow_p_pending");
-  assert.deepEqual(first.pDone, ["comment"]);
-  h.stopFail();
-  const dir = join(h.d.outRoot, "1565");
-  const before = readFileSync(join(dir, "summary.json"), "utf8");
-  h.ghCalls.length = h.modelCalls.length = h.gitCalls.length = 0;
-  drainCli(h.d, "freeze");
-  const frozen = await processTicket(1565, h.d);
-  assert.equal(frozen.phase, "skipped");
-  assert.equal(readFileSync(join(dir, "summary.json"), "utf8"), before);
-  assert.deepEqual(loadResume(dir)?.prev.pDone, ["comment"]);
-  assert.deepEqual(writesOf(h.ghCalls), []);
-  drainCli(h.d, "resume", "--generation", "1");
-  const resumed = await processTicket(1565, h.d);
-  assert.equal(resumed.phase, "shadow_p");
-  assert.equal(resumed.resumedFrom, "shadow_p_pending");
-  assert.deepEqual(writesOf(h.ghCalls), ["issue edit 1565 --add-assignee", "issue edit 1565 --add-label", "issue edit 1565 --remove-assignee"]);
-  assert.equal(h.comments.filter((c) => c.body.includes("P 类影子模式")).length, 1);
-  assert.deepEqual(h.modelCalls, []);
-  assert.deepEqual(h.gitCalls, []);
+test("#1785 考古被 Fable 拦截：同一步改用 Opus 成功，summary 与 summary.json 记录切换，后续流程照常", async () => {
+  const { d, calls } = blockingDeps(new Set(["archaeology"]));
+  const s = await processTicket(1783, d);
+  assert.equal(s.phase, "land_t", s.error ?? "");
+  assert.deepEqual(seq(calls), [
+    ["classify", MODEL_FABLE], ["archaeology", MODEL_FABLE], ["archaeology", MODEL_OPUS], ["draft", MODEL_FABLE], ["review", MODEL_OPUS],
+  ]);
+  const want = [{ role: "archaeology", from: MODEL_FABLE, to: MODEL_OPUS, reason: "safeguard" }];
+  assert.deepEqual(s.modelSwitches, want);
+  const dir = join(d.outRoot, "1783");
+  assert.deepEqual(JSON.parse(readFileSync(join(dir, "summary.json"), "utf8")).modelSwitches, want);
+  assert.ok(existsSync(join(dir, ARCHAEOLOGY_FILE)));
+});
+
+test("#1785 分级被拦截同样改 Opus；改派对本票该角色粘住，不再先撞一次拦截", async () => {
+  const { d, calls } = blockingDeps(new Set(["classify"]));
+  const s = await processTicket(1783, d);
+  assert.equal(s.phase, "land_t", s.error ?? "");
+  assert.deepEqual(seq(calls).slice(0, 2), [["classify", MODEL_FABLE], ["classify", MODEL_OPUS]]);
+  const inner: ModelCall[] = [];
+  const run = withSafeguardFallback(async (c) => {
+    inner.push(c);
+    if (c.model === MODEL_FABLE) throw new Error(FABLE_BLOCK(c.role));
+    return { text: "ok", durationMs: 1, attempts: 1 };
+  });
+  const a = await run({ model: MODEL_FABLE, prompt: "p", cwd: "/", role: "archaeology" });
+  const b = await run({ model: MODEL_FABLE, prompt: "p2", cwd: "/", role: "archaeology" });
+  assert.equal(a.model, MODEL_OPUS);
+  assert.equal(b.model, MODEL_OPUS);
+  assert.deepEqual(inner.map((c) => c.model), [MODEL_FABLE, MODEL_OPUS, MODEL_OPUS], "第二次直接走 Opus");
+});
+
+test("#1785 起草被拦截改 Opus：独审改用 Fable，review.json 与 rounds 记实际起草/独审模型", async () => {
+  const { d, calls } = blockingDeps(new Set(["draft"]));
+  const s = await processTicket(1783, d);
+  assert.equal(s.phase, "land_t", s.error ?? "");
+  assert.deepEqual(seq(calls).slice(2), [["draft", MODEL_FABLE], ["draft", MODEL_OPUS], ["review", MODEL_FABLE]]);
+  const rv = JSON.parse(readFileSync(join(d.outRoot, "1783", "review.json"), "utf8"));
+  assert.equal(rv.drafter, MODEL_OPUS);
+  assert.equal(rv.reviewer, MODEL_FABLE);
+  assert.deepEqual(s.rounds!.map((r) => [r.drafter, r.reviewer]), [[MODEL_OPUS, MODEL_FABLE]]);
+});
+
+test("#1785 起草改 Opus 后独审 Fable 也被拦截：独审改另一档 Opus 并记录，仍是独立的一次调用", async () => {
+  const { d, calls } = blockingDeps(new Set(["draft", "review"]));
+  const s = await processTicket(1783, d);
+  assert.equal(s.phase, "land_t", s.error ?? "");
+  assert.deepEqual(seq(calls).slice(2), [["draft", MODEL_FABLE], ["draft", MODEL_OPUS], ["review", MODEL_FABLE], ["review", MODEL_OPUS]]);
+  assert.deepEqual(s.modelSwitches!.map((x) => [x.role, x.from, x.to]), [["draft", MODEL_FABLE, MODEL_OPUS], ["review", MODEL_FABLE, MODEL_OPUS]]);
+  const draftCall = calls.filter((c) => c.role === "draft").at(-1)!;
+  const reviewCall = calls.filter((c) => c.role === "review").at(-1)!;
+  assert.notEqual(draftCall, reviewCall);
+  assert.notEqual(draftCall.prompt, reviewCall.prompt, "独审拿的是审查提示，不是起草调用的续答");
+  assert.equal(JSON.parse(readFileSync(join(d.outRoot, "1783", "review.json"), "utf8")).reviewer, MODEL_OPUS);
+});
+
+test("#1785 锁：起草与独审模型不同——计划 Fable 的轮次无论是否改派，独审都不是实际起草模型", async () => {
+  for (const used of [MODEL_FABLE, MODEL_OPUS]) assert.notEqual(reviewerModel(MODEL_FABLE, used), used, used);
+  assert.equal(reviewerModel(MODEL_FABLE, MODEL_FABLE), MODEL_OPUS, "首稿不改派：维持 Fable 起草、Opus 独审");
+  assert.equal(reviewerModel(MODEL_OPUS, MODEL_OPUS), MODEL_OPUS, "升档重做轮维持原设计");
+  for (const block of [new Set<string>(), new Set(["draft"])]) {
+    const { d } = blockingDeps(block);
+    const s = await processTicket(1783, d);
+    for (const r of s.rounds!) assert.notEqual(r.drafter, r.reviewer, `block=${[...block]}`);
+  }
+});
+
+test("#1785 负控：拦截以外的非临时错误不改派，照原逻辑整票失败；Opus 抛同样文本也不改派", async () => {
+  const hard = blockingDeps(new Set(), { hardError: `archaeology ${MODEL_FABLE} 调用失败（exit 1，第 1 次）：Invalid model name` });
+  const s = await processTicket(1783, hard.d);
+  assert.equal(s.phase, "error");
+  assert.match(s.error ?? "", /Invalid model name/);
+  assert.deepEqual(seq(hard.calls), [["classify", MODEL_FABLE], ["archaeology", MODEL_FABLE]]);
+  assert.equal(s.modelSwitches, undefined);
+  const run = withSafeguardFallback(async () => { throw new Error(FABLE_BLOCK("land")); });
+  await assert.rejects(run({ model: MODEL_OPUS, prompt: "p", cwd: "/", role: "land" }), /safeguards flagged/);
+});
+
+test("#1785 F-1：分级/考古改派后 classify.json 与 archaeology.json 记实际模型 Opus，考古切换写进 archaeology.json", async () => {
+  const { d } = blockingDeps(new Set(["classify", "archaeology"]));
+  const s = await processTicket(1783, d);
+  assert.equal(s.phase, "land_t", s.error ?? "");
+  const dir = join(d.outRoot, "1783");
+  assert.equal(JSON.parse(readFileSync(join(dir, "classify.json"), "utf8")).model, MODEL_OPUS);
+  const aj = JSON.parse(readFileSync(join(dir, "archaeology.json"), "utf8"));
+  assert.equal(aj.model, MODEL_OPUS);
+  assert.deepEqual(aj.modelSwitches, [{ role: "archaeology", from: MODEL_FABLE, to: MODEL_OPUS, reason: "safeguard" }]);
+  // 未改派：仍记 Fable，不写 modelSwitches。
+  const plain = blockingDeps(new Set());
+  await processTicket(1783, plain.d);
+  const pj = JSON.parse(readFileSync(join(plain.d.outRoot, "1783", "archaeology.json"), "utf8"));
+  assert.equal(pj.model, MODEL_FABLE);
+  assert.equal(pj.modelSwitches, undefined);
+  assert.equal(JSON.parse(readFileSync(join(plain.d.outRoot, "1783", "classify.json"), "utf8")).model, MODEL_FABLE);
+});
+
+test("#1785 F-1：--archaeology-only 无 summary 时，考古改派照样写进 archaeology.json", async () => {
+  const { d, calls } = blockingDeps(new Set(["archaeology"]));
+  const r = await archaeologyOnly(1355, d);
+  assert.deepEqual(r.problems, []);
+  assert.deepEqual(seq(calls), [["archaeology", MODEL_FABLE], ["archaeology", MODEL_OPUS]]);
+  const dir = join(d.outRoot, "1355");
+  const aj = JSON.parse(readFileSync(join(dir, "archaeology.json"), "utf8"));
+  assert.equal(aj.model, MODEL_OPUS);
+  assert.deepEqual(aj.modelSwitches, [{ role: "archaeology", from: MODEL_FABLE, to: MODEL_OPUS, reason: "safeguard" }]);
+  assert.equal(existsSync(join(dir, "summary.json")), false);
+});
+
+test("#1785 F-2：断点续做带回 modelSwitches，续做后重写的 summary.json 不丢改派记录", async () => {
+  const { d, replies } = liveDeps([
+    new Error(FABLE_BLOCK("classify")), fence({ class: "T", reason: "接口" }), goodDraft, fence(pass()),
+    new Error("land claude-opus-5-5 调用失败（exit 1，第 6 次）：API Error: 模型服务暂时不可用"),
+  ]);
+  const want = [{ role: "classify", from: MODEL_FABLE, to: MODEL_OPUS, reason: "safeguard" }];
+  const s1 = await processTicket(1565, d);
+  assert.equal(s1.stage, "reviewed_pass", s1.error ?? "");
+  assert.deepEqual(s1.modelSwitches, want);
+  replies.push("已写入");
+  const s2 = await processTicket(1565, d);
+  assert.equal(s2.phase, "land_t", s2.error ?? "");
+  assert.equal(s2.resumedFrom, "reviewed_pass");
+  assert.deepEqual(s2.modelSwitches, want);
+  assert.deepEqual(JSON.parse(readFileSync(join(d.outRoot, "1565", "summary.json"), "utf8")).modelSwitches, want);
 });

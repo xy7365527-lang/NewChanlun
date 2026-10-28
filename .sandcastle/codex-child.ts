@@ -272,6 +272,8 @@ export async function boundedCodex(mode: ChildMode, schemaPath: string, env = wo
         + ` --output-schema ${shellQuote(schemaPath)}`
         + ` -c 'sandbox_workspace_write.network_access=false' -c 'web_search="disabled"'`
         + ` -c 'shell_environment_policy.inherit="core"'`
+        // --ignore-user-config 不读用户的 apps=false，而 codex 默认开启 Apps 与 plugins，会把无关工具 schema 带进每次请求（#1764）。
+        + ` -c 'features.apps=false' -c 'features.plugins=false'`
         + overrides.map((override) => ` -c ${shellQuote(override)}`).join("")
         + ` --disable multi_agent -`;
       if (/dangerously|danger-full-access|--full-auto|on-request/.test(command)) throw new Error("检测到不允许的权限参数");

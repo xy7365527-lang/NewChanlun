@@ -3,9 +3,9 @@
  * decision-claimer.mts —— graph engineering 裁决面（#1547）。
  *
  * 设计正本：.sandcastle/docs/graph-engineering.md「裁决流程」。每张 grilling 票：
- *   分级 → 考古（两路搜，逐点 A/B/C）→ 起草 → 独审（非作者独立进程，只读草稿与源）
+ *   分级（Fable 5.1）→ 考古（Fable 5.1，两路搜，逐点 A/B/C）→ 起草（Fable 5.1）→ 独审（Opus 5.5，独立进程，只读草稿与源）
  *   → T 类 PASS：decision/<票号> 分支落正本 + resolution 评论；P 类：挂 needs-approval。
- *   其他 BLOCK：同模型带审查意见重做一次；仍 BLOCK：转 P 类。
+ *   其他 BLOCK：一次升档 Opus 5.5 带审查意见重做；仍 BLOCK：转 P 类。
  *
  *   只有 R1 引用类 BLOCK：一次只改引用的修订轮；总轮次上限 MAX_ROUNDS。起草后先查正本落点，越界退回重写一次。
  * 模式：默认 --dry-run，只写 /Volumes/AgentStorage/decisions/<票号>/，不写 GitHub。
@@ -16,22 +16,20 @@
  * 模型通道：claude -p 经本机统一路由 127.0.0.1:8318；令牌运行时从 CLIProxyLocal config
  * 读取，只进子进程环境变量，不打印、不写日志、不落文件。
  */
-import { DRAIN_ROOT, DrainFrozenError, drainRequested, withLegacyAdmission } from "./drain-control.mts";
 import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { MAIN_MODEL } from "./main-model.mts";
-import { CLIPROXY_BASE_URL, CLIPROXY_CONFIG, readCliProxyAccessKey } from "./cliproxy-env.mts";
-
-export { extractFirstApiKey } from "./cliproxy-env.mts";
 
 // ───────────────────────── 常量 ─────────────────────────
 
 export const MODEL_MAIN = MAIN_MODEL;
-export const PROXY_BASE_URL = CLIPROXY_BASE_URL;
-export const PROXY_CONFIG = CLIPROXY_CONFIG;
+export const MODEL_OPUS = "claude-opus-5-5";
+export const MODEL_DRAFTER = MODEL_OPUS;
+export const MODEL_REVIEW = MODEL_MAIN;
+export const PROXY_BASE_URL = "http://127.0.0.1:8318";
+export const PROXY_CONFIG = join(homedir(), "Library/Application Support/CLIProxyLocal/config.yaml");
 export const DEFAULT_OUT_ROOT = "/Volumes/AgentStorage/decisions";
 export const DEFAULT_MAPS = [1323, 1340];
 export const MAX_CONCURRENT = 3;
@@ -106,8 +104,49 @@ function toTicket(s: string): number {
 
 // ───────────────────────── 令牌 ─────────────────────────
 
+/** 从 CLIProxyLocal config.yaml 文本取 access.api-keys 首项（纯函数，不依赖 yaml 库）。 */
+export function extractFirstApiKey(yamlText: string): string | null {
+  const lines = yamlText.split(/\r?\n/);
+  let inAccess = false;
+  let keysIndent = -1;
+  for (const raw of lines) {
+    if (/^\s*(#.*)?$/.test(raw)) continue;
+    const indent = raw.length - raw.trimStart().length;
+    const line = raw.trim();
+    if (indent === 0) {
+      inAccess = /^access:\s*$/.test(line);
+      keysIndent = -1;
+      continue;
+    }
+    if (!inAccess) continue;
+    if (keysIndent < 0) {
+      const m = /^api-keys:\s*(.*)$/.exec(line);
+      if (!m) continue;
+      const inline = m[1].trim();
+      if (inline.startsWith("[")) {
+        const first = inline.replace(/^\[|\]$/g, "").split(",")[0]?.trim();
+        return first ? unquote(first) : null;
+      }
+      keysIndent = indent;
+      continue;
+    }
+    if (indent <= keysIndent && !line.startsWith("-")) return null;
+    if (line.startsWith("-")) {
+      const v = unquote(line.slice(1).trim());
+      return v || null;
+    }
+  }
+  return null;
+}
+
+function unquote(s: string): string {
+  return s.replace(/\s+#.*$/, "").replace(/^["']|["']$/g, "");
+}
+
 function readProxyToken(): string {
-  return readCliProxyAccessKey(PROXY_CONFIG);
+  const tok = extractFirstApiKey(readFileSync(PROXY_CONFIG, "utf8"));
+  if (!tok) throw new Error("CLIProxyLocal config 未找到 access.api-keys 首项");
+  return tok;
 }
 
 // ───────────────────────── 模型输出解析 ─────────────────────────
@@ -330,9 +369,9 @@ export function renumberDraft(draft: string, from: string, a: AdrAllocation): st
 // ───────────────────────── 状态转移 ─────────────────────────
 
 export type Phase = "classify" | "draft" | "review" | "land_t" | "shadow_p" | "review_parse_error" | "done" | "error" | "skipped";
-/** 起草/审查总轮次上限（含审查重做与只改引用的修订轮）。 */
+/** 起草/审查总轮次上限（含升档重做与只改引用的修订轮）。 */
 export const MAX_ROUNDS = 3;
-/** 起草方式：首稿、审查重做、只改引用的修订。 */
+/** 起草方式：首稿、升档重做、只改引用的修订。 */
 export type DraftMode = "initial" | "redo" | "revise";
 export interface RunState {
   phase: Phase;
@@ -341,13 +380,13 @@ export interface RunState {
   drafterModel: string;
   convertedToP: boolean;
   draftMode: DraftMode;
-  redone: boolean;
+  upgraded: boolean;
   revised: boolean;
   reviewFeedback?: string;
 }
 
 export function initialState(klass: Klass): RunState {
-  return { phase: "draft", klass, attempt: 1, drafterModel: MODEL_MAIN, convertedToP: false, draftMode: "initial", redone: false, revised: false };
+  return { phase: "draft", klass, attempt: 1, drafterModel: MODEL_DRAFTER, convertedToP: false, draftMode: "initial", upgraded: false, revised: false };
 }
 
 /** BLOCK 依据指向具体引用的特征：行号、文件:行、逐字、转述、核实命令、评论 id、引文。 */
@@ -361,16 +400,16 @@ export function isCitationOnlyBlock(r: Review): boolean {
 }
 
 /**
- * 审查后的转移：PASS→落地；只有 R1 引用类 BLOCK→一次只改引用的修订轮；
- * 其他 BLOCK→同模型带意见重做；修订与重做都用过或总轮次到 MAX_ROUNDS 仍 BLOCK→转 P。
+ * 审查后的转移：PASS→落地；只有 R1 引用类 BLOCK→一次只改引用的修订轮（Opus）；
+ * 其他 BLOCK→一次升档 Opus 重做；修订与升档都用过或总轮次到 MAX_ROUNDS 仍 BLOCK→转 P。
  */
 export function nextAfterReview(s: RunState, r: Review): RunState {
   if (r.verdict === "PASS") return { ...s, phase: s.klass === "T" ? "land_t" : "shadow_p" };
   const toP: RunState = { ...s, phase: "shadow_p", convertedToP: s.convertedToP || s.klass === "T", klass: "P" };
   if (s.attempt >= MAX_ROUNDS) return toP;
-  const next = { ...s, phase: "draft" as const, attempt: s.attempt + 1, drafterModel: MODEL_MAIN, reviewFeedback: formatFeedback(r) };
+  const next = { ...s, phase: "draft" as const, attempt: s.attempt + 1, drafterModel: MODEL_OPUS, reviewFeedback: formatFeedback(r) };
   if (isCitationOnlyBlock(r) && !s.revised) return { ...next, draftMode: "revise", revised: true };
-  if (!s.redone) return { ...next, draftMode: "redo", redone: true };
+  if (!s.upgraded) return { ...next, draftMode: "redo", upgraded: true };
   return toP;
 }
 
@@ -425,8 +464,56 @@ function realGh(args: string[], input?: string): string {
 // ───────────────────────── 模型调用 ─────────────────────────
 
 export interface ModelCall { model: string; prompt: string; cwd: string; role: "classify" | "archaeology" | "draft" | "review" | "land"; allowWrite?: boolean }
-export interface ModelResult { text: string; durationMs: number; attempts: number }
+/** model：实际应答的模型；经安全拦截改派时与 ModelCall.model 不同（未经 withSafeguardFallback 包装时可缺省）。 */
+export interface ModelResult { text: string; durationMs: number; attempts: number; model?: string }
 export type ModelRunner = (c: ModelCall) => Promise<ModelResult>;
+
+/**
+ * Fable 安全拦截（#1785）：「API Error: Fable 5's safeguards flagged this message (…aup)」。
+ * 这不是临时错误（同一提示重发照样拦），也不是参数/权限错误；换模型即可继续。只认这一特征。
+ */
+const SAFEGUARD_BLOCK = /safeguards? flagged this message|safety.{0,20}(blocked|refused)/i;
+export function isSafeguardBlock(output: string): boolean {
+  return SAFEGUARD_BLOCK.test(output);
+}
+
+/** 被安全拦截时改用的另一档；只有 Fable 有这道拦截，其他模型没有改派目标。 */
+export function safeguardFallbackModel(model: string): string | null {
+  return model === MODEL_DRAFTER ? MODEL_REVIEW : model === MODEL_REVIEW ? MODEL_DRAFTER : null;
+}
+
+export interface ModelSwitch { role: ModelCall["role"]; from: string; to: string; reason: "safeguard" }
+
+/**
+ * 包一层：某角色调用被 Fable 安全拦截时，同一步改用另一档重试一次，并经 onSwitch 记录。
+ * 改派在本票内对该角色粘住（考古第二遍、落点重写不再先撞一次拦截）；改派后的调用再失败照常抛错。
+ */
+export function withSafeguardFallback(run: ModelRunner, onSwitch: (s: ModelSwitch) => void = () => {}): ModelRunner {
+  const sticky = new Map<string, string>();
+  return async (c) => {
+    const key = `${c.role}\u0000${c.model}`;
+    const pinned = sticky.get(key);
+    if (pinned) return { ...(await run({ ...c, model: pinned })), model: pinned };
+    try {
+      return { model: c.model, ...(await run(c)) };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const to = safeguardFallbackModel(c.model);
+      if (!to || !isSafeguardBlock(msg)) throw e;
+      sticky.set(key, to);
+      onSwitch({ role: c.role, from: c.model, to, reason: "safeguard" });
+      return { ...(await run({ ...c, model: to })), model: to };
+    }
+  };
+}
+
+/**
+ * 独审模型（#1785）：默认 Opus。起草本应 Fable、因安全拦截实际由 Opus 写成时，独审改用 Fable，
+ * 保证该轮起草与独审不是同一模型；升档重做轮（计划即 Opus）维持原设计。
+ */
+export function reviewerModel(drafterPlanned: string, drafterUsed: string): string {
+  return drafterUsed.startsWith("claude-") ? MODEL_REVIEW : MODEL_DRAFTER;
+}
 
 /**
  * 上游临时错误：429/5xx、限流、过载、「暂时不可用」、网络超时与断连。其余错误（参数、权限、
@@ -898,7 +985,6 @@ ${draft}`;
 
 export interface Deps {
   mode: Mode;
-  drainRoot?: string;
   /** ADR 编号预留表与锁所在目录；缺省 outRoot。 */
   stateDir?: string;
   gh: GhRunner;
@@ -925,7 +1011,9 @@ export interface Summary {
   /** 审查结论计数：真 BLOCK 与解析失败分开。 */
   reviewCounts?: { pass: number; block: number; parseError: number };
   /** 每轮起草方式与审查结论。 */
-  rounds?: Array<{ attempt: number; mode: DraftMode; drafter: string; verdict: string; blocked: Rule[]; problems: string[] }>;
+  rounds?: Array<{ attempt: number; mode: DraftMode; drafter: string; reviewer?: string; verdict: string; blocked: Rule[]; problems: string[] }>;
+  /** 因安全拦截改派模型的记录（#1785）。 */
+  modelSwitches?: ModelSwitch[];
   /** T 类因考古事实缺口转 P 的说明（影子评论首行用）。 */
   factGapNote?: string;
   /** 考古归类计数与机械校验问题。 */
@@ -999,23 +1087,34 @@ function isGitWrite(args: string[]): boolean {
   return args[0] === "push";
 }
 
+/** 给本票的模型调用套上安全拦截改派：经 record 记账（processTicket 记进 summary.modelSwitches）并写日志。 */
+function fallbackRunner(n: number, run: ModelRunner, record: (sw: ModelSwitch) => void): ModelRunner {
+  return withSafeguardFallback(run, (sw) => {
+    record(sw);
+    log(`#${n} ${sw.role} 因安全拦截从 ${sw.from} 改 ${sw.to} 重试`);
+  });
+}
+
 export interface ArchRun { arch: Archaeology; md: string; problems: string[] }
 
 /**
  * 跑考古：解析不出或机械校验不过时带问题重跑一次；仍解析不出抛错，仍有问题照常返回
  * （问题清单交审查，草稿因此 BLOCK）。写 archaeology.md 与 archaeology.json。
+ * archaeology.json 的 model 记实际应答模型；switches 给出时其中考古角色的改派一并写入（#1785）。
  */
 export async function runArchaeology(
   t: TicketContext, d: Pick<Deps, "model" | "srcDir">, dir: string, summary?: Summary,
-  o: { feedback?: string; model?: string; round?: number } = {},
+  o: { feedback?: string; model?: string; round?: number; switches?: ModelSwitch[] } = {},
 ): Promise<ArchRun> {
   let fb = o.feedback;
-  const model = o.model ?? MODEL_MAIN;
+  let model = o.model ?? MODEL_DRAFTER;
+  const planned = model;
   let arch: Archaeology | null = null;
   let problems: string[] = [];
   let raw = "";
   for (let i = 1; i <= 2; i++) {
-    const r = await d.model({ model, prompt: archaeologyPrompt(t, fb), cwd: d.srcDir, role: "archaeology" });
+    const r = await d.model({ model: planned, prompt: archaeologyPrompt(t, fb), cwd: d.srcDir, role: "archaeology" });
+    model = r.model ?? planned;
     if (summary) summary.durationsMs[`archaeology${o.round ?? 1}_${i}`] = r.durationMs;
     raw = r.text;
     arch = parseArchaeology(r.text);
@@ -1023,13 +1122,15 @@ export async function runArchaeology(
     if (problems.length === 0) break;
     fb = problems.map((x) => `- ${x}`).join("\n");
   }
+  const sw = (o.switches ?? summary?.modelSwitches ?? []).filter((x) => x.role === "archaeology" && x.from === planned);
+  const switches = sw.length ? { modelSwitches: sw } : {};
   if (!arch) {
-    writeJson(join(dir, "archaeology.json"), { ticket: t.number, model, parsed: false, problems, raw });
+    writeJson(join(dir, "archaeology.json"), { ticket: t.number, model, ...switches, parsed: false, problems, raw });
     throw new Error("考古输出两次均无法解析为 points JSON");
   }
   const md = renderArchaeology(t, arch, problems);
   writeFileSync(join(dir, ARCHAEOLOGY_FILE), md);
-  writeJson(join(dir, "archaeology.json"), { ticket: t.number, model, parsed: true, problems, ...arch, raw });
+  writeJson(join(dir, "archaeology.json"), { ticket: t.number, model, ...switches, parsed: true, problems, ...arch, raw });
   if (summary) {
     const c = (k: ArchClass) => arch!.points.filter((p) => p.klass === k).length;
     summary.archaeology = { A: c("A"), B: c("B"), C: c("C"), problems };
@@ -1060,7 +1161,8 @@ export async function archaeologyOnly(n: number, d: Deps): Promise<{ ticket: num
   try { writeFileSync(lock, String(process.pid), { flag: "wx" }); } catch { throw new Error(`${lock} 已存在，另一进程正在处理`); }
   let r: ArchRun;
   try {
-    r = await runArchaeology(loadTicket(d.gh, n), d, dir);
+    const switches: ModelSwitch[] = [];
+    r = await runArchaeology(loadTicket(d.gh, n), { ...d, model: fallbackRunner(n, d.model, (sw) => switches.push(sw)) }, dir, undefined, { switches });
   } finally {
     rmSync(lock, { force: true });
   }
@@ -1068,11 +1170,12 @@ export async function archaeologyOnly(n: number, d: Deps): Promise<{ ticket: num
   return { ticket: n, dir, problems: r.problems, counts: { A: c("A"), B: c("B"), C: c("C") } };
 }
 
-export async function processTicket(n: number, d: Deps): Promise<Summary> {
-  const dir = join(d.outRoot, String(n));
+export async function processTicket(n: number, raw: Deps): Promise<Summary> {
+  const dir = join(raw.outRoot, String(n));
   mkdirSync(dir, { recursive: true });
   const lock = join(dir, ".lock");
-  const summary: Summary = { ticket: n, mode: d.mode, phase: "classify", attempts: 0, durationsMs: {}, plannedWrites: [] };
+  const summary: Summary = { ticket: n, mode: raw.mode, phase: "classify", attempts: 0, durationsMs: {}, plannedWrites: [] };
+  const d: Deps = { ...raw, model: fallbackRunner(n, raw.model, (sw) => (summary.modelSwitches ??= []).push(sw)) };
   try {
     writeFileSync(lock, String(process.pid), { flag: "wx" });
   } catch {
@@ -1106,14 +1209,12 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
 
     // claim 先行防重复；续做时允许票仍挂在自己名下（上次没来得及取消认领）。
     if (d.mode === "live") {
-      await withLegacyAdmission(() => {
-        const mine = resume && d.me && t.assignees.length === 1 && t.assignees[0] === d.me;
-        if (t.assignees.length > 0 && !mine) throw new Error(`票已被 ${t.assignees.join(",")} 认领`);
-        if (!mine) d.gh(["issue", "edit", String(n), "--add-assignee", "@me"]);
-        claimed = true;
-        const after = loadTicket(d.gh, n).assignees;
-        if (after.length !== 1 || (d.me && after[0] !== d.me)) throw new Error(`claim 竞争：assignees=${after.join(",")}`);
-      }, d.drainRoot);
+      const mine = resume && d.me && t.assignees.length === 1 && t.assignees[0] === d.me;
+      if (t.assignees.length > 0 && !mine) throw new Error(`票已被 ${t.assignees.join(",")} 认领`);
+      if (!mine) d.gh(["issue", "edit", String(n), "--add-assignee", "@me"]);
+      claimed = true;
+      const after = loadTicket(d.gh, n).assignees;
+      if (after.length !== 1 || (d.me && after[0] !== d.me)) throw new Error(`claim 竞争：assignees=${after.join(",")}`);
     } else summary.plannedWrites.push(`claim：assign #${n}`);
 
     const persist = () => writeJson(join(dir, "summary.json"), summary);
@@ -1127,6 +1228,7 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
         klass: p.klass, convertedToP: p.convertedToP, attempts: p.attempts, durationsMs: { ...p.durationsMs },
         reclassNotes: p.reclassNotes, reviewCounts: p.reviewCounts, rounds: p.rounds, landingRedrafts: p.landingRedrafts,
         stage: p.stage, landedSha: p.landedSha, pDone: p.pDone ?? [], resumedFrom: p.stage, factGapNote: p.factGapNote,
+        modelSwitches: p.modelSwitches,
       });
       delete summary.durationsMs.total;
       draft = resume.draft;
@@ -1136,14 +1238,14 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
       log(`#${n} 从断点 ${p.stage} 续做${p.landedSha ? `（已推送 ${p.landedSha.slice(0, 10)}）` : ""}`);
     } else {
     // 1. 分级
-    const cr = await d.model({ model: MODEL_MAIN, prompt: classifyPrompt(t), cwd: d.srcDir, role: "classify" });
+    const cr = await d.model({ model: MODEL_DRAFTER, prompt: classifyPrompt(t), cwd: d.srcDir, role: "classify" });
     const cls = parseClassification(cr.text);
     summary.durationsMs.classify = cr.durationMs;
     summary.klass = cls.klass;
-    writeJson(join(dir, "classify.json"), { ticket: n, model: MODEL_MAIN, ...cls, durationMs: cr.durationMs, raw: cr.text });
+    writeJson(join(dir, "classify.json"), { ticket: n, model: cr.model ?? MODEL_DRAFTER, ...cls, durationMs: cr.durationMs, raw: cr.text });
     write(`评论 #${n}：分级：${cls.klass} — ${cls.reason}`, ["issue", "comment", String(n), "--body-file", "-"], `分级：${cls.klass} — ${cls.reason}`);
 
-    // 1b. 考古：起草前两路搜，逐点 A/B/C。机械校验不过的问题交审查（草稿因此 BLOCK），审查重做时重跑考古。
+    // 1b. 考古：起草前两路搜，逐点 A/B/C。机械校验不过的问题交审查（草稿因此 BLOCK），升档重做时重跑考古。
     let ar = await runArchaeology(t, d, dir, summary);
 
     // 2–3. 起草 / 独审，至多两轮。分级由分级器定，起草者只能提改判建议。
@@ -1206,12 +1308,15 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
         ...archaeologyCoverageProblems(draft, ar.arch),
       ];
       const basePrompt = reviewPrompt(t, effCls, draft, ar.md);
-      let rr = await d.model({ model: MODEL_MAIN, prompt: basePrompt, cwd: d.srcDir, role: "review" });
+      // 起草与独审各起一次调用；起草因拦截改派 Opus 时独审改用 Fable（reviewerModel）。
+      const drafterUsed = dr.model ?? s.drafterModel;
+      const reviewer = reviewerModel(s.drafterModel, drafterUsed);
+      let rr = await d.model({ model: reviewer, prompt: basePrompt, cwd: d.srcDir, role: "review" });
       review = parseReview(rr.text, missing);
       let retried = false;
       if (review.parseError) {
         retried = true;
-        rr = await d.model({ model: MODEL_MAIN, prompt: reviewRetryPrompt(basePrompt), cwd: d.srcDir, role: "review" });
+        rr = await d.model({ model: reviewer, prompt: reviewRetryPrompt(basePrompt), cwd: d.srcDir, role: "review" });
         review = parseReview(rr.text, missing);
       }
       if (!review.parseError && extra.length) review = { ...review, verdict: "BLOCK", problems: [...review.problems, ...extra] };
@@ -1219,15 +1324,16 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
       else if (review.verdict === "PASS") counts.pass++;
       else counts.block++;
       summary.durationsMs[`review${s.attempt}`] = rr.durationMs;
+      const reviewerUsed = rr.model ?? reviewer;
       if (s.attempt > 1 && existsSync(join(dir, "review.json"))) renameSync(join(dir, "review.json"), join(dir, `review.attempt${s.attempt - 1}.json`));
       summary.rounds.push({
-        attempt: s.attempt, mode: s.draftMode, drafter: s.drafterModel,
+        attempt: s.attempt, mode: s.draftMode, drafter: drafterUsed, reviewer: reviewerUsed,
         verdict: review.parseError ? "review_parse_error" : review.verdict,
         blocked: review.parseError ? [] : review.items.filter((i) => i.verdict === "BLOCK").map((i) => i.rule),
         problems: review.problems,
       });
       writeJson(join(dir, "review.json"), {
-        ticket: n, attempt: s.attempt, mode: s.draftMode, drafter: s.drafterModel, reviewer: MODEL_MAIN, klass: s.klass,
+        ticket: n, attempt: s.attempt, mode: s.draftMode, drafter: drafterUsed, reviewer: reviewerUsed, klass: s.klass,
         verdict: review.parseError ? "review_parse_error" : review.verdict, parseError: review.parseError, retried,
         items: review.parseError ? [] : review.items, problems: review.problems, draftMissingSections: missing,
         durationMs: rr.durationMs, raw: rr.text,
@@ -1299,12 +1405,6 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
     if (s.phase === "review_parse_error") write(`取消认领 #${n}（审查解析失败，待重跑）`, ["issue", "edit", String(n), "--remove-assignee", "@me"]);
     summary.phase = s.phase === "land_t" || s.phase === "shadow_p" || s.phase === "review_parse_error" ? s.phase : "done";
   } catch (e) {
-    if (e instanceof DrainFrozenError) {
-      skipPersist = true;
-      summary.phase = "skipped";
-      summary.error = e.message;
-      return summary;
-    }
     summary.phase = "error";
     summary.error = e instanceof Error ? e.message : String(e);
     if (claimed) {
@@ -1318,6 +1418,11 @@ export async function processTicket(n: number, d: Deps): Promise<Summary> {
   return summary;
 }
 
+/** 最后一轮实际独审模型；旧 summary 无记录时按原设计取 Opus。 */
+function lastReviewer(s: Pick<Summary, "rounds">): string {
+  return s.rounds?.at(-1)?.reviewer ?? MODEL_OPUS;
+}
+
 export function shadowComment(n: number, draft: string, r: Review, dir: string, s: Summary, arch: Archaeology | null = null): string {
   const table = r.items.map((i) => `| ${i.rule} | ${i.verdict} | ${i.basis.replace(/\|/g, "\\|").replace(/\n/g, " ")} |`).join("\n");
   const why = s.factGapNote ? `（原判 T，${s.factGapNote}）` : s.convertedToP ? `（原判 T，${s.attempts} 轮审查仍 BLOCK 后转 P）` : "";
@@ -1325,7 +1430,7 @@ export function shadowComment(n: number, draft: string, r: Review, dir: string, 
     (arch
       ? `${archaeologyAsks(arch)}\n\n考古原件：\`${dir}/${ARCHAEOLOGY_FILE}\`\n\n`
       : `**本票无考古**（旧流程产物）：批复前先跑 \`node --import tsx .sandcastle/decision-claimer.mts --archaeology-only --ticket ${n} --out ${dirname(dir)}\`。\n\n`) +
-    `独立审查（${MODEL_MAIN}）：**${r.verdict}**\n\n| 条 | 结论 | 依据 |\n|---|---|---|\n${table}\n\n` +
+    `独立审查（${lastReviewer(s)}）：**${r.verdict}**\n\n| 条 | 结论 | 依据 |\n|---|---|---|\n${table}\n\n` +
     `草稿与审查原件：\`${dir}/\`\n\n<details><summary>草稿全文</summary>\n\n${draft}\n</details>`;
 }
 
@@ -1353,7 +1458,7 @@ async function landT(t: TicketContext, draft: string, target: string, dir: strin
   fetchMain(d.repoRoot, d.git);
   if (existsSync(wt)) d.git(d.repoRoot, ["worktree", "remove", "--force", wt]);
   d.git(d.repoRoot, ["worktree", "add", "-B", branch, wt, MAIN_REF]);
-  const lr = await d.model({ model: MODEL_MAIN, prompt: landPrompt(t, stripFlowSections(draft), target), cwd: wt, role: "land", allowWrite: true });
+  const lr = await d.model({ model: MODEL_OPUS, prompt: landPrompt(t, stripFlowSections(draft), target), cwd: wt, role: "land", allowWrite: true });
   s.durationsMs.land = lr.durationMs;
   const changed = d.git(wt, ["status", "--porcelain"]).split("\n").filter(Boolean).map((l) => l.slice(3));
   if (changed.length === 0) throw new Error("落地工蜂未改动正本");
@@ -1363,7 +1468,7 @@ async function landT(t: TicketContext, draft: string, target: string, dir: strin
   const leaked = existsSync(landed) ? flowSectionsIn(readFileSync(landed, "utf8")) : [];
   if (leaked.length) throw new Error(`正本混入流程段：${leaked.join("、")}`);
   d.git(wt, ["add", "--", target]);
-  d.git(wt, ["commit", "-m", `decision(#${n}): ${t.title}\n\n${AUTH_LINE}；独审 ${MODEL_MAIN} R1–R8 PASS。`]);
+  d.git(wt, ["commit", "-m", `decision(#${n}): ${t.title}\n\n${AUTH_LINE}；独审 ${lastReviewer(s)} R1–R8 PASS。`]);
   d.git(wt, ["push", FETCH_URL, `HEAD:refs/heads/${branch}`]);
   const sha = d.git(wt, ["rev-parse", "HEAD"]).trim();
   s.landedSha = sha;
@@ -1500,7 +1605,7 @@ async function main() {
   const gh = guardGh(a.mode, realGh);
   const srcDir = join(a.outRoot, ".src");
   const d: Deps = {
-    mode: a.mode, drainRoot: DRAIN_ROOT, gh, git, model: makeClaudeRunner(), outRoot: a.outRoot, srcDir, repoRoot: REPO_ROOT, now: Date.now,
+    mode: a.mode, gh, git, model: makeClaudeRunner(), outRoot: a.outRoot, srcDir, repoRoot: REPO_ROOT, now: Date.now,
     me: a.mode === "live" ? gh(["api", "user", "--jq", ".login"]).trim() : undefined,
   };
   if (a.archaeologyOnly) {
@@ -1508,7 +1613,7 @@ async function main() {
     log(`考古 only：取证检出对齐远端 main ${sha.slice(0, 10)}`);
     for (const n of a.tickets) {
       try {
-        const r = await withLegacyAdmission(() => archaeologyOnly(n, d));
+        const r = await archaeologyOnly(n, d);
         log(`#${n} 考古 A ${r.counts.A} / B ${r.counts.B} / C ${r.counts.C}；机械校验${r.problems.length ? `问题 ${r.problems.length} 条：${r.problems.join("；")}` : "通过"}；${r.dir}/${ARCHAEOLOGY_FILE}`);
       } catch (e) {
         log(`#${n} 考古失败：${e instanceof Error ? e.message : String(e)}`);
@@ -1518,7 +1623,6 @@ async function main() {
     return;
   }
   for (;;) {
-    if (drainRequested()) { log("旧入口冻结，已领工作收尾后退出"); return; }
     try {
       const sha = ensureSrc(REPO_ROOT, srcDir, git);
       log(`取证检出对齐远端 main ${sha.slice(0, 10)}`);
