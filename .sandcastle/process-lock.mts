@@ -17,6 +17,8 @@ export interface LockEnv {
   afterArchive?: () => void;
   /** 仅测试：等待接管守卫的次数（每次 50ms）；缺省 40。 */
   guardTries?: number;
+  /** 仅测试：回收残留守卫时，g2 内、旧守卫被搬走之后调用，用来制造“g2 内 rename 之后被杀”的残留。 */
+  afterGuardReclaim?: () => void;
 }
 export interface PsResult { status: number | null; stdout: string; stderr: string; error?: Error }
 export type PsRunner = (pid: number) => PsResult;
@@ -56,6 +58,10 @@ function create(path: string, owner: LockOwner): void {
   const tmp = writeTmp(path, owner);
   try { linkSync(tmp, path); } finally { unlinkSync(tmp); } // 目标已存在即 EEXIST
 }
+/** 只删自己的文件：内容里的 token 与自己一致才 unlink（被人工或他人换过就不动）。 */
+function unlinkIfToken(path: string, token: string): void {
+  try { if (parseOwner(readFileSync(path, "utf8")).token === token) unlinkSync(path); } catch { /* 不存在或已不属于自己 */ }
+}
 const stamp = (env: LockEnv) => `${env.now().toISOString().replace(/[:.]/g, "-")}-${randomUUID().slice(0, 8)}`;
 
 /** 接管守卫的持有者被 SIGKILL 后，守卫文件会残留。只在“同主机且持有者确认已死”时，经第二层守卫 `g2Path` 把它 rename 成 `.stale-*`。
@@ -72,7 +78,8 @@ function reclaimDeadGuard(guardPath: string, g2Path: string, env: LockEnv, self:
   try { alive = env.startOf(dead.pid); } catch { return false; } // 无法判定：不碰
   if (alive !== null && alive === dead.start) return false;
   const target = `${guardPath}.stale-${stamp(env)}`; // 先算好名字：g2 内不再调外部函数
-  try { create(g2Path, { ...self, token: randomUUID() }); }
+  const g2Owner: LockOwner = { ...self, token: randomUUID() };
+  try { create(g2Path, g2Owner); }
   catch (e) { if ((e as NodeJS.ErrnoException).code === "EEXIST") return false; throw e; }
   try {
     let again: LockOwner;
@@ -80,8 +87,25 @@ function reclaimDeadGuard(guardPath: string, g2Path: string, env: LockEnv, self:
     catch (e) { return (e as NodeJS.ErrnoException).code === "ENOENT"; }
     if (again.token !== dead.token) return true; // 已被换成别人的守卫（可能是活的）：不动
     renameSync(guardPath, target);
+    env.afterGuardReclaim?.();
     return true;
-  } finally { try { unlinkSync(g2Path); } catch { /* 已不存在 */ } }
+  } finally { unlinkIfToken(g2Path, g2Owner.token); }
+}
+
+/** 持有守卫的进程顺手清理“g2 内、rename 之后被杀”留下的 g2：守卫是独占的，清理者只有一个；g2 路径存在时没人能建新的 g2，
+ * 而已死的 g2 创建者不会再去 unlink，所以确认其已死后 rename 走是安全的。持有者存活（可能正在另一条回收路径的 g2 内）、无法解析、
+ * 主机不同、ps 无法判定一律不动。 */
+function sweepDeadG2(g2Path: string, env: LockEnv): void {
+  let g: LockOwner;
+  try { g = parseOwner(readFileSync(g2Path, "utf8")); } catch { return; }
+  if (g.host !== env.host) return;
+  let alive: string | null;
+  try { alive = env.startOf(g.pid); } catch { return; }
+  if (alive !== null && alive === g.start) return;
+  try {
+    if (parseOwner(readFileSync(g2Path, "utf8")).token !== g.token) return;
+    renameSync(g2Path, `${g2Path}.stale-${stamp(env)}`);
+  } catch { /* 并发变化：留给下次 */ }
 }
 
 export interface Held { owner: LockOwner; archived?: string; release: () => void }
@@ -115,8 +139,9 @@ export function acquireLock(lock: string, cwd: string, env: LockEnv = realEnv(),
     // 持有者已死（pid 不存在，或 pid 被复用：启动时间不同）。进入守卫后重读锁，确认仍是判定已死的那一个，
     // 再在守卫内完成“接管前清理（回收孤儿容器）→ 归档 → 新建”：否则 A 判定已死之后、回收之前，B 可能已接管并启动了自己的工蜂，A 会误停 B 的活容器。
     let guarded = false;
+    const guardOwner: LockOwner = { ...owner, token: randomUUID() };
     for (let waited = 0, reclaims = 0; !guarded;) {
-      try { create(guardPath, { ...owner, token: randomUUID() }); guarded = true; }
+      try { create(guardPath, guardOwner); guarded = true; }
       catch (e) {
         if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
         if (reclaims < 5 && reclaimDeadGuard(guardPath, g2Path, env, owner)) { reclaims++; continue; }
@@ -124,8 +149,9 @@ export function acquireLock(lock: string, cwd: string, env: LockEnv = realEnv(),
         sleepMs(50);
       }
     }
-    if (!guarded) throw new Error(`${guardPath} 长时间被占用，另一个重入可能正在接管（若其持有者 pid 已确认结束，或 ${g2Path} 残留，由主控按 runbook 处理该文件），拒绝`);
+    if (!guarded) throw new Error(`${guardPath} 长时间被占用，另一个重入可能正在接管。若 ${g2Path} 残留：读出其中的 pid 与 start，执行 \`TZ=UTC LC_ALL=C ps -p <pid> -o lstart=\`，仅当无输出或输出与文件里的 start 逐字不同才把该 g2 文件 rename 走（输出相同＝持有者仍在运行，什么都不要动）；不要手动处理 ${guardPath}，重入时已死的守卫会被自动归档，拒绝`);
     try {
+      sweepDeadG2(g2Path, env); // 守卫在手：顺手清理 g2 内 rename 之后被杀留下的死 g2
       let again: LockOwner;
       try { again = parseOwner(readFileSync(lock, "utf8")); } catch { continue; } // 已变化：回到外层重新判定
       if (again.token !== holder.token) continue; // 已被他人接管或释放：重新判定（此时不会调用 beforeTakeover）
@@ -139,7 +165,7 @@ export function acquireLock(lock: string, cwd: string, env: LockEnv = realEnv(),
       try { renameSync(tmp, lock); } // 原子替换：正常取锁者在此前后看到的都是一把存在的锁
       catch (e) { try { unlinkSync(tmp); } catch { /* 已不存在 */ } throw e; }
       break;
-    } finally { try { unlinkSync(guardPath); } catch { /* 已不存在 */ } }
+    } finally { unlinkIfToken(guardPath, guardOwner.token); } // 只删自己的守卫
   }
   return {
     owner, archived,

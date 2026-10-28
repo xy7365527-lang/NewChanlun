@@ -470,24 +470,87 @@ test("G-1（d 交错 B）：X 判定旧守卫已死之后，旧守卫被换成�
   assert.equal(JSON.parse(readFileSync(lock, "utf8")).token, "old"); assert.equal(calls, 0); assert.ok(!existsSync(`${guardOf(lock)}.g2`));
 });
 
-test("G-1（e）：g2 自身残留（毫秒窗口内的双重故障）——文档化限制：FAIL-loud，不碰守卫和 g2；按 runbook 人工 rename 后恢复", () => {
+test("G-1（e）：g2 自身残留（毫秒窗口内的双重故障）——文档化限制：FAIL-loud，不碰守卫和 g2；按 runbook 只 rename g2 后重入收敛，已死的守卫被自动归档", () => {
   const d = dir(); const lock = join(d, "c.lock");
   const alive = new Map<number, string>([[222, "B-start"]]);
   write(lock, { pid: 99, start: "dead", host: "h", token: "old", cwd: "/x" });
   putGuard(lock, { pid: 98, start: "G-start", host: "h", token: "g-old", cwd: "/x" });
   writeFileSync(`${guardOf(lock)}.g2`, JSON.stringify({ pid: 97, start: "G2-start", host: "h", token: "g2-old", cwd: "/x" }));
   const gBefore = readFileSync(guardOf(lock), "utf8"); const g2Before = readFileSync(`${guardOf(lock)}.g2`, "utf8");
-  assert.throws(() => acquireLock(lock, "/b", fake(alive, 222, "h", { guardTries: 2 })), /长时间被占用.*\.g2/);
+  assert.throws(() => acquireLock(lock, "/b", fake(alive, 222, "h", { guardTries: 2 })), /长时间被占用.*\.g2.*TZ=UTC LC_ALL=C ps -p/);
   assert.equal(readFileSync(guardOf(lock), "utf8"), gBefore); assert.equal(readFileSync(`${guardOf(lock)}.g2`, "utf8"), g2Before);
-  // runbook 步骤：确认 pid 已死后，把 g2 与守卫 rename 走
-  renameSync(`${guardOf(lock)}.g2`, `${guardOf(lock)}.g2.manual`); renameSync(guardOf(lock), `${guardOf(lock)}.manual`);
+  // runbook：只 rename g2（不碰 .takeover）
+  renameSync(`${guardOf(lock)}.g2`, `${guardOf(lock)}.g2.manual-x`);
   const held = acquireLock(lock, "/b", fake(alive, 222)); assert.ok(held.archived);
+  assert.equal(guardStale(d).length, 1, "已死的守卫由重入自动归档"); assert.equal(JSON.parse(readFileSync(join(d, guardStale(d)[0]!), "utf8")).token, "g-old");
+  assert.ok(!existsSync(guardOf(lock)) && !existsSync(`${guardOf(lock)}.g2`));
+});
+
+test("runbook 口径锁：README 与报错文字都要求 `TZ=UTC LC_ALL=C ps -p`，且不让人手动处理 .takeover", () => {
+  const readme = readFileSync(new URL("./README.md", import.meta.url), "utf8");
+  assert.ok(readme.includes("TZ=UTC LC_ALL=C ps -p <pid> -o lstart="), "README 命令带 TZ/LC_ALL");
+  assert.match(readme, /不要手动处理 `\*\.takeover`/);
+  assert.ok(!/ps -p <pid> -o lstart=/.test(readme.replace(/TZ=UTC LC_ALL=C ps -p <pid> -o lstart=/g, "")), "README 里没有不带 TZ 的 ps 命令");
+  const src = readFileSync(new URL("./process-lock.mts", import.meta.url), "utf8");
+  assert.ok(src.includes("TZ=UTC LC_ALL=C ps -p <pid> -o lstart=") && src.includes("不要手动处理"));
+});
+
+test("P3-c：守卫释放带 token 校验——守卫在持有期间被换成别人的，退出时不得删掉", () => {
+  const d = dir(); const lock = join(d, "c.lock"); const alive = new Map<number, string>([[222, "B-start"], [777, "G-start"]]);
+  write(lock, { pid: 99, start: "dead", host: "h", token: "old", cwd: "/x" });
+  const b = acquireLock(lock, "/b", fake(alive, 222), () => {
+    renameSync(guardOf(lock), `${guardOf(lock)}.manual`); putGuard(lock, { pid: 777, start: "G-start", host: "h", token: "other", cwd: "/y" });
+  });
+  assert.ok(b.archived); assert.equal(JSON.parse(readFileSync(guardOf(lock), "utf8")).token, "other", "别人的守卫仍在");
+});
+
+test("P3-b：新守卫复用了已死持有者的 pid、但 token 不同——g2 内必须按 token 复核，不得搬走这个活守卫（改用 pid 复核会误搬）", () => {
+  const d = dir(); const lock = join(d, "c.lock"); const alive = new Map<number, string>([[222, "X-start"]]);
+  write(lock, { pid: 99, start: "dead", host: "h", token: "old", cwd: "/x" });
+  putGuard(lock, { pid: 98, start: "OLD-start", host: "h", token: "g-old", cwd: "/x" });
+  let swapped = false; const envX = fake(alive, 222, "h", { guardTries: 2 });
+  envX.startOf = (p) => {
+    if (p === 98) {
+      if (!swapped) { // X 判定“98 的启动时间不同＝已死”的瞬间：旧守卫被换成复用 pid 98 的新守卫，pid 98 此后以 NEW-start 存活
+        swapped = true; renameSync(guardOf(lock), `${guardOf(lock)}.manual`); putGuard(lock, { pid: 98, start: "NEW-start", host: "h", token: "g-new", cwd: "/y" });
+        alive.set(98, "NEW-start"); return "REUSED-start";
+      }
+      return alive.get(98) ?? null;
+    }
+    return alive.get(p) ?? null;
+  };
+  assert.throws(() => acquireLock(lock, "/x", envX), /长时间被占用/);
+  assert.equal(JSON.parse(readFileSync(guardOf(lock), "utf8")).token, "g-new", "同 pid 的活守卫没被搬走"); assert.deepEqual(guardStale(d), []);
+  assert.equal(JSON.parse(readFileSync(lock, "utf8")).token, "old"); assert.ok(!existsSync(`${guardOf(lock)}.g2`));
+});
+
+test("P3-a：持有守卫的重入顺手归档已死的 g2；g2 持有者存活 / 无法解析 / 主机不同 / ps 无法判定时不动", () => {
+  const g2 = (lock: string) => `${guardOf(lock)}.g2`; const g2Stale = (d: string) => readdirSync(d).filter((f) => f.includes(".g2.stale-"));
+  { // 已死：归档
+    const d = dir(); const lock = join(d, "c.lock"); const alive = new Map<number, string>([[222, "B-start"]]);
+    write(lock, { pid: 99, start: "dead", host: "h", token: "old", cwd: "/x" });
+    writeFileSync(g2(lock), JSON.stringify({ pid: 97, start: "G2-start", host: "h", token: "g2-dead", cwd: "/x" }));
+    const b = acquireLock(lock, "/b", fake(alive, 222)); assert.ok(b.archived);
+    assert.equal(g2Stale(d).length, 1); assert.equal(JSON.parse(readFileSync(join(d, g2Stale(d)[0]!), "utf8")).token, "g2-dead"); assert.ok(!existsSync(g2(lock)) && !existsSync(guardOf(lock)));
+  }
+  const keep: Array<[string, string, LockEnv]> = [
+    ["存活（另一条回收路径正在 g2 内）", JSON.stringify({ pid: 97, start: "G2-start", host: "h", token: "g2-live", cwd: "/x" }), fake(new Map([[222, "B-start"], [97, "G2-start"]]), 222)],
+    ["无法解析", "{bad", fake(new Map([[222, "B-start"]]), 222)],
+    ["主机不同", JSON.stringify({ pid: 97, start: "x", host: "other", token: "g2", cwd: "/x" }), fake(new Map([[222, "B-start"]]), 222)],
+    ["ps 无法判定", JSON.stringify({ pid: 97, start: "x", host: "h", token: "g2", cwd: "/x" }),
+      fake(new Map([[222, "B-start"]]), 222, "h", { startOf: (p) => { if (p === 97) throw new Error("ps boom"); return p === 222 ? "B-start" : null; } })],
+  ];
+  for (const [name, content, e] of keep) {
+    const d = dir(); const lock = join(d, "c.lock"); write(lock, { pid: 99, start: "dead", host: "h", token: "old", cwd: "/x" });
+    writeFileSync(g2(lock), content);
+    acquireLock(lock, "/b", e); assert.equal(readFileSync(g2(lock), "utf8"), content, `${name}：g2 原样`); assert.deepEqual(g2Stale(d), [], name);
+  }
 });
 
 // —— G-1（a）：真实进程在守卫内被 SIGKILL，宿主重入收敛 ——
-function childReenter(f: ReturnType<typeof fixture>, hook: "reclaim" | "afterArchive") {
+function childReenter(f: ReturnType<typeof fixture>, hook: "reclaim" | "afterArchive" | "guardRename") {
   const script = join(f.evidence, `reenter-${hook}.mts`);
-  const extra = hook === "reclaim" ? "reclaimOrphans: () => { kill(); }" : "reclaimOrphans: () => {}, lockEnv: { ...realEnv(), afterArchive: kill }";
+  const extra = hook === "reclaim" ? "reclaimOrphans: () => { kill(); }" : hook === "afterArchive" ? "reclaimOrphans: () => {}, lockEnv: { ...realEnv(), afterArchive: kill }" : "reclaimOrphans: () => {}, lockEnv: { ...realEnv(), afterGuardReclaim: kill }";
   writeFileSync(script, `import { runManagedMerge } from ${JSON.stringify(here + "managed-merge.mts")}; import { realEnv } from ${JSON.stringify(here + "process-lock.mts")};
 const f = ${JSON.stringify({ cwd: f.cwd, checkpoint: f.checkpoint, manifest: f.manifest })};
 const kill = () => process.kill(process.pid, "SIGKILL");
@@ -529,4 +592,17 @@ test("R-7：还原写回的字节相同但映像与检查点不相等时，FAIL-
   const before = readFileSync(join(f.cwd, "a.txt"), "utf8"); let calls = 0;
   await assert.rejects(runManagedMerge(optsOf(f, { reclaimOrphans: () => undefined, resolveConflict: async () => { calls++; return report(["a.txt"]); } })), /孤儿写入已归档.*仍与检查点不一致/s);
   assert.equal(calls, 0); assert.equal(orphanArchives(f).length, 1, "先归档"); assert.equal(readFileSync(join(f.cwd, "a.txt"), "utf8"), before);
+});
+
+test("P3-a（真实进程）：g2 内、搬走旧守卫之后被杀——g2 残留，宿主重入收敛到 done，死 g2 被归档为 .g2.stale-*，结束时守卫与 g2 都不残留", async () => {
+  const f = await killedWithOrphanWrite(ORPHAN_WRITE); const lock = `${f.checkpoint}.lock`; const guard = guardOf(lock);
+  const k2 = childReenter(f, "reclaim"); assert.equal(k2.signal, "SIGKILL", k2.stderr.slice(0, 300)); await waitDead(k2.pid!);
+  assert.ok(existsSync(guard), "第二个重入在守卫内被杀，守卫残留");
+  const k3 = childReenter(f, "guardRename"); assert.equal(k3.signal, "SIGKILL", k3.stderr.slice(0, 300)); await waitDead(k3.pid!);
+  assert.ok(existsSync(`${guard}.g2`), "g2 残留"); assert.ok(!existsSync(guard), "旧守卫已被搬走");
+  const done = await runManagedMerge(optsOf(f, { reclaimOrphans: () => undefined }));
+  assert.equal(done.phase, "done");
+  assert.ok(!existsSync(guard) && !existsSync(`${guard}.g2`) && !existsSync(lock));
+  assert.equal(readdirSync(f.evidence).filter((n) => n.includes(".g2.stale-")).length, 1, "死 g2 已归档"); assert.equal(guardStale(f.evidence).length, 1, "旧守卫已归档");
+  assert.equal(orphanArchives(f).length, 1); assert.equal(f.git("rev-list", "--parents", "--merges", `${f.base}..HEAD`).split("\n").filter(Boolean).length, 2);
 });
