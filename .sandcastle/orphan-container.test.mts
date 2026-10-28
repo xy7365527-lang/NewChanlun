@@ -132,6 +132,6 @@ test("swarm-merge 接线：冲突工蜂容器带身份 env（无密钥）；回�
   assert.match(mm, /acquireLock\(lock, o\.cwd, o\.lockEnv, \(\) => \{/);
   assert.match(mm, /phase === "conflict"\) \{ o\.reclaimOrphans\(\); orphansSettled = true; \}/);
   const lockSrc = readFileSync(new URL("./process-lock.mts", import.meta.url), "utf8");
-  assert.ok(lockSrc.indexOf("beforeTakeover?.(holder)") > lockSrc.indexOf("仍在运行") && lockSrc.indexOf("beforeTakeover?.(holder)") < lockSrc.indexOf("renameSync(lock, target)"));
+  assert.ok(lockSrc.indexOf("beforeTakeover?.(holder)") > lockSrc.indexOf("仍在运行") && lockSrc.indexOf("beforeTakeover?.(holder)") < lockSrc.indexOf("linkSync(lock, target)"));
   assert.ok(existsSync(new URL("./orphan-container.mts", import.meta.url)));
 });

@@ -1,6 +1,8 @@
 /** #1742：带持有者身份的独占锁。SIGKILL 会留下 `wx` 锁，同清单重入必须能自动恢复，但只在能确认持有者已死时才接管。
  * 锁内容：pid、该进程启动时间（ps lstart，防 pid 复用）、主机名、随机 token、cwd。
- * 接管 = 先把旧锁 rename 归档（带时间戳与 uuid，留在原目录作证据），再 wx 新建；rename 在 POSIX 上原子，并发重入只有一个能搬走旧锁。
+ * 接管 = 先把旧锁硬链接归档（带时间戳与 uuid，留在原目录作证据），再把新锁写入临时文件并 rename 原子替换：锁路径在整个接管过程中始终存在，
+ * 任何一步被 SIGKILL 都只会留下“持有者已死的锁”，下次重入照常接管。
+ * 接管本身在 `${lock}.takeover` 守卫内进行；守卫持有者被 SIGKILL 留下的守卫，由第二层 `${lock}.takeover.g2`（只做读/rename/unlink）在确认其已死后搬走。
  * 持有者存活且身份一致、锁损坏、主机不同、启动时间无法取得——任何无法判定的情况一律抛错，不碰现场。 */
 import { spawnSync } from "node:child_process";
 import { closeSync, fsyncSync, linkSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
@@ -43,12 +45,43 @@ function parseOwner(text: string): LockOwner {
   return o as LockOwner;
 }
 
-function create(lock: string, owner: LockOwner): void {
-  // 先写完整内容再原子发布：其他进程看到的锁要么不存在，要么内容完整。
-  const tmp = `${lock}.tmp-${process.pid}-${randomUUID()}`;
+function writeTmp(path: string, owner: LockOwner): string {
+  // 先写完整内容再原子发布：其他进程看到的文件要么不存在，要么内容完整。
+  const tmp = `${path}.tmp-${process.pid}-${randomUUID()}`;
   const fd = openSync(tmp, "wx", 0o600);
   try { writeFileSync(fd, JSON.stringify(owner)); fsyncSync(fd); } finally { closeSync(fd); }
-  try { linkSync(tmp, lock); } finally { unlinkSync(tmp); } // 目标已存在即 EEXIST
+  return tmp;
+}
+function create(path: string, owner: LockOwner): void {
+  const tmp = writeTmp(path, owner);
+  try { linkSync(tmp, path); } finally { unlinkSync(tmp); } // 目标已存在即 EEXIST
+}
+const stamp = (env: LockEnv) => `${env.now().toISOString().replace(/[:.]/g, "-")}-${randomUUID().slice(0, 8)}`;
+
+/** 接管守卫的持有者被 SIGKILL 后，守卫文件会残留。只在“同主机且持有者确认已死”时，经第二层守卫 `g2Path` 把它 rename 成 `.stale-*`。
+ * 返回 true＝守卫已不在原位（可立刻重试建守卫）；false＝不能处理（存活 / 无法解析 / 主机不同 / 无法判定 / g2 被占），调用方照常等待后 FAIL-loud。
+ * g2 内只做读文件、rename、unlink，不调 ps/docker/now：并发的两个回收者里只有先拿到 g2 的能搬走旧守卫，
+ * 后者进 g2 后重读到的要么是 ENOENT，要么是新持有者的 token（每个守卫 token 唯一），不会搬走活守卫。
+ * g2 自身被 SIGKILL 的残留属于毫秒窗口内的双重故障：保持 FAIL-loud，由主控按 runbook 人工处理。 */
+function reclaimDeadGuard(guardPath: string, g2Path: string, env: LockEnv, self: LockOwner): boolean {
+  let dead: LockOwner;
+  try { dead = parseOwner(readFileSync(guardPath, "utf8")); }
+  catch (e) { return (e as NodeJS.ErrnoException).code === "ENOENT"; } // 刚被释放：立刻重试；无法解析：不碰
+  if (dead.host !== env.host) return false;
+  let alive: string | null;
+  try { alive = env.startOf(dead.pid); } catch { return false; } // 无法判定：不碰
+  if (alive !== null && alive === dead.start) return false;
+  const target = `${guardPath}.stale-${stamp(env)}`; // 先算好名字：g2 内不再调外部函数
+  try { create(g2Path, { ...self, token: randomUUID() }); }
+  catch (e) { if ((e as NodeJS.ErrnoException).code === "EEXIST") return false; throw e; }
+  try {
+    let again: LockOwner;
+    try { again = parseOwner(readFileSync(guardPath, "utf8")); }
+    catch (e) { return (e as NodeJS.ErrnoException).code === "ENOENT"; }
+    if (again.token !== dead.token) return true; // 已被换成别人的守卫（可能是活的）：不动
+    renameSync(guardPath, target);
+    return true;
+  } finally { try { unlinkSync(g2Path); } catch { /* 已不存在 */ } }
 }
 
 export interface Held { owner: LockOwner; archived?: string; release: () => void }
@@ -57,12 +90,14 @@ const sleepMs = (ms: number) => Atomics.wait(new Int32Array(new SharedArrayBuffe
 
 /** 取锁。已存在的锁只在“同主机且持有者已死”时接管（归档旧锁后新建）。
  * 接管的“核对→搬走→新建”必须在 `${lock}.takeover` 守卫内完成：否则 B 读到旧持有者后，A 已接管并建了新锁，B 的 rename 会把 A 的活锁搬走。
- * 守卫内重读锁并确认仍是核对过的那个 token，才 rename；守卫只持有毫秒级（不含 ps 调用），被占用时短等后仍占用即拒绝。 */
+ * 守卫内重读锁并确认仍是核对过的那个 token，才归档并替换；守卫内含接管前清理（回收孤儿容器，可达秒级），被活着的持有者占用时短等后仍占用即拒绝；
+ * 守卫持有者已死（宿主在守卫内被 SIGKILL）则由 reclaimDeadGuard 搬走残留守卫。 */
 export function acquireLock(lock: string, cwd: string, env: LockEnv = realEnv(), beforeTakeover?: (holder: LockOwner) => void): Held {
   const start = env.startOf(env.pid);
   if (!start) throw new Error("无法取得本进程启动时间，不能建立带身份的锁");
   const owner: LockOwner = { pid: env.pid, start, host: env.host, token: randomUUID(), cwd };
   const guardPath = `${lock}.takeover`;
+  const g2Path = `${guardPath}.g2`;
   let archived: string | undefined;
   for (let attempt = 0; ; attempt++) {
     try { create(lock, owner); break; }
@@ -80,22 +115,29 @@ export function acquireLock(lock: string, cwd: string, env: LockEnv = realEnv(),
     // 持有者已死（pid 不存在，或 pid 被复用：启动时间不同）。进入守卫后重读锁，确认仍是判定已死的那一个，
     // 再在守卫内完成“接管前清理（回收孤儿容器）→ 归档 → 新建”：否则 A 判定已死之后、回收之前，B 可能已接管并启动了自己的工蜂，A 会误停 B 的活容器。
     let guarded = false;
-    for (let wait = 0; wait < (env.guardTries ?? 40) && !guarded; wait++) {
+    for (let waited = 0, reclaims = 0; !guarded;) {
       try { create(guardPath, { ...owner, token: randomUUID() }); guarded = true; }
-      catch (e) { if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e; sleepMs(50); }
+      catch (e) {
+        if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
+        if (reclaims < 5 && reclaimDeadGuard(guardPath, g2Path, env, owner)) { reclaims++; continue; }
+        if (++waited >= (env.guardTries ?? 40)) break;
+        sleepMs(50);
+      }
     }
-    if (!guarded) throw new Error(`${guardPath} 长时间被占用，另一个重入可能正在接管（若确认其已死，由主控处理该守卫文件），拒绝`);
+    if (!guarded) throw new Error(`${guardPath} 长时间被占用，另一个重入可能正在接管（若其持有者 pid 已确认结束，或 ${g2Path} 残留，由主控按 runbook 处理该文件），拒绝`);
     try {
       let again: LockOwner;
       try { again = parseOwner(readFileSync(lock, "utf8")); } catch { continue; } // 已变化：回到外层重新判定
       if (again.token !== holder.token) continue; // 已被他人接管或释放：重新判定（此时不会调用 beforeTakeover）
       beforeTakeover?.(holder); // 守卫内、归档前；抛错则整体拒绝，锁与现场不动
-      const target = join(dirname(lock), `${basename(lock)}.stale-${env.now().toISOString().replace(/[:.]/g, "-")}-${randomUUID().slice(0, 8)}`);
-      renameSync(lock, target);
+      const target = join(dirname(lock), `${basename(lock)}.stale-${stamp(env)}`);
+      try { linkSync(lock, target); } // 归档＝硬链接：锁路径不消失，此刻被杀也只是留下“持有者已死的锁”
+      catch (e) { if ((e as NodeJS.ErrnoException).code === "ENOENT") continue; throw e; } // 锁被人工移走：重新判定
       archived = target;
       env.afterArchive?.();
-      try { create(lock, owner); }
-      catch (e) { if ((e as NodeJS.ErrnoException).code === "EEXIST") continue; throw e; } // 正常取锁者抢先建了新锁：回到外层按活锁判定
+      const tmp = writeTmp(lock, owner);
+      try { renameSync(tmp, lock); } // 原子替换：正常取锁者在此前后看到的都是一把存在的锁
+      catch (e) { try { unlinkSync(tmp); } catch { /* 已不存在 */ } throw e; }
       break;
     } finally { try { unlinkSync(guardPath); } catch { /* 已不存在 */ } }
   }

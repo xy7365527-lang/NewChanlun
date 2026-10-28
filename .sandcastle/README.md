@@ -137,6 +137,6 @@ SANDCASTLE_SWARM_MERGE_MANIFEST=/absolute/path/accepted-manifest.json npx tsx .s
 
 此入口跳过 planner/认领，只在 `sandcastle/merge-<run-id>` 功能分支逐条受管归并；不推送、不合 main、不关来源票。无冲突由宿主提交；冲突工蜂只能编辑冻结的冲突路径，不能改索引，宿主核完整清单后提交双父 commit。每步对精确组合 SHA 执行差异检查、累计 Rust 差异的远端 cargo check、涉及 TS 时的 typecheck；失败停止后续输入。
 
-同一命令、同一清单用于恢复；检查点在宿主 `.sandcastle/logs/merges/<run-id>/checkpoint.json`，工位保留在 `.sandcastle/worktrees/sandcastle-merge-<run-id>`。已提交但未验证只补验证；已通过不重复提交/检查。未知 WIP 或合同变化停交 owner，不 reset/clean/abort。进程硬退出遗留 `.lock` 时，owner 先核锁内 PID 确实结束、没有另一运行持锁，再移除这个锁文件并用原命令恢复；不得按超时强抢仍活着的工位。
+同一命令、同一清单用于恢复；检查点在宿主 `.sandcastle/logs/merges/<run-id>/checkpoint.json`，工位保留在 `.sandcastle/worktrees/sandcastle-merge-<run-id>`。已提交但未验证只补验证；已通过不重复提交/检查。未知 WIP 或合同变化停交 owner，不 reset/clean/abort。进程硬退出遗留 `checkpoint.json.lock` 时，用原命令重入即可：锁内记有 pid 与进程启动时间，同主机且持有者确认已死才会接管（旧锁以硬链接归档为 `*.lock.stale-*`，新锁原子替换，锁路径全程存在）；持有者存活、锁损坏、主机不同、`ps` 无法判定一律拒绝，不按超时强抢。接管在 `*.lock.takeover` 守卫内进行，守卫持有者在其中被杀留下的守卫，由 `*.lock.takeover.g2`（毫秒级，只读/rename/unlink）确认其已死后自动搬走为 `*.takeover.stale-*`。仅当 `*.takeover.g2` 自身残留（g2 毫秒窗口内再次被杀的双重故障）时重入会报「长时间被占用」：先用 `ps -p <pid> -o lstart=` 核对 g2 与 `*.takeover` 文件里的 pid/start 确认均已不存在或启动时间不同，再把这两个文件 rename 走，然后用原命令恢复。回收只能看到当前 docker context，重入须使用与上次相同的 `DOCKER_HOST`/`DOCKER_CONTEXT`。`*.lock.tmp-*` 是被杀时遗留的临时文件，可忽略。
 
 合并树不变但输入不在祖先链时仍记录双父拓扑；已在祖先链只记 already_integrated，不造空提交。重复 SHA 去重执行，原输入/票号追溯保留。完成报告与所有单票证据交主控最终验收；合 main 仍走用户原有批准闸。
