@@ -1141,6 +1141,11 @@ export async function archaeologyOnly(n: number, d: Deps): Promise<{ ticket: num
   return { ticket: n, dir, problems: r.problems, counts: { A: c("A"), B: c("B"), C: c("C") } };
 }
 
+/** --archaeology-only 入口的排空准入；冻结时不得新增考古动作。 */
+export async function archaeologyOnlyAdmission(n: number, d: Deps) {
+  return withLegacyAdmission(() => archaeologyOnly(n, d), d.drainRoot);
+}
+
 export async function processTicket(n: number, raw: Deps): Promise<Summary> {
   const dir = join(raw.outRoot, String(n));
   mkdirSync(dir, { recursive: true });
@@ -1300,7 +1305,6 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
       summary.durationsMs[`review${s.attempt}`] = rr.durationMs;
       const reviewerUsed = rr.model ?? reviewer;
       // 起草被安全拦截后可改派主控模型；若独审也被拦截且只能回到同家族，必须 FAIL-loud。
-      assertDifferentModelFamilies(drafterUsed, reviewerUsed);
       if (s.attempt > 1 && existsSync(join(dir, "review.json"))) renameSync(join(dir, "review.json"), join(dir, `review.attempt${s.attempt - 1}.json`));
       summary.rounds.push({
         attempt: s.attempt, mode: s.draftMode, drafter: drafterUsed, reviewer: reviewerUsed,
@@ -1315,6 +1319,7 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
         items: review.parseError ? [] : review.items, problems: review.problems, draftMissingSections: missing,
         durationMs: rr.durationMs, ...(reviewSwitches.length ? { modelSwitches: reviewSwitches } : {}), raw: rr.text,
       });
+      assertDifferentModelFamilies(drafterUsed, reviewerUsed);
       if (review.parseError) {
         s = { ...s, phase: "review_parse_error" };
         summary.error = "审查输出两次均无法解析为 R1–R8 JSON（review_parse_error），未计入 BLOCK";
@@ -1597,7 +1602,7 @@ async function main() {
     log(`考古 only：取证检出对齐远端 main ${sha.slice(0, 10)}`);
     for (const n of a.tickets) {
       try {
-        const r = await withLegacyAdmission(() => archaeologyOnly(n, d), d.drainRoot);
+        const r = await archaeologyOnlyAdmission(n, d);
         log(`#${n} 考古 A ${r.counts.A} / B ${r.counts.B} / C ${r.counts.C}；机械校验${r.problems.length ? `问题 ${r.problems.length} 条：${r.problems.join("；")}` : "通过"}；${r.dir}/${ARCHAEOLOGY_FILE}`);
       } catch (e) {
         log(`#${n} 考古失败：${e instanceof Error ? e.message : String(e)}`);

@@ -11,7 +11,7 @@ import {
   resolvedReason, pickUnresolved, finishedTickets,
   isRetryable, makeClaudeRunner, loadResume, isSafeguardBlock, safeguardFallbackModel, withSafeguardFallback, reviewerModel, modelFamily, assertDifferentModelFamilies, resumeStaleBecauseReopen,
   RULES, ARCH_SECTION, ARCHAEOLOGY_FILE, parseArchaeology, archaeologyProblems, renderArchaeology, archaeologyCoverageProblems,
-  archaeologyPrompt, archaeologyAsks, archaeologyOnly, shadowComment, flowSectionsIn, stripFlowSections,
+  archaeologyPrompt, archaeologyAsks, archaeologyOnly, archaeologyOnlyAdmission, shadowComment, flowSectionsIn, stripFlowSections,
   type Deps, type GhRunner, type ModelCall, type OnceResult,
 } from "./decision-claimer.mts";
 
@@ -1052,6 +1052,13 @@ const drainHelper = join(process.cwd(), ".sandcastle", "drain-control.py");
 const drainCli = (d: Deps, command: "freeze" | "resume", ...args: string[]) =>
   execFileSync("python3", [drainHelper, command, "--root", d.drainRoot!, ...args]);
 
+test("--archaeology-only 入口受 drain 准入保护", async () => {
+  const { d } = fakeDeps("dry-run", [], [goodArch]);
+  drainCli(d, "freeze");
+  await assert.rejects(archaeologyOnlyAdmission(1355, d), /冻结|未新增动作/);
+  assert.equal(existsSync(join(d.outRoot, "1355")), false);
+});
+
 test("冻结保留 T 类已推送断点及认领，解冻只补 resolution 不重复提交", async () => {
   const h = liveDeps([fence({ class: "T", reason: "接口" }), goodDraft, fence(pass()), "已写入"]);
   h.fail((a) => (a[1] === "comment" && h.comments.length > 0) || a[3] === "--remove-assignee");
@@ -1195,6 +1202,8 @@ test("起草改主控后独审 Opus 也被拦截：无异家族可选时 FAIL-lo
   assert.match(s.error ?? "", /同家族|FAIL/);
   assert.deepEqual(seq(calls).slice(2), [["draft", MODEL_DRAFTER], ["draft", MODEL_REVIEW], ["review", MODEL_DRAFTER], ["review", MODEL_REVIEW]]);
   assert.deepEqual(s.modelSwitches!.map((x) => [x.role, x.from, x.to]), [["draft", MODEL_DRAFTER, MODEL_REVIEW], ["review", MODEL_DRAFTER, MODEL_REVIEW]]);
+  const rv = JSON.parse(readFileSync(join(d.outRoot, "1783", "review.json"), "utf8"));
+  assert.deepEqual(rv.modelSwitches, [{ role: "review", from: MODEL_DRAFTER, to: MODEL_REVIEW, reason: "safeguard" }]);
 });
 
 test("锁：起草与独审必须异家族，计划与改派两种轮次都覆盖", async () => {
