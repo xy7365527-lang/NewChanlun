@@ -144,12 +144,18 @@ pub fn require_btc_symbol(symbol: &str) -> anyhow::Result<()> {
 /// 都读其 `Q_total`。缺记录 ⟹ `AwaitingPolicy{funding_record}` 报错、引擎不建、不下单；
 /// `evidence_only` 记录同样拒收。起始余额按 BTCUSDT 报价币 USDT 记账（记录币种 USDC，
 /// 1:1 名义近似，属本回测的有效域边界）。
+///
+/// #1718：冻结影子NT组件只接受既有Cross(1)，不代表正式结果准入。
 pub fn run_theta_backtest(
     dataset: &Dataset,
     theta: &ThetaConfig,
     funding: Option<FundingRecord>,
 ) -> anyhow::Result<BacktestResult> {
     require_btc_symbol(&dataset.symbol)?;
+    theta
+        .exec
+        .require_shadow_fill_rule()
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
 
     let instrument = btc_instrument();
     let instrument_id = instrument.id();
@@ -269,5 +275,31 @@ mod tests {
             err.to_string().contains("`FOO`"),
             "错误须通过 {{symbol}} 插值点名，非静态列举，实际: {err}"
         );
+    }
+
+    #[test]
+    fn shadow_backtest_rejects_unsupported_fill_rules() {
+        use crate::theta_v0::config::FillRule;
+        let dataset = Dataset {
+            symbol: "BTC".into(),
+            bars: Vec::new(),
+            dates: Vec::new(),
+            bar_seconds: 60,
+        };
+        let funding = FundingRecord::active("P0").unwrap();
+        let mut cfg = ThetaConfig::default();
+        cfg.exec.fill_rule = FillRule::Touch;
+        let err =
+            run_theta_backtest(&dataset, &cfg, Some(funding)).expect_err("fill_rule=Touch 须拒收");
+        assert!(
+            err.to_string().contains("Touch") && err.to_string().contains("诊断"),
+            "错误须说明 Touch 仅诊断，实际: {err}"
+        );
+        cfg.exec.fill_rule = FillRule::Cross(0);
+        let err = run_theta_backtest(&dataset, &cfg, None).expect_err("Cross(0)拒绝");
+        assert!(err.to_string().contains("1 tick"));
+        cfg.exec.fill_rule = FillRule::Cross(1);
+        let err = run_theta_backtest(&dataset, &cfg, None).expect_err("跨过规则门后仍须资金签署");
+        assert!(err.to_string().contains("AwaitingPolicy{funding_record"));
     }
 }

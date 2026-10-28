@@ -3,6 +3,7 @@
 //! 观察 detail 与来源数组保留为边；仅单条原始事件沿既有投影转换。索引不替代来源业务审计。
 use super::business_json::{self as bj, RawEventsView};
 use super::generation::{Generated, SequenceMemo, WitnessRecord};
+use super::layout::Layout;
 use crate::v3::audit_store::{CodecRead, CodecStore, NativeTree, RefValue};
 use crate::{content_store, meta_get_opt};
 use aj::JsonView;
@@ -230,6 +231,17 @@ fn fmt_text(
     } else {
         TextValue::from_str(text, budget).map_err(err)
     }
+}
+/// 见证/关系/观察的公开主序键：出生代（表列 `published_generation`，载入为 `first`）经
+/// [`Layout::rank`] 取代际前缀，再接 layout/1 原键；快照排序与历史 cut 重建只经这三处取键。
+fn witness_rank(layout: Layout, row: &Witness) -> (i64, (&TextValue, i64)) {
+    layout.rank(row.first, (&row.object_id, row.slot))
+}
+fn relation_rank(layout: Layout, row: &Relation) -> (i64, (&TextValue, &TextValue, &TextValue)) {
+    layout.rank(row.first, (&row.subject, &row.relation_type, &row.object))
+}
+fn obs_rank(layout: Layout, row: &Observation) -> (i64, (&TextValue, Option<i64>)) {
+    layout.rank(row.first, (&row.kind, row.window_start))
 }
 fn stable_sort<T>(
     rows: &mut CodecVec<T>,
@@ -699,6 +711,7 @@ impl Runtime {
     pub(super) fn plan<'a>(
         &mut self,
         s: &mut (impl CodecStore + ?Sized),
+        layout: Layout,
         old: &Index,
         generated: &Generated<'_>,
         replaces: impl Into<RawEventsView<'a>>,
@@ -900,25 +913,19 @@ impl Runtime {
         }
         stable_sort(
             &mut snapshot.witnesses,
-            |a, b| (&a.object_id, a.slot).cmp(&(&b.object_id, b.slot)),
+            |a, b| witness_rank(layout, a).cmp(&witness_rank(layout, b)),
             owned_budget.as_ref(),
             s,
         )?;
         stable_sort(
             &mut snapshot.relations,
-            |a, b| {
-                (&a.subject, &a.relation_type, &a.object).cmp(&(
-                    &b.subject,
-                    &b.relation_type,
-                    &b.object,
-                ))
-            },
+            |a, b| relation_rank(layout, a).cmp(&relation_rank(layout, b)),
             owned_budget.as_ref(),
             s,
         )?;
         stable_sort(
             &mut snapshot.observations,
-            |a, b| (&a.kind, a.window_start).cmp(&(&b.kind, b.window_start)),
+            |a, b| obs_rank(layout, a).cmp(&obs_rank(layout, b)),
             owned_budget.as_ref(),
             s,
         )?;
@@ -2250,27 +2257,30 @@ fn check_generation(first: i64, latest: i64) -> Result<(), String> {
     }
 }
 
-/// 历史 cut 的独立成员方程：Snapshot 全历史按旧公开顺序；Delta 仅本代首次、按插入序。
-/// load 按 rowid 返回，保留首次插入顺序。
+/// 历史 cut 的独立成员方程：Snapshot 全历史按库布局的公开主序（[`Layout::rank`]）；
+/// Delta 仅本代首次、按插入序。load 按 rowid 返回，保留首次插入顺序。
 #[cfg(test)]
 pub(super) fn cut_members(
     index: &Index,
+    layout: Layout,
     generation: i64,
     delta: bool,
 ) -> Result<[CodecVec<NodeDigest>; 3], String> {
-    cut_members_metered(index, generation, delta, None)
+    cut_members_metered(index, layout, generation, delta, None)
 }
 pub(super) fn cut_members_metered(
     index: &Index,
+    layout: Layout,
     generation: i64,
     delta: bool,
     budget: Option<&dyn super::audit_budget::Budget>,
 ) -> Result<[CodecVec<NodeDigest>; 3], String> {
-    cut_members_projected(index, generation, delta, budget, None).map(|v| v.0)
+    cut_members_projected(index, layout, generation, delta, budget, None).map(|v| v.0)
 }
 pub(super) fn native_cut_members(
     index: &Index,
     s: &mut super::history::HashReader<'_>,
+    layout: Layout,
     generation: i64,
     delta: bool,
     batch: &str,
@@ -2279,11 +2289,12 @@ pub(super) fn native_cut_members(
         return Err(err("Native观察双投影资格不符"));
     }
     let (members, template) =
-        cut_members_projected(index, generation, delta, None, Some((s, batch)))?;
+        cut_members_projected(index, layout, generation, delta, None, Some((s, batch)))?;
     Ok((members, template.ok_or_else(|| err("缺Native观察模板"))?))
 }
 fn cut_members_projected(
     index: &Index,
+    layout: Layout,
     generation: i64,
     delta: bool,
     budget: Option<&dyn super::audit_budget::Budget>,
@@ -2324,25 +2335,19 @@ fn cut_members_projected(
     if !delta {
         stable_sort(
             &mut w,
-            |a, b| (&a.object_id, a.slot).cmp(&(&b.object_id, b.slot)),
+            |a, b| witness_rank(layout, a).cmp(&witness_rank(layout, b)),
             owned,
             &admission,
         )?;
         stable_sort(
             &mut r,
-            |a, b| {
-                (&a.subject, &a.relation_type, &a.object).cmp(&(
-                    &b.subject,
-                    &b.relation_type,
-                    &b.object,
-                ))
-            },
+            |a, b| relation_rank(layout, a).cmp(&relation_rank(layout, b)),
             owned,
             &admission,
         )?;
         stable_sort(
             &mut o,
-            |a, b| (&a.kind, a.window_start).cmp(&(&b.kind, b.window_start)),
+            |a, b| obs_rank(layout, a).cmp(&obs_rank(layout, b)),
             owned,
             &admission,
         )?;
@@ -2696,8 +2701,10 @@ mod tests {
                 &expected_aux.observations
             )
         );
-        let expected_sets = [false, true]
-            .map(|delta| native_cut_members(&expected_aux, &mut plain, 4, delta, &batch).unwrap());
+        let layout = expected_objects.layout();
+        let expected_sets = [false, true].map(|delta| {
+            native_cut_members(&expected_aux, &mut plain, layout, 4, delta, &batch).unwrap()
+        });
         let expected_facts = NativeAuxAudit::from_loaded(&plain, &expected_aux, raw)
             .unwrap()
             .into_facts();
@@ -2768,7 +2775,7 @@ mod tests {
                 assert_eq!(aux.raw_revisions, expected_facts.raw_revisions);
                 for (delta, expected) in [false, true].into_iter().zip(&expected_sets) {
                     let (members, template) =
-                        native_cut_members(&index, &mut reader, 4, delta, &batch)?;
+                        native_cut_members(&index, &mut reader, Layout::Sorted, 4, delta, &batch)?;
                     for (actual, expected) in members.iter().zip(&expected.0) {
                         assert_eq!(&actual[..], &expected[..]);
                     }
@@ -3267,7 +3274,7 @@ mod tests {
         let mut normal = content_store::TxStore::new(&tx).unwrap();
         let expected = load(&tx, &mut normal, 1).unwrap();
         let expected_values = aux_values(&expected);
-        let expected_members = cut_members(&expected, 1, false).unwrap();
+        let expected_members = cut_members(&expected, Layout::Sorted, 1, false).unwrap();
         let mut normal_runtime = Runtime::default();
         let b = |r: &RefValue| Built {
             digest: r.digest().unwrap(),
@@ -3398,7 +3405,7 @@ mod tests {
                 );
                 tx.execute("UPDATE s_content_witnesses SET slot=0", [])
                     .unwrap();
-                let members = cut_members(&actual, 1, false).unwrap();
+                let members = cut_members(&actual, Layout::Sorted, 1, false).unwrap();
                 for (a, b) in members.iter().zip(&expected_members) {
                     assert_eq!(&a[..], &b[..]);
                 }
@@ -3623,7 +3630,17 @@ mod tests {
             let generated = generator.generate(&mut s, &input).unwrap();
             assert!(!generated.witnesses.is_empty());
             let p = runtime
-                .plan(&mut s, &old, &generated, &[], &raw, previous, frontier, g)
+                .plan(
+                    &mut s,
+                    Layout::Sorted,
+                    &old,
+                    &generated,
+                    &[],
+                    &raw,
+                    previous,
+                    frontier,
+                    g,
+                )
                 .unwrap();
             let public = stored_wires(&p.snapshot_values, &mut s);
             assert_eq!(
@@ -3938,7 +3955,7 @@ mod tests {
                 .is_err());
             }
             for (is_delta, expected) in [(false, &p.snapshot), (true, &p.births)] {
-                let members = cut_members(&stored, g, is_delta).unwrap();
+                let members = cut_members(&stored, Layout::Sorted, g, is_delta).unwrap();
                 assert_eq!(
                     &members[0][..],
                     expected
@@ -3971,6 +3988,41 @@ mod tests {
                     .collect::<Vec<_>>();
                 assert_eq!(&members[2][..], &obs[..]);
             }
+            // #1491 layout 锁：Delta 两布局同为插入序；bounded Snapshot ＝ layout/1 公开序按出生代
+            // 稳定重排（代际单调不减，同代内沿原键）。
+            let sorted_delta = cut_members(&stored, Layout::Sorted, g, true).unwrap();
+            let bounded_delta = cut_members(&stored, Layout::Bounded1, g, true).unwrap();
+            for (sorted, bounded) in sorted_delta.iter().zip(&bounded_delta) {
+                assert_eq!(&sorted[..], &bounded[..]);
+            }
+            let bounded = cut_members(&stored, Layout::Bounded1, g, false).unwrap();
+            let mut witnesses: Vec<_> = p.snapshot.witnesses.iter().collect();
+            witnesses.sort_by_key(|r| r.first);
+            let witnesses: Vec<_> = witnesses.iter().map(|r| digest(&r.wire).unwrap()).collect();
+            assert_eq!(&bounded[0][..], &witnesses[..]);
+            let mut relations: Vec<_> = p.snapshot.relations.iter().collect();
+            relations.sort_by_key(|r| r.first);
+            let relations: Vec<_> = relations
+                .iter()
+                .map(|r| digest(&r.generated).unwrap())
+                .collect();
+            assert_eq!(&bounded[1][..], &relations[..]);
+            let mut observations: Vec<_> = p.snapshot.observations.iter().collect();
+            observations.sort_by_key(|r| r.first);
+            let observations: Vec<_> = observations
+                .iter()
+                .map(|r| {
+                    if r.first == g {
+                        s.replace_ref(r.wire.view(), &[f("batch_id")], &batch)
+                            .unwrap()
+                            .digest()
+                            .unwrap()
+                    } else {
+                        digest(&r.wire).unwrap()
+                    }
+                })
+                .collect();
+            assert_eq!(&bounded[2][..], &observations[..]);
             if g == 3 {
                 let edge = p
                     .births
@@ -4122,14 +4174,33 @@ mod tests {
             let sql = content_store::sql_reads_on_thread();
             let frames = sc::frame_calls_on_thread();
             let warm = runtime
-                .plan(&mut s, &old, &generated, &[], &raw, previous, frontier, g)
+                .plan(
+                    &mut s,
+                    Layout::Sorted,
+                    &old,
+                    &generated,
+                    &[],
+                    &raw,
+                    previous,
+                    frontier,
+                    g,
+                )
                 .unwrap();
             let warm_sql = content_store::sql_reads_on_thread() - sql;
             let warm_frames = sc::frame_calls_on_thread() - frames;
             let sql = content_store::sql_reads_on_thread();
             set_full_plan_for_test(true);
-            let cold =
-                Runtime::default().plan(&mut s, &old, &generated, &[], &raw, previous, frontier, g);
+            let cold = Runtime::default().plan(
+                &mut s,
+                Layout::Sorted,
+                &old,
+                &generated,
+                &[],
+                &raw,
+                previous,
+                frontier,
+                g,
+            );
             set_full_plan_for_test(false);
             let cold = cold.unwrap();
             let cold_sql = content_store::sql_reads_on_thread() - sql;

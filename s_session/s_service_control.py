@@ -242,6 +242,8 @@ def admission_action(action):
         self._action_stage, self._action_returncode = "admission", None
         try:
             self.admission.prepare()
+            self._action_stage = "contract"
+            self.check_admission_contract()
             return action(self, *args, **kwargs)
         except (OSError, ValueError, TypeError, RecursionError, subprocess.SubprocessError) as exc:
             if not hasattr(exc, "control_receipt"):
@@ -401,6 +403,28 @@ class Controller:
             self.validate_resource_identity(resource_identity, command, deadline, require_current=True)
             record["resource_identity"] = resource_identity
         self.save_record(service, record)
+
+    def check_admission_contract(self):
+        """#1657：原件核验后、发布和 Rust R4 之前，共用二进制内的已审合同。"""
+        version = self.config.get("admission_contract_version")
+        if type(version) is not str or not version:
+            raise ValueError("AdmissionContractVersionMissing")
+        deadline = self.admission_deadline
+        environment = self.admission.child_environment(self.runtime_environment(deadline))
+        sha = environment["S_CONTROL_ADMISSION_SHA256"]
+        command = [self.config["binary"], "admission-contract", "--contract-version", version,
+                   "--limits-sha", sha, "--startup-timeout-ms", str(self.config["startup_timeout_ms"])]
+        reply = subprocess.run(command, capture_output=True, check=True, env=environment,
+                               timeout=remaining(deadline))
+        expected = {"ok": True, "contract_version": version, "sha256": sha}
+        try:
+            actual = decode_frame(reply.stdout)
+        except (ValueError, UnicodeError, RecursionError):
+            raise ValueError("AdmissionContractReplyInvalid") from None
+        if actual != expected:
+            raise ValueError("AdmissionContractReplyInvalid")
+        remaining(deadline)
+        self.admission.revalidate()
 
     def freeze_s_resources(self, deadline):
         """仅复制显式七值（s-launcher/4 为八值）；私有冻结文件随本次启动具名，不采用任何已有文件。"""
