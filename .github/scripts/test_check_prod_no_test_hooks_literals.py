@@ -70,6 +70,11 @@ class BannedLiteralGeneratorTests(unittest.TestCase):
         self.assertNotIn("", body)
         self.assertIn("须持有完整候选", body)
 
+    def test_checked_in_list_bans_native_sqlite_cache_env(self):
+        # #1640 D-A：缓存实验输入名只编入 testonly，生产增量产物按字节禁串。
+        listing = Path(__file__).resolve().parents[1] / "prod-banned-literals.txt"
+        self.assertIn("S_NATIVE_SQLITE_CACHE_KIB", listing.read_text(encoding="utf-8").splitlines())
+
 
 if __name__ == "__main__":
     unittest.main()

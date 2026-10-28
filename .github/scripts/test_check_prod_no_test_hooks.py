@@ -113,6 +113,30 @@ class ProdHookCheckerTests(unittest.TestCase):
         lib = gate + 'fn r() -> Result<Option<String>, String> { Ok(std::env::var("S_SESSION_PAUSE").ok()) }\n'
         self.assertEqual(self.env_violations(lib), [])
 
+    def test_env_axis_reports_ungated_native_sqlite_cache_read(self):
+        # #1640 D-A（ADR 0042 D1）负控：缓存实验输入不在 PRODUCTION_ENV，未门控读取即判生产可达。
+        self.assertNotIn("S_NATIVE_SQLITE_CACHE_KIB", checker.PRODUCTION_ENV)
+        for lib in ('fn configure() { let _ = std::env::var_os("S_NATIVE_SQLITE_CACHE_KIB"); }\n',
+                    'const CACHE_ENV: &str = "S_NATIVE_SQLITE_CACHE_KIB";\n'
+                    "fn configure() { let _ = std::env::var_os(CACHE_ENV); }\n",
+                    '#[cfg(feature = "s_incremental")]\n'
+                    'fn configure() { let _ = std::env::var_os("S_NATIVE_SQLITE_CACHE_KIB"); }\n'):
+            with self.subTest(lib=lib):
+                self.assertTrue(any("S_NATIVE_SQLITE_CACHE_KIB" in v and "s_incremental" in v
+                                    for v in self.env_violations(lib)))
+
+    def test_env_axis_accepts_testonly_gated_native_sqlite_cache_read(self):
+        # #1640 D-A 正控：同一读取只编入 s_capture_native_testonly 时生产不可达，不报。
+        gate = '#[cfg(feature = "s_capture_native_testonly")]\n'
+        for lib in (gate + 'fn configure() { let _ = std::env::var_os("S_NATIVE_SQLITE_CACHE_KIB"); }\n',
+                    gate + 'const CACHE_ENV: &str = "S_NATIVE_SQLITE_CACHE_KIB";\n'
+                    + gate + "fn apply(c: &C) -> Result<Option<i32>, String> {\n"
+                    "    parse(std::env::var_os(CACHE_ENV).as_deref())\n}\n"
+                    '#[cfg(not(feature = "s_capture_native_testonly"))]\n'
+                    "fn apply(_c: &C) -> Result<Option<i32>, String> { Ok(None) }\n"):
+            with self.subTest(lib=lib):
+                self.assertEqual(self.env_violations(lib), [])
+
     def test_env_axis_default_only_requires_listing(self):
         gate = '#[cfg(not(feature = "s_incremental"))]\n'
         lib = gate + 'fn other() { let _ = std::env::var("S_UNLISTED_DIAG_SWITCH"); }\n'

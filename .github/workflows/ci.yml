@@ -412,9 +412,12 @@ jobs:
         run: ../.github/scripts/run-cargo-with-telemetry.sh ../.github/scripts/test-feature-delta.sh s_capture_native_testonly
 
       # #1640：生产增量构建的编译期模式、`/2` 资源档与出生锁在无测试钩子 feature 下另跑一遍（env 选择臂只在 testonly）。
+      #   D-A：pager_probe 锁在此步设缓存实验输入执行，生产构建须不读、不生效（requested_cache_kib 为 null）。
       - name: cargo test — s_incremental 生产增量构建（#1640）
         if: ${{ !cancelled() && matrix.group == 'native' }}
-        run: '../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session,s_incremental --bin s_structure_session --jobs 1 -- s_allocation:: s3_serve incremental_build_full_branch_only_at_birth build_profile'
+        env:
+          S_NATIVE_SQLITE_CACHE_KIB: "262144"
+        run: '../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session,s_incremental --bin s_structure_session --jobs 1 -- s_allocation:: s3_serve incremental_build_full_branch_only_at_birth build_profile pager_probe'
 
       # #1640 §2.3 第 3 层（产物机检）：不 strip 的生产增量 release 构建，nm 子串与禁串（固定＋自动抽取清单）零命中。
       #   复用本作业 rust/target；Cargo.toml 的 release profile 不设 strip，符号表保留。

@@ -105,7 +105,7 @@ BLOCK = re.compile(r"^\s*(?:pub(?:\([^)]*\))?\s+)?(?:unsafe\s+)?(?:mod|impl|trai
 
 # 文件相对路径 → 允许的名字（门外既有生产诊断）。
 ALLOWLIST: dict[str, set[str]] = {
-    # sqlite_pager_probe：门外既有生产诊断（ADR 0042 D8 改名后进生产）。
+    # sqlite_pager_probe：ADR 0042 D8 只读 pager 诊断行，#1640 b12c28f12e 新进生产；私有缓存实验已门控为 testonly。
     "rust/src/bin/s_session_v3/sqlite_pager_probe.rs": set(),
     # #1527 受限故障注入入口：dead_code、无调用方，产物不含；真实 I4/I5 验证票收口时再门控。
     "rust/src/bin/s_session_v3/admission_private/fd_wal.rs": {"inject"},
@@ -128,10 +128,7 @@ PRODUCTION_ENV: dict[str, str] = {
     "S_CONTROL_ADMISSION_IDENTITY": "launcher 下发的准入锚身份（admission_anchor）",
     "S_CONTROL_START_GATE": "#1527 托管 serve 的父进程登记握手（admission_anchor）",
     "S_CONTROL_RESOURCE_SHA256": "launcher 下发的资源档摘要（writer_cli）",
-    "S_MANIFEST_WORKSPACE_DIAGNOSTICS": "ADR 0042 D8 门外既有生产诊断（与 sqlite_pager_probe 同一开关）",
-    # 待裁定：模块自述「仅 Native TestOnly opt-in 的私有缓存实验」，却随 ALLOWLIST 整文件豁免进生产，
-    # 且会改连接 cache_size。归 D8 生产诊断还是门控出增量构建，由 #1640 主控裁定后改此处。
-    "S_NATIVE_SQLITE_CACHE_KIB": "待 #1640 裁定：sqlite_pager_probe 私有缓存实验（经 const CACHE_ENV 读取）",
+    "S_MANIFEST_WORKSPACE_DIAGNOSTICS": "ADR 0042 D8 诊断行开关（#1640 b12c28f12e 随 sqlite_pager_probe 新进生产）",
 }
 # 只在默认 {s_session} 构建可达的环境变量（与 DEFAULT_BUILD_ONLY 同一豁免口径：增量生产构建须门控排除）。
 DEFAULT_BUILD_ONLY_ENV: dict[str, str] = {

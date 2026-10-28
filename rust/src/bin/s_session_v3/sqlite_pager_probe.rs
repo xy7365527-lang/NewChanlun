@@ -1,10 +1,12 @@
-//! #1394：仅 Native TestOnly opt-in 的 SQLite pager 观测与私有缓存实验。
+//! #1394 → #1640：`s_incremental` 生产增量构建只做只读 SQLite pager 诊断（ADR 0042 D8 诊断行）；
+//! 私有缓存实验（读 `S_NATIVE_SQLITE_CACHE_KIB` 并设置 cache_size）只编入 `s_capture_native_testonly`。
 //! 非审计证明；cache_size 是连接内建议页缓存量，不是 heap/RSS 峰值硬上限。
 
 use rusqlite::{ffi, Connection};
 use serde_json::{json, Map, Value};
 use std::io::Write as _;
 
+#[cfg(feature = "s_capture_native_testonly")]
 const CACHE_ENV: &str = "S_NATIVE_SQLITE_CACHE_KIB";
 const METRICS: [(&str, i32); 6] = [
     (
@@ -34,32 +36,65 @@ pub(super) fn enabled() -> bool {
 
 /// 只有显式实验输入的校验、设置、回读失败会拒绝启动；纯诊断失败仅记 unavailable。
 pub(super) fn configure_and_log(conn: &Connection) -> Result<(), String> {
-    let requested = std::env::var_os(CACHE_ENV)
-        .map(|raw| {
-            let raw = raw.to_str().ok_or_else(|| invalid_cache())?;
-            if raw.is_empty() || raw.starts_with('0') || !raw.bytes().all(|b| b.is_ascii_digit()) {
-                return Err(invalid_cache());
-            }
-            let kib: i32 = raw.parse().map_err(|_| invalid_cache())?;
-            if !(1..=262_144).contains(&kib) {
-                return Err(invalid_cache());
-            }
-            Ok(kib)
-        })
-        .transpose()?;
+    log(configure(conn)?);
+    Ok(())
+}
+
+fn configure(conn: &Connection) -> Result<Value, String> {
+    let requested = apply_requested_cache(conn)?;
+    Ok(startup_line(conn, requested))
+}
+
+/// #1640 D-A（ADR 0042 D1）：生产增量构建不读缓存实验输入、不碰 cache_size，请求值恒为 None。
+#[cfg(not(feature = "s_capture_native_testonly"))]
+fn apply_requested_cache(_conn: &Connection) -> Result<Option<i32>, String> {
+    Ok(None)
+}
+
+/// testonly 私有缓存实验：读输入、校验，合法时设置 cache_size 并回读。
+#[cfg(feature = "s_capture_native_testonly")]
+fn apply_requested_cache(conn: &Connection) -> Result<Option<i32>, String> {
+    let requested = parse_cache_kib(std::env::var_os(CACHE_ENV).as_deref())?;
     if let Some(kib) = requested {
-        let target = -kib;
-        conn.pragma_update(None, "cache_size", target)
-            .map_err(|e| format!("WriterSqliteCacheInvalid：设置 cache_size 失败：{e}"))?;
-        let actual: i32 = conn
-            .pragma_query_value(None, "cache_size", |r| r.get(0))
-            .map_err(|e| format!("WriterSqliteCacheInvalid：回读 cache_size 失败：{e}"))?;
-        if actual != target {
-            return Err(format!(
-                "WriterSqliteCacheInvalid：cache_size 回读 {actual}，预期 {target}"
-            ));
-        }
+        set_cache_kib(conn, kib)?;
     }
+    Ok(requested)
+}
+
+#[cfg(feature = "s_capture_native_testonly")]
+fn parse_cache_kib(raw: Option<&std::ffi::OsStr>) -> Result<Option<i32>, String> {
+    raw.map(|raw| {
+        let raw = raw.to_str().ok_or_else(invalid_cache)?;
+        if raw.is_empty() || raw.starts_with('0') || !raw.bytes().all(|b| b.is_ascii_digit()) {
+            return Err(invalid_cache());
+        }
+        let kib: i32 = raw.parse().map_err(|_| invalid_cache())?;
+        if !(1..=262_144).contains(&kib) {
+            return Err(invalid_cache());
+        }
+        Ok(kib)
+    })
+    .transpose()
+}
+
+#[cfg(feature = "s_capture_native_testonly")]
+fn set_cache_kib(conn: &Connection, kib: i32) -> Result<(), String> {
+    let target = -kib;
+    conn.pragma_update(None, "cache_size", target)
+        .map_err(|e| format!("WriterSqliteCacheInvalid：设置 cache_size 失败：{e}"))?;
+    let actual: i32 = conn
+        .pragma_query_value(None, "cache_size", |r| r.get(0))
+        .map_err(|e| format!("WriterSqliteCacheInvalid：回读 cache_size 失败：{e}"))?;
+    if actual != target {
+        return Err(format!(
+            "WriterSqliteCacheInvalid：cache_size 回读 {actual}，预期 {target}"
+        ));
+    }
+    Ok(())
+}
+
+/// 启动诊断行（D8）：各构建字段集相同；生产增量构建 requested_cache_kib 恒为 null。
+fn startup_line(conn: &Connection, requested: Option<i32>) -> Value {
     let mut pragmas = Map::new();
     for name in [
         "cache_size",
@@ -84,15 +119,13 @@ pub(super) fn configure_and_log(conn: &Connection) -> Result<(), String> {
         };
         pragmas.insert(name.into(), value);
     }
-    log(
-        json!({"diagnostic":"WriterSqlitePager", "schema_revision":1,
-        "stage":"startup-before-first-transaction", "requested_cache_kib":requested,
-        "cache_size_semantics":"connection-session suggested pager cache; negative value is KiB; not heap/RSS peak bound",
-        "pragmas":pragmas, "snapshot":snapshot(conn).value()}),
-    );
-    Ok(())
+    json!({"diagnostic":"WriterSqlitePager", "schema_revision":1,
+    "stage":"startup-before-first-transaction", "requested_cache_kib":requested,
+    "cache_size_semantics":"connection-session suggested pager cache; negative value is KiB; not heap/RSS peak bound",
+    "pragmas":pragmas, "snapshot":snapshot(conn).value()})
 }
 
+#[cfg(feature = "s_capture_native_testonly")]
 fn invalid_cache() -> String {
     format!("WriterSqliteCacheInvalid：{CACHE_ENV} 必须是规范十进制正整数 1..262144 KiB")
 }
@@ -233,4 +266,124 @@ pub(super) fn log_handle(before: Snapshot, after: Snapshot, message_id: Option<V
 fn log(line: Value) {
     // 已提交的业务结果不能被诊断输出错误覆写。
     let _ = writeln!(std::io::stderr().lock(), "{line}");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const STARTUP_FIELDS: [&str; 7] = [
+        "cache_size_semantics",
+        "diagnostic",
+        "pragmas",
+        "requested_cache_kib",
+        "schema_revision",
+        "snapshot",
+        "stage",
+    ];
+    const PRAGMA_FIELDS: [&str; 8] = [
+        "cache_size",
+        "cache_spill",
+        "fullfsync",
+        "journal_mode",
+        "mmap_size",
+        "page_size",
+        "synchronous",
+        "wal_autocheckpoint",
+    ];
+
+    fn keys(value: &Value) -> Vec<&str> {
+        let mut keys: Vec<&str> = value
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect();
+        keys.sort_unstable();
+        keys
+    }
+
+    fn cache_size(conn: &Connection) -> i64 {
+        conn.pragma_query_value(None, "cache_size", |r| r.get(0))
+            .unwrap()
+    }
+
+    /// #1640 D-A / ADR 0042 D8：启动诊断行字段集在所有含本模块的构建不变，请求值照出。
+    #[test]
+    fn pager_probe_startup_line_keeps_field_set() {
+        let conn = Connection::open_in_memory().unwrap();
+        for requested in [None, Some(4096)] {
+            let line = startup_line(&conn, requested);
+            assert_eq!(keys(&line), STARTUP_FIELDS);
+            assert_eq!(keys(&line["pragmas"]), PRAGMA_FIELDS);
+            assert_eq!(line["diagnostic"], json!("WriterSqlitePager"));
+            assert_eq!(line["stage"], json!("startup-before-first-transaction"));
+            assert_eq!(line["requested_cache_kib"], json!(requested));
+        }
+    }
+
+    /// #1640 D-A：生产增量构建不读缓存实验输入、不改 cache_size，诊断行照出且请求值为 null。
+    #[cfg(not(feature = "s_capture_native_testonly"))]
+    #[test]
+    fn pager_probe_production_ignores_cache_request() {
+        let conn = Connection::open_in_memory().unwrap();
+        let default = cache_size(&conn);
+        let line = configure(&conn).unwrap();
+        assert_eq!(keys(&line), STARTUP_FIELDS);
+        assert_eq!(line["requested_cache_kib"], Value::Null);
+        assert_eq!(
+            line["pragmas"]["cache_size"],
+            json!({"availability":"available", "value":default})
+        );
+        assert_eq!(cache_size(&conn), default);
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn pager_probe_testonly_cache_kib_parse() {
+        use std::ffi::OsStr;
+        assert_eq!(parse_cache_kib(None), Ok(None));
+        for (raw, kib) in [("1", 1), ("4096", 4096), ("262144", 262_144)] {
+            assert_eq!(parse_cache_kib(Some(OsStr::new(raw))), Ok(Some(kib)));
+        }
+        for raw in [
+            "",
+            "0",
+            "01",
+            "0262144",
+            "262145",
+            "2147483648",
+            "abc",
+            "12a",
+            "-1",
+            "+1",
+            " 1",
+        ] {
+            assert_eq!(
+                parse_cache_kib(Some(OsStr::new(raw))),
+                Err(invalid_cache()),
+                "{raw:?}"
+            );
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::ffi::OsStrExt;
+            assert_eq!(
+                parse_cache_kib(Some(OsStr::from_bytes(b"1\xff"))),
+                Err(invalid_cache())
+            );
+        }
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn pager_probe_testonly_cache_request_sets_cache_size() {
+        let conn = Connection::open_in_memory().unwrap();
+        set_cache_kib(&conn, 262_144).unwrap();
+        assert_eq!(cache_size(&conn), -262_144);
+        let line = startup_line(&conn, Some(262_144));
+        assert_eq!(keys(&line), STARTUP_FIELDS);
+        assert_eq!(line["requested_cache_kib"], json!(262_144));
+        assert_eq!(line["pragmas"]["cache_size"]["value"], json!(-262_144));
+    }
 }
