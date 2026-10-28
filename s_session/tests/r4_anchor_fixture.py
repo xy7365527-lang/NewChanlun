@@ -88,4 +88,7 @@ def anchored_controller(config, state_dir, *, clock=None, **kwargs):
         stack.enter_context(patch.dict(os.environ, anchor.env() if anchor else {}))
         if clock is not None:
             stack.enter_context(patch.object(control.time, "monotonic", side_effect=clock))
-        return control.Controller(config, Path(state_dir))
+        controller = control.Controller(config, Path(state_dir))
+        # 原生命周期测试的夹具合同不具生产资格。合同门由 #1657 专用测试真实调用。
+        controller.check_admission_contract = lambda: None
+        return controller

@@ -8,7 +8,7 @@ import {
   allocateAdr, applyReclass, draftPrompt, ensureSrc, extractFirstApiKey, guardGh, reclassSuggestion, renumberDraft, reviewPrompt, initialState, isGhWrite, landingTarget, missingDraftSections,
   nextAfterReview, parseArgs, parseClassification, parseReview, processTicket, selectCandidates,
   resolvedReason, pickUnresolved, finishedTickets,
-  isRetryable, makeClaudeRunner, loadResume, resumeStaleBecauseReopen,
+  isRetryable, makeClaudeRunner, loadResume, isSafeguardBlock, safeguardFallbackModel, withSafeguardFallback, reviewerModel, resumeStaleBecauseReopen,
   RULES, ARCH_SECTION, ARCHAEOLOGY_FILE, parseArchaeology, archaeologyProblems, renderArchaeology, archaeologyCoverageProblems,
   archaeologyPrompt, archaeologyAsks, archaeologyOnly, shadowComment, flowSectionsIn, stripFlowSections,
   type Deps, type GhRunner, type ModelCall, type OnceResult,
@@ -1043,4 +1043,164 @@ test("--archaeology-only 与 processTicket 共用目录锁", async () => {
   mkdirSync(join(d.outRoot, "1531"), { recursive: true });
   writeFileSync(join(d.outRoot, "1531", ".lock"), "1");
   await assert.rejects(archaeologyOnly(1531, d), /另一进程正在处理/);
+});
+
+// ───────────── #1785：Fable 安全拦截改派 Opus ─────────────
+
+/** #1532/#1783 实际落进 decision-claimer.stdout.log 的错误（runner 抛出的整句）。 */
+const FABLE_BLOCK = (role: string) =>
+  `${role} ${MODEL_FABLE} 调用失败（exit 1，第 1 次）：API Error: Fable 5's safeguards flagged this message (https://www.anthropic.com/legal/aup). This sometimes happens with safe, normal conversations. Claude Code can't respond to this message with Fable 5.`;
+
+/** 按 (role, model) 脚本化的假模型：命中 block 集合的 Fable 调用抛拦截错误，其余按角色给合格产物。 */
+function blockingDeps(block: Set<string>, opts: { reviewText?: string; hardError?: string } = {}) {
+  const { d } = fakeDeps("dry-run", []);
+  const calls: ModelCall[] = [];
+  d.model = async (c) => {
+    calls.push(c);
+    if (opts.hardError && c.role === "archaeology") throw new Error(opts.hardError);
+    if (block.has(c.role) && c.model === MODEL_FABLE) throw new Error(FABLE_BLOCK(c.role));
+    const text = c.role === "classify" ? fence({ class: "T", reason: "测试锁" })
+      : c.role === "archaeology" ? goodArch
+      : c.role === "draft" ? goodDraft
+      : opts.reviewText ?? fence(pass());
+    return { text, durationMs: 5, attempts: 1 };
+  };
+  return { d, calls };
+}
+const seq = (calls: ModelCall[]) => calls.map((c) => [c.role, c.model]);
+
+test("isSafeguardBlock：只认 Fable 安全拦截文本；临时错误、参数错误、泛泛的 safeguard 字样都不算", () => {
+  assert.ok(isSafeguardBlock(FABLE_BLOCK("archaeology")));
+  assert.ok(isSafeguardBlock("API Error: Fable 5.1's safeguards flagged this message"));
+  for (const x of ["API Error: 429 Too Many Requests", "Invalid model name", "safeguards", "Opus safeguards flagged", "模型服务暂时不可用"]) {
+    assert.equal(isSafeguardBlock(x), false, x);
+  }
+  assert.equal(isRetryable(FABLE_BLOCK("archaeology")), false, "拦截不是临时错误，runner 不退避重发");
+  assert.equal(safeguardFallbackModel(MODEL_FABLE), MODEL_OPUS);
+  assert.equal(safeguardFallbackModel(MODEL_OPUS), null);
+});
+
+test("#1785 考古被 Fable 拦截：同一步改用 Opus 成功，summary 与 summary.json 记录切换，后续流程照常", async () => {
+  const { d, calls } = blockingDeps(new Set(["archaeology"]));
+  const s = await processTicket(1783, d);
+  assert.equal(s.phase, "land_t", s.error ?? "");
+  assert.deepEqual(seq(calls), [
+    ["classify", MODEL_FABLE], ["archaeology", MODEL_FABLE], ["archaeology", MODEL_OPUS], ["draft", MODEL_FABLE], ["review", MODEL_OPUS],
+  ]);
+  const want = [{ role: "archaeology", from: MODEL_FABLE, to: MODEL_OPUS, reason: "safeguard" }];
+  assert.deepEqual(s.modelSwitches, want);
+  const dir = join(d.outRoot, "1783");
+  assert.deepEqual(JSON.parse(readFileSync(join(dir, "summary.json"), "utf8")).modelSwitches, want);
+  assert.ok(existsSync(join(dir, ARCHAEOLOGY_FILE)));
+});
+
+test("#1785 分级被拦截同样改 Opus；改派对本票该角色粘住，不再先撞一次拦截", async () => {
+  const { d, calls } = blockingDeps(new Set(["classify"]));
+  const s = await processTicket(1783, d);
+  assert.equal(s.phase, "land_t", s.error ?? "");
+  assert.deepEqual(seq(calls).slice(0, 2), [["classify", MODEL_FABLE], ["classify", MODEL_OPUS]]);
+  const inner: ModelCall[] = [];
+  const run = withSafeguardFallback(async (c) => {
+    inner.push(c);
+    if (c.model === MODEL_FABLE) throw new Error(FABLE_BLOCK(c.role));
+    return { text: "ok", durationMs: 1, attempts: 1 };
+  });
+  const a = await run({ model: MODEL_FABLE, prompt: "p", cwd: "/", role: "archaeology" });
+  const b = await run({ model: MODEL_FABLE, prompt: "p2", cwd: "/", role: "archaeology" });
+  assert.equal(a.model, MODEL_OPUS);
+  assert.equal(b.model, MODEL_OPUS);
+  assert.deepEqual(inner.map((c) => c.model), [MODEL_FABLE, MODEL_OPUS, MODEL_OPUS], "第二次直接走 Opus");
+});
+
+test("#1785 起草被拦截改 Opus：独审改用 Fable，review.json 与 rounds 记实际起草/独审模型", async () => {
+  const { d, calls } = blockingDeps(new Set(["draft"]));
+  const s = await processTicket(1783, d);
+  assert.equal(s.phase, "land_t", s.error ?? "");
+  assert.deepEqual(seq(calls).slice(2), [["draft", MODEL_FABLE], ["draft", MODEL_OPUS], ["review", MODEL_FABLE]]);
+  const rv = JSON.parse(readFileSync(join(d.outRoot, "1783", "review.json"), "utf8"));
+  assert.equal(rv.drafter, MODEL_OPUS);
+  assert.equal(rv.reviewer, MODEL_FABLE);
+  assert.deepEqual(s.rounds!.map((r) => [r.drafter, r.reviewer]), [[MODEL_OPUS, MODEL_FABLE]]);
+});
+
+test("#1785 起草改 Opus 后独审 Fable 也被拦截：独审改另一档 Opus 并记录，仍是独立的一次调用", async () => {
+  const { d, calls } = blockingDeps(new Set(["draft", "review"]));
+  const s = await processTicket(1783, d);
+  assert.equal(s.phase, "land_t", s.error ?? "");
+  assert.deepEqual(seq(calls).slice(2), [["draft", MODEL_FABLE], ["draft", MODEL_OPUS], ["review", MODEL_FABLE], ["review", MODEL_OPUS]]);
+  assert.deepEqual(s.modelSwitches!.map((x) => [x.role, x.from, x.to]), [["draft", MODEL_FABLE, MODEL_OPUS], ["review", MODEL_FABLE, MODEL_OPUS]]);
+  const draftCall = calls.filter((c) => c.role === "draft").at(-1)!;
+  const reviewCall = calls.filter((c) => c.role === "review").at(-1)!;
+  assert.notEqual(draftCall, reviewCall);
+  assert.notEqual(draftCall.prompt, reviewCall.prompt, "独审拿的是审查提示，不是起草调用的续答");
+  assert.equal(JSON.parse(readFileSync(join(d.outRoot, "1783", "review.json"), "utf8")).reviewer, MODEL_OPUS);
+});
+
+test("#1785 锁：起草与独审模型不同——计划 Fable 的轮次无论是否改派，独审都不是实际起草模型", async () => {
+  for (const used of [MODEL_FABLE, MODEL_OPUS]) assert.notEqual(reviewerModel(MODEL_FABLE, used), used, used);
+  assert.equal(reviewerModel(MODEL_FABLE, MODEL_FABLE), MODEL_OPUS, "首稿不改派：维持 Fable 起草、Opus 独审");
+  assert.equal(reviewerModel(MODEL_OPUS, MODEL_OPUS), MODEL_OPUS, "升档重做轮维持原设计");
+  for (const block of [new Set<string>(), new Set(["draft"])]) {
+    const { d } = blockingDeps(block);
+    const s = await processTicket(1783, d);
+    for (const r of s.rounds!) assert.notEqual(r.drafter, r.reviewer, `block=${[...block]}`);
+  }
+});
+
+test("#1785 负控：拦截以外的非临时错误不改派，照原逻辑整票失败；Opus 抛同样文本也不改派", async () => {
+  const hard = blockingDeps(new Set(), { hardError: `archaeology ${MODEL_FABLE} 调用失败（exit 1，第 1 次）：Invalid model name` });
+  const s = await processTicket(1783, hard.d);
+  assert.equal(s.phase, "error");
+  assert.match(s.error ?? "", /Invalid model name/);
+  assert.deepEqual(seq(hard.calls), [["classify", MODEL_FABLE], ["archaeology", MODEL_FABLE]]);
+  assert.equal(s.modelSwitches, undefined);
+  const run = withSafeguardFallback(async () => { throw new Error(FABLE_BLOCK("land")); });
+  await assert.rejects(run({ model: MODEL_OPUS, prompt: "p", cwd: "/", role: "land" }), /safeguards flagged/);
+});
+
+test("#1785 F-1：分级/考古改派后 classify.json 与 archaeology.json 记实际模型 Opus，考古切换写进 archaeology.json", async () => {
+  const { d } = blockingDeps(new Set(["classify", "archaeology"]));
+  const s = await processTicket(1783, d);
+  assert.equal(s.phase, "land_t", s.error ?? "");
+  const dir = join(d.outRoot, "1783");
+  assert.equal(JSON.parse(readFileSync(join(dir, "classify.json"), "utf8")).model, MODEL_OPUS);
+  const aj = JSON.parse(readFileSync(join(dir, "archaeology.json"), "utf8"));
+  assert.equal(aj.model, MODEL_OPUS);
+  assert.deepEqual(aj.modelSwitches, [{ role: "archaeology", from: MODEL_FABLE, to: MODEL_OPUS, reason: "safeguard" }]);
+  // 未改派：仍记 Fable，不写 modelSwitches。
+  const plain = blockingDeps(new Set());
+  await processTicket(1783, plain.d);
+  const pj = JSON.parse(readFileSync(join(plain.d.outRoot, "1783", "archaeology.json"), "utf8"));
+  assert.equal(pj.model, MODEL_FABLE);
+  assert.equal(pj.modelSwitches, undefined);
+  assert.equal(JSON.parse(readFileSync(join(plain.d.outRoot, "1783", "classify.json"), "utf8")).model, MODEL_FABLE);
+});
+
+test("#1785 F-1：--archaeology-only 无 summary 时，考古改派照样写进 archaeology.json", async () => {
+  const { d, calls } = blockingDeps(new Set(["archaeology"]));
+  const r = await archaeologyOnly(1355, d);
+  assert.deepEqual(r.problems, []);
+  assert.deepEqual(seq(calls), [["archaeology", MODEL_FABLE], ["archaeology", MODEL_OPUS]]);
+  const dir = join(d.outRoot, "1355");
+  const aj = JSON.parse(readFileSync(join(dir, "archaeology.json"), "utf8"));
+  assert.equal(aj.model, MODEL_OPUS);
+  assert.deepEqual(aj.modelSwitches, [{ role: "archaeology", from: MODEL_FABLE, to: MODEL_OPUS, reason: "safeguard" }]);
+  assert.equal(existsSync(join(dir, "summary.json")), false);
+});
+
+test("#1785 F-2：断点续做带回 modelSwitches，续做后重写的 summary.json 不丢改派记录", async () => {
+  const { d, replies } = liveDeps([
+    new Error(FABLE_BLOCK("classify")), fence({ class: "T", reason: "接口" }), goodDraft, fence(pass()),
+    new Error("land claude-opus-5-5 调用失败（exit 1，第 6 次）：API Error: 模型服务暂时不可用"),
+  ]);
+  const want = [{ role: "classify", from: MODEL_FABLE, to: MODEL_OPUS, reason: "safeguard" }];
+  const s1 = await processTicket(1565, d);
+  assert.equal(s1.stage, "reviewed_pass", s1.error ?? "");
+  assert.deepEqual(s1.modelSwitches, want);
+  replies.push("已写入");
+  const s2 = await processTicket(1565, d);
+  assert.equal(s2.phase, "land_t", s2.error ?? "");
+  assert.equal(s2.resumedFrom, "reviewed_pass");
+  assert.deepEqual(s2.modelSwitches, want);
+  assert.deepEqual(JSON.parse(readFileSync(join(d.outRoot, "1565", "summary.json"), "utf8")).modelSwitches, want);
 });
