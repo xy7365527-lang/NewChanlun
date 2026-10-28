@@ -299,6 +299,10 @@ pub(super) struct FractalDevelopment {
     pub units: Rc<Vec<DevelopmentUnit>>,
     /// `units[..recomputed_from]` 与上一代同一分型逐项相同（续接复用）；其后本代重算。
     pub recomputed_from: usize,
+    /// 本代续接所用的源修订失效水位（`FractalHistory::floor`，即实际变化坐标的最小值，
+    /// 坐标移动时为 min(旧坐标, 新坐标)）；`None` = 无源修订。下游判脏只经此值与
+    /// `recomputed_from` 取起点，不另写一份判据（#1780 独审 C-1）。
+    pub invalidated_from: Option<i64>,
 }
 
 /// 一代 raw 账本的一次**受控准备**结果（owner/epoch 见证）。
@@ -1978,12 +1982,18 @@ impl Cc004Producer {
         let union_skip_first = tail_first.is_some() && shape.sources.max() == tail_first;
         // prepare 已把实际 source/raw 变化一次传播到每个窗口；这里仅按坐标二分截断。
         let layout = self.layout()?;
-        let bounded = layout == crate::v3::layout::Layout::Bounded1;
+        // 穷举分派：布局枚举扩展时此处编译期报错，不静默落 layout/1（#1780 独审 L-1）。
+        let bounded = match layout {
+            crate::v3::layout::Layout::Sorted => false,
+            crate::v3::layout::Layout::Bounded1 => true,
+        };
         let cached = self.fractal_histories.remove(&(refs_key.clone(), end));
         // 截断不先落 split 前缀根：保留数与新尾在循环后一次 `sequence_rebuild_suffix`（#1488 S3）。
+        let mut invalidated_from = None;
         let (previous, mut covered, mut union_tail, mut prefixes) = match cached {
             Some(history) if history.tail_start == tail_start && history.count <= tail_len => {
                 let count = history.count;
+                invalidated_from = history.floor;
                 let keep = history.floor.map_or(count, |floor| {
                     raw_bars
                         .range(tail_start..tail_start + count)
@@ -2134,6 +2144,7 @@ impl Cc004Producer {
         let development = bounded.then(|| FractalDevelopment {
             units: prefixes,
             recomputed_from: appended_from,
+            invalidated_from,
         });
         // 本对象的来源 = CC-006 窗来源链 ++ 后续 tail 的**去重增量**（首项若已由封口链
         // 覆盖即跳过；两段严格升序且不交叠）。bounded-layout/1 的分型对象不含后续单元，

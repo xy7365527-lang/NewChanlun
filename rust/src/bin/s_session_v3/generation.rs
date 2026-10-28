@@ -719,8 +719,11 @@ impl GenerationRuntime {
         let cut = input.structure_cut;
         let frontier = input.input_frontier;
         // #1491 ADR 0037：CC-007 承载与 CC-054 请求次序按本车道冻结规则串的布局组件分派。
-        let bounded =
-            self.producer.layout().map_err(producer_error)? == super::layout::Layout::Bounded1;
+        // 穷举分派：布局枚举扩展时此处编译期报错，不静默落 layout/1（#1780 独审 L-1）。
+        let bounded = match self.producer.layout().map_err(producer_error)? {
+            super::layout::Layout::Sorted => false,
+            super::layout::Layout::Bounded1 => true,
+        };
         // ── 原始账：生效账 → coord 表 + Bar 序列 + 事件节点；全修订史 → 事件节点 ──
         let mut raw_by_coord: FixedRadix<i64, JsonView<'_>> = FixedRadix::default();
         let mut raw_bars: CodecVec<Bar> = CodecVec::default();
@@ -2331,8 +2334,15 @@ impl GenerationRuntime {
             let range = (first.coord, last.coord);
             match self.development_ranges.get(id) {
                 Some(previous) if previous.0 == range.0 => {
-                    if let Some(from) = units.get(development.recomputed_from) {
-                        dirty.push((from.coord, range.1.max(previous.1)));
+                    // 起点 = producer 失效水位与首个重算单元坐标的较小者：被移走的中段坐标
+                    // 不在本代单元里，但不小于水位，故必落入脏区间（#1780 独审 C-1）。
+                    let recomputed = units.get(development.recomputed_from).map(|u| u.coord);
+                    let from = match (development.invalidated_from, recomputed) {
+                        (Some(floor), Some(coord)) => Some(floor.min(coord)),
+                        (floor, coord) => floor.or(coord),
+                    };
+                    if let Some(from) = from {
+                        dirty.push((from, range.1.max(previous.1)));
                     }
                     if previous.1 > range.1 {
                         dirty.push((range.1, previous.1));
@@ -5566,6 +5576,84 @@ mod tests {
                 assert!(units > 0, "{label}: 夹具须产生比较单元");
             }
         }
+    }
+
+    /// #1780 独审 M-1：layout/1 车道（含 CC-007 分型）生成态根逐代冻结。期望值取自 base main
+    /// `5123c9e273`（ADR 0037 段 B 之前）同一输入的逐代 `state_without_axes` 根（独审探针
+    /// `1780-review-7cf8-probes/neutral-main-roots.txt`），锁住「本段 B 对 layout/1 生产逐位中性」。
+    #[test]
+    fn layout1_generation_roots_frozen_from_base_main() {
+        fn run(events: &[Value], cuts: &[usize], rule: &str, expected: &[&str]) {
+            assert_eq!(cuts.len(), expected.len());
+            let scope = json!({"instrument":"B1", "exchange":"fixture"});
+            let mut runtime = GenerationRuntime::new("neutral".into(), crate::tb02a::PROFILE, rule);
+            let mut store = MemoryNodes::new();
+            for (turn, (&prefix, want)) in cuts.iter().zip(expected).enumerate() {
+                let gen = turn as i64 + 1;
+                let cut = format!("cut-{gen}");
+                let raw = RawEventsView::plain(events).prefix(prefix).unwrap();
+                let effective = bj::effective(raw, None).unwrap();
+                let input = full_input(raw, effective.raw_view(), &scope, &cut, gen, prefix as i64, rule);
+                let generated = runtime.generate(&mut store, &input).unwrap();
+                let root = format!("{:?}", generated.state_without_axes);
+                assert!(root.contains(&format!("\"{want}\"")), "{rule} g{gen}: {root}");
+            }
+        }
+        let events = delta_long_fixture();
+        let cuts: Vec<usize> = (1..=events.len()).collect();
+        run(&events, &cuts, "r", &[
+                "sc1-948366d1a1a96702e595c31a981d44a8cd860d8079cbff9f96ac6cb6c174c4a7",
+                "sc1-f66ed7a7823e94b2600747308722749f3d6de9a17b4ef0cc79fa4fe2c968b4a4",
+                "sc1-20c92b84d00d51bef243e8151905fc94f05fa0d75777f92e9cf16deb03ffe855",
+                "sc1-9373c03393f0b22bc9b7419ca0fe3f0a089083a3ec5c322a0d94e7cef6d655db",
+                "sc1-94022dcec4c0d9e81058e584398b2a132bac9cb328481261a09b34a3c8f7da37",
+                "sc1-9ed3773460b18c74c8878c6b7e759d64f6443ebe0bcbce27b723dc2f3a9c8c2f",
+                "sc1-31cd8bc881d70f7bf698ecb9fd6ca9740310f3e111df6a0d1d742434cb10b883",
+                "sc1-77f7e973924aa969081800c6a99e2a0d6d800ae2551d2fcec29cb3e9568bd903",
+                "sc1-f944daa8922cbae6e56b8b6f6e43746c59ee0bd2002be3f0b2c6a791f88553dc",
+                "sc1-55c40900ebcd79380bf25f8eb7d262f7ad79aba660fafb82d3070c519111966b",
+                "sc1-4d3ff43c59eb4d8434adb7dee4842a5271d07cfcfa0ed4e8f8eec62140231b5b",
+                "sc1-a4c940d2cc628929764d8a94c4f6774dec6cb8f9b98dfb1253cf117cddd8ac49",
+                "sc1-cc91d04f817bd368f7ab43b15320656cd20765c87ce2b9d4269995f863f10290",
+                "sc1-1f1883260c44c0de1f736eecfa10b260299e8b37638fb83ea79672e050e64b66",
+            ]);
+        let mut events = delta_long_fixture();
+        events.truncate(14);
+        let mut revised = events[2].clone();
+        for (k, v) in [("revision", json!(2)), ("input_revision", json!("2")), ("seq", json!(15)),
+            ("high", json!("13")), ("low", json!("9")), ("open", json!("11")), ("close", json!("11")),
+            ("payload_hash", json!("revision-2")), ("receipt_id", json!("receipt-15"))] {
+            revised[k] = v;
+        }
+        events.push(revised);
+        let mut restored = events[2].clone();
+        for (k, v) in [("revision", json!(3)), ("input_revision", json!("3")), ("seq", json!(16)),
+            ("payload_hash", json!("restored-3")), ("receipt_id", json!("receipt-16"))] {
+            restored[k] = v;
+        }
+        events.push(restored);
+        let mut moved = events[13].clone();
+        for (k, v) in [("revision", json!(2)), ("input_revision", json!("2")), ("seq", json!(17)),
+            ("source_coord", json!("1000")), ("ts", json!("1000")),
+            ("payload_hash", json!("tail-moved")), ("receipt_id", json!("receipt-17"))] {
+            moved[k] = v;
+        }
+        events.push(moved);
+        run(&events, &[1, 2, 8, 14, 15, 16, 17, 17], "r", &[
+                "sc1-948366d1a1a96702e595c31a981d44a8cd860d8079cbff9f96ac6cb6c174c4a7",
+                "sc1-f66ed7a7823e94b2600747308722749f3d6de9a17b4ef0cc79fa4fe2c968b4a4",
+                "sc1-5f62791ebc8f826d882fcee15ffa09edcdab873bc27b04261e99cc7ed29521f1",
+                "sc1-f93b79013d5bea7c79b28f60e64e82115a3e09f838c26c83318e1e7c046cea06",
+                "sc1-b8cf282c385cc9878ca8f967ddf4ba8183a8e54be8823a177d04405d589f6db4",
+                "sc1-333091400aa357723f809c07d6a923e4755947413d04cbc1beade766072ec854",
+                "sc1-236fb13005488b6f7c966188ae62daa7ffa1143eb05fd00cf44dd4433a14b316",
+                "sc1-8a20f9cc37496026a94e59b4b45cc7b8f8a500dfd487b19e772a018694d9d063",
+            ]);
+        run(&delta_long_fixture(), &[5, 9, 14], crate::V3_RULE_REVISION, &[
+                "sc1-c8f28f2cec73feaae72bf279e0790497d8d8af64197116e45e096b89992b214f",
+                "sc1-5f47222d095c66143e8cd5f52d70080f15b93218c7b8499edaa24948ad38a9ae",
+                "sc1-cf5c2f1e68e4a50dddc548abb9a2fd00725f23714e4c69fbb9b033549a369f14",
+            ]);
     }
 
     #[test]
