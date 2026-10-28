@@ -6,12 +6,12 @@
  * 改价修订撤回与改回恢复两代 Watch、尾段中枢对。 */
 "use strict";
 const assert = require("node:assert/strict"),
-  test = require("node:test"),
-  fs = require("node:fs");
-const { API, C, V, rebuild, makeServer, makeS16Base, makeClient, discovery } = require("./q3_complete_fixture.cjs");
+  test = require("node:test");
+const { API, C, V, rebuild, makeServer, fixtureOf, makeS16Base, makeClient, discovery } = require("./q3_complete_fixture.cjs");
 
+// 夹具只含消费所需各代 snapshot/delta 的可达节点（provenance.node_closure），整文件只解析一次。
 const FILE = "q3-real-s3-w-recover-revise.json";
-const data = JSON.parse(fs.readFileSync(__dirname + "/fixtures/" + FILE));
+const { data } = fixtureOf(FILE);
 const steps = Object.fromEntries(data.provenance.steps.map((s) => [s.step, s]));
 const gen = (label) => steps[label].generation;
 
@@ -47,9 +47,10 @@ async function watchServer(generations) {
   }
   const pool = new Map();
   for (const b of bases.values()) for (const n of b.nodes.values()) pool.set(n.root, n);
+  const graph = await C.GraphView.create([...pool.values()]);
   for (const b of bases.values()) {
     b.nodes = pool;
-    b.graph = await C.GraphView.create([...pool.values()]);
+    b.graph = graph;
   }
   const server = await makeServer(bases.get(generations[0]));
   server.history = bases;

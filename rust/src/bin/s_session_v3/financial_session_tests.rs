@@ -1805,7 +1805,7 @@ fn q3_w_export_window_s3_generation_publishes_center_pair() {
 /// #1419 Q3 真实消费验收：W 规则真实 S3 多代导出（27AZ P1）。走 init_v3 + 真实接纳/Begin/提交，逐代发布：
 /// 1 根与 2 根相互包含（W 等待期）→ 真实写者恢复（纪元 1→2）→ 方向建立的前段 → 首中枢成立
 /// → 首中枢内笔顶改价修订（撤回）→ 改回原价修订（恢复）→ 尾段至第二中枢成立（中枢对）。数据窗见 [`q3_w_bars`]。任一代被门拒绝即原样记录并停止。导出格式对齐
-/// `s_session/tests/fixtures/q3-complete-s16-cuts345.json`，节点取全表。
+/// `s_session/tests/fixtures/q3-complete-s16-cuts345.json`；节点只取消费所需各代 snapshot/delta 的可达闭包，tag 为两位十六进制。
 #[test]
 #[ignore = "仅供 #1419 Q3 真实 S3 W 夹具导出"]
 fn export_real_s3_w_fixture_for_q3() {
@@ -1948,36 +1948,86 @@ fn export_real_s3_w_fixture_for_q3() {
             }
         }
     }
+    // 消费所需各代：7 个里程碑末代，加 Q3 两段逐代 Watch 区间（等待期→恢复后方向确立、首中枢→修订恢复）
+    // 内的每一代（Watch 逐代取 delta）。只导出这些代的 publication 及其 snapshot/delta 可达节点闭包：
+    // 全表 152 万节点（349 MB）多为不可达旧节点，消费端整池建图会 OOM（28T）。
+    let step_gen = |label: &str| -> i64 {
+        stats.iter().find(|s| s["step"] == label).unwrap()["generation"]
+            .as_str()
+            .unwrap()
+            .parse()
+            .unwrap()
+    };
+    let mut consumed: std::collections::BTreeSet<i64> = steps
+        .iter()
+        .map(|(label, _, _, _)| step_gen(label))
+        .collect();
+    consumed.extend(step_gen("w_contained_waiting")..=step_gen("recovered_epoch2_direction"));
+    consumed.extend(step_gen("chain_first_center")..=step_gen("revision_restore"));
     let mut q = f
         .conn
         .prepare("SELECT generation,batch_id,manifest_root,snapshot_root,delta_root FROM s_content_publications ORDER BY generation")
         .unwrap();
-    let root = |v: Vec<u8>| sc::root_string(&<[u8; 32]>::try_from(v.as_slice()).unwrap());
+    let root = |v: &[u8]| sc::root_string(&<[u8; 32]>::try_from(v).unwrap());
+    let mut closure_roots: Vec<Vec<u8>> = Vec::new();
     let publications: Vec<Value> = q
         .query_map([], |r| {
-            Ok(json!({"generation":r.get::<_,i64>(0)?.to_string(),"batch_id":r.get::<_,String>(1)?,
-                "manifest_root":root(r.get(2)?),"snapshot_root":root(r.get(3)?),"delta_root":root(r.get(4)?)}))
+            Ok((
+                r.get::<_, i64>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, Vec<u8>>(2)?,
+                r.get::<_, Vec<u8>>(3)?,
+                r.get::<_, Vec<u8>>(4)?,
+            ))
         })
         .unwrap()
         .map(|r| r.unwrap())
+        .filter(|(g, ..)| consumed.contains(g))
+        .map(|(g, batch, manifest, snapshot, delta)| {
+            let row = json!({"generation":g.to_string(),"batch_id":batch,
+                "manifest_root":root(&manifest),"snapshot_root":root(&snapshot),"delta_root":root(&delta)});
+            closure_roots.push(snapshot);
+            closure_roots.push(delta);
+            row
+        })
         .collect();
     drop(q);
+    assert_eq!(publications.len(), consumed.len(), "消费代须都已发布");
+    // s-content/1 子引用布局（与 s-content-v3.js GraphView / q3_complete_fixture.cjs proofNodes 同一布局）：
+    // 值头 3..=6 子在 body[8..40]；7/0x12 在 [0..32]；分支 0x13 在 [8..40]、[40..72]；字段 0x14 在 [0..32]、[32..64]。
     let mut q = f
         .conn
-        .prepare("SELECT digest,tag,body FROM s_content_nodes ORDER BY digest")
+        .prepare("SELECT tag,body FROM s_content_nodes WHERE digest=?1")
         .unwrap();
-    let hex = |b: &[u8]| b.iter().map(|x| format!("{x:02x}")).collect::<String>();
-    let nodes: Vec<Value> = q
-        .query_map([], |r| {
-            Ok(
-                json!({"root":root(r.get(0)?),"tag":r.get::<_,i64>(1)?.to_string(),
-                "body_hex":hex(&r.get::<_,Vec<u8>>(2)?)}),
-            )
-        })
-        .unwrap()
-        .map(|r| r.unwrap())
-        .collect();
+    let mut closure: std::collections::BTreeMap<Vec<u8>, (i64, Vec<u8>)> = Default::default();
+    while let Some(digest) = closure_roots.pop() {
+        if closure.contains_key(&digest) {
+            continue;
+        }
+        let (tag, body): (i64, Vec<u8>) = q
+            .query_row([&digest], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap_or_else(|e| panic!("闭包缺节点 {}：{e}", root(&digest)));
+        let at = |o: usize| body[o..o + 32].to_vec();
+        match tag {
+            3..=6 => closure_roots.push(at(8)),
+            7 | 0x12 => closure_roots.push(at(0)),
+            0x13 => closure_roots.extend([at(8), at(40)]),
+            0x14 => closure_roots.extend([at(0), at(32)]),
+            _ => {}
+        }
+        closure.insert(digest, (tag, body));
+    }
     drop(q);
+    let hex = |b: &[u8]| b.iter().map(|x| format!("{x:02x}")).collect::<String>();
+    // tag 按 Q3 公共 Client 要求写两位小写十六进制（GraphView.create：/^[0-9a-f]{2}$/）。
+    let nodes: Vec<Value> = closure
+        .iter()
+        .map(|(digest, (tag, body))| {
+            assert!((0..=0xff).contains(tag), "节点 tag 越界：{tag}");
+            json!({"root":root(digest),"tag":format!("{tag:02x}"),"body_hex":hex(body)})
+        })
+        .collect();
+    let node_count = nodes.len();
     let mut q = f
         .conn
         .prepare("SELECT key,value FROM meta ORDER BY key")
@@ -2007,16 +2057,26 @@ fn export_real_s3_w_fixture_for_q3() {
         "provenance":{"kind":"TestOnly real S3 W-rule multi-cut export (init_v3 + real accept/Begin/commit, file WAL)",
             "test":"v3::financial_session::tests::export_real_s3_w_fixture_for_q3",
             "head":std::env::var("Q3_EXPORT_HEAD").unwrap_or_default(),
-            "rule_revision":meta["rule_revision"],"steps":stats},
+            "rule_revision":meta["rule_revision"],"steps":stats,
+            "node_closure":{"generations":consumed.iter().map(|g| g.to_string()).collect::<Vec<_>>(),
+                "roots":["snapshot_root","delta_root"],"nodes":node_count.to_string()}},
         "publications":publications,"nodes":nodes,"meta":meta,
         "session_generation":"1","catalog_rows":catalog_rows});
     let text = canonical_json(&export);
+    // 设了 Q3_REAL_EXPORT 只落文件、日志记字节数（全文 ~90 MB 不再进日志）；未设才打全文。
     if let Ok(path) = std::env::var("Q3_REAL_EXPORT") {
-        std::fs::write(path, &text).unwrap();
+        std::fs::write(&path, &text).unwrap();
+        println!(
+            "Q3-REAL-S3-EXPORT path={path} bytes={} nodes={} generations={}",
+            text.len(),
+            node_count,
+            consumed.len()
+        );
+    } else {
+        println!("=====Q3-REAL-S3-EXPORT-BEGIN=====");
+        println!("{text}");
+        println!("=====Q3-REAL-S3-EXPORT-END=====");
     }
-    println!("=====Q3-REAL-S3-EXPORT-BEGIN=====");
-    println!("{text}");
-    println!("=====Q3-REAL-S3-EXPORT-END=====");
     println!("Q3-STATS {}", canonical_json(&json!(stats)));
     // 验收覆盖（导出已打印后再断言，失败时数据仍可取回）：各代均已发布；W 等待期两 kind 出现；
     // 中枢与中枢对非空；修订代确有撤回；恢复后纪元 2 的一代已发布。

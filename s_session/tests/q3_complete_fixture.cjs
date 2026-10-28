@@ -511,18 +511,45 @@ async function makeServer(prepared = null) {
   };
   return server;
 }
+// 每个夹具文件只解析一次，节点池跨代复用（#1419 28U：真实 S3 导出有数十万节点，逐代重解析会 OOM）。
 const FIXTURE_CACHE = new Map();
+function fixtureOf(file) {
+  if (!FIXTURE_CACHE.has(file)) {
+    const data = JSON.parse(fs.readFileSync(__dirname + "/fixtures/" + file));
+    FIXTURE_CACHE.set(file, {
+      data,
+      pool: new Map(data.nodes.map((n) => [n.root, n])),
+    });
+  }
+  return FIXTURE_CACHE.get(file);
+}
+// 自给定根出发按 s-content/1 子引用布局取可达节点（与 proofNodes 的 all() 同一布局）；缺节点即夹具不完整。
+function closureOf(pool, roots) {
+  const seen = new Map(),
+    stack = [...roots];
+  while (stack.length) {
+    const root = stack.pop();
+    if (seen.has(root)) continue;
+    const n = pool.get(root);
+    assert(n, "fixture missing node " + root);
+    seen.set(root, n);
+    const tag = parseInt(n.tag, 16);
+    if ([3, 4, 5, 6].includes(tag)) stack.push(rootAt(n, 8));
+    else if ([7, 0x12].includes(tag)) stack.push(rootAt(n));
+    else if (tag === 0x13) stack.push(rootAt(n, 8), rootAt(n, 40));
+    else if (tag === 0x14) stack.push(rootAt(n), rootAt(n, 32));
+  }
+  return [...seen.values()];
+}
 // file：fixtures 下的真实 Rust 导出（同一导出格式）；默认 S16 封存 cut3/4/5。
+// 每代只认证该代 snapshot 与 delta 可达的节点，不对全池建图。
 async function makeS16Base(generation = "3", file = "q3-complete-s16-cuts345.json") {
-  if (!FIXTURE_CACHE.has(file))
-    FIXTURE_CACHE.set(
-      file,
-      fs.readFileSync(__dirname + "/fixtures/" + file),
-    );
-  const data = JSON.parse(FIXTURE_CACHE.get(file)),
-    nodes = new Map(data.nodes.map((n) => [n.root, n])),
-    graph = await C.GraphView.create(data.nodes),
+  const { data, pool } = fixtureOf(file),
     publication = data.publications.find((p) => p.generation === generation);
+  assert(publication, "fixture has no publication " + generation);
+  const own = closureOf(pool, [publication.snapshot_root, publication.delta_root]),
+    nodes = new Map(own.map((n) => [n.root, n])),
+    graph = await C.GraphView.create(own);
   assert.equal(
     publication.batch_id,
     "batch3-" + V.F(0x21, V.unhex(publication.manifest_root.slice(4))),
@@ -772,6 +799,7 @@ module.exports = {
   proofNodes,
   rebuild,
   makeServer,
+  fixtureOf,
   makeS16Base,
   makeClient,
   discovery,
