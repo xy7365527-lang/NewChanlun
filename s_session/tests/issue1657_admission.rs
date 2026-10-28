@@ -264,6 +264,34 @@ fn admission_prepare_rejects_insufficient_startup_window() {
     );
     f.no_anchor();
 }
+/// 验收 7：启动器在发布与调用 R4 之前调用的 `admission-contract` 入口，同样拒绝窗口不足。
+#[test]
+fn admission_contract_rejects_insufficient_startup_window_before_r4() {
+    let f = Fixture::new();
+    let sha = sha256_hex(f.raw.as_bytes());
+    let check = |timeout: &str| {
+        let args: Vec<String> = [
+            "s",
+            "admission-contract",
+            "--contract-version",
+            "test-only/1",
+            "--limits-sha",
+            sha.as_str(),
+            "--startup-timeout-ms",
+            timeout,
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        dispatch_with(&args, &f.contract())
+    };
+    assert_eq!(
+        check("999999").unwrap_err(),
+        "AdmissionStartupWindowTooShort"
+    );
+    assert!(check("1000000").unwrap());
+    f.no_anchor();
+}
 #[test]
 fn admission_prepare_rejects_db_mode_and_symlink_state() {
     let f = Fixture::new();
