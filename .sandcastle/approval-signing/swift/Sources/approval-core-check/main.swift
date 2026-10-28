@@ -181,6 +181,33 @@ try withChange("a stray dot-file in a chain directory fails closed", {
 try Data().write(to: URL(fileURLWithPath: scratch + "/.staging/leftover"))
 check((try? store.chain(nonce: request.requestNonce, trust: trust).count) == 2, "staging leftovers are outside every chain")
 
+let enrollmentText = requestText.replacingOccurrences(of: "run_id=t1742-run.1", with: "run_id=enrollment-check")
+    .replacingOccurrences(of: "claim_generation=3", with: "claim_generation=0")
+let enrollment = try ApprovalRequest.parse(Data(enrollmentText.utf8))
+let cancellationNotice = try enrollmentCancellationNotice(enrollment, decision: .approve)
+check(cancellationNotice.contains("点【取消】") && cancellationNotice.contains("不要输入密码"),
+      "enrollment cancellation notice tells the owner to cancel in the administrator dialog")
+for (field, value) in [("repository_id=1150335160", "repository_id=1"),
+                       ("ticket=1742", "ticket=1743"),
+                       ("run_id=enrollment-check", "run_id=business-run"),
+                       ("claim_generation=0", "claim_generation=1")] {
+    let changed = try ApprovalRequest.parse(Data(enrollmentText.replacingOccurrences(of: field, with: value).utf8))
+    refused("cancellation check refuses \(value)") {
+        _ = try enrollmentCancellationNotice(changed, decision: .approve)
+    }
+}
+let specEnrollment = try ApprovalRequest.parse(Data(enrollmentText
+    .replacingOccurrences(of: "scope=candidate_head", with: "scope=spec_authorization")
+    .replacingOccurrences(of: "target=commit:120421fe338a9fcf8467b63aa7d6a28e3f871b8b",
+                          with: "target=spec:1340:sha256:" + String(repeating: "a", count: 64)).utf8))
+refused("cancellation check refuses SPEC authorization") {
+    _ = try enrollmentCancellationNotice(specEnrollment, decision: .approve)
+}
+refused("cancellation check refuses reject") {
+    _ = try enrollmentCancellationNotice(enrollment, decision: .reject)
+}
+check(!publishPrompt(firstPayload).contains("取消发布测试"), "ordinary publication prompt is unchanged")
+
 let tricky = ["a b", "it's", "$HOME", "x\"y", "`id`", "; echo pwned"]
 let echoed = runAdminDialog(["/bin/echo"] + tricky, prompt: "unused", administrator: false)
 // osascript prints the handler result followed by its own newline.
