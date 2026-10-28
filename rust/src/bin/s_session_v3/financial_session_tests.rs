@@ -2040,18 +2040,27 @@ fn export_real_s3_w_fixture_for_q3() {
         .map(|r| r.unwrap())
         .collect();
     drop(q);
-    let catalog: Value =
-        serde_json::from_str(meta["catalog_definition"].as_str().unwrap()).unwrap();
-    let catalog_rows: Vec<Value> = catalog["items"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|item| {
-            let mut row = item.clone();
-            row.as_object_mut().unwrap().remove("acceptance_mode");
-            row
+    // 目录行取 catalog 表（服务端 build_catalog 读的就是这五列，按 catalog_id 排序）；catalog_definition
+    // 的 items 另带 criterion/axis_ids/acceptance_mode，Q3 目录项只认九字段（28U 预检：目录项完整字段不符）。
+    let mut q = f
+        .conn
+        .prepare(
+            "SELECT catalog_id,kind,title,domain,branches_json FROM catalog ORDER BY catalog_id",
+        )
+        .unwrap();
+    let catalog_rows: Vec<Value> = q
+        .query_map([], |r| {
+            let branches: String = r.get(4)?;
+            Ok(
+                json!({"id":r.get::<_,String>(0)?,"kind":r.get::<_,String>(1)?,
+                "title":r.get::<_,String>(2)?,"domain":r.get::<_,String>(3)?,
+                "branches":serde_json::from_str::<Value>(&branches).unwrap()}),
+            )
         })
+        .unwrap()
+        .map(|r| r.unwrap())
         .collect();
+    drop(q);
     let writer_epoch = meta["writer_epoch"].clone();
     let export = json!({
         "provenance":{"kind":"TestOnly real S3 W-rule multi-cut export (init_v3 + real accept/Begin/commit, file WAL)",
