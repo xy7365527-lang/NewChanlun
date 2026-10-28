@@ -172,6 +172,18 @@ fn raw_rows(db: &Path) -> i64 {
         .unwrap()
 }
 
+/// S 未运行时读行数：`immutable=1` 不建 `-shm`（普通只读连接留下的 `-shm` 会让 S 写者
+/// admission 拒绝启动）。S 运行中读最新提交用 [`raw_rows`]。
+fn raw_rows_offline(db: &Path) -> i64 {
+    let c = Connection::open_with_flags(
+        format!("file:{}?mode=ro&immutable=1", db.display()),
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI,
+    )
+    .unwrap();
+    c.query_row("SELECT COUNT(*) FROM raw_events", [], |r| r.get(0))
+        .unwrap()
+}
+
 fn meta(db: &Path, sql: &str) -> Option<String> {
     let c = Connection::open_with_flags(db, OpenFlags::SQLITE_OPEN_READ_ONLY).ok()?;
     c.query_row(sql, [], |r| r.get(0)).ok()
@@ -586,7 +598,7 @@ fn s_rejects_same_shape_bars_from_undeclared_source() {
     let space = Space::new();
     let s_db = s_init_v3(&space, Some(&declaration("TestOnlyStructure", DECLARED_NS)));
     let limits = anchor(&s_db);
-    let before = raw_rows(&s_db);
+    let before = raw_rows_offline(&s_db);
     let mut s = s_serve(&space, &s_db, &limits);
     let rejected = s_ingest(&space.path("s.sock"), HL_NS, 1);
     assert!(rejected.to_string().contains("InvalidDomain"), "{rejected}");
@@ -703,7 +715,7 @@ fn unsigned_p0_refuses_s_serve_without_testonly_opt_in() {
     let space = Space::new();
     let s_db = s_init_v3(&space, Some(&declaration("TestOnlyStructure", DECLARED_NS)));
     let limits = anchor(&s_db);
-    let before = raw_rows(&s_db);
+    let before = raw_rows_offline(&s_db);
     let out = s_serve_command(&space, &s_db, &limits).output().unwrap();
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(!out.status.success(), "{stderr}");
@@ -711,7 +723,7 @@ fn unsigned_p0_refuses_s_serve_without_testonly_opt_in() {
     assert!(stderr.contains("venue_profile"), "{stderr}");
     assert!(stderr.contains("cost_inputs"), "{stderr}");
     assert!(!space.path("s.sock").exists(), "未签 P0 不得开 socket");
-    assert_eq!(raw_rows(&s_db), before);
+    assert_eq!(raw_rows_offline(&s_db), before);
 }
 
 /// launcher 本身不替 S 打开 TestOnly 臂：不设开关时经 launcher 拉起的 S 同样拒绝，launcher 失败退出。

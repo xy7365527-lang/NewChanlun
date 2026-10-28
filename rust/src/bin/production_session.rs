@@ -201,10 +201,16 @@ fn load_manifest(path: &Path) -> Result<Manifest, String> {
     })
 }
 
-/// 既有 S 库必须带与 manifest 一致的结构源声明；只读打开，不改任何行。
+/// 既有 S 库必须带与 manifest 一致的结构源声明。以 `immutable=1` 只读打开：不取锁、不建
+/// `-shm`/`-wal`——普通只读连接会留下 `-shm`，S 写者 admission 随即以
+/// `UnsupportedWalShmJournalCombination` 拒绝启动。声明只在 init 事务写入、此后不变，故只读主库
+/// 至多漏读尚在 WAL 的声明 ⟹ 判「不带声明」拒绝，不会放行错误声明。
 fn check_existing_s(db: &Path, source: &Declaration) -> Result<(), String> {
-    let conn = Connection::open_with_flags(db, OpenFlags::SQLITE_OPEN_READ_ONLY)
-        .map_err(|e| format!("StorageUnavailable：只读打开 S 库失败：{e}"))?;
+    let conn = Connection::open_with_flags(
+        immutable_uri(db),
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI,
+    )
+    .map_err(|e| format!("StorageUnavailable：只读打开 S 库失败：{e}"))?;
     match newchan_rust::structure_source::stored(&conn)? {
         None => Err(format!(
             "InvalidDomain：S 库 {} 不带结构源声明，生产路径拒绝打开",
@@ -217,6 +223,21 @@ fn check_existing_s(db: &Path, source: &Declaration) -> Result<(), String> {
         )),
         Some(_) => Ok(()),
     }
+}
+
+/// SQLite URI 文件名：除 unreserved 与 `/` 外逐字节百分号编码（路径可含 `?`、`#`、`%`、空格）。
+fn immutable_uri(db: &Path) -> String {
+    use std::os::unix::ffi::OsStrExt;
+    let mut uri = String::from("file:");
+    for &b in db.as_os_str().as_bytes() {
+        if b.is_ascii_alphanumeric() || b"-._~/".contains(&b) {
+            uri.push(b as char);
+        } else {
+            uri.push_str(&format!("%{b:02X}"));
+        }
+    }
+    uri.push_str("?mode=ro&immutable=1");
+    uri
 }
 
 fn sibling(name: &str) -> Result<PathBuf, String> {
