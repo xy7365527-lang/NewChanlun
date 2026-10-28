@@ -101,7 +101,7 @@ ANTHROPIC_AUTH_TOKEN=<运行时从 CLIProxyLocal config 读取，不落日志> \
 claude -p --model claude-opus-5-5 --output-format stream-json
 ```
 
-2026-10-19 实测：`claude-opus-5-5`、`claude-opus-5-5` 两个无前缀名经自动路由均正常返回。模型分工：分级与起草用 Opus 5.5，独审与实施用 Opus 5.5，429 按退避重试。Fable 安全拦截（`Fable 5's safeguards flagged this message`）不算临时错误：分级/考古/起草被拦时该步改用 Opus 5.5 重试一次（本票内该角色粘住），起草因此改 Opus 的那一轮独审改用 Opus 5.5，独审再被拦则改回 Opus 另起一次调用——两档模型下这一轮即 Opus 起草、Opus 独审的两次独立调用，与升档重做轮同口径（分离要求的是不同进程/调用，不是不同模型）；切换记入 `summary.json` 的 `modelSwitches` 与日志（#1785）。
+2026-10-19 实测：`claude-opus-5-5`、`claude-opus-5-5` 两个无前缀名经自动路由均正常返回。模型分工：分级与起草用 Opus 5.5，独审与实施用 Opus 5.5，429 按退避重试。安全拦截（`模型 safeguards flagged this message`）不算临时错误：分级/考古/起草被拦时该步改用 Opus 5.5 重试一次（本票内该角色粘住），起草因此改 Opus 的那一轮独审改用 Opus 5.5，独审再被拦则改回 Opus 另起一次调用——两档模型下这一轮即 Opus 起草、Opus 独审的两次独立调用，与升档重做轮同口径（分离要求的是不同进程/调用，不是不同模型）；切换记入 `summary.json` 的 `modelSwitches` 与日志（#1785）。
 
 执行面 `main.mts` 由 prime-agent 改为 Sandcastle `claudeCode` provider，走同一环境变量。沙盒后端用 noSandbox + 独立 worktree（判例：#1456 `codex-child.ts`）；Docker daemon 与 `sandcastle:newchanlun` 镜像就绪后再切回 docker。
 
