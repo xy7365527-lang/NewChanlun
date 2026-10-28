@@ -560,6 +560,7 @@ fn credential_sentinel_only_in_x_process_environment() {
 }
 
 #[test]
+#[cfg(feature = "production_session_testonly")]
 fn missing_credential_refuses_x_send_surface() {
     let space = Space::new();
     let listener = std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
