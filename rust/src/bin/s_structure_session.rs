@@ -6042,9 +6042,8 @@ mod tests {
         let broken = files.0.join("broken-catalog.json");
         std::fs::write(&broken, r#"{"catalog_revision":"x"}"#).unwrap();
         let rolled_back = files.0.join("rolled-back.sqlite");
-        let error =
-            cmd_init_declared(&rolled_back, "s-session-testonly-001", &broken, &source)
-                .unwrap_err();
+        let error = cmd_init_declared(&rolled_back, "s-session-testonly-001", &broken, &source)
+            .unwrap_err();
         assert!(error.contains("items"), "{error}");
         let conn = Connection::open(&rolled_back).unwrap();
         let rows: i64 = conn
