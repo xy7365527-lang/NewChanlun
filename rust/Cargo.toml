@@ -299,4 +299,5 @@ required-features = ["production_session"]
 [[test]]
 name = "production_session_entry"
 path = "tests/production_session_entry.rs"
-required-features = ["production_session_testonly"]
+# 生产构建（production_session）跑拒绝类子集；production_session_testonly 跑全部（文件内 cfg 分流）。
+required-features = ["production_session"]
