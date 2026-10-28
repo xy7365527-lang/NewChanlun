@@ -2633,8 +2633,7 @@ fn remove_rank(
     set: &mut RankSet,
     rank: PublicRank,
     ordinal: usize,
-    #[cfg(feature = "s_incremental")]
-    retained: &mut super::audit_retention::RetainedDelta,
+    #[cfg(feature = "s_incremental")] retained: &mut super::audit_retention::RetainedDelta,
 ) -> Result<(), String> {
     let key = (rank, ordinal);
     #[cfg(feature = "s_incremental")]
@@ -4725,8 +4724,7 @@ mod tests {
             nodes: nodes.clone(),
             ..Default::default()
         };
-        let actual =
-            plan_native_union(&mut native, Layout::Sorted, objects, &[], 1).unwrap();
+        let actual = plan_native_union(&mut native, Layout::Sorted, objects, &[], 1).unwrap();
         assert_eq!(
             candidate_plan_signature(&actual),
             candidate_plan_signature(&expected)
@@ -6120,15 +6118,9 @@ mod tests {
                 )
                 .unwrap();
                 tx.execute_batch("CREATE TEMP TRIGGER candidate_union_insert_fault BEFORE INSERT ON s_content_nodes BEGIN SELECT RAISE(ABORT,'unexpected_candidate_put_before_union_reject'); END;").unwrap();
-                let error = plan_native_union(
-                    &mut s,
-                    Layout::Sorted,
-                    &generated.objects,
-                    &old,
-                    g,
-                )
-                .err()
-                .unwrap();
+                let error = plan_native_union(&mut s, Layout::Sorted, &generated.objects, &old, g)
+                    .err()
+                    .unwrap();
                 assert!(
                     error.contains(sc::code::NODE_DIGEST),
                     "先拒坏完整Public root，未触candidate INSERT：{error}"
@@ -6155,14 +6147,8 @@ mod tests {
                 let old_union_reads = content_store::sql_reads_on_thread() - reads_before;
                 let old_union_material = candidate_sql_material_for_test(&tx);
                 let reads_before = content_store::sql_reads_on_thread();
-                let union = plan_native_union(
-                    &mut s,
-                    Layout::Sorted,
-                    &generated.objects,
-                    &old,
-                    g,
-                )
-                .unwrap();
+                let union =
+                    plan_native_union(&mut s, Layout::Sorted, &generated.objects, &old, g).unwrap();
                 let union_reads = content_store::sql_reads_on_thread() - reads_before;
                 assert_eq!(
                     candidate_plan_signature(&union),
