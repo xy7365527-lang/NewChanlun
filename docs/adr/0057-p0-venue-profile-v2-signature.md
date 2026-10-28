@@ -79,7 +79,7 @@ venue profile 的 `slippage_bps`（回放撮合执行假设）与 ADR 0035／004
 | R2 | R1 抓取时刻 | 同目录 `retrieved_at.txt`（内容 `2026-10-27T22:21:52Z`） | `73ab034c4e96a2163cd55159d98458c3c39fc69a74ff5a30390ace0ebe9ce378` | 同上 |
 | R3 | `production_synthetic_ohlc_integer_tb02a_v1.tick_size = 1` | `s_session/profiles/ohlc_integer_tb02a_v1.json`（main `3087582e45`） | `482250254133ba120afdd5cd428d1a32d4e5cb40cd7876c556b7007320e599d6` | 生效 2026-10-28；射程 = `s-ohlc/1` 整数输入，`not_product_default` |
 
-外部收据在 `/Volumes/AgentStorage`，不入仓；落 v2 json 时须把 R1–R3 的 sha256 与时刻写入各字段 `source`，以便离线核对。有效期对齐已签正本惯例：签署日 + 365 天（ADR 0044:64 同批口径），即至 2027-10-28；到期或 Binance 规则变更即重抓、出新版本。
+外部收据在 `/Volumes/AgentStorage`，不入仓；落 v2 json 时须把 R1–R3 的 sha256 与时刻写入各字段 `source`，以便离线核对。有效期对齐已签正本惯例：签署日 + 365 天（ADR 0044:64 同批口径），即至 2027-10-28；到期或 Binance 规则变更即重抓、出新版本。该有效期是签署记录的有效期，不是行情适用日期区间，不延长 R1 仅证 2026-10-27 快照日的事实射程。
 
 ## 被否方案
 
@@ -106,7 +106,7 @@ venue profile 的 `slippage_bps`（回放撮合执行假设）与 ADR 0035／004
 | `rust/src/theta_v0/config.rs:965-980`、`:986-1009` | 测试锁：P0 必 `AwaitingPolicy`；签署样例（tick 0.01／slip 4／tax 0.5／delay 2）可读回 | 前者随 v2 更新；后者只是读回样例，不作签值依据 |
 | `rust/src/bin/s_session_v3/driver.rs:321-332`；`rust/src/bin/s_structure_session.rs:3316` | 生产 open 恒取 `for_production_profile("P0")` | 改为绑定 `production_synthetic_ohlc_integer_tb02a_v1`（或其 P0 别名）；不绕过 launcher |
 | `rust/src/bin/s_session_v3/driver.rs:533-536` | `require_admissible` 准入门 | 不放宽 |
-| `rust/src/theta_v0/backtest/data.rs:256`、`:277-280`；`rust/src/theta_v0/types.rs:24-26` | 回测加载按 `tick_size` 量化 | 回测绑定 `replay_binance_spot_1m` |
+| `rust/src/theta_v0/backtest/data.rs:256`、`:277-280`；`rust/src/theta_v0/types.rs:24-26` | 回测加载按 `tick_size` 量化 | Binance 回测的 venue profile 身份归 `replay_binance_spot_1m`，不与 synthetic profile 混用；本 ADR 仅签快照日的 `tick_size` 事实，不裁历史数据区间的量化规则，不据此把 0.01 统一用于整段历史。历史数据与模型 profile 的选择仍由 #1536 承接。 |
 | `rust/src/theta_v0/backtest/fill.rs:48-49`；`rust/src/theta_v0/venue_fee.rs:320` | 回放费率 = commission + slippage + tax | 回放 `slippage_bps` 与成本门 slippage 分开，不互相取值 |
 | `rust/src/theta_v0/strategy/exec.rs:43` | 按 `entry_delay_bars` 定成交 bar | 值只来自所绑定 profile 的签署版本 |
 | `rust/src/theta_v0/policy_records/venue-profile-diagnostic-fixture.json:31-34` | 夹具 `entry_delay_bars = 1` | 只留诊断，不进生产、不作证据 |
