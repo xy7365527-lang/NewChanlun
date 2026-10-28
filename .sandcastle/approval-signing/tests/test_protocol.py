@@ -114,7 +114,9 @@ def test_trust_config_must_be_root_controlled(tmp_path: Path, key: SoftwareKey) 
     assert problem is not None and "not owned by root" in problem
     with pytest.raises(ProtocolError, match="operator-controlled"):
         load_trust(path)
-    assert trust_path_problem(Path("/usr/bin/env")) is None
+    # 正例取 /usr/bin/env 的真实路径：ubuntu-26.04 起 /usr/bin/env 是指向 coreutils 的符号链接，
+    # resolve() 后各级均为实体，仍由 root 控制（macOS 上即其本身）。
+    assert trust_path_problem(Path("/usr/bin/env").resolve()) is None
     through_symlink = Path("/etc/hosts") if Path("/etc").is_symlink() else Path("/bin/ls")
     assert through_symlink.parent.is_symlink(), "本机需有一个 root 所有的符号链接目录（macOS /etc 或 Linux /bin）"
     assert "symlink" in (trust_path_problem(through_symlink) or "")
