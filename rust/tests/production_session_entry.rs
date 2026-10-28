@@ -64,6 +64,13 @@ impl Space {
     fn path(&self, name: &str) -> PathBuf {
         self.0.path().canonicalize().unwrap().join(name)
     }
+    /// S 库独占子目录：S admission 固定并核对库所在目录本身的身份（含 mtime），与 E/B/X 同目录时
+    /// 它们并发建文件会使 S 以 SourceIdentityChanged 拒启。
+    fn s_db(&self) -> PathBuf {
+        let dir = self.path("s");
+        std::fs::create_dir_all(&dir).unwrap();
+        dir.join("s.db")
+    }
 }
 
 fn declaration(category: &str, ns: &str) -> Value {
@@ -85,7 +92,7 @@ fn run(cmd: &mut Command) -> Output {
 
 /// v3 init（可带结构源声明）。
 fn s_init_v3(space: &Space, declared: Option<&Value>) -> PathBuf {
-    let db = space.path("s.db");
+    let db = space.s_db();
     let mut c = Command::new(s_bin());
     c.args(["init", "--protocol-revision", "s-session/3", "--db"])
         .arg(&db)
@@ -111,7 +118,7 @@ fn s_init_v3(space: &Space, declared: Option<&Value>) -> PathBuf {
 
 /// v1 init（既有 TestOnly 方式；可带结构源声明）。
 fn s_init_v1(space: &Space, declared: Option<&Value>) -> PathBuf {
-    let db = space.path("s.db");
+    let db = space.s_db();
     let mut c = Command::new(s_bin());
     c.args(["init", "--db"])
         .arg(&db)
@@ -577,7 +584,7 @@ fn production_profile_without_tb09_fingerprint_refuses_send() {
 #[test]
 fn manifest_rejects_execution_feed_as_structure_source() {
     let space = Space::new();
-    let s_db = space.path("s.db");
+    let s_db = space.s_db();
     let xp = x_profile(&space, "simulation", None, Some("tb09-sentinel"), false);
     // HL 场所 namespace，载荷与美股 bar 同形，类别仍标个股线。
     let source = declaration("UsEquityStockLineTick", HL_NS);
