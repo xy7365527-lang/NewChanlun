@@ -3,9 +3,9 @@
  * decision-claimer.mts —— graph engineering 裁决面（#1547）。
  *
  * 设计正本：.sandcastle/docs/graph-engineering.md「裁决流程」。每张 grilling 票：
- *   分级（Opus 5.5）→ 考古（Opus 5.5，两路搜，逐点 A/B/C）→ 起草（Opus 5.5）→ 独审（Opus 5.5，独立进程，只读草稿与源）
+ *   分级（主控模型）→ 考古（主控模型，两路搜，逐点 A/B/C）→ 起草（Opus 5.5）→ 独审（主控模型，独立进程，只读草稿与源）
  *   → T 类 PASS：decision/<票号> 分支落正本 + resolution 评论；P 类：挂 needs-approval。
- *   其他 BLOCK：一次升档 Opus 5.5 带审查意见重做；仍 BLOCK：转 P 类。
+ *   其他 BLOCK：一次以 Opus 5.5 升档带审查意见重做；仍 BLOCK：转 P 类。
  *
  *   只有 R1 引用类 BLOCK：一次只改引用的修订轮；总轮次上限 MAX_ROUNDS。起草后先查正本落点，越界退回重写一次。
  * 模式：默认 --dry-run，只写 /Volumes/AgentStorage/decisions/<票号>/，不写 GitHub。
@@ -402,7 +402,7 @@ export function isCitationOnlyBlock(r: Review): boolean {
 
 /**
  * 审查后的转移：PASS→落地；只有 R1 引用类 BLOCK→一次只改引用的修订轮（Opus）；
- * 其他 BLOCK→一次升档 Opus 重做；修订与升档都用过或总轮次到 MAX_ROUNDS 仍 BLOCK→转 P。
+ * 其他 BLOCK→一次以 Opus 重做；修订与升档都用过或总轮次到 MAX_ROUNDS 仍 BLOCK→转 P。
  */
 export function nextAfterReview(s: RunState, r: Review): RunState {
   if (r.verdict === "PASS") return { ...s, phase: s.klass === "T" ? "land_t" : "shadow_p" };
@@ -509,11 +509,24 @@ export function withSafeguardFallback(run: ModelRunner, onSwitch: (s: ModelSwitc
 }
 
 /**
- * 独审模型（#1785）：默认 Opus。起草本应 起草模型、因安全拦截实际由 Opus 写成时，独审改用 起草模型，
- * 保证该轮起草与独审不是同一模型；升档重做轮（计划即 Opus）维持原设计。
+ * 独审模型（#1785）：默认主控模型。起草本应 Opus、因安全拦截实际由主控模型写成时，独审改用 Opus，
+ * 保证该轮起草与独审不在同一家族；升档重做轮（计划即 Opus）维持原设计。
  */
 export function reviewerModel(drafterPlanned: string, drafterUsed: string): string {
   return drafterUsed.startsWith("claude-") ? MODEL_REVIEW : MODEL_DRAFTER;
+}
+
+/** 模型家族用于独审隔离：起草与独审不能落在同一家族，即使调用进程不同。 */
+export function modelFamily(model: string): string {
+  if (model.startsWith("claude-")) return "claude";
+  if (model.startsWith("gpt-")) return "gpt";
+  return model.split("-", 1)[0] || model;
+}
+
+export function assertDifferentModelFamilies(drafter: string, reviewer: string): void {
+  if (modelFamily(drafter) === modelFamily(reviewer)) {
+    throw new Error(`独审模型与起草模型同家族，拒绝静默放行：起草=${drafter}，独审=${reviewer}`);
+  }
 }
 
 /**
@@ -1108,7 +1121,7 @@ export async function runArchaeology(
   o: { feedback?: string; model?: string; round?: number; switches?: ModelSwitch[] } = {},
 ): Promise<ArchRun> {
   let fb = o.feedback;
-  let model = o.model ?? MODEL_DRAFTER;
+  let model = o.model ?? MODEL_MAIN;
   const planned = model;
   let arch: Archaeology | null = null;
   let problems: string[] = [];
@@ -1239,14 +1252,14 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
       log(`#${n} 从断点 ${p.stage} 续做${p.landedSha ? `（已推送 ${p.landedSha.slice(0, 10)}）` : ""}`);
     } else {
     // 1. 分级
-    const cr = await d.model({ model: MODEL_DRAFTER, prompt: classifyPrompt(t), cwd: d.srcDir, role: "classify" });
+    const cr = await d.model({ model: MODEL_MAIN, prompt: classifyPrompt(t), cwd: d.srcDir, role: "classify" });
     const cls = parseClassification(cr.text);
     summary.durationsMs.classify = cr.durationMs;
     summary.klass = cls.klass;
-    writeJson(join(dir, "classify.json"), { ticket: n, model: cr.model ?? MODEL_DRAFTER, ...cls, durationMs: cr.durationMs, raw: cr.text });
+    writeJson(join(dir, "classify.json"), { ticket: n, model: cr.model ?? MODEL_MAIN, ...cls, durationMs: cr.durationMs, raw: cr.text });
     write(`评论 #${n}：分级：${cls.klass} — ${cls.reason}`, ["issue", "comment", String(n), "--body-file", "-"], `分级：${cls.klass} — ${cls.reason}`);
 
-    // 1b. 考古：起草前两路搜，逐点 A/B/C。机械校验不过的问题交审查（草稿因此 BLOCK），升档重做时重跑考古。
+    // 1b. 考古：起草前两路搜，逐点 A/B/C。机械校验不过的问题交审查（草稿因此 BLOCK），升档重做时仍用主控模型重跑考古。
     let ar = await runArchaeology(t, d, dir, summary);
 
     // 2–3. 起草 / 独审，至多两轮。分级由分级器定，起草者只能提改判建议。
@@ -1273,7 +1286,7 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
     while (s.phase === "draft") {
       summary.attempts = s.attempt;
       if (s.draftMode === "redo" && ar.problems.length) {
-        ar = await runArchaeology(t, d, dir, summary, { feedback: ar.problems.map((x) => `- ${x}`).join("\n"), model: s.drafterModel, round: s.attempt });
+        ar = await runArchaeology(t, d, dir, summary, { feedback: ar.problems.map((x) => `- ${x}`).join("\n"), model: MODEL_MAIN, round: s.attempt });
         gapGate();
       }
       const prompt = (fb?: string) =>
@@ -1309,7 +1322,7 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
         ...archaeologyCoverageProblems(draft, ar.arch),
       ];
       const basePrompt = reviewPrompt(t, effCls, draft, ar.md);
-      // 起草与独审各起一次调用；起草因拦截改派 Opus 时独审改用 起草模型（reviewerModel）。
+      // 起草与独审各起一次调用；起草因拦截改派主控模型时独审改用 Opus（reviewerModel）。
       const drafterUsed = dr.model ?? s.drafterModel;
       const reviewer = reviewerModel(s.drafterModel, drafterUsed);
       let rr = await d.model({ model: reviewer, prompt: basePrompt, cwd: d.srcDir, role: "review" });
@@ -1326,6 +1339,8 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
       else counts.block++;
       summary.durationsMs[`review${s.attempt}`] = rr.durationMs;
       const reviewerUsed = rr.model ?? reviewer;
+      // 起草被安全拦截后可改派主控模型；若独审也被拦截且只能回到同家族，必须 FAIL-loud。
+      assertDifferentModelFamilies(drafterUsed, reviewerUsed);
       if (s.attempt > 1 && existsSync(join(dir, "review.json"))) renameSync(join(dir, "review.json"), join(dir, `review.attempt${s.attempt - 1}.json`));
       summary.rounds.push({
         attempt: s.attempt, mode: s.draftMode, drafter: drafterUsed, reviewer: reviewerUsed,
@@ -1419,9 +1434,9 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
   return summary;
 }
 
-/** 最后一轮实际独审模型；旧 summary 无记录时按原设计取 Opus。 */
+/** 最后一轮实际独审模型；旧 summary 无记录时按主控模型。 */
 function lastReviewer(s: Pick<Summary, "rounds">): string {
-  return s.rounds?.at(-1)?.reviewer ?? MODEL_OPUS;
+  return s.rounds?.at(-1)?.reviewer ?? MODEL_REVIEW;
 }
 
 export function shadowComment(n: number, draft: string, r: Review, dir: string, s: Summary, arch: Archaeology | null = null): string {

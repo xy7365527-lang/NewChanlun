@@ -18,7 +18,7 @@
 
 ### 1. 分级
 
-Opus 5.5 读票面与关联票，判一类，并在票上评论一行分级理由：
+主控模型 `gpt-6.1-sol` 读票面与关联票，判一类，并在票上评论一行分级理由：
 
 - **T 类（技术取舍）**：数据结构、接口与 seam、owner 落点、状态机与事件 schema、测试锁、迁移步骤、恢复语义。有权威源或本仓判例可援引。→ 自动裁决。
 - **P 类（政策）**：资金与费用参数（本金、量档、cap、分配）、风险偏好、真实场所/账户/权限、关图与 #1279 去向、Destination 改写、产品 taste、本仓无先例的新取舍。→ 影子模式。
@@ -33,7 +33,7 @@ Opus 5.5 读票面与关联票，判一类，并在票上评论一行分级理�
 - `/grill-with-docs`（= `/grilling` + `/domain-modeling`）：对照 `CONTEXT.md` 与 `docs/adr/`，已裁的直接用，与词汇表或代码冲突的当场指出。
 - AGENTS.md「开之前先搜（两路）」与 ADR 0012 裁定一、四：tracker 含已关闭票与评论，仓内含推论层；推论层主张可援引，推理链搬进票内重过。ADR 0012 代价第 4 条「每张裁定票前多一个 AFK 子代理」即本步。
 
-无人值守下没有人能当场纠正「这个早定过了」，所以胶水只补一件事：把查过的证据落成可复核的文件。Opus 5.5 只读取证，逐个待决点（Q1、Q2…）两路各至少一条查询，归一类：
+无人值守下没有人能当场纠正「这个早定过了」，所以胶水只补一件事：把查过的证据落成可复核的文件。主控模型 `gpt-6.1-sol` 只读取证，逐个待决点（Q1、Q2…）两路各至少一条查询，归一类：
 
 - **A 已裁**：正本层或已关票 resolution 明写。写出处，直接沿用，不再列为待决。
 - **B 有先例未正式裁**：推论层、票评论、代码常量或夹具在用。写出处与推理链，作为默认候选，以「默认值，确认或否决」呈现。
@@ -41,13 +41,13 @@ Opus 5.5 读票面与关联票，判一类，并在票上评论一行分级理�
 
 决定等事实（`/wayfinder` Ticket Types：research 票「surface a fact a decision waits on」）：考古有 `research`/`probe` 缺口的 T 类票转 P，不自动落地；缺口票由 `/graph-approve` 开。
 
-机械校验：两路缺一、tracker 未覆盖已关闭票、A/B 缺出处、B 缺默认值、C 缺关键词或去向、C 类 `decision` 缺推荐答案，都带问题重跑一次（升档重做时随起草者升档重跑）；仍不过的问题交审查，草稿因此 BLOCK。
+机械校验：两路缺一、tracker 未覆盖已关闭票、A/B 缺出处、B 缺默认值、C 缺关键词或去向、C 类 `decision` 缺推荐答案，都带问题重跑一次（升档重做时仍用主控模型重跑）；仍不过的问题交审查，草稿因此 BLOCK。
 
 完成标准：`/Volumes/AgentStorage/decisions/<票号>/archaeology.md` 与 `archaeology.json` 落盘，每个待决点有查询词、命令、命中与归类。只验考古：`node --import tsx .sandcastle/decision-claimer.mts --archaeology-only --ticket <号> --out <目录>`（不看票是否已关，不写 GitHub）。
 
 ### 3. 起草
 
-Opus 5.5 起草者在独立 worktree 里只读取证，产出固定结构的 resolution 草稿：问题、权威依据、候选、裁定、验收清单、受影响票与 blocking 边变化、授权引用。
+`claude-opus-5-5` 起草者在独立 worktree 里只读取证，产出固定结构的 resolution 草稿：问题、权威依据、候选、裁定、验收清单、受影响票与 blocking 边变化、授权引用。
 
 权威依据逐条带可回查位置：`docs/chanlun/text/blog/<课>.md:<行>`、ADR 路径、票评论链接。引原文按 AGENTS.md 四步核行号、逐字、作者归属、行内注。验收清单每项必须是命令、测试名、文件存在或票状态之一。
 
@@ -59,7 +59,7 @@ Opus 5.5 起草者在独立 worktree 里只读取证，产出固定结构的 res
 
 ### 4. 独审
 
-Opus 5.5 审查者另起进程，只拿草稿、`archaeology.md` 和源文件，看不到起草推理。按 R1–R8 逐条给 PASS 或 BLOCK：
+主控模型 `gpt-6.1-sol` 审查者另起进程，只拿草稿、`archaeology.md` 和源文件，看不到起草推理。起草与独审必须属于不同模型家族；按 R1–R8 逐条给 PASS 或 BLOCK：
 
 1. R1 每条引用回查成立。
 2. R2 不与 `.chanlun/definitions/`、`docs/adr/`、#799 收敛通则、#804 总缝规则、ADR 0041 自由度通则冲突。把原文无定论的合法候选当错误排除或写成常数、未落为带默认值的可调字段，判 BLOCK；把原文语义或已裁推论改成可调、把同一判断的宽严两档做成可调字段、或让可调字段运行中换值，也判 BLOCK。
@@ -70,7 +70,7 @@ Opus 5.5 审查者另起进程，只拿草稿、`archaeology.md` 和源文件，
 7. R7 分级正确。
 8. R8 考古成立：抽查 `archaeology.md` 至少三条命中并复跑查询，另对任一 B/C 点换说法复搜。草稿把 A 类当待决、B/C 类缺查询证据、「考古对照」漏点、事实缺口交给用户，或 P 类问题要求用户凭空提供数值而在案先例未列出，判 BLOCK。
 
-完成标准：`review.json` 落盘，八项各有结论与依据。BLOCK 时起草者升档为 Opus 5.5 带审查意见重做一次；再 BLOCK 转 P 类。
+完成标准：`review.json` 落盘，八项各有结论与依据。BLOCK 时起草者继续用 `claude-opus-5-5` 带审查意见重做一次；再 BLOCK 转 P 类。
 
 ### 5. 落地
 
@@ -101,7 +101,7 @@ ANTHROPIC_AUTH_TOKEN=<运行时从 CLIProxyLocal config 读取，不落日志> \
 claude -p --model claude-opus-5-5 --output-format stream-json
 ```
 
-2026-10-19 实测：`claude-opus-5-5`、`claude-opus-5-5` 两个无前缀名经自动路由均正常返回。模型分工：分级与起草用 Opus 5.5，独审与实施用 Opus 5.5，429 按退避重试。安全拦截（`模型 safeguards flagged this message`）不算临时错误：分级/考古/起草被拦时该步改用 Opus 5.5 重试一次（本票内该角色粘住），起草因此改 Opus 的那一轮独审改用 Opus 5.5，独审再被拦则改回 Opus 另起一次调用——两档模型下这一轮即 Opus 起草、Opus 独审的两次独立调用，与升档重做轮同口径（分离要求的是不同进程/调用，不是不同模型）；切换记入 `summary.json` 的 `modelSwitches` 与日志（#1785）。
+模型分工：分级、考古等工具步骤与独审使用主控模型 `gpt-6.1-sol`；起草与落地使用 `claude-opus-5-5`。429 等临时错误按退避重试。安全拦截（`safeguards flagged this message`）不算临时错误：该步改用另一家族模型重试一次，本票内该角色粘住，切换写入 `summary.json` 的 `modelSwitches` 与日志（#1785）。起草被拦后改用主控模型时，独审改用 Opus；独审被拦且没有异家族可用模型时必须 FAIL-loud，禁止同家族静默放行。
 
 执行面 `main.mts` 由 prime-agent 改为 Sandcastle `claudeCode` provider，走同一环境变量。沙盒后端用 noSandbox + 独立 worktree（判例：#1456 `codex-child.ts`）；Docker daemon 与 `sandcastle:newchanlun` 镜像就绪后再切回 docker。
 
