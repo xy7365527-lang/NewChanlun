@@ -2312,8 +2312,9 @@ impl GenerationRuntime {
     /// 后续 bar 一条）。
     ///
     /// `developments` 是本代全部被跟踪分型的单元读数，按窗口序给出——entries 即按此序排列：
-    /// 分型窗口随 raw 前缀推进而出现，窗口序就是分型的出生次序（同一窗口的基础来源修订保持
-    /// 槽位不动）。脏 bar（任一分型本代重算的单元、新出现/消失分型的整段区间）一律按本代读数
+    /// 纯追加下窗口序与分型出生序（first_known_generation）相同；raw 中段插入出新分型时二者
+    /// 分叉——ADR 0037 §二 写「出生序」，按出生序实现须向生成器引入已发布首获知代，待裁定
+    /// （#1491，PR #1780 独审 M-2），现实现取窗口序。脏 bar（任一分型本代重算的单元、新出现/消失分型的整段区间）一律按本代读数
     /// 重建载荷；其余 bar 的 entries 与上一代逐项相同，复用载荷值根。
     fn development_batches(
         &mut self,
@@ -5248,7 +5249,7 @@ mod tests {
             Default::default();
         let mut total = 0;
         let mut realised: std::collections::BTreeSet<String> = Default::default();
-        // entries 的分型出生序＝窗口序（窗口随 raw 前缀推进出现；fact_key 文本序不是出生序）。
+        // entries 现按窗口序（#1491 PR #1780 M-2 待裁定；fact_key 文本序不是窗口序）。
         let mut pairs: Vec<(&Value, &Value)> =
             sorted_fractals.iter().zip(&bounded_fractals).collect();
         pairs.sort_by_key(|(_, b)| {
@@ -5328,7 +5329,7 @@ mod tests {
                 assert_eq!(
                     entry["fractal_object_id"],
                     json!(id),
-                    "g{gen} entry 按分型出生序"
+                    "g{gen} entry 按分型窗口序"
                 );
                 assert_eq!(&entry["unit"], unit, "g{gen} 单元逐值相等");
                 assert_eq!(&entry["unit"]["bar"], &payload["bar"]);

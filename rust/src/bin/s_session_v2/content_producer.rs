@@ -1472,7 +1472,7 @@ impl Cc004Producer {
     /// - fact_key = `[kind, bar.source_coord]`；来源 = 本 bar（分型的参考价来源经
     ///   `fractal_object_id` 绑定分型对象，不在此重复）；
     /// - payload = `{bar, entries:[{fractal_object_id, unit, development:{root, count}}]}`，
-    ///   `entries` 由调用方按分型出生序给出，每项的 `unit` 是该分型在本 bar 的比较单元值边、
+    ///   `entries` 次序由调用方给出（现为分型窗口序，见 `development_batches`），每项的 `unit` 是该分型在本 bar 的比较单元值边、
     ///   `development` 是该分型截至本 bar 的单元数组根与计数——都是同核已写出的内容，本口不重算比较；
     /// - `payload` 给出时为上一代同 bar、entries 逐项相同的载荷值根，直接复用、不重写。
     #[allow(clippy::too_many_arguments)]

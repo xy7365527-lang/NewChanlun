@@ -756,8 +756,8 @@
       for await (const entry of (await field(p, "entries")).items()) {
         const id = await S(await field(entry, "fractal_object_id")), fractal = fractals.get(id);
         need(fractal, "单元批记录指向缺失分型");
-        // entries 按分型槽位出生序（窗口序）：纯追加下与 first_known_generation 序相同。
-        need(previous === null || fractal.start > previous, "单元批记录 entries 不是分型出生序"); previous = fractal.start;
+        // entries 现按分型窗口序：纯追加下与 first_known_generation 序相同，中段插入时分叉（#1491 PR #1780 M-2 待裁定）。
+        need(previous === null || fractal.start > previous, "单元批记录 entries 不是分型窗口序"); previous = fractal.start;
         need(coord > fractal.end, "单元不在分型右组之后");
         const prices = []; for await (const price of (await field(await field(fractal.record, "payload"), "reference_prices")).items()) prices.push(price);
         let i = 0;
