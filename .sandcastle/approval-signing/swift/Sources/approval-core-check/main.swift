@@ -206,7 +206,13 @@ refused("cancellation check refuses SPEC authorization") {
 refused("cancellation check refuses reject") {
     _ = try enrollmentCancellationNotice(enrollment, decision: .reject)
 }
-check(!publishPrompt(firstPayload).contains("取消发布测试"), "ordinary publication prompt is unchanged")
+let enrollmentPayload = try ApprovalPayload.parse(composePayload(request: enrollment, decision: .approve, after: nil))
+let cancellationPrompt = publishPrompt(enrollmentPayload, cancellationNotice: cancellationNotice)
+check(cancellationPrompt.hasPrefix(cancellationNotice) && cancellationPrompt.contains("#1742 candidate_head")
+      && cancellationPrompt.contains(enrollment.target) && !cancellationPrompt.contains("只在你刚发起签批时认证"),
+      "administrator cancellation prompt starts with the action and retains the exact target")
+check(publishPrompt(firstPayload) == "NewChanlun 签批：把批准发布到权威记录（#1742 candidate_head "
+      + request.target + "，第 1 条）。只在你刚发起签批时认证。", "ordinary publication prompt is unchanged")
 
 let tricky = ["a b", "it's", "$HOME", "x\"y", "`id`", "; echo pwned"]
 let echoed = runAdminDialog(["/bin/echo"] + tricky, prompt: "unused", administrator: false)
