@@ -173,9 +173,21 @@ test("默认入口不带 receipt 时即使观测全部成立也拒绝（不注�
 });
 
 test("swarmSandbox 只接受准入核对过的 sha256 镜像 Id：tag 一律 FAIL-loud", () => {
-  assert.throws(() => swarmSandbox("sandcastle:newchanlun"), /sha256 镜像 Id/);
-  assert.throws(() => swarmSandbox("sha256:abc"), /sha256 镜像 Id/);
+  assert.throws(() => swarmSandbox("sandcastle:newchanlun", { CLIPROXY_LOCAL_KEY: "k" }), /sha256 镜像 Id/);
+  assert.throws(() => swarmSandbox("sha256:abc", { CLIPROXY_LOCAL_KEY: "k" }), /sha256 镜像 Id/);
   assert.doesNotThrow(() => swarmSandbox(ID, { CLIPROXY_LOCAL_KEY: "k" }));
+});
+
+test("CI 等价（无 CLIPROXY_LOCAL_KEY、launchctl 也取不到）：传 tag 仍先报 sha256 Id 错误；传 Id 才轮到缺密钥", () => {
+  const saved = process.env.CLIPROXY_LOCAL_KEY; delete process.env.CLIPROXY_LOCAL_KEY;
+  const noKey = () => undefined; let lookups = 0;
+  try {
+    assert.throws(() => swarmSandbox("sandcastle:newchanlun", undefined, () => { lookups++; return undefined; }), /sha256 镜像 Id/);
+    assert.equal(lookups, 0, "Id 校验先于密钥求值，tag 路径不触碰 launchctl");
+    assert.throws(() => swarmSandbox("sha256:abc", undefined, noKey), /sha256 镜像 Id/);
+    assert.throws(() => swarmSandbox(ID, undefined, noKey), /缺少 CLIPROXY_LOCAL_KEY/);
+    assert.doesNotThrow(() => swarmSandbox(ID, undefined, () => "from-launchctl"));
+  } finally { if (saved === undefined) delete process.env.CLIPROXY_LOCAL_KEY; else process.env.CLIPROXY_LOCAL_KEY = saved; }
 });
 
 test("三条 Docker 入口都用准入返回的 Id 启动：main-swarm（受控行 / 已登记放行共用 assertSwarmExecutionReady）与冲突工蜂", () => {

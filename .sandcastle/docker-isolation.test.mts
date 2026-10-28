@@ -9,7 +9,7 @@ import { createSandbox } from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { homedir } from "node:os";
 import { rmSync } from "node:fs";
-import { CONTAINER_ENV_ALLOW, assertHostPackagingSafe, containerEnvLeaks, declaredContainerEnv, hardenMounts, hardenProvider, imageEnvSecrets, parseObservation, type PathProbe } from "./docker-isolation.mts";
+import { CONTAINER_ENV_ALLOW, assertHostPackagingSafe, containerEnvLeaks, declaredContainerEnv, hardenMounts, hardenProvider, imageEnvSecrets, isSecretName, parseObservation, type PathProbe } from "./docker-isolation.mts";
 import { MERGE_INSTANCE_ENV, MERGE_RUN_ENV } from "./orphan-container.mts";
 import { swarmSandbox } from "./swarm-route.mts";
 
@@ -172,13 +172,16 @@ test("Sandcastle 升级漂移守卫：容器 env 只来自 create 的 env + HOME
   const index = readFileSync(new URL("index.js", dir), "utf8");
   assert.match(index, /join\(repoDir, "\.sandcastle", "\.env"\)/);
   const route = readFileSync(new URL("./swarm-route.mts", import.meta.url), "utf8");
-  assert.match(route, /hardenProvider\(docker\(\{ imageName: imageId, env \}\)\)/, "Docker 路径唯一入口经 hardenProvider");
+  assert.match(route, /hardenProvider\(docker\(\{ imageName: imageId, env: env \?\? dockerCliProxyEnv\(lookup\) \}\)\)/, "Docker 路径唯一入口经 hardenProvider");
   for (const f of ["main-swarm.mts", "swarm-merge.mts"]) assert.doesNotMatch(readFileSync(new URL(`./${f}`, import.meta.url), "utf8"), /\bdocker\(\{/, `${f} 不得绕过 swarmSandbox`);
 });
 
 // 真实容器：走 Sandcastle 真实的 createSandbox（真实读 .sandcastle/.env、真实 docker run），只起 sleep infinity 的无工蜂容器，docker inspect 看 Config.Env。
 const REAL_IMAGE = process.env.SANDCASTLE_ENV_TEST_IMAGE ?? "sandcastle:newchanlun";
-const hasImage = (() => { try { execFileSync("docker", ["image", "inspect", REAL_IMAGE, "--format", "{{.Id}}"], { stdio: "ignore", timeout: 15_000 }); return true; } catch { return false; } })();
+/** 真实容器测试（build/rmi/起容器）必须显式开启：SANDCASTLE_REAL_DOCKER_TESTS=1。默认套件一律 skip，且不调用 docker。 */
+const REAL_DOCKER = process.env.SANDCASTLE_REAL_DOCKER_TESTS === "1";
+const hasImage = REAL_DOCKER && (() => { try { execFileSync("docker", ["image", "inspect", REAL_IMAGE, "--format", "{{.Id}}"], { stdio: "ignore", timeout: 15_000 }); return true; } catch { return false; } })();
+const realSkip = REAL_DOCKER ? (hasImage ? false : `本机无镜像 ${REAL_IMAGE}`) : "真实容器测试默认关闭（设 SANDCASTLE_REAL_DOCKER_TESTS=1 开启）";
 const idOf = (image: string) => execFileSync("docker", ["image", "inspect", image, "--format", "{{.Id}}"], { encoding: "utf8" }).trim();
 async function inspectEnvOf(provider: ReturnType<typeof swarmSandbox>): Promise<{ env: string[]; imageEnv: string[]; image: string }> {
   const base = join(homedir(), ".cache", "sandcastle-env-probe"); mkdirSync(base, { recursive: true });
@@ -200,7 +203,7 @@ async function inspectEnvOf(provider: ReturnType<typeof swarmSandbox>): Promise<
 }
 const declaredRoute = { CLIPROXY_BASE_URL: "http://host.docker.internal:8318", CLIPROXY_LOCAL_KEY: "declared-no-network", [MERGE_RUN_ENV]: "run-env-test", [MERGE_INSTANCE_ENV]: "inst-env-test" };
 
-test("真实容器 EnvKeys：满值 .env 夹具仓经 swarmSandbox 起无凭据临时容器，docker inspect 的 Config.Env 只含镜像自带键＋白名单＋HOME，且无任何泄漏值", { skip: hasImage ? false : `本机无镜像 ${REAL_IMAGE}`, timeout: 180_000 }, async () => {
+test("真实容器 EnvKeys：满值 .env 夹具仓经 swarmSandbox 起无凭据临时容器，docker inspect 的 Config.Env 只含镜像自带键＋白名单＋HOME，且无任何泄漏值", { skip: realSkip, timeout: 180_000 }, async () => {
   const { env, imageEnv } = await inspectEnvOf(swarmSandbox(idOf(REAL_IMAGE), declaredRoute));
   const text = env.join("\n");
   assert.ok(!text.includes("LEAKSENTINEL"), "任何 .env 值都不得进入容器");
@@ -213,7 +216,7 @@ test("真实容器 EnvKeys：满值 .env 夹具仓经 swarmSandbox 起无凭据�
   assert.deepEqual(imageEnvSecrets(imageEnv), [], "镜像自带 ENV 无非空凭据");
 });
 
-test("对照（证明上面的断言有牙齿）：同一夹具、不经 hardenProvider 的裸 docker() 容器会带上 .env 的值", { skip: hasImage ? false : `本机无镜像 ${REAL_IMAGE}`, timeout: 180_000 }, async () => {
+test("对照（证明上面的断言有牙齿）：同一夹具、不经 hardenProvider 的裸 docker() 容器会带上 .env 的值", { skip: realSkip, timeout: 180_000 }, async () => {
   const raw = docker({ imageName: REAL_IMAGE, env: declaredRoute }) as unknown as ReturnType<typeof swarmSandbox>;
   const { env, imageEnv } = await inspectEnvOf(raw);
   assert.ok(env.join("\n").includes("LEAKSENTINEL"));
@@ -221,7 +224,7 @@ test("对照（证明上面的断言有牙齿）：同一夹具、不经 hardenP
 });
 
 // —— tag/Id 窗口：准入解析出的 Id 原样用于启动容器 ——
-test("真实容器：tag 在准入之后被重指，容器仍以已准入 Id 启动（inspect .Image 核对）；按 tag 启动的对照会落到被重指的镜像；已准入镜像被回收时 FAIL-loud 而不是换镜像", { skip: hasImage ? false : `本机无镜像 ${REAL_IMAGE}`, timeout: 300_000 }, async () => {
+test("真实容器：tag 在准入之后被重指，容器仍以已准入 Id 启动（inspect .Image 核对）；按 tag 启动的对照会落到被重指的镜像；已准入镜像被回收时 FAIL-loud 而不是换镜像", { skip: realSkip, timeout: 300_000 }, async () => {
   const stamp = Date.now();
   const tag = `sandcastle-idtest:${stamp}`, keep = `sandcastle-idtest-keep:${stamp}`;
   const build = (label: string) => execFileSync("docker", ["build", "-q", "-t", tag, "-"], { input: `FROM ${REAL_IMAGE}\nLABEL sandcastle.idtest=${label}\n`, encoding: "utf8" }).trim();
@@ -242,4 +245,27 @@ test("真实容器：tag 在准入之后被重指，容器仍以已准入 Id 启
   } finally {
     for (const t of [tag, keep]) { try { execFileSync("docker", ["rmi", t], { stdio: "ignore" }); } catch { /* 已不存在 */ } }
   }
+});
+
+test("E-5：运行期 env 里带白名单键（含 run() 的 options.env）时，容器拿到的仍是 provider 声明值", async () => {
+  let received: any;
+  const declared = { CLIPROXY_BASE_URL: "http://host.docker.internal:8318", CLIPROXY_LOCAL_KEY: "declared", [MERGE_RUN_ENV]: "run-1", [MERGE_INSTANCE_ENV]: "inst-1" };
+  const base = { name: "docker", env: declared, create: async (o: any) => { received = o; return "h"; } };
+  const runtime = { CLIPROXY_BASE_URL: "http://evil:1", CLIPROXY_LOCAL_KEY: "RUNTIME-OVERRIDE", [MERGE_RUN_ENV]: "other-run", [MERGE_INSTANCE_ENV]: "other-inst", KIMI_API_KEY: "x" };
+  await (hardenProvider(base as any, fakeProbe([])) as any).create({ worktreePath: wt, mounts, env: runtime });
+  assert.deepEqual(received.env, declared);
+  assert.ok(!JSON.stringify(received.env).includes("RUNTIME-OVERRIDE") && !JSON.stringify(received.env).includes("evil"));
+});
+
+test("凭据名按词边界匹配：GIT_AUTHOR_* 等普通键不再误命中，现役镜像的空占位键仍允许、非空凭据仍拒绝", () => {
+  for (const name of ["KIMI_API_KEY", "DEEPSEEK_API_KEY", "ZAI_API_KEY", "MOONSHOT_API_KEY", "GH_TOKEN", "OPENAI_APIKEY", "SSH_AUTH_SOCK", "AWS_SECRET_ACCESS_KEY", "DB_PASSWORD", "GOOGLE_CREDENTIALS", "HTTP_AUTHORIZATION", "token", "apiKey"]) assert.ok(isSecretName(name), name);
+  for (const name of ["GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "MONKEY_PATCH", "AUTHOR", "GH_REPO", "PATH", "HOME", "NODE_VERSION", "NPM_CONFIG_PREFIX", "GIT_LFS_SKIP_SMUDGE", "KEYBOARD"]) assert.ok(!isSecretName(name), name);
+  // 现役镜像（sandcastle:newchanlun）的 Config.Env 形态：占位键为空
+  const live = ["HOME=/home/agent", "KIMI_API_KEY=", "GIT_AUTHOR_NAME=", "GIT_AUTHOR_EMAIL=", "GIT_COMMITTER_NAME=", "GIT_COMMITTER_EMAIL=", "GIT_LFS_SKIP_SMUDGE=1", "DEEPSEEK_API_KEY=", "ZAI_API_KEY=", "MOONSHOT_API_KEY=", "GH_TOKEN=", "GH_REPO=a/b", "PATH=/bin", "NODE_VERSION=22", "YARN_VERSION=1", "NPM_CONFIG_PREFIX=/p"];
+  assert.deepEqual(imageEnvSecrets(live), []);
+  assert.deepEqual(imageEnvSecrets([...live, "GIT_AUTHOR_NAME=someone"]), [], "非凭据键带值不算");
+  assert.deepEqual(imageEnvSecrets(live.map((e) => (e === "GH_TOKEN=" ? "GH_TOKEN=ghp_x" : e))), ["GH_TOKEN"]);
+  assert.deepEqual(imageEnvSecrets([...live, "SSH_AUTH_SOCK=/tmp/agent.sock"]), ["SSH_AUTH_SOCK"]);
+  assert.deepEqual(containerEnvLeaks([...live, "CLIPROXY_LOCAL_KEY=k"], live), []);
+  assert.deepEqual(containerEnvLeaks(live.map((e) => (e === "GIT_AUTHOR_NAME=" ? "GIT_AUTHOR_NAME=x" : e)), live), [], "GIT_AUTHOR_NAME 被覆盖不算凭据泄漏");
 });

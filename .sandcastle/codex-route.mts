@@ -5,12 +5,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { installCargoGuard } from "./cargo-guard.mts";
 import { MAIN_MODEL } from "./main-model.mts";
-import { providerOverrides, providerEnvironment } from "./codex-child.ts";
+import { providerOverrides, providerEnvironment, type KeyLookup } from "./codex-child.ts";
 import { DOCKER_INNER_SANDBOX } from "./docker-isolation.mts";
 
 const quote = (value: string) => "'" + value.replaceAll("'", "'\\''") + "'";
-export function codexRouteEnv(): Record<string, string> {
-  const env = providerEnvironment(process.env.CLIPROXY_LOCAL_KEY ? { CLIPROXY_LOCAL_KEY: process.env.CLIPROXY_LOCAL_KEY } : {});
+export function codexRouteEnv(lookup?: KeyLookup): Record<string, string> {
+  const env = providerEnvironment(process.env.CLIPROXY_LOCAL_KEY ? { CLIPROXY_LOCAL_KEY: process.env.CLIPROXY_LOCAL_KEY } : {}, lookup);
   return { CLIPROXY_LOCAL_KEY: env.CLIPROXY_LOCAL_KEY };
 }
 

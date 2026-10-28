@@ -3,6 +3,7 @@ import type { AgentProvider, SandboxProvider } from "@ai-hero/sandcastle";
 import { execFileSync } from "node:child_process";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { codexWorker, codexRouteEnv } from "./codex-route.mts";
+import type { KeyLookup } from "./codex-child.ts";
 import { assertContainerIsolationContract, hardenProvider, type IsolationObservation } from "./docker-isolation.mts";
 import { IMAGE_ID, checkAdmission, type Admission, type AcceptanceRow, type AdmissionContext } from "./docker-acceptance.mts";
 
@@ -11,18 +12,21 @@ import { MAIN_MODEL } from "./main-model.mts";
 export const DOCKER_CLIPROXY_BASE_URL = "http://host.docker.internal:8318";
 
 /** 容器不能访问宿主回环；密钥只经运行时 env 进入，不挂配置或 OAuth 文件。 */
-export function dockerCliProxyEnv(): Record<string, string> {
-  return { ...codexRouteEnv(), CLIPROXY_BASE_URL: DOCKER_CLIPROXY_BASE_URL };
+export function dockerCliProxyEnv(lookup?: KeyLookup): Record<string, string> {
+  return { ...codexRouteEnv(lookup), CLIPROXY_BASE_URL: DOCKER_CLIPROXY_BASE_URL };
 }
 
 export function swarmSandbox(
   imageId: string,
-  env: Record<string, string> = dockerCliProxyEnv(),
+  env?: Record<string, string>,
+  /** 仅测试：注入 launchctl 查找（CI 上没有 launchctl 里的 key）。 */
+  lookup?: KeyLookup,
 ): SandboxProvider {
   // 容器必须以准入核对过的 sha256 Id 启动（assertSwarmExecutionReady 的返回值），不接受 tag：准入与启动之间 tag 可被重指。
   if (!IMAGE_ID.test(imageId)) throw new Error(`[FAIL-loud #1742] Docker 容器必须以准入核对过的 sha256 镜像 Id 启动，收到 ${JSON.stringify(imageId).slice(0, 80)}`);
   // #1742 方案B：git 挂载与受保护子路径只读；其余启动参数仍是 Sandcastle 的 docker()，不加 security-opt/cap。
-  return hardenProvider(docker({ imageName: imageId, env }));
+  // env 只在 Id 校验通过后才求值：拿 tag 调用时，无论环境里有没有 CLIPROXY_LOCAL_KEY 都先报 Id 错误。
+  return hardenProvider(docker({ imageName: imageId, env: env ?? dockerCliProxyEnv(lookup) }));
 }
 
 /** planner/implementer/reviewer/merger 各自调用，保留独立 session。 */

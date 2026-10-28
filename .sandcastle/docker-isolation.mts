@@ -98,8 +98,10 @@ export function hardenProvider<P extends object, O extends { mounts: Array<{ hos
   } as P;
 }
 
-/** 凭据类变量名（含 CLIPROXY_LOCAL_KEY 之外的一切）。 */
-const SECRET_NAME = /(KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)/i;
+/** 凭据类变量名：按下划线分词匹配（KIMI_API_KEY、GH_TOKEN、SSH_AUTH_SOCK、OPENAI_APIKEY 命中；GIT_AUTHOR_NAME、MONKEY_PATCH 不命中）。 */
+const SECRET_WORDS = new Set(["KEY", "KEYS", "APIKEY", "TOKEN", "TOKENS", "SECRET", "SECRETS", "PASSWORD", "PASSWD", "CREDENTIAL", "CREDENTIALS", "AUTH", "AUTHORIZATION"]);
+export const isSecretName = (name: string): boolean => name.toUpperCase().split(/[^A-Z0-9]+/).some((w) => SECRET_WORDS.has(w));
+const SECRET_NAME = { test: isSecretName };
 /** 镜像自带 ENV 里“名字像凭据且值非空”的条目：不得存在（空占位键允许，其值只能由白名单之外的 -e 覆盖，而白名单已把它们挡在外面）。 */
 export function imageEnvSecrets(imageEnv: readonly string[]): string[] {
   return imageEnv.filter((e) => { const i = e.indexOf("="); return i > 0 && e.slice(i + 1) !== "" && SECRET_NAME.test(e.slice(0, i)); }).map((e) => e.slice(0, e.indexOf("=")));

@@ -379,7 +379,7 @@ test("合同摘要含容器 env 白名单与 Id 绑定：改白名单即改摘�
   assert.notEqual(contractDigest(), canonical([...iso.CONTAINER_ENV_ALLOW, "KIMI_API_KEY"]), "白名单变化即摘要变化");
 });
 
-test("dockerImageId 默认解析：真实 docker inspect 的 Id；镜像不存在时抛错而不是回退 tag", { skip: realImage("alpine:3.22") ? false : "本机无 alpine:3.22" }, () => {
+test("dockerImageId 默认解析：真实 docker inspect 的 Id；镜像不存在时抛错而不是回退 tag", { skip: process.env.SANDCASTLE_REAL_DOCKER_TESTS !== "1" ? "真实 docker 测试默认关闭（设 SANDCASTLE_REAL_DOCKER_TESTS=1 开启）" : realImage("alpine:3.22") ? false : "本机无 alpine:3.22" }, () => {
   assert.match(dockerImageId("alpine:3.22"), /^sha256:[0-9a-f]{64}$/);
   assert.throws(() => dockerImageId("sandcastle-no-such-image:never"), /无法解析镜像/);
 });
