@@ -5674,7 +5674,7 @@ fn recover_core(
 // ────────────────────────────────────────────────────────────────────────────
 
 fn usage() -> String {
-    "用法：s_structure_session <init|accept|advance|catalog|snapshot|meta|watch|recover|reset|serve|query-serve> [参数]\n\
+    "用法：s_structure_session <init|accept|advance|catalog|snapshot|meta|watch|recover|reset|serve|query-serve|admission-prepare|admission-revoke|admission-contract> [参数]\n\
      \x20 init      --db <路径> --session <id> --catalog <catalog.json>      （只允许不存在的目标）\n\
      \x20 accept    --db <路径> --input <输入.json> --profile <profile.json> [--writer-epoch <n>]\n\
      \x20 advance   --db <路径> [--writer-epoch <n>]\n\
@@ -5709,6 +5709,9 @@ fn run() -> Result<(), String> {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
         return Err(usage());
+    }
+    if v3::admission_anchor::issuance::dispatch(&args)? {
+        return Ok(());
     }
     if v3::dispatch(&args)? {
         return Ok(());

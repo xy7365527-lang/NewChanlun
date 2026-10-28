@@ -201,6 +201,14 @@ ADR 0039 的编号按 main 顺序分配：落地时取 `docs/adr/` 现有最大�
 | `b_chong_session`（`:250-253`，`--chong ID`） | 命令+feature `s_session` | 收编：每重一个 Bᵢ 进程（重操作程序） | 同上 |
 | `x_execution_session`（新立，`rust/src/bin/x_execution_session.rs`，`required-features = ["production_session"]`） | 命令+feature | 唯一执行入口 X（C09.7） | 唯一接收凭据的进程；自持 `.writer.lock` + `writer_epoch` |
 
+**#1657 S 准入操作员入口**（资源准入，不授交易发送权；合同与签撤程序见 [ADR 0050](0050-s-resource-admission-contract-v1.md)）
+
+| 入口 | 类 | 地位 | 写权机制 |
+|---|---|---|---|
+| `s_structure_session admission-prepare` | 命令+feature `s_session` | 正式签发资源锚；当前未测合同拒签 | 同服务 uid、内嵌已审版本、四锁、无既存锚才签发；不写数据库 |
+| `s_structure_session admission-revoke` | 命令+feature `s_session` | 正式显式撤销并留档 | 同服务 uid、四锁、原对象身份匹配；不接管活写者 |
+| `s_structure_session admission-contract` | 命令+feature `s_session` | launcher 写动作前的只读合同门 | 共用签发注册表，核版本/摘要/启动窗口；无域写权 |
+
 **π 线（`theta_v0`）**
 
 | 入口 | 类 | 终态 | 失去写权的机制 | OE |
