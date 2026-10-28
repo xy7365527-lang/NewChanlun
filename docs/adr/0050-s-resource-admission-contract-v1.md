@@ -1,7 +1,8 @@
 # ADR 0050：S 资源准入合同 v1 与操作员签撤
 
-> 正本范围：S 资源准入合同 v1 取值、版本登记和操作员入口。候选，待非作者独审。
-> 依据：#1567 / ADR 0046、#1657；主控 2026-10-22 依 #1323 Notes N-2 审定取值规则。
+> 正本范围：S 资源准入合同 v1 取值、版本登记和操作员入口。已审定：主控 2026-10-22 依 #1323 Notes N-2 审定取值规则；非作者独审 PASS（审查者 `/root/review1657_final`，报告 [`INDEPENDENT-REVIEW.md`](../../.chanlun/review-results/issue1657-closeout-20261028/INDEPENDENT-REVIEW.md)、[`review.json`](../../.chanlun/review-results/issue1657-closeout-20261028/review.json)）。
+> 独审对象：候选 `507c3fed75`，当时本文件名为 `docs/adr/0049-s-resource-admission-contract-v1.md`，报告中的「ADR0049」即本文件。PR #1710 合入前改名为 0050，相对独审版仅标题行编号不同（`git diff -M 507c3fed75 8f02689951 -- docs/adr/` 中本文件一行差异）；本首部为 #1657 收尾补登记。
+> 依据：#1567 / ADR 0046、#1657。
 > 受影响代码：`rust/src/bin/s_session_v3/admission_issuance.rs`、`s_session/s_service_control.py`；入口登记见 ADR 0039。
 
 ## 当前合同不能签锚
@@ -28,6 +29,8 @@
 生效版本及规范合同编译进 S 二进制，签发和启动校验共用 `Contract::authorize`。输入文件仅是待核原件，不是清单；运行时没有环境变量、外部 JSON 或 CLI 开关可替换注册表。合同更版必须经审查构建。部署仍须使用受审二进制；内嵌清单不声称抵抗替换整个程序。
 
 `AwaitingMeasurement` 不能解析为生产 JobLimits。版本缺失、旧版本、未知摘要、未实测值、启动窗口不足均拒绝。签发前先核合同，失败不创建 pending/published。
+
+启动窗口在两条路径各有负控：签发路径 `admission_prepare_rejects_insufficient_startup_window`；启动器在发布与调用 R4 之前经 `admission-contract` 入口核验，负控为 `admission_contract_rejects_insufficient_startup_window_before_r4`（`startup_timeout_ms` 比合同 `max_elapsed_ms` 少 1 即 `AdmissionStartupWindowTooShort`，等于时放行），由 `.github/workflows/issue-1657-admission.yml` 实际执行。
 
 ## 操作员用法
 
