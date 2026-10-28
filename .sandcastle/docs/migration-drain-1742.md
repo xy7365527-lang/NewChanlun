@@ -60,7 +60,7 @@ node --import tsx --test .sandcastle/drain-control.test.mts
 
 `bash .sandcastle/cutover-runbook.sh` 只打印命令和核对点，不冻结、不写 GitHub、不卸载服务。参数依次为部署检出、venv 和私钥绝对路径。D6 获批后由部署 owner 逐步执行，不把打印成功算成部署。
 
-在 freeze 成功、仓库变量已设为 1 后，执行器的 `cutover snapshot` 记录该代次、存活旧进程的 pid 加启动标识，以及 workers 日志的规范化绝对路径和字节位置。verify 拒绝用另一份日志解释该字节位置。快照文件用 `O_EXCL` 创建，不覆盖已有快照。等待这些进程退出和旧工作收尾，再在安全轮次边界停 claimer、harvest、旧 engine 及 decision-claimer。不要直接卸载仍带在飞子进程的父服务。
+在 freeze 成功、仓库变量已设为 1 后，先卸载 health-monitor，防止周期自愈重新拉起旧 claimer；回退时最后恢复它。已在飞的 health-monitor 与其他旧控制进程一起进入快照，必须等它退出。执行器的 `cutover snapshot` 记录该代次、存活旧进程的 pid 加启动标识，以及 workers 日志的规范化绝对路径和字节位置。verify 拒绝用另一份日志解释该字节位置。快照文件用 `O_EXCL` 创建，不覆盖已有快照。等待这些进程退出和旧工作收尾，再在安全轮次边界停 claimer、harvest、旧 engine 及 decision-claimer。不要直接卸载仍带在飞子进程的父服务。
 
 ```sh
 executor cutover snapshot --workers-log "$PWD/.sandcastle/logs/workers.jsonl"
@@ -68,7 +68,9 @@ executor cutover verify --workers-log "$PWD/.sandcastle/logs/workers.jsonl" --pr
 executor cutover record --workers-log "$PWD/.sandcastle/logs/workers.jsonl" --private-key "$PEM"
 ```
 
-`verify` 只读核对冻结代次、快照进程退出、全量旧 claim 终态、快照后无新增 claim、App 读取的全部 `agent-*` job 已完成，以及 claimer 和 harvest 的 launchd 服务已卸载。未知事件、无法读全分页、日志截断、仍未收尾的旧 claim 都拒绝。当前实现要求日志已有终态，交接文字本身不能替代终态证据。
+`verify` 只读核对冻结代次、快照进程退出、旧工作的当前生命周期终态、快照后无新增 claim、App 读取的全部 `agent-*` job 已完成，以及 claimer 和 harvest 的 launchd 服务已卸载。日志按票和 branch 归约：历史重复 claim 不当场永久报错，但仍保留 pending，直到同一生命周期出现 `sandbox/closed` 或 `claim/rolled_back`。独立 reviewer/merger 沿用各自已有的终态。另一 branch 的关闭不能消除本 branch 的未决工作；缺 branch 的历史记录也不猜测归属。
+
+已知两条 `correction/error_record_*` 只保留审计，不打开或关闭工作；`implementer/failed` 和 `implementer/recovery_returned` 都不是排空终态。未知事件、无法读全分页、日志截断、仍未收尾的旧工作都拒绝。快照进程退出与日志终态是两份独立证据；日志不增长、PID 已消失、交接文字或实现完成都不能单独替代生命周期终态。缺失证据由部署 owner 对照进程、容器、工位和原 owner 的运行存储处置，本工具不伪造补记，也不新增逐票真人签批。
 
 冻结变量单独通过 `gh variable get SANDCASTLE_LEGACY_FREEZE` 回读。现有 App 没有 variables 权限，因此此项运维证据记为 `user-token-readonly`。它不充当人类批准，也不在 App 失败时接替写操作。读不到或值不是 1 都拒绝。
 

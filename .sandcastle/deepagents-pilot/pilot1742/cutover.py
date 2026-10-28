@@ -17,10 +17,12 @@ STATE_ROOT = Path('/Volumes/AgentStorage/deepagents-exec')
 DRAIN_ROOT = Path('/Volumes/AgentStorage/newchanlun-legacy-drain')
 RELEASE_LABEL = str(json.loads((Path(__file__).resolve().parents[2] / 'queue-policy.json').read_text())['release_label'])
 LEGACY_SERVICES = ('com.newchanlun.sandcastle-claimer', 'com.newchanlun.sandcastle-harvest')
-# main.mts, claim-loop.mts, review-context.mts, swarm-managed.mts and swarm-merge.mts emit these pairs.
+# Production emitters plus explicitly classified historical recovery/audit events.
+# Recovery/failure is not a lifecycle terminal; corrections never change pending work.
 WORKER_EVENTS = {
     'claim': {'claimed', 'rolled_back'},
-    'implementer': {'started', 'no_commit', 'completed', 'verification_failed'},
+    'implementer': {'started', 'no_commit', 'completed', 'verification_failed', 'failed', 'recovery_returned'},
+    'correction': {'error_record_52009', 'error_record_53495'},
     'reviewer': {'started', 'sealed', 'completed', 'failed'},
     'managed-stage': {'failed'},
     'sandbox': {'closed'},
@@ -100,16 +102,21 @@ def worker_rows(raw: bytes) -> list[dict[str, Any]]:
 
 def worker_claims(rows: list[dict[str, Any]]) -> tuple[()]:
     worker_rows(('\n'.join(json.dumps(row) for row in rows)).encode())
-    pending: set[str] = set()
-    claimed: set[str] = set()
+    pending: set[tuple[str, str]] = set()
+    claimed: set[tuple[str, str]] = set()
     for row in rows:
-        key = str(row.get('ticket') or row.get('branch') or '')
-        if not key:
+        ticket = str(row.get('ticket') or row.get('branch') or '')
+        if not ticket:
             raise CutoverError('workers.jsonl missing ticket/branch')
         pair = row['phase'], row['status']
+        if pair[0] == 'correction':
+            continue
+        key = ticket, str(row.get('branch') or '')
         if pair == ('claim', 'claimed'):
-            if key in pending:
-                raise CutoverError(f'workers.jsonl overlapping open claim: {key}')
+            # The legacy watchdog also uses the latest lifecycle, not claim counts.
+            # Repeated historical claims remain in the audit log and stay pending
+            # until a terminal for this ticket AND branch. Process exit and frozen
+            # admission are separate verify requirements, never inferred here.
             claimed.add(key)
             pending.add(key)
         elif pair in (('claim', 'rolled_back'), ('sandbox', 'closed')):
@@ -122,7 +129,7 @@ def worker_claims(rows: list[dict[str, Any]]) -> tuple[()]:
         else:
             pending.add(key)
     if pending:
-        raise CutoverError('workers.jsonl open legacy work: ' + ','.join(sorted(pending)))
+        raise CutoverError('workers.jsonl open legacy work: ' + ','.join(sorted({key[0] for key in pending})))
     return ()
 
 
@@ -131,7 +138,7 @@ def legacy_processes() -> tuple[LegacyProcess, ...]:
                             capture_output=True, text=True).stdout
     rows = []
     needles = ('.sandcastle/main.mts', '.sandcastle/main-swarm.mts', 'codex-child', 'decision-claimer',
-               'claim-loop.mts', 'harvest.sh', 'wayfinder_engine.mts')
+               'claim-loop.mts', 'harvest.sh', 'wayfinder_engine.mts', 'health-monitor.mts')
     for line in output.splitlines():
         parts = line.split(None, 7)
         if len(parts) != 8 or parts[6].startswith('Z'):

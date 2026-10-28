@@ -12,6 +12,8 @@ print_command "$venv/bin/python" "$repo/.sandcastle/drain-control.py" freeze
 printf '%s\n' '# 确认 deepagents:queue 标签已存在；缺失时由部署 owner 创建后再启动 engine。'
 print_command gh label list --search deepagents:queue --repo xy7365527-lang/NewChanlun
 print_command gh variable set SANDCASTLE_LEGACY_FREEZE --body 1 --repo xy7365527-lang/NewChanlun
+printf '%s\n' '# 先停健康监控的周期自愈；已在飞的 monitor 由后续进程快照跟踪到退出。'
+print_command launchctl bootout "gui/$UID/com.newchanlun.health-monitor"
 print_command "${executor[@]}" cutover snapshot --workers-log "$repo/.sandcastle/logs/workers.jsonl"
 printf '%s\n' '# 等所有旧工蜂、远端 agent-* job 及 harvest 单轮自然收尾。' \
   '# 核 snapshot 内进程均退出；engine 等常驻父进程只能在无在飞子进程的轮次边界卸载。' \
@@ -30,4 +32,4 @@ print_command launchctl bootstrap "gui/$UID" "$HOME/Library/LaunchAgents/com.new
 printf '%s\n' '# serve --once 会执行已获签批的票，不是 dry-run。没有签批时只生成待批请求。' \
   '# 回退先让新执行器到安全边界，处理全部 active 持有，再以冻结记录的 generation resume。' \
   '# resume 立即使 cutover.json 失效；新队列停，engine 恢复 sandcastle。' \
-  '# 已持有票不得直接改回旧标签，未持有票由 owner 逐票处置。最后恢复旧服务和 health-monitor 自愈。'
+  '# 已持有票不得直接改回旧标签，未持有票由 owner 逐票处置。先恢复旧服务，最后恢复 health-monitor 自愈。'

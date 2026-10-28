@@ -125,11 +125,73 @@ def test_remote_barrier_reads_actions_and_variable_without_github_writes(monkeyp
         remote_barrier(gateway)
 
 
-def test_barrier_refuses_overlapping_claim_even_if_later_one_closed():
-    with pytest.raises(CutoverError, match='overlapping'):
-        worker_claims([{'ticket': 1, 'phase': 'claim', 'status': 'claimed'},
-                       {'ticket': 1, 'phase': 'claim', 'status': 'claimed'},
-                       {'ticket': 1, 'phase': 'sandbox', 'status': 'closed'}])
+def test_reclaimed_lifecycle_needs_a_terminal_not_perfect_historical_pairing():
+    rows = [{'ticket': 1, 'phase': 'claim', 'status': 'claimed'},
+            {'ticket': 1, 'phase': 'claim', 'status': 'claimed'}]
+    with pytest.raises(CutoverError, match='open legacy work: 1'):
+        worker_claims(rows)
+    assert worker_claims([*rows, {'ticket': 1, 'phase': 'sandbox', 'status': 'closed'}]) == ()
+
+
+@pytest.mark.parametrize('status', ['failed', 'recovery_returned'])
+def test_recovery_and_author_failure_are_not_drain_evidence(status):
+    rows = [{'ticket': 1, 'phase': 'claim', 'status': 'claimed'},
+            {'ticket': 1, 'phase': 'implementer', 'status': status}]
+    with pytest.raises(CutoverError, match='open legacy work: 1'):
+        worker_claims(rows)
+    assert worker_claims([*rows, {'ticket': 1, 'phase': 'sandbox', 'status': 'closed'}]) == ()
+
+
+def test_audit_correction_does_not_close_or_reopen_work():
+    correction = {'ticket': 1, 'phase': 'correction', 'status': 'error_record_52009'}
+    assert worker_claims([correction]) == ()
+    with pytest.raises(CutoverError, match='open legacy work: 1'):
+        worker_claims([{'ticket': 1, 'phase': 'claim', 'status': 'claimed'}, correction])
+    assert worker_claims([{'ticket': 1, 'phase': 'sandbox', 'status': 'closed'}, correction]) == ()
+
+
+@pytest.mark.parametrize('branch', ['', 'sandcastle/issue-1-fix'])
+def test_branch_close_does_not_hide_independent_work_for_same_ticket(branch):
+    rows = [{'ticket': 1, 'branch': branch, 'phase': 'implementer', 'status': 'started'},
+            {'ticket': 1, 'branch': 'sandcastle/issue-1', 'phase': 'sandbox', 'status': 'closed'}]
+    with pytest.raises(CutoverError, match='open legacy work: 1'):
+        worker_claims(rows)
+
+
+def test_legacy_prefix_is_accepted_but_unfinished_work_stays_pending(barrier):
+    from pathlib import Path
+
+    from pilot1742.cutover import worker_rows
+
+    raw = Path(__file__).with_name('fixtures').joinpath('legacy_workers_prefix.jsonl').read_bytes()
+    rows = worker_rows(raw)
+    with pytest.raises(CutoverError, match='open legacy work:') as error:
+        worker_claims(rows)
+    assert '1234' in str(error.value) and '1719' in str(error.value)
+    tickets = sorted({row['ticket'] for row in rows if row['phase'] != 'correction'})
+    closed = [{'ticket': ticket, 'phase': 'sandbox', 'status': 'closed'} for ticket in tickets]
+    store, snap, remote = barrier
+    store.workers_log.write_bytes(raw)
+    snap = replace(snap, workers_log_length=len(raw))
+    with pytest.raises(CutoverError, match='open legacy work:'):
+        store.verify(snap, remote, (), 'a' * 40)
+    with store.workers_log.open('a') as stream:
+        stream.writelines(json.dumps(row) + '\n' for row in closed)
+    record = store.verify(snap, remote, (), 'a' * 40)
+    store.record(record)
+    store.check_ticket(9999, record)
+
+
+def test_runbook_stops_healer_first_and_restores_it_last():
+    import subprocess
+    from pathlib import Path
+
+    script = Path(__file__).resolve().parents[2] / 'cutover-runbook.sh'
+    output = subprocess.run(['bash', str(script)], capture_output=True, text=True, check=True).stdout
+    healer_stop = output.index('launchctl bootout gui/')
+    assert 'health-monitor' in output[healer_stop:].splitlines()[0]
+    assert output.index('health-monitor') < output.index('cutover snapshot')
+    assert output.rstrip().endswith('先恢复旧服务，最后恢复 health-monitor 自愈。')
 
 
 @pytest.mark.parametrize('field,value', [('open_claims', ''), ('v', True), ('drain_generation', True),
