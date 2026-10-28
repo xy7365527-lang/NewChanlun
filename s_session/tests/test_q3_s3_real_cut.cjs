@@ -7,7 +7,11 @@
 "use strict";
 const assert = require("node:assert/strict"),
   test = require("node:test");
-const { API, C, V, rebuild, makeServer, fixtureOf, makeS16Base, makeClient, discovery } = require("./q3_complete_fixture.cjs");
+const { API, C, V, CONFIG, rebuild, makeServer, fixtureOf, makeS16Base, makeClient: makeClientWith, discovery } = require("./q3_complete_fixture.cjs");
+// 仅本套放宽测试 Client 的时限（共享 CONFIG、生产 cap 与 Client 默认值不动）：真实大代单次 AsKnown 读取
+// 远超共享 CONFIG 的 30 s/60 s（耗时剖析见 #1419 28U 报告）。
+const REAL_CONFIG = { ...CONFIG, timeoutMs: 4 * 3600 * 1000, job_limits: { ...CONFIG.job_limits, max_elapsed_ms: String(4 * 3600 * 1000) } };
+const makeClient = (server) => makeClientWith(server, REAL_CONFIG);
 
 // 夹具只含消费所需各代 snapshot/delta 的可达节点（provenance.node_closure），整文件只解析一次。
 const FILE = "q3-real-s3-w-recover-revise.json";
@@ -107,9 +111,14 @@ test("真实S3 W 跨真实写者恢复（纪元1→2）逐代 Watch 与同代 As
     server = await watchServer(range(from, to)),
     client = makeClient(server);
   await client.load(discovery(server), "RecomputedWithRevision", from);
-  await server.advance(to);
-  await client.watch();
-  assert.equal(client.committed.cursor.after_generation, to);
+  // Client 合同：一次 Watch 至多 watchBatches 个 delta；逐段推进到恢复后方向确立代。
+  const step = BigInt(REAL_CONFIG.watchBatches);
+  for (let g = BigInt(from); g < BigInt(to); ) {
+    g = g + step < BigInt(to) ? g + step : BigInt(to);
+    await server.advance(String(g));
+    await client.watch();
+    assert.equal(client.committed.cursor.after_generation, String(g));
+  }
   assert.deepEqual(await kindsOf(client), rustKinds("recovered_epoch2_direction"));
 });
 
