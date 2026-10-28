@@ -7,6 +7,14 @@ description: >-
 runs:
   using: composite
   steps:
+    # runner 镜像漂移到 ubuntu-26.04 后自带 Python 3.14，超出 pyo3 0.23 支持上限 3.13，
+    # pyo3-ffi 构建脚本直接失败（run 40695331416 两次 attempt）。各 Rust job 统一钉 3.13，
+    # 与已显式钉版本的 job 对齐；已钉 3.13 的 job 重复设置无副作用。
+    - name: Pin Python for pyo3 (3.13)
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.13"
+
     - name: Record runner, toolchain, linker, and initial resources (#1141)
       shell: bash
       working-directory: rust
