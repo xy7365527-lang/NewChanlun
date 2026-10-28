@@ -24,6 +24,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      # #1323：pyo3 0.23 最高支持 CPython 3.13，runner 默认 python3 已是 3.14。
+      - id: setup-python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: echo "PYO3_PYTHON=${{ steps.setup-python.outputs.python-path }}" >> "$GITHUB_ENV"
       - uses: actions/cache@v4
         with:
           path: |
