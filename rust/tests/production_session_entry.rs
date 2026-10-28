@@ -451,6 +451,9 @@ fn simulation_profile_spawns_isolated_domain_processes() {
     ] {
         assert_lock_held(&db);
     }
+    // S 持写锁后仍在做 admission（枚举并固定库文件家族）；开 socket 前读库会新建/改动 `-shm`，
+    // 使 admission 以 SourceIdentityChanged 拒启。先等 socket，再读。
+    eventually("S socket", || space.path("s.sock").exists());
     assert!(meta(&s_db, "SELECT value FROM meta WHERE key='writer_epoch'").is_some());
     for db in ["e.db", "b.db"] {
         eventually(&format!("{db} 的 writer_epoch"), || {
@@ -677,9 +680,10 @@ fn s_keeps_committing_while_x_is_stopped() {
         .unwrap()
         .1;
     let generation = |db: &Path| meta(db, "SELECT value FROM meta WHERE key='generation'").unwrap();
+    // 开 socket 前读 S 库会干扰其 admission（见 simulation_profile_spawns_isolated_domain_processes）。
+    eventually("S socket", || space.path("s.sock").exists());
     let before = generation(&s_db);
     unsafe { libc::kill(x as libc::pid_t, libc::SIGSTOP) };
-    eventually("S socket", || space.path("s.sock").exists());
     let reply = s_ingest(&space.path("s.sock"), DECLARED_NS, 1);
     let deadline = Instant::now() + Duration::from_secs(20);
     while generation(&s_db) == before {
