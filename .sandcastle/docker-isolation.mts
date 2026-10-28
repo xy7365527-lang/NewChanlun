@@ -64,16 +64,57 @@ export function hardenMounts(
 interface HasCreate<O extends { mounts: Array<{ hostPath: string; sandboxPath: string; readonly?: boolean }>; worktreePath: string }, H> {
   create: (options: O) => Promise<H>;
 }
-/** 包一层 provider.create：只改写 mounts，其余原样交给 Sandcastle 的 docker()。 */
-export function hardenProvider<P extends object, O extends { mounts: Array<{ hostPath: string; sandboxPath: string; readonly?: boolean }>; worktreePath: string }, H>(
+
+/** 容器 env 白名单（#1742，D6 前凭据暴露闭合）：只有 CLIProxy 路由键与已审的非密钥身份键能进容器。
+ * Sandcastle 会把 `<hostRepoDir>/.sandcastle/.env` 里所有键并入 create 的 env（含 KIMI/DEEPSEEK/ZAI/MOONSHOT/GH_TOKEN 等），
+ * 这里在唯一入口 hardenProvider 剥离；改动即改合同摘要（contractDigest）。
+ * 身份键名与 orphan-container.mts 的 MERGE_RUN_ENV/MERGE_INSTANCE_ENV 逐字一致（测试锁住）。 */
+export const CONTAINER_ENV_ALLOW = ["CLIPROXY_BASE_URL", "CLIPROXY_LOCAL_KEY", "SANDCASTLE_MERGE_INSTANCE", "SANDCASTLE_MERGE_RUN"] as const;
+const ALLOWED = new Set<string>(CONTAINER_ENV_ALLOW);
+
+/** 只取 provider 自己声明的白名单键的值（来源严格＝docker({ env })，.env 与运行期 env 即使带同名键也不采信）；
+ * 声明了白名单之外的键属于编程错误，FAIL-loud（只报键名，不报值）。 */
+export function declaredContainerEnv(declared: Record<string, string | undefined> | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  const rejected: string[] = [];
+  for (const [key, value] of Object.entries(declared ?? {})) {
+    if (!ALLOWED.has(key)) { rejected.push(key); continue; }
+    if (value) out[key] = value;
+  }
+  if (rejected.length) throw new Error(`[FAIL-loud #1742] 容器 env 声明了白名单之外的键：${rejected.sort().join(", ")}（允许：${CONTAINER_ENV_ALLOW.join(", ")}）`);
+  return out;
+}
+
+/** 包一层 provider.create：改写 mounts（只收紧），并把 env 收敛到白名单；其余原样交给 Sandcastle 的 docker()。 */
+export function hardenProvider<P extends object, O extends { mounts: Array<{ hostPath: string; sandboxPath: string; readonly?: boolean }>; worktreePath: string; env?: Record<string, string> }, H>(
   base: P,
   probe: PathProbe = fsProbe,
 ): P {
   const inner = (base as unknown as HasCreate<O, H>).create;
+  const env = declaredContainerEnv((base as { env?: Record<string, string | undefined> }).env);
   return {
     ...base,
-    create: (options: O) => inner.call(base, { ...options, mounts: hardenMounts(options.mounts, options.worktreePath, probe) }),
+    create: (options: O) => inner.call(base, { ...options, env, mounts: hardenMounts(options.mounts, options.worktreePath, probe) }),
   } as P;
+}
+
+/** 凭据类变量名（含 CLIPROXY_LOCAL_KEY 之外的一切）。 */
+const SECRET_NAME = /(KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)/i;
+/** 镜像自带 ENV 里“名字像凭据且值非空”的条目：不得存在（空占位键允许，其值只能由白名单之外的 -e 覆盖，而白名单已把它们挡在外面）。 */
+export function imageEnvSecrets(imageEnv: readonly string[]): string[] {
+  return imageEnv.filter((e) => { const i = e.indexOf("="); return i > 0 && e.slice(i + 1) !== "" && SECRET_NAME.test(e.slice(0, i)); }).map((e) => e.slice(0, e.indexOf("=")));
+}
+/** 运行中容器的有效 env（docker inspect Config.Env）审计：每个键要么来自镜像自带（值必须与镜像一致），要么在白名单内（或 Sandcastle 自设的 HOME）；
+ * 其余键，或镜像自带的凭据类键被覆盖成非空值，都是泄漏。返回违规键名（不含值）。 */
+export function containerEnvLeaks(containerEnv: readonly string[], imageEnv: readonly string[]): string[] {
+  const parse = (list: readonly string[]) => new Map(list.map((e) => { const i = e.indexOf("="); return [i < 0 ? e : e.slice(0, i), i < 0 ? "" : e.slice(i + 1)] as const; }));
+  const image = parse(imageEnv); const bad: string[] = [];
+  for (const [key, value] of parse(containerEnv)) {
+    if (ALLOWED.has(key) || key === "HOME") continue;
+    if (!image.has(key)) { bad.push(key); continue; }
+    if (image.get(key) !== value && SECRET_NAME.test(key)) bad.push(key);
+  }
+  return bad.sort();
 }
 
 export interface IsolationObservation {

@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { codeIdentity, issueReceipt } from "./docker-acceptance.mts";
 import { runAcceptedSwarmMerge } from "./swarm-merge.mts";
 
+const IMG_ID = "sha256:" + "1".repeat(64);
 const entry = fileURLToPath(new URL("./main-swarm.mts", import.meta.url));
 const loader = import.meta.resolve("tsx");
 const identity = codeIdentity();
@@ -62,12 +63,12 @@ function fixture(t: { after: (fn: () => void) => void }, conflict = false, runId
       PROBE_FROZEN: "0", PROBE_NAMESPACE_OK: o.namespaceReady ? "1" : "0", CLIPROXY_LOCAL_KEY: "fixture-no-network" });
     process.chdir(repo);
     try {
-      await runAcceptedSwarmMerge(path, "sandcastle:newchanlun", () => undefined, { repo, acceptance: { dir: o.dir ?? acceptance, env: o.row ? { SANDCASTLE_DOCKER_ACCEPTANCE_ROW: o.row } : {} } });
+      await runAcceptedSwarmMerge(path, "sandcastle:newchanlun", () => undefined, { repo, acceptance: { imageIdOf: () => IMG_ID, dir: o.dir ?? acceptance, env: o.row ? { SANDCASTLE_DOCKER_ACCEPTANCE_ROW: o.row } : {} } });
       return { error: "" };
     } catch (error) { return { error: error instanceof Error ? error.message : String(error) }; }
     finally { process.chdir(keep.cwd); process.exitCode = keep.exitCode; for (const k of Object.keys(process.env)) if (!(k in keep.env)) delete process.env[k]; Object.assign(process.env, keep.env); }
   };
-  const issue = () => issueReceipt({ dir: acceptance, image: "sandcastle:newchanlun", approval: "fixture-user-approval", swarmTicket: 4242 });
+  const issue = () => issueReceipt({ imageIdOf: () => IMG_ID, dir: acceptance, image: "sandcastle:newchanlun", approval: "fixture-user-approval", swarmTicket: 4242 });
   return { repo, git, base, inputs, manifest, run, merge, called, drained, checkpoint, worktree, issue, acceptance };
 }
 

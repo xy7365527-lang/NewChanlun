@@ -1,11 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir, userInfo } from "node:os";
 import { join } from "node:path";
 import {
-  ACCEPTANCE_ROWS, MAX_CHECKPOINTS, MAX_RESUMES, ROW_ENV, acceptedFor, checkAdmission, contractDigest, issueReceipt, mergeBinding,
+  ACCEPTANCE_ROWS, MAX_CHECKPOINTS, dockerImageId, parseImageInspect, MAX_RESUMES, ROW_ENV, acceptedFor, checkAdmission, contractDigest, issueReceipt, mergeBinding,
   mergeInstance, modelFamily, parseCrossFamilyReview, parseMergeBinding, recordAcceptance, retireReceipt, swarmBinding, type AcceptanceRow,
 } from "./docker-acceptance.mts";
 import { accountHome, acceptanceRoot, assertHomeNotRedirected, assertMountsExcludeAcceptance, controlledDir } from "./acceptance-dir.mts";
@@ -13,13 +14,15 @@ import { controlledSwarmTicket, TICKET_ENV } from "./swarm-controlled.mts";
 
 const HEAD = "a".repeat(40);
 const IMAGE = "sandcastle:newchanlun";
+const IMG_ID = "sha256:" + "1".repeat(64);
+const imageIdOf = () => IMG_ID;
 const SWARM_TICKET = 4242;
 const clean = { head: HEAD, dirty: "" };
 const dir = () => mkdtempSync(join(tmpdir(), "docker-acceptance-")); // mkdtemp：0700、属于当前用户
 const env = (row?: string): NodeJS.ProcessEnv => (row ? { [ROW_ENV]: row } : {});
-const ctx = (d: string, row?: string, binding?: string, extra: Record<string, unknown> = {}) => ({ dir: d, env: env(row), identity: clean, binding, ...extra });
+const ctx = (d: string, row?: string, binding?: string, extra: Record<string, unknown> = {}) => ({ dir: d, env: env(row), identity: clean, binding, imageIdOf, ...extra });
 const issue = (d: string, extra: Record<string, unknown> = {}) =>
-  issueReceipt({ dir: d, image: IMAGE, approval: "turn 01a17310 用户批准方案B", swarmTicket: SWARM_TICKET, identity: clean, ...extra });
+  issueReceipt({ imageIdOf, dir: d, image: IMAGE, approval: "turn 01a17310 用户批准方案B", swarmTicket: SWARM_TICKET, identity: clean, ...extra });
 const B13 = swarmBinding(SWARM_TICKET);
 const cp = (o: Partial<{ runId: string; base: string; instance: string; head: string; incoming: string }> = {}) =>
   mergeBinding({ runId: "run-a", base: "b".repeat(40), instance: "inst-1", head: "c".repeat(40), incoming: "d".repeat(40), ...o });
@@ -38,7 +41,7 @@ function evidence(d: string) {
 function runAll(d: string) { for (const r of ACCEPTANCE_ROWS) checkAdmission(IMAGE, ctx(d, r, BINDINGS[r])).consume(); }
 function accepted(d: string, extra: Record<string, unknown> = {}) {
   issue(d, extra); runAll(d);
-  return recordAcceptance({ dir: d, image: IMAGE, evidence: evidence(d), crossFamilyReview: review(d), identity: clean });
+  return recordAcceptance({ imageIdOf, dir: d, image: IMAGE, evidence: evidence(d), crossFamilyReview: review(d), identity: clean });
 }
 const read = (d: string, f: string) => JSON.parse(readFileSync(join(d, f), "utf8"));
 const write = (d: string, f: string, v: unknown) => { writeFileSync(join(d, f), JSON.stringify(v)); chmodSync(join(d, f), 0o600); };
@@ -52,9 +55,9 @@ test("无 receipt、无验收行、不精确代码一律 FAIL-loud", () => {
   assert.throws(() => checkAdmission(IMAGE, ctx(d, "16", B13)), /未声明受控验收行/);
   assert.throws(() => checkAdmission(IMAGE, ctx(d, "13")), /缺少运行绑定/);
   assert.throws(() => checkAdmission(IMAGE, ctx(d, "13", B13, { identity: { head: HEAD, dirty: " M .sandcastle/x.mts" } })), /代码不精确/);
-  assert.throws(() => issueReceipt({ dir: dir(), image: IMAGE, approval: "x", swarmTicket: 1, identity: { head: HEAD, dirty: "?? .sandcastle/new.mts" } }), /未提交改动/);
-  assert.throws(() => issueReceipt({ dir: dir(), image: IMAGE, approval: " ", swarmTicket: 1, identity: clean }), /批准引用/);
-  assert.throws(() => issueReceipt({ dir: dir(), image: IMAGE, approval: "x", identity: clean }), /专用验收票/);
+  assert.throws(() => issueReceipt({ imageIdOf, dir: dir(), image: IMAGE, approval: "x", swarmTicket: 1, identity: { head: HEAD, dirty: "?? .sandcastle/new.mts" } }), /未提交改动/);
+  assert.throws(() => issueReceipt({ imageIdOf, dir: dir(), image: IMAGE, approval: " ", swarmTicket: 1, identity: clean }), /批准引用/);
+  assert.throws(() => issueReceipt({ imageIdOf, dir: dir(), image: IMAGE, approval: "x", identity: clean }), /专用验收票/);
   assert.throws(() => issue(dir(), { ttlHours: 100000 }), /ttlHours/);
 });
 
@@ -130,7 +133,7 @@ test("容器挂载不得暴露验收目录或其祖先（如整个主目录）",
 
 test("伪造 accepted.json 无效：无 receipt / 无 used / nonce、批准、有效期、快照被替换都放行失败", () => {
   const d = dir(); const r = issue(d);
-  const forged = { schema: 2, ticket: 1742, nonce: r.nonce, head: HEAD, contract: contractDigest(), image: IMAGE, approval: r.approval, issuedAt: r.issuedAt, expiresAt: r.expiresAt, acceptedAt: r.issuedAt, evidence: evidence(d), crossFamily: { file: review(d), head: HEAD, model: "claude-opus-5-5" }, bindings: { "13": [B13], "14": [B14], "15": [B15] } };
+  const forged = { schema: 2, ticket: 1742, nonce: r.nonce, head: HEAD, contract: contractDigest(), image: IMAGE, imageId: IMG_ID, approval: r.approval, issuedAt: r.issuedAt, expiresAt: r.expiresAt, acceptedAt: r.issuedAt, evidence: evidence(d), crossFamily: { file: review(d), head: HEAD, model: "claude-opus-5-5" }, bindings: { "13": [B13], "14": [B14], "15": [B15] } };
   write(d, "accepted.json", forged);
   assert.equal(acceptedFor(IMAGE, ctx(d)), null, "没有 used 记录");
   assert.throws(() => checkAdmission(IMAGE, ctx(d)), /未声明受控验收行/);
@@ -139,7 +142,7 @@ test("伪造 accepted.json 无效：无 receipt / 无 used / nonce、批准、�
   const d3 = dir(); accepted(d3);
   assert.ok(acceptedFor(IMAGE, ctx(d3)));
   const good = read(d3, "accepted.json");
-  for (const patch of [{ nonce: "other" }, { approval: "别的批准" }, { expiresAt: new Date(Date.now() + 9e9).toISOString() }, { head: "b".repeat(40) }, { image: "x:y" }, { contract: "0".repeat(64) }, { bindings: { ...good.bindings, "13": ["swarm-ticket:1237"] } }, { bindings: { ...good.bindings, "14": [cp({ runId: "forged" })] } }, { crossFamily: { ...good.crossFamily, head: "f".repeat(40) } }]) {
+  for (const patch of [{ nonce: "other" }, { approval: "别的批准" }, { expiresAt: new Date(Date.now() + 9e9).toISOString() }, { head: "b".repeat(40) }, { image: "x:y" }, { imageId: "sha256:" + "2".repeat(64) }, { contract: "0".repeat(64) }, { bindings: { ...good.bindings, "13": ["swarm-ticket:1237"] } }, { bindings: { ...good.bindings, "14": [cp({ runId: "forged" })] } }, { crossFamily: { ...good.crossFamily, head: "f".repeat(40) } }]) {
     write(d3, "accepted.json", { ...good, ...patch });
     assert.equal(acceptedFor(IMAGE, ctx(d3)), null, JSON.stringify(patch).slice(0, 80));
   }
@@ -148,14 +151,14 @@ test("伪造 accepted.json 无效：无 receipt / 无 used / nonce、批准、�
 test("登记验收：拒绝过期 receipt、批准引用被替换、缺行、缺证据；记录保存有效期，到期自动失效", () => {
   const d = dir(); const r = issue(d); runAll(d);
   const ev = evidence(d); const rv = review(d);
-  assert.throws(() => recordAcceptance({ dir: d, image: IMAGE, evidence: ev, crossFamilyReview: rv, identity: clean, now: new Date(Date.parse(r.expiresAt) + 1000) }), /已过期/);
-  assert.throws(() => recordAcceptance({ dir: d, image: IMAGE, approval: "different-approval", evidence: ev, crossFamilyReview: rv, identity: clean }), /批准引用与 receipt 不一致/);
-  assert.throws(() => recordAcceptance({ dir: d, image: IMAGE, evidence: { ...ev, "15": join(d, "missing") }, crossFamilyReview: rv, identity: clean }), /缺少证据文件/);
-  const rec = recordAcceptance({ dir: d, image: IMAGE, approval: r.approval, evidence: ev, crossFamilyReview: rv, identity: clean });
+  assert.throws(() => recordAcceptance({ imageIdOf, dir: d, image: IMAGE, evidence: ev, crossFamilyReview: rv, identity: clean, now: new Date(Date.parse(r.expiresAt) + 1000) }), /已过期/);
+  assert.throws(() => recordAcceptance({ imageIdOf, dir: d, image: IMAGE, approval: "different-approval", evidence: ev, crossFamilyReview: rv, identity: clean }), /批准引用与 receipt 不一致/);
+  assert.throws(() => recordAcceptance({ imageIdOf, dir: d, image: IMAGE, evidence: { ...ev, "15": join(d, "missing") }, crossFamilyReview: rv, identity: clean }), /缺少证据文件/);
+  const rec = recordAcceptance({ imageIdOf, dir: d, image: IMAGE, approval: r.approval, evidence: ev, crossFamilyReview: rv, identity: clean });
   assert.equal(rec.expiresAt, r.expiresAt); assert.equal(rec.approval, r.approval);
   assert.ok(checkAdmission(IMAGE, ctx(d)).accepted);
   assert.throws(() => checkAdmission(IMAGE, ctx(d, undefined, undefined, { now: new Date(Date.parse(r.expiresAt) + 1000) })), /未声明受控验收行/);
-  assert.throws(() => recordAcceptance({ dir: d, image: IMAGE, evidence: ev, crossFamilyReview: rv, identity: clean }), /EEXIST|file already exists/);
+  assert.throws(() => recordAcceptance({ imageIdOf, dir: d, image: IMAGE, evidence: ev, crossFamilyReview: rv, identity: clean }), /EEXIST|file already exists/);
 });
 
 test("used 标记崩溃安全且 binding 语义受校验：半写/损坏/不一致/非法 binding 不算事实", () => {
@@ -168,7 +171,7 @@ test("used 标记崩溃安全且 binding 语义受校验：半写/损坏/不一�
   checkAdmission(IMAGE, ctx(d, "14", B14)).consume();
   checkAdmission(IMAGE, ctx(d, "15", B15)).consume();
   const good14 = read(d, f14);
-  const attempt = () => recordAcceptance({ dir: d, image: IMAGE, evidence: evidence(d), crossFamilyReview: review(d), identity: clean });
+  const attempt = () => recordAcceptance({ imageIdOf, dir: d, image: IMAGE, evidence: evidence(d), crossFamilyReview: review(d), identity: clean });
   const bad13: unknown[] = ['{"sche', "{}", { ...good13, nonce: "other" }, { ...good13, head: "b".repeat(40) }, { ...good13, row: "14" }, { ...good13, binding: "" }, { ...good13, at: "nope" },
     { ...good13, binding: "wrong-nonempty" }, { ...good13, binding: swarmBinding(1237) }];
   for (const bad of bad13) {
@@ -187,7 +190,7 @@ test("used 标记崩溃安全且 binding 语义受校验：半写/损坏/不一�
 
 test("used 绑定在登记后被改为另一合法 binding：与登记快照不符，放行失败", () => {
   const d = dir(); const r = issue(d); runAll(d);
-  recordAcceptance({ dir: d, image: IMAGE, evidence: evidence(d), crossFamilyReview: review(d), identity: clean });
+  recordAcceptance({ imageIdOf, dir: d, image: IMAGE, evidence: evidence(d), crossFamilyReview: review(d), identity: clean });
   assert.ok(acceptedFor(IMAGE, ctx(d)));
   const f14 = usedFile(d, r.nonce, "14");
   write(d, f14, { ...read(d, f14), binding: cp({ runId: "other-run" }) });
@@ -212,7 +215,7 @@ test("第 15 行：同一 run 实例+检查点被 SIGKILL 后重入是恢复，�
   assert.equal(again.resumed, true);
   again.consume();
   assert.equal(readdirSync(d).filter((f) => f.startsWith("resume-")).length, 1);
-  assert.ok(recordAcceptance({ dir: d, image: IMAGE, evidence: evidence(d), crossFamilyReview: review(d), identity: clean }));
+  assert.ok(recordAcceptance({ imageIdOf, dir: d, image: IMAGE, evidence: evidence(d), crossFamilyReview: review(d), identity: clean }));
 
   const d2 = dir(); issue(d2); checkAdmission(IMAGE, ctx(d2, "15", B15)).consume();
   assert.throws(() => checkAdmission(IMAGE, ctx(d2, "15", cp({ runId: "run-c", incoming: "e".repeat(40) }))), /新运行不得复用/, "runId 不同");
@@ -232,7 +235,7 @@ test("同一归并 run 实例的第二个冲突检查点：单独通过门禁、
   adm2.consume();
   assert.equal(readdirSync(d).filter((f) => f.startsWith(`cp-${r.nonce}-14-`)).length, 1);
   assert.equal(checkAdmission(IMAGE, ctx(d, "14", cp({ head: "8".repeat(40), incoming: "7".repeat(40) }))).resumed, true, "同一第二检查点重入=恢复");
-  const rec = recordAcceptance({ dir: d, image: IMAGE, evidence: evidence(d), crossFamilyReview: review(d), identity: clean });
+  const rec = recordAcceptance({ imageIdOf, dir: d, image: IMAGE, evidence: evidence(d), crossFamilyReview: review(d), identity: clean });
   assert.equal(rec.bindings["14"].length, 2);
   assert.ok(acceptedFor(IMAGE, ctx(d)));
   // 注入别的 run 的检查点记录 → 与行锚点不同 run，快照核对失败
@@ -277,7 +280,7 @@ test("同一 checkout 不允许重复签发，须先退役保留历史；退役�
 
 test("外部异家族独审：首个非空行必须是 VERDICT: PASS，HEAD 绑定 receipt，重复行/正文 PASS/同家族/别名/未知名称都拒绝", () => {
   const d = dir(); issue(d); runAll(d); const ev = evidence(d);
-  const attempt = (file: string) => recordAcceptance({ dir: d, image: IMAGE, evidence: ev, crossFamilyReview: file, identity: clean });
+  const attempt = (file: string) => recordAcceptance({ imageIdOf, dir: d, image: IMAGE, evidence: ev, crossFamilyReview: file, identity: clean });
   assert.throws(() => attempt(review(d, "claude-opus-5-5", "f".repeat(40))), /不是被验收的候选/, "HEAD 不等于 receipt.head");
   assert.throws(() => attempt(review(d, "claude-opus-5-5", "0".repeat(40))), /不是被验收的候选/);
   assert.throws(() => attempt(review(d, "gpt-6.1-sol")), /同属 openai/);
@@ -339,4 +342,53 @@ test("受控第 13 行入口：必须显式专用验收票，不读线上队列"
   const merge = readFileSync(new URL("./swarm-merge.mts", import.meta.url), "utf8");
   assert.doesNotMatch(merge, /conflictExecutionReady/, "冲突门禁不再是 run 级布尔");
   assert.match(merge, /readiedCheckpoints/);
+});
+
+// —— 镜像 Id 绑定（D6 前凭据暴露闭合）——
+test("receipt 绑定镜像 Id：tag 被重指/镜像重建后 Id 漂移，受控放行、登记、已登记放行都 FAIL-loud", () => {
+  const d = dir(); const r = issue(d);
+  assert.equal(r.imageId, IMG_ID); assert.equal(read(d, "receipt.json").imageId, IMG_ID);
+  const drifted = () => "sha256:" + "9".repeat(64);
+  assert.throws(() => checkAdmission(IMAGE, ctx(d, "13", B13, { imageIdOf: drifted })), /镜像 Id 漂移/);
+  assert.throws(() => checkAdmission(IMAGE, ctx(d, "13", B13, { imageIdOf: () => { throw new Error("docker 不可用"); } })), /镜像 Id 无法确认.*docker 不可用/);
+  assert.throws(() => checkAdmission(IMAGE, ctx(d, "13", B13, { imageIdOf: () => "latest" })), /Id 格式无效/);
+  assert.deepEqual(readdirSync(d).filter((f) => f.startsWith("used-")), [], "漂移不烧验收行");
+  runAll(d);
+  assert.throws(() => recordAcceptance({ imageIdOf: drifted, dir: d, image: IMAGE, evidence: evidence(d), crossFamilyReview: review(d), identity: clean }), /镜像 Id 不符/);
+  recordAcceptance({ imageIdOf, dir: d, image: IMAGE, evidence: evidence(d), crossFamilyReview: review(d), identity: clean });
+  assert.ok(acceptedFor(IMAGE, ctx(d)));
+  assert.equal(acceptedFor(IMAGE, ctx(d, undefined, undefined, { imageIdOf: drifted })), null, "已登记放行同样绑定 Id");
+});
+
+test("receipt/accepted 缺 imageId 或 Id 不是 sha256：解析失败", () => {
+  const d = dir(); issue(d);
+  const rec = read(d, "receipt.json"); delete rec.imageId; write(d, "receipt.json", rec);
+  assert.throws(() => checkAdmission(IMAGE, ctx(d, "13", B13)), /receipt 无效.*imageId/);
+  write(d, "receipt.json", { ...rec, imageId: "sandcastle:newchanlun" });
+  assert.throws(() => checkAdmission(IMAGE, ctx(d, "13", B13)), /receipt 无效.*imageId/);
+});
+
+test("合同摘要含容器 env 白名单与 Id 绑定：改白名单即改摘要", async () => {
+  const iso = await import("./docker-isolation.mts");
+  assert.deepEqual([...iso.CONTAINER_ENV_ALLOW], ["CLIPROXY_BASE_URL", "CLIPROXY_LOCAL_KEY", "SANDCASTLE_MERGE_INSTANCE", "SANDCASTLE_MERGE_RUN"]);
+  const canonical = (allow: readonly string[]) => createHash("sha256").update(JSON.stringify({
+    id: "1742-docker-plan-b-v3", protectedSubpaths: iso.PROTECTED_SUBPATHS, innerSandbox: iso.DOCKER_INNER_SANDBOX,
+    capMask: iso.DEFAULT_CAP_MASK.toString(16), securityOpts: [], containerEnvAllow: allow, imageIdBound: true, probe: iso.PROBE_SCRIPT,
+  })).digest("hex");
+  assert.equal(contractDigest(), canonical(iso.CONTAINER_ENV_ALLOW), "摘要正文含白名单与 Id 绑定");
+  assert.notEqual(contractDigest(), canonical([...iso.CONTAINER_ENV_ALLOW, "KIMI_API_KEY"]), "白名单变化即摘要变化");
+});
+
+test("dockerImageId 默认解析：真实 docker inspect 的 Id；镜像不存在时抛错而不是回退 tag", { skip: realImage("alpine:3.22") ? false : "本机无 alpine:3.22" }, () => {
+  assert.match(dockerImageId("alpine:3.22"), /^sha256:[0-9a-f]{64}$/);
+  assert.throws(() => dockerImageId("sandcastle-no-such-image:never"), /无法解析镜像/);
+});
+function realImage(name: string): boolean { try { execFileSync("docker", ["image", "inspect", name, "--format", "{{.Id}}"], { stdio: "ignore", timeout: 15_000 }); return true; } catch { return false; } }
+
+test("parseImageInspect：Id 必须是 sha256；镜像自带非空凭据类 ENV 拒绝，空占位键与普通键放行", () => {
+  const id = "sha256:" + "a".repeat(64);
+  assert.equal(parseImageInspect(`${id}\t${JSON.stringify(["PATH=/bin", "KIMI_API_KEY=", "GH_TOKEN=", "GH_REPO=a/b"])}`, "img"), id);
+  assert.throws(() => parseImageInspect(`${id}\t${JSON.stringify(["DEEPSEEK_API_KEY=abc"])}`, "img"), (e: Error) => /DEEPSEEK_API_KEY/.test(e.message) && !/abc/.test(e.message));
+  assert.throws(() => parseImageInspect(`latest\t[]`, "img"), /Id 格式无效/);
+  assert.throws(() => parseImageInspect(`${id}\tnot-json`, "img"), /ENV 无法解析/);
 });

@@ -5,6 +5,7 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } fro
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ROW_ENV, issueReceipt, swarmBinding } from "./docker-acceptance.mts";
+const IMG_ID = "sha256:" + "1".repeat(64);
 import { assertSwarmExecutionReady } from "./swarm-route.mts";
 import { assertControlledBase } from "./swarm-controlled.mts";
 
@@ -46,10 +47,10 @@ test("受控第 13 行基线=receipt.head：HEAD 一致放行；引用不存在�
 test("入口行为：候选在当前仓库不存在时，在探针、占用验收行之前就 FAIL-loud（不烧验收行）", () => {
   const r = repo(); const acc = tmp("controlled-acc-");
   const identity = { head: "2".repeat(40), dirty: "" }; // receipt 绑定的候选不在 r.dir 里
-  issueReceipt({ dir: acc, image: "img", approval: "ok", swarmTicket: TICKET, identity });
+  issueReceipt({ imageIdOf: () => IMG_ID, dir: acc, image: "img", approval: "ok", swarmTicket: TICKET, identity });
   let probed = false; let baseRef = "main";
   assert.throws(() => assertSwarmExecutionReady("img", {
-    rows: ["13"], binding: swarmBinding(TICKET), acceptance: { dir: acc, env: { [ROW_ENV]: "13" }, identity },
+    rows: ["13"], binding: swarmBinding(TICKET), acceptance: { imageIdOf: () => IMG_ID, dir: acc, env: { [ROW_ENV]: "13" }, identity },
     verify: (a) => { baseRef = assertControlledBase(a, TICKET, r.dir); },
     probe: () => { probed = true; return good; },
   }), /候选 \w+ 在当前仓库中不存在，拒绝启动工蜂/);
@@ -59,9 +60,9 @@ test("入口行为：候选在当前仓库不存在时，在探针、占用验�
   // 候选存在且 HEAD 一致：通过，并把基线交给调用方、占用第 13 行
   const ok = { head: r.candidate, dirty: "" };
   const acc2 = tmp("controlled-acc-");
-  issueReceipt({ dir: acc2, image: "img", approval: "ok", swarmTicket: TICKET, identity: ok });
+  issueReceipt({ imageIdOf: () => IMG_ID, dir: acc2, image: "img", approval: "ok", swarmTicket: TICKET, identity: ok });
   assertSwarmExecutionReady("img", {
-    rows: ["13"], binding: swarmBinding(TICKET), acceptance: { dir: acc2, env: { [ROW_ENV]: "13" }, identity: ok },
+    rows: ["13"], binding: swarmBinding(TICKET), acceptance: { imageIdOf: () => IMG_ID, dir: acc2, env: { [ROW_ENV]: "13" }, identity: ok },
     verify: (a) => { baseRef = assertControlledBase(a, TICKET, r.dir); }, probe: () => good,
   });
   assert.equal(baseRef, r.candidate);

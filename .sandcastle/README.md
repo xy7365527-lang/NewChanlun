@@ -20,7 +20,7 @@
 前置：
 
 - **colima 在跑**——Docker 沙盒依赖本机 Docker daemon（macOS 上经 colima 提供）；
-- **CLIProxyLocal 可用**——本机默认模型为 `gpt-6-astra`；noSandbox 用 `127.0.0.1:8318`，Docker 用 `host.docker.internal:8318`。执行面客户端密钥由进程环境或 launchctl 的 `CLIPROXY_LOCAL_KEY` 注入，不挂入容器、不写入日志；legacy provider 的 `.sandcastle/.env` 仍按 gitignore 管理。
+- **CLIProxyLocal 可用**——本机默认模型为 `gpt-6-astra`；noSandbox 用 `127.0.0.1:8318`，Docker 用 `host.docker.internal:8318`。执行面客户端密钥由进程环境或 launchctl 的 `CLIPROXY_LOCAL_KEY` 注入，不挂入容器、不写入日志；legacy provider 的 `.sandcastle/.env` 仍按 gitignore 管理，但 Docker 路径（`swarmSandbox` → `hardenProvider`）对容器 env 做显式白名单（`CLIPROXY_BASE_URL`、`CLIPROXY_LOCAL_KEY`、`SANDCASTLE_MERGE_RUN`、`SANDCASTLE_MERGE_INSTANCE`，值只取 provider 声明），`.env` 里的其余键一律不进容器；白名单写入合同摘要，receipt 同时绑定镜像 Id（`sha256:…`），tag 重指或镜像重建即 FAIL-loud。镜像自带的空占位 ENV 键（如 `KIMI_API_KEY=`）无法在 `docker run` 层移除，只允许保持为空；镜像出现非空凭据类 ENV 则拒绝签发/放行。
 
 跑法（仓库根）：
 

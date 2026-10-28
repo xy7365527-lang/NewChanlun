@@ -8,7 +8,7 @@ import { closeSync, existsSync, fsyncSync, linkSync, lstatSync, openSync, readFi
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { acceptanceRoot, assertHomeNotRedirected, controlledDir } from "./acceptance-dir.mts";
-import { DEFAULT_CAP_MASK, DOCKER_INNER_SANDBOX, PROBE_SCRIPT, PROTECTED_SUBPATHS } from "./docker-isolation.mts";
+import { CONTAINER_ENV_ALLOW, DEFAULT_CAP_MASK, DOCKER_INNER_SANDBOX, PROBE_SCRIPT, PROTECTED_SUBPATHS, imageEnvSecrets } from "./docker-isolation.mts";
 import { MAIN_MODEL } from "./main-model.mts";
 
 export const ACCEPTANCE_TICKET = 1742;
@@ -19,23 +19,49 @@ export const MAX_TTL_HOURS = 720;
 export const MAX_RESUMES = 5;
 export const MAX_CHECKPOINTS = 16;
 
-/** 合同摘要：改任一项（受保护路径、内层沙箱模式、cap 上界、探针脚本、无 security 选项、绑定规则版本）即新合同，旧 receipt 作废。 */
+/** 合同摘要：改任一项（受保护路径、内层沙箱模式、cap 上界、探针脚本、无 security 选项、容器 env 白名单、绑定规则版本）即新合同，旧 receipt 作废。 */
 export function contractDigest(): string {
   const canonical = JSON.stringify({
-    id: "1742-docker-plan-b-v2", protectedSubpaths: PROTECTED_SUBPATHS, innerSandbox: DOCKER_INNER_SANDBOX,
-    capMask: DEFAULT_CAP_MASK.toString(16), securityOpts: [], probe: PROBE_SCRIPT,
+    id: "1742-docker-plan-b-v3", protectedSubpaths: PROTECTED_SUBPATHS, innerSandbox: DOCKER_INNER_SANDBOX,
+    capMask: DEFAULT_CAP_MASK.toString(16), securityOpts: [], containerEnvAllow: CONTAINER_ENV_ALLOW, imageIdBound: true, probe: PROBE_SCRIPT,
   });
   return createHash("sha256").update(canonical).digest("hex");
 }
 
+/** 镜像 Id（`sha256:<64 hex>`）：receipt 绑定 Id 而非仅 tag，tag 被重指或镜像被重建即漂移。 */
+export type ImageIdOf = (image: string) => string;
+const IMAGE_ID = /^sha256:[0-9a-f]{64}$/;
+/** 默认解析：`docker image inspect`；同时拒绝镜像自带 ENV 里名字像凭据且值非空的条目（空占位键允许）。失败即抛，不回退为 tag。 */
+export const dockerImageId: ImageIdOf = (image) => {
+  let out: string;
+  try { out = execFileSync("docker", ["image", "inspect", image, "--format", "{{.Id}}\t{{json .Config.Env}}"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 30_000, killSignal: "SIGKILL" }).trim(); }
+  catch (e) { throw new Error(`无法解析镜像 ${image} 的 Id：${String((e as Error).message).slice(0, 160)}`); }
+  return parseImageInspect(out, image);
+};
+/** `docker image inspect --format '{{.Id}}\t{{json .Config.Env}}'` 的输出：Id 须为 sha256，镜像自带 ENV 不得有非空凭据类键。 */
+export function parseImageInspect(out: string, image: string): string {
+  const tab = out.indexOf("\t"); const id = tab < 0 ? out : out.slice(0, tab);
+  if (!IMAGE_ID.test(id)) throw new Error(`镜像 ${image} 的 Id 格式无效`);
+  let env: string[] = [];
+  try { env = tab < 0 ? [] : JSON.parse(out.slice(tab + 1)) ?? []; } catch { throw new Error(`镜像 ${image} 的 ENV 无法解析`); }
+  const secrets = imageEnvSecrets(env);
+  if (secrets.length) throw new Error(`镜像 ${image} 自带非空凭据类 ENV（${secrets.join(", ")}），拒绝`);
+  return id;
+}
+const imageIdOf = (ctx: { imageIdOf?: ImageIdOf } | undefined, image: string): string => {
+  const id = (ctx?.imageIdOf ?? dockerImageId)(image);
+  if (!IMAGE_ID.test(id)) throw new Error(`镜像 ${image} 的 Id 格式无效`);
+  return id;
+};
+
 export interface AcceptanceReceipt {
-  schema: 2; ticket: number; nonce: string; head: string; contract: string; image: string;
+  schema: 2; ticket: number; nonce: string; head: string; contract: string; image: string; imageId: string;
   rows: AcceptanceRow[]; swarmTicket?: number; approval: string; issuedAt: string; expiresAt: string;
 }
 export interface UsedMarker { schema: 2; nonce: string; row: AcceptanceRow; head: string; contract: string; binding: string; at: string; pid: number }
 export interface CrossFamilyReview { file: string; head: string; model: string }
 export interface AcceptedRecord {
-  schema: 2; ticket: number; nonce: string; head: string; contract: string; image: string; approval: string;
+  schema: 2; ticket: number; nonce: string; head: string; contract: string; image: string; imageId: string; approval: string;
   issuedAt: string; expiresAt: string; acceptedAt: string; evidence: Record<AcceptanceRow, string>; crossFamily: CrossFamilyReview;
   /** 登记时每行已占用的运行绑定快照（第 14/15 行的 run+检查点登记前未知，只能在此固定）；acceptedFor 逐字核对。 */
   bindings: Record<AcceptanceRow, string[]>;
@@ -78,7 +104,7 @@ export function codeIdentity(dir: string = dirname(fileURLToPath(import.meta.url
 }
 
 // ── 目录与文件 ────────────────────────────────────────────────────────────────
-export interface AdmissionContext { dir?: string; env?: NodeJS.ProcessEnv; identity?: CodeIdentity; now?: Date; binding?: string; rows?: readonly AcceptanceRow[]; roots?: readonly string[] }
+export interface AdmissionContext { imageIdOf?: ImageIdOf; dir?: string; env?: NodeJS.ProcessEnv; identity?: CodeIdentity; now?: Date; binding?: string; rows?: readonly AcceptanceRow[]; roots?: readonly string[] }
 
 /** 生产路径只用宿主固定目录；dir 仅供单元测试与主控 CLI 的显式参数，且同样经过 controlledDir 校验。 */
 export function resolveDir(ctx: { dir?: string; roots?: readonly string[] } = {}, create = false): string {
@@ -117,6 +143,7 @@ const hex40 = (v: unknown, name: string): string => { const s = str(v, name); if
 const time = (v: unknown, name: string): number => { const t = Date.parse(str(v, name)); if (!Number.isFinite(t)) throw new Error(`${name} 不是合法时间`); return t; };
 const rowOf = (v: unknown): AcceptanceRow => { if (!ACCEPTANCE_ROWS.includes(v as AcceptanceRow)) throw new Error("验收行非法"); return v as AcceptanceRow; };
 
+const imageIdField = (v: unknown): string => { const s = str(v, "imageId"); if (!IMAGE_ID.test(s)) throw new Error("imageId 不是 sha256 镜像 Id"); return s; };
 export function parseReceipt(raw: unknown): AcceptanceReceipt {
   if (!isObj(raw) || raw.schema !== 2 || raw.ticket !== ACCEPTANCE_TICKET) throw new Error("receipt 结构无效");
   if (!Array.isArray(raw.rows) || !raw.rows.length) throw new Error("receipt.rows 无效");
@@ -127,7 +154,7 @@ export function parseReceipt(raw: unknown): AcceptanceReceipt {
   time(raw.issuedAt, "issuedAt"); time(raw.expiresAt, "expiresAt");
   return {
     schema: 2, ticket: ACCEPTANCE_TICKET, nonce: str(raw.nonce, "nonce"), head: hex40(raw.head, "head"), contract: str(raw.contract, "contract"),
-    image: str(raw.image, "image"), rows, ...(swarmTicket !== undefined ? { swarmTicket: swarmTicket as number } : {}),
+    image: str(raw.image, "image"), imageId: imageIdField(raw.imageId), rows, ...(swarmTicket !== undefined ? { swarmTicket: swarmTicket as number } : {}),
     approval: str(raw.approval, "approval"), issuedAt: raw.issuedAt as string, expiresAt: raw.expiresAt as string,
   };
 }
@@ -176,7 +203,7 @@ function loadUsed(dir: string, receipt: AcceptanceReceipt, row: AcceptanceRow): 
 }
 
 // ── 签发 / 退役 ───────────────────────────────────────────────────────────────
-export interface IssueOptions { dir?: string; roots?: readonly string[]; image: string; approval: string; rows?: readonly AcceptanceRow[]; swarmTicket?: number; ttlHours?: number; now?: Date; identity?: CodeIdentity }
+export interface IssueOptions { imageIdOf?: ImageIdOf; dir?: string; roots?: readonly string[]; image: string; approval: string; rows?: readonly AcceptanceRow[]; swarmTicket?: number; ttlHours?: number; now?: Date; identity?: CodeIdentity }
 
 /** 由主控在用户批准后执行；工位已有未退役 receipt 时拒绝覆盖（须先 retire，保留历史）。 */
 export function issueReceipt(o: IssueOptions): AcceptanceReceipt {
@@ -190,7 +217,7 @@ export function issueReceipt(o: IssueOptions): AcceptanceReceipt {
   if (!(ttl > 0 && ttl <= MAX_TTL_HOURS)) throw new Error(`ttlHours 必须在 (0, ${MAX_TTL_HOURS}] 内`);
   const now = o.now ?? new Date();
   const receipt: AcceptanceReceipt = {
-    schema: 2, ticket: ACCEPTANCE_TICKET, nonce: randomUUID(), head: id.head, contract: contractDigest(), image: o.image, rows,
+    schema: 2, ticket: ACCEPTANCE_TICKET, nonce: randomUUID(), head: id.head, contract: contractDigest(), image: o.image, imageId: imageIdOf(o, o.image), rows,
     ...(o.swarmTicket !== undefined ? { swarmTicket: o.swarmTicket } : {}),
     approval: o.approval.trim(), issuedAt: now.toISOString(), expiresAt: new Date(now.getTime() + ttl * 3_600_000).toISOString(),
   };
@@ -257,7 +284,7 @@ export function readCrossFamilyReview(file: string, expectedHead: string): Cross
 }
 
 export interface RecordOptions {
-  dir?: string; roots?: readonly string[]; image: string; approval?: string; evidence: Record<AcceptanceRow, string>;
+  imageIdOf?: ImageIdOf; dir?: string; roots?: readonly string[]; image: string; approval?: string; evidence: Record<AcceptanceRow, string>;
   crossFamilyReview: string; identity?: CodeIdentity; now?: Date;
 }
 /** 13–15 受控验收完成后由主控登记：receipt 未过期、三行 used 记录都真实有效、证据与外部独审存在，且与当前 head/合同/镜像一致。
@@ -268,6 +295,7 @@ export function recordAcceptance(o: RecordOptions): AcceptedRecord {
   const dir = resolveDir(o);
   const receipt = loadReceipt(dir);
   if (receipt.head !== id.head || receipt.contract !== contractDigest() || receipt.image !== o.image) throw new Error("receipt 与当前 head/合同/镜像不符");
+  if (receipt.imageId !== imageIdOf(o, o.image)) throw new Error("receipt 与当前镜像 Id 不符（镜像已漂移）");
   if ((o.now ?? new Date()).getTime() >= Date.parse(receipt.expiresAt)) throw new Error("receipt 已过期，不能登记验收");
   if (o.approval !== undefined && o.approval !== receipt.approval) throw new Error("批准引用与 receipt 不一致");
   if (!ACCEPTANCE_ROWS.every((r) => receipt.rows.includes(r))) throw new Error("receipt 范围不含 13–15 全部三行，不能登记完整验收");
@@ -281,7 +309,7 @@ export function recordAcceptance(o: RecordOptions): AcceptedRecord {
   const crossFamily = readCrossFamilyReview(o.crossFamilyReview, receipt.head);
   if (receipt.head !== id.head) throw new Error("receipt.head 与当前执行代码不一致");
   const record: AcceptedRecord = {
-    schema: 2, ticket: ACCEPTANCE_TICKET, nonce: receipt.nonce, head: receipt.head, contract: receipt.contract, image: receipt.image, approval: receipt.approval,
+    schema: 2, ticket: ACCEPTANCE_TICKET, nonce: receipt.nonce, head: receipt.head, contract: receipt.contract, image: receipt.image, imageId: receipt.imageId, approval: receipt.approval,
     issuedAt: receipt.issuedAt, expiresAt: receipt.expiresAt, acceptedAt: (o.now ?? new Date()).toISOString(), evidence: o.evidence, crossFamily, bindings,
   };
   publishOnce(acceptedPath(dir), record);
@@ -293,7 +321,7 @@ function parseAccepted(raw: unknown): AcceptedRecord {
   const evidence = Object.fromEntries(ACCEPTANCE_ROWS.map((r) => [r, str((raw.evidence as Record<string, unknown>)[r], `evidence.${r}`)])) as Record<AcceptanceRow, string>;
   time(raw.issuedAt, "issuedAt"); time(raw.expiresAt, "expiresAt"); time(raw.acceptedAt, "acceptedAt");
   return {
-    schema: 2, ticket: ACCEPTANCE_TICKET, nonce: str(raw.nonce, "nonce"), head: hex40(raw.head, "head"), contract: str(raw.contract, "contract"), image: str(raw.image, "image"),
+    schema: 2, ticket: ACCEPTANCE_TICKET, nonce: str(raw.nonce, "nonce"), head: hex40(raw.head, "head"), contract: str(raw.contract, "contract"), image: str(raw.image, "image"), imageId: imageIdField(raw.imageId),
     approval: str(raw.approval, "approval"), issuedAt: raw.issuedAt as string, expiresAt: raw.expiresAt as string, acceptedAt: raw.acceptedAt as string, evidence,
     crossFamily: { file: str(raw.crossFamily.file, "crossFamily.file"), head: hex40(raw.crossFamily.head, "crossFamily.head"), model: str(raw.crossFamily.model, "crossFamily.model") },
     bindings: Object.fromEntries(ACCEPTANCE_ROWS.map((r) => {
@@ -313,9 +341,10 @@ export function acceptedFor(image: string, ctx: AdmissionContext = {}): Accepted
     const receipt = loadReceipt(dir);
     const id = ctx.identity ?? codeIdentity();
     if (id.dirty) return null;
-    if (record.nonce !== receipt.nonce || record.head !== receipt.head || record.contract !== receipt.contract || record.image !== receipt.image
+    if (record.nonce !== receipt.nonce || record.head !== receipt.head || record.contract !== receipt.contract || record.image !== receipt.image || record.imageId !== receipt.imageId
       || record.approval !== receipt.approval || record.expiresAt !== receipt.expiresAt || record.issuedAt !== receipt.issuedAt) return null;
     if (receipt.head !== id.head || receipt.contract !== contractDigest() || receipt.image !== image) return null;
+    if (receipt.imageId !== imageIdOf(ctx, image)) return null;
     if ((ctx.now ?? new Date()).getTime() >= Date.parse(receipt.expiresAt)) return null;
     if (!ACCEPTANCE_ROWS.every((r) => receipt.rows.includes(r))) return null;
     for (const row of ACCEPTANCE_ROWS) {
@@ -361,6 +390,9 @@ export function checkControlledAdmission(image: string, ctx: AdmissionContext = 
   if (receipt.head !== id.head) refuse(`代码 head 漂移（receipt ${receipt.head.slice(0, 12)} ≠ 当前 ${id.head.slice(0, 12)}）`);
   if (receipt.contract !== contractDigest()) refuse("隔离合同已变化");
   if (receipt.image !== image) refuse(`镜像不一致（${receipt.image} ≠ ${image}）`);
+  let currentImageId: string;
+  try { currentImageId = imageIdOf(ctx, image); } catch (e) { return refuse(`镜像 Id 无法确认：${e instanceof Error ? e.message : String(e)}`); }
+  if (receipt.imageId !== currentImageId) refuse(`镜像 Id 漂移（receipt ${receipt.imageId.slice(0, 19)} ≠ 当前 ${currentImageId.slice(0, 19)}）`);
   if (!receipt.rows.includes(row!)) refuse(`批准范围不含第 ${row} 行`);
   if ((ctx.now ?? new Date()).getTime() >= Date.parse(receipt.expiresAt)) refuse("receipt 已过期");
   if (row === "13" && ctx.binding !== swarmBinding(receipt.swarmTicket!)) refuse(`第 13 行只允许专用验收票 #${receipt.swarmTicket}`);

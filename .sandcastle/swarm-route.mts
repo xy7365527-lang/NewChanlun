@@ -98,7 +98,7 @@ export interface ReadyOptions {
   /** 准入通过后、探针与占用之前的入口自检（失败即拒绝，不烧验收行）。 */
   verify?: (admission: Admission) => void;
   /** 仅供进程内调用方（单元测试）注入验收目录/代码身份/验收行；生产入口不传，走宿主固定目录。 */
-  acceptance?: Pick<AdmissionContext, "dir" | "env" | "identity" | "now" | "roots">;
+  acceptance?: Pick<AdmissionContext, "dir" | "env" | "identity" | "now" | "roots" | "imageIdOf">;
 }
 
 /** #1617/#1742：领票前先验精确 acceptance 事实（缺失/漂移/重复/越权即 FAIL-loud），再逐项观测容器隔离合同；
