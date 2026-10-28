@@ -86,8 +86,8 @@ let baseRef = "main";
 const IMAGE_ID_ADMITTED = assertSwarmExecutionReady(IMAGE, {
   rows: ["13"], binding: controlledTicket ? swarmBinding(controlledTicket) : undefined,
   verify: controlledTicket ? (admission) => { baseRef = assertControlledBase(admission, controlledTicket); } : undefined,
+  modelProbe: (id) => assertDockerCliProxyReachable(id), // 占用 used-13 之前
 });
-assertDockerCliProxyReachable(IMAGE_ID_ADMITTED);
 
 /** 普通路径：planner 读线上队列 → 放行 → host 侧认领。返回 null 表示本轮收束。 */
 async function planAndClaim(): Promise<Array<{ id: string; title: string; branch: string }> | null> {

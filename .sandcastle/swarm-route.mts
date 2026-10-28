@@ -103,6 +103,8 @@ export interface ReadyOptions {
   rows?: readonly AcceptanceRow[];
   /** 准入通过后、探针与占用之前的入口自检（失败即拒绝，不烧验收行）。 */
   verify?: (admission: Admission) => void;
+  /** 容器内模型预检（对准入 Id）：在隔离探针之后、占用验收行（consume）之前调用；失败（含上游 overloaded/quota/5xx 瞬时故障）即 FAIL-loud，不消耗受控行、不写 used。 */
+  modelProbe?: (imageId: string) => void;
   /** 仅供进程内调用方（单元测试）注入验收目录/代码身份/验收行；生产入口不传，走宿主固定目录。 */
   acceptance?: Pick<AdmissionContext, "dir" | "env" | "identity" | "now" | "roots" | "imageIdOf">;
 }
@@ -115,6 +117,7 @@ export function assertSwarmExecutionReady(imageName: string, options: ReadyOptio
   options.verify?.(admission);
   // 观测与后续启动都用准入核对过的 Id，三条入口（受控行、已登记放行、冲突工蜂）一致。
   assertContainerIsolationContract(admission.imageId, options.probe);
+  options.modelProbe?.(admission.imageId); // 先预检、后占用：预检失败不烧受控行；占用之后的真实工蜂失败仍按一次性处理
   admission.consume();
   return admission.imageId;
 }

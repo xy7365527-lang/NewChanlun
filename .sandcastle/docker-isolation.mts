@@ -100,7 +100,9 @@ export function hardenProvider<P extends object, O extends { mounts: Array<{ hos
 
 /** 凭据类变量名：按下划线分词匹配（KIMI_API_KEY、GH_TOKEN、SSH_AUTH_SOCK、OPENAI_APIKEY 命中；GIT_AUTHOR_NAME、MONKEY_PATCH 不命中）。 */
 const SECRET_WORDS = new Set(["KEY", "KEYS", "APIKEY", "TOKEN", "TOKENS", "SECRET", "SECRETS", "PASSWORD", "PASSWD", "CREDENTIAL", "CREDENTIALS", "AUTH", "AUTHORIZATION"]);
-export const isSecretName = (name: string): boolean => name.toUpperCase().split(/[^A-Z0-9]+/).some((w) => SECRET_WORDS.has(w));
+/** 连写名（PGPASSWORD、NPMTOKEN、PRIVATEKEY、AWSSECRET…）：分词后整词或词尾匹配；AUTH 只认整词（SSH_AUTH_SOCK），不做子串匹配，避免 AUTHOR 误命中。 */
+const SECRET_SUFFIX = /(PASSWORD|PASSWD|PASSPHRASE|TOKEN|TOKENS|SECRET|SECRETS|CREDENTIAL|CREDENTIALS|APIKEY|PRIVATEKEY|SECRETKEY|ACCESSKEY|AUTHKEY|AUTHTOKEN)$/;
+export const isSecretName = (name: string): boolean => name.toUpperCase().split(/[^A-Z0-9]+/).some((w) => SECRET_WORDS.has(w) || SECRET_SUFFIX.test(w));
 const SECRET_NAME = { test: isSecretName };
 /** 镜像自带 ENV 里“名字像凭据且值非空”的条目：不得存在（空占位键允许，其值只能由白名单之外的 -e 覆盖，而白名单已把它们挡在外面）。 */
 export function imageEnvSecrets(imageEnv: readonly string[]): string[] {

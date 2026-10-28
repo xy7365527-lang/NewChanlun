@@ -258,8 +258,8 @@ test("E-5：运行期 env 里带白名单键（含 run() 的 options.env）时�
 });
 
 test("凭据名按词边界匹配：GIT_AUTHOR_* 等普通键不再误命中，现役镜像的空占位键仍允许、非空凭据仍拒绝", () => {
-  for (const name of ["KIMI_API_KEY", "DEEPSEEK_API_KEY", "ZAI_API_KEY", "MOONSHOT_API_KEY", "GH_TOKEN", "OPENAI_APIKEY", "SSH_AUTH_SOCK", "AWS_SECRET_ACCESS_KEY", "DB_PASSWORD", "GOOGLE_CREDENTIALS", "HTTP_AUTHORIZATION", "token", "apiKey"]) assert.ok(isSecretName(name), name);
-  for (const name of ["GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "MONKEY_PATCH", "AUTHOR", "GH_REPO", "PATH", "HOME", "NODE_VERSION", "NPM_CONFIG_PREFIX", "GIT_LFS_SKIP_SMUDGE", "KEYBOARD"]) assert.ok(!isSecretName(name), name);
+  for (const name of ["KIMI_API_KEY", "DEEPSEEK_API_KEY", "ZAI_API_KEY", "MOONSHOT_API_KEY", "GH_TOKEN", "OPENAI_APIKEY", "SSH_AUTH_SOCK", "AWS_SECRET_ACCESS_KEY", "DB_PASSWORD", "GOOGLE_CREDENTIALS", "HTTP_AUTHORIZATION", "token", "apiKey", "PGPASSWORD", "NPMTOKEN", "PRIVATEKEY", "GITHUBTOKEN", "AWSSECRET", "MYSQL_PWD_PASSWORD", "NPM_CONFIG_AUTHTOKEN", "DOCKERPASSWORD"]) assert.ok(isSecretName(name), name);
+  for (const name of ["GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "MONKEY_PATCH", "AUTHOR", "GH_REPO", "PATH", "HOME", "NODE_VERSION", "NPM_CONFIG_PREFIX", "GIT_LFS_SKIP_SMUDGE", "KEYBOARD", "GITAUTHORNAME", "GIT_AUTHOR_DATE", "AUTHORIZED_USERS_COUNT_X"]) assert.ok(!isSecretName(name), name);
   // 现役镜像（sandcastle:newchanlun）的 Config.Env 形态：占位键为空
   const live = ["HOME=/home/agent", "KIMI_API_KEY=", "GIT_AUTHOR_NAME=", "GIT_AUTHOR_EMAIL=", "GIT_COMMITTER_NAME=", "GIT_COMMITTER_EMAIL=", "GIT_LFS_SKIP_SMUDGE=1", "DEEPSEEK_API_KEY=", "ZAI_API_KEY=", "MOONSHOT_API_KEY=", "GH_TOKEN=", "GH_REPO=a/b", "PATH=/bin", "NODE_VERSION=22", "YARN_VERSION=1", "NPM_CONFIG_PREFIX=/p"];
   assert.deepEqual(imageEnvSecrets(live), []);

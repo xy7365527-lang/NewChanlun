@@ -132,7 +132,7 @@ test("公共 CLI：普通 swarm 在 planner/claim 前无 receipt 即拒绝，不
   assert.equal(f.git("rev-parse", "main"), f.base);
 });
 
-test("冲突入口：观测全部成立但无 receipt 或未声明验收行仍 FAIL-loud；同一 run 实例重入记为恢复；runId 不同的清单撞已占用行被拒", { skip: dirtySkip }, async t => {
+test("冲突入口：观测全部成立但无 receipt 或未声明验收行仍 FAIL-loud；预检失败不烧受控行（无 used/resume）", { skip: dirtySkip }, async t => {
   const f = fixture(t, true);
   const noReceipt = await f.merge({ row: "14", namespaceReady: true });
   assert.match(noReceipt.error, /验收目录不存在|receipt 缺失/);
@@ -141,16 +141,19 @@ test("冲突入口：观测全部成立但无 receipt 或未声明验收行仍 F
   assert.match(noRow.error, /未声明受控验收行/);
   const admitted = await f.merge({ row: "14", namespaceReady: true });
   assert.match(admitted.error, /主控模型 .* 预检失败/, "声明了 14 且 receipt 有效时才进入下一道门");
-  // 模型预检失败发生在占用之后：同一 run 实例+检查点重入是同一绑定，只记恢复，不重复占用也不被误拒。
+  // 模型预检排在占用之前：预检失败不写 used / resume，受控行仍可用；重入同样只是预检失败。
+  const used = () => readdirSync(f.acceptance).filter(n => n.startsWith("used-") || n.startsWith("resume-") || n.startsWith("cp-"));
+  assert.deepEqual(used(), [], "预检失败不消耗第 14 行");
   const reentered = await f.merge({ row: "14", namespaceReady: true });
   assert.match(reentered.error, /主控模型 .* 预检失败/);
-  assert.equal(readdirSync(f.acceptance).filter(n => n.startsWith("resume-")).length, 1);
+  assert.deepEqual(used(), [], "重入也不写 used/resume");
   assert.equal(f.git("rev-parse", "main"), f.base);
-  // 另一份 runId 不同的清单撞上已占用的第 14 行：新运行不得复用，且不进入下一道门。
+  // 行没被烧：另一份 runId 不同的清单同样只是走到模型预检失败（不是“新运行不得复用”）。
   const other = fixture(t, true, "precheck-other");
   const refused = await other.merge({ row: "14", namespaceReady: true, dir: f.acceptance });
-  assert.match(refused.error, /新运行不得复用/);
-  assert.deepEqual(other.called(), [], "被拒的新运行不得为观测启动容器");
+  assert.match(refused.error, /主控模型 .* 预检失败/);
+  assert.doesNotMatch(refused.error, /新运行不得复用/);
+  assert.deepEqual(used(), []);
   assert.equal(JSON.parse(readFileSync(other.checkpoint, "utf8")).phase, "conflict", "冲突现场仍然保留");
 });
 

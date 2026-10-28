@@ -89,8 +89,9 @@ export async function runAcceptedSwarmMerge(manifestPath: string, image: string,
       // SIGKILL 后重入（新进程）得到相同绑定，按恢复放行；别的 run 或基线被拒绝。
       const binding = mergeBinding({ runId: manifest.runId, base: manifest.base, instance: mergeInstance(evidenceDir, manifest.runId, manifest.base), head, incoming });
       if (!readiedCheckpoints.has(binding)) {
-        const admittedId = assertSwarmExecutionReady(image, { rows: ["14", "15"], binding, acceptance: options.acceptance });
-        if (!routeChecked) { assertDockerCliProxyReachable(admittedId); routeChecked = true; }
+        const admittedId = assertSwarmExecutionReady(image, { rows: ["14", "15"], binding, acceptance: options.acceptance,
+          // 占用 used-14/15 / 检查点之前预检；同一进程内成功一次即可
+          modelProbe: routeChecked ? undefined : (id) => { assertDockerCliProxyReachable(id); routeChecked = true; } });
         readiedCheckpoints.set(binding, admittedId);
       }
       const launchImage = readiedCheckpoints.get(binding)!;

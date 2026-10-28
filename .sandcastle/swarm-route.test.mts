@@ -199,3 +199,71 @@ test("三条 Docker 入口都用准入返回的 Id 启动：main-swarm（受控�
   assert.match(route, /assertContainerIsolationContract\(admission\.imageId,/);
   for (const f of ["main-swarm.mts", "swarm-merge.mts", "swarm-route.mts"]) assert.doesNotMatch(readFileSync(new URL(`./${f}`, import.meta.url), "utf8"), /imageName: image\b|imageName: IMAGE\b/, f);
 });
+
+// —— 模型预检排在占用之前：预检失败不烧受控行 ——
+import { mkdtempSync as mk2, readdirSync as ls2, existsSync as ex2 } from "node:fs";
+import { tmpdir as td2 } from "node:os";
+import { join as j2 } from "node:path";
+import { assertSwarmExecutionReady, } from "./swarm-route.mts";
+import { ROW_ENV, checkAdmission, issueReceipt, mergeBinding, swarmBinding } from "./docker-acceptance.mts";
+
+const OBS = {
+  apparmor: "docker-default (enforce)", seccomp: "2", capEff: "0000000000000000", capBnd: "00000000a80425fb",
+  roWrite: "Read-only file system", rwWrite: "ok", roChildInRw: "Read-only file system", roFileAppend: "Read-only file system",
+  renameMountpoint: "Device or resource busy", hardlinkAcross: "Invalid cross-device link", symlinkIntoRo: "Read-only file system",
+};
+const HEAD40 = "a".repeat(40); const CLEAN = { head: HEAD40, dirty: "" }; const imageIdOf = () => ID;
+const claimFiles = (d: string) => ls2(d).filter((f) => /^(used|resume|cp)-/.test(f));
+
+test("受控第 13 行：模型预检（含 502 overloaded 等瞬时故障）失败时不写 used-13，同一 receipt 随后仍可占用；成功才占用", () => {
+  const d = mk2(j2(td2(), "route-order-")); issueReceipt({ imageIdOf, dir: d, image: "img", approval: "ok", swarmTicket: 4242, identity: CLEAN });
+  const events: string[] = [];
+  const acceptance = { imageIdOf, dir: d, env: { [ROW_ENV]: "13" }, identity: CLEAN };
+  const run = (modelProbe: (id: string) => void) => assertSwarmExecutionReady("img", { rows: ["13"], binding: swarmBinding(4242), acceptance, probe: () => { events.push("isolation"); return OBS; }, modelProbe });
+  assert.throws(() => run(() => { events.push("model"); throw new Error("HTTP 502: overloaded"); }), /overloaded/);
+  assert.deepEqual(claimFiles(d), [], "预检失败：没有 used-13");
+  assert.deepEqual(events, ["isolation", "model"], "顺序：隔离探针 → 模型预检");
+  assert.throws(() => run(() => { throw new Error("quota exceeded"); }), /quota/);
+  assert.deepEqual(claimFiles(d), []);
+  events.length = 0;
+  assert.equal(run((id) => { events.push(`model:${id === ID ? "admitted-id" : id}`); }), ID);
+  assert.deepEqual(events, ["isolation", "model:admitted-id"], "预检用准入 Id");
+  assert.equal(claimFiles(d).filter((f) => f.startsWith("used-")).length, 1, "预检成功后才占用");
+  assert.throws(() => run(() => undefined), /一次性/, "占用后第 13 行仍是一次性的");
+});
+
+test("冲突路径 14/15：模型预检失败不写 used / resume / cp，随后仍可占用；占用后同一检查点重入才记 resume", () => {
+  const d = mk2(j2(td2(), "route-order-")); issueReceipt({ imageIdOf, dir: d, image: "img", approval: "ok", swarmTicket: 4242, identity: CLEAN });
+  const cp = (o: Partial<{ head: string; incoming: string }> = {}) => mergeBinding({ runId: "run-a", base: "b".repeat(40), instance: "inst-1", head: "c".repeat(40), incoming: "d".repeat(40), ...o });
+  for (const row of ["14", "15"] as const) {
+    const acceptance = { imageIdOf, dir: d, env: { [ROW_ENV]: row }, identity: CLEAN };
+    const run = (binding: string, modelProbe: (id: string) => void) => assertSwarmExecutionReady("img", { rows: ["14", "15"], binding, acceptance, probe: () => OBS, modelProbe });
+    assert.throws(() => run(cp(), () => { throw new Error("HTTP 503"); }), /503/);
+    assert.deepEqual(claimFiles(d).filter((f) => f.includes(`-${row}`)), [], `第 ${row} 行预检失败：无 used/cp`);
+    run(cp(), () => undefined);
+    assert.equal(claimFiles(d).filter((f) => f.startsWith("used-") && f.includes(`-${row}`)).length, 1);
+    // 同一检查点重入（新进程语义）：预检失败不新增 resume；成功才记 resume
+    const before = claimFiles(d).length;
+    assert.throws(() => run(cp(), () => { throw new Error("HTTP 502"); }), /502/);
+    assert.equal(claimFiles(d).length, before, "预检失败不新增 resume");
+    run(cp(), () => undefined);
+    assert.equal(claimFiles(d).filter((f) => f.startsWith("resume-") && f.includes(`-${row}-`)).length, 1);
+    // 新检查点：预检失败不新增 cp-
+    assert.throws(() => run(cp({ incoming: "e".repeat(40) }), () => { throw new Error("HTTP 502"); }), /502/);
+    assert.equal(claimFiles(d).filter((f) => f.startsWith("cp-") && f.includes(`-${row}-`)).length, 0);
+  }
+  void checkAdmission; void ex2;
+});
+
+test("源码断言：三条入口都不再在 consume 之后做模型预检——预检经 modelProbe 在 assertSwarmExecutionReady 内排在 consume 之前", () => {
+  const route = readFileSync(new URL("./swarm-route.mts", import.meta.url), "utf8");
+  const iso = route.indexOf("assertContainerIsolationContract(admission.imageId"), model = route.indexOf("options.modelProbe?.(admission.imageId)"), consume = route.indexOf("admission.consume()");
+  assert.ok(iso > 0 && iso < model && model < consume, "隔离探针 → 模型预检 → consume");
+  const main = readFileSync(new URL("./main-swarm.mts", import.meta.url), "utf8");
+  assert.match(main, /modelProbe: \(id\) => assertDockerCliProxyReachable\(id\)/);
+  assert.doesNotMatch(main, /^assertDockerCliProxyReachable\(/m, "main-swarm 不再在 assertSwarmExecutionReady 之后单独预检");
+  const merge = readFileSync(new URL("./swarm-merge.mts", import.meta.url), "utf8");
+  assert.match(merge, /modelProbe: routeChecked \? undefined : \(id\) => \{ assertDockerCliProxyReachable\(id\); routeChecked = true; \}/);
+  assert.ok(merge.indexOf("assertSwarmExecutionReady(image") < merge.indexOf("readiedCheckpoints.set(binding"));
+  assert.doesNotMatch(merge, /\n\s*if \(!routeChecked\) \{ assertDockerCliProxyReachable/, "冲突路径不再有 consume 之后的预检");
+});
