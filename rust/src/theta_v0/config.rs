@@ -530,6 +530,8 @@ pub struct ExecConfig {
     ///   `bin::pure_bsp_timing` / `bin::pi_bsp_timing` 各有自带 PnL 引擎，收编需逐引擎接
     ///   (qty, side) 缝，属另票。
     pub fee_schedule: Option<super::venue_fee::VenueFeeSchedule>,
+    /// #1718：冻结影子NT的配置回归，不是正式launcher输入。
+    pub fill_rule: FillRule,
 }
 
 impl ExecConfig {
@@ -541,6 +543,7 @@ impl ExecConfig {
             slippage_bps: v.slippage_bps,
             tax_bps: v.tax_bps,
             fee_schedule: None,
+            fill_rule: FillRule::default(),
         }
     }
 }
@@ -594,6 +597,49 @@ impl Default for RunRecords {
             risk: active_theta_risk(),
             data: active_data_profile(),
         }
+    }
+}
+
+impl ExecConfig {
+    pub fn require_shadow_fill_rule(&self) -> Result<(), String> {
+        self.fill_rule.validate()?;
+        match self.fill_rule {
+            FillRule::Touch => Err(
+                "fill_rule=Touch 仅诊断，不参与准入或正式验收（ADR 0018 裁定一 + #1718 I3）".into(),
+            ),
+            FillRule::Cross(1) => Ok(()),
+            FillRule::Cross(_) => {
+                Err("UnsupportedFillRule：冻结影子组件只支持既有Cross(1)，其他k仅独立诊断".into())
+            }
+        }
+    }
+}
+
+/// 限价单成交规则（ADR 0018 裁定一 + #1599 A-05 / #1718 I3）。
+///
+/// - `Cross(k)`：诊断中严格穿越 k tick，k≥1；冻结影子组件仅支持既有Cross(1)。
+/// - `Touch`：触及即成交(仅诊断，不参与准入或验收)。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum FillRule {
+    /// 严格穿越 k tick（k≥1，最小 1 tick），买单 `low < 挂单价 - k + 1`（整数 tick 域）。
+    Cross(u32),
+    /// 触及即成交（买单 `low <= 挂单价`），仅诊断。
+    Touch,
+}
+
+impl FillRule {
+    pub fn validate(self) -> Result<(), String> {
+        match self {
+            Self::Cross(0) => Err("InvalidDomain：cross必须至少穿越1 tick".into()),
+            _ => Ok(()),
+        }
+    }
+}
+
+impl Default for FillRule {
+    /// 默认 Cross(1)：最小 1 tick 严格穿越（ADR 0018 裁定一）。
+    fn default() -> Self {
+        FillRule::Cross(1)
     }
 }
 
