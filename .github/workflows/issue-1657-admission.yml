@@ -35,6 +35,12 @@ jobs:
             grep -F "admission_prepare_rejects_${name}: test" "$RUNNER_TEMP/admission-list.log"
           done
           cargo test --locked --features s_session --bin s_structure_session admission_prepare_ -- --nocapture | tee "$RUNNER_TEMP/admission-tests.log"
+          # 验收 7：launcher 调用 R4 前的 admission-contract 入口窗口不足负控（主控 2026-10-28 裁定，prepare 路径不代替）。
+          launcher=admission_contract_rejects_insufficient_startup_window_before_r4
+          cargo test --locked --features s_session --bin s_structure_session "$launcher" -- --list | tee "$RUNNER_TEMP/admission-launcher-list.log"
+          grep -F "${launcher}: test" "$RUNNER_TEMP/admission-launcher-list.log"
+          cargo test --locked --features s_session --bin s_structure_session "$launcher" -- --nocapture | tee "$RUNNER_TEMP/admission-launcher-tests.log"
+          grep -F "test result: ok. 1 passed" "$RUNNER_TEMP/admission-launcher-tests.log"
       - name: Launcher contracts and adjacent lifecycle
         run: python -B -m unittest discover -s s_session/tests -p 'test_tb01c_*.py' -v
       - name: Release must not contain test-only anchor issuance

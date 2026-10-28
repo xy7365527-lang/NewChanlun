@@ -329,6 +329,11 @@ fn prepare(
 }
 
 pub(crate) fn dispatch(args: &[String]) -> Result<bool> {
+    dispatch_with(args, &CURRENT)
+}
+
+/// 生产只经 `dispatch` 传入编译期 `CURRENT`；测试借此用已实测的测试合同走同一参数与判据路径。
+fn dispatch_with(args: &[String], contract: &Contract<'_>) -> Result<bool> {
     let command = args.get(1).map(String::as_str).unwrap_or("");
     if !matches!(
         command,
@@ -374,7 +379,7 @@ pub(crate) fn dispatch(args: &[String]) -> Result<bool> {
         let timeout = required("--startup-timeout-ms")?
             .parse()
             .map_err(|_| "AdmissionTimeoutInvalid")?;
-        CURRENT.authorize(version, sha, timeout)?;
+        contract.authorize(version, sha, timeout)?;
         json!({"ok":true,"contract_version":version,"sha256":sha})
     } else {
         // 未批准的合同先拒绝，不创建锁或 pending。
@@ -400,7 +405,7 @@ pub(crate) fn dispatch(args: &[String]) -> Result<bool> {
             let timeout = required("--startup-timeout-ms")?
                 .parse()
                 .map_err(|_| "AdmissionTimeoutInvalid")?;
-            CURRENT.authorize(version, &sha256_hex(canonical.as_bytes()), timeout)?;
+            contract.authorize(version, &sha256_hex(canonical.as_bytes()), timeout)?;
             Some((version, raw, timeout))
         } else {
             None
@@ -414,7 +419,7 @@ pub(crate) fn dispatch(args: &[String]) -> Result<bool> {
             uid,
         )?;
         if let Some((version, raw, timeout)) = input {
-            prepare(&site, &CURRENT, version, &raw, timeout)?
+            prepare(&site, contract, version, &raw, timeout)?
         } else {
             revoke(&site, required("--revocation-id")?)?
         }

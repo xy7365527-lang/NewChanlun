@@ -1,7 +1,7 @@
 # ADR 0054：单元批记录 entries 按分型窗口序（取代 ADR 0037 §二 一子句）
 
 > 正本：本文件是 `CC-007.development_batch` 载荷 entries 次序的正本。
-> 最后裁定：#1783（2026-10-28，#1323 Notes N-1 预授权 T 类判定）
+> 最后裁定：#1790（2026-10-28，订正 #1783 的分叉前提与验收命题；#1323 Notes N-1 预授权 T 类判定）
 > 受影响代码清单：见本文「受影响代码清单」节（`generation.rs` / `content_producer.rs` 注释与分叉锁、`q3-typed.js` / `tb01c-client.js` 注释，实施归 #1491 / PR #1780 owner）
 
 **状态**：已采纳，文书待 main 合入。只取代 [ADR 0037](0037-s-content-bounded-layout.md) §二（`:14`）中「entries 按分型出生序」一个子句；ADR 0037 原文不改，§一 出生序累计数组、§二 其余内容、§四 上界式、§五 布局组件、§八 验收全部不变。
@@ -72,3 +72,26 @@ ADR 0037 §二 写 `CC-007.development_batch` 的 entries「按分型出生序�
 ## 授权
 
 `.sandcastle/docs/graph-engineering.md:90` N-1 技术类决策预授权（用户 2026-10-18）：T 类由代理起草、独审 PASS 后直接裁定。ADR 0037 本身即代理依用户 2026-10-13 授权裁定，本裁定在同一授权链上修订其一子句。本 ADR 不授权合 main、真实资金或关闭 #1491。
+
+## 修订（[#1790](https://github.com/xy7365527-lang/NewChanlun/issues/1790)，2026-10-28）：两序在可达输入上恒等，验收命题改为「出生构成窗口序后缀」
+
+**结论不变**：entries 仍按所引分型 `payload.window[0]` 严格升序（裁定 1–3 不动），出生序仍被否。本段只订正分叉前提及由它推出的段落。
+
+**订正的事实**：分型身份含右组来源前缀链。CC-006 形态 `obj3` 的十二字段含 `input_refs`（`content_producer.rs:1249-1272`），其三组 `raw_refs` 与 `dependency_refs` 之并 = 右组 `group_sources_coords`（`:2456`、`:520-525`）；在分型存在的输入上（坐标严格递增、初始方向已定），该链是从首根 raw 起到组锚、封口边界或末根的完整前缀（`:3405-3429`；`theta_v0/parser/inclusion.rs` seed `:1084-1120`、establish/new_group `:1170-1188`、merge `:1247-1322`），叶为含 revision/seq 的八字段源引用（`content_producer.rs:106-214`、`:404-444`，`bind_source` `:804-842` 版本变化即换叶）；CC-007 分型身份经载荷 `shape_object_id` 继承之。设 c 为本代与上代 raw 首个不同坐标：保留旧 id 的分型来源链末端 < c，新出生分型来源链末端 ≥ c，来源链随窗口逐级嵌套（`derived_coords_match_materialized_union_for_every_prefix` 锁定），故**每代新出生分型在窗口序上构成后缀**；按代归纳，首获知代随窗口起点单调不减，出生序与窗口序在可达输入上逐位相同。行号基线 PR #1780 head `a485194947`。
+
+**撤回与改写**：
+
+1. 背景 `:15-18` 两个分叉例作废：中段出生例中 B 随前缀链变化重生为 B′，两序均为 `[A′, C, B′]`；原位重生例中 A 之后的 C、B 同代重生，两序均为 `[A″, C′, B′]`。
+2. 裁定 4 改为：**任何代上两序相同；窗口序是规范定义，出生序不作判据。**
+3. 理由「Δ_R 不受影响」段中「中段出生时出生序少约 n−p 个内部节点，原位重生时窗口序少约 n 个」撤回：两序给出同一 entries，Δ_R 逐位相同；「上界门不随两序选择变化」照旧成立。
+4. 被否「出生序」的理由不变，并补一句：两序在可达域内值相同，出生序被否在于它的**算法**须读 object_index 的真实首获知代（生成层恒写本代，`content_producer.rs:1120`），使载荷计算依赖发布史；窗口序只读当前 raw。
+
+**验收 2 改写**（取代原 `:65` 第 2 条；第 1、3 条不变）：
+
+2. 锁 `bounded_layout_cc007_entries_window_order_on_mid_birth`（`generation.rs` 测试模块）在至少三个夹具（中段插入、非尾 bar 修订各至少一例）上断言：① 第 g 代存在中段出生，即新出生分型中至少一个窗口早于第 g−1 代最后一个分型；② **出生构成窗口序后缀**：凡 object_id 在第 g−1 代已存在的分型，其 `window[0]` 严格小于本代全部新出生分型的 `window[0]`；③ 每根 bar 的 entries 按 `window[0]` 严格递增，且至少一根同含新旧分型；④ 每代增量 ≡ 冷算逐字节相同。不读生成态 `first_known_generation`。`cargo test --locked --features s_session --bin s_structure_session bounded_layout_cc007` 全部通过。原名 `…_diverges_from_birth_order` 不再使用。
+
+**退场条件补充**（与原退场条件并列，触发即重开本裁定，不自动改 entries 次序）：
+
+- 身份配方变更使来源前缀链不再完整进入分型 object_id（例如 `dependency_refs` 截短为有界证据窗、`group_sources_coords` 改为非前缀构造、或 CC-007 身份不再继承 `shape_object_id`），致使第 ② 条锁失败、出现非后缀出生。
+
+**依据**：#1790 resolution；草稿 `.chanlun/review-results/issue1790-decision-20261028/draft.md`（考古 `archaeology.md` / `archaeology.json` 同目录）；独审 reviewer gpt-6.1-sol 三轮（r1 BLOCK `review.r1.json`、r2 BLOCK `review.r2.json`、终审 PASS `.chanlun/review-results/issue1790-decision-20261028/review.json` / `review.md`）；实证 CI run 40663443503（head `a485194947`）与独审 `1780-INDEPENDENT-REVIEW-A485.md`。
