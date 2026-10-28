@@ -63363,7 +63363,9 @@
     "DS197836|s_session/tests/fixtures/q3-complete-onebar.json|1",
     "DS197836|s_session/tests/fixtures/tb02b/independent-source-oracle.json|39",
     "DS197836|s_session/tests/fixtures/tb03b-changes-only-browser.json|1",
-    "DS173237|s_session/tests/fixtures/tb03c_allocation/PER-LEG-RAW.json|169"
+    "DS173237|s_session/tests/fixtures/tb03c_allocation/PER-LEG-RAW.json|169",
+    "DS173237|.chanlun/review-results/issue1657-closeout-20261028/review.json|6",
+    "DS173237|.chanlun/review-results/issue1657-closeout-20261028/review.json|7"
   ],
   "updates": [
     {
@@ -63546,6 +63548,20 @@
         "s_session/tests/fixtures/tb03c_allocation/PER-LEG-RAW.json"
       ],
       "reason": "该行是 generate_per_leg_fixtures.py 从 FROZEN-MANIFEST.json 改 projection_kind=per_leg 后重算的 SHA-256 manifest_hash，非凭据；与同目录 C4B-RAW.json、RAW.json 的既有摘要告警同类。只追加精确 rule|path|line 键，不作目录排除。"
+    },
+    {
+      "issue": 1657,
+      "pull_request": 1791,
+      "source_head": "54b421a285",
+      "actions_run": 40683069191,
+      "added_findings": 2,
+      "rule_counts": {
+        "DS173237": 2
+      },
+      "scope": [
+        ".chanlun/review-results/issue1657-closeout-20261028/review.json"
+      ],
+      "reason": "该文件是 PR #1710 非作者独审机器件原件的逐字副本（字节锁定，关票门第 6 子句要求入仓）；第 6、7 行是被审候选与基线的 40 位 Git 提交号，非凭据。只追加精确 rule|path|line 键，不作目录排除。"
     }
   ]
 }
