@@ -423,8 +423,10 @@ jobs:
 
       - uses: ./.github/actions/rust-job-setup
 
+      # production_session_testonly：入口测试显式走 S 的 TestOnly 诊断 theta 臂（P0 未签期间正式配置必拒，
+      #   由 unsigned_p0_refuses_s_serve_* 两条测试锁住）；生产构建不含该臂，遇开关即拒绝启动。
       - name: cargo test — production_session_entry
-        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --release --locked --features production_session --test production_session_entry --jobs 1 -- --test-threads 1
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --release --locked --features production_session_testonly --test production_session_entry --jobs 1 -- --test-threads 1
 
   rust-test-backtest-bin:
     runs-on: ubuntu-latest

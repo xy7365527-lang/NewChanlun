@@ -26,7 +26,15 @@ const MANIFEST_REVISION: &str = "production-session-manifest/1";
 const PROFILES: [&str; 4] = ["simulation", "dry-run", "experiment", "production"];
 const STOP_GRACE: Duration = Duration::from_secs(10);
 /// S 子进程从 launcher 环境放回的 admission 声明变量；凭据不在其中。
+#[cfg(not(feature = "production_session_testonly"))]
 const S_PASS: [&str; 2] = ["S_CONTROL_ADMISSION_SHA256", "S_CONTROL_ADMISSION_IDENTITY"];
+/// #1769 TestOnly 构建：额外转交 S 的诊断 theta 开关；生产构建不转交（S 侧亦拒绝）。
+#[cfg(feature = "production_session_testonly")]
+const S_PASS: [&str; 3] = [
+    "S_CONTROL_ADMISSION_SHA256",
+    "S_CONTROL_ADMISSION_IDENTITY",
+    "S_THETA_DIAGNOSTIC_TESTONLY",
+];
 
 static STOP: AtomicBool = AtomicBool::new(false);
 

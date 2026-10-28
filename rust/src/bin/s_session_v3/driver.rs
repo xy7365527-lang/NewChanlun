@@ -172,6 +172,34 @@ impl Driver {
         driver.audit_cache_source_bytes = Some(audit_cache_source_bytes);
         Ok(driver)
     }
+    /// #1769 TestOnly：仅 `production_session_testonly` 构建、且显式 `S_THETA_DIAGNOSTIC_TESTONLY=1`
+    /// 时可达；以诊断夹具配置开门（不参与准入），与生产入口不是同一构造。
+    #[cfg(feature = "production_session_testonly")]
+    pub(super) fn open_for_serve_theta_diagnostic_testonly(
+        db: &Path,
+        profile: &Path,
+        epoch: &str,
+        clock: v2::ClockPlan,
+        audit_cache_source_bytes: usize,
+        mode: s_allocation::Mode,
+        admission: super::admission::WriterAdmission,
+    ) -> Result<Self, String> {
+        state::check_audit_source_retention(audit_cache_source_bytes)?;
+        let mut driver = Self::open_with_request_and_mode_context(
+            db,
+            profile,
+            epoch,
+            clock,
+            None,
+            mode,
+            None,
+            newchan_rust::theta_v0::config::ThetaConfig::default(),
+            false,
+            admission,
+        )?;
+        driver.audit_cache_source_bytes = Some(audit_cache_source_bytes);
+        Ok(driver)
+    }
     /// #1394：仅服务Native bootstrap栈内复用纯历史，返回前释放；不跨至Ready请求。
     #[cfg(feature = "s_capture_native_testonly")]
     pub(super) fn open_for_serve_with_identity(

@@ -216,10 +216,15 @@ fn s_resources(space: &Space) -> PathBuf {
     )
 }
 
-/// 直接拉起 S 正式写者（`serve --protocol-revision s-session/3`），等 socket 就绪。
-fn s_serve(space: &Space, db: &Path, limits: &Path) -> Child {
-    let socket = space.path("s.sock");
-    let mut child = Command::new(s_bin())
+/// S 写者以诊断夹具 theta 配置开门的 TestOnly 开关（仅 `production_session_testonly` 构建认）。
+/// P0 场所/成本记录未签（#1774）期间正式配置必拒；本文件除 `unsigned_p0_refuses_s_serve_*` 外
+/// 测的是 launcher 接线、进程隔离与来源门，显式走此 TestOnly 臂，不签、不伪造 P0。
+const THETA_DIAGNOSTIC: (&str, &str) = ("S_THETA_DIAGNOSTIC_TESTONLY", "1");
+
+/// S 正式写者（`serve --protocol-revision s-session/3`）命令；不含 TestOnly 开关。
+fn s_serve_command(space: &Space, db: &Path, limits: &Path) -> Command {
+    let mut command = Command::new(s_bin());
+    command
         .args([
             "serve",
             "--protocol-revision",
@@ -237,9 +242,18 @@ fn s_serve(space: &Space, db: &Path, limits: &Path) -> Child {
         .arg(&socket)
         .arg("--resource-config")
         .arg(s_resources(space))
+        .env_remove(THETA_DIAGNOSTIC.0)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::piped());
+    command
+}
+
+/// 以 TestOnly 诊断 theta 臂拉起 S 写者，等 socket 就绪。
+fn s_serve(space: &Space, db: &Path, limits: &Path) -> Child {
+    let socket = space.path("s.sock");
+    let mut child = s_serve_command(space, db, limits)
+        .env(THETA_DIAGNOSTIC.0, THETA_DIAGNOSTIC.1)
         .spawn()
         .unwrap();
     let deadline = Instant::now() + Duration::from_secs(30);
@@ -287,6 +301,7 @@ fn spawn_launcher(manifest: &Path) -> Child {
         .arg("--manifest")
         .arg(manifest)
         .env_remove(CREDENTIAL_KEY)
+        .env(THETA_DIAGNOSTIC.0, THETA_DIAGNOSTIC.1)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
@@ -451,7 +466,7 @@ fn simulation_profile_spawns_isolated_domain_processes() {
 #[test]
 fn credential_sentinel_only_in_x_process_environment() {
     let space = Space::new();
-    let (manifest, _) = simulation(&space, "simulation", true);
+    let (manifest, _) = simulation(&space, "simulation", false);
     let mut launcher = spawn_launcher(&manifest);
     let kids = wait_domains(&mut launcher);
     assert!(
@@ -472,7 +487,7 @@ fn credential_sentinel_only_in_x_process_environment() {
 #[test]
 fn missing_credential_refuses_x_send_surface() {
     let space = Space::new();
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let listener = std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
     listener.set_nonblocking(true).unwrap();
     let endpoint = listener.local_addr().unwrap().to_string();
     let xp = x_profile(
@@ -679,4 +694,37 @@ fn s_keeps_committing_while_x_is_stopped() {
         assert!(now.iter().any(|n| n == d), "{d} 不在监督中：{now:?}");
     }
     assert_eq!(stop(&mut launcher).code(), Some(0));
+}
+
+/// 生产 P0 场所/成本记录未签（#1774）时，不带 TestOnly 开关的 S 正式写者拒绝启动：
+/// 以 AwaitingPolicy 退出、不开 socket、不改库；同一构建里 TestOnly 臂不影响正式路径。
+#[test]
+fn unsigned_p0_refuses_s_serve_without_testonly_opt_in() {
+    let space = Space::new();
+    let s_db = s_init_v3(&space, Some(&declaration("TestOnlyStructure", DECLARED_NS)));
+    let limits = anchor(&s_db);
+    let before = raw_rows(&s_db);
+    let out = s_serve_command(&space, &s_db, &limits).output().unwrap();
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(!out.status.success(), "{stderr}");
+    assert!(stderr.contains("AwaitingPolicy"), "{stderr}");
+    assert!(stderr.contains("venue_profile"), "{stderr}");
+    assert!(stderr.contains("cost_inputs"), "{stderr}");
+    assert!(!space.path("s.sock").exists(), "未签 P0 不得开 socket");
+    assert_eq!(raw_rows(&s_db), before);
+}
+
+/// launcher 本身不替 S 打开 TestOnly 臂：不设开关时经 launcher 拉起的 S 同样拒绝，launcher 失败退出。
+#[test]
+fn unsigned_p0_refuses_s_serve_via_launcher_without_testonly_opt_in() {
+    let space = Space::new();
+    let (manifest, _) = simulation(&space, "simulation", false);
+    let out = run(Command::new(launcher_bin())
+        .arg("--manifest")
+        .arg(&manifest)
+        .env_remove(CREDENTIAL_KEY)
+        .env_remove(THETA_DIAGNOSTIC.0));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(!out.status.success(), "{stderr}");
+    assert!(stderr.contains("AwaitingPolicy"), "{stderr}");
 }
