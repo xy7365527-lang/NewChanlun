@@ -409,6 +409,8 @@
     }
   }
   async function bindSources(snapshot, charge = () => {}) {
+    // #1491：本 cut 的内容布局只由快照 rule_revision 的布局组件给出（ADR 0037 §六，按版本分派）。
+    const layout = typed.splitRule(await s(snapshot, "rule_revision")).layout;
     const raw = await auditRaw(snapshot, charge),
       groups = new Map(),
       shapes = new Map(),
@@ -418,7 +420,7 @@
         charge();
         records.push(record);
         const kind = await t(record, "kind");
-        if (typed.TB02_KINDS.includes(kind)) await typed.validateTyped(record);
+        if (typed.TB02_KINDS.includes(kind)) await typed.validateTyped(record, layout);
         else await shapeRecord(record);
         const refs = await f(record, "input_refs"),
           active = (await s(record, "lifecycle")) === "active";
@@ -560,6 +562,8 @@
       need(selected.length === 3, "形态组缺失");
       bound.set(id, selected);
     }
+    // #1491 bounded-layout/1：CC-007 三跳只读绑定（分型对象 → 批记录 entry → 单元序列）。
+    await typed.bindDevelopmentBatches(records, layout);
     return { raw, records, shapes, bound };
   }
   async function shapeIdentity(
@@ -1260,7 +1264,7 @@
         ph = await s(snapshot, "profile_hash"),
         rule = await s(snapshot, "rule_revision");
       // 空会话也必须先声明已知规则，不能等首次发布才选择合同。
-      need(RULE_AXES.has(rule), "cut规则修订未声明");
+      need(RULE_AXES.has(typed.splitRule(rule).doctrine), "cut规则修订未声明");
       if (generation === "0") {
         need(profile && /^[0-9a-f]{64}$/.test(ph), "cut0无冻结profile");
       } else {
@@ -1347,7 +1351,7 @@
       if (generation !== "0")
         await keys(
           await f(await f(snapshot, "catalog_evidence"), "axes"),
-          RULE_AXES.get(rule),
+          RULE_AXES.get(typed.splitRule(rule).doctrine),
           "cut规则目录轴",
         );
       await catalogValidate(catalog, snapshot);
@@ -1372,7 +1376,7 @@
         }
         const kind = await t(record, "kind");
         if (typed.TB02_KINDS.includes(kind)) {
-          const [biSchema, segmentSchema, domain] = Object.hasOwn(typed.RULE_CONTRACTS, rule) ? typed.RULE_CONTRACTS[rule] : [null, null, null];
+          const [biSchema, segmentSchema, domain] = typed.ruleContract(rule) || [null, null, null];
           const payload = await f(record, "payload");
           if (typed.SEGMENT_KINDS.includes(kind))
             need(await equal(await f(payload, "schema_revision"), segmentSchema), "段合同与cut规则版本不符");
