@@ -5,13 +5,10 @@ name: Agent Implement PR
 # issue-tracker 口径「PRs as a request surface: no」⟹ 无外部/fork PR 面，label 事件不会被
 # 不可信 PR 内容自动触发。工蜂 checkout head.sha 是有意的：需看并修正 PR 分支。
 #
-# #1128：implement-pr 与 issue implement 共用同一模型 registry（默认 Claude /
-# 显式 `agent:model:deepseek-v4-pro`）。Detect model route 步运行时实读 PR labels 后
-# grep -qx 精确匹配，只选择注入哪一条固定 Secret（Claude 或 DeepSeek）；大小写变体
-# 与 TS registry 一样 fail-loud，不用 pull_request_target label 快照/contains 路由
-# （contains 大小写不敏感，且 #1173 实测快照在 if 中求值不可靠）。
-# EVENT_PAYLOAD 只传 labels.*.name 数组；allowlist 与未知/冲突标签的 fail-loud 在
-# shared/agent.ts。
+# #1617：implement-pr 的无标签 hosted Claude 默认已退役；显式 DeepSeek 仅作 legacy opt-in。
+# 不在 ubuntu-latest 把 Claude OAuth 错用于 Astra；本机受管默认统一为
+# gpt-6.1-sol + CLIProxyLocal。Detect model route 运行时实读 PR labels，
+# grep -qx 精确匹配后只注入固定 DeepSeek Secret；未知/冲突标签由 TS registry fail-loud。
 
 on:
   pull_request_target:
@@ -19,7 +16,7 @@ on:
 
 jobs:
   implement-pr:
-    if: github.event.label.name == 'agent:implement'
+    if: vars.SANDCASTLE_LEGACY_FREEZE != '1' && github.event.label.name == 'agent:implement'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     concurrency:
@@ -94,10 +91,6 @@ jobs:
             echo "use_deepseek=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Install Claude Code (default route)
-        if: github.event.pull_request.state == 'open' && steps.route.outputs.use_deepseek != 'true'
-        run: npm install -g @anthropic-ai/claude-code
-
       # DeepSeek 工蜂 = Prime Agent CLI（与 .sandcastle/Dockerfile 同版本/同 tarball）。
       - name: Install Prime Agent (DeepSeek v4-pro route)
         if: github.event.pull_request.state == 'open' && steps.route.outputs.use_deepseek == 'true'
@@ -105,10 +98,9 @@ jobs:
 
       # 两个 run step 互斥，只把所选模型的固定 Secret 注入进程 env；
       # 未选中的模型凭据不进入 agent 子进程，也不会被转发给 remote-child。
-      - name: Run implement-PR agent (Claude default)
+      - name: Run implement-PR agent (hosted default retired)
         if: github.event.pull_request.state == 'open' && steps.route.outputs.use_deepseek != 'true'
         env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           EVENT_PAYLOAD: ${{ toJSON(github.event.pull_request.labels.*.name) }}
           OUTPUT_DIR: ${{ runner.temp }}
         run: npx tsx .sandcastle/agent-workflows/implement-pr/implement-pr.ts
