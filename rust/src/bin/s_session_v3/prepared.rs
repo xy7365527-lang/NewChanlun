@@ -751,6 +751,7 @@ impl Runtime {
                 state::trace_stage("object_plan", "delta", generation);
                 let objects = object_index::plan_native_union_for_testonly(
                     &mut store,
+                    super::layout::Layout::of_rule(&metadata.rule_revision)?,
                     &generated.objects,
                     &audited.objects,
                     generation,
@@ -1144,19 +1145,33 @@ impl Runtime {
         };
         #[cfg(test)]
         state::trace_stage("object_plan", path, generation);
+        let layout = super::layout::Layout::of_rule(&metadata.rule_revision)?;
         #[cfg(feature = "s_capture_native_testonly")]
         let objects = if matches!(self.mode, s_allocation::Mode::CapturedNative) {
             object_index::plan_native_union_for_testonly(
                 store,
+                layout,
                 &generated.objects,
                 &audited.objects,
                 generation,
             )?
         } else {
-            object_index::plan(store, &generated.objects, &audited.objects, generation)?
+            object_index::plan_for_layout(
+                store,
+                layout,
+                &generated.objects,
+                &audited.objects,
+                generation,
+            )?
         };
         #[cfg(not(feature = "s_capture_native_testonly"))]
-        let objects = object_index::plan(store, &generated.objects, &audited.objects, generation)?;
+        let objects = object_index::plan_for_layout(
+            store,
+            layout,
+            &generated.objects,
+            &audited.objects,
+            generation,
+        )?;
         generated.finish_axes(store, previous, &objects.withdrawals, &objects.replaces)?;
         let axes = store
             .native_plain_ref(
@@ -1220,6 +1235,7 @@ impl Runtime {
         state::trace_stage("assemble_manifest", "-", generation);
         let auxiliary = self.auxiliary.plan(
             store,
+            super::layout::Layout::of_rule(&metadata.rule_revision)?,
             &audited.auxiliary,
             &generated,
             &objects.replaces,
@@ -1362,6 +1378,9 @@ fn cv(v: &Value) -> Result<V, String> {
 fn edge(r: &ContentRef) -> Result<V, String> {
     Ok(V::Edge(r.digest().map_err(err)?))
 }
+/// 六数组（active/withdrawn 对象、witnesses、relations、observations）的元素次序不在此处
+/// 决定：`o`、`a` 已按库内 `rule_revision` 的布局组件（[`super::layout::Layout::rank`]，
+/// ADR 0037 §一）排好，本函数只按既有次序装配模板；raw_history 仍按 seq。
 fn templates(
     s: &mut dyn NodeStore,
     m: &ManifestMetadata,
@@ -1518,6 +1537,7 @@ pub(crate) mod tests {
         runtime: Runtime,
         /// 接纳消息声明的写者纪元（真实恢复后递增）。
         writer_epoch: String,
+        rule: Option<String>,
     }
     impl Drop for Fixture {
         fn drop(&mut self) {
@@ -1541,6 +1561,19 @@ pub(crate) mod tests {
             clock_events: i64,
             recover_events: &[(&str, i64)],
         ) -> Self {
+            Self::build(retain, clock_events, recover_events, None)
+        }
+        /// #1491：在测试写者规则注入（`with_test_writer_rule`）下建库与发布，库 meta 与各代
+        /// manifest 天然同带 `rule`；时钟 6 个事件、保留 6 代，使修订与撤回落在不同代。
+        pub(crate) fn with_rule(rule: &str) -> Self {
+            Self::build(6, 6, &[], Some(rule.to_owned()))
+        }
+        fn build(
+            retain: i64,
+            clock_events: i64,
+            recover_events: &[(&str, i64)],
+            rule: Option<String>,
+        ) -> Self {
             let path = std::env::temp_dir().join(format!(
                 "s1394-real-{}-{}-{}",
                 std::process::id(),
@@ -1563,23 +1596,26 @@ pub(crate) mod tests {
                 .unwrap()
                 .join("s_session");
             let db = path.join("s.sqlite");
-            init_v3(
-                &db,
-                "s-session-testonly-001",
-                &base.join("catalog/signed-catalog.json"),
-                &base.join("profiles/ohlc_integer_tb02a_v1.json"),
-                "1",
-                &clock_path,
-                retain,
-            )
+            let conn = super::super::with_test_writer_rule(rule.as_deref(), || {
+                init_v3(
+                    &db,
+                    "s-session-testonly-001",
+                    &base.join("catalog/signed-catalog.json"),
+                    &base.join("profiles/ohlc_integer_tb02a_v1.json"),
+                    "1",
+                    &clock_path,
+                    retain,
+                )?;
+                open_db(&db)
+            })
             .unwrap();
-            let conn = open_db(&db).unwrap();
             let runtime = Runtime::new();
             Self {
                 path,
                 conn,
                 runtime,
                 writer_epoch: "1".to_string(),
+                rule,
             }
         }
         /// 库文件路径：只读入口测试用来开第二条 `query_only=ON` 连接。
@@ -1654,8 +1690,11 @@ pub(crate) mod tests {
             envelope: &Value,
             token: &str,
         ) -> Result<commit::CommitReceipt, String> {
+            let rule = self.rule.clone();
             let tx = self.conn.transaction().map_err(err)?;
-            self.runtime.commit(tx, token, envelope)
+            super::super::with_test_writer_rule(rule.as_deref(), || {
+                self.runtime.commit(tx, token, envelope)
+            })
         }
     }
 

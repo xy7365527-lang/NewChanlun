@@ -1120,6 +1120,10 @@ fn raw_bar(raw: &Value) -> Value {
 /// 历史 v3 A/B 保留 13 轴，v2 C/D 保留 17 轴，新 v3 A…F 域取 22 轴。
 /// 表按原始规则身份选择；旧库不会因新代码上线而增加对象或改变 AsKnown 目录。
 /// 这些表只声明覆盖范围，不参与判据分派或失败兜底（#799）。
+/// 布局组件（ADR 0037 §五）与目录轴正交：v3 族各串先经 [`crate::v3::layout::split`] 剥离布局，
+/// 再按教义部分（[`crate::V3_DOCTRINE_RULE`] / CF22 / W 后继各自整串）精确选表；
+/// v2 写者（[`crate::RULE_REVISION`]）取 17 轴。两张以上表各对应一个规则修订，不存在
+/// 「一张判不出再换另一张」的兜底（#799）。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum CatalogAxisTable {
     /// `s2-axis-quantifiers+new-bi/2`：CC-001…010、CC-054、CC-055、CC-056（13 轴）。
@@ -1134,11 +1138,14 @@ pub(super) enum CatalogAxisTable {
 }
 
 impl CatalogAxisTable {
+    /// #1491：按组件解析——布局组件（ADR 0037 §五）与目录轴正交，先剥离再按教义部分整串选表；
+    /// 无布局组件的旧整串照旧映射（只读旧库）；未知布局版本不选表。
     pub(super) fn for_rule_revision(rule_revision: &str) -> Option<Self> {
-        match rule_revision {
+        let (doctrine, _) = crate::v3::layout::split(rule_revision).ok()?;
+        match doctrine.as_str() {
             crate::W_STRUCTURE_RULE_REVISION => Some(Self::RawInitializationW),
             crate::V3_STRUCTURE_RULE_REVISION => Some(Self::CenterPair),
-            crate::LEGACY_V3_RULE_REVISION | crate::V3_RULE_REVISION => Some(Self::NewBi),
+            crate::LEGACY_V3_RULE_REVISION | crate::V3_DOCTRINE_RULE => Some(Self::NewBi),
             // #1394 合入 #1420：上一代 v2 规则 `+new-bi/2+segment-second/1` 只读仍取 17 轴。
             "s2-axis-quantifiers+new-bi/1+segment-second/1"
             | "s2-axis-quantifiers+new-bi/2+segment-second/1"

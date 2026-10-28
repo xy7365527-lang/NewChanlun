@@ -6,6 +6,7 @@ use super::audit_store::RefValue;
 use super::audit_store::NativeTree;
 use super::business_json::{self as bj, TextValue};
 pub(crate) use super::history::NativeCutProjection;
+use super::layout::Layout;
 use super::native_shared::NativeArc;
 use super::object_records::{BatchOwner, BatchView, LifeOwner, LifeView};
 #[cfg_attr(
@@ -442,6 +443,36 @@ impl OrderKey<NativeValue<String>> {
 fn ordering(a: &Entry, b: &Entry, dead: bool) -> std::cmp::Ordering {
     order_key(a, dead).cmp(&order_key(b, dead))
 }
+/// #1491（ADR 0037 §一）：快照 `objects` / `withdrawn_objects` 的公开主序键，经
+/// [`Layout::rank`] 取（代际前缀，[`order_key`]）。活动成员取首获知代，撤回成员取撤回代；
+/// layout/1 前缀恒 0，与 [`ordering`] 逐位同序。diff 与 changes 不是公开数组，仍沿
+/// [`ordering`] 的 layout/1 原键（#1491 第 1 轮作者评论），两者判的不是同一个序。
+/// 撤回成员缺撤回代即报错（fail-closed），不以默认代吸收（#1491 独审 LOW-1）。
+fn public_rank(layout: Layout, e: &Entry, dead: bool) -> Result<(i64, OrderKey<&str>), String> {
+    let event = if dead {
+        e.life
+            .withdrawn_generation
+            .ok_or_else(|| err(format!("撤回成员 {} 缺撤回代", e.id.as_str())))?
+    } else {
+        e.life.first_known_generation
+    };
+    Ok(layout.rank(event, order_key(e, dead)))
+}
+/// 排序前一次性校验：比较器不能传播错误，故先经本函数把缺撤回代的成员拒在排序之外。
+fn check_public_ranks<'e>(
+    layout: Layout,
+    members: impl IntoIterator<Item = &'e Entry>,
+    dead: bool,
+) -> Result<(), String> {
+    for e in members {
+        public_rank(layout, e, dead)?;
+    }
+    Ok(())
+}
+/// 仅在 [`check_public_ranks`] 通过后用于排序；两侧均为 `Ok`，比较即公开主序。
+fn public_ordering(layout: Layout, a: &Entry, b: &Entry, dead: bool) -> std::cmp::Ordering {
+    public_rank(layout, a, dead).cmp(&public_rank(layout, b, dead))
+}
 
 fn candidate(
     s: &mut (impl CodecStore + ?Sized),
@@ -827,6 +858,8 @@ fn effective_life(e: &Entry, g: i64) -> Result<LifeView<'_>, String> {
 pub(super) struct HistoryObjects<'capture> {
     entries: sc::CodecVec<Entry>,
     native: Option<NativeProjection<'capture>>,
+    /// 库内 meta `rule_revision` 的布局（[`Layout::of_library`]）；投影与审计次序同源。
+    layout: Layout,
 }
 struct NativeProjection<'capture> {
     capture: &'capture sc::AuditCapture,
@@ -909,6 +942,9 @@ impl HistoryObjects<'_> {
     pub(super) fn entries(&self) -> &[Entry] {
         &self.entries
     }
+    pub(super) fn layout(&self) -> Layout {
+        self.layout
+    }
     #[cfg_attr(
         feature = "s_capture_native_testonly",
         allow(dead_code, reason = "#1608：s_capture_native_testonly 构建不触达此项")
@@ -954,7 +990,14 @@ impl HistoryObjects<'_> {
                 return Err(err("Native投影不属于本次捕获审计上下文"));
             }
         }
-        at_cut_projected(s, &self.entries, g, budget, self.native.as_mut())
+        at_cut_projected(
+            s,
+            self.layout,
+            &self.entries,
+            g,
+            budget,
+            self.native.as_mut(),
+        )
     }
 }
 
@@ -980,7 +1023,7 @@ impl HistoryObjects<'_> {
             native.sweep = Some(ProjectionSweep::new_admitted(&self.entries, s)?);
         }
         let sweep = native.sweep.as_mut().unwrap();
-        sweep.seek_admitted(g, s)?;
+        sweep.seek_admitted(g, self.layout, &self.entries, s)?;
         // #1394：先为真实 Vec 容量取得许可，避免 collect 的最小扩容超出元素数上界。
         let mut active = sc::CodecVec::default();
         s.native_codec_room(&mut active, sweep.active.len())
@@ -1124,8 +1167,11 @@ impl HistoryObjects<'_> {
             .enumerate()
             .filter(|(_, e)| e.life.withdrawn_generation.is_some_and(|d| d <= g))
             .collect::<Vec<_>>();
-        active.sort_unstable_by(|a, b| ordering(a.1, b.1, false).then(a.0.cmp(&b.0)));
-        dead.sort_unstable_by(|a, b| ordering(a.1, b.1, true).then(a.0.cmp(&b.0)));
+        let layout = self.layout;
+        check_public_ranks(layout, dead.iter().map(|m| m.1), true)?;
+        active
+            .sort_unstable_by(|a, b| public_ordering(layout, a.1, b.1, false).then(a.0.cmp(&b.0)));
+        dead.sort_unstable_by(|a, b| public_ordering(layout, a.1, b.1, true).then(a.0.cmp(&b.0)));
         let births = self
             .entries
             .iter()
@@ -1199,24 +1245,28 @@ fn array(s: &mut (impl CodecStore + ?Sized), refs: &[RefValue]) -> Result<Built,
     s.write_template_view(sc::ValueView::Array(&views))
         .map_err(err)
 }
-/// 完整历史索引按目标代投影。Delta 出生序保留行插入序；活动/撤回各遵旧公开主序。
+/// 完整历史索引按目标代投影。Delta 出生序保留行插入序；活动/撤回按库布局的公开主序
+/// （[`public_ordering`]）。
 pub(super) fn at_cut(
     s: &mut (impl CodecStore + ?Sized),
+    layout: Layout,
     index: &[Entry],
     g: i64,
 ) -> Result<(Built, Built, Built), String> {
-    at_cut_metered(s, index, g, None)
+    at_cut_metered(s, layout, index, g, None)
 }
 pub(super) fn at_cut_metered(
     s: &mut (impl CodecStore + ?Sized),
+    layout: Layout,
     index: &[Entry],
     g: i64,
     budget: Option<&dyn super::audit_budget::Budget>,
 ) -> Result<(Built, Built, Built), String> {
-    at_cut_projected(s, index, g, budget, None)
+    at_cut_projected(s, layout, index, g, budget, None)
 }
 fn at_cut_projected(
     s: &mut (impl CodecStore + ?Sized),
+    layout: Layout,
     index: &[Entry],
     g: i64,
     budget: Option<&dyn super::audit_budget::Budget>,
@@ -1240,8 +1290,9 @@ fn at_cut_projected(
         s.native_codec_room(&mut dead, 1).map_err(err)?;
         dead.try_push((ordinal, e)).map_err(err)?;
     }
-    active.sort_unstable_by(|a, b| ordering(a.1, b.1, false).then(a.0.cmp(&b.0)));
-    dead.sort_unstable_by(|a, b| ordering(a.1, b.1, true).then(a.0.cmp(&b.0)));
+    check_public_ranks(layout, dead.iter().map(|m| m.1), true)?;
+    active.sort_unstable_by(|a, b| public_ordering(layout, a.1, b.1, false).then(a.0.cmp(&b.0)));
+    dead.sort_unstable_by(|a, b| public_ordering(layout, a.1, b.1, true).then(a.0.cmp(&b.0)));
     let mut births = bj::new_work(allocation.as_ref());
     for (ordinal, e) in index
         .iter()
@@ -1269,8 +1320,21 @@ fn at_cut_projected(
     Ok((collect(active)?, collect(dead)?, collect(births)?))
 }
 
+/// 测试入口：布局取当前写者规则串，与 fixture 库 init 写入的 meta 同源。
+#[cfg(test)]
 pub(super) fn plan(
     s: &mut (impl CodecStore + ?Sized),
+    objects: &[ProducedObject],
+    old: &[Entry],
+    g: i64,
+) -> Result<Plan, String> {
+    let layout = Layout::of_rule(crate::V3_RULE_REVISION).map_err(err)?;
+    plan_for_layout(s, layout, objects, old, g)
+}
+/// `layout` 由调用方取自库内 meta `rule_revision`（[`Layout::of_rule`]），只定公开数组次序。
+pub(super) fn plan_for_layout(
+    s: &mut (impl CodecStore + ?Sized),
+    layout: Layout,
     objects: &[ProducedObject],
     old: &[Entry],
     g: i64,
@@ -1296,7 +1360,7 @@ pub(super) fn plan(
             sc::frame_calls_on_thread() - observed_before.1,
         ))
     });
-    plan_from_candidates(s, new, old, g)
+    plan_from_candidates(s, layout, new, old, g)
 }
 
 /// #1394：只由Runtime显式CapturedNative模式选择，预算存在时拒绝。
@@ -1305,6 +1369,7 @@ pub(super) fn plan(
 #[cfg(feature = "s_capture_native_testonly")]
 pub(super) fn plan_native_union_for_testonly(
     s: &mut (impl CodecStore + ?Sized),
+    layout: Layout,
     objects: &[ProducedObject],
     old: &[Entry],
     g: i64,
@@ -1325,10 +1390,11 @@ pub(super) fn plan_native_union_for_testonly(
     for object in objects {
         new.try_push(candidate_fields(s, object, g)?).map_err(err)?;
     }
-    plan_from_candidates(s, new, old, g)
+    plan_from_candidates(s, layout, new, old, g)
 }
 fn plan_from_candidates(
     s: &mut (impl CodecStore + ?Sized),
+    layout: Layout,
     new: sc::CodecVec<Entry>,
     old: &[Entry],
     g: i64,
@@ -1443,7 +1509,7 @@ fn plan_from_candidates(
     }
     let withdrawals = withdrawals.finish();
     let replaces = replaces.finish();
-    let (active, withdrawn, upserts) = at_cut(s, &index, g)?;
+    let (active, withdrawn, upserts) = at_cut(s, layout, &index, g)?;
     Ok(Plan {
         generation: g,
         index,
@@ -1811,6 +1877,7 @@ pub(super) fn load_for_history<'capture>(
     latest: i64,
 ) -> Result<HistoryObjects<'capture>, String> {
     // 不接受外部旧 index/memo。先全核本事务原件，成功之后才能开当前索引的两个槽。
+    let layout = Layout::of_library(tx).map_err(err)?;
     let capture = s.native_projection_capture();
     let mut events = None;
     let entries = load_in_store(
@@ -1837,7 +1904,11 @@ pub(super) fn load_for_history<'capture>(
     } else {
         None
     };
-    Ok(HistoryObjects { entries, native })
+    Ok(HistoryObjects {
+        entries,
+        native,
+        layout,
+    })
 }
 /// 原始 SQL 行解码的唯一谓词；回读新增或死亡更新行仍须调用此处及原件绑定核。
 fn decode_persisted_entry(
@@ -2084,14 +2155,6 @@ pub(super) fn update_from_owner(
                 store.native_codec_room(&mut events.ranks, 1).map_err(err)?;
                 events.ranks.try_push(rank).map_err(err)?;
                 retained.vec_capacity::<NativeRank>(capacity, events.ranks.capacity());
-                let rank = order_key(&e, true).owned_admitted(&store)?;
-                retained.add(&rank);
-                let capacity = events.withdrawn_ranks.capacity();
-                store
-                    .native_codec_room(&mut events.withdrawn_ranks, 1)
-                    .map_err(err)?;
-                events.withdrawn_ranks.try_push(rank).map_err(err)?;
-                retained.vec_capacity::<NativeRank>(capacity, events.withdrawn_ranks.capacity());
                 let tree_before = events.births.allocation_bytes();
                 let bucket =
                     event_bucket(&mut events.births, e.life.first_known_generation, &store)?;
@@ -2133,6 +2196,7 @@ pub(super) fn update_from_owner(
 #[cfg(feature = "s_capture_native_testonly")]
 pub(super) fn restore_for_owner<'a>(
     entries: sc::CodecVec<Entry>,
+    layout: Layout,
     s: &super::history::HashReader<'a>,
     sweep: &mut HistorySweep,
     _bound: &super::audit_owner::BoundOriginals,
@@ -2177,7 +2241,11 @@ pub(super) fn restore_for_owner<'a>(
         sweep: Some(projection),
         retained: Default::default(),
     });
-    Ok(HistoryObjects { entries, native })
+    Ok(HistoryObjects {
+        entries,
+        native,
+        layout,
+    })
 }
 
 /// 内部 prior 只来自上代活动CC010/CC056；调用者保持本Vec活到generate结束。
@@ -2488,8 +2556,8 @@ struct HistoryEvents {
     by_id: bj::BusinessMap<TextValue, usize>,
     births: NativeTree<i64, sc::CodecVec<usize>>,
     deaths: NativeTree<i64, sc::CodecVec<usize>>,
+    /// layout/1 活动原键：before-g 成员/diff 游标与死亡桶（changes）次序只用它。
     ranks: sc::CodecVec<NativeRank>,
-    withdrawn_ranks: sc::CodecVec<NativeRank>,
     #[cfg(test)]
     initial_entries: usize,
     #[cfg(test)]
@@ -2545,19 +2613,12 @@ impl HistoryEvents {
         store: &(impl CodecRead + ?Sized),
     ) -> Result<Self, String> {
         let mut ranks = sc::CodecVec::default();
-        let mut withdrawn_ranks = sc::CodecVec::default();
         store
             .native_codec_room(&mut ranks, index.len())
-            .map_err(err)?;
-        store
-            .native_codec_room(&mut withdrawn_ranks, index.len())
             .map_err(err)?;
         for e in index {
             ranks
                 .try_push(order_key(e, false).owned_admitted(store)?)
-                .map_err(err)?;
-            withdrawn_ranks
-                .try_push(order_key(e, true).owned_admitted(store)?)
                 .map_err(err)?;
         }
         let mut out = Self {
@@ -2565,7 +2626,6 @@ impl HistoryEvents {
             births: Default::default(),
             deaths: Default::default(),
             ranks,
-            withdrawn_ranks,
             #[cfg(test)]
             initial_entries: 0,
             #[cfg(test)]
@@ -2622,16 +2682,32 @@ fn event_bucket<'a>(
     Ok(table.get_mut(&g).expect("刚建立的事件桶"))
 }
 type NativeRank = OrderKey<NativeValue<String>>;
-type RankSet = NativeTree<(NativeRank, usize), ()>;
+/// #1491：RankSet 键＝（代际前缀，layout/1 原键）。投影游标的活动/撤回集经 [`native_rank`]
+/// 取库布局的公开主序；before-g 成员/diff 游标经 [`diff_rank`] 沿 layout/1 原键（前缀恒 0），
+/// 与写者 diff 及 changes 同序。
+type PublicRank = (i64, NativeRank);
+type RankSet = NativeTree<(PublicRank, usize), ()>;
+fn native_rank(
+    layout: Layout,
+    e: &Entry,
+    dead: bool,
+    store: &(impl CodecRead + ?Sized),
+) -> Result<PublicRank, String> {
+    let (epoch, key) = public_rank(layout, e, dead)?;
+    Ok((epoch, key.owned_admitted(store)?))
+}
+fn diff_rank(rank: &NativeRank, store: &(impl CodecRead + ?Sized)) -> Result<PublicRank, String> {
+    Ok((0, rank.try_clone_admitted(store)?))
+}
 fn insert_rank(
     set: &mut RankSet,
-    rank: &NativeRank,
+    rank: PublicRank,
     ordinal: usize,
     store: &(impl CodecRead + ?Sized),
     #[cfg(feature = "s_capture_native_testonly")]
     retained: &mut super::audit_retention::RetainedDelta,
 ) -> Result<(), String> {
-    let key = (rank.try_clone_admitted(store)?, ordinal);
+    let key = (rank, ordinal);
     #[cfg(feature = "s_capture_native_testonly")]
     let (before, fresh) = (set.allocation_bytes(), !set.contains_key(&key));
     #[cfg(feature = "s_capture_native_testonly")]
@@ -2651,22 +2727,26 @@ fn insert_rank(
 }
 fn remove_rank(
     set: &mut RankSet,
-    rank: &NativeRank,
+    rank: PublicRank,
     ordinal: usize,
-    store: &(impl CodecRead + ?Sized),
     #[cfg(feature = "s_capture_native_testonly")]
     retained: &mut super::audit_retention::RetainedDelta,
 ) -> Result<(), String> {
-    let key = (rank.try_clone_admitted(store)?, ordinal);
+    let key = (rank, ordinal);
     #[cfg(feature = "s_capture_native_testonly")]
     let before = set.allocation_bytes();
-    if let Some((old, ())) = set.remove_entry(&key) {
-        #[cfg(feature = "s_capture_native_testonly")]
-        retained.release(&old);
-        drop(old);
-        if set.is_empty() {
-            set.clear();
-        }
+    // #1491 独审 LOW-1：出集键由当场生命期取得；键缺失说明入集与出集取键不一致（如撤回代被
+    // 改写），留下陈旧成员会静默改变公开数组，故 fail-closed。
+    let Some((old, ())) = set.remove_entry(&key) else {
+        return Err(err(format!(
+            "RankSet出集键不存在（序号 {ordinal}）：入集与出集取键不一致"
+        )));
+    };
+    #[cfg(feature = "s_capture_native_testonly")]
+    retained.release(&old);
+    drop(old);
+    if set.is_empty() {
+        set.clear();
     }
     #[cfg(feature = "s_capture_native_testonly")]
     retained.release_bytes(before.saturating_sub(set.allocation_bytes()));
@@ -2708,7 +2788,7 @@ impl HistorySweep {
             for i in ids {
                 insert_rank(
                     &mut self.active,
-                    &self.events.ranks[*i],
+                    diff_rank(&self.events.ranks[*i], store)?,
                     *i,
                     store,
                     #[cfg(feature = "s_capture_native_testonly")]
@@ -2724,9 +2804,8 @@ impl HistorySweep {
             for i in ids {
                 remove_rank(
                     &mut self.active,
-                    &self.events.ranks[*i],
+                    diff_rank(&self.events.ranks[*i], store)?,
                     *i,
-                    store,
                     #[cfg(feature = "s_capture_native_testonly")]
                     &mut self.retained,
                 )?;
@@ -2876,7 +2955,15 @@ struct ProjectionVisits {
 impl ProjectionSweep {
     // #1488 唯一生产调用经 native_dual_at_cut → history 私有单代核；
     // 任一步失败由 cold/append 按值候选边界销毁本游标，只有完整成功才能重新封装。
-    fn seek_admitted(&mut self, g: i64, store: &(impl CodecRead + ?Sized)) -> Result<(), String> {
+    /// 活动/撤回集按库布局的公开主序键（[`native_rank`]）入出；键由 `index` 当场取，
+    /// 撤回键随死亡代而定，不预存会因 owner 增量改写撤回代而陈旧的副本。
+    fn seek_admitted(
+        &mut self,
+        g: i64,
+        layout: Layout,
+        index: &[Entry],
+        store: &(impl CodecRead + ?Sized),
+    ) -> Result<(), String> {
         use std::ops::Bound::{Excluded, Included, Unbounded};
         if self.previous_cut == Some(g) {
             return Ok(());
@@ -2887,7 +2974,7 @@ impl ProjectionSweep {
                 for i in ids {
                     insert_rank(
                         &mut self.active,
-                        &self.events.ranks[*i],
+                        native_rank(layout, &index[*i], false, store)?,
                         *i,
                         store,
                         #[cfg(feature = "s_capture_native_testonly")]
@@ -2903,15 +2990,14 @@ impl ProjectionSweep {
                 for i in ids {
                     remove_rank(
                         &mut self.active,
-                        &self.events.ranks[*i],
+                        native_rank(layout, &index[*i], false, store)?,
                         *i,
-                        store,
                         #[cfg(feature = "s_capture_native_testonly")]
                         &mut self.retained,
                     )?;
                     insert_rank(
                         &mut self.withdrawn,
-                        &self.events.withdrawn_ranks[*i],
+                        native_rank(layout, &index[*i], true, store)?,
                         *i,
                         store,
                         #[cfg(feature = "s_capture_native_testonly")]
@@ -2930,15 +3016,14 @@ impl ProjectionSweep {
                 for i in ids {
                     remove_rank(
                         &mut self.withdrawn,
-                        &self.events.withdrawn_ranks[*i],
+                        native_rank(layout, &index[*i], true, store)?,
                         *i,
-                        store,
                         #[cfg(feature = "s_capture_native_testonly")]
                         &mut self.retained,
                     )?;
                     insert_rank(
                         &mut self.active,
-                        &self.events.ranks[*i],
+                        native_rank(layout, &index[*i], false, store)?,
                         *i,
                         store,
                         #[cfg(feature = "s_capture_native_testonly")]
@@ -2954,9 +3039,8 @@ impl ProjectionSweep {
                 for i in ids {
                     remove_rank(
                         &mut self.active,
-                        &self.events.ranks[*i],
+                        native_rank(layout, &index[*i], false, store)?,
                         *i,
-                        store,
                         #[cfg(feature = "s_capture_native_testonly")]
                         &mut self.retained,
                     )?;
@@ -3001,8 +3085,8 @@ impl ProjectionSweep {
         all(test, not(feature = "s_capture_native_testonly")),
         allow(dead_code, reason = "#1488 再合 #1608：s_session 测试 构建不触达")
     )]
-    fn seek(&mut self, g: i64) {
-        self.seek_admitted(g, &super::audit_store::NativeAdmission(None))
+    fn seek(&mut self, g: i64, layout: Layout, index: &[Entry]) {
+        self.seek_admitted(g, layout, index, &super::audit_store::NativeAdmission(None))
             .expect("无scope测试游标");
     }
 }
@@ -4179,7 +4263,7 @@ mod tests {
                 .try_push(candidate_verified_legacy_fields(s, object, g).unwrap())
                 .unwrap();
         }
-        plan_from_candidates(s, entries, old, g).unwrap()
+        plan_from_candidates(s, Layout::Sorted, entries, old, g).unwrap()
     }
     fn candidate_sql_material_for_test(tx: &Transaction<'_>) -> Vec<(Vec<u8>, i64, Vec<u8>)> {
         tx.prepare("SELECT digest,tag,body FROM s_content_nodes ORDER BY digest")
@@ -4640,7 +4724,7 @@ mod tests {
         }
         let before = candidate_sql_material_for_test(&tx);
         tx.execute_batch("CREATE TEMP TRIGGER candidate_fields_wire_sql_fault BEFORE INSERT ON s_content_nodes WHEN NEW.tag=8 BEGIN SELECT RAISE(ABORT,'candidate_fields_wire_SQL_fault'); END;").unwrap();
-        let error = plan_native_union_for_testonly(&mut store, &objects, &[], 1)
+        let error = plan_native_union_for_testonly(&mut store, Layout::Sorted, &objects, &[], 1)
             .err()
             .unwrap();
         assert!(error.contains("candidate_fields_wire_SQL_fault"), "{error}");
@@ -4716,7 +4800,7 @@ mod tests {
                 _ => unreachable!(),
             }
             sc::audit_verify_public(&mut store.nodes, &first).unwrap();
-            let error = plan_native_union_for_testonly(&mut store, objects, &[], 1)
+            let error = plan_native_union_for_testonly(&mut store, Layout::Sorted, objects, &[], 1)
                 .err()
                 .unwrap();
             assert!(error.contains(code), "{fault}: {error}");
@@ -4741,7 +4825,8 @@ mod tests {
             nodes: nodes.clone(),
             ..Default::default()
         };
-        let actual = plan_native_union_for_testonly(&mut native, objects, &[], 1).unwrap();
+        let actual =
+            plan_native_union_for_testonly(&mut native, Layout::Sorted, objects, &[], 1).unwrap();
         assert_eq!(
             candidate_plan_signature(&actual),
             candidate_plan_signature(&expected)
@@ -4756,10 +4841,12 @@ mod tests {
             budget: Some(OwnedBudget::new(1_000_000)),
             ..Default::default()
         };
-        assert!(plan_native_union_for_testonly(&mut mixed, objects, &[], 1)
-            .err()
-            .unwrap()
-            .contains("拒绝allocation预算"));
+        assert!(
+            plan_native_union_for_testonly(&mut mixed, Layout::Sorted, objects, &[], 1)
+                .err()
+                .unwrap()
+                .contains("拒绝allocation预算")
+        );
         assert_eq!(
             (mixed.reads, mixed.puts, mixed.singles, mixed.unions),
             (0, 0, 0, 0)
@@ -4869,6 +4956,7 @@ mod tests {
         c.execute_batch(crate::SCHEMA).unwrap();
         c.execute_batch(crate::v2::SCHEMA_V2).unwrap();
         meta_set(&c, "protocol_revision", "s-session/3").unwrap();
+        meta_set(&c, "rule_revision", crate::V3_RULE_REVISION).unwrap();
         c.execute(
             "INSERT INTO s_protocol_meta VALUES(1,'s-session/3','1','test','{}',1,'0')",
             [],
@@ -5030,7 +5118,6 @@ mod tests {
         sc::verify_refview(&mut read, (&root.content_ref()).into(), mode).unwrap();
         read.nodes
     }
-    #[cfg(feature = "s_capture_native_testonly")]
     fn projection_fixture() -> (sc::MemoryNodes, Vec<Entry>) {
         // 仅投影/排序夹具；真实 producer 与成功 load 的绑定由 real_generations 另核。
         let mut nodes = sc::MemoryNodes::new();
@@ -5180,7 +5267,8 @@ mod tests {
             }
             let expected_withdrawals = [shape_withdrawals, typed_withdrawals].concat();
             expected_index.push(fresh.try_clone().unwrap());
-            let expected_roots = at_cut(&mut expected_nodes, &expected_index, 3).unwrap();
+            let expected_roots =
+                at_cut(&mut expected_nodes, Layout::Sorted, &expected_index, 3).unwrap();
             let (nodes, _, _) = plan_input_fixture(shape_replacement);
             let capture = sc::AuditCapture::new(nodes);
             let budget =
@@ -5195,7 +5283,7 @@ mod tests {
                             .map_err(err)?
                             .with_codec_work(scope, &budget);
                     let new = admitted_plan_candidate(&reader, &fresh)?;
-                    plan_from_candidates(&mut reader, new, &old, 3)
+                    plan_from_candidates(&mut reader, Layout::Sorted, new, &old, 3)
                 })
                 .unwrap();
             assert_eq!(
@@ -5246,7 +5334,7 @@ mod tests {
                 .with_codec_work(scope, &budget);
             let new = admitted_plan_candidate(&reader, &fresh)?;
             // metadata、撤回JSON、births/index已产生后，真实wire读取才发现原库缺节点。
-            plan_from_candidates(&mut reader, new, &old, 3)
+            plan_from_candidates(&mut reader, Layout::Sorted, new, &old, 3)
         });
         let message = match result.err().expect("缺原wire不得产生Plan") {
             sc::capture_allocation::scratch::WorkError::Operation(message) => message,
@@ -5271,7 +5359,13 @@ mod tests {
                 .map_err(err)?
                 .with_codec_work(scope, &budget);
             let _held = budget.reserve(1024 * 1024 - budget.live() - 1).unwrap();
-            plan_from_candidates(&mut reader, sc::CodecVec::default(), &old, 3)
+            plan_from_candidates(
+                &mut reader,
+                Layout::Sorted,
+                sc::CodecVec::default(),
+                &old,
+                3,
+            )
         });
         assert!(result.is_err(), "一字节预算不得准入历史ordinal工作集");
         assert_eq!(format!("{old:?}"), old_snapshot);
@@ -5360,7 +5454,7 @@ mod tests {
                     let mut sweep = ProjectionSweep::new_admitted(&entries, &store)?;
                     for g in [0, 1, 3, 3, 2, 0, 3] {
                         let before = sweep.active.heap_bytes() + sweep.withdrawn.heap_bytes();
-                        sweep.seek_admitted(g, &store)?;
+                        sweep.seek_admitted(g, Layout::Sorted, &entries, &store)?;
                         let delta = std::mem::take(&mut sweep.retained);
                         assert_eq!(
                             delta.apply(before).unwrap(),
@@ -5413,11 +5507,11 @@ mod tests {
         let error = budget.codec_work().unwrap().run(|scope| {
             let store = super::super::audit_store::NativeAdmission(Some(scope));
             let mut candidate = ProjectionSweep::new_admitted(&entries, &store)?;
-            candidate.seek_admitted(1, &store)?;
+            candidate.seek_admitted(1, Layout::Sorted, &entries, &store)?;
             let occupied = budget.reserve(limit - budget.live()).unwrap();
             // 与 history 消费边界相同：候选按值进入，Err 不返回部分游标。
             let consume = |mut candidate: ProjectionSweep| -> Result<ProjectionSweep, String> {
-                candidate.seek_admitted(3, &store)?;
+                candidate.seek_admitted(3, Layout::Sorted, &entries, &store)?;
                 Ok(candidate)
             };
             let result = consume(candidate);
@@ -5471,6 +5565,139 @@ mod tests {
         assert_eq!(budget.live(), baseline);
     }
 
+    /// #1491：撤回代错开的投影夹具（shape-first 延至第 4 代撤回），使 bounded 撤回尾与
+    /// layout/1 内容序可区分；其余身份与生命期同 [`projection_fixture`]。
+    fn staggered_withdrawal_fixture() -> (sc::MemoryNodes, Vec<Entry>) {
+        let (mut nodes, mut entries) = projection_fixture();
+        assert_eq!(entries[1].id.as_str(), "shape-first");
+        entries[1].life.withdrawn_generation = Some(4);
+        wire_at(&mut nodes, &entries[1], 4).unwrap();
+        (nodes, entries)
+    }
+
+    fn cut_arrays(
+        nodes: &mut sc::MemoryNodes,
+        entries: &[Entry],
+        g: i64,
+        active: &[usize],
+        withdrawn: &[usize],
+    ) -> (Built, Built, Built) {
+        let mut project = |ordinals: Vec<usize>| {
+            let refs = ordinals
+                .into_iter()
+                .map(|i| wire_at(&mut *nodes, &entries[i], g).unwrap())
+                .collect::<Vec<_>>();
+            array(&mut *nodes, &refs).unwrap()
+        };
+        let births = (0..entries.len())
+            .filter(|i| entries[*i].life.first_known_generation == g)
+            .collect();
+        (
+            project(active.to_vec()),
+            project(withdrawn.to_vec()),
+            project(births),
+        )
+    }
+
+    #[test]
+    fn layout_object_index_sorted_public_rank_equals_order_key() {
+        let (_, entries) = staggered_withdrawal_fixture();
+        for a in &entries {
+            for b in &entries {
+                for dead in [false, true] {
+                    let withdrawn = |e: &Entry| e.life.withdrawn_generation.is_some();
+                    if dead && !(withdrawn(a) && withdrawn(b)) {
+                        continue;
+                    }
+                    assert_eq!(
+                        public_ordering(Layout::Sorted, a, b, dead),
+                        ordering(a, b, dead),
+                        "{} {} dead={dead}",
+                        a.id.as_str(),
+                        b.id.as_str()
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn layout_object_index_bounded_revision_and_withdrawal_fall_to_tail() {
+        let (mut nodes, entries) = staggered_withdrawal_fixture();
+        // 0 typed-z(1→3) 1 shape-first(1→4) 2 shape-second(1) 3 typed-b(1) 4 future-born(2)
+        // 5 shape-replacement(3) 6 typed-a(3)：5、6 是 1、0 的修订。
+        for (layout, g, active, withdrawn) in [
+            (Layout::Sorted, 3, &[1, 2, 5, 4, 6, 3][..], &[0][..]),
+            (Layout::Bounded1, 3, &[1, 2, 3, 4, 5, 6][..], &[0][..]),
+            (Layout::Sorted, 4, &[2, 5, 4, 6, 3][..], &[1, 0][..]),
+            (Layout::Bounded1, 4, &[2, 3, 4, 5, 6][..], &[0, 1][..]),
+        ] {
+            let expected = cut_arrays(&mut nodes, &entries, g, active, withdrawn);
+            let actual = at_cut(&mut nodes, layout, &entries, g).unwrap();
+            assert_eq!(actual, expected, "{layout:?} cut={g}");
+        }
+    }
+
+    #[test]
+    fn layout_object_index_incremental_sweep_equals_full_rebuild_under_both_layouts() {
+        let (mut nodes, entries) = staggered_withdrawal_fixture();
+        for layout in [Layout::Sorted, Layout::Bounded1] {
+            let mut sweep = ProjectionSweep::new(&entries);
+            for g in [1, 2, 3, 4, 2, 1, 4, 3] {
+                let full = at_cut(&mut nodes, layout, &entries, g).unwrap();
+                sweep.seek(g, layout, &entries);
+                let active = sweep.active.keys().map(|(_, i)| *i).collect::<Vec<_>>();
+                let withdrawn = sweep.withdrawn.keys().map(|(_, i)| *i).collect::<Vec<_>>();
+                let incremental = cut_arrays(&mut nodes, &entries, g, &active, &withdrawn);
+                assert_eq!(incremental, full, "{layout:?} cut={g}");
+            }
+        }
+    }
+
+    /// #1491 独审 LOW-1 负控：撤回代在入集后被改写（4→3），bounded 撤回键随之改变而不在集内；
+    /// 旧实现静默放行并留下陈旧成员，现须报错。layout/1 的 Shape 撤回键取首获知代、不随撤回代
+    /// 变化，同一改写下照常出集（正控）。
+    #[test]
+    fn layout_object_index_remove_rank_missing_key_fails_closed() {
+        let store = super::super::audit_store::NativeAdmission(None);
+        for layout in [Layout::Sorted, Layout::Bounded1] {
+            let (_, entries) = staggered_withdrawal_fixture();
+            let (_, mut rewritten) = staggered_withdrawal_fixture();
+            assert_eq!(rewritten[1].life.withdrawn_generation, Some(4));
+            rewritten[1].life.withdrawn_generation = Some(3);
+            let mut sweep = ProjectionSweep::new(&entries);
+            sweep.seek(4, layout, &entries);
+            let result = sweep.seek_admitted(1, layout, &rewritten, &store);
+            match layout {
+                Layout::Sorted => result.unwrap(),
+                Layout::Bounded1 => {
+                    let error = result.unwrap_err();
+                    assert!(error.contains("RankSet出集键不存在"), "{error}");
+                }
+            }
+        }
+    }
+
+    /// #1491 独审 LOW-1 负控：撤回成员缺撤回代时公开主序键报错，不以 `i64::MAX` 吸收；
+    /// 撤回事件已入游标、生命期却丢了撤回代时，入撤回集即拒。
+    #[test]
+    fn layout_object_index_withdrawn_without_generation_fails_closed() {
+        let (_, mut entries) = staggered_withdrawal_fixture();
+        assert_eq!(entries[2].life.withdrawn_generation, None);
+        for layout in [Layout::Sorted, Layout::Bounded1] {
+            let error = public_rank(layout, &entries[2], true).unwrap_err();
+            assert!(error.contains("缺撤回代"), "{error}");
+            assert!(public_rank(layout, &entries[2], false).is_ok());
+        }
+        let store = super::super::audit_store::NativeAdmission(None);
+        let mut sweep = ProjectionSweep::new(&entries);
+        entries[1].life.withdrawn_generation = None;
+        let error = sweep
+            .seek_admitted(4, Layout::Bounded1, &entries, &store)
+            .unwrap_err();
+        assert!(error.contains("缺撤回代"), "{error}");
+    }
+
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn cold_relation_index_sort_ties_keep_complete_projection_roots() {
@@ -5481,8 +5708,8 @@ mod tests {
         );
         let mut sweep = ProjectionSweep::new(&entries);
         for g in [1, 2, 3, 4, 2, 1, 4] {
-            let expected = at_cut(&mut nodes, &entries, g).unwrap();
-            sweep.seek(g);
+            let expected = at_cut(&mut nodes, Layout::Sorted, &entries, g).unwrap();
+            sweep.seek(g, Layout::Sorted, &entries);
             let mut project = |ordinals: Vec<usize>| {
                 let refs = ordinals
                     .into_iter()
@@ -5555,11 +5782,18 @@ mod tests {
         let old_meter = RecordMeter::default();
         let memo_meter = RecordMeter::default();
         for g in 1..=6 {
-            let oracle = at_cut_metered(&mut nodes, &entries, g, Some(&old_meter)).unwrap();
+            let oracle =
+                at_cut_metered(&mut nodes, Layout::Sorted, &entries, g, Some(&old_meter)).unwrap();
             // 测共用 collect 的记录门；生产 Native 构造门仍只允许 budget=None。
-            let actual =
-                at_cut_projected(&mut store, &entries, g, Some(&memo_meter), Some(&mut memo))
-                    .unwrap();
+            let actual = at_cut_projected(
+                &mut store,
+                Layout::Sorted,
+                &entries,
+                g,
+                Some(&memo_meter),
+                Some(&mut memo),
+            )
+            .unwrap();
             assert_eq!(oracle, actual, "cut-{g} 三根/头必须一致");
             for (old, new) in [
                 (&oracle.0, &actual.0),
@@ -5613,11 +5847,15 @@ mod tests {
             stop: true,
         };
         WIRE_PROJECTIONS.with(|calls| calls.set(0));
-        assert!(
-            at_cut_projected(&mut store, &entries, 6, Some(&stop), Some(&mut memo))
-                .unwrap_err()
-                .contains("record_stop")
+        let stopped = at_cut_projected(
+            &mut store,
+            Layout::Sorted,
+            &entries,
+            6,
+            Some(&stop),
+            Some(&mut memo),
         );
+        assert!(stopped.unwrap_err().contains("record_stop"));
         assert_eq!(stop.records.get(), 1);
         assert_eq!(
             WIRE_PROJECTIONS.with(|calls| calls.get()),
@@ -5754,7 +5992,7 @@ mod tests {
         let mut projection = ProjectionSweep::new(index);
         let advance_retained = |projection: &mut ProjectionSweep, g| {
             let before = projection.active.heap_bytes() + projection.withdrawn.heap_bytes();
-            projection.seek(g);
+            projection.seek(g, Layout::Sorted, index);
             let delta = std::mem::take(&mut projection.retained);
             assert_eq!(
                 delta.apply(before).unwrap(),
@@ -5984,9 +6222,15 @@ mod tests {
                 )
                 .unwrap();
                 tx.execute_batch("CREATE TEMP TRIGGER candidate_union_insert_fault BEFORE INSERT ON s_content_nodes BEGIN SELECT RAISE(ABORT,'unexpected_candidate_put_before_union_reject'); END;").unwrap();
-                let error = plan_native_union_for_testonly(&mut s, &generated.objects, &old, g)
-                    .err()
-                    .unwrap();
+                let error = plan_native_union_for_testonly(
+                    &mut s,
+                    Layout::Sorted,
+                    &generated.objects,
+                    &old,
+                    g,
+                )
+                .err()
+                .unwrap();
                 assert!(
                     error.contains(sc::code::NODE_DIGEST),
                     "先拒坏完整Public root，未触candidate INSERT：{error}"
@@ -6013,8 +6257,14 @@ mod tests {
                 let old_union_reads = content_store::sql_reads_on_thread() - reads_before;
                 let old_union_material = candidate_sql_material_for_test(&tx);
                 let reads_before = content_store::sql_reads_on_thread();
-                let union =
-                    plan_native_union_for_testonly(&mut s, &generated.objects, &old, g).unwrap();
+                let union = plan_native_union_for_testonly(
+                    &mut s,
+                    Layout::Sorted,
+                    &generated.objects,
+                    &old,
+                    g,
+                )
+                .unwrap();
                 let union_reads = content_store::sql_reads_on_thread() - reads_before;
                 assert_eq!(
                     candidate_plan_signature(&union),
@@ -6108,7 +6358,8 @@ mod tests {
                 Some(&sweep),
             )
             .unwrap();
-            let (actual_active, actual_dead, actual_new) = at_cut(&mut s, &stored, g).unwrap();
+            let (actual_active, actual_dead, actual_new) =
+                at_cut(&mut s, Layout::Sorted, &stored, g).unwrap();
             assert_eq!(actual_active.extent, Some(generated.objects.len() as u64));
             assert_eq!(actual_new.extent, Some(p.births.len() as u64));
             for r in &stored {
@@ -6116,7 +6367,7 @@ mod tests {
                 let expected = crate::project_object_wire(&legacy_value(&mut s, r)).unwrap();
                 assert_eq!(value_ref(&mut s, actual.view()), expected);
             }
-            let historical = at_cut(&mut s, &stored, 1).unwrap();
+            let historical = at_cut(&mut s, Layout::Sorted, &stored, 1).unwrap();
             let roots = (
                 historical.0.digest,
                 historical.1.digest,
@@ -6278,7 +6529,7 @@ mod tests {
                 );
                 WIRE_PROJECTIONS.with(|calls| calls.set(0));
                 for cut in 1..=6 {
-                    let oracle = at_cut(&mut s, &stored, cut).unwrap();
+                    let oracle = at_cut(&mut s, Layout::Sorted, &stored, cut).unwrap();
                     let before = WIRE_PROJECTIONS.with(|calls| calls.get());
                     let actual = current.at_cut(&mut captured, cut, None).unwrap();
                     let projection_count = WIRE_PROJECTIONS.with(|calls| calls.get() - before);
@@ -6565,7 +6816,6 @@ mod owner_retention {
                 births,
                 deaths,
                 ranks,
-                withdrawn_ranks,
                 #[cfg(test)]
                     initial_entries: _,
                 #[cfg(test)]
@@ -6576,7 +6826,6 @@ mod owner_retention {
                 births.heap_bytes(),
                 deaths.heap_bytes(),
                 ranks.heap_bytes(),
-                withdrawn_ranks.heap_bytes(),
             ])
         }
     }

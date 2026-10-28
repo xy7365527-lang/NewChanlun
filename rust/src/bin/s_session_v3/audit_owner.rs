@@ -5178,6 +5178,255 @@ pub(super) mod construction_tests {
         );
     }
 
+    /// #1491：只令恢复/审计侧 `Layout::of_library` 返回 `forced`，并把库规则串注入为写者规则；
+    /// 同一调用内写者经 `Layout::of_rule(metadata.rule_revision)` 仍按库布局发布。
+    fn b2_restore_side_forced<T>(
+        rule: &str,
+        forced: super::super::layout::Layout,
+        f: impl FnOnce() -> T,
+    ) -> T {
+        super::super::with_test_writer_rule(Some(rule), || {
+            super::super::layout::with_forced_library_layout_for_test(Some(forced), f)
+        })
+    }
+
+    /// #1491 ADR 0037 owner 恢复臂多代逐位锁：layout/1 与 bounded-layout/1 两库各跑
+    /// `LAYOUT_MULTICUT_INPUTS` 六代（撤回落两个不同代、跨代修订、小坐标后生、三辅族跨代
+    /// 新增）。warm owner、每代全新 cold owner 与普通写者均建于 `Fixture::with_rule(rule)`，
+    /// owner 全程在同一写者规则注入下运行。每代：warm 回执与 cold、普通写者逐位相等，三库全表
+    /// 相等。恢复臂实际执行：`OwnerSourceCheck::counts_for` 只在 `AuditedState::append_owner_cut`
+    /// 于 `history::append_owner_cut`（`restore_for_owner` 取 `Layout::of_library`，再由
+    /// `audit_one_published_cut` 按库布局整数组核本代新 cut）成功之后调用，冷审计传 `None`，
+    /// 故 `take_owner_source_reuses()==1`；同次发布的诊断恰含本代一条
+    /// `owner_suffix_complete`，且无 `publication_candidate_abandoned`（未降级为无候选重发）。
+    /// 六代后 warm 库每个 cut 的五个累计数组：写者发布 ＝ 按库布局独立重建；按另一布局重建在
+    /// 某个 cut 不等；两库发布值不同。
+    #[test]
+    fn b2_native_owner_restore_bounded_multicut_matches_writer_and_rebuild() {
+        use super::super::history::tests::{
+            layout_published_arrays, layout_rebuilt_arrays, LAYOUT_ARRAYS, LAYOUT_MULTICUT_INPUTS,
+        };
+        use super::super::layout::Layout;
+        use super::super::prepared::tests::{
+            runtime_root_compare_reachable_bytes, runtime_root_tables, Fixture,
+        };
+        let bounded_rule = format!("{}+bounded-layout/1", crate::V3_RULE_REVISION);
+        let mut views = Vec::new();
+        for (rule, layout, other) in [
+            (crate::V3_RULE_REVISION, Layout::Sorted, Layout::Bounded1),
+            (bounded_rule.as_str(), Layout::Bounded1, Layout::Sorted),
+        ] {
+            let mut warm = Fixture::with_rule(rule);
+            let cold = Fixture::with_rule(rule);
+            let mut ordinary = Fixture::with_rule(rule);
+            assert_eq!(Layout::of_library(&warm.conn).unwrap(), layout);
+            super::super::with_test_writer_rule(Some(rule), || {
+                let owner = AuditConnection::open(&warm.db_path()).unwrap();
+                let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
+                let mut c = context();
+                for (n, row, revision) in LAYOUT_MULTICUT_INPUTS {
+                    let (envelope, plain_token) = ordinary.accept_begin(n, row, revision);
+                    let token = b2_accept_begin(&owner, &envelope, &mut c);
+                    source_audit::reset_source_call_stats();
+                    construction_set::take_owner_source_reuses();
+                    let (published, events, _) = state::traced(false, || {
+                        owner.publish(&mut runtime, &token, &envelope, &mut c)
+                    });
+                    let (actual, ended) = published.unwrap();
+                    assert_eq!(
+                        source_audit::source_call_stats(),
+                        source_audit::SourceCallStats::default(),
+                        "{rule} gen{n}真实warm入口不能完整重判"
+                    );
+                    assert_eq!(
+                        construction_set::take_owner_source_reuses(),
+                        1,
+                        "{rule} gen{n}须经append_owner_cut恢复臂消费一次来源结果"
+                    );
+                    let phase = |name: &str| {
+                        let mut generations = Vec::new();
+                        for event in &events {
+                            if event["phase"] == name {
+                                generations.push(event["generation"].as_i64());
+                            }
+                        }
+                        generations
+                    };
+                    assert_eq!(
+                        phase("owner_suffix_complete"),
+                        [Some(n)],
+                        "{rule} gen{n}须恰经一次owner后缀恢复臂"
+                    );
+                    assert!(
+                        phase("publication_candidate_abandoned").is_empty(),
+                        "{rule} gen{n}不得降级为无候选重发"
+                    );
+                    owner.continue_with(ended).unwrap();
+                    // 每一代使用全新 cold owner 和 runtime，既有 SQLite 原件只走独立冷建。
+                    let cold_owner = AuditConnection::open(&cold.db_path()).unwrap();
+                    let mut cold_runtime =
+                        prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
+                    let mut cold_context = context();
+                    let cold_token = b2_accept_begin(&cold_owner, &envelope, &mut cold_context);
+                    let (cold_receipt, ended) = cold_owner
+                        .publish(&mut cold_runtime, &cold_token, &envelope, &mut cold_context)
+                        .unwrap();
+                    cold_owner.continue_with(ended).unwrap();
+                    let expected = ordinary.publish(&envelope, &plain_token).unwrap();
+                    for receipt in [&cold_receipt, &expected] {
+                        assert_eq!(
+                            canonical_json(&actual.message_receipt),
+                            canonical_json(&receipt.message_receipt),
+                            "{rule} gen{n}"
+                        );
+                        assert_eq!(actual.batch_id, receipt.batch_id);
+                        assert_eq!(actual.snapshot, receipt.snapshot);
+                        assert_eq!(actual.delta, receipt.delta);
+                        assert_eq!(actual.generation, receipt.generation);
+                    }
+                    let persisted = runtime_root_tables(&warm.conn, true);
+                    assert_eq!(
+                        persisted,
+                        runtime_root_tables(&cold.conn, true),
+                        "{rule} gen{n}warm/cold全表含原件逐字"
+                    );
+                    assert_eq!(
+                        persisted,
+                        runtime_root_tables(&ordinary.conn, true),
+                        "{rule} gen{n}warm/ordinary全表含原件逐字"
+                    );
+                    runtime_root_compare_reachable_bytes(&warm.conn, &ordinary.conn);
+                    owner.assert_complete_matches_cold();
+                    cold_owner.assert_complete_matches_cold();
+                    b2_assert_counts_match_independent_full_source(&owner);
+                    b2_assert_counts_match_independent_full_source(&cold_owner);
+                }
+            });
+            assert_eq!(Layout::of_library(&warm.conn).unwrap(), layout);
+            let published = layout_published_arrays(&mut warm.conn);
+            let generations: Vec<i64> = published.iter().map(|(g, _)| *g).collect();
+            assert_eq!(generations, [1, 2, 3, 4, 5, 6]);
+            let own = layout_rebuilt_arrays(&mut warm.conn, layout, &generations);
+            for ((g, arrays), rebuilt) in published.iter().zip(&own) {
+                for (i, name) in LAYOUT_ARRAYS.iter().enumerate() {
+                    assert_eq!(arrays[i], rebuilt[i], "{layout:?} g={g} {name}");
+                }
+            }
+            let foreign = layout_rebuilt_arrays(&mut warm.conn, other, &generations);
+            assert!(
+                published
+                    .iter()
+                    .zip(&foreign)
+                    .any(|((_, arrays), rebuilt)| arrays != rebuilt),
+                "{layout:?} 库的发布值须与 {other:?} 重建在某个 cut 不同"
+            );
+            views.push(published);
+        }
+        assert_ne!(views[0], views[1]);
+    }
+
+    /// #1491 owner 恢复臂真负控（两方向：bounded 库恢复侧强制 Sorted、layout/1 库恢复侧
+    /// 强制 Bounded1）。`with_forced_layout_for_test` 作用于 `of_rule`，包住 `owner.publish`
+    /// 会令写者与恢复两侧同改、不拒收；故经 `b2_restore_side_forced` 只令 `Layout::of_library`
+    /// 返回强制布局：同一 `owner.publish` 内写者按库布局发布，`append_owner_cut` 取强制布局交
+    /// `restore_for_owner`，`audit_one_published_cut` 据此重建。强制布局重建与写者发布值相同的
+    /// 代照常经恢复臂接纳，恰在首个不同的代拒收：错误带 `[owner full cut g=…]`（只有
+    /// `history::append_owner_cut` 包此标记），整笔回滚，不涉冻结域。对象/撤回/观察次序不符先由
+    /// native 双投影模板核报 `真实Template数组与独立有序双投影不同`；仅见证/关系不符时由
+    /// 整数组核报 `<数组>与独立依据不同`。
+    #[test]
+    fn b2_native_owner_restore_wrong_library_layout_rejects_in_append_owner_cut() {
+        use super::super::history::tests::{
+            layout_published_arrays, layout_rebuilt_arrays, LAYOUT_ARRAYS, LAYOUT_MULTICUT_INPUTS,
+        };
+        use super::super::layout::Layout;
+        use super::super::prepared::tests::Fixture;
+        let bounded_rule = format!("{}+bounded-layout/1", crate::V3_RULE_REVISION);
+        for (rule, forced) in [
+            (bounded_rule.as_str(), Layout::Sorted),
+            (crate::V3_RULE_REVISION, Layout::Bounded1),
+        ] {
+            let warm = Fixture::with_rule(rule);
+            let mut ordinary = Fixture::with_rule(rule);
+            assert_ne!(Layout::of_library(&warm.conn).unwrap(), forced);
+            let owner = b2_restore_side_forced(rule, forced, || {
+                assert_eq!(Layout::of_library(&warm.conn).unwrap(), forced);
+                AuditConnection::open(&warm.db_path()).unwrap()
+            });
+            let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
+            let mut c = context();
+            let mut rejected = None;
+            for (n, row, revision) in LAYOUT_MULTICUT_INPUTS {
+                let (envelope, plain_token) = ordinary.accept_begin(n, row, revision);
+                ordinary.publish(&envelope, &plain_token).unwrap();
+                construction_set::take_owner_source_reuses();
+                let step = b2_restore_side_forced(rule, forced, || {
+                    let token = b2_accept_begin(&owner, &envelope, &mut c);
+                    let (_, ended) = owner.publish(&mut runtime, &token, &envelope, &mut c)?;
+                    assert_eq!(
+                        construction_set::take_owner_source_reuses(),
+                        1,
+                        "{rule} gen{n}须经append_owner_cut恢复臂接纳"
+                    );
+                    owner.continue_with(ended)
+                });
+                if let Err(error) = step {
+                    rejected = Some((n, error));
+                    break;
+                }
+            }
+            drop(owner);
+            let (generation, failure) = rejected.expect("恢复侧布局不符须被拒收");
+            assert!(
+                failure.contains(&format!("[owner full cut g={generation}]")),
+                "{failure}"
+            );
+            assert!(!failure.contains("冻结域"), "{failure}");
+            let committed: i64 = warm
+                .conn
+                .query_row(
+                    "SELECT CAST(value AS INTEGER) FROM meta WHERE key='generation'",
+                    [],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            assert_eq!(committed, generation - 1, "拒收整笔回滚");
+            let published = layout_published_arrays(&mut ordinary.conn);
+            let generations: Vec<i64> = published.iter().map(|(g, _)| *g).collect();
+            assert_eq!(generations, (1..=generation).collect::<Vec<_>>());
+            let rebuilt = layout_rebuilt_arrays(&mut ordinary.conn, forced, &generations);
+            let mut differing = Vec::new();
+            for ((_, arrays), forced_arrays) in published.iter().zip(&rebuilt) {
+                let mut names = Vec::new();
+                for (i, name) in LAYOUT_ARRAYS.iter().enumerate() {
+                    if arrays[i] != forced_arrays[i] {
+                        names.push(*name);
+                    }
+                }
+                differing.push(names);
+            }
+            assert_eq!(
+                differing.iter().position(|names| !names.is_empty()),
+                Some(differing.len() - 1),
+                "{rule} 恢复侧强制 {forced:?}：须恰在首个次序不同的代拒收 {differing:?}"
+            );
+            let names = differing.last().unwrap();
+            let templated = ["objects", "withdrawn_objects", "observations"];
+            if names.iter().any(|name| templated.contains(name)) {
+                assert!(
+                    failure.contains("真实Template数组与独立有序双投影不同"),
+                    "{failure}"
+                );
+            } else {
+                let mut named = false;
+                for name in names {
+                    named |= failure.contains(&format!("{name}与独立依据不同"));
+                }
+                assert!(named, "{failure}");
+            }
+        }
+    }
+
     #[test]
     fn b2_native_two_nonempty_formal_rounds_match_full_oracle_at_every_commit() {
         let f = fixture();

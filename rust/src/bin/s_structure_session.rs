@@ -153,6 +153,8 @@ fn is_v2_write_command(cmd: &str) -> bool {
         "init" | "reset" | "accept" | "advance" | "recover" | "serve"
     )
 }
+/// ADR 0037：剥离布局组件后的 v3 教义串；轴表与笔合同只与此比较（布局组件正交）。
+const V3_DOCTRINE_RULE: &str = "s2-axis-quantifiers+new-bi/2";
 
 /// S 唯一结构写者的默认 writer_epoch（可经 `--writer-epoch` / `recover` 换代）。
 const DEFAULT_WRITER_EPOCH: &str = "1";
@@ -497,6 +499,11 @@ fn open_historical_readonly(db: &Path) -> Result<Option<Connection>, String> {
         rule.as_deref(),
         Some(RULE_REVISION) | Some(W_STRUCTURE_RULE_REVISION)
     ) {
+        return Ok(None);
+    }
+    // #1491（仅测试）：本线程注入的测试写者规则视同当前规则，交回写连接路径。
+    #[cfg(test)]
+    if rule.is_some() && rule == v3::test_writer_rule() {
         return Ok(None);
     }
     Ok(Some(ro))
@@ -5767,7 +5774,7 @@ fn recover_core(
 // ────────────────────────────────────────────────────────────────────────────
 
 fn usage() -> String {
-    "用法：s_structure_session <init|accept|advance|catalog|snapshot|meta|watch|recover|reset|serve|query-serve> [参数]\n\
+    "用法：s_structure_session <init|accept|advance|catalog|snapshot|meta|watch|recover|reset|serve|query-serve|admission-prepare|admission-revoke|admission-contract> [参数]\n\
      \x20 catalog   --db <路径> [--as-of <generation>]\n\
      \x20 snapshot  --db <路径> [--as-of <generation>]\n\
      \x20 meta      --db <路径>\n\
@@ -5810,6 +5817,9 @@ fn run() -> Result<(), String> {
 fn run_with(args: &[String]) -> Result<(), String> {
     if args.len() < 2 {
         return Err(usage());
+    }
+    if v3::admission_anchor::issuance::dispatch(args)? {
+        return Ok(());
     }
     if v3::dispatch(args)? {
         return Ok(());

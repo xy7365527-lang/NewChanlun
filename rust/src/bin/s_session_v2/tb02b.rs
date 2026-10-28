@@ -31,14 +31,16 @@ const LEGACY_CONTRACT: BiContract = BiContract {
     policy: "standard_raw_gap_3",
     knowledge_domain: "established_direction_without_extreme_identity_competition",
 };
+/// #1491：布局组件（ADR 0037 §五）与笔合同正交，剥离后按教义部分整串选合同。
 pub(super) fn contract_for_rule(rule: &str) -> Option<BiContract> {
-    match rule {
+    let (doctrine, _) = crate::v3::layout::split(rule).ok()?;
+    match doctrine.as_str() {
         crate::LEGACY_V3_RULE_REVISION
         | "s2-axis-quantifiers+new-bi/1+segment-first/1"
         | "s2-axis-quantifiers+new-bi/1+segment-second/1" => Some(LEGACY_CONTRACT),
         crate::W_STRUCTURE_RULE_REVISION => Some(W_CONTRACT),
         // #1394 合入 #1420：上一代 v2 规则 `+new-bi/2+segment-second/1` 仍是新笔 /2 合同（只读）。
-        crate::V3_RULE_REVISION
+        crate::V3_DOCTRINE_RULE
         | crate::V3_STRUCTURE_RULE_REVISION
         | "s2-axis-quantifiers+new-bi/2+segment-second/1"
         // #1604：#1493 的段规则只读后仍是新笔 /2 合同。
@@ -416,5 +418,55 @@ mod version_contract_tests {
             17
         );
         assert!(tb02a_facts::CatalogAxisTable::for_rule_revision("unknown").is_none());
+    }
+
+    /// #1491：布局组件正交——加 `bounded-layout/1` 不改笔合同与目录轴表；未知布局版本不选。
+    #[test]
+    fn layout_component_is_orthogonal_to_contract_and_axes() {
+        let bounded = format!("{}+bounded-layout/1", crate::V3_DOCTRINE_RULE);
+        assert_eq!(
+            contract_for_rule(&bounded),
+            contract_for_rule(crate::V3_RULE_REVISION)
+        );
+        assert_eq!(
+            tb02a_facts::CatalogAxisTable::for_rule_revision(&bounded),
+            tb02a_facts::CatalogAxisTable::for_rule_revision(crate::V3_RULE_REVISION)
+        );
+        let legacy = format!("{}+bounded-layout/1", crate::LEGACY_V3_RULE_REVISION);
+        assert_eq!(contract_for_rule(&legacy), Some(LEGACY_CONTRACT));
+        let unknown = format!("{}+bounded-layout/9", crate::V3_DOCTRINE_RULE);
+        assert!(contract_for_rule(&unknown).is_none());
+        assert!(tb02a_facts::CatalogAxisTable::for_rule_revision(&unknown).is_none());
+    }
+
+    /// #1491：新 v3 串与每个保留旧串的轴表、笔合同、布局三项精确映射。
+    #[test]
+    fn layout_exact_mapping_for_v3_rule_strings() {
+        use crate::v3::layout::Layout;
+        let cases = [
+            (
+                "s2-axis-quantifiers+new-bi/2+bounded-layout/1",
+                CURRENT_CONTRACT,
+                Layout::Bounded1,
+            ),
+            (
+                "s2-axis-quantifiers+new-bi/2",
+                CURRENT_CONTRACT,
+                Layout::Sorted,
+            ),
+            (
+                crate::LEGACY_V3_RULE_REVISION,
+                LEGACY_CONTRACT,
+                Layout::Sorted,
+            ),
+        ];
+        for (rule, contract, layout) in cases {
+            assert_eq!(
+                tb02a_facts::CatalogAxisTable::for_rule_revision(rule),
+                Some(tb02a_facts::CatalogAxisTable::NewBi)
+            );
+            assert_eq!(contract_for_rule(rule), Some(contract));
+            assert_eq!(Layout::of_rule(rule), Ok(layout));
+        }
     }
 }

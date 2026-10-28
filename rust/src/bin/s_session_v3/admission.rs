@@ -10,13 +10,13 @@ use std::path::{Path, PathBuf};
 use std::rc::{Rc, Weak};
 use std::sync::Arc;
 
-struct Lock {
+pub(super) struct Lock {
     path: PathBuf,
     file: File,
     identity: (u64, u64, u32),
 }
 impl Lock {
-    fn acquire(db: &Path, suffix: &str) -> Result<Self, String> {
+    pub(super) fn acquire(db: &Path, suffix: &str) -> Result<Self, String> {
         let path = provider::sidecar(db, suffix);
         let file = OpenOptions::new()
             .read(true)
@@ -46,7 +46,7 @@ impl Lock {
         lock.check()?;
         Ok(lock)
     }
-    fn check(&self) -> Result<(), String> {
+    pub(super) fn check(&self) -> Result<(), String> {
         for m in [self.file.metadata(), std::fs::symlink_metadata(&self.path)] {
             let m = m.map_err(|_| "AdmissionLockLost")?;
             if !m.is_file() || m.nlink() != 1 || (m.dev(), m.ino(), m.uid()) != self.identity {
