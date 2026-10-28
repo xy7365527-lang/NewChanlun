@@ -10,8 +10,40 @@ const assert = require("node:assert/strict"),
 const { API, C, V, CONFIG, rebuild, makeServer, fixtureOf, makeS16Base, makeClient: makeClientWith, discovery } = require("./q3_complete_fixture.cjs");
 // 仅本套放宽测试 Client 的时限（共享 CONFIG、生产 cap 与 Client 默认值不动）：真实大代单次 AsKnown 读取
 // 远超共享 CONFIG 的 30 s/60 s（耗时剖析见 #1419 28U 报告）。
-const REAL_CONFIG = { ...CONFIG, timeoutMs: 4 * 3600 * 1000, job_limits: { ...CONFIG.job_limits, max_elapsed_ms: String(4 * 3600 * 1000) } };
-const makeClient = (server) => makeClientWith(server, REAL_CONFIG);
+// 同理放宽本套 Client 作业的 wire 计量上限：实测单个作业最大 wire 为第 106 代 AsKnown 读取
+// 1,995,584,735 B（#1419 28U，Q3_WIRE_PROBE=1 读数）；上限 = ⌈1,995,584,735 × 1.5⌉ = 2,993,377,103 B。
+const REAL_CONFIG = {
+  ...CONFIG,
+  timeoutMs: 4 * 3600 * 1000,
+  job_limits: { ...CONFIG.job_limits, max_elapsed_ms: String(4 * 3600 * 1000), max_total_wire_bytes: "2993377103" },
+};
+// Q3_WIRE_PROBE=1：逐作业（load/watch）打印响应体字节数、耗时与 RSS，即上面上限的读数来源。
+const makeClient = (server) => {
+  let wire = 0;
+  if (process.env.Q3_WIRE_PROBE) {
+    const fetch = server.fetch;
+    server.fetch = async (url, options) => {
+      const body = Buffer.from(await (await fetch(url, options)).arrayBuffer());
+      wire += body.length;
+      return new Response(body);
+    };
+  }
+  const client = makeClientWith(server, REAL_CONFIG);
+  if (process.env.Q3_WIRE_PROBE)
+    for (const op of ["load", "watch"]) {
+      const run = client[op].bind(client);
+      client[op] = async (...args) => {
+        wire = 0;
+        const started = Date.now();
+        try {
+          return await run(...args);
+        } finally {
+          console.error("Q3-WIRE", op, server.base.fixed.cut_generation, wire, Date.now() - started, process.memoryUsage().rss);
+        }
+      };
+    }
+  return client;
+};
 
 // 夹具只含消费所需各代 snapshot/delta 的可达节点（provenance.node_closure），整文件只解析一次。
 const FILE = "q3-real-s3-w-recover-revise.json";
