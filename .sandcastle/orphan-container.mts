@@ -58,7 +58,8 @@ export function reclaimOrphanContainers(o: ReclaimOptions): Reclaimed[] {
     if (!mountsWorktree && !claimsIdentity) continue; // 与本工位无关：不碰
     if (!name.startsWith("sandcastle-") || !c.Id) fail(`容器 ${name || "?"} 挂着本工位但不是 Sandcastle 容器`);
     if (!claimsIdentity) fail(`容器 ${name} 挂着本工位，但身份 env 与本归并 run/实例不符`);
-    if (c.Config?.Image !== o.image) fail(`容器 ${name} 镜像 ${c.Config?.Image} 不是 ${o.image}`);
+    // 冲突工蜂以准入核对过的 sha256 Id 启动（Config.Image 即该 Id）；Id 可能因镜像重建而与当前 tag 不同，故接受完整 Id 形式。身份 env、名字前缀与工位挂载仍全部要求。
+    if (c.Config?.Image !== o.image && !/^sha256:[0-9a-f]{64}$/.test(c.Config?.Image ?? "")) fail(`容器 ${name} 镜像 ${c.Config?.Image} 不是 ${o.image}`);
     const ws = (c.Mounts ?? []).filter((m) => m.Destination === WORKSPACE_DEST);
     if (ws.length !== 1 || typeof ws[0]!.Source !== "string" || canon(ws[0]!.Source) !== cwd) fail(`容器 ${name} 的工位挂载来源与本归并工位不同`);
     ours.push(c);

@@ -89,6 +89,10 @@ test("拒绝且不动：挂载来源不同、两个匹配、身份 env 不符、
   t = run([container(cwd, { Config: { Image: IMAGE, Env: [`${MERGE_RUN_ENV}=run-1`, `${MERGE_INSTANCE_ENV}=inst-9`] } })]); assert.throws(t.go, /身份 env 与本归并 run\/实例不符/); noMutation(t.f);
   t = run([container(cwd, { Config: { Image: IMAGE, Env: ["HOME=/x"] } })]); assert.throws(t.go, /身份 env/); noMutation(t.f);
   t = run([container(cwd, { Config: { Image: "evil:latest", Env: [`${MERGE_RUN_ENV}=run-1`, `${MERGE_INSTANCE_ENV}=inst-1`] } })]); assert.throws(t.go, /镜像 evil:latest/); noMutation(t.f);
+  const sha = "sha256:" + "5".repeat(64); // 冲突工蜂以准入 Id 启动：Config.Image 即完整 Id，身份/挂载/名字全部满足时可回收
+  t = run([container(cwd, { Config: { Image: sha, Env: [`${MERGE_RUN_ENV}=run-1`, `${MERGE_INSTANCE_ENV}=inst-1`] } })]); assert.equal(t.go().length, 1);
+  t = run([container(cwd, { Config: { Image: "sha256:abc", Env: [`${MERGE_RUN_ENV}=run-1`, `${MERGE_INSTANCE_ENV}=inst-1`] } })]); assert.throws(t.go, /镜像 sha256:abc/); noMutation(t.f);
+  t = run([container(cwd, { Config: { Image: sha, Env: ["HOME=/x"] } })]); assert.throws(t.go, /身份 env/, "Id 形式不能绕过身份校验"); noMutation(t.f);
   t = run([container(cwd, { Name: "/not-ours" })]); assert.throws(t.go, /不是 Sandcastle 容器/); noMutation(t.f);
   assert.ok(t.f.calls.every((c) => !c.includes("--filter")), "不在 daemon 侧按名字过滤，否则这条分支在真实 docker 上走不到");
   // 非 sandcastle 名字、既无身份也不挂本工位：不碰

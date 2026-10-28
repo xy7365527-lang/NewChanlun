@@ -83,11 +83,11 @@ if (acceptedManifest) {
 const controlledTicket = controlledSwarmTicket();
 // 受控第 13 行以 receipt.head 为工蜂基线（不是会漂移的本地 main），核对发生在占用验收行、认领和启动工蜂之前。
 let baseRef = "main";
-assertSwarmExecutionReady(IMAGE, {
+const IMAGE_ID_ADMITTED = assertSwarmExecutionReady(IMAGE, {
   rows: ["13"], binding: controlledTicket ? swarmBinding(controlledTicket) : undefined,
   verify: controlledTicket ? (admission) => { baseRef = assertControlledBase(admission, controlledTicket); } : undefined,
 });
-assertDockerCliProxyReachable(IMAGE);
+assertDockerCliProxyReachable(IMAGE_ID_ADMITTED);
 
 /** 普通路径：planner 读线上队列 → 放行 → host 侧认领。返回 null 表示本轮收束。 */
 async function planAndClaim(): Promise<Array<{ id: string; title: string; branch: string }> | null> {
@@ -98,7 +98,7 @@ async function planAndClaim(): Promise<Array<{ id: string; title: string; branch
   const planSandbox = await sandcastle.createSandbox({
     branch: `sandcastle/plan-${Date.now()}`,
     baseBranch: "main",
-    sandbox: swarmSandbox(IMAGE),
+    sandbox: swarmSandbox(IMAGE_ID_ADMITTED),
   });
   let planned: Array<{ id: string; title: string; branch: string }>;
   try {
@@ -153,7 +153,7 @@ for (let iteration = 1; iteration <= (controlledTicket ? 1 : MAX_ITERATIONS); it
         const sandbox = await sandcastle.createSandbox({
           branch: issue.branch,
           baseBranch: baseRef, // 普通 swarm=main（与检出分支解耦，#1003）；受控第 13 行=receipt.head
-          sandbox: swarmSandbox(IMAGE),
+          sandbox: swarmSandbox(IMAGE_ID_ADMITTED),
         });
         try {
           const git = hostGit(sandbox.worktreePath);

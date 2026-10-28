@@ -19,7 +19,7 @@ function repo() {
   const candidate = git("rev-parse", "HEAD");
   return { dir, git, candidate };
 }
-const admissionFor = (head: string) => ({ row: "13" as const, receipt: { head } as never, consume: () => undefined });
+const admissionFor = (head: string) => ({ imageId: IMG_ID, row: "13" as const, receipt: { head } as never, consume: () => undefined });
 const good = {
   apparmor: "docker-default (enforce)", seccomp: "2", capEff: "0000000000000000", capBnd: "00000000a80425fb",
   roWrite: "Read-only file system", rwWrite: "ok", roChildInRw: "Read-only file system", roFileAppend: "Read-only file system",
@@ -30,7 +30,7 @@ test("受控第 13 行基线=receipt.head：HEAD 一致放行；引用不存在�
   const r = repo();
   assert.equal(assertControlledBase(admissionFor(r.candidate), TICKET, r.dir), r.candidate);
   assert.throws(() => assertControlledBase(admissionFor("1".repeat(40)), TICKET, r.dir), /候选 \w+ 在当前仓库中不存在/);
-  assert.throws(() => assertControlledBase({ row: "14", consume: () => undefined } as never, TICKET, r.dir), /缺少 receipt 候选 head/);
+  assert.throws(() => assertControlledBase({ imageId: IMG_ID, row: "14", consume: () => undefined } as never, TICKET, r.dir), /缺少 receipt 候选 head/);
   // checkout 前进（HEAD≠receipt.head）
   writeFileSync(join(r.dir, "a"), "2"); r.git("commit", "-qam", "c2");
   assert.throws(() => assertControlledBase(admissionFor(r.candidate), TICKET, r.dir), /当前 checkout HEAD .* 不是被验收候选/);

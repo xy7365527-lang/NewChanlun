@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { codexWorker, codexRouteEnv } from "./codex-route.mts";
 import { assertContainerIsolationContract, hardenProvider, type IsolationObservation } from "./docker-isolation.mts";
-import { checkAdmission, type Admission, type AcceptanceRow, type AdmissionContext } from "./docker-acceptance.mts";
+import { IMAGE_ID, checkAdmission, type Admission, type AcceptanceRow, type AdmissionContext } from "./docker-acceptance.mts";
 
 import { MAIN_MODEL } from "./main-model.mts";
 
@@ -16,11 +16,13 @@ export function dockerCliProxyEnv(): Record<string, string> {
 }
 
 export function swarmSandbox(
-  imageName: string,
+  imageId: string,
   env: Record<string, string> = dockerCliProxyEnv(),
 ): SandboxProvider {
+  // 容器必须以准入核对过的 sha256 Id 启动（assertSwarmExecutionReady 的返回值），不接受 tag：准入与启动之间 tag 可被重指。
+  if (!IMAGE_ID.test(imageId)) throw new Error(`[FAIL-loud #1742] Docker 容器必须以准入核对过的 sha256 镜像 Id 启动，收到 ${JSON.stringify(imageId).slice(0, 80)}`);
   // #1742 方案B：git 挂载与受保护子路径只读；其余启动参数仍是 Sandcastle 的 docker()，不加 security-opt/cap。
-  return hardenProvider(docker({ imageName, env }));
+  return hardenProvider(docker({ imageName: imageId, env }));
 }
 
 /** planner/implementer/reviewer/merger 各自调用，保留独立 session。 */
@@ -103,10 +105,12 @@ export interface ReadyOptions {
 
 /** #1617/#1742：领票前先验精确 acceptance 事实（缺失/漂移/重复/越权即 FAIL-loud），再逐项观测容器隔离合同；
  * 观测成立只是必要条件，不代替验收。受控入口在观测通过后才占用（或恢复）对应验收行。 */
-export function assertSwarmExecutionReady(imageName: string, options: ReadyOptions = {}): void {
+export function assertSwarmExecutionReady(imageName: string, options: ReadyOptions = {}): string {
   const admit = options.admit ?? ((image: string, ctx: AdmissionContext) => checkAdmission(image, ctx));
   const admission = admit(imageName, { ...options.acceptance, binding: options.binding, rows: options.rows });
   options.verify?.(admission);
-  assertContainerIsolationContract(imageName, options.probe);
+  // 观测与后续启动都用准入核对过的 Id，三条入口（受控行、已登记放行、冲突工蜂）一致。
+  assertContainerIsolationContract(admission.imageId, options.probe);
   admission.consume();
+  return admission.imageId;
 }

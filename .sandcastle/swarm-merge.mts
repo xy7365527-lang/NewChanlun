@@ -75,7 +75,7 @@ export async function runAcceptedSwarmMerge(manifestPath: string, image: string,
     });
   } else start();
   if (realpathSync(manifestPath).startsWith(realpathSync(cwd) + "/")) throw new Error("验收清单不得位于工蜂 worktree");
-  const readiedCheckpoints = new Set<string>();
+  const readiedCheckpoints = new Map<string, string>(); // binding → 准入核对过的镜像 Id
   let routeChecked = false;
   const result = await runManagedMerge({
     cwd, manifest, checkpoint: join(evidenceDir, "checkpoint.json"), checkId: MERGE_CHECK_ID,
@@ -89,10 +89,11 @@ export async function runAcceptedSwarmMerge(manifestPath: string, image: string,
       // SIGKILL 后重入（新进程）得到相同绑定，按恢复放行；别的 run 或基线被拒绝。
       const binding = mergeBinding({ runId: manifest.runId, base: manifest.base, instance: mergeInstance(evidenceDir, manifest.runId, manifest.base), head, incoming });
       if (!readiedCheckpoints.has(binding)) {
-        assertSwarmExecutionReady(image, { rows: ["14", "15"], binding, acceptance: options.acceptance });
-        if (!routeChecked) { assertDockerCliProxyReachable(image); routeChecked = true; }
-        readiedCheckpoints.add(binding);
+        const admittedId = assertSwarmExecutionReady(image, { rows: ["14", "15"], binding, acceptance: options.acceptance });
+        if (!routeChecked) { assertDockerCliProxyReachable(admittedId); routeChecked = true; }
+        readiedCheckpoints.set(binding, admittedId);
       }
+      const launchImage = readiedCheckpoints.get(binding)!;
       const final = prepareFinalReviewPrompt(
         `你只解决当前功能分支的这一次 merge 冲突。原 HEAD=${head}，输入=${incoming}。\n` +
         `只允许编辑以下冻结路径：${JSON.stringify(files)}。不要 git add/commit/merge/abort/reset，不 push、不改 main、不关票，不修改索引/受保护路径。\n` +
@@ -104,7 +105,7 @@ export async function runAcceptedSwarmMerge(manifestPath: string, image: string,
       );
       // head 策略仅挂已有工位；容器随调用回收，宿主工位/冲突现场不自动清理。
       const run = await sandcastle.run({ cwd, branchStrategy: { type: "head" }, name: "merger-conflict", maxIterations: 1,
-        agent: swarmAgent(), sandbox: swarmSandbox(image, { ...dockerCliProxyEnv(), [MERGE_RUN_ENV]: manifest.runId, [MERGE_INSTANCE_ENV]: mergeInstance(evidenceDir, manifest.runId, manifest.base) }), prompt: final.prompt });
+        agent: swarmAgent(), sandbox: swarmSandbox(launchImage, { ...dockerCliProxyEnv(), [MERGE_RUN_ENV]: manifest.runId, [MERGE_INSTANCE_ENV]: mergeInstance(evidenceDir, manifest.runId, manifest.base) }), prompt: final.prompt });
       return run.stdout;
     },
     onCheckpoint: s => logWorker({ phase: "merger", branch: manifest.branch, status: s.phase, head: s.snapshot.head, position: s.position, checkpoint: join(evidenceDir, "checkpoint.json") }),

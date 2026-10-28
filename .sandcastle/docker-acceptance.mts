@@ -30,7 +30,7 @@ export function contractDigest(): string {
 
 /** 镜像 Id（`sha256:<64 hex>`）：receipt 绑定 Id 而非仅 tag，tag 被重指或镜像被重建即漂移。 */
 export type ImageIdOf = (image: string) => string;
-const IMAGE_ID = /^sha256:[0-9a-f]{64}$/;
+export const IMAGE_ID = /^sha256:[0-9a-f]{64}$/;
 /** 默认解析：`docker image inspect`；同时拒绝镜像自带 ENV 里名字像凭据且值非空的条目（空占位键允许）。失败即抛，不回退为 tag。 */
 export const dockerImageId: ImageIdOf = (image) => {
   let out: string;
@@ -360,7 +360,8 @@ export function acceptedFor(image: string, ctx: AdmissionContext = {}): Accepted
 }
 
 // ── 准入 ──────────────────────────────────────────────────────────────────────
-export interface Admission { receipt?: AcceptanceReceipt; row?: AcceptanceRow; accepted?: AcceptedRecord; resumed?: boolean; consume: () => void }
+/** imageId＝准入核对过的 sha256 镜像 Id：调用方必须原样用于启动容器（docker run 用 Id，不用 tag），否则准入与启动之间 tag 可被重指。 */
+export interface Admission { imageId: string; receipt?: AcceptanceReceipt; row?: AcceptanceRow; accepted?: AcceptedRecord; resumed?: boolean; consume: () => void }
 
 function refuse(why: string): never {
   throw new Error(`[FAIL-loud #1617] Docker 路径尚无精确验收 receipt：${why}。默认入口继续拒绝，不认领、不扩大容器权限；13–15 仅限受控一次性入口。`);
@@ -369,7 +370,7 @@ function refuse(why: string): never {
 /** 先认已登记且仍有效的验收；否则只认受控 receipt。两者都不成立即拒绝。 */
 export function checkAdmission(image: string, ctx: AdmissionContext = {}): Admission {
   const accepted = acceptedFor(image, ctx);
-  if (accepted) return { accepted, consume: () => undefined };
+  if (accepted) return { imageId: accepted.imageId, accepted, consume: () => undefined };
   return checkControlledAdmission(image, ctx);
 }
 
@@ -406,13 +407,13 @@ export function checkControlledAdmission(image: string, ctx: AdmissionContext = 
     const prefix = resumePrefix(receipt.nonce, r, binding);
     const count = readdirSync(dir).filter((f) => f.startsWith(prefix) && !f.includes(".tmp-")).length;
     if (count >= MAX_RESUMES) refuse(`第 ${r} 行同一检查点的恢复次数已达上限 ${MAX_RESUMES}`);
-    return { receipt, row: r, resumed: true, consume: () => {
+    return { imageId: currentImageId, receipt, row: r, resumed: true, consume: () => {
       try { publishOnce(join(dir, `${prefix}${count + 1}.json`), { schema: 2, nonce: receipt.nonce, row: r, binding, at: new Date().toISOString(), pid: process.pid }); }
       catch { refuse(`第 ${r} 行恢复记录被并发写入`); }
     } };
   };
   if (!used) {
-    return { receipt, row: r, consume: () => {
+    return { imageId: currentImageId, receipt, row: r, consume: () => {
       try { publishOnce(usedPath(dir, receipt.nonce, r), marker()); }
       catch (e) { refuse(`第 ${r} 行已被并发占用（${e instanceof Error ? e.message : String(e)}）`); }
     } };
@@ -423,7 +424,7 @@ export function checkControlledAdmission(image: string, ctx: AdmissionContext = 
   const anchor = parseMergeBinding(used.binding); const mine = parseMergeBinding(binding);
   if (anchor.runId !== mine.runId || anchor.base !== mine.base || anchor.instance !== mine.instance) refuse(`第 ${r} 行已被另一运行/检查点使用，新运行不得复用`);
   if (known.length >= MAX_CHECKPOINTS) refuse(`第 ${r} 行同一 run 的检查点数已达上限 ${MAX_CHECKPOINTS}`);
-  return { receipt, row: r, consume: () => {
+  return { imageId: currentImageId, receipt, row: r, consume: () => {
     try { publishOnce(checkpointPath(dir, receipt.nonce, r, binding), marker()); }
     catch (e) { refuse(`第 ${r} 行该检查点已被并发占用（${e instanceof Error ? e.message : String(e)}）`); }
   } };

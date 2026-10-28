@@ -172,14 +172,15 @@ test("Sandcastle 升级漂移守卫：容器 env 只来自 create 的 env + HOME
   const index = readFileSync(new URL("index.js", dir), "utf8");
   assert.match(index, /join\(repoDir, "\.sandcastle", "\.env"\)/);
   const route = readFileSync(new URL("./swarm-route.mts", import.meta.url), "utf8");
-  assert.match(route, /hardenProvider\(docker\(\{ imageName, env \}\)\)/, "Docker 路径唯一入口经 hardenProvider");
+  assert.match(route, /hardenProvider\(docker\(\{ imageName: imageId, env \}\)\)/, "Docker 路径唯一入口经 hardenProvider");
   for (const f of ["main-swarm.mts", "swarm-merge.mts"]) assert.doesNotMatch(readFileSync(new URL(`./${f}`, import.meta.url), "utf8"), /\bdocker\(\{/, `${f} 不得绕过 swarmSandbox`);
 });
 
 // 真实容器：走 Sandcastle 真实的 createSandbox（真实读 .sandcastle/.env、真实 docker run），只起 sleep infinity 的无工蜂容器，docker inspect 看 Config.Env。
 const REAL_IMAGE = process.env.SANDCASTLE_ENV_TEST_IMAGE ?? "sandcastle:newchanlun";
 const hasImage = (() => { try { execFileSync("docker", ["image", "inspect", REAL_IMAGE, "--format", "{{.Id}}"], { stdio: "ignore", timeout: 15_000 }); return true; } catch { return false; } })();
-async function inspectEnvOf(provider: ReturnType<typeof swarmSandbox>): Promise<{ env: string[]; imageEnv: string[] }> {
+const idOf = (image: string) => execFileSync("docker", ["image", "inspect", image, "--format", "{{.Id}}"], { encoding: "utf8" }).trim();
+async function inspectEnvOf(provider: ReturnType<typeof swarmSandbox>): Promise<{ env: string[]; imageEnv: string[]; image: string }> {
   const base = join(homedir(), ".cache", "sandcastle-env-probe"); mkdirSync(base, { recursive: true });
   const repo = mkdtempSync(join(base, "repo-"));
   const g = (...a: string[]) => execFileSync("git", a, { cwd: repo, encoding: "utf8" }).trim();
@@ -193,14 +194,14 @@ async function inspectEnvOf(provider: ReturnType<typeof swarmSandbox>): Promise<
         .map((id) => JSON.parse(execFileSync("docker", ["inspect", id], { encoding: "utf8" }))[0]).filter((c) => JSON.stringify(c.Mounts).includes(repo));
       assert.equal(hit.length, 1, "恰好找到本夹具的容器");
       const img = JSON.parse(execFileSync("docker", ["image", "inspect", REAL_IMAGE], { encoding: "utf8" }))[0];
-      return { env: hit[0].Config.Env as string[], imageEnv: img.Config.Env as string[] };
+      return { env: hit[0].Config.Env as string[], imageEnv: img.Config.Env as string[], image: hit[0].Image as string };
     } finally { await sb.close(); }
   } finally { rmSync(repo, { recursive: true, force: true }); }
 }
 const declaredRoute = { CLIPROXY_BASE_URL: "http://host.docker.internal:8318", CLIPROXY_LOCAL_KEY: "declared-no-network", [MERGE_RUN_ENV]: "run-env-test", [MERGE_INSTANCE_ENV]: "inst-env-test" };
 
 test("真实容器 EnvKeys：满值 .env 夹具仓经 swarmSandbox 起无凭据临时容器，docker inspect 的 Config.Env 只含镜像自带键＋白名单＋HOME，且无任何泄漏值", { skip: hasImage ? false : `本机无镜像 ${REAL_IMAGE}`, timeout: 180_000 }, async () => {
-  const { env, imageEnv } = await inspectEnvOf(swarmSandbox(REAL_IMAGE, declaredRoute));
+  const { env, imageEnv } = await inspectEnvOf(swarmSandbox(idOf(REAL_IMAGE), declaredRoute));
   const text = env.join("\n");
   assert.ok(!text.includes("LEAKSENTINEL"), "任何 .env 值都不得进入容器");
   assert.deepEqual(containerEnvLeaks(env, imageEnv), []);
@@ -217,4 +218,28 @@ test("对照（证明上面的断言有牙齿）：同一夹具、不经 hardenP
   const { env, imageEnv } = await inspectEnvOf(raw);
   assert.ok(env.join("\n").includes("LEAKSENTINEL"));
   assert.ok(containerEnvLeaks(env, imageEnv).includes("KIMI_API_KEY") && containerEnvLeaks(env, imageEnv).includes("EXTRA_X"));
+});
+
+// —— tag/Id 窗口：准入解析出的 Id 原样用于启动容器 ——
+test("真实容器：tag 在准入之后被重指，容器仍以已准入 Id 启动（inspect .Image 核对）；按 tag 启动的对照会落到被重指的镜像；已准入镜像被回收时 FAIL-loud 而不是换镜像", { skip: hasImage ? false : `本机无镜像 ${REAL_IMAGE}`, timeout: 300_000 }, async () => {
+  const stamp = Date.now();
+  const tag = `sandcastle-idtest:${stamp}`, keep = `sandcastle-idtest-keep:${stamp}`;
+  const build = (label: string) => execFileSync("docker", ["build", "-q", "-t", tag, "-"], { input: `FROM ${REAL_IMAGE}\nLABEL sandcastle.idtest=${label}\n`, encoding: "utf8" }).trim();
+  try {
+    build("admitted");
+    const admitted = idOf(tag); // 模拟 assertSwarmExecutionReady 返回的准入 Id
+    execFileSync("docker", ["tag", tag, keep]); // 另一个名字保住已准入镜像（containerd 镜像库里无名镜像会被回收）
+    build("repointed"); // 准入之后 tag 被重指到另一个镜像
+    const repointed = idOf(tag);
+    assert.notEqual(admitted, repointed, "夹具：tag 确已指向另一个 Id");
+    const viaId = await inspectEnvOf(swarmSandbox(admitted, declaredRoute));
+    assert.equal(viaId.image, admitted, "容器以准入 Id 启动");
+    const raw = await inspectEnvOf(docker({ imageName: tag, env: declaredRoute }) as unknown as ReturnType<typeof swarmSandbox>);
+    assert.equal(raw.image, repointed, "对照：按 tag 启动会落到被重指的镜像（窗口真实存在）");
+    // 已准入镜像不复存在：按 Id 启动失败，而不是静默换成别的镜像
+    execFileSync("docker", ["rmi", keep]);
+    await assert.rejects(inspectEnvOf(swarmSandbox(admitted, declaredRoute)), /not found locally|No such image|create failed/);
+  } finally {
+    for (const t of [tag, keep]) { try { execFileSync("docker", ["rmi", t], { stdio: "ignore" }); } catch { /* 已不存在 */ } }
+  }
 });

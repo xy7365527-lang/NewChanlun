@@ -392,3 +392,16 @@ test("parseImageInspect：Id 必须是 sha256；镜像自带非空凭据类 ENV 
   assert.throws(() => parseImageInspect(`latest\t[]`, "img"), /Id 格式无效/);
   assert.throws(() => parseImageInspect(`${id}\tnot-json`, "img"), /ENV 无法解析/);
 });
+
+test("Admission.imageId：受控首次/恢复/新检查点与已登记放行都返回准入核对过的 Id", () => {
+  const d = dir(); issue(d);
+  assert.equal(checkAdmission(IMAGE, ctx(d, "13", B13)).imageId, IMG_ID);
+  checkAdmission(IMAGE, ctx(d, "13", B13)).consume();
+  assert.equal(checkAdmission(IMAGE, ctx(d, "14", B14)).imageId, IMG_ID);
+  checkAdmission(IMAGE, ctx(d, "14", B14)).consume();
+  assert.equal(checkAdmission(IMAGE, ctx(d, "14", B14)).imageId, IMG_ID, "恢复");
+  assert.equal(checkAdmission(IMAGE, ctx(d, "14", cp({ head: "8".repeat(40), incoming: "7".repeat(40) }))).imageId, IMG_ID, "新检查点");
+  checkAdmission(IMAGE, ctx(d, "15", B15)).consume();
+  recordAcceptance({ imageIdOf, dir: d, image: IMAGE, evidence: evidence(d), crossFamilyReview: review(d), identity: clean });
+  const adm = checkAdmission(IMAGE, ctx(d)); assert.ok(adm.accepted); assert.equal(adm.imageId, IMG_ID);
+});
