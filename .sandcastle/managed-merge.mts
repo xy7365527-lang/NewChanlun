@@ -1,7 +1,8 @@
 /** #1617：已验收固定 SHA → 宿主双父归并；不操作 main/来源票。 */
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync, lstatSync, readlinkSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync, rmSync, symlinkSync, chmodSync, lstatSync, readlinkSync, realpathSync } from "node:fs";
 import { dirname, basename, join, resolve, relative, isAbsolute } from "node:path";
+import { randomUUID } from "node:crypto";
 import { parseStageReport } from "./managed-commit.mts";
 import { acquireLock, type LockEnv } from "./process-lock.mts";
 import { assertHostPackagingSafe } from "./docker-isolation.mts";
@@ -54,6 +55,51 @@ function snapshot(cwd: string, extra: string[] = []): Snapshot {
     files: Object.fromEntries([...new Set([...files, ...extra])].sort().map(f => [f, fileImage(cwd, f)])),
   };
 }
+/** 还原孤儿写入：条件不全满足返回 false（保持原 FAIL-loud，不碰现场）。满足则先归档孤儿写入的 allowed 文件内容，再用检查点保存的内容还原，
+ * 还原后快照必须与检查点逐字相等，否则抛错。 */
+function restoreOrphanWrites(cwd: string, s: MergeState, evidenceDir: string): boolean {
+  const allowed = new Set(s.allowed ?? []);
+  if (!allowed.size) return false;
+  const cur = snapshot(cwd, s.allowed);
+  const outside = (files: Record<string, string>) => Object.fromEntries(Object.entries(files).filter(([f]) => !allowed.has(f)));
+  const statusOutside = (status: string) => {
+    const parts = status.split("\0").filter(Boolean); const keep: string[] = [];
+    for (let i = 0; i < parts.length; i++) {
+      const entry = parts[i]!; const renamed = /^[RC]/.test(entry[0]!) || /^.[RC]/.test(entry);
+      if (!allowed.has(entry.slice(3))) keep.push(entry);
+      if (renamed) i++; // 重命名/复制条目后跟原路径
+    }
+    return keep;
+  };
+  if (cur.head !== s.snapshot.head || cur.mergeHead !== s.snapshot.mergeHead || cur.index !== s.snapshot.index) return false;
+  if (!equal(outside(cur.files), outside(s.snapshot.files))) return false;
+  if (!equal(statusOutside(cur.status), statusOutside(s.snapshot.status))) return false;
+  const changed = [...allowed].filter((f) => cur.files[f] !== s.snapshot.files[f]).sort();
+  if (!changed.length) return false;
+  mkdirSync(evidenceDir, { recursive: true });
+  const archive = join(evidenceDir, `orphan-wip-${new Date().toISOString().replace(/[:.]/g, "-")}-${randomUUID().slice(0, 8)}.json`);
+  writeFileSync(archive, JSON.stringify({ note: "宿主被 SIGKILL 后孤儿工蜂写入的 allowed 冻结路径内容（file image：absent | link:<target> | <mode>:<base64>）", files: Object.fromEntries(changed.map((f) => [f, cur.files[f]])) }, null, 2) + "\n", { flag: "wx", mode: 0o600 });
+  for (const f of changed) restoreImage(cwd, f, s.snapshot.files[f]!);
+  if (!equal(snapshot(cwd, s.allowed), s.snapshot)) throw new Error(`孤儿写入已归档（${archive}）并按检查点还原，但现场仍与检查点不一致，保留给 owner`);
+  return true;
+}
+function restoreImage(cwd: string, file: string, image: string): void {
+  const parts = file.split("/");
+  for (let n = 1; n < parts.length; n++) {
+    const dir = join(cwd, ...parts.slice(0, n));
+    try { if (lstatSync(dir).isSymbolicLink()) throw new Error("路径父目录为 symlink，拒绝还原"); }
+    catch (e) { if ((e as NodeJS.ErrnoException).code === "ENOENT") { if (image === "absent") return; mkdirSync(dir); } else throw e; }
+  }
+  const path = join(cwd, file);
+  rmSync(path, { force: true });
+  if (image === "absent") return;
+  if (image.startsWith("link:")) { symlinkSync(image.slice(5), path); return; }
+  const i = image.indexOf(":");
+  const mode = Number(image.slice(0, i));
+  if (!Number.isInteger(mode) || i < 0) throw new Error("检查点文件映像格式无效");
+  writeFileSync(path, Buffer.from(image.slice(i + 1), "base64"), { mode: mode & 0o7777 });
+  chmodSync(path, mode & 0o7777);
+}
 function assertBranch(cwd: string, branch: string) {
   if (git(cwd, ["symbolic-ref", "--short", "HEAD"]).trim() !== branch) throw new Error("归并工位分支不匹配");
   if (realpathSync(git(cwd, ["rev-parse", "--show-toplevel"]).trim()) !== realpathSync(cwd)) throw new Error("归并工位不是仓根");
@@ -82,11 +128,15 @@ export async function runManagedMerge(o: MergeOptions): Promise<MergeState> {
   const lock = `${o.checkpoint}.lock`;
   // 带持有者身份的锁：SIGKILL 残留的锁在“同主机且持有者已死”时原子归档后接管；其余情况一律拒绝（#1742）。
   // 宿主归并与 Docker 冲突路径都经 runManagedMerge，共用这一份。
+  let orphansSettled = false; // 本次接管中孤儿回收成功，或确认没有存活孤儿（N-1 还原的前提之一）
   const held = acquireLock(lock, o.cwd, o.lockEnv, () => {
     if (!o.reclaimOrphans) return;
+    let text: string;
+    try { text = readFileSync(o.checkpoint, "utf8"); }
+    catch (e) { if ((e as NodeJS.ErrnoException).code === "ENOENT") return; throw new Error(`[FAIL-loud #1742] 无法读取检查点，不能判定是否有孤儿容器：${(e as Error).message}`); } // 没有检查点：还没到过冲突阶段，不会有工蜂容器
     let phase: unknown;
-    try { phase = JSON.parse(readFileSync(o.checkpoint, "utf8")).phase; } catch { return; } // 没有检查点：还没到过冲突阶段，不会有工蜂容器
-    if (phase === "conflict") o.reclaimOrphans();
+    try { phase = JSON.parse(text).phase; } catch { throw new Error("[FAIL-loud #1742] 检查点无法解析，不能判定是否有孤儿容器；不碰现场与锁"); }
+    if (phase === "conflict") { o.reclaimOrphans(); orphansSettled = true; }
   });
   try {
     let s: MergeState;
@@ -94,7 +144,12 @@ export async function runManagedMerge(o: MergeOptions): Promise<MergeState> {
     if (existsSync(o.checkpoint)) {
       s = JSON.parse(readFileSync(o.checkpoint, "utf8"));
       if (!equal(s.manifest, o.manifest) || s.cwd !== realpathSync(o.cwd) || s.checkId !== o.checkId) throw new Error("恢复合同/工位/检查配置改变");
-      const current = snapshot(o.cwd, s.allowed);
+      let current = snapshot(o.cwd, s.allowed);
+      // N-1：宿主被 SIGKILL 后孤儿工蜂可能在回收前写过冻结文件。只在“本次发生了锁接管 + 孤儿已处理 + 停在 conflict + 差异只在 allowed 路径内容”时还原。
+      if (!equal(s.snapshot, current) && held.archived && orphansSettled && s.phase === "conflict") {
+        const restored = restoreOrphanWrites(o.cwd, s, dirname(o.checkpoint));
+        if (restored) current = snapshot(o.cwd, s.allowed);
+      }
       if (!equal(s.snapshot, current)) {
         // git commit 成功、写 checkpoint 前进程退出：只认已保存树、准确父集和本运行标记。
         const marker = `Sandcastle-Merge: ${o.manifest.runId}/${s.input}`;

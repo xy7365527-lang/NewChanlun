@@ -106,13 +106,13 @@ function fixture(conflict: boolean) {
   git("checkout", "-b", manifest.branch, base);
   return { cwd, evidence, git, base, shas, manifest, checkpoint: join(evidence, "checkpoint.json") };
 }
-function childRun(f: ReturnType<typeof fixture>, killAt: "conflict" | "verify") {
+function childRun(f: ReturnType<typeof fixture>, killAt: "conflict" | "verify", beforeKill = "") {
   const script = join(f.evidence, "run.mts");
-  writeFileSync(script, `import { runManagedMerge } from ${JSON.stringify(here + "managed-merge.mts")};
+  writeFileSync(script, `import fs from "node:fs"; import * as cp from "node:child_process"; import { runManagedMerge } from ${JSON.stringify(here + "managed-merge.mts")};
 const f = ${JSON.stringify({ cwd: f.cwd, checkpoint: f.checkpoint, manifest: f.manifest })};
 await runManagedMerge({ cwd: f.cwd, checkpoint: f.checkpoint, manifest: f.manifest, checkId: "v1",
   verify: async (head) => { ${killAt === "verify" ? 'process.kill(process.pid, "SIGKILL"); await new Promise(() => {});' : ""} return { head, checkId: "v1", status: "passed", evidence: "ok" }; },
-  resolveConflict: async () => { ${killAt === "conflict" ? 'process.kill(process.pid, "SIGKILL"); await new Promise(() => {});' : "throw new Error('x')"} } });`);
+  resolveConflict: async () => { ${killAt === "conflict" ? beforeKill + 'process.kill(process.pid, "SIGKILL"); await new Promise(() => {});' : "throw new Error('x')"} } });`);
   return spawnSync(process.execPath, ["--import", loader, script], { encoding: "utf8" });
 }
 for (const [name, conflict, killAt] of [["宿主归并路径（无冲突）", false, "verify"], ["冲突工蜂路径（Docker 门禁回调内被 SIGKILL）", true, "conflict"]] as const) {
@@ -262,4 +262,113 @@ test("runManagedMerge：仅 phase=conflict 且持有者已死时才回收孤儿�
   await waitDead(JSON.parse(readFileSync(`${h.checkpoint}.lock`, "utf8")).pid);
   let n = 0;
   const done3 = await runManagedMerge({ ...base, cwd: h.cwd, checkpoint: h.checkpoint, manifest: h.manifest, reclaimOrphans: () => { n++; } }); assert.equal(done3.phase, "done"); assert.equal(n, 0);
+});
+
+
+// —— P2 TOCTOU：回收在 .takeover 守卫内、重读 token 之后 ——
+test("交错 3（P2）：A 判定旧持有者已死之后，B 已接管并开始自己的回收——A 重读发现 token 变了，不得回收（不会停掉 B 的活容器）", () => {
+  const d = dir(); const lock = join(d, "c.lock");
+  const alive = new Map<number, string>([[111, "A-start"], [222, "B-start"]]);
+  write(lock, { pid: 99, start: "dead", host: "h", token: "old", cwd: "/x" });
+  let reclaimsB = 0, reclaimsA = 0; let b: ReturnType<typeof acquireLock> | undefined;
+  const envA = fake(alive, 222); const startOfA = envA.startOf;
+  envA.startOf = (p) => { const r = startOfA(p); if (p === 99 && !b) b = acquireLock(lock, "/b", fake(alive, 111), () => { reclaimsB++; }); return r; };
+  assert.throws(() => acquireLock(lock, "/a", envA, () => { reclaimsA++; }), /仍在运行/);
+  assert.equal(reclaimsB, 1); assert.equal(reclaimsA, 0, "A 在 B 接管之后不得回收");
+  assert.equal(JSON.parse(readFileSync(lock, "utf8")).token, b!.owner.token);
+});
+
+test("交错 4（M2）：B 在守卫内（now() 调用点）时，第二个接管者必须被守卫挡住；去掉 .takeover 守卫会出现两个持有者", () => {
+  const d = dir(); const lock = join(d, "c.lock");
+  const alive = new Map<number, string>([[333, "C-start"], [222, "B-start"]]);
+  write(lock, { pid: 99, start: "dead", host: "h", token: "old", cwd: "/x" });
+  let cResult: unknown = "未执行"; let cReclaim = 0;
+  const envB = fake(alive, 222, "h", { guardTries: 40 });
+  envB.now = () => { // 恰在 B 持有守卫、尚未归档旧锁时，C 也来接管
+    if (cResult === "未执行") { try { acquireLock(lock, "/c", fake(alive, 333, "h", { guardTries: 2 }), () => { cReclaim++; }); cResult = "C 取到了锁"; } catch (e) { cResult = (e as Error).message; } }
+    return new Date("2026-10-28T00:00:00Z");
+  };
+  const b = acquireLock(lock, "/b", envB);
+  assert.match(String(cResult), /takeover.*拒绝|长时间被占用/, String(cResult));
+  assert.equal(cReclaim, 0);
+  assert.equal(JSON.parse(readFileSync(lock, "utf8")).token, b.owner.token, "只有 B 持锁");
+  assert.equal(stale(d).length, 1);
+});
+
+// —— N-1：孤儿在回收前写了冻结文件 ——
+import { chmodSync as chmod2, symlinkSync as sym2 } from "node:fs";
+const resolver = (cwd: string) => async () => { writeFileSync(join(cwd, "a.txt"), "both\n"); return report(["a.txt"]); };
+const optsOf = (f: ReturnType<typeof fixture>, extra: Partial<MergeOptions> = {}): MergeOptions => ({
+  cwd: f.cwd, checkpoint: f.checkpoint, manifest: f.manifest, checkId: "v1",
+  verify: async (head) => ({ head, checkId: "v1", status: "passed", evidence: "ok" }), resolveConflict: resolver(f.cwd), ...extra });
+async function killedWithOrphanWrite(beforeKill: string) {
+  const f = fixture(true); const k = childRun(f, "conflict", beforeKill); assert.equal(k.signal, "SIGKILL");
+  await waitDead(JSON.parse(readFileSync(`${f.checkpoint}.lock`, "utf8")).pid);
+  return f;
+}
+const orphanArchives = (f: ReturnType<typeof fixture>) => readdirSync(f.evidence).filter((n) => n.startsWith("orphan-wip-"));
+
+test("N-1：孤儿写了 allowed 冻结文件后被回收——自动归档、按检查点还原、收敛到 done，不重复提交", async () => {
+  const f = await killedWithOrphanWrite(`fs.writeFileSync(f.cwd + "/a.txt", "ORPHAN WROTE THIS\\n");`);
+  assert.equal(readFileSync(join(f.cwd, "a.txt"), "utf8"), "ORPHAN WROTE THIS\n");
+  let reclaimed = 0; let calls = 0;
+  const done = await runManagedMerge(optsOf(f, { reclaimOrphans: () => { reclaimed++; }, resolveConflict: async () => { calls++; return resolver(f.cwd)(); } }));
+  assert.equal(done.phase, "done"); assert.equal(reclaimed, 1); assert.equal(calls, 1, "按原流程重新启动冲突工蜂");
+  const archives = orphanArchives(f); assert.equal(archives.length, 1);
+  const arch = JSON.parse(readFileSync(join(f.evidence, archives[0]!), "utf8"));
+  assert.ok(Buffer.from(arch.files["a.txt"].split(":")[1], "base64").toString().includes("ORPHAN WROTE THIS"), "孤儿写入的内容留在证据目录");
+  assert.equal(f.git("rev-list", "--parents", "--merges", `${f.base}..HEAD`).split("\n").filter(Boolean).length, 2);
+  const head = f.git("rev-parse", "HEAD"); await runManagedMerge(optsOf(f)); assert.equal(f.git("rev-parse", "HEAD"), head);
+});
+
+test("N-1：孤儿把 allowed 文件删掉/换成符号链接也能按检查点还原", async () => {
+  for (const code of [`fs.rmSync(f.cwd + "/a.txt");`, `fs.rmSync(f.cwd + "/a.txt"); fs.symlinkSync("/etc/hosts", f.cwd + "/a.txt");`]) {
+    const f = await killedWithOrphanWrite(code);
+    const done = await runManagedMerge(optsOf(f, { reclaimOrphans: () => undefined })); assert.equal(done.phase, "done");
+    assert.equal(orphanArchives(f).length, 1);
+  }
+});
+
+test("N-1：孤儿还动了 allowed 之外的文件 / 未跟踪文件 / index / HEAD / MERGE_HEAD——FAIL-loud，现场不动（连 allowed 也不还原）", async () => {
+  const cases: Array<[string, string]> = [
+    ["改 allowed 之外的跟踪文件", `fs.writeFileSync(f.cwd + "/b.txt", "EVIL\\n");`],
+    ["新增未跟踪文件", `fs.writeFileSync(f.cwd + "/new.txt", "x");`],
+    ["暂存 allowed 文件（index 变）", `cp.execFileSync("git", ["add", "a.txt"], { cwd: f.cwd });`],
+    ["MERGE_HEAD 被动", `cp.execFileSync("git", ["merge", "--abort"], { cwd: f.cwd });`],
+    ["HEAD 被动", `cp.execFileSync("git", ["update-ref", "HEAD", "sandcastle/issue-1"], { cwd: f.cwd });`],
+  ];
+  for (const [name, code] of cases) {
+    const f = fixture(true);
+    const pre = `fs.writeFileSync(f.cwd + "/a.txt", "ORPHAN\\n"); ${code}`;
+    const k = childRun(f, "conflict", pre); assert.equal(k.signal, "SIGKILL", `${name}: ${k.stderr.slice(0, 300)}`);
+    await waitDead(JSON.parse(readFileSync(`${f.checkpoint}.lock`, "utf8")).pid);
+    let calls = 0;
+    await assert.rejects(runManagedMerge(optsOf(f, { reclaimOrphans: () => undefined, resolveConflict: async () => { calls++; return report(["a.txt"]); } })), /现场与检查点不一致/, name);
+    assert.equal(calls, 0, name);
+    assert.equal(orphanArchives(f).length, 0, `${name}：不归档、不还原`);
+    if (name !== "MERGE_HEAD 被动" && name !== "HEAD 被动" && name !== "暂存 allowed 文件（index 变）") assert.equal(readFileSync(join(f.cwd, "a.txt"), "utf8"), "ORPHAN\n", `${name}：allowed 文件也没被还原`);
+  }
+});
+
+test("N-1：没有发生锁接管 / 未提供回收（宿主路由）时，snapshot 不一致保持原来的 FAIL-loud", async () => {
+  // 无接管：先把残留锁人工移走，再手改 allowed 文件
+  const f = fixture(true); const k = childRun(f, "conflict"); assert.equal(k.signal, "SIGKILL");
+  await waitDead(JSON.parse(readFileSync(`${f.checkpoint}.lock`, "utf8")).pid);
+  rmSync(`${f.checkpoint}.lock`); writeFileSync(join(f.cwd, "a.txt"), "HAND EDIT\n");
+  await assert.rejects(runManagedMerge(optsOf(f, { reclaimOrphans: () => undefined })), /现场与检查点不一致/);
+  assert.equal(orphanArchives(f).length, 0); assert.equal(readFileSync(join(f.cwd, "a.txt"), "utf8"), "HAND EDIT\n");
+  // 接管但没有回收钩子：无法确认没有存活孤儿 → 不还原
+  const g = await killedWithOrphanWrite(`fs.writeFileSync(f.cwd + "/a.txt", "ORPHAN\\n");`);
+  await assert.rejects(runManagedMerge(optsOf(g)), /现场与检查点不一致/);
+  assert.equal(orphanArchives(g).length, 0);
+});
+
+test("P3：检查点无法解析时不跳过回收（FAIL-loud）；只有 ENOENT 才跳过", async () => {
+  const f = await killedWithOrphanWrite("");
+  writeFileSync(f.checkpoint, '{"phase":"conf'); let n = 0;
+  await assert.rejects(runManagedMerge(optsOf(f, { reclaimOrphans: () => { n++; } })), /检查点无法解析/);
+  assert.equal(n, 0); assert.ok(existsSync(`${f.checkpoint}.lock`), "锁未动");
+  const g = fixture(true); // 无检查点 + 残留锁：ENOENT → 跳过回收，正常取锁
+  writeFileSync(`${g.checkpoint}.lock`, JSON.stringify({ pid: 99, start: "dead", host: hostname(), token: "t", cwd: g.cwd }));
+  let m = 0; const done = await runManagedMerge(optsOf(g, { reclaimOrphans: () => { m++; } })); assert.equal(done.phase, "done"); assert.equal(m, 0);
 });

@@ -41,7 +41,8 @@ export function reclaimOrphanContainers(o: ReclaimOptions): Reclaimed[] {
   const cwd = canon(o.cwd);
   let candidates: Inspected[];
   try {
-    const ids = docker(["ps", "-q", "--filter", "name=^sandcastle-"]).split("\n").map((l) => l.trim()).filter(Boolean);
+    // 不在 daemon 侧过滤名字：列出全部运行中容器再 inspect，才能发现“挂着本工位但不是 Sandcastle 容器”的情形（FAIL-loud 分支）。
+    const ids = docker(["ps", "-q"]).split("\n").map((l) => l.trim()).filter(Boolean);
     if (!ids.length) return [];
     const parsed = JSON.parse(docker(["inspect", ...ids])) as unknown;
     if (!Array.isArray(parsed) || parsed.length !== ids.length) throw new Error("inspect 结果与 ps 不符");

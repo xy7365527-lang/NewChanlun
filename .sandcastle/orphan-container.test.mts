@@ -29,7 +29,11 @@ function fakeDocker(containers: unknown[], o: { psFail?: boolean; stopFail?: boo
   const docker = (args: string[]): string => {
     calls.push(args);
     if (o.psFail) throw new Error("Cannot connect to the Docker daemon");
-    if (args[0] === "ps" && args.includes("-q")) return [...live].join("\n");
+    // 真实 docker ps 的行为：不带 --filter 就列出全部运行中容器；带 name= 过滤才缩小
+    if (args[0] === "ps" && args.includes("-q") && !args.some((a) => a.startsWith("id="))) {
+      const i = args.indexOf("--filter"); const re = i >= 0 && args[i + 1]!.startsWith("name=") ? new RegExp(args[i + 1]!.slice(5)) : null;
+      return containers.filter((c) => live.has((c as { Id: string }).Id)).filter((c) => !re || re.test(((c as { Name: string }).Name).replace(/^\//, ""))).map((c) => (c as { Id: string }).Id).join("\n");
+    }
     if (args[0] === "ps") return args.some((a) => a.startsWith("id=")) && live.has(args.find((a) => a.startsWith("id="))!.slice(3)) ? "x\n" : "";
     if (args[0] === "inspect") return JSON.stringify(containers.filter((c) => args.includes((c as { Id: string }).Id)));
     if (args[0] === "stop") { if (o.stopFail) throw new Error("stop failed"); return ""; }
@@ -86,6 +90,10 @@ test("拒绝且不动：挂载来源不同、两个匹配、身份 env 不符、
   t = run([container(cwd, { Config: { Image: IMAGE, Env: ["HOME=/x"] } })]); assert.throws(t.go, /身份 env/); noMutation(t.f);
   t = run([container(cwd, { Config: { Image: "evil:latest", Env: [`${MERGE_RUN_ENV}=run-1`, `${MERGE_INSTANCE_ENV}=inst-1`] } })]); assert.throws(t.go, /镜像 evil:latest/); noMutation(t.f);
   t = run([container(cwd, { Name: "/not-ours" })]); assert.throws(t.go, /不是 Sandcastle 容器/); noMutation(t.f);
+  assert.ok(t.f.calls.every((c) => !c.includes("--filter")), "不在 daemon 侧按名字过滤，否则这条分支在真实 docker 上走不到");
+  // 非 sandcastle 名字、既无身份也不挂本工位：不碰
+  const bystander = fakeDocker([container(other, { Name: "/postgres", Config: { Image: "postgres", Env: ["A=1"] } }, "f".repeat(64))]);
+  assert.deepEqual(reclaimOrphanContainers({ ...opts(cwd, tmp()), docker: bystander.docker }), []);
   t = run([], { psFail: true }); assert.throws(t.go, /docker 不可用或输出无法判定/);
   t = run([container(cwd)], { stopFail: true }); assert.throws(t.go, /docker stop .* 失败/);
   t = run([container(cwd)], { rmFail: true }); assert.throws(t.go, /docker rm .* 失败/);
@@ -122,7 +130,7 @@ test("swarm-merge 接线：冲突工蜂容器带身份 env（无密钥）；回�
   assert.match(src, /reclaimOrphans: \(\) => \{ reclaimOrphanContainers\(/);
   const mm = readFileSync(new URL("./managed-merge.mts", import.meta.url), "utf8");
   assert.match(mm, /acquireLock\(lock, o\.cwd, o\.lockEnv, \(\) => \{/);
-  assert.match(mm, /phase === "conflict"\) o\.reclaimOrphans\(\)/);
+  assert.match(mm, /phase === "conflict"\) \{ o\.reclaimOrphans\(\); orphansSettled = true; \}/);
   const lockSrc = readFileSync(new URL("./process-lock.mts", import.meta.url), "utf8");
   assert.ok(lockSrc.indexOf("beforeTakeover?.(holder)") > lockSrc.indexOf("仍在运行") && lockSrc.indexOf("beforeTakeover?.(holder)") < lockSrc.indexOf("renameSync(lock, target)"));
   assert.ok(existsSync(new URL("./orphan-container.mts", import.meta.url)));

@@ -13,6 +13,8 @@ export interface LockEnv {
   pid: number; host: string; startOf: (pid: number) => string | null; now: () => Date;
   /** 仅测试：接管时旧锁归档之后、新建之前调用，用来确定性地制造交错。 */
   afterArchive?: () => void;
+  /** 仅测试：等待接管守卫的次数（每次 50ms）；缺省 40。 */
+  guardTries?: number;
 }
 export interface PsResult { status: number | null; stdout: string; stderr: string; error?: Error }
 export type PsRunner = (pid: number) => PsResult;
@@ -75,11 +77,10 @@ export function acquireLock(lock: string, cwd: string, env: LockEnv = realEnv(),
     if (holder.host !== env.host) throw new Error(`${lock} 由其他主机 ${holder.host} 持有，无法判定存活，不接管`);
     const alive = env.startOf(holder.pid); // 可能抛错 → 无法判定，向上抛
     if (alive !== null && alive === holder.start) throw new Error(`${lock} 的持有者 pid ${holder.pid} 仍在运行，拒绝`);
-    // 持有者已死（pid 不存在，或 pid 被复用：启动时间不同）。接管前的清理（回收孤儿容器）抛错则整体拒绝，锁与现场不动。
-    beforeTakeover?.(holder);
-    // 然后进入守卫接管。
+    // 持有者已死（pid 不存在，或 pid 被复用：启动时间不同）。进入守卫后重读锁，确认仍是判定已死的那一个，
+    // 再在守卫内完成“接管前清理（回收孤儿容器）→ 归档 → 新建”：否则 A 判定已死之后、回收之前，B 可能已接管并启动了自己的工蜂，A 会误停 B 的活容器。
     let guarded = false;
-    for (let wait = 0; wait < 40 && !guarded; wait++) {
+    for (let wait = 0; wait < (env.guardTries ?? 40) && !guarded; wait++) {
       try { create(guardPath, { ...owner, token: randomUUID() }); guarded = true; }
       catch (e) { if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e; sleepMs(50); }
     }
@@ -87,7 +88,8 @@ export function acquireLock(lock: string, cwd: string, env: LockEnv = realEnv(),
     try {
       let again: LockOwner;
       try { again = parseOwner(readFileSync(lock, "utf8")); } catch { continue; } // 已变化：回到外层重新判定
-      if (again.token !== holder.token) continue; // 已被他人接管或释放：重新判定
+      if (again.token !== holder.token) continue; // 已被他人接管或释放：重新判定（此时不会调用 beforeTakeover）
+      beforeTakeover?.(holder); // 守卫内、归档前；抛错则整体拒绝，锁与现场不动
       const target = join(dirname(lock), `${basename(lock)}.stale-${env.now().toISOString().replace(/[:.]/g, "-")}-${randomUUID().slice(0, 8)}`);
       renameSync(lock, target);
       archived = target;
