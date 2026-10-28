@@ -225,6 +225,23 @@ impl Runtime {
         self.auxiliary.visit_runtime_roots(&mut f)?;
         Ok(roots)
     }
+    /// #1572 测量探针（只在测试中调用；会销毁缓存）：候选父账上预备运行时缓存的逐持有者析构读数，
+    /// 依次为生成链 `generator`、辅助索引 `auxiliary`；`live` 是候选父账 live 读数。
+    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    pub(super) fn i1572_drop_caches_for_test(
+        &mut self,
+        live: &dyn Fn() -> usize,
+    ) -> Result<[usize; 2], String> {
+        let start = live();
+        drop(self.generator.take());
+        let mid = live();
+        drop(std::mem::take(&mut self.auxiliary));
+        let end = live();
+        match (start.checked_sub(mid), mid.checked_sub(end)) {
+            (Some(generator), Some(auxiliary)) => Ok([generator, auxiliary]),
+            _ => Err("析构预备运行时缓存后父账live上升".into()),
+        }
+    }
 
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     pub(super) fn enable_staging_for_native_test(&mut self) -> Result<(), String> {

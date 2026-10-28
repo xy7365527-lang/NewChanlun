@@ -915,6 +915,51 @@ pub(super) fn retained_breakdown() -> (usize, usize, usize) {
 pub(super) fn batch_header_bytes() -> usize {
     MEMO.with(|m| m.borrow().batch_headers_bytes)
 }
+/// #1572 测量探针（只在测试中调用；会清空跨请求保留量）：E 侧 legacy 保留量按 `retained_bytes`
+/// 的四个加数逐项析构，再析构证书血统与其余 memo 外壳；返回 `(项名, E合同额, live实际下降)`。
+/// 共享块记在最后一个持有者析构的那一步；`live` 是被测父账的 live 读数。
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+pub(super) fn i1572_drop_memo_items_for_test(
+    live: &dyn Fn() -> usize,
+) -> Result<Vec<(&'static str, usize, usize)>, String> {
+    MEMO.with(|m| {
+        let mut m = m.borrow_mut();
+        if m.capture.is_some() {
+            return Err("legacy memo仍在捕获中，非静止点".into());
+        }
+        let mut out = Vec::new();
+        let mut before = live();
+        let mut step = |name: &'static str, contract: usize, out: &mut Vec<_>| {
+            let now = live();
+            let dropped = before
+                .checked_sub(now)
+                .ok_or_else(|| format!("析构{name}后父账live上升"))?;
+            out.push((name, contract, dropped));
+            before = now;
+            Ok::<(), String>(())
+        };
+        let contract = m.handles_bytes;
+        m.handles = Default::default();
+        m.handles_bytes = 0;
+        step("legacy.memo.handles", contract, &mut out)?;
+        let contract = m.batch_headers_bytes;
+        m.batch_headers = Default::default();
+        m.batch_headers_bytes = 0;
+        step("legacy.memo.batch_headers", contract, &mut out)?;
+        let contract = m.root_bytes();
+        m.root = None;
+        step("legacy.memo.root", contract, &mut out)?;
+        let contract = m.certs_bytes;
+        m.certs = NativeMap::default();
+        m.root_certs = NativeMap::default();
+        m.certs_bytes = 0;
+        step("legacy.memo.certs", contract, &mut out)?;
+        m.cert_lineage = Arc::new(());
+        drop(PENDING_LINEAGE.with(|pending| pending.borrow_mut().take()));
+        step("legacy.cert_lineage", 0, &mut out)?;
+        Ok(out)
+    })
+}
 #[cfg(test)]
 pub(super) fn evict_full_handles_for_test() {
     MEMO.with(|m| m.borrow_mut().trim_handles(0));

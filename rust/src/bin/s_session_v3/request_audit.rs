@@ -48,13 +48,24 @@ impl ManifestWorkspaceBudget {
 /// 作为该组owner名下的“未覆盖新增真实分配”逐组列出并消耗A；O中从不加L，也不以max补差。
 /// 无法证明映射（缺父、无静止点读数、L0≠读数、L0装不下M、溢出、池候选同父、U>A、绑定时L0已变/换父）
 /// 一律拒绝，不改T/E/O/A。
+/// #1572：项名须在v4:38清单（`LISTED`）内；组内各项都有实测物理额时改为逐项对账——Σ逐项物理额
+/// 必须恰等于组L0（少=未列入清单的来源，多=重复计入），U逐项为max(0,物理−合同)、组U=Σ逐项U。
+/// 目前只有keeper组逐项实测；候选组生产冻结仍按组净额（`complete_candidate.charge.total` 聚合行）：
+/// 候选持有者 audited、raw 状态与同父的预备运行时缓存（generator/auxiliary）尚无非销毁的物理许可读数。`candidate.*` 逐项行只供
+/// #1572 析构探针重放与负控使用，项名与 `audit_owner::I1572_CANDIDATE_ITEMS` 一一对应。
 #[cfg(feature = "s_capture_native_testonly")]
 #[derive(Clone, Debug, serde::Serialize)]
 pub(crate) struct OldPoolItem {
     pub(crate) role: &'static str,
     pub(crate) item: &'static str,
+    // #1572：该项在v4:38清单中的来源条目；不在清单的项名在`item`处即拒绝。
+    pub(crate) source: &'static str,
     pub(crate) origin: &'static str,
     pub(crate) contract: usize,
+    // #1572：该项在本组L0上实测的物理许可字节（逐张清点）；None=尚无逐项清点，组内按组净额。
+    pub(crate) physical: Option<usize>,
+    // #1572：逐项未覆盖额 max(0, physical−contract)；仅逐项组有意义。
+    pub(crate) uncovered: usize,
 }
 /// 一个物理Ledger分组：静止点读数、本次L0、组内合同额与覆盖/未覆盖。
 #[cfg(feature = "s_capture_native_testonly")]
@@ -69,6 +80,8 @@ pub(crate) struct OldPoolHome {
     pub(crate) covered: usize,
     pub(crate) uncovered: usize,
     pub(crate) owners: Vec<&'static str>,
+    // #1572：组内每项都有实测物理额且Σphysical==L0时为真；此时uncovered=Σ逐项U，不再组内净额。
+    pub(crate) itemized: bool,
 }
 #[cfg(feature = "s_capture_native_testonly")]
 #[derive(Clone, serde::Serialize)]
@@ -91,6 +104,33 @@ impl OldPoolPartition {
     pub(crate) const ON_PARENT: &'static str = "candidate-parent";
     pub(crate) const KEEPER_PARENT: &'static str = "keeper-parent";
     pub(crate) const ELSEWHERE: &'static str = "no-ledger";
+    /// #1572：合同项名 → v4:38清单来源条目。项名不在此表即“未列入清单的来源”，拒绝映射。
+    const LISTED: &'static [(&'static str, &'static str)] = &[
+        (
+            "complete_candidate.charge.total",
+            "candidate inline/capture index/证书+history/raw+slot双份+Q/effects/working set（聚合，未逐项）",
+        ),
+        ("candidate.inline", "candidate inline/capture index/证书"),
+        (
+            "candidate.capture.node_capacity",
+            "candidate inline/capture index/证书",
+        ),
+        (
+            "candidate.capture.node_source_and_certificates",
+            "candidate inline/capture index/证书",
+        ),
+        ("candidate.audited.historical_and_raw", "history/raw"),
+        ("candidate.slot", "slot双份"),
+        ("candidate.q", "Q/effects/working set"),
+        ("candidate.originals.current_sql", "SQL行与cell"),
+        ("complete_parent.metadata_M", "Observer及父元数据"),
+        ("committed_raw_state", "construction/PendingRawState"),
+        ("prepared.runtime.generator", "Q/effects/working set"),
+        ("prepared.runtime.auxiliary", "Q/effects/working set"),
+        ("source_keeper_pool", "source keeper池"),
+        ("keeper_parent.metadata_M", "Observer及父元数据"),
+        ("unpartitioned-old-pool", "冷入口/fixture未分区旧费（无父，只按合同额）"),
+    ];
     pub(crate) fn new(parent: Option<&super::audit_owner::native::Budget>) -> Self {
         Self {
             items: Vec::new(),
@@ -104,6 +144,7 @@ impl OldPoolPartition {
                     covered: 0,
                     uncovered: 0,
                     owners: Vec::new(),
+                    itemized: false,
                 })
                 .into_iter()
                 .collect(),
@@ -142,6 +183,7 @@ impl OldPoolPartition {
             covered: 0,
             uncovered: 0,
             owners: Vec::new(),
+            itemized: false,
         });
         Ok(())
     }
@@ -165,7 +207,39 @@ impl OldPoolPartition {
         origin: &'static str,
         contract: usize,
     ) -> Result<(), String> {
+        self.push_item(item, origin, contract, None)
+    }
+    /// #1572：带本组L0上实测物理额的合同项。组内一旦有实测项即须全组实测，封口时Σphysical必须
+    /// 恰等于该组L0：少于L0=有未列入清单的来源，多于L0=某项重复计入；两者都拒绝冻结。
+    pub(crate) fn item_measured(
+        &mut self,
+        item: &'static str,
+        origin: &'static str,
+        contract: usize,
+        physical: usize,
+    ) -> Result<(), String> {
+        if origin == Self::ELSEWHERE {
+            return Err(format!(
+                "S3WriterResourcesInvalid：old_pool项{item}不在任何Ledger上，无从实测物理额"
+            ));
+        }
+        self.push_item(item, origin, contract, Some(physical))
+    }
+    fn push_item(
+        &mut self,
+        item: &'static str,
+        origin: &'static str,
+        contract: usize,
+        physical: Option<usize>,
+    ) -> Result<(), String> {
         self.open()?;
+        let source = Self::LISTED
+            .iter()
+            .find(|(name, _)| *name == item)
+            .map(|(_, source)| *source)
+            .ok_or_else(|| {
+                format!("S3WriterResourcesInvalid：old_pool项{item}未列入v4:38清单，拒绝映射")
+            })?;
         let overflow = || "S3WriterResourcesInvalid：old_pool合同额溢出".to_string();
         if origin != Self::ELSEWHERE {
             let home = self
@@ -188,8 +262,11 @@ impl OldPoolPartition {
         self.items.push(OldPoolItem {
             role: "O",
             item,
+            source,
             origin,
             contract,
+            physical,
+            uncovered: 0,
         });
         Ok(())
     }
@@ -214,8 +291,57 @@ impl OldPoolPartition {
                 ));
             }
             home.l0 = l0;
-            home.covered = l0.min(home.contract);
-            home.uncovered = l0 - home.covered;
+            let mut measured = self
+                .items
+                .iter_mut()
+                .filter(|i| i.origin == home.origin)
+                .peekable();
+            if measured.peek().is_some_and(|i| i.physical.is_some()) {
+                // #1572 逐项组：U逐项拆出，组U恒等于Σ逐项U；组内不再以一项的余额抵另一项的超出。
+                let (mut physical, mut covered, mut uncovered) = (0usize, 0usize, 0usize);
+                for item in measured {
+                    let p = item.physical.ok_or_else(|| {
+                        format!(
+                            "S3WriterResourcesInvalid：{}组项{}缺实测物理额，逐项映射不完整",
+                            home.origin, item.item
+                        )
+                    })?;
+                    item.uncovered = p.saturating_sub(item.contract);
+                    physical = physical.checked_add(p).ok_or_else(overflow)?;
+                    covered = covered
+                        .checked_add(p - item.uncovered)
+                        .ok_or_else(overflow)?;
+                    uncovered += item.uncovered;
+                }
+                if physical < l0 {
+                    return Err(format!(
+                        "S3WriterResourcesInvalid：{}组L0={l0}中有{}B未列入清单的来源，拒绝冻结",
+                        home.origin,
+                        l0 - physical
+                    ));
+                }
+                if physical > l0 {
+                    return Err(format!(
+                        "S3WriterResourcesInvalid：{}组逐项物理额之和{physical}超出L0={l0}，有项重复计入，拒绝冻结",
+                        home.origin
+                    ));
+                }
+                home.covered = covered;
+                home.uncovered = uncovered;
+                home.itemized = true;
+            } else if self
+                .items
+                .iter()
+                .any(|i| i.origin == home.origin && i.physical.is_some())
+            {
+                return Err(format!(
+                    "S3WriterResourcesInvalid：{}组仅部分项有实测物理额，逐项映射不完整",
+                    home.origin
+                ));
+            } else {
+                home.covered = l0.min(home.contract);
+                home.uncovered = l0 - home.covered;
+            }
             self.l0 = self.l0.checked_add(l0).ok_or_else(overflow)?;
             self.parent_paid = self
                 .parent_paid
@@ -283,7 +409,8 @@ impl OldPoolPartition {
     pub(crate) fn homes(&self) -> &[OldPoolHome] {
         &self.homes
     }
-    /// 未覆盖新增真实分配逐组列出：(role U, 来源组, 组内owner, 字节)。
+    /// 未覆盖新增真实分配列出：(role U, 来源组, owner, 字节)。#1572逐项组按项各列一条（owner只含该项），
+    /// 尚未逐项的组仍按组列出（owner为组内全部项）。
     #[cfg_attr(
         all(not(test), feature = "s_capture_native_testonly"),
         allow(dead_code, reason = "#1488：8组合探针仅 native 非测试未调用")
@@ -291,11 +418,20 @@ impl OldPoolPartition {
     pub(crate) fn uncovered_items(
         &self,
     ) -> Vec<(&'static str, &'static str, &[&'static str], usize)> {
-        self.homes
-            .iter()
-            .filter(|h| h.uncovered != 0)
-            .map(|h| ("U", h.origin, h.owners.as_slice(), h.uncovered))
-            .collect()
+        let mut out = Vec::new();
+        for home in self.homes.iter().filter(|h| h.uncovered != 0) {
+            if home.itemized {
+                out.extend(
+                    self.items
+                        .iter()
+                        .filter(|i| i.origin == home.origin && i.uncovered != 0)
+                        .map(|i| ("U", home.origin, std::slice::from_ref(&i.item), i.uncovered)),
+                );
+            } else {
+                out.push(("U", home.origin, home.owners.as_slice(), home.uncovered));
+            }
+        }
+        out
     }
     /// 本请求入口已占的旧费：O + uncovered（uncovered从A中扣，不改O）。
     pub(crate) fn carried(&self) -> usize {
@@ -3438,6 +3574,134 @@ mod handoff_domain_tests {
         );
         // L0恢复后同一映射仍可绑定（拒绝没有消耗冻结状态）。
         assert!(next.bind_complete_budget(&bound).is_ok());
+    }
+    /// #1572：逐项实测组的对账与负控。Σ逐项物理额必须恰等于该组L0，组U恒等于Σ逐项U；
+    /// 不在v4:38清单的项名、漏列任一项（含静止点内无主许可）、重复计入任一项、仅部分实测，一律拒绝。
+    #[test]
+    fn i1572_itemized_group_reconciles_and_rejects_unlisted_omitted_or_double_counted() {
+        const T: usize = 1 << 20;
+        type P = OldPoolPartition;
+        let m = Budget::metadata_bytes();
+        let (contract, held, excess) = (20_480, 20_480, 4_096);
+        let keeper = Budget::new(T, 0).unwrap();
+        let _pool = keeper.reserve(held).unwrap();
+        let _pool_excess = keeper.reserve(excess).unwrap();
+        let mark = keeper.quiescent_mark();
+        let l0 = keeper.live();
+        assert_eq!(l0, m + held + excess);
+        let build = |items: &[(&'static str, usize, usize)]| -> Result<P, String> {
+            let mut p = P::new(None);
+            p.keeper_home(&keeper)?;
+            for &(item, contract, physical) in items {
+                p.item_measured(item, P::KEEPER_PARENT, contract, physical)?;
+            }
+            p.attest(&mark)?;
+            p.seal()
+        };
+        let pool = ("source_keeper_pool", contract, held + excess);
+        let meta = ("keeper_parent.metadata_M", m, m);
+        // (1) 逐项对齐：U只落在池名下，组U=Σ逐项U，covered+U=L0。
+        let ok = build(&[pool, meta]).unwrap();
+        let home = &ok.homes()[0];
+        assert!(home.itemized);
+        assert_eq!(home.covered + home.uncovered, l0);
+        assert_eq!(home.uncovered, excess);
+        assert_eq!(
+            ok.items().iter().map(|i| i.uncovered).sum::<usize>(),
+            excess
+        );
+        assert_eq!(ok.uncovered(), excess);
+        assert_eq!(ok.carried(), l0, "物理live恰计一次，不超发");
+        assert_eq!(
+            ok.uncovered_items(),
+            vec![("U", P::KEEPER_PARENT, &["source_keeper_pool"][..], excess)]
+        );
+        assert!(ok.items().iter().all(|i| P::LISTED
+            .iter()
+            .any(|(n, s)| *n == i.item && *s == i.source)));
+        // (2) 漏列M：Σ<L0，有未列入清单的来源。
+        let error = build(&[pool]).err().expect("漏列必须拒绝");
+        assert!(error.contains("未列入清单的来源"), "{error}");
+        // (3) 重复计入池：Σ>L0。
+        let error = build(&[pool, pool, meta]).err().expect("重复计入必须拒绝");
+        assert!(error.contains("重复计入"), "{error}");
+        // (4) 不在清单的项名：在列项处即拒绝。
+        let error = build(&[pool, meta, ("mystery_cache", 0, 0)])
+            .err()
+            .expect("未列入清单的项名必须拒绝");
+        assert!(error.contains("未列入v4:38清单"), "{error}");
+        // (5) 静止点内的无主许可（读数相符，旧检查放行）：逐项对账仍拒绝。
+        let stray = keeper.reserve(512).unwrap();
+        let stray_mark = keeper.quiescent_mark();
+        let mut unowned = P::new(None);
+        unowned.keeper_home(&keeper).unwrap();
+        unowned
+            .item_measured(pool.0, P::KEEPER_PARENT, pool.1, pool.2)
+            .unwrap();
+        unowned
+            .item_measured(meta.0, P::KEEPER_PARENT, meta.1, meta.2)
+            .unwrap();
+        unowned.attest(&stray_mark).unwrap();
+        let error = unowned.seal().err().expect("无主许可必须拒绝");
+        assert!(error.contains("512B未列入清单的来源"), "{error}");
+        drop(stray);
+        // (6) 仅部分实测：拒绝（不得一半逐项一半净额）。
+        let mut partial = P::new(None);
+        partial.keeper_home(&keeper).unwrap();
+        partial.item(pool.0, P::KEEPER_PARENT, pool.1).unwrap();
+        partial
+            .item_measured(meta.0, P::KEEPER_PARENT, meta.1, meta.2)
+            .unwrap();
+        partial.attest(&mark).unwrap();
+        let error = partial.seal().err().expect("部分实测必须拒绝");
+        assert!(error.contains("逐项映射不完整"), "{error}");
+        // 反序（实测项在前、未实测项在后）同样拒绝。
+        let mut partial = P::new(None);
+        partial.keeper_home(&keeper).unwrap();
+        partial
+            .item_measured(meta.0, P::KEEPER_PARENT, meta.1, meta.2)
+            .unwrap();
+        partial.item(pool.0, P::KEEPER_PARENT, pool.1).unwrap();
+        partial.attest(&mark).unwrap();
+        let error = partial.seal().err().expect("部分实测必须拒绝");
+        assert!(error.contains("逐项映射不完整"), "{error}");
+        // (7) 不在任何Ledger上的项无从实测。
+        assert!(P::new(None)
+            .item_measured(pool.0, P::ELSEWHERE, pool.1, pool.2)
+            .is_err());
+        // (8) 逐项不互借余额：一项超合同2000、另一项低于合同4000，组净额为0而逐项U=2000。
+        let parent = Budget::new(T, 0).unwrap();
+        let _charge = parent.reserve(3_000).unwrap();
+        let _raw = parent.reserve(1_000).unwrap();
+        let parent_mark = parent.quiescent_mark();
+        let mut split = P::new(Some(&parent));
+        split
+            .item_measured(
+                "complete_candidate.charge.total",
+                P::ON_PARENT,
+                1_000,
+                3_000,
+            )
+            .unwrap();
+        split
+            .item_measured("committed_raw_state", P::ON_PARENT, 5_000, 1_000)
+            .unwrap();
+        split
+            .item_measured("complete_parent.metadata_M", P::ON_PARENT, m, m)
+            .unwrap();
+        split.attest(&parent_mark).unwrap();
+        let split = split.seal().unwrap();
+        assert_eq!(split.uncovered(), 2_000);
+        assert_eq!(split.external(), 4_000);
+        assert_eq!(
+            split.uncovered_items(),
+            vec![(
+                "U",
+                P::ON_PARENT,
+                &["complete_candidate.charge.total"][..],
+                2_000
+            )]
+        );
     }
     /// #1488 v4 暖路径：prepare_parent(Some)绑定真实父并作废冷许可；观察句柄sponsor同origin。
     #[test]

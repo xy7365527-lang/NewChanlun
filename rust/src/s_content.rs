@@ -2086,12 +2086,152 @@ impl SourceClaim {
                 "来源合同项指不到已物理计费的正文块",
             ));
         }
-        let bytes = body
-            .len()
+        Self::on_len(body.len())
+    }
+
+    fn on_len(len: usize) -> Result<Self, CodecError> {
+        let bytes = len
             .checked_add(97)
             .ok_or_else(|| CodecError::new(code::SOURCE, "来源合同额溢出"))?;
         Ok(Self { bytes })
     }
+}
+/// #1572：capture内一张Native许可所保护的载荷（持有者位置）。
+#[cfg(feature = "s_capture_native_testonly")]
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum CapturePermitRole {
+    OwnerCodec,
+    NodeProof,
+    MemoSeen,
+    NodeIndex,
+    NodeBody,
+    CodecRoots,
+    OriginalFeeBodies,
+    OriginalFeeBody,
+    OriginalFeeTable,
+    OriginalFeeTableEntry,
+}
+/// #1572：逐张物理许可（身份、字节、所保护载荷、所属父账与来源域）。只由 capture 的持有者清单
+/// 产出，借用该 capture：身份是地址，只在同一静止点有效，不得跨借用保存。正文许可另带所属节点
+/// 摘要与正文长度，供来源合同对账按 backing 独立推额。
+#[cfg(feature = "s_capture_native_testonly")]
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CapturePermitEntry<'a> {
+    id: capture_allocation::scratch::PermitId,
+    bytes: usize,
+    role: CapturePermitRole,
+    ledger: usize,
+    origin: u64,
+    body: Option<(NodeDigest, usize)>,
+    _capture: std::marker::PhantomData<&'a AuditCapture>,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl CapturePermitEntry<'_> {
+    fn held(
+        permit: &capture_allocation::scratch::NativeReservation,
+        role: CapturePermitRole,
+        body: Option<(NodeDigest, usize)>,
+    ) -> Self {
+        Self {
+            id: permit.permit_id(),
+            bytes: permit.bytes(),
+            role,
+            ledger: permit.ledger_id(),
+            origin: permit.origin(),
+            body,
+            _capture: std::marker::PhantomData,
+        }
+    }
+    pub fn id(&self) -> capture_allocation::scratch::PermitId {
+        self.id
+    }
+    pub fn bytes(&self) -> usize {
+        self.bytes
+    }
+    pub fn role(&self) -> CapturePermitRole {
+        self.role
+    }
+    pub fn ledger(&self) -> usize {
+        self.ledger
+    }
+    pub fn origin(&self) -> u64 {
+        self.origin
+    }
+    /// 正文许可所属节点摘要与正文长度；非正文许可为 None。
+    pub fn body(&self) -> Option<(NodeDigest, usize)> {
+        self.body
+    }
+    /// 负控注入：改记来源域。
+    #[cfg(test)]
+    fn with_origin_for_test(mut self, origin: u64) -> Self {
+        self.origin = origin;
+        self
+    }
+}
+/// #1572：一项来源合同（#1488 P2-A SourceClaim）：只记合同额，物理由 `backing` 所指的
+/// 正文许可承担；它自身不对应任何物理许可。`site` 是正文所在位置（节点或未转换原件费），
+/// `node` 是持有者生成时记下的节点摘要。只由持有者产出，借用该 capture。
+#[cfg(feature = "s_capture_native_testonly")]
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SourceClaimEntry<'a> {
+    amount: usize,
+    backing: capture_allocation::scratch::PermitId,
+    site: CapturePermitRole,
+    node: NodeDigest,
+    _capture: std::marker::PhantomData<&'a AuditCapture>,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl SourceClaimEntry<'_> {
+    fn new(
+        amount: usize,
+        backing: capture_allocation::scratch::PermitId,
+        site: CapturePermitRole,
+        node: NodeDigest,
+    ) -> Self {
+        Self {
+            amount,
+            backing,
+            site,
+            node,
+            _capture: std::marker::PhantomData,
+        }
+    }
+    pub fn amount(&self) -> usize {
+        self.amount
+    }
+    pub fn backing(&self) -> capture_allocation::scratch::PermitId {
+        self.backing
+    }
+    pub fn site(&self) -> CapturePermitRole {
+        self.site
+    }
+    pub fn node(&self) -> NodeDigest {
+        self.node
+    }
+    /// 负控注入：改指 backing。
+    #[cfg(test)]
+    fn with_backing_for_test(mut self, backing: capture_allocation::scratch::PermitId) -> Self {
+        self.backing = backing;
+        self
+    }
+    /// 负控注入：改合同额。
+    #[cfg(test)]
+    fn with_amount_for_test(mut self, amount: usize) -> Self {
+        self.amount = amount;
+        self
+    }
+}
+/// #1572：来源合同与物理清单的对账结果。
+#[cfg(feature = "s_capture_native_testonly")]
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SourceClaimReconciliation {
+    pub claims: usize,
+    pub claim_amount: usize,
+    pub backing_bytes: usize,
 }
 #[cfg(feature = "s_capture_native_testonly")]
 struct NativeCaptureNodes {
@@ -2372,6 +2512,23 @@ impl<K: Ord + Copy, V: Copy> OwnerProofTree<K, V> {
     fn retained_layout_bytes(&self) -> usize {
         self.retained_bytes
     }
+    /// #1572：逐节点列出本树持有的Native许可（AVL节点盒）。
+    fn permit_entries<'a>(&self, out: &mut Vec<CapturePermitEntry<'a>>) {
+        let mut stack: Vec<&OwnerProofLink<K, V>> = vec![&self.root];
+        while let Some(link) = stack.pop() {
+            if let Some(node) = link {
+                if let Some(p) = node.permit() {
+                    out.push(CapturePermitEntry::held(
+                        p,
+                        CapturePermitRole::OwnerCodec,
+                        None,
+                    ));
+                }
+                stack.push(&node.left);
+                stack.push(&node.right);
+            }
+        }
+    }
 
     fn insert(
         &mut self,
@@ -2499,6 +2656,13 @@ struct NativeOwnerCodecMemo {
 }
 #[cfg(feature = "s_capture_native_testonly")]
 impl NativeOwnerCodecMemo {
+    fn permit_entries<'a>(&self, out: &mut Vec<CapturePermitEntry<'a>>) {
+        self.seen.permit_entries(out);
+        self.bytes.permit_entries(out);
+        self.elems.permit_entries(out);
+        self.fields.permit_entries(out);
+        self.key_cmp.permit_entries(out);
+    }
     fn retained_bytes(&self) -> usize {
         // 精确 Box 节点 Layout 随成功插入累计；只取常数张树的计数，不扫描旧证明。
         [
@@ -3070,6 +3234,49 @@ pub struct NativeCaptureRetention {
     pub template_roots: usize,
     pub public_capacity: usize,
     pub template_capacity: usize,
+}
+
+/// #1572 任务D：Native capture 物理许可的常数时间读数（固定个数标量与单张许可字节，不扫节点、
+/// 不分配）。逐项依据见 [`AuditCapture::native_physical_fast_for_testonly`]。正文项不在此给出
+/// 总额：`body_capacity` 计全部节点正文容量（含未绑定的 Plain 正文），只在全部正文已 Native 绑定
+/// 时才等于正文许可之和，而“全部已绑定”不是 Native capture 的构造不变式。
+#[cfg(feature = "s_capture_native_testonly")]
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NativeCapturePhysical {
+    pub memo_seen: usize,
+    pub node_index: usize,
+    pub codec_roots: usize,
+    pub owner_codec: usize,
+    pub nodes: usize,
+    pub body_capacity: usize,
+}
+#[cfg(feature = "s_capture_native_testonly")]
+impl NativeCapturePhysical {
+    /// capture 物理总额。`bound_nodes` 须由调用方独立取得（如
+    /// `native_bound_body_nodes_for_testonly`，O(n)）；≠nodes 时拒给总额——常数时间判定缺
+    /// `NativeCaptureNodes` 的“已绑定正文数（或已绑定正文许可字节）”增量标量。
+    pub fn total_if_all_bound(&self, bound_nodes: usize) -> Result<usize, CodecError> {
+        if bound_nodes != self.nodes {
+            return Err(CodecError::new(
+                code::SOURCE,
+                format!(
+                    "物理快读数：正文未全绑定（bound={bound_nodes} nodes={}）",
+                    self.nodes
+                ),
+            ));
+        }
+        [
+            self.memo_seen,
+            self.node_index,
+            self.codec_roots,
+            self.owner_codec,
+            self.body_capacity,
+        ]
+        .into_iter()
+        .try_fold(0usize, usize::checked_add)
+        .ok_or_else(|| CodecError::new(code::SOURCE, "物理快读数溢出"))
+    }
 }
 
 #[cfg(feature = "s_capture_native_testonly")]
@@ -3762,6 +3969,69 @@ impl AuditCapture {
             .saturating_add(certificates.template.retained_bytes())
     }
 
+    /// #1572 任务D：capture 物理许可的常数时间读数（逐项见 [`NativeCapturePhysical`]）。
+    /// - MemoSeen：Public/Template 两份 memo 的 `native_seen_permit` 各一张许可；
+    /// - NodeIndex：`index_permit` 一张许可；CodecRoots：`public_permit` 一张许可（Template 根集合无许可）；
+    /// - OwnerCodec：两份证书各五棵树的 `retained_bytes` 之和。`OwnerProofTree::insert` 只在
+    ///   `insert_absent` 以 `reserve_native(Layout::new::<OwnerProofNode<K, V>>().size())` 签出许可并
+    ///   `NativeBox::from_reserved(node, Some(permit))` 挂上之后，才累加同一个 `layout.size()`；
+    ///   预留或分配失败不累加（许可随错误出口归还）；旋转只移指针不动许可；无单节点删除，树只经
+    ///   `clear`/`revoke` 整体换成 Default（计数同时归零）⟹ 每棵树 `retained_bytes` 恒等于其节点盒
+    ///   许可之和；
+    /// - 节点证明盒：许可额=原件长+`size_of::<NativeFrameProof>()`（`checked_read_scoped` 预留后
+    ///   `attach`），但 `NativeFrameMemo::retain_copy` 也建无许可的盒，memo 只计帧正文容量与盒数、
+    ///   不计已附许可额 ⟹ 只在 `retained_entries==0`（无盒：盒只由 `retain_copy` 建且同步计数，
+    ///   拆盒经 `remove` 同步减计数，整体清空处同时重置 memo）时可证为 0，否则 Err——缺
+    ///   `NativeFrameMemo` 的“已附证明许可字节”增量；
+    /// - 未转换原件费：只在 Legacy 上存在——`with_original_fees_for_testonly` 只接 Legacy，转换末尾
+    ///   `drop(self.original_fees.take())`，其余构造均置 None；Native 上若出现即 Err；
+    /// - 正文：只给 `body_capacity` 与 nodes，总额须经 [`NativeCapturePhysical::total_if_all_bound`]。
+    ///   绑定正文的许可额恒等于其 capacity（`attach_native_reservation` 核 bytes==capacity；
+    ///   `reserve_native_work`/`try_reserve_native_adopting`/`try_compact_native` 均按新块精确容量签许可；
+    ///   已绑定后 `reserve`/`reserve_exact` 拒绝越容量增长），`body_capacity` 在转换、追加、稀疏保留
+    ///   三处按 capacity 维护；但“每个正文都已绑定”不由构造保证：无原件费转换（
+    ///   `enable_native_frame_reuse_for_testonly`）、原件费表中 fee=None 的条目、
+    ///   `append_original_for_owner_testonly(.., None)` 都留下 Plain 正文。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[doc(hidden)]
+    pub fn native_physical_fast_for_testonly(&self) -> Result<NativeCapturePhysical, CodecError> {
+        let CaptureNodes::Native(native) = &self.nodes else {
+            return Err(CodecError::new(
+                code::SOURCE,
+                "物理快读数只接Native capture",
+            ));
+        };
+        if self.original_fees.is_some() {
+            return Err(CodecError::new(
+                code::SOURCE,
+                "物理快读数：Native capture 不应持未转换原件费",
+            ));
+        }
+        if native.memo.borrow().retained_entries != 0 {
+            return Err(CodecError::new(
+                code::SOURCE,
+                "物理快读数：存活节点证明盒无常数时间许可读数",
+            ));
+        }
+        let bytes = capture_allocation::scratch::NativeReservation::bytes;
+        let mut memo_seen = 0usize;
+        for memo in [&self.public, &self.template] {
+            let permit = memo.borrow().native_seen_permit.as_ref().map_or(0, bytes);
+            memo_seen = memo_seen
+                .checked_add(permit)
+                .ok_or_else(|| CodecError::new(code::SOURCE, "物理快读数溢出"))?;
+        }
+        let roots = self.codec_roots.borrow();
+        Ok(NativeCapturePhysical {
+            memo_seen,
+            node_index: native.index_permit.as_ref().map_or(0, bytes),
+            codec_roots: roots.public_permit.as_ref().map_or(0, bytes),
+            owner_codec: self.owner_codec_retained_bytes_for_testonly(),
+            nodes: native.nodes.len(),
+            body_capacity: native.body_capacity,
+        })
+    }
+
     /// #1488 P3-c：逐个列出本capture实际持有的Native许可字节（索引、正文块、codec根、
     /// 未转换原件费及其容器、memo seen）；按持有者枚举，不由live差额或释放读数推导。
     /// 证明、owner codec证书仍存活时拒绝（封存后应已清空，不得漏列）。
@@ -3771,34 +4041,226 @@ impl AuditCapture {
         &self,
         out: &mut Vec<usize>,
     ) -> Result<(), CodecError> {
-        let held = |p: &Option<capture_allocation::scratch::NativeReservation>| {
-            p.as_ref()
-                .map(capture_allocation::scratch::NativeReservation::bytes)
-        };
-        if self.owner_codec_retained_bytes_for_testonly() != 0 {
+        self.visit_native_permits(true, &mut |entry: CapturePermitEntry| out.push(entry.bytes))
+    }
+    /// #1572：同上清单，逐张带身份与所保护载荷；字节序列与 `native_permit_inventory_for_testonly`
+    /// 逐项相同（二者共用逐许可 visitor，边遍历边写入调用者的 out）。条目借用本 capture。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[doc(hidden)]
+    pub fn native_permit_entries_for_testonly<'a>(
+        &'a self,
+        out: &mut Vec<CapturePermitEntry<'a>>,
+    ) -> Result<(), CodecError> {
+        self.visit_native_permits(true, &mut |entry: CapturePermitEntry<'a>| out.push(entry))
+    }
+    /// #1572：存活候选的完整清单——在封存清单之外再列 owner codec 证书节点与节点证明盒的许可，
+    /// 不要求二者已清空（封存池仍用上面的严格版本）。条目借用本 capture。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[doc(hidden)]
+    pub fn native_live_permit_entries_for_testonly<'a>(
+        &'a self,
+        out: &mut Vec<CapturePermitEntry<'a>>,
+    ) -> Result<(), CodecError> {
+        {
+            let owner = self.owner_codec.borrow();
+            owner.public.permit_entries(out);
+            owner.template.permit_entries(out);
+        }
+        self.visit_native_permits(false, &mut |entry: CapturePermitEntry<'a>| out.push(entry))
+    }
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn visit_native_permits<'a>(
+        &'a self,
+        sealed: bool,
+        visit: &mut impl FnMut(CapturePermitEntry<'a>),
+    ) -> Result<(), CodecError> {
+        use CapturePermitRole as R;
+        let held = CapturePermitEntry::held;
+        if sealed && self.owner_codec_retained_bytes_for_testonly() != 0 {
             return Err(CodecError::new(
                 code::SOURCE,
                 "许可清单：owner codec证书未清空",
             ));
         }
         for memo in [&self.public, &self.template] {
-            out.extend(held(&memo.borrow().native_seen_permit));
-        }
-        if let CaptureNodes::Native(native) = &self.nodes {
-            out.extend(held(&native.index_permit));
-            for node in native.nodes.values() {
-                if node.proof.borrow().is_some() {
-                    return Err(CodecError::new(code::SOURCE, "许可清单：节点证明未清空"));
-                }
-                out.extend(node.body.native_retained_charge());
+            let memo = memo.borrow();
+            if let Some(p) = memo.native_seen_permit.as_ref() {
+                visit(held(p, R::MemoSeen, None));
             }
         }
-        out.extend(held(&self.codec_roots.borrow().public_permit));
+        if let CaptureNodes::Native(native) = &self.nodes {
+            if let Some(p) = native.index_permit.as_ref() {
+                visit(held(p, R::NodeIndex, None));
+            }
+            for (digest, node) in native.nodes.iter() {
+                let proof = node.proof.borrow();
+                if sealed && proof.is_some() {
+                    return Err(CodecError::new(code::SOURCE, "许可清单：节点证明未清空"));
+                }
+                if let Some(p) = proof.as_ref().and_then(|b| b.permit()) {
+                    visit(held(p, R::NodeProof, None));
+                }
+                if let Some(p) = node.body.native_permit_ref() {
+                    visit(held(p, R::NodeBody, Some((*digest, node.body.len()))));
+                }
+            }
+        }
+        {
+            let roots = self.codec_roots.borrow();
+            if let Some(p) = roots.public_permit.as_ref() {
+                visit(held(p, R::CodecRoots, None));
+            }
+        }
         if let Some(fees) = &self.original_fees {
-            out.extend(fees.bodies.native_retained_charge());
-            out.extend(fees.bodies.iter().filter_map(|(_, permit, _)| held(permit)));
-            out.extend(fees.table.native_retained_charge());
-            out.extend(fees.table.iter().map(|p| p.bytes()));
+            if let Some(p) = fees.bodies.native_permit_ref() {
+                visit(held(p, R::OriginalFeeBodies, None));
+            }
+            // 费用表按摘要降序、Legacy 原件升序（见 `with_original_fees_for_testonly`），逆序逐条
+            // 对位取正文长度；不查表、不分配。对不上的条目不带节点身份，对账时拒绝。
+            let mut legacy = match &self.nodes {
+                CaptureNodes::Legacy(nodes) => Some(nodes.iter().rev()),
+                _ => None,
+            };
+            for (key, permit, _) in fees.bodies.iter() {
+                let original = legacy.as_mut().and_then(Iterator::next);
+                if let Some(p) = permit.as_ref() {
+                    let body = original
+                        .filter(|(digest, _)| *digest == key)
+                        .map(|(_, (_, body))| (*key, body.len()));
+                    visit(held(p, R::OriginalFeeBody, body));
+                }
+            }
+            if let Some(p) = fees.table.native_permit_ref() {
+                visit(held(p, R::OriginalFeeTable, None));
+            }
+            for p in fees.table.iter() {
+                visit(held(p, R::OriginalFeeTableEntry, None));
+            }
+        }
+        Ok(())
+    }
+    /// #1572：逐项列出来源合同（节点正文及未转换原件费），每项带生成时所在节点的摘要与它所指
+    /// 正文许可的身份。节点项按 #1488 P2-A 先核合同额=正文+97 且正文已Native绑定；未转换原件费项
+    /// 须有同条许可。条目借用本 capture。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[doc(hidden)]
+    pub fn native_source_claim_entries_for_testonly(
+        &self,
+    ) -> Result<Vec<SourceClaimEntry<'_>>, CodecError> {
+        let unbacked = || CodecError::new(code::SOURCE, "来源合同项指不到已物理计费的正文块");
+        let mut out = Vec::new();
+        self.visit_node_source_claims(|digest, node, bytes| {
+            let backing = node.body.native_permit_ref().ok_or_else(unbacked)?;
+            out.push(SourceClaimEntry::new(
+                bytes,
+                backing.permit_id(),
+                CapturePermitRole::NodeBody,
+                *digest,
+            ));
+            Ok(())
+        })?;
+        if let Some(fees) = &self.original_fees {
+            for (key, permit, claim) in fees.bodies.iter() {
+                if let Some(amount) = claim {
+                    out.push(SourceClaimEntry::new(
+                        *amount,
+                        permit.as_ref().ok_or_else(unbacked)?.permit_id(),
+                        CapturePermitRole::OriginalFeeBody,
+                        *key,
+                    ));
+                }
+            }
+        }
+        Ok(out)
+    }
+    /// #1572：来源合同对物理清单对账（顺序无关）。物理表每张许可恰列一次，且都挂期望父账
+    /// `ledger`、来源域属 `origins`；每项合同须指到一张同位置的正文许可，且每张正文许可恰有一项
+    /// 合同（不得两项指同一正文，也不得漏签）。合同的节点须与所指正文许可的节点相同，合同额须等于
+    /// 按该正文长度独立推出的 `SourceClaim::on_len`。合同额全额保留，物理只由正文许可计一次；
+    /// 合同项本身不产生物理字节。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[doc(hidden)]
+    pub fn reconcile_native_source_claims_for_testonly(
+        entries: &[CapturePermitEntry<'_>],
+        claims: &[SourceClaimEntry<'_>],
+        ledger: usize,
+        origins: &[u64],
+    ) -> Result<SourceClaimReconciliation, CodecError> {
+        use std::collections::BTreeMap;
+        let fail = |m: &'static str| CodecError::new(code::SOURCE, m);
+        let mut physical = BTreeMap::new();
+        for entry in entries {
+            if entry.ledger != ledger {
+                return Err(fail("许可清单：许可不属期望父账"));
+            }
+            if !origins.contains(&entry.origin) {
+                return Err(fail("许可清单：许可不属期望来源域"));
+            }
+            if physical.insert(entry.id, entry).is_some() {
+                return Err(fail("许可清单：同一许可重复列出"));
+            }
+        }
+        let mut backed = BTreeMap::new();
+        let mut paired = Vec::with_capacity(claims.len());
+        for claim in claims {
+            let body = physical
+                .get(&claim.backing)
+                .filter(|e| e.role == claim.site)
+                .ok_or_else(|| fail("来源合同项指不到已物理计费的正文块"))?;
+            if backed.insert(claim.backing, ()).is_some() {
+                return Err(fail("两项来源合同指同一正文块"));
+            }
+            paired.push((claim, *body));
+        }
+        let mut out = SourceClaimReconciliation::default();
+        for (claim, body) in paired {
+            let (node, len) = body
+                .body
+                .ok_or_else(|| fail("来源合同项所指正文许可缺节点身份"))?;
+            if node != claim.node {
+                return Err(fail("来源合同项与所指正文块不是同一节点"));
+            }
+            if SourceClaim::on_len(len)?.bytes != claim.amount {
+                return Err(fail("来源合同额与所指正文块不符"));
+            }
+            out.claims += 1;
+            out.claim_amount = out
+                .claim_amount
+                .checked_add(claim.amount)
+                .ok_or_else(|| fail("来源合同额溢出"))?;
+            out.backing_bytes = out
+                .backing_bytes
+                .checked_add(body.bytes)
+                .ok_or_else(|| fail("来源合同额溢出"))?;
+        }
+        if physical
+            .values()
+            .any(|e| e.role == CapturePermitRole::NodeBody && !backed.contains_key(&e.id))
+        {
+            return Err(fail("已物理计费的正文块缺来源合同项"));
+        }
+        Ok(out)
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn visit_node_source_claims(
+        &self,
+        mut visit: impl FnMut(&NodeDigest, &NativeNode, usize) -> Result<(), CodecError>,
+    ) -> Result<(), CodecError> {
+        let CaptureNodes::Native(native) = &self.nodes else {
+            return Ok(());
+        };
+        for (digest, node) in native.nodes.iter() {
+            let Some(claim) = node.source_claim.as_ref() else {
+                continue;
+            };
+            let backed = SourceClaim::on_body(&node.body)?;
+            if backed.bytes != claim.bytes {
+                return Err(CodecError::scratch(
+                    capture_allocation::scratch::ScratchFailure::Ledger,
+                ));
+            }
+            visit(digest, node, claim.bytes)?;
         }
         Ok(())
     }
@@ -3808,26 +4270,17 @@ impl AuditCapture {
     #[cfg(feature = "s_capture_native_testonly")]
     #[doc(hidden)]
     pub fn native_source_claims_for_testonly(&self) -> Result<(usize, usize), CodecError> {
-        let CaptureNodes::Native(native) = &self.nodes else {
-            return Ok((0, 0));
-        };
-        native
-            .nodes
-            .values()
-            .filter_map(|node| node.source_claim.as_ref().map(|claim| (node, claim)))
-            .try_fold((0usize, 0usize), |(count, sum), (node, claim)| {
-                let backed = SourceClaim::on_body(&node.body)?;
-                if backed.bytes != claim.bytes {
-                    return Err(CodecError::scratch(
-                        capture_allocation::scratch::ScratchFailure::Ledger,
-                    ));
-                }
-                Ok((
-                    count + 1,
-                    sum.checked_add(claim.bytes)
-                        .ok_or_else(|| CodecError::new(code::SOURCE, "来源合同额溢出"))?,
-                ))
-            })
+        let mut acc = (0usize, 0usize);
+        self.visit_node_source_claims(|_, _, bytes| {
+            acc = (
+                acc.0 + 1,
+                acc.1
+                    .checked_add(bytes)
+                    .ok_or_else(|| CodecError::new(code::SOURCE, "来源合同额溢出"))?,
+            );
+            Ok(())
+        })?;
+        Ok(acc)
     }
     /// #1488 P3-β：正文块已物理计费（Native绑定）的节点数；与合同项数对拍，漏签claim即可检出。
     #[cfg(feature = "s_capture_native_testonly")]
@@ -8362,6 +8815,294 @@ mod native_owner_codec_bridge_tests {
             "真实析构全额还原父账"
         );
         assert_eq!(Arc::strong_count(&old_parent), 1, "析构后不留旧父引用");
+    }
+
+    /// #1572 任务D：capture 物理总额的常数时间读数=逐许可清单之和=capture 析构下降（三方对拍）；
+    /// 有未绑定的 Plain 正文时快读数拒给总额。
+    #[test]
+    fn i1572_native_physical_fast_matches_listing_and_drop() {
+        let members = ["alpha", "beta-gamma"];
+        let mut additions = MemoryNodes::new();
+        let root = write_value(
+            &mut additions,
+            &Value::Array(members.iter().map(|m| Value::string(*m)).collect()),
+        )
+        .unwrap()
+        .content_ref();
+        let mut capture = native(MemoryNodes::new());
+        let parent = Parent::new(32 << 20, 0);
+        run(&parent, |work| {
+            for (digest, (tag, body)) in additions.nodes {
+                let mut codec = CodecVec::default();
+                // 容量故意大于长度：正文许可按真实容量。
+                codec.try_reserve_native(work, body.len() + 5)?;
+                for byte in &body {
+                    codec.try_push_native(*byte, work)?;
+                }
+                assert!(capture.append_original_codec_for_owner_testonly(
+                    digest,
+                    tag,
+                    codec,
+                    usize::MAX,
+                    work
+                )?);
+            }
+            capture.verify_owner_refview_for_testonly((&root).into(), Mode::Public, work)
+        })
+        .unwrap();
+        let fast = capture.native_physical_fast_for_testonly().unwrap();
+        assert!(fast.owner_codec > 0 && fast.node_index > 0);
+        assert!(fast.nodes >= 3);
+        let total = fast
+            .total_if_all_bound(capture.native_bound_body_nodes_for_testonly())
+            .unwrap();
+        let mut entries = Vec::new();
+        capture
+            .native_live_permit_entries_for_testonly(&mut entries)
+            .unwrap();
+        let listed = entries.iter().map(|e| e.bytes()).sum::<usize>();
+        drop(entries);
+        let before = parent.native.load(Ordering::SeqCst);
+        drop(capture);
+        let dropped = before - parent.native.load(Ordering::SeqCst);
+        assert_eq!((total, listed), (dropped, dropped), "三方对拍");
+        // 负控：无原件费转换留下 Plain 正文，bound<nodes，快读数拒给总额。
+        let mut plain = MemoryNodes::new();
+        write_value(&mut plain, &Value::string("plain")).unwrap();
+        let plain = native(plain);
+        let fast = plain.native_physical_fast_for_testonly().unwrap();
+        let error = fast
+            .total_if_all_bound(plain.native_bound_body_nodes_for_testonly())
+            .unwrap_err();
+        assert!(error.to_string().contains("正文未全绑定"), "{error}");
+    }
+
+    /// #1572：同一正文的来源合同（ns 的 len+97）与物理容量（nc 的 capacity）指同一张许可。
+    /// 物理清单每张许可恰一行，SourceClaim 不产生第二张许可；顺序无关；删项、指错、重复、互换
+    /// backing、改额、混入另一父账与来源域不符均拒。
+    #[test]
+    fn i1572_source_claim_backs_single_body_permit_and_rejects_tampering() {
+        use capture_allocation::scratch::PermitId;
+        type Built = (
+            AuditCapture,
+            Arc<Parent>,
+            (usize, usize, usize),
+            (usize, u64),
+        );
+        fn appended(base: &str, members: [&str; 2]) -> Built {
+            let mut nodes = MemoryNodes::new();
+            write_value(&mut nodes, &Value::string(base)).unwrap();
+            let mut capture = native(nodes);
+            let mut additions = MemoryNodes::new();
+            write_value(
+                &mut additions,
+                &Value::Array(members.iter().map(|m| Value::string(*m)).collect()),
+            )
+            .unwrap();
+            let parent = Parent::new(32 << 20, 0);
+            let mut expected = (0usize, 0usize, 0usize);
+            let domain = run(&parent, |work| {
+                for (digest, (tag, body)) in additions.nodes {
+                    let mut codec = CodecVec::default();
+                    // 容量故意大于长度：合同额按 len+97，物理许可按真实容量。
+                    codec.try_reserve_native(work, body.len() + 9)?;
+                    for byte in &body {
+                        codec.try_push_native(*byte, work)?;
+                    }
+                    assert!(codec.capacity() > codec.len());
+                    let (len, capacity) = (codec.len(), codec.capacity());
+                    if capture.append_original_codec_for_owner_testonly(
+                        digest,
+                        tag,
+                        codec,
+                        usize::MAX,
+                        work,
+                    )? {
+                        expected.0 += 1;
+                        expected.1 += len + 97;
+                        expected.2 += capacity;
+                    }
+                }
+                // 期望父账与来源域取自真实工作域，不由被测清单算出。
+                Ok((work.ledger_id(), work.current_origin()))
+            })
+            .unwrap();
+            (capture, parent, expected, domain)
+        }
+        let (capture, parent, expected, (ledger, origin)) =
+            appended("base", ["alpha", "beta-gamma"]);
+        assert!(expected.0 >= 3, "至少三份新正文：两串与数组根");
+        let mut entries = Vec::new();
+        capture
+            .native_permit_entries_for_testonly(&mut entries)
+            .unwrap();
+        let mut bytes_only = Vec::new();
+        capture
+            .native_permit_inventory_for_testonly(&mut bytes_only)
+            .unwrap();
+        assert_eq!(
+            bytes_only,
+            entries.iter().map(|e| e.bytes()).collect::<Vec<_>>(),
+            "字节清单由身份清单投影"
+        );
+        let ids: std::collections::BTreeSet<PermitId> = entries.iter().map(|e| e.id()).collect();
+        assert_eq!(ids.len(), entries.len(), "每张许可恰一行");
+        assert!(entries
+            .iter()
+            .all(|e| e.ledger() == ledger && e.origin() == origin));
+        let bodies: Vec<_> = entries
+            .iter()
+            .filter(|e| e.role() == CapturePermitRole::NodeBody)
+            .copied()
+            .collect();
+        assert_eq!(bodies.len(), expected.0);
+        assert_eq!(bodies.iter().map(|e| e.bytes()).sum::<usize>(), expected.2);
+        assert!(bodies.iter().all(|e| e.body().is_some()));
+        // 本父账上所有Native许可都在清单中：合同项没有在父账另签同额物理许可。
+        assert_eq!(
+            entries.iter().map(|e| e.bytes()).sum::<usize>(),
+            parent.native.load(Ordering::SeqCst),
+            "父账Native live 恰等于清单之和"
+        );
+        let claims = capture.native_source_claim_entries_for_testonly().unwrap();
+        let reconcile = |entries: &[CapturePermitEntry], claims: &[SourceClaimEntry]| {
+            AuditCapture::reconcile_native_source_claims_for_testonly(
+                entries,
+                claims,
+                ledger,
+                &[origin],
+            )
+        };
+        let ok = reconcile(&entries, &claims).unwrap();
+        assert_eq!(
+            ok,
+            SourceClaimReconciliation {
+                claims: expected.0,
+                claim_amount: expected.1,
+                backing_bytes: expected.2,
+            }
+        );
+        assert_eq!(
+            capture.native_source_claims_for_testonly().unwrap(),
+            (expected.0, expected.1)
+        );
+        assert!(claims
+            .iter()
+            .all(|c| bodies.iter().any(|b| b.id() == c.backing())));
+        // 顺序无关。
+        let (mut rev_entries, mut rev_claims) = (entries.clone(), claims.clone());
+        rev_entries.reverse();
+        rev_claims.reverse();
+        assert_eq!(reconcile(&rev_entries, &rev_claims).unwrap(), ok);
+        let reject = |entries: &[CapturePermitEntry], claims: &[SourceClaimEntry]| {
+            reconcile(entries, claims)
+                .err()
+                .expect("必须拒绝")
+                .to_string()
+        };
+        // 删一项合同：已计费正文缺合同项。
+        let error = reject(&entries, &claims[1..]);
+        assert!(error.contains("缺来源合同项"), "{error}");
+        // 指到另一节点的正文：两项指同一正文。
+        let mut wrong = claims.clone();
+        wrong[0] = wrong[0].with_backing_for_test(wrong[1].backing());
+        let error = reject(&entries, &wrong);
+        assert!(error.contains("两项来源合同指同一正文块"), "{error}");
+        // 两项合法合同互换 backing：许可各用一次、总额不变，但合同节点与正文节点不符。
+        let mut swapped = claims.clone();
+        let (first, second) = (swapped[0].backing(), swapped[1].backing());
+        swapped[0] = swapped[0].with_backing_for_test(second);
+        swapped[1] = swapped[1].with_backing_for_test(first);
+        let error = reject(&entries, &swapped);
+        assert!(
+            error.contains("来源合同项与所指正文块不是同一节点"),
+            "{error}"
+        );
+        // 改一项合同额：按 backing 正文长度独立推出的合同额不符。
+        let mut amended = claims.clone();
+        amended[0] = amended[0].with_amount_for_test(amended[0].amount() + 1);
+        let error = reject(&entries, &amended);
+        assert!(error.contains("来源合同额与所指正文块不符"), "{error}");
+        // 指到非正文许可，或指到清单外不存在的许可。
+        let absent = 0u8;
+        let mut targets: Vec<PermitId> = entries
+            .iter()
+            .filter(|e| e.role() != CapturePermitRole::NodeBody)
+            .map(|e| e.id())
+            .collect();
+        targets.push(PermitId::of(&absent));
+        for target in targets {
+            let mut wrong = claims.clone();
+            wrong[0] = wrong[0].with_backing_for_test(target);
+            let error = reject(&entries, &wrong);
+            assert!(error.contains("指不到已物理计费的正文块"), "{error}");
+        }
+        // 正文许可重复列出。
+        let mut doubled = entries.clone();
+        doubled.push(bodies[0]);
+        let error = reject(&doubled, &claims);
+        assert!(error.contains("同一许可重复列出"), "{error}");
+        // 来源域不符：一张许可改记另一来源域；或调用方期望另一来源域。
+        let mut stale = entries.clone();
+        stale[0] = stale[0].with_origin_for_test(origin + 1);
+        let error = reject(&stale, &claims);
+        assert!(error.contains("许可不属期望来源域"), "{error}");
+        let error = AuditCapture::reconcile_native_source_claims_for_testonly(
+            &entries,
+            &claims,
+            ledger,
+            &[origin + 1],
+        )
+        .err()
+        .expect("必须拒绝")
+        .to_string();
+        assert!(error.contains("许可不属期望来源域"), "{error}");
+        // 混入另一个 Parent 下 capture 的条目与合同；其自身在本父账下对账成功。
+        let (foreign, foreign_parent, foreign_expected, (foreign_ledger, foreign_origin)) =
+            appended("other", ["delta", "epsilon-zeta"]);
+        assert_ne!(foreign_ledger, ledger);
+        let mut foreign_entries = Vec::new();
+        foreign
+            .native_permit_entries_for_testonly(&mut foreign_entries)
+            .unwrap();
+        let foreign_claims = foreign.native_source_claim_entries_for_testonly().unwrap();
+        assert_eq!(
+            AuditCapture::reconcile_native_source_claims_for_testonly(
+                &foreign_entries,
+                &foreign_claims,
+                foreign_ledger,
+                &[foreign_origin],
+            )
+            .unwrap()
+            .claims,
+            foreign_expected.0
+        );
+        let foreign_body = foreign_entries
+            .iter()
+            .find(|e| e.role() == CapturePermitRole::NodeBody)
+            .copied()
+            .unwrap();
+        let mut mixed = entries.clone();
+        mixed.push(foreign_body);
+        let error = reject(&mixed, &claims);
+        assert!(error.contains("许可不属期望父账"), "{error}");
+        let (mut mixed, mut mixed_claims) = (entries.clone(), claims.clone());
+        mixed.extend(foreign_entries.iter().copied());
+        mixed_claims.extend(foreign_claims.iter().copied());
+        let error = reject(&mixed, &mixed_claims);
+        assert!(error.contains("许可不属期望父账"), "{error}");
+        // 合同改指另一父账的正文 backing（条目未混入）：指不到本清单的正文块。
+        let mut wrong = claims.clone();
+        wrong[0] = wrong[0].with_backing_for_test(foreign_body.id());
+        let error = reject(&entries, &wrong);
+        assert!(error.contains("指不到已物理计费的正文块"), "{error}");
+        drop(foreign_entries);
+        drop(foreign_claims);
+        drop(foreign);
+        assert_eq!(foreign_parent.native.load(Ordering::SeqCst), 0);
+        drop((entries, claims, bodies, rev_entries, rev_claims));
+        drop(capture);
+        assert_eq!(parent.native.load(Ordering::SeqCst), 0, "析构全额归还");
     }
 
     #[test]

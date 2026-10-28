@@ -493,6 +493,11 @@ impl<T> CodecVec<T> {
             .as_ref()
             .map(super::scratch::NativeReservation::bytes)
     }
+    /// #1572：本块Native许可（只读，不签发、不转移）；与 `native_retained_charge` 同一张许可。
+    #[doc(hidden)]
+    pub fn native_permit_ref(&self) -> Option<&super::scratch::NativeReservation> {
+        self.native_permit.as_ref()
+    }
     /// Native 写入必须带本次活 scope；共享入口核父身份并先准入完整新块。
     pub fn try_push_native(
         &mut self,

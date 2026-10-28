@@ -3042,3 +3042,36 @@ mod u2_exit_adopt_tests {
         );
     }
 }
+/// #1572 逐项U：候选持有者的非销毁物理读数。只读许可字节，不签发、不转移、不改布局；
+/// 各读数与该持有者析构时父账 live 的下降逐项对拍（`audit_owner::i1572_candidate_items`）。
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+impl Permit {
+    pub(crate) fn bytes(&self) -> usize {
+        self.bytes
+    }
+}
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+impl<T> Reserved<T> {
+    /// 本持有者自身那张许可；内层载荷若另持许可，由调用方逐层加总。
+    pub(crate) fn permit_bytes(&self) -> usize {
+        self._permit.bytes
+    }
+}
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+impl<T> Tracked<T> {
+    /// 外层容器许可；无父账路径为 None。
+    pub(crate) fn fee_bytes(&self) -> Option<usize> {
+        self.fee.as_ref().map(|p| p.bytes)
+    }
+}
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+impl<V> Tree<V> {
+    /// 槽位表许可加逐项许可。
+    pub(crate) fn permit_bytes(&self) -> usize {
+        self.fees
+            .inner
+            .iter()
+            .flatten()
+            .fold(self.fees._permit.bytes, |a, p| a.saturating_add(p.bytes))
+    }
+}

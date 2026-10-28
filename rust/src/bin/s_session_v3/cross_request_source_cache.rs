@@ -536,7 +536,8 @@ impl Pool {
     /// #1488 P3-c：按持有者逐张列出池实际持有的Native许可字节（原件capture、binding各层
     /// CodecVec/文本/单元、proofs块与Key/证书值）。负控注入的 seal_fault_duplicate 不属任何
     /// 持有者，故不在清单内；普查以清单对拍逐张归还，确定地识别多签。
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    /// #1572：冻结入口亦据此逐项清点keeper组的物理额（同一清单，不另起口径）。
+    #[cfg(feature = "s_capture_native_testonly")]
     pub(super) fn native_permit_inventory_for_testonly(&self) -> Result<Vec<usize>, String> {
         use super::business_json::TextValue;
         let mut out = Vec::new();
@@ -649,6 +650,18 @@ impl Keeper {
     #[cfg(feature = "s_capture_native_testonly")]
     pub(super) fn source_home(&self) -> Option<&super::audit_owner::native::Budget> {
         self.pool.as_ref().and_then(|pool| pool.home.as_ref())
+    }
+    /// #1572：池在其父账上实际持有的Native许可字节（逐张清点之和）；无池为None。
+    #[cfg(feature = "s_capture_native_testonly")]
+    pub(super) fn retained_source_physical(&self) -> Result<Option<usize>, String> {
+        let Some(pool) = self.pool.as_ref() else {
+            return Ok(None);
+        };
+        pool.native_permit_inventory_for_testonly()?
+            .into_iter()
+            .try_fold(0usize, usize::checked_add)
+            .map(Some)
+            .ok_or_else(|| "S3WriterResourcesInvalid：keeper池物理额溢出".into())
     }
     #[cfg(feature = "s_capture_native_testonly")]
     pub(super) fn has_pool(&self) -> bool {

@@ -1039,3 +1039,37 @@ fn actual_nonempty_native_q_accept_preserves_full_raw_without_manual_double_char
     assert!(c.resources.live() >= raw_owner.retained_heap_bytes());
     assert_eq!(c.charge.q_capacity, c.q.retained_bytes());
 }
+
+/// #1572 逐项U：Q 事实在候选父账上持有的全部许可字节（非销毁读数）。逐字段穷举，含为 audited
+/// raw 载荷代持的 `raw_capacity`/`raw_fees`；与候选析构探针中 q 那一步的 live 下降对拍。
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
+impl Facts {
+    pub(super) fn permit_bytes(&self) -> usize {
+        let Self {
+            clock,
+            sid,
+            inc,
+            raw_tails,
+            coordinates,
+            pending,
+            frontiers,
+            raw_capacity,
+            raw_fees,
+            ..
+        } = self;
+        sum([
+            clock.permit_bytes(),
+            sid.permit_bytes(),
+            inc.permit_bytes(),
+            raw_tails.permit_bytes(),
+            sum(raw_tails.keys().map(native::Reserved::permit_bytes)),
+            coordinates.permit_bytes(),
+            sum(coordinates.values().map(native::Reserved::permit_bytes)),
+            pending.permit_bytes(),
+            frontiers.permit_bytes(),
+            raw_capacity.as_ref().map_or(0, native::Permit::bytes),
+            raw_fees.permit_bytes(),
+            sum(raw_fees.iter().map(native::Permit::bytes)),
+        ])
+    }
+}
