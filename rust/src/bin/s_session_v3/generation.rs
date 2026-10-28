@@ -5521,6 +5521,53 @@ mod tests {
         assert!(any_units, "修订夹具须产生比较单元");
     }
 
+    /// 以同 identity 更高修订把 `delta_long_fixture` 的若干根改坐标（一次一根，同代施加）。
+    fn moved_events(moves: &[(usize, &str)]) -> Vec<Value> {
+        let mut events = delta_long_fixture();
+        for (n, (idx, coord)) in moves.iter().enumerate() {
+            let mut moved = events[*idx].clone();
+            let seq = 15 + n;
+            for (k, v) in [
+                ("revision", json!(2)),
+                ("input_revision", json!("2")),
+                ("seq", json!(seq)),
+                ("source_coord", json!(coord)),
+                ("ts", json!(coord)),
+                ("payload_hash", json!(format!("moved-{n}"))),
+                ("receipt_id", json!(format!("receipt-{seq}"))),
+            ] {
+                moved[k] = v;
+            }
+            events.push(moved);
+        }
+        events
+    }
+
+    /// #1780 独审 C-1 真负控：中段 bar（不是任何分型的首/末单元）换坐标。其旧坐标的批记录必须
+    /// 判脏移除，与冷算逐字节相同；判脏起点取 producer 失效水位（min(旧坐标, 新坐标)）。
+    /// 覆盖后移到尾（b5/b6/b10/b11/b12 → 1000）、前移（b10 100→105）与同代两根中段互换。
+    #[test]
+    fn bounded_layout_cc007_batches_mid_coordinate_move_incremental_equals_cold() {
+        let cases: Vec<(&str, Vec<(usize, &str)>)> = vec![
+            ("b5→1000", vec![(5, "1000")]),
+            ("b6→1000", vec![(6, "1000")]),
+            ("b10→1000", vec![(10, "1000")]),
+            ("b11→1000", vec![(11, "1000")]),
+            ("b12→1000", vec![(12, "1000")]),
+            ("b10→105", vec![(10, "105")]),
+            ("b6↔b11", vec![(6, "110"), (11, "60")]),
+        ];
+        for (label, moves) in cases {
+            let events = moved_events(&moves);
+            let base = delta_long_fixture().len();
+            let runs = bounded_layout_runs(&events, &[base, events.len()]);
+            for (i, (sorted, bounded)) in runs.iter().enumerate() {
+                let (units, _) = assert_bounded_crosswalk(i + 1, sorted, bounded);
+                assert!(units > 0, "{label}: 夹具须产生比较单元");
+            }
+        }
+    }
+
     #[test]
     fn layout1_generation_has_no_development_batch_and_keeps_line_order_requests() {
         let events = delta_long_fixture();
