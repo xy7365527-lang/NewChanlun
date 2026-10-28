@@ -51,6 +51,7 @@ mod bi_zhongshu_bsp;
 mod buysellpoint;
 #[cfg(test)]
 mod c_segment_verify;
+pub mod diagnostic_fill;
 mod divergence;
 mod fractal;
 /// 赋格引擎 v3（递归嵌套多重赋格 = 操作必然结构）。层结构四步循环操作引擎，复用
