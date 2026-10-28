@@ -18,10 +18,11 @@
  */
 import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { CLIPROXY_BASE_URL, CLIPROXY_CONFIG, extractFirstApiKey, readCliProxyAccessKey } from "./cliproxy-env.mts";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { MAIN_MODEL } from "./main-model.mts";
+import { DRAIN_ROOT, DrainFrozenError, drainRequested, withLegacyAdmission } from "./drain-control.mts";
 
 // ───────────────────────── 常量 ─────────────────────────
 
@@ -29,8 +30,8 @@ export const MODEL_MAIN = MAIN_MODEL;
 export const MODEL_OPUS = "claude-opus-5-5";
 export const MODEL_DRAFTER = MODEL_OPUS;
 export const MODEL_REVIEW = MODEL_MAIN;
-export const PROXY_BASE_URL = "http://127.0.0.1:8318";
-export const PROXY_CONFIG = join(homedir(), "Library/Application Support/CLIProxyLocal/config.yaml");
+export const PROXY_BASE_URL = CLIPROXY_BASE_URL;
+export { CLIPROXY_CONFIG, CLIPROXY_CONFIG as PROXY_CONFIG, extractFirstApiKey };
 export const DEFAULT_OUT_ROOT = "/Volumes/AgentStorage/decisions";
 export const DEFAULT_MAPS = [1323, 1340];
 export const MAX_CONCURRENT = 3;
@@ -104,51 +105,6 @@ function toTicket(s: string): number {
 }
 
 // ───────────────────────── 令牌 ─────────────────────────
-
-/** 从 CLIProxyLocal config.yaml 文本取 access.api-keys 首项（纯函数，不依赖 yaml 库）。 */
-export function extractFirstApiKey(yamlText: string): string | null {
-  const lines = yamlText.split(/\r?\n/);
-  let inAccess = false;
-  let keysIndent = -1;
-  for (const raw of lines) {
-    if (/^\s*(#.*)?$/.test(raw)) continue;
-    const indent = raw.length - raw.trimStart().length;
-    const line = raw.trim();
-    if (indent === 0) {
-      inAccess = /^access:\s*$/.test(line);
-      keysIndent = -1;
-      continue;
-    }
-    if (!inAccess) continue;
-    if (keysIndent < 0) {
-      const m = /^api-keys:\s*(.*)$/.exec(line);
-      if (!m) continue;
-      const inline = m[1].trim();
-      if (inline.startsWith("[")) {
-        const first = inline.replace(/^\[|\]$/g, "").split(",")[0]?.trim();
-        return first ? unquote(first) : null;
-      }
-      keysIndent = indent;
-      continue;
-    }
-    if (indent <= keysIndent && !line.startsWith("-")) return null;
-    if (line.startsWith("-")) {
-      const v = unquote(line.slice(1).trim());
-      return v || null;
-    }
-  }
-  return null;
-}
-
-function unquote(s: string): string {
-  return s.replace(/\s+#.*$/, "").replace(/^["']|["']$/g, "");
-}
-
-function readProxyToken(): string {
-  const tok = extractFirstApiKey(readFileSync(PROXY_CONFIG, "utf8"));
-  if (!tok) throw new Error("CLIProxyLocal config 未找到 access.api-keys 首项");
-  return tok;
-}
 
 // ───────────────────────── 模型输出解析 ─────────────────────────
 
@@ -608,7 +564,7 @@ export function makeClaudeRunner(opts: {
   const sleep = opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
   const once = opts.once ?? claudeOnce;
   return async (c) => {
-    const token = (opts.token ?? readProxyToken)();
+    const token = (opts.token ?? readCliProxyAccessKey)();
     const t0 = Date.now();
     for (let attempt = 1; ; attempt++) {
       const r = await once(c, token, timeoutMs);
@@ -999,6 +955,7 @@ ${draft}`;
 
 export interface Deps {
   mode: Mode;
+  drainRoot?: string;
   /** ADR 编号预留表与锁所在目录；缺省 outRoot。 */
   stateDir?: string;
   gh: GhRunner;
@@ -1223,12 +1180,14 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
 
     // claim 先行防重复；续做时允许票仍挂在自己名下（上次没来得及取消认领）。
     if (d.mode === "live") {
-      const mine = resume && d.me && t.assignees.length === 1 && t.assignees[0] === d.me;
-      if (t.assignees.length > 0 && !mine) throw new Error(`票已被 ${t.assignees.join(",")} 认领`);
-      if (!mine) d.gh(["issue", "edit", String(n), "--add-assignee", "@me"]);
-      claimed = true;
-      const after = loadTicket(d.gh, n).assignees;
-      if (after.length !== 1 || (d.me && after[0] !== d.me)) throw new Error(`claim 竞争：assignees=${after.join(",")}`);
+      await withLegacyAdmission(() => {
+        const mine = resume && d.me && t.assignees.length === 1 && t.assignees[0] === d.me;
+        if (t.assignees.length > 0 && !mine) throw new Error(`票已被 ${t.assignees.join(",")} 认领`);
+        if (!mine) d.gh(["issue", "edit", String(n), "--add-assignee", "@me"]);
+        claimed = true;
+        const after = loadTicket(d.gh, n).assignees;
+        if (after.length !== 1 || (d.me && after[0] !== d.me)) throw new Error(`claim 竞争：assignees=${after.join(",")}`);
+      }, d.drainRoot);
     } else summary.plannedWrites.push(`claim：assign #${n}`);
 
     const persist = () => writeJson(join(dir, "summary.json"), summary);
@@ -1256,7 +1215,8 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
     const cls = parseClassification(cr.text);
     summary.durationsMs.classify = cr.durationMs;
     summary.klass = cls.klass;
-    writeJson(join(dir, "classify.json"), { ticket: n, model: cr.model ?? MODEL_MAIN, ...cls, durationMs: cr.durationMs, raw: cr.text });
+    const classifySwitches = (summary.modelSwitches ?? []).filter((x) => x.role === "classify");
+    writeJson(join(dir, "classify.json"), { ticket: n, model: cr.model ?? MODEL_MAIN, ...(classifySwitches.length ? { modelSwitches: classifySwitches } : {}), ...cls, durationMs: cr.durationMs, raw: cr.text });
     write(`评论 #${n}：分级：${cls.klass} — ${cls.reason}`, ["issue", "comment", String(n), "--body-file", "-"], `分级：${cls.klass} — ${cls.reason}`);
 
     // 1b. 考古：起草前两路搜，逐点 A/B/C。机械校验不过的问题交审查（草稿因此 BLOCK），升档重做时仍用主控模型重跑考古。
@@ -1348,11 +1308,12 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
         blocked: review.parseError ? [] : review.items.filter((i) => i.verdict === "BLOCK").map((i) => i.rule),
         problems: review.problems,
       });
+      const reviewSwitches = (summary.modelSwitches ?? []).filter((x) => x.role === "review");
       writeJson(join(dir, "review.json"), {
         ticket: n, attempt: s.attempt, mode: s.draftMode, drafter: drafterUsed, reviewer: reviewerUsed, klass: s.klass,
         verdict: review.parseError ? "review_parse_error" : review.verdict, parseError: review.parseError, retried,
         items: review.parseError ? [] : review.items, problems: review.problems, draftMissingSections: missing,
-        durationMs: rr.durationMs, raw: rr.text,
+        durationMs: rr.durationMs, ...(reviewSwitches.length ? { modelSwitches: reviewSwitches } : {}), raw: rr.text,
       });
       if (review.parseError) {
         s = { ...s, phase: "review_parse_error" };
@@ -1421,6 +1382,13 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
     if (s.phase === "review_parse_error") write(`取消认领 #${n}（审查解析失败，待重跑）`, ["issue", "edit", String(n), "--remove-assignee", "@me"]);
     summary.phase = s.phase === "land_t" || s.phase === "shadow_p" || s.phase === "review_parse_error" ? s.phase : "done";
   } catch (e) {
+    if (e instanceof DrainFrozenError) {
+      // 冻结不覆盖既有断点：排空后解冻由下一轮续做。
+      skipPersist = true;
+      summary.phase = "skipped";
+      summary.error = e.message;
+      return summary;
+    }
     summary.phase = "error";
     summary.error = e instanceof Error ? e.message : String(e);
     if (claimed) {
@@ -1474,7 +1442,7 @@ async function landT(t: TicketContext, draft: string, target: string, dir: strin
   fetchMain(d.repoRoot, d.git);
   if (existsSync(wt)) d.git(d.repoRoot, ["worktree", "remove", "--force", wt]);
   d.git(d.repoRoot, ["worktree", "add", "-B", branch, wt, MAIN_REF]);
-  const lr = await d.model({ model: MODEL_OPUS, prompt: landPrompt(t, stripFlowSections(draft), target), cwd: wt, role: "land", allowWrite: true });
+  const lr = await d.model({ model: MODEL_MAIN, prompt: landPrompt(t, stripFlowSections(draft), target), cwd: wt, role: "land", allowWrite: true });
   s.durationsMs.land = lr.durationMs;
   const changed = d.git(wt, ["status", "--porcelain"]).split("\n").filter(Boolean).map((l) => l.slice(3));
   if (changed.length === 0) throw new Error("落地工蜂未改动正本");
@@ -1621,7 +1589,7 @@ async function main() {
   const gh = guardGh(a.mode, realGh);
   const srcDir = join(a.outRoot, ".src");
   const d: Deps = {
-    mode: a.mode, gh, git, model: makeClaudeRunner(), outRoot: a.outRoot, srcDir, repoRoot: REPO_ROOT, now: Date.now,
+    mode: a.mode, drainRoot: DRAIN_ROOT, gh, git, model: makeClaudeRunner(), outRoot: a.outRoot, srcDir, repoRoot: REPO_ROOT, now: Date.now,
     me: a.mode === "live" ? gh(["api", "user", "--jq", ".login"]).trim() : undefined,
   };
   if (a.archaeologyOnly) {
@@ -1629,7 +1597,7 @@ async function main() {
     log(`考古 only：取证检出对齐远端 main ${sha.slice(0, 10)}`);
     for (const n of a.tickets) {
       try {
-        const r = await archaeologyOnly(n, d);
+        const r = await withLegacyAdmission(() => archaeologyOnly(n, d), d.drainRoot);
         log(`#${n} 考古 A ${r.counts.A} / B ${r.counts.B} / C ${r.counts.C}；机械校验${r.problems.length ? `问题 ${r.problems.length} 条：${r.problems.join("；")}` : "通过"}；${r.dir}/${ARCHAEOLOGY_FILE}`);
       } catch (e) {
         log(`#${n} 考古失败：${e instanceof Error ? e.message : String(e)}`);
@@ -1639,6 +1607,7 @@ async function main() {
     return;
   }
   for (;;) {
+    if (drainRequested(d.drainRoot)) { log("旧入口冻结，已领工作收尾后退出"); return; }
     try {
       const sha = ensureSrc(REPO_ROOT, srcDir, git);
       log(`取证检出对齐远端 main ${sha.slice(0, 10)}`);

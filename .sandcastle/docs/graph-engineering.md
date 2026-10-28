@@ -93,19 +93,20 @@ wayfinder_engine 下一轮重扫；FU blocker 全关的实施票被挂 `sandcast
 
 ## 调用通道
 
-`spawn_agent` 是会话内工具，launchd 脚本调不到。所有后台工蜂走 Claude CLI 经本机统一路由：
+`spawn_agent` 是会话内工具，launchd 脚本调不到。裁决面与 wayfinder spec 起草保留 Claude CLI 控制通道；Sandcastle 实施/独审默认使用下述 Codex 执行通道：
 
 ```bash
 ANTHROPIC_BASE_URL=http://127.0.0.1:8318 \
 ANTHROPIC_AUTH_TOKEN=<运行时从 CLIProxyLocal config 读取，不落日志> \
-claude -p --model claude-opus-5-5 --output-format stream-json
+claude -p --bare --model gpt-6.1-sol --output-format stream-json
 ```
 
-模型分工：分级、考古等工具步骤与独审使用主控模型 `gpt-6.1-sol`；起草与落地使用 `claude-opus-5-5`。429 等临时错误按退避重试。安全拦截（`safeguards flagged this message`）不算临时错误：该步改用另一家族模型重试一次，本票内该角色粘住，切换写入 `summary.json` 的 `modelSwitches` 与日志（#1785）。起草被拦后改用主控模型时，独审改用 Opus；独审被拦且没有异家族可用模型时必须 FAIL-loud，禁止同家族静默放行。
+2026-10-25 用户裁定（#1617）：决策裁决面的分级、考古与独审使用 `.sandcastle/main-model.mts` 的 `gpt-6.1-sol`；起草与落地使用 `claude-opus-5-5`。429 按退避重试，打回重做不换模型；安全拦截按本文件上方的异家族改派与 FAIL-loud 规则执行。真实 `--bare` 冒烟见该票验收记录。
 
-执行面 `main.mts` 由 prime-agent 改为 Sandcastle `claudeCode` provider，走同一环境变量。沙盒后端用 noSandbox + 独立 worktree（判例：#1456 `codex-child.ts`）；Docker daemon 与 `sandcastle:newchanlun` 镜像就绪后再切回 docker。
+执行面 `main.mts` 与 `main-swarm.mts` 使用 Sandcastle `codex` provider，走同一模型配置。noSandbox 用 `127.0.0.1:8318`；Docker 保留隔离并用 `host.docker.internal:8318`，镜像安装 Codex CLI（Claude 仅供显式 legacy），Codex 客户端密钥只从进程/launchctl 的 `CLIPROXY_LOCAL_KEY` 经运行时 env 进入；main-swarm 在领票前做容器连通性硬检查，失败不换模型、不认领（#1617）。
 
 ## 宿主约束
+
 
 Sandcastle 宿主 `NewChanlun-sandcastle-host` 开启 `SANDCASTLE_HOST_AUTO_UPDATE=1`：每次派工前 `reset --hard origin/main`，工作区脏则拒绝派工。因此执行面的任何改动都必须经 PR 合入 origin/main，宿主上不保留本地提交。
 
@@ -122,3 +123,11 @@ Sandcastle 宿主 `NewChanlun-sandcastle-host` 开启 `SANDCASTLE_HOST_AUTO_UPDA
 3. 执行面：claim-loop 派出的实施工蜂实际产生输出（上下文非 0、有 commit 或明确 blocked 结论）。
 4. health-monitor 发现停摆能变 _red_ 并自愈，进度页可看。
 5. 以上改动经 PR 合入 main（人闸）。
+
+### Codex 单票阶段交付（#1617，2026-10-25）
+
+实施票每 run 仍是一票。作者在 workspace-write 下改源码并报告实际验证，受管宿主核完整文件集合并提交；独审读精确 commit，修正经同一宿主步骤提交。Rust 验证在封包后由宿主调用 nc-remote/CI；未验证不算验收完成。此职责分离已经用户明确批准，不扩大工蜂沙箱权限，main 合入仍是人闸。
+
+旧段落中 Docker/swarm 的模型配置只说明路由，不代表执行可用：namespace 和 swarm 提交责任迁移未验收，默认 namespace 探针失败时入口在 planner/认领之前 fail-loud。主控不得将此候选的单票宿主冒烟计为 swarm 或全图验收。
+
+Codex 的受管提交提示使用 codex-implement-prompt.md / codex-review-prompt.md；旧 implement-prompt.md / review-prompt.md 保持原调用合同。swarm namespace 恢复后仍须补完并验证其提交责任迁移，本票该项尚未闭合。

@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -151,6 +152,7 @@ function fakeDeps(mode: "dry-run" | "live", replies: string[], archReplies: stri
   };
   const d: Deps = {
     mode,
+    drainRoot: mkdtempSync(join(tmpdir(), "decision-drain-")),
     gh: guardGh(mode, raw),
     git: () => { throw new Error("dry-run 不应调 git"); },
     model: async (c) => {
@@ -557,7 +559,7 @@ function liveDeps(replies: Array<string | Error>, opts: { failGh?: (a: string[])
   };
   const gitCalls: string[][] = [];
   const d: Deps = {
-    mode: "live", gh, me: "me",
+    mode: "live", drainRoot: mkdtempSync(join(tmpdir(), "decision-drain-live-")), gh, me: "me",
     git: (_cwd, args) => {
       gitCalls.push(args);
       if (args[0] === "status") return `?? ${target}\n`;
@@ -609,6 +611,7 @@ test("live T 类：审查 PASS 后落地失败记 reviewed_pass，下一轮只�
   assert.equal(s2.resumedFrom, "reviewed_pass");
   assert.equal(s2.stage, undefined);
   assert.deepEqual(modelCalls.map((c) => c.role), ["land"]);
+  assert.equal(modelCalls[0].model, MODEL_MAIN, "落地是工具侧，必须用主控模型");
   assert.deepEqual(writesOf(ghCalls), ["issue edit 1565 --add-assignee", "issue comment 1565 --body-file"]);
   assert.ok(gitCalls.some((a) => a[0] === "push"));
   assert.equal(JSON.parse(readFileSync(join(dir, "summary.json"), "utf8")).stage, undefined);
@@ -1045,6 +1048,67 @@ test("--archaeology-only 与 processTicket 共用目录锁", async () => {
   await assert.rejects(archaeologyOnly(1531, d), /另一进程正在处理/);
 });
 
+const drainHelper = join(process.cwd(), ".sandcastle", "drain-control.py");
+const drainCli = (d: Deps, command: "freeze" | "resume", ...args: string[]) =>
+  execFileSync("python3", [drainHelper, command, "--root", d.drainRoot!, ...args]);
+
+test("冻结保留 T 类已推送断点及认领，解冻只补 resolution 不重复提交", async () => {
+  const h = liveDeps([fence({ class: "T", reason: "接口" }), goodDraft, fence(pass()), "已写入"]);
+  h.fail((a) => (a[1] === "comment" && h.comments.length > 0) || a[3] === "--remove-assignee");
+  const first = await processTicket(1565, h.d);
+  assert.equal(first.stage, "reviewed_pass");
+  assert.equal(first.landedSha, "abcdef1234567890");
+  h.stopFail();
+  const dir = join(h.d.outRoot, "1565");
+  const before = readFileSync(join(dir, "summary.json"), "utf8");
+  h.ghCalls.length = h.modelCalls.length = h.gitCalls.length = 0;
+  drainCli(h.d, "freeze");
+  const frozen = await processTicket(1565, h.d);
+  assert.equal(frozen.phase, "skipped");
+  assert.equal(readFileSync(join(dir, "summary.json"), "utf8"), before);
+  assert.equal(loadResume(dir)?.prev.stage, "reviewed_pass");
+  assert.deepEqual(writesOf(h.ghCalls), []);
+  assert.deepEqual(h.modelCalls, []);
+  drainCli(h.d, "resume", "--generation", "1");
+  const resumed = await processTicket(1565, h.d);
+  assert.equal(resumed.resumedFrom, "reviewed_pass");
+  assert.equal(resumed.phase, "land_t");
+  assert.deepEqual(writesOf(h.ghCalls), ["issue comment 1565 --body-file"]);
+  assert.deepEqual(h.modelCalls, []);
+  assert.deepEqual(h.gitCalls, []);
+});
+
+test("冻结保留 P 类 pDone，解冻只补标签和取消认领而不重复影子评论", async () => {
+  const h = liveDeps([fence({ class: "P", reason: "资金参数" }), goodDraft, fence(pass())]);
+  h.fail((a) => a[3] === "--add-label");
+  const first = await processTicket(1565, h.d);
+  assert.equal(first.stage, "shadow_p_pending");
+  assert.deepEqual(first.pDone, ["comment"]);
+  h.stopFail();
+  const dir = join(h.d.outRoot, "1565");
+  const before = readFileSync(join(dir, "summary.json"), "utf8");
+  h.ghCalls.length = h.modelCalls.length = h.gitCalls.length = 0;
+  drainCli(h.d, "freeze");
+  const frozen = await processTicket(1565, h.d);
+  assert.equal(frozen.phase, "skipped");
+  assert.equal(readFileSync(join(dir, "summary.json"), "utf8"), before);
+  assert.deepEqual(loadResume(dir)?.prev.pDone, ["comment"]);
+  assert.deepEqual(writesOf(h.ghCalls), []);
+  drainCli(h.d, "resume", "--generation", "1");
+  const resumed = await processTicket(1565, h.d);
+  assert.equal(resumed.phase, "shadow_p");
+  assert.equal(resumed.resumedFrom, "shadow_p_pending");
+  assert.deepEqual(writesOf(h.ghCalls), ["issue edit 1565 --add-assignee", "issue edit 1565 --add-label", "issue edit 1565 --remove-assignee"]);
+  assert.equal(h.comments.filter((c) => c.body.includes("P 类影子模式")).length, 1);
+  assert.deepEqual(h.modelCalls, []);
+  assert.deepEqual(h.gitCalls, []);
+});
+
+test("锁：旧入口主循环每轮开始检查 drainRequested", () => {
+  const source = readFileSync(join(process.cwd(), ".sandcastle", "decision-claimer.mts"), "utf8");
+  assert.match(source, /for \(;;\) \{\s*if \(drainRequested\(d\.drainRoot\)\)/);
+});
+
 // ───────────── #1785：安全拦截改派与异家族独审 ─────────────
 
 /** 真实 runner 的安全拦截错误形状；安全拦截不是临时错误，不能退避重发同一模型。 */
@@ -1164,7 +1228,9 @@ test("F-1：分级/考古改派后记录实际模型与 modelSwitches，未改�
   const s = await processTicket(1783, d);
   assert.equal(s.phase, "land_t", s.error ?? "");
   const dir = join(d.outRoot, "1783");
-  assert.equal(JSON.parse(readFileSync(join(dir, "classify.json"), "utf8")).model, MODEL_DRAFTER);
+  const cj = JSON.parse(readFileSync(join(dir, "classify.json"), "utf8"));
+  assert.equal(cj.model, MODEL_DRAFTER);
+  assert.deepEqual(cj.modelSwitches, [{ role: "classify", from: MODEL_MAIN, to: MODEL_DRAFTER, reason: "safeguard" }]);
   const aj = JSON.parse(readFileSync(join(dir, "archaeology.json"), "utf8"));
   assert.equal(aj.model, MODEL_DRAFTER);
   assert.deepEqual(aj.modelSwitches, [{ role: "archaeology", from: MODEL_MAIN, to: MODEL_DRAFTER, reason: "safeguard" }]);
