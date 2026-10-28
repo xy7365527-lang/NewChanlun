@@ -2,7 +2,7 @@
  * 锁内容：pid、该进程启动时间（ps lstart，防 pid 复用）、主机名、随机 token、cwd。
  * 接管 = 先把旧锁 rename 归档（带时间戳与 uuid，留在原目录作证据），再 wx 新建；rename 在 POSIX 上原子，并发重入只有一个能搬走旧锁。
  * 持有者存活且身份一致、锁损坏、主机不同、启动时间无法取得——任何无法判定的情况一律抛错，不碰现场。 */
-import { execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { closeSync, fsyncSync, linkSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { hostname } from "node:os";
 import { randomUUID } from "node:crypto";
@@ -11,15 +11,24 @@ import { basename, dirname, join } from "node:path";
 export interface LockOwner { pid: number; start: string; host: string; token: string; cwd: string }
 export interface LockEnv {
   pid: number; host: string; startOf: (pid: number) => string | null; now: () => Date;
+  /** 仅测试：接管时旧锁归档之后、新建之前调用，用来确定性地制造交错。 */
+  afterArchive?: () => void;
 }
-/** 进程启动时间；进程不存在返回 null；取不到（ps 异常）抛错，调用方按“无法判定”拒绝。 */
-export function psStart(pid: number): string | null {
-  try { return execFileSync("ps", ["-p", String(pid), "-o", "lstart="], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], env: { ...process.env, LC_ALL: "C" } }).trim() || null; }
-  catch (e) {
-    const status = (e as { status?: number }).status;
-    if (status === 1) return null; // ps：无此进程
-    throw e;
-  }
+export interface PsResult { status: number | null; stdout: string; stderr: string; error?: Error }
+export type PsRunner = (pid: number) => PsResult;
+const runPs: PsRunner = (pid) => {
+  // TZ 固定为 UTC：ps 按本地时区格式化 lstart，不同 TZ 下同一 pid 会得到不同字符串，逐字比较会把活锁当成 pid 复用。
+  const r = spawnSync("ps", ["-p", String(pid), "-o", "lstart="], { encoding: "utf8", env: { ...process.env, LC_ALL: "C", TZ: "UTC" } });
+  return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "", error: r.error };
+};
+/** 进程启动时间（UTC 格式化）。只有“退出码 1 且 stdout/stderr 都为空”才表示进程不存在（返回 null）；其他任何情况（ps 缺失、被信号杀、其他退出码、
+ * 退出码 0 却无输出、stderr 有内容）都是无法判定，抛错，由调用方 FAIL-loud。 */
+export function psStart(pid: number, run: PsRunner = runPs): string | null {
+  const r = run(pid);
+  if (r.error) throw new Error(`ps 无法运行：${r.error.message}`);
+  if (r.status === 1 && !r.stdout.trim() && !r.stderr.trim()) return null;
+  if (r.status === 0 && r.stdout.trim() && !r.stderr.trim()) return r.stdout.trim();
+  throw new Error(`ps 结果无法判定持有者存活（status=${r.status}，stderr=${r.stderr.trim().slice(0, 80)}）`);
 }
 export const realEnv = (): LockEnv => ({ pid: process.pid, host: hostname(), startOf: psStart, now: () => new Date() });
 
@@ -47,7 +56,7 @@ const sleepMs = (ms: number) => Atomics.wait(new Int32Array(new SharedArrayBuffe
 /** 取锁。已存在的锁只在“同主机且持有者已死”时接管（归档旧锁后新建）。
  * 接管的“核对→搬走→新建”必须在 `${lock}.takeover` 守卫内完成：否则 B 读到旧持有者后，A 已接管并建了新锁，B 的 rename 会把 A 的活锁搬走。
  * 守卫内重读锁并确认仍是核对过的那个 token，才 rename；守卫只持有毫秒级（不含 ps 调用），被占用时短等后仍占用即拒绝。 */
-export function acquireLock(lock: string, cwd: string, env: LockEnv = realEnv()): Held {
+export function acquireLock(lock: string, cwd: string, env: LockEnv = realEnv(), beforeTakeover?: (holder: LockOwner) => void): Held {
   const start = env.startOf(env.pid);
   if (!start) throw new Error("无法取得本进程启动时间，不能建立带身份的锁");
   const owner: LockOwner = { pid: env.pid, start, host: env.host, token: randomUUID(), cwd };
@@ -66,7 +75,9 @@ export function acquireLock(lock: string, cwd: string, env: LockEnv = realEnv())
     if (holder.host !== env.host) throw new Error(`${lock} 由其他主机 ${holder.host} 持有，无法判定存活，不接管`);
     const alive = env.startOf(holder.pid); // 可能抛错 → 无法判定，向上抛
     if (alive !== null && alive === holder.start) throw new Error(`${lock} 的持有者 pid ${holder.pid} 仍在运行，拒绝`);
-    // 持有者已死（pid 不存在，或 pid 被复用：启动时间不同）。进入守卫后再接管。
+    // 持有者已死（pid 不存在，或 pid 被复用：启动时间不同）。接管前的清理（回收孤儿容器）抛错则整体拒绝，锁与现场不动。
+    beforeTakeover?.(holder);
+    // 然后进入守卫接管。
     let guarded = false;
     for (let wait = 0; wait < 40 && !guarded; wait++) {
       try { create(guardPath, { ...owner, token: randomUUID() }); guarded = true; }
@@ -80,6 +91,7 @@ export function acquireLock(lock: string, cwd: string, env: LockEnv = realEnv())
       const target = join(dirname(lock), `${basename(lock)}.stale-${env.now().toISOString().replace(/[:.]/g, "-")}-${randomUUID().slice(0, 8)}`);
       renameSync(lock, target);
       archived = target;
+      env.afterArchive?.();
       try { create(lock, owner); }
       catch (e) { if ((e as NodeJS.ErrnoException).code === "EEXIST") continue; throw e; } // 正常取锁者抢先建了新锁：回到外层按活锁判定
       break;

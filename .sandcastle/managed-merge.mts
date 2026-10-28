@@ -28,6 +28,8 @@ export interface MergeOptions {
   onCheckpoint?: (state: MergeState) => void;
   /** 仅供测试注入进程身份/启动时间来源；生产不传。 */
   lockEnv?: LockEnv;
+  /** Docker 冲突路径提供：锁持有者确认已死、且检查点停在 conflict 时，在接管锁之前回收本 run 遗留的孤儿容器（失败即拒绝）。宿主路由不提供。 */
+  reclaimOrphans?: () => void;
 }
 const git = (cwd: string, args: string[]) => execFileSync("git", args, { cwd, encoding: "utf8", maxBuffer: 64 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
 const list = (s: string) => [...new Set(s.split("\0").filter(Boolean))].sort();
@@ -80,7 +82,12 @@ export async function runManagedMerge(o: MergeOptions): Promise<MergeState> {
   const lock = `${o.checkpoint}.lock`;
   // 带持有者身份的锁：SIGKILL 残留的锁在“同主机且持有者已死”时原子归档后接管；其余情况一律拒绝（#1742）。
   // 宿主归并与 Docker 冲突路径都经 runManagedMerge，共用这一份。
-  const held = acquireLock(lock, o.cwd, o.lockEnv);
+  const held = acquireLock(lock, o.cwd, o.lockEnv, () => {
+    if (!o.reclaimOrphans) return;
+    let phase: unknown;
+    try { phase = JSON.parse(readFileSync(o.checkpoint, "utf8")).phase; } catch { return; } // 没有检查点：还没到过冲突阶段，不会有工蜂容器
+    if (phase === "conflict") o.reclaimOrphans();
+  });
   try {
     let s: MergeState;
     let recoveredCommit = false;

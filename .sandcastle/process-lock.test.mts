@@ -153,3 +153,113 @@ test("runManagedMerge：持有者存活 / 锁损坏 / 主机不同时拒绝，�
     rmSync(lock);
   }
 });
+
+// —— TZ 回归、psStart 退出码映射、确定性交错 ——
+import { psStart as ps2, type PsResult } from "./process-lock.mts";
+
+test("启动时间与 TZ 无关：同一 pid 在不同 TZ 下取到同一字符串；持有者在一个 TZ 下存活，取锁方在另一个 TZ 下必须拒绝", async () => {
+  const savedTz = process.env.TZ;
+  try {
+    const seen = new Set<string>();
+    for (const tz of ["UTC", "Asia/Shanghai", "America/Los_Angeles", "Pacific/Auckland"]) { process.env.TZ = tz; seen.add(psStart(process.pid)!); }
+    assert.equal(seen.size, 1, JSON.stringify([...seen]));
+  } finally { if (savedTz === undefined) delete process.env.TZ; else process.env.TZ = savedTz; }
+  const d = dir(); const lock = join(d, "c.lock"); const script = join(d, "hold.mts");
+  writeFileSync(script, `import { acquireLock } from ${JSON.stringify(here + "process-lock.mts")}; acquireLock(${JSON.stringify(lock)}, "/c"); console.log("LOCKED"); setInterval(() => {}, 1000);`);
+  const child = spawn(process.execPath, ["--import", loader, script], { stdio: ["ignore", "pipe", "inherit"], env: { ...process.env, TZ: "America/New_York" } });
+  await new Promise<void>((res, rej) => { child.stdout.on("data", (b) => String(b).includes("LOCKED") && res()); child.on("exit", () => rej(new Error("子进程提前退出"))); });
+  try {
+    const saved = process.env.TZ;
+    for (const tz of ["Asia/Shanghai", "UTC", undefined]) {
+      if (tz === undefined) delete process.env.TZ; else process.env.TZ = tz;
+      assert.throws(() => acquireLock(lock, "/y", env()), /仍在运行/, `取锁方 TZ=${tz}`);
+    }
+    if (saved === undefined) delete process.env.TZ; else process.env.TZ = saved;
+    assert.deepEqual(stale(d), [], "活锁没有被接管");
+  } finally { child.kill("SIGKILL"); }
+});
+
+test("psStart 退出码映射：只有 status=1 且 stdout/stderr 皆空表示已死；其余一律无法判定并抛错", () => {
+  const r = (x: Partial<PsResult>): (() => PsResult) => () => ({ status: 0, stdout: "", stderr: "", ...x });
+  assert.equal(ps2(5, r({ status: 1 })), null);
+  assert.equal(ps2(5, r({ status: 0, stdout: " Mon Oct 27 09:29:54 2026\n" })), "Mon Oct 27 09:29:54 2026");
+  for (const [name, x] of [
+    ["1 但 stderr 有内容", { status: 1, stderr: "ps: Operation not permitted" }], ["1 但 stdout 有内容", { status: 1, stdout: "x" }],
+    ["2", { status: 2 }], ["0 却无输出", { status: 0 }], ["0 但 stderr 有内容", { status: 0, stdout: "x", stderr: "warn" }],
+    ["被信号杀", { status: null }], ["ps 不存在", { status: null, error: new Error("ENOENT") }],
+  ] as const) assert.throws(() => ps2(5, r(x)), /ps/, name);
+  // 无法判定 → acquireLock 拒绝并保持现场
+  const d = dir(); const lock = join(d, "c.lock");
+  write(lock, { pid: 77, start: "x", host: hostname(), token: "t", cwd: "/x" });
+  assert.throws(() => acquireLock(lock, "/y", env({ startOf: (pid) => (pid === 77 ? ps2(77, r({ status: 1, stderr: "denied" })) : psStart(pid)) })), /无法判定/);
+  assert.deepEqual(stale(d), []);
+});
+
+// 确定性交错：用注入的 startOf/afterArchive 在固定位置插入“另一个进程”的动作，不靠时序。
+const fake = (alive: Map<number, string>, pid: number, host = "h", extra: Partial<LockEnv> = {}): LockEnv => ({
+  pid, host, startOf: (p) => alive.get(p) ?? null, now: () => new Date("2026-10-28T00:00:00Z"), ...extra,
+});
+
+test("交错 1：B 判定旧持有者已死之后、进入接管前，A 已完成接管——B 重读发现 token 变了，不得搬走 A 的活锁（去掉 .takeover 守卫内的重读会出现两个持有者）", () => {
+  const d = dir(); const lock = join(d, "c.lock");
+  const alive = new Map<number, string>([[111, "A-start"], [222, "B-start"]]); // 99 已死
+  write(lock, { pid: 99, start: "dead", host: "h", token: "old", cwd: "/x" });
+  let a: ReturnType<typeof acquireLock> | undefined;
+  const envB = fake(alive, 222, "h", {});
+  const startOfB = envB.startOf;
+  envB.startOf = (p) => { const r = startOfB(p); if (p === 99 && !a) a = acquireLock(lock, "/a", fake(alive, 111)); return r; }; // B 查完 99 已死的瞬间，A 抢先接管
+  assert.throws(() => acquireLock(lock, "/b", envB), /仍在运行/);
+  assert.ok(a);
+  assert.equal(JSON.parse(readFileSync(lock, "utf8")).token, a!.owner.token, "A 的活锁仍在，没有被 B 搬走");
+  assert.equal(stale(d).length, 1, "只归档了一次旧锁（A 的）");
+  assert.ok(!existsSync(`${lock}.takeover`));
+});
+
+test("交错 2：接管中旧锁归档之后、新建之前，另一个正常取锁者抢先建了锁——EEXIST 不能当作成功，按活锁拒绝", () => {
+  const d = dir(); const lock = join(d, "c.lock");
+  const alive = new Map<number, string>([[333, "C-start"], [222, "B-start"]]);
+  write(lock, { pid: 99, start: "dead", host: "h", token: "old", cwd: "/x" });
+  const c = { pid: 333, start: "C-start", host: "h", token: "c-token", cwd: "/c" };
+  const envB = fake(alive, 222, "h", { afterArchive: () => { writeFileSync(lock, JSON.stringify(c)); } });
+  assert.throws(() => acquireLock(lock, "/b", envB), /仍在运行/);
+  assert.equal(JSON.parse(readFileSync(lock, "utf8")).token, "c-token", "C 的锁不变，B 没有谎称持锁");
+  assert.equal(stale(d).length, 1);
+  assert.ok(!existsSync(`${lock}.takeover`));
+});
+
+test("接管前清理（beforeTakeover）抛错：锁、现场、守卫都不动；仅在持有者确认已死后才被调用", () => {
+  const d = dir(); const lock = join(d, "c.lock"); const alive = new Map<number, string>([[222, "B-start"], [55, "live"]]);
+  write(lock, { pid: 55, start: "live", host: "h", token: "t", cwd: "/x" });
+  let called = 0;
+  assert.throws(() => acquireLock(lock, "/b", fake(alive, 222), () => { called++; }), /仍在运行/);
+  assert.equal(called, 0, "持有者存活：不回收");
+  write(lock, { pid: 99, start: "dead", host: "h", token: "t", cwd: "/x" });
+  const before = readFileSync(lock, "utf8");
+  assert.throws(() => acquireLock(lock, "/b", fake(alive, 222), () => { called++; throw new Error("清理失败"); }), /清理失败/);
+  assert.equal(called, 1); assert.equal(readFileSync(lock, "utf8"), before); assert.deepEqual(stale(d), []); assert.ok(!existsSync(`${lock}.takeover`));
+});
+
+test("runManagedMerge：仅 phase=conflict 且持有者已死时才回收孤儿容器；失败拒绝并保留锁与现场；宿主路由（未提供回收）直接通过", async () => {
+  const f = fixture(true);
+  const killed = childRun(f, "conflict"); assert.equal(killed.signal, "SIGKILL");
+  const holderPid = JSON.parse(readFileSync(`${f.checkpoint}.lock`, "utf8")).pid; await waitDead(holderPid);
+  const lockBefore = readFileSync(`${f.checkpoint}.lock`, "utf8"); const headBefore = f.git("rev-parse", "HEAD");
+  const resolver = (cwd: string) => async () => { writeFileSync(join(cwd, "a.txt"), "both\n"); return report(["a.txt"]); };
+  const base: MergeOptions = { cwd: f.cwd, checkpoint: f.checkpoint, manifest: f.manifest, checkId: "v1",
+    verify: async (head) => ({ head, checkId: "v1", status: "passed", evidence: "ok" }), resolveConflict: resolver(f.cwd) };
+  await assert.rejects(runManagedMerge({ ...base, reclaimOrphans: () => { throw new Error("[FAIL-loud #1742] 孤儿容器不可回收"); } }), /孤儿容器不可回收/);
+  assert.equal(readFileSync(`${f.checkpoint}.lock`, "utf8"), lockBefore, "锁未动"); assert.equal(f.git("rev-parse", "HEAD"), headBefore);
+  assert.ok(existsSync(join(f.cwd, ".git")) && f.git("rev-parse", "MERGE_HEAD"), "MERGE_HEAD 保留");
+  let reclaimed = 0;
+  const done = await runManagedMerge({ ...base, reclaimOrphans: () => { reclaimed++; } });
+  assert.equal(done.phase, "done"); assert.equal(reclaimed, 1);
+  // 未提供回收（宿主路由）：同样的残留锁直接接管
+  const g = fixture(true); const k2 = childRun(g, "conflict"); assert.equal(k2.signal, "SIGKILL");
+  await waitDead(JSON.parse(readFileSync(`${g.checkpoint}.lock`, "utf8")).pid);
+  const done2 = await runManagedMerge({ ...base, cwd: g.cwd, checkpoint: g.checkpoint, manifest: g.manifest, resolveConflict: resolver(g.cwd) }); assert.equal(done2.phase, "done");
+  // 非冲突阶段被杀：即使提供了回收，也不调用
+  const h = fixture(false); const k3 = childRun(h, "verify"); assert.equal(k3.signal, "SIGKILL");
+  await waitDead(JSON.parse(readFileSync(`${h.checkpoint}.lock`, "utf8")).pid);
+  let n = 0;
+  const done3 = await runManagedMerge({ ...base, cwd: h.cwd, checkpoint: h.checkpoint, manifest: h.manifest, reclaimOrphans: () => { n++; } }); assert.equal(done3.phase, "done"); assert.equal(n, 0);
+});

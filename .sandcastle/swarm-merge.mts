@@ -9,12 +9,13 @@ import { admitMergeInput, appRemoteFacts, type RemoteFactsReader } from "./merge
 import { verifyManagedRust } from "./managed-commit.mts";
 import { prepareFinalReviewPrompt } from "./review-context.mts";
 import { mergeBinding, mergeInstance } from "./docker-acceptance.mts";
-import { assertSwarmExecutionReady, type ReadyOptions, assertDockerCliProxyReachable, swarmAgent, swarmSandbox } from "./swarm-route.mts";
+import { type DockerCli, MERGE_INSTANCE_ENV, MERGE_RUN_ENV, reclaimOrphanContainers } from "./orphan-container.mts";
+import { dockerCliProxyEnv, assertSwarmExecutionReady, type ReadyOptions, assertDockerCliProxyReachable, swarmAgent, swarmSandbox } from "./swarm-route.mts";
 import { withLegacyAdmission } from "./drain-control.mts";
 
 /** 旧入口准入：生产固定用 drain-control 的共享根；测试注入临时根。 */
 export type LegacyAdmission = <T>(action: () => T | Promise<T>) => Promise<T>;
-export interface AcceptedMergeOptions { repo?: string; admission?: LegacyAdmission; acceptance?: ReadyOptions["acceptance"] }
+export interface AcceptedMergeOptions { repo?: string; admission?: LegacyAdmission; acceptance?: ReadyOptions["acceptance"]; docker?: DockerCli }
 
 export const MERGE_CHECK_ID = "combination-v1:git-diff-check,cargo-check-locked,tsc-noEmit";
 export async function verifyCombination(cwd: string, manifest: MergeManifest, head: string, files: string[]): Promise<MergeCheck> {
@@ -78,6 +79,8 @@ export async function runAcceptedSwarmMerge(manifestPath: string, image: string,
   let routeChecked = false;
   const result = await runManagedMerge({
     cwd, manifest, checkpoint: join(evidenceDir, "checkpoint.json"), checkId: MERGE_CHECK_ID,
+    // SIGKILL 后零人工收敛：锁持有者已死且停在冲突阶段时，先自动回收本 run 实例遗留的孤儿工蜂容器，再接管锁（#1742）。
+    reclaimOrphans: () => { reclaimOrphanContainers({ cwd, image, runId: manifest.runId, instance: mergeInstance(evidenceDir, manifest.runId, manifest.base), evidenceDir, docker: options.docker }); },
     verify: (head, files) => verifyCombination(cwd, manifest, head, files),
     admit: input => admitMergeInput(repo, input, facts),
     resolveConflict: async ({ head, incoming, files }) => {
@@ -101,7 +104,7 @@ export async function runAcceptedSwarmMerge(manifestPath: string, image: string,
       );
       // head 策略仅挂已有工位；容器随调用回收，宿主工位/冲突现场不自动清理。
       const run = await sandcastle.run({ cwd, branchStrategy: { type: "head" }, name: "merger-conflict", maxIterations: 1,
-        agent: swarmAgent(), sandbox: swarmSandbox(image), prompt: final.prompt });
+        agent: swarmAgent(), sandbox: swarmSandbox(image, { ...dockerCliProxyEnv(), [MERGE_RUN_ENV]: manifest.runId, [MERGE_INSTANCE_ENV]: mergeInstance(evidenceDir, manifest.runId, manifest.base) }), prompt: final.prompt });
       return run.stdout;
     },
     onCheckpoint: s => logWorker({ phase: "merger", branch: manifest.branch, status: s.phase, head: s.snapshot.head, position: s.position, checkpoint: join(evidenceDir, "checkpoint.json") }),
