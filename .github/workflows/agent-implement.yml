@@ -5,7 +5,7 @@ name: Agent Implement
 #
 # #1617 模型合同：无 `agent:model:*` 标签的 hosted Claude 默认已退役，调用前失败并回写 blocked；
 # 显式 `agent:model:deepseek-v4-pro` 仅作 legacy opt-in。不得把 Claude OAuth 用于 Astra，
-# 本机受管默认统一为 gpt-6-astra + CLIProxyLocal。label→provider→model→Secret 仍走
+# 本机受管默认统一为 gpt-6.1-sol + CLIProxyLocal。label→provider→model→Secret 仍走
 # shared/agent.ts allowlist；Detect model route 只选择是否注入固定 DeepSeek Secret。
 # 使用 legacy 时先打模型标签，再打触发标签 `agent:implement`。
 

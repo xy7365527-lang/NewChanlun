@@ -7,7 +7,7 @@ name: Agent Implement PR
 #
 # #1617：implement-pr 的无标签 hosted Claude 默认已退役；显式 DeepSeek 仅作 legacy opt-in。
 # 不在 ubuntu-latest 把 Claude OAuth 错用于 Astra；本机受管默认统一为
-# gpt-6-astra + CLIProxyLocal。Detect model route 运行时实读 PR labels，
+# gpt-6.1-sol + CLIProxyLocal。Detect model route 运行时实读 PR labels，
 # grep -qx 精确匹配后只注入固定 DeepSeek Secret；未知/冲突标签由 TS registry fail-loud。
 
 on:
