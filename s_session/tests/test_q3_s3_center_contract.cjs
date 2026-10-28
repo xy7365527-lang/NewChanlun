@@ -294,3 +294,20 @@ test("相邻中枢对：五叶/方向/矩阵/证据/连接段/修订/边/版本�
     payload: f(["2", pairData.entity_id, "withdrawn"], { entity_id: pairData.entity_id, change: "withdrawn", before: pairData, after: null, known_at: K2, object_id: null }) });
   C.validatePairHistory(withdrawn);
 });
+
+test("通用整数遍历：中枢/中枢对 payload.slot 是逻辑身份（取 q3-center.js 的 schema），换成非逻辑槽 schema 即按整数拒", async () => {
+  const records = twoCenterCut(),
+    center = records.filter((r) => C.CENTER_KINDS.includes(r.kind)),
+    pair = records.filter((r) => C.PAIR_KINDS.includes(r.kind));
+  assert(center.length && pair.length);
+  // 正控：中枢族与中枢对各 kind 的 slot（"TB-02-E"/"TB-02-F"、实体 id、三元组）经整数遍历放行。
+  for (const r of [...center, ...pair]) await Q3.integerWalk(Q3.V.of({ kind: r.kind, payload: r.payload }));
+  // 负控：同一 payload 只改 schema_revision（不在逻辑槽表），slot 回到整数口径即拒。
+  for (const r of [center.find((x) => x.kind === C.CENTER_KINDS[6]), pair.find((x) => x.kind === C.PAIR_KINDS[4])]) {
+    const bad = copy(r.payload);
+    bad.schema_revision = "s-unknown/1";
+    await assert.rejects(() => Q3.integerWalk(Q3.V.of({ kind: r.kind, payload: bad })), /精确整数必须是规范文本/);
+  }
+  // 见证等非逻辑槽对象的整数 slot 仍按整数核对。
+  await assert.rejects(() => Q3.integerWalk(Q3.V.of({ witness_id: "w", slot: "TB-02-E" })), /精确整数必须是规范文本/);
+});

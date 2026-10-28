@@ -4100,7 +4100,7 @@ if (typeof module !== 'object' || !module.exports) {
     TB02_KINDS: Object.freeze(TB02_KINDS), BI_KINDS, SEGMENT_KINDS: Object.freeze(SEGMENT_KINDS)});
 });
 
-/* exact source q3-consumer.js SHA256 17d79dda294d014bca5307c353a16c67b13cf1f70773a88665a8e2f63d9fa802 */
+/* exact source q3-consumer.js SHA256 669b22c686cfe70a3ad3e27294d0c5e4185938092d454dbde0953391802bbf6f */
 /* #1394：Q3完整消费者；只供既有tb01c页面调用，没有产品路由或默认资源。 */
 (function (root, factory) {
   const common = typeof module === "object" && module.exports;
@@ -5114,9 +5114,11 @@ if (typeof module !== 'object' || !module.exports) {
       for await (const x of v.items()) await integerWalk(x);
     } else if (v.kind === "object") {
       // #1392/#1404：新笔/段 payload.slot 是逻辑身份；见证 slot 仍按整数核对。
+      // #1419 28U：中枢/中枢对 payload.slot 同为逻辑身份（槽身份由 q3-center.js typed 判据逐 kind 核对），
+      // schema 串直接取该模块的 CENTER_TUPLE/PAIR_TUPLE，不另抄一份。
       const logicalSlot =
         (await v.has("schema_revision")) &&
-        ["s-new-bi/1", "s-new-bi/2", "s-segment/1", "s-segment/2", "s-segment/3", "s-segment/4", "s-segment/5"].includes(
+        ["s-new-bi/1", "s-new-bi/2", "s-segment/1", "s-segment/2", "s-segment/3", "s-segment/4", "s-segment/5", typed.Center.CENTER_TUPLE[0], typed.Center.PAIR_TUPLE[0]].includes(
           await s(v, "schema_revision"),
         );
       for await (const e of v.entries()) {
@@ -7126,6 +7128,7 @@ if (typeof module !== 'object' || !module.exports) {
       bindSources,
       validateTB02Identity,
       validateTB02InitializationSources,
+      integerWalk,
       auditWitnesses,
       completeValue,
       typed,
