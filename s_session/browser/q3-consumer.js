@@ -408,9 +408,9 @@
       index++;
     }
   }
-  async function bindSources(snapshot, charge = () => {}) {
-    // #1491：本 cut 的内容布局只由快照 rule_revision 的布局组件给出（ADR 0037 §六，按版本分派）。
-    const layout = typed.splitRule(await s(snapshot, "rule_revision")).layout;
+  // #1491：`layout` 由调用方从本 cut 的 rule_revision 布局组件取得（ADR 0037 §六，按版本分派）。
+  // 未给出 ⟹ 调用方读的是 v1/v2 快照（ADR 0037 之前的写者，按定义 layout/1）。
+  async function bindSources(snapshot, charge = () => {}, layout = typed.LAYOUTS.LAYOUT1) {
     const raw = await auditRaw(snapshot, charge),
       groups = new Map(),
       shapes = new Map(),
@@ -1355,7 +1355,11 @@
           "cut规则目录轴",
         );
       await catalogValidate(catalog, snapshot);
-      const binding = await bindSources(snapshot, charge);
+      const binding = await bindSources(
+        snapshot,
+        charge,
+        typed.splitRule(rule).layout,
+      );
       await bindSegmentSequences(snapshot);
       for (const record of binding.records) {
         charge();

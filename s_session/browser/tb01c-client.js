@@ -3380,7 +3380,7 @@ if (typeof module !== 'object' || !module.exports) {
     TB02_KINDS: Object.freeze(TB02_KINDS), BI_KINDS, SEGMENT_KINDS: Object.freeze(SEGMENT_KINDS)});
 });
 
-/* exact source q3-consumer.js SHA256 4fb9e16c382179ceac91dfe607bf6346c0fd230a1e34a6d6700963413166af85 */
+/* exact source q3-consumer.js SHA256 30d8760548187904918337323722f3bd2216391d187a3e15f07951e5deda30d8 */
 /* #1394：Q3完整消费者；只供既有tb01c页面调用，没有产品路由或默认资源。 */
 (function (root, factory) {
   const common = typeof module === "object" && module.exports;
@@ -3791,9 +3791,9 @@ if (typeof module !== 'object' || !module.exports) {
       index++;
     }
   }
-  async function bindSources(snapshot, charge = () => {}) {
-    // #1491：本 cut 的内容布局只由快照 rule_revision 的布局组件给出（ADR 0037 §六，按版本分派）。
-    const layout = typed.splitRule(await s(snapshot, "rule_revision")).layout;
+  // #1491：`layout` 由调用方从本 cut 的 rule_revision 布局组件取得（ADR 0037 §六，按版本分派）。
+  // 未给出 ⟹ 调用方读的是 v1/v2 快照（ADR 0037 之前的写者，按定义 layout/1）。
+  async function bindSources(snapshot, charge = () => {}, layout = typed.LAYOUTS.LAYOUT1) {
     const raw = await auditRaw(snapshot, charge),
       groups = new Map(),
       shapes = new Map(),
@@ -4738,7 +4738,11 @@ if (typeof module !== 'object' || !module.exports) {
           "cut规则目录轴",
         );
       await catalogValidate(catalog, snapshot);
-      const binding = await bindSources(snapshot, charge);
+      const binding = await bindSources(
+        snapshot,
+        charge,
+        typed.splitRule(rule).layout,
+      );
       await bindSegmentSequences(snapshot);
       for (const record of binding.records) {
         charge();

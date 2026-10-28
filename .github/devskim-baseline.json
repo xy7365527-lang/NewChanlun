@@ -63364,16 +63364,16 @@
     "DS197836|s_session/tests/fixtures/tb02b/independent-source-oracle.json|39",
     "DS197836|s_session/tests/fixtures/tb03b-changes-only-browser.json|1",
     "DS173237|s_session/tests/fixtures/tb03c_allocation/PER-LEG-RAW.json|169",
-    "DS172411|s_session/browser/q3-consumer.js|1757",
-    "DS172411|s_session/browser/q3-consumer.js|1856",
-    "DS172411|s_session/browser/q3-consumer.js|2396",
-    "DS172411|s_session/browser/tb01c-client.js|5140",
-    "DS172411|s_session/browser/tb01c-client.js|5239",
-    "DS172411|s_session/browser/tb01c-client.js|5779",
-    "DS172411|s_session/browser/tb01c-client.js|6787",
-    "DS172411|s_session/browser/tb01c-client.js|7025",
-    "DS173237|s_session/browser/tb01c-client.js|6601",
-    "DS173237|s_session/browser/tb01c-client.js|6721"
+    "DS172411|s_session/browser/q3-consumer.js|1761",
+    "DS172411|s_session/browser/q3-consumer.js|1860",
+    "DS172411|s_session/browser/q3-consumer.js|2400",
+    "DS172411|s_session/browser/tb01c-client.js|5144",
+    "DS172411|s_session/browser/tb01c-client.js|5243",
+    "DS172411|s_session/browser/tb01c-client.js|5783",
+    "DS172411|s_session/browser/tb01c-client.js|6791",
+    "DS172411|s_session/browser/tb01c-client.js|7029",
+    "DS173237|s_session/browser/tb01c-client.js|6605",
+    "DS173237|s_session/browser/tb01c-client.js|6725"
   ],
   "updates": [
     {
@@ -63573,16 +63573,16 @@
       ],
       "reason": "同一行文本的行号漂移：逐键比对 origin/main 旧行与本分支新行内容逐字相同后按精确 rule|path|line 键追加；旧键保留（仍在 main 上有效），原清单顺序不变，新键仅追加。",
       "entries": {
-        "DS172411|s_session/browser/q3-consumer.js|1757": "浏览器定时器回调为函数字面量，非字符串求值；与既有键 DS172411|s_session/browser/q3-consumer.js|1753 同一行文本，因 #1491 段 B 在上方增 bounded-layout/1 读法（q3-typed/q3-consumer 及其打包段）而行号漂移，逐行比对内容不变。",
-        "DS172411|s_session/browser/q3-consumer.js|1856": "浏览器定时器回调为函数字面量，非字符串求值；与既有键 DS172411|s_session/browser/q3-consumer.js|1852 同一行文本，因 #1491 段 B 在上方增 bounded-layout/1 读法（q3-typed/q3-consumer 及其打包段）而行号漂移，逐行比对内容不变。",
-        "DS172411|s_session/browser/q3-consumer.js|2396": "浏览器定时器回调为函数字面量，非字符串求值；与既有键 DS172411|s_session/browser/q3-consumer.js|2392 同一行文本，因 #1491 段 B 在上方增 bounded-layout/1 读法（q3-typed/q3-consumer 及其打包段）而行号漂移，逐行比对内容不变。",
-        "DS172411|s_session/browser/tb01c-client.js|5140": "浏览器定时器回调为函数字面量，非字符串求值；与既有键 DS172411|s_session/browser/tb01c-client.js|5060 同一行文本，因 #1491 段 B 在上方增 bounded-layout/1 读法（q3-typed/q3-consumer 及其打包段）而行号漂移，逐行比对内容不变。",
-        "DS172411|s_session/browser/tb01c-client.js|5239": "浏览器定时器回调为函数字面量，非字符串求值；与既有键 DS172411|s_session/browser/tb01c-client.js|5159 同一行文本，因 #1491 段 B 在上方增 bounded-layout/1 读法（q3-typed/q3-consumer 及其打包段）而行号漂移，逐行比对内容不变。",
-        "DS172411|s_session/browser/tb01c-client.js|5779": "浏览器定时器回调为函数字面量，非字符串求值；与既有键 DS172411|s_session/browser/tb01c-client.js|5699 同一行文本，因 #1491 段 B 在上方增 bounded-layout/1 读法（q3-typed/q3-consumer 及其打包段）而行号漂移，逐行比对内容不变。",
-        "DS172411|s_session/browser/tb01c-client.js|6787": "浏览器定时器回调为函数字面量，非字符串求值；与既有键 DS172411|s_session/browser/tb01c-client.js|6707 同一行文本，因 #1491 段 B 在上方增 bounded-layout/1 读法（q3-typed/q3-consumer 及其打包段）而行号漂移，逐行比对内容不变。",
-        "DS172411|s_session/browser/tb01c-client.js|7025": "浏览器定时器回调为函数字面量，非字符串求值；与既有键 DS172411|s_session/browser/tb01c-client.js|6945 同一行文本，因 #1491 段 B 在上方增 bounded-layout/1 读法（q3-typed/q3-consumer 及其打包段）而行号漂移，逐行比对内容不变。",
-        "DS173237|s_session/browser/tb01c-client.js|6601": "64 位十六进制为浏览器入口的内容摘要常量，非凭据；与既有键 DS173237|s_session/browser/tb01c-client.js|6521 同一行文本，因 #1491 段 B 在上方增 bounded-layout/1 读法（q3-typed/q3-consumer 及其打包段）而行号漂移，逐行比对内容不变。",
-        "DS173237|s_session/browser/tb01c-client.js|6721": "64 位十六进制为浏览器入口的内容摘要常量，非凭据；与既有键 DS173237|s_session/browser/tb01c-client.js|6641 同一行文本，因 #1491 段 B 在上方增 bounded-layout/1 读法（q3-typed/q3-consumer 及其打包段）而行号漂移，逐行比对内容不变。"
+        "DS172411|s_session/browser/q3-consumer.js|1761": "浏览器定时器回调为函数字面量，非字符串求值；与既有键 DS172411|s_session/browser/q3-consumer.js|1753 同一行文本，因 #1491 段 B 在上方增 bounded-layout/1 读法（q3-typed/q3-consumer 及其打包段）而行号漂移，逐行比对内容不变。",
+        "DS172411|s_session/browser/q3-consumer.js|1860": "浏览器定时器回调为函数字面量，非字符串求值；与既有键 DS172411|s_session/browser/q3-consumer.js|1852 同一行文本，因 #1491 段 B 在上方增 bounded-layout/1 读法（q3-typed/q3-consumer 及其打包段）而行号漂移，逐行比对内容不变。",
+        "DS172411|s_session/browser/q3-consumer.js|2400": "浏览器定时器回调为函数字面量，非字符串求值；与既有键 DS172411|s_session/browser/q3-consumer.js|2392 同一行文本，因 #1491 段 B 在上方增 bounded-layout/1 读法（q3-typed/q3-consumer 及其打包段）而行号漂移，逐行比对内容不变。",
+        "DS172411|s_session/browser/tb01c-client.js|5144": "浏览器定时器回调为函数字面量，非字符串求值；与既有键 DS172411|s_session/browser/tb01c-client.js|5060 同一行文本，因 #1491 段 B 在上方增 bounded-layout/1 读法（q3-typed/q3-consumer 及其打包段）而行号漂移，逐行比对内容不变。",
+        "DS172411|s_session/browser/tb01c-client.js|5243": "浏览器定时器回调为函数字面量，非字符串求值；与既有键 DS172411|s_session/browser/tb01c-client.js|5159 同一行文本，因 #1491 段 B 在上方增 bounded-layout/1 读法（q3-typed/q3-consumer 及其打包段）而行号漂移，逐行比对内容不变。",
+        "DS172411|s_session/browser/tb01c-client.js|5783": "浏览器定时器回调为函数字面量，非字符串求值；与既有键 DS172411|s_session/browser/tb01c-client.js|5699 同一行文本，因 #1491 段 B 在上方增 bounded-layout/1 读法（q3-typed/q3-consumer 及其打包段）而行号漂移，逐行比对内容不变。",
+        "DS172411|s_session/browser/tb01c-client.js|6791": "浏览器定时器回调为函数字面量，非字符串求值；与既有键 DS172411|s_session/browser/tb01c-client.js|6707 同一行文本，因 #1491 段 B 在上方增 bounded-layout/1 读法（q3-typed/q3-consumer 及其打包段）而行号漂移，逐行比对内容不变。",
+        "DS172411|s_session/browser/tb01c-client.js|7029": "浏览器定时器回调为函数字面量，非字符串求值；与既有键 DS172411|s_session/browser/tb01c-client.js|6945 同一行文本，因 #1491 段 B 在上方增 bounded-layout/1 读法（q3-typed/q3-consumer 及其打包段）而行号漂移，逐行比对内容不变。",
+        "DS173237|s_session/browser/tb01c-client.js|6605": "64 位十六进制为浏览器入口的内容摘要常量，非凭据；与既有键 DS173237|s_session/browser/tb01c-client.js|6521 同一行文本，因 #1491 段 B 在上方增 bounded-layout/1 读法（q3-typed/q3-consumer 及其打包段）而行号漂移，逐行比对内容不变。",
+        "DS173237|s_session/browser/tb01c-client.js|6725": "64 位十六进制为浏览器入口的内容摘要常量，非凭据；与既有键 DS173237|s_session/browser/tb01c-client.js|6641 同一行文本，因 #1491 段 B 在上方增 bounded-layout/1 读法（q3-typed/q3-consumer 及其打包段）而行号漂移，逐行比对内容不变。"
       }
     }
   ]
