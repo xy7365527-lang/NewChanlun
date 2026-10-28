@@ -3272,9 +3272,28 @@ mod tests {
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn i1572_warm_candidate_holder_drop_probe() {
+        i1572_warm_probe(None);
+    }
+
+    /// #1572 E 侧 legacy 非空路径：开启 legacy memo 保留后同一暖 driver 第 2、3 次入口。
+    /// #1572 E 侧 legacy：开启 legacy memo 保留、并在每个入口后走一次 ready，再做同一暖探针。
+    /// 探针把 legacy memo 四个加数与证书血统逐项析构并入候选组 Σ=L0 对账；本 fixture 下 v3 暖路径
+    /// 不在静止点留下 legacy 保留量（实测 retained=0），所以这里锁的是“开启后逐项表仍闭合”。
+    #[cfg(feature = "s_capture_native_testonly")]
+    #[test]
+    fn i1572_warm_candidate_holder_drop_probe_legacy_enabled() {
+        i1572_warm_probe(Some(268_435_456));
+    }
+
+    #[cfg(feature = "s_capture_native_testonly")]
+    fn i1572_warm_probe(legacy: Option<usize>) {
         for done in 1..=2 {
             let fixture = Fixture::new();
             let mut warm = complete_driver(&fixture);
+            if let Some(limit) = legacy {
+                crate::cache::configure(limit);
+                assert!(crate::cache::retention_enabled());
+            }
             // 期望父账与来源域：开启后与每个请求收尾的静止点读候选父账身份与当前域（无候选不读、
             // 不建工作域），在析构探针首尾 live 之外取。
             let mut ledger = None;
@@ -3293,6 +3312,18 @@ mod tests {
                 warm.handle(Fixture::ingest(n)).unwrap();
                 record(&warm);
             }
+            if legacy.is_some() {
+                // 冷根审计经 legacy memo 保留证书：ready 请求令跨请求保留量非空。
+                let ready = envelope(&format!("ready-i1572-{done}"), json!({"op":"ready"}));
+                warm.handle(ready).unwrap();
+                record(&warm);
+                eprintln!(
+                    "I1572_LEGACY_AFTER_READY {}",
+                    json!({"entry": done + 1, "retained": crate::cache::retained_bytes(),
+                        "breakdown": crate::cache::retained_breakdown(),
+                        "headers": crate::cache::batch_header_bytes()})
+                );
+            }
             let ledger = ledger.expect("暖入口有完整候选");
             let partition = {
                 let keeper = warm.conn.source_keeper_for_test();
@@ -3300,7 +3331,7 @@ mod tests {
             };
             let probe = warm
                 .conn
-                .i1572_candidate_drop_probe_for_test(ledger, &origins)
+                .i1572_candidate_drop_probe_for_test(ledger, &origins, &mut warm.runtime)
                 .unwrap_or_else(|e| panic!("暖候选清单核对失败：{e}"));
             let capture = &probe["capture_inventory"];
             let dropped = probe["steps"]
@@ -3326,6 +3357,7 @@ mod tests {
                 "I1572_DROP_PROBE {}",
                 json!({
                     "entry": done + 1,
+                    "legacy": legacy,
                     "partition": partition,
                     "capture_check": [
                         capture["listed_bytes"],
@@ -3357,8 +3389,9 @@ mod tests {
             assert!(fast.is_null() || fast.as_u64() == dropped, "{fast}");
             eprintln!(
                 "I1572_CANDIDATE_ITEMS {}",
-                json!({"entry": done + 1, "items": items})
+                json!({"entry": done + 1, "legacy": legacy, "items": items})
             );
+            crate::cache::configure(0);
         }
     }
 
@@ -3373,26 +3406,29 @@ mod tests {
         use super::super::request_audit::OldPoolPartition as P;
         type Row = (&'static str, usize, Option<usize>);
         let m = Budget::metadata_bytes();
-        let rows: [Row; 9] = [
+        // 暖 driver 第 2 次入口实测（`I1572_CANDIDATE_ITEMS` entry 2）：合同额, 析构下降。
+        let rows: [Row; 11] = [
             (NAMES[0], 10_344, Some(10_344)),
             (NAMES[1], 1_881_795, Some(1_885_347)),
             (NAMES[2], 264_982, Some(0)),
             (NAMES[3], 69_365, Some(160_216)),
             (NAMES[4], 0, Some(0)),
             (NAMES[5], 26_988, Some(26_988)),
-            (NAMES[6], 468_249, Some(468_249)),
-            (NAMES[7], 152_529, Some(147_326)),
-            (NAMES[8], m, Some(m)),
+            (NAMES[6], 468_248, Some(468_248)),
+            (NAMES[7], 152_529, Some(143_698)),
+            (NAMES[8], 0, Some(560)),
+            (NAMES[9], 0, Some(3_068)),
+            (NAMES[10], m, Some(m)),
         ];
         let ledger = Budget::new(64 << 20, 0).unwrap();
-        let _held = rows[..8]
+        let _held = rows[..10]
             .iter()
             .filter_map(|r| r.2.filter(|p| *p > 0))
             .map(|p| ledger.reserve(p).unwrap())
             .collect::<Vec<_>>();
         let mark = ledger.quiescent_mark();
         let l0 = ledger.live();
-        assert_eq!(l0, 2_698_470 + m);
+        assert_eq!(l0, 2_698_469 + m);
         let build = |rows: &[Row]| -> Result<P, String> {
             let mut p = P::new(Some(&ledger));
             for &(item, contract, physical) in rows {
@@ -3404,12 +3440,12 @@ mod tests {
             p.attest(&mark)?;
             p.seal()
         };
-        // 正控：逐项封口，U只落在 capture 与 audited 名下，组U=Σ逐项U，covered+U=L0。
+        // 正控：逐项封口，U只落在 capture、audited 与两项运行时缓存名下，组U=Σ逐项U，covered+U=L0。
         let ok = build(&rows).unwrap();
         let home = &ok.homes()[0];
         assert!(home.itemized);
         assert_eq!(home.covered + home.uncovered, l0);
-        assert_eq!(home.uncovered, 3_552 + 90_851);
+        assert_eq!(home.uncovered, 3_552 + 90_851 + 560 + 3_068);
         assert_eq!(
             ok.items().iter().map(|i| i.uncovered).sum::<usize>(),
             home.uncovered
@@ -3419,6 +3455,13 @@ mod tests {
         omitted.remove(1);
         let error = build(&omitted).err().expect("漏计必须拒绝");
         assert!(error.contains("未列入清单的来源"), "{error}");
+        // 漏列预备运行时缓存（暖 driver 曾实测漏列 560+3068=3628B）：Σ<L0。
+        let mut runtime_omitted = rows.to_vec();
+        runtime_omitted.drain(8..10);
+        let error = build(&runtime_omitted)
+            .err()
+            .expect("漏列运行时缓存必须拒绝");
+        assert!(error.contains("有3628B未列入清单的来源"), "{error}");
         // 同一持有者计入两项：capture 物理额再记到证书项。
         let mut doubled = rows;
         doubled[2].2 = doubled[1].2;

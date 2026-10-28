@@ -51,7 +51,7 @@ impl ManifestWorkspaceBudget {
 /// #1572：项名须在v4:38清单（`LISTED`）内；组内各项都有实测物理额时改为逐项对账——Σ逐项物理额
 /// 必须恰等于组L0（少=未列入清单的来源，多=重复计入），U逐项为max(0,物理−合同)、组U=Σ逐项U。
 /// 目前只有keeper组逐项实测；候选组生产冻结仍按组净额（`complete_candidate.charge.total` 聚合行）：
-/// 候选持有者 audited/q/originals/raw 状态尚无非销毁的物理许可读数。`candidate.*` 逐项行只供
+/// 候选持有者 audited、raw 状态与同父的预备运行时缓存（generator/auxiliary）尚无非销毁的物理许可读数。`candidate.*` 逐项行只供
 /// #1572 析构探针重放与负控使用，项名与 `audit_owner::I1572_CANDIDATE_ITEMS` 一一对应。
 #[cfg(feature = "s_capture_native_testonly")]
 #[derive(Clone, Debug, serde::Serialize)]
@@ -125,6 +125,8 @@ impl OldPoolPartition {
         ("candidate.originals.current_sql", "SQL行与cell"),
         ("complete_parent.metadata_M", "Observer及父元数据"),
         ("committed_raw_state", "construction/PendingRawState"),
+        ("prepared.runtime.generator", "Q/effects/working set"),
+        ("prepared.runtime.auxiliary", "Q/effects/working set"),
         ("source_keeper_pool", "source keeper池"),
         ("keeper_parent.metadata_M", "Observer及父元数据"),
         ("unpartitioned-old-pool", "冷入口/fixture未分区旧费（无父，只按合同额）"),

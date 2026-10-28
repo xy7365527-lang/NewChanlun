@@ -1334,13 +1334,15 @@ impl AuditConnection {
     /// 这是逐持有者物理额的事实读数，不是生产冻结口径；生产须非破坏地得到同一读数。
     /// capture 清点、来源对账、独立预期与析构下降任一不符即返回 Err；`ledger`/`origins` 由调用方
     /// 在本探针首尾 live 计量之外取得。
-    /// #1572 任务E：候选持有者析构完后再析构同父的已提交 raw 状态，父账须只余控制块M；据此导出
-    /// 候选组逐项表（`candidate_items`），Σphysical≠组L0、任一非销毁读数≠其析构下降均返回 Err。
+    /// #1572 任务E：候选持有者析构完后再析构同父的已提交 raw 状态、预备运行时缓存（`runtime`）与
+    /// E 侧 legacy memo，父账须只余控制块M；据此导出候选组逐项表（`candidate_items`），
+    /// Σphysical≠组L0、任一非销毁读数≠其析构下降均返回 Err。
     #[cfg(all(test, feature = "s_capture_native_testonly"))]
     pub(super) fn i1572_candidate_drop_probe_for_test(
         &self,
         ledger: usize,
         origins: &[u64],
+        runtime: &mut super::prepared::Runtime,
     ) -> Result<serde_json::Value, String> {
         let c = self
             .complete
@@ -1430,6 +1432,11 @@ impl AuditConnection {
         let raw_dropped = after
             .checked_sub(parent.live())
             .ok_or_else(|| "析构raw状态后父账live上升".to_string())?;
+        // 预备运行时缓存（生成链与辅助索引）也落在候选父账上，同样逐持有者析构。
+        let runtime_dropped = runtime.i1572_drop_caches_for_test(&|| parent.live())?;
+        // E 侧 legacy memo 与证书血统若经准入工作域落在候选父账上，同样逐项析构（memo 为空时全为 0）。
+        let legacy_retained = crate::cache::retained_bytes();
+        let legacy = crate::cache::i1572_drop_memo_items_for_test(&|| parent.live())?;
         let residual = parent.live();
         drop(resources);
         let capture_reading = capture_check
@@ -1445,6 +1452,8 @@ impl AuditConnection {
             q_reading,
             originals_reading,
             raw: (raw.map_or(0, |r| r.0), raw_dropped),
+            runtime: runtime_dropped,
+            legacy: &legacy,
             residual,
             l0: start,
         })?;
@@ -1456,6 +1465,9 @@ impl AuditConnection {
             "raw_state_retained_contract": raw.map(|r| r.0),
             "raw_state_fee_reading": raw.and_then(|r| r.1),
             "raw_state_dropped": raw_dropped,
+            "runtime_dropped": runtime_dropped,
+            "legacy_retained_bytes": legacy_retained,
+            "legacy_dropped": legacy,
             "parent_live_after_raw": residual,
             "steps": steps,
             "capture_inventory": capture_check,
@@ -2614,7 +2626,7 @@ fn i1572_originals_permit_bytes(
 }
 /// #1572 任务E：候选组逐项名，与 `request_audit::OldPoolPartition` 的 LISTED 行一一对应。
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
-pub(super) const I1572_CANDIDATE_ITEMS: [&str; 9] = [
+pub(super) const I1572_CANDIDATE_ITEMS: [&str; 11] = [
     "candidate.inline",
     "candidate.capture.node_capacity",
     "candidate.capture.node_source_and_certificates",
@@ -2623,6 +2635,8 @@ pub(super) const I1572_CANDIDATE_ITEMS: [&str; 9] = [
     "candidate.q",
     "candidate.originals.current_sql",
     "committed_raw_state",
+    "prepared.runtime.generator",
+    "prepared.runtime.auxiliary",
     "complete_parent.metadata_M",
 ];
 /// #1572 任务E：候选组逐项表的一行。physical 是该持有者析构那一步的候选父账实际下降（销毁读数，
@@ -2673,6 +2687,8 @@ struct I1572CandidateDrops<'a> {
     q_reading: Option<usize>,
     originals_reading: Option<usize>,
     raw: (usize, usize),
+    runtime: [usize; 2],
+    legacy: &'a [(&'static str, usize, usize)],
     residual: usize,
     l0: usize,
 }
@@ -2779,6 +2795,22 @@ fn i1572_candidate_items(d: I1572CandidateDrops<'_>) -> Result<serde_json::Value
         ),
         I1572CandidateItem::new(
             names[8],
+            "prepared::Runtime.generator：GenerationRuntime",
+            ("无合同项：v4:28未证覆盖的新增真实分配消耗A", 0),
+            d.runtime[0],
+            None,
+            "GenerationRuntime所持native许可无字节访问器",
+        ),
+        I1572CandidateItem::new(
+            names[9],
+            "prepared::Runtime.auxiliary：aux_index::Runtime",
+            ("无合同项：v4:28未证覆盖的新增真实分配消耗A", 0),
+            d.runtime[1],
+            None,
+            "aux_index::Runtime所持native许可无字节访问器",
+        ),
+        I1572CandidateItem::new(
+            names[10],
             "候选父账Ledger控制块",
             ("Budget::metadata_bytes()", m),
             d.residual,
@@ -2786,6 +2818,21 @@ fn i1572_candidate_items(d: I1572CandidateDrops<'_>) -> Result<serde_json::Value
             "",
         ),
     ];
+    // E 侧 legacy memo 逐项（E角色合同额即 `cache::retained_bytes` 的各加数，证书血统无加数）。
+    let mut rows = Vec::from(rows);
+    rows.extend(d.legacy.iter().map(|&(item, contract, physical)| {
+        I1572CandidateItem::new(
+            item,
+            "thread-local legacy MEMO（E角色）",
+            (
+                "cache::Memo::retained_bytes加数（E合同，已全额计入legacy）",
+                contract,
+            ),
+            physical,
+            None,
+            "legacy memo所持native许可无字节访问器",
+        )
+    }));
     // 候选七项合同之和与 `charge.total` 只并列导出不判：`detach_slot` 从 historical_and_raw 与
     // total 各减一次 slot_result，此后二者可差 slot_result（合同公式不在本票改动范围）。
     let contract = sum(rows[..7].iter().map(|r| r.contract));
@@ -2853,6 +2900,8 @@ mod i1572_candidate_items_tests {
             q_reading: q,
             originals_reading: originals,
             raw: (8, 7),
+            runtime: [0, 0],
+            legacy: &[],
             residual: m,
             l0: 217 + m,
         })
@@ -2866,7 +2915,9 @@ mod i1572_candidate_items_tests {
             ok["unread"],
             serde_json::json!([
                 "candidate.audited.historical_and_raw",
-                "committed_raw_state"
+                "committed_raw_state",
+                "prepared.runtime.generator",
+                "prepared.runtime.auxiliary"
             ])
         );
         assert_eq!(
@@ -2876,6 +2927,55 @@ mod i1572_candidate_items_tests {
         assert_eq!(
             table(Some(30), Some(19)).unwrap_err(),
             "候选项candidate.originals.current_sql读数≠析构下降20"
+        );
+    }
+    /// 预备运行时缓存落在候选父账上：两行逐项列出时 M 行只余控制块；漏列时这份字节留在父账余额，
+    /// 由 M 行读数（控制块常量）≠析构下降拒绝——暖 driver 曾实测漏列 3628 字节（560+3068）。
+    #[test]
+    fn i1572_candidate_items_reject_unlisted_runtime_caches() {
+        let steps = [
+            serde_json::json!(["capture", 100]),
+            serde_json::json!(["audited(raw+historical)", 50]),
+            serde_json::json!(["q", 30]),
+            serde_json::json!(["originals", 20]),
+            serde_json::json!(["_inline_permit", 10]),
+        ];
+        let m = native::Budget::metadata_bytes();
+        let drops = |runtime: [usize; 2], residual: usize| {
+            i1572_candidate_items(I1572CandidateDrops {
+                charge: &charge(),
+                steps: &steps,
+                slot_alive: false,
+                inline_reading: Some(10),
+                capture_reading: Some(100),
+                q_reading: Some(30),
+                originals_reading: Some(20),
+                raw: (8, 7),
+                runtime,
+                legacy: &[],
+                residual,
+                l0: 217 + 3_628 + m,
+            })
+        };
+        let ok = drops([560, 3_068], m).unwrap();
+        let rows = ok["rows"].as_array().unwrap();
+        let runtime = rows
+            .iter()
+            .filter(|r| r["item"].as_str().unwrap().starts_with("prepared.runtime."))
+            .map(|r| (r["contract"].as_u64(), r["uncovered"].as_u64()))
+            .collect::<Vec<_>>();
+        assert_eq!(runtime, [(Some(0), Some(560)), (Some(0), Some(3_068))]);
+        assert_eq!(
+            drops([0, 0], 3_628 + m).unwrap_err(),
+            format!("候选项complete_parent.metadata_M读数≠析构下降{}", 3_628 + m)
+        );
+        assert_eq!(
+            drops([560, 3_068], 3_628 + m).unwrap_err(),
+            format!(
+                "候选组Σphysical={}≠L0={}",
+                217 + 2 * 3_628 + m,
+                217 + 3_628 + m
+            )
         );
     }
 }
