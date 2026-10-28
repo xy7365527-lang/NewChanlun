@@ -2600,7 +2600,7 @@ if (typeof module !== 'object' || !module.exports) {
   });
 });
 
-/* exact source q3-typed.js SHA256 5deaab53de22d512eeefa575962abbe0c21191454129838f5544b612af1588a3 */
+/* exact source q3-typed.js SHA256 1ed8f6f3b8f2298d5f2e468e44250c358b1f286ae9c60d81fcac3dca6dcfde9a */
 /* #1394：typed 与形态来源的同一判据；只把访问迁为完整异步 Value 遍历。 */
 (function (root, factory) {
   const api = factory(typeof module === "object" && module.exports ? require("./q3-values.js") : root.Q3Values);
@@ -3359,7 +3359,7 @@ if (typeof module !== 'object' || !module.exports) {
       for await (const entry of (await field(p, "entries")).items()) {
         const id = await S(await field(entry, "fractal_object_id")), fractal = fractals.get(id);
         need(fractal, "单元批记录指向缺失分型");
-        // entries 现按分型窗口序：纯追加下与 first_known_generation 序相同，中段插入时分叉（#1491 PR #1780 M-2 待裁定）。
+        // entries 按分型窗口序（ADR 0054 / #1783），判据只认窗口序，不读 first_known_generation。
         need(previous === null || fractal.start > previous, "单元批记录 entries 不是分型窗口序"); previous = fractal.start;
         need(coord > fractal.end, "单元不在分型右组之后");
         const prices = []; for await (const price of (await field(await field(fractal.record, "payload"), "reference_prices")).items()) prices.push(price);

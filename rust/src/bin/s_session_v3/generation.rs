@@ -2311,10 +2311,10 @@ impl GenerationRuntime {
     /// #1491 ADR 0037 §二：本代全部 `CC-007.development_batch`（bar 坐标升序，每根有单元的
     /// 后续 bar 一条）。
     ///
-    /// `developments` 是本代全部被跟踪分型的单元读数，按窗口序给出——entries 即按此序排列：
-    /// 纯追加下窗口序与分型出生序（first_known_generation）相同；raw 中段插入出新分型时二者
-    /// 分叉——ADR 0037 §二 写「出生序」，按出生序实现须向生成器引入已发布首获知代，待裁定
-    /// （#1491，PR #1780 独审 M-2），现实现取窗口序。脏 bar（任一分型本代重算的单元、新出现/消失分型的整段区间）一律按本代读数
+    /// `developments` 是本代全部被跟踪分型的单元读数，按窗口序给出——entries 即按分型窗口序
+    /// （`window[0]` 严格升序，ADR 0054 / #1783，取代 ADR 0037 §二「出生序」一句）：纯追加下与
+    /// 分型出生序相同；中段出生或原位重生时，现行身份配方（来源前缀链）使其后分型同代重生，两序
+    /// 仍一致（锁见 `bounded_layout_cc007_entries_window_order_on_mid_birth`），判据只认窗口序。脏 bar（任一分型本代重算的单元、新出现/消失分型的整段区间）一律按本代读数
     /// 重建载荷；其余 bar 的 entries 与上一代逐项相同，复用载荷值根。
     fn development_batches(
         &mut self,
@@ -5249,7 +5249,7 @@ mod tests {
             Default::default();
         let mut total = 0;
         let mut realised: std::collections::BTreeSet<String> = Default::default();
-        // entries 现按窗口序（#1491 PR #1780 M-2 待裁定；fact_key 文本序不是窗口序）。
+        // entries 按分型窗口序（ADR 0054 / #1783；fact_key 文本序不是窗口序）。
         let mut pairs: Vec<(&Value, &Value)> =
             sorted_fractals.iter().zip(&bounded_fractals).collect();
         pairs.sort_by_key(|(_, b)| {
@@ -5576,6 +5576,107 @@ mod tests {
                 let (units, _) = assert_bounded_crosswalk(i + 1, sorted, bounded);
                 assert!(units > 0, "{label}: 夹具须产生比较单元");
             }
+        }
+    }
+
+    /// ADR 0054（#1783 验收 5）中段出生锁。三例：坐标 85 插入新 bar、b9 改价修订、b2 改价修订，
+    /// 均在第 2 代中段出生新分型（新分型窗口早于第 1 代最后一个分型）。断言：
+    /// ① 出生在窗口序上构成后缀——第 2 代不存在「object_id 不在第 1 代」的 X 早于「第 1 代已存在」
+    ///    的 Y。分型身份含右组来源前缀链（`group_sources_coords`：方向证据＝处理到组锚为止的完整
+    ///    前缀），坐标 c 处的出生/修订使窗口在其后的分型全部同代重生，故在可达输入上出生序（首获知代
+    ///    ↑、同代窗口序）与窗口序逐位相同；本条若失败，说明身份配方变了，须回 #1783 复核；
+    /// ② 每根 bar 的 entries 按 `window[0]` 严格递增，且至少一根同含新旧分型；
+    /// ③ 每代增量 ≡ 冷算逐字节（`bounded_layout_runs` 内核）。
+    /// 不读 `first_known_generation`：生成层恒写本代（`content_producer.rs` typed 记录）。
+    #[test]
+    fn bounded_layout_cc007_entries_window_order_on_mid_birth() {
+        let base_events = delta_long_fixture();
+        let base = base_events.len();
+        let revise = |idx: usize, high: i64, low: i64, label: &str| {
+            let mut revised = base_events[idx].clone();
+            for (k, v) in [
+                ("revision", json!(2)),
+                ("input_revision", json!("2")),
+                ("seq", json!(base + 1)),
+                ("high", json!(high.to_string())),
+                ("low", json!(low.to_string())),
+                ("open", json!(low.to_string())),
+                ("close", json!(high.to_string())),
+                ("payload_hash", json!(format!("rev-{label}"))),
+                ("receipt_id", json!(format!("receipt-{label}"))),
+            ] {
+                revised[k] = v;
+            }
+            revised
+        };
+        let inserted = json!({
+            "identity_key": "x85", "event_id": "x85", "source_coord": "85", "ts": "85",
+            "open": "15", "high": "25", "low": "15", "close": "25",
+            "revision": 1, "seq": base + 1, "input_revision": "1",
+            "payload_hash": "hash-x85", "receipt_id": "receipt-x85",
+        });
+        let cases = [
+            ("insert@85", inserted),
+            ("revise b9", revise(9, 25, 15, "b9")),
+            ("revise b2", revise(2, 30, 20, "b2")),
+        ];
+        let windows = |state: &Value| -> std::collections::BTreeMap<String, i64> {
+            objects_of(state, CC007_FRACTAL_KIND)
+                .iter()
+                .map(|o| {
+                    let start = o["payload"]["window"][0].as_str().unwrap();
+                    (
+                        o["object_id"].as_str().unwrap().to_string(),
+                        start.parse().unwrap(),
+                    )
+                })
+                .collect()
+        };
+        for (label, event) in cases {
+            let mut events = base_events.clone();
+            events.push(event);
+            let runs = bounded_layout_runs(&events, &[base, events.len()]);
+            for (i, (sorted, bounded)) in runs.iter().enumerate() {
+                assert_bounded_crosswalk(i + 1, sorted, bounded);
+            }
+            let (before, after) = (windows(&runs[0].1), windows(&runs[1].1));
+            let last_before = *before.values().max().unwrap();
+            let born: Vec<i64> = after
+                .iter()
+                .filter(|(id, _)| !before.contains_key(*id))
+                .map(|(_, w)| *w)
+                .collect();
+            assert!(
+                born.iter().any(|w| *w < last_before),
+                "{label}: 须在中段出生新分型：{born:?} vs 第 1 代末窗口 {last_before}"
+            );
+            let first_born = *born.iter().min().unwrap();
+            for (id, w) in &after {
+                if before.contains_key(id) {
+                    assert!(
+                        *w < first_born,
+                        "{label}: 旧分型 {id}（窗口 {w}）不得晚于新出生分型（{first_born}）"
+                    );
+                }
+            }
+            let mut mixed = false;
+            for batch in objects_of(&runs[1].1, CC007_DEVELOPMENT_BATCH_KIND) {
+                let coord = batch["payload"]["bar"]["source_coord"].clone();
+                let ids: Vec<&str> = batch["payload"]["entries"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|e| e["fractal_object_id"].as_str().unwrap())
+                    .collect();
+                let starts: Vec<i64> = ids.iter().map(|id| after[*id]).collect();
+                assert!(
+                    starts.windows(2).all(|w| w[0] < w[1]),
+                    "{label}: bar {coord} entries 须按 window[0] 严格递增：{starts:?}"
+                );
+                mixed |= ids.iter().any(|id| before.contains_key(*id))
+                    && ids.iter().any(|id| !before.contains_key(*id));
+            }
+            assert!(mixed, "{label}: 须有一根 bar 的 entries 同含新旧分型");
         }
     }
 
