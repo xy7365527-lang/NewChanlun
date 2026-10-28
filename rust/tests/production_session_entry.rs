@@ -239,7 +239,7 @@ fn s_serve_command(space: &Space, db: &Path, limits: &Path) -> Command {
         .args(["--writer-epoch", "1", "--clock-plan"])
         .arg(space.path("clock.json"))
         .arg("--socket")
-        .arg(&socket)
+        .arg(space.path("s.sock"))
         .arg("--resource-config")
         .arg(s_resources(space))
         .env_remove(THETA_DIAGNOSTIC.0)
