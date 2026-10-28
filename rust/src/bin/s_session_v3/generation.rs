@@ -5594,15 +5594,30 @@ mod tests {
                 let cut = format!("cut-{gen}");
                 let raw = RawEventsView::plain(events).prefix(prefix).unwrap();
                 let effective = bj::effective(raw, None).unwrap();
-                let input = full_input(raw, effective.raw_view(), &scope, &cut, gen, prefix as i64, rule);
+                let input = full_input(
+                    raw,
+                    effective.raw_view(),
+                    &scope,
+                    &cut,
+                    gen,
+                    prefix as i64,
+                    rule,
+                );
                 let generated = runtime.generate(&mut store, &input).unwrap();
                 let root = format!("{:?}", generated.state_without_axes);
-                assert!(root.contains(&format!("\"{want}\"")), "{rule} g{gen}: {root}");
+                assert!(
+                    root.contains(&format!("\"{want}\"")),
+                    "{rule} g{gen}: {root}"
+                );
             }
         }
         let events = delta_long_fixture();
         let cuts: Vec<usize> = (1..=events.len()).collect();
-        run(&events, &cuts, "r", &[
+        run(
+            &events,
+            &cuts,
+            "r",
+            &[
                 "sc1-948366d1a1a96702e595c31a981d44a8cd860d8079cbff9f96ac6cb6c174c4a7",
                 "sc1-f66ed7a7823e94b2600747308722749f3d6de9a17b4ef0cc79fa4fe2c968b4a4",
                 "sc1-20c92b84d00d51bef243e8151905fc94f05fa0d75777f92e9cf16deb03ffe855",
@@ -5617,30 +5632,54 @@ mod tests {
                 "sc1-a4c940d2cc628929764d8a94c4f6774dec6cb8f9b98dfb1253cf117cddd8ac49",
                 "sc1-cc91d04f817bd368f7ab43b15320656cd20765c87ce2b9d4269995f863f10290",
                 "sc1-1f1883260c44c0de1f736eecfa10b260299e8b37638fb83ea79672e050e64b66",
-            ]);
+            ],
+        );
         let mut events = delta_long_fixture();
         events.truncate(14);
         let mut revised = events[2].clone();
-        for (k, v) in [("revision", json!(2)), ("input_revision", json!("2")), ("seq", json!(15)),
-            ("high", json!("13")), ("low", json!("9")), ("open", json!("11")), ("close", json!("11")),
-            ("payload_hash", json!("revision-2")), ("receipt_id", json!("receipt-15"))] {
+        for (k, v) in [
+            ("revision", json!(2)),
+            ("input_revision", json!("2")),
+            ("seq", json!(15)),
+            ("high", json!("13")),
+            ("low", json!("9")),
+            ("open", json!("11")),
+            ("close", json!("11")),
+            ("payload_hash", json!("revision-2")),
+            ("receipt_id", json!("receipt-15")),
+        ] {
             revised[k] = v;
         }
         events.push(revised);
         let mut restored = events[2].clone();
-        for (k, v) in [("revision", json!(3)), ("input_revision", json!("3")), ("seq", json!(16)),
-            ("payload_hash", json!("restored-3")), ("receipt_id", json!("receipt-16"))] {
+        for (k, v) in [
+            ("revision", json!(3)),
+            ("input_revision", json!("3")),
+            ("seq", json!(16)),
+            ("payload_hash", json!("restored-3")),
+            ("receipt_id", json!("receipt-16")),
+        ] {
             restored[k] = v;
         }
         events.push(restored);
         let mut moved = events[13].clone();
-        for (k, v) in [("revision", json!(2)), ("input_revision", json!("2")), ("seq", json!(17)),
-            ("source_coord", json!("1000")), ("ts", json!("1000")),
-            ("payload_hash", json!("tail-moved")), ("receipt_id", json!("receipt-17"))] {
+        for (k, v) in [
+            ("revision", json!(2)),
+            ("input_revision", json!("2")),
+            ("seq", json!(17)),
+            ("source_coord", json!("1000")),
+            ("ts", json!("1000")),
+            ("payload_hash", json!("tail-moved")),
+            ("receipt_id", json!("receipt-17")),
+        ] {
             moved[k] = v;
         }
         events.push(moved);
-        run(&events, &[1, 2, 8, 14, 15, 16, 17, 17], "r", &[
+        run(
+            &events,
+            &[1, 2, 8, 14, 15, 16, 17, 17],
+            "r",
+            &[
                 "sc1-948366d1a1a96702e595c31a981d44a8cd860d8079cbff9f96ac6cb6c174c4a7",
                 "sc1-f66ed7a7823e94b2600747308722749f3d6de9a17b4ef0cc79fa4fe2c968b4a4",
                 "sc1-5f62791ebc8f826d882fcee15ffa09edcdab873bc27b04261e99cc7ed29521f1",
@@ -5649,12 +5688,18 @@ mod tests {
                 "sc1-333091400aa357723f809c07d6a923e4755947413d04cbc1beade766072ec854",
                 "sc1-236fb13005488b6f7c966188ae62daa7ffa1143eb05fd00cf44dd4433a14b316",
                 "sc1-8a20f9cc37496026a94e59b4b45cc7b8f8a500dfd487b19e772a018694d9d063",
-            ]);
-        run(&delta_long_fixture(), &[5, 9, 14], crate::V3_RULE_REVISION, &[
+            ],
+        );
+        run(
+            &delta_long_fixture(),
+            &[5, 9, 14],
+            crate::V3_RULE_REVISION,
+            &[
                 "sc1-c8f28f2cec73feaae72bf279e0790497d8d8af64197116e45e096b89992b214f",
                 "sc1-5f47222d095c66143e8cd5f52d70080f15b93218c7b8499edaa24948ad38a9ae",
                 "sc1-cf5c2f1e68e4a50dddc548abb9a2fd00725f23714e4c69fbb9b033549a369f14",
-            ]);
+            ],
+        );
     }
 
     #[test]
