@@ -112,6 +112,14 @@ const RULE_REVISION: &str =
     "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2";
 
 /// #1405：历史 v3 TB-02-A/B（13 轴）域，保留读取/验证身份，不自动迁移旧库。
+/// #1419 × #1491：生产侧轴表/笔合同已改经 [`V3_DOCTRINE_RULE`]（同值，剥离布局后比较），本常量只余测试引用。
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "#1419 × #1491：生产读表经 V3_DOCTRINE_RULE，本串只作历史身份供测试"
+    )
+)]
 const V3_RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/2";
 const LEGACY_V3_RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/1";
 /// #1419/#1424：共享事实直接构造的 A…F 写者域（22 轴）。

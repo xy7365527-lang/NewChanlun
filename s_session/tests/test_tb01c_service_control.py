@@ -744,13 +744,17 @@ class V2SeedGateTests(unittest.TestCase):
             controller = control.Controller({"binary": str(fake), "db": str(Path(directory) / "db"),
                                              "startup_timeout_ms": "1000", "clock_plan": "c"}, Path(directory))
             controller.admission = Mock()
+            # main #1657/#1710：admission_action 在动作体前先核已审准入合同；本锁只核动作体内种子门
+            # 先于准入发布与运行时探测，合同核验以替身就绪（不放宽：合同核验本身由 admission 套件锁）。
             with patch.object(control.Controller, "status", return_value={"state": "stopped"}), \
+                    patch.object(control.Controller, "check_admission_contract") as contract, \
                     patch.object(control.Controller, "runtime_environment") as environment:
                 with self.assertRaisesRegex(SystemExit, "s_v2_seed_testonly"):
                     controller.start_s("1")
                 with self.assertRaisesRegex(SystemExit, "s_v2_seed_testonly"):
                     controller.recover("2", "recover-1")
             environment.assert_not_called()
+            self.assertEqual(contract.call_count, 2)
             controller.admission.publish.assert_not_called()
 
 if __name__ == "__main__":
