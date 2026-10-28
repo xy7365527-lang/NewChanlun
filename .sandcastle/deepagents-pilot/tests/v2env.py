@@ -10,6 +10,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from fake_github import FakeGitHub
 
+from pilot1742.approval import SignedApprovals
 from pilot1742.claims import ClaimStore
 from pilot1742.delivery import RepoGateway
 from pilot1742.executor import TicketExecutor, load_unit, open_v2_run, register
@@ -52,7 +53,8 @@ class V2Env(Env):
         self.claims_root = tmp / "claims"
         self.workers_log = tmp / "workers.jsonl"
         self.workers_log.write_text(json.dumps({"ticket": 1715, "branch": "sandcastle/issue-1715"}) + "\n")
-        self.approvals = None
+        self.approvals = SignedApprovals(trust_path=tmp / "unconfigured-trust.json",
+                                         authority_root=tmp / "unconfigured-authority")
 
     def gateway(self) -> RepoGateway:
         return RepoGateway(GitHubAppClient(self.identity, transport=httpx.MockTransport(self.github),
