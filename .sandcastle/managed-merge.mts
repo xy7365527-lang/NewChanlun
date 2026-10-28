@@ -1,8 +1,9 @@
 /** #1617：已验收固定 SHA → 宿主双父归并；不操作 main/来源票。 */
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync, openSync, closeSync, unlinkSync, lstatSync, readlinkSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync, lstatSync, readlinkSync, realpathSync } from "node:fs";
 import { dirname, basename, join, resolve, relative, isAbsolute } from "node:path";
 import { parseStageReport } from "./managed-commit.mts";
+import { acquireLock, type LockEnv } from "./process-lock.mts";
 import { assertHostPackagingSafe } from "./docker-isolation.mts";
 import { validateMergeInputSource, type MergeInput } from "./merge-source.mts";
 
@@ -25,6 +26,8 @@ export interface MergeOptions {
   admit?: (input: MergeInput) => void;
   /** 只在已持久化检查点后发事件；可用于日志及中断恢复测试。 */
   onCheckpoint?: (state: MergeState) => void;
+  /** 仅供测试注入进程身份/启动时间来源；生产不传。 */
+  lockEnv?: LockEnv;
 }
 const git = (cwd: string, args: string[]) => execFileSync("git", args, { cwd, encoding: "utf8", maxBuffer: 64 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
 const list = (s: string) => [...new Set(s.split("\0").filter(Boolean))].sort();
@@ -75,8 +78,9 @@ export async function runManagedMerge(o: MergeOptions): Promise<MergeState> {
   for (const sha of [o.manifest.base, ...inputs.map(i => i.sha)]) if (git(o.cwd, ["rev-parse", `${sha}^{commit}`]).trim() !== sha) throw new Error("输入不是精确 commit");
   mkdirSync(dirname(o.checkpoint), { recursive: true });
   const lock = `${o.checkpoint}.lock`;
-  const fd = openSync(lock, "wx", 0o600);
-  writeFileSync(fd, JSON.stringify({ pid: process.pid, cwd: o.cwd })); closeSync(fd);
+  // 带持有者身份的锁：SIGKILL 残留的锁在“同主机且持有者已死”时原子归档后接管；其余情况一律拒绝（#1742）。
+  // 宿主归并与 Docker 冲突路径都经 runManagedMerge，共用这一份。
+  const held = acquireLock(lock, o.cwd, o.lockEnv);
   try {
     let s: MergeState;
     let recoveredCommit = false;
@@ -178,5 +182,5 @@ export async function runManagedMerge(o: MergeOptions): Promise<MergeState> {
       save(s.position === inputs.length ? "done" : "ready");
     }
     return s;
-  } finally { unlinkSync(lock); }
+  } finally { held.release(); }
 }
