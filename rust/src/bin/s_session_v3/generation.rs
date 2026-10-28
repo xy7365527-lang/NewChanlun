@@ -5579,8 +5579,8 @@ mod tests {
         }
     }
 
-    /// ADR 0054（#1783 验收 5）中段出生锁。三例：坐标 85 插入新 bar、b9 改价修订、b2 改价修订，
-    /// 均在第 2 代中段出生新分型（新分型窗口早于第 1 代最后一个分型）。断言：
+    /// ADR 0054（#1783 验收 5）中段出生锁。三例：坐标 85 插入新 bar、b9 改价修订、
+    /// b8 改价修订，均在第 2 代中段出生新分型（新分型窗口早于第 1 代最后一个分型）。断言：
     /// ① 出生在窗口序上构成后缀——第 2 代不存在「object_id 不在第 1 代」的 X 早于「第 1 代已存在」
     ///    的 Y。分型身份含右组来源前缀链（`group_sources_coords`：方向证据＝处理到组锚为止的完整
     ///    前缀），坐标 c 处的出生/修订使窗口在其后的分型全部同代重生，故在可达输入上出生序（首获知代
@@ -5618,7 +5618,7 @@ mod tests {
         let cases = [
             ("insert@85", inserted),
             ("revise b9", revise(9, 25, 15, "b9")),
-            ("revise b2", revise(2, 30, 20, "b2")),
+            ("revise b8", revise(8, 30, 20, "b8")),
         ];
         let windows = |state: &Value| -> std::collections::BTreeMap<String, i64> {
             objects_of(state, CC007_FRACTAL_KIND)
