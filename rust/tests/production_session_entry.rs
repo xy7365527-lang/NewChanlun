@@ -478,7 +478,8 @@ fn simulation_profile_spawns_isolated_domain_processes() {
 #[test]
 fn credential_sentinel_only_in_x_process_environment() {
     let space = Space::new();
-    let (manifest, _) = simulation(&space, "simulation", false);
+    // 凭据文件须存在，launcher 才按 credential_scope 读取并只注入 X。
+    let (manifest, _) = simulation(&space, "simulation", true);
     let mut launcher = spawn_launcher(&manifest);
     let kids = wait_domains(&mut launcher);
     assert!(
