@@ -173,6 +173,8 @@ _Avoid_: 把布局版本塞进 `content_format`（§5.2 编码没变）或 `prof
 **单元批记录（Development Batch）**（同上）:
 `CC-007.development_batch`：每代一条 typed 记录，承载本 bar 对全部被跟踪分型的比较单元（S 同核产生、内容寻址、每单元只发一次）及每个分型截至本 bar 的单元序列 root。分型描述对象因此只在基础来源修订时出新版。读者只读 entry 与序列分片，不重算比较。
 _Avoid_: 把后续 bar 的比较拷进分型对象载荷；让 Q／前端／审计现场重算 order；把单元发成每单元一条记录或 observation
+entries 按所引分型 `window[0]`（源坐标）严格升序，即窗口序，不按出生序（#1783，[ADR 0054](docs/adr/0054-development-batch-entries-window-order.md)；两序在可达输入上恒等，#1790）。
+_Avoid_: 按分型首获知代给 entries 排序（载荷会依赖发布史，破「增量 ≡ 冷算」）
 
 **固有事实项 / 开销项（Inherent-fact Term / Overhead Term）**（同上）:
 每代新增可达节点 Δ_R(g) 的分解：固有事实项 u·F(g)（被跟踪分型数 × 每单元节点）由已批合同要求产生、不可削；开销项 = Δ_R − u·F(g)，是表示与布局的代价。bounded-layout 的目标与验收门是逐代上界：Δ_R(g) ≤ Σ_f(u+e+⌈log₂count_f⌉+1) + C₀_base + C_bi·bi_births + C₁·⌈log₂N⌉，五常数独立实测冻结，超界代数 0。
