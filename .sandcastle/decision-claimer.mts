@@ -1085,10 +1085,10 @@ function isGitWrite(args: string[]): boolean {
   return args[0] === "push";
 }
 
-/** 给本票的模型调用套上安全拦截改派：记进 summary.modelSwitches 并写日志。 */
-function fallbackRunner(n: number, run: ModelRunner, summary?: Summary): ModelRunner {
+/** 给本票的模型调用套上安全拦截改派：经 record 记账（processTicket 记进 summary.modelSwitches）并写日志。 */
+function fallbackRunner(n: number, run: ModelRunner, record: (sw: ModelSwitch) => void): ModelRunner {
   return withSafeguardFallback(run, (sw) => {
-    if (summary) (summary.modelSwitches ??= []).push(sw);
+    record(sw);
     log(`#${n} ${sw.role} 因 Fable 安全拦截从 ${sw.from} 改 ${sw.to} 重试`);
   });
 }
@@ -1098,18 +1098,21 @@ export interface ArchRun { arch: Archaeology; md: string; problems: string[] }
 /**
  * 跑考古：解析不出或机械校验不过时带问题重跑一次；仍解析不出抛错，仍有问题照常返回
  * （问题清单交审查，草稿因此 BLOCK）。写 archaeology.md 与 archaeology.json。
+ * archaeology.json 的 model 记实际应答模型；switches 给出时其中考古角色的改派一并写入（#1785）。
  */
 export async function runArchaeology(
   t: TicketContext, d: Pick<Deps, "model" | "srcDir">, dir: string, summary?: Summary,
-  o: { feedback?: string; model?: string; round?: number } = {},
+  o: { feedback?: string; model?: string; round?: number; switches?: ModelSwitch[] } = {},
 ): Promise<ArchRun> {
   let fb = o.feedback;
-  const model = o.model ?? MODEL_FABLE;
+  let model = o.model ?? MODEL_FABLE;
+  const planned = model;
   let arch: Archaeology | null = null;
   let problems: string[] = [];
   let raw = "";
   for (let i = 1; i <= 2; i++) {
-    const r = await d.model({ model, prompt: archaeologyPrompt(t, fb), cwd: d.srcDir, role: "archaeology" });
+    const r = await d.model({ model: planned, prompt: archaeologyPrompt(t, fb), cwd: d.srcDir, role: "archaeology" });
+    model = r.model ?? planned;
     if (summary) summary.durationsMs[`archaeology${o.round ?? 1}_${i}`] = r.durationMs;
     raw = r.text;
     arch = parseArchaeology(r.text);
@@ -1117,13 +1120,15 @@ export async function runArchaeology(
     if (problems.length === 0) break;
     fb = problems.map((x) => `- ${x}`).join("\n");
   }
+  const sw = (o.switches ?? summary?.modelSwitches ?? []).filter((x) => x.role === "archaeology" && x.from === planned);
+  const switches = sw.length ? { modelSwitches: sw } : {};
   if (!arch) {
-    writeJson(join(dir, "archaeology.json"), { ticket: t.number, model, parsed: false, problems, raw });
+    writeJson(join(dir, "archaeology.json"), { ticket: t.number, model, ...switches, parsed: false, problems, raw });
     throw new Error("考古输出两次均无法解析为 points JSON");
   }
   const md = renderArchaeology(t, arch, problems);
   writeFileSync(join(dir, ARCHAEOLOGY_FILE), md);
-  writeJson(join(dir, "archaeology.json"), { ticket: t.number, model, parsed: true, problems, ...arch, raw });
+  writeJson(join(dir, "archaeology.json"), { ticket: t.number, model, ...switches, parsed: true, problems, ...arch, raw });
   if (summary) {
     const c = (k: ArchClass) => arch!.points.filter((p) => p.klass === k).length;
     summary.archaeology = { A: c("A"), B: c("B"), C: c("C"), problems };
@@ -1154,7 +1159,8 @@ export async function archaeologyOnly(n: number, d: Deps): Promise<{ ticket: num
   try { writeFileSync(lock, String(process.pid), { flag: "wx" }); } catch { throw new Error(`${lock} 已存在，另一进程正在处理`); }
   let r: ArchRun;
   try {
-    r = await runArchaeology(loadTicket(d.gh, n), { ...d, model: fallbackRunner(n, d.model) }, dir);
+    const switches: ModelSwitch[] = [];
+    r = await runArchaeology(loadTicket(d.gh, n), { ...d, model: fallbackRunner(n, d.model, (sw) => switches.push(sw)) }, dir, undefined, { switches });
   } finally {
     rmSync(lock, { force: true });
   }
@@ -1167,7 +1173,7 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
   mkdirSync(dir, { recursive: true });
   const lock = join(dir, ".lock");
   const summary: Summary = { ticket: n, mode: raw.mode, phase: "classify", attempts: 0, durationsMs: {}, plannedWrites: [] };
-  const d: Deps = { ...raw, model: fallbackRunner(n, raw.model, summary) };
+  const d: Deps = { ...raw, model: fallbackRunner(n, raw.model, (sw) => (summary.modelSwitches ??= []).push(sw)) };
   try {
     writeFileSync(lock, String(process.pid), { flag: "wx" });
   } catch {
@@ -1220,6 +1226,7 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
         klass: p.klass, convertedToP: p.convertedToP, attempts: p.attempts, durationsMs: { ...p.durationsMs },
         reclassNotes: p.reclassNotes, reviewCounts: p.reviewCounts, rounds: p.rounds, landingRedrafts: p.landingRedrafts,
         stage: p.stage, landedSha: p.landedSha, pDone: p.pDone ?? [], resumedFrom: p.stage, factGapNote: p.factGapNote,
+        modelSwitches: p.modelSwitches,
       });
       delete summary.durationsMs.total;
       draft = resume.draft;
@@ -1233,7 +1240,7 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
     const cls = parseClassification(cr.text);
     summary.durationsMs.classify = cr.durationMs;
     summary.klass = cls.klass;
-    writeJson(join(dir, "classify.json"), { ticket: n, model: MODEL_FABLE, ...cls, durationMs: cr.durationMs, raw: cr.text });
+    writeJson(join(dir, "classify.json"), { ticket: n, model: cr.model ?? MODEL_FABLE, ...cls, durationMs: cr.durationMs, raw: cr.text });
     write(`评论 #${n}：分级：${cls.klass} — ${cls.reason}`, ["issue", "comment", String(n), "--body-file", "-"], `分级：${cls.klass} — ${cls.reason}`);
 
     // 1b. 考古：起草前两路搜，逐点 A/B/C。机械校验不过的问题交审查（草稿因此 BLOCK），升档重做时重跑考古。

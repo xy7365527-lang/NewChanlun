@@ -1157,3 +1157,50 @@ test("#1785 负控：拦截以外的非临时错误不改派，照原逻辑整�
   const run = withSafeguardFallback(async () => { throw new Error(FABLE_BLOCK("land")); });
   await assert.rejects(run({ model: MODEL_OPUS, prompt: "p", cwd: "/", role: "land" }), /safeguards flagged/);
 });
+
+test("#1785 F-1：分级/考古改派后 classify.json 与 archaeology.json 记实际模型 Opus，考古切换写进 archaeology.json", async () => {
+  const { d } = blockingDeps(new Set(["classify", "archaeology"]));
+  const s = await processTicket(1783, d);
+  assert.equal(s.phase, "land_t", s.error ?? "");
+  const dir = join(d.outRoot, "1783");
+  assert.equal(JSON.parse(readFileSync(join(dir, "classify.json"), "utf8")).model, MODEL_OPUS);
+  const aj = JSON.parse(readFileSync(join(dir, "archaeology.json"), "utf8"));
+  assert.equal(aj.model, MODEL_OPUS);
+  assert.deepEqual(aj.modelSwitches, [{ role: "archaeology", from: MODEL_FABLE, to: MODEL_OPUS, reason: "safeguard" }]);
+  // 未改派：仍记 Fable，不写 modelSwitches。
+  const plain = blockingDeps(new Set());
+  await processTicket(1783, plain.d);
+  const pj = JSON.parse(readFileSync(join(plain.d.outRoot, "1783", "archaeology.json"), "utf8"));
+  assert.equal(pj.model, MODEL_FABLE);
+  assert.equal(pj.modelSwitches, undefined);
+  assert.equal(JSON.parse(readFileSync(join(plain.d.outRoot, "1783", "classify.json"), "utf8")).model, MODEL_FABLE);
+});
+
+test("#1785 F-1：--archaeology-only 无 summary 时，考古改派照样写进 archaeology.json", async () => {
+  const { d, calls } = blockingDeps(new Set(["archaeology"]));
+  const r = await archaeologyOnly(1355, d);
+  assert.deepEqual(r.problems, []);
+  assert.deepEqual(seq(calls), [["archaeology", MODEL_FABLE], ["archaeology", MODEL_OPUS]]);
+  const dir = join(d.outRoot, "1355");
+  const aj = JSON.parse(readFileSync(join(dir, "archaeology.json"), "utf8"));
+  assert.equal(aj.model, MODEL_OPUS);
+  assert.deepEqual(aj.modelSwitches, [{ role: "archaeology", from: MODEL_FABLE, to: MODEL_OPUS, reason: "safeguard" }]);
+  assert.equal(existsSync(join(dir, "summary.json")), false);
+});
+
+test("#1785 F-2：断点续做带回 modelSwitches，续做后重写的 summary.json 不丢改派记录", async () => {
+  const { d, replies } = liveDeps([
+    new Error(FABLE_BLOCK("classify")), fence({ class: "T", reason: "接口" }), goodDraft, fence(pass()),
+    new Error("land claude-opus-5-5 调用失败（exit 1，第 6 次）：API Error: 模型服务暂时不可用"),
+  ]);
+  const want = [{ role: "classify", from: MODEL_FABLE, to: MODEL_OPUS, reason: "safeguard" }];
+  const s1 = await processTicket(1565, d);
+  assert.equal(s1.stage, "reviewed_pass", s1.error ?? "");
+  assert.deepEqual(s1.modelSwitches, want);
+  replies.push("已写入");
+  const s2 = await processTicket(1565, d);
+  assert.equal(s2.phase, "land_t", s2.error ?? "");
+  assert.equal(s2.resumedFrom, "reviewed_pass");
+  assert.deepEqual(s2.modelSwitches, want);
+  assert.deepEqual(JSON.parse(readFileSync(join(d.outRoot, "1565", "summary.json"), "utf8")).modelSwitches, want);
+});
