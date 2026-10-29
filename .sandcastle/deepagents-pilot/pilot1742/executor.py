@@ -457,6 +457,32 @@ class TicketExecutor:
             self._require_ref(head)
         return observed
 
+    def reconcile_delivery(self, run_dir: Path) -> dict[str, Any]:
+        fd = lock_run_dir(run_dir)
+        try:
+            with self.claims.locked(self.unit.ticket) as txn:
+                claim = txn.record
+                if claim is None:
+                    raise Fenced("交付对账缺少本机持有记录")
+                txn.require_holder(self.unit.run_id, run_dir, claim.generation)
+                delivery = delivery_status(run_dir)
+                if delivery["phase"] == "stale":
+                    return delivery
+                state = delivery["state"]
+                head = parse_sha(state["head"])
+                try:
+                    observed = self._checked(Boundary(txn, claim), head, int(state["pr"]["number"]))
+                except Stale as stale:
+                    _write_json(run_dir / "delivery" / "stale.json",
+                                {"head": head, "observed": stale.observed, "at": _now()})
+                else:
+                    phase = "merged" if observed == "merged" else "awaiting_merge"
+                    if state["phase"] != phase:
+                        _write_json(run_dir / "delivery" / "state.json", {**state, "phase": phase, "at": _now()})
+                return delivery_status(run_dir)
+        finally:
+            os.close(fd)
+
     def _status_probe(self, head: Sha) -> dict[str, Any] | None:
         for status in self.gateway.statuses(head):
             if (status.get("context") == STATUS_CONTEXT and status.get("state") == "success"

@@ -148,7 +148,9 @@ class QueueIntake:
             return unit
 
     def once(self, run: Callable[[WorkUnit], int]) -> dict[int, dict[str, Any]]:
-        from .executor import AdmissionRefused, delivery_status, load_unit
+        from .executor import AdmissionRefused, TicketExecutor, delivery_status, load_unit
+        from .github_app import IdentityError
+        from .run import Busy, Halted
         try:
             self.cutover.load()
         except CutoverError:
@@ -188,7 +190,14 @@ class QueueIntake:
                 except CutoverError:
                     break
                 try:
-                    unit = self.register(ticket)
+                    claim = self.claims.read(ticket)
+                    unit = load_unit(self.state_root, claim.run_id)[0] if claim and claim.state != 'released' else None
+                    if unit is not None and (not isinstance(unit.admission, Queued)
+                            or claim.run_dir != str(PilotRun.run_dir(self.state_root, unit.run_id).resolve())):
+                        raise AdmissionRefused('ticket held by another executor/state root')
+                    if unit is None or delivery_status(PilotRun.run_dir(self.state_root, unit.run_id))['phase'] not in (
+                            'awaiting_merge', 'merged', 'stale'):
+                        unit = self.register(ticket)
                     run_dir = PilotRun.run_dir(self.state_root, unit.run_id)
                     state = delivery_status(run_dir)
                     claim = self.claims.read(ticket)
@@ -196,6 +205,18 @@ class QueueIntake:
                         results[ticket] = {'phase': 'halted', 'reason': claim.reason, 'run_id': unit.run_id}
                         continue
                     if state['phase'] in ('awaiting_merge', 'merged', 'stale'):
+                        try:
+                            state = TicketExecutor(unit, self.gateway, claims=self.claims).reconcile_delivery(run_dir)
+                        except IdentityError as error:
+                            results[ticket] = {'phase': 'awaiting_human', 'run_id': unit.run_id,
+                                               'reason': f'delivery read failed; retry next round: {error}'}
+                            continue
+                        except Halted as error:
+                            results[ticket] = {'phase': 'halted', 'run_id': unit.run_id, 'reason': str(error)}
+                            continue
+                        except Busy:
+                            results[ticket] = {'phase': 'active', 'run_id': unit.run_id, 'reason': 'controller busy'}
+                            return self._status(results)
                         results[ticket] = {**(state['state'] or {}), 'run_id': unit.run_id,
                                            'delivery_phase': state['phase'],
                                            'phase': 'awaiting_merge' if state['phase'] != 'stale' else 'halted'}

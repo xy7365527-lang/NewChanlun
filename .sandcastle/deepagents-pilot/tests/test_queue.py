@@ -369,6 +369,8 @@ def test_delivered_queue_rechecks_remote_without_dispatch_or_writes(delivered, c
         assert rows[TICKET]['delivery_phase'] == 'stale'
         assert json.loads((run_dir / 'delivery' / 'stale.json').read_text())['observed'] == v2.base
         assert v2.claim_record()['state'] == 'active'
+        git(v2.source, 'push', '-q', str(v2.bare), f'{head}:refs/heads/{unit.branch}')
+        assert intake.once(lambda _: pytest.fail('stale run dispatched again'))[TICKET]['phase'] == 'halted'
     else:
         assert v2.claim_record()['state'] == 'halted'
         assert ('closed_pull_request' if change == 'closed' else 'not_draft') in rows[TICKET]['reason']
@@ -382,7 +384,11 @@ def test_delivered_queue_observes_merge_even_after_ticket_closes(delivered, tick
     (number,) = v2.github.pulls
     v2.github.merge_pull(number)
     if ticket_closed:
+        from conftest import git
         v2.github.issues[TICKET]['state'] = 'closed'
+        git(v2.source, 'update-ref', '-d', f'refs/heads/{unit.branch}')
+        git(v2.bare, 'update-ref', '-d', f'refs/heads/{unit.branch}')
+        v2.github.pulls[number]['draft'] = False
     before = v2.writes()
     rows = intake.once(lambda _: pytest.fail('merged run dispatched again'))
     assert rows[TICKET]['phase'] == 'awaiting_merge'
