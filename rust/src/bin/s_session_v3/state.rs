@@ -902,15 +902,7 @@ fn audit_core_fresh_with_policy(
     let mut materials = ordinary_materials_qualified.then(|| {
         super::ordinary_materials::OrdinaryAuditMaterials::new(OrdinaryAuditSeal { _private: () })
     });
-    let history::IndexedHistory {
-        control_facts,
-        raw_prefixes,
-        auxiliary_facts,
-        cuts,
-        objects,
-        auxiliary,
-        object_sweep,
-    } = history::read_indexed_history_with_policy(
+    let verified_history = history::read_verified_public_history(
         tx,
         raw.view(),
         control,
@@ -923,6 +915,7 @@ fn audit_core_fresh_with_policy(
         materials.as_mut(),
         policy,
     )?;
+    let history::IndexedHistory { cuts, objects, object_sweep, .. } = verified_history.history();
     #[cfg(test)]
     trace_event("catalog_metadata", None);
     // 4. 从未运行的目录行：空初态（generation=0）要求全部行都仍是未运行。
@@ -977,11 +970,11 @@ fn audit_core_fresh_with_policy(
     #[cfg(not(feature = "s_incremental"))]
     let mut native_sources: Option<source_audit::NativeSourceAudit<'_>> = None;
     let mut previous = -1i64;
-    for cut in &cuts {
-        audit_one_cut_sources(
+    for cut in cuts {
+        let mut audit_cut = |store: &mut history::HashReader<'_>| audit_one_cut_sources(
             cut,
             raw.view(),
-            &mut store,
+            store,
             &objects,
             object_sweep.as_ref(),
             &mut native_sources,
@@ -992,7 +985,12 @@ fn audit_core_fresh_with_policy(
             source_cache.as_deref_mut(),
             #[cfg(feature = "s_incremental")]
             None,
-        )?;
+        );
+        if verified_history.qualified() {
+            verified_history.audit_cut(tx, cut, deadline, max_render_bytes, budget, audit_cut)?;
+        } else {
+            audit_cut(&mut store)?;
+        }
         previous = cut.metadata.input_frontier;
     }
     if let Some(last) = cuts.last() {
@@ -1022,6 +1020,9 @@ fn audit_core_fresh_with_policy(
         });
     // 当前 Capture memo 的 Raw 借用到此结束，输出可转移已审原始账。
     let raw_sources = native_sources.map(source_audit::NativeSourceAudit::into_raw_facts);
+    let history::IndexedHistory {
+        control_facts, raw_prefixes, auxiliary_facts, cuts, objects, auxiliary, object_sweep,
+    } = verified_history.into_history();
     Ok((
         AuditedState {
             budget: raw.budget().cloned(),

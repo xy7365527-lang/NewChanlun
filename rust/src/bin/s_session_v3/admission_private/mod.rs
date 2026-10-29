@@ -12,53 +12,45 @@ use std::cell::RefCell;
 #[cfg(test)]
 pub(crate) mod s4_read_trace {
     use std::cell::RefCell;
-    use std::collections::BTreeMap;
     #[derive(Default)]
     struct Trace {
         enabled: bool,
         phase: usize,
         bytes: [u64; 4],
-        reads: BTreeMap<(usize, i32, i64, usize), (u64, u64)>,
+        coverage: [u64; 2],
+        last: Option<(&'static str, Option<i64>)>,
     }
     thread_local! { static TRACE: RefCell<Trace> = RefCell::new(Trace::default()); }
     pub(crate) fn enable() { TRACE.with(|t| *t.borrow_mut() = Trace { enabled: true, ..Trace::default() }); }
     pub(crate) fn phase(phase: usize) { TRACE.with(|t| t.borrow_mut().phase = phase); }
-    pub(crate) fn read(kind: i32, offset: i64, len: usize) {
+    pub(crate) fn read(_: i32, _: i64, len: usize) {
         TRACE.with(|t| {
             let mut t = t.borrow_mut();
-            if !t.enabled { return; }
-            let phase = t.phase;
-            t.bytes[phase] += len as u64;
-            let entry = t.reads.entry((phase, kind, offset, len)).or_default();
-            entry.0 += 1;
-            entry.1 += len as u64;
+            if t.enabled { let phase = t.phase; t.bytes[phase] += len as u64; }
         });
     }
-    pub(crate) fn audit_event(label: &str, generation: Option<i64>) {
+    pub(crate) fn coverage(index: usize) {
+        TRACE.with(|t| { let mut t = t.borrow_mut(); if t.enabled { t.coverage[index] += 1; } });
+    }
+    pub(crate) fn audit_event(label: &'static str, generation: Option<i64>) {
         TRACE.with(|t| {
-            let t = t.borrow();
+            let mut t = t.borrow_mut();
             if t.enabled && t.phase == 2 {
-                eprintln!("S4_AUDIT_EVENT phase={} generation={:?} bytes={} node_sql={}", label, generation, t.bytes[2], super::super::content_store::sql_reads_on_thread());
+                t.last = Some((label, generation));
+                eprintln!("S4_AUDIT_EVENT phase={} generation={:?} bytes={} coverage={:?}", label, generation, t.bytes[2], t.coverage);
             }
         });
     }
     pub(crate) fn snapshot(label: &str, bytes: u128) {
         TRACE.with(|t| { if t.borrow().enabled { eprintln!("S4_READ_ACCOUNT {} {}", label, bytes); } });
     }
-    pub(crate) fn finish() {
+    pub(crate) fn finish() -> [u64; 2] {
         TRACE.with(|t| {
             let mut t = t.borrow_mut();
-            if !t.enabled { return; }
-            eprintln!("S4_READ_TRACE bytes_prelude_quick_audit_close={:?}", t.bytes);
-            for phase in 0..4 {
-                let mut rows: Vec<_> = t.reads.iter().filter(|(k, _)| k.0 == phase).collect();
-                let duplicate_bytes: u64 = rows.iter().map(|(_, (count, bytes))| bytes - bytes / count).sum();
-                let total_calls: u64 = rows.iter().map(|(_, (count, _))| count).sum();
-                rows.sort_unstable_by_key(|(_, (_, bytes))| std::cmp::Reverse(*bytes));
-                eprintln!("S4_READ_DISTRIBUTION phase={} calls={} unique_ranges={} repeat_bytes={} top={:?}", phase, total_calls, rows.len(), duplicate_bytes, &rows[..rows.len().min(12)]);
-            }
+            if t.enabled { eprintln!("S4_READ_SUMMARY bytes={:?} coverage={:?} last={:?}", t.bytes, t.coverage, t.last); }
             t.enabled = false;
-        });
+            t.coverage
+        })
     }
 }
 

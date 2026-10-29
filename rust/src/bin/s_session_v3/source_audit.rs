@@ -2291,7 +2291,7 @@ fn audit_generated_in_store(
     super::history::check_deadline(deadline)?;
     #[cfg(test)]
     super::state::trace_event("source_closure", None);
-    s.verify_ref(state, sc::Mode::Public).map_err(err)?;
+    s.verify_history_public_root(state, sc::Mode::Public).map_err(err)?;
     let full_arrays = s.native_measure().is_some() || budget.is_none();
     let mut array_source = ArrayAuditSource {
         source: s,

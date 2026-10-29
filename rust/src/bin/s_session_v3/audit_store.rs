@@ -430,6 +430,9 @@ pub(crate) trait CodecRead: NodeSource {
     ) -> Result<(), CodecError> {
         self.verify_many_ref(refs, sc::Mode::Template)
     }
+    fn verify_history_public_root(&mut self, r: sc::RefView<'_>, mode: sc::Mode) -> Result<(), CodecError> {
+        self.verify_ref(r, mode)
+    }
     fn verify_many_ref_fresh<'a>(
         &mut self,
         refs: impl IntoIterator<Item = sc::RefView<'a>>,
@@ -784,6 +787,8 @@ impl CodecRead for StoreView<'_, '_> {
             if [refs[0].digest()?, refs[1].digest()?] != expected {
                 return Err(CodecError::new(sc::code::SOURCE, "manifest模板覆盖根不匹配"));
             }
+            #[cfg(test)]
+            super::admission_private::s4_read_trace::coverage(0);
             return sc::audit_verify_refview_headers(self, refs);
         }
         self.verify_many_ref(refs, sc::Mode::Template)
@@ -856,6 +861,12 @@ impl CodecRead for StoreView<'_, '_> {
         match &mut self.backend {
             Backend::Generic(s) => s.render_ref(r, o),
             Backend::Audit(s) => s.render_ref(r, o),
+        }
+    }
+    fn verify_history_public_root(&mut self, r: sc::RefView<'_>, mode: sc::Mode) -> Result<(), CodecError> {
+        match &mut self.backend {
+            Backend::Generic(s) => s.verify_history_public_root(r, mode),
+            Backend::Audit(s) => s.verify_history_public_root(r, mode),
         }
     }
     fn verify_ref(&mut self, r: sc::RefView<'_>, m: sc::Mode) -> Result<(), CodecError> {

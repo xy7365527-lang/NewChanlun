@@ -7254,7 +7254,11 @@ mod tests {
     fn s4_cold_handle(o: &Fixture, e: &Value) -> (Driver, Value, Vec<Value>) {
         s_fact_cache::warm_lane_reset();
         s_fact_cache::set_oracle(true);
-        let mut cold = o.open("1").unwrap();
+        super::admission_private::s4_read_trace::enable();
+        let opened = o.open("1");
+        let coverage = super::admission_private::s4_read_trace::finish();
+        let mut cold = opened.unwrap();
+        assert_eq!(coverage[1], coverage[0] * 3, "完整cold须消费每代source/catalog的三个Public根");
         let probe = cold.conn.sql_read_probe();
         let (reply, events, _) = state::traced(true, || cold.handle(e.clone()));
         drop(probe);

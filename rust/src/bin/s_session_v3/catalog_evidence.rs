@@ -584,9 +584,9 @@ fn verify_cut_in_store(
     super::history::check_deadline(deadline)?;
     require_ohlc(metadata.profile_id)?;
     store
-        .verify_ref(generated_state, sc::Mode::Public)
+        .verify_history_public_root(generated_state, sc::Mode::Public)
         .map_err(err)?;
-    store.verify_ref(delta, sc::Mode::Public).map_err(err)?;
+    store.verify_history_public_root(delta, sc::Mode::Public).map_err(err)?;
     let frontier = text_ref(store, delta, "index_frontier")?;
     if !real_batch_id(&frontier) {
         return Err(err(format!(

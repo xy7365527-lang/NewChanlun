@@ -553,6 +553,61 @@ pub(super) fn read_indexed_history_with_policy<'a>(
     result
 }
 
+pub(super) struct VerifiedPublicHistory<'scope, 'tx> {
+    history: IndexedHistory,
+    transaction: &'scope Transaction<'tx>,
+    qualified: bool,
+}
+impl VerifiedPublicHistory<'_, '_> {
+    pub(super) fn history(&self) -> &IndexedHistory { &self.history }
+    pub(super) fn into_history(self) -> IndexedHistory { self.history }
+    pub(super) fn qualified(&self) -> bool { self.qualified }
+    pub(super) fn audit_cut<R>(
+        &self,
+        tx: &Transaction<'_>,
+        cut: &PublishedCut,
+        deadline: Option<std::time::Instant>,
+        max: Option<u64>,
+        budget: Option<&dyn super::audit_budget::Budget>,
+        action: impl FnOnce(&mut HashReader<'_>) -> Result<R, String>,
+    ) -> Result<R, String> {
+        if !self.qualified || !std::ptr::eq(tx, self.transaction)
+            || !self.history.cuts.iter().any(|known| std::ptr::eq(known, cut))
+        {
+            return Err(err("Public覆盖事务/cut绑定不符"));
+        }
+        let mut source = content_store::ReadStore::new(tx).map_err(err)?;
+        let mut reader = HashReader::metered(&mut source, deadline, max, budget);
+        reader.history_public_roots = Some([
+            cut.roots.generated_state.view().digest().map_err(err)?,
+            cut.delta.view().digest().map_err(err)?,
+        ]);
+        action(&mut reader)
+    }
+}
+pub(super) fn read_verified_public_history<'scope, 'tx, 'raw>(
+    tx: &'scope Transaction<'tx>,
+    raw: impl Into<RawEventsView<'raw>>,
+    control: v2::ControlHistory,
+    deadline: Option<std::time::Instant>,
+    max_render_bytes: Option<u64>,
+    budget: Option<&dyn super::audit_budget::Budget>,
+    capture: Option<&sc::AuditCapture>,
+    records: Option<&mut NativeRecordFields<'_>>,
+    work: Option<&sc::capture_allocation::scratch::WorkScope>,
+    materials: Option<&mut super::ordinary_materials::OrdinaryAuditMaterials>,
+    policy: SourcePolicy,
+) -> Result<VerifiedPublicHistory<'scope, 'tx>, String> {
+    let qualified = policy == SourcePolicy::Ordinary && capture.is_none()
+        && work.is_none() && materials.is_none()
+        && tx.is_readonly(rusqlite::DatabaseName::Main).map_err(err)?;
+    let history = read_indexed_history_with_policy(
+        tx, raw, control, deadline, max_render_bytes, budget,
+        capture, records, work, materials, policy,
+    )?;
+    Ok(VerifiedPublicHistory { history, transaction: tx, qualified })
+}
+
 struct VerifiedManifestRoots<'a, 'tx> {
     transaction: &'a Transaction<'tx>,
     roots: &'a [RefValue],
@@ -2289,6 +2344,7 @@ pub(crate) enum SourcePolicy {
 }
 
 pub(crate) struct HashReader<'a> {
+    history_public_roots: Option<[NodeDigest; 2]>,
     policy: SourcePolicy,
     source: ReadOwner<'a>,
     overlay: OverlayOwner,
@@ -2633,6 +2689,7 @@ impl<'a> HashReader<'a> {
             budget: None,
             audit_full_arrays: false,
             policy: SourcePolicy::Ordinary,
+            history_public_roots: None,
         }
     }
     #[cfg(test)]
@@ -2735,6 +2792,7 @@ impl<'a> HashReader<'a> {
             budget: None,
             audit_full_arrays: false,
             policy: SourcePolicy::Ordinary,
+            history_public_roots: None,
         }
     }
     #[cfg(test)]
@@ -2754,6 +2812,7 @@ impl<'a> HashReader<'a> {
             budget: None,
             audit_full_arrays: false,
             policy: SourcePolicy::Ordinary,
+            history_public_roots: None,
         }
     }
     #[cfg(test)]
@@ -2774,6 +2833,7 @@ impl<'a> HashReader<'a> {
             budget: None,
             audit_full_arrays: false,
             policy: SourcePolicy::Ordinary,
+            history_public_roots: None,
         }
     }
     pub(super) fn metered(
@@ -2794,6 +2854,7 @@ impl<'a> HashReader<'a> {
             budget,
             audit_full_arrays: false,
             policy: SourcePolicy::Ordinary,
+            history_public_roots: None,
         }
     }
 }
@@ -2961,6 +3022,9 @@ impl NodeSink for HashReader<'_> {
         self.work
     }
     fn put(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), sc::CodecError> {
+        if self.history_public_roots.is_some() {
+            return Err(sc::CodecError::new(sc::code::SOURCE, "Public覆盖只允许不可变来源视图"));
+        }
         if let Some(owner) = &mut self.owned {
             return owner.raw_put(digest, tag, body);
         }
@@ -3125,6 +3189,17 @@ impl CodecRead for HashReader<'_> {
             None => sc::path::lookup_fields_native(self, r, n, true)
                 .map(super::audit_store::RefFields::Plain),
         }
+    }
+    fn verify_history_public_root(&mut self, r: sc::RefView<'_>, mode: sc::Mode) -> Result<(), sc::CodecError> {
+        if let Some(roots) = self.history_public_roots {
+            if mode != sc::Mode::Public || !roots.contains(&r.digest()?) {
+                return Err(sc::CodecError::new(sc::code::SOURCE, "Public覆盖根/模式不匹配"));
+            }
+            #[cfg(test)]
+            super::admission_private::s4_read_trace::coverage(1);
+            return sc::audit_verify_refview_headers(self, [r]);
+        }
+        self.verify_ref(r, mode)
     }
     fn verify_ref(&mut self, r: sc::RefView<'_>, m: sc::Mode) -> Result<(), sc::CodecError> {
         self.sync_owned();
@@ -5091,6 +5166,43 @@ pub(super) mod tests {
         let control = control_audit::prepare_s3_control_history(&tx)?;
         let raw = read_raw_events(&tx)?;
         read_history(&tx, &raw, control)
+    }
+
+    #[test]
+    fn history_public_coverage_binds_readonly_transaction_cut_and_mode() {
+        let f = published();
+        let mut conn = Connection::open_with_flags(
+            f.conn.path().unwrap(), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        ).unwrap();
+        let tx = conn.transaction().unwrap();
+        let control = control_audit::prepare_s3_control_history(&tx).unwrap();
+        let raw = read_raw_events(&tx).unwrap();
+        let verified = read_verified_public_history(
+            &tx, &raw, control, None, None, None,
+            None, None, None, None, SourcePolicy::Ordinary,
+        ).unwrap();
+        assert!(verified.qualified());
+        let cut = &verified.history().cuts[0];
+        verified.audit_cut(&tx, cut, None, None, None, |reader| {
+            let r = cut.roots.generated_state.view();
+            reader.verify_history_public_root(r, sc::Mode::Public).map_err(err)?;
+            assert_eq!(reader.verify_history_public_root(r, sc::Mode::Template).unwrap_err().code(), sc::code::SOURCE);
+            assert_eq!(reader.verify_history_public_root(cut.snapshot.view(), sc::Mode::Public).unwrap_err().code(), sc::code::SOURCE);
+            assert_eq!(reader.put([0; 32], sc::tag::BOOL_TRUE, &[]).unwrap_err().code(), sc::code::SOURCE);
+            Ok(())
+        }).unwrap();
+        let mut other = Connection::open_with_flags(
+            f.conn.path().unwrap(), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        ).unwrap();
+        let other_tx = other.transaction().unwrap();
+        assert!(verified.audit_cut(&other_tx, cut, None, None, None, |_| Ok(())).is_err());
+        let control = control_audit::prepare_s3_control_history(&other_tx).unwrap();
+        let raw = read_raw_events(&other_tx).unwrap();
+        let other_history = read_indexed_history_with_policy(
+            &other_tx, &raw, control, None, None, None,
+            None, None, None, None, SourcePolicy::Ordinary,
+        ).unwrap();
+        assert!(verified.audit_cut(&tx, &other_history.cuts[0], None, None, None, |_| Ok(())).is_err());
     }
 
     #[test]
@@ -7405,6 +7517,31 @@ mod manifest_template_coverage_tests {
             self.reads.set(self.reads.get() + 1);
             self.nodes.read(digest)
         }
+    }
+
+    #[test]
+    fn history_public_coverage_reads_real_headers_and_keeps_old_caller_full() {
+        let mut nodes = sc::MemoryNodes::new();
+        let root = sc::write_value(&mut nodes, &V::Array(vec![V::String("payload".repeat(100))])).unwrap().content_ref();
+        let digest = root.digest().unwrap();
+        let reads = Rc::new(Cell::new(0));
+        let mut source = Counted { nodes, reads: reads.clone() };
+        {
+            let mut reader = HashReader::new(&mut source);
+            reader.verify_history_public_root((&root).into(), sc::Mode::Public).unwrap();
+            let full = reads.get();
+            reader.history_public_roots = Some([digest; 2]);
+            reader.verify_history_public_root((&root).into(), sc::Mode::Public).unwrap();
+            assert_eq!(reads.get() - full, 1);
+            assert!(full > 1);
+            let mut wrong = root.clone();
+            wrong.extent = Some(999);
+            assert_eq!(reader.verify_history_public_root((&wrong).into(), sc::Mode::Public).unwrap_err().code(), sc::code::EXTENT);
+        }
+        source.nodes.insert_unchecked(digest, sc::tag::ARRAY, vec![0]);
+        let mut reader = HashReader::new(&mut source);
+        reader.history_public_roots = Some([digest; 2]);
+        assert_eq!(reader.verify_history_public_root((&root).into(), sc::Mode::Public).unwrap_err().code(), sc::code::NODE_DIGEST);
     }
 
     #[test]
