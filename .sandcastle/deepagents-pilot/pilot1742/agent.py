@@ -23,7 +23,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import StructuredTool, tool
 from langchain_openai import ChatOpenAI
 from langgraph.types import interrupt
-from pydantic import SecretStr
+from pydantic import BaseModel, ConfigDict, SecretStr, ValidationError, field_validator
 
 from .domain import Awaiting, CommitReceipt, WorkerReceipt
 from .run import PSTACK_MODELS, SKILLS_ROOT, Halted, PilotRun, ToolRefusal, gate_json
@@ -77,11 +77,93 @@ def build_model(slug: str) -> ChatOpenAI:
                       max_retries=2)
 
 
+LEGACY_CAVEAT = "旧工蜂协议未单独采集 confidence 与 caveats；low 是适配器保守标记，不是模型自报。"
+
+
+class SubagentResponse(BaseModel):
+    model_config = ConfigDict(strict=True, extra="forbid")
+
+    conclusion: str
+    evidence: list[str]
+    actions_taken: list[str]
+    confidence: Literal["high", "medium", "low"]
+    caveats: list[str]
+
+
+class WorkerToolInput(BaseModel):
+    model_config = ConfigDict(strict=True, extra="forbid")
+
+    role: Literal["design", "judge", "author", "review"]
+    brief: str
+
+    @field_validator("brief")
+    @classmethod
+    def nonblank_brief(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("brief 不能是空白")
+        return value
+
+
+class LegacyWorkerOutput(BaseModel):
+    model_config = ConfigDict(strict=True, extra="forbid")
+
+    status: Literal["completed", "blocked", "failed"]
+    summary: str
+    findings: list[str]
+    validation: list[str]
+
+
+class ReceiptContent(BaseModel):
+    model_config = ConfigDict(strict=True, extra="forbid")
+
+    summary: str
+    findings: tuple[str, ...]
+    validation: tuple[str, ...]
+    changed_paths: tuple[str, ...]
+
+
+class EmptyWorkerResponse(ValueError):
+    pass
+
+
 def _receipt_json(receipt: WorkerReceipt) -> dict:
-    return {"role": receipt.key.role, "target_head": receipt.key.target_head, "status": receipt.status,
-            "model": receipt.model, "external_session_id": receipt.external_session_id,
-            "summary": receipt.summary, "findings": list(receipt.findings), "validation": list(receipt.validation),
-            "changed_paths": list(receipt.changed_paths_after), "failure_reason": receipt.failure_reason}
+    result: dict[str, Any] = {"role": receipt.key.role, "target_head": receipt.key.target_head, "status": receipt.status,
+              "model": receipt.model, "external_session_id": receipt.external_session_id,
+              "external_session_log": receipt.external_session_log, "output_dir": receipt.output_dir,
+              "summary": receipt.summary, "findings": receipt.findings, "validation": receipt.validation,
+              "changed_paths": receipt.changed_paths_after, "failure_reason": receipt.failure_reason}
+    if receipt.summary is None or isinstance(receipt.summary, str) and not receipt.summary.strip():
+        raise EmptyWorkerResponse("工蜂回执为空，没有可交回主控的结论")
+    caveats = [LEGACY_CAVEAT]
+    if receipt.status != "completed":
+        caveats.append(f"工蜂终态为 {receipt.status}，不构成成功结果。")
+    if receipt.failure_reason:
+        caveats.append(receipt.failure_reason)
+    raw_output = None
+    try:
+        source = Path(receipt.output_dir) / "result.json"
+        if source.exists():
+            raw_output = json.loads(source.read_text()).get("result")
+            LegacyWorkerOutput.model_validate(raw_output)
+        content = ReceiptContent(summary=receipt.summary, findings=receipt.findings,
+                                 validation=receipt.validation, changed_paths=receipt.changed_paths_after)
+        labels = {"author": "作者发现", "review": "独审发现", "judge": "裁判嫁接或拒绝建议",
+                  "design-a": "候选拒绝的替代形状", "design-b": "候选拒绝的替代形状"}
+        response = SubagentResponse(
+            conclusion=content.summary,
+            evidence=[*content.validation, *(f"{labels[receipt.key.role]}：{f}" for f in content.findings)],
+            actions_taken=[f"宿主观察到修改路径：{p}" for p in content.changed_paths],
+            confidence="low", caveats=caveats)
+        result["response_validated"] = True
+    except ValidationError as error:
+        result["unvalidated_output"] = raw_output
+        response = SubagentResponse(
+            conclusion=str(receipt.summary), evidence=[f"原始回执内容：{result!r}"],
+            actions_taken=[], confidence="low",
+            caveats=[*caveats, f"回执内容未通过校验，不可作为已核验答案：{error}"])
+        result["response_validated"] = False
+    result["response"] = response.model_dump()
+    return result
 
 
 def _commit_json(run: PilotRun, receipt: CommitReceipt) -> dict:
@@ -93,9 +175,9 @@ def _commit_json(run: PilotRun, receipt: CommitReceipt) -> dict:
 
 
 def build_tools(run: PilotRun) -> list:
-    errors = _tool_errors(run)
+    errors: tuple[type[Exception], ...] = (*_tool_errors(run), EmptyWorkerResponse)
 
-    @tool
+    @tool(args_schema=WorkerToolInput)
     def run_worker(role: Literal["design", "judge", "author", "review"], brief: str) -> str:
         """派 Sandcastle 工蜂并等到终态。head、模型、checkout 与输出目录都由宿主从回执推导，你只给 brief。
 
@@ -107,8 +189,11 @@ def build_tools(run: PilotRun) -> list:
         try:
             if role == "design":
                 receipts = [_receipt_json(r) for r in run.run_design(brief)]
-                return json.dumps({"ok": True, "receipts": receipts}, ensure_ascii=False)
-            return json.dumps({"ok": True, "receipt": _receipt_json(run.run_worker(role, brief))}, ensure_ascii=False)
+                return json.dumps({"ok": all(r["response_validated"] and r["status"] == "completed" for r in receipts),
+                                   "receipts": receipts}, ensure_ascii=False)
+            receipt = _receipt_json(run.run_worker(role, brief))
+            return json.dumps({"ok": receipt["response_validated"] and receipt["status"] == "completed",
+                               "receipt": receipt}, ensure_ascii=False)
         except errors as error:
             return json.dumps({"ok": False, type(error).__name__: str(error)}, ensure_ascii=False)
 
@@ -226,7 +311,8 @@ def system_prompt(run: PilotRun) -> str:
 本 harness 的映射：
 {design_mapping(run)}- pstack 的 Task/spawn_agent 代码委派 = run_worker(role="author", brief)，由 Sandcastle 外部工蜂执行；独立审阅 = run_worker(role="review", brief)。没有其他子代理、shell 或写文件工具。
 - 工蜂不 commit；commit_candidate 做宿主受管本地提交并返回 diff，你要自己读 diff 再派独审。
-- 独审结论只认 VERDICT: PASS/BLOCK。BLOCK 时把 findings 写进新的 author brief 返修，再 commit_candidate、再 run_worker(review)。
+- 逐份消费 receipt.response 或 receipts[i].response 的 conclusion、evidence、actions_taken、confidence、caveats。用 run_status 与 commit_candidate 返回的事实便宜复核，向用户转述结论时保留全部 caveats；ok=false 时只报告诊断，不作为成功答案。
+- 独审结论只认 VERDICT: PASS/BLOCK。BLOCK 时把完整 findings、validation、response.caveats 写进新的 author brief 返修，再 commit_candidate、再 run_worker(review)。
 {ending}- 一条消息只调用一个业务工具，等它返回再决定下一步。
 
 模型角色表（~/.agents/pstack-models.md，本 run 已冻结：作者 {run.spec.author_model}，独审 {run.spec.reviewer_model}，主控 {run.spec.brain_model}）：

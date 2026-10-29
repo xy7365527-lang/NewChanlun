@@ -69,7 +69,7 @@ PYTHONPATH=.sandcastle/deepagents-pilot "$VENV/bin/python" -m pilot1742 run \
 
 主控只有四个业务工具，加上 `write_todos` 和只读的 `ls`、`read_file`、`glob`、`grep`。没有 `execute`、`task`，也没有写文件工具。技能源是整个 `installed/skills/` 树，只读。
 
-`run_worker(role, brief)` 的 `role` 只有四个值。head、模型、checkout 与输出目录都由宿主从回执推导，模型只给 brief。
+`run_worker(role, brief)` 的 `role` 只有四个值。两个参数都必填，纯空白 brief 会在派工前被拒绝。head、模型、checkout 与输出目录都由宿主从回执推导，模型只给 brief。
 
 - `design` 只在首个作者之前、在基线上可用。它把同一个 brief 同时派给 `design-a` 与 `design-b` 两个只读工蜂（codex-child `review` 模式）。两者各用自己的 checkout，即 `<home>/checkouts/<run-id>/design-a` 与 `design-b`，返回两份设计包。
 - `judge` 要等两份设计包都完成。裁判在 `judge` checkout 里只读运行，brief 是主控的 rubric，提示里只有“候选 1/候选 2”标签，不出现模型名。
@@ -78,6 +78,22 @@ PYTHONPATH=.sandcastle/deepagents-pilot "$VENV/bin/python" -m pilot1742 run \
 另外三个业务工具是 `commit_candidate()`、`check_gate()` 和 `run_status()`。arena 的 Phase D 与 E（选 base、嫁接、合成）由主控自己完成，结果写进作者 brief。设计 arena 之后的首个作者 brief 必须单独一行写且只写一个 `BASE: 候选 1` 或 `BASE: 候选 2`，否则作者派工被拒绝；宿主把声明的 base 与裁判首行一起记进 `trail.jsonl` 的 `synthesis` 事件。
 
 每个工蜂的幂等键是 run 加角色加目标 head。同键再调用只会收养已有工蜂，`design` 的两个槽位各自独立收养。
+
+### 读取工具回执
+
+单工蜂结果放在 `receipt.response`，设计结果逐份读取 `receipts[i].response`。每份 response 只有五个必需字段，经过严格 Pydantic 校验。
+
+- `conclusion` 保留完整 summary，包含独审 VERDICT 和裁判 BASE 首行。
+- `evidence` 保留 validation，并给 findings 加上角色标签。候选的拒绝方案与独审缺陷含义不变。
+- `actions_taken` 只列宿主观察到的修改路径。只读结果为空。
+- `confidence` 固定为 low。旧工蜂协议没有单独采集模型自报置信度，不能从 completed 推出 high。
+- `caveats` 说明旧协议的采集限制，并保留失败原因和失败或取消终态。主控向用户转述结论时保留全部 caveats。
+
+同层的 head、实记模型、session、输出目录与原字段继续供主控核查。整个信封不属于五字段 schema，confidence 也不参与准入。门仍只认同 head 的异家族独审 PASS 与真人批准。
+
+非空但格式不合规的输出返回诊断 response，`ok=false`，confidence 为 low，caveats 标明未通过校验。空结论返回错误，不提供正常 response。历史回执不重写，同键收养也不重派。
+
+设计包的 validation 与采集局限会随候选标签交给裁判，不附模型或 session 身份。BLOCK 后的作者返修提示保留独审 findings、validation 与采集局限。
 
 ## 恢复被杀掉的 run
 

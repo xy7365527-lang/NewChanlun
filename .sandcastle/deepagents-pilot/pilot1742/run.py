@@ -756,8 +756,9 @@ class PilotRun:
         scope = "、".join(task.allowed_prefixes)
         skills_root = "/opt/newchanlun/pstack/installed/skills/" if self.execution is not None else SKILLS_ROOT
         architect = skills_root + "architect"
+        service = "你由另一个代理作为工具调用，只向主控交回结果，不直接与用户对话。\n\n"
         if key.role in DESIGN_SLOTS:
-            return (f"# #{self.spec.ticket} 设计候选（architect Phase B 的 arena runner）\n\nrun {self.spec.run_id}，基线 {key.target_head}。"
+            return (service + f"# #{self.spec.ticket} 设计候选（architect Phase B 的 arena runner）\n\nrun {self.spec.run_id}，基线 {key.target_head}。"
                     "你在自己的独立只读 checkout 里工作，不写任何文件。\n\n"
                     f"先完整读 `{architect}/SKILL.md` 与 `{architect}/references/runner-prompt.md`：前者是你所在的流程，"
                     f"后者是本候选的合同。设计说明按 `{architect}/references/rationale-template.md` 组织，"
@@ -773,8 +774,12 @@ class PilotRun:
                 fact = facts.workers[WorkerKey(self.spec.run_id, slot, key.target_head)]
                 assert isinstance(fact, Terminal)
                 rejected = "\n".join(f"- {f}" for f in fact.receipt.findings)
-                packages.append(f"## {label}\n{fact.receipt.summary}\n\n### {label}拒绝的替代形状\n{rejected}\n")
-            return (f"# #{self.spec.ticket} arena 交叉裁判（只读）\n\nrun {self.spec.run_id}，基线 {key.target_head}。"
+                validation = "\n".join(f"- {v}" for v in fact.receipt.validation)
+                packages.append(f"## {label}\n{fact.receipt.summary}\n\n### {label}拒绝的替代形状\n{rejected}\n"
+                                f"\n### {label}实际核查\n{validation}\n"
+                                "\n### 局限\n旧协议未单独采集 confidence 与 caveats，不能把设计完成视为高置信。\n"
+                                + (f"{fact.receipt.failure_reason}\n" if fact.receipt.failure_reason else ""))
+            return (service + f"# #{self.spec.ticket} arena 交叉裁判（只读）\n\nrun {self.spec.run_id}，基线 {key.target_head}。"
                     f"先完整读 `{skills_root}arena/SKILL.md`，你是其中 Phase C 的只读裁判，不写任何文件。"
                     "下面是同一任务的两个候选设计包，只按标签区分。按主控给的 rubric 逐条给每个候选打分，推荐一个 base 并写理由，"
                     "再指出各候选值得嫁接或应当拒绝的部分。\n\n"
@@ -788,13 +793,16 @@ class PilotRun:
             if verdict is not None and verdict.kind == "BLOCK" and isinstance(review, Terminal):
                 findings = "\n".join(f"- {f}" for f in review.receipt.findings)
                 rework = (f"\n## 返修依据\n候选 {key.target_head} 被独审（{verdict.reviewer_model}）判 BLOCK。\n"
-                          f"{review.receipt.summary}\n{findings}\n")
-            return (f"# #{self.spec.ticket} {self._label}作者任务：{task.title}\n\nrun {self.spec.run_id}，基线 {key.target_head}。\n\n"
+                          f"{review.receipt.summary}\n{findings}\n"
+                          + "\n## 独审实际核查\n" + "\n".join(review.receipt.validation)
+                          + "\n## 独审局限\n旧协议未单独采集 confidence 与 caveats，不能把审阅完成视为高置信。\n"
+                          + (f"{review.receipt.failure_reason}\n" if review.receipt.failure_reason else ""))
+            return (service + f"# #{self.spec.ticket} {self._label}作者任务：{task.title}\n\nrun {self.spec.run_id}，基线 {key.target_head}。\n\n"
                     f"## 需求原文\n{task.requirement}\n\n## 写集\n只允许改动 {scope} 下的文件；"
                     f"写集外的改动会让宿主拒绝提交。不要 commit，宿主负责受管提交。\n{rework}\n"
                     f"## 主控 brief\n{brief.strip()}\n")
         author_commit = next(c for c in facts.commits if c.commit == key.target_head)
-        return (f"# #{self.spec.ticket} {self._label}独立审阅：{task.title}\n\nrun {self.spec.run_id}。审阅候选提交 {key.target_head}"
+        return (service + f"# #{self.spec.ticket} {self._label}独立审阅：{task.title}\n\nrun {self.spec.run_id}。审阅候选提交 {key.target_head}"
                 f"（父提交 {author_commit.intent.parent}）。用 `git show {key.target_head}` 与 "
                 f"`git diff {author_commit.intent.parent} {key.target_head}` 读改动，可以运行只读检查，不得写 checkout。\n\n"
                 f"## 需求原文\n{task.requirement}\n\n## 写集\n{scope}\n\n## 结论协议\n"

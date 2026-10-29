@@ -36,6 +36,6 @@ summary = step.get("summaries", {}).get(args.expected_head, step.get("summary", 
     "mode": args.mode, "model": args.model, "expected_head": args.expected_head,
     "checkout_after": {"head": head, "status": status}, "external_session_id": "fake-session",
     "external_session_log": "/dev/null", "failure_reason": None,
-    "result": {"status": "completed", "summary": summary, "findings": step.get("findings", []), "validation": []},
+    "result": {"status": "completed", "summary": summary, "findings": step.get("findings", []), "validation": step.get("validation", [])},
 }))
 sys.exit(0)

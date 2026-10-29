@@ -1,5 +1,7 @@
 import json
 import sqlite3
+from dataclasses import replace
+from pathlib import Path
 
 import pytest
 from langchain_core.messages import AIMessage
@@ -7,10 +9,11 @@ from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import Command
-from pydantic import SecretStr
+from pydantic import SecretStr, ValidationError
 
 from pilot1742 import agent as pilot_agent
-from pilot1742.agent import build_agent
+from pilot1742.agent import LEGACY_CAVEAT, SubagentResponse, build_agent, build_tools
+from pilot1742.domain import WorkerKey, WorkerReceipt
 from pilot1742.run import ToolRefusal
 
 ALLOWED = {"run_worker", "commit_candidate", "check_gate", "run_status", "write_todos", "ls", "read_file", "glob", "grep"}
@@ -25,7 +28,8 @@ class ScriptedOpenAI(ChatOpenAI):
         return super().bind_tools(tools, **kwargs)
 
     def _generate(self, messages, stop=None, run_manager=None, **kwargs):
-        return ChatResult(generations=[ChatGeneration(message=self.script.pop(0))])
+        reply = self.script.pop(0)
+        return ChatResult(generations=[ChatGeneration(message=reply(messages) if callable(reply) else reply)])
 
     async def _agenerate(self, messages, stop=None, run_manager=None, **kwargs):
         return self._generate(messages, stop)
@@ -90,3 +94,148 @@ def test_run_created_before_the_design_channel_still_builds_and_refuses_design(e
     with pytest.raises(ToolRefusal, match="设计通道"):
         old.run_design("x")
     assert env.claims() == []
+
+
+def receipt_for(env, role="author", **overrides):
+    receipt = WorkerReceipt(WorkerKey("r1", role, env.base), "child", "completed", "gpt-6.1-sol",
+                            env.base, env.base, ("demo/a.py",), "session", "/worker/log",
+                            "VERDICT: PASS\n完整结论", ("发现甲", "发现乙"), ("核查甲", "核查乙"), None, "/missing")
+    return replace(receipt, **overrides)
+
+
+def worker_tool(run):
+    return next(t for t in build_tools(run) if t.name == "run_worker")
+
+
+@pytest.mark.parametrize("role", ["author", "review", "judge", "design"])
+def test_worker_tool_returns_canonical_response_and_preserves_receipt(env, monkeypatch, role):
+    run = env.create()
+    receipt = receipt_for(env, role if role != "design" else "design-a")
+    monkeypatch.setattr(run, "run_worker", lambda *_: receipt)
+    monkeypatch.setattr(run, "run_design", lambda *_: [receipt, replace(receipt, key=WorkerKey("r1", "design-b", env.base))])
+    result = json.loads(worker_tool(run).invoke({"role": role, "brief": "完整任务"}))
+    assert result["ok"] is True
+    receipts = result["receipts"] if role == "design" else [result["receipt"]]
+    for row in receipts:
+        response = row["response"]
+        assert set(response) == {"conclusion", "evidence", "actions_taken", "confidence", "caveats"}
+        assert SubagentResponse.model_validate(response).model_dump() == response
+        assert response["conclusion"] == receipt.summary
+        assert response["confidence"] == "low" and response["caveats"] == [LEGACY_CAVEAT]
+        assert response["evidence"][:2] == ["核查甲", "核查乙"]
+        assert all(any(f in item for item in response["evidence"]) for f in receipt.findings)
+        assert response["actions_taken"] == ["宿主观察到修改路径：demo/a.py"]
+        assert row["summary"] == receipt.summary and row["findings"] == list(receipt.findings)
+        assert row["validation"] == list(receipt.validation)
+        assert row["target_head"] == env.base and row["model"] == receipt.model
+        assert row["output_dir"] == "/missing" and row["external_session_log"] == "/worker/log"
+
+
+@pytest.mark.parametrize("args", [{"brief": "任务"}, {"role": "author"},
+                                  {"role": "author", "brief": " \n\t"}, {"role": " ", "brief": "任务"}])
+def test_worker_tool_refuses_missing_or_blank_inputs_before_dispatch(env, monkeypatch, args):
+    run = env.create()
+    dispatches = []
+    monkeypatch.setattr(run, "run_worker", lambda *args: dispatches.append(args))
+    with pytest.raises(ValidationError):
+        worker_tool(run).invoke(args)
+    assert dispatches == [] and env.claims() == []
+
+
+@pytest.mark.parametrize("change", [{"findings": "不是列表"}, {"findings": (3,)},
+                                     {"validation": (None,)}, {"summary": 42}])
+def test_malformed_nonempty_receipt_is_diagnostic_not_success(env, monkeypatch, change):
+    run = env.create()
+    monkeypatch.setattr(run, "run_worker", lambda *_: receipt_for(env, **change))
+    result = json.loads(worker_tool(run).invoke({"role": "author", "brief": "任务"}))
+    assert result["ok"] is False
+    response = result["receipt"]["response"]
+    assert response["confidence"] == "low"
+    assert any("未通过校验" in c for c in response["caveats"])
+    assert response["actions_taken"] == []
+
+
+@pytest.mark.parametrize("summary", ["", " \n\t"])
+def test_empty_receipt_returns_error(env, monkeypatch, summary):
+    run = env.create()
+    monkeypatch.setattr(run, "run_worker", lambda *_: receipt_for(env, summary=summary))
+    result = json.loads(worker_tool(run).invoke({"role": "author", "brief": "任务"}))
+    assert result["ok"] is False and "EmptyWorkerResponse" in result
+    assert "receipt" not in result
+
+
+@pytest.mark.parametrize("status", ["failed", "cancelled"])
+def test_failed_and_cancelled_receipts_keep_failure_caveats(env, monkeypatch, status):
+    run = env.create()
+    receipt = receipt_for(env, status=status, failure_reason="实际失败原因")
+    monkeypatch.setattr(run, "run_worker", lambda *_: receipt)
+    result = json.loads(worker_tool(run).invoke({"role": "review", "brief": "任务"}))
+    assert result["ok"] is False
+    assert "实际失败原因" in result["receipt"]["response"]["caveats"]
+    assert any(status in c for c in result["receipt"]["response"]["caveats"])
+
+
+def test_canonical_schema_rejects_extra_fields_and_wrong_types():
+    canonical = dict(conclusion="结论", evidence=[], actions_taken=[], confidence="low", caveats=[])
+    for extra in ({"extra": True}, {"evidence": "不是列表"}, {"evidence": [3]}, {"confidence": "certain"}):
+        with pytest.raises(ValidationError):
+            SubagentResponse.model_validate({**canonical, **extra})
+    for field in canonical:
+        with pytest.raises(ValidationError):
+            SubagentResponse.model_validate({k: v for k, v in canonical.items() if k != field})
+
+
+@pytest.mark.parametrize("change", [{"findings": "不是列表"}, {"validation": [3]}, {"summary": 42}, {"extra": True}])
+def test_original_result_fields_are_checked_before_receipt_coercion(env, change):
+    run = env.create()
+    receipt = run.run_worker("author", "任务")
+    path = Path(receipt.output_dir) / "result.json"
+    original = json.loads(path.read_text())
+    original["result"].update(change)
+    path.write_text(json.dumps(original))
+    result = json.loads(worker_tool(run).invoke({"role": "author", "brief": "收养"}))
+    assert result["ok"] is False
+    assert any("未通过校验" in c for c in result["receipt"]["response"]["caveats"])
+    assert result["receipt"]["unvalidated_output"] == original["result"]
+    assert json.loads(path.read_text()) == original
+    assert len(env.claims()) == 1
+
+
+@pytest.mark.parametrize("role", ["author", "design"])
+def test_scripted_main_loop_consumes_each_response_caveat(env, monkeypatch, role):
+    run = env.create()
+    receipt = receipt_for(env, failure_reason="本次未检查远端")
+    monkeypatch.setattr(run, "run_worker", lambda *_: receipt)
+    monkeypatch.setattr(run, "run_design", lambda *_: [receipt, receipt])
+
+    def consume(messages):
+        reply = next(m for m in reversed(messages) if getattr(m, "name", None) == "run_worker")
+        payload = json.loads(reply.content)
+        receipts = payload["receipts"] if role == "design" else [payload["receipt"]]
+        return AIMessage("\n".join(r["response"]["conclusion"] + "\n" + "\n".join(r["response"]["caveats"])
+                                   for r in receipts))
+
+    model = scripted(call("run_worker", role=role, brief="任务"), consume)
+    agent = build_agent(run, SqliteSaver(sqlite3.connect(run.dir / "graph.sqlite", check_same_thread=False)), model)
+    result = agent.invoke({"messages": [("user", "开始")]}, {"configurable": {"thread_id": "r1"}}, durability="sync")
+    expected = 2 if role == "design" else 1
+    assert result["messages"][-1].content.count(LEGACY_CAVEAT) == expected
+    assert result["messages"][-1].content.count("本次未检查远端") == expected
+    assert all(set(request) == ALLOWED for request in model.requests)
+
+
+def test_worker_input_keeps_nonblank_brief_unchanged_and_does_not_accept_host_fields(env, monkeypatch):
+    run = env.create()
+    dispatches = []
+
+    def dispatch(role, brief):
+        dispatches.append((role, brief))
+        return receipt_for(env, summary="BASE: 候选 2\n" + "完整设计包" * 1000)
+
+    monkeypatch.setattr(run, "run_worker", dispatch)
+    result = json.loads(worker_tool(run).invoke({"role": "judge", "brief": " \n原样问题\n "}))
+    assert dispatches == [("judge", " \n原样问题\n ")]
+    assert result["receipt"]["response"]["conclusion"] == "BASE: 候选 2\n" + "完整设计包" * 1000
+    with pytest.raises(ValidationError):
+        worker_tool(run).invoke({"role": "judge", "brief": "问题", "model": "伪造宿主字段"})
+    assert len(dispatches) == 1
