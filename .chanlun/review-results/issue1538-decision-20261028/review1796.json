@@ -1,0 +1,18 @@
+{
+  "pr": 1796,
+  "head": "d87be064c0",
+  "verdict": "PASS",
+  "findings": [],
+  "evidence": {
+    "four_decisions": "ADR 0056 §§三、四、五、七 explicitly implement the four approved recommendations.",
+    "headers": "Three required header lines are present at lines 3-5.",
+    "line_reproduction": [
+      "origin/main 3087582e45 rust/src/economic_session/store.rs:258-263",
+      "origin/main 3087582e45 rust/src/economic_session/book.rs:106-124",
+      "origin/main 3087582e45 rust/src/bin/s_session_v3/driver.rs:321-332",
+      "origin/main 3087582e45 rust/src/theta_v0/backtest/fill.rs:48-49",
+      "origin/main 3087582e45 rust/src/theta_v0/config.rs:487-498",
+      "origin/main 3087582e45 rust/src/theta_v0/strategy/exec.rs:43"
+    ]
+  }
+}
