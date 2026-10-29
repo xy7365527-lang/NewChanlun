@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import pytest
 
 from conftest import git
-from pilot1742.boat_execution import (BoatBinding, BoatCLI, BoatExecution, ExecutionUnknown, BoatRun, HistoricalLocal, parse_execution, new_execution, save)
+from pilot1742.boat_execution import (BoatBinding, BoatCLI, BoatExecution, ExecutionUnknown, HistoricalLocal, parse_execution, new_execution, save)
 from pilot1742.cloud_package import build_skill_bundle, export_repository, safe_path
 from pilot1742.domain import EffectUnknown, Running, Terminal, WorkerKey
 from pilot1742.run import _status_text_paths
@@ -36,7 +36,7 @@ def test_frozen_source_preserves_sha_without_config(env, tmp_path):
 
 
 def test_paths_reject_metadata_escape():
-    for path in ['../a', '/a', '.git/config', 'x/.agents/a', 'a\\b', './']:
+    for path in ['../a', '/a', '.git/config', 'x/.agents/a', '.agents/skills/project/SKILL.md', 'a\\b', './']:
         with pytest.raises(ValueError):
             safe_path(path)
 
@@ -45,7 +45,6 @@ def test_new_default_requires_cloud_no_fallback(env, monkeypatch):
     monkeypatch.delenv('PILOT_BOAT_CONFIG', raising=False)
     with pytest.raises(ValueError, match='Boat'):
         new_execution(source_repo=env.source)
-
 
 
 def test_existing_test_run_keeps_binding_without_current_config(env, monkeypatch):
@@ -252,14 +251,17 @@ def test_upload_failure_stops_before_key_or_worker(env, monkeypatch):
         if 'tar -xzf' in command:
             raise ExecutionUnknown('远端命令输出不完整或执行非成功')
         return {}
-    cli = FakeBoat(list=[{'sandboxes': []}], limits=[{'canStart': True, 'creditUsedSeconds': 0}],
-                   fork=[{'event': 'ready', 'id': 'bx_new'}], rename=[{}], exec=remote, scp=[])
+    cli = FakeBoat(limits=[{'canStart': True, 'creditUsedSeconds': 0}],
+                   info={'state': 'running', 'hydrated': True}, rename=[{}], exec=remote, scp=[])
     run, engine, key, provisioned = prepared_engine(env, monkeypatch, cli)
+    from types import SimpleNamespace
+    engine.fork_api = SimpleNamespace(fork=lambda intent: 'bx_new')
     with pytest.raises(ExecutionUnknown):
         engine.submit(key)
     binding = engine.load(key)
     assert binding.submission == 'creating' and binding.sandbox_id == 'bx_new'
-    assert ('fork', 'bx_base', '--no-env', '--type', 'small', '--ttl', '1800', '--wait') in cli.calls
+    assert binding.fork_intent.source_sandbox == 'bx_base'
+    assert json.loads(binding.fork_intent.body)['noEnv'] is True
     assert ('rename', 'bx_new', binding.sandbox_name) in cli.calls
     assert all(command.startswith('set -e; test ! -e') for command in commands)
     assert provisioned == [] and not any(call[0] == 'exec' and '--detach' in call for call in cli.calls)
@@ -270,7 +272,7 @@ def test_lost_fork_response_adopts_by_name_or_refuses_to_fork_again(env, monkeyp
     cli = FakeBoat(list=[{'sandboxes': []}])
     run, engine, key, _ = prepared_engine(env, monkeypatch, cli)
     engine._store(key, replace(engine.load(key), create_requested=True))
-    with pytest.raises(ExecutionUnknown, match='不再创建'):
+    with pytest.raises(ExecutionUnknown, match='不能安全重建'):
         engine.submit(key)
     assert [call[0] for call in cli.calls] == ['list']
     binding = engine.load(key)
@@ -466,8 +468,6 @@ def test_v2_cancel_runs_under_ticket_action_lock(tmp_path, monkeypatch):
     unbound.release()
     assert len(cancelled) == 1
 
-
-# Remote supervisor: real Linux processes, fake npm/node on PATH.
 
 def supervisor_env(tmp_path, monkeypatch, npm='exit 0', node='exit 0'):
     from pilot1742 import boat_remote

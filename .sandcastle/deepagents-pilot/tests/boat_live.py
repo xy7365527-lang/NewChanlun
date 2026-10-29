@@ -18,7 +18,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 REPO = HERE.parents[2]
 
-from pilot1742.boat_execution import BoatCLI, BoatExecution, ExecutionUnknown  # noqa: E402
+from pilot1742.boat_execution import BoatCLI, BoatExecution, BoatForkAPI, ExecutionUnknown  # noqa: E402
 from pilot1742.domain import WorkerKey, parse_run_id  # noqa: E402
 from pilot1742.run import Halted, PilotRun, TaskSpec, ToolRefusal, _fact_json, current_head  # noqa: E402
 
@@ -43,9 +43,21 @@ class LoggedCLI(BoatCLI):
         return super().call(*args)
 
 
+class LoggedForkAPI(BoatForkAPI):
+    def __init__(self, log: Path):
+        self.log = log
+
+    def fork(self, intent):
+        sandbox = super().fork(intent)
+        with self.log.open('a') as handle:
+            handle.write(json.dumps({'api': 'fork', 'idempotency_key': intent.idempotency_key,
+                                     'body': json.loads(intent.body), 'sandbox_id': sandbox}) + '\n')
+        return sandbox
+
+
 class FixtureExecution(BoatExecution):
     def __init__(self, run, work: Path):
-        super().__init__(run, LoggedCLI(work / "calls.jsonl"))
+        super().__init__(run, LoggedCLI(work / "calls.jsonl"), LoggedForkAPI(work / "fork-api.jsonl"))
         self.work = work
 
     def _key_source(self) -> list[str]:

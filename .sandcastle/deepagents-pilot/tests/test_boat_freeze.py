@@ -12,7 +12,7 @@ from test_boat import config
 
 from pilot1742 import run as run_module
 from pilot1742.agent import build_agent, initial_message, system_prompt
-from pilot1742.boat_execution import BoatExecution, ExecutionUnknown, new_execution
+from pilot1742.boat_execution import BoatExecution, BoatConfig, parse_execution, new_execution
 from pilot1742.cloud_package import build_package
 from pilot1742.domain import WorkerKey, parse_run_id
 from pilot1742.run import PilotRun, RunSpec
@@ -95,6 +95,14 @@ def test_controller_and_worker_read_same_frozen_skills_after_source_and_checkout
         path = env.source / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content)
+    source_root = Path(__file__).resolve().parents[3]
+    for name in ('package.json', 'package-lock.json', '.sandcastle/boat-worker.mts', '.sandcastle/codex-child.ts',
+                 '.sandcastle/docker-isolation.mts', '.sandcastle/acceptance-dir.mts',
+                 '.sandcastle/git-environment.ts', '.sandcastle/main-model.mts',
+                 '.sandcastle/deepagents-pilot/pilot1742/boat_remote.py'):
+        target = env.source / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((source_root / name).read_bytes())
     git(env.source, 'add', '.')
     git(env.source, 'commit', '-qm', 'skills base')
     base = git(env.source, 'rev-parse', 'HEAD')
@@ -142,7 +150,41 @@ def test_controller_and_worker_read_same_frozen_skills_after_source_and_checkout
     changed = git(env.source, 'rev-parse', 'HEAD')
     key = WorkerKey(run.spec.run_id, 'review', changed)
     binding = run.execution._intent(key)
-    with pytest.raises(ExecutionUnknown, match='技能身份不同'):
-        run.execution._build(key, binding)
-    assert not (run.dir / 'boat/packages' / binding.package_id).exists()
+    (run.dir / 'intents').mkdir(exist_ok=True)
+    prompt = run.dir / 'review.md'
+    prompt.write_text('review candidate')
+    (run.dir / 'intents' / f'{key.name}.json').write_text(json.dumps({
+        'prompt_file': str(prompt), 'model': 'claude-opus-5-5', 'mode': 'review'}))
+    package = run.execution._build(key, binding)
+    manifest = json.loads((package / 'package.json').read_text())
+    assert manifest['head'] == changed and manifest['execution_skill_head'] == base
+    assert manifest['project_skill_id'] == controller['id']
+    assert (package / 'project-skills/project/SKILL.md').read_text() == frozen[skill]
+    assert (package / 'repo' / skill).read_text() == 'PROJECT_DRIFT'
+    run.release()
+
+
+@pytest.mark.parametrize('raw', [None, [], {'extra': 1}, {**config(), 'extra': 1},
+                                  {**config(), 'endpoint': []}, {**config(), 'ttl': '1800'},
+                                  {**config(), 'image': None}, {**config(), 'ttl': True}])
+def test_malformed_boat_config_has_value_error_boundary(raw):
+    with pytest.raises(ValueError):
+        BoatConfig.parse(raw)
+
+
+@pytest.mark.parametrize('raw', [[], 'boat', 1, {'backend': 'boat', 'config': config(), 'runtime_head': None}])
+def test_malformed_execution_has_value_error_boundary(raw):
+    with pytest.raises(ValueError):
+        parse_execution(raw)
+
+
+def test_boat_design_prompt_uses_cloud_root_with_custom_source(env, monkeypatch):
+    from test_boat import adapter
+    run, engine, key, _ = adapter(env)
+    from dataclasses import replace
+    engine.config = replace(engine.config, pstack_source='/custom/pstack')
+    facts = run.facts(reconcile=False)
+    prompt = run._prompt(WorkerKey(run.spec.run_id, 'design-a', env.base), 'design', facts)
+    assert '/opt/newchanlun/pstack/installed/skills/architect/SKILL.md' in prompt
+    assert '/Users/' not in prompt
     run.release()

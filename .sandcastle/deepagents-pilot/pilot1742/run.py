@@ -414,7 +414,6 @@ class PilotRun:
 
     @staticmethod
     def _frozen_execution(root: Path, kw: dict) -> RunExecution:
-        """An existing run keeps the execution it was created with; only a new run reads current config."""
         if (root / "run.json").exists():
             return RunSpec.from_json(json.loads((root / "run.json").read_text())).execution
         return new_execution(source_repo=kw.get("source_repo", SOURCE_REPO))
@@ -755,7 +754,8 @@ class PilotRun:
     def _prompt(self, key: WorkerKey, brief: str, facts: RunFacts) -> str:
         task = self.spec.task
         scope = "、".join(task.allowed_prefixes)
-        architect = SKILLS_ROOT + "architect"
+        skills_root = "/opt/newchanlun/pstack/installed/skills/" if self.execution is not None else SKILLS_ROOT
+        architect = skills_root + "architect"
         if key.role in DESIGN_SLOTS:
             return (f"# #{self.spec.ticket} 设计候选（architect Phase B 的 arena runner）\n\nrun {self.spec.run_id}，基线 {key.target_head}。"
                     "你在自己的独立只读 checkout 里工作，不写任何文件。\n\n"
@@ -775,7 +775,7 @@ class PilotRun:
                 rejected = "\n".join(f"- {f}" for f in fact.receipt.findings)
                 packages.append(f"## {label}\n{fact.receipt.summary}\n\n### {label}拒绝的替代形状\n{rejected}\n")
             return (f"# #{self.spec.ticket} arena 交叉裁判（只读）\n\nrun {self.spec.run_id}，基线 {key.target_head}。"
-                    f"先完整读 `{SKILLS_ROOT}arena/SKILL.md`，你是其中 Phase C 的只读裁判，不写任何文件。"
+                    f"先完整读 `{skills_root}arena/SKILL.md`，你是其中 Phase C 的只读裁判，不写任何文件。"
                     "下面是同一任务的两个候选设计包，只按标签区分。按主控给的 rubric 逐条给每个候选打分，推荐一个 base 并写理由，"
                     "再指出各候选值得嫁接或应当拒绝的部分。\n\n"
                     f"## 需求原文\n{task.requirement}\n\n## rubric（主控给出）\n{brief.strip()}\n\n" + "\n".join(packages)

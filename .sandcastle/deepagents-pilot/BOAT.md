@@ -34,11 +34,13 @@
 
 `endpoint` 必须是 HTTPS `/v1` 入口。`image` 必须是完整 `sha256:` 身份，且基底 VM 内有该镜像。模型能力经受管 SSH 管道从网关 VM 流到工蜂 VM，不进入运行包、提示或日志；网关 VM 由其 owner 显式管理，adapter 不启动它。工蜂读取 key 后立即删除文件，监督器结束时再删一次，收集后控制端在停 VM 前确认删除。
 
+fork 使用官方 `POST /sandboxes/{sandboxId}/fork` API，其他操作继续使用 Boat CLI。控制端通过 `BOAT_API_KEY` 或 `PILOT_BOAT_API_KEY_FILE` 提供官方 scoped key。文件须位于仓外且权限为 0600，不读取 CLI 私有凭据。只授 `sandbox.fork`，设置有限 TTL，不使用 admin key。该 key 不进入配置、运行包、提示或云工蜂。官方创建与 scope 规则见 [Create and list keys](https://docs.boat.dev/api-keys/create-and-list) 和 [Scopes](https://docs.boat.dev/api-keys/scopes)。
+
 ## 一次派工的生命周期
 
 `boat/<key>.json` 是该工蜂的唯一绑定，依次经过 `creating → prepared → submitting → submitted → collected`。
 
-- `creating`：先落 `create_requested`，再 fork 基底并把新 VM 改名为该键的唯一名称。重启后按名称收养；fork 响应丢失且没有同名 VM 时报未知，不再 fork 第二台。随后上传运行包；远端已有认领时拒绝覆盖。
+- `creating`：请求前冻结并落盘 `fork_intent`，含账户唯一的幂等键、源 VM、完整请求体和首次请求时间。官方 API 把标签与 fork 同时创建。响应丢失且尚未改名时，重开使用原键和原请求体取得同一 VM，先保存 ID，再改名、等待磁盘恢复和上传。`409 idempotency_in_progress` 短暂重试同一请求，`409 idempotency_key_reused` 拒绝。24 小时保留期过后不再请求创建。旧绑定没有幂等 intent 时只收养已有唯一同名 VM，不补建。远端已有认领时拒绝覆盖运行包。
 - `prepared`：派工前读 `archiveAfter`。剩余寿命不足 15 分钟加 2 分钟收尾余量时拒绝派工，不自动续期。监督器拿到绝对截止时间（自动停止前 2 分钟），镜像核对、依赖安装和工蜂都受它约束，到点写失败回执。
 - `submitting`：提交响应丢失时，先看远端认领；没有认领再查 `boat history`。没有任何提交记录才补提交一次，远端排他认领保证模型任务最多一次。
 - `submitted` 之后，只有取到远端终态回执才收集。回执和 session 取回本地后，控制端删除 key 并停止该 VM，记录 stop ID。
@@ -77,7 +79,7 @@ v1 run 用 `python -m pilot1742 cancel-worker --home ... --run-id ... --role ...
 
 ## 运行包和验收
 
-源码导出保留原 Git SHA，只带当前及父提交所需对象，不带宿主 Git 配置。`boat push` 会省略 `.git`，因此 adapter 使用显式 tar 与 `boat scp`。pstack 与模型规则在每个 run 首次派工时冻结为一份技能包，包身份含其内容摘要，同一 run 的作者与独审使用同一份。主控在首次构建时也读取这份技能包和规则。主控项目技能与纪律从 run 的冻结 base 导出，不从实时源仓库或可变作者 checkout 读取。项目技能经同一个转换器生成内容身份，记录在主控 `boat/controller-context/context.json` 和工蜂 `package.json` 中。三者以只读挂载进入 Docker，依赖由锁文件在 Linux 重建，不复制 Darwin 缓存。
+源码导出保留原 Git SHA，只带当前及父提交所需对象，不带宿主 Git 配置。`boat push` 会省略 `.git`，因此 adapter 使用显式 tar 与 `boat scp`。pstack 与模型规则在每个 run 首次派工时冻结为一份技能包，包身份含其内容摘要，同一 run 的作者与独审使用同一份。主控在首次构建时也读取这份技能包和规则。主控项目技能与纪律从 run 的冻结 base 导出，不从实时源仓库或可变作者 checkout 读取。所有工蜂的执行项目技能也来自该 base 的主控快照，候选源码仍从各自 target head 导出。项目技能经同一个转换器生成内容身份，记录在主控 `boat/controller-context/context.json` 和工蜂 `package.json` 中。`.agents` 和 `.codex` 继续受原只读保护。`allowed_prefixes` 的路径形状检查不会授予这些目录写权。三者以只读挂载进入 Docker，依赖由锁文件在 Linux 重建，不复制 Darwin 缓存。
 
 `tests/boat_live.py` 用无模型夹具工蜂在真实 Boat 上跑提交、监督、观察、收集、断连、停止恢复与取消。夹具回执带 `fixture: true`，不能替代真实模型验收。完整接入验收仍需真实模型轨迹、异家族独审、原发布链和精确 head 批准。首轮资源预算上限为 5 美元，每台 VM 上限为 1800 秒。
 

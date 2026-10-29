@@ -1,5 +1,3 @@
-// No-model fixture for live Boat supervision tests. It replaces boat-worker.mts inside a test package only:
-// same request, same receipt protocol, fixed file edits instead of a model, and fixture=true in the record.
 import { execFileSync } from "node:child_process";
 import { appendFileSync, chmodSync, existsSync, lstatSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";

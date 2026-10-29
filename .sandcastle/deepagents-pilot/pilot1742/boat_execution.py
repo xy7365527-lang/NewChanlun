@@ -13,7 +13,10 @@ from dataclasses import asdict, dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Literal, Protocol
+from urllib.error import HTTPError
 from urllib.parse import urlparse
+from urllib.request import Request, urlopen
+from uuid import uuid4
 
 from .cloud_package import MAX_FILE_BYTES, build_package, build_skill_bundle, build_project_context, git, safe_path
 from .domain import EffectUnknown, NotStarted, Running, Terminal, WorkerFact, WorkerKey
@@ -31,7 +34,10 @@ class ExecutionUnknown(RuntimeError):
 def save(path: Path, data: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temp = path.with_suffix(".tmp")
-    temp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
+    with temp.open("w") as handle:
+        handle.write(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
+        handle.flush()
+        os.fsync(handle.fileno())
     os.replace(temp, path)
 
 
@@ -49,7 +55,17 @@ class BoatConfig:
 
     @classmethod
     def parse(cls, raw: dict) -> "BoatConfig":
-        config = cls(**raw)
+        if not isinstance(raw, dict):
+            raise ValueError("Boat配置必须是对象")
+        try:
+            config = cls(**raw)
+        except TypeError:
+            raise ValueError("Boat配置字段缺失或未知") from None
+        if any(not isinstance(getattr(config, name), str) for name in (
+                "endpoint", "image", "base_sandbox", "key_source_sandbox", "key_source_path", "pstack_source", "model_rules")):
+            raise ValueError("Boat配置路径和身份必须是字符串")
+        if type(config.ttl) is not int or type(config.max_standard_seconds) is not int:
+            raise ValueError("Boat资源限制必须是整数")
         url = urlparse(config.endpoint)
         if url.scheme != "https" or not url.hostname or url.username or url.password or url.query or url.fragment:
             raise ValueError("Boat模型入口必须是无凭据HTTPS URL")
@@ -86,9 +102,9 @@ def parse_execution(raw: dict | None) -> RunExecution:
         return HistoricalLocal()
     if raw == {"backend": "test-launcher"}:
         return HistoricalLocal("test-launcher")
-    if raw.get("backend") != "boat" or set(raw) != {"backend", "config", "runtime_head"}:
+    if not isinstance(raw, dict) or raw.get("backend") != "boat" or set(raw) != {"backend", "config", "runtime_head"}:
         raise ValueError("未知run执行绑定")
-    if not re.fullmatch(r"[0-9a-f]{40}", raw["runtime_head"]):
+    if not isinstance(raw["runtime_head"], str) or not re.fullmatch(r"[0-9a-f]{40}", raw["runtime_head"]):
         raise ValueError("运行时身份需要完整SHA")
     return BoatRun(BoatConfig.parse(raw["config"]), raw["runtime_head"])
 
@@ -99,6 +115,48 @@ def new_execution(*, source_repo: Path) -> BoatRun:
         raise ValueError("新run默认Boat，需PILOT_BOAT_CONFIG；不会回退本机")
     config = BoatConfig.parse(json.loads(Path(source).read_text()))
     return BoatRun(config, git(source_repo, "rev-parse", "HEAD").decode().strip())
+
+
+@dataclass(frozen=True)
+class ForkIntent:
+    source_sandbox: str
+    idempotency_key: str
+    body: str
+    requested_at: float
+
+
+class BoatForkAPI:
+    def fork(self, intent: ForkIntent) -> str:
+        token = os.environ.get("BOAT_API_KEY")
+        if not token:
+            source = os.environ.get("PILOT_BOAT_API_KEY_FILE")
+            if not source:
+                raise ValueError("Boat fork需要BOAT_API_KEY或PILOT_BOAT_API_KEY_FILE，仅供控制端使用")
+            token = Path(source).read_text().strip()
+        request = Request("https://boat.dev/api/v1/sandboxes/" + intent.source_sandbox + "/fork",
+                          data=intent.body.encode(), method="POST",
+                          headers={"Authorization": "Bearer " + token, "Content-Type": "application/json",
+                                   "Idempotency-Key": intent.idempotency_key})
+        for attempt in range(3):
+            try:
+                with urlopen(request, timeout=60) as response:
+                    result = json.load(response)
+                sandbox = result.get("id") if isinstance(result, dict) else None
+                if not isinstance(sandbox, str) or not re.fullmatch(r"bx_[a-z0-9]+", sandbox):
+                    raise ExecutionUnknown("Boat fork未返回有效sandbox身份，按原intent恢复")
+                return sandbox
+            except HTTPError as error:
+                try:
+                    payload = json.load(error)
+                    code = payload.get("code") or payload.get("error", {}).get("code")
+                except (ValueError, AttributeError):
+                    code = "invalid_error"
+                if error.code == 409 and code == "idempotency_in_progress" and attempt < 2:
+                    time.sleep(2)
+                    continue
+                raise ExecutionUnknown(f"Boat fork HTTP {error.code} ({code})；保留原intent") from None
+            except (OSError, ValueError):
+                raise ExecutionUnknown("Boat fork响应丢失或无效，须用原intent恢复") from None
 
 
 @dataclass(frozen=True)
@@ -115,6 +173,7 @@ class BoatBinding:
     process_id: int | None = None
     stop_id: str | None = None
     create_requested: bool = False
+    fork_intent: ForkIntent | None = None
 
     @property
     def request(self) -> str:
@@ -174,12 +233,13 @@ def _epoch(stamp: str) -> float:
 
 
 class BoatExecution(WorkerExecution):
-    def __init__(self, run, cli: BoatCLI | None = None):
+    def __init__(self, run, cli: BoatCLI | None = None, fork_api: BoatForkAPI | None = None):
         self.run = run
         if not isinstance(run.spec.execution, BoatRun):
             raise TypeError("Boat执行器需要BoatRun绑定")
         self.config = run.spec.execution.config
         self.cli = cli or BoatCLI()
+        self.fork_api = fork_api or BoatForkAPI()
 
     @property
     def generation(self) -> int:
@@ -195,7 +255,10 @@ class BoatExecution(WorkerExecution):
         path = self._path(key)
         if not path.exists():
             return None
-        binding = BoatBinding(**json.loads(path.read_text()))
+        data = json.loads(path.read_text())
+        if data.get("fork_intent") is not None:
+            data["fork_intent"] = ForkIntent(**data["fork_intent"])
+        binding = BoatBinding(**data)
         if binding.identity != self._identity(key):
             raise ExecutionUnknown("Boat绑定的持有代次或派工身份漂移")
         return binding
@@ -221,8 +284,10 @@ class BoatExecution(WorkerExecution):
         if binding.submission in ("submitting", "submitted", "collected"):
             return
         if binding.sandbox_id is None:
-            binding = self._store(key, replace(binding, sandbox_id=self._create_sandbox(key, binding)))
+            self._create_sandbox(key, binding)
+            binding = self.load(key)
         if binding.submission == "creating":
+            self._wait_ready(binding.sandbox_id)
             self._upload(key, binding)
             binding = self._store(key, replace(binding, submission="prepared"))
         deadline = self._admit(binding.sandbox_id)
@@ -255,26 +320,39 @@ class BoatExecution(WorkerExecution):
         return context
 
     def _create_sandbox(self, key: WorkerKey, binding: BoatBinding) -> str:
-        """Fork the stopped base VM (its snapshot carries the frozen image) and name the fork after this key."""
-        name = binding.sandbox_name
-        matches = [row for row in self.cli.call("list", "--all")[-1].get("sandboxes", []) if row.get("name") == name]
-        if len(matches) > 1:
-            raise ExecutionUnknown("同名Boat VM不唯一，不能收养")
-        if matches:
-            return matches[0]["id"]
-        if binding.create_requested:
-            raise ExecutionUnknown("上次fork的响应丢失且没有同名VM可收养；不再创建，需主控按boat list处置")
-        limits = self.cli.call("limits")[-1]
-        if not limits.get("canStart") or limits.get("creditUsedSeconds", 0) + self.config.ttl > self.config.max_standard_seconds:
-            raise ExecutionUnknown("Boat额度或首次5美元预算不足")
-        self._store(key, replace(binding, create_requested=True))
-        rows = self.cli.call("fork", self.config.base_sandbox, "--no-env", "--type", "small",
-                             "--ttl", str(self.config.ttl), "--wait")
-        ready = next((row for row in rows if row.get("event") == "ready" and row.get("id")), None)
-        if ready is None:
-            raise ExecutionUnknown("Boat fork未返回ready")
-        self.cli.call("rename", ready["id"], name)
-        return ready["id"]
+        if binding.fork_intent is None:
+            if binding.create_requested:
+                matches = [row for row in self.cli.call("list", "--all")[-1].get("sandboxes", [])
+                           if row.get("name") == binding.sandbox_name]
+                if len(matches) == 1:
+                    self._store(key, replace(binding, sandbox_id=matches[0]["id"]))
+                    return matches[0]["id"]
+                raise ExecutionUnknown("旧fork缺少幂等intent，不能安全重建")
+            limits = self.cli.call("limits")[-1]
+            if not limits.get("canStart") or limits.get("creditUsedSeconds", 0) + self.config.ttl > self.config.max_standard_seconds:
+                raise ExecutionUnknown("Boat额度或首次5美元预算不足")
+            intent = ForkIntent(self.config.base_sandbox, str(uuid4()), json.dumps({
+                "noEnv": True, "type": "small", "ttlSeconds": self.config.ttl,
+                "labels": {"newchanlun.worker": binding.sandbox_name}}, sort_keys=True), time.time())
+            binding = self._store(key, replace(binding, fork_intent=intent, create_requested=True))
+        intent = binding.fork_intent
+        if time.time() >= intent.requested_at + 24 * 3600:
+            raise ExecutionUnknown("Boat fork幂等保留期已过，不再请求创建；保留原intent对账")
+        sandbox = self.fork_api.fork(intent)
+        self.run._crash("after_boat_fork_before_record")
+        self._store(key, replace(binding, sandbox_id=sandbox))
+        self.cli.call("rename", sandbox, binding.sandbox_name)
+        return sandbox
+
+    def _wait_ready(self, sandbox: str) -> None:
+        for _ in range(90):
+            info = self.cli.info(sandbox)
+            if info.get("state") in STOPPED_STATES | {"error", "cancelled"}:
+                raise ExecutionUnknown("Boat VM未就绪，按原sandbox对账")
+            if info.get("hydrated") is True and info.get("state") in {"ready", "idle", "running"}:
+                return
+            time.sleep(2)
+        raise ExecutionUnknown("Boat VM等待hydrated超时，保留原sandbox")
 
     def _build(self, key: WorkerKey, binding: BoatBinding) -> Path:
         local = self.run.dir / "boat/packages" / binding.package_id
@@ -284,7 +362,7 @@ class BoatExecution(WorkerExecution):
             shutil.rmtree(local)
         context = self.controller_context()
         manifest = build_package(self.run.source_repo, key.target_head, local, self.run.dir / "boat/skill-bundle",
-                                 Path(self.config.pstack_source), Path(self.config.model_rules))
+                                 Path(self.config.pstack_source), Path(self.config.model_rules), project_context=context)
         if manifest["project_skill_id"] != json.loads((context / "context.json").read_text())["id"]:
             shutil.rmtree(local)
             raise ExecutionUnknown("工蜂与主控的冻结项目技能身份不同")

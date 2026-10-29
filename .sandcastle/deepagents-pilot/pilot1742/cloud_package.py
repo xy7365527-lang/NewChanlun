@@ -152,16 +152,21 @@ def build_skill_bundle(pstack: Path, models: Path, destination: Path) -> dict:
     return manifest
 
 
-def build_package(repo: Path, head: str, destination: Path, bundle: Path, pstack: Path, models: Path) -> dict:
+def build_package(repo: Path, head: str, destination: Path, bundle: Path, pstack: Path, models: Path,
+                  *, project_context: Path | None = None) -> dict:
     if destination.exists():
         raise FileExistsError(destination)
     destination.mkdir(parents=True)
     export_repository(repo, head, destination / "repo")
     shutil.copytree(bundle / "pstack", destination / "pstack", symlinks=False)
     shutil.copytree(bundle / "rules", destination / "rules", symlinks=False)
-    project = copy_project_skills(destination / "repo", destination / "project-skills", repo, pstack, models)
+    if project_context is None:
+        project = copy_project_skills(destination / "repo", destination / "project-skills", repo, pstack, models)
+    else:
+        project = json.loads((project_context / "context.json").read_text())
+        shutil.copytree(project_context / "project-skills", destination / "project-skills")
     bundle_manifest = json.loads((bundle / "bundle.json").read_text())
-    manifest = {"schema": 2, "head": head, "skill_bundle": bundle_manifest["id"],
+    manifest = {"schema": 2, "head": head, "execution_skill_head": project.get("head", head), "skill_bundle": bundle_manifest["id"],
                 "pstack_root": PSTACK_TARGET + "/installed/skills/", "project_skills_root": PROJECT_TARGET + "/.agents/skills/",
                 "rules_root": RULES_TARGET + "/", "pstack_entries": bundle_manifest["pstack_entries"],
                 "project_entries": project["entries"], "project_files": project["files"], "project_skill_id": project["id"],
