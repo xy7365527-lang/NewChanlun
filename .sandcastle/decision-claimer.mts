@@ -1161,6 +1161,19 @@ export function loadTriaged(dir: string): Classification | null {
   } catch { return null; }
 }
 
+/** 运行中 T 已转 P 的有效分级；classify.json 只存分级器原件，不改写。 */
+export const EFFECTIVE_CLASS_FILE = "classify.effective.json";
+export interface EffectiveP { klass: "P"; reason: string; commentsSeen: number }
+
+/** 读回已转 P 记录；缺失、坏或非 P 一律不认。转 P 只收紧，下一轮不得回到 T。 */
+export function loadEffectiveP(dir: string): EffectiveP | null {
+  try {
+    const j = JSON.parse(readFileSync(join(dir, EFFECTIVE_CLASS_FILE), "utf8")) as Partial<EffectiveP>;
+    if (j.klass !== "P" || typeof j.reason !== "string" || !j.reason) return null;
+    return { klass: "P", reason: j.reason, commentsSeen: typeof j.commentsSeen === "number" ? j.commentsSeen : 0 };
+  } catch { return null; }
+}
+
 /** 分级评论正文；票上已有编排者同文评论时不再重发。 */
 export function classifyCommentBody(c: Classification): string {
   return `分级：${c.klass} — ${c.reason}`;
@@ -1256,6 +1269,10 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
     // 已分级、考古未完成：沿用旧分级只补考古。旧 summary 无水印时任何编排者退回都作废它，宁肯重新分级。
     let triaged = resume ? null : loadTriaged(dir);
     if (triaged && resumeStaleBecauseReopen(prevSummary(dir), t.comments)) triaged = null;
+    // 上一轮已转 P：只收紧，本轮不得回到 T。水印后有退回则与 triaged 同口径作废。
+    let effP = resume ? null : loadEffectiveP(dir);
+    if (effP && resumeStaleBecauseReopen(effP, t.comments)) effP = null;
+    if (effP && triaged) triaged = { ...triaged, klass: "P", reason: effP.reason };
 
     // claim 先行防重复；续做时允许票仍挂在自己名下（上次没来得及取消认领）。
     if (d.mode === "live") {
@@ -1295,15 +1312,18 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
     const tr = triaged
       ? await runTriage(t, d, dir, summary, { fixed: triaged })
       : await runTriage(t, d, dir, summary).catch((e) => { postClassify(); throw e; });
-    const cls = tr.cls;
+    // 上一轮已转 P 而本轮整链重分级判回 T：只收紧，沿用转 P。
+    const cls: Classification = effP && tr.cls.klass === "T" ? { ...tr.cls, klass: "P", reason: effP.reason } : tr.cls;
     summary.klass = cls.klass;
     if (triaged) summary.resumedFrom = "triaged";
     postClassify();
     let ar = tr.ar;
 
     // 2–3. 起草 / 独审，至多两轮。分级由分级器定，起草者只能提改判建议。
-    s = initialState(cls.klass);
+    s = { ...initialState(cls.klass), convertedToP: !!effP && cls.klass === "P" && cls.reason === effP.reason };
     let effCls: Classification = cls;
+    // 运行中转 P 即落盘有效分级；classify.json 原件不动。
+    const markP = () => writeJson(join(dir, EFFECTIVE_CLASS_FILE), { klass: "P", reason: effCls.reason, commentsSeen: t.comments.length });
     const counts = { pass: 0, block: 0, parseError: 0 };
     summary.reviewCounts = counts;
     summary.reclassNotes = [];
@@ -1317,6 +1337,7 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
       effCls = { ...effCls, klass: "P", reason: `${effCls.reason}（${note}）` };
       summary.reclassNotes!.push(note);
       summary.factGapNote = note;
+      markP();
       write(`评论 #${n}：${note}`, ["issue", "comment", String(n), "--body-file", "-"], note);
     };
     gapGate();
@@ -1352,6 +1373,7 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
       if (rc.converted) {
         s = { ...s, klass: "P", convertedToP: true };
         effCls = { ...cls, klass: "P", reason: `${cls.reason}（${rc.note}）` };
+        markP();
       }
 
       const missing = [...missingDraftSections(draft), ...(hasCitationTable(draft) ? [] : [CITATION_SECTION])];

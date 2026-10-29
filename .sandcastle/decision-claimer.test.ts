@@ -11,7 +11,7 @@ import {
   resolvedReason, pickUnresolved, finishedTickets,
   isRetryable, makeClaudeRunner, loadResume, isSafeguardBlock, safeguardFallbackModel, withSafeguardFallback, reviewerModel, modelFamily, assertDifferentModelFamilies, resumeStaleBecauseReopen,
   RULES, ARCH_SECTION, ARCHAEOLOGY_FILE, parseArchaeology, archaeologyProblems, renderArchaeology, archaeologyCoverageProblems,
-  triagePrompt, extractJson, FIXED_CLASS_LINE, loadTriaged, archaeologyAsks, archaeologyOnly, archaeologyOnlyAdmission, shadowComment, flowSectionsIn, stripFlowSections,
+  triagePrompt, extractJson, FIXED_CLASS_LINE, loadTriaged, loadEffectiveP, archaeologyAsks, archaeologyOnly, archaeologyOnlyAdmission, shadowComment, flowSectionsIn, stripFlowSections,
   type Deps, type GhRunner, type ModelCall, type OnceResult,
 } from "./decision-claimer.mts";
 
@@ -1442,4 +1442,65 @@ test("M1 联合调用不改变独审异家族与有效 BLOCK：起草 Opus、独
   assert.equal(s.reviewCounts!.pass, 0);
   for (const r of s.rounds!) assert.notEqual(modelFamily(r.drafter), modelFamily(r.reviewer!));
   assert.equal(triageCalls(modelCalls).length, 1);
+});
+
+test("M1 转 P 不回退：先 T、起草建议转 P、升档重做考古两次解析不出 → 下一轮沿用 P，不得 land_t；classify.json 原件不改", async () => {
+  const badArch = fence({ points: [{ ...goodArchObj.points[0], queries: [] }] });
+  const { d } = fakeDeps("dry-run", []);
+  const block = fence({ ...pass(), R3: { verdict: "BLOCK", basis: "验收项不可执行" } });
+  let run = 1;
+  let fixedN = 0;
+  const calls: ModelCall[] = [];
+  d.model = async (c) => {
+    calls.push(c);
+    if (c.role === "triage") {
+      if (run === 1) {
+        if (!c.prompt.includes(FIXED)) return { text: fence({ class: "T", reason: "接口", points: [{ ...goodArchObj.points[0], queries: [] }] }), durationMs: 5, attempts: 1 };
+        fixedN++;
+        return { text: fixedN === 1 ? badArch : "无 JSON", durationMs: 5, attempts: 1 };
+      }
+      return { text: goodArch, durationMs: 5, attempts: 1 };
+    }
+    if (c.role === "draft") return { text: goodDraft + (run === 1 ? "\n改判建议：P — 涉及真实账户\n" : ""), durationMs: 5, attempts: 1 };
+    return { text: run === 1 ? block : fence(pass()), durationMs: 5, attempts: 1 };
+  };
+  const s1 = await processTicket(1531, d);
+  assert.equal(s1.phase, "error");
+  assert.match(s1.reclassNotes?.join(" ") ?? "", /建议转 P，已转/);
+  const dir = join(d.outRoot, "1531");
+  assert.equal(JSON.parse(readFileSync(join(dir, "classify.json"), "utf8")).klass, "T", "分级原件不改写");
+  run = 2;
+  calls.length = 0;
+  const s2 = await processTicket(1531, d);
+  assert.equal(s2.resumedFrom, "triaged");
+  assert.equal(s2.klass, "P");
+  assert.equal(s2.phase, "shadow_p");
+  assert.match(calls[0].prompt, /分级已定为 P 类/);
+  assert.ok(!s2.plannedWrites.some((w) => w.startsWith("分支 decision/")));
+});
+
+test("M1 转 P 不回退：考古事实缺口转 P 后整链重跑重判 T 仍沿用 P；水印后退回则作废转 P 记录", async () => {
+  const dir0 = mkdtempSync(join(tmpdir(), "m1-effp-"));
+  writeFileSync(join(dir0, "classify.json"), JSON.stringify({ klass: "T", reason: "接口", parsed: true }));
+  writeFileSync(join(dir0, "classify.effective.json"), JSON.stringify({ klass: "P", reason: "接口（考古有事实缺口 Q3）", commentsSeen: 0 }));
+  assert.deepEqual(loadEffectiveP(dir0), { klass: "P", reason: "接口（考古有事实缺口 Q3）", commentsSeen: 0 });
+
+  const r = liveDeps([fence({ class: "T", reason: "重分" }), goodDraft, fence(pass())]);
+  const rdir = join(r.d.outRoot, "1565");
+  mkdirSync(rdir, { recursive: true });
+  writeFileSync(join(rdir, "classify.json"), JSON.stringify({ klass: "T", reason: "接口", parsed: true }));
+  writeFileSync(join(rdir, "archaeology.json"), JSON.stringify({ parsed: true, points: [] }));
+  writeFileSync(join(rdir, "classify.effective.json"), JSON.stringify({ klass: "P", reason: "接口（转 P）", commentsSeen: 0 }));
+  const s = await processTicket(1565, r.d);
+  assert.equal(s.klass, "P");
+  assert.equal(s.phase, "shadow_p");
+  assert.equal(s.convertedToP, true);
+
+  const q = liveDeps([fence({ class: "T", reason: "重分" }), goodDraft, fence(pass()), "已写入"]);
+  const qdir = join(q.d.outRoot, "1565");
+  mkdirSync(qdir, { recursive: true });
+  writeFileSync(join(qdir, "classify.effective.json"), JSON.stringify({ klass: "P", reason: "旧转 P", commentsSeen: 0 }));
+  q.comments.push({ author: { login: "xy7365527-lang" }, body: "## 退回重写" });
+  const s3 = await processTicket(1565, q.d);
+  assert.equal(s3.phase, "land_t", s3.error ?? "");
 });
