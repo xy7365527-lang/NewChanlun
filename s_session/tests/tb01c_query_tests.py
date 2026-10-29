@@ -66,6 +66,9 @@ class QueryTests(unittest.TestCase):
                     pass
             state.mkdir(exist_ok=True)
             TestAnchor(db, state)
+            if operation == "init":
+                # R4 先锚既存空库；用正式 reset 仅初始化本夹具刚创建的空载体。
+                operation = "reset"
         limits = state / "s-admission" / "limits.json"
         result = subprocess.run([str(BINARY), operation, "--db", str(db),
             "--admission-job-limits", str(limits), *map(str, args)],

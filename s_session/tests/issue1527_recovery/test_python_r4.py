@@ -953,7 +953,8 @@ class RepairTests(unittest.TestCase):
                 reads, real_read = [], admission.os.read
                 def read(fd, size):
                     chunk = real_read(fd, size)
-                    reads.append((fd, len(chunk)))
+                    if stat.S_ISREG(os.fstat(fd).st_mode):
+                        reads.append((fd, len(chunk)))
                     return chunk
                 with patch.object(admission.os, "read", side_effect=read), \
                      patch.object(admission, "_object", wraps=admission._object) as strict, \

@@ -433,7 +433,8 @@ class LifecycleTests(unittest.TestCase):
             controller = anchored_controller({"db": str(Path(directory) / "owned")}, Path(directory))
             try:
                 controller.record_path("s").write_text(json.dumps({"db": controller.config["db"], "service": "s"}))
-                with patch.object(control.subprocess, "run") as run:
+                with patch.object(control.subprocess, "run") as run, \
+                     patch.object(controller, "runtime_environment", return_value={}):
                     with self.assertRaisesRegex(ValueError, "状态未知"):
                         controller.recover("2", "recover-001")
                     run.assert_not_called()
@@ -487,7 +488,8 @@ class LifecycleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="tb01c-recover-") as directory:
             controller = anchored_controller({"db": str(Path(directory) / "owned")}, Path(directory))
             try:
-                with patch.object(control.subprocess, "run") as run:
+                with patch.object(control.subprocess, "run") as run, \
+                     patch.object(controller, "runtime_environment", return_value={}):
                     with self.assertRaisesRegex(ValueError, "已确认"):
                         controller.recover("2", "recover-001")
                     run.assert_not_called()
