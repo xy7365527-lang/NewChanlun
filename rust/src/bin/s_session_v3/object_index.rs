@@ -6569,6 +6569,19 @@ mod tests {
             assert!(load(&tx, &mut s, 3)
                 .unwrap_err()
                 .contains("不可变内容根不符"));
+            drop(s);
+            tx.rollback().unwrap();
+            let tx = conn.transaction().unwrap();
+            let mut s = content_store::TxStore::new(&tx).unwrap();
+            let stored = load(&tx, &mut s, 3).unwrap();
+            let mut wire = value_ref(&mut s, stored[0].birth_wire.view());
+            wire["batch_id"] = json!(format!("batch3-{}", "f".repeat(64)));
+            let bad = sc::write_json_view(&mut s, aj::JsonView::Plain(&wire)).unwrap();
+            tx.execute(
+                "UPDATE s_content_objects SET birth_wire_root=?1 WHERE rowid=(SELECT MIN(rowid) FROM s_content_objects)",
+                params![bad.digest.as_slice()],
+            ).unwrap();
+            assert!(load(&tx, &mut s, 3).unwrap_err().contains("出生公开元数据与独立记录不同"));
         }
     }
     #[test]
