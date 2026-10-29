@@ -11,7 +11,7 @@ import {
   resolvedReason, pickUnresolved, finishedTickets,
   isRetryable, makeClaudeRunner, loadResume, isSafeguardBlock, safeguardFallbackModel, withSafeguardFallback, reviewerModel, modelFamily, assertDifferentModelFamilies, resumeStaleBecauseReopen,
   RULES, ARCH_SECTION, ARCHAEOLOGY_FILE, parseArchaeology, archaeologyProblems, renderArchaeology, archaeologyCoverageProblems,
-  archaeologyPrompt, archaeologyAsks, archaeologyOnly, archaeologyOnlyAdmission, shadowComment, flowSectionsIn, stripFlowSections,
+  triagePrompt, extractJson, FIXED_CLASS_LINE, loadTriaged, archaeologyAsks, archaeologyOnly, archaeologyOnlyAdmission, shadowComment, flowSectionsIn, stripFlowSections,
   type Deps, type GhRunner, type ModelCall, type OnceResult,
 } from "./decision-claimer.mts";
 
@@ -30,6 +30,14 @@ const goodArchObj = {
   ],
 };
 const goodArch = fence(goodArchObj);
+const FIXED = FIXED_CLASS_LINE;
+/** 假模型的联合回答：分级回答与考古回答合成一个 JSON；考古不可解析时原样拼接。 */
+const joint = (cls: string, arch: string) => {
+  const c = extractJson(cls);
+  const a = extractJson(arch);
+  const obj = (v: unknown) => (v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : {});
+  return a && typeof a === "object" ? fence({ ...obj(c), ...obj(a) }) : `${cls}\n${arch}`;
+};
 
 test("parseArgs 默认 dry-run，--live 才写", () => {
   assert.equal(parseArgs([]).mode, "dry-run");
@@ -156,9 +164,14 @@ function fakeDeps(mode: "dry-run" | "live", replies: string[], archReplies: stri
     gh: guardGh(mode, raw),
     git: () => { throw new Error("dry-run 不应调 git"); },
     model: async (c) => {
-      if (c.role === "archaeology") {
+      if (c.role === "triage") {
         archCalls.push(c);
-        return { text: archReplies.shift() ?? goodArch, durationMs: 5, attempts: 1 };
+        const arch = archReplies.shift() ?? goodArch;
+        if (c.prompt.includes(FIXED)) return { text: arch, durationMs: 5, attempts: 1 };
+        modelCalls.push(c);
+        const cls = replies.shift();
+        if (cls === undefined) throw new Error("模型调用次数超出预期");
+        return { text: joint(cls, arch), durationMs: 5, attempts: 1 };
       }
       modelCalls.push(c);
       const text = replies.shift();
@@ -180,7 +193,7 @@ test("dry-run 全流程：T 类 PASS 只落本地三份文件，不调任何 gh 
   const s = await processTicket(1531, d);
   assert.equal(s.phase, "land_t");
   assert.equal(s.error, undefined);
-  assert.deepEqual(modelCalls.map((c) => [c.role, c.model]), [["classify", MODEL_MAIN], ["draft", MODEL_DRAFTER], ["review", MODEL_REVIEW]]);
+  assert.deepEqual(modelCalls.map((c) => [c.role, c.model]), [["triage", MODEL_MAIN], ["draft", MODEL_DRAFTER], ["review", MODEL_REVIEW]]);
   assert.ok(modelCalls.every((c) => !c.allowWrite));
   assert.equal(ghCalls.filter(isWrite).length, 0);
   const dir = join(d.outRoot, "1531");
@@ -540,6 +553,7 @@ test("makeClaudeRunner：至少重试 4 次；非临时错误首次即失败", a
 function liveDeps(replies: Array<string | Error>, opts: { failGh?: (a: string[]) => boolean; postedThenFail?: (a: string[]) => boolean } = {}) {
   const ghCalls: string[][] = [];
   const modelCalls: ModelCall[] = [];
+  const fixedCalls: ModelCall[] = [];
   let assignees: string[] = [];
   let target = "";
   const comments: Array<{ author: { login: string }; body: string }> = [];
@@ -567,13 +581,16 @@ function liveDeps(replies: Array<string | Error>, opts: { failGh?: (a: string[])
       return "";
     },
     model: async (c) => {
-      if (c.role === "archaeology") return { text: goodArch, durationMs: 5, attempts: 1 };
+      if (c.role === "triage" && c.prompt.includes(FIXED)) {
+        fixedCalls.push(c);
+        return { text: goodArch, durationMs: 5, attempts: 1 };
+      }
       modelCalls.push(c);
       if (c.role === "land") target = /写进正本 (\S+?)。/.exec(c.prompt)![1];
       const r = replies.shift();
       if (r === undefined) throw new Error("模型调用次数超出预期");
       if (r instanceof Error) throw r;
-      return { text: r, durationMs: 5, attempts: 1 };
+      return { text: c.role === "triage" ? joint(r, goodArch) : r, durationMs: 5, attempts: 1 };
     },
     outRoot: mkdtempSync(join(tmpdir(), "decision-claimer-live-")),
     srcDir: "/nonexistent-src",
@@ -581,7 +598,8 @@ function liveDeps(replies: Array<string | Error>, opts: { failGh?: (a: string[])
     now: Date.now,
   };
   return {
-    d, replies, ghCalls, modelCalls, gitCalls, comments,
+    d, replies, ghCalls, modelCalls, fixedCalls, gitCalls, comments,
+    assign: (who: string[]) => { assignees = who; },
     fail: (f: (a: string[]) => boolean, posted = false) => { opts.failGh = f; if (posted) opts.postedThenFail = f; },
     stopFail: () => { opts.failGh = undefined; opts.postedThenFail = undefined; },
   };
@@ -815,7 +833,7 @@ test("断点续做 × 退回：reviewed_pass 之后出现退回，下一轮整�
   h.gitCalls.length = 0;
   const s2 = await processTicket(1565, h.d);
   assert.equal(s2.resumedFrom, undefined);
-  assert.deepEqual(h.modelCalls.map((c) => c.role), ["classify", "draft", "review", "land"]);
+  assert.deepEqual(h.modelCalls.map((c) => c.role), ["triage", "draft", "review", "land"]);
   assert.equal(s2.phase, "land_t");
   assert.ok(h.gitCalls.some((a) => a[0] === "push"));
 });
@@ -899,10 +917,10 @@ test("archaeology.md：逐点写查询词、命令、命中与归类，B 带默�
   assert.match(md, /## 机械校验\n\n通过。/);
 });
 
-test("考古提示：两路搜、tracker 含已关闭票与评论、A/B/C 归类口径、JSON 形状", () => {
+test("分级考古联合提示：分级口径与考古两路搜、A/B/C 归类、联合 JSON 形状都在同一提示", () => {
   const t = { number: 1355, title: "量档", body: "", labels: [], assignees: [], comments: [], blockers: [] };
-  const p = archaeologyPrompt(t);
-  for (const s of ["--state all", "in:comments", "gh search issues", "docs/adr/", ".chanlun/definitions/", "CONTEXT.md", "analysis/", "测试夹具", "A 已裁", "B 有先例未正式裁", "C 确未设计", "searched_keywords", ".agents/skills/grilling/SKILL.md", ".agents/skills/domain-modeling/SKILL.md", "research 票", "探针票", "adr/0012", "conflict"]) {
+  const p = triagePrompt(t);
+  for (const s of ["T 类（技术取舍）", "P 类（政策）", "资金与费用参数", "拿不准一律判 P", '"class":"T|P"', '"points"', "--state all", "in:comments", "gh search issues", "docs/adr/", ".chanlun/definitions/", "CONTEXT.md", "analysis/", "测试夹具", "A 已裁", "B 有先例未正式裁", "C 确未设计", "searched_keywords", ".agents/skills/grilling/SKILL.md", ".agents/skills/domain-modeling/SKILL.md", "research 票", "探针票", "adr/0012", "conflict"]) {
     assert.ok(p.includes(s), s);
   }
 });
@@ -1129,10 +1147,9 @@ function blockingDeps(block: Set<string>, opts: { reviewText?: string; hardError
   const blockedModel = opts.blockedModel ?? MODEL_DRAFTER;
   d.model = async (c) => {
     calls.push(c);
-    if (opts.hardError && c.role === "archaeology") throw new Error(opts.hardError);
+    if (opts.hardError && c.role === "triage") throw new Error(opts.hardError);
     if (block.has(c.role) && c.model === blockedModel) throw new Error(SAFEGUARD_ERROR(c.role, c.model));
-    const text = c.role === "classify" ? fence({ class: "T", reason: "测试锁" })
-      : c.role === "archaeology" ? goodArch
+    const text = c.role === "triage" ? (c.prompt.includes(FIXED) ? goodArch : fence({ class: "T", reason: "测试锁", ...goodArchObj }))
       : c.role === "draft" ? goodDraft
       : opts.reviewText ?? fence(pass());
     return { text, durationMs: 5, attempts: 1, model: c.model };
@@ -1153,13 +1170,13 @@ test("isSafeguardBlock：只认安全拦截文本；临时错误、参数错误�
 });
 
 test("工具步骤被安全拦截：主控模型改派 Opus，summary 与 archaeology.json 记录切换", async () => {
-  const { d, calls } = blockingDeps(new Set(["archaeology"]), { blockedModel: MODEL_MAIN });
+  const { d, calls } = blockingDeps(new Set(["triage"]), { blockedModel: MODEL_MAIN });
   const s = await processTicket(1783, d);
   assert.equal(s.phase, "land_t", s.error ?? "");
   assert.deepEqual(seq(calls), [
-    ["classify", MODEL_MAIN], ["archaeology", MODEL_MAIN], ["archaeology", MODEL_DRAFTER], ["draft", MODEL_DRAFTER], ["review", MODEL_REVIEW],
+    ["triage", MODEL_MAIN], ["triage", MODEL_DRAFTER], ["draft", MODEL_DRAFTER], ["review", MODEL_REVIEW],
   ]);
-  const want = [{ role: "archaeology", from: MODEL_MAIN, to: MODEL_DRAFTER, reason: "safeguard" }];
+  const want = [{ role: "triage", from: MODEL_MAIN, to: MODEL_DRAFTER, reason: "safeguard" }];
   assert.deepEqual(s.modelSwitches, want);
   const aj = JSON.parse(readFileSync(join(d.outRoot, "1783", "archaeology.json"), "utf8"));
   assert.deepEqual(aj.modelSwitches, want);
@@ -1167,18 +1184,18 @@ test("工具步骤被安全拦截：主控模型改派 Opus，summary 与 archae
 });
 
 test("主控工具步骤被拦截后粘住改派模型，不再先撞一次拦截", async () => {
-  const { d, calls } = blockingDeps(new Set(["classify"]), { blockedModel: MODEL_MAIN });
+  const { d, calls } = blockingDeps(new Set(["triage"]), { blockedModel: MODEL_MAIN });
   const s = await processTicket(1783, d);
   assert.equal(s.phase, "land_t", s.error ?? "");
-  assert.deepEqual(seq(calls).slice(0, 2), [["classify", MODEL_MAIN], ["classify", MODEL_DRAFTER]]);
+  assert.deepEqual(seq(calls).slice(0, 2), [["triage", MODEL_MAIN], ["triage", MODEL_DRAFTER]]);
   const inner: ModelCall[] = [];
   const run = withSafeguardFallback(async (c) => {
     inner.push(c);
     if (c.model === MODEL_MAIN) throw new Error(SAFEGUARD_ERROR(c.role, c.model));
     return { text: "ok", durationMs: 1, attempts: 1, model: c.model };
   });
-  const a = await run({ model: MODEL_MAIN, prompt: "p", cwd: "/", role: "archaeology" });
-  const b = await run({ model: MODEL_MAIN, prompt: "p2", cwd: "/", role: "archaeology" });
+  const a = await run({ model: MODEL_MAIN, prompt: "p", cwd: "/", role: "triage" });
+  const b = await run({ model: MODEL_MAIN, prompt: "p2", cwd: "/", role: "triage" });
   assert.equal(a.model, MODEL_DRAFTER);
   assert.equal(b.model, MODEL_DRAFTER);
   assert.deepEqual(inner.map((c) => c.model), [MODEL_MAIN, MODEL_DRAFTER, MODEL_DRAFTER], "第二次直接走 Opus");
@@ -1188,7 +1205,7 @@ test("起草被拦截改主控：独审改用 Opus，review.json 与 rounds 记�
   const { d, calls } = blockingDeps(new Set(["draft"]));
   const s = await processTicket(1783, d);
   assert.equal(s.phase, "land_t", s.error ?? "");
-  assert.deepEqual(seq(calls).slice(2), [["draft", MODEL_DRAFTER], ["draft", MODEL_REVIEW], ["review", MODEL_DRAFTER]]);
+  assert.deepEqual(seq(calls).slice(1), [["draft", MODEL_DRAFTER], ["draft", MODEL_REVIEW], ["review", MODEL_DRAFTER]]);
   const rv = JSON.parse(readFileSync(join(d.outRoot, "1783", "review.json"), "utf8"));
   assert.equal(rv.drafter, MODEL_REVIEW);
   assert.equal(rv.reviewer, MODEL_DRAFTER);
@@ -1200,7 +1217,7 @@ test("起草改主控后独审 Opus 也被拦截：无异家族可选时 FAIL-lo
   const s = await processTicket(1783, d);
   assert.equal(s.phase, "error");
   assert.match(s.error ?? "", /同家族|FAIL/);
-  assert.deepEqual(seq(calls).slice(2), [["draft", MODEL_DRAFTER], ["draft", MODEL_REVIEW], ["review", MODEL_DRAFTER], ["review", MODEL_REVIEW]]);
+  assert.deepEqual(seq(calls).slice(1), [["draft", MODEL_DRAFTER], ["draft", MODEL_REVIEW], ["review", MODEL_DRAFTER], ["review", MODEL_REVIEW]]);
   assert.deepEqual(s.modelSwitches!.map((x) => [x.role, x.from, x.to]), [["draft", MODEL_DRAFTER, MODEL_REVIEW], ["review", MODEL_DRAFTER, MODEL_REVIEW]]);
   const rv = JSON.parse(readFileSync(join(d.outRoot, "1783", "review.json"), "utf8"));
   assert.deepEqual(rv.modelSwitches, [{ role: "review", from: MODEL_DRAFTER, to: MODEL_REVIEW, reason: "safeguard" }]);
@@ -1222,27 +1239,27 @@ test("锁：起草与独审必须异家族，计划与改派两种轮次都覆�
 });
 
 test("负控：拦截以外的非临时错误不改派，照原逻辑整票失败；落地模型也不改派", async () => {
-  const hard = blockingDeps(new Set(), { hardError: `archaeology ${MODEL_MAIN} 调用失败（exit 1，第 1 次）：Invalid model name` });
+  const hard = blockingDeps(new Set(), { hardError: `triage ${MODEL_MAIN} 调用失败（exit 1，第 1 次）：Invalid model name` });
   const s = await processTicket(1783, hard.d);
   assert.equal(s.phase, "error");
   assert.match(s.error ?? "", /Invalid model name/);
-  assert.deepEqual(seq(hard.calls), [["classify", MODEL_MAIN], ["archaeology", MODEL_MAIN]]);
+  assert.deepEqual(seq(hard.calls), [["triage", MODEL_MAIN]]);
   assert.equal(s.modelSwitches, undefined);
   const run = withSafeguardFallback(async () => { throw new Error(SAFEGUARD_ERROR("land", MODEL_OPUS)); });
   await assert.rejects(run({ model: MODEL_OPUS, prompt: "p", cwd: "/", role: "land" }), /safeguards flagged/);
 });
 
-test("F-1：分级/考古改派后记录实际模型与 modelSwitches，未改派默认主控模型", async () => {
-  const { d } = blockingDeps(new Set(["classify", "archaeology"]), { blockedModel: MODEL_MAIN });
+test("F-1：分级考古联合调用改派后两份记录都写实际模型与 modelSwitches，未改派默认主控模型", async () => {
+  const { d } = blockingDeps(new Set(["triage"]), { blockedModel: MODEL_MAIN });
   const s = await processTicket(1783, d);
   assert.equal(s.phase, "land_t", s.error ?? "");
   const dir = join(d.outRoot, "1783");
   const cj = JSON.parse(readFileSync(join(dir, "classify.json"), "utf8"));
   assert.equal(cj.model, MODEL_DRAFTER);
-  assert.deepEqual(cj.modelSwitches, [{ role: "classify", from: MODEL_MAIN, to: MODEL_DRAFTER, reason: "safeguard" }]);
+  assert.deepEqual(cj.modelSwitches, [{ role: "triage", from: MODEL_MAIN, to: MODEL_DRAFTER, reason: "safeguard" }]);
   const aj = JSON.parse(readFileSync(join(dir, "archaeology.json"), "utf8"));
   assert.equal(aj.model, MODEL_DRAFTER);
-  assert.deepEqual(aj.modelSwitches, [{ role: "archaeology", from: MODEL_MAIN, to: MODEL_DRAFTER, reason: "safeguard" }]);
+  assert.deepEqual(aj.modelSwitches, [{ role: "triage", from: MODEL_MAIN, to: MODEL_DRAFTER, reason: "safeguard" }]);
   const plain = blockingDeps(new Set());
   await processTicket(1783, plain.d);
   const pj = JSON.parse(readFileSync(join(plain.d.outRoot, "1783", "archaeology.json"), "utf8"));
@@ -1252,23 +1269,23 @@ test("F-1：分级/考古改派后记录实际模型与 modelSwitches，未改�
 });
 
 test("F-1：--archaeology-only 无 summary 时，考古改派照样写进 archaeology.json", async () => {
-  const { d, calls } = blockingDeps(new Set(["archaeology"]), { blockedModel: MODEL_MAIN });
+  const { d, calls } = blockingDeps(new Set(["triage"]), { blockedModel: MODEL_MAIN });
   const r = await archaeologyOnly(1355, d);
   assert.deepEqual(r.problems, []);
-  assert.deepEqual(seq(calls), [["archaeology", MODEL_MAIN], ["archaeology", MODEL_DRAFTER]]);
+  assert.deepEqual(seq(calls), [["triage", MODEL_MAIN], ["triage", MODEL_DRAFTER]]);
   const dir = join(d.outRoot, "1355");
   const aj = JSON.parse(readFileSync(join(dir, "archaeology.json"), "utf8"));
   assert.equal(aj.model, MODEL_DRAFTER);
-  assert.deepEqual(aj.modelSwitches, [{ role: "archaeology", from: MODEL_MAIN, to: MODEL_DRAFTER, reason: "safeguard" }]);
+  assert.deepEqual(aj.modelSwitches, [{ role: "triage", from: MODEL_MAIN, to: MODEL_DRAFTER, reason: "safeguard" }]);
   assert.equal(existsSync(join(dir, "summary.json")), false);
 });
 
 test("F-2：断点续做带回 modelSwitches，续做后重写的 summary.json 不丢改派记录", async () => {
   const { d, replies } = liveDeps([
-    new Error(SAFEGUARD_ERROR("classify", MODEL_MAIN)), fence({ class: "T", reason: "接口" }), goodDraft, fence(pass()),
+    new Error(SAFEGUARD_ERROR("triage", MODEL_MAIN)), fence({ class: "T", reason: "接口" }), goodDraft, fence(pass()),
     new Error("land claude-opus-5-5 调用失败（exit 1，第 6 次）：API Error: 模型服务暂时不可用"),
   ]);
-  const want = [{ role: "classify", from: MODEL_MAIN, to: MODEL_DRAFTER, reason: "safeguard" }];
+  const want = [{ role: "triage", from: MODEL_MAIN, to: MODEL_DRAFTER, reason: "safeguard" }];
   const s1 = await processTicket(1565, d);
   assert.equal(s1.stage, "reviewed_pass", s1.error ?? "");
   assert.deepEqual(s1.modelSwitches, want);
@@ -1278,4 +1295,151 @@ test("F-2：断点续做带回 modelSwitches，续做后重写的 summary.json �
   assert.equal(s2.resumedFrom, "reviewed_pass");
   assert.deepEqual(s2.modelSwitches, want);
   assert.deepEqual(JSON.parse(readFileSync(join(d.outRoot, "1565", "summary.json"), "utf8")).modelSwitches, want);
+});
+
+// ───────────── #1742 M1：分级+考古一次联合调用 ─────────────
+
+const triageCalls = (calls: ModelCall[]) => calls.filter((c) => c.role === "triage");
+const classifyComments = (comments: Array<{ body: string }>) => comments.filter((c) => c.body.startsWith("分级："));
+
+test("M1 新票：正常路径只有一次分级+考古模型调用，classify.json 与 archaeology.json 同源落盘", async () => {
+  const { d } = fakeDeps("dry-run", []);
+  const calls: ModelCall[] = [];
+  d.model = async (c) => {
+    calls.push(c);
+    const text = c.role === "triage" ? fence({ class: "T", reason: "接口", ...goodArchObj }) : c.role === "draft" ? goodDraft : fence(pass());
+    return { text, durationMs: 5, attempts: 1 };
+  };
+  const s = await processTicket(1531, d);
+  assert.equal(s.phase, "land_t", s.error ?? "");
+  assert.deepEqual(calls.map((c) => c.role), ["triage", "draft", "review"]);
+  assert.ok(!calls[0].prompt.includes(FIXED_CLASS_LINE));
+  const dir = join(d.outRoot, "1531");
+  assert.equal(JSON.parse(readFileSync(join(dir, "classify.json"), "utf8")).klass, "T");
+  assert.equal(JSON.parse(readFileSync(join(dir, "archaeology.json"), "utf8")).parsed, true);
+  assert.equal(s.plannedWrites.filter((w) => w.startsWith("评论 #1531：分级：")).length, 1);
+});
+
+test("M1 联合输出缺 class 或 reason：分级按「拿不准一律判 P」，考古照收，不自动落地", async () => {
+  const { d } = fakeDeps("dry-run", []);
+  d.model = async (c) => ({ text: c.role === "triage" ? fence({ ...goodArchObj }) : c.role === "draft" ? goodDraft : fence(pass()), durationMs: 5, attempts: 1 });
+  const s = await processTicket(1531, d);
+  assert.equal(s.klass, "P");
+  assert.equal(s.phase, "shadow_p");
+  assert.deepEqual(s.archaeology, { A: 1, B: 1, C: 1, problems: [] });
+  assert.ok(s.plannedWrites.includes("标签 #1531：+needs-approval"));
+});
+
+test("M1 P 类账户未知：联合调用保留 P 与 C 类 decision/research 缺口，影子评论列待决与要开的票，不落地", async () => {
+  const pArch = { points: [
+    { id: "Q1", question: "Q 字段映射", class: "C", queries: [trackerQ, repoQ], hits: [], searched_keywords: ["Q_total", "账户权益"], gap: "decision", recommended: "AwaitingPolicy，签署前不代填（ADR 0049 金额与数量分维）" },
+    { id: "Q2", question: "目标账户初值", class: "C", queries: [trackerQ, repoQ], hits: [], searched_keywords: ["账户初值", "initial equity"], gap: "research" },
+  ] };
+  const { d } = fakeDeps("dry-run", []);
+  const calls: ModelCall[] = [];
+  d.model = async (c) => {
+    calls.push(c);
+    const draft = goodDraft.replace(archTable, `## ${ARCH_SECTION}\n| 点 | 归类 | 出处 | 草稿处置 |\n|---|---|---|---|\n| Q1 | C | — | 待决 |\n| Q2 | C research | — | 开 research 票 |`);
+    return { text: c.role === "triage" ? fence({ class: "P", reason: "资金参数", ...pArch }) : c.role === "draft" ? draft : fence(pass()), durationMs: 5, attempts: 1 };
+  };
+  const s = await processTicket(1531, d);
+  assert.equal(s.klass, "P");
+  assert.equal(s.phase, "shadow_p");
+  assert.equal(triageCalls(calls).length, 1);
+  assert.match(calls.find((c) => c.role === "draft")!.prompt, /本票分级：P 类/);
+  assert.ok(!s.plannedWrites.some((w) => w.startsWith("分支 decision/")));
+  const body = shadowComment(1531, "", parseReview(fence(pass())), "/x/1531", s, parseArchaeology(fence(pArch)));
+  assert.match(body, /\| Q1 \| C 待决 \| Q 字段映射 \|.*AwaitingPolicy/);
+  assert.match(body, /- Q2 目标账户初值 → 开 research 票/);
+});
+
+test("M1 失败重入：联合调用考古两次解析不出，分级已落盘且评论一次；下一轮只补考古，不重分级、不重发分级评论", async () => {
+  const h = liveDeps([goodDraft, fence(pass()), "已写入"]);
+  const base = h.d.model;
+  let bad = 1;
+  h.d.model = async (c) => {
+    if (c.role === "triage" && !c.prompt.includes(FIXED_CLASS_LINE)) {
+      h.modelCalls.push(c);
+      return { text: fence({ class: "T", reason: "接口" }), durationMs: 5, attempts: 1 };
+    }
+    if (c.role === "triage" && bad > 0) { bad--; h.fixedCalls.push(c); return { text: "无", durationMs: 5, attempts: 1 }; }
+    return base(c);
+  };
+  const s1 = await processTicket(1565, h.d);
+  assert.equal(s1.phase, "error");
+  assert.match(s1.error ?? "", /考古输出两次均无法解析/);
+  assert.equal(triageCalls(h.modelCalls).length, 1);
+  assert.equal(classifyComments(h.comments).length, 1);
+  assert.equal(writesOf(h.ghCalls).at(-1), "issue edit 1565 --remove-assignee");
+  h.modelCalls.length = 0;
+  h.fixedCalls.length = 0;
+  h.ghCalls.length = 0;
+  const s2 = await processTicket(1565, h.d);
+  assert.equal(s2.phase, "land_t", s2.error ?? "");
+  assert.equal(s2.resumedFrom, "triaged");
+  assert.equal(s2.klass, "T");
+  assert.equal(h.fixedCalls.length, 1);
+  assert.match(h.fixedCalls[0].prompt, /分级已定为 T 类 —— 接口/);
+  assert.deepEqual(h.modelCalls.map((c) => c.role), ["draft", "review", "land"]);
+  assert.equal(classifyComments(h.comments).length, 1, "分级评论不重发");
+  assert.deepEqual(writesOf(h.ghCalls), ["issue edit 1565 --add-assignee", "issue comment 1565 --body-file"]);
+});
+
+test("M1 旧两段式断点：只有 classify.json（旧角色名）且票上已有分级评论 → 沿用分级只补考古，认领只一次", async () => {
+  const h = liveDeps([goodDraft, fence(pass()), "已写入"]);
+  const dir = join(h.d.outRoot, "1565");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "classify.json"), JSON.stringify({ ticket: 1565, model: MODEL_MAIN, klass: "T", reason: "接口", parsed: true, durationMs: 9, raw: "x" }));
+  writeFileSync(join(dir, "summary.json"), JSON.stringify({ ticket: 1565, mode: "live", phase: "error", attempts: 0, durationsMs: { classify: 9 }, plannedWrites: [], error: "archaeology gpt-6.1-sol 调用失败", modelSwitches: [{ role: "classify", from: MODEL_MAIN, to: MODEL_DRAFTER, reason: "safeguard" }] }));
+  h.comments.push({ author: { login: "xy7365527-lang" }, body: "分级：T — 接口" });
+  const s = await processTicket(1565, h.d);
+  assert.equal(s.phase, "land_t", s.error ?? "");
+  assert.equal(s.resumedFrom, "triaged");
+  assert.equal(h.fixedCalls.length, 1);
+  assert.deepEqual(h.modelCalls.map((c) => c.role), ["draft", "review", "land"]);
+  assert.equal(classifyComments(h.comments).length, 1);
+  assert.equal(writesOf(h.ghCalls).filter((w) => w.includes("--add-assignee")).length, 1);
+  assert.equal(JSON.parse(readFileSync(join(dir, "classify.json"), "utf8")).raw, "x", "旧分级原件不被覆盖");
+});
+
+test("M1 旧断点：已认领在自己名下也照常续，P 类旧分级保持 P；考古已完成或水印后退回则整链联合重跑", async () => {
+  const h = liveDeps([goodDraft, fence(pass())]);
+  const dir = join(h.d.outRoot, "1565");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "classify.json"), JSON.stringify({ klass: "P", reason: "资金参数", parsed: true }));
+  h.assign(["me"]);
+  const s = await processTicket(1565, h.d);
+  assert.equal(s.klass, "P");
+  assert.equal(s.phase, "shadow_p");
+  assert.match(h.modelCalls[0].prompt, /本票分级：P 类/);
+  assert.equal(writesOf(h.ghCalls).filter((w) => w.includes("--add-assignee")).length, 0);
+  assert.equal(classifyComments(h.comments).length, 1, "票上没有分级评论时补发一次");
+
+  const done = mkdtempSync(join(tmpdir(), "m1-done-"));
+  writeFileSync(join(done, "classify.json"), JSON.stringify({ klass: "T", reason: "r", parsed: true }));
+  writeFileSync(join(done, "archaeology.json"), JSON.stringify({ parsed: true, points: [] }));
+  assert.equal(loadTriaged(done), null);
+  writeFileSync(join(done, "archaeology.json"), JSON.stringify({ parsed: false }));
+  assert.deepEqual(loadTriaged(done), { klass: "T", reason: "r", parsed: true });
+  writeFileSync(join(done, "classify.json"), JSON.stringify({ klass: "X", reason: "r" }));
+  assert.equal(loadTriaged(done), null);
+
+  const r = liveDeps([fence({ class: "T", reason: "重分" }), goodDraft, fence(pass()), "已写入"]);
+  const rdir = join(r.d.outRoot, "1565");
+  mkdirSync(rdir, { recursive: true });
+  writeFileSync(join(rdir, "classify.json"), JSON.stringify({ klass: "T", reason: "旧", parsed: true }));
+  r.comments.push({ author: { login: "xy7365527-lang" }, body: "## 退回重写" });
+  const s3 = await processTicket(1565, r.d);
+  assert.equal(s3.resumedFrom, undefined);
+  assert.deepEqual(r.modelCalls.map((c) => c.role), ["triage", "draft", "review", "land"]);
+});
+
+test("M1 联合调用不改变独审异家族与有效 BLOCK：起草 Opus、独审主控，BLOCK 不变 PASS", async () => {
+  const block = fence({ ...pass(), R1: { verdict: "BLOCK", basis: "rg 或运算写成 \\| 无输出" }, R3: { verdict: "BLOCK", basis: "验收 7 退出 128" }, R4: { verdict: "BLOCK", basis: "越界改外部票" }, R6: { verdict: "BLOCK", basis: "依赖未提供" } });
+  const { d, modelCalls } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), goodDraft, block, goodDraft, block]);
+  const s = await processTicket(1531, d);
+  assert.notEqual(s.phase, "land_t");
+  assert.equal(s.reviewCounts!.pass, 0);
+  for (const r of s.rounds!) assert.notEqual(modelFamily(r.drafter), modelFamily(r.reviewer!));
+  assert.equal(triageCalls(modelCalls).length, 1);
 });
