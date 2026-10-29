@@ -698,7 +698,7 @@ fn read_indexed_history_inner(
     while let Some(mut row) = stmt.next().map_err(err)? {
         let cut = audit_one_published_cut(
             tx,
-            &verified_templates,
+            Some(&verified_templates),
             &mut row,
             &mut store,
             raw,
@@ -768,7 +768,7 @@ fn read_indexed_history_inner(
 /// 返回成功之前不改变已核前沿，派生根仍须由调用方统一核 Public 闭包。
 fn audit_one_published_cut<'capture>(
     tx: &Transaction<'_>,
-    verified_templates: &VerifiedManifestRoots<'_, '_>,
+    verified_templates: Option<&VerifiedManifestRoots<'_, '_>>,
     row: &mut newchan_rust::sqlite_checked::CheckedRow<'_>,
     store: &mut HashReader<'capture>,
     raw: RawEventsView<'_>,
@@ -805,22 +805,23 @@ fn audit_one_published_cut<'capture>(
     #[cfg(test)]
     super::state::trace_event("history_assemble_manifest", Some(generation));
     // 重用唯一 manifest 构造/跨根判据；写口仅计算摘要，不写 SQLite。
-    let manifest_digest = manifest.view().digest().map_err(err)?;
-    if !std::ptr::eq(tx, verified_templates.transaction)
-        || !verified_templates.roots.iter().any(|root| {
-            root.view().digest().ok() == Some(manifest_digest)
-        })
-    {
-        return Err(err("manifest不属于当前完整Template审计"));
-    }
-    let templates = [
-        roots.publication_template.view().digest().map_err(err)?,
-        roots.delta_template.view().digest().map_err(err)?,
-    ];
-    let mut assembly = if store.owned.is_none()
-        && store.work.is_none()
-        && matches!(store.source, ReadOwner::Dynamic(_))
-    {
+    let mut assembly = if let Some(verified_templates) = verified_templates.filter(|_| {
+        store.owned.is_none()
+            && store.work.is_none()
+            && matches!(store.source, ReadOwner::Dynamic(_))
+    }) {
+        let manifest_digest = manifest.view().digest().map_err(err)?;
+        if !std::ptr::eq(tx, verified_templates.transaction)
+            || !verified_templates.roots.iter().any(|root| {
+                root.view().digest().ok() == Some(manifest_digest)
+            })
+        {
+            return Err(err("manifest不属于当前完整Template审计"));
+        }
+        let templates = [
+            roots.publication_template.view().digest().map_err(err)?,
+            roots.delta_template.view().digest().map_err(err)?,
+        ];
         super::audit_store::StoreView::for_verified_manifest(VerifiedManifestAssembly {
             source: store,
             templates,
@@ -5388,7 +5389,7 @@ pub(super) mod tests {
             let snapshot = root_ref_bytes(&mut store, row.blob(3).map_err(err)?)?;
             let delta = root_ref_bytes(&mut store, row.blob(4).map_err(err)?)?;
             let cut = audit_one_published_cut(
-                &tx, &mut row, &mut store, raw_view, &mut control, &mut objects, &auxiliary,
+                &tx, None, &mut row, &mut store, raw_view, &mut control, &mut objects, &auxiliary,
                 &mut sweep, &mut aux, &mut prefixes, &mut ordered, &mut effective,
                 &raw_nodes, &wire_nodes, -1, &mut resolved, None, true, None, None, None,
             )?;
@@ -7285,6 +7286,7 @@ pub(super) fn append_owner_cut(
         .map_err(err)?;
     let cut = audit_one_published_cut(
         tx,
+        None,
         &mut row,
         &mut store,
         raw,
