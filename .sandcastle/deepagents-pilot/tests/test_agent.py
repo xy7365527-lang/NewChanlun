@@ -14,7 +14,7 @@ from pydantic import SecretStr, ValidationError
 from pilot1742 import agent as pilot_agent
 from pilot1742.agent import LEGACY_CAVEAT, SubagentResponse, build_agent, build_tools
 from pilot1742.domain import WorkerKey, WorkerReceipt
-from pilot1742.run import ToolRefusal
+from pilot1742.run import ROLE_MODE, TICKET, ToolRefusal, parse_result
 
 ALLOWED = {"run_worker", "commit_candidate", "check_gate", "run_status", "write_todos", "ls", "read_file", "glob", "grep"}
 
@@ -173,6 +173,83 @@ def test_failed_and_cancelled_receipts_keep_failure_caveats(env, monkeypatch, st
     assert result["ok"] is False
     assert "实际失败原因" in result["receipt"]["response"]["caveats"]
     assert any(status in c for c in result["receipt"]["response"]["caveats"])
+
+
+def null_result_receipt(env, role, status):
+    output = env.home / f"{role}-{status}"
+    output.mkdir()
+    data = {
+        "ticket": TICKET, "status": status, "mode": ROLE_MODE[role], "model": "gpt-6.1-sol",
+        "expected_head": env.base, "checkout_after": None, "external_session_id": None,
+        "external_session_log": None, "result": None, "failure_reason": f"原样原因：{status}\n工蜂未返回结果",
+        "run_id": "child",
+    }
+    (output / "result.json").write_text(json.dumps(data))
+    return parse_result(WorkerKey("r1", role, env.base), data, output)
+
+
+@pytest.mark.parametrize("role", ["author", "review", "judge"])
+@pytest.mark.parametrize("status", ["failed", "cancelled"])
+def test_null_failed_result_returns_terminal_diagnostic_after_parse_result(env, monkeypatch, role, status):
+    run = env.create()
+    receipt = null_result_receipt(env, role, status)
+    assert receipt.summary == ""
+    monkeypatch.setattr(run, "run_worker", lambda *_: receipt)
+    result = json.loads(worker_tool(run).invoke({"role": role, "brief": "读取真实失败回执"}))
+    assert result["ok"] is False and "EmptyWorkerResponse" not in result
+    row = result["receipt"]
+    response = SubagentResponse.model_validate(row["response"])
+    assert status in response.conclusion
+    assert response.confidence == "low"
+    assert LEGACY_CAVEAT in response.caveats and receipt.failure_reason in response.caveats
+    assert any(status in caveat for caveat in response.caveats)
+    assert row["status"] == status and row["failure_reason"] == receipt.failure_reason
+    assert row["summary"] == "" and row["target_head"] == env.base
+    assert row["output_dir"] == receipt.output_dir and row["model"] == receipt.model
+    assert row["external_session_id"] is None and row["external_session_log"] is None
+    assert json.loads((Path(receipt.output_dir) / "result.json").read_text())["result"] is None
+    assert env.claims() == []
+
+
+@pytest.mark.parametrize("failed_index", [0, 1])
+@pytest.mark.parametrize("status", ["failed", "cancelled"])
+def test_design_retains_both_slots_when_null_result_fails(env, monkeypatch, failed_index, status):
+    run = env.create()
+    roles = ["design-a", "design-b"]
+    receipts = [receipt_for(env, role) for role in roles]
+    receipts[failed_index] = null_result_receipt(env, roles[failed_index], status)
+    monkeypatch.setattr(run, "run_design", lambda *_: receipts)
+    result = json.loads(worker_tool(run).invoke({"role": "design", "brief": "保留两份设计"}))
+    assert result["ok"] is False
+    assert [row["role"] for row in result["receipts"]] == roles
+    for index, row in enumerate(result["receipts"]):
+        response = SubagentResponse.model_validate(row["response"])
+        if index == failed_index:
+            assert row["status"] == status and status in response.conclusion
+            assert receipts[index].failure_reason in response.caveats
+        else:
+            assert row["status"] == "completed" and row["response_validated"] is True
+            assert response.conclusion == receipts[index].summary
+
+
+@pytest.mark.parametrize("empty_index", [0, 1])
+def test_design_retains_other_slot_when_completed_result_is_empty(env, monkeypatch, empty_index):
+    run = env.create()
+    roles = ["design-a", "design-b"]
+    receipts = [receipt_for(env, role) for role in roles]
+    receipts[empty_index] = replace(receipts[empty_index], summary="")
+    monkeypatch.setattr(run, "run_design", lambda *_: receipts)
+    result = json.loads(worker_tool(run).invoke({"role": "design", "brief": "保留另一份设计"}))
+    assert result["ok"] is False
+    assert [row["role"] for row in result["receipts"]] == roles
+    empty = result["receipts"][empty_index]
+    assert "EmptyWorkerResponse" in empty and "response" not in empty
+    assert empty["summary"] == "" and empty["target_head"] == env.base
+    assert empty["model"] == receipts[empty_index].model
+    assert empty["output_dir"] == receipts[empty_index].output_dir
+    other = result["receipts"][1 - empty_index]
+    assert other["status"] == "completed"
+    assert other["response"]["conclusion"] == receipts[1 - empty_index].summary
 
 
 def test_canonical_schema_rejects_extra_fields_and_wrong_types():
