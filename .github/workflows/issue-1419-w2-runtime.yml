@@ -1,0 +1,73 @@
+name: W2 persistent runtime (#1419)
+on:
+  push:
+    branches: [codex/1419-recompose-main-20261027]
+    paths:
+      - '.github/workflows/issue-1419-w2-runtime.yml'
+      - '.github/scripts/compare-w2-runtime.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  w2-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 110
+    env:
+      CARGO_INCREMENTAL: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/rust-job-setup
+      - name: Record exact source and run identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir "$RUNNER_TEMP/w2-runtime"
+          git rev-parse HEAD | tee "$RUNNER_TEMP/w2-runtime/source-head.txt"
+          git status --porcelain > "$RUNNER_TEMP/w2-runtime/source-status.txt"
+          printf '%s\n' "$GITHUB_RUN_ID" > "$RUNNER_TEMP/w2-runtime/run-id.txt"
+          cp rust/Cargo.lock "$RUNNER_TEMP/w2-runtime/Cargo.lock"
+      - name: Execute complete named V1 and V4 locks
+        shell: bash
+        working-directory: rust
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/w2-runtime"
+          for test in v3::tests::w_successor_rule_is_exact_and_maps_to_cf22_axes v3::tests::structure_writer_does_not_rewrite_historical_rule_domains v3::tests::w2_exact_publication_rule_and_archival_dispatch v3::projection::tests::w2_replacement_scope_revision_and_no_fallback; do
+            log="$out/${test//::/_}.log"
+            cargo test --locked --release --features s_session --bin s_structure_session --jobs 1 -- --exact "$test" --nocapture 2>&1 | tee "$log"
+            grep -F 'test result: ok. 1 passed;' "$log"
+          done
+      - name: Export A then B in independent processes
+        shell: bash
+        working-directory: rust
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/w2-runtime"
+          head="$(git rev-parse HEAD)"
+          for side in a b; do
+            mkdir "$out/$side"
+            Q3_EXPORT_HEAD="$head" Q3_REAL_EXPORT="$out/$side/w2.json" cargo test --locked --release --features s_session --bin s_structure_session --jobs 1 -- --ignored --exact v3::financial_session::tests::export_real_s3_w2_fixture_and_sqlite_for_q3 --nocapture 2>&1 | tee "$out/$side/export.log"
+            grep -F 'test result: ok. 1 passed;' "$out/$side/export.log"
+          done
+          python3 ../.github/scripts/compare-w2-runtime.py "$out" | tee "$out/comparison.log"
+      - name: Build formal consumer binary from the same source
+        shell: bash
+        working-directory: rust
+        run: |
+          set -euo pipefail
+          cargo build --locked --release --features s_session --bin s_structure_session --jobs 1 2>&1 | tee "$RUNNER_TEMP/w2-runtime/release-build.log"
+          cp target/release/s_structure_session "$RUNNER_TEMP/w2-runtime/s_structure_session"
+      - name: Package persistent originals even after failure
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar -czf "$RUNNER_TEMP/w2-runtime.tgz" -C "$RUNNER_TEMP" w2-runtime
+      - name: Preserve full runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-1419-w2-runtime-${{ github.sha }}
+          path: ${{ runner.temp }}/w2-runtime.tgz
+          if-no-files-found: error
+          retention-days: 14
