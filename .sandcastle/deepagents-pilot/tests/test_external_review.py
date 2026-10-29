@@ -1,0 +1,342 @@
+import copy
+import json
+import sys
+from pathlib import Path
+from types import SimpleNamespace
+
+import httpx
+import pytest
+from conftest import git
+from pilot1742 import external_review as module
+from pilot1742.delivery import EffectPending, RepoGateway, Stale
+from pilot1742.external_review import (
+    CONTEXT,
+    MODELS,
+    TOKEN_PERMISSIONS,
+    ExternalReview,
+    ReviewTarget,
+    StatusPublisher,
+    load_target,
+    validate_review,
+)
+from pilot1742.github_app import (
+    AppIdentity,
+    GitHubAppClient,
+    IdentityError,
+    OutcomeUnknown,
+)
+
+
+class Gateway:
+    bot = "newchanlun-deepagents-1742[bot]"
+    def __init__(self, env):
+        self.client = SimpleNamespace(identity=SimpleNamespace(repository_id=1150335160))
+        self.pr = {"number": 1810, "state": "open", "draft": False, "user": {"login": "business-owner"},
+                   "base": {"repo": {"id": 1150335160}, "ref": "main", "sha": env.base},
+                   "head": {"repo": {"id": 1150335160}, "ref": "feature/business", "sha": git(env.source, "rev-parse", "HEAD")}}
+        self.rows, self.sent = [], []
+        self.fault, self.hide, self.after_write = False, False, None
+    def get_pr(self, number):
+        assert number == 1810
+        return copy.deepcopy(self.pr)
+    def statuses(self, sha):
+        if self.hide:
+            return []
+        return copy.deepcopy([r for r in self.rows if r["sha"] == sha])
+    def set_status(self, sha, context, state, description):
+        self.sent.append(state)
+        if self.fault:
+            raise OutcomeUnknown("已发送结果不明")
+        self.rows.insert(0, {"id": len(self.rows) + 1, "sha": sha, "context": context, "state": state,
+                             "description": description, "creator": {"login": self.bot, "type": "Bot"}})
+        if self.after_write:
+            self.after_write()
+
+
+@pytest.fixture
+def lane(env, monkeypatch):
+    for i in range(2):
+        (env.source / f"changed-{i}").write_text(str(i))
+        git(env.source, "add", ".")
+        git(env.source, "commit", "-qm", f"change-{i}")
+    monkeypatch.setattr(module, "SOURCE_REPO", env.source)
+    gateway = Gateway(env)
+    return ExternalReview(gateway, source=env.source, state_root=env.home / "review",
+                          checkout_root=env.home / "clones", poll_seconds=0.01,
+                          launcher=[sys.executable, str(Path(__file__).with_name("external_review_child.py"))])
+
+
+def test_business_owner_multi_commit_pr_and_idempotent_resume(lane):
+    result = lane.review_pr(1810)
+    assert result["verdict"] == "PASS"
+    assert [r["model"] for r in result["reviews"]] == list(MODELS)
+    assert len({r["session_id"] for r in result["reviews"]}) == 2
+    assert lane.gateway.sent == ["pending", "success"]
+    target = ReviewTarget(**result["target"])
+    for model in MODELS:
+        folder = lane.state_root / "runs" / target.key / model
+        launch = json.loads((folder / "launch.json").read_text())
+        assert "changed-0" in launch["prompt"] and "changed-1" in launch["prompt"]
+        assert target.merge_base_sha == lane.gateway.pr["base"]["sha"]
+        assert git(Path(launch["checkout"]), "diff", "--name-only", target.merge_base_sha, target.head_sha).splitlines() == ["changed-0", "changed-1"]
+        assert "remote" not in (Path(launch["checkout"]) / ".git" / "config").read_text()
+        assert not (Path(launch["checkout"]) / ".git" / "objects" / "info" / "alternates").exists()
+    before = sorted(lane.checkout_root.glob("*/*"))
+    assert lane.review_pr(1810)["run_id"] == result["run_id"]
+    assert sorted(lane.checkout_root.glob("*/*")) == before
+    assert lane.gateway.sent == ["pending", "success"]
+
+
+@pytest.mark.parametrize("draft", [True, False])
+def test_draft_and_non_app_author_are_accepted(lane, draft):
+    lane.gateway.pr["draft"] = draft
+    assert load_target(lane.gateway, 1810)["head_ref"] == "feature/business"
+
+
+@pytest.mark.parametrize("change", [lambda p: p.update(state="closed"),
+    lambda p: p["base"].update(ref="other"), lambda p: p["head"]["repo"].update(id=9),
+    lambda p: p["head"].update(sha="missing"), lambda p: p.pop("draft")])
+def test_invalid_target_does_not_launch_or_publish(lane, change):
+    change(lane.gateway.pr)
+    with pytest.raises(IdentityError):
+        lane.review_pr(1810)
+    assert lane.gateway.sent == []
+    assert not lane.checkout_root.exists()
+
+
+def test_missing_source_objects_fail_before_pending(lane):
+    lane.gateway.pr["head"]["sha"] = "f" * 40
+    with pytest.raises(IdentityError, match="needs_source_sync"):
+        lane.review_pr(1810)
+    assert not lane.gateway.sent
+
+
+def test_complete_block_maps_failure_and_is_not_retried(lane):
+    lane.target(1810, 1)
+    (lane.state_root / "runs" / "fake-mode").write_text("BLOCK")
+    assert lane.review_pr(1810)["verdict"] == "BLOCK"
+    assert lane.gateway.sent == ["pending", "failure"]
+    assert lane.review_pr(1810)["verdict"] == "BLOCK"
+    assert lane.gateway.sent == ["pending", "failure"]
+
+
+@pytest.mark.parametrize("field", ["base", "head"])
+def test_drift_prevents_publish_even_if_done(lane, field):
+    target = lane.target(1810, 1)
+    folder = lane.state_root / "runs" / target.key
+    publisher = StatusPublisher(lane.gateway, target, folder, lane.state_root / "locks")
+    publisher.publish("success")
+    lane.gateway.pr[field]["sha"] = "e" * 40
+    with pytest.raises(Stale):
+        publisher.publish("success")
+    assert lane.gateway.sent == ["success"]
+
+
+def test_post_write_drift_is_stale_not_success(lane):
+    lane.gateway.after_write = lambda: lane.gateway.pr["head"].update(sha="e" * 40)
+    result = lane.review_pr(1810)
+    assert result["verdict"] == "STALE"
+    assert lane.gateway.sent == ["pending"]
+
+
+def test_unknown_write_only_reconciles_without_republish(lane):
+    target = lane.target(1810, 1)
+    lane.gateway.fault = True
+    for _ in range(2):
+        with pytest.raises(EffectPending):
+            lane.review_pr(1810)
+    assert lane.gateway.sent == ["pending"]
+    lane.reconcile(target.run_id, "已核远端请求确未生效")
+    lane.gateway.fault = False
+    assert lane.review_pr(1810)["verdict"] == "PASS"
+    assert lane.gateway.sent == ["pending", "pending", "success"]
+
+
+def test_newer_failure_blocks_old_success_and_done(lane):
+    lane.review_pr(1810)
+    lane.gateway.rows.insert(0, {**lane.gateway.rows[0], "id": 999, "state": "failure"})
+    with pytest.raises(EffectPending):
+        lane.review_pr(1810)
+    assert lane.gateway.sent == ["pending", "success"]
+
+
+def test_upload_pass_is_not_a_launch_and_missing_supervisor_never_redispatches(lane):
+    target = lane.target(1810, 1)
+    folder = lane.state_root / "runs" / target.key
+    worker = folder / MODELS[0]
+    worker.mkdir()
+    (worker / "result.json").write_text('{"summary":"VERDICT: PASS"}')
+    (worker / "launch.json").write_text(json.dumps({"model": MODELS[0], "launch_id": "test"}))
+    for _ in range(2):
+        with pytest.raises(EffectPending):
+            lane.review_pr(1810)
+    assert lane.gateway.sent == ["pending"]
+    assert not lane.checkout_root.exists()
+
+
+@pytest.mark.parametrize("mutation", [lambda r: r.update(status="failed"), lambda r: r.update(status="cancelled"),
+    lambda r: r.update(turn_completed=False), lambda r: r.update(exit_code=1),
+    lambda r: r.update(model="other"), lambda r: r.update(session_id="wrong"),
+    lambda r: r.pop("filesystem"), lambda r: r["filesystem"].update(source_write="ALLOWED"),
+    lambda r: r["after"].update(status=" M README"), lambda r: r.update(result={"summary": "VERDICT: PASS"})])
+def test_terminal_receipt_requires_supervision_evidence(lane, mutation):
+    result = lane.review_pr(1810)
+    target = ReviewTarget(**result["target"])
+    folder = lane.state_root / "runs" / target.key / MODELS[0]
+    launch = json.loads((folder / "launch.json").read_text())
+    receipt = json.loads((folder / "receipt.json").read_text())
+    mutation(receipt)
+    assert validate_review(target, launch, receipt, folder).verdict == "FAILED"
+
+
+def test_symlink_session_cannot_prove_pass(lane, tmp_path):
+    result = lane.review_pr(1810)
+    target = ReviewTarget(**result["target"])
+    folder = lane.state_root / "runs" / target.key / MODELS[0]
+    session = folder / "session.jsonl"
+    other = tmp_path / "uploaded-pass"
+    session.rename(other)
+    session.symlink_to(other)
+    assert validate_review(target, json.loads((folder / "launch.json").read_text()),
+                           json.loads((folder / "receipt.json").read_text()), folder).verdict == "FAILED"
+
+
+def test_status_pagination_error_cannot_mean_absent_or_publish(lane):
+    lane.gateway.statuses = lambda sha: (_ for _ in ()).throw(IdentityError("分页失败"))
+    with pytest.raises(IdentityError):
+        lane.review_pr(1810)
+    assert not lane.gateway.sent
+
+
+def test_set_status_retains_old_success_api():
+    requests = []
+    client = SimpleNamespace(identity=SimpleNamespace(repository="owner/repo"), bot_login="app[bot]",
+                             api=lambda method, path, **kw: requests.append((method, path, kw)))
+    gateway = RepoGateway(client)
+    gateway.create_status("a" * 40, "old", "description")
+    gateway.set_status("b" * 40, CONTEXT, "error", "review failed")
+    assert [r[2]["json"]["state"] for r in requests] == ["success", "error"]
+    assert "target_url" not in requests[1][2]["json"]
+    with pytest.raises(ValueError):
+        gateway.set_status("b" * 40, CONTEXT, "neutral", "bad")
+
+
+def test_token_requests_only_external_review_permissions(tmp_path, monkeypatch):
+    identity = AppIdentity(5486877, 175617978, 1150335160, "xy7365527-lang/NewChanlun",
+                           "newchanlun-deepagents-1742", tmp_path / "unused.pem")
+    captured = []
+    import pilot1742.github_app as app
+    monkeypatch.setattr(app, "_read_private_key", lambda path: b"fixture")
+    monkeypatch.setattr(app.jwt, "encode", lambda *a, **kw: "fixture-jwt")
+    def transport(request):
+        if request.url.path == "/app":
+            value = {"id": identity.app_id, "slug": identity.app_slug}
+        elif request.url.path.endswith("/access_tokens"):
+            captured.append(json.loads(request.content))
+            value = {"token": "fixture", "permissions": TOKEN_PERMISSIONS, "expires_at": "2099-01-01T00:00:00Z"}
+        else:
+            value = {"id": identity.installation_id, "app_id": identity.app_id, "app_slug": identity.app_slug,
+                     "account": {"login": "xy7365527-lang"}, "repository_selection": "selected",
+                     "suspended_at": None, "permissions": app.INSTALLATION_PERMISSIONS}
+        return httpx.Response(200, json=value)
+    with GitHubAppClient(identity, permissions=TOKEN_PERMISSIONS, transport=httpx.MockTransport(transport)) as client:
+        client._ensure_token()
+    assert captured == [{"repository_ids": [1150335160], "permissions": {
+        "metadata": "read", "contents": "read", "pull_requests": "read", "statuses": "write"}}]
+
+
+def test_recover_after_spawn_without_second_model_call(lane, monkeypatch):
+    original = module._save
+    crashed = False
+    def save(path, value):
+        nonlocal crashed
+        if path.name == "process.json" and not crashed:
+            crashed = True
+            raise KeyboardInterrupt("crash after spawn before process record")
+        return original(path, value)
+    monkeypatch.setattr(module, "_save", save)
+    with pytest.raises(KeyboardInterrupt):
+        lane.review_pr(1810)
+    result = lane.review_pr(1810)
+    assert result["verdict"] == "PASS"
+    assert (lane.state_root / "runs" / "launches").read_text().splitlines() == list(MODELS)
+    assert lane.gateway.sent == ["pending", "success"]
+
+
+def test_new_attempt_supersedes_inflight_old_run(lane):
+    first = lane.target(1810, 1)
+    second = lane.target(1810, 2)
+    old = StatusPublisher(lane.gateway, first, lane.state_root / "runs" / first.key, lane.state_root / "locks")
+    new = StatusPublisher(lane.gateway, second, lane.state_root / "runs" / second.key, lane.state_root / "locks")
+    old.publish("pending")
+    new.publish("pending")
+    new.publish("failure")
+    with pytest.raises(Stale):
+        old.publish("success")
+    with pytest.raises(Stale):
+        old.publish("pending")
+    assert lane.gateway.sent == ["pending", "pending", "failure"]
+
+
+def test_status_transport_pages_are_complete_and_failure_does_not_publish(lane):
+    requests = []
+    pr = lane.gateway.pr
+    identity = AppIdentity(5486877, 175617978, 1150335160, "xy7365527-lang/NewChanlun",
+                           "newchanlun-deepagents-1742", Path("/unused-fixture.pem"))
+    def transport(request):
+        requests.append(request)
+        if request.url.path.endswith("/pulls/1810"):
+            return httpx.Response(200, json=pr)
+        page = int(request.url.params.get("page", "1"))
+        if page == 1:
+            return httpx.Response(200, json=[], headers={"Link": '<https://api.github.com/x?page=2>; rel="next"'})
+        return httpx.Response(500, json={"error": "fixture"})
+    with GitHubAppClient(identity, permissions=TOKEN_PERMISSIONS, transport=httpx.MockTransport(transport)) as client:
+        client._token = "fixture"
+        client._expires_at = 99999999999
+        lane.gateway = RepoGateway(client)
+        with pytest.raises(IdentityError):
+            lane.review_pr(1810)
+    assert len([r for r in requests if r.url.path.endswith("/statuses")]) == 2
+    assert all(r.method == "GET" for r in requests)
+
+
+def test_older_unstarted_target_cannot_supersede_newer_attempt(lane):
+    first = lane.target(1810, 1)
+    second = lane.target(1810, 2)
+    new = StatusPublisher(lane.gateway, second, lane.state_root / "runs" / second.key, lane.state_root / "locks")
+    new.publish("pending")
+    old = StatusPublisher(lane.gateway, first, lane.state_root / "runs" / first.key, lane.state_root / "locks")
+    with pytest.raises(Stale):
+        old.publish("pending")
+    assert lane.gateway.sent == ["pending"]
+
+
+def test_publication_rechecks_controller_code(lane):
+    target = lane.target(1810, 1)
+    publisher = StatusPublisher(lane.gateway, target, lane.state_root / "runs" / target.key, lane.state_root / "locks")
+    git(lane.source, "commit", "--allow-empty", "-qm", "controller advanced")
+    with pytest.raises(Stale, match="controller"):
+        publisher.publish("success")
+    assert not lane.gateway.sent
+
+
+@pytest.mark.parametrize("args", [["--help"], ["review-pr", "--help"], ["status", "--help"]])
+def test_cli_help_is_offline(args):
+    with pytest.raises(SystemExit) as caught:
+        module.main(args)
+    assert caught.value.code == 0
+
+
+@pytest.mark.parametrize("number", ["0", "-1", "abc"])
+def test_cli_rejects_invalid_pr_before_auth(number):
+    with pytest.raises(SystemExit) as caught:
+        module.main(["review-pr", "--pr", number, "--private-key", "/never-read.pem"])
+    assert caught.value.code == 2
+
+
+def test_cli_status_uses_no_auth(lane, monkeypatch, capsys):
+    monkeypatch.setattr(module, "ExternalReview", lambda gateway: lane)
+    monkeypatch.setattr(module, "GitHubAppClient", lambda *a, **kw: pytest.fail("status must stay offline"))
+    assert module.main(["status", "--pr", "1810"]) == 0
+    assert json.loads(capsys.readouterr().out) == []
