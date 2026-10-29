@@ -13,7 +13,7 @@ import {
   resolvedReason, pickUnresolved, finishedTickets,
   isRetryable, makeClaudeRunner, loadResume, isSafeguardBlock, safeguardFallbackModel, withSafeguardFallback, reviewerModel, modelFamily, assertDifferentModelFamilies, resumeStaleBecauseReopen,
   RULES, ARCH_SECTION, ARCHAEOLOGY_FILE, parseArchaeology, archaeologyProblems, renderArchaeology, archaeologyCoverageProblems,
-  triagePrompt, extractJson, FIXED_CLASS_LINE, loadTriaged, loadEffectiveP, archaeologyAsks, archaeologyOnly, archaeologyOnlyAdmission, shadowComment, flowSectionsIn, stripFlowSections,
+  triagePrompt, extractJson, FIXED_CLASS_LINE, loadTriaged, loadEffectiveP, archaeologyAsks, archaeologyOnly, archaeologyOnlyAdmission, shadowComment, flowSectionsIn,
   type Deps, type GhRunner, type ModelCall, type OnceResult,
 } from "./decision-claimer.mts";
 
@@ -21,7 +21,7 @@ const pass = (basis = "回查成立") => Object.fromEntries(RULES.map((r) => [r,
 const fence = (v: unknown) => "说明文字\n```json\n" + JSON.stringify(v) + "\n```\n";
 const citeTable = `## ${CITATION_SECTION}\n| 引用 | 核实命令 | 结果摘要 |\n|---|---|---|\n| AGENTS.md:1 | rg -n x AGENTS.md | 见行 |`;
 const archTable = `## ${ARCH_SECTION}\n| 点 | 归类 | 出处 | 草稿处置 |\n|---|---|---|---|\n| Q1 | A | docs/adr/0016-x.md:96 | 沿用 |\n| Q2 | B | #1355 评论 1 | 默认值，确认或否决 |\n| Q3 | C | — | 待决 |`;
-const goodDraft = DRAFT_SECTIONS.map((s) => `## ${s}\n内容${s === "裁定" ? "\n正本落点：docs/adr/0099-x.md" : ""}`).join("\n\n") + "\n\n" + citeTable + "\n\n" + archTable + "\n";
+const goodDraft = DRAFT_SECTIONS.map((s) => `## ${s}\n内容${s === "裁定" ? "\n正本落点：docs/adr/0099-x.md" : ""}`).join("\n\n") + "\n\n" + citeTable + "\n\n" + archTable + "\n```canonical_edit\n" + JSON.stringify({ version: 1, operation: "create", path: "docs/adr/0099-x.md", content: "# 裁定\n保留正式内容。\n" }) + "\n```\n";
 const trackerQ = { channel: "tracker", query: "共同 cap", command: "gh search issues \"共同 cap\" --repo xy7365527-lang/NewChanlun", hits: 2 };
 const repoQ = { channel: "repo", query: "cap", command: "rg -n cap docs/adr", hits: 1 };
 const goodArchObj = {
@@ -148,7 +148,27 @@ test("selectCandidates：只取 open、grilling、未认领、无 blocker、未�
   assert.deepEqual(selectCandidates(kids, new Set([7])), [1]);
 });
 
+function gitFixture() {
+  const root = mkdtempSync(join(tmpdir(), "decision-git-"));
+  const repo = join(root, "repo");
+  const remote = join(root, "remote.git");
+  mkdirSync(repo);
+  const git = (cwd: string, args: string[]) => execFileSync("git", ["-C", cwd, ...args.map(a => a === FETCH_URL ? remote : a)], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  git(repo, ["init", "-b", "main"]);
+  git(repo, ["config", "user.name", "F2 test"]);
+  git(repo, ["config", "user.email", "f2@example.invalid"]);
+  git(repo, ["config", "commit.gpgsign", "false"]);
+  writeFileSync(join(repo, "seed"), "unchanged\n");
+  git(repo, ["add", "seed"]);
+  git(repo, ["commit", "-m", "seed"]);
+  git(repo, ["init", "--bare", remote]);
+  git(repo, ["push", remote, "main"]);
+  git(repo, ["update-ref", MAIN_REF, "HEAD"]);
+  return { repo, remote, git };
+}
+
 function fakeDeps(mode: "dry-run" | "live", replies: string[], archReplies: string[] = []) {
+  const fixture = gitFixture();
   const ghCalls: string[][] = [];
   const modelCalls: ModelCall[] = [];
   const archCalls: ModelCall[] = [];
@@ -164,7 +184,10 @@ function fakeDeps(mode: "dry-run" | "live", replies: string[], archReplies: stri
     mode,
     drainRoot: mkdtempSync(join(tmpdir(), "decision-drain-")),
     gh: guardGh(mode, raw),
-    git: () => { throw new Error("dry-run 不应调 git"); },
+    git: (cwd, args) => {
+      assert.ok(["rev-parse", "ls-tree", "show"].includes(args[0]), "dry-run 仅允许读取固定原件");
+      return fixture.git(cwd, args);
+    },
     model: async (c) => {
       if (c.role === "triage") {
         archCalls.push(c);
@@ -181,8 +204,8 @@ function fakeDeps(mode: "dry-run" | "live", replies: string[], archReplies: stri
       return { text, durationMs: 5, attempts: 1 };
     },
     outRoot: mkdtempSync(join(tmpdir(), "decision-claimer-test-")),
-    srcDir: "/nonexistent-src",
-    repoRoot: "/nonexistent-repo",
+    srcDir: fixture.repo,
+    repoRoot: fixture.repo,
     now: Date.now,
   };
   return { d, ghCalls, modelCalls, archCalls };
@@ -196,7 +219,7 @@ test("dry-run 全流程：T 类 PASS 只落本地三份文件，不调任何 gh 
   assert.equal(s.phase, "land_t");
   assert.equal(s.error, undefined);
   assert.deepEqual(modelCalls.map((c) => [c.role, c.model]), [["triage", MODEL_MAIN], ["draft", MODEL_DRAFTER], ["review", MODEL_REVIEW]]);
-  assert.ok(modelCalls.every((c) => !c.allowWrite));
+  assert.ok(modelCalls.every((c) => !("allowWrite" in c)));
   assert.equal(ghCalls.filter(isWrite).length, 0);
   const dir = join(d.outRoot, "1531");
   for (const f of ["classify.json", "draft.md", "review.json", "summary.json"]) assert.ok(existsSync(join(dir, f)), f);
@@ -369,9 +392,8 @@ test("ADR 编号：占位与草稿自编号都按 main 最大号顺序分配，�
 });
 
 test("dry-run：T 类 ADR 落点按 main 顺序改号并写回草稿", async () => {
-  const draft = DRAFT_SECTIONS.map((x) => `## ${x}\n内容${x === "裁定" ? "\n正本落点：docs/adr/NNNN-x.md\n依 ADR NNNN" : ""}`).join("\n\n") + "\n\n" + citeTable + "\n\n" + archTable;
+  const draft = DRAFT_SECTIONS.map((x) => `## ${x}\n内容${x === "裁定" ? "\n正本落点：docs/adr/NNNN-x.md\n依 ADR NNNN" : ""}`).join("\n\n") + "\n\n" + citeTable + "\n\n" + archTable + "\n```canonical_edit\n" + JSON.stringify({ version: 1, operation: "create", path: "docs/adr/NNNN-x.md", content: "# ADR NNNN\n内容\n" }) + "\n```\n";
   const { d } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), draft, fence(pass())]);
-  d.srcDir = mkdtempSync(join(tmpdir(), "src-"));
   mkdirSync(join(d.srcDir, "docs/adr"), { recursive: true });
   writeFileSync(join(d.srcDir, "docs/adr/0037-b.md"), "");
   const s = await processTicket(1531, d);
@@ -400,12 +422,10 @@ test("ensureSrc：在 srcDir 的库里用 ssh 地址 fetch，HEAD 与远端 main
 
 test("取证工具：起草/审查可只读 gh api 查评论，写形态一律拒", () => {
   assert.ok(READ_TOOLS.includes("Bash(gh api repos/xy7365527-lang/NewChanlun/issues/comments/*)"));
-  const ro = toolArgs(false);
+  const ro = toolArgs();
   const dis = ro.slice(ro.indexOf("--disallowedTools") + 1);
   for (const w of ["Edit", "Write", ...GH_API_WRITE_DENY]) assert.ok(dis.includes(w), w);
   assert.ok(GH_API_WRITE_DENY.some((x) => x.includes("-X")) && GH_API_WRITE_DENY.some((x) => x.includes("--input")));
-  const rw = toolArgs(true);
-  assert.ok(rw.includes("Edit") && rw.slice(rw.indexOf("--disallowedTools") + 1).every((x) => !["Edit", "Write"].includes(x)));
 });
 
 test("起草提示：先核实再引用、附引用自证表、ADR NNNN 与落点格式同一行带反例", () => {
@@ -528,7 +548,7 @@ test("isRetryable：429/5xx/暂时不可用/超时算临时，参数与权限错
 
 const okOnce = (text: string): OnceResult => ({ code: 0, stdout: JSON.stringify({ result: text, is_error: false }), stderr: "" });
 const errOnce = (msg: string): OnceResult => ({ code: 1, stdout: JSON.stringify({ result: msg, is_error: true }), stderr: "" });
-const call: ModelCall = { model: MODEL_OPUS, prompt: "p", cwd: "/", role: "land" };
+const call: ModelCall = { model: MODEL_OPUS, prompt: "p", cwd: "/", role: "draft" };
 
 test("makeClaudeRunner：临时错误指数退避重试直到成功", async () => {
   const seq = [errOnce("API Error: 模型服务暂时不可用，请稍后重试。"), errOnce("API Error: 503"), { code: 143, stdout: "", stderr: "claude 子进程超时（1800s timed out）" }, okOnce("好")];
@@ -551,13 +571,14 @@ test("makeClaudeRunner：至少重试 4 次；非临时错误首次即失败", a
   assert.equal(m, 1);
 });
 
-/** live 假环境：gh 维护 assignees 状态，git 按落地提示里的目标回报改动。 */
-function liveDeps(replies: Array<string | Error>, opts: { failGh?: (a: string[]) => boolean; postedThenFail?: (a: string[]) => boolean } = {}) {
+/** Git 使用临时仓与本地 bare remote；gh 只维护测试内状态。 */
+function liveDeps(replies: Array<string | Error>, opts: { failGh?: (a: string[]) => boolean; postedThenFail?: (a: string[]) => boolean; failWorktreeOnce?: boolean } = {}) {
+  const fixture = gitFixture();
+  let failLand = opts.failWorktreeOnce ?? false;
   const ghCalls: string[][] = [];
   const modelCalls: ModelCall[] = [];
   const fixedCalls: ModelCall[] = [];
   let assignees: string[] = [];
-  let target = "";
   const comments: Array<{ author: { login: string }; body: string }> = [];
   const gh: GhRunner = (args, input) => {
     ghCalls.push(args);
@@ -576,11 +597,10 @@ function liveDeps(replies: Array<string | Error>, opts: { failGh?: (a: string[])
   const gitCalls: string[][] = [];
   const d: Deps = {
     mode: "live", drainRoot: mkdtempSync(join(tmpdir(), "decision-drain-live-")), gh, me: "me",
-    git: (_cwd, args) => {
+    git: (cwd, args) => {
       gitCalls.push(args);
-      if (args[0] === "status") return `?? ${target}\n`;
-      if (args[0] === "rev-parse") return "abcdef1234567890\n";
-      return "";
+      if (args[0] === "worktree" && args[1] === "add" && failLand) { failLand = false; throw new Error("宿主落地暂时失败"); }
+      return fixture.git(cwd, args);
     },
     model: async (c) => {
       if (c.role === "triage" && c.prompt.includes(FIXED)) {
@@ -588,15 +608,14 @@ function liveDeps(replies: Array<string | Error>, opts: { failGh?: (a: string[])
         return { text: goodArch, durationMs: 5, attempts: 1 };
       }
       modelCalls.push(c);
-      if (c.role === "land") target = /写进正本 (\S+?)。/.exec(c.prompt)![1];
       const r = replies.shift();
       if (r === undefined) throw new Error("模型调用次数超出预期");
       if (r instanceof Error) throw r;
       return { text: c.role === "triage" ? joint(r, goodArch) : r, durationMs: 5, attempts: 1 };
     },
     outRoot: mkdtempSync(join(tmpdir(), "decision-claimer-live-")),
-    srcDir: "/nonexistent-src",
-    repoRoot: "/nonexistent-repo",
+    srcDir: fixture.repo,
+    repoRoot: fixture.repo,
     now: Date.now,
   };
   return {
@@ -612,8 +631,7 @@ const writesOf = (calls: string[][]) => calls.filter(isWrite).map((a) => a.slice
 test("live T 类：审查 PASS 后落地失败记 reviewed_pass，下一轮只做落地不重审", async () => {
   const { d, replies, ghCalls, modelCalls, gitCalls } = liveDeps([
     fence({ class: "T", reason: "接口" }), goodDraft, fence(pass()),
-    new Error("land claude-opus-5-5 调用失败（exit 1，第 6 次）：API Error: 模型服务暂时不可用"),
-  ]);
+  ], { failWorktreeOnce: true });
   const s1 = await processTicket(1565, d);
   assert.equal(s1.phase, "error");
   assert.equal(s1.stage, "reviewed_pass");
@@ -625,13 +643,11 @@ test("live T 类：审查 PASS 后落地失败记 reviewed_pass，下一轮只�
   ghCalls.length = 0;
   modelCalls.length = 0;
   gitCalls.length = 0;
-  replies.push("已写入");
   const s2 = await processTicket(1565, d);
   assert.equal(s2.phase, "land_t");
   assert.equal(s2.resumedFrom, "reviewed_pass");
   assert.equal(s2.stage, undefined);
-  assert.deepEqual(modelCalls.map((c) => c.role), ["land"]);
-  assert.equal(modelCalls[0].model, MODEL_MAIN, "落地是工具侧，必须用主控模型");
+  assert.deepEqual(modelCalls.map((c) => c.role), []);
   assert.deepEqual(writesOf(ghCalls), ["issue edit 1565 --add-assignee", "issue comment 1565 --body-file"]);
   assert.ok(gitCalls.some((a) => a[0] === "push"));
   assert.equal(JSON.parse(readFileSync(join(dir, "summary.json"), "utf8")).stage, undefined);
@@ -639,12 +655,12 @@ test("live T 类：审查 PASS 后落地失败记 reviewed_pass，下一轮只�
 });
 
 test("live T 类：已推送只差评论时，续做只补 resolution 评论", async () => {
-  const h = liveDeps([fence({ class: "T", reason: "接口" }), goodDraft, fence(pass()), "已写入"]);
+  const h = liveDeps([fence({ class: "T", reason: "接口" }), goodDraft, fence(pass())]);
   // 第一条评论是分级，第二条是 resolution：让 resolution 评论失败。
   h.fail((a) => a[1] === "comment" && h.ghCalls.filter((x) => x[1] === "comment").length > 1);
   const s1 = await processTicket(1565, h.d);
   assert.equal(s1.phase, "error");
-  assert.equal(s1.landedSha, "abcdef1234567890");
+  assert.match(s1.landedSha ?? "", /^[a-f0-9]{40}$/);
   h.stopFail();
   h.ghCalls.length = 0;
   h.modelCalls.length = 0;
@@ -804,7 +820,7 @@ test("live processTicket：已关闭票直接跳过", async () => {
 });
 
 test("断点续做 × 跳过：reviewed_pass 且 resolution 评论其实已发出 → 下一轮 skipped，不调模型不写", async () => {
-  const h = liveDeps([fence({ class: "T", reason: "接口" }), goodDraft, fence(pass()), "已写入"]);
+  const h = liveDeps([fence({ class: "T", reason: "接口" }), goodDraft, fence(pass())]);
   // 第二条评论（resolution）发出后 gh 报错。
   h.fail((a) => a[1] === "comment" && h.ghCalls.filter((x) => x[1] === "comment").length > 1, true);
   const s1 = await processTicket(1565, h.d);
@@ -824,18 +840,17 @@ test("断点续做 × 跳过：reviewed_pass 且 resolution 评论其实已发�
 test("断点续做 × 退回：reviewed_pass 之后出现退回，下一轮整链重跑，不沿用旧 PASS 落地", async () => {
   const h = liveDeps([
     fence({ class: "T", reason: "接口" }), goodDraft, fence(pass()),
-    new Error("land claude-opus-5-5 调用失败（exit 1，第 6 次）：API Error: 模型服务暂时不可用"),
-  ]);
+  ], { failWorktreeOnce: true });
   const s1 = await processTicket(1565, h.d);
   assert.equal(s1.stage, "reviewed_pass");
   assert.equal(s1.commentsSeen, 0);
   h.comments.push({ author: { login: "xy7365527-lang" }, body: "## 退回重写\n这稿不能落地" });
-  h.replies.push(fence({ class: "T", reason: "按退回重写" }), goodDraft, fence(pass()), "已写入");
+  h.replies.push(fence({ class: "T", reason: "按退回重写" }), goodDraft, fence(pass()));
   h.modelCalls.length = 0;
   h.gitCalls.length = 0;
   const s2 = await processTicket(1565, h.d);
   assert.equal(s2.resumedFrom, undefined);
-  assert.deepEqual(h.modelCalls.map((c) => c.role), ["triage", "draft", "review", "land"]);
+  assert.deepEqual(h.modelCalls.map((c) => c.role), ["triage", "draft", "review"]);
   assert.equal(s2.phase, "land_t");
   assert.ok(h.gitCalls.some((a) => a[0] === "push"));
 });
@@ -843,21 +858,19 @@ test("断点续做 × 退回：reviewed_pass 之后出现退回，下一轮整�
 test("断点续做：退回出现在断点之前，或之后只有普通评论，仍只补落地", async () => {
   const h = liveDeps([
     fence({ class: "T", reason: "接口" }), goodDraft, fence(pass()),
-    new Error("land claude-opus-5-5 调用失败（exit 1，第 6 次）：API Error: 模型服务暂时不可用"),
-  ]);
+  ], { failWorktreeOnce: true });
   h.comments.push({ author: { login: "xy7365527-lang" }, body: "## 退回重写\n上一稿不要" });
   const s1 = await processTicket(1565, h.d);
   assert.equal(s1.stage, "reviewed_pass");
   assert.equal(s1.commentsSeen, 1);
   h.comments.push({ author: { login: "xy7365527-lang" }, body: "已按用户批复重写正本 baohan.md" });
   h.comments.push({ author: { login: "someone" }, body: "## 退回重写" });
-  h.replies.push("已写入");
   h.modelCalls.length = 0;
   h.gitCalls.length = 0;
   const s2 = await processTicket(1565, h.d);
   assert.equal(s2.phase, "land_t");
   assert.equal(s2.resumedFrom, "reviewed_pass");
-  assert.deepEqual(h.modelCalls.map((c) => c.role), ["land"]);
+  assert.deepEqual(h.modelCalls.map((c) => c.role), []);
   assert.ok(h.gitCalls.some((a) => a[0] === "push"));
 });
 
@@ -933,7 +946,7 @@ test("dry-run 全流程：分级后先考古，archaeology.md 落盘，起草与
   assert.equal(s.phase, "land_t");
   assert.equal(archCalls.length, 1);
   assert.equal(archCalls[0].model, MODEL_MAIN);
-  assert.ok(!archCalls[0].allowWrite);
+  assert.ok(!("allowWrite" in archCalls[0]));
   assert.deepEqual(s.archaeology, { A: 1, B: 1, C: 1, problems: [] });
   const dir = join(d.outRoot, "1531");
   assert.ok(existsSync(join(dir, ARCHAEOLOGY_FILE)));
@@ -1051,9 +1064,6 @@ test("升档重跑考古后新出现事实缺口：T 类同样转 P，不落地"
 test("flowSectionsIn：正本里混入引用自证或考古对照即报", () => {
   assert.deepEqual(flowSectionsIn("## 裁定\n内容"), []);
   assert.deepEqual(flowSectionsIn(goodDraft), ["引用自证", "考古对照"]);
-  const stripped = stripFlowSections(goodDraft);
-  assert.deepEqual(flowSectionsIn(stripped), []);
-  assert.deepEqual(missingDraftSections(stripped), []);
 });
 
 test("影子评论：本地无考古时首行提示先跑 --archaeology-only", () => {
@@ -1080,11 +1090,11 @@ test("--archaeology-only 入口受 drain 准入保护", async () => {
 });
 
 test("冻结保留 T 类已推送断点及认领，解冻只补 resolution 不重复提交", async () => {
-  const h = liveDeps([fence({ class: "T", reason: "接口" }), goodDraft, fence(pass()), "已写入"]);
+  const h = liveDeps([fence({ class: "T", reason: "接口" }), goodDraft, fence(pass())]);
   h.fail((a) => (a[1] === "comment" && h.comments.length > 0) || a[3] === "--remove-assignee");
   const first = await processTicket(1565, h.d);
   assert.equal(first.stage, "reviewed_pass");
-  assert.equal(first.landedSha, "abcdef1234567890");
+  assert.match(first.landedSha ?? "", /^[a-f0-9]{40}$/);
   h.stopFail();
   const dir = join(h.d.outRoot, "1565");
   const before = readFileSync(join(dir, "summary.json"), "utf8");
@@ -1240,15 +1250,13 @@ test("锁：起草与独审必须异家族，计划与改派两种轮次都覆�
   }
 });
 
-test("负控：拦截以外的非临时错误不改派，照原逻辑整票失败；落地模型也不改派", async () => {
+test("负控：拦截以外的非临时错误不改派，照原逻辑整票失败", async () => {
   const hard = blockingDeps(new Set(), { hardError: `triage ${MODEL_MAIN} 调用失败（exit 1，第 1 次）：Invalid model name` });
   const s = await processTicket(1783, hard.d);
   assert.equal(s.phase, "error");
   assert.match(s.error ?? "", /Invalid model name/);
   assert.deepEqual(seq(hard.calls), [["triage", MODEL_MAIN]]);
   assert.equal(s.modelSwitches, undefined);
-  const run = withSafeguardFallback(async () => { throw new Error(SAFEGUARD_ERROR("land", MODEL_OPUS)); });
-  await assert.rejects(run({ model: MODEL_OPUS, prompt: "p", cwd: "/", role: "land" }), /safeguards flagged/);
 });
 
 test("F-1：分级考古联合调用改派后两份记录都写实际模型与 modelSwitches，未改派默认主控模型", async () => {
@@ -1285,13 +1293,11 @@ test("F-1：--archaeology-only 无 summary 时，考古改派照样写进 archae
 test("F-2：断点续做带回 modelSwitches，续做后重写的 summary.json 不丢改派记录", async () => {
   const { d, replies } = liveDeps([
     new Error(SAFEGUARD_ERROR("triage", MODEL_MAIN)), fence({ class: "T", reason: "接口" }), goodDraft, fence(pass()),
-    new Error("land claude-opus-5-5 调用失败（exit 1，第 6 次）：API Error: 模型服务暂时不可用"),
-  ]);
+  ], { failWorktreeOnce: true });
   const want = [{ role: "triage", from: MODEL_MAIN, to: MODEL_DRAFTER, reason: "safeguard" }];
   const s1 = await processTicket(1565, d);
   assert.equal(s1.stage, "reviewed_pass", s1.error ?? "");
   assert.deepEqual(s1.modelSwitches, want);
-  replies.push("已写入");
   const s2 = await processTicket(1565, d);
   assert.equal(s2.phase, "land_t", s2.error ?? "");
   assert.equal(s2.resumedFrom, "reviewed_pass");
@@ -1356,7 +1362,7 @@ test("M1 P 类账户未知：联合调用保留 P 与 C 类 decision/research �
 });
 
 test("M1 失败重入：联合调用考古两次解析不出，分级已落盘且评论一次；下一轮只补考古，不重分级、不重发分级评论", async () => {
-  const h = liveDeps([goodDraft, fence(pass()), "已写入"]);
+  const h = liveDeps([goodDraft, fence(pass())]);
   const base = h.d.model;
   let bad = 1;
   h.d.model = async (c) => {
@@ -1382,13 +1388,13 @@ test("M1 失败重入：联合调用考古两次解析不出，分级已落盘�
   assert.equal(s2.klass, "T");
   assert.equal(h.fixedCalls.length, 1);
   assert.match(h.fixedCalls[0].prompt, /分级已定为 T 类 —— 接口/);
-  assert.deepEqual(h.modelCalls.map((c) => c.role), ["draft", "review", "land"]);
+  assert.deepEqual(h.modelCalls.map((c) => c.role), ["draft", "review"]);
   assert.equal(classifyComments(h.comments).length, 1, "分级评论不重发");
   assert.deepEqual(writesOf(h.ghCalls), ["issue edit 1565 --add-assignee", "issue comment 1565 --body-file"]);
 });
 
 test("M1 旧两段式断点：只有 classify.json（旧角色名）且票上已有分级评论 → 沿用分级只补考古，认领只一次", async () => {
-  const h = liveDeps([goodDraft, fence(pass()), "已写入"]);
+  const h = liveDeps([goodDraft, fence(pass())]);
   const dir = join(h.d.outRoot, "1565");
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "classify.json"), JSON.stringify({ ticket: 1565, model: MODEL_MAIN, klass: "T", reason: "接口", parsed: true, durationMs: 9, raw: "x" }));
@@ -1398,7 +1404,7 @@ test("M1 旧两段式断点：只有 classify.json（旧角色名）且票上已
   assert.equal(s.phase, "land_t", s.error ?? "");
   assert.equal(s.resumedFrom, "triaged");
   assert.equal(h.fixedCalls.length, 1);
-  assert.deepEqual(h.modelCalls.map((c) => c.role), ["draft", "review", "land"]);
+  assert.deepEqual(h.modelCalls.map((c) => c.role), ["draft", "review"]);
   assert.equal(classifyComments(h.comments).length, 1);
   assert.equal(writesOf(h.ghCalls).filter((w) => w.includes("--add-assignee")).length, 1);
   assert.equal(JSON.parse(readFileSync(join(dir, "classify.json"), "utf8")).raw, "x", "旧分级原件不被覆盖");
@@ -1426,14 +1432,14 @@ test("M1 旧断点：已认领在自己名下也照常续，P 类旧分级保持
   writeFileSync(join(done, "classify.json"), JSON.stringify({ klass: "X", reason: "r" }));
   assert.equal(loadTriaged(done), null);
 
-  const r = liveDeps([fence({ class: "T", reason: "重分" }), goodDraft, fence(pass()), "已写入"]);
+  const r = liveDeps([fence({ class: "T", reason: "重分" }), goodDraft, fence(pass())]);
   const rdir = join(r.d.outRoot, "1565");
   mkdirSync(rdir, { recursive: true });
   writeFileSync(join(rdir, "classify.json"), JSON.stringify({ klass: "T", reason: "旧", parsed: true }));
   r.comments.push({ author: { login: "xy7365527-lang" }, body: "## 退回重写" });
   const s3 = await processTicket(1565, r.d);
   assert.equal(s3.resumedFrom, undefined);
-  assert.deepEqual(r.modelCalls.map((c) => c.role), ["triage", "draft", "review", "land"]);
+  assert.deepEqual(r.modelCalls.map((c) => c.role), ["triage", "draft", "review"]);
 });
 
 test("M1 联合调用不改变独审异家族与有效 BLOCK：起草 Opus、独审主控，BLOCK 不变 PASS", async () => {
@@ -1498,7 +1504,7 @@ test("M1 转 P 不回退：考古事实缺口转 P 后整链重跑重判 T 仍�
   assert.equal(s.phase, "shadow_p");
   assert.equal(s.convertedToP, true);
 
-  const q = liveDeps([fence({ class: "T", reason: "重分" }), goodDraft, fence(pass()), "已写入"]);
+  const q = liveDeps([fence({ class: "T", reason: "重分" }), goodDraft, fence(pass())]);
   const qdir = join(q.d.outRoot, "1565");
   mkdirSync(qdir, { recursive: true });
   writeFileSync(join(qdir, "classify.effective.json"), JSON.stringify({ klass: "P", reason: "旧转 P", commentsSeen: 0 }));
@@ -1611,4 +1617,203 @@ test("M1 已有 T 落地断点也不能绕过损坏 P 记录，未完成的新�
   writeFileSync(join(dir, "classify.effective.json"), JSON.stringify({ klass: "P", reason: "旧转 P", commentsSeen: 0 }));
   writeFileSync(join(dir, "classify.effective.json.pending"), "");
   assert.throws(() => loadEffectiveP(dir), /有效 P/);
+});
+
+const exactDraft = (edit: unknown, target: string) => goodDraft.split("```canonical_edit")[0].replaceAll("docs/adr/0099-x.md", target) + "```canonical_edit\n" + JSON.stringify(edit) + "\n```\n";
+const createEdit = (path: string, content: string) => ({ version: 1, operation: "create", path, content });
+const reviseEdit = (path: string, before: string, after: string) => ({ version: 1, operation: "edit", path, replacements: [{ before, after }] });
+
+function seedCanonical(h: ReturnType<typeof liveDeps>, path: string, content: string) {
+  mkdirSync(join(h.d.srcDir, path, ".."), { recursive: true });
+  writeFileSync(join(h.d.srcDir, path), content);
+  h.d.git(h.d.srcDir, ["add", "--", path]);
+  h.d.git(h.d.srcDir, ["commit", "-m", "canonical seed"]);
+  h.d.git(h.d.srcDir, ["push", FETCH_URL, "main"]);
+}
+
+for (const item of [
+  { name: "新定义", path: ".chanlun/definitions/f2.md", before: null, after: "> 正本：本文件是 f2 的教义正本。\n> 最后裁定：#1565（2026-10-29）\n> 受影响代码清单：rust/src/lib.rs:1\n\n## 定义\n精确文本。\n" },
+  { name: "修订定义", path: ".chanlun/definitions/f2.md", before: "> 正本：本文件是 f2 的教义正本。\n> 最后裁定：#1（2026-01-01）\n> 受影响代码清单：old:1\n\n## 前章\n保留。\n\n## 定义\n旧。\n\n## 后章\n保留尾部。", after: "> 正本：本文件是 f2 的教义正本。\n> 最后裁定：#1565（2026-10-29）\n> 受影响代码清单：rust/src/lib.rs:1\n\n## 前章\n保留。\n\n## 定义\n新。\n\n## 后章\n保留尾部。" },
+  { name: "修订 CONTEXT", path: "CONTEXT.md", before: "# 词汇\r\n\r\n## 词一\r\n旧义。\r\n\r\n## 词二\r\n原义。\r\n", after: "# 词汇\r\n\r\n## 词一\r\n新义。\r\n\r\n## 词二\r\n原义。\r\n" },
+  { name: "新建 CONTEXT", path: "CONTEXT.md", before: null, after: "# 词汇\n\n## 词\n定义。\n" },
+  { name: "新 ADR", path: "docs/adr/NNNN-f2.md", before: null, after: "# ADR NNNN\n\n正式决定。\n" },
+  { name: "修订 ADR", path: "docs/adr/0007-f2.md", before: "# ADR 0007\n\n## 决定\n旧。\n\n## 历史\n保留。\n", after: "# ADR 0007\n\n## 决定\n新。\n\n## 历史\n保留。\n" },
+]) test(`F2 真实 Git ${item.name}逐字落地，独审最终 diff，无 land 模型`, async () => {
+  const edit = item.before === null ? createEdit(item.path, item.after) : reviseEdit(item.path, item.before, item.after);
+  const h = liveDeps([fence({ class: "T", reason: "确定裁定" }), exactDraft(edit, item.path), fence(pass())]);
+  if (item.before !== null) seedCanonical(h, item.path, item.before);
+  h.gitCalls.length = 0;
+  const s = await processTicket(1565, h.d);
+  assert.equal(s.phase, "land_t", s.error ?? "");
+  const target = s.landing!;
+  const expected = item.path.includes("NNNN") ? item.after.replaceAll("ADR NNNN", "ADR 0001") : item.after;
+  const sha = h.d.git(h.d.repoRoot, ["rev-parse", "refs/heads/decision/1565"]).trim();
+  assert.equal(h.d.git(h.d.repoRoot, ["show", `${sha}:${target}`]), expected);
+  assert.deepEqual(readFileSync(join(h.d.outRoot, "1565", "land-wt", target)), Buffer.from(expected));
+  assert.deepEqual(h.d.git(h.d.repoRoot, ["diff-tree", "--no-commit-id", "--name-only", "-r", sha]).trim().split("\n"), [target]);
+  assert.equal(h.d.git(h.d.repoRoot, ["show", `${sha}:seed`]), "unchanged\n");
+  const reviewCall = h.modelCalls.find(c => c.role === "review")!;
+  assert.ok(reviewCall.prompt.includes(JSON.stringify({ operation: edit.operation, before: item.before, after: expected })));
+  assert.ok(reviewCall.prompt.includes(`+++ b/${target}`));
+  assert.ok(!reviewCall.prompt.includes("docs/adr/NNNN-f2.md"));
+  const reviewed = JSON.parse(readFileSync(join(h.d.outRoot, "1565", "review.json"), "utf8"));
+  assert.equal(reviewed.canonicalPlan.after, expected);
+  assert.deepEqual(h.modelCalls.map(c => c.role), ["triage", "draft", "review"]);
+  assert.equal(h.comments.filter(c => c.body.startsWith(AUTH_LINE)).length, 1);
+});
+
+test("F2 缺对象、重复对象、非法版本、目标不一致和非唯一 before 均在 commit 前拒绝", async () => {
+  const path = "CONTEXT.md";
+  const valid = exactDraft(reviseEdit(path, "旧义", "新义"), path);
+  for (const bad of [valid.split("```canonical_edit")[0], valid + valid.slice(valid.indexOf("```canonical_edit")), valid.replace('"version":1', '"version":2'), valid.replace('"path":"CONTEXT.md"', '"path":"docs/adr/x.md"'), valid.replace('"before":"旧义"', '"before":""')]) {
+    const h = liveDeps([]);
+    seedCanonical(h, path, "旧义\n旧义\n");
+    h.gitCalls.length = 0;
+    h.d.model = async c => ({ text: c.role === "triage" ? joint(fence({ class: "T", reason: "r" }), goodArch) : c.role === "draft" ? bad : fence(pass()), durationMs: 1, attempts: 1 });
+    const s = await processTicket(1565, h.d);
+    assert.notEqual(s.phase, "land_t");
+    assert.ok(!h.gitCalls.some(a => a[0] === "commit" || a[0] === "push"));
+    assert.equal(readFileSync(join(h.d.srcDir, path), "utf8"), "旧义\n旧义\n");
+  }
+  const h = liveDeps([]);
+  seedCanonical(h, path, "旧义\n旧义\n");
+  h.gitCalls.length = 0;
+  h.d.model = async c => ({ text: c.role === "triage" ? joint(fence({ class: "T", reason: "r" }), goodArch) : c.role === "draft" ? valid : fence(pass()), durationMs: 1, attempts: 1 });
+  assert.notEqual((await processTicket(1565, h.d)).phase, "land_t");
+  assert.ok(!h.gitCalls.some(a => a[0] === "commit"));
+});
+
+test("F2 获审后目标漂移拒绝，只有无关 main 前进仍可落地", async () => {
+  for (const drift of [true, false]) {
+    const path = "CONTEXT.md";
+    const h = liveDeps([fence({ class: "T", reason: "r" }), exactDraft(reviseEdit(path, "旧义", "新义"), path), fence(pass())]);
+    seedCanonical(h, path, "# 前文\n旧义\n# 后文\n");
+    const base = h.d.model;
+    h.d.model = async c => {
+      const result = await base(c);
+      if (c.role === "review") seedCanonical(h, drift ? path : "seed", drift ? "冲突\n" : "main 前进\n");
+      return result;
+    };
+    const s = await processTicket(1565, h.d);
+    assert.equal(s.phase, drift ? "error" : "land_t", s.error ?? "");
+    if (drift) {
+      assert.match(s.error ?? "", /漂移/);
+      assert.equal(s.stage, "reviewed_pass");
+      assert.ok(!h.gitCalls.some(a => a[0] === "commit" && a[2]?.startsWith("decision")));
+    }
+  }
+});
+
+test("F2 commit 后与 push 回执前中断复用同一 SHA，单次提交与 resolution", async () => {
+  for (const window of ["commit-return", "push-before", "push-return"] as const) {
+    const h = liveDeps([fence({ class: "T", reason: "r" }), goodDraft, fence(pass())]);
+    const base = h.d.git;
+    let failed = false;
+    let firstSha = "";
+    h.d.git = (cwd, args) => {
+      if (!failed && window === "push-before" && args[0] === "push") { failed = true; firstSha = args[2].split(":")[0]; throw new Error("push 前中断"); }
+      const result = base(cwd, args);
+      if (!failed && ((window === "commit-return" && args[0] === "commit") || (window === "push-return" && args[0] === "push"))) {
+        failed = true;
+        firstSha = base(cwd, ["rev-parse", "refs/heads/decision/1565"]).trim();
+        throw new Error("副作用完成，回执前中断");
+      }
+      return result;
+    };
+    const first = await processTicket(1565, h.d);
+    assert.equal(first.phase, "error", window);
+    assert.equal(first.stage, "reviewed_pass");
+    const callsBefore = h.modelCalls.length;
+    const second = await processTicket(1565, h.d);
+    assert.equal(second.phase, "land_t", second.error ?? "");
+    assert.equal(h.modelCalls.length, callsBefore);
+    assert.equal(base(h.d.repoRoot, ["rev-parse", "refs/heads/decision/1565"]).trim(), firstSha);
+    assert.equal(h.gitCalls.filter(a => a[0] === "commit").length, 1);
+    assert.equal(h.gitCalls.filter(a => a[0] === "push").length, 1);
+    assert.equal(h.comments.filter(c => c.body.startsWith(AUTH_LINE)).length, 1);
+    await processTicket(1565, h.d);
+    assert.equal(h.comments.filter(c => c.body.startsWith(AUTH_LINE)).length, 1);
+  }
+});
+
+test("F2 旧未推送 PASS 显式要求迁移，已 landedSha 的旧断点只补评论", async () => {
+  for (const landed of [false, true]) {
+    const h = liveDeps([]);
+    const dir = join(h.d.outRoot, "1565");
+    mkdirSync(dir);
+    const old = goodDraft.split("```canonical_edit")[0];
+    writeFileSync(join(dir, "draft.md"), old);
+    writeFileSync(join(dir, "review.json"), JSON.stringify({ verdict: "PASS", items: parseReview(fence(pass())).items }));
+    writeFileSync(join(dir, "summary.json"), JSON.stringify({ ticket: 1565, mode: "live", phase: "error", klass: "T", stage: "reviewed_pass", attempts: 1, durationsMs: {}, plannedWrites: [], commentsSeen: 0, ...(landed ? { landedSha: "a".repeat(40) } : {}) }));
+    const s = await processTicket(1565, h.d);
+    assert.equal(s.phase, landed ? "land_t" : "error", s.error ?? "");
+    if (!landed) { assert.match(s.error ?? "", /迁移并重新独审/); assert.equal(s.stage, "reviewed_pass"); }
+    assert.equal(h.modelCalls.length, 0);
+    assert.equal(h.gitCalls.length, 0);
+    assert.equal(h.comments.filter(c => c.body.startsWith(AUTH_LINE)).length, landed ? 1 : 0);
+  }
+});
+
+test("F2 获审后 main 目标变符号链接时拒绝，外部原件不动", async () => {
+  const path = "CONTEXT.md";
+  const h = liveDeps([fence({ class: "T", reason: "r" }), exactDraft(reviseEdit(path, "旧义", "新义"), path), fence(pass())]);
+  seedCanonical(h, path, "旧义\n");
+  const outside = join(mkdtempSync(join(tmpdir(), "f2-outside-")), "original");
+  writeFileSync(outside, "外部原件\n");
+  const model = h.d.model;
+  h.d.model = async c => {
+    const result = await model(c);
+    if (c.role === "review") {
+      fs.rmSync(join(h.d.srcDir, path));
+      fs.symlinkSync(outside, join(h.d.srcDir, path));
+      h.d.git(h.d.srcDir, ["add", "--", path]);
+      h.d.git(h.d.srcDir, ["commit", "-m", "main symlink"]);
+      h.d.git(h.d.srcDir, ["push", FETCH_URL, "main"]);
+      h.gitCalls.length = 0;
+    }
+    return result;
+  };
+  const s = await processTicket(1565, h.d);
+  assert.equal(s.phase, "error");
+  assert.match(s.error ?? "", /符号链接/);
+  assert.equal(readFileSync(outside, "utf8"), "外部原件\n");
+  assert.ok(!h.gitCalls.some(a => a[0] === "commit" || a[0] === "push"));
+});
+
+test("F2 review 原件或 draft 被改时续做拒绝，零模型与 commit", async () => {
+  for (const artifact of ["review.json", "draft.md"]) {
+    const h = liveDeps([fence({ class: "T", reason: "r" }), goodDraft, fence(pass())], { failWorktreeOnce: true });
+    assert.equal((await processTicket(1565, h.d)).phase, "error");
+    const path = join(h.d.outRoot, "1565", artifact);
+    if (artifact === "review.json") {
+      const j = JSON.parse(readFileSync(path, "utf8"));
+      j.canonicalPlan.after += "篡改";
+      writeFileSync(path, JSON.stringify(j));
+    } else writeFileSync(path, readFileSync(path, "utf8").replace('"content":"', '"content":"篡改'));
+    h.modelCalls.length = 0;
+    h.gitCalls.length = 0;
+    const s = await processTicket(1565, h.d);
+    assert.equal(s.phase, "error");
+    assert.match(s.error ?? "", /不一致/);
+    assert.equal(h.modelCalls.length, 0);
+    assert.ok(!h.gitCalls.some(a => a[0] === "commit" || a[0] === "push"));
+  }
+});
+
+test("F2 Git normalization 或额外工作树改动均在 commit 前拒绝", async () => {
+  for (const fault of ["normalize", "stray"]) {
+    const path = "CONTEXT.md";
+    const h = liveDeps([fence({ class: "T", reason: "r" }), exactDraft(createEdit(path, "正文\r\n"), path), fence(pass())]);
+    if (fault === "normalize") seedCanonical(h, ".gitattributes", "CONTEXT.md text eol=lf\n");
+    const git = h.d.git;
+    h.d.git = (cwd, args) => {
+      if (fault === "stray" && args[0] === "status" && cwd.endsWith("land-wt")) writeFileSync(join(cwd, "stray.md"), "旁支\n");
+      return git(cwd, args);
+    };
+    h.gitCalls.length = 0;
+    const s = await processTicket(1565, h.d);
+    assert.equal(s.phase, "error");
+    assert.match(s.error ?? "", fault === "normalize" ? /暂存内容/ : /非目标改动/);
+    assert.ok(!h.gitCalls.some(a => a[0] === "commit" || a[0] === "push"));
+  }
 });

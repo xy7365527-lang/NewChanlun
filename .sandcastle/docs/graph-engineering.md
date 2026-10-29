@@ -57,27 +57,51 @@
 
 起草按考古处置待决点：只有 C 类 `decision` 列为真正待决；B 类写成默认值待确认；C 类 `research`/`probe` 写成要开的票。草稿末尾附「考古对照」表，每个考古点号一行。
 
-完成标准：草稿文件落 `/Volumes/AgentStorage/decisions/<票号>/draft.md`，七段与「引用自证」「考古对照」齐全。
+七段与流程表之后只附一个 `canonical_edit` 代码块，且只声明一个 `正本落点：<路径>`。目标仍限 `.chanlun/definitions/`、`docs/adr/` 或 `CONTEXT.md`，新建和修订都可用。
+
+新建文件给完整最终正文：
+
+```canonical_edit
+{"version":1,"operation":"create","path":"CONTEXT.md","content":"# 词汇\n\n## 词\n定义。\n"}
+```
+
+修订已有文件先读原件，再给精确替换：
+
+```canonical_edit
+{"version":1,"operation":"edit","path":"CONTEXT.md","replacements":[{"before":"旧定义。","after":"新定义。"}]}
+```
+
+`before` 非空且在每一步当前文本中唯一命中，替换按序执行；未改章节、换行和末尾字节保留。`create` 只用于不存在的文件，`edit` 只用于已存在文件。正文不得夹入「引用自证」「考古对照」或编辑合同。宿主不把 resolution 整稿追加进正本，也不做模糊匹配。教义正文的三行头、日期、票号与受影响代码清单由起草者写入，交独审核对。
+
+新 ADR 起草用 `NNNN` 占位，宿主在独审前分配真实编号并同步草稿与编辑对象；已有 ADR 修订保留原编号。宿主对固定 `sourceCommit` 原件生成 `CanonicalPlan`（`edit/sourceCommit/before/after/diff`）。P 类同样提供候选编辑，但仍只进入人批影子流程。
+
+完成标准：草稿文件落 `/Volumes/AgentStorage/decisions/<票号>/draft.md`，七段、两张流程表与唯一编辑对象齐全，最终编辑可确定性应用。
 
 ### 4. 独审
 
-主控模型 `gpt-6.1-sol` 审查者另起进程，只拿草稿、`archaeology.md` 和源文件，看不到起草推理。起草与独审必须属于不同模型家族；按 R1–R8 逐条给 PASS 或 BLOCK：
+主控模型 `gpt-6.1-sol` 审查者另起进程，只拿草稿、`archaeology.md`、源文件以及宿主生成的最终 Git diff 和完整 JSON 转义 `before/after`，看不到起草推理。起草与独审必须属于不同模型家族；按 R1–R8 逐条给 PASS 或 BLOCK：
 
 1. R1 每条引用回查成立。
 2. R2 不与 `.chanlun/definitions/`、`docs/adr/`、#799 收敛通则、#804 总缝规则、ADR 0041 自由度通则冲突。把原文无定论的合法候选当错误排除或写成常数、未落为带默认值的可调字段，判 BLOCK；把原文语义或已裁推论改成可调、把同一判断的宽严两档做成可调字段、或让可调字段运行中换值，也判 BLOCK。
 3. R3 验收项全部可执行、判据二值。
-4. R4 不越出 Destination；T 类草稿里没有夹带 P 类取舍。
+4. R4 不越出 Destination；T 类草稿里没有夹带 P 类取舍。核对实际正本 diff、完整原件和结果：编辑与裁定一致，三行头、日期、代码清单正确，无关章节未丢失；合同缺失或正文不一致即 BLOCK。
 5. R5 不新增同一判断的宽严两档或失败兜底。
 6. R6 受影响票与 blocking 边清单完整。
 7. R7 分级正确。
 8. R8 考古成立：抽查 `archaeology.md` 至少三条命中并复跑查询，另对任一 B/C 点换说法复搜。草稿把 A 类当待决、B/C 类缺查询证据、「考古对照」漏点、事实缺口交给用户，或 P 类问题要求用户凭空提供数值而在案先例未列出，判 BLOCK。
 
-完成标准：`review.json` 落盘，八项各有结论与依据。BLOCK 时起草者继续用 `claude-opus-5-5` 带审查意见重做一次；再 BLOCK 转 P 类。
+完成标准：`review.json` 落盘，八项各有结论与依据，并保存与 `summary.json` 一致的 `canonicalPlan`。BLOCK 时起草者继续用 `claude-opus-5-5` 带审查意见重做一次；再 BLOCK 转 P 类。
 
 ### 5. 落地
 
 - **T 类 PASS**：正本写进 `decision/<票号>` 分支（`.chanlun/definitions/`、`docs/adr/` 或 `CONTEXT.md`），票上发 resolution 评论，首行写「本条依 #1323 Notes N-1 预授权判定」，并附草稿、审查路径。决策文档按日批量开 PR；PR 合入后关票，map 的 Decisions so far 加一行，接新 blocking 边。
 - **P 类**：票上发草稿与审查结论，挂 `needs-approval`，不关票。影子评论开头是考古问表：只列 B 类确认与 C 类 `decision`，每问附出处与推荐值；A 类列为已沿用，事实缺口列为要开的票。用户批量批复后按 T 类落地。
+
+宿主确定性执行获审 `canonicalPlan`，不再调用 land 模型；triage、draft、review 的模型工具权限均只读。写入前核目标及父目录不是符号链接，当前目标与获审 `before` 逐字一致。main 无关文件前进可继续，目标漂移则保留 `reviewed_pass` 并要求重新起草、独审。提交前核工作树仅有目标改动，暂存与最终 commit 的目标 blob 均等于获审 `after`。
+
+断点恢复使用 `commitBase` 与 `committedSha`：commit 已完成但回执中断时，核父提交、唯一改动文件、精确正文和提交消息后复用同一 SHA；push 回执中断时先查远端，不重复推送同一提交。`landedSha` 已存在则只补 resolution 评论。旧未推送 `reviewed_pass` 若缺编辑合同，明确要求迁移并重新独审，不拿旧 PASS 自动补写；旧已推送 `landedSha` 仍可只补评论。草稿、独审原件与断点合同不一致时拒绝续做。
+
+这些检查不改变 P 类用户批准、PR 和 main 合入人闸。
 
 ### 6. 解锁
 
@@ -103,7 +127,7 @@ ANTHROPIC_AUTH_TOKEN=<运行时从 CLIProxyLocal config 读取，不落日志> \
 claude -p --bare --model gpt-6.1-sol --output-format json --no-session-persistence
 ```
 
-2026-10-25 用户裁定（#1617）：决策裁决面的分级、考古与独审使用 `.sandcastle/main-model.mts` 的 `gpt-6.1-sol`；起草使用 `claude-opus-5-5`，落地属工具侧，使用 `MAIN_MODEL`（`gpt-6.1-sol`）。429 按退避重试，打回重做不换模型；安全拦截按本文件上方的异家族改派与 FAIL-loud 规则执行。真实 `--bare` 冒烟见该票验收记录。
+2026-10-25 用户裁定（#1617）：决策裁决面的分级、考古与独审使用 `.sandcastle/main-model.mts` 的 `gpt-6.1-sol`；起草使用 `claude-opus-5-5`。#1742 F2 将落地改为宿主执行获审精确编辑，不再使用模型。429 按退避重试，打回重做不换模型；安全拦截按本文件上方的异家族改派与 FAIL-loud 规则执行。真实 `--bare` 冒烟见该票验收记录。
 
 执行面 `main.mts` 与 `main-swarm.mts` 使用 Sandcastle `codex` provider，走同一模型配置。noSandbox 用 `127.0.0.1:8318`；Docker 保留隔离并用 `host.docker.internal:8318`，镜像安装 Codex CLI（Claude 仅供显式 legacy），Codex 客户端密钥只从进程/launchctl 的 `CLIPROXY_LOCAL_KEY` 经运行时 env 进入；main-swarm 在领票前做容器连通性硬检查，失败不换模型、不认领（#1617）。
 
