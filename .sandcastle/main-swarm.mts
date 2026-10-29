@@ -12,7 +12,8 @@ import * as sandcastle from "@ai-hero/sandcastle";
 import { assertDockerCliProxyReachable, assertSwarmExecutionReady, swarmAgent, swarmSandbox } from "./swarm-route.mts";
 import { claimIssue, fetchQueue, hostGh, queueToJson, renderPlanPrompt, runImplementer, validatePlan } from "./swarm-prompts.mts";
 import { assertControlledBase, controlledSwarmTicket, swarmBases, swarmBinding } from "./swarm-controlled.mts";
-import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { consumeSwarmPlan, fetchPlanningQueue, parseFoldedPlan, validateFoldedPlan } from "./swarm-planning.mts";
 import { z } from "zod";
 import { resolve } from "node:path";
 import { runAcceptedSwarmMerge } from "./swarm-merge.mts";
@@ -69,6 +70,10 @@ function claim(issue: string) {
 }
 
 const acceptedManifest = process.env.SANDCASTLE_SWARM_MERGE_MANIFEST;
+const foldedPlanPath = process.env.SANDCASTLE_SWARM_PLAN;
+if (acceptedManifest && foldedPlanPath) throw new Error("归并清单与主控计划不能同时提交");
+if (foldedPlanPath && process.env.SANDCASTLE_DOCKER_ACCEPTANCE_ROW) throw new Error("受控验收不能同时提交主控队列计划");
+const foldedPlan = foldedPlanPath ? parseFoldedPlan(JSON.parse(readFileSync(foldedPlanPath, "utf8"))) : undefined;
 if (acceptedManifest) {
   try {
     await runAcceptedSwarmMerge(acceptedManifest, IMAGE, logWorker);
@@ -77,10 +82,14 @@ if (acceptedManifest) {
     console.error(error.message);
     process.exitCode = 75;
   }
+} else if (foldedPlan && foldedPlan.issues.length === 0) {
+  await consumeSwarmPlan(foldedPlan, hostGh(GH_CLEAN_ENV), withLegacyAdmission);
+  console.log("主控计划为空，无认领、无工蜂。");
 } else {
 // 普通 swarm 先验容器路由，再进入 planner/claim（#1617）。
 // 受控验收（SANDCASTLE_DOCKER_ACCEPTANCE_ROW=13）只处理 receipt 绑定的专用验收票：不读线上 sandcastle 队列、不认领任何票。
 const controlledTicket = controlledSwarmTicket();
+if (foldedPlan) validateFoldedPlan(foldedPlan, fetchPlanningQueue(hostGh(GH_CLEAN_ENV)));
 // 受控第 13 行以 receipt.head 为工蜂基线（不是会漂移的本地 main），核对发生在占用验收行、认领和启动工蜂之前。
 let baseRef = "main";
 const IMAGE_ID_ADMITTED = assertSwarmExecutionReady(IMAGE, {
@@ -91,6 +100,15 @@ const IMAGE_ID_ADMITTED = assertSwarmExecutionReady(IMAGE, {
 
 /** 普通路径：planner 读线上队列 → 放行 → host 侧认领。返回 null 表示本轮收束。 */
 async function planAndClaim(): Promise<Array<{ id: string; title: string; branch: string }> | null> {
+  if (foldedPlan) {
+    try {
+      return await consumeSwarmPlan(foldedPlan, hostGh(GH_CLEAN_ENV), withLegacyAdmission);
+    } catch (error) {
+      if (!(error instanceof DrainFrozenError)) throw error;
+      console.log(error.message);
+      return null;
+    }
+  }
   // 用 createSandbox 而非顶层 run()：顶层 run（merge-to-head）在本仓 clone/多远端
   // 环境下实测 agent 进程 ~11s 被 SIGKILL（exit 137，在案未决怪癖，见 #1009）；
   // createSandbox 路径两段式全程验证过。planner 无产出，分支随关随弃。
@@ -135,9 +153,9 @@ async function planAndClaim(): Promise<Array<{ id: string; title: string; branch
   return planned;
 }
 
-for (let iteration = 1; iteration <= (controlledTicket ? 1 : MAX_ITERATIONS); iteration++) {
+for (let iteration = 1; iteration <= (controlledTicket || foldedPlan ? 1 : MAX_ITERATIONS); iteration++) {
   if (drainRequested()) break;
-  console.log(`\n=== Iteration ${iteration}/${controlledTicket ? 1 : MAX_ITERATIONS} ===\n`);
+  console.log(`\n=== Iteration ${iteration}/${controlledTicket || foldedPlan ? 1 : MAX_ITERATIONS} ===\n`);
 
   // Phase 1: Plan（受控验收：输入就是 receipt 绑定的专用验收票，其余票一律不碰；工蜂基线=receipt.head，不写回 main）
   const issues = controlledTicket
