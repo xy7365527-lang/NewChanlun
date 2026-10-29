@@ -6477,8 +6477,23 @@ mod tests {
             recover_business(&files.db(), "2").unwrap();
             assert_eq!(snapshot_of(&files, Some(16)), old);
             assert_eq!(snapshot_of(&files, None), current);
-            // #1419 裁定 (a)/②：同 tb02b_persisted——旧串种子库不再交旧串 Python 合同真实读
-            // （冻结语料 test_tb02c_*.py 保留旧串覆盖；S3 真实消费归 Q3 公共入口）。
+            // #1419 P4 G1：原 Python 公共验证器子进程按原件 `028796ba08:...s_structure_session.rs:6262–6277`
+            // 逐字恢复，以实际执行结果判其能否读本种子库，不以推断移除。
+            let out = std::process::Command::new("python3")
+                .arg(fixture("tests/tb02c_verify.py"))
+                .arg("--database")
+                .arg(files.db())
+                .arg("--case")
+                .arg(case)
+                .arg("--node")
+                .arg("node")
+                .output()
+                .unwrap();
+            assert!(
+                out.status.success(),
+                "{case}: {}",
+                String::from_utf8_lossy(&out.stderr)
+            );
         }
     }
 
@@ -6815,11 +6830,21 @@ mod tests {
             .any(|o| o["kind"] == "CC-010.bi" && o["payload"]["data"]["entity_id"] == "bi:2:1"));
         let conn = open_db(&files.db()).unwrap();
         verify_reachable_root(&conn).unwrap();
-        // #1419 裁定 (a)（issuecomment-6264324752）/②（6265209957）：本库由 v2 测试种子在旧串
-        // RULE_REVISION 下写出，而共享 parser 已是 W ⟹ 内容带 W 字段，正是「同串混两代」；旧串
-        // Python 合同按签署规则拒读是正确的。旧串只读覆盖留在冻结夹具（test_tb02b_contract.py 语料，
-        // CI s-observer），真实库的 Q/前端消费改由 S3（W 后继串）真实导出经 Q3 公共入口承接
-        // （`export_real_s3_w_fixture_for_q3`）。本测试保留种子写者的 Rust 侧行为锁。
+        // #1419 P4 G2：原 Python 公共验证器子进程按原件逐字恢复（同 G1），以实际执行结果判定。
+        let verifier = fixture("tests/tb02b_verify.py");
+        let result = std::process::Command::new("python3")
+            .arg(verifier)
+            .arg("--database")
+            .arg(files.db())
+            .arg("--node")
+            .arg("node")
+            .output()
+            .unwrap();
+        assert!(
+            result.status.success(),
+            "Q/前端合同真实库验证失败：{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
     }
 
     #[test]
