@@ -17,7 +17,7 @@ REJECTION = "LegacyAdmissionBudgetAdapterMissing：完整旧域审计已调用�
 
 
 def logical_state(db):
-    with closing(sqlite3.connect(f"file:{db}?mode=ro", uri=True)) as conn:
+    with closing(sqlite3.connect(db)) as conn:
         return list(conn.iterdump())
 
 
