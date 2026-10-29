@@ -2284,6 +2284,32 @@ fn cmd_init(db: &Path, session: &str, catalog_path: &Path) -> Result<(), String>
     Ok(())
 }
 
+/// #1769：带结构源声明的 v1 init。声明在建库前完整校验；`meta.structure_source` 与其余 meta、
+/// catalog 同一事务提交（init_core 的 `extra_meta`），任一步失败整体回滚，不留无声明的已初始化库。
+/// 此后 S.AcceptInput 只接纳声明内 namespace。不带声明的 init 不变。
+#[cfg(any(test, feature = "s_v2_seed_testonly"))] // #1419 裁定（6265726014）：v1 写入口（含 #1769 声明 init）只在测试/种子构建存在
+fn cmd_init_declared(
+    db: &Path,
+    session: &str,
+    catalog_path: &Path,
+    source_path: &Path,
+) -> Result<(), String> {
+    let declaration = newchan_rust::structure_source::Declaration::load(source_path)?;
+    let mut out = init_core_with(
+        db,
+        session,
+        catalog_path,
+        Some((
+            newchan_rust::structure_source::META_KEY,
+            &declaration.canonical(),
+        )),
+    )?;
+    out["structure_source"] =
+        serde_json::from_str(&declaration.canonical()).map_err(|e| e.to_string())?;
+    println!("{out}");
+    Ok(())
+}
+
 /// 旧 reset（先删后建 v1）语义不变；#1394 独评 F1 只加一道门：已有 `s-session/3` 域在任何删除
 /// 之前 fail closed（旧 reset 只懂 v1/v2 合同，本切片不提供新迁移/重置功能）。
 #[cfg(any(test, feature = "s_v2_seed_testonly"))] // #1419 裁定（6265726014）：v2 写入口只在测试/种子构建存在
@@ -2303,6 +2329,23 @@ fn cmd_reset(db: &Path, session: &str, catalog_path: &Path) -> Result<(), String
     )
 )]
 fn init_core(db: &Path, session: &str, catalog_path: &Path) -> Result<Value, String> {
+    init_core_with(db, session, catalog_path, None)
+}
+
+/// `extra_meta` 与全部 meta、catalog 同一事务写入（#1769 Codex P1：声明不得晚于建库另行提交）。
+#[cfg_attr(
+    not(any(test, feature = "s_v2_seed_testonly")),
+    expect(
+        dead_code,
+        reason = "#1419 机械锁：发布构建不得有任何调用 v2 核心写函数的路径"
+    )
+)]
+fn init_core_with(
+    db: &Path,
+    session: &str,
+    catalog_path: &Path,
+    extra_meta: Option<(&str, &str)>,
+) -> Result<Value, String> {
     // H4：init 只允许不存在的目标——拒绝覆盖既有库（既有持久事实可恢复）。
     if db.exists() {
         return Err(format!(
@@ -2326,20 +2369,27 @@ fn init_core(db: &Path, session: &str, catalog_path: &Path) -> Result<Value, Str
     let synchronous: i64 = conn
         .query_row("PRAGMA synchronous", [], |r| r.get(0))
         .map_err(|e| format!("读 synchronous 失败：{e}"))?;
-    meta_set(&conn, "session_id", session)?;
-    meta_set(&conn, "generation", "0")?;
-    meta_set(&conn, "structure_cut", "cut-0")?;
-    meta_set(&conn, "index_frontier", "")?;
-    meta_set(&conn, "last_advance_frontier", "-1")?;
-    meta_set(&conn, "sqlite_version", &sqlite_version)?;
-    meta_set(&conn, "journal_mode", &journal_mode)?;
-    meta_set(&conn, "synchronous", &synchronous.to_string())?;
-    meta_set(&conn, "platform", std::env::consts::OS)?;
-    meta_set(&conn, "writer_epoch", DEFAULT_WRITER_EPOCH)?;
-    meta_set(&conn, "advance_state", "idle")?;
-    meta_set(&conn, "rule_revision", RULE_REVISION)?;
+    // meta + catalog（+ extra_meta）同一事务：失败或中途终止都不留半初始化的 meta。
+    let tx = conn
+        .unchecked_transaction()
+        .map_err(|e| format!("开事务失败：{e}"))?;
+    if let Some((key, value)) = extra_meta {
+        meta_set(&tx, key, value)?;
+    }
+    meta_set(&tx, "session_id", session)?;
+    meta_set(&tx, "generation", "0")?;
+    meta_set(&tx, "structure_cut", "cut-0")?;
+    meta_set(&tx, "index_frontier", "")?;
+    meta_set(&tx, "last_advance_frontier", "-1")?;
+    meta_set(&tx, "sqlite_version", &sqlite_version)?;
+    meta_set(&tx, "journal_mode", &journal_mode)?;
+    meta_set(&tx, "synchronous", &synchronous.to_string())?;
+    meta_set(&tx, "platform", std::env::consts::OS)?;
+    meta_set(&tx, "writer_epoch", DEFAULT_WRITER_EPOCH)?;
+    meta_set(&tx, "advance_state", "idle")?;
+    meta_set(&tx, "rule_revision", RULE_REVISION)?;
     meta_set(
-        &conn,
+        &tx,
         "scope",
         &json!({"structure": "CompleteCut", "economic": "not_started"}).to_string(),
     )?;
@@ -2357,10 +2407,7 @@ fn init_core(db: &Path, session: &str, catalog_path: &Path) -> Result<Value, Str
         .and_then(Value::as_str)
         .unwrap_or("unknown")
         .to_string();
-    meta_set(&conn, "catalog_revision", &catalog_revision)?;
-    let tx = conn
-        .unchecked_transaction()
-        .map_err(|e| format!("开事务失败：{e}"))?;
+    meta_set(&tx, "catalog_revision", &catalog_revision)?;
     {
         let mut stmt = tx
             .prepare(
@@ -5918,11 +5965,15 @@ fn seed_dispatch(args: &[String]) -> Result<bool, String> {
     let configured_epoch =
         arg_value(args, "--writer-epoch").unwrap_or_else(|| DEFAULT_WRITER_EPOCH.to_string());
     match cmd {
-        "init" => cmd_init(
-            &db.ok_or("缺 --db".to_string())?,
-            &session,
-            &catalog.ok_or("缺 --catalog".to_string())?,
-        )?,
+        // #1769（main #1773）：v1 init 带 `--structure-source` 时走声明 init；不带者原样。
+        "init" => {
+            let d = db.ok_or("缺 --db".to_string())?;
+            let c = catalog.ok_or("缺 --catalog".to_string())?;
+            match arg_value(args, "--structure-source") {
+                Some(source) => cmd_init_declared(&d, &session, &c, Path::new(&source))?,
+                None => cmd_init(&d, &session, &c)?,
+            }
+        }
         "reset" => cmd_reset(
             &db.ok_or("缺 --db".to_string())?,
             &session,
@@ -6291,6 +6342,51 @@ mod tests {
             ("b12", 120, 11, 13, 9, 11),
             ("b13", 130, 13, 15, 11, 13),
         ]
+    }
+
+    /// #1769 Codex P1：v1 声明 init 把 `meta.structure_source` 与其余 meta、catalog 同一事务提交；
+    /// 事务内任一步失败整体回滚，库里既无声明也无 session 等 meta，不留可被直接接纳的无声明库。
+    #[test]
+    fn declared_v1_init_commits_source_with_meta_or_rolls_back() {
+        let files = TestFiles::new();
+        let source = files.0.join("source.json");
+        std::fs::write(
+            &source,
+            r#"{"category":"TestOnlyStructure","namespaces":["testonly.ohlc"]}"#,
+        )
+        .unwrap();
+        let declaration = newchan_rust::structure_source::Declaration::load(&source).unwrap();
+
+        cmd_init_declared(
+            &files.db(),
+            "s-session-testonly-001",
+            &fixture("catalog/signed-catalog.json"),
+            &source,
+        )
+        .unwrap();
+        let conn = open_db(&files.db()).unwrap();
+        assert_eq!(
+            meta_get_opt(&conn, newchan_rust::structure_source::META_KEY).unwrap(),
+            Some(declaration.canonical())
+        );
+        assert_eq!(
+            meta_get_opt(&conn, "session_id").unwrap().as_deref(),
+            Some("s-session-testonly-001")
+        );
+        drop(conn);
+
+        // catalog 缺 items：在事务内、声明已写之后失败 ⟹ 声明与全部 meta 一并回滚。
+        let broken = files.0.join("broken-catalog.json");
+        std::fs::write(&broken, r#"{"catalog_revision":"x"}"#).unwrap();
+        let rolled_back = files.0.join("rolled-back.sqlite");
+        let error = cmd_init_declared(&rolled_back, "s-session-testonly-001", &broken, &source)
+            .unwrap_err();
+        assert!(error.contains("items"), "{error}");
+        let conn = Connection::open(&rolled_back).unwrap();
+        let rows: i64 = conn
+            .query_row("SELECT COUNT(*) FROM meta", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(rows, 0, "失败的声明 init 不得留下任何 meta");
     }
 
     #[test]

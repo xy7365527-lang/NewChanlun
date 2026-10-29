@@ -84,6 +84,13 @@ s_capture_native_testonly = ["s_session"]
 #   默认与发布构建不含（release 下 compile_error），CI「v2 写者机械锁」步断言发布构建未开。
 s_v2_seed_testonly = ["s_session"]
 s_session = ["dep:sha2", "dep:rusqlite", "dep:libc", "dep:allocator-api2", "dep:hashbrown"]
+# #1769（ADR 0039 迁移步骤 1）：唯一生产 launcher 与 X 执行域骨架。含 S/E/B 会话依赖；
+#   X adapter 当前只有持久化骨架（rusqlite/libc 已由 s_session 提供），不含 backtest_bin、nautilus（B11）。
+production_session = ["s_session"]
+# #1769 返修：入口测试专用 TestOnly 臂。仅此构建中 S serve 认 `S_THETA_DIAGNOSTIC_TESTONLY=1`，以诊断夹具
+#   ThetaConfig（不参与准入）开门，launcher 才转交该变量；生产构建（只开 production_session）遇该变量即拒绝启动。
+#   P0 场所/成本记录未签期间（#1774）生产 S serve 照旧以 AwaitingPolicy 退出，不给备用值。
+production_session_testonly = ["production_session"]
 
 # ── theta_backtest：π 组件证据 CLI（历史名「CLI 生产入口」；冻结影子，非生产 launcher；ADR 0048，#1532） ──
 # required-features：默认 cargo build 不编译它（cdylib 构建不受影响）。
@@ -280,3 +287,20 @@ required-features = ["s_session"]
 name = "issue1588_parse_mem_probe"
 path = "src/bin/issue1588_parse_mem_probe.rs"
 required-features = ["backtest_bin"]
+
+# #1769：唯一生产 launcher（ADR 0039 seam 1）与 X 执行域骨架进程。
+[[bin]]
+name = "production_session"
+path = "src/bin/production_session.rs"
+required-features = ["production_session"]
+
+[[bin]]
+name = "x_execution_session"
+path = "src/bin/x_execution_session.rs"
+required-features = ["production_session"]
+
+[[test]]
+name = "production_session_entry"
+path = "tests/production_session_entry.rs"
+# 生产构建（production_session）跑拒绝类子集；production_session_testonly 跑全部（文件内 cfg 分流）。
+required-features = ["production_session"]
