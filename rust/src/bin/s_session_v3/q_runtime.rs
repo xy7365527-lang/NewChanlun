@@ -1139,9 +1139,9 @@ mod tests {
         rt.dispatch(path, body).unwrap().recv().unwrap()
     }
     #[test]
-    #[ignore = "historical published fixture from base 5123"]
     fn historical_layout1_published_session_asknown_q() {
-        let path = std::path::PathBuf::from(std::env::var("NC_HISTORY_DB").unwrap());
+        let history = super::super::generation::tests::issue1419_history();
+        let path = history.path().join("historical-published-layout1.sqlite");
         let baseline: Value = serde_json::from_slice(
             &std::fs::read(
                 path.parent()

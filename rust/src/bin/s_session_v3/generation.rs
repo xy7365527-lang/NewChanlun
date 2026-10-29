@@ -2658,7 +2658,7 @@ fn codec_error(error: sc::CodecError) -> String {
 }
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     #[test]
     fn borrowed_json_write_keeps_old_integer_oracle_and_rejects_before_put() {
         let original = serde_json::json!({"items": [i64::MIN, u64::MAX], "text": "1.5"});
@@ -6230,13 +6230,43 @@ mod tests {
         }
     }
 
-    /// #1419 A7：原 25 根仍是 base `5123c9e273` 原件，由本测试经历史导出节点逐字读回
-    /// （CI 隔离 workflow 提供导出）；候选不再等于这些根。
+    /// #1419 A7 F3：冻结历史导出（base `5123c9e273` 生成，run 40831506671 导出）解包到私有临时目录，
+    /// 逐文件核 `CONTENTS.sha256` 后才交测试读；仓内原件不被打开写入。
+    pub(crate) fn issue1419_history() -> tempfile::TempDir {
+        let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/issue1419_history_5123");
+        let dir = tempfile::tempdir().unwrap();
+        let status = std::process::Command::new("tar")
+            .arg("-xzf")
+            .arg(fixture.join("export.tar.gz"))
+            .arg("-C")
+            .arg(dir.path())
+            .status()
+            .unwrap();
+        assert!(status.success(), "冻结历史导出解包失败");
+        let manifest = std::fs::read_to_string(fixture.join("CONTENTS.sha256")).unwrap();
+        let mut listed = 0;
+        for line in manifest.lines() {
+            let (digest, name) = line.split_once("  ").unwrap();
+            let bytes = std::fs::read(dir.path().join(name)).unwrap();
+            assert_eq!(
+                newchan_rust::session_protocol::sha256_hex(&bytes),
+                digest,
+                "冻结原件 {name} 摘要"
+            );
+            listed += 1;
+        }
+        assert_eq!(listed, 62, "冻结原件清单条目数");
+        dir
+    }
+
+    /// #1419 A7：原 25 根仍是 base `5123c9e273` 原件，由本测试经冻结历史导出节点逐字读回；
+    /// 候选不再等于这些根。
     #[test]
-    #[ignore = "base 5123 exported historical nodes"]
     fn layout1_historical_draft_nodes_remain_readable() {
         use sc::NodeSink as _;
-        let dir = std::path::PathBuf::from(std::env::var("NC_HISTORY_DIR").unwrap());
+        let history = issue1419_history();
+        let dir = history.path().to_path_buf();
         let table = std::fs::read_to_string(dir.join("compare.tsv")).unwrap();
         let rows: Vec<Vec<&str>> = table
             .lines()
