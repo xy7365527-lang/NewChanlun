@@ -610,6 +610,7 @@ pub(super) fn read_verified_public_history<'scope, 'tx, 'raw>(
 
 struct VerifiedObjectOriginals<'a, 'tx> {
     transaction: &'a Transaction<'tx>,
+    reader: *const (),
     entries: &'a [object_index::Entry],
 }
 impl VerifiedObjectOriginals<'_, '_> {
@@ -620,6 +621,7 @@ impl VerifiedObjectOriginals<'_, '_> {
         roots: &[RefValue],
     ) -> Result<(), sc::CodecError> {
         if !std::ptr::eq(tx, self.transaction)
+            || self.reader != (store as *const HashReader<'_>).cast()
             || !tx.is_readonly(rusqlite::MAIN_DB).map_err(|e| sc::CodecError::new(sc::code::SOURCE, e.to_string()))?
             || !store.ordinary_bound_births_qualified()
         {
@@ -812,7 +814,11 @@ fn read_indexed_history_inner(
     #[cfg(test)]
     super::admission_private::s4_read_trace::audit_window(tx, "public", "begin", "pending");
     let public_result = if bound_births_qualified {
-        VerifiedObjectOriginals { transaction: tx, entries: objects.entries() }
+        VerifiedObjectOriginals {
+            transaction: tx,
+            reader: (&store as *const HashReader<'_>).cast(),
+            entries: objects.entries(),
+        }
             .verify_public(tx, &mut store, &public_roots)
     } else {
         store.verify_many_ref(public_roots.iter().map(RefValue::view), sc::Mode::Public)
@@ -7749,11 +7755,13 @@ mod manifest_template_coverage_tests {
             fixture.conn.path().unwrap(), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
         ).unwrap();
         let tx = conn.transaction().unwrap();
-        let proof = VerifiedObjectOriginals { transaction: &tx, entries: &[] };
         let mut nodes = sc::MemoryNodes::new();
         let root = sc::write_value(&mut nodes, &V::Array(vec![V::String("complete".into())])).unwrap().content_ref();
         let roots = [RefValue::from(root.clone())];
         let mut reader = HashReader::new(&mut nodes);
+        let proof = VerifiedObjectOriginals {
+            transaction: &tx, reader: (&reader as *const HashReader<'_>).cast(), entries: &[],
+        };
         proof.verify_public(&tx, &mut reader, &roots).unwrap();
         let mut other = Connection::open_with_flags(
             fixture.conn.path().unwrap(), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
@@ -7766,6 +7774,9 @@ mod manifest_template_coverage_tests {
         assert_eq!(proof.verify_public(&tx, &mut captured, &roots).unwrap_err().code(), sc::code::SOURCE);
         nodes.insert_unchecked(root.digest().unwrap(), sc::tag::ARRAY, vec![0]);
         let mut reader = HashReader::new(&mut nodes);
+        let proof = VerifiedObjectOriginals {
+            transaction: &tx, reader: (&reader as *const HashReader<'_>).cast(), entries: &[],
+        };
         assert_eq!(proof.verify_public(&tx, &mut reader, &roots).unwrap_err().code(), sc::code::NODE_DIGEST);
     }
 
