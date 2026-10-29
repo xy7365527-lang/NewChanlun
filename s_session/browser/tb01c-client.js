@@ -2600,7 +2600,7 @@ if (typeof module !== 'object' || !module.exports) {
   });
 });
 
-/* exact source q3-typed.js SHA256 9cafe0184fe8bcb87f408b5a529d2c6e885aef26b20185f136fd4531f35be4f7 */
+/* exact source q3-typed.js SHA256 1ed8f6f3b8f2298d5f2e468e44250c358b1f286ae9c60d81fcac3dca6dcfde9a */
 /* #1394：typed 与形态来源的同一判据；只把访问迁为完整异步 Value 遍历。 */
 (function (root, factory) {
   const api = factory(typeof module === "object" && module.exports ? require("./q3-values.js") : root.Q3Values);
@@ -2625,6 +2625,22 @@ if (typeof module !== 'object' || !module.exports) {
     // #1493（xianduan.md §7.1 第 7 条）：§7.1 写的 s-segment/3 已被 #1420 占用，本代段合同用 s-segment/4。
     "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1": ["s-new-bi/2", "s-segment/4", KNOWLEDGE_DOMAINS[1]], "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2": ["s-new-bi/2", "s-segment/5", KNOWLEDGE_DOMAINS[1]], // #1604：预算 token 必填值 v1→v2 ⟹ 规则加 token、段合同升 /5（形状同 /4）
   };
+  // #1491 ADR 0037 §五/§六：rule_revision 的布局组件与教义组件正交。轴表/合同只看去掉布局组件后的
+  // 教义串；串内无 `bounded-layout` 组件即 layout/1（定义，不是兜底）；未知或重复布局组件一律拒收。
+  const LAYOUT_COMPONENT = "bounded-layout/", LAYOUTS = Object.freeze({LAYOUT1: "layout/1", BOUNDED1: "bounded-layout/1"});
+  function splitRule(rule) {
+    need(typeof rule === "string", "cut规则修订未声明");
+    let layout = null; const rest = [];
+    for (const component of rule.split("+")) {
+      if (!component.startsWith(LAYOUT_COMPONENT)) { rest.push(component); continue; }
+      need(component === LAYOUTS.BOUNDED1, "cut规则修订未声明：未知布局组件 " + component);
+      need(layout === null, "cut规则修订未声明：多个布局组件");
+      layout = LAYOUTS.BOUNDED1;
+    }
+    return {doctrine: rest.join("+"), layout: layout || LAYOUTS.LAYOUT1};
+  }
+  const ruleContract = rule => { const {doctrine} = splitRule(rule); return Object.hasOwn(RULE_CONTRACTS, doctrine) ? RULE_CONTRACTS[doctrine] : null; };
+  const DEVELOPMENT_BATCH_KIND = "CC-007.development_batch";
   const SAME_PRICE_KEEP_EVIDENCE = "same_kind_equal_price_keep_earlier";
   const RETIRED_SAME_PRICE_WAITING = ["raw_extreme_identity_tie", "actual_extreme_mapping_missing", "same_kind_endpoint_identity_tie", "earlier_endpoint_identity_unsettled"];
   const TB02_KINDS = ["CC-004.inclusion_step", "CC-005.inclusion_group", "CC-007.fractal_description", "CC-054.knowledge_state"];
@@ -2632,6 +2648,7 @@ if (typeof module !== 'object' || !module.exports) {
   TB02_KINDS.push(...BI_KINDS);
   const SEGMENT_KINDS = ["CC-011.segment_seed", "CC-012.feature_sequence", "CC-013.segment", "CC-055.segment_relation", "CC-055.segment_change", "CC-056.segment_version", "CC-011.seed_candidate"];
   TB02_KINDS.push(...SEGMENT_KINDS);
+  TB02_KINDS.push(DEVELOPMENT_BATCH_KIND);
   const REF_KEYS = ["identity_key", "payload_hash", "receipt_id", "event_id", "input_revision", "revision", "seq", "source_coord"];
   const {need, keys, T, S, I, N, equal} = V;
   const field = (v, k) => V.field(v, k);
@@ -2682,12 +2699,16 @@ if (typeof module !== 'object' || !module.exports) {
     }
     return offset === expected.length;
   }
-  async function validateTyped(record) {
+  // `layout` 来自本 cut 的 rule_revision（splitRule）；未给出 ⟹ 调用方读的是 layout/1 库。
+  async function validateTyped(record, layout = LAYOUTS.LAYOUT1) {
+    need(Object.values(LAYOUTS).includes(layout), "未知内容布局");
+    const bounded = layout === LAYOUTS.BOUNDED1;
     record = V.of(record);
     await keys(record, ["object_id", "object_revision", "kind", "batch_id", "fact_key", "payload", "input_refs", "source_coords", "first_known_generation", "first_known_cut", "published_generation", "withdrawn_generation", "withdrawal_reason", "superseded_by", "lifecycle"], "typed 对象");
     for (const k of ["object_id", "kind", "batch_id", "fact_key", "first_known_cut"]) await T(await field(record, k));
     const kind = await S(await field(record, "kind"));
     need(TB02_KINDS.includes(kind) && await eqField(record, "object_revision", "1"), "typed kind/revision 不符");
+    need(kind !== DEVELOPMENT_BATCH_KIND || bounded, "layout/1 库不含单元批记录");
     const first = await I(await field(record, "first_known_generation"), true); await I(await field(record, "published_generation"), true);
     need(await eqField(record, "first_known_cut", "cut-" + await S(await field(record, "first_known_generation"))) && await equal(await field(record, "published_generation"), await field(record, "first_known_generation")), "typed 首次获知不闭合");
     const withdrawn = await field(record, "withdrawn_generation"), reason = await field(record, "withdrawal_reason"), superseded = await field(record, "superseded_by");
@@ -2743,7 +2764,8 @@ if (typeof module !== 'object' || !module.exports) {
       need(confirmed.kind === "bool" && await equal(confirmed, !(isNull(evidence))), "组确认字段/见证不符");
       await directionEvidence(evidence); await direction(await field(p, "direction")); await directionEvidence(await field(p, "direction_evidence")); await texts(await field(p, "waiting_reasons"));
     } else if (kind === TB02_KINDS[2]) {
-      await keys(p, ["shape_object_id", "branch", "window", "description", "reference_prices", "descriptive_labels", "subsequent_development"], "分型描述");
+      // bounded-layout/1：分型对象不含后续发展（进单元批记录）；layout/1 原件照旧逐项核。
+      await keys(p, ["shape_object_id", "branch", "window", "description", "reference_prices", "descriptive_labels", ...(bounded ? [] : ["subsequent_development"])], "分型描述");
       await T(await field(p, "shape_object_id")); await T(await field(p, "description"));
       await enumValue(await field(p, "branch"), ["TOP", "BOTTOM"], "CC007 不是已成立顶/底");
       const window = await coordinates(await field(p, "window")); need(await window.length() === 3n, "CC007 不是已成立顶/底"); const windows = await V.list(window);
@@ -2756,6 +2778,7 @@ if (typeof module !== 'object' || !module.exports) {
       const labels = await field(p, "descriptive_labels"); await keys(labels, ["status", "reason", "labels", "source", "raw_ohlc"], "形容词未定声明"); const bars = await field(labels, "raw_ohlc");
       need(await eqField(labels, "status", "not_determined") && await eqField(labels, "reason", "no_settled_numeric_rule") && await eqField(labels, "labels", []) && await eqField(labels, "source", "fenxing.md:64-74") && bars.kind === "array", "形容词未定边界改变");
       for await (const bar of bars.items()) await barRef(bar);
+      if (bounded) { /* 后续单元由 CC-007.development_batch 承载，跨对象绑定见 bindDevelopmentBatches。 */ } else {
       const sub = await field(p, "subsequent_development"); await keys(sub, ["status", "reason", "bars"], "后续已知事实"); const subsequent = await array(await field(sub, "bars"), "后续 bars 不完整");
       need(await subsequent.length() > 0n ? await eqField(sub, "status", "observed") && await eqField(sub, "reason", null) : await eqField(sub, "status", "insufficient_knowledge") && await eqField(sub, "reason", "no_subsequent_bar"), "后续状态与原件不一致");
       for await (const entry of subsequent.items()) {
@@ -2768,6 +2791,18 @@ if (typeof module !== 'object' || !module.exports) {
           await enumValue(await field(r, "order"), ["LT", "EQ", "GT"], "后续关系来源不同");
         }
       }
+      }
+    } else if (kind === DEVELOPMENT_BATCH_KIND) {
+      await keys(p, ["bar", "entries"], "单元批记录"); const bar = await field(p, "bar"); await barRef(bar);
+      const entries = await array(await field(p, "entries"), "单元批记录 entries 不完整"); need(await entries.length() > 0n, "空单元批记录"); const ids = new Set();
+      for await (const entry of entries.items()) {
+        await keys(entry, ["fractal_object_id", "unit", "development"], "单元批记录 entry"); const id = await T(await field(entry, "fractal_object_id")); need(!ids.has(id), "单元批记录分型重复"); ids.add(id);
+        const unit = await field(entry, "unit"); await keys(unit, ["bar", "relations"], "后续 bar"); need(await equal(await field(unit, "bar"), bar), "单元 bar 与批记录 bar 不同");
+        const relations = await array(await field(unit, "relations"), "后续四价×六参考关系不完整"); need(await relations.length() === 24n, "后续四价×六参考关系不完整");
+        const development = await field(entry, "development"); await keys(development, ["root", "count"], "单元序列"); const units = await array(await field(development, "root"), "单元序列不完整");
+        const count = await I(await field(development, "count"), true); need(count === await units.length(), "单元序列计数不符");
+        need(await equal(await units.at(count - 1n), unit), "单元序列末项不是本单元");
+      }
     } else {
       await keys(p, ["scope", "input_frontier", "known_facts", "waiting_reasons", "domain", "requests"], "知识状态");
       need(await eqField(p, "scope", "TB-02-A") && KNOWLEDGE_DOMAINS.includes(await S(await field(p, "domain"))) && await eqField(p, "known_facts", ["raw_ohlc", "inclusion_trace", "group_provenance"]), "知识域/已知事实不符");
@@ -2779,7 +2814,7 @@ if (typeof module !== 'object' || !module.exports) {
         for (const k of Object.keys(enums)) await enumValue(await field(axes, k), enums[k], "请求四轴枚举不符"); await texts(await field(r, "reasons")); await coordinates(await field(r, "source_coords"));
       }
     }
-    const slot = [...BI_KINDS, ...SEGMENT_KINDS].includes(kind) ? await field(p, "slot") : kind === TB02_KINDS[0] ? await field(await field(p, "incoming"), "source_coord") : kind === TB02_KINDS[1] ? await field(p, "group_anchor") : kind === TB02_KINDS[2] ? await field(p, "window") : "TB-02-A";
+    const slot = [...BI_KINDS, ...SEGMENT_KINDS].includes(kind) ? await field(p, "slot") : kind === TB02_KINDS[0] ? await field(await field(p, "incoming"), "source_coord") : kind === TB02_KINDS[1] ? await field(p, "group_anchor") : kind === TB02_KINDS[2] ? await field(p, "window") : kind === DEVELOPMENT_BATCH_KIND ? await field(await field(p, "bar"), "source_coord") : "TB-02-A";
     need(await canonicalMatches([kind, slot], await S(await field(record, "fact_key"))), "事实语义槽未绑定 payload");
   }
   // #1404/#1414/#1420：s-segment/1、/2、/3 段合同沿用已审同步判据（单一实现，含 K1 游标）。
@@ -3300,11 +3335,52 @@ if (typeof module !== 'object' || !module.exports) {
     need(await coords.length() === BigInt(all.size), "形态来源不是成员与构造/边界依据并集");
     for await (const coord of coords.items()) need(all.has(await S(coord)), "形态来源不是成员与构造/边界依据并集");
   }
-  return Object.freeze({RULE_CONTRACTS, validateTyped, validateBiPayload, validateSegmentPayload, turnLinks: (d, f) => segmentTurnLinks(d, f), PARSE_INVALID_REASON, RESULT_SEMANTIC_BRANCH, validateTB02ShapeRefs, plain,
+  // #1491：bounded-layout/1 的 CC-007 三跳只读——分型对象 → 批记录 entry → 单元序列（§5.6 分片由
+  // Value 读取器按需取）。只核单元确实是该分型的（参考价、bar 四价逐项相同），不重算 order（#804）。
+  async function bindDevelopmentBatches(records, layout) {
+    const fractals = new Map(), batches = [];
+    let anyBatch = false;
+    for (const record of records) {
+      const kind = await S(await field(record, "kind"));
+      anyBatch = anyBatch || kind === DEVELOPMENT_BATCH_KIND;
+      if (!(await eqField(record, "lifecycle", "active"))) continue;
+      if (kind === TB02_KINDS[2]) {
+        const window = await V.list(await field(await field(record, "payload"), "window"));
+        fractals.set(await S(await field(record, "object_id")), {record, start: BigInt(await S(window[0])), end: BigInt(await S(window[2]))});
+      } else if (kind === DEVELOPMENT_BATCH_KIND) {
+        batches.push({record, coord: BigInt(await S(await field(await field(await field(record, "payload"), "bar"), "source_coord")))});
+      }
+    }
+    need(layout === LAYOUTS.BOUNDED1 || !anyBatch, "layout/1 库不含单元批记录");
+    batches.sort((a, b) => (a.coord < b.coord ? -1 : a.coord > b.coord ? 1 : 0));
+    const last = new Map();
+    for (const {record: batch, coord} of batches) {
+      const p = await field(batch, "payload"), bar = await field(p, "bar"); let previous = null;
+      for await (const entry of (await field(p, "entries")).items()) {
+        const id = await S(await field(entry, "fractal_object_id")), fractal = fractals.get(id);
+        need(fractal, "单元批记录指向缺失分型");
+        // entries 按分型窗口序（ADR 0054 / #1783），判据只认窗口序，不读 first_known_generation。
+        need(previous === null || fractal.start > previous, "单元批记录 entries 不是分型窗口序"); previous = fractal.start;
+        need(coord > fractal.end, "单元不在分型右组之后");
+        const prices = []; for await (const price of (await field(await field(fractal.record, "payload"), "reference_prices")).items()) prices.push(price);
+        let i = 0;
+        for await (const r of (await field(await field(entry, "unit"), "relations")).items()) {
+          const axis = ["open", "high", "low", "close"][Math.floor(i / 6)], ref = prices[i++ % 6];
+          await keys(r, ["axis", "value", "reference", "reference_value", "order"], "后续关系");
+          need(await eqField(r, "axis", axis) && await equal(await field(r, "value"), await field(bar, axis)) && await equal(await field(r, "reference"), await field(ref, "name")) && await equal(await field(r, "reference_value"), await field(ref, "value")), "后续关系来源不同");
+          await enumValue(await field(r, "order"), ["LT", "EQ", "GT"], "后续关系来源不同");
+        }
+        const count = await I(await field(await field(entry, "development"), "count"), true);
+        need(count === (last.get(id) || 0n) + 1n, "分型单元序列不连续"); last.set(id, count);
+      }
+    }
+    return last;
+  }
+  return Object.freeze({RULE_CONTRACTS, splitRule, ruleContract, LAYOUTS, DEVELOPMENT_BATCH_KIND, bindDevelopmentBatches, validateTyped, validateBiPayload, validateSegmentPayload, turnLinks: (d, f) => segmentTurnLinks(d, f), PARSE_INVALID_REASON, RESULT_SEMANTIC_BRANCH, validateTB02ShapeRefs, plain,
     TB02_KINDS: Object.freeze(TB02_KINDS), BI_KINDS, SEGMENT_KINDS: Object.freeze(SEGMENT_KINDS)});
 });
 
-/* exact source q3-consumer.js SHA256 c1a9eefdc4b94f433f2dad0094fa478327718374d271505f8817c39655be6369 */
+/* exact source q3-consumer.js SHA256 30d8760548187904918337323722f3bd2216391d187a3e15f07951e5deda30d8 */
 /* #1394：Q3完整消费者；只供既有tb01c页面调用，没有产品路由或默认资源。 */
 (function (root, factory) {
   const common = typeof module === "object" && module.exports;
@@ -3715,7 +3791,9 @@ if (typeof module !== 'object' || !module.exports) {
       index++;
     }
   }
-  async function bindSources(snapshot, charge = () => {}) {
+  // #1491：`layout` 由调用方从本 cut 的 rule_revision 布局组件取得（ADR 0037 §六，按版本分派）。
+  // 未给出 ⟹ 调用方读的是 v1/v2 快照（ADR 0037 之前的写者，按定义 layout/1）。
+  async function bindSources(snapshot, charge = () => {}, layout = typed.LAYOUTS.LAYOUT1) {
     const raw = await auditRaw(snapshot, charge),
       groups = new Map(),
       shapes = new Map(),
@@ -3725,7 +3803,7 @@ if (typeof module !== 'object' || !module.exports) {
         charge();
         records.push(record);
         const kind = await t(record, "kind");
-        if (typed.TB02_KINDS.includes(kind)) await typed.validateTyped(record);
+        if (typed.TB02_KINDS.includes(kind)) await typed.validateTyped(record, layout);
         else await shapeRecord(record);
         const refs = await f(record, "input_refs"),
           active = (await s(record, "lifecycle")) === "active";
@@ -3867,6 +3945,8 @@ if (typeof module !== 'object' || !module.exports) {
       need(selected.length === 3, "形态组缺失");
       bound.set(id, selected);
     }
+    // #1491 bounded-layout/1：CC-007 三跳只读绑定（分型对象 → 批记录 entry → 单元序列）。
+    await typed.bindDevelopmentBatches(records, layout);
     return { raw, records, shapes, bound };
   }
   async function shapeIdentity(
@@ -4567,7 +4647,7 @@ if (typeof module !== 'object' || !module.exports) {
         ph = await s(snapshot, "profile_hash"),
         rule = await s(snapshot, "rule_revision");
       // 空会话也必须先声明已知规则，不能等首次发布才选择合同。
-      need(RULE_AXES.has(rule), "cut规则修订未声明");
+      need(RULE_AXES.has(typed.splitRule(rule).doctrine), "cut规则修订未声明");
       if (generation === "0") {
         need(profile && /^[0-9a-f]{64}$/.test(ph), "cut0无冻结profile");
       } else {
@@ -4654,11 +4734,15 @@ if (typeof module !== 'object' || !module.exports) {
       if (generation !== "0")
         await keys(
           await f(await f(snapshot, "catalog_evidence"), "axes"),
-          RULE_AXES.get(rule),
+          RULE_AXES.get(typed.splitRule(rule).doctrine),
           "cut规则目录轴",
         );
       await catalogValidate(catalog, snapshot);
-      const binding = await bindSources(snapshot, charge);
+      const binding = await bindSources(
+        snapshot,
+        charge,
+        typed.splitRule(rule).layout,
+      );
       await bindSegmentSequences(snapshot);
       for (const record of binding.records) {
         charge();
@@ -4679,7 +4763,7 @@ if (typeof module !== 'object' || !module.exports) {
         }
         const kind = await t(record, "kind");
         if (typed.TB02_KINDS.includes(kind)) {
-          const [biSchema, segmentSchema, domain] = Object.hasOwn(typed.RULE_CONTRACTS, rule) ? typed.RULE_CONTRACTS[rule] : [null, null, null];
+          const [biSchema, segmentSchema, domain] = typed.ruleContract(rule) || [null, null, null];
           const payload = await f(record, "payload");
           if (typed.SEGMENT_KINDS.includes(kind))
             need(await equal(await f(payload, "schema_revision"), segmentSchema), "段合同与cut规则版本不符");

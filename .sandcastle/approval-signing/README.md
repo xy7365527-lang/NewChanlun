@@ -52,7 +52,7 @@ APPROVE="/Library/Application Support/NewChanlun/newchanlun-approve"
 
 1. `status`：应显示还没有已发布决定。
 2. `sign --decision approve`，Touch ID 弹窗时取消。应无回执、不出现管理员认证窗口；`status` 仍为空。
-3. `sign --decision approve`，完成 Touch ID，管理员认证窗口出现时点取消。应提示“未发布，尚未生效”；`status` 仍为空。
+3. `sign --decision approve --enrollment-cancel-publish-check`，完成 Touch ID。随后的管理员窗口首行显示“取消发布测试”，在该窗口点**取消**，不要输入密码。日志须有“管理员认证已取消”；工具退出码为 3，`status` 仍为空。该参数只接受本仓库 #1742、`enrollment-check`、代次 0、`candidate_head` 的批准请求，业务请求会在签名前被拒绝。
 4. 按提示 `publish-pending --receipt <待发布文件>`，核对内容后在管理员认证窗口认证。`status` 显示当前生效为批准（第 1 条）。
 5. `sign --decision reject`。这一次必须再次弹出 Touch ID；若没有弹窗就签出来了，验收失败。完成管理员认证。`status` 显示当前生效为拒绝（第 2 条）。
 6. 在本目录下运行 `python3 -m approval_signing status <请求文件>`，应输出 `rejected`，这是执行器读到的结果。

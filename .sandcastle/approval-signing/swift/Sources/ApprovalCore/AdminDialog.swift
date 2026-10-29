@@ -63,9 +63,19 @@ public func runAdminDialog(_ command: [String], prompt: String, administrator: B
                          error: String(decoding: error, as: UTF8.self))
 }
 
+public func enrollmentCancellationNotice(_ request: ApprovalRequest, decision: Decision) throws -> String {
+    guard request.repositoryID == "1150335160", request.ticket == "1742",
+          request.runID == "enrollment-check", request.claimGeneration == "0",
+          request.scope == .candidateHead, decision == .approve else {
+        throw ApprovalError.malformed("取消发布验收仅用于 #1742 enrollment-check、代次 0、candidate_head 的批准")
+    }
+    return "取消发布测试：请在此窗口点【取消】。不要输入密码，不要完成认证。\n"
+}
+
 /// Text for the system dialog when publishing `payload`. Names the action so an unexpected dialog stands out.
-public func publishPrompt(_ payload: ApprovalPayload) -> String {
+public func publishPrompt(_ payload: ApprovalPayload, cancellationNotice: String = "") -> String {
     let verb = payload.decision == .approve ? "批准" : "拒绝"
-    return "NewChanlun 签批：把\(verb)发布到权威记录（#\(payload.request.ticket) \(payload.request.scope.rawValue) "
-        + "\(payload.request.target)，第 \(payload.sequence) 条）。只在你刚发起签批时认证。"
+    let instruction = cancellationNotice.isEmpty ? "只在你刚发起签批时认证。" : ""
+    return cancellationNotice + "NewChanlun 签批：把\(verb)发布到权威记录（#\(payload.request.ticket) \(payload.request.scope.rawValue) "
+        + "\(payload.request.target)，第 \(payload.sequence) 条）。" + instruction
 }
