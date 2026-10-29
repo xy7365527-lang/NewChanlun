@@ -33,7 +33,7 @@ main 的 D5 检查启用由主控另行执行，保留已有保护。所需来�
 
 ## 看结果与恢复
 
-先写 `pending`，两份 PASS 写 `success`，完整审阅 BLOCK 写 `failure`，启动、监督、解析或隔离失败写 `error`。PR base、head、目标或 controller 代码发生变化时记为 `STALE`，不将旧 PASS 迁到新 SHA。
+先写 `pending`，两份 PASS 写 `success`，完整审阅 BLOCK 写 `failure`，启动、监督、解析或隔离失败写 `error`。第一位 reviewer FAILED 后不再调用第二个模型。PR base、head、目标或 controller 代码发生变化时记为 `STALE`，保留已完成的 reviews，不将旧 PASS 迁到新 SHA。
 
 退出码：PASS 或离线命令成功为 0，BLOCK/FAILED/STALE 为 1，输入、身份或待对账错误为 2。
 
@@ -68,13 +68,22 @@ main 的 D5 检查启用由主控另行执行，保留已有保护。所需来�
 | 文件 | 用途 |
 |---|---|
 | `target.json` | 冻结 PR 身份、SHA、attempt、controller head、注册顺序 |
-| `<model>/launch.json`、`process.json` | 宿主派工意图与进程 |
+| `<model>/prepare.json`、`launch.json`、`process.json` | 宿主 checkout 所有权、派工意图与进程 |
+| `<model>/checkout-cleanup.json` | checkout 已回收或因活动与容器状态不明而保留 |
 | `<model>/supervisor.json`、`receipt.json` | 监督阶段、容器、物理隔离探针及终态 |
 | `<model>/events.jsonl`、`session.jsonl` | 实际 stdout 事件与独立 session 日志 |
 | `<model>/supervisor.log`、`stderr.log` | 宿主入口和模型诊断；SDK 异常仅记类别与阶段 |
 | `outcome.json`、`effects/*.json` | 双审结论与状态写入、读回、对账证据 |
 
-无凭据 detached clone 位于 `~/.cache/deepagents-external-review/<run-id>/<model>`。源码和 Git 全只读挂入容器；宿主 home、PEM、GitHub token、状态和 session 目录不挂入。session 从容器临时目录经 SDK 收取，不给 reviewer 可写宿主回执目录。
+无凭据 detached checkout 位于外盘 `/Volumes/AgentStorage/issue1742-deepagents-pilot-20261027/checkouts/external-review/<run-id>/<model>`。每份对象库只保存 base、head、merge-base 的源码树及祖先 commit 元数据，不带无关历史版本的树和 blob。`git merge-base`、完整 PR diff、三端源码和提交元数据可用。其它历史提交的源码不在快照内。Git config、hooks、alternates 和凭据不从源仓复制。
+
+prepare 前按导入对象未压缩大小、head 文件大小及 256 MiB 余量检查空间，模型启动前再次核对余量。空间不足时明确失败，不启动模型。
+
+宿主先保存 `prepare.json`，再构造 checkout。prepare 中断且尚无 launch 时，同键重跑只回收本 run 的未启动 checkout 并重建。`launch.json` 之后沿用原收养协议，不自动重复派工。监督在读取 launch、获取锁等启动阶段失败也保存失败终态。已记录的监督进程退出却未写终态时，controller 生成 FAILED 记录并发布 error，不永久停留在 pending。
+
+宿主在终态、进程结束且容器已确认关闭后回收本 run 创建的 checkout，证据目录保持不动。prepare intent 缺失、仍有活动进程、PID 身份不明或容器创建与关闭结果不明时保留 checkout，并记录 `checkout-cleanup.json`。同键重跑会再次尝试安全回收。旧版本没有 prepare intent 的 checkout 不自动回收。
+
+源码和 Git 全只读挂入容器。宿主 home、PEM、GitHub token、状态和 session 目录不挂入。session 从容器临时目录经 SDK 收取，不给 reviewer 可写宿主回执目录。
 
 App token 只申请 metadata/read、contents/read、pull_requests/read、statuses/write；token 留在宿主发布进程内存。GitHub 的 statuses/write 不按 context 缩权，宿主发布器及 OS 因此属于受信边界。
 
@@ -84,7 +93,7 @@ App token 只申请 metadata/read、contents/read、pull_requests/read、statuse
 PYTHONPATH=.sandcastle/approval-signing:.sandcastle/deepagents-pilot \
   "$VENV/bin/python" -m pytest -q .sandcastle/deepagents-pilot/tests/test_external_review.py
 node_modules/.bin/tsx --test .sandcastle/external-review-worker.test.mts .sandcastle/codex-route.test.mts
-node_modules/.bin/tsc -p tsconfig.sandcastle.json --pretty false
+npm run typecheck
 ```
 
 这些测试使用真实临时 Git、替身进程和 fake API/Docker，不发模型请求，不替代上面的真实部署验收。
