@@ -34,6 +34,14 @@ pub(crate) mod s4_read_trace {
             entry.1 += len as u64;
         });
     }
+    pub(crate) fn audit_event(label: &str, generation: Option<i64>) {
+        TRACE.with(|t| {
+            let t = t.borrow();
+            if t.enabled && t.phase == 2 {
+                eprintln!("S4_AUDIT_EVENT phase={} generation={:?} bytes={}", label, generation, t.bytes[2]);
+            }
+        });
+    }
     pub(crate) fn snapshot(label: &str, bytes: u128) {
         TRACE.with(|t| { if t.borrow().enabled { eprintln!("S4_READ_ACCOUNT {} {}", label, bytes); } });
     }

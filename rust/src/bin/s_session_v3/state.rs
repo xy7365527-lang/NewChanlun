@@ -1166,6 +1166,7 @@ thread_local! {
 }
 #[cfg(test)]
 pub(super) fn trace_event(phase: &'static str, generation: Option<i64>) {
+    super::admission_private::s4_read_trace::audit_event(phase, generation);
     AUDIT_TRACE.with(|trace| {
         if let Some(trace) = trace.borrow_mut().as_mut() {
             trace
