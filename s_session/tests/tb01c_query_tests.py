@@ -61,12 +61,13 @@ class QueryTests(unittest.TestCase):
     def call(cls, db, operation, *args):
         state = cls.base / (db.name + ".admission")
         if not Path(str(db.resolve()) + ".control-owner.json").exists():
-            if not db.exists():
+            created = not db.exists()
+            if created:
                 with closing(sqlite3.connect(db)):
                     pass
             state.mkdir(exist_ok=True)
             TestAnchor(db, state)
-            if operation == "init":
+            if created and operation == "init":
                 # R4 先锚既存空库；用正式 reset 仅初始化本夹具刚创建的空载体。
                 operation = "reset"
         limits = state / "s-admission" / "limits.json"
