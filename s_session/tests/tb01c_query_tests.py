@@ -613,85 +613,85 @@ class QueryTests(unittest.TestCase):
         self.assertEqual(result["gap"]["missing_range"], {"from_generation":"5", "to_generation":"7"})
 
     def test_memo_certificate_binds_evidence_version_bidirectional_hot_cache(self):
-        """#1768 HIGH修复：memo复用未绑定evidence_version，导致graph/2与graph/3互相复用证书。
+        """同一活 reader 跨证据表示重核，摘要仍对应当前全部 typed 行。"""
+        def capture_image():
+            with closing(reader.open_readonly(self.db)) as conn:
+                conn.execute("BEGIN")
+                return audit.capture(conn)
 
-        双方向回归：graph/3→graph/2 与 graph/2→graph/3，两方向均要求 memo == disabled == raw。
-        使用私有合法材料（独审冻结件），不依赖外部fixture。
-        """
-        # 私有材料路径（独审报告提供的合法graph/3与graph/2库）
-        private_base = Path("/Volumes/AgentStorage/review1768-repair29bl/private")
-        
-        # 方向1: graph/3 → graph/2
-        graph3_db = self.base / "memo_graph3.sqlite"
-        graph2_db = self.base / "memo_graph2.sqlite"
-        
-        # 使用immutable backup加载私有材料（它们有WAL/SHM）
-        with closing(sqlite3.connect((private_base / "seed.sqlite").as_uri() + "?immutable=1", uri=True)) as src:
-            src.execute("PRAGMA query_only=ON")
-            with closing(sqlite3.connect(graph3_db)) as dst:
-                src.backup(dst)
-        
-        with closing(sqlite3.connect((private_base / "transition-graph3-graph2.sqlite").as_uri() + "?immutable=1", uri=True)) as src:
-            src.execute("PRAGMA query_only=ON")
-            with closing(sqlite3.connect(graph2_db)) as dst:
-                src.backup(dst)
-        
-        # 在graph/3上先建立热memo
-        reader_g3 = query.AuditReader(graph3_db, resources(), vars(reader))
-        self.addCleanup(reader_g3.close)
-        first_g3 = reader_g3.capture_verified()
-        self.assertEqual(first_g3["_audit_memo"]["misses"], 4)
-        self.assertEqual(first_g3["_audit_memo"]["hits"], 0)
-        
-        # 切换到同schema同逻辑的graph/2并复用memo
-        reader_g2_warm = query.AuditReader(graph2_db, resources(), vars(reader))
-        self.addCleanup(reader_g2_warm.close)
-        reader_g2_warm.memo = first_g3["_audit_memo"]  # 带graph/3证书的memo
-        warm_g2 = reader_g2_warm.capture_verified()
-        
-        # 无memo与原始typed capture作为基准
-        reader_g2_disabled = query.AuditReader(graph2_db, resources(), vars(reader), use_memo=False)
-        self.addCleanup(reader_g2_disabled.close)
-        disabled_g2 = reader_g2_disabled.capture_verified()
-        
-        with closing(reader.open_readonly(graph2_db)) as conn:
-            conn.execute("BEGIN")
-            raw_g2 = audit.capture_digest(audit.capture(conn))
-        
-        # 修复后：evidence_version不同，旧证书失效，warm应与disabled/raw一致
-        self.assertEqual(warm_g2["capture_digest"], disabled_g2["capture_digest"])
-        self.assertEqual(warm_g2["capture_digest"], raw_g2)
-        # 证书复用应该全部miss（4个delta根）
-        self.assertEqual(warm_g2["_audit_memo"]["hits"], 0)
-        self.assertEqual(warm_g2["_audit_memo"]["misses"], 4)
-        
-        # 方向2: graph/2 → graph/3（反向）
-        # 在graph/2上先建立热memo
-        reader_g2_first = query.AuditReader(graph2_db, resources(), vars(reader))
-        self.addCleanup(reader_g2_first.close)
-        first_g2 = reader_g2_first.capture_verified()
-        self.assertEqual(first_g2["_audit_memo"]["misses"], 4)
-        
-        # 切换回graph/3并复用memo
-        reader_g3_warm = query.AuditReader(graph3_db, resources(), vars(reader))
-        self.addCleanup(reader_g3_warm.close)
-        reader_g3_warm.memo = first_g2["_audit_memo"]  # 带graph/2证书的memo
-        warm_g3 = reader_g3_warm.capture_verified()
-        
-        # 无memo与原始typed capture作为基准
-        reader_g3_disabled = query.AuditReader(graph3_db, resources(), vars(reader), use_memo=False)
-        self.addCleanup(reader_g3_disabled.close)
-        disabled_g3 = reader_g3_disabled.capture_verified()
-        
-        with closing(reader.open_readonly(graph3_db)) as conn:
-            conn.execute("BEGIN")
-            raw_g3 = audit.capture_digest(audit.capture(conn))
-        
-        # 修复后：反向也应一致
-        self.assertEqual(warm_g3["capture_digest"], disabled_g3["capture_digest"])
-        self.assertEqual(warm_g3["capture_digest"], raw_g3)
-        self.assertEqual(warm_g3["_audit_memo"]["hits"], 0)
-        self.assertEqual(warm_g3["_audit_memo"]["misses"], 4)
+        original = capture_image()
+        tables = audit._typed_rows(original)
+        self.assertEqual(audit.evidence_mode(tables), audit.EVIDENCE_GRAPH_FORMAT)
+        sources = audit.evidence_sources(tables, audit.EVIDENCE_GRAPH_FORMAT)
+
+        def write_representation(version):
+            # 只改本测试私有库的物理表示，逻辑原文取自冻结夹具的已核图根。
+            graph3 = version == audit.EVIDENCE_GRAPH_FORMAT
+            with closing(sqlite3.connect(self.db)) as conn, conn:
+                for row in tables["structure_deltas"]:
+                    text = "" if graph3 else sources[f"delta/{row['generation']}"].decode("utf-8")
+                    conn.execute("UPDATE structure_deltas SET delta_json=? WHERE generation=?",
+                                 (text, row["generation"]))
+                for row in tables.get("structure_facts", []):
+                    values = ("", "", "") if graph3 else json.loads(sources[f"fact/{row['object_id']}"])
+                    conn.execute(
+                        "UPDATE structure_facts SET payload_json=?,input_refs_json=?,source_coords_json=? WHERE object_id=?",
+                        (*values, row["object_id"]))
+                conn.execute("UPDATE s_evidence_format SET graph_format=?", (version,))
+                conn.execute("DELETE FROM s_evidence_roots")
+                conn.execute("DELETE FROM s_evidence_nodes")
+                for key, data in sources.items():
+                    if graph3 or key.startswith("batch/"):
+                        leaf = audit.EVIDENCE_NODE_LEAF
+                        node_id = hashlib.sha256(bytes([leaf]) + data).digest()
+                        conn.execute("INSERT OR IGNORE INTO s_evidence_nodes VALUES(?,?,?,?)",
+                                     (node_id, leaf, data, len(data)))
+                        conn.execute("INSERT INTO s_evidence_roots VALUES(?,?,?,?,?)",
+                                     (key, node_id, b"", len(data), hashlib.sha256(data).hexdigest()))
+
+        versions = (audit.EVIDENCE_GRAPH_FORMAT, audit.EVIDENCE_GRAPH_FORMAT_V2)
+        for source, destination in (versions, versions[::-1]):
+            with self.subTest(source=source, destination=destination):
+                write_representation(source)
+                with closing(query.AuditReader(self.db, resources(), vars(reader))) as live:
+                    first = live.capture_verified()
+                    self.assertEqual((first["_audit_memo"]["hits"], first["_audit_memo"]["misses"]), (0, 4))
+                    self.mutate("INSERT OR REPLACE INTO meta VALUES('memo_domain_probe',?)", (source,))
+                    hot = live.capture_verified()
+                    self.assertEqual((hot["_audit_memo"]["hits"], hot["_audit_memo"]["misses"]), (4, 0))
+                    self.assertEqual(len(live.memo["entries"]), 4)
+                    self.assertIs(live.memo, hot["_audit_memo"])
+                    connection, identity = live.connection, live.identity
+                    previous_memo = live.memo
+                    before = capture_image()
+                    self.assertEqual(hot["capture_digest"], audit.capture_digest(before))
+
+                    write_representation(destination)
+                    after = capture_image()
+                    self.assertEqual(before["schema"], after["schema"])
+                    self.assertEqual(before["schema_rows"], after["schema_rows"])
+                    current_tables = audit._typed_rows(after)
+                    self.assertEqual(audit.evidence_mode(current_tables), destination)
+                    self.assertTrue(all(bool(row["delta_json"]) == (destination == audit.EVIDENCE_GRAPH_FORMAT_V2)
+                                        for row in current_tables["structure_deltas"]))
+                    self.assertIs(live.memo, previous_memo)
+                    warm = live.capture_verified()
+                    self.assertIs(live.connection, connection)
+                    self.assertEqual(live.identity, identity)
+                    self.assertEqual(live.stats["captures"], 3)
+                    with closing(query.AuditReader(self.db, resources(), vars(reader), use_memo=False)) as disabled:
+                        full = disabled.capture_verified()
+                    raw = audit.capture_digest(after)
+                    self.assertEqual(full["capture_digest"], raw)
+                    self.assertEqual(warm["capture_digest"], raw)
+                    self.assertEqual((warm["_audit_memo"]["hits"], warm["_audit_memo"]["misses"]), (0, 4))
+                    self.assertNotEqual(previous_memo["context"], live.memo["context"])
+                    for cut in (None, 0, 1, 2, 3, 4):
+                        self.assertEqual(audit.project_state(hot, cut, vars(reader)),
+                                         audit.project_state(warm, cut, vars(reader)))
+                    for after_generation in range(5):
+                        self.assertEqual(reader._delta_from_proof(hot, after_generation),
+                                         reader._delta_from_proof(warm, after_generation))
 
 
 if __name__ == "__main__":
