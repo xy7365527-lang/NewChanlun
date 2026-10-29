@@ -1821,10 +1821,11 @@ fn export_real_s3_w2_fixture_and_sqlite_for_q3() {
 fn export_real_s3_w_fixture_for_q3_impl(persist: bool) {
     let persistent_output = persist.then(|| {
         let output = PathBuf::from(std::env::var("Q3_REAL_EXPORT").expect("V5要求新的Q3_REAL_EXPORT路径"));
-        for path in [output.clone(), output.with_extension("sqlite"), output.with_extension("manifest.json"), output.with_extension("clock.json")] {
+        for path in [output.clone(), output.with_extension("sqlite"), output.with_extension("manifest.json"), output.with_extension("clock.json"), output.with_extension("run")] {
             assert!(!path.exists(), "不得覆盖原件 {}", path.display());
         }
-        assert!(!std::env::var("Q3_EXPORT_HEAD").unwrap_or_default().is_empty(), "V5要求完整候选HEAD");
+        let head = std::env::var("Q3_EXPORT_HEAD").expect("V5要求完整候选HEAD");
+        assert!(head.len() == 40 && head.bytes().all(|b| b.is_ascii_hexdigit()), "V5要求40位候选HEAD");
         output
     });
 
@@ -1873,7 +1874,15 @@ fn export_real_s3_w_fixture_for_q3_impl(persist: bool) {
         .take_while(|(_, _, _, recover)| !recover)
         .map(|(_, rows, _, _)| rows.len() as i64)
         .sum();
-    let mut f = Fixture::with_clock_plan(64, messages, &[("recover-1", before_recover * 10 + 5)]);
+    let recover_plan = [("recover-1", before_recover * 10 + 5)];
+    let mut f = match &persistent_output {
+        Some(output) => Fixture::with_clock_plan_persistent(64, messages, &recover_plan, output.with_extension("run")),
+        None => Fixture::with_clock_plan(64, messages, &recover_plan),
+    };
+    if let Some(output) = &persistent_output {
+        let manifest = json!({"schema_revision":"s-w2-validation-run/1", "status":"running", "head":std::env::var("Q3_EXPORT_HEAD").unwrap(), "original_database":f.db_path(), "q_export":output});
+        std::fs::write(output.with_extension("manifest.json"), canonical_json(&manifest)).unwrap();
+    }
     let mut n: i64 = 0;
     let mut stats = Vec::new();
     let count = |f: &Fixture, sql: &str, g: i64| -> Vec<(String, i64)> {
@@ -2109,6 +2118,10 @@ fn export_real_s3_w_fixture_for_q3_impl(persist: bool) {
         };
         let manifest = json!({
             "schema_revision":"s-w2-validation-run/1",
+            "status":"published-awaiting-audit",
+            "original_database":f.db_path(),
+            "test_binary":std::env::current_exe().unwrap(),
+            "test_arguments":std::env::args().collect::<Vec<_>>(),
             "head":std::env::var("Q3_EXPORT_HEAD").unwrap(),
             "rule_revision":meta["rule_revision"],
             "publication_generation":n.to_string(),
@@ -2172,4 +2185,18 @@ fn export_real_s3_w_fixture_for_q3_impl(persist: bool) {
         "修订代无撤回"
     );
     assert_eq!(writer_epoch, json!("2"), "恢复必须真实递增写者纪元");
+    if let Some(output) = &persistent_output {
+        let database = output.with_extension("sqlite");
+        let mut copy = Connection::open_with_flags(&database, OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
+        let result = {
+            let tx = copy.transaction().unwrap();
+            super::super::state::audit(&tx).map(|_| ())
+        };
+        let manifest_path = output.with_extension("manifest.json");
+        let mut manifest: Value = serde_json::from_slice(&std::fs::read(&manifest_path).unwrap()).unwrap();
+        manifest["status"] = json!(if result.is_ok() { "complete" } else { "audit-failed" });
+        manifest["full_source_audit"] = match &result { Ok(()) => json!({"result":"ok"}), Err(error) => json!({"result":"error", "error":error}) };
+        std::fs::write(&manifest_path, canonical_json(&manifest)).unwrap();
+        result.unwrap();
+    }
 }

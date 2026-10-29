@@ -1538,10 +1538,13 @@ pub(crate) mod tests {
         /// 接纳消息声明的写者纪元（真实恢复后递增）。
         writer_epoch: String,
         rule: Option<String>,
+        preserve_originals: bool,
     }
     impl Drop for Fixture {
         fn drop(&mut self) {
-            let _ = std::fs::remove_dir_all(&self.path);
+            if !self.preserve_originals {
+                let _ = std::fs::remove_dir_all(&self.path);
+            }
         }
     }
     impl Fixture {
@@ -1574,12 +1577,30 @@ pub(crate) mod tests {
             recover_events: &[(&str, i64)],
             rule: Option<String>,
         ) -> Self {
-            let path = std::env::temp_dir().join(format!(
+            Self::build_at(retain, clock_events, recover_events, rule, None)
+        }
+        pub(crate) fn with_clock_plan_persistent(
+            retain: i64,
+            clock_events: i64,
+            recover_events: &[(&str, i64)],
+            directory: PathBuf,
+        ) -> Self {
+            Self::build_at(retain, clock_events, recover_events, None, Some(directory))
+        }
+        fn build_at(
+            retain: i64,
+            clock_events: i64,
+            recover_events: &[(&str, i64)],
+            rule: Option<String>,
+            directory: Option<PathBuf>,
+        ) -> Self {
+            let preserve_originals = directory.is_some();
+            let path = directory.unwrap_or_else(|| std::env::temp_dir().join(format!(
                 "s1394-real-{}-{}-{}",
                 std::process::id(),
                 now_nanos(),
                 NEXT.fetch_add(1, Ordering::Relaxed)
-            ));
+            )));
             std::fs::create_dir(&path).unwrap();
             let mut events = serde_json::Map::new();
             for n in 1..=clock_events {
@@ -1616,6 +1637,7 @@ pub(crate) mod tests {
                 runtime,
                 writer_epoch: "1".to_string(),
                 rule,
+                preserve_originals,
             }
         }
         /// 库文件路径：只读入口测试用来开第二条 `query_only=ON` 连接。

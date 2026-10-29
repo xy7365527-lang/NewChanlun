@@ -1504,10 +1504,9 @@ fn plan_from_candidates(
     for e in old {
         index.try_push(e.try_clone_admitted(s)?).map_err(err)?;
     }
-    let mut withdrawals = change_array(s, allocation.as_ref())?;
-    let mut replaces = change_array(s, allocation.as_ref())?;
-    for w in changes.withdrawals {
-        let e = &mut index[order[w.old_index]];
+    let mut targets = bj::new_work(allocation.as_ref());
+    for w in &changes.withdrawals {
+        let e = &index[order[w.old_index]];
         let target = match w.removal {
             object_diff::Removal::Superseded => Some(w.new_index.ok_or_else(|| err("替代缺新对象"))?),
             object_diff::Removal::Removed if crate::w_revision(rule) == Some(crate::WRevision::W2) => {
@@ -1515,6 +1514,13 @@ fn plan_from_candidates(
             }
             object_diff::Removal::Removed => None,
         };
+        s.native_codec_room(&mut targets, 1).map_err(err)?;
+        targets.try_push(target).map_err(err)?;
+    }
+    let mut withdrawals = change_array(s, allocation.as_ref())?;
+    let mut replaces = change_array(s, allocation.as_ref())?;
+    for (w, target) in changes.withdrawals.into_iter().zip(targets) {
+        let e = &mut index[order[w.old_index]];
         let (reason, sup) = if let Some(target) = target {
             let id = new[target].id.try_clone_admitted(s.codec_work())?;
             push_replace(s, &mut replaces, e.id.as_str(), id.as_str())?;
@@ -3329,9 +3335,8 @@ pub(super) fn verify_generated_members_swept_with_records<'a>(
         Some(sweep) => sweep.changes_admitted(s, index, g)?,
         None => changes_at_admitted(s, index, g, allocation.as_ref())?,
     };
-    let mut withdrawals = change_array(s, allocation.as_ref())?;
-    let mut replaces = change_array(s, allocation.as_ref())?;
-    for w in changes.withdrawals {
+    let mut targets = bj::new_work(allocation.as_ref());
+    for w in &changes.withdrawals {
         let e = if sweep.is_some() { &index[w.old_index] } else { before[w.old_index].1 };
         let mut target = w.new_index;
         if w.removal == object_diff::Removal::Removed
@@ -3348,6 +3353,13 @@ pub(super) fn verify_generated_members_swept_with_records<'a>(
                 }
             }
         }
+        s.native_codec_room(&mut targets, 1).map_err(err)?;
+        targets.try_push(target).map_err(err)?;
+    }
+    let mut withdrawals = change_array(s, allocation.as_ref())?;
+    let mut replaces = change_array(s, allocation.as_ref())?;
+    for (w, target) in changes.withdrawals.into_iter().zip(targets) {
+        let e = if sweep.is_some() { &index[w.old_index] } else { before[w.old_index].1 };
         let (reason, sup) = if let Some(target) = target {
             let id = new[target].object_id.as_str();
             push_replace(s, &mut replaces, e.id.as_str(), id)?;
