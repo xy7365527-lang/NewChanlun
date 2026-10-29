@@ -600,7 +600,7 @@ pub(super) fn read_verified_public_history<'scope, 'tx, 'raw>(
 ) -> Result<VerifiedPublicHistory<'scope, 'tx>, String> {
     let qualified = policy == SourcePolicy::Ordinary && capture.is_none()
         && work.is_none() && materials.is_none()
-        && tx.is_readonly(rusqlite::DatabaseName::Main).map_err(err)?;
+        && tx.is_readonly(rusqlite::MAIN_DB).map_err(err)?;
     let history = read_indexed_history_with_policy(
         tx, raw, control, deadline, max_render_bytes, budget,
         capture, records, work, materials, policy,

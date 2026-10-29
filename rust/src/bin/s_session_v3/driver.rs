@@ -5588,6 +5588,49 @@ mod tests {
     }
 
     #[test]
+    fn history_public_coverage_cold_open_rejects_current_node_damage() {
+        use super::super::admission_private::s4_read_trace;
+        let f = Fixture::new();
+        let mut writer = f.open("1").unwrap();
+        assert_eq!(writer.handle(Fixture::ingest(1)).unwrap()["kind"], "Committed");
+        drop(writer);
+
+        s4_read_trace::enable();
+        let opened = f.open("1");
+        let coverage = s4_read_trace::finish();
+        drop(opened.unwrap());
+        assert!(coverage[0] > 0, "普通cold-open须消费已验证history");
+        assert_eq!(coverage[1], coverage[0] * 3);
+
+        let conn = open_db(&f.db).unwrap();
+        let (digest, body): (Vec<u8>, Vec<u8>) = conn.query_row(
+            "SELECT n.digest,n.body FROM s_content_nodes n JOIN s_content_publications p ON n.digest=p.snapshot_root ORDER BY p.generation LIMIT 1",
+            [], |r| Ok((r.get(0)?, r.get(1)?)),
+        ).unwrap();
+        let mut damaged = body.clone();
+        damaged[0] ^= 1;
+        conn.execute(
+            "UPDATE s_content_nodes SET body=?1 WHERE digest=?2",
+            params![damaged, &digest],
+        ).unwrap();
+        drop(conn);
+        let error = f.open("1").err().expect("损坏节点必须阻止普通cold-open");
+        assert!(error.contains("NODE_DIGEST"), "{error}");
+
+        let conn = open_db(&f.db).unwrap();
+        conn.execute(
+            "UPDATE s_content_nodes SET body=?1 WHERE digest=?2",
+            params![body, &digest],
+        ).unwrap();
+        drop(conn);
+        s4_read_trace::enable();
+        let restored = f.open("1");
+        let restored_coverage = s4_read_trace::finish();
+        drop(restored.unwrap());
+        assert_eq!(restored_coverage, coverage);
+    }
+
+    #[test]
     fn cold_audit_live_driver_requests_re_read_and_reject_current_node_damage() {
         use super::super::state::cold_audit_probe as probe;
         let f = Fixture::new();
