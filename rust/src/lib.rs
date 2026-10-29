@@ -98,6 +98,9 @@ pub mod session_protocol;
 pub mod session_transport;
 #[cfg(feature = "s_session")]
 pub mod sqlite_checked;
+/// #1769：S 结构源声明（类别 + namespace 集合），S init 持久化、S.AcceptInput 一处校验。
+#[cfg(feature = "s_session")]
+pub mod structure_source;
 
 use std::collections::HashSet;
 

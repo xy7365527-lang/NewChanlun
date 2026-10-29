@@ -109,6 +109,8 @@ ALLOWLIST: dict[str, set[str]] = {
     "rust/src/bin/s_session_v3/sqlite_pager_probe.rs": set(),
     # #1527 受限故障注入入口：dead_code、无调用方，产物不含；真实 I4/I5 验证票收口时再门控。
     "rust/src/bin/s_session_v3/admission_private/fd_wal.rs": {"inject"},
+    # #1769 拒启守卫：非 production_session_testonly 构建中只返回 false 或拒绝启动，不开诊断路径。
+    "rust/src/bin/s_session_v3/writer_cli.rs": {"theta_diagnostic_testonly"},
 }
 
 # 文件相对路径 → 只在默认 {s_session} 构建可达的名字。豁免仅当该条目在 {s_session, s_incremental}
@@ -129,6 +131,7 @@ PRODUCTION_ENV: dict[str, str] = {
     "S_CONTROL_START_GATE": "#1527 托管 serve 的父进程登记握手（admission_anchor）",
     "S_CONTROL_RESOURCE_SHA256": "launcher 下发的资源档摘要（writer_cli）",
     "S_MANIFEST_WORKSPACE_DIAGNOSTICS": "ADR 0042 D8 诊断行开关（#1640 b12c28f12e 随 sqlite_pager_probe 新进生产）",
+    "S_THETA_DIAGNOSTIC_TESTONLY": "#1769 拒启守卫：生产构建读到即拒绝启动（writer_cli parse_theta_diagnostic），不开诊断臂",
 }
 # 只在默认 {s_session} 构建可达的环境变量（与 DEFAULT_BUILD_ONLY 同一豁免口径：增量生产构建须门控排除）。
 DEFAULT_BUILD_ONLY_ENV: dict[str, str] = {

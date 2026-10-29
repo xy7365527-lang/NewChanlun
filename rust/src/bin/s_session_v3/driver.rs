@@ -176,6 +176,34 @@ impl Driver {
         driver.audit_cache_source_bytes = Some(audit_cache_source_bytes);
         Ok(driver)
     }
+    /// #1769 TestOnly：仅 `production_session_testonly` 构建、且显式 `S_THETA_DIAGNOSTIC_TESTONLY=1`
+    /// 时可达；以诊断夹具配置开门（不参与准入），与生产入口不是同一构造。
+    #[cfg(feature = "production_session_testonly")]
+    pub(super) fn open_for_serve_theta_diagnostic_testonly(
+        db: &Path,
+        profile: &Path,
+        epoch: &str,
+        clock: v2::ClockPlan,
+        audit_cache_source_bytes: usize,
+        mode: s_allocation::Mode,
+        admission: super::admission::WriterAdmission,
+    ) -> Result<Self, String> {
+        state::check_audit_source_retention(audit_cache_source_bytes)?;
+        let mut driver = Self::open_with_request_and_mode_context(
+            db,
+            profile,
+            epoch,
+            clock,
+            None,
+            mode,
+            None,
+            newchan_rust::theta_v0::config::ThetaConfig::default(),
+            false,
+            admission,
+        )?;
+        driver.audit_cache_source_bytes = Some(audit_cache_source_bytes);
+        Ok(driver)
+    }
     /// #1394：仅服务Native bootstrap栈内复用纯历史，返回前释放；不跨至Ready请求。
     /// #1640：增量构建的正式服务入口；`production` 时先构造生产配置并要求可准入（同
     /// `open_production_with_request_and_mode`），第八门在 pending 恢复后、首个请求前冻结。
@@ -688,6 +716,25 @@ mod tests {
             )
         }
         fn with_clock(clock_value: Value) -> Self {
+            Self::with_clock_declared(clock_value, None)
+        }
+        /// #1769：带结构源声明建库（默认三输入时钟）。
+        fn declared(namespace: &str) -> Self {
+            let source = newchan_rust::structure_source::Declaration::parse(
+                &json!({"category":"TestOnlyStructure","namespaces":[namespace]}),
+            )
+            .unwrap();
+            Self::with_clock_declared(
+                json!({"schema_revision":"s-clock-plan/1","clock_plan_id":"s3-driver","origin_utc":"2026-09-18T00:00:00Z","unit":"ns","events":{
+                "input-1":{"accept_ns":"10","attempts":[{"begin_ns":"11","commit_ns":"12"},{"begin_ns":"14","commit_ns":"15"}]},
+                "input-2":{"accept_ns":"20","attempts":[{"begin_ns":"21","commit_ns":"22"},{"begin_ns":"24","commit_ns":"25"}]}}}),
+                Some(&source),
+            )
+        }
+        fn with_clock_declared(
+            clock_value: Value,
+            source: Option<&newchan_rust::structure_source::Declaration>,
+        ) -> Self {
             let path = std::env::temp_dir().join(format!(
                 "s1394-driver-{}-{}-{}",
                 std::process::id(),
@@ -703,7 +750,7 @@ mod tests {
                 .join("s_session");
             let profile = base.join("profiles/ohlc_integer_tb02a_v1.json");
             let db = path.join("s.sqlite");
-            init_v3(
+            super::super::init_v3_declared(
                 &db,
                 "s-session-testonly-001",
                 &base.join("catalog/signed-catalog.json"),
@@ -711,6 +758,7 @@ mod tests {
                 "1",
                 &cp,
                 4,
+                source,
             )
             .unwrap();
             Self {
@@ -774,6 +822,30 @@ mod tests {
     fn count(c: &Connection, t: &str) -> i64 {
         c.query_row(&format!("SELECT COUNT(*) FROM {t}"), [], |r| r.get(0))
             .unwrap()
+    }
+
+    /// #1769：带声明的库经正式写入口（handle → accept_events）只接纳声明内 namespace；
+    /// 声明外的同形 bar 以 InvalidDomain 拒收且不落行。
+    #[test]
+    fn declared_structure_source_gates_accept_input() {
+        let rejected = Fixture::declared("hl.perp.BTC");
+        let outcome = rejected.open("1").unwrap().handle(Fixture::ingest(1));
+        let text = match &outcome {
+            Ok(reply) => reply.to_string(),
+            Err(error) => error.clone(),
+        };
+        assert!(text.contains("InvalidDomain"), "{text}");
+        assert!(text.contains("source_namespace"), "{text}");
+        assert_eq!(count(&open_db(&rejected.db).unwrap(), "raw_events"), 0);
+
+        let admitted = Fixture::declared("testonly.ohlc");
+        let reply = admitted
+            .open("1")
+            .unwrap()
+            .handle(Fixture::ingest(1))
+            .unwrap();
+        assert!(!reply.to_string().contains("InvalidDomain"), "{reply}");
+        assert_eq!(count(&open_db(&admitted.db).unwrap(), "raw_events"), 1);
     }
 
     /// #1405：只有规则元数据为历史 /1 的空库也不准新写者接纳/恢复；Q 的只读审计仍可读。

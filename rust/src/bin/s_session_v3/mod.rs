@@ -119,8 +119,10 @@ pub(super) const PREVIOUS_REVISION: &str = "s-session/2";
 const SELECTOR: &str = "--protocol-revision";
 const DELIVERY_POLICY_REVISION: &str = "generation-window/1";
 /// v3 init 允许出现的全部 flag（含 selector）；其余一律拒绝，不假装可用。
-const V3_INIT_FLAGS: [&str; 8] = [
+const V3_INIT_FLAGS: [&str; 9] = [
     SELECTOR,
+    // #1769：可选结构源声明文件；给出即作为库固定属性落 meta.structure_source。
+    "--structure-source",
     "--db",
     "--session",
     "--catalog",
@@ -357,7 +359,11 @@ fn init_from_args(args: &[String]) -> Result<Value, String> {
         &required("--delivery-retain-generations")?,
         "--delivery-retain-generations",
     )?;
-    init_v3(
+    let source = values
+        .get("--structure-source")
+        .map(|path| newchan_rust::structure_source::Declaration::load(Path::new(path)))
+        .transpose()?;
+    init_v3_declared(
         &db,
         &session,
         &catalog,
@@ -365,6 +371,7 @@ fn init_from_args(args: &[String]) -> Result<Value, String> {
         &session_generation,
         &clock,
         delivery_retain,
+        source.as_ref(),
     )
 }
 
@@ -468,6 +475,13 @@ fn expect_meta(
 }
 
 /// 在全新库上建 `s-session/3` 域；返回从已提交库回读的真实初始化元数据。
+#[cfg_attr(
+    not(test),
+    allow(
+        dead_code,
+        reason = "#1769：CLI 入口改经 init_v3_declared；无声明旧签名保留给既有测试"
+    )
+)]
 pub(super) fn init_v3(
     db: &Path,
     session: &str,
@@ -476,6 +490,30 @@ pub(super) fn init_v3(
     session_generation: &str,
     clock_path: &Path,
     delivery_retain: i64,
+) -> Result<Value, String> {
+    init_v3_declared(
+        db,
+        session,
+        catalog_path,
+        profile_path,
+        session_generation,
+        clock_path,
+        delivery_retain,
+        None,
+    )
+}
+
+/// #1769：同 `init_v3`，可带结构源声明；声明与其余 meta 同一事务落库、同样回读核对。
+#[allow(clippy::too_many_arguments)]
+pub(super) fn init_v3_declared(
+    db: &Path,
+    session: &str,
+    catalog_path: &Path,
+    profile_path: &Path,
+    session_generation: &str,
+    clock_path: &Path,
+    delivery_retain: i64,
+    source: Option<&newchan_rust::structure_source::Declaration>,
 ) -> Result<Value, String> {
     // ── 第一步：全部输入先验证；此阶段一个字节都不落盘 ──
     positive(session_generation, "session-generation")?;
@@ -513,6 +551,7 @@ pub(super) fn init_v3(
         ),
         session_generation,
         delivery_retain,
+        source,
     )?;
     // #1666 L2：目标名出现后的收尾失败不改判 init 成败，作为告警附在回执上；无告警不加字段。
     let warnings = staging.publish()?;
@@ -531,6 +570,7 @@ fn build_domain(
     catalog: (&Value, &str, usize, &str),
     session_generation: &str,
     delivery_retain: i64,
+    source: Option<&newchan_rust::structure_source::Declaration>,
 ) -> Result<Value, String> {
     let (profile_def, profile_id, profile_hash) = profile;
     let (profile_id, profile_hash) = (profile_id.to_string(), profile_hash.to_string());
@@ -590,6 +630,13 @@ fn build_domain(
     meta_set(&tx, "catalog_revision", &catalog_revision)?;
     meta_set(&tx, "catalog_definition", &canonical_json(catalog_def))?;
     meta_set(&tx, "catalog_hash", &catalog_hash)?;
+    if let Some(source) = source {
+        meta_set(
+            &tx,
+            newchan_rust::structure_source::META_KEY,
+            &source.canonical(),
+        )?;
+    }
     tx.execute(
         "INSERT INTO s_protocol_meta(singleton, protocol_revision, session_generation, clock_plan_hash,
              clock_plan_json, next_attempt_ordinal, logical_phase_frontier)
@@ -725,6 +772,13 @@ fn build_domain(
     let profile_hash = expect_meta(&meta, "profile_hash", &profile_hash)?;
     let catalog_revision = expect_meta(&meta, "catalog_revision", &catalog_revision)?;
     let catalog_hash = expect_meta(&meta, "catalog_hash", &catalog_hash)?;
+    if let Some(source) = source {
+        expect_meta(
+            &meta,
+            newchan_rust::structure_source::META_KEY,
+            &source.canonical(),
+        )?;
+    }
     let sqlite_version = expect_meta(&meta, "sqlite_version", &sqlite_version)?;
     let journal_mode = expect_meta(&meta, "journal_mode", &journal_mode)?;
     let synchronous = expect_meta(&meta, "synchronous", &synchronous.to_string())?

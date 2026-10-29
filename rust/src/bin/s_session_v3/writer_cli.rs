@@ -529,6 +529,65 @@ fn verify_control_resource_digest(
     Ok(())
 }
 
+/// #1769 TestOnly 诊断 theta 臂的显式开关。未设 ⟹ 正式路径；设为 `1` 只在
+/// `production_session_testonly` 构建中生效，其余构建或取值一律拒绝启动（不静默忽略）。
+const THETA_DIAGNOSTIC_MARKER: &str = "S_THETA_DIAGNOSTIC_TESTONLY";
+
+fn theta_diagnostic_testonly() -> Result<bool, String> {
+    let value = match std::env::var(THETA_DIAGNOSTIC_MARKER) {
+        Ok(value) => Some(value),
+        Err(std::env::VarError::NotPresent) => None,
+        Err(std::env::VarError::NotUnicode(_)) => Some(String::new()),
+    };
+    parse_theta_diagnostic(
+        value.as_deref(),
+        cfg!(feature = "production_session_testonly"),
+    )
+}
+
+fn parse_theta_diagnostic(value: Option<&str>, build_supports: bool) -> Result<bool, String> {
+    match value {
+        None => Ok(false),
+        Some("1") if build_supports => Ok(true),
+        Some("1") => Err(format!(
+            "ThetaDiagnosticTestOnlyInvalid：此构建不支持 {THETA_DIAGNOSTIC_MARKER}（仅 production_session_testonly）"
+        )),
+        Some(_) => Err(format!(
+            "ThetaDiagnosticTestOnlyInvalid：{THETA_DIAGNOSTIC_MARKER} 只接受 1"
+        )),
+    }
+}
+
+#[cfg(feature = "production_session_testonly")]
+fn open_theta_diagnostic(
+    options: &ServeOptions,
+    clock: v2::ClockPlan,
+    resources: &SResources,
+    mode: s_allocation::Mode,
+    admission: super::admission_anchor::PreparedAdmission,
+) -> Result<Driver, String> {
+    Driver::open_for_serve_theta_diagnostic_testonly(
+        &options.db,
+        &options.profile,
+        &options.epoch,
+        clock,
+        resources.limit("audit_cache_source_bytes"),
+        mode,
+        admission.into(),
+    )
+}
+
+#[cfg(not(feature = "production_session_testonly"))]
+fn open_theta_diagnostic(
+    _: &ServeOptions,
+    _: v2::ClockPlan,
+    _: &SResources,
+    _: s_allocation::Mode,
+    _: super::admission_anchor::PreparedAdmission,
+) -> Result<Driver, String> {
+    unreachable!("theta_diagnostic_testonly 在此构建只会返回 false 或拒绝")
+}
+
 /// 全部参数/资源核验后，先持唯一写锁、完整审计/profile/clock/pending，再监听。
 fn serve_with_policy(
     options: ServeOptions,
@@ -536,6 +595,7 @@ fn serve_with_policy(
     production: bool,
 ) -> Result<Option<super::admission::CommandOutput>, String> {
     let mode = s_allocation::load_environment_mode()?;
+    let theta_diagnostic = theta_diagnostic_testonly()?;
     let resources =
         SResources::parse(&admission.read_file(&options.resources, Some(RESOURCE_FILE_BYTES))?)
             .map_err(|e| admission.diagnostic(e))?;
@@ -571,7 +631,9 @@ fn serve_with_policy(
             admission.into(),
         )?
     } else {
-        let driver = if production {
+        let driver = if theta_diagnostic {
+            open_theta_diagnostic(&options, clock, &resources, mode, admission)?
+        } else if production {
             Driver::open_for_serve_with_mode_production(
                 &options.db,
                 &options.profile,
@@ -601,7 +663,9 @@ fn serve_with_policy(
         (driver, identity)
     };
     #[cfg(not(feature = "s_incremental"))]
-    let mut driver = if production {
+    let mut driver = if theta_diagnostic {
+        open_theta_diagnostic(&options, clock, &resources, mode, admission)?
+    } else if production {
         Driver::open_for_serve_with_mode_production(
             &options.db,
             &options.profile,
@@ -769,6 +833,19 @@ fn recover(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// #1769：生产构建（不含 production_session_testonly）遇 TestOnly 诊断 theta 开关即拒绝；
+    /// 未设开关走正式路径；只认取值 1。
+    #[test]
+    fn theta_diagnostic_switch_is_refused_outside_testonly_build() {
+        assert_eq!(parse_theta_diagnostic(None, false), Ok(false));
+        assert_eq!(parse_theta_diagnostic(None, true), Ok(false));
+        assert_eq!(parse_theta_diagnostic(Some("1"), true), Ok(true));
+        let refused = parse_theta_diagnostic(Some("1"), false).unwrap_err();
+        assert!(refused.contains("此构建不支持"), "{refused}");
+        assert!(parse_theta_diagnostic(Some("true"), true).is_err());
+        assert!(parse_theta_diagnostic(Some(""), true).is_err());
+    }
     use std::ffi::CString;
     use std::os::unix::ffi::OsStrExt;
     use std::time::{SystemTime, UNIX_EPOCH};

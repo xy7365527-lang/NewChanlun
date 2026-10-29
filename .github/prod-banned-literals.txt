@@ -733,6 +733,7 @@ writer/recover闭合后无SHM
 失败必须逐行保留第一代 refs
 失败未消耗序号
 失败构造不留临时收费
+失败的声明 init 不得留下任何 meta
 失败直接返回，不能全量 fallback
 失败首次计算不能留下键或文本费用
 头部失败不能进入body/flush
