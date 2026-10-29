@@ -3,7 +3,7 @@ name: '#1768 TestOnly pre-W oracle seed export'
 # 冻结 44fe pre-W 旧规则 oracle 重建夹具；仅本分支 push 触发，不进 main。
 on:
   push:
-    branches: [codex/1768-testonly-seed-29ax]
+    branches: [codex/1768-testonly-seed-29ax, codex/1768-frozen-helper30p]
 
 permissions:
   contents: read
@@ -91,6 +91,48 @@ jobs:
             exit 1
           fi
           printf 'frozen_sidecar_exit=0\n' | tee "$RUNNER_TEMP/evidence/frozen-sidecar-exit.txt"
+      - name: Checkout exact Python component commit
+        if: always() && github.ref == 'refs/heads/codex/1768-frozen-helper30p'
+        uses: actions/checkout@v4
+        with:
+          ref: dbcbcf72d03fa3c4052490fd5e7a5bdda198ab80
+          path: py-component
+          persist-credentials: false
+      - name: Component arm consumes frozen cfg(test) producer (exact Python commit)
+        if: always() && github.ref == 'refs/heads/codex/1768-frozen-helper30p'
+        shell: bash
+        env:
+          PY_COMMIT: dbcbcf72d03fa3c4052490fd5e7a5bdda198ab80
+        run: |
+          set +e
+          ev="$RUNNER_TEMP/evidence/component"
+          mkdir -p "$ev"
+          git rev-parse HEAD > "$ev/producer-checkout-head.txt"
+          git rev-parse HEAD^{tree} > "$ev/producer-tree.txt"
+          git rev-parse HEAD^ > "$ev/producer-base.txt"
+          (cd rust && cargo test --locked --features s_session --bin s_structure_session --no-run --message-format=json \
+            > "$ev/producer-build.jsonl" 2> "$ev/producer-build.err")
+          printf 'producer_build_exit=%s\n' "$?" | tee "$ev/producer-build-exit.txt"
+          producer=$(python -c 'import json,sys
+          for l in open(sys.argv[1]):
+              m=json.loads(l)
+              if m.get("reason")=="compiler-artifact" and m.get("executable") and m["target"]["name"]=="s_structure_session" and m["profile"]["test"]: print(m["executable"])' "$ev/producer-build.jsonl" | tail -1)
+          printf '%s\n' "$producer" | tee "$ev/producer-binary.txt"
+          sha256sum "$producer" | tee "$ev/producer-binary.sha256"
+          git -C "$GITHUB_WORKSPACE/py-component" rev-parse HEAD | tee "$ev/python-checkout-head.txt"
+          cd "$GITHUB_WORKSPACE/py-component"
+          python -m pip install pytest==9.0.2 -r s_session/tests/requirements-tb02c.txt > "$ev/python-dependencies.log" 2>&1
+          python -V | tee "$ev/python-version.txt"
+          S1768_PRODUCER_BINARY="$producer" S1768_PRODUCER_EVIDENCE="$ev/producer" \
+          python -m pytest -q -p no:cacheprovider \
+            "s_session/tests/test_tb02d_projection_cache.py::ProjectionCacheTests::test_old_token_survives_fresh_capture_and_new_commit" \
+            "s_session/tests/test_tb02d_projection_cache.py::ProjectionCacheTests::test_projection_old_token_new_commit_and_modes" \
+            "s_session/tests/test_tb02d_projection_cache.py::ProjectionCacheTests::test_slow_client_gap_is_local_and_new_valid_cursor_can_catch_up" \
+            --junitxml="$ev/component.xml" > "$ev/component.log" 2>&1
+          rc=$?
+          printf 'component_pytest_exit=%s\n' "$rc" | tee "$ev/component-exit.txt"
+          tail -60 "$ev/component.log"
+          exit "$rc"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
