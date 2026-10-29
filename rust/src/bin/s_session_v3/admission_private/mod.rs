@@ -38,7 +38,7 @@ pub(crate) mod s4_read_trace {
         TRACE.with(|t| {
             let t = t.borrow();
             if t.enabled && t.phase == 2 {
-                eprintln!("S4_AUDIT_EVENT phase={} generation={:?} bytes={}", label, generation, t.bytes[2]);
+                eprintln!("S4_AUDIT_EVENT phase={} generation={:?} bytes={} node_sql={}", label, generation, t.bytes[2], super::super::content_store::sql_reads_on_thread());
             }
         });
     }

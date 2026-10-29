@@ -1490,13 +1490,21 @@ fn assemble_manifest_body(
     // 同一次读集核完整闭包；路径算子只核触碰边界，不能替代这里的全闭包校验。
     #[cfg(test)]
     let sql = super::content_store::sql_reads_on_thread();
+    #[cfg(test)]
+    crate::v3::state::trace_event("manifest_verify_scope", None);
     store.verify_ref(metadata.scope, s_content::Mode::Public)?;
     require_kind(metadata.scope, Kind::Object, "scope")?;
+    #[cfg(test)]
+    crate::v3::state::trace_event("manifest_verify_generated", None);
     store.verify_ref(roots.generated_state, s_content::Mode::Public)?;
+    #[cfg(test)]
+    crate::v3::state::trace_event("manifest_verify_templates", None);
     store.verify_many_ref(
         [roots.publication_template, roots.delta_template],
         s_content::Mode::Template,
     )?;
+    #[cfg(test)]
+    crate::v3::state::trace_event("manifest_verify_complete", None);
     #[cfg(test)]
     ASSEMBLE_VERIFY_SQL_READS
         .with(|reads| reads.set(reads.get() + super::content_store::sql_reads_on_thread() - sql));
