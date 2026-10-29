@@ -1110,13 +1110,15 @@ mod tests {
                         );
                     }
                 }
-                saw_insert |= requests
-                    .iter()
-                    .any(|r| !previous.iter().any(|p| p["request_id"] == r["request_id"]));
+                saw_insert |= requests.iter().any(|r| {
+                    w_request_order(r).0 == 1
+                        && !previous.iter().any(|p| p["request_id"] == r["request_id"])
+                });
                 saw_revision |= requests.iter().any(|r| {
-                    previous
-                        .iter()
-                        .any(|p| p["request_id"] == r["request_id"] && p != r)
+                    w_request_order(r).0 == 1
+                        && previous
+                            .iter()
+                            .any(|p| p["request_id"] == r["request_id"] && p != r)
                 });
             }
             previous = requests.to_vec();
