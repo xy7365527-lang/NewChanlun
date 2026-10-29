@@ -805,3 +805,191 @@ fn fin2_capacity_shared_carrier_and_non_hfs_are_rejected() {
     }
     std::fs::remove_file(sentinel).unwrap();
 }
+
+// ---- #1768 M-1：`economic-session/2` 实库上选择 `domain-event-withdrawal/1` 的绑定、审计、恢复与拒绝 ----
+
+const WITHDRAWAL_META_SQL: &str = "SELECT v FROM meta WHERE k='domain_event_withdrawal_revision'";
+const WITHDRAWAL_REFUSAL: &str = "IdentityConflict：撤回子合同版本未由 init 显式绑定";
+
+fn carrier_file(root: &Path, owner: usize, file: &str) -> PathBuf {
+    root.join(["e", "b0", "b1", "b2"][owner]).join(file)
+}
+
+/// 原 FIN/2 manifest 只换 owner 库文件名并按需加选择子；四载体、资源与资金合同不变。
+fn withdrawal_configs(
+    space: &Space,
+    root: &Path,
+    selected: bool,
+    file: &str,
+) -> Vec<store::Config> {
+    let mut m = fin2_manifest(space, root);
+    m["e"]["db"] = json!(carrier_file(root, 0, file));
+    for index in 0..3 {
+        m["chongs"][index]["db"] = json!(carrier_file(root, index + 1, file));
+    }
+    if selected {
+        m["domain_event_withdrawal"] = json!({"schema_revision":"domain-event-withdrawal/1"});
+        m["authorized_sources"][0]["operations"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!("WithdrawDomainEvent"));
+    }
+    let path = space.0.join(format!("withdrawal-{selected}.json"));
+    std::fs::write(&path, canonical_json(&m)).unwrap();
+    (0..4)
+        .map(|owner| {
+            let chong = (owner > 0).then(|| format!("chong-N{owner}"));
+            store::Config::load(&path, &carrier_file(root, owner, file), chong.as_deref()).unwrap()
+        })
+        .collect()
+}
+
+fn withdrawal_meta(config: &store::Config) -> Option<String> {
+    use rusqlite::OptionalExtension;
+    store::open(&config.db, true)
+        .unwrap()
+        .0
+        .query_row(WITHDRAWAL_META_SQL, [], |row| row.get(0))
+        .optional()
+        .unwrap()
+}
+
+fn rewrite_meta(config: &store::Config, sql: &str) {
+    store::open(&config.db, false)
+        .unwrap()
+        .0
+        .execute_batch(sql)
+        .unwrap();
+}
+
+fn audit_fresh(config: &store::Config) -> Result<(), String> {
+    store::audit(&store::open(&config.db, true).unwrap().0, config)
+}
+
+fn remove_owner_files(config: &store::Config) {
+    for suffix in ["", "-wal", "-shm"] {
+        let mut name = config.db.as_os_str().to_os_string();
+        name.push(suffix);
+        match std::fs::remove_file(PathBuf::from(name)) {
+            Ok(()) => (),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
+            Err(error) => panic!("remove owner file: {error}"),
+        }
+    }
+}
+
+#[test]
+#[ignore = "需要 TB03C_FIN2_CARRIER_ROOT 指向四个独立 HFS+ 挂载根"]
+fn fin2_withdrawal_selected_init_audit_recover_and_binding_rejection() {
+    let root = carrier_root();
+    let space = Space::new("fin2-withdrawal");
+    let mut evidence = Vec::new();
+
+    let selected = withdrawal_configs(&space, &root, true, "withdrawal-selected.db");
+    for config in &selected {
+        assert_eq!(config.revision().unwrap(), "economic-session/2");
+        assert!(!config.db.exists(), "{} 载体上已有同名库", config.domain);
+        store::init(config).unwrap();
+        let revision: String = store::open(&config.db, true)
+            .unwrap()
+            .0
+            .query_row("SELECT v FROM meta WHERE k='schema_revision'", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(revision, "economic-session/2", "{}", config.domain);
+        assert_eq!(
+            withdrawal_meta(config).as_deref(),
+            Some("domain-event-withdrawal/1")
+        );
+        audit_fresh(config).unwrap();
+        let recovered = store::recover(config).unwrap();
+        assert_eq!(recovered["kind"], "Recovered", "{}", config.domain);
+        audit_fresh(config).unwrap();
+        assert_eq!(
+            withdrawal_meta(config).as_deref(),
+            Some("domain-event-withdrawal/1")
+        );
+        evidence.push(
+            json!({"phase":"selected","domain":config.domain,"init":"ok","audit":"ok",
+            "recover":recovered["writer_epoch"],"meta":"domain-event-withdrawal/1"}),
+        );
+    }
+    assert_eq!(
+        selected
+            .iter()
+            .map(|c| c.domain.as_str())
+            .collect::<Vec<_>>(),
+        ["E", "B:chong-N1", "B:chong-N2", "B:chong-N3"]
+    );
+
+    // 已初始化的 /2 域删除或改写绑定行：audit 与 recover 都拒为 IdentityConflict，不补绑；恢复原行后正控通过。
+    for config in &selected {
+        for (name, tamper) in [
+            ("deleted", "DELETE FROM meta WHERE k='domain_event_withdrawal_revision'"),
+            (
+                "wrong",
+                "UPDATE meta SET v='domain-event-withdrawal/0' WHERE k='domain_event_withdrawal_revision'",
+            ),
+        ] {
+            rewrite_meta(config, tamper);
+            let audit = audit_fresh(config).unwrap_err();
+            assert!(audit.starts_with(WITHDRAWAL_REFUSAL), "{} {name}: {audit}", config.domain);
+            let recover = store::recover(config).unwrap_err();
+            assert!(recover.starts_with(WITHDRAWAL_REFUSAL), "{} {name}: {recover}", config.domain);
+            let after = withdrawal_meta(config);
+            assert_eq!(
+                after.as_deref(),
+                (name == "wrong").then_some("domain-event-withdrawal/0"),
+                "{} {name}: 拒绝路径不得补绑或改写",
+                config.domain
+            );
+            rewrite_meta(
+                config,
+                "INSERT OR REPLACE INTO meta VALUES('domain_event_withdrawal_revision','domain-event-withdrawal/1')",
+            );
+            audit_fresh(config).unwrap();
+            evidence.push(json!({"phase":"tamper","domain":config.domain,"case":name,
+                "audit":"IdentityConflict","recover":"IdentityConflict","restored_audit":"ok"}));
+        }
+        let recovered = store::recover(config).unwrap();
+        assert_eq!(recovered["kind"], "Recovered", "{}", config.domain);
+        audit_fresh(config).unwrap();
+    }
+    for config in &selected {
+        remove_owner_files(config);
+    }
+
+    // 未选择的新 /2 域：init 不写绑定行，事后手工补绑在 audit 与 recover 均拒绝。
+    let unselected = withdrawal_configs(&space, &root, false, "withdrawal-unselected.db");
+    for config in &unselected {
+        assert_eq!(config.revision().unwrap(), "economic-session/2");
+        store::init(config).unwrap();
+        assert_eq!(withdrawal_meta(config), None, "{}", config.domain);
+        audit_fresh(config).unwrap();
+        rewrite_meta(
+            config,
+            "INSERT INTO meta VALUES('domain_event_withdrawal_revision','domain-event-withdrawal/1')",
+        );
+        let audit = audit_fresh(config).unwrap_err();
+        assert!(
+            audit.starts_with(WITHDRAWAL_REFUSAL),
+            "{}: {audit}",
+            config.domain
+        );
+        let recover = store::recover(config).unwrap_err();
+        assert!(
+            recover.starts_with(WITHDRAWAL_REFUSAL),
+            "{}: {recover}",
+            config.domain
+        );
+        evidence.push(json!({"phase":"unselected-rebind","domain":config.domain,
+            "audit":"IdentityConflict","recover":"IdentityConflict"}));
+        remove_owner_files(config);
+    }
+    archive_evidence(
+        "withdrawal-binding.json",
+        canonical_json(&json!(evidence)).as_bytes(),
+        false,
+    );
+}

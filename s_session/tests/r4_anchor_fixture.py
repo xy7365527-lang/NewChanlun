@@ -90,5 +90,6 @@ def anchored_controller(config, state_dir, *, clock=None, **kwargs):
             stack.enter_context(patch.object(control.time, "monotonic", side_effect=clock))
         controller = control.Controller(config, Path(state_dir))
         # 原生命周期测试的夹具合同不具生产资格。合同门由 #1657 专用测试真实调用。
-        controller.check_admission_contract = lambda: None
+        controller.check_admission_contract = lambda: controller.admission.child_environment(
+            controller.runtime_environment(controller.admission_deadline))
         return controller

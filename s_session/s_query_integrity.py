@@ -1311,7 +1311,11 @@ def _verify_image(image, h, deadline, memo, _parse_pool):
     # 还原字节放回同一入口（`canonical_bytes` 与三列原文），下游全部既有判据逐字不变。
     evidence_version = evidence_mode(tables)
     graph_sources = evidence_sources(tables, evidence_version, deadline)
+    # 在还原前保存图域 delta_json 物理值（空字符串），供 memo 证书摘要使用。
+    physical_delta_json = {}
     if graph_sources is not None:
+        for row in tables["structure_deltas"]:
+            physical_delta_json[row["generation"]] = row["delta_json"]
         materialize_graph_originals(tables, evidence_version, graph_sources)
         batch_sources = {key[len(EVIDENCE_ROOT_PREFIX):]: value
                          for key, value in graph_sources.items()
@@ -1359,7 +1363,9 @@ def _verify_image(image, h, deadline, memo, _parse_pool):
                 raise ValueError("旧未发布 profile 没有可核来源")
 
     # memo是进程内已核源的派生集合；每次捕获完整typed材料后才允许比对原字节。
-    context = canonical((image["schema_rows"], image["schema"], binding, mode,
+    # 证据表示版本入context：graph/2与graph/3同schema同逻辑但物理delta_json不同，
+    # 证书的delta_digest_json编码物理值，表示切换必须使旧证书全部失效。
+    context = canonical((image["schema_rows"], image["schema"], binding, mode, evidence_version,
                          [(key, meta.get(key)) for key in ("session_id", "catalog_revision", "rule_revision",
                           "scope", "profile_definition", "input_profile")]))
     previous_entries = memo.get("entries", []) if memo is not None and memo.get("context") == context else []
@@ -1468,7 +1474,9 @@ def _verify_image(image, h, deadline, memo, _parse_pool):
             if "delta_digest_json" not in certificate:
                 # 本代源已全核或与当前捕获逐字相同；只复用其 JSON 字符串编码。
                 # 不修改旧 proof 的证书，新增 bytes 由 proof/memo 联合预算完整计量。
-                certificate = dict(certificate, delta_digest_json=zlib.compress(canonical(row["delta_json"]), 1))
+                # 图域下编码物理值（空字符串），旧整块域物理值等于逻辑值。
+                physical_value = physical_delta_json.get(gen, row["delta_json"])
+                certificate = dict(certificate, delta_digest_json=zlib.compress(canonical(physical_value), 1))
             next_entries.append(certificate)
         header, sets = certificate["header"], certificate["sets"]
         if header["seq_range"] != {"from": str(prev_frontier+1), "to": str(frontier)}:
