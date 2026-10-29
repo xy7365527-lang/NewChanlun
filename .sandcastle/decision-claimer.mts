@@ -881,6 +881,7 @@ ${o.feedback ? `\n## 上一次考古产物没过机械校验，必须逐条补�
 2. 每点两路各至少一条查询，记下实际命令与命中数。tracker 路用 \`gh search issues "<词>" --repo ${GH_REPO}\` 或 \`gh issue list --repo ${GH_REPO} --state all --search "<词> in:comments"\`（覆盖已关闭票与评论）；仓内路用 rg -n 搜正本层 docs/adr/、.chanlun/definitions/、CONTEXT.md，推论层 analysis/、docs/、.chanlun/，以及代码常量与测试夹具（rust/、src/、tests/、trading_system/、scripts/）。同一概念换中文词、英文标识符、票号各搜一次。
 3. 归类：A 已裁（正本层或已关票 resolution 明写）→ citation；B 有先例未正式裁（推论层、票评论、代码常量或夹具在用）→ citation + reasoning（ADR 0012 标签开头的推理链）+ recommended 默认值；C 确未设计 → searched_keywords（至少两个）+ gap：decision（交用户决定，recommended 必填推荐答案及推导依据）、research（仓外事实，开 research 票）、probe（缺读数推不出推荐值，派探针票）。先例互相冲突或与代码不符时写 conflict，该点不归 A。
 
+C 类 gap 只能逐字填写 decision、research、probe 中的一个；缺口说明写 reasoning，不拼进 gap。A/B 类可省略 gap。
 最后只输出一个 JSON 代码块：
 ${json}`;
 }
@@ -890,7 +891,7 @@ export const FIXED_CLASS_LINE = "本次不再分级";
 const POINT_SHAPE = `{"id":"Q1","question":"一句话待决点","class":"A|B|C",
   "queries":[{"channel":"tracker","query":"查询词","command":"实际命令","hits":3},{"channel":"repo","query":"查询词","command":"rg -n ...","hits":0}],
   "hits":[{"source":"#1348 评论 6262469214 或 docs/adr/0016-x.md:96","excerpt":"逐字摘一句"}],
-  "citation":"A/B 必填","reasoning":"B 必填","recommended":"B 与 C decision 必填","searched_keywords":["C 必填"],"gap":"C 必填","conflict":"有则填"}`;
+  "citation":"A/B 必填","reasoning":"B 必填","recommended":"B 与 C decision 必填","searched_keywords":["C 必填"],"gap":"research","conflict":"有则填"}`;
 
 /** 起草在 MAIN 会话里续接：上文分级与考古的工具结果仍在上下文中。 */
 export const MAIN_CONTINUE_LINE = "本轮在本票 MAIN 会话中续接：上文分级与考古的工具调用及其结果仍在你的上下文里，宿主已校验并定下分级，直接接着已读到的原文起草；写进草稿的每条引用照样亲验。";

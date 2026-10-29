@@ -949,9 +949,9 @@ test("考古提示的 gap 示例符合消费端枚举，联合、固定分级、
   const t = { number: 1531, title: "待决点", body: "", labels: [], assignees: [], comments: [], blockers: [] };
   const variants = [
     {},
-    { fixed: { klass: "P" as const, reason: "政策" } },
+    { fixed: { klass: "P" as const, reason: "政策", parsed: true } },
     { fixed: "none" as const },
-    { fixed: { klass: "T" as const, reason: "技术" }, feedback: "补齐查询证据" },
+    { fixed: { klass: "T" as const, reason: "技术", parsed: true }, feedback: "补齐查询证据" },
   ];
   for (const options of variants) {
     const prompt = triagePrompt(t, options);
