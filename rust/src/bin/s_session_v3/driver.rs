@@ -5615,7 +5615,10 @@ mod tests {
         ).unwrap();
         drop(conn);
         let error = f.open("1").err().expect("损坏节点必须阻止普通cold-open");
-        assert!(error.contains("NODE_DIGEST"), "{error}");
+        assert!(
+            error.contains(newchan_rust::s_content::code::NODE_DIGEST),
+            "{error}"
+        );
 
         let conn = open_db(&f.db).unwrap();
         conn.execute(
