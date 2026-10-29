@@ -65,6 +65,7 @@ from .domain import (
     synthesis_refusal,
 )
 from .workunit import WorkUnit, parse_work_unit
+from .boat_execution import BoatExecution, ExecutionUnknown, new_execution
 
 if TYPE_CHECKING:
     from .executor import TicketExecutor
@@ -183,12 +184,15 @@ class RunSpec:
     judge_model: ModelSlug | None
     v: int = 1
     work_unit: dict | None = None
+    execution: dict | None = None
 
     def to_json(self) -> dict:
         data = asdict(self)
         if self.v == 1:
             data.pop("v")
             data.pop("work_unit")
+        if self.execution is None:
+            data.pop("execution")
         return data
 
     @property
@@ -219,7 +223,7 @@ class RunSpec:
                        parse_model(data["author_model"]), parse_model(data["reviewer_model"]),
                        parse_model(data["brain_model"]), data["author_checkout"], data["review_checkout"],
                        data["created_at"], (parse_model(design[0]), parse_model(design[1])) if design else None,
-                       parse_model(judge) if judge else None, version, unit)
+                       parse_model(judge) if judge else None, version, unit, data.get("execution"))
 
     def model_for(self, role: Role) -> ModelSlug:
         if role == "author":
@@ -376,6 +380,7 @@ class PilotRun:
         self._tools_active = 0
         self._lock_fd: int | None = None
         self._children: dict[str, subprocess.Popen] = {}
+        self.execution = BoatExecution(self) if (spec.execution or {}).get("backend") == "boat" else None
 
     @staticmethod
     def run_dir(home: Path, run_id: RunId) -> Path:
@@ -388,7 +393,8 @@ class PilotRun:
         root.mkdir(parents=True, exist_ok=True)
         checkouts = home / "checkouts" / run_id
         spec = RunSpec(run_id, TICKET, "pilot_acceptance", base, task, plan.author, plan.reviewer, plan.brain,
-                       str(checkouts / "author"), str(checkouts / "review"), _now(), plan.design, plan.judge)
+                       str(checkouts / "author"), str(checkouts / "review"), _now(), plan.design, plan.judge,
+                       execution=(RunSpec.from_json(json.loads((root / "run.json").read_text())).execution if (root / "run.json").exists() else new_execution(test_launcher=bool(kw.get("launcher")), source_repo=kw.get("source_repo", SOURCE_REPO))))
         run = cls(home, spec, **kw)
         run.acquire()
         if not (root / "run.json").exists():
@@ -408,7 +414,7 @@ class PilotRun:
         checkouts = home / "checkouts" / unit.run_id
         spec = RunSpec(unit.run_id, unit.ticket, None, unit.base, task, plan.author, plan.reviewer, plan.brain,
                        str(checkouts / "author"), str(checkouts / "review"), _now(), plan.design, plan.judge,
-                       2, unit.to_json())
+                       2, unit.to_json(), (RunSpec.from_json(json.loads((cls.run_dir(home, unit.run_id) / "run.json").read_text())).execution if (cls.run_dir(home, unit.run_id) / "run.json").exists() else new_execution(test_launcher=bool(kw.get("launcher")), source_repo=kw.get("source_repo", SOURCE_REPO))))
         run = cls(home, spec, executor=executor, **kw)
         run.acquire()
         try:
@@ -537,6 +543,8 @@ class PilotRun:
         return [parse_key_name(self.spec.run_id, name) for name in sorted(names)]
 
     def _observe(self, key: WorkerKey, rows: list[tuple[int, int, str, str]]) -> WorkerFact:
+        if self.execution is not None:
+            return self.execution.observe(key)
         out = self._key_dir(key)
         result = None
         state = None
@@ -573,7 +581,7 @@ class PilotRun:
         return data
 
     def facts(self) -> RunFacts:
-        rows = _ps_rows()
+        rows = [] if self.execution is not None else _ps_rows()
         workers = {key: self._observe(key, rows) for key in self._keys()}
         commits = tuple(self._commit_receipts())
         author_model_of = {}
@@ -635,7 +643,11 @@ class PilotRun:
                 _git(checkout, "switch", "-q", "-C", self.spec.branch_for(key.role), key.target_head)
         prompt = self.dir / "prompts" / f"{key.name}.md"
         prompt.parent.mkdir(parents=True, exist_ok=True)
-        prompt.write_text(self._prompt(key, brief, facts))
+        prompt_text = self._prompt(key, brief, facts)
+        if self.execution is not None:
+            source = self.execution.config.pstack_source
+            prompt_text = prompt_text.replace(source, "/opt/newchanlun/pstack")
+        prompt.write_text(prompt_text)
         _write_once(self.dir / "intents" / f"{key.name}.json", {
             "key": key.name, "run_id": self.spec.run_id, "role": key.role, "target_head": key.target_head,
             "mode": ROLE_MODE[key.role], "model": model, "checkout": str(checkout), "prompt_file": str(prompt),
@@ -644,6 +656,11 @@ class PilotRun:
         self._crash("after_intent_before_spawn")
 
     def _launch(self, key: WorkerKey) -> None:
+        if self.execution is not None:
+            with self._fence("dispatch"):
+                self.execution.submit(key)
+            self.trail("boat_dispatched", key=key.name)
+            return
         intent = json.loads((self.dir / "intents" / f"{key.name}.json").read_text())
         out = self._key_dir(key)
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -670,7 +687,7 @@ class PilotRun:
     def _drive_all(self, keys: list[WorkerKey]) -> list[WorkerReceipt]:
         launched: set[str] = set()
         while True:
-            rows = _ps_rows()
+            rows = [] if self.execution is not None else _ps_rows()
             done: dict[WorkerKey, WorkerReceipt] = {}
             for key in keys:
                 fact = self._observe(key, rows)

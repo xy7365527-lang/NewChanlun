@@ -11,7 +11,7 @@ from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import Command
 
-from .domain import parse_run_id, parse_sha
+from .domain import WorkerKey, parse_role, parse_run_id, parse_sha
 from .run import (
     CRASH_POINTS,
     DEFAULT_HOME,
@@ -121,5 +121,21 @@ def main(argv: list[str] | None = None) -> int:
     status = sub.add_parser("status", help="只读状态，不启动模型或工蜂")
     status.add_argument("--run-id", required=True)
     status.add_argument("--home", default=str(DEFAULT_HOME))
+    cancel = sub.add_parser("cancel-worker", help="取消已有Boat绑定，不重派工蜂")
+    cancel.add_argument("--run-id", required=True)
+    cancel.add_argument("--home", default=str(DEFAULT_HOME))
+    cancel.add_argument("--role", required=True)
+    cancel.add_argument("--head", required=True)
     args = parser.parse_args(argv)
+    if args.command == "cancel-worker":
+        run = PilotRun.open(Path(args.home), parse_run_id(args.run_id))
+        run.acquire()
+        try:
+            if run.execution is None:
+                parser.error("该run不是Boat绑定，不能经此入口取消")
+            key = WorkerKey(run.spec.run_id, parse_role(args.role), parse_sha(args.head))
+            print(repr(run.execution.cancel(key)))
+            return 0
+        finally:
+            run.release()
     return _run(args) if args.command == "run" else _status(args)
