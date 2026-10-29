@@ -359,9 +359,10 @@ function w2Case() {
     { object_id: "g1", members: ["2"], first_known_generation: "4", withdrawn_generation: null },
   ];
   const kinds = new Map([...pending.map((p) => [p.object_id, "CC-004.undetermined_raw"]), ...groups.map((g) => [g.object_id, "CC-005.inclusion_group"])]);
-  const superseded = pending.filter((p) => p.superseded_by).map((p) => ({ object_id: p.object_id, kind: "CC-004.undetermined_raw", superseded_by: p.superseded_by }));
+  const superseded = pending.filter((p) => p.superseded_by).map((p) => ({ ...p, kind: "CC-004.undetermined_raw" }));
   const replaces = superseded.map((w) => ({ subject: w.superseded_by, object: w.object_id }));
-  return { pending, groups, superseded, replaces, kinds };
+  const objects = new Map([...pending, ...groups].map((r) => [r.object_id, r]));
+  return { pending, groups, superseded, replaces, kinds, objects };
 }
 test("W/2 逐原件替代：每个未定原件（含修订身份）替代到含其坐标的定向组，公开 replaces 关系逐条对应", () => {
   typed.w2Replacements(w2Case());
@@ -378,7 +379,7 @@ test("W/2 逐原件替代：每个未定原件（含修订身份）替代到含�
   reject((c) => { c.replaces.splice(1, 1); }, /缺公开replaces关系/); // 修订身份漏边
   reject((c) => { c.replaces.push({ subject: "g1", object: "u0" }); }, /缺对应撤回或superseded_by不符/); // 额外边
   reject((c) => { c.pending[1].superseded_by = "u1"; c.replaces[1].subject = "u1"; }, /不满足坐标、种类或生命周期/); // 修订身份混淆为自身
-  reject((c) => { c.kinds.set("x", "CC-010.bi"); c.kinds.set("y", "CC-005.inclusion_group"); c.superseded.push({ object_id: "x", kind: "CC-010.bi", superseded_by: "y" }); c.replaces.push({ subject: "y", object: "x" }); }, /跨kind替代未获准/); // 任意kind
+  reject((c) => { c.kinds.set("x", "CC-010.bi"); c.kinds.set("y", "CC-005.inclusion_group"); c.objects.set("y", {first_known_generation: "1", withdrawn_generation: null}); c.superseded.push({ object_id: "x", kind: "CC-010.bi", superseded_by: "y" }); c.replaces.push({ subject: "y", object: "x" }); }, /跨kind替代未获准/); // 任意kind
 });
 
 test("W/2 完整 validateState：替代目标须在撤回代已出生且在世，公开 replaces 全集对应撤回事实", async (t) => {
@@ -413,7 +414,7 @@ test("W/2 完整 validateState：替代目标须在撤回代已出生且在世�
   w2.catalog.catalog_evidence.rule_revision = w2.snapshot.rule_revision;
   for (let k = 0; k < 4; k++) w2 = await reid(w2);
   await Q3.validateState(w2, "s-session/3");
-  t.diagnostic("手工 W2 正控及非 raw 同 kind 历史替代通过");
+  t.diagnostic("手工 W2 正控及非 raw g1 到 g2 到 g3 历史链通过，目标后来撤回合法");
 
   const reject = async (candidate, pattern, label) => {
     await assert.rejects(() => Q3.validateState(candidate, "s-session/3"), pattern);
@@ -486,4 +487,34 @@ test("W/2 完整 validateState：替代目标须在撤回代已出生且在世�
   const missingEdge = structuredClone(w2);
   missingEdge.snapshot.relations = missingEdge.snapshot.relations.filter((r) => r.relation_type !== "replaces" || r.object !== previousInit.object_id);
   await reject(missingEdge, /替代撤回缺公开replaces关系/, "F2 非 raw 替代撤回漏边在完整性判据拒绝");
+
+  const duplicateEdge = structuredClone(w2);
+  duplicateEdge.snapshot.relations.push(structuredClone(duplicateEdge.snapshot.relations.find((r) => r.relation_type === "replaces")));
+  await reject(duplicateEdge, /重复公开replaces关系/, "N1 重复公开 replaces 边在一一对应判据拒绝");
+
+  const selfReplace = structuredClone(w2);
+  const self = selfReplace.snapshot.withdrawn_objects.find((r) => r.kind === "CC-004.initialization" && r.superseded_by !== null);
+  self.superseded_by = self.object_id;
+  selfReplace.snapshot.relations.find((r) => r.relation_type === "replaces" && r.object === self.object_id).subject = self.object_id;
+  await reject(selfReplace, /替代目标不存在或生命周期不符/, "N2 非 raw 自我替代在目标生命周期判据拒绝");
+
+  const ghostTarget = structuredClone(w2);
+  const ghostOld = ghostTarget.snapshot.withdrawn_objects.find((r) => r.kind === "CC-004.initialization" && r.superseded_by !== null);
+  ghostOld.superseded_by = "obj3-" + "a".repeat(64);
+  ghostTarget.snapshot.relations.find((r) => r.relation_type === "replaces" && r.object === ghostOld.object_id).subject = ghostOld.superseded_by;
+  await reject(ghostTarget, /替代目标不存在或生命周期不符/, "N2 不存在的非 raw 目标在目标存在性判据拒绝");
+
+  const nonrawFuture = structuredClone(w2);
+  const initFirst = nonrawFuture.snapshot.withdrawn_objects.find((r) => r.kind === "CC-004.initialization" && r.first_known_generation === "1");
+  const initLast = nonrawFuture.snapshot.objects.find((r) => r.kind === "CC-004.initialization");
+  initFirst.superseded_by = initLast.object_id;
+  nonrawFuture.snapshot.relations.find((r) => r.relation_type === "replaces" && r.object === initFirst.object_id).subject = initLast.object_id;
+  await reject(nonrawFuture, /替代目标不存在或生命周期不符/, "N2 非 raw 未来目标在生命周期判据拒绝");
+
+  const nonrawDead = structuredClone(w2);
+  const initEarlier = nonrawDead.snapshot.withdrawn_objects.find((r) => r.kind === "CC-004.initialization" && r.first_known_generation === "1");
+  const initLater = nonrawDead.snapshot.withdrawn_objects.find((r) => r.kind === "CC-004.initialization" && r.first_known_generation === "2");
+  initLater.superseded_by = initEarlier.object_id;
+  nonrawDead.snapshot.relations.find((r) => r.relation_type === "replaces" && r.object === initLater.object_id).subject = initEarlier.object_id;
+  await reject(nonrawDead, /替代目标不存在或生命周期不符/, "N2 非 raw 已先撤回目标在生命周期判据拒绝");
 });
