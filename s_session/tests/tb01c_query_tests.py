@@ -105,6 +105,54 @@ class QueryTests(unittest.TestCase):
         with closing(sqlite3.connect(self.db)) as conn, conn:
             conn.execute(sql, values)
 
+    def graph_root_bytes(self, root_key):
+        """经审计读者自身的图还原（内容寻址+闭包已核）取某根完整展开字节。"""
+        with closing(reader.open_readonly(self.db)) as conn:
+            conn.execute("BEGIN")
+            tables = audit._typed_rows(audit.capture(conn))
+        return audit.evidence_sources(tables, audit.evidence_mode(tables))[root_key]
+
+    def replace_graph_root_bytes(self, root_key, data):
+        """图域私有副本内把某根展开字节换成精确 data；行内物理列（delta_json 等）不动。
+
+        新叶节点内容寻址自洽，根 node_id/expanded_length/content_sha256 同步、slot_ids 清空；
+        仅删除失去全部引用的节点（共享节点保留），使图闭包仍成立，负控只落在语义门上。
+        """
+        if type(data) is str:
+            data = data.encode("utf-8")
+        leaf = audit.EVIDENCE_NODE_LEAF
+        node_id = hashlib.sha256(bytes([leaf]) + data).digest()
+        with closing(sqlite3.connect(self.db)) as conn, conn:
+            conn.execute("INSERT OR IGNORE INTO s_evidence_nodes VALUES(?,?,?,?)", (node_id, leaf, data, len(data)))
+            updated = conn.execute(
+                "UPDATE s_evidence_roots SET node_id=?,slot_ids=?,expanded_length=?,content_sha256=? WHERE root_key=?",
+                (node_id, b"", len(data), hashlib.sha256(data).hexdigest(), root_key)).rowcount
+            if updated != 1:
+                raise AssertionError(f"图根不存在：{root_key}")
+            nodes = dict((row[0], (row[1], row[2])) for row in conn.execute(
+                "SELECT node_id,node_kind,payload FROM s_evidence_nodes"))
+            reachable, stack = set(), []
+            for root, slots in conn.execute("SELECT node_id,slot_ids FROM s_evidence_roots"):
+                stack.append(root)
+                stack.extend(slots[i:i+32] for i in range(0, len(slots), 32))
+            while stack:
+                current = stack.pop()
+                if current in reachable:
+                    continue
+                reachable.add(current)
+                kind, payload = nodes[current]
+                index = 0
+                while kind == audit.EVIDENCE_NODE_SEQ and index < len(payload):
+                    if payload[index] == 0:
+                        index += 5 + int.from_bytes(payload[index+1:index+5], "big")
+                    elif payload[index] == 1:
+                        stack.append(payload[index+1:index+33])
+                        index += 33
+                    else:
+                        index += 3
+            for orphan in nodes.keys() - reachable:
+                conn.execute("DELETE FROM s_evidence_nodes WHERE node_id=?", (orphan,))
+
     def test_full_projection_matches_existing_six_family_projection(self):
         proof = self.reader.capture_verified()
         with closing(reader.open_readonly(self.db)) as conn:
@@ -255,9 +303,13 @@ class QueryTests(unittest.TestCase):
     def test_unretained_batch_bytes_are_freshly_rechecked_after_external_change(self):
         proof = self.reader.capture_verified()
         self.assertIs(self.reader.cached, proof)
-        self.mutate("UPDATE batches SET canonical_bytes=? WHERE batch_id=(SELECT batch_id FROM batches LIMIT 1)",
-                    (b"{}",))
-        with self.assertRaisesRegex(ValueError, "batch"):
+        # 图域下替换目标 batch 根的展开字节为 b"{}"，内容地址/长度/摘要自洽，但保留公开 batch_id
+        with closing(sqlite3.connect(self.db)) as conn:
+            batch_id = conn.execute("SELECT batch_id FROM batches LIMIT 1").fetchone()[0]
+            root_key = "batch/" + batch_id
+        self.replace_graph_root_bytes(root_key, b"{}")
+        # 应到达 `:541-552` 的身份门：证据图根展开字节与公开批次身份不符
+        with self.assertRaisesRegex(ValueError, "证据图根展开字节与公开批次身份不符"):
             self.reader.capture_verified()
         self.assertIsNone(self.reader.cached)
         self.assertFalse(self.reader.connection.in_transaction)
@@ -310,12 +362,12 @@ class QueryTests(unittest.TestCase):
 
     def test_changed_sealed_source_rebuilds_suffix_and_preserves_full_delta_order(self):
         self.reader.capture_verified()
-        with closing(reader.open_readonly(self.db)) as conn:
-            delta = audit.parse_json(conn.execute("SELECT delta_json FROM structure_deltas WHERE generation=3").fetchone()[0])
+        # 图域下从私有根读第 3 代 delta，反转 witnesses，加 source_extension
+        delta = audit.parse_json(self.graph_root_bytes("delta/3").decode("utf-8"))
         self.assertGreater(len(delta["witnesses"]), 1)
         delta["witnesses"].reverse()
         delta["source_extension"] = {"preserved": ["all", "fields"]}
-        self.mutate("UPDATE structure_deltas SET delta_json=? WHERE generation=3", (audit.canonical(delta).decode(),))
+        self.replace_graph_root_bytes("delta/3", audit.canonical(delta))
         changed = self.reader.capture_verified()
         self.assertEqual((changed["_audit_memo"]["hits"], changed["_audit_memo"]["misses"]), (2, 2))
         full_reader = query.AuditReader(self.db, resources(), vars(reader), use_memo=False)
@@ -328,20 +380,20 @@ class QueryTests(unittest.TestCase):
 
     def test_memo_rejects_duplicate_json_key_after_source_change(self):
         self.reader.capture_verified()
-        self.mutate("UPDATE structure_deltas SET delta_json=? WHERE generation=3", ('{"generation":"3","generation":"3"}',))
-        with self.assertRaises(ValueError):
+        # 图内写入带重复键的文本，应到达重复键门
+        self.replace_graph_root_bytes("delta/3", '{"generation":"3","generation":"3"}')
+        with self.assertRaisesRegex(ValueError, "持久 JSON 含重复键"):
             self.reader.capture_verified()
         self.assertEqual(self.reader.memo, {})
 
     def test_encoded_delta_certificate_preserves_exact_digest_after_text_change(self):
         initial = self.reader.capture_verified()
         original_digest = initial["capture_digest"]
-        with closing(reader.open_readonly(self.db)) as conn:
-            source = conn.execute("SELECT delta_json FROM structure_deltas WHERE generation=3").fetchone()[0]
-        delta = audit.parse_json(source)
+        # 图域下从私有根读第 3 代原件；写回精确文本（含空白/转义），不重新 canonical 化。
+        delta = audit.parse_json(self.graph_root_bytes("delta/3").decode("utf-8"))
         delta["source_extension"] = {"escaped": "引号\"反斜线\\换行\n制表\t控制\x00"}
         changed_source = " \n" + audit.canonical(delta).decode() + "\n "
-        self.mutate("UPDATE structure_deltas SET delta_json=? WHERE generation=3", (changed_source,))
+        self.replace_graph_root_bytes("delta/3", changed_source)
         later = self.reader.capture_verified()
         self.assertEqual((later["_audit_memo"]["hits"], later["_audit_memo"]["misses"]), (2, 2))
         self.assertNotEqual(later["capture_digest"], original_digest)
