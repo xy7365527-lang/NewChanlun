@@ -553,6 +553,22 @@ pub(super) fn read_indexed_history_with_policy<'a>(
     result
 }
 
+struct VerifiedManifestRoots<'a, 'tx> {
+    transaction: &'a Transaction<'tx>,
+    roots: &'a [RefValue],
+}
+
+/// 只由完整历史审计构造，源借用与两个已覆盖子根一起交给唯一 manifest 构造器。
+pub(crate) struct VerifiedManifestAssembly<'a, 'source> {
+    source: &'a mut HashReader<'source>,
+    templates: [NodeDigest; 2],
+}
+impl<'a, 'source> VerifiedManifestAssembly<'a, 'source> {
+    pub(crate) fn into_parts(self) -> (&'a mut HashReader<'source>, [NodeDigest; 2]) {
+        (self.source, self.templates)
+    }
+}
+
 fn read_indexed_history_inner(
     tx: &Transaction<'_>,
     raw: RawEventsView<'_>,
@@ -664,6 +680,10 @@ fn read_indexed_history_inner(
             sc::Mode::Template,
         )
         .map_err(err)?;
+    let verified_templates = VerifiedManifestRoots {
+        transaction: tx,
+        roots: &template_roots,
+    };
     // 原始当前capture闭包全核之后才创建；仅本次历史循环持有，跨请求/阶段重建。
     let mut object_sweep = objects.native_sweep_admitted(&store)?;
     let publication_memo = content_publication::NativePublicationMemo::new(&store);
@@ -678,6 +698,7 @@ fn read_indexed_history_inner(
     while let Some(mut row) = stmt.next().map_err(err)? {
         let cut = audit_one_published_cut(
             tx,
+            &verified_templates,
             &mut row,
             &mut store,
             raw,
@@ -747,6 +768,7 @@ fn read_indexed_history_inner(
 /// 返回成功之前不改变已核前沿，派生根仍须由调用方统一核 Public 闭包。
 fn audit_one_published_cut<'capture>(
     tx: &Transaction<'_>,
+    verified_templates: &VerifiedManifestRoots<'_, '_>,
     row: &mut newchan_rust::sqlite_checked::CheckedRow<'_>,
     store: &mut HashReader<'capture>,
     raw: RawEventsView<'_>,
@@ -783,7 +805,29 @@ fn audit_one_published_cut<'capture>(
     #[cfg(test)]
     super::state::trace_event("history_assemble_manifest", Some(generation));
     // 重用唯一 manifest 构造/跨根判据；写口仅计算摘要，不写 SQLite。
-    let mut assembly = super::audit_store::StoreView::for_audit(store);
+    let manifest_digest = manifest.view().digest().map_err(err)?;
+    if !std::ptr::eq(tx, verified_templates.transaction)
+        || !verified_templates.roots.iter().any(|root| {
+            root.view().digest().ok() == Some(manifest_digest)
+        })
+    {
+        return Err(err("manifest不属于当前完整Template审计"));
+    }
+    let templates = [
+        roots.publication_template.view().digest().map_err(err)?,
+        roots.delta_template.view().digest().map_err(err)?,
+    ];
+    let mut assembly = if store.owned.is_none()
+        && store.work.is_none()
+        && matches!(store.source, ReadOwner::Dynamic(_))
+    {
+        super::audit_store::StoreView::for_verified_manifest(VerifiedManifestAssembly {
+            source: store,
+            templates,
+        })
+    } else {
+        super::audit_store::StoreView::for_audit(store)
+    };
     let (value, batch_rebuilt) = match assembly.allocation_budget() {
         #[cfg(feature = "s_allocation_json_testonly")]
         Some(_) => {
@@ -7342,5 +7386,84 @@ mod native_reader_owner_tests {
         assert!(budget.live() > baseline);
         drop(parsed);
         assert_eq!(budget.live(), baseline);
+    }
+}
+
+#[cfg(test)]
+mod manifest_template_coverage_tests {
+    use super::*;
+    use std::{cell::Cell, rc::Rc};
+
+    struct Counted {
+        nodes: sc::MemoryNodes,
+        reads: Rc<Cell<usize>>,
+    }
+    impl NodeSource for Counted {
+        fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, sc::CodecError> {
+            self.reads.set(self.reads.get() + 1);
+            self.nodes.read(digest)
+        }
+    }
+
+    #[test]
+    fn manifest_template_coverage_rechecks_headers_and_preserves_public() {
+        let mut nodes = sc::MemoryNodes::new();
+        let template = sc::write_template(
+            &mut nodes,
+            &V::Array(vec![V::BatchSelf, V::String("payload".repeat(100))]),
+        ).unwrap().content_ref();
+        let manifest = sc::write_template(
+            &mut nodes,
+            &V::Object(vec![("publication_template".into(), V::Edge(template.digest().unwrap()))]),
+        ).unwrap().content_ref();
+        let reads = Rc::new(Cell::new(0));
+        let mut source = Counted { nodes, reads: reads.clone() };
+        let mut reader = HashReader::new(&mut source);
+        reader.verify_ref((&manifest).into(), sc::Mode::Template).unwrap();
+        let before = reads.get();
+        reader.verify_many_ref([(&template).into(), (&template).into()], sc::Mode::Template).unwrap();
+        let full_reads = reads.get() - before;
+        let before = reads.get();
+        {
+            let digest = template.digest().unwrap();
+            let mut covered = super::super::audit_store::StoreView::for_verified_manifest(
+                VerifiedManifestAssembly { source: &mut reader, templates: [digest; 2] },
+            );
+            covered.verify_manifest_templates([(&template).into(), (&template).into()]).unwrap();
+            assert_eq!(reads.get() - before, 2);
+            assert!(full_reads > 2);
+            let mut wrong = template.clone();
+            wrong.extent = Some(999);
+            assert_eq!(covered.verify_manifest_templates([(&wrong).into(), (&template).into()]).unwrap_err().code(), sc::code::EXTENT);
+            wrong = template.clone();
+            wrong.kind = Kind::Object;
+            assert_eq!(covered.verify_manifest_templates([(&wrong).into(), (&template).into()]).unwrap_err().code(), sc::code::KIND);
+            assert_eq!(covered.verify_ref((&template).into(), sc::Mode::Public).unwrap_err().code(), sc::code::TEMPLATE_PLACEHOLDER);
+        }
+        let before = reads.get();
+        reader.verify_many_ref([(&template).into(), (&template).into()], sc::Mode::Template).unwrap();
+        assert_eq!(reads.get() - before, full_reads, "覆盖只活在当前manifest构造借用内");
+    }
+
+    #[test]
+    fn manifest_template_coverage_cannot_cover_another_root_or_hide_source_error() {
+        let mut nodes = sc::MemoryNodes::new();
+        let template = sc::write_template(&mut nodes, &V::Array(vec![V::BatchSelf])).unwrap().content_ref();
+        let other = sc::write_value(&mut nodes, &V::Bool(true)).unwrap().content_ref();
+        let digest = template.digest().unwrap();
+        let mut reader = HashReader::new(&mut nodes);
+        reader.verify_ref((&template).into(), sc::Mode::Template).unwrap();
+        let mut covered = super::super::audit_store::StoreView::for_verified_manifest(
+            VerifiedManifestAssembly { source: &mut reader, templates: [digest; 2] },
+        );
+        assert_eq!(covered.verify_manifest_templates([(&other).into(), (&template).into()]).unwrap_err().code(), sc::code::SOURCE);
+        drop(covered);
+        drop(reader);
+        nodes.insert_unchecked(digest, sc::tag::ARRAY, vec![0]);
+        let mut reader = HashReader::new(&mut nodes);
+        let mut covered = super::super::audit_store::StoreView::for_verified_manifest(
+            VerifiedManifestAssembly { source: &mut reader, templates: [digest; 2] },
+        );
+        assert_eq!(covered.verify_manifest_templates([(&template).into(), (&template).into()]).unwrap_err().code(), sc::code::NODE_DIGEST);
     }
 }

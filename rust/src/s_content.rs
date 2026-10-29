@@ -5924,6 +5924,14 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
         &mut self,
         reference: RefView<'_>,
     ) -> Result<(NodeDigest, Kind, Option<u64>), CodecError> {
+        let header = self.verify_refview_header(reference)?;
+        self.run(&header.0)?;
+        Ok(header)
+    }
+    fn verify_refview_header(
+        &mut self,
+        reference: RefView<'_>,
+    ) -> Result<(NodeDigest, Kind, Option<u64>), CodecError> {
         let digest = reference.digest()?;
         let (t, body) = self.read_node(&digest)?;
         let kind = Kind::from_tag(t).ok_or_else(|| unsupported_value_tag_error(t))?;
@@ -5948,7 +5956,6 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
                 ),
             ));
         }
-        self.run(&digest)?;
         Ok((digest, kind, extent))
     }
 
@@ -7881,6 +7888,23 @@ pub fn render_refview(
     out: &mut dyn Write,
 ) -> Result<(), CodecError> {
     render_refview_ctx(CodecContext::Source(source), r, out)
+}
+
+/// 仅重核每个根的声明与真实帧。调用方必须已在同一不可变读集核过完整闭包。
+#[doc(hidden)]
+pub fn audit_verify_refview_headers<'a>(
+    source: &mut dyn NodeSource,
+    refs: impl IntoIterator<Item = RefView<'a>>,
+) -> Result<(), CodecError> {
+    let mut verifier = Verifier::new(source, Mode::Template);
+    for reference in refs {
+        let result = verifier.verify_refview_header(reference);
+        if let Some(work) = &verifier.work {
+            work.observe(&result);
+        }
+        result?;
+    }
+    Ok(())
 }
 
 #[doc(hidden)]

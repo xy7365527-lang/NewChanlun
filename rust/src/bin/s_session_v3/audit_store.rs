@@ -424,6 +424,12 @@ pub(crate) trait CodecRead: NodeSource {
     ) -> Result<(), CodecError> {
         sc::audit_verify_many_refview(self.generic_source(), refs, mode)
     }
+    fn verify_manifest_templates(
+        &mut self,
+        refs: [sc::RefView<'_>; 2],
+    ) -> Result<(), CodecError> {
+        self.verify_many_ref(refs, sc::Mode::Template)
+    }
     fn verify_many_ref_fresh<'a>(
         &mut self,
         refs: impl IntoIterator<Item = sc::RefView<'a>>,
@@ -664,16 +670,28 @@ enum Backend<'a, 'source> {
 /// 字段及Backend私有；不能把任意dyn store和另一份capture拼成一条准入路径。
 pub(crate) struct StoreView<'a, 'source> {
     backend: Backend<'a, 'source>,
+    manifest_templates: Option<[NodeDigest; 2]>,
 }
 impl<'a, 'source> StoreView<'a, 'source> {
     pub(crate) fn generic(s: &'a mut dyn NodeStore) -> Self {
         Self {
             backend: Backend::Generic(s),
+            manifest_templates: None,
         }
     }
     pub(crate) fn for_audit(s: &'a mut HashReader<'source>) -> Self {
         Self {
             backend: Backend::Audit(s),
+            manifest_templates: None,
+        }
+    }
+    pub(crate) fn for_verified_manifest(
+        assembly: super::history::VerifiedManifestAssembly<'a, 'source>,
+    ) -> Self {
+        let (source, templates) = assembly.into_parts();
+        Self {
+            backend: Backend::Audit(source),
+            manifest_templates: Some(templates),
         }
     }
     fn store(&mut self) -> &mut dyn NodeStore {
@@ -757,6 +775,18 @@ impl CodecRead for StoreView<'_, '_> {
             Backend::Generic(s) => s.verify_many_ref(r, m),
             Backend::Audit(s) => s.verify_many_ref(r, m),
         }
+    }
+    fn verify_manifest_templates(
+        &mut self,
+        refs: [sc::RefView<'_>; 2],
+    ) -> Result<(), CodecError> {
+        if let Some(expected) = self.manifest_templates {
+            if [refs[0].digest()?, refs[1].digest()?] != expected {
+                return Err(CodecError::new(sc::code::SOURCE, "manifest模板覆盖根不匹配"));
+            }
+            return sc::audit_verify_refview_headers(self, refs);
+        }
+        self.verify_many_ref(refs, sc::Mode::Template)
     }
     fn verify_many_ref_fresh<'a>(
         &mut self,

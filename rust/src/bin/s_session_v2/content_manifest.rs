@@ -1499,10 +1499,7 @@ fn assemble_manifest_body(
     store.verify_ref(roots.generated_state, s_content::Mode::Public)?;
     #[cfg(test)]
     crate::v3::diagnostic_trace_event("manifest_verify_templates", None);
-    store.verify_many_ref(
-        [roots.publication_template, roots.delta_template],
-        s_content::Mode::Template,
-    )?;
+    store.verify_manifest_templates([roots.publication_template, roots.delta_template])?;
     #[cfg(test)]
     crate::v3::diagnostic_trace_event("manifest_verify_complete", None);
     #[cfg(test)]
