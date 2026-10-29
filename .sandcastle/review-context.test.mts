@@ -17,6 +17,7 @@ import {
   type GitRunner,
   hostGit,
   prepareReviewPrompt,
+  prepareFinalReviewPrompt,
   recordReviewerRunFailure,
   renderTemplate,
   resolveReviewBase,
@@ -461,4 +462,44 @@ test("N3：fetch 持续失败 → 指数退避重试后 FAIL-loud（经 runGuard
   assert.deepEqual(sleeps, [10, 20]);
   assert.equal(m.logged.length, 1);
   assert.equal(m.logged[0]!.reason, "prepare_error");
+});
+
+
+test("#1617 最终提示恰好 60000 tokens：完整原文保留、不通知", () => {
+  const m = mockChannels();
+  const prompt = "x".repeat(REVIEW_PROMPT_MAX_TOKENS * 4);
+  const built = prepareFinalReviewPrompt(prompt, "exact-base", { issue: 1617, branch: BRANCH }, m.channels);
+  assert.equal(built.estimatedTokens, 60_000);
+  assert.equal(built.prompt, prompt);
+  assert.equal(built.base, "exact-base");
+  assert.equal(m.logged.length, 0);
+  assert.equal(m.notified.length, 0);
+});
+
+test("#1617 最终诊断超限：只记一次失败，不启动工蜂、不截正文", async () => {
+  const m = mockChannels();
+  let started = false;
+  const basePrompt = "x".repeat(59_900 * 4);
+  const finalPrompt = basePrompt + "\n本次评审必须读取精确候选 commit " + "a".repeat(40) + "\n" + "e".repeat(24_000);
+  assert.ok(estimateTokens(basePrompt) < REVIEW_PROMPT_MAX_TOKENS);
+  assert.ok(estimateTokens(finalPrompt) > REVIEW_PROMPT_MAX_TOKENS);
+  await assert.rejects(runGuardedReview(guardedOpts(), m.channels, async () => {
+    prepareFinalReviewPrompt(finalPrompt, "base", { issue: 1617, branch: BRANCH }, m.channels);
+    started = true;
+  }), ReviewPromptTooLargeError);
+  assert.equal(started, false);
+  assert.deepEqual(m.logged.map(e => e.reason), ["prompt_too_large"]);
+  assert.equal(m.logged[0]!.chars, finalPrompt.length);
+  assert.equal(m.logged[0]!.est_tokens, estimateTokens(finalPrompt));
+  assert.equal(m.notified.length, 1);
+});
+
+test("#1617 后续修复轮诊断增大时重新计量，上一轮通过不豁免", () => {
+  const m = mockChannels();
+  const opts = { issue: 1617, branch: BRANCH };
+  const base = "x".repeat(59_900 * 4);
+  prepareFinalReviewPrompt(base + "first head", "base", opts, m.channels);
+  assert.throws(() => prepareFinalReviewPrompt(base + "next head" + "e".repeat(24_000), "base", opts, m.channels), ReviewPromptTooLargeError);
+  assert.equal(m.logged.length, 1);
+  assert.equal(m.notified.length, 1);
 });
