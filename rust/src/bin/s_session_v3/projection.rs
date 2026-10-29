@@ -1063,7 +1063,7 @@ mod tests {
     #[test]
     fn w_published_lifecycle_first_known_revision_replaces_and_recovery() {
         let mut f = Fixture::with_clock_plan(8, 4, &[("recover-w", 35)]);
-        let mut waiting = Vec::new();
+        let mut waiting: Vec<Value> = Vec::new();
         let mut historical = Vec::new();
         for (n, row, revision) in [
             (1, ("w0", 0, 5, 10, 0, 5), 1),
