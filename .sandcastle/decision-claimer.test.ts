@@ -1746,6 +1746,55 @@ test("F2 commit 后与 push 回执前中断复用同一 SHA，单次提交与 re
   }
 });
 
+for (const window of ["commit-return", "push-before", "push-return"] as const)
+for (const operation of ["create", "edit"] as const)
+for (const drift of [true, false])
+test(`F2 恢复目标漂移 ${window}/${operation}/${drift ? "同目标" : "无关 main"}`, async () => {
+  const path = "CONTEXT.md";
+  const edit = operation === "create" ? createEdit(path, "新义\n") : reviseEdit(path, "旧义", "新义");
+  const h = liveDeps([fence({ class: "T", reason: "r" }), exactDraft(edit, path), fence(pass())]);
+  if (operation === "edit") seedCanonical(h, path, "旧义\n");
+  const git = h.d.git;
+  let interrupted = false;
+  h.d.git = (cwd, args) => {
+    if (!interrupted && window === "push-before" && args[0] === "push") {
+      interrupted = true;
+      throw new Error("push 前中断");
+    }
+    const result = git(cwd, args);
+    if (!interrupted && ((window === "commit-return" && args[0] === "commit") || (window === "push-return" && args[0] === "push"))) {
+      interrupted = true;
+      throw new Error("副作用完成，回执前中断");
+    }
+    return result;
+  };
+  const first = await processTicket(1565, h.d);
+  assert.equal(first.phase, "error");
+  assert.equal(first.stage, "reviewed_pass");
+  assert.equal(!!first.committedSha, window !== "commit-return");
+  const sha = git(h.d.repoRoot, ["rev-parse", "refs/heads/decision/1565"]).trim();
+  seedCanonical(h, drift ? path : "seed", drift ? "他人新义\n" : "无关前进\n");
+  h.gitCalls.length = 0;
+  h.modelCalls.length = 0;
+  const second = await processTicket(1565, h.d);
+  const refused = drift && window !== "push-return";
+  assert.equal(second.phase, refused ? "error" : "land_t", second.error ?? "");
+  assert.equal(h.modelCalls.length, 0);
+  assert.equal(h.gitCalls.filter(a => a[0] === "commit").length, 0);
+  assert.equal(git(h.d.repoRoot, ["rev-parse", "refs/heads/decision/1565"]).trim(), sha);
+  const remote = git(h.d.repoRoot, ["ls-remote", FETCH_URL, "refs/heads/decision/1565"]).trim().split(/\s+/)[0];
+  assert.equal(remote, refused ? "" : sha);
+  assert.equal(h.gitCalls.filter(a => a[0] === "push").length, refused || window === "push-return" ? 0 : 1);
+  assert.equal(h.comments.filter(c => c.body.startsWith(AUTH_LINE)).length, refused ? 0 : 1);
+  if (refused) {
+    assert.match(second.error ?? "", /目标原件已漂移.*重新起草和独审/);
+    assert.equal(second.stage, "reviewed_pass");
+    assert.equal(second.landedSha, undefined);
+    const saved = JSON.parse(readFileSync(join(h.d.outRoot, "1565", "summary.json"), "utf8"));
+    assert.equal(saved.stage, "reviewed_pass");
+  }
+});
+
 test("F2 旧未推送 PASS 显式要求迁移，已 landedSha 的旧断点只补评论", async () => {
   for (const landed of [false, true]) {
     const h = liveDeps([]);
