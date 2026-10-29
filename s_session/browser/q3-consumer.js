@@ -6,10 +6,11 @@
     common ? require("./q3-typed.js") : root.Q3Typed,
     common ? require("./s-content-job-v3.js") : root.SContentJobV3,
     common ? require("./s-content-v3.js") : root.SContentV3,
+    common ? require("./q3-byte-plan.js") : root.Q3BytePlan,
   );
   if (common) module.exports = build;
   else root.Q3Consumer = build;
-})(globalThis, function (V, typed, jobs, content) {
+})(globalThis, function (V, typed, jobs, content, bytePlan) {
   "use strict";
   const {
     of,
@@ -1678,6 +1679,7 @@
         onCommit = () => {},
         limits,
         allocation,
+        byteDeployment = null,
         clock = () => Math.floor(performance.now()),
       }) {
         need(
@@ -1685,6 +1687,7 @@
           "缺网络读取能力",
         );
         this.fetch = fetcher || globalThis.fetch.bind(globalThis);
+        this.byteDeployment = byteDeployment;
         this.hooks = hooks;
         this.onCommit = onCommit;
         this.limits = jobs.validateConfig(limits);
@@ -1823,7 +1826,7 @@
         b.job.reconcile(grant, actual.allocated_bytes);
         this.check(b);
       }
-      async request(identity, payload, b) {
+      async request(identity, payload, b, reservedSerial = null, fetcher = this.fetch) {
         this.check(b);
         identity = Object.freeze(smallIdentity(identity));
         payload = api.parse(api.canonical(payload));
@@ -1833,18 +1836,9 @@
         );
         await I(identity.session_generation, true);
         b.job.beginFirstRead();
-        const request = {
-          schema_revision: "s-session/3",
-          ...smallIdentity(identity),
-          source_namespace: "s-observe/browser",
-          source_epoch: this.instance,
-          message_id: "query-" + (++this.serial).toString(),
-          producer_id: "browser:" + this.instance,
-          producer_epoch: "1",
-          payload_hash: await api.sha256(payload),
-          causal_refs: [],
-          payload,
-        };
+        const serial = reservedSerial ?? ++this.serial;
+        const request = bytePlan.requestEnvelope(smallIdentity(identity), payload,
+          this.instance, serial, await api.sha256(payload));
         this.check(b);
         const body = api.canonical(request),
           abort = new AbortController(),
@@ -1856,7 +1850,7 @@
           let pendingResponse, launchError;
           try {
             pendingResponse = Promise.resolve(
-              this.fetch("/api/v3/" + payload.op, {
+              fetcher("/api/v3/" + payload.op, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body,
@@ -2032,6 +2026,27 @@
         );
         this.check(b);
       }
+      chooseBytes(input, identity, b) {
+        this.check(b);
+        let deployment, plan;
+        try {
+          deployment = this.byteDeployment?.snapshot({fetch: this.fetch, ready: b.ready, identity});
+          plan = bytePlan.choose({...input, identity: smallIdentity(identity), instance: this.instance,
+            serial: this.serial, pageSize: this.limits.pageSize, replyBytes: this.limits.replyBytes,
+            maxRequests: this.limits.job_limits.max_total_requests, deployment});
+        } catch { return null; }
+        if (!plan) return null;
+        let serial = this.serial;
+        const fetcher = this.fetch;
+        this.serial = plan.serialEnd;
+        return {limit: plan.limit, request: async payload => {
+          need(++serial <= plan.serialEnd, "bytes证书请求区间已用完");
+          const reply = await this.request(identity, payload, b, serial, fetcher);
+          need(sameIdentity(reply, identity), "片段会话化身不同");
+          need(reply.producer_epoch === b.ready.producer_epoch, "bytes部署纪元已变化");
+          return reply.payload;
+        }};
+      }
       reader(anchor, identity, b) {
         content.validateAnchor(anchor);
         const r = new V.Reader({
@@ -2049,6 +2064,7 @@
           },
           store: (n) => this.store(n, b),
           limit: this.limits.pageSize,
+          chooseBytes: this.byteDeployment ? input => this.chooseBytes(input, identity, b) : null,
         });
         b.readers.push(r);
         return r;
@@ -2465,6 +2481,7 @@
           await T(ready.cut.catalog_revision);
           if (ready.cut.generation !== "0") batch(ready.cut.index_frontier);
           this.check(b);
+          b.ready = ready;
           return ready;
         } finally {
           clearTimeout(timer);

@@ -1897,7 +1897,7 @@ if (typeof module !== 'object' || !module.exports) {
   return Object.freeze({LIMIT_FIELDS, parseLimits, validateConfig, Job});
 });
 
-/* exact source q3-values.js SHA256 2d881fd06f538218ac73291fde4ba6ea0bb5679ba8480c6c6f047e2e3f84fe4e */
+/* exact source q3-values.js SHA256 476282a3c97272082ac861c68f17f347a260bbb73c0d44461b14ed38b7b6e170 */
 /* #1394：现有 Q3 消费者的私有值访问器。普通值与图值共用字段/位置遍历。 */
 (function (root, factory) {
   const common = typeof module === "object" && module.exports;
@@ -2400,7 +2400,9 @@ if (typeof module !== 'object' || !module.exports) {
     return prefix + F(tag, unhex(await valueHash(v)));
   }
   class Reader {
-    constructor({ anchor, request, check, accept, store, limit }) {
+    #bounds = new WeakMap();
+    constructor({ anchor, request, check, accept, store, limit, chooseBytes }) {
+      this.chooseBytes = chooseBytes;
       this.anchor = anchor;
       this.request = request;
       this.check = check;
@@ -2416,7 +2418,9 @@ if (typeof module !== 'object' || !module.exports) {
         : this.anchor.delta_ref;
     }
     value(ref, path = []) {
-      return new Value(undefined, this, content.validateRef(ref), path);
+      const value = new Value(undefined, this, content.validateRef(ref), path);
+      if (path.length === 0) this.#bounds.set(value, []);
+      return value;
     }
     async load(v) {
       this.check();
@@ -2440,7 +2444,10 @@ if (typeof module !== 'object' || !module.exports) {
           : ["string", "number"].includes(ref.kind)
             ? "bytes"
             : "value";
-      const size = unit === "value" ? "1" : String(this.limit);
+      const plan = unit === "bytes" && this.chooseBytes
+        ? this.chooseBytes({anchor: this.anchor, path: v.path, target: ref, parents: this.#bounds.get(v)})
+        : null;
+      const size = plan ? plan.limit : unit === "value" ? "1" : String(this.limit);
       let request = {
           op: "content",
           anchor: this.anchor,
@@ -2454,7 +2461,7 @@ if (typeof module !== 'object' || !module.exports) {
         graphs = [];
       do {
         this.check();
-        const reply = await this.request(request);
+        const reply = await (plan ? plan.request(request) : this.request(request));
         this.check();
         const proof = await content.verifyRange(request, reply, {
           previousToken: last === null ? undefined : last,
@@ -2493,8 +2500,22 @@ if (typeof module !== 'object' || !module.exports) {
       this.check();
       return { items, graphs };
     }
+    child(v, ref, step, parent) {
+      const child = this.value(ref, [...v.path, step]), bounds = this.#bounds.get(v);
+      if (bounds && parent) this.#bounds.set(child, [...bounds, parent]);
+      return child;
+    }
     async *entries(v) {
       const loaded = await this.load(v);
+      let parent = null;
+      if (this.chooseBytes) {
+        parent = {kind: v.ref.kind, n: v.ref.extent, K: 0n};
+        if (v.ref.kind === "object")
+          for (const item of loaded.items) {
+            const length = BigInt(utf8(item.key).length);
+            if (length > parent.K) parent.K = length;
+          }
+      }
       this.check();
       let i = 0n,
         previous = null;
@@ -2508,11 +2529,11 @@ if (typeof module !== 'object' || !module.exports) {
           previous = item.key;
           yield {
             key: item.key,
-            value: this.value(item.value_ref, [...v.path, { field: item.key }]),
+            value: this.child(v, item.value_ref, { field: item.key }, parent),
           };
         } else
           yield {
-            value: this.value(item, [...v.path, { index: (i++).toString() }]),
+            value: this.child(v, item, { index: (i++).toString() }, parent),
           };
       }
       need(
@@ -2542,7 +2563,7 @@ if (typeof module !== 'object' || !module.exports) {
     async inner(v) {
       need(v.kind === "json_text", "json_text角色错误");
       const loaded = await this.load(v);
-      return this.value(loaded.items[0], [...v.path, { json_text: true }]);
+      return this.child(v, loaded.items[0], { json_text: true }, {kind: "json_text"});
     }
     async complete(v) {
       v = of(v);
@@ -3304,7 +3325,100 @@ if (typeof module !== 'object' || !module.exports) {
     TB02_KINDS: Object.freeze(TB02_KINDS), BI_KINDS, SEGMENT_KINDS: Object.freeze(SEGMENT_KINDS)});
 });
 
-/* exact source q3-consumer.js SHA256 c1a9eefdc4b94f433f2dad0094fa478327718374d271505f8817c39655be6369 */
+/* exact source q3-byte-plan.js SHA256 7c408c048f3bb43c033a0e568a5f2ab8b91aac365ad3696cf394872e59a079e8 */
+/* #1789：受控部署的单次 bytes 尺寸证书，不参与内容准入。 */
+(function (root, factory) {
+  const common = typeof module === "object" && module.exports;
+  const api = factory(common ? require("./s-content-v3.js") : root.SContentV3);
+  if (common) module.exports = api;
+  else root.Q3BytePlan = api;
+})(globalThis, function (content) {
+  "use strict";
+  const MAX = (1n << 63n) - 1n, BLOCK = 4096n, ZERO = "0".repeat(64);
+  const min = (a, b) => a < b ? a : b;
+  const ceil = (a, b) => (a + b - 1n) / b;
+  const height = n => n <= 1n ? 0n : BigInt((n - 1n).toString(2).length);
+  const size = v => BigInt(new TextEncoder().encode(content.canonicalJSON(v)).length);
+  const weight = bytes => 105n + 2n * bytes;
+  function requestEnvelope(identity, payload, instance, serial, hash) {
+    return {schema_revision: "s-session/3", ...identity,
+      source_namespace: "s-observe/browser", source_epoch: instance,
+      message_id: "query-" + serial, producer_id: "browser:" + instance,
+      producer_epoch: "1", payload_hash: hash, causal_refs: [], payload};
+  }
+  function token(anchor, path, target, offset, limit) {
+    return {token_schema: "s-content-token/1", anchor, path, target_ref: target,
+      unit: "bytes", offset: String(offset), limit: String(limit),
+      issued_capture_digest: ZERO, token_checksum: ZERO};
+  }
+  function keyBound(k) {
+    const n = ceil(k, BLOCK);
+    return weight(40n) + (n === 0n ? weight(0n) :
+      (n - 1n) * weight(72n) + n * weight(32n) + n * weight(0n) + 2n * k);
+  }
+  function pathBound(parents) {
+    let sum = weight(40n);
+    for (const parent of parents) {
+      sum += weight(40n);
+      if (parent.kind === "json_text") continue;
+      const n = BigInt(parent.n), h = height(n);
+      if (n < 1n) return null;
+      if (parent.kind === "array") sum += min(2n * n - 1n, 2n * h + 1n) * weight(72n);
+      else if (parent.kind === "object") {
+        sum += min(2n * n - 1n, (2n * h + 1n) ** 2n) * weight(72n);
+        sum += min(n, 2n * h + 1n) * (weight(64n) + keyBound(BigInt(parent.K)));
+      } else return null;
+    }
+    return sum;
+  }
+  function choose({anchor, path, target, parents, identity, instance, serial,
+    pageSize, replyBytes, maxRequests, deployment}) {
+    if (!deployment || !parents || parents.length !== path.length) return null;
+    const E = BigInt(target.extent), base = BigInt(pageSize),
+      cap = min(BigInt(replyBytes), BigInt(deployment.replyBytes)),
+      maxSerial = serial + BigInt(maxRequests), P = pathBound(parents);
+    if (P === null || cap < 1n) return null;
+    const payload = {anchor, path, target_ref: target, unit: "bytes",
+      offset: String(E), end: String(E), total: target.extent, items: "", nodes: [],
+      done: false, next_token: token(anchor, path, target, E, MAX),
+      validated_capture_digest: ZERO, ok: true};
+    const F = size({schema_revision: "s-session/3", ...identity,
+      source_namespace: "s-observe/replies", source_epoch: String(MAX),
+      message_id: "reply-" + ZERO, producer_id: "Q:" + identity.session_id,
+      producer_epoch: String(MAX), payload_hash: ZERO,
+      causal_refs: [{source_namespace: "s-observe/browser", source_epoch: instance,
+        message_id: "query-" + maxSerial, payload_hash: ZERO}], payload});
+    const N = ceil(E, BLOCK), h = height(N);
+    const upper = E === 0n ? 1n : min(E, MAX - E);
+    const bound = L => {
+      const m = N === 0n ? 0n : min(N, ceil(L + BLOCK - 1n, BLOCK));
+      return F + P + (N === 0n ? weight(0n) :
+        min(2n * N - 1n, 3n + m * (2n * h + 1n)) * weight(72n)) +
+        m * weight(min(E, BLOCK)) + 2n * L;
+    };
+    if (upper <= base || bound(base + 1n) > cap) return null;
+    let lo = base + 1n, hi = upper;
+    while (lo < hi) {
+      const mid = (lo + hi + 1n) / 2n;
+      if (bound(mid) <= cap) lo = mid;
+      else hi = mid - 1n;
+    }
+    const count = E === 0n ? 1n : ceil(E, lo);
+    if (count > BigInt(maxRequests)) return null;
+    const initial = {op: "content", anchor, path, unit: "bytes", offset: "0", limit: String(lo)};
+    const frame = (p, s) => deployment.frameBytes(size(requestEnvelope(identity, p, instance, s, ZERO)));
+    let frameMax = frame(initial, serial + 1n);
+    if (count > 1n) {
+      const last = frame({op: "content", content_token: token(anchor, path, target, (count - 1n) * lo, lo)}, serial + count);
+      if (last > frameMax) frameMax = last;
+    }
+    if (typeof frameMax !== "bigint" || frameMax > BigInt(deployment.frameLimit)) return null;
+    return Object.freeze({limit: String(lo), count, serialEnd: serial + count, replyBound: bound(lo), frameMax});
+  }
+  return Object.freeze({choose, requestEnvelope});
+});
+
+/* exact source q3-consumer.js SHA256 476b91277e872b4ff19919ca9a4c7269bfd8d5cabde0fb0f6290b9acbfbcf32e */
 /* #1394：Q3完整消费者；只供既有tb01c页面调用，没有产品路由或默认资源。 */
 (function (root, factory) {
   const common = typeof module === "object" && module.exports;
@@ -3313,10 +3427,11 @@ if (typeof module !== 'object' || !module.exports) {
     common ? require("./q3-typed.js") : root.Q3Typed,
     common ? require("./s-content-job-v3.js") : root.SContentJobV3,
     common ? require("./s-content-v3.js") : root.SContentV3,
+    common ? require("./q3-byte-plan.js") : root.Q3BytePlan,
   );
   if (common) module.exports = build;
   else root.Q3Consumer = build;
-})(globalThis, function (V, typed, jobs, content) {
+})(globalThis, function (V, typed, jobs, content, bytePlan) {
   "use strict";
   const {
     of,
@@ -4985,6 +5100,7 @@ if (typeof module !== 'object' || !module.exports) {
         onCommit = () => {},
         limits,
         allocation,
+        byteDeployment = null,
         clock = () => Math.floor(performance.now()),
       }) {
         need(
@@ -4992,6 +5108,7 @@ if (typeof module !== 'object' || !module.exports) {
           "缺网络读取能力",
         );
         this.fetch = fetcher || globalThis.fetch.bind(globalThis);
+        this.byteDeployment = byteDeployment;
         this.hooks = hooks;
         this.onCommit = onCommit;
         this.limits = jobs.validateConfig(limits);
@@ -5130,7 +5247,7 @@ if (typeof module !== 'object' || !module.exports) {
         b.job.reconcile(grant, actual.allocated_bytes);
         this.check(b);
       }
-      async request(identity, payload, b) {
+      async request(identity, payload, b, reservedSerial = null, fetcher = this.fetch) {
         this.check(b);
         identity = Object.freeze(smallIdentity(identity));
         payload = api.parse(api.canonical(payload));
@@ -5140,18 +5257,9 @@ if (typeof module !== 'object' || !module.exports) {
         );
         await I(identity.session_generation, true);
         b.job.beginFirstRead();
-        const request = {
-          schema_revision: "s-session/3",
-          ...smallIdentity(identity),
-          source_namespace: "s-observe/browser",
-          source_epoch: this.instance,
-          message_id: "query-" + (++this.serial).toString(),
-          producer_id: "browser:" + this.instance,
-          producer_epoch: "1",
-          payload_hash: await api.sha256(payload),
-          causal_refs: [],
-          payload,
-        };
+        const serial = reservedSerial ?? ++this.serial;
+        const request = bytePlan.requestEnvelope(smallIdentity(identity), payload,
+          this.instance, serial, await api.sha256(payload));
         this.check(b);
         const body = api.canonical(request),
           abort = new AbortController(),
@@ -5163,7 +5271,7 @@ if (typeof module !== 'object' || !module.exports) {
           let pendingResponse, launchError;
           try {
             pendingResponse = Promise.resolve(
-              this.fetch("/api/v3/" + payload.op, {
+              fetcher("/api/v3/" + payload.op, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body,
@@ -5339,6 +5447,27 @@ if (typeof module !== 'object' || !module.exports) {
         );
         this.check(b);
       }
+      chooseBytes(input, identity, b) {
+        this.check(b);
+        let deployment, plan;
+        try {
+          deployment = this.byteDeployment?.snapshot({fetch: this.fetch, ready: b.ready, identity});
+          plan = bytePlan.choose({...input, identity: smallIdentity(identity), instance: this.instance,
+            serial: this.serial, pageSize: this.limits.pageSize, replyBytes: this.limits.replyBytes,
+            maxRequests: this.limits.job_limits.max_total_requests, deployment});
+        } catch { return null; }
+        if (!plan) return null;
+        let serial = this.serial;
+        const fetcher = this.fetch;
+        this.serial = plan.serialEnd;
+        return {limit: plan.limit, request: async payload => {
+          need(++serial <= plan.serialEnd, "bytes证书请求区间已用完");
+          const reply = await this.request(identity, payload, b, serial, fetcher);
+          need(sameIdentity(reply, identity), "片段会话化身不同");
+          need(reply.producer_epoch === b.ready.producer_epoch, "bytes部署纪元已变化");
+          return reply.payload;
+        }};
+      }
       reader(anchor, identity, b) {
         content.validateAnchor(anchor);
         const r = new V.Reader({
@@ -5356,6 +5485,7 @@ if (typeof module !== 'object' || !module.exports) {
           },
           store: (n) => this.store(n, b),
           limit: this.limits.pageSize,
+          chooseBytes: this.byteDeployment ? input => this.chooseBytes(input, identity, b) : null,
         });
         b.readers.push(r);
         return r;
@@ -5772,6 +5902,7 @@ if (typeof module !== 'object' || !module.exports) {
           await T(ready.cut.catalog_revision);
           if (ready.cut.generation !== "0") batch(ready.cut.index_frontier);
           this.check(b);
+          b.ready = ready;
           return ready;
         } finally {
           clearTimeout(timer);
