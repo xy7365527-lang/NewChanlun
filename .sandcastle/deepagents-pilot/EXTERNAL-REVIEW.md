@@ -16,7 +16,7 @@ export PYTHONPATH=.sandcastle/approval-signing:.sandcastle/deepagents-pilot
 
 审阅冻结 base、head 和 merge-base，范围为 `merge_base..head` 的完整修改，不只审最后一次提交。对象必须已在当前 controller 的本地对象库；缺失时返回 `needs_source_sync`，由原 owner 按其既有同步授权补齐。入口和 reviewer 都不 fetch。
 
-两位 reviewer 固定请求 `gpt-6.1-sol`、`claude-opus-5-5`，各自独立 clone、进程和新 session，不要求作者自报模型。模型字段记录 launcher 所选路由；实际上游模型身份仍须由独立路由证据确认。
+两位 reviewer 固定请求 `gpt-6.1-sol`、`claude-opus-5-5`，各自独立 checkout、进程和新 session，不要求作者自报模型。模型字段记录 launcher 所选路由；实际上游模型身份仍须由独立路由证据确认。
 
 ## 启用前完成部署验收
 
@@ -44,7 +44,7 @@ main 的 D5 检查启用由主控另行执行，保留已有保护。所需来�
   --pr <PR号> --attempt 2 --private-key <仓库外PEM绝对路径>
 ```
 
-新 run 接管同 head 状态后，旧 run 不能覆盖它。BLOCK 不会自动重试到 PASS。缺终态且监督进程不在时保留待处理状态，不自动重派；先核对本次 launch，再决定新 attempt。
+新 run 接管同 head 状态后，旧 run 不能覆盖它。BLOCK 不会自动重试到 PASS。已记录且确认退出的监督进程缺终态时记为 FAILED。launch 后尚无进程记录且未见终态，或 PID 身份不明时保留待处理状态，不自动重派；先核对本次 launch，再决定新 attempt。
 
 以下命令只读本机历史，不联网、不读凭据；其输出不代表当前远端 PR head：
 
@@ -81,7 +81,7 @@ prepare 前按导入对象未压缩大小、head 文件大小及 256 MiB 余量�
 
 宿主先保存 `prepare.json`，再构造 checkout。prepare 中断且尚无 launch 时，同键重跑只回收本 run 的未启动 checkout 并重建。`launch.json` 之后沿用原收养协议，不自动重复派工。监督在读取 launch、获取锁等启动阶段失败也保存失败终态。已记录的监督进程退出却未写终态时，controller 生成 FAILED 记录并发布 error，不永久停留在 pending。
 
-宿主在终态、进程结束且容器已确认关闭后回收本 run 创建的 checkout，证据目录保持不动。prepare intent 缺失、仍有活动进程、PID 身份不明或容器创建与关闭结果不明时保留 checkout，并记录 `checkout-cleanup.json`。同键重跑会再次尝试安全回收。旧版本没有 prepare intent 的 checkout 不自动回收。
+宿主在终态、进程结束且容器已确认关闭后回收本 run 创建的 checkout，证据目录保持不动。仍有活动进程、PID 身份不明或容器创建与关闭结果不明时保留 checkout，并记录 `checkout-cleanup.json`。同键重跑会再次尝试安全回收。旧版本没有 prepare intent 的 checkout 不自动回收。
 
 源码和 Git 全只读挂入容器。宿主 home、PEM、GitHub token、状态和 session 目录不挂入。session 从容器临时目录经 SDK 收取，不给 reviewer 可写宿主回执目录。
 
