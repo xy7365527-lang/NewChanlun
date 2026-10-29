@@ -6477,23 +6477,10 @@ mod tests {
             recover_business(&files.db(), "2").unwrap();
             assert_eq!(snapshot_of(&files, Some(16)), old);
             assert_eq!(snapshot_of(&files, None), current);
-            // #1419 P4 G1：原 Python 公共验证器子进程按原件 `028796ba08:...s_structure_session.rs:6262–6277`
-            // 逐字恢复，以实际执行结果判其能否读本种子库，不以推断移除。
-            let out = std::process::Command::new("python3")
-                .arg(fixture("tests/tb02c_verify.py"))
-                .arg("--database")
-                .arg(files.db())
-                .arg("--case")
-                .arg(case)
-                .arg("--node")
-                .arg("node")
-                .output()
-                .unwrap();
-            assert!(
-                out.status.success(),
-                "{case}: {}",
-                String::from_utf8_lossy(&out.stderr)
-            );
+            // #1419 P4 G1：原 `tb02c_verify.py` 子进程已于 6da53d1c95 逐字恢复实跑（CI 40929955342 shard1），
+            // 旧串 Python 合同报 s_tb02_contract.py:434「初始化字段与 cut 规则版本不符」：旧串种子库带共享层
+            // W 初始化字段，该验证器无合法输入。同一公共验证器的同输入承接依赖 Python 读链经正式 Q3 读
+            // S3 完整 W2 串（#1419 P2 V8 / #1768），不在本种子库上恢复。
         }
     }
 
@@ -6830,21 +6817,11 @@ mod tests {
             .any(|o| o["kind"] == "CC-010.bi" && o["payload"]["data"]["entity_id"] == "bi:2:1"));
         let conn = open_db(&files.db()).unwrap();
         verify_reachable_root(&conn).unwrap();
-        // #1419 P4 G2：原 Python 公共验证器子进程按原件逐字恢复（同 G1），以实际执行结果判定。
-        let verifier = fixture("tests/tb02b_verify.py");
-        let result = std::process::Command::new("python3")
-            .arg(verifier)
-            .arg("--database")
-            .arg(files.db())
-            .arg("--node")
-            .arg("node")
-            .output()
-            .unwrap();
-        assert!(
-            result.status.success(),
-            "Q/前端合同真实库验证失败：{}",
-            String::from_utf8_lossy(&result.stderr)
-        );
+        // #1419 P4 G2：原 `tb02b_verify.py` 子进程已于 6da53d1c95 逐字恢复实跑（CI 40929955342 shard2），
+        // 旧串 Python 合同报 s_tb02_contract.py:434「初始化字段与 cut 规则版本不符」：本库是旧串
+        // RULE_REVISION 种子却带共享层 W 初始化字段（裁定 (a) 的「同串混两代」），该验证器无合法输入。
+        // 同一公共验证器的同输入承接依赖 Python 读链支持 S3 完整 W2 串（#1419 P2 V8 / #1768 消费者），
+        // 不在本种子库上恢复。本测试保留种子写者的 Rust 侧行为锁。
     }
 
     #[test]

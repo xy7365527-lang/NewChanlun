@@ -975,8 +975,9 @@ mod tests {
         assert_eq!(e.split("；原准入账=").next(), Some(expected.as_str()));
     }
 
+    // 普通连接读后即关：最后关闭者清掉空 -wal/-shm，不留下准入 E6 拒收的侧件组合；只读查询不改主库字节。
     fn read_only(db: &Path) -> Connection {
-        Connection::open_with_flags(db, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap()
+        Connection::open(db).unwrap()
     }
 
     fn all_rows(db: &Path) -> Vec<(String, Vec<Vec<rusqlite::types::Value>>)> {
@@ -1118,7 +1119,11 @@ mod tests {
                     recover_error.contains("VersionUnsupported"),
                     "{rule}/{pending}: {recover_error}"
                 );
-                assert_eq!(std::fs::read(&db).unwrap(), bytes_before, "{rule}/{pending}");
+                assert_eq!(
+                    std::fs::read(&db).unwrap(),
+                    bytes_before,
+                    "{rule}/{pending}"
+                );
                 assert_eq!(all_rows(&db), rows_before, "{rule}/{pending}");
             }
         }
@@ -1198,7 +1203,8 @@ mod tests {
         let db = history.path().join("historical-published-layout1.sqlite");
         let wal = PathBuf::from(format!("{}-wal", db.display()));
         let (clock, rule) = {
-            let ro = read_only(&db);
+            let ro = Connection::open_with_flags(&db, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+                .unwrap();
             assert_eq!(count(&ro, "raw_events"), 4);
             assert_eq!(
                 meta_get_opt(&ro, "generation").unwrap().as_deref(),
@@ -1214,8 +1220,29 @@ mod tests {
             )
         };
         assert_ne!(rule, crate::W_STRUCTURE_RULE_REVISION);
+        // 冻结原件带 -wal/-shm：写者准入在 E6 即拒，主库与侧件字节不变。
+        let frozen = (std::fs::read(&db).unwrap(), std::fs::read(&wal).unwrap());
+        let e6 = Driver::open(
+            &db,
+            &s3_profile(),
+            "1",
+            clock.clone(),
+            crate::v3::admission_anchor::test_prepare(&db).into(),
+        )
+        .err()
+        .unwrap();
+        assert!(e6.contains("UnsupportedWalShmJournalCombination"), "{e6}");
+        assert_eq!((std::fs::read(&db).unwrap(), std::fs::read(&wal).unwrap()), frozen);
+        // 临时解包副本上合并 WAL（仓内原件不动），逻辑全表不变，再核版本门本身。
+        let rows_frozen = {
+            let c = Connection::open(&db).unwrap();
+            c.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(())).unwrap();
+            drop(c);
+            all_rows(&db)
+        };
         let _prepared_fixture = crate::v3::admission_anchor::test_prepare(&db);
         let rows_before = all_rows(&db);
+        assert_eq!(rows_before, rows_frozen);
         let bytes_before = (std::fs::read(&db).unwrap(), std::fs::read(&wal).ok());
         let open_error = Driver::open(
             &db,

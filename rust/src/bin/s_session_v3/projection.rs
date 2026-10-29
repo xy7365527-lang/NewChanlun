@@ -1262,7 +1262,10 @@ mod tests {
             } else {
                 assert_eq!(raw0, &first, "g{n} 首获知原件不变");
             }
-            assert!(w_kind(&snapshot, "CC-005.inclusion_group").is_empty(), "g{n}");
+            assert!(
+                w_kind(&snapshot, "CC-005.inclusion_group").is_empty(),
+                "g{n}"
+            );
         }
     }
 
@@ -1272,21 +1275,20 @@ mod tests {
     /// （`tb02b::contract_for_rule`，W 串为 W_CONTRACT）；与原同价根集组判据一并核。
     #[test]
     fn w_three_groups_with_equal_roots_publish_contract_knowledge_domain() {
+        // S3 每条 ingest 一根 raw：四根逐代接纳发布，取末代 cut 核原同输入判据。
         let mut f = Fixture::new();
-        let (e, t) = f.accept_begin_rows(
-            1,
-            &[
-                ("o0", 0, 0, 1, 0, 1),
-                ("o1", 1, 3, 10, 3, 10),
-                ("o2", 2, 5, 10, 5, 10),
-                ("o3", 3, 20, 30, 20, 30),
-            ],
-            1,
-        );
-        f.publish(&e, &t).unwrap();
+        for (n, row) in [
+            (1, ("o0", 0, 0, 1, 0, 1)),
+            (2, ("o1", 1, 3, 10, 3, 10)),
+            (3, ("o2", 2, 5, 10, 5, 10)),
+            (4, ("o3", 3, 20, 30, 20, 30)),
+        ] {
+            let (e, t) = f.accept_begin(n, row, 1);
+            f.publish(&e, &t).unwrap();
+        }
         let rule = meta_get_opt(&f.conn, "rule_revision").unwrap().unwrap();
         assert_eq!(rule, crate::W_STRUCTURE_RULE_REVISION);
-        let (snapshot, _, _) = published_w_cut(&mut f, 1);
+        let (snapshot, _, _) = published_w_cut(&mut f, 4);
         let knowledge = w_kind(&snapshot, "CC-054.knowledge_state");
         assert_eq!(knowledge.len(), 1);
         let contract = crate::tb02b::contract_for_rule(&rule).unwrap();
