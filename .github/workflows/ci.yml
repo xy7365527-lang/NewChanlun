@@ -223,6 +223,12 @@ jobs:
           RUSTFLAGS: "-D warnings"
         run: cargo check --all-targets --features s_session,s_incremental
 
+      # #1640：testonly 对照臂（增量 + 测试钩子）同样以 -D warnings 设门；Native 作业只编译测试、不设告警门。
+      - name: cargo check — s_session,s_capture_native_testonly 对照臂（#1640）
+        env:
+          RUSTFLAGS: "-D warnings"
+        run: cargo check --all-targets --features s_session,s_capture_native_testonly
+
       # #1640 §2.3 第 2 层：生产增量构建不含测试钩子（源码机检，不编译）。
       - name: 生产增量构建无测试钩子（#1640）
         working-directory: .
@@ -417,7 +423,7 @@ jobs:
         if: ${{ !cancelled() && matrix.group == 'native' }}
         env:
           S_NATIVE_SQLITE_CACHE_KIB: "262144"
-        run: '../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session,s_incremental --bin s_structure_session --jobs 1 -- s_allocation:: s3_serve incremental_build_full_branch_only_at_birth build_profile pager_probe'
+        run: '../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session,s_incremental --bin s_structure_session --jobs 1 -- s_allocation:: s3_serve incremental_build_full_branch_only_at_birth build_profile pager_probe history_layout_multicut_ layout_object_index_ b2_native_owner_restore_ r9a_new_cut_manifest_ bounded_layout_cc007_ layout1_generation_'
 
       # #1640 §2.3 第 3 层（产物机检）：不 strip 的生产增量 release 构建，nm 子串与禁串（固定＋自动抽取清单）零命中。
       #   复用本作业 rust/target；Cargo.toml 的 release profile 不设 strip，符号表保留。
@@ -864,6 +870,7 @@ jobs:
         run: |
           python -B -m unittest discover -s s_session/tests -p 'test_tb02b_contract.py' -v
           node --test s_session/tests/test_tb02b_contract.cjs
+          node --test s_session/tests/test_tb02b_layout_cc007.cjs
           node s_session/tests/build_tb01c_browser.cjs --check
       - name: TB-02-C observer contract tests
         run: node --test s_session/tests/test_tb02c_contract.cjs

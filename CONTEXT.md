@@ -464,6 +464,7 @@ _Avoid_: 与 RD-11 资金准入的 `allocation_policy_id`（#1394）混称「分
 
 **域事件（Domain Event）**（2026-10-27 [#1534](https://github.com/xy7365527-lang/NewChanlun/issues/1534) 裁定，[ADR 0051](docs/adr/0051-per-bar-domain-event-identity-lifecycle-contract.md)）:
 S、E、各 Bᵢ 每条持久事件共用的外壳 `domain-event/1`，X 侧订单/成交原件也套它；带写入域、事件身份、提交切面、写者纪元、来源、政策/模型引用、前后状态与因果，各域差异只在载荷与字段值。只追加，撤回也是一条新的域事件。
+B/E 的持久撤回写口由子合同 domain-event-withdrawal/1 按会话 manifest 显式选择，见 [ADR 0053](docs/adr/0053-domain-event-withdrawal-subcontract.md)。
 _Avoid_: 为单个域另造事件 schema；把 ADR 0007 的「背驰段候选事件」称作域事件（它是 S 载荷里的内容）
 
 **写者纪元（Writer Epoch）**（同上）:

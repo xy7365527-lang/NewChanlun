@@ -10,7 +10,7 @@ use crate::{
     canonical_json,
     content_producer::{
         self, Cc004Producer, ShapeIdentityView, CC004_STEP_KIND, CC005_GROUP_KIND,
-        CC006_SHAPE_KIND, CC007_FRACTAL_KIND, CC054_KNOWLEDGE_KIND,
+        CC006_SHAPE_KIND, CC007_DEVELOPMENT_BATCH_KIND, CC007_FRACTAL_KIND, CC054_KNOWLEDGE_KIND,
     },
     tb02a, tb02b,
 };
@@ -1836,6 +1836,7 @@ fn audit_object_record_with_slots(
             CC004_STEP_KIND,
             CC005_GROUP_KIND,
             CC007_FRACTAL_KIND,
+            CC007_DEVELOPMENT_BATCH_KIND,
             CC054_KNOWLEDGE_KIND,
         ]
         .contains(&kind.as_str())

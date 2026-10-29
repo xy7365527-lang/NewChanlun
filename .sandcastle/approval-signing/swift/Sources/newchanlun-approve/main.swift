@@ -10,7 +10,7 @@ let usage = """
   newchanlun-approve enroll [--key-dir DIR] [--label TEXT]   （信任配置写到标准输出）
   newchanlun-approve status --request FILE
   newchanlun-approve show --request FILE --decision approve|reject [--raw]
-  newchanlun-approve sign --request FILE --decision approve|reject [--key-dir DIR]
+  newchanlun-approve sign --request FILE --decision approve|reject [--key-dir DIR] [--enrollment-cancel-publish-check]
   newchanlun-approve publish-pending --receipt FILE
 
 sign 先显示待签内容，再弹出系统认证签名，随后弹出 macOS 管理员认证窗口，把回执发布到 root 所有的权威记录。
@@ -116,11 +116,11 @@ func verdictLine(_ link: VerifiedReceipt) -> String {
 
 /// Publish through macOS's administrator dialog with the root-installed helper. The verified receipt bytes
 /// travel in the command line, never through a file. True only once the record reads back with this receipt.
-func publishWithAdminDialog(_ receipt: VerifiedReceipt, trust: TrustRoot) -> Bool {
+func publishWithAdminDialog(_ receipt: VerifiedReceipt, trust: TrustRoot, cancellationNotice: String = "") -> Bool {
     print(receipt.payload.rendered(raw: receipt.payloadBytes))
     print("现在发布到权威记录：macOS 会弹出管理员认证窗口。")
     let outcome = runAdminDialog([installedHelperPath, "publish", "--receipt-b64", receipt.canonicalJSON.base64EncodedString()],
-                                 prompt: publishPrompt(receipt.payload))
+                                 prompt: publishPrompt(receipt.payload, cancellationNotice: cancellationNotice))
     if !outcome.output.isEmpty { print(outcome.output, terminator: "") }
     if !outcome.succeeded {
         FileHandle.standardError.write(Data((outcome.cancelled ? "管理员认证已取消。\n" : outcome.error).utf8))
@@ -213,9 +213,12 @@ func run(_ args: [String]) throws {
             print(try ApprovalPayload.parse(bytes).rendered(raw: bytes))
         }
     case "sign":
-        let opts = try options(rest, allowed: ["--request", "--decision", "--key-dir"])
+        let opts = try options(rest, allowed: ["--request", "--decision", "--key-dir"],
+                               flags: ["--enrollment-cancel-publish-check"])
         let request = try readRequest(opts)
         let decision = try readDecision(opts)
+        let cancellationNotice = opts["--enrollment-cancel-publish-check"] == nil ? ""
+            : try enrollmentCancellationNotice(request, decision: decision)
         let dir = opts["--key-dir"].map { URL(fileURLWithPath: $0, isDirectory: true) } ?? defaultKeyDir()
         let trust = try loadInstalledTrust()
         let signer = try SecureEnclaveSigner(keyDir: dir)
@@ -227,7 +230,7 @@ func run(_ args: [String]) throws {
         let pending = savePending(receipt, keyDir: dir)
         print("已签名，尚未生效。")
         guard let verified = try? verifyReceipt(receipt.json, trust: trust),
-              publishWithAdminDialog(verified, trust: trust)
+              publishWithAdminDialog(verified, trust: trust, cancellationNotice: cancellationNotice)
         else { notPublished(decision, pending: pending) }
     case "publish-pending":
         let opts = try options(rest, allowed: ["--receipt"])
