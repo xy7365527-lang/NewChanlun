@@ -7206,9 +7206,13 @@ mod tests {
             .iter()
             .find(|o| o["kind"] == "CC-054.knowledge_state")
             .unwrap();
-        // #1419 裁定 (a)/②：知识域随规则串的签署合同走；本库是旧串种子却带 W parser 产物，域判断在
-        // S3 承接（来源审计 `contract_for_rule(W)` 核 CC-054 域，source_audit.rs「TB-02-A 知识域与cut
-        // 规则版本不符」及其测试），此处不再对种子库断言旧串域。
+        // #1419 P4 G3：CURRENT_CONTRACT 知识域 = "established_direction_with_extreme_root_sets"；
+        // W_CONTRACT 知识域不同（"raw_adjacent_W_initialization"）。本测试用当前串，断言当前域。
+        assert_eq!(
+            knowledge["payload"]["domain"],
+            "established_direction_with_extreme_root_sets",
+            "#1419 P4 G3: 恢复 CC-054 域断言，按 tb02b::CURRENT_CONTRACT"
+        );
         assert!(!knowledge["payload"]["waiting_reasons"]
             .as_array()
             .unwrap()
