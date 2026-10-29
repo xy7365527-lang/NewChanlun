@@ -1,0 +1,45 @@
+name: '#1419 29Z 候选生成态导出'
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/1419-candidate-delta29ai]
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      CARGO_INCREMENTAL: "0"
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - id: setup-python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: echo "PYO3_PYTHON=${{ steps.setup-python.outputs.python-path }}" >> "$GITHUB_ENV"
+      - uses: ./.github/actions/rust-job-setup
+      - name: export layout/1 historical roots
+        env:
+          NC_EXPORT_DIR: ${{ runner.temp }}/export1419
+        run: |
+          set -o pipefail
+          echo "github_sha=$GITHUB_SHA"
+          mkdir -p "$NC_EXPORT_DIR"
+          cargo test --locked --features s_session --bin s_structure_session --jobs 2 -- --ignored --exact v3::generation::tests::export_layout1_candidate_528fb42b --nocapture 2>&1 | tee "$NC_EXPORT_DIR/test.log"
+      - name: upload export
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue1419-candidate-delta29ai
+          path: ${{ runner.temp }}/export1419
+          if-no-files-found: error
+          retention-days: 30
