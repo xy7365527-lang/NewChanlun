@@ -2,6 +2,8 @@ name: '#1419 29Z 历史 base 原件导出'
 
 on:
   workflow_dispatch:
+  push:
+    branches: [codex/1419-hist-export-5123-29z]
 
 permissions:
   contents: read
