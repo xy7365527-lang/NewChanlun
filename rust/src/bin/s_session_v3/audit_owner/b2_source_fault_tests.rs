@@ -36,7 +36,9 @@ impl B2SourceFault {
             Self::WitnessRawBeforeLaterSlot => "见证raw_bars不是同cut真实原始成员",
             Self::MissingWitnessSlot => "形态缺完整三槽见证",
             Self::ObservationKind => "kind不是文本",
-            Self::UnsettledOtherGroup => "初始未定组不是唯一seed原件",
+            // #1419 W：初始未定期不再有 seed 组（等待期无正式组），原判据「初始未定组不是唯一seed原件」
+            // 不在 W 路径上；W 下同一前提＝等待期混入一个非零正式组，必须在分区核之前被拒。
+            Self::UnsettledOtherGroup => "W等待期不得有正式组",
         }
     }
 }
@@ -161,7 +163,7 @@ fn b2_fault_reidentify(
         .ok_or_else(|| b2_fault_error("fact_key缺文本"))?;
     let payload = b2_fault_json_inner(store, object, "payload_json")?;
     let refs = b2_fault_json_inner(store, object, "input_refs_json")?;
-    let id = B2FaultProducer::new(tb02a::PROFILE, crate::V3_RULE_REVISION)
+    let id = B2FaultProducer::new(tb02a::PROFILE, crate::W_STRUCTURE_RULE_REVISION)
         .typed_object_id(
             kind,
             key,
@@ -260,26 +262,47 @@ fn b2_fault_mutate(
             objects[at] = b2_fault_reidentify(store, &objects[at])?;
             root = b2_fault_collection(store, &root, "objects", &objects)?;
         }
-        B2SourceFault::PartitionBeforeBadWitness | B2SourceFault::UnsettledOtherGroup => {
+        B2SourceFault::UnsettledOtherGroup => {
+            // 本 cut 为 W 等待期（实际生成无正式组）。用本 cut 现行原件构造一个非零正式组混入：
+            // 只引用首个未定原件的现行原始来源、无方向/封口证据，组身份按真实工厂重算；
+            // 使它在来源引用与组成员/来源并集各核上都合法，首错只能是 W 等待期判据。
+            assert!(
+                b2_fault_find_kind(store, &objects, B2_GROUP).is_err(),
+                "W等待期实际生成不得有正式组"
+            );
+            let at = b2_fault_find_kind(store, &objects, "CC-004.undetermined_raw")?;
+            let undetermined = objects[at].clone();
+            let inner = b2_fault_json_inner(store, &undetermined, "payload_json")?;
+            let raw = b2_fault_json(store, &inner)?["raw"].clone();
+            let coord = raw["source_coord"].clone();
+            let payload = json!({"close":raw["close"],"confirmation_evidence":null,"confirmed":false,
+                "direction":"UP","direction_evidence":null,"group_anchor":coord,"group_index":"1",
+                "high":raw["high"],"high_sources":[coord],"initial_direction_evidence":null,
+                "initialization_policy_revision":"raw-initialization-w/1","low":raw["low"],
+                "low_sources":[coord],"members":[coord],"open":raw["open"],"waiting_reasons":[]});
+            let fact_key = json!([B2_GROUP, coord]).to_string();
+            let group = b2_fault_edit_fields(
+                store,
+                &undetermined,
+                vec![
+                    ("kind", Some(b2sc::Value::String(B2_GROUP.into()))),
+                    ("fact_key", Some(b2sc::Value::String(fact_key))),
+                ],
+            )?;
+            let group = b2_fault_replace_json_inner(store, &group, "payload_json", &payload)?;
+            objects.push(b2_fault_reidentify(store, &group)?);
+            root = b2_fault_collection(store, &root, "objects", &objects)?;
+        }
+        B2SourceFault::PartitionBeforeBadWitness => {
             let at = b2_fault_find_kind(store, &objects, B2_GROUP)?;
             let inner = b2_fault_json_inner(store, &objects[at], "payload_json")?;
             let mut payload = b2_fault_json(store, &inner)?;
-            payload["group_index"] =
-                json!(if matches!(fault, B2SourceFault::UnsettledOtherGroup) {
-                    "1"
-                } else {
-                    "1000000"
-                });
+            payload["group_index"] = json!("1000000");
             let changed =
                 b2_fault_replace_json_inner(store, &objects[at], "payload_json", &payload)?;
-            let changed = b2_fault_reidentify(store, &changed)?;
-            if matches!(fault, B2SourceFault::UnsettledOtherGroup) {
-                objects.push(changed);
-            } else {
-                objects[at] = changed;
-            }
+            objects[at] = b2_fault_reidentify(store, &changed)?;
             root = b2_fault_collection(store, &root, "objects", &objects)?;
-            if matches!(fault, B2SourceFault::PartitionBeforeBadWitness) {
+            {
                 let mut witnesses = b2_fault_members(store, &root, "witnesses")?;
                 assert!(!witnesses.is_empty());
                 witnesses[0] = b2_fault_edit_fields(
@@ -417,7 +440,7 @@ fn b2_source_fault_hook(
             &base,
             &raw,
             tb02a::PROFILE,
-            crate::V3_RULE_REVISION,
+            crate::W_STRUCTURE_RULE_REVISION,
             None,
             None,
         )
@@ -432,7 +455,7 @@ fn b2_source_fault_hook(
             &changed,
             &raw,
             tb02a::PROFILE,
-            crate::V3_RULE_REVISION,
+            crate::W_STRUCTURE_RULE_REVISION,
             None,
             None,
         )
@@ -470,6 +493,7 @@ fn b2_run_source_fault(fault: B2SourceFault) {
     let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
     let mut c = context();
     let _guard = B2FaultGuard::enter(fault);
+    // W：四根同价全程等待期（无正式组）。
     let rows = if matches!(fault, B2SourceFault::UnsettledOtherGroup) {
         [
             ("a", 0, 6, 12, 3, 7, 1),
@@ -507,7 +531,7 @@ fn b2_run_source_fault(fault: B2SourceFault) {
         };
         let observation = B2_SOURCE_FAULT_OBSERVATION
             .with(|slot| slot.borrow_mut().take())
-            .expect("真实TxStore注入hook必须已运行");
+            .unwrap_or_else(|| panic!("{fault:?}: 真实TxStore注入hook必须已运行；publish 错误：{error}"));
         assert!(observation.semantic_nodes_added);
         assert_eq!(
             error, observation.expected,

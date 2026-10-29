@@ -1669,3 +1669,653 @@ fn export_real_s3_fixture_for_economic_content_domain() {
     std::fs::write(&out, canonical_json(&export)).unwrap();
     std::mem::forget(f);
 }
+
+type Q3Bar = (String, i64, i64, i64, i64, i64);
+
+/// #1419 Q3 真实导出的数据窗（28Q）：(全部 bar, 修订目标根, 修订插入点)。
+///
+/// 旧窗（458fc1a3ed，9 端点「每段三笔」链）实跑 101/101 代只成 1 个中枢、无中枢对：解析出的
+/// 段端点被相邻段吞并（段 4 个完成、第 5 个在途），第二组重叠段从未成段。本窗按同一构造
+/// （每笔 4 根、中点线性插值、上下各留 20；首两根 W 相互包含）直接给出笔端点，经
+/// `parse_layer` + `scan_center_facts_full` 逐前缀搜得：第 56 根首中枢成立、第 104 根第二中枢
+/// 成立（中枢对），窗口截在第 104 根，不多跑一代。
+fn q3_w_bars() -> (Vec<Q3Bar>, usize, usize) {
+    const PIVOTS: &[i64] = &[
+        1620, 1020, 1350, 1185, 1570, 1390, 1480, 1270, 1780, 1525, 2120, 1820, 1970, 1620, 1800,
+        1710, 1920, 1350, 1635, 970, 1360, 1165, 1620, 1470, 1545, 1370, 1970, 1670, 2370,
+    ];
+    const LEN: usize = 104;
+    let bar = |i: usize, mid: i64, half: i64| -> Q3Bar {
+        (format!("w-{i}"), i as i64, mid, mid + half, mid - half, mid)
+    };
+    let mut bars = vec![bar(0, PIVOTS[0], 40), bar(1, PIVOTS[0], 30)];
+    for w in PIVOTS.windows(2) {
+        for j in 0..4 {
+            bars.push(bar(bars.len(), w[0] + (w[1] - w[0]) * j / 4, 20));
+        }
+    }
+    bars.truncate(LEN);
+    // 修订目标：首中枢内的笔顶 2120；修订插入点在首中枢（第 56 根）成立之后。
+    let top = bars.iter().position(|b| b.2 == 2120).unwrap();
+    (bars, top, 60)
+}
+
+/// 前缀上的 (完成中枢数)；与 S3 E/F 同一共享核：`parse_layer` 段 → L0 单元 → `scan_center_facts_full`。
+fn q3_w_centers(bars: &[Q3Bar]) -> usize {
+    use newchan_rust::theta_v0::classifier::{center::center_from_segments, center_scan};
+    use newchan_rust::theta_v0::{config::ThetaConfig, parser::parse_layer, types::Bar};
+    let raw: std::vec::Vec<Bar> = bars
+        .iter()
+        .enumerate()
+        .map(|(i, b)| Bar {
+            source_index: i,
+            timestamp: b.1,
+            open: b.2,
+            high: b.3,
+            low: b.4,
+            close: b.5,
+            volume: 1.0,
+            untradable: false,
+        })
+        .collect();
+    let layer = parse_layer(&raw, &ThetaConfig::default());
+    let units = center_scan::l0_units(layer.segments_valid_prefix());
+    center_scan::scan_center_facts_full(&units, center_from_segments)
+        .windows
+        .len()
+}
+
+/// 秒级锁：导出窗在 2.5 h 实跑前就须能成中枢对（28Q：旧窗实跑到第 101 代才暴露无中枢对）。
+#[test]
+fn q3_w_export_window_forms_center_pair() {
+    let (bars, top, revise_after) = q3_w_bars();
+    assert!(top < revise_after && revise_after < bars.len());
+    assert!(q3_w_centers(&bars[..revise_after]) >= 1, "修订前无首中枢");
+    assert_eq!(
+        q3_w_centers(&bars[..bars.len() - 1]),
+        1,
+        "窗口未截在第二中枢成立处"
+    );
+    assert_eq!(q3_w_centers(&bars), 2, "导出窗不成中枢对");
+}
+
+/// 同一窗经 S3 生成核（`GenerationRuntime::generate`，W 写者规则）一代全量生成：第 104 根才有
+/// `CC-020.center_pair`。这是导出逐代发布所调的同一生成函数，只省去逐代提交与来源审计。
+#[test]
+fn q3_w_export_window_s3_generation_publishes_center_pair() {
+    use super::super::business_json::{self as bj, RawEventsView};
+    use super::super::generation::{GenerationInput, GenerationRuntime, StructurePriors};
+    let (bars, _, _) = q3_w_bars();
+    let rows: std::vec::Vec<Value> = bars
+        .iter()
+        .enumerate()
+        .map(|(seq, (id, c, o, h, l, cl))| {
+            json!({"identity_key":id,"source_coord":c.to_string(),"revision":1,"seq":seq+1,
+                "ts":c.to_string(),"open":o.to_string(),"high":h.to_string(),"low":l.to_string(),
+                "close":cl.to_string(),"input_revision":"1","payload_hash":format!("payload-{seq}"),
+                "receipt_id":format!("receipt-{seq}"),"event_id":format!("event-{id}")})
+        })
+        .collect();
+    let count = |n: usize| -> (usize, usize) {
+        let raw = RawEventsView::plain(&rows[..n]);
+        let effective = bj::effective(raw, None).unwrap();
+        let scope = json!({});
+        let input = GenerationInput {
+            all_events: raw,
+            effective: effective.raw_view(),
+            generation: 1,
+            structure_cut: "cut-1",
+            input_frontier: n as i64,
+            profile_id: crate::tb02a::PROFILE,
+            profile_hash: "q3-window-profile",
+            rule_revision: crate::W_STRUCTURE_RULE_REVISION,
+            catalog_revision: "q3-window-catalog",
+            scope: &scope,
+            semantic_commit_ns: Some("123456789"),
+            prior: crate::content_bi::PriorState {
+                bi_records: vec![],
+                version_record: None,
+            },
+            structure_prior: StructurePriors::default(),
+        };
+        let mut nodes = sc::MemoryNodes::new();
+        let mut runtime = GenerationRuntime::new(
+            "q3-window".into(),
+            crate::tb02a::PROFILE,
+            crate::W_STRUCTURE_RULE_REVISION,
+        );
+        let generated = runtime.generate(&mut nodes, &input).unwrap();
+        let of = |kind: &str| {
+            generated
+                .objects
+                .iter()
+                .filter(|o| o.kind() == kind)
+                .count()
+        };
+        (of("CC-016.center"), of("CC-020.center_pair"))
+    };
+    let (centers, pairs) = count(bars.len());
+    assert!(
+        centers >= 2 && pairs >= 1,
+        "全窗：中枢 {centers}、中枢对 {pairs}"
+    );
+    assert_eq!(count(bars.len() - 1).1, 0, "窗口未截在中枢对首现处");
+}
+
+/// #1419 Q3 真实消费验收：W 规则真实 S3 多代导出（27AZ P1）。走 init_v3 + 真实接纳/Begin/提交，逐代发布：
+/// 1 根与 2 根相互包含（W 等待期）→ 真实写者恢复（纪元 1→2）→ 方向建立的前段 → 首中枢成立
+/// → 首中枢内笔顶改价修订（撤回）→ 改回原价修订（恢复）→ 尾段至第二中枢成立（中枢对）。数据窗见 [`q3_w_bars`]。任一代被门拒绝即原样记录并停止。导出格式对齐
+/// `s_session/tests/fixtures/q3-complete-s16-cuts345.json`；节点只取消费所需各代 snapshot/delta 的可达闭包，tag 为两位十六进制。
+#[test]
+#[ignore = "仅供 #1419 Q3 真实 S3 W 夹具导出"]
+fn export_real_s3_w_fixture_for_q3() {
+    export_real_s3_w_fixture_for_q3_impl(false);
+}
+
+#[test]
+#[ignore = "#1419 P2 V5，保全完整106代SQLite与公开Q，两个独立进程各跑一次"]
+fn export_real_s3_w2_fixture_and_sqlite_for_q3() {
+    let output = PathBuf::from(std::env::var("Q3_REAL_EXPORT").expect("V5要求导出路径"));
+    let original = output.with_extension("run").join("s.sqlite");
+    let existed = original.exists();
+    let result = std::panic::catch_unwind(|| export_real_s3_w_fixture_for_q3_impl(true));
+    if let Err(failure) = result {
+        if !existed && original.is_file() {
+            let message = failure
+                .downcast_ref::<String>()
+                .cloned()
+                .or_else(|| {
+                    failure
+                        .downcast_ref::<&str>()
+                        .map(|message| message.to_string())
+                })
+                .unwrap_or_else(|| "非文本panic".to_string());
+            let database = output.with_extension("sqlite");
+            let clock = output.with_extension("clock.json");
+            let preserved = (|| -> Result<(), String> {
+                if !database.exists() {
+                    let conn =
+                        Connection::open_with_flags(&original, OpenFlags::SQLITE_OPEN_READ_ONLY)
+                            .map_err(|error| error.to_string())?;
+                    conn.execute("VACUUM main INTO ?1", [database.to_str().unwrap()])
+                        .map_err(|error| error.to_string())?;
+                }
+                if !clock.exists() {
+                    std::fs::copy(original.parent().unwrap().join("clock.json"), &clock)
+                        .map_err(|error| error.to_string())?;
+                }
+                Ok(())
+            })();
+            let mut manifest = if output.with_extension("manifest.json").exists() {
+                serde_json::from_slice::<Value>(
+                    &std::fs::read(output.with_extension("manifest.json")).unwrap(),
+                )
+                .unwrap()
+            } else {
+                json!({"schema_revision":"s-w2-validation-run/1"})
+            };
+            let status = if manifest["status"] == "audit-failed" {
+                "audit-failed"
+            } else {
+                "failed"
+            };
+            let failure_details = json!({
+                "schema_revision":"s-w2-validation-run/1",
+                "status":status,
+                "head":std::env::var("Q3_EXPORT_HEAD").unwrap(),
+                "original_database":original,
+                "database":database,
+                "clock_plan":clock,
+                "q_export":output,
+                "failure":message,
+                "preservation_error":preserved.err(),
+                "test_binary":std::env::current_exe().unwrap(),
+                "test_arguments":std::env::args().collect::<Vec<_>>()
+            });
+            for (key, value) in failure_details.as_object().unwrap() {
+                manifest[key] = value.clone();
+            }
+            std::fs::write(
+                output.with_extension("manifest.json"),
+                canonical_json(&manifest),
+            )
+            .expect("失败运行manifest必须保全");
+        }
+        std::panic::resume_unwind(failure);
+    }
+}
+
+fn export_real_s3_w_fixture_for_q3_impl(persist: bool) {
+    let persistent_output = persist.then(|| {
+        let output =
+            PathBuf::from(std::env::var("Q3_REAL_EXPORT").expect("V5要求新的Q3_REAL_EXPORT路径"));
+        for path in [
+            output.clone(),
+            output.with_extension("sqlite"),
+            output.with_extension("manifest.json"),
+            output.with_extension("clock.json"),
+            output.with_extension("run"),
+        ] {
+            assert!(!path.exists(), "不得覆盖原件 {}", path.display());
+        }
+        let head = std::env::var("Q3_EXPORT_HEAD").expect("V5要求完整候选HEAD");
+        assert!(
+            head.len() == 40 && head.bytes().all(|b| b.is_ascii_hexdigit()),
+            "V5要求40位候选HEAD"
+        );
+        output
+    });
+
+    let (bars, top, revise_after) = q3_w_bars();
+    let mut revised = bars[top].clone();
+    revised.2 -= 300;
+    revised.3 -= 300;
+    revised.4 -= 300;
+    revised.5 -= 300;
+    let direction = 2 + 20;
+    // 真实恢复放在 W 等待期（第 2 代后、未定原件仍挂起）：恢复审计对全历史逐 cut 计 wire，
+    // fc51265054 在 89 代后、b3d2ca09d0 在 22 代后恢复均超 max_total_wire_bytes 1 GiB 被拒
+    // （读数交 #1640 与 #1419 验收，不放宽上限）。方向确立、中枢、撤回与恢复修订均在纪元 2 发生。
+    // 修订在首中枢成立（第 56 根）后、尾段之前做，使撤回/恢复两代审计的库较小；随后追加其余
+    // bar 至第二中枢成立（第 104 根）。
+    assert!(top < revise_after && revise_after < bars.len());
+    assert_eq!(
+        q3_w_centers(&bars),
+        2,
+        "导出窗不成中枢对（先跑 q3_w_export_window_forms_center_pair）"
+    );
+    // S3 接纳协议：一条 ingest 恰一事件，每条消息各自 Begin/提交一代；里程碑统计取该段最后一代。
+    let steps: Vec<(&str, Vec<Q3Bar>, i64, bool)> = vec![
+        ("w_first_bar", bars[0..1].to_vec(), 1, false),
+        ("w_contained_waiting", bars[1..2].to_vec(), 1, false),
+        (
+            "recovered_epoch2_direction",
+            bars[2..direction].to_vec(),
+            1,
+            true,
+        ),
+        (
+            "chain_first_center",
+            bars[direction..revise_after].to_vec(),
+            1,
+            false,
+        ),
+        ("revision_withdraw", vec![revised], 2, false),
+        ("revision_restore", vec![bars[top].clone()], 3, false),
+        ("chain_tail_pair", bars[revise_after..].to_vec(), 1, false),
+    ];
+    let messages: i64 = steps.iter().map(|(_, rows, _, _)| rows.len() as i64).sum();
+    // 真实恢复：恢复前最后一代提交（ns=k*10+2）之后、下一次接纳（ns=(k+1)*10）之前，纪元 1→2。
+    let before_recover: i64 = steps
+        .iter()
+        .take_while(|(_, _, _, recover)| !recover)
+        .map(|(_, rows, _, _)| rows.len() as i64)
+        .sum();
+    let recover_plan = [("recover-1", before_recover * 10 + 5)];
+    let mut f = match &persistent_output {
+        Some(output) => Fixture::with_clock_plan_persistent(
+            64,
+            messages,
+            &recover_plan,
+            output.with_extension("run"),
+        ),
+        None => Fixture::with_clock_plan(64, messages, &recover_plan),
+    };
+    if let Some(output) = &persistent_output {
+        let manifest = json!({"schema_revision":"s-w2-validation-run/1", "status":"running", "head":std::env::var("Q3_EXPORT_HEAD").unwrap(), "original_database":f.db_path(), "q_export":output});
+        std::fs::write(
+            output.with_extension("manifest.json"),
+            canonical_json(&manifest),
+        )
+        .unwrap();
+    }
+    let mut n: i64 = 0;
+    let mut stats = Vec::new();
+    let count = |f: &Fixture, sql: &str, g: i64| -> Vec<(String, i64)> {
+        let mut q = f.conn.prepare(sql).unwrap();
+        q.query_map([g], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect()
+    };
+    for (label, rows, revision, reopen) in steps.iter() {
+        if *reopen {
+            f.recover_writer("2", "recover-1");
+        }
+        let mut published = None;
+        let mut refused = None;
+        let mut withdrawn_total: std::collections::BTreeMap<String, i64> = Default::default();
+        for (id, c, o, h, l, cl) in rows {
+            n += 1;
+            let (envelope, token) =
+                f.accept_begin(n, (id.as_str(), *c, *o, *h, *l, *cl), *revision);
+            let started = std::time::Instant::now();
+            match f.publish(&envelope, &token) {
+                Ok(receipt) => {
+                    let live = count(
+                        &f,
+                        "SELECT kind,count(*) FROM s_content_objects WHERE first_known_generation<=?1 AND (withdrawn_generation IS NULL OR withdrawn_generation>?1) AND kind IN ('CC-010.bi','CC-013.segment','CC-016.center','CC-020.center_pair') GROUP BY kind",
+                        receipt.generation,
+                    );
+                    eprintln!(
+                        "Q3-PROGRESS gen={} step={label} ms={} {:?}",
+                        receipt.generation,
+                        started.elapsed().as_millis(),
+                        live
+                    );
+                    for (kind, count) in count(
+                        &f,
+                        "SELECT kind,count(*) FROM s_content_objects WHERE withdrawn_generation=?1 GROUP BY kind",
+                        receipt.generation,
+                    ) {
+                        *withdrawn_total.entry(kind).or_default() += count;
+                    }
+                    published = Some(receipt);
+                }
+                Err(error) => {
+                    refused = Some(format!("message-{n}：{error}"));
+                    break;
+                }
+            }
+        }
+        match (published, refused) {
+            (Some(receipt), None) => {
+                let g = receipt.generation;
+                let current = count(&f, "SELECT kind,count(*) FROM s_content_objects WHERE first_known_generation<=?1 AND (withdrawn_generation IS NULL OR withdrawn_generation>?1) GROUP BY kind ORDER BY kind", g);
+                let present = |list: &[&str]| -> Vec<String> {
+                    list.iter()
+                        .filter(|k| current.iter().any(|(x, _)| x == *k))
+                        .map(|k| k.to_string())
+                        .collect()
+                };
+                if *label == "chain_first_center" {
+                    assert!(
+                        current.iter().any(|(k, c)| k == "CC-016.center" && *c > 0),
+                        "首中枢里程碑无中枢：{current:?}"
+                    );
+                }
+                let w_present = present(&["CC-004.initialization", "CC-004.undetermined_raw"]);
+                let ef: Vec<&str> = crate::tb02e::KINDS
+                    .iter()
+                    .chain(crate::tb02f::KINDS)
+                    .copied()
+                    .collect();
+                let ef_present = present(&ef);
+                let withdrawn: serde_json::Map<String, Value> = withdrawn_total
+                    .iter()
+                    .map(|(k, c)| (k.clone(), json!(c)))
+                    .collect();
+                let kinds: serde_json::Map<String, Value> =
+                    current.iter().map(|(k, c)| (k.clone(), json!(c))).collect();
+                stats.push(json!({"step":label,"generation":g.to_string(),"batch_id":receipt.batch_id.as_str(),
+                    "bars":rows.len(),"revision":revision,"recovered_writer":reopen,
+                    "current_by_kind":kinds,
+                    "withdrawn_by_kind":withdrawn,"w_kinds_present":w_present,"ef_kinds_present":ef_present}));
+            }
+            (_, error) => {
+                let error = error.unwrap_or_else(|| "空里程碑".to_string());
+                stats.push(
+                    json!({"step":label,"bars":rows.len(),"revision":revision,"refused":error}),
+                );
+                println!("Q3-STATS {}", canonical_json(&json!(stats)));
+                panic!("真实 S3 W 导出（{label}）被拒：{error}");
+            }
+        }
+    }
+    // 消费所需各代：7 个里程碑末代，加 Q3 两段逐代 Watch 区间（等待期→恢复后方向确立、首中枢→修订恢复）
+    // 内的每一代（Watch 逐代取 delta）。只导出这些代的 publication 及其 snapshot/delta 可达节点闭包：
+    // 全表 152 万节点（349 MB）多为不可达旧节点，消费端整池建图会 OOM（28T）。
+    let step_gen = |label: &str| -> i64 {
+        stats.iter().find(|s| s["step"] == label).unwrap()["generation"]
+            .as_str()
+            .unwrap()
+            .parse()
+            .unwrap()
+    };
+    let mut consumed: std::collections::BTreeSet<i64> = steps
+        .iter()
+        .map(|(label, _, _, _)| step_gen(label))
+        .collect();
+    consumed.extend(step_gen("w_contained_waiting")..=step_gen("recovered_epoch2_direction"));
+    consumed.extend(step_gen("chain_first_center")..=step_gen("revision_restore"));
+    let mut q = f
+        .conn
+        .prepare("SELECT generation,batch_id,manifest_root,snapshot_root,delta_root FROM s_content_publications ORDER BY generation")
+        .unwrap();
+    let root = |v: &[u8]| sc::root_string(&<[u8; 32]>::try_from(v).unwrap());
+    let mut closure_roots: Vec<Vec<u8>> = Vec::new();
+    let publications: Vec<Value> = q
+        .query_map([], |r| {
+            Ok((
+                r.get::<_, i64>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, Vec<u8>>(2)?,
+                r.get::<_, Vec<u8>>(3)?,
+                r.get::<_, Vec<u8>>(4)?,
+            ))
+        })
+        .unwrap()
+        .map(|r| r.unwrap())
+        .filter(|(g, ..)| consumed.contains(g))
+        .map(|(g, batch, manifest, snapshot, delta)| {
+            let row = json!({"generation":g.to_string(),"batch_id":batch,
+                "manifest_root":root(&manifest),"snapshot_root":root(&snapshot),"delta_root":root(&delta)});
+            closure_roots.push(snapshot);
+            closure_roots.push(delta);
+            row
+        })
+        .collect();
+    drop(q);
+    assert_eq!(publications.len(), consumed.len(), "消费代须都已发布");
+    // s-content/1 子引用布局（与 s-content-v3.js GraphView / q3_complete_fixture.cjs proofNodes 同一布局）：
+    // 值头 3..=6 子在 body[8..40]；7/0x12 在 [0..32]；分支 0x13 在 [8..40]、[40..72]；字段 0x14 在 [0..32]、[32..64]。
+    let mut q = f
+        .conn
+        .prepare("SELECT tag,body FROM s_content_nodes WHERE digest=?1")
+        .unwrap();
+    let mut closure: std::collections::BTreeMap<Vec<u8>, (i64, Vec<u8>)> = Default::default();
+    while let Some(digest) = closure_roots.pop() {
+        if closure.contains_key(&digest) {
+            continue;
+        }
+        let (tag, body): (i64, Vec<u8>) = q
+            .query_row([&digest], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap_or_else(|e| panic!("闭包缺节点 {}：{e}", root(&digest)));
+        let at = |o: usize| body[o..o + 32].to_vec();
+        match tag {
+            3..=6 => closure_roots.push(at(8)),
+            7 | 0x12 => closure_roots.push(at(0)),
+            0x13 => closure_roots.extend([at(8), at(40)]),
+            0x14 => closure_roots.extend([at(0), at(32)]),
+            _ => {}
+        }
+        closure.insert(digest, (tag, body));
+    }
+    drop(q);
+    let hex = |b: &[u8]| b.iter().map(|x| format!("{x:02x}")).collect::<String>();
+    // tag 按 Q3 公共 Client 要求写两位小写十六进制（GraphView.create：/^[0-9a-f]{2}$/）。
+    let nodes: Vec<Value> = closure
+        .iter()
+        .map(|(digest, (tag, body))| {
+            assert!((0..=0xff).contains(tag), "节点 tag 越界：{tag}");
+            json!({"root":root(digest),"tag":format!("{tag:02x}"),"body_hex":hex(body)})
+        })
+        .collect();
+    let node_count = nodes.len();
+    let mut q = f
+        .conn
+        .prepare("SELECT key,value FROM meta ORDER BY key")
+        .unwrap();
+    let meta: serde_json::Map<String, Value> = q
+        .query_map([], |r| {
+            Ok((r.get::<_, String>(0)?, json!(r.get::<_, String>(1)?)))
+        })
+        .unwrap()
+        .map(|r| r.unwrap())
+        .collect();
+    drop(q);
+    // 目录行取 catalog 表（服务端 build_catalog 读的就是这五列，按 catalog_id 排序）；catalog_definition
+    // 的 items 另带 criterion/axis_ids/acceptance_mode，Q3 目录项只认九字段（28U 预检：目录项完整字段不符）。
+    let mut q = f
+        .conn
+        .prepare(
+            "SELECT catalog_id,kind,title,domain,branches_json FROM catalog ORDER BY catalog_id",
+        )
+        .unwrap();
+    let catalog_rows: Vec<Value> = q
+        .query_map([], |r| {
+            let branches: String = r.get(4)?;
+            Ok(
+                json!({"id":r.get::<_,String>(0)?,"kind":r.get::<_,String>(1)?,
+                "title":r.get::<_,String>(2)?,"domain":r.get::<_,String>(3)?,
+                "branches":serde_json::from_str::<Value>(&branches).unwrap()}),
+            )
+        })
+        .unwrap()
+        .map(|r| r.unwrap())
+        .collect();
+    drop(q);
+    let writer_epoch = meta["writer_epoch"].clone();
+    let export = json!({
+        "provenance":{"kind":"TestOnly real S3 W-rule multi-cut export (init_v3 + real accept/Begin/commit, file WAL)",
+            "test":"v3::financial_session::tests::export_real_s3_w_fixture_for_q3",
+            "head":std::env::var("Q3_EXPORT_HEAD").unwrap_or_default(),
+            "rule_revision":meta["rule_revision"],"steps":stats,
+            "node_closure":{"generations":consumed.iter().map(|g| g.to_string()).collect::<Vec<_>>(),
+                "roots":["snapshot_root","delta_root"],"nodes":node_count.to_string()}},
+        "publications":publications,"nodes":nodes,"meta":meta,
+        "session_generation":"1","catalog_rows":catalog_rows});
+    let text = canonical_json(&export);
+    if let Some(output) = &persistent_output {
+        assert_eq!(
+            meta["rule_revision"],
+            json!(crate::W_STRUCTURE_RULE_REVISION)
+        );
+        assert_eq!(n, 106, "完整原输入必须真实发布106代");
+        let database = output.with_extension("sqlite");
+        f.conn
+            .execute("VACUUM main INTO ?1", [database.to_str().unwrap()])
+            .unwrap();
+        let clock = output.with_extension("clock.json");
+        std::fs::copy(f.db_path().parent().unwrap().join("clock.json"), &clock).unwrap();
+        let tables: Vec<(String, i64)> = {
+            let mut q = f
+                .conn
+                .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+                .unwrap();
+            let names = q
+                .query_map([], |r| r.get::<_, String>(0))
+                .unwrap()
+                .map(Result::unwrap)
+                .collect::<Vec<_>>();
+            names
+                .into_iter()
+                .map(|name| {
+                    let quoted = name.replace('"', "\"\"");
+                    let rows = f
+                        .conn
+                        .query_row(&format!("SELECT count(*) FROM \"{quoted}\""), [], |r| {
+                            r.get(0)
+                        })
+                        .unwrap();
+                    (name, rows)
+                })
+                .collect()
+        };
+        let manifest = json!({
+            "schema_revision":"s-w2-validation-run/1",
+            "status":"published-awaiting-audit",
+            "original_database":f.db_path(),
+            "test_binary":std::env::current_exe().unwrap(),
+            "test_arguments":std::env::args().collect::<Vec<_>>(),
+            "head":std::env::var("Q3_EXPORT_HEAD").unwrap(),
+            "rule_revision":meta["rule_revision"],
+            "publication_generation":n.to_string(),
+            "session_generation":"1",
+            "database":database,
+            "q_export":output,
+            "clock_plan":clock,
+            "sqlite_tables":tables,
+            "public_generations":consumed.iter().map(|g| g.to_string()).collect::<Vec<_>>(),
+            "steps":stats,
+            "sqlite_copy":"VACUUM INTO consistent full database, all internal original tables retained"
+        });
+        std::fs::write(
+            output.with_extension("manifest.json"),
+            canonical_json(&manifest),
+        )
+        .unwrap();
+    }
+    // 设了 Q3_REAL_EXPORT 只落文件、日志记字节数（全文 ~90 MB 不再进日志）；未设才打全文。
+    if let Ok(path) = std::env::var("Q3_REAL_EXPORT") {
+        std::fs::write(&path, &text).unwrap();
+        println!(
+            "Q3-REAL-S3-EXPORT path={path} bytes={} nodes={} generations={}",
+            text.len(),
+            node_count,
+            consumed.len()
+        );
+    } else {
+        println!("=====Q3-REAL-S3-EXPORT-BEGIN=====");
+        println!("{text}");
+        println!("=====Q3-REAL-S3-EXPORT-END=====");
+    }
+    println!("Q3-STATS {}", canonical_json(&json!(stats)));
+    // 验收覆盖（导出已打印后再断言，失败时数据仍可取回）：各代均已发布；W 等待期两 kind 出现；
+    // 中枢与中枢对非空；修订代确有撤回；恢复后纪元 2 的一代已发布。
+    assert_eq!(stats.len(), steps.len(), "每一代都必须真实发布");
+    let has = |i: usize, key: &str, kind: &str| {
+        stats[i][key]
+            .as_object()
+            .is_some_and(|m| m.get(kind).and_then(Value::as_i64).unwrap_or(0) > 0)
+    };
+    assert!(
+        has(1, "current_by_kind", "CC-004.undetermined_raw"),
+        "等待期缺未定原件"
+    );
+    assert!(
+        has(1, "current_by_kind", "CC-004.initialization"),
+        "等待期缺初始化事实"
+    );
+    assert!(
+        (0..stats.len()).any(|i| has(i, "current_by_kind", "CC-016.center")),
+        "全程无非空中枢"
+    );
+    assert!(
+        (0..stats.len()).any(|i| has(i, "current_by_kind", "CC-020.center_pair")),
+        "全程无中枢对"
+    );
+    assert!(
+        stats
+            .iter()
+            .find(|s| s["step"] == "revision_withdraw")
+            .unwrap()["withdrawn_by_kind"]
+            .as_object()
+            .is_some_and(|m| !m.is_empty()),
+        "修订代无撤回"
+    );
+    assert_eq!(writer_epoch, json!("2"), "恢复必须真实递增写者纪元");
+    if let Some(output) = &persistent_output {
+        let database = output.with_extension("sqlite");
+        let mut copy =
+            Connection::open_with_flags(&database, OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
+        let result = {
+            let tx = copy.transaction().unwrap();
+            super::super::state::audit(&tx).map(|_| ())
+        };
+        let manifest_path = output.with_extension("manifest.json");
+        let mut manifest: Value =
+            serde_json::from_slice(&std::fs::read(&manifest_path).unwrap()).unwrap();
+        manifest["status"] = json!(if result.is_ok() {
+            "complete"
+        } else {
+            "audit-failed"
+        });
+        manifest["full_source_audit"] = match &result {
+            Ok(()) => json!({"result":"ok"}),
+            Err(error) => json!({"result":"error", "error":error}),
+        };
+        std::fs::write(&manifest_path, canonical_json(&manifest)).unwrap();
+        result.unwrap();
+    }
+}

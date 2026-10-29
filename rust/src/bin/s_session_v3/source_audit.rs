@@ -42,6 +42,8 @@ pub(crate) use source_contributions::{audit_native_bound, NativeSourceState};
 mod source_pending;
 #[path = "source_prefix.rs"]
 mod source_prefix;
+#[path = "source_structure.rs"]
+mod source_structure;
 use source_prefix::{NativeSourceMemo, ParseDomain, SourceCoords};
 #[cfg(test)]
 pub(super) fn reset_native_source_prefix_stats() {
@@ -586,6 +588,19 @@ impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
                 .map(RefValue::Plain)
         }
     }
+    fn lookup_optional_field_ref(
+        &mut self,
+        r: sc::RefView<'_>,
+        key: &str,
+    ) -> Result<Option<RefValue>, sc::CodecError> {
+        if self.source.owned_codec_active() {
+            // 结构实体引用核（source_structure::references）走此口；Owned 下同 lookup_field_ref 交原角色，
+            // 默认实现经 generic_source 擦除为动态 NodeSource 会被 closed codec 拒绝。
+            self.owned_role(|s| s.lookup_optional_field_ref(r, key))
+        } else {
+            sc::path::lookup_optional_field_native(self, r, key).map(|v| v.map(RefValue::Plain))
+        }
+    }
     fn lookup_fields_ref<'a>(
         &mut self,
         r: sc::RefView<'_>,
@@ -881,6 +896,7 @@ pub(crate) struct Counts {
 }
 // 来源判据依赖精确查找而不依赖哈希布局。Native 的持久树不会在扩容时重排全历史。
 trait RawLookup {
+    fn len(&self) -> usize;
     fn get(&self, coord: &i64) -> Option<&Source>;
     fn contains_key(&self, coord: &i64) -> bool {
         self.get(coord).is_some()
@@ -890,6 +906,9 @@ trait RawLookup {
     }
 }
 impl RawLookup for BusinessMap<i64, Source> {
+    fn len(&self) -> usize {
+        BusinessMap::len(self)
+    }
     fn get(&self, coord: &i64) -> Option<&Source> {
         BusinessMap::get(self, coord)
     }
@@ -898,6 +917,9 @@ impl RawLookup for BusinessMap<i64, Source> {
     }
 }
 impl<T: RawLookup + ?Sized> RawLookup for &T {
+    fn len(&self) -> usize {
+        (**self).len()
+    }
     fn get(&self, coord: &i64) -> Option<&Source> {
         (**self).get(coord)
     }
@@ -1758,6 +1780,8 @@ fn audit_object_record(
     record: &RefValue,
     raw: &(impl RawLookup + ?Sized),
     producer: &Cc004Producer,
+    rule: &str,
+    current_generation: i64,
     ids: &mut BusinessMap<bj::TextValue, ()>,
     groups: &mut BusinessMap<i64, Group>,
     checked_refs: &mut BusinessMap<(NodeDigest, bool), i64>,
@@ -1772,6 +1796,8 @@ fn audit_object_record(
         record,
         raw,
         producer,
+        rule,
+        current_generation,
         &mut FullObjectSlots { ids, groups },
         checked_refs,
         native_sources,
@@ -1787,6 +1813,8 @@ fn audit_object_record_with_slots(
     record: &RefValue,
     raw: &(impl RawLookup + ?Sized),
     producer: &Cc004Producer,
+    rule: &str,
+    current_generation: i64,
     slots: &mut impl ObjectSlots,
     checked_refs: &mut BusinessMap<(NodeDigest, bool), i64>,
     mut native_sources: Option<&mut NativeSourceMemo<'_>>,
@@ -1847,6 +1875,14 @@ fn audit_object_record_with_slots(
         ]
         .contains(&kind.as_str())
             && !tb02b::KINDS.contains(&kind.as_str())
+            && !source_structure::is_kind(rule, kind.as_str())
+            // #1393/#1565 W：初始化事实与未定原件只在 W 后继串的 cut 里声明（内容由 source_pending 核）。
+            && !(source_pending::is_w_rule(rule)
+                && [
+                    content_producer::CC004_INITIALIZATION_KIND,
+                    content_producer::CC004_UNDETERMINED_KIND,
+                ]
+                .contains(&kind.as_str()))
         {
             return Err(err("未声明typed事实种类"));
         }
@@ -1928,6 +1964,17 @@ fn audit_object_record_with_slots(
             {
                 return Err(err("新笔payload槽位与fact_key不同"));
             }
+        }
+        if source_structure::is_kind(rule, kind.as_str()) {
+            source_structure::audit_payload(
+                s,
+                kind.as_str(),
+                &payload,
+                parsed.index(1).unwrap(),
+                &sources,
+                raw,
+                current_generation,
+            )?;
         }
         if kind == CC054_KNOWLEDGE_KIND {
             let contract = tb02b::contract_for_rule(producer.rule_revision())
@@ -2349,6 +2396,11 @@ fn audit_generated_in_store(
         }
         &ordinary_raw
     };
+    let current_generation = if crate::is_structure_rule(rule) {
+        number(s, state, "generation")?
+    } else {
+        0
+    };
     let object_array = field_ref(s, state, "objects")?;
     #[cfg(test)]
     super::state::trace_event("source_objects", None);
@@ -2367,6 +2419,8 @@ fn audit_generated_in_store(
             &record,
             raw,
             &producer,
+            rule,
+            current_generation,
             &mut ids,
             &mut groups,
             &mut checked_refs,
@@ -2379,6 +2433,7 @@ fn audit_generated_in_store(
         s.native_codec_room(&mut objects, 1).map_err(err)?;
         objects.try_push(object).map_err(err)?;
     }
+    source_structure::audit_full(s, &objects, rule)?;
     // #1394 r3：先绑定已发布未定事实，再核组成员与 pending 的不交完备并集。
     let pending = source_pending::audit(s, objects.iter(), raw, &groups, rule, deadline)?;
     let mut partition = bj::new_map(allocation.as_ref());
@@ -2490,6 +2545,179 @@ mod tests {
         tests::{accept_ohlc, init_test_db, located_ohlc_input, tb02b_oracle_rows, TestFiles},
     };
     use sc::MemoryNodes;
+
+    // #1419：用共享工厂生成真实身份与记录，再走公共 full/native 共用的对象来源门。
+    // 这里只测规则修订准入；空原始账不抵扣正式非空结构输入验收。
+    fn audit_rule_kind_record(
+        nodes: &mut MemoryNodes,
+        rule: &str,
+        kind: &str,
+        slot: &Value,
+        payload: &Value,
+        memo_fields: bool,
+    ) -> Result<Object, String> {
+        let producer = Cc004Producer::new(tb02a::PROFILE, rule);
+        let empty = sc::write_value(nodes, &V::Array(vec![])).unwrap();
+        let object = producer
+            .build_object(
+                nodes,
+                kind,
+                canonical_json(&json!([kind, slot])),
+                cv(payload).unwrap(),
+                empty.clone(),
+                empty,
+                1,
+                "cut-1",
+            )
+            .unwrap();
+        let record = RefValue::Plain(NativeValue::<sc::ContentRef>::from_unscoped(
+            object.record.content_ref(),
+        ));
+        // 工厂记录还含三个内部值边；来源核消费现有 TYPED 定义的十字段公开投影。
+        let mut public_fields = vec![];
+        for key in TYPED {
+            let value = field(nodes, &record, key).unwrap();
+            public_fields.push(((*key).to_string(), V::Edge(digest(&value).unwrap())));
+        }
+        let record = RefValue::Plain(NativeValue::<sc::ContentRef>::from_unscoped(
+            sc::write_value(nodes, &V::Object(public_fields))
+                .unwrap()
+                .content_ref(),
+        ));
+        audit_object_record(
+            nodes,
+            &record,
+            &BusinessMap::<i64, Source>::plain(),
+            &producer,
+            rule,
+            1,
+            &mut BusinessMap::plain(),
+            &mut BusinessMap::plain(),
+            &mut BusinessMap::plain(),
+            None,
+            0,
+            memo_fields,
+            None,
+            None,
+        )
+    }
+
+    #[test]
+    fn structure_rule_rejects_new_kinds_under_legacy_rules() {
+        for rule in [crate::LEGACY_V3_RULE_REVISION, crate::V3_RULE_REVISION] {
+            for kind in crate::tb02c::KINDS
+                .iter()
+                .chain(crate::tb02e::KINDS)
+                .chain(crate::tb02f::KINDS)
+            {
+                for memo_fields in [false, true] {
+                    let mut nodes = MemoryNodes::default();
+                    let result = audit_rule_kind_record(
+                        &mut nodes,
+                        rule,
+                        kind,
+                        &json!("test-slot"),
+                        &json!({}),
+                        memo_fields,
+                    );
+                    assert_eq!(
+                        result.err(),
+                        Some(err("未声明typed事实种类")),
+                        "旧规则 {rule} 不得放行 {kind}，memo_fields={memo_fields}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn structure_rule_accepts_declared_versions_and_checks_payload() {
+        let rule = crate::V3_STRUCTURE_RULE_REVISION;
+        for memo_fields in [false, true] {
+            let mut nodes = MemoryNodes::default();
+            let mut objects = vec![];
+            for (kind, slot, schema, semantic, policy, delivered) in [
+                (
+                    "CC-056.segment_version",
+                    "TB-02-W",
+                    crate::tb02c::SCHEMA,
+                    newchan_rust::theta_v0::parser::segment::CONSTRUCTION_RULE,
+                    "seed_closed_strict_second",
+                    "seed_strict_first_and_second_terminal",
+                ),
+                (
+                    "CC-056.center_version",
+                    "TB-02-E",
+                    crate::tb02e::SCHEMA_REVISION,
+                    "center-seed/1",
+                    "strict_seed_zn_outer_c_resume",
+                    "l0_strict_seed_zn_roles_c_resume_assignment",
+                ),
+                (
+                    "CC-056.pair_version",
+                    "TB-02-F",
+                    crate::tb02f::SCHEMA_REVISION,
+                    "center-pair/1",
+                    "zn_outer_five_leaf_pending_ge9",
+                    "l0_adjacent_pair_five_leaf_zn_outer_and_unit_core_position",
+                ),
+            ] {
+                let mut payload = json!({
+                    "schema_revision": schema,
+                    "semantic_version": semantic,
+                    "policy_version": policy,
+                    "view_role": "main",
+                    "object_generation": "1",
+                    "slot": slot,
+                    "data": {
+                        "delivered_scope": delivered,
+                        "waiting_reasons": [],
+                        "deferred_scope": [],
+                        "input_frontier": "-1"
+                    }
+                });
+                objects.push(
+                    audit_rule_kind_record(
+                        &mut nodes,
+                        rule,
+                        kind,
+                        &json!(slot),
+                        &payload,
+                        memo_fields,
+                    )
+                    .unwrap(),
+                );
+                // 新规则放行kind后仍核其载荷；合法obj3身份不能替代此门。
+                payload["data"]["delivered_scope"] = json!("undeclared");
+                assert_eq!(
+                    audit_rule_kind_record(
+                        &mut nodes,
+                        rule,
+                        kind,
+                        &json!(slot),
+                        &payload,
+                        memo_fields,
+                    )
+                    .err(),
+                    Some(err("结构版本槽位/范围/全原始账来源不符"))
+                );
+            }
+            source_structure::audit_full(&mut nodes, &objects, rule).unwrap();
+            assert_eq!(
+                audit_rule_kind_record(
+                    &mut nodes,
+                    rule,
+                    "CC-056.future_version",
+                    &json!("unknown"),
+                    &json!({}),
+                    memo_fields,
+                )
+                .err(),
+                Some(err("未声明typed事实种类"))
+            );
+        }
+    }
+
     pub(super) const STATE: &[&str] = &[
         "generation",
         "structure_cut",
@@ -2557,7 +2785,10 @@ mod tests {
         let profile_hash = get("profile_hash");
         // #1394 整合 W-2：本夹具借 v2 的 `init_test_db` 建库取原始账，但跑的是 v3 生成；规则修订
         // 取 v3 写者自己的（v2 写者合并后是 `…+segment-second/1`，它进对象身份配方，冻结轨迹随之变）。
-        let rule = crate::V3_RULE_REVISION.to_string();
+        // #1393×#1419：S3 写者唯一规则改为 W 后继串（`mod.rs::require_current_writer_rule`；
+        // `s_structure_session.rs` W_STRUCTURE_RULE_REVISION 注释「S3 写者只写本串；CF22 及更早各串只读
+        // AsKnown」）。生成夹具随写者规则走；`V3_RULE_REVISION` 退为只读历史域，不再由生成器产出。
+        let rule = crate::W_STRUCTURE_RULE_REVISION.to_string();
         let catalog = get("catalog_revision");
         let scope = serde_json::from_str(&get("scope")).unwrap();
         let mut store = MemoryNodes::default();
@@ -2578,6 +2809,7 @@ mod tests {
             catalog_revision: &catalog,
             scope: &scope,
             semantic_commit_ns: None,
+            structure_prior: crate::v3::generation::StructurePriors::default(),
             prior: PriorState {
                 bi_records: vec![],
                 version_record: None,
@@ -2599,7 +2831,8 @@ mod tests {
         let effective = read_effective_events(&raw).unwrap();
         let get = |k| meta_get_opt(&c, k).unwrap().unwrap();
         let profile_hash = get("profile_hash");
-        let rule = crate::V3_RULE_REVISION.to_string();
+        // #1393×#1419：同 `fixture`，生成夹具取 S3 写者唯一规则（W 后继串）。
+        let rule = crate::W_STRUCTURE_RULE_REVISION.to_string();
         let catalog = get("catalog_revision");
         let scope = serde_json::from_str(&get("scope")).unwrap();
         let mut store = MemoryNodes::default();
@@ -2620,6 +2853,7 @@ mod tests {
                     catalog_revision: &catalog,
                     scope: &scope,
                     semantic_commit_ns: None,
+                    structure_prior: crate::v3::generation::StructurePriors::default(),
                     prior: PriorState {
                         bi_records: vec![],
                         version_record: None,
@@ -2709,11 +2943,14 @@ mod tests {
             ("i1", 1, 1, 9, 1, 9),
             ("i2", 2, 20, 30, 20, 30),
         ];
-        for rows in [&initial[..], &initial[..1]] {
+        // #1393 W（raw-initialization-w/1）：(i0,i1) 包含、(i1,i2) 严格向上 ⟹ 第三根建立方向并从 raw0
+        // 重折为两组；前两根/单根永不建立 ⟹ 零正式组，全部生效原件由未定原件承担（旧核「唯一 seed
+        // 组 + waiting 后缀」的形态随写者规则退场，只在旧规则 cut 的只读审计里保留）。
+        for (rows, groups) in [(&initial[..], 2), (&initial[..2], 0), (&initial[..1], 0)] {
             let (mut s, state, raw, rule) = tb1405_pending_fixture(rows);
             let counts = tb1405_none_some_read_only(&mut s, &state, &raw, &rule);
             assert_eq!(counts.effective, rows.len());
-            assert_eq!(counts.groups, 1);
+            assert_eq!(counts.groups, groups);
             assert_eq!(counts.windows, 0);
         }
     }
@@ -3157,7 +3394,8 @@ mod tests {
         let raw = read_raw_events(&c).unwrap();
         let get = |k| meta_get_opt(&c, k).unwrap().unwrap();
         let profile_hash = get("profile_hash");
-        let rule = get("rule_revision");
+        // #1393×#1419：生成夹具取 S3 写者唯一规则（W 后继串），不取 v2 测试库的历史规则串。
+        let rule = crate::W_STRUCTURE_RULE_REVISION.to_string();
         let catalog = get("catalog_revision");
         let scope = serde_json::from_str(&get("scope")).unwrap();
         let mut nodes = MemoryNodes::default();
@@ -3183,6 +3421,7 @@ mod tests {
                             catalog_revision: &catalog,
                             scope: &scope,
                             semantic_commit_ns: None,
+                            structure_prior: crate::v3::generation::StructurePriors::default(),
                             prior: PriorState {
                                 bi_records: vec![],
                                 version_record: None,
@@ -4450,6 +4689,10 @@ mod tests {
         // `271b8e8cc6` 之后的 `813fc75fa5`、`199caedfd0`、`dccb69793c` 读数与摘要逐值相同，故 +120 来自该
         // 合并本身（同价语义与规则修订），不来自后两处修复；未逐节点分解。
         // 旧摘要（new-bi/1）：read 8418acae…、budget f194dbc3…。
+        // #1393×#1419 重冻（夹具改取 S3 写者唯一规则 W 后继串）：同一 14 根原始账在 W 规则下多出
+        // 初始化事实（槽 W）与 C/D/E/F 结构域对象（81 = 76 + 5），结构域与 W 判据的读取另加
+        // 37928 reads / 38245 F；均为 nc-remote 实测（ac24e9e3eb，s_session 与 +native 两组合同值），
+        // 摘要随规则修订与发布内容改变。旧摘要（new-bi/2，76 对象）：read ffa6288e…、budget 06e35514…。
         assert_eq!(
             (
                 counts.objects,
@@ -4459,17 +4702,21 @@ mod tests {
                 counts.insufficient,
                 counts.outside_domain
             ),
-            (76, 13, 11, 14, 0, 0)
+            (81, 13, 11, 14, 0, 0)
         );
-        assert_eq!(roots.len(), 151351 + 13016 + 120, "r3完整Some读取轨迹");
-        assert_eq!(frames, 170797 + 14276 + 120, "r3完整Some F次数");
+        assert_eq!(
+            roots.len(),
+            151351 + 13016 + 120 + 37928,
+            "r3完整Some读取轨迹"
+        );
+        assert_eq!(frames, 170797 + 14276 + 120 + 38245, "r3完整Some F次数");
         assert_eq!(
             read_hash,
-            "ffa6288e00eb063d0d10c234ae2f013fff0f15ce5e94e9777c5d0bf33359f2e9"
+            "0dfe6b80acb54cf47a8afaaaed7b3542c60fe64e1021f32e12f67783c498c95b"
         );
         assert_eq!(
             budget_hash,
-            "06e35514afeb5411501d062780ddd409a1796c54a38f3eac7912596d8eeda26e"
+            "9236f0171f6eb6e523d894e338e634d55c0c69522bc03fdbe13937aa00980194"
         );
     }
     fn json_text_edge(s: &mut dyn NodeStore, value: &ContentRef) -> ContentRef {

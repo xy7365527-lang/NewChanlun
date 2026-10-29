@@ -872,6 +872,7 @@ fn audit_one_published_cut<'capture>(
         generation,
         object_sweep.as_ref(),
         records.as_deref_mut(),
+        &m.rule_revision,
     )?;
     let (active, withdrawn, upserts) = if let Some(p) = &dual {
         (
@@ -5199,8 +5200,8 @@ pub(super) mod tests {
     #[test]
     fn history_layout_multicut_publish_equals_audit_rebuild() {
         use super::layout::Layout;
-        let bounded_rule = format!("{}+bounded-layout/1", crate::V3_RULE_REVISION);
-        let mut sorted = layout_multicut_library(crate::V3_RULE_REVISION, None);
+        let bounded_rule = format!("{}+bounded-layout/1", crate::W1_STRUCTURE_RULE_REVISION);
+        let mut sorted = layout_multicut_library(crate::W1_STRUCTURE_RULE_REVISION, None);
         let mut bounded = layout_multicut_library(&bounded_rule, None);
         let mut views = Vec::new();
         for (layout, other, fixture) in [
@@ -5268,10 +5269,10 @@ pub(super) mod tests {
     #[test]
     fn history_layout_multicut_wrong_array_order_rejects() {
         use super::layout::Layout;
-        let bounded_rule = format!("{}+bounded-layout/1", crate::V3_RULE_REVISION);
+        let bounded_rule = format!("{}+bounded-layout/1", crate::W1_STRUCTURE_RULE_REVISION);
         for (rule, forced) in [
             (bounded_rule.as_str(), Layout::Sorted),
-            (crate::V3_RULE_REVISION, Layout::Bounded1),
+            (crate::W1_STRUCTURE_RULE_REVISION, Layout::Bounded1),
         ] {
             let mut fixture = layout_multicut_library(rule, Some(forced));
             assert_ne!(Layout::of_library(&fixture.conn).unwrap(), forced);
@@ -5291,8 +5292,8 @@ pub(super) mod tests {
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
     fn history_layout_multicut_native_projection_equals_plain_audit() {
-        let bounded_rule = format!("{}+bounded-layout/1", crate::V3_RULE_REVISION);
-        for rule in [crate::V3_RULE_REVISION, bounded_rule.as_str()] {
+        let bounded_rule = format!("{}+bounded-layout/1", crate::W1_STRUCTURE_RULE_REVISION);
+        for rule in [crate::W1_STRUCTURE_RULE_REVISION, bounded_rule.as_str()] {
             let mut fixture = layout_multicut_library(rule, None);
             let plain = audit(&mut fixture.conn).unwrap();
             let tx = fixture.conn.transaction().unwrap();
@@ -5921,11 +5922,13 @@ pub(super) mod tests {
                 .content_ref()
         }
         let mut fixture = super::prepared::tests::Fixture::new();
+        // #1419 W：第 4 代原为 b 的前缀改价，W 下前缀改价令同 cut 全部对象重生，快照里没有
+        // 非模板批旧记录；改为第 4 代追加新 bar，旧代对象（a/b/c 的步骤等）原样存活，同时有本代新生记录。
         for (n, row, revision) in [
             (1, ("a", 0, 6, 12, 3, 7), 1),
             (2, ("b", 10, 8, 16, 6, 12), 1),
             (3, ("c", 20, 8, 13, 4, 7), 1),
-            (4, ("b", 10, 8, 17, 6, 12), 2),
+            (4, ("d", 30, 9, 18, 7, 15), 1),
         ] {
             let (e, token) = fixture.accept_begin(n, row, revision);
             fixture.publish(&e, &token).unwrap();

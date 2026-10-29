@@ -13,6 +13,9 @@ import time
 import urllib.request
 import urllib.error
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from v2_seed import require_seed_binary  # noqa: E402  #1419 种子构建闸
+
 R = Path(__file__).resolve().parents[2]
 B = R / "rust/target/debug/s_structure_session"
 P = R / "s_session/profiles/testonly_tick_1_1_ohlc.json"
@@ -262,7 +265,7 @@ def main():
     global B
     ap=argparse.ArgumentParser();ap.add_argument("out",type=Path);ap.add_argument("--r10",action="store_true")
     ap.add_argument("--binary",type=Path,default=B,help="明确指定本次受测 writer，默认保留旧 debug 路径")
-    args=ap.parse_args();B=args.binary.resolve();args.out.mkdir(exist_ok=True)
+    args=ap.parse_args();B=require_seed_binary(args.binary.resolve());args.out.mkdir(exist_ok=True)
     if args.r10:
         try:
             exercise_r10(args.out)

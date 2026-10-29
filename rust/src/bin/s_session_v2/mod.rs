@@ -9,11 +9,14 @@ use newchan_rust::s_content::capture_allocation::scratch::WorkScope;
 use newchan_rust::s_content::{capture_allocation::OwnedBudget, CodecVec};
 pub use newchan_rust::session_protocol::strict_json;
 use newchan_rust::session_protocol::{nonnegative, positive, required, validate_envelope};
+#[cfg(any(test, feature = "s_v2_seed_testonly"))]
 use newchan_rust::session_transport::{self, serve_unix, TransportBounds};
 use newchan_rust::sqlite_checked::{CheckedRow, CheckedStatement};
 use std::ffi::CStr;
 use std::fmt;
+#[cfg(any(test, feature = "s_v2_seed_testonly"))]
 use std::fs::File;
+#[cfg(any(test, feature = "s_v2_seed_testonly"))]
 use std::time::Duration;
 #[cfg(test)]
 use std::time::Instant;
@@ -613,6 +616,13 @@ pub(super) fn record_recover_context(
     )
 }
 
+#[cfg_attr(
+    not(any(test, feature = "s_v2_seed_testonly")),
+    expect(
+        dead_code,
+        reason = "#1419 机械锁：只被已退役的 v2 写入口调用，发布构建不得有调用路径"
+    )
+)]
 fn envelope(value: Value) -> Result<Value, String> {
     validate_envelope(value, "s-session/2")
 }
@@ -2162,9 +2172,11 @@ pub(super) fn validate_control_history_admitted(
     })
 }
 
+#[cfg(any(test, feature = "s_v2_seed_testonly"))] // #1419 裁定（6265726014）：v2 写入口只在测试/种子构建存在
 fn process_lock(db: &Path) -> Result<File, String> {
     session_transport::process_lock(db, "S")
 }
+#[cfg(any(test, feature = "s_v2_seed_testonly"))] // #1419 裁定（6265726014）：v2 写入口只在测试/种子构建存在
 fn init_v2(
     db: &Path,
     session: &str,
@@ -2299,6 +2311,13 @@ pub(super) fn lookup(
         json!({"ok":true,"kind":status,"original_message_id":id,"receipt_id":receipt,"accepted_seq":seq.to_string(),"publication":publication,"policy_records":policy_records}),
     )
 }
+#[cfg_attr(
+    not(any(test, feature = "s_v2_seed_testonly")),
+    expect(
+        dead_code,
+        reason = "#1419 机械锁：只被已退役的 v2 写入口调用，发布构建不得有调用路径"
+    )
+)]
 fn ready(conn: &Connection) -> Result<Value, String> {
     ready_for_protocol(conn, "s-session/2")
 }
@@ -2358,6 +2377,7 @@ pub(super) fn validate_ingest_view(e: JsonView<'_>) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(any(test, feature = "s_v2_seed_testonly"))] // #1419 裁定（6265726014）：v2 写入口只在测试/种子构建存在
 fn handle_with_policy(
     db: &Path,
     profile: &Path,
@@ -2369,6 +2389,13 @@ fn handle_with_policy(
     handle_with_policy_and_config(db, profile, epoch, clock, e, production, None)
 }
 
+#[cfg_attr(
+    not(any(test, feature = "s_v2_seed_testonly")),
+    expect(
+        dead_code,
+        reason = "#1419 机械锁：只被已退役的 v2 写入口调用，发布构建不得有调用路径"
+    )
+)]
 #[allow(clippy::too_many_arguments)]
 fn handle_with_policy_and_config(
     db: &Path,
@@ -2470,6 +2497,7 @@ fn handle_with_policy_and_config(
         _ => Err("SchemaUnsupported：未知op，恢复只允许正式监督器CLI".into()),
     }
 }
+#[cfg(any(test, feature = "s_v2_seed_testonly"))] // #1419 裁定（6265726014）：v2 写入口只在测试/种子构建存在
 fn response(
     e: &Value,
     result: Result<Value, String>,
@@ -2496,6 +2524,7 @@ fn response(
     reply
 }
 
+#[cfg(any(test, feature = "s_v2_seed_testonly"))] // #1419 裁定（6265726014）：v2 写入口只在测试/种子构建存在
 #[derive(Clone)]
 struct Bounds {
     frame: usize,
@@ -2506,6 +2535,7 @@ struct Bounds {
     queue: usize,
     connections: usize,
 }
+#[cfg(any(test, feature = "s_v2_seed_testonly"))] // #1419 裁定（6265726014）：v2 写入口只在测试/种子构建存在
 impl Bounds {
     fn transport(&self) -> TransportBounds {
         TransportBounds {
@@ -2572,6 +2602,7 @@ fn handle_fixture_with_config(
     handle_with_policy_and_config(db, profile, epoch, clock, envelope, false, Some(config))
 }
 
+#[cfg(any(test, feature = "s_v2_seed_testonly"))] // #1419 裁定（6265726014）：v2 写入口只在测试/种子构建存在
 fn serve_with_policy(
     db: &Path,
     socket: &Path,
@@ -2654,9 +2685,34 @@ fn stale_begin_on_historical_rule(rule: Option<&str>, db: &Path) -> String {
     )
 }
 
+/// #1419 主控裁定②（issuecomment-6265209957）：v2 写入口（`init --session-generation…`、`serve`、
+/// 带时钟 `recover`）一律拒绝，新旧会话同拒；旧 v2 库只读（`retained_watch` 等读路径不变）。
+/// `s_structure_session::run_with` 已先行拦截，这里是第二道门：本分派不再进入任何 v2 写函数。
+pub fn dispatch(args: &[String]) -> Result<bool, String> {
+    let cmd = args.get(1).map(String::as_str).unwrap_or("");
+    let v2_init = cmd == "init"
+        && [
+            "--session-generation",
+            "--clock-plan",
+            "--delivery-retain-generations",
+        ]
+        .iter()
+        .any(|k| args.iter().any(|a| a == k));
+    let v2_recover = cmd == "recover"
+        && ["--clock-plan", "--clock-event-id"]
+            .iter()
+            .any(|k| args.iter().any(|a| a == k));
+    if v2_init || v2_recover || cmd == "serve" {
+        return Err(crate::V2_WRITER_RETIRED.to_string());
+    }
+    Ok(false)
+}
+
+#[cfg(any(test, feature = "s_v2_seed_testonly"))]
 fn arg(args: &[String], key: &str) -> Result<String, String> {
     arg_value(args, key).ok_or_else(|| format!("缺 {key}"))
 }
+#[cfg(any(test, feature = "s_v2_seed_testonly"))]
 fn positive_arg(args: &[String], key: &str) -> Result<i64, String> {
     positive(&arg(args, key)?, key)
 }
@@ -2675,7 +2731,10 @@ fn serve_fixture(
     )
 }
 
-pub fn dispatch(args: &[String]) -> Result<bool, String> {
+/// #1419 裁定（issuecomment-6265726014）：v2 种子写入口，只在 `s_v2_seed_testonly` 构建存在；
+/// 分派与退役前的 v2 写分派（main 的 `dispatch_with_policy(args, true)`）逐字相同。
+#[cfg(feature = "s_v2_seed_testonly")]
+pub fn seed_dispatch(args: &[String]) -> Result<bool, String> {
     dispatch_with_policy(args, true)
 }
 
@@ -2684,6 +2743,7 @@ pub fn dispatch_fixture(args: &[String]) -> Result<bool, String> {
     dispatch_with_policy(args, false)
 }
 
+#[cfg(any(test, feature = "s_v2_seed_testonly"))] // #1419 裁定（6265726014）：v2 写入口只在测试/种子构建存在
 fn dispatch_with_policy(args: &[String], production: bool) -> Result<bool, String> {
     let cmd = args.get(1).map(String::as_str).unwrap_or("");
     if cmd == "init"
@@ -2777,6 +2837,7 @@ fn dispatch_with_policy(args: &[String], production: bool) -> Result<bool, Strin
 }
 
 // init/reset 保留旧锁分支，本提案不授予新库准备、重置或既存无锚接管资格。
+#[cfg(feature = "s_v2_seed_testonly")]
 pub enum LegacyWriteGuard {
     Initialization(
         #[allow(
@@ -2787,6 +2848,7 @@ pub enum LegacyWriteGuard {
     ),
     Existing(crate::v3::admission::WriterScope),
 }
+#[cfg(feature = "s_v2_seed_testonly")]
 impl LegacyWriteGuard {
     pub(crate) fn enter(&self) -> Result<Option<crate::v3::admission::OpenGuard>, String> {
         match self {
@@ -2802,6 +2864,7 @@ impl LegacyWriteGuard {
     }
 }
 
+#[cfg(feature = "s_v2_seed_testonly")]
 pub fn legacy_write_lock(args: &[String]) -> Result<Option<LegacyWriteGuard>, String> {
     let command = args.get(1).map(String::as_str);
     if matches!(command, Some("accept" | "advance" | "recover")) {

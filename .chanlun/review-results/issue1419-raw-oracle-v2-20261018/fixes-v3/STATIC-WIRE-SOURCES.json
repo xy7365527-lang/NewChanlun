@@ -1,0 +1,140 @@
+{
+  "qualification": "只读静态字段对照，未运行；不等于最终源冻结",
+  "source_checkout": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/adapt-v2-worktree",
+  "observed_head": "2694afcf147f3ba4114fde386470886c2428efc0",
+  "source_commit_for_candidate": "PENDING_SOURCE",
+  "files": [
+    {
+      "path": "rust/src/bin/s_session_v3/content_structure.rs",
+      "sha256": "34890f1a5c1c110561c517a6cb9072e1aead4f66df78728c9311255bf963c88a",
+      "bytes": 111387,
+      "excerpts": [
+        {
+          "first_line": 272,
+          "last_line": 287,
+          "text": "\n/// 从已核事实直接序列化为内容值，整数遵从 s-segment/3 的十进制文本规则。\n/// 不经 serde_json::Value、JSON 文本或旧 typed object；每份事实根只构造一次并跨对象接边。\npub(crate) fn fact<T: Serialize + ?Sized>(\n    nodes: &mut dyn NodeStore,\n    value: &T,\n) -> Result<Built, String> {\n    put(\n        &(value\n            .serialize(WireSerializer(nodes))\n            .map_err(|e| e.to_string())?),\n        nodes,\n    )\n}\n\nstruct PriorSegment {"
+        },
+        {
+          "first_line": 465,
+          "last_line": 516,
+          "text": "fn stroke_refs(\n    nodes: &mut dyn NodeStore,\n    strokes: &StrokeFacts,\n    generation: i64,\n    from: usize,\n    through: usize,\n) -> Result<(Built, Vec<usize>), String> {\n    let mut values = Vec::new();\n    let mut sources = Vec::new();\n    // Seed 为空时旧合同允许空序列；候选的索引由主循环显式核验。\n    for (i, bi) in strokes\n        .strokes\n        .iter()\n        .enumerate()\n        .take(through.saturating_add(1))\n        .skip(from)\n    {\n        sources.extend(bi.start.source_coords.iter().copied(), nodes)?;\n        sources.extend(bi.end.source_coords.iter().copied(), nodes)?;\n        let a = fact(nodes, &bi.start.extreme_roots)?;\n        let b = fact(nodes, &bi.end.extreme_roots)?;\n        let value = put(\n            &(obj(\n                [\n                    (\"stroke_index\", s(i, nodes)?),\n                    (\n                        \"entity_id\",\n                        s(\n                            Text::format(\n                                format_args!(\"bi:{generation}:{}\", bi.identity_anchor),\n                                nodes,\n                            )?,\n                            nodes,\n                        )?,\n                    ),\n                    (\"start_anchor\", s(bi.start.group_anchor, nodes)?),\n                    (\"end_anchor\", s(bi.end.group_anchor, nodes)?),\n                    (\"start_price\", s(bi.start.price, nodes)?),\n                    (\"end_price\", s(bi.end.price, nodes)?),\n                    (\"start_roots\", edge(&a)),\n                    (\"end_roots\", edge(&b)),\n                ],\n                nodes,\n            )?),\n            nodes,\n        )?;\n        values.push(edge(&value), nodes)?;\n    }\n    Ok((put(&(CV::Array(values)), nodes)?, sorted_sources(sources)))\n}\nfn second_status(state: Option<SecondTerminal>) -> &'static str {\n    match state {"
+        },
+        {
+          "first_line": 791,
+          "last_line": 875,
+          "text": "        let geometric = if let Some(i) = c.end_stroke {\n            let end = &strokes.strokes.get(i).ok_or(\"候选段端越界\")?.end;\n            let roots = fact(nodes, &end.extreme_roots)?;\n            put(\n                &(obj(\n                    [\n                        (\"stroke_index\", s(i, nodes)?),\n                        (\"group_anchor\", s(end.group_anchor, nodes)?),\n                        (\"extreme_roots\", edge(&roots)),\n                        (\"price\", s(end.price, nodes)?),\n                    ],\n                    nodes,\n                )?),\n                nodes,\n            )?\n        } else {\n            put(&(CV::Null), nodes)?\n        };\n        let formed = match previous {\n            Some(p) => field(nodes, &p.data, \"formed_known_at\")?,\n            None => ctx.known_at.clone(),\n        };\n        let terminated = if matches!(c.result, \"CASE_ONE\" | \"CASE_TWO\") {\n            match previous {\n                Some(p)\n                    if p.result == c.result\n                        && field(nodes, &p.data, \"geometric_end\")?.digest == geometric.digest =>\n                {\n                    field(nodes, &p.data, \"terminated_known_at\")?\n                }\n                _ => ctx.known_at.clone(),\n            }\n        } else {\n            put(&(CV::Null), nodes)?\n        };\n        let strict = fact(nodes, &c.strict)?;\n        let vector = fact(nodes, &c.fact_vector)?;\n        let construction = fact(nodes, &c.construction)?;\n        let waiting = fact(nodes, &c.waiting_reasons)?;\n        let attempts = fact(nodes, &c.termination_attempts)?;\n        let trigger = fact(nodes, &c.trigger_stroke)?;\n        let CV::Object(mut fields) = obj(\n            [\n                (\"entity_id\", s(&entity, nodes)?),\n                (\"entity_revision\", s(1, nodes)?),\n                (\n                    \"seed_id\",\n                    s(\n                        Text::format(\n                            format_args!(\"seed:{}:{}\", ctx.fact_generation, bi.identity_anchor),\n                            nodes,\n                        )?,\n                        nodes,\n                    )?,\n                ),\n                (\"sequence_id\", s(&sequence, nodes)?),\n                (\"sequence_object_id\", s(&first_id, nodes)?),\n                (\n                    \"second_sequence_id\",\n                    second_sequence\n                        .as_ref()\n                        .map(|v| s(v, nodes))\n                        .transpose()?\n                        .unwrap_or(CV::Null),\n                ),\n                (\n                    \"second_sequence_object_id\",\n                    second_id\n                        .as_ref()\n                        .map(|v| s(v, nodes))\n                        .transpose()?\n                        .unwrap_or(CV::Null),\n                ),\n                (\"strict\", edge(&strict)),\n                (\"fact_vector\", edge(&vector)),\n                (\"construction\", edge(&construction)),\n                (\"result\", s(c.result, nodes)?),\n                (\"waiting_reasons\", edge(&waiting)),\n                (\"termination_attempts\", edge(&attempts)),\n                (\"geometric_end\", edge(&geometric)),\n                (\"trigger_stroke\", edge(&trigger)),\n                (\"formed_known_at\", edge(&formed)),\n                (\"terminated_known_at\", edge(&terminated)),\n                (\"stroke_refs\", edge(&refs)),\n            ],"
+        },
+        {
+          "first_line": 1258,
+          "last_line": 1284,
+          "text": "fn unit_value(u: &crate::tb02e::SegUnit, nodes: &dyn sc::NodeSource) -> Result<CV, String> {\n    Ok(match u.range {\n        Some(r) => obj(\n            [\n                (\"unit_id\", s(&u.unit_id, nodes)?),\n                (\"unit_object_id\", s(&u.object_id, nodes)?),\n                (\"direction\", s(direction(r.direction), nodes)?),\n                (\"lo\", s(r.lo, nodes)?),\n                (\"hi\", s(r.hi, nodes)?),\n            ],\n            nodes,\n        )?,\n        None => obj(\n            [\n                (\"unit_id\", s(&u.unit_id, nodes)?),\n                (\"unit_object_id\", s(&u.object_id, nodes)?),\n                (\"completed\", CV::Bool(false)),\n            ],\n            nodes,\n        )?,\n    })\n}\nfn unit_sources<'a>(\n    units: impl IntoIterator<Item = &'a crate::tb02e::SegUnit>,\n    nodes: &dyn sc::NodeSource,\n) -> Result<Vec<usize>, String> {\n    Ok(sorted_sources(Vec::from_iter("
+        },
+        {
+          "first_line": 1790,
+          "last_line": 1840,
+          "text": "        let entity = Text::format(format_args!(\"seed_attempt:{}\", anchor(ids[a.at])), nodes)?;\n        let center = facts\n            .windows\n            .iter()\n            .position(|w| w.seed_at == a.at)\n            .map(|w| s(&center_ids[w], nodes))\n            .transpose()?\n            .unwrap_or(CV::Null);\n        let value = obj(\n            [\n                (\"entity_id\", s(&entity, nodes)?),\n                (\n                    \"units\",\n                    CV::Array(Vec::try_from_iter(\n                        seed.iter().map(|u| unit_value(u, nodes)),\n                        nodes,\n                    )?),\n                ),\n                (\n                    \"vector\",\n                    obj(\n                        [\n                            (\"completed\", CV::Bool(v.completed)),\n                            (\"consecutive\", CV::Bool(v.consecutive)),\n                            (\"same_level\", CV::Bool(v.same_level)),\n                            (\"alternating\", CV::Bool(v.alternating)),\n                            (\"strict\", v.strict.map_or(CV::Null, CV::Bool)),\n                        ],\n                        nodes,\n                    )?,\n                ),\n                (\"ZD\", extremum(RoleVar::Zd)?),\n                (\"ZG\", extremum(RoleVar::Zg)?),\n                (\"core_order\", s(a.facts.core_order.as_str(), nodes)?),\n                (\n                    \"result\",\n                    s(if a.formed { \"FORMED\" } else { \"EXCLUDED\" }, nodes)?,\n                ),\n                (\n                    \"exclusion_reason\",\n                    a.facts\n                        .exclusion(SeedRule::Complete)\n                        .map(|r| s(r.as_str(), nodes))\n                        .transpose()?\n                        .unwrap_or(CV::Null),\n                ),\n                (\"center_id\", center),\n                (\"known_at\", edge(ctx.known_at)),\n            ],\n            nodes,\n        )?;"
+        },
+        {
+          "first_line": 1935,
+          "last_line": 1994,
+          "text": "            put(&(CV::Null), nodes)?\n        };\n        let formed = match prior {\n            Some(p) => field(nodes, p, \"formed_known_at\")?,\n            None => ctx.known_at.clone(),\n        };\n        let value = obj(\n            [\n                (\"entity_id\", s(entity, nodes)?),\n                (\"entity_revision\", s(1, nodes)?),\n                (\n                    \"seed_attempt_id\",\n                    s(\n                        attempt_ids.get(&wf.first).ok_or(\"中心缺真实seed attempt\")?,\n                        nodes,\n                    )?,\n                ),\n                (\n                    \"seed_units\",\n                    CV::Array(Vec::try_from_iter(\n                        member_ids[..3].iter().map(|v| v.clone_in(nodes)),\n                        nodes,\n                    )?),\n                ),\n                (\n                    \"zn_direction\",\n                    s(direction(units[wf.first].direction), nodes)?,\n                ),\n                (\"members\", CV::Array(member_ids.clone_in(nodes)?)),\n                (\n                    \"zn_members\",\n                    CV::Array(Vec::try_from_iter(\n                        wf.zn_members.iter().map(|&k| s(ids[k], nodes)),\n                        nodes,\n                    )?),\n                ),\n                (\"status\", s(status, nodes)?),\n                (\"settled\", CV::Bool(wf.settled)),\n                (\"break_unit\", break_unit),\n                (\"break_up\", CV::Bool(wf.break_up.unwrap_or(false))),\n                (\"break_up_defined\", CV::Bool(wf.break_up.is_some())),\n                (\n                    \"resume_anchor\",\n                    if wf.settled {\n                        obj(\n                            [\n                                (\"after_unit_id\", s(ids[wf.last], nodes)?),\n                                (\"offset\", s(2, nodes)?),\n                            ],\n                            nodes,\n                        )?\n                    } else {\n                        CV::Null\n                    },\n                ),\n                (\"next_tested_unit\", next),\n                (\"roles_id\", s(&roles_entity, nodes)?),\n                (\"formed_known_at\", edge(&formed)),\n                (\"settled_known_at\", edge(&settled)),\n            ],"
+        },
+        {
+          "first_line": 2640,
+          "last_line": 2663,
+          "text": "        let value = obj(\n            [\n                (\"entity_id\", s(&entity, nodes)?),\n                (\"a_center_id\", s(a, nodes)?),\n                (\"a_revision\", s(revisions[pair.left], nodes)?),\n                (\"b_center_id\", s(b, nodes)?),\n                (\"b_revision\", s(revisions[pair.right], nodes)?),\n                (\n                    \"connector_units\",\n                    CV::Array(Vec::try_from_iter(\n                        pair.connectors.clone().map(|k| s(ids[k], nodes)),\n                        nodes,\n                    )?),\n                ),\n                (\"status\", s(status, nodes)?),\n                (\n                    \"leaf\",\n                    leaf.map(|l| s(l.as_str(), nodes))\n                        .transpose()?\n                        .unwrap_or(CV::Null),\n                ),\n                (\n                    \"direction\",\n                    leaf.and_then(PairLeaf::direction)"
+        }
+      ]
+    },
+    {
+      "path": "rust/src/theta_v0/parser/segment.rs",
+      "sha256": "d0399baca9a87a3ef39a4f47f6aa94d48e450cde393879abf16f5516b970c9e7",
+      "bytes": 84335,
+      "excerpts": [
+        {
+          "first_line": 163,
+          "last_line": 174,
+          "text": "pub struct ConstructionFact {\n    pub start_stroke: usize,\n    pub stroke_indices: Vec<usize>,\n    pub length: &'static str,\n    /// 仅奇数且至少三笔适用；交替、前三闭重叠、顶>底、首尾同向。\n    pub vector: Option<[bool; 4]>,\n    pub overlap: Option<[Tick; 2]>,\n    pub overlap_relation: Option<&'static str>,\n    pub direction: Option<&'static str>,\n    pub failed_conditions: Vec<&'static str>,\n}\nimpl ConstructionFact {"
+        },
+        {
+          "first_line": 260,
+          "last_line": 318,
+          "text": "pub struct SegmentCandidateFact {\n    pub start_stroke: usize,\n    pub seed: ConstructionFact,\n    pub construction: ConstructionFact,\n    pub first: super::feature_seq::FeatureSequenceFacts,\n    pub second: Option<super::feature_seq::SecondSequenceFacts>,\n    pub strict: Option<StrictGapFact>,\n    pub fact_vector: BreakFacts,\n    pub observed_through: usize,\n    pub result: &'static str,\n    pub waiting_reasons: Vec<&'static str>,\n    pub end_stroke: Option<usize>,\n    pub trigger_stroke: Option<usize>,\n    pub termination_attempts: Vec<SegmentEndCheck>,\n}\n/// #1414 G4：明确绑定 FIRST a/b 缺口与 c；不增加 later-FIRST 封闭门。\n#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]\npub struct StrictGapFact {\n    pub elements: [super::feature_seq::FeatureElement; 3],\n    pub raw_gap: bool,\n    pub gap_closed_by_c: Option<bool>,\n    pub effective_case: &'static str,\n    pub closure_operator: &'static str,\n    pub closure_left: Tick,\n    pub closure_right: Tick,\n}\n#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]\npub struct StrokeBreakWitness {\n    pub earlier_stroke: usize,\n    pub later_stroke: usize,\n    pub earlier_price: Tick,\n    pub later_price: Tick,\n    pub comparison: &'static str,\n}\n#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]\npub struct BreakFacts {\n    pub stroke_broken: bool,\n    pub new_segment_formed: Option<bool>,\n    pub segment_broken: Option<bool>,\n    pub stroke_break_witness: Option<StrokeBreakWitness>,\n    pub scan_from_stroke: usize,\n    pub scan_through_stroke: usize,\n    pub scan_complete: bool,\n    pub termination_witness: Option<TerminationWitness>,\n}\n/// 同次准入证书；new_segment_formed/segment_broken 由证书存在导出，不由结果标签反填。\n#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]\npub struct TerminationWitness {\n    pub kind: &'static str,\n    pub strict: StrictGapFact,\n    pub second_match: Option<super::feature_seq::SecondCheck>,\n    pub construction: ConstructionFact,\n    pub minimum_count_met: bool,\n    pub through_stroke: usize,\n}\n\n/// #1414，065:44/46：独立枚举 gi 与 dj（或 di 与 gj），j >= i+2。\n/// 原文正文已核；不用段终结结果反填笔破坏事实。\nfn break_facts("
+        },
+        {
+          "first_line": 413,
+          "last_line": 435,
+          "text": "                \"CASE_TWO\"\n            } else {\n                \"CASE_ONE\"\n            },\n            closure_operator: if up { \"<=\" } else { \">=\" },\n            closure_left: if up {\n                c.elements[2].low\n            } else {\n                c.elements[2].high\n            },\n            closure_right: if up {\n                c.elements[0].high\n            } else {\n                c.elements[0].low\n            },\n        }\n    });\n    let deferred = strict\n        .as_ref()\n        .is_some_and(|c| c.effective_case == \"CASE_TWO\");\n    let invalid = attempts\n        .last()\n        .is_some_and(|a| !a.construction.valid() || !a.minimum_count_met);"
+        },
+        {
+          "first_line": 486,
+          "last_line": 532,
+          "text": "    let termination_witness = end.and_then(|e| {\n        let strict = strict.clone()?;\n        let second_match = second.as_ref().and_then(|s| s.matched.clone());\n        let constructed = construction(strokes, start, e + 1);\n        let minimum_count_met = e - start + 1 >= min_seg;\n        (constructed.valid()\n            && minimum_count_met\n            && (strict.effective_case == \"CASE_ONE\" || second_match.is_some()))\n        .then_some(TerminationWitness {\n            kind: strict.effective_case,\n            strict,\n            second_match,\n            construction: constructed,\n            minimum_count_met,\n            through_stroke: observed_through,\n        })\n    });\n    let incomplete = second\n        .as_ref()\n        .is_some_and(|s| s.resource_truncated && s.matched.is_none());\n    facts.candidates.push(SegmentCandidateFact {\n        start_stroke: start,\n        seed: construction(strokes, start, (start + 3).min(strokes.len())),\n        construction: built,\n        first,\n        second,\n        strict,\n        fact_vector: break_facts(\n            strokes,\n            start,\n            observed_through,\n            termination_witness,\n            incomplete,\n        ),\n        observed_through,\n        result,\n        waiting_reasons,\n        end_stroke: end,\n        trigger_stroke: end.map(|_| observed_through),\n        termination_attempts: attempts,\n    });\n}\n\n/// 从笔序列抽取特征序列元素区间：取与线段方向**相反**的笔（第67课:16-18）。\n/// bit-exact 对齐 `featureElements segDir strokes`。\npub fn feature_elements(seg_dir: Direction, strokes: &[Stroke]) -> Vec<Interval> {\n    let rev = seg_dir.flip();"
+        }
+      ]
+    },
+    {
+      "path": "rust/src/theta_v0/parser/feature_seq.rs",
+      "sha256": "56a8e3d43abdbee7c79b627d70b6d222dfdb52cf5fbe7917fa8e91c5c3ec3aab",
+      "bytes": 49355,
+      "excerpts": [
+        {
+          "first_line": 100,
+          "last_line": 105,
+          "text": "pub struct FeatureElement {\n    pub high: Tick,\n    pub low: Tick,\n    pub stroke_idx: usize,\n    pub stroke_indices: Vec<usize>,\n}"
+        },
+        {
+          "first_line": 136,
+          "last_line": 141,
+          "text": "pub struct SecondCheck {\n    pub elements: [FeatureElement; 3],\n    pub top_fractal: bool,\n    pub bottom_fractal: bool,\n    pub through_stroke: usize,\n}"
+        }
+      ]
+    },
+    {
+      "path": "rust/src/theta_v0/parser/stroke.rs",
+      "sha256": "e55feecfa62d4d8937c725be7cc49b65c7c1fd959700a2bee58ba34b03fb80d2",
+      "bytes": 56338,
+      "excerpts": [
+        {
+          "first_line": 25,
+          "last_line": 69,
+          "text": "    pub kind: &'static str,\n    pub merged_index: usize,\n    /// 组锚（组内首根 `source_index`）：笔坐标与身份锚，端点键 = `(kind, group_anchor)`。\n    pub group_anchor: usize,\n    pub price: i64,\n    /// 实际极值根集合（CC-005 `ACTUAL_EXTREMUM_MEMBER`，到达序）。#1343 Q2：端点的实际极值身份\n    /// 是整个集合，不是其中某一根；多根组没有平局键。\n    pub extreme_roots: Vec<usize>,\n    /// 极值根集在 raw 序位域（`positions`）上的首/末序位；单根时二者相等。\n    /// 只进条件 2（极值区 raw 间隔）与追溯，不作笔坐标、不作身份。\n    pub raw_first: usize,\n    pub raw_last: usize,\n    pub source_coords: Vec<usize>,\n    pub sealed_at: Option<usize>,\n    pub waiting_reasons: Vec<&'static str>,\n}\n\n#[derive(Debug, Clone, PartialEq, Eq, Serialize)]\npub struct Conditions {\n    pub merged_gap: usize,\n    /// #1343 Q2/Q3：两端点极值区之间的 raw 根数 `b.raw_first − a.raw_last − 1`，恒可算。\n    pub raw_between_actual_extrema: usize,\n    pub top_price: i64,\n    pub bottom_price: i64,\n    /// 三条件恒为确定值（同价域无未知位，#1343 Q3）；保留 `Option` 只为不混同 false 与未知。\n    pub vector: [Option<bool>; 3],\n    pub failed_conditions: Vec<&'static str>,\n    pub waiting_reasons: Vec<&'static str>,\n}\nimpl Conditions {\n    pub fn formed(&self) -> bool {\n        self.vector == [Some(true); 3] && self.waiting_reasons.is_empty()\n    }\n}\n\n#[derive(Debug, Clone, PartialEq, Eq, Serialize)]\npub struct PairFact {\n    pub old: Endpoint,\n    pub new: Endpoint,\n    pub endpoint_kind_pair: String,\n    pub conditions: Option<Conditions>,\n    pub comparison: Option<&'static str>,\n    /// 同型取舍只有 `KEEP` / `REPLACE` 两值（#1343 Q1）。\n    pub selection: Option<&'static str>,\n    pub retained_anchors: Vec<usize>,"
+        },
+        {
+          "first_line": 86,
+          "last_line": 95,
+          "text": "    /// 逻辑身份只锚形成时的起点；末端延伸不换身份。输入修订代际由 S 绑定。\n    pub identity_anchor: usize,\n    pub start: Endpoint,\n    pub end: Endpoint,\n    pub formation: Conditions,\n    pub confirmation: Option<Confirmation>,\n}\nimpl BiFact {\n    fn stroke(&self) -> Stroke {\n        Stroke {"
+        }
+      ]
+    },
+    {
+      "path": "rust/src/bin/s_session_v2/tb02b.rs",
+      "sha256": "4d4db9df229bb5768ba5890e445cae272977694349c37128fec4fe32bb81732f",
+      "bytes": 16427,
+      "excerpts": [
+        {
+          "first_line": 166,
+          "last_line": 176,
+          "text": "    for ep in &facts.endpoints {\n        add(\n            &mut b,\n            \"CC-008.endpoint\",\n            json!(endpoint_id(generation, ep.group_anchor)),\n            generation,\n            serde_json::to_value(ep).unwrap(),\n            ep.source_coords.clone(),\n        );\n    }\n    for p in &facts.pairs {"
+        },
+        {
+          "first_line": 197,
+          "last_line": 228,
+          "text": "    for bi in &facts.strokes {\n        let entity = format!(\"bi:{generation}:{}\", bi.identity_anchor);\n        active_ids.insert(entity.clone());\n        let old = old_bi.get(&entity);\n        let mut data = wire(serde_json::to_value(bi).unwrap());\n        data[\"entity_id\"] = json!(entity);\n        data[\"formed_known_at\"] = old\n            .map(|o| o[\"formed_known_at\"].clone())\n            .unwrap_or(known.clone());\n        data[\"formed_evidence\"] = old\n            .map(|o| o[\"formed_evidence\"].clone())\n            .unwrap_or_else(|| data[\"formation\"].clone());\n        if let Some(old) = old.filter(|o| !o[\"confirmation\"].is_null()) {\n            // 同代际追加沿用首次不可逆见证，不能借新后继末端把确认获知时间推后。\n            data[\"confirmation\"] = old[\"confirmation\"].clone();\n            data[\"confirmed_known_at\"] = old[\"confirmed_known_at\"].clone();\n        } else {\n            data[\"confirmed_known_at\"] = if data[\"confirmation\"].is_null() {\n                Value::Null\n            } else {\n                known.clone()\n            };\n        }\n        data[\"state\"] = json!(if data[\"confirmation\"].is_null() {\n            \"FORMED_UNCONFIRMED\"\n        } else {\n            \"CONFIRMED\"\n        });\n        let mut changes = vec![];\n        if let Some(old) = old {\n            if old[\"end\"][\"group_anchor\"] != data[\"end\"][\"group_anchor\"] {\n                changes.push(\"extended\");"
+        }
+      ]
+    },
+    {
+      "path": "rust/src/bin/s_session_v2/tb02e.rs",
+      "sha256": "9b5d251091b7fd78e89efc4722ad7c21263d2031cb4f5d9d663c237bded02f21",
+      "bytes": 1478,
+      "excerpts": [
+        {
+          "first_line": 18,
+          "last_line": 27,
+          "text": "pub(super) const DEFERRED_SCOPE: [&str; 5] = [\n    \"global_G009_upper_levels_1429\",\n    \"ge9_upgrade_1429\",\n    \"third_class_and_break_1434\",\n    \"expansion_newborn_1424\",\n    \"connector_upper_construction_1429\",\n];\npub(super) const DELIVERED_SUBOBLIGATIONS: [&str; 3] = [\n    \"l0_strict_seed_vector_and_core_order\",\n    \"zn_outer_inner_roles_with_contributors\","
+        }
+      ]
+    }
+  ]
+}

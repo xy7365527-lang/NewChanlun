@@ -1,0 +1,34 @@
+{
+  "ticket": 1393,
+  "review_run": "3795a337-c075-4bf9-9968-3e14ef97d611",
+  "review_session": "01a14d50-de25-78b1-becb-6e957fe2c9fc",
+  "reviewed_head": "baf7f0d8ef90943f575e33ad4f5ee30b065b74db",
+  "reviewed_tree": "2e1163e0f5b7f7fb3a7703744ce67d78fa8f479a",
+  "base": "3315ed1d59ba31ffbad3f0b959702eaa92f4ddbd",
+  "process_exit": {
+    "code": 0,
+    "signal": null
+  },
+  "ended_at": "2026-10-18T04:46:48.195Z",
+  "result": {
+    "status": "completed",
+    "summary": "PASS_LIMITED_STATIC：完成标准轴与已签 SPEC 轴复审。首轮三项协议缺口在当前源码及轻量反例中均已闭环，未发现新增阻断项。本结论不构成 Rust／Lean、正式业务链、最终组合或全票验收通过。",
+    "findings": [],
+    "validation": [
+      "源绑定：HEAD=baf7f0d8ef90943f575e33ad4f5ee30b065b74db，tree=2e1163e0f5b7f7fb3a7703744ce67d78fa8f479a；起止工作区干净。产品基线为3315ed1d59ba31ffbad3f0b959702eaa92f4ddbd。累计差异32文件，含17个产品／测试文件和15个报告／证据文件。复用INDEPENDENT-REVIEW-01.json对c25未变化面的证据；本次逐项检查返修8文件。c25..HEAD实际为9文件，多出首轮评审JSON。",
+      "标准与权威：核对AGENTS、CLAUDE、ask-matt、Wayfinder、delivery/generation、CODING_STANDARDS、baohan v1.6及已签SPEC相关行为、接口和持久合同。GitHub读取失败，改读管理目录issue1393.json与comments1342.json中的6149622771原件。代码图工具不可用，使用定向文本检索。未修改checkout、启动其他工蜂或执行外部写操作。",
+      "第一项修复闭环：s_session/s_tb02_contract.py:38、s_session/s_query_integrity.py:351、s_session/browser/tb01c-client.js:157精确识别完整规则，未知规则不再回落完整轴。独立加载返修前源码，复现unknown+W、重复W、双加号被放行；当前5个合法规则、11个非法规则和6个段schema组合均符合预期，反例重新计算了内容身份。",
+      "第二项修复闭环：s_session/s_tb02_contract.py:441将initial_direction_evidence两端纳入原件核对；:461检查同cut初始化及引用；s_session/s_query_integrity.py:1101、:1121接入实际审计路径。独立复现旧组首对high/close由4改3、重新哈希后被旧源码放行，当前拒绝。另验证OHLC完全相同但旧组改引rev2、同cut初始化仍引rev1的反例，Python与JS均拒绝。",
+      "第三项修复闭环：s_session/browser/tb01c-client.js:530、:583按对象八键引用绑定确切raw修订、坐标和OHLC，活动及撤回记录均校验；:607按出生／撤回边界检查历史初始化链接。旧源码允许未定payload.high=11而raw_history.high=10，当前拒绝。普通方向previous_acc仅核坐标，不错误要求其等于raw；独立构造实际合并累积段成功例，Python与JS均接纳。",
+      "实际轻量检查：新增返修测试6方法、原W合同5方法、共享校验回归9方法，共20方法通过；其中纯Node调用生产同源typed、sources、identity入口。核实6个合法toy快照、63个来源反例、6个同cut反例；69个反例均先通过字段、合法原件几何与重算内容SHA检查。node --check、verify_static.py、全产品差异git diff --check均通过。旧9方法不替代新增协议或业务成功证据。",
+      "核心与历史覆盖：c25之后Rust、Lean、冻结对照及教义均无变化。复用首审对首个raw相邻严格对、长期未定、空／单根无组、raw0重折、稠密／稀疏映射、极值集合、单组DOWN恢复、修订往返、永久raw身份及replaces贯通relations／delta／审计／AsKnown的有限静态证据。本次定向打开首对搜索、共用facts状态机、producer来源累积及审计接线，未见返修反向改变核心；五个几何／折叠函数与3315基线逐字相同。",
+      "新增记录合同：初始化政策、raw revision、结构cut与object revision仍分开；Python审计在对象出生代使用当代有效raw来源，历史活动集再校验初始化关系。知识请求subject_id在s_session/s_query_integrity.py:1141仍须属于同cut活动对象。以上为源码和toy校验证据，未执行真实持久链。",
+      "报告真实性：FIX-VALIDATION所列7个变化文件与11份保留原件的字节数／SHA256全部吻合，历史tracked diff SHA亦重算吻合。MANIFEST的20文件按c25历史字节验证通过，未混称当前快照。FIX-VALIDATION.json当前SHA256=f306a322d97e561bf79cea845ce30ca2bee6f844e4d8fc807b37d4525140f26f。报告已披露三项首审缺口、返修自测及运行限制；参考实体命中数量与Nautilus流状态寿命用途相符，不作为W定义或oracle。",
+      "Oracle与Lean：U01–U13仍为裁定手算工作例，覆盖延迟建立、方向切换、单组DOWN、同价根及修订往返；本轮未重复运行未变化的模型验证。RawInclusionInitialization.lean含具名初始化定义、6条定理及2个实例，未见sorry／admit／axiom；证明范围仅为初始化几何分支，未证明Rust全字段或持久协议，且尚未接默认roots。",
+      "fixture drift=NOT_RUN。新增Lean仍触发CLAUDE检查义务，未改两fixture不构成豁免；未运行可能自动lake build的脚本。后续须记录真实退出码：0无漂移、1真实漂移、3缺lake、4构建失败、5导出失败；静态扫描不能替代。",
+      "组合边界：本树尚未组合#1419和#1488。应先固定两者接口，再分块移植parser状态／证据、Native资源owner与producer的未定身份／替代链，最后适配公共schema及精确规则表。必须保留new-bi/2+segment-second/2+center-seed/1+center-pair/1，不整文件覆盖旧版映射；CoordsRef、Cc004Producer／NodeStore及恢复接线仍需组合树验证。本结论不外推当前5cb或最终组合树。独立CI工位的新入口未合入本checkout，未评审其字节。",
+      "逐AC未完：AC1缺各未建／建立／修订叶的正式执行及原件证据；AC2缺Rust已定域逐字段对拍和一般初始化成功运行；AC3缺正式AcceptInput→Advance→公共查询／变化→真实浏览器核对；AC4已有独立oracle及历史模型证据，仍缺产品新进程重放、持久中断恢复和旧cut执行对拍。共享family／A／故事的跨片义务继续保留。",
+      "全部NOT_RUN：cargo／rustc、Rust类型检查／编译／测试、产品二进制、正式S会话／API／浏览器、产品新进程重放／故障恢复、Long／全量真实历史、lake／Lean构建、fixture drift、CI、#1419／#1488最终组合验收及资金／订单外效。Rustfmt未重跑，纯模型SQLite重开及子进程重放未重跑。没有以这些未运行项要求本轮违反禁令补跑。"
+    ]
+  }
+}

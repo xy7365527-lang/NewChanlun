@@ -37,6 +37,7 @@ use newchan_rust::s_content::{
 use newchan_rust::theta_v0::classifier::local_shape::{classify_local_shape, Cc006LocalShape};
 use newchan_rust::theta_v0::parser::inclusion::{
     CoordNode, CoordsRef, EvidenceNode, GroupEvidenceView, IncrFactsState, StepEvidenceView,
+    INITIALIZATION_POLICY,
 };
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
@@ -52,6 +53,11 @@ pub(super) const CC006_SHAPE_KIND: &str = "CC-006.local_shape";
 pub(super) const CC007_FRACTAL_KIND: &str = "CC-007.fractal_description";
 /// CC-054 知识状态的 kind（与全量配方同名；身份走泛型六字段配方）。
 pub(super) const CC054_KNOWLEDGE_KIND: &str = "CC-054.knowledge_state";
+/// #1393/#1565 W：初始化事实（槽 W）与逐原件未定记录的 kind（与 v2 `tb02a_facts` 同名）。
+pub(super) const CC004_INITIALIZATION_KIND: &str = "CC-004.initialization";
+pub(super) const CC004_UNDETERMINED_KIND: &str = "CC-004.undetermined_raw";
+/// W 等待期唯一的等待原因（与 v2 `tb02a_facts` 同词）。
+pub(super) const INITIAL_UNSETTLED: &str = "initial_direction_unsettled";
 /// #1491 ADR 0037 §二：bounded-layout/1 的 CC-007 单元批记录 kind（布局组件，不新增目录轴；
 /// 目录轴 CC-007 下与分型描述并列）。layout/1 库不产此 kind。
 pub(super) const CC007_DEVELOPMENT_BATCH_KIND: &str = "CC-007.development_batch";
@@ -59,6 +65,75 @@ pub(super) const CC007_DEVELOPMENT_BATCH_KIND: &str = "CC-007.development_batch"
 const OBJECT_REVISION: i64 = 1;
 /// §5.3 的类型化对象身份帧：`F(0x20, V)`。
 const OBJECT_ID_TAG: u8 = 0x20;
+
+/// CC-054 显式分类请求四轴；调用者必须以具体请求的同次证据给出，不能从等待原因推断。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum RequestInputQuality {
+    Sufficient,
+    Insufficient,
+    Inconsistent,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum RequestApplicability {
+    InDomain,
+    OutsideDomain,
+    DomainProofMissing,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum RequestComputation {
+    Complete,
+    Incomplete,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum RequestValidity {
+    Current,
+    Superseded,
+    Withdrawn,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct RequestAxes {
+    pub input_quality: RequestInputQuality,
+    pub applicability: RequestApplicability,
+    pub computation: RequestComputation,
+    pub validity: RequestValidity,
+}
+impl RequestAxes {
+    pub(super) fn fields(self) -> [(&'static str, &'static str); 4] {
+        [
+            (
+                "input_quality",
+                match self.input_quality {
+                    RequestInputQuality::Sufficient => "SUFFICIENT",
+                    RequestInputQuality::Insufficient => "INSUFFICIENT",
+                    RequestInputQuality::Inconsistent => "INCONSISTENT",
+                },
+            ),
+            (
+                "applicability",
+                match self.applicability {
+                    RequestApplicability::InDomain => "IN_DOMAIN",
+                    RequestApplicability::OutsideDomain => "OUTSIDE_DOMAIN",
+                    RequestApplicability::DomainProofMissing => "DOMAIN_PROOF_MISSING",
+                },
+            ),
+            (
+                "computation",
+                match self.computation {
+                    RequestComputation::Complete => "COMPLETE",
+                    RequestComputation::Incomplete => "INCOMPLETE",
+                },
+            ),
+            (
+                "validity",
+                match self.validity {
+                    RequestValidity::Current => "CURRENT",
+                    RequestValidity::Superseded => "SUPERSEDED",
+                    RequestValidity::Withdrawn => "WITHDRAWN",
+                },
+            ),
+        ]
+    }
+}
 
 /// 内容生产错误：缺源、共享态退化、类型不符与长度溢出一律显式拒绝。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -543,6 +618,30 @@ pub(super) struct Cc054Assembly {
     pub object: TypedObject,
     /// 观察值边（顺序 = 排序去重后的原因序，与全量配方同序）。
     pub observations: Vec<Built>,
+}
+
+/// #1393/#1565 W：一代的初始化事实（槽 W）与逐原件未定记录，连同按 v2 线序的全部请求。
+///
+/// `objects` = `[CC-004.initialization, CC-004.undetermined_raw…]`（未定原件按到达序）；
+/// `requests` = 初始化请求 →（等待期）CC-005 待决组请求 → 逐原件请求，与
+/// `tb02a_facts::add_initialization` 同序同值。
+#[derive(Debug, Clone)]
+pub(super) struct WInitialization {
+    pub objects: Vec<TypedObject>,
+    pub requests: Vec<Built>,
+}
+
+/// #1565：上一代**已核活动** `CC-004.undetermined_raw` 的原件身份与到达事实。
+///
+/// 只携 payload 取值（`pending_since_cut`）；不携也不读任何生命周期字段。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct PriorUndetermined {
+    /// 规范槽位文本 `["CC-004.undetermined_raw", coord]`。
+    pub fact_key: String,
+    /// 输入引用数组值根（原件身份含 raw 修订）。
+    pub input_refs: NodeDigest,
+    /// 上一代 payload 的 `pending_since_cut`。
+    pub pending_since_cut: String,
 }
 
 /// 一个 CC-007 分型描述对象的构造结果（含三条知识请求）。
@@ -1295,6 +1394,8 @@ impl Cc004Producer {
                 "fewer_than_three_merged_bars"
                     | "no_subsequent_bar"
                     | "direction_not_yet_established"
+                    // #1393 W：与 v2 `tb02a_facts::request` 同一词表（等待期的初始化/未定请求）。
+                    | INITIAL_UNSETTLED
             )
         });
         let axes = CValue::Object(vec![
@@ -1362,6 +1463,8 @@ impl Cc004Producer {
         ]))
     }
 
+    /// 已具名实际分类请求。保留精确五字段 wire；身份键由调用者绑定主体、子轴、观察路径及版本。
+    /// 此口不复用 A 的原因启发式，false 结果与未计算结果由显式四轴区分。
     /// 待决请求（主体为空）：键与原因由调用方按全量配方给出，本口不造默认值。
     ///
     /// 两类待决形态都用本口：竞争极值窗（键尾 = 三锚坐标数组）与不足三根的
@@ -1387,6 +1490,140 @@ impl Cc004Producer {
     /// - `raw_coords`：本代全部原始坐标的**共享链**（生产入口用 [`raw_prefix_coords`] 借出；
     ///   观察的 `source_coords` 直接复用本对象的同一条边）；
     /// - `frontier`：`input_frontier`，规范十进制文本进载荷与观察。
+    /// #1393/#1565 W：构造初始化事实与逐原件未定记录（`tb02a_facts::add_initialization` 的 S3 面）。
+    ///
+    /// `pending_since_cut` 取值只有一条通道：同原件身份（槽 + 输入引用）的上一代已核对象
+    /// payload 原样延续，否则取本代 cut；不读首获知等生命周期字段，也不降级兜底（#1565）。
+    pub(super) fn build_initialization(
+        &mut self,
+        store: &mut dyn NodeStore,
+        state: &IncrFactsState,
+        prior: &[PriorUndetermined],
+        generation: i64,
+        cut: &str,
+    ) -> Result<WInitialization, ProducerError> {
+        if state.degraded() {
+            return Err(ProducerError::Degraded(
+                "source 坐标非严格递增：共享证据不可用",
+            ));
+        }
+        let unsettled = state.unsettled();
+        let initial = state.initial_direction_node();
+        let sources = match initial {
+            Some(node) => node.coords.clone(),
+            None => coords_ref_from_slice(state.unmapped_sources()),
+        };
+        let first_raw_pair = match initial {
+            Some(node) => self.evidence_value(&mut *store, node)?,
+            None => CValue::Null,
+        };
+        let payload = CValue::Object(vec![
+            (
+                "initialization_policy_revision".to_string(),
+                CValue::String(INITIALIZATION_POLICY.to_string()),
+            ),
+            (
+                "direction_state".to_string(),
+                CValue::String(
+                    if unsettled {
+                        "Undetermined"
+                    } else {
+                        "Established"
+                    }
+                    .to_string(),
+                ),
+            ),
+            ("first_raw_pair".to_string(), first_raw_pair),
+        ]);
+        let slot = CValue::Array(vec![
+            CValue::String(CC004_INITIALIZATION_KIND.to_string()),
+            CValue::String("W".to_string()),
+        ]);
+        let input_refs = self.source_refs_array(&mut *store, &sources)?;
+        let source_coords = self.coords_array(&mut *store, &sources)?;
+        let mut init = self.typed_object(
+            store,
+            CC004_INITIALIZATION_KIND,
+            canonical_text(&slot)?,
+            payload,
+            input_refs,
+            source_coords,
+            generation,
+            cut,
+        )?;
+        let init_reasons: &[&str] = if unsettled { &[INITIAL_UNSETTLED] } else { &[] };
+        let request = self.request_value(
+            slot,
+            Some(&init.object_id),
+            init_reasons,
+            &init.source_coords,
+        )?;
+        let built = sc::write_value(&mut *store, &request)?;
+        init.request = Some(built.clone());
+        let mut requests = vec![built];
+        if unsettled {
+            let unmapped = coords_ref_from_slice(state.unmapped_sources());
+            requests.push(self.pending_request(
+                &mut *store,
+                CValue::Array(vec![
+                    CValue::String(CC005_GROUP_KIND.to_string()),
+                    CValue::String("pending".to_string()),
+                ]),
+                &[INITIAL_UNSETTLED],
+                &unmapped,
+            )?);
+        }
+        let mut objects = vec![init];
+        for raw_bar in state.pending_raw() {
+            let coord = CoordsRef::single(raw_bar.source_index);
+            let slot = CValue::Array(vec![
+                CValue::String(CC004_UNDETERMINED_KIND.to_string()),
+                CValue::String(raw_bar.source_index.to_string()),
+            ]);
+            let fact_key = canonical_text(&slot)?;
+            let input_refs = self.source_refs_array(&mut *store, &coord)?;
+            let source_coords = self.coords_array(&mut *store, &coord)?;
+            let since = prior
+                .iter()
+                .find(|old| old.fact_key == fact_key && old.input_refs == input_refs.digest)
+                .map_or(cut, |old| old.pending_since_cut.as_str())
+                .to_string();
+            let payload = CValue::Object(vec![
+                ("raw".to_string(), bar_value(raw_bar)),
+                (
+                    "direction_state".to_string(),
+                    CValue::String("Undetermined".to_string()),
+                ),
+                (
+                    "initialization_policy_revision".to_string(),
+                    CValue::String(INITIALIZATION_POLICY.to_string()),
+                ),
+                ("pending_since_cut".to_string(), CValue::String(since)),
+            ]);
+            let mut object = self.typed_object(
+                store,
+                CC004_UNDETERMINED_KIND,
+                fact_key,
+                payload,
+                input_refs,
+                source_coords,
+                generation,
+                cut,
+            )?;
+            let request = self.request_value(
+                slot,
+                Some(&object.object_id),
+                &[INITIAL_UNSETTLED],
+                &object.source_coords,
+            )?;
+            let built = sc::write_value(&mut *store, &request)?;
+            object.request = Some(built.clone());
+            requests.push(built);
+            objects.push(object);
+        }
+        Ok(WInitialization { objects, requests })
+    }
+
     pub(super) fn build_knowledge_state(
         &mut self,
         store: &mut dyn NodeStore,
@@ -1396,6 +1633,7 @@ impl Cc004Producer {
         reasons: &[&'static str],
         generation: i64,
         cut: &str,
+        initial_direction_unsettled: bool,
     ) -> Result<Cc054Assembly, ProducerError> {
         let mut waiting_reasons: Vec<&'static str> = reasons.to_vec();
         waiting_reasons.sort_unstable();
@@ -1423,9 +1661,27 @@ impl Cc004Producer {
                 ]),
             ),
             ("waiting_reasons".to_string(), reasons_value()),
+            // #1419 独审 B1：S3 只写 W 后继串（`require_current_writer_rule`），来源审计按
+            // `contract_for_rule(W)` 核知识域 ⟹ 本对象取 W 合同域，并带 W 初始化知识状态
+            // （与 v2 种子写者 `tb02a_facts` CC-054 同字段同值）。
+            (
+                "initialization_policy_revision".to_string(),
+                CValue::String(INITIALIZATION_POLICY.to_string()),
+            ),
+            (
+                "direction_state".to_string(),
+                CValue::String(
+                    if initial_direction_unsettled {
+                        "Undetermined"
+                    } else {
+                        "Established"
+                    }
+                    .to_string(),
+                ),
+            ),
             (
                 "domain".to_string(),
-                CValue::String(tb02b::CURRENT_CONTRACT.knowledge_domain.to_string()),
+                CValue::String(tb02b::W_CONTRACT.knowledge_domain.to_string()),
             ),
             (
                 "requests".to_string(),
@@ -2640,18 +2896,29 @@ impl Cc004Producer {
             .map_err(|error| ProducerError::Degraded(error.reason))?;
         match view {
             Some(view) => self
-                .build_group_object(store, index, &view, generation, cut)
+                .build_group_object(
+                    store,
+                    index,
+                    &view,
+                    state.initial_direction_node(),
+                    generation,
+                    cut,
+                )
                 .map(Some),
             None => Ok(None),
         }
     }
 
     /// 从借用视图构造 CC-005 组对象（`build_group` 的视图面）。
+    ///
+    /// #1393 W：`initial` = 同次 parser 的初始化证据节点（`IncrFactsState::initial_direction_node`），
+    /// 进组载荷 `initial_direction_evidence`（与 v2 `tb02a_facts::group_payload` 同字段同值）。
     pub(super) fn build_group_object(
         &mut self,
         store: &mut dyn NodeStore,
         index: usize,
         view: &GroupEvidenceView<'_>,
+        initial: Option<&Rc<EvidenceNode>>,
         generation: i64,
         cut: &str,
     ) -> Result<TypedObject, ProducerError> {
@@ -2660,7 +2927,7 @@ impl Cc004Producer {
         // 来源集合与全量配方 `group_sources` 同值：共享链拼接，不展开证据前缀。
         let sources = group_sources_coords(view);
         let fact_key = canonical_json(&json!([CC005_GROUP_KIND, anchor.to_string()]));
-        let payload_value = self.group_payload_value(store, index, view, &reasons)?;
+        let payload_value = self.group_payload_value(store, index, view, initial, &reasons)?;
         let input_refs = self.source_refs_array(&mut *store, &sources)?;
         let source_coords = self.coords_array(&mut *store, &sources)?;
         let mut object = self.typed_object(
@@ -2734,6 +3001,19 @@ impl Cc004Producer {
                 None => empty_array(store),
             };
         };
+        // #1393 W：建立前缀重折出的组（锚早于建立对右端 e）方向证据 = raw[..=e]，末元素不是本组锚，
+        // 上面的归纳前提不成立 ⟹ 按定义 `(dir ∪ conf) \ members` 直接求（规模 ≤ 建立前缀）。
+        if dir.coords.max() != Some(view.bar.source_index) {
+            let mut coords = dir.coords.materialize();
+            if let Some(conf) = view.confirmation_evidence {
+                coords.extend(conf.coords.materialize());
+            }
+            coords.sort_unstable();
+            coords.dedup();
+            let members = group_members_coords(view).materialize();
+            coords.retain(|coord| members.binary_search(coord).is_err());
+            return self.source_refs_array_in(store, &coords_ref_from_slice(&coords), encoding);
+        }
         let entry = self.ref_array_over(
             &mut *store,
             dir.coords.root_node().expect("方向证据链非空"),
@@ -2770,6 +3050,7 @@ impl Cc004Producer {
         store: &mut dyn NodeStore,
         index: usize,
         view: &GroupEvidenceView<'_>,
+        initial: Option<&Rc<EvidenceNode>>,
         reasons: &[&'static str],
     ) -> Result<CValue, ProducerError> {
         // #1405：标签保留在原件里，请求原因仅反映方向未建立。
@@ -2792,7 +3073,19 @@ impl Cc004Producer {
             Some(node) => CValue::String(dir_str(node.direction).to_string()),
             None => CValue::Null,
         };
+        let initial_direction_evidence = match initial {
+            Some(node) => self.evidence_value(&mut *store, node)?,
+            None => CValue::Null,
+        };
         Ok(CValue::Object(vec![
+            (
+                "initialization_policy_revision".to_string(),
+                CValue::String(INITIALIZATION_POLICY.to_string()),
+            ),
+            (
+                "initial_direction_evidence".to_string(),
+                initial_direction_evidence,
+            ),
             ("group_index".to_string(), CValue::String(index.to_string())),
             (
                 "group_anchor".to_string(),
@@ -3221,27 +3514,19 @@ fn bar_value(bar: &Bar) -> CValue {
 
 /// 当前 raw 链的共享前缀句柄（继续拼接只新建 O(log n) 脊，子树沿用）。
 ///
-/// 依据（inclusion.rs seed / new_group / merge 三处 `coords` 构造）：每个 StepRecord 的
-/// `coords` 恰是「append 到该步 incoming 为止的完整 raw 前缀」——seed = single(incoming)；
-/// new_group = concat(前证据或 single(前锚), 前组 tail) 再接 incoming；merge 同形；
-/// waiting 步直接取 `raw_prefix`。故末步（step_count-1）的 `coords` 即当前前缀。
+/// #1419 独审 B3 同族：#1393 W 等待期的 waiting 步只绑定 `single(incoming)`，末步 `coords`
+/// 不再等于前缀，故直接取状态机维护的 `raw_prefix`（与全量入口的到达序 raw 坐标同值）。
 ///
 /// 有效域：非退化共享态（degraded 显式 `Err`，回落全量入口）；空态返回空集。
-/// 逐前缀等价性由测试 `raw_prefix_chain_is_last_step_coords_for_every_prefix` 对拍锁定。
+/// 逐前缀等价性由测试 `raw_prefix_chain_is_full_raw_prefix_for_every_prefix` 对拍锁定。
 pub(super) fn raw_prefix_coords(state: &IncrFactsState) -> Result<CoordsRef, ProducerError> {
     if state.step_count() == 0 {
         return Ok(CoordsRef::empty());
     }
-    let view = state
-        .shared_step(state.step_count() - 1)
-        .map_err(|error| ProducerError::Degraded(error.reason))?;
-    match view {
-        Some(view) => Ok(view.coords.clone()),
-        None => Err(ProducerError::Type {
-            what: "raw 前缀链",
-            detail: "末步索引在域内却借不出视图".to_string(),
-        }),
-    }
+    state
+        .shared_raw_prefix()
+        .cloned()
+        .ok_or_else(|| ProducerError::Degraded("raw 坐标非递增：共享前缀不可用"))
 }
 
 /// 升序去重坐标切片 → 共享链（逐项 `append_greater`：只新增 O(log n) 脊，旧前缀继续共享）。
@@ -3424,7 +3709,12 @@ pub(super) fn group_sources_coords(view: &GroupEvidenceView<'_>) -> CoordsRef {
         return node.coords.clone();
     }
     match view.direction_evidence {
-        Some(node) => CoordsRef::concat(&node.coords, view.member_tail),
+        // 非退化域：方向证据集最大值 = 组锚 ⟹ 成员尾严格在其后，可直接拼接。
+        Some(node) if node.coords.max() == Some(view.bar.source_index) => {
+            CoordsRef::concat(&node.coords, view.member_tail)
+        }
+        // #1393 W：建立前缀内重折的组，证据集 = raw[..=e] 可能已含成员尾 ⟹ 取并集。
+        Some(node) => node.coords.union(view.member_tail),
         None => group_members_coords(view),
     }
 }
@@ -3630,8 +3920,11 @@ mod tests {
         (9001, 9, 4),
         (12345, 9, 3),
     ];
-    /// 初始方向永久未定：首步 seed 之后全部 waiting（无方向证据、无极值快照）。
-    const CASE_WAITING: &[(usize, i64, i64)] = &[(0, 10, 5), (1, 9, 6), (2, 12, 7)];
+    /// #1419 独审 B3（W，`raw-initialization-w/1`）：raw0⊇raw1 为包含对、raw1→raw2 为严格向上
+    /// 非包含对 ⟹ 第三根建立方向，从 raw0 按 UP 重折（旧规则「seed 后永久 waiting」已删）。
+    const CASE_ESTABLISH_AT_THIRD: &[(usize, i64, i64)] = &[(0, 10, 5), (1, 9, 6), (2, 12, 7)];
+    /// 真正永不建立：相邻对 (raw0,raw1)、(raw1,raw2) 全为包含 ⟹ 全部 waiting、零正式组。
+    const CASE_NEVER_ESTABLISHED: &[(usize, i64, i64)] = &[(0, 10, 5), (1, 9, 6), (2, 11, 4)];
     /// 不足三根 merged：覆盖「已建方向前知识不足」的待决请求与原因。
     const CASE_TWO: &[(usize, i64, i64)] = &[(10, 10, 5), (20, 15, 8)];
     /// 无同价极值竞争的规则折线：三组窗口可判 CC-006（供形态/分型对拍）。
@@ -4160,6 +4453,12 @@ mod tests {
         }
     }
 
+    /// 规范事实键 `[kind, slot]` 的 kind。
+    fn kind_of_fact_key(fact_key: &str) -> String {
+        let value: Value = serde_json::from_str(fact_key).expect("事实键是 JSON");
+        value[0].as_str().expect("事实键首项是 kind").to_string()
+    }
+
     /// oracle 里按 kind + 槽位找一条事实（找不到即失败，不静默回退）。
     fn oracle_fact<'a>(oracle: &'a [Value], kind: &str, fact_key: &str) -> &'a Value {
         oracle
@@ -4214,12 +4513,14 @@ mod tests {
     fn cc004_record_matches_full_oracle_bytes() {
         for (label, bars) in [
             ("merge/new-group/direction", CASE_MERGE),
-            ("initial-unsettled/waiting", CASE_WAITING),
+            ("establish-at-third/refold", CASE_ESTABLISH_AT_THIRD),
+            // 永不建立样例的 S3 发布形态（CC-004.undetermined_raw/initialization）阻塞于 #1565。
         ] {
             let mut fixture = fixture(bars);
             let objects = build_all(&mut fixture);
             let facts = fixture.state.materialize_facts();
-            let (oracle, _) = tb02a_facts::build(&facts, &fixture.raw, &[], GENERATION, CUT, 0);
+            let (oracle, _) =
+                tb02a_facts::build(&facts, &fixture.raw, &[], &[], GENERATION, CUT, 0);
             assert_eq!(objects.len(), facts.steps.len(), "{label}: 步数");
             for (index, object) in objects.iter().enumerate() {
                 let coord = facts.steps[index].incoming.source_index.to_string();
@@ -4290,11 +4591,18 @@ mod tests {
     fn cc005_group_matches_full_oracle_bytes() {
         for (case, bars, want_equal_extreme, want_any_direction) in [
             ("merge/new-group/direction", CASE_MERGE, true, true),
-            ("initial-unsettled/waiting", CASE_WAITING, false, false),
+            (
+                "establish-at-third/refold",
+                CASE_ESTABLISH_AT_THIRD,
+                false,
+                true,
+            ),
+            // 永不建立样例（零正式组、组请求 pending）的 S3 发布形态阻塞于 #1565。
         ] {
             let mut fixture = fixture(bars);
             let facts = fixture.state.materialize_facts();
-            let (oracle, _) = tb02a_facts::build(&facts, &fixture.raw, &[], GENERATION, CUT, 0);
+            let (oracle, _) =
+                tb02a_facts::build(&facts, &fixture.raw, &[], &[], GENERATION, CUT, 0);
             let wants = oracle_requests(&oracle);
             assert_eq!(fixture.state.group_count(), facts.groups.len());
             assert!(
@@ -4864,6 +5172,7 @@ mod tests {
                 &facts,
                 &fixture.raw,
                 &shapes_json,
+                &[],
                 GENERATION,
                 CUT,
                 frontier,
@@ -4871,8 +5180,32 @@ mod tests {
             let mut requests: Vec<Built> = Vec::new();
             let mut reasons: Vec<&'static str> = Vec::new();
             let mut id_map: BTreeMap<String, String> = BTreeMap::new();
-            // 1) 步骤
-            for index in 0..fixture.state.step_count() {
+            // 0) #1393/#1565 W：初始化事实与未定原件（请求线序在步骤之前，同 v2）。
+            let init = fixture
+                .producer
+                .build_initialization(&mut fixture.store, &fixture.state, &[], GENERATION, CUT)
+                .expect("构造 W 初始化");
+            for object in &init.objects {
+                id_map.insert(
+                    oracle_fact(
+                        &oracle,
+                        &kind_of_fact_key(&object.fact_key),
+                        &object.fact_key,
+                    )["object_id"]
+                        .as_str()
+                        .expect("旧身份")
+                        .to_string(),
+                    object.object_id.clone(),
+                );
+            }
+            requests.extend(init.requests.iter().cloned());
+            // 1) 步骤（W：等待期不发布 waiting 步）
+            let published = if fixture.state.unsettled() {
+                0
+            } else {
+                fixture.state.step_count()
+            };
+            for index in 0..published {
                 let object = fixture
                     .producer
                     .build_step(&mut fixture.store, &fixture.state, index, GENERATION, CUT)
@@ -5021,6 +5354,7 @@ mod tests {
                     &reasons,
                     GENERATION,
                     CUT,
+                    facts.initial_direction_unsettled,
                 )
                 .expect("构造 CC-054");
             let fact_key = canonical_json(&json!([CC054_KNOWLEDGE_KIND, "TB-02-A"]));
@@ -5109,7 +5443,8 @@ mod tests {
             records.len()
         );
         let shapes: Vec<Value> = records.iter().map(|(_, want)| want.clone()).collect();
-        let (oracle, _) = tb02a_facts::build(&facts, &fixture.raw, &shapes, GENERATION, CUT, 0);
+        let (oracle, _) =
+            tb02a_facts::build(&facts, &fixture.raw, &shapes, &[], GENERATION, CUT, 0);
         let wants = oracle_requests(&oracle);
         let raw_bars: Vec<Bar> = fixture.state.raw_iter().copied().collect();
         let mut saw_future = false;
@@ -6516,9 +6851,12 @@ mod tests {
             .steps
             .iter()
             .any(|step| step.high_sources.len() > 1 || step.low_sources.len() > 1));
+        // #1393 W：首对 (10,11) 严格非包含 ⟹ e = 11；seed 来源 = raw[..=e]，此后各步 = 截至 incoming
+        // 的完整前缀。稀疏坐标逐个保留，不区间化。
+        assert_eq!(merge_facts.steps[0].source_coords, vec![10, 11]);
         assert_eq!(
-            merge_facts.steps[0].source_coords,
-            vec![10],
+            merge_facts.steps[2].source_coords,
+            vec![10, 11, 37],
             "稀疏坐标不得被区间化"
         );
         assert_eq!(merge_objects.len(), merge_facts.steps.len());
@@ -6526,30 +6864,158 @@ mod tests {
             .iter()
             .all(|object| object.payload.extent == Some(12)));
 
-        let mut waiting_fixture = fixture(CASE_WAITING);
-        let waiting_objects = build_all(&mut waiting_fixture);
-        let waiting_facts = waiting_fixture.state.materialize_facts();
-        assert!(waiting_facts.initial_direction_unsettled);
-        assert_eq!(waiting_facts.steps[0].action, "seed");
-        assert!(waiting_facts.steps[1..]
+        // #1419 独审 B3：W 下第三根建立方向并从 raw0 重折——无 waiting 步、无未定原因；
+        // 来源按 W 闭式 raw[..=max(k,e)]（e = 建立对右端 = 2）。
+        let mut established_fixture = fixture(CASE_ESTABLISH_AT_THIRD);
+        let established_objects = build_all(&mut established_fixture);
+        let established_facts = established_fixture.state.materialize_facts();
+        assert!(!established_facts.initial_direction_unsettled);
+        assert_eq!(established_facts.steps.len(), 3);
+        assert_eq!(established_facts.steps[0].action, "seed");
+        assert!(established_facts
+            .steps
             .iter()
-            .all(|step| step.action == "waiting"
-                && step.direction_evidence.is_none()
-                && step.waiting_reasons == vec!["initial_direction_unsettled"]));
-        assert_eq!(waiting_facts.steps[1].source_coords, vec![0, 1]);
-        // 未建方向的 waiting 步绑定的是**全部已见 raw 前缀**（与全量入口同形）。
-        assert_eq!(waiting_facts.steps[2].source_coords, vec![0, 1, 2]);
-        assert_eq!(waiting_objects.len(), waiting_facts.steps.len());
+            .all(|step| step.action != "waiting"
+                && !step
+                    .waiting_reasons
+                    .contains(&"initial_direction_unsettled")));
+        assert_eq!(established_facts.groups[0].members, vec![0, 1]);
+        for step in &established_facts.steps {
+            assert_eq!(step.source_coords, vec![0, 1, 2]);
+        }
+        assert_eq!(established_objects.len(), established_facts.steps.len());
+
+        // 真正永不建立：全部 waiting，各步只绑定自身 raw，零合并/零正式组。
+        // （S3 对等待期的对象发布形态阻塞于 #1565，此处不断言对象数。）
+        let unsettled_fixture = fixture(CASE_NEVER_ESTABLISHED);
+        let unsettled_facts = unsettled_fixture.state.materialize_facts();
+        assert!(unsettled_facts.initial_direction_unsettled);
+        assert!(unsettled_facts.merged.is_empty() && unsettled_facts.groups.is_empty());
+        for (index, step) in unsettled_facts.steps.iter().enumerate() {
+            assert_eq!(step.action, "waiting");
+            assert!(step.direction_evidence.is_none());
+            assert_eq!(step.waiting_reasons, vec!["initial_direction_unsettled"]);
+            assert_eq!(step.source_coords, vec![index]);
+        }
     }
 
-    /// 派生链逐前缀对拍 ①：任一前缀状态下，末步（刚追加的那一步）的 `coords` 就是该前缀的
-    /// 完整 raw 坐标链，`raw_prefix_coords` 对同一前缀返回同一集合——共享链不是近似前缀，
-    /// 也不是「最新一段」。
+    /// #1393/#1565 W：初始化事实与未定原件逐字节对拍 v2 种子写者（`tb02a_facts::build`），
+    /// 并锁 `pending_since_cut` 只读上一代已核 payload 的跨代延续。
     #[test]
-    fn raw_prefix_chain_is_last_step_coords_for_every_prefix() {
+    fn w_initialization_matches_v2_oracle_and_pending_since_cut_carries() {
+        for (label, bars, unsettled) in [
+            ("never-established", CASE_NEVER_ESTABLISHED, true),
+            ("establish-at-third/refold", CASE_ESTABLISH_AT_THIRD, false),
+            ("merge/new-group/direction", CASE_MERGE, false),
+        ] {
+            let mut fixture = fixture(bars);
+            assert_eq!(fixture.state.unsettled(), unsettled, "{label}: 覆盖口径");
+            let facts = fixture.state.materialize_facts();
+            let (oracle, _) =
+                tb02a_facts::build(&facts, &fixture.raw, &[], &[], GENERATION, CUT, 0);
+            let wants = oracle_requests(&oracle);
+            let w = fixture
+                .producer
+                .build_initialization(&mut fixture.store, &fixture.state, &[], GENERATION, CUT)
+                .expect("构造 W");
+            let oracle_count = oracle
+                .iter()
+                .filter(|o| {
+                    o["kind"] == CC004_INITIALIZATION_KIND || o["kind"] == CC004_UNDETERMINED_KIND
+                })
+                .count();
+            assert_eq!(w.objects.len(), oracle_count, "{label}: W 对象数");
+            assert_eq!(w.objects.len(), 1 + fixture.state.pending_raw().len());
+            for object in &w.objects {
+                let want = oracle_fact(
+                    &oracle,
+                    &kind_of_fact_key(&object.fact_key),
+                    &object.fact_key,
+                );
+                assert_object_matches_oracle(&mut fixture, object, want, label);
+                assert_request_matches_oracle(
+                    &mut fixture,
+                    object.request.as_ref().expect("W 对象带请求"),
+                    &object.object_id,
+                    &wants,
+                    label,
+                );
+            }
+            // 线序：v2 请求表的 W 前缀逐条同值（初始化 →（等待期）待决组 → 逐原件）。
+            assert_eq!(
+                w.requests.len(),
+                w.objects.len() + usize::from(unsettled),
+                "{label}: W 请求数"
+            );
+            for (index, built) in w.requests.iter().enumerate() {
+                let rendered: Value =
+                    serde_json::from_str(&render(&mut fixture.store, built)).expect("请求 JSON");
+                let mut want = wants[index].clone();
+                if !want["subject_id"].is_null() {
+                    want["subject_id"] = rendered["subject_id"].clone();
+                }
+                assert_eq!(rendered, want, "{label}: W 请求 {index}");
+            }
+        }
+
+        // #1565：未定原件跨代只读上一代已核 payload；原件不变 ⟹ 内容身份逐字相同。
+        let mut fixture = fixture(CASE_NEVER_ESTABLISHED);
+        let mut first = IncrFactsState::empty();
+        for (coord, high, low) in &CASE_NEVER_ESTABLISHED[..2] {
+            first.append(bar(*coord, *high, *low));
+        }
+        let gen1 = fixture
+            .producer
+            .build_initialization(&mut fixture.store, &first, &[], 1, "cut-1")
+            .expect("gen1");
+        let prior: Vec<PriorUndetermined> = gen1.objects[1..]
+            .iter()
+            .map(|object| {
+                crate::content_bi::read_prior_undetermined(
+                    &mut fixture.store,
+                    &fixture.producer,
+                    &object.record,
+                )
+                .expect("上一代未定原件可核")
+            })
+            .collect();
+        assert_eq!(prior.len(), 2);
+        assert!(prior.iter().all(|p| p.pending_since_cut == "cut-1"));
+        let gen2 = fixture
+            .producer
+            .build_initialization(&mut fixture.store, &fixture.state, &prior, 2, "cut-2")
+            .expect("gen2");
+        assert_eq!(gen2.objects.len(), 4);
+        for (old, new) in gen1.objects[1..].iter().zip(&gen2.objects[1..3]) {
+            assert_eq!(old.object_id, new.object_id, "原件不变 ⟹ 身份逐代不变");
+        }
+        let third: Value =
+            serde_json::from_str(&render(&mut fixture.store, &gen2.objects[3].payload)).unwrap();
+        assert_eq!(third["pending_since_cut"], "cut-2", "新到原件取当代 cut");
+        // 无上一代输入 ⟹ 全取当代 cut（身份随之不同）：取值只有 payload 一条通道。
+        let fresh = fixture
+            .producer
+            .build_initialization(&mut fixture.store, &fixture.state, &[], 2, "cut-2")
+            .expect("无 prior");
+        assert_ne!(fresh.objects[1].object_id, gen2.objects[1].object_id);
+        // 非未定原件的记录不得当作上一代未定原件（拒绝，不回落当代 cut）。
+        assert!(crate::content_bi::read_prior_undetermined(
+            &mut fixture.store,
+            &fixture.producer,
+            &gen1.objects[0].record,
+        )
+        .is_err());
+    }
+
+    /// 派生链逐前缀对拍 ①：任一前缀状态下，`raw_prefix_coords` 返回该前缀的完整 raw 坐标链
+    /// （共享链不是近似前缀，也不是「最新一段」）；方向已建立时末步 `coords` 与之相同，
+    /// #1393 W 等待期的 waiting 末步只绑定 incoming。
+    #[test]
+    fn raw_prefix_chain_is_full_raw_prefix_for_every_prefix() {
         for (case, bars) in [
             ("merge/new-group/direction", CASE_MERGE),
-            ("waiting", CASE_WAITING),
+            ("establish-at-third/refold", CASE_ESTABLISH_AT_THIRD),
+            ("never-established", CASE_NEVER_ESTABLISHED),
             ("shape/top-bottom", CASE_SHAPE),
         ] {
             for prefix in 1..=bars.len() {
@@ -6566,9 +7032,15 @@ mod tests {
                     .shared_step(last)
                     .expect("共享态可用")
                     .expect("末步在域内");
+                // #1393 W：已建立后末步 coords 即完整前缀；等待期 waiting 步只绑定 incoming。
+                let want_last = if state.unsettled() {
+                    vec![*expect.last().unwrap()]
+                } else {
+                    expect.clone()
+                };
                 assert_eq!(
                     view.coords.materialize(),
-                    expect,
+                    want_last,
                     "{case} 前缀{prefix}: 末步 coords"
                 );
             }
@@ -7069,5 +7541,151 @@ mod tests {
         let last = committed.last().expect("末步");
         verify(&mut reader, &last.record.content_ref()).expect("commit 后读事务可核");
         assert_eq!(render(&mut reader, &last.record), rendered);
+    }
+}
+
+/// #1419 新结构产物：三个兼容字段的真实 buffer 许可随对象转移到 Generated。
+/// 旧 TypedObject ABI 保留；inner 先析构，许可随后归还。
+pub(super) struct NativeStructureObject {
+    inner: TypedObject,
+    _strings: Option<sc::capture_allocation::scratch::NativeReservation>,
+}
+impl std::ops::Deref for NativeStructureObject {
+    type Target = TypedObject;
+    fn deref(&self) -> &TypedObject {
+        &self.inner
+    }
+}
+impl Cc004Producer {
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn build_structure_object(
+        &self,
+        store: &mut dyn NodeStore,
+        kind: &str,
+        fact_key: &str,
+        payload: Built,
+        input_refs: Built,
+        source_coords: Built,
+        generation: i64,
+        cut: &str,
+    ) -> Result<NativeStructureObject, ProducerError> {
+        use sc::ValueView as V;
+        let identity =
+            self.typed_identity_scoped(kind, fact_key, &payload, &input_refs, store.codec_work())?;
+        let bytes = 69usize
+            .checked_add(fact_key.len())
+            .and_then(|n| n.checked_add(cut.len()))
+            .ok_or_else(|| ProducerError::Overflow("结构文本容量溢出".into()))?;
+        let permit = store
+            .codec_work()
+            .map(|w| w.reserve_native(bytes))
+            .transpose()?;
+        let allocation_error = || -> ProducerError {
+            match store.codec_work() {
+                Some(work) => work
+                    .reject(sc::capture_allocation::scratch::ScratchFailure::Allocation)
+                    .into(),
+                None => ProducerError::Overflow("结构文本分配失败".into()),
+            }
+        };
+        let copy = |s: &str| -> Result<String, ProducerError> {
+            let mut v = String::new();
+            v.try_reserve_exact(s.len())
+                .map_err(|_| allocation_error())?;
+            v.push_str(s);
+            Ok(v)
+        };
+        let mut object_id = String::new();
+        object_id
+            .try_reserve_exact(69)
+            .map_err(|_| allocation_error())?;
+        use std::fmt::Write;
+        write!(&mut object_id, "{}", object_id_display(&identity))
+            .map_err(|_| ProducerError::Overflow("对象身份格式失败".into()))?;
+        let key = copy(fact_key)?;
+        let cut = copy(cut)?;
+        let payload_json = Built {
+            digest: put_json_text_node(store, &payload.digest)?,
+            kind: Kind::JsonText,
+            extent: None,
+        };
+        let input_refs_json = Built {
+            digest: put_json_text_node(store, &input_refs.digest)?,
+            kind: Kind::JsonText,
+            extent: None,
+        };
+        let source_coords_json = Built {
+            digest: put_json_text_node(store, &source_coords.digest)?,
+            kind: Kind::JsonText,
+            extent: None,
+        };
+        let revision_text = crate::v3::business_json::Decimal::new(OBJECT_REVISION);
+        let generation_text = crate::v3::business_json::Decimal::new(generation);
+        let revision = V::Number(sc::BorrowedNumberToken::parse(revision_text.text())?);
+        let gen = V::Number(sc::BorrowedNumberToken::parse(generation_text.text())?);
+        let fields = [
+            ("object_id", V::String(&object_id)),
+            ("object_revision", revision),
+            ("kind", V::String(kind)),
+            ("fact_key", V::String(&key)),
+            ("payload", V::Edge(payload.digest)),
+            ("input_refs", V::Edge(input_refs.digest)),
+            ("source_coords", V::Edge(source_coords.digest)),
+            ("payload_json", V::Edge(payload_json.digest)),
+            ("input_refs_json", V::Edge(input_refs_json.digest)),
+            ("source_coords_json", V::Edge(source_coords_json.digest)),
+            ("first_known_generation", gen),
+            ("first_known_cut", V::String(&cut)),
+            ("published_generation", gen),
+        ];
+        let record = sc::write_value_view(store, V::Object(&fields))?;
+        Ok(NativeStructureObject {
+            inner: TypedObject {
+                object_id,
+                identity,
+                fact_key: key,
+                record,
+                payload,
+                input_refs,
+                source_coords,
+                payload_json,
+                input_refs_json,
+                source_coords_json,
+                generation,
+                cut,
+                request: None,
+            },
+            _strings: permit,
+        })
+    }
+    /// 请求键已在同一 store 成边；保精确五字段，不物化旧 CValue 全树。
+    pub(super) fn explicit_request_root(
+        &self,
+        store: &mut dyn NodeStore,
+        key: &Built,
+        subject_id: &str,
+        axes: RequestAxes,
+        reasons: &[&str],
+        coords: &Built,
+    ) -> Result<Built, String> {
+        use crate::v3::structure_value as sv;
+        let key_text = crate::v3::content_structure::canonical_root_text(store, key)?;
+        let axis = axes.fields().map(|(k, v)| (k, sc::ValueView::String(v)));
+        let axis =
+            sc::write_value_view(store, sc::ValueView::Object(&axis)).map_err(|e| e.to_string())?;
+        let mut reason_values = sv::Vec::new();
+        for r in reasons {
+            reason_values.push(sc::ValueView::String(r), store)?;
+        }
+        let reasons = sc::write_value_view(store, sc::ValueView::Array(&reason_values))
+            .map_err(|e| e.to_string())?;
+        let fields = [
+            ("request_id", sc::ValueView::String(&key_text)),
+            ("subject_id", sc::ValueView::String(subject_id)),
+            ("axes", sc::ValueView::Edge(axis.digest)),
+            ("reasons", sc::ValueView::Edge(reasons.digest)),
+            ("source_coords", sc::ValueView::Edge(coords.digest)),
+        ];
+        sc::write_value_view(store, sc::ValueView::Object(&fields)).map_err(|e| e.to_string())
     }
 }

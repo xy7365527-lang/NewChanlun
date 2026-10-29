@@ -370,6 +370,12 @@ theorem segment_two_cases_exhaustive (t : Tangency) (e1 e2 : FeatureElem) (revSe
     · #799：本节第一种情况只按先破判据确认；严格谓词保持原样，用于本节等价锁，
       不作为确认失败后的备用判据。既有 SegmentEndUp/Down 与历史消费者未迁移，
       本节不声称全 Lean 构造链已接入这一新定义（#1495 的范围是定义与引理）。
+
+    #1419 同树边界 D_FIRST_RUNTIME_BINDING：固定 545e 的 CONSTRUCTION_RULE 虽为
+    segment-second/2，feature_seq.rs::append 仍先 push 试探分型、失败后包含合并，
+    scan_trigger 仍取 is_fractal_and_gap 的严格分型；没有本节转折点窗的状态载体。
+    因此本节落实已裁 #1490 定义，不冒充当前 Rust 第一种情况的行为等价证明。
+    还缺冻结 a/b、窗成员身份、首次出窗与旧段延续到正式段端的桥；不是第二终结的 K1。
 -/
 
 /-- **第一种情况确认＝先破判据·向上段（xianduan.md §7.1 第 1 条，#1490 X-31）**
@@ -393,15 +399,16 @@ instance (a b c : FeatureElem) : Decidable (FirstBreakConfirmsDown a b c) := by
 
 * `confirmed`：转折点之后先破对侧端点，第一种情况确认；
 * `killedByNewExtreme`：先出现新极值，原转折点作废；
-* `openAtPrefixEnd`：走完当前前缀仍未裁出，窗口保持开放。 -/
+* `openAtPrefixEnd`：走完函数所接收的列表仍未裁出。投影列表不能冒充原始笔前缀；
+  原始前缀须用下文 rawTurnWindowState，保留反向尾笔的越界信息（#1419 独审 P2）。 -/
 inductive TurnWindowState
   | confirmed
   | killedByNewExtreme
   | openAtPrefixEnd
   deriving DecidableEq, Repr
 
-/-- 向上段转折点 `b` 之后的窗：先破新高 ⟹ killed；先破 `b.low` ⟹ confirmed；
-被 `b` 包含的元素跳过；走完前缀 ⟹ open。
+/-- 给定同向投影列表的向上段转折点窗分类：先破新高 ⟹ killed；先破 `b.low` ⟹ confirmed；
+被 `b` 包含的元素跳过；走完给定列表 ⟹ open。此处没有原始前缀完备性保证。
 输入按时间排列、与 b 同向（向下笔），不把窗成员合并进 b。若某笔同时越过两端，
 其起点 high 在终点 low 之前到达，故先判 killed；笔方向前提沿用 §1 的调用方约束。 -/
 def turnWindowStateUp (b : FeatureElem) : List FeatureElem → TurnWindowState
@@ -527,6 +534,18 @@ theorem turnWindowState_exhaustive (s : TurnWindowState) :
     s = .confirmed ∨ s = .killedByNewExtreme ∨ s = .openAtPrefixEnd := by
   cases s <;> simp
 
+/-- #1419：第一种情况同一特征笔越过两端时，新极值优先（向上旧段的特征笔向下）。 -/
+theorem turnWindowStateUp_both_breached (b c : FeatureElem) (rest : List FeatureElem)
+    (hh : b.high < c.high) (_hl : c.low < b.low) :
+    turnWindowStateUp b (c :: rest) = .killedByNewExtreme := by
+  simp [turnWindowStateUp, hh]
+
+/-- 向下旧段的特征笔向上；同笔先到 low 一侧的新极值，亦作废。 -/
+theorem turnWindowStateDown_both_breached (b c : FeatureElem) (rest : List FeatureElem)
+    (hl : c.low < b.low) (_hh : b.high < c.high) :
+    turnWindowStateDown b (c :: rest) = .killedByNewExtreme := by
+  simp [turnWindowStateDown, hl]
+
 example : turnWindowStateUp ⟨0, 10, by decide⟩ [⟨2, 8, by decide⟩] = .openAtPrefixEnd := by
   decide
 
@@ -591,7 +610,8 @@ theorem turnWindowStateDown_firstOutside (b c : FeatureElem) (xs : List FeatureE
       · simp [turnWindowStateDown, hl]
       · simp [turnWindowStateDown, hh]
 
-/-- OPEN 正好是前缀内每个元素都在 b 范围内；相等不构成破（071:32）。 -/
+/-- 投影列表 OPEN 正好是该列表每个元素都在 b 范围内；相等不构成破（071:32）。
+未进入列表的反向尾笔仍可能越过 P，不能据本定理宣布原始前缀 OPEN（#1419）。 -/
 theorem turnWindowStateUp_open_iff (b : FeatureElem) (xs : List FeatureElem) :
     turnWindowStateUp b xs = .openAtPrefixEnd ↔ ∀ x ∈ xs, Contains b x := by
   induction xs with
@@ -610,12 +630,12 @@ theorem turnWindowStateDown_open_iff (b : FeatureElem) (xs : List FeatureElem) :
       simp [turnWindowStateDown, hh, hl, Contains, Tick, ih] <;>
       simp only [Tick] at * <;> omega
 
-/-- 第一种情况的完整前缀确认定义：a、b 无缺口，b 是候选峰，窗内先破确认。
-三元素 FirstBreakConfirmsUp 只表达局部几何；这里显式带入缺口与时间先后。 -/
+/-- 给定同向投影列表的第一种确认：a、b 无缺口，b 是候选峰，列表内先破确认。
+这里带入列表内的先后；不含被方向过滤丢弃的笔，不能冒称完整原始前缀（#1419）。 -/
 def FirstKindConfirmsUp (t : Tangency) (a b : FeatureElem) (xs : List FeatureElem) : Prop :=
   ¬ HasGap t a b ∧ a.high < b.high ∧ turnWindowStateUp b xs = .confirmed
 
-/-- 第一种情况完整前缀确认的向下对偶。 -/
+/-- 给定同向投影列表的第一种确认之向下对偶。 -/
 def FirstKindConfirmsDown (t : Tangency) (a b : FeatureElem) (xs : List FeatureElem) : Prop :=
   ¬ HasGap t a b ∧ b.low < a.low ∧ turnWindowStateDown b xs = .confirmed
 
@@ -653,6 +673,621 @@ example : turnWindowStateUp ⟨0, 10, by decide⟩
     turnWindowStateUp ⟨0, 10, by decide⟩
     [⟨-2, 8, by decide⟩, ⟨2, 12, by decide⟩] = .confirmed := by
   decide
+
+/-! #1419 / #1490：原始笔前缀与同向投影之间的边界。
+以下输入是 b 之后按时间排列的全部已知笔，不含 b。分类函数不构造候选 a/b，
+也不证明这些笔来自真实 K 线；候选来源、连续性和段端门仍属于 D_FIRST_RUNTIME_BINDING。
+反向笔（包括原始前缀最后一笔）不能确认，但其 P 侧原始极值不能被投影丢弃。 -/
+
+/-- 按实际 Stroke.direction 过滤，端点价格经既有 ofStroke 投影；不以奇偶代替方向。 -/
+def projectStrokes (d : Direction) : List Stroke → List FeatureElem
+  | [] => []
+  | s :: rest =>
+      if s.direction = d then FeatureElem.ofStroke s :: projectStrokes d rest
+      else projectStrokes d rest
+
+/-- 同一投影判据的方向入口。 -/
+def projectedTurnWindow (d : Direction) (b : FeatureElem) (xs : List FeatureElem) :
+    TurnWindowState :=
+  match d with
+  | .up => turnWindowStateUp b xs
+  | .down => turnWindowStateDown b xs
+
+/-- 原方向严格越过冻结 P；相等不破。两端极值取原始 Stroke，不取合并后的区间。 -/
+def rawCrossesP (d : Direction) (b : FeatureElem) (s : Stroke) : Prop :=
+  match d with
+  | .up => b.high < (FeatureElem.ofStroke s).high
+  | .down => (FeatureElem.ofStroke s).low < b.low
+
+instance (d : Direction) (b : FeatureElem) (s : Stroke) : Decidable (rawCrossesP d b s) := by
+  cases d <;> unfold rawCrossesP <;> infer_instance
+
+/-- 第一种单笔观察：与 b 同向者使用原投影判据；其他笔只查 P，不参与 confirmed。 -/
+def rawTurnObservation (d : Direction) (b : FeatureElem) (s : Stroke) : TurnWindowState :=
+  if s.direction = d.flip then projectedTurnWindow d b [FeatureElem.ofStroke s]
+  else if rawCrossesP d b s then .killedByNewExtreme else .openAtPrefixEnd
+
+/-- 消费完整的给定原始笔前缀，第一终态吸收；不合并或改写 b。 -/
+def rawTurnWindowState (d : Direction) (b : FeatureElem) : List Stroke → TurnWindowState
+  | [] => .openAtPrefixEnd
+  | s :: rest =>
+      match rawTurnObservation d b s with
+      | .confirmed => .confirmed
+      | .killedByNewExtreme => .killedByNewExtreme
+      | .openAtPrefixEnd => rawTurnWindowState d b rest
+
+/-- 原始前缀 OPEN 的逐笔前件：所有笔不越 P，且同向笔也不越 b 的终点。 -/
+def RawTurnSafe (d : Direction) (b : FeatureElem) (s : Stroke) : Prop :=
+  ¬ rawCrossesP d b s ∧
+    (s.direction = d.flip → Contains b (FeatureElem.ofStroke s))
+
+theorem rawTurnObservation_open_iff (d : Direction) (b : FeatureElem) (s : Stroke) :
+    rawTurnObservation d b s = .openAtPrefixEnd ↔ RawTurnSafe d b s := by
+  unfold rawTurnObservation RawTurnSafe
+  by_cases hf : s.direction = d.flip
+  · rw [if_pos hf]
+    cases d <;>
+      simp only [projectedTurnWindow, turnWindowStateUp, turnWindowStateDown, rawCrossesP,
+        Contains, hf, forall_const] <;>
+      generalize FeatureElem.ofStroke s = x <;>
+      by_cases h1 : b.high < x.high <;> by_cases h2 : x.low < b.low <;>
+      simp [h1, h2] <;> (try simp only [Tick] at *) <;> omega
+  · rw [if_neg hf]
+    by_cases hc : rawCrossesP d b s <;> simp [hc, hf]
+
+theorem rawTurnWindowState_open_iff (d : Direction) (b : FeatureElem) (xs : List Stroke) :
+    rawTurnWindowState d b xs = .openAtPrefixEnd ↔ ∀ s ∈ xs, RawTurnSafe d b s := by
+  induction xs with
+  | nil => simp [rawTurnWindowState]
+  | cons s rest ih =>
+    have hs := rawTurnObservation_open_iff d b s
+    cases ho : rawTurnObservation d b s <;>
+      simp [rawTurnWindowState, ho, ih, ← hs]
+
+theorem rawTurnObservation_reverse_not_confirmed (d : Direction) (b : FeatureElem) (s : Stroke)
+    (h : s.direction ≠ d.flip) : rawTurnObservation d b s ≠ .confirmed := by
+  simp only [rawTurnObservation, if_neg h]
+  split <;> simp
+
+theorem rawTurnObservation_crosses_killed (d : Direction) (b : FeatureElem) (s : Stroke)
+    (h : rawCrossesP d b s) : rawTurnObservation d b s = .killedByNewExtreme := by
+  cases d <;> by_cases hd : s.direction = Direction.down <;>
+    by_cases hu : s.direction = Direction.up <;>
+    simp_all [rawTurnObservation, projectedTurnWindow, turnWindowStateUp,
+      turnWindowStateDown, rawCrossesP, Direction.flip]
+
+theorem rawTurnWindowState_append_of_ne_open (d : Direction) (b : FeatureElem)
+    (xs ys : List Stroke) (h : rawTurnWindowState d b xs ≠ .openAtPrefixEnd) :
+    rawTurnWindowState d b (xs ++ ys) = rawTurnWindowState d b xs := by
+  induction xs with
+  | nil => exact (h rfl).elim
+  | cons s rest ih =>
+    cases ho : rawTurnObservation d b s <;>
+      simp only [List.cons_append, rawTurnWindowState, ho] at h ⊢
+    exact ih h
+
+/-- 先前原始前缀仍开放时，下一笔原始越界立刻作废，包括被过滤的反向尾笔。 -/
+theorem rawTurnWindowState_append_of_open (d : Direction) (b : FeatureElem)
+    (xs ys : List Stroke) (h : rawTurnWindowState d b xs = .openAtPrefixEnd) :
+    rawTurnWindowState d b (xs ++ ys) = rawTurnWindowState d b ys := by
+  induction xs with
+  | nil => rfl
+  | cons s rest ih =>
+    cases ho : rawTurnObservation d b s <;>
+      simp only [List.cons_append, rawTurnWindowState, ho] at h ⊢ <;>
+      first | exact ih h | cases h
+
+theorem rawTurnWindowState_open_then_kill (d : Direction) (b : FeatureElem)
+    (xs : List Stroke) (s : Stroke)
+    (hopen : rawTurnWindowState d b xs = .openAtPrefixEnd) (hkill : rawCrossesP d b s) :
+    rawTurnWindowState d b (xs ++ [s]) = .killedByNewExtreme := by
+  rw [rawTurnWindowState_append_of_open d b xs [s] hopen]
+  simp [rawTurnWindowState, rawTurnObservation_crosses_killed d b s hkill]
+
+/-- 只有在所有被丢弃笔均不越 P 时，投影列表才足以替代原始前缀。
+这是充分的映射前件，绝非无条件“完整前缀”定理；终态后的笔也要求安全故前件非必要。 -/
+theorem rawTurnWindowState_eq_projection (d : Direction) (b : FeatureElem) (xs : List Stroke)
+    (hsafe : ∀ s ∈ xs, s.direction ≠ d.flip → ¬ rawCrossesP d b s) :
+    rawTurnWindowState d b xs = projectedTurnWindow d b (projectStrokes d.flip xs) := by
+  induction xs with
+  | nil => cases d <;> rfl
+  | cons s rest ih =>
+    have hr : ∀ t ∈ rest, t.direction ≠ d.flip → ¬ rawCrossesP d b t :=
+      fun t ht => hsafe t (by simp [ht])
+    have hi := ih hr
+    by_cases hd : s.direction = d.flip
+    · cases d <;>
+        simp only [rawTurnWindowState, rawTurnObservation, projectStrokes, hd, if_pos,
+          projectedTurnWindow, turnWindowStateUp, turnWindowStateDown] at hi ⊢ <;>
+        split <;> simp_all <;> split <;> simp_all
+      all_goals (intro; (try simp only [Tick] at *); omega)
+    · have hn := hsafe s (by simp) hd
+      simpa [rawTurnWindowState, rawTurnObservation, projectStrokes, hd, hn] using hi
+
+/-- #1490 第一种原始前缀确认；与旧 FirstKindConfirmsUp 的投影域分开命名。 -/
+def FirstKindRawConfirmsUp (t : Tangency) (a b : FeatureElem) (xs : List Stroke) : Prop :=
+  ¬ HasGap t a b ∧ a.high < b.high ∧ rawTurnWindowState .up b xs = .confirmed
+
+def FirstKindRawConfirmsDown (t : Tangency) (a b : FeatureElem) (xs : List Stroke) : Prop :=
+  ¬ HasGap t a b ∧ b.low < a.low ∧ rawTurnWindowState .down b xs = .confirmed
+
+theorem firstKindRawUp_iff_projected (t : Tangency) (a b : FeatureElem) (xs : List Stroke)
+    (h : ∀ s ∈ xs, s.direction ≠ Direction.down → ¬ rawCrossesP .up b s) :
+    FirstKindRawConfirmsUp t a b xs ↔ FirstKindConfirmsUp t a b (projectStrokes .down xs) := by
+  unfold FirstKindRawConfirmsUp FirstKindConfirmsUp
+  rw [rawTurnWindowState_eq_projection .up b xs h]
+  rfl
+
+theorem firstKindRawDown_iff_projected (t : Tangency) (a b : FeatureElem) (xs : List Stroke)
+    (h : ∀ s ∈ xs, s.direction ≠ Direction.up → ¬ rawCrossesP .down b s) :
+    FirstKindRawConfirmsDown t a b xs ↔ FirstKindConfirmsDown t a b (projectStrokes .up xs) := by
+  unfold FirstKindRawConfirmsDown FirstKindConfirmsDown
+  rw [rawTurnWindowState_eq_projection .down b xs h]
+  rfl
+
+/-- 独审 P2 反例：a=[0,8]，b=10→2，已知反向尾笔=2→12。
+投影为空仍 OPEN；原始前缀已越 P=10，必须 KILLED。 -/
+theorem rawTurnWindowState_reverse_tail_counterexample (t : Tangency) :
+    ¬ HasGap t ⟨0, 8, by decide⟩ ⟨2, 10, by decide⟩ ∧
+    turnWindowStateUp ⟨2, 10, by decide⟩
+      (projectStrokes .down [⟨.up, 1, 2, 2, 12⟩]) = .openAtPrefixEnd ∧
+    rawTurnWindowState .up ⟨2, 10, by decide⟩
+      [⟨.up, 1, 2, 2, 12⟩] = .killedByNewExtreme := by
+  cases t <;> decide
+
+/-- 相等不破；反向尾笔即使几何区间越 b 终点，也没有确认资格。后半是非连续负控。 -/
+theorem rawTurnWindowState_reverse_tail_controls :
+    rawTurnWindowState .up ⟨2, 10, by decide⟩ [⟨.up, 1, 2, 2, 10⟩] = .openAtPrefixEnd ∧
+    rawTurnWindowState .up ⟨2, 10, by decide⟩ [⟨.up, 1, 2, 1, 9⟩] = .openAtPrefixEnd ∧
+    rawTurnWindowState .down ⟨-10, -2, by decide⟩
+      [⟨.down, 1, 2, -2, -12⟩] = .killedByNewExtreme := by
+  decide
+
+/-- 连续交替的正控：反向笔止于 P，随后同向笔先破终点而确认；已确认不被后尾推翻。 -/
+theorem rawTurnWindowState_confirmed_prefix_control :
+    rawTurnWindowState .up ⟨2, 10, by decide⟩
+      [⟨.up, 1, 2, 2, 10⟩, ⟨.down, 2, 3, 10, 1⟩, ⟨.up, 3, 4, 1, 12⟩] = .confirmed := by
+  decide
+
+/-! #1419：固定 545e / 112e 的 second_fold 计算投影。
+复用 Stroke 的五个字段、FeatureElem.ofStroke、Contains、mergeInclusion 和既有分型谓词；
+不把分型输入留作 oracle。标准元素以逆序存储，head 对应 Rust Vec.last。
+本节覆盖数值/方向/成员/终态计算；Rust 的 steps/checks 全历史、FNV 指纹、游标撤销/恢复
+以及机器整数编码的精化仍未完成，详见 v5 报告的 D_SECOND_FOLD_REFINEMENT 分项。 -/
+
+namespace SecondFold
+
+instance (a b c : FeatureElem) : Decidable (IsTopFractal a b c) := by
+  unfold IsTopFractal; infer_instance
+
+instance (a b c : FeatureElem) : Decidable (IsBottomFractal a b c) := by
+  unfold IsBottomFractal; infer_instance
+
+structure Candidate where
+  segDir : Direction
+  bStroke : Nat
+  extreme : Tick
+  deriving Repr
+
+/-- 对应 FeatureElement 的 high/low/stroke_idx/stroke_indices；members 保持时间顺序。 -/
+structure Element where
+  range : FeatureElem
+  strokeIdx : Nat
+  members : List Nat
+  deriving Repr
+
+/-- 每一原始笔推进索引，只有同向笔输出元素；strokeIdx 是笔数组索引而非 K 线索引。 -/
+def indexedProjection (d : Direction) (start : Nat) : List Stroke → List Element
+  | [] => []
+  | s :: rest =>
+      if s.direction = d then
+        ⟨FeatureElem.ofStroke s, start, [start]⟩ :: indexedProjection d (start + 1) rest
+      else indexedProjection d (start + 1) rest
+
+inductive Decision
+  | confirmed
+  | killedByNewExtreme
+  deriving DecidableEq, Repr
+
+structure Kill where
+  strokeIdx : Nat
+  price : Tick
+  candidateExtreme : Tick
+  deriving Repr
+
+structure State where
+  fromStroke : Nat
+  throughStroke : Nat
+  consumedLen : Nat
+  rawRev : List Element
+  standardRev : List Element
+  dirState : Option Direction
+  watermark : Option Tick
+  decision : Option Decision
+  matched : Option (Element × Element × Element)
+  killedBy : Option Kill
+  deriving Repr
+
+/-- second_fold.rs:129：向上旧段初始 Down；向下旧段 None（有效合并方向为 Up）。 -/
+def initial (c : Candidate) : State :=
+  { fromStroke := c.bStroke + 1, throughStroke := c.bStroke, consumedLen := 0
+    rawRev := [], standardRev := [], dirState := if c.segDir = .up then some .down else none
+    watermark := none, decision := none, matched := none, killedBy := none }
+
+def effectiveUp (ds : Option Direction) : Bool := decide (ds ≠ some .down)
+
+/-- feature_seq.rs:289 apply_inclusion：只修改末元素，互含不改 dir_state。 -/
+def includeElem (ds : Option Direction) (x : Element) : List Element → List Element × Option Direction
+  | [] => ([x], ds)
+  | last :: rest =>
+      if Contains last.range x.range ∨ Contains x.range last.range then
+        ({ range := mergeInclusion (effectiveUp ds) last.range x.range
+           strokeIdx := x.strokeIdx, members := last.members ++ x.members } :: rest, ds)
+      else
+        let nextDir :=
+          if last.range.high < x.range.high ∧ last.range.low < x.range.low then some .up
+          else if x.range.high < last.range.high ∧ x.range.low < last.range.low then some .down
+          else ds
+        (x :: last :: rest, nextDir)
+
+/-- Rust 的最近三元素按 a,b,c 顺序检验；不限制只顶或只底。 -/
+def tailFractal : List Element → Bool
+  | c :: b :: a :: _ => decide (IsTopFractal a.range b.range c.range ∨
+      IsBottomFractal a.range b.range c.range)
+  | _ => false
+
+def tailTriple : List Element → Option (Element × Element × Element)
+  | c :: b :: a :: _ => some (a, b, c)
+  | _ => none
+
+def reach (d : Direction) (x : FeatureElem) : Tick :=
+  match d with
+  | .up => x.high
+  | .down => x.low
+
+def breached (c : Candidate) (x : FeatureElem) : Prop :=
+  match c.segDir with
+  | .up => c.extreme < x.high
+  | .down => x.low < c.extreme
+
+instance (c : Candidate) (x : FeatureElem) : Decidable (breached c x) := by
+  unfold breached; split <;> infer_instance
+
+def updateWatermark (d : Direction) (old : Option Tick) (r : Tick) : Option Tick :=
+  match old with
+  | none => some r
+  | some w => some (match d with
+      | .up => if w ≥ r then w else r
+      | .down => if w ≤ r then w else r)
+
+/-- 固定第二种次序：包含后分型先于原始越界；x 未经合并，用于 reach 与 kill。 -/
+def consumeFeature (c : Candidate) (st : State) (i : Nat) (x : FeatureElem) : State :=
+  let incoming : Element := ⟨x, i, [i]⟩
+  let merged := includeElem st.dirState incoming st.standardRev
+  let next := { st with
+    rawRev := incoming :: st.rawRev
+    standardRev := merged.1
+    dirState := merged.2
+    watermark := updateWatermark c.segDir st.watermark (reach c.segDir x) }
+  if tailFractal merged.1 then
+    { next with decision := some .confirmed, matched := tailTriple merged.1 }
+  else if breached c x then
+    { next with decision := some .killedByNewExtreme
+                killedBy := some ⟨i, reach c.segDir x, c.extreme⟩ }
+  else next
+
+/-- 所有原始笔占一个预算单位；与旧段反向者不改几何、水位或终态（Rust :196）。 -/
+def consume (c : Candidate) (st : State) (s : Stroke) : State :=
+  let i := st.fromStroke + st.consumedLen
+  let advanced := { st with consumedLen := st.consumedLen + 1, throughStroke := i }
+  if s.direction = c.segDir then consumeFeature c advanced i (FeatureElem.ofStroke s)
+  else advanced
+
+/-- Rust while 的 decided 守卫与 step 合成；已终结态不再消费输入。 -/
+def step (c : Candidate) (st : State) (s : Stroke) : State :=
+  if st.decision = none then consume c st s else st
+
+def run (c : Candidate) (st : State) : List Stroke → State
+  | [] => st
+  | s :: rest => run c (step c st s) rest
+
+inductive Coverage
+  | complete
+  | incompleteResourceBound
+  deriving DecidableEq, Repr
+
+structure Result where
+  state : State
+  semantic : Option TurnWindowState
+  coverage : Coverage
+  deriving Repr
+
+def terminal : Decision → TurnWindowState
+  | .confirmed => .confirmed
+  | .killedByNewExtreme => .killedByNewExtreme
+
+/-- second_fold.rs:302 finish：覆盖不足且未决时没有语义，不得冒充 OPEN。 -/
+def finish (st : State) (available budget : Nat) : Result :=
+  match st.decision with
+  | some t => ⟨st, some (terminal t), .complete⟩
+  | none => if budget < available then ⟨st, none, .incompleteResourceBound⟩
+      else ⟨st, some .openAtPrefixEnd, .complete⟩
+
+/-- 对固定原始前缀从 b+1 起读真实 Stroke；预算按双向笔数，不是过滤后的元素数。
+None 对应 Rust window=0。这里只形式化不改写的完整输入；末笔暂算/撤销属于游标义务。 -/
+def evaluate (c : Candidate) (strokes : List Stroke) (grant : Option Nat) : Result :=
+  let suffix := strokes.drop (c.bStroke + 1)
+  let budget := match grant with | none => suffix.length | some n => n
+  finish (run c (initial c) (suffix.take budget)) suffix.length budget
+
+/-- 端点抽象与 Rust stroke_high_low 的分支逐值相同，含相等端点。 -/
+theorem ofStroke_rust_endpoints (s : Stroke) :
+    (FeatureElem.ofStroke s).high =
+      (if s.startPrice ≥ s.endPrice then s.startPrice else s.endPrice) ∧
+    (FeatureElem.ofStroke s).low =
+      (if s.startPrice ≥ s.endPrice then s.endPrice else s.startPrice) := by
+  by_cases h : s.startPrice ≤ s.endPrice <;> by_cases g : s.startPrice ≥ s.endPrice <;>
+    simp [FeatureElem.ofStroke, h, g] <;> simp only [Tick] at * <;> omega
+
+theorem includeElem_merge (ds : Option Direction) (x last : Element) (rest : List Element)
+    (h : Contains last.range x.range ∨ Contains x.range last.range) :
+    includeElem ds x (last :: rest) =
+      ({ range := mergeInclusion (effectiveUp ds) last.range x.range
+         strokeIdx := x.strokeIdx, members := last.members ++ x.members } :: rest, ds) := by
+  simp [includeElem, h]
+
+theorem includeElem_append (ds : Option Direction) (x last : Element) (rest : List Element)
+    (h : ¬ (Contains last.range x.range ∨ Contains x.range last.range)) :
+    (includeElem ds x (last :: rest)).1 = x :: last :: rest := by
+  simp [includeElem, h]
+
+theorem includeElem_merge_direction (ds : Option Direction) (x last : Element)
+    (rest : List Element) (h : Contains last.range x.range ∨ Contains x.range last.range) :
+    (includeElem ds x (last :: rest)).2 = ds := by
+  simp [includeElem, h]
+
+theorem effectiveUp_none : effectiveUp none = true := by decide
+theorem effectiveUp_down : effectiveUp (some .down) = false := by decide
+
+theorem tailFractal_iff (a b c : Element) (rest : List Element) :
+    tailFractal (c :: b :: a :: rest) = true ↔
+      IsTopFractal a.range b.range c.range ∨ IsBottomFractal a.range b.range c.range := by
+  simp [tailFractal]
+
+/-- 合并保留其余标准元素及旧成员身份；价格有效性由 FeatureElem.valid 携带。 -/
+theorem includeElem_merge_members (ds : Option Direction) (x last : Element) (rest : List Element)
+    (h : Contains last.range x.range ∨ Contains x.range last.range) :
+    ((includeElem ds x (last :: rest)).1.map Element.members) =
+      (last.members ++ x.members) :: rest.map Element.members := by
+  simp [includeElem, h]
+
+theorem consumeFeature_confirmed_first (c : Candidate) (st : State) (i : Nat) (x : FeatureElem)
+    (h : tailFractal (includeElem st.dirState ⟨x, i, [i]⟩ st.standardRev).1 = true) :
+    (consumeFeature c st i x).decision = some .confirmed := by
+  simp [consumeFeature, h]
+
+theorem consumeFeature_killed (c : Candidate) (st : State) (i : Nat) (x : FeatureElem)
+    (hf : tailFractal (includeElem st.dirState ⟨x, i, [i]⟩ st.standardRev).1 = false)
+    (hb : breached c x) :
+    (consumeFeature c st i x).decision = some .killedByNewExtreme ∧
+    (consumeFeature c st i x).killedBy = some ⟨i, reach c.segDir x, c.extreme⟩ := by
+  simp [consumeFeature, hf, hb]
+
+theorem consumeFeature_open (c : Candidate) (st : State) (i : Nat) (x : FeatureElem)
+    (hs : st.decision = none)
+    (hf : tailFractal (includeElem st.dirState ⟨x, i, [i]⟩ st.standardRev).1 = false)
+    (hb : ¬ breached c x) : (consumeFeature c st i x).decision = none := by
+  simp [consumeFeature, hf, hb, hs]
+
+/-- 水位由合并前原始极值更新；即使本步确认或 kill，该水位仍保留。 -/
+theorem consumeFeature_watermark (c : Candidate) (st : State) (i : Nat) (x : FeatureElem) :
+    (consumeFeature c st i x).watermark =
+      updateWatermark c.segDir st.watermark (reach c.segDir x) := by
+  dsimp only [consumeFeature]
+  split <;> first | rfl | (split <;> rfl)
+
+theorem updateWatermark_up_bound (old : Option Tick) (r : Tick) :
+    ∃ w, updateWatermark .up old r = some w ∧ r ≤ w ∧
+      (∀ v, old = some v → v ≤ w) := by
+  cases old with
+  | none => exact ⟨r, rfl, Int.le_refl r, by simp⟩
+  | some v =>
+    by_cases h : v ≥ r
+    · refine ⟨v, by simp [updateWatermark, h], by simp only [Tick] at *; omega, ?_⟩
+      intro w hw; cases hw; simp only [Tick] at *; omega
+    · refine ⟨r, by simp [updateWatermark, h], by simp only [Tick] at *; omega, ?_⟩
+      intro w hw; cases hw; simp only [Tick] at *; omega
+
+theorem updateWatermark_down_bound (old : Option Tick) (r : Tick) :
+    ∃ w, updateWatermark .down old r = some w ∧ w ≤ r ∧
+      (∀ v, old = some v → w ≤ v) := by
+  cases old with
+  | none => exact ⟨r, rfl, Int.le_refl r, by simp⟩
+  | some v =>
+    by_cases h : v ≤ r
+    · refine ⟨v, by simp [updateWatermark, h], by simp only [Tick] at *; omega, ?_⟩
+      intro w hw; cases hw; simp only [Tick] at *; omega
+    · refine ⟨r, by simp [updateWatermark, h], by simp only [Tick] at *; omega, ?_⟩
+      intro w hw; cases hw; simp only [Tick] at *; omega
+
+theorem consumeFeature_position (c : Candidate) (st : State) (i : Nat) (x : FeatureElem) :
+    (consumeFeature c st i x).consumedLen = st.consumedLen ∧
+    (consumeFeature c st i x).fromStroke = st.fromStroke ∧
+    (consumeFeature c st i x).throughStroke = st.throughStroke := by
+  dsimp only [consumeFeature]
+  split <;> first | exact ⟨rfl, rfl, rfl⟩ | (split <;> exact ⟨rfl, rfl, rfl⟩)
+
+theorem consumeFeature_raw (c : Candidate) (st : State) (i : Nat) (x : FeatureElem) :
+    (consumeFeature c st i x).rawRev = ⟨x, i, [i]⟩ :: st.rawRev := by
+  dsimp only [consumeFeature]
+  split <;> first | rfl | (split <;> rfl)
+
+theorem step_position (c : Candidate) (st : State) (s : Stroke) (h : st.decision = none) :
+    (step c st s).consumedLen = st.consumedLen + 1 ∧
+    (step c st s).fromStroke = st.fromStroke ∧
+    (step c st s).throughStroke = st.fromStroke + st.consumedLen := by
+  simp only [step, h, if_pos, consume]
+  split
+  · exact consumeFeature_position c _ _ _
+  · exact ⟨rfl, rfl, rfl⟩
+
+theorem step_reverse (c : Candidate) (st : State) (s : Stroke)
+    (h : st.decision = none) (hd : s.direction ≠ c.segDir) :
+    step c st s = { st with consumedLen := st.consumedLen + 1,
+                            throughStroke := st.fromStroke + st.consumedLen } := by
+  simp [step, consume, h, hd]
+
+theorem step_decided (c : Candidate) (st : State) (s : Stroke) (h : st.decision ≠ none) :
+    step c st s = st := by
+  simp [step, h]
+
+theorem run_append (c : Candidate) (st : State) (xs ys : List Stroke) :
+    run c st (xs ++ ys) = run c (run c st xs) ys := by
+  induction xs generalizing st with
+  | nil => rfl
+  | cons s rest ih => simp only [List.cons_append, run]; exact ih _
+
+theorem run_decided (c : Candidate) (st : State) (xs : List Stroke) (h : st.decision ≠ none) :
+    run c st xs = st := by
+  induction xs with
+  | nil => rfl
+  | cons s rest ih => simpa [run, step_decided c st s h] using ih
+
+/-- 任意完整已消费前缀到终态后，追加任何笔都不再改变本计算投影。 -/
+theorem run_terminal_prefix (c : Candidate) (st : State) (xs ys : List Stroke)
+    (h : (run c st xs).decision ≠ none) : run c st (xs ++ ys) = run c st xs := by
+  rw [run_append]
+  exact run_decided c (run c st xs) ys h
+
+theorem run_none_initial (c : Candidate) (st : State) (xs : List Stroke)
+    (h : (run c st xs).decision = none) : st.decision = none := by
+  by_cases hs : st.decision = none
+  · exact hs
+  · rw [run_decided c st xs hs] at h
+    exact (hs h).elim
+
+/-- 未决到前缀末端时实际消费数等于所有原始笔数，包含被方向过滤的笔。 -/
+theorem run_undecided_consumed (c : Candidate) (st : State) (xs : List Stroke)
+    (h : (run c st xs).decision = none) :
+    (run c st xs).consumedLen = st.consumedLen + xs.length := by
+  induction xs generalizing st with
+  | nil => simp [run]
+  | cons s rest ih =>
+    have hs := run_none_initial c st (s :: rest) h
+    have hp := (step_position c st s hs).1
+    have hi := ih (step c st s) h
+    simp only [run, List.length_cons]
+    omega
+
+/-- 未决前缀的 raw_elements 精确等于实际方向投影；索引含被过滤笔的位置。
+没有把“输入等于某 oracle”作为假设，右侧直接从原始 Stroke 列表构造。 -/
+theorem run_undecided_raw (c : Candidate) (st : State) (xs : List Stroke)
+    (h : (run c st xs).decision = none) :
+    (run c st xs).rawRev =
+      (indexedProjection c.segDir (st.fromStroke + st.consumedLen) xs).reverse ++ st.rawRev := by
+  induction xs generalizing st with
+  | nil => simp [run, indexedProjection]
+  | cons s rest ih =>
+    have hs := run_none_initial c st (s :: rest) h
+    have hp := step_position c st s hs
+    have hn : (step c st s).fromStroke + (step c st s).consumedLen =
+        st.fromStroke + st.consumedLen + 1 := by
+      rw [hp.1, hp.2.1]
+      omega
+    simp only [run]
+    rw [ih (step c st s) h, hn]
+    by_cases hd : s.direction = c.segDir
+    · have hr : (step c st s).rawRev =
+          ⟨FeatureElem.ofStroke s, st.fromStroke + st.consumedLen,
+            [st.fromStroke + st.consumedLen]⟩ :: st.rawRev := by
+        simp only [step, hs, if_pos, consume, hd]
+        exact consumeFeature_raw c _ _ _
+      rw [hr]
+      simp [indexedProjection, hd, List.reverse_cons, List.append_assoc]
+    · rw [step_reverse c st s hs hd]
+      simp [indexedProjection, hd]
+
+/-- 从已消费原始元素按时间折叠极值；空列为none，不引入价格0初值。 -/
+def watermarkOfRaw (d : Direction) : List Element → Option Tick
+  | [] => none
+  | x :: rest => updateWatermark d (watermarkOfRaw d rest) (reach d x.range)
+
+theorem step_watermark_of_raw (c : Candidate) (st : State) (s : Stroke)
+    (h : st.watermark = watermarkOfRaw c.segDir st.rawRev) :
+    (step c st s).watermark = watermarkOfRaw c.segDir (step c st s).rawRev := by
+  by_cases hs : st.decision = none
+  · by_cases hd : s.direction = c.segDir
+    · simp only [step, hs, if_pos, consume, hd]
+      rw [consumeFeature_watermark, consumeFeature_raw]
+      simp only [watermarkOfRaw]
+      exact congrArg (fun old => updateWatermark c.segDir old
+        (reach c.segDir (FeatureElem.ofStroke s))) h
+    · simpa [step, consume, hs, hd] using h
+  · simpa [step, hs] using h
+
+theorem run_watermark_of_raw (c : Candidate) (st : State) (xs : List Stroke)
+    (h : st.watermark = watermarkOfRaw c.segDir st.rawRev) :
+    (run c st xs).watermark = watermarkOfRaw c.segDir (run c st xs).rawRev := by
+  induction xs generalizing st with
+  | nil => exact h
+  | cons s rest ih =>
+    exact ih (step c st s) (step_watermark_of_raw c st s h)
+
+/-- 包括提前终态的所有消费前缀：水位恰为实际已消费原始元素的方向极值折叠。 -/
+theorem run_initial_watermark (c : Candidate) (xs : List Stroke) :
+    (run c (initial c) xs).watermark =
+      watermarkOfRaw c.segDir (run c (initial c) xs).rawRev := by
+  exact run_watermark_of_raw c (initial c) xs rfl
+
+theorem finish_resource_not_open (st : State) (n budget : Nat)
+    (hs : st.decision = none) (hb : budget < n) :
+    (finish st n budget).semantic = none ∧
+    (finish st n budget).coverage = .incompleteResourceBound := by
+  simp [finish, hs, hb]
+
+theorem finish_open_iff (st : State) (n budget : Nat) :
+    (finish st n budget).semantic = some .openAtPrefixEnd ↔
+      st.decision = none ∧ n ≤ budget := by
+  cases h : st.decision with
+  | none => by_cases hb : budget < n <;> simp [finish, h, hb] <;> omega
+  | some d => cases d <;> simp [finish, h, terminal]
+
+theorem finish_decided_complete (st : State) (n budget : Nat) (d : Decision)
+    (h : st.decision = some d) :
+    (finish st n budget).semantic = some (terminal d) ∧
+    (finish st n budget).coverage = .complete := by
+  simp [finish, h]
+
+/-- 连续交替笔：第三个第二序列元素同时出底分型并越 P，确认先于 kill。 -/
+theorem same_stroke_confirmation_priority :
+    (evaluate ⟨.up, 0, 10⟩
+      [⟨.down, 0, 1, 10, 1⟩, ⟨.up, 1, 2, 1, 4⟩,
+       ⟨.down, 2, 3, 4, 0⟩, ⟨.up, 3, 4, 0, 3⟩,
+       ⟨.down, 4, 5, 3, 2⟩, ⟨.up, 5, 6, 2, 11⟩] none).semantic = some .confirmed := by
+  decide
+
+/-- 向下包含抹去新 high，原始 reach=12 仍使 P=10 失效，水位不能读合并 high=8。 -/
+theorem merged_extreme_still_kills :
+    let r := evaluate ⟨.up, 0, 10⟩
+      [⟨.down, 0, 1, 10, 2⟩, ⟨.up, 1, 2, 2, 8⟩,
+       ⟨.down, 2, 3, 8, 1⟩, ⟨.up, 3, 4, 1, 12⟩] none
+    r.semantic = some .killedByNewExtreme ∧ r.state.watermark = some 12 ∧
+      r.state.standardRev.map (fun e => e.range.high) = [8] ∧
+      r.state.standardRev.map Element.members = [[1, 3]] := by
+  decide
+
+/-- 预算按双向原始笔计数；未覆盖最后的反向笔时不可报 OPEN。 -/
+theorem budget_counts_reverse_stroke :
+    let c : Candidate := ⟨.up, 0, 10⟩
+    let xs : List Stroke :=
+      [⟨.down, 0, 1, 10, 2⟩, ⟨.up, 1, 2, 2, 8⟩, ⟨.down, 2, 3, 8, 3⟩]
+    (evaluate c xs (some 1)).semantic = none ∧
+      (evaluate c xs (some 1)).coverage = .incompleteResourceBound ∧
+      (evaluate c xs (some 2)).semantic = some .openAtPrefixEnd ∧
+      (evaluate c xs (some 2)).state.consumedLen = 2 := by
+  decide
+
+end SecondFold
 
 /-! ═══════════════════════════════════════════════════════════════════════
     § 7. 新笔定义（第81课《忽闻台风可休市》）

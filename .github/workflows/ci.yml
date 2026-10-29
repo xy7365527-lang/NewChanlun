@@ -365,6 +365,34 @@ jobs:
         if: ${{ !cancelled() && matrix.group == 'content' }}
         run: ../.github/scripts/check-compile-negatives-1394.sh
 
+      # #1419 裁定（issuecomment-6265726014）：v2 写者机械锁，发布构建（只开 s_session）。
+      #   ① 可达性：v2 核心写函数（init/accept/advance/recover_core）在源码以 cfg 条件 expect(dead_code) 标注；
+      #      -D unfulfilled_lint_expectations 让任何新接上的生产调用路径直接编译失败。入口函数（cmd_*、
+      #      v2 init_v2/serve/handle）在非测试、非种子构建里不存在（cfg 门）。
+      #   ② 发布构建未开 s_v2_seed_testonly：release 下该 feature 本就 compile_error；再对产物断言种子自报
+      #      子命令为「未知子命令」，全部 v2 写子命令返回退役错误且不建库。
+      - name: v2 写者机械锁 — 发布构建（#1419）
+        if: ${{ !cancelled() && matrix.group == 'content' }}
+        env:
+          RUSTFLAGS: -D unfulfilled_lint_expectations
+        run: |
+          set -euo pipefail
+          ../.github/scripts/run-cargo-with-telemetry.sh cargo build --locked --release --features s_session --bin s_structure_session --jobs 1
+          bin=target/release/s_structure_session
+          lock_dir=$(mktemp -d)
+          if "$bin" v2-seed-info >"$lock_dir/out" 2>"$lock_dir/err"; then
+            echo "发布构建认 v2-seed-info：s_v2_seed_testonly 被打开"; exit 1
+          fi
+          grep -q '未知子命令' "$lock_dir/err" || { cat "$lock_dir/err"; exit 1; }
+          for sub in init reset accept advance recover serve; do
+            if "$bin" "$sub" --db "$lock_dir/v2.db" --session lock --catalog ../s_session/catalog/signed-catalog.json \
+                >"$lock_dir/out" 2>"$lock_dir/err"; then
+              echo "发布构建 $sub 未拒"; exit 1
+            fi
+            grep -q 'v2 结构写者已退役' "$lock_dir/err" || { echo "$sub:"; cat "$lock_dir/err"; exit 1; }
+          done
+          test ! -e "$lock_dir/v2.db"
+
       # #1394 C：内容编码在 s_session feature 下供多个 owner 共用；只测 S bin 不会执行库测试。
       - name: cargo test — 完整内容编码与共享图校验（#1394）
         if: ${{ !cancelled() && matrix.group == 'content' }}
@@ -861,6 +889,18 @@ jobs:
       #   只把这条锁连同其判据（钩子不再验、重载命中重放计费、Reader 根变化必重验）单独成套执行。
       - name: Q3 v3 validate-once lock (#1394)
         run: node --test s_session/tests/test_q3_v3_validate_once.cjs
+      # #1419/#1424：Q3 读 S3 结构写者（W 后继规则串）的规则/22 轴/中枢族 typed 合同锁。
+      - name: Q3 S3 center-family contract (#1419)
+        run: node --test s_session/tests/test_q3_s3_center_contract.cjs
+      # #1419：Q3 沿公开 Client 入口消费真实 S3 W 夹具（fixtures/q3-real-s3-w-recover-revise.json，普通 blob 入仓，
+      #   sha256 2a83c180…0490a2a）。只跑第 1、2 条（规则串、cut0 与等待期；约 30 s，峰值 RSS 1.4 GB）。
+      #   第 3–5 条（跨恢复逐代 Watch、首中枢与修订、尾段中枢对）不进 CI：单条峰值 RSS 12–15 GB、耗时 12–50 分钟，
+      #   超出 runner。重型验证窗口在本机或远端逐条单进程跑：
+      #   Q3_WIRE_PROBE=1 node --max-old-space-size=16000 --test --test-name-pattern=<跨真实写者恢复|首中枢|尾段> s_session/tests/test_q3_s3_real_cut.cjs
+      #   收据：/Volumes/AgentStorage/issue1709-pstack-orchestrate-20261025/1419-q3-export/receipts-28u/（t1..t5.log + 导出双跑日志）。
+      #   重跑触发面：q3-consumer.js、q3-center.js、q3-typed.js、s-content-v3.js、q3_complete_fixture.cjs 或该夹具改动，合入前重跑并更新收据。
+      - name: Q3 S3 real cut0 consumption (#1419)
+        run: node --max-old-space-size=4096 --test --test-name-pattern="规则串|cut0" s_session/tests/test_q3_s3_real_cut.cjs
       - name: TB-02-W terminal and cursor contract tests (#1420)
         if: ${{ !cancelled() }}
         working-directory: s_session/tests
@@ -913,6 +953,11 @@ jobs:
       - name: Build formal (lake build)
         # formal/lean-toolchain 固定 leanprover/lean4:v4.31.0，elan 首次调用自动装该工具链
         run: lake build
+        working-directory: formal
+
+      # #1393：此单文件不在 lake 默认 roots；常规 CI 必须持续显式核验。
+      - name: Check raw inclusion initialization (Lean, #1393)
+        run: lake env lean Origin/RawInclusionInitialization.lean
         working-directory: formal
 
       - name: Fixture drift check (Lean → fixtures)

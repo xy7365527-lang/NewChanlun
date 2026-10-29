@@ -1,0 +1,62 @@
+{
+  "baseline": "7cc205c8a83a683fd0ce7c84dfe753a198c5dc92",
+  "qualification": "尾差复验后未提交代码字节身份",
+  "files": [
+    {
+      "path": "driver/assemble_evidence.py",
+      "sha256": "b9cca7d3fbf1965da125925f8caaf7932718410232f72d303687ede6a31c74b4"
+    },
+    {
+      "path": "driver/content_closure.py",
+      "sha256": "9f7f81bb29eebbd4fe02d55e48b527a8225bf8dcac7c7670e55f9a759edb676c"
+    },
+    {
+      "path": "driver/driver_v2.py",
+      "sha256": "e5784f17f7a71e09894686db36e611ea7ec24af78a8493ed28de74f6e4776061"
+    },
+    {
+      "path": "driver/fixed_cut_driver.py",
+      "sha256": "f9df71c3229ad90e59728944a1283a70d4ee816a75dfc103bb7701d808cc549a"
+    },
+    {
+      "path": "driver/prepare_candidate.py",
+      "sha256": "b251d99d366ebc7c68dd2fe8f2bdf5b0ff6b48009118d5e9c96c67f2aaebba00"
+    },
+    {
+      "path": "driver/raw_oracle.py",
+      "sha256": "4500a308a22bb763f273aa807def13405550993eef0e8196dca58d8aa09cb76e"
+    },
+    {
+      "path": "driver/seal_bundle.py",
+      "sha256": "c90b87e529b37a497aa3e86940f4ec8906b9c5a614e41b74f26ba21825cd2575"
+    },
+    {
+      "path": "driver/test_v2.py",
+      "sha256": "49c020e5d5c81634e7f5714c9fb124cf54bac9baa8f2b80ecc7a1885a89e02bd"
+    },
+    {
+      "path": "driver/toy_supervisor.py",
+      "sha256": "7f5a5e7fc90b4c33e551db1808b5ca1b4b29e81d8d5d1fe3347b2d3615ed5ff5"
+    },
+    {
+      "path": "driver/verify_delivery.py",
+      "sha256": "3402c467f96f3d4fda9d822aa97f1933e8bddfb1d33400428f32f4a6eeaa9e30"
+    },
+    {
+      "path": "fixes-v3/domain_fields.py",
+      "sha256": "a7bc1295c8478926b3217433e4dc7b080b58022ce81e4a9aad2926f8e82a0591"
+    },
+    {
+      "path": "fixes-v3/independent_fixture.py",
+      "sha256": "49104b53631deeba220f3ff8cd586beed2b7d325bd6a7125e2bb367e709c243e"
+    },
+    {
+      "path": "fixes-v3/test_fixes.py",
+      "sha256": "1fd97065f743323db40d7981aba3cdb1b76a0d803a681c4090b84e8089e19395"
+    },
+    {
+      "path": "fixes-v3/test_supplement.py",
+      "sha256": "f38dc42df4c960445d907c950173dd41086c2bbd73467b5207619560c8b37d23"
+    }
+  ]
+}

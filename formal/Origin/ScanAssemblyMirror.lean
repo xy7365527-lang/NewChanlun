@@ -313,6 +313,9 @@ structure EventRawInput where
   panDivDiag : Bool
 deriving DecidableEq, Repr
 
+/-- #1424：既有四态为 CC-020 五叶的投影镜像（合并扩展方向）。
+    此处保留原镜像；不将 coreOverlap 解释为 CC-018 单元延伸，
+    不将 levelExpansion 解释为高级对象已构造。有效域桥仍受 #1429 约束。 -/
 inductive CenterRelation where
   | upContinuation
   | downContinuation

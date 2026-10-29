@@ -59,6 +59,7 @@ pub(super) mod business_json;
 mod capture;
 mod catalog_evidence;
 mod commit;
+pub(crate) mod content_structure;
 mod control;
 mod control_audit;
 #[cfg(feature = "s_capture_native_testonly")]
@@ -97,6 +98,7 @@ mod q_watch;
 mod q_wire;
 mod reader;
 mod request_audit;
+pub(crate) mod structure_value;
 #[cfg(feature = "s_capture_native_testonly")]
 pub(crate) use request_audit::ManifestWorkspaceBudget;
 mod s_allocation;
@@ -117,16 +119,6 @@ const V3_INIT_FLAGS: [&str; 9] = [
     SELECTOR,
     // #1769：可选结构源声明文件；给出即作为库固定属性落 meta.structure_source。
     "--structure-source",
-    "--db",
-    "--session",
-    "--catalog",
-    "--profile",
-    "--session-generation",
-    "--clock-plan",
-    "--delivery-retain-generations",
-];
-/// 显式 `s-session/2` 必须齐全的初始化参数（与 `v2::dispatch` init 分支同一份合同）。
-const V2_INIT_FLAGS: [&str; 7] = [
     "--db",
     "--session",
     "--catalog",
@@ -164,7 +156,9 @@ pub(crate) fn test_writer_rule() -> Option<String> {
     TEST_WRITER_RULE.with(|r| r.borrow().clone())
 }
 
-/// #1405：历史 /1 仅供 Q/AsKnown 读取；新 writer 不自动续写或恢复旧规则库。
+/// #1419/#1424：旧 A/B 及 /1 域仅供原版本读取；新 writer 不自动续写旧规则库。
+/// #1393：写者只写 CF22 的 W 后继串；CF22 本身只读 AsKnown。整串逐字比对，不剥后缀推断。
+/// #1491（仅测试）：注入写者规则时只放行所注入的一个串，不同时接受 W 串（#799/#804 不设两档）。
 fn require_current_writer_rule(rule: &str) -> Result<(), String> {
     #[cfg(test)]
     if let Some(injected) = test_writer_rule() {
@@ -175,8 +169,8 @@ fn require_current_writer_rule(rule: &str) -> Result<(), String> {
         }
         return Ok(());
     }
-    if rule != V3_RULE_REVISION {
-        return Err(format!("VersionUnsupported：S3写者要求规则 {V3_RULE_REVISION}，库中规则 {rule} 只可按原版本读取"));
+    if rule != W_STRUCTURE_RULE_REVISION {
+        return Err(format!("VersionUnsupported：S3写者要求规则 {W_STRUCTURE_RULE_REVISION}，库中规则 {rule} 只可按原版本读取"));
     }
     Ok(())
 }
@@ -281,20 +275,9 @@ fn dispatch_with_policy(args: &[String], production: bool) -> Result<bool, Strin
         return Ok(true);
     }
     if value == PREVIOUS_REVISION {
-        // 显式 s-session/2：强制走既有 v2 初始化；缺参不得回落旧 v1 入口（那会静默建错域）。
-        for key in V2_INIT_FLAGS {
-            if !args.iter().any(|a| a == key) {
-                return Err(format!(
-                    "VersionUnsupported：显式 {PREVIOUS_REVISION} 缺 {key}（v2 初始化合同要求全参）"
-                ));
-            }
-        }
-        if !v2::dispatch(args)? {
-            return Err(format!(
-                "VersionUnsupported：显式 {PREVIOUS_REVISION} 未进入 v2 初始化分派；拒绝回落旧域"
-            ));
-        }
-        return Ok(true);
+        // #1419 裁定②（issuecomment-6265209957）：显式 s-session/2 init 是 v2 写入口，一律拒绝；
+        // 不回落旧 v1 入口（那会静默建错域）。旧 v2 库只读 AsKnown。
+        return Err(crate::V2_WRITER_RETIRED.to_string());
     }
     Err(format!(
         "VersionUnsupported：未知协议版本选择 `{value}`；支持 {PREVIOUS_REVISION}（旧合同）与 {PROTOCOL_REVISION}（新域）"
@@ -604,8 +587,9 @@ fn build_domain(
     meta_set(&tx, "platform", std::env::consts::OS)?;
     meta_set(&tx, "writer_epoch", DEFAULT_WRITER_EPOCH)?;
     meta_set(&tx, "advance_state", "idle")?;
-    // #1394 整合 W-2：v3 只发布 TB-02-A/B，写自己的规则修订（见 `V3_RULE_REVISION`）。
-    meta_set(&tx, "rule_revision", V3_RULE_REVISION)?;
+    // #1419/#1424：只为新库声明 A…F 域，不改旧库原始规则身份。
+    // #1393：新库声明 W 后继串（CF22 轴 + W 初始化）；旧库保持原串只读。
+    meta_set(&tx, "rule_revision", W_STRUCTURE_RULE_REVISION)?;
     #[cfg(test)]
     if let Some(rule) = test_writer_rule() {
         meta_set(&tx, "rule_revision", &rule)?;
@@ -847,6 +831,13 @@ fn build_domain(
     }))
 }
 
+#[cfg_attr(
+    not(any(test, feature = "s_v2_seed_testonly")),
+    expect(
+        dead_code,
+        reason = "#1419 机械锁：只被已退役的 v2 写入口调用，发布构建不得有调用路径"
+    )
+)]
 fn reset_refusal(db: &Path, detail: &str) -> String {
     format!(
         "S3DomainResetRefused：reset 拒绝删除 {}（{detail}）；旧 reset 只懂 v1/v2 合同，域不可确定即 fail closed，本切片不提供新迁移/重置",
@@ -861,6 +852,13 @@ fn reset_refusal(db: &Path, detail: &str) -> String {
 /// 不认识的标记值，都拒绝；只有「meta 表在、无协议标记、无控制表、无内容表」的 v1 与「两处标记都
 /// 恰为 `s-session/2`」的 v2 放行。缺 `meta` 表（空文件/半建库/外来库）不可判定，同样拒绝——
 /// 不保留「损坏库可直接删」的旧偶发行为。本切片不实现新迁移/重置功能。
+#[cfg_attr(
+    not(any(test, feature = "s_v2_seed_testonly")),
+    expect(
+        dead_code,
+        reason = "#1419 机械锁：只被已退役的 v2 写入口调用，发布构建不得有调用路径"
+    )
+)]
 pub(super) fn refuse_reset_of_new_domain(db: &Path) -> Result<(), String> {
     if !db.exists() {
         return Ok(());
@@ -967,6 +965,117 @@ mod tests {
 
     const OHLC_PROFILE: &str = "profiles/ohlc_integer_tb02a_v1.json";
     const CATALOG: &str = "catalog/signed-catalog.json";
+
+    #[test]
+    fn w2_exact_publication_rule_and_archival_dispatch() {
+        assert_eq!(W_STRUCTURE_RULE_REVISION, "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1+raw-initialization-w/2+bounded-layout/1");
+        assert_eq!(w_revision(W_STRUCTURE_RULE_REVISION), Some(WRevision::W2));
+        assert_eq!(w_revision(W1_STRUCTURE_RULE_REVISION), Some(WRevision::W1));
+        assert_eq!(
+            layout::Layout::of_rule(W_STRUCTURE_RULE_REVISION).unwrap(),
+            layout::Layout::Bounded1
+        );
+        assert_eq!(
+            layout::Layout::of_rule(W1_STRUCTURE_RULE_REVISION).unwrap(),
+            layout::Layout::Sorted
+        );
+        assert!(require_current_writer_rule(W1_STRUCTURE_RULE_REVISION).is_err());
+        assert_eq!(
+            tb02b::contract_for_rule(W1_STRUCTURE_RULE_REVISION),
+            Some(tb02b::W_CONTRACT)
+        );
+        assert_eq!(
+            newchan_rust::theta_v0::parser::inclusion::INITIALIZATION_POLICY,
+            "raw-initialization-w/1"
+        );
+        for invalid in [
+            W_STRUCTURE_RULE_REVISION.replace("+bounded-layout/1", ""),
+            W_STRUCTURE_RULE_REVISION.replace(
+                "raw-initialization-w/2+bounded-layout/1",
+                "bounded-layout/1+raw-initialization-w/2",
+            ),
+            W_STRUCTURE_RULE_REVISION.replace("bounded-layout/1", "bounded-layout/2"),
+            format!("{W_STRUCTURE_RULE_REVISION}+raw-initialization-w/1"),
+            format!("{W_STRUCTURE_RULE_REVISION}+bounded-layout/1"),
+        ] {
+            assert!(require_current_writer_rule(&invalid).is_err(), "{invalid}");
+            assert!(layout::Layout::of_rule(&invalid).is_err(), "{invalid}");
+            assert!(
+                tb02a_facts::CatalogAxisTable::for_rule_revision(&invalid).is_none(),
+                "{invalid}"
+            );
+            assert!(tb02b::contract_for_rule(&invalid).is_none(), "{invalid}");
+            assert!(w_revision(&invalid).is_none(), "{invalid}");
+        }
+    }
+
+    #[test]
+    fn structure_writer_does_not_rewrite_historical_rule_domains() {
+        assert!(require_current_writer_rule(W_STRUCTURE_RULE_REVISION).is_ok());
+        for historical in [
+            W1_STRUCTURE_RULE_REVISION,
+            V3_STRUCTURE_RULE_REVISION,
+            V3_RULE_REVISION,
+            LEGACY_V3_RULE_REVISION,
+            RULE_REVISION,
+        ] {
+            assert!(require_current_writer_rule(historical)
+                .unwrap_err()
+                .starts_with("VersionUnsupported"));
+            assert!(tb02a_facts::CatalogAxisTable::for_rule_revision(historical).is_some());
+        }
+        assert!(tb02b::contract_for_rule(V3_STRUCTURE_RULE_REVISION).is_some());
+        assert_eq!(
+            tb02b::contract_for_rule(W_STRUCTURE_RULE_REVISION),
+            Some(tb02b::W_CONTRACT)
+        );
+    }
+
+    /// #1393：后继串只有一条显式映射；未知/重复/错序/跨 revision/剥后缀一律拒绝。
+    #[test]
+    fn w_successor_rule_is_exact_and_maps_to_cf22_axes() {
+        assert_eq!(
+            W_STRUCTURE_RULE_REVISION,
+            format!("{V3_STRUCTURE_RULE_REVISION}+raw-initialization-w/2+bounded-layout/1")
+        );
+        assert!(is_structure_rule(W_STRUCTURE_RULE_REVISION));
+        assert!(is_structure_rule(V3_STRUCTURE_RULE_REVISION));
+        assert_eq!(
+            tb02a_facts::CatalogAxisTable::for_rule_revision(W_STRUCTURE_RULE_REVISION)
+                .unwrap()
+                .axes(),
+            tb02a_facts::CatalogAxisTable::for_rule_revision(V3_STRUCTURE_RULE_REVISION)
+                .unwrap()
+                .axes()
+        );
+        let base = "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1";
+        assert_eq!(base, V3_STRUCTURE_RULE_REVISION);
+        for rejected in [
+            "unknown".to_string(),
+            format!("{W_STRUCTURE_RULE_REVISION}+raw-initialization-w/1"),
+            "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+raw-initialization-w/1+center-pair/1".to_string(),
+            // #1419 recompose：重合成前的两串（段教义缺 #1493/#1604 组件）不再是任何写者或读表的规则。
+            "s2-axis-quantifiers+new-bi/2+segment-second/2+center-seed/1+center-pair/1".to_string(),
+            "s2-axis-quantifiers+new-bi/2+segment-second/2+center-seed/1+center-pair/1+raw-initialization-w/1".to_string(),
+            format!("{base}+raw-initialization-w/2"),
+            "s2-axis-quantifiers+new-bi/2+segment-second/2+raw-initialization-w/1".to_string(),
+            "s2-axis-quantifiers+new-bi/1+segment-second/1+raw-initialization-w/1".to_string(),
+            format!("{W_STRUCTURE_RULE_REVISION} "),
+        ] {
+            assert!(
+                require_current_writer_rule(&rejected)
+                    .unwrap_err()
+                    .starts_with("VersionUnsupported"),
+                "{rejected}"
+            );
+            assert!(tb02b::contract_for_rule(&rejected).is_none(), "{rejected}");
+            assert!(
+                tb02a_facts::CatalogAxisTable::for_rule_revision(&rejected).is_none(),
+                "{rejected}"
+            );
+            assert!(!is_structure_rule(&rejected), "{rejected}");
+        }
+    }
 
     struct Temp(PathBuf);
 
@@ -1589,17 +1698,12 @@ mod tests {
         assert_eq!(count(&conn, "s_content_nodes"), 0, "init 不应写内容节点");
         drop(conn);
 
-        // 显式 s-session/2：仍走旧 v2 初始化。
+        // 显式 s-session/2：#1419 裁定②（issuecomment-6265209957）v2 结构写者退役，选择器分派到 v2
+        // 写入口即拒（同 `V2_WRITER_RETIRED`），不创建库；旧库只读 AsKnown 由其它测试覆盖。
         let v2_db = temp.path("explicit-v2.sqlite");
         let v2_args = with_selector(&init_args(&v2_db, &clock), PREVIOUS_REVISION);
-        assert!(dispatch(&v2_args).unwrap());
-        let conn = open_db(&v2_db).unwrap();
-        assert_eq!(
-            meta_get_opt(&conn, "protocol_revision").unwrap().as_deref(),
-            Some(PREVIOUS_REVISION)
-        );
-        let old_tables = table_names(&conn);
-        assert!(old_tables.iter().any(|name| name == delta_storage::TABLE));
+        assert_eq!(dispatch(&v2_args).unwrap_err(), crate::V2_WRITER_RETIRED);
+        assert!(!v2_db.exists(), "退役写入口不得创建新库");
     }
 
     #[test]
@@ -1822,17 +1926,43 @@ mod layout_writer_rule_injection {
     #[test]
     fn layout_writer_rule_injection_admits_only_the_injected_rule() {
         let bounded = format!("{V3_RULE_REVISION}+bounded-layout/1");
-        assert!(require_current_writer_rule(V3_RULE_REVISION).is_ok());
+        // #1419 合入 main：S3 现役写者串为 W 后继串；注入下 W 串同样被拒（不设两档）。
+        assert!(require_current_writer_rule(W_STRUCTURE_RULE_REVISION).is_ok());
         assert!(require_current_writer_rule(&bounded).is_err());
         with_test_writer_rule(Some(&bounded), || {
             assert!(require_current_writer_rule(&bounded).is_ok());
-            assert!(require_current_writer_rule(V3_RULE_REVISION).is_err());
+            assert!(require_current_writer_rule(W_STRUCTURE_RULE_REVISION).is_err());
         });
         with_test_writer_rule(None, || {
-            assert!(require_current_writer_rule(V3_RULE_REVISION).is_ok());
+            assert!(require_current_writer_rule(W_STRUCTURE_RULE_REVISION).is_ok());
             assert!(require_current_writer_rule(&bounded).is_err());
         });
-        assert!(require_current_writer_rule(V3_RULE_REVISION).is_ok());
+        assert!(require_current_writer_rule(W_STRUCTURE_RULE_REVISION).is_ok());
         assert!(require_current_writer_rule(&bounded).is_err());
+    }
+
+    /// #1491 × #1419：结构域/W 判据与目录轴表、笔合同同口径——剥离布局组件后按教义整串比对；
+    /// 生产写者门仍只认无布局组件的 W 串，未知布局版本一律不认。
+    /// `is_w_rule` 是 `source_audit` 私有子模块的判据，同口径锁在 `source_pending::tests`。
+    #[test]
+    fn structure_rule_predicates_strip_layout_like_axes_and_contract() {
+        let bounded_w = format!("{W1_STRUCTURE_RULE_REVISION}+bounded-layout/1");
+        let bounded_cf22 = format!("{V3_STRUCTURE_RULE_REVISION}+bounded-layout/1");
+        assert!(is_structure_rule(&bounded_w));
+        assert!(is_structure_rule(&bounded_cf22));
+        assert_eq!(
+            tb02a_facts::CatalogAxisTable::for_rule_revision(&bounded_w),
+            tb02a_facts::CatalogAxisTable::for_rule_revision(W_STRUCTURE_RULE_REVISION)
+        );
+        assert!(require_current_writer_rule(&bounded_w).is_err());
+        for unknown in [
+            format!("{W_STRUCTURE_RULE_REVISION}+bounded-layout/9"),
+            format!("{W_STRUCTURE_RULE_REVISION}+bounded-layout/1+bounded-layout/1"),
+        ] {
+            assert!(!is_structure_rule(&unknown), "{unknown}");
+        }
+        assert!(!is_structure_rule(&format!(
+            "{V3_RULE_REVISION}+bounded-layout/1"
+        )));
     }
 }

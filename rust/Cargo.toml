@@ -80,6 +80,9 @@ s_allocation_sqlite_testonly = ["s_session"]
 s_allocation_json_testonly = ["s_session"]
 # #1394：S 显式原生 capture 对照臂，无局部分配预算或生产资格。
 s_capture_native_testonly = ["s_session"]
+# #1419 裁定（issuecomment-6265726014）：v2/v1 结构写者的测试种子工具。只有本 feature 的构建能造 seed 库；
+#   默认与发布构建不含（release 下 compile_error），CI「v2 写者机械锁」步断言发布构建未开。
+s_v2_seed_testonly = ["s_session"]
 s_session = ["dep:sha2", "dep:rusqlite", "dep:libc", "dep:allocator-api2", "dep:hashbrown"]
 # #1769（ADR 0039 迁移步骤 1）：唯一生产 launcher 与 X 执行域骨架。含 S/E/B 会话依赖；
 #   X adapter 当前只有持久化骨架（rusqlite/libc 已由 s_session 提供），不含 backtest_bin、nautilus（B11）。

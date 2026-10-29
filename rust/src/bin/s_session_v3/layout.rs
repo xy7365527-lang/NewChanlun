@@ -7,7 +7,6 @@
 //! 两种布局不接在同一 if-else 上作准入兜底（#799/#804）。
 
 /// 布局组件名（含分隔符的前缀）；版本号紧随其后。
-const COMPONENT: &str = "bounded-layout/";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Layout {
@@ -115,30 +114,50 @@ pub(crate) fn with_forced_library_layout_for_test<T>(
 }
 
 /// 去掉布局组件后的规则串（教义组件部分）与布局；目录轴表等教义侧判据只看前者。
+fn registered(rule_revision: &str) -> Result<(&'static str, Layout), String> {
+    let (doctrine, layout) = match rule_revision {
+        #[cfg(test)]
+        "r" => ("r", Layout::Sorted),
+        #[cfg(test)]
+        "r+bounded-layout/1" => ("r", Layout::Bounded1),
+        #[cfg(test)]
+        "test-rule/1" => ("test-rule/1", Layout::Sorted),
+        crate::W_STRUCTURE_RULE_REVISION => (crate::W_STRUCTURE_RULE_REVISION, Layout::Bounded1),
+        "s2-axis-quantifiers" => ("s2-axis-quantifiers", Layout::Sorted),
+        "s2-axis-quantifiers+bounded-layout/1" => ("s2-axis-quantifiers", Layout::Bounded1),
+        "s2-axis-quantifiers+new-bi/1+segment-second/2" => ("s2-axis-quantifiers+new-bi/1+segment-second/2", Layout::Sorted),
+        "s2-axis-quantifiers+new-bi/1+segment-second/2+bounded-layout/1" => ("s2-axis-quantifiers+new-bi/1+segment-second/2", Layout::Bounded1),
+        "s2-axis-quantifiers+new-bi/1" => ("s2-axis-quantifiers+new-bi/1", Layout::Sorted),
+        "s2-axis-quantifiers+new-bi/1+bounded-layout/1" => ("s2-axis-quantifiers+new-bi/1", Layout::Bounded1),
+        "s2-axis-quantifiers+new-bi/2" => ("s2-axis-quantifiers+new-bi/2", Layout::Sorted),
+        "s2-axis-quantifiers+new-bi/2+bounded-layout/1" => ("s2-axis-quantifiers+new-bi/2", Layout::Bounded1),
+        "s2-axis-quantifiers+new-bi/1+segment-first/1" => ("s2-axis-quantifiers+new-bi/1+segment-first/1", Layout::Sorted),
+        "s2-axis-quantifiers+new-bi/1+segment-first/1+bounded-layout/1" => ("s2-axis-quantifiers+new-bi/1+segment-first/1", Layout::Bounded1),
+        "s2-axis-quantifiers+new-bi/1+segment-second/1" => ("s2-axis-quantifiers+new-bi/1+segment-second/1", Layout::Sorted),
+        "s2-axis-quantifiers+new-bi/1+segment-second/1+bounded-layout/1" => ("s2-axis-quantifiers+new-bi/1+segment-second/1", Layout::Bounded1),
+        "s2-axis-quantifiers+new-bi/2+segment-second/1" => ("s2-axis-quantifiers+new-bi/2+segment-second/1", Layout::Sorted),
+        "s2-axis-quantifiers+new-bi/2+segment-second/1+bounded-layout/1" => ("s2-axis-quantifiers+new-bi/2+segment-second/1", Layout::Bounded1),
+        "s2-axis-quantifiers+new-bi/2+segment-second/2" => ("s2-axis-quantifiers+new-bi/2+segment-second/2", Layout::Sorted),
+        "s2-axis-quantifiers+new-bi/2+segment-second/2+bounded-layout/1" => ("s2-axis-quantifiers+new-bi/2+segment-second/2", Layout::Bounded1),
+        "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1" => ("s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1", Layout::Sorted),
+        "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+bounded-layout/1" => ("s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1", Layout::Bounded1),
+        "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2" => ("s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2", Layout::Sorted),
+        "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+bounded-layout/1" => ("s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2", Layout::Bounded1),
+        "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1" => ("s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1", Layout::Sorted),
+        "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1+bounded-layout/1" => ("s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1", Layout::Bounded1),
+        "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1+raw-initialization-w/1" => ("s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1+raw-initialization-w/1", Layout::Sorted),
+        "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1+raw-initialization-w/1+bounded-layout/1" => ("s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1+raw-initialization-w/1", Layout::Bounded1),
+        _ => return Err(format!("VersionUnsupported：未登记完整规则 {rule_revision}")),
+    };
+    Ok((doctrine, layout))
+}
+
 pub(crate) fn split(rule_revision: &str) -> Result<(String, Layout), String> {
-    let mut layout = None;
-    let mut rest: Vec<&str> = Vec::new();
-    for component in rule_revision.split('+') {
-        match component.strip_prefix(COMPONENT) {
-            Some(version) => {
-                let parsed = match version {
-                    "1" => Layout::Bounded1,
-                    _ => {
-                        return Err(format!(
-                            "VersionUnsupported：未知布局组件 {component}（rule_revision {rule_revision}）"
-                        ))
-                    }
-                };
-                if layout.replace(parsed).is_some() {
-                    return Err(format!(
-                        "VersionUnsupported：rule_revision {rule_revision} 含多个布局组件"
-                    ));
-                }
-            }
-            None => rest.push(component),
-        }
-    }
-    Ok((rest.join("+"), layout.unwrap_or(Layout::Sorted)))
+    registered(rule_revision).map(|(doctrine, layout)| (doctrine.to_string(), layout))
+}
+
+pub(crate) fn doctrine_is(rule_revision: &str, doctrine: &str) -> bool {
+    registered(rule_revision).is_ok_and(|(registered, _)| registered == doctrine)
 }
 
 #[cfg(test)]
@@ -155,16 +174,47 @@ mod tests {
             split("s2-axis-quantifiers+new-bi/2+bounded-layout/1").unwrap(),
             ("s2-axis-quantifiers+new-bi/2".to_string(), Layout::Bounded1)
         );
-        // 组件正交：位置不改语义。
-        assert_eq!(
-            split("s2-axis-quantifiers+bounded-layout/1+new-bi/1").unwrap(),
-            ("s2-axis-quantifiers+new-bi/1".to_string(), Layout::Bounded1)
-        );
+        assert!(split("s2-axis-quantifiers+bounded-layout/1+new-bi/1").is_err());
         assert!(Layout::of_rule("s2-axis-quantifiers+new-bi/2+bounded-layout/2").is_err());
         assert!(
             Layout::of_rule("s2-axis-quantifiers+bounded-layout/1+new-bi/2+bounded-layout/1")
                 .is_err()
         );
+    }
+
+    #[test]
+    fn doctrine_is_matches_split_comparison() {
+        let doctrines = ["s2-axis-quantifiers+new-bi/2", "a", "a+b+c"];
+        let rules = [
+            "s2-axis-quantifiers+new-bi/2",
+            "s2-axis-quantifiers+new-bi/2+bounded-layout/1",
+            "s2-axis-quantifiers+bounded-layout/1+new-bi/2",
+            "bounded-layout/1+s2-axis-quantifiers+new-bi/2",
+            "s2-axis-quantifiers+new-bi/2+bounded-layout/2",
+            "s2-axis-quantifiers+new-bi/2+bounded-layout/1+bounded-layout/1",
+            "s2-axis-quantifiers+new-bi/2+new-bi/2",
+            "s2-axis-quantifiers",
+            "s2-axis-quantifiers+new-bi/2+",
+            "s2-axis-quantifiers++new-bi/2",
+            "a",
+            "a+bounded-layout/1",
+            "a+b",
+            "a+b+c",
+            "a+b+c+bounded-layout/1",
+            "a+b+bounded-layout/1+c",
+            "a+b+bounded-layout/",
+            "bounded-layout/1",
+            "",
+        ];
+        for doctrine in doctrines {
+            for rule in rules {
+                assert_eq!(
+                    doctrine_is(rule, doctrine),
+                    split(rule).is_ok_and(|(d, _)| d == doctrine),
+                    "{rule} vs {doctrine}"
+                );
+            }
+        }
     }
 
     #[test]

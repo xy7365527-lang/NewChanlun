@@ -2238,7 +2238,7 @@ mod tests {
     fn typed_generated_and_wire_match_sealed_row_and_public_projection() {
         let mut fixture = fixture();
         let facts = fixture.state.materialize_facts();
-        let (oracle, _) = tb02a_facts::build(&facts, &fixture.raw, &[], GENERATION, CUT, 0);
+        let (oracle, _) = tb02a_facts::build(&facts, &fixture.raw, &[], &[], GENERATION, CUT, 0);
 
         let mut steps = 0usize;
         for index in 0..fixture.state.step_count() {
@@ -2308,7 +2308,8 @@ mod tests {
             shapes.push(row);
             shape_windows.push((start, shape));
         }
-        let (oracle, _) = tb02a_facts::build(&facts, &fixture.raw, &shapes, GENERATION, CUT, 0);
+        let (oracle, _) =
+            tb02a_facts::build(&facts, &fixture.raw, &shapes, &[], GENERATION, CUT, 0);
 
         let mut fractals = 0usize;
         for (start, shape) in &shape_windows {
@@ -2873,9 +2874,20 @@ mod tests {
         // 内容寻址按值去重：记录自身的字段根可能与载荷子图里的同值节点共用一个 digest
         // （本夹具里 `source_coords = ["10"]` 与 `high_sources` 同值即一例）。判据是
         // 「除记录自身的字段节点外，载荷子图一个不读」，不是「与整个载荷闭包无交集」。
+        // 记录自身结构（对象节点、字段序列、键叶）按路径定位全部字段时读到的节点也按值与载荷共享
+        // （W seed 的载荷带 `direction_evidence.source_coords` 等同名键/同值数组）。
+        fixture.store.reads.clear();
         let mut allowed: BTreeSet<NodeDigest> =
             record_field_digests(&mut fixture.store, &object.record);
+        allowed.extend(fixture.store.reads.iter().copied());
         allowed.insert(object.record.digest);
+        // #1393 W：seed 步来源 = 建立前缀 raw[..=e]（多于一根），其坐标数组与载荷内方向证据的
+        // `source_coords` 同值同根；记录自身 `input_refs`/`source_coords` 两条公开边的整棵子树按值
+        // 与载荷共享，读它们不是展开载荷子图。只放行这两条记录自身边的闭包，载荷其余子图仍须零读。
+        for own in [&object.input_refs, &object.source_coords] {
+            let shared = closure_reads(&mut fixture.store, &own.content_ref());
+            allowed.extend(shared);
+        }
         let payload_beyond_record: BTreeSet<NodeDigest> =
             payload_inner.difference(&allowed).copied().collect();
 
@@ -2884,9 +2896,18 @@ mod tests {
         let generated =
             generated(&mut fixture.store, BorrowedObject::Typed(&object)).expect("生成态");
         let generated_reads: BTreeSet<NodeDigest> = fixture.store.reads.iter().copied().collect();
+        let leaked: Vec<String> = generated_reads
+            .intersection(&payload_beyond_record)
+            .map(|d| match NodeSource::read(&mut fixture.store.nodes, d) {
+                Ok(sc::NodeRead::Found { tag, body }) => {
+                    format!("tag={tag:#04x} body={}", String::from_utf8_lossy(&body))
+                }
+                other => format!("{other:?}"),
+            })
+            .collect();
         assert!(
-            generated_reads.is_disjoint(&payload_beyond_record),
-            "生成态装配不得读取载荷子图（记录自身字段根除外）"
+            leaked.is_empty(),
+            "生成态装配不得读取载荷子图（记录自身字段根除外）：{leaked:?}"
         );
         assert!(
             payload_beyond_record.len() > 8,

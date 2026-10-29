@@ -25,7 +25,8 @@ const EQUAL_EXTREME: &str = "equal_extreme_identity";
 fn equal_is_evidence(rule: &str) -> Result<bool, String> {
     let contract =
         tb02b::contract_for_rule(rule).ok_or_else(|| err("步骤知识来源审计规则修订未声明"))?;
-    Ok(contract == tb02b::CURRENT_CONTRACT)
+    // #1419：W 后继串合同 = /2 加 W 知识域，同价证据口径同 /2（与现役入口同一判断）。
+    Ok(contract == tb02b::CURRENT_CONTRACT || contract == tb02b::W_CONTRACT)
 }
 
 fn is_waiting_reason(reason: &str, equal_is_evidence: bool) -> bool {
@@ -218,9 +219,29 @@ pub(super) fn audit(
     let mut steps = bj::new_map(allocation.as_ref());
     let mut step_subjects = bj::new_map(allocation.as_ref());
     let mut knowledge = None;
+    // #1393/#1565 W：冻结旧核之外的初始化/未定原件判据与现役入口调同一份（镜像，非独立对拍）。
+    use super::super::source_pending as live;
+    let w = live::is_w_rule(rule);
+    let mut w_init: Option<&Object> = None;
+    let mut w_raws = bj::new_map(allocation.as_ref());
+    let mut by_id = bj::new_map(allocation.as_ref());
     for object in objects {
         super::super::super::history::check_deadline(deadline)?;
-        if object.kind == CC054_KNOWLEDGE_KIND {
+        if w {
+            s.native_map_room(&mut by_id).map_err(err)?;
+            by_id.insert(object.id.as_str(), object).map_err(err)?;
+        }
+        if w && object.kind == content_producer::CC004_INITIALIZATION_KIND {
+            if w_init.replace(object).is_some() {
+                return Err(err("同cut W初始化事实重复"));
+            }
+        } else if w && object.kind == content_producer::CC004_UNDETERMINED_KIND {
+            let coord = live::w_raw_slot(s, object)?;
+            s.native_map_room(&mut w_raws).map_err(err)?;
+            if w_raws.insert(coord, object).map_err(err)?.is_some() {
+                return Err(err("同cut W未定原件坐标重复"));
+            }
+        } else if object.kind == CC054_KNOWLEDGE_KIND {
             let p = payload(s, object)?;
             let key = object.fields.text(s, "fact_key")?;
             let parsed = parsed_json(s, key.as_bytes())?;
@@ -299,20 +320,47 @@ pub(super) fn audit(
             }
         }
     }
-    if steps.len() != raw.len() {
+    let w_unsettled = w && steps.is_empty();
+    if !w_unsettled && steps.len() != raw.len() {
         return Err(err("同cut CC004未一一覆盖生效原始账"));
     }
     let ordered = sorted_numeric_entries(s, raw)?;
     let mut prefix = bj::new_work(allocation.as_ref());
+    for (coord, _) in ordered.iter() {
+        s.native_codec_room(&mut prefix, 1).map_err(err)?;
+        prefix.try_push(*coord).map_err(err)?;
+    }
     let mut pending = bj::new_work(allocation.as_ref());
     let mut seed = None;
     let mut unsettled = false;
+    let established_at = if w && !w_unsettled {
+        let first = steps
+            .get(&ordered[0].0)
+            .ok_or_else(|| err("raw缺当前CC004步骤"))?;
+        let end = *first
+            .object
+            .sources
+            .last()
+            .ok_or_else(|| err("W seed来源为空"))?;
+        prefix
+            .iter()
+            .position(|coord| *coord == end)
+            .ok_or_else(|| err("W seed来源末端不是同cut生效原件"))?
+    } else {
+        0
+    };
     for (ordinal, (coord, _)) in ordered.iter().enumerate() {
+        if w_unsettled {
+            break;
+        }
         super::super::super::history::check_deadline(deadline)?;
-        s.native_codec_room(&mut prefix, 1).map_err(err)?;
-        prefix.try_push(*coord).map_err(err)?;
         let step = steps.get(coord).ok_or_else(|| err("raw缺当前CC004步骤"))?;
-        if &*step.object.sources != &*prefix {
+        let end = if w {
+            live::w_prefix_end(ordinal, established_at)
+        } else {
+            ordinal
+        };
+        if &*step.object.sources != &prefix[..=end] {
             return Err(err("CC004来源不是截至incoming的同cut完整前缀"));
         }
         let fields = &step.fields;
@@ -323,11 +371,20 @@ pub(super) fn audit(
             {
                 return Err(err("首CC004不是原件seed"));
             }
-            nulls(
-                s,
-                fields,
-                &["acc_before", "contains", "direction", "direction_evidence"],
-            )?;
+            if w {
+                nulls(s, fields, &["acc_before", "contains"])?;
+                for key in ["direction", "direction_evidence"] {
+                    if fields.get_admitted(s, key)?.kind() == Kind::Null {
+                        return Err(err("W seed缺初始化方向证据"));
+                    }
+                }
+            } else {
+                nulls(
+                    s,
+                    fields,
+                    &["acc_before", "contains", "direction", "direction_evidence"],
+                )?;
+            }
             for key in ["comparisons", "endpoint_order", "waiting_reasons"] {
                 let value = fields.get_admitted(s, key)?;
                 strings(s, &value, &[])?;
@@ -338,6 +395,9 @@ pub(super) fn audit(
             }
             seed = Some(fields.get_admitted(s, "incoming")?);
         } else if action == "waiting" {
+            if w {
+                return Err(err("W规则下waiting步不得作为CC004发布"));
+            }
             if !unsettled && ordinal != 1 {
                 return Err(err("初始未定不是从首包含对开始"));
             }
@@ -426,6 +486,36 @@ pub(super) fn audit(
     if &*knowledge_object.sources != &*prefix {
         return Err(err("CC054来源不是同cut全部生效原始账"));
     }
+    if w {
+        let evidence = if w_unsettled {
+            None
+        } else {
+            let first = steps
+                .get(&ordered[0].0)
+                .ok_or_else(|| err("raw缺当前CC004步骤"))?;
+            Some(first.fields.get_admitted(s, "direction_evidence")?)
+        };
+        live::audit_w(
+            s,
+            w_init,
+            &w_raws,
+            &prefix,
+            raw,
+            groups,
+            evidence.as_ref().map(|e| (e, established_at)),
+            &knowledge,
+            true,
+            &mut None,
+        )?;
+        if w_unsettled {
+            for (coord, _) in ordered.iter() {
+                s.native_codec_room(&mut pending, 1).map_err(err)?;
+                pending.try_push(*coord).map_err(err)?;
+            }
+        }
+    }
+    let mut w_seen = live::WRequestSeen::default();
+    let w_lookup = ObjectsById(&by_id);
     let mut requests = bj::new_map(allocation.as_ref());
     let mut bound = bj::new_map(allocation.as_ref());
     let request_array = field(s, &knowledge, "requests")?;
@@ -458,6 +548,12 @@ pub(super) fn audit(
             .is_some()
         {
             return Err(err("同cut知识请求重复"));
+        }
+        if w {
+            if let Some(class) = live::w_request(s, &request, &w_lookup, &prefix, w_unsettled)? {
+                w_seen.note(class);
+                continue;
+            }
         }
         if view.index(0).and_then(|v| v.as_str()) != Some(CC004_STEP_KIND) {
             // 非步骤请求可共存，但不能换一个 key 重复声明同一等待主体。
@@ -543,5 +639,16 @@ pub(super) fn audit(
     if bound.len() != steps.len() {
         return Err(err("CC004缺一一绑定的知识请求"));
     }
+    if w {
+        w_seen.check(w_raws.len(), w_unsettled)?;
+    }
     Ok(pending)
+}
+
+/// W 请求主体按 id 查同 cut 对象（镜像现役入口的 `source_structure::Lookup` 面）。
+struct ObjectsById<'a, 'b>(&'a BusinessMap<&'b str, &'b Object>);
+impl super::super::source_structure::Lookup for ObjectsById<'_, '_> {
+    fn object(&self, id: &str) -> Option<&Object> {
+        self.0.get(id).copied()
+    }
 }

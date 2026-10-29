@@ -1,0 +1,64 @@
+{
+  "steps": [
+    {
+      "name": "base",
+      "centers": [
+        "c0",
+        "c6"
+      ],
+      "pair_count": 1
+    },
+    {
+      "name": "revise-non-zn-tail",
+      "changed_unit": "u9",
+      "low_before": 2080,
+      "low_after": 2112,
+      "unchanged_center_roles": [
+        "c0",
+        "c6"
+      ],
+      "changed_pending": "u10"
+    },
+    {
+      "name": "withdraw-second-center",
+      "retained_centers": [
+        "c0"
+      ],
+      "withdrawn_centers": [
+        "c6"
+      ],
+      "withdrawn_pair": [
+        "c0",
+        "c6"
+      ],
+      "withdrawn_completed_units": [
+        "u4",
+        "u5",
+        "u6",
+        "u7",
+        "u8",
+        "u9"
+      ],
+      "pending_unit": "u4",
+      "c0_members": [
+        "u0",
+        "u1",
+        "u2",
+        "u3"
+      ],
+      "c0_roles": {
+        "DD": 800,
+        "D": 1120,
+        "G": 1600,
+        "GG": 1920
+      }
+    },
+    {
+      "name": "restore-original",
+      "domain_values_equal": "base",
+      "history": "旧修订/撤回必须保留AsKnown；业务重现不等于历史字节回退"
+    }
+  ],
+  "product_object_ids": "PENDING_SOURCE；以seed成员/组锚等语义键映射真实对象，不捏造obj3/refs",
+  "product_run": "NOT_RUN"
+}

@@ -29,6 +29,8 @@
 //!
 //! ## 本域边界（照实）
 //!
+//! - **规则域**：历史 A/B 域保留原构造面；`V3_STRUCTURE_RULE_REVISION` 从同次 parser 事实与
+//!   已核 prior 接 C/D/E/F，恢复游标先于唯一一次 parser。目录跟实际规则域选择，未知域拒绝。
 //! - **只接线 OHLC 档案**（`tb02a::PROFILE`）。旧生成段对非 OHLC 档案另有一套 CC-006
 //!   `source_coords` 配方（三个锚坐标，而非三组来源链），producer 没有实现那一支；本模块
 //!   **显式拒绝**，不静默降级、不产出与旧配方不同的对象。
@@ -54,7 +56,7 @@
 use super::audit_store::{CodecRead, CodecStore};
 use super::business_json::{self as bj, JsonOwner, RawEventsView, TextValue};
 use super::fixed_radix::FixedRadix;
-use super::object_records;
+use super::{content_structure, object_records};
 use crate::content_bi::{BiBuildInputView, BiLedgerView, ContentBi, PriorState};
 use crate::content_producer::{
     array_from_sequence, group_reasons_admitted, raw_prefix_coords, Cc004Producer, Cc006Object,
@@ -84,8 +86,19 @@ use sc::{CodecVec, ValueView as VV};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
+/// 同一已核活跃发布索引选择的 C/D/E/F 前代根；空值仅用于首代/旧 A/B 域。
+#[derive(Default)]
+pub(super) struct StructurePriors<'a> {
+    pub segment_records: &'a [Built],
+    pub segment_version: Option<&'a Built>,
+    pub ef_records: &'a [Built],
+    /// #1565：上一代已核活动 `CC-004.undetermined_raw` 记录根（与 bi/version 同一口径，只读
+    /// payload 取 `pending_since_cut`）；首代/方向已建立前一代为空。
+    pub w_undetermined: &'a [Built],
+}
+
 /// 生成输入：全部取调用方**同一读集**的真实值；本文不读库、不重排、不补默认。
-pub(super) struct GenerationInput<'a> {
+pub(super) struct GenerationInput<'a, 'p> {
     /// 全修订史（`read_raw_events` 的 seq 序，含历史修订）。
     pub all_events: RawEventsView<'a>,
     /// 当前生效账（每个业务身份的最新 revision，按 source_coord 升序）。
@@ -106,10 +119,11 @@ pub(super) struct GenerationInput<'a> {
     pub semantic_commit_ns: Option<&'a str>,
     /// 上一代发布态的**已核** CC-010.bi / CC-056.version 记录根（调用方独立索引给出）。
     pub prior: PriorState<'a>,
+    pub structure_prior: StructurePriors<'p>,
 }
 
 /// #1488：raw/effective 不可由调用者另给；仅含当前元数据与已核 prior。
-pub(super) struct BoundGenerationInput<'a> {
+pub(super) struct BoundGenerationInput<'a, 'p> {
     pub generation: i64,
     pub structure_cut: &'a str,
     pub input_frontier: i64,
@@ -120,12 +134,13 @@ pub(super) struct BoundGenerationInput<'a> {
     pub scope: &'a Value,
     pub semantic_commit_ns: Option<&'a str>,
     pub prior: PriorState<'a>,
+    pub structure_prior: StructurePriors<'p>,
 }
 
 /// 一条已构造对象：身份 + 生成态记录 + 可复用的构造结果。
 ///
 /// 顺序（生成态 `objects` 数组）＝旧 sealed 批次：CC-006 形态（窗序）→ 已按
-/// `(kind, fact_key, object_id)` 排序的泛型事实 → TB-02-B 对象（线序）。
+/// `(kind, fact_key, object_id)` 排序的泛型事实 → TB-02-B 对象（线序）→ 新结构域的 C/D/E/F。
 pub(super) struct ProducedObject {
     kind: NativeValue<String>,
     fact_key: Option<NativeValue<String>>,
@@ -158,6 +173,7 @@ impl ShapeBuild {
 
 enum ObjectBody {
     Typed(TypedObject),
+    Structure(crate::content_producer::NativeStructureObject),
     Fractal(Cc007Object),
     Shape(Cc006Object),
 }
@@ -210,6 +226,7 @@ impl ProducedObject {
     pub(super) fn borrowed(&self) -> object_records::BorrowedObject<'_> {
         match &self.body {
             ObjectBody::Typed(object) => object_records::BorrowedObject::Typed(object),
+            ObjectBody::Structure(object) => object_records::BorrowedObject::Typed(object),
             ObjectBody::Fractal(object) => object_records::BorrowedObject::Fractal(object),
             ObjectBody::Shape(object) => object_records::BorrowedObject::Shape(object),
         }
@@ -219,6 +236,7 @@ impl ProducedObject {
     fn payload(&self) -> Option<&Built> {
         match &self.body {
             ObjectBody::Typed(object) => Some(&object.payload),
+            ObjectBody::Structure(object) => Some(&object.payload),
             ObjectBody::Fractal(object) => Some(&object.payload),
             ObjectBody::Shape(_) => None,
         }
@@ -328,8 +346,8 @@ impl<'a> Generated<'a> {
         // 与原目录轴函数同一判据；借入实际 owner，不擦成裸 Value 数组。
         let axes_owner = crate::tb02a_facts::catalog_axes_admitted(
             &*store,
-            crate::tb02a_facts::CatalogAxisTable::for_rule_revision(crate::V3_RULE_REVISION)
-                .expect("v3 写者的规则修订必有目录轴表"),
+            crate::tb02a_facts::CatalogAxisTable::for_rule_revision(&self.meta.rule_revision)
+                .ok_or("VersionUnsupported：规则域没有已审目录轴表")?,
             &projection,
             self.all_events,
             previous_frontier,
@@ -596,7 +614,7 @@ impl GenerationRuntime {
     pub(super) fn generate<'b>(
         &mut self,
         store: &mut dyn NodeStore,
-        input: &GenerationInput<'b>,
+        input: &GenerationInput<'b, '_>,
     ) -> Result<Generated<'b>, String> {
         self.generate_with_allocation(store, input, None)
     }
@@ -605,7 +623,7 @@ impl GenerationRuntime {
     pub(super) fn generate_with_allocation<'b>(
         &mut self,
         store: &mut dyn NodeStore,
-        input: &GenerationInput<'b>,
+        input: &GenerationInput<'b, '_>,
         budget: Option<&sc::capture_allocation::OwnedBudget>,
     ) -> Result<Generated<'b>, String> {
         let result = self.generate_impl(store, input, budget, None, None);
@@ -619,7 +637,7 @@ impl GenerationRuntime {
     pub(super) fn generate_native_lease<'b>(
         &mut self,
         store: &mut dyn NodeStore,
-        input: &GenerationInput<'b>,
+        input: &GenerationInput<'b, '_>,
         native: &super::prepared::NativeGeneration,
     ) -> Result<Generated<'b>, String> {
         let result = self.generate_impl(store, input, None, Some(native), None);
@@ -634,7 +652,7 @@ impl GenerationRuntime {
         &mut self,
         store: &mut dyn NodeStore,
         bound: &super::audit_owner::BoundRawAdvance<'b>,
-        input: BoundGenerationInput<'b>,
+        input: BoundGenerationInput<'b, '_>,
     ) -> Result<Generated<'b>, String> {
         let result = (|| {
             bound.ensure_current()?;
@@ -662,6 +680,7 @@ impl GenerationRuntime {
                 scope: input.scope,
                 semantic_commit_ns: input.semantic_commit_ns,
                 prior: input.prior,
+                structure_prior: input.structure_prior,
             };
             let generated =
                 self.generate_impl(store, &full_input, None, None, Some((view, raw_delta)))?;
@@ -700,7 +719,7 @@ impl GenerationRuntime {
     fn generate_impl<'b>(
         &mut self,
         store: &mut dyn NodeStore,
-        input: &GenerationInput<'b>,
+        input: &GenerationInput<'b, '_>,
         budget: Option<&sc::capture_allocation::OwnedBudget>,
         native: Option<&super::prepared::NativeGeneration>,
         delta: Option<(s_fact_cache::EffectiveRawView<'_>, RawGenerationDelta)>,
@@ -782,8 +801,26 @@ impl GenerationRuntime {
                 lane.state()
             }
         };
-        let (layer, evidence) = parser::parse_layer_with_group_evidence(state, &self.theta_config);
-        let merged: &[Bar] = layer.merged_bars.as_ref();
+        let structure_enabled = crate::is_structure_rule(&input.rule_revision);
+        let cd_prior = content_structure::StructurePrior {
+            segment_records: input.structure_prior.segment_records,
+            version_record: input.structure_prior.segment_version,
+        };
+        let (layer, evidence, second_store) = if structure_enabled {
+            // 恢复只读上一代已核发布根；随后仅调用一次共享 parser 并保留同次游标簿。
+            let mut fold = crate::tb02c::second_store(&self.theta_config.parse);
+            content_structure::restore_second_cursors(store, &self.producer, &cd_prior, &mut fold)?;
+            let (layer, evidence, fold) =
+                parser::parse_layer_with_group_evidence_store(state, &self.theta_config, fold);
+            (layer, evidence, Some(fold))
+        } else {
+            // 历史 A/B 域仍使用原输入路径，不将结构域失败切回这里。
+            let (layer, evidence) =
+                parser::parse_layer_with_group_evidence(state, &self.theta_config);
+            (layer, evidence, None)
+        };
+        let merged_rc = layer.merged_bars.clone();
+        let merged: &[Bar] = merged_rc.as_ref();
         let prepared = match delta_view {
             Some(view) => self.producer.prepare_raw_history_delta(store, view),
             None => self.producer.prepare_raw_history(&raw_bars),
@@ -966,7 +1003,60 @@ impl GenerationRuntime {
         let mut request_keys: Vec<RequestOrder> = Vec::new();
         let mut group_request_keys: Vec<RequestOrder> = Vec::new();
         let mut all_reasons: CodecVec<&'static str> = CodecVec::default();
-        for index in 0..state.step_count() {
+        // #1393/#1565 W：初始化事实（槽 W）与逐原件未定记录；请求线序在步骤之前（同 v2）。
+        let mut init_requests: CodecVec<Built> = CodecVec::default();
+        {
+            let mut prior_w = Vec::with_capacity(input.structure_prior.w_undetermined.len());
+            for record in input.structure_prior.w_undetermined {
+                prior_w.push(
+                    crate::content_bi::read_prior_undetermined(store, &self.producer, record)
+                        .map_err(|error| format!("GenError：上一代未定原件不可核：{error}"))?,
+                );
+            }
+            let w = self
+                .producer
+                .build_initialization(store, state, &prior_w, gen, cut)
+                .map_err(producer_error)?;
+            extend_gen(&mut init_requests, w.requests, store)?;
+            // 次序键与 `build_initialization` 的请求线序逐条对应：初始化 → 待决组 → 逐原件未定。
+            request_keys.push(RequestOrder::initialization());
+            if state.unsettled() {
+                request_keys.push(RequestOrder::pending());
+            }
+            for raw_bar in state.pending_raw() {
+                request_keys.push(RequestOrder::new(
+                    coord_i64(raw_bar.source_index)?,
+                    RequestLabel::UndeterminedRaw,
+                ));
+            }
+            for object in w.objects {
+                let kind = typed_kind(store, &object)?;
+                let generated = object_records::generated(
+                    store,
+                    object_records::BorrowedObject::Typed(&object),
+                )
+                .map_err(record_error)?;
+                push_gen(
+                    &mut typed,
+                    ProducedObject {
+                        kind,
+                        fact_key: Some(native_text(store, &object.fact_key)?),
+                        object_id: native_text(store, &object.object_id)?,
+                        generated,
+                        body: ObjectBody::Typed(object),
+                    },
+                    store,
+                )?;
+            }
+        }
+        // #1393 W 审查 B2：等待期的 waiting 步由未定原件承担，不发布为 CC-004 步骤；建立方向后
+        // 状态机已从 raw0 重折，步骤序列里不再有 waiting 步。
+        let published_steps = if state.unsettled() {
+            0
+        } else {
+            state.step_count()
+        };
+        for index in 0..published_steps {
             let view = state
                 .shared_step(index)
                 .map_err(|error| format!("GenError：共享步骤证据不可用：{}", error.reason))?
@@ -1024,7 +1114,14 @@ impl GenerationRuntime {
             )?;
             let object = self
                 .producer
-                .build_group_object(store, index, &view, gen, cut)
+                .build_group_object(
+                    store,
+                    index,
+                    &view,
+                    state.initial_direction_node(),
+                    gen,
+                    cut,
+                )
                 .map_err(producer_error)?;
             group_request_keys.push(RequestOrder::new(
                 coord_i64(view.bar.source_index)?,
@@ -1053,6 +1150,7 @@ impl GenerationRuntime {
             )?;
         }
         let mut requests: CodecVec<Built> = CodecVec::default();
+        extend_gen(&mut requests, init_requests, store)?;
         extend_gen(&mut requests, step_requests, store)?;
         extend_gen(&mut requests, group_requests, store)?;
         request_keys.extend(group_request_keys);
@@ -1086,8 +1184,9 @@ impl GenerationRuntime {
                 requests.len()
             ));
         }
-        // #1491 ADR 0037 §一：bounded-layout/1 的 `requests` 按 (window_start, label) 排列，新请求
-        // 只落尾部；layout/1 保持原线序（步骤 → 组 → 形态/分型 → 待决）。
+        // #1419 A：有界布局按 (phase, window_start, label) 排序。跨代仅保证变化涉及的
+        // 最早坐标之前的请求在原下标保持身份与摘要；删除取旧侧，移动取两侧。
+        // layout/1 保持原线序。版本绑定与 S86 原门由 #1491 决定。
         if bounded {
             let mut order: Vec<usize> = (0..requests.len()).collect();
             order.sort_by_key(|&i| request_keys[i]);
@@ -1127,39 +1226,7 @@ impl GenerationRuntime {
         }
         stable_sort_typed_admitted(&mut typed, store)?;
 
-        // ── CC-054 知识状态（旧配方在泛型事实之后、TB-02-B 之前）──
-        let raw_coords = raw_prefix_coords(state).map_err(producer_error)?;
-        let knowledge = self
-            .producer
-            .build_knowledge_state(
-                store,
-                &raw_coords,
-                frontier,
-                &requests,
-                &all_reasons,
-                gen,
-                cut,
-            )
-            .map_err(producer_error)?;
-        for observation in &knowledge.observations {
-            push_gen(&mut observations, (true, observation.clone()), store)?;
-        }
-        let generated = object_records::generated(
-            store,
-            object_records::BorrowedObject::Typed(&knowledge.object),
-        )
-        .map_err(record_error)?;
-        push_gen(
-            &mut typed,
-            ProducedObject {
-                kind: native_text(store, CC054_KNOWLEDGE_KIND)?,
-                fact_key: Some(native_text(store, &knowledge.object.fact_key)?),
-                object_id: native_text(store, &knowledge.object.object_id)?,
-                generated,
-                body: ObjectBody::Typed(knowledge.object),
-            },
-            store,
-        )?;
+        let knowledge_position = typed.len();
 
         // ── TB-02-B：七个 kind 的新笔证据（上一代记录由调用方给根）──
         let bi = self
@@ -1206,6 +1273,125 @@ impl GenerationRuntime {
                 store,
             )?;
         }
+
+        if structure_enabled {
+            let known_at = crate::content_bi::known_root(
+                store,
+                raw_ledger,
+                gen,
+                frontier,
+                input.semantic_commit_ns,
+            )?;
+            let fact_generation = crate::content_bi::fact_generation(
+                JsonView::BorrowedArray(&input.all_events)
+                    .as_array()
+                    .unwrap(),
+            )
+            .map_err(|e| format!("GenError：结构事实代际不可用：{e}"))?;
+            let mut all_sources = CodecVec::default();
+            for coord in raw_ledger.coords() {
+                push_gen(
+                    &mut all_sources,
+                    usize::try_from(coord).map_err(|_| "原始坐标溢出")?,
+                    store,
+                )?;
+            }
+            let context = content_structure::StructureContext {
+                fact_generation,
+                generation: gen,
+                cut,
+                frontier,
+                known_at: &known_at,
+                all_sources: &all_sources,
+            };
+            let structure_evidence = content_structure::StructureEvidence {
+                segments: &layer.segments,
+                segment_facts: &evidence.segment_facts,
+                stroke_facts: &evidence.stroke_facts,
+                second_store: second_store
+                    .as_ref()
+                    .ok_or_else(|| "GenError：结构域缺同次 parser store".to_string())?,
+            };
+            let cd = content_structure::build_cd(
+                &mut self.producer,
+                store,
+                &structure_evidence,
+                &cd_prior,
+                &context,
+            )?;
+            let ef = content_structure::build_ef(
+                &mut self.producer,
+                store,
+                &structure_evidence,
+                &cd.segments,
+                &content_structure::EfPrior {
+                    records: input.structure_prior.ef_records,
+                },
+                &context,
+            )?;
+            for output in [cd, ef] {
+                extend_gen(&mut all_reasons, output.waiting_reasons, store)?;
+                extend_gen(&mut relations, output.relations, store)?;
+                // 包含一对象多子轴的完整唯一集合；不再从 TypedObject.request 重复收集。
+                extend_gen(&mut requests, output.requests, store)?;
+                for object in output.objects {
+                    let kind = typed_kind(store, &object)?;
+                    let generated = object_records::generated(
+                        store,
+                        object_records::BorrowedObject::Typed(&object),
+                    )
+                    .map_err(record_error)?;
+                    push_gen(
+                        &mut typed,
+                        ProducedObject {
+                            kind,
+                            fact_key: Some(native_text(store, &object.fact_key)?),
+                            object_id: native_text(store, &object.object_id)?,
+                            generated,
+                            body: ObjectBody::Structure(object),
+                        },
+                        store,
+                    )?;
+                }
+            }
+        }
+
+        // 所有本次请求/等待原因收齐后才生成知识态；对象序仍保留历史 CC-054 槽位。
+        let raw_coords = raw_prefix_coords(state).map_err(producer_error)?;
+        let knowledge = self
+            .producer
+            .build_knowledge_state(
+                store,
+                &raw_coords,
+                frontier,
+                &requests,
+                &all_reasons,
+                gen,
+                cut,
+                state.unsettled(),
+            )
+            .map_err(producer_error)?;
+        for observation in &knowledge.observations {
+            push_gen(&mut observations, (true, observation.clone()), store)?;
+        }
+        let generated = object_records::generated(
+            store,
+            object_records::BorrowedObject::Typed(&knowledge.object),
+        )
+        .map_err(record_error)?;
+        let knowledge_object = ProducedObject {
+            kind: native_text(store, CC054_KNOWLEDGE_KIND)?,
+            fact_key: Some(native_text(store, &knowledge.object.fact_key)?),
+            object_id: native_text(store, &knowledge.object.object_id)?,
+            generated,
+            body: ObjectBody::Typed(knowledge.object),
+        };
+        if let Some(work) = store.codec_work() {
+            typed.try_insert_native(knowledge_position, knowledge_object, work)
+        } else {
+            typed.try_insert(knowledge_position, knowledge_object)
+        }
+        .map_err(codec_error)?;
 
         // ── 生成态六条数组：跨代共享序列 + 旧配方等价去重 ──
         let mut objects: CodecVec<ProducedObject> = shape_objects;
@@ -1876,7 +2062,13 @@ fn catalog_projection_entry(
             store,
             JsonView::object_fields(&fields).map_err(codec_error)?,
         )?
-    } else if object.kind() == "CC-056.version" {
+    } else if matches!(
+        object.kind(),
+        "CC-056.version"
+            | "CC-056.segment_version"
+            | "CC-056.center_version"
+            | "CC-056.pair_version"
+    ) {
         let waiting = projection_field(store, payload()?, &["data", "waiting_reasons"])?;
         let inner = [("waiting_reasons", waiting.view())];
         let outer = [(
@@ -2264,10 +2456,12 @@ fn write_json_view(
         .map_err(|error| format!("GenError：值写入失败：{error}"))
 }
 
-/// #1491 ADR 0037 §一：CC-054 请求的 label 序（同一 window_start 内）。步骤与组请求的键尾是单坐标、
-/// 形态与分型请求的键尾是窗口；三条分型请求按原配方 label 顺序。
+/// #1491 ADR 0037 §一：CC-054 请求的 label 序（同一 window_start 内）。W 逐原件未定、步骤与组请求的
+/// 键尾是单坐标，形态与分型请求的键尾是窗口；三条分型请求按原配方 label 顺序。W 未定排在步骤前，
+/// 与 layout/1 线序（W 在步骤之前）同向（#1419）。
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum RequestLabel {
+    UndeterminedRaw,
     Step,
     Group,
     Shape,
@@ -2277,10 +2471,18 @@ enum RequestLabel {
 }
 
 /// #1491：bounded-layout/1 的 CC-054 `requests` 排序键 (window_start, label)；无窗口的待决请求
-/// （不足三根合并 bar）排最后——它只在形态出现之前存在。
+/// （不足三根合并 bar、方向未定的待决组）排最后——它们只在形态/方向出现之前存在。
+/// #1419：W 初始化请求（槽 W，每代恰一条、无窗口）排最前，与 layout/1 线序同位且逐代不动。
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum RequestPhase {
+    Initialization,
+    Windowed,
+    Pending,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct RequestOrder {
-    pending: bool,
+    phase: RequestPhase,
     window_start: i64,
     label: Option<RequestLabel>,
 }
@@ -2288,15 +2490,23 @@ struct RequestOrder {
 impl RequestOrder {
     fn new(window_start: i64, label: RequestLabel) -> Self {
         Self {
-            pending: false,
+            phase: RequestPhase::Windowed,
             window_start,
             label: Some(label),
         }
     }
 
+    fn initialization() -> Self {
+        Self {
+            phase: RequestPhase::Initialization,
+            window_start: 0,
+            label: None,
+        }
+    }
+
     fn pending() -> Self {
         Self {
-            pending: true,
+            phase: RequestPhase::Pending,
             window_start: 0,
             label: None,
         }
@@ -2448,7 +2658,7 @@ fn codec_error(error: sc::CodecError) -> String {
 }
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     #[test]
     fn borrowed_json_write_keeps_old_integer_oracle_and_rejects_before_put() {
         let original = serde_json::json!({"items": [i64::MIN, u64::MAX], "text": "1.5"});
@@ -2727,6 +2937,7 @@ mod tests {
         let effective = bj::effective(events.as_slice().into(), None).unwrap();
         let scope = json!({"instrument":"native-generation", "exchange":"fixture"});
         let input = GenerationInput {
+            structure_prior: Default::default(),
             all_events: events.as_slice().into(),
             effective: effective.raw_view(),
             generation: 1,
@@ -2734,7 +2945,7 @@ mod tests {
             input_frontier: events.len() as i64,
             profile_id: crate::tb02a::PROFILE,
             profile_hash: "profile-hash",
-            rule_revision: "r",
+            rule_revision: crate::V3_RULE_REVISION,
             catalog_revision: "catalog",
             scope: &scope,
             semantic_commit_ns: None,
@@ -2744,15 +2955,21 @@ mod tests {
             },
         };
         let mut plain_nodes = MemoryNodes::new();
-        let mut plain_runtime =
-            GenerationRuntime::new("native-parity/plain".into(), crate::tb02a::PROFILE, "r");
+        let mut plain_runtime = GenerationRuntime::new(
+            "native-parity/plain".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_RULE_REVISION,
+        );
         let mut plain = plain_runtime.generate(&mut plain_nodes, &input).unwrap();
         plain.finish_axes(&mut plain_nodes, -1, &[], &[]).unwrap();
         let budget = super::super::audit_owner::native::Budget::new(16 * 1024 * 1024, 0).unwrap();
         let baseline = budget.live();
         let mut native_nodes = MemoryNodes::new();
-        let mut runtime =
-            GenerationRuntime::new("native-parity/native".into(), crate::tb02a::PROFILE, "r");
+        let mut runtime = GenerationRuntime::new(
+            "native-parity/native".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_RULE_REVISION,
+        );
         let generated = budget
             .codec_work()
             .unwrap()
@@ -2814,6 +3031,7 @@ mod tests {
         let effective = bj::effective(events.as_slice().into(), None).unwrap();
         let scope = json!({"instrument":"native-finish-reject", "exchange":"fixture"});
         let input = GenerationInput {
+            structure_prior: Default::default(),
             all_events: events.as_slice().into(),
             effective: effective.raw_view(),
             generation: 1,
@@ -2821,7 +3039,7 @@ mod tests {
             input_frontier: events.len() as i64,
             profile_id: crate::tb02a::PROFILE,
             profile_hash: "profile-hash",
-            rule_revision: "r",
+            rule_revision: crate::V3_RULE_REVISION,
             catalog_revision: "catalog",
             scope: &scope,
             semantic_commit_ns: None,
@@ -2831,8 +3049,11 @@ mod tests {
             },
         };
         let mut nodes = MemoryNodes::new();
-        let mut runtime =
-            GenerationRuntime::new("native-finish-reject".into(), crate::tb02a::PROFILE, "r");
+        let mut runtime = GenerationRuntime::new(
+            "native-finish-reject".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_RULE_REVISION,
+        );
         let mut generated = runtime.generate(&mut nodes, &input).unwrap();
         generated.finish_axes(&mut nodes, -1, &[], &[]).unwrap();
         let state = generated.generated_state.as_ref().clone();
@@ -2885,20 +3106,215 @@ mod tests {
         .collect()
     }
 
+    /// 新结构域的真实生成接线：双构造同根、全目录与原因闭合，恢复只认同域的已核根。
+    #[test]
+    fn structure_domain_wires_versions_knowledge_axes_and_rejects_foreign_prior() {
+        let rows = delta_raw_fixture();
+        let raw = RawEventsView::plain(&rows[..4]);
+        let effective = bj::effective(raw, None).unwrap();
+        let scope = json!({});
+        let input = GenerationInput {
+            all_events: raw,
+            effective: effective.raw_view(),
+            generation: 1,
+            structure_cut: "cut-1",
+            input_frontier: 4,
+            profile_id: crate::tb02a::PROFILE,
+            profile_hash: "structure-profile",
+            rule_revision: crate::V3_STRUCTURE_RULE_REVISION,
+            catalog_revision: "structure-catalog",
+            scope: &scope,
+            semantic_commit_ns: Some("123456789"),
+            prior: PriorState {
+                bi_records: vec![],
+                version_record: None,
+            },
+            structure_prior: StructurePriors::default(),
+        };
+        let mut nodes = MemoryNodes::new();
+        let mut first = GenerationRuntime::new(
+            "structure-wire-first".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_STRUCTURE_RULE_REVISION,
+        );
+        let mut generated = first.generate(&mut nodes, &input).unwrap();
+        generated.finish_axes(&mut nodes, -1, &[], &[]).unwrap();
+        generated.verify_new_closure(&mut nodes).unwrap();
+        #[cfg(feature = "s_capture_native_testonly")]
+        {
+            let budget =
+                super::super::audit_owner::native::Budget::new(16 * 1024 * 1024, 0).unwrap();
+            let baseline = budget.live();
+            let mut native_nodes = MemoryNodes::new();
+            let mut native_runtime = GenerationRuntime::new(
+                "structure-wire-native".into(),
+                crate::tb02a::PROFILE,
+                crate::V3_STRUCTURE_RULE_REVISION,
+            );
+            let result = budget
+                .codec_work()
+                .unwrap()
+                .run(|work| -> Result<_, String> {
+                    let mut store = NativeFixture {
+                        inner: &mut native_nodes,
+                        work,
+                    };
+                    let mut output = native_runtime.generate(&mut store, &input)?;
+                    output.finish_axes(&mut store, -1, &[], &[])?;
+                    Ok(output)
+                })
+                .unwrap();
+            assert_eq!(result.generated_state, generated.generated_state);
+            assert!(result
+                .objects
+                .iter()
+                .any(|o| matches!(&o.body, ObjectBody::Structure(_))));
+            assert!(budget.live() > baseline, "C/D/E/F结果离域后仍持父账许可");
+            drop(result);
+            drop(native_runtime);
+            assert_eq!(budget.live(), baseline);
+        }
+        let mut canonical = Vec::new();
+        render_canonical(&mut nodes, &generated.generated_state, &mut canonical).unwrap();
+        let state: Value = serde_json::from_slice(&canonical).unwrap();
+        assert_eq!(state["catalog_axes"].as_object().unwrap().len(), 22);
+        let objects = state["objects"].as_array().unwrap();
+        let knowledge: Value = serde_json::from_str(
+            objects
+                .iter()
+                .find(|o| o["kind"] == CC054_KNOWLEDGE_KIND)
+                .unwrap()["payload_json"]
+                .as_str()
+                .unwrap(),
+        )
+        .unwrap();
+        for kind in [
+            "CC-056.segment_version",
+            "CC-056.center_version",
+            "CC-056.pair_version",
+        ] {
+            let matches: Vec<_> = objects.iter().filter(|o| o["kind"] == kind).collect();
+            assert_eq!(matches.len(), 1, "{kind} 应由本次事实实际构造");
+            let version: Value =
+                serde_json::from_str(matches[0]["payload_json"].as_str().unwrap()).unwrap();
+            for reason in version["data"]["waiting_reasons"].as_array().unwrap() {
+                assert!(
+                    knowledge["waiting_reasons"]
+                        .as_array()
+                        .unwrap()
+                        .contains(reason),
+                    "{kind} 原因未进入 CC-054：{reason}"
+                );
+            }
+        }
+        let mut other_nodes = MemoryNodes::new();
+        let mut other = GenerationRuntime::new(
+            "structure-wire-independent".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_STRUCTURE_RULE_REVISION,
+        );
+        let mut independent = other.generate(&mut other_nodes, &input).unwrap();
+        independent
+            .finish_axes(&mut other_nodes, -1, &[], &[])
+            .unwrap();
+        assert_eq!(generated.generated_state, independent.generated_state);
+
+        let mut segment_records = Vec::new();
+        let mut segment_version = None;
+        let mut ef_records = Vec::new();
+        for object in &generated.objects {
+            let typed: &TypedObject = match &object.body {
+                ObjectBody::Typed(typed) => typed,
+                ObjectBody::Structure(typed) => typed,
+                _ => continue,
+            };
+            match object.kind() {
+                "CC-013.segment" => segment_records.push(typed.record.clone()),
+                "CC-056.segment_version" => segment_version = Some(typed.record.clone()),
+                "CC-016.center_seed_attempt"
+                | "CC-016.center"
+                | "CC-017.center_roles"
+                | "CC-022.unit_assignment"
+                | "CC-018.unit_core_position"
+                | "CC-020.center_pair"
+                | "CC-056.center_version"
+                | "CC-056.pair_version" => ef_records.push(typed.record.clone()),
+                _ => {}
+            }
+        }
+        let (bi_records, bi_version) = clone_prior(&generated);
+        let next = GenerationInput {
+            generation: 2,
+            structure_cut: "cut-2",
+            prior: PriorState {
+                bi_records: bi_records.iter().collect(),
+                version_record: bi_version.as_ref(),
+            },
+            structure_prior: StructurePriors {
+                segment_records: &segment_records,
+                segment_version: segment_version.as_ref(),
+                ef_records: &ef_records,
+                ..Default::default()
+            },
+            ..input
+        };
+        let warm = first.generate(&mut nodes, &next).unwrap();
+        let mut cold = GenerationRuntime::new(
+            "structure-wire-restart-valid".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_STRUCTURE_RULE_REVISION,
+        );
+        let restarted = cold.generate(&mut nodes, &next).unwrap();
+        assert_eq!(
+            warm.generated_state, restarted.generated_state,
+            "重启与续跑必须使用同份已授权 prior"
+        );
+
+        // B 版本虽自身内容有效，也不能作为 C/D 的发布恢复许可。
+        let wrong = generated
+            .objects
+            .iter()
+            .find_map(|o| match &o.body {
+                ObjectBody::Typed(object) if o.kind() == "CC-056.version" => {
+                    Some(object.record.clone())
+                }
+                _ => None,
+            })
+            .unwrap();
+        let forged = GenerationInput {
+            structure_prior: StructurePriors {
+                segment_version: Some(&wrong),
+                ..Default::default()
+            },
+            ..next
+        };
+        let mut restart = GenerationRuntime::new(
+            "structure-wire-restart-reject".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_STRUCTURE_RULE_REVISION,
+        );
+        let error = match restart.generate(&mut nodes, &forged) {
+            Ok(_) => panic!("错误 prior 版本不得恢复或切旧核兜底"),
+            Err(error) => error,
+        };
+        assert!(error.contains("prior kind"), "{error}");
+    }
+
     fn delta_bound_input<'a>(
         scope: &'a Value,
         cut: &'a str,
         gen: i64,
         frontier: i64,
         prior: PriorState<'a>,
-    ) -> BoundGenerationInput<'a> {
+    ) -> BoundGenerationInput<'a, 'a> {
         BoundGenerationInput {
+            structure_prior: StructurePriors::default(),
             generation: gen,
             structure_cut: cut,
             input_frontier: frontier,
             profile_id: crate::tb02a::PROFILE,
             profile_hash: "profile-hash",
-            rule_revision: "r",
+            rule_revision: crate::V3_RULE_REVISION,
             catalog_revision: "catalog",
             scope,
             semantic_commit_ns: Some("123456789"),
@@ -2915,11 +3331,15 @@ mod tests {
         use super::super::audit_owner::RawAdvanceFixture;
         let fixture = RawAdvanceFixture::new();
         let mut index = bj::RawPrefixIndex::new(events.into());
-        let mut delta = GenerationRuntime::new("A2 delta".into(), crate::tb02a::PROFILE, "r");
+        let mut delta = GenerationRuntime::new(
+            "A2 delta".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_RULE_REVISION,
+        );
         let mut full = GenerationRuntime::new(
             "A2 full independent raw/parser".into(),
             crate::tb02a::PROFILE,
-            "r",
+            crate::V3_RULE_REVISION,
         );
         let mut ds = MemoryNodes::new();
         let mut fs = MemoryNodes::new();
@@ -2958,6 +3378,7 @@ mod tests {
                 .generate(
                     &mut fs,
                     &GenerationInput {
+                        structure_prior: StructurePriors::default(),
                         all_events: raw,
                         effective: effective.raw_view(),
                         generation: gen,
@@ -2965,7 +3386,7 @@ mod tests {
                         input_frontier: prefix as i64,
                         profile_id: crate::tb02a::PROFILE,
                         profile_hash: "profile-hash",
-                        rule_revision: "r",
+                        rule_revision: crate::V3_RULE_REVISION,
                         catalog_revision: "catalog",
                         scope: &scope,
                         semantic_commit_ns: Some("123456789"),
@@ -3170,6 +3591,7 @@ mod tests {
                 &mut store,
                 &bound,
                 BoundGenerationInput {
+                    structure_prior: StructurePriors::default(),
                     generation: oracle.generation,
                     structure_cut: &cut,
                     input_frontier: oracle.batch["input_frontier"].as_i64().unwrap(),
@@ -3203,7 +3625,11 @@ mod tests {
         let edits = index.advance(4).unwrap();
         let fixture = RawAdvanceFixture::new();
         let bound = fixture.bind(raw, 0, &edits.winner_edits).unwrap();
-        let mut runtime = GenerationRuntime::new("A2 failure".into(), crate::tb02a::PROFILE, "r");
+        let mut runtime = GenerationRuntime::new(
+            "A2 failure".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_RULE_REVISION,
+        );
         let mut store = MemoryNodes::new();
         let scope = json!({});
         runtime
@@ -3296,13 +3722,13 @@ mod tests {
             (
                 crate::tb02a::PROFILE,
                 "wrong-profile",
-                "r",
+                crate::V3_RULE_REVISION,
                 "IdentityConflict",
             ),
             (
                 "unsupported-profile",
                 "unsupported-profile",
-                "r",
+                crate::V3_RULE_REVISION,
                 "VersionUnsupported",
             ),
         ] {
@@ -3319,10 +3745,16 @@ mod tests {
                 let bound = fixture.bind(raw, 0, &edits.winner_edits).unwrap();
                 let scope = json!({});
                 let effective = bj::effective(raw, None).unwrap();
-                let mut full =
-                    GenerationRuntime::new("A2 identity full".into(), runtime_profile, "r");
-                let mut delta =
-                    GenerationRuntime::new("A2 identity delta".into(), runtime_profile, "r");
+                let mut full = GenerationRuntime::new(
+                    "A2 identity full".into(),
+                    runtime_profile,
+                    crate::V3_RULE_REVISION,
+                );
+                let mut delta = GenerationRuntime::new(
+                    "A2 identity delta".into(),
+                    runtime_profile,
+                    crate::V3_RULE_REVISION,
+                );
                 let mut full_store = SequenceTestStore {
                     writes_left: Some(0),
                     ..Default::default()
@@ -3335,6 +3767,7 @@ mod tests {
                     .generate(
                         &mut full_store,
                         &GenerationInput {
+                            structure_prior: StructurePriors::default(),
                             all_events: raw,
                             effective: effective.raw_view(),
                             generation: 1,
@@ -3359,6 +3792,7 @@ mod tests {
                         &mut delta_store,
                         &bound,
                         BoundGenerationInput {
+                            structure_prior: StructurePriors::default(),
                             generation: 1,
                             structure_cut: "cut-1",
                             input_frontier: 4,
@@ -3401,8 +3835,11 @@ mod tests {
         let owner = RawAdvanceFixture::new();
         let bound = owner.bind(raw, 0, &edits.winner_edits).unwrap();
         let mut counted = SequenceTestStore::default();
-        let mut successful =
-            GenerationRuntime::new("A2 write count".into(), crate::tb02a::PROFILE, "r");
+        let mut successful = GenerationRuntime::new(
+            "A2 write count".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_RULE_REVISION,
+        );
         successful
             .generate_bound(
                 &mut counted,
@@ -3428,8 +3865,11 @@ mod tests {
                 writes_left: Some(fail_at),
                 ..Default::default()
             };
-            let mut runtime =
-                GenerationRuntime::new("A2 write refusal".into(), crate::tb02a::PROFILE, "r");
+            let mut runtime = GenerationRuntime::new(
+                "A2 write refusal".into(),
+                crate::tb02a::PROFILE,
+                crate::V3_RULE_REVISION,
+            );
             assert!(runtime
                 .generate_bound(
                     &mut store,
@@ -3482,8 +3922,11 @@ mod tests {
         let bound = fixture
             .bind(originals.view(), 0, &edits.winner_edits)
             .unwrap();
-        let mut runtime =
-            GenerationRuntime::new("A2 Owned rejection".into(), crate::tb02a::PROFILE, "r");
+        let mut runtime = GenerationRuntime::new(
+            "A2 Owned rejection".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_RULE_REVISION,
+        );
         let mut store = SequenceTestStore::default();
         let scope = json!({});
         let error = runtime
@@ -3531,8 +3974,11 @@ mod tests {
         // 这不声称 Owned RawPrefixIndex / owner 生产签发已经接通。
         let mut index = bj::RawPrefixIndex::new(RawEventsView::plain(&events));
         let fixture = RawAdvanceFixture::new();
-        let mut runtime =
-            GenerationRuntime::new("delta raw fixture".into(), crate::tb02a::PROFILE, "r");
+        let mut runtime = GenerationRuntime::new(
+            "delta raw fixture".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_RULE_REVISION,
+        );
         let mut store = MemoryNodes::new();
         let mut previous = 0;
         for prefix in [0, 1, 2, 4, 5, 6, 8, 8, 9, 11] {
@@ -3622,8 +4068,11 @@ mod tests {
         let mut index = bj::RawPrefixIndex::new(RawEventsView::plain(&events));
         let first = index.advance(2).unwrap();
         let fixture = RawAdvanceFixture::new();
-        let mut runtime =
-            GenerationRuntime::new("delta invalidation".into(), crate::tb02a::PROFILE, "r");
+        let mut runtime = GenerationRuntime::new(
+            "delta invalidation".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_RULE_REVISION,
+        );
         let mut store = MemoryNodes::new();
         let bound = fixture
             .bind(RawEventsView::plain(&events[..2]), 0, &first.winner_edits)
@@ -3675,8 +4124,11 @@ mod tests {
         let bound = owner
             .bind(RawEventsView::plain(&events[..2]), 0, &changes.winner_edits)
             .unwrap();
-        let mut runtime =
-            GenerationRuntime::new("delta failure".into(), crate::tb02a::PROFILE, "r");
+        let mut runtime = GenerationRuntime::new(
+            "delta failure".into(),
+            crate::tb02a::PROFILE,
+            crate::V3_RULE_REVISION,
+        );
         let mut store = SequenceTestStore::default();
         store.writes_left = Some(0);
         assert!(runtime
@@ -4369,12 +4821,19 @@ mod tests {
     /// - `catalog_axes` 在限制后的对象上用 v3 那张 13 轴表重算，withdrawals/replaces 由调用方
     ///   在限制后的对象与已存身份上跑同一生产 diff 得到（旧身份空间）。目录函数本就与生产共用
     ///   （见模块头），对拍的仍是「同一批输入」；不重算就等于拿 17 轴目录对 13 轴写者。
+    /// - 投影的规则标识显式映射到历史 V3 A/B 域；不改封存库或 raw 原件。
+    ///   生产目录现在由规则域选表，保留 V2 标识会错误地给 A/B 投影选择 17 轴。
     fn restrict_oracle_to_tb02ab(
         oracle: &mut OracleGeneration,
         previous_frontier: i64,
         withdrawals: &[Value],
         replaces: &[Value],
     ) {
+        assert_eq!(
+            oracle.batch["rule_revision"],
+            crate::RULE_REVISION,
+            "A/B oracle 投影只接受真实 V2 源域"
+        );
         let objects = oracle.batch["objects"].as_array().expect("oracle objects");
         let mut segment_edges = std::collections::BTreeSet::new();
         for object in objects {
@@ -4414,6 +4873,7 @@ mod tests {
         oracle.batch["objects"] = Value::Array(kept);
         oracle.batch["relations"] = Value::Array(relations);
         oracle.batch["catalog_axes"] = axes;
+        oracle.batch["rule_revision"] = json!(crate::V3_RULE_REVISION);
     }
 
     /// 一代 oracle：封存批次原件（完整生成态）+ 同一读集的真实两账。
@@ -4496,6 +4956,7 @@ mod tests {
         prior: PriorState<'b>,
     ) -> Generated<'b> {
         let input = GenerationInput {
+            structure_prior: StructurePriors::default(),
             all_events: (&oracle.all_events).into(),
             effective: (&oracle.effective).into(),
             generation: oracle.generation,
@@ -4617,8 +5078,9 @@ mod tests {
             .collect()
     }
 
-    /// 逐字段对拍：15 项标量/数组全部来自**封存批次原件**，只有旧 `obj-`/`wit-` 身份
-    /// 按顺序映射到本域真实新身份；最后再核映射后的规范字节逐字节相等。
+    /// 逐字段对拍：先按 restrict_oracle_to_tb02ab 明示投影 A/B 对象、目录与规则域，
+    /// 再把旧 `obj-`/`wit-` 身份按顺序映射到本域真实新身份；原始两账与业务载荷不变，
+    /// 最后核映射后的规范字节逐字节相等。
     fn assert_state_matches_oracle(
         label: &str,
         store: &mut MemoryNodes,
@@ -5121,8 +5583,6 @@ mod tests {
 
     // ── #1491 ADR 0037 段 B：bounded-layout/1 的 CC-007 单元批记录与 CC-054 请求次序 ──
 
-    const BOUNDED_RULE: &str = "r+bounded-layout/1";
-
     fn full_input<'a>(
         raw: RawEventsView<'a>,
         effective: RawEventsView<'a>,
@@ -5131,8 +5591,9 @@ mod tests {
         gen: i64,
         frontier: i64,
         rule: &'a str,
-    ) -> GenerationInput<'a> {
+    ) -> GenerationInput<'a, 'static> {
         GenerationInput {
+            structure_prior: StructurePriors::default(),
             all_events: raw,
             effective,
             generation: gen,
@@ -5151,13 +5612,69 @@ mod tests {
         }
     }
 
+    /// 修订组输入：早期 bar 改价修订、再恢复、尾 bar 换坐标（原 25 根 revision 组与布局锁共用）。
+    fn revision_events() -> Vec<Value> {
+        let mut events = delta_long_fixture();
+        events.truncate(14);
+        let mut revised = events[2].clone();
+        for (k, v) in [
+            ("revision", json!(2)),
+            ("input_revision", json!("2")),
+            ("seq", json!(15)),
+            ("high", json!("13")),
+            ("low", json!("9")),
+            ("open", json!("11")),
+            ("close", json!("11")),
+            ("payload_hash", json!("revision-2")),
+            ("receipt_id", json!("receipt-15")),
+        ] {
+            revised[k] = v;
+        }
+        events.push(revised);
+        let mut restored = events[2].clone();
+        for (k, v) in [
+            ("revision", json!(3)),
+            ("input_revision", json!("3")),
+            ("seq", json!(16)),
+            ("payload_hash", json!("restored-3")),
+            ("receipt_id", json!("receipt-16")),
+        ] {
+            restored[k] = v;
+        }
+        events.push(restored);
+        let mut moved = events[13].clone();
+        for (k, v) in [
+            ("revision", json!(2)),
+            ("input_revision", json!("2")),
+            ("seq", json!(17)),
+            ("source_coord", json!("1000")),
+            ("ts", json!("1000")),
+            ("payload_hash", json!("tail-moved")),
+            ("receipt_id", json!("receipt-17")),
+        ] {
+            moved[k] = v;
+        }
+        events.push(moved);
+        events
+    }
+
     /// 每个前缀一代：layout/1 增量、bounded 增量各一条车道，另以全新 bounded 运行态冷算同一代。
     /// 返回逐代（layout/1 生成态 JSON，bounded 生成态 JSON）；bounded 增量 ≡ 冷算逐字节在此核。
     fn bounded_layout_runs(events: &[Value], cuts: &[usize]) -> Vec<(Value, Value)> {
+        bounded_layout_runs_with(events, cuts, "r")
+    }
+
+    fn bounded_layout_runs_with(
+        events: &[Value],
+        cuts: &[usize],
+        rule: &str,
+    ) -> Vec<(Value, Value)> {
+        let bounded_rule = format!("{rule}+bounded-layout/1");
+        let bounded_rule = bounded_rule.as_str();
         let scope = json!({"instrument":"B1", "exchange":"fixture"});
-        let mut sorted = GenerationRuntime::new("B1 sorted".into(), crate::tb02a::PROFILE, "r");
+        let mut sorted = GenerationRuntime::new("B1 sorted".into(), crate::tb02a::PROFILE, rule);
         let mut bounded =
-            GenerationRuntime::new("B1 bounded".into(), crate::tb02a::PROFILE, BOUNDED_RULE);
+            GenerationRuntime::new("B1 bounded".into(), crate::tb02a::PROFILE, bounded_rule);
         let (mut ss, mut bs) = (MemoryNodes::new(), MemoryNodes::new());
         let mut out = Vec::new();
         for (turn, &prefix) in cuts.iter().enumerate() {
@@ -5176,16 +5693,16 @@ mod tests {
                     rule,
                 )
             };
-            let s = sorted.generate(&mut ss, &input("r")).unwrap();
-            let b = bounded.generate(&mut bs, &input(BOUNDED_RULE)).unwrap();
+            let s = sorted.generate(&mut ss, &input(rule)).unwrap();
+            let b = bounded.generate(&mut bs, &input(bounded_rule)).unwrap();
             let mut cold_runtime = GenerationRuntime::new(
                 format!("B1 bounded cold {gen}"),
                 crate::tb02a::PROFILE,
-                BOUNDED_RULE,
+                bounded_rule,
             );
             let mut cs = MemoryNodes::new();
             let c = cold_runtime
-                .generate(&mut cs, &input(BOUNDED_RULE))
+                .generate(&mut cs, &input(bounded_rule))
                 .unwrap();
             assert_eq!(
                 b.state_without_axes, c.state_without_axes,
@@ -5371,7 +5888,8 @@ mod tests {
             .iter()
             .map(|r| r["request_id"].as_str().unwrap().to_string())
             .collect();
-        let order: Vec<(bool, i64, usize)> = bounded_requests
+        // (阶段, window_start, label)：W 初始化 0 最前、带窗口 1、待决 2 最后（#1419 × #1491）。
+        let order: Vec<(u8, i64, usize)> = bounded_requests
             .iter()
             .map(|r| {
                 let id: Value = serde_json::from_str(r["request_id"].as_str().unwrap()).unwrap();
@@ -5384,13 +5902,17 @@ mod tests {
                     Value::Array(slot) => (
                         slot[0].as_str().unwrap().to_string(),
                         slot[1].clone(),
-                        3 + labels.iter().position(|l| id[1] == *l).unwrap(),
+                        4 + labels.iter().position(|l| id[1] == *l).unwrap(),
                     ),
                     Value::String(kind) => (kind.clone(), id[1].clone(), 0),
                     _ => unreachable!(),
                 };
+                if kind == crate::content_producer::CC004_INITIALIZATION_KIND {
+                    assert_eq!(tail, "W", "g{gen} W 初始化槽");
+                    return (0, 0, 0);
+                }
                 if tail == "pending" {
-                    return (true, 0, 0);
+                    return (2, 0, 0);
                 }
                 let start = match &tail {
                     Value::Array(window) => window[0].as_str().unwrap().parse().unwrap(),
@@ -5398,12 +5920,13 @@ mod tests {
                     _ => unreachable!(),
                 };
                 let rank = match kind.as_str() {
-                    CC004_STEP_KIND => 0,
-                    CC005_GROUP_KIND => 1,
-                    CC006_SHAPE_KIND => 2,
+                    crate::content_producer::CC004_UNDETERMINED_KIND => 0,
+                    CC004_STEP_KIND => 1,
+                    CC005_GROUP_KIND => 2,
+                    CC006_SHAPE_KIND => 3,
                     _ => label,
                 };
-                (false, start, rank)
+                (1, start, rank)
             })
             .collect();
         let mut sorted_order = order.clone();
@@ -5428,6 +5951,70 @@ mod tests {
             }
         }
         (total, ids)
+    }
+
+    /// #1419 × #1491：W 初始化/未定请求在 layout/1 与 bounded-layout/1 两条车道都进 CC-054，且
+    /// 生成不因次序键缺 W 而报错。layout/1 保持 W 原线序（初始化 → 待决组 → 逐原件未定，均在
+    /// 其余请求之前）；bounded 下 W 初始化恒为首条，逐原件未定按坐标归入 (window_start, label)。
+    #[test]
+    fn w_requests_keep_line_order_in_layout1_and_lead_bounded_layout() {
+        let events = delta_long_fixture();
+        let cuts: Vec<usize> = (1..=events.len()).collect();
+        let runs = bounded_layout_runs(&events, &cuts);
+        let id_of = |r: &Value| -> Value {
+            serde_json::from_str(r["request_id"].as_str().unwrap()).unwrap()
+        };
+        let init_id = json!([crate::content_producer::CC004_INITIALIZATION_KIND, "W"]);
+        let (mut saw_undetermined, mut saw_established) = (false, false);
+        for (i, (sorted, bounded)) in runs.iter().enumerate() {
+            let gen = i + 1;
+            let line: Vec<Value> = requests_of(sorted).iter().map(id_of).collect();
+            assert_eq!(line[0], init_id, "g{gen} layout/1 首条是 W 初始化");
+            let mut w_block = vec![init_id.clone()];
+            let mut rest = &line[1..];
+            if rest
+                .first()
+                .map(|id| id[0] == CC005_GROUP_KIND && id[1] == "pending")
+                == Some(true)
+            {
+                w_block.push(rest[0].clone());
+                rest = &rest[1..];
+            }
+            let undetermined: Vec<i64> = rest
+                .iter()
+                .take_while(|id| id[0] == crate::content_producer::CC004_UNDETERMINED_KIND)
+                .map(|id| id[1].as_str().unwrap().parse().unwrap())
+                .collect();
+            assert!(
+                undetermined.windows(2).all(|w| w[0] < w[1]),
+                "g{gen} layout/1 逐原件未定按坐标升序"
+            );
+            assert!(
+                line[w_block.len() + undetermined.len()..].iter().all(|id| {
+                    id[0] != crate::content_producer::CC004_INITIALIZATION_KIND
+                        && id[0] != crate::content_producer::CC004_UNDETERMINED_KIND
+                }),
+                "g{gen} layout/1 W 请求全部在其余请求之前"
+            );
+            if undetermined.is_empty() {
+                saw_established = true;
+            } else {
+                saw_undetermined = true;
+            }
+            let lead: Vec<Value> = requests_of(bounded).iter().map(id_of).collect();
+            assert_eq!(lead[0], init_id, "g{gen} bounded 首条是 W 初始化");
+            for coord in &undetermined {
+                assert!(
+                    lead.contains(&json!([
+                        crate::content_producer::CC004_UNDETERMINED_KIND,
+                        coord.to_string()
+                    ])),
+                    "g{gen} bounded 含未定原件 {coord} 的请求"
+                );
+            }
+        }
+        assert!(saw_undetermined, "夹具须覆盖方向未定期的 W 未定请求");
+        assert!(saw_established, "夹具须覆盖方向建立后的 W 初始化");
     }
 
     #[test]
@@ -5485,47 +6072,7 @@ mod tests {
     fn bounded_layout_cc007_batches_survive_revision_swap_insertion_incremental_equals_cold() {
         // 同 `delta_full_bi_prior_tail_revision_and_reactivated_windows_match_full` 的输入：早期 bar
         // 改价修订、再恢复、尾 bar 换坐标（旧坐标移走、新坐标出现）。
-        let mut events = delta_long_fixture();
-        events.truncate(14);
-        let mut revised = events[2].clone();
-        for (k, v) in [
-            ("revision", json!(2)),
-            ("input_revision", json!("2")),
-            ("seq", json!(15)),
-            ("high", json!("13")),
-            ("low", json!("9")),
-            ("open", json!("11")),
-            ("close", json!("11")),
-            ("payload_hash", json!("revision-2")),
-            ("receipt_id", json!("receipt-15")),
-        ] {
-            revised[k] = v;
-        }
-        events.push(revised);
-        let mut restored = events[2].clone();
-        for (k, v) in [
-            ("revision", json!(3)),
-            ("input_revision", json!("3")),
-            ("seq", json!(16)),
-            ("payload_hash", json!("restored-3")),
-            ("receipt_id", json!("receipt-16")),
-        ] {
-            restored[k] = v;
-        }
-        events.push(restored);
-        let mut moved = events[13].clone();
-        for (k, v) in [
-            ("revision", json!(2)),
-            ("input_revision", json!("2")),
-            ("seq", json!(17)),
-            ("source_coord", json!("1000")),
-            ("ts", json!("1000")),
-            ("payload_hash", json!("tail-moved")),
-            ("receipt_id", json!("receipt-17")),
-        ] {
-            moved[k] = v;
-        }
-        events.push(moved);
+        let events = revision_events();
         let runs = bounded_layout_runs(&events, &[1, 2, 8, 14, 15, 16, 17, 17]);
         let mut any_units = false;
         for (i, (sorted, bounded)) in runs.iter().enumerate() {
@@ -5683,13 +6230,161 @@ mod tests {
         }
     }
 
-    /// #1780 独审 M-1：layout/1 车道（含 CC-007 分型）生成态根逐代冻结。期望值取自 base main
-    /// `5123c9e273`（ADR 0037 段 B 之前）同一输入的逐代 `state_without_axes` 根（独审探针
-    /// `1780-review-7cf8-probes/neutral-main-roots.txt`），锁住「本段 B 对 layout/1 生产逐位中性」。
+    /// #1419 A7 F3：冻结历史导出（base `5123c9e273` 生成，run 40831506671 导出）解包到私有临时目录，
+    /// 逐文件核 `CONTENTS.sha256` 后才交测试读；仓内原件不被打开写入。
+    /// #1419 R1（29BI 返修）：临时目录改用标准库 TestFiles 生命周期，不依赖 dev-dependency
+    /// `tempfile`——编译负例脚本只链接普通 bin 依赖，`tempfile` 在其中不可解析。
+    pub(crate) fn issue1419_history() -> HistoryTestDir {
+        let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/issue1419_history_5123");
+        let dir = HistoryTestDir::new();
+        let status = std::process::Command::new("tar")
+            .arg("-xzf")
+            .arg(fixture.join("export.tar.gz"))
+            .arg("-C")
+            .arg(dir.path())
+            .status()
+            .unwrap();
+        assert!(status.success(), "冻结历史导出解包失败");
+        let manifest = std::fs::read_to_string(fixture.join("CONTENTS.sha256")).unwrap();
+        let mut listed = 0;
+        for line in manifest.lines() {
+            let (digest, name) = line.split_once("  ").unwrap();
+            let bytes = std::fs::read(dir.path().join(name)).unwrap();
+            assert_eq!(
+                newchan_rust::session_protocol::sha256_hex(&bytes),
+                digest,
+                "冻结原件 {name} 摘要"
+            );
+            listed += 1;
+        }
+        assert_eq!(listed, 62, "冻结原件清单条目数");
+        dir
+    }
+
+    /// #1419 R1：历史夹具临时目录。私有解包、退出清理，与 `s_structure_session` 的 `TestFiles`
+    /// 同一生命周期模式；不引入生产依赖，仓内原件仍只读。
+    pub(crate) struct HistoryTestDir(std::path::PathBuf);
+
+    impl HistoryTestDir {
+        pub(super) fn new() -> Self {
+            use std::sync::atomic::{AtomicUsize, Ordering};
+            use std::time::{SystemTime, UNIX_EPOCH};
+            static NEXT_DIR: AtomicUsize = AtomicUsize::new(0);
+            let stamp = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let number = NEXT_DIR.fetch_add(1, Ordering::Relaxed);
+            let path = std::env::temp_dir().join(format!(
+                "1419-history-{}-{stamp}-{number}",
+                std::process::id()
+            ));
+            std::fs::create_dir(&path).unwrap();
+            Self(path)
+        }
+
+        pub(crate) fn path(&self) -> &std::path::Path {
+            &self.0
+        }
+    }
+
+    impl Drop for HistoryTestDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    /// #1419 A7：原 25 根仍是 base `5123c9e273` 原件，由本测试经冻结历史导出节点逐字读回；
+    /// 候选不再等于这些根。
+    #[test]
+    fn layout1_historical_draft_nodes_remain_readable() {
+        use sc::NodeSink as _;
+        let history = issue1419_history();
+        let dir = history.path().to_path_buf();
+        let table = std::fs::read_to_string(dir.join("compare.tsv")).unwrap();
+        let rows: Vec<Vec<&str>> = table
+            .lines()
+            .skip(1)
+            .map(|line| line.split('\t').collect())
+            .collect();
+        assert_eq!(rows.len(), 25);
+        for group in ["long", "revision", "realrule"] {
+            let path = dir.join(group);
+            let mut store = MemoryNodes::new();
+            for line in std::fs::read_to_string(path.join("nodes.jsonl"))
+                .unwrap()
+                .lines()
+            {
+                let node: Value = serde_json::from_str(line).unwrap();
+                let digest = sc::parse_root(node["digest"].as_str().unwrap()).unwrap();
+                let hex = node["body_hex"].as_str().unwrap();
+                let bytes: Vec<u8> = hex
+                    .as_bytes()
+                    .chunks_exact(2)
+                    .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                    .collect();
+                assert_eq!(hex.len() % 2, 0);
+                store
+                    .put(digest, node["tag"].as_u64().unwrap() as u8, &bytes)
+                    .unwrap();
+            }
+            let cuts: Value =
+                serde_json::from_slice(&std::fs::read(path.join("cuts.json")).unwrap()).unwrap();
+            assert_eq!(
+                cuts.as_array().unwrap().len(),
+                match group {
+                    "long" => 14,
+                    "revision" => 8,
+                    _ => 3,
+                }
+            );
+            for cut in cuts.as_array().unwrap() {
+                let generation = cut["gen"].as_i64().unwrap();
+                let row = rows
+                    .iter()
+                    .find(|r| r[0] == group && r[1].parse::<i64>().unwrap() == generation)
+                    .unwrap();
+                assert_eq!(row[2], cut["cut"].as_str().unwrap());
+                assert_eq!(
+                    row[3].parse::<i64>().unwrap(),
+                    cut["prefix"].as_i64().unwrap()
+                );
+                assert_eq!(row[4], cut["rule"].as_str().unwrap());
+                assert_eq!(row[5], row[6]);
+                assert_eq!(row[7], "true");
+                for name in ["state_without_axes", "generated_state"] {
+                    let meta = &cut[name];
+                    assert_eq!(meta["format"], "s-content/1");
+                    assert_eq!(meta["kind"], "object");
+                    assert_eq!(meta["root"], row[5]);
+                    let digest = sc::parse_root(meta["root"].as_str().unwrap()).unwrap();
+                    let reference =
+                        ContentRef::new(sc::Kind::Object, &digest, meta["extent"].as_u64());
+                    sc::verify(&mut store, &reference).unwrap();
+                    let mut actual = Vec::new();
+                    sc::render_canonical(&mut store, &reference, &mut actual).unwrap();
+                    let expected =
+                        std::fs::read(path.join(format!("g{generation}.{name}.json"))).unwrap();
+                    assert_eq!(actual, expected, "{group} g{generation} {name}");
+                }
+            }
+        }
+    }
+
+    /// #1780 独审 M-1 原锁，#1419 A7 迁移：每代仍锚 base main `5123c9e273` 原 25 根，
+    /// 生成态两根改与独立 W oracle 资产（`tests/fixtures/issue1419_w_oracle`，只读 base 推导）
+    /// 逐字节、逐 ContentRef 比较。base 根真实性见 `layout1_historical_draft_nodes_remain_readable`。
     #[test]
     fn layout1_generation_roots_frozen_from_base_main() {
-        fn run(events: &[Value], cuts: &[usize], rule: &str, expected: &[&str]) {
+        fn run(tag: &str, events: &[Value], cuts: &[usize], rule: &str, expected: &[&str]) {
             assert_eq!(cuts.len(), expected.len());
+            let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/issue1419_w_oracle");
+            let roots: Value =
+                serde_json::from_slice(&std::fs::read(dir.join("roots.json")).unwrap()).unwrap();
+            let roots = roots[tag].as_array().unwrap();
+            assert_eq!(roots.len(), expected.len());
             let scope = json!({"instrument":"B1", "exchange":"fixture"});
             let mut runtime = GenerationRuntime::new("neutral".into(), crate::tb02a::PROFILE, rule);
             let mut store = MemoryNodes::new();
@@ -5708,16 +6403,38 @@ mod tests {
                     rule,
                 );
                 let generated = runtime.generate(&mut store, &input).unwrap();
-                let root = format!("{:?}", generated.state_without_axes);
-                assert!(
-                    root.contains(&format!("\"{want}\"")),
-                    "{rule} g{gen}: {root}"
+                let oracle = &roots[turn];
+                assert_eq!(oracle["gen"], gen);
+                assert_eq!(
+                    oracle["base_root"], *want,
+                    "{tag} g{gen}: oracle 须锚原 base 根"
                 );
+                let file = dir.join(tag).join(format!("g{gen}.expected_state.json"));
+                let bytes = std::fs::read(file).unwrap();
+                let gs: &ContentRef = &generated.generated_state;
+                let swa: &ContentRef = &generated.state_without_axes;
+                for (name, r) in [("generated_state", gs), ("state_without_axes", swa)] {
+                    assert_eq!(r.format, "s-content/1", "{tag} g{gen} {name}");
+                    assert_eq!(r.kind.name(), "object", "{tag} g{gen} {name}");
+                    assert_eq!(
+                        r.root,
+                        oracle["expected_root"].as_str().unwrap(),
+                        "{tag} g{gen} {name}"
+                    );
+                    assert_eq!(r.extent, oracle["extent"].as_u64(), "{tag} g{gen} {name}");
+                    sc::verify(&mut store, r).unwrap();
+                    let text = canonical_text(&mut store, r);
+                    assert!(
+                        text.as_bytes() == bytes.as_slice(),
+                        "{tag} g{gen} {name} 完整字段与次序"
+                    );
+                }
             }
         }
         let events = delta_long_fixture();
         let cuts: Vec<usize> = (1..=events.len()).collect();
         run(
+            "long",
             &events,
             &cuts,
             "r",
@@ -5738,48 +6455,9 @@ mod tests {
                 "sc1-1f1883260c44c0de1f736eecfa10b260299e8b37638fb83ea79672e050e64b66",
             ],
         );
-        let mut events = delta_long_fixture();
-        events.truncate(14);
-        let mut revised = events[2].clone();
-        for (k, v) in [
-            ("revision", json!(2)),
-            ("input_revision", json!("2")),
-            ("seq", json!(15)),
-            ("high", json!("13")),
-            ("low", json!("9")),
-            ("open", json!("11")),
-            ("close", json!("11")),
-            ("payload_hash", json!("revision-2")),
-            ("receipt_id", json!("receipt-15")),
-        ] {
-            revised[k] = v;
-        }
-        events.push(revised);
-        let mut restored = events[2].clone();
-        for (k, v) in [
-            ("revision", json!(3)),
-            ("input_revision", json!("3")),
-            ("seq", json!(16)),
-            ("payload_hash", json!("restored-3")),
-            ("receipt_id", json!("receipt-16")),
-        ] {
-            restored[k] = v;
-        }
-        events.push(restored);
-        let mut moved = events[13].clone();
-        for (k, v) in [
-            ("revision", json!(2)),
-            ("input_revision", json!("2")),
-            ("seq", json!(17)),
-            ("source_coord", json!("1000")),
-            ("ts", json!("1000")),
-            ("payload_hash", json!("tail-moved")),
-            ("receipt_id", json!("receipt-17")),
-        ] {
-            moved[k] = v;
-        }
-        events.push(moved);
+        let events = revision_events();
         run(
+            "revision",
             &events,
             &[1, 2, 8, 14, 15, 16, 17, 17],
             "r",
@@ -5795,6 +6473,7 @@ mod tests {
             ],
         );
         run(
+            "realrule",
             &delta_long_fixture(),
             &[5, 9, 14],
             crate::V3_RULE_REVISION,
@@ -5804,6 +6483,201 @@ mod tests {
                 "sc1-cf5c2f1e68e4a50dddc548abb9a2fd00725f23714e4c69fbb9b033549a369f14",
             ],
         );
+    }
+
+    /// #1419 A7 F2：一代 W 请求的完整语义，以 request_id 为键。每个 id 恰出现一次；
+    /// 字段集恰为五项；subject_id 在本车道 objects 中解析，须恰有一个实际对象，以其 (kind, fact_key) 比较。
+    fn w_request_semantics(
+        state: &Value,
+    ) -> Result<std::collections::BTreeMap<String, Value>, String> {
+        use crate::content_producer::{CC004_INITIALIZATION_KIND, CC004_UNDETERMINED_KIND};
+        let objects = state["objects"].as_array().ok_or("objects 缺失")?;
+        let mut out = std::collections::BTreeMap::new();
+        for request in requests_of(state) {
+            let id = request["request_id"].as_str().ok_or("request_id 非文本")?;
+            if !(id.contains(CC004_INITIALIZATION_KIND) || id.contains(CC004_UNDETERMINED_KIND)) {
+                continue;
+            }
+            let fields: Vec<&String> = request.as_object().ok_or("请求非对象")?.keys().collect();
+            if fields
+                != [
+                    "axes",
+                    "reasons",
+                    "request_id",
+                    "source_coords",
+                    "subject_id",
+                ]
+            {
+                return Err(format!("{id} 字段集 {fields:?}"));
+            }
+            let subject = request["subject_id"].as_str().ok_or("subject_id 非文本")?;
+            let hits: Vec<&Value> = objects
+                .iter()
+                .filter(|o| o["object_id"] == subject)
+                .collect();
+            if hits.len() != 1 {
+                return Err(format!(
+                    "{id} subject {subject} 解析到 {} 个对象",
+                    hits.len()
+                ));
+            }
+            let semantic = json!({
+                "axes": request["axes"],
+                "reasons": request["reasons"],
+                "source_coords": request["source_coords"],
+                "subject": [hits[0]["kind"], hits[0]["fact_key"]],
+            });
+            if out.insert(id.to_string(), semantic).is_some() {
+                return Err(format!("{id} 重复"));
+            }
+        }
+        Ok(out)
+    }
+
+    /// 三组原输入（long 14、revision 8、realrule 3 代），与 `layout1_generation_roots_frozen_from_base_main` 同。
+    fn a7_groups() -> Vec<(&'static str, Vec<Value>, Vec<usize>, &'static str)> {
+        let long = delta_long_fixture();
+        let long_cuts: Vec<usize> = (1..=long.len()).collect();
+        vec![
+            ("long", long, long_cuts, "r"),
+            (
+                "revision",
+                revision_events(),
+                vec![1, 2, 8, 14, 15, 16, 17, 17],
+                "r",
+            ),
+            (
+                "realrule",
+                delta_long_fixture(),
+                vec![5, 9, 14],
+                crate::V3_RULE_REVISION,
+            ),
+        ]
+    }
+
+    /// #1419 A7：同一 W 语义在 layout/1 与 bounded-layout/1 两种布局下逐代相同，覆盖原 25 代。
+    /// W 对象载荷、输入引用、来源坐标逐项相等；W 请求按 request_id 比完整语义（见 `w_request_semantics`）。
+    #[test]
+    fn w_semantics_layout_neutral_between_layout1_and_bounded() {
+        use crate::content_producer::{CC004_INITIALIZATION_KIND, CC004_UNDETERMINED_KIND};
+        let (mut undetermined, mut established, mut generations) = (false, false, 0);
+        let mut request_kinds = std::collections::BTreeSet::new();
+        for (tag, events, cuts, rule) in a7_groups() {
+            let runs = bounded_layout_runs_with(&events, &cuts, rule);
+            assert_eq!(runs.len(), cuts.len());
+            for (i, (sorted, bounded)) in runs.iter().enumerate() {
+                let gen = i + 1;
+                generations += 1;
+                for kind in [CC004_INITIALIZATION_KIND, CC004_UNDETERMINED_KIND] {
+                    let w = |state: &Value| -> Vec<Value> {
+                        objects_of(state, kind)
+                            .iter()
+                            .map(|o| {
+                                json!([
+                                    o["fact_key"],
+                                    o["payload"],
+                                    o["input_refs"],
+                                    o["source_coords"]
+                                ])
+                            })
+                            .collect()
+                    };
+                    assert_eq!(w(sorted), w(bounded), "{tag} g{gen} {kind} 跨布局中性");
+                }
+                let s = w_request_semantics(sorted).unwrap();
+                let b = w_request_semantics(bounded).unwrap();
+                assert!(!s.is_empty(), "{tag} g{gen} 须有 W 请求");
+                assert_eq!(s, b, "{tag} g{gen} W 请求完整语义");
+                for semantic in s.values() {
+                    request_kinds.insert(semantic["subject"][0].as_str().unwrap().to_string());
+                }
+                let init = &objects_of(sorted, CC004_INITIALIZATION_KIND)[0]["payload"];
+                match init["direction_state"].as_str().unwrap() {
+                    "Undetermined" => undetermined = true,
+                    _ => established = true,
+                }
+            }
+        }
+        assert_eq!(generations, 25, "覆盖原 long 14、revision 8、realrule 3 代");
+        assert!(
+            undetermined && established,
+            "夹具须覆盖未定与已定两种 W 状态"
+        );
+        assert_eq!(
+            request_kinds.into_iter().collect::<Vec<_>>(),
+            [CC004_INITIALIZATION_KIND, CC004_UNDETERMINED_KIND],
+            "请求须覆盖两种 W 对象"
+        );
+    }
+
+    /// F2 负控：改 axes、subject 指向另一实际对象、subject 悬空、追加重复请求，均被判出。
+    #[test]
+    fn w_request_semantics_detects_axes_subject_and_duplicate_changes() {
+        use crate::content_producer::{CC004_INITIALIZATION_KIND, CC004_UNDETERMINED_KIND};
+        let events = delta_long_fixture();
+        let (state, _) = bounded_layout_runs(&events, &[1]).remove(0);
+        let original = w_request_semantics(&state).unwrap();
+        assert_eq!(original.len(), 2);
+        let other = objects_of(&state, CC004_UNDETERMINED_KIND)[0]["object_id"].clone();
+        let mutate = |edit: &dyn Fn(&mut Vec<Value>)| -> Value {
+            let mut copy = state.clone();
+            let knowledge = copy["objects"]
+                .as_array_mut()
+                .unwrap()
+                .iter_mut()
+                .find(|o| o["kind"] == CC054_KNOWLEDGE_KIND)
+                .unwrap();
+            let mut payload: Value =
+                serde_json::from_str(knowledge["payload_json"].as_str().unwrap()).unwrap();
+            let mut requests = payload["requests"].as_array().unwrap().clone();
+            edit(&mut requests);
+            payload["requests"] = Value::Array(requests);
+            knowledge["payload_json"] = json!(payload.to_string());
+            copy
+        };
+        let init_index = |rs: &Vec<Value>| {
+            rs.iter()
+                .position(|r| {
+                    r["request_id"]
+                        .as_str()
+                        .unwrap()
+                        .contains(CC004_INITIALIZATION_KIND)
+                })
+                .unwrap()
+        };
+        assert_eq!(w_request_semantics(&mutate(&|_| {})).unwrap(), original);
+        let axes = mutate(&|rs| {
+            let i = init_index(rs);
+            rs[i]["axes"]["validity"] = json!("STALE");
+        });
+        assert_ne!(
+            w_request_semantics(&axes).unwrap(),
+            original,
+            "axes 改变须判出"
+        );
+        let swapped = mutate(&|rs| {
+            let i = init_index(rs);
+            rs[i]["subject_id"] = other.clone();
+        });
+        assert_ne!(
+            w_request_semantics(&swapped).unwrap(),
+            original,
+            "subject 指向另一实际对象须判出"
+        );
+        let dangling = mutate(&|rs| {
+            let i = init_index(rs);
+            rs[i]["subject_id"] = json!("obj3-missing");
+        });
+        assert!(
+            w_request_semantics(&dangling).is_err(),
+            "subject 悬空须判出"
+        );
+        let duplicate = mutate(&|rs| {
+            let i = init_index(rs);
+            let copy = rs[i].clone();
+            rs.push(copy);
+        });
+        assert!(w_request_semantics(&duplicate).is_err(), "重复请求须判出");
     }
 
     #[test]

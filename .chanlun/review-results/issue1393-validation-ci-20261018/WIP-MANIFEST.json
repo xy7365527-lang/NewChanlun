@@ -1,0 +1,98 @@
+{
+  "base": "ab3f3fb0e1638f1ef3543b8b1948cd1856dc8675",
+  "files": {
+    ".chanlun/review-results/issue1393-validation-ci-20261018/CONTRACT-DRAFT.json": {
+      "bytes": 627,
+      "sha256": "c199095bb081fb4a5f9e1cbe7afee1efcdab932b309e0887d14d12d0a2dfc2a1"
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/REPORT.md": {
+      "bytes": 13070,
+      "sha256": "d059b81dcdae5d53f88270024581dad701639326373c44bd788a26d0d40d37aa"
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/REUSE.md": {
+      "bytes": 2211,
+      "sha256": "595331c0bf7a642547ebd730221752d6431d86d06636eab683abbf21519f0f98"
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/VALIDATION.json": {
+      "bytes": 1364,
+      "sha256": "7d8bdf512537e2bff64cb504e0f56f1c7f40613f4d3401b685d45ca7bd2eaa3f"
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/static-final.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/static-final.stdout": {
+      "bytes": 329,
+      "sha256": "c675213882a2635b3fceacf87f340f592960a48a42a0835e7fa5f3246db18ad5"
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/static-round01.stderr": {
+      "bytes": 331,
+      "sha256": "2231f0ce665e92f48d47d226fadf01652ad28d921b4b380ef4e09fa2ce3aedb5"
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/static-round01.stdout": {
+      "bytes": 277,
+      "sha256": "c2e2a8b45e5f6d90b5601c755fd96f407e53df6ec497cbc670a386f33adaed8d"
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/toy-final.stderr": {
+      "bytes": 2985,
+      "sha256": "69b64473afe63fb698f56b70b541f5de994932d378f4e5035f90d5547a251721"
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/toy-final.stdout": {
+      "bytes": 156,
+      "sha256": "3f0db6bc92bfd7aec97cb31382492bda8a65c7925034752155a51d5660b206d1"
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/toy-round01.stderr": {
+      "bytes": 6199,
+      "sha256": "10b58368824a6dea001e7964477809d79ab02f6e7e58be54b0587072db86ddac"
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/toy-round01.stdout": {
+      "bytes": 143,
+      "sha256": "cc42c7320bb015924d768b222327d8deb4f28b905b5d5c715671a3901f5d5ab3"
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/toy-round02.stderr": {
+      "bytes": 2512,
+      "sha256": "62df0d07fd8ae10303b73af1d00c98a6a8ac532071c2db61386954151c64d617"
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/toy-round02.stdout": {
+      "bytes": 156,
+      "sha256": "3f0db6bc92bfd7aec97cb31382492bda8a65c7925034752155a51d5660b206d1"
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/toy-round03.stderr": {
+      "bytes": 2825,
+      "sha256": "a2390883cf084da3717d9c4d5a8d2ac4952908d7bf766844fe7e9c97d550f146"
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/toy-round03.stdout": {
+      "bytes": 156,
+      "sha256": "3f0db6bc92bfd7aec97cb31382492bda8a65c7925034752155a51d5660b206d1"
+    },
+    ".chanlun/review-results/issue1393-validation-ci-20261018/verify_static.py": {
+      "bytes": 2960,
+      "sha256": "29186d7f9fa4ab7ce36b9d9d50b626857e0feaf7fb3fad04da0834c85c0e09df"
+    },
+    ".github/scripts/issue1393_validate.py": {
+      "bytes": 28800,
+      "sha256": "987834c570182cfc024b88e250ced879e283b0fecf42f0230b74d41cc3334cb2"
+    },
+    ".github/scripts/test_issue1393_validate.py": {
+      "bytes": 18829,
+      "sha256": "51c0ff95281f46f1ecaa849d020ce988011eb19adae6d0cc8af8d9f388433f45"
+    },
+    ".github/workflows/ci.yml": {
+      "bytes": 18364,
+      "sha256": "b347f7914874c84c62bbc6f899036a53588e62c947930e8dc8e871489f0a702e"
+    },
+    ".github/workflows/issue1393-validation.yml": {
+      "bytes": 5228,
+      "sha256": "a899b673b1ea79c2f068e2209bc3bcde8c8111e7396ebc32cc53fb48249029ed"
+    }
+  },
+  "gate": "False",
+  "head": "ab3f3fb0e1638f1ef3543b8b1948cd1856dc8675",
+  "self_exclusion": [
+    "WIP-MANIFEST.json",
+    "WIP-MANIFEST.sha256"
+  ],
+  "status": "未暂存 WIP，等待管理者收包独审",
+  "ticket": 1393,
+  "tree": "3c383be7f45fe55d4a270ac3ef32a0b253de793b"
+}

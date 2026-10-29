@@ -4404,12 +4404,25 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                 // knowledge_domain `…without_extreme_identity_competition`→`…with_extreme_root_sets`（−14），
                 // schema s-new-bi/1→/2 等长：ΔL=+41−14=+27，①111,334→111,361，P2-A前封存527,048→527,102。
                 // L由合同字段len()显式相加；不读产生合同额的SourceClaim/正文计费自我对照。
-                const R14_NODES: usize = 803;
+                // #1419 W（主控 2026-10-28 裁定沿 #1488 裁定(b) 增量兼容）：本夹具经 S3 写者只写 W 规则
+                // （CF22 22 轴 + 初始化政策），结构对象增多，803 节点/1040 索引槽的旧夹具不复存在。
+                // 推导式结构不变（①=(C+L)+97·N，②=槽数×(旧槽宽−现槽宽)，P2-A前封存=B+2L+schema_growth），
+                // 只把夹具常量 N、C、B 换成 W 夹具实测（nc-remote a49d63a62c 读数：nodes=1328，
+                // claims=186,527B，index_bytes=464,400B/2064槽，slot 241→225，sealed=654,015B，
+                // L=113，schema_growth=57）：
+                //   C_W = 186,527 − 97·1328 − 113 = 57,598（每节点合同额 97 与 L 叶不变，余为正文）；
+                //   B_W = (654,015 + 186,527 + 2064·16) − 2·113 − 57 = 873,283（P2-A 前同夹具封存）。
+                // 负控（旧夹具常量）仍须把旧串推导回 111,334 / 527,048，证明推导式本身未被改动。
+                const R14_NODES: usize = 1328;
+                const R14_INDEX_SLOTS: usize = 2064;
                 let contract_len = |schema: &str, policy: &str, domain: &str| {
                     schema.len() + policy.len() + domain.len()
                 };
-                let expected_claims = |l: usize| (33_357 + l) + 97 * R14_NODES;
-                let sealed_before_p2a_for = |l: usize| 526_876 + 2 * l;
+                let claims_for = |c: usize, n: usize, l: usize| (c + l) + 97 * n;
+                let expected_claims = |l: usize| claims_for(57_598, R14_NODES, l);
+                let sealed_before_p2a_for = |l: usize| 873_283 + 2 * l;
+                let legacy_claims = |l: usize| claims_for(33_357, 803, l);
+                let legacy_sealed_before_p2a_for = |l: usize| 526_876 + 2 * l;
                 // 负控（独立手算基准）：两串还原为#1405前旧值，推导须回到原字面值。
                 let legacy_len = contract_len(
                     "s-new-bi/1",
@@ -4417,13 +4430,9 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                     "established_direction_without_extreme_identity_competition",
                 );
                 assert_eq!(legacy_len, 10 + 18 + 58, "#1405前合同串长");
+                assert_eq!(legacy_claims(legacy_len), 111_334, "旧串推导须回到111,334");
                 assert_eq!(
-                    expected_claims(legacy_len),
-                    111_334,
-                    "旧串推导须回到111,334"
-                );
-                assert_eq!(
-                    sealed_before_p2a_for(legacy_len),
+                    legacy_sealed_before_p2a_for(legacy_len),
                     527_048,
                     "旧串推导须回到527,048"
                 );
@@ -4442,7 +4451,12 @@ fn r14_source_keeper_seal_and_next_request_share_explicit_parent() {
                         "slot_now":slot_now,"slot_before_p2a":slot_before_p2a,"layout_drop":layout_drop})
                 );
                 assert_eq!(claims.1, expected_claims(current_len), "①来源合同额之和");
-                assert_eq!(layout_drop, 16_640, "②索引槽宽连带降幅");
+                assert_eq!(index_slots, R14_INDEX_SLOTS, "W 夹具索引槽数");
+                assert_eq!(
+                    layout_drop,
+                    R14_INDEX_SLOTS * 16,
+                    "②索引槽宽连带降幅（每槽窄16B）"
+                );
                 assert_eq!(
                     sealed_before_p2a - sealed,
                     claims.1 + layout_drop,
@@ -5196,10 +5210,14 @@ pub(super) mod construction_tests {
         use super::super::prepared::tests::{
             runtime_root_compare_reachable_bytes, runtime_root_tables, Fixture,
         };
-        let bounded_rule = format!("{}+bounded-layout/1", crate::V3_RULE_REVISION);
+        let bounded_rule = format!("{}+bounded-layout/1", crate::W1_STRUCTURE_RULE_REVISION);
         let mut views = Vec::new();
         for (rule, layout, other) in [
-            (crate::V3_RULE_REVISION, Layout::Sorted, Layout::Bounded1),
+            (
+                crate::W1_STRUCTURE_RULE_REVISION,
+                Layout::Sorted,
+                Layout::Bounded1,
+            ),
             (bounded_rule.as_str(), Layout::Bounded1, Layout::Sorted),
         ] {
             let mut warm = Fixture::with_rule(rule);
@@ -5327,10 +5345,10 @@ pub(super) mod construction_tests {
         };
         use super::super::layout::Layout;
         use super::super::prepared::tests::Fixture;
-        let bounded_rule = format!("{}+bounded-layout/1", crate::V3_RULE_REVISION);
+        let bounded_rule = format!("{}+bounded-layout/1", crate::W1_STRUCTURE_RULE_REVISION);
         for (rule, forced) in [
             (bounded_rule.as_str(), Layout::Sorted),
-            (crate::V3_RULE_REVISION, Layout::Bounded1),
+            (crate::W1_STRUCTURE_RULE_REVISION, Layout::Bounded1),
         ] {
             let warm = Fixture::with_rule(rule);
             let mut ordinary = Fixture::with_rule(rule);

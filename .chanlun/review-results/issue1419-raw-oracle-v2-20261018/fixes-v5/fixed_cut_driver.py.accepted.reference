@@ -1,0 +1,417 @@
+"""#1419 离线 driver 核：原字节保存、固定切面分页、内容续页与 watch 链。
+
+无 socket/HTTP/进程/数据库能力。exchange 是调用者提供的离线轨迹函数。
+这里验证分页边界，不取代 s-content/1 完整闭包验证或独立领域 oracle。
+live 入口永远拒绝；未来执行需作者冻结源、独审及管理者另行准入。
+"""
+
+import argparse
+import hashlib
+import json
+import re
+import time
+from collections import Counter
+from copy import deepcopy
+from pathlib import Path
+
+FAMILIES = ("objects", "withdrawn_objects", "witnesses", "relations", "observations", "raw_history")
+HEADER = set("schema_revision session_id session_generation source_namespace source_epoch message_id producer_id producer_epoch payload_hash causal_refs payload".split())
+PAGE = set("fixed_cut catalog rows counts scope omissions order_version offset done next_token cut_projection_digest validated_capture_digest ok".split())
+TOKEN = set("token_schema session_id session_generation cut_generation scope history_mode structure_cut catalog_revision index_frontier profile_hash rule_revision order_version page_size offset cut_projection_digest issued_capture_digest token_checksum".split())
+CONTENT_TOKEN = set("token_schema anchor path target_ref unit offset limit issued_capture_digest token_checksum".split())
+CONTENT_PAGE = set("target_ref unit offset end total items nodes done anchor path next_token validated_capture_digest ok".split())
+CURSOR = set("session_id session_generation catalog_revision scope after_generation base_cut index_frontier last_seq order_version".split())
+FIXED = set("session_id session_generation structure_cut cut_generation catalog_revision index_frontier profile_id profile_hash input_frontier seq_range catalog_run_status catalog_evidence scope rule_revision history_mode as_of_generation".split())
+# FIXED 的其余八字段是逐代值，须逐项与 delta/代际核对，不能冻结为常量。
+WATCH_IDENTITY = ('session_id', 'session_generation', 'catalog_revision', 'profile_id',
+                  'profile_hash', 'scope', 'rule_revision', 'history_mode')
+DELTA = set("generation session_id catalog_revision base_cut next_cut seq_range index_frontier input_frontier catalog_run_status catalog_evidence delta".split())
+
+
+def canonical(value):
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
+
+
+def sha(value):
+    return hashlib.sha256(value).hexdigest()
+
+
+def require(condition, message):
+    if not condition:
+        raise ValueError(message)
+
+
+def strict_load(raw):
+    def pairs(items):
+        result = {}
+        for key, value in items:
+            require(key not in result, "重复JSON键")
+            result[key] = value
+        return result
+    def invalid(value):
+        raise ValueError("非JSON有限数值：" + value)
+    return json.loads(raw, object_pairs_hook=pairs, parse_constant=invalid)
+
+
+def exact(value, keys):
+    require(isinstance(value, dict) and set(value) == keys, "exact字段不符")
+
+
+def natural(value):
+    require(isinstance(value, str) and re.fullmatch(r"0|[1-9][0-9]*", value), "非规范非负整数")
+    return int(value)
+
+
+def bind_named_submissions(submissions, accepted_cuts, *, work_budget):
+    """离线接点：以原始具名请求的事件数绑定其实际成功后固定切面。
+
+    accepted_cuts 必须由请求/回复轨迹关联提供，不能用输入条数猜产品 generation。
+    本函数检查字节摘要、会话与重复绑定，不证明真实接纳动作发生过。
+    """
+    # 必须复用消费方工作预算，在请求 canonical 和切面 deepcopy 前准入两棵树。
+    work_budget.scan(submissions)
+    work_budget.scan(accepted_cuts)
+    require(len(submissions)==len(accepted_cuts),'具名提交与实际切面数量不符')
+    bindings={};seen=set()
+    for request,cut in zip(submissions,accepted_cuts):
+        require(request['payload_hash']==sha(canonical(request['payload'])),'提交payload摘要不符')
+        require(all(request[k]==cut[k] for k in ('session_id','session_generation')),'提交切面会话不符')
+        exact(cut,FIXED)
+        generation=cut['cut_generation'];natural(generation)
+        natural(cut['index_frontier']);natural(cut['as_of_generation'])
+        require(cut['as_of_generation']==generation,'接纳切面as_of_generation不符')
+        natural(cut['input_frontier']);natural(request['source_epoch'])
+        key=(request['source_epoch'],request['message_id'])
+        require(generation not in bindings and key not in seen,'重复提交/代际绑定')
+        seen.add(key)
+        events=request['payload']['raw_input']['events']
+        require(isinstance(events,list) and events,'具名提交无接纳事件')
+        bindings[generation]={k:request[k] for k in ('session_id','session_generation','message_id','source_epoch')}
+        bindings[generation]['accepted_events']=str(len(events))
+        bindings[generation]['accepted_cut']=deepcopy(cut)
+    return bindings
+
+
+def checksum(token, fields, schema):
+    exact(token, fields)
+    require(token["token_schema"] == schema, "token版本不符")
+    require(token["token_checksum"] == sha(canonical({k: v for k, v in token.items() if k != "token_checksum"})), "token校验和不符")
+    require(bool(re.fullmatch(r"[0-9a-f]{64}", token["issued_capture_digest"])), "capture摘要不符")
+
+
+class Budget:
+    """一个实例跨分页/切面/恢复/双跑共用；累计字节与绝对截止不重置。非OS硬帽。"""
+    def __init__(self, max_reply_bytes, total_seconds, clock=time.monotonic):
+        require(type(max_reply_bytes) is int and max_reply_bytes > 0 and total_seconds > 0, "预算必须显式为正")
+        self.limit, self.used, self.clock = max_reply_bytes, 0, clock
+        self.deadline = clock() + total_seconds
+
+    def check(self):
+        require(self.clock() < self.deadline, "总截止已到")
+
+    def charge(self, count):
+        require(type(count) is int and count >= 0, "计量无效")
+        self.used += count
+        require(self.used <= self.limit, "累计reply超限")
+        self.check()
+
+
+class Collector:
+    def __init__(self, identity, budget, exchange, output, query_epoch, *, work_budget):
+        # v5 构造合同：从首次外来身份复制起即持有同一 WorkBudget，无默认帽。
+        self.budget, self.work_budget = budget, work_budget
+        original_check = work_budget.check
+        def check():
+            budget.check()
+            original_check()
+        work_budget.check = check
+        self.work(identity)
+        self.work(query_epoch)
+        exact(identity, {"session_id", "session_generation", "source_namespace", "source_epoch", "producer_id", "producer_epoch"})
+        self.identity, self.exchange = deepcopy(identity), exchange
+        require(natural(query_epoch) > 0, "query epoch必须为正")
+        self.query_epoch = query_epoch
+        self.output = Path(output)
+        self.output.mkdir(parents=True, exist_ok=False)
+        self.sequence = 0
+
+    def work(self,value=None):
+        budget=getattr(self,'work_budget',None)
+        if budget is None:self.budget.check()
+        elif value is None:budget.charge()
+        else:budget.scan(value)
+
+    def call(self, route, payload):
+        self.work(route)
+        self.work(self.identity)
+        self.work(payload)
+        self.budget.check()
+        self.sequence += 1
+        request = {**self.identity, "schema_revision": "s-session/3",
+                   "message_id": "raw-prep-query-" + str(self.sequence),
+                   "payload_hash": sha(canonical(payload)), "causal_refs": [], "payload": payload}
+        raw_request = canonical(request)
+        prefix = self.output / f"{self.sequence:06d}"
+        prefix.with_suffix(".request").write_bytes(raw_request)
+        status, headers, raw_reply = self.exchange(route, raw_request)
+        # exchange自身须限读；返回后先预留原件处理费用，再写盘/hash/解析。
+        # 超工作帽的回复不继续处理；这不是网络分配或同步IO硬帽。
+        self.work(status)
+        self.work(headers)
+        self.work(raw_reply)
+        require(type(status) is int and 100 <= status <= 599, '回复status类型/范围不符')
+        require(isinstance(headers, dict) and isinstance(raw_reply, bytes), '回复元数据/原字节类型不符')
+        self.budget.charge(len(raw_reply))
+        prefix.with_suffix(".reply").write_bytes(raw_reply)
+        prefix.with_suffix(".meta.json").write_bytes(canonical({"route": route, "status": status,
+            "headers": headers, "request_sha256": sha(raw_request), "reply_sha256": sha(raw_reply),
+            "reply_bytes": len(raw_reply), "runtime": "OFFLINE_TRANSCRIPT_ONLY"}))
+        require(status == 200, "非200回复；拒绝重试重置预算")
+        reply = strict_load(raw_reply)
+        self.work(reply)
+        exact(reply, HEADER)
+        require(reply["schema_revision"] == "s-session/3", "协议混用")
+        for key in ("session_id", "session_generation"):
+            require(reply[key] == request[key], "会话身份不符")
+        require(reply["payload_hash"] == sha(canonical(reply["payload"])), "payload摘要不符")
+        require(reply["source_namespace"] == "s-observe/replies"
+                and reply["source_epoch"] == self.query_epoch
+                and reply["producer_epoch"] == self.query_epoch
+                and reply["producer_id"] == "Q:" + request["session_id"], "Q发布身份不符")
+        require(reply["message_id"] == "reply-" + sha(canonical([
+            request["source_namespace"], request["source_epoch"], request["message_id"], reply["payload_hash"]])), "reply身份未绑定请求")
+        require(reply["causal_refs"] == [{k: request[k] for k in
+                ("source_namespace", "source_epoch", "message_id", "payload_hash")}], "reply因果引用不符")
+        require(reply["payload"].get("ok") is True, "业务回复非成功")
+        return reply["payload"]
+
+    def snapshot(self, fixed, page_size):
+        self.work(fixed)
+        require(type(page_size) is int and page_size > 0, "分页大小无效")
+        require(fixed["history_mode"] in ("AsKnown", "RecomputedWithRevision"), "模式不符")
+        # 固定 generation；不能用latest补缺页。
+        payload = {"op": "snapshot", "session_id": fixed["session_id"],
+                   "session_generation": fixed["session_generation"], "scope": fixed["scope"],
+                   "history_mode": fixed["history_mode"], "as_of_generation": fixed["cut_generation"],
+                   "page_size": str(page_size), "order_version": "s-record-order/2"}
+        rows, seen, offset, invariant, issued, previous_family = [], set(), 0, None, None, -1
+        while True:
+            self.work(payload)
+            page = self.call("/api/v3/snapshot", payload)
+            self.work(page)
+            exact(page, PAGE)
+            require(page["fixed_cut"] == fixed, "混切面/模式/profile/rule/catalog")
+            require(page["scope"] == fixed["scope"] and page["omissions"] == [], "切面范围被缩减")
+            require(natural(page["offset"]) == offset and page["order_version"] == "s-record-order/2", "offset或序版本不符")
+            require(type(page["done"]) is bool and isinstance(page["rows"], list), "页类型不符")
+            new_invariant = {k: page[k] for k in ("counts", "catalog", "cut_projection_digest")}
+            require(invariant is None or invariant == new_invariant, "页间完整集合身份变化")
+            invariant = deepcopy(new_invariant)
+            exact(page["counts"], set(FAMILIES) | {"total"})
+            require(bool(re.fullmatch(r"qcut3-[0-9a-f]{64}", page["cut_projection_digest"])), "projection摘要格式不符")
+            total = natural(page["counts"]["total"])
+            require(total == sum(natural(page["counts"][f]) for f in FAMILIES), "六族总数不符")
+            require(len(page["rows"]) == min(page_size, total - offset), "页缺记录/越界")
+            for row in page["rows"]:
+                self.work(row)
+                exact(row, {"family", "key", "record"})
+                require(row["family"] in FAMILIES, "未知记录族")
+                family = FAMILIES.index(row["family"])
+                require(family >= previous_family, "族顺序逆转")
+                previous_family = family
+                key = canonical([row["family"], row["key"]])
+                require(key not in seen, "重复记录")
+                seen.add(key)
+                rows.append(row)
+            offset += len(page["rows"])
+            require(page["done"] == (offset == total), "提前终页或遗漏done")
+            if page["done"]:
+                require(page["next_token"] is None, "终页携续页token")
+                counts = Counter(row["family"] for row in rows)
+                require(all(counts[f] == natural(page["counts"][f]) for f in FAMILIES), "六族计数不闭合")
+                return {**invariant, "fixed_cut": deepcopy(fixed), "rows": rows,
+                        "scope": fixed["scope"], "omissions": [], "order_version": "s-record-order/2"}
+            token = page["next_token"]
+            checksum(token, TOKEN, "s-snapshot-token/2")
+            issued = issued or page["validated_capture_digest"]
+            for key in ("session_id", "session_generation", "cut_generation", "scope", "history_mode",
+                        "structure_cut", "catalog_revision", "index_frontier", "profile_hash", "rule_revision"):
+                require(token[key] == fixed[key], "续页token切面不符")
+            require(token["offset"] == str(offset) and token["page_size"] == str(page_size)
+                    and token["order_version"] == "s-record-order/2"
+                    and token["issued_capture_digest"] == issued
+                    and token["cut_projection_digest"] == page["cut_projection_digest"], "续页token游标/摘要不符")
+            payload = {"op": "snapshot", "snapshot_token": deepcopy(token)}
+
+    def content(self, anchor, path, unit, limit):
+        self.work(anchor);self.work(path)
+        require(unit in ("items", "bytes", "value") and type(limit) is int and limit > 0, "内容单位/限额无效")
+        payload = {"op": "content", "anchor": deepcopy(anchor), "path": deepcopy(path),
+                   "unit": unit, "offset": "0", "limit": str(limit)}
+        offset, target, total, issued, pages = 0, None, None, None, []
+        while True:
+            self.work(payload)
+            page = self.call("/api/v3/content", payload)
+            self.work(page)
+            exact(page, CONTENT_PAGE)
+            require(page["anchor"] == anchor and page["path"] == path and page["unit"] == unit, "内容混锚/路径/单位")
+            require(natural(page["offset"]) == offset, "内容页重叠/跳页")
+            target, total = target or deepcopy(page["target_ref"]), natural(page["total"]) if total is None else total
+            require(page["target_ref"] == target and natural(page["total"]) == total, "内容根或长度变化")
+            end = natural(page["end"])
+            require(end == min(offset + limit, total), "内容未穷尽声明范围")
+            require(type(page["done"]) is bool and page["done"] == (end == total), "内容done不符")
+            self.work()
+            pages.append(page)
+            if page["done"]:
+                require(page["next_token"] is None, "内容终页携token")
+                return {"pages": pages, "closure_verified": False,
+                        "status": "PAGINATION_ONLY_REQUIRES_BOUND_SCONTENT_VERIFIER"}
+            token = page["next_token"]
+            checksum(token, CONTENT_TOKEN, "s-content-token/1")
+            issued = issued or page["validated_capture_digest"]
+            for key, value in {"anchor": anchor, "path": path, "target_ref": target, "unit": unit,
+                               "offset": str(end), "limit": str(limit), "issued_capture_digest": issued}.items():
+                require(token[key] == value, "内容续页token不符")
+            offset = end
+            payload = {"op": "content", "content_token": deepcopy(token)}
+
+    def bind_watch(self, fixed, cursor):
+        """只允许一次显式安装可信切面；调用者负责其快照/来源资格，本核不自签。
+
+        保留完整固定切面和游标。不能用下一代 accepted_cut 反向当首代信任根。
+        """
+        self.work(fixed)
+        self.work(cursor)
+        require(not hasattr(self, '_watch_state'), 'watch已绑定；禁止重置身份')
+        exact(fixed, FIXED)
+        exact(cursor, CURSOR)
+        for key in ('session_id', 'session_generation'):
+            require(fixed[key] == self.identity[key], '可信切面会话不符:'+key)
+        for ck, fk in (('session_id','session_id'), ('session_generation','session_generation'),
+                       ('catalog_revision','catalog_revision'), ('scope','scope'),
+                       ('after_generation','cut_generation'), ('base_cut','structure_cut'),
+                       ('index_frontier','index_frontier'), ('last_seq','input_frontier')):
+            require(cursor[ck] == fixed[fk], '可信切面游标不符:'+ck)
+        require(cursor['order_version'] == 's-record-order/2', 'watch序版本不符')
+        for key in ('cut_generation','index_frontier','input_frontier','as_of_generation'):
+            natural(fixed[key])
+        require(fixed['as_of_generation'] == fixed['cut_generation'], '可信切面as_of_generation不符')
+        self.work()
+        anchor = deepcopy(fixed)
+        state = dict(fixed=deepcopy(fixed), cursor=deepcopy(cursor), seen_commits=set())
+        self._watch_anchor, self._watch_state = anchor, state
+
+    def watch(self, cursor, through_generation, client_id, max_batches=1, *, accepted_commits):
+        """accepted_commits 按实际代际绑定具名提交及接纳事件数；不推测产品代际。
+
+        值含请求身份、accepted_events 和未丢字段的正式 accepted_cut。
+        跨 writer epoch 仍属于同会话 input_frontier；不得因 epoch 变化清零。
+        """
+        self.work(cursor)
+        self.work(client_id)
+        self.work(accepted_commits)
+        require(hasattr(self, '_watch_state'), 'watch缺可信固定切面；先bind_watch')
+        exact(cursor, CURSOR)
+        require(cursor == self._watch_state['cursor'], 'watch游标不符：必须续接上次已验证状态')
+        cursor = deepcopy(cursor)
+        after, results = natural(cursor["after_generation"]), []
+        previous_frontier = natural(cursor['last_seq']) if cursor['last_seq'] is not None else -1
+        require(isinstance(accepted_commits,dict),'缺具名提交接纳账簿')
+        self.work_budget.charge(1+len(self._watch_state['seen_commits']))
+        seen_commits = set(self._watch_state['seen_commits'])
+        prior_cut = self._watch_state['fixed']
+        require(type(through_generation) is int and type(max_batches) is int
+                and through_generation > after and max_batches > 0, "watch范围无效")
+        while after < through_generation:
+            page = self.call("/api/v3/watch", {"op": "watch", "cursor": cursor,
+                "max_batches": str(min(max_batches, through_generation - after)), "client_id": client_id})
+            self.work(page)
+            exact(page, set("deltas next_cursor observed_head delivery_frontier has_more gap validated_capture_digest ok".split()))
+            require(page["gap"] is None, "watch发生Gap；成功证明不完整，保原件且不静默重取")
+            require(isinstance(page["deltas"], list) and 0 < len(page["deltas"]) <= max_batches, "watch空页/批次越界")
+            for delta in page["deltas"]:
+                exact(delta, DELTA)
+                require(natural(delta["generation"]) == after + 1 and delta["base_cut"] == cursor["base_cut"], "watch断链")
+                require(delta["session_id"] == cursor["session_id"] and delta["catalog_revision"] == cursor["catalog_revision"], "watch身份变化")
+                frontier=natural(delta['input_frontier'])
+                require(frontier>=previous_frontier,'watch输入前沿回退')
+                binding=accepted_commits.get(delta['generation'])
+                require(isinstance(binding,dict),'缺具名提交代际绑定')
+                exact(binding,{'session_id','session_generation','message_id','source_epoch','accepted_events','accepted_cut'})
+                require(all(binding[k]==cursor[k] for k in ('session_id','session_generation')),'具名提交会话绑定不符')
+                cut=binding['accepted_cut'];exact(cut,FIXED)
+                for name in WATCH_IDENTITY:
+                    require(cut[name] == self._watch_anchor[name] == prior_cut[name],
+                            '接纳切面身份变化:'+name)
+                for name in ('session_id','session_generation','catalog_revision','scope'):
+                    require(cut[name]==cursor[name],'接纳切面身份不符:'+name)
+                for dk,ck in (('generation','cut_generation'),('next_cut','structure_cut'),
+                              ('index_frontier','index_frontier'),('input_frontier','input_frontier'),
+                              ('seq_range','seq_range'),('catalog_run_status','catalog_run_status'),
+                              ('catalog_evidence','catalog_evidence')):
+                    require(delta[dk]==cut[ck],'watch与接纳切面不符:'+ck)
+                require(cut['as_of_generation']==delta['generation'],'接纳切面as_of_generation不符')
+                natural(cut['index_frontier'])
+                prior_cut=cut
+                require(isinstance(binding['message_id'],str) and binding['message_id'],'提交名缺失')
+                natural(binding['source_epoch'])
+                count=natural(binding['accepted_events'])
+                key=(binding['source_epoch'],binding['message_id'])
+                require(key not in seen_commits,'提交重复接纳')
+                require(frontier-previous_frontier==count,'watch前沿与具名提交接纳事件数不符')
+                seen_commits.add(key);previous_frontier=frontier
+                after += 1
+                require(after <= through_generation, "watch越过固定目标")
+                cursor.update(after_generation=str(after), base_cut=delta["next_cut"],
+                              index_frontier=delta["index_frontier"], last_seq=delta["input_frontier"])
+                self.work()
+                results.append(deepcopy(delta))
+            require(page["next_cursor"] == cursor, "watch游标不符")
+        # 整次调用验证成功后才一次安装；任何失败不推进切面/游标/去重账，预算不回滚。
+        self.work(prior_cut)
+        self.work(cursor)
+        state = dict(fixed=deepcopy(prior_cut), cursor=deepcopy(cursor), seen_commits=seen_commits)
+        self._watch_state = state
+        return {"deltas": results, "next_cursor": cursor, "closure_verified": False}
+
+
+def compare_expected(actual, expected):
+    require(expected.get("status") == "INDEPENDENT_RAW_WITNESSES_FROZEN", "独立raw账簿未完备；拒绝空expected自签")
+    require(expected.get("raw_sha256") == actual.get("raw_sha256"), "raw身份不符")
+    require(isinstance(expected.get("fixed_binding"), dict)
+            and expected["fixed_binding"] == actual.get("fixed_binding"), "source/profile/rule/catalog绑定不符")
+    require(actual.get("closure_verified") is True, "内容闭包尚未核验")
+    require(len(expected["centers"]) >= 2 and len(expected["pairs"]) >= 1, "非真空义务不足")
+    for key in ("low_level_witnesses", "centers", "pairs", "assignments", "revisions", "withdrawals"):
+        require(canonical(actual[key]) == canonical(expected[key]), "独立expected逐值不符：" + key)
+    return {"status": "OFFLINE_EXPECTED_MATCH_ONLY", "product_run": "NOT_RUN"}
+
+
+def compare_replay_bytes(left, right):
+    """逐名比较已枚举的原字节；不抹掉时间/ID/摘要，不以相同空集合报成功。"""
+    require(isinstance(left, dict) and isinstance(right, dict) and left and set(left) == set(right), "双跑原件集合不闭合")
+    differences = []
+    for name in sorted(left):
+        require(isinstance(left[name], bytes) and isinstance(right[name], bytes), "双跑必须交原字节")
+        if left[name] != right[name]:
+            differences.append({"name": name, "left_sha256": sha(left[name]), "right_sha256": sha(right[name])})
+    return {"status": "OFFLINE_BYTE_COMPARISON_ONLY", "compared": len(left), "differences": differences,
+            "product_run": "NOT_RUN"}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--contract", required=True, type=Path)
+    parser.add_argument("--live", action="store_true")
+    args = parser.parse_args()
+    contract = strict_load(args.contract.read_bytes())
+    if args.live:
+        raise SystemExit("禁止执行：PENDING_SOURCE；本准备包没有产品启动能力。")
+    require(contract["execution_authorized"] is False, "本版本只接禁执行准备合同")
+    print(json.dumps({"status": "PREPARATION_ONLY", "execution_authorized": False,
+                      "product_run": "NOT_RUN", "blockers": contract["blockers"]}, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()

@@ -721,6 +721,8 @@ impl Runtime {
                     .map_err(err)?,
                     budget: None,
                 };
+                let structure_prior =
+                    object_index::structure_prior_records(&store, &audited.objects)?;
                 sc::write_value(&mut store, &scope_value).map_err(err)?;
                 let generator = self.generator.as_mut().ok_or_else(|| err("生成器未绑定"))?;
                 #[cfg(test)]
@@ -729,6 +731,7 @@ impl Runtime {
                     &mut store,
                     raw,
                     generation::BoundGenerationInput {
+                        structure_prior: structure_prior.borrowed(),
                         generation,
                         structure_cut: &metadata.structure_cut,
                         input_frontier: frontier,
@@ -752,6 +755,7 @@ impl Runtime {
                     &generated.objects,
                     &audited.objects,
                     generation,
+                    &metadata.rule_revision,
                 )?;
                 generated.finish_axes(
                     &mut store,
@@ -848,7 +852,12 @@ impl Runtime {
                         &products.manifest.batch_id,
                         Some(material),
                     )?;
-                    catalog_evidence::stage_current(tx, &mut store, &products.axes)?;
+                    catalog_evidence::stage_current(
+                        tx,
+                        &mut store,
+                        &products.axes,
+                        &metadata.rule_revision,
+                    )?;
                     *source_slot = Some(source);
                     Ok(products)
                 },
@@ -877,6 +886,7 @@ impl Runtime {
         let effective = super::business_json::effective(audited.raw.view(), None)?;
         let (prior_bi, prior_version) = object_index::prior_records(&audited.objects)?;
         let input = GenerationInput {
+            structure_prior: generation::StructurePriors::default(),
             all_events: audited.raw.view(),
             effective: effective.raw_view(),
             generation,
@@ -923,6 +933,12 @@ impl Runtime {
                     )
                     .map_err(err)?,
                     budget: None,
+                };
+                let structure_prior =
+                    object_index::structure_prior_records(&store, &audited.objects)?;
+                let input = GenerationInput {
+                    structure_prior: structure_prior.borrowed(),
+                    ..input
                 };
                 self.generate_node_products(
                     &mut store,
@@ -1000,7 +1016,7 @@ impl Runtime {
                     )
                 },
             )?;
-            catalog_evidence::stage_current(tx, &mut store, &axes)?;
+            catalog_evidence::stage_current(tx, &mut store, &axes, &metadata.rule_revision)?;
             return Ok(Prepared {
                 metadata,
                 roots,
@@ -1020,6 +1036,11 @@ impl Runtime {
                 .map_err(err)?
                 .with_work(work),
             budget: audited.budget.clone(),
+        };
+        let structure_prior = object_index::structure_prior_records(&store, &audited.objects)?;
+        let input = GenerationInput {
+            structure_prior: structure_prior.borrowed(),
+            ..input
         };
         let NodeProducts {
             generated,
@@ -1084,7 +1105,7 @@ impl Runtime {
             object_index::stage(tx, &mut store, &objects, &manifest.batch_id)?;
             aux_index::stage(tx, &mut store, &auxiliary, &manifest.batch_id)?;
         }
-        catalog_evidence::stage_current(tx, &mut store, &axes)?;
+        catalog_evidence::stage_current(tx, &mut store, &axes, &metadata.rule_revision)?;
         Ok(Prepared {
             metadata,
             roots,
@@ -1101,7 +1122,7 @@ impl Runtime {
         #[cfg(feature = "s_capture_native_testonly")] workspace_budget: Option<
             request_audit::ManifestWorkspaceBudget,
         >,
-        input: &GenerationInput<'raw>,
+        input: &GenerationInput<'raw, '_>,
         audited: &state::AuditedState,
         metadata: &ManifestMetadata,
         scope_value: &V,
@@ -1134,6 +1155,7 @@ impl Runtime {
                 &generated.objects,
                 &audited.objects,
                 generation,
+                &metadata.rule_revision,
             )?
         } else {
             object_index::plan_for_layout(
@@ -1142,6 +1164,7 @@ impl Runtime {
                 &generated.objects,
                 &audited.objects,
                 generation,
+                &metadata.rule_revision,
             )?
         };
         #[cfg(not(feature = "s_capture_native_testonly"))]
@@ -1151,6 +1174,7 @@ impl Runtime {
             &generated.objects,
             &audited.objects,
             generation,
+            &metadata.rule_revision,
         )?;
         generated.finish_axes(store, previous, &objects.withdrawals, &objects.replaces)?;
         let axes = store
@@ -1515,11 +1539,16 @@ pub(crate) mod tests {
         path: PathBuf,
         pub(crate) conn: Connection,
         runtime: Runtime,
+        /// 接纳消息声明的写者纪元（真实恢复后递增）。
+        writer_epoch: String,
         rule: Option<String>,
+        preserve_originals: bool,
     }
     impl Drop for Fixture {
         fn drop(&mut self) {
-            let _ = std::fs::remove_dir_all(&self.path);
+            if !self.preserve_originals {
+                let _ = std::fs::remove_dir_all(&self.path);
+            }
         }
     }
     impl Fixture {
@@ -1527,24 +1556,64 @@ pub(crate) mod tests {
             Self::with_retain(4)
         }
         pub(crate) fn with_retain(retain: i64) -> Self {
-            Self::build(retain, 4, None)
+            Self::with_clock_events(retain, 4)
+        }
+        /// 时钟计划含 `input-1..=events`；多代真实导出需要超过默认 4 个接纳事件。
+        pub(crate) fn with_clock_events(retain: i64, clock_events: i64) -> Self {
+            Self::with_clock_plan(retain, clock_events, &[])
+        }
+        /// 同上，另带具名恢复事件 `(name, recover_ns)`（供真实纪元递增恢复）。
+        pub(crate) fn with_clock_plan(
+            retain: i64,
+            clock_events: i64,
+            recover_events: &[(&str, i64)],
+        ) -> Self {
+            Self::build(retain, clock_events, recover_events, None)
         }
         /// #1491：在测试写者规则注入（`with_test_writer_rule`）下建库与发布，库 meta 与各代
         /// manifest 天然同带 `rule`；时钟 6 个事件、保留 6 代，使修订与撤回落在不同代。
         pub(crate) fn with_rule(rule: &str) -> Self {
-            Self::build(6, 6, Some(rule.to_owned()))
+            Self::build(6, 6, &[], Some(rule.to_owned()))
         }
-        fn build(retain: i64, clock_events: i64, rule: Option<String>) -> Self {
-            let path = std::env::temp_dir().join(format!(
-                "s1394-real-{}-{}-{}",
-                std::process::id(),
-                now_nanos(),
-                NEXT.fetch_add(1, Ordering::Relaxed)
-            ));
+        fn build(
+            retain: i64,
+            clock_events: i64,
+            recover_events: &[(&str, i64)],
+            rule: Option<String>,
+        ) -> Self {
+            Self::build_at(retain, clock_events, recover_events, rule, None)
+        }
+        pub(crate) fn with_clock_plan_persistent(
+            retain: i64,
+            clock_events: i64,
+            recover_events: &[(&str, i64)],
+            directory: PathBuf,
+        ) -> Self {
+            Self::build_at(retain, clock_events, recover_events, None, Some(directory))
+        }
+        fn build_at(
+            retain: i64,
+            clock_events: i64,
+            recover_events: &[(&str, i64)],
+            rule: Option<String>,
+            directory: Option<PathBuf>,
+        ) -> Self {
+            let preserve_originals = directory.is_some();
+            let path = directory.unwrap_or_else(|| {
+                std::env::temp_dir().join(format!(
+                    "s1394-real-{}-{}-{}",
+                    std::process::id(),
+                    now_nanos(),
+                    NEXT.fetch_add(1, Ordering::Relaxed)
+                ))
+            });
             std::fs::create_dir(&path).unwrap();
             let mut events = serde_json::Map::new();
             for n in 1..=clock_events {
                 events.insert(format!("input-{n}"),json!({"accept_ns":(n*10).to_string(),"attempts":[{"begin_ns":(n*10+1).to_string(),"commit_ns":(n*10+2).to_string()}]}));
+            }
+            for (name, ns) in recover_events {
+                events.insert((*name).to_string(), json!({"recover_ns": ns.to_string()}));
             }
             let clock = json!({"schema_revision":"s-clock-plan/1","clock_plan_id":"real-content-commit","origin_utc":"2026-09-18T00:00:00Z","unit":"ns","events":events});
             let clock_path = path.join("clock.json");
@@ -1572,12 +1641,35 @@ pub(crate) mod tests {
                 path,
                 conn,
                 runtime,
+                writer_epoch: "1".to_string(),
                 rule,
+                preserve_originals,
             }
         }
         /// 库文件路径：只读入口测试用来开第二条 `query_only=ON` 连接。
         pub(crate) fn db_path(&self) -> PathBuf {
             self.path.join("s.sqlite")
+        }
+        /// 真实写者恢复：经 S3 显式恢复入口把纪元升到 `epoch`（须高于当前纪元），再重开连接与运行时；
+        /// 此后接纳消息按新纪元声明。同纪元重开不是恢复。
+        pub(crate) fn recover_writer(&mut self, epoch: &str, clock_event: &str) {
+            let clock = v2::stored_clock(&self.conn).unwrap();
+            let db = self.db_path();
+            drop(std::mem::replace(
+                &mut self.conn,
+                Connection::open_in_memory().unwrap(),
+            ));
+            super::super::driver::recover(
+                &db,
+                epoch,
+                &clock,
+                clock_event,
+                crate::v3::admission_anchor::test_prepare(&db).into(),
+            )
+            .unwrap();
+            self.conn = open_db(&db).unwrap();
+            self.runtime = Runtime::new();
+            self.writer_epoch = epoch.to_string();
         }
         pub(crate) fn accept_begin(
             &mut self,
@@ -1585,9 +1677,20 @@ pub(crate) mod tests {
             row: (&str, i64, i64, i64, i64, i64),
             revision: i64,
         ) -> (Value, String) {
-            let mut raw = located_ohlc_input(&[row]);
-            raw["events"][0]["revision"] = json!(revision.to_string());
-            let payload = json!({"op":"ingest","target_session_id":"s-session-testonly-001","target_session_generation":"1","writer_epoch":"1","clock_event_id":format!("input-{n}"),"raw_input":raw});
+            self.accept_begin_rows(n, &[row], revision)
+        }
+        /// 只做正式接纳（AcceptedPending），不开 Begin、不发布；返回接纳信封与库存时钟。
+        pub(crate) fn accept_rows(
+            &mut self,
+            n: i64,
+            rows: &[(&str, i64, i64, i64, i64, i64)],
+            revision: i64,
+        ) -> (Value, v2::ClockPlan) {
+            let mut raw = located_ohlc_input(rows);
+            for event in raw["events"].as_array_mut().unwrap() {
+                event["revision"] = json!(revision.to_string());
+            }
+            let payload = json!({"op":"ingest","target_session_id":"s-session-testonly-001","target_session_generation":"1","writer_epoch":self.writer_epoch,"clock_event_id":format!("input-{n}"),"raw_input":raw});
             let envelope = json!({"schema_revision":"s-session/3","session_id":"s-session-testonly-001","session_generation":"1","source_namespace":"testonly.ohlc","source_epoch":"1","message_id":format!("message-{n}"),"producer_id":"real-content-test","producer_epoch":"1","payload_hash":sha256_hex(canonical_json(&payload).as_bytes()),"causal_refs":[],"payload":payload});
             let clock = v2::stored_clock(&self.conn).unwrap();
             let tx = self.conn.transaction().unwrap();
@@ -1598,6 +1701,16 @@ pub(crate) mod tests {
                     .unwrap();
             control.accept(&view, &accepted).unwrap();
             tx.commit().unwrap();
+            (envelope, clock)
+        }
+        /// 一条接纳消息携带多根原始事件（同一修订号），随后在同一消息上开 Begin（不发布）。
+        pub(crate) fn accept_begin_rows(
+            &mut self,
+            n: i64,
+            rows: &[(&str, i64, i64, i64, i64, i64)],
+            revision: i64,
+        ) -> (Value, String) {
+            let (envelope, clock) = self.accept_rows(n, rows, revision);
             let tx = self.conn.transaction().unwrap();
             let control = control::S3Control::attach(&tx, &clock).unwrap();
             let view = control.inspect_ingest(envelope.clone()).unwrap();
@@ -1605,7 +1718,7 @@ pub(crate) mod tests {
             let frontier = read_raw_events(&tx).unwrap().len() as i64 - 1;
             let base = meta_get_opt(&tx, "structure_cut").unwrap().unwrap();
             let token = control
-                .begin(&view, generation, frontier, &base, "1")
+                .begin(&view, generation, frontier, &base, &self.writer_epoch)
                 .unwrap();
             tx.commit().unwrap();
             (envelope, token)

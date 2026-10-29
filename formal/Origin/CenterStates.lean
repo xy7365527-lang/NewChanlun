@@ -1,5 +1,5 @@
 /-
-Origin/CenterStates.lean — 中枢三态 + 中枢发展三态 + 中心定理一/二（task #113）
+Origin/CenterStates.lean — 中枢位置三态 + 中枢对五叶及四态/三态投影（#113、#1424、#1419）
 
 ★工位定位（审计 A 判决）：Origin 的 `Center` 结构只有 {zd, zg, startIndex, endIndex, valid}，
   **无位置态、无 GG/DD 外缘、无发展态判据**。本文件把中枢的**分类血肉**形式化为 Origin
@@ -317,19 +317,138 @@ inductive CenterDevelopment where
   | expansion
 deriving DecidableEq, Repr
 
-/--
-  **发展态判定（前中枢 + 后中枢/新段，§6.7）** —— 给定前中枢 `prev` 与后中枢 `next`：
-  - 核心重叠（¬分离）→ 延伸（中心定理一：[dₙ,gₙ] 与 [ZD,ZG] 重叠）。
-  - 核心分离 + 外缘分离 → 新生（中心定理二：趋势）。
-  - 核心分离 + 外缘重叠 → 扩展（中心定理二：高级别中枢）。
--/
+/-! #1424 CC-020：五叶是相邻中枢对的几何关系。
+首叶不声称单元延伸；扩展叶不声称高级对象已构造。
+有效域为 CenterWithOuter（DD ≤ ZD ≤ ZG ≤ GG）。S 另要求 ZD < ZG；
+≥9 子中枢继承母核心后可能越过此域，#1429 未裁，不纳入本定理。 -/
+inductive PairLeaf where
+  | coreNotStrictlySeparated
+  | upNewbirth
+  | downNewbirth
+  | upExpansion
+  | downExpansion
+deriving DecidableEq, Repr
+
+/-- #1419：与 545e 的 Rust center_pair_facts 同顺序（下扩展先于上扩展）。
+全部五叶由同一函数给出；谓词等价证明只覆盖 CenterWithOuter 的有序域。 -/
+def classifyPairLeaf (prev next : CenterWithOuter) : PairLeaf :=
+  if prev.gg < next.dd then .upNewbirth
+  else if next.gg < prev.dd then .downNewbirth
+  else if next.core.zg < prev.core.zd then .downExpansion
+  else if prev.core.zg < next.core.zd then .upExpansion
+  else .coreNotStrictlySeparated
+
+/-- 逐叶独立谓词，不以判定链的 else 定义扩展。 -/
+def PairLeafHolds (prev next : CenterWithOuter) : PairLeaf → Prop
+  | .coreNotStrictlySeparated => ¬ SeparatedNewPair prev next
+  | .upNewbirth => IsUpTrend prev next
+  | .downNewbirth => IsDownTrend prev next
+  | .upExpansion => prev.core.zg < next.core.zd ∧ next.dd ≤ prev.gg
+  | .downExpansion => next.core.zg < prev.core.zd ∧ prev.dd ≤ next.gg
+
+/-- 五叶标签与独立谓词双向对应。外缘包含核心是必要前提，不能省略。 -/
+theorem classifyPairLeaf_iff (prev next : CenterWithOuter) (leaf : PairLeaf) :
+    classifyPairLeaf prev next = leaf ↔ PairLeafHolds prev next leaf := by
+  have hp := prev.core.valid
+  have hn := next.core.valid
+  have hpl := prev.outer_lo
+  have hph := prev.outer_hi
+  have hnl := next.outer_lo
+  have hnh := next.outer_hi
+  cases leaf <;>
+    simp only [classifyPairLeaf, PairLeafHolds, SeparatedNewPair, IsUpTrend, IsDownTrend, Tick] at * <;>
+    (by_cases h1 : prev.gg < next.dd) <;>
+    (by_cases h2 : next.gg < prev.dd) <;>
+    (by_cases h3 : prev.core.zg < next.core.zd) <;>
+    (by_cases h4 : next.core.zg < prev.core.zd) <;>
+    simp only [h1, h2, h3, h4, if_true, if_false] <;> simp_all [Tick] <;> omega
+
+/-- 恰一：存在满足谓词的叶，且任何满足者均等于该叶。 -/
+theorem pairLeaf_total_unique (prev next : CenterWithOuter) :
+    ∃ leaf, PairLeafHolds prev next leaf ∧
+      ∀ other, PairLeafHolds prev next other → other = leaf := by
+  refine ⟨classifyPairLeaf prev next, (classifyPairLeaf_iff prev next _).mp rfl, ?_⟩
+  intro other h
+  exact ((classifyPairLeaf_iff prev next other).mpr h).symm
+
+/-- #1419 / #1424：塔内四态，扩展方向合并；核心相切/重叠仅为几何关系。
+与 Rust CenterRelation 同名分，不声称 CC-018 延伸或高级对象已构造。 -/
+inductive PairRelation where
+  | upContinuation
+  | downContinuation
+  | levelExpansion
+  | coreOverlap
+deriving DecidableEq, Repr
+
+/-- 唯一五叶到四态的投影，与 Rust PairLeaf::relation 逐构造子对应。 -/
+def PairLeaf.relation : PairLeaf → PairRelation
+  | .upNewbirth => .upContinuation
+  | .downNewbirth => .downContinuation
+  | .upExpansion | .downExpansion => .levelExpansion
+  | .coreNotStrictlySeparated => .coreOverlap
+
+def classifyPairRelation (prev next : CenterWithOuter) : PairRelation :=
+  (classifyPairLeaf prev next).relation
+
+/-- 四态语义只合并五叶谓词，不建立第二套运行时判据。 -/
+def PairRelationHolds (prev next : CenterWithOuter) : PairRelation → Prop
+  | .upContinuation => PairLeafHolds prev next .upNewbirth
+  | .downContinuation => PairLeafHolds prev next .downNewbirth
+  | .levelExpansion =>
+      PairLeafHolds prev next .upExpansion ∨ PairLeafHolds prev next .downExpansion
+  | .coreOverlap => PairLeafHolds prev next .coreNotStrictlySeparated
+
+theorem classifyPairRelation_projection (prev next : CenterWithOuter) :
+    classifyPairRelation prev next = (classifyPairLeaf prev next).relation := rfl
+
+/-- 投影标签与四态谓词双向对应；外缘包含核心的假设由五叶定理继承。 -/
+theorem classifyPairRelation_iff (prev next : CenterWithOuter) (rel : PairRelation) :
+    classifyPairRelation prev next = rel ↔ PairRelationHolds prev next rel := by
+  cases rel <;>
+    simp only [PairRelationHolds, ← classifyPairLeaf_iff] <;>
+    cases h : classifyPairLeaf prev next <;>
+    simp [classifyPairRelation, h, PairLeaf.relation]
+
+theorem pairRelation_total_unique (prev next : CenterWithOuter) :
+    ∃ rel, PairRelationHolds prev next rel ∧
+      ∀ other, PairRelationHolds prev next other → other = rel := by
+  refine ⟨classifyPairRelation prev next, (classifyPairRelation_iff prev next _).mp rfl, ?_⟩
+  intro other h
+  exact ((classifyPairRelation_iff prev next other).mpr h).symm
+
+/-- 旧三态只作五叶投影；extension 这个历史标签不新增 CC-018 延伸含义。 -/
+def PairLeaf.development : PairLeaf → CenterDevelopment
+  | .coreNotStrictlySeparated => .extension
+  | .upNewbirth | .downNewbirth => .newBirth
+  | .upExpansion | .downExpansion => .expansion
+
+/-- #1424：旧三态调用者统一读取五叶的投影，不保留第二条运行时判定链。 -/
 def classifyDevelopment (prev next : CenterWithOuter) : CenterDevelopment :=
-  if prev.core.zg < next.core.zd ∨ next.core.zg < prev.core.zd then
-    -- 核心已分离
-    if next.dd > prev.gg ∨ next.gg < prev.dd then CenterDevelopment.newBirth
-    else CenterDevelopment.expansion
-  else
-    CenterDevelopment.extension
+  (classifyPairLeaf prev next).development
+
+/-- #804：三态是唯一五叶的投影。 -/
+theorem classifyDevelopment_pair_projection (prev next : CenterWithOuter) :
+    classifyDevelopment prev next = (classifyPairLeaf prev next).development := rfl
+
+/-- 保持旧三态公式的逐值行为。旧公式只作为待证明的规范，不再是另一份分类实现。 -/
+theorem classifyDevelopment_legacy_formula (prev next : CenterWithOuter) :
+    (if prev.core.zg < next.core.zd ∨ next.core.zg < prev.core.zd then
+      if next.dd > prev.gg ∨ next.gg < prev.dd then CenterDevelopment.newBirth
+      else CenterDevelopment.expansion
+    else CenterDevelopment.extension) = classifyDevelopment prev next := by
+  have hp := prev.core.valid
+  have hn := next.core.valid
+  have hpl := prev.outer_lo
+  have hph := prev.outer_hi
+  have hnl := next.outer_lo
+  have hnh := next.outer_hi
+  simp only [classifyDevelopment, classifyPairLeaf, Tick] at *
+  (by_cases h1 : prev.gg < next.dd) <;>
+    (by_cases h2 : next.gg < prev.dd) <;>
+    (by_cases h3 : prev.core.zg < next.core.zd) <;>
+    (by_cases h4 : next.core.zg < prev.core.zd) <;>
+    simp only [h1, h2, h3, h4, if_true, if_false] <;>
+    simp_all [PairLeaf.development, Tick] <;> omega
 
 /-- 延伸谓词：核心重叠（¬ 分离）。 -/
 def DevExtension (prev next : CenterWithOuter) : Prop := ¬ SeparatedNewPair prev next
@@ -414,12 +533,12 @@ theorem witness_above : classifyPosition sampleCenter.core 30 = CenterPosition.a
 /-- ★反退化见证：sampleCenter→sampleUpNext 是新生（上涨趋势，外缘分离）。 -/
 theorem witness_newBirth :
     classifyDevelopment sampleCenter sampleUpNext = CenterDevelopment.newBirth := by
-  unfold classifyDevelopment sampleCenter sampleUpNext; decide
+  unfold classifyDevelopment classifyPairLeaf sampleCenter sampleUpNext; decide
 
 /-- ★反退化见证：sampleCenter→sampleExpNext 是扩展（核心分离+外缘重叠）。 -/
 theorem witness_expansion :
     classifyDevelopment sampleCenter sampleExpNext = CenterDevelopment.expansion := by
-  unfold classifyDevelopment sampleCenter sampleExpNext; decide
+  unfold classifyDevelopment classifyPairLeaf sampleCenter sampleExpNext; decide
 
 /-! ═══════════════════════════════════════════════════════════════════════
     § 6. still-MISSING 诚实声明 + 边界条件 + 下游推论

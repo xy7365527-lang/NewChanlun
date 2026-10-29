@@ -933,7 +933,12 @@ fn audit_core_fresh_with_policy(
     #[cfg(test)]
     trace_event("catalog_metadata", None);
     // 4. 从未运行的目录行：空初态（generation=0）要求全部行都仍是未运行。
-    verify_unrun_catalog_admitted(tx, cuts.is_empty(), control_owner, work)?;
+    // #1419：本会话规则的目录轴表（13/17/22，与写者同表）才是运行行；其余行恒为未运行。
+    let live_axes = match cuts.last() {
+        Some(cut) => catalog_evidence::rule_axes(&cut.metadata.rule_revision)?,
+        None => &[],
+    };
+    verify_unrun_catalog_admitted(tx, cuts.is_empty(), live_axes, control_owner, work)?;
     // 5. 来源审计与目录证据只接线 OHLC 档；非 OHLC 明确拒绝，不跳过也不宣布永久缩小范围。
     let _profile_id = audit_profile_id_admitted(tx, control_owner, work)?;
     // 只读源 + 内存派生层：overlay 随本函数内的 store 一起销毁，不是 SQLite 写入通道。
@@ -1007,7 +1012,12 @@ fn audit_core_fresh_with_policy(
         trace_event("catalog_current", None);
         // 6''. 当前 13 轴 catalog 行必须与本代最终生成态同根。
         let axes = field(&mut store, &last.roots.generated_state, "catalog_axes")?;
-        catalog_evidence::verify_current_for_audit(tx, &mut store, &axes)?;
+        catalog_evidence::verify_current_for_audit(
+            tx,
+            &mut store,
+            &axes,
+            &last.metadata.rule_revision,
+        )?;
     }
     // 7b. 辅助索引也来自同次history的完整加载，既不跨事务也不减少业务来源核验。
     history::check_deadline(deadline)?;
@@ -1364,11 +1374,12 @@ fn verify_unrun_catalog(
     initial: bool,
     allocation: Option<&sc::capture_allocation::OwnedBudget>,
 ) -> Result<(), String> {
-    verify_unrun_catalog_admitted(tx, initial, allocation, None)
+    verify_unrun_catalog_admitted(tx, initial, &catalog_evidence::AXIS_IDS, allocation, None)
 }
 fn verify_unrun_catalog_admitted(
     tx: &Transaction<'_>,
     initial: bool,
+    live_axes: &[&str],
     allocation: Option<&sc::capture_allocation::OwnedBudget>,
     work: Option<&sc::capture_allocation::scratch::WorkScope>,
 ) -> Result<(), String> {
@@ -1404,7 +1415,15 @@ fn verify_unrun_catalog_admitted(
         let proof = text(&mut row, 2)?;
         let run = text(&mut row, 3)?;
         let evidence = text(&mut row, 4)?;
-        validate_unrun_row(&id, &implemented, &proof, &run, &evidence, initial)?;
+        validate_unrun_row(
+            &id,
+            &implemented,
+            &proof,
+            &run,
+            &evidence,
+            initial,
+            live_axes,
+        )?;
     }
     stmt.finalize().map_err(err)
 }
@@ -1416,8 +1435,9 @@ pub(super) fn validate_unrun_row(
     run: &str,
     evidence: &str,
     initial: bool,
+    live_axes: &[&str],
 ) -> Result<(), String> {
-    if (initial || !catalog_evidence::AXIS_IDS.contains(&id))
+    if (initial || !live_axes.contains(&id))
         && (implemented != "not_implemented"
             || proof != "not_proved"
             || run != "not_run"
@@ -1665,7 +1685,7 @@ mod tests {
         }
     }
 
-    /// 13 轴之外的目录行（未运行行）之一；轴集合只用 `catalog_evidence::AXIS_IDS`，不另抄一份。
+    /// 本会话规则轴表之外的目录行（未运行行）之一；轴集合只用 `catalog_evidence::rule_axes`，不另抄一份。
     fn non_axis_catalog_id(f: &Fixture) -> String {
         let mut stmt = f
             .conn
@@ -1677,8 +1697,12 @@ mod tests {
             .collect::<Result<Vec<_>, _>>()
             .unwrap();
         ids.into_iter()
-            .find(|id| !catalog_evidence::AXIS_IDS.contains(&id.as_str()))
-            .expect("目录必须含 13 轴之外的行")
+            .find(|id| {
+                !catalog_evidence::rule_axes(crate::W_STRUCTURE_RULE_REVISION)
+                    .unwrap()
+                    .contains(&id.as_str())
+            })
+            .expect("目录必须含规则轴表之外的行")
     }
 
     fn publish_one(f: &mut Fixture) {
@@ -2710,7 +2734,10 @@ mod unrun_catalog_owner_tests {
             .map_err(err)?;
         for row in rows {
             let (id, implemented, proof, run, evidence) = row.map_err(err)?;
-            if (initial || !catalog_evidence::AXIS_IDS.contains(&id.as_str()))
+            if (initial
+                || !catalog_evidence::rule_axes(crate::W_STRUCTURE_RULE_REVISION)
+                    .unwrap()
+                    .contains(&id.as_str()))
                 && (implemented != "not_implemented"
                     || proof != "not_proved"
                     || run != "not_run"
@@ -2911,7 +2938,12 @@ impl AuditedState {
             source_check,
         )?;
         let axes = field(&mut store, &cut.roots.generated_state, "catalog_axes")?;
-        catalog_evidence::verify_current_for_audit(tx, &mut store, &axes)?;
+        catalog_evidence::verify_current_for_audit(
+            tx,
+            &mut store,
+            &axes,
+            &cut.metadata.rule_revision,
+        )?;
         #[cfg(test)]
         trace_event("owner_suffix_complete", Some(g));
         let raw_sources = source.map(|source| source.into_raw_facts_retained(&mut retained));

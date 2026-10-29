@@ -20,21 +20,28 @@ pub(super) const CURRENT_CONTRACT: BiContract = BiContract {
     policy: "standard_raw_gap_3;same-price/keep-earlier+extreme-region/1",
     knowledge_domain: "established_direction_with_extreme_root_sets",
 };
+/// #1393：W 后继串的新笔合同同 /2，知识域随 W 初始化政策升级（旧域仅 AsKnown）。
+pub(super) const W_CONTRACT: BiContract = BiContract {
+    knowledge_domain: "raw_adjacent_W_initialization",
+    ..CURRENT_CONTRACT
+};
 const LEGACY_CONTRACT: BiContract = BiContract {
     schema: "s-new-bi/1",
     semantic: "new-bi-dual-coordinate/1",
     policy: "standard_raw_gap_3",
     knowledge_domain: "established_direction_without_extreme_identity_competition",
 };
-/// #1491：布局组件（ADR 0037 §五）与笔合同正交，剥离后按教义部分整串选合同。
+/// #1419 P2/#1491：已登记完整规则各自绑定原笔合同。
 pub(super) fn contract_for_rule(rule: &str) -> Option<BiContract> {
     let (doctrine, _) = crate::v3::layout::split(rule).ok()?;
     match doctrine.as_str() {
         crate::LEGACY_V3_RULE_REVISION
         | "s2-axis-quantifiers+new-bi/1+segment-first/1"
         | "s2-axis-quantifiers+new-bi/1+segment-second/1" => Some(LEGACY_CONTRACT),
+        crate::W_STRUCTURE_RULE_REVISION | crate::W1_STRUCTURE_RULE_REVISION => Some(W_CONTRACT),
         // #1394 合入 #1420：上一代 v2 规则 `+new-bi/2+segment-second/1` 仍是新笔 /2 合同（只读）。
         crate::V3_DOCTRINE_RULE
+        | crate::V3_STRUCTURE_RULE_REVISION
         | "s2-axis-quantifiers+new-bi/2+segment-second/1"
         // #1604：#1493 的段规则只读后仍是新笔 /2 合同。
         | "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1"

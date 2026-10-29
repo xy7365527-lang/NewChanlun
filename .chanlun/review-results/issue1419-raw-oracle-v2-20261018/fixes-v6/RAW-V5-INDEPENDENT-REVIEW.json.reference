@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "run_id": "38ec88bf-42fa-4843-9843-74d13bf27352",
+  "ticket": 1419,
+  "parent_thread_id": "01a12e01-45a1-7173-a3e8-d338d108fb93",
+  "manager_agent_id": "/root/manage_1419_sandcastle",
+  "manager_kind": "codex_native_subagent",
+  "worker_kind": "sandcastle_external_codex",
+  "native_subagent": false,
+  "status": "completed",
+  "mode": "review",
+  "model": "gpt-6-astra",
+  "effort": "xhigh",
+  "sandbox_backend": "no-sandbox",
+  "codex_sandbox": "read-only",
+  "approval_policy": "never",
+  "automatic_claim": false,
+  "automatic_push": false,
+  "automatic_merge": false,
+  "checkout_preserved": true,
+  "expected_head": "1cb46982baa0f6ca06cd0884d602bcaaa8395f2e",
+  "checkout_before": {
+    "root": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree",
+    "branch": "codex/1419-raw-fix-v5-20261018",
+    "head": "1cb46982baa0f6ca06cd0884d602bcaaa8395f2e",
+    "status": ""
+  },
+  "checkout_after": {
+    "root": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-fix-v4-worktree",
+    "branch": "codex/1419-raw-fix-v5-20261018",
+    "head": "1cb46982baa0f6ca06cd0884d602bcaaa8395f2e",
+    "status": ""
+  },
+  "started_at": "2026-10-18T06:17:23.823Z",
+  "ended_at": "2026-10-18T06:26:41.139Z",
+  "process_pid": 9487,
+  "process_exit": {
+    "code": 0,
+    "signal": null
+  },
+  "external_session_id": "01a14da8-6679-7fb2-b013-f40afcc8d2ad",
+  "external_session_log": "/Users/silencehan/.codex/sessions/2026/10/18/rollout-2026-10-18T14-17-29-01a14da8-6679-7fb2-b013-f40afcc8d2ad.jsonl",
+  "output_dir": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-v5-review",
+  "stdout_log": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-v5-review/codex.stdout.jsonl",
+  "stderr_log": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-v5-review/codex.stderr.log",
+  "events_log": "/Volumes/AgentStorage/issue1419-sandcastle-manager-20261018/raw-v5-review/events.jsonl",
+  "prompt_sha256": "1d1e9cde012076d3dcb77c5dcf36e6e4b35a729a9c3e4886bdbe543d2d9e8c51",
+  "result": {
+    "status": "completed",
+    "summary": "CHANGES_REQUIRED。已完成固定 source 1cb46982baa0f6ca06cd0884d602bcaaa8395f2e 的独立只读复审。F1、F2 本轮定向检查通过，F5 可按未变源复用；F8 仍有两处生命周期合同缺口。起止 HEAD/tree 一致，工作区 clean。",
+    "findings": [
+      "F8-1：snapshot/content 与 watch 未共享切面约束。位置：.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/fixed_cut_driver.py:204、:259、:281，以及 driver/driver_v2.py:53。可复现触发：用 test_v2.fixture 构造合法图，通过真实 closed_snapshot→snapshot/content→call 链收集第139代快照，并将返回的 fixed_cut 交给 bind_watch；随后分别修改同代 input_frontier 为999、structure_cut 为 alien-cut、profile_id 为 alien，重建合法节点/hash/qcut，再在同一 Collector 调用 closed_snapshot，最后继续原身份的 watch。三例均接受冲突快照并继续推进：alternative_closed=true、bound_generation=snapshot_generation=139、watch_frontier=139；请求数分别96/95/95，累计工作量354252/351528/351528，帽均为1000000。原因是 snapshot/content 仅与本次参数比较，closed_snapshot 成功后不与已绑定会话状态核对。另实测已验证 profile A 快照后仍可 bind_watch(profile B) 并接受 B；报告声明的调用者可信前件没有实际调用链约束。最小修复：以成功验证的快照建立共享会话上下文，bind_watch 消费该验证结果；snapshot/content/watch 统一检查固定身份及同代完整切面冲突，并保持失败不提交。",
+      "F8-2：watch 忽略 observed_head 的同代完整身份。位置：.chanlun/review-results/issue1419-raw-oracle-v2-20261018/driver/fixed_cut_driver.py:334、:374、:378。可复现触发：先完成真实 fake 闭包收集及绑定，构造具备完整 observed_head、delivery_frontier 和 ContentRef 形状的 watch 正控，再仅将第140代 observed_head.input_frontier 从139改为999，重新生成合法回复摘要；accepted_cut 与 delta 仍为139。实跑正控和负控均 accepted=true、返回前沿139、calls=48、work=162042。同代 observed_head.profile_id、structure_cut 冲突，以及 delivery_frontier.head_generation=999、has_more=true 也均被接受。原因是 exact() 只检查字段集合，之后未读取这些值便提交状态。最小修复：按已绑定 q3-consumer.js 的观测头规则核对完整切面，正确处理 RecomputedWithRevision/as_of_generation=null，并联核投递前沿及 has_more；全部通过后才提交。原 accepted_cut=999/delta=139 锁仍通过，不能替代本项检查。"
+    ],
+    "validation": [
+      "已全文读取 RAW-LIFECYCLE-CONTRACT.md、RAW-LIFECYCLE-ENTRYPOINTS-46A.json 和前审结果；枚举 Collector.__init__/call/snapshot/content/bind_watch/watch、CollectorV2.closed_snapshot、bind_named_submissions、records/compare_domain。图工具不可调用，复用已有 XERJ 响应并核哈希，未重建索引。",
+      "实跑命令均为 python3 -B -c 内联只读脚本，完整脚本及输出见本次工具记录；未执行会写报告的 run_checks.py 主入口。26项选定 unittest 输出：Ran 26 tests in 39.454s / OK，failures=0、errors=0、observations=193。重复全图 fake 在45次请求、work=1000000时拒绝；分块完整图 fake 在182次请求、work=603763时通过。",
+      "F1：独立补测8种 kind×4种布局，共32组 records 直调及真实 CollectorV2 收集路径。普通公共结构通过；data、嵌套对象、数组中的 JSONText 均在合法重哈希闭包后由公共门拒绝。既有公共正控、internal冲突、缺失/null/非法data、额外受测对象负控通过；known_at、AsKnown、entity_revision、raw_history、withdrawn_objects 仍为 UNVERIFIED。",
+      "F2：另跑2项 Graph 定向测试，输出 Ran 2 tests in 0.007s / OK。20000重复节点在 max_work=1 下 input_calls=0、hash_calls=0、used=1；已到期时均为0。真实构造路径的小帽/到期负控中，请求、hash、deepcopy、mkdir次数均为0。大header键值、嵌套、分片、整数及跨调用累计检查通过；这些只证明逻辑计量，不证明OS硬帽或同步I/O截止。",
+      "生命周期独立轨迹使用真实 Collector 方法和内存 exchange，仅替换文件写出。合并、分次、交错snapshot/content的1/65/65轨迹最终状态相同，前沿269；累计work分别162084/164777/172531，始终共用原预算。另有32个固定身份漂移负控经真实exchange全部原子拒绝；accepted999/watch139明确拒绝。后段非法、传输fake异常、metadata超帽、中途耗尽四类失败均保持切面/游标/去重状态及输入不变；前两类修正后可继续到269，费用不回滚。",
+      "F5复用依据：Graph、header_from_raw、projection、close_projection 与46a基线源码逐字节相同，相关旧证据文件未变；复用前审13项非法头、14类合法头及ContentRef元数据九负控，未机械重跑。",
+      "封包独立核验：200条MANIFEST、201条SHA256SUMS覆盖实际202文件，集合与内容哈希全部一致；差异为修改6、新增42文件。排除两份根清单及补丁自身后，45文件补丁与固定基线到当前HEAD的git diff --binary逐字节一致，SHA256=56a3672a8538ceea0f8de676f50120eb7349fe39ae47d8fe8e25ad1446c26440。77份指定原件、154项旧清单内容保字节，28份来源副本与原件一致；35份Python AST、77份JSON、5份静态来源及14段摘录、6次历史运行的90项源码身份核验通过。",
+      "授权与边界未变：14项原合同字段及资金/资源帽一致，authorization/execution_authorized=false，source/tree/binary/frozen rule仍PENDING_SOURCE；schema正控及6项授权/来源负控通过。结束HEAD=1cb46982baa0f6ca06cd0884d602bcaaa8395f2e，tree=71c474dcbd39e2cddd649d3f7b39caf5f35e67e3，git status为空。",
+      "未重跑139前缀全几何或23项无关toy；未运行产品、S3/Q、服务、DB、cargo/rustc、Lean、Long、历史、浏览器或真实进程信号。正式源/类型/接线、实际生命周期、市场源、原量、完整历史、非空full-group、正式双跑、持久恢复及整票仍未验。未修改checkout/Git/tracker、读取凭据或开启工蜂；不批准后续执行、关票或整图完成。"
+    ]
+  },
+  "failure_reason": null
+}

@@ -51,6 +51,57 @@ pub(super) const AXIS_IDS: [&str; 13] = [
     "CC-010", "CC-054", "CC-055", "CC-056",
 ];
 
+/// #1419/#1424/#1393：目录轴表随规则修订走（与写者 `tb02a_facts::CatalogAxisTable` 同一张表）；
+/// 13 轴（A/B）、17 轴（+段）与 22 轴（+段、中枢、中枢对；含 W 后继串）。未声明规则即拒绝。
+pub(super) fn rule_axes(rule: &str) -> Result<&'static [&'static str], String> {
+    crate::tb02a_facts::CatalogAxisTable::for_rule_revision(rule)
+        .map(|table| table.axes())
+        .ok_or_else(|| err(format!("目录轴规则修订未声明：{rule}")))
+}
+
+/// 段/中枢/中枢对轴的范围与具名子义务（与写者 `catalog_axes_admitted` 同一组常量）。
+fn axis_scope(
+    id: &str,
+) -> (
+    &'static str,
+    &'static [&'static str],
+    &'static [&'static str],
+) {
+    const SEGMENT_DELIVERED: [&str; 2] = [
+        "finite_complete_prefix_strict_second",
+        "independent_stroke_and_segment_break_facts",
+    ];
+    const SEGMENT_DEFERRED: [&str; 3] = [
+        "general_equal_identity",
+        "general_scan_continuation",
+        "global_G006_bridge",
+    ];
+    match id {
+        "CC-011" | "CC-012" | "CC-013" | "CC-014" => {
+            ("TB-02-D", &SEGMENT_DELIVERED, &SEGMENT_DEFERRED)
+        }
+        "CC-016" | "CC-017" | "CC-022" => (
+            "TB-02-E",
+            &crate::tb02e::DELIVERED_SUBOBLIGATIONS,
+            &crate::tb02e::DEFERRED_SCOPE,
+        ),
+        "CC-018" | "CC-020" => (
+            "TB-02-F",
+            &crate::tb02f::DELIVERED_SUBOBLIGATIONS,
+            &crate::tb02f::DEFERRED_SCOPE,
+        ),
+        _ => ("TB-02-A", &[], &[]),
+    }
+}
+
+/// 写者对段后三轴与中枢/中枢对各轴声明 `not_implemented`（只交付具名子义务）。
+fn axis_implemented(id: &str) -> bool {
+    !matches!(
+        id,
+        "CC-012" | "CC-013" | "CC-014" | "CC-016" | "CC-017" | "CC-018" | "CC-020" | "CC-022"
+    )
+}
+
 const AXIS_FIELDS: [&str; 4] = ["impl_status", "proof_status", "run_status", "evidence"];
 const EVIDENCE_CORE_FIELDS: [&str; 3] = ["scope", "object_ids", "waiting_reasons"];
 const CC056_CHANGE_FIELDS: [&str; 3] = ["raw_revisions", "withdrawals", "replaces"];
@@ -148,14 +199,17 @@ fn array_field_ref<'r>(
 fn generated_axes_ref(
     s: &mut (impl CodecRead + ?Sized),
     generated_state: sc::RefView<'_>,
+    rule: &str,
 ) -> Result<RefValue, String> {
     if generated_state.kind() != Kind::Object {
         return Err(err("生成态不是对象"));
     }
+    let ids = rule_axes(rule)?;
     let axes = field_ref(s, generated_state, "catalog_axes")?;
-    if axes.kind() != Kind::Object || axes.extent() != Some(AXIS_IDS.len() as u64) {
+    if axes.kind() != Kind::Object || axes.extent() != Some(ids.len() as u64) {
         return Err(err(format!(
-            "生成态 catalog_axes 不是13轴对象（extent={:?}）",
+            "生成态 catalog_axes 不是{}轴对象（extent={:?}）",
+            ids.len(),
             axes.extent()
         )));
     }
@@ -209,8 +263,9 @@ fn require_ohlc(profile_id: &str) -> Result<(), String> {
 fn generated_axes(
     s: &mut sc::MemoryNodes,
     generated_state: &ContentRef,
+    rule: &str,
 ) -> Result<ContentRef, String> {
-    generated_axes_ref(s, generated_state.into())?;
+    generated_axes_ref(s, generated_state.into(), rule)?;
     field(s, generated_state, "catalog_axes")
 }
 
@@ -307,17 +362,20 @@ struct AxisState {
 fn axes_entries<'r>(
     s: &mut (impl CodecRead + ?Sized),
     axes: impl Into<sc::RefView<'r>>,
+    rule: &str,
 ) -> Result<sc::CodecVec<AxisState>, String> {
     let axes = axes.into();
-    if axes.kind() != Kind::Object || axes.extent() != Some(AXIS_IDS.len() as u64) {
+    let ids = rule_axes(rule)?;
+    if axes.kind() != Kind::Object || axes.extent() != Some(ids.len() as u64) {
         return Err(err(format!(
-            "目录轴根不是13轴对象（extent={:?}）",
+            "目录轴根不是{}轴对象（extent={:?}）",
+            ids.len(),
             axes.extent()
         )));
     }
     let mut out = bj::new_work(s.allocation_budget().as_ref());
-    s.native_codec_room(&mut out, AXIS_IDS.len()).map_err(err)?;
-    for id in AXIS_IDS {
+    s.native_codec_room(&mut out, ids.len()).map_err(err)?;
+    for &id in ids {
         let axis = field_ref(s, axes, id)?;
         if axis.kind() != Kind::Object || axis.extent() != Some(AXIS_FIELDS.len() as u64) {
             return Err(err(format!("{id} 轴不是四字段状态对象")));
@@ -325,7 +383,12 @@ fn axes_entries<'r>(
         let impl_status = text_ref(s, &axis, "impl_status")?;
         let proof_status = text_ref(s, &axis, "proof_status")?;
         let run_status = text_ref(s, &axis, "run_status")?;
-        if impl_status != "implemented"
+        let want_impl = if axis_implemented(id) {
+            "implemented"
+        } else {
+            "not_implemented"
+        };
+        if impl_status != want_impl
             || proof_status != "not_proved"
             || !matches!(run_status.as_str(), "run" | "not_run" | "waiting")
         {
@@ -338,22 +401,38 @@ fn axes_entries<'r>(
             return Err(err(format!("{id} 轴 evidence 不是对象")));
         }
         // 必填字段全在 + extent 相符 ⟹ 字段集合恰为声明集合（不缺、不多）。
-        let expected = if id == "CC-056" {
-            EVIDENCE_CORE_FIELDS.len() + CC056_CHANGE_FIELDS.len()
-        } else {
-            EVIDENCE_CORE_FIELDS.len()
-        };
+        let (scope, delivered, deferred) = axis_scope(id);
+        let named = scope != "TB-02-A";
+        let expected = EVIDENCE_CORE_FIELDS.len()
+            + if id == "CC-056" {
+                CC056_CHANGE_FIELDS.len()
+            } else {
+                0
+            }
+            + if named { 2 } else { 0 };
         if evidence.extent() != Some(expected as u64) {
             return Err(err(format!(
                 "{id} 轴 evidence 字段数不符（extent={:?}，应为 {expected}）",
                 evidence.extent()
             )));
         }
-        if text_ref(s, &evidence, "scope")? != "TB-02-A" {
-            return Err(err(format!("{id} 轴 evidence.scope 不是 TB-02-A")));
+        if text_ref(s, &evidence, "scope")? != scope {
+            return Err(err(format!("{id} 轴 evidence.scope 不是 {scope}")));
         }
         for key in EVIDENCE_CORE_FIELDS.iter().skip(1) {
             array_field_ref(s, &evidence, key)?;
+        }
+        if named {
+            // 具名子义务逐项等于写者常量（交付/延后两张清单，序与值都绑定）。
+            for (key, want) in [
+                ("delivered_subobligations", delivered),
+                ("deferred_subobligations", deferred),
+            ] {
+                let list = array_field_ref(s, &evidence, key)?;
+                if list.digest().map_err(err)? != hash_json(&Value::from(want.to_vec()))? {
+                    return Err(err(format!("{id} 轴 evidence.{key} 与写者具名清单不同")));
+                }
+            }
         }
         if id == "CC-056" {
             for key in CC056_CHANGE_FIELDS {
@@ -388,7 +467,7 @@ pub(super) fn build_template<'changes>(
     let withdrawals = withdrawals.into();
     let replaces = replaces.into();
     require_ohlc(&metadata.profile_id)?;
-    let axes = generated_axes_ref(store, generated_state.into())?;
+    let axes = generated_axes_ref(store, generated_state.into(), &metadata.rule_revision)?;
     let run = declared_run(counts);
     let counts = [
         counts.objects,
@@ -665,13 +744,13 @@ fn verify_cut_in_store(
         return Err(err("生成态 structure_cut 与冻结生成 cut 不同"));
     }
     let axes = field_ref(store, evidence.view(), "axes")?;
-    let state_axes = generated_axes_ref(store, generated_state)?;
+    let state_axes = generated_axes_ref(store, generated_state, metadata.rule_revision)?;
     if axes.digest().map_err(err)? != state_axes.digest().map_err(err)? {
         return Err(err(
             "catalog_evidence.axes 不是同次最终生成态的 catalog_axes 值边",
         ));
     }
-    let entries = axes_entries(store, &axes)?;
+    let entries = axes_entries(store, &axes, metadata.rule_revision)?;
     let cc056 = entries
         .iter()
         .find(|entry| entry.id == "CC-056")
@@ -761,8 +840,9 @@ pub(super) fn stage_current(
     tx: &Transaction<'_>,
     store: &mut dyn NodeStore,
     axes: &ContentRef,
+    rule: &str,
 ) -> Result<(), String> {
-    let entries = axes_entries(store, axes)?;
+    let entries = axes_entries(store, axes, rule)?;
     for entry in &entries {
         let reference = reference_text(store, &entry.evidence)?;
         let changed = tx
@@ -793,26 +873,35 @@ pub(super) fn verify_current(
     tx: &Transaction<'_>,
     store: &mut dyn NodeStore,
     axes: &ContentRef,
+    rule: &str,
 ) -> Result<(), String> {
-    verify_current_in_store(tx, &mut super::audit_store::StoreView::generic(store), axes)
+    verify_current_in_store(
+        tx,
+        &mut super::audit_store::StoreView::generic(store),
+        axes,
+        rule,
+    )
 }
 pub(super) fn verify_current_for_audit<'r>(
     tx: &Transaction<'_>,
     store: &mut super::history::HashReader<'_>,
     axes: impl Into<sc::RefView<'r>>,
+    rule: &str,
 ) -> Result<(), String> {
     verify_current_in_store(
         tx,
         &mut super::audit_store::StoreView::for_audit(store),
         axes.into(),
+        rule,
     )
 }
 fn verify_current_in_store<'r>(
     tx: &Transaction<'_>,
     store: &mut super::audit_store::StoreView<'_, '_>,
     axes: impl Into<sc::RefView<'r>>,
+    rule: &str,
 ) -> Result<(), String> {
-    let entries = axes_entries(store, axes)?;
+    let entries = axes_entries(store, axes, rule)?;
     let budget = store.allocation_budget();
     for entry in &entries {
         let read_error = |e| err(format!("读 catalog[{}] 失败：{e}", entry.id));
@@ -1064,7 +1153,15 @@ mod owned_catalog_temp_tests {
         let normal_axes = normal_source
             .lookup_field_ref(generated.view(), "catalog_axes")
             .unwrap();
-        let normal = axes_entries(&mut normal_source, normal_axes.view()).unwrap();
+        let rule = audited
+            .cuts
+            .last()
+            .unwrap()
+            .metadata
+            .rule_revision
+            .as_str()
+            .to_string();
+        let normal = axes_entries(&mut normal_source, normal_axes.view(), &rule).unwrap();
         let expected: Vec<_> = normal
             .iter()
             .map(|e| {
@@ -1098,7 +1195,7 @@ mod owned_catalog_temp_tests {
                 let axes = store
                     .lookup_field_ref(generated.view(), "catalog_axes")
                     .unwrap();
-                let entries = axes_entries(store, axes.view()).unwrap();
+                let entries = axes_entries(store, axes.view(), &rule).unwrap();
                 let actual: Vec<_> = entries
                     .iter()
                     .map(|e| {
@@ -1112,14 +1209,14 @@ mod owned_catalog_temp_tests {
                     })
                     .collect();
                 assert_eq!(actual, expected);
-                assert_eq!(entries.len(), 13);
+                assert_eq!(entries.len(), rule_axes(&rule).unwrap().len());
                 for e in &entries {
                     assert!(matches!(&e.impl_status, TextValue::Owned(_)));
                     assert!(matches!(&e.proof_status, TextValue::Owned(_)));
                     assert!(matches!(&e.run_status, TextValue::Owned(_)));
                     assert!(matches!(&e.evidence, RefValue::Owned(_)));
                 }
-                verify_current_in_store(&tx, store, axes.view()).unwrap();
+                verify_current_in_store(&tx, store, axes.view(), &rule).unwrap();
                 let axis = field_ref(store, axes.view(), "CC-001").unwrap();
                 let retained = budget.snapshot().live_requested_layout_bytes;
                 assert!(retained > capture_live);
@@ -1137,7 +1234,7 @@ mod owned_catalog_temp_tests {
                 assert_eq!(entries[0].evidence.digest().unwrap(), expected[0].4);
                 drop(ballast);
                 assert_eq!(budget.snapshot().live_requested_layout_bytes, retained);
-                verify_current_in_store(&tx, store, axes.view()).unwrap();
+                verify_current_in_store(&tx, store, axes.view(), &rule).unwrap();
             },
         );
         drop(capture);
@@ -1365,7 +1462,8 @@ mod tests {
         let profile_id = text("profile_id");
         assert_eq!(profile_id, tb02a::PROFILE);
         let profile_hash = text("profile_hash");
-        let rule = text("rule_revision");
+        // #1393×#1419：生成夹具取 S3 写者唯一规则（W 后继串，22 轴）；v2 测试库的历史规则串只读。
+        let rule = crate::W_STRUCTURE_RULE_REVISION.to_string();
         let catalog = text("catalog_revision");
         let scope: Value = strict_json(text("scope").as_bytes()).unwrap();
         let frontier = raw.len() as i64 - 1;
@@ -1387,6 +1485,7 @@ mod tests {
             catalog_revision: &catalog,
             scope: &scope,
             semantic_commit_ns: None,
+            structure_prior: crate::v3::generation::StructurePriors::default(),
             prior: PriorState {
                 bi_records: vec![],
                 version_record: None,
@@ -1406,7 +1505,7 @@ mod tests {
             &rule,
         )
         .unwrap();
-        let axes = generated_axes(&mut store, &generated.generated_state).unwrap();
+        let axes = generated_axes(&mut store, &generated.generated_state, &rule).unwrap();
         let scope_ref = sc::write_value(&mut store, &cv(&scope).unwrap())
             .unwrap()
             .content_ref();
@@ -1760,7 +1859,7 @@ mod tests {
         let axes = rebuild(
             &mut f.store,
             &f.axes,
-            &AXIS_IDS,
+            rule_axes(&f.metadata.rule_revision).unwrap(),
             "CC-056",
             V::Edge(cc056.digest().unwrap()),
         );
@@ -1884,8 +1983,8 @@ mod tests {
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .unwrap();
-        stage_current(&tx, &mut f.store, &f.axes).unwrap();
-        verify_current(&tx, &mut f.store, &f.axes).unwrap();
+        stage_current(&tx, &mut f.store, &f.axes, &f.metadata.rule_revision).unwrap();
+        verify_current(&tx, &mut f.store, &f.axes, &f.metadata.rule_revision).unwrap();
         let staged = read_row(&tx, "CC-001");
         assert_eq!(staged.0, "implemented");
         assert_eq!(staged.1, "not_proved");
@@ -1896,16 +1995,24 @@ mod tests {
         tx.rollback().unwrap();
         assert_eq!(read_row(&f.conn, "CC-001"), before);
 
-        // 真提交一次暂写，13 行逐轴可核。
+        // 真提交一次暂写，规则轴表逐轴可核（W 后继串 22 轴；段后三轴与中枢/对各轴写者声明 not_implemented）。
         let tx = f
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .unwrap();
-        stage_current(&tx, &mut f.store, &f.axes).unwrap();
+        stage_current(&tx, &mut f.store, &f.axes, &f.metadata.rule_revision).unwrap();
         tx.commit().unwrap();
-        for id in AXIS_IDS {
+        for &id in rule_axes(&f.metadata.rule_revision).unwrap() {
             let (impl_status, proof_status, run_status, evidence_json) = read_row(&f.conn, id);
-            assert_eq!(impl_status, "implemented", "{id}");
+            assert_eq!(
+                impl_status,
+                if axis_implemented(id) {
+                    "implemented"
+                } else {
+                    "not_implemented"
+                },
+                "{id}"
+            );
             assert_eq!(proof_status, "not_proved", "{id}");
             assert!(
                 matches!(run_status.as_str(), "run" | "not_run" | "waiting"),
@@ -1919,7 +2026,7 @@ mod tests {
             );
         }
         let tx = f.conn.transaction().unwrap();
-        verify_current(&tx, &mut f.store, &f.axes).unwrap();
+        verify_current(&tx, &mut f.store, &f.axes, &f.metadata.rule_revision).unwrap();
         tx.rollback().unwrap();
 
         // 12 轴（缺一轴）→ 暂写拒绝且不写任何行。
@@ -1927,7 +2034,7 @@ mod tests {
         let twelve = rebuild(
             &mut f.store,
             &f.axes,
-            &AXIS_IDS[..12],
+            &rule_axes(&f.metadata.rule_revision).unwrap()[..12],
             "CC-001",
             V::Edge(cc001.digest().unwrap()),
         );
@@ -1935,8 +2042,9 @@ mod tests {
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .unwrap();
-        let error = stage_current(&tx, &mut f.store, &twelve).unwrap_err();
-        assert!(error.contains("13轴"), "{error}");
+        let error =
+            stage_current(&tx, &mut f.store, &twelve, &f.metadata.rule_revision).unwrap_err();
+        assert!(error.contains("22轴"), "{error}");
         tx.rollback().unwrap();
 
         // 状态列篡改 → 回读拒绝。
@@ -1947,7 +2055,7 @@ mod tests {
             )
             .unwrap();
         let tx = f.conn.transaction().unwrap();
-        assert!(verify_current(&tx, &mut f.store, &f.axes).is_err());
+        assert!(verify_current(&tx, &mut f.store, &f.axes, &f.metadata.rule_revision).is_err());
         tx.rollback().unwrap();
 
         // 旧整段大 JSON（非规范四字段引用）→ 拒绝。
@@ -1958,7 +2066,7 @@ mod tests {
             )
             .unwrap();
         let tx = f.conn.transaction().unwrap();
-        assert!(verify_current(&tx, &mut f.store, &f.axes).is_err());
+        assert!(verify_current(&tx, &mut f.store, &f.axes, &f.metadata.rule_revision).is_err());
         tx.rollback().unwrap();
 
         // 引用闭包：藏掉证据里一个真实存在、路径核验不会触碰的叶子 → 仍须拒绝。
@@ -1973,8 +2081,9 @@ mod tests {
             inner: &mut f.store,
             hidden,
         };
+        let rule = f.metadata.rule_revision.clone();
         let tx = f.conn.transaction().unwrap();
-        assert!(verify_current(&tx, &mut source, &f.axes).is_err());
+        assert!(verify_current(&tx, &mut source, &f.axes, &rule).is_err());
         tx.rollback().unwrap();
 
         // 缺行 → stage/verify 都拒绝；失败事务回滚后已提交的新值不受影响。
@@ -1985,8 +2094,8 @@ mod tests {
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .unwrap();
-        assert!(stage_current(&tx, &mut f.store, &f.axes).is_err());
-        assert!(verify_current(&tx, &mut f.store, &f.axes).is_err());
+        assert!(stage_current(&tx, &mut f.store, &f.axes, &f.metadata.rule_revision).is_err());
+        assert!(verify_current(&tx, &mut f.store, &f.axes, &f.metadata.rule_revision).is_err());
         tx.rollback().unwrap();
         assert_eq!(read_row(&f.conn, "CC-001").0, "implemented");
     }

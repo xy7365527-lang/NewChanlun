@@ -596,6 +596,13 @@ fn build_catalog(
     } else {
         Some(field(s, evidence.view(), "axes")?)
     };
+    // #1419：运行轴集合 = 本 cut 规则的目录轴表（与写者/目录证据同一张表）。
+    let live_axes: &[&str] = if axes.is_some() {
+        let rule = text(s, evidence.view(), "rule_revision")?;
+        catalog_evidence::rule_axes(rule.as_str())?
+    } else {
+        &[]
+    };
     let mut stmt = CheckedStatement::prepare(
         tx,
         c"SELECT catalog_id,kind,title,domain,branches_json FROM catalog ORDER BY catalog_id",
@@ -608,23 +615,22 @@ fn build_catalog(
     while let Some(mut row) = stmt.next().map_err(err)? {
         s.job.pre_io_check().map_err(err)?;
         let id = TextValue::from_sql(&mut row, 0, budget.as_ref()).map_err(err)?;
-        let (implemented, proof, run, ev) =
-            if catalog_evidence::AXIS_IDS.contains(&id.as_str()) && axes.is_some() {
-                let axis = field(s, axes.as_ref().unwrap().view(), &id)?;
-                (
-                    text(s, axis.view(), "impl_status")?,
-                    text(s, axis.view(), "proof_status")?,
-                    text(s, axis.view(), "run_status")?,
-                    field(s, axis.view(), "evidence")?,
-                )
-            } else {
-                (
-                    TextValue::from_str("not_implemented", budget.as_ref())?,
-                    TextValue::from_str("not_proved", budget.as_ref())?,
-                    TextValue::from_str("not_run", budget.as_ref())?,
-                    s.native_ref_clone(empty).map_err(err)?,
-                )
-            };
+        let (implemented, proof, run, ev) = if live_axes.contains(&id.as_str()) && axes.is_some() {
+            let axis = field(s, axes.as_ref().unwrap().view(), &id)?;
+            (
+                text(s, axis.view(), "impl_status")?,
+                text(s, axis.view(), "proof_status")?,
+                text(s, axis.view(), "run_status")?,
+                field(s, axis.view(), "evidence")?,
+            )
+        } else {
+            (
+                TextValue::from_str("not_implemented", budget.as_ref())?,
+                TextValue::from_str("not_proved", budget.as_ref())?,
+                TextValue::from_str("not_run", budget.as_ref())?,
+                s.native_ref_clone(empty).map_err(err)?,
+            )
+        };
         if let Some(i) = names.iter().position(|name| *name == implemented.as_str()) {
             counts[i] += 1;
         }
@@ -947,6 +953,447 @@ mod tests {
         let logical = render_fixture(&mut graph, &p.root).unwrap();
         (p, catalog, logical)
     }
+    /// 已发布 cut 的原件，只读审计后展开；不得用生成草案代替正式发布。
+    fn published_w_cut(f: &mut Fixture, g: i64) -> (Value, Value, Value) {
+        let tx = f.conn.transaction().unwrap();
+        let audited = state::audit(&tx).unwrap();
+        let cut = &audited.cuts[(g - 1) as usize];
+        assert_eq!(cut.metadata.generation, g);
+        let mut source = content_store::ReadStore::new(&tx).unwrap();
+        let mut graph = history::HashReader::new(&mut source);
+        (
+            render_fixture(&mut graph, &cut.snapshot).unwrap(),
+            render_fixture(&mut graph, &cut.delta).unwrap(),
+            render_fixture(&mut graph, cut.roots.generated_state.view()).unwrap(),
+        )
+    }
+
+    fn w_kind(snapshot: &Value, kind: &str) -> Vec<Value> {
+        snapshot["objects"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|o| o["kind"] == kind)
+            .cloned()
+            .collect()
+    }
+
+    // bounded-layout/1 排序的是 CC-004..007 请求段；后接的结构分类请求另有具名槽。
+    // 保持整数组原下标，验证该段连续，不过滤后重新编号。
+    fn is_window_request(request: &Value) -> bool {
+        let id: Value = serde_json::from_str(request["request_id"].as_str().unwrap()).unwrap();
+        let kind = id[0].as_str().or_else(|| id[0][0].as_str()).unwrap();
+        matches!(
+            kind,
+            "CC-004.initialization"
+                | "CC-004.undetermined_raw"
+                | "CC-004.inclusion_step"
+                | "CC-005.inclusion_group"
+                | "CC-006.local_shape"
+                | "CC-007.fractal_description"
+        )
+    }
+
+    fn w_request_order(request: &Value) -> (u8, i64, usize) {
+        let id: Value = serde_json::from_str(request["request_id"].as_str().unwrap()).unwrap();
+        let (kind, tail, label) = if let Some(slot) = id[0].as_array() {
+            let labels = [
+                "shape_description",
+                "descriptive_labels",
+                "subsequent_development",
+            ];
+            (
+                slot[0].as_str().unwrap(),
+                &slot[1],
+                4 + labels.iter().position(|l| id[1] == *l).unwrap(),
+            )
+        } else {
+            (id[0].as_str().unwrap(), &id[1], 0)
+        };
+        if kind == "CC-004.initialization" {
+            return (0, 0, 0);
+        }
+        if tail == "pending" {
+            return (2, 0, usize::from(kind == "CC-006.local_shape"));
+        }
+        let start = if tail.is_array() { &tail[0] } else { tail }
+            .as_str()
+            .unwrap()
+            .parse()
+            .unwrap();
+        let label = match kind {
+            "CC-004.undetermined_raw" => 0,
+            "CC-004.inclusion_step" => 1,
+            "CC-005.inclusion_group" => 2,
+            "CC-006.local_shape" => 3,
+            _ => label,
+        };
+        (1, start, label)
+    }
+
+    /// 按 request_id 配对，摘要用完整请求值比较，不排序发布数组。
+    /// 无窗口的 Initialization / Pending 不具有变化坐标，不参与 m。
+    fn w_change_boundary(old: &[Value], new: &[Value]) -> Option<(i64, usize)> {
+        let mut earliest = None;
+        for (side, other) in [(old, new), (new, old)] {
+            for r in side {
+                let same = other.iter().find(|x| x["request_id"] == r["request_id"]);
+                if same != Some(r) {
+                    let (phase, coord, label) = w_request_order(r);
+                    if phase == 1 {
+                        let key = (coord, label);
+                        earliest = Some(earliest.map_or(key, |m: (i64, usize)| m.min(key)));
+                    }
+                }
+            }
+        }
+        earliest
+    }
+
+    #[test]
+    fn w_requests_published_prior_prefix_stability() {
+        let mut f = Fixture::new();
+        let mut previous = Vec::new();
+        let (mut finite_prefix, mut saw_delete, mut saw_insert, mut saw_revision) =
+            (false, false, false, false);
+        for (n, row, revision) in [
+            (1, ("r0", 0, 5, 10, 0, 5), 1),
+            (2, ("r1", 10, 5, 8, 2, 5), 1),
+            (3, ("r2", 20, 7, 11, 3, 7), 1),
+            (4, ("r3", 30, 9, 13, 5, 9), 1),
+            (5, ("insert", 15, 6, 10, 2, 6), 1),
+            (6, ("r3", 30, 4, 8, 0, 4), 2),
+        ] {
+            // Fixture::publish 从上一代独立索引读取 structure_prior，真实提交后才读 requests。
+            let (e, t) = f.accept_begin(n, row, revision);
+            f.publish(&e, &t).unwrap();
+            let (snapshot, _, _) = published_w_cut(&mut f, n);
+            let knowledge = w_kind(&snapshot, "CC-054.knowledge_state");
+            assert_eq!(knowledge.len(), 1);
+            let all_requests = knowledge[0]["payload"]["requests"].as_array().unwrap();
+            let end = all_requests
+                .iter()
+                .position(|r| !is_window_request(r))
+                .unwrap_or(all_requests.len());
+            assert!(all_requests[end..].iter().all(|r| !is_window_request(r)));
+            let requests = &all_requests[..end];
+            assert_eq!(w_request_order(&requests[0]).0, 0);
+            assert!(
+                requests
+                    .windows(2)
+                    .all(|pair| w_request_order(&pair[0]) < w_request_order(&pair[1])),
+                "g{n} 原发布数组不按阶段/坐标/label 全序"
+            );
+            if n > 1 {
+                let m = w_change_boundary(&previous, requests);
+                for (i, old) in previous.iter().enumerate() {
+                    let (phase, coord, label) = w_request_order(old);
+                    if phase == 1 && m.is_none_or(|m| (coord, label) < m) {
+                        assert_eq!(
+                            requests.get(i),
+                            Some(old),
+                            "g{n} 稳定前缀在原数组下标 {i} 漂移"
+                        );
+                        finite_prefix |= m.is_some();
+                    }
+                    if !requests
+                        .iter()
+                        .any(|r| r["request_id"] == old["request_id"])
+                        && phase == 1
+                    {
+                        saw_delete = true;
+                        // 纯删除探针取真实旧侧原件；新侧为空，必须仍贡献旧坐标。
+                        assert_eq!(
+                            w_change_boundary(std::slice::from_ref(old), &[]),
+                            Some((coord, label))
+                        );
+                    }
+                }
+                saw_insert |= requests.iter().any(|r| {
+                    w_request_order(r).0 == 1
+                        && !previous.iter().any(|p| p["request_id"] == r["request_id"])
+                });
+                saw_revision |= requests.iter().any(|r| {
+                    w_request_order(r).0 == 1
+                        && previous
+                            .iter()
+                            .any(|p| p["request_id"] == r["request_id"] && p != r)
+                });
+            }
+            previous = requests.to_vec();
+        }
+        assert!(finite_prefix, "须有有限 m 且非空前缀的真实相邻发布");
+        assert!(saw_delete && saw_insert && saw_revision);
+    }
+
+    #[test]
+    fn w2_replacement_scope_revision_and_no_fallback() {
+        let mut f = Fixture::new();
+        for (n, row) in [
+            (1, ("scope0", 0, 5, 10, 0, 5)),
+            (2, ("scope1", 10, 5, 8, 2, 5)),
+            (3, ("scope2", 20, 7, 11, 3, 7)),
+        ] {
+            let (e, t) = f.accept_begin(n, row, 1);
+            f.publish(&e, &t).unwrap();
+        }
+        let (snapshot, delta, _) = published_w_cut(&mut f, 3);
+        let raws = snapshot["withdrawn_objects"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|o| o["kind"] == "CC-004.undetermined_raw")
+            .collect::<Vec<_>>();
+        assert_eq!(raws.len(), 2);
+        let groups = w_kind(&snapshot, "CC-005.inclusion_group");
+        let earlier_target = groups
+            .iter()
+            .find(|g| {
+                g["payload"]["members"]
+                    .as_array()
+                    .unwrap()
+                    .contains(&json!("0"))
+            })
+            .unwrap()["object_id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let (e, t) = f.accept_begin(4, ("scope0", 0, 5, 9, 1, 5), 2);
+        f.publish(&e, &t).unwrap();
+        let target_death: i64 = f
+            .conn
+            .query_row(
+                "SELECT withdrawn_generation FROM s_content_objects WHERE object_id=?1",
+                [&earlier_target],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(target_death, 4, "先前合法替代目标须在后来一代真实撤回");
+        for raw in raws {
+            let edges = delta["replaces"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|edge| edge["old_object_id"] == raw["object_id"])
+                .collect::<Vec<_>>();
+            assert_eq!(edges.len(), 1);
+            let target = groups
+                .iter()
+                .find(|o| o["object_id"] == edges[0]["new_object_id"])
+                .unwrap();
+            assert!(target["payload"]["members"]
+                .as_array()
+                .unwrap()
+                .contains(&raw["payload"]["raw"]["source_coord"]));
+        }
+        {
+            let tx = f.conn.transaction().unwrap();
+            state::audit(&tx).unwrap();
+        }
+        let wrong = groups
+            .iter()
+            .find(|g| {
+                !g["payload"]["members"]
+                    .as_array()
+                    .unwrap()
+                    .contains(&json!("0"))
+            })
+            .unwrap();
+        f.conn
+            .execute(
+                "UPDATE s_content_objects SET superseded_by=?1 WHERE kind='CC-004.undetermined_raw'",
+                [wrong["object_id"].as_str().unwrap()],
+            )
+            .unwrap();
+        let tx = f.conn.transaction().unwrap();
+        let failure = state::audit(&tx).err().unwrap();
+        assert!(failure.contains("替代目标槽位/出生代不同"), "{failure}");
+    }
+
+    /// #1419：原 tb02u 生命周期判据经真实 S3 接纳、Begin、发布与 recover 承接。
+    #[test]
+    fn w_published_lifecycle_first_known_revision_replaces_and_recovery() {
+        let mut f = Fixture::with_clock_plan(8, 4, &[("recover-w", 35)]);
+        let mut waiting: Vec<Value> = Vec::new();
+        let mut historical = Vec::new();
+        for (n, row, revision) in [
+            (1, ("w0", 0, 5, 10, 0, 5), 1),
+            (2, ("w1", 10, 5, 8, 2, 5), 1),
+            (3, ("w1", 10, 5, 9, 1, 5), 2),
+        ] {
+            let (e, t) = f.accept_begin(n, row, revision);
+            f.publish(&e, &t).unwrap();
+            let (snapshot, _, _) = published_w_cut(&mut f, n);
+            let pending = w_kind(&snapshot, "CC-004.undetermined_raw");
+            assert_eq!(pending.len(), if n == 1 { 1 } else { 2 });
+            assert!(w_kind(&snapshot, "CC-005.inclusion_group").is_empty());
+            assert!(w_kind(&snapshot, "CC-006.local_shape").is_empty());
+            for o in &pending {
+                assert_eq!(o["payload"]["direction_state"], "Undetermined");
+                assert_eq!(o["input_refs"].as_array().unwrap().len(), 1);
+                let coord = o["payload"]["raw"]["source_coord"].as_str().unwrap();
+                let birth = if coord == "0" {
+                    "1"
+                } else if n == 2 {
+                    "2"
+                } else {
+                    "3"
+                };
+                assert_eq!(o["first_known_generation"], birth);
+                assert_eq!(o["payload"]["pending_since_cut"], format!("cut-{birth}"));
+            }
+            if n > 1 {
+                assert_eq!(
+                    pending
+                        .iter()
+                        .find(|o| o["payload"]["raw"]["source_coord"] == "0")
+                        .unwrap(),
+                    &waiting[0]
+                );
+            }
+            if n == 3 {
+                let old = waiting
+                    .iter()
+                    .find(|o| o["payload"]["raw"]["source_coord"] == "10")
+                    .unwrap();
+                let new = pending
+                    .iter()
+                    .find(|o| o["payload"]["raw"]["source_coord"] == "10")
+                    .unwrap();
+                assert_ne!(
+                    old["object_id"], new["object_id"],
+                    "raw 修订必须换未定对象身份"
+                );
+            }
+            waiting = pending;
+            historical.push(projected(&mut f, n, HistoryMode::AsKnown));
+        }
+        f.recover_writer("2", "recover-w");
+        for (i, (old, catalog, logical)) in historical.iter().enumerate() {
+            let (after, after_catalog, after_logical) =
+                projected(&mut f, (i + 1) as i64, HistoryMode::AsKnown);
+            assert_eq!(after.root, old.root);
+            assert_eq!(after.digest, old.digest);
+            assert_eq!(plain_wire(&after), plain_wire(old));
+            assert_eq!(&after_catalog, catalog);
+            assert_eq!(&after_logical, logical, "recover 后完整 AsKnown 不变");
+        }
+        let (e, t) = f.accept_begin(4, ("w2", 20, 7, 11, 3, 7), 1);
+        f.publish(&e, &t).unwrap();
+        let (snapshot, delta, _) = published_w_cut(&mut f, 4);
+        assert!(w_kind(&snapshot, "CC-004.undetermined_raw").is_empty());
+        let groups = w_kind(&snapshot, "CC-005.inclusion_group");
+        assert_eq!(groups.len(), 2);
+        for old in &waiting {
+            let coord = &old["payload"]["raw"]["source_coord"];
+            let group = groups
+                .iter()
+                .find(|g| g["payload"]["members"].as_array().unwrap().contains(coord))
+                .unwrap();
+            assert!(
+                delta["replaces"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|r| r["old_object_id"] == old["object_id"]
+                        && r["new_object_id"] == group["object_id"]),
+                "定向后组须逐原件替代未定对象：{coord}"
+            );
+            assert!(snapshot["relations"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|r| r["relation_type"] == "replaces"
+                    && r["subject"] == group["object_id"]
+                    && r["object"] == old["object_id"]));
+        }
+        for (i, (old, catalog, logical)) in historical.iter().enumerate() {
+            let (after, after_catalog, after_logical) =
+                projected(&mut f, (i + 1) as i64, HistoryMode::AsKnown);
+            assert_eq!(after.root, old.root);
+            assert_eq!(after.digest, old.digest);
+            assert_eq!(plain_wire(&after), plain_wire(old));
+            assert_eq!(&after_catalog, catalog);
+            assert_eq!(&after_logical, logical);
+        }
+    }
+
+    /// #1419 P4 G7 前半：原 `tb02u_pending_append_keeps_first_known_and_policy_gate`
+    /// （`028796ba08:rust/src/bin/s_session_v2/tb02u_tests.rs:140–171`）同输入 (0,10)/(2,8)/(1,11)
+    /// 逐代真实接纳、Begin、发布：每代未定原件数 = n，raw0 对象逐字等于首获知那代，零正式组，
+    /// 发布 cut 经只读审计展开。后半旧规则拒写见 `driver::tests::s3_writer_and_recover_reject_frozen_nonempty_historical_session_unchanged`。
+    #[test]
+    fn w_pending_append_keeps_first_known_and_zero_groups() {
+        let mut f = Fixture::new();
+        let mut first = Value::Null;
+        for (n, row) in [
+            (1, ("o0", 0, 0, 10, 0, 10)),
+            (2, ("o1", 1, 2, 8, 2, 8)),
+            (3, ("o2", 2, 1, 11, 1, 11)),
+        ] {
+            let (e, t) = f.accept_begin(n, row, 1);
+            f.publish(&e, &t).unwrap();
+            let (snapshot, _, _) = published_w_cut(&mut f, n);
+            let pending = w_kind(&snapshot, "CC-004.undetermined_raw");
+            assert_eq!(pending.len(), n as usize, "g{n}");
+            let raw0 = pending
+                .iter()
+                .find(|o| o["payload"]["raw"]["source_coord"] == "0")
+                .unwrap();
+            if n == 1 {
+                first = raw0.clone();
+            } else {
+                assert_eq!(raw0, &first, "g{n} 首获知原件不变");
+            }
+            assert!(
+                w_kind(&snapshot, "CC-005.inclusion_group").is_empty(),
+                "g{n}"
+            );
+        }
+    }
+
+    /// #1419 P4 G3：原 `tb02a_three_groups_with_equal_roots_publish_shape_with_root_set` 的 CC-054 域断言
+    /// （`028796ba08:rust/src/bin/s_structure_session.rs:7017–7020`）按签署合同承接：同输入
+    /// (0,1)/(3,10)/(5,10)/(20,30) 经正式 S3 发布，CC-054 域等于该 cut 规则串的笔合同知识域
+    /// （`tb02b::contract_for_rule`，W 串为 W_CONTRACT）；与原同价根集组判据一并核。
+    #[test]
+    fn w_three_groups_with_equal_roots_publish_contract_knowledge_domain() {
+        // S3 每条 ingest 一根 raw：四根逐代接纳发布，取末代 cut 核原同输入判据。
+        let mut f = Fixture::new();
+        for (n, row) in [
+            (1, ("o0", 0, 0, 1, 0, 1)),
+            (2, ("o1", 1, 3, 10, 3, 10)),
+            (3, ("o2", 2, 5, 10, 5, 10)),
+            (4, ("o3", 3, 20, 30, 20, 30)),
+        ] {
+            let (e, t) = f.accept_begin(n, row, 1);
+            f.publish(&e, &t).unwrap();
+        }
+        let rule = meta_get_opt(&f.conn, "rule_revision").unwrap().unwrap();
+        assert_eq!(rule, crate::W_STRUCTURE_RULE_REVISION);
+        let (snapshot, _, _) = published_w_cut(&mut f, 4);
+        let knowledge = w_kind(&snapshot, "CC-054.knowledge_state");
+        assert_eq!(knowledge.len(), 1);
+        let contract = crate::tb02b::contract_for_rule(&rule).unwrap();
+        assert_eq!(contract, crate::tb02b::W_CONTRACT);
+        assert_eq!(
+            knowledge[0]["payload"]["domain"],
+            "raw_adjacent_W_initialization"
+        );
+        assert_ne!(
+            knowledge[0]["payload"]["domain"],
+            crate::tb02b::CURRENT_CONTRACT.knowledge_domain,
+            "W cut 不得发旧串域"
+        );
+        let groups = w_kind(&snapshot, "CC-005.inclusion_group");
+        assert!(
+            groups
+                .iter()
+                .any(|g| g["payload"]["high_sources"] == json!(["1", "2"])),
+            "同价高点组以根集发布"
+        );
+    }
+
     #[cfg(feature = "s_allocation_json_testonly")]
     fn owned_capture(tx: &Transaction<'_>, budget: &OwnedBudget) -> sc::AuditCapture {
         sc::AuditCapture::from_slab_for_allocation_prototype(

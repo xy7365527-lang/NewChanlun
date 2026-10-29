@@ -3628,6 +3628,7 @@ mod tests {
                 catalog_revision: &catalog,
                 scope: &scope,
                 semantic_commit_ns: None,
+                structure_prior: crate::v3::generation::StructurePriors::default(),
                 prior: PriorState {
                     bi_records: vec![],
                     version_record: None,
@@ -4171,6 +4172,7 @@ mod tests {
                 catalog_revision: &catalog,
                 scope: &scope,
                 semantic_commit_ns: None,
+                structure_prior: crate::v3::generation::StructurePriors::default(),
                 prior: PriorState {
                     bi_records: vec![],
                     version_record: None,

@@ -975,6 +975,330 @@ mod tests {
         assert_eq!(e.split("；原准入账=").next(), Some(expected.as_str()));
     }
 
+    // 普通连接读后即关：最后关闭者清掉空 -wal/-shm，不留下准入 E6 拒收的侧件组合；只读查询不改主库字节。
+    fn read_only(db: &Path) -> Connection {
+        Connection::open(db).unwrap()
+    }
+
+    fn all_rows_in(conn: &Connection) -> Vec<(String, Vec<Vec<rusqlite::types::Value>>)> {
+        let tables = {
+            let mut stmt = conn
+                .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+                .unwrap();
+            let rows = stmt.query_map([], |r| r.get::<_, String>(0)).unwrap();
+            rows.collect::<Result<Vec<_>, _>>().unwrap()
+        };
+        tables
+            .into_iter()
+            .map(|table| {
+                let quoted = table.replace('"', "\"\"");
+                let mut stmt = conn
+                    .prepare(&format!("SELECT * FROM \"{quoted}\""))
+                    .unwrap();
+                let columns = stmt.column_count();
+                let mut rows = stmt
+                    .query_map([], |r| {
+                        (0..columns)
+                            .map(|n| r.get::<_, rusqlite::types::Value>(n))
+                            .collect::<rusqlite::Result<Vec<_>>>()
+                    })
+                    .unwrap()
+                    .collect::<Result<Vec<_>, _>>()
+                    .unwrap();
+                rows.sort_by_cached_key(|row| format!("{row:?}"));
+                (table, rows)
+            })
+            .collect()
+    }
+
+    fn all_rows(db: &Path) -> Vec<(String, Vec<Vec<rusqlite::types::Value>>)> {
+        all_rows_in(&read_only(db))
+    }
+
+    fn s3_profile() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("s_session/profiles/ohlc_integer_tb02a_v1.json")
+    }
+
+    /// #1419 P4 G4：原 `tb1405_composed_s2_recover_rejects_old_rules_before_any_persistent_change`
+    /// （`7f4f1eeb4b:rust/src/bin/s_structure_session.rs:7829–7914`）的 9 规则 × 3 pending 逐格迁到
+    /// 正式 S3 写者（Driver 开门）与 S3 恢复入口。三态为真实无 raw / 正式接纳未发布 / 真实 Begin 未发布。
+    /// S3 写者只认 W 串（`require_current_writer_rule`），原 v2 当前串 RULE_REVISION 在此也是历史串；
+    /// 错误名按该函数的 S3 合同为 VersionUnsupported，原 v2 VersionMismatch 锁同文保留于 s_structure_session.rs。
+    /// 当前 W 串三态为正控：恢复成功换代并清 Begin。
+    #[test]
+    fn s3_writer_and_recover_reject_every_old_rule_in_every_pending_state_unchanged() {
+        use super::super::prepared::tests::Fixture as Real;
+        for rule in [
+            "s2-axis-quantifiers",
+            "s2-axis-quantifiers+new-bi/1",
+            "s2-axis-quantifiers+new-bi/2",
+            "s2-axis-quantifiers+new-bi/1+segment-first/1",
+            "s2-axis-quantifiers+new-bi/1+segment-second/1",
+            "s2-axis-quantifiers+new-bi/2+segment-second/1",
+            "s2-axis-quantifiers+new-bi/1+segment-second/2",
+            "unknown-rule",
+            crate::RULE_REVISION,
+            crate::W_STRUCTURE_RULE_REVISION,
+        ] {
+            for pending in 0..3 {
+                let mut f = Real::with_clock_plan(4, 4, &[("recover-1", 13)]);
+                let row = ("p0", 0, 5, 10, 0, 5);
+                match pending {
+                    1 => {
+                        f.accept_rows(1, &[row], 1);
+                    }
+                    2 => {
+                        f.accept_begin(1, row, 1);
+                    }
+                    _ => {}
+                }
+                let clock = v2::stored_clock(&f.conn).unwrap();
+                let current = rule == crate::W_STRUCTURE_RULE_REVISION;
+                assert_eq!(
+                    meta_get_opt(&f.conn, "rule_revision").unwrap().as_deref(),
+                    Some(crate::W_STRUCTURE_RULE_REVISION)
+                );
+                if !current {
+                    meta_set(&f.conn, "rule_revision", rule).unwrap();
+                }
+                let db = f.db_path();
+                drop(std::mem::replace(
+                    &mut f.conn,
+                    Connection::open_in_memory().unwrap(),
+                ));
+                let _prepared_fixture = crate::v3::admission_anchor::test_prepare(&db);
+                let raw_count = count(&read_only(&db), "raw_events");
+                assert_eq!(raw_count, i64::from(pending > 0), "{rule}/{pending}");
+                let rows_before = all_rows(&db);
+                let bytes_before = std::fs::read(&db).unwrap();
+                if current {
+                    let receipt = recover(
+                        &db,
+                        "2",
+                        &clock,
+                        "recover-1",
+                        crate::v3::admission_anchor::test_prepare(&db).into(),
+                    )
+                    .unwrap();
+                    let c = read_only(&db);
+                    assert_eq!(
+                        meta_get_opt(&c, "writer_epoch").unwrap().as_deref(),
+                        Some("2"),
+                        "{pending}: {receipt}"
+                    );
+                    assert_eq!(
+                        meta_get_opt(&c, "advance_state").unwrap().as_deref(),
+                        Some("idle"),
+                        "{pending}"
+                    );
+                    continue;
+                }
+                let open_error = Driver::open(
+                    &db,
+                    &s3_profile(),
+                    "1",
+                    clock.clone(),
+                    crate::v3::admission_anchor::test_prepare(&db).into(),
+                )
+                .err()
+                .unwrap();
+                assert!(
+                    open_error.contains("VersionUnsupported"),
+                    "{rule}/{pending}: {open_error}"
+                );
+                let recover_error = recover(
+                    &db,
+                    "2",
+                    &clock,
+                    "recover-1",
+                    crate::v3::admission_anchor::test_prepare(&db).into(),
+                )
+                .err()
+                .unwrap();
+                assert!(
+                    recover_error.contains("VersionUnsupported"),
+                    "{rule}/{pending}: {recover_error}"
+                );
+                assert_eq!(
+                    std::fs::read(&db).unwrap(),
+                    bytes_before,
+                    "{rule}/{pending}"
+                );
+                assert_eq!(all_rows(&db), rows_before, "{rule}/{pending}");
+            }
+        }
+    }
+
+    /// #1419 P4 G5：原 `tb1405_composed_s2_recover_rejects_old_rule_before_journal_mode_change`
+    /// （`7f4f1eeb4b:rust/src/bin/s_structure_session.rs:7916–7939`）迁正式 S3：DELETE 日志模式的旧规则库，
+    /// 写者开门与恢复均在版本门拒绝，日志模式仍 delete、meta 与全表不变、主库字节不变、不生成 -wal。
+    #[test]
+    fn s3_writer_and_recover_reject_old_rule_before_journal_mode_change() {
+        use super::super::prepared::tests::Fixture as Real;
+        let mut f = Real::with_clock_plan(4, 4, &[("recover-1", 13)]);
+        let clock = v2::stored_clock(&f.conn).unwrap();
+        let db = f.db_path();
+        drop(std::mem::replace(
+            &mut f.conn,
+            Connection::open_in_memory().unwrap(),
+        ));
+        let conn = Connection::open(&db).unwrap();
+        meta_set(&conn, "rule_revision", "s2-axis-quantifiers+new-bi/1").unwrap();
+        let mode: String = conn
+            .query_row("PRAGMA journal_mode=DELETE", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(mode, "delete");
+        let before = db_meta(&conn).unwrap();
+        drop(conn);
+        let _prepared_fixture = crate::v3::admission_anchor::test_prepare(&db);
+        let rows_before = all_rows(&db);
+        let bytes_before = std::fs::read(&db).unwrap();
+        let wal = PathBuf::from(format!("{}-wal", db.display()));
+        assert!(!wal.exists());
+
+        let open_error = Driver::open(
+            &db,
+            &s3_profile(),
+            "1",
+            clock.clone(),
+            crate::v3::admission_anchor::test_prepare(&db).into(),
+        )
+        .err()
+        .unwrap();
+        assert!(open_error.contains("VersionUnsupported"), "{open_error}");
+        let recover_error = recover(
+            &db,
+            "2",
+            &clock,
+            "recover-1",
+            crate::v3::admission_anchor::test_prepare(&db).into(),
+        )
+        .err()
+        .unwrap();
+        assert!(
+            recover_error.contains("VersionUnsupported"),
+            "{recover_error}"
+        );
+
+        assert_eq!(std::fs::read(&db).unwrap(), bytes_before);
+        assert!(!wal.exists(), "拒绝路径不得切换 WAL");
+        let conn = Connection::open(&db).unwrap();
+        let mode: String = conn
+            .query_row("PRAGMA journal_mode", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(mode, "delete");
+        assert_eq!(db_meta(&conn).unwrap(), before);
+        drop(conn);
+        assert_eq!(all_rows(&db), rows_before);
+    }
+
+    /// #1419 P4 G7 后半：原 `tb02u_pending_append_keeps_first_known_and_policy_gate`
+    /// （`028796ba08:rust/src/bin/s_session_v2/tb02u_tests.rs:140–171`）在非空历史上改旧规则后拒写。
+    /// S3 来源审计逐代核 manifest 与冻结域 rule_revision（history.rs「manifest.rule_revision 与冻结域
+    /// 不符」），只改 meta 会造出不合法库；故用冻结的真实已发布历史会话原件（4 代、4 根 raw、旧串），
+    /// 不由 W parser 新造旧串库（29BE）。正式写者开门与恢复均拒，主库与 -wal 字节、全表不变。
+    #[test]
+    fn s3_writer_and_recover_reject_frozen_nonempty_historical_session_unchanged() {
+        let history = super::super::generation::tests::issue1419_history();
+        let db = history.path().join("historical-published-layout1.sqlite");
+        let wal = PathBuf::from(format!("{}-wal", db.display()));
+        let (clock, rule) = {
+            let ro = Connection::open_with_flags(&db, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+                .unwrap();
+            assert_eq!(count(&ro, "raw_events"), 4);
+            assert_eq!(
+                meta_get_opt(&ro, "generation").unwrap().as_deref(),
+                Some("4")
+            );
+            assert_eq!(
+                meta_get_opt(&ro, "writer_epoch").unwrap().as_deref(),
+                Some("1")
+            );
+            (
+                v2::stored_clock(&ro).unwrap(),
+                meta_get_opt(&ro, "rule_revision").unwrap().unwrap(),
+            )
+        };
+        assert_ne!(rule, crate::W_STRUCTURE_RULE_REVISION);
+        // 冻结原件带 -wal/-shm：写者准入在 E6 即拒，主库与侧件字节不变。
+        let frozen = (std::fs::read(&db).unwrap(), std::fs::read(&wal).unwrap());
+        let e6 = Driver::open(
+            &db,
+            &s3_profile(),
+            "1",
+            clock.clone(),
+            crate::v3::admission_anchor::test_prepare(&db).into(),
+        )
+        .err()
+        .unwrap();
+        assert!(e6.contains("UnsupportedWalShmJournalCombination"), "{e6}");
+        let raw_recover = recover(
+            &db,
+            "2",
+            &clock,
+            "recover-1",
+            crate::v3::admission_anchor::test_prepare(&db).into(),
+        )
+        .err()
+        .unwrap();
+        assert!(
+            raw_recover.contains("UnsupportedWalShmJournalCombination"),
+            "{raw_recover}"
+        );
+
+        assert_eq!(
+            (std::fs::read(&db).unwrap(), std::fs::read(&wal).unwrap()),
+            frozen
+        );
+        // 临时解包副本上合并 WAL（仓内原件不动），逻辑全表不变，再核版本门本身。
+        let rows_frozen = {
+            let ro = Connection::open_with_flags(&db, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+                .unwrap();
+            all_rows_in(&ro)
+        };
+        {
+            let c = Connection::open(&db).unwrap();
+            c.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(()))
+                .unwrap();
+            drop(c);
+        }
+        let _prepared_fixture = crate::v3::admission_anchor::test_prepare(&db);
+        let rows_before = all_rows(&db);
+        assert_eq!(rows_before, rows_frozen);
+        let bytes_before = (std::fs::read(&db).unwrap(), std::fs::read(&wal).ok());
+        let open_error = Driver::open(
+            &db,
+            &s3_profile(),
+            "1",
+            clock.clone(),
+            crate::v3::admission_anchor::test_prepare(&db).into(),
+        )
+        .err()
+        .unwrap();
+        assert!(open_error.contains("VersionUnsupported"), "{open_error}");
+        let recover_error = recover(
+            &db,
+            "2",
+            &clock,
+            "recover-1",
+            crate::v3::admission_anchor::test_prepare(&db).into(),
+        )
+        .err()
+        .unwrap();
+        assert!(
+            recover_error.contains("VersionUnsupported"),
+            "{recover_error}"
+        );
+        assert_eq!(
+            (std::fs::read(&db).unwrap(), std::fs::read(&wal).ok()),
+            bytes_before
+        );
+        assert_eq!(all_rows(&db), rows_before);
+    }
+
     #[cfg(feature = "s_allocation_json_testonly")]
     #[test]
     fn historical_bi_rule_owned_rejects_without_sidecar_then_current_rule_opens() {
@@ -3453,7 +3777,7 @@ mod tests {
     }
 
     /// #1488 0079（P24-adj，0078 探针 H 形态）：同一 writer 内冷根自然失败（1M）后无票重跑提交，
-    /// 之后 allowance 变大（改 16M）使候选重新出生；后续 ingest 必须走 Carry 提交且与 ordinary 一致。
+    /// 之后 allowance 变大（改 16M；#1419 W 起为 31M）使候选重新出生；后续 ingest 必须走 Carry 提交且与 ordinary 一致。
     /// 负控：去掉 `renew_after_cold_root_rerun` 的续租 → ingest-2 报“Carry租约已撤销”。
     #[cfg(feature = "s_capture_native_testonly")]
     #[test]
@@ -3494,7 +3818,9 @@ mod tests {
                 first,
                 ordinary.handle(Fixture::ingest(1)).unwrap(),
             );
-            d.audit_cache_source_bytes = Some(16 << 20);
+            // #1419 W：候选重新出生所需 allowance 实测下限 30MiB（29.5MiB 下 ingest-2 放弃候选、20MiB 下
+            // ingest-3 StaleWriter），同 #1488 先例取下限+1MiB＝31MiB；1M 冷根自然失败不变。
+            d.audit_cache_source_bytes = Some(31 << 20);
             let steps = [
                 ("ready-a", envelope("p24adj-ready-a", json!({"op":"ready"}))),
                 ("ingest-2", Fixture::ingest(2)),
@@ -3533,7 +3859,7 @@ mod tests {
             )
         };
         let cold = run(1 << 20);
-        let control = run(16 << 20);
+        let control = run(31 << 20);
         eprintln!(
             "{}",
             json!({"scenario":"p24adj-cold-root-then-larger-cap",
@@ -3553,7 +3879,7 @@ mod tests {
         );
         assert!(
             cold.3.is_empty() && control.0.is_empty(),
-            "16M 下冷根不应失败"
+            "31M 下冷根不应失败"
         );
         assert!(
             cold.5.is_empty(),
@@ -3571,7 +3897,7 @@ mod tests {
             ("ingest-2", true, true, false, false),
             "候选重新出生后 ingest-2 须命中完整候选、经 Carry 提交资格且租约有效"
         );
-        assert_eq!(cold.4[1], control.4[1], "ingest-3 须与全程 16M 对照组同路");
+        assert_eq!(cold.4[1], control.4[1], "ingest-3 须与全程 31M 对照组同路");
         assert!(cold.4.iter().all(|c| !c.4), "租约不得撤销：{:?}", cold.4);
     }
 
@@ -3604,7 +3930,7 @@ mod tests {
         let mut d = open(&f);
         let a1 = d.handle(Fixture::ingest(1)).map(|_| ());
         let a_notes = probe::take();
-        d.audit_cache_source_bytes = Some(16 << 20);
+        d.audit_cache_source_bytes = Some(31 << 20); // #1419 W：同 p24adj 主锁实测下限 30MiB+1
         let a2 = d.handle(ready("p24adj-neg-ready-a")).map(|_| ());
         let a3 = d.handle(Fixture::ingest(2)).map(|_| ());
         let carried = d.conn.recover_probe_for_test();
@@ -3623,7 +3949,7 @@ mod tests {
         let b2 = e.handle(Fixture::ingest(1)).map(|_| ());
         let b_notes = probe::take();
         let not_renewed = e.conn.recover_probe_for_test();
-        e.audit_cache_source_bytes = Some(16 << 20);
+        e.audit_cache_source_bytes = Some(31 << 20); // #1419 W：同上
         let b3 = e.handle(ready("p24adj-neg-ready-c")).map(|_| ());
         let b4 = e.handle(Fixture::ingest(2));
         crate::cache::configure(0);
@@ -3703,7 +4029,10 @@ mod tests {
         let held = native.conn.complete_retained_bytes();
         assert!(held > 0);
         assert_eq!(before["charge"]["slot_result_capacity"], 0);
-        let workspace = 16 * 1024 * 1024;
+        // #1419 W（主控 2026-10-28 裁定：只调 TestOnly 夹具额度，生产帽不动）：W 结构体量下候选
+        // 父工作域实测下限（nc-remote 971cb5cbbf 扫描，512KiB 步长）：legacy+held+X 写期保留
+        // 候选需 X≥25MiB（24.5MiB 放弃并冷路径）；同 #1488 先例取下限+1MiB。
+        let workspace = 26 * 1024 * 1024;
         let old_gate_lower_bound = held.checked_mul(32).unwrap().checked_add(65536).unwrap();
         assert!(
             workspace < old_gate_lower_bound,
@@ -3778,7 +4107,10 @@ mod tests {
         let held = native.conn.complete_retained_bytes();
         assert!(held > 0);
         let legacy = crate::cache::retained_bytes();
-        let total = legacy + held + 8 * 1024 * 1024;
+        // #1419 W（主控 2026-10-28 裁定：只调 TestOnly 夹具额度，生产帽不动）：W 结构体量下候选
+        // 父工作域实测下限（nc-remote 971cb5cbbf 扫描，512KiB 步长）：legacy+held+X 写期保留
+        // 候选需 X≥25MiB（24.5MiB 放弃并冷路径）；同 #1488 先例取下限+1MiB。
+        let total = legacy + held + 26 * 1024 * 1024;
         // 仅收紧本测试 Driver 的同一 S7 额度，不修改任何默认额度。
         native.audit_cache_source_bytes = Some(total);
         let memory = Window::start();

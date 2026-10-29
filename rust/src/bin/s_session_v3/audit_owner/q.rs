@@ -780,6 +780,10 @@ impl Facts {
                     text(&n[8])?,
                     text(&n[9])?,
                     false,
+                    // #1393×#1419：写口只出现在 S3 当前写者会话（`require_current_writer_rule`
+                    // 只放行 W 后继串），故运行轴集合取该串的目录轴表；旧规则库只读、无写口。
+                    super::super::catalog_evidence::rule_axes(crate::W_STRUCTURE_RULE_REVISION)
+                        .map_err(|e| invalid(&e))?,
                 )?;
             }
             Policy | Delivery => {}

@@ -53,9 +53,9 @@ use newchan_rust::s_content::{
     self as sc, Built, CodecError, ContentRef, Kind, NodeDigest, NodeStore, SequenceRef,
     Value as CValue,
 };
-use newchan_rust::theta_v0::parser::stroke::{
-    Conditions, Confirmation, Endpoint, PairFact, StrokeFacts, RULE,
-};
+#[cfg(test)]
+use newchan_rust::theta_v0::parser::stroke::{Conditions, Confirmation, PairFact};
+use newchan_rust::theta_v0::parser::stroke::{Endpoint, StrokeFacts, RULE};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
@@ -139,7 +139,7 @@ fn coord_i64(coord: usize) -> Result<i64, BiError> {
 /// **历史插入**各计一次；普通尾部追加不计。每次**全扫** `all_events`。
 ///
 /// 这是生产实现；`tb02b::fact_basis` 只是冻结测试 oracle（旧模块不再进生产路径）。
-fn fact_generation(all_events: ArrayView<'_>) -> Result<i64, BiError> {
+pub(super) fn fact_generation(all_events: ArrayView<'_>) -> Result<i64, BiError> {
     let mut max_coord = i64::MIN;
     let mut generation: i64 = 1;
     for event in all_events.iter() {
@@ -186,6 +186,10 @@ pub(super) enum BiLedgerView<'a> {
 }
 
 impl<'a> BiLedgerView<'a> {
+    pub(super) fn coords(self) -> impl Iterator<Item = i64> + 'a {
+        self.iter().map(|(coord, _)| coord)
+    }
+
     fn len(self) -> usize {
         match self {
             Self::Plain(rows) => rows.len(),
@@ -971,6 +975,82 @@ fn verify_prior_object(
     Ok(PriorRecord { payload, slot })
 }
 
+/// #1565：读上一代一条**已核活动** `CC-004.undetermined_raw` 的原件身份与 `pending_since_cut`。
+///
+/// 与 [`verify_prior_object`] 同一套核验（全闭包 → kind → 事实键 → 六字段身份按本档案/规则修订
+/// 重导），载荷头改核 W 两常量（政策修订、`Undetermined`）。只读 payload，不读生命周期字段；
+/// 任一项不符即拒绝，不降级为取本代 cut（#799）。
+pub(super) fn read_prior_undetermined(
+    store: &mut dyn NodeStore,
+    producer: &Cc004Producer,
+    record: &Built,
+) -> Result<crate::content_producer::PriorUndetermined, BiError> {
+    use crate::content_producer::{PriorUndetermined, CC004_UNDETERMINED_KIND};
+    verify_prior_root(store, record)?;
+    let reference = record.content_ref();
+    let kind = scalar_text(store, &reference, &field_path("kind"))?;
+    if kind != CC004_UNDETERMINED_KIND {
+        return Err(BiError::Prior {
+            what: "kind",
+            detail: format!("上一代记录 kind 实为 `{kind}`，应为 `{CC004_UNDETERMINED_KIND}`"),
+        });
+    }
+    let fact_key = scalar_text(store, &reference, &field_path("fact_key"))?;
+    fact_key_slot(&fact_key, CC004_UNDETERMINED_KIND)?;
+    let payload = resolve(store, &reference, &field_path("payload"))?;
+    let input_refs = resolve(store, &reference, &field_path("input_refs"))?;
+    if payload.kind != Kind::Object || input_refs.kind != Kind::Array {
+        return Err(BiError::Prior {
+            what: "payload/input_refs",
+            detail: "上一代未定原件的载荷不是对象或输入引用不是数组".to_string(),
+        });
+    }
+    let input_refs = built_of(&input_refs)?;
+    let claimed = scalar_text(store, &reference, &field_path("object_id"))?;
+    let derived = producer.typed_object_id(
+        CC004_UNDETERMINED_KIND,
+        &fact_key,
+        &built_of(&payload)?,
+        &input_refs,
+    )?;
+    if claimed != derived {
+        return Err(BiError::Prior {
+            what: "object_id",
+            detail: format!("记录声明 `{claimed}`，按本档案/规则修订重导为 `{derived}`"),
+        });
+    }
+    for (field, expected) in [
+        (
+            "initialization_policy_revision",
+            newchan_rust::theta_v0::parser::inclusion::INITIALIZATION_POLICY,
+        ),
+        ("direction_state", "Undetermined"),
+    ] {
+        let actual = scalar_text(store, &payload, &field_path(field))?;
+        if actual != expected {
+            return Err(BiError::Prior {
+                what: field,
+                detail: format!("未定原件 `{field}` 实为 `{actual}`，应为 `{expected}`"),
+            });
+        }
+    }
+    let pending_since_cut = scalar_text(store, &payload, &field_path("pending_since_cut"))?;
+    let well_formed = pending_since_cut.strip_prefix("cut-").is_some_and(|n| {
+        !n.is_empty() && !n.starts_with('0') && n.bytes().all(|b| b.is_ascii_digit())
+    });
+    if !well_formed {
+        return Err(BiError::Prior {
+            what: "pending_since_cut",
+            detail: format!("未定发生 cut `{pending_since_cut}` 不是 `cut-<正整数>`"),
+        });
+    }
+    Ok(PriorUndetermined {
+        fact_key,
+        input_refs: input_refs.digest,
+        pending_since_cut,
+    })
+}
+
 /// 上一代载荷头四常量：`schema_revision` / `semantic_version` / `policy_version` / `view_role`
 /// 必须逐字等于本域协议指定值（与产出侧 [`payload_value`] 同一条配方）。
 ///
@@ -1192,7 +1272,7 @@ impl ContentBi {
         let known = sc::write_value(
             &mut *store,
             &known_value(
-                &ledger,
+                input.raw,
                 input.generation,
                 input.frontier,
                 input.semantic_commit_ns.as_deref(),
@@ -1209,13 +1289,14 @@ impl ContentBi {
             let deps = self
                 .coords
                 .coord_set(&mut *store, &endpoint.source_coords.to_vec())?;
+            let data = structure_fact(store, endpoint)?;
             objects.push(build_typed(
                 producer,
                 &mut *store,
                 ENDPOINT_KIND,
                 &slot,
                 fact_generation,
-                endpoint_value(endpoint),
+                CValue::Edge(data.digest),
                 &deps,
                 input.generation,
                 input.cut,
@@ -1241,13 +1322,14 @@ impl ContentBi {
                 &pair.new.source_coords.to_vec(),
                 &[],
             )?;
+            let data = structure_fact(store, pair)?;
             objects.push(build_typed(
                 producer,
                 &mut *store,
                 kind,
                 &slot,
                 fact_generation,
-                pair_value(pair),
+                CValue::Edge(data.digest),
                 &deps,
                 input.generation,
                 input.cut,
@@ -1260,9 +1342,9 @@ impl ContentBi {
             active.insert(entity.clone());
             let previous = prior.bi.get(&entity);
             let carried = previous.filter(|old| old.confirmation.is_some());
-            let start = sc::write_value(&mut *store, &endpoint_value(&stroke.start))?;
-            let end = sc::write_value(&mut *store, &endpoint_value(&stroke.end))?;
-            let formation = sc::write_value(&mut *store, &conditions_value(&stroke.formation))?;
+            let start = structure_fact(store, &stroke.start)?;
+            let end = structure_fact(store, &stroke.end)?;
+            let formation = structure_fact(store, &stroke.formation)?;
             // 确认：旧对象已有确认时**沿用首次不可逆见证**（值根原样引用），不借新后继
             // 把确认获知时间推后；否则用本次事实的确认。
             let (confirmation, confirmed_known_at, confirmation_coords, confirmation_successor) =
@@ -1285,7 +1367,7 @@ impl ContentBi {
                     }
                     None => match stroke.confirmation.as_ref() {
                         Some(new) => {
-                            let built = sc::write_value(&mut *store, &confirmation_value(new))?;
+                            let built = structure_fact(store, new)?;
                             (
                                 CValue::Edge(built.digest),
                                 CValue::Edge(known.digest),
@@ -1723,12 +1805,13 @@ fn slot_of(parts: &[&str]) -> Value {
 }
 
 /// 已知时间对象（`known_at`；有界标量小对象，同一代共用同一个根）。
-fn known_value(
-    ledger: &Ledger<'_>,
+pub(super) fn known_value(
+    raw: BiLedgerView<'_>,
     generation: i64,
     frontier: i64,
     semantic_commit_ns: Option<&str>,
 ) -> Result<CValue, BiError> {
+    let ledger = Ledger { rows: raw };
     let latest = ledger.latest();
     let receipt = latest
         .and_then(|row| row.get("receipt_id").and_then(JsonView::as_str))
@@ -1757,7 +1840,16 @@ fn known_value(
     ]))
 }
 
+/// /2 新事实的同一借用序列化核；Native 文本、字段及数组先准入后构造。
+fn structure_fact<T: serde::Serialize + ?Sized>(
+    store: &mut dyn NodeStore,
+    value: &T,
+) -> Result<Built, BiError> {
+    crate::v3::content_structure::fact(store, value).map_err(|detail| BiError::Facts { detail })
+}
+
 /// 端点值（旧 `wire(serde_json::to_value(Endpoint))` 的同一条文本编码）。
+#[cfg(test)]
 fn endpoint_value(endpoint: &Endpoint) -> CValue {
     CValue::Object(vec![
         (
@@ -1801,6 +1893,7 @@ fn endpoint_value(endpoint: &Endpoint) -> CValue {
 }
 
 /// 条件值（旧 `Conditions` 的文本编码；`vector` 保留 bool/null 差别）。
+#[cfg(test)]
 fn conditions_value(conditions: &Conditions) -> CValue {
     CValue::Object(vec![
         (
@@ -1844,6 +1937,7 @@ fn conditions_value(conditions: &Conditions) -> CValue {
 }
 
 /// 确认值（旧 `Confirmation` 的文本编码）。
+#[cfg(test)]
 fn confirmation_value(confirmation: &Confirmation) -> CValue {
     CValue::Object(vec![
         (
@@ -1870,6 +1964,7 @@ fn confirmation_value(confirmation: &Confirmation) -> CValue {
 }
 
 /// 端点对值（旧 `PairFact` 的文本编码）。
+#[cfg(test)]
 fn pair_value(pair: &PairFact) -> CValue {
     CValue::Object(vec![
         ("old".to_string(), endpoint_value(&pair.old)),
@@ -1917,6 +2012,7 @@ fn str_array(values: &[&'static str]) -> CValue {
     )
 }
 
+#[cfg(test)]
 fn optional_usize(value: Option<usize>) -> CValue {
     match value {
         Some(value) => CValue::String(value.to_string()),
@@ -3967,4 +4063,38 @@ mod tests {
             .expect("追加代必须可恢复");
         assert_same_roots(&clean_full, &recovered_full, "追加代拒写恢复");
     }
+}
+
+/// #1419：与 known_value 共用 Ledger::latest，新增结构路径直接写借用字段和内容边。
+pub(super) fn known_root(
+    store: &mut dyn NodeStore,
+    raw: BiLedgerView<'_>,
+    generation: i64,
+    frontier: i64,
+    commit: Option<&str>,
+) -> Result<Built, String> {
+    use crate::v3::structure_value::{object, put, string, Value as V};
+    let latest = Ledger { rows: raw }.latest();
+    let optional = |v: Option<&str>| -> Result<V, String> {
+        v.map(|s| string(s, store))
+            .transpose()
+            .map(|v| v.unwrap_or(V::Null))
+    };
+    let value = object(
+        [
+            ("generation", string(generation, store)?),
+            ("input_frontier", string(frontier, store)?),
+            (
+                "receipt_id",
+                optional(latest.and_then(|r| r.get("receipt_id").and_then(JsonView::as_str)))?,
+            ),
+            (
+                "received_at",
+                optional(latest.and_then(|r| r.get("received_at").and_then(JsonView::as_str)))?,
+            ),
+            ("semantic_commit_ns", optional(commit)?),
+        ],
+        store,
+    )?;
+    put(&value, store)
 }

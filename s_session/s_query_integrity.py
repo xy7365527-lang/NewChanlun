@@ -413,6 +413,8 @@ def _published_axes(rule_revision):
         # #1604：预算 token 进规则（段合同 s-segment/5），不新增轴。
         "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2": tb02.AXES,
     }
+    # #1393×#1419：先经精确白名单映射基规则（未知串在此拒绝），再按基规则取已签目录轴。
+    rule_revision = tb02.base_rule(rule_revision)
     if rule_revision not in known:
         raise ValueError("cut规则修订未声明")
     return known[rule_revision]
@@ -1302,7 +1304,7 @@ def _verify_image(image, h, deadline, memo, _parse_pool):
     if type(meta.get("rule_revision")) is not str or not meta["rule_revision"]:
         raise ValueError("meta.rule_revision 缺失")
     if meta.get("profile_id") == tb02.PROFILE:
-        # 空会话也必须声明已知合同，不能等首个事实/Delta 才验证规则。
+        # 空会话也必须声明已知合同，不能等首个事实/Delta 才验证规则（含精确白名单）。
         _published_axes(meta["rule_revision"])
     raw_rows = _raw_rows(tables, meta)
     _verify_raw(raw_rows, deadline)
@@ -1479,11 +1481,7 @@ def _verify_image(image, h, deadline, memo, _parse_pool):
         base_active = dict(active)  # 本代开始前的完整活动集（供 Delta 腿独立重建）
         for obj in births[gen]:
             if obj["kind"] in tb02.KINDS:
-                by_source, source_bars = tb02.validate_sources(obj, effective_sources)
-                for bar in source_bars:
-                    source = raw[int(by_source[bar["source_coord"]]["seq"])]
-                    if any(bar[key] != source[key] for key in ("open", "high", "low", "close")):
-                        raise ValueError("事实中原始 OHLC 值与真实源记录不符")
+                tb02.validate_sources(obj, effective_sources, raw=raw)
             value = dict(obj, withdrawn_generation=None, withdrawal_reason=None,
                          superseded_by=None, lifecycle="active")
             active[obj["object_id"]] = value
@@ -1503,6 +1501,7 @@ def _verify_image(image, h, deadline, memo, _parse_pool):
             tb02.keys(header["catalog_evidence"].get("axes"), _published_axes(meta["rule_revision"]), "cut规则目录轴")
             tb02.validate_axes(header["catalog_evidence"].get("axes"), set(active))
             tb02.validate_segment_links(list(active.values()), header["catalog_evidence"]["axes"])
+            tb02.validate_initialization_links(list(active.values()), meta["rule_revision"])
             revision_evidence = header["catalog_evidence"]["axes"]["CC-056"]["evidence"]
             revision_refs = [{key: item[key] for key in tb02.REF_FIELDS} for item in raw[prev_frontier+1:frontier+1] if int(item["revision"]) > 1]
             _same(revision_evidence["raw_revisions"], revision_refs, h, "CC056.raw_revisions")

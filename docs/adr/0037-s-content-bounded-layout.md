@@ -33,3 +33,9 @@ layout/1 的库（S86 r6/r7 等冻结证据）由新二进制按库内 `rule_rev
 
 ## 受影响代码清单
 [`1489-AFFECTED-CODE.md`](../../.chanlun/review-results/issue1323-grilling-20261013/1489-AFFECTED-CODE.md)（基线 #1394 整合分支 `0fc0c165`）。段 A 归 [#1488](https://github.com/xy7365527-lang/NewChanlun/issues/1488)，段 B 归 [#1491](https://github.com/xy7365527-lang/NewChanlun/issues/1491)。
+
+## #1419 P2 联合发布登记（2026-10-30）
+
+[#1419 P2](https://github.com/xy7365527-lang/NewChanlun/issues/1419#issuecomment-6504760769) 将 W/2 与本 ADR 的 `bounded-layout/1` 在同一 S3 候选登记。唯一新写完整串为 `s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1+raw-initialization-w/2+bounded-layout/1`。旧已登记完整串及同 W 的布局测试对照保持原读口径。未知、重复、错序或混版本串拒绝，不按任意位置剥离组件推断。
+
+本登记不升级布局版本。S86 五常数、逐代上界、双跑、crosswalk、r6 原件与容量门仍由 #1491 完成，#1481 开跑基线不变。W 初始化政策与结构规则版本分别记，payload 政策值仍为 `raw-initialization-w/1`。

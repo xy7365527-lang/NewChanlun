@@ -3149,6 +3149,79 @@ mod tests {
         );
     }
 
+    /// ★#1419（R8 + 根裁定 r2 第 1 条）守卫：**末 confirmed 单元是突破段**。中枢 A = units[0..2]（核心
+    /// [105,120]）被 u3 ↓[121,128] 结算；R8 下下一 seed 自 last+2 = 4 起，u3 不属于任何中枢、也不得作
+    /// seed 首单元 ⟹ 虚拟单元无处可并，末窗仍是已结算的 A ⟹ 拒绝（不得把虚拟单元拼进 A，也不得越界）。
+    #[test]
+    fn r8_active_window_rejects_when_last_unit_is_breakout() {
+        let mut units = l0_units_seed();
+        units.push(UnitRange {
+            start_index: 30,
+            end_index: 40,
+            direction: Direction::Down,
+            lo: 121,
+            hi: 128,
+        });
+        let l0_frontier = ActiveSegmentFrontier {
+            direction: Direction::Up,
+            start_index: 40,
+            start_price: 121,
+            extreme: 140,
+            extreme_at: 50,
+        };
+        let outcome = active_l1_window_frontier(&units, Some(&l0_frontier), 0, &mut Vec::new());
+        assert_eq!(outcome, ActiveWindowOutcome::LowerFrontierNotAbsorbed);
+    }
+
+    /// ★#1419 R8 判别：突破段 u3 之后只有一个 confirmed 单元 u4 再接虚拟单元。旧 B 口径（自突破段续扫）
+    /// 会以 (u3,u4,虚拟) ↓↑↓ 核心 [123,128] 成 seed、产出活动窗；R8 自 last+2 = u4 起只剩两个单元，
+    /// 不成 seed ⟹ 拒绝。
+    #[test]
+    fn r8_active_window_breakout_never_seeds_with_frontier() {
+        let mut units = l0_units_seed();
+        units.push(UnitRange {
+            start_index: 30,
+            end_index: 40,
+            direction: Direction::Down,
+            lo: 121,
+            hi: 128,
+        });
+        units.push(UnitRange {
+            start_index: 40,
+            end_index: 50,
+            direction: Direction::Up,
+            lo: 122,
+            hi: 135,
+        });
+        let l0_frontier = ActiveSegmentFrontier {
+            direction: Direction::Down,
+            start_index: 50,
+            start_price: 130,
+            extreme: 123,
+            extreme_at: 60,
+        };
+        let outcome = active_l1_window_frontier(&units, Some(&l0_frontier), 0, &mut Vec::new());
+        assert_eq!(outcome, ActiveWindowOutcome::LowerFrontierNotAbsorbed);
+    }
+
+    /// ★#1419 根裁定 r2 第 1 条：活动窗区间 = 走势区间。中枢 A（Zn = ↑）外缘 [100,125]；虚拟单元
+    /// ↓[95,118] 与核心 [105,120] 相交、被吸收但非 Zn ⟹ 中枢外缘不变，活动 L1 单元区间取窗口全部单元
+    /// 极值 [95,125]（与该窗 compose 后的 `rmove.lo()/hi()`、`lower_legs_from` 同口径）。
+    #[test]
+    fn r2_active_window_interval_is_move_interval_not_zn_outer() {
+        let units = l0_units_seed();
+        let l0_frontier = ActiveSegmentFrontier {
+            direction: Direction::Down,
+            start_index: 30,
+            start_price: 118,
+            extreme: 95,
+            extreme_at: 40,
+        };
+        let outcome = active_l1_window_frontier(&units, Some(&l0_frontier), 0, &mut Vec::new());
+        let frontier = outcome.frontier().expect("虚拟单元被吸收");
+        assert_eq!((frontier.lo, frontier.hi), (95, 125));
+    }
+
     /// Q3 未产出时的原因码逐条可达（禁以「不知道」结账）。
     #[test]
     fn q3_active_l1_window_frontier_reason_codes() {
@@ -3482,31 +3555,39 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════════════
 
     /// R5 塔层批量丢弃实例逐只落码：一次重扫产出 m=2 窗口（窗1 = units[0..2] 被 u3 判
-    /// non-extension 关闭；窗2 = units[3..5] + 虚拟单元延伸吸收）⟹ 批内非末窗（窗1）
-    /// 进 `drops`，末窗正常产出。m=1 时 `drops` 恒为空追加。
+    /// non-extension 关闭；u3 是突破段（连接段）；窗2 = units[4..6] + 虚拟单元延伸吸收）⟹ 批内
+    /// 非末窗（窗1）进 `drops`，末窗正常产出。m=1 时 `drops` 恒为空追加。
     #[test]
     fn r5_scan_active_window_records_batch_dropped_windows() {
         let mut units = l0_units_seed();
-        // 窗2 seed：方向交替（Down/Up/Down）+ 核心 [135,145] 非空；u3 整体高于窗1 核心
-        // 上沿 120 ⟹ 对窗1 是 non-extension 哨兵，窗1 关闭、扫描从 u3 续进。
+        // u3 [121,128] 整体高于窗1 核心上沿 120 ⟹ 对窗1 是 non-extension 哨兵，窗1 关闭；★#1419 R8
+        // （#812 Z-5）：u3 是突破段（连接段），下一 seed 自 last_member+2 = u4 起（旧夹具让 u3 兼任窗2
+        // 首单元，只在旧 B 口径下成立）。窗2 seed：方向交替（Down/Up/Down）+ 核心 [135,145] 非空。
         units.extend_from_slice(&[
             UnitRange {
                 start_index: 30,
                 end_index: 40,
                 direction: Direction::Down,
-                lo: 130,
-                hi: 150,
+                lo: 121,
+                hi: 128,
             },
             UnitRange {
                 start_index: 40,
                 end_index: 50,
-                direction: Direction::Up,
-                lo: 135,
+                direction: Direction::Down,
+                lo: 130,
                 hi: 150,
             },
             UnitRange {
                 start_index: 50,
                 end_index: 60,
+                direction: Direction::Up,
+                lo: 135,
+                hi: 150,
+            },
+            UnitRange {
+                start_index: 60,
+                end_index: 70,
                 direction: Direction::Down,
                 lo: 130,
                 hi: 145,
@@ -3515,18 +3596,18 @@ mod tests {
         // 虚拟单元 [138,142] 与窗2 核心 [135,145] 相交 ⟹ 窗2 延伸吸收（守卫 3 通过）。
         let l0_frontier = ActiveSegmentFrontier {
             direction: Direction::Down,
-            start_index: 60,
+            start_index: 70,
             start_price: 142,
             extreme: 138,
-            extreme_at: 70,
+            extreme_at: 80,
         };
         let mut drops = Vec::new();
         let outcome = active_l1_window_frontier(&units, Some(&l0_frontier), 0, &mut drops);
         let frontier = outcome.frontier().expect("末窗吸收虚拟单元 ⟹ 产出");
         assert_eq!(
             (frontier.start_index, frontier.end_index),
-            (30, 70),
-            "末窗 = units[3..5] + 虚拟单元"
+            (40, 80),
+            "末窗 = units[4..6] + 虚拟单元"
         );
         assert_eq!(
             drops,

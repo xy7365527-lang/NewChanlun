@@ -299,6 +299,11 @@ impl Contributions {
             )
             .map_err(err)?;
         let producer = Cc004Producer::new(tb02a::PROFILE, self.rule.as_str());
+        let current_generation = if crate::is_structure_rule(self.rule.as_str()) {
+            number(s, cut.root.view(), "generation")?
+        } else {
+            0
+        };
         let mut checked = bj::new_map(allocation.as_ref());
         // #1488 B2：唯一性只看当前 occurrence 之前的成员。旧贡献可复用其局部
         // 验证结果，但不能预填后方的 id/group，把先出现的新项提前判成重复。
@@ -338,6 +343,8 @@ impl Contributions {
                 &record,
                 &self.raw,
                 &producer,
+                self.rule.as_str(),
+                current_generation,
                 &mut self.ids,
                 &mut ordered_groups,
                 &mut checked,

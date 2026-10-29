@@ -1,0 +1,175 @@
+{
+  "path": "driver/fixed_cut_driver.py",
+  "method": "Python AST穷举Collector各方法及bind_named_submissions内canonical/deepcopy/write_bytes调用；单独checksum在已准入页/token之后调用",
+  "entries": [
+    {
+      "function": "bind_named_submissions",
+      "operation": "canonical",
+      "line": 77,
+      "guard": "入口work_budget.scan(submissions/accepted_cuts)，消费方再次使用同一预算；helper无默认预算"
+    },
+    {
+      "function": "bind_named_submissions",
+      "operation": "deepcopy",
+      "line": 91,
+      "guard": "入口work_budget.scan(submissions/accepted_cuts)，消费方再次使用同一预算；helper无默认预算"
+    },
+    {
+      "function": "__init__",
+      "operation": "deepcopy",
+      "line": 131,
+      "guard": "work(identity/query_epoch)在任何deepcopy前；保留调用者WorkBudget对象，挂接同一Budget绝对截止"
+    },
+    {
+      "function": "call",
+      "operation": "canonical",
+      "line": 152,
+      "guard": "work(route/identity/payload)在请求canonical前；work(status/headers/raw_reply)及reply字节预算在回复/元数据写出前；work(parsed_reply)在摘要/因果canonical前"
+    },
+    {
+      "function": "call",
+      "operation": "canonical",
+      "line": 153,
+      "guard": "work(route/identity/payload)在请求canonical前；work(status/headers/raw_reply)及reply字节预算在回复/元数据写出前；work(parsed_reply)在摘要/因果canonical前"
+    },
+    {
+      "function": "call",
+      "operation": "write_bytes",
+      "line": 155,
+      "guard": "work(route/identity/payload)在请求canonical前；work(status/headers/raw_reply)及reply字节预算在回复/元数据写出前；work(parsed_reply)在摘要/因果canonical前"
+    },
+    {
+      "function": "call",
+      "operation": "write_bytes",
+      "line": 165,
+      "guard": "work(route/identity/payload)在请求canonical前；work(status/headers/raw_reply)及reply字节预算在回复/元数据写出前；work(parsed_reply)在摘要/因果canonical前"
+    },
+    {
+      "function": "call",
+      "operation": "write_bytes",
+      "line": 166,
+      "guard": "work(route/identity/payload)在请求canonical前；work(status/headers/raw_reply)及reply字节预算在回复/元数据写出前；work(parsed_reply)在摘要/因果canonical前"
+    },
+    {
+      "function": "call",
+      "operation": "canonical",
+      "line": 166,
+      "guard": "work(route/identity/payload)在请求canonical前；work(status/headers/raw_reply)及reply字节预算在回复/元数据写出前；work(parsed_reply)在摘要/因果canonical前"
+    },
+    {
+      "function": "call",
+      "operation": "canonical",
+      "line": 176,
+      "guard": "work(route/identity/payload)在请求canonical前；work(status/headers/raw_reply)及reply字节预算在回复/元数据写出前；work(parsed_reply)在摘要/因果canonical前"
+    },
+    {
+      "function": "call",
+      "operation": "canonical",
+      "line": 181,
+      "guard": "work(route/identity/payload)在请求canonical前；work(status/headers/raw_reply)及reply字节预算在回复/元数据写出前；work(parsed_reply)在摘要/因果canonical前"
+    },
+    {
+      "function": "snapshot",
+      "operation": "deepcopy",
+      "line": 210,
+      "guard": "work(fixed/page_size)，call和work(page/row)在fixed/页不变项/token的deepcopy或canonical前"
+    },
+    {
+      "function": "snapshot",
+      "operation": "canonical",
+      "line": 223,
+      "guard": "work(fixed/page_size)，call和work(page/row)在fixed/页不变项/token的deepcopy或canonical前"
+    },
+    {
+      "function": "snapshot",
+      "operation": "deepcopy",
+      "line": 233,
+      "guard": "work(fixed/page_size)，call和work(page/row)在fixed/页不变项/token的deepcopy或canonical前"
+    },
+    {
+      "function": "snapshot",
+      "operation": "deepcopy",
+      "line": 245,
+      "guard": "work(fixed/page_size)，call和work(page/row)在fixed/页不变项/token的deepcopy或canonical前"
+    },
+    {
+      "function": "content",
+      "operation": "deepcopy",
+      "line": 251,
+      "guard": "work(anchor/path/unit/limit)，call和work(page)在内容根/token的deepcopy前"
+    },
+    {
+      "function": "content",
+      "operation": "deepcopy",
+      "line": 251,
+      "guard": "work(anchor/path/unit/limit)，call和work(page)在内容根/token的deepcopy前"
+    },
+    {
+      "function": "content",
+      "operation": "deepcopy",
+      "line": 261,
+      "guard": "work(anchor/path/unit/limit)，call和work(page)在内容根/token的deepcopy前"
+    },
+    {
+      "function": "content",
+      "operation": "deepcopy",
+      "line": 279,
+      "guard": "work(anchor/path/unit/limit)，call和work(page)在内容根/token的deepcopy前"
+    },
+    {
+      "function": "bind_watch",
+      "operation": "deepcopy",
+      "line": 303,
+      "guard": "work(fixed/cursor)在初始anchor与状态的深复制前；单次安装，无重绑"
+    },
+    {
+      "function": "bind_watch",
+      "operation": "deepcopy",
+      "line": 304,
+      "guard": "work(fixed/cursor)在初始anchor与状态的深复制前；单次安装，无重绑"
+    },
+    {
+      "function": "bind_watch",
+      "operation": "deepcopy",
+      "line": 304,
+      "guard": "work(fixed/cursor)在初始anchor与状态的深复制前；单次安装，无重绑"
+    },
+    {
+      "function": "watch",
+      "operation": "deepcopy",
+      "line": 321,
+      "guard": "work(cursor/client_id/through_generation/max_batches/accepted_commits)在复制前；work(page)在逐代副本前，末次work(prior_cut/cursor)在状态安装前；seen_commits复制按长度先扣费"
+    },
+    {
+      "function": "watch",
+      "operation": "deepcopy",
+      "line": 373,
+      "guard": "work(cursor/client_id/through_generation/max_batches/accepted_commits)在复制前；work(page)在逐代副本前，末次work(prior_cut/cursor)在状态安装前；seen_commits复制按长度先扣费"
+    },
+    {
+      "function": "watch",
+      "operation": "deepcopy",
+      "line": 378,
+      "guard": "work(cursor/client_id/through_generation/max_batches/accepted_commits)在复制前；work(page)在逐代副本前，末次work(prior_cut/cursor)在状态安装前；seen_commits复制按长度先扣费"
+    },
+    {
+      "function": "watch",
+      "operation": "deepcopy",
+      "line": 378,
+      "guard": "work(cursor/client_id/through_generation/max_batches/accepted_commits)在复制前；work(page)在逐代副本前，末次work(prior_cut/cursor)在状态安装前；seen_commits复制按长度先扣费"
+    }
+  ],
+  "scope": "离线采集和具名绑定；纯expected比较器/fixture编码器不作为外来回包接点",
+  "foreign_scalar_admission": [
+    "query_epoch",
+    "page_size",
+    "unit",
+    "limit",
+    "client_id",
+    "through_generation",
+    "max_batches",
+    "route",
+    "status"
+  ],
+  "source_sha256": "8873c5ee0fb57a6946f4b07abe2d6962b98aef3c50a8b4cccac7dc2907a2ecd0"
+}

@@ -74,6 +74,11 @@ pub(super) fn audit_generated_in_store(
         }
         &ordinary_raw
     };
+    let current_generation = if crate::is_structure_rule(rule) {
+        number(s, state, "generation")?
+    } else {
+        0
+    };
     let object_array = field_ref(s, state, "objects")?;
     #[cfg(test)]
     super::super::state::trace_event("source_objects", None);
@@ -137,10 +142,21 @@ pub(super) fn audit_generated_in_store(
                 CC004_STEP_KIND,
                 CC005_GROUP_KIND,
                 CC007_FRACTAL_KIND,
+                CC007_DEVELOPMENT_BATCH_KIND,
                 CC054_KNOWLEDGE_KIND,
             ]
             .contains(&kind.as_str())
                 && !tb02b::KINDS.contains(&kind.as_str())
+                // #1419/#1393：冻结旧核之外的 C/D/E/F 结构域与 W 初始化两种 kind（只在其规则串的
+                // cut 里声明），与现役入口调同一份 source_structure / source_pending W 判据——
+                // 这一段是镜像，不是独立对拍；A/B 旧核其余判据保持冻结。
+                && !super::source_structure::is_kind(rule, kind.as_str())
+                && !(super::source_pending::is_w_rule(rule)
+                    && [
+                        content_producer::CC004_INITIALIZATION_KIND,
+                        content_producer::CC004_UNDETERMINED_KIND,
+                    ]
+                    .contains(&kind.as_str()))
             {
                 return Err(err("未声明typed事实种类"));
             }
@@ -223,6 +239,17 @@ pub(super) fn audit_generated_in_store(
                     return Err(err("新笔payload槽位与fact_key不同"));
                 }
             }
+            if super::source_structure::is_kind(rule, kind.as_str()) {
+                super::source_structure::audit_payload(
+                    s,
+                    kind.as_str(),
+                    &payload,
+                    parsed.index(1).unwrap(),
+                    &sources,
+                    raw,
+                    current_generation,
+                )?;
+            }
             if kind == CC054_KNOWLEDGE_KIND {
                 let contract = tb02b::contract_for_rule(rule)
                     .ok_or_else(|| err("知识域来源审计规则修订未声明"))?;
@@ -294,6 +321,7 @@ pub(super) fn audit_generated_in_store(
             })
             .map_err(err)?;
     }
+    super::source_structure::audit_full(s, &objects, rule)?;
     // #1394 r3：先绑定已发布未定事实，再核组成员与 pending 的不交完备并集。
     let pending = source_pending::audit(s, &objects, raw, &groups, rule, deadline)?;
     let mut partition = bj::new_map(allocation.as_ref());

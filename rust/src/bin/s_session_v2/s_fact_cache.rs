@@ -169,6 +169,7 @@ impl Lane {
         group_facts: &[InclusionGroupFact],
         raw: &BTreeMap<i64, Value>,
         shapes: &[Value],
+        previous: &[Value],
         gen: i64,
         cut: &str,
         frontier: i64,
@@ -196,6 +197,7 @@ impl Lane {
             group_facts,
             raw,
             shapes,
+            previous,
             gen,
             cut,
             frontier,
@@ -671,6 +673,13 @@ impl DeltaLane {
                 if !appended.shared_available() {
                     return Err("GenError：有效 raw winner 非严格升序，不能沿用共享 parser".into());
                 }
+                // #1393：建立方向那一代从 raw0 重折，前缀步骤如实变脏。
+                if appended.replayed_from_zero() {
+                    changes.effective_dirty_from = min_frontier(
+                        changes.effective_dirty_from,
+                        Some(appended.step_dirty_from()),
+                    );
+                }
                 changes.group_dirty_from =
                     min_frontier(changes.group_dirty_from, appended.group_dirty_from());
                 changes.merged_dirty_from =
@@ -983,6 +992,7 @@ mod delta_tests {
             &groups,
             &raw,
             &[],
+            &[],
             1,
             "c1",
             3,
@@ -992,6 +1002,7 @@ mod delta_tests {
             &lane.state,
             &groups,
             &raw,
+            &[],
             &[],
             1,
             "c1",
@@ -1015,6 +1026,7 @@ mod delta_tests {
             &groups,
             &raw,
             &[],
+            &[],
             2,
             "c2",
             4,
@@ -1023,6 +1035,7 @@ mod delta_tests {
         let want = tb02a_facts::build(
             &process_inclusion_with_facts(&bars[..3]),
             &raw,
+            &[],
             &[],
             2,
             "c2",

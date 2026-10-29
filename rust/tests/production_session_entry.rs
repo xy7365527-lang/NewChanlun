@@ -166,27 +166,6 @@ fn s_init_v3(space: &Space, declared: Option<&Value>) -> PathBuf {
     db
 }
 
-/// v1 init（既有 TestOnly 方式；可带结构源声明）。
-fn s_init_v1(space: &Space, declared: Option<&Value>) -> PathBuf {
-    let db = space.s_db();
-    let mut c = Command::new(s_bin());
-    c.args(["init", "--db"])
-        .arg(&db)
-        .args(["--session", SESSION, "--catalog"])
-        .arg(fixture("catalog/signed-catalog.json"));
-    if let Some(d) = declared {
-        c.arg("--structure-source")
-            .arg(write_json(&space.path("source.json"), d));
-    }
-    let out = run(&mut c);
-    assert!(
-        out.status.success(),
-        "S v1 init: {}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-    db
-}
-
 /// TestOnly 造锚：owner 绑定 + state/s-admission/{limits,binding}.json；返回 limits 路径。
 fn anchor(db: &Path) -> PathBuf {
     let db = db.canonicalize().unwrap();
@@ -681,8 +660,10 @@ fn s_rejects_same_shape_bars_from_undeclared_source() {
 #[test]
 fn production_session_refuses_s_db_without_source_declaration() {
     let space = Space::new();
-    let s_db = s_init_v1(&space, None);
-    let before = raw_rows(&s_db);
+    // #1419：v1 写入口在发布构建退役（issuecomment-6265726014），无声明 S 库改由 v3 init 不带
+    // --structure-source 构造；判据（launcher 拒绝且不写原始行）不变。S 未运行，读行数用离线只读。
+    let s_db = s_init_v3(&space, None);
+    let before = raw_rows_offline(&s_db);
     let xp = x_profile(&space, "simulation", None, Some("tb09-sentinel"), false);
     let source = declaration("TestOnlyStructure", DECLARED_NS);
     let manifest = launcher_manifest(
@@ -698,7 +679,7 @@ fn production_session_refuses_s_db_without_source_declaration() {
         .arg(&manifest));
     assert!(!out.status.success());
     assert!(String::from_utf8_lossy(&out.stderr).contains("InvalidDomain"));
-    assert_eq!(raw_rows(&s_db), before);
+    assert_eq!(raw_rows_offline(&s_db), before);
 }
 
 /// 经 S socket 提交第 `n` 条 ingest（`s-session/3` 封包、`s-ohlc/1` 原件；一帧 LF + 写端 EOF）。
