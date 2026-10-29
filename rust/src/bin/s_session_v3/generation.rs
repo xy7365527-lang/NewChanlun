@@ -1018,6 +1018,17 @@ impl GenerationRuntime {
                 .build_initialization(store, state, &prior_w, gen, cut)
                 .map_err(producer_error)?;
             extend_gen(&mut init_requests, w.requests, store)?;
+            // 次序键与 `build_initialization` 的请求线序逐条对应：初始化 → 待决组 → 逐原件未定。
+            request_keys.push(RequestOrder::initialization());
+            if state.unsettled() {
+                request_keys.push(RequestOrder::pending());
+            }
+            for raw_bar in state.pending_raw() {
+                request_keys.push(RequestOrder::new(
+                    coord_i64(raw_bar.source_index)?,
+                    RequestLabel::UndeterminedRaw,
+                ));
+            }
             for object in w.objects {
                 let kind = typed_kind(store, &object)?;
                 let generated = object_records::generated(
@@ -1174,7 +1185,7 @@ impl GenerationRuntime {
             ));
         }
         // #1491 ADR 0037 §一：bounded-layout/1 的 `requests` 按 (window_start, label) 排列，新请求
-        // 只落尾部；layout/1 保持原线序（步骤 → 组 → 形态/分型 → 待决）。
+        // 只落尾部；layout/1 保持原线序（W → 步骤 → 组 → 形态/分型 → 待决）。
         if bounded {
             let mut order: Vec<usize> = (0..requests.len()).collect();
             order.sort_by_key(|&i| request_keys[i]);
@@ -2444,10 +2455,12 @@ fn write_json_view(
         .map_err(|error| format!("GenError：值写入失败：{error}"))
 }
 
-/// #1491 ADR 0037 §一：CC-054 请求的 label 序（同一 window_start 内）。步骤与组请求的键尾是单坐标、
-/// 形态与分型请求的键尾是窗口；三条分型请求按原配方 label 顺序。
+/// #1491 ADR 0037 §一：CC-054 请求的 label 序（同一 window_start 内）。W 逐原件未定、步骤与组请求的
+/// 键尾是单坐标，形态与分型请求的键尾是窗口；三条分型请求按原配方 label 顺序。W 未定排在步骤前，
+/// 与 layout/1 线序（W 在步骤之前）同向（#1419）。
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum RequestLabel {
+    UndeterminedRaw,
     Step,
     Group,
     Shape,
@@ -2457,10 +2470,18 @@ enum RequestLabel {
 }
 
 /// #1491：bounded-layout/1 的 CC-054 `requests` 排序键 (window_start, label)；无窗口的待决请求
-/// （不足三根合并 bar）排最后——它只在形态出现之前存在。
+/// （不足三根合并 bar、方向未定的待决组）排最后——它们只在形态/方向出现之前存在。
+/// #1419：W 初始化请求（槽 W，每代恰一条、无窗口）排最前，与 layout/1 线序同位且逐代不动。
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum RequestPhase {
+    Initialization,
+    Windowed,
+    Pending,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct RequestOrder {
-    pending: bool,
+    phase: RequestPhase,
     window_start: i64,
     label: Option<RequestLabel>,
 }
@@ -2468,15 +2489,23 @@ struct RequestOrder {
 impl RequestOrder {
     fn new(window_start: i64, label: RequestLabel) -> Self {
         Self {
-            pending: false,
+            phase: RequestPhase::Windowed,
             window_start,
             label: Some(label),
         }
     }
 
+    fn initialization() -> Self {
+        Self {
+            phase: RequestPhase::Initialization,
+            window_start: 0,
+            label: None,
+        }
+    }
+
     fn pending() -> Self {
         Self {
-            pending: true,
+            phase: RequestPhase::Pending,
             window_start: 0,
             label: None,
         }
@@ -5563,8 +5592,9 @@ mod tests {
         gen: i64,
         frontier: i64,
         rule: &'a str,
-    ) -> GenerationInput<'a> {
+    ) -> GenerationInput<'a, 'static> {
         GenerationInput {
+            structure_prior: StructurePriors::default(),
             all_events: raw,
             effective,
             generation: gen,
@@ -5803,7 +5833,8 @@ mod tests {
             .iter()
             .map(|r| r["request_id"].as_str().unwrap().to_string())
             .collect();
-        let order: Vec<(bool, i64, usize)> = bounded_requests
+        // (阶段, window_start, label)：W 初始化 0 最前、带窗口 1、待决 2 最后（#1419 × #1491）。
+        let order: Vec<(u8, i64, usize)> = bounded_requests
             .iter()
             .map(|r| {
                 let id: Value = serde_json::from_str(r["request_id"].as_str().unwrap()).unwrap();
@@ -5816,13 +5847,17 @@ mod tests {
                     Value::Array(slot) => (
                         slot[0].as_str().unwrap().to_string(),
                         slot[1].clone(),
-                        3 + labels.iter().position(|l| id[1] == *l).unwrap(),
+                        4 + labels.iter().position(|l| id[1] == *l).unwrap(),
                     ),
                     Value::String(kind) => (kind.clone(), id[1].clone(), 0),
                     _ => unreachable!(),
                 };
+                if kind == crate::content_producer::CC004_INITIALIZATION_KIND {
+                    assert_eq!(tail, "W", "g{gen} W 初始化槽");
+                    return (0, 0, 0);
+                }
                 if tail == "pending" {
-                    return (true, 0, 0);
+                    return (2, 0, 0);
                 }
                 let start = match &tail {
                     Value::Array(window) => window[0].as_str().unwrap().parse().unwrap(),
@@ -5830,12 +5865,13 @@ mod tests {
                     _ => unreachable!(),
                 };
                 let rank = match kind.as_str() {
-                    CC004_STEP_KIND => 0,
-                    CC005_GROUP_KIND => 1,
-                    CC006_SHAPE_KIND => 2,
+                    crate::content_producer::CC004_UNDETERMINED_KIND => 0,
+                    CC004_STEP_KIND => 1,
+                    CC005_GROUP_KIND => 2,
+                    CC006_SHAPE_KIND => 3,
                     _ => label,
                 };
-                (false, start, rank)
+                (1, start, rank)
             })
             .collect();
         let mut sorted_order = order.clone();
@@ -5860,6 +5896,70 @@ mod tests {
             }
         }
         (total, ids)
+    }
+
+    /// #1419 × #1491：W 初始化/未定请求在 layout/1 与 bounded-layout/1 两条车道都进 CC-054，且
+    /// 生成不因次序键缺 W 而报错。layout/1 保持 W 原线序（初始化 → 待决组 → 逐原件未定，均在
+    /// 其余请求之前）；bounded 下 W 初始化恒为首条，逐原件未定按坐标归入 (window_start, label)。
+    #[test]
+    fn w_requests_keep_line_order_in_layout1_and_lead_bounded_layout() {
+        let events = delta_long_fixture();
+        let cuts: Vec<usize> = (1..=events.len()).collect();
+        let runs = bounded_layout_runs(&events, &cuts);
+        let id_of = |r: &Value| -> Value {
+            serde_json::from_str(r["request_id"].as_str().unwrap()).unwrap()
+        };
+        let init_id = json!([crate::content_producer::CC004_INITIALIZATION_KIND, "W"]);
+        let (mut saw_undetermined, mut saw_established) = (false, false);
+        for (i, (sorted, bounded)) in runs.iter().enumerate() {
+            let gen = i + 1;
+            let line: Vec<Value> = requests_of(sorted).iter().map(id_of).collect();
+            assert_eq!(line[0], init_id, "g{gen} layout/1 首条是 W 初始化");
+            let mut w_block = vec![init_id.clone()];
+            let mut rest = &line[1..];
+            if rest
+                .first()
+                .map(|id| id[0] == CC005_GROUP_KIND && id[1] == "pending")
+                == Some(true)
+            {
+                w_block.push(rest[0].clone());
+                rest = &rest[1..];
+            }
+            let undetermined: Vec<i64> = rest
+                .iter()
+                .take_while(|id| id[0] == crate::content_producer::CC004_UNDETERMINED_KIND)
+                .map(|id| id[1].as_str().unwrap().parse().unwrap())
+                .collect();
+            assert!(
+                undetermined.windows(2).all(|w| w[0] < w[1]),
+                "g{gen} layout/1 逐原件未定按坐标升序"
+            );
+            assert!(
+                line[w_block.len() + undetermined.len()..].iter().all(|id| {
+                    id[0] != crate::content_producer::CC004_INITIALIZATION_KIND
+                        && id[0] != crate::content_producer::CC004_UNDETERMINED_KIND
+                }),
+                "g{gen} layout/1 W 请求全部在其余请求之前"
+            );
+            if undetermined.is_empty() {
+                saw_established = true;
+            } else {
+                saw_undetermined = true;
+            }
+            let lead: Vec<Value> = requests_of(bounded).iter().map(id_of).collect();
+            assert_eq!(lead[0], init_id, "g{gen} bounded 首条是 W 初始化");
+            for coord in &undetermined {
+                assert!(
+                    lead.contains(&json!([
+                        crate::content_producer::CC004_UNDETERMINED_KIND,
+                        coord.to_string()
+                    ])),
+                    "g{gen} bounded 含未定原件 {coord} 的请求"
+                );
+            }
+        }
+        assert!(saw_undetermined, "夹具须覆盖方向未定期的 W 未定请求");
+        assert!(saw_established, "夹具须覆盖方向建立后的 W 初始化");
     }
 
     #[test]
