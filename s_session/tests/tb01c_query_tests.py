@@ -53,17 +53,36 @@ PRODUCER_EVIDENCE = os.environ.get("S1768_PRODUCER_EVIDENCE")
 class FrozenProducer:
     """同一 Python reader 存续期间驱动冻结 producer；失败原样上抛，不关 reader、不动侧件。"""
 
+    READY_TIMEOUT, STOP_TIMEOUT = 600, 60
+
     def __init__(self, test, db):
         self.test, self.db, self.n, self.records = test, Path(db), 0, []
+        self.proc, self.ready, self.failure, self.finished = None, False, None, False
         self.dir = Path(tempfile.mkdtemp(prefix="handshake-", dir=test.base))
         self.log = Path(PRODUCER_EVIDENCE or test.base) / test.id().rsplit(".", 1)[-1]
         self.log.mkdir(parents=True, exist_ok=True)
         self.out = open(self.log / "producer.stdout", "wb")
         self.err = open(self.log / "producer.stderr", "wb")
+        # 启动前即挂 cleanup：ready 失败等任何后续异常都经 finish 有界回收（LIFO，先于 reader.close）。
+        test.addCleanup(self.finish)
         self.argv = [PRODUCER, "issue1768_seed_export::issue1768_dynamic_producer", "--ignored", "--exact", "--nocapture"]
-        self.proc = subprocess.Popen(self.argv, stdout=self.out, stderr=self.err,
-            env=dict(os.environ, S1768_PRODUCER_DB=str(self.db), S1768_PRODUCER_HANDSHAKE=str(self.dir)))
-        self.record("ready", observed=self.observe(), ready=self.wait("ready"))
+        try:
+            self.proc = subprocess.Popen(self.argv, stdout=self.out, stderr=self.err,
+                env=dict(os.environ, S1768_PRODUCER_DB=str(self.db), S1768_PRODUCER_HANDSHAKE=str(self.dir)))
+        except BaseException as error:
+            self.failure = error
+            raise
+
+    def start(self):
+        try:
+            ready = self.wait("ready", timeout=self.READY_TIMEOUT)
+        except Exception as error:
+            self.failure = error
+            self.record("ready-failed", error=repr(error), observed=self.observe())
+            raise
+        self.ready = True
+        self.record("ready", observed=self.observe(), ready=ready)
+        return self
 
     def observe(self):
         reader_ = self.test.reader
@@ -75,7 +94,7 @@ class FrozenProducer:
                               for s in ("-wal", "-shm", "-journal")})
 
     def record(self, event, **fields):
-        self.records.append(dict(event=event, producer_exit=self.proc.poll(), **fields))
+        self.records.append(dict(event=event, producer_exit=None if self.proc is None else self.proc.poll(), **fields))
         (self.log / "records.json").write_text(json.dumps(dict(argv=self.argv, db=str(self.db), records=self.records),
                                                           ensure_ascii=False, indent=1, default=str), encoding="utf-8")
 
@@ -95,6 +114,13 @@ class FrozenProducer:
         return json.loads(path.read_text(encoding="utf-8"))
 
     def request(self, seq, price):
+        try:
+            return self._request(seq, price)
+        except BaseException as error:
+            self.failure = error
+            raise
+
+    def _request(self, seq, price):
         n, before = self.n, self.observe()
         self.publish(f"request-{n}", dict(seq=str(seq), price=str(price)))
         receipt = self.wait(f"receipt-{n}")
@@ -113,21 +139,37 @@ class FrozenProducer:
         return receipt
 
     def finish(self):
-        if self.proc.poll() is None:
-            self.publish("stop", {})
-            try:
-                stopped = self.wait("stopped", timeout=60)
-                self.proc.wait(timeout=60)
-            except (AssertionError, subprocess.TimeoutExpired) as error:
-                stopped = repr(error)
+        """幂等回收：停止握手超时或非零退出让测试失败；已有主因（ready/request 失败）时只回收留痕，不覆盖主因。"""
+        if self.finished:
+            return
+        self.finished, problem = True, None
+        try:
+            if self.proc is None:
+                problem = "producer 未能启动"
+            elif self.proc.poll() is None and not self.ready:
                 self.proc.kill()
-                self.proc.wait()
-            self.record("stop", stopped=stopped, observed=self.observe())
-        else:
-            self.record("exited", observed=self.observe())
-        self.out.close()
-        self.err.close()
-
+                self.proc.wait(timeout=self.STOP_TIMEOUT)
+                self.record("stop", stopped="killed: ready 未完成", observed=self.observe())
+            elif self.proc.poll() is None:
+                self.publish("stop", {})
+                try:
+                    stopped = self.wait("stopped", timeout=self.STOP_TIMEOUT)
+                    self.proc.wait(timeout=self.STOP_TIMEOUT)
+                except (AssertionError, subprocess.TimeoutExpired) as error:
+                    stopped = repr(error)
+                    problem = f"producer 未正常停止：{stopped}"
+                    self.proc.kill()
+                    self.proc.wait(timeout=self.STOP_TIMEOUT)
+                self.record("stop", stopped=stopped, observed=self.observe())
+            else:
+                self.record("exited", observed=self.observe())
+            if problem is None and self.proc is not None and self.proc.returncode != 0:
+                problem = f"producer 退出码 {self.proc.returncode}"
+        finally:
+            self.out.close()
+            self.err.close()
+        if problem is not None and self.failure is None:
+            raise AssertionError(f"{problem}，见 {self.log}")
 
 def resources():
     return dict(max_frame_bytes=1024*1024, max_pending_connections=8,
@@ -199,7 +241,7 @@ class QueryTests(unittest.TestCase):
         event = json.loads(Path(args[args.index("--input") + 1]).read_text(encoding="utf-8"))["events"][0]
         if self.producer is None:
             self.producer = FrozenProducer(self, db)
-            self.addCleanup(self.producer.finish)
+            self.producer.start()
         return self.producer.request(int(event["seq"]), int(event["price"]))
 
     def mutate(self, sql, values=()):
