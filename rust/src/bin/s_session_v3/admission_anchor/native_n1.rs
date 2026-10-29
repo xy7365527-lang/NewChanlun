@@ -1292,10 +1292,6 @@ unsafe fn install_once() -> Result<(), NativeCode> {
     Ok(())
 }
 
-#[cfg(all(test, target_os = "linux"))]
-#[path = "../../../../../s_session/tests/issue1527_recovery/native_n1_tests.rs"]
-mod tests;
-
 #[cfg(test)]
 #[path = "../../../../../s_session/tests/issue1527_recovery/native_n1_tests.rs"]
 mod tests;

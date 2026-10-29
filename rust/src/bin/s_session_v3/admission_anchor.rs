@@ -25,7 +25,6 @@ mod ram;
 mod resources;
 pub(crate) mod terminal;
 pub(crate) mod native_n1;
-pub(crate) mod native_n1;
 use resources::AdmissionResources;
 
 const CONTROL_BYTES: usize = 65_536;
