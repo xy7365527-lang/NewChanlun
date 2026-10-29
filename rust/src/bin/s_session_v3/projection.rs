@@ -1235,6 +1235,77 @@ mod tests {
         }
     }
 
+    /// #1419 P4 G7 前半：原 `tb02u_pending_append_keeps_first_known_and_policy_gate`
+    /// （`028796ba08:rust/src/bin/s_session_v2/tb02u_tests.rs:140–171`）同输入 (0,10)/(2,8)/(1,11)
+    /// 逐代真实接纳、Begin、发布：每代未定原件数 = n，raw0 对象逐字等于首获知那代，零正式组，
+    /// 发布 cut 经只读审计展开。后半旧规则拒写见 `driver::tests::s3_writer_and_recover_reject_frozen_nonempty_historical_session_unchanged`。
+    #[test]
+    fn w_pending_append_keeps_first_known_and_zero_groups() {
+        let mut f = Fixture::new();
+        let mut first = Value::Null;
+        for (n, row) in [
+            (1, ("o0", 0, 0, 10, 0, 10)),
+            (2, ("o1", 1, 2, 8, 2, 8)),
+            (3, ("o2", 2, 1, 11, 1, 11)),
+        ] {
+            let (e, t) = f.accept_begin(n, row, 1);
+            f.publish(&e, &t).unwrap();
+            let (snapshot, _, _) = published_w_cut(&mut f, n);
+            let pending = w_kind(&snapshot, "CC-004.undetermined_raw");
+            assert_eq!(pending.len(), n as usize, "g{n}");
+            let raw0 = pending
+                .iter()
+                .find(|o| o["payload"]["raw"]["source_coord"] == "0")
+                .unwrap();
+            if n == 1 {
+                first = raw0.clone();
+            } else {
+                assert_eq!(raw0, &first, "g{n} 首获知原件不变");
+            }
+            assert!(w_kind(&snapshot, "CC-005.inclusion_group").is_empty(), "g{n}");
+        }
+    }
+
+    /// #1419 P4 G3：原 `tb02a_three_groups_with_equal_roots_publish_shape_with_root_set` 的 CC-054 域断言
+    /// （`028796ba08:rust/src/bin/s_structure_session.rs:7017–7020`）按签署合同承接：同输入
+    /// (0,1)/(3,10)/(5,10)/(20,30) 经正式 S3 发布，CC-054 域等于该 cut 规则串的笔合同知识域
+    /// （`tb02b::contract_for_rule`，W 串为 W_CONTRACT）；与原同价根集组判据一并核。
+    #[test]
+    fn w_three_groups_with_equal_roots_publish_contract_knowledge_domain() {
+        let mut f = Fixture::new();
+        let (e, t) = f.accept_begin_rows(
+            1,
+            &[
+                ("o0", 0, 0, 1, 0, 1),
+                ("o1", 1, 3, 10, 3, 10),
+                ("o2", 2, 5, 10, 5, 10),
+                ("o3", 3, 20, 30, 20, 30),
+            ],
+            1,
+        );
+        f.publish(&e, &t).unwrap();
+        let rule = meta_get_opt(&f.conn, "rule_revision").unwrap().unwrap();
+        assert_eq!(rule, crate::W_STRUCTURE_RULE_REVISION);
+        let (snapshot, _, _) = published_w_cut(&mut f, 1);
+        let knowledge = w_kind(&snapshot, "CC-054.knowledge_state");
+        assert_eq!(knowledge.len(), 1);
+        let contract = crate::tb02b::contract_for_rule(&rule).unwrap();
+        assert_eq!(contract, crate::tb02b::W_CONTRACT);
+        assert_eq!(knowledge[0]["payload"]["domain"], contract.knowledge_domain);
+        assert_ne!(
+            knowledge[0]["payload"]["domain"],
+            crate::tb02b::CURRENT_CONTRACT.knowledge_domain,
+            "W cut 不得发旧串域"
+        );
+        let groups = w_kind(&snapshot, "CC-005.inclusion_group");
+        assert!(
+            groups
+                .iter()
+                .any(|g| g["payload"]["high_sources"] == json!(["1", "2"])),
+            "同价高点组以根集发布"
+        );
+    }
+
     #[cfg(feature = "s_allocation_json_testonly")]
     fn owned_capture(tx: &Transaction<'_>, budget: &OwnedBudget) -> sc::AuditCapture {
         sc::AuditCapture::from_slab_for_allocation_prototype(

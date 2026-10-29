@@ -1651,13 +1651,13 @@ pub(crate) mod tests {
         ) -> (Value, String) {
             self.accept_begin_rows(n, &[row], revision)
         }
-        /// 一条接纳消息携带多根原始事件（同一修订号）。
-        pub(crate) fn accept_begin_rows(
+        /// 只做正式接纳（AcceptedPending），不开 Begin、不发布；返回接纳信封与库存时钟。
+        pub(crate) fn accept_rows(
             &mut self,
             n: i64,
             rows: &[(&str, i64, i64, i64, i64, i64)],
             revision: i64,
-        ) -> (Value, String) {
+        ) -> (Value, v2::ClockPlan) {
             let mut raw = located_ohlc_input(rows);
             for event in raw["events"].as_array_mut().unwrap() {
                 event["revision"] = json!(revision.to_string());
@@ -1673,6 +1673,16 @@ pub(crate) mod tests {
                     .unwrap();
             control.accept(&view, &accepted).unwrap();
             tx.commit().unwrap();
+            (envelope, clock)
+        }
+        /// 一条接纳消息携带多根原始事件（同一修订号），随后在同一消息上开 Begin（不发布）。
+        pub(crate) fn accept_begin_rows(
+            &mut self,
+            n: i64,
+            rows: &[(&str, i64, i64, i64, i64, i64)],
+            revision: i64,
+        ) -> (Value, String) {
+            let (envelope, clock) = self.accept_rows(n, rows, revision);
             let tx = self.conn.transaction().unwrap();
             let control = control::S3Control::attach(&tx, &clock).unwrap();
             let view = control.inspect_ingest(envelope.clone()).unwrap();

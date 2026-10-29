@@ -975,6 +975,278 @@ mod tests {
         assert_eq!(e.split("；原准入账=").next(), Some(expected.as_str()));
     }
 
+    fn read_only(db: &Path) -> Connection {
+        Connection::open_with_flags(db, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap()
+    }
+
+    fn all_rows(db: &Path) -> Vec<(String, Vec<Vec<rusqlite::types::Value>>)> {
+        let conn = read_only(db);
+        let tables = {
+            let mut stmt = conn
+                .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+                .unwrap();
+            let rows = stmt.query_map([], |r| r.get::<_, String>(0)).unwrap();
+            rows.collect::<Result<Vec<_>, _>>().unwrap()
+        };
+        tables
+            .into_iter()
+            .map(|table| {
+                let quoted = table.replace('"', "\"\"");
+                let mut stmt = conn
+                    .prepare(&format!("SELECT * FROM \"{quoted}\""))
+                    .unwrap();
+                let columns = stmt.column_count();
+                let mut rows = stmt
+                    .query_map([], |r| {
+                        (0..columns)
+                            .map(|n| r.get::<_, rusqlite::types::Value>(n))
+                            .collect::<rusqlite::Result<Vec<_>>>()
+                    })
+                    .unwrap()
+                    .collect::<Result<Vec<_>, _>>()
+                    .unwrap();
+                rows.sort_by_cached_key(|row| format!("{row:?}"));
+                (table, rows)
+            })
+            .collect()
+    }
+
+    fn s3_profile() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("s_session/profiles/ohlc_integer_tb02a_v1.json")
+    }
+
+    /// #1419 P4 G4：原 `tb1405_composed_s2_recover_rejects_old_rules_before_any_persistent_change`
+    /// （`7f4f1eeb4b:rust/src/bin/s_structure_session.rs:7829–7914`）的 9 规则 × 3 pending 逐格迁到
+    /// 正式 S3 写者（Driver 开门）与 S3 恢复入口。三态为真实无 raw / 正式接纳未发布 / 真实 Begin 未发布。
+    /// S3 写者只认 W 串（`require_current_writer_rule`），原 v2 当前串 RULE_REVISION 在此也是历史串；
+    /// 错误名按该函数的 S3 合同为 VersionUnsupported，原 v2 VersionMismatch 锁同文保留于 s_structure_session.rs。
+    /// 当前 W 串三态为正控：恢复成功换代并清 Begin。
+    #[test]
+    fn s3_writer_and_recover_reject_every_old_rule_in_every_pending_state_unchanged() {
+        use super::super::prepared::tests::Fixture as Real;
+        for rule in [
+            "s2-axis-quantifiers",
+            "s2-axis-quantifiers+new-bi/1",
+            "s2-axis-quantifiers+new-bi/2",
+            "s2-axis-quantifiers+new-bi/1+segment-first/1",
+            "s2-axis-quantifiers+new-bi/1+segment-second/1",
+            "s2-axis-quantifiers+new-bi/2+segment-second/1",
+            "s2-axis-quantifiers+new-bi/1+segment-second/2",
+            "unknown-rule",
+            crate::RULE_REVISION,
+            crate::W_STRUCTURE_RULE_REVISION,
+        ] {
+            for pending in 0..3 {
+                let mut f = Real::with_clock_plan(4, 4, &[("recover-1", 13)]);
+                let row = ("p0", 0, 5, 10, 0, 5);
+                match pending {
+                    1 => {
+                        f.accept_rows(1, &[row], 1);
+                    }
+                    2 => {
+                        f.accept_begin(1, row, 1);
+                    }
+                    _ => {}
+                }
+                let clock = v2::stored_clock(&f.conn).unwrap();
+                let current = rule == crate::W_STRUCTURE_RULE_REVISION;
+                assert_eq!(
+                    meta_get_opt(&f.conn, "rule_revision").unwrap().as_deref(),
+                    Some(crate::W_STRUCTURE_RULE_REVISION)
+                );
+                if !current {
+                    meta_set(&f.conn, "rule_revision", rule).unwrap();
+                }
+                let db = f.db_path();
+                drop(std::mem::replace(
+                    &mut f.conn,
+                    Connection::open_in_memory().unwrap(),
+                ));
+                let _prepared_fixture = crate::v3::admission_anchor::test_prepare(&db);
+                let raw_count = count(&read_only(&db), "raw_events");
+                assert_eq!(raw_count, i64::from(pending > 0), "{rule}/{pending}");
+                let rows_before = all_rows(&db);
+                let bytes_before = std::fs::read(&db).unwrap();
+                if current {
+                    let receipt = recover(
+                        &db,
+                        "2",
+                        &clock,
+                        "recover-1",
+                        crate::v3::admission_anchor::test_prepare(&db).into(),
+                    )
+                    .unwrap();
+                    let c = read_only(&db);
+                    assert_eq!(
+                        meta_get_opt(&c, "writer_epoch").unwrap().as_deref(),
+                        Some("2"),
+                        "{pending}: {receipt}"
+                    );
+                    assert_eq!(
+                        meta_get_opt(&c, "advance_state").unwrap().as_deref(),
+                        Some("idle"),
+                        "{pending}"
+                    );
+                    continue;
+                }
+                let open_error = Driver::open(
+                    &db,
+                    &s3_profile(),
+                    "1",
+                    clock.clone(),
+                    crate::v3::admission_anchor::test_prepare(&db).into(),
+                )
+                .err()
+                .unwrap();
+                assert!(
+                    open_error.contains("VersionUnsupported"),
+                    "{rule}/{pending}: {open_error}"
+                );
+                let recover_error = recover(
+                    &db,
+                    "2",
+                    &clock,
+                    "recover-1",
+                    crate::v3::admission_anchor::test_prepare(&db).into(),
+                )
+                .err()
+                .unwrap();
+                assert!(
+                    recover_error.contains("VersionUnsupported"),
+                    "{rule}/{pending}: {recover_error}"
+                );
+                assert_eq!(std::fs::read(&db).unwrap(), bytes_before, "{rule}/{pending}");
+                assert_eq!(all_rows(&db), rows_before, "{rule}/{pending}");
+            }
+        }
+    }
+
+    /// #1419 P4 G5：原 `tb1405_composed_s2_recover_rejects_old_rule_before_journal_mode_change`
+    /// （`7f4f1eeb4b:rust/src/bin/s_structure_session.rs:7916–7939`）迁正式 S3：DELETE 日志模式的旧规则库，
+    /// 写者开门与恢复均在版本门拒绝，日志模式仍 delete、meta 与全表不变、主库字节不变、不生成 -wal。
+    #[test]
+    fn s3_writer_and_recover_reject_old_rule_before_journal_mode_change() {
+        use super::super::prepared::tests::Fixture as Real;
+        let mut f = Real::with_clock_plan(4, 4, &[("recover-1", 13)]);
+        let clock = v2::stored_clock(&f.conn).unwrap();
+        let db = f.db_path();
+        drop(std::mem::replace(
+            &mut f.conn,
+            Connection::open_in_memory().unwrap(),
+        ));
+        let conn = Connection::open(&db).unwrap();
+        meta_set(&conn, "rule_revision", "s2-axis-quantifiers+new-bi/1").unwrap();
+        let mode: String = conn
+            .query_row("PRAGMA journal_mode=DELETE", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(mode, "delete");
+        let before = db_meta(&conn).unwrap();
+        drop(conn);
+        let _prepared_fixture = crate::v3::admission_anchor::test_prepare(&db);
+        let rows_before = all_rows(&db);
+        let bytes_before = std::fs::read(&db).unwrap();
+        let wal = PathBuf::from(format!("{}-wal", db.display()));
+        assert!(!wal.exists());
+
+        let open_error = Driver::open(
+            &db,
+            &s3_profile(),
+            "1",
+            clock.clone(),
+            crate::v3::admission_anchor::test_prepare(&db).into(),
+        )
+        .err()
+        .unwrap();
+        assert!(open_error.contains("VersionUnsupported"), "{open_error}");
+        let recover_error = recover(
+            &db,
+            "2",
+            &clock,
+            "recover-1",
+            crate::v3::admission_anchor::test_prepare(&db).into(),
+        )
+        .err()
+        .unwrap();
+        assert!(
+            recover_error.contains("VersionUnsupported"),
+            "{recover_error}"
+        );
+
+        assert_eq!(std::fs::read(&db).unwrap(), bytes_before);
+        assert!(!wal.exists(), "拒绝路径不得切换 WAL");
+        let conn = Connection::open(&db).unwrap();
+        let mode: String = conn
+            .query_row("PRAGMA journal_mode", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(mode, "delete");
+        assert_eq!(db_meta(&conn).unwrap(), before);
+        drop(conn);
+        assert_eq!(all_rows(&db), rows_before);
+    }
+
+    /// #1419 P4 G7 后半：原 `tb02u_pending_append_keeps_first_known_and_policy_gate`
+    /// （`028796ba08:rust/src/bin/s_session_v2/tb02u_tests.rs:140–171`）在非空历史上改旧规则后拒写。
+    /// S3 来源审计逐代核 manifest 与冻结域 rule_revision（history.rs「manifest.rule_revision 与冻结域
+    /// 不符」），只改 meta 会造出不合法库；故用冻结的真实已发布历史会话原件（4 代、4 根 raw、旧串），
+    /// 不由 W parser 新造旧串库（29BE）。正式写者开门与恢复均拒，主库与 -wal 字节、全表不变。
+    #[test]
+    fn s3_writer_and_recover_reject_frozen_nonempty_historical_session_unchanged() {
+        let history = super::super::generation::tests::issue1419_history();
+        let db = history.path().join("historical-published-layout1.sqlite");
+        let wal = PathBuf::from(format!("{}-wal", db.display()));
+        let (clock, rule) = {
+            let ro = read_only(&db);
+            assert_eq!(count(&ro, "raw_events"), 4);
+            assert_eq!(
+                meta_get_opt(&ro, "generation").unwrap().as_deref(),
+                Some("4")
+            );
+            assert_eq!(
+                meta_get_opt(&ro, "writer_epoch").unwrap().as_deref(),
+                Some("1")
+            );
+            (
+                v2::stored_clock(&ro).unwrap(),
+                meta_get_opt(&ro, "rule_revision").unwrap().unwrap(),
+            )
+        };
+        assert_ne!(rule, crate::W_STRUCTURE_RULE_REVISION);
+        let _prepared_fixture = crate::v3::admission_anchor::test_prepare(&db);
+        let rows_before = all_rows(&db);
+        let bytes_before = (std::fs::read(&db).unwrap(), std::fs::read(&wal).ok());
+        let open_error = Driver::open(
+            &db,
+            &s3_profile(),
+            "1",
+            clock.clone(),
+            crate::v3::admission_anchor::test_prepare(&db).into(),
+        )
+        .err()
+        .unwrap();
+        assert!(open_error.contains("VersionUnsupported"), "{open_error}");
+        let recover_error = recover(
+            &db,
+            "2",
+            &clock,
+            "recover-1",
+            crate::v3::admission_anchor::test_prepare(&db).into(),
+        )
+        .err()
+        .unwrap();
+        assert!(
+            recover_error.contains("VersionUnsupported"),
+            "{recover_error}"
+        );
+        assert_eq!(
+            (std::fs::read(&db).unwrap(), std::fs::read(&wal).ok()),
+            bytes_before
+        );
+        assert_eq!(all_rows(&db), rows_before);
+    }
+
     #[cfg(feature = "s_allocation_json_testonly")]
     #[test]
     fn historical_bi_rule_owned_rejects_without_sidecar_then_current_rule_opens() {

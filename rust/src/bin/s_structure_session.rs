@@ -7206,13 +7206,10 @@ mod tests {
             .iter()
             .find(|o| o["kind"] == "CC-054.knowledge_state")
             .unwrap();
-        // #1419 P4 G3：CURRENT_CONTRACT 知识域 = "established_direction_with_extreme_root_sets"；
-        // W_CONTRACT 知识域不同（"raw_adjacent_W_initialization"）。本测试用当前串，断言当前域。
-        assert_eq!(
-            knowledge["payload"]["domain"],
-            "established_direction_with_extreme_root_sets",
-            "#1419 P4 G3: 恢复 CC-054 域断言，按 tb02b::CURRENT_CONTRACT"
-        );
+        // #1419 裁定 (a)/②：知识域随规则串的签署合同走。本库是旧串 RULE_REVISION 种子，而共享事实层
+        // 恒发 W 域（tb02a_facts.rs `KNOWLEDGE_DOMAIN = W_CONTRACT.knowledge_domain`），即「同串混两代」，
+        // 不对种子库断言任一域。原 CC-054 域断言的同输入正式 S3 承接见
+        // `v3::projection::tests::w_three_groups_with_equal_roots_publish_contract_knowledge_domain`。
         assert!(!knowledge["payload"]["waiting_reasons"]
             .as_array()
             .unwrap()
@@ -9247,6 +9244,122 @@ mod tests {
         drop(conn);
         recover_business(&files.db(), "2").unwrap();
         assert!(!financial_basis_pending(&open_db(&files.db()).unwrap()).unwrap());
+    }
+
+    /// #1419 P4 G4/G5：以下两锁按原件 `7f4f1eeb4b:rust/src/bin/s_structure_session.rs:7829–7939`
+    /// 逐字恢复（v2 历史门 `recover_core` 的 VersionMismatch 合同仍在本文件）；正式 S3 逐格承接见
+    /// `v3::driver::tests::s3_writer_and_recover_reject_every_old_rule_in_every_pending_state_unchanged`
+    /// 与 `s3_writer_and_recover_reject_old_rule_before_journal_mode_change`。
+    /// #1405/#1420：人工元数据负控，不是旧 producer 导出的历史原件。
+    /// 空库 / 已接纳未发布 raw / 未决 Begin 均在版本门拒绝，所有表原值保持；当前规则正控可恢复。
+    #[test]
+    fn tb1405_composed_s2_recover_rejects_old_rules_before_any_persistent_change() {
+        fn stored_rows(conn: &Connection) -> Vec<(String, Vec<Vec<rusqlite::types::Value>>)> {
+            let tables = {
+                let mut stmt = conn
+                    .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+                    .unwrap();
+                let rows = stmt.query_map([], |r| r.get::<_, String>(0)).unwrap();
+                rows.collect::<Result<Vec<_>, _>>().unwrap()
+            };
+            tables
+                .into_iter()
+                .map(|table| {
+                    let quoted = table.replace('"', "\"\"");
+                    let mut stmt = conn
+                        .prepare(&format!("SELECT * FROM \"{quoted}\""))
+                        .unwrap();
+                    let columns = stmt.column_count();
+                    let mut rows = stmt
+                        .query_map([], |r| {
+                            (0..columns)
+                                .map(|n| r.get::<_, rusqlite::types::Value>(n))
+                                .collect::<rusqlite::Result<Vec<_>>>()
+                        })
+                        .unwrap()
+                        .collect::<Result<Vec<_>, _>>()
+                        .unwrap();
+                    rows.sort_by_cached_key(|row| format!("{row:?}"));
+                    (table, rows)
+                })
+                .collect()
+        }
+        for rule in [
+            "s2-axis-quantifiers",
+            "s2-axis-quantifiers+new-bi/1",
+            "s2-axis-quantifiers+new-bi/2",
+            "s2-axis-quantifiers+new-bi/1+segment-first/1",
+            "s2-axis-quantifiers+new-bi/1+segment-second/1",
+            "s2-axis-quantifiers+new-bi/2+segment-second/1",
+            "s2-axis-quantifiers+new-bi/1+segment-second/2",
+            "unknown-rule",
+            RULE_REVISION,
+        ] {
+            for pending in 0..3 {
+                let files = TestFiles::new();
+                init_test_db(&files);
+                if pending > 0 {
+                    accept(
+                        &files,
+                        &test_input(&[ev("e0", "1", "0", "10000")]),
+                        "recover-rule.json",
+                        DEFAULT_WRITER_EPOCH,
+                    );
+                }
+                let conn = open_db(&files.db()).unwrap();
+                if pending == 2 {
+                    meta_set(&conn, "advance_state", "begun:dead:1:0").unwrap();
+                    meta_set(&conn, "begin_token", "dead").unwrap();
+                }
+                // 未生成任何新笔/段对象；只构造版本门负控，不重标当前 producer 原件为历史合同。
+                meta_set(&conn, "rule_revision", rule).unwrap();
+                let before = stored_rows(&conn);
+                let result = recover_core(&files.db(), "2", None);
+                if rule == RULE_REVISION {
+                    let receipt = result.unwrap();
+                    assert_eq!(receipt["new_epoch"], "2");
+                    assert_eq!(
+                        meta_get_opt(&conn, "writer_epoch").unwrap().as_deref(),
+                        Some("2")
+                    );
+                    assert_eq!(
+                        meta_get_opt(&conn, "advance_state").unwrap().as_deref(),
+                        Some("idle")
+                    );
+                } else {
+                    assert!(
+                        result.unwrap_err().starts_with("VersionMismatch："),
+                        "{rule}/{pending}"
+                    );
+                    assert_eq!(stored_rows(&conn), before, "{rule}/{pending}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn tb1405_composed_s2_recover_rejects_old_rule_before_journal_mode_change() {
+        let files = TestFiles::new();
+        init_test_db(&files);
+        let conn = Connection::open(files.db()).unwrap();
+        meta_set(&conn, "rule_revision", "s2-axis-quantifiers+new-bi/1").unwrap();
+        let mode: String = conn
+            .query_row("PRAGMA journal_mode=DELETE", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(mode, "delete");
+        let before = db_meta(&conn).unwrap();
+        drop(conn);
+
+        assert!(recover_core(&files.db(), "2", None)
+            .unwrap_err()
+            .starts_with("VersionMismatch："));
+
+        let conn = Connection::open(files.db()).unwrap();
+        let mode: String = conn
+            .query_row("PRAGMA journal_mode", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(mode, "delete");
+        assert_eq!(db_meta(&conn).unwrap(), before);
     }
 
     #[test]
