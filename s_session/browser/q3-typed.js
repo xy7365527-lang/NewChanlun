@@ -95,9 +95,11 @@
   // #1419 P2 §4.3 W/2 逐原件替代（只用于 W/2 cut；W/1 历史照原样读）。入参为普通值：
   // pending = 全部 CC-004.undetermined_raw，groups = 全部 CC-005.inclusion_group，
   // superseded = 全部有 superseded_by 的撤回对象，replaces = 全部 relation_type=replaces 的公开关系。
-  function w2Replacements({pending, groups, superseded, replaces, kinds}) {
+  // objects 按 object_id 索引全部对象的 first_known_generation 与 withdrawn_generation。
+  function w2Replacements({pending, groups, superseded, replaces, kinds, objects}) {
     const raws = new Map(pending.map(p => [p.object_id, p])), byGroup = new Map(groups.map(g => [g.object_id, g]));
     const edges = new Set(replaces.map(r => JSON.stringify([r.subject, r.object])));
+    need(edges.size === replaces.length, "W2重复公开replaces关系");
     const alive = (obj, at) => BigInt(obj.first_known_generation) <= at && (obj.withdrawn_generation === null || BigInt(obj.withdrawn_generation) > at);
     const withdrawn = new Map(superseded.map(w => [w.object_id, w]));
     for (const u of pending) {
@@ -113,8 +115,11 @@
     for (const r of replaces) {
       const target = withdrawn.get(r.object);
       need(target && target.superseded_by === r.subject, "W2公开replaces关系缺对应撤回或superseded_by不符");
+      const replacement = objects.get(r.subject);
+      need(replacement, "W2替代目标不存在或生命周期不符");
       const newKind = kinds.get(r.subject), oldKind = target.kind;
       if (newKind !== oldKind) need(oldKind === "CC-004.undetermined_raw" && newKind === "CC-005.inclusion_group", "W2跨kind替代未获准");
+      need(alive(replacement, BigInt(target.withdrawn_generation)), "W2替代目标不存在或生命周期不符");
     }
   }
   async function initializationPolicy(p) { need(await eqField(p, "initialization_policy_revision", INITIALIZATION_POLICY), "初始化政策版本未声明"); }

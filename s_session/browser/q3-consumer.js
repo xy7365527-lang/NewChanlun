@@ -501,7 +501,7 @@
   }
   // #1419 P2 §4.3：W/2 cut 的逐原件替代与公开 replaces 关系逐条对应（判据见 typed.w2Replacements）。
   async function bindW2Replacements(snapshot) {
-    const pending = [], groups = [], superseded = [], replaces = [], kinds = new Map();
+    const pending = [], groups = [], superseded = [], replaces = [], kinds = new Map(), objects = new Map();
     for (const family of ["objects", "withdrawn_objects"])
       for await (const record of (await f(snapshot, family)).items()) {
         const object_id = await t(record, "object_id"), kind = await t(record, "kind"),
@@ -509,7 +509,9 @@
           superseded_by = await (await f(record, "superseded_by")).scalar(),
           withdrawal_reason = await (await f(record, "withdrawal_reason")).scalar();
         kinds.set(object_id, kind);
-        if (superseded_by !== null) superseded.push({object_id, kind, superseded_by});
+        const life = {first_known_generation: await s(record, "first_known_generation"), withdrawn_generation: withdrawn};
+        objects.set(object_id, life);
+        if (superseded_by !== null) superseded.push({object_id, kind, superseded_by, ...life});
         if (kind === "CC-004.undetermined_raw")
           pending.push({object_id, coord: await s(await f(await f(record, "payload"), "raw"), "source_coord"),
             first_known_generation: await s(record, "first_known_generation"), withdrawn_generation: withdrawn, withdrawal_reason, superseded_by});
@@ -521,7 +523,7 @@
       }
     for await (const r of (await f(snapshot, "relations")).items())
       if ((await t(r, "relation_type")) === "replaces") replaces.push({subject: await t(r, "subject"), object: await t(r, "object")});
-    typed.w2Replacements({pending, groups, superseded, replaces, kinds});
+    typed.w2Replacements({pending, groups, superseded, replaces, kinds, objects});
   }
   // #1491：`layout` 由调用方从本 cut 的 rule_revision 布局组件取得（ADR 0037 §六，按版本分派）。
   // 未给出 ⟹ 调用方读的是 v1/v2 快照（ADR 0037 之前的写者，按定义 layout/1）。
