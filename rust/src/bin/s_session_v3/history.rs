@@ -732,12 +732,18 @@ fn read_indexed_history_inner(
         stmt.finalize().map_err(err)?;
         roots
     };
-    store
-        .verify_many_ref(
-            template_roots.iter().map(RefValue::view),
-            sc::Mode::Template,
-        )
-        .map_err(err)?;
+    #[cfg(test)]
+    super::admission_private::s4_read_trace::audit_window(tx, "template", "begin", "pending");
+    let template_result = store.verify_many_ref(
+        template_roots.iter().map(RefValue::view),
+        sc::Mode::Template,
+    );
+    #[cfg(test)]
+    super::admission_private::s4_read_trace::audit_window(
+        tx, "template", "end",
+        if template_result.is_ok() { "ok" } else { "error" },
+    );
+    template_result.map_err(err)?;
     // manifest 先过完整 Template 才解码；其 scope/generated_state 并入同一次 Public 联合全核。
     if manifest_coverage {
         for manifest in template_roots.iter() {
@@ -748,9 +754,16 @@ fn read_indexed_history_inner(
             public_roots.try_push(roots.generated_state).map_err(err)?;
         }
     }
-    store
-        .verify_many_ref(public_roots.iter().map(RefValue::view), sc::Mode::Public)
-        .map_err(err)?;
+    #[cfg(test)]
+    super::admission_private::s4_read_trace::audit_window(tx, "public", "begin", "pending");
+    let public_result =
+        store.verify_many_ref(public_roots.iter().map(RefValue::view), sc::Mode::Public);
+    #[cfg(test)]
+    super::admission_private::s4_read_trace::audit_window(
+        tx, "public", "end",
+        if public_result.is_ok() { "ok" } else { "error" },
+    );
+    public_result.map_err(err)?;
     let verified_templates = VerifiedManifestRoots {
         transaction: tx,
         roots: &template_roots,
@@ -800,9 +813,16 @@ fn read_indexed_history_inner(
     }
     stmt.finalize().map_err(err)?;
     // Pending派生根在返回任何历史之前全部通过同一Public判据；非法嵌套占位仍拒绝。
-    store
-        .verify_many_ref(resolved_roots.iter().map(RefValue::view), sc::Mode::Public)
-        .map_err(err)?;
+    #[cfg(test)]
+    super::admission_private::s4_read_trace::audit_window(tx, "resolved_public", "begin", "pending");
+    let resolved_result =
+        store.verify_many_ref(resolved_roots.iter().map(RefValue::view), sc::Mode::Public);
+    #[cfg(test)]
+    super::admission_private::s4_read_trace::audit_window(
+        tx, "resolved_public", "end",
+        if resolved_result.is_ok() { "ok" } else { "error" },
+    );
+    resolved_result.map_err(err)?;
     let control_facts = control.into_facts()?;
     verify_current_frontiers(&store, tx, &output, previous, allocation.as_ref())?;
     let auxiliary_facts = native_aux.map(aux_index::NativeAuxAudit::into_facts);

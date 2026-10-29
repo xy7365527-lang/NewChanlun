@@ -39,6 +39,57 @@ pub(crate) mod s4_read_trace {
             if t.enabled && t.phase == 2 {
                 t.last = Some((label, generation));
                 eprintln!("S4_AUDIT_EVENT phase={} generation={:?} bytes={} coverage={:?}", label, generation, t.bytes[2], t.coverage);
+                eprintln!("S4_AUDIT_SQL phase={} generation={:?} bytes={} node_sql_reads={}", label, generation, t.bytes[2], crate::content_store::sql_reads_on_thread());
+            }
+        });
+    }
+    fn cache_counts(conn: &rusqlite::Connection) -> [(i32, i32, i32); 2] {
+        use rusqlite::ffi;
+        [ffi::SQLITE_DBSTATUS_CACHE_HIT, ffi::SQLITE_DBSTATUS_CACHE_MISS].map(|verb| {
+            let (mut current, mut highwater) = (0, 0);
+            // SAFETY：同步借用有效连接与栈内输出；resetFlag=0，不改累计值或连接配置。
+            let rc = unsafe {
+                ffi::sqlite3_db_status(conn.handle(), verb, &mut current, &mut highwater, 0)
+            };
+            (rc, current, highwater)
+        })
+    }
+    #[test]
+    fn history_public_coverage_diagnostics_count_sql_without_probe_and_do_not_reset_pager() {
+        use crate::content_store::{init_schema, sql_reads_on_thread, ReadStore};
+        use newchan_rust::s_content::NodeSource;
+        let mut conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch(crate::v2::SCHEMA_V2).unwrap();
+        conn.execute(
+            "INSERT INTO s_protocol_meta VALUES(1, 's-session/3', '1', 'test-clock', '{}', 1, 'accept')",
+            [],
+        ).unwrap();
+        let tx = conn.transaction().unwrap();
+        init_schema(&tx).unwrap();
+        let mut source = ReadStore::new(&tx).unwrap();
+        let before = sql_reads_on_thread();
+        source.read(&[0; 32]).unwrap();
+        source.read(&[0; 32]).unwrap();
+        assert_eq!(sql_reads_on_thread().checked_sub(before), Some(2));
+        let first = cache_counts(&tx);
+        assert_eq!(first[0].0, rusqlite::ffi::SQLITE_OK);
+        assert_eq!(first[1].0, rusqlite::ffi::SQLITE_OK);
+        assert!(first[0].1 > 0);
+        assert_eq!(cache_counts(&tx), first);
+    }
+    pub(crate) fn audit_window(
+        conn: &rusqlite::Connection,
+        boundary: &'static str,
+        edge: &'static str,
+        outcome: &'static str,
+    ) {
+        TRACE.with(|t| {
+            let t = t.borrow();
+            if t.enabled && t.phase == 2 {
+                let [hit, miss] = cache_counts(conn);
+                eprintln!("S4_AUDIT_WINDOW boundary={} edge={} outcome={} bytes={} node_sql_reads={} cache_hit={:?} cache_miss={:?}",
+                    boundary, edge, outcome, t.bytes[2],
+                    crate::content_store::sql_reads_on_thread(), hit, miss);
             }
         });
     }
@@ -48,7 +99,10 @@ pub(crate) mod s4_read_trace {
     pub(crate) fn finish() -> [u64; 2] {
         TRACE.with(|t| {
             let mut t = t.borrow_mut();
-            if t.enabled { eprintln!("S4_READ_SUMMARY bytes={:?} coverage={:?} last={:?}", t.bytes, t.coverage, t.last); }
+            if t.enabled {
+                eprintln!("S4_READ_SUMMARY bytes={:?} coverage={:?} last={:?}", t.bytes, t.coverage, t.last);
+                eprintln!("S4_AUDIT_SQL_SUMMARY bytes={} node_sql_reads={}", t.bytes[2], crate::content_store::sql_reads_on_thread());
+            }
             t.enabled = false;
             t.coverage
         })
@@ -484,7 +538,15 @@ fn validate_prefix_inner(
                 drop(stmt);
                 #[cfg(test)]
                 { s4_read_trace::snapshot("audit_start", shared.account.borrow().snapshot().wire_bytes); s4_read_trace::phase(2); }
-                audit_business(session.connection(), &shared, prefix)
+                #[cfg(test)]
+                s4_read_trace::audit_window(session.connection(), "audit_business", "begin", "pending");
+                let result = audit_business(session.connection(), &shared, prefix);
+                #[cfg(test)]
+                s4_read_trace::audit_window(
+                    session.connection(), "audit_business", "end",
+                    if result.is_ok() { "ok" } else { "error" },
+                );
+                result
             })();
             // quick_check/业务结果在任何 close 回调之前保存。
             errors.borrow_mut().returned(ErrorPhase::Business, &check);
