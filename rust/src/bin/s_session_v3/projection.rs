@@ -1148,18 +1148,26 @@ mod tests {
         let groups = w_kind(&snapshot, "CC-005.inclusion_group");
         let earlier_target = groups
             .iter()
-            .find(|g| g["payload"]["members"].as_array().unwrap().contains(&json!("0")))
+            .find(|g| {
+                g["payload"]["members"]
+                    .as_array()
+                    .unwrap()
+                    .contains(&json!("0"))
+            })
             .unwrap()["object_id"]
             .as_str()
             .unwrap()
             .to_string();
         let (e, t) = f.accept_begin(4, ("scope0", 0, 5, 9, 1, 5), 2);
         f.publish(&e, &t).unwrap();
-        let target_death: i64 = f.conn.query_row(
-            "SELECT withdrawn_generation FROM s_content_objects WHERE object_id=?1",
-            [&earlier_target],
-            |row| row.get(0),
-        ).unwrap();
+        let target_death: i64 = f
+            .conn
+            .query_row(
+                "SELECT withdrawn_generation FROM s_content_objects WHERE object_id=?1",
+                [&earlier_target],
+                |row| row.get(0),
+            )
+            .unwrap();
         assert_eq!(target_death, 4, "先前合法替代目标须在后来一代真实撤回");
         for raw in raws {
             let edges = delta["replaces"]
