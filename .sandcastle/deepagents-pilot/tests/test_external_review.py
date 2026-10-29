@@ -340,3 +340,108 @@ def test_cli_status_uses_no_auth(lane, monkeypatch, capsys):
     monkeypatch.setattr(module, "GitHubAppClient", lambda *a, **kw: pytest.fail("status must stay offline"))
     assert module.main(["status", "--pr", "1810"]) == 0
     assert json.loads(capsys.readouterr().out) == []
+
+
+def test_snapshot_omits_obsolete_blobs_but_preserves_graph_and_diff(lane, tmp_path):
+    import os
+    old = lane.source / "obsolete.bin"
+    old.write_bytes(os.urandom(2 * 1024 * 1024))
+    git(lane.source, "add", ".")
+    git(lane.source, "commit", "-qm", "unrelated old payload")
+    old_blob = git(lane.source, "rev-parse", "HEAD:obsolete.bin")
+    old.unlink()
+    git(lane.source, "add", ".")
+    git(lane.source, "commit", "-qm", "remove old payload")
+    base = git(lane.source, "rev-parse", "HEAD")
+    git(lane.source, "checkout", "-qb", "candidate")
+    (lane.source / "later").write_text("new PR\n")
+    git(lane.source, "add", ".")
+    git(lane.source, "commit", "-qm", "PR first")
+    (lane.source / "later").write_text("whole PR\n")
+    git(lane.source, "commit", "-am", "PR second", "-q")
+    head = git(lane.source, "rev-parse", "HEAD")
+    git(lane.source, "checkout", "-q", "main")
+    (lane.source / "base-only").write_text("main advanced\n")
+    git(lane.source, "add", ".")
+    git(lane.source, "commit", "-qm", "base advanced")
+    lane.gateway.pr["base"]["sha"] = git(lane.source, "rev-parse", "HEAD")
+    lane.gateway.pr["head"]["sha"] = head
+    target = lane.target(1810, 1)
+    checkout = tmp_path / "snapshot"
+    frozen = module.prepare_review(target, lane.source, checkout)
+    assert frozen.changed_files == ("later",)
+    assert git(checkout, "merge-base", target.base_sha, head) == base
+    assert git(checkout, "diff", "--binary", base, head) == git(lane.source, "diff", "--binary", base, head)
+    assert git(checkout, "log", "--format=%H", head) == git(lane.source, "log", "--format=%H", head)
+    import subprocess
+    assert subprocess.run(["git", "-C", str(checkout), "cat-file", "-e", old_blob], capture_output=True).returncode != 0
+    assert sum(p.stat().st_size for p in (checkout / ".git/objects").rglob("*.pack")) < 128 * 1024
+
+
+def test_terminal_reclaims_only_checkout_and_retains_evidence(lane):
+    result = lane.review_pr(1810)
+    target = ReviewTarget(**result["target"])
+    for model in MODELS:
+        worker = lane.state_root / "runs" / target.key / model
+        assert not Path(module._read(worker / "launch.json")["checkout"]).exists()
+        for name in ("launch.json", "receipt.json", "events.jsonl", "session.jsonl"):
+            assert (worker / name).is_file()
+    assert lane.review_pr(1810)["verdict"] == "PASS"
+    assert (lane.state_root / "runs" / "launches").read_text().splitlines() == list(MODELS)
+
+
+@pytest.mark.parametrize("crash_point", ["during-prepare", "after-prepare"])
+def test_prepare_interruption_recovers_without_duplicate_dispatch(lane, monkeypatch, crash_point):
+    original = module.prepare_review
+    crashed = False
+    def prepare(target, source, checkout):
+        nonlocal crashed
+        if not crashed:
+            crashed = True
+            if crash_point == "during-prepare":
+                checkout.mkdir(parents=True)
+                (checkout / "partial").write_text("interrupted snapshot")
+            else:
+                original(target, source, checkout)
+            raise KeyboardInterrupt("prepare interrupted")
+        return original(target, source, checkout)
+    monkeypatch.setattr(module, "prepare_review", prepare)
+    with pytest.raises(KeyboardInterrupt):
+        lane.review_pr(1810)
+    assert lane.review_pr(1810)["verdict"] == "PASS"
+    assert (lane.state_root / "runs" / "launches").read_text().splitlines() == list(MODELS)
+
+
+def test_failed_first_reviewer_does_not_dispatch_second(lane):
+    lane.target(1810, 1)
+    (lane.state_root / "runs" / "fake-mode").write_text("failed")
+    result = lane.review_pr(1810)
+    assert result["verdict"] == "FAILED"
+    assert (lane.state_root / "runs" / "launches").read_text().splitlines() == [MODELS[0]]
+
+
+def test_exited_supervisor_before_receipt_is_terminal_not_pending(lane):
+    lane.launcher = [sys.executable, "-c", "raise SystemExit(3)"]
+    result = lane.review_pr(1810)
+    assert result["verdict"] == "FAILED"
+    assert lane.gateway.sent == ["pending", "error"]
+    assert lane.review_pr(1810)["verdict"] == "FAILED"
+
+
+def test_stale_publication_preserves_completed_reviews(lane):
+    def drift_after_success():
+        if lane.gateway.sent[-1] == "success":
+            lane.gateway.pr["head"]["sha"] = "e" * 40
+    lane.gateway.after_write = drift_after_success
+    result = lane.review_pr(1810)
+    assert result["verdict"] == "STALE"
+    assert [r["verdict"] for r in result["reviews"]] == ["PASS", "PASS"]
+
+
+def test_low_space_stops_before_checkout_or_model(lane, monkeypatch):
+    monkeypatch.setattr(module.shutil, "disk_usage", lambda path: SimpleNamespace(free=1))
+    result = lane.review_pr(1810)
+    assert result["verdict"] == "FAILED"
+    assert "空间不足" in result["reviews"][0]["reason"]
+    assert not (lane.state_root / "runs" / "launches").exists()
+    assert not list(lane.checkout_root.glob("*/*"))
