@@ -1329,7 +1329,7 @@ pub(super) fn plan(
     g: i64,
 ) -> Result<Plan, String> {
     let layout = Layout::of_rule(crate::V3_RULE_REVISION).map_err(err)?;
-    plan_for_layout(s, layout, objects, old, g)
+    plan_for_layout(s, layout, objects, old, g, crate::V3_RULE_REVISION)
 }
 /// `layout` 由调用方取自库内 meta `rule_revision`（[`Layout::of_rule`]），只定公开数组次序。
 pub(super) fn plan_for_layout(
@@ -1338,6 +1338,7 @@ pub(super) fn plan_for_layout(
     objects: &[ProducedObject],
     old: &[Entry],
     g: i64,
+    rule: &str,
 ) -> Result<Plan, String> {
     if g < 1 {
         return Err(err("非法代号"));
@@ -1360,7 +1361,7 @@ pub(super) fn plan_for_layout(
             sc::frame_calls_on_thread() - observed_before.1,
         ))
     });
-    plan_from_candidates(s, layout, new, old, g)
+    plan_from_candidates(s, layout, new, old, g, rule)
 }
 
 /// #1394：只由Runtime显式CapturedNative模式选择，预算存在时拒绝。
@@ -1373,6 +1374,7 @@ pub(super) fn plan_native_union_for_testonly(
     objects: &[ProducedObject],
     old: &[Entry],
     g: i64,
+    rule: &str,
 ) -> Result<Plan, String> {
     if g < 1 {
         return Err(err("非法代号"));
@@ -1390,14 +1392,66 @@ pub(super) fn plan_native_union_for_testonly(
     for object in objects {
         new.try_push(candidate_fields(s, object, g)?).map_err(err)?;
     }
-    plan_from_candidates(s, layout, new, old, g)
+    plan_from_candidates(s, layout, new, old, g, rule)
 }
+fn w2_group_contains(
+    s: &mut (impl CodecStore + ?Sized),
+    raw: &Entry,
+    group: &Entry,
+) -> Result<bool, String> {
+    if raw.kind.as_str() != "CC-004.undetermined_raw"
+        || group.kind.as_str() != "CC-005.inclusion_group"
+    {
+        return Ok(false);
+    }
+    let raw_root = built_ref(s, &raw.internal)?;
+    let payload = field_ref(s, raw_root.view(), "payload")?;
+    let raw_value = field_ref(s, payload.view(), "raw")?;
+    let coord = text_ref(s, raw_value.view(), "source_coord")?;
+    let group_root = built_ref(s, &group.internal)?;
+    let payload = field_ref(s, group_root.view(), "payload")?;
+    if field_ref(s, payload.view(), "direction")?.kind() == Kind::Null {
+        return Ok(false);
+    }
+    let members = field_ref(s, payload.view(), "members")?;
+    if members.kind() != Kind::Array {
+        return Err(err("替代组members不是数组"));
+    }
+    for n in 0..members.extent().ok_or_else(|| err("替代组members缺长度"))? {
+        let member = s.lookup_ref(members.view(), &[PathStep::Index(n)]).map_err(err)?;
+        if bj::read_text(s, member.view()).map_err(err)? == coord {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+fn w2_replacing_group(
+    s: &mut (impl CodecStore + ?Sized),
+    raw: &Entry,
+    new: &[Entry],
+) -> Result<Option<usize>, String> {
+    if raw.kind.as_str() != "CC-004.undetermined_raw" {
+        return Ok(None);
+    }
+    let mut target = None;
+    for (i, group) in new.iter().enumerate() {
+        if w2_group_contains(s, raw, group)? {
+            if target.replace(i).is_some() {
+                return Err(err("未定原件落入多个定向组"));
+            }
+        }
+    }
+    Ok(target)
+}
+
 fn plan_from_candidates(
     s: &mut (impl CodecStore + ?Sized),
     layout: Layout,
     new: sc::CodecVec<Entry>,
     old: &[Entry],
     g: i64,
+    rule: &str,
 ) -> Result<Plan, String> {
     let mut ids = NativeTree::default();
     for e in &new {
@@ -1454,23 +1508,19 @@ fn plan_from_candidates(
     let mut replaces = change_array(s, allocation.as_ref())?;
     for w in changes.withdrawals {
         let e = &mut index[order[w.old_index]];
-        let (reason, sup) = match w.removal {
-            object_diff::Removal::Removed => (
-                if e.slot.is_shape() {
-                    "window_removed"
-                } else {
-                    "fact_removed"
-                },
-                None,
-            ),
-            object_diff::Removal::Superseded => (
-                "superseded_by_revision",
-                Some(
-                    new[w.new_index.ok_or_else(|| err("替代缺新对象"))?]
-                        .id
-                        .try_clone_admitted(s.codec_work())?,
-                ),
-            ),
+        let target = match w.removal {
+            object_diff::Removal::Superseded => Some(w.new_index.ok_or_else(|| err("替代缺新对象"))?),
+            object_diff::Removal::Removed if crate::w_revision(rule) == Some(crate::WRevision::W2) => {
+                w2_replacing_group(s, e, &new)?
+            }
+            object_diff::Removal::Removed => None,
+        };
+        let (reason, sup) = if let Some(target) = target {
+            let id = new[target].id.try_clone_admitted(s.codec_work())?;
+            push_replace(s, &mut replaces, e.id.as_str(), id.as_str())?;
+            ("superseded_by_revision", Some(id))
+        } else {
+            (if e.slot.is_shape() { "window_removed" } else { "fact_removed" }, None)
         };
         push_raw_withdrawal(&mut withdrawals, e, reason, sup.as_deref())?;
         e.life.withdrawn_generation = Some(g);
@@ -1480,19 +1530,6 @@ fn plan_from_candidates(
             s.codec_work(),
         )?);
         e.life.superseded_by = sup;
-    }
-    for r in changes.replaces {
-        let fields = [
-            (
-                "new_object_id",
-                aj::JsonView::String(new[r.new_index].id.as_str()),
-            ),
-            (
-                "old_object_id",
-                aj::JsonView::String(old[order[r.old_index]].id.as_str()),
-            ),
-        ];
-        replaces.push(aj::JsonView::object_fields(&fields).map_err(err)?)?;
     }
     let mut births = bj::new_work(allocation.as_ref());
     s.native_codec_room(&mut births, changes.births.len())
@@ -1987,6 +2024,8 @@ fn load_in_store(
     capture: Option<&sc::AuditCapture>,
     events: Option<&mut Option<NativeArc<HistoryEvents>>>,
 ) -> Result<sc::CodecVec<Entry>, String> {
+    let rule = crate::meta_get_opt(tx, "rule_revision")?
+        .ok_or_else(|| err("缺完整规则身份"))?;
     let mut leaf_bindings = capture.map(|capture| ShapeLeafBindings {
         capture,
         successful: bj::new_map(None),
@@ -2043,7 +2082,7 @@ fn load_in_store(
         #[cfg(test)]
         super::state::trace_event("object_index_wire_at", Some(e.life.first_known_generation));
         wire_at(s, e, latest)?;
-        validate_withdrawal_target(e, &out, &by_id)?;
+        validate_withdrawal_target(s, &rule, e, &out, &by_id)?;
     }
     #[cfg(test)]
     super::state::trace_event("object_index_done", None);
@@ -2056,6 +2095,8 @@ fn load_in_store(
     Ok(out)
 }
 fn validate_withdrawal_target(
+    s: &mut (impl CodecStore + ?Sized),
+    rule: &str,
     e: &Entry,
     index: &[Entry],
     by_id: &bj::BusinessMap<TextValue, usize>,
@@ -2069,7 +2110,9 @@ fn validate_withdrawal_target(
                 #[cfg(test)]
                 LOAD_TARGET_LOOKUPS.with(|n| n.set(n.get() + 1));
                 let target = &index[*by_id.get(id).ok_or_else(|| err("替代目标不存在"))?];
-                if target.slot != e.slot
+                if !(target.slot == e.slot
+                    || (crate::w_revision(rule) == Some(crate::WRevision::W2)
+                        && w2_group_contains(s, e, target)?))
                     || target.life.first_known_generation > death
                     || target.life.withdrawn_generation.is_some_and(|d| d <= death)
                 {
@@ -2100,6 +2143,8 @@ pub(super) fn update_from_owner(
     _bound: &super::audit_owner::BoundOriginals,
     retained: &mut super::audit_retention::RetainedDelta,
 ) -> Result<(), String> {
+    let rule = crate::meta_get_opt(tx, "rule_revision")?
+        .ok_or_else(|| err("缺完整规则身份"))?;
     let mut changed = sc::CodecVec::default();
     s.native_codec_room(&mut changed, rowids.len())
         .map_err(err)?;
@@ -2189,7 +2234,7 @@ pub(super) fn update_from_owner(
         changed.try_push(ordinal).map_err(err)?;
     }
     for ordinal in changed {
-        validate_withdrawal_target(&index[ordinal], index, &events.by_id)?;
+        validate_withdrawal_target(&mut store, &rule, &index[ordinal], index, &events.by_id)?;
     }
     Ok(())
 }
@@ -3108,7 +3153,7 @@ pub(super) fn verify_generated_members_swept<'a>(
     g: i64,
     sweep: Option<&HistorySweep>,
 ) -> Result<(), String> {
-    verify_generated_members_swept_with_records(s, index, state, g, sweep, None)
+    verify_generated_members_swept_with_records(s, index, state, g, sweep, None, crate::V3_RULE_REVISION)
 }
 pub(super) fn verify_generated_members_swept_with_records<'a>(
     s: &mut (impl CodecStore + ?Sized),
@@ -3117,6 +3162,7 @@ pub(super) fn verify_generated_members_swept_with_records<'a>(
     g: i64,
     sweep: Option<&HistorySweep>,
     mut records: Option<&mut super::history::NativeRecordFields<'_>>,
+    rule: &str,
 ) -> Result<(), String> {
     let state = state.into();
     let allocation = s.allocation_budget();
@@ -3284,44 +3330,32 @@ pub(super) fn verify_generated_members_swept_with_records<'a>(
         None => changes_at_admitted(s, index, g, allocation.as_ref())?,
     };
     let mut withdrawals = change_array(s, allocation.as_ref())?;
+    let mut replaces = change_array(s, allocation.as_ref())?;
     for w in changes.withdrawals {
-        let e = if sweep.is_some() {
-            &index[w.old_index]
+        let e = if sweep.is_some() { &index[w.old_index] } else { before[w.old_index].1 };
+        let mut target = w.new_index;
+        if w.removal == object_diff::Removal::Removed
+            && crate::w_revision(rule) == Some(crate::WRevision::W2)
+            && e.kind.as_str() == "CC-004.undetermined_raw"
+        {
+            for (n, candidate) in new.iter().enumerate() {
+                let group = index.iter().find(|entry| entry.id.as_str() == candidate.object_id.as_str())
+                    .ok_or_else(|| err("替代候选不在身份史内"))?;
+                if w2_group_contains(s, e, group)? {
+                    if target.replace(n).is_some() {
+                        return Err(err("未定原件有多个替代候选"));
+                    }
+                }
+            }
+        }
+        let (reason, sup) = if let Some(target) = target {
+            let id = new[target].object_id.as_str();
+            push_replace(s, &mut replaces, e.id.as_str(), id)?;
+            ("superseded_by_revision", Some(id))
         } else {
-            before[w.old_index].1
-        };
-        let (reason, sup) = match w.removal {
-            object_diff::Removal::Removed => (
-                if e.slot.is_shape() {
-                    "window_removed"
-                } else {
-                    "fact_removed"
-                },
-                None,
-            ),
-            object_diff::Removal::Superseded => (
-                "superseded_by_revision",
-                Some(
-                    new[w.new_index.ok_or_else(|| err("替代缺候选"))?]
-                        .object_id
-                        .as_str(),
-                ),
-            ),
+            (if e.slot.is_shape() { "window_removed" } else { "fact_removed" }, None)
         };
         push_withdrawal(s, &mut withdrawals, e, reason, sup)?;
-    }
-    let mut replaces = change_array(s, allocation.as_ref())?;
-    for r in changes.replaces {
-        push_replace(
-            s,
-            &mut replaces,
-            if sweep.is_some() {
-                index[r.old_index].id.as_str()
-            } else {
-                before[r.old_index].1.id.as_str()
-            },
-            new[r.new_index].object_id.as_str(),
-        )?;
     }
     let withdrawals = withdrawals.finish();
     let replaces = replaces.finish();
@@ -4263,7 +4297,7 @@ mod tests {
                 .try_push(candidate_verified_legacy_fields(s, object, g).unwrap())
                 .unwrap();
         }
-        plan_from_candidates(s, Layout::Sorted, entries, old, g).unwrap()
+        plan_from_candidates(s, Layout::Sorted, entries, old, g, crate::V3_RULE_REVISION).unwrap()
     }
     fn candidate_sql_material_for_test(tx: &Transaction<'_>) -> Vec<(Vec<u8>, i64, Vec<u8>)> {
         tx.prepare("SELECT digest,tag,body FROM s_content_nodes ORDER BY digest")
@@ -4724,7 +4758,7 @@ mod tests {
         }
         let before = candidate_sql_material_for_test(&tx);
         tx.execute_batch("CREATE TEMP TRIGGER candidate_fields_wire_sql_fault BEFORE INSERT ON s_content_nodes WHEN NEW.tag=8 BEGIN SELECT RAISE(ABORT,'candidate_fields_wire_SQL_fault'); END;").unwrap();
-        let error = plan_native_union_for_testonly(&mut store, Layout::Sorted, &objects, &[], 1)
+        let error = plan_native_union_for_testonly(&mut store, Layout::Sorted, &objects, &[], 1, crate::V3_RULE_REVISION)
             .err()
             .unwrap();
         assert!(error.contains("candidate_fields_wire_SQL_fault"), "{error}");
@@ -4800,7 +4834,7 @@ mod tests {
                 _ => unreachable!(),
             }
             sc::audit_verify_public(&mut store.nodes, &first).unwrap();
-            let error = plan_native_union_for_testonly(&mut store, Layout::Sorted, objects, &[], 1)
+            let error = plan_native_union_for_testonly(&mut store, Layout::Sorted, objects, &[], 1, crate::V3_RULE_REVISION)
                 .err()
                 .unwrap();
             assert!(error.contains(code), "{fault}: {error}");
@@ -4826,7 +4860,7 @@ mod tests {
             ..Default::default()
         };
         let actual =
-            plan_native_union_for_testonly(&mut native, Layout::Sorted, objects, &[], 1).unwrap();
+            plan_native_union_for_testonly(&mut native, Layout::Sorted, objects, &[], 1, crate::V3_RULE_REVISION).unwrap();
         assert_eq!(
             candidate_plan_signature(&actual),
             candidate_plan_signature(&expected)
@@ -4842,7 +4876,7 @@ mod tests {
             ..Default::default()
         };
         assert!(
-            plan_native_union_for_testonly(&mut mixed, Layout::Sorted, objects, &[], 1)
+            plan_native_union_for_testonly(&mut mixed, Layout::Sorted, objects, &[], 1, crate::V3_RULE_REVISION)
                 .err()
                 .unwrap()
                 .contains("拒绝allocation预算")
@@ -5283,7 +5317,7 @@ mod tests {
                             .map_err(err)?
                             .with_codec_work(scope, &budget);
                     let new = admitted_plan_candidate(&reader, &fresh)?;
-                    plan_from_candidates(&mut reader, Layout::Sorted, new, &old, 3)
+                    plan_from_candidates(&mut reader, Layout::Sorted, new, &old, 3, crate::V3_RULE_REVISION)
                 })
                 .unwrap();
             assert_eq!(
@@ -5334,7 +5368,7 @@ mod tests {
                 .with_codec_work(scope, &budget);
             let new = admitted_plan_candidate(&reader, &fresh)?;
             // metadata、撤回JSON、births/index已产生后，真实wire读取才发现原库缺节点。
-            plan_from_candidates(&mut reader, Layout::Sorted, new, &old, 3)
+            plan_from_candidates(&mut reader, Layout::Sorted, new, &old, 3, crate::V3_RULE_REVISION)
         });
         let message = match result.err().expect("缺原wire不得产生Plan") {
             sc::capture_allocation::scratch::WorkError::Operation(message) => message,
@@ -5365,7 +5399,7 @@ mod tests {
                 sc::CodecVec::default(),
                 &old,
                 3,
-            )
+             crate::V3_RULE_REVISION)
         });
         assert!(result.is_err(), "一字节预算不得准入历史ordinal工作集");
         assert_eq!(format!("{old:?}"), old_snapshot);
@@ -6228,7 +6262,7 @@ mod tests {
                     &generated.objects,
                     &old,
                     g,
-                )
+                 crate::V3_RULE_REVISION)
                 .err()
                 .unwrap();
                 assert!(
@@ -6263,7 +6297,7 @@ mod tests {
                     &generated.objects,
                     &old,
                     g,
-                )
+                 crate::V3_RULE_REVISION)
                 .unwrap();
                 let union_reads = content_store::sql_reads_on_thread() - reads_before;
                 assert_eq!(

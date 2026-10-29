@@ -414,7 +414,7 @@ fn step_sequence_record(
 /// #1393 W：本规则串是否携 W 初始化政策（教义部分显式逐字比较，不剥教义后缀推断）。
 /// #1491 × #1419（ADR 0037 §五）：布局组件与教义正交，先剥离布局；未知布局版本不认。
 pub(super) fn is_w_rule(rule: &str) -> bool {
-    crate::v3::layout::doctrine_is(rule, crate::W_STRUCTURE_RULE_REVISION)
+    crate::w_revision(rule).is_some()
 }
 
 /// #1393 W：步骤 k 的来源闭式 raw[..=max(k, e)]（e = 建立对右端在到达序里的位次）。
@@ -1302,7 +1302,7 @@ mod tests {
     /// #1491 × #1419：W 判据剥离布局组件后按教义整串比对；CF22 不是 W；未知/重复布局不认。
     #[test]
     fn w_rule_strips_layout_component() {
-        let bounded_w = format!("{}+bounded-layout/1", crate::W_STRUCTURE_RULE_REVISION);
+        let bounded_w = format!("{}+bounded-layout/1", crate::W1_STRUCTURE_RULE_REVISION);
         let bounded_cf22 = format!("{}+bounded-layout/1", crate::V3_STRUCTURE_RULE_REVISION);
         assert!(is_w_rule(crate::W_STRUCTURE_RULE_REVISION));
         assert!(is_w_rule(&bounded_w));

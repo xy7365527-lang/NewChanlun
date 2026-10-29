@@ -967,9 +967,35 @@ mod tests {
     const CATALOG: &str = "catalog/signed-catalog.json";
 
     #[test]
+    fn w2_exact_publication_rule_and_archival_dispatch() {
+        assert_eq!(W_STRUCTURE_RULE_REVISION, "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1+raw-initialization-w/2+bounded-layout/1");
+        assert_eq!(w_revision(W_STRUCTURE_RULE_REVISION), Some(WRevision::W2));
+        assert_eq!(w_revision(W1_STRUCTURE_RULE_REVISION), Some(WRevision::W1));
+        assert_eq!(layout::Layout::of_rule(W_STRUCTURE_RULE_REVISION).unwrap(), layout::Layout::Bounded1);
+        assert_eq!(layout::Layout::of_rule(W1_STRUCTURE_RULE_REVISION).unwrap(), layout::Layout::Sorted);
+        assert!(require_current_writer_rule(W1_STRUCTURE_RULE_REVISION).is_err());
+        assert_eq!(tb02b::contract_for_rule(W1_STRUCTURE_RULE_REVISION), Some(tb02b::W_CONTRACT));
+        assert_eq!(newchan_rust::theta_v0::parser::inclusion::INITIALIZATION_POLICY, "raw-initialization-w/1");
+        for invalid in [
+            W_STRUCTURE_RULE_REVISION.replace("+bounded-layout/1", ""),
+            W_STRUCTURE_RULE_REVISION.replace("raw-initialization-w/2+bounded-layout/1", "bounded-layout/1+raw-initialization-w/2"),
+            W_STRUCTURE_RULE_REVISION.replace("bounded-layout/1", "bounded-layout/2"),
+            format!("{W_STRUCTURE_RULE_REVISION}+raw-initialization-w/1"),
+            format!("{W_STRUCTURE_RULE_REVISION}+bounded-layout/1"),
+        ] {
+            assert!(require_current_writer_rule(&invalid).is_err(), "{invalid}");
+            assert!(layout::Layout::of_rule(&invalid).is_err(), "{invalid}");
+            assert!(tb02a_facts::CatalogAxisTable::for_rule_revision(&invalid).is_none(), "{invalid}");
+            assert!(tb02b::contract_for_rule(&invalid).is_none(), "{invalid}");
+            assert!(w_revision(&invalid).is_none(), "{invalid}");
+        }
+    }
+
+    #[test]
     fn structure_writer_does_not_rewrite_historical_rule_domains() {
         assert!(require_current_writer_rule(W_STRUCTURE_RULE_REVISION).is_ok());
         for historical in [
+            W1_STRUCTURE_RULE_REVISION,
             V3_STRUCTURE_RULE_REVISION,
             V3_RULE_REVISION,
             LEGACY_V3_RULE_REVISION,
@@ -992,7 +1018,7 @@ mod tests {
     fn w_successor_rule_is_exact_and_maps_to_cf22_axes() {
         assert_eq!(
             W_STRUCTURE_RULE_REVISION,
-            format!("{V3_STRUCTURE_RULE_REVISION}+raw-initialization-w/1")
+            format!("{V3_STRUCTURE_RULE_REVISION}+raw-initialization-w/2+bounded-layout/1")
         );
         assert!(is_structure_rule(W_STRUCTURE_RULE_REVISION));
         assert!(is_structure_rule(V3_STRUCTURE_RULE_REVISION));
@@ -1902,7 +1928,7 @@ mod layout_writer_rule_injection {
     /// `is_w_rule` 是 `source_audit` 私有子模块的判据，同口径锁在 `source_pending::tests`。
     #[test]
     fn structure_rule_predicates_strip_layout_like_axes_and_contract() {
-        let bounded_w = format!("{W_STRUCTURE_RULE_REVISION}+bounded-layout/1");
+        let bounded_w = format!("{W1_STRUCTURE_RULE_REVISION}+bounded-layout/1");
         let bounded_cf22 = format!("{V3_STRUCTURE_RULE_REVISION}+bounded-layout/1");
         assert!(is_structure_rule(&bounded_w));
         assert!(is_structure_rule(&bounded_cf22));

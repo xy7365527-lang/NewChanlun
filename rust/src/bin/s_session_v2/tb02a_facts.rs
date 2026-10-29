@@ -1143,7 +1143,7 @@ impl CatalogAxisTable {
     pub(super) fn for_rule_revision(rule_revision: &str) -> Option<Self> {
         let (doctrine, _) = crate::v3::layout::split(rule_revision).ok()?;
         match doctrine.as_str() {
-            crate::W_STRUCTURE_RULE_REVISION => Some(Self::RawInitializationW),
+            crate::W_STRUCTURE_RULE_REVISION | crate::W1_STRUCTURE_RULE_REVISION => Some(Self::RawInitializationW),
             crate::V3_STRUCTURE_RULE_REVISION => Some(Self::CenterPair),
             crate::LEGACY_V3_RULE_REVISION | crate::V3_DOCTRINE_RULE => Some(Self::NewBi),
             // #1394 合入 #1420：上一代 v2 规则 `+new-bi/2+segment-second/1` 只读仍取 17 轴。

@@ -1052,8 +1052,7 @@ mod tests {
 
     #[test]
     fn w_requests_published_prior_prefix_stability() {
-        let rule = format!("{}+bounded-layout/1", crate::W_STRUCTURE_RULE_REVISION);
-        let mut f = Fixture::with_rule(&rule);
+        let mut f = Fixture::new();
         let mut previous = Vec::new();
         let (mut finite_prefix, mut saw_delete, mut saw_insert, mut saw_revision) =
             (false, false, false, false);
@@ -1125,6 +1124,42 @@ mod tests {
         }
         assert!(finite_prefix, "须有有限 m 且非空前缀的真实相邻发布");
         assert!(saw_delete && saw_insert && saw_revision);
+    }
+
+    #[test]
+    fn w2_replacement_scope_revision_and_no_fallback() {
+        for rule in [crate::W1_STRUCTURE_RULE_REVISION, crate::W_STRUCTURE_RULE_REVISION] {
+            let mut f = Fixture::with_rule(rule);
+            for (n, row) in [
+                (1, ("scope0", 0, 5, 10, 0, 5)),
+                (2, ("scope1", 10, 5, 8, 2, 5)),
+                (3, ("scope2", 20, 7, 11, 3, 7)),
+            ] {
+                let (e, t) = f.accept_begin(n, row, 1);
+                f.publish(&e, &t).unwrap();
+            }
+            let (snapshot, delta, _) = published_w_cut(&mut f, 3);
+            let raws = snapshot["withdrawn_objects"].as_array().unwrap().iter()
+                .filter(|o| o["kind"] == "CC-004.undetermined_raw").collect::<Vec<_>>();
+            assert_eq!(raws.len(), 2);
+            let groups = w_kind(&snapshot, "CC-005.inclusion_group");
+            let w2 = rule == crate::W_STRUCTURE_RULE_REVISION;
+            for raw in raws {
+                let edges = delta["replaces"].as_array().unwrap().iter()
+                    .filter(|edge| edge["old_object_id"] == raw["object_id"]).collect::<Vec<_>>();
+                assert_eq!(edges.len(), usize::from(w2));
+                if w2 {
+                    let target = groups.iter().find(|o| o["object_id"] == edges[0]["new_object_id"]).unwrap();
+                    assert!(target["payload"]["members"].as_array().unwrap().contains(&raw["payload"]["raw"]["source_coord"]));
+                }
+            }
+            super::super::history::audit(&mut f.conn).unwrap();
+            if w2 {
+                let wrong = groups.iter().find(|g| !g["payload"]["members"].as_array().unwrap().contains(&json!("0"))).unwrap();
+                f.conn.execute("UPDATE s_content_objects SET superseded_by=?1 WHERE kind='CC-004.undetermined_raw'", [wrong["object_id"].as_str().unwrap()]).unwrap();
+                assert!(super::super::history::audit(&mut f.conn).is_err());
+            }
+        }
     }
 
     /// #1419：原 tb02u 生命周期判据经真实 S3 接纳、Begin、发布与 recover 承接。
@@ -1293,7 +1328,7 @@ mod tests {
         assert_eq!(knowledge.len(), 1);
         let contract = crate::tb02b::contract_for_rule(&rule).unwrap();
         assert_eq!(contract, crate::tb02b::W_CONTRACT);
-        assert_eq!(knowledge[0]["payload"]["domain"], contract.knowledge_domain);
+        assert_eq!(knowledge[0]["payload"]["domain"], "raw_adjacent_W_initialization");
         assert_ne!(
             knowledge[0]["payload"]["domain"],
             crate::tb02b::CURRENT_CONTRACT.knowledge_domain,

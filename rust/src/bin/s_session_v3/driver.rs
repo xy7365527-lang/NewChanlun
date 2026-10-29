@@ -1234,12 +1234,12 @@ mod tests {
         assert!(e6.contains("UnsupportedWalShmJournalCombination"), "{e6}");
         assert_eq!((std::fs::read(&db).unwrap(), std::fs::read(&wal).unwrap()), frozen);
         // 临时解包副本上合并 WAL（仓内原件不动），逻辑全表不变，再核版本门本身。
-        let rows_frozen = {
+        let rows_frozen = all_rows(&db);
+        {
             let c = Connection::open(&db).unwrap();
             c.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(())).unwrap();
             drop(c);
-            all_rows(&db)
-        };
+        }
         let _prepared_fixture = crate::v3::admission_anchor::test_prepare(&db);
         let rows_before = all_rows(&db);
         assert_eq!(rows_before, rows_frozen);

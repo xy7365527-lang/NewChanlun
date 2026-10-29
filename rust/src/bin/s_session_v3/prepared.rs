@@ -755,7 +755,7 @@ impl Runtime {
                     &generated.objects,
                     &audited.objects,
                     generation,
-                )?;
+                 &metadata.rule_revision)?;
                 generated.finish_axes(
                     &mut store,
                     previous,
@@ -1154,7 +1154,7 @@ impl Runtime {
                 &generated.objects,
                 &audited.objects,
                 generation,
-            )?
+             &metadata.rule_revision)?
         } else {
             object_index::plan_for_layout(
                 store,
@@ -1162,7 +1162,7 @@ impl Runtime {
                 &generated.objects,
                 &audited.objects,
                 generation,
-            )?
+             &metadata.rule_revision)?
         };
         #[cfg(not(feature = "s_capture_native_testonly"))]
         let objects = object_index::plan_for_layout(
@@ -1171,7 +1171,7 @@ impl Runtime {
             &generated.objects,
             &audited.objects,
             generation,
-        )?;
+         &metadata.rule_revision)?;
         generated.finish_axes(store, previous, &objects.withdrawals, &objects.replaces)?;
         let axes = store
             .native_plain_ref(
