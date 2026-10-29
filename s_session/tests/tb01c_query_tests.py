@@ -28,8 +28,6 @@ audit = reader._query_integrity()
 query = reader._query_module("s_query")
 BINARY = None
 
-from r4_anchor_fixture import TestAnchor
-
 
 def resources():
     return dict(max_frame_bytes=1024*1024, max_pending_connections=8,
@@ -59,20 +57,7 @@ class QueryTests(unittest.TestCase):
 
     @classmethod
     def call(cls, db, operation, *args):
-        state = cls.base / (db.name + ".admission")
-        if not Path(str(db.resolve()) + ".control-owner.json").exists():
-            created = not db.exists()
-            if created:
-                with closing(sqlite3.connect(db)):
-                    pass
-            state.mkdir(exist_ok=True)
-            TestAnchor(db, state)
-            if created and operation == "init":
-                # R4 先锚既存空库；用正式 reset 仅初始化本夹具刚创建的空载体。
-                operation = "reset"
-        limits = state / "s-admission" / "limits.json"
-        result = subprocess.run([str(BINARY), operation, "--db", str(db),
-            "--admission-job-limits", str(limits), *map(str, args)],
+        result = subprocess.run([str(BINARY), operation, "--db", str(db), *map(str, args)],
             capture_output=True, text=True, timeout=60,
             env=dict(os.environ, S_SESSION_PRAGMA_SIDECAR_PATH=str(cls.base / "pragma.txt")))
         if result.returncode != 0:
