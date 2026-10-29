@@ -471,8 +471,9 @@ test("W/2 完整 validateState：替代目标须在撤回代已出生且在世�
   await reject(activeReplaced, /缺对应撤回/, "F2 活动对象被替代在撤回对应判据拒绝");
 
   const wrongTarget = structuredClone(w2);
-  const wrongEdge = wrongTarget.snapshot.relations.find((r) => r.relation_type === "replaces");
+  const wrongEdge = structuredClone(wrongTarget.snapshot.relations.find((r) => r.relation_type === "replaces"));
   wrongEdge.subject = raw.object_id;
+  wrongTarget.snapshot.relations.push(wrongEdge);
   await reject(wrongTarget, /superseded_by不符/, "F2 replaces 与 superseded_by 不符在精确对应判据拒绝");
 
   const crossKind = structuredClone(w2);
