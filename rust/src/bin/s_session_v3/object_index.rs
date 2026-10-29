@@ -5803,7 +5803,7 @@ mod tests {
         );
     }
     #[test]
-    fn ordinary_bound_births_sorted_insert_withdraw_revision_matches_full_projection() {
+    fn history_public_coverage_ordinary_bound_births_sorted_insert_withdraw_revision_matches_full_projection() {
         let (mut nodes, entries) = projection_fixture();
         for g in [1, 2, 3, 4, 2] {
             let expected = at_cut_metered(&mut nodes, Layout::Sorted, &entries, g, None).unwrap();
@@ -5819,7 +5819,7 @@ mod tests {
 
     #[cfg(feature = "s_incremental")]
     #[test]
-    fn ordinary_bound_births_preserves_record_budget_before_reuse() {
+    fn history_public_coverage_ordinary_bound_births_preserves_record_budget_before_reuse() {
         let (mut nodes, entries) = projection_fixture();
         let old_meter = RecordMeter::default();
         let new_meter = RecordMeter::default();
@@ -5837,7 +5837,7 @@ mod tests {
     }
 
     #[test]
-    fn ordinary_bound_births_keeps_life_first_error() {
+    fn history_public_coverage_ordinary_bound_births_keeps_life_first_error() {
         let (mut nodes, mut entries) = projection_fixture();
         entries[0].life.published_generation = 10;
         let old = at_cut_metered(&mut nodes, Layout::Sorted, &entries, 1, None).unwrap_err();

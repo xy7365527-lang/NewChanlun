@@ -614,6 +614,26 @@ struct VerifiedManifestRoots<'a, 'tx> {
     public: &'a [RefValue],
 }
 
+impl VerifiedManifestRoots<'_, '_> {
+    fn verify_resolved_public(
+        &self,
+        tx: &Transaction<'_>,
+        store: &mut HashReader<'_>,
+        roots: &[RefValue],
+    ) -> Result<(), sc::CodecError> {
+        if !std::ptr::eq(tx, self.transaction) || !store.ordinary_bound_births_qualified() {
+            return Err(sc::CodecError::new(sc::code::SOURCE, "解析根不属于当前普通事务Public证明"));
+        }
+        for root in roots {
+            if !self.public.iter().any(|covered| covered == root) {
+                return Err(sc::CodecError::new(sc::code::SOURCE, "解析根不属于完整Public覆盖"));
+            }
+            sc::audit_verify_refview_headers(store, [root.view()])?;
+        }
+        Ok(())
+    }
+}
+
 /// 只由完整历史审计构造，源借用与两个已覆盖子根一起交给唯一 manifest 构造器。
 pub(crate) struct VerifiedManifestAssembly<'a, 'source> {
     source: &'a mut HashReader<'source>,
@@ -819,8 +839,11 @@ fn read_indexed_history_inner(
     // Pending派生根在返回任何历史之前全部通过同一Public判据；非法嵌套占位仍拒绝。
     #[cfg(test)]
     super::admission_private::s4_read_trace::audit_window(tx, "resolved_public", "begin", "pending");
-    let resolved_result =
-        store.verify_many_ref(resolved_roots.iter().map(RefValue::view), sc::Mode::Public);
+    let resolved_result = if bound_births_qualified && manifest_coverage {
+        verified_templates.verify_resolved_public(tx, &mut store, &resolved_roots)
+    } else {
+        store.verify_many_ref(resolved_roots.iter().map(RefValue::view), sc::Mode::Public)
+    };
     #[cfg(test)]
     super::admission_private::s4_read_trace::audit_window(
         tx, "resolved_public", "end",
@@ -7681,6 +7704,43 @@ mod manifest_template_coverage_tests {
             self.reads.set(self.reads.get() + 1);
             self.nodes.read(digest)
         }
+    }
+
+    #[test]
+    fn history_public_coverage_resolved_exact_membership_header_and_source_routes() {
+        let mut nodes = sc::MemoryNodes::new();
+        let root = sc::write_value(&mut nodes, &V::Array(vec![V::String("payload".repeat(100))])).unwrap().content_ref();
+        let other = sc::write_value(&mut nodes, &V::Bool(true)).unwrap().content_ref();
+        let mut conn = Connection::open_in_memory().unwrap();
+        let tx = conn.transaction().unwrap();
+        let roots = [RefValue::Plain(root.clone())];
+        let proof = VerifiedManifestRoots { transaction: &tx, roots: &[], public: &roots };
+        let reads = Rc::new(Cell::new(0));
+        let mut source = Counted { nodes: nodes.clone(), reads: reads.clone() };
+        let mut reader = HashReader::new(&mut source);
+        reader.verify_many_ref(roots.iter().map(RefValue::view), sc::Mode::Public).unwrap();
+        let before = reads.get();
+        proof.verify_resolved_public(&tx, &mut reader, &roots).unwrap();
+        assert_eq!(reads.get() - before, 1);
+        for wrong in [
+            ContentRef { format: "wrong".into(), ..root.clone() },
+            ContentRef { kind: Kind::Object, ..root.clone() },
+            ContentRef { extent: Some(999), ..root.clone() },
+            other,
+        ] {
+            assert_eq!(proof.verify_resolved_public(&tx, &mut reader, &[RefValue::Plain(wrong)]).unwrap_err().code(), sc::code::SOURCE);
+        }
+        let capture = sc::AuditCapture::new(nodes.clone());
+        let mut captured = HashReader::captured(&capture, None);
+        assert!(!captured.ordinary_bound_births_qualified());
+        assert_eq!(proof.verify_resolved_public(&tx, &mut captured, &roots).unwrap_err().code(), sc::code::SOURCE);
+        let mut other_conn = Connection::open_in_memory().unwrap();
+        let other_tx = other_conn.transaction().unwrap();
+        assert_eq!(proof.verify_resolved_public(&other_tx, &mut reader, &roots).unwrap_err().code(), sc::code::SOURCE);
+        drop(reader);
+        source.nodes.insert_unchecked(root.digest().unwrap(), sc::tag::ARRAY, vec![0]);
+        let mut reader = HashReader::new(&mut source);
+        assert_eq!(proof.verify_resolved_public(&tx, &mut reader, &roots).unwrap_err().code(), sc::code::NODE_DIGEST);
     }
 
     #[test]
