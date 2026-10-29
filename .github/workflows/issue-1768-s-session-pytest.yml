@@ -1,0 +1,52 @@
+name: s_session Python collection (#1768 L-2)
+
+# #1768 L-2：原 nc-remote 命令的完整 pytest 集合，保留完整日志、JUnit 与 pytest 真实退出码。
+# 正式 S 二进制与测试同一 head 构建，经 S_STRUCTURE_SESSION_BINARY 注入（s_session/tests/conftest.py）。
+# pyo3 0.23 需 CPython ≤3.13 编译；s_query_integrity._CanonicalParsePool 绑定 CPython 3.14.6 布局，
+# 故编译用 3.13、集合用 3.14.6，两解释器分开，不改池子合同也不跳过布局相关用例。
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 's_session/**'
+      - 'rust/src/bin/s_structure_session.rs'
+      - 'rust/src/bin/s_session_v3/**'
+      - '.github/workflows/issue-1768-s-session-pytest.yml'
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/rust-job-setup
+      - name: Build formal S binary (same head)
+        working-directory: rust
+        run: cargo build --locked --features s_session --bin s_structure_session
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14.6'
+      - name: Install collection dependencies
+        run: python -m pip install pytest==9.0.2 -r s_session/tests/requirements-tb02c.txt
+      - name: Run original collection
+        shell: bash
+        env:
+          S_STRUCTURE_SESSION_BINARY: ${{ github.workspace }}/rust/target/debug/s_structure_session
+        run: |
+          set +e
+          mkdir -p "$RUNNER_TEMP/evidence"
+          python -V | tee "$RUNNER_TEMP/evidence/python-version.txt"
+          python -m pytest -q -p no:cacheprovider \
+            s_session/tests/test_*.py \
+            s_session/tests/issue1527_recovery/test_python_r4.py \
+            --junitxml="$RUNNER_TEMP/evidence/pytest-s-session.xml" \
+            >"$RUNNER_TEMP/evidence/pytest-s-session.log" 2>&1
+          pytest_rc=$?
+          printf 'pytest_exit=%s\n' "$pytest_rc" | tee "$RUNNER_TEMP/evidence/pytest-exit.txt"
+          tail -5 "$RUNNER_TEMP/evidence/pytest-s-session.log"
+          exit "$pytest_rc"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: issue1768-s-session-pytest-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/evidence
+          if-no-files-found: error
