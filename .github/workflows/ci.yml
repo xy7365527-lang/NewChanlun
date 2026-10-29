@@ -408,6 +408,32 @@ jobs:
           EXTRAS_RESULT: ${{ needs.rust-test-s-session-extra-groups.result }}
         run: test "$EXTRAS_RESULT" = success
 
+  # #1769（ADR 0039 迁移步骤 1，C-L 验收第 4 项）：唯一生产 launcher 与 X 骨架入口测试。
+  rust-test-production-session:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CARGO_INCREMENTAL: "0"
+    defaults:
+      run:
+        working-directory: rust
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/rust-job-setup
+
+      # production_session_testonly：入口测试显式走 S 的 TestOnly 诊断 theta 臂（P0 未签期间正式配置必拒，
+      #   由 unsigned_p0_refuses_s_serve_* 两条测试锁住）；生产构建不含该臂，遇开关即拒绝启动。
+      - name: cargo test — production_session_entry
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --release --locked --features production_session_testonly --test production_session_entry --jobs 1 -- --test-threads 1
+
+      # 纯生产构建（只开 production_session，#1769 返修 M-3/M-4）：编译生产 launcher、X 骨架与 S bin 的生产 cfg
+      #   （含 S_PASS 不转交 TestOnly 开关的分支），并真实执行拒绝类子集：P0 未签拒启两条、生产 S 遇
+      #   S_THETA_DIAGNOSTIC_TESTONLY=1 即拒启、生产 launcher 不转交该开关。需 S 开门的测试在此构建由 cfg 排除。
+      - name: cargo test — production_session_entry（纯生产构建）
+        run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --release --locked --features production_session --test production_session_entry --jobs 1 -- --test-threads 1
+
   rust-test-backtest-bin:
     runs-on: ubuntu-latest
     # 拆前本步约 9.3 分钟（run 39358379553）。
@@ -827,6 +853,7 @@ jobs:
         run: |
           python -B -m unittest discover -s s_session/tests -p 'test_tb02b_contract.py' -v
           node --test s_session/tests/test_tb02b_contract.cjs
+          node --test s_session/tests/test_tb02b_layout_cc007.cjs
           node s_session/tests/build_tb01c_browser.cjs --check
       - name: TB-02-C observer contract tests
         run: node --test s_session/tests/test_tb02c_contract.cjs
@@ -907,5 +934,45 @@ jobs:
       - run: npm ci --ignore-scripts
       - name: typecheck (tsconfig.sandcastle.json)
         run: npm run typecheck
-      - name: node:test — .sandcastle/*.test.{ts,mts}
-        run: npx tsx --test .sandcastle/*.test.ts .sandcastle/*.test.mts
+      - name: node:test — Sandcastle + wayfinder
+        run: npx tsx --test .sandcastle/*.test.ts .sandcastle/*.test.mts scripts/wayfinder_engine.test.mts scripts/wayfinder_engine.shell.test.mts
+
+  deepagents-pilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: .sandcastle/deepagents-pilot
+    env:
+      LANGSMITH_TRACING: "false"
+      LANGCHAIN_TRACING_V2: "false"
+      OTEL_SDK_DISABLED: "true"
+      LANGSMITH_API_KEY: ""
+      LANGCHAIN_API_KEY: ""
+      OPENAI_API_KEY: ""
+      CLIPROXY_LOCAL_KEY: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            .sandcastle/deepagents-pilot/requirements.lock
+            .sandcastle/deepagents-pilot/requirements*.txt
+            .sandcastle/approval-signing/pyproject.toml
+      - name: Install frozen pilot, Studio, and check tools
+        run: python -m pip install -r requirements-ci.txt
+      - name: Check dependency compatibility
+        run: python -m pip check
+      - name: Ruff
+        run: python -m ruff check --select F,E9,B,I .
+      - name: Mypy
+        run: python -m mypy pilot1742
+      - name: Test pilot and Studio without external workers
+        run: python -m pytest -q tests
+      - name: Test approval-signing reader
+        working-directory: .sandcastle/approval-signing
+        run: python -m pytest -q tests

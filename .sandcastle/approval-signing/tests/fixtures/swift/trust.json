@@ -1,0 +1,15 @@
+{
+  "allowed_scopes" : [
+    "candidate_head",
+    "spec_authorization"
+  ],
+  "format" : "newchanlun-approval-trust\/v1",
+  "keys" : [
+    {
+      "key_id" : "674179da9d23dc6ad2e3dc471d4bb2b21a5415dde9dbef26a4773b1ecd021c17",
+      "label" : "approval-core-check software test key",
+      "public_key_spki_der_b64" : "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEuhB2J34345QNR5ZXKAS9UBLCSTbKa9EmTO+0cIHYMqxFi0fBoh3c2gSh32xgs9U2WDpFC5PQNQWgBvkaJo1jEA=="
+    }
+  ],
+  "repository_id" : 1150335160
+}

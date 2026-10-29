@@ -83,7 +83,7 @@
     "DS148264|topological-computation/verify_fg_corrected.py|85",
     "DS148264|topological-computation/verify_fg_predictions.py|318",
     "DS148264|topological-computation/verify_fg_predictions.py|347",
-    "DS162092|.sandcastle/image/prime-agent-settings.json|7",
+    "DS162092|.sandcastle/image/prime-agent-settings.json|5",
     "DS162092|.sandcastle/image/skills/serena/src/serena/__init__.py|10",
     "DS162092|.sandcastle/image/skills/serena/src/serena/__init__.py|15",
     "DS162092|.sandcastle/image/skills/serena/src/serena/__init__.py|93",
@@ -63365,7 +63365,23 @@
     "DS197836|s_session/tests/fixtures/tb03b-changes-only-browser.json|1",
     "DS173237|s_session/tests/fixtures/tb03c_allocation/PER-LEG-RAW.json|169",
     "DS173237|.chanlun/review-results/issue1657-closeout-20261028/review.json|6",
-    "DS173237|.chanlun/review-results/issue1657-closeout-20261028/review.json|7"
+    "DS173237|.chanlun/review-results/issue1657-closeout-20261028/review.json|7",
+    "DS172411|s_session/browser/q3-consumer.js|1761",
+    "DS172411|s_session/browser/q3-consumer.js|1860",
+    "DS172411|s_session/browser/q3-consumer.js|2400",
+    "DS172411|s_session/browser/tb01c-client.js|5144",
+    "DS172411|s_session/browser/tb01c-client.js|5243",
+    "DS172411|s_session/browser/tb01c-client.js|5783",
+    "DS172411|s_session/browser/tb01c-client.js|6791",
+    "DS172411|s_session/browser/tb01c-client.js|7029",
+    "DS173237|s_session/browser/tb01c-client.js|6605",
+    "DS173237|s_session/browser/tb01c-client.js|6725",
+    "DS173237|.chanlun/review-results/issue1778-decision-20261028/archaeology.json|8",
+    "DS173237|.chanlun/review-results/issue1778-decision-20261028/archaeology.json|9",
+    "DS173237|.chanlun/review-results/issue1778-decision-20261028/archaeology.json|10",
+    "DS173237|.chanlun/review-results/issue1778-decision-20261028/review1779-sync.json|4",
+    "DS173237|.chanlun/review-results/issue1778-decision-20261028/review1779-sync.json|5",
+    "DS173237|.chanlun/review-results/issue1778-decision-20261028/review1779-sync.json|6"
   ],
   "updates": [
     {
@@ -63562,6 +63578,49 @@
         ".chanlun/review-results/issue1657-closeout-20261028/review.json"
       ],
       "reason": "该文件是 PR #1710 非作者独审机器件原件的逐字副本（字节锁定，关票门第 6 子句要求入仓）；第 6、7 行是被审候选与基线的 40 位 Git 提交号，非凭据。只追加精确 rule|path|line 键，不作目录排除。"
+      },
+      {
+      "issue": 1491,
+      "pull_request": 1780,
+      "source_head": "b9c35cc29d",
+      "actions_run": 40616918400,
+      "added_findings": 10,
+      "rule_counts": {
+        "DS172411": 8,
+        "DS173237": 2
+      },
+      "scope": [
+        "s_session/browser/q3-consumer.js",
+        "s_session/browser/tb01c-client.js"
+      ],
+      "reason": "同一行文本的行号漂移：逐键比对 origin/main 旧行与本分支新行内容逐字相同后按精确 rule|path|line 键追加；旧键保留（仍在 main 上有效），原清单顺序不变，新键仅追加。",
+      "entries": {
+        "DS172411|s_session/browser/q3-consumer.js|1761": "浏览器定时器回调为函数字面量，非字符串求值；与既有键 DS172411|s_session/browser/q3-consumer.js|1753 同一行文本，因 #1491 段 B 在上方增 bounded-layout/1 读法（q3-typed/q3-consumer 及其打包段）而行号漂移，逐行比对内容不变。",
+        "DS172411|s_session/browser/q3-consumer.js|1860": "浏览器定时器回调为函数字面量，非字符串求值；与既有键 DS172411|s_session/browser/q3-consumer.js|1852 同一行文本，因 #1491 段 B 在上方增 bounded-layout/1 读法（q3-typed/q3-consumer 及其打包段）而行号漂移，逐行比对内容不变。",
+        "DS172411|s_session/browser/q3-consumer.js|2400": "浏览器定时器回调为函数字面量，非字符串求值；与既有键 DS172411|s_session/browser/q3-consumer.js|2392 同一行文本，因 #1491 段 B 在上方增 bounded-layout/1 读法（q3-typed/q3-consumer 及其打包段）而行号漂移，逐行比对内容不变。",
+        "DS172411|s_session/browser/tb01c-client.js|5144": "浏览器定时器回调为函数字面量，非字符串求值；与既有键 DS172411|s_session/browser/tb01c-client.js|5060 同一行文本，因 #1491 段 B 在上方增 bounded-layout/1 读法（q3-typed/q3-consumer 及其打包段）而行号漂移，逐行比对内容不变。",
+        "DS172411|s_session/browser/tb01c-client.js|5243": "浏览器定时器回调为函数字面量，非字符串求值；与既有键 DS172411|s_session/browser/tb01c-client.js|5159 同一行文本，因 #1491 段 B 在上方增 bounded-layout/1 读法（q3-typed/q3-consumer 及其打包段）而行号漂移，逐行比对内容不变。",
+        "DS172411|s_session/browser/tb01c-client.js|5783": "浏览器定时器回调为函数字面量，非字符串求值；与既有键 DS172411|s_session/browser/tb01c-client.js|5699 同一行文本，因 #1491 段 B 在上方增 bounded-layout/1 读法（q3-typed/q3-consumer 及其打包段）而行号漂移，逐行比对内容不变。",
+        "DS172411|s_session/browser/tb01c-client.js|6791": "浏览器定时器回调为函数字面量，非字符串求值；与既有键 DS172411|s_session/browser/tb01c-client.js|6707 同一行文本，因 #1491 段 B 在上方增 bounded-layout/1 读法（q3-typed/q3-consumer 及其打包段）而行号漂移，逐行比对内容不变。",
+        "DS172411|s_session/browser/tb01c-client.js|7029": "浏览器定时器回调为函数字面量，非字符串求值；与既有键 DS172411|s_session/browser/tb01c-client.js|6945 同一行文本，因 #1491 段 B 在上方增 bounded-layout/1 读法（q3-typed/q3-consumer 及其打包段）而行号漂移，逐行比对内容不变。",
+        "DS173237|s_session/browser/tb01c-client.js|6605": "64 位十六进制为浏览器入口的内容摘要常量，非凭据；与既有键 DS173237|s_session/browser/tb01c-client.js|6521 同一行文本，因 #1491 段 B 在上方增 bounded-layout/1 读法（q3-typed/q3-consumer 及其打包段）而行号漂移，逐行比对内容不变。",
+        "DS173237|s_session/browser/tb01c-client.js|6725": "64 位十六进制为浏览器入口的内容摘要常量，非凭据；与既有键 DS173237|s_session/browser/tb01c-client.js|6641 同一行文本，因 #1491 段 B 在上方增 bounded-layout/1 读法（q3-typed/q3-consumer 及其打包段）而行号漂移，逐行比对内容不变。"
+      }
+    },
+    {
+      "issue": 1778,
+      "pull_request": 1802,
+      "source_head": "f7139f900f",
+      "actions_run": 40816518175,
+      "added_findings": 6,
+      "rule_counts": {
+        "DS173237": 6
+      },
+      "scope": [
+        ".chanlun/review-results/issue1778-decision-20261028/archaeology.json",
+        ".chanlun/review-results/issue1778-decision-20261028/review1779-sync.json"
+      ],
+      "reason": "两文件是 #1778 裁定七原件的逐字归档副本（不改正文）；archaeology.json 第 8–10 行与 review1779-sync.json 第 4–6 行均为 40 位 Git 提交号（git cat-file 核为 commit 对象），非凭据。只追加精确 rule|path|line 键，不作目录排除（同 #1657 先例）。"
     }
   ]
 }
