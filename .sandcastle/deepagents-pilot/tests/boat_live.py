@@ -89,7 +89,7 @@ def setup(work: Path, snapshot: str, image: str) -> None:
     run = PilotRun.create(work / "home", parse_run_id("live1"), TASK, git(source, "rev-parse", "HEAD"), MODELS,
                           source_repo=source)
     run.release()
-    print(json.dumps({"run": str(run.dir), "base": run.spec.base, "execution": run.spec.execution}, ensure_ascii=False))
+    print(json.dumps({"run": str(run.dir), "base": run.spec.base, "execution": run.spec.to_json().get("execution")}, ensure_ascii=False))
 
 
 def open_run(work: Path, crash: str | None = None) -> PilotRun:

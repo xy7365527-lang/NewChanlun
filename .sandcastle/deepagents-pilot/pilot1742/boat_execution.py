@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Literal, Protocol
 from urllib.parse import urlparse
 
-from .cloud_package import MAX_FILE_BYTES, build_package, build_skill_bundle, git, safe_path
+from .cloud_package import MAX_FILE_BYTES, build_package, build_skill_bundle, build_project_context, git, safe_path
 from .domain import EffectUnknown, NotStarted, Running, Terminal, WorkerFact, WorkerKey
 
 ADMISSION_SECONDS = 900
@@ -66,15 +66,39 @@ class BoatConfig:
         return config
 
 
-def new_execution(*, test_launcher: bool = False, source_repo: Path | None = None) -> dict:
-    if test_launcher:
-        return {"backend": "test-launcher"}
+@dataclass(frozen=True)
+class HistoricalLocal:
+    backend: Literal["historical-local", "test-launcher"] = "historical-local"
+
+
+@dataclass(frozen=True)
+class BoatRun:
+    config: BoatConfig
+    runtime_head: str
+    backend: Literal["boat"] = "boat"
+
+
+RunExecution = HistoricalLocal | BoatRun
+
+
+def parse_execution(raw: dict | None) -> RunExecution:
+    if raw is None:
+        return HistoricalLocal()
+    if raw == {"backend": "test-launcher"}:
+        return HistoricalLocal("test-launcher")
+    if raw.get("backend") != "boat" or set(raw) != {"backend", "config", "runtime_head"}:
+        raise ValueError("未知run执行绑定")
+    if not re.fullmatch(r"[0-9a-f]{40}", raw["runtime_head"]):
+        raise ValueError("运行时身份需要完整SHA")
+    return BoatRun(BoatConfig.parse(raw["config"]), raw["runtime_head"])
+
+
+def new_execution(*, source_repo: Path) -> BoatRun:
     source = os.environ.get("PILOT_BOAT_CONFIG")
     if not source:
         raise ValueError("新run默认Boat，需PILOT_BOAT_CONFIG；不会回退本机")
     config = BoatConfig.parse(json.loads(Path(source).read_text()))
-    return {"backend": "boat", "config": asdict(config),
-            "runtime_head": git(source_repo, "rev-parse", "HEAD").decode().strip()}
+    return BoatRun(config, git(source_repo, "rev-parse", "HEAD").decode().strip())
 
 
 @dataclass(frozen=True)
@@ -149,10 +173,12 @@ def _epoch(stamp: str) -> float:
     return datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp()
 
 
-class BoatExecution:
+class BoatExecution(WorkerExecution):
     def __init__(self, run, cli: BoatCLI | None = None):
         self.run = run
-        self.config = BoatConfig.parse(run.spec.execution["config"])
+        if not isinstance(run.spec.execution, BoatRun):
+            raise TypeError("Boat执行器需要BoatRun绑定")
+        self.config = run.spec.execution.config
         self.cli = cli or BoatCLI()
 
     @property
@@ -204,7 +230,7 @@ class BoatExecution:
         self._launch(key, self._store(key, replace(binding, submission="submitting", deadline=deadline)))
 
     def _intent(self, key: WorkerKey) -> BoatBinding:
-        runtime = self.run.spec.execution["runtime_head"]
+        runtime = self.run.spec.execution.runtime_head
         package_id = f"{key.target_head}-g{self.generation}-{key.role}-{runtime[:12]}-{self._skill_bundle()[:12]}"
         name = f"newchanlun-{key.run_id}-{key.role}-{key.target_head[:12]}-g{self.generation}"
         return BoatBinding(self._identity(key), name[:120], package_id,
@@ -217,6 +243,16 @@ class BoatExecution:
                 shutil.rmtree(bundle)
             build_skill_bundle(Path(self.config.pstack_source), Path(self.config.model_rules), bundle)
         return json.loads((bundle / "bundle.json").read_text())["id"]
+
+    def controller_context(self) -> Path:
+        self._skill_bundle()
+        context = self.run.dir / "boat/controller-context"
+        if not (context / "context.json").exists():
+            if context.exists():
+                shutil.rmtree(context)
+            build_project_context(self.run.source_repo, self.run.spec.base, context,
+                                  Path(self.config.pstack_source), Path(self.config.model_rules))
+        return context
 
     def _create_sandbox(self, key: WorkerKey, binding: BoatBinding) -> str:
         """Fork the stopped base VM (its snapshot carries the frozen image) and name the fork after this key."""
@@ -246,9 +282,13 @@ class BoatExecution:
             return local
         if local.exists():
             shutil.rmtree(local)
-        build_package(self.run.source_repo, key.target_head, local, self.run.dir / "boat/skill-bundle",
-                      Path(self.config.pstack_source), Path(self.config.model_rules))
-        runtime_head = self.run.spec.execution["runtime_head"]
+        context = self.controller_context()
+        manifest = build_package(self.run.source_repo, key.target_head, local, self.run.dir / "boat/skill-bundle",
+                                 Path(self.config.pstack_source), Path(self.config.model_rules))
+        if manifest["project_skill_id"] != json.loads((context / "context.json").read_text())["id"]:
+            shutil.rmtree(local)
+            raise ExecutionUnknown("工蜂与主控的冻结项目技能身份不同")
+        runtime_head = self.run.spec.execution.runtime_head
 
         def show(path: str) -> bytes:
             return git(self.run.source_repo, "show", runtime_head + ":" + path)

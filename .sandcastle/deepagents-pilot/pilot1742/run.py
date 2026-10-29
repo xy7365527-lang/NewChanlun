@@ -65,7 +65,7 @@ from .domain import (
     synthesis_refusal,
 )
 from .workunit import WorkUnit, parse_work_unit
-from .boat_execution import BoatExecution, ExecutionUnknown, new_execution
+from .boat_execution import BoatExecution, BoatRun, HistoricalLocal, RunExecution, ExecutionUnknown, new_execution, parse_execution
 
 if TYPE_CHECKING:
     from .executor import TicketExecutor
@@ -185,14 +185,14 @@ class RunSpec:
     judge_model: ModelSlug | None
     v: int = 1
     work_unit: dict | None = None
-    execution: dict | None = None
+    execution: RunExecution = HistoricalLocal()
 
     def to_json(self) -> dict:
         data = asdict(self)
         if self.v == 1:
             data.pop("v")
             data.pop("work_unit")
-        if self.execution is None:
+        if self.execution == HistoricalLocal():
             data.pop("execution")
         return data
 
@@ -224,7 +224,7 @@ class RunSpec:
                        parse_model(data["author_model"]), parse_model(data["reviewer_model"]),
                        parse_model(data["brain_model"]), data["author_checkout"], data["review_checkout"],
                        data["created_at"], (parse_model(design[0]), parse_model(design[1])) if design else None,
-                       parse_model(judge) if judge else None, version, unit, data.get("execution"))
+                       parse_model(judge) if judge else None, version, unit, parse_execution(data.get("execution")))
 
     def model_for(self, role: Role) -> ModelSlug:
         if role == "author":
@@ -406,18 +406,18 @@ class PilotRun:
         self._tools_active = 0
         self._lock_fd: int | None = None
         self._children: dict[str, subprocess.Popen] = {}
-        self.execution = BoatExecution(self) if (spec.execution or {}).get("backend") == "boat" else None
+        self.execution = BoatExecution(self) if isinstance(spec.execution, BoatRun) else None
 
     @staticmethod
     def run_dir(home: Path, run_id: RunId) -> Path:
         return home / "runs" / run_id
 
     @staticmethod
-    def _frozen_execution(root: Path, kw: dict) -> dict | None:
+    def _frozen_execution(root: Path, kw: dict) -> RunExecution:
         """An existing run keeps the execution it was created with; only a new run reads current config."""
         if (root / "run.json").exists():
             return RunSpec.from_json(json.loads((root / "run.json").read_text())).execution
-        return new_execution(test_launcher=bool(kw.get("launcher")), source_repo=kw.get("source_repo", SOURCE_REPO))
+        return new_execution(source_repo=kw.get("source_repo", SOURCE_REPO))
 
     @classmethod
     def create(cls, home: Path, run_id: RunId, task: TaskSpec, base: Sha, models_text: str, **kw) -> "PilotRun":

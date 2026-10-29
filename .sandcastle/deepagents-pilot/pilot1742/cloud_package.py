@@ -66,7 +66,8 @@ def copy_skill_tree(source: Path, destination: Path, replacements: dict[str, str
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)
         target.chmod(resolved.stat().st_mode & 0o777)
-        rows.append({"path": str(relative), "bytes": len(data)})
+        rows.append({"path": str(relative), "bytes": len(data), "mode": resolved.stat().st_mode & 0o777,
+                     "sha256": hashlib.sha256(data).hexdigest()})
     return rows
 
 
@@ -158,20 +159,47 @@ def build_package(repo: Path, head: str, destination: Path, bundle: Path, pstack
     export_repository(repo, head, destination / "repo")
     shutil.copytree(bundle / "pstack", destination / "pstack", symlinks=False)
     shutil.copytree(bundle / "rules", destination / "rules", symlinks=False)
-    project_skills = destination / "repo/.agents/skills"
-    project_skills.mkdir(parents=True, exist_ok=True)
-    replacements = {str(pstack): PSTACK_TARGET, str(models): RULES_TARGET + "/pstack-models.md", str(repo): PROJECT_TARGET}
-    project_rows = copy_skill_tree(project_skills, destination / "project-skills", replacements)
-    for document in (destination / "project-skills").rglob("*"):
-        if document.is_file() and document.suffix in {".md", ".json"} and any(
-                root in document.read_text() for root in replacements):
-            raise ValueError("项目技能包残留已知Mac根")
+    project = copy_project_skills(destination / "repo", destination / "project-skills", repo, pstack, models)
     bundle_manifest = json.loads((bundle / "bundle.json").read_text())
     manifest = {"schema": 2, "head": head, "skill_bundle": bundle_manifest["id"],
                 "pstack_root": PSTACK_TARGET + "/installed/skills/", "project_skills_root": PROJECT_TARGET + "/.agents/skills/",
                 "rules_root": RULES_TARGET + "/", "pstack_entries": bundle_manifest["pstack_entries"],
-                "project_entries": len(list(project_skills.glob("*/SKILL.md"))), "project_files": project_rows,
+                "project_entries": project["entries"], "project_files": project["files"], "project_skill_id": project["id"],
                 "capabilities": {"shell": "hardened Docker", "mcp": "未配置，使用相关技能前须核可用工具",
                                  "macOS": "仅本机认证，云工蜂不可调用"}}
     (destination / "package.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
+    return manifest
+
+
+def copy_project_skills(snapshot: Path, destination: Path, repo: Path, pstack: Path, models: Path) -> dict:
+    skills = snapshot / ".agents/skills"
+    skills.mkdir(parents=True, exist_ok=True)
+    replacements = {str(pstack): PSTACK_TARGET, str(models): RULES_TARGET + "/pstack-models.md", str(repo): PROJECT_TARGET}
+    rows = copy_skill_tree(skills, destination, replacements)
+    for document in destination.rglob("*"):
+        if document.is_file() and document.suffix in {".md", ".json"} and any(
+                root in document.read_text() for root in replacements):
+            raise ValueError("项目技能包残留已知Mac根")
+    return {"entries": len(list(skills.glob("*/SKILL.md"))), "files": rows,
+            "id": hashlib.sha256(json.dumps(rows, sort_keys=True).encode()).hexdigest()}
+
+
+def build_project_context(repo: Path, head: str, destination: Path, pstack: Path, models: Path) -> dict:
+    destination.mkdir(parents=True)
+    paths = ("AGENTS.md", "CONTEXT.md", "docs/agents", ".sandcastle/docs", ".agents/skills")
+    present = [path for path in paths if git(repo, "ls-tree", head, "--", path)]
+    snapshot = destination / "repo"
+    snapshot.mkdir()
+    if present:
+        archive = git(repo, "archive", "--format=tar", head, "--", *present)
+        with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
+            for member in tar.getmembers():
+                path = PurePosixPath(member.name)
+                if path.is_absolute() or ".." in path.parts or member.isdev() or member.islnk():
+                    raise ValueError("项目快照含不安全成员")
+                if member.issym() and not ((snapshot / member.name).parent / member.linkname).resolve().is_relative_to(snapshot.resolve()):
+                    raise ValueError("项目快照符号链接越界")
+            tar.extractall(snapshot, filter="data")
+    manifest = {"head": head, **copy_project_skills(snapshot, destination / "project-skills", repo, pstack, models)}
+    (destination / "context.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
     return manifest

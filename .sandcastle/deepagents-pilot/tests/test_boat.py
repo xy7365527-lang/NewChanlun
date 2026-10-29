@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import pytest
 
 from conftest import git
-from pilot1742.boat_execution import (BoatBinding, BoatCLI, BoatExecution, ExecutionUnknown, new_execution, save)
+from pilot1742.boat_execution import (BoatBinding, BoatCLI, BoatExecution, ExecutionUnknown, BoatRun, HistoricalLocal, parse_execution, new_execution, save)
 from pilot1742.cloud_package import build_skill_bundle, export_repository, safe_path
 from pilot1742.domain import EffectUnknown, Running, Terminal, WorkerKey
 from pilot1742.run import _status_text_paths
@@ -45,7 +45,7 @@ def test_new_default_requires_cloud_no_fallback(env, monkeypatch):
     monkeypatch.delenv('PILOT_BOAT_CONFIG', raising=False)
     with pytest.raises(ValueError, match='Boat'):
         new_execution(source_repo=env.source)
-    assert new_execution(test_launcher=True)['backend'] == 'test-launcher'
+
 
 
 def test_existing_test_run_keeps_binding_without_current_config(env, monkeypatch):
@@ -53,7 +53,7 @@ def test_existing_test_run_keeps_binding_without_current_config(env, monkeypatch
     run.release()
     monkeypatch.delenv('PILOT_BOAT_CONFIG', raising=False)
     same = env.create()
-    assert same.spec.execution == {'backend': 'test-launcher'}
+    assert same.spec.execution == HistoricalLocal()
     same.release()
 
 
@@ -90,7 +90,7 @@ class FakeBoat:
 
 def adapter(env, cli=None, submission='submitted'):
     run = env.create()
-    object.__setattr__(run.spec, 'execution', {'backend': 'boat', 'config': config(), 'runtime_head': env.base})
+    object.__setattr__(run.spec, 'execution', parse_execution({'backend': 'boat', 'config': config(), 'runtime_head': env.base}))
     engine = BoatExecution(run, cli or FakeBoat())
     run.execution = engine
     key = WorkerKey(run.spec.run_id, 'author', env.base)

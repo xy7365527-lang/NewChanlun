@@ -29,6 +29,7 @@ from .domain import Awaiting, CommitReceipt, WorkerReceipt
 from .run import PSTACK_MODELS, SKILLS_ROOT, Halted, PilotRun, ToolRefusal, gate_json
 
 from .boat_execution import ExecutionUnknown
+from .cloud_package import PSTACK_TARGET, PROJECT_TARGET, RULES_TARGET
 
 TOOL_ERRORS: tuple[type[Exception], ...] = (ToolRefusal, Halted, ExecutionUnknown)
 
@@ -201,18 +202,26 @@ def _v2_ending(run: PilotRun) -> str:
 
 
 def project_skills_root(run: PilotRun) -> str:
-    """Project skills come from the run's checkout at its frozen head, never from the live source repo."""
+    if run.execution is not None:
+        return PROJECT_TARGET + "/.agents/skills/"
     return str(Path(run.spec.author_checkout) / ".agents/skills") + "/"
 
 
 def system_prompt(run: PilotRun) -> str:
-    models = PSTACK_MODELS.read_text() if PSTACK_MODELS.exists() else "(pstack-models.md 缺失)"
+    if run.execution is not None:
+        run.execution.controller_context()
+        models = (run.dir / "boat/skill-bundle/rules/pstack-models.md").read_text()
+        skills_root = PSTACK_TARGET + "/installed/skills/"
+        poteto_mode = skills_root + "poteto-mode/SKILL.md"
+    else:
+        models = PSTACK_MODELS.read_text() if PSTACK_MODELS.exists() else "(pstack-models.md 缺失)"
+        skills_root, poteto_mode = SKILLS_ROOT, POTETO_MODE
     task = run.spec.task
     ending = V1_ENDING if run.spec.v == 1 else _v2_ending(run)
     role = "#1742 Deep Agents 试点" if run.spec.v == 1 else f"#{run.spec.ticket} Deep Agents 新执行器 run"
     return f"""你是 {role}的主控，本线程收到了 $pstack-upstream-poteto-mode。
 
-先用 read_file 读取 /project/AGENTS.md、/project/CONTEXT.md 和任务相关纪律，再完整读取 {POTETO_MODE}（read_file 每次最多 100 行，用 offset 分页读到文件末尾），按其 Playbooks 选择适用 playbook，读取该 playbook 文件和你实际应用的原则叶技能 SKILL.md，然后用 write_todos 原样抄入 playbook 步骤；不做的步骤保留并写 skip 原因。技能根目录是 {SKILLS_ROOT}，项目技能根目录是 {project_skills_root(run)}。其中相对引用以各技能目录为基准。
+先用 read_file 读取 /project/AGENTS.md、/project/CONTEXT.md 和任务相关纪律，再完整读取 {poteto_mode}（read_file 每次最多 100 行，用 offset 分页读到文件末尾），按其 Playbooks 选择适用 playbook，读取该 playbook 文件和你实际应用的原则叶技能 SKILL.md，然后用 write_todos 原样抄入 playbook 步骤；不做的步骤保留并写 skip 原因。技能根目录是 {skills_root}，项目技能根目录是 {project_skills_root(run)}。其中相对引用以各技能目录为基准。
 
 本 harness 的映射：
 {design_mapping(run)}- pstack 的 Task/spawn_agent 代码委派 = run_worker(role="author", brief)，由 Sandcastle 外部工蜂执行；独立审阅 = run_worker(role="review", brief)。没有其他子代理、shell 或写文件工具。
@@ -232,8 +241,9 @@ def system_prompt(run: PilotRun) -> str:
 
 def initial_message(run: PilotRun) -> str:
     what = "试点" if run.spec.v == 1 else "交付"
+    poteto = PSTACK_TARGET + "/installed/skills/poteto-mode/SKILL.md" if run.execution is not None else POTETO_MODE
     return (f"$pstack-upstream-poteto-mode\n\n执行 #{run.spec.ticket} {what} run {run.spec.run_id}：按系统提示完成“{run.spec.task.title}”，"
-            f"从读取 {POTETO_MODE} 全文开始。")
+            f"从读取 {poteto} 全文开始。")
 
 
 def build_agent(run: PilotRun, checkpointer: Any, model: BaseChatModel | None = None):
@@ -241,29 +251,43 @@ def build_agent(run: PilotRun, checkpointer: Any, model: BaseChatModel | None = 
     register_harness_profile(f"openai:{run.spec.brain_model}", HarnessProfile(
         general_purpose_subagent=GeneralPurposeSubagentProfile(enabled=False)))
     project_root = project_skills_root(run)
-    rules_dir = run.dir / "read-only-rules"
-    rules_dir.mkdir(exist_ok=True)
-    if PSTACK_MODELS.is_file():
-        (rules_dir / "pstack-models.md").write_bytes(PSTACK_MODELS.read_bytes())
-    rules_root = str(PSTACK_MODELS.parent) + "/"
-    project_docs = run.dir / "read-only-project"
-    if project_docs.exists():
-        shutil.rmtree(project_docs)
-    project_docs.mkdir()
-    for relative in ("AGENTS.md", "CONTEXT.md"):
-        source = Path(run.spec.author_checkout) / relative
-        if source.is_file():
-            (project_docs / relative).write_bytes(source.read_bytes())
-    for relative in ("docs/agents", ".sandcastle/docs"):
-        source = Path(run.spec.author_checkout) / relative
-        if source.is_dir():
-            shutil.copytree(source, project_docs / relative)
-    backend = CompositeBackend(default=StateBackend(), routes={
+    if run.execution is not None:
+        context = run.execution.controller_context()
+        project_docs = context / "repo"
+        project_skills = context / "project-skills"
+        bundle = run.dir / "boat/skill-bundle"
+        skills_root = PSTACK_TARGET + "/installed/skills/"
+        skills_dir = bundle / "pstack/installed/skills"
+        rules_root, rules_dir = RULES_TARGET + "/", bundle / "rules"
+    else:
+        rules_dir = run.dir / "read-only-rules"
+        rules_dir.mkdir(exist_ok=True)
+        if PSTACK_MODELS.is_file():
+            (rules_dir / "pstack-models.md").write_bytes(PSTACK_MODELS.read_bytes())
+        rules_root = str(PSTACK_MODELS.parent) + "/"
+        project_docs = run.dir / "read-only-project"
+        if project_docs.exists():
+            shutil.rmtree(project_docs)
+        project_docs.mkdir()
+        for relative in ("AGENTS.md", "CONTEXT.md"):
+            source = Path(run.spec.author_checkout) / relative
+            if source.is_file():
+                (project_docs / relative).write_bytes(source.read_bytes())
+        for relative in ("docs/agents", ".sandcastle/docs"):
+            source = Path(run.spec.author_checkout) / relative
+            if source.is_dir():
+                shutil.copytree(source, project_docs / relative)
+        project_skills = Path(project_root)
+        skills_root, skills_dir = SKILLS_ROOT, Path(SKILLS_ROOT)
+    routes = {
         "/project/": FilesystemBackend(root_dir=str(project_docs), virtual_mode=True),
-        SKILLS_ROOT: FilesystemBackend(root_dir=SKILLS_ROOT, virtual_mode=True),
-        project_root: FilesystemBackend(root_dir=project_root, virtual_mode=True),
+        skills_root: FilesystemBackend(root_dir=str(skills_dir), virtual_mode=True),
+        project_root: FilesystemBackend(root_dir=str(project_skills), virtual_mode=True),
         rules_root: FilesystemBackend(root_dir=str(rules_dir), virtual_mode=True),
-    })
+    }
+    if run.execution is not None:
+        routes[PSTACK_TARGET + "/"] = FilesystemBackend(root_dir=str(bundle / "pstack"), virtual_mode=True)
+    backend = CompositeBackend(default=StateBackend(), routes=routes)
     middleware: list[AgentMiddleware[Any, Any, Any]] = [
         FilesystemMiddleware(backend=backend, tools=READ_ONLY_FS_TOOLS), TodoListMiddleware()]
     return create_deep_agent(
@@ -271,7 +295,7 @@ def build_agent(run: PilotRun, checkpointer: Any, model: BaseChatModel | None = 
         tools=build_tools(run),
         system_prompt=system_prompt(run),
         middleware=middleware,
-        skills=[SKILLS_ROOT, project_root],
+        skills=[skills_root, project_root],
         backend=backend,
         checkpointer=checkpointer,
         name="pilot1742",

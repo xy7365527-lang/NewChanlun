@@ -12,7 +12,7 @@
 2. 取得精确身份：`docker image inspect --format '{{.Id}}' newchanlun-boat1804`，填入配置的 `image`。
 3. 停止该 VM 并核 `stop.status=completed`。adapter 只 fork 它，从不启动或停止它。
 
-停止的快照保留 14 天，过期后 fork 失败。基底 owner 需在到期前显式恢复再停止一次以刷新。付费计划可改用 saved snapshot，免费试用不提供。
+停止的快照保留 14 天，过期后 fork 失败。基底 owner 在快照到期或丢失时，按原运行包 manifest 的源码 head、仓内锁文件及上述 Dockerfile 重建一台新的专用基底。核对新镜像身份并停止新基底，然后为新 run 更新配置的 `base_sandbox` 与 `image`。已有 run 保留冻结配置，不能直接改写其绑定。不要用常驻 VM、心跳或自动续期维持基底。付费计划可选 saved snapshot，免费试用不提供。
 
 ## 受管配置
 
@@ -77,6 +77,10 @@ v1 run 用 `python -m pilot1742 cancel-worker --home ... --run-id ... --role ...
 
 ## 运行包和验收
 
-源码导出保留原 Git SHA，只带当前及父提交所需对象，不带宿主 Git 配置。`boat push` 会省略 `.git`，因此 adapter 使用显式 tar 与 `boat scp`。pstack 与模型规则在每个 run 首次派工时冻结为一份技能包，包身份含其内容摘要，同一 run 的作者与独审使用同一份。项目技能来自冻结源码。三者以只读挂载进入 Docker，依赖由锁文件在 Linux 重建，不复制 Darwin 缓存。
+源码导出保留原 Git SHA，只带当前及父提交所需对象，不带宿主 Git 配置。`boat push` 会省略 `.git`，因此 adapter 使用显式 tar 与 `boat scp`。pstack 与模型规则在每个 run 首次派工时冻结为一份技能包，包身份含其内容摘要，同一 run 的作者与独审使用同一份。主控在首次构建时也读取这份技能包和规则。主控项目技能与纪律从 run 的冻结 base 导出，不从实时源仓库或可变作者 checkout 读取。项目技能经同一个转换器生成内容身份，记录在主控 `boat/controller-context/context.json` 和工蜂 `package.json` 中。三者以只读挂载进入 Docker，依赖由锁文件在 Linux 重建，不复制 Darwin 缓存。
 
 `tests/boat_live.py` 用无模型夹具工蜂在真实 Boat 上跑提交、监督、观察、收集、断连、停止恢复与取消。夹具回执带 `fixture: true`，不能替代真实模型验收。完整接入验收仍需真实模型轨迹、异家族独审、原发布链和精确 head 批准。首轮资源预算上限为 5 美元，每台 VM 上限为 1800 秒。
+
+## 隔离测试与生产新建
+
+`launcher` 只替换历史本机 run 的进程命令，不能为新 run 选择本机后端。测试套件在 `tests/conftest.py` 中替换新建工厂，构造本机夹具。生产工厂只产生 `BoatRun`。读取旧清单时，缺失 `execution` 或历史 `test-launcher` 记录都转成 `HistoricalLocal`，原清单保持不变。未知 backend 和无效 Boat 配置会拒绝加载。
