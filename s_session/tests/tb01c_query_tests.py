@@ -45,6 +45,89 @@ def load_frozen(name, dest):
 
 from r4_anchor_fixture import TestAnchor
 
+# #1768 组件臂：仅当显式注入冻结源 cfg(test) producer 时，accept/advance 改由其逐代真实 WriterScope 写入。
+PRODUCER = os.environ.get("S1768_PRODUCER_BINARY")
+PRODUCER_EVIDENCE = os.environ.get("S1768_PRODUCER_EVIDENCE")
+
+
+class FrozenProducer:
+    """同一 Python reader 存续期间驱动冻结 producer；失败原样上抛，不关 reader、不动侧件。"""
+
+    def __init__(self, test, db):
+        self.test, self.db, self.n, self.records = test, Path(db), 0, []
+        self.dir = Path(tempfile.mkdtemp(prefix="handshake-", dir=test.base))
+        self.log = Path(PRODUCER_EVIDENCE or test.base) / test.id().rsplit(".", 1)[-1]
+        self.log.mkdir(parents=True, exist_ok=True)
+        self.out = open(self.log / "producer.stdout", "wb")
+        self.err = open(self.log / "producer.stderr", "wb")
+        self.argv = [PRODUCER, "issue1768_seed_export::issue1768_dynamic_producer", "--ignored", "--exact", "--nocapture"]
+        self.proc = subprocess.Popen(self.argv, stdout=self.out, stderr=self.err,
+            env=dict(os.environ, S1768_PRODUCER_DB=str(self.db), S1768_PRODUCER_HANDSHAKE=str(self.dir)))
+        self.record("ready", observed=self.observe(), ready=self.wait("ready"))
+
+    def observe(self):
+        reader_ = self.test.reader
+        cached = reader_.cached if isinstance(reader_.cached, dict) else {}
+        return dict(python_pid=os.getpid(), reader_object=id(reader_),
+                    connection_object=None if reader_.connection is None else id(reader_.connection),
+                    reader_generation=cached.get("generation"), cached_version=reader_.cached_version,
+                    sidecars={s: (Path(f"{self.db}{s}").stat().st_size if Path(f"{self.db}{s}").exists() else None)
+                              for s in ("-wal", "-shm", "-journal")})
+
+    def record(self, event, **fields):
+        self.records.append(dict(event=event, producer_exit=self.proc.poll(), **fields))
+        (self.log / "records.json").write_text(json.dumps(dict(argv=self.argv, db=str(self.db), records=self.records),
+                                                          ensure_ascii=False, indent=1, default=str), encoding="utf-8")
+
+    def publish(self, name, value):
+        tmp = self.dir / f"{name}.json.tmp"
+        tmp.write_text(json.dumps(value), encoding="utf-8")
+        tmp.rename(self.dir / f"{name}.json")
+
+    def wait(self, name, timeout=600):
+        path, start = self.dir / f"{name}.json", time.monotonic()
+        while not path.exists():
+            if self.proc.poll() is not None:
+                raise AssertionError(f"producer 在 {name} 前退出 exit={self.proc.returncode}，见 {self.log}")
+            if time.monotonic() - start > timeout:
+                raise AssertionError(f"等待 {name} 超时，见 {self.log}")
+            time.sleep(0.05)
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    def request(self, seq, price):
+        n, before = self.n, self.observe()
+        self.publish(f"request-{n}", dict(seq=str(seq), price=str(price)))
+        receipt = self.wait(f"receipt-{n}")
+        if not receipt.get("ok"):
+            try:
+                self.proc.wait(timeout=60)
+            except subprocess.TimeoutExpired:
+                pass
+        self.record(f"request-{n}", seq=seq, price=price, before=before, receipt=receipt, after=self.observe())
+        self.n += 1
+        if not receipt.get("ok"):
+            raise AssertionError(json.dumps(receipt, ensure_ascii=False))
+        expected = ({"Ok": str(seq)}, {"Ok": str(seq + 1)})
+        if (receipt["generation_before"], receipt["generation_after"]) != expected:
+            raise AssertionError(f"代际不是 {expected}：{json.dumps(receipt, ensure_ascii=False)}")
+        return receipt
+
+    def finish(self):
+        if self.proc.poll() is None:
+            self.publish("stop", {})
+            try:
+                stopped = self.wait("stopped", timeout=60)
+                self.proc.wait(timeout=60)
+            except (AssertionError, subprocess.TimeoutExpired) as error:
+                stopped = repr(error)
+                self.proc.kill()
+                self.proc.wait()
+            self.record("stop", stopped=stopped, observed=self.observe())
+        else:
+            self.record("exited", observed=self.observe())
+        self.out.close()
+        self.err.close()
+
 
 def resources():
     return dict(max_frame_bytes=1024*1024, max_pending_connections=8,
@@ -100,6 +183,24 @@ class QueryTests(unittest.TestCase):
             source.backup(dest)
         self.reader = query.AuditReader(self.db, resources(), vars(reader))
         self.addCleanup(self.reader.close)
+        if PRODUCER:
+            self.producer = None
+            self.call = self.producer_call
+
+    def producer_call(self, db, operation, *args):
+        """accept 发一次 request（producer 同次真实 accept+advance）；随后的 advance 只核该收据的 advance 已成功。"""
+        if Path(db) != self.db or operation not in ("accept", "advance"):
+            raise AssertionError(f"组件臂 producer 不支持 {operation} {db}")
+        if operation == "advance":
+            receipt = self.producer.records[-1]["receipt"]
+            if not (receipt["advance"] or {}).get("ok"):
+                raise AssertionError(json.dumps(receipt, ensure_ascii=False))
+            return receipt
+        event = json.loads(Path(args[args.index("--input") + 1]).read_text(encoding="utf-8"))["events"][0]
+        if self.producer is None:
+            self.producer = FrozenProducer(self, db)
+            self.addCleanup(self.producer.finish)
+        return self.producer.request(int(event["seq"]), int(event["price"]))
 
     def mutate(self, sql, values=()):
         with closing(sqlite3.connect(self.db)) as conn, conn:
