@@ -945,6 +945,33 @@ test("分级考古联合提示：分级口径与考古两路搜、A/B/C 归类�
   }
 });
 
+test("考古提示的 gap 示例符合消费端枚举，联合、固定分级、只验考古与补考古一致", () => {
+  const t = { number: 1531, title: "待决点", body: "", labels: [], assignees: [], comments: [], blockers: [] };
+  const variants = [
+    {},
+    { fixed: { klass: "P" as const, reason: "政策" } },
+    { fixed: "none" as const },
+    { fixed: { klass: "T" as const, reason: "技术" }, feedback: "补齐查询证据" },
+  ];
+  for (const options of variants) {
+    const prompt = triagePrompt(t, options);
+    const example = extractJson(prompt.slice(prompt.lastIndexOf("最后只输出一个 JSON 代码块："))) as { points: Array<{ gap: string }> };
+    const point = { ...goodArchObj.points[2], gap: example.points[0].gap };
+    assert.deepEqual(archaeologyProblems(parseArchaeology(fence({ points: [point] }))!), [], JSON.stringify(options));
+  }
+});
+
+test("考古 gap 三种合法去向保持可用，带说明文字或未知值仍被拒收", () => {
+  for (const gap of ["decision", "research", "probe"]) {
+    const point = { ...goodArchObj.points[2], gap, reasoning: "缺口依据和适用范围" };
+    const problems = (value: string) => archaeologyProblems(parseArchaeology(fence({ points: [{ ...point, gap: value }] }))!);
+    assert.deepEqual(problems(gap), []);
+    for (const invalid of [`${gap}：缺口依据`, `${gap} because evidence is missing`, "unknown"]) {
+      assert.ok(problems(invalid).some((p) => p.includes("C 类须写 gap")), invalid);
+    }
+  }
+});
+
 test("dry-run 全流程：分级后先考古，archaeology.md 落盘，起草与审查都拿到考古，审查含 R8", async () => {
   const { d, modelCalls, archCalls, ghCalls } = fakeDeps("dry-run", [fence({ class: "T", reason: "测试锁" }), goodDraft, fence(pass())]);
   const s = await processTicket(1531, d);
