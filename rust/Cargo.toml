@@ -261,6 +261,7 @@ serde_json = "1"
 # venue 费率 datum 的 sha256 校验（#360）：cargo test 下 `cfg(test)` 解 venue_fee::datum_io 门控。
 sha2 = "0.10"
 # task #1518：双跑对拍测试需要创建临时 dump 文件。
+tempfile = "3"
 
 [profile.release]
 # 逐位等价硬约束：禁止任何会改变浮点约简顺序的优化。
