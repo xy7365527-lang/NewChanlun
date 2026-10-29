@@ -2896,6 +2896,8 @@ pub(crate) mod tests {
         assert_eq!(meta_i64(&fixture.conn, "generation").unwrap(), 4);
         let file = out.join("historical-published-layout1.sqlite");
         fixture.conn.execute("VACUUM INTO ?1", [file.to_str().unwrap()]).unwrap();
+        let exported = Connection::open(&file).unwrap();
+        exported.pragma_update(None, "journal_mode", "WAL").unwrap();
     }
 
 }
