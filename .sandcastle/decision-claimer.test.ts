@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
 import { execFileSync } from "node:child_process";
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -1503,4 +1505,91 @@ test("M1 转 P 不回退：考古事实缺口转 P 后整链重跑重判 T 仍�
   q.comments.push({ author: { login: "xy7365527-lang" }, body: "## 退回重写" });
   const s3 = await processTicket(1565, q.d);
   assert.equal(s3.phase, "land_t", s3.error ?? "");
+});
+
+
+test("M1 损坏或不可读的有效 P 记录必须停止，不得重新判 T 自动落地", async () => {
+  for (const value of ['{"klass":"P",', '{"klass":"T","reason":"错误"}', 'null']) {
+    const { d, modelCalls } = fakeDeps("dry-run", [fence({ class: "T", reason: "接口" }), goodDraft, fence(pass())]);
+    const dir = join(d.outRoot, "1531");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "classify.effective.json"), value);
+    const s = await processTicket(1531, d);
+    assert.equal(s.phase, "error", value);
+    assert.match(s.error ?? "", /有效 P/);
+    assert.equal(modelCalls.length, 0);
+    assert.ok(!s.plannedWrites.some(w => w.startsWith("分支 decision/")));
+  }
+  const { d, modelCalls } = fakeDeps("dry-run", []);
+  mkdirSync(join(d.outRoot, "1531", "classify.effective.json"), { recursive: true });
+  const s = await processTicket(1531, d);
+  assert.equal(s.phase, "error");
+  assert.match(s.error ?? "", /有效 P/);
+  assert.equal(modelCalls.length, 0);
+});
+
+test("M1 实际转 P 短写与首次创建中断后必须停止，不能把临时记录当旧记录缺失", async () => {
+  for (const fault of ["short-write", "after-create", "before-rename"] as const) {
+    const { d } = fakeDeps("dry-run", []);
+    d.model = async c => ({ text: c.role === "triage"
+      ? fence({ class: "T", reason: "接口", ...goodArchObj })
+      : c.role === "draft" ? goodDraft + "\n改判建议：P - 涉及真实账户\n" : fence(pass()), durationMs: 1, attempts: 1 });
+    const actual = { open: fs.openSync, write: fs.writeFileSync, close: fs.closeSync, rename: fs.renameSync };
+    const effective = join(d.outRoot, "1531", "classify.effective.json");
+    const pending = effective + ".pending";
+    let injected = false;
+    let pendingFd: number | undefined;
+    fs.openSync = ((path, ...args) => {
+      const fd = actual.open(path, ...args);
+      if (String(path) === pending) {
+        pendingFd = fd;
+        if (fault === "after-create") {
+          injected = true;
+          actual.close(fd);
+          throw Object.assign(new Error("注入首次 P 文件创建中断"), { code: "ENOSPC" });
+        }
+      }
+      return fd;
+    }) as typeof fs.openSync;
+    fs.writeFileSync = ((path, data, options) => {
+      if (fault === "short-write" && (String(path) === effective || String(path) === pending || path === pendingFd)) {
+        injected = true;
+        actual.write(path, '{"klass":"P",');
+        throw Object.assign(new Error("注入 P 记录短写失败"), { code: "ENOSPC" });
+      }
+      return actual.write(path, data, options);
+    }) as typeof fs.writeFileSync;
+    fs.renameSync = ((from, to) => {
+      if (fault === "before-rename" && String(to) === effective) {
+        injected = true;
+        throw Object.assign(new Error("注入 P 文件发布中断"), { code: "EIO" });
+      }
+      return actual.rename(from, to);
+    }) as typeof fs.renameSync;
+    syncBuiltinESMExports();
+    let first;
+    try { first = await processTicket(1531, d); }
+    finally {
+      fs.openSync = actual.open;
+      fs.writeFileSync = actual.write;
+      fs.renameSync = actual.rename;
+      syncBuiltinESMExports();
+    }
+    assert.equal(injected, true, `${fault} 必须命中实际持久化路径`);
+    assert.equal(first.phase, "error");
+    if (fault === "short-write") {
+      const path = existsSync(pending) ? pending : effective;
+      assert.equal(readFileSync(path, "utf8"), '{"klass":"P",');
+    }
+    const calls: ModelCall[] = [];
+    d.model = async c => {
+      calls.push(c);
+      return { text: c.role === "triage" ? fence({ class: "T", reason: "重分", ...goodArchObj }) : c.role === "draft" ? goodDraft : fence(pass()), durationMs: 1, attempts: 1 };
+    };
+    const second = await processTicket(1531, d);
+    assert.equal(second.phase, "error", `${fault} 后不得按旧记录缺失重分`);
+    assert.match(second.error ?? "", /有效 P/);
+    assert.equal(calls.length, 0);
+    assert.ok(!second.plannedWrites.some(w => w.startsWith("分支 decision/")));
+  }
 });
