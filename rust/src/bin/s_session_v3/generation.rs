@@ -1184,8 +1184,9 @@ impl GenerationRuntime {
                 requests.len()
             ));
         }
-        // #1491 ADR 0037 §一：bounded-layout/1 的 `requests` 按 (window_start, label) 排列，新请求
-        // 只落尾部；layout/1 保持原线序（W → 步骤 → 组 → 形态/分型 → 待决）。
+        // #1419 A：有界布局按 (phase, window_start, label) 排序。跨代仅保证变化涉及的
+        // 最早坐标之前的请求在原下标保持身份与摘要；删除取旧侧，移动取两侧。
+        // layout/1 保持原线序。版本绑定与 S86 原门由 #1491 决定。
         if bounded {
             let mut order: Vec<usize> = (0..requests.len()).collect();
             order.sort_by_key(|&i| request_keys[i]);
@@ -6215,13 +6216,96 @@ mod tests {
         }
     }
 
-    /// #1780 独审 M-1：layout/1 车道（含 CC-007 分型）生成态根逐代冻结。期望值取自 base main
-    /// `5123c9e273`（ADR 0037 段 B 之前）同一输入的逐代 `state_without_axes` 根（独审探针
-    /// `1780-review-7cf8-probes/neutral-main-roots.txt`），锁住「本段 B 对 layout/1 生产逐位中性」。
+    /// #1419 A7：原 25 根仍是 base `5123c9e273` 原件，由本测试经历史导出节点逐字读回
+    /// （CI 隔离 workflow 提供导出）；候选不再等于这些根。
+    #[test]
+    #[ignore = "base 5123 exported historical nodes"]
+    fn layout1_historical_draft_nodes_remain_readable() {
+        use sc::NodeSink as _;
+        let dir = std::path::PathBuf::from(std::env::var("NC_HISTORY_DIR").unwrap());
+        let table = std::fs::read_to_string(dir.join("compare.tsv")).unwrap();
+        let rows: Vec<Vec<&str>> = table
+            .lines()
+            .skip(1)
+            .map(|line| line.split('\t').collect())
+            .collect();
+        assert_eq!(rows.len(), 25);
+        for group in ["long", "revision", "realrule"] {
+            let path = dir.join(group);
+            let mut store = MemoryNodes::new();
+            for line in std::fs::read_to_string(path.join("nodes.jsonl"))
+                .unwrap()
+                .lines()
+            {
+                let node: Value = serde_json::from_str(line).unwrap();
+                let digest = sc::parse_root(node["digest"].as_str().unwrap()).unwrap();
+                let hex = node["body_hex"].as_str().unwrap();
+                let bytes: Vec<u8> = hex
+                    .as_bytes()
+                    .chunks_exact(2)
+                    .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                    .collect();
+                assert_eq!(hex.len() % 2, 0);
+                store
+                    .put(digest, node["tag"].as_u64().unwrap() as u8, &bytes)
+                    .unwrap();
+            }
+            let cuts: Value =
+                serde_json::from_slice(&std::fs::read(path.join("cuts.json")).unwrap()).unwrap();
+            assert_eq!(
+                cuts.as_array().unwrap().len(),
+                match group {
+                    "long" => 14,
+                    "revision" => 8,
+                    _ => 3,
+                }
+            );
+            for cut in cuts.as_array().unwrap() {
+                let generation = cut["gen"].as_i64().unwrap();
+                let row = rows
+                    .iter()
+                    .find(|r| r[0] == group && r[1].parse::<i64>().unwrap() == generation)
+                    .unwrap();
+                assert_eq!(row[2], cut["cut"].as_str().unwrap());
+                assert_eq!(
+                    row[3].parse::<i64>().unwrap(),
+                    cut["prefix"].as_i64().unwrap()
+                );
+                assert_eq!(row[4], cut["rule"].as_str().unwrap());
+                assert_eq!(row[5], row[6]);
+                assert_eq!(row[7], "true");
+                for name in ["state_without_axes", "generated_state"] {
+                    let meta = &cut[name];
+                    assert_eq!(meta["format"], "s-content/1");
+                    assert_eq!(meta["kind"], "object");
+                    assert_eq!(meta["root"], row[5]);
+                    let digest = sc::parse_root(meta["root"].as_str().unwrap()).unwrap();
+                    let reference =
+                        ContentRef::new(sc::Kind::Object, &digest, meta["extent"].as_u64());
+                    sc::verify(&mut store, &reference).unwrap();
+                    let mut actual = Vec::new();
+                    sc::render_canonical(&mut store, &reference, &mut actual).unwrap();
+                    let expected =
+                        std::fs::read(path.join(format!("g{generation}.{name}.json"))).unwrap();
+                    assert_eq!(actual, expected, "{group} g{generation} {name}");
+                }
+            }
+        }
+    }
+
+    /// #1780 独审 M-1 原锁，#1419 A7 迁移：每代仍锚 base main `5123c9e273` 原 25 根，
+    /// 生成态两根改与独立 W oracle 资产（`tests/fixtures/issue1419_w_oracle`，只读 base 推导）
+    /// 逐字节、逐 ContentRef 比较。base 根真实性见 `layout1_historical_draft_nodes_remain_readable`。
     #[test]
     fn layout1_generation_roots_frozen_from_base_main() {
-        fn run(events: &[Value], cuts: &[usize], rule: &str, expected: &[&str]) {
+        fn run(tag: &str, events: &[Value], cuts: &[usize], rule: &str, expected: &[&str]) {
             assert_eq!(cuts.len(), expected.len());
+            let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/issue1419_w_oracle");
+            let roots: Value =
+                serde_json::from_slice(&std::fs::read(dir.join("roots.json")).unwrap()).unwrap();
+            let roots = roots[tag].as_array().unwrap();
+            assert_eq!(roots.len(), expected.len());
             let scope = json!({"instrument":"B1", "exchange":"fixture"});
             let mut runtime = GenerationRuntime::new("neutral".into(), crate::tb02a::PROFILE, rule);
             let mut store = MemoryNodes::new();
@@ -6240,16 +6324,38 @@ mod tests {
                     rule,
                 );
                 let generated = runtime.generate(&mut store, &input).unwrap();
-                let root = format!("{:?}", generated.state_without_axes);
-                assert!(
-                    root.contains(&format!("\"{want}\"")),
-                    "{rule} g{gen}: {root}"
+                let oracle = &roots[turn];
+                assert_eq!(oracle["gen"], gen);
+                assert_eq!(
+                    oracle["base_root"], *want,
+                    "{tag} g{gen}: oracle 须锚原 base 根"
                 );
+                let file = dir.join(tag).join(format!("g{gen}.expected_state.json"));
+                let bytes = std::fs::read(file).unwrap();
+                let gs: &ContentRef = &generated.generated_state;
+                let swa: &ContentRef = &generated.state_without_axes;
+                for (name, r) in [("generated_state", gs), ("state_without_axes", swa)] {
+                    assert_eq!(r.format, "s-content/1", "{tag} g{gen} {name}");
+                    assert_eq!(r.kind.name(), "object", "{tag} g{gen} {name}");
+                    assert_eq!(
+                        r.root,
+                        oracle["expected_root"].as_str().unwrap(),
+                        "{tag} g{gen} {name}"
+                    );
+                    assert_eq!(r.extent, oracle["extent"].as_u64(), "{tag} g{gen} {name}");
+                    sc::verify(&mut store, r).unwrap();
+                    let text = canonical_text(&mut store, r);
+                    assert!(
+                        text.as_bytes() == bytes.as_slice(),
+                        "{tag} g{gen} {name} 完整字段与次序"
+                    );
+                }
             }
         }
         let events = delta_long_fixture();
         let cuts: Vec<usize> = (1..=events.len()).collect();
         run(
+            "long",
             &events,
             &cuts,
             "r",
@@ -6312,6 +6418,7 @@ mod tests {
         }
         events.push(moved);
         run(
+            "revision",
             &events,
             &[1, 2, 8, 14, 15, 16, 17, 17],
             "r",
@@ -6327,6 +6434,7 @@ mod tests {
             ],
         );
         run(
+            "realrule",
             &delta_long_fixture(),
             &[5, 9, 14],
             crate::V3_RULE_REVISION,
@@ -6335,6 +6443,55 @@ mod tests {
                 "sc1-5f47222d095c66143e8cd5f52d70080f15b93218c7b8499edaa24948ad38a9ae",
                 "sc1-cf5c2f1e68e4a50dddc548abb9a2fd00725f23714e4c69fbb9b033549a369f14",
             ],
+        );
+    }
+
+    /// #1419 A7：同一 W 语义在 layout/1 与 bounded-layout/1 两种布局下逐代相同。
+    /// 只允许请求在数组中的位置不同；W 对象载荷、输入引用、来源坐标与 W 请求集合不变。
+    #[test]
+    fn w_semantics_layout_neutral_between_layout1_and_bounded() {
+        use crate::content_producer::{CC004_INITIALIZATION_KIND, CC004_UNDETERMINED_KIND};
+        let events = delta_long_fixture();
+        let cuts: Vec<usize> = (1..=events.len()).collect();
+        let (mut undetermined, mut established) = (false, false);
+        for (i, (sorted, bounded)) in bounded_layout_runs(&events, &cuts).iter().enumerate() {
+            let gen = i + 1;
+            for kind in [CC004_INITIALIZATION_KIND, CC004_UNDETERMINED_KIND] {
+                let w = |state: &Value| -> Vec<Value> {
+                    objects_of(state, kind)
+                        .iter()
+                        .map(|o| {
+                            json!([
+                                o["fact_key"],
+                                o["payload"],
+                                o["input_refs"],
+                                o["source_coords"]
+                            ])
+                        })
+                        .collect()
+                };
+                assert_eq!(w(sorted), w(bounded), "g{gen} {kind} 跨布局中性");
+            }
+            let w_requests = |state: &Value| -> std::collections::BTreeSet<String> {
+                requests_of(state)
+                    .iter()
+                    .map(|r| r["request_id"].as_str().unwrap().to_string())
+                    .filter(|id| {
+                        id.contains(CC004_INITIALIZATION_KIND)
+                            || id.contains(CC004_UNDETERMINED_KIND)
+                    })
+                    .collect()
+            };
+            assert_eq!(w_requests(sorted), w_requests(bounded), "g{gen} W 请求集合");
+            let init = &objects_of(sorted, CC004_INITIALIZATION_KIND)[0]["payload"];
+            match init["direction_state"].as_str().unwrap() {
+                "Undetermined" => undetermined = true,
+                _ => established = true,
+            }
+        }
+        assert!(
+            undetermined && established,
+            "夹具须覆盖未定与已定两种 W 状态"
         );
     }
 

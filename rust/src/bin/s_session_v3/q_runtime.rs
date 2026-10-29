@@ -1139,6 +1139,53 @@ mod tests {
         rt.dispatch(path, body).unwrap().recv().unwrap()
     }
     #[test]
+    #[ignore = "historical published fixture from base 5123"]
+    fn historical_layout1_published_session_asknown_q() {
+        let path = std::path::PathBuf::from(std::env::var("NC_HISTORY_DB").unwrap());
+        let baseline: Value = serde_json::from_slice(
+            &std::fs::read(
+                path.parent()
+                    .unwrap()
+                    .join("historical-published-q-baseline.json"),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let r = resources();
+        let rt = Runtime::new(path.clone(), Arc::clone(&r), "7").unwrap();
+        let mut reader = AuditReader::new(path, &r);
+        for generation in 1..=4 {
+            let p = reader
+                .with_capture(&r, &mut ServerAccess::new(&r), |c, a| {
+                    c.projection(generation, HistoryMode::AsKnown, a)
+                })
+                .unwrap();
+            let fixed = &plain_wire(&p)["fixed_cut"];
+            let request = envelope(
+                fixed,
+                json!({"op":"snapshot", "session_id":fixed["session_id"],
+                "session_generation":fixed["session_generation"], "scope":fixed["scope"],
+                "history_mode":"AsKnown", "as_of_generation":generation.to_string(),
+                "page_size":"1", "order_version":plain_wire(&p)["order_version"]}),
+            );
+            let response = call(&rt, "/api/v3/snapshot", &request);
+            let page = strict_json(response.body()).unwrap();
+            assert_eq!(page["payload"]["fixed_cut"], *fixed);
+            let expected = &baseline[(generation - 1) as usize];
+            assert_eq!(plain_wire(&p), &expected["projection"]);
+            assert_eq!(page, expected["snapshot"]);
+            let content = envelope(
+                fixed,
+                json!({"op":"content","anchor":p.anchor(),
+                "path":[{"field":"rows"}],"unit":"items","offset":"0","limit":"1"}),
+            );
+            let content = call(&rt, "/api/v3/content", &content);
+            let body = strict_json(content.body()).unwrap();
+            assert!(!body["payload"]["nodes"].as_array().unwrap().is_empty());
+            assert_eq!(body, expected["content"]);
+        }
+    }
+    #[test]
     fn three_routes_use_only_frozen_q21_and_actual_worker_capture() {
         let mut f = Fixture::new();
         publish(&mut f, 1);

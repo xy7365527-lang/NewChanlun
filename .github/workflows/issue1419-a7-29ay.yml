@@ -1,0 +1,41 @@
+name: '#1419 historical read A7 29AY'
+on:
+  push:
+    branches: [codex/1419-recompose-main-20261027]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  historical-read:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      CARGO_INCREMENTAL: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/rust-job-setup
+      - uses: actions/download-artifact@v4
+        with:
+          name: issue1419-hist-export-5123-29z
+          run-id: 40831506671
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: ${{ runner.temp }}/historical-export
+      - name: Original 25 loop against W oracle, layout neutrality
+        working-directory: rust
+        run: |
+          cargo test --locked --features s_session --bin s_structure_session --jobs 2 -- --exact v3::generation::tests::layout1_generation_roots_frozen_from_base_main --nocapture
+          cargo test --locked --features s_session --bin s_structure_session --jobs 2 -- --exact v3::generation::tests::w_semantics_layout_neutral_between_layout1_and_bounded --nocapture
+      - name: Verify 25 historical draft node closures
+        working-directory: rust
+        env:
+          NC_HISTORY_DIR: ${{ runner.temp }}/historical-export
+        run: cargo test --locked --features s_session --bin s_structure_session --jobs 2 -- --ignored --exact v3::generation::tests::layout1_historical_draft_nodes_remain_readable --nocapture
+      - name: Audit, AsKnown and Q historical published session
+        working-directory: rust
+        env:
+          NC_HISTORY_DB: ${{ runner.temp }}/historical-export/historical-published-layout1.sqlite
+        run: |
+          test -s "$NC_HISTORY_DB"
+          cargo test --locked --features s_session --bin s_structure_session --jobs 2 -- --ignored --exact v3::q_runtime::tests::historical_layout1_published_session_asknown_q --nocapture
