@@ -126,14 +126,21 @@ class EmptyWorkerResponse(ValueError):
     pass
 
 
+def _receipt_fields(receipt: WorkerReceipt) -> dict[str, Any]:
+    return {"role": receipt.key.role, "target_head": receipt.key.target_head, "status": receipt.status,
+            "model": receipt.model, "external_session_id": receipt.external_session_id,
+            "external_session_log": receipt.external_session_log, "output_dir": receipt.output_dir,
+            "summary": receipt.summary, "findings": receipt.findings, "validation": receipt.validation,
+            "changed_paths": receipt.changed_paths_after, "failure_reason": receipt.failure_reason}
+
+
 def _receipt_json(receipt: WorkerReceipt) -> dict:
-    result: dict[str, Any] = {"role": receipt.key.role, "target_head": receipt.key.target_head, "status": receipt.status,
-              "model": receipt.model, "external_session_id": receipt.external_session_id,
-              "external_session_log": receipt.external_session_log, "output_dir": receipt.output_dir,
-              "summary": receipt.summary, "findings": receipt.findings, "validation": receipt.validation,
-              "changed_paths": receipt.changed_paths_after, "failure_reason": receipt.failure_reason}
-    if receipt.summary is None or isinstance(receipt.summary, str) and not receipt.summary.strip():
-        raise EmptyWorkerResponse("工蜂回执为空，没有可交回主控的结论")
+    result = _receipt_fields(receipt)
+    summary = receipt.summary
+    if summary is None or isinstance(summary, str) and not summary.strip():
+        if receipt.status == "completed":
+            raise EmptyWorkerResponse("工蜂回执为空，没有可交回主控的结论")
+        summary = f"工蜂终态为 {receipt.status}，未返回结论。"
     caveats = [LEGACY_CAVEAT]
     if receipt.status != "completed":
         caveats.append(f"工蜂终态为 {receipt.status}，不构成成功结果。")
@@ -144,8 +151,9 @@ def _receipt_json(receipt: WorkerReceipt) -> dict:
         source = Path(receipt.output_dir) / "result.json"
         if source.exists():
             raw_output = json.loads(source.read_text()).get("result")
-            LegacyWorkerOutput.model_validate(raw_output)
-        content = ReceiptContent(summary=receipt.summary, findings=receipt.findings,
+            if raw_output is not None or receipt.status == "completed":
+                LegacyWorkerOutput.model_validate(raw_output)
+        content = ReceiptContent(summary=summary, findings=receipt.findings,
                                  validation=receipt.validation, changed_paths=receipt.changed_paths_after)
         labels = {"author": "作者发现", "review": "独审发现", "judge": "裁判嫁接或拒绝建议",
                   "design-a": "候选拒绝的替代形状", "design-b": "候选拒绝的替代形状"}
@@ -188,7 +196,13 @@ def build_tools(run: PilotRun) -> list:
         本 run 要求设计 arena 时，judge 完成前不能派 author；只有当前候选被独审明确 BLOCK 后，才能再派 author 返修。"""
         try:
             if role == "design":
-                receipts = [_receipt_json(r) for r in run.run_design(brief)]
+                receipts = []
+                for r in run.run_design(brief):
+                    try:
+                        receipts.append(_receipt_json(r))
+                    except EmptyWorkerResponse as error:
+                        receipts.append({**_receipt_fields(r), "response_validated": False,
+                                         "EmptyWorkerResponse": str(error)})
                 return json.dumps({"ok": all(r["response_validated"] and r["status"] == "completed" for r in receipts),
                                    "receipts": receipts}, ensure_ascii=False)
             receipt = _receipt_json(run.run_worker(role, brief))
