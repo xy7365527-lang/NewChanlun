@@ -173,6 +173,14 @@
 - **版本**：初始化政策版本、raw 修订、结构版本、object revision 分开记；只改政策也须新规则版本。
 - **不在本票但已裁**：同价极值身份（RD-02 [#1343](https://github.com/xy7365527-lang/NewChanlun/issues/1343)，2026-10-14）——集合语义，见 `bi.md` §7.1。
 
+### S3 的 W/2 发布身份（#1419 P2，2026-10-30）
+
+本段承接 [#1419 P2 裁定](https://github.com/xy7365527-lang/NewChanlun/issues/1419#issuecomment-6504760769)。S3 唯一新写完整串为 `s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1+raw-initialization-w/2+bounded-layout/1`。初始化政策没有改变，payload 的 `initialization_policy_revision` 仍为 `raw-initialization-w/1`。
+
+读侧先按完整规则身份选择版本。W/1 历史保持原 delta、withdrawal、公开关系与根，永久只读，不续写、不原地升级。W/2 中，活动未定原件消失且当代定向组的 `payload.members` 包含其 `source_coord` 时，独立出生索引逐原件写 `superseded_by_revision`、`superseded_by` 与 `replaces`。raw 修订先按同槽位身份修订处理。任意其他跨 kind 替代均拒绝，目标组后来撤回不改变先前合法关系。
+
+布局组件仍为 `bounded-layout/1`，布局的同 W 对照与 W 关系修正分开验收。W/1 原106代库兼容、W/2 两独立进程106代、逐断言迁移及消费者验收均保留。代码与锁由 `s_structure_session.rs` 的 `w_revision`、`s_session_v3/layout.rs` 的精确登记、`object_index.rs` 的对象计划和两条独立审计路径承接。原始文件缺件不以新造 W/1 夹具替代。
+
 ## 未定前缀上 W 对象的发布与 `pending_since_cut`（[#1565](https://github.com/xy7365527-lang/NewChanlun/issues/1565) 裁定，2026-10-20，`[新缠论:选择]`）
 
 本节补上节「观察载体」里 `cut / first_known` 的那一格：未定原件对象 `CC-004.undetermined_raw` 的 `pending_since_cut` 是什么、从哪来，以及 S3 生成态在不读、不写生命周期元数据的前提下怎样发布 `CC-004.initialization`（槽 W）与 `CC-004.undetermined_raw`。用户 2026-10-20 在 #1565 批复采纳方案 A。

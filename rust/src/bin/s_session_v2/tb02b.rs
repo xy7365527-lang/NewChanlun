@@ -31,7 +31,7 @@ const LEGACY_CONTRACT: BiContract = BiContract {
     policy: "standard_raw_gap_3",
     knowledge_domain: "established_direction_without_extreme_identity_competition",
 };
-/// #1491：布局组件（ADR 0037 §五）与笔合同正交，剥离后按教义部分整串选合同。
+/// #1419 P2/#1491：已登记完整规则各自绑定原笔合同。
 pub(super) fn contract_for_rule(rule: &str) -> Option<BiContract> {
     let (doctrine, _) = crate::v3::layout::split(rule).ok()?;
     match doctrine.as_str() {

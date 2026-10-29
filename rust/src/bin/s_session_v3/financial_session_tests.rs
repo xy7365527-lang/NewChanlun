@@ -1809,6 +1809,25 @@ fn q3_w_export_window_s3_generation_publishes_center_pair() {
 #[test]
 #[ignore = "仅供 #1419 Q3 真实 S3 W 夹具导出"]
 fn export_real_s3_w_fixture_for_q3() {
+    export_real_s3_w_fixture_for_q3_impl(false);
+}
+
+#[test]
+#[ignore = "#1419 P2 V5，保全完整106代SQLite与公开Q，两个独立进程各跑一次"]
+fn export_real_s3_w2_fixture_and_sqlite_for_q3() {
+    export_real_s3_w_fixture_for_q3_impl(true);
+}
+
+fn export_real_s3_w_fixture_for_q3_impl(persist: bool) {
+    let persistent_output = persist.then(|| {
+        let output = PathBuf::from(std::env::var("Q3_REAL_EXPORT").expect("V5要求新的Q3_REAL_EXPORT路径"));
+        for path in [output.clone(), output.with_extension("sqlite"), output.with_extension("manifest.json"), output.with_extension("clock.json")] {
+            assert!(!path.exists(), "不得覆盖原件 {}", path.display());
+        }
+        assert!(!std::env::var("Q3_EXPORT_HEAD").unwrap_or_default().is_empty(), "V5要求完整候选HEAD");
+        output
+    });
+
     let (bars, top, revise_after) = q3_w_bars();
     let mut revised = bars[top].clone();
     revised.2 -= 300;
@@ -2072,6 +2091,38 @@ fn export_real_s3_w_fixture_for_q3() {
         "publications":publications,"nodes":nodes,"meta":meta,
         "session_generation":"1","catalog_rows":catalog_rows});
     let text = canonical_json(&export);
+    if let Some(output) = &persistent_output {
+        assert_eq!(meta["rule_revision"], json!(crate::W_STRUCTURE_RULE_REVISION));
+        assert_eq!(n, 106, "完整原输入必须真实发布106代");
+        let database = output.with_extension("sqlite");
+        f.conn.execute("VACUUM main INTO ?1", [database.to_str().unwrap()]).unwrap();
+        let clock = output.with_extension("clock.json");
+        std::fs::copy(f.db_path().parent().unwrap().join("clock.json"), &clock).unwrap();
+        let tables: Vec<(String, i64)> = {
+            let mut q = f.conn.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").unwrap();
+            let names = q.query_map([], |r| r.get::<_, String>(0)).unwrap().map(Result::unwrap).collect::<Vec<_>>();
+            names.into_iter().map(|name| {
+                let quoted = name.replace('"', "\"\"");
+                let rows = f.conn.query_row(&format!("SELECT count(*) FROM \"{quoted}\""), [], |r| r.get(0)).unwrap();
+                (name, rows)
+            }).collect()
+        };
+        let manifest = json!({
+            "schema_revision":"s-w2-validation-run/1",
+            "head":std::env::var("Q3_EXPORT_HEAD").unwrap(),
+            "rule_revision":meta["rule_revision"],
+            "publication_generation":n.to_string(),
+            "session_generation":"1",
+            "database":database,
+            "q_export":output,
+            "clock_plan":clock,
+            "sqlite_tables":tables,
+            "public_generations":consumed.iter().map(|g| g.to_string()).collect::<Vec<_>>(),
+            "steps":stats,
+            "sqlite_copy":"VACUUM INTO consistent full database, all internal original tables retained"
+        });
+        std::fs::write(output.with_extension("manifest.json"), canonical_json(&manifest)).unwrap();
+    }
     // 设了 Q3_REAL_EXPORT 只落文件、日志记字节数（全文 ~90 MB 不再进日志）；未设才打全文。
     if let Ok(path) = std::env::var("Q3_REAL_EXPORT") {
         std::fs::write(&path, &text).unwrap();

@@ -1138,8 +1138,7 @@ pub(super) enum CatalogAxisTable {
 }
 
 impl CatalogAxisTable {
-    /// #1491：按组件解析——布局组件（ADR 0037 §五）与目录轴正交，先剥离再按教义部分整串选表；
-    /// 无布局组件的旧整串照旧映射（只读旧库）；未知布局版本不选表。
+    /// #1419 P2/#1491：先核已登记完整规则，再取原版本轴表。
     pub(super) fn for_rule_revision(rule_revision: &str) -> Option<Self> {
         let (doctrine, _) = crate::v3::layout::split(rule_revision).ok()?;
         match doctrine.as_str() {

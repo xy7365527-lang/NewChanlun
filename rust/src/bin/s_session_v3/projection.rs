@@ -1153,11 +1153,15 @@ mod tests {
                     assert!(target["payload"]["members"].as_array().unwrap().contains(&raw["payload"]["raw"]["source_coord"]));
                 }
             }
-            super::super::history::audit(&mut f.conn).unwrap();
+            {
+                let tx = f.conn.transaction().unwrap();
+                state::audit(&tx).unwrap();
+            }
             if w2 {
                 let wrong = groups.iter().find(|g| !g["payload"]["members"].as_array().unwrap().contains(&json!("0"))).unwrap();
                 f.conn.execute("UPDATE s_content_objects SET superseded_by=?1 WHERE kind='CC-004.undetermined_raw'", [wrong["object_id"].as_str().unwrap()]).unwrap();
-                assert!(super::super::history::audit(&mut f.conn).is_err());
+                let tx = f.conn.transaction().unwrap();
+                assert!(state::audit(&tx).is_err());
             }
         }
     }
