@@ -2,25 +2,25 @@
 
 本文件说明 NewChanlun sandcastle 管线的凭据注入面与已知安全边界。依据：#996（脚手架）、#999（官方用法调研，报告 `chanlun/review-results/issue999-sandcastle-usage.md` §5）、#1004（kernel 预烤）、#1005（GH_TOKEN）、#1006/#1010（凭据搬迁与镜像扩容）。
 
-## 1. `.env` 注入面
+## 1. legacy `.env` 与当前 CLIProxy 注入面
 
 ### 哪些 key
 
-`.sandcastle/.env` 是全部运行时凭据的唯一入口，键面（按 `prebake-kernel.sh` 的 `--change` 清单，共 9 键）：
+`.sandcastle/.env` 是 legacy prime-agent 运行时凭据入口，键面（按 `prebake-kernel.sh` 的 `--change` 清单，共 9 键）。当前主控同型路径不从此取模型密钥：Codex 执行面从进程环境或 launchctl 的 `CLIPROXY_LOCAL_KEY` 取得客户端密钥；decision/wayfinder 的 Claude CLI 控制面由 `cliproxy-env.mts` 从本机配置读入运行时 env；Docker 使用 `host.docker.internal:8318`，不挂配置或 OAuth 文件（#1617）。
 
 | 键 | 用途 | 来源 |
 |---|---|---|
-| `KIMI_API_KEY` | 主力 provider kimi-coding（工蜂默认模型 k3） | 宿主 `~/.prime/agent/auth.json` 静默迁移（#1006/#1010） |
-| `DEEPSEEK_API_KEY` | 升档 provider deepseek | 同上 |
-| `ZAI_API_KEY` | 升档 provider glm(zai) | 同上 |
-| `MOONSHOT_API_KEY` | 升档 provider moonshot（**注意**：key 宿主侧已失效待刷新，#1010 卡点登记） | 同上 |
+| `KIMI_API_KEY` | legacy prime-agent provider kimi-coding（不再是本机默认） | 宿主 `~/.prime/agent/auth.json` 静默迁移（#1006/#1010） |
+| `DEEPSEEK_API_KEY` | hosted implement / implement-pr / review 的显式 legacy opt-in | 同上 |
+| `ZAI_API_KEY` | legacy provider glm(zai)，非默认 | 同上 |
+| `MOONSHOT_API_KEY` | legacy provider moonshot，非默认（**注意**：key 宿主侧已失效待刷新，#1010 卡点登记） | 同上 |
 | `GH_TOKEN` | 沙盒内 `gh` CLI 读 issue / claim / 留评论 | 宿主 `gh` CLI 的 OAuth token（#1005） |
 | `GIT_AUTHOR_NAME` / `GIT_AUTHOR_EMAIL` | 沙盒内 commit 身份（非密钥，走同一注入通道） | 编排侧配置 |
 | `GIT_COMMITTER_NAME` / `GIT_COMMITTER_EMAIL` | 同上 | 同上 |
 
 ### 注入机制
 
-sandcastle 自动从 `.sandcastle/.env` 与 `process.env` 解析环境变量注入沙盒；agent provider 与 sandbox provider 各自的 `env` 可覆盖同名键，但两者键面不得重叠（重叠即抛错）。本仓 `prime-agent-provider.ts` 的 provider env 默认为空，凭据全部走 `.env`。
+sandcastle 自动从 `.sandcastle/.env` 与 `process.env` 解析环境变量注入沙盒；agent provider 与 sandbox provider 各自的 `env` 可覆盖同名键，但两者键面不得重叠（重叠即抛错）。本仓 `prime-agent-provider.ts` 的 legacy provider env 默认为空，其凭据走 `.env`；主控同型 `codex` 路径则使用上述 CLIProxy 运行时 env，二者不混用。
 
 ### 为何 gitignore
 
@@ -72,3 +72,26 @@ sandcastle 自动从 `.sandcastle/.env` 与 `process.env` 解析环境变量注�
 - #1005：GH_TOKEN 形态与权限修正（上游 #937）；
 - #1006/#1010：凭据搬迁裁定与落地（moonshot key 失效卡点在案）；
 - #1008/#1009：两段式与蜂群模板（拾取闸 label、`GH_REPO` 注入）。
+
+## #1617 Codex 的提交责任（2026-10-25 用户批准）
+
+工蜂使用 `workspace-write`，不写 `.git`、`.agents`、`.codex`、`.aws` 等受保护目录，不使用 bypass。作者和独审只编辑允许路径，返回唯一 `sandcastle-result`（ready/blocked、完整文件清单、实际验证结果）。
+
+`managed-commit.mts` 由受管宿主执行：阶段前核干净工位/本票分支/基线，阶段后核完整文件集合，字面路径暂存并提交；遇到 blocked、额外变更、基线变化或提交失败时保留工位。宿主不执行工蜂提供的任意命令，不 push/合入/关票。提交后针对 Rust 变更调用固定 nc-remote 检查精确 SHA，失败/不可达明确记未验证，仍需 CI 或远端成功证据才能验收。
+
+独审拿精确作者提交，修正也由宿主封包。阶段内 resume 仍用原 session；封包重入核父提交、阶段标记、文件集合与干净工位，避免重复提交。进程重启后的不明脏工位不自动接管，由 owner 按记录恢复。
+
+Docker swarm 的 namespace 尚未真实验收；单票作者/独审可复用上述受管合同，多票 merger 使用另行获批的宿主归并合同，不能借此放宽单票 helper。namespace 预检失败时在 planner/认领之前拒绝运行。镜像构建、模型 HTTP、mock tests 或 main 宿主模式成功均不替代 Docker 验收。不改变容器 capabilities/seccomp/privileged 或 sandbox 模式。
+
+Codex 的受管提交提示使用 codex-implement-prompt.md / codex-review-prompt.md；旧 implement-prompt.md / review-prompt.md / merge-prompt.md 保持原调用合同。`swarm-managed.mts` 的单票作者/独审由宿主封包，不再依据 SDK 观察到的工蜂 commit 判断产出；作者未提交、blocked 或失败验证不能进入 completed 分支集。Codex merger 不再调用旧 git merge 提示；旧模板仅保持 legacy 合同。
+
+远端结果以结构化 `RustVerification` 绑定精确 head，保存完整 stdout/stderr 和 nc-remote 原始日志；日志首行 SHA 必须匹配。作者失败诊断交独审工蜂修复，修正提交重验；独审无改动沿用同 head 的既有结论，不能降成“Rust 未改动”。验证失败至多三轮修复后以 failed 退出，不发 reviewer/completed。REVIEW_ONLY 按整份候选差异恢复验证需求。
+
+
+### 多票宿主归并的新增授权（#1617）
+
+新增授权只覆盖已验收固定 SHA 清单在专用功能归并分支上的 merge、双父提交与 MERGE_HEAD 恢复。验收清单由主控提供，不由工蜂返回 accepted；普通扇出只产生 pending 候选。清单与恢复记录位于工蜂 worktree 之外。清单固定全部票的验收证据，运行中不追随分支移动。
+
+`managed-merge.mts` 在任何提交前验证目标为本运行 `sandcastle/merge-<run-id>`，禁止 main/来源分支；用独占宿主锁和持久检查点记录父集、索引、文件内容与精确组合验证。冲突工蜂仅可编辑初始未合并路径，禁止改索引或集合外文件；blocked/越界/未知 WIP 保留现场。宿主不执行工蜂给出的 Git 命令，提交只允许准确双父集和树。commit 与检查点写入之间中断时，仅凭保存树、准确父集、本运行标记和干净工位恢复已成提交。
+
+组合验证失败保留工位并停止下一输入；单票验证不代替组合验证。没有自动 reset/clean/abort、推送、合 main 或关票动作；新交易策略与 Docker capabilities/seccomp/privileged/sandbox 改动均不在此授权内。默认 Docker 的真实执行仍待独立验收，mock/contract tests 只证明受管状态机。

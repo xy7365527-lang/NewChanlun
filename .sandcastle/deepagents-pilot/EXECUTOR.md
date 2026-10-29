@@ -1,0 +1,121 @@
+# 用新执行器交付一张首证专用票
+
+新执行器把一张登记过的专用票从持有跑到 `awaiting_merge`。Deep Agents 主控按 poteto-mode 派 Sandcastle 工蜂，作者与异家族独审都经现役 `codex-child`。独审对某个 head 判 PASS 后，执行器用 GitHub App 身份把这个冻结 SHA 发布到 `codex/deepagents/t<票号>`，开目标为 main 的 draft PR，写 `deepagents/review` 状态和票面交付标记。合入 main 由人在 GitHub 上完成。
+
+本入口只接首证专用票（SPEC 第 7.2 节）。接管旧 owner 手里的票一律拒绝，人批核验缺省关闭。
+
+## 准备专用票与任务文件
+
+专用票须从创建起就不在任何旧消费者的可选集里。票正文单独写一行：
+
+```text
+deepagents:dedicated-pilot #1742
+```
+
+不要给它加任何标签，不要挂父票。下列任一项成立时登记被拒：timeline 里出现过 `sandcastle`、`ready-for-agent`、`wayfinder:impl`、`wayfinder:grilling` 或任何 `agent:` 标签（摘掉了也算）；票有父票或有过挂接父票事件；`workers.jsonl` 里有这张票；任何一项证据读不全，例如 timeline 某页失败或 `workers.jsonl` 不可读。
+
+任务文件与试点格式相同，写集必须与业务在飞工作不重叠：
+
+```markdown
+---
+title: 补充新执行器操作员故障恢复指南
+allowed_prefixes:
+  - docs/agents/deepagents-executor/
+require_design: false
+---
+需求原文……
+```
+
+## 运行
+
+在仓库根准备一次环境。私钥只给绝对路径，程序只读这个文件签名。
+
+```sh
+cd /Users/silencehan/.codex/worktrees/deepagents-pilot-1742/NewChanlun
+VENV=/Volumes/AgentStorage/issue1742-deepagents-pilot-20261027/venv
+PEM=/Users/silencehan/Downloads/newchanlun-deepagents-1742.2026-10-26.private-key.pem
+executor() { PYTHONPATH=.sandcastle/deepagents-pilot "$VENV/bin/python" -m pilot1742.executor "$@"; }
+git fetch origin <已推送的分支>
+BASE=$(git rev-parse origin/<已推送的分支>)
+```
+
+基线是任一已在 GitHub 上的提交的 40 位 SHA，不限于 main。登记器核本地与远端都有这个提交对象，否则拒绝。基线不在 main 上时，目标为 main 的 draft PR 的 diff 会包含 main 到基线之间的提交；本 run 的作者、独审和 `deepagents/review` 状态只覆盖基线到冻结 head 的部分。
+
+**登记。** 只读 GitHub，写本机 WorkUnit。同一参数重复登记返回同一单元，票面变化后再登记同一 run 被拒。
+
+```sh
+executor register --ticket <票号> --run-id t<票号>-1 --base "$BASE" \
+  --task /绝对路径/task.md --playbook feature \
+  --scope-ref "用户批准 SPEC r3 专用票真实验证（call_93f52210616b4154be624f4e2d6bfba7）" \
+  --private-key "$PEM"
+```
+
+**运行或恢复。** 同一命令既首跑也恢复。它先取 run 锁，再在票级锁内持有票（加 `deepagents` 标签、发持有标记、post-check），然后驱动 Deep Agents 图。主控走完 playbook 后调用 `publish_candidate`。
+
+```sh
+executor run --run-id t<票号>-1 --private-key "$PEM"
+```
+
+退出码 75 表示这个 run 已有控制进程。控制进程被杀后直接重跑同一命令，工蜂按原键收养，已做的外部写入先读回再决定。受控故障注入用 `--crash-at`，取值为 `after_label_before_receipt`、`after_claim_before_receipt`、`after_push_before_receipt`、`after_pr_before_receipt`、`after_status_before_receipt`、`after_deliver_before_receipt`，进程在该点被 SIGKILL。
+
+**查看。** 只读本机，不访问 GitHub。
+
+```sh
+executor status --run-id t<票号>-1
+```
+
+**释放。** 主控退回一张票。释放会等正在执行的那一个外部写入做完，旧控制进程之后的任何动作都会停下。重新持有要登记新的 run id，代次加一。
+
+```sh
+executor release --ticket <票号> --run-id t<票号>-1 --reason "主控退回：……"
+executor register --ticket <票号> --run-id t<票号>-2 --base "$BASE" ...
+```
+
+发布分支按票固定。上一代次若已把某个 head 推到 `codex/deepagents/t<票号>`，新代次发布另一个 head 时会得到 `stale`，执行器不强推，由主控决定如何处置远端分支。
+
+## 读懂结果
+
+`status` 的 `phase` 在发布后取以下值。
+
+- `awaiting_merge`。冻结 head 已在远端分支，draft PR 的 head 等于它，状态与交付标记都在。PR 链接在 `delivery.state.pr.url`。
+- `merged`。人已合入该 PR，执行器不再写任何东西。
+- `stale`。远端分支或 PR 的 head 不是冻结 head，后代也算。执行器不覆盖、不收养，`delivery.stale.observed` 是观察到的 SHA。由主控决定重新评审还是释放。
+- `halted`（持有记录）。锁内复核发现票被关、`deepagents` 标签被摘、票或 PR 被加了禁用标签，或持有 post-check 失败。远端 PR 不合交付合同时也转 halted：已关闭未合入、目标不是 main、open 时不是 draft、不是本 App 所开、正文缺本票 PR 标记。执行器不改动这个 PR，不重开、不改目标、不改回 draft。只有主控能释放。
+
+派工、本地提交与每一次 GitHub 写都在票级锁内重新读票面。发布的每一步写之前还会重新读 PR 与远端分支，已记账的步骤也不跳过这一步，所以恢复时发现 head 变了会先 stale，不会先写状态或交付评论。
+
+## 结果不明时怎么办
+
+工具返回 `EffectPending` 表示一次外部写已经发出、结果不明，读回也没看到它生效。执行器在效果记录里留下 `pending`，并写明要找的对象（`what` 字段，例如评论标记、分支与 SHA、状态上下文）。
+
+- 同名标签与非强推建分支是幂等的，下一次运行会直接再发。
+- 评论、PR 与状态不是幂等的。等多久都不会自动再发：请求可能延迟生效，读回也可能暂时看不到。每次运行只读回，读到就认领。
+- 只有两种失败会撤销本次 pending：连接根本没建立（`RequestNotSent`），或 GitHub 对这次写请求明确返回 4xx（`WriteRejected`）。下一次运行正常发送。
+- 其他失败都保留 pending，包括写请求得到 2xx 但正文不可读、发出后读回请求失败、读回内容不合合同。效果是否成立只由读回判定，执行器不使用写请求的响应正文。
+
+读回一直看不到时由主控对账。先停掉该 run 的控制进程，在 GitHub 上按 `what` 核实对象确实不存在，再写下对账。对账全程持有该 run 的控制锁，控制进程在时命令以 75 退出，对账期间也无法启动控制进程：
+
+```sh
+executor reconcile --run-id t<票号>-1 --effect deliver-<head> --note "已在 #<票号> 评论区核实无交付标记"
+executor run --run-id t<票号>-1 --private-key "$PEM"
+```
+
+对账后下一次运行仍先读回，还是看不到才发一次，原 pending 与对账说明留在记录的 `history` 里。效果记录在 run 目录 `delivery/`（`push-<h>`、`pr-<h>`、`status-<h>`、`deliver-<h>`），持有阶段的在 `claims/<票号>.effects/<run>-g<代次>/`（`label`、`claim`、`withdraw`）。核实对象确实已存在时不要对账，重跑即可，执行器会读回认领。
+
+## 状态放在哪
+
+票级持有记录与动作锁固定在 `/Volumes/AgentStorage/deepagents-exec/claims/<票号>.json` 与 `<票号>.lock`。它们不随 `--state-root` 变化，所以换一个状态根也拿不到同一张票。持有记录绑定 run 目录的绝对路径，另一个状态根下的同名 run 也被拒。
+
+`--state-root`（缺省 `/Volumes/AgentStorage/deepagents-exec`）下有 `units/<run>.json` 与 `runs/<run>/`。run 目录里的 `run.json` 带 `"v": 2` 与冻结的 WorkUnit，`claim.json` 记本 run 的代次，`delivery/` 是发布的待认回记录，`trail.jsonl` 与 `agent-trace.jsonl` 是审计轨迹。
+
+## 身份与发布方式
+
+执行器只用 App installation token，权限为 metadata 读，contents、issues、pull_requests、statuses 写，限定到本仓库。token 只在控制进程内存，工蜂的环境是白名单，不含任何 GitHub 凭据。执行器不调用 gh、git 凭据、SSH 或 keychain。
+
+推送不走 `git push`。执行器经 GitHub git 数据 API 逐个重建 `base..h` 的 blob、tree 与 commit，每个返回的 SHA 必须等于本地 SHA，全部对上才非强推地创建分支 ref。v2 的本地提交用 UTC 时间且不签名，以便原样重建。重建对不上时不创建任何 ref，报 `Unpublishable`。
+
+执行器不调用 `harvest.sh`，不写 `workers.jsonl`，分支命名空间也不在 harvest 的扫描范围内。
+
+## 与 v1 的关系
+
+`python -m pilot1742` 的 v1 CLI、`real3`、`real4` 与 `pilot_acceptance` 账本不变。v2 run 只能经本入口推进；用 v1 CLI 打开 v2 run 做任何副作用都会被拒。
