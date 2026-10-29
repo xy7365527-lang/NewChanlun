@@ -2053,67 +2053,92 @@ pub fn content_ref_of_native(
     Ok(super::capture_allocation::native_owned::NativeValue::from_reserved(reference, permit))
 }
 
-/// 惰性顺序访问数组成员，逐成员保留原 lookup_array_output_inner 的错误码合同。
-/// 回调从成员 ContentRef 获取需要的材料，业务检查由调用方在回调内完成。
-/// 栈只保存遍历状态，不物化整个数组，不跨调用缓存。
-pub(super) fn visit_array_elements<F>(
-    source: &mut CodecContext<'_, '_>,
-    reference: RefView<'_>,
-    mut visit: F,
-) -> Result<(), CodecError>
-where
-    F: FnMut(&mut CodecContext<'_, '_>, u64, &ContentRef) -> Result<(), CodecError>,
-{
-    let operation_work = source.work_budget();
-    let operation_result = visit_array_elements_inner(source, reference, &mut visit);
-    if let Some(work) = operation_work {
-        work.observe(&operation_result);
-    }
-    operation_result
+/// 每次只交出一个成员；调用者完成业务检查后再借用同一来源推进。
+/// 已读序列节点只活在深度有界的遍历栈内，不保存成员或节点正文。
+pub struct NativeArrayCursor {
+    stack: WorkVec<(SeqNode, u64)>,
+    root: Option<(NodeDigest, u64)>,
+    index: u64,
+    count: u64,
 }
 
-fn visit_array_elements_inner<F>(
-    source: &mut CodecContext<'_, '_>,
-    reference: RefView<'_>,
-    visit: &mut F,
-) -> Result<(), CodecError>
-where
-    F: FnMut(&mut CodecContext<'_, '_>, u64, &ContentRef) -> Result<(), CodecError>,
-{
-    let (count, root) = {
-        let node = navigate_view(source, reference, &[], false)?;
-        if node.tag != tag::ARRAY {
-            return Err(step_kind_error("完整数组", "0x05 数组", node.tag));
-        }
-        (framed_len(&node.body, "数组")?, digest_at(&node.body, 8))
-    };
-    let budget = source.work_budget();
-    let mut stack = WorkVec::with_work_capacity(1, budget.as_ref())?;
-    stack.push((root, count, 0u64))?;
-    while let Some((digest, count, base_index)) = stack.pop() {
-        match read_seq_node(source, &digest, count)? {
-            SeqNode::Empty => {}
-            SeqNode::Branch { k, left, right } => {
-                // 后进先出：右子树先压，左子树后压，保证左序先访问
-                stack.push((right, count - k, base_index + k))?;
-                stack.push((left, k, base_index))?;
+impl NativeArrayCursor {
+    pub fn new(source: &mut dyn NodeSource, reference: RefView<'_>) -> Result<Self, CodecError> {
+        let mut source = CodecContext::Source(source);
+        let work = source.work_budget();
+        let result = (|| {
+            let node = navigate_view(&mut source, reference, &[], false)?;
+            if node.tag != tag::ARRAY {
+                return Err(step_kind_error("index", "0x05 数组", node.tag));
             }
-            SeqNode::Leaf(value) => {
-                source.before_path_index(&[], base_index)?;
-                let (t, body) = source.read(&value)?;
-                // 保留 descend_seq 的 M 叶拒绝码：与 lookup_array_output_inner 逐字相同
-                if is_sequence_tag(t) {
-                    return Err(sequence_shape_error(format!(
-                        "元素序列的叶不能又是序列节点（tag={t:02x}）"
-                    )));
-                }
-                let kind = Kind::from_tag(t).ok_or_else(|| unsupported_value_tag_error(t))?;
-                let extent = header_extent(t, &body)?;
-                // 复用 native_reference 构造 ContentRef，与 lookup_array_output_inner 同口径
-                let member_ref = native_reference::<ContentRef>(source, kind, value, extent)?;
-                visit(source, base_index, &member_ref)?;
-            }
-        }
+            let count = framed_len(&node.body, "数组")?;
+            let root = digest_at(&node.body, 8);
+            Ok(Self {
+                stack: WorkVec::new_work(work.as_ref()),
+                root: Some((root, count)),
+                index: 0,
+                count,
+            })
+        })();
+        if let Some(work) = work { work.observe(&result); }
+        result
     }
-    Ok(())
+
+    pub fn next(
+        &mut self,
+        source: &mut dyn NodeSource,
+    ) -> Result<Option<super::capture_allocation::native_owned::NativeValue<ContentRef>>, CodecError> {
+        self.next_with_prefix(source, &[])
+    }
+
+    pub fn next_with_prefix(
+        &mut self,
+        source: &mut dyn NodeSource,
+        prefix: &[PathStep],
+    ) -> Result<Option<super::capture_allocation::native_owned::NativeValue<ContentRef>>, CodecError> {
+        let mut source = CodecContext::Source(source);
+        let work = source.work_budget();
+        let result = self.next_inner(&mut source, prefix);
+        if let Some(work) = work { work.observe(&result); }
+        result
+    }
+
+    fn next_inner(
+        &mut self,
+        source: &mut CodecContext<'_, '_>,
+        prefix: &[PathStep],
+    ) -> Result<Option<super::capture_allocation::native_owned::NativeValue<ContentRef>>, CodecError> {
+        if self.index == self.count { return Ok(None); }
+        // 与 Index 相同，在读取当前元素的序列路径之前执行停止门。
+        source.before_path_index(prefix, self.index)?;
+        if let Some((root, count)) = self.root.take() {
+            self.stack.push((read_seq_node(source, &root, count)?, count))?;
+        }
+        while let Some((node, count)) = self.stack.pop() {
+            match node {
+                SeqNode::Empty => return Err(index_range_error(self.index, self.count)),
+                SeqNode::Branch { k, left, right } => {
+                    // 保留 descend_seq 先核左右直接子节点的拒绝顺序，但不重复读祖先。
+                    let left = read_seq_node(source, &left, k)?;
+                    let right = read_seq_node(source, &right, count - k)?;
+                    self.stack.push((right, count - k))?;
+                    self.stack.push((left, k))?;
+                }
+                SeqNode::Leaf(value) => {
+                    let (t, body) = source.read(&value)?;
+                    if is_sequence_tag(t) {
+                        return Err(sequence_shape_error(format!(
+                            "元素序列的叶不能又是序列节点（tag={t:02x}）"
+                        )));
+                    }
+                    let kind = Kind::from_tag(t).ok_or_else(|| unsupported_value_tag_error(t))?;
+                    let extent = header_extent(t, &body)?;
+                    let member = native_reference(source, kind, value, extent)?;
+                    self.index += 1;
+                    return Ok(Some(member));
+                }
+            }
+        }
+        Err(index_range_error(self.index, self.count))
+    }
 }

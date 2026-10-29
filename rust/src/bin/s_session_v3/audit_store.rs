@@ -405,6 +405,18 @@ pub(crate) trait CodecRead: NodeSource {
         super::business_json::strict_plain_json_admitted(bytes, self.codec_work())
     }
 
+    fn array_cursor(&mut self, r: sc::RefView<'_>) -> Result<Option<sc::path::NativeArrayCursor>, CodecError> {
+        if self.allocation_budget().is_some() {
+            Ok(None)
+        } else {
+            sc::path::NativeArrayCursor::new(self.generic_source(), r).map(Some)
+        }
+    }
+    fn next_array_member(&mut self, cursor: &mut sc::path::NativeArrayCursor) -> Result<RefValue, CodecError> {
+        cursor.next(self.generic_source())?
+            .map(RefValue::Plain)
+            .ok_or_else(|| CodecError::new(sc::code::EXTENT, "数组游标提前结束"))
+    }
     fn lookup_array_ref(
         &mut self,
         r: sc::RefView<'_>,

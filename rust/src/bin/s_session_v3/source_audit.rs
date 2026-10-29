@@ -2353,7 +2353,17 @@ fn audit_generated_in_store(
     let mut groups = bj::new_map(allocation.as_ref());
     #[cfg(test)]
     source_call_note(|n| n.full_members_enumerations += 1);
-    for record in elements_ref(s, object_array.view())? {
+    if object_array.kind() != Kind::Array { return Err(err("预期数组")); }
+    let mut cursor = s.array_cursor(object_array.view()).map_err(err)?;
+    let owned_items = if cursor.is_none() {
+        Some(elements_ref(s, object_array.view())?)
+    } else { None };
+    for i in 0..object_array.extent().ok_or_else(|| err("数组缺长度"))? {
+        let record = if let Some(cursor) = &mut cursor {
+            s.next_array_member(cursor).map_err(err)?
+        } else {
+            s.native_ref_clone(&owned_items.as_ref().unwrap()[i as usize]).map_err(err)?
+        };
         super::history::check_deadline(deadline)?;
         let memo_fields = s.fields.is_some();
         let object = audit_object_record(

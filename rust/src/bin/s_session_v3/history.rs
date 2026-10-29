@@ -1241,6 +1241,19 @@ fn audit_one_published_cut<'capture>(
     )?;
     #[cfg(test)]
     super::state::trace_event("history_public_fields", Some(generation));
+    let snapshot_fields = if store.allocation_budget().is_none() {
+        Some(store.lookup_subset_ref(snapshot.view(), &[
+            "generation", "session_id", "catalog_revision", "input_frontier", "index_frontier",
+            "seq_range", "structure_cut", "history_mode", "as_of_generation", "profile_id",
+            "profile_hash", "scope", "catalog_evidence", "catalog_run_status",
+        ]).map_err(err)?)
+    } else { None };
+    let delta_fields = if store.allocation_budget().is_none() {
+        Some(store.lookup_subset_ref(delta.view(), &[
+            "generation", "session_id", "catalog_revision", "input_frontier", "index_frontier",
+            "seq_range", "base_cut", "next_cut", "catalog_run_status", "catalog_evidence",
+        ]).map_err(err)?)
+    } else { None };
     let from_decimal = bj::Decimal::new(previous + 1);
     let to_decimal = bj::Decimal::new(frontier);
     let generation_decimal = bj::Decimal::new(generation);
@@ -1249,59 +1262,43 @@ fn audit_one_published_cut<'capture>(
         ("to", JsonView::String(to_decimal.text())),
     ];
     let seq_range = JsonView::object_fields(&seq_fields).map_err(err)?;
-    for public in [&snapshot, &delta] {
-        same_json(
-            store,
-            public,
+    for (public, fields) in [(&snapshot, &snapshot_fields), (&delta, &delta_fields)] {
+        same_json_selected(store, public, fields.as_ref(),
             "generation",
             JsonView::String(generation_decimal.text()),
         )?;
-        same_json(store, public, "session_id", JsonView::String(&m.session_id))?;
-        same_json(
-            store,
-            public,
+        same_json_selected(store, public, fields.as_ref(), "session_id", JsonView::String(&m.session_id))?;
+        same_json_selected(store, public, fields.as_ref(),
             "catalog_revision",
             JsonView::String(&m.catalog_revision),
         )?;
-        same_json(
-            store,
-            public,
+        same_json_selected(store, public, fields.as_ref(),
             "input_frontier",
             JsonView::String(to_decimal.text()),
         )?;
-        same_json(store, public, "index_frontier", JsonView::String(&batch_id))?;
-        same_json(store, public, "seq_range", seq_range)?;
+        same_json_selected(store, public, fields.as_ref(), "index_frontier", JsonView::String(&batch_id))?;
+        same_json_selected(store, public, fields.as_ref(), "seq_range", seq_range)?;
     }
-    same_json(
-        store,
-        &snapshot,
+    same_json_selected(store, &snapshot, snapshot_fields.as_ref(),
         "structure_cut",
         JsonView::String(&m.structure_cut),
     )?;
-    same_json(
-        store,
-        &snapshot,
+    same_json_selected(store, &snapshot, snapshot_fields.as_ref(),
         "history_mode",
         JsonView::String("RecomputedWithRevision"),
     )?;
-    same_json(store, &snapshot, "as_of_generation", JsonView::Null)?;
-    same_json(
-        store,
-        &snapshot,
+    same_json_selected(store, &snapshot, snapshot_fields.as_ref(), "as_of_generation", JsonView::Null)?;
+    same_json_selected(store, &snapshot, snapshot_fields.as_ref(),
         "profile_id",
         JsonView::String(&m.profile_id),
     )?;
-    same_json(
-        store,
-        &snapshot,
+    same_json_selected(store, &snapshot, snapshot_fields.as_ref(),
         "profile_hash",
         JsonView::String(&m.profile_hash),
     )?;
-    same_digest(store, &snapshot, "scope", m.scope.digest().map_err(err)?)?;
-    same_json(store, &delta, "base_cut", JsonView::String(&m.base_cut))?;
-    same_json(
-        store,
-        &delta,
+    same_digest_selected(store, &snapshot, snapshot_fields.as_ref(), "scope", m.scope.digest().map_err(err)?)?;
+    same_json_selected(store, &delta, delta_fields.as_ref(), "base_cut", JsonView::String(&m.base_cut))?;
+    same_json_selected(store, &delta, delta_fields.as_ref(),
         "next_cut",
         JsonView::String(&m.structure_cut),
     )?;
@@ -1332,13 +1329,11 @@ fn audit_one_published_cut<'capture>(
         return Err(err("Delta 独立前沿不符"));
     }
     let catalog_run_status = sql_text_in_store(store, row, 12, allocation).map_err(err)?;
-    same_json(
-        store,
-        &delta,
+    same_json_selected(store, &delta, delta_fields.as_ref(),
         "catalog_run_status",
         JsonView::String(&catalog_run_status),
     )?;
-    let evidence = field(store, &delta, "catalog_evidence")?;
+    let evidence = selected_field(store, &delta, delta_fields.as_ref(), "catalog_evidence")?;
     for (column, want) in [(13, &evidence), (14, &delta)] {
         let encoded = sql_text_in_store(store, row, column, allocation).map_err(err)?;
         let parsed = history_decode_in_store(store, encoded.as_bytes(), allocation)?;
@@ -1349,8 +1344,8 @@ fn audit_one_published_cut<'capture>(
         }
     }
     for key in ["catalog_evidence", "catalog_run_status"] {
-        let expected = field(store, &delta, key)?.digest().map_err(err)?;
-        same_digest(store, &snapshot, key, expected)?;
+        let expected = selected_field(store, &delta, delta_fields.as_ref(), key)?.digest().map_err(err)?;
+        same_digest_selected(store, &snapshot, snapshot_fields.as_ref(), key, expected)?;
     }
 
     Ok(PublishedCut {
@@ -1756,10 +1751,17 @@ fn ordered_effective_nodes(
     Ok(out)
 }
 
+#[cfg(test)]
+thread_local! {
+    static MANIFEST_DECODE_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 fn decode_manifest(
     s: &mut (impl CodecRead + ?Sized),
     r: sc::RefView<'_>,
 ) -> Result<(AuditMetadata, AuditRoots), String> {
+    #[cfg(test)]
+    MANIFEST_DECODE_CALLS.with(|calls| calls.set(calls.get() + 1));
     if r.kind() != Kind::Object || r.extent() != Some(21) {
         return Err(err("manifest 不是21字段对象"));
     }
@@ -1870,6 +1872,40 @@ fn same_json<'r, 'j>(
 ) -> Result<(), String> {
     let expected = hash_json_in_store(s, v, s.deadline, s.budget)?;
     same_digest(s, r, k, expected)
+}
+
+fn selected_field<'r>(
+    s: &mut (impl CodecRead + ?Sized),
+    r: impl Into<sc::RefView<'r>>,
+    fields: Option<&super::audit_store::RefFields<'_>>,
+    key: &str,
+) -> Result<RefValue, String> {
+    match fields {
+        Some(fields) => fields.get_admitted(s, key).map_err(err)?
+            .ok_or_else(|| err(format!("缺{key}"))),
+        None => field(s, r, key),
+    }
+}
+fn same_digest_selected<'r>(
+    s: &mut (impl CodecRead + ?Sized),
+    r: impl Into<sc::RefView<'r>>,
+    fields: Option<&super::audit_store::RefFields<'_>>,
+    key: &str,
+    want: NodeDigest,
+) -> Result<(), String> {
+    if selected_field(s, r, fields, key)?.digest().map_err(err)? != want {
+        Err(err(format!("{key}与独立依据不同")))
+    } else { Ok(()) }
+}
+fn same_json_selected<'r, 'j>(
+    s: &mut HashReader<'_>,
+    r: impl Into<sc::RefView<'r>>,
+    fields: Option<&super::audit_store::RefFields<'_>>,
+    key: &str,
+    value: impl Into<JsonView<'j>>,
+) -> Result<(), String> {
+    let expected = hash_json_in_store(s, value, s.deadline, s.budget)?;
+    same_digest_selected(s, r, fields, key, expected)
 }
 
 #[cfg(test)]
@@ -5246,6 +5282,35 @@ pub(super) mod tests {
         assert_ne!(cut.roots.delta_template, cut.delta);
     }
 
+    #[test]
+    fn manifest_template_coverage_failure_precedes_real_history_decode() {
+        let mut f = published();
+        MANIFEST_DECODE_CALLS.with(|calls| calls.set(0));
+        assert_eq!(audit(&mut f.conn).unwrap().len(), 1);
+        assert!(MANIFEST_DECODE_CALLS.with(|calls| calls.get()) > 0,
+            "正控必须实际经过decode_manifest");
+        let damaged = {
+            let tx = f.conn.transaction().unwrap();
+            let bytes: Vec<u8> = tx.query_row(
+                "SELECT manifest_root FROM s_content_publications LIMIT 1", [],
+                |row| row.get(0),
+            ).unwrap();
+            let mut store = content_store::TxStore::new(&tx).unwrap();
+            let manifest = root_ref_bytes(&mut store, &bytes).unwrap();
+            field(&mut store, &manifest, "source_commit").unwrap().digest().unwrap()
+        };
+        f.conn.execute("UPDATE s_content_nodes SET body=x'00' WHERE digest=?1",
+            [damaged.as_slice()]).unwrap();
+        MANIFEST_DECODE_CALLS.with(|calls| calls.set(0));
+        let failure = match audit(&mut f.conn) {
+            Ok(_) => panic!("Template损坏必须拒绝"),
+            Err(error) => error,
+        };
+        assert!(failure.contains(sc::code::NODE_DIGEST), "{failure}");
+        assert_eq!(MANIFEST_DECODE_CALLS.with(|calls| calls.get()), 0,
+            "真实history入口在Template失败时不得解码任何manifest");
+    }
+
     /// #1491 ADR 0037 多代输入：b、c 跨代修订（撤回落在第 4、6 两个不同代），d 在第 5 代以更小
     /// 坐标新增，使出生序与内容键序分离；见证/关系/观察随各代输入跨代新增。
     pub(crate) const LAYOUT_MULTICUT_INPUTS: [(i64, (&str, i64, i64, i64, i64, i64), i64); 6] = [
@@ -7667,4 +7732,127 @@ mod manifest_template_coverage_tests {
         );
         assert_eq!(covered.verify_manifest_public((&state).into()).unwrap_err().code(), sc::code::NODE_DIGEST);
     }
+    fn cursor_outcomes(nodes: &sc::MemoryNodes, root: &ContentRef, cursor: bool)
+        -> (Vec<NodeDigest>, Option<String>)
+    {
+        let mut nodes = nodes.clone();
+        let mut out = Vec::new();
+        let result = (|| -> Result<(), sc::CodecError> {
+            if cursor {
+                let mut cursor = sc::path::NativeArrayCursor::new(&mut nodes, root.into())?;
+                while let Some(member) = cursor.next(&mut nodes)? {
+                    out.push(member.digest()?);
+                }
+            } else {
+                for i in 0..root.extent.unwrap() {
+                    out.push(sc::path::lookup_path_native(
+                        &mut nodes, root.into(), &[sc::path::PathStep::Index(i)],
+                    )?.digest()?);
+                }
+            }
+            Ok(())
+        })();
+        (out, result.err().map(|e| e.code().to_string()))
+    }
+
+    #[test]
+    fn manifest_template_coverage_cursor_matches_index_order_duplicates_and_boundaries() {
+        for count in [0, 1, 2, 3, 31, 32, 33, 63, 64, 65] {
+            let mut nodes = sc::MemoryNodes::new();
+            let root = sc::write_value(&mut nodes, &V::Array((0..count).map(|i|
+                V::Object(vec![("id".into(), V::String((i % 7).to_string()))])
+            ).collect())).unwrap().content_ref();
+            assert_eq!(cursor_outcomes(&nodes, &root, true), cursor_outcomes(&nodes, &root, false),
+                "长度{count}的顺序/重复/结束不一致");
+        }
+        let mut nodes = sc::MemoryNodes::new();
+        let root = sc::write_value(&mut nodes, &V::Array((0..65).map(|i|
+            V::String(i.to_string())
+        ).collect())).unwrap().content_ref();
+        let reads = Rc::new(Cell::new(0));
+        let mut source = Counted { nodes, reads: reads.clone() };
+        for i in 0..65 {
+            sc::path::lookup_path_native(&mut source, (&root).into(),
+                &[sc::path::PathStep::Index(i)]).unwrap();
+        }
+        let old = reads.replace(0);
+        let mut cursor = sc::path::NativeArrayCursor::new(&mut source, (&root).into()).unwrap();
+        while cursor.next(&mut source).unwrap().is_some() {}
+        assert!(reads.get() < old, "顺序遍历必须实际减少重复祖先读取");
+    }
+
+    #[test]
+    fn manifest_template_coverage_cursor_matches_first_error_for_missing_and_corrupt_nodes() {
+        let mut nodes = sc::MemoryNodes::new();
+        let root = sc::write_value(&mut nodes, &V::Array((0..9).map(|i|
+            V::Object(vec![("id".into(), V::String(i.to_string()))])
+        ).collect())).unwrap().content_ref();
+        let mut wrong = root.clone();
+        wrong.extent = Some(10);
+        assert_eq!(cursor_outcomes(&nodes, &wrong, true), cursor_outcomes(&nodes, &wrong, false));
+        for (target, tag, _) in nodes.iter() {
+            let mut missing = sc::MemoryNodes::new();
+            for (digest, tag, body) in nodes.iter().filter(|(d, _, _)| *d != target) {
+                missing.insert_unchecked(*digest, tag, body.to_vec());
+            }
+            assert_eq!(cursor_outcomes(&missing, &root, true), cursor_outcomes(&missing, &root, false),
+                "缺节点tag={tag}");
+            let mut corrupt = nodes.clone();
+            corrupt.insert_unchecked(*target, tag, vec![0]);
+            assert_eq!(cursor_outcomes(&corrupt, &root, true), cursor_outcomes(&corrupt, &root, false),
+                "坏正文tag={tag}");
+        }
+        let empty = sc::frame(sc::tag::SEQ_EMPTY, &[]);
+        nodes.insert_unchecked(empty, sc::tag::SEQ_EMPTY, vec![]);
+        let leaf = sc::frame(sc::tag::SEQ_LEAF, &empty);
+        nodes.insert_unchecked(leaf, sc::tag::SEQ_LEAF, empty.to_vec());
+        let mut body = 1u64.to_be_bytes().to_vec();
+        body.extend_from_slice(&leaf);
+        let array = sc::frame(sc::tag::ARRAY, &body);
+        nodes.insert_unchecked(array, sc::tag::ARRAY, body);
+        let root = ContentRef::new(Kind::Array, &array, Some(1));
+        let actual = cursor_outcomes(&nodes, &root, true);
+        assert!(actual.1.is_some(), "叶本身是序列必须拒绝");
+        assert_eq!(actual, cursor_outcomes(&nodes, &root, false));
+    }
+
+    #[test]
+    fn manifest_template_coverage_cursor_gate_preserves_prefix_and_stops_before_later_member() {
+        struct Gate {
+            nodes: sc::MemoryNodes,
+            prefix: Vec<sc::path::PathStep>,
+            stop: u64,
+            checked: usize,
+            later: NodeDigest,
+            later_reads: usize,
+        }
+        impl NodeSource for Gate {
+            fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, sc::CodecError> {
+                if digest == &self.later { self.later_reads += 1; }
+                self.nodes.read(digest)
+            }
+            fn before_path_index(&mut self, prefix: &[sc::path::PathStep], index: u64)
+                -> Result<(), sc::CodecError>
+            {
+                assert_eq!(prefix, self.prefix);
+                assert_eq!(index as usize, self.checked, "上一项业务检查必须先发生");
+                if index == self.stop {
+                    Err(sc::CodecError::new(sc::code::SOURCE, "test index gate"))
+                } else { Ok(()) }
+            }
+        }
+        let mut nodes = sc::MemoryNodes::new();
+        let root = sc::write_value(&mut nodes,
+            &V::Array(vec![V::Bool(false), V::Bool(true), V::Null])).unwrap().content_ref();
+        let later = sc::path::lookup_path_native(&mut nodes, (&root).into(),
+            &[sc::path::PathStep::Index(1)]).unwrap().digest().unwrap();
+        let prefix = vec![sc::path::PathStep::Field("observations".into())];
+        let mut gate = Gate { nodes, prefix: prefix.clone(), stop: 1, checked: 0, later, later_reads: 0 };
+        let mut cursor = sc::path::NativeArrayCursor::new(&mut gate, (&root).into()).unwrap();
+        assert!(cursor.next_with_prefix(&mut gate, &prefix).unwrap().is_some());
+        gate.checked += 1;
+        assert_eq!(cursor.next_with_prefix(&mut gate, &prefix).unwrap_err().code(), sc::code::SOURCE);
+        assert_eq!(gate.later_reads, 0, "停止门之前不得预读下一成员正文");
+    }
+
 }

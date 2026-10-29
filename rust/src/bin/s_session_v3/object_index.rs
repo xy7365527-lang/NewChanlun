@@ -3037,13 +3037,16 @@ pub(super) fn verify_generated_members_swept_with_records<'a>(
     }
     let mut seen = bj::new_map(allocation.as_ref());
     let mut new = bj::new_work(allocation.as_ref());
-    let items = if s.audit_full_array_scan() {
+    let mut cursor = s.array_cursor(objects.view()).map_err(err)?;
+    let items = if cursor.is_none() && s.audit_full_array_scan() {
         Some(s.lookup_array_ref(objects.view()).map_err(err)?)
     } else {
         None
     };
     for n in 0..objects.extent().ok_or_else(|| err("生成集缺长度"))? {
-        let object = if let Some(items) = &items {
+        let object = if let Some(cursor) = &mut cursor {
+            s.next_array_member(cursor).map_err(err)?
+        } else if let Some(items) = &items {
             s.native_ref_clone(&items[n as usize]).map_err(err)?
         } else {
             s.lookup_ref(objects.view(), &[PathStep::Index(n)])

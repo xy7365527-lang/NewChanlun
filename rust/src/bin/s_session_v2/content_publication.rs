@@ -1285,6 +1285,7 @@ fn resolve_objects(
         return Err(err(format!("{name} 与独立索引成员数不符")));
     }
     let mut seen = NativeSet::default();
+    let mut cursor = store.array_cursor(array.view()).map_err(err)?;
     for i in 0..n {
         let path = PublicationPath::new(
             store,
@@ -1293,9 +1294,11 @@ fn resolve_objects(
                 sc::path::PathStepView::Index(i),
             ],
         )?;
-        let record = store
-            .lookup_ref(array.view(), &[PathStep::Index(i)])
-            .map_err(err)?;
+        let record = if let Some(cursor) = &mut cursor {
+            store.next_array_member(cursor).map_err(err)?
+        } else {
+            store.lookup_ref(array.view(), &[PathStep::Index(i)]).map_err(err)?
+        };
         // 本模块通用于既有记录与S3记录，只取其共同控制字段，不裁载荷字段schema。
         let fields = match memo.as_deref_mut() {
             Some(memo) => memo.read_fields(store, record.view())?,
@@ -1395,11 +1398,13 @@ fn resolve_observations(
     {
         expected.insert_admitted(*id, store).map_err(err)?;
     }
-    let n = array_len(store, root, "observations")?;
+    let array = store.lookup_field_ref(root.view(), "observations").map_err(err)?;
+    let n = array_reference_len(&array, "observations")?;
     if n != expected.len() as u64 {
         return Err(err("观察与独立索引成员数不符"));
     }
     let mut seen = NativeSet::default();
+    let mut cursor = store.array_cursor(array.view()).map_err(err)?;
     for i in 0..n {
         let path = PublicationPath::new(
             store,
@@ -1408,7 +1413,12 @@ fn resolve_observations(
                 sc::path::PathStepView::Index(i),
             ],
         )?;
-        let record = store.lookup_ref(root.view(), &path.steps).map_err(err)?;
+        let record = if let Some(cursor) = &mut cursor {
+            cursor.next_with_prefix(store.generic_source(), &path.steps[..1])
+                .map_err(err)?.map(RefValue::Plain).ok_or_else(|| err("数组游标提前结束"))?
+        } else {
+            store.lookup_ref(root.view(), &path.steps).map_err(err)?
+        };
         let id = store
             .lookup_field_ref(record.view(), "observation_id")
             .map_err(err)?
