@@ -433,6 +433,9 @@ pub(crate) trait CodecRead: NodeSource {
     fn verify_history_public_root(&mut self, r: sc::RefView<'_>, mode: sc::Mode) -> Result<(), CodecError> {
         self.verify_ref(r, mode)
     }
+    fn verify_manifest_public(&mut self, r: sc::RefView<'_>) -> Result<(), CodecError> {
+        self.verify_ref(r, sc::Mode::Public)
+    }
     fn verify_many_ref_fresh<'a>(
         &mut self,
         refs: impl IntoIterator<Item = sc::RefView<'a>>,
@@ -674,27 +677,31 @@ enum Backend<'a, 'source> {
 pub(crate) struct StoreView<'a, 'source> {
     backend: Backend<'a, 'source>,
     manifest_templates: Option<[NodeDigest; 2]>,
+    manifest_public: Option<[NodeDigest; 2]>,
 }
 impl<'a, 'source> StoreView<'a, 'source> {
     pub(crate) fn generic(s: &'a mut dyn NodeStore) -> Self {
         Self {
             backend: Backend::Generic(s),
             manifest_templates: None,
+            manifest_public: None,
         }
     }
     pub(crate) fn for_audit(s: &'a mut HashReader<'source>) -> Self {
         Self {
             backend: Backend::Audit(s),
             manifest_templates: None,
+            manifest_public: None,
         }
     }
     pub(crate) fn for_verified_manifest(
         assembly: super::history::VerifiedManifestAssembly<'a, 'source>,
     ) -> Self {
-        let (source, templates) = assembly.into_parts();
+        let (source, templates, public) = assembly.into_parts();
         Self {
             backend: Backend::Audit(source),
             manifest_templates: Some(templates),
+            manifest_public: Some(public),
         }
     }
     fn store(&mut self) -> &mut dyn NodeStore {
@@ -792,6 +799,15 @@ impl CodecRead for StoreView<'_, '_> {
             return sc::audit_verify_refview_headers(self, refs);
         }
         self.verify_many_ref(refs, sc::Mode::Template)
+    }
+    fn verify_manifest_public(&mut self, r: sc::RefView<'_>) -> Result<(), CodecError> {
+        if let Some(expected) = self.manifest_public {
+            if !expected.contains(&r.digest()?) {
+                return Err(CodecError::new(sc::code::SOURCE, "manifest Public覆盖根不匹配"));
+            }
+            return sc::audit_verify_refview_headers(self, [r]);
+        }
+        self.verify_ref(r, sc::Mode::Public)
     }
     fn verify_many_ref_fresh<'a>(
         &mut self,

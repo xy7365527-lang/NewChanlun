@@ -1492,11 +1492,11 @@ fn assemble_manifest_body(
     let sql = super::content_store::sql_reads_on_thread();
     #[cfg(test)]
     crate::v3::diagnostic_trace_event("manifest_verify_scope", None);
-    store.verify_ref(metadata.scope, s_content::Mode::Public)?;
+    store.verify_manifest_public(metadata.scope)?;
     require_kind(metadata.scope, Kind::Object, "scope")?;
     #[cfg(test)]
     crate::v3::diagnostic_trace_event("manifest_verify_generated", None);
-    store.verify_ref(roots.generated_state, s_content::Mode::Public)?;
+    store.verify_manifest_public(roots.generated_state)?;
     #[cfg(test)]
     crate::v3::diagnostic_trace_event("manifest_verify_templates", None);
     store.verify_manifest_templates([roots.publication_template, roots.delta_template])?;

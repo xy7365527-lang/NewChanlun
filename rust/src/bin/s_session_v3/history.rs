@@ -611,16 +611,18 @@ pub(super) fn read_verified_public_history<'scope, 'tx, 'raw>(
 struct VerifiedManifestRoots<'a, 'tx> {
     transaction: &'a Transaction<'tx>,
     roots: &'a [RefValue],
+    public: &'a [RefValue],
 }
 
 /// 只由完整历史审计构造，源借用与两个已覆盖子根一起交给唯一 manifest 构造器。
 pub(crate) struct VerifiedManifestAssembly<'a, 'source> {
     source: &'a mut HashReader<'source>,
     templates: [NodeDigest; 2],
+    public: [NodeDigest; 2],
 }
 impl<'a, 'source> VerifiedManifestAssembly<'a, 'source> {
-    pub(crate) fn into_parts(self) -> (&'a mut HashReader<'source>, [NodeDigest; 2]) {
-        (self.source, self.templates)
+    pub(crate) fn into_parts(self) -> (&'a mut HashReader<'source>, [NodeDigest; 2], [NodeDigest; 2]) {
+        (self.source, self.templates, self.public)
     }
 }
 
@@ -713,9 +715,10 @@ fn read_indexed_history_inner(
         stmt.finalize().map_err(err)?;
         roots
     };
-    store
-        .verify_many_ref(public_roots.iter().map(RefValue::view), sc::Mode::Public)
-        .map_err(err)?;
+    let manifest_coverage = store.owned.is_none()
+        && store.work.is_none()
+        && matches!(store.source, ReadOwner::Dynamic(_));
+    let mut public_roots = public_roots;
     let template_roots = {
         let mut stmt = CheckedStatement::prepare(tx, c"SELECT p.manifest_root FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation ORDER BY p.generation").map_err(err)?;
         let mut roots = bj::new_work(allocation.as_ref());
@@ -735,9 +738,23 @@ fn read_indexed_history_inner(
             sc::Mode::Template,
         )
         .map_err(err)?;
+    // manifest 先过完整 Template 才解码；其 scope/generated_state 并入同一次 Public 联合全核。
+    if manifest_coverage {
+        for manifest in template_roots.iter() {
+            check_deadline(deadline)?;
+            let (metadata, roots) = decode_manifest(&mut store, manifest.view())?;
+            store.native_codec_room(&mut public_roots, 2).map_err(err)?;
+            public_roots.try_push(metadata.scope).map_err(err)?;
+            public_roots.try_push(roots.generated_state).map_err(err)?;
+        }
+    }
+    store
+        .verify_many_ref(public_roots.iter().map(RefValue::view), sc::Mode::Public)
+        .map_err(err)?;
     let verified_templates = VerifiedManifestRoots {
         transaction: tx,
         roots: &template_roots,
+        public: &public_roots,
     };
     // 原始当前capture闭包全核之后才创建；仅本次历史循环持有，跨请求/阶段重建。
     let mut object_sweep = objects.native_sweep_admitted(&store)?;
@@ -877,9 +894,19 @@ fn audit_one_published_cut<'capture>(
             roots.publication_template.view().digest().map_err(err)?,
             roots.delta_template.view().digest().map_err(err)?,
         ];
+        let public = [
+            m.scope.view().digest().map_err(err)?,
+            roots.generated_state.view().digest().map_err(err)?,
+        ];
+        if !public.iter().all(|digest| {
+            verified_templates.public.iter().any(|root| root.view().digest().ok() == Some(*digest))
+        }) {
+            return Err(err("manifest Public子根不属于当前联合Public审计"));
+        }
         super::audit_store::StoreView::for_verified_manifest(VerifiedManifestAssembly {
             source: store,
             templates,
+            public,
         })
     } else {
         super::audit_store::StoreView::for_audit(store)
@@ -7566,7 +7593,7 @@ mod manifest_template_coverage_tests {
         {
             let digest = template.digest().unwrap();
             let mut covered = super::super::audit_store::StoreView::for_verified_manifest(
-                VerifiedManifestAssembly { source: &mut reader, templates: [digest; 2] },
+                VerifiedManifestAssembly { source: &mut reader, templates: [digest; 2], public: [digest; 2] },
             );
             covered.verify_manifest_templates([(&template).into(), (&template).into()]).unwrap();
             assert_eq!(reads.get() - before, 2);
@@ -7593,7 +7620,7 @@ mod manifest_template_coverage_tests {
         let mut reader = HashReader::new(&mut nodes);
         reader.verify_ref((&template).into(), sc::Mode::Template).unwrap();
         let mut covered = super::super::audit_store::StoreView::for_verified_manifest(
-            VerifiedManifestAssembly { source: &mut reader, templates: [digest; 2] },
+            VerifiedManifestAssembly { source: &mut reader, templates: [digest; 2], public: [digest; 2] },
         );
         assert_eq!(covered.verify_manifest_templates([(&other).into(), (&template).into()]).unwrap_err().code(), sc::code::SOURCE);
         drop(covered);
@@ -7601,7 +7628,7 @@ mod manifest_template_coverage_tests {
         nodes.insert_unchecked(digest, sc::tag::ARRAY, vec![0]);
         let mut reader = HashReader::new(&mut nodes);
         let mut covered = super::super::audit_store::StoreView::for_verified_manifest(
-            VerifiedManifestAssembly { source: &mut reader, templates: [digest; 2] },
+            VerifiedManifestAssembly { source: &mut reader, templates: [digest; 2], public: [digest; 2] },
         );
         assert_eq!(covered.verify_manifest_templates([(&template).into(), (&template).into()]).unwrap_err().code(), sc::code::NODE_DIGEST);
     }
