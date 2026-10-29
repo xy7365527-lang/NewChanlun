@@ -200,6 +200,11 @@ def _v2_ending(run: PilotRun) -> str:
             f"- 本 run 属于 #{unit.ticket}，登记的 playbook 为 {unit.playbook}。\n")
 
 
+def project_skills_root(run: PilotRun) -> str:
+    """Project skills come from the run's checkout at its frozen head, never from the live source repo."""
+    return str(Path(run.spec.author_checkout) / ".agents/skills") + "/"
+
+
 def system_prompt(run: PilotRun) -> str:
     models = PSTACK_MODELS.read_text() if PSTACK_MODELS.exists() else "(pstack-models.md 缺失)"
     task = run.spec.task
@@ -207,7 +212,7 @@ def system_prompt(run: PilotRun) -> str:
     role = "#1742 Deep Agents 试点" if run.spec.v == 1 else f"#{run.spec.ticket} Deep Agents 新执行器 run"
     return f"""你是 {role}的主控，本线程收到了 $pstack-upstream-poteto-mode。
 
-先用 read_file 读取 /project/AGENTS.md、/project/CONTEXT.md 和任务相关纪律，再完整读取 {POTETO_MODE}（read_file 每次最多 100 行，用 offset 分页读到文件末尾），按其 Playbooks 选择适用 playbook，读取该 playbook 文件和你实际应用的原则叶技能 SKILL.md，然后用 write_todos 原样抄入 playbook 步骤；不做的步骤保留并写 skip 原因。技能根目录是 {SKILLS_ROOT}，项目技能根目录是 {str(run.source_repo / ".agents/skills")}/。其中相对引用以各技能目录为基准。
+先用 read_file 读取 /project/AGENTS.md、/project/CONTEXT.md 和任务相关纪律，再完整读取 {POTETO_MODE}（read_file 每次最多 100 行，用 offset 分页读到文件末尾），按其 Playbooks 选择适用 playbook，读取该 playbook 文件和你实际应用的原则叶技能 SKILL.md，然后用 write_todos 原样抄入 playbook 步骤；不做的步骤保留并写 skip 原因。技能根目录是 {SKILLS_ROOT}，项目技能根目录是 {project_skills_root(run)}。其中相对引用以各技能目录为基准。
 
 本 harness 的映射：
 {design_mapping(run)}- pstack 的 Task/spawn_agent 代码委派 = run_worker(role="author", brief)，由 Sandcastle 外部工蜂执行；独立审阅 = run_worker(role="review", brief)。没有其他子代理、shell 或写文件工具。
@@ -235,14 +240,16 @@ def build_agent(run: PilotRun, checkpointer: Any, model: BaseChatModel | None = 
     brain = model or build_model(run.spec.brain_model)
     register_harness_profile(f"openai:{run.spec.brain_model}", HarnessProfile(
         general_purpose_subagent=GeneralPurposeSubagentProfile(enabled=False)))
-    project_root = str(run.source_repo / ".agents/skills") + "/"
+    project_root = project_skills_root(run)
     rules_dir = run.dir / "read-only-rules"
     rules_dir.mkdir(exist_ok=True)
     if PSTACK_MODELS.is_file():
         (rules_dir / "pstack-models.md").write_bytes(PSTACK_MODELS.read_bytes())
     rules_root = str(PSTACK_MODELS.parent) + "/"
     project_docs = run.dir / "read-only-project"
-    project_docs.mkdir(exist_ok=True)
+    if project_docs.exists():
+        shutil.rmtree(project_docs)
+    project_docs.mkdir()
     for relative in ("AGENTS.md", "CONTEXT.md"):
         source = Path(run.spec.author_checkout) / relative
         if source.is_file():
@@ -250,7 +257,7 @@ def build_agent(run: PilotRun, checkpointer: Any, model: BaseChatModel | None = 
     for relative in ("docs/agents", ".sandcastle/docs"):
         source = Path(run.spec.author_checkout) / relative
         if source.is_dir():
-            shutil.copytree(source, project_docs / relative, dirs_exist_ok=True)
+            shutil.copytree(source, project_docs / relative)
     backend = CompositeBackend(default=StateBackend(), routes={
         "/project/": FilesystemBackend(root_dir=str(project_docs), virtual_mode=True),
         SKILLS_ROOT: FilesystemBackend(root_dir=SKILLS_ROOT, virtual_mode=True),

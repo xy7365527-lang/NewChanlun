@@ -1,7 +1,7 @@
 import { codex, type BindMountSandboxHandle } from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { execFileSync } from "node:child_process";
-import { existsSync, lstatSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { CodexTranscript, OUTPUT_SCHEMA, PROVIDER_DEFINITION, snapshotCheckout } from "./codex-child.ts";
@@ -42,7 +42,9 @@ try {
   if (before.head !== request.identity.target_head || before.status) throw new Error("Frozen source is not clean");
   record.checkout_before = before;
   save(join(claim, "isolation.json"), assertContainerIsolationContract(request.image));
-  const key = readFileSync(join(root, "../private/model-key"), "utf8").trim();
+  const keyFile = join(root, "../private/model-key");
+  const key = readFileSync(keyFile, "utf8").trim();
+  rmSync(keyFile, { force: true });
   if (!key) throw new Error("Managed model capability missing");
   const base = hardenProvider(docker({ imageName: request.image, containerUid: process.getuid!(), containerGid: process.getgid!(),
     env: { CLIPROXY_BASE_URL: request.endpoint, CLIPROXY_LOCAL_KEY: key } }));

@@ -2,18 +2,27 @@
 
 控制端继续持有 Wayfinder claim、受管提交、批准和 GitHub App 发布。新 run 从 `PILOT_BOAT_CONFIG` 冻结执行配置。缺配置时拒绝创建，不回退本机。历史 `run.json` 没有 `execution` 字段时仍按原位置恢复。
 
-## 准备云镜像和模型入口
+每个工蜂键（run、角色、目标 head、持有代次）独占一台 Boat VM。作者和独审各用自己的 30 分钟窗口，互不分摊寿命。
 
-1. 在专用 Boat VM 按 `.sandcastle/Dockerfile` 构建现役基础镜像。
-2. 用 `.sandcastle/Boat.Dockerfile` 扩展该镜像。该层只加固定版本的 Bun。
-3. 用 `docker image inspect --format '{{.Id}}'` 取得精确镜像身份。
-4. 在受管配置文件保存以下非秘密字段。不要填写 key 值。
+## 准备冻结镜像的基底 VM
+
+每台工蜂 VM 都从一台已停止的基底 VM fork 出来。fork 复制基底的最新快照，Boat 在恢复磁盘时一并恢复已保存的 Docker 镜像；控制端等 `hydrated` 为真后才派工，监督器启动工蜂前核对镜像精确 ID，缺失即写失败回执。
+
+1. 在一台 `--no-env` 的专用 VM 上按 `.sandcastle/Dockerfile` 构建现役基础镜像，再用 `.sandcastle/Boat.Dockerfile` 加固定版本 Bun。
+2. 取得精确身份：`docker image inspect --format '{{.Id}}' newchanlun-boat1804`，填入配置的 `image`。
+3. 停止该 VM 并核 `stop.status=completed`。adapter 只 fork 它，从不启动或停止它。
+
+停止的快照保留 14 天，过期后 fork 失败。基底 owner 需在到期前显式恢复再停止一次以刷新。付费计划可改用 saved snapshot，免费试用不提供。
+
+## 受管配置
+
+配置文件只放非秘密字段，不填写 key 值。
 
 ```json
 {
   "endpoint": "https://YOUR-MODEL-ENDPOINT/v1",
   "image": "sha256:FULL_IMAGE_ID",
-  "image_source_sandbox": "bx_IMAGE_SOURCE",
+  "base_sandbox": "bx_STOPPED_BASE_VM",
   "key_source_sandbox": "bx_MODEL_GATEWAY",
   "key_source_path": "/home/user/model-gateway1804/client-key",
   "pstack_source": "/Users/silencehan/.codex/pstack-upstream-source",
@@ -23,34 +32,51 @@
 }
 ```
 
-`endpoint` 必须是 HTTPS `/v1` 入口。`image` 必须是完整 `sha256:` 身份。镜像与模型能力经受管 SSH 管道传输，不进入运行包、提示或日志。来源 VM 需由其 owner 显式恢复。模型客户端 key 在工蜂环境中的可见性沿用 #1804 已批风险。
+`endpoint` 必须是 HTTPS `/v1` 入口。`image` 必须是完整 `sha256:` 身份，且基底 VM 内有该镜像。模型能力经受管 SSH 管道从网关 VM 流到工蜂 VM，不进入运行包、提示或日志；网关 VM 由其 owner 显式管理，adapter 不启动它。工蜂读取 key 后立即删除文件，监督器结束时再删一次，收集后控制端在停 VM 前确认删除。
+
+## 一次派工的生命周期
+
+`boat/<key>.json` 是该工蜂的唯一绑定，依次经过 `creating → prepared → submitting → submitted → collected`。
+
+- `creating`：先落 `create_requested`，再 fork 基底并把新 VM 改名为该键的唯一名称。重启后按名称收养；fork 响应丢失且没有同名 VM 时报未知，不再 fork 第二台。随后上传运行包；远端已有认领时拒绝覆盖。
+- `prepared`：派工前读 `archiveAfter`。剩余寿命不足 15 分钟加 2 分钟收尾余量时拒绝派工，不自动续期。监督器拿到绝对截止时间（自动停止前 2 分钟），镜像核对、依赖安装和工蜂都受它约束，到点写失败回执。
+- `submitting`：提交响应丢失时，先看远端认领；没有认领再查 `boat history`。没有任何提交记录才补提交一次，远端排他认领保证模型任务最多一次。
+- `submitted` 之后，只有取到远端终态回执才收集。回执和 session 取回本地后，控制端删除 key 并停止该 VM，记录 stop ID。
+
+停止的 VM 只会让观察结果成为 `EffectUnknown`，提示显式恢复，不会自动续费或重派。恢复后先按原认领和监督进程对账：进程仍在就继续等，已结束且无回执就保持未知。
 
 ## 启动、观察和恢复
 
 设置 `PILOT_BOAT_CONFIG` 为上述文件的绝对路径，再使用原 `python -m pilot1742.executor` 或 `python -m pilot1742 run` 入口。调用方仍调用 `run_worker(role, brief)`。发布与批准入口不变。
 
-每个 run 的 `boat/sandbox.json` 保存唯一 VM；每个工蜂的 `boat/<key>.json` 保存 generation、head、package 和原 command。`submitting` 之后再次调用只对账，不二次派工。远端排他 `claim/` 目录是执行事实，VM 状态不能代替它。
-
-停止后的 VM 不会因状态查询自动续费。显式恢复同一 VM 后，再恢复原 run：
+只读状态只读本地记录，不访问 Boat、不收集、不进入票级锁：
 
 ```sh
-boat resume bx_ORIGINAL_ID --no-env --ttl 1800
-python -m pilot1742 status --home /absolute/run-home --run-id ORIGINAL_RUN
+python -m pilot1742.executor status --run-id ORIGINAL_RUN
+```
+
+已收集的工蜂即使 VM 已停止，状态和后续派工也直接使用本地回执。需要对账在途工蜂时，先显式恢复它的 VM，再由原控制入口恢复 run：
+
+```sh
+boat resume bx_WORKER_VM --ttl 1800
+python -m pilot1742.executor run --run-id ORIGINAL_RUN --private-key /absolute/app.pem --resume
 ```
 
 `EffectUnknown` 保留原身份和日志。不要换 run ID 规避未知副作用。退出码缺失、输出截断、timeout、旧 generation、模型不符和 head 漂移都不能成为成功。
 
-控制进程退出并释放 run 锁后，可取消原绑定：
+## 取消
+
+控制进程退出并释放 run 锁后，v2 run 经执行器在票级动作锁下取消：
 
 ```sh
-python -m pilot1742 cancel-worker --home /absolute/run-home \
-  --run-id ORIGINAL_RUN --role author --head FULL_TARGET_SHA
+python -m pilot1742.executor cancel-worker --run-id ORIGINAL_RUN \
+  --role author --head FULL_TARGET_SHA --private-key /absolute/app.pem
 ```
 
-取消请求只作用于该 binding 的远端进程。后续观察到终态才算退出。取回回执和 session 后，由资源 owner 停止原 VM 并核 `stop.status=completed`。
+v1 run 用 `python -m pilot1742 cancel-worker --home ... --run-id ... --role ... --head ...`。取消只作用于该绑定的远端监督进程。监督器认领前到达的取消直接占住认领并写下“模型任务未启动”的回执；启动下一阶段与取消共用一把锁，取消后不会再启动新阶段。打印的是取消后观察到的事实，看到终态才算退出。
 
 ## 运行包和验收
 
-源码导出保留原 Git SHA，只带当前及父提交所需对象，不带宿主 Git 配置。`boat push` 会省略 `.git`，因此 adapter 使用显式 tar 与 `boat scp`。pstack、项目技能和规则作为只读挂载进入 Docker，依赖由锁文件在 Linux 重建，不复制 Darwin 缓存。
+源码导出保留原 Git SHA，只带当前及父提交所需对象，不带宿主 Git 配置。`boat push` 会省略 `.git`，因此 adapter 使用显式 tar 与 `boat scp`。pstack 与模型规则在每个 run 首次派工时冻结为一份技能包，包身份含其内容摘要，同一 run 的作者与独审使用同一份。项目技能来自冻结源码。三者以只读挂载进入 Docker，依赖由锁文件在 Linux 重建，不复制 Darwin 缓存。
 
-完整接入验收仍需真实模型轨迹、异家族独审、原发布链、断线恢复和精确 head 批准。离线恢复测试与 Docker 探针不能替代这些结果。首轮资源预算上限为 5 美元，每次 VM 上限为 1800 秒。
+`tests/boat_live.py` 用无模型夹具工蜂在真实 Boat 上跑提交、监督、观察、收集、断连、停止恢复与取消。夹具回执带 `fixture: true`，不能替代真实模型验收。完整接入验收仍需真实模型轨迹、异家族独审、原发布链和精确 head 批准。首轮资源预算上限为 5 美元，每台 VM 上限为 1800 秒。

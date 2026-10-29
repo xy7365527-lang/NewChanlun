@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import re
+import shutil
 import subprocess
 import tarfile
 from pathlib import Path, PurePosixPath
@@ -98,13 +100,13 @@ def export_repository(repo: Path, head: str, destination: Path) -> None:
         raise ValueError("源码包HEAD不符")
 
 
-def build_package(repo: Path, head: str, destination: Path, pstack: Path, models: Path) -> dict:
+def build_skill_bundle(pstack: Path, models: Path, destination: Path) -> dict:
+    """Freeze pstack skills and model rules once per run; every worker package copies this bundle."""
     if destination.exists():
         raise FileExistsError(destination)
     destination.mkdir(parents=True)
-    export_repository(repo, head, destination / "repo")
     replacements = {str(pstack): PSTACK_TARGET, str(models): RULES_TARGET + "/pstack-models.md"}
-    skill_rows = copy_skill_tree(pstack / "installed/skills", destination / "pstack/installed/skills", replacements)
+    copy_skill_tree(pstack / "installed/skills", destination / "pstack/installed/skills", replacements)
     refs = {pstack / "aliases.json", pstack / "upstream/LICENSE"}
     for path in (pstack / "installed/skills").rglob("*.md"):
         if any(part in EXCLUDED for part in path.parts):
@@ -124,10 +126,6 @@ def build_package(repo: Path, head: str, destination: Path, pstack: Path, models
         target.write_text(text)
     (destination / "rules").mkdir()
     (destination / "rules/pstack-models.md").write_bytes(models.read_bytes())
-    project_skills = destination / "repo/.agents/skills"
-    project_replacements = {**replacements, str(repo): PROJECT_TARGET,
-                            "/Users/silencehan/.agents/pstack-models.md": RULES_TARGET + "/pstack-models.md"}
-    project_rows = copy_skill_tree(project_skills, destination / "project-skills", project_replacements)
     references = []
     for document in (destination / "pstack").rglob("*"):
         if not document.is_file() or document.suffix not in {".md", ".json"}:
@@ -140,15 +138,39 @@ def build_package(repo: Path, head: str, destination: Path, pstack: Path, models
             if any(char in ref for char in "*$[]{}"):
                 continue
             ref = ref.split("#", 1)[0]
-            target = destination / "pstack" / ref.removeprefix(PSTACK_TARGET + "/")
-            if not target.exists():
+            if not (destination / "pstack" / ref.removeprefix(PSTACK_TARGET + "/")).exists():
                 raise ValueError("生成技能引用不可达：" + ref)
             references.append(ref)
-    manifest = {"schema": 1, "head": head, "pstack_root": PSTACK_TARGET + "/installed/skills/",
-                "project_skills_root": PROJECT_TARGET + "/.agents/skills/", "rules_root": RULES_TARGET + "/",
+    files = [{"path": str(path.relative_to(destination)), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+             for path in sorted(destination.rglob("*")) if path.is_file()]
+    manifest = {"schema": 2, "pstack_root": PSTACK_TARGET + "/installed/skills/", "rules_root": RULES_TARGET + "/",
                 "pstack_entries": len(list((destination / "pstack/installed/skills").glob("*/SKILL.md"))),
-                "project_entries": len(list(project_skills.glob("*/SKILL.md"))), "pstack_files": skill_rows,
-                "project_files": project_rows, "local_references": sorted(set(references)),
+                "files": files, "local_references": sorted(set(references))}
+    manifest["id"] = hashlib.sha256(json.dumps(files, sort_keys=True).encode()).hexdigest()
+    (destination / "bundle.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
+    return manifest
+
+
+def build_package(repo: Path, head: str, destination: Path, bundle: Path, pstack: Path, models: Path) -> dict:
+    if destination.exists():
+        raise FileExistsError(destination)
+    destination.mkdir(parents=True)
+    export_repository(repo, head, destination / "repo")
+    shutil.copytree(bundle / "pstack", destination / "pstack", symlinks=False)
+    shutil.copytree(bundle / "rules", destination / "rules", symlinks=False)
+    project_skills = destination / "repo/.agents/skills"
+    project_skills.mkdir(parents=True, exist_ok=True)
+    replacements = {str(pstack): PSTACK_TARGET, str(models): RULES_TARGET + "/pstack-models.md", str(repo): PROJECT_TARGET}
+    project_rows = copy_skill_tree(project_skills, destination / "project-skills", replacements)
+    for document in (destination / "project-skills").rglob("*"):
+        if document.is_file() and document.suffix in {".md", ".json"} and any(
+                root in document.read_text() for root in replacements):
+            raise ValueError("项目技能包残留已知Mac根")
+    bundle_manifest = json.loads((bundle / "bundle.json").read_text())
+    manifest = {"schema": 2, "head": head, "skill_bundle": bundle_manifest["id"],
+                "pstack_root": PSTACK_TARGET + "/installed/skills/", "project_skills_root": PROJECT_TARGET + "/.agents/skills/",
+                "rules_root": RULES_TARGET + "/", "pstack_entries": bundle_manifest["pstack_entries"],
+                "project_entries": len(list(project_skills.glob("*/SKILL.md"))), "project_files": project_rows,
                 "capabilities": {"shell": "hardened Docker", "mcp": "未配置，使用相关技能前须核可用工具",
                                  "macOS": "仅本机认证，云工蜂不可调用"}}
     (destination / "package.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")

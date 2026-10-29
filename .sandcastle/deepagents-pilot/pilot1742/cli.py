@@ -11,6 +11,7 @@ from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import Command
 
+from .boat_execution import ExecutionUnknown
 from .domain import WorkerKey, parse_role, parse_run_id, parse_sha
 from .run import (
     CRASH_POINTS,
@@ -19,6 +20,7 @@ from .run import (
     SOURCE_REPO,
     Busy,
     PilotRun,
+    _fact_json,
     parse_task,
 )
 
@@ -108,6 +110,24 @@ def _status(args: argparse.Namespace) -> int:
     return 0
 
 
+def cancel_worker(run: PilotRun, role: str, head: str) -> int:
+    """Cancel one Boat binding under the run lock; the printed fact is what was observed afterwards."""
+    try:
+        run.acquire()
+    except Busy as error:
+        print(str(error), file=sys.stderr)
+        return EXIT_BUSY
+    try:
+        fact = run.execution.cancel(WorkerKey(run.spec.run_id, parse_role(role), parse_sha(head)))
+    except ExecutionUnknown as error:
+        print(f"ExecutionUnknown: {error}", file=sys.stderr)
+        return 2
+    finally:
+        run.release()
+    print(json.dumps(_fact_json(fact), ensure_ascii=False))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="pilot1742")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -129,13 +149,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.command == "cancel-worker":
         run = PilotRun.open(Path(args.home), parse_run_id(args.run_id))
-        run.acquire()
-        try:
-            if run.execution is None:
-                parser.error("该run不是Boat绑定，不能经此入口取消")
-            key = WorkerKey(run.spec.run_id, parse_role(args.role), parse_sha(args.head))
-            print(repr(run.execution.cancel(key)))
-            return 0
-        finally:
-            run.release()
+        if run.execution is None:
+            parser.error("该run不是Boat绑定，不能经此入口取消")
+        if run.spec.v == 2:
+            parser.error("v2 run 须经 python -m pilot1742.executor cancel-worker 在票级动作锁下取消")
+        return cancel_worker(run, args.role, args.head)
     return _run(args) if args.command == "run" else _status(args)

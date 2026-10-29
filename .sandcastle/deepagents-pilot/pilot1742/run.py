@@ -74,7 +74,8 @@ SOURCE_REPO = Path(__file__).resolve().parents[3]
 DEFAULT_HOME = Path("/Volumes/AgentStorage/issue1742-deepagents-pilot-20261027")
 PSTACK_MODELS = Path.home() / ".agents" / "pstack-models.md"
 SKILLS_ROOT = "/Users/silencehan/.codex/pstack-upstream-source/installed/skills/"
-CRASH_POINTS = ("after_intent_before_spawn", "after_spawn_before_launch_record", "after_commit_before_receipt")
+CRASH_POINTS = ("after_intent_before_spawn", "after_spawn_before_launch_record", "after_commit_before_receipt",
+                "after_boat_submit_before_record")
 WORKER_IDLE_SECONDS = 900
 WORKER_TOTAL_SECONDS = 5400
 _ENV_KEEP = ("PATH", "HOME", "USER", "LOGNAME", "SHELL", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE", "CODEX_HOME",
@@ -266,11 +267,36 @@ def _porcelain_paths(root: Path | str) -> tuple[str, ...]:
     return tuple(sorted(set(paths)))
 
 
+_C_ESCAPES = {"a": 7, "b": 8, "t": 9, "n": 10, "v": 11, "f": 12, "r": 13, '"': 34, "\\": 92}
+
+
+def _git_unquote(token: str) -> str:
+    """Reverse git's C-style path quoting (core.quotepath escapes non-ASCII bytes as octal)."""
+    if len(token) < 2 or token[0] != '"' or token[-1] != '"':
+        return token
+    raw, body, i = bytearray(), token[1:-1], 0
+    while i < len(body):
+        if body[i] != "\\":
+            raw += body[i].encode()
+            i += 1
+        elif body[i + 1] in "01234567":
+            raw.append(int(body[i + 1:i + 4], 8))
+            i += 4
+        else:
+            raw.append(_C_ESCAPES[body[i + 1]])
+            i += 2
+    return raw.decode("utf-8", "surrogateescape")
+
+
 def _status_text_paths(status: str) -> tuple[str, ...]:
     paths: list[str] = []
     for line in status.splitlines():
-        if len(line) > 3:
-            paths.extend(part.strip('"') for part in line[3:].split(" -> "))
+        rest = line[3:]
+        while rest:
+            quoted = re.match(r'"(?:[^"\\]|\\.)*"', rest)
+            token = quoted.group(0) if quoted else rest.split(" -> ", 1)[0]
+            paths.append(_git_unquote(token))
+            rest = rest[len(token):].removeprefix(" -> ")
     return tuple(sorted(set(paths)))
 
 
@@ -386,6 +412,13 @@ class PilotRun:
     def run_dir(home: Path, run_id: RunId) -> Path:
         return home / "runs" / run_id
 
+    @staticmethod
+    def _frozen_execution(root: Path, kw: dict) -> dict | None:
+        """An existing run keeps the execution it was created with; only a new run reads current config."""
+        if (root / "run.json").exists():
+            return RunSpec.from_json(json.loads((root / "run.json").read_text())).execution
+        return new_execution(test_launcher=bool(kw.get("launcher")), source_repo=kw.get("source_repo", SOURCE_REPO))
+
     @classmethod
     def create(cls, home: Path, run_id: RunId, task: TaskSpec, base: Sha, models_text: str, **kw) -> "PilotRun":
         plan = plan_roles(models_text)
@@ -394,7 +427,7 @@ class PilotRun:
         checkouts = home / "checkouts" / run_id
         spec = RunSpec(run_id, TICKET, "pilot_acceptance", base, task, plan.author, plan.reviewer, plan.brain,
                        str(checkouts / "author"), str(checkouts / "review"), _now(), plan.design, plan.judge,
-                       execution=(RunSpec.from_json(json.loads((root / "run.json").read_text())).execution if (root / "run.json").exists() else new_execution(test_launcher=bool(kw.get("launcher")), source_repo=kw.get("source_repo", SOURCE_REPO))))
+                       execution=cls._frozen_execution(root, kw))
         run = cls(home, spec, **kw)
         run.acquire()
         if not (root / "run.json").exists():
@@ -414,7 +447,7 @@ class PilotRun:
         checkouts = home / "checkouts" / unit.run_id
         spec = RunSpec(unit.run_id, unit.ticket, None, unit.base, task, plan.author, plan.reviewer, plan.brain,
                        str(checkouts / "author"), str(checkouts / "review"), _now(), plan.design, plan.judge,
-                       2, unit.to_json(), (RunSpec.from_json(json.loads((cls.run_dir(home, unit.run_id) / "run.json").read_text())).execution if (cls.run_dir(home, unit.run_id) / "run.json").exists() else new_execution(test_launcher=bool(kw.get("launcher")), source_repo=kw.get("source_repo", SOURCE_REPO))))
+                       2, unit.to_json(), cls._frozen_execution(cls.run_dir(home, unit.run_id), kw))
         run = cls(home, spec, executor=executor, **kw)
         run.acquire()
         try:
@@ -542,9 +575,9 @@ class PilotRun:
                 names.update(p.name.removesuffix(".json") for p in folder.iterdir() if not p.name.endswith(".tmp"))
         return [parse_key_name(self.spec.run_id, name) for name in sorted(names)]
 
-    def _observe(self, key: WorkerKey, rows: list[tuple[int, int, str, str]]) -> WorkerFact:
+    def _observe(self, key: WorkerKey, rows: list[tuple[int, int, str, str]], reconcile: bool = True) -> WorkerFact:
         if self.execution is not None:
-            return self.execution.observe(key)
+            return self.execution.observe(key, reconcile=reconcile)
         out = self._key_dir(key)
         result = None
         state = None
@@ -580,9 +613,10 @@ class PilotRun:
             data["generation"] = intent.generation
         return data
 
-    def facts(self) -> RunFacts:
+    def facts(self, *, reconcile: bool = True) -> RunFacts:
+        """reconcile=False reads only local records: no remote call, collection or reclamation."""
         rows = [] if self.execution is not None else _ps_rows()
-        workers = {key: self._observe(key, rows) for key in self._keys()}
+        workers = {key: self._observe(key, rows, reconcile) for key in self._keys()}
         commits = tuple(self._commit_receipts())
         author_model_of = {}
         for commit in commits:
@@ -712,7 +746,7 @@ class PilotRun:
                 return [done[key] for key in keys]
             for child in self._children.values():
                 child.poll()
-            time.sleep(2)
+            time.sleep(2 if self.execution is None else 15)
 
     @property
     def _label(self) -> str:
@@ -864,7 +898,7 @@ class PilotRun:
             return decision
 
     def status(self) -> dict:
-        facts = self.facts()
+        facts = self.facts(reconcile=False)
         head = current_head(facts)
         phase = derive_phase(facts)
         v1 = self.spec.v == 1
@@ -893,6 +927,8 @@ class PilotRun:
                          "recovered": c.recovered} for c in facts.commits],
             "verdicts": {h: v.kind for h, v in facts.verdicts.items()},
             "gate": gate_json(gate) if gate is not None else None, "ledger_problems": problems, **extra,
+            **({"execution": {"backend": "boat", "observation": "local_only", "bindings": self.execution.describe()}}
+               if self.execution is not None else {}),
         }
 
 

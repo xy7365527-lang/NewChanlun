@@ -717,6 +717,11 @@ def main(argv: list[str] | None = None) -> int:
     cutover.add_argument("--private-key", type=Path)
     status = sub.add_parser("status", help="只读本机状态，不访问 GitHub")
     status.add_argument("--run-id", required=True)
+    cancel = sub.add_parser("cancel-worker", help="在票级动作锁下取消已有 Boat 工蜂绑定，不重派")
+    cancel.add_argument("--run-id", required=True)
+    cancel.add_argument("--role", required=True)
+    cancel.add_argument("--head", required=True)
+    cancel.add_argument("--private-key", type=Path, required=True)
     reconcile = sub.add_parser("reconcile", help="主控核实 pending 效果在 GitHub 上没有生效后，允许再发一次")
     reconcile.add_argument("--run-id", required=True)
     reconcile.add_argument("--effect", required=True, help="效果名，如 deliver-<head>、status-<head>、claim")
@@ -809,10 +814,16 @@ def main(argv: list[str] | None = None) -> int:
                                 candidate_approval=args.require_candidate_approval)
                 print(json.dumps(unit.to_json(), ensure_ascii=False, indent=2))
                 return 0
-            from .cli import EXIT_BUSY, drive
+            from .cli import EXIT_BUSY, cancel_worker, drive
             from .run import PSTACK_MODELS
 
             unit, task = load_unit(args.state_root, args.run_id)
+            if args.command == "cancel-worker":
+                run = PilotRun.open(args.state_root, unit.run_id, executor=TicketExecutor(
+                    unit, gateway, claims=store, cutover=cutover_store))
+                if run.execution is None:
+                    raise ToolRefusal("该run不是Boat绑定，不能经此入口取消")
+                return cancel_worker(run, args.role, args.head)
             executor = TicketExecutor(unit, gateway, claims=store, workers_log=args.workers_log,
                                       crash=_sigkill_at(args.crash_at), cutover=cutover_store)
             try:
