@@ -4,7 +4,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join, resolve, sep } from "node:path";
 import {
   assertRoute, boundedCodex, CodexTranscript, MODEL, MODEL_PROVIDER, preflightCheckout, providerEnvironment,
   providerOverrides, PROVIDER_KEY_ENV, runCodexChild, workerEnvironment,
@@ -54,7 +54,7 @@ function fixture() {
       + `const fs = require('node:fs'); const path = require('node:path'); const cp = require('node:child_process');\n`
       + `const root = ${JSON.stringify(dir)}; const sid = ${JSON.stringify(sessionId)};\n`
       + `const emit = (value) => process.stdout.write(JSON.stringify(value) + '\\n');\n`
-      + `const capture = () => { fs.writeFileSync(path.join(root, 'argv.json'), JSON.stringify(process.argv.slice(2))); fs.writeFileSync(path.join(root, 'worker-env.json'), JSON.stringify(Object.keys(process.env))); };\n`
+      + `const capture = () => { fs.writeFileSync(path.join(root, 'argv.json'), JSON.stringify(process.argv.slice(2))); fs.writeFileSync(path.join(root, 'worker-env.json'), JSON.stringify(Object.keys(process.env))); fs.writeFileSync(path.join(root, 'worker-codex-home.json'), JSON.stringify({ path: process.env.CODEX_HOME, hostAppsVisible: fs.existsSync(path.join(process.env.CODEX_HOME, 'apps', 'fixture-host-only')) })); };\n`
       + `const session = () => { const p = path.join(process.env.CODEX_HOME, 'sessions', '2026', '09', '14'); fs.mkdirSync(p, { recursive: true }); fs.writeFileSync(path.join(p, 'rollout-fixture-' + sid + '.jsonl'), '{}\\n'); emit({ type: 'thread.started', thread_id: sid }); };\n`
       + `const complete = (result = ${JSON.stringify(goodResult)}) => { emit({ type: 'item.completed', item: { type: 'agent_message', text: JSON.stringify(result) } }); emit({ type: 'turn.completed', usage: {input_tokens: 1, cached_input_tokens: 0, output_tokens: 1} }); };\n`
       + `let stdin = ''; process.stdin.setEncoding('utf8'); process.stdin.on('data', (x) => stdin += x); process.stdin.on('end', () => { fs.writeFileSync(path.join(root, 'received-prompt.md'), stdin); ${body}\n});\n`;
@@ -78,7 +78,7 @@ test("SDK bypass 被精确收紧，prompt 不进入 argv，模型、推理档与
     assert.ok(command.command.startsWith("codex -a never exec --json --sandbox "));
     assert.ok(command.command.includes(mode === "review" ? "--sandbox read-only" : "--sandbox workspace-write"));
     assert.ok(command.command.includes("--ignore-user-config"));
-    assert.ok(command.command.includes(" -m 'claude-opus-5-5'"));
+    assert.ok(command.command.includes(" -m 'gpt-6.1-sol'"));
     assert.ok(command.command.includes('model_reasoning_effort="xhigh"'));
     assert.ok(command.command.includes("network_access=false"));
     // --ignore-user-config 不读用户 provider；入口必须显式给出 cliproxy-local 的完整定义。
@@ -106,16 +106,40 @@ test("认证沿用目录，环境只留白名单与 CLIProxy 密钥变量，不�
 });
 
 test("路由门：模型不得带 mf/、yd/ 等中转前缀，provider 只能是 cliproxy-local", () => {
-  assert.equal(MODEL, "claude-opus-5-5");
+  assert.equal(MODEL, "gpt-6.1-sol");
   assert.equal(MODEL_PROVIDER, "cliproxy-local");
   assert.doesNotThrow(() => assertRoute());
-  for (const model of ["mf/claude-opus-5-5", "yd/claude-opus-5-5", "any/claude-opus-5-5"]) {
+  for (const model of ["mf/gpt-6.1-sol", "yd/gpt-6.1-sol", "any/gpt-6.1-sol"]) {
     assert.throws(() => assertRoute(model), /中转前缀/);
   }
   assert.throws(() => assertRoute("claude opus"), /格式无效/);
   for (const provider of ["openai", "mf", "cliproxy"]) assert.throws(() => assertRoute(MODEL, provider), /cliproxy-local/);
   assert.equal(providerOverrides()[0], 'model_provider="cliproxy-local"');
   assert.ok(providerOverrides().every((item) => !item.includes(fixtureKey)));
+});
+
+test("#1742 显式模型只接白名单：gpt-6.1-sol 进入 -m，白名单外与中转前缀在建目录前失败", async () => {
+  const provider = await boundedCodex("execute", "/tmp/schema.json", undefined, "gpt-6.1-sol");
+  const command = provider.buildPrintCommand({ prompt: "x", dangerouslySkipPermissions: false }).command;
+  assert.ok(command.includes(" -m 'gpt-6.1-sol'"));
+  assert.ok(!command.includes("claude-opus-5-5"));
+  assert.ok(command.includes("--sandbox workspace-write") && command.includes("network_access=false"));
+  assert.throws(() => assertRoute("gpt-5.5"), /模型只能是/);
+  assert.throws(() => assertRoute("mf/gpt-6.1-sol"), /中转前缀/);
+  const f = fixture();
+  try {
+    for (const model of ["gpt-5.5", "mf/gpt-6.1-sol"]) {
+      await assert.rejects(runCodexChild({ ...f.options, model: model as "gpt-6.1-sol" }, { env: f.env }), /模型只能是|中转前缀/);
+      assert.ok(!existsSync(f.options.outputDir));
+    }
+    f.fake("capture(); session(); complete();");
+    const result = await runCodexChild({ ...f.options, model: "gpt-6.1-sol" }, { env: f.env });
+    assert.equal(result.status, "completed", result.failure_reason ?? "");
+    assert.equal(result.model, "gpt-6.1-sol");
+    assert.equal(JSON.parse(readFileSync(join(f.options.outputDir, "result.json"), "utf8")).model, "gpt-6.1-sol");
+    const argv: string[] = JSON.parse(readFileSync(join(f.dir, "argv.json"), "utf8"));
+    assert.ok(argv.includes("gpt-6.1-sol") && !argv.includes("claude-opus-5-5"));
+  } finally { f.clean(); }
 });
 
 test("密钥：进程环境已有则不查 launchctl；缺失时只查一次；仍缺失则提示不含值", () => {
@@ -239,17 +263,34 @@ test("真实子进程：直接 SDK provider 完成，保存 session/parent 映�
     // CLIProxy 密钥只进工蜂环境，不进 argv 和任何运行记录。
     assert.ok(JSON.parse(readFileSync(join(f.dir, "worker-env.json"), "utf8")).includes(PROVIDER_KEY_ENV));
     const argv: string[] = JSON.parse(readFileSync(join(f.dir, "argv.json"), "utf8"));
-    assert.ok(argv.includes("claude-opus-5-5") && argv.includes('model_provider="cliproxy-local"'));
+    assert.ok(argv.includes("gpt-6.1-sol") && argv.includes('model_provider="cliproxy-local"'));
     assert.ok(!argv.some((item) => item.includes(fixtureKey)));
     for (const file of ["state.json", "events.jsonl", "result.json", "prompt.md", "codex.stdout.jsonl", "codex.stderr.log"]) {
       assert.ok(!readFileSync(join(f.options.outputDir, file), "utf8").includes(fixtureKey), file);
     }
-    assert.equal(result.model, "claude-opus-5-5");
+    assert.equal(result.model, "gpt-6.1-sol");
     assert.equal(result.model_provider, "cliproxy-local");
     assert.ok(readFileSync(join(f.dir, "received-prompt.md"), "utf8").includes("$(touch"));
     assert.ok(!existsSync(join(f.dir, "injection")));
     assert.equal(git(f.options.checkout, "status", "--porcelain"), "");
     assert.equal(git(f.options.checkout, "rev-parse", "HEAD"), f.options.expectedHead);
+  } finally { f.clean(); }
+});
+
+test("宿主 Codex Apps 不进入工蜂：env 与 session 日志共用本次隔离 home", async () => {
+  const f = fixture();
+  try {
+    mkdirSync(join(f.env.CODEX_HOME, "apps"), { recursive: true });
+    writeFileSync(join(f.env.CODEX_HOME, "apps", "fixture-host-only"), "host-only");
+    f.fake("capture(); session(); complete();");
+    const result = await runCodexChild(f.options, { env: f.env });
+    assert.equal(result.status, "completed", result.failure_reason ?? "");
+    const isolatedHome = join(result.output_dir, "codex-home");
+    const observed = JSON.parse(readFileSync(join(f.dir, "worker-codex-home.json"), "utf8"));
+    assert.deepEqual(observed, { path: isolatedHome, hostAppsVisible: false });
+    assert.ok(result.external_session_log?.startsWith(join(isolatedHome, "sessions") + sep));
+    assert.ok(existsSync(result.external_session_log!));
+    assert.ok(!existsSync(join(f.env.CODEX_HOME, "sessions")));
   } finally { f.clean(); }
 });
 
