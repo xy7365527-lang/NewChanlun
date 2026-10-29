@@ -148,7 +148,12 @@ class QueueIntake:
             return unit
 
     def once(self, run: Callable[[WorkUnit], int]) -> dict[int, dict[str, Any]]:
-        from .executor import AdmissionRefused, TicketExecutor, delivery_status, load_unit
+        from .executor import (
+            AdmissionRefused,
+            TicketExecutor,
+            delivery_status,
+            load_unit,
+        )
         from .github_app import IdentityError
         from .run import Busy, Halted
         try:
@@ -164,9 +169,9 @@ class QueueIntake:
                 return {}
             tickets = {int(issue['number']) for issue in self.gateway.queue(RELEASE_LABEL)}
             for path in (self.state_root / 'units').glob('t*-*.json'):
-                unit = load_unit(self.state_root, path.stem)[0]
-                if isinstance(unit.admission, Queued):
-                    tickets.add(unit.ticket)
+                registered_unit = load_unit(self.state_root, path.stem)[0]
+                if isinstance(registered_unit.admission, Queued):
+                    tickets.add(registered_unit.ticket)
             results: dict[int, dict[str, Any]] = {ticket: {'phase': 'queued'} for ticket in tickets}
             for path in self.claims.root.glob('[0-9]*.json'):
                 holder = self.claims.read(int(path.stem))
@@ -192,7 +197,7 @@ class QueueIntake:
                 try:
                     claim = self.claims.read(ticket)
                     unit = load_unit(self.state_root, claim.run_id)[0] if claim and claim.state != 'released' else None
-                    if unit is not None and (not isinstance(unit.admission, Queued)
+                    if claim is not None and unit is not None and (not isinstance(unit.admission, Queued)
                             or claim.run_dir != str(PilotRun.run_dir(self.state_root, unit.run_id).resolve())):
                         raise AdmissionRefused('ticket held by another executor/state root')
                     if unit is None or delivery_status(PilotRun.run_dir(self.state_root, unit.run_id))['phase'] not in (

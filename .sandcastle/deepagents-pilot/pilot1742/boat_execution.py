@@ -12,13 +12,20 @@ import time
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime
 from pathlib import Path
-from typing import Literal, Protocol
+from typing import BinaryIO, Literal, Protocol, cast
 from urllib.error import HTTPError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 from uuid import uuid4
 
-from .cloud_package import MAX_FILE_BYTES, build_package, build_skill_bundle, build_project_context, git, safe_path
+from .cloud_package import (
+    MAX_FILE_BYTES,
+    build_package,
+    build_project_context,
+    build_skill_bundle,
+    git,
+    safe_path,
+)
 from .domain import EffectUnknown, NotStarted, Running, Terminal, WorkerFact, WorkerKey
 
 ADMISSION_SECONDS = 900
@@ -137,7 +144,8 @@ class BoatForkAPI:
                           data=intent.body.encode(), method="POST",
                           headers={"Authorization": "Bearer " + token, "Content-Type": "application/json",
                                    "Idempotency-Key": intent.idempotency_key})
-        for attempt in range(3):
+        attempt = 0
+        while True:
             try:
                 with urlopen(request, timeout=60) as response:
                     result = json.load(response)
@@ -152,6 +160,7 @@ class BoatForkAPI:
                 except (ValueError, AttributeError):
                     code = "invalid_error"
                 if error.code == 409 and code == "idempotency_in_progress" and attempt < 2:
+                    attempt += 1
                     time.sleep(2)
                     continue
                 raise ExecutionUnknown(f"Boat fork HTTP {error.code} ({code})；保留原intent") from None
@@ -285,12 +294,12 @@ class BoatExecution(WorkerExecution):
             return
         if binding.sandbox_id is None:
             self._create_sandbox(key, binding)
-            binding = self.load(key)
+            binding = cast(BoatBinding, self.load(key))
         if binding.submission == "creating":
-            self._wait_ready(binding.sandbox_id)
+            self._wait_ready(cast(str, binding.sandbox_id))
             self._upload(key, binding)
             binding = self._store(key, replace(binding, submission="prepared"))
-        deadline = self._admit(binding.sandbox_id)
+        deadline = self._admit(cast(str, binding.sandbox_id))
         self._provision_key(binding)
         self._launch(key, self._store(key, replace(binding, submission="submitting", deadline=deadline)))
 
@@ -331,11 +340,11 @@ class BoatExecution(WorkerExecution):
             limits = self.cli.call("limits")[-1]
             if not limits.get("canStart") or limits.get("creditUsedSeconds", 0) + self.config.ttl > self.config.max_standard_seconds:
                 raise ExecutionUnknown("Boat额度或首次5美元预算不足")
-            intent = ForkIntent(self.config.base_sandbox, str(uuid4()), json.dumps({
+            new_intent = ForkIntent(self.config.base_sandbox, str(uuid4()), json.dumps({
                 "noEnv": True, "type": "small", "ttlSeconds": self.config.ttl,
                 "labels": {"newchanlun.worker": binding.sandbox_name}}, sort_keys=True), time.time())
-            binding = self._store(key, replace(binding, fork_intent=intent, create_requested=True))
-        intent = binding.fork_intent
+            binding = self._store(key, replace(binding, fork_intent=new_intent, create_requested=True))
+        intent = cast(ForkIntent, binding.fork_intent)
         if time.time() >= intent.requested_at + 24 * 3600:
             raise ExecutionUnknown("Boat fork幂等保留期已过，不再请求创建；保留原intent对账")
         sandbox = self.fork_api.fork(intent)
@@ -395,10 +404,10 @@ class BoatExecution(WorkerExecution):
         with tarfile.open(archive, "w:gz") as package:
             package.add(local, arcname=".")
         remote = shlex.quote(binding.remote_root)
-        self.cli.exec(binding.sandbox_id, f"set -e; test ! -e {remote}/claim; mkdir -p {remote}; printf '{{}}'")
+        self.cli.exec(cast(str, binding.sandbox_id), f"set -e; test ! -e {remote}/claim; mkdir -p {remote}; printf '{{}}'")
         # `boat push` omits .git; the archive carries the exported credential-free Git metadata.
-        self.cli.call("scp", str(archive), binding.sandbox_id + ":" + binding.remote_root + "/package.tar.gz")
-        self.cli.exec(binding.sandbox_id, f"set -e; test ! -e {remote}/claim; tar -xzf {remote}/package.tar.gz -C {remote}; "
+        self.cli.call("scp", str(archive), cast(str, binding.sandbox_id) + ":" + binding.remote_root + "/package.tar.gz")
+        self.cli.exec(cast(str, binding.sandbox_id), f"set -e; test ! -e {remote}/claim; tar -xzf {remote}/package.tar.gz -C {remote}; "
                                           f"rm {remote}/package.tar.gz; printf '{{}}'")
 
     def _admit(self, sandbox: str) -> float:
@@ -423,16 +432,16 @@ class BoatExecution(WorkerExecution):
     def _provision_key(self, binding: BoatBinding) -> None:
         source = subprocess.Popen(self._key_source(), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
         folder = shlex.quote(str(Path(binding.key_file).parent))
-        destination = subprocess.run([self.cli.executable, "ssh", binding.sandbox_id,
+        destination = subprocess.run([self.cli.executable, "ssh", cast(str, binding.sandbox_id),
                                       f"umask 077; mkdir -p {folder}; cat > {shlex.quote(binding.key_file)}"],
                                      stdin=source.stdout, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        source.stdout.close()
+        cast(BinaryIO, source.stdout).close()
         if source.wait() or destination.returncode:
             raise ExecutionUnknown("模型能力受管传输失败，未启动工蜂")
 
     def _launch(self, key: WorkerKey, binding: BoatBinding) -> None:
-        launch = self.cli.call("exec", binding.sandbox_id, "--detach", "--", "bash", "-lc",
-                               self._command(binding, "submit") + " " + str(int(binding.deadline)))[-1]
+        launch = self.cli.call("exec", cast(str, binding.sandbox_id), "--detach", "--", "bash", "-lc",
+                               self._command(binding, "submit") + " " + str(int(cast(float, binding.deadline))))[-1]
         self.run._crash("after_boat_submit_before_record")
         self._store(key, replace(binding, submission="submitted", command_id=launch.get("commandId"),
                                  process_id=launch.get("processId")))
@@ -451,7 +460,7 @@ class BoatExecution(WorkerExecution):
                 fact = self._fetch(key, binding)
                 if fact is not None:
                     return fact
-            self._reclaim(key, self.load(key))
+            self._reclaim(key, cast(BoatBinding, self.load(key)))
             with self.run._fence("dispatch"):
                 self.collect(key, json.loads(cache.read_text()))
         except (ExecutionUnknown, ValueError, KeyError, TypeError, OSError) as error:
@@ -464,9 +473,9 @@ class BoatExecution(WorkerExecution):
         return Terminal(parse_result(key, json.loads((out / "result.json").read_text()), out, self.run.spec.ticket))
 
     def _fetch(self, key: WorkerKey, binding: BoatBinding) -> WorkerFact | None:
-        if self.cli.info(binding.sandbox_id).get("state") in STOPPED_STATES:
+        if cast(str, self.cli.info(cast(str, binding.sandbox_id)).get("state")) in STOPPED_STATES:
             raise ExecutionUnknown("工蜂VM已停止；须显式恢复同一VM后对账，不自动续费或重派")
-        remote = self.cli.exec(binding.sandbox_id, self._command(binding, "observe"))
+        remote = self.cli.exec(cast(str, binding.sandbox_id), self._command(binding, "observe"))
         if remote.get("identity") != binding.identity or remote.get("package_id") != binding.package_id:
             raise ExecutionUnknown("Boat远端身份或package不符")
         state = remote.get("state")
@@ -479,7 +488,7 @@ class BoatExecution(WorkerExecution):
         if state != "receipt":
             raise ExecutionUnknown(remote.get("reason", "Boat工蜂没有可证终态"))
         part = self._path(key, ".remote.part")
-        self.cli.call("scp", binding.sandbox_id + ":" + binding.remote_root + "/claim/receipt.json", str(part))
+        self.cli.call("scp", cast(str, binding.sandbox_id) + ":" + binding.remote_root + "/claim/receipt.json", str(part))
         if part.stat().st_size > 96 * 1024 * 1024:
             raise ExecutionUnknown("远端回执超过批次界限")
         receipt = json.loads(part.read_text())
@@ -491,14 +500,14 @@ class BoatExecution(WorkerExecution):
                 raise ExecutionUnknown("远端session日志路径不符合绑定")
             target = self.run._key_dir(key) / "session.jsonl"
             target.parent.mkdir(parents=True, exist_ok=True)
-            self.cli.call("scp", binding.sandbox_id + ":" + session, str(target))
+            self.cli.call("scp", cast(str, binding.sandbox_id) + ":" + session, str(target))
             receipt["record"]["external_session_log"] = str(target)
         save(self._path(key, ".remote.json"), receipt)
         part.unlink()
         return None
 
     def _submit_records(self, binding: BoatBinding) -> list[dict]:
-        rows = self.cli.call("history", binding.sandbox_id, "--mode", "detached", "--limit", "100")[-1].get("commands", [])
+        rows = self.cli.call("history", cast(str, binding.sandbox_id), "--mode", "detached", "--limit", "100")[-1].get("commands", [])
         return [row for row in rows if self._command(binding, "submit") in (row.get("command") or "")]
 
     def _adopt(self, key: WorkerKey, binding: BoatBinding, records: list[dict]) -> None:
@@ -521,13 +530,13 @@ class BoatExecution(WorkerExecution):
     def _reclaim(self, key: WorkerKey, binding: BoatBinding) -> None:
         if binding.stop_id:
             return
-        info = self.cli.info(binding.sandbox_id)
+        info = self.cli.info(cast(str, binding.sandbox_id))
         if info.get("state") in STOPPED_STATES:
             stop = (info.get("stop") or {}).get("id") or info["state"]
         else:
             key_file = shlex.quote(binding.key_file)
-            self.cli.exec(binding.sandbox_id, f"rm -f {key_file}; test ! -e {key_file}; printf '{{}}'")
-            stop = self.cli.call("stop", binding.sandbox_id)[-1]["operation"]["id"]
+            self.cli.exec(cast(str, binding.sandbox_id), f"rm -f {key_file}; test ! -e {key_file}; printf '{{}}'")
+            stop = self.cli.call("stop", cast(str, binding.sandbox_id))[-1]["operation"]["id"]
         self._store(key, replace(binding, stop_id=stop))
 
     def collect(self, key: WorkerKey, receipt: dict) -> None:
@@ -610,7 +619,7 @@ class BoatExecution(WorkerExecution):
             return NotStarted()
         if binding.submission != "collected" and not self._path(key, ".remote.json").exists():
             with self.run._fence("dispatch"):
-                self.cli.exec(binding.sandbox_id, self._command(binding, "cancel"))
+                self.cli.exec(cast(str, binding.sandbox_id), self._command(binding, "cancel"))
         return self.observe(key)
 
 

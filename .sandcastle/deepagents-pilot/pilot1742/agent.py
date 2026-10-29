@@ -16,7 +16,12 @@ from deepagents import (
     create_deep_agent,
     register_harness_profile,
 )
-from deepagents.backends import CompositeBackend, FilesystemBackend, StateBackend
+from deepagents.backends import (
+    BackendProtocol,
+    CompositeBackend,
+    FilesystemBackend,
+    StateBackend,
+)
 from langchain.agents.middleware import AgentMiddleware, TodoListMiddleware
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.language_models import BaseChatModel
@@ -25,11 +30,10 @@ from langchain_openai import ChatOpenAI
 from langgraph.types import interrupt
 from pydantic import BaseModel, ConfigDict, SecretStr, ValidationError, field_validator
 
+from .boat_execution import ExecutionUnknown
+from .cloud_package import PROJECT_TARGET, PSTACK_TARGET, RULES_TARGET
 from .domain import Awaiting, CommitReceipt, WorkerReceipt
 from .run import PSTACK_MODELS, SKILLS_ROOT, Halted, PilotRun, ToolRefusal, gate_json
-
-from .boat_execution import ExecutionUnknown
-from .cloud_package import PSTACK_TARGET, PROJECT_TARGET, RULES_TARGET
 
 TOOL_ERRORS: tuple[type[Exception], ...] = (ToolRefusal, Halted, ExecutionUnknown)
 
@@ -379,7 +383,7 @@ def build_agent(run: PilotRun, checkpointer: Any, model: BaseChatModel | None = 
                 shutil.copytree(source, project_docs / relative)
         project_skills = Path(project_root)
         skills_root, skills_dir = SKILLS_ROOT, Path(SKILLS_ROOT)
-    routes = {
+    routes: dict[str, BackendProtocol] = {
         "/project/": FilesystemBackend(root_dir=str(project_docs), virtual_mode=True),
         skills_root: FilesystemBackend(root_dir=str(skills_dir), virtual_mode=True),
         project_root: FilesystemBackend(root_dir=str(project_skills), virtual_mode=True),

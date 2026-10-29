@@ -18,6 +18,14 @@ from typing import TYPE_CHECKING, Any
 
 import yaml
 
+from .boat_execution import (
+    BoatExecution,
+    BoatRun,
+    HistoricalLocal,
+    RunExecution,
+    new_execution,
+    parse_execution,
+)
 from .domain import (
     DESIGN_SLOTS,
     MODEL_FAMILY,
@@ -65,7 +73,6 @@ from .domain import (
     synthesis_refusal,
 )
 from .workunit import WorkUnit, parse_work_unit
-from .boat_execution import BoatExecution, BoatRun, HistoricalLocal, RunExecution, ExecutionUnknown, new_execution, parse_execution
 
 if TYPE_CHECKING:
     from .executor import TicketExecutor

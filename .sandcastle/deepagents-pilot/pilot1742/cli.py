@@ -6,12 +6,13 @@ import sqlite3
 import subprocess
 import sys
 from pathlib import Path
+from typing import cast
 
 from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import Command
 
-from .boat_execution import ExecutionUnknown
+from .boat_execution import BoatExecution, ExecutionUnknown
 from .domain import WorkerKey, parse_role, parse_run_id, parse_sha
 from .run import (
     CRASH_POINTS,
@@ -118,7 +119,7 @@ def cancel_worker(run: PilotRun, role: str, head: str) -> int:
         print(str(error), file=sys.stderr)
         return EXIT_BUSY
     try:
-        fact = run.execution.cancel(WorkerKey(run.spec.run_id, parse_role(role), parse_sha(head)))
+        fact = cast(BoatExecution, run.execution).cancel(WorkerKey(run.spec.run_id, parse_role(role), parse_sha(head)))
     except ExecutionUnknown as error:
         print(f"ExecutionUnknown: {error}", file=sys.stderr)
         return 2
@@ -131,13 +132,13 @@ def cancel_worker(run: PilotRun, role: str, head: str) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="pilot1742")
     sub = parser.add_subparsers(dest="command", required=True)
-    run = sub.add_parser("run", help="首跑或恢复一个 run")
-    run.add_argument("--run-id", required=True)
-    run.add_argument("--task", help="新 run 的任务文件（--- 头含 title 与 allowed_prefixes）")
-    run.add_argument("--base", help="新 run 的基线提交，缺省为源工作区 HEAD")
-    run.add_argument("--home", default=str(DEFAULT_HOME))
-    run.add_argument("--crash-at", choices=CRASH_POINTS, help="受控故障注入：在该点对本进程 SIGKILL")
-    run.add_argument("--recheck-approval", action="store_true", help="停在 awaiting_approval 时重读批准账本")
+    run_parser = sub.add_parser("run", help="首跑或恢复一个 run")
+    run_parser.add_argument("--run-id", required=True)
+    run_parser.add_argument("--task", help="新 run 的任务文件（--- 头含 title 与 allowed_prefixes）")
+    run_parser.add_argument("--base", help="新 run 的基线提交，缺省为源工作区 HEAD")
+    run_parser.add_argument("--home", default=str(DEFAULT_HOME))
+    run_parser.add_argument("--crash-at", choices=CRASH_POINTS, help="受控故障注入：在该点对本进程 SIGKILL")
+    run_parser.add_argument("--recheck-approval", action="store_true", help="停在 awaiting_approval 时重读批准账本")
     status = sub.add_parser("status", help="只读状态，不启动模型或工蜂")
     status.add_argument("--run-id", required=True)
     status.add_argument("--home", default=str(DEFAULT_HOME))

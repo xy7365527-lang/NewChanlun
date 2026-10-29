@@ -334,6 +334,7 @@ def test_queue_post_check_conflict_halts_and_withdraws_own_mirror(queued):
 @pytest.fixture
 def delivered(queued):
     from conftest import FAKE, MODELS
+
     from pilot1742.executor import load_unit, open_v2_run
 
     v2, cutover, intake, signer = queued

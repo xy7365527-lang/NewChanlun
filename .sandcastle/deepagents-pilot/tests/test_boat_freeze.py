@@ -12,7 +12,12 @@ from test_boat import config
 
 from pilot1742 import run as run_module
 from pilot1742.agent import build_agent, initial_message, system_prompt
-from pilot1742.boat_execution import BoatExecution, BoatConfig, parse_execution, new_execution
+from pilot1742.boat_execution import (
+    BoatConfig,
+    BoatExecution,
+    new_execution,
+    parse_execution,
+)
 from pilot1742.cloud_package import build_package
 from pilot1742.domain import WorkerKey, parse_run_id
 from pilot1742.run import PilotRun, RunSpec
@@ -136,7 +141,7 @@ def test_controller_and_worker_read_same_frozen_skills_after_source_and_checkout
                               {'configurable': {'thread_id': f'frozen-{index}'}}, durability='sync')
         replies = [m.content for m in result['messages'] if getattr(m, 'name', None) == 'read_file']
         assert len(replies) == len(expected)
-        assert all(value in reply for value, reply in zip(expected, replies))
+        assert all(value in reply for value, reply in zip(expected, replies, strict=True))
         entry.write_text('PSTACK_DRIFT')
         rules.write_text('RULES_DRIFT')
     assert 'RULES_FROZEN' in system_prompt(run) and 'RULES_DRIFT' not in system_prompt(run)

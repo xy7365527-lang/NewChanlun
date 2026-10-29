@@ -10,9 +10,18 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
 from conftest import git
-from pilot1742.boat_execution import (BoatBinding, BoatCLI, BoatExecution, ExecutionUnknown, HistoricalLocal, parse_execution, new_execution, save)
+
+from pilot1742.boat_execution import (
+    BoatBinding,
+    BoatCLI,
+    BoatExecution,
+    ExecutionUnknown,
+    HistoricalLocal,
+    new_execution,
+    parse_execution,
+    save,
+)
 from pilot1742.cloud_package import build_skill_bundle, export_repository, safe_path
 from pilot1742.domain import EffectUnknown, Running, Terminal, WorkerKey
 from pilot1742.run import _status_text_paths
@@ -421,6 +430,7 @@ def test_skill_symlink_closure_and_cycles(tmp_path):
 
 def test_v2_cancel_runs_under_ticket_action_lock(tmp_path, monkeypatch):
     from v2env import V2Env
+
     from pilot1742 import boat_execution
     from pilot1742.cli import cancel_worker
     from pilot1742.run import Halted, PilotRun

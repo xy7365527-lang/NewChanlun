@@ -18,9 +18,21 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 REPO = HERE.parents[2]
 
-from pilot1742.boat_execution import BoatCLI, BoatExecution, BoatForkAPI, ExecutionUnknown  # noqa: E402
+from pilot1742.boat_execution import (  # noqa: E402
+    BoatCLI,
+    BoatExecution,
+    BoatForkAPI,
+    ExecutionUnknown,
+)
 from pilot1742.domain import WorkerKey, parse_run_id  # noqa: E402
-from pilot1742.run import Halted, PilotRun, TaskSpec, ToolRefusal, _fact_json, current_head  # noqa: E402
+from pilot1742.run import (  # noqa: E402
+    Halted,
+    PilotRun,
+    TaskSpec,
+    ToolRefusal,
+    _fact_json,
+    current_head,
+)
 
 MODELS = ("feature, refactoring: gpt-6.1-sol\njudgment and prose: claude-opus-5-5\nhardest tasks: claude-opus-5-5\n"
           "architect runners: claude-opus-5-5, gpt-6.1-sol\narena cross-judge pool: claude-opus-5-5, gpt-6.1-sol\n")

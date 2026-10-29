@@ -11,7 +11,6 @@ import time
 from contextlib import contextmanager, suppress
 from pathlib import Path
 
-
 CHECK_IMAGE = 'test "$(docker image inspect "$1" --format "{{.Id}}")" = "$1"'
 
 

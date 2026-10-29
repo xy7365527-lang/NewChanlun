@@ -1,13 +1,18 @@
 import io
-import json
 import time
 from dataclasses import replace
-from urllib.error import HTTPError, URLError
 from types import SimpleNamespace
+from urllib.error import HTTPError, URLError
 
 import pytest
 from test_boat import FakeBoat, prepared_engine
-from pilot1742.boat_execution import BoatForkAPI, BoatExecution, ExecutionUnknown, ForkIntent
+
+from pilot1742.boat_execution import (
+    BoatExecution,
+    BoatForkAPI,
+    ExecutionUnknown,
+    ForkIntent,
+)
 
 
 def test_fork_response_loss_before_rename_reopens_same_sandbox(env, monkeypatch):
@@ -95,3 +100,24 @@ def test_official_api_preserves_unknown_without_new_key(monkeypatch, failure):
     with pytest.raises(ExecutionUnknown):
         BoatForkAPI().fork(intent())
     assert len(requests) == 1
+
+
+
+def test_official_api_stops_after_three_identical_in_progress_requests(monkeypatch):
+    from pilot1742 import boat_execution
+
+    monkeypatch.setenv('BOAT_API_KEY', 'fixture-controller-only')
+    pauses = []
+    monkeypatch.setattr(boat_execution.time, 'sleep', pauses.append)
+    requests = []
+
+    def request(req, timeout):
+        requests.append((req.full_url, req.data, req.headers.copy()))
+        raise HTTPError(req.full_url, 409, 'conflict', {},
+                        io.BytesIO(b'{"code":"idempotency_in_progress"}'))
+
+    monkeypatch.setattr(boat_execution, 'urlopen', request)
+    with pytest.raises(ExecutionUnknown, match='保留原intent'):
+        BoatForkAPI().fork(intent())
+    assert len(requests) == 3 and all(req == requests[0] for req in requests)
+    assert pauses == [2, 2]

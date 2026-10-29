@@ -696,12 +696,12 @@ def main(argv: list[str] | None = None) -> int:
     reg.add_argument("--require-candidate-approval", action="store_true",
                      help="发布前要求对确切候选 head 的真人 Secure Enclave 签批")
     reg.add_argument("--private-key", type=Path, required=True)
-    run = sub.add_parser("run", help="持有并运行或恢复一个已登记的 v2 run")
-    run.add_argument("--run-id", required=True)
-    run.add_argument("--workers-log", type=Path, default=WORKERS_LOG)
-    run.add_argument("--private-key", type=Path, required=True)
-    run.add_argument("--crash-at", choices=V2_CRASH_POINTS, help="受控故障注入：在该点对本进程 SIGKILL")
-    run.add_argument("--resume", action="store_true",
+    run_parser = sub.add_parser("run", help="持有并运行或恢复一个已登记的 v2 run")
+    run_parser.add_argument("--run-id", required=True)
+    run_parser.add_argument("--workers-log", type=Path, default=WORKERS_LOG)
+    run_parser.add_argument("--private-key", type=Path, required=True)
+    run_parser.add_argument("--crash-at", choices=V2_CRASH_POINTS, help="受控故障注入：在该点对本进程 SIGKILL")
+    run_parser.add_argument("--resume", action="store_true",
                      help="停在中断处时恢复：清除操作员中断请求，按权威签批链重新判定，恢复载荷不作批准")
     serve = sub.add_parser("serve", help="读取引擎放行队列，逐票运行或恢复")
     modes = serve.add_mutually_exclusive_group(required=True)
