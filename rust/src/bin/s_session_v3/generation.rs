@@ -5583,8 +5583,6 @@ mod tests {
 
     // ── #1491 ADR 0037 段 B：bounded-layout/1 的 CC-007 单元批记录与 CC-054 请求次序 ──
 
-    const BOUNDED_RULE: &str = "r+bounded-layout/1";
-
     fn full_input<'a>(
         raw: RawEventsView<'a>,
         effective: RawEventsView<'a>,
@@ -5614,13 +5612,69 @@ mod tests {
         }
     }
 
+    /// 修订组输入：早期 bar 改价修订、再恢复、尾 bar 换坐标（原 25 根 revision 组与布局锁共用）。
+    fn revision_events() -> Vec<Value> {
+        let mut events = delta_long_fixture();
+        events.truncate(14);
+        let mut revised = events[2].clone();
+        for (k, v) in [
+            ("revision", json!(2)),
+            ("input_revision", json!("2")),
+            ("seq", json!(15)),
+            ("high", json!("13")),
+            ("low", json!("9")),
+            ("open", json!("11")),
+            ("close", json!("11")),
+            ("payload_hash", json!("revision-2")),
+            ("receipt_id", json!("receipt-15")),
+        ] {
+            revised[k] = v;
+        }
+        events.push(revised);
+        let mut restored = events[2].clone();
+        for (k, v) in [
+            ("revision", json!(3)),
+            ("input_revision", json!("3")),
+            ("seq", json!(16)),
+            ("payload_hash", json!("restored-3")),
+            ("receipt_id", json!("receipt-16")),
+        ] {
+            restored[k] = v;
+        }
+        events.push(restored);
+        let mut moved = events[13].clone();
+        for (k, v) in [
+            ("revision", json!(2)),
+            ("input_revision", json!("2")),
+            ("seq", json!(17)),
+            ("source_coord", json!("1000")),
+            ("ts", json!("1000")),
+            ("payload_hash", json!("tail-moved")),
+            ("receipt_id", json!("receipt-17")),
+        ] {
+            moved[k] = v;
+        }
+        events.push(moved);
+        events
+    }
+
     /// 每个前缀一代：layout/1 增量、bounded 增量各一条车道，另以全新 bounded 运行态冷算同一代。
     /// 返回逐代（layout/1 生成态 JSON，bounded 生成态 JSON）；bounded 增量 ≡ 冷算逐字节在此核。
     fn bounded_layout_runs(events: &[Value], cuts: &[usize]) -> Vec<(Value, Value)> {
+        bounded_layout_runs_with(events, cuts, "r")
+    }
+
+    fn bounded_layout_runs_with(
+        events: &[Value],
+        cuts: &[usize],
+        rule: &str,
+    ) -> Vec<(Value, Value)> {
+        let bounded_rule = format!("{rule}+bounded-layout/1");
+        let bounded_rule = bounded_rule.as_str();
         let scope = json!({"instrument":"B1", "exchange":"fixture"});
-        let mut sorted = GenerationRuntime::new("B1 sorted".into(), crate::tb02a::PROFILE, "r");
+        let mut sorted = GenerationRuntime::new("B1 sorted".into(), crate::tb02a::PROFILE, rule);
         let mut bounded =
-            GenerationRuntime::new("B1 bounded".into(), crate::tb02a::PROFILE, BOUNDED_RULE);
+            GenerationRuntime::new("B1 bounded".into(), crate::tb02a::PROFILE, bounded_rule);
         let (mut ss, mut bs) = (MemoryNodes::new(), MemoryNodes::new());
         let mut out = Vec::new();
         for (turn, &prefix) in cuts.iter().enumerate() {
@@ -5639,16 +5693,16 @@ mod tests {
                     rule,
                 )
             };
-            let s = sorted.generate(&mut ss, &input("r")).unwrap();
-            let b = bounded.generate(&mut bs, &input(BOUNDED_RULE)).unwrap();
+            let s = sorted.generate(&mut ss, &input(rule)).unwrap();
+            let b = bounded.generate(&mut bs, &input(bounded_rule)).unwrap();
             let mut cold_runtime = GenerationRuntime::new(
                 format!("B1 bounded cold {gen}"),
                 crate::tb02a::PROFILE,
-                BOUNDED_RULE,
+                bounded_rule,
             );
             let mut cs = MemoryNodes::new();
             let c = cold_runtime
-                .generate(&mut cs, &input(BOUNDED_RULE))
+                .generate(&mut cs, &input(bounded_rule))
                 .unwrap();
             assert_eq!(
                 b.state_without_axes, c.state_without_axes,
@@ -6018,47 +6072,7 @@ mod tests {
     fn bounded_layout_cc007_batches_survive_revision_swap_insertion_incremental_equals_cold() {
         // 同 `delta_full_bi_prior_tail_revision_and_reactivated_windows_match_full` 的输入：早期 bar
         // 改价修订、再恢复、尾 bar 换坐标（旧坐标移走、新坐标出现）。
-        let mut events = delta_long_fixture();
-        events.truncate(14);
-        let mut revised = events[2].clone();
-        for (k, v) in [
-            ("revision", json!(2)),
-            ("input_revision", json!("2")),
-            ("seq", json!(15)),
-            ("high", json!("13")),
-            ("low", json!("9")),
-            ("open", json!("11")),
-            ("close", json!("11")),
-            ("payload_hash", json!("revision-2")),
-            ("receipt_id", json!("receipt-15")),
-        ] {
-            revised[k] = v;
-        }
-        events.push(revised);
-        let mut restored = events[2].clone();
-        for (k, v) in [
-            ("revision", json!(3)),
-            ("input_revision", json!("3")),
-            ("seq", json!(16)),
-            ("payload_hash", json!("restored-3")),
-            ("receipt_id", json!("receipt-16")),
-        ] {
-            restored[k] = v;
-        }
-        events.push(restored);
-        let mut moved = events[13].clone();
-        for (k, v) in [
-            ("revision", json!(2)),
-            ("input_revision", json!("2")),
-            ("seq", json!(17)),
-            ("source_coord", json!("1000")),
-            ("ts", json!("1000")),
-            ("payload_hash", json!("tail-moved")),
-            ("receipt_id", json!("receipt-17")),
-        ] {
-            moved[k] = v;
-        }
-        events.push(moved);
+        let events = revision_events();
         let runs = bounded_layout_runs(&events, &[1, 2, 8, 14, 15, 16, 17, 17]);
         let mut any_units = false;
         for (i, (sorted, bounded)) in runs.iter().enumerate() {
@@ -6376,47 +6390,7 @@ mod tests {
                 "sc1-1f1883260c44c0de1f736eecfa10b260299e8b37638fb83ea79672e050e64b66",
             ],
         );
-        let mut events = delta_long_fixture();
-        events.truncate(14);
-        let mut revised = events[2].clone();
-        for (k, v) in [
-            ("revision", json!(2)),
-            ("input_revision", json!("2")),
-            ("seq", json!(15)),
-            ("high", json!("13")),
-            ("low", json!("9")),
-            ("open", json!("11")),
-            ("close", json!("11")),
-            ("payload_hash", json!("revision-2")),
-            ("receipt_id", json!("receipt-15")),
-        ] {
-            revised[k] = v;
-        }
-        events.push(revised);
-        let mut restored = events[2].clone();
-        for (k, v) in [
-            ("revision", json!(3)),
-            ("input_revision", json!("3")),
-            ("seq", json!(16)),
-            ("payload_hash", json!("restored-3")),
-            ("receipt_id", json!("receipt-16")),
-        ] {
-            restored[k] = v;
-        }
-        events.push(restored);
-        let mut moved = events[13].clone();
-        for (k, v) in [
-            ("revision", json!(2)),
-            ("input_revision", json!("2")),
-            ("seq", json!(17)),
-            ("source_coord", json!("1000")),
-            ("ts", json!("1000")),
-            ("payload_hash", json!("tail-moved")),
-            ("receipt_id", json!("receipt-17")),
-        ] {
-            moved[k] = v;
-        }
-        events.push(moved);
+        let events = revision_events();
         run(
             "revision",
             &events,
@@ -6446,53 +6420,199 @@ mod tests {
         );
     }
 
-    /// #1419 A7：同一 W 语义在 layout/1 与 bounded-layout/1 两种布局下逐代相同。
-    /// 只允许请求在数组中的位置不同；W 对象载荷、输入引用、来源坐标与 W 请求集合不变。
+    /// #1419 A7 F2：一代 W 请求的完整语义，以 request_id 为键。每个 id 恰出现一次；
+    /// 字段集恰为五项；subject_id 在本车道 objects 中解析，须恰有一个实际对象，以其 (kind, fact_key) 比较。
+    fn w_request_semantics(
+        state: &Value,
+    ) -> Result<std::collections::BTreeMap<String, Value>, String> {
+        use crate::content_producer::{CC004_INITIALIZATION_KIND, CC004_UNDETERMINED_KIND};
+        let objects = state["objects"].as_array().ok_or("objects 缺失")?;
+        let mut out = std::collections::BTreeMap::new();
+        for request in requests_of(state) {
+            let id = request["request_id"].as_str().ok_or("request_id 非文本")?;
+            if !(id.contains(CC004_INITIALIZATION_KIND) || id.contains(CC004_UNDETERMINED_KIND)) {
+                continue;
+            }
+            let fields: Vec<&String> = request.as_object().ok_or("请求非对象")?.keys().collect();
+            if fields
+                != [
+                    "axes",
+                    "reasons",
+                    "request_id",
+                    "source_coords",
+                    "subject_id",
+                ]
+            {
+                return Err(format!("{id} 字段集 {fields:?}"));
+            }
+            let subject = request["subject_id"].as_str().ok_or("subject_id 非文本")?;
+            let hits: Vec<&Value> = objects
+                .iter()
+                .filter(|o| o["object_id"] == subject)
+                .collect();
+            if hits.len() != 1 {
+                return Err(format!(
+                    "{id} subject {subject} 解析到 {} 个对象",
+                    hits.len()
+                ));
+            }
+            let semantic = json!({
+                "axes": request["axes"],
+                "reasons": request["reasons"],
+                "source_coords": request["source_coords"],
+                "subject": [hits[0]["kind"], hits[0]["fact_key"]],
+            });
+            if out.insert(id.to_string(), semantic).is_some() {
+                return Err(format!("{id} 重复"));
+            }
+        }
+        Ok(out)
+    }
+
+    /// 三组原输入（long 14、revision 8、realrule 3 代），与 `layout1_generation_roots_frozen_from_base_main` 同。
+    fn a7_groups() -> Vec<(&'static str, Vec<Value>, Vec<usize>, &'static str)> {
+        let long = delta_long_fixture();
+        let long_cuts: Vec<usize> = (1..=long.len()).collect();
+        vec![
+            ("long", long, long_cuts, "r"),
+            (
+                "revision",
+                revision_events(),
+                vec![1, 2, 8, 14, 15, 16, 17, 17],
+                "r",
+            ),
+            (
+                "realrule",
+                delta_long_fixture(),
+                vec![5, 9, 14],
+                crate::V3_RULE_REVISION,
+            ),
+        ]
+    }
+
+    /// #1419 A7：同一 W 语义在 layout/1 与 bounded-layout/1 两种布局下逐代相同，覆盖原 25 代。
+    /// W 对象载荷、输入引用、来源坐标逐项相等；W 请求按 request_id 比完整语义（见 `w_request_semantics`）。
     #[test]
     fn w_semantics_layout_neutral_between_layout1_and_bounded() {
         use crate::content_producer::{CC004_INITIALIZATION_KIND, CC004_UNDETERMINED_KIND};
-        let events = delta_long_fixture();
-        let cuts: Vec<usize> = (1..=events.len()).collect();
-        let (mut undetermined, mut established) = (false, false);
-        for (i, (sorted, bounded)) in bounded_layout_runs(&events, &cuts).iter().enumerate() {
-            let gen = i + 1;
-            for kind in [CC004_INITIALIZATION_KIND, CC004_UNDETERMINED_KIND] {
-                let w = |state: &Value| -> Vec<Value> {
-                    objects_of(state, kind)
-                        .iter()
-                        .map(|o| {
-                            json!([
-                                o["fact_key"],
-                                o["payload"],
-                                o["input_refs"],
-                                o["source_coords"]
-                            ])
-                        })
-                        .collect()
-                };
-                assert_eq!(w(sorted), w(bounded), "g{gen} {kind} 跨布局中性");
-            }
-            let w_requests = |state: &Value| -> std::collections::BTreeSet<String> {
-                requests_of(state)
-                    .iter()
-                    .map(|r| r["request_id"].as_str().unwrap().to_string())
-                    .filter(|id| {
-                        id.contains(CC004_INITIALIZATION_KIND)
-                            || id.contains(CC004_UNDETERMINED_KIND)
-                    })
-                    .collect()
-            };
-            assert_eq!(w_requests(sorted), w_requests(bounded), "g{gen} W 请求集合");
-            let init = &objects_of(sorted, CC004_INITIALIZATION_KIND)[0]["payload"];
-            match init["direction_state"].as_str().unwrap() {
-                "Undetermined" => undetermined = true,
-                _ => established = true,
+        let (mut undetermined, mut established, mut generations) = (false, false, 0);
+        let mut request_kinds = std::collections::BTreeSet::new();
+        for (tag, events, cuts, rule) in a7_groups() {
+            let runs = bounded_layout_runs_with(&events, &cuts, rule);
+            assert_eq!(runs.len(), cuts.len());
+            for (i, (sorted, bounded)) in runs.iter().enumerate() {
+                let gen = i + 1;
+                generations += 1;
+                for kind in [CC004_INITIALIZATION_KIND, CC004_UNDETERMINED_KIND] {
+                    let w = |state: &Value| -> Vec<Value> {
+                        objects_of(state, kind)
+                            .iter()
+                            .map(|o| {
+                                json!([
+                                    o["fact_key"],
+                                    o["payload"],
+                                    o["input_refs"],
+                                    o["source_coords"]
+                                ])
+                            })
+                            .collect()
+                    };
+                    assert_eq!(w(sorted), w(bounded), "{tag} g{gen} {kind} 跨布局中性");
+                }
+                let s = w_request_semantics(sorted).unwrap();
+                let b = w_request_semantics(bounded).unwrap();
+                assert!(!s.is_empty(), "{tag} g{gen} 须有 W 请求");
+                assert_eq!(s, b, "{tag} g{gen} W 请求完整语义");
+                for semantic in s.values() {
+                    request_kinds.insert(semantic["subject"][0].as_str().unwrap().to_string());
+                }
+                let init = &objects_of(sorted, CC004_INITIALIZATION_KIND)[0]["payload"];
+                match init["direction_state"].as_str().unwrap() {
+                    "Undetermined" => undetermined = true,
+                    _ => established = true,
+                }
             }
         }
+        assert_eq!(generations, 25, "覆盖原 long 14、revision 8、realrule 3 代");
         assert!(
             undetermined && established,
             "夹具须覆盖未定与已定两种 W 状态"
         );
+        assert_eq!(
+            request_kinds.into_iter().collect::<Vec<_>>(),
+            [CC004_INITIALIZATION_KIND, CC004_UNDETERMINED_KIND],
+            "请求须覆盖两种 W 对象"
+        );
+    }
+
+    /// F2 负控：改 axes、subject 指向另一实际对象、subject 悬空、追加重复请求，均被判出。
+    #[test]
+    fn w_request_semantics_detects_axes_subject_and_duplicate_changes() {
+        use crate::content_producer::{CC004_INITIALIZATION_KIND, CC004_UNDETERMINED_KIND};
+        let events = delta_long_fixture();
+        let (state, _) = bounded_layout_runs(&events, &[1]).remove(0);
+        let original = w_request_semantics(&state).unwrap();
+        assert_eq!(original.len(), 2);
+        let other = objects_of(&state, CC004_UNDETERMINED_KIND)[0]["object_id"].clone();
+        let mutate = |edit: &dyn Fn(&mut Vec<Value>)| -> Value {
+            let mut copy = state.clone();
+            let knowledge = copy["objects"]
+                .as_array_mut()
+                .unwrap()
+                .iter_mut()
+                .find(|o| o["kind"] == CC054_KNOWLEDGE_KIND)
+                .unwrap();
+            let mut payload: Value =
+                serde_json::from_str(knowledge["payload_json"].as_str().unwrap()).unwrap();
+            let mut requests = payload["requests"].as_array().unwrap().clone();
+            edit(&mut requests);
+            payload["requests"] = Value::Array(requests);
+            knowledge["payload_json"] = json!(payload.to_string());
+            copy
+        };
+        let init_index = |rs: &Vec<Value>| {
+            rs.iter()
+                .position(|r| {
+                    r["request_id"]
+                        .as_str()
+                        .unwrap()
+                        .contains(CC004_INITIALIZATION_KIND)
+                })
+                .unwrap()
+        };
+        assert_eq!(w_request_semantics(&mutate(&|_| {})).unwrap(), original);
+        let axes = mutate(&|rs| {
+            let i = init_index(rs);
+            rs[i]["axes"]["validity"] = json!("STALE");
+        });
+        assert_ne!(
+            w_request_semantics(&axes).unwrap(),
+            original,
+            "axes 改变须判出"
+        );
+        let swapped = mutate(&|rs| {
+            let i = init_index(rs);
+            rs[i]["subject_id"] = other.clone();
+        });
+        assert_ne!(
+            w_request_semantics(&swapped).unwrap(),
+            original,
+            "subject 指向另一实际对象须判出"
+        );
+        let dangling = mutate(&|rs| {
+            let i = init_index(rs);
+            rs[i]["subject_id"] = json!("obj3-missing");
+        });
+        assert!(
+            w_request_semantics(&dangling).is_err(),
+            "subject 悬空须判出"
+        );
+        let duplicate = mutate(&|rs| {
+            let i = init_index(rs);
+            let copy = rs[i].clone();
+            rs.push(copy);
+        });
+        assert!(w_request_semantics(&duplicate).is_err(), "重复请求须判出");
     }
 
     #[test]
