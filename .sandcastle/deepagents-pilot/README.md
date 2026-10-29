@@ -8,7 +8,7 @@
 4. 派 Opus 独审工蜂审这个精确 head。
 5. 在门上停为 `awaiting_approval`。
 
-所有工蜂只经现役 `.sandcastle/codex-child.mts` 启动，隔离与现役相同。试点不 push、不开 PR、不合 main，也不碰常驻队列与服务。
+下文 v1 run 的工蜂只经现役 `.sandcastle/codex-child.mts` 启动，隔离与现役相同。v1 run 不 push、不开 PR、不合 main，也不碰常驻队列与服务。
 
 ## 在浏览器看图
 
@@ -21,6 +21,10 @@
 ## 用新执行器交付专用票
 
 v2 新执行器（登记、持有、运行、精确发布与释放）用法见 [用新执行器交付一张首证专用票](EXECUTOR.md)。它只接首证专用票，交付到 `awaiting_merge` 为止，不改变下文 v1 run 与批准账本。
+
+## 为已有业务 PR 提供独审状态
+
+外部 PR 入口见 [审阅已有 PR 并发布 App 状态](EXTERNAL-REVIEW.md)。它接同仓库、以 main 为目标的 open PR，独立运行两家族 Docker 只读审阅，再发布 `deepagents/review`；不接管原票或实施器。启用前仍需当前部署 head 的 Docker 验收和 App 来源负控。
 
 ## 准备环境
 
