@@ -5,6 +5,9 @@ on:
     paths:
       - '.github/workflows/issue-1419-w2-runtime.yml'
       - '.github/scripts/compare-w2-runtime.py'
+      - 'rust/**'
+      - 's_session/catalog/**'
+      - 's_session/profiles/**'
   workflow_dispatch:
 permissions:
   contents: read
@@ -48,6 +51,20 @@ jobs:
           grep -F ': test' "$out/source-delta-list.log"
           cargo test --locked --release --features s_session --bin s_structure_session --jobs 1 -- "$filter" --nocapture 2>&1 | tee "$out/source-delta.log"
           grep -E 'test result: ok[.] [1-9][0-9]* passed;' "$out/source-delta.log"
+      - name: Build formal consumer binary from the same source
+        shell: bash
+        working-directory: rust
+        run: |
+          set -euo pipefail
+          cargo build --locked --release --features s_session --bin s_structure_session --jobs 1 2>&1 | tee "$RUNNER_TEMP/w2-runtime/release-build.log"
+          cp target/release/s_structure_session "$RUNNER_TEMP/w2-runtime/s_structure_session"
+      - name: Publish formal binary for Python consumers
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-1419-w2-binary-${{ github.sha }}
+          path: ${{ runner.temp }}/w2-runtime/s_structure_session
+          if-no-files-found: error
+          retention-days: 14
       - name: Export A then B in independent processes
         shell: bash
         working-directory: rust
@@ -61,13 +78,6 @@ jobs:
             grep -F 'test result: ok. 1 passed;' "$out/$side/export.log"
           done
           python3 ../.github/scripts/compare-w2-runtime.py "$out" | tee "$out/comparison.log"
-      - name: Build formal consumer binary from the same source
-        shell: bash
-        working-directory: rust
-        run: |
-          set -euo pipefail
-          cargo build --locked --release --features s_session --bin s_structure_session --jobs 1 2>&1 | tee "$RUNNER_TEMP/w2-runtime/release-build.log"
-          cp target/release/s_structure_session "$RUNNER_TEMP/w2-runtime/s_structure_session"
       - name: Package persistent originals even after failure
         if: always()
         shell: bash

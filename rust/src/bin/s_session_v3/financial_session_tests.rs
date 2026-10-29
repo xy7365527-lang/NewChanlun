@@ -1854,9 +1854,14 @@ fn export_real_s3_w2_fixture_and_sqlite_for_q3() {
             } else {
                 json!({"schema_revision":"s-w2-validation-run/1"})
             };
+            let status = if manifest["status"] == "audit-failed" {
+                "audit-failed"
+            } else {
+                "failed"
+            };
             let failure_details = json!({
                 "schema_revision":"s-w2-validation-run/1",
-                "status":"failed",
+                "status":status,
                 "head":std::env::var("Q3_EXPORT_HEAD").unwrap(),
                 "original_database":original,
                 "database":database,
