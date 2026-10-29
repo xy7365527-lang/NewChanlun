@@ -4,7 +4,7 @@
 > 最后裁定：#1778（2026-10-28，#1323 Notes N-1 预授权 T 类判定）
 > 受影响代码清单：见本文「受影响代码清单」节（`store.rs` / `service.rs` / `domain_event.rs` 门控点，实施归 #1768）
 
-**状态**：T 类裁定，文书待 main 合入。本 ADR 只定合同落点与版本门；门控实现、测试锁与 Python 读者兼容核对归 #1768（TB-07-E）原 owner，不以本 ADR 声称实现完成。
+**状态**：T 类裁定，文书已合入 main（PR #1779，squash `df9feea2a9fbf7d327684d81e3e1039ca8e75ffc`）。本 ADR 只定合同落点与版本门；门控实现、测试锁与 Python 读者兼容核对归 #1768（TB-07-E）原 owner，不以本 ADR 声称实现完成。
 **裁定依据**：[resolution 评论](https://github.com/xy7365527-lang/NewChanlun/issues/1778#issuecomment-6456496599)（2026-10-27T23:50:49Z）。独审第二轮 28I R1–R8 全 PASS，三项 LOW 已在 28J 修订措辞，语义不变。原件：草稿 `/Volumes/AgentStorage/decisions/1778/draft.md`，考古 `archaeology.md` / `archaeology.json`（同目录），独审 `/Volumes/AgentStorage/issue1709-pstack-orchestrate-20261025/1778-INDEPENDENT-REVIEW-28I.md`，LOW 修订 `1778-LOW-FIX-28J.md`（同目录）。
 **行号基线**：裁定时固定到 main `c0c5a369`；本文落地时 main 为 `5123c9e273`，所引 `rust/src/economic_session/`、ADR 0041、ADR 0051、`CONTEXT.md`、§5.8 原件在两者间无差异，行号照用。`e1bd49a5` 是 PR #1772 返修候选（head `89edf18f` 的快进后继，未推 PR 分支、未合 main），`domain_event.rs` 只存在于该候选。
 **与 ADR 0051 的关系**：ADR 0051 一字不改。它定外壳 `domain-event/1` 与撤回语义（裁定三）；本 ADR 只定 B/E 的持久撤回 op 落在哪一层合同。
