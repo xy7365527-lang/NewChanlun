@@ -17,7 +17,7 @@
  * 读取，只进子进程环境变量，不打印、不写日志、不落文件。
  */
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { CLIPROXY_BASE_URL, CLIPROXY_CONFIG, extractFirstApiKey, readCliProxyAccessKey } from "./cliproxy-env.mts";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -1165,13 +1165,34 @@ export function loadTriaged(dir: string): Classification | null {
 export const EFFECTIVE_CLASS_FILE = "classify.effective.json";
 export interface EffectiveP { klass: "P"; reason: string; commentsSeen: number }
 
-/** 读回已转 P 记录；缺失、坏或非 P 一律不认。转 P 只收紧，下一轮不得回到 T。 */
-export function loadEffectiveP(dir: string): EffectiveP | null {
+function persistEffectiveP(dir: string, record: EffectiveP) {
+  const path = join(dir, EFFECTIVE_CLASS_FILE);
+  const pending = path + ".pending";
+  const fd = openSync(pending, "wx");
   try {
-    const j = JSON.parse(readFileSync(join(dir, EFFECTIVE_CLASS_FILE), "utf8")) as Partial<EffectiveP>;
-    if (j.klass !== "P" || typeof j.reason !== "string" || !j.reason) return null;
-    return { klass: "P", reason: j.reason, commentsSeen: typeof j.commentsSeen === "number" ? j.commentsSeen : 0 };
-  } catch { return null; }
+    writeFileSync(fd, JSON.stringify(record, null, 2) + "\n");
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+  renameSync(pending, path);
+}
+
+export function loadEffectiveP(dir: string): EffectiveP | null {
+  const path = join(dir, EFFECTIVE_CLASS_FILE);
+  try {
+    const files = readdirSync(dir);
+    if (files.includes(EFFECTIVE_CLASS_FILE + ".pending")) throw new Error("有效 P 记录写入未完成，停止本票，保留文件待恢复");
+    if (!files.includes(EFFECTIVE_CLASS_FILE)) return null;
+    const j = JSON.parse(readFileSync(path, "utf8")) as Partial<EffectiveP> | null;
+    if (!j || j.klass !== "P" || typeof j.reason !== "string" || !j.reason ||
+        (j.commentsSeen !== undefined && (!Number.isSafeInteger(j.commentsSeen) || j.commentsSeen < 0))) {
+      throw new Error("有效 P 记录内容非法");
+    }
+    return { klass: "P", reason: j.reason, commentsSeen: j.commentsSeen ?? 0 };
+  } catch (e) {
+    throw new Error(`有效 P 记录不可用，停止本票，保留文件待恢复。${e instanceof Error ? e.message : String(e)}`);
+  }
 }
 
 /** 分级评论正文；票上已有编排者同文评论时不再重发。 */
@@ -1270,7 +1291,8 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
     let triaged = resume ? null : loadTriaged(dir);
     if (triaged && resumeStaleBecauseReopen(prevSummary(dir), t.comments)) triaged = null;
     // 上一轮已转 P：只收紧，本轮不得回到 T。水印后有退回则与 triaged 同口径作废。
-    let effP = resume ? null : loadEffectiveP(dir);
+    const savedP = loadEffectiveP(dir);
+    let effP = resume ? null : savedP;
     if (effP && resumeStaleBecauseReopen(effP, t.comments)) effP = null;
     if (effP && triaged) triaged = { ...triaged, klass: "P", reason: effP.reason };
 
@@ -1323,7 +1345,7 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
     s = { ...initialState(cls.klass), convertedToP: !!effP && cls.klass === "P" && cls.reason === effP.reason };
     let effCls: Classification = cls;
     // 运行中转 P 即落盘有效分级；classify.json 原件不动。
-    const markP = () => writeJson(join(dir, EFFECTIVE_CLASS_FILE), { klass: "P", reason: effCls.reason, commentsSeen: t.comments.length });
+    const markP = () => persistEffectiveP(dir, { klass: "P", reason: effCls.reason, commentsSeen: t.comments.length });
     const counts = { pass: 0, block: 0, parseError: 0 };
     summary.reviewCounts = counts;
     summary.reclassNotes = [];

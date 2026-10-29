@@ -1593,3 +1593,22 @@ test("M1 实际转 P 短写与首次创建中断后必须停止，不能把临�
     assert.ok(!second.plannedWrites.some(w => w.startsWith("分支 decision/")));
   }
 });
+
+
+test("M1 已有 T 落地断点也不能绕过损坏 P 记录，未完成的新记录不能被旧 P 覆盖", async () => {
+  const { d, modelCalls } = fakeDeps("dry-run", []);
+  const dir = join(d.outRoot, "1531");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "summary.json"), JSON.stringify({ ticket: 1531, mode: "dry-run", phase: "error", stage: "reviewed_pass", klass: "T", attempts: 1, durationsMs: {}, plannedWrites: [] }));
+  writeFileSync(join(dir, "draft.md"), goodDraft);
+  writeFileSync(join(dir, "review.json"), JSON.stringify({ verdict: "PASS", items: [], problems: [] }));
+  assert.equal(loadResume(dir)?.prev.stage, "reviewed_pass");
+  writeFileSync(join(dir, "classify.effective.json"), '{"klass":"P",');
+  const s = await processTicket(1531, d);
+  assert.equal(s.phase, "error");
+  assert.equal(modelCalls.length, 0);
+  assert.ok(!s.plannedWrites.some(w => w.startsWith("分支 decision/")));
+  writeFileSync(join(dir, "classify.effective.json"), JSON.stringify({ klass: "P", reason: "旧转 P", commentsSeen: 0 }));
+  writeFileSync(join(dir, "classify.effective.json.pending"), "");
+  assert.throws(() => loadEffectiveP(dir), /有效 P/);
+});
