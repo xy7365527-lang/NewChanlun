@@ -142,6 +142,7 @@ pub(super) fn audit_generated_in_store(
                 CC004_STEP_KIND,
                 CC005_GROUP_KIND,
                 CC007_FRACTAL_KIND,
+                CC007_DEVELOPMENT_BATCH_KIND,
                 CC054_KNOWLEDGE_KIND,
             ]
             .contains(&kind.as_str())

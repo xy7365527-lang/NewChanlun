@@ -116,7 +116,17 @@ pub(crate) fn with_forced_library_layout_for_test<T>(
 /// 去掉布局组件后的规则串（教义组件部分）与布局；目录轴表等教义侧判据只看前者。
 fn registered(rule_revision: &str) -> Result<(&'static str, Layout), String> {
     let (doctrine, layout) = match rule_revision {
+        #[cfg(test)]
+        "r" => ("r", Layout::Sorted),
+        #[cfg(test)]
+        "r+bounded-layout/1" => ("r", Layout::Bounded1),
+        #[cfg(test)]
+        "test-rule/1" => ("test-rule/1", Layout::Sorted),
         crate::W_STRUCTURE_RULE_REVISION => (crate::W_STRUCTURE_RULE_REVISION, Layout::Bounded1),
+        "s2-axis-quantifiers" => ("s2-axis-quantifiers", Layout::Sorted),
+        "s2-axis-quantifiers+bounded-layout/1" => ("s2-axis-quantifiers", Layout::Bounded1),
+        "s2-axis-quantifiers+new-bi/1+segment-second/2" => ("s2-axis-quantifiers+new-bi/1+segment-second/2", Layout::Sorted),
+        "s2-axis-quantifiers+new-bi/1+segment-second/2+bounded-layout/1" => ("s2-axis-quantifiers+new-bi/1+segment-second/2", Layout::Bounded1),
         "s2-axis-quantifiers+new-bi/1" => ("s2-axis-quantifiers+new-bi/1", Layout::Sorted),
         "s2-axis-quantifiers+new-bi/1+bounded-layout/1" => ("s2-axis-quantifiers+new-bi/1", Layout::Bounded1),
         "s2-axis-quantifiers+new-bi/2" => ("s2-axis-quantifiers+new-bi/2", Layout::Sorted),

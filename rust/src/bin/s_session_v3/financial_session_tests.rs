@@ -1815,7 +1815,69 @@ fn export_real_s3_w_fixture_for_q3() {
 #[test]
 #[ignore = "#1419 P2 V5，保全完整106代SQLite与公开Q，两个独立进程各跑一次"]
 fn export_real_s3_w2_fixture_and_sqlite_for_q3() {
-    export_real_s3_w_fixture_for_q3_impl(true);
+    let output = PathBuf::from(std::env::var("Q3_REAL_EXPORT").expect("V5要求导出路径"));
+    let original = output.with_extension("run").join("s.sqlite");
+    let existed = original.exists();
+    let result = std::panic::catch_unwind(|| export_real_s3_w_fixture_for_q3_impl(true));
+    if let Err(failure) = result {
+        if !existed && original.is_file() {
+            let message = failure
+                .downcast_ref::<String>()
+                .cloned()
+                .or_else(|| {
+                    failure
+                        .downcast_ref::<&str>()
+                        .map(|message| message.to_string())
+                })
+                .unwrap_or_else(|| "非文本panic".to_string());
+            let database = output.with_extension("sqlite");
+            let clock = output.with_extension("clock.json");
+            let preserved = (|| -> Result<(), String> {
+                if !database.exists() {
+                    let conn =
+                        Connection::open_with_flags(&original, OpenFlags::SQLITE_OPEN_READ_ONLY)
+                            .map_err(|error| error.to_string())?;
+                    conn.execute("VACUUM main INTO ?1", [database.to_str().unwrap()])
+                        .map_err(|error| error.to_string())?;
+                }
+                if !clock.exists() {
+                    std::fs::copy(original.parent().unwrap().join("clock.json"), &clock)
+                        .map_err(|error| error.to_string())?;
+                }
+                Ok(())
+            })();
+            let mut manifest = if output.with_extension("manifest.json").exists() {
+                serde_json::from_slice::<Value>(
+                    &std::fs::read(output.with_extension("manifest.json")).unwrap(),
+                )
+                .unwrap()
+            } else {
+                json!({"schema_revision":"s-w2-validation-run/1"})
+            };
+            let failure_details = json!({
+                "schema_revision":"s-w2-validation-run/1",
+                "status":"failed",
+                "head":std::env::var("Q3_EXPORT_HEAD").unwrap(),
+                "original_database":original,
+                "database":database,
+                "clock_plan":clock,
+                "q_export":output,
+                "failure":message,
+                "preservation_error":preserved.err(),
+                "test_binary":std::env::current_exe().unwrap(),
+                "test_arguments":std::env::args().collect::<Vec<_>>()
+            });
+            for (key, value) in failure_details.as_object().unwrap() {
+                manifest[key] = value.clone();
+            }
+            std::fs::write(
+                output.with_extension("manifest.json"),
+                canonical_json(&manifest),
+            )
+            .expect("失败运行manifest必须保全");
+        }
+        std::panic::resume_unwind(failure);
+    }
 }
 
 fn export_real_s3_w_fixture_for_q3_impl(persist: bool) {

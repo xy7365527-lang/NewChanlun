@@ -28,7 +28,8 @@ def compare_databases(left, right):
             sentinel = object()
             count = 0
             for index, (row_a, row_b) in enumerate(itertools.zip_longest(a.execute(query), b.execute(query), fillvalue=sentinel)):
-                assert row_a == row_b, f'SQLite table {table} differs at canonical row {index}'
+                assert row_a is not sentinel and row_b is not sentinel, f'SQLite table {table} row count differs'
+                assert tuple((type(value).__name__, value) for value in row_a) == tuple((type(value).__name__, value) for value in row_b), f'SQLite table {table} differs at canonical row {index}'
                 count += 1
             counts[table] = count
         return counts
@@ -43,8 +44,8 @@ def compare(root):
         compare_databases(root / side / 'w2.run' / 's.sqlite', root / side / 'w2.sqlite')
     for key in ('head', 'rule_revision', 'publication_generation', 'session_generation', 'sqlite_tables', 'public_generations', 'steps'):
         assert manifests[0][key] == manifests[1][key], f'manifest {key} differs'
-    assert load(root / 'a' / 'w2.json') == load(root / 'b' / 'w2.json'), 'public Q or roots differ'
-    assert load(root / 'a' / 'w2.clock.json') == load(root / 'b' / 'w2.clock.json'), 'clock plans differ'
+    assert (root / 'a' / 'w2.json').read_bytes() == (root / 'b' / 'w2.json').read_bytes(), 'public Q or roots differ'
+    assert (root / 'a' / 'w2.clock.json').read_bytes() == (root / 'b' / 'w2.clock.json').read_bytes(), 'clock plans differ'
     tables = compare_databases(root / 'a' / 'w2.sqlite', root / 'b' / 'w2.sqlite')
     result = {'status': 'complete', 'head': manifests[0]['head'], 'publication_generations': 106, 'canonical_sqlite_tables': tables, 'public_q_equal': True, 'clock_equal': True}
     (root / 'comparison.json').write_text(json.dumps(result, sort_keys=True) + '\n')

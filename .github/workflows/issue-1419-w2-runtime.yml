@@ -26,17 +26,28 @@ jobs:
           git status --porcelain > "$RUNNER_TEMP/w2-runtime/source-status.txt"
           printf '%s\n' "$GITHUB_RUN_ID" > "$RUNNER_TEMP/w2-runtime/run-id.txt"
           cp rust/Cargo.lock "$RUNNER_TEMP/w2-runtime/Cargo.lock"
-      - name: Execute complete named V1 and V4 locks
+      - name: Execute complete named V1 V2 and V4 locks
         shell: bash
         working-directory: rust
         run: |
           set -euo pipefail
           out="$RUNNER_TEMP/w2-runtime"
-          for test in v3::tests::w_successor_rule_is_exact_and_maps_to_cf22_axes v3::tests::structure_writer_does_not_rewrite_historical_rule_domains v3::tests::w2_exact_publication_rule_and_archival_dispatch v3::projection::tests::w2_replacement_scope_revision_and_no_fallback; do
+          for test in v3::tests::w_successor_rule_is_exact_and_maps_to_cf22_axes v3::tests::structure_writer_does_not_rewrite_historical_rule_domains v3::tests::w2_exact_publication_rule_and_archival_dispatch v3::projection::tests::w2_replacement_scope_revision_and_no_fallback v3::projection::tests::w_published_lifecycle_first_known_revision_replaces_and_recovery; do
             log="$out/${test//::/_}.log"
             cargo test --locked --release --features s_session --bin s_structure_session --jobs 1 -- --exact "$test" --nocapture 2>&1 | tee "$log"
             grep -F 'test result: ok. 1 passed;' "$log"
           done
+      - name: Execute affected source delta regressions
+        shell: bash
+        working-directory: rust
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/w2-runtime"
+          filter=v3::source_audit::source_delta::tests
+          cargo test --locked --release --features s_session --bin s_structure_session --jobs 1 -- "$filter" --list | tee "$out/source-delta-list.log"
+          grep -F ': test' "$out/source-delta-list.log"
+          cargo test --locked --release --features s_session --bin s_structure_session --jobs 1 -- "$filter" --nocapture 2>&1 | tee "$out/source-delta.log"
+          grep -E 'test result: ok[.] [1-9][0-9]* passed;' "$out/source-delta.log"
       - name: Export A then B in independent processes
         shell: bash
         working-directory: rust

@@ -1428,6 +1428,52 @@ fn w2_group_contains(
     Ok(false)
 }
 
+fn w2_audit_group_contains(
+    s: &mut (impl CodecStore + ?Sized),
+    raw: &Entry,
+    group: &Entry,
+) -> Result<bool, String> {
+    if raw.kind.as_str() != "CC-004.undetermined_raw"
+        || group.kind.as_str() != "CC-005.inclusion_group"
+    {
+        return Ok(false);
+    }
+    let original = built_ref(s, &raw.generated)?;
+    let sources = field_ref(s, original.view(), "source_coords_json")?;
+    let sources = s
+        .lookup_ref(sources.view(), &[PathStep::JsonText])
+        .map_err(err)?;
+    if sources.kind() != Kind::Array || sources.extent() != Some(1) {
+        return Err(err("未定原件必须有一个来源坐标"));
+    }
+    let source = s
+        .lookup_ref(sources.view(), &[PathStep::Index(0)])
+        .map_err(err)?;
+    let coord = bj::read_text(s, source.view()).map_err(err)?;
+    let generated = built_ref(s, &group.generated)?;
+    let payload = field_ref(s, generated.view(), "payload_json")?;
+    let payload = s
+        .lookup_ref(payload.view(), &[PathStep::JsonText])
+        .map_err(err)?;
+    if field_ref(s, payload.view(), "direction")?.kind() == Kind::Null {
+        return Ok(false);
+    }
+    let members = field_ref(s, payload.view(), "members")?;
+    let count = members
+        .extent()
+        .filter(|_| members.kind() == Kind::Array)
+        .ok_or_else(|| err("定向组原件members不是数组"))?;
+    for n in 0..count {
+        let member = s
+            .lookup_ref(members.view(), &[PathStep::Index(n)])
+            .map_err(err)?;
+        if bj::read_text(s, member.view()).map_err(err)? == coord {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 fn w2_replacing_group(
     s: &mut (impl CodecStore + ?Sized),
     raw: &Entry,
@@ -2130,7 +2176,7 @@ fn validate_withdrawal_target(
                 let target = &index[*by_id.get(id).ok_or_else(|| err("替代目标不存在"))?];
                 if !(target.slot == e.slot
                     || (crate::w_revision(rule) == Some(crate::WRevision::W2)
-                        && w2_group_contains(s, e, target)?))
+                        && w2_audit_group_contains(s, e, target)?))
                     || target.life.first_known_generation > death
                     || target.life.withdrawn_generation.is_some_and(|d| d <= death)
                 {
@@ -3367,11 +3413,16 @@ pub(super) fn verify_generated_members_swept_with_records<'a>(
             && e.kind.as_str() == "CC-004.undetermined_raw"
         {
             for (n, candidate) in new.iter().enumerate() {
-                let group = index
-                    .iter()
-                    .find(|entry| entry.id.as_str() == candidate.object_id.as_str())
-                    .ok_or_else(|| err("替代候选不在身份史内"))?;
-                if w2_group_contains(s, e, group)? {
+                let group = match sweep {
+                    Some(sweep) => sweep
+                        .events
+                        .by_id
+                        .get(candidate.object_id.as_str())
+                        .map(|i| &index[*i]),
+                    None => by_id.get(candidate.object_id.as_str()).copied(),
+                }
+                .ok_or_else(|| err("替代候选不在身份史内"))?;
+                if w2_audit_group_contains(s, e, group)? {
                     if target.replace(n).is_some() {
                         return Err(err("未定原件有多个替代候选"));
                     }
