@@ -1139,6 +1139,34 @@ mod tests {
         rt.dispatch(path, body).unwrap().recv().unwrap()
     }
     #[test]
+    #[ignore = "historical published Q baseline export"]
+    fn export_layout1_published_q_baseline_5123() {
+        let out = std::path::PathBuf::from(std::env::var("NC_EXPORT_DIR").unwrap());
+        let path = out.join("historical-published-layout1.sqlite");
+        let r = resources();
+        let rt = Runtime::new(path.clone(), Arc::clone(&r), "7").unwrap();
+        let mut reader = AuditReader::new(path, &r);
+        let mut baseline = Vec::new();
+        for generation in 1..=4 {
+            let p = reader.with_capture(&r, &mut ServerAccess::new(&r), |c, a| {
+                c.projection(generation, HistoryMode::AsKnown, a)
+            }).unwrap();
+            let fixed = &plain_wire(&p)["fixed_cut"];
+            let request = envelope(fixed, json!({"op":"snapshot", "session_id":fixed["session_id"],
+                "session_generation":fixed["session_generation"], "scope":fixed["scope"],
+                "history_mode":"AsKnown", "as_of_generation":generation.to_string(),
+                "page_size":"1", "order_version":plain_wire(&p)["order_version"]}));
+            let page = call(&rt, "/api/v3/snapshot", &request);
+            let content = envelope(fixed, json!({"op":"content","anchor":p.anchor(),
+                "path":[{"field":"rows"}],"unit":"items","offset":"0","limit":"1"}));
+            let content = call(&rt, "/api/v3/content", &content);
+            baseline.push(json!({"projection":plain_wire(&p), "snapshot":strict_json(page.body()).unwrap(),
+                "content":strict_json(content.body()).unwrap()}));
+        }
+        std::fs::write(out.join("historical-published-q-baseline.json"),
+            serde_json::to_vec(&baseline).unwrap()).unwrap();
+    }
+    #[test]
     fn three_routes_use_only_frozen_q21_and_actual_worker_capture() {
         let mut f = Fixture::new();
         publish(&mut f, 1);
