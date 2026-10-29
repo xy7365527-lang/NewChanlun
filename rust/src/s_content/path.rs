@@ -2109,11 +2109,8 @@ where
                 }
                 let kind = Kind::from_tag(t).ok_or_else(|| unsupported_value_tag_error(t))?;
                 let extent = header_extent(t, &body)?;
-                let member_ref = ContentRef {
-                    kind,
-                    digest: value,
-                    extent,
-                };
+                // 复用 native_reference 构造 ContentRef，与 lookup_array_output_inner 同口径
+                let member_ref = native_reference::<ContentRef>(source, kind, value, extent)?;
                 visit(source, base_index, &member_ref)?;
             }
         }
