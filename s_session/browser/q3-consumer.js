@@ -411,7 +411,8 @@
   // #1393 W：W 字段中的原始 bar 必须逐值等于其八键引用的原始修订；逐发生边界核同 cut 初始化链接。
   // #1393×#1419：typed 对象的规则版本绑定与内容身份（单对象判据；候选全量校验与公开入口共用）。
   async function tb02Identity(record, rule, profile, protocol) {
-    const baseRule = typed.protocolRule(rule, protocol), wPolicy = baseRule !== rule, kind = await t(record, "kind");
+    // W 判据比对的是去布局组件后的教义串（#1491 布局组件与 W 后缀正交）；身份仍绑完整 rule。
+    const baseRule = typed.protocolRule(rule, protocol), wPolicy = baseRule !== typed.splitRule(rule).doctrine, kind = await t(record, "kind");
     const [biSchema, segmentSchema, contractDomain] = typed.RULE_CONTRACTS[baseRule];
     const domain = wPolicy ? typed.W_KNOWLEDGE_DOMAIN : contractDomain;
     const payload = await f(record, "payload");
@@ -438,7 +439,8 @@
   }
   async function bindInitialization(snapshot, raw, wRecords) {
     const ruleText = await s(snapshot, "rule_revision"),
-      wPolicy = typed.baseRule(ruleText) !== ruleText;
+      doctrine = typed.splitRule(ruleText).doctrine,
+      wPolicy = typed.baseRule(doctrine) !== doctrine;
     for (const r of wRecords) {
       const refs = new Map(r.input_refs.map((x) => [x.source_coord, x])), p = r.payload, bars = [];
       if (r.kind === "CC-004.undetermined_raw") bars.push(p.raw);
@@ -498,7 +500,9 @@
       (r.kind === "CC-005.inclusion_group" && Object.hasOwn(r.payload, "initialization_policy_revision")));
     await bindInitialization(of(plainSnapshot), { byId }, wRecords);
   }
-  async function bindSources(snapshot, charge = () => {}) {
+  // #1491：`layout` 由调用方从本 cut 的 rule_revision 布局组件取得（ADR 0037 §六，按版本分派）。
+  // 未给出 ⟹ 调用方读的是 v1/v2 快照（ADR 0037 之前的写者，按定义 layout/1）。
+  async function bindSources(snapshot, charge = () => {}, layout = typed.LAYOUTS.LAYOUT1) {
     const raw = await auditRaw(snapshot, charge),
       groups = new Map(),
       shapes = new Map(),
@@ -510,7 +514,7 @@
         charge();
         records.push(record);
         const kind = await t(record, "kind");
-        if (typed.TB02_KINDS.includes(kind)) await typed.validateTyped(record);
+        if (typed.TB02_KINDS.includes(kind)) await typed.validateTyped(record, layout);
         else {
           // 未声明 kind 不得落入 CC-006 形态判据（#1419 独审 P1）。
           need(kind === "CC-006.local_shape", "未声明的对象 kind");
@@ -669,6 +673,8 @@
       need(selected.length === 3, "形态组缺失");
       bound.set(id, selected);
     }
+    // #1491 bounded-layout/1：CC-007 三跳只读绑定（分型对象 → 批记录 entry → 单元序列）。
+    await typed.bindDevelopmentBatches(records, layout);
     return { raw, records, shapes, bound };
   }
   async function shapeIdentity(
@@ -1397,7 +1403,7 @@
         rule = await s(snapshot, "rule_revision");
       // 空会话也必须先声明已知规则，不能等首次发布才选择合同。
       // #1393×#1419：完整规则串先经精确白名单映射基规则（未知/剥后缀串在此拒绝）。
-      const baseRule = typed.protocolRule(rule, protocol), wPolicy = baseRule !== rule;
+      const baseRule = typed.protocolRule(rule, protocol), wPolicy = baseRule !== typed.splitRule(rule).doctrine;
       need(RULE_AXES.has(baseRule), "cut规则修订未声明");
       if (generation === "0") {
         need(profile && /^[0-9a-f]{64}$/.test(ph), "cut0无冻结profile");
@@ -1489,7 +1495,11 @@
           "cut规则目录轴",
         );
       await catalogValidate(catalog, snapshot);
-      const binding = await bindSources(snapshot, charge);
+      const binding = await bindSources(
+        snapshot,
+        charge,
+        typed.splitRule(rule).layout,
+      );
       await bindSegmentSequences(snapshot);
       await bindCenterFamily(snapshot, generation);
       for (const record of binding.records) {

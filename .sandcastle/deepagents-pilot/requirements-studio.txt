@@ -1,0 +1,5 @@
+-c requirements.lock
+langgraph-cli[inmem]==0.4.40
+langgraph-api==0.16.7
+langgraph-runtime-inmem==0.36.7
+starlette==1.10.0

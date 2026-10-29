@@ -58,6 +58,9 @@ pub(super) const CC004_INITIALIZATION_KIND: &str = "CC-004.initialization";
 pub(super) const CC004_UNDETERMINED_KIND: &str = "CC-004.undetermined_raw";
 /// W 等待期唯一的等待原因（与 v2 `tb02a_facts` 同词）。
 pub(super) const INITIAL_UNSETTLED: &str = "initial_direction_unsettled";
+/// #1491 ADR 0037 §二：bounded-layout/1 的 CC-007 单元批记录 kind（布局组件，不新增目录轴；
+/// 目录轴 CC-007 下与分型描述并列）。layout/1 库不产此 kind。
+pub(super) const CC007_DEVELOPMENT_BATCH_KIND: &str = "CC-007.development_batch";
 /// 对象发布修订。内容身份不含修订，修订只进记录（与全量配方同值）。
 const OBJECT_REVISION: i64 = 1;
 /// §5.3 的类型化对象身份帧：`F(0x20, V)`。
@@ -343,6 +346,38 @@ struct FractalHistory {
     union_tail: CoordsRef,
     /// 单元值序列（0x11/0x12/0x13 规范 M 树）。
     sequence: SequenceRef,
+    /// #1491 bounded-layout/1：逐单元前缀读数（与 `sequence` 同序同长）；layout/1 恒空。
+    prefixes: Rc<Vec<DevelopmentUnit>>,
+}
+
+/// #1491 ADR 0037 §二：一个分型的一个比较单元及其截至本单元的单元数组读数。
+///
+/// `unit` 是 `{bar, relations[24]}` 值根（即单元序列的叶）；`root`/`count` 是该分型从首个
+/// 后续 bar 到本 bar 的单元数组（0x05）根与元素数——与 layout/1 分型载荷
+/// `subsequent_development.bars` 在同一 raw 前缀上的数组逐位相同（同一 §5.2 编码）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct DevelopmentUnit {
+    /// 本单元 bar 的源坐标。
+    pub coord: i64,
+    /// 单元值根。
+    pub unit: NodeDigest,
+    /// 截至本单元的单元数组根。
+    pub root: NodeDigest,
+    /// 截至本单元的单元数。
+    pub count: u64,
+}
+
+/// #1491 bounded-layout/1：一个分型本代的完整单元前缀读数与本代重算起点。
+#[derive(Debug, Clone)]
+pub(super) struct FractalDevelopment {
+    /// 全部单元（坐标升序）；与 producer memo 共享同一份。
+    pub units: Rc<Vec<DevelopmentUnit>>,
+    /// `units[..recomputed_from]` 与上一代同一分型逐项相同（续接复用）；其后本代重算。
+    pub recomputed_from: usize,
+    /// 本代续接所用的源修订失效水位（`FractalHistory::floor`，即实际变化坐标的最小值，
+    /// 坐标移动时为 min(旧坐标, 新坐标)）；`None` = 无源修订。下游判脏只经此值与
+    /// `recomputed_from` 取起点，不另写一份判据（#1780 独审 C-1）。
+    pub invalidated_from: Option<i64>,
 }
 
 /// 一代 raw 账本的一次**受控准备**结果（owner/epoch 见证）。
@@ -644,6 +679,8 @@ pub(super) struct Cc007Object {
     pub generation: i64,
     /// 本次生成态投射的 cut；实际首获知 cut 仍由独立索引核定。
     pub cut: String,
+    /// #1491 bounded-layout/1：本分型单元读数（进 `CC-007.development_batch`）；layout/1 为 `None`。
+    pub development: Option<FractalDevelopment>,
 }
 
 /// 已核字段的借用值；不把核对象来源的职责藏入身份哈希。
@@ -811,7 +848,22 @@ impl Cc004Producer {
                 "producer.fractal_histories.sequence",
                 history.sequence.root(),
             );
+            for unit in history.prefixes.iter() {
+                f("producer.fractal_histories.prefix_unit", unit.unit);
+                f("producer.fractal_histories.prefix_root", unit.root);
+            }
         }
+    }
+
+    /// #1491：本 producer 冻结规则串的内容布局（ADR 0037 §五）；CC-007 承载与 CC-054 请求次序
+    /// 只经此处分派，不另设默认布局。
+    pub(super) fn layout(&self) -> Result<crate::v3::layout::Layout, ProducerError> {
+        crate::v3::layout::Layout::of_rule(&self.rule_revision).map_err(|detail| {
+            ProducerError::Type {
+                what: "rule_revision 布局组件",
+                detail,
+            }
+        })
     }
 
     /// 会话冻结身份（进 §5.3 的六字段配方）。
@@ -1098,6 +1150,32 @@ impl Cc004Producer {
         cut: &str,
     ) -> Result<TypedObject, ProducerError> {
         let payload = sc::write_value(&mut *store, &payload_value)?;
+        self.typed_object_built(
+            store,
+            kind,
+            fact_key,
+            payload,
+            input_refs,
+            source_coords,
+            generation,
+            cut,
+        )
+    }
+
+    /// [`Self::typed_object`] 的已写载荷入口：载荷值根由调用方给出（同一份身份配方与记录字段，
+    /// 不另起第二种）。供跨代复用载荷值根的单元批记录使用，不重写未变载荷。
+    #[allow(clippy::too_many_arguments)]
+    fn typed_object_built(
+        &self,
+        store: &mut dyn NodeStore,
+        kind: &str,
+        fact_key: String,
+        payload: Built,
+        input_refs: Built,
+        source_coords: Built,
+        generation: i64,
+        cut: &str,
+    ) -> Result<TypedObject, ProducerError> {
         let payload_json = Built {
             digest: put_json_text_node(&mut *store, &payload.digest)?,
             kind: Kind::JsonText,
@@ -1645,6 +1723,84 @@ impl Cc004Producer {
         })
     }
 
+    /// #1491 ADR 0037 §二：一根后续 bar 的 `CC-007.development_batch` 记录。
+    ///
+    /// - fact_key = `[kind, bar.source_coord]`；来源 = 本 bar（分型的参考价来源经
+    ///   `fractal_object_id` 绑定分型对象，不在此重复）；
+    /// - payload = `{bar, entries:[{fractal_object_id, unit, development:{root, count}}]}`，
+    ///   `entries` 次序由调用方给出（按分型窗口序，ADR 0054 / #1783，见 `development_batches`），每项的 `unit` 是该分型在本 bar 的比较单元值边、
+    ///   `development` 是该分型截至本 bar 的单元数组根与计数——都是同核已写出的内容，本口不重算比较；
+    /// - `payload` 给出时为上一代同 bar、entries 逐项相同的载荷值根，直接复用、不重写。
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn build_development_batch(
+        &mut self,
+        store: &mut dyn NodeStore,
+        prepared: &PreparedRawHistory<'_>,
+        coord: usize,
+        entries: &[(&str, &DevelopmentUnit)],
+        payload: Option<Built>,
+        generation: i64,
+        cut: &str,
+    ) -> Result<TypedObject, ProducerError> {
+        self.check_prepared(prepared)?;
+        let payload = match payload {
+            Some(payload) => payload,
+            None => {
+                if entries.is_empty() {
+                    return Err(ProducerError::Type {
+                        what: "CC-007 单元批记录",
+                        detail: format!("bar {coord} 没有任何分型单元：不发空批记录"),
+                    });
+                }
+                let bar = raw_bar_at(prepared.raw, coord)?;
+                let mut items: Vec<CValue> = Vec::with_capacity(entries.len());
+                for (fractal_object_id, unit) in entries {
+                    if usize::try_from(unit.coord).ok() != Some(coord) {
+                        return Err(ProducerError::Type {
+                            what: "CC-007 单元批记录",
+                            detail: format!("单元坐标 {} 不是本 bar {coord}", unit.coord),
+                        });
+                    }
+                    items.push(CValue::Object(vec![
+                        (
+                            "fractal_object_id".to_string(),
+                            CValue::String((*fractal_object_id).to_string()),
+                        ),
+                        ("unit".to_string(), CValue::Edge(unit.unit)),
+                        (
+                            "development".to_string(),
+                            CValue::Object(vec![
+                                ("root".to_string(), CValue::Edge(unit.root)),
+                                ("count".to_string(), CValue::String(unit.count.to_string())),
+                            ]),
+                        ),
+                    ]));
+                }
+                sc::write_value(
+                    &mut *store,
+                    &CValue::Object(vec![
+                        ("bar".to_string(), bar_value(bar)),
+                        ("entries".to_string(), CValue::Array(items)),
+                    ]),
+                )?
+            }
+        };
+        let coords = coords_ref_from_slice(&[coord]);
+        let input_refs = self.source_refs_array(&mut *store, &coords)?;
+        let source_coords = self.coords_array(&mut *store, &coords)?;
+        let fact_key = canonical_json(&json!([CC007_DEVELOPMENT_BATCH_KIND, coord.to_string()]));
+        self.typed_object_built(
+            store,
+            CC007_DEVELOPMENT_BATCH_KIND,
+            fact_key,
+            payload,
+            input_refs,
+            source_coords,
+            generation,
+            cut,
+        )
+    }
+
     /// 一代 raw 账本的一次**受控准备**：排序、source 存在与每根 bar 的精确单元内容键
     /// 全在一次遍历里核完，并把自上次准备以来的源修订水位一次并入全部已保留窗口。
     ///
@@ -2081,11 +2237,19 @@ impl Cc004Producer {
         let tail_first = raw_bars.get(tail_start).map(|bar| bar.source_index);
         let union_skip_first = tail_first.is_some() && shape.sources.max() == tail_first;
         // prepare 已把实际 source/raw 变化一次传播到每个窗口；这里仅按坐标二分截断。
+        let layout = self.layout()?;
+        // 穷举分派：布局枚举扩展时此处编译期报错，不静默落 layout/1（#1780 独审 L-1）。
+        let bounded = match layout {
+            crate::v3::layout::Layout::Sorted => false,
+            crate::v3::layout::Layout::Bounded1 => true,
+        };
         let cached = self.fractal_histories.remove(&(refs_key.clone(), end));
         // 截断不先落 split 前缀根：保留数与新尾在循环后一次 `sequence_rebuild_suffix`（#1488 S3）。
-        let (previous, mut covered, mut union_tail) = match cached {
+        let mut invalidated_from = None;
+        let (previous, mut covered, mut union_tail, mut prefixes) = match cached {
             Some(history) if history.tail_start == tail_start && history.count <= tail_len => {
                 let count = history.count;
+                invalidated_from = history.floor;
                 let keep = history.floor.map_or(count, |floor| {
                     raw_bars
                         .range(tail_start..tail_start + count)
@@ -2096,6 +2260,7 @@ impl Cc004Producer {
                 });
                 let sequence = history.sequence;
                 let mut union_tail = history.union_tail;
+                let mut prefixes = history.prefixes;
                 if keep < count {
                     self.history_invalidated += count - keep;
                     // 只在实际修订时重建保留的坐标尾；普通追加保留共享链。
@@ -2108,18 +2273,37 @@ impl Cc004Producer {
                         kept.remove(0);
                     }
                     union_tail = coords_ref_from_slice(&kept);
+                    if bounded {
+                        Rc::make_mut(&mut prefixes).truncate(keep);
+                    }
                 }
                 self.history_reused += keep;
-                (sequence, keep, union_tail)
+                (sequence, keep, union_tail, prefixes)
             }
             Some(history) => {
                 self.history_invalidated += history.count;
-                (SequenceRef::empty(), 0, CoordsRef::empty())
+                (SequenceRef::empty(), 0, CoordsRef::empty(), Rc::default())
             }
-            None => (SequenceRef::empty(), 0, CoordsRef::empty()),
+            None => (SequenceRef::empty(), 0, CoordsRef::empty(), Rc::default()),
         };
         let appended_from = covered;
+        if bounded && prefixes.len() != appended_from {
+            return Err(ProducerError::Type {
+                what: "CC-007 单元前缀读数",
+                detail: format!(
+                    "前缀读数 {} 项与续接保留 {appended_from} 项不符",
+                    prefixes.len()
+                ),
+            });
+        }
         let mut leaves: Vec<NodeDigest> = Vec::with_capacity(tail_len - appended_from);
+        // bounded-layout/1：逐单元续接，使每个前缀数组根都是真实发布值（批记录 entry 引用它）；
+        // 与整段 `sequence_rebuild_suffix` 逐位同根（同一 §5.2 规范分解）。
+        let mut running = if bounded {
+            Some(previous.clone())
+        } else {
+            None
+        };
         for (offset, bar) in raw_bars
             .range(tail_start + appended_from..raw_bars.len())
             .iter()
@@ -2155,23 +2339,50 @@ impl Cc004Producer {
                 union_tail = union_tail.append_greater(bar.source_index);
             }
             covered += 1;
+            if let Some(sequence) = running.as_mut() {
+                // 首单元在续接保留点截断旧尾，其后每次只接一叶。
+                let keep = (covered - 1) as u64;
+                *sequence = sc::sequence_rebuild_suffix(&mut *store, sequence, keep, &[leaf])?;
+                let count = u64::try_from(covered).map_err(|_| {
+                    ProducerError::Overflow(format!("后续单元数 {covered} 超出 u64"))
+                })?;
+                let coord = i64::try_from(bar.source_index).map_err(|_| {
+                    ProducerError::Overflow(format!("源坐标 {} 超出 i64", bar.source_index))
+                })?;
+                let root = put_array_node(&mut *store, count, &sequence.root())?;
+                Rc::make_mut(&mut prefixes).push(DevelopmentUnit {
+                    coord,
+                    unit: leaf,
+                    root,
+                    count,
+                });
+            }
         }
-        let sequence = {
-            #[cfg(test)]
-            let _phase = tests::emission_phase("fractal_sequence_append");
-            sc::sequence_rebuild_suffix(&mut *store, &previous, appended_from as u64, &leaves)?
+        let sequence = match running {
+            Some(sequence) if covered > appended_from => sequence,
+            _ => {
+                #[cfg(test)]
+                let _phase = tests::emission_phase("fractal_sequence_append");
+                sc::sequence_rebuild_suffix(&mut *store, &previous, appended_from as u64, &leaves)?
+            }
         };
         self.history_computed += covered - appended_from;
         let units_count = u64::try_from(covered)
             .map_err(|_| ProducerError::Overflow(format!("后续单元数 {covered} 超出 u64")))?;
-        let units_array = Built {
-            digest: {
-                #[cfg(test)]
-                let _phase = tests::emission_phase("fractal_units_array");
-                put_array_node(&mut *store, units_count, &sequence.root())?
-            },
-            kind: Kind::Array,
-            extent: Some(units_count),
+        // layout/1 的分型载荷携整条单元数组；bounded-layout/1 的数组根已逐前缀进单元读数，
+        // 不再另写一份（否则成为不可达节点）。
+        let units_array = if bounded {
+            None
+        } else {
+            Some(Built {
+                digest: {
+                    #[cfg(test)]
+                    let _phase = tests::emission_phase("fractal_units_array");
+                    put_array_node(&mut *store, units_count, &sequence.root())?
+                },
+                kind: Kind::Array,
+                extent: Some(units_count),
+            })
         };
         let no_future = covered == 0;
         self.fractal_histories.insert(
@@ -2183,11 +2394,22 @@ impl Cc004Producer {
                 floor: None,
                 union_tail: union_tail.clone(),
                 sequence,
+                prefixes: Rc::clone(&prefixes),
             },
         );
+        let development = bounded.then(|| FractalDevelopment {
+            units: prefixes,
+            recomputed_from: appended_from,
+            invalidated_from,
+        });
         // 本对象的来源 = CC-006 窗来源链 ++ 后续 tail 的**去重增量**（首项若已由封口链
-        // 覆盖即跳过；两段严格升序且不交叠）。
-        let all_sources = CoordsRef::concat(&shape.sources, &union_tail);
+        // 覆盖即跳过；两段严格升序且不交叠）。bounded-layout/1 的分型对象不含后续单元，
+        // 来源只取基础来源（＝右组来源链 `shape.sources`），后续 bar 的来源进单元批记录。
+        let all_sources = if bounded {
+            shape.sources.clone()
+        } else {
+            CoordsRef::concat(&shape.sources, &union_tail)
+        };
         // `descriptive_labels.raw_ohlc`：三组全部成员的原始 bar（按 左→中→右、组内升序）。
         let mut label_sources: Vec<usize> = Vec::new();
         let mut raw_ohlc: Vec<CValue> = Vec::new();
@@ -2200,7 +2422,7 @@ impl Cc004Producer {
         }
         let raw_ohlc = sc::write_value(&mut *store, &CValue::Array(raw_ohlc))?;
         let branch = shape.branch;
-        let payload_value = CValue::Object(vec![
+        let mut payload_fields = vec![
             (
                 "shape_object_id".to_string(),
                 CValue::String(shape.object_id.clone()),
@@ -2247,7 +2469,11 @@ impl Cc004Producer {
                     ("raw_ohlc".to_string(), CValue::Edge(raw_ohlc.digest)),
                 ]),
             ),
-            (
+        ];
+        // bounded-layout/1（ADR 0037 §二）：分型描述对象不含后续单元，只在基础来源修订时出新版；
+        // 已实现后续发展进 `CC-007.development_batch`，「尚无后续 bar」由 CC-054 待决请求承载。
+        if let Some(units_array) = &units_array {
+            payload_fields.push((
                 "subsequent_development".to_string(),
                 CValue::Object(vec![
                     (
@@ -2271,15 +2497,18 @@ impl Cc004Producer {
                     ),
                     ("bars".to_string(), CValue::Edge(units_array.digest)),
                 ]),
-            ),
-        ]);
+            ));
+        }
+        let payload_value = CValue::Object(payload_fields);
         let window_text: Vec<String> = shape.window.iter().map(ToString::to_string).collect();
         let fact_key = canonical_json(&json!([CC007_FRACTAL_KIND, window_text.clone()]));
         // 同 kernel 的方向/封口证据递推完整 raw 前缀；右组 sources 加去重 tail
         // 恰为完整生效 raw（含稀疏坐标）。只有不可伪造的同次 parser 窗承载此命题。
         // 首窗仍在原位置走原 array 构造（含原 put）；成功后如 ArrayCache 一样仅 memo
         // 生成结果。它不授予 checked frame，不能省写前/后续审计或发布闭包核。
-        let (input_refs, source_coords) = if let Some(session) = shared.as_deref_mut() {
+        // bounded-layout/1 的分型来源是各自的基础来源，不是完整生效 raw ⟹ 不走同次 parser 共享数组。
+        let session_arrays = if bounded { None } else { shared.as_deref_mut() };
+        let (input_refs, source_coords) = if let Some(session) = session_arrays {
             match &session.arrays {
                 Some(arrays) => arrays.clone(),
                 None => {
@@ -2327,19 +2556,24 @@ impl Cc004Producer {
         };
         let mut requests: Vec<Built> = Vec::with_capacity(3);
         let label_coords = coords_ref_from_slice(&label_sources);
-        for (label, reasons, sources) in [
+        let mut slots = vec![
             ("shape_description", Vec::new(), shape.sources.clone()),
             (
                 "descriptive_labels",
                 vec!["no_settled_numeric_rule"],
                 label_coords,
             ),
-            (
+        ];
+        // bounded-layout/1：后续发展请求只在尚无后续 bar 时作待决请求发出（来源＝基础来源）；
+        // 有后续 bar 时已实现发展由单元批记录承载，不再挂请求。
+        if !bounded || no_future {
+            slots.push((
                 "subsequent_development",
                 request_reasons.clone(),
                 all_sources.clone(),
-            ),
-        ] {
+            ));
+        }
+        for (label, reasons, sources) in slots {
             let key = CValue::Array(vec![slot_key(), CValue::String(label.to_string())]);
             let coords = if shared.is_some() && label == "subsequent_development" {
                 object.source_coords.clone()
@@ -2367,6 +2601,7 @@ impl Cc004Producer {
             knowledge_reasons,
             generation,
             cut: cut.to_string(),
+            development,
         }))
     }
 

@@ -60,8 +60,9 @@ use super::{content_structure, object_records};
 use crate::content_bi::{BiBuildInputView, BiLedgerView, ContentBi, PriorState};
 use crate::content_producer::{
     array_from_sequence, group_reasons_admitted, raw_prefix_coords, Cc004Producer, Cc006Object,
-    Cc007Object, ParserFractalShape, ProducerError, RawRefSpec, TypedObject, CC004_STEP_KIND,
-    CC005_GROUP_KIND, CC006_SHAPE_KIND, CC007_FRACTAL_KIND, CC054_KNOWLEDGE_KIND,
+    Cc007Object, FractalDevelopment, ParserFractalShape, PreparedRawHistory, ProducerError,
+    RawRefSpec, TypedObject, CC004_STEP_KIND, CC005_GROUP_KIND, CC006_SHAPE_KIND,
+    CC007_DEVELOPMENT_BATCH_KIND, CC007_FRACTAL_KIND, CC054_KNOWLEDGE_KIND,
 };
 use crate::s_fact_cache;
 use newchan_rust::s_content::path::PathStep;
@@ -387,6 +388,11 @@ pub(super) struct GenerationRuntime {
     witnesses_seq: SequenceMemo,
     relations_seq: SequenceMemo,
     observations_seq: SequenceMemo,
+    /// #1491 bounded-layout/1：单元批记录载荷 memo（bar 坐标 → 上一代载荷值根）。只是不重写
+    /// 未变载荷的性能结构：脏 bar 一律按本代单元读数重建，memo 不充任准入/证据权威。
+    development_batches: std::collections::BTreeMap<i64, Built>,
+    /// #1491：上一代各分型（object_id）的单元坐标区间，供本代判定哪些 bar 的批记录变了。
+    development_ranges: std::collections::HashMap<String, (i64, i64)>,
 }
 
 impl GenerationRuntime {
@@ -409,6 +415,9 @@ impl GenerationRuntime {
             ("generation.observations_seq", &self.observations_seq),
         ] {
             memo.visit_runtime_roots(name, f);
+        }
+        for payload in self.development_batches.values() {
+            f("generation.development_batches", payload.digest);
         }
     }
 
@@ -440,6 +449,8 @@ impl GenerationRuntime {
             witnesses_seq: SequenceMemo::default(),
             relations_seq: SequenceMemo::default(),
             observations_seq: SequenceMemo::default(),
+            development_batches: std::collections::BTreeMap::new(),
+            development_ranges: std::collections::HashMap::new(),
         }
     }
 
@@ -465,6 +476,8 @@ impl GenerationRuntime {
         self.witnesses_seq.discard();
         self.relations_seq.discard();
         self.observations_seq.discard();
+        self.development_batches.clear();
+        self.development_ranges.clear();
     }
 
     /// #1488 原账片：消费 owner 当前资格，只构造新 raw 尾与生效账受影响后缀。
@@ -724,6 +737,12 @@ impl GenerationRuntime {
         let gen = input.generation;
         let cut = input.structure_cut;
         let frontier = input.input_frontier;
+        // #1491 ADR 0037：CC-007 承载与 CC-054 请求次序按本车道冻结规则串的布局组件分派。
+        // 穷举分派：布局枚举扩展时此处编译期报错，不静默落 layout/1（#1780 独审 L-1）。
+        let bounded = match self.producer.layout().map_err(producer_error)? {
+            super::layout::Layout::Sorted => false,
+            super::layout::Layout::Bounded1 => true,
+        };
         // ── 原始账：生效账 → coord 表 + Bar 序列 + 事件节点；全修订史 → 事件节点 ──
         let mut raw_by_coord: FixedRadix<i64, JsonView<'_>> = FixedRadix::default();
         let mut raw_bars: CodecVec<Bar> = CodecVec::default();
@@ -834,6 +853,10 @@ impl GenerationRuntime {
         let mut shape_requests: CodecVec<(Built, CodecVec<Built>)> = CodecVec::default();
         let mut fractals: CodecVec<ProducedObject> = CodecVec::default();
         let mut fractal_reasons: CodecVec<&'static str> = CodecVec::default();
+        // #1491：CC-054 请求的 (window_start, label) 键，与 `requests` 线序逐条对应。
+        let mut shape_request_keys: Vec<Vec<RequestOrder>> = Vec::new();
+        // #1491 bounded-layout/1：各分型（窗口序）的单元读数，组单元批记录用。
+        let mut developments: Vec<(String, FractalDevelopment)> = Vec::new();
         for (start, shape) in wins {
             let built_shape = match &fractal_sources {
                 Some(sources) => self
@@ -877,7 +900,23 @@ impl GenerationRuntime {
                     }
                     .map_err(producer_error)?;
                     let mut fractal_requests: CodecVec<Built> = CodecVec::default();
+                    let window_start = coord_i64(object.window[0])?;
+                    let mut keys = vec![RequestOrder::new(window_start, RequestLabel::Shape)];
                     if let Some(fractal_object) = fractal {
+                        for label in [
+                            RequestLabel::ShapeDescription,
+                            RequestLabel::DescriptiveLabels,
+                            RequestLabel::SubsequentDevelopment,
+                        ]
+                        .into_iter()
+                        .take(fractal_object.requests.len())
+                        {
+                            keys.push(RequestOrder::new(window_start, label));
+                        }
+                        if let Some(development) = &fractal_object.development {
+                            developments
+                                .push((fractal_object.object_id.clone(), development.clone()));
+                        }
                         extend_gen(
                             &mut fractal_reasons,
                             fractal_object.knowledge_reasons.iter().copied(),
@@ -906,6 +945,7 @@ impl GenerationRuntime {
                         )?;
                     }
                     push_gen(&mut shape_requests, (request, fractal_requests), store)?;
+                    shape_request_keys.push(keys);
                     let generated = object_records::generated(
                         store,
                         object_records::BorrowedObject::Shape(&object),
@@ -960,6 +1000,8 @@ impl GenerationRuntime {
         let mut typed: CodecVec<ProducedObject> = CodecVec::default();
         let mut step_requests: CodecVec<Built> = CodecVec::default();
         let mut group_requests: CodecVec<Built> = CodecVec::default();
+        let mut request_keys: Vec<RequestOrder> = Vec::new();
+        let mut group_request_keys: Vec<RequestOrder> = Vec::new();
         let mut all_reasons: CodecVec<&'static str> = CodecVec::default();
         // #1393/#1565 W：初始化事实（槽 W）与逐原件未定记录；请求线序在步骤之前（同 v2）。
         let mut init_requests: CodecVec<Built> = CodecVec::default();
@@ -1020,6 +1062,10 @@ impl GenerationRuntime {
                 .producer
                 .build_step_object(store, &view, gen, cut)
                 .map_err(producer_error)?;
+            request_keys.push(RequestOrder::new(
+                coord_i64(view.incoming.source_index)?,
+                RequestLabel::Step,
+            ));
             push_gen(
                 &mut step_requests,
                 object.request.clone().ok_or_else(|| {
@@ -1066,6 +1112,10 @@ impl GenerationRuntime {
                     cut,
                 )
                 .map_err(producer_error)?;
+            group_request_keys.push(RequestOrder::new(
+                coord_i64(view.bar.source_index)?,
+                RequestLabel::Group,
+            ));
             push_gen(
                 &mut group_requests,
                 object.request.clone().ok_or_else(|| {
@@ -1092,9 +1142,13 @@ impl GenerationRuntime {
         extend_gen(&mut requests, init_requests, store)?;
         extend_gen(&mut requests, step_requests, store)?;
         extend_gen(&mut requests, group_requests, store)?;
-        for (shape_request, fractal_requests) in &shape_requests {
+        request_keys.extend(group_request_keys);
+        for ((shape_request, fractal_requests), keys) in
+            shape_requests.iter().zip(shape_request_keys)
+        {
             push_gen(&mut requests, shape_request.clone(), store)?;
             extend_gen(&mut requests, fractal_requests.iter().cloned(), store)?;
+            request_keys.extend(keys);
         }
         if merged.len() < 3 {
             push_gen(&mut all_reasons, "fewer_than_three_merged_bars", store)?;
@@ -1110,6 +1164,25 @@ impl GenerationRuntime {
                     .map_err(producer_error)?,
                 store,
             )?;
+            request_keys.push(RequestOrder::pending());
+        }
+        if request_keys.len() != requests.len() {
+            return Err(format!(
+                "GenError：CC-054 请求次序键 {} 条与请求 {} 条不符",
+                request_keys.len(),
+                requests.len()
+            ));
+        }
+        // #1491 ADR 0037 §一：bounded-layout/1 的 `requests` 按 (window_start, label) 排列，新请求
+        // 只落尾部；layout/1 保持原线序（步骤 → 组 → 形态/分型 → 待决）。
+        if bounded {
+            let mut order: Vec<usize> = (0..requests.len()).collect();
+            order.sort_by_key(|&i| request_keys[i]);
+            let mut sorted: CodecVec<Built> = CodecVec::default();
+            for i in order {
+                push_gen(&mut sorted, requests[i].clone(), store)?;
+            }
+            requests = sorted;
         }
         if !state.has_direction_evidence() {
             push_gen(&mut all_reasons, "direction_not_yet_established", store)?;
@@ -1119,6 +1192,26 @@ impl GenerationRuntime {
         }
         extend_gen(&mut all_reasons, fractal_reasons, store)?;
         extend_gen(&mut typed, fractals, store)?;
+        if bounded {
+            for object in self.development_batches(store, &prepared, &developments, gen, cut)? {
+                let generated = object_records::generated(
+                    store,
+                    object_records::BorrowedObject::Typed(&object),
+                )
+                .map_err(record_error)?;
+                push_gen(
+                    &mut typed,
+                    ProducedObject {
+                        kind: native_text(store, CC007_DEVELOPMENT_BATCH_KIND)?,
+                        fact_key: Some(native_text(store, &object.fact_key)?),
+                        object_id: native_text(store, &object.object_id)?,
+                        generated,
+                        body: ObjectBody::Typed(object),
+                    },
+                    store,
+                )?;
+            }
+        }
         stable_sort_typed_admitted(&mut typed, store)?;
 
         let knowledge_position = typed.len();
@@ -2349,6 +2442,177 @@ fn write_json_view(
     store
         .write_json_view(value)
         .map_err(|error| format!("GenError：值写入失败：{error}"))
+}
+
+/// #1491 ADR 0037 §一：CC-054 请求的 label 序（同一 window_start 内）。步骤与组请求的键尾是单坐标、
+/// 形态与分型请求的键尾是窗口；三条分型请求按原配方 label 顺序。
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum RequestLabel {
+    Step,
+    Group,
+    Shape,
+    ShapeDescription,
+    DescriptiveLabels,
+    SubsequentDevelopment,
+}
+
+/// #1491：bounded-layout/1 的 CC-054 `requests` 排序键 (window_start, label)；无窗口的待决请求
+/// （不足三根合并 bar）排最后——它只在形态出现之前存在。
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct RequestOrder {
+    pending: bool,
+    window_start: i64,
+    label: Option<RequestLabel>,
+}
+
+impl RequestOrder {
+    fn new(window_start: i64, label: RequestLabel) -> Self {
+        Self {
+            pending: false,
+            window_start,
+            label: Some(label),
+        }
+    }
+
+    fn pending() -> Self {
+        Self {
+            pending: true,
+            window_start: 0,
+            label: None,
+        }
+    }
+}
+
+fn coord_i64(coord: usize) -> Result<i64, String> {
+    i64::try_from(coord).map_err(|_| format!("GenError：源坐标 {coord} 超出 i64"))
+}
+
+impl GenerationRuntime {
+    /// #1491 ADR 0037 §二：本代全部 `CC-007.development_batch`（bar 坐标升序，每根有单元的
+    /// 后续 bar 一条）。
+    ///
+    /// `developments` 是本代全部被跟踪分型的单元读数，按窗口序给出——entries 即按分型窗口序
+    /// （`window[0]` 严格升序，ADR 0054 / #1783，#1790 修订；取代 ADR 0037 §二「出生序」一句）：
+    /// 纯追加下与分型出生序相同；中段出生或原位重生时，现行身份配方（来源前缀链）使其后分型同代
+    /// 重生，出生构成窗口序后缀，两序在可达输入上恒等（#1790 修订；锁见
+    /// `bounded_layout_cc007_entries_window_order_on_mid_birth`），判据只认窗口序。
+    /// 脏 bar（任一分型本代重算的单元、新出现/消失分型的整段区间）一律按本代读数重建载荷；
+    /// 其余 bar 的 entries 与上一代逐项相同，复用载荷值根。
+    fn development_batches(
+        &mut self,
+        store: &mut dyn NodeStore,
+        prepared: &PreparedRawHistory<'_>,
+        developments: &[(String, FractalDevelopment)],
+        gen: i64,
+        cut: &str,
+    ) -> Result<Vec<TypedObject>, String> {
+        let mut ranges: std::collections::HashMap<String, (i64, i64)> =
+            std::collections::HashMap::with_capacity(developments.len());
+        let mut dirty: Vec<(i64, i64)> = Vec::new();
+        for (id, development) in developments {
+            let units = &development.units;
+            let (Some(first), Some(last)) = (units.first(), units.last()) else {
+                continue;
+            };
+            let range = (first.coord, last.coord);
+            match self.development_ranges.get(id) {
+                Some(previous) if previous.0 == range.0 => {
+                    // 起点 = producer 失效水位与首个重算单元坐标的较小者：被移走的中段坐标
+                    // 不在本代单元里，但不小于水位，故必落入脏区间（#1780 独审 C-1）。
+                    let recomputed = units.get(development.recomputed_from).map(|u| u.coord);
+                    let from = match (development.invalidated_from, recomputed) {
+                        (Some(floor), Some(coord)) => Some(floor.min(coord)),
+                        (floor, coord) => floor.or(coord),
+                    };
+                    if let Some(from) = from {
+                        dirty.push((from, range.1.max(previous.1)));
+                    }
+                    if previous.1 > range.1 {
+                        dirty.push((range.1, previous.1));
+                    }
+                }
+                Some(previous) => {
+                    dirty.push(*previous);
+                    dirty.push(range);
+                }
+                None => dirty.push(range),
+            }
+            if ranges.insert(id.clone(), range).is_some() {
+                return Err(format!("GenError：CC-007 分型 {id} 在同代重复出现"));
+            }
+        }
+        for (id, previous) in &self.development_ranges {
+            if !ranges.contains_key(id) {
+                dirty.push(*previous);
+            }
+        }
+        dirty.sort_unstable();
+        let mut merged: Vec<(i64, i64)> = Vec::with_capacity(dirty.len());
+        for (lo, hi) in dirty {
+            match merged.last_mut() {
+                Some(last) if lo <= last.1.saturating_add(1) => last.1 = last.1.max(hi),
+                _ => merged.push((lo, hi)),
+            }
+        }
+        let mut dirty_coords: std::collections::BTreeSet<i64> = std::collections::BTreeSet::new();
+        for &(lo, hi) in &merged {
+            dirty_coords.extend(self.development_batches.range(lo..=hi).map(|(c, _)| *c));
+            for (_, development) in developments {
+                let units = &development.units;
+                let start = units.partition_point(|u| u.coord < lo);
+                let end = units.partition_point(|u| u.coord <= hi);
+                dirty_coords.extend(units[start..end].iter().map(|u| u.coord));
+            }
+        }
+        let mut rebuilt: std::collections::BTreeMap<i64, TypedObject> =
+            std::collections::BTreeMap::new();
+        for coord in dirty_coords {
+            let mut entries = Vec::new();
+            for (id, development) in developments {
+                let units = &development.units;
+                if let Ok(i) = units.binary_search_by_key(&coord, |u| u.coord) {
+                    entries.push((id.as_str(), &units[i]));
+                }
+            }
+            if entries.is_empty() {
+                self.development_batches.remove(&coord);
+                continue;
+            }
+            let at = usize::try_from(coord)
+                .map_err(|_| format!("GenError：单元批记录坐标 {coord} 非法"))?;
+            let object = self
+                .producer
+                .build_development_batch(store, prepared, at, &entries, None, gen, cut)
+                .map_err(producer_error)?;
+            self.development_batches
+                .insert(coord, object.payload.clone());
+            rebuilt.insert(coord, object);
+        }
+        let mut objects = Vec::with_capacity(self.development_batches.len());
+        for (&coord, payload) in &self.development_batches {
+            if let Some(object) = rebuilt.remove(&coord) {
+                objects.push(object);
+                continue;
+            }
+            let at = usize::try_from(coord)
+                .map_err(|_| format!("GenError：单元批记录坐标 {coord} 非法"))?;
+            objects.push(
+                self.producer
+                    .build_development_batch(
+                        store,
+                        prepared,
+                        at,
+                        &[],
+                        Some(payload.clone()),
+                        gen,
+                        cut,
+                    )
+                    .map_err(producer_error)?,
+            );
+        }
+        self.development_ranges = ranges;
+        Ok(objects)
+    }
 }
 
 fn producer_error(error: ProducerError) -> String {
@@ -5285,5 +5549,711 @@ mod tests {
                 > mine_first["objects"].as_array().expect("objects").len(),
             "增量 gen2: 对象集必须严格增长"
         );
+    }
+
+    // ── #1491 ADR 0037 段 B：bounded-layout/1 的 CC-007 单元批记录与 CC-054 请求次序 ──
+
+    const BOUNDED_RULE: &str = "r+bounded-layout/1";
+
+    fn full_input<'a>(
+        raw: RawEventsView<'a>,
+        effective: RawEventsView<'a>,
+        scope: &'a Value,
+        cut: &'a str,
+        gen: i64,
+        frontier: i64,
+        rule: &'a str,
+    ) -> GenerationInput<'a> {
+        GenerationInput {
+            all_events: raw,
+            effective,
+            generation: gen,
+            structure_cut: cut,
+            input_frontier: frontier,
+            profile_id: crate::tb02a::PROFILE,
+            profile_hash: "profile-hash",
+            rule_revision: rule,
+            catalog_revision: "catalog",
+            scope,
+            semantic_commit_ns: Some("123456789"),
+            prior: PriorState {
+                bi_records: Vec::new(),
+                version_record: None,
+            },
+        }
+    }
+
+    /// 每个前缀一代：layout/1 增量、bounded 增量各一条车道，另以全新 bounded 运行态冷算同一代。
+    /// 返回逐代（layout/1 生成态 JSON，bounded 生成态 JSON）；bounded 增量 ≡ 冷算逐字节在此核。
+    fn bounded_layout_runs(events: &[Value], cuts: &[usize]) -> Vec<(Value, Value)> {
+        let scope = json!({"instrument":"B1", "exchange":"fixture"});
+        let mut sorted = GenerationRuntime::new("B1 sorted".into(), crate::tb02a::PROFILE, "r");
+        let mut bounded =
+            GenerationRuntime::new("B1 bounded".into(), crate::tb02a::PROFILE, BOUNDED_RULE);
+        let (mut ss, mut bs) = (MemoryNodes::new(), MemoryNodes::new());
+        let mut out = Vec::new();
+        for (turn, &prefix) in cuts.iter().enumerate() {
+            let gen = turn as i64 + 1;
+            let cut = format!("cut-{gen}");
+            let raw = RawEventsView::plain(events).prefix(prefix).unwrap();
+            let effective = bj::effective(raw, None).unwrap();
+            let input = |rule| {
+                full_input(
+                    raw,
+                    effective.raw_view(),
+                    &scope,
+                    &cut,
+                    gen,
+                    prefix as i64,
+                    rule,
+                )
+            };
+            let s = sorted.generate(&mut ss, &input("r")).unwrap();
+            let b = bounded.generate(&mut bs, &input(BOUNDED_RULE)).unwrap();
+            let mut cold_runtime = GenerationRuntime::new(
+                format!("B1 bounded cold {gen}"),
+                crate::tb02a::PROFILE,
+                BOUNDED_RULE,
+            );
+            let mut cs = MemoryNodes::new();
+            let c = cold_runtime
+                .generate(&mut cs, &input(BOUNDED_RULE))
+                .unwrap();
+            assert_eq!(
+                b.state_without_axes, c.state_without_axes,
+                "bounded 增量≠冷算：第 {gen} 代"
+            );
+            b.verify_new_closure(&mut bs).unwrap();
+            let (_, sv) = state_value(&mut ss, &s);
+            let (b_text, bv) = state_value(&mut bs, &b);
+            let (c_text, _) = state_value(&mut cs, &c);
+            assert_eq!(b_text, c_text, "bounded 增量≠冷算规范字节：第 {gen} 代");
+            out.push((sv, bv));
+        }
+        out
+    }
+
+    /// 生成态对象行（`*_json` 文本视图解析回值，便于逐字段比较）。
+    fn objects_of(state: &Value, kind: &str) -> Vec<Value> {
+        state["objects"]
+            .as_array()
+            .expect("objects")
+            .iter()
+            .filter(|o| o["kind"] == kind)
+            .map(|o| {
+                let mut row = o.clone();
+                for name in ["payload", "input_refs", "source_coords"] {
+                    if let Some(text) = o[format!("{name}_json")].as_str() {
+                        row[name] = serde_json::from_str(text).expect("文本视图是 JSON");
+                    }
+                }
+                row
+            })
+            .collect()
+    }
+
+    fn requests_of(state: &Value) -> Vec<Value> {
+        let knowledge = objects_of(state, CC054_KNOWLEDGE_KIND);
+        assert_eq!(knowledge.len(), 1);
+        knowledge[0]["payload"]["requests"]
+            .as_array()
+            .unwrap()
+            .clone()
+    }
+
+    /// crosswalk（ADR 0037 §八，§5.8 形式）在同一代上逐项核：分型对象去 `subsequent_development`
+    /// 后逐字段相等；每个分型每个单元在对应 bar 的批记录里恰有一项，单元逐值相等、development
+    /// 即 layout/1 载荷 `bars` 的同长前缀；单元总数相等；CC-054 请求 = layout/1 请求去掉
+    /// 已有后续 bar 的分型 `subsequent_development` 请求，且按 (window_start, label) 排列。
+    /// 返回（本代单元总数，fact_key → bounded 分型 object_id）。
+    fn assert_bounded_crosswalk(
+        gen: usize,
+        sorted: &Value,
+        bounded: &Value,
+    ) -> (usize, std::collections::BTreeMap<String, (String, Value)>) {
+        let mut ids = std::collections::BTreeMap::new();
+        let bounded_fractals = objects_of(bounded, CC007_FRACTAL_KIND);
+        let sorted_fractals = objects_of(sorted, CC007_FRACTAL_KIND);
+        assert_eq!(
+            bounded_fractals.len(),
+            sorted_fractals.len(),
+            "g{gen} 分型数"
+        );
+        let mut expected_units: std::collections::BTreeMap<String, Vec<(String, Value, Value)>> =
+            Default::default();
+        let mut total = 0;
+        let mut realised: std::collections::BTreeSet<String> = Default::default();
+        // entries 按分型窗口序（ADR 0054 / #1783；fact_key 文本序不是窗口序）。
+        let mut pairs: Vec<(&Value, &Value)> =
+            sorted_fractals.iter().zip(&bounded_fractals).collect();
+        pairs.sort_by_key(|(_, b)| {
+            b["payload"]["window"][0]
+                .as_str()
+                .unwrap()
+                .parse::<i64>()
+                .unwrap()
+        });
+        for (s, b) in pairs {
+            assert_eq!(s["fact_key"], b["fact_key"], "g{gen} 分型槽位次序");
+            let mut stripped = s["payload"].clone();
+            // CC-006 形态 object_id 含 rule_revision（§5.3），两库必不同；改核指向本库同窗形态。
+            stripped["shape_object_id"] = Value::Null;
+            let mut mine = b["payload"].clone();
+            let shape_id = mine["shape_object_id"].take();
+            assert!(
+                bounded["objects"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|o| o["kind"] == CC006_SHAPE_KIND && o["object_id"] == shape_id),
+                "g{gen} 分型指向本库形态"
+            );
+            let bars = stripped
+                .as_object_mut()
+                .unwrap()
+                .remove("subsequent_development")
+                .expect("layout/1 分型载荷含后续发展")["bars"]
+                .as_array()
+                .unwrap()
+                .clone();
+            assert_eq!(stripped, mine, "g{gen} 分型载荷去后续发展后相等");
+            assert!(b["payload"].get("subsequent_development").is_none());
+            let id = b["object_id"].as_str().unwrap().to_string();
+            ids.insert(
+                b["fact_key"].as_str().unwrap().to_string(),
+                (id.clone(), json!([b["payload"], b["source_coords"]])),
+            );
+            if !bars.is_empty() {
+                realised.insert(s["fact_key"].as_str().unwrap().to_string());
+            }
+            for (i, unit) in bars.iter().enumerate() {
+                let coord = unit["bar"]["source_coord"].as_str().unwrap().to_string();
+                let prefix = Value::Array(bars[..=i].to_vec());
+                expected_units
+                    .entry(coord)
+                    .or_default()
+                    .push((id.clone(), unit.clone(), prefix));
+                total += 1;
+            }
+        }
+        let batches = objects_of(bounded, CC007_DEVELOPMENT_BATCH_KIND);
+        assert_eq!(
+            batches.len(),
+            expected_units.len(),
+            "g{gen} 每根有单元的 bar 恰一条批记录"
+        );
+        let mut seen = 0;
+        for batch in batches {
+            let payload = &batch["payload"];
+            let coord = payload["bar"]["source_coord"].as_str().unwrap().to_string();
+            assert_eq!(
+                batch["fact_key"],
+                crate::canonical_json(&json!([CC007_DEVELOPMENT_BATCH_KIND, coord])),
+                "g{gen} 批记录槽位"
+            );
+            assert_eq!(
+                batch["source_coords"],
+                json!([coord]),
+                "g{gen} 批记录来源＝本 bar"
+            );
+            let want = &expected_units[&coord];
+            let entries = payload["entries"].as_array().unwrap();
+            assert_eq!(entries.len(), want.len(), "g{gen} bar {coord} 的 entry 数");
+            for (entry, (id, unit, prefix)) in entries.iter().zip(want) {
+                assert_eq!(
+                    entry["fractal_object_id"],
+                    json!(id),
+                    "g{gen} entry 按分型窗口序"
+                );
+                assert_eq!(&entry["unit"], unit, "g{gen} 单元逐值相等");
+                assert_eq!(&entry["unit"]["bar"], &payload["bar"]);
+                assert_eq!(
+                    &entry["development"]["root"], prefix,
+                    "g{gen} development＝bars 前缀"
+                );
+                assert_eq!(
+                    entry["development"]["count"],
+                    json!(prefix.as_array().unwrap().len().to_string())
+                );
+                seen += 1;
+            }
+        }
+        assert_eq!(seen, total, "g{gen} 单元总数相等");
+        // CC-054：请求集合与次序。
+        let key_of = |r: &Value| -> (String, Option<String>) {
+            let id: Value = serde_json::from_str(r["request_id"].as_str().unwrap()).unwrap();
+            match &id[0] {
+                Value::Array(slot) => (
+                    crate::canonical_json(&Value::Array(slot.clone())),
+                    id[1].as_str().map(str::to_string),
+                ),
+                _ => (crate::canonical_json(&id), None),
+            }
+        };
+        let bounded_requests = requests_of(bounded);
+        let expected: Vec<String> = requests_of(sorted)
+            .iter()
+            .filter(|r| {
+                let (slot, label) = key_of(r);
+                !(label.as_deref() == Some("subsequent_development") && realised.contains(&slot))
+            })
+            .map(|r| r["request_id"].as_str().unwrap().to_string())
+            .collect();
+        let mut actual: Vec<String> = bounded_requests
+            .iter()
+            .map(|r| r["request_id"].as_str().unwrap().to_string())
+            .collect();
+        let order: Vec<(bool, i64, usize)> = bounded_requests
+            .iter()
+            .map(|r| {
+                let id: Value = serde_json::from_str(r["request_id"].as_str().unwrap()).unwrap();
+                let labels = [
+                    "shape_description",
+                    "descriptive_labels",
+                    "subsequent_development",
+                ];
+                let (kind, tail, label) = match &id[0] {
+                    Value::Array(slot) => (
+                        slot[0].as_str().unwrap().to_string(),
+                        slot[1].clone(),
+                        3 + labels.iter().position(|l| id[1] == *l).unwrap(),
+                    ),
+                    Value::String(kind) => (kind.clone(), id[1].clone(), 0),
+                    _ => unreachable!(),
+                };
+                if tail == "pending" {
+                    return (true, 0, 0);
+                }
+                let start = match &tail {
+                    Value::Array(window) => window[0].as_str().unwrap().parse().unwrap(),
+                    Value::String(coord) => coord.parse().unwrap(),
+                    _ => unreachable!(),
+                };
+                let rank = match kind.as_str() {
+                    CC004_STEP_KIND => 0,
+                    CC005_GROUP_KIND => 1,
+                    CC006_SHAPE_KIND => 2,
+                    _ => label,
+                };
+                (false, start, rank)
+            })
+            .collect();
+        let mut sorted_order = order.clone();
+        sorted_order.sort();
+        assert_eq!(
+            order, sorted_order,
+            "g{gen} bounded 请求按 (window_start, label) 排列"
+        );
+        let mut expected_sorted = expected.clone();
+        expected_sorted.sort();
+        actual.sort();
+        assert_eq!(actual, expected_sorted, "g{gen} bounded 请求集合");
+        for r in &bounded_requests {
+            let (slot, label) = key_of(r);
+            if label.as_deref() == Some("subsequent_development") {
+                assert_eq!(
+                    r["reasons"],
+                    json!(["no_subsequent_bar"]),
+                    "g{gen} 待决后续请求"
+                );
+                assert!(!realised.contains(&slot));
+            }
+        }
+        (total, ids)
+    }
+
+    #[test]
+    fn bounded_layout_cc007_batches_crosswalk_layout1_and_fractals_born_once() {
+        let events = delta_long_fixture();
+        let cuts: Vec<usize> = (1..=events.len()).collect();
+        let runs = bounded_layout_runs(&events, &cuts);
+        let mut previous_ids: std::collections::BTreeMap<String, (String, Value)> =
+            Default::default();
+        let mut stable_fractals = 0;
+        let mut max_units = 0;
+        let mut batch_ids_prev: std::collections::BTreeMap<String, String> = Default::default();
+        let mut stable_batches = 0;
+        for (i, (sorted, bounded)) in runs.iter().enumerate() {
+            let (units, ids) = assert_bounded_crosswalk(i + 1, sorted, bounded);
+            max_units = max_units.max(units);
+            // 分型只在描述/基础来源变化时出新版：载荷与来源不变 ⟺ object_id 不变（后续 bar 不触发）。
+            for (key, (id, basis)) in &ids {
+                if let Some((old, old_basis)) = previous_ids.get(key) {
+                    assert_eq!(
+                        old == id,
+                        old_basis == basis,
+                        "g{} 分型 {key} 版本与基础来源",
+                        i + 1
+                    );
+                    stable_fractals += usize::from(old == id);
+                }
+            }
+            previous_ids = ids;
+            // 已过去 bar 的批记录（无新分型覆盖时）跨代保持同一 object_id。
+            let batch_ids: std::collections::BTreeMap<String, String> =
+                objects_of(bounded, CC007_DEVELOPMENT_BATCH_KIND)
+                    .iter()
+                    .map(|o| {
+                        (
+                            o["fact_key"].as_str().unwrap().to_string(),
+                            o["object_id"].as_str().unwrap().to_string(),
+                        )
+                    })
+                    .collect();
+            for (key, id) in &batch_ids {
+                if batch_ids_prev.get(key) == Some(id) {
+                    stable_batches += 1;
+                }
+            }
+            batch_ids_prev = batch_ids;
+        }
+        assert!(max_units >= 20, "夹具须产生足量比较单元：{max_units}");
+        assert!(stable_batches > 0, "须有跨代不变的已过去 bar 批记录");
+        assert!(stable_fractals > 0, "须有跨代后续 bar 增加而分型不换版本");
+        assert!(!previous_ids.is_empty());
+    }
+
+    #[test]
+    fn bounded_layout_cc007_batches_survive_revision_swap_insertion_incremental_equals_cold() {
+        // 同 `delta_full_bi_prior_tail_revision_and_reactivated_windows_match_full` 的输入：早期 bar
+        // 改价修订、再恢复、尾 bar 换坐标（旧坐标移走、新坐标出现）。
+        let mut events = delta_long_fixture();
+        events.truncate(14);
+        let mut revised = events[2].clone();
+        for (k, v) in [
+            ("revision", json!(2)),
+            ("input_revision", json!("2")),
+            ("seq", json!(15)),
+            ("high", json!("13")),
+            ("low", json!("9")),
+            ("open", json!("11")),
+            ("close", json!("11")),
+            ("payload_hash", json!("revision-2")),
+            ("receipt_id", json!("receipt-15")),
+        ] {
+            revised[k] = v;
+        }
+        events.push(revised);
+        let mut restored = events[2].clone();
+        for (k, v) in [
+            ("revision", json!(3)),
+            ("input_revision", json!("3")),
+            ("seq", json!(16)),
+            ("payload_hash", json!("restored-3")),
+            ("receipt_id", json!("receipt-16")),
+        ] {
+            restored[k] = v;
+        }
+        events.push(restored);
+        let mut moved = events[13].clone();
+        for (k, v) in [
+            ("revision", json!(2)),
+            ("input_revision", json!("2")),
+            ("seq", json!(17)),
+            ("source_coord", json!("1000")),
+            ("ts", json!("1000")),
+            ("payload_hash", json!("tail-moved")),
+            ("receipt_id", json!("receipt-17")),
+        ] {
+            moved[k] = v;
+        }
+        events.push(moved);
+        let runs = bounded_layout_runs(&events, &[1, 2, 8, 14, 15, 16, 17, 17]);
+        let mut any_units = false;
+        for (i, (sorted, bounded)) in runs.iter().enumerate() {
+            any_units |= assert_bounded_crosswalk(i + 1, sorted, bounded).0 > 0;
+        }
+        assert!(any_units, "修订夹具须产生比较单元");
+    }
+
+    /// 以同 identity 更高修订把 `delta_long_fixture` 的若干根改坐标（一次一根，同代施加）。
+    fn moved_events(moves: &[(usize, &str)]) -> Vec<Value> {
+        let mut events = delta_long_fixture();
+        for (n, (idx, coord)) in moves.iter().enumerate() {
+            let mut moved = events[*idx].clone();
+            let seq = 15 + n;
+            for (k, v) in [
+                ("revision", json!(2)),
+                ("input_revision", json!("2")),
+                ("seq", json!(seq)),
+                ("source_coord", json!(coord)),
+                ("ts", json!(coord)),
+                ("payload_hash", json!(format!("moved-{n}"))),
+                ("receipt_id", json!(format!("receipt-{seq}"))),
+            ] {
+                moved[k] = v;
+            }
+            events.push(moved);
+        }
+        events
+    }
+
+    /// #1780 独审 C-1 真负控：中段 bar（不是任何分型的首/末单元）换坐标。其旧坐标的批记录必须
+    /// 判脏移除，与冷算逐字节相同；判脏起点取 producer 失效水位（min(旧坐标, 新坐标)）。
+    /// 覆盖后移到尾（b5/b6/b10/b11/b12 → 1000）、前移（b10 100→105）与同代两根中段互换。
+    #[test]
+    fn bounded_layout_cc007_batches_mid_coordinate_move_incremental_equals_cold() {
+        let cases: Vec<(&str, Vec<(usize, &str)>)> = vec![
+            ("b5→1000", vec![(5, "1000")]),
+            ("b6→1000", vec![(6, "1000")]),
+            ("b10→1000", vec![(10, "1000")]),
+            ("b11→1000", vec![(11, "1000")]),
+            ("b12→1000", vec![(12, "1000")]),
+            ("b10→105", vec![(10, "105")]),
+            ("b6↔b11", vec![(6, "110"), (11, "60")]),
+        ];
+        for (label, moves) in cases {
+            let events = moved_events(&moves);
+            let base = delta_long_fixture().len();
+            let runs = bounded_layout_runs(&events, &[base, events.len()]);
+            for (i, (sorted, bounded)) in runs.iter().enumerate() {
+                let (units, _) = assert_bounded_crosswalk(i + 1, sorted, bounded);
+                assert!(units > 0, "{label}: 夹具须产生比较单元");
+            }
+        }
+    }
+
+    /// ADR 0054 #1790 修订·验收 2 中段出生锁。三例：坐标 85 插入新 bar、b9 改价修订、
+    /// b8 改价修订，均在第 2 代中段出生新分型（新分型窗口早于第 1 代最后一个分型）。断言：
+    /// ① 出生在窗口序上构成后缀——第 2 代不存在「object_id 不在第 1 代」的 X 早于「第 1 代已存在」
+    ///    的 Y。分型身份含右组来源前缀链（`group_sources_coords`：方向证据＝处理到组锚为止的完整
+    ///    前缀），坐标 c 处的出生/修订使窗口在其后的分型全部同代重生，故在可达输入上出生序（首获知代
+    ///    ↑、同代窗口序）与窗口序逐位相同；本条若失败，说明身份配方变了，
+    ///    即触发 ADR 0054 #1790 修订段退场条件，须重开 #1790；
+    /// ② 每根 bar 的 entries 按 `window[0]` 严格递增，且至少一根同含新旧分型；
+    /// ③ 每代增量 ≡ 冷算逐字节（`bounded_layout_runs` 内核）。
+    /// 不读 `first_known_generation`：生成层恒写本代（`content_producer.rs` typed 记录）。
+    #[test]
+    fn bounded_layout_cc007_entries_window_order_on_mid_birth() {
+        let base_events = delta_long_fixture();
+        let base = base_events.len();
+        let revise = |idx: usize, high: i64, low: i64, label: &str| {
+            let mut revised = base_events[idx].clone();
+            for (k, v) in [
+                ("revision", json!(2)),
+                ("input_revision", json!("2")),
+                ("seq", json!(base + 1)),
+                ("high", json!(high.to_string())),
+                ("low", json!(low.to_string())),
+                ("open", json!(low.to_string())),
+                ("close", json!(high.to_string())),
+                ("payload_hash", json!(format!("rev-{label}"))),
+                ("receipt_id", json!(format!("receipt-{label}"))),
+            ] {
+                revised[k] = v;
+            }
+            revised
+        };
+        let inserted = json!({
+            "identity_key": "x85", "event_id": "x85", "source_coord": "85", "ts": "85",
+            "open": "15", "high": "25", "low": "15", "close": "25",
+            "revision": 1, "seq": base + 1, "input_revision": "1",
+            "payload_hash": "hash-x85", "receipt_id": "receipt-x85",
+        });
+        let cases = [
+            ("insert@85", inserted),
+            ("revise b9", revise(9, 25, 15, "b9")),
+            ("revise b8", revise(8, 30, 20, "b8")),
+        ];
+        let windows = |state: &Value| -> std::collections::BTreeMap<String, i64> {
+            objects_of(state, CC007_FRACTAL_KIND)
+                .iter()
+                .map(|o| {
+                    let start = o["payload"]["window"][0].as_str().unwrap();
+                    (
+                        o["object_id"].as_str().unwrap().to_string(),
+                        start.parse().unwrap(),
+                    )
+                })
+                .collect()
+        };
+        for (label, event) in cases {
+            let mut events = base_events.clone();
+            events.push(event);
+            let runs = bounded_layout_runs(&events, &[base, events.len()]);
+            for (i, (sorted, bounded)) in runs.iter().enumerate() {
+                assert_bounded_crosswalk(i + 1, sorted, bounded);
+            }
+            let (before, after) = (windows(&runs[0].1), windows(&runs[1].1));
+            let last_before = *before.values().max().unwrap();
+            let born: Vec<i64> = after
+                .iter()
+                .filter(|(id, _)| !before.contains_key(*id))
+                .map(|(_, w)| *w)
+                .collect();
+            assert!(
+                born.iter().any(|w| *w < last_before),
+                "{label}: 须在中段出生新分型：{born:?} vs 第 1 代末窗口 {last_before}"
+            );
+            let first_born = *born.iter().min().unwrap();
+            for (id, w) in &after {
+                if before.contains_key(id) {
+                    assert!(
+                        *w < first_born,
+                        "{label}: 旧分型 {id}（窗口 {w}）不得晚于新出生分型（{first_born}）"
+                    );
+                }
+            }
+            let mut mixed = false;
+            for batch in objects_of(&runs[1].1, CC007_DEVELOPMENT_BATCH_KIND) {
+                let coord = batch["payload"]["bar"]["source_coord"].clone();
+                let ids: Vec<&str> = batch["payload"]["entries"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|e| e["fractal_object_id"].as_str().unwrap())
+                    .collect();
+                let starts: Vec<i64> = ids.iter().map(|id| after[*id]).collect();
+                assert!(
+                    starts.windows(2).all(|w| w[0] < w[1]),
+                    "{label}: bar {coord} entries 须按 window[0] 严格递增：{starts:?}"
+                );
+                mixed |= ids.iter().any(|id| before.contains_key(*id))
+                    && ids.iter().any(|id| !before.contains_key(*id));
+            }
+            assert!(mixed, "{label}: 须有一根 bar 的 entries 同含新旧分型");
+        }
+    }
+
+    /// #1780 独审 M-1：layout/1 车道（含 CC-007 分型）生成态根逐代冻结。期望值取自 base main
+    /// `5123c9e273`（ADR 0037 段 B 之前）同一输入的逐代 `state_without_axes` 根（独审探针
+    /// `1780-review-7cf8-probes/neutral-main-roots.txt`），锁住「本段 B 对 layout/1 生产逐位中性」。
+    #[test]
+    fn layout1_generation_roots_frozen_from_base_main() {
+        fn run(events: &[Value], cuts: &[usize], rule: &str, expected: &[&str]) {
+            assert_eq!(cuts.len(), expected.len());
+            let scope = json!({"instrument":"B1", "exchange":"fixture"});
+            let mut runtime = GenerationRuntime::new("neutral".into(), crate::tb02a::PROFILE, rule);
+            let mut store = MemoryNodes::new();
+            for (turn, (&prefix, want)) in cuts.iter().zip(expected).enumerate() {
+                let gen = turn as i64 + 1;
+                let cut = format!("cut-{gen}");
+                let raw = RawEventsView::plain(events).prefix(prefix).unwrap();
+                let effective = bj::effective(raw, None).unwrap();
+                let input = full_input(
+                    raw,
+                    effective.raw_view(),
+                    &scope,
+                    &cut,
+                    gen,
+                    prefix as i64,
+                    rule,
+                );
+                let generated = runtime.generate(&mut store, &input).unwrap();
+                let root = format!("{:?}", generated.state_without_axes);
+                assert!(
+                    root.contains(&format!("\"{want}\"")),
+                    "{rule} g{gen}: {root}"
+                );
+            }
+        }
+        let events = delta_long_fixture();
+        let cuts: Vec<usize> = (1..=events.len()).collect();
+        run(
+            &events,
+            &cuts,
+            "r",
+            &[
+                "sc1-948366d1a1a96702e595c31a981d44a8cd860d8079cbff9f96ac6cb6c174c4a7",
+                "sc1-f66ed7a7823e94b2600747308722749f3d6de9a17b4ef0cc79fa4fe2c968b4a4",
+                "sc1-20c92b84d00d51bef243e8151905fc94f05fa0d75777f92e9cf16deb03ffe855",
+                "sc1-9373c03393f0b22bc9b7419ca0fe3f0a089083a3ec5c322a0d94e7cef6d655db",
+                "sc1-94022dcec4c0d9e81058e584398b2a132bac9cb328481261a09b34a3c8f7da37",
+                "sc1-9ed3773460b18c74c8878c6b7e759d64f6443ebe0bcbce27b723dc2f3a9c8c2f",
+                "sc1-31cd8bc881d70f7bf698ecb9fd6ca9740310f3e111df6a0d1d742434cb10b883",
+                "sc1-77f7e973924aa969081800c6a99e2a0d6d800ae2551d2fcec29cb3e9568bd903",
+                "sc1-f944daa8922cbae6e56b8b6f6e43746c59ee0bd2002be3f0b2c6a791f88553dc",
+                "sc1-55c40900ebcd79380bf25f8eb7d262f7ad79aba660fafb82d3070c519111966b",
+                "sc1-4d3ff43c59eb4d8434adb7dee4842a5271d07cfcfa0ed4e8f8eec62140231b5b",
+                "sc1-a4c940d2cc628929764d8a94c4f6774dec6cb8f9b98dfb1253cf117cddd8ac49",
+                "sc1-cc91d04f817bd368f7ab43b15320656cd20765c87ce2b9d4269995f863f10290",
+                "sc1-1f1883260c44c0de1f736eecfa10b260299e8b37638fb83ea79672e050e64b66",
+            ],
+        );
+        let mut events = delta_long_fixture();
+        events.truncate(14);
+        let mut revised = events[2].clone();
+        for (k, v) in [
+            ("revision", json!(2)),
+            ("input_revision", json!("2")),
+            ("seq", json!(15)),
+            ("high", json!("13")),
+            ("low", json!("9")),
+            ("open", json!("11")),
+            ("close", json!("11")),
+            ("payload_hash", json!("revision-2")),
+            ("receipt_id", json!("receipt-15")),
+        ] {
+            revised[k] = v;
+        }
+        events.push(revised);
+        let mut restored = events[2].clone();
+        for (k, v) in [
+            ("revision", json!(3)),
+            ("input_revision", json!("3")),
+            ("seq", json!(16)),
+            ("payload_hash", json!("restored-3")),
+            ("receipt_id", json!("receipt-16")),
+        ] {
+            restored[k] = v;
+        }
+        events.push(restored);
+        let mut moved = events[13].clone();
+        for (k, v) in [
+            ("revision", json!(2)),
+            ("input_revision", json!("2")),
+            ("seq", json!(17)),
+            ("source_coord", json!("1000")),
+            ("ts", json!("1000")),
+            ("payload_hash", json!("tail-moved")),
+            ("receipt_id", json!("receipt-17")),
+        ] {
+            moved[k] = v;
+        }
+        events.push(moved);
+        run(
+            &events,
+            &[1, 2, 8, 14, 15, 16, 17, 17],
+            "r",
+            &[
+                "sc1-948366d1a1a96702e595c31a981d44a8cd860d8079cbff9f96ac6cb6c174c4a7",
+                "sc1-f66ed7a7823e94b2600747308722749f3d6de9a17b4ef0cc79fa4fe2c968b4a4",
+                "sc1-5f62791ebc8f826d882fcee15ffa09edcdab873bc27b04261e99cc7ed29521f1",
+                "sc1-f93b79013d5bea7c79b28f60e64e82115a3e09f838c26c83318e1e7c046cea06",
+                "sc1-b8cf282c385cc9878ca8f967ddf4ba8183a8e54be8823a177d04405d589f6db4",
+                "sc1-333091400aa357723f809c07d6a923e4755947413d04cbc1beade766072ec854",
+                "sc1-236fb13005488b6f7c966188ae62daa7ffa1143eb05fd00cf44dd4433a14b316",
+                "sc1-8a20f9cc37496026a94e59b4b45cc7b8f8a500dfd487b19e772a018694d9d063",
+            ],
+        );
+        run(
+            &delta_long_fixture(),
+            &[5, 9, 14],
+            crate::V3_RULE_REVISION,
+            &[
+                "sc1-c8f28f2cec73feaae72bf279e0790497d8d8af64197116e45e096b89992b214f",
+                "sc1-5f47222d095c66143e8cd5f52d70080f15b93218c7b8499edaa24948ad38a9ae",
+                "sc1-cf5c2f1e68e4a50dddc548abb9a2fd00725f23714e4c69fbb9b033549a369f14",
+            ],
+        );
+    }
+
+    #[test]
+    fn layout1_generation_has_no_development_batch_and_keeps_line_order_requests() {
+        let events = delta_long_fixture();
+        let runs = bounded_layout_runs(&events, &[events.len()]);
+        let (sorted, _) = &runs[0];
+        assert!(objects_of(sorted, CC007_DEVELOPMENT_BATCH_KIND).is_empty());
+        // layout/1 线序：步骤请求在全部组请求之前（原配方次序，未按 window_start 重排）。
+        let kinds: Vec<String> = requests_of(sorted)
+            .iter()
+            .map(|r| {
+                let id: Value = serde_json::from_str(r["request_id"].as_str().unwrap()).unwrap();
+                id[0].as_str().map_or("nested".to_string(), str::to_string)
+            })
+            .collect();
+        let last_step = kinds.iter().rposition(|k| k == CC004_STEP_KIND).unwrap();
+        let first_group = kinds.iter().position(|k| k == CC005_GROUP_KIND).unwrap();
+        assert!(last_step < first_group, "layout/1 请求保持原线序");
     }
 }

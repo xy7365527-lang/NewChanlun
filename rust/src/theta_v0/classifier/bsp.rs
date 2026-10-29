@@ -689,7 +689,11 @@ mod tests {
             // 同一 `.filter` 行，内容不变，同条目重登记。
             // #1419 S3 发布 W：上方 build_initialization 与先验未定原件读取增行、cargo fmt 重排
             // ⟹ 3197 → 3399；重核仍为 raw_bar_at 的同一 `.filter` 行，内容不变，同条目重登记。
-            "bin/s_session_v2/content_producer.rs:3399",
+            // #1491 段 B（main 侧，独立于上两条）：上方增 CC-007 单元读数类型、批记录构造口与续接
+            // 逐前缀根 ⟹ 3114 → 3338；#1780 独审返修：上方增失效水位字段与穷举分派 ⟹ 3338 → 3349。
+            // #1419 合 main（#1780）：两侧增行叠加 ⟹ 3634；重核仍为 raw_bar_at 的同一 `.filter` 行，
+            // 内容不变，同条目重登记。
+            "bin/s_session_v2/content_producer.rs:3634",
             // #[ignore] 死探针（已被 runner::newly_confirmed_step 取代，issue #747 条目6 登记不入
             // 18 处枚举）。（#885 S4-d：上方 slice_step 增一行 ⟹ 596→597，同条目重登记。
             // #1605：上方探针记录读取与输出追溯共增 15 行 ⟹ 603→618，内容不变。）

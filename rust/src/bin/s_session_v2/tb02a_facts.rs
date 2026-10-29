@@ -1342,7 +1342,11 @@ pub(super) fn catalog_axes_admitted<'a, 'objects, 'changes>(
                 if kind.ends_with('.') {
                     k.starts_with(kind)
                 } else {
+                    // #1491 ADR 0037 §二：单元批记录属 CC-007 轴（布局组件，不新增轴）；
+                    // layout/1 库没有该 kind，轴内容逐位不变。
                     k == kind
+                        || (axis == "CC-007"
+                            && k == crate::content_producer::CC007_DEVELOPMENT_BATCH_KIND)
                 }
             })
         }) {
@@ -1725,7 +1729,11 @@ fn catalog_axes_oracle<'a, 'objects, 'changes>(
                     if kind.ends_with('.') {
                         k.starts_with(kind)
                     } else {
+                        // #1491 ADR 0037 §二：单元批记录属 CC-007 轴（布局组件，不新增轴）；
+                        // layout/1 库没有该 kind，轴内容逐位不变。
                         k == kind
+                            || (axis == "CC-007"
+                                && k == crate::content_producer::CC007_DEVELOPMENT_BATCH_KIND)
                     }
                 })
             })

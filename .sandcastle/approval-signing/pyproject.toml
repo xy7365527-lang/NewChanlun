@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "newchanlun-approval-signing"
+version = "1.0.0"
+requires-python = ">=3.12"
+dependencies = ["cryptography>=44"]
+
+[tool.setuptools]
+packages = ["approval_signing"]
+
+[tool.setuptools.package-data]
+approval_signing = ["py.typed"]

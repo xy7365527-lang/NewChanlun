@@ -3,9 +3,9 @@
  * decision-claimer.mts —— graph engineering 裁决面（#1547）。
  *
  * 设计正本：.sandcastle/docs/graph-engineering.md「裁决流程」。每张 grilling 票：
- *   分级（Fable 5.1）→ 考古（Fable 5.1，两路搜，逐点 A/B/C）→ 起草（Fable 5.1）→ 独审（Opus 5.5，独立进程，只读草稿与源）
+ *   分级（主控模型）→ 考古（主控模型，两路搜，逐点 A/B/C）→ 起草（Opus 5.5）→ 独审（主控模型，独立进程，只读草稿与源）
  *   → T 类 PASS：decision/<票号> 分支落正本 + resolution 评论；P 类：挂 needs-approval。
- *   其他 BLOCK：一次升档 Opus 5.5 带审查意见重做；仍 BLOCK：转 P 类。
+ *   其他 BLOCK：一次以 Opus 5.5 升档带审查意见重做；仍 BLOCK：转 P 类。
  *
  *   只有 R1 引用类 BLOCK：一次只改引用的修订轮；总轮次上限 MAX_ROUNDS。起草后先查正本落点，越界退回重写一次。
  * 模式：默认 --dry-run，只写 /Volumes/AgentStorage/decisions/<票号>/，不写 GitHub。
@@ -18,16 +18,20 @@
  */
 import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { CLIPROXY_BASE_URL, CLIPROXY_CONFIG, extractFirstApiKey, readCliProxyAccessKey } from "./cliproxy-env.mts";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { MAIN_MODEL } from "./main-model.mts";
+import { DRAIN_ROOT, DrainFrozenError, drainRequested, withLegacyAdmission } from "./drain-control.mts";
 
 // ───────────────────────── 常量 ─────────────────────────
 
-export const MODEL_FABLE = "claude-fable-5-1";
+export const MODEL_MAIN = MAIN_MODEL;
 export const MODEL_OPUS = "claude-opus-5-5";
-export const PROXY_BASE_URL = "http://127.0.0.1:8318";
-export const PROXY_CONFIG = join(homedir(), "Library/Application Support/CLIProxyLocal/config.yaml");
+export const MODEL_DRAFTER = MODEL_OPUS;
+export const MODEL_REVIEW = MODEL_MAIN;
+export const PROXY_BASE_URL = CLIPROXY_BASE_URL;
+export { CLIPROXY_CONFIG, CLIPROXY_CONFIG as PROXY_CONFIG, extractFirstApiKey };
 export const DEFAULT_OUT_ROOT = "/Volumes/AgentStorage/decisions";
 export const DEFAULT_MAPS = [1323, 1340];
 export const MAX_CONCURRENT = 3;
@@ -101,51 +105,6 @@ function toTicket(s: string): number {
 }
 
 // ───────────────────────── 令牌 ─────────────────────────
-
-/** 从 CLIProxyLocal config.yaml 文本取 access.api-keys 首项（纯函数，不依赖 yaml 库）。 */
-export function extractFirstApiKey(yamlText: string): string | null {
-  const lines = yamlText.split(/\r?\n/);
-  let inAccess = false;
-  let keysIndent = -1;
-  for (const raw of lines) {
-    if (/^\s*(#.*)?$/.test(raw)) continue;
-    const indent = raw.length - raw.trimStart().length;
-    const line = raw.trim();
-    if (indent === 0) {
-      inAccess = /^access:\s*$/.test(line);
-      keysIndent = -1;
-      continue;
-    }
-    if (!inAccess) continue;
-    if (keysIndent < 0) {
-      const m = /^api-keys:\s*(.*)$/.exec(line);
-      if (!m) continue;
-      const inline = m[1].trim();
-      if (inline.startsWith("[")) {
-        const first = inline.replace(/^\[|\]$/g, "").split(",")[0]?.trim();
-        return first ? unquote(first) : null;
-      }
-      keysIndent = indent;
-      continue;
-    }
-    if (indent <= keysIndent && !line.startsWith("-")) return null;
-    if (line.startsWith("-")) {
-      const v = unquote(line.slice(1).trim());
-      return v || null;
-    }
-  }
-  return null;
-}
-
-function unquote(s: string): string {
-  return s.replace(/\s+#.*$/, "").replace(/^["']|["']$/g, "");
-}
-
-function readProxyToken(): string {
-  const tok = extractFirstApiKey(readFileSync(PROXY_CONFIG, "utf8"));
-  if (!tok) throw new Error("CLIProxyLocal config 未找到 access.api-keys 首项");
-  return tok;
-}
 
 // ───────────────────────── 模型输出解析 ─────────────────────────
 
@@ -384,7 +343,7 @@ export interface RunState {
 }
 
 export function initialState(klass: Klass): RunState {
-  return { phase: "draft", klass, attempt: 1, drafterModel: MODEL_FABLE, convertedToP: false, draftMode: "initial", upgraded: false, revised: false };
+  return { phase: "draft", klass, attempt: 1, drafterModel: MODEL_DRAFTER, convertedToP: false, draftMode: "initial", upgraded: false, revised: false };
 }
 
 /** BLOCK 依据指向具体引用的特征：行号、文件:行、逐字、转述、核实命令、评论 id、引文。 */
@@ -399,7 +358,7 @@ export function isCitationOnlyBlock(r: Review): boolean {
 
 /**
  * 审查后的转移：PASS→落地；只有 R1 引用类 BLOCK→一次只改引用的修订轮（Opus）；
- * 其他 BLOCK→一次升档 Opus 重做；修订与升档都用过或总轮次到 MAX_ROUNDS 仍 BLOCK→转 P。
+ * 其他 BLOCK→一次以 Opus 重做；修订与升档都用过或总轮次到 MAX_ROUNDS 仍 BLOCK→转 P。
  */
 export function nextAfterReview(s: RunState, r: Review): RunState {
   if (r.verdict === "PASS") return { ...s, phase: s.klass === "T" ? "land_t" : "shadow_p" };
@@ -467,23 +426,23 @@ export interface ModelResult { text: string; durationMs: number; attempts: numbe
 export type ModelRunner = (c: ModelCall) => Promise<ModelResult>;
 
 /**
- * Fable 安全拦截（#1785）：「API Error: Fable 5's safeguards flagged this message (…aup)」。
+ * 安全拦截（#1785）：「API Error: 起草模型 5's safeguards flagged this message (…aup)」。
  * 这不是临时错误（同一提示重发照样拦），也不是参数/权限错误；换模型即可继续。只认这一特征。
  */
-const SAFEGUARD_BLOCK = /\bFable [\d.]+'s safeguards flagged this message\b/i;
+const SAFEGUARD_BLOCK = /safeguards? flagged this message|safety.{0,20}(blocked|refused)/i;
 export function isSafeguardBlock(output: string): boolean {
   return SAFEGUARD_BLOCK.test(output);
 }
 
-/** 被安全拦截时改用的另一档；只有 Fable 有这道拦截，其他模型没有改派目标。 */
+/** 被安全拦截时改用的另一档；只有 起草模型 有这道拦截，其他模型没有改派目标。 */
 export function safeguardFallbackModel(model: string): string | null {
-  return model === MODEL_FABLE ? MODEL_OPUS : null;
+  return model === MODEL_DRAFTER ? MODEL_REVIEW : model === MODEL_REVIEW ? MODEL_DRAFTER : null;
 }
 
 export interface ModelSwitch { role: ModelCall["role"]; from: string; to: string; reason: "safeguard" }
 
 /**
- * 包一层：某角色调用被 Fable 安全拦截时，同一步改用另一档重试一次，并经 onSwitch 记录。
+ * 包一层：某角色调用被 安全拦截时，同一步改用另一档重试一次，并经 onSwitch 记录。
  * 改派在本票内对该角色粘住（考古第二遍、落点重写不再先撞一次拦截）；改派后的调用再失败照常抛错。
  */
 export function withSafeguardFallback(run: ModelRunner, onSwitch: (s: ModelSwitch) => void = () => {}): ModelRunner {
@@ -506,11 +465,24 @@ export function withSafeguardFallback(run: ModelRunner, onSwitch: (s: ModelSwitc
 }
 
 /**
- * 独审模型（#1785）：默认 Opus。起草本应 Fable、因安全拦截实际由 Opus 写成时，独审改用 Fable，
- * 保证该轮起草与独审不是同一模型；升档重做轮（计划即 Opus）维持原设计。
+ * 独审模型（#1785）：默认主控模型。起草本应 Opus、因安全拦截实际由主控模型写成时，独审改用 Opus，
+ * 保证该轮起草与独审不在同一家族；升档重做轮（计划即 Opus）维持原设计。
  */
 export function reviewerModel(drafterPlanned: string, drafterUsed: string): string {
-  return drafterUsed !== drafterPlanned && drafterUsed === MODEL_OPUS ? MODEL_FABLE : MODEL_OPUS;
+  return drafterUsed.startsWith("claude-") ? MODEL_REVIEW : MODEL_DRAFTER;
+}
+
+/** 模型家族用于独审隔离：起草与独审不能落在同一家族，即使调用进程不同。 */
+export function modelFamily(model: string): string {
+  if (model.startsWith("claude-")) return "claude";
+  if (model.startsWith("gpt-")) return "gpt";
+  return model.split("-", 1)[0] || model;
+}
+
+export function assertDifferentModelFamilies(drafter: string, reviewer: string): void {
+  if (modelFamily(drafter) === modelFamily(reviewer)) {
+    throw new Error(`独审模型与起草模型同家族，拒绝静默放行：起草=${drafter}，独审=${reviewer}`);
+  }
 }
 
 /**
@@ -592,7 +564,7 @@ export function makeClaudeRunner(opts: {
   const sleep = opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
   const once = opts.once ?? claudeOnce;
   return async (c) => {
-    const token = (opts.token ?? readProxyToken)();
+    const token = (opts.token ?? readCliProxyAccessKey)();
     const t0 = Date.now();
     for (let attempt = 1; ; attempt++) {
       const r = await once(c, token, timeoutMs);
@@ -983,6 +955,7 @@ ${draft}`;
 
 export interface Deps {
   mode: Mode;
+  drainRoot?: string;
   /** ADR 编号预留表与锁所在目录；缺省 outRoot。 */
   stateDir?: string;
   gh: GhRunner;
@@ -1010,7 +983,7 @@ export interface Summary {
   reviewCounts?: { pass: number; block: number; parseError: number };
   /** 每轮起草方式与审查结论。 */
   rounds?: Array<{ attempt: number; mode: DraftMode; drafter: string; reviewer?: string; verdict: string; blocked: Rule[]; problems: string[] }>;
-  /** 因 Fable 安全拦截改派模型的记录（#1785）。 */
+  /** 因安全拦截改派模型的记录（#1785）。 */
   modelSwitches?: ModelSwitch[];
   /** T 类因考古事实缺口转 P 的说明（影子评论首行用）。 */
   factGapNote?: string;
@@ -1089,7 +1062,7 @@ function isGitWrite(args: string[]): boolean {
 function fallbackRunner(n: number, run: ModelRunner, record: (sw: ModelSwitch) => void): ModelRunner {
   return withSafeguardFallback(run, (sw) => {
     record(sw);
-    log(`#${n} ${sw.role} 因 Fable 安全拦截从 ${sw.from} 改 ${sw.to} 重试`);
+    log(`#${n} ${sw.role} 因安全拦截从 ${sw.from} 改 ${sw.to} 重试`);
   });
 }
 
@@ -1105,7 +1078,7 @@ export async function runArchaeology(
   o: { feedback?: string; model?: string; round?: number; switches?: ModelSwitch[] } = {},
 ): Promise<ArchRun> {
   let fb = o.feedback;
-  let model = o.model ?? MODEL_FABLE;
+  let model = o.model ?? MODEL_MAIN;
   const planned = model;
   let arch: Archaeology | null = null;
   let problems: string[] = [];
@@ -1168,6 +1141,11 @@ export async function archaeologyOnly(n: number, d: Deps): Promise<{ ticket: num
   return { ticket: n, dir, problems: r.problems, counts: { A: c("A"), B: c("B"), C: c("C") } };
 }
 
+/** --archaeology-only 入口的排空准入；冻结时不得新增考古动作。 */
+export async function archaeologyOnlyAdmission(n: number, d: Deps) {
+  return withLegacyAdmission(() => archaeologyOnly(n, d), d.drainRoot);
+}
+
 export async function processTicket(n: number, raw: Deps): Promise<Summary> {
   const dir = join(raw.outRoot, String(n));
   mkdirSync(dir, { recursive: true });
@@ -1207,12 +1185,14 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
 
     // claim 先行防重复；续做时允许票仍挂在自己名下（上次没来得及取消认领）。
     if (d.mode === "live") {
-      const mine = resume && d.me && t.assignees.length === 1 && t.assignees[0] === d.me;
-      if (t.assignees.length > 0 && !mine) throw new Error(`票已被 ${t.assignees.join(",")} 认领`);
-      if (!mine) d.gh(["issue", "edit", String(n), "--add-assignee", "@me"]);
-      claimed = true;
-      const after = loadTicket(d.gh, n).assignees;
-      if (after.length !== 1 || (d.me && after[0] !== d.me)) throw new Error(`claim 竞争：assignees=${after.join(",")}`);
+      await withLegacyAdmission(() => {
+        const mine = resume && d.me && t.assignees.length === 1 && t.assignees[0] === d.me;
+        if (t.assignees.length > 0 && !mine) throw new Error(`票已被 ${t.assignees.join(",")} 认领`);
+        if (!mine) d.gh(["issue", "edit", String(n), "--add-assignee", "@me"]);
+        claimed = true;
+        const after = loadTicket(d.gh, n).assignees;
+        if (after.length !== 1 || (d.me && after[0] !== d.me)) throw new Error(`claim 竞争：assignees=${after.join(",")}`);
+      }, d.drainRoot);
     } else summary.plannedWrites.push(`claim：assign #${n}`);
 
     const persist = () => writeJson(join(dir, "summary.json"), summary);
@@ -1236,14 +1216,15 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
       log(`#${n} 从断点 ${p.stage} 续做${p.landedSha ? `（已推送 ${p.landedSha.slice(0, 10)}）` : ""}`);
     } else {
     // 1. 分级
-    const cr = await d.model({ model: MODEL_FABLE, prompt: classifyPrompt(t), cwd: d.srcDir, role: "classify" });
+    const cr = await d.model({ model: MODEL_MAIN, prompt: classifyPrompt(t), cwd: d.srcDir, role: "classify" });
     const cls = parseClassification(cr.text);
     summary.durationsMs.classify = cr.durationMs;
     summary.klass = cls.klass;
-    writeJson(join(dir, "classify.json"), { ticket: n, model: cr.model ?? MODEL_FABLE, ...cls, durationMs: cr.durationMs, raw: cr.text });
+    const classifySwitches = (summary.modelSwitches ?? []).filter((x) => x.role === "classify");
+    writeJson(join(dir, "classify.json"), { ticket: n, model: cr.model ?? MODEL_MAIN, ...(classifySwitches.length ? { modelSwitches: classifySwitches } : {}), ...cls, durationMs: cr.durationMs, raw: cr.text });
     write(`评论 #${n}：分级：${cls.klass} — ${cls.reason}`, ["issue", "comment", String(n), "--body-file", "-"], `分级：${cls.klass} — ${cls.reason}`);
 
-    // 1b. 考古：起草前两路搜，逐点 A/B/C。机械校验不过的问题交审查（草稿因此 BLOCK），升档重做时重跑考古。
+    // 1b. 考古：起草前两路搜，逐点 A/B/C。机械校验不过的问题交审查（草稿因此 BLOCK），升档重做时仍用主控模型重跑考古。
     let ar = await runArchaeology(t, d, dir, summary);
 
     // 2–3. 起草 / 独审，至多两轮。分级由分级器定，起草者只能提改判建议。
@@ -1270,7 +1251,7 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
     while (s.phase === "draft") {
       summary.attempts = s.attempt;
       if (s.draftMode === "redo" && ar.problems.length) {
-        ar = await runArchaeology(t, d, dir, summary, { feedback: ar.problems.map((x) => `- ${x}`).join("\n"), model: s.drafterModel, round: s.attempt });
+        ar = await runArchaeology(t, d, dir, summary, { feedback: ar.problems.map((x) => `- ${x}`).join("\n"), model: MODEL_MAIN, round: s.attempt });
         gapGate();
       }
       const prompt = (fb?: string) =>
@@ -1306,7 +1287,7 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
         ...archaeologyCoverageProblems(draft, ar.arch),
       ];
       const basePrompt = reviewPrompt(t, effCls, draft, ar.md);
-      // 起草与独审各起一次调用；起草因拦截改派 Opus 时独审改用 Fable（reviewerModel）。
+      // 起草与独审各起一次调用；起草因拦截改派主控模型时独审改用 Opus（reviewerModel）。
       const drafterUsed = dr.model ?? s.drafterModel;
       const reviewer = reviewerModel(s.drafterModel, drafterUsed);
       let rr = await d.model({ model: reviewer, prompt: basePrompt, cwd: d.srcDir, role: "review" });
@@ -1323,6 +1304,7 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
       else counts.block++;
       summary.durationsMs[`review${s.attempt}`] = rr.durationMs;
       const reviewerUsed = rr.model ?? reviewer;
+      // 起草被安全拦截后可改派主控模型；若独审也被拦截且只能回到同家族，必须 FAIL-loud。
       if (s.attempt > 1 && existsSync(join(dir, "review.json"))) renameSync(join(dir, "review.json"), join(dir, `review.attempt${s.attempt - 1}.json`));
       summary.rounds.push({
         attempt: s.attempt, mode: s.draftMode, drafter: drafterUsed, reviewer: reviewerUsed,
@@ -1330,12 +1312,14 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
         blocked: review.parseError ? [] : review.items.filter((i) => i.verdict === "BLOCK").map((i) => i.rule),
         problems: review.problems,
       });
+      const reviewSwitches = (summary.modelSwitches ?? []).filter((x) => x.role === "review");
       writeJson(join(dir, "review.json"), {
         ticket: n, attempt: s.attempt, mode: s.draftMode, drafter: drafterUsed, reviewer: reviewerUsed, klass: s.klass,
         verdict: review.parseError ? "review_parse_error" : review.verdict, parseError: review.parseError, retried,
         items: review.parseError ? [] : review.items, problems: review.problems, draftMissingSections: missing,
-        durationMs: rr.durationMs, raw: rr.text,
+        durationMs: rr.durationMs, ...(reviewSwitches.length ? { modelSwitches: reviewSwitches } : {}), raw: rr.text,
       });
+      assertDifferentModelFamilies(drafterUsed, reviewerUsed);
       if (review.parseError) {
         s = { ...s, phase: "review_parse_error" };
         summary.error = "审查输出两次均无法解析为 R1–R8 JSON（review_parse_error），未计入 BLOCK";
@@ -1403,6 +1387,13 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
     if (s.phase === "review_parse_error") write(`取消认领 #${n}（审查解析失败，待重跑）`, ["issue", "edit", String(n), "--remove-assignee", "@me"]);
     summary.phase = s.phase === "land_t" || s.phase === "shadow_p" || s.phase === "review_parse_error" ? s.phase : "done";
   } catch (e) {
+    if (e instanceof DrainFrozenError) {
+      // 冻结不覆盖既有断点：排空后解冻由下一轮续做。
+      skipPersist = true;
+      summary.phase = "skipped";
+      summary.error = e.message;
+      return summary;
+    }
     summary.phase = "error";
     summary.error = e instanceof Error ? e.message : String(e);
     if (claimed) {
@@ -1416,9 +1407,9 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
   return summary;
 }
 
-/** 最后一轮实际独审模型；旧 summary 无记录时按原设计取 Opus。 */
+/** 最后一轮实际独审模型；旧 summary 无记录时按主控模型。 */
 function lastReviewer(s: Pick<Summary, "rounds">): string {
-  return s.rounds?.at(-1)?.reviewer ?? MODEL_OPUS;
+  return s.rounds?.at(-1)?.reviewer ?? MODEL_REVIEW;
 }
 
 export function shadowComment(n: number, draft: string, r: Review, dir: string, s: Summary, arch: Archaeology | null = null): string {
@@ -1456,7 +1447,7 @@ async function landT(t: TicketContext, draft: string, target: string, dir: strin
   fetchMain(d.repoRoot, d.git);
   if (existsSync(wt)) d.git(d.repoRoot, ["worktree", "remove", "--force", wt]);
   d.git(d.repoRoot, ["worktree", "add", "-B", branch, wt, MAIN_REF]);
-  const lr = await d.model({ model: MODEL_OPUS, prompt: landPrompt(t, stripFlowSections(draft), target), cwd: wt, role: "land", allowWrite: true });
+  const lr = await d.model({ model: MODEL_MAIN, prompt: landPrompt(t, stripFlowSections(draft), target), cwd: wt, role: "land", allowWrite: true });
   s.durationsMs.land = lr.durationMs;
   const changed = d.git(wt, ["status", "--porcelain"]).split("\n").filter(Boolean).map((l) => l.slice(3));
   if (changed.length === 0) throw new Error("落地工蜂未改动正本");
@@ -1603,7 +1594,7 @@ async function main() {
   const gh = guardGh(a.mode, realGh);
   const srcDir = join(a.outRoot, ".src");
   const d: Deps = {
-    mode: a.mode, gh, git, model: makeClaudeRunner(), outRoot: a.outRoot, srcDir, repoRoot: REPO_ROOT, now: Date.now,
+    mode: a.mode, drainRoot: DRAIN_ROOT, gh, git, model: makeClaudeRunner(), outRoot: a.outRoot, srcDir, repoRoot: REPO_ROOT, now: Date.now,
     me: a.mode === "live" ? gh(["api", "user", "--jq", ".login"]).trim() : undefined,
   };
   if (a.archaeologyOnly) {
@@ -1611,7 +1602,7 @@ async function main() {
     log(`考古 only：取证检出对齐远端 main ${sha.slice(0, 10)}`);
     for (const n of a.tickets) {
       try {
-        const r = await archaeologyOnly(n, d);
+        const r = await archaeologyOnlyAdmission(n, d);
         log(`#${n} 考古 A ${r.counts.A} / B ${r.counts.B} / C ${r.counts.C}；机械校验${r.problems.length ? `问题 ${r.problems.length} 条：${r.problems.join("；")}` : "通过"}；${r.dir}/${ARCHAEOLOGY_FILE}`);
       } catch (e) {
         log(`#${n} 考古失败：${e instanceof Error ? e.message : String(e)}`);
@@ -1621,6 +1612,7 @@ async function main() {
     return;
   }
   for (;;) {
+    if (drainRequested(d.drainRoot)) { log("旧入口冻结，已领工作收尾后退出"); return; }
     try {
       const sha = ensureSrc(REPO_ROOT, srcDir, git);
       log(`取证检出对齐远端 main ${sha.slice(0, 10)}`);

@@ -380,6 +380,10 @@ _Avoid_: 行文裸称「production」——按上条「生产」拆三义的规�
 **模拟批（Simulation Batch）**（同上）:
 同一 bar 内全部外效的集合；批内各重各自独立判定、不排序、不互占资金，批内真实先后声明为未知；双跑只比较批级终态。依据 ADR 0013 裁定一／ADR 0014 裁定二：重间不需要次序。
 
+**同核 adapter（Shared-Core Adapter）**（2026-10-28 [#1538](https://github.com/xy7365527-lang/NewChanlun/issues/1538) 裁定九，[ADR 0056](docs/adr/0056-three-mode-shared-core-adapter-boundary.md)）:
+历史回放、paper、live 三模式共用一个核心，随模式替换的只有六类 adapter：结构 feed（owner S）、执行行情 feed（owner X）、clock（manifest `clock` 段，各域按其读）、matcher/venue（owner X）、传输（X 对外一段）、受控持久化（各域单写者）。接口与替换规则见 ADR 0056 裁定三。
+_Avoid_: 把模式差异写进核心判定；把域间传输或 SQLite/WAL 持久化当成随模式替换的 adapter。
+
 **自由度（Degree of Freedom）**（2026-10-20 用户立，[ADR 0041](docs/adr/0041-degrees-of-freedom-configurable-not-excluded.md)）:
 正本标为 `[新缠论:选择]`、或属参数类且缠师原文无定论的量，存在不止一个合法取值。缠师原文语义与已裁教义推论不是自由度。
 _Avoid_: 把原文语义称作「可选项」；把另一个合法取值写成「被否」。
@@ -460,6 +464,7 @@ _Avoid_: 与 RD-11 资金准入的 `allocation_policy_id`（#1394）混称「分
 
 **域事件（Domain Event）**（2026-10-27 [#1534](https://github.com/xy7365527-lang/NewChanlun/issues/1534) 裁定，[ADR 0051](docs/adr/0051-per-bar-domain-event-identity-lifecycle-contract.md)）:
 S、E、各 Bᵢ 每条持久事件共用的外壳 `domain-event/1`，X 侧订单/成交原件也套它；带写入域、事件身份、提交切面、写者纪元、来源、政策/模型引用、前后状态与因果，各域差异只在载荷与字段值。只追加，撤回也是一条新的域事件。
+B/E 的持久撤回写口由子合同 domain-event-withdrawal/1 按会话 manifest 显式选择，见 [ADR 0053](docs/adr/0053-domain-event-withdrawal-subcontract.md)。
 _Avoid_: 为单个域另造事件 schema；把 ADR 0007 的「背驰段候选事件」称作域事件（它是 S 载荷里的内容）
 
 **写者纪元（Writer Epoch）**（同上）:
