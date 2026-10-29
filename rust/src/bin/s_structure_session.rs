@@ -12524,7 +12524,6 @@ mod issue1768_seed_export {
 
     #[derive(Clone, Copy)]
     enum Advance {
-        Production,
         Fixture,
     }
 
@@ -12539,7 +12538,7 @@ mod issue1768_seed_export {
         )
     }
 
-    fn scoped(db: &Path, op: impl FnOnce() -> Result<(), String>) -> Result<(), String> {
+    fn scoped(db: &Path, op: impl FnOnce() -> Result<(), String>) -> Result<Value, String> {
         let command = v3::admission_anchor::CommandAccounting::begin();
         let fields: Vec<(&str, u64)> = LIMIT_FIELDS.iter().map(|f| (*f, ORIGINAL_LIMIT)).collect();
         let prepared = v3::admission_anchor::test_prepare_mixed_caps(
@@ -12548,18 +12547,21 @@ mod issue1768_seed_export {
             TESTONLY_NATIVE_RAM.1,
             &fields,
         );
-        let result = (|| {
+        let result: Result<Value, String> = (|| {
             let scope =
                 v3::test_with_mixed_entry(|| v3::admission::WriterScope::admit(db, prepared))?;
             let guard = scope.enter()?;
             scope.require_admitted()?;
-            let outcome = op();
+            let admitted = scope.test_accounting_snapshot().expect("admitted accounting");
+            op()?;
+            let finished = scope.test_accounting_snapshot().expect("finished accounting");
+            let outcome = Ok(json!({"admitted": admitted, "finished": finished}));
             drop(guard);
             drop(scope);
             outcome
         })();
         let result = match result {
-            Ok(()) => Ok(()),
+            Ok(receipt) => Ok(receipt),
             Err(error) => {
                 let mut sink = Vec::new();
                 let receipt = command.report(&error, &mut sink);
@@ -12601,9 +12603,9 @@ mod issue1768_seed_export {
             .unwrap();
         }
 
-        fn step(&mut self, name: String, result: Result<(), String>) {
+        fn step(&mut self, name: String, result: Result<Value, String>) {
             let ok = result.is_ok();
-            self.steps.push(json!({"step": name, "ok": ok, "error": result.as_ref().err()}));
+            self.steps.push(json!({"step": name, "ok": ok, "error": result.as_ref().err(), "accounting": result.as_ref().ok()}));
             if !ok {
                 self.manifest();
                 panic!("{} 失败：{}", name, result.unwrap_err());
@@ -12619,7 +12621,7 @@ mod issue1768_seed_export {
         fn init(&mut self, db: &Path) {
             let catalog = repo().join("s_session/catalog/signed-catalog.json");
             let r = cmd_init(db, SESSION, &catalog);
-            self.step(format!("init {}", db.display()), r);
+            self.step(format!("init {}", db.display()), r.map(|()| Value::Null));
         }
 
         fn accept(&mut self, db: &Path, name: &str, seq: usize, price: i64) {
@@ -12631,7 +12633,6 @@ mod issue1768_seed_export {
 
         fn advance(&mut self, db: &Path, mode: Advance) {
             let r = scoped(db, || match mode {
-                Advance::Production => cmd_advance(db, DEFAULT_WRITER_EPOCH),
                 Advance::Fixture => advance_core_fixture(db, DEFAULT_WRITER_EPOCH, None)
                     .and_then(|out| v3::admission::write_current_result(&out)),
             });
@@ -12657,11 +12658,11 @@ mod issue1768_seed_export {
             let wal_len = std::fs::metadata(&wal).map(|m| m.len()).unwrap_or(0);
             let dest = self.root.join("frozen").join(name);
             std::fs::copy(db, &dest).unwrap();
-            let bytes = std::fs::read(&dest).unwrap();
+            let bytes = std::fs::metadata(&dest).unwrap().len();
             self.snapshots.push(json!({
                 "file": name, "source": db.display().to_string(), "checkpoint": [busy.0, busy.1, busy.2],
                 "residual_wal_bytes": wal_len, "generation": actual_gen, "rule_revision": rule,
-                "session_id": session, "raw_events": raw_rows, "bytes": bytes.len(), "sha256": sha256_hex(&bytes),
+                "session_id": session, "raw_events": raw_rows, "bytes": bytes,
             }));
             self.manifest();
             assert_eq!(busy.0, 0, "{name} checkpoint busy");
@@ -12711,7 +12712,19 @@ mod issue1768_seed_export {
     #[test]
     #[ignore = "#1768 有界 CI 显式导出"]
     fn issue1768_seed_export_production_advance() {
-        export(Advance::Production, "production-advance");
+        let out = PathBuf::from(std::env::var_os("S1768_SEED_EXPORT_DIR").expect("export directory"));
+        let root = out.join("production-advance");
+        std::fs::create_dir_all(root.join("work")).unwrap();
+        let mut run = Run { root: root.clone(), label: "production-advance", steps: vec![], snapshots: vec![] };
+        let db = root.join("work/seed.sqlite");
+        run.init(&db);
+        run.accept(&db, "event-0.json", 0, PRICES[0]);
+        let error = scoped(&db, || cmd_advance(&db, DEFAULT_WRITER_EPOCH)).unwrap_err();
+        let expected = "AwaitingPolicy{venue_profile, cost_inputs}：AwaitingPolicy{venue-profile-P0.tick_size}：字段未签，不回退任何备用值；AwaitingPolicy{venue-profile-P0.slippage_bps}：字段未签，不回退任何备用值；AwaitingPolicy{venue-profile-P0.tax_bps}：字段未签，不回退任何备用值；AwaitingPolicy{venue-profile-P0.entry_delay_bars}：字段未签，不回退任何备用值";
+        run.steps.push(json!({"step": "P0 advance expected policy rejection", "error": error,
+            "expected_error": expected, "ok": error.split("\nreceipt=").next() == Some(expected)}));
+        run.manifest();
+        assert_eq!(error.split("\nreceipt=").next(), Some(expected));
     }
 
     #[test]

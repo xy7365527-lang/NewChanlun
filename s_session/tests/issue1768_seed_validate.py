@@ -1,10 +1,10 @@
 """#1768：用原公共 AuditReader 只读核冻结旧规则 oracle 重建夹具（私有副本，不改原件）。"""
 
 import json
-import shutil
 import sqlite3
 import sys
 import tempfile
+import traceback
 from contextlib import closing
 from pathlib import Path
 
@@ -21,6 +21,8 @@ EXPECT = {"g0": (0, 0), "g1": (1, 1), "g2": (2, 2), "g3": (3, 3), "g4": (4, 4),
 
 
 def check(path):
+    if not path.is_file():
+        raise FileNotFoundError(path)
     with tempfile.TemporaryDirectory() as tmp:
         copy = Path(tmp) / path.name
         with closing(reader.open_readonly(path)) as src, closing(sqlite3.connect(copy)) as dst:
@@ -42,6 +44,8 @@ def check(path):
 
 
 def main(*modes):
+    if not modes:
+        raise ValueError("at least one complete seed directory is required")
     out, ok = {}, True
     for mode in map(Path, modes):
         for name, (gen, raw) in EXPECT.items():
@@ -51,6 +55,7 @@ def main(*modes):
                 res = check(f)
                 res["ok"] = res["generation"] == gen and res["raw"] == raw and all(res["cut_projection_equal"].values())
             except Exception as error:
+                traceback.print_exc(file=sys.stderr)
                 res = {"ok": False, "error": f"{type(error).__name__}: {error}"}
             ok &= res["ok"]
             out[key] = res

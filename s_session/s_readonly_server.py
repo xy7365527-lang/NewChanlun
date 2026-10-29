@@ -177,11 +177,21 @@ def _verify_batch_profile(batch, binding):
 def _profile_at_cut(conn, generation):
     if generation==0:
         return "", ""
-    row=conn.execute("SELECT b.canonical_bytes FROM batches b JOIN structure_deltas d "
+    row=conn.execute("SELECT b.batch_id,b.canonical_bytes,b.byte_len FROM batches b JOIN structure_deltas d "
                      "ON d.index_frontier=b.batch_id WHERE d.generation=?",(generation,)).fetchone()
     if row is None:
         raise ValueError("cut来源不存在")
-    batch=json.loads(row[0])
+    integrity = _query_integrity()
+    tables = integrity._typed_rows(integrity.capture(conn), None)
+    sources = integrity.evidence_batch_sources(tables)
+    original = row[1]
+    if sources is not None:
+        if original:
+            raise ValueError("图域批次仍带整块字节")
+        original = sources.get(row[0])
+        if original is None or len(original) != row[2]:
+            raise ValueError("cut批次私有根缺失或长度不符")
+    batch=json.loads(original)
     if type(batch.get("profile_id")) is not str or type(batch.get("profile_hash")) is not str:
         raise ValueError("cut.profile_id/hash缺失")
     return batch["profile_id"],batch["profile_hash"]

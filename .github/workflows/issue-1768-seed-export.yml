@@ -30,28 +30,25 @@ jobs:
           set +e
           mkdir -p "$S1768_SEED_EXPORT_DIR" "$RUNNER_TEMP/evidence"
           git rev-parse HEAD > "$RUNNER_TEMP/evidence/checkout-head.txt"
+          failed=0
           for t in issue1768_seed_export_production_advance issue1768_seed_export_fixture_advance; do
             cargo test --locked --features s_session --bin s_structure_session -- --ignored --exact "issue1768_seed_export::$t" --nocapture \
               >"$RUNNER_TEMP/evidence/$t.log" 2>&1
-            printf '%s exit=%s\n' "$t" "$?" | tee -a "$RUNNER_TEMP/evidence/export-exit.txt"
+            rc=$?
+            printf '%s exit=%s\n' "$t" "$rc" | tee -a "$RUNNER_TEMP/evidence/export-exit.txt"
+            if [ "$rc" -ne 0 ]; then failed=1; fi
           done
           tail -40 "$RUNNER_TEMP/evidence/"*.log || true
-          exit 0
+          exit "$failed"
       - name: Release default build keeps legacy write unreachable
         if: always()
         working-directory: rust
         shell: bash
         run: |
-          set +e
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/evidence"
           cargo build --locked --release --features s_session --bin s_structure_session >"$RUNNER_TEMP/evidence/release-build.log" 2>&1
-          printf 'release_build_exit=%s\n' "$?" | tee "$RUNNER_TEMP/evidence/release-lock.txt"
-          d=$(mktemp -d)
-          ./target/release/s_structure_session init --db "$d/x.sqlite" --session s --catalog ../s_session/catalog/signed-catalog.json >>"$RUNNER_TEMP/evidence/release-lock.txt" 2>&1
-          printf 'release_init_exit=%s\n' "$?" >>"$RUNNER_TEMP/evidence/release-lock.txt"
-          printf '{}' > "$d/in.json"
-          ./target/release/s_structure_session accept --db "$d/x.sqlite" --input "$d/in.json" --profile ../s_session/profiles/testonly_tick_1_1_ohlc.json >>"$RUNNER_TEMP/evidence/release-lock.txt" 2>&1
-          printf 'release_accept_exit=%s (expect nonzero)\n' "$?" >>"$RUNNER_TEMP/evidence/release-lock.txt"
-          cat "$RUNNER_TEMP/evidence/release-lock.txt"
+          printf 'release_build_exit=0\n' > "$RUNNER_TEMP/evidence/release-build-exit.txt"
       - uses: actions/setup-python@v5
         if: always()
         with:
@@ -60,12 +57,27 @@ jobs:
         if: always()
         shell: bash
         run: |
+          set -euo pipefail
+          python -m pip install -r s_session/tests/requirements-tb02c.txt >"$RUNNER_TEMP/evidence/python-dependencies.log" 2>&1
           set +e
-          python -m pip install -r s_session/tests/requirements-tb02c.txt >/dev/null
           python s_session/tests/issue1768_seed_validate.py "$RUNNER_TEMP/evidence/seed/fixture-advance-testonly-policy-records" \
             >"$RUNNER_TEMP/evidence/validator.json" 2>"$RUNNER_TEMP/evidence/validator.err"
-          printf 'validator_exit=%s\n' "$?" | tee "$RUNNER_TEMP/evidence/validator-exit.txt"
+          rc=$?
+          printf 'validator_exit=%s\n' "$rc" | tee "$RUNNER_TEMP/evidence/validator-exit.txt"
           cat "$RUNNER_TEMP/evidence/validator.json"; tail -30 "$RUNNER_TEMP/evidence/validator.err"
+          exit "$rc"
+      - name: Release accepts resources but rejects retired legacy writers
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          python s_session/tests/issue1768_release_lock.py rust/target/release/s_structure_session \
+            "$RUNNER_TEMP/evidence/seed/fixture-advance-testonly-policy-records" \
+            >"$RUNNER_TEMP/evidence/release-lock.jsonl" 2>"$RUNNER_TEMP/evidence/release-lock.err"
+          rc=$?
+          printf 'release_lock_exit=%s\n' "$rc" | tee "$RUNNER_TEMP/evidence/release-lock-exit.txt"
+          cat "$RUNNER_TEMP/evidence/release-lock.jsonl"; cat "$RUNNER_TEMP/evidence/release-lock.err"
+          exit "$rc"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
