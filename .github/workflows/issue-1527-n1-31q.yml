@@ -1,0 +1,40 @@
+name: issue-1527 N1 31Q targeted locks
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/1527-n1-source31q']
+permissions:
+  contents: read
+concurrency:
+  group: issue-1527-n1-31q-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  n1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: n1-31q-${{ runner.os }}-${{ hashFiles('rust/Cargo.lock') }}
+      - name: N1 candidate locks and D1 admission locks
+        working-directory: rust
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test --locked --features s_session --bin s_structure_session native_n1_ -- --list | tee "$RUNNER_TEMP/n1-list.log"
+          count=$(grep -c ': test$' "$RUNNER_TEMP/n1-list.log")
+          echo "n1 tests listed: $count"
+          test "$count" -ge 22
+          cargo test --locked --features s_session --bin s_structure_session native_n1_ -- --nocapture | tee "$RUNNER_TEMP/n1-tests.log"
+          grep -E "test result: ok\. (2[2-9]|[3-9][0-9]) passed" "$RUNNER_TEMP/n1-tests.log"
+          cargo test --locked --features s_session --bin s_structure_session admission_anchor:: -- --nocapture | tee "$RUNNER_TEMP/n1-d1-anchor.log"
+          cargo test --locked --features s_session --bin s_structure_session admission_prepare_ -- --nocapture | tee "$RUNNER_TEMP/n1-d1-prepare.log"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: issue1527-n1-31q-evidence
+          path: ${{ runner.temp }}/n1-*.log
