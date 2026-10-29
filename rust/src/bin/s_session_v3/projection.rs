@@ -973,6 +973,92 @@ mod tests {
             .filter(|o| o["kind"] == kind).cloned().collect()
     }
 
+    fn w_request_order(request: &Value) -> (u8, i64, usize) {
+        let id: Value = serde_json::from_str(request["request_id"].as_str().unwrap()).unwrap();
+        let (kind, tail, label) = if let Some(slot) = id[0].as_array() {
+            let labels = ["shape_description", "descriptive_labels", "subsequent_development"];
+            (slot[0].as_str().unwrap(), &slot[1], 4 + labels.iter().position(|l| id[1] == *l).unwrap())
+        } else {
+            (id[0].as_str().unwrap(), &id[1], 0)
+        };
+        if kind == "CC-004.initialization" { return (0, 0, 0); }
+        if tail == "pending" { return (2, 0, usize::from(kind == "CC-006.local_shape")); }
+        let start = if tail.is_array() { &tail[0] } else { tail }.as_str().unwrap().parse().unwrap();
+        let label = match kind {
+            "CC-004.undetermined_raw" => 0,
+            "CC-004.inclusion_step" => 1,
+            "CC-005.inclusion_group" => 2,
+            "CC-006.local_shape" => 3,
+            _ => label,
+        };
+        (1, start, label)
+    }
+
+    /// 按 request_id 配对，摘要用完整请求值比较，不排序发布数组。
+    /// 无窗口的 Initialization / Pending 不具有变化坐标，不参与 m。
+    fn w_change_boundary(old: &[Value], new: &[Value]) -> Option<(i64, usize)> {
+        let mut earliest = None;
+        for (side, other) in [(old, new), (new, old)] {
+            for r in side {
+                let same = other.iter().find(|x| x["request_id"] == r["request_id"]);
+                if same != Some(r) {
+                    let (phase, coord, label) = w_request_order(r);
+                    if phase == 1 {
+                        let key = (coord, label);
+                        earliest = Some(earliest.map_or(key, |m: (i64, usize)| m.min(key)));
+                    }
+                }
+            }
+        }
+        earliest
+    }
+
+    #[test]
+    fn w_requests_published_prior_prefix_stability() {
+        let rule = format!("{}+bounded-layout/1", crate::W_STRUCTURE_RULE_REVISION);
+        let mut f = Fixture::with_rule(&rule);
+        let mut previous = Vec::new();
+        let (mut finite_prefix, mut saw_delete, mut saw_insert, mut saw_revision) = (false, false, false, false);
+        for (n, row, revision) in [
+            (1, ("r0", 0, 5, 10, 0, 5), 1),
+            (2, ("r1", 10, 5, 8, 2, 5), 1),
+            (3, ("r2", 20, 7, 11, 3, 7), 1),
+            (4, ("r3", 30, 9, 13, 5, 9), 1),
+            (5, ("insert", 15, 6, 10, 2, 6), 1),
+            (6, ("r3", 30, 4, 8, 0, 4), 2),
+        ] {
+            // Fixture::publish 从上一代独立索引读取 structure_prior，真实提交后才读 requests。
+            let (e, t) = f.accept_begin(n, row, revision);
+            f.publish(&e, &t).unwrap();
+            let (snapshot, _, _) = published_w_cut(&mut f, n);
+            let knowledge = w_kind(&snapshot, "CC-054.knowledge_state");
+            assert_eq!(knowledge.len(), 1);
+            let requests = knowledge[0]["payload"]["requests"].as_array().unwrap();
+            assert_eq!(w_request_order(&requests[0]).0, 0);
+            assert!(requests.windows(2).all(|pair| w_request_order(&pair[0]) < w_request_order(&pair[1])), "g{n} 原发布数组不按阶段/坐标/label 全序");
+            if n > 1 {
+                let m = w_change_boundary(&previous, requests);
+                for (i, old) in previous.iter().enumerate() {
+                    let (phase, coord, label) = w_request_order(old);
+                    if phase == 1 && m.is_none_or(|m| (coord, label) < m) {
+                        assert_eq!(requests.get(i), Some(old), "g{n} 稳定前缀在原数组下标 {i} 漂移");
+                        finite_prefix |= m.is_some();
+                    }
+                    if !requests.iter().any(|r| r["request_id"] == old["request_id"]) && phase == 1 {
+                        saw_delete = true;
+                        // 纯删除探针取真实旧侧原件；新侧为空，必须仍贡献旧坐标。
+                        assert_eq!(w_change_boundary(std::slice::from_ref(old), &[]), Some((coord, label)));
+                    }
+                }
+                saw_insert |= requests.iter().any(|r| !previous.iter().any(|p| p["request_id"] == r["request_id"]));
+                saw_revision |= requests.iter().any(|r| previous.iter().any(|p| p["request_id"] == r["request_id"] && p != r));
+            }
+            previous = requests.clone();
+        }
+        assert!(finite_prefix, "须有有限 m 且非空前缀的真实相邻发布");
+        assert!(saw_delete && saw_insert && saw_revision);
+    }
+
     /// #1419：原 tb02u 生命周期判据经真实 S3 接纳、Begin、发布与 recover 承接。
     #[test]
     fn w_published_lifecycle_first_known_revision_replaces_and_recovery() {

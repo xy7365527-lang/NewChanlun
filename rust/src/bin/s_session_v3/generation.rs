@@ -6284,7 +6284,7 @@ pub(super) mod tests {
             Self(path)
         }
 
-        pub(super) fn path(&self) -> &std::path::Path {
+        pub(crate) fn path(&self) -> &std::path::Path {
             &self.0
         }
     }
