@@ -78,9 +78,8 @@ def test_business_owner_multi_commit_pr_and_idempotent_resume(lane):
         launch = json.loads((folder / "launch.json").read_text())
         assert "changed-0" in launch["prompt"] and "changed-1" in launch["prompt"]
         assert target.merge_base_sha == lane.gateway.pr["base"]["sha"]
-        assert git(Path(launch["checkout"]), "diff", "--name-only", target.merge_base_sha, target.head_sha).splitlines() == ["changed-0", "changed-1"]
-        assert "remote" not in (Path(launch["checkout"]) / ".git" / "config").read_text()
-        assert not (Path(launch["checkout"]) / ".git" / "objects" / "info" / "alternates").exists()
+        assert not Path(launch["checkout"]).exists()
+        assert (folder / "events.jsonl").is_file() and (folder / "session.jsonl").is_file()
     before = sorted(lane.checkout_root.glob("*/*"))
     assert lane.review_pr(1810)["run_id"] == result["run_id"]
     assert sorted(lane.checkout_root.glob("*/*")) == before
@@ -342,13 +341,16 @@ def test_cli_status_uses_no_auth(lane, monkeypatch, capsys):
     assert json.loads(capsys.readouterr().out) == []
 
 
-def test_snapshot_omits_obsolete_blobs_but_preserves_graph_and_diff(lane, tmp_path):
+@pytest.mark.parametrize("history_count", [1, 4])
+def test_snapshot_omits_obsolete_blobs_but_preserves_graph_and_diff(lane, tmp_path, history_count):
     import os
     old = lane.source / "obsolete.bin"
-    old.write_bytes(os.urandom(2 * 1024 * 1024))
-    git(lane.source, "add", ".")
-    git(lane.source, "commit", "-qm", "unrelated old payload")
-    old_blob = git(lane.source, "rev-parse", "HEAD:obsolete.bin")
+    old_blobs = []
+    for i in range(history_count):
+        old.write_bytes(os.urandom(2 * 1024 * 1024))
+        git(lane.source, "add", ".")
+        git(lane.source, "commit", "-qm", f"unrelated old payload {i}")
+        old_blobs.append(git(lane.source, "rev-parse", "HEAD:obsolete.bin"))
     old.unlink()
     git(lane.source, "add", ".")
     git(lane.source, "commit", "-qm", "remove old payload")
@@ -370,11 +372,17 @@ def test_snapshot_omits_obsolete_blobs_but_preserves_graph_and_diff(lane, tmp_pa
     checkout = tmp_path / "snapshot"
     frozen = module.prepare_review(target, lane.source, checkout)
     assert frozen.changed_files == ("later",)
+    assert git(checkout, "status", "--porcelain", "--untracked-files=all") == ""
+    assert git(checkout, "rev-parse", "--abbrev-ref", "HEAD") == "HEAD"
     assert git(checkout, "merge-base", target.base_sha, head) == base
     assert git(checkout, "diff", "--binary", base, head) == git(lane.source, "diff", "--binary", base, head)
     assert git(checkout, "log", "--format=%H", head) == git(lane.source, "log", "--format=%H", head)
     import subprocess
-    assert subprocess.run(["git", "-C", str(checkout), "cat-file", "-e", old_blob], capture_output=True).returncode != 0
+    for old_blob in old_blobs:
+        assert subprocess.run(["git", "-C", str(checkout), "cat-file", "-e", old_blob], capture_output=True).returncode != 0
+    assert "remote" not in (checkout / ".git/config").read_text()
+    assert not (checkout / ".git/objects/info/alternates").exists()
+    assert not (checkout / ".git/hooks").exists()
     assert sum(p.stat().st_size for p in (checkout / ".git/objects").rglob("*.pack")) < 128 * 1024
 
 
@@ -445,3 +453,75 @@ def test_low_space_stops_before_checkout_or_model(lane, monkeypatch):
     assert "空间不足" in result["reviews"][0]["reason"]
     assert not (lane.state_root / "runs" / "launches").exists()
     assert not list(lane.checkout_root.glob("*/*"))
+
+
+def test_cleanup_preserves_live_or_unknown_activity(lane, monkeypatch):
+    result = lane.review_pr(1810)
+    target = ReviewTarget(**result["target"])
+    folder = lane.state_root / "runs" / target.key
+    worker = folder / MODELS[0]
+    checkout = lane.checkout_root / target.run_id / MODELS[0]
+    checkout.mkdir(parents=True)
+    (checkout / "retained").write_text("active source")
+    monkeypatch.setattr(module, "_ps_rows", lambda: [(8123, 8123, "S", f"unknown-tool {checkout}")])
+    assert not lane.cleanup_checkout(target, MODELS[0], folder)
+    assert (checkout / "retained").exists()
+    monkeypatch.setattr(module, "_ps_rows", lambda: [])
+    assert lane.cleanup_checkout(target, MODELS[0], folder)
+    assert (worker / "session.jsonl").is_file()
+
+
+def test_cleanup_preserves_unconfirmed_container(lane):
+    result = lane.review_pr(1810)
+    target = ReviewTarget(**result["target"])
+    folder = lane.state_root / "runs" / target.key
+    worker = folder / MODELS[0]
+    checkout = lane.checkout_root / target.run_id / MODELS[0]
+    checkout.mkdir(parents=True)
+    receipt = module._read(worker / "receipt.json")
+    receipt["container_closed"] = False
+    module._save(worker / "receipt.json", receipt)
+    assert not lane.cleanup_checkout(target, MODELS[0], folder)
+    assert checkout.exists()
+
+
+def test_multiple_attempts_reclaim_each_checkout(lane):
+    for attempt in (1, 2, 3):
+        assert lane.review_pr(1810, attempt)["verdict"] == "PASS"
+        assert not list(lane.checkout_root.iterdir())
+    assert (lane.state_root / "runs" / "launches").read_text().splitlines() == list(MODELS) * 3
+    assert len(list((lane.state_root / "runs").glob("*/outcome.json"))) == 3
+
+
+def test_no_intent_never_grants_checkout_deletion(lane):
+    target = lane.target(1810, 1)
+    checkout = lane.checkout_root / target.run_id / MODELS[0]
+    checkout.mkdir(parents=True)
+    assert not lane.cleanup_checkout(target, MODELS[0], lane.state_root / "runs" / target.key)
+    assert checkout.exists()
+
+
+
+def test_failed_spawn_has_terminal_receipt_and_reclaims_checkout(lane):
+    lane.launcher = ["/nonexistent-fixture-launcher"]
+    result = lane.review_pr(1810)
+    assert result["verdict"] == "FAILED"
+    assert lane.gateway.sent == ["pending", "error"]
+    assert not list(lane.checkout_root.iterdir())
+    target = ReviewTarget(**result["target"])
+    worker = lane.state_root / "runs" / target.key / MODELS[0]
+    assert module._read(worker / "receipt.json")["failure_reason"] == "SupervisorNotStarted"
+
+
+def test_space_exhausted_after_prepare_stops_before_model(lane, monkeypatch):
+    calls = 0
+    def disk_usage(path):
+        nonlocal calls
+        calls += 1
+        return SimpleNamespace(free=10**12 if calls == 1 else 1)
+    monkeypatch.setattr(module.shutil, "disk_usage", disk_usage)
+    result = lane.review_pr(1810)
+    assert result["verdict"] == "FAILED"
+    assert "模型启动前" in result["reviews"][0]["reason"]
+    assert not (lane.state_root / "runs" / "launches").exists()
+    assert not list(lane.checkout_root.iterdir())

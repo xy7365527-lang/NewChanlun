@@ -115,3 +115,49 @@ for (const mode of ["PASS", "BLOCK", "failed", "missing-log", "missing-completed
     } finally { rmSync(f.root, { recursive: true, force: true }); }
   });
 }
+
+
+test("损坏 launch 在读取阶段也保存失败终态", async () => {
+  const f = fixture();
+  try {
+    writeFileSync(join(f.folder, "launch.json"), "{invalid");
+    await assert.rejects(runExternalReview(f.folder));
+    const receipt = JSON.parse(readFileSync(join(f.folder, "receipt.json"), "utf8"));
+    assert.equal(receipt.status, "failed");
+    assert.equal(receipt.phase, "launch");
+    assert.equal(receipt.container_closed, true);
+  } finally { rmSync(f.root, { recursive: true, force: true }); }
+});
+
+test("已有 supervisor 锁时保留原回执并保存本进程启动终态", async () => {
+  const f = fixture();
+  try {
+    writeFileSync(join(f.folder, "supervisor.lock"), "");
+    writeFileSync(join(f.folder, "receipt.json"), "original evidence");
+    await assert.rejects(runExternalReview(f.folder));
+    assert.equal(readFileSync(join(f.folder, "receipt.json"), "utf8"), "original evidence");
+    const receipt = JSON.parse(readFileSync(join(f.folder, `startup-failure-${process.pid}.json`), "utf8"));
+    assert.equal(receipt.status, "failed");
+    assert.equal(receipt.phase, "lock");
+    assert.equal(receipt.launch_id, f.launch.launch_id);
+  } finally { rmSync(f.root, { recursive: true, force: true }); }
+});
+
+
+test("创建容器结果不明时不能声明已关闭", async () => {
+  const f = fixture();
+  const deps: WorkerDependencies = {
+    identity: () => ({ head: f.launch.controller_code_head, dirty: "" }),
+    ready: () => image,
+    sandbox: () => ({ name: "unknown-create", env: {}, create: async () => { throw new Error("unknown create"); } }),
+    inspect: () => { throw new Error("must not inspect"); },
+    imageEnv: () => [], timeoutMs: 10000,
+  };
+  try {
+    await runExternalReview(f.folder, deps);
+    const receipt = JSON.parse(readFileSync(join(f.folder, "receipt.json"), "utf8"));
+    assert.equal(receipt.status, "failed");
+    assert.equal(receipt.phase, "container");
+    assert.equal(receipt.container_closed, false);
+  } finally { rmSync(f.root, { recursive: true, force: true }); }
+});

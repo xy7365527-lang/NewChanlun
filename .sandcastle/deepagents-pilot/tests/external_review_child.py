@@ -18,7 +18,7 @@ events = [{"type": "thread.started", "thread_id": session},
           {"type": "turn.completed"}]
 (folder / "events.jsonl").write_text("\n".join(json.dumps(e) for e in events) + "\n")
 (folder / "session.jsonl").write_text(json.dumps({"type": "session_meta", "payload": {"id": session}}) + "\n")
-record = {**launch, "status": "completed", "sandbox": "docker-read-only", "exit_code": 0,
+record = {**launch, "status": "completed", "sandbox": "docker-read-only", "exit_code": 0, "container_closed": True,
           "image_id": "sha256:" + "1" * 64, "container_id": "a" * 64,
           "filesystem": {"source_write": "EROFS", "git_write": "EROFS", "host_read": "ENOENT", "state_write": "ENOENT"},
           "session_id": session, "turn_completed": True, "result": output,

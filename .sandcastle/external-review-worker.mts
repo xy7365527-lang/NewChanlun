@@ -110,18 +110,25 @@ const dependencies: WorkerDependencies = {
 };
 
 export async function runExternalReview(folder: string, deps: WorkerDependencies = dependencies): Promise<void> {
-  const launch = readLaunch(folder);
-  const lock = openSync(join(folder, "supervisor.lock"), "wx", 0o600);
-  closeSync(lock);
-  const record: Record<string, unknown> = { ...launch, prompt: undefined, status: "failed", mode: "review",
+  let launch: ReviewLaunch | undefined;
+  let ownsLock = false;
+  const record: Record<string, unknown> = { status: "failed", mode: "review",
     sandbox: "docker-read-only", process_pid: process.pid, started_at: new Date().toISOString(),
-    phase: "controller", exit_code: null, turn_completed: false, session_id: null, result: null };
+    phase: "launch", exit_code: null, turn_completed: false, session_id: null, result: null, container_closed: false };
   let handle: BindMountSandboxHandle | undefined;
+  let creationStarted = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let cancelled = false;
   const cancel = () => { cancelled = true; void handle?.close(); };
   process.once("SIGTERM", cancel); process.once("SIGINT", cancel);
   try {
+    launch = readLaunch(folder);
+    Object.assign(record, launch, { prompt: undefined });
+    record.phase = "lock";
+    const lock = openSync(join(folder, "supervisor.lock"), "wx", 0o600);
+    ownsLock = true;
+    closeSync(lock);
+    record.phase = "controller";
     const identity = deps.identity();
     if (identity.head !== launch.controller_code_head || identity.dirty) throw new Error("controller 代码已漂移或未提交");
     record.phase = "checkout";
@@ -132,6 +139,7 @@ export async function runExternalReview(folder: string, deps: WorkerDependencies
     const sandbox = deps.sandbox(image);
     const mounts = reviewMounts([{ hostPath: launch.checkout, sandboxPath: "/review" }], launch.checkout);
     record.phase = "container";
+    creationStarted = true;
     handle = await sandbox.create({ worktreePath: launch.checkout, hostRepoPath: launch.checkout,
       mounts, env: declaredContainerEnv(sandbox.env) });
     const hostname = await handle.exec("cat /etc/hostname");
@@ -192,14 +200,19 @@ export async function runExternalReview(folder: string, deps: WorkerDependencies
     record.status = cancelled ? "cancelled" : "failed";
     // SDK 传输异常可能含 Docker argv/env，只持久化错误类别，不记录其原始消息。
     record.failure_reason = error instanceof Error ? error.name : "SupervisionError";
-    try { record.after = snapshot(launch.checkout); } catch { record.after = null; }
+    try { record.after = launch ? snapshot(launch.checkout) : null; } catch { record.after = null; }
   } finally {
     if (timer) clearTimeout(timer);
     process.removeListener("SIGTERM", cancel); process.removeListener("SIGINT", cancel);
-    try { await handle?.close(); } catch { record.status = "failed"; record.failure_reason = "ContainerCleanupError"; }
+    try {
+      await handle?.close();
+      record.container_closed = handle !== undefined || !creationStarted;
+    } catch { record.status = "failed"; record.failure_reason = "ContainerCleanupError"; }
     record.ended_at = new Date().toISOString();
-    save(folder, "receipt.json", record);
+    save(folder, ownsLock || !existsSync(join(folder, "supervisor.lock"))
+      ? "receipt.json" : `startup-failure-${process.pid}.json`, record);
   }
+  if (!ownsLock) throw new Error("独审监督启动失败，终态已保存");
 }
 
 async function main(): Promise<void> {

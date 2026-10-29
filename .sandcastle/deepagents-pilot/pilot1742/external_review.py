@@ -6,9 +6,11 @@ import fcntl
 import json
 import os
 import re
+import shutil
 import stat
 import subprocess
 import sys
+import tempfile
 import time
 import uuid
 from contextlib import contextmanager
@@ -26,7 +28,8 @@ POLICY = "external-pr-v1"
 CONTEXT = "deepagents/review"
 TOKEN_PERMISSIONS = {"metadata": "read", "contents": "read", "pull_requests": "read", "statuses": "write"}
 STATE_ROOT = DEFAULT_HOME / "external-review"
-CHECKOUT_ROOT = Path.home() / ".cache" / "deepagents-external-review"
+CHECKOUT_ROOT = DEFAULT_HOME / "checkouts" / "external-review"
+SPACE_RESERVE = 256 * 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -163,22 +166,37 @@ def prepare_review(target: ReviewTarget, source: Path, checkout: Path) -> Frozen
             _git(source, "cat-file", "-e", f"{sha}^{{commit}}")
         except subprocess.CalledProcessError:
             raise IdentityError("needs_source_sync") from None
-    checkout.mkdir(parents=True, mode=0o700)
+    snapshots = (target.base_sha, target.head_sha, target.merge_base_sha)
+    objects = {line.split(b" ", 1)[0] for line in
+               _git(source, "rev-list", "--objects", "--no-walk", *snapshots).splitlines()}
+    # merge-base 需要祖先 commit，不需要祖先版本的树和 blob。
+    objects.update(_git(source, "rev-list", target.base_sha, target.head_sha).splitlines())
+    object_ids = b"\n".join(sorted(objects)) + b"\n"
+    sizes = _git(source, "cat-file", "--batch-check=%(objectsize)", data=object_ids).splitlines()
+    head_files = _git(source, "ls-tree", "-rl", target.head_sha).splitlines()
+    worktree_bytes = sum(int(line.split(b"\t", 1)[0].split()[-1]) for line in head_files
+                         if line.split()[1] == b"blob")
+    required = sum(int(size) for size in sizes) + worktree_bytes + SPACE_RESERVE
+    checkout.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    free = shutil.disk_usage(checkout.parent).free
+    if free < required:
+        raise IdentityError(f"空间不足：快照需要 {required} bytes，可用 {free} bytes；未启动模型")
+    checkout.mkdir(mode=0o700)
     _git(checkout, "init", "-q", "--template=", "-b", "review")
-    # pack 仅含两端可达对象，不复制原仓库 config、hooks、alternates 或凭据。
-    with subprocess.Popen(["git", "-C", str(source), "pack-objects", "--stdout", "--revs"],
-                          env=git_environment(), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                          stderr=subprocess.DEVNULL) as pack:
-        assert pack.stdin is not None and pack.stdout is not None
-        pack.stdin.write(f"{target.base_sha}\n{target.head_sha}\n".encode())
-        pack.stdin.close()
-        try:
-            indexed = subprocess.run(["git", "-C", str(checkout), "index-pack", "--stdin"],
-                                     env=git_environment(), stdin=pack.stdout, capture_output=True)
-        finally:
-            pack.stdout.close()
-        if pack.wait() != 0 or indexed.returncode != 0:
-            raise IdentityError("needs_source_sync：两端可达对象不完整")
+    with tempfile.TemporaryFile(dir=checkout.parent) as ids:
+        ids.write(object_ids)
+        ids.seek(0)
+        with subprocess.Popen(["git", "-C", str(source), "pack-objects", "--stdout"],
+                              env=git_environment(), stdin=ids, stdout=subprocess.PIPE,
+                              stderr=subprocess.DEVNULL) as pack:
+            assert pack.stdout is not None
+            try:
+                indexed = subprocess.run(["git", "-C", str(checkout), "index-pack", "--stdin"],
+                                         env=git_environment(), stdin=pack.stdout, capture_output=True)
+            finally:
+                pack.stdout.close()
+            if pack.wait() != 0 or indexed.returncode != 0:
+                raise IdentityError("needs_source_sync：审阅快照对象不完整")
     _git(checkout, "checkout", "-q", "--detach", target.head_sha)
     if (checkout / ".codex" / "config.toml").exists():
         raise IdentityError("候选含项目 .codex/config.toml，不能加载其工具或权限配置")
@@ -349,14 +367,48 @@ class ExternalReview:
             _save(folder / "target.json", asdict(target))
         return target
 
+    def cleanup_checkout(self, target: ReviewTarget, model: str, folder: Path, *, preparing: bool = False) -> bool:
+        worker = folder / model
+        intent = worker / "prepare.json"
+        if not intent.exists():
+            return False
+        owned = _read(intent)
+        checkout = self.checkout_root / target.run_id / model
+        if owned.get("run_id") != target.run_id or owned.get("checkout") != str(checkout):
+            raise IdentityError("checkout 不属于本次 prepare intent")
+        if checkout.is_symlink() or checkout.parent.resolve() != checkout.parent.absolute():
+            raise IdentityError("checkout 回收路径含符号链接")
+        rows = _ps_rows()
+        receipt = _read(worker / "receipt.json") if (worker / "receipt.json").exists() else None
+        pid = (_read(worker / "process.json") if (worker / "process.json").exists() else {}).get("pid")
+        active = supervisor_alive(worker, rows) or any(
+            not state.startswith("Z") and (str(checkout) in command or process == pid)
+            for process, _, state, command in rows)
+        if active or (not preparing and (receipt is None or not receipt.get("container_closed"))):
+            _save(worker / "checkout-cleanup.json", {"state": "retained", "reason": "activity_or_container_unknown"})
+            return False
+        if preparing and ((worker / "launch.json").exists() or (worker / "process.json").exists()):
+            raise EffectPending("已有 launch，不能按未派工 prepare 回收")
+        if checkout.exists():
+            shutil.rmtree(checkout)
+        if checkout.parent.exists() and not any(checkout.parent.iterdir()):
+            checkout.parent.rmdir()
+        _save(worker / "checkout-cleanup.json", {"state": "removed", "checkout": str(checkout)})
+        return True
+
     def run_review(self, target: ReviewTarget, model: str, folder: Path) -> ReviewOutcome:
         worker = folder / model
         if worker.is_symlink():
             raise IdentityError("工蜂目录不能是符号链接")
         if not (worker / "launch.json").exists():
             checkout = self.checkout_root / target.run_id / model
+            worker.mkdir(mode=0o700, exist_ok=True)
+            if (worker / "prepare.json").exists() and not self.cleanup_checkout(target, model, folder, preparing=True):
+                raise EffectPending("prepare 仍有活动进程，不回收或重复派工")
+            _save(worker / "prepare.json", {"run_id": target.run_id, "checkout": str(checkout)})
             frozen = prepare_review(target, self.source, checkout)
-            worker.mkdir(mode=0o700)
+            if shutil.disk_usage(checkout).free < SPACE_RESERVE:
+                raise IdentityError("空间不足：模型启动前剩余空间低于 256 MiB；未启动模型")
             launch = {"run_id": target.run_id, "launch_id": str(uuid.uuid4()), "pr_number": target.pr_number,
                       "model": model, "head_sha": target.head_sha, "base_sha": target.base_sha,
                       "merge_base_sha": target.merge_base_sha, "controller_code_head": target.controller_code_head,
@@ -365,22 +417,39 @@ class ExternalReview:
             env = {k: os.environ[k] for k in ("PATH", "HOME", "USER", "LOGNAME", "TMPDIR", "LANG", "CLIPROXY_LOCAL_KEY")
                    if k in os.environ}
             with open(worker / "supervisor.log", "ab", opener=lambda p, f: os.open(p, f, 0o600)) as log:
-                process = subprocess.Popen([*self.launcher, "--output-dir", str(worker)], env=env,
-                                           stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)
+                try:
+                    process = subprocess.Popen([*self.launcher, "--output-dir", str(worker)], env=env,
+                                               stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)
+                except OSError:
+                    _save(worker / "receipt.json", {**launch, "prompt": None, "status": "failed",
+                          "failure_reason": "SupervisorNotStarted", "container_closed": True})
+                    raise
             _save(worker / "process.json", {"pid": process.pid, "launch_id": launch["launch_id"]})
         else:
             process = None
         launch = _read(worker / "launch.json")
         while not (worker / "receipt.json").exists():
-            if not supervisor_alive(worker, _ps_rows()):
+            rows = _ps_rows()
+            if not supervisor_alive(worker, rows):
                 if (worker / "receipt.json").exists():
                     break
-                # intent 先于 spawn；缺终态的窗口不可凭一个 PASS 文件或等待自动重派。
+                if process is not None and process.poll() is None:
+                    time.sleep(self.poll_seconds)
+                    continue
+                recorded = _read(worker / "process.json") if (worker / "process.json").exists() else None
+                exited = process is not None and process.returncode is not None
+                if exited or (recorded and not any(p == recorded["pid"] and not state.startswith("Z")
+                                                  for p, _, state, _ in rows)):
+                    _save(worker / "receipt.json", {**launch, "prompt": None, "status": "failed",
+                          "failure_reason": "SupervisorExitedWithoutReceipt", "container_closed": False})
+                    break
                 raise EffectPending("监督进程未见终态，请核本次 launch；重试使用新 attempt")
             time.sleep(self.poll_seconds)
         if process is not None:
             process.wait()
-        return validate_review(target, launch, _read(worker / "receipt.json"), worker)
+        outcome = validate_review(target, launch, _read(worker / "receipt.json"), worker)
+        self.cleanup_checkout(target, model, folder)
+        return outcome
 
     def review_pr(self, number: int, attempt: int = 1) -> dict:
         target = self.target(number, attempt)
@@ -405,6 +474,8 @@ class ExternalReview:
                         raise
                     except Exception as error:
                         outcomes.append(ReviewOutcome(model, "FAILED", None, str(error)))
+                    if outcomes[-1].verdict == "FAILED":
+                        break
                 sessions = [o.session_id for o in outcomes if o.session_id]
                 if len(sessions) != len(set(sessions)):
                     outcomes = [ReviewOutcome(o.model, "FAILED", o.session_id, "两独审复用了 session") for o in outcomes]
@@ -418,9 +489,18 @@ class ExternalReview:
                 _save(folder / "outcome.json", result)
                 return result
             except Stale as error:
-                result = {"run_id": target.run_id, "verdict": "STALE", "reason": str(error), "target": asdict(target)}
+                result = _read(folder / "outcome.json") if (folder / "outcome.json").exists() else {}
+                result.update(run_id=target.run_id, verdict="STALE", reason=str(error), target=asdict(target))
                 _save(folder / "outcome.json", result)
                 return result
+            finally:
+                for model in MODELS:
+                    worker = folder / model
+                    if (worker / "prepare.json").exists():
+                        if (worker / "receipt.json").exists():
+                            self.cleanup_checkout(target, model, folder)
+                        elif not (worker / "launch.json").exists():
+                            self.cleanup_checkout(target, model, folder, preparing=True)
 
     def status(self, number: int) -> list[dict]:
         if number <= 0:
