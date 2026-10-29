@@ -17,6 +17,10 @@ jobs:
       - uses: ./.github/actions/rust-job-setup
       - name: Build release test
         run: cargo test --release --locked --features s_session,s_incremental --no-run --bin s_structure_session --jobs 4
+      - name: Check local descent and caller contracts
+        run: |
+          cargo test --release --locked --features s_session,s_incremental --lib s4_local_descent -- --test-threads 1 --nocapture
+          cargo test --release --locked --features s_session,s_incremental --test s_content_path --test s_content_key_subset --test s_content_array_scan -- --test-threads 1
       - name: Check manifest coverage behavior
         run: |
           cargo test --release --locked --features s_session,s_incremental --bin s_structure_session history_public_coverage -- --test-threads 1
