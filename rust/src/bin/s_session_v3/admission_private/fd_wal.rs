@@ -359,6 +359,8 @@ unsafe extern "C" fn read(
                     break;
                 }
                 Ok(n) => {
+                    #[cfg(test)]
+                    super::s4_read_trace::read(f.kind, offset + done as i64, n);
                     done += n;
                     ctx.read_bytes.fetch_add(n as u64, Ordering::SeqCst);
                     if !ctx.after_read(n as u64) {

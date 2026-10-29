@@ -9,6 +9,51 @@ use super::audit_budget::Budget;
 use newchan_rust::s_content::{self as sc, job::CheckedFrame, NodeDigest};
 use std::cell::RefCell;
 
+#[cfg(test)]
+pub(crate) mod s4_read_trace {
+    use std::cell::RefCell;
+    use std::collections::BTreeMap;
+    #[derive(Default)]
+    struct Trace {
+        enabled: bool,
+        phase: usize,
+        bytes: [u64; 4],
+        reads: BTreeMap<(usize, i32, i64, usize), (u64, u64)>,
+    }
+    thread_local! { static TRACE: RefCell<Trace> = RefCell::new(Trace::default()); }
+    pub(crate) fn enable() { TRACE.with(|t| *t.borrow_mut() = Trace { enabled: true, ..Trace::default() }); }
+    pub(crate) fn phase(phase: usize) { TRACE.with(|t| t.borrow_mut().phase = phase); }
+    pub(crate) fn read(kind: i32, offset: i64, len: usize) {
+        TRACE.with(|t| {
+            let mut t = t.borrow_mut();
+            if !t.enabled { return; }
+            let phase = t.phase;
+            t.bytes[phase] += len as u64;
+            let entry = t.reads.entry((phase, kind, offset, len)).or_default();
+            entry.0 += 1;
+            entry.1 += len as u64;
+        });
+    }
+    pub(crate) fn snapshot(label: &str, bytes: u64) {
+        TRACE.with(|t| { if t.borrow().enabled { eprintln!("S4_READ_ACCOUNT {} {}", label, bytes); } });
+    }
+    pub(crate) fn finish() {
+        TRACE.with(|t| {
+            let mut t = t.borrow_mut();
+            if !t.enabled { return; }
+            eprintln!("S4_READ_TRACE bytes_prelude_quick_audit_close={:?}", t.bytes);
+            for phase in 0..4 {
+                let mut rows: Vec<_> = t.reads.iter().filter(|(k, _)| k.0 == phase).collect();
+                let duplicate_bytes: u64 = rows.iter().map(|(_, (count, bytes))| bytes - bytes / count).sum();
+                let total_calls: u64 = rows.iter().map(|(_, (count, _))| count).sum();
+                rows.sort_unstable_by_key(|(_, (_, bytes))| std::cmp::Reverse(*bytes));
+                eprintln!("S4_READ_DISTRIBUTION phase={} calls={} unique_ranges={} repeat_bytes={} top={:?}", phase, total_calls, rows.len(), duplicate_bytes, &rows[..rows.len().min(12)]);
+            }
+            t.enabled = false;
+        });
+    }
+}
+
 /// #1527：单线程观察顺序只由本次 validate 持有；不拥有或替换 Job。
 /// 每个固定阶段留首个次错，不积累回调轨迹；返回原首错为前缀。
 #[derive(Clone, Copy)]
@@ -384,6 +429,8 @@ fn validate_prefix_inner(
     account: &mut AdmissionAccounting<'_>,
     prefix: &mut RejectionPrefix<'_>,
 ) -> Result<crate::DeltaShape, String> {
+    #[cfg(test)]
+    s4_read_trace::snapshot("prelude_start", account.snapshot().wire_bytes);
     account.pre_io_check().map_err(|e| e.to_string())?;
     if account.is_mixed() {
         // #1527：父账已可消费，旧域SQL/walker完整闭合前仍不发布服务准入。
@@ -413,6 +460,8 @@ fn validate_prefix_inner(
             let session = registration
                 .connect(true)
                 .map_err(|_| "PrivateSqliteOpenFailed")?;
+            #[cfg(test)]
+            { s4_read_trace::snapshot("quick_start", shared.account.borrow().snapshot().wire_bytes); s4_read_trace::phase(1); }
             let check: Result<(), String> = (|| {
                 let mut stmt = session
                     .connection()
@@ -432,10 +481,14 @@ fn validate_prefix_inner(
                 }
                 drop(rows);
                 drop(stmt);
+                #[cfg(test)]
+                { s4_read_trace::snapshot("audit_start", shared.account.borrow().snapshot().wire_bytes); s4_read_trace::phase(2); }
                 audit_business(session.connection(), &shared, prefix)
             })();
             // quick_check/业务结果在任何 close 回调之前保存。
             errors.borrow_mut().returned(ErrorPhase::Business, &check);
+            #[cfg(test)]
+            s4_read_trace::phase(3);
             errors.borrow_mut().phase = ErrorPhase::Close;
             let closed = session
                 .close()
@@ -463,6 +516,8 @@ fn validate_prefix_inner(
     errors.borrow_mut().phase = ErrorPhase::Deadline;
     let budget = account.check_deadline().map_err(|e| e.to_string());
     errors.borrow_mut().returned(ErrorPhase::Deadline, &budget);
+    #[cfg(test)]
+    s4_read_trace::snapshot("end", account.snapshot().wire_bytes);
     errors.into_inner().finish().map(|()| delta.get())
 }
 
