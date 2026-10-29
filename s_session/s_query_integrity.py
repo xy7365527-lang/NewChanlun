@@ -1363,7 +1363,9 @@ def _verify_image(image, h, deadline, memo, _parse_pool):
                 raise ValueError("旧未发布 profile 没有可核来源")
 
     # memo是进程内已核源的派生集合；每次捕获完整typed材料后才允许比对原字节。
-    context = canonical((image["schema_rows"], image["schema"], binding, mode,
+    # 证据表示版本入context：graph/2与graph/3同schema同逻辑但物理delta_json不同，
+    # 证书的delta_digest_json编码物理值，表示切换必须使旧证书全部失效。
+    context = canonical((image["schema_rows"], image["schema"], binding, mode, evidence_version,
                          [(key, meta.get(key)) for key in ("session_id", "catalog_revision", "rule_revision",
                           "scope", "profile_definition", "input_profile")]))
     previous_entries = memo.get("entries", []) if memo is not None and memo.get("context") == context else []

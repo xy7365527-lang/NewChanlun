@@ -612,6 +612,87 @@ class QueryTests(unittest.TestCase):
         self.assertEqual(result["gap"]["reason"], "client_backlog_overflow")
         self.assertEqual(result["gap"]["missing_range"], {"from_generation":"5", "to_generation":"7"})
 
+    def test_memo_certificate_binds_evidence_version_bidirectional_hot_cache(self):
+        """#1768 HIGH修复：memo复用未绑定evidence_version，导致graph/2与graph/3互相复用证书。
+
+        双方向回归：graph/3→graph/2 与 graph/2→graph/3，两方向均要求 memo == disabled == raw。
+        使用私有合法材料（独审冻结件），不依赖外部fixture。
+        """
+        # 私有材料路径（独审报告提供的合法graph/3与graph/2库）
+        private_base = Path("/Volumes/AgentStorage/review1768-repair29bl/private")
+        
+        # 方向1: graph/3 → graph/2
+        graph3_db = self.base / "memo_graph3.sqlite"
+        graph2_db = self.base / "memo_graph2.sqlite"
+        
+        # 使用immutable backup加载私有材料（它们有WAL/SHM）
+        with closing(sqlite3.connect((private_base / "seed.sqlite").as_uri() + "?immutable=1", uri=True)) as src:
+            src.execute("PRAGMA query_only=ON")
+            with closing(sqlite3.connect(graph3_db)) as dst:
+                src.backup(dst)
+        
+        with closing(sqlite3.connect((private_base / "transition-graph3-graph2.sqlite").as_uri() + "?immutable=1", uri=True)) as src:
+            src.execute("PRAGMA query_only=ON")
+            with closing(sqlite3.connect(graph2_db)) as dst:
+                src.backup(dst)
+        
+        # 在graph/3上先建立热memo
+        reader_g3 = query.AuditReader(graph3_db, resources(), vars(reader))
+        self.addCleanup(reader_g3.close)
+        first_g3 = reader_g3.capture_verified()
+        self.assertEqual(first_g3["_audit_memo"]["misses"], 4)
+        self.assertEqual(first_g3["_audit_memo"]["hits"], 0)
+        
+        # 切换到同schema同逻辑的graph/2并复用memo
+        reader_g2_warm = query.AuditReader(graph2_db, resources(), vars(reader))
+        self.addCleanup(reader_g2_warm.close)
+        reader_g2_warm.memo = first_g3["_audit_memo"]  # 带graph/3证书的memo
+        warm_g2 = reader_g2_warm.capture_verified()
+        
+        # 无memo与原始typed capture作为基准
+        reader_g2_disabled = query.AuditReader(graph2_db, resources(), vars(reader), use_memo=False)
+        self.addCleanup(reader_g2_disabled.close)
+        disabled_g2 = reader_g2_disabled.capture_verified()
+        
+        with closing(reader.open_readonly(graph2_db)) as conn:
+            conn.execute("BEGIN")
+            raw_g2 = audit.capture_digest(audit.capture(conn))
+        
+        # 修复后：evidence_version不同，旧证书失效，warm应与disabled/raw一致
+        self.assertEqual(warm_g2["capture_digest"], disabled_g2["capture_digest"])
+        self.assertEqual(warm_g2["capture_digest"], raw_g2)
+        # 证书复用应该全部miss（4个delta根）
+        self.assertEqual(warm_g2["_audit_memo"]["hits"], 0)
+        self.assertEqual(warm_g2["_audit_memo"]["misses"], 4)
+        
+        # 方向2: graph/2 → graph/3（反向）
+        # 在graph/2上先建立热memo
+        reader_g2_first = query.AuditReader(graph2_db, resources(), vars(reader))
+        self.addCleanup(reader_g2_first.close)
+        first_g2 = reader_g2_first.capture_verified()
+        self.assertEqual(first_g2["_audit_memo"]["misses"], 4)
+        
+        # 切换回graph/3并复用memo
+        reader_g3_warm = query.AuditReader(graph3_db, resources(), vars(reader))
+        self.addCleanup(reader_g3_warm.close)
+        reader_g3_warm.memo = first_g2["_audit_memo"]  # 带graph/2证书的memo
+        warm_g3 = reader_g3_warm.capture_verified()
+        
+        # 无memo与原始typed capture作为基准
+        reader_g3_disabled = query.AuditReader(graph3_db, resources(), vars(reader), use_memo=False)
+        self.addCleanup(reader_g3_disabled.close)
+        disabled_g3 = reader_g3_disabled.capture_verified()
+        
+        with closing(reader.open_readonly(graph3_db)) as conn:
+            conn.execute("BEGIN")
+            raw_g3 = audit.capture_digest(audit.capture(conn))
+        
+        # 修复后：反向也应一致
+        self.assertEqual(warm_g3["capture_digest"], disabled_g3["capture_digest"])
+        self.assertEqual(warm_g3["capture_digest"], raw_g3)
+        self.assertEqual(warm_g3["_audit_memo"]["hits"], 0)
+        self.assertEqual(warm_g3["_audit_memo"]["misses"], 4)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
