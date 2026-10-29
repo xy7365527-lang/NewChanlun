@@ -643,7 +643,13 @@ def run_organic(
     def _close(bar_idx: int, price: float, reason: str) -> None:
         nonlocal state, entry_bar, entry_price, entry_ladder, pos, \
             active_levels, voices, master_state
-        if pos is None or entry_price <= 0 or pos.total_shares <= 0:
+        # earning 金额守恒满仓开腿后 total_shares==0 但 active 非空
+        # （INV-1 合法态）。旧守卫把这当成空仓，EOD/sell1 静默吞掉整笔。
+        if pos is None or entry_price <= 0:
+            state = _FLAT; pos = None; active_levels = []; voices = {}
+            master_state = RIDE
+            return
+        if pos.total_shares <= 0 and not pos.active:
             state = _FLAT; pos = None; active_levels = []; voices = {}
             master_state = RIDE
             return
@@ -876,7 +882,8 @@ def run_organic(
             if sig.type2_buy:
                 n_addon += 1
 
-    if state == _LONG and pos is not None and pos.total_shares > 0:
+    if state == _LONG and pos is not None and (
+            pos.total_shares > 0 or pos.active):
         _close(n - 1, i_signals[-1].close, "eod_close")
 
     # ── 归因/报告 ──
