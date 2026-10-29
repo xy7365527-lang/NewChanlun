@@ -2052,3 +2052,67 @@ pub fn content_ref_of_native(
     let (reference, permit) = super::content_ref_reserved(&mut CodecContext::Source(source), root)?;
     Ok(super::capture_allocation::native_owned::NativeValue::from_reserved(reference, permit))
 }
+
+/// 惰性顺序访问数组成员，逐成员保留原 lookup_array_output_inner 的错误码合同。
+/// 回调从成员 RefValue 获取需要的材料，业务检查由调用方在回调内完成。
+/// 栈只保存遍历状态，不物化整个数组，不跨调用缓存。
+pub(super) fn visit_array_elements<R: RefOutput, F>(
+    source: &mut CodecContext<'_, '_>,
+    reference: RefView<'_>,
+    mut visit: F,
+) -> Result<(), CodecError>
+where
+    F: FnMut(&mut CodecContext<'_, '_>, RefView<'_>, u64) -> Result<(), CodecError>,
+{
+    let operation_work = source.work_budget();
+    let operation_result = visit_array_elements_inner(source, reference, &mut visit);
+    if let Some(work) = operation_work {
+        work.observe(&operation_result);
+    }
+    operation_result
+}
+
+fn visit_array_elements_inner<R: RefOutput, F>(
+    source: &mut CodecContext<'_, '_>,
+    reference: RefView<'_>,
+    visit: &mut F,
+) -> Result<(), CodecError>
+where
+    F: FnMut(&mut CodecContext<'_, '_>, RefView<'_>, u64) -> Result<(), CodecError>,
+{
+    let (count, root) = {
+        let node = navigate_view(source, reference, &[], false)?;
+        if node.tag != tag::ARRAY {
+            return Err(step_kind_error("完整数组", "0x05 数组", node.tag));
+        }
+        (framed_len(&node.body, "数组")?, digest_at(&node.body, 8))
+    };
+    let budget = source.work_budget();
+    let mut stack = WorkVec::with_work_capacity(1, budget.as_ref())?;
+    stack.push((root, count, 0u64))?;
+    while let Some((digest, count, base_index)) = stack.pop() {
+        match read_seq_node(source, &digest, count)? {
+            SeqNode::Empty => {}
+            SeqNode::Branch { k, left, right } => {
+                // 后进先出：右子树先压，左子树后压，保证左序先访问
+                stack.push((right, count - k, base_index + k))?;
+                stack.push((left, k, base_index))?;
+            }
+            SeqNode::Leaf(value) => {
+                source.before_path_index(&[], base_index)?;
+                let (t, body) = source.read(&value)?;
+                // 保留 descend_seq 的 M 叶拒绝码：与 lookup_array_output_inner 逐字相同
+                if is_sequence_tag(t) {
+                    return Err(sequence_shape_error(format!(
+                        "元素序列的叶不能又是序列节点（tag={t:02x}）"
+                    )));
+                }
+                let kind = Kind::from_tag(t).ok_or_else(|| unsupported_value_tag_error(t))?;
+                let extent = header_extent(t, &body)?;
+                let member_ref = native_reference::<R>(source, kind, value, extent)?;
+                visit(source, member_ref.as_view(), base_index)?;
+            }
+        }
+    }
+    Ok(())
+}
