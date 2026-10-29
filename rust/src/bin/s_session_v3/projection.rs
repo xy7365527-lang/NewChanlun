@@ -953,6 +953,97 @@ mod tests {
         let logical = render_fixture(&mut graph, &p.root).unwrap();
         (p, catalog, logical)
     }
+    /// 已发布 cut 的原件，只读审计后展开；不得用生成草案代替正式发布。
+    fn published_w_cut(f: &mut Fixture, g: i64) -> (Value, Value, Value) {
+        let tx = f.conn.transaction().unwrap();
+        let audited = state::audit(&tx).unwrap();
+        let cut = &audited.cuts[(g - 1) as usize];
+        assert_eq!(cut.metadata.generation, g);
+        let mut source = content_store::ReadStore::new(&tx).unwrap();
+        let mut graph = history::HashReader::new(&mut source);
+        (
+            render_fixture(&mut graph, &cut.snapshot).unwrap(),
+            render_fixture(&mut graph, &cut.delta).unwrap(),
+            render_fixture(&mut graph, cut.roots.generated_state.view()).unwrap(),
+        )
+    }
+
+    fn w_kind(snapshot: &Value, kind: &str) -> Vec<Value> {
+        snapshot["objects"].as_array().unwrap().iter()
+            .filter(|o| o["kind"] == kind).cloned().collect()
+    }
+
+    /// #1419：原 tb02u 生命周期判据经真实 S3 接纳、Begin、发布与 recover 承接。
+    #[test]
+    fn w_published_lifecycle_first_known_revision_replaces_and_recovery() {
+        let mut f = Fixture::with_clock_plan(8, 4, &[("recover-w", 35)]);
+        let mut waiting = Vec::new();
+        let mut historical = Vec::new();
+        for (n, row, revision) in [
+            (1, ("w0", 0, 5, 10, 0, 5), 1),
+            (2, ("w1", 10, 5, 8, 2, 5), 1),
+            (3, ("w1", 10, 5, 9, 1, 5), 2),
+        ] {
+            let (e, t) = f.accept_begin(n, row, revision);
+            f.publish(&e, &t).unwrap();
+            let (snapshot, _, _) = published_w_cut(&mut f, n);
+            let pending = w_kind(&snapshot, "CC-004.undetermined_raw");
+            assert_eq!(pending.len(), if n == 1 { 1 } else { 2 });
+            assert!(w_kind(&snapshot, "CC-005.inclusion_group").is_empty());
+            assert!(w_kind(&snapshot, "CC-006.local_shape").is_empty());
+            for o in &pending {
+                assert_eq!(o["payload"]["direction_state"], "Undetermined");
+                assert_eq!(o["input_refs"].as_array().unwrap().len(), 1);
+                let coord = o["payload"]["raw"]["source_coord"].as_str().unwrap();
+                let birth = if coord == "0" { "1" } else if n == 2 { "2" } else { "3" };
+                assert_eq!(o["first_known_generation"], birth);
+                assert_eq!(o["payload"]["pending_since_cut"], format!("cut-{birth}"));
+            }
+            if n > 1 {
+                assert_eq!(pending.iter().find(|o| o["payload"]["raw"]["source_coord"] == "0").unwrap(), &waiting[0]);
+            }
+            if n == 3 {
+                let old = waiting.iter().find(|o| o["payload"]["raw"]["source_coord"] == "10").unwrap();
+                let new = pending.iter().find(|o| o["payload"]["raw"]["source_coord"] == "10").unwrap();
+                assert_ne!(old["object_id"], new["object_id"], "raw 修订必须换未定对象身份");
+            }
+            waiting = pending;
+            historical.push(projected(&mut f, n, HistoryMode::AsKnown));
+        }
+        f.recover_writer("2", "recover-w");
+        for (i, (old, catalog, logical)) in historical.iter().enumerate() {
+            let (after, after_catalog, after_logical) = projected(&mut f, (i + 1) as i64, HistoryMode::AsKnown);
+            assert_eq!(after.root, old.root);
+            assert_eq!(after.digest, old.digest);
+            assert_eq!(plain_wire(&after), plain_wire(old));
+            assert_eq!(&after_catalog, catalog);
+            assert_eq!(&after_logical, logical, "recover 后完整 AsKnown 不变");
+        }
+        let (e, t) = f.accept_begin(4, ("w2", 20, 7, 11, 3, 7), 1);
+        f.publish(&e, &t).unwrap();
+        let (snapshot, delta, _) = published_w_cut(&mut f, 4);
+        assert!(w_kind(&snapshot, "CC-004.undetermined_raw").is_empty());
+        let groups = w_kind(&snapshot, "CC-005.inclusion_group");
+        assert_eq!(groups.len(), 2);
+        for old in &waiting {
+            let coord = &old["payload"]["raw"]["source_coord"];
+            let group = groups.iter().find(|g| g["payload"]["members"].as_array().unwrap().contains(coord)).unwrap();
+            assert!(delta["replaces"].as_array().unwrap().iter().any(|r|
+                r["old_object_id"] == old["object_id"] && r["new_object_id"] == group["object_id"]),
+                "定向后组须逐原件替代未定对象：{coord}");
+            assert!(snapshot["relations"].as_array().unwrap().iter().any(|r|
+                r["relation_type"] == "replaces" && r["subject"] == group["object_id"] && r["object"] == old["object_id"]));
+        }
+        for (i, (old, catalog, logical)) in historical.iter().enumerate() {
+            let (after, after_catalog, after_logical) = projected(&mut f, (i + 1) as i64, HistoryMode::AsKnown);
+            assert_eq!(after.root, old.root);
+            assert_eq!(after.digest, old.digest);
+            assert_eq!(plain_wire(&after), plain_wire(old));
+            assert_eq!(&after_catalog, catalog);
+            assert_eq!(&after_logical, logical);
+        }
+    }
+
     #[cfg(feature = "s_allocation_json_testonly")]
     fn owned_capture(tx: &Transaction<'_>, budget: &OwnedBudget) -> sc::AuditCapture {
         sc::AuditCapture::from_slab_for_allocation_prototype(
