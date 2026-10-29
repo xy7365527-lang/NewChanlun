@@ -755,7 +755,8 @@ impl Runtime {
                     &generated.objects,
                     &audited.objects,
                     generation,
-                 &metadata.rule_revision)?;
+                    &metadata.rule_revision,
+                )?;
                 generated.finish_axes(
                     &mut store,
                     previous,
@@ -1154,7 +1155,8 @@ impl Runtime {
                 &generated.objects,
                 &audited.objects,
                 generation,
-             &metadata.rule_revision)?
+                &metadata.rule_revision,
+            )?
         } else {
             object_index::plan_for_layout(
                 store,
@@ -1162,7 +1164,8 @@ impl Runtime {
                 &generated.objects,
                 &audited.objects,
                 generation,
-             &metadata.rule_revision)?
+                &metadata.rule_revision,
+            )?
         };
         #[cfg(not(feature = "s_capture_native_testonly"))]
         let objects = object_index::plan_for_layout(
@@ -1171,7 +1174,8 @@ impl Runtime {
             &generated.objects,
             &audited.objects,
             generation,
-         &metadata.rule_revision)?;
+            &metadata.rule_revision,
+        )?;
         generated.finish_axes(store, previous, &objects.withdrawals, &objects.replaces)?;
         let axes = store
             .native_plain_ref(
@@ -1595,12 +1599,14 @@ pub(crate) mod tests {
             directory: Option<PathBuf>,
         ) -> Self {
             let preserve_originals = directory.is_some();
-            let path = directory.unwrap_or_else(|| std::env::temp_dir().join(format!(
-                "s1394-real-{}-{}-{}",
-                std::process::id(),
-                now_nanos(),
-                NEXT.fetch_add(1, Ordering::Relaxed)
-            )));
+            let path = directory.unwrap_or_else(|| {
+                std::env::temp_dir().join(format!(
+                    "s1394-real-{}-{}-{}",
+                    std::process::id(),
+                    now_nanos(),
+                    NEXT.fetch_add(1, Ordering::Relaxed)
+                ))
+            });
             std::fs::create_dir(&path).unwrap();
             let mut events = serde_json::Map::new();
             for n in 1..=clock_events {

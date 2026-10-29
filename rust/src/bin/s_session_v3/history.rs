@@ -872,7 +872,8 @@ fn audit_one_published_cut<'capture>(
         generation,
         object_sweep.as_ref(),
         records.as_deref_mut(),
-     &m.rule_revision)?;
+        &m.rule_revision,
+    )?;
     let (active, withdrawn, upserts) = if let Some(p) = &dual {
         (
             p.arrays[0].1.clone(),

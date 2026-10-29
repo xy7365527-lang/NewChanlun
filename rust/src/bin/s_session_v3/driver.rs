@@ -1241,18 +1241,28 @@ mod tests {
             &clock,
             "recover-1",
             crate::v3::admission_anchor::test_prepare(&db).into(),
-        ).err().unwrap();
-        assert!(raw_recover.contains("UnsupportedWalShmJournalCombination"), "{raw_recover}");
+        )
+        .err()
+        .unwrap();
+        assert!(
+            raw_recover.contains("UnsupportedWalShmJournalCombination"),
+            "{raw_recover}"
+        );
 
-        assert_eq!((std::fs::read(&db).unwrap(), std::fs::read(&wal).unwrap()), frozen);
+        assert_eq!(
+            (std::fs::read(&db).unwrap(), std::fs::read(&wal).unwrap()),
+            frozen
+        );
         // 临时解包副本上合并 WAL（仓内原件不动），逻辑全表不变，再核版本门本身。
         let rows_frozen = {
-            let ro = Connection::open_with_flags(&db, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
+            let ro = Connection::open_with_flags(&db, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+                .unwrap();
             all_rows_in(&ro)
         };
         {
             let c = Connection::open(&db).unwrap();
-            c.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(())).unwrap();
+            c.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(()))
+                .unwrap();
             drop(c);
         }
         let _prepared_fixture = crate::v3::admission_anchor::test_prepare(&db);

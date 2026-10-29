@@ -151,8 +151,7 @@ fn w_revision(rule: &str) -> Option<WRevision> {
 
 /// #1419/#1491：结构域只取已登记完整规则，不剥离任意位置的组件。
 fn is_structure_rule(rule: &str) -> bool {
-    v3::layout::doctrine_is(rule, V3_STRUCTURE_RULE_REVISION)
-        || w_revision(rule).is_some()
+    v3::layout::doctrine_is(rule, V3_STRUCTURE_RULE_REVISION) || w_revision(rule).is_some()
 }
 
 /// #1419 主控裁定②（issuecomment-6265209957）：v2 结构写者（本文件 `init_core`/`accept_core`/

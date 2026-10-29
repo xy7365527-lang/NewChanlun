@@ -1820,12 +1820,22 @@ fn export_real_s3_w2_fixture_and_sqlite_for_q3() {
 
 fn export_real_s3_w_fixture_for_q3_impl(persist: bool) {
     let persistent_output = persist.then(|| {
-        let output = PathBuf::from(std::env::var("Q3_REAL_EXPORT").expect("V5要求新的Q3_REAL_EXPORT路径"));
-        for path in [output.clone(), output.with_extension("sqlite"), output.with_extension("manifest.json"), output.with_extension("clock.json"), output.with_extension("run")] {
+        let output =
+            PathBuf::from(std::env::var("Q3_REAL_EXPORT").expect("V5要求新的Q3_REAL_EXPORT路径"));
+        for path in [
+            output.clone(),
+            output.with_extension("sqlite"),
+            output.with_extension("manifest.json"),
+            output.with_extension("clock.json"),
+            output.with_extension("run"),
+        ] {
             assert!(!path.exists(), "不得覆盖原件 {}", path.display());
         }
         let head = std::env::var("Q3_EXPORT_HEAD").expect("V5要求完整候选HEAD");
-        assert!(head.len() == 40 && head.bytes().all(|b| b.is_ascii_hexdigit()), "V5要求40位候选HEAD");
+        assert!(
+            head.len() == 40 && head.bytes().all(|b| b.is_ascii_hexdigit()),
+            "V5要求40位候选HEAD"
+        );
         output
     });
 
@@ -1876,12 +1886,21 @@ fn export_real_s3_w_fixture_for_q3_impl(persist: bool) {
         .sum();
     let recover_plan = [("recover-1", before_recover * 10 + 5)];
     let mut f = match &persistent_output {
-        Some(output) => Fixture::with_clock_plan_persistent(64, messages, &recover_plan, output.with_extension("run")),
+        Some(output) => Fixture::with_clock_plan_persistent(
+            64,
+            messages,
+            &recover_plan,
+            output.with_extension("run"),
+        ),
         None => Fixture::with_clock_plan(64, messages, &recover_plan),
     };
     if let Some(output) = &persistent_output {
         let manifest = json!({"schema_revision":"s-w2-validation-run/1", "status":"running", "head":std::env::var("Q3_EXPORT_HEAD").unwrap(), "original_database":f.db_path(), "q_export":output});
-        std::fs::write(output.with_extension("manifest.json"), canonical_json(&manifest)).unwrap();
+        std::fs::write(
+            output.with_extension("manifest.json"),
+            canonical_json(&manifest),
+        )
+        .unwrap();
     }
     let mut n: i64 = 0;
     let mut stats = Vec::new();
@@ -2101,20 +2120,40 @@ fn export_real_s3_w_fixture_for_q3_impl(persist: bool) {
         "session_generation":"1","catalog_rows":catalog_rows});
     let text = canonical_json(&export);
     if let Some(output) = &persistent_output {
-        assert_eq!(meta["rule_revision"], json!(crate::W_STRUCTURE_RULE_REVISION));
+        assert_eq!(
+            meta["rule_revision"],
+            json!(crate::W_STRUCTURE_RULE_REVISION)
+        );
         assert_eq!(n, 106, "完整原输入必须真实发布106代");
         let database = output.with_extension("sqlite");
-        f.conn.execute("VACUUM main INTO ?1", [database.to_str().unwrap()]).unwrap();
+        f.conn
+            .execute("VACUUM main INTO ?1", [database.to_str().unwrap()])
+            .unwrap();
         let clock = output.with_extension("clock.json");
         std::fs::copy(f.db_path().parent().unwrap().join("clock.json"), &clock).unwrap();
         let tables: Vec<(String, i64)> = {
-            let mut q = f.conn.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").unwrap();
-            let names = q.query_map([], |r| r.get::<_, String>(0)).unwrap().map(Result::unwrap).collect::<Vec<_>>();
-            names.into_iter().map(|name| {
-                let quoted = name.replace('"', "\"\"");
-                let rows = f.conn.query_row(&format!("SELECT count(*) FROM \"{quoted}\""), [], |r| r.get(0)).unwrap();
-                (name, rows)
-            }).collect()
+            let mut q = f
+                .conn
+                .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+                .unwrap();
+            let names = q
+                .query_map([], |r| r.get::<_, String>(0))
+                .unwrap()
+                .map(Result::unwrap)
+                .collect::<Vec<_>>();
+            names
+                .into_iter()
+                .map(|name| {
+                    let quoted = name.replace('"', "\"\"");
+                    let rows = f
+                        .conn
+                        .query_row(&format!("SELECT count(*) FROM \"{quoted}\""), [], |r| {
+                            r.get(0)
+                        })
+                        .unwrap();
+                    (name, rows)
+                })
+                .collect()
         };
         let manifest = json!({
             "schema_revision":"s-w2-validation-run/1",
@@ -2134,7 +2173,11 @@ fn export_real_s3_w_fixture_for_q3_impl(persist: bool) {
             "steps":stats,
             "sqlite_copy":"VACUUM INTO consistent full database, all internal original tables retained"
         });
-        std::fs::write(output.with_extension("manifest.json"), canonical_json(&manifest)).unwrap();
+        std::fs::write(
+            output.with_extension("manifest.json"),
+            canonical_json(&manifest),
+        )
+        .unwrap();
     }
     // 设了 Q3_REAL_EXPORT 只落文件、日志记字节数（全文 ~90 MB 不再进日志）；未设才打全文。
     if let Ok(path) = std::env::var("Q3_REAL_EXPORT") {
@@ -2187,15 +2230,24 @@ fn export_real_s3_w_fixture_for_q3_impl(persist: bool) {
     assert_eq!(writer_epoch, json!("2"), "恢复必须真实递增写者纪元");
     if let Some(output) = &persistent_output {
         let database = output.with_extension("sqlite");
-        let mut copy = Connection::open_with_flags(&database, OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
+        let mut copy =
+            Connection::open_with_flags(&database, OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
         let result = {
             let tx = copy.transaction().unwrap();
             super::super::state::audit(&tx).map(|_| ())
         };
         let manifest_path = output.with_extension("manifest.json");
-        let mut manifest: Value = serde_json::from_slice(&std::fs::read(&manifest_path).unwrap()).unwrap();
-        manifest["status"] = json!(if result.is_ok() { "complete" } else { "audit-failed" });
-        manifest["full_source_audit"] = match &result { Ok(()) => json!({"result":"ok"}), Err(error) => json!({"result":"error", "error":error}) };
+        let mut manifest: Value =
+            serde_json::from_slice(&std::fs::read(&manifest_path).unwrap()).unwrap();
+        manifest["status"] = json!(if result.is_ok() {
+            "complete"
+        } else {
+            "audit-failed"
+        });
+        manifest["full_source_audit"] = match &result {
+            Ok(()) => json!({"result":"ok"}),
+            Err(error) => json!({"result":"error", "error":error}),
+        };
         std::fs::write(&manifest_path, canonical_json(&manifest)).unwrap();
         result.unwrap();
     }

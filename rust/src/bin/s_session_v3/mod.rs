@@ -971,21 +971,39 @@ mod tests {
         assert_eq!(W_STRUCTURE_RULE_REVISION, "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1+raw-initialization-w/2+bounded-layout/1");
         assert_eq!(w_revision(W_STRUCTURE_RULE_REVISION), Some(WRevision::W2));
         assert_eq!(w_revision(W1_STRUCTURE_RULE_REVISION), Some(WRevision::W1));
-        assert_eq!(layout::Layout::of_rule(W_STRUCTURE_RULE_REVISION).unwrap(), layout::Layout::Bounded1);
-        assert_eq!(layout::Layout::of_rule(W1_STRUCTURE_RULE_REVISION).unwrap(), layout::Layout::Sorted);
+        assert_eq!(
+            layout::Layout::of_rule(W_STRUCTURE_RULE_REVISION).unwrap(),
+            layout::Layout::Bounded1
+        );
+        assert_eq!(
+            layout::Layout::of_rule(W1_STRUCTURE_RULE_REVISION).unwrap(),
+            layout::Layout::Sorted
+        );
         assert!(require_current_writer_rule(W1_STRUCTURE_RULE_REVISION).is_err());
-        assert_eq!(tb02b::contract_for_rule(W1_STRUCTURE_RULE_REVISION), Some(tb02b::W_CONTRACT));
-        assert_eq!(newchan_rust::theta_v0::parser::inclusion::INITIALIZATION_POLICY, "raw-initialization-w/1");
+        assert_eq!(
+            tb02b::contract_for_rule(W1_STRUCTURE_RULE_REVISION),
+            Some(tb02b::W_CONTRACT)
+        );
+        assert_eq!(
+            newchan_rust::theta_v0::parser::inclusion::INITIALIZATION_POLICY,
+            "raw-initialization-w/1"
+        );
         for invalid in [
             W_STRUCTURE_RULE_REVISION.replace("+bounded-layout/1", ""),
-            W_STRUCTURE_RULE_REVISION.replace("raw-initialization-w/2+bounded-layout/1", "bounded-layout/1+raw-initialization-w/2"),
+            W_STRUCTURE_RULE_REVISION.replace(
+                "raw-initialization-w/2+bounded-layout/1",
+                "bounded-layout/1+raw-initialization-w/2",
+            ),
             W_STRUCTURE_RULE_REVISION.replace("bounded-layout/1", "bounded-layout/2"),
             format!("{W_STRUCTURE_RULE_REVISION}+raw-initialization-w/1"),
             format!("{W_STRUCTURE_RULE_REVISION}+bounded-layout/1"),
         ] {
             assert!(require_current_writer_rule(&invalid).is_err(), "{invalid}");
             assert!(layout::Layout::of_rule(&invalid).is_err(), "{invalid}");
-            assert!(tb02a_facts::CatalogAxisTable::for_rule_revision(&invalid).is_none(), "{invalid}");
+            assert!(
+                tb02a_facts::CatalogAxisTable::for_rule_revision(&invalid).is_none(),
+                "{invalid}"
+            );
             assert!(tb02b::contract_for_rule(&invalid).is_none(), "{invalid}");
             assert!(w_revision(&invalid).is_none(), "{invalid}");
         }
