@@ -329,3 +329,83 @@ def test_queue_post_check_conflict_halts_and_withdraws_own_mirror(queued):
         executor(v2, cutover, unit).claim(PilotRun.run_dir(v2.home, unit.run_id))
     assert v2.claim_record()['state'] == 'halted'
     assert 'deepagents' not in v2.github.issues[TICKET]['labels']
+
+
+@pytest.fixture
+def delivered(queued):
+    from conftest import FAKE, MODELS
+    from pilot1742.executor import load_unit, open_v2_run
+
+    v2, cutover, intake, signer = queued
+    unit = intake.register(TICKET)
+    authorize(v2, cutover, unit, signer)
+    task = load_unit(v2.home, unit.run_id)[1]
+    run = open_v2_run(v2.home, unit, task, executor(v2, cutover, unit), MODELS,
+                      launcher=FAKE, source_repo=v2.source)
+    try:
+        head = v2.to_pass(run)
+        assert run.publish_candidate()['phase'] == 'awaiting_merge'
+    finally:
+        run.release()
+    return v2, intake, unit, head, run.dir
+
+
+@pytest.mark.parametrize('change', ['closed', 'draft', 'head'])
+def test_delivered_queue_rechecks_remote_without_dispatch_or_writes(delivered, change):
+    from conftest import git
+
+    v2, intake, unit, head, run_dir = delivered
+    (number,) = v2.github.pulls
+    if change == 'closed':
+        v2.github.close_pull(number)
+    elif change == 'draft':
+        v2.github.pulls[number]['draft'] = False
+    else:
+        git(v2.source, 'push', '-q', '--force', str(v2.bare), f'{v2.base}:refs/heads/{unit.branch}')
+    before = v2.writes()
+    rows = intake.once(lambda _: pytest.fail('delivered run dispatched again'))
+    assert rows[TICKET]['phase'] == 'halted'
+    if change == 'head':
+        assert rows[TICKET]['delivery_phase'] == 'stale'
+        assert json.loads((run_dir / 'delivery' / 'stale.json').read_text())['observed'] == v2.base
+        assert v2.claim_record()['state'] == 'active'
+    else:
+        assert v2.claim_record()['state'] == 'halted'
+        assert ('closed_pull_request' if change == 'closed' else 'not_draft') in rows[TICKET]['reason']
+    assert rows[TICKET]['run_id'] == unit.run_id
+    assert v2.writes() == before and v2.claim_record()['generation'] == 1
+
+
+@pytest.mark.parametrize('ticket_closed', [False, True])
+def test_delivered_queue_observes_merge_even_after_ticket_closes(delivered, ticket_closed):
+    v2, intake, unit, head, run_dir = delivered
+    (number,) = v2.github.pulls
+    v2.github.merge_pull(number)
+    if ticket_closed:
+        v2.github.issues[TICKET]['state'] = 'closed'
+    before = v2.writes()
+    rows = intake.once(lambda _: pytest.fail('merged run dispatched again'))
+    assert rows[TICKET]['phase'] == 'awaiting_merge'
+    assert rows[TICKET]['delivery_phase'] == 'merged'
+    assert json.loads((run_dir / 'delivery' / 'state.json').read_text())['phase'] == 'merged'
+    assert rows[TICKET]['head'] == head and rows[TICKET]['run_id'] == unit.run_id
+    assert v2.writes() == before and v2.claim_record()['state'] == 'active'
+
+
+@pytest.mark.parametrize('fault', ['status_500', 'drop_before'])
+def test_delivery_read_failure_is_retryable_not_stale(delivered, fault):
+    v2, intake, unit, head, run_dir = delivered
+    (number,) = v2.github.pulls
+    state_path = run_dir / 'delivery' / 'state.json'
+    before_state, before_writes = state_path.read_bytes(), v2.writes()
+    v2.github.fault('GET', rf'.*/pulls/{number}', fault)
+    rows = intake.once(lambda _: pytest.fail('delivered run dispatched again'))
+    assert rows[TICKET]['phase'] == 'awaiting_human'
+    assert rows[TICKET]['run_id'] == unit.run_id and rows[TICKET]['reason']
+    assert state_path.read_bytes() == before_state
+    assert not (run_dir / 'delivery' / 'stale.json').exists()
+    assert v2.claim_record()['state'] == 'active'
+    rows = intake.once(lambda _: pytest.fail('delivered run dispatched again'))
+    assert rows[TICKET]['phase'] == 'awaiting_merge'
+    assert rows[TICKET]['head'] == head and rows[TICKET]['run_id'] == unit.run_id
+    assert v2.writes() == before_writes
