@@ -6232,10 +6232,12 @@ pub(super) mod tests {
 
     /// #1419 A7 F3：冻结历史导出（base `5123c9e273` 生成，run 40831506671 导出）解包到私有临时目录，
     /// 逐文件核 `CONTENTS.sha256` 后才交测试读；仓内原件不被打开写入。
-    pub(crate) fn issue1419_history() -> tempfile::TempDir {
+    /// #1419 R1（29BI 返修）：临时目录改用标准库 TestFiles 生命周期，不依赖 dev-dependency
+    /// `tempfile`——编译负例脚本只链接普通 bin 依赖，`tempfile` 在其中不可解析。
+    pub(crate) fn issue1419_history() -> HistoryTestDir {
         let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures/issue1419_history_5123");
-        let dir = tempfile::tempdir().unwrap();
+        let dir = HistoryTestDir::new();
         let status = std::process::Command::new("tar")
             .arg("-xzf")
             .arg(fixture.join("export.tar.gz"))
@@ -6258,6 +6260,39 @@ pub(super) mod tests {
         }
         assert_eq!(listed, 62, "冻结原件清单条目数");
         dir
+    }
+
+    /// #1419 R1：历史夹具临时目录。私有解包、退出清理，与 `s_structure_session` 的 `TestFiles`
+    /// 同一生命周期模式；不引入生产依赖，仓内原件仍只读。
+    pub(crate) struct HistoryTestDir(std::path::PathBuf);
+
+    impl HistoryTestDir {
+        pub(super) fn new() -> Self {
+            use std::sync::atomic::{AtomicUsize, Ordering};
+            use std::time::{SystemTime, UNIX_EPOCH};
+            static NEXT_DIR: AtomicUsize = AtomicUsize::new(0);
+            let stamp = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let number = NEXT_DIR.fetch_add(1, Ordering::Relaxed);
+            let path = std::env::temp_dir().join(format!(
+                "1419-history-{}-{stamp}-{number}",
+                std::process::id()
+            ));
+            std::fs::create_dir(&path).unwrap();
+            Self(path)
+        }
+
+        pub(super) fn path(&self) -> &std::path::Path {
+            &self.0
+        }
+    }
+
+    impl Drop for HistoryTestDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
     }
 
     /// #1419 A7：原 25 根仍是 base `5123c9e273` 原件，由本测试经冻结历史导出节点逐字读回；
