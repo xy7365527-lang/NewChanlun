@@ -12497,3 +12497,226 @@ mod legacy_profile_owner_regressions {
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
     }
 }
+
+/// #1768 TestOnly：冻结 pre-W 旧规则 oracle 重建夹具导出（#1419 comment6265726014/6449214001 授权内）。
+/// 只经原 init/accept/advance 与真实 mixed WriterScope 造数，不改生产入口；默认 ignore，仅有界 CI 显式运行。
+#[cfg(test)]
+mod issue1768_seed_export {
+    use super::*;
+
+    const SESSION: &str = "tb01c-query-unit";
+    const PRICES: [i64; 4] = [10000, 11000, 10500, 12000];
+    // 原 Python r4_anchor_fixture.DEFAULT_LIMIT 对八个 JobLimits 字段一律 1000000，显式传回。
+    const LIMIT_FIELDS: [&str; 8] = [
+        "max_total_wire_bytes",
+        "max_total_node_bytes",
+        "max_total_nodes",
+        "max_total_records",
+        "max_total_requests",
+        "max_elapsed_ms",
+        "max_staged_bytes",
+        "max_store_bytes",
+    ];
+    const ORIGINAL_LIMIT: u64 = 1_000_000;
+    // 沿既有 cfg(test) mixed WriterScope 测试的具名值（本文件 historical_pre_policy_records_store_is_never_migrated、
+    // tb1405_cmd_accept_with_real_scope_preserves_historical_hot_wal 的 test_prepare_mixed(.., 1 << 26, 1 << 26)）。
+    const TESTONLY_NATIVE_RAM: (u64, u64) = (1 << 26, 1 << 26);
+
+    #[derive(Clone, Copy)]
+    enum Advance {
+        Production,
+        Fixture,
+    }
+
+    fn repo() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().to_path_buf()
+    }
+
+    /// 与 tb01c_query_tests.QueryTests.input 的 json.dumps 字节一致。
+    fn input_text(seq: usize, price: i64) -> String {
+        format!(
+            "{{\"schema_revision\": \"1\", \"session_id\": \"{SESSION}\", \"source_namespace\": \"testonly.tick.ohlc\", \"source_epoch\": \"1\", \"instrument\": \"TEST.TICK\", \"profile\": \"testonly_tick_1_1_ohlc\", \"events\": [{{\"event_id\": \"e{seq}\", \"revision\": \"1\", \"seq\": \"{seq}\", \"price\": \"{price}\", \"timestamp\": \"{seq}\", \"volume\": \"1\", \"raw_text\": \"{price}\", \"received_at\": \"2000-01-01T00:00:00Z\"}}]}}"
+        )
+    }
+
+    fn scoped(db: &Path, op: impl FnOnce() -> Result<(), String>) -> Result<(), String> {
+        let command = v3::admission_anchor::CommandAccounting::begin();
+        let fields: Vec<(&str, u64)> = LIMIT_FIELDS.iter().map(|f| (*f, ORIGINAL_LIMIT)).collect();
+        let prepared = v3::admission_anchor::test_prepare_mixed_caps(
+            db,
+            TESTONLY_NATIVE_RAM.0,
+            TESTONLY_NATIVE_RAM.1,
+            &fields,
+        );
+        let result = (|| {
+            let scope =
+                v3::test_with_mixed_entry(|| v3::admission::WriterScope::admit(db, prepared))?;
+            let guard = scope.enter()?;
+            scope.require_admitted()?;
+            let outcome = op();
+            drop(guard);
+            drop(scope);
+            outcome
+        })();
+        let result = match result {
+            Ok(()) => Ok(()),
+            Err(error) => {
+                let mut sink = Vec::new();
+                let receipt = command.report(&error, &mut sink);
+                Err(format!(
+                    "{error}\nreceipt={receipt:?}\nstderr={}",
+                    String::from_utf8_lossy(&sink)
+                ))
+            }
+        };
+        drop(command);
+        result
+    }
+
+    struct Run {
+        root: PathBuf,
+        label: &'static str,
+        steps: Vec<Value>,
+        snapshots: Vec<Value>,
+    }
+
+    impl Run {
+        fn manifest(&self) {
+            let manifest = json!({
+                "kind": "frozen pre-W old-rule oracle REBUILD fixture (not recovered historical original)",
+                "issue": "#1768 / #1419 comment6265726014, comment6449214001",
+                "source_commit_env": std::env::var("GITHUB_SHA").ok(),
+                "advance_mode": self.label,
+                "rule_revision_const": RULE_REVISION,
+                "job_limits": LIMIT_FIELDS.iter().map(|f| (f.to_string(), json!(ORIGINAL_LIMIT.to_string()))).collect::<serde_json::Map<_,_>>(),
+                "native_ram": {"max_live_bytes": TESTONLY_NATIVE_RAM.0.to_string(), "max_operation_bytes": TESTONLY_NATIVE_RAM.1.to_string(),
+                    "source": "rust/src/bin/s_structure_session.rs existing cfg(test) test_prepare_mixed(.., 1 << 26, 1 << 26)"},
+                "steps": self.steps,
+                "snapshots": self.snapshots,
+            });
+            std::fs::write(
+                self.root.join("manifest.json"),
+                serde_json::to_vec_pretty(&manifest).unwrap(),
+            )
+            .unwrap();
+        }
+
+        fn step(&mut self, name: String, result: Result<(), String>) {
+            let ok = result.is_ok();
+            self.steps.push(json!({"step": name, "ok": ok, "error": result.as_ref().err()}));
+            if !ok {
+                self.manifest();
+                panic!("{} 失败：{}", name, result.unwrap_err());
+            }
+        }
+
+        fn input(&self, name: &str, seq: usize, price: i64) -> PathBuf {
+            let path = self.root.join("work").join(name);
+            std::fs::write(&path, input_text(seq, price)).unwrap();
+            path
+        }
+
+        fn init(&mut self, db: &Path) {
+            let catalog = repo().join("s_session/catalog/signed-catalog.json");
+            let r = cmd_init(db, SESSION, &catalog);
+            self.step(format!("init {}", db.display()), r);
+        }
+
+        fn accept(&mut self, db: &Path, name: &str, seq: usize, price: i64) {
+            let input = self.input(name, seq, price);
+            let profile = repo().join("s_session/profiles/testonly_tick_1_1_ohlc.json");
+            let r = scoped(db, || cmd_accept(db, &input, &profile, DEFAULT_WRITER_EPOCH));
+            self.step(format!("accept {} seq{seq} price{price}", db.display()), r);
+        }
+
+        fn advance(&mut self, db: &Path, mode: Advance) {
+            let r = scoped(db, || match mode {
+                Advance::Production => cmd_advance(db, DEFAULT_WRITER_EPOCH),
+                Advance::Fixture => advance_core_fixture(db, DEFAULT_WRITER_EPOCH, None)
+                    .and_then(|out| v3::admission::write_current_result(&out)),
+            });
+            self.step(format!("advance {}", db.display()), r);
+        }
+
+        /// 正常关闭后 TRUNCATE 检查点，确认无残留非空 WAL 再复制主库，形成一致快照。
+        fn snapshot(&mut self, db: &Path, name: &str, generation: &str, raw: i64) {
+            let conn = Connection::open(db).unwrap();
+            let busy: (i64, i64, i64) = conn
+                .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |r| {
+                    Ok((r.get(0)?, r.get(1)?, r.get(2)?))
+                })
+                .unwrap();
+            let meta = |k: &str| meta_get_opt(&conn, k).unwrap();
+            let raw_rows: i64 = conn
+                .query_row("SELECT COUNT(*) FROM raw_events", [], |r| r.get(0))
+                .unwrap();
+            let (actual_gen, rule, session) =
+                (meta("generation"), meta("rule_revision"), meta("session_id"));
+            drop(conn);
+            let wal = PathBuf::from(format!("{}-wal", db.display()));
+            let wal_len = std::fs::metadata(&wal).map(|m| m.len()).unwrap_or(0);
+            let dest = self.root.join("frozen").join(name);
+            std::fs::copy(db, &dest).unwrap();
+            let bytes = std::fs::read(&dest).unwrap();
+            self.snapshots.push(json!({
+                "file": name, "source": db.display().to_string(), "checkpoint": [busy.0, busy.1, busy.2],
+                "residual_wal_bytes": wal_len, "generation": actual_gen, "rule_revision": rule,
+                "session_id": session, "raw_events": raw_rows, "bytes": bytes.len(), "sha256": sha256_hex(&bytes),
+            }));
+            self.manifest();
+            assert_eq!(busy.0, 0, "{name} checkpoint busy");
+            assert_eq!(wal_len, 0, "{name} 残留 WAL");
+            assert_eq!(actual_gen.as_deref(), Some(generation), "{name} generation");
+            assert_eq!(raw_rows, raw, "{name} raw_events");
+        }
+    }
+
+    fn history(run: &mut Run, db: &Path, mode: Advance, snap: bool) {
+        run.init(db);
+        if snap {
+            run.snapshot(db, "g0.sqlite", "0", 0);
+        }
+        for (seq, price) in PRICES.iter().copied().enumerate() {
+            let tag = db.file_stem().unwrap().to_string_lossy().to_string();
+            run.accept(db, &format!("{tag}-event-{seq}.json"), seq, price);
+            run.advance(db, mode);
+            if snap {
+                let g = (seq + 1).to_string();
+                run.snapshot(db, &format!("g{g}.sqlite"), &g, seq as i64 + 1);
+            }
+        }
+    }
+
+    fn export(mode: Advance, label: &'static str) {
+        let out = std::env::var_os("S1768_SEED_EXPORT_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| std::env::temp_dir().join(format!("s1768-seed-{}", std::process::id())));
+        let root = out.join(label);
+        std::fs::create_dir_all(root.join("work")).unwrap();
+        std::fs::create_dir_all(root.join("frozen")).unwrap();
+        let mut run = Run { root: root.clone(), label, steps: vec![], snapshots: vec![] };
+        let seed = root.join("work").join("seed.sqlite");
+        history(&mut run, &seed, mode, true);
+        let g0p = root.join("work").join("g0-pending.sqlite");
+        run.init(&g0p);
+        run.accept(&g0p, "g0-pending-event-0.json", 0, 11500);
+        run.snapshot(&g0p, "g0-pending.sqlite", "0", 1);
+        let g4p = root.join("work").join("g4-pending.sqlite");
+        history(&mut run, &g4p, mode, false);
+        run.accept(&g4p, "g4-pending-event-4.json", 4, 11500);
+        run.snapshot(&g4p, "g4-pending.sqlite", "4", 5);
+        run.manifest();
+    }
+
+    #[test]
+    #[ignore = "#1768 有界 CI 显式导出"]
+    fn issue1768_seed_export_production_advance() {
+        export(Advance::Production, "production-advance");
+    }
+
+    #[test]
+    #[ignore = "#1768 有界 CI 显式导出"]
+    fn issue1768_seed_export_fixture_advance() {
+        export(Advance::Fixture, "fixture-advance-testonly-policy-records");
+    }
+}

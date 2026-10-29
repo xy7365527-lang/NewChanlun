@@ -1,0 +1,70 @@
+name: '#1768 TestOnly pre-W oracle seed export'
+
+# 冻结 44fe pre-W 旧规则 oracle 重建夹具；仅本分支 push 触发，不进 main。
+on:
+  push:
+    branches: [codex/1768-testonly-seed-29ax]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: issue-1768-seed-export-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/rust-job-setup
+      - name: Export (cfg(test), ignored tests run by exact name)
+        working-directory: rust
+        shell: bash
+        env:
+          S1768_SEED_EXPORT_DIR: ${{ runner.temp }}/evidence/seed
+        run: |
+          set +e
+          mkdir -p "$S1768_SEED_EXPORT_DIR" "$RUNNER_TEMP/evidence"
+          git rev-parse HEAD > "$RUNNER_TEMP/evidence/checkout-head.txt"
+          for t in issue1768_seed_export_production_advance issue1768_seed_export_fixture_advance; do
+            cargo test --locked --features s_session --bin s_structure_session -- --ignored --exact "issue1768_seed_export::$t" --nocapture \
+              >"$RUNNER_TEMP/evidence/$t.log" 2>&1
+            printf '%s exit=%s\n' "$t" "$?" | tee -a "$RUNNER_TEMP/evidence/export-exit.txt"
+          done
+          tail -40 "$RUNNER_TEMP/evidence/"*.log
+      - name: Release default build keeps legacy write unreachable
+        working-directory: rust
+        shell: bash
+        run: |
+          set +e
+          cargo build --locked --release --features s_session --bin s_structure_session >"$RUNNER_TEMP/evidence/release-build.log" 2>&1
+          printf 'release_build_exit=%s\n' "$?" | tee "$RUNNER_TEMP/evidence/release-lock.txt"
+          d=$(mktemp -d)
+          ./target/release/s_structure_session init --db "$d/x.sqlite" --session s --catalog ../s_session/catalog/signed-catalog.json >>"$RUNNER_TEMP/evidence/release-lock.txt" 2>&1
+          printf 'release_init_exit=%s\n' "$?" >>"$RUNNER_TEMP/evidence/release-lock.txt"
+          printf '{}' > "$d/in.json"
+          ./target/release/s_structure_session accept --db "$d/x.sqlite" --input "$d/in.json" --profile ../s_session/profiles/testonly_tick_1_1_ohlc.json >>"$RUNNER_TEMP/evidence/release-lock.txt" 2>&1
+          printf 'release_accept_exit=%s (expect nonzero)\n' "$?" >>"$RUNNER_TEMP/evidence/release-lock.txt"
+          cat "$RUNNER_TEMP/evidence/release-lock.txt"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14.6'
+      - name: Original public validator on frozen copies
+        shell: bash
+        run: |
+          set +e
+          python -m pip install -r s_session/tests/requirements-tb02c.txt >/dev/null
+          python s_session/tests/issue1768_seed_validate.py "$RUNNER_TEMP/evidence/seed" \
+            >"$RUNNER_TEMP/evidence/validator.json" 2>"$RUNNER_TEMP/evidence/validator.err"
+          printf 'validator_exit=%s\n' "$?" | tee "$RUNNER_TEMP/evidence/validator-exit.txt"
+          cat "$RUNNER_TEMP/evidence/validator.json"; tail -30 "$RUNNER_TEMP/evidence/validator.err"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: issue1768-seed-export-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/evidence
+          if-no-files-found: error
