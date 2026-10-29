@@ -26,8 +26,8 @@
 
 ## #1538 → #1382 直接边
 
-这条边是落地后的图维护新增，不是误加。依据见 [#1382 评论 6472268892](https://github.com/xy7365527-lang/NewChanlun/issues/1382#issuecomment-6472268892) 与修正表 `/Volumes/AgentStorage/frontier-audit-20261028/edges.corrected.tsv:49`。ADR 0056 已追加当前图说明。本单元不改边，最终图裁决归主控。
+这条边由 2026-10-28 frontier 图维护新增（评论创建于 2026-10-28T14:51:43Z，早于 PR #1796 于 23:01:02Z 合入 main），不是误加。依据见 [#1382 评论 6472268892](https://github.com/xy7365527-lang/NewChanlun/issues/1382#issuecomment-6472268892) 与修正表 `/Volumes/AgentStorage/frontier-audit-20261028/edges.corrected.tsv:49`。这是已执行的技术图维护，不是待裁事项。ADR 0056 已追加当前图说明，并把验收第 9 项「边不删」的现行期望订正为八边 `1362,1366,1367,1382,1525,1539,1540,1550`。本单元不改边。
 
 ## 剩余关票门
 
-resolution 与关票声明未写。旧工位 `/Volumes/AgentStorage/issue1538-land-20261028/worktree` 未清理。ADR 验收第 9 项期望值待主控按当前图裁决。三项都归主控。
+resolution 与关票声明未写。旧工位 `/Volumes/AgentStorage/issue1538-land-20261028/worktree` 未清理。两项都归主控。
