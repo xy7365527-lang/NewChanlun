@@ -7713,7 +7713,7 @@ mod manifest_template_coverage_tests {
         let other = sc::write_value(&mut nodes, &V::Bool(true)).unwrap().content_ref();
         let mut conn = Connection::open_in_memory().unwrap();
         let tx = conn.transaction().unwrap();
-        let roots = [RefValue::Plain(root.clone())];
+        let roots = [RefValue::from(root.clone())];
         let proof = VerifiedManifestRoots { transaction: &tx, roots: &[], public: &roots };
         let reads = Rc::new(Cell::new(0));
         let mut source = Counted { nodes: nodes.clone(), reads: reads.clone() };
@@ -7728,7 +7728,7 @@ mod manifest_template_coverage_tests {
             ContentRef { extent: Some(999), ..root.clone() },
             other,
         ] {
-            assert_eq!(proof.verify_resolved_public(&tx, &mut reader, &[RefValue::Plain(wrong)]).unwrap_err().code(), sc::code::SOURCE);
+            assert_eq!(proof.verify_resolved_public(&tx, &mut reader, &[RefValue::from(wrong)]).unwrap_err().code(), sc::code::SOURCE);
         }
         let capture = sc::AuditCapture::new(nodes.clone());
         let mut captured = HashReader::captured(&capture, None);
