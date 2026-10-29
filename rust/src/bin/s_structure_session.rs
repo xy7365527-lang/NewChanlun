@@ -12732,4 +12732,82 @@ mod issue1768_seed_export {
     fn issue1768_seed_export_fixture_advance() {
         export(Advance::Fixture, "fixture-advance-testonly-policy-records");
     }
+
+    fn handshake_publish(dir: &Path, name: &str, value: &Value) {
+        let tmp = dir.join(format!("{name}.json.tmp"));
+        std::fs::write(&tmp, serde_json::to_vec_pretty(value).unwrap()).unwrap();
+        std::fs::rename(&tmp, dir.join(format!("{name}.json"))).unwrap();
+    }
+
+    /// 返回先出现的那一个握手文件名及其内容；超时即 panic，不静默续跑。
+    fn handshake_wait(dir: &Path, names: &[String], timeout: std::time::Duration) -> (String, Value) {
+        let start = std::time::Instant::now();
+        loop {
+            for name in names {
+                let path = dir.join(format!("{name}.json"));
+                if let Ok(bytes) = std::fs::read(&path) {
+                    return (name.clone(), serde_json::from_slice(&bytes).unwrap());
+                }
+            }
+            assert!(start.elapsed() < timeout, "握手超时：等待 {names:?}");
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+    }
+
+    fn committed_generation(db: &Path) -> Result<Option<String>, String> {
+        let conn = Connection::open_with_flags(db, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .map_err(|e| e.to_string())?;
+        meta_get_opt(&conn, "generation")
+    }
+
+    /// 组件臂 TestOnly 生产者：在 Python 同一活 reader 存续期间，对其私有库逐代真实
+    /// accept+advance（mixed WriterScope + 冻结源 fixture advance，与 g0..g4 导出同一路径）。
+    /// 每代收 request-N 才写，写完发 receipt-N；失败也先发收据再失败退出，不掩盖。
+    #[test]
+    #[ignore = "#1768 组件臂 TestOnly 生产者，仅由 Python 消费者按 exact 名拉起"]
+    fn issue1768_dynamic_producer() {
+        let env = |k: &str| PathBuf::from(std::env::var_os(k).unwrap_or_else(|| panic!("{k} 未设")));
+        let db = env("S1768_PRODUCER_DB");
+        let dir = env("S1768_PRODUCER_HANDSHAKE");
+        let timeout = std::time::Duration::from_secs(300);
+        let profile = repo().join("s_session/profiles/testonly_tick_1_1_ohlc.json");
+        handshake_publish(&dir, "ready", &json!({
+            "producer_pid": std::process::id(),
+            "source_commit_env": std::env::var("GITHUB_SHA").ok(),
+            "rule_revision_const": RULE_REVISION,
+            "db": db.display().to_string(),
+            "generation": committed_generation(&db),
+        }));
+        for n in 0usize.. {
+            let (name, request) =
+                handshake_wait(&dir, &[format!("request-{n}"), "stop".to_string()], timeout);
+            if name == "stop" {
+                handshake_publish(&dir, "stopped", &json!({"requests": n, "stop": request}));
+                return;
+            }
+            let field = |k: &str| request[k].as_str().unwrap_or_else(|| panic!("request-{n}.{k} 缺失")).to_string();
+            let seq: usize = field("seq").parse().unwrap();
+            let price: i64 = field("price").parse().unwrap();
+            let before = committed_generation(&db);
+            let input = dir.join(format!("event-{seq}.json"));
+            std::fs::write(&input, input_text(seq, price)).unwrap();
+            let accept = scoped(&db, || cmd_accept(&db, &input, &profile, DEFAULT_WRITER_EPOCH));
+            let advance = accept.as_ref().ok().map(|_| {
+                scoped(&db, || {
+                    advance_core_fixture(&db, DEFAULT_WRITER_EPOCH, None)
+                        .and_then(|out| v3::admission::write_current_result(&out))
+                })
+            });
+            let after = committed_generation(&db);
+            let ok = accept.is_ok() && matches!(advance, Some(Ok(_)));
+            handshake_publish(&dir, &format!("receipt-{n}"), &json!({
+                "request": request, "producer_pid": std::process::id(),
+                "generation_before": before, "generation_after": after,
+                "accept": {"ok": accept.is_ok(), "accounting": accept.as_ref().ok(), "error": accept.as_ref().err()},
+                "advance": advance.as_ref().map(|r| json!({"ok": r.is_ok(), "accounting": r.as_ref().ok(), "error": r.as_ref().err()})),
+                "ok": ok,
+            }));
+            assert!(ok, "request-{n} seq{seq} 写入失败，见 receipt-{n}");
+        }
+    }
 }
