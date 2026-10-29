@@ -78,6 +78,19 @@ jobs:
           printf 'release_lock_exit=%s\n' "$rc" | tee "$RUNNER_TEMP/evidence/release-lock-exit.txt"
           cat "$RUNNER_TEMP/evidence/release-lock.jsonl"; cat "$RUNNER_TEMP/evidence/release-lock.err"
           exit "$rc"
+      - name: Frozen originals carry no sidecars
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          frozen="$RUNNER_TEMP/evidence/seed/fixture-advance-testonly-policy-records/frozen"
+          test -d "$frozen"
+          found=$(find "$frozen" -type f \( -name '*-shm' -o -name '*-wal' -o -name '*-journal' \) | sort)
+          if [ -n "$found" ]; then
+            printf 'frozen_sidecar_exit=1\n%s\n' "$found" | tee "$RUNNER_TEMP/evidence/frozen-sidecar-exit.txt"
+            exit 1
+          fi
+          printf 'frozen_sidecar_exit=0\n' | tee "$RUNNER_TEMP/evidence/frozen-sidecar-exit.txt"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

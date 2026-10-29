@@ -16,6 +16,20 @@ from tb01c_query_tests import QueryTests
 REJECTION = "LegacyAdmissionBudgetAdapterMissing：完整旧域审计已调用，但旧证据图节点与Snapshot/Delta尚无Job同源费用适配，禁止签发准入"
 
 
+SIDECARS = ("-wal", "-shm", "-journal")
+
+
+def open_frozen(path):
+    """冻结原件持久 WAL 头：普通只读打开会后生 -shm/-wal；无侧件即无未检查点帧，才可 immutable。"""
+    path = Path(path).resolve()
+    present = [s for s in SIDECARS if Path(f"{path}{s}").exists()]
+    if present:
+        raise RuntimeError(f"frozen 原件带侧件 {present}，非已证完整检查点副本，拒绝 immutable 读取：{path}")
+    conn = sqlite3.connect(path.as_uri() + "?immutable=1", uri=True)
+    conn.execute("PRAGMA query_only=ON")
+    return conn
+
+
 def logical_state(db):
     with closing(sqlite3.connect(db)) as conn:
         return list(conn.iterdump())
@@ -34,7 +48,7 @@ def main(binary, mode):
         event = QueryTests.input(4, 11500)
         for operation, seed in (("accept", "g4"), ("advance", "g4-pending"), ("recover", "g4-pending")):
             db = base / f"{operation}.sqlite"
-            with closing(sqlite3.connect(f"file:{mode / 'frozen' / (seed + '.sqlite')}?mode=ro", uri=True)) as src, closing(sqlite3.connect(db)) as dst:
+            with closing(open_frozen(mode / 'frozen' / (seed + '.sqlite'))) as src, closing(sqlite3.connect(db)) as dst:
                 src.backup(dst)
             state = base / f"{operation}-state"
             state.mkdir()

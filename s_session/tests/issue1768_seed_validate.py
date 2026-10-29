@@ -20,12 +20,26 @@ EXPECT = {"g0": (0, 0), "g1": (1, 1), "g2": (2, 2), "g3": (3, 3), "g4": (4, 4),
           "g0-pending": (0, 1), "g4-pending": (4, 5)}
 
 
+SIDECARS = ("-wal", "-shm", "-journal")
+
+
+def open_frozen(path):
+    """冻结原件持久 WAL 头：普通只读打开会后生 -shm/-wal；无侧件即无未检查点帧，才可 immutable。"""
+    path = Path(path).resolve()
+    present = [s for s in SIDECARS if Path(f"{path}{s}").exists()]
+    if present:
+        raise RuntimeError(f"frozen 原件带侧件 {present}，非已证完整检查点副本，拒绝 immutable 读取：{path}")
+    conn = sqlite3.connect(path.as_uri() + "?immutable=1", uri=True)
+    conn.execute("PRAGMA query_only=ON")
+    return conn
+
+
 def check(path):
     if not path.is_file():
         raise FileNotFoundError(path)
     with tempfile.TemporaryDirectory() as tmp:
         copy = Path(tmp) / path.name
-        with closing(reader.open_readonly(path)) as src, closing(sqlite3.connect(copy)) as dst:
+        with closing(open_frozen(path)) as src, closing(sqlite3.connect(copy)) as dst:
             src.backup(dst)
         r = query.AuditReader(copy, resources(), vars(reader))
         try:
