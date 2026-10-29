@@ -35,6 +35,8 @@ jobs:
           set +e
           mkdir -p "$RUNNER_TEMP/evidence"
           python -V | tee "$RUNNER_TEMP/evidence/python-version.txt"
+          git rev-parse HEAD > "$RUNNER_TEMP/evidence/checkout-head.txt"
+          printf '%s\n' "$S_STRUCTURE_SESSION_BINARY" > "$RUNNER_TEMP/evidence/s-binary-path.txt"
           python -m pytest -q -p no:cacheprovider \
             s_session/tests/test_*.py \
             s_session/tests/issue1527_recovery/test_python_r4.py \
