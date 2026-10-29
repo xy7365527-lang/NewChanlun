@@ -366,7 +366,7 @@ jobs:
       fail-fast: false
       max-parallel: 1
       matrix:
-        group: [content, economic, native, owned]
+        group: [content, economic, native, owned, release-locks]
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -438,6 +438,51 @@ jobs:
       - name: cargo test — v3 history Owned 分配原型（s_allocation_json_testonly，#1394）
         if: ${{ !cancelled() && matrix.group == 'owned' }}
         run: ../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session,s_allocation_json_testonly --bin s_structure_session v3::history --jobs 1
+
+      # #1640：release-only 锁（S4 等，#[ignore = "release-only: …"]）此前只在 issue-1488-uo-iter.yml 执行，
+      #   该 workflow 只在 codex/1488-uo-ci-20261019 推送时触发，PR 候选不覆盖。此处照搬其 release 步命令、
+      #   清单与单测 2700 s 上限：生产增量构建 s_session,s_incremental，--release --ignored --exact 逐条执行。
+      - name: build release-only locks（#1640，同 issue-1488-uo-iter）
+        if: ${{ !cancelled() && matrix.group == 'release-locks' }}
+        run: |
+          set -o pipefail
+          ../.github/scripts/run-cargo-with-telemetry.sh cargo test --release --locked --features s_session,s_incremental --no-run --bin s_structure_session --jobs 4 2>&1 | tee ../build-release.log
+
+      - name: release-only locks (each exact, --release --ignored)（#1640）
+        if: ${{ !cancelled() && matrix.group == 'release-locks' }}
+        timeout-minutes: 50
+        run: |
+          set +e
+          fail=0
+          : > ../locks.tsv
+          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session -- --list --format terse --ignored > ../list-release.txt 2>&1
+          total=0
+          while IFS= read -r t; do
+            [ -z "$t" ] && continue
+            case "$t" in \#*) continue;; esac
+            total=$((total + 1))
+            log="../out-release-$(echo $t | tr ':/' '__').log"
+            if ! grep -qx "$t: test" ../list-release.txt; then echo -e "$t\tNOT_LISTED_RELEASE" >> ../locks.tsv; fail=1; continue; fi
+            timeout 2700 cargo test --release --locked --features s_session,s_incremental --bin s_structure_session -- --ignored --exact "$t" --test-threads 1 > "$log" 2>&1
+            rc=$?
+            cat "$log"
+            if [ $rc -eq 0 ] && grep -q "test result: ok. 1 passed" "$log"; then echo -e "$t\tPASS_RELEASE" >> ../locks.tsv; else echo -e "$t\tFAIL_RELEASE($rc)" >> ../locks.tsv; fail=1; fi
+          done < ../.github/1488-uo-release-locks.txt
+          if [ "$total" -eq 0 ]; then echo "::error title=Empty release-only lock list::nothing was executed"; fail=1; fi
+          cat ../locks.tsv
+          exit $fail
+
+      - name: Upload release-only lock logs（#1640）
+        if: ${{ always() && matrix.group == 'release-locks' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-only-locks-${{ github.run_id }}
+          path: |
+            build-release.log
+            list-release.txt
+            locks.tsv
+            out-release-*.log
+          if-no-files-found: warn
 
   # #1722：保留原 check 名称。仅全矩阵成功可绿；失败、取消、跳过或无结果均拒绝。
   rust-test-s-session-extras:
