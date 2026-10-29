@@ -93,6 +93,12 @@ pub(crate) mod s4_read_trace {
             }
         });
     }
+    pub(crate) fn begin(conn: &rusqlite::Connection, boundary: &'static str) {
+        audit_window(conn, boundary, "begin", "pending");
+    }
+    pub(crate) fn end<T, E>(conn: &rusqlite::Connection, boundary: &'static str, result: &Result<T, E>) {
+        audit_window(conn, boundary, "end", if result.is_ok() { "ok" } else { "error" });
+    }
     pub(crate) fn snapshot(label: &str, bytes: u128) {
         TRACE.with(|t| { if t.borrow().enabled { eprintln!("S4_READ_ACCOUNT {} {}", label, bytes); } });
     }

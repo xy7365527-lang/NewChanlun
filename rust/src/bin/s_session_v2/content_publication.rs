@@ -563,12 +563,24 @@ fn resolve_indexed_templates_pending_core(
     previous_frontier: i64,
     mut memo: Option<&mut NativePublicationMemo<'_>>,
 ) -> Result<PendingRefTemplates, String> {
-    let objects = object_births(tx, &metadata, store)?;
-    let observations = observation_births(tx, &metadata, store)?;
+    #[cfg(test)]
+    crate::v3::diagnostic_s4_read_trace::begin(tx, "ord_pub_births_objects");
+    let objects = object_births(tx, &metadata, store);
+    #[cfg(test)]
+    crate::v3::diagnostic_s4_read_trace::end(tx, "ord_pub_births_objects", &objects);
+    let objects = objects?;
+    #[cfg(test)]
+    crate::v3::diagnostic_s4_read_trace::begin(tx, "ord_pub_births_observations");
+    let observations = observation_births(tx, &metadata, store);
+    #[cfg(test)]
+    crate::v3::diagnostic_s4_read_trace::end(tx, "ord_pub_births_observations", &observations);
+    let observations = observations?;
     let mut snapshot = ref_value(store, roots.publication_template)?;
     let mut delta = ref_value(store, roots.delta_template)?;
     check_resolution_header(store, &snapshot, &delta, metadata, previous_frontier)?;
-    resolve_objects(
+    #[cfg(test)]
+    crate::v3::diagnostic_s4_read_trace::begin(tx, "ord_pub_resolve_active");
+    let resolved_family = resolve_objects(
         store,
         &mut snapshot,
         "objects",
@@ -577,8 +589,13 @@ fn resolve_indexed_templates_pending_core(
         batch_id,
         ObjectFamily::Active,
         memo.as_deref_mut(),
-    )?;
-    resolve_objects(
+    );
+    #[cfg(test)]
+    crate::v3::diagnostic_s4_read_trace::end(tx, "ord_pub_resolve_active", &resolved_family);
+    resolved_family?;
+    #[cfg(test)]
+    crate::v3::diagnostic_s4_read_trace::begin(tx, "ord_pub_resolve_withdrawn");
+    let resolved_family = resolve_objects(
         store,
         &mut snapshot,
         "withdrawn_objects",
@@ -587,8 +604,13 @@ fn resolve_indexed_templates_pending_core(
         batch_id,
         ObjectFamily::Withdrawn,
         memo.as_deref_mut(),
-    )?;
-    resolve_objects(
+    );
+    #[cfg(test)]
+    crate::v3::diagnostic_s4_read_trace::end(tx, "ord_pub_resolve_withdrawn", &resolved_family);
+    resolved_family?;
+    #[cfg(test)]
+    crate::v3::diagnostic_s4_read_trace::begin(tx, "ord_pub_resolve_born");
+    let resolved_family = resolve_objects(
         store,
         &mut delta,
         "upserts",
@@ -597,16 +619,31 @@ fn resolve_indexed_templates_pending_core(
         batch_id,
         ObjectFamily::Born,
         memo.as_deref_mut(),
-    )?;
-    resolve_observations(
+    );
+    #[cfg(test)]
+    crate::v3::diagnostic_s4_read_trace::end(tx, "ord_pub_resolve_born", &resolved_family);
+    resolved_family?;
+    #[cfg(test)]
+    crate::v3::diagnostic_s4_read_trace::begin(tx, "ord_pub_resolve_obs_snapshot");
+    let resolved_family = resolve_observations(
         store,
         &mut snapshot,
         &observations,
         &metadata,
         batch_id,
         false,
-    )?;
-    resolve_observations(store, &mut delta, &observations, &metadata, batch_id, true)?;
+    );
+    #[cfg(test)]
+    crate::v3::diagnostic_s4_read_trace::end(tx, "ord_pub_resolve_obs_snapshot", &resolved_family);
+    resolved_family?;
+    #[cfg(test)]
+    crate::v3::diagnostic_s4_read_trace::begin(tx, "ord_pub_resolve_obs_delta");
+    let resolved_family = resolve_observations(store, &mut delta, &observations, &metadata, batch_id, true);
+    #[cfg(test)]
+    crate::v3::diagnostic_s4_read_trace::end(tx, "ord_pub_resolve_obs_delta", &resolved_family);
+    resolved_family?;
+    #[cfg(test)]
+    crate::v3::diagnostic_s4_read_trace::begin(tx, "ord_pub_replace");
     for root in [&mut snapshot, &mut delta] {
         let frontier =
             PublicationPath::new(store, [sc::path::PathStepView::Field("index_frontier")])?;
@@ -623,6 +660,8 @@ fn resolve_indexed_templates_pending_core(
                 .map_err(err)?;
         }
     }
+    #[cfg(test)]
+    crate::v3::diagnostic_s4_read_trace::end(tx, "ord_pub_replace", &Ok::<(), ()>(()));
     Ok(PendingRefTemplates { snapshot, delta })
 }
 

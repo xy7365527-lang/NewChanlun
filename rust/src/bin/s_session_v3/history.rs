@@ -1009,17 +1009,22 @@ fn audit_one_published_cut<'capture>(
     resolved_roots.try_push(resolved.delta).map_err(err)?;
     #[cfg(test)]
     super::state::trace_event("history_object_members", Some(generation));
+    #[cfg(test)]
+    super::admission_private::s4_read_trace::begin(tx, "ord_obj_members");
     if let Some(sweep) = object_sweep.as_mut() {
         sweep.advance_admitted(generation, store)?;
     }
-    object_index::verify_generated_members_swept_with_records(
+    let members_result = object_index::verify_generated_members_swept_with_records(
         store,
         objects.entries(),
         roots.generated_state.view(),
         generation,
         object_sweep.as_ref(),
         records.as_deref_mut(),
-    )?;
+    );
+    #[cfg(test)]
+    super::admission_private::s4_read_trace::end(tx, "ord_obj_members", &members_result);
+    members_result?;
     let (active, withdrawn, upserts) = if let Some(p) = &dual {
         (
             p.arrays[0].1.clone(),
@@ -1027,7 +1032,12 @@ fn audit_one_published_cut<'capture>(
             p.arrays[2].1.clone(),
         )
     } else {
-        objects.at_cut(store, generation, budget)?
+        #[cfg(test)]
+        super::admission_private::s4_read_trace::begin(tx, "ord_obj_at_cut");
+        let at_cut = objects.at_cut(store, generation, budget);
+        #[cfg(test)]
+        super::admission_private::s4_read_trace::end(tx, "ord_obj_at_cut", &at_cut);
+        at_cut?
     };
     for (public, key, expected) in [
         (&snapshot, "objects", active.digest),
@@ -1036,12 +1046,17 @@ fn audit_one_published_cut<'capture>(
     ] {
         same_digest(store, public, key, expected)?;
     }
-    let (withdrawals, replaces) = match &object_sweep {
-        Some(sweep) => sweep.changes_admitted(store, objects.entries(), generation)?,
+    #[cfg(test)]
+    super::admission_private::s4_read_trace::begin(tx, "ord_obj_changes");
+    let changes = match &object_sweep {
+        Some(sweep) => sweep.changes_admitted(store, objects.entries(), generation),
         None => {
-            object_index::changes_at_admitted(store, objects.entries(), generation, allocation)?
+            object_index::changes_at_admitted(store, objects.entries(), generation, allocation)
         }
     };
+    #[cfg(test)]
+    super::admission_private::s4_read_trace::end(tx, "ord_obj_changes", &changes);
+    let (withdrawals, replaces) = changes?;
     let mut wire_withdrawals = bj::WithdrawalArray(bj::new_work(allocation));
     for v in withdrawals
         .view()
@@ -1087,15 +1102,36 @@ fn audit_one_published_cut<'capture>(
                 compare_cut_array(store, public, name, nodes, deadline, budget, allocation)?;
             }
         } else {
+            #[cfg(test)]
+            let (members_label, compare_label) = if is_delta {
+                ("ord_aux_members_delta", "ord_aux_compare_delta")
+            } else {
+                ("ord_aux_members_snapshot", "ord_aux_compare_snapshot")
+            };
+            #[cfg(test)]
+            super::admission_private::s4_read_trace::begin(tx, members_label);
             let members =
-                aux_index::cut_members_metered(auxiliary, layout, generation, is_delta, budget)?;
+                aux_index::cut_members_metered(auxiliary, layout, generation, is_delta, budget);
+            #[cfg(test)]
+            super::admission_private::s4_read_trace::end(tx, members_label, &members);
+            let members = members?;
+            #[cfg(test)]
+            super::admission_private::s4_read_trace::begin(tx, compare_label);
             // Preserve ordinary/Owned by-value consuming iterator and per-item owner drop.
             for (name, nodes) in ["witnesses", "relations", "observations"]
                 .into_iter()
                 .zip(members)
             {
-                compare_cut_array(store, public, name, &nodes, deadline, budget, allocation)?;
+                let compared =
+                    compare_cut_array(store, public, name, &nodes, deadline, budget, allocation);
+                #[cfg(test)]
+                if compared.is_err() {
+                    super::admission_private::s4_read_trace::end(tx, compare_label, &compared);
+                }
+                compared?;
             }
+            #[cfg(test)]
+            super::admission_private::s4_read_trace::end(tx, compare_label, &Ok::<(), ()>(()));
         }
     }
     for (key, actual) in [

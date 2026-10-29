@@ -107,6 +107,8 @@ pub(crate) use state::trace_event as diagnostic_trace_event;
 mod writer_cli;
 #[cfg(test)]
 pub(crate) use admission_private::test_with_mixed_entry;
+#[cfg(test)]
+pub(crate) use admission_private::s4_read_trace as diagnostic_s4_read_trace;
 
 /// 本模块唯一负责的协议版本。
 pub(super) const PROTOCOL_REVISION: &str = "s-session/3";
