@@ -34,7 +34,7 @@ pub(crate) mod s4_read_trace {
             entry.1 += len as u64;
         });
     }
-    pub(crate) fn snapshot(label: &str, bytes: u64) {
+    pub(crate) fn snapshot(label: &str, bytes: u128) {
         TRACE.with(|t| { if t.borrow().enabled { eprintln!("S4_READ_ACCOUNT {} {}", label, bytes); } });
     }
     pub(crate) fn finish() {
