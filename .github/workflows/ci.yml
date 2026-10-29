@@ -853,6 +853,7 @@ jobs:
         run: |
           python -B -m unittest discover -s s_session/tests -p 'test_tb02b_contract.py' -v
           node --test s_session/tests/test_tb02b_contract.cjs
+          node --test s_session/tests/test_tb02b_layout_cc007.cjs
           node s_session/tests/build_tb01c_browser.cjs --check
       - name: TB-02-C observer contract tests
         run: node --test s_session/tests/test_tb02c_contract.cjs
