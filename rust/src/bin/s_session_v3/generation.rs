@@ -4854,4 +4854,145 @@ mod tests {
             "增量 gen2: 对象集必须严格增长"
         );
     }
+
+    /// #1419 29Z：历史 base 5123c9e2 的 layout/1 生成态原件导出（只在隔离分支 dispatch 跑）。
+    /// 输入与 cuts、rule 逐字取自 `layout1_generation_roots_frozen_from_base_main` 的三组。
+    #[test]
+    #[ignore = "issue1419 29Z export: run with --ignored --exact and NC_EXPORT_DIR"]
+    fn export_layout1_historical_roots_5123() {
+        use std::fmt::Write as _;
+        use std::io::Write as _;
+        fn hex(bytes: &[u8]) -> String {
+            let mut s = String::with_capacity(bytes.len() * 2);
+            for b in bytes {
+                write!(s, "{b:02x}").unwrap();
+            }
+            s
+        }
+        let dir = std::path::PathBuf::from(std::env::var("NC_EXPORT_DIR").expect("NC_EXPORT_DIR"));
+        let mut compare = String::from("tag\tgen\tcut\tprefix\trule\texpected\tactual\tmatch\n");
+        let mut mismatches = Vec::new();
+        let mut run = |tag: &str, events: &[Value], cuts: &[usize], rule: &str, expected: &[&str]| {
+            assert_eq!(cuts.len(), expected.len());
+            let out = dir.join(tag);
+            std::fs::create_dir_all(&out).unwrap();
+            std::fs::write(out.join("events.json"), serde_json::to_vec(events).unwrap()).unwrap();
+            let scope = json!({"instrument":"B1", "exchange":"fixture"});
+            let mut runtime = GenerationRuntime::new("neutral".into(), crate::tb02a::PROFILE, rule);
+            let mut store = MemoryNodes::new();
+            let mut cuts_meta = Vec::new();
+            for (turn, (&prefix, want)) in cuts.iter().zip(expected).enumerate() {
+                let gen = turn as i64 + 1;
+                let cut = format!("cut-{gen}");
+                let raw = RawEventsView::plain(events).prefix(prefix).unwrap();
+                let effective = bj::effective(raw, None).unwrap();
+                let input = GenerationInput {
+                    all_events: raw,
+                    effective: effective.raw_view(),
+                    generation: gen,
+                    structure_cut: &cut,
+                    input_frontier: prefix as i64,
+                    profile_id: crate::tb02a::PROFILE,
+                    profile_hash: "profile-hash",
+                    rule_revision: rule,
+                    catalog_revision: "catalog",
+                    scope: &scope,
+                    semantic_commit_ns: Some("123456789"),
+                    prior: PriorState {
+                        bi_records: Vec::new(),
+                        version_record: None,
+                    },
+                };
+                let generated = runtime.generate(&mut store, &input).unwrap();
+                let swa: &ContentRef = &generated.state_without_axes;
+                let gs: &ContentRef = &generated.generated_state;
+                let text = canonical_text(&mut store, gs);
+                let swa_text = canonical_text(&mut store, swa);
+                std::fs::write(out.join(format!("g{gen}.generated_state.json")), text.as_bytes()).unwrap();
+                std::fs::write(out.join(format!("g{gen}.state_without_axes.json")), swa_text.as_bytes()).unwrap();
+                let refj = |r: &ContentRef| json!({"format": r.format, "root": r.root, "kind": r.kind.name(), "extent": r.extent});
+                cuts_meta.push(json!({
+                    "gen": gen, "cut": cut, "prefix": prefix, "rule": rule,
+                    "profile_id": crate::tb02a::PROFILE, "profile_hash": "profile-hash",
+                    "catalog_revision": "catalog", "scope": scope, "semantic_commit_ns": "123456789",
+                    "state_without_axes": refj(swa), "generated_state": refj(gs),
+                    "nodes_after_cut": store.len(),
+                }));
+                let ok = swa.root == *want;
+                writeln!(compare, "{tag}\t{gen}\t{cut}\t{prefix}\t{rule}\t{want}\t{}\t{ok}", swa.root).unwrap();
+                if !ok {
+                    mismatches.push(format!("{tag} g{gen}: expected {want} actual {}", swa.root));
+                }
+            }
+            std::fs::write(out.join("cuts.json"), serde_json::to_vec_pretty(&cuts_meta).unwrap()).unwrap();
+            let mut nodes = std::fs::File::create(out.join("nodes.jsonl")).unwrap();
+            for (digest, tag_byte, body) in store.iter() {
+                let line = json!({"digest": sc::root_string(digest), "tag": tag_byte, "body_hex": hex(body)});
+                writeln!(nodes, "{line}").unwrap();
+            }
+        };
+        let events = delta_long_fixture();
+        let cuts: Vec<usize> = (1..=events.len()).collect();
+        run("long", &events, &cuts, "r", &[
+            "sc1-948366d1a1a96702e595c31a981d44a8cd860d8079cbff9f96ac6cb6c174c4a7",
+            "sc1-f66ed7a7823e94b2600747308722749f3d6de9a17b4ef0cc79fa4fe2c968b4a4",
+            "sc1-20c92b84d00d51bef243e8151905fc94f05fa0d75777f92e9cf16deb03ffe855",
+            "sc1-9373c03393f0b22bc9b7419ca0fe3f0a089083a3ec5c322a0d94e7cef6d655db",
+            "sc1-94022dcec4c0d9e81058e584398b2a132bac9cb328481261a09b34a3c8f7da37",
+            "sc1-9ed3773460b18c74c8878c6b7e759d64f6443ebe0bcbce27b723dc2f3a9c8c2f",
+            "sc1-31cd8bc881d70f7bf698ecb9fd6ca9740310f3e111df6a0d1d742434cb10b883",
+            "sc1-77f7e973924aa969081800c6a99e2a0d6d800ae2551d2fcec29cb3e9568bd903",
+            "sc1-f944daa8922cbae6e56b8b6f6e43746c59ee0bd2002be3f0b2c6a791f88553dc",
+            "sc1-55c40900ebcd79380bf25f8eb7d262f7ad79aba660fafb82d3070c519111966b",
+            "sc1-4d3ff43c59eb4d8434adb7dee4842a5271d07cfcfa0ed4e8f8eec62140231b5b",
+            "sc1-a4c940d2cc628929764d8a94c4f6774dec6cb8f9b98dfb1253cf117cddd8ac49",
+            "sc1-cc91d04f817bd368f7ab43b15320656cd20765c87ce2b9d4269995f863f10290",
+            "sc1-1f1883260c44c0de1f736eecfa10b260299e8b37638fb83ea79672e050e64b66",
+        ]);
+        let mut events = delta_long_fixture();
+        events.truncate(14);
+        let mut revised = events[2].clone();
+        for (k, v) in [
+            ("revision", json!(2)), ("input_revision", json!("2")), ("seq", json!(15)),
+            ("high", json!("13")), ("low", json!("9")), ("open", json!("11")), ("close", json!("11")),
+            ("payload_hash", json!("revision-2")), ("receipt_id", json!("receipt-15")),
+        ] {
+            revised[k] = v;
+        }
+        events.push(revised);
+        let mut restored = events[2].clone();
+        for (k, v) in [
+            ("revision", json!(3)), ("input_revision", json!("3")), ("seq", json!(16)),
+            ("payload_hash", json!("restored-3")), ("receipt_id", json!("receipt-16")),
+        ] {
+            restored[k] = v;
+        }
+        events.push(restored);
+        let mut moved = events[13].clone();
+        for (k, v) in [
+            ("revision", json!(2)), ("input_revision", json!("2")), ("seq", json!(17)),
+            ("source_coord", json!("1000")), ("ts", json!("1000")),
+            ("payload_hash", json!("tail-moved")), ("receipt_id", json!("receipt-17")),
+        ] {
+            moved[k] = v;
+        }
+        events.push(moved);
+        run("revision", &events, &[1, 2, 8, 14, 15, 16, 17, 17], "r", &[
+            "sc1-948366d1a1a96702e595c31a981d44a8cd860d8079cbff9f96ac6cb6c174c4a7",
+            "sc1-f66ed7a7823e94b2600747308722749f3d6de9a17b4ef0cc79fa4fe2c968b4a4",
+            "sc1-5f62791ebc8f826d882fcee15ffa09edcdab873bc27b04261e99cc7ed29521f1",
+            "sc1-f93b79013d5bea7c79b28f60e64e82115a3e09f838c26c83318e1e7c046cea06",
+            "sc1-b8cf282c385cc9878ca8f967ddf4ba8183a8e54be8823a177d04405d589f6db4",
+            "sc1-333091400aa357723f809c07d6a923e4755947413d04cbc1beade766072ec854",
+            "sc1-236fb13005488b6f7c966188ae62daa7ffa1143eb05fd00cf44dd4433a14b316",
+            "sc1-8a20f9cc37496026a94e59b4b45cc7b8f8a500dfd487b19e772a018694d9d063",
+        ]);
+        run("realrule", &delta_long_fixture(), &[5, 9, 14], crate::V3_RULE_REVISION, &[
+            "sc1-c8f28f2cec73feaae72bf279e0790497d8d8af64197116e45e096b89992b214f",
+            "sc1-5f47222d095c66143e8cd5f52d70080f15b93218c7b8499edaa24948ad38a9ae",
+            "sc1-cf5c2f1e68e4a50dddc548abb9a2fd00725f23714e4c69fbb9b033549a369f14",
+        ]);
+        std::fs::write(dir.join("compare.tsv"), compare.as_bytes()).unwrap();
+        assert!(mismatches.is_empty(), "历史根不符：{mismatches:#?}");
+    }
 }
