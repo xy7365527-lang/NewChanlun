@@ -347,11 +347,11 @@ test("W/2 规则串：只认完整发布串，W/1 历史与已登记布局读域
 });
 
 function w2Case() {
-  const raw = (id, coord, extra = {}) => ({ object_id: id, coord, withdrawn_generation: null, withdrawal_reason: null, superseded_by: null, ...extra });
+  const raw = (id, coord, extra = {}) => ({ object_id: id, coord, first_known_generation: "1", withdrawn_generation: null, withdrawal_reason: null, superseded_by: null, ...extra });
   const pending = [
     raw("u0", "0", { withdrawn_generation: "4", withdrawal_reason: "superseded_by_revision", superseded_by: "g0" }),
     raw("u1", "1", { withdrawn_generation: "2", withdrawal_reason: "superseded_by_revision", superseded_by: "u1r" }), // 修订换新原件身份
-    raw("u1r", "1", { withdrawn_generation: "4", withdrawal_reason: "superseded_by_revision", superseded_by: "g0" }),
+    raw("u1r", "1", { first_known_generation: "2", withdrawn_generation: "4", withdrawal_reason: "superseded_by_revision", superseded_by: "g0" }),
     raw("u2", "2", { withdrawn_generation: "4", withdrawal_reason: "superseded_by_revision", superseded_by: "g1" }),
   ];
   const groups = [
@@ -379,4 +379,93 @@ test("W/2 逐原件替代：每个未定原件（含修订身份）替代到含�
   reject((c) => { c.replaces.push({ subject: "g1", object: "u0" }); }, /关系与撤回目标不符/); // 额外边
   reject((c) => { c.pending[1].superseded_by = "u1"; c.replaces[1].subject = "u1"; }, /越出所属定向组/); // 修订身份混淆为自身
   reject((c) => { c.kinds.set("x", "CC-010.bi"); c.kinds.set("y", "CC-005.inclusion_group"); c.superseded.push({ object_id: "x", kind: "CC-010.bi", superseded_by: "y" }); }, /跨kind替代未获准/); // 任意kind
+});
+
+test("W/2 完整 validateState：替代目标须在撤回代已出生且在世，公开 replaces 全集对应撤回事实", async () => {
+  const H = require("./q3_complete_fixture.cjs");
+  const b = await H.makeS16Base("3", "q3-real-s3-w-recover-revise.json");
+  b.graph = await H.C.GraphView.create([...b.nodes.values()]);
+  async function plain(ref) { let t = ""; for await (const c of b.graph.renderChunks(ref)) t += c; return JSON.parse(t); }
+  const snapshot = await plain(b.graph.header(b.publication.snapshot_root)), catalog = await plain(b.catalog);
+  snapshot.rule_revision = b.fixed.rule_revision;
+  const state = { snapshot, catalog, cut: Object.fromEntries(["session_id", "generation", "structure_cut", "catalog_revision", "index_frontier"].map((k) => [k, snapshot[k]])) };
+  async function reid(st) {
+    const mm = new Map();
+    for (const r of [...st.snapshot.objects, ...st.snapshot.withdrawn_objects]) {
+      const p = Object.fromEntries(["kind", "fact_key", "payload", "input_refs"].map((k) => [k, r[k]]));
+      p.profile_id = st.snapshot.profile_id;
+      p.rule_revision = st.snapshot.rule_revision;
+      mm.set(r.object_id, await Q3.V.identity(0x20, p, "obj3-"));
+    }
+    function replace(v) {
+      if (typeof v === "string") return mm.get(v) || v;
+      if (Array.isArray(v)) return v.map(replace);
+      if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, replace(x)]));
+      return v;
+    }
+    return replace(st);
+  }
+  let w2 = structuredClone(state);
+  w2.snapshot.rule_revision = typed.W2_PUBLICATION_RULE;
+  w2.snapshot.catalog_evidence.rule_revision = w2.snapshot.rule_revision;
+  w2.catalog.catalog_evidence.rule_revision = w2.snapshot.rule_revision;
+  for (let k = 0; k < 4; k++) w2 = await reid(w2);
+  await Q3.validateState(w2, "s-session/3");
+
+  // F1 负控：未来修订目标与已先撤回目标。
+  const futureRevision = structuredClone(w2);
+  const cur = futureRevision.snapshot.objects.find((r) => r.kind === "CC-004.undetermined_raw" && r.payload.raw.source_coord === "0");
+  const old = structuredClone(cur);
+  old.object_id = "obj3-" + "f".repeat(64);
+  old.lifecycle = "withdrawn";
+  old.withdrawn_generation = "2";
+  old.withdrawal_reason = "superseded_by_revision";
+  old.superseded_by = cur.object_id;
+  cur.first_known_generation = cur.published_generation = "3";
+  cur.first_known_cut = cur.payload.pending_since_cut = "cut-3";
+  futureRevision.snapshot.withdrawn_objects.push(old);
+  futureRevision.snapshot.relations.push({ subject: cur.object_id, relation_type: "replaces", object: old.object_id });
+  for (let k = 0; k < 4; k++) futureRevision = await reid(futureRevision);
+  await assert.rejects(() => Q3.validateState(futureRevision, "s-session/3"), /不满足坐标、种类或生命周期/);
+
+  const alreadyWithdrawn = structuredClone(w2);
+  const target = alreadyWithdrawn.snapshot.withdrawn_objects.find((r) => r.kind === "CC-004.undetermined_raw" && r.payload.raw.source_coord === "0");
+  const newTarget = structuredClone(target);
+  newTarget.object_id = "obj3-" + "e".repeat(64);
+  newTarget.withdrawn_generation = "1";
+  newTarget.superseded_by = null;
+  target.superseded_by = newTarget.object_id;
+  alreadyWithdrawn.snapshot.withdrawn_objects.push(newTarget);
+  alreadyWithdrawn.snapshot.relations.push({ subject: target.superseded_by, relation_type: "replaces", object: target.object_id });
+  for (let k = 0; k < 4; k++) alreadyWithdrawn = await reid(alreadyWithdrawn);
+  await assert.rejects(() => Q3.validateState(alreadyWithdrawn, "s-session/3"), /不满足坐标、种类或生命周期/);
+
+  // F1 正控：目标后来撤回的合法历史链。
+  const laterWithdrawn = structuredClone(w2);
+  const validTarget = laterWithdrawn.snapshot.withdrawn_objects.find((r) => r.kind === "CC-004.undetermined_raw" && r.payload.raw.source_coord === "0");
+  const newValidTarget = structuredClone(validTarget);
+  newValidTarget.object_id = "obj3-" + "d".repeat(64);
+  newValidTarget.first_known_generation = "2";
+  newValidTarget.withdrawn_generation = "5";
+  newValidTarget.superseded_by = null;
+  validTarget.superseded_by = newValidTarget.object_id;
+  laterWithdrawn.snapshot.withdrawn_objects.push(newValidTarget);
+  laterWithdrawn.snapshot.relations.push({ subject: validTarget.superseded_by, relation_type: "replaces", object: validTarget.object_id });
+  for (let k = 0; k < 4; k++) laterWithdrawn = await reid(laterWithdrawn);
+  await Q3.validateState(laterWithdrawn, "s-session/3");
+
+  // F2 负控：额外跨 kind 边与活动对象被替代。
+  const extraEdge = structuredClone(w2);
+  const raw = extraEdge.snapshot.objects.find((r) => r.kind === "CC-004.undetermined_raw");
+  const init = extraEdge.snapshot.objects.find((r) => r.kind === "CC-004.initialization");
+  extraEdge.snapshot.relations.push({ subject: raw.object_id, relation_type: "replaces", object: init.object_id });
+  await assert.rejects(() => Q3.validateState(extraEdge, "s-session/3"), /缺对应撤回/);
+
+  const activeReplaced = structuredClone(w2);
+  const activeRaw = activeReplaced.snapshot.objects.find((r) => r.kind === "CC-004.undetermined_raw" && r.withdrawn_generation === null);
+  const fakeGroup = { kind: "CC-005.inclusion_group", object_id: "obj3-" + "c".repeat(64), fact_key: "k", payload: {}, input_refs: [], source_coords: [], first_known_generation: "1", first_known_cut: "cut-1", published_generation: "1", withdrawn_generation: null, withdrawal_reason: null, superseded_by: null, lifecycle: "active" };
+  activeReplaced.snapshot.objects.push(fakeGroup);
+  activeReplaced.snapshot.relations.push({ subject: fakeGroup.object_id, relation_type: "replaces", object: activeRaw.object_id });
+  for (let k = 0; k < 4; k++) activeReplaced = await reid(activeReplaced);
+  await assert.rejects(() => Q3.validateState(activeReplaced, "s-session/3"), /缺对应撤回/);
 });

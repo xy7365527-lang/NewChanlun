@@ -3365,7 +3365,7 @@ if (typeof module !== 'object' || !module.exports) {
     validateCenterPayload, validatePairPayload, validatePairPublication, validatePairHistory, validateCenterFamilyCut});
 });
 
-/* exact source q3-typed.js SHA256 0c5ee052a298eeda9505a212f879cc1c5235f2a8447f0fc0792adf6b0194e1f3 */
+/* exact source q3-typed.js SHA256 a87ed59eeb7dcf30eb72db40a6131968366c8687f0fb1941d7c73f347111f89b */
 /* #1394：typed 与形态来源的同一判据；只把访问迁为完整异步 Value 遍历。 */
 (function (root, factory) {
   const common = typeof module === "object" && module.exports;
@@ -3466,24 +3466,22 @@ if (typeof module !== 'object' || !module.exports) {
   function w2Replacements({pending, groups, superseded, replaces, kinds}) {
     const raws = new Map(pending.map(p => [p.object_id, p])), byGroup = new Map(groups.map(g => [g.object_id, g]));
     const edges = new Set(replaces.map(r => JSON.stringify([r.subject, r.object])));
-    const alive = (g, at) => BigInt(g.first_known_generation) <= at && (g.withdrawn_generation === null || BigInt(g.withdrawn_generation) > at);
+    const alive = (obj, at) => BigInt(obj.first_known_generation) <= at && (obj.withdrawn_generation === null || BigInt(obj.withdrawn_generation) > at);
+    const withdrawn = new Map(superseded.map(w => [w.object_id, w]));
     for (const u of pending) {
       if (u.withdrawn_generation === null) continue;
       const at = BigInt(u.withdrawn_generation), owner = groups.some(g => alive(g, at) && g.members.includes(u.coord));
       if (u.withdrawal_reason === "fact_removed") { need(!owner, "W2未定原件进组却按fact_removed撤回"); continue; }
       const revision = raws.get(u.superseded_by), group = byGroup.get(u.superseded_by);
-      need((revision && revision.object_id !== u.object_id && revision.coord === u.coord) ||
-        (group && alive(group, at) && group.members.includes(u.coord)), "W2逐原件替代越出所属定向组");
+      need((revision && revision.object_id !== u.object_id && revision.coord === u.coord && alive(revision, at)) ||
+        (group && alive(group, at) && group.members.includes(u.coord)), "W2逐原件替代目标不满足坐标、种类或生命周期");
       need(edges.has(JSON.stringify([u.superseded_by, u.object_id])), "W2逐原件替代缺公开replaces关系");
     }
     for (const r of replaces) {
-      const u = raws.get(r.object);
-      if (u) need(u.withdrawn_generation !== null && u.superseded_by === r.subject, "W2公开replaces关系与撤回目标不符");
-    }
-    // 跨 kind 替代只准未定原件 → 定向组；其余 kind 照旧只能被同 kind 修订替代。
-    for (const w of superseded) {
-      const to = kinds.get(w.superseded_by);
-      if (to !== undefined && to !== w.kind) need(w.kind === "CC-004.undetermined_raw" && to === "CC-005.inclusion_group", "W2跨kind替代未获准");
+      const target = withdrawn.get(r.object);
+      need(target && target.superseded_by === r.subject, "W2公开replaces关系缺对应撤回或superseded_by不符");
+      const newKind = kinds.get(r.subject), oldKind = target.kind;
+      if (newKind !== oldKind) need(oldKind === "CC-004.undetermined_raw" && newKind === "CC-005.inclusion_group", "W2跨kind替代未获准");
     }
   }
   async function initializationPolicy(p) { need(await eqField(p, "initialization_policy_revision", INITIALIZATION_POLICY), "初始化政策版本未声明"); }
@@ -4331,7 +4329,7 @@ if (typeof module !== 'object' || !module.exports) {
   return Object.freeze({choose, requestEnvelope});
 });
 
-/* exact source q3-consumer.js SHA256 695b08b2bb62ef080e3100ad694613dc11314841ff263a1b91d36459dd2dfff4 */
+/* exact source q3-consumer.js SHA256 d1d089a3d516511bdea00ec8ddc2247e7bb7c85b4f45ea03a4ceed42223615aa */
 /* #1394：Q3完整消费者；只供既有tb01c页面调用，没有产品路由或默认资源。 */
 (function (root, factory) {
   const common = typeof module === "object" && module.exports;
@@ -4846,7 +4844,7 @@ if (typeof module !== 'object' || !module.exports) {
         if (superseded_by !== null) superseded.push({object_id, kind, superseded_by});
         if (kind === "CC-004.undetermined_raw")
           pending.push({object_id, coord: await s(await f(await f(record, "payload"), "raw"), "source_coord"),
-            withdrawn_generation: withdrawn, withdrawal_reason, superseded_by});
+            first_known_generation: await s(record, "first_known_generation"), withdrawn_generation: withdrawn, withdrawal_reason, superseded_by});
         if (kind === "CC-005.inclusion_group") {
           const members = [];
           for await (const c of (await f(await f(record, "payload"), "members")).items()) members.push(await S(c));

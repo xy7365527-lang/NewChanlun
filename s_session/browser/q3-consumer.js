@@ -512,7 +512,7 @@
         if (superseded_by !== null) superseded.push({object_id, kind, superseded_by});
         if (kind === "CC-004.undetermined_raw")
           pending.push({object_id, coord: await s(await f(await f(record, "payload"), "raw"), "source_coord"),
-            withdrawn_generation: withdrawn, withdrawal_reason, superseded_by});
+            first_known_generation: await s(record, "first_known_generation"), withdrawn_generation: withdrawn, withdrawal_reason, superseded_by});
         if (kind === "CC-005.inclusion_group") {
           const members = [];
           for await (const c of (await f(await f(record, "payload"), "members")).items()) members.push(await S(c));

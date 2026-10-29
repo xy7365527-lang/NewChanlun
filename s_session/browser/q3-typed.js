@@ -98,24 +98,22 @@
   function w2Replacements({pending, groups, superseded, replaces, kinds}) {
     const raws = new Map(pending.map(p => [p.object_id, p])), byGroup = new Map(groups.map(g => [g.object_id, g]));
     const edges = new Set(replaces.map(r => JSON.stringify([r.subject, r.object])));
-    const alive = (g, at) => BigInt(g.first_known_generation) <= at && (g.withdrawn_generation === null || BigInt(g.withdrawn_generation) > at);
+    const alive = (obj, at) => BigInt(obj.first_known_generation) <= at && (obj.withdrawn_generation === null || BigInt(obj.withdrawn_generation) > at);
+    const withdrawn = new Map(superseded.map(w => [w.object_id, w]));
     for (const u of pending) {
       if (u.withdrawn_generation === null) continue;
       const at = BigInt(u.withdrawn_generation), owner = groups.some(g => alive(g, at) && g.members.includes(u.coord));
       if (u.withdrawal_reason === "fact_removed") { need(!owner, "W2未定原件进组却按fact_removed撤回"); continue; }
       const revision = raws.get(u.superseded_by), group = byGroup.get(u.superseded_by);
-      need((revision && revision.object_id !== u.object_id && revision.coord === u.coord) ||
-        (group && alive(group, at) && group.members.includes(u.coord)), "W2逐原件替代越出所属定向组");
+      need((revision && revision.object_id !== u.object_id && revision.coord === u.coord && alive(revision, at)) ||
+        (group && alive(group, at) && group.members.includes(u.coord)), "W2逐原件替代目标不满足坐标、种类或生命周期");
       need(edges.has(JSON.stringify([u.superseded_by, u.object_id])), "W2逐原件替代缺公开replaces关系");
     }
     for (const r of replaces) {
-      const u = raws.get(r.object);
-      if (u) need(u.withdrawn_generation !== null && u.superseded_by === r.subject, "W2公开replaces关系与撤回目标不符");
-    }
-    // 跨 kind 替代只准未定原件 → 定向组；其余 kind 照旧只能被同 kind 修订替代。
-    for (const w of superseded) {
-      const to = kinds.get(w.superseded_by);
-      if (to !== undefined && to !== w.kind) need(w.kind === "CC-004.undetermined_raw" && to === "CC-005.inclusion_group", "W2跨kind替代未获准");
+      const target = withdrawn.get(r.object);
+      need(target && target.superseded_by === r.subject, "W2公开replaces关系缺对应撤回或superseded_by不符");
+      const newKind = kinds.get(r.subject), oldKind = target.kind;
+      if (newKind !== oldKind) need(oldKind === "CC-004.undetermined_raw" && newKind === "CC-005.inclusion_group", "W2跨kind替代未获准");
     }
   }
   async function initializationPolicy(p) { need(await eqField(p, "initialization_policy_revision", INITIALIZATION_POLICY), "初始化政策版本未声明"); }
