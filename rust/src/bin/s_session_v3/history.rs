@@ -7632,4 +7632,39 @@ mod manifest_template_coverage_tests {
         );
         assert_eq!(covered.verify_manifest_templates([(&template).into(), (&template).into()]).unwrap_err().code(), sc::code::NODE_DIGEST);
     }
+
+    #[test]
+    fn manifest_template_coverage_public_rechecks_headers_and_rejects_foreign_or_damaged_root() {
+        let mut nodes = sc::MemoryNodes::new();
+        let state = sc::write_value(&mut nodes, &V::Array(vec![V::String("payload".repeat(100))])).unwrap().content_ref();
+        let other = sc::write_value(&mut nodes, &V::Bool(true)).unwrap().content_ref();
+        let digest = state.digest().unwrap();
+        let reads = Rc::new(Cell::new(0));
+        let mut source = Counted { nodes, reads: reads.clone() };
+        {
+            let mut reader = HashReader::new(&mut source);
+            let mut plain = super::super::audit_store::StoreView::for_audit(&mut reader);
+            let before = reads.get();
+            plain.verify_manifest_public((&state).into()).unwrap();
+            let full = reads.get() - before;
+            assert!(full > 1, "无资格caller仍完整核验");
+            drop(plain);
+            let mut covered = super::super::audit_store::StoreView::for_verified_manifest(
+                VerifiedManifestAssembly { source: &mut reader, templates: [digest; 2], public: [digest; 2] },
+            );
+            let before = reads.get();
+            covered.verify_manifest_public((&state).into()).unwrap();
+            assert_eq!(reads.get() - before, 1, "已核根只重读真实头");
+            assert_eq!(covered.verify_manifest_public((&other).into()).unwrap_err().code(), sc::code::SOURCE);
+            let mut wrong = state.clone();
+            wrong.extent = Some(999);
+            assert_eq!(covered.verify_manifest_public((&wrong).into()).unwrap_err().code(), sc::code::EXTENT);
+        }
+        source.nodes.insert_unchecked(digest, sc::tag::ARRAY, vec![0]);
+        let mut reader = HashReader::new(&mut source);
+        let mut covered = super::super::audit_store::StoreView::for_verified_manifest(
+            VerifiedManifestAssembly { source: &mut reader, templates: [digest; 2], public: [digest; 2] },
+        );
+        assert_eq!(covered.verify_manifest_public((&state).into()).unwrap_err().code(), sc::code::NODE_DIGEST);
+    }
 }
