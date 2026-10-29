@@ -3,11 +3,12 @@
  * decision-claimer.mts —— graph engineering 裁决面（#1547）。
  *
  * 设计正本：.sandcastle/docs/graph-engineering.md「裁决流程」。每张 grilling 票：
- *   分级+考古（主控模型，一次联合调用：判 T/P，并两路搜、逐点 A/B/C）→ 起草（Opus 5.5）→ 独审（主控模型，独立进程，只读草稿与源）
+ *   每票 MAIN 会话（#1742 F4，main-session.mts）：分级+考古（主控模型，判 T/P，并两路搜、逐点 A/B/C）
+ *   → 宿主校验后同一会话续接起草 → 独审（与实际起草者异家族，新的无状态进程，只读草稿与源）
  *   → T 类 PASS：decision/<票号> 分支落正本 + resolution 评论；P 类：挂 needs-approval。
- *   其他 BLOCK：一次以 Opus 5.5 升档带审查意见重做；仍 BLOCK：转 P 类。
+ *   其他 BLOCK：同一 MAIN 会话一次以 Opus 5.5 升档带审查意见重做；仍 BLOCK：转 P 类。
  *
- *   只有 R1 引用类 BLOCK：一次只改引用的修订轮；总轮次上限 MAX_ROUNDS。起草后先查正本落点，越界退回重写一次。
+ *   只有 R1 引用类 BLOCK：同一会话一次只改引用的修订轮；总轮次上限 MAX_ROUNDS。起草后先查正本落点，越界退回重写一次。
  * 模式：默认 --dry-run，只写 /Volumes/AgentStorage/decisions/<票号>/，不写 GitHub。
  *       --live 才 claim（assign）、评论、打标签、推 decision 分支。
  * 调用：node --import tsx .sandcastle/decision-claimer.mts [--live] [--loop] [--ticket N ...]
@@ -24,6 +25,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { MAIN_MODEL } from "./main-model.mts";
 import { canonicalPath, parseCanonicalEdit, applyCanonicalEdit, readCanonicalTarget, canonicalDiff, validateCanonicalPlan, writeCanonicalPlan, type CanonicalPlan } from "./canonical-edit.mts";
 import { DRAIN_ROOT, DrainFrozenError, drainRequested, withLegacyAdmission } from "./drain-control.mts";
+import { randomUUID } from "node:crypto";
+import { loadMainSession, openMainSession, type MainSession, type SessionRef } from "./main-session.mts";
 
 // ───────────────────────── 常量 ─────────────────────────
 
@@ -343,8 +346,9 @@ export interface RunState {
   reviewFeedback?: string;
 }
 
-export function initialState(klass: Klass): RunState {
-  return { phase: "draft", klass, attempt: 1, drafterModel: MODEL_DRAFTER, convertedToP: false, draftMode: "initial", upgraded: false, revised: false };
+/** 首稿由 MAIN 会话当前模型写（F4）；升档重做与引用专修仍指定 Opus，在同一会话里切模型。 */
+export function initialState(klass: Klass, drafter: string = MODEL_MAIN): RunState {
+  return { phase: "draft", klass, attempt: 1, drafterModel: drafter, convertedToP: false, draftMode: "initial", upgraded: false, revised: false };
 }
 
 /** BLOCK 依据指向具体引用的特征：行号、文件:行、逐字、转述、核实命令、评论 id、引文。 */
@@ -421,11 +425,12 @@ function realGh(args: string[], input?: string): string {
 
 // ───────────────────────── 模型调用 ─────────────────────────
 
-export interface ModelCall { model: string; prompt: string; cwd: string; role: "triage" | "draft" | "review" }
+/** session 只由 MAIN 会话句柄填写；缺省即无状态单次调用（独审、--archaeology-only）。 */
+export interface ModelCall { model: string; prompt: string; cwd: string; role: "triage" | "draft" | "review"; session?: SessionRef }
 /** 只用于读取旧 summary/classify/archaeology 记录。 */
 export type LegacyRole = "classify" | "archaeology" | "land";
 /** model：实际应答的模型；经安全拦截改派时与 ModelCall.model 不同（未经 withSafeguardFallback 包装时可缺省）。 */
-export interface ModelResult { text: string; durationMs: number; attempts: number; model?: string }
+export interface ModelResult { text: string; durationMs: number; attempts: number; model?: string; sessionId?: string }
 export type ModelRunner = (c: ModelCall) => Promise<ModelResult>;
 
 /**
@@ -529,15 +534,19 @@ export function toolArgs(): string[] {
 }
 
 export interface OnceResult { code: number; stdout: string; stderr: string }
-export type ClaudeOnce = (c: ModelCall, token: string, timeoutMs: number) => Promise<OnceResult>;
+export type ClaudeOnce = (c: ModelCall, token: string, timeoutMs: number, sessionId?: string) => Promise<OnceResult>;
 
-function claudeOnce(c: ModelCall, token: string, timeoutMs: number): Promise<OnceResult> {
+/** 会话参数：start 用本次尝试的新 id 建会话，resume 按 id 续接；无会话一律不持久化。 */
+export function claudeArgs(c: ModelCall, sessionId?: string): string[] {
+  if (c.session && !sessionId) throw new Error("会话调用缺少会话 id");
+  const session = !c.session ? ["--no-session-persistence"] : c.session.kind === "resume" ? ["--resume", sessionId!] : ["--session-id", sessionId!];
+  return ["-p", "--bare", "--model", c.model, "--output-format", "json", ...session, ...toolArgs()];
+}
+
+function claudeOnce(c: ModelCall, token: string, timeoutMs: number, sessionId?: string): Promise<OnceResult> {
   const env: NodeJS.ProcessEnv = { ...process.env, ANTHROPIC_BASE_URL: PROXY_BASE_URL, ANTHROPIC_AUTH_TOKEN: token };
   delete env.ANTHROPIC_API_KEY;
-  const args = [
-    "-p", "--bare", "--model", c.model, "--output-format", "json", "--no-session-persistence",
-    ...toolArgs(),
-  ];
+  const args = claudeArgs(c, sessionId);
   return new Promise((res) => {
     const child = spawn("claude", args, { cwd: c.cwd, env, stdio: ["pipe", "pipe", "pipe"] });
     let stdout = "";
@@ -570,11 +579,14 @@ export function makeClaudeRunner(opts: {
     const token = (opts.token ?? readCliProxyAccessKey)();
     const t0 = Date.now();
     for (let attempt = 1; ; attempt++) {
-      const r = await once(c, token, timeoutMs);
-      let parsed: { result?: string; is_error?: boolean } | undefined;
+      // start 每次尝试用新 id：失败的半截尝试不留在后续历史里，也不撞「id 已占用」。
+      const sid = !c.session ? undefined : c.session.kind === "resume" ? c.session.id : randomUUID();
+      const r = await once(c, token, timeoutMs, sid);
+      let parsed: { result?: string; is_error?: boolean; session_id?: string } | undefined;
       try { parsed = JSON.parse(r.stdout); } catch { /* 非 JSON */ }
       const ok = r.code === 0 && parsed && !parsed.is_error && typeof parsed.result === "string";
-      if (ok) return { text: parsed!.result!, durationMs: Date.now() - t0, attempts: attempt };
+      if (ok && sid && parsed!.session_id !== sid) throw new Error(`${c.role} ${c.model} 会话身份不符：请求 ${sid}，CLI 回报 ${parsed!.session_id ?? "无"}`);
+      if (ok) return { text: parsed!.result!, durationMs: Date.now() - t0, attempts: attempt, ...(sid ? { sessionId: sid } : {}) };
       const blob = `${parsed?.result ?? r.stdout}\n${r.stderr}`;
       if (attempt < maxAttempts && isRetryable(blob)) {
         const wait = backoffMs(attempt);
@@ -880,8 +892,12 @@ const POINT_SHAPE = `{"id":"Q1","question":"一句话待决点","class":"A|B|C",
   "hits":[{"source":"#1348 评论 6262469214 或 docs/adr/0016-x.md:96","excerpt":"逐字摘一句"}],
   "citation":"A/B 必填","reasoning":"B 必填","recommended":"B 与 C decision 必填","searched_keywords":["C 必填"],"gap":"C 必填","conflict":"有则填"}`;
 
+/** 起草在 MAIN 会话里续接：上文分级与考古的工具结果仍在上下文中。 */
+export const MAIN_CONTINUE_LINE = "本轮在本票 MAIN 会话中续接：上文分级与考古的工具调用及其结果仍在你的上下文里，宿主已校验并定下分级，直接接着已读到的原文起草；写进草稿的每条引用照样亲验。";
+
 export function draftPrompt(t: TicketContext, c: Classification, feedback?: string, arch?: string): string {
   return `你是 NewChanlun 仓 #1323 图的裁决起草者。当前目录是 origin/main 的只读检出；禁止修改任何文件，只读取证。
+${MAIN_CONTINUE_LINE}
 先读 AGENTS.md（教义正本、#799 收敛通则、#804 总缝规则、引原文四步核验）、CONTEXT.md、.sandcastle/docs/graph-engineering.md，以及票面点名的票（gh issue view <号> --comments）。评论 id 用 gh api repos/${GH_REPO}/issues/comments/<id> 或 gh api repos/${GH_REPO}/issues/<号>/comments 取，只读。
 本票分级：${c.klass} 类 —— ${c.reason}
 分级由分级器决定，你无权改判：按 ${c.klass} 类起草。若你认为分级有误，在「授权引用」段末另起一行写 \`改判建议：T 或 P — 理由\`，由编排逻辑处置；其余部分仍按 ${c.klass} 类写。
@@ -991,7 +1007,9 @@ export interface Summary {
   /** 审查结论计数：真 BLOCK 与解析失败分开。 */
   reviewCounts?: { pass: number; block: number; parseError: number };
   /** 每轮起草方式与审查结论。 */
-  rounds?: Array<{ attempt: number; mode: DraftMode; drafter: string; reviewer?: string; verdict: string; blocked: Rule[]; problems: string[] }>;
+  rounds?: Array<{ attempt: number; mode: DraftMode; drafter: string; drafterSession?: string; reviewer?: string; verdict: string; blocked: Rule[]; problems: string[] }>;
+  /** 本票 MAIN 会话（F4）：id、绑定的取证提交、是否续接旧会话、旧会话作废原因。 */
+  mainSession?: { sessionId?: string; sourceCommit: string; resumed: boolean; turns: number; retired?: string };
   /** 因安全拦截改派模型的记录（#1785）。 */
   modelSwitches?: ModelSwitch[];
   /** T 类因考古事实缺口转 P 的说明（影子评论首行用）。 */
@@ -1026,7 +1044,7 @@ export interface Summary {
 
 export type ResumeStage = "reviewed_pass" | "shadow_p_pending";
 /** resumedFrom 额外取值 triaged：沿用已落盘分级只补考古（不是 stage，不跳过起草与独审）。 */
-export type ResumedFrom = ResumeStage | "triaged";
+export type ResumedFrom = ResumeStage | "triaged" | "main_session";
 export const P_STEPS = ["comment", "label", "unassign"] as const;
 export type PStep = (typeof P_STEPS)[number];
 
@@ -1157,6 +1175,21 @@ export function loadTriaged(dir: string): Classification | null {
     const j = JSON.parse(readFileSync(cp, "utf8")) as { klass?: unknown; reason?: unknown; parsed?: unknown };
     if ((j.klass !== "T" && j.klass !== "P") || typeof j.reason !== "string" || !j.reason) return null;
     return { klass: j.klass, reason: j.reason, parsed: j.parsed === true };
+  } catch { return null; }
+}
+
+/**
+ * MAIN 会话续接（F4）：上次分级与考古都已落盘且通过解析，会话仍有效时直接沿用，不再调用分级模型；
+ * 起草在同一会话里继续。任何一份缺失或坏了返回 null，按原口径重跑。
+ */
+export function loadTriageDone(dir: string): TriageRun | null {
+  try {
+    const c = JSON.parse(readFileSync(join(dir, "classify.json"), "utf8")) as { klass?: unknown; reason?: unknown; parsed?: unknown };
+    const a = JSON.parse(readFileSync(join(dir, "archaeology.json"), "utf8")) as { parsed?: boolean; points?: ArchPoint[]; problems?: unknown };
+    if ((c.klass !== "T" && c.klass !== "P") || typeof c.reason !== "string" || !c.reason) return null;
+    if (!a.parsed || !Array.isArray(a.points) || !Array.isArray(a.problems)) return null;
+    const md = readFileSync(join(dir, ARCHAEOLOGY_FILE), "utf8");
+    return { cls: { klass: c.klass, reason: c.reason, parsed: c.parsed === true }, ar: { arch: { points: a.points }, md, problems: a.problems as string[] } };
   } catch { return null; }
 }
 
@@ -1339,19 +1372,36 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
     } else {
     // 1. 分级+考古：一次联合调用（#1742 M1）。考古解析不出时两次后抛错，此前分级已落 classify.json；
     // 下一轮由 loadTriaged 沿用分级只补考古。分级评论按票面现状幂等补发。
-    if (triaged) log(`#${n} 沿用已落盘分级 ${triaged.klass}，只补考古`);
-    const tr = triaged
-      ? await runTriage(t, d, dir, summary, { fixed: triaged })
-      : await runTriage(t, d, dir, summary).catch((e) => { postClassify(); throw e; });
+    // MAIN 会话（F4）：绑定本票与取证提交；分级考古、起草、引用专修、重做都经它续接，独审不经它。
+    const head = () => d.git(d.srcDir, ["rev-parse", "HEAD"]).trim();
+    const sourceCommit = head();
+    const loaded = loadMainSession(dir, n, sourceCommit, (ms) => resumeStaleBecauseReopen(ms, t.comments));
+    if (loaded.retired) log(`#${n} 旧 MAIN 会话作废：${loaded.retired}`);
+    const syncMain = (ms: MainSession | null) => {
+      summary.mainSession = { sessionId: ms?.sessionId, sourceCommit, resumed: !!loaded.prior, turns: ms?.turns.length ?? 0, ...(loaded.retired ? { retired: loaded.retired } : {}) };
+    };
+    syncMain(loaded.prior);
+    const main = openMainSession({ dir, ticket: n, sourceCommit, commentsSeen: t.comments.length, head, run: d.model, prior: loaded.prior, onSave: syncMain });
+    const md: Deps = { ...d, model: main.run };
+    const done = loaded.prior && !triaged ? loadTriageDone(dir) : null;
+    if (done) {
+      log(`#${n} 续接 MAIN 会话 ${loaded.prior!.sessionId}，沿用已校验分级 ${done.cls.klass} 与考古`);
+      const c = (k: ArchClass) => done.ar.arch.points.filter((p) => p.klass === k).length;
+      summary.archaeology = { A: c("A"), B: c("B"), C: c("C"), problems: done.ar.problems };
+    } else if (triaged) log(`#${n} 沿用已落盘分级 ${triaged.klass}，只补考古`);
+    const tr = done ?? (triaged
+      ? await runTriage(t, md, dir, summary, { fixed: triaged })
+      : await runTriage(t, md, dir, summary).catch((e) => { postClassify(); throw e; }));
     // 上一轮已转 P 而本轮整链重分级判回 T：只收紧，沿用转 P。
     const cls: Classification = effP && tr.cls.klass === "T" ? { ...tr.cls, klass: "P", reason: effP.reason } : tr.cls;
     summary.klass = cls.klass;
-    if (triaged) summary.resumedFrom = "triaged";
+    if (done) summary.resumedFrom = "main_session";
+    else if (triaged) summary.resumedFrom = "triaged";
     postClassify();
     let ar = tr.ar;
 
     // 2–3. 起草 / 独审，至多两轮。分级由分级器定，起草者只能提改判建议。
-    s = { ...initialState(cls.klass), convertedToP: !!effP && cls.klass === "P" && cls.reason === effP.reason };
+    s = { ...initialState(cls.klass, main.model() ?? MODEL_MAIN), convertedToP: !!effP && cls.klass === "P" && cls.reason === effP.reason };
     let effCls: Classification = cls;
     // 运行中转 P 即落盘有效分级；classify.json 原件不动。
     const markP = () => persistEffectiveP(dir, { klass: "P", reason: effCls.reason, commentsSeen: t.comments.length });
@@ -1377,12 +1427,12 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
     while (s.phase === "draft") {
       summary.attempts = s.attempt;
       if (s.draftMode === "redo" && ar.problems.length) {
-        ar = (await runTriage(t, d, dir, summary, { feedback: ar.problems.map((x) => `- ${x}`).join("\n"), fixed: effCls, round: s.attempt })).ar;
+        ar = (await runTriage(t, md, dir, summary, { feedback: ar.problems.map((x) => `- ${x}`).join("\n"), fixed: effCls, round: s.attempt })).ar;
         gapGate();
       }
       const prompt = (fb?: string) =>
         s.draftMode === "revise" ? revisePrompt(t, effCls, draft, fb ?? s.reviewFeedback ?? "", ar.md) : draftPrompt(t, effCls, fb ?? s.reviewFeedback, ar.md);
-      let dr = await d.model({ model: s.drafterModel, prompt: prompt(), cwd: d.srcDir, role: "draft" });
+      let dr = await md.model({ model: s.drafterModel, prompt: prompt(), cwd: d.srcDir, role: "draft" });
       let next = dr.text.trim() + "\n";
       summary.durationsMs[`draft${s.attempt}`] = dr.durationMs;
       // 落点硬检查：越界或缺失立即退回起草者重写一次。
@@ -1391,7 +1441,7 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
         writeFileSync(join(dir, `draft.attempt${s.attempt}.landing-rejected.md`), next);
         summary.landingRedrafts.push(`第 ${s.attempt} 轮：${lp}`);
         const fb = [s.reviewFeedback, `- 正本落点退回：${lp}。「裁定」段单独一行写纯文本 \`正本落点：<路径>\`，路径只能在 ${LANDING_ROOTS.join("、")} 内。`].filter(Boolean).join("\n");
-        dr = await d.model({ model: s.drafterModel, prompt: prompt(fb), cwd: d.srcDir, role: "draft" });
+        dr = await md.model({ model: s.drafterModel, prompt: prompt(fb), cwd: d.srcDir, role: "draft" });
         next = dr.text.trim() + "\n";
         summary.durationsMs[`draft${s.attempt}_landing`] = dr.durationMs;
       }
@@ -1427,7 +1477,7 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
         ...archaeologyCoverageProblems(draft, ar.arch),
       ];
       const basePrompt = reviewPrompt(t, effCls, draft, ar.md, plan);
-      // 起草与独审各起一次调用；起草因拦截改派主控模型时独审改用 Opus（reviewerModel）。
+      // 独审另起无状态调用（不带 session），不接 MAIN 历史；按实际起草者家族选异家族（reviewerModel）。
       const drafterUsed = dr.model ?? s.drafterModel;
       const reviewer = reviewerModel(s.drafterModel, drafterUsed);
       let rr = await d.model({ model: reviewer, prompt: basePrompt, cwd: d.srcDir, role: "review" });
@@ -1447,14 +1497,14 @@ export async function processTicket(n: number, raw: Deps): Promise<Summary> {
       // 起草被安全拦截后可改派主控模型；若独审也被拦截且只能回到同家族，必须 FAIL-loud。
       if (s.attempt > 1 && existsSync(join(dir, "review.json"))) renameSync(join(dir, "review.json"), join(dir, `review.attempt${s.attempt - 1}.json`));
       summary.rounds.push({
-        attempt: s.attempt, mode: s.draftMode, drafter: drafterUsed, reviewer: reviewerUsed,
+        attempt: s.attempt, mode: s.draftMode, drafter: drafterUsed, drafterSession: dr.sessionId, reviewer: reviewerUsed,
         verdict: review.parseError ? "review_parse_error" : review.verdict,
         blocked: review.parseError ? [] : review.items.filter((i) => i.verdict === "BLOCK").map((i) => i.rule),
         problems: review.problems,
       });
       const reviewSwitches = (summary.modelSwitches ?? []).filter((x) => x.role === "review");
       writeJson(join(dir, "review.json"), {
-        ticket: n, attempt: s.attempt, mode: s.draftMode, drafter: drafterUsed, reviewer: reviewerUsed, klass: s.klass,
+        ticket: n, attempt: s.attempt, mode: s.draftMode, drafter: drafterUsed, drafterSession: dr.sessionId, reviewer: reviewerUsed, klass: s.klass,
         verdict: review.parseError ? "review_parse_error" : review.verdict, parseError: review.parseError, retried,
         items: review.parseError ? [] : review.items, problems: review.problems, draftMissingSections: missing,
         canonicalPlan: plan, durationMs: rr.durationMs, ...(reviewSwitches.length ? { modelSwitches: reviewSwitches } : {}), raw: rr.text,

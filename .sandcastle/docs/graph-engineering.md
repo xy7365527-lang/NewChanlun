@@ -7,7 +7,7 @@
 | 面 | 组件 | 节奏 | 管什么 |
 |---|---|---|---|
 | 控制面 | `scripts/wayfinder_engine.mts`（已有） | 4 分钟 | 扫图、给合格实施票挂 `sandcastle` |
-| 裁决面 | `.sandcastle/decision-claimer.mts`（新） | 10 分钟 | grilling 票：分级+考古（一次联合调用）→ 起草 → 独审 → 落地或待批 |
+| 裁决面 | `.sandcastle/decision-claimer.mts`（新） | 10 分钟 | grilling 票：每票 MAIN 会话分级+考古并续接起草 → 异家族独审 → 落地或待批 |
 | 执行面 | `claim-loop.mts` + `main.mts`（已有） | 60 秒 | 实施票：实装工蜂 + 独审工蜂 |
 | 验收面 | `harvest.sh`（#1660 PR 模式）+ main 合入人闸 | 15 分钟 | 评审完成的分支推远端、基于 main 开 PR、票面登记；不合入不关票 |
 | 观测面 | `health-monitor` + 进度页（新） | 5 分钟 / 1 分钟 | 停摆即 _red_、自愈、进度 |
@@ -49,7 +49,7 @@
 
 ### 3. 起草
 
-`claude-opus-5-5` 起草者在独立 worktree 里只读取证，产出固定结构的 resolution 草稿：问题、权威依据、候选、裁定、验收清单、受影响票与 blocking 边变化、授权引用。
+起草不另起上下文（#1742 F4）。分级考古所在的本票 MAIN 会话经宿主校验分级后，用 Claude CLI `--resume <id>` 续接起草，上文的工具调用与结果都留在历史里；首稿用该会话当前模型（默认 `gpt-6.1-sol`）。会话记在 `<票号>/main-session.json`，绑定票号、取证 `sourceCommit` 与开会话时的评论水印；取证提交变化、记录损坏或水印后出现退回时旧会话改名 `main-session.retired-<k>.json` 作废，另起新会话重跑分级考古，不在新检出上续接旧历史。起草中断后重入且会话有效时，沿用已落盘分级与考古，在同一会话继续起草。模型工具仍只读，产出固定结构的 resolution 草稿：问题、权威依据、候选、裁定、验收清单、受影响票与 blocking 边变化、授权引用。
 
 权威依据逐条带可回查位置：`docs/chanlun/text/blog/<课>.md:<行>`、ADR 路径、票评论链接。引原文按 AGENTS.md 四步核行号、逐字、作者归属、行内注。验收清单每项必须是命令、测试名、文件存在或票状态之一。
 
@@ -79,7 +79,7 @@
 
 ### 4. 独审
 
-主控模型 `gpt-6.1-sol` 审查者另起进程，只拿草稿、`archaeology.md`、源文件以及宿主生成的最终 Git diff 和完整 JSON 转义 `before/after`，看不到起草推理。起草与独审必须属于不同模型家族；按 R1–R8 逐条给 PASS 或 BLOCK：
+审查者另起无会话进程（`--no-session-persistence`，不带 MAIN 会话 id），只拿草稿、`archaeology.md`、源文件以及宿主生成的最终 Git diff 和完整 JSON 转义 `before/after`，看不到起草推理。起草与独审必须属于不同模型家族，独审模型按该轮实际起草模型选择（首稿 GPT 则 Opus 审，Opus 写则 GPT 审）；按 R1–R8 逐条给 PASS 或 BLOCK：
 
 1. R1 每条引用回查成立。
 2. R2 不与 `.chanlun/definitions/`、`docs/adr/`、#799 收敛通则、#804 总缝规则、ADR 0041 自由度通则冲突。把原文无定论的合法候选当错误排除或写成常数、未落为带默认值的可调字段，判 BLOCK；把原文语义或已裁推论改成可调、把同一判断的宽严两档做成可调字段、或让可调字段运行中换值，也判 BLOCK。
@@ -90,7 +90,7 @@
 7. R7 分级正确。
 8. R8 考古成立：抽查 `archaeology.md` 至少三条命中并复跑查询，另对任一 B/C 点换说法复搜。草稿把 A 类当待决、B/C 类缺查询证据、「考古对照」漏点、事实缺口交给用户，或 P 类问题要求用户凭空提供数值而在案先例未列出，判 BLOCK。
 
-完成标准：`review.json` 落盘，八项各有结论与依据，并保存与 `summary.json` 一致的 `canonicalPlan`。BLOCK 时起草者继续用 `claude-opus-5-5` 带审查意见重做一次；再 BLOCK 转 P 类。
+完成标准：`review.json` 落盘，八项各有结论与依据，并保存与 `summary.json` 一致的 `canonicalPlan`。BLOCK 时同一 MAIN 会话切到 `claude-opus-5-5` 带审查意见重做一次，引用专修同样在该会话里；再 BLOCK 转 P 类。
 
 ### 5. 落地
 
@@ -127,7 +127,7 @@ ANTHROPIC_AUTH_TOKEN=<运行时从 CLIProxyLocal config 读取，不落日志> \
 claude -p --bare --model gpt-6.1-sol --output-format json --no-session-persistence
 ```
 
-2026-10-25 用户裁定（#1617）：决策裁决面的分级、考古与独审使用 `.sandcastle/main-model.mts` 的 `gpt-6.1-sol`；起草使用 `claude-opus-5-5`。#1742 F2 将落地改为宿主执行获审精确编辑，不再使用模型。429 按退避重试，打回重做不换模型；安全拦截按本文件上方的异家族改派与 FAIL-loud 规则执行。真实 `--bare` 冒烟见该票验收记录。
+2026-10-25 用户裁定（#1617）：决策裁决面的分级、考古与首稿使用 `.sandcastle/main-model.mts` 的 `gpt-6.1-sol`（同一 MAIN 会话，#1742 F4），重做与引用专修在该会话切 `claude-opus-5-5`，独审取实际起草者的另一家族。#1742 F2 将落地改为宿主执行获审精确编辑，不再使用模型。429 按退避重试，打回重做不换模型；安全拦截按本文件上方的异家族改派与 FAIL-loud 规则执行。真实 `--bare` 冒烟见该票验收记录。
 
 执行面 `main.mts` 与 `main-swarm.mts` 使用 Sandcastle `codex` provider，走同一模型配置。noSandbox 用 `127.0.0.1:8318`；Docker 保留隔离并用 `host.docker.internal:8318`，镜像安装 Codex CLI（Claude 仅供显式 legacy），Codex 客户端密钥只从进程/launchctl 的 `CLIPROXY_LOCAL_KEY` 经运行时 env 进入；main-swarm 在领票前做容器连通性硬检查，失败不换模型、不认领（#1617）。
 

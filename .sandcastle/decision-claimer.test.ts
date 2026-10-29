@@ -14,8 +14,10 @@ import {
   isRetryable, makeClaudeRunner, loadResume, isSafeguardBlock, safeguardFallbackModel, withSafeguardFallback, reviewerModel, modelFamily, assertDifferentModelFamilies, resumeStaleBecauseReopen,
   RULES, ARCH_SECTION, ARCHAEOLOGY_FILE, parseArchaeology, archaeologyProblems, renderArchaeology, archaeologyCoverageProblems,
   triagePrompt, extractJson, FIXED_CLASS_LINE, loadTriaged, loadEffectiveP, archaeologyAsks, archaeologyOnly, archaeologyOnlyAdmission, shadowComment, flowSectionsIn,
+  claudeArgs, MAIN_CONTINUE_LINE, loadTriageDone,
   type Deps, type GhRunner, type ModelCall, type OnceResult,
 } from "./decision-claimer.mts";
+import { MAIN_SESSION_FILE } from "./main-session.mts";
 
 const pass = (basis = "回查成立") => Object.fromEntries(RULES.map((r) => [r, { verdict: "PASS", basis }]));
 const fence = (v: unknown) => "说明文字\n```json\n" + JSON.stringify(v) + "\n```\n";
@@ -33,6 +35,9 @@ const goodArchObj = {
 };
 const goodArch = fence(goodArchObj);
 const FIXED = FIXED_CLASS_LINE;
+/** CLI 会话替身：start 给新 id，resume 原样回报；无会话调用不回报（与 makeClaudeRunner 合同一致）。 */
+let sidSeq = 0;
+const sid = (c: ModelCall) => (c.session ? { sessionId: c.session.kind === "resume" ? c.session.id : `00000000-0000-4000-8000-${String(++sidSeq).padStart(12, "0")}` } : {});
 /** 假模型的联合回答：分级回答与考古回答合成一个 JSON；考古不可解析时原样拼接。 */
 const joint = (cls: string, arch: string) => {
   const c = extractJson(cls);
@@ -101,7 +106,7 @@ test("状态转移：PASS 落地；BLOCK 升档 Opus 重做；再 BLOCK 转 P", 
   const passR = parseReview(fence(pass()));
   const blockR = parseReview(fence({ ...pass(), R3: { verdict: "BLOCK", basis: "验收项不可执行" } }));
   const t = initialState("T");
-  assert.equal(t.drafterModel, MODEL_DRAFTER);
+  assert.equal(t.drafterModel, MODEL_MAIN, "首稿由 MAIN 会话模型写");
   assert.equal(nextAfterReview(t, passR).phase, "land_t");
   assert.equal(nextAfterReview(initialState("P"), passR).phase, "shadow_p");
 
@@ -192,16 +197,16 @@ function fakeDeps(mode: "dry-run" | "live", replies: string[], archReplies: stri
       if (c.role === "triage") {
         archCalls.push(c);
         const arch = archReplies.shift() ?? goodArch;
-        if (c.prompt.includes(FIXED)) return { text: arch, durationMs: 5, attempts: 1 };
+        if (c.prompt.includes(FIXED)) return { text: arch, durationMs: 5, attempts: 1, ...sid(c) };
         modelCalls.push(c);
         const cls = replies.shift();
         if (cls === undefined) throw new Error("模型调用次数超出预期");
-        return { text: joint(cls, arch), durationMs: 5, attempts: 1 };
+        return { text: joint(cls, arch), durationMs: 5, attempts: 1, ...sid(c) };
       }
       modelCalls.push(c);
       const text = replies.shift();
       if (text === undefined) throw new Error("模型调用次数超出预期");
-      return { text, durationMs: 5, attempts: 1 };
+      return { text, durationMs: 5, attempts: 1, ...sid(c) };
     },
     outRoot: mkdtempSync(join(tmpdir(), "decision-claimer-test-")),
     srcDir: fixture.repo,
@@ -218,7 +223,7 @@ test("dry-run 全流程：T 类 PASS 只落本地三份文件，不调任何 gh 
   const s = await processTicket(1531, d);
   assert.equal(s.phase, "land_t");
   assert.equal(s.error, undefined);
-  assert.deepEqual(modelCalls.map((c) => [c.role, c.model]), [["triage", MODEL_MAIN], ["draft", MODEL_DRAFTER], ["review", MODEL_REVIEW]]);
+  assert.deepEqual(modelCalls.map((c) => [c.role, c.model]), [["triage", MODEL_MAIN], ["draft", MODEL_MAIN], ["review", MODEL_OPUS]]);
   assert.ok(modelCalls.every((c) => !("allowWrite" in c)));
   assert.equal(ghCalls.filter(isWrite).length, 0);
   const dir = join(d.outRoot, "1531");
@@ -605,13 +610,13 @@ function liveDeps(replies: Array<string | Error>, opts: { failGh?: (a: string[])
     model: async (c) => {
       if (c.role === "triage" && c.prompt.includes(FIXED)) {
         fixedCalls.push(c);
-        return { text: goodArch, durationMs: 5, attempts: 1 };
+        return { text: goodArch, durationMs: 5, attempts: 1, ...sid(c) };
       }
       modelCalls.push(c);
       const r = replies.shift();
       if (r === undefined) throw new Error("模型调用次数超出预期");
       if (r instanceof Error) throw r;
-      return { text: c.role === "triage" ? joint(r, goodArch) : r, durationMs: 5, attempts: 1 };
+      return { text: c.role === "triage" ? joint(r, goodArch) : r, durationMs: 5, attempts: 1, ...sid(c) };
     },
     outRoot: mkdtempSync(join(tmpdir(), "decision-claimer-live-")),
     srcDir: fixture.repo,
@@ -1164,7 +1169,7 @@ function blockingDeps(block: Set<string>, opts: { reviewText?: string; hardError
     const text = c.role === "triage" ? (c.prompt.includes(FIXED) ? goodArch : fence({ class: "T", reason: "测试锁", ...goodArchObj }))
       : c.role === "draft" ? goodDraft
       : opts.reviewText ?? fence(pass());
-    return { text, durationMs: 5, attempts: 1, model: c.model };
+    return { text, durationMs: 5, attempts: 1, model: c.model, ...sid(c) };
   };
   return { d, calls };
 }
@@ -1204,7 +1209,7 @@ test("主控工具步骤被拦截后粘住改派模型，不再先撞一次拦�
   const run = withSafeguardFallback(async (c) => {
     inner.push(c);
     if (c.model === MODEL_MAIN) throw new Error(SAFEGUARD_ERROR(c.role, c.model));
-    return { text: "ok", durationMs: 1, attempts: 1, model: c.model };
+    return { text: "ok", durationMs: 1, attempts: 1, model: c.model, ...sid(c) };
   });
   const a = await run({ model: MODEL_MAIN, prompt: "p", cwd: "/", role: "triage" });
   const b = await run({ model: MODEL_MAIN, prompt: "p2", cwd: "/", role: "triage" });
@@ -1213,26 +1218,31 @@ test("主控工具步骤被拦截后粘住改派模型，不再先撞一次拦�
   assert.deepEqual(inner.map((c) => c.model), [MODEL_MAIN, MODEL_DRAFTER, MODEL_DRAFTER], "第二次直接走 Opus");
 });
 
-test("起草被拦截改主控：独审改用 Opus，review.json 与 rounds 记实际起草/独审模型", async () => {
-  const { d, calls } = blockingDeps(new Set(["draft"]));
+test("MAIN 首稿被拦截改 Opus：同一会话续接，独审改回 GPT，review.json 与 rounds 记实际起草/独审模型", async () => {
+  const { d, calls } = blockingDeps(new Set(["draft"]), { blockedModel: MODEL_MAIN });
   const s = await processTicket(1783, d);
   assert.equal(s.phase, "land_t", s.error ?? "");
-  assert.deepEqual(seq(calls).slice(1), [["draft", MODEL_DRAFTER], ["draft", MODEL_REVIEW], ["review", MODEL_DRAFTER]]);
+  assert.deepEqual(seq(calls).slice(1), [["draft", MODEL_MAIN], ["draft", MODEL_OPUS], ["review", MODEL_MAIN]]);
+  const id = calls[0].session?.kind === "start" ? s.mainSession!.sessionId : undefined;
+  assert.ok(id);
+  assert.deepEqual(calls.slice(1, 3).map((c) => c.session), [{ kind: "resume", id }, { kind: "resume", id }], "改派仍在本票 MAIN 会话里");
+  assert.equal(calls[3].session, undefined, "独审不带会话");
   const rv = JSON.parse(readFileSync(join(d.outRoot, "1783", "review.json"), "utf8"));
-  assert.equal(rv.drafter, MODEL_REVIEW);
-  assert.equal(rv.reviewer, MODEL_DRAFTER);
-  assert.deepEqual(s.rounds!.map((r) => [r.drafter, r.reviewer]), [[MODEL_REVIEW, MODEL_DRAFTER]]);
+  assert.equal(rv.drafter, MODEL_OPUS);
+  assert.equal(rv.reviewer, MODEL_MAIN);
+  assert.equal(rv.drafterSession, id);
+  assert.deepEqual(s.rounds!.map((r) => [r.drafter, r.reviewer]), [[MODEL_OPUS, MODEL_MAIN]]);
 });
 
 test("起草改主控后独审 Opus 也被拦截：无异家族可选时 FAIL-loud，不静默放行", async () => {
-  const { d, calls } = blockingDeps(new Set(["draft", "review"]));
+  const { d, calls } = blockingDeps(new Set(["draft", "review"]), { blockedModel: MODEL_MAIN });
   const s = await processTicket(1783, d);
   assert.equal(s.phase, "error");
   assert.match(s.error ?? "", /同家族|FAIL/);
-  assert.deepEqual(seq(calls).slice(1), [["draft", MODEL_DRAFTER], ["draft", MODEL_REVIEW], ["review", MODEL_DRAFTER], ["review", MODEL_REVIEW]]);
-  assert.deepEqual(s.modelSwitches!.map((x) => [x.role, x.from, x.to]), [["draft", MODEL_DRAFTER, MODEL_REVIEW], ["review", MODEL_DRAFTER, MODEL_REVIEW]]);
+  assert.deepEqual(seq(calls).slice(1), [["draft", MODEL_MAIN], ["draft", MODEL_OPUS], ["review", MODEL_MAIN], ["review", MODEL_OPUS]]);
+  assert.deepEqual(s.modelSwitches!.map((x) => [x.role, x.from, x.to]), [["draft", MODEL_MAIN, MODEL_OPUS], ["review", MODEL_MAIN, MODEL_OPUS]]);
   const rv = JSON.parse(readFileSync(join(d.outRoot, "1783", "review.json"), "utf8"));
-  assert.deepEqual(rv.modelSwitches, [{ role: "review", from: MODEL_DRAFTER, to: MODEL_REVIEW, reason: "safeguard" }]);
+  assert.deepEqual(rv.modelSwitches, [{ role: "review", from: MODEL_MAIN, to: MODEL_OPUS, reason: "safeguard" }]);
 });
 
 test("锁：起草与独审必须异家族，计划与改派两种轮次都覆盖", async () => {
@@ -1316,7 +1326,7 @@ test("M1 新票：正常路径只有一次分级+考古模型调用，classify.j
   d.model = async (c) => {
     calls.push(c);
     const text = c.role === "triage" ? fence({ class: "T", reason: "接口", ...goodArchObj }) : c.role === "draft" ? goodDraft : fence(pass());
-    return { text, durationMs: 5, attempts: 1 };
+    return { text, durationMs: 5, attempts: 1, ...sid(c) };
   };
   const s = await processTicket(1531, d);
   assert.equal(s.phase, "land_t", s.error ?? "");
@@ -1330,7 +1340,7 @@ test("M1 新票：正常路径只有一次分级+考古模型调用，classify.j
 
 test("M1 联合输出缺 class 或 reason：分级按「拿不准一律判 P」，考古照收，不自动落地", async () => {
   const { d } = fakeDeps("dry-run", []);
-  d.model = async (c) => ({ text: c.role === "triage" ? fence({ ...goodArchObj }) : c.role === "draft" ? goodDraft : fence(pass()), durationMs: 5, attempts: 1 });
+  d.model = async (c) => ({ text: c.role === "triage" ? fence({ ...goodArchObj }) : c.role === "draft" ? goodDraft : fence(pass()), durationMs: 5, attempts: 1, ...sid(c) });
   const s = await processTicket(1531, d);
   assert.equal(s.klass, "P");
   assert.equal(s.phase, "shadow_p");
@@ -1348,7 +1358,7 @@ test("M1 P 类账户未知：联合调用保留 P 与 C 类 decision/research �
   d.model = async (c) => {
     calls.push(c);
     const draft = goodDraft.replace(archTable, `## ${ARCH_SECTION}\n| 点 | 归类 | 出处 | 草稿处置 |\n|---|---|---|---|\n| Q1 | C | — | 待决 |\n| Q2 | C research | — | 开 research 票 |`);
-    return { text: c.role === "triage" ? fence({ class: "P", reason: "资金参数", ...pArch }) : c.role === "draft" ? draft : fence(pass()), durationMs: 5, attempts: 1 };
+    return { text: c.role === "triage" ? fence({ class: "P", reason: "资金参数", ...pArch }) : c.role === "draft" ? draft : fence(pass()), durationMs: 5, attempts: 1, ...sid(c) };
   };
   const s = await processTicket(1531, d);
   assert.equal(s.klass, "P");
@@ -1368,9 +1378,9 @@ test("M1 失败重入：联合调用考古两次解析不出，分级已落盘�
   h.d.model = async (c) => {
     if (c.role === "triage" && !c.prompt.includes(FIXED_CLASS_LINE)) {
       h.modelCalls.push(c);
-      return { text: fence({ class: "T", reason: "接口" }), durationMs: 5, attempts: 1 };
+      return { text: fence({ class: "T", reason: "接口" }), durationMs: 5, attempts: 1, ...sid(c) };
     }
-    if (c.role === "triage" && bad > 0) { bad--; h.fixedCalls.push(c); return { text: "无", durationMs: 5, attempts: 1 }; }
+    if (c.role === "triage" && bad > 0) { bad--; h.fixedCalls.push(c); return { text: "无", durationMs: 5, attempts: 1, ...sid(c) }; }
     return base(c);
   };
   const s1 = await processTicket(1565, h.d);
@@ -1463,14 +1473,14 @@ test("M1 转 P 不回退：先 T、起草建议转 P、升档重做考古两次�
     calls.push(c);
     if (c.role === "triage") {
       if (run === 1) {
-        if (!c.prompt.includes(FIXED)) return { text: fence({ class: "T", reason: "接口", points: [{ ...goodArchObj.points[0], queries: [] }] }), durationMs: 5, attempts: 1 };
+        if (!c.prompt.includes(FIXED)) return { text: fence({ class: "T", reason: "接口", points: [{ ...goodArchObj.points[0], queries: [] }] }), durationMs: 5, attempts: 1, ...sid(c) };
         fixedN++;
-        return { text: fixedN === 1 ? badArch : "无 JSON", durationMs: 5, attempts: 1 };
+        return { text: fixedN === 1 ? badArch : "无 JSON", durationMs: 5, attempts: 1, ...sid(c) };
       }
-      return { text: goodArch, durationMs: 5, attempts: 1 };
+      return { text: goodArch, durationMs: 5, attempts: 1, ...sid(c) };
     }
-    if (c.role === "draft") return { text: goodDraft + (run === 1 ? "\n改判建议：P — 涉及真实账户\n" : ""), durationMs: 5, attempts: 1 };
-    return { text: run === 1 ? block : fence(pass()), durationMs: 5, attempts: 1 };
+    if (c.role === "draft") return { text: goodDraft + (run === 1 ? "\n改判建议：P — 涉及真实账户\n" : ""), durationMs: 5, attempts: 1, ...sid(c) };
+    return { text: run === 1 ? block : fence(pass()), durationMs: 5, attempts: 1, ...sid(c) };
   };
   const s1 = await processTicket(1531, d);
   assert.equal(s1.phase, "error");
@@ -1539,7 +1549,7 @@ test("M1 实际转 P 短写与首次创建中断后必须停止，不能把临�
     const { d } = fakeDeps("dry-run", []);
     d.model = async c => ({ text: c.role === "triage"
       ? fence({ class: "T", reason: "接口", ...goodArchObj })
-      : c.role === "draft" ? goodDraft + "\n改判建议：P - 涉及真实账户\n" : fence(pass()), durationMs: 1, attempts: 1 });
+      : c.role === "draft" ? goodDraft + "\n改判建议：P - 涉及真实账户\n" : fence(pass()), durationMs: 1, attempts: 1, ...sid(c) });
     const actual = { open: fs.openSync, write: fs.writeFileSync, close: fs.closeSync, rename: fs.renameSync };
     const effective = join(d.outRoot, "1531", "classify.effective.json");
     const pending = effective + ".pending";
@@ -1590,7 +1600,7 @@ test("M1 实际转 P 短写与首次创建中断后必须停止，不能把临�
     const calls: ModelCall[] = [];
     d.model = async c => {
       calls.push(c);
-      return { text: c.role === "triage" ? fence({ class: "T", reason: "重分", ...goodArchObj }) : c.role === "draft" ? goodDraft : fence(pass()), durationMs: 1, attempts: 1 };
+      return { text: c.role === "triage" ? fence({ class: "T", reason: "重分", ...goodArchObj }) : c.role === "draft" ? goodDraft : fence(pass()), durationMs: 1, attempts: 1, ...sid(c) };
     };
     const second = await processTicket(1531, d);
     assert.equal(second.phase, "error", `${fault} 后不得按旧记录缺失重分`);
@@ -1669,7 +1679,7 @@ test("F2 缺对象、重复对象、非法版本、目标不一致和非唯一 b
     const h = liveDeps([]);
     seedCanonical(h, path, "旧义\n旧义\n");
     h.gitCalls.length = 0;
-    h.d.model = async c => ({ text: c.role === "triage" ? joint(fence({ class: "T", reason: "r" }), goodArch) : c.role === "draft" ? bad : fence(pass()), durationMs: 1, attempts: 1 });
+    h.d.model = async c => ({ text: c.role === "triage" ? joint(fence({ class: "T", reason: "r" }), goodArch) : c.role === "draft" ? bad : fence(pass()), durationMs: 1, attempts: 1, ...sid(c) });
     const s = await processTicket(1565, h.d);
     assert.notEqual(s.phase, "land_t");
     assert.ok(!h.gitCalls.some(a => a[0] === "commit" || a[0] === "push"));
@@ -1678,7 +1688,7 @@ test("F2 缺对象、重复对象、非法版本、目标不一致和非唯一 b
   const h = liveDeps([]);
   seedCanonical(h, path, "旧义\n旧义\n");
   h.gitCalls.length = 0;
-  h.d.model = async c => ({ text: c.role === "triage" ? joint(fence({ class: "T", reason: "r" }), goodArch) : c.role === "draft" ? valid : fence(pass()), durationMs: 1, attempts: 1 });
+  h.d.model = async c => ({ text: c.role === "triage" ? joint(fence({ class: "T", reason: "r" }), goodArch) : c.role === "draft" ? valid : fence(pass()), durationMs: 1, attempts: 1, ...sid(c) });
   assert.notEqual((await processTicket(1565, h.d)).phase, "land_t");
   assert.ok(!h.gitCalls.some(a => a[0] === "commit"));
 });
@@ -1816,4 +1826,203 @@ test("F2 Git normalization 或额外工作树改动均在 commit 前拒绝", asy
     assert.match(s.error ?? "", fault === "normalize" ? /暂存内容/ : /非目标改动/);
     assert.ok(!h.gitCalls.some(a => a[0] === "commit" || a[0] === "push"));
   }
+});
+
+// ───────────── #1742 F4：每票 MAIN 会话 ─────────────
+
+/**
+ * Claude CLI 会话替身：按 id 存历史；resume 未知 id 报「No conversation found」。
+ * 分级轮把「工具结果」写进本会话历史，起草轮只有在本会话历史里看见本票工具结果才交稿。
+ */
+function cliSessions(script: (c: ModelCall, ticket: number, history: string[]) => string) {
+  const store = new Map<string, string[]>();
+  let k = 0;
+  const calls: ModelCall[] = [];
+  const run = async (c: ModelCall) => {
+    calls.push(c);
+    const ticket = Number(/^# #(\d+)/m.exec(c.prompt)?.[1] ?? /被审票：#(\d+)/.exec(c.prompt)?.[1]);
+    let id: string | undefined;
+    let history: string[] = [];
+    if (c.session?.kind === "resume") {
+      if (!store.has(c.session.id)) throw new Error(`No conversation found with session ID: ${c.session.id}`);
+      id = c.session.id;
+      history = store.get(id)!;
+    } else if (c.session) {
+      id = `00000000-0000-4000-9000-${String(++k).padStart(12, "0")}`;
+      store.set(id, history);
+    }
+    const text = script(c, ticket, history);
+    if (id) history.push(`user:${c.role}`, ...(c.role === "triage" ? [`tool_result:gh issue view ${ticket}`] : []), `assistant:${c.role}`);
+    return { text, durationMs: 1, attempts: 1, model: c.model, ...(id ? { sessionId: id } : {}) };
+  };
+  return { run, calls, store };
+}
+
+const citeBlock = fence({ ...pass(), R1: { verdict: "BLOCK", basis: "AGENTS.md:1 行号漂移" } });
+
+/** 起草只在会话历史里有本票分级工具结果时交稿；无状态或串票都拿不到稿。 */
+function mainScript(reviews: string[]) {
+  return (c: ModelCall, ticket: number, history: string[]) => {
+    if (c.role === "triage") return c.prompt.includes(FIXED) ? goodArch : fence({ class: "T", reason: "接口", ...goodArchObj });
+    if (c.role === "draft") {
+      assert.ok(history.includes(`tool_result:gh issue view ${ticket}`), `#${ticket} 起草必须看见本票分级的工具结果`);
+      assert.ok(!history.some((h) => h.startsWith("tool_result:") && h !== `tool_result:gh issue view ${ticket}`), "不得串入别票历史");
+      return goodDraft;
+    }
+    const r = reviews.shift();
+    if (r === undefined) throw new Error("独审次数超出预期");
+    return r;
+  };
+}
+
+function ticketGh(): GhRunner {
+  return (args) => {
+    if (args[0] === "issue" && args[1] === "view") {
+      return JSON.stringify({ number: Number(args[2]), title: `票${args[2]}`, body: "票面", labels: [{ name: "wayfinder:grilling" }], assignees: [], comments: [] });
+    }
+    return args[0] === "api" ? "[]" : "";
+  };
+}
+
+test("F4：分级后同一 MAIN 会话起草、引用专修、重做；独审每轮无会话且按实际作者异家族", async () => {
+  const { d } = fakeDeps("dry-run", []);
+  const cli = cliSessions(mainScript([citeBlock, r3Block, fence(pass())]));
+  d.model = cli.run;
+  const s = await processTicket(1531, d);
+  assert.equal(s.phase, "land_t", s.error ?? "");
+  const id = s.mainSession!.sessionId!;
+  assert.ok(id);
+  const main = cli.calls.filter((c) => c.role !== "review");
+  assert.deepEqual(main.map((c) => [c.role, c.model, c.session?.kind]), [
+    ["triage", MODEL_MAIN, "start"], ["draft", MODEL_MAIN, "resume"], ["draft", MODEL_OPUS, "resume"], ["draft", MODEL_OPUS, "resume"],
+  ]);
+  assert.ok(main.slice(1).every((c) => c.session?.kind === "resume" && c.session.id === id));
+  assert.deepEqual(s.rounds!.map((r) => [r.mode, r.drafter, r.reviewer, r.drafterSession]), [
+    ["initial", MODEL_MAIN, MODEL_OPUS, id], ["revise", MODEL_OPUS, MODEL_MAIN, id], ["redo", MODEL_OPUS, MODEL_MAIN, id],
+  ]);
+  const reviews = cli.calls.filter((c) => c.role === "review");
+  assert.equal(reviews.length, 3);
+  for (const r of reviews) {
+    assert.equal(r.session, undefined, "独审另起无状态调用");
+    assert.ok(!r.prompt.includes(MAIN_CONTINUE_LINE) && !r.prompt.includes(id), "独审提示不接作者会话");
+  }
+  assert.equal(cli.store.size, 1, "整张票只开一个会话");
+  const rec = JSON.parse(readFileSync(join(d.outRoot, "1531", MAIN_SESSION_FILE), "utf8"));
+  assert.equal(rec.sessionId, id);
+  assert.equal(rec.ticket, 1531);
+  assert.equal(rec.sourceCommit, d.git(d.srcDir, ["rev-parse", "HEAD"]).trim());
+  assert.deepEqual(rec.turns.map((t: { role: string; model: string; ref: string }) => [t.role, t.model, t.ref]), main.map((c) => [c.role, c.model, c.session!.kind]));
+  assert.match(main[1].prompt, new RegExp(MAIN_CONTINUE_LINE.slice(0, 20)));
+});
+
+test("F4：并发两票各开各的会话，历史不串", async () => {
+  const { d } = fakeDeps("dry-run", []);
+  d.gh = guardGh("dry-run", ticketGh());
+  const cli = cliSessions(mainScript([fence(pass()), fence(pass())]));
+  d.model = cli.run;
+  const [a, b] = await Promise.all([processTicket(1601, d), processTicket(1602, d)]);
+  assert.equal(a.phase, "land_t", a.error ?? "");
+  assert.equal(b.phase, "land_t", b.error ?? "");
+  assert.notEqual(a.mainSession!.sessionId, b.mainSession!.sessionId);
+  for (const [n, ms] of [[1601, a.mainSession!], [1602, b.mainSession!]] as const) {
+    const own = cli.calls.filter((c) => c.session && Number(/^# #(\d+)/m.exec(c.prompt)?.[1]) === n);
+    assert.ok(own.every((c) => c.session!.kind === "start" || (c.session as { id: string }).id === ms.sessionId), `#${n} 只续接自己的会话`);
+  }
+});
+
+test("F4：起草中断后重入，同一会话续接、不重跑分级；取证提交变了旧会话作废另起", async () => {
+  for (const drift of [false, true]) {
+    const { d } = fakeDeps("dry-run", []);
+    let crash = true;
+    const script = mainScript([fence(pass())]);
+    const cli = cliSessions((c, n, h) => {
+      if (c.role === "draft" && crash) { crash = false; throw new Error("claude 子进程超时（1800s timed out）"); }
+      return script(c, n, h);
+    });
+    d.model = cli.run;
+    const first = await processTicket(1531, d);
+    assert.equal(first.phase, "error");
+    const dir = join(d.outRoot, "1531");
+    const before = JSON.parse(readFileSync(join(dir, MAIN_SESSION_FILE), "utf8"));
+    assert.deepEqual(before.turns.map((t: { role: string }) => t.role), ["triage"], "中断前只有已完成的分级轮入账");
+    assert.ok(loadTriageDone(dir));
+    if (drift) execFileSync("git", ["-C", d.srcDir, "commit", "--allow-empty", "-m", "main 前进"]);
+    cli.calls.length = 0;
+    const second = await processTicket(1531, d);
+    assert.equal(second.phase, "land_t", second.error ?? "");
+    if (!drift) {
+      assert.equal(second.resumedFrom, "main_session");
+      assert.deepEqual(cli.calls.map((c) => [c.role, c.session?.kind]), [["draft", "resume"], ["review", undefined]]);
+      assert.equal((cli.calls[0].session as { id: string }).id, before.sessionId);
+      assert.equal(second.mainSession!.resumed, true);
+    } else {
+      assert.match(second.mainSession!.retired ?? "", /取证提交已从/);
+      assert.ok(existsSync(join(dir, "main-session.retired-1.json")));
+      assert.deepEqual(cli.calls.map((c) => [c.role, c.session?.kind]), [["triage", "start"], ["draft", "resume"], ["review", undefined]]);
+      assert.notEqual(second.mainSession!.sessionId, before.sessionId);
+      assert.equal(second.mainSession!.sourceCommit, d.git(d.srcDir, ["rev-parse", "HEAD"]).trim());
+    }
+  }
+});
+
+test("F4：运行中取证检出被换，拒绝在旧会话上起草；通道不回报会话身份同样拒绝", async () => {
+  {
+    const { d } = fakeDeps("dry-run", []);
+    const script = mainScript([fence(pass())]);
+    const cli = cliSessions((c, n, h) => {
+      if (c.role === "triage") execFileSync("git", ["-C", d.srcDir, "commit", "--allow-empty", "-m", "换检出"]);
+      return script(c, n, h);
+    });
+    d.model = cli.run;
+    const s = await processTicket(1531, d);
+    assert.equal(s.phase, "error");
+    assert.match(s.error ?? "", /拒绝在本会话上续接/);
+    assert.deepEqual(cli.calls.map((c) => c.role), ["triage"]);
+  }
+  {
+    const { d } = fakeDeps("dry-run", []);
+    const calls: ModelCall[] = [];
+    d.model = async (c) => { calls.push(c); return { text: fence({ class: "T", reason: "接口", ...goodArchObj }), durationMs: 1, attempts: 1 }; };
+    const s = await processTicket(1531, d);
+    assert.equal(s.phase, "error");
+    assert.match(s.error ?? "", /未回报会话身份/);
+    assert.deepEqual(calls.map((c) => c.role), ["triage"], "不退回无状态起草");
+  }
+});
+
+test("F4：--archaeology-only 仍是无会话只读查询，不建 MAIN 会话", async () => {
+  const { d } = fakeDeps("dry-run", []);
+  const calls: ModelCall[] = [];
+  d.model = async (c) => { calls.push(c); return { text: goodArch, durationMs: 1, attempts: 1 }; };
+  await archaeologyOnly(1355, d);
+  assert.deepEqual(calls.map((c) => [c.role, c.session]), [["triage", undefined]]);
+  assert.equal(existsSync(join(d.outRoot, "1355", MAIN_SESSION_FILE)), false);
+});
+
+test("F4：CLI 参数——无会话不持久化，start 用新 id，resume 按 id；回报 id 不符即失败", async () => {
+  const base: ModelCall = { model: MODEL_MAIN, prompt: "p", cwd: "/", role: "triage" };
+  assert.ok(claudeArgs(base).includes("--no-session-persistence"));
+  const start = claudeArgs({ ...base, session: { kind: "start" } }, "u-1");
+  assert.ok(!start.includes("--no-session-persistence") && start.join(" ").includes("--session-id u-1"));
+  const resume = claudeArgs({ ...base, role: "draft", session: { kind: "resume", id: "u-1" } }, "u-1");
+  assert.ok(resume.join(" ").includes("--resume u-1") && !resume.includes("--session-id"));
+  const seen: Array<string | undefined> = [];
+  let n = 0;
+  const runner = (echo: (sid?: string) => string | undefined) => makeClaudeRunner({
+    token: () => "t", sleep: async () => {},
+    once: async (_c, _t, _ms, sid): Promise<OnceResult> => {
+      seen.push(sid);
+      if (++n === 1) return { code: 1, stdout: "", stderr: "503 service unavailable" };
+      return { code: 0, stdout: JSON.stringify({ result: "ok", session_id: echo(sid) }), stderr: "" };
+    },
+  });
+  const r = await runner((x) => x)({ ...base, session: { kind: "start" } });
+  assert.equal(seen.length, 2);
+  assert.ok(seen[0] && seen[1] && seen[0] !== seen[1], "start 重试换新 id，失败的半截尝试不进后续历史");
+  assert.equal(r.sessionId, seen[1]);
+  n = 1;
+  await assert.rejects(runner(() => "别的会话")({ ...base, role: "draft", session: { kind: "resume", id: "u-9" } }), /会话身份不符/);
+  n = 1;
+  const plain = await runner(() => undefined)(base);
+  assert.equal(plain.sessionId, undefined);
 });
