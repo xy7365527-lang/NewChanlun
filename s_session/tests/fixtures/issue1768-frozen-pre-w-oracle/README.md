@@ -15,7 +15,7 @@
 - 源提交 `283635555c539fac8e27b304dd4257d5a09531c9`，分支 `codex/1768-testonly-seed-29ax`。导出器是 `rust/src/bin/s_structure_session.rs` 的 `cfg(test)` 模块 `issue1768_seed_export`，在 pre-W 旧 parser 上经已有 mixed 真计量 `WriterScope` 写入，八帽 1000000，native RAM 两项 `1 << 26`。
 - 生成运行 https://github.com/xy7365527-lang/NewChanlun/actions/runs/40873859891 （completed/success），工作流 `.github/workflows/issue-1768-seed-export.yml`。本目录文件与该 run artifact `seed/fixture-advance-testonly-policy-records/frozen/` 逐字节相同。
 - 重建：在上述提交上 push 触发同一工作流，或执行 `cargo test --locked --features s_session --bin s_structure_session -- --ignored --exact issue1768_seed_export::issue1768_seed_export_fixture_advance --nocapture`（环境 `S1768_SEED_EXPORT_DIR`）。Rust 仅在 CI 或 nc-remote 构建。
-- `export-manifest.json` 是该次导出的原 manifest（含每步准入账）。`export-validator.json` 是原公共 `AuditReader` 对七库私有副本的核验输出。
+- 该 run 的 artifact 另存原 manifest（每步准入账：finished 均 open_reservations=0，wire 用量不超 1000000）与原公共 `AuditReader` 核验输出（七库全部 ok，逐 cut 投影相等）。artifact 到期后按上一条重建即可再得两者。
 
 ## 读取约束
 
