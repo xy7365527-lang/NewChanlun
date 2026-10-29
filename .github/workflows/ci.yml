@@ -863,6 +863,18 @@ jobs:
         run: node --test s_session/tests/test_q3_v3_validate_once.cjs
       - name: Q3 controlled bytes sizing (#1789)
         run: node --test s_session/tests/test_q3_byte_plan.cjs
+      # #1419/#1424：Q3 读 S3 结构写者（W 后继规则串）的规则/22 轴/中枢族 typed 合同锁。
+      - name: Q3 S3 center-family contract (#1419)
+        run: node --test s_session/tests/test_q3_s3_center_contract.cjs
+      # #1419：Q3 沿公开 Client 入口消费真实 S3 W 夹具（fixtures/q3-real-s3-w-recover-revise.json，普通 blob 入仓，
+      #   sha256 2a83c180…0490a2a）。只跑第 1、2 条（规则串、cut0 与等待期；约 30 s，峰值 RSS 1.4 GB）。
+      #   第 3–5 条（跨恢复逐代 Watch、首中枢与修订、尾段中枢对）不进 CI：单条峰值 RSS 12–15 GB、耗时 12–50 分钟，
+      #   超出 runner。重型验证窗口在本机或远端逐条单进程跑：
+      #   Q3_WIRE_PROBE=1 node --max-old-space-size=16000 --test --test-name-pattern=<跨真实写者恢复|首中枢|尾段> s_session/tests/test_q3_s3_real_cut.cjs
+      #   收据：/Volumes/AgentStorage/issue1709-pstack-orchestrate-20261025/1419-q3-export/receipts-28u/（t1..t5.log + 导出双跑日志）。
+      #   重跑触发面：q3-consumer.js、q3-center.js、q3-typed.js、s-content-v3.js、q3_complete_fixture.cjs 或该夹具改动，合入前重跑并更新收据。
+      - name: Q3 S3 real cut0 consumption (#1419)
+        run: node --max-old-space-size=4096 --test --test-name-pattern="规则串|cut0" s_session/tests/test_q3_s3_real_cut.cjs
       - name: TB-02-W terminal and cursor contract tests (#1420)
         if: ${{ !cancelled() }}
         working-directory: s_session/tests
