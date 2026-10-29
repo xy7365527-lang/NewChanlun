@@ -30,7 +30,8 @@ pub(crate) mod s4_read_trace {
         });
     }
     pub(crate) fn coverage(index: usize) {
-        TRACE.with(|t| { let mut t = t.borrow_mut(); if t.enabled { t.coverage[index] += 1; } });
+        // 只比较同一次admission业务审计；Driver后续恢复也会解码Template。
+        TRACE.with(|t| { let mut t = t.borrow_mut(); if t.enabled && t.phase == 2 { t.coverage[index] += 1; } });
     }
     pub(crate) fn audit_event(label: &'static str, generation: Option<i64>) {
         TRACE.with(|t| {
