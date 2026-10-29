@@ -102,6 +102,8 @@ pub(crate) use request_audit::ManifestWorkspaceBudget;
 mod s_allocation;
 mod source_audit;
 mod state;
+#[cfg(test)]
+pub(crate) use state::trace_event as diagnostic_trace_event;
 mod writer_cli;
 #[cfg(test)]
 pub(crate) use admission_private::test_with_mixed_entry;

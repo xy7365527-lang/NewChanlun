@@ -1165,7 +1165,7 @@ thread_local! {
     static RETENTION_REPORT_CALLS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
 #[cfg(test)]
-pub(super) fn trace_event(phase: &'static str, generation: Option<i64>) {
+pub(crate) fn trace_event(phase: &'static str, generation: Option<i64>) {
     super::admission_private::s4_read_trace::audit_event(phase, generation);
     AUDIT_TRACE.with(|trace| {
         if let Some(trace) = trace.borrow_mut().as_mut() {
