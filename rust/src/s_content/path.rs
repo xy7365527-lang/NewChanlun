@@ -2054,15 +2054,15 @@ pub fn content_ref_of_native(
 }
 
 /// 惰性顺序访问数组成员，逐成员保留原 lookup_array_output_inner 的错误码合同。
-/// 回调从成员 RefValue 获取需要的材料，业务检查由调用方在回调内完成。
+/// 回调从成员 ContentRef 获取需要的材料，业务检查由调用方在回调内完成。
 /// 栈只保存遍历状态，不物化整个数组，不跨调用缓存。
-pub(super) fn visit_array_elements<R: RefOutput, F>(
+pub(super) fn visit_array_elements<F>(
     source: &mut CodecContext<'_, '_>,
     reference: RefView<'_>,
     mut visit: F,
 ) -> Result<(), CodecError>
 where
-    F: FnMut(&mut CodecContext<'_, '_>, RefView<'_>, u64) -> Result<(), CodecError>,
+    F: FnMut(&mut CodecContext<'_, '_>, u64, &ContentRef) -> Result<(), CodecError>,
 {
     let operation_work = source.work_budget();
     let operation_result = visit_array_elements_inner(source, reference, &mut visit);
@@ -2072,13 +2072,13 @@ where
     operation_result
 }
 
-fn visit_array_elements_inner<R: RefOutput, F>(
+fn visit_array_elements_inner<F>(
     source: &mut CodecContext<'_, '_>,
     reference: RefView<'_>,
     visit: &mut F,
 ) -> Result<(), CodecError>
 where
-    F: FnMut(&mut CodecContext<'_, '_>, RefView<'_>, u64) -> Result<(), CodecError>,
+    F: FnMut(&mut CodecContext<'_, '_>, u64, &ContentRef) -> Result<(), CodecError>,
 {
     let (count, root) = {
         let node = navigate_view(source, reference, &[], false)?;
@@ -2109,8 +2109,12 @@ where
                 }
                 let kind = Kind::from_tag(t).ok_or_else(|| unsupported_value_tag_error(t))?;
                 let extent = header_extent(t, &body)?;
-                let member_ref = native_reference::<R>(source, kind, value, extent)?;
-                visit(source, member_ref.as_view(), base_index)?;
+                let member_ref = ContentRef {
+                    kind,
+                    digest: value,
+                    extent,
+                };
+                visit(source, base_index, &member_ref)?;
             }
         }
     }
