@@ -1668,7 +1668,13 @@ async function landT(t: TicketContext, draft: string, target: string, dir: strin
     const sha = s.committedSha!;
     verifyDecisionCommit(t, s, sha, plan, d);
     const remote = d.git(d.repoRoot, ["ls-remote", FETCH_URL, `refs/heads/${branch}`]).trim().split(/\s+/)[0];
-    if (remote !== sha) d.git(d.repoRoot, ["push", FETCH_URL, `${sha}:refs/heads/${branch}`]);
+    if (remote !== sha) {
+      fetchMain(d.repoRoot, d.git);
+      const entry = d.git(d.repoRoot, ["ls-tree", "-z", MAIN_REF, "--", target]);
+      const before = entry ? d.git(d.repoRoot, ["show", `${MAIN_REF}:${target}`]) : null;
+      if (before !== plan.before) throw new Error("正本目标原件已漂移，必须重新起草和独审");
+      d.git(d.repoRoot, ["push", FETCH_URL, `${sha}:refs/heads/${branch}`]);
+    }
     s.landedSha = sha;
     persist();
   }

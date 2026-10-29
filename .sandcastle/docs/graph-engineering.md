@@ -99,7 +99,7 @@
 
 宿主确定性执行获审 `canonicalPlan`，不再调用 land 模型；triage、draft、review 的模型工具权限均只读。写入前核目标及父目录不是符号链接，当前目标与获审 `before` 逐字一致。main 无关文件前进可继续，目标漂移则保留 `reviewed_pass` 并要求重新起草、独审。提交前核工作树仅有目标改动，暂存与最终 commit 的目标 blob 均等于获审 `after`。
 
-断点恢复使用 `commitBase` 与 `committedSha`：commit 已完成但回执中断时，核父提交、唯一改动文件、精确正文和提交消息后复用同一 SHA；push 回执中断时先查远端，不重复推送同一提交。`landedSha` 已存在则只补 resolution 评论。旧未推送 `reviewed_pass` 若缺编辑合同，明确要求迁移并重新独审，不拿旧 PASS 自动补写；旧已推送 `landedSha` 仍可只补评论。草稿、独审原件与断点合同不一致时拒绝续做。
+断点恢复使用 `commitBase` 与 `committedSha`：commit 已完成但回执中断时，核父提交、唯一改动文件、精确正文和提交消息后复用同一 SHA；每次实际 push 前重新 fetch main，核 main 上目标原件仍与获审 `before` 逐字一致，否则保留 `reviewed_pass` 并要求重审。push 回执中断时先查远端，远端已是同一 SHA 则只补记录，不重复推送，也不受之后 main 变化影响。`landedSha` 已存在则只补 resolution 评论。旧未推送 `reviewed_pass` 若缺编辑合同，明确要求迁移并重新独审，不拿旧 PASS 自动补写；旧已推送 `landedSha` 仍可只补评论。草稿、独审原件与断点合同不一致时拒绝续做。
 
 这些检查不改变 P 类用户批准、PR 和 main 合入人闸。
 
