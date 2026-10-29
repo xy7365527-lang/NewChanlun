@@ -969,21 +969,58 @@ mod tests {
     }
 
     fn w_kind(snapshot: &Value, kind: &str) -> Vec<Value> {
-        snapshot["objects"].as_array().unwrap().iter()
-            .filter(|o| o["kind"] == kind).cloned().collect()
+        snapshot["objects"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|o| o["kind"] == kind)
+            .cloned()
+            .collect()
+    }
+
+    // bounded-layout/1 排序的是 CC-004..007 请求段；后接的结构分类请求另有具名槽。
+    // 保持整数组原下标，验证该段连续，不过滤后重新编号。
+    fn is_window_request(request: &Value) -> bool {
+        let id: Value = serde_json::from_str(request["request_id"].as_str().unwrap()).unwrap();
+        let kind = id[0].as_str().or_else(|| id[0][0].as_str()).unwrap();
+        matches!(
+            kind,
+            "CC-004.initialization"
+                | "CC-004.undetermined_raw"
+                | "CC-004.inclusion_step"
+                | "CC-005.inclusion_group"
+                | "CC-006.local_shape"
+                | "CC-007.fractal_description"
+        )
     }
 
     fn w_request_order(request: &Value) -> (u8, i64, usize) {
         let id: Value = serde_json::from_str(request["request_id"].as_str().unwrap()).unwrap();
         let (kind, tail, label) = if let Some(slot) = id[0].as_array() {
-            let labels = ["shape_description", "descriptive_labels", "subsequent_development"];
-            (slot[0].as_str().unwrap(), &slot[1], 4 + labels.iter().position(|l| id[1] == *l).unwrap())
+            let labels = [
+                "shape_description",
+                "descriptive_labels",
+                "subsequent_development",
+            ];
+            (
+                slot[0].as_str().unwrap(),
+                &slot[1],
+                4 + labels.iter().position(|l| id[1] == *l).unwrap(),
+            )
         } else {
             (id[0].as_str().unwrap(), &id[1], 0)
         };
-        if kind == "CC-004.initialization" { return (0, 0, 0); }
-        if tail == "pending" { return (2, 0, usize::from(kind == "CC-006.local_shape")); }
-        let start = if tail.is_array() { &tail[0] } else { tail }.as_str().unwrap().parse().unwrap();
+        if kind == "CC-004.initialization" {
+            return (0, 0, 0);
+        }
+        if tail == "pending" {
+            return (2, 0, usize::from(kind == "CC-006.local_shape"));
+        }
+        let start = if tail.is_array() { &tail[0] } else { tail }
+            .as_str()
+            .unwrap()
+            .parse()
+            .unwrap();
         let label = match kind {
             "CC-004.undetermined_raw" => 0,
             "CC-004.inclusion_step" => 1,
@@ -1018,7 +1055,8 @@ mod tests {
         let rule = format!("{}+bounded-layout/1", crate::W_STRUCTURE_RULE_REVISION);
         let mut f = Fixture::with_rule(&rule);
         let mut previous = Vec::new();
-        let (mut finite_prefix, mut saw_delete, mut saw_insert, mut saw_revision) = (false, false, false, false);
+        let (mut finite_prefix, mut saw_delete, mut saw_insert, mut saw_revision) =
+            (false, false, false, false);
         for (n, row, revision) in [
             (1, ("r0", 0, 5, 10, 0, 5), 1),
             (2, ("r1", 10, 5, 8, 2, 5), 1),
@@ -1033,27 +1071,55 @@ mod tests {
             let (snapshot, _, _) = published_w_cut(&mut f, n);
             let knowledge = w_kind(&snapshot, "CC-054.knowledge_state");
             assert_eq!(knowledge.len(), 1);
-            let requests = knowledge[0]["payload"]["requests"].as_array().unwrap();
+            let all_requests = knowledge[0]["payload"]["requests"].as_array().unwrap();
+            let end = all_requests
+                .iter()
+                .position(|r| !is_window_request(r))
+                .unwrap_or(all_requests.len());
+            assert!(all_requests[end..].iter().all(|r| !is_window_request(r)));
+            let requests = &all_requests[..end];
             assert_eq!(w_request_order(&requests[0]).0, 0);
-            assert!(requests.windows(2).all(|pair| w_request_order(&pair[0]) < w_request_order(&pair[1])), "g{n} 原发布数组不按阶段/坐标/label 全序");
+            assert!(
+                requests
+                    .windows(2)
+                    .all(|pair| w_request_order(&pair[0]) < w_request_order(&pair[1])),
+                "g{n} 原发布数组不按阶段/坐标/label 全序"
+            );
             if n > 1 {
                 let m = w_change_boundary(&previous, requests);
                 for (i, old) in previous.iter().enumerate() {
                     let (phase, coord, label) = w_request_order(old);
                     if phase == 1 && m.is_none_or(|m| (coord, label) < m) {
-                        assert_eq!(requests.get(i), Some(old), "g{n} 稳定前缀在原数组下标 {i} 漂移");
+                        assert_eq!(
+                            requests.get(i),
+                            Some(old),
+                            "g{n} 稳定前缀在原数组下标 {i} 漂移"
+                        );
                         finite_prefix |= m.is_some();
                     }
-                    if !requests.iter().any(|r| r["request_id"] == old["request_id"]) && phase == 1 {
+                    if !requests
+                        .iter()
+                        .any(|r| r["request_id"] == old["request_id"])
+                        && phase == 1
+                    {
                         saw_delete = true;
                         // 纯删除探针取真实旧侧原件；新侧为空，必须仍贡献旧坐标。
-                        assert_eq!(w_change_boundary(std::slice::from_ref(old), &[]), Some((coord, label)));
+                        assert_eq!(
+                            w_change_boundary(std::slice::from_ref(old), &[]),
+                            Some((coord, label))
+                        );
                     }
                 }
-                saw_insert |= requests.iter().any(|r| !previous.iter().any(|p| p["request_id"] == r["request_id"]));
-                saw_revision |= requests.iter().any(|r| previous.iter().any(|p| p["request_id"] == r["request_id"] && p != r));
+                saw_insert |= requests
+                    .iter()
+                    .any(|r| !previous.iter().any(|p| p["request_id"] == r["request_id"]));
+                saw_revision |= requests.iter().any(|r| {
+                    previous
+                        .iter()
+                        .any(|p| p["request_id"] == r["request_id"] && p != r)
+                });
             }
-            previous = requests.clone();
+            previous = requests.to_vec();
         }
         assert!(finite_prefix, "须有有限 m 且非空前缀的真实相邻发布");
         assert!(saw_delete && saw_insert && saw_revision);
@@ -1081,24 +1147,46 @@ mod tests {
                 assert_eq!(o["payload"]["direction_state"], "Undetermined");
                 assert_eq!(o["input_refs"].as_array().unwrap().len(), 1);
                 let coord = o["payload"]["raw"]["source_coord"].as_str().unwrap();
-                let birth = if coord == "0" { "1" } else if n == 2 { "2" } else { "3" };
+                let birth = if coord == "0" {
+                    "1"
+                } else if n == 2 {
+                    "2"
+                } else {
+                    "3"
+                };
                 assert_eq!(o["first_known_generation"], birth);
                 assert_eq!(o["payload"]["pending_since_cut"], format!("cut-{birth}"));
             }
             if n > 1 {
-                assert_eq!(pending.iter().find(|o| o["payload"]["raw"]["source_coord"] == "0").unwrap(), &waiting[0]);
+                assert_eq!(
+                    pending
+                        .iter()
+                        .find(|o| o["payload"]["raw"]["source_coord"] == "0")
+                        .unwrap(),
+                    &waiting[0]
+                );
             }
             if n == 3 {
-                let old = waiting.iter().find(|o| o["payload"]["raw"]["source_coord"] == "10").unwrap();
-                let new = pending.iter().find(|o| o["payload"]["raw"]["source_coord"] == "10").unwrap();
-                assert_ne!(old["object_id"], new["object_id"], "raw 修订必须换未定对象身份");
+                let old = waiting
+                    .iter()
+                    .find(|o| o["payload"]["raw"]["source_coord"] == "10")
+                    .unwrap();
+                let new = pending
+                    .iter()
+                    .find(|o| o["payload"]["raw"]["source_coord"] == "10")
+                    .unwrap();
+                assert_ne!(
+                    old["object_id"], new["object_id"],
+                    "raw 修订必须换未定对象身份"
+                );
             }
             waiting = pending;
             historical.push(projected(&mut f, n, HistoryMode::AsKnown));
         }
         f.recover_writer("2", "recover-w");
         for (i, (old, catalog, logical)) in historical.iter().enumerate() {
-            let (after, after_catalog, after_logical) = projected(&mut f, (i + 1) as i64, HistoryMode::AsKnown);
+            let (after, after_catalog, after_logical) =
+                projected(&mut f, (i + 1) as i64, HistoryMode::AsKnown);
             assert_eq!(after.root, old.root);
             assert_eq!(after.digest, old.digest);
             assert_eq!(plain_wire(&after), plain_wire(old));
@@ -1113,15 +1201,30 @@ mod tests {
         assert_eq!(groups.len(), 2);
         for old in &waiting {
             let coord = &old["payload"]["raw"]["source_coord"];
-            let group = groups.iter().find(|g| g["payload"]["members"].as_array().unwrap().contains(coord)).unwrap();
-            assert!(delta["replaces"].as_array().unwrap().iter().any(|r|
-                r["old_object_id"] == old["object_id"] && r["new_object_id"] == group["object_id"]),
-                "定向后组须逐原件替代未定对象：{coord}");
-            assert!(snapshot["relations"].as_array().unwrap().iter().any(|r|
-                r["relation_type"] == "replaces" && r["subject"] == group["object_id"] && r["object"] == old["object_id"]));
+            let group = groups
+                .iter()
+                .find(|g| g["payload"]["members"].as_array().unwrap().contains(coord))
+                .unwrap();
+            assert!(
+                delta["replaces"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|r| r["old_object_id"] == old["object_id"]
+                        && r["new_object_id"] == group["object_id"]),
+                "定向后组须逐原件替代未定对象：{coord}"
+            );
+            assert!(snapshot["relations"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|r| r["relation_type"] == "replaces"
+                    && r["subject"] == group["object_id"]
+                    && r["object"] == old["object_id"]));
         }
         for (i, (old, catalog, logical)) in historical.iter().enumerate() {
-            let (after, after_catalog, after_logical) = projected(&mut f, (i + 1) as i64, HistoryMode::AsKnown);
+            let (after, after_catalog, after_logical) =
+                projected(&mut f, (i + 1) as i64, HistoryMode::AsKnown);
             assert_eq!(after.root, old.root);
             assert_eq!(after.digest, old.digest);
             assert_eq!(plain_wire(&after), plain_wire(old));
