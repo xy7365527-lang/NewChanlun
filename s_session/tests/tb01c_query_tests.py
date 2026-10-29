@@ -61,9 +61,9 @@ class QueryTests(unittest.TestCase):
     def call(cls, db, operation, *args):
         admission_args = []
         if operation in ("accept", "advance", "recover"):
-            state = cls.base / (db.name + ".admission")
+            state = cls.base / "admission" / db.name
             if not Path(str(db.resolve()) + ".control-owner.json").exists():
-                state.mkdir(exist_ok=True)
+                state.mkdir(parents=True, exist_ok=True)
                 TestAnchor(db, state)
             admission_args = ["--admission-job-limits", str(state / "s-admission" / "limits.json")]
         result = subprocess.run([str(BINARY), operation, "--db", str(db), *admission_args, *map(str, args)],
