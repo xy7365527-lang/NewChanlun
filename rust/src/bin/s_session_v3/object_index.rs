@@ -975,6 +975,22 @@ impl HistoryObjects<'_> {
         self.entries
     }
 
+    pub(super) fn at_cut_bound_births(
+        &mut self,
+        tx: &Transaction<'_>,
+        s: &mut super::history::HashReader<'_>,
+        g: i64,
+        budget: Option<&dyn super::audit_budget::Budget>,
+    ) -> Result<(Built, Built, Built), String> {
+        if !tx.is_readonly(rusqlite::MAIN_DB).map_err(err)?
+            || !s.ordinary_bound_births_qualified()
+            || self.native.is_some()
+        {
+            return Err(err("出生根复用不属于普通只读完整索引上下文"));
+        }
+        at_cut_projected_bound(s, self.layout, &self.entries, g, budget, None, true)
+    }
+
     pub(super) fn at_cut(
         &mut self,
         s: &mut super::history::HashReader<'_>,
@@ -1267,7 +1283,18 @@ fn at_cut_projected(
     index: &[Entry],
     g: i64,
     budget: Option<&dyn super::audit_budget::Budget>,
+    native: Option<&mut NativeProjection<'_>>,
+) -> Result<(Built, Built, Built), String> {
+    at_cut_projected_bound(s, layout, index, g, budget, native, false)
+}
+fn at_cut_projected_bound(
+    s: &mut (impl CodecStore + ?Sized),
+    layout: Layout,
+    index: &[Entry],
+    g: i64,
+    budget: Option<&dyn super::audit_budget::Budget>,
     mut native: Option<&mut NativeProjection<'_>>,
+    bound_births: bool,
 ) -> Result<(Built, Built, Built), String> {
     let allocation = s.allocation_budget();
     let mut active = bj::new_work(allocation.as_ref());
@@ -1308,6 +1335,17 @@ fn at_cut_projected(
             }
             let wire = match native.as_deref_mut() {
                 Some(native) => native.wire(s, e, ordinal, g)?,
+                None if bound_births => {
+                    let life = effective_life(e, g)?;
+                    object_records::validate_life_view(life, g, e.id.as_str()).map_err(err)?;
+                    if life.withdrawn_generation.is_none()
+                        && matches!(e.life.view().batch, BatchView::Existing(_))
+                    {
+                        s.native_ref_clone(&e.birth_wire).map_err(err)?
+                    } else {
+                        wire_at(s, e, g)?
+                    }
+                }
                 None => wire_at(s, e, g)?,
             };
             refs.try_push(wire).map_err(err)?;
@@ -5764,6 +5802,51 @@ mod tests {
             "记录门必须在命中前拒绝"
         );
     }
+    #[test]
+    fn ordinary_bound_births_sorted_insert_withdraw_revision_matches_full_projection() {
+        let (mut nodes, entries) = projection_fixture();
+        for g in [1, 2, 3, 4, 2] {
+            let expected = at_cut_metered(&mut nodes, Layout::Sorted, &entries, g, None).unwrap();
+            WIRE_PROJECTIONS.with(|v| v.set(0));
+            let actual = at_cut_projected_bound(
+                &mut nodes, Layout::Sorted, &entries, g, None, None, true,
+            ).unwrap();
+            assert_eq!(actual, expected, "cut={g}");
+            let deaths = entries.iter().filter(|e| e.life.withdrawn_generation.is_some_and(|d| d <= g)).count();
+            assert_eq!(WIRE_PROJECTIONS.with(|v| v.get()), deaths);
+        }
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn ordinary_bound_births_preserves_record_budget_before_reuse() {
+        let (mut nodes, entries) = projection_fixture();
+        let old_meter = RecordMeter::default();
+        let new_meter = RecordMeter::default();
+        let old = at_cut_metered(&mut nodes, Layout::Sorted, &entries, 3, Some(&old_meter)).unwrap();
+        let new = at_cut_projected_bound(
+            &mut nodes, Layout::Sorted, &entries, 3, Some(&new_meter), None, true,
+        ).unwrap();
+        assert_eq!(new, old);
+        assert_eq!(new_meter.records.get(), old_meter.records.get());
+        let stop = RecordMeter { records: std::cell::Cell::new(0), stop: true };
+        assert!(at_cut_projected_bound(
+            &mut nodes, Layout::Sorted, &entries, 3, Some(&stop), None, true,
+        ).unwrap_err().contains("record_stop"));
+        assert_eq!(stop.records.get(), 1);
+    }
+
+    #[test]
+    fn ordinary_bound_births_keeps_life_first_error() {
+        let (mut nodes, mut entries) = projection_fixture();
+        entries[0].life.published_generation = 10;
+        let old = at_cut_metered(&mut nodes, Layout::Sorted, &entries, 1, None).unwrap_err();
+        let new = at_cut_projected_bound(
+            &mut nodes, Layout::Sorted, &entries, 1, None, None, true,
+        ).unwrap_err();
+        assert_eq!(new, old);
+    }
+
     #[cfg(feature = "s_incremental")]
     #[test]
     fn native_cut_projection_life_checked_on_hits_and_first_failure_not_cached() {
@@ -6207,6 +6290,11 @@ mod tests {
             let batch = format!("batch3-{}", g.to_string().repeat(64));
             stage(&tx, &mut s, &p, &batch).unwrap();
             let stored = load(&tx, &mut s, g).unwrap();
+            let old_arrays = at_cut_metered(&mut s, Layout::Sorted, &stored, g, None).unwrap();
+            let bound_arrays = at_cut_projected_bound(
+                &mut s, Layout::Sorted, &stored, g, None, None, true,
+            ).unwrap();
+            assert_eq!(bound_arrays, old_arrays, "complete load cut={g}");
             let member_state = sc::write_value(
                 &mut s,
                 &V::Object(vec![(

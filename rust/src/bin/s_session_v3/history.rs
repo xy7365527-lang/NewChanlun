@@ -649,6 +649,9 @@ fn read_indexed_history_inner(
     }
     #[cfg(not(feature = "s_incremental"))]
     verify_required_meta(tx)?;
+    let bound_births_qualified = policy == SourcePolicy::Ordinary
+        && capture.is_none() && work.is_none() && materials.is_none()
+        && tx.is_readonly(rusqlite::MAIN_DB).map_err(err)?;
     let mut reader = content_store::ReadStore::new(tx).map_err(err)?;
     if audit_same_material {
         reader.enable_audit_same_material();
@@ -801,6 +804,7 @@ fn read_indexed_history_inner(
             &mut resolved_roots,
             records.as_deref_mut(),
             publication_memo.is_some(),
+            bound_births_qualified,
             deadline,
             budget,
             allocation.as_ref(),
@@ -878,6 +882,7 @@ fn audit_one_published_cut<'capture>(
     resolved_roots: &mut sc::CodecVec<RefValue>,
     mut records: Option<&mut NativeRecordFields<'_>>,
     native_publication: bool,
+    bound_births_qualified: bool,
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
     allocation: Option<&OwnedBudget>,
@@ -1034,7 +1039,11 @@ fn audit_one_published_cut<'capture>(
     } else {
         #[cfg(test)]
         super::admission_private::s4_read_trace::begin(tx, "ord_obj_at_cut");
-        let at_cut = objects.at_cut(store, generation, budget);
+        let at_cut = if bound_births_qualified {
+            objects.at_cut_bound_births(tx, store, generation, budget)
+        } else {
+            objects.at_cut(store, generation, budget)
+        };
         #[cfg(test)]
         super::admission_private::s4_read_trace::end(tx, "ord_obj_at_cut", &at_cut);
         at_cut?
@@ -2817,6 +2826,12 @@ impl<'a> HashReader<'a> {
             ReadOwner::Captured(c) => Some(c),
             ReadOwner::Dynamic(_) => None,
         }
+    }
+    pub(super) fn ordinary_bound_births_qualified(&self) -> bool {
+        self.policy == SourcePolicy::Ordinary
+            && self.owned.is_none()
+            && self.work.is_none()
+            && matches!(self.source, ReadOwner::Dynamic(_))
     }
     pub(crate) fn owned_codec_active(&self) -> bool {
         self.owned.is_some()
@@ -5651,7 +5666,7 @@ pub(super) mod tests {
             let cut = audit_one_published_cut(
                 &tx, None, &mut row, &mut store, raw_view, &mut control, &mut objects, &auxiliary,
                 &mut sweep, &mut aux, &mut prefixes, &mut ordered, &mut effective,
-                &raw_nodes, &wire_nodes, -1, &mut resolved, None, true, None, None, None,
+                &raw_nodes, &wire_nodes, -1, &mut resolved, None, true, false, None, None, None,
             )?;
             drop(row);
             stmt.finalize().map_err(err)?;
@@ -7564,6 +7579,7 @@ pub(super) fn append_owner_cut(
         &mut resolved,
         None,
         true,
+        false,
         None,
         None,
         None,
