@@ -1,4 +1,7 @@
-"""#1372 Q 定点测试；--binary 必须指向正式 S writer，结构数据不手编。
+"""#1372 Q 定点测试；结构数据不手编。
+
+历史读取消费 #1768 冻结 pre-W 旧规则 oracle 重建夹具（正式 writer 产物，见 fixtures/issue1768-frozen-pre-w-oracle/README.md）；
+真实后续提交仍经 --binary 指向的正式 S writer。
 
 协议分页单元臂仅给已核 v1 图像附加局部协议模型，不作为 v2 持久面或 C 实跑证据。
 """
@@ -27,6 +30,18 @@ import s_readonly_server as reader
 audit = reader._query_integrity()
 query = reader._query_module("s_query")
 BINARY = None
+FROZEN = ROOT / "s_session/tests/fixtures/issue1768-frozen-pre-w-oracle"
+
+
+def load_frozen(name, dest):
+    """冻结原件带持久 WAL 头；有侧件即可能有未检查点帧，拒绝。否则 immutable 只读，backup 到私有 dest。"""
+    path = (FROZEN / f"{name}.sqlite").resolve()
+    present = [s for s in ("-wal", "-shm", "-journal") if Path(f"{path}{s}").exists()]
+    if present:
+        raise RuntimeError(f"frozen 原件带侧件 {present}，拒绝 immutable 读取：{path}")
+    with closing(sqlite3.connect(path.as_uri() + "?immutable=1", uri=True)) as source, closing(sqlite3.connect(dest)) as target:
+        source.execute("PRAGMA query_only=ON")
+        source.backup(target)
 
 from r4_anchor_fixture import TestAnchor
 
@@ -47,11 +62,7 @@ class QueryTests(unittest.TestCase):
         cls.directory = tempfile.TemporaryDirectory(prefix="tb01c-query-")
         cls.base = Path(cls.directory.name)
         cls.seed = cls.base / "seed.sqlite"
-        cls.call(cls.seed, "init", "--session", "tb01c-query-unit", "--catalog", ROOT/"s_session/catalog/signed-catalog.json")
-        for seq, price in enumerate((10000, 11000, 10500, 12000)):
-            path = cls.input(seq, price)
-            cls.call(cls.seed, "accept", "--input", path, "--profile", ROOT/"s_session/profiles/testonly_tick_1_1_ohlc.json")
-            cls.call(cls.seed, "advance")
+        load_frozen("g4", cls.seed)
 
     @classmethod
     def tearDownClass(cls):
@@ -118,7 +129,7 @@ class QueryTests(unittest.TestCase):
         self.assertIsNone(self.reader.cached)
 
     def test_unpublished_raw_is_checked(self):
-        self.call(self.db, "accept", "--input", self.input(4, 11500), "--profile", ROOT/"s_session/profiles/testonly_tick_1_1_ohlc.json")
+        load_frozen("g4-pending", self.db)
         good = self.reader.capture_verified()
         self.assertEqual(len(good["raw"]), 5)
         self.mutate("UPDATE raw_events SET source_coord='bad' WHERE seq=4")
@@ -126,7 +137,7 @@ class QueryTests(unittest.TestCase):
             self.reader.capture_verified()
 
     def test_unpublished_content_hash_is_checked(self):
-        self.call(self.db, "accept", "--input", self.input(4, 11500), "--profile", ROOT/"s_session/profiles/testonly_tick_1_1_ohlc.json")
+        load_frozen("g4-pending", self.db)
         self.mutate("UPDATE raw_events SET price='11501' WHERE seq=4")
         with self.assertRaises(ValueError):
             self.reader.capture_verified()
@@ -134,9 +145,8 @@ class QueryTests(unittest.TestCase):
     def test_pending_numeric_domains_despite_consistent_hash_at_g0_and_g4(self):
         """正式 writer 产生两份 pending 原行；只在私有库改变数值并重算摘要。"""
         empty = self.base / (self.id().rsplit(".",1)[-1]+"-g0.sqlite")
-        self.call(empty,"init","--session","tb01c-query-unit","--catalog",ROOT/"s_session/catalog/signed-catalog.json")
-        for db, seq in ((empty,0), (self.db,4)):
-            self.call(db,"accept","--input",self.input(seq,11500),"--profile",ROOT/"s_session/profiles/testonly_tick_1_1_ohlc.json")
+        for db, seq, frozen in ((empty,0,"g0-pending"), (self.db,4,"g4-pending")):
+            load_frozen(frozen, db)
             check = query.AuditReader(db,resources(),vars(reader))
             try:
                 proof = check.capture_verified()
