@@ -2,6 +2,7 @@ import json
 import sys
 from multiprocessing.connection import Connection
 from pathlib import Path
+from unittest.mock import patch
 
 import httpx
 from approval_signing import authority, decision
@@ -9,6 +10,7 @@ from approval_signing.protocol import parse_trust
 from conftest import FAKE, MODELS
 
 from pilot1742.approval import SignedApprovals
+from pilot1742.boat_execution import HistoricalLocal
 from pilot1742.claims import ClaimStore
 from pilot1742.cutover import CutoverStore
 from pilot1742.delivery import RepoGateway
@@ -37,7 +39,8 @@ executor = TicketExecutor(unit, gateway, claims=ClaimStore(Path(config['claims']
                           approvals=SignedApprovals(authority_root=Path(config['authority'])),
                           cutover=CutoverStore(home, Path(config['drain']), Path(config['workers'])),
                           crash=_sigkill_at(config['crash']))
-run = open_v2_run(home, unit, task, executor, MODELS, launcher=FAKE, source_repo=Path(config['source']))
+with patch('pilot1742.run.new_execution', return_value=HistoricalLocal('test-launcher')):
+    run = open_v2_run(home, unit, task, executor, MODELS, launcher=FAKE, source_repo=Path(config['source']))
 try:
     if not run.facts().commits:
         run.run_worker('author', '实现')

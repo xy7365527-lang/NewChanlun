@@ -209,11 +209,14 @@ def test_engine_emission_to_queue_child_sigkill_recovery_and_exact_delivery(queu
         thread.start()
         proc.wait(timeout=30)
         thread.join(5)
+        assert proc.returncode == (-9 if len(seen) == 1 else 0)
         return proc.returncode
 
     first = intake.once(runner)
     assert first[TICKET]['phase'] == 'active'
     assert v2.github.ref(unit.branch) is not None and not v2.github.pulls
+    run_spec = json.loads((PilotRun.run_dir(v2.home, unit.run_id) / 'run.json').read_text())
+    assert run_spec['execution'] == {'backend': 'test-launcher'}
     second = intake.once(runner)
     assert second[TICKET]['phase'] == 'awaiting_merge'
     head = second[TICKET]['head']
