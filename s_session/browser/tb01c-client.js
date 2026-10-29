@@ -3365,7 +3365,7 @@ if (typeof module !== 'object' || !module.exports) {
     validateCenterPayload, validatePairPayload, validatePairPublication, validatePairHistory, validateCenterFamilyCut});
 });
 
-/* exact source q3-typed.js SHA256 a87ed59eeb7dcf30eb72db40a6131968366c8687f0fb1941d7c73f347111f89b */
+/* exact source q3-typed.js SHA256 2e3b5ca5291850b7c319c5fd7833ba27bfcba4b0b7da2da86fc8227882762112 */
 /* #1394：typed 与形态来源的同一判据；只把访问迁为完整异步 Value 遍历。 */
 (function (root, factory) {
   const common = typeof module === "object" && module.exports;
@@ -3477,6 +3477,7 @@ if (typeof module !== 'object' || !module.exports) {
         (group && alive(group, at) && group.members.includes(u.coord)), "W2逐原件替代目标不满足坐标、种类或生命周期");
       need(edges.has(JSON.stringify([u.superseded_by, u.object_id])), "W2逐原件替代缺公开replaces关系");
     }
+    for (const w of superseded) need(edges.has(JSON.stringify([w.superseded_by, w.object_id])), "W2替代撤回缺公开replaces关系");
     for (const r of replaces) {
       const target = withdrawn.get(r.object);
       need(target && target.superseded_by === r.subject, "W2公开replaces关系缺对应撤回或superseded_by不符");

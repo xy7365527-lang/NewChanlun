@@ -109,6 +109,7 @@
         (group && alive(group, at) && group.members.includes(u.coord)), "W2逐原件替代目标不满足坐标、种类或生命周期");
       need(edges.has(JSON.stringify([u.superseded_by, u.object_id])), "W2逐原件替代缺公开replaces关系");
     }
+    for (const w of superseded) need(edges.has(JSON.stringify([w.superseded_by, w.object_id])), "W2替代撤回缺公开replaces关系");
     for (const r of replaces) {
       const target = withdrawn.get(r.object);
       need(target && target.superseded_by === r.subject, "W2公开replaces关系缺对应撤回或superseded_by不符");
