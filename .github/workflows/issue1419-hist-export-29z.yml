@@ -35,6 +35,12 @@ jobs:
           echo "github_sha=$GITHUB_SHA"
           mkdir -p "$NC_EXPORT_DIR"
           cargo test --locked --features s_session --bin s_structure_session --jobs 2 -- --ignored --exact v3::generation::tests::export_layout1_historical_roots_5123 --nocapture 2>&1 | tee "$NC_EXPORT_DIR/test.log"
+      - name: export published historical session
+        env:
+          NC_EXPORT_DIR: ${{ runner.temp }}/export1419
+        run: |
+          set -o pipefail
+          cargo test --locked --features s_session --bin s_structure_session --jobs 2 -- --ignored --exact v3::prepared::tests::export_layout1_published_session_5123 --nocapture 2>&1 | tee "$NC_EXPORT_DIR/published-test.log"
       - name: upload export
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4

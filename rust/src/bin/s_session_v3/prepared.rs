@@ -2883,4 +2883,19 @@ pub(crate) mod tests {
         assert_eq!(meta_i64(&f.conn, "generation").unwrap(), 0);
         assert_eq!(count(&f.conn, "s_clock_events"), 2);
     }
+    #[test]
+    #[ignore = "issue1419 historical published fixture export"]
+    fn export_layout1_published_session_5123() {
+        let out = std::path::PathBuf::from(std::env::var("NC_EXPORT_DIR").unwrap());
+        let mut fixture = Fixture::new();
+        for (i, row) in crate::tests::tb02b_oracle_rows().into_iter().take(4).enumerate() {
+            let n = i as i64 + 1;
+            let (envelope, token) = fixture.accept_begin(n, row, 1);
+            fixture.publish(&envelope, &token).unwrap();
+        }
+        assert_eq!(meta_i64(&fixture.conn, "generation").unwrap(), 4);
+        let file = out.join("historical-published-layout1.sqlite");
+        fixture.conn.execute("VACUUM INTO ?1", [file.to_str().unwrap()]).unwrap();
+    }
+
 }
