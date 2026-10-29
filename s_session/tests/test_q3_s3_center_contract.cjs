@@ -312,3 +312,71 @@ test("通用整数遍历：中枢/中枢对 payload.slot 是逻辑身份（取 q
   // 见证等非逻辑槽对象的整数 slot 仍按整数核对。
   await assert.rejects(() => Q3.integerWalk(Q3.V.of({ witness_id: "w", slot: "TB-02-E" })), /精确整数必须是规范文本/);
 });
+
+// #1419 P2（issuecomment-6504760769）W/2 完整发布串的公共读者合同。下列夹具是手工最小单元，只证规则选择与逐原件替代判据；
+// 真实 W/2 写者产物的公开 Client 验收待 #1419 owner 交付后另立具名测试。
+const W2 = BASE + "+raw-initialization-w/2+bounded-layout/1";
+test("W/2 规则串：只认完整发布串，W/1 历史与已登记布局读域不变，未知/重复/错序/混版本拒", () => {
+  assert.equal(typed.W2_PUBLICATION_RULE, W2);
+  assert.deepEqual(typed.resolveRule(W2), { base: BASE, w: "raw-initialization-w/2", layout: "bounded-layout/1" });
+  assert.equal(typed.protocolRule(W2, "s-session/3"), BASE);
+  assert.deepEqual(typed.resolveRule(W), { base: BASE, w: "raw-initialization-w/1", layout: "layout/1" });
+  assert.deepEqual(typed.resolveRule(W + "+bounded-layout/1"), { base: BASE, w: "raw-initialization-w/1", layout: "bounded-layout/1" });
+  assert.deepEqual(typed.resolveRule(BASE.replace(/\+center-seed.*$/, "") + "+bounded-layout/1").w, null);
+  const bad = [
+    BASE + "+raw-initialization-w/2", // W/2 无布局组件
+    BASE + "+bounded-layout/1+raw-initialization-w/2", // 布局组件错位
+    W2 + "+bounded-layout/1", // 重复布局
+    W2 + "+raw-initialization-w/2", // 重复 W
+    BASE + "+raw-initialization-w/1+raw-initialization-w/2+bounded-layout/1", // 混版本
+    BASE + "+raw-initialization-w/2+raw-initialization-w/1+bounded-layout/1",
+    BASE + "+raw-initialization-w/3+bounded-layout/1", // 未知 W
+    BASE + "+raw-initialization-w/2+bounded-layout/2", // 未知布局
+    W2.replace("center-seed/1+center-pair/1", "center-pair/1+center-seed/1"), // 教义组件错序
+    W2.replace("+segment-turn/1", ""),
+    "s2-axis-quantifiers+new-bi/2+raw-initialization-w/2+bounded-layout/1", // W/2 接到非 CF22 基规则
+  ];
+  for (const rule of bad) {
+    assert.throws(() => typed.resolveRule(rule), /cut规则修订未声明/, rule);
+    assert.throws(() => typed.protocolRule(rule, "s-session/3"), /cut规则修订未声明/, rule);
+  }
+  // 中枢族基规则只属 s-session/3。
+  assert.throws(() => typed.protocolRule(W2, "s-session/2"), /未获准的完整规则组合/);
+  // 领域初始化政策仍是 W/1：W/2 不改 payload 政策值。
+  assert.equal(typed.INITIALIZATION_POLICY, "raw-initialization-w/1");
+});
+
+function w2Case() {
+  const raw = (id, coord, extra = {}) => ({ object_id: id, coord, withdrawn_generation: null, withdrawal_reason: null, superseded_by: null, ...extra });
+  const pending = [
+    raw("u0", "0", { withdrawn_generation: "4", withdrawal_reason: "superseded_by_revision", superseded_by: "g0" }),
+    raw("u1", "1", { withdrawn_generation: "2", withdrawal_reason: "superseded_by_revision", superseded_by: "u1r" }), // 修订换新原件身份
+    raw("u1r", "1", { withdrawn_generation: "4", withdrawal_reason: "superseded_by_revision", superseded_by: "g0" }),
+    raw("u2", "2", { withdrawn_generation: "4", withdrawal_reason: "superseded_by_revision", superseded_by: "g1" }),
+  ];
+  const groups = [
+    { object_id: "g0", members: ["0", "1"], first_known_generation: "4", withdrawn_generation: null },
+    { object_id: "g1", members: ["2"], first_known_generation: "4", withdrawn_generation: null },
+  ];
+  const kinds = new Map([...pending.map((p) => [p.object_id, "CC-004.undetermined_raw"]), ...groups.map((g) => [g.object_id, "CC-005.inclusion_group"])]);
+  const superseded = pending.filter((p) => p.superseded_by).map((p) => ({ object_id: p.object_id, kind: "CC-004.undetermined_raw", superseded_by: p.superseded_by }));
+  const replaces = superseded.map((w) => ({ subject: w.superseded_by, object: w.object_id }));
+  return { pending, groups, superseded, replaces, kinds };
+}
+test("W/2 逐原件替代：每个未定原件（含修订身份）替代到含其坐标的定向组，公开 replaces 关系逐条对应", () => {
+  typed.w2Replacements(w2Case());
+  const reject = (mutate, pattern) => {
+    const c = w2Case();
+    mutate(c);
+    assert.throws(() => typed.w2Replacements(c), pattern);
+  };
+  // 原 W/1 g4 形态：进组的未定原件按 fact_removed/null 撤回，W/2 下必须拒。
+  reject((c) => Object.assign(c.pending[0], { withdrawal_reason: "fact_removed", superseded_by: null }), /fact_removed/);
+  reject((c) => { c.pending[3].superseded_by = "g0"; c.replaces[3].subject = "g0"; }, /越出所属定向组/); // 错coord/非所属组
+  reject((c) => { c.groups[1].first_known_generation = "5"; }, /越出所属定向组/); // 组在替代代尚未出生
+  reject((c) => { c.replaces.splice(0, 1); }, /缺公开replaces关系/); // 漏边
+  reject((c) => { c.replaces.splice(1, 1); }, /缺公开replaces关系/); // 修订身份漏边
+  reject((c) => { c.replaces.push({ subject: "g1", object: "u0" }); }, /关系与撤回目标不符/); // 额外边
+  reject((c) => { c.pending[1].superseded_by = "u1"; c.replaces[1].subject = "u1"; }, /越出所属定向组/); // 修订身份混淆为自身
+  reject((c) => { c.kinds.set("x", "CC-010.bi"); c.kinds.set("y", "CC-005.inclusion_group"); c.superseded.push({ object_id: "x", kind: "CC-010.bi", superseded_by: "y" }); }, /跨kind替代未获准/); // 任意kind
+});

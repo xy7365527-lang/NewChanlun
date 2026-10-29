@@ -30,8 +30,14 @@
   // #1491 ADR 0037 §五/§六：rule_revision 的布局组件与教义组件正交。轴表/合同只看去掉布局组件后的
   // 教义串；串内无 `bounded-layout` 组件即 layout/1（定义，不是兜底）；未知或重复布局组件一律拒收。
   const LAYOUT_COMPONENT = "bounded-layout/", LAYOUTS = Object.freeze({LAYOUT1: "layout/1", BOUNDED1: "bounded-layout/1"});
+  // #1419 P2（issuecomment-6504760769）：W/2 只认一条完整发布串，整串相等才选中；串内出现任何非 W/1 的
+  // W 组件而整串不等即拒，不剥布局组件、不改序推断。W/1 与其余已登记历史串仍走下方原分派。
+  const W_COMPONENT = "raw-initialization-w/", W2_POLICY = "raw-initialization-w/2";
+  const W2_DOCTRINE = V3_STRUCTURE_RULE + "+" + W2_POLICY, W2_PUBLICATION_RULE = W2_DOCTRINE + "+" + LAYOUTS.BOUNDED1;
   function splitRule(rule) {
     need(typeof rule === "string", "cut规则修订未声明");
+    if (rule === W2_PUBLICATION_RULE) return {doctrine: W2_DOCTRINE, layout: LAYOUTS.BOUNDED1};
+    need(!rule.split("+").some(c => c.startsWith(W_COMPONENT) && c !== INITIALIZATION_POLICY), "cut规则修订未声明：未获准的完整规则组合");
     let layout = null; const rest = [];
     for (const component of rule.split("+")) {
       if (!component.startsWith(LAYOUT_COMPONENT)) { rest.push(component); continue; }
@@ -74,10 +80,43 @@
   // #1419 主控裁定②：S3 结构规则只属 s-session/3 写者；s-session/1/2 cut 携此串一律按未获准组合拒（与 Python s-session/1 合同 BAD_RULES 同侧）。
   // 规则表在下方声明，函数体只在调用时读取。
   // 入参是 cut 的完整 rule_revision：先按 ADR 0037 剥唯一合法布局组件，再对教义串走精确白名单。
+  // 完整 rule_revision 的唯一选择器：基规则、W 组件（无 W 为 null）与布局，一次选定后各判据按此分派。
+  function resolveRule(rule, reason = "cut规则修订未声明") {
+    const {doctrine, layout} = splitRule(rule);
+    if (doctrine === W2_DOCTRINE) return {base: V3_STRUCTURE_RULE, w: W2_POLICY, layout};
+    const base = baseRule(doctrine, reason);
+    return {base, w: base === doctrine ? null : doctrine.slice(base.length + 1), layout};
+  }
   function protocolRule(rule, protocol, reason = "cut规则修订未声明") {
-    const base = baseRule(splitRule(rule).doctrine, reason);
+    const base = resolveRule(rule, reason).base;
     need(protocol === "s-session/3" || !CENTER_RULES.has(base), reason + "：未获准的完整规则组合");
     return base;
+  }
+  // #1419 P2 §4.3 W/2 逐原件替代（只用于 W/2 cut；W/1 历史照原样读）。入参为普通值：
+  // pending = 全部 CC-004.undetermined_raw，groups = 全部 CC-005.inclusion_group，
+  // superseded = 全部有 superseded_by 的撤回对象，replaces = 全部 relation_type=replaces 的公开关系。
+  function w2Replacements({pending, groups, superseded, replaces, kinds}) {
+    const raws = new Map(pending.map(p => [p.object_id, p])), byGroup = new Map(groups.map(g => [g.object_id, g]));
+    const edges = new Set(replaces.map(r => JSON.stringify([r.subject, r.object])));
+    const alive = (g, at) => BigInt(g.first_known_generation) <= at && (g.withdrawn_generation === null || BigInt(g.withdrawn_generation) > at);
+    for (const u of pending) {
+      if (u.withdrawn_generation === null) continue;
+      const at = BigInt(u.withdrawn_generation), owner = groups.some(g => alive(g, at) && g.members.includes(u.coord));
+      if (u.withdrawal_reason === "fact_removed") { need(!owner, "W2未定原件进组却按fact_removed撤回"); continue; }
+      const revision = raws.get(u.superseded_by), group = byGroup.get(u.superseded_by);
+      need((revision && revision.object_id !== u.object_id && revision.coord === u.coord) ||
+        (group && alive(group, at) && group.members.includes(u.coord)), "W2逐原件替代越出所属定向组");
+      need(edges.has(JSON.stringify([u.superseded_by, u.object_id])), "W2逐原件替代缺公开replaces关系");
+    }
+    for (const r of replaces) {
+      const u = raws.get(r.object);
+      if (u) need(u.withdrawn_generation !== null && u.superseded_by === r.subject, "W2公开replaces关系与撤回目标不符");
+    }
+    // 跨 kind 替代只准未定原件 → 定向组；其余 kind 照旧只能被同 kind 修订替代。
+    for (const w of superseded) {
+      const to = kinds.get(w.superseded_by);
+      if (to !== undefined && to !== w.kind) need(w.kind === "CC-004.undetermined_raw" && to === "CC-005.inclusion_group", "W2跨kind替代未获准");
+    }
   }
   async function initializationPolicy(p) { need(await eqField(p, "initialization_policy_revision", INITIALIZATION_POLICY), "初始化政策版本未声明"); }
   async function directionState(p) { await enumValue(await field(p, "direction_state"), ["Undetermined", "Established"], "初始化方向状态未声明"); }
@@ -827,6 +866,6 @@
     }
     return last;
   }
-  return Object.freeze({RULE_CONTRACTS, RULE_BASES, baseRule, protocolRule, splitRule, ruleContract, LAYOUTS, DEVELOPMENT_BATCH_KIND, bindDevelopmentBatches, V3_STRUCTURE_RULE, W_STRUCTURE_RULE, CENTER_RULES, CENTER_KINDS, PAIR_KINDS, Center, INITIALIZATION_POLICY, INITIALIZATION_KINDS, W_KNOWLEDGE_DOMAIN, validateTyped, validateBiPayload, validateSegmentPayload, turnLinks: (d, f) => segmentTurnLinks(d, f), PARSE_INVALID_REASON, RESULT_SEMANTIC_BRANCH, validateTB02ShapeRefs, plain,
+  return Object.freeze({RULE_CONTRACTS, RULE_BASES, baseRule, protocolRule, resolveRule, splitRule, W2_POLICY, W2_PUBLICATION_RULE, w2Replacements, ruleContract, LAYOUTS, DEVELOPMENT_BATCH_KIND, bindDevelopmentBatches, V3_STRUCTURE_RULE, W_STRUCTURE_RULE, CENTER_RULES, CENTER_KINDS, PAIR_KINDS, Center, INITIALIZATION_POLICY, INITIALIZATION_KINDS, W_KNOWLEDGE_DOMAIN, validateTyped, validateBiPayload, validateSegmentPayload, turnLinks: (d, f) => segmentTurnLinks(d, f), PARSE_INVALID_REASON, RESULT_SEMANTIC_BRANCH, validateTB02ShapeRefs, plain,
     TB02_KINDS: Object.freeze(TB02_KINDS), BI_KINDS, SEGMENT_KINDS: Object.freeze(SEGMENT_KINDS)});
 });

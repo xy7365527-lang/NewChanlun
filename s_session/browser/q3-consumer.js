@@ -439,9 +439,7 @@
     need((await t(record, "object_id")) === (await tb02Identity(record, fixed.rule_revision, fixed.profile_id, fixed.protocol || "s-session/2")), "对象内容身份不符");
   }
   async function bindInitialization(snapshot, raw, wRecords) {
-    const ruleText = await s(snapshot, "rule_revision"),
-      doctrine = typed.splitRule(ruleText).doctrine,
-      wPolicy = typed.baseRule(doctrine) !== doctrine;
+    const wPolicy = typed.resolveRule(await s(snapshot, "rule_revision")).w !== null;
     for (const r of wRecords) {
       const refs = new Map(r.input_refs.map((x) => [x.source_coord, x])), p = r.payload, bars = [];
       if (r.kind === "CC-004.undetermined_raw") bars.push(p.raw);
@@ -500,6 +498,30 @@
       typed.INITIALIZATION_KINDS.includes(r.kind) || r.kind === "CC-054.knowledge_state" ||
       (r.kind === "CC-005.inclusion_group" && Object.hasOwn(r.payload, "initialization_policy_revision")));
     await bindInitialization(of(plainSnapshot), { byId }, wRecords);
+  }
+  // #1419 P2 §4.3：W/2 cut 的逐原件替代与公开 replaces 关系逐条对应（判据见 typed.w2Replacements）。
+  async function bindW2Replacements(snapshot) {
+    const pending = [], groups = [], superseded = [], replaces = [], kinds = new Map();
+    for (const family of ["objects", "withdrawn_objects"])
+      for await (const record of (await f(snapshot, family)).items()) {
+        const object_id = await t(record, "object_id"), kind = await t(record, "kind"),
+          withdrawn = await (await f(record, "withdrawn_generation")).scalar(),
+          superseded_by = await (await f(record, "superseded_by")).scalar(),
+          withdrawal_reason = await (await f(record, "withdrawal_reason")).scalar();
+        kinds.set(object_id, kind);
+        if (superseded_by !== null) superseded.push({object_id, kind, superseded_by});
+        if (kind === "CC-004.undetermined_raw")
+          pending.push({object_id, coord: await s(await f(await f(record, "payload"), "raw"), "source_coord"),
+            withdrawn_generation: withdrawn, withdrawal_reason, superseded_by});
+        if (kind === "CC-005.inclusion_group") {
+          const members = [];
+          for await (const c of (await f(await f(record, "payload"), "members")).items()) members.push(await S(c));
+          groups.push({object_id, members, first_known_generation: await s(record, "first_known_generation"), withdrawn_generation: withdrawn});
+        }
+      }
+    for await (const r of (await f(snapshot, "relations")).items())
+      if ((await t(r, "relation_type")) === "replaces") replaces.push({subject: await t(r, "subject"), object: await t(r, "object")});
+    typed.w2Replacements({pending, groups, superseded, replaces, kinds});
   }
   // #1491：`layout` 由调用方从本 cut 的 rule_revision 布局组件取得（ADR 0037 §六，按版本分派）。
   // 未给出 ⟹ 调用方读的是 v1/v2 快照（ADR 0037 之前的写者，按定义 layout/1）。
@@ -1503,6 +1525,7 @@
       );
       await bindSegmentSequences(snapshot);
       await bindCenterFamily(snapshot, generation);
+      if (typed.resolveRule(rule).w === typed.W2_POLICY) await bindW2Replacements(snapshot);
       for (const record of binding.records) {
         charge();
         let want;

@@ -3365,7 +3365,7 @@ if (typeof module !== 'object' || !module.exports) {
     validateCenterPayload, validatePairPayload, validatePairPublication, validatePairHistory, validateCenterFamilyCut});
 });
 
-/* exact source q3-typed.js SHA256 44e59967e66b22e9ac85f2c0ede9568a36234e3b58de6224098090c2067b239e */
+/* exact source q3-typed.js SHA256 0c5ee052a298eeda9505a212f879cc1c5235f2a8447f0fc0792adf6b0194e1f3 */
 /* #1394：typed 与形态来源的同一判据；只把访问迁为完整异步 Value 遍历。 */
 (function (root, factory) {
   const common = typeof module === "object" && module.exports;
@@ -3398,8 +3398,14 @@ if (typeof module !== 'object' || !module.exports) {
   // #1491 ADR 0037 §五/§六：rule_revision 的布局组件与教义组件正交。轴表/合同只看去掉布局组件后的
   // 教义串；串内无 `bounded-layout` 组件即 layout/1（定义，不是兜底）；未知或重复布局组件一律拒收。
   const LAYOUT_COMPONENT = "bounded-layout/", LAYOUTS = Object.freeze({LAYOUT1: "layout/1", BOUNDED1: "bounded-layout/1"});
+  // #1419 P2（issuecomment-6504760769）：W/2 只认一条完整发布串，整串相等才选中；串内出现任何非 W/1 的
+  // W 组件而整串不等即拒，不剥布局组件、不改序推断。W/1 与其余已登记历史串仍走下方原分派。
+  const W_COMPONENT = "raw-initialization-w/", W2_POLICY = "raw-initialization-w/2";
+  const W2_DOCTRINE = V3_STRUCTURE_RULE + "+" + W2_POLICY, W2_PUBLICATION_RULE = W2_DOCTRINE + "+" + LAYOUTS.BOUNDED1;
   function splitRule(rule) {
     need(typeof rule === "string", "cut规则修订未声明");
+    if (rule === W2_PUBLICATION_RULE) return {doctrine: W2_DOCTRINE, layout: LAYOUTS.BOUNDED1};
+    need(!rule.split("+").some(c => c.startsWith(W_COMPONENT) && c !== INITIALIZATION_POLICY), "cut规则修订未声明：未获准的完整规则组合");
     let layout = null; const rest = [];
     for (const component of rule.split("+")) {
       if (!component.startsWith(LAYOUT_COMPONENT)) { rest.push(component); continue; }
@@ -3442,10 +3448,43 @@ if (typeof module !== 'object' || !module.exports) {
   // #1419 主控裁定②：S3 结构规则只属 s-session/3 写者；s-session/1/2 cut 携此串一律按未获准组合拒（与 Python s-session/1 合同 BAD_RULES 同侧）。
   // 规则表在下方声明，函数体只在调用时读取。
   // 入参是 cut 的完整 rule_revision：先按 ADR 0037 剥唯一合法布局组件，再对教义串走精确白名单。
+  // 完整 rule_revision 的唯一选择器：基规则、W 组件（无 W 为 null）与布局，一次选定后各判据按此分派。
+  function resolveRule(rule, reason = "cut规则修订未声明") {
+    const {doctrine, layout} = splitRule(rule);
+    if (doctrine === W2_DOCTRINE) return {base: V3_STRUCTURE_RULE, w: W2_POLICY, layout};
+    const base = baseRule(doctrine, reason);
+    return {base, w: base === doctrine ? null : doctrine.slice(base.length + 1), layout};
+  }
   function protocolRule(rule, protocol, reason = "cut规则修订未声明") {
-    const base = baseRule(splitRule(rule).doctrine, reason);
+    const base = resolveRule(rule, reason).base;
     need(protocol === "s-session/3" || !CENTER_RULES.has(base), reason + "：未获准的完整规则组合");
     return base;
+  }
+  // #1419 P2 §4.3 W/2 逐原件替代（只用于 W/2 cut；W/1 历史照原样读）。入参为普通值：
+  // pending = 全部 CC-004.undetermined_raw，groups = 全部 CC-005.inclusion_group，
+  // superseded = 全部有 superseded_by 的撤回对象，replaces = 全部 relation_type=replaces 的公开关系。
+  function w2Replacements({pending, groups, superseded, replaces, kinds}) {
+    const raws = new Map(pending.map(p => [p.object_id, p])), byGroup = new Map(groups.map(g => [g.object_id, g]));
+    const edges = new Set(replaces.map(r => JSON.stringify([r.subject, r.object])));
+    const alive = (g, at) => BigInt(g.first_known_generation) <= at && (g.withdrawn_generation === null || BigInt(g.withdrawn_generation) > at);
+    for (const u of pending) {
+      if (u.withdrawn_generation === null) continue;
+      const at = BigInt(u.withdrawn_generation), owner = groups.some(g => alive(g, at) && g.members.includes(u.coord));
+      if (u.withdrawal_reason === "fact_removed") { need(!owner, "W2未定原件进组却按fact_removed撤回"); continue; }
+      const revision = raws.get(u.superseded_by), group = byGroup.get(u.superseded_by);
+      need((revision && revision.object_id !== u.object_id && revision.coord === u.coord) ||
+        (group && alive(group, at) && group.members.includes(u.coord)), "W2逐原件替代越出所属定向组");
+      need(edges.has(JSON.stringify([u.superseded_by, u.object_id])), "W2逐原件替代缺公开replaces关系");
+    }
+    for (const r of replaces) {
+      const u = raws.get(r.object);
+      if (u) need(u.withdrawn_generation !== null && u.superseded_by === r.subject, "W2公开replaces关系与撤回目标不符");
+    }
+    // 跨 kind 替代只准未定原件 → 定向组；其余 kind 照旧只能被同 kind 修订替代。
+    for (const w of superseded) {
+      const to = kinds.get(w.superseded_by);
+      if (to !== undefined && to !== w.kind) need(w.kind === "CC-004.undetermined_raw" && to === "CC-005.inclusion_group", "W2跨kind替代未获准");
+    }
   }
   async function initializationPolicy(p) { need(await eqField(p, "initialization_policy_revision", INITIALIZATION_POLICY), "初始化政策版本未声明"); }
   async function directionState(p) { await enumValue(await field(p, "direction_state"), ["Undetermined", "Established"], "初始化方向状态未声明"); }
@@ -4195,7 +4234,7 @@ if (typeof module !== 'object' || !module.exports) {
     }
     return last;
   }
-  return Object.freeze({RULE_CONTRACTS, RULE_BASES, baseRule, protocolRule, splitRule, ruleContract, LAYOUTS, DEVELOPMENT_BATCH_KIND, bindDevelopmentBatches, V3_STRUCTURE_RULE, W_STRUCTURE_RULE, CENTER_RULES, CENTER_KINDS, PAIR_KINDS, Center, INITIALIZATION_POLICY, INITIALIZATION_KINDS, W_KNOWLEDGE_DOMAIN, validateTyped, validateBiPayload, validateSegmentPayload, turnLinks: (d, f) => segmentTurnLinks(d, f), PARSE_INVALID_REASON, RESULT_SEMANTIC_BRANCH, validateTB02ShapeRefs, plain,
+  return Object.freeze({RULE_CONTRACTS, RULE_BASES, baseRule, protocolRule, resolveRule, splitRule, W2_POLICY, W2_PUBLICATION_RULE, w2Replacements, ruleContract, LAYOUTS, DEVELOPMENT_BATCH_KIND, bindDevelopmentBatches, V3_STRUCTURE_RULE, W_STRUCTURE_RULE, CENTER_RULES, CENTER_KINDS, PAIR_KINDS, Center, INITIALIZATION_POLICY, INITIALIZATION_KINDS, W_KNOWLEDGE_DOMAIN, validateTyped, validateBiPayload, validateSegmentPayload, turnLinks: (d, f) => segmentTurnLinks(d, f), PARSE_INVALID_REASON, RESULT_SEMANTIC_BRANCH, validateTB02ShapeRefs, plain,
     TB02_KINDS: Object.freeze(TB02_KINDS), BI_KINDS, SEGMENT_KINDS: Object.freeze(SEGMENT_KINDS)});
 });
 
@@ -4292,7 +4331,7 @@ if (typeof module !== 'object' || !module.exports) {
   return Object.freeze({choose, requestEnvelope});
 });
 
-/* exact source q3-consumer.js SHA256 119a527601b415e15c611fa2d9600a66e22fb05f825aeca92f5919d0dbbc0e7f */
+/* exact source q3-consumer.js SHA256 695b08b2bb62ef080e3100ad694613dc11314841ff263a1b91d36459dd2dfff4 */
 /* #1394：Q3完整消费者；只供既有tb01c页面调用，没有产品路由或默认资源。 */
 (function (root, factory) {
   const common = typeof module === "object" && module.exports;
@@ -4734,9 +4773,7 @@ if (typeof module !== 'object' || !module.exports) {
     need((await t(record, "object_id")) === (await tb02Identity(record, fixed.rule_revision, fixed.profile_id, fixed.protocol || "s-session/2")), "对象内容身份不符");
   }
   async function bindInitialization(snapshot, raw, wRecords) {
-    const ruleText = await s(snapshot, "rule_revision"),
-      doctrine = typed.splitRule(ruleText).doctrine,
-      wPolicy = typed.baseRule(doctrine) !== doctrine;
+    const wPolicy = typed.resolveRule(await s(snapshot, "rule_revision")).w !== null;
     for (const r of wRecords) {
       const refs = new Map(r.input_refs.map((x) => [x.source_coord, x])), p = r.payload, bars = [];
       if (r.kind === "CC-004.undetermined_raw") bars.push(p.raw);
@@ -4795,6 +4832,30 @@ if (typeof module !== 'object' || !module.exports) {
       typed.INITIALIZATION_KINDS.includes(r.kind) || r.kind === "CC-054.knowledge_state" ||
       (r.kind === "CC-005.inclusion_group" && Object.hasOwn(r.payload, "initialization_policy_revision")));
     await bindInitialization(of(plainSnapshot), { byId }, wRecords);
+  }
+  // #1419 P2 §4.3：W/2 cut 的逐原件替代与公开 replaces 关系逐条对应（判据见 typed.w2Replacements）。
+  async function bindW2Replacements(snapshot) {
+    const pending = [], groups = [], superseded = [], replaces = [], kinds = new Map();
+    for (const family of ["objects", "withdrawn_objects"])
+      for await (const record of (await f(snapshot, family)).items()) {
+        const object_id = await t(record, "object_id"), kind = await t(record, "kind"),
+          withdrawn = await (await f(record, "withdrawn_generation")).scalar(),
+          superseded_by = await (await f(record, "superseded_by")).scalar(),
+          withdrawal_reason = await (await f(record, "withdrawal_reason")).scalar();
+        kinds.set(object_id, kind);
+        if (superseded_by !== null) superseded.push({object_id, kind, superseded_by});
+        if (kind === "CC-004.undetermined_raw")
+          pending.push({object_id, coord: await s(await f(await f(record, "payload"), "raw"), "source_coord"),
+            withdrawn_generation: withdrawn, withdrawal_reason, superseded_by});
+        if (kind === "CC-005.inclusion_group") {
+          const members = [];
+          for await (const c of (await f(await f(record, "payload"), "members")).items()) members.push(await S(c));
+          groups.push({object_id, members, first_known_generation: await s(record, "first_known_generation"), withdrawn_generation: withdrawn});
+        }
+      }
+    for await (const r of (await f(snapshot, "relations")).items())
+      if ((await t(r, "relation_type")) === "replaces") replaces.push({subject: await t(r, "subject"), object: await t(r, "object")});
+    typed.w2Replacements({pending, groups, superseded, replaces, kinds});
   }
   // #1491：`layout` 由调用方从本 cut 的 rule_revision 布局组件取得（ADR 0037 §六，按版本分派）。
   // 未给出 ⟹ 调用方读的是 v1/v2 快照（ADR 0037 之前的写者，按定义 layout/1）。
@@ -5798,6 +5859,7 @@ if (typeof module !== 'object' || !module.exports) {
       );
       await bindSegmentSequences(snapshot);
       await bindCenterFamily(snapshot, generation);
+      if (typed.resolveRule(rule).w === typed.W2_POLICY) await bindW2Replacements(snapshot);
       for (const record of binding.records) {
         charge();
         let want;
