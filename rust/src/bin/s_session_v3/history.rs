@@ -608,6 +608,38 @@ pub(super) fn read_verified_public_history<'scope, 'tx, 'raw>(
     Ok(VerifiedPublicHistory { history, transaction: tx, qualified })
 }
 
+struct VerifiedObjectOriginals<'a, 'tx> {
+    transaction: &'a Transaction<'tx>,
+    entries: &'a [object_index::Entry],
+}
+impl VerifiedObjectOriginals<'_, '_> {
+    fn verify_public(
+        &self,
+        tx: &Transaction<'_>,
+        store: &mut HashReader<'_>,
+        roots: &[RefValue],
+    ) -> Result<(), sc::CodecError> {
+        if !std::ptr::eq(tx, self.transaction)
+            || !tx.is_readonly(rusqlite::MAIN_DB).map_err(|e| sc::CodecError::new(sc::code::SOURCE, e.to_string()))?
+            || !store.ordinary_bound_births_qualified()
+        {
+            return Err(sc::CodecError::new(sc::code::SOURCE, "对象Public覆盖不属于当前普通只读事务"));
+        }
+        let mut originals = sc::CodecVec::from_plain(Vec::new());
+        for entry in self.entries {
+            for built in [&entry.generated, &entry.internal, &entry.immutable] {
+                store.native_codec_room(&mut originals, 1)?;
+                originals.try_push(RefValue::from(built.content_ref()))?;
+            }
+            store.native_codec_room(&mut originals, 1)?;
+            originals.try_push(store.native_ref_clone(&entry.birth_wire)?)?;
+        }
+        sc::audit_verify_public_with_verified_subroots(
+            store, roots.iter().map(RefValue::view), originals.iter().map(RefValue::view),
+        )
+    }
+}
+
 struct VerifiedManifestRoots<'a, 'tx> {
     transaction: &'a Transaction<'tx>,
     roots: &'a [RefValue],
@@ -779,8 +811,12 @@ fn read_indexed_history_inner(
     }
     #[cfg(test)]
     super::admission_private::s4_read_trace::audit_window(tx, "public", "begin", "pending");
-    let public_result =
-        store.verify_many_ref(public_roots.iter().map(RefValue::view), sc::Mode::Public);
+    let public_result = if bound_births_qualified {
+        VerifiedObjectOriginals { transaction: tx, entries: objects.entries() }
+            .verify_public(tx, &mut store, &public_roots)
+    } else {
+        store.verify_many_ref(public_roots.iter().map(RefValue::view), sc::Mode::Public)
+    };
     #[cfg(test)]
     super::admission_private::s4_read_trace::audit_window(
         tx, "public", "end",
@@ -7704,6 +7740,33 @@ mod manifest_template_coverage_tests {
             self.reads.set(self.reads.get() + 1);
             self.nodes.read(digest)
         }
+    }
+
+    #[test]
+    fn history_public_coverage_object_originals_source_routes() {
+        let fixture = super::super::prepared::tests::Fixture::new();
+        let mut conn = Connection::open_with_flags(
+            fixture.conn.path().unwrap(), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        ).unwrap();
+        let tx = conn.transaction().unwrap();
+        let proof = VerifiedObjectOriginals { transaction: &tx, entries: &[] };
+        let mut nodes = sc::MemoryNodes::new();
+        let root = sc::write_value(&mut nodes, &V::Array(vec![V::String("complete".into())])).unwrap().content_ref();
+        let roots = [RefValue::from(root.clone())];
+        let mut reader = HashReader::new(&mut nodes);
+        proof.verify_public(&tx, &mut reader, &roots).unwrap();
+        let mut other = Connection::open_with_flags(
+            fixture.conn.path().unwrap(), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        ).unwrap();
+        let other_tx = other.transaction().unwrap();
+        assert_eq!(proof.verify_public(&other_tx, &mut reader, &roots).unwrap_err().code(), sc::code::SOURCE);
+        drop(reader);
+        let capture = sc::AuditCapture::new(nodes.clone());
+        let mut captured = HashReader::captured(&capture, None);
+        assert_eq!(proof.verify_public(&tx, &mut captured, &roots).unwrap_err().code(), sc::code::SOURCE);
+        nodes.insert_unchecked(root.digest().unwrap(), sc::tag::ARRAY, vec![0]);
+        let mut reader = HashReader::new(&mut nodes);
+        assert_eq!(proof.verify_public(&tx, &mut reader, &roots).unwrap_err().code(), sc::code::NODE_DIGEST);
     }
 
     #[test]

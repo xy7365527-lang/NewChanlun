@@ -5939,6 +5939,29 @@ mod tests {
         v
     }
     #[test]
+    fn history_public_coverage_bound_births_entry_routes() {
+        let mut fixture = crate::v3::prepared::tests::Fixture::new();
+        let mut readonly = Connection::open_with_flags(
+            fixture.conn.path().unwrap(), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        ).unwrap();
+        let tx = readonly.transaction().unwrap();
+        let mut source = content_store::ReadStore::new(&tx).unwrap();
+        let mut reader = crate::v3::history::HashReader::new(&mut source);
+        let mut loaded = load_for_history(&tx, &mut reader, 0).unwrap();
+        loaded.at_cut_bound_births(&tx, &mut reader, 0, None).unwrap();
+        let capture = content_store::capture_for_prototype(&tx).unwrap();
+        let mut captured = crate::v3::history::HashReader::captured_for_audit(&capture, None).unwrap();
+        assert!(loaded.at_cut_bound_births(&tx, &mut captured, 0, None).is_err());
+        let mut native = load_for_history(&tx, &mut captured, 0).unwrap();
+        assert!(native.at_cut_bound_births(&tx, &mut reader, 0, None).is_err());
+        let writable = fixture.conn.transaction().unwrap();
+        assert!(loaded.at_cut_bound_births(&writable, &mut reader, 0, None).is_err());
+    }
+    #[test]
+    fn history_public_coverage_complete_load_real_generations() {
+        real_generations(false, false, true);
+    }
+    #[test]
     fn three_real_generations_match_shared_diff_and_preserve_historical_cut_and_prior() {
         real_generations(false, false, true);
     }

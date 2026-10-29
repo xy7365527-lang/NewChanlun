@@ -7907,6 +7907,29 @@ pub fn audit_verify_refview_headers<'a>(
     Ok(())
 }
 
+/// 已覆盖子根必须在同一不可变读集以 Public 完整核验成功。
+/// 只复用 Value 闭包，不把 Public 证明转作 JsonInner 或 Template 证明。
+#[doc(hidden)]
+pub fn audit_verify_public_with_verified_subroots<'a, 'b>(
+    source: &mut dyn NodeSource,
+    refs: impl IntoIterator<Item = RefView<'a>>,
+    verified: impl IntoIterator<Item = RefView<'b>>,
+) -> Result<(), CodecError> {
+    let mut verifier = Verifier::new(source, Mode::Public);
+    for reference in verified {
+        let (digest, kind, _) = verifier.verify_refview_header(reference)?;
+        if kind == Kind::TemplateBatch {
+            return Err(CodecError::new(code::TEMPLATE_PLACEHOLDER, "Public覆盖不能包含模板占位"));
+        }
+        verifier.seen.insert((digest, Flavor::Value))?;
+        verifier.pushed.insert((digest, Flavor::Value))?;
+    }
+    for reference in refs {
+        verifier.verify_refview(reference)?;
+    }
+    Ok(())
+}
+
 #[doc(hidden)]
 pub fn audit_verify_many_refview<'a>(
     source: &mut dyn NodeSource,
@@ -9242,5 +9265,59 @@ impl CodecError {
     #[inline(always)]
     fn shown(&self) -> &std::borrow::Cow<'static, str> {
         capture_allocation::scratch::shown(self)
+    }
+}
+
+#[cfg(test)]
+mod verified_public_subroots_tests {
+    use super::*;
+    struct Counted {
+        nodes: MemoryNodes,
+        reads: usize,
+    }
+    impl NodeSource for Counted {
+        fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+            self.reads += 1;
+            self.nodes.read(digest)
+        }
+    }
+    #[test]
+    fn s4_local_descent_public_subroots_reuse_only_complete_value_closure() {
+        let mut nodes = MemoryNodes::new();
+        let child = write_value(&mut nodes, &Value::Array(vec![Value::String("payload".repeat(2000))])).unwrap().content_ref();
+        let root = write_value(&mut nodes, &Value::Array(vec![Value::edge_of_ref(&child).unwrap()])).unwrap().content_ref();
+        let mut source = Counted { nodes, reads: 0 };
+        verify(&mut source, &child).unwrap();
+        let before = source.reads;
+        audit_verify_public_with_verified_subroots(&mut source, [&root].map(Into::into), [&child].map(Into::into)).unwrap();
+        let covered = source.reads - before;
+        let before = source.reads;
+        verify(&mut source, &root).unwrap();
+        assert!(covered < source.reads - before);
+        for wrong in [
+            ContentRef { format: "wrong".into(), ..child.clone() },
+            ContentRef { kind: Kind::Object, ..child.clone() },
+            ContentRef { extent: Some(999), ..child.clone() },
+        ] {
+            assert!(audit_verify_public_with_verified_subroots(&mut source, [&root].map(Into::into), [&wrong].map(Into::into)).is_err());
+        }
+        let sibling = write_value(&mut source.nodes, &Value::Array(vec![Value::Edge([17; 32])])).unwrap().content_ref();
+        assert_eq!(audit_verify_public_with_verified_subroots(&mut source, [&sibling].map(Into::into), [&child].map(Into::into)).unwrap_err().code(), code::NODE_MISSING);
+        source.nodes.insert_unchecked(child.digest().unwrap(), tag::ARRAY, vec![0]);
+        assert_eq!(audit_verify_public_with_verified_subroots(&mut source, [&root].map(Into::into), [&child].map(Into::into)).unwrap_err().code(), code::NODE_DIGEST);
+    }
+    #[test]
+    fn s4_local_descent_public_subroots_do_not_cover_json_inner_or_template() {
+        let mut nodes = MemoryNodes::new();
+        let text = write_value(&mut nodes, &Value::JsonText(Box::new(JsonValue::Null))).unwrap().content_ref();
+        let array = write_value(&mut nodes, &Value::Array(vec![Value::edge_of_ref(&text).unwrap()])).unwrap().content_ref();
+        verify(&mut nodes, &array).unwrap();
+        let digest = frame(tag::JSON_TEXT, &array.digest().unwrap());
+        nodes.put(digest, tag::JSON_TEXT, &array.digest().unwrap()).unwrap();
+        let nested = content_ref_of(&mut nodes, &root_string(&digest)).unwrap();
+        assert_eq!(audit_verify_public_with_verified_subroots(&mut nodes, [&nested].map(Into::into), [&array].map(Into::into)).unwrap_err().code(), code::JSON_TEXT_INTERNAL_KIND);
+        let template = write_template(&mut nodes, &Value::Array(vec![Value::BatchSelf])).unwrap().content_ref();
+        verify_template(&mut nodes, &template).unwrap();
+        assert_eq!(audit_verify_public_with_verified_subroots(&mut nodes, [&template].map(Into::into), std::iter::empty()).unwrap_err().code(), code::TEMPLATE_PLACEHOLDER);
     }
 }
