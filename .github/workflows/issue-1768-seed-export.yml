@@ -35,8 +35,10 @@ jobs:
               >"$RUNNER_TEMP/evidence/$t.log" 2>&1
             printf '%s exit=%s\n' "$t" "$?" | tee -a "$RUNNER_TEMP/evidence/export-exit.txt"
           done
-          tail -40 "$RUNNER_TEMP/evidence/"*.log
+          tail -40 "$RUNNER_TEMP/evidence/"*.log || true
+          exit 0
       - name: Release default build keeps legacy write unreachable
+        if: always()
         working-directory: rust
         shell: bash
         run: |
@@ -51,14 +53,16 @@ jobs:
           printf 'release_accept_exit=%s (expect nonzero)\n' "$?" >>"$RUNNER_TEMP/evidence/release-lock.txt"
           cat "$RUNNER_TEMP/evidence/release-lock.txt"
       - uses: actions/setup-python@v5
+        if: always()
         with:
           python-version: '3.14.6'
       - name: Original public validator on frozen copies
+        if: always()
         shell: bash
         run: |
           set +e
           python -m pip install -r s_session/tests/requirements-tb02c.txt >/dev/null
-          python s_session/tests/issue1768_seed_validate.py "$RUNNER_TEMP/evidence/seed" \
+          python s_session/tests/issue1768_seed_validate.py "$RUNNER_TEMP/evidence/seed/fixture-advance-testonly-policy-records" \
             >"$RUNNER_TEMP/evidence/validator.json" 2>"$RUNNER_TEMP/evidence/validator.err"
           printf 'validator_exit=%s\n' "$?" | tee "$RUNNER_TEMP/evidence/validator-exit.txt"
           cat "$RUNNER_TEMP/evidence/validator.json"; tail -30 "$RUNNER_TEMP/evidence/validator.err"

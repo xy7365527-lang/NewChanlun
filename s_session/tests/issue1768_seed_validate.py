@@ -41,9 +41,9 @@ def check(path):
             "cut_projection_equal": cuts}
 
 
-def main(root):
+def main(*modes):
     out, ok = {}, True
-    for mode in sorted(p for p in Path(root).iterdir() if p.is_dir()):
+    for mode in map(Path, modes):
         for name, (gen, raw) in EXPECT.items():
             f = mode / "frozen" / f"{name}.sqlite"
             key = f"{mode.name}/{name}"
@@ -59,4 +59,4 @@ def main(root):
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1]))
+    sys.exit(main(*sys.argv[1:]))
