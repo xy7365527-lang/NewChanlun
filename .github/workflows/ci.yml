@@ -372,7 +372,7 @@ jobs:
       #   ② 发布构建未开 s_v2_seed_testonly：release 下该 feature 本就 compile_error；再对产物断言种子自报
       #      子命令为「未知子命令」，全部 v2 写子命令返回退役错误且不建库。
       - name: v2 写者机械锁 — 发布构建（#1419）
-        if: always()
+        if: ${{ !cancelled() && matrix.group == 'content' }}
         env:
           RUSTFLAGS: -D unfulfilled_lint_expectations
         run: |

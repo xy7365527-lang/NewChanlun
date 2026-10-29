@@ -141,6 +141,25 @@ pub(crate) fn split(rule_revision: &str) -> Result<(String, Layout), String> {
     Ok((rest.join("+"), layout.unwrap_or(Layout::Sorted)))
 }
 
+/// 与 `split(rule).is_ok_and(|(d, _)| d == doctrine)` 逐位同判（`doctrine` 非空），但不分配：
+/// 结构域/W 判据在每对象循环里调用（#1419 native 超时）。
+pub(crate) fn doctrine_is(rule_revision: &str, doctrine: &str) -> bool {
+    let mut seen_layout = false;
+    let mut expected = doctrine.split('+');
+    for component in rule_revision.split('+') {
+        match component.strip_prefix(COMPONENT) {
+            Some("1") if !seen_layout => seen_layout = true,
+            Some(_) => return false,
+            None => {
+                if expected.next() != Some(component) {
+                    return false;
+                }
+            }
+        }
+    }
+    expected.next().is_none()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -165,6 +184,41 @@ mod tests {
             Layout::of_rule("s2-axis-quantifiers+bounded-layout/1+new-bi/2+bounded-layout/1")
                 .is_err()
         );
+    }
+
+    #[test]
+    fn doctrine_is_matches_split_comparison() {
+        let doctrines = ["s2-axis-quantifiers+new-bi/2", "a", "a+b+c"];
+        let rules = [
+            "s2-axis-quantifiers+new-bi/2",
+            "s2-axis-quantifiers+new-bi/2+bounded-layout/1",
+            "s2-axis-quantifiers+bounded-layout/1+new-bi/2",
+            "bounded-layout/1+s2-axis-quantifiers+new-bi/2",
+            "s2-axis-quantifiers+new-bi/2+bounded-layout/2",
+            "s2-axis-quantifiers+new-bi/2+bounded-layout/1+bounded-layout/1",
+            "s2-axis-quantifiers+new-bi/2+new-bi/2",
+            "s2-axis-quantifiers",
+            "s2-axis-quantifiers+new-bi/2+",
+            "s2-axis-quantifiers++new-bi/2",
+            "a",
+            "a+bounded-layout/1",
+            "a+b",
+            "a+b+c",
+            "a+b+c+bounded-layout/1",
+            "a+b+bounded-layout/1+c",
+            "a+b+bounded-layout/",
+            "bounded-layout/1",
+            "",
+        ];
+        for doctrine in doctrines {
+            for rule in rules {
+                assert_eq!(
+                    doctrine_is(rule, doctrine),
+                    split(rule).is_ok_and(|(d, _)| d == doctrine),
+                    "{rule} vs {doctrine}"
+                );
+            }
+        }
     }
 
     #[test]

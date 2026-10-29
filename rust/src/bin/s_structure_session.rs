@@ -138,12 +138,8 @@ const W_STRUCTURE_RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/2+segment-se
 /// #1491 × #1419（ADR 0037 §五）：布局组件 `bounded-layout/<n>` 与教义正交，先经
 /// [`v3::layout::split`] 剥离布局再整串比对教义部分（与目录轴表、笔合同同口径）；未知布局版本不认。
 fn is_structure_rule(rule: &str) -> bool {
-    v3::layout::split(rule).is_ok_and(|(doctrine, _)| {
-        matches!(
-            doctrine.as_str(),
-            V3_STRUCTURE_RULE_REVISION | W_STRUCTURE_RULE_REVISION
-        )
-    })
+    v3::layout::doctrine_is(rule, V3_STRUCTURE_RULE_REVISION)
+        || v3::layout::doctrine_is(rule, W_STRUCTURE_RULE_REVISION)
 }
 
 /// #1419 主控裁定②（issuecomment-6265209957）：v2 结构写者（本文件 `init_core`/`accept_core`/

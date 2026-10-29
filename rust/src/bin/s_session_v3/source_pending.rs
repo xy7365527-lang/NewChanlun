@@ -414,8 +414,7 @@ fn step_sequence_record(
 /// #1393 W：本规则串是否携 W 初始化政策（教义部分显式逐字比较，不剥教义后缀推断）。
 /// #1491 × #1419（ADR 0037 §五）：布局组件与教义正交，先剥离布局；未知布局版本不认。
 pub(super) fn is_w_rule(rule: &str) -> bool {
-    crate::v3::layout::split(rule)
-        .is_ok_and(|(doctrine, _)| doctrine == crate::W_STRUCTURE_RULE_REVISION)
+    crate::v3::layout::doctrine_is(rule, crate::W_STRUCTURE_RULE_REVISION)
 }
 
 /// #1393 W：步骤 k 的来源闭式 raw[..=max(k, e)]（e = 建立对右端在到达序里的位次）。
