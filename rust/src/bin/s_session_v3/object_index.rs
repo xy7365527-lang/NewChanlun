@@ -5952,8 +5952,13 @@ mod tests {
         let capture = content_store::capture_for_prototype(&tx).unwrap();
         let mut captured = crate::v3::history::HashReader::captured_for_audit(&capture, None).unwrap();
         assert!(loaded.at_cut_bound_births(&tx, &mut captured, 0, None).is_err());
-        let mut native = load_for_history(&tx, &mut captured, 0).unwrap();
-        assert!(native.at_cut_bound_births(&tx, &mut reader, 0, None).is_err());
+        #[cfg(feature = "s_incremental")]
+        {
+            captured.enable_full_arrays_for_test();
+            let mut native = load_for_history(&tx, &mut captured, 0).unwrap();
+            assert!(native.native.is_some());
+            assert!(native.at_cut_bound_births(&tx, &mut reader, 0, None).is_err());
+        }
         let writable = fixture.conn.transaction().unwrap();
         assert!(loaded.at_cut_bound_births(&writable, &mut reader, 0, None).is_err());
     }
