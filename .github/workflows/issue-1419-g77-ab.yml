@@ -92,19 +92,45 @@ jobs:
           summary_path = root/'summary.json'
           summary = json.loads(summary_path.read_text()) if summary_path.exists() else {}
           cases = {c['case']: c for c in summary.get('cases', [])}
-          stopped = []
-          for statefile in root.glob('*/*/process.json'):
-              state = json.loads(statefile.read_text())
-              assert state['stopped'] and not module.live_group(state['process_group']), str(statefile)
-              stopped.append(str(statefile.relative_to(root)))
-          for db in root.glob('*/*/w2.run/s.sqlite'):
-              case = str(db.parent.parent.relative_to(root))
-              assert (db.parent.parent/'process.json').exists() or cases.get(case, {}).get('launched') is False, str(db)
-          (root/'archive-check.json').write_text(json.dumps({'stopped_states': stopped, 'reclaimed_count': len(stopped), 'elapsed_seconds': time.time() - int(os.environ['G77_STARTED'])}))
+          stopped, emergency, rejected, unstarted = [], [], [], []
           with tarfile.open(root/'samples.tgz', 'w:gz', compresslevel=1) as archive:
               for folder in sorted(root.iterdir()):
-                  if folder.is_dir() and (folder.name == 'trace' or folder.name.startswith('pair')):
-                      archive.add(folder, arcname=folder.name)
+                  if not folder.is_dir() or not (folder.name == 'trace' or folder.name.startswith('pair')):
+                      continue
+                  for case_dir in sorted(p for p in folder.iterdir() if p.is_dir()):
+                      case = str(case_dir.relative_to(root))
+                      statefile = case_dir/'process.json'
+                      try:
+                          state = json.loads(statefile.read_text()) if statefile.exists() else None
+                          if state is not None and state['stopped']:
+                              assert not module.live_group(state['process_group']), 'live writer'
+                              archive.add(case_dir, arcname=case)
+                              stopped.append(str(statefile.relative_to(root)))
+                          elif state is None and cases.get(case, {}).get('launched') is False and not (case_dir/'supervisor.stderr').exists():
+                              archive.add(case_dir, arcname=case)
+                              unstarted.append(case)
+                          else:
+                              records = [json.loads(line) for line in (case_dir/'supervisor.stderr').read_text().splitlines()
+                                         if line.startswith('{')]
+                              receipt = records[-1]
+                              package = case_dir.with_suffix('.stopped-originals.tgz')
+                              assert receipt['stopped'] and receipt['emergency_archive_complete'], 'incomplete emergency archive'
+                              assert receipt['emergency_tar_returncode'] == 0, 'emergency tar failed'
+                              assert Path(receipt['emergency_archive']).resolve() == package.resolve(), 'wrong emergency archive'
+                              assert not module.live_group(receipt['process_group']), 'live emergency writer'
+                              archive.add(package, arcname=str(package.relative_to(root)))
+                              archive.add(case_dir/'supervisor.stderr', arcname=case+'/supervisor.stderr')
+                              emergency.append({'case': case, 'receipt': receipt})
+                      except (OSError, ValueError, KeyError, IndexError, AssertionError) as error:
+                          rejected.append({'case': case, 'error': str(error)})
+                  for artifact in sorted(p for p in folder.iterdir() if p.is_file() and not p.name.endswith('.stopped-originals.tgz')):
+                      archive.add(artifact, arcname=str(artifact.relative_to(root)))
+          (root/'archive-check.json').write_text(json.dumps({
+              'stopped_states': stopped, 'emergency_archives': emergency,
+              'unstarted_cases': unstarted, 'rejected_cases': rejected,
+              'reclaimed_count': len(stopped) + len(emergency),
+              'elapsed_seconds': time.time() - int(os.environ['G77_STARTED'])}))
+          assert not rejected, rejected
           PY
       - name: Upload exact bounded diagnostic evidence
         if: always()

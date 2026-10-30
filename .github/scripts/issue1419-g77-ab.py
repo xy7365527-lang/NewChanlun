@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""#1419：固定 g77 上隔离 previous memo；保留 33W closure 与共用时间帽。"""
 import json
 import os
 import signal
@@ -124,7 +123,9 @@ def run_case(index, side, trace):
         wait_seconds = remaining() - 15
         require(wait_seconds > 0, "insufficient time for probe and supervised stop")
         started = time.monotonic()
-        proc = subprocess.Popen(cmd, env=case_env(case, side, trace), cwd=root / "rust")
+        with (case / "supervisor.stderr").open("wb") as supervisor_stderr:
+            proc = subprocess.Popen(cmd, env=case_env(case, side, trace), cwd=root / "rust",
+                                    stderr=supervisor_stderr)
         record["launched"] = True
         summary["launched"] += 1
         try:

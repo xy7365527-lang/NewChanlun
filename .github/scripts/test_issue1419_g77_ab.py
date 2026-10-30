@@ -1,6 +1,10 @@
 import copy
 import importlib.util
 import json
+import os
+import re
+import tarfile
+import textwrap
 from pathlib import Path
 import shutil
 import subprocess
@@ -35,7 +39,9 @@ def probe(side='new', trace=False):
 
 
 class FakeProcess:
-    def __init__(self, command, env, cwd, *, timeout=False, exit_code=0, mutate=None):
+    def __init__(self, command, env, cwd, *, stderr, timeout=False, exit_code=0, mutate=None):
+        assert Path(stderr.name) == Path(env["W2_PENDING_COPY"]).parent.parent / "supervisor.stderr"
+        assert not stderr.closed
         self.env, self.command, self.cwd = env, command, cwd
         self.timeout, self.exit_code, self.returncode = timeout, exit_code, None
         self.terminated = False
@@ -283,6 +289,151 @@ class MeasurementTest(unittest.TestCase):
         self.assertIn('G77_STARTED + 35 * 60 - 120', text)
         self.assertIn('development_measurement_', text)
         self.assertNotIn('prior_trace_run', Path(g77.__file__).read_text())
+
+
+class ArchiveWorkflowTest(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.workspace = Path(self.temp.name)
+        self.evidence = self.workspace / 'g77-evidence'
+        self.evidence.mkdir()
+        self.cases = []
+        self.live_groups = set()
+        self.scripts = Path(__file__).resolve().parent
+        workflow = (self.scripts.parent / 'workflows/issue-1419-g77-ab.yml').read_text()
+        step = workflow.split('- name: Retain every generated sample after writer stop', 1)[1]
+        self.archive_code = textwrap.dedent(step.split("python3 - <<'PY'\n", 1)[1].split('\n          PY', 1)[0])
+        self.upload = workflow.split('- name: Upload exact bounded diagnostic evidence', 1)[1]
+        scripts = self.workspace / '.github/scripts'
+        scripts.mkdir(parents=True)
+        shutil.copyfile(self.scripts / 'w2-runtime-process.py', scripts / 'w2-runtime-process.py')
+
+    def sample(self, name, state=None, launched=True):
+        folder = self.evidence / name
+        (folder / 'w2.run').mkdir(parents=True)
+        for filename in ['s.sqlite', 's.sqlite-wal']:
+            (folder / 'w2.run' / filename).write_bytes(b'synthetic original')
+        if state is not None:
+            (folder / 'process.json').write_text(json.dumps(state))
+        self.cases.append({'case': name, 'launched': launched})
+        (self.evidence / 'summary.json').write_text(json.dumps({'cases': self.cases}))
+        return folder
+
+    def emergency(self, folder, group=123, complete=True):
+        package = folder.with_suffix('.stopped-originals.tgz')
+        with tarfile.open(package, 'w:gz') as archive:
+            archive.add(folder, arcname=folder.name)
+        state = {'stopped': True, 'process_group': group, 'receipt_error': 'disk receipt failure',
+                 'emergency_archive': str(package), 'emergency_tar_returncode': 0,
+                 'emergency_archive_complete': complete}
+        (folder / 'supervisor.stderr').write_text(json.dumps(state) + '\n')
+        return package
+
+    def archive(self):
+        original_spec = importlib.util.spec_from_file_location
+        def supervisor_spec(name, location):
+            result = original_spec(name, location)
+            loader = result.loader.exec_module
+            def load(module):
+                loader(module)
+                module.live_group = lambda group: [group] if group in self.live_groups else []
+            result.loader.exec_module = load
+            return result
+        previous = Path.cwd()
+        try:
+            os.chdir(self.workspace)
+            with patch('importlib.util.spec_from_file_location', side_effect=supervisor_spec), \
+                 patch.dict(os.environ, {'G77_STARTED': str(int(time.time()))}):
+                exec(compile(self.archive_code, 'workflow-archive', 'exec'), {})
+        finally:
+            os.chdir(previous)
+
+    def members(self):
+        with tarfile.open(self.evidence / 'samples.tgz') as archive:
+            return archive.getnames()
+
+    def test_emergency_and_stopped_sample_reach_upload(self):
+        for stale in [None, {'stopped': False, 'process_group': 123}]:
+            with self.subTest(stale=stale):
+                if (self.evidence / 'trace').exists():
+                    shutil.rmtree(self.evidence / 'trace')
+                self.cases.clear()
+                old = self.sample('trace/old', stale)
+                self.emergency(old)
+                self.sample('trace/new', {'stopped': True, 'process_group': 124})
+                self.archive()
+                members = self.members()
+                self.assertIn('trace/old.stopped-originals.tgz', members)
+                with tarfile.open(self.evidence / 'samples.tgz') as outer:
+                    with tarfile.open(fileobj=outer.extractfile('trace/old.stopped-originals.tgz')) as inner:
+                        self.assertEqual(inner.extractfile('old/w2.run/s.sqlite-wal').read(), b'synthetic original')
+                self.assertIn('trace/new/w2.run/s.sqlite-wal', members)
+                self.assertNotIn('trace/old/w2.run/s.sqlite', members)
+                status = json.loads((self.evidence / 'archive-check.json').read_text())
+                self.assertEqual(status['emergency_archives'][0]['case'], 'trace/old')
+                self.assertEqual(status['rejected_cases'], [])
+                self.assertIn('g77-evidence/samples.tgz', self.upload)
+
+    def test_live_writer_rejected_without_losing_stopped_sample(self):
+        self.sample('trace/old', {'stopped': True, 'process_group': 123})
+        self.sample('trace/new', {'stopped': True, 'process_group': 999})
+        self.live_groups.add(999)
+        with self.assertRaisesRegex(AssertionError, 'trace/new'):
+            self.archive()
+        members = self.members()
+        self.assertIn('trace/old/w2.run/s.sqlite', members)
+        self.assertFalse(any(name.startswith('trace/new') for name in members))
+
+    def test_missing_or_stale_receipt_is_not_stopped(self):
+        old = self.sample('trace/old')
+        self.emergency(old)
+        (old / 'supervisor.stderr').unlink()
+        self.sample('trace/new', {'stopped': False, 'process_group': 123})
+        with self.assertRaises(AssertionError):
+            self.archive()
+        self.assertEqual(self.members(), [])
+        status = json.loads((self.evidence / 'archive-check.json').read_text())
+        self.assertEqual(len(status['rejected_cases']), 2)
+
+    def test_unstarted_copy_is_retained(self):
+        self.sample('trace/old', launched=False)
+        self.archive()
+        self.assertIn('trace/old/w2.run/s.sqlite', self.members())
+
+    def test_stale_unstarted_summary_cannot_authorize_writer_copy(self):
+        old = self.sample('trace/old', launched=False)
+        (old / 'supervisor.stderr').write_text('')
+        with self.assertRaises(AssertionError):
+            self.archive()
+        self.assertEqual(self.members(), [])
+
+    def test_incomplete_or_live_emergency_is_rejected(self):
+        old = self.sample('trace/old')
+        self.emergency(old, complete=False)
+        new = self.sample('trace/new', {'stopped': False, 'process_group': 999})
+        self.emergency(new, group=999)
+        self.live_groups.add(999)
+        with self.assertRaises(AssertionError):
+            self.archive()
+        self.assertEqual(self.members(), [])
+
+
+class IntegrationWorkflowTest(unittest.TestCase):
+    def test_development_count_matches_source_and_gate(self):
+        root = Path(__file__).resolve().parents[2]
+        source = (root / 'rust/src/bin/s_session_v3/source_audit_development_tests.rs').read_text()
+        tests = re.findall(r'(?m)^#\[test\]\nfn (\w+)\(', source)
+        self.assertEqual(len(tests), 10)
+        self.assertNotIn('#[ignore]', source)
+        workflow = (root / '.github/workflows/issue-1419-integration33z.yml').read_text()
+        gate = next(line.strip() for line in workflow.splitlines() if 'grep ' in line and 'development35a.log' in line)
+        expected = re.search(r"'([^']+)'", gate).group(1)
+        self.assertIn(f'{len(tests)} passed; 0 failed', expected)
+        for passed, failed, accepted in [(10, 0, True), (8, 0, False), (0, 0, False), (10, 1, False)]:
+            result = subprocess.run(['grep', '-F', expected], input=f'test result: ok. {passed} passed; {failed} failed;\n',
+                                    text=True, capture_output=True)
+            self.assertEqual(result.returncode == 0, accepted)
 
 
 if __name__ == '__main__':
