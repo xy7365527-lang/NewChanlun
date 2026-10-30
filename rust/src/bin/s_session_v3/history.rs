@@ -5465,7 +5465,9 @@ pub(super) mod tests {
     #[cfg(feature = "s_incremental")]
     #[test]
     fn ordinary_proof_owner_commits_only_after_whole_cut_and_reopen_starts_empty() {
-        let f = published();
+        let mut f = super::prepared::tests::Fixture::with_rule(crate::V3_RULE_REVISION);
+        let (envelope, token) = f.accept_begin(1, ("a", 0, 6, 12, 3, 7), 1);
+        f.publish(&envelope, &token).unwrap();
         let mut conn = Connection::open_with_flags(f.conn.path().unwrap(), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
         let tx = conn.transaction().unwrap();
         let control = control_audit::prepare_s3_control_history(&tx).unwrap();

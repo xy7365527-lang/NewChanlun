@@ -17,17 +17,24 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/rust-job-setup
       - name: Build release test
+        id: build
         run: cargo test --release --locked --features s_session,s_incremental --no-run --bin s_structure_session --jobs 4
-      - name: Check ordinary owner projection and multicut outputs
-        run: |
-          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session ordinary_proof_owner_ -- --test-threads 1 --nocapture
-          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session ordinary_proof_publication_ -- --test-threads 1 --nocapture
-          cargo test --release --locked --features s_session,s_incremental --bin s_structure_session ordinary_proof_multicut_ -- --test-threads 1 --nocapture
+      - name: Check ordinary owner
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: cargo test --release --locked --features s_session,s_incremental --bin s_structure_session ordinary_proof_owner_ -- --test-threads 1 --nocapture
+      - name: Check ordinary projection
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: cargo test --release --locked --features s_session,s_incremental --bin s_structure_session ordinary_proof_publication_ -- --test-threads 1 --nocapture
+      - name: Check ordinary multicut outputs
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: cargo test --release --locked --features s_session,s_incremental --bin s_structure_session ordinary_proof_multicut_ -- --test-threads 1 --nocapture
       - name: Check local descent and caller contracts
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           cargo test --release --locked --features s_session,s_incremental --lib s4_local_descent -- --test-threads 1
           cargo test --release --locked --features s_session,s_incremental --test s_content_path --test s_content_key_subset --test s_content_array_scan -- --test-threads 1
       - name: Check manifest coverage and source audit locks
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           cargo test --release --locked --features s_session,s_incremental --bin s_structure_session history_public_coverage -- --test-threads 1
           cargo test --release --locked --features s_session,s_incremental --bin s_structure_session manifest_template_coverage -- --test-threads 1
@@ -35,4 +42,5 @@ jobs:
           cargo test --release --locked --features s_session,s_incremental --bin s_structure_session valid_but_substituted_snapshot_is_rejected_against_manifest -- --test-threads 1
           cargo test --release --locked --features s_session,s_incremental --bin s_structure_session v3::source_audit:: -- --test-threads 1 --nocapture
       - name: Check ordinary build without incremental feature
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: cargo check --locked --features s_session --bin s_structure_session --jobs 4

@@ -2075,17 +2075,27 @@ mod tests {
         drop(projection);
         assert_eq!(ORDINARY_PUBLICATION_BYTES.with(|s| s.get().0), 0);
         let heap = crate::v3::audit_owner::allocation_probe::Window::start();
+        let live_before = crate::v3::audit_owner::allocation_probe::live_bytes();
+        let (mut one_frontier, mut two_frontiers) = (0, 0);
         {
             let mut projection = PublicationProjection::new(&tx, &reader).unwrap();
-            for _ in 0..2 {
+            for round in 0..2 {
                 resolve_ordinary_indexed_templates_pending_view(&tx, &mut reader, fixture.metadata.view(),
                     fixture.roots.view(), &fixture.manifest.batch_id, 0, &mut projection).unwrap();
-                projection.commit_cut();
                 reader.clear_overlay();
+                if round == 1 {
+                    two_frontiers = crate::v3::audit_owner::allocation_probe::live_bytes() - live_before;
+                }
+                projection.commit_cut();
+                if round == 0 {
+                    one_frontier = crate::v3::audit_owner::allocation_probe::live_bytes() - live_before;
+                }
             }
         }
         let observed = heap.finish();
+        eprintln!("ORDINARY_PROJECTION_FRONTIERS actual_one_frontier={one_frontier} actual_two_frontiers={two_frontiers}");
         eprintln!("ORDINARY_PROJECTION_HEAP {observed}");
+        assert!(one_frontier > 0 && two_frontiers > one_frontier);
         assert_eq!(observed["live_before"], observed["live_after"]);
     }
 
