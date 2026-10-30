@@ -1312,3 +1312,130 @@ fn native_n1_vfs32f_sleep_expiry_next_lock_is_not_busy_but_unlock_works() {
     assert!(matches!(errors.reported(), Some(Reported::First(NativeError::Job(_)))));
     assert_eq!(account.borrow().snapshot().open_reservations, 0); assert_sidecars32f(&file.0);
 }
+
+// TestOnly 全域物理基线：用于被现役E6拒绝的WAL夹具，不替换生产MeasuredDomain。
+fn wal_existing32f(db: &Path, state: &Path) -> Existing {
+    use std::collections::BTreeSet;
+    use std::os::unix::fs::MetadataExt;
+    let parent = db.parent().unwrap();
+    let base = db.file_name().unwrap().as_encoded_bytes();
+    let mut queue = vec![state.to_path_buf()];
+    let mut seen = BTreeSet::new();
+    seen.insert(parent.to_path_buf());
+    let mut bytes = std::fs::metadata(parent).unwrap().blocks() * 512;
+    for item in std::fs::read_dir(parent).unwrap() {
+        let item = item.unwrap(); let name = item.file_name(); let raw = name.as_encoded_bytes();
+        if raw == base || (raw.starts_with(base) && matches!(raw.get(base.len()), Some(b'.' | b'-'))) { queue.push(item.path()); }
+    }
+    while let Some(path) = queue.pop() {
+        if !seen.insert(path.clone()) { continue; }
+        let meta = std::fs::metadata(&path).unwrap(); bytes += meta.blocks() * 512;
+        if meta.is_dir() { queue.extend(std::fs::read_dir(path).unwrap().map(|e| e.unwrap().path())); }
+    }
+    Existing { store_bytes: bytes, staged_bytes: 0 }
+}
+
+fn s3_wal32f() -> (crate::tests::TestFiles, [DevIno; 3], std::fs::File, u64) {
+    use std::os::unix::fs::MetadataExt;
+    let files = native_s3_fixture();
+    let conn = rusqlite::Connection::open(files.db()).unwrap();
+    let mut enabled = 0;
+    assert_eq!(unsafe { rusqlite::ffi::sqlite3_db_config(conn.handle(), rusqlite::ffi::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, 1, &mut enabled) }, rusqlite::ffi::SQLITE_OK);
+    conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA user_version=0;").unwrap(); conn.close().unwrap();
+    let paths = [files.db(), PathBuf::from(format!("{}-wal", files.db().display())), PathBuf::from(format!("{}-shm", files.db().display()))];
+    let pins = paths.each_ref().map(|path| { let m = std::fs::metadata(path).unwrap(); (m.dev(), m.ino()) });
+    let pin = std::fs::File::open(&paths[2]).unwrap(); let b0 = pin.metadata().unwrap().blocks() * 512;
+    (files, pins, pin, b0)
+}
+#[test]
+fn native_n1_vfs32f_real_s3_audit_seal_destroy_finish_stays_same_job() {
+    if !native_child("native_n1_vfs32f_real_s3_audit_seal_destroy_finish_stays_same_job") { return; }
+    let h = install().unwrap();
+    let (files, pins, pin, b0) = s3_wal32f();
+    let consumed = super::super::test_prepare(&files.db()).consume().unwrap();
+    let refusal = crate::v3::admission_provider::MeasuredDomain::measure(&consumed).err().expect("现役E6仍拒SHM");
+    assert!(refusal.contains("UnsupportedWalShmJournalCombination"), "{refusal}");
+    let existing = wal_existing32f(&files.db(), consumed.lease().state_path());
+    let started = consumed.into_job(existing).unwrap();
+    let gate = started.native_io_gate().unwrap(); let account = Rc::clone(&gate.job);
+    let before = account.borrow().snapshot();
+    let owner = NativeOwner::begin(h, gate, pins, b0, identity_bound()).unwrap();
+    let mut session = owner.open_native(&files.db(), pin).unwrap();
+    let tx = session.begin().unwrap(); let receipt = tx.audit().unwrap();
+    assert_eq!(receipt.delta, crate::DeltaShape::Current);
+    let audited = account.borrow().snapshot();
+    assert!(audited.nodes > before.nodes && audited.records > before.records);
+    assert_eq!(audited.wire_bytes - before.wire_bytes, h.actual_io.load(Ordering::SeqCst) as u128, "S3同一连接物理IO全部入原Job");
+    assert!(audited.open_reservations > 0);
+    let mut errors = NativeErrors::default();
+    let mut finished = tx.seal(started, &receipt, &mut errors).expect("E8自动清算，无人工settle");
+    assert!(Rc::ptr_eq(&account, &finished.job));
+    assert_eq!(account.borrow().snapshot().open_reservations, 0);
+    assert_eq!(with_owner(|tls| tls.gate.phase()), Some(Phase::Writer));
+    let error = tx.accept(&receipt, &native_input(), &crate::tests::fixture("profiles/testonly_tick_1_1_ohlc.json"), crate::DEFAULT_WRITER_EPOCH, None).unwrap_err();
+    assert!(error.starts_with("VersionMismatch"), "S3审计不能冒充S2写资格：{error}");
+    tx.rollback().unwrap();
+    let destroyed = match session.close(&mut errors) { Teardown::Destroyed(r) => r, _ => panic!("活连接不能签销毁收据") };
+    assert!(Rc::ptr_eq(&destroyed.job, &account));
+    n1_finish(&mut finished, &destroyed).unwrap();
+    assert!(errors.reported().is_none(), "{errors:?}"); assert_sidecars32f(&files.db());
+}
+
+#[test]
+fn native_n1_vfs32f_close_borrowed_job_keeps_mapping_grant_and_callbacks() {
+    if !native_child("native_n1_vfs32f_close_borrowed_job_keeps_mapping_grant_and_callbacks") { return; }
+    let h = install().unwrap();
+    let (file, pins, pin, b0) = wal_fixture("borrowed-close");
+    let (gate, account, _) = gate_with(60_000, 1 << 20);
+    let owner = NativeOwner::begin(h, gate, pins, b0, identity_bound()).unwrap();
+    let mut session = owner.open_native(&file.0, pin).unwrap();
+    let tx = session.begin().unwrap(); tx.rollback().unwrap();
+    let fd = shm_fd32f(h);
+    let held = account.borrow_mut(); let grants = held.snapshot().open_reservations;
+    assert!(grants > 0);
+    let mut errors = NativeErrors::default();
+    let session = match session.close(&mut errors) { Teardown::Alive(s) => s, _ => panic!("未结Grant必须保活") };
+    assert_eq!(held.snapshot().open_reservations, grants); assert!(fd_open(fd));
+    let state = session.state.as_ref().unwrap();
+    assert!(state.vfs.is_some() && state.progress.is_some() && state.authorizer.is_some());
+    assert!(with_owner(|tls| tls.budget.grant_count()).unwrap() > 0);
+    drop(held);
+    assert!(matches!(session.close(&mut errors), Teardown::Destroyed(_)));
+    assert!(matches!(errors.reported(), Some(Reported::First(NativeError::Code(NativeCode::GateBorrowed)))));
+    assert_eq!(account.borrow().snapshot().open_reservations, 0); assert!(!fd_open(fd));
+    assert_sidecars32f(&file.0);
+}
+
+#[test]
+fn native_n1_vfs32f_failed_first_seal_cleanup_keep_priority_on_real_connection() {
+    use std::os::fd::AsRawFd;
+    if !native_child("native_n1_vfs32f_failed_first_seal_cleanup_keep_priority_on_real_connection") { return; }
+    let h = fault_hooks32f();
+    let (files, pins, pin, b0) = s3_wal32f(); let pin_fd = pin.as_raw_fd();
+    let consumed = super::super::test_prepare(&files.db()).consume().unwrap();
+    let existing = wal_existing32f(&files.db(), consumed.lease().state_path());
+    let started = consumed.into_job(existing).unwrap();
+    let gate = started.native_io_gate().unwrap(); let account = Rc::clone(&gate.job);
+    let owner = NativeOwner::begin(h, gate, pins, b0, identity_bound()).unwrap();
+    let mut session = owner.open_native(&files.db(), pin).unwrap();
+    let raw = session.state.as_ref().unwrap().raw;
+    let tx = session.begin().unwrap(); let receipt = tx.audit().unwrap();
+    let mut statement = std::ptr::null_mut();
+    assert_eq!(unsafe { rusqlite::ffi::sqlite3_prepare_v2(raw, c"SELECT 1".as_ptr(), -1, &mut statement, std::ptr::null_mut()) }, rusqlite::ffi::SQLITE_OK);
+    let foreign_grant = account.borrow_mut().reserve_store(1).unwrap();
+    FAULTS32F.with(|f| f.borrow_mut().pin_fail = Some(pin_fd));
+    let mut errors = NativeErrors::default();
+    assert!(tx.seal(started, &receipt, &mut errors).is_none());
+    assert!(errors.seal.is_some(), "未结非SHM Grant产生独立seal错误");
+    drop(tx);
+    let session = match session.close(&mut errors) { Teardown::Alive(s) => s, _ => panic!("真实statement BUSY") };
+    assert!(matches!(errors.reported(), Some(Reported::First(NativeError::Code(NativeCode::ShmMeasureFailed)))));
+    assert!(errors.cleanup().contains(&NativeError::Code(NativeCode::CloseBusy)));
+    assert!(session.state.as_ref().unwrap().progress.is_some() && session.state.as_ref().unwrap().authorizer.is_some());
+    assert_eq!(unsafe { rusqlite::ffi::sqlite3_finalize(statement) }, rusqlite::ffi::SQLITE_OK);
+    account.borrow_mut().release(&foreign_grant).unwrap();
+    assert!(matches!(session.close(&mut errors), Teardown::Destroyed(_)));
+    assert_eq!(account.borrow().snapshot().open_reservations, 0);
+    assert!(matches!(errors.reported(), Some(Reported::First(NativeError::Code(NativeCode::ShmMeasureFailed)))));
+    assert_sidecars32f(&files.db());
+}
