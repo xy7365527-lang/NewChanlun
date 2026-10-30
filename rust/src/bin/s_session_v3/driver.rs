@@ -7425,6 +7425,17 @@ mod tests {
     #[cfg(feature = "s_incremental")]
     #[test]
     fn ordinary_material_multicut_wire_comparison_keeps_same_proofs_and_all_cuts() {
+        let mut peers = Vec::new();
+        if std::env::var("S_ORDINARY_WIRE_CHILD").as_deref() != Ok("1") {
+            let root = std::env::temp_dir().join(format!("wire33j-peers-{}", std::process::id()));
+            std::fs::create_dir_all(&root).unwrap();
+            for n in 0..8 {
+                let conn = rusqlite::Connection::open(root.join(format!("{n}.sqlite"))).unwrap();
+                conn.execute_batch("PRAGMA cache_size=-2000; CREATE TABLE t(x); INSERT INTO t VALUES(1);").unwrap();
+                peers.push(conn);
+            }
+            eprintln!("WIRE33J_INTERFERENCE peers={} memory_management={}", peers.len(), rusqlite::Connection::open_in_memory().unwrap().query_row("SELECT sqlite_compileoption_used('ENABLE_MEMORY_MANAGEMENT')", [], |r| r.get::<_,i64>(0)).unwrap());
+        }
         let mut steps: Vec<S4Step> = (1..=12)
             .map(|n| S4Step {
                 kind: "append",
@@ -7448,9 +7459,6 @@ mod tests {
             producer.handle(s4_message(index + 1, step)).unwrap();
         }
         drop(producer);
-        let frozen_files = || [fixture.db.clone(), fixture.path.join("s.sqlite-wal"), fixture.path.join("s.sqlite-shm")].map(|p| std::fs::read(p).ok());
-        let before_files = frozen_files();
-        eprintln!("WIRE33J before_file_sizes={:?}", before_files.each_ref().map(|v| v.as_ref().map(Vec::len)));
         let sample = || {
             super::super::ordinary_materials::LAST_REPORT.with(|r| r.set(None));
             super::admission_private::s4_read_trace::enable();
@@ -7464,12 +7472,10 @@ mod tests {
             (reads, bytes, coverage, material, roots)
         };
         let old = super::super::history::without_ordinary_materials_for_test(sample);
-        let middle_files = frozen_files();
-        eprintln!("WIRE33J after_old_file_sizes={:?} same_before={:?}", middle_files.each_ref().map(|v| v.as_ref().map(Vec::len)), std::array::from_fn::<_,3,_>(|i| before_files[i] == middle_files[i]));
+        peers.clear();
+        eprintln!("WIRE33J_INTERFERENCE peers_before_candidate={}", peers.len());
         let new = sample();
-        let after_files = frozen_files();
-        eprintln!("WIRE33J after_new_file_sizes={:?} same_middle={:?}", after_files.each_ref().map(|v| v.as_ref().map(Vec::len)), std::array::from_fn::<_,3,_>(|i| middle_files[i] == after_files[i]));
-        eprintln!("WIRE33J baseline_sql={} candidate_sql={} baseline_bytes={:?} candidate_bytes={:?} coverage={:?}/{:?} material={:?}", old.0,new.0,old.1,new.1,old.2,new.2,new.3);
+        eprintln!("WIRE33J_INTERFERENCE baseline_bytes={:?} candidate_bytes={:?} sql={}/{} coverage={:?}/{:?}",old.1,new.1,old.0,new.0,old.2,new.2);
 
         assert!(old.3.is_none(), "对照只禁原件复用，保留611cc1d来源证明");
         let material = new.3.expect("候选普通原件池");
