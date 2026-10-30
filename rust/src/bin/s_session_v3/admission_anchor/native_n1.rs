@@ -749,8 +749,11 @@ fn native_authorizer_denies(event: &NativeAuthContext<'_>) -> bool {
     matches!(event.action, ffi::SQLITE_ATTACH | ffi::SQLITE_DETACH | ffi::SQLITE_CREATE_TEMP_INDEX |
         ffi::SQLITE_CREATE_TEMP_TABLE | ffi::SQLITE_CREATE_TEMP_TRIGGER | ffi::SQLITE_CREATE_TEMP_VIEW |
         ffi::SQLITE_DROP_TEMP_INDEX | ffi::SQLITE_DROP_TEMP_TABLE | ffi::SQLITE_DROP_TEMP_TRIGGER | ffi::SQLITE_DROP_TEMP_VIEW)
-        || (event.action == ffi::SQLITE_PRAGMA && event.arg2.is_some() && event.arg1.is_some_and(|name| {
-            matches!(name.to_bytes(), b"journal_mode" | b"mmap_size" | b"temp_store" | b"wal_checkpoint")
+        || (event.action == ffi::SQLITE_PRAGMA && event.arg1.is_some_and(|name| {
+            let name = name.to_bytes();
+            // PRAGMA 名大小写不敏感；wal_checkpoint 无参数也会执行 PASSIVE checkpoint。
+            name.eq_ignore_ascii_case(b"wal_checkpoint") || (event.arg2.is_some()
+                && [b"journal_mode".as_slice(), b"mmap_size", b"temp_store"].iter().any(|blocked| name.eq_ignore_ascii_case(blocked)))
         }))
 }
 

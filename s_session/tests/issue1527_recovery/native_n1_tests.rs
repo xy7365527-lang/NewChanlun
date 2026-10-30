@@ -1,5 +1,5 @@
-//! #1527 31Q/31V TestOnly：N1 受限候选的业务事务对拍、原 Job 审计与 syscall 反例锁。临时文件、SQLite 与独立
-//! `NativeHooks` 实例；不安装进全局 aSyscall，不触目标卷、S0 或生产入口。
+//! #1527 31Q–32F TestOnly：业务事务对拍、原 Job 审计、真实 VFS/syscall 及失败清理锁。
+//! 旧锁使用独立 NativeHooks；32D/32F 只在隔离测试子进程安装 aSyscall，不触目标卷、S0 或生产入口。
 use super::*;
 use newchan_rust::s_content::job::{self as job, Existing, JobLimits};
 use std::ffi::CString;
@@ -127,6 +127,7 @@ fn gate_with(elapsed_ms: u64, store: u64) -> (NativeIoGate, Rc<RefCell<job::Job>
     (NativeIoGate::for_test(Rc::clone(&j)), j, now)
 }
 
+/// TestOnly 合成 A(len)=len；不作为任何目标卷 E4 分配上界收据。
 fn identity_bound() -> Option<AllocationBound> {
     Some(AllocationBound::new(|len| len))
 }
@@ -1050,7 +1051,11 @@ fn native_n1_vfs32d_real_sqlite_io_and_automatic_cleanup() {
     assert!(snapshot.wire_bytes > 0);
     assert_eq!(snapshot.wire_bytes, h.actual_io.load(Ordering::SeqCst) as u128, "同连接只按syscall实际n入账，xRead不重计");
     assert!(snapshot.open_reservations > 0, "真实xShmMap仍持可写映射预留");
-    assert!(tx.tx.as_ref().unwrap().execute_batch("ATTACH ':memory:' AS forbidden").is_err(), "原生authorizer实际拒绝旁路连接");
+    for forbidden in ["ATTACH ':memory:' AS forbidden", "PRAGMA MMAP_SIZE=4096", "PRAGMA JOURNAL_MODE=DELETE", "PRAGMA TEMP_STORE=FILE", "PRAGMA WAL_CHECKPOINT"] {
+        assert!(tx.tx.as_ref().unwrap().execute_batch(forbidden).is_err(), "原生authorizer实际拒绝旁路：{forbidden}");
+    }
+    let mode: String = tx.tx.as_ref().unwrap().query_row("PRAGMA JOURNAL_MODE", [], |row| row.get(0)).unwrap();
+    assert_eq!(mode, "wal", "无副作用查询仍可用");
     tx.rollback().unwrap();
     let mut errors = NativeErrors::default();
     assert!(matches!(session.close(&mut errors), Teardown::Destroyed(_)), "关闭自动清算无需人工settle");
