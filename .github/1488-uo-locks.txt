@@ -135,3 +135,4 @@ v3::audit_owner::publication_degrade_verdict_tests::publication_same_text_withou
 v3::audit_owner::publication_degrade_verdict_tests::publication_same_text_foreign_origin_rejects
 v3::audit_owner::construction_tests::publication_raw_advance_budget_preserves_origin_through_owner_boundary
 v3::object_index::tests::publication_object_bind_real_budget_preserves_origin
+v3::history::tests::publication_native_cut_scope_real_budget_preserves_origin

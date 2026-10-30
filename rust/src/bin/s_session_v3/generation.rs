@@ -2782,8 +2782,8 @@ pub(super) mod tests {
     fn structure_fact_real_budget_preserves_origin_through_bi_error() {
         use sc::capture_allocation::scratch::{failure_trace, ScratchFailure, WorkError};
         let budget = super::super::audit_owner::native::Budget::new(1 << 20, 0).unwrap();
-        let work = budget.codec_work().unwrap();
         let baseline = budget.live();
+        let work = budget.codec_work().unwrap();
         let mut nodes = MemoryNodes::new();
         let mut returned = None;
         let (run, trace) = failure_trace::capture(|| {

@@ -6581,6 +6581,15 @@ fn publication_degrade_verdict(
     }
 }
 
+#[cfg(all(test, feature = "s_incremental"))]
+pub(super) fn publication_degrade_verdict_for_test(
+    error: newchan_rust::s_content::capture_allocation::scratch::WorkError<PublishError>,
+    operation_error: Option<PublishError>,
+    trace: failure_trace::FailureTrace,
+) -> Result<(), PublishError> {
+    publication_degrade_verdict(error, operation_error, trace)
+}
+
 #[cfg(feature = "s_incremental")]
 use newchan_rust::s_content::capture_allocation::scratch::failure_trace;
 

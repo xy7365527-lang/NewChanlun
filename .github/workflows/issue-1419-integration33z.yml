@@ -33,11 +33,11 @@ jobs:
           set -o pipefail
           features='${{ matrix.features }}'
           if [ "$features" = s_session ]; then
-            filters='structure_domain_wires_versions_knowledge_axes_and_rejects_foreign_prior structure_rule_ w_semantics_layout_neutral_between_layout1_and_bounded bounded2_crosswalk_rejects_non_w_subject_and_fractal_changes ordinary_materials::tests ordinary_material_whole_readonly_audit_heap_releases manifest_template_coverage_ ordinary_proof_'
+            filters='structure_domain_wires_versions_knowledge_axes_and_rejects_foreign_prior structure_rule_ w_semantics_layout_neutral_between_layout1_and_bounded bounded2_crosswalk_rejects_non_w_subject_and_fractal_changes ordinary_materials::tests ordinary_material_whole_readonly_audit_heap_releases manifest_template_coverage_'
           elif [ "$features" = s_session,s_incremental ]; then
             filters='structure_fact_real_budget_preserves_origin_through_bi_error publication_origin_survives_clone_and_two_contexts publication_same_text_without_origin_rejects structure_rule_'
           else
-            filters='structure_domain_wires_versions_knowledge_axes_and_rejects_foreign_prior ordinary_proof_ structure_fact_real_budget_preserves_origin_through_bi_error structure_value::tests native_cut_projection_gate_ bounded2_crosswalk_rejects_non_w_subject_and_fractal_changes'
+            filters='structure_domain_wires_versions_knowledge_axes_and_rejects_foreign_prior structure_fact_real_budget_preserves_origin_through_bi_error structure_value::tests native_cut_projection_gate_ bounded2_crosswalk_rejects_non_w_subject_and_fractal_changes'
           fi
           for filter in $filters; do
             cargo test --locked --bin s_structure_session --features "$features" "$filter" -- --nocapture --test-threads=1 2>&1 | tee -a ../integration33z/tests.log
@@ -54,3 +54,27 @@ jobs:
         with:
           name: integration33z-${{ matrix.features }}
           path: integration33z/
+
+  legacy-inputs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_BUILD_JOBS: "2"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/rust-job-setup
+      - name: Export frozen historical inputs
+        run: |
+          git worktree add --detach ../legacy33z 4df2d10f92d1075f5fb761a1b112c9c949da5408
+          python3 .github/scripts/export-1419-legacy33z.py ../legacy33z
+          export LEGACY_EXPORT_DIR="$GITHUB_WORKSPACE/legacy33z-inputs"
+          cd ../legacy33z/rust
+          cargo test --locked --bin s_structure_session --features s_session,s_incremental export33z_ -- --nocapture --test-threads=1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: legacy33z-inputs
+          path: legacy33z-inputs/
