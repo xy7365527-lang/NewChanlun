@@ -38,6 +38,9 @@ mod source_delta;
 pub(crate) use source_contributions::SourceWork;
 #[cfg(feature = "s_incremental")]
 pub(crate) use source_contributions::{audit_native_bound, NativeSourceState};
+#[path = "ordinary_source.rs"]
+mod ordinary_source;
+pub(super) use ordinary_source::OrdinaryProofs;
 #[path = "source_pending.rs"]
 mod source_pending;
 #[path = "source_prefix.rs"]
@@ -1592,6 +1595,7 @@ impl<'capture> NativeSourceAudit<'capture> {
                 Some(&mut self.source_memo),
                 Some(&mut self.fields),
                 Some(&mut self.ledger),
+                None,
             )
         })();
         if result.is_err() {
@@ -1648,6 +1652,7 @@ pub(super) fn audit_generated_metered<'a>(
         None,
         None,
         None,
+        None,
     )
 }
 pub(super) fn audit_generated_for_audit<'a>(
@@ -1671,7 +1676,18 @@ pub(super) fn audit_generated_for_audit<'a>(
         None,
         None,
         None,
+        None,
     )
+}
+
+pub(super) fn audit_generated_with_proofs(
+    s: &mut super::history::HashReader<'_>, state: sc::RefView<'_>, raw: RawEventsView<'_>,
+    profile: &str, rule: &str, deadline: Option<std::time::Instant>,
+    budget: Option<&dyn super::audit_budget::Budget>, proofs: &mut OrdinaryProofs,
+) -> Result<Counts, String> {
+    proofs.begin(profile, rule);
+    audit_generated_in_store(&mut super::audit_store::StoreView::for_audit(s), state, raw,
+        profile, rule, deadline, budget, None, None, None, None, Some(proofs))
 }
 
 // #1488 SFT-M1：故障对拍必须调用冻结旧核，不能借用重构后的同一实现。
@@ -2283,6 +2299,7 @@ fn audit_generated_in_store(
     mut native_sources: Option<&mut NativeSourceMemo<'_>>,
     native_fields: Option<&mut NativeFieldMemo<'_>>,
     native_ledger: Option<&mut NativeRawLedger<'_>>,
+    mut ordinary: Option<&mut OrdinaryProofs>,
 ) -> Result<Counts, String> {
     #[cfg(test)]
     source_call_note(|n| {
@@ -2366,7 +2383,10 @@ fn audit_generated_in_store(
         };
         super::history::check_deadline(deadline)?;
         let memo_fields = s.fields.is_some();
-        let object = audit_object_record(
+        let object = if let Some(proofs) = ordinary.as_deref_mut() {
+            proofs.object(s, &record, raw, &producer, &mut FullObjectSlots { ids: &mut ids, groups: &mut groups },
+                &mut checked_refs, raw_prefix.len(), deadline, budget)?
+        } else { audit_object_record(
             s,
             &record,
             raw,
@@ -2379,12 +2399,12 @@ fn audit_generated_in_store(
             memo_fields,
             deadline,
             budget,
-        )?;
+        )? };
         s.native_codec_room(&mut objects, 1).map_err(err)?;
         objects.try_push(object).map_err(err)?;
     }
     // #1394 r3：先绑定已发布未定事实，再核组成员与 pending 的不交完备并集。
-    let pending = source_pending::audit(s, objects.iter(), raw, &groups, rule, deadline)?;
+    let pending = source_pending::audit_with_proofs(s, objects.iter(), raw, &groups, rule, deadline, ordinary.as_deref_mut())?;
     let mut partition = bj::new_map(allocation.as_ref());
     let ordered_groups = sorted_numeric_entries(s, &groups)?;
     #[cfg(test)]
@@ -2420,7 +2440,10 @@ fn audit_generated_in_store(
     source_call_note(|n| n.full_members_enumerations += 1);
     for object in objects.iter().filter(|o| o.kind == CC006_SHAPE_KIND) {
         super::history::check_deadline(deadline)?;
-        let shape = audit_shape_record(
+        let shape = if let Some(proofs) = ordinary.as_deref_mut() {
+            proofs.shape(s, object, raw, &groups, &producer, &mut checked_refs,
+                raw_prefix.len(), deadline, budget)?
+        } else { audit_shape_record(
             s,
             object,
             raw,
@@ -2431,7 +2454,7 @@ fn audit_generated_in_store(
             raw_prefix.len(),
             deadline,
             budget,
-        )?;
+        )? };
         s.native_map_room(&mut shapes).map_err(err)?;
         shapes
             .insert(s.native_text(object.id.as_str())?, shape)
@@ -2445,7 +2468,9 @@ fn audit_generated_in_store(
     source_call_note(|n| n.full_members_enumerations += 1);
     for witness in elements(s, &witness_array)? {
         super::history::check_deadline(deadline)?;
-        audit_witness_record(
+        if let Some(proofs) = ordinary.as_deref_mut() {
+            proofs.witness(s, &witness, raw, &groups, &shapes, &mut FullWitnessSlots(&mut seen), deadline)?;
+        } else { audit_witness_record(
             s,
             &witness,
             raw,
@@ -2454,7 +2479,7 @@ fn audit_generated_in_store(
             &mut seen,
             native_identity.as_deref_mut(),
             deadline,
-        )?;
+        )?; }
     }
     if seen.len() != shapes.len() * 3 {
         return Err(err("形态缺完整三槽见证"));

@@ -285,6 +285,7 @@ pub(crate) fn resolve_indexed_templates_pending_view(
         batch_id,
         previous_frontier,
         None,
+        None,
     )
 }
 
@@ -362,6 +363,7 @@ const PUBLICATION_FIELD_NAMES: &[&str] = &[
     "lifecycle",
 ];
 enum PublicationFields {
+    Ordinary(std::rc::Rc<RefFields<'static>>),
     Direct(RefFields<'static>),
     Shared(Rc<RefFields<'static>>),
 }
@@ -374,6 +376,7 @@ impl PublicationFields {
         match self {
             Self::Direct(f) => f.get_admitted(store, name),
             Self::Shared(f) => f.get_admitted(store, name),
+            Self::Ordinary(f) => f.get_admitted(store, name),
         }
         .map_err(err)
     }
@@ -381,6 +384,7 @@ impl PublicationFields {
         match self {
             Self::Direct(f) => f.get(name),
             Self::Shared(f) => f.get(name),
+            Self::Ordinary(f) => f.get(name),
         }
     }
 }
@@ -416,6 +420,7 @@ pub(crate) fn resolve_native_indexed_templates_pending_view(
         batch_id,
         previous_frontier,
         Some(memo),
+        None,
     )
 }
 fn check_resolution_header(
@@ -562,6 +567,7 @@ fn resolve_indexed_templates_pending_core(
     batch_id: &str,
     previous_frontier: i64,
     mut memo: Option<&mut NativePublicationMemo<'_>>,
+    mut projection: Option<&mut PublicationProjection<'_, '_>>,
 ) -> Result<PendingRefTemplates, String> {
     #[cfg(test)]
     crate::v3::diagnostic_s4_read_trace::begin(tx, "ord_pub_births_objects");
@@ -589,6 +595,7 @@ fn resolve_indexed_templates_pending_core(
         batch_id,
         ObjectFamily::Active,
         memo.as_deref_mut(),
+        projection.as_deref_mut(),
     );
     #[cfg(test)]
     crate::v3::diagnostic_s4_read_trace::end(tx, "ord_pub_resolve_active", &resolved_family);
@@ -604,6 +611,7 @@ fn resolve_indexed_templates_pending_core(
         batch_id,
         ObjectFamily::Withdrawn,
         memo.as_deref_mut(),
+        projection.as_deref_mut(),
     );
     #[cfg(test)]
     crate::v3::diagnostic_s4_read_trace::end(tx, "ord_pub_resolve_withdrawn", &resolved_family);
@@ -619,6 +627,7 @@ fn resolve_indexed_templates_pending_core(
         batch_id,
         ObjectFamily::Born,
         memo.as_deref_mut(),
+        projection.as_deref_mut(),
     );
     #[cfg(test)]
     crate::v3::diagnostic_s4_read_trace::end(tx, "ord_pub_resolve_born", &resolved_family);
@@ -1251,9 +1260,23 @@ fn resolve_record_batch(
     m: &MetadataView<'_>,
     batch: &str,
 ) -> Result<(), String> {
-    let value = store
-        .lookup_field_ref(record.view(), "batch_id")
-        .map_err(err)?;
+    resolve_record_batch_projected(store, root, path, record, first, stored_batch, m, batch, None)
+}
+fn resolve_record_batch_projected(
+    store: &mut (impl CodecStore + ?Sized),
+    root: &mut RefValue,
+    path: &[PathStep],
+    record: &RefValue,
+    first: i64,
+    stored_batch: &str,
+    m: &MetadataView<'_>,
+    batch: &str,
+    projection: Option<&mut PublicationProjection<'_, '_>>,
+) -> Result<(), String> {
+    let value = match projection {
+        Some(p) => p.read_batch(store, record.view())?,
+        None => store.lookup_field_ref(record.view(), "batch_id").map_err(err)?,
+    };
     if first == m.generation {
         if stored_batch != batch || value.kind() != Kind::TemplateBatch {
             return Err(err("本批出生索引/占位不符"));
@@ -1306,6 +1329,7 @@ fn resolve_objects(
     batch: &str,
     family: ObjectFamily,
     mut memo: Option<&mut NativePublicationMemo<'_>>,
+    mut projection: Option<&mut PublicationProjection<'_, '_>>,
 ) -> Result<(), String> {
     #[cfg(test)]
     RECORD_RESOLVERS.with(|v| {
@@ -1341,7 +1365,10 @@ fn resolve_objects(
         // 本模块通用于既有记录与S3记录，只取其共同控制字段，不裁载荷字段schema。
         let fields = match memo.as_deref_mut() {
             Some(memo) => memo.read_fields(store, record.view())?,
-            None => PublicationFields::Direct(read_publication_fields(store, record.view())?),
+            None => match projection.as_deref_mut() {
+                Some(p) => p.read_fields(store, record.view())?,
+                None => PublicationFields::Direct(read_publication_fields(store, record.view())?),
+            },
         };
         let id = fields
             .get_admitted(store, "object_id")?
@@ -1403,7 +1430,7 @@ fn resolve_objects(
                 return Err(err(format!("{k} 与独立记录不同")));
             }
         }
-        resolve_record_batch(
+        resolve_record_batch_projected(
             store,
             root,
             &path.steps,
@@ -1412,6 +1439,7 @@ fn resolve_objects(
             &b.batch,
             m,
             batch,
+            projection.as_deref_mut(),
         )?;
     }
     Ok(())
@@ -2686,4 +2714,104 @@ mod tests {
             .unwrap_err()
             .contains("upserts 与独立索引成员数不符"));
     }
+}
+
+/// #1640 普通只读历史的字段投影，不保存任何逐 cut 业务结论。
+pub(crate) struct PublicationProjection<'scope, 'tx> {
+    transaction: &'scope Transaction<'tx>,
+    reader: *const (),
+    previous: std::collections::HashMap<PublicationKey, std::rc::Rc<RefFields<'static>>>,
+    current: std::collections::HashMap<PublicationKey, std::rc::Rc<RefFields<'static>>>,
+    batch_previous: std::collections::HashMap<PublicationKey, ContentRef>,
+    batch_current: std::collections::HashMap<PublicationKey, ContentRef>,
+    peak_bytes: usize,
+}
+type PublicationKey = (String, String, &'static str, Option<u64>);
+fn publication_key(record: sc::RefView<'_>) -> PublicationKey {
+    (record.format().into(), record.root().into(), record.kind().name(), record.extent())
+}
+impl<'scope, 'tx> PublicationProjection<'scope, 'tx> {
+    pub(crate) fn new(tx: &'scope Transaction<'tx>, store: &HashReader<'_>) -> Result<Self, String> {
+        if !tx.is_readonly(rusqlite::MAIN_DB).map_err(err)? || !store.ordinary_bound_births_qualified() {
+            return Err(err("ordinary投影需要同事务只读原件"));
+        }
+        Ok(Self { transaction: tx, reader: store as *const _ as *const (),
+            previous: Default::default(), current: Default::default(),
+            batch_previous: Default::default(), batch_current: Default::default(), peak_bytes: 0 })
+    }
+    fn check(&self, tx: &Transaction<'_>, store: &HashReader<'_>) -> Result<(), String> {
+        if !std::ptr::eq(tx, self.transaction) || self.reader != store as *const _ as *const ()
+            || !store.ordinary_bound_births_qualified() {
+            return Err(err("ordinary投影事务/reader不符"));
+        }
+        Ok(())
+    }
+    fn read_fields(&mut self, store: &mut (impl CodecStore + ?Sized), r: sc::RefView<'_>) -> Result<PublicationFields, String> {
+        let k = publication_key(r);
+        let fields = match self.current.get(&k).or_else(|| self.previous.get(&k)) {
+            Some(fields) => std::rc::Rc::clone(fields),
+            None => std::rc::Rc::new(read_publication_fields(store, r)?),
+        };
+        self.current.insert(k, std::rc::Rc::clone(&fields));
+        Ok(PublicationFields::Ordinary(fields))
+    }
+    fn read_batch(&mut self, store: &mut (impl CodecStore + ?Sized), r: sc::RefView<'_>) -> Result<RefValue, String> {
+        let k = publication_key(r);
+        let value = match self.batch_current.get(&k).or_else(|| self.batch_previous.get(&k)) {
+            Some(value) => value.clone(),
+            None => {
+                let value = store.lookup_field_ref(r, "batch_id").map_err(err)?;
+                ContentRef { format: value.view().format().into(), root: value.root().into(), kind: value.kind(), extent: value.extent() }
+            }
+        };
+        self.batch_current.insert(k, value.clone());
+        Ok(value.into())
+    }
+    pub(crate) fn commit_cut(&mut self) {
+        self.measure();
+        self.previous = std::mem::take(&mut self.current);
+        self.batch_previous = std::mem::take(&mut self.batch_current);
+        self.measure();
+    }
+    fn measure(&mut self) {
+        let mut pointers = std::collections::HashSet::new();
+        let mut bytes = 0usize;
+        for map in [&self.previous, &self.current] {
+            bytes += map.capacity() * (std::mem::size_of::<(PublicationKey, std::rc::Rc<RefFields<'static>>)>() + 1);
+            for (k, fields) in map {
+                bytes += k.0.capacity() + k.1.capacity();
+                if pointers.insert(std::rc::Rc::as_ptr(fields)) {
+                    if let RefFields::Plain(fields) = &**fields {
+                        bytes += fields.plain_retained_bytes().expect("ordinary retained fields")
+                            + std::mem::size_of::<RefFields<'static>>() + 2 * std::mem::size_of::<usize>();
+                    }
+                }
+            }
+        }
+        for map in [&self.batch_previous, &self.batch_current] {
+            bytes += map.capacity() * (std::mem::size_of::<(PublicationKey, ContentRef)>() + 1);
+            bytes += map.iter().map(|(k, r)| k.0.capacity() + k.1.capacity() + r.format.capacity() + r.root.capacity()).sum::<usize>();
+        }
+        self.peak_bytes = self.peak_bytes.max(bytes);
+        #[cfg(test)]
+        ORDINARY_PUBLICATION_BYTES.with(|stats| stats.set((bytes, self.peak_bytes)));
+    }
+}
+impl Drop for PublicationProjection<'_, '_> {
+    fn drop(&mut self) {
+        self.measure();
+        #[cfg(test)]
+        ORDINARY_PUBLICATION_BYTES.with(|stats| stats.set((0, self.peak_bytes)));
+    }
+}
+#[cfg(test)]
+thread_local! { static ORDINARY_PUBLICATION_BYTES: std::cell::Cell<(usize, usize)> = const { std::cell::Cell::new((0,0)) }; }
+
+pub(crate) fn resolve_ordinary_indexed_templates_pending_view(
+    tx: &Transaction<'_>, store: &mut HashReader<'_>, metadata: MetadataView<'_>,
+    roots: RootsView<'_>, batch_id: &str, previous_frontier: i64,
+    projection: &mut PublicationProjection<'_, '_>,
+) -> Result<PendingRefTemplates, String> {
+    projection.check(tx, store)?;
+    resolve_indexed_templates_pending_core(tx, store, metadata, roots, batch_id, previous_frontier, None, Some(projection))
 }

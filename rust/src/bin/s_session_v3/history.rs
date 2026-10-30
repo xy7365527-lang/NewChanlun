@@ -558,10 +558,14 @@ pub(super) struct VerifiedPublicHistory<'scope, 'tx> {
     transaction: &'scope Transaction<'tx>,
     qualified: bool,
 }
-impl VerifiedPublicHistory<'_, '_> {
+impl<'scope, 'tx> VerifiedPublicHistory<'scope, 'tx> {
     pub(super) fn history(&self) -> &IndexedHistory { &self.history }
     pub(super) fn into_history(self) -> IndexedHistory { self.history }
     pub(super) fn qualified(&self) -> bool { self.qualified }
+    pub(super) fn ordinary_source_session(&self) -> Option<OrdinarySourceSession<'_, 'scope, 'tx>> {
+        self.qualified.then(|| OrdinarySourceSession { history: self, proofs: Some(Default::default()) })
+    }
+
     pub(super) fn audit_cut<R>(
         &self,
         tx: &Transaction<'_>,
@@ -585,6 +589,32 @@ impl VerifiedPublicHistory<'_, '_> {
         action(&mut reader)
     }
 }
+pub(super) struct OrdinarySourceSession<'audit, 'scope, 'tx> {
+    history: &'audit VerifiedPublicHistory<'scope, 'tx>,
+    proofs: Option<super::source_audit::OrdinaryProofs>,
+}
+impl OrdinarySourceSession<'_, '_, '_> {
+    pub(super) fn audit_cut<R>(
+        &mut self, tx: &Transaction<'_>, cut: &PublishedCut,
+        deadline: Option<std::time::Instant>, max: Option<u64>,
+        budget: Option<&dyn super::audit_budget::Budget>,
+        action: impl FnOnce(&mut HashReader<'_>, &mut super::source_audit::OrdinaryProofs) -> Result<R, String>,
+    ) -> Result<R, String> {
+        let proofs = self.proofs.as_mut().ok_or_else(|| err("ordinary来源session已拒绝"))?;
+        let result = self.history.audit_cut(tx, cut, deadline, max, budget, |store| action(store, proofs));
+        match result {
+            Ok(value) => {
+                proofs.commit();
+                Ok(value)
+            }
+            Err(error) => {
+                self.proofs = None;
+                Err(error)
+            }
+        }
+    }
+}
+
 pub(super) fn read_verified_public_history<'scope, 'tx, 'raw>(
     tx: &'scope Transaction<'tx>,
     raw: impl Into<RawEventsView<'raw>>,
@@ -837,6 +867,9 @@ fn read_indexed_history_inner(
     // 原始当前capture闭包全核之后才创建；仅本次历史循环持有，跨请求/阶段重建。
     let mut object_sweep = objects.native_sweep_admitted(&store)?;
     let publication_memo = content_publication::NativePublicationMemo::new(&store);
+    let mut ordinary_publication = if bound_births_qualified {
+        Some(content_publication::PublicationProjection::new(tx, &store)?)
+    } else { None };
     let mut native_aux = aux_index::NativeAuxAudit::from_loaded_admitted(&store, &auxiliary, raw)?;
     let mut native_prefix = NativeHistoryPrefixes::new(&store, raw, allocation.as_ref());
     let mut ordered_raw = native_prefix.as_ref().map(|_| bj::RawPrefixIndex::new(raw));
@@ -866,11 +899,13 @@ fn read_indexed_history_inner(
             &mut resolved_roots,
             records.as_deref_mut(),
             publication_memo.is_some(),
+            ordinary_publication.as_mut(),
             bound_births_qualified,
             deadline,
             budget,
             allocation.as_ref(),
         )?;
+        if let Some(projection) = ordinary_publication.as_mut() { projection.commit_cut(); }
         previous = cut.metadata.input_frontier;
         store.native_codec_room(&mut output, 1).map_err(err)?;
         output.try_push(cut).map_err(err)?;
@@ -947,6 +982,7 @@ fn audit_one_published_cut<'capture>(
     resolved_roots: &mut sc::CodecVec<RefValue>,
     mut records: Option<&mut NativeRecordFields<'_>>,
     native_publication: bool,
+    mut ordinary_publication: Option<&mut content_publication::PublicationProjection<'_, '_>>,
     bound_births_qualified: bool,
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
@@ -1060,6 +1096,10 @@ fn audit_one_published_cut<'capture>(
             batch_id.as_str(),
             previous,
             projection,
+        )?
+    } else if let Some(projection) = ordinary_publication.as_deref_mut() {
+        content_publication::resolve_ordinary_indexed_templates_pending_view(
+            tx, store, m.view(), roots.view(), batch_id.as_str(), previous, projection,
         )?
     } else {
         content_publication::resolve_indexed_templates_pending_view(
@@ -2892,7 +2932,7 @@ impl<'a> HashReader<'a> {
             ReadOwner::Dynamic(_) => None,
         }
     }
-    pub(super) fn ordinary_bound_births_qualified(&self) -> bool {
+    pub(crate) fn ordinary_bound_births_qualified(&self) -> bool {
         self.policy == SourcePolicy::Ordinary
             && self.owned.is_none()
             && self.work.is_none()
@@ -5731,7 +5771,7 @@ pub(super) mod tests {
             let cut = audit_one_published_cut(
                 &tx, None, &mut row, &mut store, raw_view, &mut control, &mut objects, &auxiliary,
                 &mut sweep, &mut aux, &mut prefixes, &mut ordered, &mut effective,
-                &raw_nodes, &wire_nodes, -1, &mut resolved, None, true, false, None, None, None,
+                &raw_nodes, &wire_nodes, -1, &mut resolved, None, true, None, false, None, None, None,
             )?;
             drop(row);
             stmt.finalize().map_err(err)?;
@@ -7644,6 +7684,7 @@ pub(super) fn append_owner_cut(
         &mut resolved,
         None,
         true,
+        None,
         false,
         None,
         None,

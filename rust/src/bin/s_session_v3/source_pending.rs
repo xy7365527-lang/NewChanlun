@@ -85,13 +85,13 @@ pub(super) fn raw_bar(
 }
 
 pub(super) struct Step<'a> {
-    object: &'a Object,
-    fields: SourceFields<'static>,
-    key: bj::TextValue,
-    reasons: RefValue,
-    waiting_count: usize,
-    insufficient: bool,
-    incomplete: bool,
+    pub(super) object: &'a Object,
+    pub(super) fields: SourceFields<'static>,
+    pub(super) key: bj::TextValue,
+    pub(super) reasons: RefValue,
+    pub(super) waiting_count: usize,
+    pub(super) insufficient: bool,
+    pub(super) incomplete: bool,
 }
 
 /// 所有实现均借已核 Object；只抽出存储形状，不抽走任何业务判断。
@@ -712,6 +712,18 @@ pub(super) fn audit<'a>(
     rule: &str,
     deadline: Option<Instant>,
 ) -> Result<sc::CodecVec<i64>, String> {
+    audit_with_proofs(s, objects, raw, groups, rule, deadline, None)
+}
+
+pub(super) fn audit_with_proofs<'a>(
+    s: &mut (impl SourceFieldStore + ?Sized),
+    objects: impl IntoIterator<Item = &'a Object>,
+    raw: &BusinessMap<i64, Source>,
+    groups: &BusinessMap<i64, Group>,
+    rule: &str,
+    deadline: Option<Instant>,
+    mut proofs: Option<&mut OrdinaryProofs>,
+) -> Result<sc::CodecVec<i64>, String> {
     #[cfg(test)]
     super::source_call_note(|n| {
         n.full_pending_calls += 1;
@@ -728,7 +740,10 @@ pub(super) fn audit<'a>(
         if object.kind == CC054_KNOWLEDGE_KIND {
             knowledge_record(s, object, &mut knowledge)?;
         } else if object.kind == CC004_STEP_KIND {
-            let (coord, step) = step_record(s, object, raw, equal_is_evidence)?;
+            let (coord, step) = match proofs.as_deref_mut() {
+                Some(p) => p.step(s, object, raw, equal_is_evidence)?,
+                None => step_record(s, object, raw, equal_is_evidence)?,
+            };
             s.native_map_room(&mut step_subjects).map_err(err)?;
             step_subjects
                 .insert(object.id.as_str(), coord)
@@ -780,7 +795,10 @@ pub(super) fn audit<'a>(
     super::source_call_note(|n| n.full_members_enumerations += 1);
     for request in elements(s, &request_array)? {
         super::super::history::check_deadline(deadline)?;
-        request_record(
+        if let Some(p) = proofs.as_deref_mut() {
+            p.request(s, &request, &FullStepLookup { steps: &steps, subjects: &step_subjects },
+                &mut FullRequestSlots { requests: &mut requests, bound: &mut bound }, equal_is_evidence)?;
+        } else { request_record(
             s,
             &request,
             &steps,
@@ -788,7 +806,7 @@ pub(super) fn audit<'a>(
             &mut requests,
             &mut bound,
             equal_is_evidence,
-        )?;
+        )?; }
     }
     if bound.len() != steps.len() {
         return Err(err("CC004缺一一绑定的知识请求"));
