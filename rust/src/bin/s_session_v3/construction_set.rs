@@ -275,16 +275,43 @@ pub(crate) struct OwnerSourceCheck {
     root: Declaration,
     raw_prefix: usize,
     counts: super::super::source_audit::Counts,
+    context: Option<crate::content_manifest::NativeMetadata>,
+    deadline: Option<std::time::Instant>,
 }
 #[cfg(test)]
 thread_local! {
     static OWNER_SOURCE_REUSES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 #[cfg(test)]
+thread_local! { static SOURCE_CONTEXT_NEGATIVES: std::cell::Cell<bool> = const { std::cell::Cell::new(false) }; }
+#[cfg(test)]
+pub(super) fn with_source_context_negatives_for_test(f: impl FnOnce()) {
+    SOURCE_CONTEXT_NEGATIVES.with(|flag| flag.set(true));
+    f();
+    SOURCE_CONTEXT_NEGATIVES.with(|flag| flag.set(false));
+}
+#[cfg(test)]
 pub(super) fn take_owner_source_reuses() -> usize {
     OWNER_SOURCE_REUSES.with(|count| count.replace(0))
 }
 impl OwnerSourceCheck {
+    /// 只能经实际effects完整封口取得本对象；Counts只供当前cut的catalog对拍。
+    pub(crate) fn counts_for_cut(
+        &self,
+        metadata: crate::content_manifest::MetadataView<'_>,
+        root: sc::RefView<'_>,
+        raw_prefix: usize,
+        deadline: Option<std::time::Instant>,
+    ) -> Result<super::super::source_audit::Counts, String> {
+        super::super::history::check_deadline(self.deadline)?;
+        super::super::history::check_deadline(deadline)?;
+        if !self.context.as_ref().is_some_and(|context| context.matches(metadata))
+            || usize::try_from(metadata.input_frontier).ok().and_then(|n| n.checked_add(1)) != Some(raw_prefix)
+        {
+            return Err(stale("来源成功结果与完整cut请求声明不同"));
+        }
+        self.counts_for(root, raw_prefix)
+    }
     pub(crate) fn counts_for(
         &self,
         root: sc::RefView<'_>,
@@ -305,6 +332,45 @@ struct StageSeal {
     total_changes: u64,
 }
 impl PendingSet {
+    pub(super) fn bind_source_context(
+        &mut self,
+        metadata: crate::content_manifest::NativeMetadata,
+        deadline: Option<std::time::Instant>,
+    ) -> Result<(), String> {
+        let source = self.source_check.as_mut().ok_or_else(|| stale("来源未成功不能绑定请求"))?;
+        if source.context.is_some() || self.stages.is_some() || self.closed {
+            return Err(stale("来源请求绑定重复或越过stage边界"));
+        }
+        source.context = Some(metadata);
+        source.deadline = deadline;
+        Ok(())
+    }
+    #[cfg(test)]
+    pub(super) fn context_negatives_for_test(
+        &mut self, metadata: &crate::content_manifest::ManifestMetadata,
+        root: sc::RefView<'_>, raw_prefix: usize,
+    ) {
+        if !SOURCE_CONTEXT_NEGATIVES.with(|flag| flag.get()) { return; }
+        let source = self.source_check.as_mut().unwrap();
+        for changed in 0..7 {
+            let mut wrong = metadata.clone();
+            match changed {
+                0 => wrong.generation += 1,
+                1 => wrong.profile_id.push_str("-other"),
+                2 => wrong.rule_revision.push_str("-other"),
+                3 => wrong.source_commit.message_id.push_str("-other"),
+                4 => wrong.writer_epoch.push_str("-other"),
+                5 => wrong.scope.extent = Some(u64::MAX),
+                _ => wrong.input_frontier += 1,
+            }
+            assert!(source.counts_for_cut(wrong.view(), root, raw_prefix, None).is_err());
+        }
+        let original = source.deadline;
+        source.deadline = Some(std::time::Instant::now());
+        assert!(source.counts_for_cut(metadata.view(), root, raw_prefix, None)
+            .unwrap_err().contains("VerifyDeadline"));
+        source.deadline = original;
+    }
     pub(super) fn requires_source(&self) -> bool {
         self.source_check.is_some()
     }
@@ -343,6 +409,8 @@ impl PendingSet {
                 .requests
                 .as_ref()
                 .map_or(0, SequenceDelta::retained_bytes)
+            + self.source_check.as_ref().and_then(|source| source.context.as_ref())
+                .map_or(0, crate::content_manifest::NativeMetadata::retained_bytes)
     }
     pub(super) fn close_stages(
         &mut self,
@@ -701,6 +769,8 @@ impl LazySet {
                 root: self.current,
                 raw_prefix,
                 counts,
+                context: None,
+                deadline: None,
             }),
             stages: None,
             closed: false,

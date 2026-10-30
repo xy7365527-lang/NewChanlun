@@ -45,6 +45,9 @@ pub(super) use ordinary_source::OrdinaryProofs;
 pub(super) use ordinary_source::{
     reset_stats as reset_ordinary_proof_stats, stats as ordinary_proof_stats,
 };
+#[cfg(feature = "s_incremental")]
+#[path = "source_receipt.rs"]
+pub(super) mod source_receipt;
 #[path = "source_pending.rs"]
 mod source_pending;
 #[path = "source_prefix.rs"]

@@ -462,7 +462,7 @@ impl RootsOwner {
 }
 
 #[cfg(feature = "s_incremental")]
-struct NativeMetadata {
+pub(crate) struct NativeMetadata {
     session_id: NativeValue<String>,
     session_generation: NativeValue<String>,
     writer_epoch: NativeValue<String>,
@@ -488,7 +488,7 @@ struct NativeMetadata {
 }
 #[cfg(feature = "s_incremental")]
 impl NativeMetadata {
-    fn from_view(m: MetadataView<'_>, work: Option<&WorkScope>) -> Result<Self, CodecError> {
+    pub(crate) fn from_view(m: MetadataView<'_>, work: Option<&WorkScope>) -> Result<Self, CodecError> {
         Ok(Self {
             session_id: NativeValue::<String>::try_from_str(m.session_id, work)?,
             session_generation: NativeValue::<String>::try_from_str(m.session_generation, work)?,
@@ -523,7 +523,17 @@ impl NativeMetadata {
             scope: NativeValue::<ContentRef>::try_from_view(m.scope, work)?,
         })
     }
-    fn matches(&self, m: MetadataView<'_>) -> bool {
+    pub(crate) fn retained_bytes(&self) -> usize {
+        std::mem::size_of::<Self>() + [
+            &self.session_id, &self.session_generation, &self.writer_epoch,
+            &self.base_cut, &self.structure_cut, &self.clock_plan_hash, &self.semantic_commit_ns,
+            &self.profile_id, &self.profile_hash, &self.rule_revision, &self.catalog_revision,
+            &self.source_namespace, &self.source_epoch, &self.message_id, &self.payload_hash,
+            &self.producer_id, &self.producer_epoch, &self.clock_event_id,
+        ].iter().map(|text| text.capacity()).sum::<usize>()
+            + self.scope.format.capacity() + self.scope.root.capacity()
+    }
+    pub(crate) fn matches(&self, m: MetadataView<'_>) -> bool {
         self.session_id.as_str() == m.session_id
             && self.session_generation.as_str() == m.session_generation
             && self.writer_epoch.as_str() == m.writer_epoch
@@ -1419,6 +1429,68 @@ pub(crate) fn assemble_unpublished_with_workspace(
         recording_peak_source_cost,
     );
     Ok((manifest, workspace))
+}
+
+/// 同次来源成功和清单完整组装的请求内证明；无 Clone、无反序列化、无公开构造。
+/// 原件在发布租约内仍须真实重绑，本类型不授予跨代跳过权限。
+#[cfg(feature = "s_incremental")]
+pub(crate) struct ManifestSourceReceipt {
+    source: crate::v3::source_audit::source_receipt::RawReceipt,
+    metadata: NativeMetadata,
+    roots: NativeRoots,
+    manifest_value: Built,
+    batch_id: TextValue,
+}
+#[cfg(feature = "s_incremental")]
+impl ManifestSourceReceipt {
+    pub(crate) fn consume(
+        self,
+        token: &str,
+        metadata: &ManifestMetadata,
+        roots: &(impl ManifestRootSource + ?Sized),
+        manifest: &UnpublishedManifest,
+        raw_range: std::ops::Range<usize>,
+    ) -> Result<crate::v3::source_audit::source_receipt::RawReceipt, String> {
+        if !self.metadata.matches(metadata.view()) || !same_roots(self.roots.view(), roots.view())
+            || self.manifest_value != manifest.value || self.batch_id != manifest.batch_id
+        {
+            return Err("IdentityConflict：P6组装证明与当前清单不同".into());
+        }
+        self.source.check_request(token, metadata.generation, &metadata.rule_revision,
+            raw_range, (&metadata.scope).into(), roots.view().generated_state)?;
+        Ok(self.source)
+    }
+}
+
+/// 沿用既有workspace/无workspace存储选择，只组装一次；不另跑四根Probe。
+#[cfg(feature = "s_incremental")]
+pub(crate) fn assemble_with_source(
+    store: &mut dyn NodeStore,
+    metadata: &ManifestMetadata,
+    roots: &(impl ManifestRootSource + ?Sized),
+    source: crate::v3::source_audit::source_receipt::RawReceipt,
+    budget: Option<crate::v3::ManifestWorkspaceBudget>,
+) -> Result<(UnpublishedManifest, Option<PreparedManifestWorkspace>, ManifestSourceReceipt), String> {
+    source.check_manifest(metadata.generation, &metadata.profile_id, &metadata.rule_revision,
+        metadata.input_frontier, (&metadata.scope).into(), roots.view().generated_state)?;
+    let (manifest, workspace) = source.with_store(store, |bounded| {
+        match budget {
+            Some(budget) => assemble_unpublished_with_workspace(bounded, metadata, roots, budget)
+                .map_err(|e| e.to_string()),
+            None => assemble_unpublished(bounded, metadata, roots)
+                .map(|manifest| (manifest, None)).map_err(|e| e.to_string()),
+        }
+    })?;
+    let work = store.codec_work();
+    let proof = ManifestSourceReceipt {
+        source,
+        metadata: NativeMetadata::from_view(metadata.view(), work).map_err(|e| e.to_string())?,
+        roots: NativeRoots::from_view(roots.view(), work).map_err(|e| e.to_string())?,
+        manifest_value: manifest.value.clone(),
+        batch_id: TextValue::Plain(NativeValue::<String>::try_from_str(&manifest.batch_id, work)
+            .map_err(|e| e.to_string())?),
+    };
+    Ok((manifest, workspace, proof))
 }
 
 pub(super) fn assemble_unpublished(
