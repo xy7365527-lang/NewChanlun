@@ -3557,7 +3557,10 @@ mod tests {
             let error = public_sets(store, &index, &[first, second], &mut runtime.sequences[..4])
                 .err()
                 .unwrap();
-            assert!(error.to_string().contains(sc::capture_allocation::LIMIT), "{error}");
+            assert!(
+                error.to_string().contains(sc::capture_allocation::LIMIT),
+                "{error}"
+            );
             let probe = budget.allocation_request_probe();
             assert_eq!(probe.refused_bytes, 64);
             assert_eq!(

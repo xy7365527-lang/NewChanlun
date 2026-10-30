@@ -1,0 +1,20 @@
+name: P57 Owned baseline diagnosis
+on:
+  push:
+    branches: [codex/1640-p57-origin33d]
+    paths: [.github/workflows/p57-owned-baseline.yml]
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CARGO_INCREMENTAL: '0'
+      RUSTFLAGS: '-D warnings'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 92865bbcffcf2ef56e51602789c0707060efb703
+      - uses: ./.github/actions/rust-job-setup
+      - name: 原冻结基线相同三条 Owned 合同锁
+        working-directory: rust
+        run: cargo test --locked --features s_session,s_allocation_json_testonly --bin s_structure_session --jobs 4 -- owned_publication_same_real_indexed_template_roots_and_f owned_aux_public_sets_sequence_keys_growth_one_byte_short_preserves_roots_and_discard_releases owned_source_single_field_borrowed_navigation_roles_failure_and_layout_refusal --test-threads 1
