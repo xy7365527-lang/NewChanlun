@@ -6629,6 +6629,27 @@ mod publication_degrade_verdict_tests {
     }
 
     #[test]
+    fn publication_foreign_thread_origin_cannot_sign_current_capture() {
+        let (codec, typed) = std::thread::spawn(|| {
+            failure_trace::capture(|| {
+                let codec = resource_error(ScratchFailure::Allocation);
+                let typed = publish_err(codec.clone());
+                (codec, typed)
+            }).0
+        }).join().unwrap();
+        let expected = typed.to_string();
+        assert_eq!(verdict(|work| {
+            let _ = publish_err(work.reject(ScratchFailure::Allocation));
+            Err(typed)
+        }), Err(expected.clone()));
+        assert_eq!(verdict(|work| {
+            let _ = publish_err(work.reject(ScratchFailure::Allocation));
+            Err(publish_err(codec))
+        }), Err(expected));
+    }
+
+
+    #[test]
     fn publication_nested_capture_respects_birth_interval() {
         let ((before, inside, inner), outer) = failure_trace::capture(|| {
             let before = resource_error(ScratchFailure::Budget);

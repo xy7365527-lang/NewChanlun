@@ -145,10 +145,10 @@ pub(crate) fn current_publication_frontier_admitted(
     tx: &Transaction<'_>,
     work: Option<&WorkScope>,
 ) -> Result<i64, PublishError> {
-    parse_canonical_i64(
+    Ok(parse_canonical_i64(
         &meta_admitted(tx, "last_advance_frontier", work)?,
         "last_advance_frontier",
-    )
+    )?)
 }
 
 fn resolve_current_births_inner(
@@ -790,7 +790,7 @@ fn meta_optional_admitted(
         |row| row_text_admitted(row, 0, &NativeAdmission(work)),
     )
     .optional()
-    .map_err(|e| PublishError::from(e).context(format!("读 meta.{key} 失败：")))
+    .map_err(|e| PublishError::from(e).context(&format!("读 meta.{key} 失败：")))
 }
 fn meta_admitted(
     tx: &Transaction<'_>,
@@ -2301,7 +2301,7 @@ mod tests {
         .err()
         .unwrap();
         assert!(
-            expected.contains("withdrawn_generation 与独立记录不同"),
+            expected.to_string().contains("withdrawn_generation 与独立记录不同"),
             "{expected}"
         );
         let actual = resolve_ordinary_indexed_templates_pending_view(
@@ -2477,7 +2477,7 @@ mod tests {
         )
         .err()
         .unwrap()
-        .contains("capture"));
+        .to_string().contains("capture"));
         let gated = HashReader::native_publication_fields_for_test(&capture)
             .with_native_publication_deadline_for_test(
                 std::time::Instant::now() + std::time::Duration::from_secs(10),
@@ -2996,7 +2996,7 @@ mod tests {
             tx.execute_batch("SAVEPOINT rejected_publication").unwrap();
             let error = resolve_current_births(&tx, &token, &m, &roots, &manifest).unwrap_err();
             if matches!(change, FixtureChange::PayloadPlaceholder) {
-                assert!(error.contains(sc::code::TEMPLATE_PLACEHOLDER), "{error}");
+                assert!(error.to_string().contains(sc::code::TEMPLATE_PLACEHOLDER), "{error}");
             }
             // 操作不自行提交；调用者回滚使包括部分祖先重写在内的所有节点回到原状。
             tx.execute_batch("ROLLBACK TO rejected_publication; RELEASE rejected_publication")
@@ -3047,12 +3047,12 @@ mod tests {
         manifest.batch_id = format!("batch3-{}", "f".repeat(64)).into();
         assert!(resolve_current_births(&tx, &token, &m, &roots, &manifest)
             .unwrap_err()
-            .contains("IdentityConflict"));
+            .to_string().contains("IdentityConflict"));
         manifest.batch_id = actual.into();
         m.source_commit.producer_id = "wrong-producer".into();
         assert!(resolve_current_births(&tx, &token, &m, &roots, &manifest)
             .unwrap_err()
-            .contains("producer_id"));
+            .to_string().contains("producer_id"));
     }
 
     #[test]
@@ -3071,7 +3071,7 @@ mod tests {
         assert_eq!(count, 0);
         assert!(resolve_current_births(&tx, &token, &m, &roots, &manifest)
             .unwrap_err()
-            .contains("upserts 与独立索引成员数不符"));
+            .to_string().contains("upserts 与独立索引成员数不符"));
     }
 }
 
