@@ -1721,6 +1721,53 @@ pub(crate) mod tests {
 
     #[cfg(feature = "s_incremental")]
     #[test]
+    fn p6_real_prepare_raw_receipt_keeps_old_revision_and_binds_request() {
+        use content_manifest::ManifestRootSource;
+        use source_audit::source_receipt::audit_raw_receipt;
+        let mut f = Fixture::new();
+        let (first, first_token) = f.accept_begin(1, ("p6", 0, 6, 12, 3, 7), 1);
+        assert_eq!(f.publish(&first, &first_token).unwrap().generation, 1);
+        let (envelope, token) = f.accept_begin(2, ("p6", 0, 8, 13, 4, 9), 2);
+        let mut tx = f.conn.transaction().unwrap();
+        let prepared = f.runtime.prepare(&mut tx, &token, &envelope, None,
+            None, None, None, None, None, None, None).unwrap();
+        let raw = read_raw_events(&tx).unwrap();
+        assert_eq!(raw.len(), 2);
+        assert_eq!(read_effective_events(&raw).unwrap().len(), 1);
+        let r = prepared.roots.view();
+        let refs = [(&prepared.metadata.scope).into(), r.generated_state,
+            r.publication_template, r.delta_template];
+        let mut store = content_store::TxStore::new(&tx).unwrap();
+        // 冷折叠从0开始也须保留已失效revision；不能拿赢家表充当raw账。
+        let full = audit_raw_receipt(&mut store, &token, 2, r.generated_state,
+            (&raw).into(), 0, &prepared.metadata.profile_id,
+            &prepared.metadata.rule_revision, None, None).unwrap();
+        assert_eq!(full.rows().iter().map(|r| r.seq).collect::<Vec<_>>(), vec![0, 1]);
+        for (row, event) in full.rows().iter().zip(&raw) {
+            assert_eq!(row.event_digest, super::super::history::hash_json_metered(
+                event, None, None).unwrap());
+        }
+        drop(full);
+        let source = audit_raw_receipt(&mut store, &token, 2, r.generated_state,
+            (&raw).into(), 1, &prepared.metadata.profile_id,
+            &prepared.metadata.rule_revision, None, None).unwrap();
+        let receipt = source.bind_four_roots(&mut store, refs).unwrap();
+        let mut units = 0;
+        receipt.for_each_unit(|_| units += 1);
+        assert!(units > 4);
+        let accepted = receipt.consume(&token, 2, &prepared.metadata.rule_revision,
+            1..2, refs).unwrap();
+        assert_eq!(accepted.rows().len(), 1);
+        assert_eq!(accepted.rows()[0].seq, 1);
+        drop(accepted);
+        drop(store);
+        drop(prepared);
+        tx.rollback().unwrap();
+        assert_eq!(meta_i64(&f.conn, "generation").unwrap(), 1);
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
     fn p6_real_prepare_closure_probe_stages_and_rolls_back_without_certification() {
         use content_manifest::ManifestRootSource;
         let mut f = Fixture::new();

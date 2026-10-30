@@ -1,7 +1,7 @@
 name: P6 ledger component 35y
 on:
   push:
-    branches: [codex/issue1647-p6-ledger35y, codex/issue1647-p6-delta36e]
+    branches: [codex/issue1647-p6-ledger35y, codex/issue1647-p6-delta36e, codex/issue1647-p6-source36l]
   workflow_dispatch:
 jobs:
   ledger:

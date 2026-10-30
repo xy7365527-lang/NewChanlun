@@ -1,0 +1,223 @@
+//! #1647：严格全来源核之后导出本请求新增 raw 原件；非来源 Δ 准入。
+//! 收据只活于请求内，不复用 NativeRawFacts 的赢家表冒充全部修订史。
+//! raw 必须来自已校验的独立 read_raw_events 读集；不从生成态raw_events自证。
+use super::*;
+use sc::closure_delta::{self, EmptyFrontier, Probe};
+
+pub(crate) struct RawRow {
+    pub(crate) seq: i64,
+    pub(crate) event_digest: NodeDigest,
+    pub(crate) bar_digest: NodeDigest,
+}
+
+/// 私有字段与唯一构造入口保证来源核失败时不产生部分收据。
+/// raw_from 是调用方已发布前缀长度，不是未发布尾部的历史认证水位 R。
+pub(crate) struct RawReceipt {
+    token: NativeValue<String>,
+    generation: i64,
+    rule: NativeValue<String>,
+    generated: NativeValue<ContentRef>,
+    scope: NativeValue<ContentRef>,
+    raw_from: usize,
+    raw_to: usize,
+    counts: Counts,
+    rows: sc::CodecVec<RawRow>,
+}
+
+/// 仅供非准入接线与对拍：仍运行完整严格来源核，没有跨代成功缓存。
+#[allow(dead_code)]
+pub(crate) fn audit_raw_receipt(
+    store: &mut dyn NodeStore,
+    token: &str,
+    generation: i64,
+    generated: sc::RefView<'_>,
+    raw: RawEventsView<'_>,
+    raw_from: usize,
+    profile: &str,
+    rule: &str,
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn super::super::audit_budget::Budget>,
+) -> Result<RawReceipt, String> {
+    if token.is_empty() || generation < 1 || raw_from > raw.len() {
+        return Err(err("P6来源收据请求或raw区间无效"));
+    }
+    let mut s = super::super::audit_store::StoreView::generic(store);
+    let counts = audit_generated_in_store(
+        &mut s, generated, raw, profile, rule, deadline, budget,
+        None, None, None, None, None,
+    )?;
+    let frontier = i64::try_from(raw.len()).map_err(err)?.checked_sub(1)
+        .ok_or_else(|| err("P6原始前沿溢出"))?;
+    if number(&mut s, generated, "generation")? != generation
+        || number(&mut s, generated, "input_frontier")? != frontier
+        || text(&mut s, generated, "profile_id")?.as_str() != profile
+        || text(&mut s, generated, "rule_revision")?.as_str() != rule
+    {
+        return Err(err("P6来源收据与生成态元数据不一致"));
+    }
+    let scope = field_ref(&mut s, generated, "scope")?;
+    let scope = s.native_plain_ref(scope.view()).map_err(err)?;
+    let allocation = s.allocation_budget();
+    let mut rows = bj::new_work(allocation.as_ref());
+    for ordinal in raw_from..raw.len() {
+        super::super::history::check_deadline(deadline)?;
+        let event = raw.get(ordinal).ok_or_else(|| err("P6原始账区间缺行"))?;
+        let seq = bj::field(event, "seq")
+            .as_i64().ok_or_else(|| err("P6原始seq非i64"))?;
+        if usize::try_from(seq).ok() != Some(ordinal) {
+            return Err(err("P6原始seq与独立原件ordinal不连续"));
+        }
+        let event_digest = super::super::history::hash_json_in_store(
+            &s, event, deadline, budget,
+        )?;
+        let bar_digest = source_pending::raw_bar(&s, event, deadline, budget)?;
+        s.native_codec_room(&mut rows, 1).map_err(err)?;
+        rows.try_push(RawRow { seq, event_digest, bar_digest }).map_err(err)?;
+    }
+    Ok(RawReceipt {
+        token: s.native_string(token).map_err(err)?,
+        generation,
+        rule: s.native_string(rule).map_err(err)?,
+        generated: s.native_plain_ref(generated).map_err(err)?,
+        scope,
+        raw_from,
+        raw_to: raw.len(),
+        counts,
+        rows,
+    })
+}
+
+fn same_ref(a: sc::RefView<'_>, b: sc::RefView<'_>) -> bool {
+    a.format() == b.format() && a.root() == b.root()
+        && a.kind() == b.kind() && a.extent() == b.extent()
+}
+
+/// 同请求四根及来源结果绑定；不签发 U-A，不允许历史 frontier 输入。
+/// 四根核任一失败，来源收据和已核单位随返回错误一起释放。
+pub(crate) struct PreparedReceipt {
+    source: RawReceipt,
+    roots: [NativeValue<ContentRef>; 4],
+    closure: Probe,
+}
+#[allow(dead_code)]
+impl RawReceipt {
+    pub(crate) fn counts(&self) -> &Counts { &self.counts }
+    pub(crate) fn rows(&self) -> &[RawRow] { &self.rows }
+    pub(crate) fn bind_four_roots(
+        self,
+        store: &mut dyn NodeStore,
+        roots: [sc::RefView<'_>; 4],
+    ) -> Result<PreparedReceipt, String> {
+        if !same_ref((&self.scope).into(), roots[0])
+            || !same_ref((&self.generated).into(), roots[1]) {
+            return Err(err("P6四根中的scope/generated与已核来源不同"));
+        }
+        let owned = {
+            let s = super::super::audit_store::StoreView::generic(store);
+            [s.native_plain_ref(roots[0]).map_err(err)?,
+             s.native_plain_ref(roots[1]).map_err(err)?,
+             s.native_plain_ref(roots[2]).map_err(err)?,
+             s.native_plain_ref(roots[3]).map_err(err)?]
+        };
+        let closure = closure_delta::probe_four_roots(store, roots, &EmptyFrontier)
+            .map_err(err)?;
+        Ok(PreparedReceipt { source: self, roots: owned, closure })
+    }
+}
+
+#[allow(dead_code)]
+impl PreparedReceipt {
+    pub(crate) fn for_each_unit(&self, visit: impl FnMut(closure_delta::Unit)) {
+        self.closure.for_each_unit(visit);
+    }
+    /// 消费而非克隆；错请求/代/规则/区间/任一根声明都拒绝，不重新核验兜底。
+    pub(crate) fn consume(
+        self,
+        token: &str,
+        generation: i64,
+        rule: &str,
+        raw_range: std::ops::Range<usize>,
+        roots: [sc::RefView<'_>; 4],
+    ) -> Result<RawReceipt, String> {
+        if self.source.token.as_str() != token || self.source.generation != generation
+            || self.source.rule.as_str() != rule
+            || self.source.raw_from != raw_range.start || self.source.raw_to != raw_range.end
+            || !self.roots.iter().zip(roots).all(|(a, b)| same_ref(a.into(), b))
+        {
+            return Err(err("P6发布收据与本请求、来源区间或四根不一致"));
+        }
+        Ok(self.source)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn roots(s: &mut sc::MemoryNodes, state: &ContentRef) -> [ContentRef; 4] {
+        let scope = field_ref(s, state.into(), "scope").unwrap();
+        let v = scope.view();
+        let scope = ContentRef { format: v.format().into(), root: v.root().into(),
+            kind: v.kind(), extent: v.extent() };
+        [scope, state.clone(), state.clone(), state.clone()]
+    }
+
+    #[test]
+    fn p6_raw_receipt_preserves_full_event_and_only_requested_suffix() {
+        let (mut s, state, raw, rule) = super::super::tests::fixture();
+        let from = raw.len() - 1;
+        let receipt = audit_raw_receipt(&mut s, "request-a", 1, (&state).into(),
+            (&raw).into(), from, tb02a::PROFILE, &rule, None, None).unwrap();
+        assert_eq!(receipt.rows().len(), 1);
+        let row = &receipt.rows()[0];
+        assert_eq!(row.seq, from as i64);
+        assert_eq!(row.event_digest, super::super::super::history::hash_json_metered(
+            &raw[from], None, None).unwrap());
+        let mut altered = raw[from].clone();
+        altered["receipt_id"] = json!("different-original-receipt");
+        assert_ne!(row.event_digest, super::super::super::history::hash_json_metered(
+            &altered, None, None).unwrap());
+        assert_eq!(row.bar_digest, source_pending::raw_bar(
+            &s, (&altered).into(), None, None).unwrap());
+        assert!(receipt.counts().objects > 0);
+    }
+
+    #[test]
+    fn p6_raw_receipt_source_failure_issues_nothing() {
+        let (mut s, state, mut raw, rule) = super::super::tests::fixture();
+        raw[0]["high"] = json!("99999");
+        let full = audit_generated(&mut s, &state, &raw, tb02a::PROFILE, &rule)
+            .unwrap_err();
+        let failure = audit_raw_receipt(&mut s, "request-a", 1, (&state).into(),
+            (&raw).into(), 0, tb02a::PROFILE, &rule, None, None).err().unwrap();
+        assert_eq!(failure, full);
+    }
+
+    #[test]
+    fn p6_raw_receipt_rejects_request_and_four_root_substitution() {
+        let (mut s, state, raw, rule) = super::super::tests::fixture();
+        let refs = roots(&mut s, &state);
+        for changed in 0..8 {
+            let source = audit_raw_receipt(&mut s, "request-a", 1, (&state).into(),
+                (&raw).into(), 0, tb02a::PROFILE, &rule, None, None).unwrap();
+            let receipt = source.bind_four_roots(&mut s, refs.each_ref().map(Into::into)).unwrap();
+            let mut supplied = refs.clone();
+            if changed < 4 { supplied[changed].extent = Some(u64::MAX); }
+            let token = if changed == 4 { "request-b" } else { "request-a" };
+            let generation = if changed == 5 { 2 } else { 1 };
+            let revision = if changed == 6 { "other-rule" } else { &rule };
+            let start = usize::from(changed == 7);
+            assert!(receipt.consume(token, generation, revision, start..raw.len(),
+                supplied.each_ref().map(Into::into)).is_err());
+        }
+    }
+
+    #[test]
+    fn p6_raw_receipt_fourth_root_failure_issues_no_prepared_receipt() {
+        let (mut s, state, raw, rule) = super::super::tests::fixture();
+        let source = audit_raw_receipt(&mut s, "request-a", 1, (&state).into(),
+            (&raw).into(), 0, tb02a::PROFILE, &rule, None, None).unwrap();
+        let mut refs = roots(&mut s, &state);
+        refs[3].root = "not-a-content-root".into();
+        assert!(source.bind_four_roots(&mut s, refs.each_ref().map(Into::into)).is_err());
+    }
+}
