@@ -38,11 +38,7 @@ struct Layout {
 }
 impl Layout {
     fn checked(entries: usize, buckets: usize, body_bytes: usize) -> Option<Self> {
-        if entries == 0
-            || buckets == 0
-            || entries > buckets / 2
-            || entries % entries.min(4) != 0
-        {
+        if entries == 0 || buckets == 0 || entries > buckets / 2 || entries % entries.min(4) != 0 {
             return None;
         }
         let body_start = entries
