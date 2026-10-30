@@ -7448,6 +7448,9 @@ mod tests {
             producer.handle(s4_message(index + 1, step)).unwrap();
         }
         drop(producer);
+        let frozen_files = || [fixture.db.clone(), fixture.path.join("s.sqlite-wal"), fixture.path.join("s.sqlite-shm")].map(|p| std::fs::read(p).ok());
+        let before_files = frozen_files();
+        eprintln!("WIRE33J before_file_sizes={:?}", before_files.each_ref().map(|v| v.as_ref().map(Vec::len)));
         let sample = || {
             super::super::ordinary_materials::LAST_REPORT.with(|r| r.set(None));
             super::admission_private::s4_read_trace::enable();
@@ -7461,7 +7464,13 @@ mod tests {
             (reads, bytes, coverage, material, roots)
         };
         let old = super::super::history::without_ordinary_materials_for_test(sample);
+        let middle_files = frozen_files();
+        eprintln!("WIRE33J after_old_file_sizes={:?} same_before={:?}", middle_files.each_ref().map(|v| v.as_ref().map(Vec::len)), std::array::from_fn::<_,3,_>(|i| before_files[i] == middle_files[i]));
         let new = sample();
+        let after_files = frozen_files();
+        eprintln!("WIRE33J after_new_file_sizes={:?} same_middle={:?}", after_files.each_ref().map(|v| v.as_ref().map(Vec::len)), std::array::from_fn::<_,3,_>(|i| middle_files[i] == after_files[i]));
+        eprintln!("WIRE33J baseline_sql={} candidate_sql={} baseline_bytes={:?} candidate_bytes={:?} coverage={:?}/{:?} material={:?}", old.0,new.0,old.1,new.1,old.2,new.2,new.3);
+
         assert!(old.3.is_none(), "对照只禁原件复用，保留611cc1d来源证明");
         let material = new.3.expect("候选普通原件池");
         assert_eq!(old.2, [14, 42]);
