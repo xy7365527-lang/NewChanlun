@@ -1,12 +1,15 @@
-name: issue-1419 g77 33W AB
+name: issue-1419 g77 profile34q
 on:
   push:
-    branches: [codex/1419-audit-proof33x]
+    branches: [codex/1419-profile34q]
     paths:
       - '.github/workflows/issue-1419-g77-ab.yml'
       - '.github/scripts/issue1419-g77-ab.py'
       - '.github/scripts/compare-g77-tables.py'
       - 'rust/src/bin/s_session_v3/financial_session_tests.rs'
+      - 'rust/src/bin/s_session_v3/source_audit.rs'
+      - 'rust/src/bin/s_session_v3/source_object_profile.rs'
+      - 'rust/src/bin/s_session_v3/state.rs'
 permissions:
   contents: read
   actions: read
@@ -15,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
-      G77_MODE: "untraced"
+      G77_MODE: "profile34q"
       CARGO_INCREMENTAL: "0"
       CARGO_BUILD_JOBS: "1"
     steps:
@@ -28,7 +31,7 @@ jobs:
           mkdir -p g77-evidence
           git rev-parse HEAD > g77-evidence/source-head.txt
           echo "$GITHUB_RUN_ID" > g77-evidence/run-id.txt
-          rustfmt --edition 2021 --config skip_children=true rust/src/bin/s_session_v3/financial_session_tests.rs
+          rustfmt --edition 2021 --config skip_children=true rust/src/bin/s_session_v3/financial_session_tests.rs rust/src/bin/s_session_v3/source_object_profile.rs rust/src/bin/s_session_v3/source_audit.rs rust/src/bin/s_session_v3/state.rs
           git diff -- '*.rs' > g77-evidence/rustfmt.patch
       - uses: actions/download-artifact@v4
         with:
@@ -47,6 +50,28 @@ jobs:
           with tarfile.open(base/'original-artifact/w2-runtime.tgz') as archive:
               archive.extractall(base/'extracted-original', filter='data')
           PY
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: xy7365527-lang/NewChanlun
+          run-id: 41056885255
+          artifact-ids: 12978538610
+          path: g77-evidence/frozen-artifact
+          merge-multiple: true
+      - name: Extract frozen new sample without opening original DB
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import shutil, tarfile
+          base = Path('g77-evidence')
+          frozen = base/'frozen-original'
+          frozen.mkdir()
+          for name in ['source-head.txt', 'summary.json']:
+              shutil.copy2(base/'frozen-artifact'/name, frozen/name)
+          with tarfile.open(base/'frozen-artifact/samples.tgz') as archive:
+              members = [m for m in archive.getmembers() if m.name.startswith('pair1/new/w2.run/')]
+              archive.extractall(frozen, members=members, filter='data')
+          PY
       - name: Compile the one release test executable
         working-directory: rust
         run: |
@@ -60,7 +85,7 @@ jobs:
           assert len(binaries) == 1, binaries
           Path('../g77-evidence/executable.txt').write_text(binaries[0])
           PY
-      - name: Bounded interleaved untraced pairs after accepted trace evidence
+      - name: Single g77 profile and frozen output comparison
         run: python3 .github/scripts/issue1419-g77-ab.py "$(cat g77-evidence/executable.txt)"
       - name: Retain every generated sample after writer stop
         if: always()
@@ -86,7 +111,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: issue1419-g77-33w-${{ github.sha }}
+          name: issue1419-profile34q-${{ github.sha }}
           path: |
             g77-evidence/*.json
             g77-evidence/*.txt

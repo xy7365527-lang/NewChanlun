@@ -52,6 +52,9 @@ mod source_pending;
 mod source_prefix;
 #[path = "source_structure.rs"]
 mod source_structure;
+#[cfg(test)]
+#[path = "source_object_profile.rs"]
+mod source_object_profile;
 use source_prefix::{NativeSourceMemo, ParseDomain, SourceCoords};
 #[cfg(test)]
 pub(super) fn reset_native_source_prefix_stats() {
@@ -1956,11 +1959,15 @@ fn audit_object_record_with_slots(
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
 ) -> Result<Object, PublishError> {
+    #[cfg(test)]
+    let mut profile = source_object_profile::ObjectProbe::new();
     let kind = if memo_fields {
         SourceFields::read_subset(s, record.view(), &["kind"])?.text(s, "kind")?
     } else {
         text(s, record, "kind")?
     };
+    #[cfg(test)]
+    profile.kind(kind.as_str());
     let names: &[&'static str] = if kind == CC006_SHAPE_KIND {
         &SHAPE_SOURCE_FIELDS
     } else {
@@ -1971,6 +1978,8 @@ fn audit_object_record_with_slots(
     if slots.insert_id(s, id.as_str())? || fields.integer(s, "object_revision").map_err(err)? != 1 {
         return Err(err("对象身份重复或修订不符"));
     }
+    #[cfg(test)]
+    profile.part(0);
     let refs = s
         .lookup_ref(
             fields
@@ -1995,6 +2004,8 @@ fn audit_object_record_with_slots(
         native_sources.as_deref_mut(),
         ParseDomain::JsonInner,
     )?;
+    #[cfg(test)]
+    profile.part(1);
     if kind == CC006_SHAPE_KIND {
         exact(record, Kind::Object, 15)?;
     } else {
@@ -2028,6 +2039,8 @@ fn audit_object_record_with_slots(
         if payload.kind() != Kind::Object {
             return Err(err("typed载荷不是对象"));
         }
+        #[cfg(test)]
+        profile.part(2);
         if source_references(
             s,
             &refs,
@@ -2041,6 +2054,8 @@ fn audit_object_record_with_slots(
         {
             return Err(err("typed引用与source_coords不同"));
         }
+        #[cfg(test)]
+        profile.part(3);
         let key = fields.text(s, "fact_key").map_err(err)?;
         let parsed_owner = parsed_json(s, key.as_bytes())?;
         let parsed = parsed_owner.view();
@@ -2054,6 +2069,8 @@ fn audit_object_record_with_slots(
         {
             return Err(err("typed槽位种类/规范文本不符"));
         }
+        #[cfg(test)]
+        profile.part(4);
         let identity = producer
             .typed_identity_scoped(
                 &kind,
@@ -2072,6 +2089,8 @@ fn audit_object_record_with_slots(
         if id.as_str() != expected.as_str() {
             return Err(err("typed obj3身份与来源/载荷原件不符"));
         }
+        #[cfg(test)]
+        profile.part(5);
         if tb02b::KINDS.contains(&kind.as_str()) {
             let contract = tb02b::contract_for_rule(producer.rule_revision())
                 .ok_or_else(|| err("新笔来源审计规则修订未声明"))?;
@@ -2169,6 +2188,8 @@ fn audit_object_record_with_slots(
             }
         }
     }
+    #[cfg(test)]
+    profile.part(6);
     Ok(Object {
         id,
         kind,
@@ -2542,6 +2563,8 @@ fn audit_generated_in_store(
     let object_array = field_ref(s, state, "objects")?;
     #[cfg(test)]
     super::state::trace_event("source_objects", None);
+    #[cfg(test)]
+    source_object_profile::begin(current_generation);
     // 活期只覆盖当前一次audit_generated；不在代际、事务或源修订之间带出。
     let mut checked_refs = bj::new_map(allocation.as_ref());
     let mut objects = bj::new_work(allocation.as_ref());
@@ -2562,6 +2585,8 @@ fn audit_generated_in_store(
     } else {
         None
     };
+    #[cfg(test)]
+    super::state::trace_event("source_object_loop", Some(current_generation));
     for i in 0..object_array.extent().ok_or_else(|| err("数组缺长度"))? {
         let record = if let Some(cursor) = &mut cursor {
             s.next_array_member(cursor).map_err(err)?
@@ -2607,8 +2632,12 @@ fn audit_generated_in_store(
         s.native_codec_room(&mut objects, 1).map_err(err)?;
         objects.try_push(object).map_err(err)?;
     }
+    #[cfg(test)]
+    super::state::trace_event("source_structure_full", Some(current_generation));
     source_structure::audit_full(s, &objects, rule)?;
     // #1394 r3：先绑定已发布未定事实，再核组成员与 pending 的不交完备并集。
+    #[cfg(test)]
+    super::state::trace_event("source_pending_full", Some(current_generation));
     let pending = source_pending::audit_with_proofs(
         s,
         objects.iter(),
@@ -2618,6 +2647,8 @@ fn audit_generated_in_store(
         deadline,
         ordinary.as_deref_mut(),
     )?;
+    #[cfg(test)]
+    super::state::trace_event("source_partition", Some(current_generation));
     let mut partition = bj::new_map(allocation.as_ref());
     let ordered_groups = sorted_numeric_entries(s, &groups)?;
     #[cfg(test)]
@@ -2646,6 +2677,10 @@ fn audit_generated_in_store(
     if partition.len() != raw.len() || partition.iter().any(|(coord, _)| !raw.contains_key(coord)) {
         return Err(err("同cut组未完整覆盖生效原始账"));
     }
+    #[cfg(test)]
+    super::state::trace_event("source_objects_done", Some(current_generation));
+    #[cfg(test)]
+    source_object_profile::end();
     let mut shapes = bj::new_map(allocation.as_ref());
     #[cfg(test)]
     super::state::trace_event("source_shapes", None);

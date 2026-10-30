@@ -1255,7 +1255,8 @@ pub(crate) fn trace_event(phase: &'static str, generation: Option<i64>) {
             trace
                 .events
                 .push(json!({"phase":phase,"generation":generation,
-                "elapsed_ns":trace.start.elapsed().as_nanos().to_string(),"work":trace.work}));
+                "elapsed_ns":trace.start.elapsed().as_nanos().to_string(),"work":trace.work,
+                "frame_calls":sc::frame_calls_on_thread()}));
         }
     });
 }

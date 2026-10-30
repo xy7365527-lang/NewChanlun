@@ -46,7 +46,8 @@ def run_case(index, side, trace):
     case.mkdir(parents=True)
     shutil.copytree(source / "a/w2.run", case / "w2.run")
     env = dict(os.environ, W2_PENDING_COPY=str(case / "w2.run/s.sqlite"),
-               W2_BASE_SIDE=side, W2_TRACE="1" if trace else "0")
+               W2_BASE_SIDE=side, W2_TRACE="1" if trace else "0",
+               W2_OBJECT_PROFILE="1" if os.environ.get("G77_MODE") == "profile34q" else "0")
     (case / "machine-before.json").write_text(json.dumps(machine(), indent=2))
     cmd = [sys.executable, str(root / ".github/scripts/w2-runtime-process.py"),
            "run", "--state", str(case / "process.json"), "--log", str(case / "run.log"), "--",
@@ -122,11 +123,46 @@ def pair(index, trace):
     save()
     return result
 
+def profile34q():
+    summary["mode"] = "profile34q"
+    summary["timing_scope"] = "one diagnostic Runtime.commit with object instrumentation; no speedup claim"
+    summary["max_measured_pairs"] = 0
+    save()
+    frozen = out / "frozen-original"
+    assert (frozen / "source-head.txt").read_text().strip() == "0476045d3f033f8adb2b5fc892b4492a98e6b762"
+    prior = json.loads((frozen / "summary.json").read_text())
+    expected = next(c["probe"]["reply"] for c in prior["cases"] if c["case"] == "pair1/new")
+    assert (frozen / "pair1/new/w2.run/s.sqlite").is_file()
+    copy = out / "frozen-comparison-copy"
+    shutil.copytree(frozen / "pair1/new/w2.run", copy)
+    assert deadline - time.time() >= 420, "insufficient cap remaining before single launch"
+    current = run_case(0, "new", True)
+    assert current["probe"]["reply"] == expected, "complete frozen reply mismatch"
+    compare = subprocess.run([sys.executable, str(root / ".github/scripts/compare-g77-tables.py"),
+        str(copy / "s.sqlite"), str(out / "trace/new/w2.run/s.sqlite")], capture_output=True, text=True,
+        timeout=max(1, deadline-time.time()))
+    (out / "comparison.json").write_text(compare.stdout)
+    (out / "comparison.stderr").write_text(compare.stderr)
+    assert compare.returncode == 0, "frozen typed DB mismatch"
+    db = json.loads(compare.stdout)
+    assert db["all_equal"] and db["schema_equal"] and len(db["tables"]) == 24
+    marker = "W2-OBJECT-PROFILE "
+    rows = [json.loads(line.split(marker, 1)[1]) for line in (out / "trace/new/run.log").read_text().splitlines() if marker in line]
+    (out / "object-profile.json").write_text(json.dumps(rows, indent=2))
+    assert {row["generation"] for row in rows} == set(range(60, 77)), "missing late cut profile"
+    summary["frozen_comparison"] = {"reply_equal": True, "schema_equal": True,
+        "tables": len(db["tables"]), "rows": sum(t["rows"] for t in db["tables"]),
+        "baseline_run": 41056885255, "baseline_artifact": 12978538610, "baseline_case": "pair1/new"}
+    summary["status"] = "single_profile_complete"
+
 def main():
     save()
     (out / "runner.json").write_text(json.dumps(machine(), indent=2))
     (out / "lscpu.txt").write_text(command_output(["lscpu"])["stdout"])
     mode = os.environ.get("G77_MODE", "trace-first")
+    if mode == "profile34q":
+        profile34q()
+        return
     assert mode in ("trace-first", "untraced")
     summary["mode"] = mode
     if mode == "trace-first":
