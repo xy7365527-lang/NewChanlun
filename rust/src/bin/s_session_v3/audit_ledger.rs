@@ -87,6 +87,38 @@ pub(super) struct GenerationDelta {
     pub new_units: BTreeSet<Unit>,
 }
 
+pub(super) struct QueuedFacts {
+    pub generation: i64,
+    pub rule_revision: String,
+    pub raw: BTreeMap<i64, RawFact>,
+    pub objects: BTreeMap<String, ObjectFact>,
+    pub witnesses: BTreeMap<String, RelatedFact>,
+    pub observations: BTreeMap<String, RelatedFact>,
+    pub cover: BTreeMap<i64, String>,
+}
+impl QueuedFacts {
+    pub(super) fn bind(
+        self, metadata: &content_manifest::ManifestMetadata,
+        roots: &impl content_manifest::ManifestRootSource,
+    ) -> Result<GenerationDelta, String> {
+        if self.generation != metadata.generation || self.rule_revision != metadata.rule_revision {
+            return Err(error("排队事实与实际prepare代号或规则不匹配"));
+        }
+        let copy = |r: RefView<'_>| ContentRef {
+            format: r.format().to_owned(), root: r.root().to_owned(), kind: r.kind(), extent: r.extent(),
+        };
+        let roots = roots.view();
+        Ok(GenerationDelta {
+            generation: self.generation,
+            roots: [copy((&metadata.scope).into()), copy(roots.generated_state),
+                copy(roots.publication_template), copy(roots.delta_template)],
+            verifier_revision: String::new(),
+            raw: self.raw, objects: self.objects, witnesses: self.witnesses,
+            observations: self.observations, cover: self.cover, new_units: BTreeSet::new(),
+        })
+    }
+}
+
 pub(super) struct Identity {
     pub rule_revision: String,
     pub content_identity: String,
@@ -359,6 +391,13 @@ pub(super) mod tests {
                 Unit {digest:[g as u8;32],flavor:Flavor::Value,mode:Mode::Template},
                 Unit {digest:[g as u8;32],flavor:Flavor::JsonInner,mode:Mode::Public}]),
         }
+    }
+    #[cfg(feature = "s_incremental")]
+    pub(crate) fn queued_facts(generation: i64, rule: &str) -> QueuedFacts {
+        QueuedFacts { generation, rule_revision: rule.into(),
+            raw: BTreeMap::from([(generation - 1, RawFact { event_digest: [1; 32], bar_digest: [2; 32] })]),
+            objects: BTreeMap::new(), witnesses: BTreeMap::new(), observations: BTreeMap::new(),
+            cover: BTreeMap::new() }
     }
     pub(crate) fn ledger(db:&Path,name:&str,rule:&str) -> Ledger {
         Ledger::fresh(&db.with_file_name(name),db,Identity {rule_revision:rule.into(),
