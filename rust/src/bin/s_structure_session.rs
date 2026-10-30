@@ -131,7 +131,12 @@ const LEGACY_V3_RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/1";
 const V3_STRUCTURE_RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1";
 /// #1419 P2：W1为历史读身份，W2与bounded-layout/1同候选发布。
 const W1_STRUCTURE_RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1+raw-initialization-w/1";
-const W_STRUCTURE_RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1+raw-initialization-w/2+bounded-layout/1";
+/// #1419/#1491 31P：W2 教义部分（不单独作完整规则登记，只经 `v3::layout` 精确表映射）。
+const W2_DOCTRINE_RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1+raw-initialization-w/2";
+/// #1419 31P C2：W2+bounded-layout/1 失败候选串，原件只读、拒写。
+const W2_BOUNDED1_RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1+raw-initialization-w/2+bounded-layout/1";
+/// #1419/#1491 31P：S3 唯一新写串（单元绑定源修订的 bounded-layout/2）。
+const W_STRUCTURE_RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1+raw-initialization-w/2+bounded-layout/2";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum WRevision {
@@ -140,7 +145,7 @@ enum WRevision {
 }
 
 fn w_revision(rule: &str) -> Option<WRevision> {
-    if rule == W_STRUCTURE_RULE_REVISION {
+    if v3::layout::doctrine_is(rule, W2_DOCTRINE_RULE_REVISION) {
         Some(WRevision::W2)
     } else if v3::layout::doctrine_is(rule, W1_STRUCTURE_RULE_REVISION) {
         Some(WRevision::W1)

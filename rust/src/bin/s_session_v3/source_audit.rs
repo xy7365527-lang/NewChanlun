@@ -1808,6 +1808,72 @@ fn audit_object_record(
     )
 }
 
+fn audit_development_unit(
+    s: &mut (impl CodecRead + ?Sized),
+    unit: &RefValue,
+    raw: &(impl RawLookup + ?Sized),
+    source_bound: bool,
+) -> Result<(), String> {
+    exact(unit, Kind::Object, if source_bound { 3 } else { 2 })?;
+    let bar = field(s, unit, "bar")?;
+    exact(&bar, Kind::Object, 5)?;
+    let coord = decimal(&text(s, &bar, "source_coord")?)?;
+    let expected = raw.get(&coord).ok_or_else(|| err("CC007单元缺原始来源"))?;
+    if digest(&bar)? != expected.bar {
+        return Err(err("CC007单元bar不是同cut五字段原件"));
+    }
+    let relations = field(s, unit, "relations")?;
+    exact(&relations, Kind::Array, 24)?;
+    if source_bound {
+        let source = field(s, unit, "source_ref")?;
+        exact(&source, Kind::Object, 8)?;
+        if digest(&source)? != expected.wire {
+            return Err(err("CC007单元source_ref不是同cut完整八字段原件"));
+        }
+    }
+    Ok(())
+}
+
+fn audit_development_batch(
+    s: &mut (impl CodecRead + ?Sized),
+    payload: &RefValue,
+    raw: &(impl RawLookup + ?Sized),
+    rule: &str,
+) -> Result<(), String> {
+    let source_bound = super::layout::Layout::of_rule(rule)? == super::layout::Layout::Bounded2;
+    if !source_bound {
+        return Ok(());
+    }
+    exact(payload, Kind::Object, 2)?;
+    let bar = field(s, payload, "bar")?;
+    let entries = field(s, payload, "entries")?;
+    for entry in elements(s, &entries)? {
+        exact(&entry, Kind::Object, 3)?;
+        let _fractal = text(s, &entry, "fractal_object_id")?;
+        let unit = field(s, &entry, "unit")?;
+        audit_development_unit(s, &unit, raw, true)?;
+        if field(s, &unit, "bar")? != bar {
+            return Err(err("CC007单元bar与批记录不同"));
+        }
+        let development = field(s, &entry, "development")?;
+        exact(&development, Kind::Object, 2)?;
+        let count = decimal(&text(s, &development, "count")?)?;
+        let prefix = field(s, &development, "root")?;
+        if count <= 0 {
+            return Err(err("CC007发展前缀为空"));
+        }
+        exact(&prefix, Kind::Array, count as u64)?;
+        let units = elements(s, &prefix)?;
+        for previous in &units {
+            audit_development_unit(s, previous, raw, true)?;
+        }
+        if units.last() != Some(&unit) {
+            return Err(err("CC007发展前缀末项不是本单元"));
+        }
+    }
+    Ok(())
+}
+
 fn audit_object_record_with_slots(
     s: &mut (impl SourceFieldStore + ?Sized),
     record: &RefValue,
@@ -1975,6 +2041,9 @@ fn audit_object_record_with_slots(
                 raw,
                 current_generation,
             )?;
+        }
+        if kind == CC007_DEVELOPMENT_BATCH_KIND {
+            audit_development_batch(s, &payload, raw, rule)?;
         }
         if kind == CC054_KNOWLEDGE_KIND {
             let contract = tb02b::contract_for_rule(producer.rule_revision())
@@ -2603,6 +2672,65 @@ mod tests {
     }
 
     #[test]
+    fn bounded2_unit_source_binding_is_exact() {
+        let (mut nodes, state, raw, rule) = fixture();
+        let state_ref = RefValue::Plain(NativeValue::<sc::ContentRef>::from_unscoped(state));
+        let object_array = field(&mut nodes, &state_ref, "objects").unwrap();
+        let record = elements(&mut nodes, &object_array).unwrap().into_iter()
+            .find(|r| text(&mut nodes, r, "kind").unwrap() == CC007_DEVELOPMENT_BATCH_KIND).unwrap();
+        let payload_text_ref = field(&mut nodes, &record, "payload_json").unwrap();
+        let payload_ref = nodes.lookup_ref(payload_text_ref.view(), &[PathStep::JsonText]).unwrap();
+        let mut bytes = Vec::new();
+        sc::render_canonical(&mut nodes, &built(payload_ref.view()).unwrap().content_ref(), &mut bytes).unwrap();
+        let payload: Value = serde_json::from_slice(&bytes).unwrap();
+        let sources = original_sources(&raw, raw.len()).unwrap();
+        let coord = payload["bar"]["source_coord"].as_str().unwrap().parse::<i64>().unwrap();
+        let event = raw.iter().find(|e| e["source_coord"] == coord.to_string()).unwrap();
+        let mut expected = serde_json::Map::new();
+        for name in ["identity_key", "payload_hash", "receipt_id", "event_id", "input_revision", "revision", "seq", "source_coord"] {
+            expected.insert(name.to_string(), json!(event[name].as_str().map(str::to_string).unwrap_or_else(|| event[name].to_string())));
+        }
+        assert_eq!(payload["entries"][0]["unit"]["source_ref"], Value::Object(expected));
+        let producer = Cc004Producer::new(tb02a::PROFILE, &rule);
+        let key = text(&mut nodes, &record, "fact_key").unwrap();
+        let refs_text = field(&mut nodes, &record, "input_refs_json").unwrap();
+        let refs = nodes.lookup_ref(refs_text.view(), &[PathStep::JsonText]).unwrap();
+        let check = |nodes: &mut MemoryNodes, payload: &Value| {
+            let payload = sc::write_value(nodes, &cv(payload).unwrap()).unwrap();
+            let identity = producer.typed_identity_scoped(CC007_DEVELOPMENT_BATCH_KIND, &key, &payload, &built(refs.view()).unwrap(), nodes.codec_work()).unwrap();
+            let payload_text = json_text_edge(nodes, &payload.content_ref());
+            let id = sc::write_value(nodes, &V::String(content_producer::object_id_display(&identity).to_string())).unwrap();
+            let changed = replace_field(nodes, &record, TYPED, "payload_json", V::Edge(payload_text.digest().unwrap()));
+            let changed = RefValue::from(replace_field(nodes, &changed, TYPED, "object_id", V::Edge(id.digest)));
+            audit_object_record(nodes, &changed, &sources, &producer, &rule, 1, &mut BusinessMap::plain(), &mut BusinessMap::plain(), &mut BusinessMap::plain(), None, raw.len(), false, None, None)
+        };
+        assert!(check(&mut nodes, &payload).is_ok());
+        for mode in 0..4 {
+            let mut bad = payload.clone();
+            let unit = &mut bad["entries"][0]["unit"];
+            match mode {
+                0 => { unit.as_object_mut().unwrap().remove("source_ref"); }
+                1 => unit["source_ref"]["source_coord"] = json!("999999"),
+                2 => unit["source_ref"]["revision"] = json!("999999"),
+                _ => unit["source_ref"]["seq"] = json!(1),
+            }
+            assert!(check(&mut nodes, &bad).is_err(), "正式审计须拒绝变异 {mode}");
+        }
+        let mut changed = event.clone();
+        changed["revision"] = json!(2);
+        changed["seq"] = json!(raw.len() + 1);
+        let mut revised = raw.clone();
+        revised.push(changed);
+        let revised_sources = original_sources(&revised, revised.len()).unwrap();
+        assert_ne!(sources.get(&coord).unwrap().wire, revised_sources.get(&coord).unwrap().wire);
+        let unit = &payload["entries"][0]["unit"];
+        let old = json!({"bar": unit["bar"], "relations": unit["relations"]});
+        let old = RefValue::Plain(NativeValue::<sc::ContentRef>::from_unscoped(sc::write_value(&mut nodes, &cv(&old).unwrap()).unwrap().content_ref()));
+        audit_development_unit(&mut nodes, &old, &sources, false).unwrap();
+        assert!(audit_development_unit(&mut nodes, &old, &sources, true).is_err());
+    }
+
+    #[test]
     fn structure_rule_rejects_new_kinds_under_legacy_rules() {
         for rule in [crate::LEGACY_V3_RULE_REVISION, crate::V3_RULE_REVISION] {
             for kind in crate::tb02c::KINDS
@@ -2961,7 +3089,6 @@ mod tests {
             "seq": seq, "payload_hash": "same-price", "receipt_id": format!("r-{seq}"),
             "event_id": format!("e-{seq}"), "input_revision": "1"})
     }
-    #[cfg(feature = "s_capture_native_testonly")]
     fn original_sources(raw: &[Value], n: usize) -> Result<BusinessMap<i64, Source>, String> {
         let effective = bj::effective(RawEventsView::plain(&raw[..n]), None)?;
         let mut sources = bj::new_map(None);

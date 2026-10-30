@@ -968,12 +968,30 @@ mod tests {
 
     #[test]
     fn w2_exact_publication_rule_and_archival_dispatch() {
-        assert_eq!(W_STRUCTURE_RULE_REVISION, "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1+raw-initialization-w/2+bounded-layout/1");
+        assert_eq!(W_STRUCTURE_RULE_REVISION, "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1+raw-initialization-w/2+bounded-layout/2");
         assert_eq!(w_revision(W_STRUCTURE_RULE_REVISION), Some(WRevision::W2));
         assert_eq!(w_revision(W1_STRUCTURE_RULE_REVISION), Some(WRevision::W1));
         assert_eq!(
             layout::Layout::of_rule(W_STRUCTURE_RULE_REVISION).unwrap(),
+            layout::Layout::Bounded2
+        );
+        // 31P C2：W2+bounded-layout/1 失败候选原件按 W2＋Bounded1 只读、拒写。
+        assert_eq!(w_revision(W2_BOUNDED1_RULE_REVISION), Some(WRevision::W2));
+        assert_eq!(
+            layout::Layout::of_rule(W2_BOUNDED1_RULE_REVISION).unwrap(),
             layout::Layout::Bounded1
+        );
+        assert!(require_current_writer_rule(W2_BOUNDED1_RULE_REVISION).is_err());
+        assert_eq!(
+            tb02b::contract_for_rule(W2_BOUNDED1_RULE_REVISION),
+            Some(tb02b::W_CONTRACT)
+        );
+        assert!(
+            tb02a_facts::CatalogAxisTable::for_rule_revision(W2_BOUNDED1_RULE_REVISION).is_some()
+        );
+        assert!(
+            layout::Layout::of_rule(W2_DOCTRINE_RULE_REVISION).is_err(),
+            "无布局组件的 W2 教义串不是已登记完整规则"
         );
         assert_eq!(
             layout::Layout::of_rule(W1_STRUCTURE_RULE_REVISION).unwrap(),
@@ -989,14 +1007,19 @@ mod tests {
             "raw-initialization-w/1"
         );
         for invalid in [
-            W_STRUCTURE_RULE_REVISION.replace("+bounded-layout/1", ""),
+            W_STRUCTURE_RULE_REVISION.replace("+bounded-layout/2", ""),
             W_STRUCTURE_RULE_REVISION.replace(
-                "raw-initialization-w/2+bounded-layout/1",
-                "bounded-layout/1+raw-initialization-w/2",
+                "raw-initialization-w/2+bounded-layout/2",
+                "bounded-layout/2+raw-initialization-w/2",
             ),
-            W_STRUCTURE_RULE_REVISION.replace("bounded-layout/1", "bounded-layout/2"),
+            W_STRUCTURE_RULE_REVISION.replace("bounded-layout/2", "bounded-layout/3"),
             format!("{W_STRUCTURE_RULE_REVISION}+raw-initialization-w/1"),
-            format!("{W_STRUCTURE_RULE_REVISION}+bounded-layout/1"),
+            format!("{W_STRUCTURE_RULE_REVISION}+bounded-layout/2"),
+            format!("{W2_BOUNDED1_RULE_REVISION}+bounded-layout/2"),
+            W1_STRUCTURE_RULE_REVISION.replace(
+                "raw-initialization-w/1",
+                "raw-initialization-w/1+bounded-layout/2",
+            ),
         ] {
             assert!(require_current_writer_rule(&invalid).is_err(), "{invalid}");
             assert!(layout::Layout::of_rule(&invalid).is_err(), "{invalid}");
@@ -1007,6 +1030,12 @@ mod tests {
             assert!(tb02b::contract_for_rule(&invalid).is_none(), "{invalid}");
             assert!(w_revision(&invalid).is_none(), "{invalid}");
         }
+    }
+
+    #[test]
+    fn bounded2_archival_rule_dispatch() {
+        w2_exact_publication_rule_and_archival_dispatch();
+        assert!(require_current_writer_rule(W_STRUCTURE_RULE_REVISION).is_ok());
     }
 
     #[test]
@@ -1036,7 +1065,7 @@ mod tests {
     fn w_successor_rule_is_exact_and_maps_to_cf22_axes() {
         assert_eq!(
             W_STRUCTURE_RULE_REVISION,
-            format!("{V3_STRUCTURE_RULE_REVISION}+raw-initialization-w/2+bounded-layout/1")
+            format!("{V3_STRUCTURE_RULE_REVISION}+raw-initialization-w/2+bounded-layout/2")
         );
         assert!(is_structure_rule(W_STRUCTURE_RULE_REVISION));
         assert!(is_structure_rule(V3_STRUCTURE_RULE_REVISION));

@@ -5844,7 +5844,7 @@ mod tests {
             let result = sweep.seek_admitted(1, layout, &rewritten, &store);
             match layout {
                 Layout::Sorted => result.unwrap(),
-                Layout::Bounded1 => {
+                Layout::Bounded1 | Layout::Bounded2 => {
                     let error = result.unwrap_err();
                     assert!(error.contains("RankSet出集键不存在"), "{error}");
                 }

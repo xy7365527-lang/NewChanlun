@@ -2241,8 +2241,9 @@ impl Cc004Producer {
         // 穷举分派：布局枚举扩展时此处编译期报错，不静默落 layout/1（#1780 独审 L-1）。
         let bounded = match layout {
             crate::v3::layout::Layout::Sorted => false,
-            crate::v3::layout::Layout::Bounded1 => true,
+            crate::v3::layout::Layout::Bounded1 | crate::v3::layout::Layout::Bounded2 => true,
         };
+        let source_bound = layout == crate::v3::layout::Layout::Bounded2;
         let cached = self.fractal_histories.remove(&(refs_key.clone(), end));
         // 截断不先落 split 前缀根：保留数与新尾在循环后一次 `sequence_rebuild_suffix`（#1488 S3）。
         let mut invalidated_from = None;
@@ -2324,10 +2325,28 @@ impl Cc004Producer {
                 let built = sc::write_value(&mut *store, &value)?;
                 built
             };
-            let unit = CValue::Object(vec![
+            let mut unit_fields = vec![
                 ("bar".to_string(), bar_value(bar)),
                 ("relations".to_string(), CValue::Edge(relations.digest)),
-            ]);
+            ];
+            if source_bound {
+                // 31P C1：同读集该 bar 当前八字段源引用（bind_source 登记的同一值根）。
+                let coord = i64::try_from(bar.source_index).map_err(|_| {
+                    ProducerError::Overflow(format!("源坐标 {} 超出 i64", bar.source_index))
+                })?;
+                let (spec, root) = self
+                    .sources
+                    .get(&coord)
+                    .ok_or(ProducerError::MissingSource(coord))?;
+                if spec.source_coord != bar.source_index.to_string() {
+                    return Err(ProducerError::Type {
+                        what: "CC-007 单元源引用",
+                        detail: format!("登记坐标 {} 不是单元 bar {coord}", spec.source_coord),
+                    });
+                }
+                unit_fields.push(("source_ref".to_string(), CValue::Edge(*root)));
+            }
+            let unit = CValue::Object(unit_fields);
             let leaf = {
                 #[cfg(test)]
                 let _phase = tests::emission_phase("fractal_unit_write_value");

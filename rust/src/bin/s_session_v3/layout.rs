@@ -14,6 +14,9 @@ pub(crate) enum Layout {
     Sorted,
     /// bounded-layout/1：累计数组按出生序（代际单调不减，同代内沿 layout/1 原键）。
     Bounded1,
+    /// bounded-layout/2（#1419/#1491 31P）：次序同 Bounded1；CC-007 比较单元另带 `source_ref`
+    /// 内容边（该 bar 当前八字段源引用），使修订后恢复原 OHLC 的单元不复用已撤回身份。
+    Bounded2,
 }
 
 impl Layout {
@@ -46,7 +49,7 @@ impl Layout {
     pub(crate) fn epoch(self, generation: i64) -> i64 {
         match self {
             Self::Sorted => 0,
-            Self::Bounded1 => generation,
+            Self::Bounded1 | Self::Bounded2 => generation,
         }
     }
 
@@ -122,7 +125,9 @@ fn registered(rule_revision: &str) -> Result<(&'static str, Layout), String> {
         "r+bounded-layout/1" => ("r", Layout::Bounded1),
         #[cfg(test)]
         "test-rule/1" => ("test-rule/1", Layout::Sorted),
-        crate::W_STRUCTURE_RULE_REVISION => (crate::W_STRUCTURE_RULE_REVISION, Layout::Bounded1),
+        crate::W_STRUCTURE_RULE_REVISION => (crate::W2_DOCTRINE_RULE_REVISION, Layout::Bounded2),
+        // #1419 31P C2：W2+bounded-layout/1 失败候选的原件只读（W2 语义＋Bounded1），永不续写。
+        crate::W2_BOUNDED1_RULE_REVISION => (crate::W2_DOCTRINE_RULE_REVISION, Layout::Bounded1),
         "s2-axis-quantifiers" => ("s2-axis-quantifiers", Layout::Sorted),
         "s2-axis-quantifiers+bounded-layout/1" => ("s2-axis-quantifiers", Layout::Bounded1),
         "s2-axis-quantifiers+new-bi/1+segment-second/2" => ("s2-axis-quantifiers+new-bi/1+segment-second/2", Layout::Sorted),

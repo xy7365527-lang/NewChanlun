@@ -741,7 +741,7 @@ impl GenerationRuntime {
         // 穷举分派：布局枚举扩展时此处编译期报错，不静默落 layout/1（#1780 独审 L-1）。
         let bounded = match self.producer.layout().map_err(producer_error)? {
             super::layout::Layout::Sorted => false,
-            super::layout::Layout::Bounded1 => true,
+            super::layout::Layout::Bounded1 | super::layout::Layout::Bounded2 => true,
         };
         // ── 原始账：生效账 → coord 表 + Bar 序列 + 事件节点；全修订史 → 事件节点 ──
         let mut raw_by_coord: FixedRadix<i64, JsonView<'_>> = FixedRadix::default();
@@ -5718,6 +5718,61 @@ pub(super) mod tests {
         out
     }
 
+    fn bounded2_layout_runs(events: &[Value], cuts: &[usize]) -> Vec<(Value, Value)> {
+        let run = |layout| super::super::layout::with_forced_layout_for_test(Some(layout), || {
+            let rule = crate::W_STRUCTURE_RULE_REVISION;
+            let scope = json!({"instrument":"B1", "exchange":"fixture"});
+            let mut runtime = GenerationRuntime::new("bounded2-layout-lock".into(), crate::tb02a::PROFILE, rule);
+            let mut nodes = MemoryNodes::new();
+            cuts.iter().enumerate().map(|(turn, &prefix)| {
+                let gen = turn as i64 + 1;
+                let cut = format!("cut-{gen}");
+                let raw = RawEventsView::plain(events).prefix(prefix).unwrap();
+                let effective = bj::effective(raw, None).unwrap();
+                let input = full_input(raw, effective.raw_view(), &scope, &cut, gen, prefix as i64, rule);
+                let generated = runtime.generate(&mut nodes, &input).unwrap();
+                let mut cold = GenerationRuntime::new(format!("bounded2-cold-{gen}"), crate::tb02a::PROFILE, rule);
+                let mut cold_nodes = MemoryNodes::new();
+                let cold_generated = cold.generate(&mut cold_nodes, &input).unwrap();
+                assert_eq!(state_value(&mut nodes, &generated).0, state_value(&mut cold_nodes, &cold_generated).0);
+                state_value(&mut nodes, &generated).1
+            }).collect::<Vec<_>>()
+        });
+        run(super::super::layout::Layout::Sorted).into_iter().zip(run(super::super::layout::Layout::Bounded2)).collect()
+    }
+
+    fn assert_bounded2_crosswalk(gen: usize, sorted: &Value, bounded: &Value, raw: &[Value]) {
+        let mut winners = std::collections::BTreeMap::<String, &Value>::new();
+        for event in raw {
+            let identity = event["identity_key"].as_str().unwrap().to_string();
+            let replace = winners.get(&identity).is_none_or(|old| {
+                (event["revision"].as_i64().unwrap(), event["seq"].as_i64().unwrap()) >
+                    (old["revision"].as_i64().unwrap(), old["seq"].as_i64().unwrap())
+            });
+            if replace { winners.insert(identity, event); }
+        }
+        let mut expected = sorted.clone();
+        for object in expected["objects"].as_array_mut().unwrap().iter_mut().filter(|o| o["kind"] == CC007_FRACTAL_KIND) {
+            let mut payload: Value = serde_json::from_str(object["payload_json"].as_str().unwrap()).unwrap();
+            for unit in payload["subsequent_development"]["bars"].as_array_mut().unwrap() {
+                assert_eq!(unit.as_object().unwrap().len(), 2);
+                let event = winners.values().find(|e| e["source_coord"] == unit["bar"]["source_coord"]).unwrap();
+                let mut source = serde_json::Map::new();
+                for name in ["identity_key", "payload_hash", "receipt_id", "event_id", "input_revision", "revision", "seq", "source_coord"] {
+                    source.insert(name.to_string(), json!(event[name].as_str().map(str::to_string).unwrap_or_else(|| event[name].to_string())));
+                }
+                unit["source_ref"] = Value::Object(source);
+            }
+            object["payload_json"] = json!(crate::canonical_json(&payload));
+        }
+        assert_bounded_crosswalk(gen, &expected, bounded);
+        for kind in [CC004_STEP_KIND, CC005_GROUP_KIND, crate::content_producer::CC004_INITIALIZATION_KIND, crate::content_producer::CC004_UNDETERMINED_KIND] {
+            let content = |state: &Value| objects_of(state, kind).into_iter().map(|o| json!([o["fact_key"], o["payload"], o["input_refs"], o["source_coords"]])).collect::<Vec<_>>();
+            assert_eq!(content(sorted), content(bounded), "g{gen} {kind} 其余内容不变");
+        }
+        assert_eq!(w_request_semantics(sorted).unwrap(), w_request_semantics(bounded).unwrap());
+    }
+
     /// 生成态对象行（`*_json` 文本视图解析回值，便于逐字段比较）。
     fn objects_of(state: &Value, kind: &str) -> Vec<Value> {
         state["objects"]
@@ -5960,7 +6015,8 @@ pub(super) mod tests {
     fn w_requests_keep_line_order_in_layout1_and_lead_bounded_layout() {
         let events = delta_long_fixture();
         let cuts: Vec<usize> = (1..=events.len()).collect();
-        let runs = bounded_layout_runs(&events, &cuts);
+        let mut runs = bounded_layout_runs(&events, &cuts);
+        runs.extend(bounded2_layout_runs(&events, &cuts));
         let id_of = |r: &Value| -> Value {
             serde_json::from_str(r["request_id"].as_str().unwrap()).unwrap()
         };
@@ -6599,6 +6655,15 @@ pub(super) mod tests {
             }
         }
         assert_eq!(generations, 25, "覆盖原 long 14、revision 8、realrule 3 代");
+        let mut bounded2_generations = 0;
+        for (_tag, events, cuts, _historical_rule) in a7_groups() {
+            for (i, (sorted, bounded)) in bounded2_layout_runs(&events, &cuts).iter().enumerate() {
+                assert_bounded2_crosswalk(i + 1, sorted, bounded, &events[..cuts[i]]);
+                bounded2_generations += 1;
+            }
+        }
+        assert_eq!(bounded2_generations, 25);
+
         assert!(
             undetermined && established,
             "夹具须覆盖未定与已定两种 W 状态"
@@ -6615,7 +6680,9 @@ pub(super) mod tests {
     fn w_request_semantics_detects_axes_subject_and_duplicate_changes() {
         use crate::content_producer::{CC004_INITIALIZATION_KIND, CC004_UNDETERMINED_KIND};
         let events = delta_long_fixture();
-        let (state, _) = bounded_layout_runs(&events, &[1]).remove(0);
+        let (historical, _) = bounded_layout_runs(&events, &[1]).remove(0);
+        let (_, current) = bounded2_layout_runs(&events, &[1]).remove(0);
+        for state in [historical, current] {
         let original = w_request_semantics(&state).unwrap();
         assert_eq!(original.len(), 2);
         let other = objects_of(&state, CC004_UNDETERMINED_KIND)[0]["object_id"].clone();
@@ -6678,6 +6745,7 @@ pub(super) mod tests {
             rs.push(copy);
         });
         assert!(w_request_semantics(&duplicate).is_err(), "重复请求须判出");
+        }
     }
 
     #[test]

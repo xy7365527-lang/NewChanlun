@@ -1,0 +1,53 @@
+name: issue-1419 bounded2 targeted
+on:
+  push:
+    branches: [codex/1419-p2-clean32a]
+permissions:
+  contents: read
+jobs:
+  bounded2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CARGO_INCREMENTAL: "0"
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/rust-job-setup
+      - name: Format changed Rust files and retain patch
+        run: |
+          mkdir -p ../bounded2-evidence
+          git diff --name-only 411db6035fd974e269ccef0a2d8f39ce6ed22110 HEAD -- '*.rs' | while read -r path; do
+            rustfmt --edition 2021 --config skip_children=true "../$path"
+          done
+          git diff -- '*.rs' > ../bounded2-evidence/rustfmt.patch
+      - name: Exact bounded2 behavior locks
+        run: |
+          set -o pipefail
+          while read -r test; do
+            log="../bounded2-evidence/${test//::/_}.log"
+            cargo test --locked --release --features s_session,s_capture_native_testonly,s_allocation_json_testonly --bin s_structure_session --jobs 1 -- --exact "$test" --nocapture 2>&1 | tee "$log"
+            grep -F 'test result: ok. 1 passed;' "$log"
+          done <<'TESTS'
+          v3::tests::bounded2_archival_rule_dispatch
+          v3::source_audit::tests::bounded2_unit_source_binding_is_exact
+          v3::prepared::tests::pending_source_tests::bounded2_revision_restore_preserves_archived_cuts
+          v3::generation::tests::w_semantics_layout_neutral_between_layout1_and_bounded
+          v3::generation::tests::w_request_semantics_detects_axes_subject_and_duplicate_changes
+          v3::generation::tests::w_requests_keep_line_order_in_layout1_and_lead_bounded_layout
+          TESTS
+      - name: Build formal binary
+        run: cargo build --locked --release --features s_session --bin s_structure_session --jobs 1
+      - name: Require submitted source formatting
+        run: test ! -s ../bounded2-evidence/rustfmt.patch
+      - name: Upload exact evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-1419-bounded2-${{ github.sha }}
+          path: |
+            bounded2-evidence/
+            rust/target/release/s_structure_session
+          retention-days: 7

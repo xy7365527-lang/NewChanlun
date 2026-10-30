@@ -213,6 +213,9 @@ pub(super) fn audit_generated_in_store(
             if id.as_str() != expected.as_str() {
                 return Err(err("typed obj3身份与来源/载荷原件不符"));
             }
+            if kind == CC007_DEVELOPMENT_BATCH_KIND {
+                audit_bounded2_batch(s, &payload, &raw, rule)?;
+            }
             if tb02b::KINDS.contains(&kind.as_str()) {
                 let contract = tb02b::contract_for_rule(rule)
                     .ok_or_else(|| err("新笔来源审计规则修订未声明"))?;
@@ -609,4 +612,56 @@ pub(super) fn audit_generated_in_store(
         insufficient,
         outside_domain,
     })
+}
+
+fn audit_bounded2_batch(
+    s: &mut (impl CodecRead + ?Sized),
+    payload: &RefValue,
+    raw: &(impl RawLookup + ?Sized),
+    rule: &str,
+) -> Result<(), String> {
+    if super::super::layout::Layout::of_rule(rule)? != super::super::layout::Layout::Bounded2 {
+        return Ok(());
+    }
+    exact(payload, Kind::Object, 2)?;
+    let batch_bar = field(s, payload, "bar")?;
+    let entries = field(s, payload, "entries")?;
+    for entry in elements(s, &entries)? {
+        exact(&entry, Kind::Object, 3)?;
+        text(s, &entry, "fractal_object_id")?;
+        let current = field(s, &entry, "unit")?;
+        let development = field(s, &entry, "development")?;
+        exact(&development, Kind::Object, 2)?;
+        let count = decimal(&text(s, &development, "count")?)?;
+        if count <= 0 {
+            return Err(err("CC007发展前缀为空"));
+        }
+        let prefix = field(s, &development, "root")?;
+        exact(&prefix, Kind::Array, count as u64)?;
+        let mut units = elements(s, &prefix)?;
+        if units.last() != Some(&current) {
+            return Err(err("CC007发展前缀末项不是本单元"));
+        }
+        units.push(current.clone());
+        for unit in units {
+            exact(&unit, Kind::Object, 3)?;
+            let bar = field(s, &unit, "bar")?;
+            exact(&bar, Kind::Object, 5)?;
+            let coord = decimal(&text(s, &bar, "source_coord")?)?;
+            let source = raw.get(&coord).ok_or_else(|| err("CC007单元缺原始来源"))?;
+            if digest(&bar)? != source.bar {
+                return Err(err("CC007单元bar不是同cut五字段原件"));
+            }
+            exact(&field(s, &unit, "relations")?, Kind::Array, 24)?;
+            let wire = field(s, &unit, "source_ref")?;
+            exact(&wire, Kind::Object, 8)?;
+            if digest(&wire)? != source.wire {
+                return Err(err("CC007单元source_ref不是同cut完整八字段原件"));
+            }
+        }
+        if field(s, &current, "bar")? != batch_bar {
+            return Err(err("CC007单元bar与批记录不同"));
+        }
+    }
+    Ok(())
 }

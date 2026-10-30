@@ -181,3 +181,62 @@ fn pending_source_incoming_encloses_seed() {
         ],
     );
 }
+
+#[test]
+fn bounded2_revision_restore_preserves_archived_cuts() {
+    fn run(layout: super::super::super::layout::Layout) -> Result<(), String> {
+        super::super::super::layout::with_forced_layout_for_test(Some(layout), || {
+            let mut fixture = Fixture::with_clock_events(6, 3);
+            let rows = crate::tests::tb02b_oracle_rows();
+            assert_eq!(rows.len(), 14);
+            let (envelope, token) = fixture.accept_begin_rows(1, &rows, 1);
+            fixture.publish(&envelope, &token)?;
+            let cuts = |f: &mut Fixture| -> Vec<Value> {
+                let tx = f.conn.transaction().unwrap();
+                let state = state::audit(&tx).unwrap();
+                state.cuts.iter().map(|cut| json!({
+                    "metadata": format!("{:?}", cut.metadata),
+                    "roots": format!("{:?}", cut.roots),
+                    "snapshot": cut.snapshot, "delta": cut.delta
+                })).collect()
+            };
+            let original_cuts = cuts(&mut fixture);
+            let original_batches = {
+                let tx = fixture.conn.transaction().unwrap();
+                let state = state::audit(&tx).unwrap();
+                state.objects.iter().filter(|o| o.kind == content_producer::CC007_DEVELOPMENT_BATCH_KIND)
+                    .map(|o| o.object_id.clone()).collect::<Vec<_>>()
+            };
+            assert!(!original_batches.is_empty(), "夹具必须有真实分型及后续单元");
+            let row = rows[10];
+            let revised = (row.0, row.1, row.2 + 1, row.3 + 1, row.4 + 1, row.5 + 1);
+            let (envelope, token) = fixture.accept_begin(2, revised, 2);
+            fixture.publish(&envelope, &token)?;
+            let before_restore = cuts(&mut fixture);
+            assert_eq!(&before_restore[..1], original_cuts.as_slice());
+            let withdrawn = {
+                let tx = fixture.conn.transaction().unwrap();
+                let state = state::audit(&tx).unwrap();
+                state.objects.iter().filter(|o| original_batches.contains(&o.object_id) && o.life.withdrawn_generation.is_some())
+                    .map(|o| o.object_id.clone()).collect::<Vec<_>>()
+            };
+            assert!(!withdrawn.is_empty(), "修订必须撤回旧批记录");
+            let (envelope, token) = fixture.accept_begin(3, row, 3);
+            fixture.publish(&envelope, &token)?;
+            let after_restore = cuts(&mut fixture);
+            assert_eq!(&after_restore[..before_restore.len()], before_restore.as_slice(), "全部归档 cut 的 AsKnown 内容不变");
+            let tx = fixture.conn.transaction().unwrap();
+            let state = state::audit(&tx).unwrap();
+            for id in &withdrawn {
+                let object = state.objects.iter().find(|o| &o.object_id == id).unwrap();
+                assert!(object.life.withdrawn_generation.is_some(), "旧身份不得复活");
+            }
+            let active_batches: Vec<_> = state.objects.iter().filter(|o| o.kind == content_producer::CC007_DEVELOPMENT_BATCH_KIND && o.life.withdrawn_generation.is_none()).collect();
+            assert!(active_batches.iter().any(|o| !original_batches.contains(&o.object_id)), "恢复必须生成新 batch 身份");
+            Ok(())
+        })
+    }
+    let failure = run(super::super::super::layout::Layout::Bounded1).unwrap_err();
+    assert!(failure.contains("IdentityConflict"), "旧单元机制应复现撤回身份冲突：{failure}");
+    run(super::super::super::layout::Layout::Bounded2).unwrap();
+}
