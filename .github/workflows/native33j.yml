@@ -1,0 +1,35 @@
+name: Native wire cache interference 33j
+on:
+  push:
+    branches: [codex/1640-native33j-diagnostic]
+jobs:
+  wire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CARGO_INCREMENTAL: '0'
+    defaults:
+      run:
+        working-directory: rust
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/rust-job-setup
+      - name: Same-process cache interference must reproduce strict failure
+        run: |
+          git show e15ef03ebb555a1dd4b3a691b6fc12b510273e93:rust/src/bin/s_session_v3/driver.rs > src/bin/s_session_v3/driver.rs
+          set +e
+          cargo test --locked --features s_session,s_capture_native_testonly --bin s_structure_session --jobs 1 ordinary_material_multicut_wire_comparison_keeps_same_proofs_and_all_cuts -- --nocapture 2>&1 | tee /tmp/wire33j-interference-red.log
+          code=${PIPESTATUS[0]}
+
+          set -e
+          test "$code" -eq 101
+          grep -F '必须实际减少同一FD VFS的audit wire' /tmp/wire33j-interference-red.log
+          grep -F '0 passed; 1 failed' /tmp/wire33j-interference-red.log
+      - name: Child process preserves strict lock under same parent interference
+        if: ${{ !cancelled() }}
+        run: |
+          git show HEAD:rust/src/bin/s_session_v3/driver.rs > src/bin/s_session_v3/driver.rs
+          cargo test --locked --features s_session,s_capture_native_testonly --bin s_structure_session --jobs 1 ordinary_material_multicut_wire_comparison_keeps_same_proofs_and_all_cuts -- --nocapture
