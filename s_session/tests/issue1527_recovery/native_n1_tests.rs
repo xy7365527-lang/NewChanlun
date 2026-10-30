@@ -1093,6 +1093,7 @@ fn native_n1_vfs32f_failed_commit_rolls_back_with_callbacks_still_installed() {
 #[derive(Default)]
 struct Faults32f {
     pin_fail: Option<c_int>,
+    pin_fail_calls: usize,
     short_write: bool,
     expire_write: Option<Rc<Cell<Instant>>>,
     writes: Vec<(usize, isize)>,
@@ -1101,7 +1102,10 @@ struct Faults32f {
 }
 thread_local! { static FAULTS32F: RefCell<Faults32f> = RefCell::new(Faults32f::default()); }
 unsafe extern "C" fn fstat32f(fd: c_int, out: *mut libc::stat) -> c_int {
-    if FAULTS32F.with(|f| f.borrow().pin_fail == Some(fd)) { set_errno(libc::EIO); -1 }
+    if FAULTS32F.with(|f| {
+        let mut f = f.borrow_mut();
+        if f.pin_fail == Some(fd) { f.pin_fail_calls += 1; true } else { false }
+    }) { set_errno(libc::EIO); -1 }
     else { libc::fstat(fd, out) }
 }
 unsafe extern "C" fn pwrite32f(fd: c_int, p: *const c_void, n: usize, off: libc::off_t) -> isize {
@@ -1218,6 +1222,45 @@ fn native_n1_vfs32f_pin_measure_failure_after_real_growth_settles_conservatively
     assert!(matches!(errors.reported(), Some(Reported::First(NativeError::Code(NativeCode::ShmMeasureFailed)))));
     assert_eq!(account.borrow().snapshot().store.committed, pending);
     assert_eq!(account.borrow().snapshot().open_reservations, 0);
+    assert_sidecars32f(&file.0); assert!(other_process_can_lock(&file.0));
+}
+
+#[test]
+fn native_n1_vfs32l_observed_excess_survives_later_pin_failure() {
+    use std::os::fd::AsRawFd;
+    use std::os::unix::fs::MetadataExt;
+    if !native_child("native_n1_vfs32l_observed_excess_survives_later_pin_failure") { return; }
+    let h = fault_hooks32f();
+    let (file, pins, pin, b0) = wal_fixture("observed-then-failed-pin");
+    let pin_fd = pin.as_raw_fd();
+    // TestOnly 错误上界：首region合法，第二region只给48 KiB，不是生产A(len)。
+    assert!(b0 <= 32768);
+    let bound = Some(AllocationBound::new(|len| len.min(49152)));
+    let (gate, account, _) = gate_with(60_000, 1 << 20);
+    let owner = NativeOwner::begin(h, gate, pins, b0, bound).unwrap();
+    let mut session = owner.open_native(&file.0, pin).unwrap();
+    let handle = native_file32f(&session);
+    let tx = session.begin().unwrap();
+    FAULTS32F.with(|f| f.borrow_mut().writes.clear());
+    assert_eq!(unsafe { map32f(handle, 1, 1) }.0, rusqlite::ffi::SQLITE_IOERR_SHMSIZE);
+    assert!(FAULTS32F.with(|f| f.borrow().writes.iter().any(|(_, n)| *n > 0)));
+    assert!(matches!(tx.owner.first_error(), Some(NativeError::Code(NativeCode::ShmBoundViolated))));
+    let actual = std::fs::metadata(format!("{}-shm", file.0.display())).unwrap().blocks() * 512;
+    assert!(actual > 49152, "真实分配必须超过TestOnly上界");
+    let pending = account.borrow().snapshot().store.pending;
+    assert_eq!(pending, (49152 - b0) as u128);
+    assert_eq!(FAULTS32F.with(|f| f.borrow().pin_fail_calls), 0);
+    drop(tx); // 走真实失败事务的RAII ROLLBACK，不人工清算
+    FAULTS32F.with(|f| f.borrow_mut().pin_fail = Some(pin_fd));
+    let mut errors = NativeErrors::default();
+    assert!(matches!(session.close(&mut errors), Teardown::Destroyed(_)));
+    assert!(FAULTS32F.with(|f| f.borrow().pin_fail_calls) > 0, "close确实遇到第二次测量失败");
+    assert!(matches!(errors.reported(), Some(Reported::First(NativeError::Code(NativeCode::ShmBoundViolated)))));
+    let after = account.borrow().snapshot();
+    println!("32L observed excess then failed pin: b0={b0}, actual={actual}, pending={pending}, committed={}", after.store.committed);
+    assert_eq!(after.store.committed, (actual - b0) as u128, "后续测量失败不能丢弃已观察超界量，也不能重记预算");
+    assert_eq!(after.store.pending, 0);
+    assert_eq!(after.open_reservations, 0);
     assert_sidecars32f(&file.0); assert!(other_process_can_lock(&file.0));
 }
 
