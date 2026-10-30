@@ -1756,15 +1756,17 @@ impl AuditTxn<'_> {
         &self,
         context: &request_audit::RequestAuditContext,
         parent: Option<&PublicationScope<'_>>,
-        consume: impl for<'raw> FnOnce(BoundRawAdvance<'raw>) -> Result<R, String>,
-    ) -> Result<R, String> {
+        consume: impl for<'raw> FnOnce(BoundRawAdvance<'raw>) -> Result<R, PublishError>,
+    ) -> Result<R, PublishError> {
         let Some(parent) = parent else {
-            return self.with_bound_raw_advance(context, consume);
+            return self
+                .with_bound_raw_advance(context, |token| consume(token).map_err(Into::into))
+                .map_err(Into::into);
         };
         let result = (|| {
             parent.check_transaction(self.tx())?;
             if self.dirty.get() || self.construction.borrow().is_some() {
-                return Err(construction_state::stale("仅允许本事务首次写前签发一次"));
+                return Err(construction_state::stale("仅允许本事务首次写前签发一次").into());
             }
             let seal = self.construction_seal()?;
             let complete = self.complete.borrow();
@@ -1772,7 +1774,7 @@ impl AuditTxn<'_> {
                 .as_ref()
                 .ok_or_else(|| construction_state::stale("缺当前同快照已核原件"))?;
             if seal != parent.resources.before || candidate.seal != seal {
-                return Err(construction_state::stale("raw与publication父身份不一致"));
+                return Err(construction_state::stale("raw与publication父身份不一致").into());
             }
             let previous = self.owner.construction.borrow_mut().take();
             #[cfg(test)]
@@ -1790,7 +1792,7 @@ impl AuditTxn<'_> {
             *self.construction.borrow_mut() = Some(pending);
             let value = consume(token)?;
             if self.owner.construction_lease.stale.get() {
-                return Err(construction_state::stale("消费者已撤销raw租约"));
+                return Err(construction_state::stale("消费者已撤销raw租约").into());
             }
             Ok(value)
         })();
@@ -5925,26 +5927,27 @@ pub(super) mod construction_tests {
                     resources: &resources,
                     work,
                 };
-                let result = active.with_bound_raw_advance_in_publication(
-                    &context,
-                    Some(&parent),
-                    |_| {
+                let result = active
+                    .with_bound_raw_advance_in_publication(&context, Some(&parent), |_| {
                         consumer_called.set(true);
                         Ok(())
-                    },
-                ).map_err(PublishError::from);
+                    })
+                    .map_err(PublishError::from);
                 operation_error = result.as_ref().err().cloned();
                 drop(ballast);
                 result
             })
         });
         assert!(!consumer_called.get(), "真实raw准入须先于消费者失败");
-        assert!(matches!(
+        assert!(
+            matches!(
             run,
             Err(newchan_rust::s_content::capture_allocation::scratch::WorkError::Resource(
                 newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Budget
             ))
-        ), "{run:?}");
+        ),
+            "{run:?}"
+        );
         assert!(trace.only_resource(), "{trace:?}");
         assert_eq!(
             publication_degrade_verdict(run.unwrap_err(), operation_error, trace),

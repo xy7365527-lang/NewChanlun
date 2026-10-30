@@ -1280,6 +1280,7 @@ writer/recover闭合后无SHM
 真实checkout应被同账解码门拒绝
 真实encoder只做单次F
 真实history入口在Template失败时不得解码任何manifest
+真实raw准入须先于消费者失败
 真实scope元数据已释放
 真实scratch Layout已释放
 真实snapshot/delta八份持久keys均须留在原账，包括空raw
@@ -1296,6 +1297,7 @@ writer/recover闭合后无SHM
 真实新raw尾ordinal
 真实旧行仍活着时，clone差一字节须拒绝
 真实析构全额还原父账
+真实父域raw前缀Budget须穿过PendingRawState与owner签发边界保留来源
 真实预算原因
 真实首代六份持久keys须全部绑定AuditedState原账，包括空keys
 真正drop后释放source归属

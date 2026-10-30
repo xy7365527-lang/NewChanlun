@@ -417,14 +417,14 @@ impl PendingRawState {
         bound: &super::BoundOriginals,
         lease: &'raw Lease,
         admission: &(impl super::super::audit_store::CodecRead + ?Sized),
-    ) -> Result<(Self, BoundRawAdvance<'raw>), String> {
+    ) -> Result<(Self, BoundRawAdvance<'raw>), sc::ContextError> {
         if lease.stale.get() {
-            return Err(stale("旧夹持已失效；必须显式重建 owner"));
+            return Err(stale("旧夹持已失效；必须显式重建 owner").into());
         }
         if raw.budget().is_some() {
-            return Err(stale(
-                "Owned RawPrefixIndex 尚无同账实现；禁止 Plain fallback",
-            ));
+            return Err(
+                stale("Owned RawPrefixIndex 尚无同账实现；禁止 Plain fallback").into(),
+            );
         }
         #[cfg(feature = "s_incremental")]
         let retained = previous.as_ref().map_or(0, |p| p.retained);
@@ -445,7 +445,7 @@ impl PendingRawState {
         let (previous_binding, previous_prefix, mut index) = match previous {
             Some(previous) => {
                 if !previous.seal.same_snapshot(&seal) {
-                    return Err(stale("连接、快照、读域或本连接写序变化"));
+                    return Err(stale("连接、快照、读域或本连接写序变化").into());
                 }
                 let prefix = previous.facts.prefix_len();
                 let index = bj::RawPrefixIndex::restore(raw, previous.facts, bound)?;
@@ -465,7 +465,7 @@ impl PendingRawState {
         };
         let changes = index.advance_admitted(raw.len(), admission)?;
         if changes.rewound || raw.len() < previous_prefix {
-            return Err(stale("raw 前缀倒退"));
+            return Err(stale("raw 前缀倒退").into());
         }
         let current = RawAdvanceBinding {
             domain: previous_binding.domain,
