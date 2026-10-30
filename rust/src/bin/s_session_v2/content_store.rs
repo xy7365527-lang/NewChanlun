@@ -5,7 +5,7 @@
 
 use crate::v3::audit_store::{CodecRead, NativeAdmission};
 use newchan_rust::s_content::{self, code, CodecError, NodeDigest, NodeRead, NodeSink, NodeSource};
-use rusqlite::{params, Connection, OptionalExtension, Transaction};
+use rusqlite::{params, Connection, Transaction};
 use s_content::capture_allocation::scratch::{NativeReservation, WorkScope};
 use std::collections::BTreeMap;
 
