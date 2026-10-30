@@ -123,7 +123,7 @@ fn render_plain(
     s: &mut (impl CodecRead + ?Sized),
     r: &(impl AuxRef + ?Sized),
 ) -> Result<Value, String> {
-    let value = render(s, r)?;
+    let value = render(s, r).map_err(newchan_rust::s_content::ContextError::into_message)?;
     serde_json::to_value(value.view()).map_err(err)
 }
 #[cfg(test)]
@@ -2807,7 +2807,7 @@ mod tests {
                 reader.enable_full_arrays_for_test();
                 let mut objects = object_index::load_for_history(&tx, &mut reader, 4)?;
                 assert_eq!(format!("{:?}", objects.entries()), expected_entries);
-                let sweep = objects.native_sweep_admitted(&reader)?.unwrap();
+                let sweep = objects.native_sweep_admitted(&reader).map_err(newchan_rust::s_content::ContextError::into_message)?.unwrap();
                 assert_eq!(
                     objects.native_dual_at_cut(&mut reader, 4, &batch).map_err(newchan_rust::s_content::ContextError::into_message)?,
                     expected_dual

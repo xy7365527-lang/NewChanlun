@@ -85,7 +85,7 @@ pub(super) fn audit_generated_in_store(
     for record in elements_ref(s, object_array.view()).map_err(newchan_rust::s_content::ContextError::into_message)? {
         super::super::history::check_deadline(deadline)?;
         let kind = if s.fields.is_some() {
-            SourceFields::read_subset(s, record.view(), &["kind"])?.text(s, "kind").map_err(newchan_rust::s_content::ContextError::into_message)?
+            SourceFields::read_subset(s, record.view(), &["kind"]).map_err(newchan_rust::s_content::ContextError::into_message)?.text(s, "kind").map_err(newchan_rust::s_content::ContextError::into_message)?
         } else {
             text(s, &record, "kind").map_err(newchan_rust::s_content::ContextError::into_message)?
         };
@@ -210,7 +210,7 @@ pub(super) fn audit_generated_in_store(
                         return Err(err("新笔载荷语义头不同"));
                     }
                 }
-                if digest(&field(s, &payload, "slot")?).map_err(newchan_rust::s_content::ContextError::into_message)?
+                if digest(&field(s, &payload, "slot").map_err(newchan_rust::s_content::ContextError::into_message)?).map_err(newchan_rust::s_content::ContextError::into_message)?
                     != super::super::history::hash_json_in_store(
                         s,
                         parsed
@@ -231,8 +231,8 @@ pub(super) fn audit_generated_in_store(
                 }
             }
             if kind == CC005_GROUP_KIND {
-                let index = decimal(&text(s, &payload, "group_index")?).map_err(newchan_rust::s_content::ContextError::into_message)?;
-                let anchor = decimal(&text(s, &payload, "group_anchor")?).map_err(newchan_rust::s_content::ContextError::into_message)?;
+                let index = decimal(&text(s, &payload, "group_index").map_err(newchan_rust::s_content::ContextError::into_message)?).map_err(newchan_rust::s_content::ContextError::into_message)?;
+                let anchor = decimal(&text(s, &payload, "group_anchor").map_err(newchan_rust::s_content::ContextError::into_message)?).map_err(newchan_rust::s_content::ContextError::into_message)?;
                 let members_root = field(s, &payload, "members").map_err(newchan_rust::s_content::ContextError::into_message)?;
                 let members = source_coords(
                     s,

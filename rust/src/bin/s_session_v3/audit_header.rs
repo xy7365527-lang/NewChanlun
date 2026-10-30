@@ -85,7 +85,7 @@ impl AuditRoots {
 impl AuditMetadata {
     #[allow(dead_code, reason = "#1608：类型配套访问器，当前无调用方；保留不删")]
     pub fn try_clone(&self) -> Result<Self, String> {
-        self.try_clone_admitted(&NativeAdmission(None))
+        self.try_clone_admitted(&NativeAdmission(None)).map_err(newchan_rust::s_content::ContextError::into_message)
     }
     pub fn try_clone_admitted(&self, store: &(impl CodecRead + ?Sized)) -> Result<Self, newchan_rust::s_content::ContextError> {
         Ok(Self {

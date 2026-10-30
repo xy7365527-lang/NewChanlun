@@ -563,7 +563,7 @@ impl AuditConnection {
                         // #1488：仅测试选择已审 owner 原型；所有正式准入与实际 Accept/COMMIT 原样执行。
                         #[cfg(all(test, feature = "s_incremental"))]
                         construction_tests::select_for_formal_accept(&active, context)?;
-                        active.before_fixed_write(FixedOperation::Accept, Some(context))?;
+                        active.before_fixed_write(FixedOperation::Accept, Some(context)).map_err(newchan_rust::s_content::ContextError::into_message)?;
                         let accepted = raw_input::accept_events(tx, &input, volume_unit)?;
                         control.accept(&view, &accepted)?;
                         wrote = true;
@@ -652,7 +652,7 @@ impl AuditConnection {
             .checked_sub(1)
             .ok_or_else(|| invalid("没有原始输入"))?;
         let base = meta_get_opt(tx, "structure_cut")?.ok_or_else(|| invalid("缺当前cut"))?;
-        active.before_fixed_write(FixedOperation::Begin, Some(context))?;
+        active.before_fixed_write(FixedOperation::Begin, Some(context)).map_err(newchan_rust::s_content::ContextError::into_message)?;
         let token = control.begin(&view, generation, frontier, &base, epoch)?;
         drop(control);
         active.finish_fixed_write()?;
@@ -1020,7 +1020,7 @@ impl AuditConnection {
         let control = control::S3Control::attach(tx, clock)?;
         let generation = meta_get_opt(tx, "generation")?.ok_or_else(|| invalid("缺generation"))?;
         let prior = meta_get_opt(tx, "advance_state")?.ok_or_else(|| invalid("缺advance_state"))?;
-        active.before_fixed_write(FixedOperation::Recover(handoff), None)?;
+        active.before_fixed_write(FixedOperation::Recover(handoff), None).map_err(newchan_rust::s_content::ContextError::into_message)?;
         let transitioned_at = control.recover(clock_event, &generation)?;
         let recovered = if prior != "idle" {
             meta_set(tx, "advance_state", "idle")?;
@@ -1131,7 +1131,7 @@ impl AuditTxn<'_> {
                     .borrow()
                     .as_ref()
                     .unwrap()
-                    .check_commit(self.construction_seal()?, self.tx().total_changes())
+                    .check_commit(self.construction_seal()?, self.tx().total_changes()).map_err(PublishError::into_message)
             })();
             if let Err(error) = checked {
                 self.owner.invalidate_construction();
@@ -1627,7 +1627,7 @@ impl AuditConnection {
             token.ensure_current()?;
             Ok(token.into_issued())
         })?;
-        active.before_fixed_write(FixedOperation::Accept, Some(&*context))?;
+        active.before_fixed_write(FixedOperation::Accept, Some(&*context)).map_err(newchan_rust::s_content::ContextError::into_message)?;
         active
             .tx()
             .execute(

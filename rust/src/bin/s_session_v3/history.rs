@@ -1029,7 +1029,7 @@ fn read_indexed_history_inner(
         public: &public_roots,
     };
     // 原始当前capture闭包全核之后才创建；仅本次历史循环持有，跨请求/阶段重建。
-    let mut object_sweep = objects.native_sweep_admitted(&store)?;
+    let mut object_sweep = objects.native_sweep_admitted(&store).map_err(newchan_rust::s_content::ContextError::into_message)?;
     let publication_memo = content_publication::NativePublicationMemo::new(&store);
     let mut ordinary_publication = if bound_births_qualified && ordinary_proofs_enabled() {
         Some(content_publication::PublicationProjection::new(tx, &store).map_err(newchan_rust::s_content::ContextError::into_message)?)
@@ -6387,7 +6387,7 @@ pub(super) mod tests {
             let mut ordered = Some(bj::RawPrefixIndex::new(raw_view));
             let (raw_nodes, wire_nodes) = hash_current_raw(&base, raw_view, None, None).unwrap();
             let before = budget.live();
-            assert_eq!(verify_required_meta_admitted(&tx, scope)?, 1);
+            assert_eq!(verify_required_meta_admitted(&tx, scope).map_err(newchan_rust::s_content::ContextError::into_message)?, 1);
             let mut store = HashReader::captured_for_audit(&capture, None).map_err(err)?
                 .with_codec_work(scope, &budget);
             store.audit_full_arrays = true;
@@ -6395,13 +6395,13 @@ pub(super) mod tests {
             let mut resolved = bj::new_work(None);
             let mut stmt = CheckedStatement::prepare(&tx, c"SELECT p.generation,p.batch_id,p.manifest_root,p.snapshot_root,p.delta_root,d.session_id,d.catalog_revision,d.base_cut,d.next_cut,d.seq_range_json,d.index_frontier,d.input_frontier,d.catalog_run_status,d.catalog_evidence_json,d.delta_json FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation WHERE p.generation=1").map_err(err)?;
             let mut row = stmt.next().map_err(err)?.unwrap();
-            let snapshot = root_ref_bytes(&mut store, row.blob(3).map_err(err)?)?;
-            let delta = root_ref_bytes(&mut store, row.blob(4).map_err(err)?)?;
+            let snapshot = root_ref_bytes(&mut store, row.blob(3).map_err(err)?).map_err(newchan_rust::s_content::ContextError::into_message)?;
+            let delta = root_ref_bytes(&mut store, row.blob(4).map_err(err)?).map_err(newchan_rust::s_content::ContextError::into_message)?;
             let cut = audit_one_published_cut(
                 &tx, None, &mut row, &mut store, raw_view, &mut control, &mut objects, &auxiliary,
                 &mut sweep, &mut aux, &mut prefixes, &mut ordered, &mut effective,
                 &raw_nodes, &wire_nodes, -1, &mut resolved, None, true, None, false, None, None, None,
-            )?;
+            ).map_err(newchan_rust::s_content::ContextError::into_message)?;
             drop(row);
             stmt.finalize().map_err(err)?;
             assert_eq!(cut.snapshot, snapshot);
@@ -6415,7 +6415,7 @@ pub(super) mod tests {
             let mut cuts = bj::new_work(None);
             store.native_codec_room(&mut cuts, 1).map_err(err)?;
             cuts.try_push(cut).map_err(err)?;
-            verify_current_frontiers(&store, &tx, &cuts, 0, None)?;
+            verify_current_frontiers(&store, &tx, &cuts, 0, None).map_err(newchan_rust::s_content::ContextError::into_message)?;
             assert!(budget.live() > before);
             assert!(scope.snapshot().attempts > 0);
             Ok::<_, String>(())

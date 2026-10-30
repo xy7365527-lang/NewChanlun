@@ -1250,7 +1250,7 @@ impl HistoryObjects<'_> {
             .filter(|(_, e)| e.life.withdrawn_generation.is_some_and(|d| d <= g))
             .collect::<Vec<_>>();
         let layout = self.layout;
-        check_public_ranks(layout, dead.iter().map(|m| m.1), true)?;
+        check_public_ranks(layout, dead.iter().map(|m| m.1), true).map_err(newchan_rust::s_content::ContextError::into_message)?;
         active
             .sort_unstable_by(|a, b| public_ordering(layout, a.1, b.1, false).then(a.0.cmp(&b.0)));
         dead.sort_unstable_by(|a, b| public_ordering(layout, a.1, b.1, true).then(a.0.cmp(&b.0)));
@@ -1277,7 +1277,7 @@ impl HistoryObjects<'_> {
                     return Err(err("出生/旧代batch与当前cut不符"));
                 }
                 if !pairs.contains_key(&ordinal) {
-                    let life = effective_life(e, g)?;
+                    let life = effective_life(e, g).map_err(newchan_rust::s_content::ContextError::into_message)?;
                     object_records::validate_life_view(life, g, e.id.as_str()).map_err(err)?;
                     let phase = usize::from(life.withdrawn_generation.is_some());
                     let pair = if e.life.first_known_generation == g {
@@ -1300,7 +1300,7 @@ impl HistoryObjects<'_> {
                             Some(s.native_ref_clone(&public).map_err(err)?);
                         (template, public)
                     } else {
-                        let public = native.wire(s, e, ordinal, g)?;
+                        let public = native.wire(s, e, ordinal, g).map_err(newchan_rust::s_content::ContextError::into_message)?;
                         (s.native_ref_clone(&public).map_err(err)?, public)
                     };
                     pairs.insert(ordinal, pair);
@@ -1309,7 +1309,7 @@ impl HistoryObjects<'_> {
                 template.push(s.native_ref_clone(a).map_err(err)?);
                 public.push(s.native_ref_clone(b).map_err(err)?);
             }
-            Ok((array(s, &template)?, array(s, &public)?))
+            Ok((array(s, &template).map_err(newchan_rust::s_content::ContextError::into_message)?, array(s, &public).map_err(newchan_rust::s_content::ContextError::into_message)?))
         };
         Ok([collect(active)?, collect(dead)?, collect(births)?])
     }
@@ -1969,7 +1969,7 @@ pub(super) fn load(
         latest,
         None,
         None,
-    )
+    ).map_err(PublishError::into_message)
 }
 #[cfg_attr(
     not(all(test, feature = "s_incremental")),
@@ -1987,7 +1987,7 @@ pub(super) fn load_for_audit(
         latest,
         capture,
         None,
-    )
+    ).map_err(PublishError::into_message)
 }
 pub(super) fn load_for_history<'capture>(
     tx: &Transaction<'_>,
@@ -2004,7 +2004,7 @@ pub(super) fn load_for_history<'capture>(
         latest,
         capture,
         capture.map(|_| &mut events),
-    )?;
+    ).map_err(newchan_rust::s_content::ContextError::into_message)?;
     let native = if let Some(capture) = capture {
         let mut wires = sc::CodecVec::default();
         s.native_codec_room(&mut wires, entries.len())
@@ -5517,7 +5517,7 @@ mod tests {
             .run(|scope| {
                 let store = super::super::audit_store::NativeAdmission(Some(scope));
                 let events =
-                    HistoryEvents::new_admitted(&entries, &store)?.into_arc_admitted(&store).map_err(newchan_rust::s_content::ContextError::into_message)?;
+                    HistoryEvents::new_admitted(&entries, &store).map_err(newchan_rust::s_content::ContextError::into_message)?.into_arc_admitted(&store).map_err(newchan_rust::s_content::ContextError::into_message)?;
                 let before_clone = budget.live();
                 let alias = events.clone();
                 assert_eq!(

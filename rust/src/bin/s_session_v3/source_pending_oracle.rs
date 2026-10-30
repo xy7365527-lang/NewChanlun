@@ -143,10 +143,10 @@ fn comparisons(
     let incoming = step.get_admitted(s, "incoming").map_err(newchan_rust::s_content::ContextError::into_message)?;
     let incoming = SourceFields::read_subset(s, incoming.view(), &["high", "low"]).map_err(newchan_rust::s_content::ContextError::into_message)?;
     let prices = [
-        decimal(&acc.text(s, "high")?).map_err(newchan_rust::s_content::ContextError::into_message)?,
-        decimal(&acc.text(s, "low")?).map_err(newchan_rust::s_content::ContextError::into_message)?,
-        decimal(&incoming.text(s, "high")?).map_err(newchan_rust::s_content::ContextError::into_message)?,
-        decimal(&incoming.text(s, "low")?).map_err(newchan_rust::s_content::ContextError::into_message)?,
+        decimal(&acc.text(s, "high").map_err(newchan_rust::s_content::ContextError::into_message)?).map_err(newchan_rust::s_content::ContextError::into_message)?,
+        decimal(&acc.text(s, "low").map_err(newchan_rust::s_content::ContextError::into_message)?).map_err(newchan_rust::s_content::ContextError::into_message)?,
+        decimal(&incoming.text(s, "high").map_err(newchan_rust::s_content::ContextError::into_message)?).map_err(newchan_rust::s_content::ContextError::into_message)?,
+        decimal(&incoming.text(s, "low").map_err(newchan_rust::s_content::ContextError::into_message)?).map_err(newchan_rust::s_content::ContextError::into_message)?,
     ];
     // 核已发表的首 waiting 谓词与同 cut 原件一致，不重跑解析器生成结构。
     // 后续 waiting 的 contains 为 null，不能把后来的非包含行情反折为已知方向。
@@ -168,7 +168,7 @@ fn comparisons(
             std::cmp::Ordering::Greater => "GT",
         };
         if fields.text(s, "axis").map_err(newchan_rust::s_content::ContextError::into_message)? != ["high", "low"][i]
-            || fields.get_admitted(s, "acc")? != acc.get_admitted(s, ["high", "low"][i]).map_err(newchan_rust::s_content::ContextError::into_message)?
+            || fields.get_admitted(s, "acc").map_err(newchan_rust::s_content::ContextError::into_message)? != acc.get_admitted(s, ["high", "low"][i]).map_err(newchan_rust::s_content::ContextError::into_message)?
             || fields.get_admitted(s, "incoming").map_err(newchan_rust::s_content::ContextError::into_message)?
                 != incoming.get_admitted(s, ["high", "low"][i]).map_err(newchan_rust::s_content::ContextError::into_message)?
             || fields.text(s, "order").map_err(newchan_rust::s_content::ContextError::into_message)? != order
@@ -237,7 +237,7 @@ pub(super) fn audit(
             let fields = SourceFields::read_subset(s, p.view(), &STEP).map_err(newchan_rust::s_content::ContextError::into_message)?;
             let incoming = fields.get_admitted(s, "incoming").map_err(newchan_rust::s_content::ContextError::into_message)?;
             exact(&incoming, Kind::Object, 5).map_err(newchan_rust::s_content::ContextError::into_message)?;
-            let coord = decimal(&text(s, &incoming, "source_coord")?).map_err(newchan_rust::s_content::ContextError::into_message)?;
+            let coord = decimal(&text(s, &incoming, "source_coord").map_err(newchan_rust::s_content::ContextError::into_message)?).map_err(newchan_rust::s_content::ContextError::into_message)?;
             let key = object.fields.text(s, "fact_key").map_err(newchan_rust::s_content::ContextError::into_message)?;
             let parsed = parsed_json(s, key.as_bytes()).map_err(newchan_rust::s_content::ContextError::into_message)?;
             let key_coord = parsed
@@ -320,7 +320,7 @@ pub(super) fn audit(
         let action = fields.text(s, "action").map_err(newchan_rust::s_content::ContextError::into_message)?;
         if ordinal == 0 {
             if action != "seed"
-                || fields.get_admitted(s, "acc_after")? != fields.get_admitted(s, "incoming").map_err(newchan_rust::s_content::ContextError::into_message)?
+                || fields.get_admitted(s, "acc_after").map_err(newchan_rust::s_content::ContextError::into_message)? != fields.get_admitted(s, "incoming").map_err(newchan_rust::s_content::ContextError::into_message)?
             {
                 return Err(err("首CC004不是原件seed"));
             }
@@ -390,7 +390,7 @@ pub(super) fn audit(
         }
         let seed = seed.as_ref().expect("unsettled checked seed");
         for key in ["open", "high", "low", "close"] {
-            if field(s, &group.payload, key)? != field(s, seed, key).map_err(newchan_rust::s_content::ContextError::into_message)? {
+            if field(s, &group.payload, key).map_err(newchan_rust::s_content::ContextError::into_message)? != field(s, seed, key).map_err(newchan_rust::s_content::ContextError::into_message)? {
                 return Err(err("初始未定seed组OHLC不同"));
             }
         }

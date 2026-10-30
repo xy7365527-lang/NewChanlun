@@ -2604,8 +2604,8 @@ mod construction_coverage_tests {
                     );
                     assert!(std::ptr::eq(material.work(), work));
                     note_source_cut(material, (&state).into()).map_err(Into::into)
-                })?;
-                let effects = recording.finish(&tx, &mut [], 1 << 20)?.unwrap();
+                }).map_err(newchan_rust::s_content::ContextError::into_message)?;
+                let effects = recording.finish(&tx, &mut [], 1 << 20).map_err(newchan_rust::s_content::ContextError::into_message)?.unwrap();
                 assert!(
                     identity.check(&tx, work).is_err(),
                     "旧Weak身份不得绑定已卸journal"
@@ -2835,7 +2835,7 @@ mod construction_coverage_tests {
         });
         // 溢出是材料内首错：闭包不得吞下，effects 不得签发。
         let error = result.unwrap_err();
-        assert!(error.contains("材料闭包未完整闭合或吞下失败"), "{error}");
+        assert!(error.to_string().contains("材料闭包未完整闭合或吞下失败"), "{error}");
         assert!(!matches!(
             recording.finish(&tx, &mut [], 16 << 20),
             Ok(Some(_))
@@ -3053,13 +3053,13 @@ mod construction_coverage_tests {
                     let m = m.unwrap();
                     assert!(std::ptr::eq(m.work, scope), "必须是原work同对象");
                     note_source_cut(m, (&state).into())
-                })?;
+                }).map_err(newchan_rust::s_content::ContextError::into_message)?;
                 assert!(
                     parent.native_observation().0 >= cap,
                     "离开材料闭包不能提前返还cap"
                 );
                 recording
-                    .finish(&tx, &mut [], 16 << 20)?
+                    .finish(&tx, &mut [], 16 << 20).map_err(newchan_rust::s_content::ContextError::into_message)?
                     .ok_or_else(|| "缺effects".to_string())
             })
             .unwrap();
@@ -3100,7 +3100,7 @@ mod construction_coverage_tests {
         let result = parent.codec_work().unwrap().run(|scope| {
             with_material_access::<_, PublishError>(&tx, Some(scope), |m| {
                 note_source_cut(m.unwrap(), (&state).into())?;
-                Err::<(), _>("TestOnlyAfterCutRejected".to_string())
+                Err::<(), PublishError>("TestOnlyAfterCutRejected".into())
             })
         });
         assert!(result.is_err());
