@@ -35,6 +35,9 @@ pub mod access;
 #[doc(hidden)]
 pub mod capture_allocation;
 mod closed;
+#[cfg(feature = "s_incremental")]
+#[doc(hidden)]
+pub mod closure_delta;
 /// 受控 compact JSON 写出（#1394 局部发送失败闭合）。
 pub mod json_writer;
 mod ref_owner;
@@ -5223,6 +5226,8 @@ struct Verifier<'a, 'capture> {
     source: CodecContext<'a, 'capture>,
     #[cfg(feature = "s_incremental")]
     owner_codec: Option<&'a NativeOwnerCodecMemo>,
+    #[cfg(feature = "s_incremental")]
+    closure_frontier: Option<&'a dyn closure_delta::Frontier>,
     mode: Mode,
     work: Option<WorkBudget>,
     /// 已核过的 (摘要, 上下文)。
@@ -5265,6 +5270,8 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
             source,
             #[cfg(feature = "s_incremental")]
             owner_codec: None,
+            #[cfg(feature = "s_incremental")]
+            closure_frontier: None,
             mode,
             work: memo.budget,
             seen: memo.seen,
@@ -5307,6 +5314,12 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
     }
 
     fn push_work(&mut self, digest: NodeDigest, flavor: Flavor) -> Result<(), CodecError> {
+        #[cfg(feature = "s_incremental")]
+        if let Some(frontier) = self.closure_frontier {
+            if frontier.contains(closure_delta::Unit::new(digest, flavor, self.mode))? {
+                return Ok(());
+            }
+        }
         #[cfg(feature = "s_incremental")]
         if self
             .owner_codec

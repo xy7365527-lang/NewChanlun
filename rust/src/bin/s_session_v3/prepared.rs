@@ -1721,6 +1721,58 @@ pub(crate) mod tests {
 
     #[cfg(feature = "s_incremental")]
     #[test]
+    fn p6_real_prepare_closure_probe_stages_and_rolls_back_without_certification() {
+        use content_manifest::ManifestRootSource;
+        let mut f = Fixture::new();
+        let (e, token) = f.accept_begin(1, ("p6", 0, 6, 12, 3, 7), 1);
+        let db=f.db_path();
+        let mut tx = f.conn.transaction().unwrap();
+        let prepared = f.runtime.prepare(&mut tx, &token, &e, None,
+            #[cfg(feature = "s_incremental")] None,
+            #[cfg(feature = "s_incremental")] None,
+            #[cfg(feature = "s_incremental")] None,
+            #[cfg(feature = "s_incremental")] None,
+            #[cfg(feature = "s_incremental")] None,
+            None,
+            #[cfg(feature = "s_incremental")] None,
+        ).unwrap();
+        let copy = |v: sc::RefView<'_>| ContentRef {
+            format:v.format().to_owned(), root:v.root().to_owned(), kind:v.kind(), extent:v.extent(),
+        };
+        let r = prepared.roots.view();
+        let roots = content_manifest::ManifestRoots {
+            generated_state:copy(r.generated_state), publication_template:copy(r.publication_template),
+            delta_template:copy(r.delta_template),
+        };
+        let metadata = prepared.metadata.clone();
+        let refs = [metadata.scope.clone(), roots.generated_state.clone(), roots.publication_template.clone(), roots.delta_template.clone()];
+        let mut reader=content_store::ReadStore::new(&tx).unwrap();
+        let probe=sc::closure_delta::probe_four_roots(&mut reader,refs.each_ref().map(Into::into),&sc::closure_delta::EmptyFrontier).unwrap();
+        drop(reader);
+        let mut d=super::super::audit_ledger::tests::delta(&metadata,&roots);
+        d.new_units.clear();
+        probe.for_each_unit(|u| {
+            use sc::closure_delta::{Context, VerificationMode};
+            use super::super::audit_ledger::{Unit, Flavor, Mode};
+            d.new_units.insert(Unit { digest:u.digest,
+                flavor:match u.context { Context::Value=>Flavor::Value, Context::JsonInner=>Flavor::JsonInner },
+                mode:match u.mode { VerificationMode::Public=>Mode::Public, VerificationMode::Template=>Mode::Template } });
+        });
+        assert!(d.new_units.len()>4);
+        let mut ledger=super::super::audit_ledger::tests::ledger(&db,"closure-probe.sqlite",&metadata.rule_revision);
+        ledger.stage(&token,&d).unwrap();
+        assert!(ledger.committed_through().is_err());
+        ledger.bind(&token,&metadata,&roots).unwrap();
+        ledger.invalidate();
+        drop(prepared);
+        tx.rollback().unwrap();
+        let saved=Connection::open(db.with_file_name("closure-probe.sqlite")).unwrap();
+        assert_eq!(saved.query_row("SELECT COUNT(*) FROM node",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+        assert_eq!(saved.query_row("SELECT COUNT(*) FROM cert",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
     #[ignore]
     fn staged_new_nodes_complete_commit_observation() {
         let out = PathBuf::from(std::env::var("STAGED_NODES_OUTPUT").unwrap());
