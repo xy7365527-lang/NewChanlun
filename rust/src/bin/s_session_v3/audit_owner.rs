@@ -682,7 +682,9 @@ impl AuditConnection {
             let mut active = self.begin(TransactionBehavior::Immediate)?;
             // 固定 phase 覆盖 Runtime 内全部 node/stage/非节点/发布写；无裸 SQL 能力外借。
             active.bind_existing(Some(context))?;
-            let receipt = self.publish_body(&mut active, runtime, token, envelope, context)?;
+            let receipt = self
+                .publish_body(&mut active, runtime, token, envelope, context)
+                .map_err(PublishError::into_message)?;
             let ended = active.commit_publication()?;
             Ok((receipt, ended))
         })();
