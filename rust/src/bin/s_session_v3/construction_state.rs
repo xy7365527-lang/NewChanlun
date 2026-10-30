@@ -678,7 +678,7 @@ impl PendingRawState {
     pub(super) fn set_seed(
         &mut self,
         previous: Option<super::construction_set::Declaration>,
-    ) -> Result<super::construction_set::Seed, String> {
+    ) -> Result<super::construction_set::Seed, sc::ContextError> {
         super::construction_set::Seed::new(self.binding, self.seal, previous, self.set.take())
             .map_err(Into::into)
     }
@@ -687,9 +687,9 @@ impl PendingRawState {
         &mut self,
         mut set: super::construction_set::PendingSet,
         actual_root: sc::RefView<'_>,
-    ) -> Result<(), String> {
+    ) -> Result<(), sc::ContextError> {
         if self.pending_set.is_some() {
-            return Err(stale("重复闭合集合effects"));
+            return Err(stale("重复闭合集合effects").into());
         }
         set.close_against_persisted(actual_root, self.binding)?;
         self.pending_set = Some(set);
@@ -724,21 +724,21 @@ impl PendingRawState {
         &self,
         seal: SnapshotSeal,
         total_changes: u64,
-    ) -> Result<(), String> {
+    ) -> Result<(), sc::ContextError> {
         if self.seal != seal || self.closed_total_changes != Some(total_changes) {
-            return Err(stale("未闭合效果或闭合后再次写入"));
+            return Err(stale("未闭合效果或闭合后再次写入").into());
         }
         if self
             .recover
             .as_ref()
             .is_some_and(|(_, confirmed)| !confirmed)
         {
-            return Err(stale("Recover迁移未确认持久epoch，不得晋升"));
+            return Err(stale("Recover迁移未确认持久epoch，不得晋升").into());
         }
         #[cfg(feature = "s_incremental")]
         if let Some(set) = &self.pending_set {
             if set.requires_source() && self.source.is_none() {
-                return Err(stale("来源成功结果未回交同owner状态"));
+                return Err(stale("来源成功结果未回交同owner状态").into());
             }
             set.check_commit(seal, total_changes)?;
         }

@@ -222,6 +222,8 @@ impl ContextError {
             proof,
         }
     }
+    /// 只供完成来源判决后的公开文本出口；不提供 From<ContextError> for String，
+    /// 防止内部问号边界隐式擦除来源。
     pub fn into_message(self) -> String {
         self.message
     }

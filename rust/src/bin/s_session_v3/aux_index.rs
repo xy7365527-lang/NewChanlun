@@ -293,7 +293,7 @@ impl Witness {
     #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     fn try_clone(&self) -> Result<Self, String> {
         self.try_clone_admitted(&super::audit_store::NativeAdmission(None))
-            .map_err(Into::into)
+            .map_err(newchan_rust::s_content::ContextError::into_message)
     }
     fn try_clone_admitted(&self, store: &(impl CodecRead + ?Sized)) -> Result<Self, PublishError> {
         Ok(Self {
@@ -328,7 +328,7 @@ impl Relation {
     )]
     fn try_clone(&self) -> Result<Self, String> {
         self.try_clone_admitted(&super::audit_store::NativeAdmission(None))
-            .map_err(Into::into)
+            .map_err(newchan_rust::s_content::ContextError::into_message)
     }
     fn try_clone_admitted(&self, store: &(impl CodecRead + ?Sized)) -> Result<Self, PublishError> {
         Ok(Self {
@@ -357,7 +357,7 @@ impl Observation {
     #[allow(dead_code, reason = "#1488 再合 #1608：8组合实测无调用方，保留不删")]
     fn try_clone(&self) -> Result<Self, String> {
         self.try_clone_admitted(&super::audit_store::NativeAdmission(None))
-            .map_err(Into::into)
+            .map_err(newchan_rust::s_content::ContextError::into_message)
     }
     fn try_clone_admitted(&self, store: &(impl CodecRead + ?Sized)) -> Result<Self, PublishError> {
         Ok(Self {
@@ -400,7 +400,7 @@ impl Index {
     #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     fn clone_in(&self, budget: Option<OwnedBudget>) -> Result<Self, String> {
         self.clone_in_admitted(budget, &super::audit_store::NativeAdmission(None))
-            .map_err(Into::into)
+            .map_err(newchan_rust::s_content::ContextError::into_message)
     }
     fn clone_in_admitted(
         &self,
@@ -1767,7 +1767,7 @@ pub(super) fn verify_generated_members<'a>(
         g,
         None,
     )
-    .map_err(Into::into)
+    .map_err(newchan_rust::s_content::ContextError::into_message)
 }
 pub(super) fn verify_generated_members_with_changes<'a>(
     s: &mut (impl CodecStore + ?Sized),
@@ -2085,21 +2085,21 @@ pub(super) fn load(
     let mut rt = Runtime::default();
     let mut stmt=CheckedStatement::prepare(tx,c"SELECT witness_id,object_id,slot,generated_root,wire_root,published_generation,merged_index FROM s_content_witnesses ORDER BY rowid").map_err(err)?;
     while let Some(mut row) = stmt.next().map_err(err)? {
-        let entry = audit_persisted_witness(&mut row, s, latest, owned_budget.as_ref(), &mut rt)?;
+        let entry = audit_persisted_witness(&mut row, s, latest, owned_budget.as_ref(), &mut rt).map_err(newchan_rust::s_content::ContextError::into_message)?;
         s.native_codec_room(&mut out.witnesses, 1).map_err(err)?;
         out.witnesses.try_push(entry).map_err(err)?;
     }
     stmt.finalize().map_err(err)?;
     let mut stmt=CheckedStatement::prepare(tx,c"SELECT relation_id,subject,relation_type,object,generated_root,published_generation FROM s_content_relations ORDER BY rowid").map_err(err)?;
     while let Some(mut row) = stmt.next().map_err(err)? {
-        let entry = audit_persisted_relation(&mut row, s, latest, owned_budget.as_ref())?;
+        let entry = audit_persisted_relation(&mut row, s, latest, owned_budget.as_ref()).map_err(newchan_rust::s_content::ContextError::into_message)?;
         s.native_codec_room(&mut out.relations, 1).map_err(err)?;
         out.relations.try_push(entry).map_err(err)?;
     }
     stmt.finalize().map_err(err)?;
     let mut stmt=CheckedStatement::prepare(tx,c"SELECT observation_id,kind,window_start,batch_id,generated_root,birth_wire_root,published_generation FROM s_content_observations ORDER BY rowid").map_err(err)?;
     while let Some(mut row) = stmt.next().map_err(err)? {
-        let entry = audit_persisted_observation(&mut row, s, latest, owned_budget.as_ref())?;
+        let entry = audit_persisted_observation(&mut row, s, latest, owned_budget.as_ref()).map_err(newchan_rust::s_content::ContextError::into_message)?;
         s.native_codec_room(&mut out.observations, 1).map_err(err)?;
         out.observations.try_push(entry).map_err(err)?;
     }
@@ -2338,7 +2338,7 @@ pub(super) fn cut_members_metered(
 ) -> Result<[CodecVec<NodeDigest>; 3], String> {
     cut_members_projected(index, layout, generation, delta, budget, None)
         .map(|v| v.0)
-        .map_err(Into::into)
+        .map_err(newchan_rust::s_content::ContextError::into_message)
 }
 pub(super) fn native_cut_members(
     index: &Index,
@@ -2574,7 +2574,7 @@ pub(super) fn stage(
         #[cfg(feature = "s_incremental")]
         None,
     )
-    .map_err(Into::into)
+    .map_err(newchan_rust::s_content::ContextError::into_message)
 }
 pub(super) fn stage_in_material(
     tx: &Transaction<'_>,
@@ -2809,7 +2809,7 @@ mod tests {
                 assert_eq!(format!("{:?}", objects.entries()), expected_entries);
                 let sweep = objects.native_sweep_admitted(&reader)?.unwrap();
                 assert_eq!(
-                    objects.native_dual_at_cut(&mut reader, 4, &batch)?,
+                    objects.native_dual_at_cut(&mut reader, 4, &batch).map_err(newchan_rust::s_content::ContextError::into_message)?,
                     expected_dual
                 );
                 drop(sweep);
@@ -2854,7 +2854,7 @@ mod tests {
                 assert_eq!(aux.raw_revisions, expected_facts.raw_revisions);
                 for (delta, expected) in [false, true].into_iter().zip(&expected_sets) {
                     let (members, template) =
-                        native_cut_members(&index, &mut reader, Layout::Sorted, 4, delta, &batch)?;
+                        native_cut_members(&index, &mut reader, Layout::Sorted, 4, delta, &batch).map_err(newchan_rust::s_content::ContextError::into_message)?;
                     for (actual, expected) in members.iter().zip(&expected.0) {
                         assert_eq!(&actual[..], &expected[..]);
                     }

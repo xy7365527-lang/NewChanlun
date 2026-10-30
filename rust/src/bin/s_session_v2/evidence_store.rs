@@ -419,7 +419,7 @@ pub(super) fn batch_root_key_admitted(
     bytes
         .try_extend_bytes(batch_id.as_bytes())
         .map_err(|e| crate::v3::business_json::mixed_diagnostic(format_args!("{e}")))?;
-    TextValue::from_bytes(bytes).map_err(Into::into)
+    TextValue::from_bytes(bytes).map_err(newchan_rust::s_content::ContextError::into_message)
 }
 
 /// 一代 Delta 原件 → 私有根 key。

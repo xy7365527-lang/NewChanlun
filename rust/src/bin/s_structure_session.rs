@@ -1475,8 +1475,8 @@ fn verify_profile_binding_admitted(
         .map_err(|e| e.to_string())?;
     if id.is_none() && hash.is_none() && input.is_none() && definition.is_none() && raw_count == 0 {
         return Ok((
-            TextValue::from_str_admitted("", owner, work)?,
-            TextValue::from_str_admitted("", owner, work)?,
+            TextValue::from_str_admitted("", owner, work).map_err(newchan_rust::s_content::ContextError::into_message)?,
+            TextValue::from_str_admitted("", owner, work).map_err(newchan_rust::s_content::ContextError::into_message)?,
         ));
     }
     let id = id
@@ -1514,7 +1514,7 @@ fn verify_profile_binding_admitted(
                 .native_codec_room(&mut sealed_ids, 1)
                 .map_err(|e| e.to_string())?;
             sealed_ids
-                .try_push(TextValue::from_sql_admitted(&mut row, 0, owner, work)?)
+                .try_push(TextValue::from_sql_admitted(&mut row, 0, owner, work).map_err(newchan_rust::s_content::ContextError::into_message)?)
                 .map_err(|e| e.to_string())?;
         }
         stmt.finalize().map_err(|e| e.to_string())?;
@@ -1526,7 +1526,7 @@ fn verify_profile_binding_admitted(
         for batch_id in &sealed_ids {
             let bytes = load_profile_batch_bytes(conn, &mut reader, batch_id, owner)?;
             // #1394：同一 Reader 显式携带 Native 工作域；旧 blob / 图源核仍走各自原判据。
-            let batch = v3::business_json::legacy_json_owner_admitted(&bytes, owner, work)?;
+            let batch = v3::business_json::legacy_json_owner_admitted(&bytes, owner, work).map_err(newchan_rust::s_content::ContextError::into_message)?;
             let batch = batch.view();
             if batch
                 .get("profile_id")
@@ -2585,14 +2585,14 @@ fn read_raw_events_until_admitted_measured(
     let mut stmt = newchan_rust::sqlite_checked::CheckedStatement::prepare(
         conn, c"SELECT identity_key, revision, input_revision, payload_hash, receipt_id, seq, source_namespace, source_epoch, instrument, event_id, received_at, raw_text, price, ts, volume, source_coord, supersedes_revision FROM raw_events ORDER BY seq ASC",
     ).map_err(|e| format!("prepare 读取失败：{e}"))?;
-    let mut rows = v3::business_json::ScopedJsonArray::new(None, work)?;
+    let mut rows = v3::business_json::ScopedJsonArray::new(None, work).map_err(newchan_rust::s_content::ContextError::into_message)?;
     while let Some(mut row) = stmt.next().map_err(|e| format!("collect 失败：{e}"))? {
         check_read_deadline(deadline)?;
         let owner = decode_raw_row_admitted(&mut row, work)?;
         if let Some(budget) = budget {
             budget.record().map_err(|e| e.to_string())?;
         }
-        rows.push(owner.view())?;
+        rows.push(owner.view()).map_err(newchan_rust::s_content::ContextError::into_message)?;
     }
     stmt.finalize()
         .map_err(|e| format!("finalize 读取失败：{e}"))?;
@@ -2601,14 +2601,14 @@ fn read_raw_events_until_admitted_measured(
     check_read_deadline(deadline)?;
     let ohlc = tb02a::prepare_raw_enrichment_admitted(conn, work)?;
     let owner = if ohlc {
-        let mut enriched = v3::business_json::ScopedJsonArray::new(None, work)?;
+        let mut enriched = v3::business_json::ScopedJsonArray::new(None, work).map_err(newchan_rust::s_content::ContextError::into_message)?;
         for row in raw.view().as_array().expect("raw构造器只产数组").iter() {
             check_read_deadline(deadline)?;
             if let Some(budget) = budget {
                 budget.record().map_err(|e| e.to_string())?;
             }
             let row = tb02a::enrich_raw_view_admitted(conn, row, true, work)?;
-            enriched.push(row.view())?;
+            enriched.push(row.view()).map_err(newchan_rust::s_content::ContextError::into_message)?;
         }
         enriched.finish()
     } else {
@@ -2686,7 +2686,7 @@ fn decode_raw_row_admitted(
         &admission,
         JsonView::object_fields(&fields).map_err(|e| e.to_string())?,
     )
-    .map_err(Into::into)
+    .map_err(newchan_rust::s_content::ContextError::into_message)
 }
 
 /// Q固定追加与cold路径复用完全相同的列解码/OHLC借视图核。

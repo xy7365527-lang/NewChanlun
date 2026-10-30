@@ -100,7 +100,7 @@ pub(super) fn publish_borrowed(
         None,
         None,
     )
-    .map_err(Into::into)
+    .map_err(newchan_rust::s_content::ContextError::into_message)
 }
 #[cfg(all(test, feature = "s_incremental"))]
 pub(super) fn publish_borrowed_staged(
@@ -127,7 +127,7 @@ pub(super) fn publish_borrowed_staged(
         workspace,
         work,
     )
-    .map_err(Into::into)
+    .map_err(newchan_rust::s_content::ContextError::into_message)
 }
 #[cfg(feature = "s_incremental")]
 #[allow(
@@ -153,7 +153,7 @@ pub(super) fn publish_borrowed_with_workspace(
         workspace,
         None,
     )
-    .map_err(Into::into)
+    .map_err(newchan_rust::s_content::ContextError::into_message)
 }
 #[cfg(feature = "s_incremental")]
 pub(super) fn publish_borrowed_with_workspace_admitted(

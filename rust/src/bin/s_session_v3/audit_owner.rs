@@ -1760,7 +1760,7 @@ impl AuditTxn<'_> {
     ) -> Result<R, PublishError> {
         let Some(parent) = parent else {
             return self
-                .with_bound_raw_advance(context, |token| consume(token).map_err(Into::into))
+                .with_bound_raw_advance(context, |token| consume(token).map_err(PublishError::into_message))
                 .map_err(Into::into);
         };
         let result = (|| {
@@ -1864,7 +1864,7 @@ impl AuditTxn<'_> {
                     &bound,
                     &self.owner.construction_lease,
                     &super::audit_store::NativeAdmission(Some(scope)),
-                )?;
+                ).map_err(newchan_rust::s_content::ContextError::into_message)?;
                 pending.attach_fee(state_fee);
                 pending.stamp_parent(&budget);
                 *self.construction.borrow_mut() = Some(pending);
@@ -3092,7 +3092,7 @@ impl AuditTxn<'_> {
         &self,
         operation: FixedOperation,
         context: Option<&request_audit::RequestAuditContext>,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         let result = self.before_fixed_write_inner(operation, context);
         if result.is_err() {
             self.owner.invalidate_construction();
@@ -3103,7 +3103,7 @@ impl AuditTxn<'_> {
         &self,
         operation: FixedOperation,
         context: Option<&request_audit::RequestAuditContext>,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         #[cfg(feature = "s_incremental")]
         if self.construction.borrow().is_none()
             && self.owner.construction.borrow().is_some()
@@ -3111,7 +3111,7 @@ impl AuditTxn<'_> {
         {
             return Err(construction_state::stale(
                 "已发布增量游标缺同快照原件；禁止完整路径回退",
-            ));
+            ).into());
         }
         // #1488 受控同owner Recover迁移：只在本事务尚无构造、owner 持有已提交资格时进入；
         // 预算沿用候选已冻结的父账（无 context 不重绑、不换账），保留费由下方总容量门核验。
@@ -3123,14 +3123,14 @@ impl AuditTxn<'_> {
                 #[cfg(all(test, feature = "s_incremental"))]
                 let seal = p08_snapshot_miss(seal);
                 let Some(candidate) = complete.as_ref().filter(|c| c.seal == seal) else {
-                    return Err(construction_state::stale("Recover迁移缺同快照完整原件"));
+                    return Err(construction_state::stale("Recover迁移缺同快照完整原件").into());
                 };
                 let previous = self.owner.construction.borrow_mut().take();
                 // 负控注入：原资格已离开 owner、尚未成为事务构造时交接失败。
                 #[cfg(test)]
                 if RECOVER_HANDOFF_FAILURE.with(|flag| flag.replace(false)) {
                     drop(previous);
-                    return Err(construction_state::stale("测试注入Recover交接失败"));
+                    return Err(construction_state::stale("测试注入Recover交接失败").into());
                 }
                 let pending = construction_state::PendingRawState::recover(
                     previous,
@@ -3152,7 +3152,7 @@ impl AuditTxn<'_> {
             if let Some(candidate) = complete.as_ref() {
                 let seal = self.construction_seal()?;
                 if candidate.seal != seal {
-                    return Err(construction_state::stale("Carry缺同快照完整原件"));
+                    return Err(construction_state::stale("Carry缺同快照完整原件").into());
                 }
                 let previous = self.owner.construction.borrow_mut().take();
                 let mut pending = construction_state::PendingRawState::carry(
@@ -3168,14 +3168,14 @@ impl AuditTxn<'_> {
                     .checked_add(pending.retained_bytes())
                     .ok_or_else(|| construction_state::stale("Carry保留账溢出"))?;
                 if retained > context.unwrap().complete_retention_cap() {
-                    return Err(construction_state::stale("Carry保留账超过完整工作帽"));
+                    return Err(construction_state::stale("Carry保留账超过完整工作帽").into());
                 }
                 *self.construction.borrow_mut() = Some(pending);
             }
         }
         let strict = self.construction.borrow().is_some();
         if strict && self.owner.construction_lease.stale.get() {
-            return Err(construction_state::stale("固定写前租约已撤销"));
+            return Err(construction_state::stale("固定写前租约已撤销").into());
         }
         #[cfg(feature = "s_incremental")]
         {
@@ -3203,7 +3203,7 @@ impl AuditTxn<'_> {
                         )
                     })
                 {
-                    return Err(construction_state::stale("完整保留费超过总容量帽"));
+                    return Err(construction_state::stale("完整保留费超过总容量帽").into());
                 }
                 let op = match operation {
                     FixedOperation::Accept => effects::Operation::Accept,
@@ -3252,17 +3252,17 @@ impl AuditTxn<'_> {
                 self.owner.invalidate_construction();
                 return Err(construction_state::stale(
                     "固定写缺完整effects记录额度/原件",
-                ));
+                ).into());
             }
         }
         #[cfg(not(feature = "s_incremental"))]
         {
             let _ = (operation, context);
             if strict {
-                return Err(construction_state::stale("未启用真实Native effects能力"));
+                return Err(construction_state::stale("未启用真实Native effects能力").into());
             }
         }
-        self.before_write_inner(strict)
+        self.before_write_inner(strict).map_err(Into::into)
     }
     fn finish_fixed_write(&self) -> Result<(), String> {
         let result = self.finish_fixed_write_inner(
@@ -3272,7 +3272,7 @@ impl AuditTxn<'_> {
         if result.is_err() && self.construction.borrow().is_some() {
             self.owner.invalidate_construction();
         }
-        result.map_err(Into::into)
+        result.map_err(newchan_rust::s_content::ContextError::into_message)
     }
     #[cfg(feature = "s_incremental")]
     fn finish_fixed_write_in_publication(
@@ -6491,7 +6491,7 @@ impl AuditConnection {
                 Ok(done) => done,
                 Err(error) => match publication_degrade_verdict(error, operation_error, trace) {
                     Ok(()) => return Ok(None),
-                    Err(e) => return Err(e.into()),
+                    Err(e) => return Err(e.into_message()),
                 },
             };
             (
@@ -6504,7 +6504,7 @@ impl AuditConnection {
             )
         } else {
             (
-                self.publish_body(&mut active, runtime, token, envelope, context, None)?,
+                self.publish_body(&mut active, runtime, token, envelope, context, None).map_err(newchan_rust::s_content::ContextError::into_message)?,
                 None,
             )
         };
@@ -6612,7 +6612,7 @@ mod publication_degrade_verdict_tests {
                 })
         });
         publication_degrade_verdict(run.expect_err("用例须失败"), operation_error, trace)
-            .map_err(Into::into)
+            .map_err(newchan_rust::s_content::ContextError::into_message)
     }
 
     fn resource_error(failure: ScratchFailure) -> newchan_rust::s_content::CodecError {

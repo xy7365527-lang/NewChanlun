@@ -321,7 +321,7 @@ fn stored_control_clock_admitted(
     {
         return Err(err("clock计划/hash不一致"));
     }
-    let hash = TextValue::from_str_admitted(hash.as_str(), owner, work)?;
+    let hash = TextValue::from_str_admitted(hash.as_str(), owner, work).map_err(newchan_rust::s_content::ContextError::into_message)?;
     #[cfg(test)]
     crate::v3::trace_request_clock(raw.as_str().len(), clock_start.elapsed());
     Ok(ControlClock { value, hash })
@@ -731,7 +731,7 @@ impl ControlSchema {
     ) -> Result<(), String> {
         control_native_owner(self.owner.as_ref(), work)?;
         ddl_table_entries(label, ddl, |name, stmt| {
-            let key = TextValue::from_str_admitted(name, self.owner.as_ref(), work)?;
+            let key = TextValue::from_str_admitted(name, self.owner.as_ref(), work).map_err(newchan_rust::s_content::ContextError::into_message)?;
             let value = control_normalized_admitted(stmt, self.owner.as_ref(), work)?;
             control_insert(&mut self.tables, key, value, work).map_err(err)?;
             Ok(())
@@ -1657,9 +1657,9 @@ pub(super) fn validate_audit_message_admitted(
         &[ControlBind::Integer(seq)],
         |mut r| {
             Ok((
-                TextValue::from_sql_admitted(&mut r, 0, owner, work)?,
-                TextValue::from_sql_admitted(&mut r, 1, owner, work)?,
-                TextValue::from_sql_admitted(&mut r, 2, owner, work)?,
+                TextValue::from_sql_admitted(&mut r, 0, owner, work).map_err(newchan_rust::s_content::ContextError::into_message)?,
+                TextValue::from_sql_admitted(&mut r, 1, owner, work).map_err(newchan_rust::s_content::ContextError::into_message)?,
+                TextValue::from_sql_admitted(&mut r, 2, owner, work).map_err(newchan_rust::s_content::ContextError::into_message)?,
                 r.integer(3).map_err(|e| e.to_string())?,
             ))
         },
@@ -1838,10 +1838,10 @@ fn verify_control_catalog_admitted(
             &[ControlBind::Text(required_view(item, "id").map_err(err)?)],
             |r| {
                 Ok((
-                    TextValue::from_sql_admitted(r, 0, owner, work)?,
-                    TextValue::from_sql_admitted(r, 1, owner, work)?,
-                    TextValue::from_sql_admitted(r, 2, owner, work)?,
-                    TextValue::from_sql_admitted(r, 3, owner, work)?,
+                    TextValue::from_sql_admitted(r, 0, owner, work).map_err(newchan_rust::s_content::ContextError::into_message)?,
+                    TextValue::from_sql_admitted(r, 1, owner, work).map_err(newchan_rust::s_content::ContextError::into_message)?,
+                    TextValue::from_sql_admitted(r, 2, owner, work).map_err(newchan_rust::s_content::ContextError::into_message)?,
+                    TextValue::from_sql_admitted(r, 3, owner, work).map_err(newchan_rust::s_content::ContextError::into_message)?,
                 ))
             },
         )?;
@@ -1914,7 +1914,7 @@ pub(super) fn validate_control_history_admitted(
     )
     .map_err(err)?;
     let clock = stored_control_clock_admitted(conn, owner, work)?;
-    let (protocol, inc, next, frontier) = control_query_row(conn,c"SELECT protocol_revision,session_generation,next_attempt_ordinal,logical_phase_frontier FROM s_protocol_meta WHERE singleton=1", &[], |r| Ok((TextValue::from_sql_admitted(r,0,owner, work)?,TextValue::from_sql_admitted(r,1,owner, work)?,r.integer(2).map_err(|e|e.to_string())?,TextValue::from_sql_admitted(r,3,owner, work)?)))?;
+    let (protocol, inc, next, frontier) = control_query_row(conn,c"SELECT protocol_revision,session_generation,next_attempt_ordinal,logical_phase_frontier FROM s_protocol_meta WHERE singleton=1", &[], |r| Ok((TextValue::from_sql_admitted(r,0,owner, work)?,TextValue::from_sql_admitted(r,1,owner, work)?,r.integer(2).map_err(|e|e.to_string())?,TextValue::from_sql_admitted(r,3,owner, work).map_err(newchan_rust::s_content::ContextError::into_message)?)))?;
     if protocol != protocol_revision || next < 1 {
         return Err(err("协议版本/attempt域错误"));
     }
@@ -1923,7 +1923,7 @@ pub(super) fn validate_control_history_admitted(
     let sid = control_meta_text_admitted(conn, "session_id", owner, work)?
         .ok_or_else(|| err("缺session"))?;
     verify_control_catalog_admitted(conn, owner, work)?;
-    let (ps,pi,pr,keep,first,head) = control_query_row(conn,c"SELECT session_id,session_generation,policy_revision,retain_generations,first_available_generation,head_generation FROM s_delivery_policy WHERE singleton=1", &[], |r| Ok((TextValue::from_sql_admitted(r,0,owner, work)?,TextValue::from_sql_admitted(r,1,owner, work)?,TextValue::from_sql_admitted(r,2,owner, work)?,r.integer(3).map_err(|e|e.to_string())?,r.integer(4).map_err(|e|e.to_string())?,r.integer(5).map_err(|e|e.to_string())?)))?;
+    let (ps,pi,pr,keep,first,head) = control_query_row(conn,c"SELECT session_id,session_generation,policy_revision,retain_generations,first_available_generation,head_generation FROM s_delivery_policy WHERE singleton=1", &[], |r| Ok((TextValue::from_sql_admitted(r,0,owner, work)?,TextValue::from_sql_admitted(r,1,owner, work)?,TextValue::from_sql_admitted(r,2,owner, work).map_err(newchan_rust::s_content::ContextError::into_message)?,r.integer(3).map_err(|e|e.to_string())?,r.integer(4).map_err(|e|e.to_string())?,r.integer(5).map_err(|e|e.to_string())?)))?;
     validate_delivery_policy(&ps, &pi, &pr, keep, first, head, &sid, &inc, root_g)?;
     let mut stmt = conn
         .prepare("SELECT generation FROM s_delivery_refs ORDER BY generation")

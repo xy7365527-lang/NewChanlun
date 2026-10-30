@@ -78,7 +78,7 @@ fn digest(r: &ContentRef) -> Result<NodeDigest, PublishError> {
 )]
 fn built(r: ContentRef) -> Result<Built, String> {
     Ok(Built {
-        digest: digest(&r)?,
+        digest: digest(&r).map_err(newchan_rust::s_content::ContextError::into_message)?,
         kind: r.kind,
         extent: r.extent,
     })
@@ -168,9 +168,9 @@ impl Fields {
         dead_code,
         reason = "#1608：私有辅助函数，当前无调用方；先量再动，保留不删"
     )]
-    fn equal(&self, key: &str, other: &Self, other_key: &str) -> Result<(), String> {
+    fn equal(&self, key: &str, other: &Self, other_key: &str) -> Result<(), PublishError> {
         if self.get(key)? != other.get(other_key)? {
-            return Err(err(format!("{key}/{other_key}内容边不同")));
+            return Err(publish_err(format!("{key}/{other_key}内容边不同")));
         }
         Ok(())
     }
@@ -226,12 +226,12 @@ impl Fields {
         s: &mut (impl CodecStore + ?Sized),
         json: &str,
         value: &str,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         let parsed = s
             .lookup_path(self.get(json)?, &[PathStep::JsonText])
-            .map_err(err)?;
+            .map_err(publish_err)?;
         if &parsed != self.get(value)? {
-            return Err(err("内部JSON视图与值边不同"));
+            return Err(publish_err("内部JSON视图与值边不同"));
         }
         Ok(())
     }
@@ -981,7 +981,7 @@ impl HistoryObjects<'_> {
     pub(super) fn native_sweep_admitted(
         &mut self,
         store: &(impl CodecRead + ?Sized),
-    ) -> Result<Option<HistorySweep>, String> {
+    ) -> Result<Option<HistorySweep>, PublishError> {
         let Some(native) = self.native.as_mut() else {
             return Ok(None);
         };
@@ -2107,32 +2107,32 @@ fn load_in_store(
     latest: i64,
     capture: Option<&sc::AuditCapture>,
     events: Option<&mut Option<NativeArc<HistoryEvents>>>,
-) -> Result<sc::CodecVec<Entry>, String> {
+) -> Result<sc::CodecVec<Entry>, PublishError> {
     let mut leaf_bindings = capture.map(|capture| ShapeLeafBindings {
         capture,
         successful: bj::new_map(None),
     });
-    let mut stmt=CheckedStatement::prepare(tx,c"SELECT object_id,object_revision,kind,fact_key,window_start,window_mid,window_end,generated_root,internal_root,immutable_root,birth_wire_root,batch_id,first_known_generation,first_known_cut,published_generation,withdrawn_generation,withdrawal_reason,superseded_by FROM s_content_objects ORDER BY rowid").map_err(err)?;
+    let mut stmt=CheckedStatement::prepare(tx,c"SELECT object_id,object_revision,kind,fact_key,window_start,window_mid,window_end,generated_root,internal_root,immutable_root,birth_wire_root,batch_id,first_known_generation,first_known_cut,published_generation,withdrawn_generation,withdrawal_reason,superseded_by FROM s_content_objects ORDER BY rowid").map_err(publish_err)?;
     let allocation = s.allocation_budget();
     let mut out = bj::new_work(allocation.as_ref());
-    while let Some(mut row) = stmt.next().map_err(err)? {
+    while let Some(mut row) = stmt.next().map_err(publish_err)? {
         let e = decode_persisted_entry(&mut row, s, latest, allocation.as_ref())?;
-        s.native_codec_room(&mut out, 1).map_err(err)?;
-        out.try_push(e).map_err(err)?;
+        s.native_codec_room(&mut out, 1).map_err(publish_err)?;
+        out.try_push(e).map_err(publish_err)?;
     }
-    stmt.finalize().map_err(err)?;
+    stmt.finalize().map_err(publish_err)?;
     // 含已撤回身份的完整表；只克隆身份键，不复制正文。Owned 路径沿既有分配器。
     let mut by_id = bj::new_map(allocation.as_ref());
     for (ordinal, e) in out.iter().enumerate() {
         #[cfg(test)]
         LOAD_ID_VISITS.with(|n| n.set(n.get() + 1));
-        s.native_map_room(&mut by_id).map_err(err)?;
+        s.native_map_room(&mut by_id).map_err(publish_err)?;
         if by_id
             .insert(e.id.try_clone_admitted(s.codec_work())?, ordinal)
-            .map_err(err)?
+            .map_err(publish_err)?
             .is_some()
         {
-            return Err(err("独立对象索引重复身份"));
+            return Err(publish_err("独立对象索引重复身份"));
         }
     }
     #[cfg(test)]
@@ -2144,15 +2144,15 @@ fn load_in_store(
     let mut refs = bj::new_work(allocation.as_ref());
     for e in &out {
         for b in [&e.generated, &e.internal, &e.immutable] {
-            s.native_codec_room(&mut refs, 1).map_err(err)?;
-            refs.try_push(built_ref(s, b)?).map_err(err)?;
+            s.native_codec_room(&mut refs, 1).map_err(publish_err)?;
+            refs.try_push(built_ref(s, b)?).map_err(publish_err)?;
         }
-        s.native_codec_room(&mut refs, 1).map_err(err)?;
-        refs.try_push(s.native_ref_clone(&e.birth_wire).map_err(err)?)
-            .map_err(err)?;
+        s.native_codec_room(&mut refs, 1).map_err(publish_err)?;
+        refs.try_push(s.native_ref_clone(&e.birth_wire).map_err(publish_err)?)
+            .map_err(publish_err)?;
     }
     s.verify_many_ref(refs.iter().map(RefValue::view), sc::Mode::Public)
-        .map_err(err)?;
+        .map_err(publish_err)?;
 
     for e in &out {
         #[cfg(test)]
@@ -2411,7 +2411,7 @@ pub(super) fn stage(
         #[cfg(feature = "s_incremental")]
         None,
     )
-    .map_err(Into::into)
+    .map_err(newchan_rust::s_content::ContextError::into_message)
 }
 pub(super) fn stage_in_material(
     tx: &Transaction<'_>,
@@ -2556,7 +2556,7 @@ pub(super) fn changes_at_budgeted(
         g,
         allocation,
     )
-    .map_err(Into::into)
+    .map_err(newchan_rust::s_content::ContextError::into_message)
 }
 /// 当前候选域入口；旧接口只用于无 scope 的调用。
 pub(super) fn changes_at_admitted(
@@ -2934,7 +2934,7 @@ impl HistorySweep {
     #[cfg(test)]
     fn advance(&mut self, g: i64) -> Result<(), String> {
         self.advance_admitted(g, &super::audit_store::NativeAdmission(None))
-            .map_err(Into::into)
+            .map_err(newchan_rust::s_content::ContextError::into_message)
     }
     #[cfg(test)]
     pub(super) fn changes(
@@ -2943,7 +2943,7 @@ impl HistorySweep {
         g: i64,
     ) -> Result<(bj::JsonOwner, bj::JsonOwner), String> {
         self.changes_admitted(&super::audit_store::NativeAdmission(None), index, g)
-            .map_err(Into::into)
+            .map_err(newchan_rust::s_content::ContextError::into_message)
     }
     pub(super) fn changes_admitted(
         &self,
@@ -3160,7 +3160,7 @@ pub(super) fn verify_generated_members_swept<'a>(
     g: i64,
     sweep: Option<&HistorySweep>,
 ) -> Result<(), String> {
-    verify_generated_members_swept_with_records(s, index, state, g, sweep, None).map_err(Into::into)
+    verify_generated_members_swept_with_records(s, index, state, g, sweep, None).map_err(newchan_rust::s_content::ContextError::into_message)
 }
 pub(super) fn verify_generated_members_swept_with_records<'a>(
     s: &mut (impl CodecStore + ?Sized),
@@ -5318,7 +5318,7 @@ mod tests {
     ) -> Result<sc::CodecVec<Entry>, String> {
         let mut new = sc::CodecVec::default();
         store.native_codec_room(&mut new, 1).map_err(err)?;
-        new.try_push(fresh.try_clone_admitted(store)?)
+        new.try_push(fresh.try_clone_admitted(store).map_err(newchan_rust::s_content::ContextError::into_message)?)
             .map_err(err)?;
         Ok(new)
     }
@@ -5517,7 +5517,7 @@ mod tests {
             .run(|scope| {
                 let store = super::super::audit_store::NativeAdmission(Some(scope));
                 let events =
-                    HistoryEvents::new_admitted(&entries, &store)?.into_arc_admitted(&store)?;
+                    HistoryEvents::new_admitted(&entries, &store)?.into_arc_admitted(&store).map_err(newchan_rust::s_content::ContextError::into_message)?;
                 let before_clone = budget.live();
                 let alias = events.clone();
                 assert_eq!(
@@ -5554,10 +5554,10 @@ mod tests {
                 .unwrap()
                 .run(|scope| {
                     let store = super::super::audit_store::NativeAdmission(Some(scope));
-                    let mut sweep = ProjectionSweep::new_admitted(&entries, &store)?;
+                    let mut sweep = ProjectionSweep::new_admitted(&entries, &store).map_err(newchan_rust::s_content::ContextError::into_message)?;
                     for g in [0, 1, 3, 3, 2, 0, 3] {
                         let before = sweep.active.heap_bytes() + sweep.withdrawn.heap_bytes();
-                        sweep.seek_admitted(g, Layout::Sorted, &entries, &store)?;
+                        sweep.seek_admitted(g, Layout::Sorted, &entries, &store).map_err(newchan_rust::s_content::ContextError::into_message)?;
                         let delta = std::mem::take(&mut sweep.retained);
                         assert_eq!(
                             delta.apply(before).unwrap(),
@@ -5609,12 +5609,12 @@ mod tests {
         let baseline = budget.live();
         let error = budget.codec_work().unwrap().run(|scope| {
             let store = super::super::audit_store::NativeAdmission(Some(scope));
-            let mut candidate = ProjectionSweep::new_admitted(&entries, &store)?;
-            candidate.seek_admitted(1, Layout::Sorted, &entries, &store)?;
+            let mut candidate = ProjectionSweep::new_admitted(&entries, &store).map_err(newchan_rust::s_content::ContextError::into_message)?;
+            candidate.seek_admitted(1, Layout::Sorted, &entries, &store).map_err(newchan_rust::s_content::ContextError::into_message)?;
             let occupied = budget.reserve(limit - budget.live()).unwrap();
             // 与 history 消费边界相同：候选按值进入，Err 不返回部分游标。
             let consume = |mut candidate: ProjectionSweep| -> Result<ProjectionSweep, String> {
-                candidate.seek_admitted(3, Layout::Sorted, &entries, &store)?;
+                candidate.seek_admitted(3, Layout::Sorted, &entries, &store).map_err(newchan_rust::s_content::ContextError::into_message)?;
                 Ok(candidate)
             };
             let result = consume(candidate);
@@ -5640,7 +5640,7 @@ mod tests {
             let mut memo = projection_memo(&capture, 0);
             store.native_codec_room(&mut memo.wires, 1).map_err(err)?;
             memo.wires.try_push([None, None]).map_err(err)?;
-            memo.remember_wire(&store, 0, 0, wire)?;
+            memo.remember_wire(&store, 0, 0, wire).map_err(newchan_rust::s_content::ContextError::into_message)?;
             let before = budget.live();
             let occupied = budget.reserve(limit - before).unwrap();
             let error = memo.remember_wire(&store, 0, 0, wire).unwrap_err();
@@ -6828,7 +6828,7 @@ impl Entry {
     #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     pub fn try_clone(&self) -> Result<Self, String> {
         self.try_clone_admitted(&super::audit_store::NativeAdmission(None))
-            .map_err(Into::into)
+            .map_err(newchan_rust::s_content::ContextError::into_message)
     }
     pub fn try_clone_admitted(
         &self,

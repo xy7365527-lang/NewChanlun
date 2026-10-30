@@ -92,3 +92,14 @@ jobs:
         with:
           name: p57-conversion-check
           path: /tmp/p57-conversion-check.jsonl
+      - name: formatter after diagnostic
+        if: always()
+        working-directory: rust
+        run: |
+          cargo fmt --all
+          git diff --binary > /tmp/p57-conversion-fmt.patch
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p57-conversion-fmt
+          path: /tmp/p57-conversion-fmt.patch

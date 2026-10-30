@@ -409,7 +409,7 @@ impl Runtime {
             #[cfg(feature = "s_incremental")]
             None,
         )
-        .map_err(Into::into)
+        .map_err(newchan_rust::s_content::ContextError::into_message)
     }
     fn publish_impl_admitted_bound(
         &mut self,

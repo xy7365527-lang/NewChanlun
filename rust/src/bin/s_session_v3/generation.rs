@@ -473,7 +473,7 @@ impl GenerationRuntime {
             bound.invalidate_after_consumer_failure();
             self.discard_runtime_state();
         }
-        result.map_err(Into::into)
+        result.map_err(newchan_rust::s_content::ContextError::into_message)
     }
 
     fn advance_raw_bound_inner(
@@ -611,7 +611,7 @@ impl GenerationRuntime {
         if result.is_err() {
             self.discard_runtime_state();
         }
-        result.map_err(Into::into)
+        result.map_err(newchan_rust::s_content::ContextError::into_message)
     }
 
     /// 仅受控 NativeReadLease 分支可提供 token；外部调用方不能用 bool 开启资格。
@@ -2071,7 +2071,7 @@ pub(super) fn witness_identity(
     mi: usize,
     raw_bars: &Built,
 ) -> Result<String, String> {
-    let bytes = witness_identity_bytes(store, object_id, slot, mi, raw_bars)?;
+    let bytes = witness_identity_bytes(store, object_id, slot, mi, raw_bars).map_err(newchan_rust::s_content::ContextError::into_message)?;
     // 旧裸 String 接口；Native 来源核改走下方携原许可的输出。
     if store.codec_work().is_some() {
         return Err("Native witness身份必须使用witness_identity_native持有原许可".into());
@@ -2585,11 +2585,11 @@ mod tests {
                     inner: &mut nodes,
                     work,
                 };
-                let actual = event_node(&mut memo, &mut store, (&event).into())?;
+                let actual = event_node(&mut memo, &mut store, (&event).into()).map_err(newchan_rust::s_content::ContextError::into_message)?;
                 assert_eq!(actual, expected);
                 let count = store.inner.iter().count();
                 assert_eq!(
-                    event_node(&mut memo, &mut store, (&event).into())?,
+                    event_node(&mut memo, &mut store, (&event).into()).map_err(newchan_rust::s_content::ContextError::into_message)?,
                     expected
                 );
                 assert_eq!(store.inner.iter().count(), count);
@@ -2806,7 +2806,7 @@ mod tests {
                     work,
                 };
                 let mut generated = runtime.generate(&mut store, &input)?;
-                generated.finish_axes(&mut store, -1, &[], &[])?;
+                generated.finish_axes(&mut store, -1, &[], &[]).map_err(newchan_rust::s_content::ContextError::into_message)?;
                 assert!(generated.generated_state.is_native_admitted());
                 assert!(generated.raw.raw_events.is_native_admitted());
                 assert!(generated
@@ -2897,7 +2897,7 @@ mod tests {
                 assert!(result.is_err());
                 assert_eq!(generated.generated_state.as_ref(), &state);
                 assert_eq!(generated.catalog_axes.as_ref().unwrap().as_ref(), &axes);
-                result.map(|_| ()).map_err(Into::into)
+                result.map(|_| ()).map_err(newchan_rust::s_content::ContextError::into_message)
             });
         assert!(matches!(
             result,

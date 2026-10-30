@@ -267,7 +267,7 @@ impl ConfiguredCapture<'_> {
         cut.try_extend_bytes(b"cut-").map_err(|e| e.to_string())?;
         cut.try_extend_bytes(gen.as_bytes())
             .map_err(|e| e.to_string())?;
-        let cut = TextValue::from_bytes(cut)?;
+        let cut = TextValue::from_bytes(cut).map_err(newchan_rust::s_content::ContextError::into_message)?;
         struct Ready<'a> {
             fields: [(&'static str, JsonView<'a>); 6],
         }

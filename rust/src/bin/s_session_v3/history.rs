@@ -134,7 +134,7 @@ impl NativeCutProjection<'_, '_, '_> {
     ) -> Result<(), String> {
         if !std::ptr::eq(self.transaction, tx)
             || self.batch != batch
-            || self.binding[..] != native_cut_binding(s, m, r, previous)?[..]
+            || self.binding[..] != native_cut_binding(s, m, r, previous).map_err(newchan_rust::s_content::ContextError::into_message)?[..]
             || !s
                 .native_projection_capture()
                 .is_some_and(|c| std::ptr::eq(c, self.capture))
@@ -881,7 +881,7 @@ fn read_indexed_history_inner(
     check_deadline(deadline)?;
     #[cfg(feature = "s_incremental")]
     if let Some(work) = work {
-        verify_required_meta_admitted(tx, work)?;
+        verify_required_meta_admitted(tx, work).map_err(newchan_rust::s_content::ContextError::into_message)?;
     } else {
         verify_required_meta(tx)?;
     }
@@ -928,11 +928,11 @@ fn read_indexed_history_inner(
     let allocation = history_allocation(&store)?;
     #[cfg(test)]
     super::state::trace_event("history_aux_index", None);
-    let aux_generation = meta_i64_in_store(&store, tx, "generation", allocation.as_ref())?;
+    let aux_generation = meta_i64_in_store(&store, tx, "generation", allocation.as_ref()).map_err(newchan_rust::s_content::ContextError::into_message)?;
     let auxiliary = aux_index::load(tx, &mut store, aux_generation)?;
     #[cfg(test)]
     super::state::trace_event("history_object_index", None);
-    let object_generation = meta_i64_in_store(&store, tx, "generation", allocation.as_ref())?;
+    let object_generation = meta_i64_in_store(&store, tx, "generation", allocation.as_ref()).map_err(newchan_rust::s_content::ContextError::into_message)?;
     let mut objects = object_index::load_for_history(tx, &mut store, object_generation)?;
     #[cfg(test)]
     super::state::trace_event("history_raw_hashes", None);
@@ -948,11 +948,11 @@ fn read_indexed_history_inner(
             check_deadline(deadline)?;
             store.native_codec_room(&mut roots, 1).map_err(err)?;
             roots
-                .try_push(root_ref_bytes(&mut store, row.blob(0).map_err(err)?)?)
+                .try_push(root_ref_bytes(&mut store, row.blob(0).map_err(err)?).map_err(newchan_rust::s_content::ContextError::into_message)?)
                 .map_err(err)?;
             store.native_codec_room(&mut roots, 1).map_err(err)?;
             roots
-                .try_push(root_ref_bytes(&mut store, row.blob(1).map_err(err)?)?)
+                .try_push(root_ref_bytes(&mut store, row.blob(1).map_err(err)?).map_err(newchan_rust::s_content::ContextError::into_message)?)
                 .map_err(err)?;
         }
         stmt.finalize().map_err(err)?;
@@ -969,7 +969,7 @@ fn read_indexed_history_inner(
             check_deadline(deadline)?;
             store.native_codec_room(&mut roots, 1).map_err(err)?;
             roots
-                .try_push(root_ref_bytes(&mut store, row.blob(0).map_err(err)?)?)
+                .try_push(root_ref_bytes(&mut store, row.blob(0).map_err(err)?).map_err(newchan_rust::s_content::ContextError::into_message)?)
                 .map_err(err)?;
         }
         stmt.finalize().map_err(err)?;
@@ -997,7 +997,7 @@ fn read_indexed_history_inner(
     if manifest_coverage {
         for manifest in template_roots.iter() {
             check_deadline(deadline)?;
-            let (metadata, roots) = decode_manifest(&mut store, manifest.view())?;
+            let (metadata, roots) = decode_manifest(&mut store, manifest.view()).map_err(newchan_rust::s_content::ContextError::into_message)?;
             store.native_codec_room(&mut public_roots, 2).map_err(err)?;
             public_roots.try_push(metadata.scope).map_err(err)?;
             public_roots.try_push(roots.generated_state).map_err(err)?;
@@ -1032,7 +1032,7 @@ fn read_indexed_history_inner(
     let mut object_sweep = objects.native_sweep_admitted(&store)?;
     let publication_memo = content_publication::NativePublicationMemo::new(&store);
     let mut ordinary_publication = if bound_births_qualified && ordinary_proofs_enabled() {
-        Some(content_publication::PublicationProjection::new(tx, &store)?)
+        Some(content_publication::PublicationProjection::new(tx, &store).map_err(newchan_rust::s_content::ContextError::into_message)?)
     } else {
         None
     };
@@ -1070,7 +1070,7 @@ fn read_indexed_history_inner(
             deadline,
             budget,
             allocation.as_ref(),
-        )?;
+        ).map_err(newchan_rust::s_content::ContextError::into_message)?;
         if let Some(projection) = ordinary_publication.as_mut() {
             projection.commit_cut();
         }
@@ -1107,7 +1107,7 @@ fn read_indexed_history_inner(
     );
     resolved_result.map_err(err)?;
     let control_facts = control.into_facts()?;
-    verify_current_frontiers(&store, tx, &output, previous, allocation.as_ref())?;
+    verify_current_frontiers(&store, tx, &output, previous, allocation.as_ref()).map_err(newchan_rust::s_content::ContextError::into_message)?;
     let auxiliary_facts = native_aux.map(aux_index::NativeAuxAudit::into_facts);
     let raw_prefixes = match (native_prefix, ordered_raw) {
         (Some(prefixes), Some(ordered)) => Some(NativeRawPrefixes {
@@ -1843,7 +1843,7 @@ fn hash_current_raw(
         }
         store.native_codec_room(&mut raw_nodes, 1).map_err(err)?;
         raw_nodes
-            .try_push(hash_json_in_store(store, v, deadline, budget)?)
+            .try_push(hash_json_in_store(store, v, deadline, budget).map_err(newchan_rust::s_content::ContextError::into_message)?)
             .map_err(err)?;
     }
     let mut raw_wire_nodes = bj::new_work(allocation.as_ref());
@@ -1863,7 +1863,7 @@ fn hash_current_raw(
                 bj::RawWire::new(event)?.view(),
                 deadline,
                 budget,
-            )?)
+            ).map_err(newchan_rust::s_content::ContextError::into_message)?)
             .map_err(err)?;
     }
     Ok((raw_nodes, raw_wire_nodes))
@@ -1940,7 +1940,7 @@ pub(super) fn revalidate_current_for_reuse_measured(
 ) -> Result<(), String> {
     #[cfg(feature = "s_incremental")]
     if let Some(work) = work {
-        verify_required_meta_admitted(tx, work)?;
+        verify_required_meta_admitted(tx, work).map_err(newchan_rust::s_content::ContextError::into_message)?;
     } else {
         verify_required_meta(tx)?;
     }
@@ -1971,7 +1971,7 @@ pub(super) fn revalidate_current_for_reuse_measured(
         cuts.last().map_or(-1, |c| c.metadata.input_frontier),
         None,
     )
-    .map_err(Into::into)
+    .map_err(newchan_rust::s_content::ContextError::into_message)
 }
 
 fn verify_source(
@@ -2542,7 +2542,7 @@ fn hash_array_metered_with_owner(
     allocation: Option<&OwnedBudget>,
 ) -> Result<NodeDigest, String> {
     hash_array_metered_with_work(nodes, deadline, budget, records, allocation, None)
-        .map_err(Into::into)
+        .map_err(newchan_rust::s_content::ContextError::into_message)
 }
 fn hash_array_metered_with_work(
     nodes: &[NodeDigest],

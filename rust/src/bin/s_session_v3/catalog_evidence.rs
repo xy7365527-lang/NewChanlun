@@ -87,7 +87,7 @@ fn field(s: &mut sc::MemoryNodes, root: &ContentRef, key: &str) -> Result<Conten
 }
 #[cfg(test)]
 fn text(s: &mut sc::MemoryNodes, root: &ContentRef, key: &str) -> Result<TextValue, String> {
-    text_ref(s, root, key).map_err(Into::into)
+    text_ref(s, root, key).map_err(newchan_rust::s_content::ContextError::into_message)
 }
 #[cfg(test)]
 fn array_field(
@@ -211,7 +211,7 @@ fn generated_axes(
     s: &mut sc::MemoryNodes,
     generated_state: &ContentRef,
 ) -> Result<ContentRef, String> {
-    generated_axes_ref(s, generated_state.into())?;
+    generated_axes_ref(s, generated_state.into()).map_err(newchan_rust::s_content::ContextError::into_message)?;
     field(s, generated_state, "catalog_axes")
 }
 
@@ -521,7 +521,7 @@ pub(super) fn verify_cut_metered<'a, 'changes>(
         budget,
         0,
     )
-    .map_err(Into::into)
+    .map_err(newchan_rust::s_content::ContextError::into_message)
 }
 #[allow(clippy::too_many_arguments)]
 pub(super) fn verify_cut_for_audit<'a, 'r>(
@@ -810,7 +810,7 @@ pub(super) fn verify_current(
     axes: &ContentRef,
 ) -> Result<(), String> {
     verify_current_in_store(tx, &mut super::audit_store::StoreView::generic(store), axes)
-        .map_err(Into::into)
+        .map_err(newchan_rust::s_content::ContextError::into_message)
 }
 pub(super) fn verify_current_for_audit<'r>(
     tx: &Transaction<'_>,
