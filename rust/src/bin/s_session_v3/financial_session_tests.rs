@@ -2381,6 +2381,7 @@ fn w2_pending_cost_probe() {
         })
         .unwrap();
     let mut runtime = super::super::prepared::Runtime::new();
+    crate::content_manifest::begin_assemble_costs_for_test();
     let started = std::time::Instant::now();
     let (result, events, work) = state::traced(false, || {
         runtime.commit(conn.transaction().unwrap(), &token, &envelope)
@@ -2390,6 +2391,11 @@ fn w2_pending_cost_probe() {
         canonical_json(
             &json!({"generation":77,"elapsed_ns":started.elapsed().as_nanos().to_string(),"events":events,"work":work,"error":result.as_ref().err()})
         )
+    );
+    let costs = crate::content_manifest::take_assemble_costs_for_test();
+    eprintln!(
+        "W2-MANIFEST-COST {}",
+        serde_json::to_string(&costs).unwrap()
     );
     assert_eq!(result.unwrap().generation, 77);
     super::super::ordinary_materials::LAST_REPORT.with(|r| eprintln!("W2-MATERIALS {:?}", r.get()));

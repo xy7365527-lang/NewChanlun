@@ -1,0 +1,85 @@
+name: issue-1419 manifest33p diagnostic
+on:
+  push:
+    branches: [codex/1419-manifest33p]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  bounded2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CARGO_INCREMENTAL: "0"
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/rust-job-setup
+      - name: Format changed Rust files and retain patch
+        run: |
+          set -euo pipefail
+          mkdir -p ../bounded2-evidence
+          git diff --name-only c200ce2999e97596b8cd1f24d1873decb6fedbb3 HEAD -- '*.rs' | while read -r path; do
+            rustfmt --edition 2021 --config skip_children=true "../$path"
+          done
+          git diff -- '*.rs' > ../bounded2-evidence/rustfmt.patch
+      - name: Upload Linux formatting patch
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-1419-format-${{ github.sha }}
+          path: bounded2-evidence/rustfmt.patch
+          retention-days: 7
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: xy7365527-lang/NewChanlun
+          run-id: 41005347604
+          artifact-ids: 12958989023
+          path: bounded2-evidence/original-artifact
+          merge-multiple: true
+      - name: Prepare a diagnostic copy of exact32V pending state
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import tarfile, shutil
+          root = Path('../bounded2-evidence')
+          with tarfile.open(root/'original-artifact/w2-runtime.tgz') as archive:
+              archive.extractall(root/'extracted-original', filter='data')
+          original = root/'extracted-original/w2-runtime'
+          assert (original/'source-head.txt').read_text().strip() == 'ca887d965a8a30848c4521b5684ae2b046ca5698'
+          assert (original/'run-id.txt').read_text().strip() == '41005347604'
+          shutil.copytree(original/'a/w2.run', root/'pending-copy')
+          PY
+      - name: Single g77 manifest diagnostic
+        env:
+          W2_PENDING_COPY: ${{ github.workspace }}/bounded2-evidence/pending-copy/s.sqlite
+        run: |
+          set -euo pipefail
+          cargo test --locked --release --features s_session --bin s_structure_session --jobs 1 --no-run 2>&1 | tee ../bounded2-evidence/compile.log
+          uptime | tee ../bounded2-evidence/runner-load.log
+          nproc | tee -a ../bounded2-evidence/runner-load.log
+          failed=0
+          while read -r test; do
+            log="../bounded2-evidence/${test//::/_}.log"
+            if ! cargo test --locked --release --features s_session --bin s_structure_session --jobs 1 -- --ignored --exact "$test" --nocapture 2>&1 | tee "$log"; then failed=1; fi
+            if ! grep -F 'test result: ok. 1 passed;' "$log"; then failed=1; fi
+          done <<'TESTS'
+          v3::financial_session::tests::w2_pending_cost_probe
+          TESTS
+          exit "$failed"
+      - name: Require submitted source formatting
+        run: test ! -s ../bounded2-evidence/rustfmt.patch
+      - name: Upload exact evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-1419-manifest33p-${{ github.sha }}
+          path: |
+            bounded2-evidence/*.log
+            bounded2-evidence/rustfmt.patch
+            bounded2-evidence/pending-copy/
+          retention-days: 7

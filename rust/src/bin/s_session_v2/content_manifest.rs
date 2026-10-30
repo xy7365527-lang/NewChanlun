@@ -1474,6 +1474,106 @@ thread_local! { static ASSEMBLE_VERIFY_SQL_READS: std::cell::Cell<u64> = const {
 pub(crate) fn take_assemble_call_reads_for_test() -> Vec<(u64, u64)> {
     ASSEMBLE_CALL_READS.with(|calls| std::mem::take(&mut *calls.borrow_mut()))
 }
+#[cfg(test)]
+#[derive(serde::Serialize)]
+pub(crate) struct AssembleCost {
+    generation: i64,
+    success: bool,
+    phases: Vec<AssemblePhaseCost>,
+}
+#[cfg(test)]
+#[derive(serde::Serialize)]
+struct AssemblePhaseCost {
+    start: &'static str,
+    end: &'static str,
+    start_ns: u64,
+    end_ns: u64,
+    sql_reads: u64,
+    frame_calls: u64,
+}
+#[cfg(test)]
+thread_local! {
+    static ASSEMBLE_COSTS: std::cell::RefCell<Option<Vec<AssembleCost>>> = const { std::cell::RefCell::new(None) };
+}
+#[cfg(test)]
+pub(crate) fn begin_assemble_costs_for_test() {
+    ASSEMBLE_COSTS.with(|rows| *rows.borrow_mut() = Some(Vec::new()));
+}
+#[cfg(test)]
+pub(crate) fn take_assemble_costs_for_test() -> Vec<AssembleCost> {
+    ASSEMBLE_COSTS.with(|rows| rows.borrow_mut().take().unwrap_or_default())
+}
+#[cfg(test)]
+struct AssembleCostGuard {
+    active: bool,
+    started: std::time::Instant,
+    phase: &'static str,
+    start_ns: u64,
+    sql_reads: u64,
+    frame_calls: u64,
+    cost: AssembleCost,
+}
+#[cfg(test)]
+impl AssembleCostGuard {
+    fn new(generation: i64) -> Self {
+        Self {
+            active: ASSEMBLE_COSTS.with(|rows| rows.borrow().is_some()),
+            started: std::time::Instant::now(),
+            phase: "body_entry",
+            start_ns: 0,
+            sql_reads: super::content_store::sql_reads_on_thread(),
+            frame_calls: s_content::frame_calls_on_thread(),
+            cost: AssembleCost {
+                generation,
+                success: false,
+                phases: Vec::new(),
+            },
+        }
+    }
+    fn next(&mut self, end: &'static str) {
+        if !self.active {
+            return;
+        }
+        let end_ns = self.started.elapsed().as_nanos() as u64;
+        let sql_reads = super::content_store::sql_reads_on_thread();
+        let frame_calls = s_content::frame_calls_on_thread();
+        self.cost.phases.push(AssemblePhaseCost {
+            start: self.phase,
+            end,
+            start_ns: self.start_ns,
+            end_ns,
+            sql_reads: sql_reads - self.sql_reads,
+            frame_calls: frame_calls - self.frame_calls,
+        });
+        self.phase = end;
+        self.start_ns = end_ns;
+        self.sql_reads = sql_reads;
+        self.frame_calls = frame_calls;
+    }
+}
+#[cfg(test)]
+impl Drop for AssembleCostGuard {
+    fn drop(&mut self) {
+        if !self.active {
+            return;
+        }
+        self.next(if self.cost.success {
+            "body_success"
+        } else {
+            "body_error"
+        });
+        ASSEMBLE_COSTS.with(|rows| {
+            if let Some(rows) = rows.borrow_mut().as_mut() {
+                rows.push(AssembleCost {
+                    generation: self.cost.generation,
+                    success: self.cost.success,
+                    phases: std::mem::take(&mut self.cost.phases),
+                });
+            }
+        });
+    }
+}
+
 struct ManifestBody {
     value: Built,
     identity: NodeDigest,
@@ -1483,16 +1583,24 @@ fn assemble_manifest_body(
     metadata: MetadataView<'_>,
     roots: RootsView<'_>,
 ) -> Result<ManifestBody, CodecError> {
+    #[cfg(test)]
+    let mut measurement = AssembleCostGuard::new(metadata.generation);
     check_metadata_view(metadata)?;
     let generation = Decimal::new(metadata.generation);
     let frontier = Decimal::new(metadata.input_frontier);
     let attempt = Decimal::new(metadata.source_commit.attempt_index);
+    #[cfg(test)]
+    measurement.next("metadata_checked");
     // 同一次读集核完整闭包；路径算子只核触碰边界，不能替代这里的全闭包校验。
     #[cfg(test)]
     let sql = super::content_store::sql_reads_on_thread();
     store.verify_ref(metadata.scope, s_content::Mode::Public)?;
     require_kind(metadata.scope, Kind::Object, "scope")?;
+    #[cfg(test)]
+    measurement.next("scope_verified");
     store.verify_ref(roots.generated_state, s_content::Mode::Public)?;
+    #[cfg(test)]
+    measurement.next("generated_verified");
     store.verify_many_ref(
         [roots.publication_template, roots.delta_template],
         s_content::Mode::Template,
@@ -1500,11 +1608,15 @@ fn assemble_manifest_body(
     #[cfg(test)]
     ASSEMBLE_VERIFY_SQL_READS
         .with(|reads| reads.set(reads.get() + super::content_store::sql_reads_on_thread() - sql));
+    #[cfg(test)]
+    measurement.next("templates_verified");
     let generated_fields = exact_object(store, roots.generated_state, GENERATED_FIELDS, true)?;
     let publication_fields =
         exact_object(store, roots.publication_template, SNAPSHOT_FIELDS, false)?;
     let delta_fields = exact_object(store, roots.delta_template, DELTA_FIELDS, false)?;
 
+    #[cfg(test)]
+    measurement.next("fields_decoded");
     let generated = &generated_fields;
     let publication = &publication_fields;
     let delta = &delta_fields;
@@ -1610,6 +1722,8 @@ fn assemble_manifest_body(
             require_kind(field(store, root, key)?.view(), Kind::Array, key)?;
         }
     }
+    #[cfg(test)]
+    measurement.next("cross_root_checked");
     let source = &metadata.source_commit;
     let source_fields = [
         ("source_namespace", text(&source.source_namespace)),
@@ -1648,8 +1762,16 @@ fn assemble_manifest_body(
         ),
         ("delta_template", VV::Edge(roots.delta_template.digest()?)),
     ];
+    #[cfg(test)]
+    measurement.next("manifest_fields_ready");
     let value = store.write_template_view(VV::Object(&manifest_fields))?;
+    #[cfg(test)]
+    measurement.next("manifest_encoded");
     let identity = s_content::frame(0x21, &value.digest);
+    #[cfg(test)]
+    {
+        measurement.cost.success = true;
+    }
     Ok(ManifestBody { value, identity })
 }
 
