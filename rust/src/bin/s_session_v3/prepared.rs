@@ -120,6 +120,7 @@ impl<T: NodeStore> audit_store::CodecStore for BusinessTxStore<T> {
 pub(super) struct Runtime {
     /// 与 Driver 同一启动模式；不持 capture/审计结果，Owned 业务缓存按真实生命周期计费。
     mode: s_allocation::Mode,
+    audit_ledger: Option<audit_ledger::Ledger>,
     /// 生成链配置；生产与诊断由 Driver 显式区分。
     theta_config: ThetaConfig,
     binding: Option<Vec<String>>,
@@ -163,6 +164,7 @@ impl Runtime {
     pub(super) fn with_config(mode: s_allocation::Mode, theta_config: ThetaConfig) -> Self {
         Self {
             mode,
+            audit_ledger: None,
             theta_config,
             binding: None,
             generator: None,
@@ -243,6 +245,47 @@ impl Runtime {
         self.last_stage_report.as_ref()
     }
 
+    /// #1647 组件接口。完整折叠与 Δ 生产者由后续接线提供；不默认启用台账准入。
+    #[allow(dead_code)]
+    pub(super) fn install_audit_ledger(
+        &mut self,
+        ledger: audit_ledger::Ledger,
+    ) -> Result<(), String> {
+        if self.audit_ledger.is_some() {
+            return Err("AuditLedgerStale：同一 Runtime 不允许更换台账，须新建进程生命周期".into());
+        }
+        self.audit_ledger = Some(ledger);
+        Ok(())
+    }
+
+    #[allow(dead_code)]
+    pub(super) fn stage_audit_ledger(
+        &mut self,
+        token: &str,
+        delta: &audit_ledger::GenerationDelta,
+    ) -> Result<(), String> {
+        self.audit_ledger
+            .as_mut()
+            .ok_or("AuditLedgerStale：未安装台账")?
+            .stage(token, delta)
+    }
+
+    pub(super) fn commit_audit_ledger(&mut self) -> Result<(), String> {
+        match &mut self.audit_ledger {
+            Some(ledger) => ledger.content_committed(),
+            None => Ok(()),
+        }
+    }
+
+    pub(super) fn invalidate_audit_ledger(&mut self) -> bool {
+        if let Some(ledger) = &mut self.audit_ledger {
+            ledger.invalidate();
+            true
+        } else {
+            false
+        }
+    }
+
     pub(super) fn discard(&mut self) {
         if let Some(generator) = &mut self.generator {
             generator.discard_runtime_state();
@@ -283,10 +326,12 @@ impl Runtime {
             )?;
             tx.commit()
                 .map_err(|e| format!("PublicationInvalid：{e}"))?;
+            self.commit_audit_ledger()?;
             Ok(receipt)
         })();
         if result.is_err() {
             self.discard();
+            self.invalidate_audit_ledger();
         }
         result
     }
@@ -313,10 +358,12 @@ impl Runtime {
             )?;
             tx.commit()
                 .map_err(|e| format!("PublicationInvalid：{e}"))?;
+            self.commit_audit_ledger()?;
             Ok(receipt)
         })();
         if result.is_err() {
             self.discard();
+            self.invalidate_audit_ledger();
         }
         result
     }
@@ -426,6 +473,9 @@ impl Runtime {
         work: Option<&WorkScope>,
         #[cfg(feature = "s_incremental")] parent: Option<&super::audit_owner::PublicationScope<'_>>,
     ) -> Result<commit::CommitReceipt, String> {
+        if let Some(ledger) = &self.audit_ledger {
+            ledger.require_pending()?;
+        }
         #[cfg(feature = "s_incremental")]
         if let Some(parent) = parent {
             parent.check_transaction(tx)?;
@@ -474,6 +524,9 @@ impl Runtime {
                 #[cfg(feature = "s_incremental")]
                 parent,
             )?;
+            if let Some(ledger) = &mut self.audit_ledger {
+                ledger.bind(token, &prepared.metadata, &prepared.roots)?;
+            }
             #[cfg(test)]
             state::trace_stage("publish_borrowed", "-", prepared.metadata.generation);
             #[cfg(test)]
@@ -1644,6 +1697,59 @@ pub(crate) mod tests {
                 self.runtime.commit(tx, token, envelope)
             })
         }
+    }
+
+    /// 首组件测试只借真实 prepare 的根，不把合成台账事实当作来源/闭包证明。
+    pub(crate) fn p6_candidate() -> (
+        Fixture,
+        Value,
+        String,
+        ManifestMetadata,
+        content_manifest::ManifestRoots,
+    ) {
+        use content_manifest::ManifestRootSource;
+        let mut f = Fixture::new();
+        let (e, token) = f.accept_begin(1, ("p6", 0, 6, 12, 3, 7), 1);
+        let mut tx = f.conn.transaction().unwrap();
+        let prepared = f
+            .runtime
+            .prepare(
+                &mut tx,
+                &token,
+                &e,
+                None,
+                #[cfg(feature = "s_incremental")]
+                None,
+                #[cfg(feature = "s_incremental")]
+                None,
+                #[cfg(feature = "s_incremental")]
+                None,
+                #[cfg(feature = "s_incremental")]
+                None,
+                #[cfg(feature = "s_incremental")]
+                None,
+                None,
+                #[cfg(feature = "s_incremental")]
+                None,
+            )
+            .unwrap();
+        let copy = |v: sc::RefView<'_>| ContentRef {
+            format: v.format().to_owned(),
+            root: v.root().to_owned(),
+            kind: v.kind(),
+            extent: v.extent(),
+        };
+        let r = prepared.roots.view();
+        let roots = content_manifest::ManifestRoots {
+            generated_state: copy(r.generated_state),
+            publication_template: copy(r.publication_template),
+            delta_template: copy(r.delta_template),
+        };
+        let metadata = prepared.metadata.clone();
+        drop(prepared);
+        tx.rollback().unwrap();
+        f.runtime.discard();
+        (f, e, token, metadata, roots)
     }
 
     #[cfg(feature = "s_incremental")]

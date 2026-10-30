@@ -49,6 +49,7 @@ mod admission_private;
 mod admission_provider;
 pub(crate) mod audit_budget;
 mod audit_header;
+mod audit_ledger;
 pub(super) mod audit_owner;
 #[cfg(feature = "s_incremental")]
 pub(crate) mod audit_retention;

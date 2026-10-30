@@ -1,0 +1,24 @@
+name: P6 ledger component 35y
+on:
+  push:
+    branches: [codex/issue1647-p6-ledger35y]
+  workflow_dispatch:
+jobs:
+  ledger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CARGO_INCREMENTAL: '0'
+    defaults:
+      run:
+        working-directory: rust
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/rust-job-setup
+      - name: Ledger storage and real owner commit tests
+        run: cargo test --release --locked --features s_session,s_incremental --bin s_structure_session p6_ --jobs 4 -- --test-threads 1 --nocapture
+      - name: Existing publication rollback contracts
+        run: cargo test --release --locked --features s_session,s_incremental --bin s_structure_session sqlite_commit_failure --jobs 4 -- --test-threads 1
+      - name: Ordinary production build remains available
+        run: cargo check --locked --features s_session --bin s_structure_session --jobs 4
