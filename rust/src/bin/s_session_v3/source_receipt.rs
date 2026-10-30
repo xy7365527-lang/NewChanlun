@@ -259,11 +259,12 @@ mod tests {
         let parent = Arc::new(Parent(AtomicUsize::new(0)));
         CodecWork::new(parent.clone(), 8 * 1024 * 1024).unwrap().run(|work| {
             let mut store = ScopedStore { nodes: &mut nodes, work, reads: 0, expire_at_read: None };
+            let retained_before = parent.0.load(Ordering::SeqCst);
             let deadline = Instant::now() + Duration::from_secs(3);
             let source = audit_raw_receipt(&mut store, "request-a", 1, (&state).into(),
                 (&raw).into(), 0, tb02a::PROFILE, &rule, Some(deadline), None).unwrap();
             assert_eq!(source.deadline, Some(deadline));
-            assert!(work.snapshot().live > 0);
+            assert!(parent.0.load(Ordering::SeqCst) > retained_before);
             store.reads = 0;
             let failure = match boundary {
                 0 => {
@@ -291,6 +292,7 @@ mod tests {
             };
             assert!(failure.contains("VerifyDeadline"), "{failure}");
             assert_eq!(work.snapshot().live, 0);
+            assert_eq!(parent.0.load(Ordering::SeqCst), retained_before);
             Ok::<_, sc::CodecError>(())
         }).unwrap();
         assert_eq!(parent.0.load(Ordering::SeqCst), 0);
