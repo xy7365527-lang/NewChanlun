@@ -1006,6 +1006,8 @@ fn audit_core_fresh_with_policy(
                     source_cache.as_deref_mut(),
                     #[cfg(feature = "s_incremental")]
                     None,
+                    #[cfg(feature = "s_incremental")]
+                    false,
                 )
             };
         if let Some(session) = ordinary_source.as_mut() {
@@ -1099,6 +1101,7 @@ fn audit_one_cut_sources(
         &mut super::cross_request_source_cache::Trial<'_>,
     >,
     #[cfg(feature = "s_incremental")] owner_source: Option<&super::audit_owner::OwnerSourceCheck>,
+    #[cfg(feature = "s_incremental")] certified: bool,
 ) -> Result<(), String> {
     #[cfg(test)]
     trace_event("generated_sources", Some(cut.metadata.generation));
@@ -1107,7 +1110,11 @@ fn audit_one_cut_sources(
     // 5'. 真实源与生成对象配方逐代对拍；本层不重跑分类。
     #[cfg(feature = "s_incremental")]
     let cached_counts = match owner_source {
+        Some(source) if certified => Some(source.counts_for_cut(
+            cut.metadata.view(), cut.roots.generated_state.view(), prefix.len(), deadline,
+        )?),
         Some(source) => Some(source.counts_for(cut.roots.generated_state.view(), prefix.len())?),
+        None if certified => return Err(err("历史认证在线缺同请求来源收据")),
         None => source_cache
             .as_deref_mut()
             .and_then(|cache| cache.lookup(cut)),
@@ -1206,6 +1213,7 @@ struct HistoricalSourceFold<'a> {
     deadline: Option<std::time::Instant>,
     budget: Option<&'a dyn audit_budget::Budget>,
     owner_source: Option<&'a super::audit_owner::OwnerSourceCheck>,
+    certified_online: bool,
 }
 
 #[cfg(feature = "s_incremental")]
@@ -1223,6 +1231,7 @@ impl history::CutSourceVerifier for HistoricalSourceFold<'_> {
         audit_one_cut_sources(
             cut, self.raw, store, objects, sweep, &mut self.source,
             None, self.previous, self.deadline, self.budget, None, self.owner_source,
+            self.certified_online,
         )?;
         history::check_deadline(self.deadline)?;
         self.generation = cut.metadata.generation;
@@ -1277,6 +1286,7 @@ impl HistoricalCertificate {
             deadline,
             budget,
             owner_source: None,
+            certified_online: false,
         };
         let indexed = history::fold_certified_history(
             tx, raw.view(), control, &capture, work, deadline, budget, &mut sources,
@@ -3010,6 +3020,11 @@ mod owner_retention {
     }
 }
 
+#[cfg(all(test, feature = "s_incremental"))]
+thread_local! {
+    pub(super) static H1_DROP_SOURCE_RECEIPT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
 #[cfg(feature = "s_incremental")]
 impl AuditedState {
     pub(super) fn append_owner_cut(
@@ -3027,8 +3042,15 @@ impl AuditedState {
         source_check: Option<&super::audit_owner::OwnerSourceCheck>,
     ) -> Result<(Self, super::audit_retention::RetainedDelta), super::audit_owner::native::Failure>
     {
-        if self.certification.is_some() {
-            return Err(err("历史认证在线来源收据尚未接入").into());
+        #[cfg(test)]
+        let source_check = if H1_DROP_SOURCE_RECEIPT.with(|flag| flag.replace(false)) {
+            None
+        } else {
+            source_check
+        };
+        let certified = self.certification.is_some();
+        if certified && source_check.is_none() {
+            return Err(err("历史认证在线缺同请求来源收据").into());
         }
         let mut retained = super::audit_retention::RetainedDelta::default();
         let historical = match self.historical {
@@ -3066,6 +3088,7 @@ impl AuditedState {
             deadline: None,
             budget: None,
             owner_source: source_check,
+            certified_online: certified,
         };
         let (updated, history_delta) = history::append_owner_cut(
             tx,
@@ -3097,6 +3120,13 @@ impl AuditedState {
         let cut = updated.cuts.last().ok_or_else(|| err("缺新 C_h"))?;
         let axes = field(&mut store, &cut.roots.generated_state, "catalog_axes")?;
         catalog_evidence::verify_current_for_audit(tx, &mut store, &axes)?;
+        if certified {
+            source_check.ok_or_else(|| err("历史认证在线缺同请求来源收据"))?
+                .counts_for_cut(
+                    cut.metadata.view(), cut.roots.generated_state.view(),
+                    usize::try_from(cut.metadata.input_frontier + 1).map_err(err)?, None,
+                )?;
+        }
         #[cfg(test)]
         trace_event("owner_suffix_complete", Some(g));
         let raw_sources = sources.source.take().map(|source| source.into_raw_facts_retained(&mut retained));

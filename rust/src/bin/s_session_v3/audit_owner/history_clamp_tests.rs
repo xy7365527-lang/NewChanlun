@@ -257,14 +257,7 @@ fn h1_missing_commit_receipt_retires_after_real_commit() {
 }
 
 
-#[test]
-fn h1_certified_online_without_source_receipt_rejects_without_full_fallback() {
-    let f = fixture();
-    let owner = h1_owner(&f);
-    let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
-    let mut c = context();
-    let envelope = b2_envelope(2);
-    let token = b2_accept_begin(&owner, &envelope, &mut c);
+fn h1_install_cold_certificate(owner: &AuditConnection) {
     let active = owner.begin(TransactionBehavior::Deferred).unwrap();
     let native = owner.complete_budget_for_test();
     let cert = native.codec_work().unwrap().run(|scope| {
@@ -279,12 +272,75 @@ fn h1_certified_online_without_source_receipt_rejects_without_full_fallback() {
     candidate.audited = audited;
     drop(complete);
     active.read_end().unwrap();
+}
+
+#[test]
+fn h1_certified_online_consumes_source_receipt_and_matches_cold() {
+    use super::super::history::tests::LAYOUT_MULTICUT_INPUTS;
+    use super::super::prepared::tests::{runtime_root_tables, Fixture};
+    let bounded_rule = format!("{}+bounded-layout/1", crate::V3_RULE_REVISION);
+    for rule in [crate::V3_RULE_REVISION, bounded_rule.as_str()] {
+        let mut f = Fixture::with_rule(rule);
+        let mut ordinary = Fixture::with_rule(rule);
+        let (n, row, revision) = LAYOUT_MULTICUT_INPUTS[0];
+        let (envelope, token) = f.accept_begin(n, row, revision);
+        f.publish(&envelope, &token).unwrap();
+        let (envelope, token) = ordinary.accept_begin(n, row, revision);
+        ordinary.publish(&envelope, &token).unwrap();
+        super::super::with_test_writer_rule(Some(rule), || {
+            let owner = h1_owner(&f);
+            let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
+            let mut c = context();
+            construction_set::with_source_context_negatives_for_test(|| {
+                for (n, row, revision) in LAYOUT_MULTICUT_INPUTS.into_iter().skip(1) {
+                    let (envelope, plain_token) = ordinary.accept_begin(n, row, revision);
+                    let token = b2_accept_begin(&owner, &envelope, &mut c);
+                    if n == 2 { h1_install_cold_certificate(&owner); }
+                    h1_compare_complete_history(&owner);
+                    source_audit::reset_source_call_stats();
+                    let (result, events, _) = state::traced(false, || {
+                        owner.publish(&mut runtime, &token, &envelope, &mut c)
+                    });
+                    let (receipt, ended) = result.unwrap();
+                    assert_eq!(receipt.generation, n);
+                    assert_eq!(source_audit::source_call_stats(), source_audit::SourceCallStats::default(),
+                        "认证在线不得完整来源重审");
+                    assert!(events.iter().any(|e| e["phase"] == "h1_certified_cut" && e["generation"] == n));
+                    owner.continue_with(ended).unwrap();
+                    h1_compare_complete_history(&owner);
+                    let expected = ordinary.publish(&envelope, &plain_token).unwrap();
+                    assert_eq!(receipt.snapshot, expected.snapshot);
+                    assert_eq!(receipt.delta, expected.delta);
+                    assert_eq!(runtime_root_tables(&f.conn, true), runtime_root_tables(&ordinary.conn, true));
+                    assert!(!owner.retired.get());
+                }
+            });
+        });
+    }
+}
+
+#[test]
+fn h1_certified_online_without_source_receipt_rejects_without_full_fallback() {
+    let f = fixture();
+    let owner = h1_owner(&f);
+    let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
+    let mut c = context();
+    let envelope = b2_envelope(2);
+    let token = b2_accept_begin(&owner, &envelope, &mut c);
+    h1_install_cold_certificate(&owner);
+    let native = owner.complete_budget_for_test();
+    state::H1_DROP_SOURCE_RECEIPT.with(|flag| flag.set(true));
+    source_audit::reset_source_call_stats();
     let (result, events, _) = state::traced(false, || {
         owner.publish(&mut runtime, &token, &envelope, &mut c)
     });
-    let error = result.err().expect("未接可信来源收据不得签历史资格");
-    assert!(error.contains("历史认证在线来源收据尚未接入"), "{error}");
+    let error = result.err().expect("缺可信来源收据不得签历史资格");
+    assert!(error.contains("历史认证在线缺同请求来源收据"), "{error}");
+    assert_eq!(source_audit::source_call_stats(), source_audit::SourceCallStats::default());
     assert!(!events.iter().any(|e| e["phase"] == "h1_certified_cut"));
     assert_eq!(meta_i64(&f.conn, "generation").unwrap(), 1);
     assert!(owner.retired.get());
+    assert!(owner.connection.is_autocommit());
+    assert_eq!(owner.complete_retained_bytes(), 0);
+    assert_eq!(native.scratch_observation().0, 0);
 }
