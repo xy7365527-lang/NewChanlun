@@ -5912,6 +5912,37 @@ pub(super) mod tests {
             .clone()
     }
 
+    fn cross_layout_subject_key(object: &Value) -> Value {
+        let kind = object["kind"].as_str().expect("主体 kind 必须是文本");
+        if kind == CC006_SHAPE_KIND {
+            let mut key = serde_json::Map::new();
+            for field in [
+                "kind",
+                "object_revision",
+                "window_start",
+                "window_mid",
+                "window_end",
+                "branch",
+                "dir_ab",
+                "dir_bc",
+                "comparisons_json",
+                "input_refs_json",
+                "source_coords_json",
+            ] {
+                let value = object.get(field).expect("CC006 主体语义字段缺失");
+                assert!(!value.is_null(), "CC006 主体语义字段 {field} 不可为空");
+                key.insert(field.to_string(), value.clone());
+            }
+            Value::Object(key)
+        } else {
+            let fact_key = object["fact_key"]
+                .as_str()
+                .expect("typed 主体须有 fact_key");
+            assert!(!fact_key.is_empty(), "typed 主体 fact_key 不可为空");
+            json!([kind, fact_key])
+        }
+    }
+
     /// crosswalk（ADR 0037 §八，§5.8 形式）在同一代上逐项核：分型对象去 `subsequent_development`
     /// 后逐字段相等；每个分型每个单元在对应 bar 的批记录里恰有一项，单元逐值相等、development
     /// 即 layout/1 载荷 `bars` 的同长前缀；单元总数相等；CC-054 请求 = layout/1 请求去掉
@@ -6177,7 +6208,7 @@ pub(super) mod tests {
                     .filter(|o| o["object_id"] == id)
                     .collect();
                 assert_eq!(matches.len(), 1);
-                result["subject_id"] = json!([matches[0]["kind"], matches[0]["fact_key"]]);
+                result["subject_id"] = cross_layout_subject_key(matches[0]);
             }
             result
         };
@@ -6249,7 +6280,7 @@ pub(super) mod tests {
                         .as_array()
                         .unwrap()
                         .iter()
-                        .filter(|o| o["kind"] == old["kind"] && o["fact_key"] == old["fact_key"])
+                        .filter(|o| cross_layout_subject_key(o) == cross_layout_subject_key(old))
                         .collect();
                     assert_eq!(found.len(), 1);
                     request["subject_id"] = found[0]["object_id"].clone();
@@ -6937,13 +6968,27 @@ pub(super) mod tests {
         }
         assert_eq!(generations, 25, "覆盖原 long 14、revision 8、realrule 3 代");
         let mut bounded2_generations = 0;
+        let mut crosswalk_subject_kinds = std::collections::BTreeSet::new();
         for (_tag, events, cuts, _historical_rule) in a7_groups() {
             for (i, (sorted, bounded)) in bounded2_layout_runs(&events, &cuts).iter().enumerate() {
+                for request in requests_of(bounded) {
+                    if let Some(id) = request["subject_id"].as_str() {
+                        let subject = bounded["objects"]
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .find(|o| o["object_id"] == id)
+                            .unwrap();
+                        crosswalk_subject_kinds
+                            .insert(subject["kind"].as_str().unwrap().to_string());
+                    }
+                }
                 assert_bounded2_crosswalk(i + 1, sorted, bounded, &events[..cuts[i]]);
                 bounded2_generations += 1;
             }
         }
         assert_eq!(bounded2_generations, 25);
+        eprintln!("V6 crosswalk subject kinds {crosswalk_subject_kinds:?}");
 
         assert!(
             undetermined && established,
@@ -7036,21 +7081,40 @@ pub(super) mod tests {
         let shapes = objects_of(&bounded, CC006_SHAPE_KIND);
         assert!(shapes.len() >= 2);
         assert!(shapes.iter().all(|o| o.get("fact_key").is_none()));
+        let window = |shape: &Value| {
+            json!([shape["window_start"], shape["window_mid"], shape["window_end"]])
+        };
+        assert_ne!(window(&shapes[0]), window(&shapes[1]));
         eprintln!("CC006 subject counterexample {}", json!(shapes));
         let subjects: std::collections::BTreeSet<_> = requests_of(&bounded)
             .iter()
             .filter_map(|r| r["subject_id"].as_str().map(str::to_string))
             .collect();
-        let kinds: std::collections::BTreeSet<_> = bounded["objects"].as_array().unwrap()
-            .iter().filter(|o| subjects.contains(o["object_id"].as_str().unwrap()))
-            .map(|o| o["kind"].as_str().unwrap().to_string()).collect();
+        let kinds: std::collections::BTreeSet<_> = bounded["objects"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|o| subjects.contains(o["object_id"].as_str().unwrap()))
+            .map(|o| o["kind"].as_str().unwrap().to_string())
+            .collect();
         eprintln!("crosswalk subject kinds {kinds:?}");
         assert_bounded2_crosswalk(1, &sorted, &bounded, &events);
-        for mutation in ["shape_subject", "non_w_axes", "non_w_coords", "fractal_refs", "fractal_coords", "fractal_lifecycle"] {
+        for mutation in [
+            "shape_subject",
+            "non_w_axes",
+            "non_w_coords",
+            "fractal_refs",
+            "fractal_coords",
+            "fractal_lifecycle",
+        ] {
             let mut changed = bounded.clone();
             if mutation.starts_with("fractal_") {
-                let object = changed["objects"].as_array_mut().unwrap().iter_mut()
-                    .find(|o| o["kind"] == CC007_FRACTAL_KIND).unwrap();
+                let object = changed["objects"]
+                    .as_array_mut()
+                    .unwrap()
+                    .iter_mut()
+                    .find(|o| o["kind"] == CC007_FRACTAL_KIND)
+                    .unwrap();
                 match mutation {
                     "fractal_refs" => object["input_refs_json"] = json!("[]"),
                     "fractal_coords" => object["source_coords_json"] = json!("[]"),
@@ -7058,11 +7122,20 @@ pub(super) mod tests {
                     _ => unreachable!(),
                 }
             } else {
-                let knowledge = changed["objects"].as_array_mut().unwrap().iter_mut()
-                    .find(|o| o["kind"] == CC054_KNOWLEDGE_KIND).unwrap();
-                let mut payload: Value = serde_json::from_str(knowledge["payload_json"].as_str().unwrap()).unwrap();
-                let request = payload["requests"].as_array_mut().unwrap().iter_mut()
-                    .find(|r| r["subject_id"] == shapes[0]["object_id"]).unwrap();
+                let knowledge = changed["objects"]
+                    .as_array_mut()
+                    .unwrap()
+                    .iter_mut()
+                    .find(|o| o["kind"] == CC054_KNOWLEDGE_KIND)
+                    .unwrap();
+                let mut payload: Value =
+                    serde_json::from_str(knowledge["payload_json"].as_str().unwrap()).unwrap();
+                let request = payload["requests"]
+                    .as_array_mut()
+                    .unwrap()
+                    .iter_mut()
+                    .find(|r| r["subject_id"] == shapes[0]["object_id"])
+                    .unwrap();
                 match mutation {
                     "shape_subject" => request["subject_id"] = shapes[1]["object_id"].clone(),
                     "non_w_axes" => request["axes"]["validity"] = json!("STALE"),
@@ -7071,9 +7144,14 @@ pub(super) mod tests {
                 }
                 knowledge["payload_json"] = json!(crate::canonical_json(&payload));
             }
-            assert!(std::panic::catch_unwind(|| {
-                assert_bounded2_crosswalk(1, &sorted, &changed, &events);
-            }).is_err(), "{mutation} 必须被完整比较拒绝");
+            assert_ne!(changed, bounded, "{mutation} 必须实际改变夹具");
+            assert!(
+                std::panic::catch_unwind(|| {
+                    assert_bounded2_crosswalk(1, &sorted, &changed, &events);
+                })
+                .is_err(),
+                "{mutation} 必须被完整比较拒绝"
+            );
             eprintln!("crosswalk rejected {mutation}");
         }
     }

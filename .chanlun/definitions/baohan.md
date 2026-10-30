@@ -205,7 +205,7 @@ W/1原106代兼容、W/2两独立进程106代、逐断言迁移、消费者验�
 | Rust生成 | `rust/src/bin/s_session_v2/content_producer.rs:903–944,2244–2246,2325–2350` | #1419复用bind_source登记根，/2单元仅增source_ref，/1原编码保留 |
 | Rust审计 | `rust/src/bin/s_session_v3/source_audit.rs:1811–1876,2046`、`s_session_v3/source_audit_oracle.rs:217,617–666` | 正式审计与独立冻结oracle各自核batch当前unit及完整development前缀的五字段bar、24关系数、同cut完整八字段源边 |
 | Rust索引 | `rust/src/bin/s_session_v3/object_index.rs:1477–1498,1501–1620` | 同规则绑定的独立计划逐原件替代；单元源边经typed不可变身份进入索引，IdentityConflict及撤回拒复活门不改 |
-| Rust行为锁 | `rust/src/bin/s_session_v3/mod.rs:1036`、`source_audit.rs:2675`、`pending_source_tests.rs:103–139,168,305`、`generation.rs:5721,5771,5920,6296,6898,6961` | 三具名/2锁、原V6三锁与25代新/2臂；分型与CC054完整记录仅按布局差异规范化，全部请求五字段与唯一主体绑定；原三pending_source用独立serde配方、目录oracle、0x07文本边推完整内容及根 |
+| Rust行为锁 | `rust/src/bin/s_session_v3/mod.rs:1036`、`source_audit.rs:2675`、`pending_source_tests.rs:103–139,168,305`、`generation.rs:5721,5771,5915,5951,6327,6929,7006,7078` | 三具名/2锁、原V6三锁与25代新/2臂；分型与CC054完整记录仅按布局差异规范化，全部请求五字段与唯一主体绑定，CC006以完整三坐标窗口、形态及来源字段对齐，typed主体须有非空fact_key；非W换窗、axes/坐标及分型来源/坐标/生命周期负控；原三pending_source用独立serde配方、目录oracle、0x07文本边推完整内容及根 |
 | Python | `s_session/s_tb02_contract.py:60–78,305`；`s_session/tests/test_tb01c_s3_formal_dynamic.py` | #1768历史表仅s-session/1，不加入S3串；正式S3臂通过Controller.start_q与socket decode_frame/validate_reply消费，原双臂义务不变 |
 | JS | `s_session/browser/q3-typed.js:31–80,243–253,791–820`；`s_session/tests/build_tb01c_browser.cjs:6–17,39–44` | #1789承接精确表、unit exact、同坐标八字段source_ref、三跳绑定及生成tb01c-client.js bundle |
 | Lean | `formal/Origin/RawInclusionInitialization.lean:4–9` | 初始化几何不变；本次仅S持久身份与布局，Lean无受影响定义 |
