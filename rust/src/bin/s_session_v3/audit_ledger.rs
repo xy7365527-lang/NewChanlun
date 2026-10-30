@@ -145,7 +145,7 @@ impl Ledger {
         let content_path = content_path.canonicalize().map_err(error)?;
         let remaining = max_store_bytes.checked_sub(database_bytes(&content_path)?)
             .ok_or_else(||error("内容库已超过 max_store_bytes"))?;
-        let pages = remaining / 4096;
+        let pages = i64::try_from(remaining / 4096).map_err(error)?;
         if pages == 0 { return Err(error("没有台账页空间")); }
         std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600)
             .open(path).map_err(error)?;
