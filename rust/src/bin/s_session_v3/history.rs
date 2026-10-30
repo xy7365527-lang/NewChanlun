@@ -378,6 +378,7 @@ pub(super) fn read_indexed_history(
         None,
         None,
         SourcePolicy::Ordinary,
+        false,
     )
 }
 
@@ -406,6 +407,7 @@ pub(super) fn read_indexed_history_for_audit(
         None,
         None,
         SourcePolicy::Ordinary,
+        false,
     )
 }
 
@@ -544,6 +546,7 @@ pub(super) fn read_indexed_history_with_policy<'a>(
         work,
         materials,
         policy,
+        false,
     );
     if result.is_err() {
         if let Some(records) = records {
@@ -571,6 +574,7 @@ pub(super) struct VerifiedPublicHistory<'scope, 'tx> {
     history: IndexedHistory,
     transaction: &'scope Transaction<'tx>,
     qualified: bool,
+    materials: Option<std::cell::RefCell<super::ordinary_materials::OrdinaryAuditMaterials>>,
 }
 impl<'scope, 'tx> VerifiedPublicHistory<'scope, 'tx> {
     pub(super) fn history(&self) -> &IndexedHistory { &self.history }
@@ -594,8 +598,14 @@ impl<'scope, 'tx> VerifiedPublicHistory<'scope, 'tx> {
         {
             return Err(err("Public覆盖事务/cut绑定不符"));
         }
-        let mut source = content_store::ReadStore::new(tx).map_err(err)?;
-        let mut reader = HashReader::metered(&mut source, deadline, max, budget);
+        let mut source = Some(content_store::ReadStore::new(tx).map_err(err)?);
+        let mut pool = self.materials.as_ref().map(std::cell::RefCell::borrow_mut);
+        let mut material_source = pool.as_mut().map(|pool| pool.source(source.take().unwrap()));
+        let source: &mut dyn NodeSource = match material_source.as_mut() {
+            Some(source) => source,
+            None => source.as_mut().unwrap(),
+        };
+        let mut reader = HashReader::metered(source, deadline, max, budget);
         reader.history_public_roots = Some([
             cut.roots.generated_state.view().digest().map_err(err)?,
             cut.delta.view().digest().map_err(err)?,
@@ -645,11 +655,22 @@ pub(super) fn read_verified_public_history<'scope, 'tx, 'raw>(
     let qualified = policy == SourcePolicy::Ordinary && capture.is_none()
         && work.is_none() && materials.is_none()
         && tx.is_readonly(rusqlite::MAIN_DB).map_err(err)?;
-    let history = read_indexed_history_with_policy(
-        tx, raw, control, deadline, max_render_bytes, budget,
-        capture, records, work, materials, policy,
-    )?;
-    Ok(VerifiedPublicHistory { history, transaction: tx, qualified })
+    let mut originals = (qualified && records.is_none() && ordinary_proofs_enabled())
+        .then(|| super::ordinary_materials::OrdinaryAuditMaterials::for_readonly_history(tx))
+        .transpose().map_err(err)?;
+    let history = if let Some(pool) = originals.as_mut() {
+        read_indexed_history_inner(
+            tx, raw.into(), control, deadline, max_render_bytes, budget,
+            budget.is_none(), None, None, None, Some(pool), policy, true,
+        )?
+    } else {
+        read_indexed_history_with_policy(
+            tx, raw, control, deadline, max_render_bytes, budget,
+            capture, records, work, materials, policy,
+        )?
+    };
+    Ok(VerifiedPublicHistory { history, transaction: tx, qualified,
+        materials: originals.map(std::cell::RefCell::new) })
 }
 
 struct VerifiedObjectOriginals<'a, 'tx> {
@@ -737,6 +758,7 @@ fn read_indexed_history_inner(
     work: Option<&sc::capture_allocation::scratch::WorkScope>,
     materials: Option<&mut super::ordinary_materials::OrdinaryAuditMaterials>,
     policy: SourcePolicy,
+    sealed_ordinary_materials: bool,
 ) -> Result<IndexedHistory, String> {
     check_deadline(deadline)?;
     #[cfg(feature = "s_incremental")]
@@ -748,7 +770,8 @@ fn read_indexed_history_inner(
     #[cfg(not(feature = "s_incremental"))]
     verify_required_meta(tx)?;
     let bound_births_qualified = policy == SourcePolicy::Ordinary
-        && capture.is_none() && work.is_none() && materials.is_none()
+        && capture.is_none() && work.is_none()
+        && (materials.is_none() || sealed_ordinary_materials)
         && tx.is_readonly(rusqlite::MAIN_DB).map_err(err)?;
     let mut reader = content_store::ReadStore::new(tx).map_err(err)?;
     if audit_same_material {

@@ -7334,7 +7334,14 @@ mod tests {
             let oracle_stats = super::super::source_audit::ordinary_proof_stats();
             assert_eq!((oracle_stats.hits, oracle_stats.executions), (0, 0));
             super::admission_private::s4_read_trace::enable();
+            super::super::ordinary_materials::LAST_REPORT.with(|r| r.set(None));
+            let sql_before = content_store::sql_reads_on_thread();
             let mut actual = new.open("1").unwrap();
+            let actual_sql_reads = content_store::sql_reads_on_thread() - sql_before;
+            let material = super::super::ordinary_materials::LAST_REPORT.with(|r| r.get()).expect("new ordinary entry owns originals");
+            assert!(material.retained_capacity_highwater <= super::super::ordinary_materials::CAP);
+            if index > 0 { assert!(material.material_hits > 0); }
+            eprintln!("ORDINARY_MATERIAL_MULTICUT cut={index} sql_reads={actual_sql_reads} {material:?}");
             assert_eq!(super::super::layout::Layout::of_library(&actual.conn).unwrap(), super::super::layout::Layout::Sorted);
             let coverage = super::admission_private::s4_read_trace::finish();
             assert_eq!(coverage, [index as u64, index as u64 * 3], "{}", step.kind);

@@ -19,6 +19,9 @@ jobs:
       - name: Build release test
         id: build
         run: cargo test --release --locked --features s_session,s_incremental --no-run --bin s_structure_session --jobs 4
+      - name: Check bounded ordinary original reuse
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: cargo test --release --locked --features s_session,s_incremental --bin s_structure_session ordinary_material -- --test-threads 1 --nocapture
       - name: Check ordinary owner
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: cargo test --release --locked --features s_session,s_incremental --bin s_structure_session ordinary_proof_owner_ -- --test-threads 1 --nocapture
