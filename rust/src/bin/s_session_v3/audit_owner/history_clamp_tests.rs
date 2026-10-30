@@ -124,6 +124,9 @@ fn h1_compare_complete_history(owner: &AuditConnection) {
     // 全量原件oracle只在测试中调用；保留全部Native语义事实，不降成fingerprint。
     let cold = state::audit_native_current(active.tx()).unwrap();
     let expected = cold.h1_canonical();
+    let folded = state::HistoricalCertificate::cold(active.tx(), None, None, None).unwrap();
+    assert_eq!(folded.historical().h1_canonical(), expected);
+    drop(folded);
     if online != expected {
         let first = online.bytes().zip(expected.bytes()).position(|(a,b)|a!=b).unwrap_or(online.len().min(expected.len()));
         panic!("完整历史规范输出不同：byte={first}, online={}, cold={}",
@@ -253,45 +256,35 @@ fn h1_missing_commit_receipt_retires_after_real_commit() {
     h1_assert_stale(&owner);
 }
 
+
 #[test]
-fn h1_certified_cold_seed_and_real_online_use_same_cut_kernel() {
+fn h1_certified_online_without_source_receipt_rejects_without_full_fallback() {
     let f = fixture();
     let owner = h1_owner(&f);
     let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
     let mut c = context();
-    for n in 2..=3 {
-        let envelope = b2_envelope(n);
-        let token = b2_accept_begin(&owner, &envelope, &mut c);
-        if n == 2 {
-            let active = owner.begin(TransactionBehavior::Deferred).unwrap();
-            let native = owner.complete_budget_for_test();
-            let cert = native.codec_work().unwrap().run(|scope| {
-                state::HistoricalCertificate::cold(active.tx(), None, None, Some(scope))
-            }).unwrap();
-            let audited = cert.into_audited();
-            let mut complete = owner.complete.borrow_mut();
-            let candidate = complete.as_mut().unwrap();
-            assert_eq!(candidate.audited.h1_canonical(), audited.h1_canonical());
-            candidate.charge.historical_and_raw_capacity =
-                crate::v3::audit_retention::Retained::heap_bytes(&audited);
-            candidate.audited = audited;
-            drop(complete);
-            active.read_end().unwrap();
-        }
-        let (result, events, _) = state::traced(false, || {
-            owner.publish(&mut runtime, &token, &envelope, &mut c)
-        });
-        let (receipt, ended) = result.unwrap();
-        assert_eq!(receipt.generation, n);
-        owner.continue_with(ended).unwrap();
-        assert_eq!(events.iter().filter(|e| e["phase"] == "h1_certified_cut").count(), 1);
-        assert!(events.iter().any(|e| e["phase"] == "h1_certified_cut" && e["generation"] == n));
-        h1_compare_complete_history(&owner);
-        let active = owner.begin(TransactionBehavior::Deferred).unwrap();
-        let cold = state::HistoricalCertificate::cold(active.tx(), None, None, None).unwrap();
-        assert_eq!(owner.complete.borrow().as_ref().unwrap().audited.h1_canonical(),
-            cold.historical().h1_canonical());
-        drop(cold);
-        active.read_end().unwrap();
-    }
+    let envelope = b2_envelope(2);
+    let token = b2_accept_begin(&owner, &envelope, &mut c);
+    let active = owner.begin(TransactionBehavior::Deferred).unwrap();
+    let native = owner.complete_budget_for_test();
+    let cert = native.codec_work().unwrap().run(|scope| {
+        state::HistoricalCertificate::cold(active.tx(), None, None, Some(scope))
+    }).unwrap();
+    let audited = cert.into_audited();
+    let mut complete = owner.complete.borrow_mut();
+    let candidate = complete.as_mut().unwrap();
+    assert_eq!(candidate.audited.h1_canonical(), audited.h1_canonical());
+    candidate.charge.historical_and_raw_capacity =
+        crate::v3::audit_retention::Retained::heap_bytes(&audited);
+    candidate.audited = audited;
+    drop(complete);
+    active.read_end().unwrap();
+    let (result, events, _) = state::traced(false, || {
+        owner.publish(&mut runtime, &token, &envelope, &mut c)
+    });
+    let error = result.err().expect("未接可信来源收据不得签历史资格");
+    assert!(error.contains("历史认证在线来源收据尚未接入"), "{error}");
+    assert!(!events.iter().any(|e| e["phase"] == "h1_certified_cut"));
+    assert_eq!(meta_i64(&f.conn, "generation").unwrap(), 1);
+    assert!(owner.retired.get());
 }

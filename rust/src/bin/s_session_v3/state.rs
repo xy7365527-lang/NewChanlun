@@ -1197,7 +1197,6 @@ fn audit_one_cut_sources(
     Ok(())
 }
 
-
 #[cfg(feature = "s_incremental")]
 struct HistoricalSourceFold<'a> {
     raw: super::business_json::RawEventsView<'a>,
@@ -1293,7 +1292,8 @@ impl HistoricalCertificate {
             catalog_evidence::verify_current_for_audit(tx, &mut store, &axes)?;
         }
         history::check_deadline(deadline)?;
-        let raw_sources = sources.source.map(source_audit::NativeSourceAudit::into_raw_facts);
+        let raw_sources = sources.source.take().map(source_audit::NativeSourceAudit::into_raw_facts);
+        drop(sources);
         let history::IndexedHistory {
             control_facts, raw_prefixes, auxiliary_facts, cuts, objects,
             auxiliary, object_sweep,
@@ -3027,6 +3027,9 @@ impl AuditedState {
         source_check: Option<&super::audit_owner::OwnerSourceCheck>,
     ) -> Result<(Self, super::audit_retention::RetainedDelta), super::audit_owner::native::Failure>
     {
+        if self.certification.is_some() {
+            return Err(err("历史认证在线来源收据尚未接入").into());
+        }
         let mut retained = super::audit_retention::RetainedDelta::default();
         let historical = match self.historical {
             HistoricalOwner::Unique(v) => v,
@@ -3062,7 +3065,7 @@ impl AuditedState {
             previous,
             deadline: None,
             budget: None,
-            owner_source: if self.certification.is_some() { None } else { source_check },
+            owner_source: source_check,
         };
         let (updated, history_delta) = history::append_owner_cut(
             tx,
@@ -3096,7 +3099,8 @@ impl AuditedState {
         catalog_evidence::verify_current_for_audit(tx, &mut store, &axes)?;
         #[cfg(test)]
         trace_event("owner_suffix_complete", Some(g));
-        let raw_sources = sources.source.map(|source| source.into_raw_facts_retained(&mut retained));
+        let raw_sources = sources.source.take().map(|source| source.into_raw_facts_retained(&mut retained));
+        drop(sources);
         Ok((
             Self {
                 raw: self.raw,
