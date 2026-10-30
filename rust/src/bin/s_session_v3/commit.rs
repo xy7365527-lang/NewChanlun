@@ -375,7 +375,7 @@ fn small_field(
             .map_err(publish_err)?;
     let mut bytes = Vec::new();
     sc::render_canonical(store, &reference, &mut bytes).map_err(publish_err)?;
-    strict_json(&bytes)
+    strict_json(&bytes).map_err(Into::into)
 }
 
 #[cfg(test)]

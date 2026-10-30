@@ -434,19 +434,19 @@ impl Runtime {
         if work.is_some() {
             #[cfg(feature = "s_incremental")]
             if !matches!(self.mode, s_allocation::Mode::CapturedNative) {
-                return Err(("PublicationInvalid：Native工作域不能覆盖Owned或普通模式".into()).into());
+                return Err("PublicationInvalid：Native工作域不能覆盖Owned或普通模式".into());
             }
             #[cfg(not(feature = "s_incremental"))]
-            return Err(("PublicationInvalid：Native工作域需要相应feature".into()).into());
+            return Err("PublicationInvalid：Native工作域需要相应feature".into());
         }
         #[cfg(all(test, feature = "s_incremental"))]
         if work.is_some() && self.stage_new_nodes && parent.is_none() {
-            return Err(("PublicationInvalid：staged发布工作域尚未接入，不能丢弃父scope".into()).into());
+            return Err("PublicationInvalid：staged发布工作域尚未接入，不能丢弃父scope".into());
         }
         #[cfg(all(test, feature = "s_incremental"))]
         let stage = if self.stage_new_nodes {
             if !matches!(self.mode, s_allocation::Mode::CapturedNative) {
-                return Err(("TestOnly staging只允许Native".into()).into());
+                return Err("TestOnly staging只允许Native".into());
             }
             Some(match parent {
                 Some(parent) => staged_nodes::StageOwner::new_admitted(tx, parent)?,
@@ -455,7 +455,7 @@ impl Runtime {
         } else {
             None
         };
-        let result = (|| {
+        let result: Result<_, PublishError> = (|| {
             let prepared = self.prepare(
                 tx,
                 token,
@@ -495,7 +495,7 @@ impl Runtime {
                     match &mut roots {
                         PublicationRuntimeRoots::Plain(v) => v.push(digest),
                         PublicationRuntimeRoots::Admitted(v) => {
-                            if let Err((e).into()) = v.try_push(digest) {
+                            if let Err(e) = v.try_push(digest) {
                                 failed = Some(e);
                             }
                         }
@@ -519,7 +519,7 @@ impl Runtime {
                     roots.as_slice(),
                     prepared.workspace,
                     work,
-                );
+                ).map_err(Into::into);
             }
             #[cfg(feature = "s_incremental")]
             return commit::publish_borrowed_with_workspace_admitted(
@@ -540,7 +540,7 @@ impl Runtime {
                 &prepared.roots,
                 &prepared.manifest,
                 &prepared.policy_records,
-            )
+            ).map_err(Into::into)
         })();
         #[cfg(test)]
         state::trace_stage("publish_end", "-", -1);
@@ -1008,14 +1008,14 @@ impl Runtime {
                         &objects,
                         &manifest.batch_id,
                         material,
-                    )?;
+                    ).map_err(Into::into)?;
                     aux_index::stage_in_material(
                         tx,
                         &mut store,
                         &auxiliary,
                         &manifest.batch_id,
                         material,
-                    )
+                    ).map_err(Into::into)
                 },
             )?;
             catalog_evidence::stage_current(tx, &mut store, &axes)?;
@@ -1087,14 +1087,14 @@ impl Runtime {
                     &objects,
                     &manifest.batch_id,
                     material,
-                )?;
+                ).map_err(Into::into)?;
                 aux_index::stage_in_material(
                     tx,
                     &mut store,
                     &auxiliary,
                     &manifest.batch_id,
                     material,
-                )
+                ).map_err(Into::into)
             },
         )?;
         #[cfg(not(feature = "s_incremental"))]

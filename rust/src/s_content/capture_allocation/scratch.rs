@@ -679,7 +679,7 @@ pub mod failure_trace {
             top: outer.is_none(),
         };
         if restore.top {
-            let id = NEXT_CAPTURE.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1)).ok();
+            let id = NEXT_CAPTURE.try_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1)).ok();
             ROOT.with(|root| root.set(id));
             EVENT.with(|event| event.set(0));
         }

@@ -6469,7 +6469,7 @@ impl AuditConnection {
 #[cfg(feature = "s_incremental")]
 fn publication_degrade_verdict(
     error: newchan_rust::s_content::capture_allocation::scratch::WorkError<PublishError>,
-    operation_error: Option<String>,
+    operation_error: Option<PublishError>,
     trace: failure_trace::FailureTrace,
 ) -> Result<(), PublishError> {
     use newchan_rust::s_content::capture_allocation::scratch::{ScratchFailure, WorkError};

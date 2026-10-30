@@ -1378,7 +1378,7 @@ pub(super) fn audit_native_source(
         super::super::source_audit::Counts,
         super::super::source_audit::NativeSourceState,
     ),
-    String,
+    PublishError,
 > {
     let result = (|| {
         raw.ensure_current()?;
@@ -2517,7 +2517,7 @@ mod construction_coverage_tests {
             assert_eq!(r.budget.live(), native::Budget::metadata_bytes() + j.bytes);
             (r.budget.clone(), r.budget.live())
         };
-        with_material_access(&tx, None, |m| {
+        with_material_access::<_, String>(&tx, None, |m| {
             let m = m.unwrap();
             assert!(m.budget.same_parent(&child), "材料子账即出生时子账");
             assert!(m.budget.live() >= at_start);
@@ -2602,7 +2602,7 @@ mod construction_coverage_tests {
                         "父账大于journal子帽仍须允许真实工作"
                     );
                     assert!(std::ptr::eq(material.work(), work));
-                    note_source_cut(material, (&state).into())
+                    note_source_cut(material, (&state).into()).map_err(Into::into)
                 })?;
                 let effects = recording.finish(&tx, &mut [], 1 << 20)?.unwrap();
                 assert!(
@@ -2673,7 +2673,7 @@ mod construction_coverage_tests {
         let mut db = database();
         let tx = db.transaction().unwrap();
         let (recording, state) = set_recording(&tx);
-        with_material_access(&tx, None, |material| {
+        with_material_access::<_, String>(&tx, None, |material| {
             let material = material.unwrap();
             note_source_cut(material, (&state).into())?;
             // #1488 0035（裁定 issuecomment-6278995984）：逐收据载体由 keys 改为 events，语义不变。
@@ -2723,7 +2723,7 @@ mod construction_coverage_tests {
         let mut db = database();
         let tx = db.transaction().unwrap();
         let (recording, state) = set_recording(&tx);
-        with_material_access(&tx, None, |material| {
+        with_material_access::<_, String>(&tx, None, |material| {
             let material = material.unwrap();
             note_source_cut(material, (&state).into())?;
             let before = recording.journal.lock().unwrap().events.len();
@@ -2783,7 +2783,7 @@ mod construction_coverage_tests {
         let mut db = database();
         let tx = db.transaction().unwrap();
         let (recording, state) = set_recording(&tx);
-        let result = with_material_access(&tx, None, |material| {
+        let result = with_material_access::<_, String>(&tx, None, |material| {
             let material = material.unwrap();
             note_source_cut(material, (&state).into())?;
             put(&tx, 45);
@@ -2853,7 +2853,7 @@ mod construction_coverage_tests {
         let (tag, body) = memory.get(&missing.digest).unwrap();
         let mut store = crate::content_store::TxStore::new(&tx).unwrap();
         store.put(missing.digest, tag, body).unwrap();
-        let result = with_material_access(&tx, None, |material| {
+        let result = with_material_access::<_, String>(&tx, None, |material| {
             let material = material.unwrap();
             note_source_cut(material, (&state).into())?;
             let stage = begin_stage(&tx, StageKind::Observation)?;
@@ -2871,7 +2871,7 @@ mod construction_coverage_tests {
             Ok(()) // 外层仍须识别poison，不能吞掉失败后成功。
         });
         assert!(result.is_err());
-        assert!(with_material_access(&tx, None, |_| Ok(())).is_err());
+        assert!(with_material_access::<_, String>(&tx, None, |_| Ok(())).is_err());
         assert!(recording.finish(&tx, &mut [], 16 << 20).is_err());
     }
     #[test]
@@ -2881,7 +2881,7 @@ mod construction_coverage_tests {
             let tx = db.transaction().unwrap();
             tx.execute_batch(crate::v3::aux_index::SCHEMA).unwrap();
             let (recording, state) = set_recording(&tx);
-            let result = with_material_access(&tx, None, |material| {
+            let result = with_material_access::<_, String>(&tx, None, |material| {
                 let material = material.unwrap();
                 note_source_cut(material, (&state).into())?;
                 match scenario {
@@ -2890,7 +2890,7 @@ mod construction_coverage_tests {
                         let mut other = database();
                         let other_tx = other.transaction().unwrap();
                         assert!(begin_stage(&other_tx, StageKind::Witness).is_err());
-                        assert!(with_material_access(&other_tx, None, |_| Ok(())).is_err());
+                        assert!(with_material_access::<_, String>(&other_tx, None, |_| Ok(())).is_err());
                         drop(begin_stage(&tx, StageKind::Witness).unwrap());
                     }
                     "omitted" => {
@@ -2936,7 +2936,7 @@ mod construction_coverage_tests {
         let tx = db.transaction().unwrap();
         let mut originals = withdrawal_fixture(&tx);
         let (recording, state) = set_recording(&tx);
-        let result = with_material_access(&tx, None, |material| {
+        let result = with_material_access::<_, String>(&tx, None, |material| {
             let material = material.unwrap();
             note_source_cut(material, (&state).into())?;
             let first = begin_stage(&tx, StageKind::ObjectWithdrawal)?;
@@ -2957,7 +2957,7 @@ mod construction_coverage_tests {
         let tx = db.transaction().unwrap();
         let mut originals = withdrawal_fixture(&tx);
         let (recording, state) = set_recording(&tx);
-        with_material_access(&tx, None, |material| {
+        with_material_access::<_, String>(&tx, None, |material| {
             let material = material.unwrap();
             note_source_cut(material, (&state).into())?;
             for id in ["first", "second"] {
@@ -3000,7 +3000,7 @@ mod construction_coverage_tests {
         let (tag, body) = memory.get(&foreign.digest).unwrap();
         let mut store = crate::content_store::TxStore::new(&tx).unwrap();
         store.put(foreign.digest, tag, body).unwrap();
-        assert!(with_material_access(&tx, None, |m| note_source_cut(
+        assert!(with_material_access::<_, String>(&tx, None, |m| note_source_cut(
             m.unwrap(),
             (&foreign.content_ref()).into()
         ))
@@ -3008,7 +3008,7 @@ mod construction_coverage_tests {
         for (digest, tag, body) in memory.iter() {
             store.put(*digest, tag, body).unwrap();
         }
-        assert!(with_material_access(&tx, None, |_| Ok(())).is_err());
+        assert!(with_material_access::<_, String>(&tx, None, |_| Ok(())).is_err());
         assert!(recording.finish(&tx, &mut [], 16 << 20).is_err());
     }
     #[test]
@@ -3016,7 +3016,7 @@ mod construction_coverage_tests {
         let mut db = database();
         let tx = db.transaction().unwrap();
         let (recording, state) = set_recording(&tx);
-        let result = with_material_access(&tx, None, |m| {
+        let result = with_material_access::<_, String>(&tx, None, |m| {
             let m = m.unwrap();
             note_source_cut(m, (&state).into())?;
             let cap = recording.journal.lock().unwrap().cap;
@@ -3031,7 +3031,7 @@ mod construction_coverage_tests {
             Ok(())
         });
         assert!(result.is_err());
-        assert!(with_material_access(&tx, None, |_| Ok(())).is_err());
+        assert!(with_material_access::<_, String>(&tx, None, |_| Ok(())).is_err());
         assert!(recording.finish(&tx, &mut [], 16 << 20).is_err());
     }
     #[test]
@@ -3044,7 +3044,7 @@ mod construction_coverage_tests {
         let work = parent.codec_work().unwrap();
         let effects = work
             .run(|scope| {
-                with_material_access(&tx, Some(scope), |m| {
+                with_material_access::<_, String>(&tx, Some(scope), |m| {
                     let m = m.unwrap();
                     assert!(std::ptr::eq(m.work, scope), "必须是原work同对象");
                     note_source_cut(m, (&state).into())
@@ -3093,7 +3093,7 @@ mod construction_coverage_tests {
         let cap = recording.journal.lock().unwrap().cap;
         let parent = native::Budget::new(64 << 20, 0).unwrap();
         let result = parent.codec_work().unwrap().run(|scope| {
-            with_material_access(&tx, Some(scope), |m| {
+            with_material_access::<_, String>(&tx, Some(scope), |m| {
                 note_source_cut(m.unwrap(), (&state).into())?;
                 Err::<(), _>("TestOnlyAfterCutRejected".to_string())
             })
@@ -3125,12 +3125,12 @@ mod construction_coverage_tests {
         let (recording, state) = set_recording(&tx);
         let _ = tx.progress_handler(1, Some(|| true));
         assert!(
-            with_material_access(&tx, None, |m| note_source_cut(m.unwrap(), (&state).into()))
+            with_material_access::<_, String>(&tx, None, |m| note_source_cut(m.unwrap(), (&state).into()))
                 .is_err()
         );
         let _ = tx.progress_handler(0, None::<fn() -> bool>);
         assert!(
-            with_material_access(&tx, None, |_| Ok(())).is_err(),
+            with_material_access::<_, String>(&tx, None, |_| Ok(())).is_err(),
             "取消后不能重建成功scope"
         );
         assert!(recording.finish(&tx, &mut [], 16 << 20).is_err());
