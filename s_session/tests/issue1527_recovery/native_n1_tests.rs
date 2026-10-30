@@ -797,3 +797,22 @@ fn native_n1_active_poison_never_delegates_open_or_unlink() {
     assert!(owner.first_error().is_some());
     let _ = owner.destroy(&mut NativeErrors::default());
 }
+
+
+#[test]
+fn native_n1_seal_qualification_error_does_not_replace_earlier_owner_error() {
+    let files = native_s3_fixture();
+    let consumed = super::super::test_prepare(&files.db()).consume().unwrap();
+    let source = crate::v3::admission_provider::MeasuredDomain::measure(&consumed).unwrap();
+    let started = consumed.into_job(source.existing).unwrap();
+    let owner = NativeOwner::begin(hooks(), started.native_io_gate().unwrap(),
+        [(1, 1), (0, 1), (0, 2)], 0, identity_bound()).unwrap();
+    let _ = with_owner(|tls| tls.fail(NativeCode::TrackingLost.into()));
+    // 负控才构造错误收据：不能由此进入Writer，也不能覆盖先发生的失跟踪错误。
+    let invalid = NativeAuditReceipt { token: owner.token.wrapping_add(1), delta: crate::DeltaShape::Current };
+    let mut errors = NativeErrors::default();
+    assert!(owner.seal(started, &invalid, &mut errors).is_none());
+    assert!(matches!(errors.reported(), Some(Reported::First(NativeError::Code(NativeCode::TrackingLost)))));
+    assert_eq!(with_owner(|tls| tls.gate.phase()), Some(Phase::Precheck));
+    let _ = owner.destroy(&mut errors);
+}

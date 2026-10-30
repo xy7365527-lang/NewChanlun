@@ -1265,14 +1265,14 @@ impl NativeOwner {
         audit: &NativeAuditReceipt,
         errors: &mut NativeErrors,
     ) -> Option<FinishedAdmission> {
+        if let Some(first) = self.first_error() {
+            errors.record_first(first);
+        }
         if audit.token != self.token || with_owner(|tls| {
             tls.gate.phase() == Phase::Audit && Rc::ptr_eq(&tls.gate.job, &started.job)
         }) != Some(true) {
             errors.record_first(NativeCode::AuditQualificationMissing.into());
             return None;
-        }
-        if let Some(first) = self.first_error() {
-            errors.record_first(first);
         }
         match started.seal() {
             Ok(finished) if errors.reported().is_none() => {
