@@ -1,0 +1,35 @@
+name: Native deadline 33j red green
+on:
+  push:
+    branches: [codex/1640-native33j-diagnostic]
+jobs:
+  deadline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CARGO_INCREMENTAL: '0'
+    defaults:
+      run:
+        working-directory: rust
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/rust-job-setup
+      - name: Original exact failure
+        run: |
+          git show 92865bbcffcf2ef56e51602789c0707060efb703:rust/src/bin/s_session_v3/admission_private/mod.rs > src/bin/s_session_v3/admission_private/mod.rs
+          set +e
+          cargo test --locked --features s_session,s_capture_native_testonly --bin s_structure_session --jobs 1 native_prefix_final_deadline_preserves_business_and_clears_retained_context -- --nocapture 2>&1 | tee /tmp/native33j-red.log
+          code=${PIPESTATUS[0]}
+          set -e
+          test "$code" -eq 101
+          grep -F 'assertion failed: !context.has_slot()' /tmp/native33j-red.log
+          grep -F '0 passed; 1 failed' /tmp/native33j-red.log      - name: Fixed exact deadline and prefix contracts
+        run: |
+          git show HEAD:rust/src/bin/s_session_v3/admission_private/mod.rs > src/bin/s_session_v3/admission_private/mod.rs
+          cargo test --locked --features s_session,s_capture_native_testonly --bin s_structure_session --jobs 1 native_prefix_final_deadline_preserves_business_and_clears_retained_context -- --nocapture
+          cargo test --locked --features s_session,s_capture_native_testonly --bin s_structure_session --jobs 1 native_prefix_ -- --nocapture
+      - name: Fixed production feature deadline
+        run: cargo test --locked --features s_session,s_incremental --bin s_structure_session --jobs 1 native_prefix_final_deadline_preserves_business_and_clears_retained_context -- --nocapture
