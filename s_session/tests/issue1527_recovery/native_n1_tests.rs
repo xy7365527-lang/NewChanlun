@@ -641,18 +641,12 @@ fn native_n1_s2_audit_keeps_original_missing_budget_adapter_rejection() {
 
 fn native_s3_fixture() -> crate::tests::TestFiles {
     let files = crate::tests::TestFiles::new();
-    let clock = files.db().with_extension("clock.json");
-    std::fs::write(&clock, serde_json::json!({
-        "schema_revision":"s-clock-plan/1", "clock_plan_id":"native-n1-31v",
-        "origin_utc":"2026-09-18T00:00:00Z", "unit":"ns",
-        "events":{"input-1":{"accept_ns":"10","attempts":[{"begin_ns":"11","commit_ns":"12"}]}}
-    }).to_string()).unwrap();
-    crate::v3::init_v3(&files.db(), "s-session-testonly-001",
-        &crate::tests::fixture("catalog/signed-catalog.json"),
-        &crate::tests::fixture("profiles/ohlc_integer_tb02a_v1.json"), "1", &clock, 4).unwrap();
-    let connection = rusqlite::Connection::open(files.db()).unwrap();
-    connection.execute_batch("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode=DELETE;").unwrap();
-    connection.close().unwrap();
+    let mut producer = crate::v3::prepared::tests::Fixture::new();
+    let (envelope, token) = producer.accept_begin(1, ("a", 0, 6, 12, 3, 7), 1);
+    producer.publish(&envelope, &token).unwrap();
+    // 用真实 S3 写者生成一代，再以 SQLite 快照复制到待准入源；不是手填计费节点。
+    let db = files.db();
+    producer.conn.execute("VACUUM INTO ?1", [db.to_str().unwrap()]).unwrap();
     files
 }
 
@@ -675,9 +669,9 @@ fn native_n1_s3_real_audit_charges_original_job_and_keeps_s2_accept_version_gate
     assert!(after.records > before.records);
     let mut errors = NativeErrors::default();
     owner.settle_shm(Ok(0)).unwrap();
-    let mut finished = owner.seal(started, &mut errors).expect("同一本 Job 完成 seal");
+    let mut finished = owner.seal(started, &receipt, &mut errors).expect("同一本 Job 完成 seal");
     assert!(Rc::ptr_eq(&account, &finished.job));
-    owner.enter_writer();
+    assert_eq!(with_owner(|tls| tls.gate.phase()), Some(Phase::Writer));
     let error = owner.accept_in(&tx, &receipt, &native_input(),
         &crate::tests::fixture("profiles/testonly_tick_1_1_ohlc.json"), crate::DEFAULT_WRITER_EPOCH, None).unwrap_err();
     assert!(error.starts_with("VersionMismatch"), "S3审计成功不能充作S2写资格：{error}");

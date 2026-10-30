@@ -44,12 +44,14 @@ pub(crate) enum NativeCode {
     WriteBeforeSeal,
     CloseBusy,
     DeferredCloseFailed,
+    AuditQualificationMissing,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum NativeError {
     Code(NativeCode),
     Job(AccountingError),
+    Business(String),
 }
 
 impl From<NativeCode> for NativeError {
@@ -206,6 +208,7 @@ impl NativeAuditBudget {
         result.map_err(|error| match error {
             NativeError::Job(error) => error,
             NativeError::Code(_) => AccountingError::new("admission_reentrant", "N1原Job短借失败"),
+            NativeError::Business(error) => AccountingError::new("native_business", error),
         })
     }
 }
@@ -1180,7 +1183,10 @@ impl NativeOwner {
             |_, _, _, _, _| Err("NativeAcceptDoesNotServe".into()),
         );
         if let Some(error) = self.first_error() { return Err(format!("{error:?}")); }
-        result?;
+        if let Err(error) = result {
+            let _ = with_owner(|tls| tls.fail(NativeError::Business(error.clone())));
+            return Err(error);
+        }
         Ok(NativeAuditReceipt { token: self.token, delta: budget.delta.get() })
     }
 
@@ -1244,23 +1250,29 @@ impl NativeOwner {
     pub(crate) fn seal(
         &self,
         started: StartedAdmission,
+        audit: &NativeAuditReceipt,
         errors: &mut NativeErrors,
     ) -> Option<FinishedAdmission> {
+        if audit.token != self.token || with_owner(|tls| {
+            tls.gate.phase() == Phase::Audit && Rc::ptr_eq(&tls.gate.job, &started.job)
+        }) != Some(true) {
+            errors.record_first(NativeCode::AuditQualificationMissing.into());
+            return None;
+        }
         if let Some(first) = self.first_error() {
             errors.record_first(first);
         }
         match started.seal() {
-            Ok(finished) if errors.reported().is_none() => Some(finished),
+            Ok(finished) if errors.reported().is_none() => {
+                let _ = with_owner(|tls| tls.gate.set_phase(Phase::Writer));
+                Some(finished)
+            },
             Ok(_) => None,
             Err(error) => {
                 errors.record_seal(error);
                 None
             }
         }
-    }
-
-    pub(crate) fn enter_writer(&self) {
-        let _ = with_owner(|tls| tls.gate.set_phase(Phase::Writer));
     }
 
     /// 只用 sqlite3_close（rusqlite `Connection::close`，先 flush 语句缓存）；BUSY 时连接仍活，
