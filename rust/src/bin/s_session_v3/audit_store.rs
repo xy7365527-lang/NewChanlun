@@ -811,13 +811,20 @@ impl CodecRead for StoreView<'_, '_> {
         }
     }
 
-    fn array_cursor(&mut self, r: sc::RefView<'_>) -> Result<Option<sc::path::NativeArrayCursor>, CodecError> {
+    fn array_cursor(
+        &mut self,
+        r: sc::RefView<'_>,
+    ) -> Result<Option<sc::path::NativeArrayCursor>, CodecError> {
         match &mut self.backend {
             Backend::Generic(s) => s.array_cursor(r),
             Backend::Audit(s) => s.array_cursor(r),
         }
     }
-    fn next_array_member_with_prefix(&mut self, cursor: &mut sc::path::NativeArrayCursor, prefix: &[PathStep]) -> Result<RefValue, CodecError> {
+    fn next_array_member_with_prefix(
+        &mut self,
+        cursor: &mut sc::path::NativeArrayCursor,
+        prefix: &[PathStep],
+    ) -> Result<RefValue, CodecError> {
         match &mut self.backend {
             Backend::Generic(s) => s.next_array_member_with_prefix(cursor, prefix),
             Backend::Audit(s) => s.next_array_member_with_prefix(cursor, prefix),

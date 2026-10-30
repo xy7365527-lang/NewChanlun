@@ -3766,17 +3766,26 @@ impl CodecRead for HashReader<'_> {
         super::business_json::strict_plain_json_admitted(bytes, self.work)
     }
 
-    fn array_cursor(&mut self, reference: sc::RefView<'_>) -> Result<Option<sc::path::NativeArrayCursor>, sc::CodecError> {
+    fn array_cursor(
+        &mut self,
+        reference: sc::RefView<'_>,
+    ) -> Result<Option<sc::path::NativeArrayCursor>, sc::CodecError> {
         self.sync_owned();
         match &mut self.owned {
             Some(owner) => owner.array_cursor_owned(reference).map(Some),
             None => sc::path::NativeArrayCursor::new(self, reference).map(Some),
         }
     }
-    fn next_array_member_with_prefix(&mut self, cursor: &mut sc::path::NativeArrayCursor, prefix: &[PathStep]) -> Result<RefValue, sc::CodecError> {
+    fn next_array_member_with_prefix(
+        &mut self,
+        cursor: &mut sc::path::NativeArrayCursor,
+        prefix: &[PathStep],
+    ) -> Result<RefValue, sc::CodecError> {
         self.sync_owned();
         let member = match &mut self.owned {
-            Some(owner) => owner.next_array_member_owned(cursor, prefix)?.map(RefValue::Owned),
+            Some(owner) => owner
+                .next_array_member_owned(cursor, prefix)?
+                .map(RefValue::Owned),
             None => cursor.next_with_prefix(self, prefix)?.map(RefValue::Plain),
         };
         member.ok_or_else(|| sc::CodecError::new(sc::code::EXTENT, "数组游标提前结束"))

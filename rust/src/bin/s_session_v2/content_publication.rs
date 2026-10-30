@@ -1361,22 +1361,12 @@ fn resolve_objects(
     }
     // 本轮只修改其它成员的batch标量；未处理成员仍来自同一不可变模板数组。
     let array = store.lookup_field_ref(root.view(), name).map_err(err)?;
-    #[cfg(test)]
-    eprintln!(
-        "OWNED34P_OBJECT name={name} edge=array f={}",
-        sc::frame_calls_on_thread()
-    );
     let n = array_reference_len(&array, name)?;
     if n != expected.len() as u64 {
         return Err(err(format!("{name} 与独立索引成员数不符")));
     }
     let mut seen = NativeSet::default();
     let mut cursor = store.array_cursor(array.view()).map_err(err)?;
-    #[cfg(test)]
-    eprintln!(
-        "OWNED34P_OBJECT name={name} edge=cursor f={}",
-        sc::frame_calls_on_thread()
-    );
     for i in 0..n {
         let path = PublicationPath::new(
             store,
@@ -1392,11 +1382,6 @@ fn resolve_objects(
                 .lookup_ref(array.view(), &[PathStep::Index(i)])
                 .map_err(err)?
         };
-        #[cfg(test)]
-        eprintln!(
-            "OWNED34P_OBJECT name={name} i={i} edge=record f={}",
-            sc::frame_calls_on_thread()
-        );
         // 本模块通用于既有记录与S3记录，只取其共同控制字段，不裁载荷字段schema。
         let fields = match memo.as_deref_mut() {
             Some(memo) => memo.read_fields(store, record.view())?,
@@ -1405,11 +1390,6 @@ fn resolve_objects(
                 None => PublicationFields::Direct(read_publication_fields(store, record.view())?),
             },
         };
-        #[cfg(test)]
-        eprintln!(
-            "OWNED34P_OBJECT name={name} i={i} edge=fields f={}",
-            sc::frame_calls_on_thread()
-        );
         let id = fields
             .get_admitted(store, "object_id")?
             .ok_or_else(|| err("缺object_id"))?
@@ -1470,11 +1450,6 @@ fn resolve_objects(
                 return Err(err(format!("{k} 与独立记录不同")));
             }
         }
-        #[cfg(test)]
-        eprintln!(
-            "OWNED34P_OBJECT name={name} i={i} edge=checks f={}",
-            sc::frame_calls_on_thread()
-        );
         resolve_record_batch_projected(
             store,
             root,
@@ -1486,11 +1461,6 @@ fn resolve_objects(
             batch,
             projection.as_deref_mut(),
         )?;
-        #[cfg(test)]
-        eprintln!(
-            "OWNED34P_OBJECT name={name} i={i} edge=batch f={}",
-            sc::frame_calls_on_thread()
-        );
     }
     Ok(())
 }
@@ -2722,8 +2692,6 @@ mod tests {
     #[test]
     fn owned_publication_same_real_indexed_template_roots_and_f() {
         use sc::capture_allocation::{CaptureSlab, OwnedBudget};
-        crate::v3::diagnostic_s4_read_trace::enable();
-        crate::v3::diagnostic_s4_read_trace::phase(2);
         let mut db = Connection::open_in_memory().unwrap();
         let tx = db.transaction().unwrap();
         let (m, roots, manifest) = fixtures(&tx);
@@ -2749,7 +2717,6 @@ mod tests {
             65536,
             |store| {
                 let f = sc::frame_calls_on_thread();
-                eprintln!("OWNED34P_PUBLICATION_START f={f}");
                 let result = resolve_indexed_templates_pending(
                     &tx,
                     store,
@@ -2781,7 +2748,6 @@ mod tests {
             65536,
             |store| {
                 let f = sc::frame_calls_on_thread();
-                eprintln!("OWNED34P_PUBLICATION_START f={f}");
                 let result = resolve_indexed_templates_pending_view(
                     &tx,
                     store,

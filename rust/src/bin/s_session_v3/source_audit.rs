@@ -5778,6 +5778,35 @@ mod closed_array_role_probe {
         );
     }
     #[cfg(feature = "s_allocation_json_testonly")]
+    #[test]
+    fn owned_source_sequence_role_restores_preset_after_success_and_error() {
+        let (capture, budget, root, _) = owned_coordinate_source();
+        let base = budget.snapshot().live_requested_layout_bytes;
+        super::super::audit_store::with_owned_store_probe(&capture, &budget, 64, 4096, |store| {
+            assert!(!store.swap_codec_sequence_role(false));
+            for preset in [false, true] {
+                for full_arrays in [false, true] {
+                    store.swap_codec_sequence_role(preset);
+                    let mut source = ArrayAuditSource {
+                        source: store,
+                        full_arrays,
+                        deadline: None,
+                        fields: None,
+                    };
+                    assert!(matches!(source.lookup_ref((&root).into(), &[PathStep::Index(0)]).unwrap(), RefValue::Owned(_)));
+                    assert_eq!(source.source.swap_codec_sequence_role(preset), preset);
+                    assert_eq!(source.lookup_ref((&root).into(), &[PathStep::Index(100)]).unwrap_err().code(), sc::path::path_code::PATH_INDEX_RANGE);
+                    assert_eq!(source.source.swap_codec_sequence_role(preset), preset);
+                    assert!(!source.source.swap_codec_full_array_role(false));
+                }
+            }
+        });
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, base);
+        drop(capture);
+        assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
+    }
+
+    #[cfg(feature = "s_allocation_json_testonly")]
     fn owned_coordinate_source() -> (sc::AuditCapture, OwnedBudget, ContentRef, ContentRef) {
         let mut nodes = sc::MemoryNodes::new();
         let valid = sc::write_value(

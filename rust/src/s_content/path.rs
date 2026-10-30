@@ -2087,7 +2087,10 @@ impl NativeArrayCursor {
         Self::new_ctx(&mut CodecContext::Source(source), reference)
     }
 
-    pub(super) fn new_ctx(source: &mut CodecContext<'_, '_>, reference: RefView<'_>) -> Result<Self, CodecError> {
+    pub(super) fn new_ctx(
+        source: &mut CodecContext<'_, '_>,
+        reference: RefView<'_>,
+    ) -> Result<Self, CodecError> {
         let work = source.work_budget();
         let result = (|| {
             let node = navigate_view(source, reference, &[], false)?;
@@ -2127,11 +2130,20 @@ impl NativeArrayCursor {
         self.next_output(&mut CodecContext::Source(source), prefix)
     }
 
-    pub(super) fn next_output<R: RefOutput>(&mut self, source: &mut CodecContext<'_, '_>, prefix: &[PathStep]) -> Result<Option<R>, CodecError> {
+    pub(super) fn next_output<R: RefOutput>(
+        &mut self,
+        source: &mut CodecContext<'_, '_>,
+        prefix: &[PathStep],
+    ) -> Result<Option<R>, CodecError> {
         match (&self.owned_budget, source.budget()) {
-            (None, None) => {},
-            (Some(bound), Some(current)) if bound.same_ledger(&current) => {},
-            _ => return Err(CodecError::new(super::capture_allocation::INCOMPLETE, "数组游标必须保留原账本")),
+            (None, None) => {}
+            (Some(bound), Some(current)) if bound.same_ledger(&current) => {}
+            _ => {
+                return Err(CodecError::new(
+                    super::capture_allocation::INCOMPLETE,
+                    "数组游标必须保留原账本",
+                ))
+            }
         }
         let work = source.work_budget();
         let result = self.next_inner(source, prefix);
@@ -2145,8 +2157,7 @@ impl NativeArrayCursor {
         &mut self,
         source: &mut CodecContext<'_, '_>,
         prefix: &[PathStep],
-    ) -> Result<Option<R>, CodecError>
-    {
+    ) -> Result<Option<R>, CodecError> {
         if self.index == self.count {
             return Ok(None);
         }
