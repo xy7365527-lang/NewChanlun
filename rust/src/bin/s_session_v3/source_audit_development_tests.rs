@@ -94,8 +94,9 @@ fn development_first_errors_match_frozen_without_reordering_barriers() {
         let expected = baseline::audit_development_batch(&mut nodes, &r, &sources, &rule);
         assert!(expected.is_err(), "case {i}");
         let historical = frozen_oracle::audit_bounded2_batch(&mut nodes, &r, &sources, &rule).map_err(PublishError::from);
-        if i == 4 {
-            assert!(expected.as_ref().unwrap_err().to_string().contains("root"));
+        if i == 4 || i == 5 {
+            if i == 4 { assert!(expected.as_ref().unwrap_err().to_string().contains("root")); }
+            else { assert_eq!(expected, Err(err("字段/成员形状不符：预期Array/24"))); }
             assert_eq!(historical, Err(err("CC007发展前缀为空")), "历史oracle的已知顺序差异单列，不改它迁就新核");
         } else { assert_eq!(historical, expected, "historical case {i}"); }
         let conn = database(&nodes);
@@ -137,6 +138,7 @@ fn development_full_declaration_collision_and_exclusive_resource_lease() {
 fn development_sqlite_production_entry_hits_and_next_audit_has_fresh_raw_binding() {
     let (nodes, state, raw, rule) = super::tests::fixture();
     let conn = database(&nodes);
+    conn.execute_batch("BEGIN").unwrap();
     let base = sc::sqlite_audit::SqliteAuditBase::new(&conn, 4096);
     let run = |raw: &[Value], profile: &str, rule: &str, config| {
         let _config = Config::set(config);
@@ -157,7 +159,10 @@ fn development_sqlite_production_entry_hits_and_next_audit_has_fresh_raw_binding
     }
     let mut changed = raw.clone(); changed[0]["revision"] = json!(2);
     for (events, profile, rule) in [(&changed[..],tb02a::PROFILE,&rule[..]), (&raw[..raw.len()-1],tb02a::PROFILE,&rule[..]), (&raw[..],"unsupported-profile",&rule[..]), (&raw[..],tb02a::PROFILE,"unsupported-rule")] {
-        assert_eq!(run(events, profile, rule, (16384,false)).0, run(events, profile, rule, (0,false)).0);
+        let new = run(events, profile, rule, (16384,false));
+        let old = run(events, profile, rule, (0,false));
+        assert_eq!(new.0,old.0);
+        assert!(new.0.is_err(), "改raw或绑定必须实际拒绝旧发布态");
     }
 }
 

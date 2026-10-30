@@ -834,6 +834,7 @@ writer/recover闭合后无SHM
 子值仍存活，原父析构不能退其费
 子账拒绝必须在真实 alloc 前
 子路径闭包小于整根闭包
+字段/成员形状不符：预期Array/24
 字段导航不得写入
 字段结果entries与UTF8 key必须真实留账
 孤立 token 不得创建库
@@ -1005,6 +1006,7 @@ writer/recover闭合后无SHM
 摘要不符先于 SQL 拒绝
 撤回JSON owner独立释放
 收到的节点足以完整核验 basis 根
+改raw或绑定必须实际拒绝旧发布态
 改为metadata扫描和晚exact，不再独立逐字段下降
 放弃后不保留候选
 故障必须实际到达候选尾检
