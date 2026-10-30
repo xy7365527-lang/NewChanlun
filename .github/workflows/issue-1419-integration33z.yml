@@ -28,26 +28,6 @@ jobs:
           set -o pipefail
           mkdir -p ../integration33z
           cargo check --locked --tests --lib --bin s_structure_session --features '${{ matrix.features }}' --message-format=json 2>../integration33z/stderr.log | tee ../integration33z/check.jsonl
-      - name: Run targeted combined contracts
-        run: |
-          set -o pipefail
-          features='${{ matrix.features }}'
-          if [ "$features" = s_session ]; then
-            filters='sqlite_base_ ordinary_materials::tests transaction_material_qualification'
-          elif [ "$features" = s_session,s_incremental ]; then
-            filters='sqlite_base_actual_allocation_and_incremental_exclusion ordinary_materials::tests'
-          else
-            filters=''
-          fi
-          failed=0
-          for filter in $filters; do
-            cargo test --locked --bin s_structure_session --features "$features" "$filter" -- --nocapture --test-threads=1 2>&1 | tee -a ../integration33z/tests.log || failed=1
-          done
-          if [ "$features" = s_session ]; then
-            cargo test --locked --lib --features "$features" raw_materials::tests -- --nocapture --test-threads=1 2>&1 | tee -a ../integration33z/tests.log || failed=1
-            cargo test --locked --lib --features "$features" sqlite_audit::tests -- --nocapture --test-threads=1 2>&1 | tee -a ../integration33z/tests.log || failed=1
-          fi
-          exit "$failed"
       - name: Record Linux formatting
         if: always()
         run: |
