@@ -125,7 +125,7 @@ impl Output {
 struct Proof { deps: Dependencies, output: Output }
 type ProofKey = (u8, Key);
 #[derive(Default, Clone, Copy, Debug)]
-pub(super) struct ProofStats {
+pub(in crate::v3) struct ProofStats {
     pub hits: usize, pub executions: usize, pub invalidations: usize,
     pub retained_bytes: usize, pub peak_bytes: usize, pub released_bytes: usize,
     pub entries: usize, pub map_capacity: usize,
@@ -136,12 +136,12 @@ thread_local! { static STATS: std::cell::Cell<ProofStats> = const { std::cell::C
     released_bytes: 0, entries: 0, map_capacity: 0,
 }) }; }
 #[cfg(test)]
-pub(super) fn stats() -> ProofStats { STATS.with(std::cell::Cell::get) }
+pub(in crate::v3) fn stats() -> ProofStats { STATS.with(std::cell::Cell::get) }
 #[cfg(test)]
-pub(super) fn reset_stats() { STATS.with(|s| s.set(ProofStats::default())); }
+pub(in crate::v3) fn reset_stats() { STATS.with(|s| s.set(ProofStats::default())); }
 
 #[derive(Default)]
-pub(super) struct OrdinaryProofs {
+pub(in crate::v3) struct OrdinaryProofs {
     previous: HashMap<ProofKey, Rc<Proof>>,
     current: HashMap<ProofKey, Rc<Proof>>,
     profile: String, rule: String,
@@ -149,7 +149,7 @@ pub(super) struct OrdinaryProofs {
     stats: ProofStats,
 }
 impl OrdinaryProofs {
-    pub(super) fn begin(&mut self, profile: &str, rule: &str) {
+    pub(in crate::v3) fn begin(&mut self, profile: &str, rule: &str) {
         if self.profile != profile || self.rule != rule {
             self.previous.clear();
             self.profile = profile.into(); self.rule = rule.into();
@@ -157,7 +157,7 @@ impl OrdinaryProofs {
         self.current.clear();
         self.object_records.clear();
     }
-    pub(super) fn commit(&mut self) {
+    pub(in crate::v3) fn commit(&mut self) {
         self.measure();
         let before = self.stats.retained_bytes;
         self.previous = std::mem::take(&mut self.current);
@@ -401,5 +401,209 @@ impl OrdinaryProofs {
             &StepReads { steps, reads: &data }, &mut RequestWrites { slots, writes: &data }, equal)?;
         self.save(4, k, Dependencies::default(), Output::Request(data.into_inner()));
         Ok(())
+    }
+}
+
+#[cfg(all(test, feature = "s_incremental"))]
+mod tests {
+    use super::*;
+    use super::super::tests::{fixture, original_sources, replace_field, STATE};
+
+    fn run(nodes: &mut sc::MemoryNodes, root: &ContentRef, raw: &[Value], rule: &str, book: &mut OrdinaryProofs) -> Result<Counts, String> {
+        let mut reader = super::super::super::history::HashReader::metered(nodes, None, None, None);
+        audit_generated_with_proofs(&mut reader, root.into(), raw.into(), tb02a::PROFILE, rule, None, None, book)
+    }
+    fn oracle(nodes: &mut sc::MemoryNodes, root: &ContentRef, raw: &[Value], rule: &str) -> Result<Counts, String> {
+        let mut reader = super::super::super::history::HashReader::metered(nodes, None, None, None);
+        audit_generated_frozen_for_test(&mut reader, root, raw, tb02a::PROFILE, rule, None, None)
+    }
+    #[test]
+    fn ordinary_proof_success_reuse_oracle_is_independent_and_two_frontiers_release() {
+        let (mut nodes, root, raw, rule) = fixture();
+        reset_stats();
+        let expected = oracle(&mut nodes, &root, &raw, &rule).unwrap();
+        assert_eq!((stats().hits, stats().executions), (0, 0));
+        #[cfg(feature = "s_incremental")]
+        let heap = super::super::super::audit_owner::allocation_probe::Window::start();
+        let mut book = OrdinaryProofs::default();
+        assert_eq!(run(&mut nodes, &root, &raw, &rule, &mut book).unwrap(), expected);
+        assert!(book.current.keys().any(|(phase, _)| *phase == 3));
+        assert!(book.current.keys().any(|(phase, _)| *phase == 4));
+        book.commit();
+        let executions = book.stats.executions;
+        assert_eq!(run(&mut nodes, &root, &raw, &rule, &mut book).unwrap(), expected);
+        assert!(book.stats.hits > 0);
+        assert_eq!(book.stats.executions, executions);
+        book.commit();
+        let old_entries = book.previous.len();
+        assert!(book.current.is_empty());
+        book.begin(tb02a::PROFILE, &rule);
+        book.commit();
+        assert_eq!(book.previous.len(), 0);
+        assert!(book.stats.released_bytes > 0);
+        let capacity = book.stats;
+        drop(book);
+        assert_eq!(stats().retained_bytes, 0);
+        #[cfg(feature = "s_incremental")]
+        {
+            let observed = heap.finish();
+            eprintln!("ORDINARY_PROOF_CAPACITY entries_before={old_entries} {capacity:?}");
+            eprintln!("ORDINARY_PROOF_HEAP {observed}");
+            assert_eq!(observed["live_before"], observed["live_after"]);
+        }
+    }
+    #[test]
+    fn ordinary_proof_raw_wire_bar_and_original_changes_match_frozen_first_error() {
+        let (mut nodes, root, raw, rule) = fixture();
+        for (field, value) in [("revision", "2"), ("high", "999999"), ("raw_text", "modified original")] {
+            let mut book = OrdinaryProofs::default();
+            run(&mut nodes, &root, &raw, &rule, &mut book).unwrap();
+            book.commit();
+            let mut changed = raw.clone();
+            changed[0][field] = json!(value);
+            let expected = oracle(&mut nodes, &root, &changed, &rule).unwrap_err();
+            let got = run(&mut nodes, &root, &changed, &rule, &mut book).unwrap_err();
+            assert_eq!(got, expected, "{field}");
+            assert!(book.stats.invalidations > 0, "{field}");
+            let mut cold = OrdinaryProofs::default();
+            assert_eq!(run(&mut nodes, &root, &changed, &rule, &mut cold).unwrap_err(), expected);
+        }
+    }
+    #[test]
+    fn ordinary_proof_duplicate_global_effect_precedes_later_malformed_record() {
+        let (mut nodes, root, raw, rule) = fixture();
+        for (collection, expected_text) in [("objects", "对象身份重复"), ("witnesses", "见证槽位重复")] {
+            let array = field(&mut nodes, &root, collection).unwrap();
+            let values = elements(&mut nodes, &array).unwrap();
+            let malformed = sc::write_value(&mut nodes, &V::Object(vec![])).unwrap();
+            let bad = replace_field(&mut nodes, &root, STATE, collection, V::Array(vec![
+                V::Edge(values[0].digest().unwrap()), V::Edge(values[0].digest().unwrap()), V::Edge(malformed.digest),
+            ]));
+            let expected = oracle(&mut nodes, &bad, &raw, &rule).unwrap_err();
+            assert!(expected.contains(expected_text), "{expected}");
+            let mut book = OrdinaryProofs::default();
+            run(&mut nodes, &root, &raw, &rule, &mut book).unwrap();
+            book.commit();
+            let hits = book.stats.hits;
+            assert_eq!(run(&mut nodes, &bad, &raw, &rule, &mut book).unwrap_err(), expected);
+            assert!(book.stats.hits > hits);
+            let mut cold = OrdinaryProofs::default();
+            assert_eq!(run(&mut nodes, &bad, &raw, &rule, &mut cold).unwrap_err(), expected);
+        }
+    }
+    #[test]
+    fn ordinary_proof_checked_refs_hit_registers_coord_after_preceding_object_withdraws() {
+        let (mut nodes, root, events, rule) = fixture();
+        let mut raw = original_sources(&events, events.len()).unwrap();
+        let array = field(&mut nodes, &root, "objects").unwrap();
+        let records = elements(&mut nodes, &array).unwrap();
+        let producer = Cc004Producer::new(tb02a::PROFILE, &rule);
+        let mut book = OrdinaryProofs::default();
+        book.begin(tb02a::PROFILE, &rule);
+        let mut ids = bj::new_map(None);
+        let mut groups = bj::new_map(None);
+        let mut checked = bj::new_map(None);
+        let mut selected = None;
+        for record in &records {
+            let before = checked.len();
+            let object = book.object(&mut nodes, record, &raw, &producer,
+                &mut FullObjectSlots { ids: &mut ids, groups: &mut groups }, &mut checked,
+                events.len(), None, None).unwrap();
+            if before > 0 && checked.len() == before && object.kind != CC006_SHAPE_KIND && !object.sources.is_empty() {
+                selected = Some((reference(record.view()), object.sources[0]));
+                break;
+            }
+        }
+        let (record, coord) = selected.expect("真实B对象复用A已登记的引用");
+        let k = key((&record).into());
+        assert!(book.current[&(0, k)].deps.raw.iter().any(|(c, value)| *c == coord && value.is_some()));
+        book.commit();
+        let mut changed = *raw.get(&coord).unwrap();
+        changed.wire[0] ^= 1;
+        raw.insert(coord, changed).unwrap();
+        let record = RefValue::from(record);
+        let old = audit_object_record(&mut nodes, &record, &raw, &producer, &mut bj::new_map(None),
+            &mut bj::new_map(None), &mut bj::new_map(None), None, events.len(), false, None, None).err().unwrap();
+        book.begin(tb02a::PROFILE, &rule);
+        let new = book.object(&mut nodes, &record, &raw, &producer,
+            &mut FullObjectSlots { ids: &mut bj::new_map(None), groups: &mut bj::new_map(None) },
+            &mut bj::new_map(None), events.len(), None, None).err().unwrap();
+        assert_eq!(new, old);
+        assert!(new.contains("真实完整八字段原件"));
+        assert_eq!(book.stats.invalidations, 1);
+    }
+    #[test]
+    fn ordinary_proof_group_dependency_changes_invalidate_same_shape_root() {
+        let (mut nodes, root, events, rule) = fixture();
+        let raw = original_sources(&events, events.len()).unwrap();
+        let mut book = OrdinaryProofs::default();
+        run(&mut nodes, &root, &events, &rule, &mut book).unwrap();
+        book.commit();
+        let shape_key = book.previous.iter().find_map(|((phase, k), _)| (*phase == 1).then(|| k.clone())).unwrap();
+        let Output::Object(object, _) = &book.previous[&(0, shape_key.clone())].output else { panic!() };
+        let object = object.restore(&nodes).unwrap();
+        let mut groups = bj::new_map(None);
+        for proof in book.previous.values() {
+            if let Output::Object(_, Some((index, g))) = &proof.output {
+                groups.insert(*index, g.restore(&nodes).unwrap()).unwrap();
+            }
+        }
+        let Output::Shape(indices) = book.previous[&(1, shape_key)].output else { panic!() };
+        let group = groups.get_mut(&indices[0]).unwrap();
+        group.anchor += 1;
+        let producer = Cc004Producer::new(tb02a::PROFILE, &rule);
+        let old = audit_shape_record(&mut nodes, &object, &raw, &groups, &producer,
+            &mut bj::new_map(None), None, events.len(), None, None).err().unwrap();
+        book.current.clear();
+        let new = book.shape(&mut nodes, &object, &raw, &groups, &producer,
+            &mut bj::new_map(None), events.len(), None, None).err().unwrap();
+        assert_eq!(new, old);
+        assert!(new.contains("形态窗口"));
+        assert!(book.stats.invalidations > 0);
+    }
+    #[test]
+    fn ordinary_proof_request_negative_subject_dependency_cannot_be_reused() {
+        struct Steps(bool);
+        impl source_pending::StepLookup for Steps {
+            fn get_step(&self, _: i64) -> Option<&dyn source_pending::StepView> { None }
+            fn contains_subject(&self, id: &str) -> bool { self.0 && id == "subject" }
+        }
+        #[derive(Default)] struct Slots;
+        impl source_pending::RequestSlots for Slots {
+            fn insert_request(&mut self, _: &(impl CodecRead + ?Sized), _: &str) -> Result<bool, String> { Ok(false) }
+            fn insert_bound(&mut self, _: &(impl CodecRead + ?Sized), _: i64) -> Result<bool, String> { Ok(false) }
+        }
+        let mut nodes = sc::MemoryNodes::default();
+        let request: RefValue = sc::write_value(&mut nodes, &V::Object(vec![
+            ("request_id".into(), V::String("[\"other\",\"0\"]".into())),
+            ("subject_id".into(), V::String("subject".into())), ("axes".into(), V::Null),
+            ("reasons".into(), V::Null), ("source_coords".into(), V::Null),
+        ])).unwrap().content_ref().into();
+        let mut book = OrdinaryProofs::default();
+        book.request(&mut nodes, &request, &Steps(false), &mut Slots, true).unwrap();
+        book.commit();
+        let expected = source_pending::request_record_with_slots(&mut nodes, &request, &Steps(true), &mut Slots, true).unwrap_err();
+        assert_eq!(book.request(&mut nodes, &request, &Steps(true), &mut Slots, true).unwrap_err(), expected);
+        assert!(expected.contains("知识主体被绑定"));
+        assert_eq!(book.stats.invalidations, 1);
+    }
+    #[test]
+    fn ordinary_proof_complete_ref_and_profile_rule_are_not_digest_only_keys() {
+        let (mut nodes, root, raw, rule) = fixture();
+        let mut book = OrdinaryProofs::default();
+        run(&mut nodes, &root, &raw, &rule, &mut book).unwrap();
+        book.commit();
+        let ((phase, original), _) = book.previous.iter().find(|((p, _), _)| *p == 0).unwrap();
+        let phase = *phase;
+        for field in 0..3 {
+            let mut k = original.clone();
+            match field { 0 => k.0.push_str("-wrong"), 1 => k.2 = "JsonText", _ => k.3 = Some(999) }
+            assert!(!book.previous.contains_key(&(phase, k)));
+        }
+        assert!(!book.previous.contains_key(&(9, original.clone())));
+        book.begin("different-profile", &rule);
+        assert!(book.previous.is_empty());
+        book.begin(tb02a::PROFILE, "different-rule");
+        assert!(book.previous.is_empty());
     }
 }

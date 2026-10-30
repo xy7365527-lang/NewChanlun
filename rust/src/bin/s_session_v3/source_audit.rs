@@ -41,6 +41,8 @@ pub(crate) use source_contributions::{audit_native_bound, NativeSourceState};
 #[path = "ordinary_source.rs"]
 mod ordinary_source;
 pub(super) use ordinary_source::OrdinaryProofs;
+#[cfg(test)]
+pub(super) use ordinary_source::{stats as ordinary_proof_stats, reset_stats as reset_ordinary_proof_stats};
 #[path = "source_pending.rs"]
 mod source_pending;
 #[path = "source_prefix.rs"]
@@ -1664,6 +1666,10 @@ pub(super) fn audit_generated_for_audit<'a>(
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
 ) -> Result<Counts, String> {
+    #[cfg(test)]
+    if !super::history::ordinary_proofs_enabled() {
+        return audit_generated_frozen_for_test(s, state, raw_prefix, profile, rule, deadline, budget);
+    }
     audit_generated_in_store(
         &mut super::audit_store::StoreView::for_audit(s),
         state.into(),
@@ -2754,7 +2760,7 @@ mod tests {
             "event_id": format!("e-{seq}"), "input_revision": "1"})
     }
     #[cfg(feature = "s_incremental")]
-    fn original_sources(raw: &[Value], n: usize) -> Result<BusinessMap<i64, Source>, String> {
+    pub(super) fn original_sources(raw: &[Value], n: usize) -> Result<BusinessMap<i64, Source>, String> {
         let effective = bj::effective(RawEventsView::plain(&raw[..n]), None)?;
         let mut sources = bj::new_map(None);
         for event in effective.iter() {

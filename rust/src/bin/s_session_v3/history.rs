@@ -553,6 +553,20 @@ pub(super) fn read_indexed_history_with_policy<'a>(
     result
 }
 
+#[cfg(test)]
+thread_local! { static ORDINARY_PROOFS_DISABLED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) }; }
+pub(super) fn ordinary_proofs_enabled() -> bool {
+    #[cfg(test)] { !ORDINARY_PROOFS_DISABLED.with(std::cell::Cell::get) }
+    #[cfg(not(test))] { true }
+}
+#[cfg(test)]
+pub(super) fn without_ordinary_proofs_for_test<T>(action: impl FnOnce() -> T) -> T {
+    struct Reset(bool);
+    impl Drop for Reset { fn drop(&mut self) { ORDINARY_PROOFS_DISABLED.with(|v| v.set(self.0)); } }
+    let _reset = Reset(ORDINARY_PROOFS_DISABLED.with(|v| v.replace(true)));
+    action()
+}
+
 pub(super) struct VerifiedPublicHistory<'scope, 'tx> {
     history: IndexedHistory,
     transaction: &'scope Transaction<'tx>,
@@ -563,7 +577,7 @@ impl<'scope, 'tx> VerifiedPublicHistory<'scope, 'tx> {
     pub(super) fn into_history(self) -> IndexedHistory { self.history }
     pub(super) fn qualified(&self) -> bool { self.qualified }
     pub(super) fn ordinary_source_session(&self) -> Option<OrdinarySourceSession<'_, 'scope, 'tx>> {
-        self.qualified.then(|| OrdinarySourceSession { history: self, proofs: Some(Default::default()) })
+         (self.qualified && ordinary_proofs_enabled()).then(|| OrdinarySourceSession { history: self, proofs: Some(Default::default()) })
     }
 
     pub(super) fn audit_cut<R>(
@@ -867,7 +881,7 @@ fn read_indexed_history_inner(
     // 原始当前capture闭包全核之后才创建；仅本次历史循环持有，跨请求/阶段重建。
     let mut object_sweep = objects.native_sweep_admitted(&store)?;
     let publication_memo = content_publication::NativePublicationMemo::new(&store);
-    let mut ordinary_publication = if bound_births_qualified {
+    let mut ordinary_publication = if bound_births_qualified && ordinary_proofs_enabled() {
         Some(content_publication::PublicationProjection::new(tx, &store)?)
     } else { None };
     let mut native_aux = aux_index::NativeAuxAudit::from_loaded_admitted(&store, &auxiliary, raw)?;
