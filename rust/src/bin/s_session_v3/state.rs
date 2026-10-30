@@ -1,4 +1,3 @@
-use super::PublishError;
 //! #1394 C §5：`s-session/3` 的**读写共用完整状态审计**。
 //!
 //! [`audit`] 把提交口（`prepared::Runtime::prepare`）与只读入口要跑的整段旧状态核验收成**同一份**
@@ -32,6 +31,7 @@ use super::PublishError;
 //!   不把内存派生根当已持久原件带走。
 //! - 本模块只读：不写任何 SQLite 行，也不把 overlay 当写入通道。
 
+use newchan_rust::s_content::ContextError as PublishError;
 use super::*;
 use newchan_rust::s_content as sc;
 #[cfg(test)]
@@ -1096,7 +1096,7 @@ fn audit_one_cut_sources(
         &mut super::cross_request_source_cache::Trial<'_>,
     >,
     #[cfg(feature = "s_incremental")] owner_source: Option<&super::audit_owner::OwnerSourceCheck>,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     #[cfg(test)]
     trace_event("generated_sources", Some(cut.metadata.generation));
     history::check_deadline(deadline)?;
@@ -1112,7 +1112,7 @@ fn audit_one_cut_sources(
     #[cfg(not(feature = "s_incremental"))]
     let cached_counts: Option<source_audit::Counts> = None;
     if proofs.is_some() && (cached_counts.is_some() || native_sources.is_some()) {
-        return Err(err(
+        return Err(publish_err(
             "ordinary来源证明不得与cached_counts/owner_source/Native复用并用",
         ));
     }
@@ -1498,8 +1498,8 @@ fn field<'r>(
     s: &mut (impl super::audit_store::CodecStore + ?Sized),
     r: impl Into<sc::RefView<'r>>,
     key: &str,
-) -> Result<super::audit_store::RefValue, String> {
-    s.lookup_field_ref(r.into(), key).map_err(err)
+) -> Result<super::audit_store::RefValue, PublishError> {
+    s.lookup_field_ref(r.into(), key).map_err(publish_err)
 }
 
 // #1394：入口路由锁。默认/通用 path 会失败，绿判据必须来自真实 borrowed 方法。
@@ -2906,7 +2906,7 @@ impl AuditedState {
             HistoricalOwner::Shared(v) => {
                 let shell_bytes = v.allocation_bytes();
                 let value = super::native_shared::NativeRc::try_unwrap(v)
-                    .map_err(|_| err("owner 历史仍有外部共享引用"))?;
+                    .map_err(|_| publish_err("owner 历史仍有外部共享引用"))?;
                 // facts 只移动；try_unwrap 真正释放的是 Rc 外壳和两个计数。
                 retained.release_bytes(shell_bytes);
                 value
@@ -2950,15 +2950,15 @@ impl AuditedState {
             source_audit::NativeSourceAudit::restore(
                 capture,
                 self.raw.view(),
-                raw_sources.ok_or_else(|| err("缺 raw 来源事实"))?,
+                raw_sources.ok_or_else(|| publish_err("缺 raw 来源事实"))?,
                 bound,
             )?
             .with_codec_work(work, native),
         );
         let mut store = history::HashReader::captured_for_audit(capture, None)
-            .map_err(err)?
+            .map_err(publish_err)?
             .with_codec_work(work, native);
-        let cut = updated.cuts.last().ok_or_else(|| err("缺新 C_h"))?;
+        let cut = updated.cuts.last().ok_or_else(|| publish_err("缺新 C_h"))?;
         audit_one_cut_sources(
             cut,
             self.raw.view(),
@@ -3001,16 +3001,16 @@ impl AuditedState {
         capture: &sc::AuditCapture,
         bound: &super::audit_owner::BoundOriginals,
         native: &super::audit_owner::native::Budget,
-    ) -> Result<usize, super::audit_owner::native::Failure> {
+    ) -> Result<usize, super::audit_owner::native::Failure<PublishError>> {
         let historical = match &mut self.historical {
             HistoricalOwner::Unique(v) => v,
             HistoricalOwner::Shared(v) => super::native_shared::NativeRc::get_mut(v)
-                .ok_or_else(|| err("raw owner 仍有借用"))?,
+                .ok_or_else(|| publish_err("raw owner 仍有借用"))?,
         };
         historical
             .raw_prefixes
             .as_mut()
-            .ok_or_else(|| err("缺 raw R/F 状态"))?
+            .ok_or_else(|| publish_err("缺 raw R/F 状态"))?
             .check_appended(capture, self.raw.view(), bound, native)
     }
 }

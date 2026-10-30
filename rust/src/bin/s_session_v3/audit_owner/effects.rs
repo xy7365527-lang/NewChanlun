@@ -2525,7 +2525,7 @@ mod construction_coverage_tests {
             let m = m.unwrap();
             assert!(m.budget.same_parent(&child), "材料子账即出生时子账");
             assert!(m.budget.live() >= at_start);
-            note_source_cut(m, (&state).into())
+            note_source_cut(m, (&state).into()).map_err(Into::into)
         })
         .unwrap();
         assert_eq!(child.moved_in_for_test(), 0);
@@ -3007,7 +3007,7 @@ mod construction_coverage_tests {
         let mut store = crate::content_store::TxStore::new(&tx).unwrap();
         store.put(foreign.digest, tag, body).unwrap();
         assert!(
-            with_material_access::<_, String>(&tx, None, |m| note_source_cut(
+            with_material_access::<_, PublishError>(&tx, None, |m| note_source_cut(
                 m.unwrap(),
                 (&foreign.content_ref()).into()
             ))
@@ -3055,7 +3055,7 @@ mod construction_coverage_tests {
                 with_material_access::<_, String>(&tx, Some(scope), |m| {
                     let m = m.unwrap();
                     assert!(std::ptr::eq(m.work, scope), "必须是原work同对象");
-                    note_source_cut(m, (&state).into())
+                    note_source_cut(m, (&state).into()).map_err(Into::into)
                 })?;
                 assert!(
                     parent.native_observation().0 >= cap,
@@ -3133,7 +3133,7 @@ mod construction_coverage_tests {
         let (recording, state) = set_recording(&tx);
         let _ = tx.progress_handler(1, Some(|| true));
         assert!(
-            with_material_access::<_, String>(&tx, None, |m| note_source_cut(
+            with_material_access::<_, PublishError>(&tx, None, |m| note_source_cut(
                 m.unwrap(),
                 (&state).into()
             ))

@@ -1302,7 +1302,7 @@ fn state_members(
     s: &mut (impl CodecRead + ?Sized),
     state: &(impl AuxRef + ?Sized),
     name: &str,
-) -> Result<CodecVec<RefValue>, String> {
+) -> Result<CodecVec<RefValue>, PublishError> {
     let members = field(s, state, name)?;
     array_elements(s, &members).map_err(Into::into)
 }
@@ -1545,13 +1545,13 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
         replaces: JsonView<'_>,
         prefix: usize,
         g: i64,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         let result = (|| {
             if !s
                 .native_projection_capture()
                 .is_some_and(|c| std::ptr::eq(c, self.capture))
             {
-                return Err(err("Native aux owner capture/权限不符"));
+                return Err(publish_err("Native aux owner capture/权限不符"));
             }
             let raw = self.raw.prefix(prefix)?;
             let index = self.index;
@@ -1730,7 +1730,7 @@ pub(super) fn verify_generated_members_with_changes<'a>(
     replaces: JsonView<'_>,
     raw: impl Into<RawEventsView<'a>>,
     g: i64,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     verify_generated_members_in_view(s, index, state, replaces, raw.into(), g, None)
 }
 fn verify_generated_members_in_view(
@@ -1741,28 +1741,28 @@ fn verify_generated_members_in_view(
     raw: RawEventsView<'_>,
     g: i64,
     mut native: Option<&mut NativeAuxAudit<'_, '_, '_>>,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     let owned_budget = s.allocation_budget();
     if g < 1 {
-        return Err(err("生成代非法"));
+        return Err(publish_err("生成代非法"));
     }
 
     let mut witness_by_id = work_map::<&str, &Witness>(owned_budget.as_ref());
     if let Some(owner) = native.as_ref() {
         if owner.duplicate(0, g) {
-            return Err(err("见证独立索引重复身份"));
+            return Err(publish_err("见证独立索引重复身份"));
         }
     } else {
         for row in &index.witnesses {
             audit_count(0);
             if row.first <= g {
-                s.native_map_room(&mut witness_by_id).map_err(err)?;
+                s.native_map_room(&mut witness_by_id).map_err(publish_err)?;
                 if witness_by_id
                     .insert(row.id.as_str(), row)
-                    .map_err(err)?
+                    .map_err(publish_err)?
                     .is_some()
                 {
-                    return Err(err("见证独立索引重复身份"));
+                    return Err(publish_err("见证独立索引重复身份"));
                 }
             }
         }
@@ -1774,13 +1774,13 @@ fn verify_generated_members_in_view(
         audit_count(3);
         let id = text(s, &generated, "witness_id")?;
         let generated_digest = digest(&generated)?;
-        s.native_map_room(&mut seen).map_err(err)?;
+        s.native_map_room(&mut seen).map_err(publish_err)?;
         if seen
             .insert(s.native_text(id.as_str())?, generated_digest)
-            .map_err(err)?
+            .map_err(publish_err)?
             .is_some()
         {
-            return Err(err("生成见证重复身份"));
+            return Err(publish_err("生成见证重复身份"));
         }
         let row = if let Some(owner) = native.as_ref() {
             owner
@@ -1791,13 +1791,13 @@ fn verify_generated_members_in_view(
         } else {
             witness_by_id.get(&id.as_str()).copied()
         }
-        .ok_or_else(|| err("生成见证不在独立索引内"))?;
+        .ok_or_else(|| publish_err("生成见证不在独立索引内"))?;
         if row.generated != generated {
-            return Err(err("生成见证原件与独立索引不一致"));
+            return Err(publish_err("生成见证原件与独立索引不一致"));
         }
         if row.first == g {
-            s.native_codec_room(&mut generated_births, 1).map_err(err)?;
-            generated_births.try_push(id).map_err(err)?;
+            s.native_codec_room(&mut generated_births, 1).map_err(publish_err)?;
+            generated_births.try_push(id).map_err(publish_err)?;
         }
     }
     let mut indexed_births = bj::new_work(owned_budget.as_ref());
@@ -1806,8 +1806,8 @@ fn verify_generated_members_in_view(
             audit_count(1);
             row.first == g
         }) {
-            s.native_codec_room(&mut indexed_births, 1).map_err(err)?;
-            indexed_births.try_push(row.id.as_str()).map_err(err)?;
+            s.native_codec_room(&mut indexed_births, 1).map_err(publish_err)?;
+            indexed_births.try_push(row.id.as_str()).map_err(publish_err)?;
         }
     }
     audit_count(4);
@@ -1817,25 +1817,25 @@ fn verify_generated_members_in_view(
         same_birth_order(&generated_births, indexed_births.iter().copied())
     };
     if !births_match {
-        return Err(err("见证出生集合或顺序与独立索引不同"));
+        return Err(publish_err("见证出生集合或顺序与独立索引不同"));
     }
 
     let mut relation_by_id = work_map::<&str, &Relation>(owned_budget.as_ref());
     if let Some(owner) = native.as_ref() {
         if owner.duplicate(1, g) {
-            return Err(err("关系独立索引重复身份"));
+            return Err(publish_err("关系独立索引重复身份"));
         }
     } else {
         for row in &index.relations {
             audit_count(0);
             if row.first <= g {
-                s.native_map_room(&mut relation_by_id).map_err(err)?;
+                s.native_map_room(&mut relation_by_id).map_err(publish_err)?;
                 if relation_by_id
                     .insert(row.id.as_str(), row)
-                    .map_err(err)?
+                    .map_err(publish_err)?
                     .is_some()
                 {
-                    return Err(err("关系独立索引重复身份"));
+                    return Err(publish_err("关系独立索引重复身份"));
                 }
             }
         }
@@ -1843,14 +1843,14 @@ fn verify_generated_members_in_view(
     let mut relation_candidates = state_members(s, state, "relations")?;
     for replacement in replaces
         .as_array()
-        .ok_or_else(|| err("replaces不是数组"))?
+        .ok_or_else(|| publish_err("replaces不是数组"))?
         .iter()
     {
         s.native_codec_room(&mut relation_candidates, 1)
-            .map_err(err)?;
+            .map_err(publish_err)?;
         relation_candidates
             .try_push(replacement_relation(s, replacement)?)
-            .map_err(err)?;
+            .map_err(publish_err)?;
     }
     if let Some(owner) = native.as_deref_mut() {
         let count = owner.advance_raw(raw.len(), s)?;
@@ -1858,8 +1858,8 @@ fn verify_generated_members_in_view(
             let ordinal = owner.raw_revisions[i];
             if let Some(r) = owner.raw_relation(s, ordinal)? {
                 s.native_codec_room(&mut relation_candidates, 1)
-                    .map_err(err)?;
-                relation_candidates.try_push(r).map_err(err)?;
+                    .map_err(publish_err)?;
+                relation_candidates.try_push(r).map_err(publish_err)?;
             }
         }
     } else {
@@ -1867,8 +1867,8 @@ fn verify_generated_members_in_view(
             audit_count(5);
             if let Some(r) = supersedes_relation(s, event)? {
                 s.native_codec_room(&mut relation_candidates, 1)
-                    .map_err(err)?;
-                relation_candidates.try_push(r).map_err(err)?;
+                    .map_err(publish_err)?;
+                relation_candidates.try_push(r).map_err(publish_err)?;
             }
         }
     }
@@ -1882,13 +1882,13 @@ fn verify_generated_members_in_view(
             relation(s, candidate, g)?
         };
         let row_digest = digest(&row.generated)?;
-        s.native_map_room(&mut relation_seen).map_err(err)?;
+        s.native_map_room(&mut relation_seen).map_err(publish_err)?;
         if let Some(previous) = relation_seen
             .insert(s.native_text(row.id.as_str())?, row_digest)
-            .map_err(err)?
+            .map_err(publish_err)?
         {
             if previous != row_digest {
-                return Err(err("同关系身份对应多个生成原件"));
+                return Err(publish_err("同关系身份对应多个生成原件"));
             }
             continue;
         }
@@ -1901,13 +1901,13 @@ fn verify_generated_members_in_view(
         } else {
             relation_by_id.get(&row.id.as_str()).copied()
         }
-        .ok_or_else(|| err("生成关系不在独立索引内"))?;
+        .ok_or_else(|| publish_err("生成关系不在独立索引内"))?;
         if stored.generated != row.generated {
-            return Err(err("生成关系原件与独立索引不一致"));
+            return Err(publish_err("生成关系原件与独立索引不一致"));
         }
         if stored.first == g {
-            s.native_codec_room(&mut relation_births, 1).map_err(err)?;
-            relation_births.try_push(row.id).map_err(err)?;
+            s.native_codec_room(&mut relation_births, 1).map_err(publish_err)?;
+            relation_births.try_push(row.id).map_err(publish_err)?;
         }
     }
     let mut indexed_relation_births = bj::new_work(owned_budget.as_ref());
@@ -1917,10 +1917,10 @@ fn verify_generated_members_in_view(
             row.first == g
         }) {
             s.native_codec_room(&mut indexed_relation_births, 1)
-                .map_err(err)?;
+                .map_err(publish_err)?;
             indexed_relation_births
                 .try_push(row.id.as_str())
-                .map_err(err)?;
+                .map_err(publish_err)?;
         }
     }
     audit_count(4);
@@ -1930,25 +1930,25 @@ fn verify_generated_members_in_view(
         same_birth_order(&relation_births, indexed_relation_births.iter().copied())
     };
     if !births_match {
-        return Err(err("关系出生集合或顺序与独立索引不同"));
+        return Err(publish_err("关系出生集合或顺序与独立索引不同"));
     }
 
     let mut observation_by_id = work_map::<&str, &Observation>(owned_budget.as_ref());
     if let Some(owner) = native.as_ref() {
         if owner.duplicate(2, g) {
-            return Err(err("观察独立索引重复身份"));
+            return Err(publish_err("观察独立索引重复身份"));
         }
     } else {
         for row in &index.observations {
             audit_count(0);
             if row.first <= g {
-                s.native_map_room(&mut observation_by_id).map_err(err)?;
+                s.native_map_room(&mut observation_by_id).map_err(publish_err)?;
                 if observation_by_id
                     .insert(row.id.as_str(), row)
-                    .map_err(err)?
+                    .map_err(publish_err)?
                     .is_some()
                 {
-                    return Err(err("观察独立索引重复身份"));
+                    return Err(publish_err("观察独立索引重复身份"));
                 }
             }
         }
@@ -1959,13 +1959,13 @@ fn verify_generated_members_in_view(
     for generated in generated_observations {
         audit_count(3);
         let id = observation_id(s, &generated)?;
-        s.native_map_room(&mut observation_seen).map_err(err)?;
+        s.native_map_room(&mut observation_seen).map_err(publish_err)?;
         if observation_seen
             .insert(s.native_text(id.as_str())?, ())
-            .map_err(err)?
+            .map_err(publish_err)?
             .is_some()
         {
-            return Err(err("生成观察重复身份"));
+            return Err(publish_err("生成观察重复身份"));
         }
         let stored = if let Some(owner) = native.as_ref() {
             owner
@@ -1976,19 +1976,19 @@ fn verify_generated_members_in_view(
         } else {
             observation_by_id.get(&id.as_str()).copied()
         }
-        .ok_or_else(|| err("生成观察不在独立索引内"))?;
+        .ok_or_else(|| publish_err("生成观察不在独立索引内"))?;
         if observation_identity_value(s, &stored.generated)?
             != observation_identity_value(s, &generated)?
         {
-            return Err(err("生成观察身份字段与独立首版不一致"));
+            return Err(publish_err("生成观察身份字段与独立首版不一致"));
         }
         if stored.first == g {
             if stored.generated != generated {
-                return Err(err("观察出生原件与独立首版不一致"));
+                return Err(publish_err("观察出生原件与独立首版不一致"));
             }
             s.native_codec_room(&mut observation_births, 1)
-                .map_err(err)?;
-            observation_births.try_push(id).map_err(err)?;
+                .map_err(publish_err)?;
+            observation_births.try_push(id).map_err(publish_err)?;
         }
     }
     let mut indexed_observation_births = bj::new_work(owned_budget.as_ref());
@@ -1998,10 +1998,10 @@ fn verify_generated_members_in_view(
             row.first == g
         }) {
             s.native_codec_room(&mut indexed_observation_births, 1)
-                .map_err(err)?;
+                .map_err(publish_err)?;
             indexed_observation_births
                 .try_push(row.id.as_str())
-                .map_err(err)?;
+                .map_err(publish_err)?;
         }
     }
     audit_count(4);
@@ -2014,7 +2014,7 @@ fn verify_generated_members_in_view(
         )
     };
     if !births_match {
-        return Err(err("观察出生集合或顺序与独立索引不同"));
+        return Err(publish_err("观察出生集合或顺序与独立索引不同"));
     }
     Ok(())
 }
@@ -2062,7 +2062,7 @@ pub(super) fn update_from_owner(
     rowids: &[Vec<i64>; 3],
     _bound: &super::audit_owner::BoundOriginals,
     retained: &mut super::audit_retention::RetainedDelta,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     let mut rt = Runtime::default();
     for role in 0..3 {
         for rowid in &rowids[role] {
@@ -2071,59 +2071,59 @@ pub(super) fn update_from_owner(
                 1=>c"SELECT relation_id,subject,relation_type,object,generated_root,published_generation FROM s_content_relations WHERE rowid=?1",
                 _=>c"SELECT observation_id,kind,window_start,batch_id,generated_root,birth_wire_root,published_generation FROM s_content_observations WHERE rowid=?1",
             };
-            let mut stmt = CheckedStatement::prepare(tx, sql).map_err(err)?;
-            stmt.bind_integer(1, *rowid).map_err(err)?;
+            let mut stmt = CheckedStatement::prepare(tx, sql).map_err(publish_err)?;
+            stmt.bind_integer(1, *rowid).map_err(publish_err)?;
             let mut row = stmt
                 .next()
-                .map_err(err)?
-                .ok_or_else(|| err("缺 aux 实际行"))?;
+                .map_err(publish_err)?
+                .ok_or_else(|| publish_err("缺 aux 实际行"))?;
             let (id, ordinal, first) = match role {
                 0 => {
                     let e = audit_persisted_witness(&mut row, s, latest, None, &mut rt)?;
                     let out = (
-                        s.native_string(e.id.as_str()).map_err(err)?,
+                        s.native_string(e.id.as_str()).map_err(publish_err)?,
                         index.witnesses.len(),
                         e.first,
                     );
                     retained.add(&e);
                     let capacity = index.witnesses.capacity();
-                    s.native_codec_room(&mut index.witnesses, 1).map_err(err)?;
-                    index.witnesses.try_push(e).map_err(err)?;
+                    s.native_codec_room(&mut index.witnesses, 1).map_err(publish_err)?;
+                    index.witnesses.try_push(e).map_err(publish_err)?;
                     retained.vec_capacity::<Witness>(capacity, index.witnesses.capacity());
                     out
                 }
                 1 => {
                     let e = audit_persisted_relation(&mut row, s, latest, None)?;
                     let out = (
-                        s.native_string(e.id.as_str()).map_err(err)?,
+                        s.native_string(e.id.as_str()).map_err(publish_err)?,
                         index.relations.len(),
                         e.first,
                     );
                     retained.add(&e);
                     let capacity = index.relations.capacity();
-                    s.native_codec_room(&mut index.relations, 1).map_err(err)?;
-                    index.relations.try_push(e).map_err(err)?;
+                    s.native_codec_room(&mut index.relations, 1).map_err(publish_err)?;
+                    index.relations.try_push(e).map_err(publish_err)?;
                     retained.vec_capacity::<Relation>(capacity, index.relations.capacity());
                     out
                 }
                 _ => {
                     let e = audit_persisted_observation(&mut row, s, latest, None)?;
                     let out = (
-                        s.native_string(e.id.as_str()).map_err(err)?,
+                        s.native_string(e.id.as_str()).map_err(publish_err)?,
                         index.observations.len(),
                         e.first,
                     );
                     retained.add(&e);
                     let capacity = index.observations.capacity();
                     s.native_codec_room(&mut index.observations, 1)
-                        .map_err(err)?;
-                    index.observations.try_push(e).map_err(err)?;
+                        .map_err(publish_err)?;
+                    index.observations.try_push(e).map_err(publish_err)?;
                     retained.vec_capacity::<Observation>(capacity, index.observations.capacity());
                     out
                 }
             };
             drop(row);
-            stmt.finalize().map_err(err)?;
+            stmt.finalize().map_err(publish_err)?;
             let map = match role {
                 0 => &mut facts.witnesses,
                 1 => &mut facts.relations,
@@ -2131,21 +2131,21 @@ pub(super) fn update_from_owner(
             };
             let capacity = map.capacity();
             retained.add(&id);
-            s.native_map_room(map).map_err(err)?;
-            if map.insert(id, ordinal).map_err(err)?.is_some() {
-                return Err(err("辅助索引重复身份"));
+            s.native_map_room(map).map_err(publish_err)?;
+            if map.insert(id, ordinal).map_err(publish_err)?.is_some() {
+                return Err(publish_err("辅助索引重复身份"));
             }
             retained.hash_capacity::<NativeValue<String>, usize>(capacity, map.capacity());
             let tree_bytes = facts.born[role].allocation_bytes();
             if !facts.born[role].contains_key(&first) {
                 facts.born[role]
                     .insert_admitted(first, bj::new_work(None), s)
-                    .map_err(err)?;
+                    .map_err(publish_err)?;
             }
             let bucket = facts.born[role].get_mut(&first).expect("已插入出生桶");
             let capacity = bucket.capacity();
-            s.native_codec_room(bucket, 1).map_err(err)?;
-            bucket.try_push(ordinal).map_err(err)?;
+            s.native_codec_room(bucket, 1).map_err(publish_err)?;
+            bucket.try_push(ordinal).map_err(publish_err)?;
             retained.vec_capacity::<usize>(capacity, bucket.capacity());
             retained.release_bytes(tree_bytes);
             retained.add_bytes(facts.born[role].allocation_bytes());
@@ -2161,15 +2161,15 @@ fn audit_persisted_witness(
     latest: i64,
     allocation: Option<&OwnedBudget>,
     rt: &mut Runtime,
-) -> Result<Witness, String> {
-    let id = TextValue::from_sql_admitted(row, 0, allocation, s.codec_work()).map_err(err)?;
+) -> Result<Witness, PublishError> {
+    let id = TextValue::from_sql_admitted(row, 0, allocation, s.codec_work()).map_err(publish_err)?;
     let object_id =
-        TextValue::from_sql_admitted(row, 1, allocation, s.codec_work()).map_err(err)?;
-    let slot: i64 = row.integer(2).map_err(err)?;
-    let merged_index: i64 = row.integer(6).map_err(err)?;
-    let generated = root(s, row.blob(3).map_err(err)?)?;
-    let wire = root(s, row.blob(4).map_err(err)?)?;
-    let first: i64 = row.integer(5).map_err(err)?;
+        TextValue::from_sql_admitted(row, 1, allocation, s.codec_work()).map_err(publish_err)?;
+    let slot: i64 = row.integer(2).map_err(publish_err)?;
+    let merged_index: i64 = row.integer(6).map_err(publish_err)?;
+    let generated = root(s, row.blob(3).map_err(publish_err)?)?;
+    let wire = root(s, row.blob(4).map_err(publish_err)?)?;
+    let first: i64 = row.integer(5).map_err(publish_err)?;
     check_generation(first, latest)?;
     exact(&generated, 9)?;
     if text(s, &generated, "witness_id")? != id
@@ -2177,11 +2177,11 @@ fn audit_persisted_witness(
         || integer(s, &generated, "slot")? != slot
         || !(0..3).contains(&slot)
     {
-        return Err(err("见证索引与原件不符"));
+        return Err(publish_err("见证索引与原件不符"));
     }
     verify_witness_id(s, &generated, &id, &object_id, slot, merged_index)?;
     if rt.witness_wire(s, &generated)? != wire {
-        return Err(err("见证wire与生成原件不符"));
+        return Err(publish_err("见证wire与生成原件不符"));
     }
     Ok(Witness {
         id,
@@ -2200,17 +2200,17 @@ fn audit_persisted_relation(
     s: &mut (impl CodecStore + ?Sized),
     latest: i64,
     _allocation: Option<&OwnedBudget>,
-) -> Result<Relation, String> {
-    let first: i64 = row.integer(5).map_err(err)?;
+) -> Result<Relation, PublishError> {
+    let first: i64 = row.integer(5).map_err(publish_err)?;
     check_generation(first, latest)?;
-    let generated = root(s, row.blob(4).map_err(err)?)?;
+    let generated = root(s, row.blob(4).map_err(publish_err)?)?;
     let r = relation(s, generated, first)?;
-    if r.id != row.text(0).map_err(err)?
-        || r.subject != row.text(1).map_err(err)?
-        || r.relation_type != row.text(2).map_err(err)?
-        || r.object != row.text(3).map_err(err)?
+    if r.id != row.text(0).map_err(publish_err)?
+        || r.subject != row.text(1).map_err(publish_err)?
+        || r.relation_type != row.text(2).map_err(publish_err)?
+        || r.object != row.text(3).map_err(publish_err)?
     {
-        return Err(err("关系索引与原件不符"));
+        return Err(publish_err("关系索引与原件不符"));
     }
     Ok(r)
 }
@@ -2221,15 +2221,15 @@ fn audit_persisted_observation(
     s: &mut (impl CodecStore + ?Sized),
     latest: i64,
     allocation: Option<&OwnedBudget>,
-) -> Result<Observation, String> {
-    let id = TextValue::from_sql_admitted(row, 0, allocation, s.codec_work()).map_err(err)?;
-    let kind = TextValue::from_sql_admitted(row, 1, allocation, s.codec_work()).map_err(err)?;
-    let window_start: Option<i64> = row.optional_integer(2).map_err(err)?;
-    let batch = TextValue::from_sql_admitted(row, 3, allocation, s.codec_work()).map_err(err)?;
+) -> Result<Observation, PublishError> {
+    let id = TextValue::from_sql_admitted(row, 0, allocation, s.codec_work()).map_err(publish_err)?;
+    let kind = TextValue::from_sql_admitted(row, 1, allocation, s.codec_work()).map_err(publish_err)?;
+    let window_start: Option<i64> = row.optional_integer(2).map_err(publish_err)?;
+    let batch = TextValue::from_sql_admitted(row, 3, allocation, s.codec_work()).map_err(publish_err)?;
     check_batch(&batch)?;
-    let generated = root(s, row.blob(4).map_err(err)?)?;
-    let wire = root(s, row.blob(5).map_err(err)?)?;
-    let first: i64 = row.integer(6).map_err(err)?;
+    let generated = root(s, row.blob(4).map_err(publish_err)?)?;
+    let wire = root(s, row.blob(5).map_err(publish_err)?)?;
+    let first: i64 = row.integer(6).map_err(publish_err)?;
     check_generation(first, latest)?;
     exact(&generated, 6)?;
     if text(s, &generated, "kind")? != kind
@@ -2237,7 +2237,7 @@ fn audit_persisted_observation(
         || observation_id(s, &generated)? != id
         || observation_wire(s, &generated, &id, Some(&batch))? != wire
     {
-        return Err(err("观察索引与出生原件不符"));
+        return Err(publish_err("观察索引与出生原件不符"));
     }
     Ok(Observation {
         id,
@@ -2276,7 +2276,7 @@ pub(super) fn cut_members_metered(
     delta: bool,
     budget: Option<&dyn super::audit_budget::Budget>,
 ) -> Result<[CodecVec<NodeDigest>; 3], String> {
-    cut_members_projected(index, layout, generation, delta, budget, None).map(|v| v.0)
+    cut_members_projected(index, layout, generation, delta, budget, None).map(|v| v.0).map_err(Into::into)
 }
 pub(super) fn native_cut_members(
     index: &Index,
@@ -2285,13 +2285,13 @@ pub(super) fn native_cut_members(
     generation: i64,
     delta: bool,
     batch: &str,
-) -> Result<([CodecVec<NodeDigest>; 3], sc::Built), String> {
+) -> Result<([CodecVec<NodeDigest>; 3], sc::Built), PublishError> {
     if index.budget.is_some() || s.native_projection_capture().is_none() {
-        return Err(err("Native观察双投影资格不符"));
+        return Err(publish_err("Native观察双投影资格不符"));
     }
     let (members, template) =
         cut_members_projected(index, layout, generation, delta, None, Some((s, batch)))?;
-    Ok((members, template.ok_or_else(|| err("缺Native观察模板"))?))
+    Ok((members, template.ok_or_else(|| publish_err("缺Native观察模板"))?))
 }
 fn cut_members_projected(
     index: &Index,
@@ -2300,7 +2300,7 @@ fn cut_members_projected(
     delta: bool,
     budget: Option<&dyn super::audit_budget::Budget>,
     mut native: Option<(&mut super::history::HashReader<'_>, &str)>,
-) -> Result<([CodecVec<NodeDigest>; 3], Option<sc::Built>), String> {
+) -> Result<([CodecVec<NodeDigest>; 3], Option<sc::Built>), PublishError> {
     let admission = super::audit_store::NativeAdmission(
         native.as_ref().and_then(|(s, _)| s.native_work_scope()),
     );
@@ -2317,21 +2317,21 @@ fn cut_members_projected(
     let mut o = bj::new_work(owned);
     for row in index.witnesses.iter().filter(|row| member(row.first)) {
         if let Some((s, _)) = native.as_ref() {
-            s.native_codec_room(&mut w, 1).map_err(err)?;
+            s.native_codec_room(&mut w, 1).map_err(publish_err)?;
         }
-        w.try_push(row).map_err(err)?;
+        w.try_push(row).map_err(publish_err)?;
     }
     for row in index.relations.iter().filter(|row| member(row.first)) {
         if let Some((s, _)) = native.as_ref() {
-            s.native_codec_room(&mut r, 1).map_err(err)?;
+            s.native_codec_room(&mut r, 1).map_err(publish_err)?;
         }
-        r.try_push(row).map_err(err)?;
+        r.try_push(row).map_err(publish_err)?;
     }
     for row in index.observations.iter().filter(|row| member(row.first)) {
         if let Some((s, _)) = native.as_ref() {
-            s.native_codec_room(&mut o, 1).map_err(err)?;
+            s.native_codec_room(&mut o, 1).map_err(publish_err)?;
         }
-        o.try_push(row).map_err(err)?;
+        o.try_push(row).map_err(publish_err)?;
     }
     if !delta {
         stable_sort(
@@ -2359,39 +2359,39 @@ fn cut_members_projected(
     let mut template_observations = native.as_ref().map(|_| bj::new_work(None));
     for row in w {
         if let Some(b) = budget {
-            b.record().map_err(err)?;
+            b.record().map_err(publish_err)?;
         }
         if let Some((s, _)) = native.as_ref() {
-            s.native_codec_room(&mut witnesses, 1).map_err(err)?;
+            s.native_codec_room(&mut witnesses, 1).map_err(publish_err)?;
         }
-        witnesses.try_push(digest(&row.wire)?).map_err(err)?;
+        witnesses.try_push(digest(&row.wire)?).map_err(publish_err)?;
     }
     for row in r {
         if let Some(b) = budget {
-            b.record().map_err(err)?;
+            b.record().map_err(publish_err)?;
         }
         if let Some((s, _)) = native.as_ref() {
-            s.native_codec_room(&mut relations, 1).map_err(err)?;
+            s.native_codec_room(&mut relations, 1).map_err(publish_err)?;
         }
-        relations.try_push(digest(&row.generated)?).map_err(err)?;
+        relations.try_push(digest(&row.generated)?).map_err(publish_err)?;
     }
     for row in o {
         if let Some(b) = budget {
-            b.record().map_err(err)?;
+            b.record().map_err(publish_err)?;
         }
         if let Some((s, batch)) = native.as_mut() {
             let saved = row
                 .batch
                 .as_ref()
-                .ok_or_else(|| err("历史观察缺实际batch"))?;
+                .ok_or_else(|| publish_err("历史观察缺实际batch"))?;
             if (row.first == generation) != (saved.as_str() == *batch) {
-                return Err(err("观察出生/旧代batch不符"));
+                return Err(publish_err("观察出生/旧代batch不符"));
             }
             let capture = s
                 .native_projection_capture()
-                .ok_or_else(|| err("观察capture丢失"))?;
+                .ok_or_else(|| publish_err("观察capture丢失"))?;
             s.native_verify_original(capture, row.wire.view(), sc::Mode::Public)
-                .map_err(err)?;
+                .map_err(publish_err)?;
             let template = if row.first == generation {
                 const NAMES: &[&str] = &[
                     "observation_id",
@@ -2403,43 +2403,43 @@ fn cut_members_projected(
                     "window_mid",
                     "window_end",
                 ];
-                let fields = s.lookup_fields_ref(row.wire.view(), NAMES).map_err(err)?;
+                let fields = s.lookup_fields_ref(row.wire.view(), NAMES).map_err(publish_err)?;
                 let mut values = bj::new_work(None);
-                s.native_codec_room(&mut values, NAMES.len()).map_err(err)?;
+                s.native_codec_room(&mut values, NAMES.len()).map_err(publish_err)?;
                 for name in NAMES {
                     let r = fields
                         .get_admitted(*s, name)
-                        .map_err(err)?
-                        .ok_or_else(|| err("观察wire缺字段"))?;
+                        .map_err(publish_err)?
+                        .ok_or_else(|| publish_err("观察wire缺字段"))?;
                     values
                         .try_push((
                             *name,
                             if *name == "batch_id" {
                                 VV::BatchSelf
                             } else {
-                                VV::Edge(r.digest().map_err(err)?)
+                                VV::Edge(r.digest().map_err(publish_err)?)
                             },
                         ))
-                        .map_err(err)?;
+                        .map_err(publish_err)?;
                 }
                 s.write_template_view(VV::Object(&values))
-                    .map_err(err)?
+                    .map_err(publish_err)?
                     .digest
             } else {
                 digest(&row.wire)?
             };
             s.native_codec_room(template_observations.as_mut().unwrap(), 1)
-                .map_err(err)?;
+                .map_err(publish_err)?;
             template_observations
                 .as_mut()
                 .unwrap()
                 .try_push(template)
-                .map_err(err)?;
+                .map_err(publish_err)?;
         }
         if let Some((s, _)) = native.as_ref() {
-            s.native_codec_room(&mut observations, 1).map_err(err)?;
+            s.native_codec_room(&mut observations, 1).map_err(publish_err)?;
         }
-        observations.try_push(digest(&row.wire)?).map_err(err)?;
+        observations.try_push(digest(&row.wire)?).map_err(publish_err)?;
     }
     let template = if let Some(nodes) = template_observations {
         let mut values = bj::new_work(None);
@@ -2448,9 +2448,9 @@ fn cut_members_projected(
             .unwrap()
             .0
             .native_codec_room(&mut values, nodes.len())
-            .map_err(err)?;
+            .map_err(publish_err)?;
         for node in &nodes {
-            values.try_push(VV::Edge(*node)).map_err(err)?;
+            values.try_push(VV::Edge(*node)).map_err(publish_err)?;
         }
         Some(
             native
@@ -2458,7 +2458,7 @@ fn cut_members_projected(
                 .unwrap()
                 .0
                 .write_template_view(VV::Array(&values))
-                .map_err(err)?,
+                .map_err(publish_err)?,
         )
     } else {
         None

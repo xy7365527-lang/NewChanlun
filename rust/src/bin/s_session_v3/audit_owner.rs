@@ -6475,7 +6475,7 @@ fn publication_degrade_verdict(
     trace: failure_trace::FailureTrace,
 ) -> Result<(), PublishError> {
     use newchan_rust::s_content::capture_allocation::scratch::{ScratchFailure, WorkError};
-    let ledger = || match native::Failure::from(ScratchFailure::Ledger) {
+    let ledger = || match native::Failure::<PublishError>::from(ScratchFailure::Ledger) {
         native::Failure::Invalid(e) => e,
         native::Failure::BudgetExceeded => unreachable!("Ledger 恒为 Invalid"),
     };
@@ -7000,6 +7000,9 @@ thread_local! {
         const { std::cell::Cell::new(None) };
 }
 
+fn publish_stale(message: &str) -> PublishError {
+    construction_state::stale(message).into()
+}
 fn publish_err(error: impl Into<PublishError>) -> PublishError {
     error.into().context("S3DriverInvalid：")
 }

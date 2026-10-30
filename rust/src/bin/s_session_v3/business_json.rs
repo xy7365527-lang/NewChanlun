@@ -584,7 +584,7 @@ impl<'raw> RawPrefixIndex<'raw> {
         &mut self,
         prefix: usize,
         admission: &(impl super::audit_store::CodecRead + ?Sized),
-    ) -> Result<RawPrefixChanges, String> {
+    ) -> Result<RawPrefixChanges, PublishError> {
         self.advance_measured(prefix, admission, None, None)
     }
     pub(super) fn advance_measured(
@@ -593,7 +593,7 @@ impl<'raw> RawPrefixIndex<'raw> {
         admission: &(impl super::audit_store::CodecRead + ?Sized),
         deadline: Option<Instant>,
         budget: Option<&dyn super::audit_budget::Budget>,
-    ) -> Result<RawPrefixChanges, String> {
+    ) -> Result<RawPrefixChanges, PublishError> {
         let result = self.advance_inner(prefix, admission, deadline, budget);
         if result.is_err() {
             self.clear();
@@ -606,7 +606,7 @@ impl<'raw> RawPrefixIndex<'raw> {
         admission: &(impl super::audit_store::CodecRead + ?Sized),
         deadline: Option<Instant>,
         budget: Option<&dyn super::audit_budget::Budget>,
-    ) -> Result<RawPrefixChanges, String> {
+    ) -> Result<RawPrefixChanges, PublishError> {
         if self.raw.budget().is_some() {
             return Err("prototype_audit_allocation_incomplete：有序raw索引不接收Owned原件".into());
         }
@@ -623,7 +623,7 @@ impl<'raw> RawPrefixIndex<'raw> {
             super::history::check_deadline(deadline)?;
             let event = raw.get(ordinal).expect("已截前缀");
             if let Some(budget) = budget {
-                budget.record().map_err(|e| e.to_string())?;
+                budget.record().map_err(PublishError::from)?;
             }
             let identity = field(event, "identity_key").as_str().unwrap_or("");
             let revision = field(event, "revision").as_i64().unwrap_or(0);
@@ -634,7 +634,7 @@ impl<'raw> RawPrefixIndex<'raw> {
             if previous.is_none_or(|(r, i)| effective_precedence(revision, ordinal, r, i).is_lt()) {
                 changed
                     .insert_admitted(identity, (revision, ordinal), admission)
-                    .map_err(|e| e.to_string())?;
+                    .map_err(PublishError::from)?;
             }
         }
         let mut updates = RawPrefixChanges {
@@ -653,17 +653,17 @@ impl<'raw> RawPrefixIndex<'raw> {
                     super::history::check_deadline(deadline)?;
                     let event = self.raw.get(ordinal).expect("赢家原件");
                     if let Some(budget) = budget {
-                        budget.record().map_err(|e| e.to_string())?;
+                        budget.record().map_err(PublishError::from)?;
                     }
                     let c = coord(event)?;
                     #[cfg(feature = "s_incremental")]
                     let capacity = self.coordinates.capacity();
                     admission
                         .native_map_room(&mut self.facts.coordinates)
-                        .map_err(|e| e.to_string())?;
+                        .map_err(PublishError::from)?;
                     self.coordinates
                         .insert(ordinal, c)
-                        .map_err(|e| e.to_string())?;
+                        .map_err(PublishError::from)?;
                     #[cfg(feature = "s_incremental")]
                     self.retained
                         .hash_capacity::<usize, i64>(capacity, self.facts.coordinates.capacity());
@@ -675,17 +675,17 @@ impl<'raw> RawPrefixIndex<'raw> {
                 Some(winner) => Some(std::mem::replace(winner, (revision, ordinal, c))),
                 None => {
                     let key = NativeValue::<String>::try_from_str(identity, admission.codec_work())
-                        .map_err(|e| e.to_string())?;
+                        .map_err(PublishError::from)?;
                     #[cfg(feature = "s_incremental")]
                     let capacity = self.winners.capacity();
                     #[cfg(feature = "s_incremental")]
                     self.retained.add(&key);
                     admission
                         .native_map_room(&mut self.facts.winners)
-                        .map_err(|e| e.to_string())?;
+                        .map_err(PublishError::from)?;
                     self.winners
                         .insert(key, (revision, ordinal, c))
-                        .map_err(|e| e.to_string())?;
+                        .map_err(PublishError::from)?;
                     #[cfg(feature = "s_incremental")]
                     self.retained
                         .hash_capacity::<NativeValue<String>, (i64, usize, i64)>(
@@ -697,14 +697,14 @@ impl<'raw> RawPrefixIndex<'raw> {
             };
             admission
                 .native_codec_room(&mut updates.winner_edits, 1)
-                .map_err(|e| e.to_string())?;
+                .map_err(PublishError::from)?;
             updates
                 .winner_edits
                 .try_push(RawWinnerEdit {
                     old: previous.map(|(_, ordinal, coord)| RawWinner { coord, ordinal }),
                     new: Some(RawWinner { coord: c, ordinal }),
                 })
-                .map_err(|e| e.to_string())?;
+                .map_err(PublishError::from)?;
             if let Some((_, _, old)) = previous {
                 #[cfg(feature = "s_incremental")]
                 let ordered_before = self.facts.ordered.allocation_bytes();
@@ -716,16 +716,16 @@ impl<'raw> RawPrefixIndex<'raw> {
                 self.ordered_retained(ordered_before);
                 admission
                     .native_codec_room(&mut updates.removed, 1)
-                    .map_err(|e| e.to_string())?;
-                updates.removed.try_push(old).map_err(|e| e.to_string())?;
+                    .map_err(PublishError::from)?;
+                updates.removed.try_push(old).map_err(PublishError::from)?;
             }
             admission
                 .native_codec_room(&mut updates.added, 1)
-                .map_err(|e| e.to_string())?;
+                .map_err(PublishError::from)?;
             updates
                 .added
                 .try_push((c, ordinal))
-                .map_err(|e| e.to_string())?;
+                .map_err(PublishError::from)?;
         }
         updates.added.sort_unstable_by_key(|(c, _)| *c);
         for &(c, ordinal) in &updates.added {
@@ -734,7 +734,7 @@ impl<'raw> RawPrefixIndex<'raw> {
             if self
                 .ordered
                 .insert_admitted(c, ordinal, admission)
-                .map_err(|e| e.to_string())?
+                .map_err(PublishError::from)?
                 .is_some()
             {
                 return Err("StorageUnavailable：有效源坐标碰撞，拒绝覆盖业务身份".into());
@@ -3578,7 +3578,7 @@ mod scoped_json_array_tests {
                 assert_eq!(value.child_permits.capacity(), 4);
                 assert_eq!(budget.live(), before, "失败不得改变父账live");
                 drop(held);
-                Err::<(), String>(error)
+                Err::<(), String>(error.to_string())
             });
             assert!(result.is_err(), "首次资源拒绝必须传播出work.run");
             assert_eq!(budget.live(), initial);
@@ -3710,7 +3710,7 @@ mod raw_events_native_append_tests {
                 assert_eq!(budget.live(), blocked);
                 drop(blocker);
                 assert_eq!(budget.live(), before);
-                Err::<(), String>(error)
+                Err::<(), String>(error.to_string())
             });
             assert!(result.is_err());
             assert_eq!(budget.live(), held);
@@ -3765,7 +3765,7 @@ mod raw_events_layout_tests {
                     let mut bypass = RawEvents::Native(aggregate);
                     let held = budget.live();
                     let error = bypass.push_native(JsonView::Null, work).unwrap_err();
-                    assert!(error.contains("聚合Native数组许可"));
+                    assert!(error.to_string().contains("聚合Native数组许可"));
                     assert_eq!(budget.live(), held, "现存子树许可不得早退");
                     assert_eq!(bypass.view().get(0), Some((&input[0]).into()));
                     drop(bypass);

@@ -533,7 +533,7 @@ pub(super) fn verify_cut_for_audit<'a, 'r>(
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
     indexed_start: Option<usize>,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     let raw_prefix = raw_prefix.into();
     // 唯一调用者 state 已完整读取并核过 raw 的 seq=ordinal 及所有历史前沿。
     // Native 保持原新增区间角色；短借计量不改变索引资格，Owned 仍拒绝。
@@ -542,15 +542,15 @@ pub(super) fn verify_cut_for_audit<'a, 'r>(
             || raw_prefix.budget().is_some()
             || store.allocation_budget().is_some())
     {
-        return Err(err("目录区间索引不接收有预算/期限路径"));
+        return Err(publish_err("目录区间索引不接收有预算/期限路径"));
     }
     let raw_start = indexed_start.unwrap_or(0);
     if indexed_start.is_some() && i64::try_from(raw_start).ok() != previous_frontier.checked_add(1)
     {
-        return Err(err("目录区间与已核前沿不符"));
+        return Err(publish_err("目录区间与已核前沿不符"));
     }
     if raw_start > raw_prefix.len() {
-        return Err(err("目录raw区间越界"));
+        return Err(publish_err("目录raw区间越界"));
     }
     verify_cut_in_store(
         &mut super::audit_store::StoreView::for_audit(store),
@@ -581,45 +581,45 @@ fn verify_cut_in_store(
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
     raw_start: usize,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     super::history::check_deadline(deadline)?;
     require_ohlc(metadata.profile_id)?;
     store
         .verify_history_public_root(generated_state, sc::Mode::Public)
-        .map_err(err)?;
+        .map_err(publish_err)?;
     store
         .verify_history_public_root(delta, sc::Mode::Public)
-        .map_err(err)?;
+        .map_err(publish_err)?;
     let frontier = text_ref(store, delta, "index_frontier")?;
     if !real_batch_id(&frontier) {
-        return Err(err(format!(
+        return Err(publish_err(format!(
             "Delta index_frontier `{frontier}` 不是 batch3 类型化身份"
         )));
     }
     if text_ref(store, delta, "next_cut")? != metadata.structure_cut {
-        return Err(err("Delta next_cut 与冻结生成 cut 不同"));
+        return Err(publish_err("Delta next_cut 与冻结生成 cut 不同"));
     }
     let run = text_ref(store, delta, "catalog_run_status")?;
     if run != declared_run(counts) {
-        return Err(err(format!(
+        return Err(publish_err(format!(
             "Delta catalog_run_status=`{run}` 与真实分类结果不符"
         )));
     }
     let evidence = field_ref(store, delta, "catalog_evidence")?;
     if evidence.kind() != Kind::Object || evidence.extent() != Some(EVIDENCE_FIELDS.len() as u64) {
-        return Err(err(format!(
+        return Err(publish_err(format!(
             "catalog_evidence 不是16字段对象（extent={:?}）",
             evidence.extent()
         )));
     }
     if text_ref(store, &evidence, "tested_domain")? != OHLC_TESTED_DOMAIN {
-        return Err(err("目录证据 tested_domain 不是声明 OHLC 域"));
+        return Err(publish_err("目录证据 tested_domain 不是声明 OHLC 域"));
     }
     if text_ref(store, &evidence, "batch_id")? != frontier {
-        return Err(err("目录证据 batch_id 与 Delta index_frontier 不同"));
+        return Err(publish_err("目录证据 batch_id 与 Delta index_frontier 不同"));
     }
     if text_ref(store, &evidence, "structure_cut")? != metadata.structure_cut {
-        return Err(err("目录证据 structure_cut 与冻结生成 cut 不同"));
+        return Err(publish_err("目录证据 structure_cut 与冻结生成 cut 不同"));
     }
     for (key, want) in [
         ("profile_id", metadata.profile_id),
@@ -627,13 +627,13 @@ fn verify_cut_in_store(
         ("rule_revision", metadata.rule_revision),
     ] {
         if text_ref(store, &evidence, key)? != want {
-            return Err(err(format!("目录证据 {key} 与冻结元数据不同")));
+            return Err(publish_err(format!("目录证据 {key} 与冻结元数据不同")));
         }
     }
     let withdrawals_array = withdrawals
         .as_array()
-        .ok_or_else(|| err("withdrawals不是数组"))?;
-    let replaces_array = replaces.as_array().ok_or_else(|| err("replaces不是数组"))?;
+        .ok_or_else(|| publish_err("withdrawals不是数组"))?;
+    let replaces_array = replaces.as_array().ok_or_else(|| publish_err("replaces不是数组"))?;
     for (key, want) in [
         ("classified_objects", counts.objects),
         ("windows_total", counts.windows),
@@ -644,33 +644,33 @@ fn verify_cut_in_store(
         ("insufficient_knowledge", counts.insufficient),
         ("domain_not_satisfied", counts.outside_domain),
     ] {
-        let got = parse_canonical_i64(&text_ref(store, &evidence, key)?, key).map_err(err)?;
-        let want = i64::try_from(want).map_err(|_| err(format!("{key} 实际计数超出 i64")))?;
+        let got = parse_canonical_i64(&text_ref(store, &evidence, key)?, key).map_err(publish_err)?;
+        let want = i64::try_from(want).map_err(|_| publish_err(format!("{key} 实际计数超出 i64")))?;
         if got != want {
-            return Err(err(format!(
+            return Err(publish_err(format!(
                 "目录证据 {key}={got} 与真实来源审计计数 {want} 不同"
             )));
         }
     }
-    let want_scope = metadata.scope.digest().map_err(err)?;
+    let want_scope = metadata.scope.digest().map_err(publish_err)?;
     if field_ref(store, evidence.view(), "scope")?
         .digest()
-        .map_err(err)?
+        .map_err(publish_err)?
         != want_scope
         || field_ref(store, generated_state, "scope")?
             .digest()
-            .map_err(err)?
+            .map_err(publish_err)?
             != want_scope
     {
-        return Err(err("目录证据/生成态 scope 不是同一冻结根"));
+        return Err(publish_err("目录证据/生成态 scope 不是同一冻结根"));
     }
     if text_ref(store, generated_state, "structure_cut")? != metadata.structure_cut {
-        return Err(err("生成态 structure_cut 与冻结生成 cut 不同"));
+        return Err(publish_err("生成态 structure_cut 与冻结生成 cut 不同"));
     }
     let axes = field_ref(store, evidence.view(), "axes")?;
     let state_axes = generated_axes_ref(store, generated_state)?;
-    if axes.digest().map_err(err)? != state_axes.digest().map_err(err)? {
-        return Err(err(
+    if axes.digest().map_err(publish_err)? != state_axes.digest().map_err(publish_err)? {
+        return Err(publish_err(
             "catalog_evidence.axes 不是同次最终生成态的 catalog_axes 值边",
         ));
     }
@@ -678,7 +678,7 @@ fn verify_cut_in_store(
     let cc056 = entries
         .iter()
         .find(|entry| entry.id == "CC-056")
-        .ok_or_else(|| err("目录轴缺 CC-056"))?;
+        .ok_or_else(|| publish_err("目录轴缺 CC-056"))?;
     let allocation = store.allocation_budget();
     let mut revisions = bj::ReferenceArray(bj::new_work(allocation.as_ref()));
     let native_measured = store.native_measure().is_some();
@@ -686,50 +686,50 @@ fn verify_cut_in_store(
         if native_measured {
             super::history::check_deadline(deadline)?;
             if let Some(account) = budget {
-                account.precheck().map_err(err)?;
+                account.precheck().map_err(publish_err)?;
             }
         }
         #[cfg(test)]
         RAW_VISITS.with(|n| n.set(n.get() + 1));
         let event = raw_prefix
             .get(ordinal)
-            .ok_or_else(|| err("目录raw序号越界"))?;
+            .ok_or_else(|| publish_err("目录raw序号越界"))?;
         if native_measured {
             if let Some(account) = budget {
-                account.record().map_err(err)?;
+                account.record().map_err(publish_err)?;
             }
         }
         super::history::check_deadline(deadline)?;
         let seq = bj::field(event, "seq")
             .as_i64()
-            .ok_or_else(|| err("原始账事件缺整数 seq"))?;
+            .ok_or_else(|| publish_err("原始账事件缺整数 seq"))?;
         let revision = bj::field(event, "revision")
             .as_i64()
-            .ok_or_else(|| err("原始账事件缺整数 revision"))?;
+            .ok_or_else(|| publish_err("原始账事件缺整数 revision"))?;
         if seq > previous_frontier && revision > 1 {
-            store.native_codec_room(&mut revisions.0, 1).map_err(err)?;
+            store.native_codec_room(&mut revisions.0, 1).map_err(publish_err)?;
             revisions
                 .0
                 .try_push(bj::RawReference::new(event, false)?)
-                .map_err(err)?;
+                .map_err(publish_err)?;
         }
     }
     let mut withdrawals_view = bj::WithdrawalArray(bj::new_work(allocation.as_ref()));
     store
         .native_codec_room(&mut withdrawals_view.0, withdrawals_array.len())
-        .map_err(err)?;
+        .map_err(publish_err)?;
     for v in withdrawals_array.iter() {
         if native_measured {
             super::history::check_deadline(deadline)?;
             if let Some(account) = budget {
-                account.record().map_err(err)?;
+                account.record().map_err(publish_err)?;
             }
         }
         super::history::check_deadline(deadline)?;
         withdrawals_view
             .0
-            .try_push(bj::WithdrawalWire::new(v).map_err(err)?)
-            .map_err(err)?;
+            .try_push(bj::WithdrawalWire::new(v).map_err(publish_err)?)
+            .map_err(publish_err)?;
     }
     for (key, want) in [
         (
@@ -740,10 +740,10 @@ fn verify_cut_in_store(
         ("replaces", replaces),
     ] {
         let got = array_field_ref(store, &cc056.evidence, key)?;
-        if got.digest().map_err(err)?
+        if got.digest().map_err(publish_err)?
             != super::history::hash_json_in_store(store, want, deadline, budget)?
         {
-            return Err(err(format!("CC-056 {key} 与本代独立依据不同")));
+            return Err(publish_err(format!("CC-056 {key} 与本代独立依据不同")));
         }
     }
     Ok(())
@@ -803,7 +803,7 @@ pub(super) fn verify_current_for_audit<'r>(
     tx: &Transaction<'_>,
     store: &mut super::history::HashReader<'_>,
     axes: impl Into<sc::RefView<'r>>,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     verify_current_in_store(
         tx,
         &mut super::audit_store::StoreView::for_audit(store),
@@ -814,43 +814,43 @@ fn verify_current_in_store<'r>(
     tx: &Transaction<'_>,
     store: &mut super::audit_store::StoreView<'_, '_>,
     axes: impl Into<sc::RefView<'r>>,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     let entries = axes_entries(store, axes)?;
     let budget = store.allocation_budget();
     for entry in &entries {
-        let read_error = |error: String| err(format!("读 catalog[{}] 失败：{error}", entry.id));
+        let read_error = |error: PublishError| error.context(&format!("读 catalog[{}] 失败：", entry.id)).context("CatalogEvidenceInvalid：");
         let mut query = newchan_rust::sqlite_checked::CheckedStatement::prepare(
             tx, c"SELECT impl_status,proof_status,run_status,evidence_json FROM catalog WHERE catalog_id=?1",
-        ).map_err(|e| read_error(e.to_string()))?;
+        ).map_err(|e| read_error(e.into()))?;
         query
             .bind_text(1, entry.id)
-            .map_err(|e| read_error(e.to_string()))?;
-        let row = match query.next().map_err(|e| read_error(e.to_string()))? {
+            .map_err(|e| read_error(e.into()))?;
+        let row = match query.next().map_err(|e| read_error(e.into()))? {
             Some(mut row) => Some((
                 store
-                    .native_text(row.text(0).map_err(|e| read_error(e.to_string()))?)
-                    .map_err(|e| err(format!("读 catalog[{}] 失败：{e}", entry.id)))?,
+                    .native_text(row.text(0).map_err(|e| read_error(e.into()))?)
+                    .map_err(|e| read_error(e.into()))?,
                 store
-                    .native_text(row.text(1).map_err(|e| read_error(e.to_string()))?)
-                    .map_err(|e| err(format!("读 catalog[{}] 失败：{e}", entry.id)))?,
+                    .native_text(row.text(1).map_err(|e| read_error(e.into()))?)
+                    .map_err(|e| read_error(e.into()))?,
                 store
-                    .native_text(row.text(2).map_err(|e| read_error(e.to_string()))?)
-                    .map_err(|e| err(format!("读 catalog[{}] 失败：{e}", entry.id)))?,
+                    .native_text(row.text(2).map_err(|e| read_error(e.into()))?)
+                    .map_err(|e| read_error(e.into()))?,
                 store
-                    .native_text(row.text(3).map_err(|e| read_error(e.to_string()))?)
-                    .map_err(|e| err(format!("读 catalog[{}] 失败：{e}", entry.id)))?,
+                    .native_text(row.text(3).map_err(|e| read_error(e.into()))?)
+                    .map_err(|e| read_error(e.into()))?,
             )),
             None => None,
         };
-        query.finalize().map_err(|e| read_error(e.to_string()))?;
+        query.finalize().map_err(|e| read_error(e.into()))?;
         let Some((impl_status, proof_status, run_status, evidence_json)) = row else {
-            return Err(err(format!("catalog[{}] 缺行", entry.id)));
+            return Err(publish_err(format!("catalog[{}] 缺行", entry.id)));
         };
         if impl_status != entry.impl_status
             || proof_status != entry.proof_status
             || run_status != entry.run_status
         {
-            return Err(err(format!(
+            return Err(publish_err(format!(
                 "catalog[{}] 状态列 {impl_status}/{proof_status}/{run_status} 与轴值不同",
                 entry.id
             )));
@@ -863,29 +863,29 @@ fn verify_current_in_store<'r>(
             parse_json_owned(evidence_json.as_bytes(), budget.as_ref())
                 .map_err(newchan_rust::s_content::ContextError::from)
         }
-        .map_err(|e| err(format!("catalog[{}].evidence_json 非法：{e}", entry.id)))?;
+        .map_err(|e| publish_err(PublishError::from(e).context(&format!("catalog[{}].evidence_json 非法：", entry.id))))?;
         if !canonical_matches(parsed.view(), evidence_json.as_bytes(), budget.as_ref())? {
-            return Err(err(format!(
+            return Err(publish_err(format!(
                 "catalog[{}].evidence_json 不是规范 JSON 文本",
                 entry.id
             )));
         }
         let claim = sc::TransportRef::from_json_view(parsed.view()).map_err(|e| {
-            err(format!(
+            publish_err(format!(
                 "catalog[{}].evidence_json 不是四字段 ContentRef：{e}",
                 entry.id
             ))
         })?;
-        if claim.digest().map_err(err)? != entry.evidence.digest().map_err(err)? {
-            return Err(err(format!(
+        if claim.digest().map_err(publish_err)? != entry.evidence.digest().map_err(publish_err)? {
+            return Err(publish_err(format!(
                 "catalog[{}].evidence_json 与本轴 evidence 不同根",
                 entry.id
             )));
         }
-        let stored = claim.try_owned_ref().map_err(err)?;
+        let stored = claim.try_owned_ref().map_err(publish_err)?;
         store
             .verify_ref(stored.view(), sc::Mode::Public)
-            .map_err(err)?;
+            .map_err(publish_err)?;
     }
     Ok(())
 }

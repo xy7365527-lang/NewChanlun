@@ -199,6 +199,12 @@ impl ContextError {
             ..self
         }
     }
+    pub fn context_suffix(self, suffix: &str) -> Self {
+        Self {
+            message: format!("{}{suffix}", self.message),
+            ..self
+        }
+    }
     fn from_wrapped(message: String, inner: Option<&(dyn std::error::Error + 'static)>) -> Self {
         #[cfg(feature = "s_incremental")]
         let proof = inner.and_then(|error| {
@@ -298,6 +304,7 @@ impl From<serde_json::Error> for ContextError {
 context_other!(
     std::num::ParseIntError,
     std::num::TryFromIntError,
+    std::array::TryFromSliceError,
     std::str::Utf8Error,
     std::string::FromUtf8Error
 );
