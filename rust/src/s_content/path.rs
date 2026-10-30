@@ -1340,7 +1340,11 @@ fn descend_seq(
                         right,
                         went_left: true,
                     })?;
-                    node = left_node;
+                    node = if source.preserve_sequence_read_trace() {
+                        read_seq_node(source, &left, k)?
+                    } else {
+                        left_node
+                    };
                     n = k;
                 } else {
                     branches.push(BranchFrame {
@@ -1349,7 +1353,11 @@ fn descend_seq(
                         right,
                         went_left: false,
                     })?;
-                    node = right_node;
+                    node = if source.preserve_sequence_read_trace() {
+                        read_seq_node(source, &right, n - k)?
+                    } else {
+                        right_node
+                    };
                     at -= k;
                     n -= k;
                 }
@@ -1383,10 +1391,18 @@ fn boundary_leaf(
                 let left_node = read_seq_node(source, &left, k)?;
                 let right_node = read_seq_node(source, &right_digest, n - k)?;
                 if right {
-                    node = right_node;
+                    node = if source.preserve_sequence_read_trace() {
+                        read_seq_node(source, &right_digest, n - k)?
+                    } else {
+                        right_node
+                    };
                     n -= k;
                 } else {
-                    node = left_node;
+                    node = if source.preserve_sequence_read_trace() {
+                        read_seq_node(source, &left, k)?
+                    } else {
+                        left_node
+                    };
                     n = k;
                 }
             }

@@ -467,6 +467,9 @@ impl NodeSource for ArrayAuditSource<'_, '_, '_, '_> {
     fn audit_full_array_scan(&self) -> bool {
         self.full_arrays && (self.source.native_measure().is_some() || self.deadline.is_none())
     }
+    fn preserve_sequence_read_trace(&self) -> bool {
+        !self.audit_full_array_scan()
+    }
     fn read(&mut self, d: &NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
         self.source.read(d)
     }

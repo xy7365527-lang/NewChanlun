@@ -1097,6 +1097,9 @@ impl NodeSource for StoreView<'_, '_> {
     fn audit_full_array_scan(&self) -> bool {
         self.source().audit_full_array_scan()
     }
+    fn preserve_sequence_read_trace(&self) -> bool {
+        self.source().preserve_sequence_read_trace()
+    }
     fn max_render_bytes(&self) -> Option<u64> {
         self.source().max_render_bytes()
     }

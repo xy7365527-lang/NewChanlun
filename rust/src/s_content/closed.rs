@@ -646,6 +646,14 @@ pub(super) enum CodecContext<'read, 'capture> {
     Fragment(&'read mut dyn fragment::FragmentRead<'capture>),
 }
 impl<'read, 'capture> CodecContext<'read, 'capture> {
+    pub(super) fn preserve_sequence_read_trace(&self) -> bool {
+        match self {
+            Self::Source(s) => s.preserve_sequence_read_trace(),
+            Self::Store(s) => s.preserve_sequence_read_trace(),
+            _ => false,
+        }
+    }
+
     pub(super) fn reserve_native(
         &self,
         bytes: usize,

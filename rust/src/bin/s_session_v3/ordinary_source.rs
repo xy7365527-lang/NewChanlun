@@ -452,6 +452,25 @@ mod tests {
         let mut reader = super::super::super::history::HashReader::metered(nodes, None, None, None);
         audit_generated_with_proofs(&mut reader, root.into(), raw.into(), tb02a::PROFILE, rule, None, None, book)
     }
+    fn run_counted(nodes: &mut sc::MemoryNodes, root: &ContentRef, raw: &[Value], rule: &str, book: &mut OrdinaryProofs) -> (Counts, usize) {
+        struct Reads<'a> { source: &'a mut sc::MemoryNodes, count: usize }
+        impl NodeSource for Reads<'_> {
+            fn read(&mut self, digest: &NodeDigest) -> Result<sc::NodeRead, sc::CodecError> {
+                self.count += 1;
+                self.source.read(digest)
+            }
+            fn checked_read(&mut self, digest: &NodeDigest) -> Result<Option<sc::job::CheckedFrame>, sc::CodecError> {
+                self.count += 1;
+                self.source.checked_read(digest)
+            }
+        }
+        let mut source = Reads { source: nodes, count: 0 };
+        let mut reader = super::super::super::history::HashReader::metered(&mut source, None, None, None);
+        let counts = audit_generated_with_proofs(&mut reader, root.into(), raw.into(),
+            tb02a::PROFILE, rule, None, None, book).unwrap();
+        drop(reader);
+        (counts, source.count)
+    }
     fn oracle(nodes: &mut sc::MemoryNodes, root: &ContentRef, raw: &[Value], rule: &str) -> Result<Counts, String> {
         let mut reader = super::super::super::history::HashReader::metered(nodes, None, None, None);
         audit_generated_frozen_for_test(&mut reader, root, raw, tb02a::PROFILE, rule, None, None)
@@ -466,13 +485,16 @@ mod tests {
         let heap = super::super::super::audit_owner::allocation_probe::Window::start();
         let live_before = super::super::super::audit_owner::allocation_probe::live_bytes();
         let mut book = OrdinaryProofs::default();
-        assert_eq!(run(&mut nodes, &root, &raw, &rule, &mut book).unwrap(), expected);
+        let (actual, first_reads) = run_counted(&mut nodes, &root, &raw, &rule, &mut book);
+        assert_eq!(actual, expected);
         assert!(book.current.keys().any(|(phase, _)| *phase == 3));
         assert!(book.current.keys().any(|(phase, _)| *phase == 4));
         book.commit();
         let one_frontier = super::super::super::audit_owner::allocation_probe::live_bytes() - live_before;
         let executions = book.stats.executions;
-        assert_eq!(run(&mut nodes, &root, &raw, &rule, &mut book).unwrap(), expected);
+        let (actual, reused_reads) = run_counted(&mut nodes, &root, &raw, &rule, &mut book);
+        assert_eq!(actual, expected);
+        assert!(reused_reads < first_reads);
         let two_frontiers = super::super::super::audit_owner::allocation_probe::live_bytes() - live_before;
         assert!(book.stats.hits > 0);
         assert!(one_frontier > 0 && two_frontiers > one_frontier);
@@ -491,6 +513,7 @@ mod tests {
         {
             let observed = heap.finish();
             eprintln!("ORDINARY_PROOF_CAPACITY entries_before={old_entries} actual_one_frontier={one_frontier} actual_two_frontiers={two_frontiers} {capacity:?}");
+            eprintln!("ORDINARY_PROOF_NODE_READS first={first_reads} reused={reused_reads}");
             eprintln!("ORDINARY_PROOF_HEAP {observed}");
             assert_eq!(observed["live_before"], observed["live_after"]);
         }
