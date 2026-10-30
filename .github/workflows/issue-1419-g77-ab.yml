@@ -15,6 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
+      G77_MODE: "untraced"
       CARGO_INCREMENTAL: "0"
       CARGO_BUILD_JOBS: "1"
     steps:
@@ -59,7 +60,7 @@ jobs:
           assert len(binaries) == 1, binaries
           Path('../g77-evidence/executable.txt').write_text(binaries[0])
           PY
-      - name: First diagnostic pair then bounded interleaved untraced pairs
+      - name: Bounded interleaved untraced pairs after accepted trace evidence
         run: python3 .github/scripts/issue1419-g77-ab.py "$(cat g77-evidence/executable.txt)"
       - name: Retain every generated sample after writer stop
         if: always()

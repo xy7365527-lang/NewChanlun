@@ -126,11 +126,20 @@ def main():
     save()
     (out / "runner.json").write_text(json.dumps(machine(), indent=2))
     (out / "lscpu.txt").write_text(command_output(["lscpu"])["stdout"])
-    initial = pair(0, True)
-    if initial["new_logical"] >= initial["old_logical"] * 0.9:
-        summary["status"] = "stopped_no_clear_repeated_work_reduction"
-        return
-    pair_cost = initial["old_seconds"] + initial["new_seconds"]
+    mode = os.environ.get("G77_MODE", "trace-first")
+    assert mode in ("trace-first", "untraced")
+    summary["mode"] = mode
+    if mode == "trace-first":
+        initial = pair(0, True)
+        if initial["new_logical"] >= initial["old_logical"] * 0.9:
+            summary["status"] = "stopped_no_clear_repeated_work_reduction"
+            return
+        pair_cost = initial["old_seconds"] + initial["new_seconds"]
+    else:
+        # 主控消费 r2 等价和工作量证据后批准独立重复性轮；不再按收益挑样本。
+        summary["prior_trace_run"] = 41054015956
+        summary["authorization_reason"] = "full equivalence, zero errors, SQL reduction and real proof hits"
+        pair_cost = 300.0
     for index in range(1, 6):
         if deadline - time.time() < pair_cost * 1.25 + 45:
             summary["status"] = "bounded_partial_samples"
