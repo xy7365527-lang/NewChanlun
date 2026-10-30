@@ -221,6 +221,7 @@ TB1717_S_EXPORT 未设置
 TOP 窗口应产对象
 TOP/BOTTOM 窗口应产对象
 TOP/BOTTOM 窗口必产 CC007
+Template损坏必须拒绝
 TestOnly staging只允许Native
 TestOnly two-input real OHLC production paths; no serve, no writer limits acceptance, no full9011
 TestOnly：Budget 故障仅用于 Owned 模式
@@ -446,6 +447,7 @@ wire 装配不得读取载荷子图（记录自身字段根除外）
 wire后生成原件损坏仍命中相同晚exact错误
 wire必须实际读不同internal根
 withdrawn > 当前代
+withdrawn_generation 与独立记录不同
 writer 换代历史被塞入未闭合行
 writer/recover闭合后无SHM
 ①来源合同额之和
@@ -460,6 +462,7 @@ writer/recover闭合后无SHM
 三字段必须存在
 三槽不能靠空集合通过
 三次正常写应完整消费 owner effects 与新代
+上一项业务检查必须先发生
 上界先于来源读取
 上轮事务的根已消失：闭包必然缺节点
 下一事务必须得到非空真实赢家变化
@@ -515,11 +518,13 @@ writer/recover闭合后无SHM
 修订已接纳但未 Begin/发布也必须等待
 修订应有同槽新旧身份
 修订起点之前的坐标 0-2 未受影响、直接复用
+候选普通原件池
 候选规划不得改写原历史输入
 候选重新出生后 ingest-2 须命中完整候选、经 Carry 提交资格且租约有效
 借用 Key 查询不复制文本
 借用header仍核本次F，再遇真实容器额度门
 值节点header错误
+停止门之前不得预读下一成员正文
 停止门须先于 IO
 先释放正文，随后归还父账
 全raw/历史/SQL原件不得复制
@@ -644,6 +649,7 @@ writer/recover闭合后无SHM
 只在实际COMMIT成功后晋升
 只新增数组根和新字符串
 只有实际read集合持账
+叶本身是序列必须拒绝
 合法Merkle畸形在None/Some均须由原业务判据拒绝
 合法收紧额度保留完整候选；旧128倍门会提前丢弃
 合法独立新增节点
@@ -657,6 +663,7 @@ writer/recover闭合后无SHM
 同captured mode下F/读取核不得漂移
 同owner快照命中无需重建cold
 同一allocation重复物理reserve必须被拒
+同一冻结库的持久发布输入未变；行为等价由七代独立库锁验证
 同一合同项不得重复入O
 同一合法字符串
 同一块在O与U中只计一次
@@ -759,6 +766,7 @@ writer/recover闭合后无SHM
 安装故障注入 progress_handler
 安装故障观察 update_hook
 完整SQL JSON逐字段对照
+完整cold须消费每代source/catalog的三个Public根
 完整generated或独立internal坏件必须在wire写入前拒绝
 完整raw/cuts/index与cold不同
 完整候选比较不能减少
@@ -785,6 +793,7 @@ writer/recover闭合后无SHM
 审计返回的对象索引必须与持久行一一对应
 审计返回的辅助索引必须与持久行一一对应
 容器离开闭包仍持元数据账
+对照只禁原件复用，保留611cc1d来源证明
 对象字段按键的 UTF-8 字节升序，与输入顺序无关
 对象键非字符串
 对齐坐标序列
@@ -814,6 +823,7 @@ writer/recover闭合后无SHM
 已有overlay继续逐次核F
 已有旧 cut 的后续代须真实保留来源池
 已核旧capture不因另一次失败而改动
+已核根只重读真实头
 已见根也必须重新核对 extent
 已见根也必须重新核对 kind
 干净整账本依赖面
@@ -844,6 +854,8 @@ writer/recover闭合后无SHM
 必须到达第五次push的真实扩容拒绝
 必须存在类型正确的末代发布记录
 必须实测变化JSON所有者中途预算拒绝
+必须实际减少SQL读取
+必须实际减少同一FD VFS的audit wire
 必须实际接纳，不能用replay/已发布回执冒充新增raw
 必须实际改写一行，不能空表假通过
 必须实际消费尾检故障
@@ -903,6 +915,7 @@ writer/recover闭合后无SHM
 捕获读集期限已到
 损坏fixture必须真实违反TEXT列类型
 损坏状态必须被拒绝
+损坏节点必须阻止普通cold-open
 排序临时工作区已经真实释放
 控制头不得保强证书
 控制头不得暗补或数字归一化
@@ -949,6 +962,7 @@ writer/recover闭合后无SHM
 无scope的Native投影构造
 无占位的旧对象可直接公开核验
 无新输入的 advance 也必须读取原 generation，而不是当前配置
+无资格caller仍完整核验
 无资源失败记录时闭包错误不降级
 旧 AsKnown 快照不得被后续追加改写
 旧 Value 根证书不得进入本次 owner 子树资格
@@ -1009,6 +1023,7 @@ writer/recover闭合后无SHM
 普通 reader 没有历史审计资格
 普通MemoryNodes原encoder+sink两次实际F必须保留
 普通OHLC入口不可拆Owned
+普通cold-open须消费已验证history
 普通oracle仅Plain
 普通oracle只接Plain
 普通入口不能使mixed预留免账
@@ -1024,6 +1039,7 @@ writer/recover闭合后无SHM
 暖/冷坐标文本序列逐位相同
 暖/冷源引用序列逐位相同
 暖入口有同父旧候选
+暖原件不重读 SQL
 暖捕获必须复用已核前缀（3 代）
 暖缓存应捕获已认证控制头
 暖读不得重新展开
@@ -1143,6 +1159,7 @@ writer/recover闭合后无SHM
 正式OHLC原件一同提交
 正式Publish不能重跑完整来源核
 正式消息控制账一同提交
+正控必须实际经过decode_manifest
 正控必须消费非空真实原件
 正文块物理计费一次
 正文必须原Vec按值移动
@@ -1249,6 +1266,7 @@ writer/recover闭合后无SHM
 真实 put 故障
 真实 revision 必须改变原件身份
 真实Accept不得降为无scope原始账
+真实B对象复用A已登记的引用
 真实COMMIT后才持有旧前缀facts
 真实Closed F与实际逻辑accept F各一次
 真实Job累计门与节点用量保持
@@ -1256,6 +1274,7 @@ writer/recover闭合后无SHM
 真实Plain载荷析构后归还许可
 真实checkout应被同账解码门拒绝
 真实encoder只做单次F
+真实history入口在Template失败时不得解码任何manifest
 真实scope元数据已释放
 真实scratch Layout已释放
 真实snapshot/delta八份持久keys均须留在原账，包括空raw
@@ -1267,6 +1286,7 @@ writer/recover闭合后无SHM
 真实修订（消失/返回）下增量与 oracle 的逐代 batch_id 必须相同
 真实冷审计必须命中history→source交接
 真实原始修订应有首次替代边
+真实只读审计持有原件池
 真实提交后对象索引必须非空
 真实新raw尾ordinal
 真实旧行仍活着时，clone差一字节须拒绝
@@ -1364,6 +1384,7 @@ writer/recover闭合后无SHM
 裁剪后正文长度缓存须匹配实存
 装不下只失去读集保留
 裸连接只允许只读检查，控制写入须有事务
+覆盖只活在当前manifest构造借用内
 见证/关系的出生序与原键序须在某个 cut 分离
 见证依赖索引悬空
 见证期内构造
@@ -1511,6 +1532,7 @@ writer/recover闭合后无SHM
 非对象记录必须拒绝
 非真空 FIRST 成员关系
 顺序、ContentRef、kind、extent及render值一致
+顺序遍历必须实际减少重复祖先读取
 须原持有状态块许可
 须持有完整候选
 须持有已提交资格
