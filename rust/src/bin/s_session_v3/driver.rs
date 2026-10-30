@@ -7395,7 +7395,7 @@ mod tests {
         let material = new.3.expect("候选普通原件池");
         assert_eq!(old.2, [14, 42]);
         assert_eq!(new.2, old.2);
-        assert_eq!(new.4, old.4, "所有cut的完整发布数组逐项对拍");
+        assert_eq!(new.4, old.4, "同一冻结库的持久发布输入未变；行为等价由七代独立库锁验证");
         assert!(new.0 < old.0, "必须实际减少SQL读取");
         assert!(new.1[2] < old.1[2], "必须实际减少同一FD VFS的audit wire");
         assert!(material.retained_capacity_highwater <= super::super::ordinary_materials::CAP);

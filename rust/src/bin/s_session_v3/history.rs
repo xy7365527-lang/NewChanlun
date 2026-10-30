@@ -5501,6 +5501,33 @@ pub(super) mod tests {
 
     #[cfg(feature = "s_incremental")]
     #[test]
+    fn ordinary_material_whole_readonly_audit_heap_releases() {
+        let mut f = super::prepared::tests::Fixture::with_rule(crate::V3_RULE_REVISION);
+        let (envelope, token) = f.accept_begin(1, ("a", 0, 6, 12, 3, 7), 1);
+        f.publish(&envelope, &token).unwrap();
+        let run = || {
+            let mut conn = Connection::open_with_flags(f.conn.path().unwrap(),
+                rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
+            let tx = conn.transaction().unwrap();
+            let audited = super::state::audit(&tx).unwrap();
+            assert_eq!(audited.cuts.len(), 1);
+        };
+        run();
+        super::ordinary_materials::LAST_REPORT.with(|r| r.set(None));
+        let heap = crate::v3::audit_owner::allocation_probe::Window::start();
+        run();
+        let observed = heap.finish();
+        let material = super::ordinary_materials::LAST_REPORT.with(|r| r.get())
+            .expect("真实只读审计持有原件池");
+        assert!(material.material_hits > 0);
+        assert!(material.retained_capacity_highwater <= super::ordinary_materials::CAP);
+        assert_eq!(observed["live_before"], observed["live_after"]);
+        assert_eq!(observed["allocated_bytes"], observed["released_bytes"]);
+        eprintln!("ORDINARY_MATERIAL_REQUEST_HEAP {observed} {material:?}");
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
     fn ordinary_proof_owner_commits_only_after_whole_cut_and_reopen_starts_empty() {
         let mut f = super::prepared::tests::Fixture::with_rule(crate::V3_RULE_REVISION);
         let (envelope, token) = f.accept_begin(1, ("a", 0, 6, 12, 3, 7), 1);
