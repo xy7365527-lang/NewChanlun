@@ -1,0 +1,65 @@
+name: '#1552 C1 闭包末节点精确预算'
+
+on:
+  push:
+    branches: ['codex/1552-c1-prepare32p']
+
+permissions:
+  contents: read
+
+jobs:
+  closure-budget:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      CARGO_INCREMENTAL: '0'
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        id: python
+        with:
+          python-version: '3.12'
+      - run: echo "PYO3_PYTHON=${{ steps.python.outputs.python-path }}" >> "$GITHUB_ENV"
+      - name: 记录候选与工具链
+        run: |
+          echo "github_sha=$GITHUB_SHA"          sw_vers
+          uname -a
+          rustc -vV
+          cargo -V
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-registry-v1-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-${{ runner.arch }}-cargo-registry-v1-
+      - name: 检查两文件格式
+        run: rustfmt --edition 2021 --check src/bin/s_session_v3/financial_reader.rs src/bin/s_session_v3/financial_session_tests.rs
+      - name: 真实会话末节点边界与完整闭包分页
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test --locked --features s_session --bin s_structure_session -- --list > "$RUNNER_TEMP/c1-list.log"
+          failed=0
+          for name in closure_final_prefix_uses_exact_done_length_at_budget_boundaries closure_chunks_are_exactly_the_basis_closure_and_match_cold_path; do
+            test="v3::financial_session::tests::$name"
+            grep -Fx "$test: test" "$RUNNER_TEMP/c1-list.log"
+            if ! cargo test --locked --features s_session --bin s_structure_session -- --exact "$test" --nocapture --test-threads=1 2>&1 | tee "$RUNNER_TEMP/c1-$name.log"; then
+              failed=1
+            elif ! grep -Fq 'test result: ok. 1 passed; 0 failed' "$RUNNER_TEMP/c1-$name.log"; then
+              failed=1
+            fi
+          done
+          exit "$failed"      - name: 保存具名测试原始日志
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue1552-c1-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/c1-*.log
+          if-no-files-found: error
