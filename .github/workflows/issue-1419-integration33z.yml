@@ -27,7 +27,7 @@ jobs:
           git rev-parse HEAD | tee ../owned34p/head.txt
           cargo test --locked --features s_session,s_allocation_json_testonly --bin s_structure_session --no-run
           cargo test --locked --features s_session,s_allocation_json_testonly --bin s_structure_session -- development_tests --test-threads 1 --nocapture 2>&1 | tee ../owned34p/development35a.log
-          grep -q '4 passed; 0 failed' ../owned34p/development35a.log
+          grep -q '6 passed; 0 failed' ../owned34p/development35a.log
           cargo test --locked --features s_session,s_allocation_json_testonly --bin s_structure_session -- v3::source_audit::tests::local_some_keeps_sql_f_budget_error_order_and_deadline_before_sql --exact --test-threads 1 --nocapture 2>&1 | tee ../owned34p/some.log
           grep -q 'running 1 test' ../owned34p/some.log
           cargo test --locked --features s_session,s_allocation_json_testonly --lib -- s_content::sqlite_audit::tests --test-threads 1 --nocapture 2>&1 | tee ../owned34p/sqlite-base.log

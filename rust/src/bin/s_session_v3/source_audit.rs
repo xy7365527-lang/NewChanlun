@@ -1857,6 +1857,7 @@ impl ObjectSlots for FullObjectSlots<'_> {
         Ok(self.groups.insert(index, group).map_err(err)?.is_some())
     }
 }
+#[cfg(test)]
 fn audit_object_record(
     s: &mut (impl SourceFieldStore + ?Sized),
     record: &RefValue,
@@ -1943,7 +1944,9 @@ impl<'a, 'raw> DevelopmentAuditSession<'a, 'raw> {
         let (entries, allocation_failure) = (16384usize, false);
         let metadata = std::mem::size_of::<Self>() + std::mem::size_of::<Option<Self>>()
             + 2 * std::mem::size_of::<DevelopmentStats>();
-        let room = sc::sqlite_audit::PROOF_CAP.saturating_sub(base.proof_stats().retained_bytes);
+        let proofs = base.proof_stats();
+        let room = sc::sqlite_audit::PROOF_CAP.saturating_sub(proofs.retained_bytes)
+            .saturating_sub(proofs.auxiliary_retained_bytes);
         if entries > 0 && entries % 4 == 0 && !allocation_failure
             && entries.checked_mul(std::mem::size_of::<DevelopmentSlot>())
                 .and_then(|n| n.checked_add(metadata)).is_some_and(|n| n <= room)

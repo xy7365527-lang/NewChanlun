@@ -1,4 +1,5 @@
 use super::*;
+use super::tests::original_sources;
 use rusqlite::Connection;
 struct Config((usize, bool));
 impl Config {
@@ -129,9 +130,9 @@ fn development_full_declaration_collision_and_exclusive_resource_lease() {
 fn development_sqlite_production_entry_hits_and_next_audit_has_fresh_raw_binding() {
     let (nodes, state, raw, rule) = super::tests::fixture();
     let conn = database(&nodes);
+    let base = sc::sqlite_audit::SqliteAuditBase::new(&conn, 4096);
     let run = |raw: &[Value], profile: &str, rule: &str, config| {
         let _config = Config::set(config);
-        let base = sc::sqlite_audit::SqliteAuditBase::new(&conn, 4096);
         let mut reader = super::super::history::HashReader::sqlite_base(&base);
         let f = sc::frame_calls_on_thread();
         let result = audit_generated_for_audit(&mut reader, &state, raw, profile, rule, None, None);
@@ -147,8 +148,48 @@ fn development_sqlite_production_entry_hits_and_next_audit_has_fresh_raw_binding
         assert!(new.1.eligible_batches > 0); assert!(new.1.hits > 0);
         assert_eq!(new.1.current_full, old.1.current_full); assert!(new.1.previous_full < old.1.previous_full);
     }
-    let mut changed = raw.clone(); changed[0]["payload"]["high"] = json!("123456789");
+    let mut changed = raw.clone(); changed[0]["revision"] = json!(2);
     for (events, profile, rule) in [(&changed[..],tb02a::PROFILE,&rule[..]), (&raw[..raw.len()-1],tb02a::PROFILE,&rule[..]), (&raw[..],"unsupported-profile",&rule[..]), (&raw[..],tb02a::PROFILE,"unsupported-rule")] {
         assert_eq!(run(events, profile, rule, (16384,false)).0, run(events, profile, rule, (0,false)).0);
+    }
+}
+
+#[test]
+fn development_late_structural_error_precedes_early_business_error_and_public_rejects() {
+    let (mut nodes, state, raw, rule) = super::tests::fixture();
+    let mut value = payload(&mut nodes, &state);
+    let mut entry = value["entries"][2].clone();
+    entry["development"]["root"][0]["source_ref"]["receipt_id"] = json!("wrong");
+    let late = sc::write_value(&mut nodes, &cv(&entry["development"]["root"][1]).unwrap()).unwrap().content_ref();
+    value["entries"] = json!([entry]);
+    let r = RefValue::from(sc::write_value(&mut nodes, &cv(&value).unwrap()).unwrap().content_ref());
+    let (tag, _) = nodes.get(&late.digest().unwrap()).unwrap();
+    nodes.insert_unchecked(late.digest().unwrap(), tag, vec![255]);
+    let sources = original_sources(&raw, raw.len()).unwrap();
+    let expected = frozen_oracle::audit_bounded2_batch(&mut nodes, &r, &sources, &rule).map_err(PublishError::from);
+    assert!(expected.is_err());
+    assert!(!expected.as_ref().unwrap_err().to_string().contains("source_ref不是"));
+    let conn = database(&nodes);
+    assert_eq!(run_batch(&conn, &r, &sources, &rule, (16384,false)).0, expected);
+    assert_eq!(run_batch(&conn, &r, &sources, &rule, (0,false)).0, expected);
+    let base = sc::sqlite_audit::SqliteAuditBase::new(&conn, 4096);
+    assert!(base.verify_ref(r.view(), sc::Mode::Public).is_err(), "顶层闭包在业务审计前拒绝此故障");
+}
+#[test]
+fn development_generic_deadline_render_and_fresh_are_ineligible() {
+    let (mut nodes, state, raw, rule) = super::tests::fixture();
+    let _config = Config::set((16384,false));
+    let result = audit_generated(&mut nodes, &state, &raw, tb02a::PROFILE, &rule);
+    assert!(result.is_ok());
+    assert_eq!(DEVELOPMENT_LAST.with(std::cell::Cell::get).eligible_batches, 0);
+    let conn = database(&nodes);
+    let base = sc::sqlite_audit::SqliteAuditBase::new(&conn, 4096);
+    let mut reader = super::super::history::HashReader::sqlite_base(&base);
+    assert_eq!(reader.eligible_sqlite_base().is_some(), !cfg!(feature = "s_incremental"));
+    sc::write_value(&mut reader, &V::Bool(true)).unwrap();
+    assert!(reader.eligible_sqlite_base().is_none(), "fresh overlay 不得带入写前成功表");
+    for (deadline, max) in [(Some(std::time::Instant::now()), None), (None, Some(32))] {
+        let reader = super::super::history::HashReader::metered(&mut nodes, deadline, max, None);
+        assert!(reader.eligible_sqlite_base().is_none());
     }
 }
