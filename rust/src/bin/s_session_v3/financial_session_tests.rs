@@ -2456,27 +2456,35 @@ fn w2_pending_cost_probe() {
             r.get(0)
         })
         .unwrap();
-    let side = std::env::var("W2_BASE_SIDE").unwrap_or_else(|_| "new".into());
+    let base_side = std::env::var("W2_BASE_SIDE").unwrap_or_else(|_| "new".into());
+    assert!(base_side == "old" || base_side == "new");
+    let side = std::env::var("W2_PREVIOUS_SIDE").unwrap_or_else(|_| "new".into());
     assert!(side == "old" || side == "new");
     let trace = std::env::var("W2_TRACE").map_or(true, |value| value == "1");
     let mut runtime = super::super::prepared::Runtime::new();
     let mut commit = || runtime.commit(conn.transaction().unwrap(), &token, &envelope);
     super::super::ordinary_materials::LAST_REPORT.with(|r| r.set(None));
     super::super::ordinary_materials::LAST_PROOFS.with(|r| r.set(None));
-    let started = std::time::Instant::now();
-    let mut run = || {
-        if trace {
-            state::traced(false, &mut commit)
-        } else {
-            (commit(), Vec::new(), Value::Null)
-        }
-    };
-    let (result, events, work) = if side == "old" {
-        state::without_base_proofs_for_test(&mut run)
-    } else {
-        run()
-    };
-    let elapsed = started.elapsed().as_nanos().to_string();
+    let (((result, events, work), elapsed, f_calls), development) =
+        super::super::source_audit::with_development_previous_for_test(side == "new", || {
+            let frames = newchan_rust::s_content::frame_calls_on_thread();
+            let started = std::time::Instant::now();
+            let mut run = || {
+                if trace {
+                    state::traced(false, &mut commit)
+                } else {
+                    (commit(), Vec::new(), Value::Null)
+                }
+            };
+            let outcome = if base_side == "old" {
+                state::without_base_proofs_for_test(&mut run)
+            } else {
+                run()
+            };
+            let elapsed = started.elapsed().as_nanos().to_string();
+            let f_calls = newchan_rust::s_content::frame_calls_on_thread() - frames;
+            (outcome, elapsed, f_calls)
+        });
     let material = super::super::ordinary_materials::LAST_REPORT
         .with(|r| r.get())
         .map(|m| {
@@ -2489,7 +2497,11 @@ fn w2_pending_cost_probe() {
         .with(|r| r.get())
         .map(|p| {
             json!({"hits":p.hits,"commits":p.commits,"entries":p.entries,
-            "retained_bytes":p.retained_bytes,"disabled":p.disabled})
+            "retained_bytes":p.retained_bytes,"disabled":p.disabled,"probes":p.probes,
+            "auxiliary_retained_bytes":p.auxiliary_retained_bytes,
+            "auxiliary_peak_bytes":p.auxiliary_peak_bytes,
+            "auxiliary_released_bytes":p.auxiliary_released_bytes,
+            "combined_peak_bytes":p.combined_peak_bytes})
         });
     let reply = result.as_ref().ok().map(|r| {
         json!({
@@ -2500,9 +2512,9 @@ fn w2_pending_cost_probe() {
     });
     eprintln!(
         "W2-PENDING-COST {}",
-        canonical_json(&json!({"generation":77,"side":side,"trace":trace,
-            "elapsed_ns":elapsed,"events":events,"work":work,
-            "material":material,"proofs":proofs,"reply":reply,
+        canonical_json(&json!({"generation":77,"side":side,"base_side":base_side,"trace":trace,
+            "elapsed_ns":elapsed,"events":events,"work":work,"f_calls":f_calls,
+            "development":development,"material":material,"proofs":proofs,"reply":reply,
             "error":result.as_ref().err()}))
     );
     assert_eq!(result.unwrap().generation, 77);

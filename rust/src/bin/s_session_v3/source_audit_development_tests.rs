@@ -610,3 +610,77 @@ fn development_exclusion_budget_stop_at_ordinary_native_and_owned() {
         });
     }
 }
+
+#[test]
+fn development_measurement_totals_include_success_and_error_release() {
+    let (mut nodes, state, raw, rule) = super::tests::fixture();
+    let good = payload(&mut nodes, &state);
+    let mut bad = good.clone();
+    bad["entries"][0]["development"]["count"] = json!("0");
+    let refs: Vec<_> = [&good, &bad]
+        .into_iter()
+        .map(|v| {
+            RefValue::from(
+                sc::write_value(&mut nodes, &cv(v).unwrap())
+                    .unwrap()
+                    .content_ref(),
+            )
+        })
+        .collect();
+    let sources = original_sources(&raw, raw.len()).unwrap();
+    let conn = database(&nodes);
+    for enabled in [false, true] {
+        let (_, totals) = with_development_previous_for_test(enabled, || {
+            for (index, reference) in refs.iter().enumerate() {
+                let base = sc::sqlite_audit::SqliteAuditBase::new(&conn, 4096);
+                let mut reader = super::super::history::HashReader::sqlite_base(&base);
+                let mut session = DevelopmentAuditSession::new(&base, &sources, &rule);
+                let result = session.batch(&mut reader, reference);
+                assert_eq!(result.is_ok(), index == 0);
+                drop(session);
+                assert_eq!(base.proof_stats().auxiliary_retained_bytes, 0);
+            }
+        });
+        assert_eq!(totals["sessions"], 2);
+        assert_eq!(totals["eligible_batches"], 2);
+        assert_eq!(totals["current_full"], 4);
+        assert_eq!(totals["previous_full"], if enabled { 0 } else { 6 });
+        assert_eq!(totals["hits"], if enabled { 6 } else { 0 });
+        assert_eq!(totals["capacity"], if enabled { 16384 } else { 0 });
+        assert_eq!(totals["retained_bytes"], 0);
+        assert_eq!(totals["allocated_bytes"], totals["released_bytes"]);
+        assert_eq!(
+            totals["allocated_bytes"].as_u64().unwrap(),
+            2 * totals["peak_bytes"].as_u64().unwrap()
+        );
+        assert!(totals["combined_peak_bytes"].as_u64().unwrap() <= 3 * 1024 * 1024);
+    }
+}
+
+#[test]
+fn development_measurement_selector_restores_nested_error_and_unwind_scopes() {
+    let before = DEVELOPMENT_CONFIG.with(std::cell::Cell::get);
+    let last = DEVELOPMENT_LAST.with(std::cell::Cell::get);
+    let (_, outer) = with_development_previous_for_test(true, || {
+        assert_eq!(DEVELOPMENT_CONFIG.with(std::cell::Cell::get), (16384, false));
+        let (result, _) = with_development_previous_for_test(false, || {
+            assert_eq!(DEVELOPMENT_CONFIG.with(std::cell::Cell::get), (0, false));
+            Err::<(), _>("expected test error")
+        });
+        assert!(result.is_err());
+        assert_eq!(DEVELOPMENT_CONFIG.with(std::cell::Cell::get), (16384, false));
+        assert!(std::panic::catch_unwind(|| {
+            with_development_previous_for_test(false, || panic!("expected test unwind"))
+        })
+        .is_err());
+        assert_eq!(DEVELOPMENT_CONFIG.with(std::cell::Cell::get), (16384, false));
+        assert!(DEVELOPMENT_TOTAL.with(|s| s.get().is_some()));
+    });
+    assert_eq!(outer["sessions"], 0);
+    assert_eq!(DEVELOPMENT_CONFIG.with(std::cell::Cell::get), before);
+    assert!(DEVELOPMENT_TOTAL.with(|s| s.get().is_none()));
+    assert_eq!(
+        DEVELOPMENT_LAST.with(|s| s.get().eligible_batches),
+        last.eligible_batches
+    );
+}

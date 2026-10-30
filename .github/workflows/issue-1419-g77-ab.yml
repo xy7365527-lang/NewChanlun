@@ -1,4 +1,4 @@
-name: issue-1419 g77 33W AB
+name: issue-1419 g77 previous memo AB
 on:
   push:
     branches: [codex/1419-audit-proof33x]
@@ -15,22 +15,26 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
-      G77_MODE: "untraced"
+      G77_MODE: "trace-first"
       CARGO_INCREMENTAL: "0"
       CARGO_BUILD_JOBS: "1"
     steps:
       - name: Start shared diagnostic time cap
         run: echo "G77_STARTED=$(date +%s)" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
+        timeout-minutes: 1
       - uses: ./.github/actions/rust-job-setup
+        timeout-minutes: 4
       - name: Record candidate and Linux-only formatting
+        timeout-minutes: 1
         run: |
           mkdir -p g77-evidence
           git rev-parse HEAD > g77-evidence/source-head.txt
           echo "$GITHUB_RUN_ID" > g77-evidence/run-id.txt
-          rustfmt --edition 2021 --config skip_children=true rust/src/bin/s_session_v3/financial_session_tests.rs
+          rustfmt --edition 2021 --config skip_children=true rust/src/bin/s_session_v3/financial_session_tests.rs rust/src/bin/s_session_v3/source_audit.rs rust/src/bin/s_session_v3/source_audit_development_tests.rs
           git diff -- '*.rs' > g77-evidence/rustfmt.patch
       - uses: actions/download-artifact@v4
+        timeout-minutes: 3
         with:
           github-token: ${{ github.token }}
           repository: xy7365527-lang/NewChanlun
@@ -39,6 +43,7 @@ jobs:
           path: g77-evidence/original-artifact
           merge-multiple: true
       - name: Extract fixed diagnostic source without opening original DB
+        timeout-minutes: 2
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -47,11 +52,16 @@ jobs:
           with tarfile.open(base/'original-artifact/w2-runtime.tgz') as archive:
               archive.extractall(base/'extracted-original', filter='data')
           PY
+      - name: Check Python measurement gates
+        timeout-minutes: 1
+        run: python3 -m unittest discover -s .github/scripts -p test_issue1419_g77_ab.py -v
       - name: Compile the one release test executable
         working-directory: rust
         run: |
           set -o pipefail
-          cargo test --locked --release --features s_session --bin s_structure_session --jobs 1 --no-run --message-format=json 2>../g77-evidence/compile.stderr | tee ../g77-evidence/compile.jsonl
+          remaining=$((G77_STARTED + 35 * 60 - 120 - $(date +%s) - 10))
+          test "$remaining" -gt 0
+          timeout --signal=TERM --kill-after=10 "${remaining}s" cargo test --locked --release --features s_session --bin s_structure_session --jobs 1 --no-run --message-format=json 2>../g77-evidence/compile.stderr | tee ../g77-evidence/compile.jsonl
           python3 - <<'PY'
           import json
           from pathlib import Path
@@ -60,24 +70,38 @@ jobs:
           assert len(binaries) == 1, binaries
           Path('../g77-evidence/executable.txt').write_text(binaries[0])
           PY
-      - name: Bounded interleaved untraced pairs after accepted trace evidence
+      - name: Check scoped measurement selector with the same executable
+        run: |
+          remaining=$((G77_STARTED + 35 * 60 - 120 - $(date +%s) - 10))
+          test "$remaining" -gt 0
+          timeout --signal=TERM --kill-after=10 "${remaining}s" "$(cat g77-evidence/executable.txt)" v3::source_audit::development_tests::development_measurement_ --nocapture --test-threads=1 > g77-evidence/selector-tests.txt 2>&1
+          grep -F 'test result: ok. 2 passed;' g77-evidence/selector-tests.txt
+      - name: Trace attribution then at most five interleaved untraced pairs
         run: python3 .github/scripts/issue1419-g77-ab.py "$(cat g77-evidence/executable.txt)"
       - name: Retain every generated sample after writer stop
         if: always()
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import importlib.util, json, tarfile
+          import importlib.util, json, os, tarfile, time
           spec = importlib.util.spec_from_file_location('supervisor', '.github/scripts/w2-runtime-process.py')
           module = importlib.util.module_from_spec(spec)
           spec.loader.exec_module(module)
           root = Path('g77-evidence')
+          root.mkdir(exist_ok=True)
+          summary_path = root/'summary.json'
+          summary = json.loads(summary_path.read_text()) if summary_path.exists() else {}
+          cases = {c['case']: c for c in summary.get('cases', [])}
+          stopped = []
           for statefile in root.glob('*/*/process.json'):
               state = json.loads(statefile.read_text())
               assert state['stopped'] and not module.live_group(state['process_group']), str(statefile)
+              stopped.append(str(statefile.relative_to(root)))
           for db in root.glob('*/*/w2.run/s.sqlite'):
-              assert (db.parent.parent/'process.json').exists(), str(db)
-          with tarfile.open(root/'samples.tgz', 'w:gz') as archive:
+              case = str(db.parent.parent.relative_to(root))
+              assert (db.parent.parent/'process.json').exists() or cases.get(case, {}).get('launched') is False, str(db)
+          (root/'archive-check.json').write_text(json.dumps({'stopped_states': stopped, 'reclaimed_count': len(stopped), 'elapsed_seconds': time.time() - int(os.environ['G77_STARTED'])}))
+          with tarfile.open(root/'samples.tgz', 'w:gz', compresslevel=1) as archive:
               for folder in sorted(root.iterdir()):
                   if folder.is_dir() and (folder.name == 'trace' or folder.name.startswith('pair')):
                       archive.add(folder, arcname=folder.name)
@@ -86,7 +110,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: issue1419-g77-33w-${{ github.sha }}
+          name: issue1419-g77-previous-${{ github.sha }}
           path: |
             g77-evidence/*.json
             g77-evidence/*.txt

@@ -1897,6 +1897,7 @@ fn audit_object_record(
 mod development_tests;
 
 #[derive(Clone, Copy, Default, Debug)]
+#[cfg_attr(test, derive(serde::Serialize))]
 struct DevelopmentStats {
     eligible_batches: u64,
     hits: u64,
@@ -1913,6 +1914,39 @@ struct DevelopmentStats {
 thread_local! {
     static DEVELOPMENT_CONFIG: std::cell::Cell<(usize, bool)> = const { std::cell::Cell::new((16384, false)) };
     static DEVELOPMENT_LAST: std::cell::Cell<DevelopmentStats> = std::cell::Cell::new(DevelopmentStats::default());
+    static DEVELOPMENT_TOTAL: std::cell::Cell<Option<DevelopmentTotals>> = const { std::cell::Cell::new(None) };
+}
+#[cfg(test)]
+#[derive(Clone, Copy, Default, serde::Serialize)]
+struct DevelopmentTotals {
+    #[serde(flatten)]
+    stats: DevelopmentStats,
+    sessions: u64,
+    allocated_bytes: usize,
+    combined_peak_bytes: usize,
+}
+#[cfg(test)]
+pub(super) fn with_development_previous_for_test<T>(
+    enabled: bool,
+    action: impl FnOnce() -> T,
+) -> (T, Value) {
+    struct Reset((usize, bool), Option<DevelopmentTotals>, DevelopmentStats);
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            DEVELOPMENT_CONFIG.with(|s| s.set(self.0));
+            DEVELOPMENT_TOTAL.with(|s| s.set(self.1));
+            DEVELOPMENT_LAST.with(|s| s.set(self.2));
+        }
+    }
+    let reset = Reset(
+        DEVELOPMENT_CONFIG.with(|s| s.replace((if enabled { 16384 } else { 0 }, false))),
+        DEVELOPMENT_TOTAL.with(|s| s.replace(Some(DevelopmentTotals::default()))),
+        DEVELOPMENT_LAST.with(|s| s.replace(DevelopmentStats::default())),
+    );
+    let result = action();
+    let totals = DEVELOPMENT_TOTAL.with(|s| s.get().unwrap());
+    drop(reset);
+    (result, json!(totals))
 }
 #[derive(Clone, Copy, Default)]
 struct DevelopmentSlot {
@@ -1994,6 +2028,19 @@ impl<'a, 'raw> DevelopmentAuditSession<'a, 'raw> {
         audit_development_batch_inner(s, payload, self.raw, self.rule, Some(&mut self.table))
     }
 }
+#[cfg(test)]
+impl Drop for DevelopmentAuditSession<'_, '_> {
+    fn drop(&mut self) {
+        DEVELOPMENT_TOTAL.with(|total| {
+            if let Some(mut n) = total.get() {
+                n.combined_peak_bytes = n
+                    .combined_peak_bytes
+                    .max(self.base.proof_stats().combined_peak_bytes);
+                total.set(Some(n));
+            }
+        });
+    }
+}
 impl DevelopmentTable<'_> {
     fn key(unit: &RefValue) -> Option<NodeDigest> {
         let r = unit.view();
@@ -2043,6 +2090,24 @@ impl Drop for DevelopmentTable<'_> {
         self.stats.retained_bytes = 0;
         #[cfg(test)]
         DEVELOPMENT_LAST.with(|s| s.set(self.stats));
+        #[cfg(test)]
+        DEVELOPMENT_TOTAL.with(|total| {
+            if let Some(mut n) = total.get() {
+                n.sessions += 1;
+                n.allocated_bytes += self.stats.peak_bytes;
+                n.stats.eligible_batches += self.stats.eligible_batches;
+                n.stats.current_full += self.stats.current_full;
+                n.stats.previous_full += self.stats.previous_full;
+                n.stats.hits += self.stats.hits;
+                n.stats.misses += self.stats.misses;
+                n.stats.disabled |= self.stats.disabled;
+                n.stats.capacity = n.stats.capacity.max(self.stats.capacity);
+                n.stats.peak_bytes = n.stats.peak_bytes.max(self.stats.peak_bytes);
+                n.stats.retained_bytes += self.stats.retained_bytes;
+                n.stats.released_bytes += self.stats.released_bytes;
+                total.set(Some(n));
+            }
+        });
     }
 }
 
