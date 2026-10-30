@@ -121,6 +121,8 @@ pub(super) struct Runtime {
     /// 与 Driver 同一启动模式；不持 capture/审计结果，Owned 业务缓存按真实生命周期计费。
     mode: s_allocation::Mode,
     audit_ledger: Option<audit_ledger::Ledger>,
+    #[cfg(feature = "s_incremental")]
+    queued_audit_delta: Option<(String, audit_ledger::GenerationDelta)>,
     /// 生成链配置；生产与诊断由 Driver 显式区分。
     theta_config: ThetaConfig,
     binding: Option<Vec<String>>,
@@ -165,6 +167,8 @@ impl Runtime {
         Self {
             mode,
             audit_ledger: None,
+            #[cfg(feature = "s_incremental")]
+            queued_audit_delta: None,
             theta_config,
             binding: None,
             generator: None,
@@ -257,7 +261,33 @@ impl Runtime {
 
     #[allow(dead_code)]
     pub(super) fn stage_audit_ledger(&mut self, token: &str, delta: &audit_ledger::GenerationDelta) -> Result<(), String> {
+        #[cfg(feature = "s_incremental")]
+        if self.queued_audit_delta.is_some() {
+            self.invalidate_audit_ledger();
+            return Err("AuditLedgerStale：已排队事实不能改走预写组件入口".into());
+        }
         self.audit_ledger.as_mut().ok_or("AuditLedgerStale：未安装台账")?.stage(token, delta)
+    }
+
+    #[cfg(feature = "s_incremental")]
+    pub(super) fn queue_audit_ledger(
+        &mut self, token: String, delta: audit_ledger::GenerationDelta,
+    ) -> Result<(), String> {
+        let result = (|| {
+            if token.is_empty() || self.queued_audit_delta.is_some()
+                || !matches!(self.mode, s_allocation::Mode::CapturedNative) {
+                return Err("AuditLedgerStale：待准备事实请求或模式无效".into());
+            }
+            let through = self.audit_ledger.as_ref().ok_or("AuditLedgerStale：未安装台账")?
+                .committed_through()?;
+            if through.checked_add(1) != Some(delta.generation) {
+                return Err("AuditLedgerStale：待准备事实代号不连续".into());
+            }
+            self.queued_audit_delta = Some((token, delta));
+            Ok(())
+        })();
+        if result.is_err() { self.invalidate_audit_ledger(); }
+        result
     }
 
     pub(super) fn commit_audit_ledger(&mut self) -> Result<(), String> {
@@ -268,6 +298,8 @@ impl Runtime {
     }
 
     pub(super) fn invalidate_audit_ledger(&mut self) -> bool {
+        #[cfg(feature = "s_incremental")]
+        { self.queued_audit_delta = None; }
         if let Some(ledger) = &mut self.audit_ledger {
             ledger.invalidate();
             true
@@ -277,6 +309,8 @@ impl Runtime {
     }
 
     pub(super) fn discard(&mut self) {
+        #[cfg(feature = "s_incremental")]
+        if self.queued_audit_delta.is_some() { self.invalidate_audit_ledger(); }
         if let Some(generator) = &mut self.generator {
             generator.discard_runtime_state();
         }
@@ -463,8 +497,14 @@ impl Runtime {
         work: Option<&WorkScope>,
         #[cfg(feature = "s_incremental")] parent: Option<&super::audit_owner::PublicationScope<'_>>,
     ) -> Result<commit::CommitReceipt, String> {
+        let queued = {
+            #[cfg(feature = "s_incremental")]
+            { self.queued_audit_delta.is_some() }
+            #[cfg(not(feature = "s_incremental"))]
+            { false }
+        };
         if let Some(ledger) = &self.audit_ledger {
-            ledger.require_pending()?;
+            if !queued { ledger.require_pending()?; }
         }
         #[cfg(feature = "s_incremental")]
         if let Some(parent) = parent {
@@ -495,7 +535,8 @@ impl Runtime {
             None
         };
         let result = (|| {
-            let prepared = self.prepare(
+            #[allow(unused_mut)]
+            let mut prepared = self.prepare(
                 tx,
                 token,
                 envelope,
@@ -514,6 +555,15 @@ impl Runtime {
                 #[cfg(feature = "s_incremental")]
                 parent,
             )?;
+            #[cfg(feature = "s_incremental")]
+            if let Some((queued_token, delta)) = self.queued_audit_delta.take() {
+                if queued_token != token { return Err("AuditLedgerStale：待准备事实token不匹配".into()); }
+                let verified = prepared.source_manifest.as_mut()
+                    .ok_or("AuditLedgerStale：缺同次来源清单证明")?
+                    .take_verified_units(&prepared.metadata, &prepared.roots, &prepared.manifest)?;
+                self.audit_ledger.as_mut().ok_or("AuditLedgerStale：未安装台账")?
+                    .stage_verified(token, &delta, &verified, work)?;
+            }
             if let Some(ledger) = &mut self.audit_ledger {
                 ledger.bind(token, &prepared.metadata, &prepared.roots)?;
             }
@@ -594,6 +644,7 @@ impl Runtime {
         }
         if result.is_err() {
             self.discard();
+            self.invalidate_audit_ledger();
         }
         result
     }
@@ -1369,6 +1420,7 @@ impl Runtime {
             Some(receipt) => {
                 let (manifest, workspace, proof) = content_manifest::assemble_with_source(
                     store, metadata, &roots, receipt, enabled_budget,
+                    self.queued_audit_delta.is_some(),
                 )?;
                 (manifest, workspace, Some(proof))
             }
@@ -1765,6 +1817,78 @@ pub(crate) mod tests {
         tx.rollback().unwrap();
         f.runtime.discard();
         (f, e, token, metadata, roots)
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p6_queued_units_real_owner_commits_only_verified_complete_keys() {
+        let (f, envelope, token, metadata, roots) = p6_candidate();
+        let db = f.db_path();
+        let ledger = audit_ledger::tests::ledger(&db, "queued.sqlite", &metadata.rule_revision);
+        let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
+        let mut runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+        runtime.install_audit_ledger(ledger).unwrap();
+        let delta = audit_ledger::tests::delta(&metadata, &roots);
+        let invented = delta.new_units.iter().next().unwrap().digest;
+        runtime.queue_audit_ledger(token.clone(), delta).unwrap();
+        content_manifest::take_assemble_call_reads_for_test();
+        let (receipt, ended) = owner.publish(&mut runtime, &token, &envelope,
+            &mut request_audit::RequestAuditContext::default()).unwrap();
+        assert_eq!(receipt.generation, 1);
+        assert!(runtime.queued_audit_delta.is_none());
+        assert_eq!(runtime.audit_ledger.as_ref().unwrap().committed_through().unwrap(), 1);
+        let saved = Connection::open(db.with_file_name("queued.sqlite")).unwrap();
+        let count: i64 = saved.query_row("SELECT COUNT(*) FROM node", [], |r| r.get(0)).unwrap();
+        assert!(count > 4);
+        assert_eq!(saved.query_row("SELECT new_units_count FROM cert", [], |r| r.get::<_, i64>(0)).unwrap(), count);
+        assert_eq!(saved.query_row("SELECT COUNT(*) FROM node WHERE digest=?1", [invented.as_slice()], |r| r.get::<_, i64>(0)).unwrap(), 0);
+        assert_eq!(content_manifest::take_assemble_call_reads_for_test().len(), 1,
+            "queued单位由既有prepare组装产生，发布复用workspace，不新增组装");
+        owner.continue_with(ended).unwrap();
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p6_queued_units_prepare_failure_discards_facts_and_stales() {
+        let (f, envelope, token, metadata, roots) = p6_candidate();
+        let db = f.db_path();
+        let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
+        let mut runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+        runtime.install_audit_ledger(audit_ledger::tests::ledger(&db, "queue-fail.sqlite", &metadata.rule_revision)).unwrap();
+        runtime.queue_audit_ledger(token.clone(), audit_ledger::tests::delta(&metadata, &roots)).unwrap();
+        let mut invalid = envelope;
+        invalid["payload"] = serde_json::json!({});
+        assert!(owner.publish(&mut runtime, &token, &invalid,
+            &mut request_audit::RequestAuditContext::default()).is_err());
+        assert!(runtime.queued_audit_delta.is_none());
+        assert!(runtime.audit_ledger.as_ref().unwrap().committed_through().is_err());
+        let saved = Connection::open(db.with_file_name("queue-fail.sqlite")).unwrap();
+        assert_eq!(saved.query_row("SELECT COUNT(*) FROM cert", [], |r| r.get::<_, i64>(0)).unwrap(), 0);
+        assert!(runtime.queue_audit_ledger(token, audit_ledger::tests::delta(&metadata, &roots)).is_err());
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p6_queued_units_ledger_commit_failure_keeps_content_and_never_retries() {
+        let (f, envelope, token, metadata, roots) = p6_candidate();
+        let db = f.db_path();
+        let ledger = audit_ledger::tests::ledger(&db, "queue-busy.sqlite", &metadata.rule_revision);
+        let reader = Connection::open(db.with_file_name("queue-busy.sqlite")).unwrap();
+        reader.execute_batch("BEGIN").unwrap();
+        assert_eq!(reader.query_row("SELECT COUNT(*) FROM cert", [], |r| r.get::<_, i64>(0)).unwrap(), 0);
+        let owner = super::super::audit_owner::AuditConnection::open(&db).unwrap();
+        let mut runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+        runtime.install_audit_ledger(ledger).unwrap();
+        runtime.queue_audit_ledger(token.clone(), audit_ledger::tests::delta(&metadata, &roots)).unwrap();
+        let mut context = request_audit::RequestAuditContext::default();
+        let error = owner.publish(&mut runtime, &token, &envelope, &mut context).err().unwrap();
+        assert!(error.contains("AuditLedgerStale"), "{error}");
+        assert_eq!(meta_i64(&f.conn, "generation").unwrap(), 1);
+        assert!(runtime.queued_audit_delta.is_none());
+        assert!(runtime.audit_ledger.as_ref().unwrap().committed_through().is_err());
+        reader.execute_batch("ROLLBACK").unwrap();
+        assert!(owner.publish(&mut runtime, &token, &envelope, &mut context).is_err());
+        assert_eq!(reader.query_row("SELECT COUNT(*) FROM cert", [], |r| r.get::<_, i64>(0)).unwrap(), 0);
     }
 
     #[cfg(feature = "s_incremental")]

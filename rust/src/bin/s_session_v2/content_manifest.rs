@@ -562,6 +562,7 @@ impl NativeMetadata {
 pub(super) struct UnpublishedManifest {
     pub value: Built,
     pub batch_id: TextValue,
+    closure_units: Option<s_content::closure_delta::VerifiedUnits>,
 }
 
 // #1394 Native-only, transaction-local manifest workspace. The constructor below is the
@@ -1319,6 +1320,16 @@ pub(crate) fn assemble_unpublished_with_workspace(
     roots: &(impl ManifestRootSource + ?Sized),
     budget: crate::v3::ManifestWorkspaceBudget,
 ) -> Result<(UnpublishedManifest, Option<PreparedManifestWorkspace>), CodecError> {
+    assemble_workspace_units(store, metadata, roots, budget, false)
+}
+#[cfg(feature = "s_incremental")]
+fn assemble_workspace_units(
+    store: &mut dyn NodeStore,
+    metadata: &ManifestMetadata,
+    roots: &(impl ManifestRootSource + ?Sized),
+    budget: crate::v3::ManifestWorkspaceBudget,
+    collect_units: bool,
+) -> Result<(UnpublishedManifest, Option<PreparedManifestWorkspace>), CodecError> {
     let reserved_certificate = workspace_certificate_source_cost(metadata, roots, None, None)
         .filter(|cost| *cost <= budget.allowance());
     let mut recording = ManifestRecordingStore {
@@ -1333,7 +1344,10 @@ pub(crate) fn assemble_unpublished_with_workspace(
         puts: Default::default(),
         tree_permit: None,
     };
-    let manifest = assemble_unpublished(&mut recording, metadata, roots)?;
+    let mut view = crate::v3::audit_store::StoreView::generic(&mut recording);
+    view.collect_manifest_units = collect_units;
+    let manifest = assemble_unpublished_in_store(&mut view, metadata, roots)?;
+    drop(view);
     let recording_peak_source_cost = recording.source_cost;
     if recording.originals.is_some() {
         let actual = workspace_certificate_source_cost(
@@ -1440,9 +1454,21 @@ pub(crate) struct ManifestSourceReceipt {
     roots: NativeRoots,
     manifest_value: Built,
     batch_id: TextValue,
+    closure_units: Option<s_content::closure_delta::VerifiedUnits>,
 }
 #[cfg(feature = "s_incremental")]
 impl ManifestSourceReceipt {
+    pub(crate) fn take_verified_units(
+        &mut self, metadata: &ManifestMetadata,
+        roots: &(impl ManifestRootSource + ?Sized), manifest: &UnpublishedManifest,
+    ) -> Result<s_content::closure_delta::VerifiedUnits, String> {
+        if !self.metadata.matches(metadata.view()) || !same_roots(self.roots.view(), roots.view())
+            || self.manifest_value != manifest.value || self.batch_id != manifest.batch_id
+        { return Err("IdentityConflict：P6单位导出与当前清单不同".into()); }
+        self.source.check_manifest(metadata.generation, &metadata.profile_id, &metadata.rule_revision,
+            metadata.input_frontier, (&metadata.scope).into(), roots.view().generated_state)?;
+        self.closure_units.take().ok_or_else(|| "AuditLedgerStale：P6单位未收集或已消费".into())
+    }
     pub(crate) fn consume(
         self,
         token: &str,
@@ -1470,15 +1496,20 @@ pub(crate) fn assemble_with_source(
     roots: &(impl ManifestRootSource + ?Sized),
     source: crate::v3::audit_owner::RawReceipt,
     budget: Option<crate::v3::ManifestWorkspaceBudget>,
+    collect_units: bool,
 ) -> Result<(UnpublishedManifest, Option<PreparedManifestWorkspace>, ManifestSourceReceipt), String> {
     source.check_manifest(metadata.generation, &metadata.profile_id, &metadata.rule_revision,
         metadata.input_frontier, (&metadata.scope).into(), roots.view().generated_state)?;
-    let (manifest, workspace) = source.with_store(store, |bounded| {
+    let (mut manifest, workspace) = source.with_store(store, |bounded| {
         match budget {
-            Some(budget) => assemble_unpublished_with_workspace(bounded, metadata, roots, budget)
+            Some(budget) => assemble_workspace_units(bounded, metadata, roots, budget, collect_units)
                 .map_err(|e| e.to_string()),
-            None => assemble_unpublished(bounded, metadata, roots)
-                .map(|manifest| (manifest, None)).map_err(|e| e.to_string()),
+            None => {
+                let mut view = crate::v3::audit_store::StoreView::generic(bounded);
+                view.collect_manifest_units = collect_units;
+                assemble_unpublished_in_store(&mut view, metadata, roots)
+                    .map(|manifest| (manifest, None)).map_err(|e| e.to_string())
+            }
         }
     })?;
     let work = store.codec_work();
@@ -1487,6 +1518,7 @@ pub(crate) fn assemble_with_source(
         metadata: NativeMetadata::from_view(metadata.view(), work).map_err(|e| e.to_string())?,
         roots: NativeRoots::from_view(roots.view(), work).map_err(|e| e.to_string())?,
         manifest_value: manifest.value.clone(),
+        closure_units: manifest.closure_units.take(),
         batch_id: TextValue::Plain(NativeValue::<String>::try_from_str(&manifest.batch_id, work)
             .map_err(|e| e.to_string())?),
     };
@@ -1532,6 +1564,7 @@ pub(crate) fn assemble_unpublished_view_in_store(
     });
     Ok(UnpublishedManifest {
         value: body.value,
+        closure_units: body.closure_units,
         batch_id: TextValue::Plain(store.native_string(batch_text(&body.identity).as_str())?),
     })
 }
@@ -1549,6 +1582,7 @@ pub(crate) fn take_assemble_call_reads_for_test() -> Vec<(u64, u64)> {
 struct ManifestBody {
     value: Built,
     identity: NodeDigest,
+    closure_units: Option<s_content::closure_delta::VerifiedUnits>,
 }
 fn assemble_manifest_body(
     store: &mut crate::v3::audit_store::StoreView<'_, '_>,
@@ -1562,6 +1596,12 @@ fn assemble_manifest_body(
     // 同一次读集核完整闭包；路径算子只核触碰边界，不能替代这里的全闭包校验。
     #[cfg(test)]
     let sql = super::content_store::sql_reads_on_thread();
+    let closure_units = if store.collect_manifest_units {
+        let units = s_content::closure_delta::verify_four_roots(store,
+            [metadata.scope, roots.generated_state, roots.publication_template, roots.delta_template])?;
+        require_kind(metadata.scope, Kind::Object, "scope")?;
+        Some(units)
+    } else {
     #[cfg(test)]
     crate::v3::diagnostic_trace_event("manifest_verify_scope", None);
     store.verify_manifest_public(metadata.scope)?;
@@ -1572,6 +1612,8 @@ fn assemble_manifest_body(
     #[cfg(test)]
     crate::v3::diagnostic_trace_event("manifest_verify_templates", None);
     store.verify_manifest_templates([roots.publication_template, roots.delta_template])?;
+        None
+    };
     #[cfg(test)]
     crate::v3::diagnostic_trace_event("manifest_verify_complete", None);
     #[cfg(test)]
@@ -1727,7 +1769,7 @@ fn assemble_manifest_body(
     ];
     let value = store.write_template_view(VV::Object(&manifest_fields))?;
     let identity = s_content::frame(0x21, &value.digest);
-    Ok(ManifestBody { value, identity })
+    Ok(ManifestBody { value, identity, closure_units })
 }
 
 fn text(value: &str) -> VV<'_> {

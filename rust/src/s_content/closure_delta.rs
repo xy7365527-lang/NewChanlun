@@ -47,6 +47,40 @@ impl Probe {
     }
 }
 
+pub struct VerifiedUnits {
+    units: Probe,
+    roots: [Built; 4],
+}
+impl VerifiedUnits {
+    pub fn matches_roots(&self, roots: [RefView<'_>; 4]) -> Result<bool, CodecError> {
+        for (actual, expected) in roots.into_iter().zip(&self.roots) {
+            if actual.format() != CONTENT_FORMAT || actual.digest()? != expected.digest
+                || actual.kind() != expected.kind || actual.extent() != expected.extent {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+    pub fn try_for_each_unit<E>(&self, mut visit: impl FnMut(Unit) -> Result<(), E>) -> Result<(), E> {
+        let mut result = Ok(());
+        self.units.for_each_unit(|unit| {
+            if result.is_ok() { result = visit(unit); }
+        });
+        result
+    }
+}
+
+pub fn verify_four_roots(
+    source: &mut dyn NodeSource,
+    roots: [RefView<'_>; 4],
+) -> Result<VerifiedUnits, CodecError> {
+    let units = verify_roots(source, roots, None)?;
+    let root = |r: RefView<'_>| -> Result<Built, CodecError> {
+        Ok(Built { digest: r.digest()?, kind: r.kind(), extent: r.extent() })
+    };
+    Ok(VerifiedUnits { units, roots: [root(roots[0])?, root(roots[1])?, root(roots[2])?, root(roots[3])?] })
+}
+
 /// 顺序固定 scope、generated_state、publication_template、delta_template。
 /// 根四字段每次重核。任何失败直接返回；不会回退完整核验或返回部分单位。
 pub fn probe_four_roots(
@@ -54,13 +88,20 @@ pub fn probe_four_roots(
     roots: [RefView<'_>; 4],
     frontier: &dyn Frontier,
 ) -> Result<Probe, CodecError> {
+    verify_roots(source, roots, Some(frontier))
+}
+fn verify_roots(
+    source: &mut dyn NodeSource,
+    roots: [RefView<'_>; 4],
+    frontier: Option<&dyn Frontier>,
+) -> Result<Probe, CodecError> {
     let mut public = Verifier::new(source, Mode::Public);
-    public.closure_frontier = Some(frontier);
+    public.closure_frontier = frontier;
     public.verify_refview(roots[0])?;
     public.verify_refview(roots[1])?;
     let public = public.into_memo().seen;
     let mut template = Verifier::new(source, Mode::Template);
-    template.closure_frontier = Some(frontier);
+    template.closure_frontier = frontier;
     template.verify_refview(roots[2])?;
     template.verify_refview(roots[3])?;
     let template = template.into_memo().seen;
