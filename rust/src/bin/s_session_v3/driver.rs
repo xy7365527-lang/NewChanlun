@@ -7425,35 +7425,53 @@ mod tests {
     #[cfg(feature = "s_incremental")]
     #[test]
     fn ordinary_material_multicut_wire_comparison_keeps_same_proofs_and_all_cuts() {
-        let mut peers = Vec::new();
-        if std::env::var("S_ORDINARY_WIRE_CHILD").as_deref() != Ok("1") {
-            let root = std::env::temp_dir().join(format!("wire33j-peers-{}", std::process::id()));
-            std::fs::create_dir_all(&root).unwrap();
-            for n in 0..8 {
-                let conn = rusqlite::Connection::open(root.join(format!("{n}.sqlite"))).unwrap();
-                conn.execute_batch("PRAGMA cache_size=-2000; CREATE TABLE t(x); INSERT INTO t VALUES(1);").unwrap();
-                peers.push(conn);
-            }
-            eprintln!("WIRE33J_INTERFERENCE peers={} memory_management={}", peers.len(), rusqlite::Connection::open_in_memory().unwrap().query_row("SELECT sqlite_compileoption_used('ENABLE_MEMORY_MANAGEMENT')", [], |r| r.get::<_,i64>(0)).unwrap());
+        struct PeerLoad {
+            stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+            scans: std::sync::Arc<std::sync::atomic::AtomicU64>,
+            workers: Vec<std::thread::JoinHandle<()>>,
+            path: std::path::PathBuf,
         }
+        impl Drop for PeerLoad {
+            fn drop(&mut self) {
+                self.stop.store(true, Ordering::Relaxed);
+                for worker in self.workers.drain(..) { worker.join().unwrap(); }
+                eprintln!("WIRE33J_ACTIVE completed_scans={}", self.scans.load(Ordering::Relaxed));
+                std::fs::remove_dir_all(&self.path).unwrap();
+            }
+        }
+        let mut peers = None;
         if std::env::var("S_ORDINARY_WIRE_CHILD").as_deref() != Ok("1") {
-            let output = std::process::Command::new(std::env::current_exe().unwrap())
-                .args([
-                    "--exact",
-                    "v3::driver::tests::ordinary_material_multicut_wire_comparison_keeps_same_proofs_and_all_cuts",
-                    "--nocapture",
-                    "--test-threads=1",
-                ])
-                .env("S_ORDINARY_WIRE_CHILD", "1")
-                .output()
-                .unwrap();
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            print!("{stdout}");
-            eprint!("{stderr}");
-            assert!(output.status.success(), "独立进程原wire锁失败");
-            assert!(stdout.contains("test result: ok. 1 passed;"));
-            return;
+            let path = std::env::temp_dir().join(format!("wire33j-active-{}", std::process::id()));
+            std::fs::create_dir_all(&path).unwrap();
+            let db = path.join("load.sqlite");
+            let mut setup = rusqlite::Connection::open(&db).unwrap();
+            setup.execute_batch("CREATE TABLE load(x);").unwrap();
+            let tx = setup.transaction().unwrap();
+
+            for _ in 0..2048 { tx.execute("INSERT INTO load VALUES(zeroblob(3500))", []).unwrap(); }
+            tx.commit().unwrap();
+            eprintln!("WIRE33J_ACTIVE memory_management={}", setup.query_row("SELECT sqlite_compileoption_used('ENABLE_MEMORY_MANAGEMENT')", [], |r| r.get::<_,i64>(0)).unwrap());
+            drop(setup);
+            let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let scans = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+            let (ready, started) = std::sync::mpsc::channel();
+            let mut workers = Vec::new();
+            for _ in 0..4 {
+                let (db, stop, scans, ready) = (db.clone(), stop.clone(), scans.clone(), ready.clone());
+                workers.push(std::thread::spawn(move || {
+                    let c = rusqlite::Connection::open(db).unwrap();
+                    c.execute_batch("PRAGMA cache_size=-2000;").unwrap();
+                    ready.send(()).unwrap();
+                    while !stop.load(Ordering::Relaxed) {
+                        let n: i64 = c.query_row("SELECT sum(length(x)) FROM load", [], |r| r.get(0)).unwrap();
+                        assert_eq!(n, 2048 * 3500);
+                        scans.fetch_add(1, Ordering::Relaxed);
+                    }
+                }));
+            }
+            for _ in 0..4 { started.recv().unwrap(); }
+            eprintln!("WIRE33J_ACTIVE peers=4");
+            peers = Some(PeerLoad { stop, scans, workers, path });
         }
         let mut steps: Vec<S4Step> = (1..=12)
             .map(|n| S4Step {
@@ -7491,10 +7509,9 @@ mod tests {
             (reads, bytes, coverage, material, roots)
         };
         let old = super::super::history::without_ordinary_materials_for_test(sample);
-        peers.clear();
-        eprintln!("WIRE33J_INTERFERENCE peers_before_candidate={}", peers.len());
+        drop(peers.take());
         let new = sample();
-        eprintln!("WIRE33J_INTERFERENCE baseline_bytes={:?} candidate_bytes={:?} sql={}/{} coverage={:?}/{:?}",old.1,new.1,old.0,new.0,old.2,new.2);
+        eprintln!("WIRE33J_ACTIVE baseline_bytes={:?} candidate_bytes={:?} sql={}/{} coverage={:?}/{:?}",old.1,new.1,old.0,new.0,old.2,new.2);
 
         assert!(old.3.is_none(), "对照只禁原件复用，保留611cc1d来源证明");
         let material = new.3.expect("候选普通原件池");
