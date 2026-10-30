@@ -1581,6 +1581,17 @@ impl<'capture> NativeSourceAudit<'capture> {
     pub(super) fn raw_ledger_stats(&self) -> NativeRawLedgerStats {
         self.ledger.stats
     }
+    /// #1481：复用来源counts不等于已推进独立raw事实账。
+    pub(super) fn advance_raw_facts(&mut self, prefix_len: usize) -> Result<(), String> {
+        let measure = self.reader.native_measure();
+        self.ledger.advance_measured(
+            &mut super::audit_store::StoreView::for_audit(&mut self.reader),
+            prefix_len,
+            measure.as_ref().and_then(|m| m.deadline),
+            measure.as_ref().and_then(|m| m.budget),
+        )?;
+        Ok(())
+    }
     pub(super) fn audit<'a>(
         &mut self,
         state: impl Into<sc::RefView<'a>>,

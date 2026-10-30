@@ -1127,6 +1127,9 @@ fn audit_one_cut_sources(
             proofs,
         )?
     } else if let Some(counts) = cached_counts {
+        if let Some(native) = native_sources.as_mut() {
+            native.advance_raw_facts(prefix.len())?;
+        }
         counts
     } else {
         match native_sources.as_mut() {
