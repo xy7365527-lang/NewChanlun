@@ -7363,6 +7363,45 @@ mod tests {
         eprintln!("ORDINARY_PROOF_MULTICUT cuts={} hits={} executions={} coverage={coverage:?}", steps.len(), stats.hits, stats.executions);
     }
 
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn ordinary_material_multicut_wire_comparison_keeps_same_proofs_and_all_cuts() {
+        let mut steps: Vec<S4Step> = (1..=12).map(|n| S4Step {
+            kind: "append", rows: vec![s4_bar(n, 0)], revision: "1",
+        }).collect();
+        steps.push(S4Step { kind: "revision_mid", rows: vec![s4_bar(8, 7)], revision: "2" });
+        steps.push(S4Step { kind: "insert_mid", rows: vec![("insert".into(), 65, 40, 43, 37, 41)], revision: "1" });
+        let fixture = Fixture::with_clock(s4_clock(steps.len()));
+        let mut producer = complete_driver(&fixture);
+        for (index, step) in steps.iter().enumerate() {
+            producer.handle(s4_message(index + 1, step)).unwrap();
+        }
+        drop(producer);
+        let sample = || {
+            super::super::ordinary_materials::LAST_REPORT.with(|r| r.set(None));
+            super::admission_private::s4_read_trace::enable();
+            let reads = content_store::sql_reads_on_thread();
+            let mut opened = fixture.open("1").unwrap();
+            let reads = content_store::sql_reads_on_thread() - reads;
+            let bytes = super::admission_private::s4_read_trace::measured_bytes();
+            let coverage = super::admission_private::s4_read_trace::finish();
+            let material = super::super::ordinary_materials::LAST_REPORT.with(|r| r.get());
+            let roots = super::super::history::tests::layout_published_arrays(&mut opened.conn);
+            (reads, bytes, coverage, material, roots)
+        };
+        let old = super::super::history::without_ordinary_materials_for_test(sample);
+        let new = sample();
+        assert!(old.3.is_none(), "对照只禁原件复用，保留611cc1d来源证明");
+        let material = new.3.expect("候选普通原件池");
+        assert_eq!(old.2, [14, 42]);
+        assert_eq!(new.2, old.2);
+        assert_eq!(new.4, old.4, "所有cut的完整发布数组逐项对拍");
+        assert!(new.0 < old.0, "必须实际减少SQL读取");
+        assert!(new.1[2] < old.1[2], "必须实际减少同一FD VFS的audit wire");
+        assert!(material.retained_capacity_highwater <= super::super::ordinary_materials::CAP);
+        eprintln!("ORDINARY_MATERIAL_WIRE cuts=14 baseline_sql={} candidate_sql={} baseline_bytes={:?} candidate_bytes={:?} coverage={:?} {material:?}", old.0, new.0, old.1, new.1, new.2);
+    }
+
     /// 跑 S4 序列；`cold` 为 false 时只跑增量臂（S5 大样本测量）。返回每代 JSON 行。
     #[cfg(feature = "s_incremental")]
     fn s4_run(steps: &[S4Step], cold: bool) -> Vec<Value> {

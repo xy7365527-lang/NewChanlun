@@ -570,6 +570,20 @@ pub(super) fn without_ordinary_proofs_for_test<T>(action: impl FnOnce() -> T) ->
     action()
 }
 
+#[cfg(test)]
+thread_local! { static ORDINARY_MATERIALS_DISABLED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) }; }
+fn ordinary_materials_enabled() -> bool {
+    #[cfg(test)] { !ORDINARY_MATERIALS_DISABLED.with(std::cell::Cell::get) }
+    #[cfg(not(test))] { true }
+}
+#[cfg(test)]
+pub(super) fn without_ordinary_materials_for_test<T>(action: impl FnOnce() -> T) -> T {
+    struct Reset(bool);
+    impl Drop for Reset { fn drop(&mut self) { ORDINARY_MATERIALS_DISABLED.with(|v| v.set(self.0)); } }
+    let _reset = Reset(ORDINARY_MATERIALS_DISABLED.with(|v| v.replace(true)));
+    action()
+}
+
 pub(super) struct VerifiedPublicHistory<'scope, 'tx> {
     history: IndexedHistory,
     transaction: &'scope Transaction<'tx>,
@@ -655,7 +669,7 @@ pub(super) fn read_verified_public_history<'scope, 'tx, 'raw>(
     let qualified = policy == SourcePolicy::Ordinary && capture.is_none()
         && work.is_none() && materials.is_none()
         && tx.is_readonly(rusqlite::MAIN_DB).map_err(err)?;
-    let mut originals = (qualified && records.is_none() && ordinary_proofs_enabled())
+    let mut originals = (qualified && records.is_none() && ordinary_proofs_enabled() && ordinary_materials_enabled())
         .then(|| super::ordinary_materials::OrdinaryAuditMaterials::for_readonly_history(tx))
         .transpose().map_err(err)?;
     let history = if let Some(pool) = originals.as_mut() {

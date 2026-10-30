@@ -102,6 +102,9 @@ pub(crate) mod s4_read_trace {
     pub(crate) fn snapshot(label: &str, bytes: u128) {
         TRACE.with(|t| { if t.borrow().enabled { eprintln!("S4_READ_ACCOUNT {} {}", label, bytes); } });
     }
+    pub(crate) fn measured_bytes() -> [u64; 4] {
+        TRACE.with(|t| t.borrow().bytes)
+    }
     pub(crate) fn finish() -> [u64; 2] {
         TRACE.with(|t| {
             let mut t = t.borrow_mut();
