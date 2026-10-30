@@ -5719,26 +5719,53 @@ pub(super) mod tests {
     }
 
     fn bounded2_layout_runs(events: &[Value], cuts: &[usize]) -> Vec<(Value, Value)> {
-        let run = |layout| super::super::layout::with_forced_layout_for_test(Some(layout), || {
-            let rule = crate::W_STRUCTURE_RULE_REVISION;
-            let scope = json!({"instrument":"B1", "exchange":"fixture"});
-            let mut runtime = GenerationRuntime::new("bounded2-layout-lock".into(), crate::tb02a::PROFILE, rule);
-            let mut nodes = MemoryNodes::new();
-            cuts.iter().enumerate().map(|(turn, &prefix)| {
-                let gen = turn as i64 + 1;
-                let cut = format!("cut-{gen}");
-                let raw = RawEventsView::plain(events).prefix(prefix).unwrap();
-                let effective = bj::effective(raw, None).unwrap();
-                let input = full_input(raw, effective.raw_view(), &scope, &cut, gen, prefix as i64, rule);
-                let generated = runtime.generate(&mut nodes, &input).unwrap();
-                let mut cold = GenerationRuntime::new(format!("bounded2-cold-{gen}"), crate::tb02a::PROFILE, rule);
-                let mut cold_nodes = MemoryNodes::new();
-                let cold_generated = cold.generate(&mut cold_nodes, &input).unwrap();
-                assert_eq!(state_value(&mut nodes, &generated).0, state_value(&mut cold_nodes, &cold_generated).0);
-                state_value(&mut nodes, &generated).1
-            }).collect::<Vec<_>>()
-        });
-        run(super::super::layout::Layout::Sorted).into_iter().zip(run(super::super::layout::Layout::Bounded2)).collect()
+        let run = |layout| {
+            super::super::layout::with_forced_layout_for_test(Some(layout), || {
+                let rule = crate::W_STRUCTURE_RULE_REVISION;
+                let scope = json!({"instrument":"B1", "exchange":"fixture"});
+                let mut runtime = GenerationRuntime::new(
+                    "bounded2-layout-lock".into(),
+                    crate::tb02a::PROFILE,
+                    rule,
+                );
+                let mut nodes = MemoryNodes::new();
+                cuts.iter()
+                    .enumerate()
+                    .map(|(turn, &prefix)| {
+                        let gen = turn as i64 + 1;
+                        let cut = format!("cut-{gen}");
+                        let raw = RawEventsView::plain(events).prefix(prefix).unwrap();
+                        let effective = bj::effective(raw, None).unwrap();
+                        let input = full_input(
+                            raw,
+                            effective.raw_view(),
+                            &scope,
+                            &cut,
+                            gen,
+                            prefix as i64,
+                            rule,
+                        );
+                        let generated = runtime.generate(&mut nodes, &input).unwrap();
+                        let mut cold = GenerationRuntime::new(
+                            format!("bounded2-cold-{gen}"),
+                            crate::tb02a::PROFILE,
+                            rule,
+                        );
+                        let mut cold_nodes = MemoryNodes::new();
+                        let cold_generated = cold.generate(&mut cold_nodes, &input).unwrap();
+                        assert_eq!(
+                            state_value(&mut nodes, &generated).0,
+                            state_value(&mut cold_nodes, &cold_generated).0
+                        );
+                        state_value(&mut nodes, &generated).1
+                    })
+                    .collect::<Vec<_>>()
+            })
+        };
+        run(super::super::layout::Layout::Sorted)
+            .into_iter()
+            .zip(run(super::super::layout::Layout::Bounded2))
+            .collect()
     }
 
     fn assert_bounded2_crosswalk(gen: usize, sorted: &Value, bounded: &Value, raw: &[Value]) {
@@ -5746,31 +5773,89 @@ pub(super) mod tests {
         for event in raw {
             let identity = event["identity_key"].as_str().unwrap().to_string();
             let replace = winners.get(&identity).is_none_or(|old| {
-                (event["revision"].as_i64().unwrap(), event["seq"].as_i64().unwrap()) >
-                    (old["revision"].as_i64().unwrap(), old["seq"].as_i64().unwrap())
+                (
+                    event["revision"].as_i64().unwrap(),
+                    event["seq"].as_i64().unwrap(),
+                ) > (
+                    old["revision"].as_i64().unwrap(),
+                    old["seq"].as_i64().unwrap(),
+                )
             });
-            if replace { winners.insert(identity, event); }
+            if replace {
+                winners.insert(identity, event);
+            }
         }
         let mut expected = sorted.clone();
-        for object in expected["objects"].as_array_mut().unwrap().iter_mut().filter(|o| o["kind"] == CC007_FRACTAL_KIND) {
-            let mut payload: Value = serde_json::from_str(object["payload_json"].as_str().unwrap()).unwrap();
-            for unit in payload["subsequent_development"]["bars"].as_array_mut().unwrap() {
+        for object in expected["objects"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .filter(|o| o["kind"] == CC007_FRACTAL_KIND)
+        {
+            let mut payload: Value =
+                serde_json::from_str(object["payload_json"].as_str().unwrap()).unwrap();
+            for unit in payload["subsequent_development"]["bars"]
+                .as_array_mut()
+                .unwrap()
+            {
                 assert_eq!(unit.as_object().unwrap().len(), 2);
-                let event = winners.values().find(|e| e["source_coord"] == unit["bar"]["source_coord"]).unwrap();
+                let event = winners
+                    .values()
+                    .find(|e| e["source_coord"] == unit["bar"]["source_coord"])
+                    .unwrap();
                 let mut source = serde_json::Map::new();
-                for name in ["identity_key", "payload_hash", "receipt_id", "event_id", "input_revision", "revision", "seq", "source_coord"] {
-                    source.insert(name.to_string(), json!(event[name].as_str().map(str::to_string).unwrap_or_else(|| event[name].to_string())));
+                for name in [
+                    "identity_key",
+                    "payload_hash",
+                    "receipt_id",
+                    "event_id",
+                    "input_revision",
+                    "revision",
+                    "seq",
+                    "source_coord",
+                ] {
+                    source.insert(
+                        name.to_string(),
+                        json!(event[name]
+                            .as_str()
+                            .map(str::to_string)
+                            .unwrap_or_else(|| event[name].to_string())),
+                    );
                 }
                 unit["source_ref"] = Value::Object(source);
             }
             object["payload_json"] = json!(crate::canonical_json(&payload));
         }
         assert_bounded_crosswalk(gen, &expected, bounded);
-        for kind in [CC004_STEP_KIND, CC005_GROUP_KIND, crate::content_producer::CC004_INITIALIZATION_KIND, crate::content_producer::CC004_UNDETERMINED_KIND] {
-            let content = |state: &Value| objects_of(state, kind).into_iter().map(|o| json!([o["fact_key"], o["payload"], o["input_refs"], o["source_coords"]])).collect::<Vec<_>>();
-            assert_eq!(content(sorted), content(bounded), "g{gen} {kind} 其余内容不变");
+        for kind in [
+            CC004_STEP_KIND,
+            CC005_GROUP_KIND,
+            crate::content_producer::CC004_INITIALIZATION_KIND,
+            crate::content_producer::CC004_UNDETERMINED_KIND,
+        ] {
+            let content = |state: &Value| {
+                objects_of(state, kind)
+                    .into_iter()
+                    .map(|o| {
+                        json!([
+                            o["fact_key"],
+                            o["payload"],
+                            o["input_refs"],
+                            o["source_coords"]
+                        ])
+                    })
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(
+                content(sorted),
+                content(bounded),
+                "g{gen} {kind} 其余内容不变"
+            );
         }
-        assert_eq!(w_request_semantics(sorted).unwrap(), w_request_semantics(bounded).unwrap());
+        assert_eq!(
+            w_request_semantics(sorted).unwrap(),
+            w_request_semantics(bounded).unwrap()
+        );
     }
 
     /// 生成态对象行（`*_json` 文本视图解析回值，便于逐字段比较）。
@@ -6683,68 +6768,68 @@ pub(super) mod tests {
         let (historical, _) = bounded_layout_runs(&events, &[1]).remove(0);
         let (_, current) = bounded2_layout_runs(&events, &[1]).remove(0);
         for state in [historical, current] {
-        let original = w_request_semantics(&state).unwrap();
-        assert_eq!(original.len(), 2);
-        let other = objects_of(&state, CC004_UNDETERMINED_KIND)[0]["object_id"].clone();
-        let mutate = |edit: &dyn Fn(&mut Vec<Value>)| -> Value {
-            let mut copy = state.clone();
-            let knowledge = copy["objects"]
-                .as_array_mut()
-                .unwrap()
-                .iter_mut()
-                .find(|o| o["kind"] == CC054_KNOWLEDGE_KIND)
-                .unwrap();
-            let mut payload: Value =
-                serde_json::from_str(knowledge["payload_json"].as_str().unwrap()).unwrap();
-            let mut requests = payload["requests"].as_array().unwrap().clone();
-            edit(&mut requests);
-            payload["requests"] = Value::Array(requests);
-            knowledge["payload_json"] = json!(payload.to_string());
-            copy
-        };
-        let init_index = |rs: &Vec<Value>| {
-            rs.iter()
-                .position(|r| {
-                    r["request_id"]
-                        .as_str()
-                        .unwrap()
-                        .contains(CC004_INITIALIZATION_KIND)
-                })
-                .unwrap()
-        };
-        assert_eq!(w_request_semantics(&mutate(&|_| {})).unwrap(), original);
-        let axes = mutate(&|rs| {
-            let i = init_index(rs);
-            rs[i]["axes"]["validity"] = json!("STALE");
-        });
-        assert_ne!(
-            w_request_semantics(&axes).unwrap(),
-            original,
-            "axes 改变须判出"
-        );
-        let swapped = mutate(&|rs| {
-            let i = init_index(rs);
-            rs[i]["subject_id"] = other.clone();
-        });
-        assert_ne!(
-            w_request_semantics(&swapped).unwrap(),
-            original,
-            "subject 指向另一实际对象须判出"
-        );
-        let dangling = mutate(&|rs| {
-            let i = init_index(rs);
-            rs[i]["subject_id"] = json!("obj3-missing");
-        });
-        assert!(
-            w_request_semantics(&dangling).is_err(),
-            "subject 悬空须判出"
-        );
-        let duplicate = mutate(&|rs| {
-            let i = init_index(rs);
-            let copy = rs[i].clone();
-            rs.push(copy);
-        });
-        assert!(w_request_semantics(&duplicate).is_err(), "重复请求须判出");
+            let original = w_request_semantics(&state).unwrap();
+            assert_eq!(original.len(), 2);
+            let other = objects_of(&state, CC004_UNDETERMINED_KIND)[0]["object_id"].clone();
+            let mutate = |edit: &dyn Fn(&mut Vec<Value>)| -> Value {
+                let mut copy = state.clone();
+                let knowledge = copy["objects"]
+                    .as_array_mut()
+                    .unwrap()
+                    .iter_mut()
+                    .find(|o| o["kind"] == CC054_KNOWLEDGE_KIND)
+                    .unwrap();
+                let mut payload: Value =
+                    serde_json::from_str(knowledge["payload_json"].as_str().unwrap()).unwrap();
+                let mut requests = payload["requests"].as_array().unwrap().clone();
+                edit(&mut requests);
+                payload["requests"] = Value::Array(requests);
+                knowledge["payload_json"] = json!(payload.to_string());
+                copy
+            };
+            let init_index = |rs: &Vec<Value>| {
+                rs.iter()
+                    .position(|r| {
+                        r["request_id"]
+                            .as_str()
+                            .unwrap()
+                            .contains(CC004_INITIALIZATION_KIND)
+                    })
+                    .unwrap()
+            };
+            assert_eq!(w_request_semantics(&mutate(&|_| {})).unwrap(), original);
+            let axes = mutate(&|rs| {
+                let i = init_index(rs);
+                rs[i]["axes"]["validity"] = json!("STALE");
+            });
+            assert_ne!(
+                w_request_semantics(&axes).unwrap(),
+                original,
+                "axes 改变须判出"
+            );
+            let swapped = mutate(&|rs| {
+                let i = init_index(rs);
+                rs[i]["subject_id"] = other.clone();
+            });
+            assert_ne!(
+                w_request_semantics(&swapped).unwrap(),
+                original,
+                "subject 指向另一实际对象须判出"
+            );
+            let dangling = mutate(&|rs| {
+                let i = init_index(rs);
+                rs[i]["subject_id"] = json!("obj3-missing");
+            });
+            assert!(
+                w_request_semantics(&dangling).is_err(),
+                "subject 悬空须判出"
+            );
+            let duplicate = mutate(&|rs| {
+                let i = init_index(rs);
+                let copy = rs[i].clone();
+                rs.push(copy);
+            });
+            assert!(w_request_semantics(&duplicate).is_err(), "重复请求须判出");
         }
     }
 

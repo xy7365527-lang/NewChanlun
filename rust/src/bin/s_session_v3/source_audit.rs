@@ -2724,6 +2724,12 @@ mod tests {
         let revised_sources = original_sources(&revised, revised.len()).unwrap();
         assert_ne!(sources.get(&coord).unwrap().wire, revised_sources.get(&coord).unwrap().wire);
         let unit = &payload["entries"][0]["unit"];
+        let original_unit = sc::write_value(&mut nodes, &cv(unit).unwrap()).unwrap();
+        let mut revised_unit = unit.clone();
+        let revised_event = revised.last().unwrap();
+        revised_unit["source_ref"] = crate::tb02a_facts::raw_ref(revised_event);
+        let revised_unit = sc::write_value(&mut nodes, &cv(&revised_unit).unwrap()).unwrap();
+        assert_ne!(original_unit.digest, revised_unit.digest, "同OHLC而源revision变化必须改变单元身份");
         let old = json!({"bar": unit["bar"], "relations": unit["relations"]});
         let old = RefValue::Plain(NativeValue::<sc::ContentRef>::from_unscoped(sc::write_value(&mut nodes, &cv(&old).unwrap()).unwrap().content_ref()));
         audit_development_unit(&mut nodes, &old, &sources, false).unwrap();

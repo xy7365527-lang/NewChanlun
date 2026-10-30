@@ -19,6 +19,7 @@ fn audit_summary(audited: &state::AuditedState) -> Value {
 
 fn run_normal(scenario: &'static str, rows: [Row; 4]) {
     let mut fixture = Fixture::new();
+    let mut prior_expected = Vec::new();
     for (offset, (id, coord, open, high, low, close, revision)) in rows.into_iter().enumerate() {
         let step = offset + 1;
         let (envelope, token) =
@@ -57,31 +58,8 @@ fn run_normal(scenario: &'static str, rows: [Row; 4]) {
             live_groups, expected_groups,
             "{scenario} step={step}真实组数"
         );
-        // r2 两臂失败现场的生成根；修复只改变审计接收，不改变发布原件。
-        // #1394 合入 #1405 后重冻：v3 写者规则升 `s2-axis-quantifiers+new-bi/2`（mod.rs 写入
-        // meta.rule_revision），TB-02-A/B 发布内容按 #1343 同价裁定改变；三处生成根为合并后实测值，
-        // 与 `813fc75fa5`、`199caedfd0`、`dccb69793c` 三点实测逐值相同（变化来自 #1405 适配合并本身）。
-        // 旧值（new-bi/1）：乱序 2342365b…、顺序 2c0906de…、较早修订 408fd573…。
-        // #1393×#1419 重冻：写者规则改 W 后继串（S3 唯一写者规则）、W 初始化对象与 C/D/E/F 结构域进入生成态；
-        // 三处根为 nc-remote 实测（33a25f746c，组数先经上方逐例手算断言通过）。旧值（new-bi/2）：乱序 bf079f33…、
-        // 顺序 91761b3f…、较早修订 c3961d53…。
-        let frozen = match (scenario, step) {
-            ("乱序新身份且前三根同OHLC", 2) => {
-                Some("sc1-df7f1dbcbc367debe6b9ac60266642f470ad3406dc377f5c1500e476438b37d9")
-            }
-            ("顺序新身份且前三根同OHLC", 2) => {
-                Some("sc1-0f2e6a44172e30a311c000db204e35aa0d2eb93f4b14ec95554fab5c9d7dd804")
-            }
-            ("较早坐标修订", 4) => {
-                Some("sc1-2ebf6bd87172b57b300444b6fbc9d31c22557a61cb5d13f1bda2a0213cece0c2")
-            }
-            _ => None,
-        };
-        if let Some(root) = frozen {
-            assert_eq!(
-                audited.cuts.last().unwrap().roots.generated_state.root(),
-                root
-            );
+        if matches!(scenario, "乱序新身份且前三根同OHLC" | "顺序新身份且前三根同OHLC" | "较早坐标修订") {
+            prior_expected = assert_pending_w2_oracle(&tx, &audited, &prior_expected, step as i64);
         }
         eprintln!(
             "{scenario} step={step} publish+ordinary OK root={}",
@@ -205,7 +183,7 @@ fn bounded2_revision_restore_preserves_archived_cuts() {
                 let tx = fixture.conn.transaction().unwrap();
                 let state = state::audit(&tx).unwrap();
                 state.objects.iter().filter(|o| o.kind == content_producer::CC007_DEVELOPMENT_BATCH_KIND)
-                    .map(|o| o.id.clone()).collect::<Vec<_>>()
+                    .map(|o| o.id.as_str().to_owned()).collect::<Vec<_>>()
             };
             assert!(!original_batches.is_empty(), "夹具必须有真实分型及后续单元");
             let row = rows[10];
@@ -217,8 +195,8 @@ fn bounded2_revision_restore_preserves_archived_cuts() {
             let withdrawn = {
                 let tx = fixture.conn.transaction().unwrap();
                 let state = state::audit(&tx).unwrap();
-                state.objects.iter().filter(|o| original_batches.contains(&o.id) && o.life.withdrawn_generation.is_some())
-                    .map(|o| o.id.clone()).collect::<Vec<_>>()
+                state.objects.iter().filter(|o| original_batches.iter().any(|id| id == o.id.as_str()) && o.life.withdrawn_generation.is_some())
+                    .map(|o| o.id.as_str().to_owned()).collect::<Vec<_>>()
             };
             assert!(!withdrawn.is_empty(), "修订必须撤回旧批记录");
             let (envelope, token) = fixture.accept_begin(3, row, 3);
@@ -228,15 +206,172 @@ fn bounded2_revision_restore_preserves_archived_cuts() {
             let tx = fixture.conn.transaction().unwrap();
             let state = state::audit(&tx).unwrap();
             for id in &withdrawn {
-                let object = state.objects.iter().find(|o| &o.id == id).unwrap();
+                let object = state.objects.iter().find(|o| o.id.as_str() == id).unwrap();
                 assert!(object.life.withdrawn_generation.is_some(), "旧身份不得复活");
             }
             let active_batches: Vec<_> = state.objects.iter().filter(|o| o.kind == content_producer::CC007_DEVELOPMENT_BATCH_KIND && o.life.withdrawn_generation.is_none()).collect();
-            assert!(active_batches.iter().any(|o| !original_batches.contains(&o.id)), "恢复必须生成新 batch 身份");
+            assert!(active_batches.iter().any(|o| !original_batches.iter().any(|id| id == o.id.as_str())), "恢复必须生成新 batch 身份");
             Ok(())
         })
     }
     let failure = run(super::super::super::layout::Layout::Bounded1).unwrap_err();
     assert!(failure.contains("IdentityConflict"), "旧单元机制应复现撤回身份冲突：{failure}");
     run(super::super::super::layout::Layout::Bounded2).unwrap();
+}
+
+
+fn pending_oracle_identity(object: &Value, rule: &str, nodes: &mut sc::MemoryNodes) -> String {
+    let payload: Value = serde_json::from_str(object["payload_json"].as_str().unwrap()).unwrap();
+    let refs: Value = serde_json::from_str(object["input_refs_json"].as_str().unwrap()).unwrap();
+    let identity = json!({"kind": object["kind"], "fact_key": object["fact_key"],
+        "payload": payload, "input_refs": refs, "profile_id": tb02a::PROFILE, "rule_revision": rule});
+    let digest = sc::write_value(nodes, &cv(&identity).unwrap()).unwrap().digest;
+    format!("obj3-{}", &sc::FixedRoot::new(&sc::frame(0x20, &digest)).as_str()[4..])
+}
+
+fn pending_oracle_record(object: &Value, nodes: &mut sc::MemoryNodes) -> sc::Built {
+    let fields = object.as_object().unwrap().iter().map(|(key, value)| {
+        let content = if matches!(key.as_str(), "payload_json" | "input_refs_json" | "source_coords_json") {
+            let inner: Value = serde_json::from_str(value.as_str().unwrap()).unwrap();
+            let digest = sc::write_value(nodes, &cv(&inner).unwrap()).unwrap().digest;
+            let framed = sc::frame(sc::tag::JSON_TEXT, &digest);
+            nodes.put(framed, sc::tag::JSON_TEXT, &digest).unwrap();
+            V::Edge(framed)
+        } else { cv(value).unwrap() };
+        (key.clone(), content)
+    }).collect();
+    sc::write_value(nodes, &V::Object(fields)).unwrap()
+}
+
+fn assert_pending_w2_oracle(
+    tx: &Transaction<'_>, audited: &state::AuditedState, previous: &[Value], generation: i64,
+) -> Vec<Value> {
+    use newchan_rust::theta_v0::{parser, types::Bar};
+    let raw: Vec<Value> = serde_json::from_value(serde_json::to_value(&audited.raw).unwrap()).unwrap();
+    let mut winners = std::collections::BTreeMap::<String, Value>::new();
+    for event in &raw {
+        let key = event["identity_key"].as_str().unwrap().to_owned();
+        let rank = |e: &Value| (e["revision"].as_i64().unwrap(), e["seq"].as_i64().unwrap());
+        if winners.get(&key).is_none_or(|old| rank(event) > rank(old)) { winners.insert(key, event.clone()); }
+    }
+    let by_coord: std::collections::BTreeMap<i64, Value> = winners.into_values().map(|e| {
+        (e["source_coord"].as_str().unwrap().parse().unwrap(), e)
+    }).collect();
+    let effective: Vec<Value> = by_coord.values().cloned().collect();
+    let bars: Vec<Bar> = by_coord.iter().map(|(coord, e)| {
+        let n = |k: &str| e[k].as_str().unwrap().parse::<i64>().unwrap();
+        Bar { source_index: *coord as usize, timestamp: n("ts"), open:n("open"), high:n("high"),
+            low:n("low"), close:n("close"), volume:1.0, untradable:false }
+    }).collect();
+    let config = ThetaConfig::default();
+    let (layer, trace, fold) = parser::parse_layer_with_inclusion_facts_store(&bars, &config, tb02c::second_store(&config.parse));
+    assert!(layer.merged_bars.len() < 3, "原三场景无三组形态窗");
+    let stroke = trace.stroke_facts.as_ref().unwrap();
+    let segments = trace.segment_facts.as_ref().unwrap();
+    assert!(stroke.endpoints.is_empty() && stroke.strokes.is_empty() && segments.candidates.is_empty());
+    let metadata = &audited.cuts.last().unwrap().metadata;
+    let cut = metadata.structure_cut.as_str();
+    let frontier = raw.len() as i64;
+    assert_eq!(metadata.generation, generation);
+    assert_eq!(metadata.input_frontier, frontier);
+    assert_eq!(metadata.rule_revision, crate::W_STRUCTURE_RULE_REVISION);
+    let rule = crate::W_STRUCTURE_RULE_REVISION;
+    let mut prior = previous.to_vec();
+    for object in &mut prior {
+        if object["kind"] == "CC-004.undetermined_raw" {
+            let payload: Value = serde_json::from_str(object["payload_json"].as_str().unwrap()).unwrap();
+            object["first_known_cut"] = payload["pending_since_cut"].clone();
+        }
+    }
+    let (mut objects, observations) = tb02a_facts::build(&trace, &by_coord, &[], &prior, generation, cut, frontier);
+    let commit_ns = Some((generation * 10 + 2).to_string());
+    let (bi, relations) = tb02b::build(stroke, &by_coord, &raw, &prior, generation, cut, frontier, commit_ns.clone());
+    assert_eq!(bi.len(), 1);
+    assert!(relations.is_empty());
+    objects.extend(bi);
+    let (segment, relations) = tb02c::build(segments, stroke, &by_coord, &raw, &prior, generation, cut, frontier, commit_ns.clone(), &fold).unwrap();
+    assert_eq!(segment.len(), 1);
+    assert!(relations.is_empty());
+    objects.extend(segment);
+    let latest = by_coord.values().max_by_key(|e| e["seq"].as_i64()).unwrap();
+    let known = json!({"generation":generation.to_string(),"input_frontier":frontier.to_string(),
+        "receipt_id":latest["receipt_id"],"received_at":latest["received_at"],"semantic_commit_ns":commit_ns});
+    let fact_generation = tb02b::fact_basis(&raw).to_string();
+    let source_coords: Vec<usize> = by_coord.keys().map(|c| *c as usize).collect();
+    let mut builder = tb02a_facts::Builder { raw:&by_coord, generation, cut, objects:vec![] };
+    for (kind, slot, schema, semantic, policy, data) in [
+        ("CC-056.center_version", "TB-02-E", "s-center/1", "center-seed/1", "strict_seed_zn_outer_c_resume", json!({
+            "input_frontier":frontier.to_string(), "known_at":known, "waiting_reasons":[],
+            "scan_cursor":{"state":"SEEKING_SEED","center_id":null,"seed_start_unit_id":null,
+                "awaiting_unit_id":null,"awaiting_after_unit_id":null,"awaiting_offset":"3"},
+            "delivered_scope":"l0_strict_seed_zn_roles_c_resume_assignment", "deferred_scope":tb02e::DEFERRED_SCOPE})),
+        ("CC-056.pair_version", "TB-02-F", "s-center-pair/1", "center-pair/1", "zn_outer_five_leaf_pending_ge9", json!({
+            "input_frontier":frontier.to_string(), "known_at":known, "waiting_reasons":[], "pair_count":"0", "pending_pairs":"0",
+            "delivered_scope":"l0_adjacent_pair_five_leaf_zn_outer_and_unit_core_position", "deferred_scope":tb02f::DEFERRED_SCOPE})),
+    ] {
+        builder.add(kind, json!([kind,slot]), json!({"schema_revision":schema,"semantic_version":semantic,
+            "policy_version":policy,"view_role":"main","object_generation":fact_generation,"slot":slot,"data":data}),source_coords.clone());
+    }
+    objects.extend(builder.objects);
+    let mut nodes = sc::MemoryNodes::default();
+    let mut ids = std::collections::BTreeMap::new();
+    for object in &mut objects {
+        object["first_known_generation"] = json!(generation);
+        object["first_known_cut"] = json!(cut);
+        object["published_generation"] = json!(generation);
+        if object["kind"] != "CC-054.knowledge_state" {
+            let old = object["object_id"].as_str().unwrap().to_owned();
+            let id = pending_oracle_identity(object, rule, &mut nodes);
+            object["object_id"] = json!(id);
+            ids.insert(old, id);
+        }
+    }
+    let knowledge = objects.iter_mut().find(|o| o["kind"] == "CC-054.knowledge_state").unwrap();
+    let mut payload: Value = serde_json::from_str(knowledge["payload_json"].as_str().unwrap()).unwrap();
+    let requests = payload["requests"].as_array_mut().unwrap();
+    for request in requests.iter_mut() {
+        if let Some(id) = request["subject_id"].as_str() { request["subject_id"] = json!(ids[id]); }
+    }
+    requests.sort_by_key(|request| {
+        let key: Value = serde_json::from_str(request["request_id"].as_str().unwrap()).unwrap();
+        if key[0] == "CC-004.initialization" { (0, 0, 0) }
+        else if key[1] == "pending" { (2, 0, 0) }
+        else { (1, key[1].as_str().unwrap().parse::<i64>().unwrap(), match key[0].as_str().unwrap() {
+            "CC-004.undetermined_raw"=>0, "CC-004.inclusion_step"=>1, "CC-005.inclusion_group"=>2, other=>panic!("unexpected {other}") }) }
+    });
+    knowledge["payload_json"] = json!(canonical_json(&payload));
+    knowledge["object_id"] = json!(pending_oracle_identity(knowledge, rule, &mut nodes));
+    let mut dead: Vec<&Value> = previous.iter().filter(|old| !objects.iter().any(|new| new["object_id"] == old["object_id"])).collect();
+    dead.sort_by_key(|o| (o["kind"].as_str().unwrap(), o["fact_key"].as_str().unwrap(), o["object_id"].as_str().unwrap()));
+    let mut withdrawals = vec![];
+    let mut replaces = vec![];
+    for old in dead {
+        let next = objects.iter().find(|new| old["kind"] == new["kind"] && old["fact_key"] == new["fact_key"])
+            .or_else(|| tb02a_facts::replacing_group(old, &objects));
+        let successor = next.map(|o| o["object_id"].clone()).unwrap_or(Value::Null);
+        withdrawals.push(json!({"object_id":old["object_id"],"fact_key":old["fact_key"],
+            "reason":if next.is_some(){"superseded_by_revision"}else{"fact_removed"},"superseded_by":successor}));
+        if next.is_some() { replaces.push(json!({"old_object_id":old["object_id"],"new_object_id":successor})); }
+    }
+    let axes = tb02a_facts::catalog_axes_oracle(tb02a_facts::CatalogAxisTable::for_rule_revision(rule).unwrap(),
+        objects.as_slice(), raw.as_slice(), frontier-1, withdrawals.as_slice(), replaces.as_slice());
+    let scope: Value = serde_json::from_str(&meta_get_opt(tx,"scope").unwrap().unwrap()).unwrap();
+    let expected = json!({"generation":generation,"structure_cut":cut,"input_frontier":frontier,
+        "catalog_revision":metadata.catalog_revision,"profile_id":metadata.profile_id,"profile_hash":metadata.profile_hash,
+        "rule_revision":rule,"scope":scope,"raw_events":raw,"effective_events":effective,"objects":objects,
+        "witnesses":[],"relations":[],"observations":observations,"catalog_axes":axes});
+    let mut source = content_store::ReadStore::new(tx).unwrap();
+    let actual_root = &audited.cuts.last().unwrap().roots.generated_state;
+    let mut actual_bytes = Vec::new();
+    sc::render_canonical(&mut source, actual_root, &mut actual_bytes).unwrap();
+    let actual: Value = serde_json::from_slice(&actual_bytes).unwrap();
+    for (field,want) in expected.as_object().unwrap() { assert_eq!(&actual[field], want, "generation {generation} complete W2 field {field}"); }
+    assert_eq!(actual.as_object().unwrap().len(), expected.as_object().unwrap().len());
+    let record_edges = objects.iter().map(|object| V::Edge(pending_oracle_record(object,&mut nodes).digest)).collect();
+    let object_root = sc::write_value(&mut nodes,&V::Array(record_edges)).unwrap();
+    let mut state = cv(&expected).unwrap();
+    if let V::Object(fields) = &mut state { fields.iter_mut().find(|(key,_)| key=="objects").unwrap().1=V::Edge(object_root.digest); }
+    let expected_root = sc::write_value(&mut nodes,&state).unwrap().content_ref();
+    assert_eq!(actual_root, &expected_root, "generation {generation} independent complete W2 root");
+    objects
 }

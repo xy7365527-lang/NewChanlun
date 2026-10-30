@@ -1678,7 +1678,7 @@ mod units_cache_tests {
 }
 
 #[cfg(test)]
-fn catalog_axes_oracle<'a, 'objects, 'changes>(
+pub(super) fn catalog_axes_oracle<'a, 'objects, 'changes>(
     table: CatalogAxisTable,
     objects: impl Into<crate::v3::business_json::RawEventsView<'objects>>,
     raw: impl Into<crate::v3::business_json::RawEventsView<'a>>,
