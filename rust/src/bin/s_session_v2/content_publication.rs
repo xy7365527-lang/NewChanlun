@@ -2811,7 +2811,7 @@ mod tests {
         assert_eq!(actual, expected);
         println!(
             "OWNED_PUBLICATION_RECEIPT {}",
-            serde_json::json!({"normal_f":normal_f,"owned_f":owned_f,"snapshot":owned.snapshot.root(),"delta":owned.delta.root(),"meter":budget.snapshot(),"error":actual,"whole_audit_allocation_admitted":false})
+            serde_json::json!({"normal_f":normal_f,"owned_f":owned_f,"snapshot":owned.snapshot.root(),"delta":owned.delta.root(),"meter":budget.snapshot(),"error":actual.to_string(),"whole_audit_allocation_admitted":false})
         );
         drop(owned);
         drop(meta_owner);

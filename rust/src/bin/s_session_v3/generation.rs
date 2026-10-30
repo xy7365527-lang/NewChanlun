@@ -3795,7 +3795,7 @@ mod tests {
             assert!(memo
                 .sync(&mut store, &[], "空keys", candidate)
                 .unwrap_err()
-                .contains("须discard"));
+                .to_string().contains("须discard"));
         }
         memo.discard();
         memo.sync(&mut store, &[], "空keys", None).unwrap();
@@ -4393,7 +4393,7 @@ mod tests {
                     wrong,
                 )
                 .unwrap_err()
-                .contains("缓存账本改变"));
+                .to_string().contains("缓存账本改变"));
             assert_eq!(memo.seq, previous);
             assert_eq!(memo.keys.as_slice(), suffix.as_slice());
             assert!(store.writes.is_empty());

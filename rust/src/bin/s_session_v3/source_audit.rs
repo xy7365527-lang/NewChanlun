@@ -5143,7 +5143,7 @@ mod closed_array_role_probe {
                 let discovery =
                     CaptureSlab::new(0, budget.snapshot().limit_bytes - live - 1, &budget).unwrap();
                 let failure = field_ref(&mut source, (&root).into(), "b").unwrap_err();
-                assert!(failure.contains(sc::capture_allocation::LIMIT), "{failure}");
+                assert!(failure.to_string().contains(sc::capture_allocation::LIMIT), "{failure}");
                 let layout = budget.allocation_request_probe();
                 assert!(layout.refused_kind.ends_with("::path::Ancestor"));
                 drop(discovery);
@@ -5155,7 +5155,7 @@ mod closed_array_role_probe {
                 .unwrap();
                 let before = budget.snapshot();
                 let failure = field_ref(&mut source, (&root).into(), "b").unwrap_err();
-                assert!(failure.contains(sc::capture_allocation::LIMIT), "{failure}");
+                assert!(failure.to_string().contains(sc::capture_allocation::LIMIT), "{failure}");
                 let refusal = budget.allocation_request_probe();
                 assert_eq!(refusal.refused_bytes, layout.refused_bytes);
                 assert_eq!(refusal.refused_align, layout.refused_align);

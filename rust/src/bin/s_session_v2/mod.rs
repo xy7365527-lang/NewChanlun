@@ -1399,7 +1399,7 @@ fn control_canonical_text_admitted(
     control_native_owner(owner, work)?;
     #[cfg(feature = "s_allocation_json_testonly")]
     if let Some(owner) = owner {
-        return TextValue::from_bytes(control_aj::canonical_bytes(v, owner).map_err(err)?);
+        return TextValue::from_bytes(control_aj::canonical_bytes(v, owner).map_err(err)?).map_err(Into::into);
     }
     if owner.is_some() {
         return Err("prototype_audit_allocation_incomplete：owned规范文本未启用".into());

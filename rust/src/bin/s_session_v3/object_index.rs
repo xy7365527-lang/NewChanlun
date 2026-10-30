@@ -3912,7 +3912,7 @@ mod tests {
                 );
             }
             if let Err(error) = &result {
-                assert!(error.contains(sc::capture_allocation::LIMIT), "{error}");
+                assert!(error.to_string().contains(sc::capture_allocation::LIMIT), "{error}");
             }
             drop(result);
             assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);

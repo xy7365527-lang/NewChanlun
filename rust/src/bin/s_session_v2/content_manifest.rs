@@ -18,6 +18,7 @@ use crate::v3::business_json::TextValue;
 use newchan_rust::s_content::capture_allocation::native_owned::NativeValue;
 #[cfg(feature = "s_incremental")]
 use newchan_rust::s_content::capture_allocation::scratch::WorkScope;
+#[cfg(feature = "s_incremental")]
 use newchan_rust::s_content::ContextError as PublishError;
 #[allow(
     unused_imports,

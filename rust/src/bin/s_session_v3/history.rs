@@ -2596,7 +2596,11 @@ struct PrefixArray {
     stack: sc::CodecVec<(u64, NodeDigest)>,
 }
 impl PrefixArray {
-    fn branch(left: &NodeDigest, right: &NodeDigest, count: u64) -> Result<NodeDigest, PublishError> {
+    fn branch(
+        left: &NodeDigest,
+        right: &NodeDigest,
+        count: u64,
+    ) -> Result<NodeDigest, PublishError> {
         let mut body = [0; 72];
         body[..8].copy_from_slice(&sc::checked_frame_len(count).map_err(publish_err)?);
         body[8..40].copy_from_slice(left);
@@ -2705,7 +2709,12 @@ impl NativeHistoryPrefixes {
             last_coord: None,
         })
     }
-    fn append(&mut self, coord: i64, raw: NodeDigest, wire: NodeDigest) -> Result<(), PublishError> {
+    fn append(
+        &mut self,
+        coord: i64,
+        raw: NodeDigest,
+        wire: NodeDigest,
+    ) -> Result<(), PublishError> {
         self.raw.append(raw)?;
         self.wire.append(wire)?;
         #[cfg(test)]

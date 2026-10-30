@@ -6597,7 +6597,9 @@ mod publication_degrade_verdict_tests {
             verdict(|work| {
                 let mut array = super::super::business_json::ScopedJsonArray::native(work)?;
                 array.push(
-                    newchan_rust::s_content::capture_allocation::audit_json::JsonView::String(&text),
+                    newchan_rust::s_content::capture_allocation::audit_json::JsonView::String(
+                        &text,
+                    ),
                 )
             }),
             Ok(()),
@@ -6609,7 +6611,9 @@ mod publication_degrade_verdict_tests {
     fn publication_admitted_history_preserves_deep_origin() {
         // 对象键的工作向量必须持有所有键；长字符串编码本身可以流式完成。
         let object = serde_json::Value::Object(
-            (0..1024).map(|i| (format!("key-{i:04}"), serde_json::Value::Null)).collect(),
+            (0..1024)
+                .map(|i| (format!("key-{i:04}"), serde_json::Value::Null))
+                .collect(),
         );
         assert_eq!(
             verdict(|work| {
@@ -7068,9 +7072,11 @@ thread_local! {
         const { std::cell::Cell::new(None) };
 }
 
+#[cfg(feature = "s_incremental")]
 fn publish_stale(message: &str) -> PublishError {
     construction_state::stale(message).into()
 }
+#[cfg(feature = "s_incremental")]
 fn publish_err(error: impl Into<PublishError>) -> PublishError {
     error.into().context("S3DriverInvalid：")
 }

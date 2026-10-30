@@ -74,6 +74,7 @@ jobs:
         run: |
           cargo fmt --all
           git diff --binary > /tmp/p57-fmt.patch
+          test ! -s /tmp/p57-fmt.patch
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -107,6 +108,9 @@ jobs:
           else
             cargo check --locked --all-targets --jobs 4
           fi
+      - name: Owned 原错误展示及资源合同
+        if: matrix.features == 's_session,s_allocation_json_testonly'
+        run: cargo test --locked --features s_session,s_allocation_json_testonly --bin s_structure_session --jobs 4 -- owned_aux_public_sets_sequence_keys_growth_one_byte_short_preserves_roots_and_discard_releases actual_catalog_sql_and_scalar_owners_share_live_capture_and_refuse_before_mutation sequence_keys_empty_sync_freezes_actual_mode_and_same_ledger_until_discard delta_sequence_foreign_budget_and_allocation_failure_preserve_binding fixed_candidate_owned_scalar_refusal_releases_all_local_owners_without_fallback owned_source_single_field_borrowed_navigation_roles_failure_and_layout_refusal owned_publication_same_real_indexed_template_roots_and_f --test-threads 1
   p57-mutations:
     if: github.ref == 'refs/heads/codex/1640-p57-origin33d'
     runs-on: ubuntu-latest
@@ -141,6 +145,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/rust-job-setup
+      - name: 变异回执检查器单测
+        run: python3 .github/scripts/test_run_p57_mutations.py -v
       - name: 来源码无测试钩子及禁串清单
         run: |
           python3 .github/scripts/check-prod-no-test-hooks.py

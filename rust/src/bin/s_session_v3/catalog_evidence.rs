@@ -1154,7 +1154,7 @@ mod owned_catalog_temp_tests {
                         .unwrap();
                 let before_refusal = budget.snapshot().live_requested_layout_bytes;
                 let failure = text_ref(store, &axis, "impl_status").unwrap_err();
-                assert!(failure.contains(sc::capture_allocation::LIMIT), "{failure}");
+                assert!(failure.to_string().contains(sc::capture_allocation::LIMIT), "{failure}");
                 assert_eq!(
                     budget.snapshot().live_requested_layout_bytes,
                     before_refusal
