@@ -3,11 +3,11 @@
 //! 写前那段完整旧状态核验不在此处：它在 `state::audit`（只读入口与提交口共用同一份判据）。
 //! 目前是内部接线，尚未接 CLI/服务、资源 job 或 Q/E/B，不代表完整 S3 验收。
 
-use newchan_rust::s_content::ContextError as PublishError;
 use super::audit_store::{CodecRead, CodecStore};
 use super::*;
 use content_manifest::{ManifestMetadata, SourceCommit, UnpublishedManifest};
 use generation::{GenerationInput, GenerationRuntime};
+use newchan_rust::s_content::ContextError as PublishError;
 use newchan_rust::s_content::{self as sc, ContentRef, NodeStore, Value as V};
 use newchan_rust::session_protocol::required;
 use newchan_rust::theta_v0::config::ThetaConfig;
@@ -408,7 +408,8 @@ impl Runtime {
             work,
             #[cfg(feature = "s_incremental")]
             None,
-        ).map_err(Into::into)
+        )
+        .map_err(Into::into)
     }
     fn publish_impl_admitted_bound(
         &mut self,
@@ -519,7 +520,8 @@ impl Runtime {
                     roots.as_slice(),
                     prepared.workspace,
                     work,
-                ).map_err(Into::into);
+                )
+                .map_err(Into::into);
             }
             #[cfg(feature = "s_incremental")]
             return commit::publish_borrowed_with_workspace_admitted(
@@ -540,7 +542,8 @@ impl Runtime {
                 &prepared.roots,
                 &prepared.manifest,
                 &prepared.policy_records,
-            ).map_err(Into::into)
+            )
+            .map_err(Into::into)
         })();
         #[cfg(test)]
         state::trace_stage("publish_end", "-", -1);
@@ -610,7 +613,8 @@ impl Runtime {
         let semantic_commit_ns = control
             .commit_time(&view)?
             .ok_or_else(|| publish_err("缺实际Begin提交时刻"))?;
-        let get = |key| meta_get_opt(tx, key)?.ok_or_else(|| publish_err(format!("缺冻结字段{key}")));
+        let get =
+            |key| meta_get_opt(tx, key)?.ok_or_else(|| publish_err(format!("缺冻结字段{key}")));
         let scope = strict_json(get("scope")?.as_bytes())?;
         let scope_value = cv(&scope)?;
         let scope_root = sc::write_value(&mut sc::MemoryNodes::default(), &scope_value)
@@ -693,7 +697,9 @@ impl Runtime {
         ];
         if let Some(prior) = &self.binding {
             if prior != &binding {
-                return Err((publish_err("运行缓存绑定了另一库/会话/冻结域；必须创建新运行实例")).into());
+                return Err(
+                    (publish_err("运行缓存绑定了另一库/会话/冻结域；必须创建新运行实例")).into(),
+                );
             }
         } else {
             self.generator = Some(GenerationRuntime::with_config(
@@ -718,8 +724,10 @@ impl Runtime {
             if !self.native_read_lease || staged_without_parent {
                 return Err((publish_err("owner增量路径必须使用真实Native读取租约")).into());
             }
-            let capture = bound_capture.ok_or_else(|| publish_err("owner增量缺同pending原件capture"))?;
-            let source_slot = bound_source.ok_or_else(|| publish_err("owner增量缺唯一来源状态槽"))?;
+            let capture =
+                bound_capture.ok_or_else(|| publish_err("owner增量缺同pending原件capture"))?;
+            let source_slot =
+                bound_source.ok_or_else(|| publish_err("owner增量缺唯一来源状态槽"))?;
             let (prior_bi, prior_version) = object_index::prior_records(&audited.objects)?;
             drop(control);
             // 第一次租约只覆盖生成、对象计划与axes；结束后才能借实际tx材料。
@@ -736,7 +744,10 @@ impl Runtime {
                     budget: None,
                 };
                 sc::write_value(&mut store, &scope_value).map_err(publish_err)?;
-                let generator = self.generator.as_mut().ok_or_else(|| publish_err("生成器未绑定"))?;
+                let generator = self
+                    .generator
+                    .as_mut()
+                    .ok_or_else(|| publish_err("生成器未绑定"))?;
                 #[cfg(test)]
                 state::trace_stage("generate", "delta", generation);
                 #[cfg(all(test, feature = "s_incremental"))]
@@ -813,7 +824,8 @@ impl Runtime {
                 #[cfg(test)]
                 stage,
                 |material| {
-                    let material = material.ok_or_else(|| publish_err("owner增量缺实际材料能力"))?;
+                    let material =
+                        material.ok_or_else(|| publish_err("owner增量缺实际材料能力"))?;
                     #[cfg(test)]
                     state::trace_stage("prepare_source_audit", "delta", generation);
                     let (counts, source) = super::audit_owner::audit_native_source_cut(
@@ -1015,7 +1027,8 @@ impl Runtime {
                         &auxiliary,
                         &manifest.batch_id,
                         material,
-                    ).map_err(Into::into)
+                    )
+                    .map_err(Into::into)
                 },
             )?;
             catalog_evidence::stage_current(tx, &mut store, &axes)?;
@@ -1094,7 +1107,8 @@ impl Runtime {
                     &auxiliary,
                     &manifest.batch_id,
                     material,
-                ).map_err(Into::into)
+                )
+                .map_err(Into::into)
             },
         )?;
         #[cfg(not(feature = "s_incremental"))]
@@ -1128,7 +1142,10 @@ impl Runtime {
         frontier: i64,
     ) -> Result<NodeProducts<'raw>, PublishError> {
         sc::write_value(store, scope_value).map_err(publish_err)?;
-        let generator = self.generator.as_mut().ok_or_else(|| publish_err("生成器未绑定"))?;
+        let generator = self
+            .generator
+            .as_mut()
+            .ok_or_else(|| publish_err("生成器未绑定"))?;
         #[cfg(test)]
         let path = if native.is_some() {
             "full_lease"
@@ -1294,7 +1311,8 @@ impl Runtime {
             .map_err(publish_err)?
         } else {
             (
-                content_manifest::assemble_unpublished(store, metadata, &roots).map_err(publish_err)?,
+                content_manifest::assemble_unpublished(store, metadata, &roots)
+                    .map_err(publish_err)?,
                 None,
             )
         };

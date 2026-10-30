@@ -64,6 +64,11 @@ jobs:
       - name: P57 来源合同
         run: cargo test --locked --features s_session,s_incremental --bin s_structure_session publication_degrade_verdict_tests --jobs 4 -- --test-threads 1 --nocapture
 
+      - name: P57 原发布六锁
+        run: |
+          for lock in publication_candidate_budget_shortfall_degrades_and_keeps_admitting publication_real_tail_failure_still_rejects_without_degrade publication_real_error_after_budget_failure_rejects_without_degrade publication_source_append_allocation_failure_degrades publication_prepare_wrapped_allocation_failure_degrades publication_ledger_after_budget_failure_rejects_without_degrade; do
+            cargo test --locked --features s_session,s_incremental --bin s_structure_session "$lock" --jobs 4 -- --test-threads 1 --nocapture
+          done
       - name: P57 formatter artifact
         if: always()
         run: |

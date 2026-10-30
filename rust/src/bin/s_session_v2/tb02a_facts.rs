@@ -1126,11 +1126,12 @@ pub(super) fn catalog_axes_admitted<'a, 'objects, 'changes>(
         // 规范键相等即JSON相同，去重只借用首份原件。
         let mut waiting =
             bj::new_work::<(CodecVec<u8>, JsonOwner)>(store.allocation_budget().as_ref());
-        let mut add_reason = |reason: JsonView<'_>| -> Result<(), newchan_rust::s_content::ContextError> {
-            let key = bytes(store, &reason)?;
-            let owner = bj::json_from_view_admitted(store, reason)?;
-            push(store, &mut waiting, (key, owner))
-        };
+        let mut add_reason =
+            |reason: JsonView<'_>| -> Result<(), newchan_rust::s_content::ContextError> {
+                let key = bytes(store, &reason)?;
+                let owner = bj::json_from_view_admitted(store, reason)?;
+                push(store, &mut waiting, (key, owner))
+            };
         if let Some(k) = &knowledge {
             if axis == "CC-054" {
                 for r in field(k.view(), "waiting_reasons")

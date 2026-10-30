@@ -1,10 +1,10 @@
 //! #1394 固定写口的实际 SQLite 效果。hook 只记录表/rowid；原件必须在锁内回读。
 //! 每次扩容先检查旧新容量共存账；预算不足撤销可选候选，不改变业务写入结果。
-use newchan_rust::s_content::ContextError as PublishError;
 use super::super::audit_retention::{sum, vec_bytes, Retained};
 use super::super::audit_store::CodecRead;
 use super::super::request_audit::{ExactRows, SqlCell};
 use super::*;
+use newchan_rust::s_content::ContextError as PublishError;
 use newchan_rust::s_content::{
     self as sc,
     capture_allocation::scratch::{NativeReservation, WorkError, WorkScope},
@@ -1396,9 +1396,12 @@ pub(super) fn audit_native_source(
             // 0069 真实路径锁：与 s_content 原件追加索引扩容超帽同一方式 reject 并经 invalid 上抛。
             #[cfg(test)]
             if super::SOURCE_APPEND_ALLOCATION_FAILURE.with(|flag| flag.replace(false)) {
-                return Err((publish_err(access.work.reject(
-                    sc::capture_allocation::scratch::ScratchFailure::Allocation,
-                ))).into());
+                return Err((publish_err(
+                    access
+                        .work
+                        .reject(sc::capture_allocation::scratch::ScratchFailure::Allocation),
+                ))
+                .into());
             }
             // nodes集合只来自当前实际tx的受控写口；每个tuple从真实事务重新读取。
             for digest in j.nodes.keys() {
@@ -1698,7 +1701,8 @@ pub(super) fn with_material_access<T, E: From<String> + From<PublishError>>(
                 if original_work.is_some() {
                     return Err((construction_state::stale(
                         "共享父账必须经publication同scope能力传入",
-                    )).into());
+                    ))
+                    .into());
                 }
                 return Ok((resources.budget.clone(), seal, j.material_epoch));
             }
@@ -2890,7 +2894,9 @@ mod construction_coverage_tests {
                         let mut other = database();
                         let other_tx = other.transaction().unwrap();
                         assert!(begin_stage(&other_tx, StageKind::Witness).is_err());
-                        assert!(with_material_access::<_, String>(&other_tx, None, |_| Ok(())).is_err());
+                        assert!(
+                            with_material_access::<_, String>(&other_tx, None, |_| Ok(())).is_err()
+                        );
                         drop(begin_stage(&tx, StageKind::Witness).unwrap());
                     }
                     "omitted" => {
@@ -3000,11 +3006,13 @@ mod construction_coverage_tests {
         let (tag, body) = memory.get(&foreign.digest).unwrap();
         let mut store = crate::content_store::TxStore::new(&tx).unwrap();
         store.put(foreign.digest, tag, body).unwrap();
-        assert!(with_material_access::<_, String>(&tx, None, |m| note_source_cut(
-            m.unwrap(),
-            (&foreign.content_ref()).into()
-        ))
-        .is_err());
+        assert!(
+            with_material_access::<_, String>(&tx, None, |m| note_source_cut(
+                m.unwrap(),
+                (&foreign.content_ref()).into()
+            ))
+            .is_err()
+        );
         for (digest, tag, body) in memory.iter() {
             store.put(*digest, tag, body).unwrap();
         }
@@ -3125,8 +3133,11 @@ mod construction_coverage_tests {
         let (recording, state) = set_recording(&tx);
         let _ = tx.progress_handler(1, Some(|| true));
         assert!(
-            with_material_access::<_, String>(&tx, None, |m| note_source_cut(m.unwrap(), (&state).into()))
-                .is_err()
+            with_material_access::<_, String>(&tx, None, |m| note_source_cut(
+                m.unwrap(),
+                (&state).into()
+            ))
+            .is_err()
         );
         let _ = tx.progress_handler(0, None::<fn() -> bool>);
         assert!(

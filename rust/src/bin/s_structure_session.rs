@@ -2685,7 +2685,8 @@ fn decode_raw_row_admitted(
     v3::business_json::json_from_view_admitted(
         &admission,
         JsonView::object_fields(&fields).map_err(|e| e.to_string())?,
-    ).map_err(Into::into)
+    )
+    .map_err(Into::into)
 }
 
 /// Q固定追加与cold路径复用完全相同的列解码/OHLC借视图核。

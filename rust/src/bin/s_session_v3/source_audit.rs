@@ -388,7 +388,9 @@ fn parsed_json(s: &(impl CodecRead + ?Sized), bytes: &[u8]) -> Result<bj::JsonOw
             .map(bj::JsonOwner::Owned)
             .map_err(err);
     }
-    s.parse_rendered_plain(bytes).map(bj::JsonOwner::Plain).map_err(Into::into)
+    s.parse_rendered_plain(bytes)
+        .map(bj::JsonOwner::Plain)
+        .map_err(Into::into)
 }
 fn canonical_matches(
     s: &(impl CodecRead + ?Sized),
@@ -559,7 +561,10 @@ impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
     fn native_measure(&self) -> Option<super::audit_budget::NativeMeasure<'_>> {
         self.source.native_measure()
     }
-    fn parse_rendered_plain(&self, bytes: &[u8]) -> Result<bj::PlainJson, newchan_rust::s_content::ContextError> {
+    fn parse_rendered_plain(
+        &self,
+        bytes: &[u8],
+    ) -> Result<bj::PlainJson, newchan_rust::s_content::ContextError> {
         self.source.parse_rendered_plain(bytes)
     }
     fn content_ref_view(&mut self, r: &str) -> Result<RefValue, sc::CodecError> {

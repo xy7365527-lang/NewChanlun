@@ -5,13 +5,13 @@
 //! Delta、clock、delivery 和 meta。它不代替对象来源、全部历史或 Delta 方程的业务审计。
 //! 本模块不提供 CLI；完整 writer 尚未接入，不能把本模块测试当完整 S3 验收。
 
-use newchan_rust::s_content::ContextError as PublishError;
 use super::audit_store::{CodecRead, NativeAdmission};
 use super::business_json::TextValue;
 use super::{control::S3Control, *};
 #[cfg(test)]
 use content_manifest::ManifestRoots;
 use content_manifest::{ManifestMetadata, ManifestRootSource, UnpublishedManifest};
+use newchan_rust::s_content::ContextError as PublishError;
 use newchan_rust::s_content::{self as sc, path::PathStep, ContentRef, Kind};
 use rusqlite::Transaction;
 use sc::capture_allocation::native_owned::NativeValue;
@@ -99,7 +99,8 @@ pub(super) fn publish_borrowed(
         #[cfg(feature = "s_incremental")]
         None,
         None,
-    ).map_err(Into::into)
+    )
+    .map_err(Into::into)
 }
 #[cfg(all(test, feature = "s_incremental"))]
 pub(super) fn publish_borrowed_staged(
@@ -125,7 +126,8 @@ pub(super) fn publish_borrowed_staged(
         runtime,
         workspace,
         work,
-    ).map_err(Into::into)
+    )
+    .map_err(Into::into)
 }
 #[cfg(feature = "s_incremental")]
 #[allow(
@@ -150,7 +152,8 @@ pub(super) fn publish_borrowed_with_workspace(
         policy_records,
         workspace,
         None,
-    ).map_err(Into::into)
+    )
+    .map_err(Into::into)
 }
 #[cfg(feature = "s_incremental")]
 pub(super) fn publish_borrowed_with_workspace_admitted(
@@ -333,7 +336,11 @@ fn publish_prepared_inner(
                 resolved.delta.digest().map_err(publish_err)?,
                 evidence_ref.digest().map_err(publish_err)?,
                 roots.view().generated_state.digest().map_err(publish_err)?,
-                roots.view().publication_template.digest().map_err(publish_err)?,
+                roots
+                    .view()
+                    .publication_template
+                    .digest()
+                    .map_err(publish_err)?,
                 roots.view().delta_template.digest().map_err(publish_err)?,
                 metadata.scope.digest().map_err(publish_err)?,
             ];

@@ -51,7 +51,6 @@
 
 #![allow(dead_code)]
 
-use newchan_rust::s_content::ContextError as PublishError;
 use super::audit_store::{CodecRead, CodecStore};
 use super::business_json::{self as bj, JsonOwner, RawEventsView, TextValue};
 use super::fixed_radix::FixedRadix;
@@ -65,6 +64,7 @@ use crate::content_producer::{
 };
 use crate::s_fact_cache;
 use newchan_rust::s_content::path::PathStep;
+use newchan_rust::s_content::ContextError as PublishError;
 use newchan_rust::s_content::{
     self as sc, Built, ContentRef, Kind, NodeDigest, NodeStore, NumberToken, SequenceRef,
     Value as CValue,
@@ -738,7 +738,9 @@ impl GenerationRuntime {
                     .map_err(codec_error)?
                     .is_some()
                 {
-                    return Err(("StorageUnavailable：有效源坐标碰撞，拒绝覆盖见证".to_string()).into());
+                    return Err(
+                        ("StorageUnavailable：有效源坐标碰撞，拒绝覆盖见证".to_string()).into(),
+                    );
                 }
                 push_gen(&mut raw_bars, bar_of(event)?, store)?;
                 let node = event_node(&mut self.event_nodes, store, event)?;
@@ -831,7 +833,9 @@ impl GenerationRuntime {
                     .map(|shape| shape.map(ShapeBuild::Ordinary)),
             };
             match (shape, built_shape) {
-                (_, Ok(None)) => return Err((format!("GenError：形态窗 {start} 缺同次三组证据")).into()),
+                (_, Ok(None)) => {
+                    return Err((format!("GenError：形态窗 {start} 缺同次三组证据")).into())
+                }
                 (_, Ok(Some(built_shape))) => {
                     let object = built_shape.object();
                     let views = group_views(state, start)?;
@@ -952,7 +956,8 @@ impl GenerationRuntime {
                 (classified, Err(error)) => {
                     return Err((producer_error(error).context(&format!(
                         "GenError：形态窗 {start} 构造失败（滑窗判据={classified:?}）："
-                    ))).into());
+                    )))
+                    .into());
                 }
             }
         }
@@ -1082,7 +1087,8 @@ impl GenerationRuntime {
                 "GenError：CC-054 请求次序键 {} 条与请求 {} 条不符",
                 request_keys.len(),
                 requests.len()
-            )).into());
+            ))
+            .into());
         }
         // #1491 ADR 0037 §一：bounded-layout/1 的 `requests` 按 (window_start, label) 排列，新请求
         // 只落尾部；layout/1 保持原线序（步骤 → 组 → 形态/分型 → 待决）。
@@ -1199,8 +1205,9 @@ impl GenerationRuntime {
         for relation in &bi.relations {
             push_gen(
                 &mut relations,
-                sc::write_value(&mut *store, relation)
-                    .map_err(|error| PublishError::from(error).context("GenError：关系值写入失败："))?,
+                sc::write_value(&mut *store, relation).map_err(|error| {
+                    PublishError::from(error).context("GenError：关系值写入失败：")
+                })?,
                 store,
             )?;
         }
@@ -1295,10 +1302,17 @@ pub(super) struct RawGenerationDelta {
 fn native_text(store: &dyn NodeStore, text: &str) -> Result<NativeValue<String>, PublishError> {
     NativeValue::<String>::try_from_str(text, store.codec_work()).map_err(codec_error)
 }
-fn native_ref(store: &dyn NodeStore, built: &Built) -> Result<NativeValue<ContentRef>, PublishError> {
+fn native_ref(
+    store: &dyn NodeStore,
+    built: &Built,
+) -> Result<NativeValue<ContentRef>, PublishError> {
     NativeValue::<ContentRef>::try_from_built(built, store.codec_work()).map_err(codec_error)
 }
-fn push_gen<T>(values: &mut CodecVec<T>, value: T, store: &dyn NodeStore) -> Result<(), PublishError> {
+fn push_gen<T>(
+    values: &mut CodecVec<T>,
+    value: T,
+    store: &dyn NodeStore,
+) -> Result<(), PublishError> {
     if let Some(work) = store.codec_work() {
         values.try_reserve_native(work, 1).map_err(codec_error)?;
     }
@@ -1467,7 +1481,11 @@ impl SequenceKeys {
             )
         }
     }
-    fn reserve_admitted(&mut self, store: &dyn NodeStore, length: usize) -> Result<(), PublishError> {
+    fn reserve_admitted(
+        &mut self,
+        store: &dyn NodeStore,
+        length: usize,
+    ) -> Result<(), PublishError> {
         match self {
             Self::Plain(keys) => {
                 let additional = length.saturating_sub(keys.len());
@@ -1507,7 +1525,11 @@ impl SequenceKeys {
     }
 
     /// 容量已在改 keys/root 前预留；只截变化后缀，不复制未变前缀。
-    fn splice_reserved(&mut self, prefix: usize, suffix: &[NodeDigest]) -> Result<(), PublishError> {
+    fn splice_reserved(
+        &mut self,
+        prefix: usize,
+        suffix: &[NodeDigest],
+    ) -> Result<(), PublishError> {
         match self {
             Self::Plain(keys) => {
                 keys.truncate(prefix);
@@ -1609,9 +1631,7 @@ impl SequenceMemo {
             || self.bound != self.seq.is_some()
             || edit.unchanged_prefix > previous_len
         {
-            return Err((format!(
-                "GenError：{what} splice 旧根或前缀不匹配，须discard"
-            )).into());
+            return Err((format!("GenError：{what} splice 旧根或前缀不匹配，须discard")).into());
         }
         let previous = match self.seq {
             Some(seq) if seq.count() == previous_len as u64 => seq,
@@ -1641,7 +1661,9 @@ impl SequenceMemo {
             edit.replacement_suffix,
             budget,
         )
-        .map_err(|error| PublishError::from(error).context(&format!("GenError：{what} 序列后缀重建失败：")))?;
+        .map_err(|error| {
+            PublishError::from(error).context(&format!("GenError：{what} 序列后缀重建失败："))
+        })?;
         let built = array_from_sequence(&mut *store, &seq).map_err(producer_error)?;
         next_keys
             .as_mut()
@@ -1703,7 +1725,9 @@ impl SequenceMemo {
             &elements[common..],
             budget,
         )
-        .map_err(|error| PublishError::from(error).context(&format!("GenError：{what} 序列后缀重建失败：")))?;
+        .map_err(|error| {
+            PublishError::from(error).context(&format!("GenError：{what} 序列后缀重建失败："))
+        })?;
         let built = array_from_sequence(&mut *store, &seq).map_err(producer_error)?;
         next_keys
             .as_mut()
@@ -1914,10 +1938,15 @@ fn render_text(store: &mut dyn NodeStore, reference: &ContentRef) -> Result<Stri
     let mut out: Vec<u8> = Vec::new();
     sc::render_canonical(&mut *store, reference, &mut out)
         .map_err(|error| PublishError::from(error).context("GenError：小字段渲染失败："))?;
-    String::from_utf8(out).map_err(|error| PublishError::from(error).context("GenError：小字段渲染非 UTF-8："))
+    String::from_utf8(out)
+        .map_err(|error| PublishError::from(error).context("GenError：小字段渲染非 UTF-8："))
 }
 
-fn field_text(store: &mut dyn NodeStore, root: &ContentRef, name: &str) -> Result<String, PublishError> {
+fn field_text(
+    store: &mut dyn NodeStore,
+    root: &ContentRef,
+    name: &str,
+) -> Result<String, PublishError> {
     let path = path_of(store, root, &[step_field(name)])?;
     render_text(store, &path)
 }
@@ -1952,8 +1981,10 @@ fn shape_witnesses(
             };
             push_gen(&mut bar_nodes, VV::Edge(node), store)?;
         }
-        let bar_array = sc::write_value_view(&mut *store, VV::Array(&bar_nodes))
-            .map_err(|error| PublishError::from(error).context("GenError：见证 raw_bars 写入失败："))?;
+        let bar_array =
+            sc::write_value_view(&mut *store, VV::Array(&bar_nodes)).map_err(|error| {
+                PublishError::from(error).context("GenError：见证 raw_bars 写入失败：")
+            })?;
         let witness_id = witness_identity_native(store, &object.object_id, slot, mi, &bar_array)?;
         let source_index =
             super::super::content_manifest::Decimal::new(view.bar.source_index as i64);
@@ -2070,9 +2101,9 @@ fn witness_identity_bytes(
     raw_bars: &Built,
 ) -> Result<[u8; 20], PublishError> {
     if object_id.contains('"') || object_id.contains('\\') {
-        return Err((format!(
-            "GenError：对象身份 `{object_id}` 含需转义字符，拒绝拼入规范输入"
-        )).into());
+        return Err(
+            (format!("GenError：对象身份 `{object_id}` 含需转义字符，拒绝拼入规范输入")).into(),
+        );
     }
     let mut hasher = Sha256::new();
     {
@@ -2086,7 +2117,9 @@ fn witness_identity_bytes(
         let reference = store.native_built_ref(raw_bars).map_err(codec_error)?;
         store
             .render_ref(reference.view(), &mut writer)
-            .map_err(|error| PublishError::from(error).context("GenError：见证输入流式渲染失败："))?;
+            .map_err(|error| {
+                PublishError::from(error).context("GenError：见证输入流式渲染失败：")
+            })?;
         write!(writer, r#","slot":{slot}}}"#)
             .map_err(|e| PublishError::from(e).context("GenError：见证输入失败："))?;
     }
@@ -2177,7 +2210,8 @@ fn typed_kind(
             "GenError：对象 {} 记录 kind 不是字符串（{:?}）",
             object.object_id,
             kind.kind()
-        )).into());
+        ))
+        .into());
     }
     let value = bj::render_json(store, kind.view())?;
     let text = value
@@ -2243,7 +2277,8 @@ fn write_json_view(
             if n.as_i64().is_none() && n.as_u64().is_none() {
                 return Err((format!(
                     "GenError：原始行出现非整数 JSON 数字 `{n}`（不把 token 静默改写）"
-                )).into());
+                ))
+                .into());
             }
         } else if let Some(items) = value.as_array() {
             for item in items {
@@ -2453,10 +2488,12 @@ fn bi_error(error: crate::content_bi::BiError) -> PublishError {
 
 fn record_error(error: object_records::RecordError) -> PublishError {
     match error {
-        object_records::RecordError::Codec(error) =>
-            PublishError::from_codec(error, "内容编解码错误："),
+        object_records::RecordError::Codec(error) => {
+            PublishError::from_codec(error, "内容编解码错误：")
+        }
         error => error.to_string().into(),
-    }.context("GenError：")
+    }
+    .context("GenError：")
 }
 
 fn codec_error(error: sc::CodecError) -> PublishError {
@@ -3392,7 +3429,11 @@ mod tests {
                     )
                     .err()
                     .unwrap();
-                assert_eq!(actual.to_string(), expected, "身份首错不受坏价格或首写失败替代");
+                assert_eq!(
+                    actual.to_string(),
+                    expected,
+                    "身份首错不受坏价格或首写失败替代"
+                );
                 assert!(actual.to_string().starts_with(prefix));
                 assert!(full_store.writes.is_empty() && delta_store.writes.is_empty());
                 assert_eq!(
@@ -3519,7 +3560,9 @@ mod tests {
             )
             .err()
             .unwrap();
-        assert!(error.to_string().contains("prototype_audit_allocation_incomplete"));
+        assert!(error
+            .to_string()
+            .contains("prototype_audit_allocation_incomplete"));
         assert!(bound.ensure_current().is_err());
         assert!(store.writes.is_empty() && runtime.delta_lane.is_none());
         drop(bound);
@@ -3662,7 +3705,8 @@ mod tests {
             .unwrap();
         assert!(runtime
             .advance_raw_bound(&mut store, &wrong)
-            .unwrap_err().to_string()
+            .unwrap_err()
+            .to_string()
             .contains("binding"));
         assert!(runtime.delta_lane.is_none());
         // 回滚后必须冷建且发新域；旧 fixture 下一步不能借 previous_prefix=0 假装初始。
@@ -3697,7 +3741,8 @@ mod tests {
         store.writes_left = Some(0);
         assert!(runtime
             .advance_raw_bound(&mut store, &bound)
-            .unwrap_err().to_string()
+            .unwrap_err()
+            .to_string()
             .contains("test_sequence_write"));
         assert!(bound.ensure_current().is_err());
         assert!(runtime.delta_lane.is_none());
@@ -3766,7 +3811,8 @@ mod tests {
         assert!(memo.bound && memo.allocation_budget().is_none());
         assert!(memo
             .sync(&mut store, &[], "空keys", Some(&budget))
-            .unwrap_err().to_string()
+            .unwrap_err()
+            .to_string()
             .contains("须discard"));
         memo.discard();
         memo.sync(&mut store, &[], "空keys", Some(&other)).unwrap();
@@ -3789,7 +3835,10 @@ mod tests {
         keys.replace_reserved(&[first]).unwrap();
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 32);
         let error = keys.reserve_admitted(&scratch, 2).unwrap_err();
-        assert!(error.to_string().contains(sc::capture_allocation::LIMIT), "{error}");
+        assert!(
+            error.to_string().contains(sc::capture_allocation::LIMIT),
+            "{error}"
+        );
         let probe = budget.allocation_request_probe();
         assert_eq!(probe.refused_bytes, 64);
         assert_eq!(probe.live_before_refusal, 32);
@@ -3842,7 +3891,10 @@ mod tests {
         let error = memo
             .sync(&mut store, &[first, second], "真实memo", Some(&budget))
             .unwrap_err();
-        assert!(error.to_string().contains(sc::capture_allocation::LIMIT), "{error}");
+        assert!(
+            error.to_string().contains(sc::capture_allocation::LIMIT),
+            "{error}"
+        );
         let probe = budget.allocation_request_probe();
         assert_eq!(
             probe.refused_kind,
@@ -3902,13 +3954,15 @@ mod tests {
         let mut memo = SequenceMemo::default();
         assert!(memo
             .sync(&mut store, &[digest], "首次keys", Some(&short))
-            .unwrap_err().to_string()
+            .unwrap_err()
+            .to_string()
             .contains(sc::capture_allocation::LIMIT));
         assert!(!memo.bound && memo.seq.is_none() && memo.keys.as_slice().is_empty());
         assert_eq!(short.snapshot().live_requested_layout_bytes, 0);
         assert!(memo
             .sync(&mut Fails, &[digest], "首次keys", Some(&budget))
-            .unwrap_err().to_string()
+            .unwrap_err()
+            .to_string()
             .contains("test_sequence_node_write"));
         assert!(!memo.bound && memo.seq.is_none() && memo.allocation_budget().is_none());
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
@@ -4134,7 +4188,8 @@ mod tests {
         store.writes.clear();
         assert!(memo
             .sync(&mut store, &changed, "失配", budget)
-            .unwrap_err().to_string()
+            .unwrap_err()
+            .to_string()
             .contains("计数不一致"));
         assert!(store.writes.is_empty());
         assert_eq!(memo.keys.as_slice(), base.as_slice());

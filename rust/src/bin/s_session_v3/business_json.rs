@@ -2142,7 +2142,9 @@ pub(crate) fn json_from_view_admitted(
         .unwrap()
         .reserve_native(amount)
         .map_err(sc::ContextError::from)?;
-    plain(value).map(|v| JsonOwner::Plain(PlainJson::from_reserved(v, Some(permit)))).map_err(Into::into)
+    plain(value)
+        .map(|v| JsonOwner::Plain(PlainJson::from_reserved(v, Some(permit))))
+        .map_err(Into::into)
 }
 
 /// 旧 wire 整数投影的共同核：只转换整数，浮点/空值/文本保持原值。
@@ -3740,9 +3742,11 @@ mod raw_events_layout_tests {
                                 r#"[{"nested":["persistent child","中文😀"]}]"#.as_bytes(),
                                 Some(work),
                             )
-                            .map(JsonOwner::Plain).map_err(Into::into)
+                            .map(JsonOwner::Plain)
+                            .map_err(Into::into)
                         } else {
-                            json_from_view_admitted(&NativeAdmission(Some(work)), (&input).into()).map_err(Into::into)
+                            json_from_view_admitted(&NativeAdmission(Some(work)), (&input).into())
+                                .map_err(Into::into)
                         }
                     };
                     let aggregate = make()?;

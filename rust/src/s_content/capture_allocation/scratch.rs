@@ -539,8 +539,6 @@ impl<T> std::ops::Deref for ScratchVec<T> {
     }
 }
 
-// #1488 0072：类型化失败旁路挂点。挂点替换原表达式且行号中性；生产构建下均为恒等函数，
-// 不记录、不改变行为。记录只在 `failure_trace::capture` 活动期间、且仅 testonly 构建发生。
 #[inline(always)]
 pub(crate) fn traced(failure: ScratchFailure) -> ScratchFailure {
     #[cfg(feature = "s_incremental")]
@@ -594,7 +592,10 @@ pub mod failure_trace {
                     && self.start < proof.origin.born
                     && proof.origin.born < proof.bridged
                     && proof.bridged <= self.end
-                    && matches!(proof.failure, ScratchFailure::Budget | ScratchFailure::Allocation)
+                    && matches!(
+                        proof.failure,
+                        ScratchFailure::Budget | ScratchFailure::Allocation
+                    )
             })
         }
         fn absorb(&mut self, other: FailureTrace) {
@@ -620,7 +621,10 @@ pub mod failure_trace {
     }
     pub(crate) fn born() -> Option<FailureOrigin> {
         let capture = ROOT.with(Cell::get)?;
-        Some(FailureOrigin { capture, born: next_event()? })
+        Some(FailureOrigin {
+            capture,
+            born: next_event()?,
+        })
     }
     pub(crate) fn bridge(error: &CodecError) -> Option<BridgeProof> {
         let failure = error.scratch_failure?;
@@ -631,7 +635,11 @@ pub mod failure_trace {
         if ROOT.with(Cell::get) != Some(origin.capture) {
             return None;
         }
-        let proof = BridgeProof { origin, bridged: next_event()?, failure };
+        let proof = BridgeProof {
+            origin,
+            bridged: next_event()?,
+            failure,
+        };
         update(|trace| trace.bridged = trace.bridged.saturating_add(1));
         Some(proof)
     }
@@ -682,17 +690,23 @@ pub mod failure_trace {
             top: outer.is_none(),
         };
         if restore.top {
-            let id = NEXT_CAPTURE.try_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1)).ok();
+            let id = NEXT_CAPTURE
+                .try_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
+                .ok();
             ROOT.with(|root| root.set(id));
             EVENT.with(|event| event.set(0));
         }
-        ACTIVE.with(|active| active.set(Some(FailureTrace {
-            capture: ROOT.with(Cell::get),
-            start: EVENT.with(Cell::get),
-            ..FailureTrace::default()
-        })));
+        ACTIVE.with(|active| {
+            active.set(Some(FailureTrace {
+                capture: ROOT.with(Cell::get),
+                start: EVENT.with(Cell::get),
+                ..FailureTrace::default()
+            }))
+        });
         let value = f();
-        let mut trace = ACTIVE.with(|active| active.replace(restore.outer.take().unwrap())).unwrap();
+        let mut trace = ACTIVE
+            .with(|active| active.replace(restore.outer.take().unwrap()))
+            .unwrap();
         trace.end = EVENT.with(Cell::get);
         drop(restore);
         update(|outer| outer.absorb(trace));

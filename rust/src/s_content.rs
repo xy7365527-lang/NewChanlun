@@ -275,17 +275,32 @@ impl From<rusqlite::Error> for ContextError {
 }
 impl From<std::io::Error> for ContextError {
     fn from(error: std::io::Error) -> Self {
-        Self::from_wrapped(error.to_string(), error.get_ref().map(|e| e as &dyn std::error::Error))
+        Self::from_wrapped(
+            error.to_string(),
+            error.get_ref().map(|e| e as &dyn std::error::Error),
+        )
     }
 }
 impl From<serde_json::Error> for ContextError {
     fn from(error: serde_json::Error) -> Self {
-        Self::from_wrapped(error.to_string(), std::error::Error::source(&error))
+        let message = error.to_string();
+        if error.is_io() {
+            let inner = std::io::Error::from(error);
+            Self::from_wrapped(
+                message,
+                inner.get_ref().map(|e| e as &dyn std::error::Error),
+            )
+        } else {
+            Self::from(message)
+        }
     }
 }
 context_other!(
-    std::num::ParseIntError, std::num::TryFromIntError, std::str::Utf8Error,
-    std::string::FromUtf8Error);
+    std::num::ParseIntError,
+    std::num::TryFromIntError,
+    std::str::Utf8Error,
+    std::string::FromUtf8Error
+);
 impl From<ContextError> for String {
     fn from(error: ContextError) -> Self {
         error.into_message()
@@ -9408,7 +9423,6 @@ impl CodecError {
         Self::scratch(failure)
     }
 }
-
 
 #[cfg(test)]
 mod verified_public_subroots_tests {

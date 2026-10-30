@@ -3,8 +3,8 @@
 //! 连接和事务不向调用者解引用；固定操作返回独立结果，游标在操作内结束。
 //! data_version 只在真实 main 读快照建立后、同连接第一次写入前取得。
 
-use newchan_rust::s_content::ContextError as PublishError;
 use super::*;
+use newchan_rust::s_content::ContextError as PublishError;
 use newchan_rust::session_protocol::required;
 use rusqlite::Transaction;
 use std::cell::Cell;
@@ -265,7 +265,9 @@ impl PublishPhase<'_, '_> {
             self.publication,
         );
         #[cfg(not(feature = "s_incremental"))]
-        runtime.publish_impl(self.transaction, token, envelope, Some(context)).map_err(Into::into)
+        runtime
+            .publish_impl(self.transaction, token, envelope, Some(context))
+            .map_err(Into::into)
     }
 }
 
@@ -6552,7 +6554,8 @@ mod publication_degrade_verdict_tests {
                     result
                 })
         });
-        publication_degrade_verdict(run.expect_err("用例须失败"), operation_error, trace).map_err(Into::into)
+        publication_degrade_verdict(run.expect_err("用例须失败"), operation_error, trace)
+            .map_err(Into::into)
     }
 
     fn resource_error(failure: ScratchFailure) -> newchan_rust::s_content::CodecError {
@@ -6578,7 +6581,10 @@ mod publication_degrade_verdict_tests {
                     let cloned = original.clone();
                     assert_eq!(original, cloned);
                     let error = PublishError::from(cloned);
-                    Err(error.clone().context("S3PrepareInvalid：").context("S3DriverInvalid："))
+                    Err(error
+                        .clone()
+                        .context("S3PrepareInvalid：")
+                        .context("S3DriverInvalid："))
                 }),
                 Ok(())
             );
@@ -6653,9 +6659,8 @@ mod publication_degrade_verdict_tests {
                 });
             }));
             assert!(panic.is_err());
-            let (after, inner) = failure_trace::capture(|| {
-                publish_err(resource_error(ScratchFailure::Allocation))
-            });
+            let (after, inner) =
+                failure_trace::capture(|| publish_err(resource_error(ScratchFailure::Allocation)));
             (after, inner)
         });
         assert!(!outer.only_resource(), "被捕获的内层panic不能抹去Ledger");
@@ -6671,9 +6676,13 @@ mod publication_degrade_verdict_tests {
         struct Failing<'a>(&'a WorkScope);
         impl std::io::Write for Failing<'_> {
             fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
-                Err(std::io::Error::other(self.0.reject(ScratchFailure::Allocation)))
+                Err(std::io::Error::other(
+                    self.0.reject(ScratchFailure::Allocation),
+                ))
             }
-            fn flush(&mut self) -> std::io::Result<()> { Ok(()) }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
         }
         assert_eq!(
             verdict(|work| {
@@ -6737,10 +6746,8 @@ mod publication_degrade_verdict_tests {
             let result = verdict(|work| {
                 let original = work.reject(failure);
                 let _ = publish_err(&original);
-                let independent = newchan_rust::s_content::CodecError::new(
-                    original.code(),
-                    original.detail(),
-                );
+                let independent =
+                    newchan_rust::s_content::CodecError::new(original.code(), original.detail());
                 let error = publish_err(independent);
                 *returned.borrow_mut() = error.to_string();
                 Err(error)
@@ -6753,10 +6760,14 @@ mod publication_degrade_verdict_tests {
     fn publication_same_text_foreign_origin_rejects() {
         for failure in [ScratchFailure::Budget, ScratchFailure::Allocation] {
             let mut foreign = None;
-            let _ = native::Budget::new(4096, 0).unwrap().codec_work().unwrap().run(|work| {
-                foreign = Some(work.reject(failure));
-                Ok::<_, String>(())
-            });
+            let _ = native::Budget::new(4096, 0)
+                .unwrap()
+                .codec_work()
+                .unwrap()
+                .run(|work| {
+                    foreign = Some(work.reject(failure));
+                    Ok::<_, String>(())
+                });
             let foreign = foreign.unwrap();
             let expected = publish_err(&foreign).to_string();
             assert_eq!(
@@ -6787,7 +6798,9 @@ mod publication_degrade_verdict_tests {
             ("S3WriterResourcesInvalid", |e| {
                 e.context("S3WriterResourcesInvalid：")
             }),
-            ("StaleWriter", |e| e.context("StaleWriter：construction资格失效：")),
+            ("StaleWriter", |e| {
+                e.context("StaleWriter：construction资格失效：")
+            }),
         ];
         for failure in [ScratchFailure::Budget, ScratchFailure::Allocation] {
             assert_eq!(
@@ -6919,7 +6932,13 @@ mod publication_degrade_verdict_tests {
             let _ = CodecError::scratch_unscoped_for_test(ScratchFailure::Ledger);
             let (_, idle) = failure_trace::capture(|| ());
             assert_eq!(
-                (idle.budget, idle.allocation, idle.ledger, idle.semantic, idle.bridged),
+                (
+                    idle.budget,
+                    idle.allocation,
+                    idle.ledger,
+                    idle.semantic,
+                    idle.bridged
+                ),
                 (0, 0, 0, 0, 0),
                 "capture 外不记录"
             );
