@@ -34,6 +34,8 @@ pub const MAX_FRAME_LEN: u64 = (1u64 << 63) - 1;
 pub mod access;
 #[doc(hidden)]
 pub mod capture_allocation;
+pub mod raw_materials;
+pub mod sqlite_audit;
 mod closed;
 /// 受控 compact JSON 写出（#1394 局部发送失败闭合）。
 pub mod json_writer;
@@ -5379,6 +5381,7 @@ mod native_frame_reuse_tests {
 }
 
 struct Verifier<'a, 'capture> {
+    base_proofs: Option<&'a std::cell::RefCell<sqlite_audit::SuccessTable>>,
     source: CodecContext<'a, 'capture>,
     #[cfg(feature = "s_incremental")]
     owner_codec: Option<&'a NativeOwnerCodecMemo>,
@@ -5422,6 +5425,7 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
         };
         Self {
             source,
+            base_proofs: None,
             #[cfg(feature = "s_incremental")]
             owner_codec: None,
             mode,
@@ -5466,6 +5470,10 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
     }
 
     fn push_work(&mut self, digest: NodeDigest, flavor: Flavor) -> Result<(), CodecError> {
+        if self.base_proofs.is_some_and(|proofs| proofs.borrow_mut().contains(&digest, self.mode, flavor)) {
+            return Ok(());
+        }
+
         #[cfg(feature = "s_incremental")]
         if self
             .owner_codec

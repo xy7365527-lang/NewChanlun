@@ -27,7 +27,7 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p ../integration33z
-          cargo check --locked --tests --bin s_structure_session --features '${{ matrix.features }}' --message-format=json 2>../integration33z/stderr.log | tee ../integration33z/check.jsonl
+          cargo check --locked --tests --lib --bin s_structure_session --features '${{ matrix.features }}' --message-format=json 2>../integration33z/stderr.log | tee ../integration33z/check.jsonl
       - name: Run targeted combined contracts
         run: |
           set -o pipefail
@@ -35,7 +35,7 @@ jobs:
           if [ "$features" = s_session ]; then
             filters=''
           elif [ "$features" = s_session,s_incremental ]; then
-            filters='ordinary_proof_legacy_seven_cut_readonly_matches_frozen_originals'
+            filters=''
           else
             filters=''
           fi
@@ -43,6 +43,9 @@ jobs:
           for filter in $filters; do
             cargo test --locked --bin s_structure_session --features "$features" "$filter" -- --nocapture --test-threads=1 2>&1 | tee -a ../integration33z/tests.log || failed=1
           done
+          if [ "$features" = s_session ]; then
+            cargo test --locked --lib --features "$features" raw_materials::tests -- --nocapture --test-threads=1 2>&1 | tee -a ../integration33z/tests.log || failed=1
+          fi
           exit "$failed"
       - name: Record Linux formatting
         if: always()

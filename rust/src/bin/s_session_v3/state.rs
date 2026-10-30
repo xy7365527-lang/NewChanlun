@@ -805,7 +805,8 @@ fn audit_core_fresh_with_policy(
         None
     };
     let capture = external_capture.or(constructed_capture.as_ref());
-    let ordinary_materials_qualified = budget.is_none()
+    let ordinary_materials_qualified = policy == history::SourcePolicy::Ordinary
+        && budget.is_none()
         && deadline.is_none()
         && max_render_bytes.is_none()
         && !enable_prototype_capture
@@ -900,7 +901,10 @@ fn audit_core_fresh_with_policy(
         .and_then(|capture| history::NativeRecordFields::new_admitted(capture, work));
     #[cfg(not(feature = "s_incremental"))]
     let mut native_records: Option<history::NativeRecordFields<'_>> = None;
-    let mut materials = ordinary_materials_qualified.then(|| {
+    let sqlite_base = (ordinary_materials_qualified && base_proofs_enabled()).then(|| {
+        super::ordinary_materials::SqliteAuditOwner::new(tx, OrdinaryAuditSeal { _private: () })
+    });
+    let mut materials = (ordinary_materials_qualified && sqlite_base.is_none()).then(|| {
         super::ordinary_materials::OrdinaryAuditMaterials::new(OrdinaryAuditSeal { _private: () })
     });
     let verified_history = history::read_verified_public_history(
@@ -915,6 +919,7 @@ fn audit_core_fresh_with_policy(
         work,
         materials.as_mut(),
         policy,
+        sqlite_base.as_ref().map(|owner| owner.base()),
     )?;
     let history::IndexedHistory {
         cuts,
@@ -935,7 +940,7 @@ fn audit_core_fresh_with_policy(
     let _profile_id = audit_profile_id_admitted(tx, control_owner, work)?;
     // 只读源 + 内存派生层：overlay 随本函数内的 store 一起销毁，不是 SQLite 写入通道。
     let mut reader = content_store::ReadStore::new(tx).map_err(err)?;
-    if policy == history::SourcePolicy::NativeMeasured || budget.is_none() {
+    if sqlite_base.is_none() && (policy == history::SourcePolicy::NativeMeasured || budget.is_none()) {
         reader.enable_audit_same_material();
     }
     let mut reader = Some(reader);
@@ -950,7 +955,10 @@ fn audit_core_fresh_with_policy(
         Some(c) => history::HashReader::captured_for_audit(c, max_render_bytes)
             .map_err(err)?
             .with_audit_gate(budget, deadline),
-        None => history::HashReader::metered(source, deadline, max_render_bytes, budget),
+        None => match sqlite_base.as_ref() {
+            Some(owner) => history::HashReader::sqlite_base(owner.base()),
+            None => history::HashReader::metered(source, deadline, max_render_bytes, budget),
+        },
     };
     store = store
         .with_source_policy(policy)
@@ -3236,4 +3244,21 @@ mod transaction_material_qualification {
             });
         super::super::ordinary_materials::LAST_REPORT.with(|r| assert!(r.get().is_none()));
     }
+}
+
+#[cfg(test)]
+thread_local! { static BASE_PROOFS_DISABLED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) }; }
+fn base_proofs_enabled() -> bool {
+    #[cfg(test)]
+    if BASE_PROOFS_DISABLED.with(std::cell::Cell::get) { return false; }
+    true
+}
+#[cfg(test)]
+pub(super) fn without_base_proofs_for_test<T>(action: impl FnOnce() -> T) -> T {
+    struct Reset(bool);
+    impl Drop for Reset { fn drop(&mut self) { BASE_PROOFS_DISABLED.with(|v| v.set(self.0)); } }
+    let reset = Reset(BASE_PROOFS_DISABLED.with(|v| v.replace(true)));
+    let result = action();
+    drop(reset);
+    result
 }

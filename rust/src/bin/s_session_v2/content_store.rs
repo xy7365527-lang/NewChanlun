@@ -131,13 +131,8 @@ fn read_material_reserved(
     SQL_READS.with(|calls| calls.set(calls.get() + 1));
     // 保留无 scope 路线原有的 statement cache；两路只改变正文取得/许可方式。
     let result: Option<(i64, Vec<u8>, Option<NativeReservation>)> = if work.is_none() {
-        conn.prepare_cached("SELECT tag, body FROM s_content_nodes WHERE digest=?1")
-            .map_err(storage_error)?
-            .query_row(params![&digest[..]], |row| {
-                Ok((row.get(0)?, row.get(1)?, None))
-            })
-            .optional()
-            .map_err(storage_error)?
+        s_content::sqlite_audit::read_sql_material(conn, digest)?
+            .map(|(tag, body)| (i64::from(tag), body, None))
     } else {
         let mut statement = newchan_rust::sqlite_checked::CheckedStatement::prepare(
             conn,

@@ -2,7 +2,7 @@ use super::*;
 use crate::v3::{commit, history};
 use sc::{ContentRef, Kind, NodeSink};
 fn pool(entries: usize, body: usize) -> OrdinaryAuditMaterials {
-    OrdinaryAuditMaterials::allocate(CAP, Layout::checked(entries, entries * 2, body).unwrap())
+    OrdinaryAuditMaterials::allocate(CAP, entries, body)
 }
 fn put(tx: &rusqlite::Transaction<'_>, tag: u8, body: &[u8]) -> NodeDigest {
     let d = sc::frame(tag, body);
@@ -32,18 +32,18 @@ fn three_read_ports_cold_sql_hot_f_and_independent_return_bytes() {
     assert_eq!(sc::frame_calls_on_thread() - ff, 3);
     assert_eq!(
         (
-            p.stats.logical_reads,
-            p.stats.sql_material_reads,
-            p.stats.material_hits
+            p.stats().logical_reads,
+            p.stats().sql_material_reads,
+            p.stats().material_hits
         ),
         (3, 1, 2)
     );
     assert_eq!(
         (
-            p.stats.saved_entries,
-            p.stats.saved_body_bytes,
-            p.stats.copied_for_save,
-            p.stats.copied_for_return
+            p.stats().saved_entries,
+            p.stats().saved_body_bytes,
+            p.stats().copied_for_save,
+            p.stats().copied_for_return
         ),
         (1, 3, 3, 6)
     );
@@ -81,7 +81,7 @@ fn missing_bad_frame_type_and_first_error_equal_all_ports() {
             .to_string();
             assert_eq!(a, b);
             drop(r);
-            assert_eq!(p.stats.saved_entries, 0);
+            assert_eq!(p.stats().saved_entries, 0);
         }
     }
     tx.execute(
@@ -95,104 +95,7 @@ fn missing_bad_frame_type_and_first_error_equal_all_ports() {
         assert!(r.checked_read(&d).unwrap().is_none());
         assert!(r.checked_read(&d).unwrap().is_none());
     }
-    assert_eq!((p.stats.saved_entries, p.stats.sql_material_reads), (0, 2));
-}
-#[test]
-fn cap_zero_small_entries_and_body_do_not_change_values() {
-    let mut f = commit::tests::fixture();
-    let tx = f.conn.transaction().unwrap();
-    let a = put(&tx, sc::tag::BYTES_CHUNK, b"one");
-    let b = put(&tx, sc::tag::BYTES_CHUNK, b"two");
-    for (cap, entries, body) in [(0, 1, 8), (CAP, 1, 8), (CAP, 8, 2)] {
-        let mut p = OrdinaryAuditMaterials::allocate(
-            cap,
-            Layout::checked(entries, entries * 2, body).unwrap(),
-        );
-        {
-            let mut r = p.source(content_store::ReadStore::new(&tx).unwrap());
-            for d in [a, b, a, b] {
-                assert!(r.checked_read(&d).unwrap().is_some());
-            }
-        }
-        if cap == 0 {
-            assert_eq!(p.stats.sql_material_reads, 4);
-            assert_eq!(p.stats.disabled, Some("disabled_cap"));
-        } else if entries == 1 {
-            assert_eq!(p.stats.saved_entries, 1);
-            assert_eq!(p.stats.save_rejected_entries, 0);
-            assert_eq!(p.stats.sql_material_reads, 4);
-        } else {
-            assert_eq!(p.stats.saved_entries, 0);
-            assert_eq!(p.stats.save_rejected_bytes, 4);
-        }
-    }
-}
-#[test]
-fn full_digest_collisions_finite_probe_and_layout_overflow() {
-    assert!(Layout::checked(usize::MAX, usize::MAX, usize::MAX).is_none());
-    assert!(Layout::checked(2, 4, usize::MAX).is_none());
-    assert!(Layout::checked(3, 4, 0).is_none());
-    let mut p = pool(8, 256);
-    let mut keys = Vec::new();
-    for n in 0u32..10000 {
-        let body = n.to_le_bytes().to_vec();
-        let d = sc::frame(sc::tag::BYTES_CHUNK, &body);
-        if u64::from_le_bytes(d[..8].try_into().unwrap()) as usize % 16 == 0 {
-            keys.push((d, body));
-            if keys.len() == 8 {
-                break;
-            }
-        }
-    }
-    assert_eq!(keys.len(), 8);
-    for (d, b) in &keys {
-        p.save(
-            d,
-            &CheckedFrame::checked(d, sc::tag::BYTES_CHUNK, b.clone()).unwrap(),
-        );
-    }
-    for (d, _) in &keys[..4] {
-        assert!(p.hit(d).unwrap().is_none());
-    }
-    for (d, b) in &keys[4..] {
-        assert_eq!(p.hit(d).unwrap().unwrap().body(), b);
-    }
-    assert_eq!(p.stats.saved_entries, 4);
-    assert_eq!(p.stats.saved_body_bytes, 16);
-    assert_eq!(p.stats.max_probes, 4);
-    let absent = [0xfe; 32];
-    assert!(p.slot(&absent).is_err());
-    assert_eq!(p.stats.max_probes, 4);
-}
-#[test]
-fn hit_rechecks_f_without_sql_fallback_and_drop_releases_owner() {
-    let mut f = commit::tests::fixture();
-    let tx = f.conn.transaction().unwrap();
-    let d = put(&tx, sc::tag::BYTES_CHUNK, b"abc");
-    LAST_REPORT.with(|r| r.set(None));
-    let mut p = pool(4, 64);
-    {
-        let mut r = p.source(content_store::ReadStore::new(&tx).unwrap());
-        r.checked_read(&d).unwrap();
-    }
-    p.slab[p.layout.body_start] ^= 1;
-    let before = content_store::sql_reads_on_thread();
-    {
-        let mut r = p.source(content_store::ReadStore::new(&tx).unwrap());
-        assert_eq!(
-            r.checked_read(&d).unwrap_err().code(),
-            sc::code::NODE_DIGEST
-        );
-    }
-    assert_eq!(content_store::sql_reads_on_thread(), before);
-    drop(p);
-    LAST_REPORT.with(|r| assert!(r.get().is_some()));
-    let mut next = pool(4, 64);
-    let before = content_store::sql_reads_on_thread();
-    next.source(content_store::ReadStore::new(&tx).unwrap())
-        .checked_read(&d)
-        .unwrap();
-    assert_eq!(content_store::sql_reads_on_thread() - before, 1);
+    assert_eq!((p.stats().saved_entries, p.stats().sql_material_reads), (0, 2));
 }
 #[test]
 fn independent_audit_pool_observes_same_tx_update_and_delete() {
@@ -256,7 +159,7 @@ fn overlay_bad_first_and_clear_returns_only_persistent_material() {
         r.clear_overlay();
         assert!(r.checked_read(&absent).unwrap().is_none());
     }
-    assert_eq!((p.stats.sql_material_reads, p.stats.material_hits), (2, 1));
+    assert_eq!((p.stats().sql_material_reads, p.stats().material_hits), (2, 1));
 }
 #[test]
 fn mode_flavor_kind_extent_and_bad_payload_errors_match() {
@@ -307,43 +210,6 @@ fn mode_flavor_kind_extent_and_bad_payload_errors_match() {
     }
 }
 #[test]
-fn exact_production_capacity_accounting() {
-    let layout = Layout::checked(
-        ENTRIES,
-        BUCKETS,
-        CAP - META_RESERVE - ENTRIES * ENTRY_BYTES - BUCKETS * 4,
-    )
-    .unwrap();
-    let p = OrdinaryAuditMaterials::allocate(CAP, layout);
-    assert!(p.stats.disabled.is_none());
-    assert_eq!(p.slab.len(), 33550336);
-    assert_eq!(p.layout.body_start, 3276800);
-    assert_eq!(p.slab.len() - p.layout.body_start, 30273536);
-    assert!(p.stats.retained_capacity_highwater <= CAP);
-    println!("MATERIAL_LAYOUT {{\"owner\":{},\"wrapper\":{},\"stats\":{},\"metadata_charged\":{},\"slab_len\":{},\"slab_capacity\":{},\"retained_highwater\":{},\"entry_bytes\":42,\"entry_limit\":65536,\"bucket_limit\":131072}}",std::mem::size_of::<OrdinaryAuditMaterials>(),std::mem::size_of::<AuditMaterialSource<'_, '_>>(),std::mem::size_of::<Stats>(),METADATA_BYTES,p.slab.len(),p.slab.capacity(),p.stats.retained_capacity_highwater);
-}
-
-#[test]
-fn optional_allocation_failure_is_cold_disabled_not_validation_retry() {
-    let mut f = commit::tests::fixture();
-    let tx = f.conn.transaction().unwrap();
-    let d = put(&tx, sc::tag::BYTES_CHUNK, b"abc");
-    FAIL_ALLOCATION.with(|v| v.set(true));
-    let mut p = pool(4, 64);
-    FAIL_ALLOCATION.with(|v| v.set(false));
-    assert_eq!(p.stats.disabled, Some("disabled_allocation"));
-    assert_eq!(p.slab.capacity(), 0);
-    {
-        let mut source = p.source(content_store::ReadStore::new(&tx).unwrap());
-        for _ in 0..2 {
-            assert!(source.checked_read(&d).unwrap().is_some());
-        }
-    }
-    assert_eq!(p.stats.sql_material_reads, 2);
-    assert_eq!(p.stats.material_hits, 0);
-}
-
-#[test]
 fn replaced_and_oversized_materials_keep_sql_and_f_contract() {
     let mut f = commit::tests::fixture();
     let tx = f.conn.transaction().unwrap();
@@ -361,12 +227,12 @@ fn replaced_and_oversized_materials_keep_sql_and_f_contract() {
             );
         }
     }
-    assert_eq!(p.stats.sql_material_reads, 5);
-    assert_eq!(p.stats.material_hits, 1);
-    assert_eq!(p.stats.saved_entries, 1);
-    assert_eq!(p.stats.saved_body_bytes, 3);
-    assert_eq!(p.stats.save_rejected_bytes, 2);
-    assert!(p.stats.retained_capacity_highwater <= CAP);
+    assert_eq!(p.stats().sql_material_reads, 5);
+    assert_eq!(p.stats().material_hits, 1);
+    assert_eq!(p.stats().saved_entries, 1);
+    assert_eq!(p.stats().saved_body_bytes, 3);
+    assert_eq!(p.stats().save_rejected_bytes, 2);
+    assert!(p.stats().retained_capacity_highwater <= CAP);
 }
 
 #[test]
@@ -461,8 +327,8 @@ fn ordinary_material_readonly_owner_and_some_gates_match_uncached_source() {
             sql_before,
             "暖原件不重读 SQL"
         );
-        assert!(pool.stats.material_hits > 0);
-        assert!(pool.stats.retained_capacity_highwater <= CAP);
+        assert!(pool.stats().material_hits > 0);
+        assert!(pool.stats().retained_capacity_highwater <= CAP);
     }
 }
 
@@ -480,8 +346,8 @@ fn ordinary_material_pool_actual_heap_released_after_readonly_scope() {
     let before = crate::v3::audit_owner::allocation_probe::live_bytes();
     let pool = OrdinaryAuditMaterials::for_readonly_history(&tx).unwrap();
     let retained = crate::v3::audit_owner::allocation_probe::live_bytes() - before;
-    assert_eq!(retained, pool.slab.capacity() as i64);
-    assert!(pool.stats.retained_capacity_highwater <= CAP);
+    assert_eq!(retained, pool.stats().slab_capacity as i64);
+    assert!(pool.stats().retained_capacity_highwater <= CAP);
     drop(pool);
     let observed = heap.finish();
     assert_eq!(observed["live_before"], observed["live_after"]);

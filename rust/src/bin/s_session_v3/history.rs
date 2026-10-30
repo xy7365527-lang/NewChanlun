@@ -385,6 +385,7 @@ pub(super) fn read_indexed_history(
         None,
         SourcePolicy::Ordinary,
         false,
+        None,
     )
 }
 
@@ -414,6 +415,7 @@ pub(super) fn read_indexed_history_for_audit(
         None,
         SourcePolicy::Ordinary,
         false,
+        None,
     )
 }
 
@@ -553,6 +555,7 @@ pub(super) fn read_indexed_history_with_policy<'a>(
         materials,
         policy,
         false,
+        None,
     );
     if result.is_err() {
         if let Some(records) = records {
@@ -720,8 +723,10 @@ pub(super) fn read_verified_public_history<'scope, 'tx, 'raw>(
     work: Option<&sc::capture_allocation::scratch::WorkScope>,
     materials: Option<&mut super::ordinary_materials::OrdinaryAuditMaterials>,
     policy: SourcePolicy,
+    sqlite_base: Option<&sc::sqlite_audit::SqliteAuditBase<'_>>,
 ) -> Result<VerifiedPublicHistory<'scope, 'tx>, String> {
     let qualified = policy == SourcePolicy::Ordinary
+        && sqlite_base.is_none()
         && capture.is_none()
         && work.is_none()
         && materials.is_none()
@@ -733,7 +738,10 @@ pub(super) fn read_verified_public_history<'scope, 'tx, 'raw>(
     .then(|| super::ordinary_materials::OrdinaryAuditMaterials::for_readonly_history(tx))
     .transpose()
     .map_err(err)?;
-    let history = if let Some(pool) = originals.as_mut() {
+    let history = if sqlite_base.is_some() {
+        read_indexed_history_inner(tx, raw.into(), control, deadline, max_render_bytes, budget,
+            true, capture, records, work, materials, policy, false, sqlite_base)?
+    } else if let Some(pool) = originals.as_mut() {
         read_indexed_history_inner(
             tx,
             raw.into(),
@@ -748,7 +756,8 @@ pub(super) fn read_verified_public_history<'scope, 'tx, 'raw>(
             Some(pool),
             policy,
             true,
-        )?
+            None,
+    )?
     } else {
         read_indexed_history_with_policy(
             tx,
@@ -877,6 +886,7 @@ fn read_indexed_history_inner(
     materials: Option<&mut super::ordinary_materials::OrdinaryAuditMaterials>,
     policy: SourcePolicy,
     sealed_ordinary_materials: bool,
+    sqlite_base: Option<&sc::sqlite_audit::SqliteAuditBase<'_>>,
 ) -> Result<IndexedHistory, String> {
     check_deadline(deadline)?;
     #[cfg(feature = "s_incremental")]
@@ -889,12 +899,13 @@ fn read_indexed_history_inner(
     #[cfg(not(feature = "s_incremental"))]
     verify_required_meta(tx)?;
     let bound_births_qualified = policy == SourcePolicy::Ordinary
+        && sqlite_base.is_none()
         && capture.is_none()
         && work.is_none()
         && (materials.is_none() || sealed_ordinary_materials)
         && tx.is_readonly(rusqlite::MAIN_DB).map_err(err)?;
     let mut reader = content_store::ReadStore::new(tx).map_err(err)?;
-    if audit_same_material {
+    if audit_same_material && sqlite_base.is_none() {
         reader.enable_audit_same_material();
     }
     let mut reader = Some(reader);
@@ -912,7 +923,10 @@ fn read_indexed_history_inner(
         Some(c) => HashReader::captured_for_audit(c, max_render_bytes)
             .map_err(err)?
             .with_audit_gate(budget, deadline),
-        None => HashReader::metered(source, deadline, max_render_bytes, budget),
+        None => match sqlite_base {
+            Some(base) => HashReader::sqlite_base(base),
+            None => HashReader::metered(source, deadline, max_render_bytes, budget),
+        },
     };
     store = store
         .with_source_policy(policy)
@@ -2800,12 +2814,14 @@ fn history_prefix_leaves() -> [u64; 6] {
 enum ReadOwner<'a> {
     Dynamic(&'a mut dyn NodeSource),
     Captured(&'a sc::AuditCapture),
+    SqliteBase(&'a sc::sqlite_audit::SqliteAuditBase<'a>),
 }
 impl NodeSource for ReadOwner<'_> {
     fn read(&mut self, d: &NodeDigest) -> Result<NodeRead, sc::CodecError> {
         match self {
             Self::Dynamic(s) => s.read(d),
             Self::Captured(c) => c.reader().read(d),
+            Self::SqliteBase(b) => b.read(d),
         }
     }
     fn checked_read(
@@ -2815,12 +2831,13 @@ impl NodeSource for ReadOwner<'_> {
         match self {
             Self::Dynamic(s) => s.checked_read(d),
             Self::Captured(c) => c.reader().checked_read(d),
+            Self::SqliteBase(b) => b.checked_read(d),
         }
     }
     fn max_render_bytes(&self) -> Option<u64> {
         match self {
             Self::Dynamic(s) => s.max_render_bytes(),
-            Self::Captured(_) => None,
+            Self::Captured(_) | Self::SqliteBase(_) => None,
         }
     }
 }
@@ -3011,7 +3028,7 @@ impl<'a> HashReader<'a> {
                 self.reserve_copy(capture.original(digest).map_or(0, |(_, body)| body.len()))
             }
             // 动态来源在自己的实际读取边界持账；不可在读取后补签许可。
-            ReadOwner::Dynamic(_) => Ok(None),
+            ReadOwner::Dynamic(_) | ReadOwner::SqliteBase(_) => Ok(None),
         }
     }
     #[cfg(feature = "s_incremental")]
@@ -3282,7 +3299,7 @@ impl<'a> HashReader<'a> {
     pub(super) fn source_capture_for_role_probe(&self) -> Option<&sc::AuditCapture> {
         match self.source {
             ReadOwner::Captured(c) => Some(c),
-            ReadOwner::Dynamic(_) => None,
+            ReadOwner::Dynamic(_) | ReadOwner::SqliteBase(_) => None,
         }
     }
     pub(crate) fn ordinary_bound_births_qualified(&self) -> bool {
@@ -3453,6 +3470,37 @@ impl<'a> HashReader<'a> {
             history_public_roots: None,
         }
     }
+    pub(super) fn sqlite_base(source: &'a sc::sqlite_audit::SqliteAuditBase<'a>) -> Self {
+        Self {
+            source: ReadOwner::SqliteBase(source),
+            overlay: OverlayOwner::Dynamic(Default::default()),
+            owned: None,
+            work: None,
+            #[cfg(feature = "s_incremental")]
+            native_budget: None,
+            deadline: None,
+            max_render_bytes: None,
+            budget: None,
+            audit_full_arrays: false,
+            policy: SourcePolicy::Ordinary,
+            history_public_roots: None,
+        }
+    }
+    fn eligible_sqlite_base(&self) -> Option<&sc::sqlite_audit::SqliteAuditBase<'_>> {
+        if self.policy != SourcePolicy::Ordinary || self.owned.is_some()
+            || self.work.is_some() || self.budget.is_some() || self.deadline.is_some()
+            || self.max_render_bytes.is_some() || cfg!(feature = "s_incremental") {
+            return None;
+        }
+        let empty = match &self.overlay {
+            OverlayOwner::Dynamic(values) => values.is_empty(),
+            #[cfg(test)]
+            OverlayOwner::Bounded(_) => false,
+        };
+        if !empty { return None; }
+        match &self.source { ReadOwner::SqliteBase(base) => Some(base), _ => None }
+    }
+
 }
 #[cfg(test)]
 impl HashReader<'_> {
@@ -3808,6 +3856,7 @@ impl CodecRead for HashReader<'_> {
         self.verify_ref(r, mode)
     }
     fn verify_ref(&mut self, r: sc::RefView<'_>, m: sc::Mode) -> Result<(), sc::CodecError> {
+        if let Some(base) = self.eligible_sqlite_base() { return base.verify_ref(r, m); }
         self.sync_owned();
         match &mut self.owned {
             Some(o) => o.verify_cached_owned(r, m),
@@ -3848,12 +3897,13 @@ impl CodecRead for HashReader<'_> {
         r: impl IntoIterator<Item = sc::RefView<'a>>,
         m: sc::Mode,
     ) -> Result<(), sc::CodecError> {
+        if let Some(base) = self.eligible_sqlite_base() { return base.verify_many(r, m); }
         self.sync_owned();
         match &mut self.owned {
             Some(o) => o.verify_many_cached_owned(r, m),
             None => {
                 if self.work.is_some()
-                    || matches!(self.source, ReadOwner::Dynamic(_))
+                    || matches!(self.source, ReadOwner::Dynamic(_) | ReadOwner::SqliteBase(_))
                     || (!self.native_measured()
                         && (self.budget.is_some() || self.deadline.is_some()))
                 {
@@ -5804,6 +5854,7 @@ pub(super) mod tests {
             None,
             None,
             SourcePolicy::Ordinary,
+            None,
         )
         .unwrap();
         assert!(verified.qualified());
@@ -6022,6 +6073,7 @@ pub(super) mod tests {
             None,
             None,
             SourcePolicy::Ordinary,
+            None,
         )
         .unwrap();
         let cut = &verified.history().cuts[0];
