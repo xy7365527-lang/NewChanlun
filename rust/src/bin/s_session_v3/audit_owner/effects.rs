@@ -1245,10 +1245,10 @@ impl<'tx, 'work, 'db> MaterialAccess<'tx, 'work, 'db> {
         }
         Ok(())
     }
-    fn reader<'material>(&'material self) -> Result<ActualRead<'material, 'db>, String> {
+    fn reader<'material>(&'material self) -> Result<ActualRead<'material, 'db>, PublishError> {
         Ok(ActualRead {
             inner: crate::content_store::TxStore::new(self.tx)
-                .map_err(invalid)?
+                .map_err(publish_err)?
                 .with_work(Some(self.work)),
         })
     }
@@ -1286,14 +1286,14 @@ impl SourceMaterial<'_, '_, '_, '_> {
     pub(crate) fn sequence_delta(
         &mut self,
         which: construction_set::SourceArray,
-    ) -> Result<&construction_set::SequenceDelta, String> {
+    ) -> Result<&construction_set::SequenceDelta, PublishError> {
         self.check()?;
         self.set.delta(&mut self.reader, self.access.budget, which)
     }
     pub(crate) fn request_delta(
         &mut self,
         ordinal: u64,
-    ) -> Result<&construction_set::SequenceDelta, String> {
+    ) -> Result<&construction_set::SequenceDelta, PublishError> {
         self.check()?;
         self.set
             .request_delta(&mut self.reader, self.access.budget, ordinal)
@@ -1302,7 +1302,7 @@ impl SourceMaterial<'_, '_, '_, '_> {
         &mut self,
         which: construction_set::SourceArray,
         ordinal: u64,
-    ) -> Result<super::super::audit_store::RefValue, String> {
+    ) -> Result<super::super::audit_store::RefValue, PublishError> {
         self.check()?;
         self.set
             .member(&mut self.reader, self.access.budget, which, ordinal)
@@ -1311,7 +1311,7 @@ impl SourceMaterial<'_, '_, '_, '_> {
         &mut self,
         knowledge_ordinal: u64,
         ordinal: u64,
-    ) -> Result<super::super::audit_store::RefValue, String> {
+    ) -> Result<super::super::audit_store::RefValue, PublishError> {
         self.check()?;
         self.set.request_member(
             &mut self.reader,

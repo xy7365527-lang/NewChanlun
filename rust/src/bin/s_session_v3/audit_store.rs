@@ -1,6 +1,7 @@
 //! #1394 封闭审计读取边界。动态来源没有捕获能力；唯有具体 HashReader 自己选择
 //! 与实际读取绑定的不可变 owner。两种路径都用同一业务函数，不传成功 token。
 pub(crate) use super::history::HashReader;
+use newchan_rust::s_content::ContextError as PublishError;
 use newchan_rust::s_content::{
     self as sc, CodecError, ContentRef, NodeDigest, NodeRead, NodeSink, NodeSource, NodeStore,
 };
@@ -383,14 +384,14 @@ pub(crate) trait CodecRead: NodeSource {
             mode,
         )
     }
-    fn native_text(&self, text: &str) -> Result<super::business_json::TextValue, String> {
+    fn native_text(&self, text: &str) -> Result<super::business_json::TextValue, PublishError> {
         if self.codec_work().is_some() && self.allocation_budget().is_none() {
             return self
                 .native_string(text)
                 .map(super::business_json::TextValue::Plain)
-                .map_err(|e| e.to_string());
+                .map_err(PublishError::from);
         }
-        super::business_json::TextValue::from_str(text, self.allocation_budget().as_ref())
+        super::business_json::TextValue::from_str(text, self.allocation_budget().as_ref()).map_err(PublishError::from)
     }
     fn native_json_clone(
         &self,

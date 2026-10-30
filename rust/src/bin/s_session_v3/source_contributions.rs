@@ -97,7 +97,7 @@ impl<K: Ord + Retained, V: Retained> Map<K, V> {
         s: &(impl CodecRead + ?Sized),
         key: K,
         value: V,
-    ) -> Result<Option<V>, String> {
+    ) -> Result<Option<V>, PublishError> {
         let old_bytes = self
             .values
             .get_key_value(&key)
@@ -116,7 +116,7 @@ impl<K: Ord + Retained, V: Retained> Map<K, V> {
         })?;
         Ok(old)
     }
-    fn remove<Q: Ord + ?Sized>(&mut self, key: &Q) -> Result<Option<V>, String>
+    fn remove<Q: Ord + ?Sized>(&mut self, key: &Q) -> Result<Option<V>, PublishError>
     where
         K: std::borrow::Borrow<Q>,
     {
@@ -135,8 +135,8 @@ impl<K: Ord + Retained, V: Retained> Map<K, V> {
     fn mutate<Q: Ord + ?Sized, R>(
         &mut self,
         key: &Q,
-        f: impl FnOnce(&mut V) -> Result<R, String>,
-    ) -> Result<R, String>
+        f: impl FnOnce(&mut V) -> Result<R, PublishError>,
+    ) -> Result<R, PublishError>
     where
         K: std::borrow::Borrow<Q>,
     {
@@ -198,7 +198,7 @@ impl<K> std::ops::Deref for Tree<K> {
     }
 }
 impl<K: Ord + Retained> Tree<K> {
-    fn insert(&mut self, s: &(impl CodecRead + ?Sized), key: K) -> Result<bool, String> {
+    fn insert(&mut self, s: &(impl CodecRead + ?Sized), key: K) -> Result<bool, PublishError> {
         let key_bytes = key.heap_bytes();
         if !self.values.insert_admitted(key, s).map_err(err)? {
             return Ok(false);
@@ -210,7 +210,7 @@ impl<K: Ord + Retained> Tree<K> {
             .ok_or_else(|| err("来源保留费溢出"))?;
         Ok(true)
     }
-    fn remove<Q: Ord + ?Sized>(&mut self, key: &Q) -> Result<bool, String>
+    fn remove<Q: Ord + ?Sized>(&mut self, key: &Q) -> Result<bool, PublishError>
     where
         K: std::borrow::Borrow<Q>,
     {
@@ -233,14 +233,14 @@ impl<K: Ord> Retained for Tree<K> {
         self.bytes.saturating_add(self.values.allocation_bytes())
     }
 }
-fn owned(s: &(impl CodecRead + ?Sized), text: &str) -> Result<TextValue, String> {
+fn owned(s: &(impl CodecRead + ?Sized), text: &str) -> Result<TextValue, PublishError> {
     s.native_text(text)
 }
 fn vec_push<T>(
     s: &(impl CodecRead + ?Sized),
     v: &mut sc::CodecVec<T>,
     value: T,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     s.native_vec_room(v, 1).map_err(err)?;
     v.try_push(value).map_err(err)
 }
@@ -249,7 +249,7 @@ fn link<K: Ord + Retained>(
     map: &mut Map<K, Tree<Handle>>,
     key: K,
     handle: Handle,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     if !map.contains_key(&key) {
         map.put(s, key, Tree::default())?;
     } else {
@@ -264,7 +264,7 @@ fn link_ref<K: Ord + Retained, Q: Ord + ?Sized>(
     map: &mut Map<K, Tree<Handle>>,
     key: &Q,
     handle: Handle,
-) -> Result<(), String>
+) -> Result<(), PublishError>
 where
     K: std::borrow::Borrow<Q>,
 {
@@ -274,7 +274,7 @@ fn unlink<K: Ord + Retained, Q: Ord + ?Sized>(
     map: &mut Map<K, Tree<Handle>>,
     key: &Q,
     handle: Handle,
-) -> Result<(), String>
+) -> Result<(), PublishError>
 where
     K: std::borrow::Borrow<Q>,
 {
@@ -291,7 +291,7 @@ fn dirty_from<K: Ord, Q: Ord + ?Sized>(
     map: &Map<K, Tree<Handle>>,
     key: &Q,
     dirty: &mut Tree<Handle>,
-) -> Result<(), String>
+) -> Result<(), PublishError>
 where
     K: std::borrow::Borrow<Q>,
 {
@@ -307,7 +307,7 @@ fn schedule(
     order: &Order,
     events: &mut Tree<(usize, Handle)>,
     handle: Handle,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     events.insert(s, (order.rank(handle)?, handle))?;
     Ok(())
 }
@@ -318,7 +318,7 @@ fn before<K: Ord + Retained>(
     at: Handle,
     order: &Order,
     events: &mut Tree<(usize, Handle)>,
-) -> Result<bool, String> {
+) -> Result<bool, PublishError> {
     if let Some(other) = index.get(&key).copied() {
         if other == at {
             return Ok(false);
@@ -335,7 +335,7 @@ fn forget<K: Ord + Retained, Q: Ord + ?Sized>(
     index: &mut Map<K, Handle>,
     key: &Q,
     at: Handle,
-) -> Result<(), String>
+) -> Result<(), PublishError>
 where
     K: std::borrow::Borrow<Q>,
 {
@@ -489,7 +489,7 @@ impl NativeSourceState {
         raw: &BoundRawAdvance<'_>,
         root: Built,
         rule: &str,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, PublishError> {
         if raw.previous_prefix() != 0 {
             return Err(err("新来源贡献必须从空发布前缀建立"));
         }
@@ -618,7 +618,7 @@ enum Stream {
 fn delta<'a>(
     s: &'a mut SourceMaterial<'_, '_, '_, '_>,
     stream: Stream,
-) -> Result<&'a super::super::audit_owner::SequenceDelta, String> {
+) -> Result<&'a super::super::audit_owner::SequenceDelta, PublishError> {
     match stream {
         Stream::Array(a) => s.sequence_delta(a),
         Stream::Requests(at) => s.request_delta(at),
@@ -628,7 +628,7 @@ fn member(
     s: &mut SourceMaterial<'_, '_, '_, '_>,
     stream: Stream,
     ordinal: usize,
-) -> Result<RefValue, String> {
+) -> Result<RefValue, PublishError> {
     let ordinal = u64::try_from(ordinal).map_err(|_| err("来源成员位置溢出"))?;
     match stream {
         Stream::Array(a) => s.array_member(a, ordinal),
@@ -645,7 +645,7 @@ fn apply_order(
     sequence: &mut Option<sc::SequenceRef>,
     order: &mut Order,
     work: &mut SourceWork,
-) -> Result<Changes, String> {
+) -> Result<Changes, PublishError> {
     let d = delta(s, stream)?;
     if d.old != *sequence {
         return Err(err("来源数组前根与贡献不同"));
@@ -718,7 +718,7 @@ fn apply_order(
     Ok(Changes { removed, added })
 }
 impl NativeSourceState {
-    fn coverage_at(&mut self, s: &(impl CodecRead + ?Sized), coord: i64) -> Result<(), String> {
+    fn coverage_at(&mut self, s: &(impl CodecRead + ?Sized), coord: i64) -> Result<(), PublishError> {
         let group = self.members.get(&coord).is_some_and(|m| !m.is_empty());
         let pending = self.pending.contains(&coord);
         if group && pending {
@@ -740,7 +740,7 @@ impl NativeSourceState {
         index: i64,
         position: usize,
         add: bool,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         if let Some(second) = self
             .members
             .get(&coord)
@@ -773,7 +773,7 @@ impl NativeSourceState {
         self.work.members_updated += 1;
         self.coverage_at(s, coord)
     }
-    fn gap_at(&mut self, s: &(impl CodecRead + ?Sized), index: i64) -> Result<(), String> {
+    fn gap_at(&mut self, s: &(impl CodecRead + ?Sized), index: i64) -> Result<(), PublishError> {
         if !self.group_indices.contains(&index) {
             self.gaps.remove(&index)?;
             return Ok(());
@@ -797,7 +797,7 @@ impl NativeSourceState {
         index: i64,
         group: &Group,
         add: bool,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         if add {
             self.group_indices.insert(s, index)?;
         } else {
@@ -823,7 +823,7 @@ impl NativeSourceState {
         id: &str,
         handle: Handle,
         dirty_witness: &mut Tree<Handle>,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         dirty_from(s, &self.shape_witnesses, id, dirty_witness)?;
         if let Some(shape) = self.shapes.remove(id)? {
             for index in shape.groups {
@@ -840,7 +840,7 @@ impl NativeSourceState {
         handle: Handle,
         dirty_groups: &mut Tree<i64>,
         dirty_witness: &mut Tree<Handle>,
-    ) -> Result<Entry, String> {
+    ) -> Result<Entry, PublishError> {
         let entry = self
             .objects
             .remove(&handle)?
@@ -866,7 +866,7 @@ impl NativeSourceState {
         s: &mut SourceMaterial<'_, '_, '_, '_>,
         raw: &BoundRawAdvance<'_>,
         dirty_objects: &mut Tree<Handle>,
-    ) -> Result<Option<i64>, String> {
+    ) -> Result<Option<i64>, PublishError> {
         raw.ensure_current()?;
         if self.raw_binding != raw.previous_binding() || self.raw_prefix != raw.previous_prefix() {
             return Err(err("来源raw发布前沿不连续"));
@@ -949,7 +949,7 @@ struct ObjectKeys<'a> {
     group: Option<i64>,
 }
 impl ObjectSlots for ObjectKeys<'_> {
-    fn insert_id(&mut self, s: &(impl CodecRead + ?Sized), id: &str) -> Result<bool, String> {
+    fn insert_id(&mut self, s: &(impl CodecRead + ?Sized), id: &str) -> Result<bool, PublishError> {
         before(s, self.ids, owned(s, id)?, self.at, self.order, self.events)
     }
     fn insert_group(
@@ -957,7 +957,7 @@ impl ObjectSlots for ObjectKeys<'_> {
         s: &(impl CodecRead + ?Sized),
         index: i64,
         group: Group,
-    ) -> Result<bool, String> {
+    ) -> Result<bool, PublishError> {
         if before(s, self.group_ids, index, self.at, self.order, self.events)? {
             return Ok(true);
         }
@@ -977,7 +977,7 @@ impl NativeSourceState {
         dirty_shapes: &mut Tree<Handle>,
         dirty_witness: &mut Tree<Handle>,
         pending_changed: &mut Tree<Handle>,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         let changes = apply_order(
             s,
             Stream::Array(SourceArray::Objects),
@@ -1079,7 +1079,7 @@ impl NativeSourceState {
         dirty_requests: &mut Tree<Handle>,
         sequence: &mut Tree<i64>,
         old: &mut Map<i64, StepState>,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         if let Some(coord) = self.step_handles.remove(&handle)? {
             if self
                 .steps
@@ -1117,7 +1117,7 @@ impl NativeSourceState {
         changed: &Tree<Handle>,
         raw_membership: Option<i64>,
         dirty_groups: &Tree<i64>,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         // #1405：步骤等待原因按会话规则合同版本化（与全量 source_pending::audit 同口径）。
         let equal_is_evidence = source_pending::equal_is_evidence(self.rule.as_str())?;
         let mut sequence = Tree::default();
@@ -1327,7 +1327,7 @@ impl NativeSourceState {
         &mut self,
         s: &(impl CodecRead + ?Sized),
         handle: Handle,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         let request = self
             .requests
             .remove(&handle)?
@@ -1350,7 +1350,7 @@ impl NativeSourceState {
         s: &mut SourceMaterial<'_, '_, '_, '_>,
         knowledge: usize,
         mut dirty: Tree<Handle>,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         let equal_is_evidence = source_pending::equal_is_evidence(self.rule.as_str())?;
         let stream = Stream::Requests(u64::try_from(knowledge).map_err(|_| err("知识位置溢出"))?);
         let changes = apply_order(
@@ -1470,7 +1470,7 @@ struct RequestKeys<'a> {
     bound: &'a mut Map<i64, Handle>,
 }
 impl RequestSlots for RequestKeys<'_> {
-    fn insert_request(&mut self, s: &(impl CodecRead + ?Sized), key: &str) -> Result<bool, String> {
+    fn insert_request(&mut self, s: &(impl CodecRead + ?Sized), key: &str) -> Result<bool, PublishError> {
         before(
             s,
             self.keys,
@@ -1480,12 +1480,12 @@ impl RequestSlots for RequestKeys<'_> {
             self.events,
         )
     }
-    fn insert_bound(&mut self, s: &(impl CodecRead + ?Sized), coord: i64) -> Result<bool, String> {
+    fn insert_bound(&mut self, s: &(impl CodecRead + ?Sized), coord: i64) -> Result<bool, PublishError> {
         before(s, self.bound, coord, self.at, self.order, self.events)
     }
 }
 impl NativeSourceState {
-    fn partition_phase(&self) -> Result<(), String> {
+    fn partition_phase(&self) -> Result<(), PublishError> {
         let gap = self.gaps.first().copied();
         let overlap = self.overlaps.first().copied();
         if gap.is_some_and(|index| overlap.is_none_or(|(at, _)| index <= at)) {
@@ -1510,7 +1510,7 @@ impl NativeSourceState {
         dirty_groups: &Tree<i64>,
         mut dirty: Tree<Handle>,
         dirty_witness: &mut Tree<Handle>,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         for index in dirty_groups.iter() {
             dirty_from(s, &self.group_shapes, index, &mut dirty)?;
         }
@@ -1565,7 +1565,7 @@ impl NativeSourceState {
         id: &str,
         slot: i64,
         add: bool,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         if self.shape_slots.contains_key(id) {
             self.shape_slots.mutate(id, |mask| {
                 if add {
@@ -1587,7 +1587,7 @@ impl NativeSourceState {
         &mut self,
         s: &(impl CodecRead + ?Sized),
         handle: Handle,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         let witness = self
             .witnesses
             .remove(&handle)?
@@ -1604,7 +1604,7 @@ impl NativeSourceState {
         &mut self,
         s: &mut SourceMaterial<'_, '_, '_, '_>,
         mut dirty: Tree<Handle>,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         let changes = apply_order(
             s,
             Stream::Array(SourceArray::Witnesses),
@@ -1674,7 +1674,7 @@ impl NativeSourceState {
         }
         Ok(())
     }
-    fn observation_phase(&mut self, s: &mut SourceMaterial<'_, '_, '_, '_>) -> Result<(), String> {
+    fn observation_phase(&mut self, s: &mut SourceMaterial<'_, '_, '_, '_>) -> Result<(), PublishError> {
         let stream = Stream::Array(SourceArray::Observations);
         let d = delta(s, stream)?;
         if d.old != self.observation_sequence {
@@ -1762,7 +1762,7 @@ struct WitnessKeys<'a> {
     slots: &'a mut Map<(TextValue, i64), Handle>,
 }
 impl WitnessSlots for WitnessKeys<'_> {
-    fn reserve(&mut self, _: &(impl CodecRead + ?Sized)) -> Result<(), String> {
+    fn reserve(&mut self, _: &(impl CodecRead + ?Sized)) -> Result<(), PublishError> {
         Ok(())
     }
     fn insert_slot(
@@ -1770,7 +1770,7 @@ impl WitnessSlots for WitnessKeys<'_> {
         s: &(impl CodecRead + ?Sized),
         id: &str,
         slot: i64,
-    ) -> Result<bool, String> {
+    ) -> Result<bool, PublishError> {
         before(
             s,
             self.slots,
@@ -1788,7 +1788,7 @@ pub(crate) fn audit_native_bound(
     raw: &BoundRawAdvance<'_>,
     profile: &str,
     rule: &str,
-) -> Result<NativeSourceVerdict, String> {
+) -> Result<NativeSourceVerdict, PublishError> {
     #[cfg(test)]
     let before_calls = source_call_stats();
     let result = (|| {

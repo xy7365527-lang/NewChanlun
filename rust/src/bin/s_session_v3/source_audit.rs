@@ -1,6 +1,7 @@
 //! #1394 C §5.2–5.4：绑定同 cut 来源原件、typed/CC006 身份和见证。
 //! 只读事实及其引用，不重新运行包含、分型或新笔判定。原始账必须先经 read_raw_events 核验。
 use super::audit_store::RefValue;
+use newchan_rust::s_content::ContextError as PublishError;
 use super::audit_store::{CodecRead, CodecStore};
 use super::business_json::BusinessMap;
 use super::business_json::{self as bj, RawEventsView};
@@ -92,8 +93,8 @@ fn source_call_note(update: impl FnOnce(&mut SourceCallStats)) {
         v.set(n);
     });
 }
-fn err(e: impl std::fmt::Display) -> String {
-    format!("SourceAuditInvalid：{e}")
+fn err(e: impl Into<PublishError>) -> PublishError {
+    e.into().context("SourceAuditInvalid：")
 }
 #[cfg(test)]
 #[cfg_attr(
@@ -205,7 +206,7 @@ impl<'capture> NativeFieldMemo<'capture> {
 }
 // Local adapter only; ordinary/Owned use the original scalar decoder.
 trait SourceFieldStore: CodecStore {
-    fn decoded_scalar(&mut self, r: sc::RefView<'_>) -> Result<bj::JsonOwner, String> {
+    fn decoded_scalar(&mut self, r: sc::RefView<'_>) -> Result<bj::JsonOwner, PublishError> {
         scalar_value(self, r)
     }
 }
@@ -218,7 +219,7 @@ impl<'names> SourceFields<'names> {
         s: &mut (impl CodecStore + ?Sized),
         r: sc::RefView<'_>,
         names: &[&'names str],
-    ) -> Result<Self, String> {
+    ) -> Result<Self, PublishError> {
         s.lookup_subset_ref(r, names).map(Self).map_err(err)
     }
     #[cfg_attr(
@@ -228,10 +229,10 @@ impl<'names> SourceFields<'names> {
             reason = "#1488 再合 #1608：native 非测试、s_session 非测试、s_session 测试 构建不触达"
         )
     )]
-    fn get(&self, k: &str) -> Result<sc::RefView<'_>, String> {
+    fn get(&self, k: &str) -> Result<sc::RefView<'_>, PublishError> {
         self.0.get(k).ok_or_else(|| err(format!("原件缺字段{k}")))
     }
-    fn get_admitted(&self, s: &(impl CodecRead + ?Sized), k: &str) -> Result<RefValue, String> {
+    fn get_admitted(&self, s: &(impl CodecRead + ?Sized), k: &str) -> Result<RefValue, PublishError> {
         self.0
             .get_admitted(s, k)
             .map_err(err)?
@@ -241,7 +242,7 @@ impl<'names> SourceFields<'names> {
         &self,
         s: &mut (impl SourceFieldStore + ?Sized),
         k: &str,
-    ) -> Result<bj::JsonOwner, String> {
+    ) -> Result<bj::JsonOwner, PublishError> {
         let r = self.get_admitted(s, k)?;
         s.decoded_scalar(r.view())
     }
@@ -249,13 +250,13 @@ impl<'names> SourceFields<'names> {
         &self,
         s: &mut (impl SourceFieldStore + ?Sized),
         k: &str,
-    ) -> Result<bj::TextValue, String> {
+    ) -> Result<bj::TextValue, PublishError> {
         let value = self.scalar(s, k)?;
         let view = value.view();
         let text = view.as_str().ok_or_else(|| err(format!("{k}不是文本")))?;
         s.native_text(text)
     }
-    fn integer(&self, s: &mut (impl SourceFieldStore + ?Sized), k: &str) -> Result<i64, String> {
+    fn integer(&self, s: &mut (impl SourceFieldStore + ?Sized), k: &str) -> Result<i64, PublishError> {
         self.scalar(s, k)?
             .view()
             .as_i64()
@@ -267,21 +268,21 @@ fn field<'a>(
     s: &mut (impl CodecRead + ?Sized),
     r: impl Into<sc::RefView<'a>>,
     k: &str,
-) -> Result<RefValue, String> {
+) -> Result<RefValue, PublishError> {
     field_ref(s, r.into(), k)
 }
 fn scalar<'a>(
     s: &mut (impl CodecRead + ?Sized),
     r: impl Into<sc::RefView<'a>>,
     k: &str,
-) -> Result<bj::JsonOwner, String> {
+) -> Result<bj::JsonOwner, PublishError> {
     let r = field(s, r, k)?;
     scalar_value(s, r.view())
 }
 fn scalar_value<'a>(
     s: &mut (impl CodecRead + ?Sized),
     r: impl Into<sc::RefView<'a>>,
-) -> Result<bj::JsonOwner, String> {
+) -> Result<bj::JsonOwner, PublishError> {
     let r = r.into();
     if !matches!(
         r.kind(),
@@ -296,7 +297,7 @@ fn local_fields<'a, 'names>(
     s: &mut (impl CodecStore + ?Sized),
     r: impl Into<sc::RefView<'a>>,
     names: &[&'names str],
-) -> Result<Option<SourceFields<'names>>, String> {
+) -> Result<Option<SourceFields<'names>>, PublishError> {
     if s.audit_full_array_scan() {
         SourceFields::read_subset(s, r.into(), names)
             .map(Some)
@@ -309,7 +310,7 @@ fn text<'a>(
     s: &mut (impl CodecRead + ?Sized),
     r: impl Into<sc::RefView<'a>>,
     k: &str,
-) -> Result<bj::TextValue, String> {
+) -> Result<bj::TextValue, PublishError> {
     let r = field(s, r, k)?;
     text_value(s, r.view(), k)
 }
@@ -317,7 +318,7 @@ fn text_value<'a>(
     s: &mut (impl CodecRead + ?Sized),
     r: impl Into<sc::RefView<'a>>,
     k: &str,
-) -> Result<bj::TextValue, String> {
+) -> Result<bj::TextValue, PublishError> {
     let value = scalar_value(s, r)?;
     let v = value.view();
     let text = v.as_str().ok_or_else(|| err(format!("{k}不是文本")))?;
@@ -327,19 +328,19 @@ fn number<'a>(
     s: &mut (impl CodecRead + ?Sized),
     r: impl Into<sc::RefView<'a>>,
     k: &str,
-) -> Result<i64, String> {
+) -> Result<i64, PublishError> {
     scalar(s, r, k)?
         .view()
         .as_i64()
         .ok_or_else(|| err(format!("{k}不是整数")))
 }
-fn decimal(v: &str) -> Result<i64, String> {
+fn decimal(v: &str) -> Result<i64, PublishError> {
     newchan_rust::session_protocol::parse_canonical_i64(v, "source coordinate").map_err(err)
 }
-fn digest<'a>(r: impl Into<sc::RefView<'a>>) -> Result<NodeDigest, String> {
+fn digest<'a>(r: impl Into<sc::RefView<'a>>) -> Result<NodeDigest, PublishError> {
     r.into().digest().map_err(err)
 }
-fn built<'a>(r: impl Into<sc::RefView<'a>>) -> Result<Built, String> {
+fn built<'a>(r: impl Into<sc::RefView<'a>>) -> Result<Built, PublishError> {
     let r = r.into();
     Ok(Built {
         digest: r.digest().map_err(err)?,
@@ -348,7 +349,7 @@ fn built<'a>(r: impl Into<sc::RefView<'a>>) -> Result<Built, String> {
     })
 }
 #[cfg(test)]
-fn cv(v: &Value) -> Result<V, String> {
+fn cv(v: &Value) -> Result<V, PublishError> {
     Ok(match v {
         Value::Null => V::Null,
         Value::Bool(x) => V::Bool(*x),
@@ -358,7 +359,7 @@ fn cv(v: &Value) -> Result<V, String> {
         Value::Object(o) => V::Object(
             o.iter()
                 .map(|(k, v)| Ok((k.clone(), cv(v)?)))
-                .collect::<Result<_, String>>()?,
+                .collect::<Result<_, PublishError>>()?,
         ),
     })
 }
@@ -376,12 +377,12 @@ impl NodeSink for HashOnly {
     dead_code,
     reason = "#1608：无预算/普通值的旧包装入口，调用方已改走带 owner/admission/typed 的版本；先量再动，保留不删"
 )]
-fn hash(v: &Value) -> Result<NodeDigest, String> {
+fn hash(v: &Value) -> Result<NodeDigest, PublishError> {
     Ok(sc::write_json_view(&mut HashOnly, v.into())
         .map_err(err)?
         .digest)
 }
-fn parsed_json(s: &(impl CodecRead + ?Sized), bytes: &[u8]) -> Result<bj::JsonOwner, String> {
+fn parsed_json(s: &(impl CodecRead + ?Sized), bytes: &[u8]) -> Result<bj::JsonOwner, PublishError> {
     #[cfg(feature = "s_allocation_json_testonly")]
     if let Some(b) = s.allocation_budget() {
         return sc::capture_allocation::audit_json::OwnedJson::parse(bytes, &b)
@@ -396,7 +397,7 @@ fn canonical_matches(
     s: &(impl CodecRead + ?Sized),
     v: sc::capture_allocation::audit_json::JsonView<'_>,
     bytes: &[u8],
-) -> Result<bool, String> {
+) -> Result<bool, PublishError> {
     #[cfg(feature = "s_allocation_json_testonly")]
     if let Some(b) = s.allocation_budget() {
         return sc::capture_allocation::audit_json::canonical_bytes(v, &b)
@@ -436,7 +437,7 @@ fn canonical_matches(
         _ => Err(err("owned JSON组合缺实际账本")),
     }
 }
-fn exact<'a>(r: impl Into<sc::RefView<'a>>, kind: Kind, n: u64) -> Result<(), String> {
+fn exact<'a>(r: impl Into<sc::RefView<'a>>, kind: Kind, n: u64) -> Result<(), PublishError> {
     let r = r.into();
     if r.kind() != kind || r.extent() != Some(n) {
         Err(err(format!("字段/成员形状不符：预期{kind:?}/{n}")))
@@ -447,7 +448,7 @@ fn exact<'a>(r: impl Into<sc::RefView<'a>>, kind: Kind, n: u64) -> Result<(), St
 pub(super) fn elements<'a>(
     s: &mut (impl CodecRead + ?Sized),
     r: impl Into<sc::RefView<'a>>,
-) -> Result<sc::CodecVec<RefValue>, String> {
+) -> Result<sc::CodecVec<RefValue>, PublishError> {
     elements_ref(s, r.into())
 }
 /// 活期仅为本次完整来源审计；预算/期限 Some 强制原路径。
@@ -514,7 +515,7 @@ impl<'a, 'borrow, 'source, 'capture> ArrayAuditSource<'a, 'borrow, 'source, 'cap
     }
 }
 impl SourceFieldStore for ArrayAuditSource<'_, '_, '_, '_> {
-    fn decoded_scalar(&mut self, r: sc::RefView<'_>) -> Result<bj::JsonOwner, String> {
+    fn decoded_scalar(&mut self, r: sc::RefView<'_>) -> Result<bj::JsonOwner, PublishError> {
         let eligible = self.full_arrays
             && !self.source.owned_codec_active()
             && (self.source.native_measure().is_some() || self.deadline.is_none())
@@ -834,7 +835,7 @@ impl CodecStore for ArrayAuditSource<'_, '_, '_, '_> {
 
 fn source_allocation(
     s: &(impl CodecRead + ?Sized),
-) -> Result<Option<sc::capture_allocation::OwnedBudget>, String> {
+) -> Result<Option<sc::capture_allocation::OwnedBudget>, PublishError> {
     let allocation = s.allocation_budget();
     #[cfg(not(feature = "s_allocation_json_testonly"))]
     if allocation.is_some() {
@@ -842,7 +843,7 @@ fn source_allocation(
     }
     Ok(allocation)
 }
-fn coords(s: &mut (impl CodecRead + ?Sized), r: &RefValue) -> Result<sc::CodecVec<i64>, String> {
+fn coords(s: &mut (impl CodecRead + ?Sized), r: &RefValue) -> Result<sc::CodecVec<i64>, PublishError> {
     let allocation = source_allocation(s)?;
     let mut out = bj::new_work(allocation.as_ref());
     for item in elements(s, r)? {
@@ -943,7 +944,7 @@ fn references(
     raw: &(impl RawLookup + ?Sized),
     numeric: bool,
     checked: &mut BusinessMap<(NodeDigest, bool), i64>,
-) -> Result<sc::CodecVec<i64>, String> {
+) -> Result<sc::CodecVec<i64>, PublishError> {
     let allocation = source_allocation(s)?;
     let mut out = bj::new_work(allocation.as_ref());
     for item in elements(s, r)? {
@@ -983,7 +984,7 @@ fn source_coords(
     r: &RefValue,
     memo: Option<&mut NativeSourceMemo<'_>>,
     domain: ParseDomain,
-) -> Result<SourceCoords, String> {
+) -> Result<SourceCoords, PublishError> {
     match memo {
         Some(memo) => memo.coords(s, r, domain),
         None => coords(s, r).map(SourceCoords::Original),
@@ -998,7 +999,7 @@ fn source_references(
     memo: Option<&mut NativeSourceMemo<'_>>,
     prefix: usize,
     domain: ParseDomain,
-) -> Result<SourceCoords, String> {
+) -> Result<SourceCoords, PublishError> {
     match memo {
         Some(memo) => memo.references(
             s,
@@ -1016,14 +1017,14 @@ fn source_references(
 fn copy_source_coords(
     s: &(impl CodecRead + ?Sized),
     values: &SourceCoords,
-) -> Result<SourceCoords, String> {
+) -> Result<SourceCoords, PublishError> {
     match values {
         SourceCoords::Shared(v) => Ok(SourceCoords::Shared(v.clone())),
         SourceCoords::Original(v) => copy_coords(s, v).map(SourceCoords::Original),
     }
 }
 /// 仅复制i64；从实际读取源取allocator，不开放普通深Clone或空树后补账。
-fn copy_coords(s: &(impl CodecRead + ?Sized), values: &[i64]) -> Result<sc::CodecVec<i64>, String> {
+fn copy_coords(s: &(impl CodecRead + ?Sized), values: &[i64]) -> Result<sc::CodecVec<i64>, PublishError> {
     let allocation = source_allocation(s)?;
     let mut out = bj::new_work(allocation.as_ref());
     s.native_codec_room(&mut out, values.len()).map_err(err)?;
@@ -1039,7 +1040,7 @@ fn union_coords(
     s: &(impl CodecRead + ?Sized),
     left: &[i64],
     right: &[i64],
-) -> Result<sc::CodecVec<i64>, String> {
+) -> Result<sc::CodecVec<i64>, PublishError> {
     let allocation = source_allocation(s)?;
     let mut out = bj::new_work(allocation.as_ref());
     let (mut i, mut j) = (0, 0);
@@ -1067,7 +1068,7 @@ fn difference_coords(
     s: &(impl CodecRead + ?Sized),
     all: &[i64],
     members: &[i64],
-) -> Result<sc::CodecVec<i64>, String> {
+) -> Result<sc::CodecVec<i64>, PublishError> {
     let allocation = source_allocation(s)?;
     let mut out = bj::new_work(allocation.as_ref());
     let mut j = 0;
@@ -1085,7 +1086,7 @@ fn difference_coords(
 fn sorted_numeric_entries<'a, V>(
     s: &(impl CodecRead + ?Sized),
     map: &'a BusinessMap<i64, V>,
-) -> Result<sc::CodecVec<(i64, &'a V)>, String> {
+) -> Result<sc::CodecVec<(i64, &'a V)>, PublishError> {
     let allocation = source_allocation(s)?;
     let mut out = bj::new_work(allocation.as_ref());
     for (key, value) in map.iter() {
@@ -1156,7 +1157,7 @@ pub(super) fn native_witness_identity_stats() -> Option<NativeWitnessIdentitySta
 }
 impl<'capture> NativeWitnessIdentityMemo<'capture> {
     #[cfg(feature = "s_incremental")]
-    fn new(capture: &'capture sc::AuditCapture) -> Result<Self, String> {
+    fn new(capture: &'capture sc::AuditCapture) -> Result<Self, PublishError> {
         if capture.is_allocation_prototype() {
             return Err(err("Native身份memo不接收Owned capture"));
         }
@@ -1203,7 +1204,7 @@ impl<'capture> NativeWitnessIdentityMemo<'capture> {
         slot: usize,
         mi: usize,
         bars: &Built,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         if !self.capture.contains(&bars.digest) {
             // 派生 overlay 根不取得缓存资格，明确沿原函数计算。
             #[cfg(test)]
@@ -1344,7 +1345,7 @@ impl<'raw> NativeRawLedger<'raw> {
         raw: RawEventsView<'raw>,
         facts: NativeRawFacts,
         bound: &super::audit_owner::BoundOriginals,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, PublishError> {
         Ok(Self {
             raw,
             winners: bj::RawPrefixIndex::restore(raw, facts.winners, bound)?,
@@ -1369,7 +1370,7 @@ impl<'raw> NativeRawLedger<'raw> {
         &mut self,
         s: &mut (impl CodecRead + ?Sized),
         prefix: usize,
-    ) -> Result<&BusinessMap<i64, Source>, String> {
+    ) -> Result<&BusinessMap<i64, Source>, PublishError> {
         self.advance_measured(s, prefix, None, None)
     }
     fn advance_measured(
@@ -1378,7 +1379,7 @@ impl<'raw> NativeRawLedger<'raw> {
         prefix: usize,
         deadline: Option<std::time::Instant>,
         budget: Option<&dyn super::audit_budget::Budget>,
-    ) -> Result<&BusinessMap<i64, Source>, String> {
+    ) -> Result<&BusinessMap<i64, Source>, PublishError> {
         if let Err(error) = self.advance_inner(s, prefix, deadline, budget) {
             self.clear();
             return Err(error);
@@ -1391,7 +1392,7 @@ impl<'raw> NativeRawLedger<'raw> {
         prefix: usize,
         deadline: Option<std::time::Instant>,
         budget: Option<&dyn super::audit_budget::Budget>,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         let changes = self.winners.advance_measured(prefix, s, deadline, budget)?;
         if changes.rewound {
             #[cfg(feature = "s_incremental")]
@@ -1504,7 +1505,7 @@ impl<'capture> NativeSourceAudit<'capture> {
     pub(super) fn new(
         capture: &'capture sc::AuditCapture,
         raw: RawEventsView<'capture>,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, PublishError> {
         Self::new_with_records(capture, raw, None)
     }
     #[cfg(feature = "s_incremental")]
@@ -1512,7 +1513,7 @@ impl<'capture> NativeSourceAudit<'capture> {
         capture: &'capture sc::AuditCapture,
         raw: RawEventsView<'capture>,
         records: Option<super::history::NativeRecordFields<'capture>>,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, PublishError> {
         Self::new_with_records_admitted(capture, raw, records, None)
     }
     #[cfg(feature = "s_incremental")]
@@ -1521,7 +1522,7 @@ impl<'capture> NativeSourceAudit<'capture> {
         raw: RawEventsView<'capture>,
         records: Option<super::history::NativeRecordFields<'capture>>,
         work: Option<&'capture sc::capture_allocation::scratch::WorkScope>,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, PublishError> {
         Self::new_with_records_measured(
             capture,
             raw,
@@ -1541,7 +1542,7 @@ impl<'capture> NativeSourceAudit<'capture> {
         budget: Option<&'capture dyn super::audit_budget::Budget>,
         deadline: Option<std::time::Instant>,
         policy: super::history::SourcePolicy,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, PublishError> {
         if raw.budget().is_some() {
             return Err(err("Native来源memo不接收Owned原始账"));
         }
@@ -1573,7 +1574,7 @@ impl<'capture> NativeSourceAudit<'capture> {
         raw: RawEventsView<'capture>,
         facts: NativeRawFacts,
         bound: &super::audit_owner::BoundOriginals,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, PublishError> {
         let mut result = Self::new(capture, raw)?;
         result.ledger = NativeRawLedger::restore(raw, facts, bound)?;
         Ok(result)
@@ -1592,7 +1593,7 @@ impl<'capture> NativeSourceAudit<'capture> {
         prefix_len: usize,
         profile: &str,
         rule: &str,
-    ) -> Result<Counts, String> {
+    ) -> Result<Counts, PublishError> {
         let measure = self.reader.native_measure();
         let result = (|| {
             audit_generated_in_store(
@@ -1626,7 +1627,7 @@ pub(super) fn audit_generated<'a>(
     raw_prefix: impl Into<RawEventsView<'a>>,
     profile: &str,
     rule: &str,
-) -> Result<Counts, String> {
+) -> Result<Counts, PublishError> {
     audit_generated_metered(s, state, raw_prefix, profile, rule, None, None)
 }
 #[allow(
@@ -1640,7 +1641,7 @@ pub(super) fn audit_generated_until<'a>(
     profile: &str,
     rule: &str,
     deadline: Option<std::time::Instant>,
-) -> Result<Counts, String> {
+) -> Result<Counts, PublishError> {
     audit_generated_metered(s, state, raw_prefix, profile, rule, deadline, None)
 }
 pub(super) fn audit_generated_metered<'a>(
@@ -1651,7 +1652,7 @@ pub(super) fn audit_generated_metered<'a>(
     rule: &str,
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
-) -> Result<Counts, String> {
+) -> Result<Counts, PublishError> {
     audit_generated_in_store(
         &mut super::audit_store::StoreView::generic(s),
         state.into(),
@@ -1675,7 +1676,7 @@ pub(super) fn audit_generated_for_audit<'a>(
     rule: &str,
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
-) -> Result<Counts, String> {
+) -> Result<Counts, PublishError> {
     #[cfg(test)]
     if !super::history::ordinary_proofs_enabled() {
         let state = state.into();
@@ -1711,7 +1712,7 @@ pub(super) fn audit_generated_with_proofs(
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
     proofs: &mut OrdinaryProofs,
-) -> Result<Counts, String> {
+) -> Result<Counts, PublishError> {
     proofs.begin(profile, rule);
     audit_generated_in_store(
         &mut super::audit_store::StoreView::for_audit(s),
@@ -1743,7 +1744,7 @@ pub(super) fn audit_generated_frozen_for_test<'a>(
     rule: &str,
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
-) -> Result<Counts, String> {
+) -> Result<Counts, PublishError> {
     frozen_oracle::audit_generated_in_store(
         &mut super::audit_store::StoreView::for_audit(s),
         state.into(),
@@ -1762,26 +1763,26 @@ pub(super) fn audit_generated_frozen_for_test<'a>(
 /// 单对象同判据核：身份唯一性仍在载荷读取之前；调用方提供当前 cut 的全局索引。
 // 同一局部判据只把“当前位置之前是否出现”交给容器；不改变读取/拒绝次序。
 trait ObjectSlots {
-    fn reserve_group(&mut self, _s: &(impl CodecRead + ?Sized)) -> Result<(), String> {
+    fn reserve_group(&mut self, _s: &(impl CodecRead + ?Sized)) -> Result<(), PublishError> {
         Ok(())
     }
-    fn insert_id(&mut self, s: &(impl CodecRead + ?Sized), id: &str) -> Result<bool, String>;
+    fn insert_id(&mut self, s: &(impl CodecRead + ?Sized), id: &str) -> Result<bool, PublishError>;
     fn insert_group(
         &mut self,
         s: &(impl CodecRead + ?Sized),
         index: i64,
         group: Group,
-    ) -> Result<bool, String>;
+    ) -> Result<bool, PublishError>;
 }
 struct FullObjectSlots<'a> {
     ids: &'a mut BusinessMap<bj::TextValue, ()>,
     groups: &'a mut BusinessMap<i64, Group>,
 }
 impl ObjectSlots for FullObjectSlots<'_> {
-    fn reserve_group(&mut self, s: &(impl CodecRead + ?Sized)) -> Result<(), String> {
+    fn reserve_group(&mut self, s: &(impl CodecRead + ?Sized)) -> Result<(), PublishError> {
         s.native_map_room(self.groups).map_err(err)
     }
-    fn insert_id(&mut self, s: &(impl CodecRead + ?Sized), id: &str) -> Result<bool, String> {
+    fn insert_id(&mut self, s: &(impl CodecRead + ?Sized), id: &str) -> Result<bool, PublishError> {
         s.native_map_room(self.ids).map_err(err)?;
         Ok(self
             .ids
@@ -1798,7 +1799,7 @@ impl ObjectSlots for FullObjectSlots<'_> {
         s: &(impl CodecRead + ?Sized),
         index: i64,
         group: Group,
-    ) -> Result<bool, String> {
+    ) -> Result<bool, PublishError> {
         Ok(self.groups.insert(index, group).map_err(err)?.is_some())
     }
 }
@@ -1815,7 +1816,7 @@ fn audit_object_record(
     memo_fields: bool,
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
-) -> Result<Object, String> {
+) -> Result<Object, PublishError> {
     audit_object_record_with_slots(
         s,
         record,
@@ -1843,7 +1844,7 @@ fn audit_object_record_with_slots(
     memo_fields: bool,
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
-) -> Result<Object, String> {
+) -> Result<Object, PublishError> {
     let kind = if memo_fields {
         SourceFields::read_subset(s, record.view(), &["kind"])?.text(s, "kind")?
     } else {
@@ -2056,7 +2057,7 @@ fn audit_shape_record(
     raw_prefix_len: usize,
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
-) -> Result<Shape, String> {
+) -> Result<Shape, PublishError> {
     let allocation = source_allocation(s)?;
     exact(&object.refs, Kind::Array, 3)?;
     let mut indices = [0; 3];
@@ -2189,17 +2190,17 @@ fn audit_shape_record(
 
 /// 单见证核，槽位重复在形态/组原件读取之前拒绝；三槽全体性仍由贡献层核验。
 trait WitnessSlots {
-    fn reserve(&mut self, s: &(impl CodecRead + ?Sized)) -> Result<(), String>;
+    fn reserve(&mut self, s: &(impl CodecRead + ?Sized)) -> Result<(), PublishError>;
     fn insert_slot(
         &mut self,
         s: &(impl CodecRead + ?Sized),
         id: &str,
         slot: i64,
-    ) -> Result<bool, String>;
+    ) -> Result<bool, PublishError>;
 }
 struct FullWitnessSlots<'a>(&'a mut BusinessMap<(bj::TextValue, i64), ()>);
 impl WitnessSlots for FullWitnessSlots<'_> {
-    fn reserve(&mut self, s: &(impl CodecRead + ?Sized)) -> Result<(), String> {
+    fn reserve(&mut self, s: &(impl CodecRead + ?Sized)) -> Result<(), PublishError> {
         s.native_map_room(self.0).map_err(err)
     }
     fn insert_slot(
@@ -2207,7 +2208,7 @@ impl WitnessSlots for FullWitnessSlots<'_> {
         s: &(impl CodecRead + ?Sized),
         id: &str,
         slot: i64,
-    ) -> Result<bool, String> {
+    ) -> Result<bool, PublishError> {
         Ok(self
             .0
             .insert((s.native_text(id)?, slot), ())
@@ -2224,7 +2225,7 @@ fn audit_witness_record(
     seen: &mut BusinessMap<(bj::TextValue, i64), ()>,
     native_identity: Option<&mut NativeWitnessIdentityMemo<'_>>,
     deadline: Option<std::time::Instant>,
-) -> Result<(bj::TextValue, i64), String> {
+) -> Result<(bj::TextValue, i64), PublishError> {
     audit_witness_record_with_slots(
         s,
         witness,
@@ -2246,7 +2247,7 @@ fn audit_witness_record_with_slots(
     slots: &mut impl WitnessSlots,
     mut native_identity: Option<&mut NativeWitnessIdentityMemo<'_>>,
     deadline: Option<std::time::Instant>,
-) -> Result<(bj::TextValue, i64), String> {
+) -> Result<(bj::TextValue, i64), PublishError> {
     exact(witness, Kind::Object, 9)?;
     let fields = SourceFields::read_subset(
         s,
@@ -2339,7 +2340,7 @@ fn audit_generated_in_store(
     native_fields: Option<&mut NativeFieldMemo<'_>>,
     native_ledger: Option<&mut NativeRawLedger<'_>>,
     mut ordinary: Option<&mut OrdinaryProofs>,
-) -> Result<Counts, String> {
+) -> Result<Counts, PublishError> {
     #[cfg(test)]
     source_call_note(|n| {
         n.full_source_calls += 1;
@@ -2854,7 +2855,7 @@ mod tests {
     pub(super) fn original_sources(
         raw: &[Value],
         n: usize,
-    ) -> Result<BusinessMap<i64, Source>, String> {
+    ) -> Result<BusinessMap<i64, Source>, PublishError> {
         let effective = bj::effective(RawEventsView::plain(&raw[..n]), None)?;
         let mut sources = bj::new_map(None);
         for event in effective.iter() {
@@ -4194,7 +4195,7 @@ mod tests {
         root: &ContentRef,
         names: &[&str],
         legacy: bool,
-    ) -> Result<Vec<(ContentRef, Option<Value>)>, String> {
+    ) -> Result<Vec<(ContentRef, Option<Value>)>, PublishError> {
         let fields = if legacy {
             None
         } else {
@@ -5201,7 +5202,7 @@ mod closed_array_role_probe {
     fn role_coordinates(
         reader: &mut HashReader<'_>,
         root: &ContentRef,
-    ) -> Result<sc::CodecVec<i64>, String> {
+    ) -> Result<sc::CodecVec<i64>, PublishError> {
         let mut view = StoreView::for_audit(reader);
         let mut source = ArrayAuditSource {
             source: &mut view,
@@ -5437,13 +5438,13 @@ fn field_ref(
     s: &mut (impl CodecRead + ?Sized),
     r: sc::RefView<'_>,
     k: &str,
-) -> Result<RefValue, String> {
+) -> Result<RefValue, PublishError> {
     s.lookup_field_ref(r, k).map_err(err)
 }
 fn elements_ref(
     s: &mut (impl CodecRead + ?Sized),
     r: sc::RefView<'_>,
-) -> Result<sc::CodecVec<RefValue>, String> {
+) -> Result<sc::CodecVec<RefValue>, PublishError> {
     if r.kind() != Kind::Array {
         return Err(err("预期数组"));
     }

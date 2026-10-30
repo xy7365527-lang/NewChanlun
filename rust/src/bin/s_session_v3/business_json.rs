@@ -1400,8 +1400,8 @@ impl TextValue {
         text: &str,
         owner: Option<&OwnedBudget>,
         work: Option<&WorkScope>,
-    ) -> Result<Self, String> {
-        Self::from_str_admitted_typed(text, owner, work).map_err(|e| e.to_string())
+    ) -> Result<Self, PublishError> {
+        Self::from_str_admitted_typed(text, owner, work).map_err(PublishError::from)
     }
     pub fn from_str_admitted_typed(
         text: &str,
@@ -1446,16 +1446,16 @@ impl TextValue {
             }
         }
     }
-    pub fn try_clone_admitted(&self, work: Option<&WorkScope>) -> Result<Self, String> {
+    pub fn try_clone_admitted(&self, work: Option<&WorkScope>) -> Result<Self, PublishError> {
         if let Some(work) = work {
             if matches!(self, Self::Owned(_)) {
                 return Err(work
                     .reject(sc::capture_allocation::scratch::ScratchFailure::Ledger)
-                    .to_string());
+                    .into());
             }
             return Self::from_str_admitted(self.as_str(), None, Some(work));
         }
-        self.try_clone()
+        self.try_clone().map_err(PublishError::from)
     }
     pub fn from_owned_bytes(bytes: sc::CodecVec<u8>) -> Result<Self, String> {
         #[cfg(feature = "s_allocation_json_testonly")]

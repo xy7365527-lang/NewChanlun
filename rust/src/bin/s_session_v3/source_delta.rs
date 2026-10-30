@@ -87,7 +87,7 @@ fn put<K: Eq + std::hash::Hash, V>(
     map: &mut BusinessMap<K, V>,
     key: K,
     value: V,
-) -> Result<Option<V>, String> {
+) -> Result<Option<V>, PublishError> {
     s.native_map_room(map).map_err(err)?;
     map.insert(key, value).map_err(err)
 }
@@ -95,7 +95,7 @@ fn push<T>(
     s: &(impl CodecRead + ?Sized),
     list: &mut sc::CodecVec<T>,
     value: T,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     s.native_codec_room(list, 1).map_err(err)?;
     list.try_push(value).map_err(err)
 }
@@ -104,7 +104,7 @@ fn depend_coord(
     index: &mut BusinessMap<i64, DigestSet>,
     key: i64,
     record: NodeDigest,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     if !index.contains_key(&key) {
         put(s, index, key, bj::new_map(source_allocation(s)?.as_ref()))?;
     }
@@ -128,7 +128,7 @@ fn extend_set(
     s: &(impl CodecRead + ?Sized),
     target: &mut DigestSet,
     source: Option<&DigestSet>,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     if let Some(source) = source {
         for (key, ()) in source.iter() {
             put(s, target, *key, ())?;
@@ -137,7 +137,7 @@ fn extend_set(
     Ok(())
 }
 impl Contributions {
-    fn new(s: &(impl CodecRead + ?Sized), rule: &str) -> Result<Self, String> {
+    fn new(s: &(impl CodecRead + ?Sized), rule: &str) -> Result<Self, PublishError> {
         let allocation = source_allocation(s)?;
         Ok(Self {
             root: None,
@@ -159,7 +159,7 @@ impl Contributions {
             allocation,
         })
     }
-    fn same_ledger(&self, s: &(impl CodecRead + ?Sized)) -> Result<(), String> {
+    fn same_ledger(&self, s: &(impl CodecRead + ?Sized)) -> Result<(), PublishError> {
         match (&self.allocation, source_allocation(s)?) {
             (None, None) => Ok(()),
             (Some(a), Some(b)) if a.same_ledger(&b) => Ok(()),
@@ -181,7 +181,7 @@ impl Contributions {
         s: &(impl CodecRead + ?Sized),
         id: &str,
         dirty: &mut DigestSet,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         extend_set(s, dirty, self.shape_witnesses.get(id))
     }
     fn remove_object(
@@ -190,7 +190,7 @@ impl Contributions {
         key: NodeDigest,
         groups: &mut BusinessMap<i64, ()>,
         witnesses: &mut DigestSet,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         let old = self
             .objects
             .remove(&key)
@@ -211,7 +211,7 @@ impl Contributions {
         }
         Ok(())
     }
-    fn remove_witness(&mut self, key: NodeDigest) -> Result<(), String> {
+    fn remove_witness(&mut self, key: NodeDigest) -> Result<(), PublishError> {
         let old = self
             .witnesses
             .remove(&key)
@@ -229,7 +229,7 @@ impl Contributions {
         mut self,
         s: &mut (impl SourceFieldStore + ?Sized),
         cut: FixtureCut,
-    ) -> Result<Pending, String> {
+    ) -> Result<Pending, PublishError> {
         self.same_ledger(s)?;
         if cut.before != self.root {
             return Err(err("来源贡献前根不匹配"));
@@ -617,7 +617,7 @@ impl Members {
         root: &RefValue,
         name: &str,
         previous: impl Iterator<Item = (NodeDigest, usize)>,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, PublishError> {
         super::source_call_note(|n| n.full_members_enumerations += 1);
         let allocation = source_allocation(s)?;
         let mut remaining = bj::new_map(allocation.as_ref());
@@ -661,7 +661,7 @@ impl FixtureCut {
         root: sc::RefView<'_>,
         raw: RawEventsView<'_>,
         previous: &Contributions,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, PublishError> {
         super::source_call_note(|n| {
             n.fixture_bind_calls += 1;
         });
@@ -766,7 +766,7 @@ mod tests {
         root: &ContentRef,
         raw: &[Value],
         rule: &str,
-    ) -> Result<Counts, String> {
+    ) -> Result<Counts, PublishError> {
         let mut reader = super::super::super::history::HashReader::metered(s, None, None, None);
         frozen_oracle::audit_generated_in_store(
             &mut super::super::super::audit_store::StoreView::for_audit(&mut reader),
