@@ -1,7 +1,7 @@
 name: P6 ledger component 35y
 on:
   push:
-    branches: [codex/issue1647-p6-ledger35y]
+    branches: [codex/issue1647-p6-ledger35y, codex/issue1647-p6-delta36e]
   workflow_dispatch:
 jobs:
   ledger:
@@ -16,6 +16,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/rust-job-setup
+      - name: Four-root closure delta codec tests
+        run: cargo test --release --locked --features s_session,s_incremental --lib p6_ --jobs 4 -- --test-threads 1 --nocapture
       - name: Ledger storage and real owner commit tests
         run: cargo test --release --locked --features s_session,s_incremental --bin s_structure_session p6_ --jobs 4 -- --test-threads 1 --nocapture
       - name: Existing publication rollback contracts

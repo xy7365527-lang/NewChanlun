@@ -181,6 +181,18 @@ impl Ledger {
             .query_row("SELECT certified_through_generation FROM meta WHERE singleton=1", [], |r|r.get(0))
             .map_err(error)
     }
+    /// 已提交存储读数，不是 U-A 资格；准备中连本连接的未提交行也不暴露。
+    pub(super) fn committed_through(&self) -> Result<i64, String> {
+        if !matches!(self.phase, Phase::Ready) { return Err(error("台账前沿尚未提交或已丢弃")); }
+        self.through()
+    }
+    pub(super) fn contains_committed_unit(&self, unit: &Unit) -> Result<bool, String> {
+        let through = self.committed_through()?;
+        self.connection.as_ref().ok_or_else(||error("台账已丢弃"))?.query_row(
+            "SELECT EXISTS(SELECT 1 FROM node WHERE digest=?1 AND flavor=?2 AND mode=?3 AND first_generation<=?4)",
+            params![unit.digest.as_slice(), unit.flavor(), unit.mode(), through], |r|r.get(0),
+        ).map_err(error)
+    }
     pub(super) fn stage(&mut self, token: &str, delta: &GenerationDelta) -> Result<(), String> {
         let result = self.stage_inner(token, delta);
         if result.is_err() { self.invalidate(); }
@@ -392,6 +404,27 @@ pub(super) mod tests {
             let c=Connection::open(&l.path).unwrap();
             assert_eq!(c.query_row("SELECT COUNT(*) FROM cert",[],|r|r.get::<_,i64>(0)).unwrap(),0);
         }
+    }
+    #[test]
+    fn p6_ledger_committed_queries_reject_pending_bound_and_stale() {
+        let (f,_,token,m,r)=prepared::tests::p6_candidate();
+        let mut l=ledger(&f.db_path(),"frontier.sqlite",&m.rule_revision);
+        let d=delta(&m,&r);
+        let unit=d.new_units.iter().next().unwrap();
+        assert_eq!(l.committed_through().unwrap(),0);
+        assert!(!l.contains_committed_unit(unit).unwrap());
+        l.stage(&token,&d).unwrap();
+        assert!(l.committed_through().is_err());
+        assert!(l.contains_committed_unit(unit).is_err());
+        l.bind(&token,&m,&r).unwrap();
+        assert!(l.contains_committed_unit(unit).is_err());
+        l.content_committed().unwrap();
+        assert_eq!(l.committed_through().unwrap(),1);
+        assert!(l.contains_committed_unit(unit).unwrap());
+        let absent=Unit { digest:unit.digest, flavor:Flavor::JsonInner, mode:Mode::Template };
+        assert!(!l.contains_committed_unit(&absent).unwrap());
+        l.invalidate();
+        assert!(l.contains_committed_unit(unit).is_err());
     }
     #[test]
     fn p6_ledger_budget_counts_content_and_sidecar_together() {
