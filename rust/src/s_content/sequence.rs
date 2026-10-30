@@ -715,11 +715,11 @@ mod allocation_tests {
         let mut root = frame(tag::SEQ_LEAF, &[7; 32]);
         store.put(root, tag::SEQ_LEAF, &[7; 32]).unwrap();
         for depth in 1..=10 {
-            root = branch_node(&mut store, &root, &root, 1 << depth).unwrap();
+            root = branch_node(&mut CodecContext::Store(&mut store), &root, &root, 1 << depth).unwrap();
         }
         let seq = SequenceRef::from_parts_unchecked(root, 1 << 10);
         let mut memo = Memo::new(Some(&budget)).unwrap();
-        let out = split_core(&mut store, &seq, seq.count - 1, &mut memo).unwrap();
+        let out = split_core(&mut CodecContext::Store(&mut store), &seq, seq.count - 1, &mut memo).unwrap();
         assert_eq!(out.0.count + out.1.count, seq.count);
         let MemoMap::Owned(concat) = &memo.concat else {
             panic!("concat必须Owned")

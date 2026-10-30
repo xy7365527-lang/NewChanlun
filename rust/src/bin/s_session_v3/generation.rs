@@ -4366,33 +4366,56 @@ pub(super) mod tests {
         super::super::audit_store::with_owned_store_probe(&capture, &budget, 64, 4096, |store| {
             let mut memo = SequenceMemo::default();
             for wrong in [None, Some(&foreign)] {
-                let error = memo.sync_codec(store, &leaves, "错store账本", wrong).unwrap_err();
-                assert!(error.to_string().contains(sc::capture_allocation::INCOMPLETE));
+                let error = memo
+                    .sync_codec(store, &leaves, "错store账本", wrong)
+                    .unwrap_err();
+                assert!(error
+                    .to_string()
+                    .contains(sc::capture_allocation::INCOMPLETE));
                 assert!(!memo.bound && memo.seq.is_none() && memo.keys.as_slice().is_empty());
                 assert_eq!(foreign.snapshot().live_requested_layout_bytes, 0);
             }
-            let first = memo.sync_codec(store, &leaves, "初次", Some(&budget)).unwrap();
+            let first = memo
+                .sync_codec(store, &leaves, "初次", Some(&budget))
+                .unwrap();
             let previous = memo.seq;
-            let same = memo.sync_splice_codec(store, SequenceSplice {
-                expected_previous: previous,
-                unchanged_prefix: 2,
-                replacement_suffix: &[],
-            }, "无变化", Some(&budget)).unwrap();
+            let same = memo
+                .sync_splice_codec(
+                    store,
+                    SequenceSplice {
+                        expected_previous: previous,
+                        unchanged_prefix: 2,
+                        replacement_suffix: &[],
+                    },
+                    "无变化",
+                    Some(&budget),
+                )
+                .unwrap();
             assert_eq!(first, same);
-            memo.sync_splice_codec(store, SequenceSplice {
-                expected_previous: previous,
-                unchanged_prefix: 1,
-                replacement_suffix: &leaves[1..],
-            }, "同根重建", Some(&budget)).unwrap();
+            memo.sync_splice_codec(
+                store,
+                SequenceSplice {
+                    expected_previous: previous,
+                    unchanged_prefix: 1,
+                    replacement_suffix: &leaves[1..],
+                },
+                "同根重建",
+                Some(&budget),
+            )
+            .unwrap();
             assert_eq!(memo.seq, previous);
             memo.discard();
             memo.keys = SequenceKeys::owned(&budget).unwrap();
-            memo.keys.reserve_admitted(store.generic_store(), 1).unwrap();
+            memo.keys
+                .reserve_admitted(store.generic_store(), 1)
+                .unwrap();
             memo.keys.replace_reserved(&leaves[..1]).unwrap();
             memo.seq = Some(SequenceRef::from_parts_unchecked(bad_root, 1));
             memo.bound = true;
             let corrupted = memo.seq;
-            let error = memo.sync_codec(store, &leaves[..1], "损坏无变化", Some(&budget)).unwrap_err();
+            let error = memo
+                .sync_codec(store, &leaves[..1], "损坏无变化", Some(&budget))
+                .unwrap_err();
             assert!(error.to_string().contains(sc::code::NODE_DIGEST));
             assert_eq!(memo.seq, corrupted);
             assert_eq!(memo.keys.as_slice(), &leaves[..1]);

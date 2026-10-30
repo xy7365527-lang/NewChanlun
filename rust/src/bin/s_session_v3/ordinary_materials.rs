@@ -6,7 +6,9 @@ use newchan_rust::s_content::{
 };
 
 use sc::raw_materials::RawMaterials;
-pub(super) use sc::raw_materials::{Stats, CAP};
+pub(super) use sc::raw_materials::Stats;
+#[cfg(test)]
+pub(super) use sc::raw_materials::CAP;
 pub(super) struct OrdinaryAuditMaterials {
     raw: RawMaterials,
 }
@@ -42,6 +44,7 @@ impl OrdinaryAuditMaterials {
             raw: RawMaterials::production(METADATA_BYTES),
         })
     }
+    #[cfg(test)]
     pub(super) fn stats(&self) -> Stats {
         self.raw.stats()
     }
