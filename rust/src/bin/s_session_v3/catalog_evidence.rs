@@ -211,7 +211,8 @@ fn generated_axes(
     s: &mut sc::MemoryNodes,
     generated_state: &ContentRef,
 ) -> Result<ContentRef, String> {
-    generated_axes_ref(s, generated_state.into()).map_err(newchan_rust::s_content::ContextError::into_message)?;
+    generated_axes_ref(s, generated_state.into())
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
     field(s, generated_state, "catalog_axes")
 }
 

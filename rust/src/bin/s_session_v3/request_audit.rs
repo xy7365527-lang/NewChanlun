@@ -846,7 +846,9 @@ impl ExactRows {
     ) -> Result<Self, String> {
         let store = NativeAdmission(work);
         let sql_text = sql.to_str().map_err(storage)?;
-        let owned_sql = store.native_text(sql_text).map_err(newchan_rust::s_content::ContextError::into_message)?;
+        let owned_sql = store
+            .native_text(sql_text)
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
         let mut owned_scope = CodecVec::default();
         store
             .native_codec_room(&mut owned_scope, scope.len())
@@ -878,7 +880,13 @@ impl ExactRows {
             .map_err(|e| e.to_string())?;
         for column in 0..count {
             let name = stmt.column_name(column).map_err(storage)?;
-            push_cell(&mut columns, store.native_text(name).map_err(newchan_rust::s_content::ContextError::into_message)?, work)?;
+            push_cell(
+                &mut columns,
+                store
+                    .native_text(name)
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?,
+                work,
+            )?;
         }
         let mut rows = CodecVec::default();
         while let Some(mut row) = stmt.next().map_err(storage)? {
@@ -2821,10 +2829,18 @@ impl ExactRows {
                 return Err(scope.reject(ScratchFailure::Budget).to_string());
             }
             reserve_cells(&mut columns, count, Some(scope))?;
-            let owned_sql = admission.native_text(sql).map_err(newchan_rust::s_content::ContextError::into_message)?;
+            let owned_sql = admission
+                .native_text(sql)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
             for i in 0..count {
                 let name = stmt.column_name(i).map_err(storage)?;
-                push_cell(&mut columns, admission.native_text(name).map_err(newchan_rust::s_content::ContextError::into_message)?, Some(scope))?;
+                push_cell(
+                    &mut columns,
+                    admission
+                        .native_text(name)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?,
+                    Some(scope),
+                )?;
             }
             let mut result = Self {
                 sql: owned_sql,

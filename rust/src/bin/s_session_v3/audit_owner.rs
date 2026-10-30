@@ -563,7 +563,9 @@ impl AuditConnection {
                         // #1488：仅测试选择已审 owner 原型；所有正式准入与实际 Accept/COMMIT 原样执行。
                         #[cfg(all(test, feature = "s_incremental"))]
                         construction_tests::select_for_formal_accept(&active, context)?;
-                        active.before_fixed_write(FixedOperation::Accept, Some(context)).map_err(newchan_rust::s_content::ContextError::into_message)?;
+                        active
+                            .before_fixed_write(FixedOperation::Accept, Some(context))
+                            .map_err(newchan_rust::s_content::ContextError::into_message)?;
                         let accepted = raw_input::accept_events(tx, &input, volume_unit)?;
                         control.accept(&view, &accepted)?;
                         wrote = true;
@@ -652,7 +654,9 @@ impl AuditConnection {
             .checked_sub(1)
             .ok_or_else(|| invalid("没有原始输入"))?;
         let base = meta_get_opt(tx, "structure_cut")?.ok_or_else(|| invalid("缺当前cut"))?;
-        active.before_fixed_write(FixedOperation::Begin, Some(context)).map_err(newchan_rust::s_content::ContextError::into_message)?;
+        active
+            .before_fixed_write(FixedOperation::Begin, Some(context))
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
         let token = control.begin(&view, generation, frontier, &base, epoch)?;
         drop(control);
         active.finish_fixed_write()?;
@@ -1020,7 +1024,9 @@ impl AuditConnection {
         let control = control::S3Control::attach(tx, clock)?;
         let generation = meta_get_opt(tx, "generation")?.ok_or_else(|| invalid("缺generation"))?;
         let prior = meta_get_opt(tx, "advance_state")?.ok_or_else(|| invalid("缺advance_state"))?;
-        active.before_fixed_write(FixedOperation::Recover(handoff), None).map_err(newchan_rust::s_content::ContextError::into_message)?;
+        active
+            .before_fixed_write(FixedOperation::Recover(handoff), None)
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
         let transitioned_at = control.recover(clock_event, &generation)?;
         let recovered = if prior != "idle" {
             meta_set(tx, "advance_state", "idle")?;
@@ -1131,7 +1137,8 @@ impl AuditTxn<'_> {
                     .borrow()
                     .as_ref()
                     .unwrap()
-                    .check_commit(self.construction_seal()?, self.tx().total_changes()).map_err(PublishError::into_message)
+                    .check_commit(self.construction_seal()?, self.tx().total_changes())
+                    .map_err(PublishError::into_message)
             })();
             if let Err(error) = checked {
                 self.owner.invalidate_construction();
@@ -1627,7 +1634,9 @@ impl AuditConnection {
             token.ensure_current()?;
             Ok(token.into_issued())
         })?;
-        active.before_fixed_write(FixedOperation::Accept, Some(&*context)).map_err(newchan_rust::s_content::ContextError::into_message)?;
+        active
+            .before_fixed_write(FixedOperation::Accept, Some(&*context))
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
         active
             .tx()
             .execute(
@@ -1760,7 +1769,9 @@ impl AuditTxn<'_> {
     ) -> Result<R, PublishError> {
         let Some(parent) = parent else {
             return self
-                .with_bound_raw_advance(context, |token| consume(token).map_err(PublishError::into_message))
+                .with_bound_raw_advance(context, |token| {
+                    consume(token).map_err(PublishError::into_message)
+                })
                 .map_err(Into::into);
         };
         let result = (|| {
@@ -1864,7 +1875,8 @@ impl AuditTxn<'_> {
                     &bound,
                     &self.owner.construction_lease,
                     &super::audit_store::NativeAdmission(Some(scope)),
-                ).map_err(newchan_rust::s_content::ContextError::into_message)?;
+                )
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
                 pending.attach_fee(state_fee);
                 pending.stamp_parent(&budget);
                 *self.construction.borrow_mut() = Some(pending);
@@ -3109,9 +3121,9 @@ impl AuditTxn<'_> {
             && self.owner.construction.borrow().is_some()
             && self.complete.borrow().is_none()
         {
-            return Err(construction_state::stale(
-                "已发布增量游标缺同快照原件；禁止完整路径回退",
-            ).into());
+            return Err(
+                construction_state::stale("已发布增量游标缺同快照原件；禁止完整路径回退").into(),
+            );
         }
         // #1488 受控同owner Recover迁移：只在本事务尚无构造、owner 持有已提交资格时进入；
         // 预算沿用候选已冻结的父账（无 context 不重绑、不换账），保留费由下方总容量门核验。
@@ -3250,9 +3262,7 @@ impl AuditTxn<'_> {
             }
             if strict && self.recording.borrow().is_none() {
                 self.owner.invalidate_construction();
-                return Err(construction_state::stale(
-                    "固定写缺完整effects记录额度/原件",
-                ).into());
+                return Err(construction_state::stale("固定写缺完整effects记录额度/原件").into());
             }
         }
         #[cfg(not(feature = "s_incremental"))]
@@ -6504,7 +6514,8 @@ impl AuditConnection {
             )
         } else {
             (
-                self.publish_body(&mut active, runtime, token, envelope, context, None).map_err(newchan_rust::s_content::ContextError::into_message)?,
+                self.publish_body(&mut active, runtime, token, envelope, context, None)
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?,
                 None,
             )
         };

@@ -1250,7 +1250,8 @@ impl HistoryObjects<'_> {
             .filter(|(_, e)| e.life.withdrawn_generation.is_some_and(|d| d <= g))
             .collect::<Vec<_>>();
         let layout = self.layout;
-        check_public_ranks(layout, dead.iter().map(|m| m.1), true).map_err(newchan_rust::s_content::ContextError::into_message)?;
+        check_public_ranks(layout, dead.iter().map(|m| m.1), true)
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
         active
             .sort_unstable_by(|a, b| public_ordering(layout, a.1, b.1, false).then(a.0.cmp(&b.0)));
         dead.sort_unstable_by(|a, b| public_ordering(layout, a.1, b.1, true).then(a.0.cmp(&b.0)));
@@ -1277,7 +1278,8 @@ impl HistoryObjects<'_> {
                     return Err(err("出生/旧代batch与当前cut不符"));
                 }
                 if !pairs.contains_key(&ordinal) {
-                    let life = effective_life(e, g).map_err(newchan_rust::s_content::ContextError::into_message)?;
+                    let life = effective_life(e, g)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?;
                     object_records::validate_life_view(life, g, e.id.as_str()).map_err(err)?;
                     let phase = usize::from(life.withdrawn_generation.is_some());
                     let pair = if e.life.first_known_generation == g {
@@ -1300,7 +1302,9 @@ impl HistoryObjects<'_> {
                             Some(s.native_ref_clone(&public).map_err(err)?);
                         (template, public)
                     } else {
-                        let public = native.wire(s, e, ordinal, g).map_err(newchan_rust::s_content::ContextError::into_message)?;
+                        let public = native
+                            .wire(s, e, ordinal, g)
+                            .map_err(newchan_rust::s_content::ContextError::into_message)?;
                         (s.native_ref_clone(&public).map_err(err)?, public)
                     };
                     pairs.insert(ordinal, pair);
@@ -1309,7 +1313,10 @@ impl HistoryObjects<'_> {
                 template.push(s.native_ref_clone(a).map_err(err)?);
                 public.push(s.native_ref_clone(b).map_err(err)?);
             }
-            Ok((array(s, &template).map_err(newchan_rust::s_content::ContextError::into_message)?, array(s, &public).map_err(newchan_rust::s_content::ContextError::into_message)?))
+            Ok((
+                array(s, &template).map_err(newchan_rust::s_content::ContextError::into_message)?,
+                array(s, &public).map_err(newchan_rust::s_content::ContextError::into_message)?,
+            ))
         };
         Ok([collect(active)?, collect(dead)?, collect(births)?])
     }
@@ -1761,7 +1768,8 @@ fn bind_originals(
             }
         } else {
             let mut out = Vec::new();
-            s.render_ref(comparison.view(), &mut out).map_err(publish_err)?;
+            s.render_ref(comparison.view(), &mut out)
+                .map_err(publish_err)?;
             if r.text(s, "comparisons_json")?.as_bytes() != out {
                 return Err(publish_err("comparisons文本与内部值不符"));
             }
@@ -1840,7 +1848,8 @@ impl ShapeLeafBindings<'_> {
             let key = [declaration(ar)?, declaration(br)?];
             if !self.successful.contains_key(&key) {
                 bind_shape_leaf(s, ar, br)?;
-                s.native_map_room(&mut self.successful).map_err(publish_err)?;
+                s.native_map_room(&mut self.successful)
+                    .map_err(publish_err)?;
                 self.successful.insert(key, ()).map_err(publish_err)?;
             }
             Ok(())
@@ -1909,7 +1918,9 @@ fn bind_shape_refs_view(
         let a = s
             .lookup_ref(generated, &[PathStep::Index(n)])
             .map_err(publish_err)?;
-        let b = s.lookup_ref(wire, &[PathStep::Index(n)]).map_err(publish_err)?;
+        let b = s
+            .lookup_ref(wire, &[PathStep::Index(n)])
+            .map_err(publish_err)?;
         if a.extent() != Some(3)
             || b.extent() != Some(3)
             || text_ref(s, b.view(), "merged_index")?
@@ -1969,7 +1980,8 @@ pub(super) fn load(
         latest,
         None,
         None,
-    ).map_err(PublishError::into_message)
+    )
+    .map_err(PublishError::into_message)
 }
 #[cfg_attr(
     not(all(test, feature = "s_incremental")),
@@ -1987,7 +1999,8 @@ pub(super) fn load_for_audit(
         latest,
         capture,
         None,
-    ).map_err(PublishError::into_message)
+    )
+    .map_err(PublishError::into_message)
 }
 pub(super) fn load_for_history<'capture>(
     tx: &Transaction<'_>,
@@ -2004,7 +2017,8 @@ pub(super) fn load_for_history<'capture>(
         latest,
         capture,
         capture.map(|_| &mut events),
-    ).map_err(newchan_rust::s_content::ContextError::into_message)?;
+    )
+    .map_err(newchan_rust::s_content::ContextError::into_message)?;
     let native = if let Some(capture) = capture {
         let mut wires = sc::CodecVec::default();
         s.native_codec_room(&mut wires, entries.len())
@@ -3160,7 +3174,8 @@ pub(super) fn verify_generated_members_swept<'a>(
     g: i64,
     sweep: Option<&HistorySweep>,
 ) -> Result<(), String> {
-    verify_generated_members_swept_with_records(s, index, state, g, sweep, None).map_err(newchan_rust::s_content::ContextError::into_message)
+    verify_generated_members_swept_with_records(s, index, state, g, sweep, None)
+        .map_err(newchan_rust::s_content::ContextError::into_message)
 }
 pub(super) fn verify_generated_members_swept_with_records<'a>(
     s: &mut (impl CodecStore + ?Sized),
@@ -4007,28 +4022,41 @@ mod tests {
         let (nodes, entries) = shape_leaf_fixture(&tx);
         let capture = sc::AuditCapture::new(nodes);
         for shape in [false, true] {
-            let entry = entries.iter().find(|entry| entry.slot.is_shape() == shape).unwrap();
-            let mut ordinary = super::super::history::HashReader::captured_for_audit(&capture, None).unwrap();
+            let entry = entries
+                .iter()
+                .find(|entry| entry.slot.is_shape() == shape)
+                .unwrap();
+            let mut ordinary =
+                super::super::history::HashReader::captured_for_audit(&capture, None).unwrap();
             bind_originals(&mut ordinary, entry, &mut None).unwrap();
-            let budget = super::super::audit_owner::native::Budget::new(8 * 1024 * 1024, 0).unwrap();
+            let budget =
+                super::super::audit_owner::native::Budget::new(8 * 1024 * 1024, 0).unwrap();
             let work = budget.codec_work().unwrap();
             let mut returned = None;
             let (run, trace) = failure_trace::capture(|| {
                 work.run(|scope| {
-                    let mut reader = super::super::history::HashReader::captured_for_audit(&capture, None)
-                        .map_err(PublishError::from)?
-                        .with_codec_work(scope, &budget);
+                    let mut reader =
+                        super::super::history::HashReader::captured_for_audit(&capture, None)
+                            .map_err(PublishError::from)?
+                            .with_codec_work(scope, &budget);
                     let ballast = scope.reserve_native(budget.remaining()).unwrap();
-                    let result = bind_originals(&mut reader, entry, &mut None).map_err(PublishError::from);
+                    let result =
+                        bind_originals(&mut reader, entry, &mut None).map_err(PublishError::from);
                     returned = result.as_ref().err().cloned();
                     drop(ballast);
                     result
                 })
             });
-            assert!(matches!(run, Err(WorkError::Resource(ScratchFailure::Budget))), "{run:?}");
+            assert!(
+                matches!(run, Err(WorkError::Resource(ScratchFailure::Budget))),
+                "{run:?}"
+            );
             assert!(trace.only_resource(), "{trace:?}");
             let error = returned.expect("真实对象绑定预算失败须返回原错误");
-            assert!(trace.bridges(&error), "对象绑定的真实资源来源须穿过字段与原件边界：shape={shape}, {error:?}");
+            assert!(
+                trace.bridges(&error),
+                "对象绑定的真实资源来源须穿过字段与原件边界：shape={shape}, {error:?}"
+            );
         }
     }
 
@@ -5318,8 +5346,12 @@ mod tests {
     ) -> Result<sc::CodecVec<Entry>, String> {
         let mut new = sc::CodecVec::default();
         store.native_codec_room(&mut new, 1).map_err(err)?;
-        new.try_push(fresh.try_clone_admitted(store).map_err(newchan_rust::s_content::ContextError::into_message)?)
-            .map_err(err)?;
+        new.try_push(
+            fresh
+                .try_clone_admitted(store)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?,
+        )
+        .map_err(err)?;
         Ok(new)
     }
 
@@ -5516,8 +5548,10 @@ mod tests {
             .unwrap()
             .run(|scope| {
                 let store = super::super::audit_store::NativeAdmission(Some(scope));
-                let events =
-                    HistoryEvents::new_admitted(&entries, &store).map_err(newchan_rust::s_content::ContextError::into_message)?.into_arc_admitted(&store).map_err(newchan_rust::s_content::ContextError::into_message)?;
+                let events = HistoryEvents::new_admitted(&entries, &store)
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?
+                    .into_arc_admitted(&store)
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?;
                 let before_clone = budget.live();
                 let alias = events.clone();
                 assert_eq!(
@@ -5554,10 +5588,13 @@ mod tests {
                 .unwrap()
                 .run(|scope| {
                     let store = super::super::audit_store::NativeAdmission(Some(scope));
-                    let mut sweep = ProjectionSweep::new_admitted(&entries, &store).map_err(newchan_rust::s_content::ContextError::into_message)?;
+                    let mut sweep = ProjectionSweep::new_admitted(&entries, &store)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?;
                     for g in [0, 1, 3, 3, 2, 0, 3] {
                         let before = sweep.active.heap_bytes() + sweep.withdrawn.heap_bytes();
-                        sweep.seek_admitted(g, Layout::Sorted, &entries, &store).map_err(newchan_rust::s_content::ContextError::into_message)?;
+                        sweep
+                            .seek_admitted(g, Layout::Sorted, &entries, &store)
+                            .map_err(newchan_rust::s_content::ContextError::into_message)?;
                         let delta = std::mem::take(&mut sweep.retained);
                         assert_eq!(
                             delta.apply(before).unwrap(),
@@ -5609,12 +5646,17 @@ mod tests {
         let baseline = budget.live();
         let error = budget.codec_work().unwrap().run(|scope| {
             let store = super::super::audit_store::NativeAdmission(Some(scope));
-            let mut candidate = ProjectionSweep::new_admitted(&entries, &store).map_err(newchan_rust::s_content::ContextError::into_message)?;
-            candidate.seek_admitted(1, Layout::Sorted, &entries, &store).map_err(newchan_rust::s_content::ContextError::into_message)?;
+            let mut candidate = ProjectionSweep::new_admitted(&entries, &store)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
+            candidate
+                .seek_admitted(1, Layout::Sorted, &entries, &store)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
             let occupied = budget.reserve(limit - budget.live()).unwrap();
             // 与 history 消费边界相同：候选按值进入，Err 不返回部分游标。
             let consume = |mut candidate: ProjectionSweep| -> Result<ProjectionSweep, String> {
-                candidate.seek_admitted(3, Layout::Sorted, &entries, &store).map_err(newchan_rust::s_content::ContextError::into_message)?;
+                candidate
+                    .seek_admitted(3, Layout::Sorted, &entries, &store)
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?;
                 Ok(candidate)
             };
             let result = consume(candidate);
@@ -5640,7 +5682,8 @@ mod tests {
             let mut memo = projection_memo(&capture, 0);
             store.native_codec_room(&mut memo.wires, 1).map_err(err)?;
             memo.wires.try_push([None, None]).map_err(err)?;
-            memo.remember_wire(&store, 0, 0, wire).map_err(newchan_rust::s_content::ContextError::into_message)?;
+            memo.remember_wire(&store, 0, 0, wire)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
             let before = budget.live();
             let occupied = budget.reserve(limit - before).unwrap();
             let error = memo.remember_wire(&store, 0, 0, wire).unwrap_err();

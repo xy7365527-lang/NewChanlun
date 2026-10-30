@@ -972,7 +972,8 @@ fn audit_core_fresh_with_policy(
                 policy,
             )
         })
-        .transpose().map_err(newchan_rust::s_content::ContextError::into_message)?;
+        .transpose()
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
     #[cfg(not(feature = "s_incremental"))]
     let mut native_sources: Option<source_audit::NativeSourceAudit<'_>> = None;
     #[cfg(feature = "s_incremental")]
@@ -1013,14 +1014,18 @@ fn audit_core_fresh_with_policy(
                 deadline,
                 max_render_bytes,
                 budget,
-                |store, proofs| audit_cut(store, Some(proofs)).map_err(newchan_rust::s_content::ContextError::into_message),
+                |store, proofs| {
+                    audit_cut(store, Some(proofs))
+                        .map_err(newchan_rust::s_content::ContextError::into_message)
+                },
             )?;
         } else if verified_history.qualified() {
             verified_history.audit_cut(tx, cut, deadline, max_render_bytes, budget, |store| {
                 audit_cut(store, None).map_err(newchan_rust::s_content::ContextError::into_message)
             })?;
         } else {
-            audit_cut(&mut store, None).map_err(newchan_rust::s_content::ContextError::into_message)?;
+            audit_cut(&mut store, None)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
         }
         previous = cut.metadata.input_frontier;
     }
@@ -1028,8 +1033,10 @@ fn audit_core_fresh_with_policy(
         #[cfg(test)]
         trace_event("catalog_current", None);
         // 6''. 当前 13 轴 catalog 行必须与本代最终生成态同根。
-        let axes = field(&mut store, &last.roots.generated_state, "catalog_axes").map_err(newchan_rust::s_content::ContextError::into_message)?;
-        catalog_evidence::verify_current_for_audit(tx, &mut store, &axes).map_err(newchan_rust::s_content::ContextError::into_message)?;
+        let axes = field(&mut store, &last.roots.generated_state, "catalog_axes")
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
+        catalog_evidence::verify_current_for_audit(tx, &mut store, &axes)
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
     }
     // 7b. 辅助索引也来自同次history的完整加载，既不跨事务也不减少业务来源核验。
     history::check_deadline(deadline)?;

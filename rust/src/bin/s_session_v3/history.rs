@@ -134,7 +134,9 @@ impl NativeCutProjection<'_, '_, '_> {
     ) -> Result<(), String> {
         if !std::ptr::eq(self.transaction, tx)
             || self.batch != batch
-            || self.binding[..] != native_cut_binding(s, m, r, previous).map_err(newchan_rust::s_content::ContextError::into_message)?[..]
+            || self.binding[..]
+                != native_cut_binding(s, m, r, previous)
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?[..]
             || !s
                 .native_projection_capture()
                 .is_some_and(|c| std::ptr::eq(c, self.capture))
@@ -881,7 +883,8 @@ fn read_indexed_history_inner(
     check_deadline(deadline)?;
     #[cfg(feature = "s_incremental")]
     if let Some(work) = work {
-        verify_required_meta_admitted(tx, work).map_err(newchan_rust::s_content::ContextError::into_message)?;
+        verify_required_meta_admitted(tx, work)
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
     } else {
         verify_required_meta(tx)?;
     }
@@ -928,11 +931,13 @@ fn read_indexed_history_inner(
     let allocation = history_allocation(&store)?;
     #[cfg(test)]
     super::state::trace_event("history_aux_index", None);
-    let aux_generation = meta_i64_in_store(&store, tx, "generation", allocation.as_ref()).map_err(newchan_rust::s_content::ContextError::into_message)?;
+    let aux_generation = meta_i64_in_store(&store, tx, "generation", allocation.as_ref())
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
     let auxiliary = aux_index::load(tx, &mut store, aux_generation)?;
     #[cfg(test)]
     super::state::trace_event("history_object_index", None);
-    let object_generation = meta_i64_in_store(&store, tx, "generation", allocation.as_ref()).map_err(newchan_rust::s_content::ContextError::into_message)?;
+    let object_generation = meta_i64_in_store(&store, tx, "generation", allocation.as_ref())
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
     let mut objects = object_index::load_for_history(tx, &mut store, object_generation)?;
     #[cfg(test)]
     super::state::trace_event("history_raw_hashes", None);
@@ -948,11 +953,17 @@ fn read_indexed_history_inner(
             check_deadline(deadline)?;
             store.native_codec_room(&mut roots, 1).map_err(err)?;
             roots
-                .try_push(root_ref_bytes(&mut store, row.blob(0).map_err(err)?).map_err(newchan_rust::s_content::ContextError::into_message)?)
+                .try_push(
+                    root_ref_bytes(&mut store, row.blob(0).map_err(err)?)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?,
+                )
                 .map_err(err)?;
             store.native_codec_room(&mut roots, 1).map_err(err)?;
             roots
-                .try_push(root_ref_bytes(&mut store, row.blob(1).map_err(err)?).map_err(newchan_rust::s_content::ContextError::into_message)?)
+                .try_push(
+                    root_ref_bytes(&mut store, row.blob(1).map_err(err)?)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?,
+                )
                 .map_err(err)?;
         }
         stmt.finalize().map_err(err)?;
@@ -969,7 +980,10 @@ fn read_indexed_history_inner(
             check_deadline(deadline)?;
             store.native_codec_room(&mut roots, 1).map_err(err)?;
             roots
-                .try_push(root_ref_bytes(&mut store, row.blob(0).map_err(err)?).map_err(newchan_rust::s_content::ContextError::into_message)?)
+                .try_push(
+                    root_ref_bytes(&mut store, row.blob(0).map_err(err)?)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?,
+                )
                 .map_err(err)?;
         }
         stmt.finalize().map_err(err)?;
@@ -997,7 +1011,8 @@ fn read_indexed_history_inner(
     if manifest_coverage {
         for manifest in template_roots.iter() {
             check_deadline(deadline)?;
-            let (metadata, roots) = decode_manifest(&mut store, manifest.view()).map_err(newchan_rust::s_content::ContextError::into_message)?;
+            let (metadata, roots) = decode_manifest(&mut store, manifest.view())
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
             store.native_codec_room(&mut public_roots, 2).map_err(err)?;
             public_roots.try_push(metadata.scope).map_err(err)?;
             public_roots.try_push(roots.generated_state).map_err(err)?;
@@ -1029,10 +1044,15 @@ fn read_indexed_history_inner(
         public: &public_roots,
     };
     // 原始当前capture闭包全核之后才创建；仅本次历史循环持有，跨请求/阶段重建。
-    let mut object_sweep = objects.native_sweep_admitted(&store).map_err(newchan_rust::s_content::ContextError::into_message)?;
+    let mut object_sweep = objects
+        .native_sweep_admitted(&store)
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
     let publication_memo = content_publication::NativePublicationMemo::new(&store);
     let mut ordinary_publication = if bound_births_qualified && ordinary_proofs_enabled() {
-        Some(content_publication::PublicationProjection::new(tx, &store).map_err(newchan_rust::s_content::ContextError::into_message)?)
+        Some(
+            content_publication::PublicationProjection::new(tx, &store)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?,
+        )
     } else {
         None
     };
@@ -1070,7 +1090,8 @@ fn read_indexed_history_inner(
             deadline,
             budget,
             allocation.as_ref(),
-        ).map_err(newchan_rust::s_content::ContextError::into_message)?;
+        )
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
         if let Some(projection) = ordinary_publication.as_mut() {
             projection.commit_cut();
         }
@@ -1107,7 +1128,8 @@ fn read_indexed_history_inner(
     );
     resolved_result.map_err(err)?;
     let control_facts = control.into_facts()?;
-    verify_current_frontiers(&store, tx, &output, previous, allocation.as_ref()).map_err(newchan_rust::s_content::ContextError::into_message)?;
+    verify_current_frontiers(&store, tx, &output, previous, allocation.as_ref())
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
     let auxiliary_facts = native_aux.map(aux_index::NativeAuxAudit::into_facts);
     let raw_prefixes = match (native_prefix, ordered_raw) {
         (Some(prefixes), Some(ordered)) => Some(NativeRawPrefixes {
@@ -1843,7 +1865,10 @@ fn hash_current_raw(
         }
         store.native_codec_room(&mut raw_nodes, 1).map_err(err)?;
         raw_nodes
-            .try_push(hash_json_in_store(store, v, deadline, budget).map_err(newchan_rust::s_content::ContextError::into_message)?)
+            .try_push(
+                hash_json_in_store(store, v, deadline, budget)
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?,
+            )
             .map_err(err)?;
     }
     let mut raw_wire_nodes = bj::new_work(allocation.as_ref());
@@ -1858,12 +1883,10 @@ fn hash_current_raw(
             .native_codec_room(&mut raw_wire_nodes, 1)
             .map_err(err)?;
         raw_wire_nodes
-            .try_push(hash_json_in_store(
-                store,
-                bj::RawWire::new(event)?.view(),
-                deadline,
-                budget,
-            ).map_err(newchan_rust::s_content::ContextError::into_message)?)
+            .try_push(
+                hash_json_in_store(store, bj::RawWire::new(event)?.view(), deadline, budget)
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?,
+            )
             .map_err(err)?;
     }
     Ok((raw_nodes, raw_wire_nodes))
@@ -1940,7 +1963,8 @@ pub(super) fn revalidate_current_for_reuse_measured(
 ) -> Result<(), String> {
     #[cfg(feature = "s_incremental")]
     if let Some(work) = work {
-        verify_required_meta_admitted(tx, work).map_err(newchan_rust::s_content::ContextError::into_message)?;
+        verify_required_meta_admitted(tx, work)
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
     } else {
         verify_required_meta(tx)?;
     }

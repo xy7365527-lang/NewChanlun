@@ -3222,7 +3222,9 @@ mod native_consumer_tests {
                 .unwrap()
                 .run(|work| {
                     let mut index = RawPrefixIndex::new((&raw).into());
-                    let changes = index.advance_admitted(3, &NativeAdmission(Some(work))).map_err(newchan_rust::s_content::ContextError::into_message)?;
+                    let changes = index
+                        .advance_admitted(3, &NativeAdmission(Some(work)))
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?;
                     assert_eq!(index.ordered().collect::<Vec<_>>(), vec![(1, 1), (2, 2)]);
                     let edits = changes.winner_edits;
                     let mut delta = super::super::audit_retention::RetainedDelta::default();
@@ -3282,18 +3284,30 @@ mod native_consumer_tests {
             .run(|work| {
                 let strict = strict_json_owner_admitted(input, None, Some(work))
                     .unwrap_or_else(|_| panic!("正常strict JSON须解析成功"));
-                let legacy = legacy_json_owner_admitted(input, None, Some(work)).map_err(newchan_rust::s_content::ContextError::into_message)?;
+                let legacy = legacy_json_owner_admitted(input, None, Some(work))
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?;
                 assert_eq!(strict.view(), JsonView::Plain(&expected));
                 assert_eq!(legacy.view(), JsonView::Plain(&expected));
                 let mut stmt = CheckedStatement::prepare(&conn, c"SELECT '汉😀', NULL, '正常'")
                     .map_err(|e| e.to_string())?;
                 let mut row = stmt.next().map_err(|e| e.to_string())?.unwrap();
-                let text = TextValue::from_sql_admitted(&mut row, 0, None, Some(work)).map_err(newchan_rust::s_content::ContextError::into_message)?;
+                let text = TextValue::from_sql_admitted(&mut row, 0, None, Some(work))
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?;
                 assert_eq!(text.as_str(), "汉😀");
-                assert_eq!(text.try_clone_admitted(Some(work)).map_err(newchan_rust::s_content::ContextError::into_message)?.as_str(), text.as_str());
-                assert!(TextValue::optional_sql_admitted(&mut row, 1, None, Some(work)).map_err(newchan_rust::s_content::ContextError::into_message)?.is_none());
                 assert_eq!(
-                    TextValue::optional_sql_admitted(&mut row, 2, None, Some(work)).map_err(newchan_rust::s_content::ContextError::into_message)?
+                    text.try_clone_admitted(Some(work))
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?
+                        .as_str(),
+                    text.as_str()
+                );
+                assert!(
+                    TextValue::optional_sql_admitted(&mut row, 1, None, Some(work))
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?
+                        .is_none()
+                );
+                assert_eq!(
+                    TextValue::optional_sql_admitted(&mut row, 2, None, Some(work))
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?
                         .unwrap()
                         .as_str(),
                     "正常"
@@ -3323,7 +3337,8 @@ mod native_consumer_tests {
             .unwrap()
             .run(|scope| {
                 let admission = super::super::audit_store::NativeAdmission(Some(scope));
-                let actual = json_from_view_admitted(&admission, (&value).into()).map_err(newchan_rust::s_content::ContextError::into_message)?;
+                let actual = json_from_view_admitted(&admission, (&value).into())
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?;
                 assert_eq!(actual.view(), JsonView::Plain(&value));
                 assert_eq!(
                     sha_json_admitted(&admission, (&value).into())?,
@@ -3363,14 +3378,16 @@ mod plain_raii_tests {
                 .unwrap()
                 .run(|work| {
                     let source = NativeAdmission(Some(work));
-                    let text = TextValue::from_str_admitted("persistent text", None, Some(work)).map_err(newchan_rust::s_content::ContextError::into_message)?;
+                    let text = TextValue::from_str_admitted("persistent text", None, Some(work))
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?;
                     let built = sc::Built {
                         digest: [7; 32],
                         kind: sc::Kind::Array,
                         extent: Some(2),
                     };
                     let reference = source.native_built_ref(&built).map_err(|e| e.to_string())?;
-                    let json = strict_plain_json_admitted(input, Some(work)).map_err(newchan_rust::s_content::ContextError::into_message)?;
+                    let json = strict_plain_json_admitted(input, Some(work))
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?;
                     Ok::<_, String>((text, reference, json))
                 })
                 .unwrap();
@@ -3471,9 +3488,14 @@ mod scoped_json_array_tests {
                 .codec_work()
                 .unwrap()
                 .run(|work| {
-                    let mut array = ScopedJsonArray::native(work).map_err(newchan_rust::s_content::ContextError::into_message)?;
-                    array.push((&input).into()).map_err(newchan_rust::s_content::ContextError::into_message)?;
-                    array.push((&input).into()).map_err(newchan_rust::s_content::ContextError::into_message)?;
+                    let mut array = ScopedJsonArray::native(work)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?;
+                    array
+                        .push((&input).into())
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?;
+                    array
+                        .push((&input).into())
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?;
                     Ok::<_, String>(array.finish())
                 })
                 .unwrap();
@@ -3510,14 +3532,19 @@ mod scoped_json_array_tests {
             .unwrap()
             .run(|work| {
                 let baseline = budget.live();
-                let mut array = ScopedJsonArray::native(work).map_err(newchan_rust::s_content::ContextError::into_message)?;
+                let mut array = ScopedJsonArray::native(work)
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?;
                 for _ in 0..4 {
-                    array.push(JsonView::Null).map_err(newchan_rust::s_content::ContextError::into_message)?;
+                    array
+                        .push(JsonView::Null)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?;
                 }
                 let before = budget.live();
                 let new_blocks =
                     8 * (std::mem::size_of::<Value>() + std::mem::size_of::<NativeReservation>());
-                array.push(JsonView::Null).map_err(newchan_rust::s_content::ContextError::into_message)?;
+                array
+                    .push(JsonView::Null)
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?;
                 assert!(
                     budget.peak() >= before + new_blocks,
                     "两个旧buffer保留到两个新块同时准入完成"
@@ -3560,9 +3587,12 @@ mod scoped_json_array_tests {
             let budget = super::super::audit_owner::native::Budget::new(limit, 0).unwrap();
             let initial = budget.live();
             let result = budget.codec_work().unwrap().run(|work| {
-                let mut array = ScopedJsonArray::native(work).map_err(newchan_rust::s_content::ContextError::into_message)?;
+                let mut array = ScopedJsonArray::native(work)
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?;
                 for _ in 0..4 {
-                    array.push(JsonView::Null).map_err(newchan_rust::s_content::ContextError::into_message)?;
+                    array
+                        .push(JsonView::Null)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?;
                 }
                 let held = budget.reserve(limit - budget.live() - available).unwrap();
                 let before = budget.live();
@@ -3601,7 +3631,13 @@ mod scoped_json_array_tests {
         let mut owner = budget
             .codec_work()
             .unwrap()
-            .run(|work| Ok::<_, String>(ScopedJsonArray::native(work).map_err(newchan_rust::s_content::ContextError::into_message)?.finish()))
+            .run(|work| {
+                Ok::<_, String>(
+                    ScopedJsonArray::native(work)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?
+                        .finish(),
+                )
+            })
             .unwrap();
         let held = budget.live();
         assert!(owner.push(JsonView::Null).is_err());
@@ -3628,7 +3664,13 @@ mod raw_events_native_append_tests {
         budget
             .codec_work()
             .unwrap()
-            .run(|work| RawEvents::from_json_owner(ScopedJsonArray::native(work).map_err(newchan_rust::s_content::ContextError::into_message)?.finish()))
+            .run(|work| {
+                RawEvents::from_json_owner(
+                    ScopedJsonArray::native(work)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?
+                        .finish(),
+                )
+            })
             .unwrap()
     }
 
@@ -3686,7 +3728,8 @@ mod raw_events_native_append_tests {
                 .unwrap()
                 .run(|work| {
                     for _ in 0..4 {
-                        raw.push_native(JsonView::Null, work).map_err(newchan_rust::s_content::ContextError::into_message)?;
+                        raw.push_native(JsonView::Null, work)
+                            .map_err(newchan_rust::s_content::ContextError::into_message)?;
                     }
                     Ok::<_, String>(())
                 })
@@ -3786,7 +3829,13 @@ mod raw_events_layout_tests {
         let mut raw = budget
             .codec_work()
             .unwrap()
-            .run(|work| RawEvents::from_json_owner(ScopedJsonArray::native(work).map_err(newchan_rust::s_content::ContextError::into_message)?.finish()))
+            .run(|work| {
+                RawEvents::from_json_owner(
+                    ScopedJsonArray::native(work)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?
+                        .finish(),
+                )
+            })
             .unwrap();
         for n in 1..=17 {
             budget
