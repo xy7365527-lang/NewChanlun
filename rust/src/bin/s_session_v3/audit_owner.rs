@@ -2693,7 +2693,7 @@ impl CompleteCandidate {
         limit: usize,
         source_check: Option<&OwnerSourceCheck>,
         parent: Option<&PublicationScope<'_>>,
-    ) -> Result<Option<Self>, String> {
+    ) -> Result<Option<Self>, PublishError> {
         use super::audit_retention::sum;
         use effects::Table;
         self.detach_slot()?;
@@ -2727,28 +2727,28 @@ impl CompleteCandidate {
             None => self.resources.clone(),
         };
         let capture = self.capture.as_mut().unwrap();
-        let mut append_nodes = |scope: &newchan_rust::s_content::capture_allocation::scratch::WorkScope| -> Result<(), String> {
+        let mut append_nodes = |scope: &newchan_rust::s_content::capture_allocation::scratch::WorkScope| -> Result<(), PublishError> {
             for change in effects
                 .changes
                 .iter_mut()
                 .filter(|c| c.table == Table::Node)
             {
-                let row = change.new.as_mut().ok_or_else(|| invalid("缺新增节点"))?;
+                let row = change.new.as_mut().ok_or_else(|| publish_err("缺新增节点"))?;
                 let digest = match &row[1] {
-                    request_audit::SqlCell::Blob(b) => b.as_ref().try_into().map_err(invalid)?,
-                    _ => return Err(invalid("digest 非 BLOB")),
+                    request_audit::SqlCell::Blob(b) => b.as_ref().try_into().map_err(publish_err)?,
+                    _ => return Err(publish_err("digest 非 BLOB")),
                 };
-                let tag = u8::try_from(effects::integer(&row[2])?).map_err(invalid)?;
+                let tag = u8::try_from(effects::integer(&row[2])?).map_err(publish_err)?;
                 let body = match std::mem::replace(&mut row[3], request_audit::SqlCell::Null) {
                     request_audit::SqlCell::Blob(b) => b,
-                    _ => return Err(invalid("body 非 BLOB")),
+                    _ => return Err(publish_err("body 非 BLOB")),
                 };
                 let existed = capture.contains(&digest);
                 if !capture
                     .append_original_codec_for_owner(digest, tag, body, usize::MAX, scope)
-                    .map_err(invalid)?
+                    .map_err(publish_err)?
                 {
-                    return Err(invalid("Native 节点许可未被消费"));
+                    return Err(publish_err("Native 节点许可未被消费"));
                 }
                 if !existed {
                     self.node_count += 1;
@@ -2756,17 +2756,17 @@ impl CompleteCandidate {
             }
             Ok(())
         };
-        let node_result = match parent {
+        let node_result: Result<(), native::Failure<PublishError>> = match parent {
             Some(parent) => append_nodes(parent.work()).map_err(native::Failure::Invalid),
             None => match budget.codec_work() {
                 Ok(work) => work.run(append_nodes).map_err(native::Failure::from),
-                Err(error) => Err(error),
+                Err(error) => Err(error.into()),
             },
         };
         match node_result {
             Ok(()) => {}
             Err(native::Failure::BudgetExceeded) => return Ok(None),
-            Err(native::Failure::Invalid(e)) => return Err(e),
+            Err(native::Failure::Invalid(e)) => return Err(e.into()),
         }
         match self.q.advance(tx, &effects, &mut self.audited, &budget) {
             Ok(raw_added) => {
@@ -2780,7 +2780,7 @@ impl CompleteCandidate {
                 self.charge.historical_and_raw_capacity = total;
             }
             Err(native::Failure::BudgetExceeded) => return Ok(None),
-            Err(native::Failure::Invalid(e)) => return Err(e),
+            Err(native::Failure::Invalid(e)) => return Err(e.into()),
         }
         let bound = BoundOriginals { _private: () };
         match self.audited.check_owner_raw(capture, &bound, &budget) {
@@ -2791,7 +2791,7 @@ impl CompleteCandidate {
                 self.charge.historical_and_raw_capacity = total;
             }
             Err(native::Failure::BudgetExceeded) => return Ok(None),
-            Err(native::Failure::Invalid(e)) => return Err(e),
+            Err(native::Failure::Invalid(e)) => return Err(e.into()),
         }
         if effects.operation == effects::Operation::Publish {
             // #1394：成功路径借用 SQL 文本，避免复制 meta 值及动态标签。
@@ -2800,19 +2800,19 @@ impl CompleteCandidate {
                     tx,
                     c"SELECT value FROM meta WHERE key=?1",
                 )
-                .map_err(invalid)?;
-                query.bind_text(1, "generation").map_err(invalid)?;
+                .map_err(publish_err)?;
+                query.bind_text(1, "generation").map_err(publish_err)?;
                 let mut row = query
                     .next()
-                    .map_err(invalid)?
-                    .ok_or_else(|| invalid("meta.generation 缺失"))?;
+                    .map_err(publish_err)?
+                    .ok_or_else(|| publish_err("meta.generation 缺失"))?;
                 let value = newchan_rust::session_protocol::parse_canonical_i64(
-                    row.text(0).map_err(invalid)?,
+                    row.text(0).map_err(publish_err)?,
                     "meta.generation",
                 )
-                .map_err(invalid)?;
+                .map_err(publish_err)?;
                 drop(row);
-                query.finalize().map_err(invalid)?;
+                query.finalize().map_err(publish_err)?;
                 value
             };
             let d = effects
@@ -2830,7 +2830,7 @@ impl CompleteCandidate {
                         .as_ref()
                         .is_some_and(|r| effects::text(&r[2]).ok() == Some("commit"))
                 })
-                .ok_or_else(|| invalid("缺 commit 实际效果"))?;
+                .ok_or_else(|| publish_err("缺 commit 实际效果"))?;
             let ns = effects::text(&commit.new.as_ref().unwrap()[4])?;
             let row_ids = |table| -> Result<_, native::BudgetExceeded> {
                 let mut rows = budget.empty::<Vec<i64>>()?;
@@ -2885,11 +2885,11 @@ impl CompleteCandidate {
                         source_check,
                     )
                 };
-            let updated = match parent {
+            let updated: Result<_, native::Failure<PublishError>> = match parent {
                 Some(parent) => append_cut(parent.work()).map_err(native::Failure::from),
                 None => match budget.codec_work() {
                     Ok(work) => work.run(append_cut).map_err(native::Failure::from),
-                    Err(error) => Err(error),
+                    Err(error) => Err(error.into()),
                 },
             };
             #[cfg(test)]
@@ -2902,7 +2902,7 @@ impl CompleteCandidate {
             let (audited, retained) = match updated {
                 Ok(updated) => updated,
                 Err(native::Failure::BudgetExceeded) => return Ok(None),
-                Err(native::Failure::Invalid(e)) => return Err(e),
+                Err(native::Failure::Invalid(e)) => return Err(e.into()),
             };
             // 这些行号只在本次 append_cut 借用；真实销毁后归还各 Vec 实际容量。
             drop(row_ids);
@@ -2911,7 +2911,7 @@ impl CompleteCandidate {
                 match retained.apply(self.charge.historical_and_raw_capacity) {
                     Ok(total) => total,
                     Err(native::Failure::BudgetExceeded) => return Ok(None),
-                    Err(native::Failure::Invalid(error)) => return Err(error),
+                    Err(native::Failure::Invalid(error)) => return Err(error.into()),
                 };
         }
         #[cfg(test)]
@@ -2923,21 +2923,21 @@ impl CompleteCandidate {
         ) {
             Ok(peak) => peak,
             Err(native::Failure::BudgetExceeded) => return Ok(None),
-            Err(native::Failure::Invalid(e)) => return Err(e),
+            Err(native::Failure::Invalid(e)) => return Err(e.into()),
         };
         self.capture = Some(
             self.capture
                 .take()
                 .unwrap()
                 .finish_owner_step()
-                .map_err(invalid)?,
+                .map_err(publish_err)?,
         );
         let retained = self
             .capture
             .as_ref()
             .unwrap()
             .native_retention_numbers()
-            .ok_or_else(|| invalid("缺 Native 原件费用"))?;
+            .ok_or_else(|| publish_err("缺 Native 原件费用"))?;
         self.charge.node_source_and_certificates = sum([
             retained.body_len,
             self.node_count.saturating_mul(97),
@@ -3270,13 +3270,13 @@ impl AuditTxn<'_> {
         if result.is_err() && self.construction.borrow().is_some() {
             self.owner.invalidate_construction();
         }
-        result
+        result.map_err(Into::into)
     }
     #[cfg(feature = "s_incremental")]
     fn finish_fixed_write_in_publication(
         &self,
         parent: Option<&PublicationScope<'_>>,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         let result = self.finish_fixed_write_inner(parent);
         if result.is_err() && self.construction.borrow().is_some() {
             self.owner.invalidate_construction();
@@ -3286,13 +3286,13 @@ impl AuditTxn<'_> {
     fn finish_fixed_write_inner(
         &self,
         #[cfg(feature = "s_incremental")] parent: Option<&PublicationScope<'_>>,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         #[cfg(feature = "s_incremental")]
         {
             let strict = self.construction.borrow().is_some();
             let missing = || {
                 if strict {
-                    Err(construction_state::stale(
+                    Err(publish_stale(
                         "effects未完整闭合；不得回落旧审计",
                     ))
                 } else {
@@ -3306,7 +3306,7 @@ impl AuditTxn<'_> {
                 .pending
                 .borrow_mut()
                 .take()
-                .ok_or_else(|| invalid("效果日志缺候选"))?;
+                .ok_or_else(|| publish_err("效果日志缺候选"))?;
             let limit = self.effect_limit.get();
             let recording_cap = limit;
             let Some(mut effects) =
@@ -3316,7 +3316,7 @@ impl AuditTxn<'_> {
             };
             let closed_changes = self.tx().total_changes();
             if strict && !effects.has_exact_coverage(closed_changes) {
-                return Err(construction_state::stale("actual effects覆盖收据缺失"));
+                return Err(publish_stale("actual effects覆盖收据缺失"));
             }
             let set = effects.set.take();
             // 真实旧投影核仍负责 birth/revision/withdrawal/辅助合并的双向语义；
@@ -3328,7 +3328,7 @@ impl AuditTxn<'_> {
             effects.bytes = effects
                 .bytes
                 .checked_sub(set_bytes)
-                .ok_or_else(|| invalid("集合保留账不符"))?;
+                .ok_or_else(|| publish_err("集合保留账不符"))?;
             let Some(mut candidate) = candidate.validate_effects(
                 self.tx(),
                 effects,
@@ -3348,11 +3348,11 @@ impl AuditTxn<'_> {
                     .audited
                     .cuts
                     .last()
-                    .ok_or_else(|| construction_state::stale("集合闭合缺实际已核发布根"))?;
+                    .ok_or_else(|| publish_stale("集合闭合缺实际已核发布根"))?;
                 self.construction
                     .borrow_mut()
                     .as_mut()
-                    .ok_or_else(|| construction_state::stale("集合effects丢失raw owner"))?
+                    .ok_or_else(|| publish_stale("集合effects丢失raw owner"))?
                     .close_set(set, current.roots.generated_state.view())?;
             }
             if strict {
@@ -3390,7 +3390,7 @@ pub(crate) fn note_persisted_node(
 pub(crate) fn note_qualified_source_cut(
     material: &MaterialAccess<'_, '_, '_>,
     root: newchan_rust::s_content::RefView<'_>,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     effects::note_source_cut(material, root)
 }
 #[cfg(feature = "s_incremental")]

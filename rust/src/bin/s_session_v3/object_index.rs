@@ -90,7 +90,7 @@ fn scalar_value(s: &mut (impl CodecRead + ?Sized), r: &ContentRef) -> Result<Val
     }
     let mut out = Vec::new();
     s.render_canonical(r, &mut out).map_err(publish_err)?;
-    newchan_rust::session_protocol::strict_json(&out)
+    newchan_rust::session_protocol::strict_json(&out).map_err(Into::into)
 }
 
 /// 同一原件绑定调用中的固定小字段；大载荷只保存引用，不持久缓存或信任摘要替代闭包。
@@ -472,7 +472,7 @@ fn check_public_ranks<'e>(
 }
 /// 仅在 [`check_public_ranks`] 通过后用于排序；两侧均为 `Ok`，比较即公开主序。
 fn public_ordering(layout: Layout, a: &Entry, b: &Entry, dead: bool) -> std::cmp::Ordering {
-    public_rank(layout, a, dead).cmp(&public_rank(layout, b, dead))
+    public_rank(layout, a, dead).map_err(|error| error.to_string()).cmp(&public_rank(layout, b, dead).map_err(|error| error.to_string()))
 }
 
 fn candidate(
@@ -982,12 +982,12 @@ impl HistoryObjects<'_> {
         s: &mut super::history::HashReader<'_>,
         g: i64,
         budget: Option<&dyn super::audit_budget::Budget>,
-    ) -> Result<(Built, Built, Built), String> {
-        if !tx.is_readonly(rusqlite::MAIN_DB).map_err(err)?
+    ) -> Result<(Built, Built, Built), PublishError> {
+        if !tx.is_readonly(rusqlite::MAIN_DB).map_err(publish_err)?
             || !s.ordinary_bound_births_qualified()
             || self.native.is_some()
         {
-            return Err(err("出生根复用不属于普通只读完整索引上下文"));
+            return Err(publish_err("出生根复用不属于普通只读完整索引上下文"));
         }
         at_cut_projected_bound(s, self.layout, &self.entries, g, budget, None, true)
     }
@@ -2320,7 +2320,7 @@ pub(super) fn stage(
         batch,
         #[cfg(feature = "s_incremental")]
         None,
-    )
+    ).map_err(Into::into)
 }
 pub(super) fn stage_in_material(
     tx: &Transaction<'_>,
@@ -3352,7 +3352,7 @@ mod tests {
                 candidate(&mut store, o, 1)
             };
             let error = result.unwrap_err();
-            assert!(error.contains(sc::code::NODE_DIGEST), "{error}");
+            assert!(error.to_string().contains(sc::code::NODE_DIGEST), "{error}");
             assert_ne!(
                 candidate_sql_material_for_test(&tx),
                 before,
@@ -3406,7 +3406,7 @@ mod tests {
         let before = candidate_sql_material_for_test(&tx);
         tx.execute_batch("SAVEPOINT fixed_second").unwrap();
         let error = plan(&mut store, &objects, &[], 1).err().unwrap();
-        assert!(error.contains("候选对象不属于本次生成代"), "{error}");
+        assert!(error.to_string().contains("候选对象不属于本次生成代"), "{error}");
         assert_ne!(
             candidate_sql_material_for_test(&tx),
             before,
@@ -3660,7 +3660,7 @@ mod tests {
         let old_error =
             with_legacy_candidate_fields_for_test(|| candidate(&mut old, o, 1)).unwrap_err();
         let new_error = candidate(&mut new, o, 1).unwrap_err();
-        assert!(old_error.contains("候选对象不属于本次生成代"));
+        assert!(old_error.to_string().contains("候选对象不属于本次生成代"));
         assert_eq!(new_error, old_error);
         assert_eq!((old.puts, new.puts), (0, 0));
         eprintln!(
@@ -3702,7 +3702,7 @@ mod tests {
             };
             let error = candidate(&mut store, o, 1).unwrap_err();
             assert!(
-                error.contains(if corrupt {
+                error.to_string().contains(if corrupt {
                     sc::code::NODE_DIGEST
                 } else {
                     sc::code::NODE_MISSING
@@ -4578,7 +4578,7 @@ mod tests {
             );
             let error = candidate_fields(&mut store, typed, 1).err().unwrap();
             if fault == "immutable-null" {
-                assert!(error.contains("不可变字段不得为空"), "{error}");
+                assert!(error.to_string().contains("不可变字段不得为空"), "{error}");
                 assert!(store.inner.puts > 0, "Null仍在wire写入之后拒绝");
             } else {
                 assert_eq!(
@@ -4668,7 +4668,7 @@ mod tests {
         let error = plan_native_union(&mut store, Layout::Sorted, &objects, &[], 1)
             .err()
             .unwrap();
-        assert!(error.contains("candidate_fields_wire_SQL_fault"), "{error}");
+        assert!(error.to_string().contains("candidate_fields_wire_SQL_fault"), "{error}");
         assert_eq!(
             candidate_sql_material_for_test(&tx),
             before,
@@ -4744,7 +4744,7 @@ mod tests {
             let error = plan_native_union(&mut store, Layout::Sorted, objects, &[], 1)
                 .err()
                 .unwrap();
-            assert!(error.contains(code), "{fault}: {error}");
+            assert!(error.to_string().contains(code), "{fault}: {error}");
             assert_eq!(store.puts, 0, "{fault}: 联合失败不得触及candidate put");
             assert_eq!(store.unions, 1);
             assert_eq!(store.singles, 0);
@@ -4785,7 +4785,7 @@ mod tests {
             plan_native_union(&mut mixed, Layout::Sorted, objects, &[], 1)
                 .err()
                 .unwrap()
-                .contains("拒绝allocation预算")
+                .to_string().contains("拒绝allocation预算")
         );
         assert_eq!(
             (mixed.reads, mixed.puts, mixed.singles, mixed.unions),
@@ -5280,7 +5280,7 @@ mod tests {
             sc::capture_allocation::scratch::WorkError::Operation(message) => message,
             other => panic!("缺原wire必须返回业务读取错误：{other:?}"),
         };
-        assert!(message.contains(sc::code::NODE_MISSING), "{message}");
+        assert!(message.to_string().contains(sc::code::NODE_MISSING), "{message}");
         assert_eq!(format!("{old:?}"), old_snapshot);
         assert_eq!(format!("{fresh:?}"), fresh_snapshot);
         assert_eq!(budget.live(), baseline, "失败局部的所有许可必须回收");
@@ -5499,7 +5499,7 @@ mod tests {
             );
             drop(occupied);
             assert_eq!(budget.live(), before, "失败复制必须销毁临时permit");
-            Err::<(), String>(error)
+            Err::<(), String>(error.to_string())
         });
         assert!(result.is_err());
         assert_eq!(budget.live(), baseline);
@@ -5626,7 +5626,7 @@ mod tests {
         assert_eq!(entries[2].life.withdrawn_generation, None);
         for layout in [Layout::Sorted, Layout::Bounded1] {
             let error = public_rank(layout, &entries[2], true).unwrap_err();
-            assert!(error.contains("缺撤回代"), "{error}");
+            assert!(error.to_string().contains("缺撤回代"), "{error}");
             assert!(public_rank(layout, &entries[2], false).is_ok());
         }
         let store = super::super::audit_store::NativeAdmission(None);
@@ -5795,7 +5795,7 @@ mod tests {
             Some(&stop),
             Some(&mut memo),
         );
-        assert!(stopped.unwrap_err().contains("record_stop"));
+        assert!(stopped.unwrap_err().to_string().contains("record_stop"));
         assert_eq!(stop.records.get(), 1);
         assert_eq!(
             WIRE_PROJECTIONS.with(|calls| calls.get()),
@@ -5856,7 +5856,7 @@ mod tests {
             true,
         )
         .unwrap_err()
-        .contains("record_stop"));
+        .to_string().contains("record_stop"));
         assert_eq!(stop.records.get(), 1);
     }
 
@@ -5881,14 +5881,14 @@ mod tests {
         assert!(memo
             .wire(&mut store, &entries[0], 0, 0)
             .unwrap_err()
-            .contains("尚未出生"));
+            .to_string().contains("尚未出生"));
         for g in [1, 2] {
             let original = entries[0].life.published_generation;
             entries[0].life.published_generation = 10;
             assert!(memo
                 .wire(&mut store, &entries[0], 0, g)
                 .unwrap_err()
-                .contains("晚于本次生成代"));
+                .to_string().contains("晚于本次生成代"));
             entries[0].life.published_generation = original;
         }
         memo.wire(&mut store, &entries[0], 0, 3).unwrap();
@@ -5897,7 +5897,7 @@ mod tests {
             assert!(memo
                 .wire(&mut store, &entries[0], 0, g)
                 .unwrap_err()
-                .contains("撤回必须携带"));
+                .to_string().contains("撤回必须携带"));
         }
         // 第一次 exact 字段检查失败，不能留下成功槽；同一错误重试也必须拒绝。
         let empty = sc::write_value(&mut store, &V::Object(Vec::new())).unwrap();
@@ -5937,7 +5937,7 @@ mod tests {
             for _ in 0..2 {
                 let error = memo.wire(&mut store, &entries[0], 0, 1).unwrap_err();
                 assert!(
-                    error.contains(if corrupt {
+                    error.to_string().contains(if corrupt {
                         sc::code::NODE_DIGEST
                     } else {
                         sc::code::NODE_MISSING
@@ -6270,7 +6270,7 @@ mod tests {
                     .err()
                     .unwrap();
                 assert!(
-                    error.contains(sc::code::NODE_DIGEST),
+                    error.to_string().contains(sc::code::NODE_DIGEST),
                     "先拒坏完整Public root，未触candidate INSERT：{error}"
                 );
                 assert_eq!(
@@ -6444,7 +6444,7 @@ mod tests {
                 assert!(plan(&mut s, &generated.objects, &wrong, g)
                     .err()
                     .unwrap()
-                    .contains("IdentityConflict"));
+                    .to_string().contains("IdentityConflict"));
             }
             let _ = actual_dead;
             #[cfg(feature = "s_incremental")]
@@ -6550,12 +6550,12 @@ mod tests {
                     assert!(current
                         .at_cut(&mut other_store, 1, None)
                         .unwrap_err()
-                        .contains("不属于本次捕获"));
+                        .to_string().contains("不属于本次捕获"));
                     let records = RecordMeter::default();
                     assert!(current
                         .at_cut(&mut captured, 1, Some(&records))
                         .unwrap_err()
-                        .contains("不属于本次捕获"));
+                        .to_string().contains("不属于本次捕获"));
                 }
                 let mut ordinary_store =
                     super::super::history::HashReader::captured(&capture, None);
@@ -6657,7 +6657,7 @@ impl Slot {
 impl Entry {
     #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     pub fn try_clone(&self) -> Result<Self, String> {
-        self.try_clone_admitted(&super::audit_store::NativeAdmission(None))
+        self.try_clone_admitted(&super::audit_store::NativeAdmission(None)).map_err(Into::into)
     }
     pub fn try_clone_admitted(&self, store: &(impl CodecRead + ?Sized)) -> Result<Self, PublishError> {
         let text = |v: &TextValue| v.try_clone_admitted(store.codec_work());

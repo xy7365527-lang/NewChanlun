@@ -650,16 +650,16 @@ impl Recording {
         tx: &Transaction<'_>,
         originals: &mut [ExactRows],
         cap: usize,
-    ) -> Result<Option<Effects>, String> {
+    ) -> Result<Option<Effects>, PublishError> {
         tx.update_hook(None::<fn(rusqlite::hooks::Action, &str, &str, i64)>)
-            .map_err(invalid)?;
+            .map_err(publish_err)?;
         clear_node_journal(tx);
         let mut journal = Arc::try_unwrap(self.journal)
-            .map_err(|_| invalid("效果日志仍有外借"))?
+            .map_err(|_| publish_err("效果日志仍有外借"))?
             .into_inner()
-            .map_err(invalid)?;
+            .map_err(publish_err)?;
         if journal.unexpected {
-            return Err(invalid("固定 operation 出现未声明实际效果"));
+            return Err(publish_err("固定 operation 出现未声明实际效果"));
         }
         if journal.overflow {
             return Ok(None);
@@ -668,7 +668,7 @@ impl Recording {
             let after = tx.total_changes();
             let expected = c.hook_events.checked_add(c.node_inserts);
             if !c.exact || after.checked_sub(c.start) != expected {
-                return Err(construction_state::stale(
+                return Err(publish_stale(
                     "actual writes与hook/node收据不一致",
                 ));
             }
@@ -682,7 +682,7 @@ impl Recording {
                 journal.material_epoch,
                 journal.events.len(),
                 journal.stages.len(),
-                covered_total.ok_or_else(|| construction_state::stale("集合缺完整实际写覆盖"))?,
+                covered_total.ok_or_else(|| publish_stale("集合缺完整实际写覆盖"))?,
             )?;
         }
         journal
@@ -704,7 +704,7 @@ impl Recording {
             .as_ref()
             .map(|(budget, _)| budget.reserve(changes_bytes))
             .transpose()
-            .map_err(|_| construction_state::stale("effects行容器父账额度不足"))?;
+            .map_err(|_| publish_stale("effects行容器父账额度不足"))?;
         if changes.try_reserve_exact(journal.keys.len()).is_err() {
             return Ok(None);
         }
@@ -746,7 +746,7 @@ impl Recording {
             };
             peak = peak.max(sum([used, read_peak]));
             if rows.rows.len() > 1 {
-                return Err(invalid("rowid 效果非唯一"));
+                return Err(publish_err("rowid 效果非唯一"));
             }
             if let Some(row) = rows.rows.first() {
                 verify_storage(tx, key.table, row)?;
@@ -755,7 +755,7 @@ impl Recording {
             let row_header_bytes = rows.manual_heap_bytes();
             drop(rows);
             if parent.is_some() && row_header_bytes != 0 {
-                return Err(construction_state::stale("父账读行头缺持有许可"));
+                return Err(publish_stale("父账读行头缺持有许可"));
             }
             let mut slot = None;
             let old = if key.table == Table::Node {
@@ -771,7 +771,7 @@ impl Recording {
                         slot = Some(i);
                         if let Some((budget, _)) = &parent {
                             require_row_owned(budget, &table.rows[i])
-                                .map_err(|e| invalid(format!("原行许可：{e:?}")))?;
+                                .map_err(|e| publish_err(format!("原行许可：{e:?}")))?;
                         }
                         Some(std::mem::take(&mut table.rows[i]))
                     }
@@ -794,7 +794,7 @@ impl Recording {
                     .find(|c| c.table == stage.kind.table() && c.rowid == stage.rowid)
                     .and_then(|c| c.new.as_ref());
                 if actual != Some(&stage.row) {
-                    return Err(construction_state::stale(
+                    return Err(publish_stale(
                         "stage即时原件与最终effects不一致",
                     ));
                 }
@@ -1819,22 +1819,22 @@ pub(super) fn with_material_access<T, E: From<String> + From<PublishError>>(
 pub(super) fn note_source_cut(
     material: &MaterialAccess<'_, '_, '_>,
     root: sc::RefView<'_>,
-) -> Result<(), String> {
-    let mut j = material.journal.lock().map_err(invalid)?;
+) -> Result<(), PublishError> {
+    let mut j = material.journal.lock().map_err(publish_err)?;
     let result = (|| {
         material.check(&j)?;
         if j.set.is_some() || j.active_stage.is_some() || !j.stages.is_empty() {
-            return Err(construction_state::stale("集合cut不是首次stage前唯一切面"));
+            return Err(publish_stale("集合cut不是首次stage前唯一切面"));
         }
         let mut source = material.reader()?;
         // 当前root参数本身不携带来源资格；在实际tx上核完整Public闭包后才允许共享跳过。
         source
             .verify_many_ref_fresh([root], sc::Mode::Public)
-            .map_err(invalid)?;
+            .map_err(publish_err)?;
         let seed = j
             .set_seed
             .take()
-            .ok_or_else(|| construction_state::stale("缺owner集合seed"))?;
+            .ok_or_else(|| publish_stale("缺owner集合seed"))?;
         let set =
             construction_set::qualify(seed, &mut source, root, j.material_epoch, material.budget)?;
         j.peak = j
@@ -1847,7 +1847,7 @@ pub(super) fn note_source_cut(
         j.extra_bytes = sum([j.extra_bytes, set.retained_bytes()]);
         j.bytes = sum([j.container_bytes(), j.extra_bytes]);
         if j.bytes > j.cap {
-            return Err(construction_state::stale("集合cut保留账超过额度"));
+            return Err(publish_stale("集合cut保留账超过额度"));
         }
         j.set = Some(set);
         Ok(())
@@ -1980,7 +1980,7 @@ impl StageGuard {
     pub(crate) fn finish(
         mut self,
         material: Option<&MaterialAccess<'_, '_, '_>>,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         let Some(journal) = self.journal.as_ref().cloned() else {
             self.closed = true;
             return Ok(());
@@ -1989,7 +1989,7 @@ impl StageGuard {
         if let Some(material) = material {
             if let Some(stage) = material.stage {
                 let rowid = {
-                    let j = journal.lock().map_err(invalid)?;
+                    let j = journal.lock().map_err(publish_err)?;
                     material.check(&j)?;
                     let mut rows = j.events[self.start..]
                         .iter()
@@ -1997,12 +1997,12 @@ impl StageGuard {
                         .filter(|k| k.table != Table::Node);
                     let row = rows
                         .next()
-                        .ok_or_else(|| construction_state::stale("stage缺实际SQL行"))?;
+                        .ok_or_else(|| publish_stale("stage缺实际SQL行"))?;
                     if rows.next().is_some()
                         || row.table != self.kind.table()
                         || row.action != Some(self.kind.action())
                     {
-                        return Err(construction_state::stale("stage SQL并非唯一预期表/动作"));
+                        return Err(publish_stale("stage SQL并非唯一预期表/动作"));
                     }
                     row.rowid
                 };
@@ -2030,19 +2030,19 @@ impl StageGuard {
                         }
                         Ok(roots)
                     })
-                    .map_err(invalid)?;
+                    .map_err(publish_err)?;
                 stage.flush_cut(
                     material.tx,
                     crate::staged_nodes::FlushCut::Row(&roots[..columns.len()]),
                 )?;
             }
         }
-        let mut j = journal.lock().map_err(invalid)?;
+        let mut j = journal.lock().map_err(publish_err)?;
         let result = (|| {
             let material =
-                material.ok_or_else(|| construction_state::stale("strict stage缺实际材料能力"))?;
+                material.ok_or_else(|| publish_stale("strict stage缺实际材料能力"))?;
             if !Arc::ptr_eq(&journal, &material.journal) {
-                return Err(construction_state::stale("stage与材料能力不属同owner日志"));
+                return Err(publish_stale("stage与材料能力不属同owner日志"));
             }
             material.check(&j)?;
             let tx = material.tx;
@@ -2050,7 +2050,7 @@ impl StageGuard {
                 || j.active_stage != Some(self.start)
                 || j.material_epoch < self.material_before
             {
-                return Err(construction_state::stale("stage失效或跨连接"));
+                return Err(publish_stale("stage失效或跨连接"));
             }
             let mut rows = j.events[self.start..]
                 .iter()
@@ -2058,35 +2058,35 @@ impl StageGuard {
                 .filter(|key| key.table != Table::Node);
             let row = rows
                 .next()
-                .ok_or_else(|| construction_state::stale("stage缺实际SQL行"))?;
+                .ok_or_else(|| publish_stale("stage缺实际SQL行"))?;
             if rows.next().is_some()
                 || row.table != self.kind.table()
                 || row.action != Some(self.kind.action())
             {
-                return Err(construction_state::stale("stage SQL并非唯一预期表/动作"));
+                return Err(publish_stale("stage SQL并非唯一预期表/动作"));
             }
             let rowid = row.rowid;
             let identity = (self.kind.table(), rowid);
             if j.consumed.contains(&identity) {
-                return Err(construction_state::stale("业务原件已被前一stage消费"));
+                return Err(publish_stale("业务原件已被前一stage消费"));
             }
             let budget = material.budget;
             let old_stage_capacity = vec_bytes::<StageReceipt>(j.stages.capacity());
             let mut stage_fee = j
                 .resources
                 .as_mut()
-                .ok_or_else(|| construction_state::stale("stage缺父账"))?
+                .ok_or_else(|| publish_stale("stage缺父账"))?
                 .journal_charge
                 .split(old_stage_capacity)
-                .map_err(|_| construction_state::stale("stage旧许可不足"))?;
+                .map_err(|_| publish_stale("stage旧许可不足"))?;
             let grow = budget.grow_vec(&mut j.stages, &mut stage_fee, 1);
             j.resources
                 .as_mut()
                 .unwrap()
                 .journal_charge
                 .merge(&mut stage_fee)
-                .map_err(|_| construction_state::stale("stage许可来源失配"))?;
-            grow.map_err(|_| construction_state::stale("stage容器额度不足"))?;
+                .map_err(|_| publish_stale("stage许可来源失配"))?;
+            grow.map_err(|_| publish_stale("stage容器额度不足"))?;
             let stage_capacity = vec_bytes::<StageReceipt>(j.stages.capacity());
             if let Some(resources) = j.resources.as_mut().filter(|r| r.shared_parent) {
                 resources.journal_owned_bytes += stage_capacity - old_stage_capacity;
@@ -2096,12 +2096,12 @@ impl StageGuard {
                 if let Some(_resources) = j.resources.as_ref().filter(|r| r.shared_parent) {
                     j.cap
                         .checked_sub(j.bytes)
-                        .ok_or_else(|| construction_state::stale("stage局部原件额度不足"))?
+                        .ok_or_else(|| publish_stale("stage局部原件额度不足"))?
                         .min(budget.remaining())
                 } else {
                     j.cap
                         .checked_sub(budget.live())
-                        .ok_or_else(|| construction_state::stale("stage原件额度不足"))?
+                        .ok_or_else(|| publish_stale("stage原件额度不足"))?
                 };
             let (originals, _) = ExactRows::read_optional_bounded_params_in_parent(
                 tx,
@@ -2110,26 +2110,26 @@ impl StageGuard {
                 remaining,
                 Some(budget),
             )?
-            .ok_or_else(|| construction_state::stale("stage原件读取额度不足"))?;
+            .ok_or_else(|| publish_stale("stage原件读取额度不足"))?;
             let originals = StageOriginals {
                 value: Some(originals),
             };
             if originals.value.as_ref().unwrap().rows.len() != 1 {
-                return Err(construction_state::stale("stage当前行缺失/重复"));
+                return Err(publish_stale("stage当前行缺失/重复"));
             }
             verify_storage(tx, self.kind.table(), originals.row())?;
             let mut source = material.reader()?;
             // 只从保存的actual tx回读根闭包；外来memory或未来stage均无补签入口。
             for &column in self.kind.roots() {
                 let digest: [u8; 32] = match &originals.row()[column] {
-                    SqlCell::Blob(value) => value.as_ref().try_into().map_err(invalid)?,
-                    _ => return Err(construction_state::stale("stage根不是BLOB")),
+                    SqlCell::Blob(value) => value.as_ref().try_into().map_err(publish_err)?,
+                    _ => return Err(publish_stale("stage根不是BLOB")),
                 };
                 let root = sc::FixedRoot::new(&digest);
-                let reference = source.content_ref_view(root.as_str()).map_err(invalid)?;
+                let reference = source.content_ref_view(root.as_str()).map_err(publish_err)?;
                 source
                     .verify_many_ref_fresh([reference.view()], sc::Mode::Public)
-                    .map_err(invalid)?;
+                    .map_err(publish_err)?;
             }
             j.peak = j
                 .peak
@@ -2164,7 +2164,7 @@ impl StageGuard {
             j.bytes = sum([j.container_bytes(), j.extra_bytes]);
             j.peak = j.peak.max(j.bytes);
             if j.bytes > j.cap {
-                return Err(construction_state::stale("stage实际保留账超过额度"));
+                return Err(publish_stale("stage实际保留账超过额度"));
             }
             j.active_stage = None;
             Ok(())
@@ -3391,4 +3391,8 @@ mod u2_row_owned_tests {
 
 fn publish_err(error: impl Into<PublishError>) -> PublishError {
     error.into().context("S3DriverInvalid：")
+}
+
+fn publish_stale(detail: &str) -> PublishError {
+    construction_state::stale(detail).into()
 }

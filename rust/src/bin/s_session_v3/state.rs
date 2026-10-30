@@ -1,3 +1,4 @@
+use super::PublishError;
 //! #1394 C §5：`s-session/3` 的**读写共用完整状态审计**。
 //!
 //! [`audit`] 把提交口（`prepared::Runtime::prepare`）与只读入口要跑的整段旧状态核验收成**同一份**
@@ -1486,6 +1487,9 @@ pub(super) fn validate_unrun_row(
     Ok(())
 }
 
+fn publish_err(error: impl Into<PublishError>) -> PublishError {
+    error.into().context("S3StateInvalid：")
+}
 fn err(e: impl std::fmt::Display) -> String {
     format!("S3StateInvalid：{e}")
 }
@@ -2894,7 +2898,7 @@ impl AuditedState {
         work: &sc::capture_allocation::scratch::WorkScope,
         native: &super::audit_owner::native::Budget,
         source_check: Option<&super::audit_owner::OwnerSourceCheck>,
-    ) -> Result<(Self, super::audit_retention::RetainedDelta), super::audit_owner::native::Failure>
+    ) -> Result<(Self, super::audit_retention::RetainedDelta), super::audit_owner::native::Failure<PublishError>>
     {
         let mut retained = super::audit_retention::RetainedDelta::default();
         let historical = match self.historical {
@@ -2948,7 +2952,7 @@ impl AuditedState {
                 self.raw.view(),
                 raw_sources.ok_or_else(|| err("缺 raw 来源事实"))?,
                 bound,
-            ).map_err(|error| error.to_string())?
+            )?
             .with_codec_work(work, native),
         );
         let mut store = history::HashReader::captured_for_audit(capture, None)

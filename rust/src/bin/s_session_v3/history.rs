@@ -1,3 +1,4 @@
+use super::PublishError;
 //! #1394 C：在同一只读事务中回读每代 manifest、实际根与真实原始输入前沿。
 //!
 //! 本层核内容闭包、manifest 配方、控制来源、原始/生效账、独立出生/撤回与公开变化集合。
@@ -2300,6 +2301,9 @@ fn integer<'a>(
     newchan_rust::session_protocol::parse_canonical_i64(text(s, r, k)?.as_str(), k)
 }
 
+fn publish_err(error: impl Into<PublishError>) -> PublishError {
+    error.into().context("HistoryInvalid：")
+}
 fn err(e: impl std::fmt::Display) -> String {
     format!("HistoryInvalid：{e}")
 }
@@ -8138,7 +8142,7 @@ pub(super) fn append_owner_cut(
     native: &super::audit_owner::native::Budget,
 ) -> Result<
     (IndexedHistory, super::audit_retention::RetainedDelta),
-    super::audit_owner::native::Failure,
+    super::audit_owner::native::Failure<PublishError>,
 > {
     let mut retained = super::audit_retention::RetainedDelta::default();
     verify_required_meta_admitted(tx, work)?;

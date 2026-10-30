@@ -15,9 +15,23 @@ use std::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct BudgetExceeded;
 #[derive(Debug)]
-pub(crate) enum Failure {
+pub(crate) enum Failure<E = String> {
     BudgetExceeded,
-    Invalid(String),
+    Invalid(E),
+}
+
+impl From<super::PublishError> for Failure<super::PublishError> {
+    fn from(error: super::PublishError) -> Self {
+        Self::Invalid(error)
+    }
+}
+impl From<Failure> for Failure<super::PublishError> {
+    fn from(error: Failure) -> Self {
+        match error {
+            Failure::BudgetExceeded => Self::BudgetExceeded,
+            Failure::Invalid(error) => Self::Invalid(error.into()),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -290,14 +304,14 @@ mod r6_codec_work_tests {
         send_sync::<Budget>();
     }
 }
-impl From<BudgetExceeded> for Failure {
+impl<E> From<BudgetExceeded> for Failure<E> {
     fn from(_: BudgetExceeded) -> Self {
         Self::BudgetExceeded
     }
 }
-impl From<String> for Failure {
+impl<E: From<String>> From<String> for Failure<E> {
     fn from(e: String) -> Self {
-        Self::Invalid(e)
+        Self::Invalid(e.into())
     }
 }
 #[derive(Clone)]
@@ -1523,7 +1537,7 @@ impl<V: Retained> Retained for Tree<V> {
 use newchan_rust::s_content::capture_allocation::scratch::{
     CodecWork, ScratchCharge, ScratchFailure, ScratchParent, WorkError,
 };
-impl From<ScratchFailure> for Failure {
+impl<E: From<&'static str>> From<ScratchFailure> for Failure<E> {
     fn from(e: ScratchFailure) -> Self {
         match e {
             ScratchFailure::Budget | ScratchFailure::Allocation => Self::BudgetExceeded,
@@ -1531,8 +1545,8 @@ impl From<ScratchFailure> for Failure {
         }
     }
 }
-impl<E: Into<Failure>> From<WorkError<E>> for Failure {
-    fn from(e: WorkError<E>) -> Self {
+impl<E: From<&'static str>, O: Into<Failure<E>>> From<WorkError<O>> for Failure<E> {
+    fn from(e: WorkError<O>) -> Self {
         match e {
             WorkError::Resource(e) => e.into(),
             WorkError::Operation(e) => e.into(),

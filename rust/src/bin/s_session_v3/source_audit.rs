@@ -4001,7 +4001,7 @@ mod tests {
         let mut revised_context = NativeSourceAudit::new(&capture, (&revised).into()).unwrap();
         let error = run(&mut revised_context, &state, &revised).unwrap_err();
         assert_eq!(
-            error,
+            error.to_string(),
             "SourceAuditInvalid：CC004 incoming/槽位/OHLC不是同cut原始来源"
         );
         let mut revised = raw.clone();
@@ -4013,7 +4013,7 @@ mod tests {
         let mut revised_context = NativeSourceAudit::new(&capture, (&revised).into()).unwrap();
         let error = run(&mut revised_context, &state, &revised).unwrap_err();
         assert_eq!(
-            error,
+            error.to_string(),
             "SourceAuditInvalid：见证raw_bars不是同cut真实原始成员"
         );
         let mut revised = raw.clone();
@@ -4961,7 +4961,7 @@ mod tests {
         raw[0]["high"] = json!("999999");
         let error = audit_generated(&mut s, &state, &raw, tb02a::PROFILE, &rule).unwrap_err();
         assert_eq!(
-            error,
+            error.to_string(),
             "SourceAuditInvalid：CC004 incoming/槽位/OHLC不是同cut原始来源"
         );
     }
@@ -4978,7 +4978,7 @@ mod tests {
         raw[0]["raw_text"] = json!(format!("{text} 篡改"));
         let error = audit_generated(&mut s, &state, &raw, tb02a::PROFILE, &rule).unwrap_err();
         assert_eq!(
-            error,
+            error.to_string(),
             "SourceAuditInvalid：见证raw_bars不是同cut真实原始成员"
         );
     }

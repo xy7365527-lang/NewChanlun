@@ -87,7 +87,7 @@ fn field(s: &mut sc::MemoryNodes, root: &ContentRef, key: &str) -> Result<Conten
 }
 #[cfg(test)]
 fn text(s: &mut sc::MemoryNodes, root: &ContentRef, key: &str) -> Result<TextValue, String> {
-    text_ref(s, root, key)
+    text_ref(s, root, key).map_err(Into::into)
 }
 #[cfg(test)]
 fn array_field(
@@ -818,6 +818,7 @@ fn verify_current_in_store<'r>(
     let entries = axes_entries(store, axes)?;
     let budget = store.allocation_budget();
     for entry in &entries {
+        let read_error = |error: String| err(format!("读 catalog[{}] 失败：{error}", entry.id));
         let mut query = newchan_rust::sqlite_checked::CheckedStatement::prepare(
             tx, c"SELECT impl_status,proof_status,run_status,evidence_json FROM catalog WHERE catalog_id=?1",
         ).map_err(|e| read_error(e.to_string()))?;
@@ -1939,7 +1940,7 @@ mod tests {
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .unwrap();
         let error = stage_current(&tx, &mut f.store, &twelve).unwrap_err();
-        assert!(error.contains("13轴"), "{error}");
+        assert!(error.to_string().contains("13轴"), "{error}");
         tx.rollback().unwrap();
 
         // 状态列篡改 → 回读拒绝。
@@ -2009,7 +2010,7 @@ mod tests {
             &f.replaces,
         )
         .unwrap_err();
-        assert!(error.contains("catalog_axes"), "{error}");
+        assert!(error.to_string().contains("catalog_axes"), "{error}");
     }
 }
 

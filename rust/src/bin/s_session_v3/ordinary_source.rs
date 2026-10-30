@@ -1115,7 +1115,7 @@ mod tests {
             .err()
             .unwrap();
         assert_eq!(new, old);
-        assert!(new.contains("真实完整八字段原件"));
+        assert!(new.to_string().contains("真实完整八字段原件"));
         assert_eq!(book.stats.invalidations, 1);
     }
     #[test]
@@ -1176,7 +1176,7 @@ mod tests {
             .err()
             .unwrap();
         assert_eq!(new, old);
-        assert!(new.contains("形态窗口"));
+        assert!(new.to_string().contains("形态窗口"));
         assert!(book.stats.invalidations > 0);
     }
     #[test]

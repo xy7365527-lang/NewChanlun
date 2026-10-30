@@ -1060,7 +1060,7 @@ mod tests {
         sc::verify(&mut s, &next).unwrap();
         let expected = full(&mut s, &next, &raw, &rule).unwrap_err();
         assert!(
-            expected.contains("源引用不是本cut的真实完整八字段原件"),
+            expected.to_string().contains("源引用不是本cut的真实完整八字段原件"),
             "{expected}"
         );
         let cut = FixtureCut::bind(&mut s, (&next).into(), (&raw).into(), &state).unwrap();
@@ -1102,7 +1102,7 @@ mod tests {
         sc::verify(&mut s, &next).unwrap();
         let expected = full(&mut s, &next, &raw, &rule).unwrap_err();
         assert!(
-            expected.contains("见证raw_bars不是同cut真实原始成员"),
+            expected.to_string().contains("见证raw_bars不是同cut真实原始成员"),
             "{expected}"
         );
         let cut = FixtureCut::bind(&mut s, (&next).into(), (&raw).into(), &state).unwrap();
@@ -1286,7 +1286,7 @@ mod tests {
             .advance(&mut s, cut)
             .err()
             .unwrap()
-            .contains("前根不匹配"));
+            .to_string().contains("前根不匹配"));
     }
     #[cfg(feature = "s_allocation_json_testonly")]
     #[test]

@@ -225,7 +225,7 @@ fn fmt_text(
     if let Some(error) = out.error {
         return Err(publish_err(error));
     }
-    result.map_err(publish_err)?;
+    result.map_err(|error| publish_err(error.to_string()))?;
     let text = std::str::from_utf8(&out.bytes).map_err(publish_err)?;
     if budget.is_none() {
         s.native_text(text).map_err(publish_err)
@@ -289,7 +289,7 @@ pub(super) struct Witness {
 impl Witness {
     #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     fn try_clone(&self) -> Result<Self, String> {
-        self.try_clone_admitted(&super::audit_store::NativeAdmission(None))
+        self.try_clone_admitted(&super::audit_store::NativeAdmission(None)).map_err(Into::into)
     }
     fn try_clone_admitted(&self, store: &(impl CodecRead + ?Sized)) -> Result<Self, PublishError> {
         Ok(Self {
@@ -321,7 +321,7 @@ impl Relation {
         )
     )]
     fn try_clone(&self) -> Result<Self, String> {
-        self.try_clone_admitted(&super::audit_store::NativeAdmission(None))
+        self.try_clone_admitted(&super::audit_store::NativeAdmission(None)).map_err(Into::into)
     }
     fn try_clone_admitted(&self, store: &(impl CodecRead + ?Sized)) -> Result<Self, PublishError> {
         Ok(Self {
@@ -347,7 +347,7 @@ pub(super) struct Observation {
 impl Observation {
     #[allow(dead_code, reason = "#1488 再合 #1608：8组合实测无调用方，保留不删")]
     fn try_clone(&self) -> Result<Self, String> {
-        self.try_clone_admitted(&super::audit_store::NativeAdmission(None))
+        self.try_clone_admitted(&super::audit_store::NativeAdmission(None)).map_err(Into::into)
     }
     fn try_clone_admitted(&self, store: &(impl CodecRead + ?Sized)) -> Result<Self, PublishError> {
         Ok(Self {
@@ -387,7 +387,7 @@ impl Index {
     }
     #[cfg_attr(not(test), allow(dead_code, reason = "#1488 再合 #1608：仅测试使用"))]
     fn clone_in(&self, budget: Option<OwnedBudget>) -> Result<Self, String> {
-        self.clone_in_admitted(budget, &super::audit_store::NativeAdmission(None))
+        self.clone_in_admitted(budget, &super::audit_store::NativeAdmission(None)).map_err(Into::into)
     }
     fn clone_in_admitted(
         &self,
@@ -1304,7 +1304,7 @@ fn state_members(
     name: &str,
 ) -> Result<CodecVec<RefValue>, String> {
     let members = field(s, state, name)?;
-    array_elements(s, &members)
+    array_elements(s, &members).map_err(Into::into)
 }
 
 #[cfg(test)]
@@ -2496,7 +2496,7 @@ pub(super) fn stage(
         batch,
         #[cfg(feature = "s_incremental")]
         None,
-    )
+    ).map_err(Into::into)
 }
 pub(super) fn stage_in_material(
     tx: &Transaction<'_>,

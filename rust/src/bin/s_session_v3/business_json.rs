@@ -71,7 +71,7 @@ impl RawEvents {
         &mut self,
         value: JsonView<'_>,
         work: &WorkScope,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         let Self::Native(owner) = self else {
             return Err("prototype_audit_allocation_incomplete：Native追加要求原始账拥有者".into());
         };
@@ -1420,8 +1420,8 @@ impl TextValue {
         column: usize,
         owner: Option<&OwnedBudget>,
         work: Option<&WorkScope>,
-    ) -> Result<Self, String> {
-        let text = row.text(column).map_err(|e| e.to_string())?;
+    ) -> Result<Self, PublishError> {
+        let text = row.text(column).map_err(PublishError::from)?;
         Self::from_str_admitted(text, owner, work)
     }
     pub fn optional_sql_admitted(
@@ -1429,10 +1429,10 @@ impl TextValue {
         column: usize,
         owner: Option<&OwnedBudget>,
         work: Option<&WorkScope>,
-    ) -> Result<Option<Self>, String> {
-        check_native_owner(owner, work).map_err(|e| e.to_string())?;
+    ) -> Result<Option<Self>, PublishError> {
+        check_native_owner(owner, work).map_err(PublishError::from)?;
         row.optional_text(column)
-            .map_err(|e| e.to_string())?
+            .map_err(PublishError::from)?
             .map(|text| Self::from_str_admitted(text, owner, work))
             .transpose()
     }
@@ -1903,10 +1903,10 @@ pub(crate) struct ScopedJsonArray<'work> {
 }
 impl<'work> ScopedJsonArray<'work> {
     /// 生产 Native 调用显式要求活动 scope；不接受 Option 形成缺省逃逸。
-    pub(crate) fn native(work: &'work WorkScope) -> Result<Self, String> {
+    pub(crate) fn native(work: &'work WorkScope) -> Result<Self, PublishError> {
         Self::new(None, Some(work))
     }
-    pub(crate) fn owned(allocation: &OwnedBudget) -> Result<Self, String> {
+    pub(crate) fn owned(allocation: &OwnedBudget) -> Result<Self, PublishError> {
         Self::new(Some(allocation), None)
     }
     /// 既有无 scope 兼容路径，不授予 Native 资格。
@@ -1919,10 +1919,10 @@ impl<'work> ScopedJsonArray<'work> {
     pub(crate) fn new(
         allocation: Option<&OwnedBudget>,
         work: Option<&'work WorkScope>,
-    ) -> Result<Self, String> {
-        check_native_owner(allocation, work).map_err(|e| e.to_string())?;
+    ) -> Result<Self, PublishError> {
+        check_native_owner(allocation, work).map_err(PublishError::from)?;
         let owner = if let Some(work) = work {
-            let permit = work.reserve_native(0).map_err(|e| e.to_string())?;
+            let permit = work.reserve_native(0).map_err(PublishError::from)?;
             JsonOwner::Plain(PlainJson::itemized_array(permit, Vec::new()))
         } else {
             #[cfg(not(feature = "s_allocation_json_testonly"))]
@@ -1934,9 +1934,9 @@ impl<'work> ScopedJsonArray<'work> {
         Ok(Self { owner, work })
     }
 
-    pub(crate) fn push(&mut self, value: JsonView<'_>) -> Result<(), String> {
+    pub(crate) fn push(&mut self, value: JsonView<'_>) -> Result<(), PublishError> {
         let Some(work) = self.work else {
-            return self.owner.push(value);
+            return self.owner.push(value).map_err(Into::into);
         };
         #[cfg_attr(
             not(feature = "s_allocation_json_testonly"),
@@ -1946,7 +1946,7 @@ impl<'work> ScopedJsonArray<'work> {
         else {
             return Err(work
                 .reject(sc::capture_allocation::scratch::ScratchFailure::Ledger)
-                .to_string());
+                .into());
         };
         push_native_array(parent, value, work)
     }
@@ -1961,7 +1961,7 @@ fn push_native_array(
     parent: &mut PlainJson,
     value: JsonView<'_>,
     work: &WorkScope,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     if parent.layout != NativeJsonLayout::ItemizedArray {
         return Err("prototype_audit_allocation_incomplete：追加不接受聚合Native数组许可".into());
     }
@@ -1973,18 +1973,18 @@ fn push_native_array(
         return Err("prototype_audit_allocation_incomplete：数组与追加域不是同父账".into());
     }
     // 父身份不等于操作资格；失败/失效work仍由原check_write拒绝。
-    let _operation = work.reserve_native(0).map_err(|e| e.to_string())?;
+    let _operation = work.reserve_native(0).map_err(PublishError::from)?;
     let rows = parent.value.as_array().expect("ScopedJsonArray只构造数组");
     let needed = rows
         .len()
         .checked_add(1)
-        .ok_or_else(|| NativeAdmission(Some(work)).native_overflow().to_string())?;
-    let grow = |capacity: usize| -> Result<usize, String> {
+        .ok_or_else(|| PublishError::from(NativeAdmission(Some(work)).native_overflow()))?;
+    let grow = |capacity: usize| -> Result<usize, PublishError> {
         Ok(needed
             .max(
                 capacity
                     .checked_mul(2)
-                    .ok_or_else(|| NativeAdmission(Some(work)).native_overflow().to_string())?,
+                    .ok_or_else(|| PublishError::from(NativeAdmission(Some(work)).native_overflow()))?,
             )
             .max(4))
     };
@@ -1995,12 +1995,11 @@ fn push_native_array(
         let capacity = grow(rows.capacity())?;
         let bytes = capacity
             .checked_mul(std::mem::size_of::<Value>())
-            .ok_or_else(|| NativeAdmission(Some(work)).native_overflow().to_string())?;
-        let permit = work.reserve_native(bytes).map_err(|e| e.to_string())?;
+            .ok_or_else(|| PublishError::from(NativeAdmission(Some(work)).native_overflow()))?;
+        let permit = work.reserve_native(bytes).map_err(PublishError::from)?;
         let mut rows = Vec::new();
         rows.try_reserve_exact(capacity).map_err(|_| {
-            work.reject(sc::capture_allocation::scratch::ScratchFailure::Allocation)
-                .to_string()
+            PublishError::from(work.reject(sc::capture_allocation::scratch::ScratchFailure::Allocation))
         })?;
         Some(PlainJson::itemized_array(permit, rows))
     } else {
@@ -2010,7 +2009,7 @@ fn push_native_array(
         let mut permits = sc::CodecVec::default();
         permits
             .try_reserve_native(work, grow(parent.child_permits.capacity())?)
-            .map_err(|e| e.to_string())?;
+            .map_err(PublishError::from)?;
         Some(permits)
     } else {
         None
@@ -2024,7 +2023,7 @@ fn push_native_array(
     else {
         return Err(work
             .reject(sc::capture_allocation::scratch::ScratchFailure::Ledger)
-            .to_string());
+            .into());
     };
     // 只有上面的固定 NativeAdmission 能产生该 child，未导入任何外来 owner。
     debug_assert!(child.permit.is_some() && child.child_permits.is_empty());
