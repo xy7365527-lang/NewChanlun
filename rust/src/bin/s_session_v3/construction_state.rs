@@ -422,9 +422,7 @@ impl PendingRawState {
             return Err(stale("旧夹持已失效；必须显式重建 owner").into());
         }
         if raw.budget().is_some() {
-            return Err(
-                stale("Owned RawPrefixIndex 尚无同账实现；禁止 Plain fallback").into(),
-            );
+            return Err(stale("Owned RawPrefixIndex 尚无同账实现；禁止 Plain fallback").into());
         }
         #[cfg(feature = "s_incremental")]
         let retained = previous.as_ref().map_or(0, |p| p.retained);

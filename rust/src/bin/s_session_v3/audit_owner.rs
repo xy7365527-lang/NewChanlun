@@ -5913,7 +5913,7 @@ pub(super) mod construction_tests {
         )
         .unwrap();
         owner.continue_with(cold.read_end().unwrap()).unwrap();
-        let mut active = owner.begin(TransactionBehavior::Immediate).unwrap();
+        let active = owner.begin(TransactionBehavior::Immediate).unwrap();
         active.bind_existing(Some(&context)).unwrap();
         let resources = active.issue_publication_resources(&context).unwrap();
         let work = resources.budget.codec_work().unwrap();
