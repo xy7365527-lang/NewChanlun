@@ -3999,6 +3999,40 @@ mod tests {
         (nodes, entries)
     }
     #[cfg(feature = "s_incremental")]
+    #[test]
+    fn publication_object_bind_real_budget_preserves_origin() {
+        use sc::capture_allocation::scratch::{failure_trace, ScratchFailure, WorkError};
+        let mut db = database();
+        let tx = db.transaction().unwrap();
+        let (nodes, entries) = shape_leaf_fixture(&tx);
+        let capture = sc::AuditCapture::new(nodes);
+        for shape in [false, true] {
+            let entry = entries.iter().find(|entry| entry.slot.is_shape() == shape).unwrap();
+            let mut ordinary = super::super::history::HashReader::captured_for_audit(&capture, None).unwrap();
+            bind_originals(&mut ordinary, entry, &mut None).unwrap();
+            let budget = super::super::audit_owner::native::Budget::new(8 * 1024 * 1024, 0).unwrap();
+            let work = budget.codec_work().unwrap();
+            let mut returned = None;
+            let (run, trace) = failure_trace::capture(|| {
+                work.run(|scope| {
+                    let mut reader = super::super::history::HashReader::captured_for_audit(&capture, None)
+                        .map_err(PublishError::from)?
+                        .with_codec_work(scope, &budget);
+                    let ballast = scope.reserve_native(budget.remaining()).unwrap();
+                    let result = bind_originals(&mut reader, entry, &mut None).map_err(PublishError::from);
+                    returned = result.as_ref().err().cloned();
+                    drop(ballast);
+                    result
+                })
+            });
+            assert!(matches!(run, Err(WorkError::Resource(ScratchFailure::Budget))), "{run:?}");
+            assert!(trace.only_resource(), "{trace:?}");
+            let error = returned.expect("真实对象绑定预算失败须返回原错误");
+            assert!(trace.bridges(&error), "对象绑定的真实资源来源须穿过字段与原件边界：shape={shape}, {error:?}");
+        }
+    }
+
+    #[cfg(feature = "s_incremental")]
     fn shape_leaf_pairs(
         nodes: &mut sc::MemoryNodes,
         entries: &[Entry],
