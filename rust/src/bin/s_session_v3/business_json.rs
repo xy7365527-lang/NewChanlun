@@ -3803,3 +3803,15 @@ mod raw_events_layout_tests {
         assert_eq!(budget.live(), initial);
     }
 }
+
+#[cfg(all(test, feature = "s_incremental"))]
+impl RawPrefixFacts {
+    pub(super) fn h1_canonical(&self) -> Value {
+        let Self { prefix, winners, ordered, coordinates } = self;
+        let mut winners = winners.iter().map(|(key, value)| json!([key.as_str(), value])).collect::<Vec<_>>();
+        winners.sort_by_key(crate::canonical_json);
+        let mut coordinates = coordinates.iter().map(|(key, value)| json!([key, value])).collect::<Vec<_>>();
+        coordinates.sort_by_key(crate::canonical_json);
+        json!({"prefix":prefix,"winners":winners,"ordered":ordered.iter().map(|(k,v)|json!([k,v])).collect::<Vec<_>>(),"coordinates":coordinates})
+    }
+}

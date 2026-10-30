@@ -5472,3 +5472,19 @@ mod owner_retention {
         originals
     });
 }
+
+#[cfg(all(test, feature = "s_incremental"))]
+impl NativeRawFacts {
+    pub(super) fn h1_canonical(&self) -> Value {
+        fn source(s: &Source) -> Value {
+            let Source { wire, numeric, raw, bar } = s;
+            json!({"wire":wire,"numeric":numeric,"raw":raw,"bar":bar})
+        }
+        let Self { winners, sources, originals } = self;
+        let mut sources = sources.iter().map(|(k,v)|json!([k,source(v)])).collect::<Vec<_>>();
+        sources.sort_by_key(crate::canonical_json);
+        let mut originals = originals.iter().map(|(k,(seq,s))|json!([k,seq,source(s)])).collect::<Vec<_>>();
+        originals.sort_by_key(crate::canonical_json);
+        json!({"winners":winners.h1_canonical(),"sources":sources,"originals":originals})
+    }
+}

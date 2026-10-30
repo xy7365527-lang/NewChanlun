@@ -3192,3 +3192,25 @@ mod transaction_material_qualification {
         super::super::ordinary_materials::LAST_REPORT.with(|r| assert!(r.get().is_none()));
     }
 }
+
+/// #1481 对拍规范输出：逐字段完整语义载荷；不包含分配许可、容量或测试计数。
+/// Optional Native facts按实际状态逐字段保留，不能用计数/fingerprint代替。
+#[cfg(all(test, feature = "s_incremental"))]
+impl ImmutableHistoricalAudit {
+    pub(super) fn h1_canonical(&self) -> String {
+        let Self { control_facts, raw_prefixes, raw_sources, auxiliary_facts, object_facts,
+            cuts, objects, auxiliary } = self;
+        canonical_json(&json!({
+            "schema":"immutable-historical-audit/1",
+            "control_facts":control_facts.h1_canonical(),
+            "raw_prefixes":raw_prefixes.as_ref().map(history::NativeRawPrefixes::h1_canonical),
+            "raw_sources":raw_sources.as_ref().map(source_audit::NativeRawFacts::h1_canonical),
+            "auxiliary_facts":auxiliary_facts.as_ref().map(aux_index::NativeAuxFacts::h1_canonical),
+            "object_facts":object_facts.as_ref().map(object_index::HistorySweep::h1_canonical),
+            "cuts":cuts.iter().map(|c| { let history::PublishedCut { metadata, roots, batch_id, snapshot, delta } = c;
+                json!({"metadata":metadata,"roots":roots,"batch_id":batch_id,"snapshot":snapshot,"delta":delta}) }).collect::<Vec<_>>(),
+            "objects":objects.iter().map(object_index::Entry::h1_canonical).collect::<Vec<_>>(),
+            "auxiliary":auxiliary.h1_canonical(),
+        }))
+    }
+}

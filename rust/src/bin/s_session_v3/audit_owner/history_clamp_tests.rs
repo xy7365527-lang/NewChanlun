@@ -26,10 +26,12 @@ fn h1_real_own_accept_begin_publish_continues_same_life() {
     for n in 2..=3 {
         let envelope = b2_envelope(n);
         let token = b2_accept_begin(&owner, &envelope, &mut c);
+        h1_compare_complete_history(&owner);
         let (receipt, ended) = owner.publish(&mut runtime, &token, &envelope, &mut c).unwrap();
         assert_eq!(receipt.generation, n);
         owner.continue_with(ended).unwrap();
         owner.assert_complete_matches_cold();
+        h1_compare_complete_history(&owner);
         assert!(!owner.retired.get());
     }
 }
@@ -37,7 +39,7 @@ fn h1_real_own_accept_begin_publish_continues_same_life() {
 fn h1_other_connection_commit_is_sticky_stale() {
     let f = fixture();
     let owner = h1_owner(&f);
-    f.conn.execute("UPDATE meta SET value=value WHERE key='generation'", []).unwrap();
+    f.conn.execute("UPDATE meta SET value='999' WHERE key='generation'", []).unwrap();
     h1_assert_stale(&owner);
 }
 #[test]
@@ -113,4 +115,33 @@ fn h1_sqlite_commit_failure_does_not_advance_clamp() {
     assert!(owner.retired.get());
     let after: i64 = f.conn.query_row("SELECT COUNT(*) FROM raw_events", [], |r| r.get(0)).unwrap();
     assert_eq!(before, after);
+}
+
+fn h1_compare_complete_history(owner: &AuditConnection) {
+    let active = owner.begin(TransactionBehavior::Deferred).unwrap();
+    let complete = owner.complete.borrow();
+    let online = complete.as_ref().unwrap().audited.h1_canonical();
+    // 全量原件oracle只在测试中调用；保留全部Native语义事实，不降成fingerprint。
+    let cold = state::audit_native_current(active.tx()).unwrap();
+    let expected = cold.h1_canonical();
+    if online != expected {
+        let first = online.bytes().zip(expected.bytes()).position(|(a,b)|a!=b).unwrap_or(online.len().min(expected.len()));
+        panic!("完整历史规范输出不同：byte={first}, online={}, cold={}",
+            String::from_utf8_lossy(&online.as_bytes()[first.saturating_sub(80)..(first+240).min(online.len())]),
+            String::from_utf8_lossy(&expected.as_bytes()[first.saturating_sub(80)..(first+240).min(expected.len())]));
+    }
+    drop(cold); drop(complete);
+    active.read_end().unwrap();
+}
+#[test]
+fn h1_complete_canonical_empty_history_is_deterministic() {
+    let f = prepared::tests::Fixture::new();
+    let owner = h1_owner(&f);
+    let active = owner.begin(TransactionBehavior::Deferred).unwrap();
+    let first = state::audit_native_current(active.tx()).unwrap();
+    let second = state::audit_native_current(active.tx()).unwrap();
+    assert!(first.cuts.is_empty());
+    assert_eq!(first.h1_canonical(), second.h1_canonical());
+    drop((first, second));
+    active.read_end().unwrap();
 }

@@ -8957,3 +8957,18 @@ mod manifest_template_coverage_tests {
         assert_eq!(gate.later_reads, 0, "停止门之前不得预读下一成员正文");
     }
 }
+
+#[cfg(all(test, feature = "s_incremental"))]
+impl NativeRawPrefixes {
+    pub(super) fn h1_canonical(&self) -> Value {
+        fn array(value: &PrefixArray) -> Value {
+            let PrefixArray { count, stack } = value;
+            json!({"count":count,"stack":stack.as_ref()})
+        }
+        let Self { raw_nodes, raw_wire_nodes, prefixes, ordered } = self;
+        let NativeHistoryPrefixes { raw, wire, effective, last_coord } = prefixes;
+        json!({"raw_nodes":raw_nodes.as_ref(),"raw_wire_nodes":raw_wire_nodes.as_ref(),
+            "prefixes":{"raw":array(raw),"wire":array(wire),"effective":effective.as_ref().map(array),"last_coord":last_coord},
+            "ordered":ordered.h1_canonical()})
+    }
+}
