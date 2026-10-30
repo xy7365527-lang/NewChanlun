@@ -816,3 +816,24 @@ fn native_n1_seal_qualification_error_does_not_replace_earlier_owner_error() {
     assert_eq!(with_owner(|tls| tls.gate.phase()), Some(Phase::Precheck));
     let _ = owner.destroy(&mut errors);
 }
+
+#[test]
+fn native_n1_close_blob_busy_keeps_real_callbacks() {
+    let (gate, _, _) = gate_with(60_000, 1 << 20);
+    let owner = NativeOwner::begin(hooks(), gate, [(1, 1), (0, 1), (0, 2)], 0, identity_bound()).unwrap();
+    let conn = rusqlite::Connection::open_in_memory().unwrap();
+    conn.execute_batch("CREATE TABLE payload(data BLOB); INSERT INTO payload VALUES(zeroblob(8));").unwrap();
+    let mut blob = std::ptr::null_mut();
+    assert_eq!(unsafe { rusqlite::ffi::sqlite3_blob_open(conn.handle(), c"main".as_ptr(), c"payload".as_ptr(), c"data".as_ptr(), 1, 0, &mut blob) }, rusqlite::ffi::SQLITE_OK);
+    assert!(unsafe { rusqlite::ffi::sqlite3_next_stmt(conn.handle(), std::ptr::null_mut()) }.is_null());
+    let callbacks = std::sync::Arc::new(AtomicU64::new(0));
+    let observed = callbacks.clone();
+    conn.progress_handler(1, Some(move || { observed.fetch_add(1, Ordering::Relaxed); false })).unwrap();
+    let mut errors = NativeErrors::default();
+    let bundle = match owner.teardown(conn, &mut errors) { Teardown::Alive(b) => b, _ => panic!("blob BUSY") };
+    bundle.conn.execute_batch("SELECT 1;").unwrap();
+    let calls = callbacks.load(Ordering::Relaxed);
+    assert_eq!(unsafe { rusqlite::ffi::sqlite3_blob_close(blob) }, rusqlite::ffi::SQLITE_OK);
+    assert!(matches!(bundle.owner.teardown(bundle.conn, &mut errors), Teardown::Destroyed(_)));
+    assert!(calls > 0, "真实blob BUSY后progress回调仍须执行");
+}
