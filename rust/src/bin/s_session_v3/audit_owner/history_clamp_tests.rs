@@ -257,21 +257,8 @@ fn h1_missing_commit_receipt_retires_after_real_commit() {
 }
 
 
-fn h1_install_cold_certificate(owner: &AuditConnection) {
-    let active = owner.begin(TransactionBehavior::Deferred).unwrap();
-    let native = owner.complete_budget_for_test();
-    let cert = native.codec_work().unwrap().run(|scope| {
-        state::HistoricalCertificate::cold(active.tx(), None, None, Some(scope))
-    }).unwrap();
-    let audited = cert.into_audited();
-    let mut complete = owner.complete.borrow_mut();
-    let candidate = complete.as_mut().unwrap();
-    assert_eq!(candidate.audited.h1_canonical(), audited.h1_canonical());
-    candidate.charge.historical_and_raw_capacity =
-        crate::v3::audit_retention::Retained::heap_bytes(&audited);
-    candidate.audited = audited;
-    drop(complete);
-    active.read_end().unwrap();
+fn h1_certified_owner(f: &prepared::tests::Fixture, c: &mut request_audit::RequestAuditContext) -> AuditConnection {
+    AuditConnection::open_certified_history_component(&f.db_path(), 1 << 20, None, c).unwrap()
 }
 
 #[test]
@@ -288,14 +275,15 @@ fn h1_certified_online_consumes_source_receipt_and_matches_cold() {
         let (envelope, token) = ordinary.accept_begin(n, row, revision);
         ordinary.publish(&envelope, &token).unwrap();
         super::super::with_test_writer_rule(Some(rule), || {
-            let owner = h1_owner(&f);
-            let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
             let mut c = context();
+            let (owner, events, _) = state::traced(false, || h1_certified_owner(&f, &mut c));
+            assert!(events.iter().any(|e| e["phase"] == "h1_certified_cut" && e["generation"] == 1));
+            h1_compare_complete_history(&owner);
+            let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
             construction_set::with_source_context_negatives_for_test(|| {
                 for (n, row, revision) in LAYOUT_MULTICUT_INPUTS.into_iter().skip(1) {
                     let (envelope, plain_token) = ordinary.accept_begin(n, row, revision);
                     let token = b2_accept_begin(&owner, &envelope, &mut c);
-                    if n == 2 { h1_install_cold_certificate(&owner); }
                     h1_compare_complete_history(&owner);
                     source_audit::reset_source_call_stats();
                     let (result, events, _) = state::traced(false, || {
@@ -322,12 +310,11 @@ fn h1_certified_online_consumes_source_receipt_and_matches_cold() {
 #[test]
 fn h1_certified_online_without_source_receipt_rejects_without_full_fallback() {
     let f = fixture();
-    let owner = h1_owner(&f);
-    let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
     let mut c = context();
+    let owner = h1_certified_owner(&f, &mut c);
+    let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
     let envelope = b2_envelope(2);
     let token = b2_accept_begin(&owner, &envelope, &mut c);
-    h1_install_cold_certificate(&owner);
     let native = owner.complete_budget_for_test();
     state::H1_DROP_SOURCE_RECEIPT.with(|flag| flag.set(true));
     source_audit::reset_source_call_stats();
@@ -343,4 +330,71 @@ fn h1_certified_online_without_source_receipt_rejects_without_full_fallback() {
     assert!(owner.connection.is_autocommit());
     assert_eq!(owner.complete_retained_bytes(), 0);
     assert_eq!(native.scratch_observation().0, 0);
+}
+
+#[test]
+fn h1_certified_open_empty_and_reopen_from_originals() {
+    let f = prepared::tests::Fixture::new();
+    for n in 1..=3 {
+        let mut c = context();
+        let (owner, events, _) = state::traced(false, || h1_certified_owner(&f, &mut c));
+        let generations = events.iter().filter(|e| e["phase"] == "h1_certified_cut")
+            .map(|e| e["generation"].as_i64().unwrap()).collect::<Vec<_>>();
+        assert_eq!(generations, (1..n).collect::<Vec<_>>());
+        h1_compare_complete_history(&owner);
+        let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
+        h1_publish_round(&owner, &mut runtime, &mut c, n);
+        assert_eq!(owner.complete.borrow().as_ref().unwrap().audited.cuts.len(), n as usize);
+    }
+}
+
+#[test]
+fn h1_certified_missing_candidate_and_mode_switch_are_sticky_stale() {
+    let f = fixture();
+    for missing in [true, false] {
+        let mut c = context();
+        let owner = h1_certified_owner(&f, &mut c);
+        if missing { owner.drop_complete_for_test(); }
+        source_audit::reset_source_call_stats();
+        let active = owner.begin(TransactionBehavior::Deferred).unwrap();
+        let mode = if missing { s_allocation::Mode::CapturedNative } else { s_allocation::Mode::Ordinary };
+        assert!(active.audit_admission(&json!({"payload":{"op":"ready"}}), &mode, &mut c).is_err());
+        drop(active);
+        assert!(owner.retired.get());
+        assert_eq!(source_audit::source_call_stats(), source_audit::SourceCallStats::default());
+        assert_eq!(owner.complete_retained_bytes(), 0);
+        assert!(owner.connection.is_autocommit());
+        h1_assert_stale(&owner);
+    }
+}
+
+#[test]
+fn h1_certified_open_failures_leave_no_candidate_or_write() {
+    use prepared::tests::runtime_root_tables;
+    let f = fixture();
+    let before = runtime_root_tables(&f.conn, true);
+    for (limit, deadline) in [
+        (536_870_912, Some(std::time::Instant::now() - std::time::Duration::from_secs(1))),
+        (1024, None),
+    ] {
+        let mut c = request_audit::RequestAuditContext::with_source_keeper(cross_request_source_cache::Keeper::new(limit));
+        c.freeze_manifest_workspace_budget(limit, 0, 0).unwrap();
+        let parent = c.prepare_parent(None).unwrap().allocation_parent().clone();
+        let baseline = parent.live();
+        assert!(AuditConnection::open_certified_history_component(&f.db_path(), 1 << 20, deadline, &mut c).is_err());
+        assert!(!c.has_slot());
+        assert_eq!(parent.live(), baseline);
+        assert_eq!(parent.scratch_observation().0, 0);
+        assert_eq!(runtime_root_tables(&f.conn, true), before);
+    }
+    f.conn.execute("UPDATE s_content_publications SET batch_id='damaged'", []).unwrap();
+    let damaged = runtime_root_tables(&f.conn, true);
+    let mut c = context();
+    let parent = c.prepare_parent(None).unwrap().allocation_parent().clone();
+    let baseline = parent.live();
+    assert!(AuditConnection::open_certified_history_component(&f.db_path(), 1 << 20, None, &mut c).is_err());
+    assert!(!c.has_slot());
+    assert_eq!(parent.live(), baseline);
+    assert_eq!(parent.scratch_observation().0, 0);
+    assert_eq!(runtime_root_tables(&f.conn, true), damaged);
 }

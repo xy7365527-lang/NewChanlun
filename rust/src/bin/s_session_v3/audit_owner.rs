@@ -213,6 +213,8 @@ pub(super) struct AuditConnection {
     connection: Connection,
     #[cfg(all(feature = "s_incremental", unix))]
     history_clamp: std::cell::RefCell<Option<history_clamp::Clamp>>,
+    #[cfg(all(feature = "s_incremental", unix))]
+    require_historical_certificate: bool,
     life: u64,
     retired: Cell<bool>,
     next_transaction: Cell<u64>,
@@ -327,6 +329,8 @@ impl AuditConnection {
             connection,
             #[cfg(all(feature = "s_incremental", unix))]
             history_clamp: Default::default(),
+            #[cfg(all(feature = "s_incremental", unix))]
+            require_historical_certificate: false,
             life,
             retired: Cell::new(false),
             next_transaction: Cell::new(0),
@@ -350,6 +354,32 @@ impl AuditConnection {
         *owner.history_clamp.borrow_mut() = Some(history_clamp::Clamp::open(&owner.connection, db, control_limit)?);
         let active = owner.begin(TransactionBehavior::Deferred)?;
         active.read_end()?;
+        Ok(owner)
+    }
+
+    #[cfg(all(feature = "s_incremental", unix))]
+    #[allow(dead_code, reason = "#1481 H1生产接线受#1645/#1491批准门约束")]
+    pub(super) fn open_certified_history_component(
+        db: &Path,
+        control_limit: usize,
+        deadline: Option<std::time::Instant>,
+        context: &mut request_audit::RequestAuditContext,
+    ) -> Result<Self, String> {
+        let mut owner = Self::open_history_component(db, control_limit)?;
+        let result = (|| {
+            if !context.source_cache_enabled() {
+                return Err(invalid("历史认证组件要求已冻结的Native请求域"));
+            }
+            let active = owner.begin(TransactionBehavior::Deferred)?;
+            active.seed_historical_certificate(deadline, context)?;
+            let ended = active.read_end()?;
+            history::check_deadline(deadline)?;
+            owner.continue_with(ended)?;
+            Ok(())
+        })();
+        if result.is_err() { drop(context.take()); }
+        owner.history_result(result)?;
+        owner.require_historical_certificate = true;
         Ok(owner)
     }
 
@@ -1103,6 +1133,47 @@ impl AuditConnection {
 }
 
 impl AuditTxn<'_> {
+    #[cfg(all(feature = "s_incremental", unix))]
+    fn seed_historical_certificate(
+        &self,
+        deadline: Option<std::time::Instant>,
+        context: &mut request_audit::RequestAuditContext,
+    ) -> Result<(), String> {
+        history::check_deadline(deadline)?;
+        let parent = match context.request_parent_budget() {
+            Some(parent) => parent,
+            None => context.prepare_parent(None)?.allocation_parent().clone(),
+        };
+        let seal = SnapshotSeal {
+            life: self.owner.life,
+            transaction_id: self.transaction_id,
+            write_sequence: self.write_sequence,
+            data_version: self.data_version,
+            schema_version: self.schema_version,
+            domain: self.read_domain()?,
+        };
+        let failure = |error: native::Failure| match error {
+            native::Failure::BudgetExceeded => invalid("冷认证父预算不足"),
+            native::Failure::Invalid(error) => error,
+        };
+        let mut candidate = parent.codec_work().map_err(failure)?.run(|work| {
+            let audited = state::HistoricalCertificate::cold_for_request(
+                self.tx(), deadline, work, context,
+            )?;
+            let slot = context.take().ok_or_else(|| invalid("冷认证缺完整原件槽"))?;
+            CompleteCandidate::capture(
+                self.tx(), seal, slot, audited,
+                context.complete_workspace_limit(), context.complete_entry_reserved_bytes(),
+                Some(&parent),
+            )?.map_err(|_| invalid("冷认证完整候选超过请求预算"))
+        }).map_err(|error| failure(native::Failure::from(error)))?;
+        candidate.resources = context.bind_complete_budget(&candidate.resources)?;
+        history::check_deadline(deadline)?;
+        self.check_history()?;
+        *self.complete.borrow_mut() = Some(candidate);
+        Ok(())
+    }
+
     #[cfg(all(feature = "s_incremental", unix))]
     fn check_history(&self) -> Result<(), String> {
         let result = match self.owner.history_clamp.borrow_mut().as_mut() {
@@ -2014,6 +2085,12 @@ impl AuditTxn<'_> {
         mode: &s_allocation::Mode,
         context: &mut request_audit::RequestAuditContext,
     ) -> Result<(), String> {
+        #[cfg(all(feature = "s_incremental", unix))]
+        if self.owner.require_historical_certificate
+            && (!matches!(mode, s_allocation::Mode::CapturedNative) || !context.source_cache_enabled())
+        {
+            return self.owner.history_result(Err(history_clamp::stale("认证生涯不能切换到非认证准入")));
+        }
         #[cfg(feature = "s_incremental")]
         if self.owner.construction.borrow().is_some()
             && (!matches!(mode, s_allocation::Mode::CapturedNative)
@@ -2079,6 +2156,10 @@ impl AuditTxn<'_> {
                 }
                 // 尚未建立增量游标的独立冷入口保持既有完整审计。
                 drop(candidate);
+            }
+            #[cfg(unix)]
+            if self.owner.require_historical_certificate {
+                return self.owner.history_result(Err(history_clamp::stale("认证生涯丢失历史候选，禁止完整审计兜底")));
             }
             if self.owner.construction.borrow().is_some() {
                 self.owner.invalidate_construction();
@@ -3120,6 +3201,10 @@ impl AuditTxn<'_> {
         #[cfg(feature = "s_incremental")]
         {
             let reject_warm = || {
+                #[cfg(unix)]
+                if self.owner.require_historical_certificate {
+                    return self.owner.history_result(Err(history_clamp::stale("认证生涯缺同快照历史候选")));
+                }
                 if self.owner.construction.borrow().is_some() {
                     self.owner.invalidate_construction();
                     Err(construction_state::stale(
@@ -3129,7 +3214,8 @@ impl AuditTxn<'_> {
                     Ok(false)
                 }
             };
-            let Some(mut candidate) = self.owner.complete.borrow_mut().take() else {
+            let prior = self.owner.complete.borrow_mut().take();
+            let Some(mut candidate) = prior else {
                 return reject_warm();
             };
             let seal = SnapshotSeal {

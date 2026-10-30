@@ -1259,12 +1259,42 @@ impl HistoricalCertificate {
         budget: Option<&dyn audit_budget::Budget>,
         work: Option<&sc::capture_allocation::scratch::WorkScope>,
     ) -> Result<Self, String> {
+        Self::cold_captured(tx, deadline, budget, work).map(|(cert, _, _)| cert)
+    }
+
+    pub(super) fn cold_for_request(
+        tx: &Transaction<'_>,
+        deadline: Option<std::time::Instant>,
+        work: &sc::capture_allocation::scratch::WorkScope,
+        context: &mut super::request_audit::RequestAuditContext,
+    ) -> Result<AuditedState, String> {
+        drop(context.take());
+        let (cert, capture, node_count) = Self::cold_captured(tx, deadline, None, Some(work))?;
+        let AuditedState { raw, budget, historical, certification } = cert.audited;
+        let HistoricalOwner::Unique(result) = historical else { unreachable!() };
+        let result = super::native_shared::NativeRc::try_new_shallow(result, Some(work)).map_err(err)?;
+        let binding = super::request_audit::HistoricalDependencyBinding::read_admitted(
+            tx, &result, Some(work),
+        )?;
+        history::check_deadline(deadline)?;
+        context.retain(binding, capture, node_count, result.clone(), false, None);
+        Ok(AuditedState {
+            raw, budget, historical: HistoricalOwner::Shared(result), certification,
+        })
+    }
+
+    fn cold_captured(
+        tx: &Transaction<'_>,
+        deadline: Option<std::time::Instant>,
+        budget: Option<&dyn audit_budget::Budget>,
+        work: Option<&sc::capture_allocation::scratch::WorkScope>,
+    ) -> Result<(Self, sc::AuditCapture, usize), String> {
         history::check_deadline(deadline)?;
         if let Some(budget) = budget {
             budget.precheck().map_err(err)?;
         }
         let measure = audit_budget::NativeMeasure { budget, deadline };
-        let (capture, _) = content_store::capture_for_request_prototype_admitted_measured(
+        let (capture, node_count) = content_store::capture_for_request_prototype_admitted_measured(
             tx, work, Some(&measure),
         ).map_err(err)?;
         let capture = capture.enable_native_frame_reuse_admitted(work).map_err(err)?;
@@ -1308,7 +1338,8 @@ impl HistoricalCertificate {
             control_facts, raw_prefixes, auxiliary_facts, cuts, objects,
             auxiliary, object_sweep,
         } = indexed;
-        Ok(Self {
+        drop(store);
+        Ok((Self {
             audited: AuditedState {
                 budget: raw.budget().cloned(),
                 raw,
@@ -1318,7 +1349,7 @@ impl HistoricalCertificate {
                     object_facts: object_sweep, cuts, objects, auxiliary,
                 }),
             },
-        })
+        }, capture, node_count))
     }
 
     pub(super) fn historical(&self) -> &ImmutableHistoricalAudit {
