@@ -32,7 +32,6 @@ pub(super) struct Stats {
 #[derive(Clone, Copy)]
 struct Layout {
     entries: usize,
-    buckets: usize,
     body_start: usize,
     len: usize,
 }
@@ -50,7 +49,6 @@ impl Layout {
         }
         Some(Self {
             entries,
-            buckets,
             body_start,
             len,
         })
