@@ -1103,17 +1103,170 @@ pub(crate) struct DestroyedReceipt {
     token: u64,
 }
 
-pub(crate) struct AliveBundle {
-    pub(crate) conn: rusqlite::Connection,
-    pub(crate) owner: NativeOwner,
+/// 连接、回调与 N1 账本只可作为一个整体移动；不导出 Connection/InterruptHandle。
+pub(crate) struct NativeSession {
+    state: Option<NativeSessionState>,
+}
+
+struct NativeSessionState {
+    owner: NativeOwner,
+    raw: *mut rusqlite::ffi::sqlite3,
+    view: Option<rusqlite::Connection>,
+    progress: Option<Box<ProgressCallback>>,
+    authorizer: Option<Box<AuthorizerCallback>>,
+}
+
+type ProgressCallback = Box<dyn FnMut() -> bool + Send>;
+type AuthorizerCallback = Box<dyn for<'a> FnMut(NativeAuthContext<'a>) -> rusqlite::hooks::Authorization + Send>;
+
+pub(crate) struct NativeAuthContext<'a> {
+    pub(crate) action: c_int,
+    pub(crate) arg1: Option<&'a CStr>,
+    pub(crate) arg2: Option<&'a CStr>,
+    pub(crate) database: Option<&'a CStr>,
+    pub(crate) trigger: Option<&'a CStr>,
+}
+
+unsafe extern "C" fn native_progress(context: *mut c_void) -> c_int {
+    let callback = &mut *context.cast::<ProgressCallback>();
+    catch_unwind(AssertUnwindSafe(|| callback())).unwrap_or(true) as c_int
+}
+
+unsafe extern "C" fn native_authorizer(
+    context: *mut c_void, action: c_int, arg1: *const c_char, arg2: *const c_char,
+    database: *const c_char, trigger: *const c_char,
+) -> c_int {
+    let text = |p: *const c_char| if p.is_null() { None } else { Some(CStr::from_ptr(p)) };
+    let callback = &mut *context.cast::<AuthorizerCallback>();
+    let event = NativeAuthContext { action, arg1: text(arg1), arg2: text(arg2), database: text(database), trigger: text(trigger) };
+    match catch_unwind(AssertUnwindSafe(|| callback(event))) {
+        Ok(rusqlite::hooks::Authorization::Allow) => rusqlite::ffi::SQLITE_OK,
+        Ok(rusqlite::hooks::Authorization::Ignore) => rusqlite::ffi::SQLITE_IGNORE,
+        _ => rusqlite::ffi::SQLITE_DENY,
+    }
+}
+
+pub(crate) struct NativeOpenError {
+    pub(crate) error: String,
+    pub(crate) session: NativeSession,
+}
+
+impl std::fmt::Debug for NativeOpenError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NativeOpenError").field("error", &self.error).finish_non_exhaustive()
+    }
 }
 
 pub(crate) enum Teardown {
     Destroyed(DestroyedReceipt),
-    Alive(AliveBundle),
+    Alive(NativeSession),
+}
+
+impl Drop for NativeSession {
+    fn drop(&mut self) {
+        // #1527 31O：未确认 sqlite3_close 成功，保留整包至单命令进程退出。
+        // 尤其不能让非 owning view 或 callback Box 先析构，留下 SQLite 的悬空回调。
+        if let Some(state) = self.state.take() { std::mem::forget(state); }
+    }
+}
+
+impl NativeSession {
+    pub(crate) fn progress_handler<F>(&mut self, num_ops: c_int, callback: F) -> Result<(), rusqlite::Error>
+    where F: FnMut() -> bool + Send + 'static {
+        let state = self.state.as_mut().expect("live session");
+        if state.view.is_none() { return Err(rusqlite::Error::InvalidQuery); }
+        let mut callback: Box<ProgressCallback> = Box::new(Box::new(callback));
+        unsafe { rusqlite::ffi::sqlite3_progress_handler(state.raw, num_ops, Some(native_progress), (&mut *callback as *mut ProgressCallback).cast()); }
+        state.progress = Some(callback);
+        Ok(())
+    }
+
+    pub(crate) fn authorizer<F>(&mut self, callback: F) -> Result<(), rusqlite::Error>
+    where F: for<'a> FnMut(NativeAuthContext<'a>) -> rusqlite::hooks::Authorization + Send + 'static {
+        let state = self.state.as_mut().expect("live session");
+        if state.view.is_none() { return Err(rusqlite::Error::InvalidQuery); }
+        let mut callback: Box<AuthorizerCallback> = Box::new(Box::new(callback));
+        let rc = unsafe { rusqlite::ffi::sqlite3_set_authorizer(state.raw, Some(native_authorizer), (&mut *callback as *mut AuthorizerCallback).cast()) };
+        if rc != rusqlite::ffi::SQLITE_OK { return Err(rusqlite::Error::SqliteFailure(rusqlite::ffi::Error::new(rc), None)); }
+        state.authorizer = Some(callback);
+        Ok(())
+    }
+
+    pub(crate) fn begin(&mut self) -> Result<NativeTransaction<'_>, rusqlite::Error> {
+        let state = self.state.as_mut().expect("live session");
+        let view = state.view.as_mut().ok_or(rusqlite::Error::InvalidQuery)?;
+        let tx = view.transaction()?;
+        Ok(NativeTransaction { tx, owner: &state.owner })
+    }
+
+    pub(crate) fn close(mut self, errors: &mut NativeErrors) -> Teardown {
+        let state = self.state.as_mut().expect("live session");
+        if let Some(first) = state.owner.first_error() { errors.record_first(first); }
+        if let Some(view) = &state.view { view.flush_prepared_statement_cache(); }
+        // 不经 rusqlite owned close：它会先 remove_hooks，BUSY 后已无法保持回调。
+        let rc = if state.raw.is_null() { rusqlite::ffi::SQLITE_OK } else { unsafe { rusqlite::ffi::sqlite3_close(state.raw) } };
+        if rc != rusqlite::ffi::SQLITE_OK {
+            let error = if rc == rusqlite::ffi::SQLITE_BUSY { NativeCode::CloseBusy.into() }
+                else { NativeError::Business(format!("NativeSqliteClose:{rc}")) };
+            errors.record_cleanup(error);
+            return Teardown::Alive(self);
+        }
+        let mut state = self.state.take().expect("closed session");
+        // 0.40.2: Drop 的 cache.clear 此刻为空；非 owning InnerConnection::close 仅置 null，
+        // 不 remove_hooks、不调用 SQLite。无 Connection/InterruptHandle 逃逸，也无新 SQL。
+        if let Some(view) = state.view.take() { drop(view); }
+        drop(state.progress.take());
+        drop(state.authorizer.take());
+        Teardown::Destroyed(state.owner.destroy(errors))
+    }
+}
+
+/// 同事务 audit → settle → seal → accept；不泄露 Transaction 的 Connection Deref。
+pub(crate) struct NativeTransaction<'a> {
+    tx: rusqlite::Transaction<'a>,
+    owner: &'a NativeOwner,
+}
+
+impl NativeTransaction<'_> {
+    pub(crate) fn audit(&self) -> Result<NativeAuditReceipt, String> { self.owner.audit_in(&self.tx) }
+    pub(crate) fn settle_shm(&self, measured: Result<u64, ()>) -> Result<(), NativeError> { self.owner.settle_shm(measured) }
+    pub(crate) fn seal(&self, started: StartedAdmission, audit: &NativeAuditReceipt, errors: &mut NativeErrors) -> Option<FinishedAdmission> {
+        self.owner.seal(started, audit, errors)
+    }
+    pub(crate) fn accept(&self, audit: &NativeAuditReceipt, text: &str, profile: &std::path::Path, epoch: &str, context: Option<&crate::v2::InputContext>) -> Result<serde_json::Value, String> {
+        self.owner.accept_in(&self.tx, audit, text, profile, epoch, context)
+    }
+    pub(crate) fn commit(self) -> Result<(), rusqlite::Error> { self.tx.commit() }
+    pub(crate) fn rollback(self) -> Result<(), rusqlite::Error> { self.tx.rollback() }
 }
 
 impl NativeOwner {
+    /// 只打开已存在的本地源；连接从出生到销毁不可替换成外来 Connection。
+    pub(crate) fn open(self, path: &std::path::Path) -> Result<NativeSession, NativeOpenError> {
+        use std::os::unix::ffi::OsStrExt;
+        let mut session = NativeSession { state: Some(NativeSessionState {
+            owner: self, raw: std::ptr::null_mut(), view: None, progress: None, authorizer: None,
+        }) };
+        let result = (|| -> Result<(), String> {
+            let state = session.state.as_mut().expect("opening session");
+            state.owner.recheck().map_err(|e| format!("{e:?}"))?;
+            let path = std::ffi::CString::new(path.as_os_str().as_bytes()).map_err(|_| "NativePathContainsNul")?;
+            let rc = state.owner.open_scope(|| unsafe {
+                rusqlite::ffi::sqlite3_open_v2(path.as_ptr(), &mut state.raw,
+                    rusqlite::ffi::SQLITE_OPEN_READWRITE | rusqlite::ffi::SQLITE_OPEN_PRIVATECACHE | rusqlite::ffi::SQLITE_OPEN_NOMUTEX,
+                    std::ptr::null())
+            });
+            if rc != rusqlite::ffi::SQLITE_OK { return Err(format!("NativeSqliteOpen:{rc}")); }
+            state.view = Some(unsafe { rusqlite::Connection::from_handle(state.raw) }.map_err(|e| e.to_string())?);
+            if let Some(error) = state.owner.first_error() { return Err(format!("{error:?}")); }
+            Ok(())
+        })();
+        match result {
+            Ok(()) => Ok(session),
+            Err(error) => Err(NativeOpenError { error, session }),
+        }
+    }
+
     /// 资格与预算在任何 SQLite 打开之前成立；缺 `A(len)` 先于登记拒绝。
     pub(crate) fn begin(
         hooks: &'static NativeHooks,
@@ -1180,7 +1333,7 @@ impl NativeOwner {
 
     /// 借 owner 的实际事务执行 D1 同一审计核；不另开事务或提交。
     /// S2 仍以 LegacyAdmissionBudgetAdapterMissing 拒绝，不借此新增成功域。
-    pub(crate) fn audit_in(&self, tx: &rusqlite::Transaction<'_>) -> Result<NativeAuditReceipt, String> {
+    fn audit_in(&self, tx: &rusqlite::Transaction<'_>) -> Result<NativeAuditReceipt, String> {
         use super::super::audit_budget::Budget;
         if let Some(error) = self.first_error() { return Err(format!("{error:?}")); }
         // recheck 属 final-open 之前的源检查；此处事务已打开，不能把当前 main 回执误判为旧 FD。
@@ -1204,7 +1357,7 @@ impl NativeOwner {
 
     /// 事务写核的受限消费者；只认同 owner 的审计收据，迁移仍使用原资格门。
     /// 当前 S2/S3 规则不相交，生产接线与成功域批准另行解决，不能跳过版本检查。
-    pub(crate) fn accept_in(
+    fn accept_in(
         &self,
         tx: &rusqlite::Transaction<'_>,
         audit: &NativeAuditReceipt,
@@ -1287,30 +1440,8 @@ impl NativeOwner {
         }
     }
 
-    /// 只用 sqlite3_close（rusqlite `Connection::close`，先 flush 语句缓存）；BUSY 时连接仍活，
-    /// 回调上下文、gate、延迟 FD 全部保留，不出收据。
-    pub(crate) fn teardown(self, conn: rusqlite::Connection, errors: &mut NativeErrors) -> Teardown {
-        if let Some(first) = self.first_error() {
-            errors.record_first(first);
-        }
-        // rusqlite 0.40.2 的 InnerConnection::close 在 sqlite3_close 前 remove_hooks。
-        // 未完成语句必须先检测；否则 BUSY 虽保留连接，progress/authorizer 上下文已被卸下。
-        conn.flush_prepared_statement_cache();
-        if !unsafe { rusqlite::ffi::sqlite3_next_stmt(conn.handle(), std::ptr::null_mut()) }.is_null() {
-            errors.record_cleanup(NativeCode::CloseBusy.into());
-            return Teardown::Alive(AliveBundle { conn, owner: self });
-        }
-        match conn.close() {
-            Err((conn, _)) => {
-                errors.record_cleanup(NativeCode::CloseBusy.into());
-                Teardown::Alive(AliveBundle { conn, owner: self })
-            }
-            Ok(()) => Teardown::Destroyed(self.destroy(errors)),
-        }
-    }
-
     /// 尚未打开连接（或连接已真实销毁）时的收尾。
-    pub(crate) fn destroy(self, errors: &mut NativeErrors) -> DestroyedReceipt {
+    fn destroy(self, errors: &mut NativeErrors) -> DestroyedReceipt {
         if let Some(first) = self.first_error() {
             errors.record_first(first);
         }

@@ -481,43 +481,6 @@ fn native_n1_l3b_first_error_survives_seal_and_cleanup_errors() {
 }
 
 #[test]
-fn native_n1_l3a_close_busy_keeps_callback_context_then_destroys() {
-    let (gate, _, _) = gate_with(60_000, 1 << 20);
-    let h = hooks();
-    let owner = NativeOwner::begin(h, gate, [(1, 1), (0, 1), (0, 2)], 0, identity_bound()).unwrap();
-    let conn = rusqlite::Connection::open_in_memory().unwrap();
-    let mut stmt: *mut rusqlite::ffi::sqlite3_stmt = std::ptr::null_mut();
-    let rc = unsafe {
-        rusqlite::ffi::sqlite3_prepare_v2(
-            conn.handle(),
-            c"select 1".as_ptr(),
-            -1,
-            &mut stmt,
-            std::ptr::null_mut(),
-        )
-    };
-    assert_eq!(rc, rusqlite::ffi::SQLITE_OK);
-    let callbacks = std::sync::Arc::new(AtomicU64::new(0));
-    let observed = std::sync::Arc::clone(&callbacks);
-    conn.progress_handler(1, Some(move || { observed.fetch_add(1, Ordering::Relaxed); false }));
-    let mut errors = NativeErrors::default();
-    let bundle = match owner.teardown(conn, &mut errors) {
-        Teardown::Alive(bundle) => bundle,
-        Teardown::Destroyed(_) => panic!("未 finalize 语句时 sqlite3_close 必 BUSY"),
-    };
-    assert_eq!(errors.cleanup(), &[NativeError::Code(NativeCode::CloseBusy)]);
-    assert!(with_owner(|_| ()).is_some(), "BUSY：gate/TLS 保留");
-    assert!(h.lock().active.is_some(), "BUSY：登记与延迟 FD 保留");
-    bundle.conn.execute_batch("SELECT 1;").unwrap();
-    assert!(callbacks.load(Ordering::Relaxed) > 0, "BUSY分支真实progress回调仍可执行");
-    assert_eq!(unsafe { rusqlite::ffi::sqlite3_finalize(stmt) }, rusqlite::ffi::SQLITE_OK);
-    let AliveBundle { conn, owner } = bundle;
-    assert!(matches!(owner.teardown(conn, &mut errors), Teardown::Destroyed(_)));
-    assert!(with_owner(|_| ()).is_none());
-    assert!(h.lock().active.is_none() && !h.active_any.load(Ordering::SeqCst));
-}
-
-#[test]
 fn native_n1_owner_rejects_second_owner_on_same_thread() {
     let h = hooks();
     let (g1, _, _) = gate_with(60_000, 1 << 20);
@@ -630,13 +593,13 @@ fn native_n1_s2_audit_keeps_original_missing_budget_adapter_rejection() {
     crate::tests::init_test_db(&files);
     let (gate, _, _) = gate_with(60_000, 1 << 20);
     let owner = NativeOwner::begin(hooks(), gate, [(1, 1), (0, 1), (0, 2)], 0, identity_bound()).unwrap();
-    let mut connection = crate::open_db(&files.db()).unwrap();
-    let tx = connection.transaction().unwrap();
-    let error = owner.audit_in(&tx).err().expect("旧证据图没有非 mixed 同源费用适配，不发收据");
+    let mut session = owner.open(&files.db()).unwrap();
+    let tx = session.begin().unwrap();
+    let error = tx.audit().err().expect("旧证据图没有非 mixed 同源费用适配，不发收据");
     assert!(error.starts_with("LegacyAdmissionBudgetAdapterMissing"), "{error}");
     tx.rollback().unwrap();
     let mut errors = NativeErrors::default();
-    assert!(matches!(owner.teardown(connection, &mut errors), Teardown::Destroyed(_)));
+    assert!(matches!(session.close(&mut errors), Teardown::Destroyed(_)));
 }
 
 fn native_s3_fixture() -> crate::tests::TestFiles {
@@ -660,23 +623,23 @@ fn native_n1_s3_real_audit_charges_original_job_and_keeps_s2_accept_version_gate
     let account = Rc::clone(&gate.job);
     let before = account.borrow().snapshot();
     let owner = NativeOwner::begin(hooks(), gate, [(1, 1), (0, 1), (0, 2)], 0, identity_bound()).unwrap();
-    let mut connection = rusqlite::Connection::open(files.db()).unwrap();
-    let tx = connection.transaction().unwrap();
-    let receipt = owner.audit_in(&tx).unwrap();
+    let mut session = owner.open(&files.db()).unwrap();
+    let tx = session.begin().unwrap();
+    let receipt = tx.audit().unwrap();
     assert_eq!(receipt.delta, crate::DeltaShape::Current);
     let after = account.borrow().snapshot();
     assert!(after.nodes > before.nodes && after.node_bytes > before.node_bytes);
     assert!(after.records > before.records);
     let mut errors = NativeErrors::default();
-    owner.settle_shm(Ok(0)).unwrap();
-    let mut finished = owner.seal(started, &receipt, &mut errors).expect("同一本 Job 完成 seal");
+    tx.settle_shm(Ok(0)).unwrap();
+    let mut finished = tx.seal(started, &receipt, &mut errors).expect("同一本 Job 完成 seal");
     assert!(Rc::ptr_eq(&account, &finished.job));
     assert_eq!(with_owner(|tls| tls.gate.phase()), Some(Phase::Writer));
-    let error = owner.accept_in(&tx, &receipt, &native_input(),
+    let error = tx.accept(&receipt, &native_input(),
         &crate::tests::fixture("profiles/testonly_tick_1_1_ohlc.json"), crate::DEFAULT_WRITER_EPOCH, None).unwrap_err();
     assert!(error.starts_with("VersionMismatch"), "S3审计成功不能充作S2写资格：{error}");
     tx.rollback().unwrap();
-    let destroyed = match owner.teardown(connection, &mut errors) {
+    let destroyed = match session.close(&mut errors) {
         Teardown::Destroyed(receipt) => receipt,
         Teardown::Alive(_) => panic!("事务已关闭"),
     };
@@ -817,23 +780,160 @@ fn native_n1_seal_qualification_error_does_not_replace_earlier_owner_error() {
     let _ = owner.destroy(&mut errors);
 }
 
+
+// ------------------------------------------------------------ 31Y 单 owner 连接关闭域
+
+fn close_fixture(tag: &str) -> (NativeSession, Temp, &'static NativeHooks, Rc<RefCell<job::Job>>) {
+    let file = Temp::new(tag);
+    std::fs::write(&file.0, []).unwrap();
+    let conn = rusqlite::Connection::open(&file.0).unwrap();
+    conn.execute_batch("CREATE TABLE payload(data BLOB); INSERT INTO payload VALUES(zeroblob(8));").unwrap();
+    conn.close().unwrap();
+    let (gate, account, _) = gate_with(60_000, 1 << 20);
+    let h = hooks();
+    let owner = NativeOwner::begin(h, gate, [file.id(), (0, 1), (0, 2)], 0, identity_bound()).unwrap();
+    (owner.open(&file.0).unwrap(), file, h, account)
+}
+
+struct CallbackDrop(std::sync::Arc<AtomicU64>);
+impl Drop for CallbackDrop {
+    fn drop(&mut self) { self.0.fetch_add(1, Ordering::Relaxed); }
+}
+
+fn close_callbacks(session: &mut NativeSession) -> (std::sync::Arc<AtomicU64>, std::sync::Arc<AtomicU64>, std::sync::Arc<AtomicU64>) {
+    let progress = std::sync::Arc::new(AtomicU64::new(0));
+    let authorizer = std::sync::Arc::new(AtomicU64::new(0));
+    let drops = std::sync::Arc::new(AtomicU64::new(0));
+    let p = progress.clone();
+    let pd = CallbackDrop(drops.clone());
+    session.progress_handler(1, move || { let _keep = &pd; p.fetch_add(1, Ordering::Relaxed); false }).unwrap();
+    let a = authorizer.clone();
+    let ad = CallbackDrop(drops.clone());
+    session.authorizer(move |event| {
+        let _keep = &ad;
+        if event.action == rusqlite::ffi::SQLITE_SELECT { a.fetch_add(1, Ordering::Relaxed); }
+        rusqlite::hooks::Authorization::Allow
+    }).unwrap();
+    (progress, authorizer, drops)
+}
+
+fn close_peer(file: &Temp, h: &NativeHooks) -> c_int {
+    let fd = unsafe { libc::open(file.c().as_ptr(), libc::O_RDWR) };
+    assert!(fd >= 0);
+    assert_eq!(unsafe { h.close(fd) }, 0);
+    assert!(fd_open(fd) && h.deferred_for_test().contains(&fd));
+    fd
+}
+
+fn assert_live_callbacks(session: &NativeSession, progress: &AtomicU64, authorizer: &AtomicU64) {
+    let (p, a) = (progress.load(Ordering::Relaxed), authorizer.load(Ordering::Relaxed));
+    session.state.as_ref().unwrap().view.as_ref().unwrap().execute_batch("SELECT 73;").unwrap();
+    assert!(progress.load(Ordering::Relaxed) > p, "关闭失败后真实progress仍执行");
+    assert!(authorizer.load(Ordering::Relaxed) > a, "关闭失败后真实authorizer仍执行");
+}
+
+#[test]
+fn native_n1_l3a_close_busy_keeps_callback_context_then_destroys() {
+    let (mut session, file, h, account) = close_fixture("statement-close");
+    let (p, a, drops) = close_callbacks(&mut session);
+    let raw = session.state.as_ref().unwrap().raw;
+    // 留一个 cached statement：close 必须先 finalize 缓存，再测试真正悬挂的 statement。
+    { let view = session.state.as_ref().unwrap().view.as_ref().unwrap();
+      let mut cached = view.prepare_cached("SELECT 7").unwrap();
+      assert_eq!(cached.query_row([], |r| r.get::<_, i64>(0)).unwrap(), 7); }
+    let mut stmt = std::ptr::null_mut();
+    assert_eq!(unsafe { rusqlite::ffi::sqlite3_prepare_v2(raw, c"SELECT data FROM payload".as_ptr(), -1, &mut stmt, std::ptr::null_mut()) }, rusqlite::ffi::SQLITE_OK);
+    assert_eq!(unsafe { rusqlite::ffi::sqlite3_step(stmt) }, rusqlite::ffi::SQLITE_ROW);
+    assert!(!other_process_can_lock(&file.0), "真实SQLite读锁先存在");
+    let peer = close_peer(&file, h);
+    with_owner(|tls| tls.budget.cover(&tls.gate, 32768).unwrap());
+    assert_eq!(account.borrow().snapshot().open_reservations, 1);
+    let mut errors = NativeErrors::default();
+    let session = match session.close(&mut errors) { Teardown::Alive(s) => s, _ => panic!("真实statement BUSY") };
+    assert_eq!(errors.cleanup(), &[NativeError::Code(NativeCode::CloseBusy)]);
+    assert_live_callbacks(&session, &p, &a);
+    assert_eq!(drops.load(Ordering::Relaxed), 0);
+    assert!(!other_process_can_lock(&file.0));
+    assert!(fd_open(peer));
+    assert_eq!(account.borrow().snapshot().open_reservations, 1);
+    assert!(with_owner(|_| ()).is_some() && h.active_any.load(Ordering::SeqCst));
+    assert_eq!(unsafe { rusqlite::ffi::sqlite3_finalize(stmt) }, rusqlite::ffi::SQLITE_OK);
+    session.state.as_ref().unwrap().owner.settle_shm(Ok(0)).unwrap();
+    assert!(matches!(session.close(&mut errors), Teardown::Destroyed(_)));
+    assert_eq!(drops.load(Ordering::Relaxed), 2, "仅成功close后释放两个回调上下文");
+    assert!(!fd_open(peer));
+    assert!(other_process_can_lock(&file.0));
+    assert!(with_owner(|_| ()).is_none() && !h.active_any.load(Ordering::SeqCst));
+}
+
 #[test]
 fn native_n1_close_blob_busy_keeps_real_callbacks() {
-    let (gate, _, _) = gate_with(60_000, 1 << 20);
-    let owner = NativeOwner::begin(hooks(), gate, [(1, 1), (0, 1), (0, 2)], 0, identity_bound()).unwrap();
-    let conn = rusqlite::Connection::open_in_memory().unwrap();
-    conn.execute_batch("CREATE TABLE payload(data BLOB); INSERT INTO payload VALUES(zeroblob(8));").unwrap();
+    let (mut session, file, h, _) = close_fixture("blob-close");
+    let (p, a, drops) = close_callbacks(&mut session);
+    let raw = session.state.as_ref().unwrap().raw;
     let mut blob = std::ptr::null_mut();
-    assert_eq!(unsafe { rusqlite::ffi::sqlite3_blob_open(conn.handle(), c"main".as_ptr(), c"payload".as_ptr(), c"data".as_ptr(), 1, 0, &mut blob) }, rusqlite::ffi::SQLITE_OK);
-    assert!(unsafe { rusqlite::ffi::sqlite3_next_stmt(conn.handle(), std::ptr::null_mut()) }.is_null());
-    let callbacks = std::sync::Arc::new(AtomicU64::new(0));
-    let observed = callbacks.clone();
-    conn.progress_handler(1, Some(move || { observed.fetch_add(1, Ordering::Relaxed); false })).unwrap();
+    assert_eq!(unsafe { rusqlite::ffi::sqlite3_blob_open(raw, c"main".as_ptr(), c"payload".as_ptr(), c"data".as_ptr(), 1, 0, &mut blob) }, rusqlite::ffi::SQLITE_OK);
+    assert!(unsafe { rusqlite::ffi::sqlite3_next_stmt(raw, std::ptr::null_mut()) }.is_null(), "next_stmt不能检测blob BUSY");
+    assert!(!other_process_can_lock(&file.0));
+    let peer = close_peer(&file, h);
     let mut errors = NativeErrors::default();
-    let bundle = match owner.teardown(conn, &mut errors) { Teardown::Alive(b) => b, _ => panic!("blob BUSY") };
-    bundle.conn.execute_batch("SELECT 1;").unwrap();
-    let calls = callbacks.load(Ordering::Relaxed);
+    errors.record_first(NativeCode::TrackingLost.into());
+    let session = match session.close(&mut errors) { Teardown::Alive(s) => s, _ => panic!("真实blob BUSY") };
+    assert!(matches!(errors.reported(), Some(Reported::First(NativeError::Code(NativeCode::TrackingLost)))));
+    assert_eq!(errors.cleanup(), &[NativeError::Code(NativeCode::CloseBusy)]);
+    assert_live_callbacks(&session, &p, &a);
+    assert_eq!(drops.load(Ordering::Relaxed), 0);
+    assert!(fd_open(peer) && !other_process_can_lock(&file.0));
+    let mut data = [1u8; 8];
+    assert_eq!(unsafe { rusqlite::ffi::sqlite3_blob_read(blob, data.as_mut_ptr().cast(), 8, 0) }, rusqlite::ffi::SQLITE_OK);
+    assert_eq!(data, [0; 8]);
     assert_eq!(unsafe { rusqlite::ffi::sqlite3_blob_close(blob) }, rusqlite::ffi::SQLITE_OK);
-    assert!(matches!(bundle.owner.teardown(bundle.conn, &mut errors), Teardown::Destroyed(_)));
-    assert!(calls > 0, "真实blob BUSY后progress回调仍须执行");
+    assert!(matches!(session.close(&mut errors), Teardown::Destroyed(_)));
+    assert_eq!(drops.load(Ordering::Relaxed), 2);
+    assert!(!fd_open(peer) && other_process_can_lock(&file.0));
+}
+
+#[test]
+fn native_n1_alive_drop_retains_callbacks_lock_grant_and_deferred_fd() {
+    const CHILD: &str = "NEWCHAN_31Y_ALIVE_DROP_CHILD";
+    if std::env::var_os(CHILD).is_none() {
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["native_n1_alive_drop_retains_callbacks_lock_grant_and_deferred_fd", "--nocapture"])
+            .env(CHILD, "1").output().unwrap();
+        assert!(output.status.success(), "{}\n{}", String::from_utf8_lossy(&output.stdout), String::from_utf8_lossy(&output.stderr));
+        assert!(String::from_utf8_lossy(&output.stdout).contains("31Y alive resources observed"));
+        return;
+    }
+    let (mut session, file, h, account) = close_fixture("drop-alive");
+    let (p, a, drops) = close_callbacks(&mut session);
+    let raw = session.state.as_ref().unwrap().raw;
+    let mut blob = std::ptr::null_mut();
+    assert_eq!(unsafe { rusqlite::ffi::sqlite3_blob_open(raw, c"main".as_ptr(), c"payload".as_ptr(), c"data".as_ptr(), 1, 0, &mut blob) }, rusqlite::ffi::SQLITE_OK);
+    let peer = close_peer(&file, h);
+    with_owner(|tls| tls.budget.cover(&tls.gate, 32768).unwrap());
+    let mut errors = NativeErrors::default();
+    let alive = session.close(&mut errors);
+    assert!(matches!(&alive, Teardown::Alive(_)));
+    drop(alive);
+    let (before_p, before_a) = (p.load(Ordering::Relaxed), a.load(Ordering::Relaxed));
+    assert_eq!(unsafe { rusqlite::ffi::sqlite3_exec(raw, c"SELECT 93".as_ptr(), None, std::ptr::null_mut(), std::ptr::null_mut()) }, rusqlite::ffi::SQLITE_OK);
+    assert!(p.load(Ordering::Relaxed) > before_p && a.load(Ordering::Relaxed) > before_a);
+    assert_eq!(drops.load(Ordering::Relaxed), 0);
+    assert_eq!(account.borrow().snapshot().open_reservations, 1);
+    assert!(fd_open(peer) && !other_process_can_lock(&file.0));
+    assert!(with_owner(|_| ()).is_some() && h.active_any.load(Ordering::SeqCst));
+    println!("31Y alive resources observed");
+    // 这个单独测试进程在此退出；泄漏不污染其他测试的TLS/FD。
+}
+
+#[test]
+fn native_n1_open_failure_keeps_owner_until_explicit_close() {
+    let (gate, _, _) = gate_with(60_000, 1 << 20);
+    let h = hooks();
+    let owner = NativeOwner::begin(h, gate, [(1, 1), (0, 1), (0, 2)], 0, identity_bound()).unwrap();
+    let error = owner.open(Path::new("/nonexistent/issue1527-no-create.db")).err().expect("不自动创建源");
+    assert!(error.error.starts_with("NativeSqliteOpen:"));
+    assert!(with_owner(|_| ()).is_some() && h.active_any.load(Ordering::SeqCst));
+    assert!(matches!(error.session.close(&mut NativeErrors::default()), Teardown::Destroyed(_)));
+    assert!(with_owner(|_| ()).is_none() && !h.active_any.load(Ordering::SeqCst));
 }
