@@ -62,4 +62,4 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/rust-job-setup
       - name: P57 来源合同
-        run: cargo test --locked --features s_session,s_incremental --bin s_structure_session publication_same_text_without_origin_rejects --jobs 4 -- --test-threads 1 --nocapture
+        run: cargo test --locked --features s_session,s_incremental --bin s_structure_session publication_same_text_ --jobs 4 -- --test-threads 1 --nocapture

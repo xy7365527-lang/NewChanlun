@@ -6585,6 +6585,27 @@ mod publication_degrade_verdict_tests {
         }
     }
 
+    #[test]
+    fn publication_same_text_foreign_origin_rejects() {
+        for failure in [ScratchFailure::Budget, ScratchFailure::Allocation] {
+            let mut foreign = None;
+            let _ = native::Budget::new(4096, 0).unwrap().codec_work().unwrap().run(|work| {
+                foreign = Some(work.reject(failure));
+                Ok::<_, String>(())
+            });
+            let foreign = foreign.unwrap();
+            let expected = invalid(&foreign);
+            assert_eq!(
+                verdict(|work| {
+                    let _ = invalid(work.reject(failure));
+                    Err(invalid(foreign.clone()))
+                }),
+                Err(expected),
+                "同文同类的域外错误不得借当前资源失败降级"
+            );
+        }
+    }
+
     /// 0072 判据真值表（独审 0070 R1/R2 + 0068 F1）：种类只取类型化记录；任意前缀包装的真实预算
     /// 不足降级；任何 Ledger（含别的作用域、不记入作用域的直接构造）或闭包自身真实错误一律拒绝。
     #[test]
