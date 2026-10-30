@@ -859,7 +859,7 @@ fn verify_current_in_store<'r>(
                 .parse_rendered_plain(evidence_json.as_bytes())
                 .map(JsonOwner::Plain)
         } else {
-            parse_json_owned(evidence_json.as_bytes(), budget.as_ref())
+            parse_json_owned(evidence_json.as_bytes(), budget.as_ref()).map_err(newchan_rust::s_content::ContextError::from)
         }
         .map_err(|e| err(format!("catalog[{}].evidence_json 非法：{e}", entry.id)))?;
         if !canonical_matches(parsed.view(), evidence_json.as_bytes(), budget.as_ref())? {

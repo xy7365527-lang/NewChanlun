@@ -2111,7 +2111,7 @@ fn history_decode_in_store(
     allocation: Option<&OwnedBudget>,
 ) -> Result<JsonOwner, String> {
     if allocation.is_none() {
-        store.parse_rendered_plain(bytes).map(JsonOwner::Plain)
+        store.parse_rendered_plain(bytes).map(JsonOwner::Plain).map_err(Into::into)
     } else {
         history_decode(bytes, allocation)
     }

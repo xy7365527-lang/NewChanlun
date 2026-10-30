@@ -115,7 +115,7 @@ fn render(
     s: &mut (impl CodecRead + ?Sized),
     r: &(impl AuxRef + ?Sized),
 ) -> Result<bj::JsonOwner, String> {
-    bj::render_json(s, r.view())
+    bj::render_json(s, r.view()).map_err(Into::into)
 }
 #[cfg(test)]
 fn render_plain(

@@ -6667,6 +6667,27 @@ mod publication_degrade_verdict_tests {
     }
 
     #[test]
+    fn publication_serde_writer_preserves_inner_resource_origin() {
+        struct Failing<'a>(&'a WorkScope);
+        impl std::io::Write for Failing<'_> {
+            fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+                Err(std::io::Error::other(self.0.reject(ScratchFailure::Allocation)))
+            }
+            fn flush(&mut self) -> std::io::Result<()> { Ok(()) }
+        }
+        assert_eq!(
+            verdict(|work| {
+                let wrapped = serde_json::to_writer(Failing(work), &["P57"]).unwrap_err();
+                let expected = wrapped.to_string();
+                let error = PublishError::from(wrapped);
+                assert_eq!(error.to_string(), expected);
+                Err(error)
+            }),
+            Ok(())
+        );
+    }
+
+    #[test]
     fn publication_sql_and_io_wrappers_preserve_source_and_display() {
         for failure in [ScratchFailure::Budget, ScratchFailure::Allocation] {
             assert_eq!(

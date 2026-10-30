@@ -289,7 +289,7 @@ fn scalar_value<'a>(
     ) {
         return Err(err("预期标量"));
     }
-    bj::render_json(s, r)
+    bj::render_json(s, r).map_err(Into::into)
 }
 /// 仅当前 part/payload 的固定小字段；Some 由 ArrayAuditSource 关闭批读。
 fn local_fields<'a, 'names>(
@@ -388,7 +388,7 @@ fn parsed_json(s: &(impl CodecRead + ?Sized), bytes: &[u8]) -> Result<bj::JsonOw
             .map(bj::JsonOwner::Owned)
             .map_err(err);
     }
-    s.parse_rendered_plain(bytes).map(bj::JsonOwner::Plain)
+    s.parse_rendered_plain(bytes).map(bj::JsonOwner::Plain).map_err(Into::into)
 }
 fn canonical_matches(
     s: &(impl CodecRead + ?Sized),

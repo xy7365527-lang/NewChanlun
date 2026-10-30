@@ -586,7 +586,7 @@ pub mod failure_trace {
     }
     impl FailureTrace {
         pub fn only_resource(&self) -> bool {
-            self.ledger == 0 && self.semantic == 0 && self.budget + self.allocation > 0
+            self.ledger == 0 && self.semantic == 0 && (self.budget > 0 || self.allocation > 0)
         }
         pub fn bridges(&self, error: &ContextError) -> bool {
             error.proof.is_some_and(|proof| {

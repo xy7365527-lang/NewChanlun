@@ -2478,7 +2478,7 @@ mod tests {
         let mut refused = sc::MemoryNodes::new();
         let error = write_json_view(&mut refused, (&bad).into()).unwrap_err();
         assert_eq!(
-            error,
+            error.to_string(),
             "GenError：原始行出现非整数 JSON 数字 `1.5`（不把 token 静默改写）"
         );
         assert_eq!(refused.iter().count(), 0, "完整整数预检先于任何节点写出");
@@ -2869,7 +2869,7 @@ mod tests {
                 assert!(result.is_err());
                 assert_eq!(generated.generated_state.as_ref(), &state);
                 assert_eq!(generated.catalog_axes.as_ref().unwrap().as_ref(), &axes);
-                result.map(|_| ())
+                result.map(|_| ()).map_err(Into::into)
             });
         assert!(matches!(
             result,
@@ -3392,8 +3392,8 @@ mod tests {
                     )
                     .err()
                     .unwrap();
-                assert_eq!(actual, expected, "身份首错不受坏价格或首写失败替代");
-                assert!(actual.starts_with(prefix));
+                assert_eq!(actual.to_string(), expected, "身份首错不受坏价格或首写失败替代");
+                assert!(actual.to_string().starts_with(prefix));
                 assert!(full_store.writes.is_empty() && delta_store.writes.is_empty());
                 assert_eq!(
                     full_store.failures + delta_store.failures,
@@ -3519,7 +3519,7 @@ mod tests {
             )
             .err()
             .unwrap();
-        assert!(error.contains("prototype_audit_allocation_incomplete"));
+        assert!(error.to_string().contains("prototype_audit_allocation_incomplete"));
         assert!(bound.ensure_current().is_err());
         assert!(store.writes.is_empty() && runtime.delta_lane.is_none());
         drop(bound);
@@ -3662,7 +3662,7 @@ mod tests {
             .unwrap();
         assert!(runtime
             .advance_raw_bound(&mut store, &wrong)
-            .unwrap_err()
+            .unwrap_err().to_string()
             .contains("binding"));
         assert!(runtime.delta_lane.is_none());
         // 回滚后必须冷建且发新域；旧 fixture 下一步不能借 previous_prefix=0 假装初始。
@@ -3697,7 +3697,7 @@ mod tests {
         store.writes_left = Some(0);
         assert!(runtime
             .advance_raw_bound(&mut store, &bound)
-            .unwrap_err()
+            .unwrap_err().to_string()
             .contains("test_sequence_write"));
         assert!(bound.ensure_current().is_err());
         assert!(runtime.delta_lane.is_none());
@@ -3766,7 +3766,7 @@ mod tests {
         assert!(memo.bound && memo.allocation_budget().is_none());
         assert!(memo
             .sync(&mut store, &[], "空keys", Some(&budget))
-            .unwrap_err()
+            .unwrap_err().to_string()
             .contains("须discard"));
         memo.discard();
         memo.sync(&mut store, &[], "空keys", Some(&other)).unwrap();
@@ -3789,7 +3789,7 @@ mod tests {
         keys.replace_reserved(&[first]).unwrap();
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 32);
         let error = keys.reserve_admitted(&scratch, 2).unwrap_err();
-        assert!(error.contains(sc::capture_allocation::LIMIT), "{error}");
+        assert!(error.to_string().contains(sc::capture_allocation::LIMIT), "{error}");
         let probe = budget.allocation_request_probe();
         assert_eq!(probe.refused_bytes, 64);
         assert_eq!(probe.live_before_refusal, 32);
@@ -3842,7 +3842,7 @@ mod tests {
         let error = memo
             .sync(&mut store, &[first, second], "真实memo", Some(&budget))
             .unwrap_err();
-        assert!(error.contains(sc::capture_allocation::LIMIT), "{error}");
+        assert!(error.to_string().contains(sc::capture_allocation::LIMIT), "{error}");
         let probe = budget.allocation_request_probe();
         assert_eq!(
             probe.refused_kind,
@@ -3902,13 +3902,13 @@ mod tests {
         let mut memo = SequenceMemo::default();
         assert!(memo
             .sync(&mut store, &[digest], "首次keys", Some(&short))
-            .unwrap_err()
+            .unwrap_err().to_string()
             .contains(sc::capture_allocation::LIMIT));
         assert!(!memo.bound && memo.seq.is_none() && memo.keys.as_slice().is_empty());
         assert_eq!(short.snapshot().live_requested_layout_bytes, 0);
         assert!(memo
             .sync(&mut Fails, &[digest], "首次keys", Some(&budget))
-            .unwrap_err()
+            .unwrap_err().to_string()
             .contains("test_sequence_node_write"));
         assert!(!memo.bound && memo.seq.is_none() && memo.allocation_budget().is_none());
         assert_eq!(budget.snapshot().live_requested_layout_bytes, 0);
@@ -3937,7 +3937,7 @@ mod tests {
         let error = memo
             .sync(&mut MemoryNodes::new(), &[], "缺构建keys", Some(&budget))
             .unwrap_err();
-        assert!(error.contains("拒绝Plain兜底"));
+        assert!(error.to_string().contains("拒绝Plain兜底"));
         assert!(!memo.bound && memo.seq.is_none());
     }
 
@@ -4117,7 +4117,7 @@ mod tests {
             let error = memo
                 .sync(&mut store, &changed, "故障代", budget)
                 .unwrap_err();
-            assert!(error.contains(error_code), "{error}");
+            assert!(error.to_string().contains(error_code), "{error}");
             assert_eq!(store.failures, 1, "第一次错误直接返回，不重试全量");
             assert!(memo.bound);
             assert_eq!(memo.seq, seq);
@@ -4134,7 +4134,7 @@ mod tests {
         store.writes.clear();
         assert!(memo
             .sync(&mut store, &changed, "失配", budget)
-            .unwrap_err()
+            .unwrap_err().to_string()
             .contains("计数不一致"));
         assert!(store.writes.is_empty());
         assert_eq!(memo.keys.as_slice(), base.as_slice());
@@ -4263,7 +4263,7 @@ mod tests {
                     budget,
                 )
                 .unwrap_err();
-            assert!(error.contains("test_sequence_"), "{error}");
+            assert!(error.to_string().contains("test_sequence_"), "{error}");
             assert_eq!(store.failures, 1, "失败直接返回，不能全量 fallback");
             assert_eq!(memo.seq, previous);
             assert_eq!(memo.keys.as_slice(), base.as_slice());

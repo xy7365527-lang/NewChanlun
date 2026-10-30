@@ -612,7 +612,7 @@ impl CandidateFixedFields {
         if !matches!(r.kind(), Kind::Number | Kind::String | Kind::Null) {
             return Err(err("预期有界标量"));
         }
-        bj::render_json(s, r)
+        bj::render_json(s, r).map_err(Into::into)
     }
     fn text(&self, s: &mut (impl CodecStore + ?Sized), name: &str) -> Result<TextValue, String> {
         let value = self.scalar(s, name)?;

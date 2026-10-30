@@ -3414,7 +3414,7 @@ mod plain_raii_tests {
                     Ok::<_, String>(strict_plain_json_admitted(input, Some(work)).unwrap_err())
                 })
                 .unwrap();
-            assert_eq!(actual, expected);
+            assert_eq!(actual.to_string(), expected);
             assert_eq!(
                 budget.live(),
                 baseline,
@@ -3740,7 +3740,7 @@ mod raw_events_layout_tests {
                                 r#"[{"nested":["persistent child","中文😀"]}]"#.as_bytes(),
                                 Some(work),
                             )
-                            .map(JsonOwner::Plain)
+                            .map(JsonOwner::Plain).map_err(Into::into)
                         } else {
                             json_from_view_admitted(&NativeAdmission(Some(work)), (&input).into()).map_err(Into::into)
                         }
