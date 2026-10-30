@@ -2,7 +2,7 @@
 //! 显式组件入口才启用。旧路径不增加前置；这里不签发历史认证。
 use super::{effects, native, request_audit::SqlCell, AuditTxn};
 use crate::v3::audit_store::{CodecRead, NativeAdmission};
-use newchan_rust::s_content::{CodecVec, capture_allocation::scratch::{CodecWork, WorkScope}};
+use newchan_rust::s_content::{CodecVec, capture_allocation::scratch::WorkScope};
 use rusqlite::{types::ValueRef, Connection};
 use std::{cell::RefCell, rc::Rc};
 use std::{fs::{File, Metadata}, os::unix::fs::MetadataExt, path::{Path, PathBuf}};
@@ -243,7 +243,6 @@ impl Controls {
     fn retained_bytes(&self) -> usize {
         self.0.iter().map(|rows| rows.capacity() * std::mem::size_of::<(i64, CodecVec<u8>)>()
             + rows.iter().map(|(_, wire)| wire.capacity()).sum::<usize>()).sum::<usize>()
-            + CodecWork::metadata_bytes()
     }
     fn read(connection: &Connection, limit: usize, work: Option<&WorkScope>) -> Result<Self, String> {
         let mut out = Self(Default::default());

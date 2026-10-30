@@ -1254,8 +1254,8 @@ impl AuditTxn<'_> {
         self.owner.connection.flush_prepared_statement_cache();
         let result = self.transaction.take().unwrap().rollback().map_err(invalid);
         if result.is_err() || !self.owner.connection.is_autocommit() {
-            self.owner.clear_candidates();
             self.owner.retired.set(true);
+            self.owner.clear_candidates();
         }
         result?;
         if self.owner.retired.get() {
@@ -1352,13 +1352,16 @@ impl AuditTxn<'_> {
                 self.owner.retired.set(true);
             }
         } else if !self.owner.connection.is_autocommit() {
-            self.owner.clear_candidates();
             self.owner.retired.set(true);
+            self.owner.clear_candidates();
             return Err(invalid("提交返回后事务仍活动"));
         }
         #[cfg(all(feature = "s_incremental", unix))]
         if self.owner.history_clamp.borrow().is_some() {
-            if result.is_err() { self.owner.retired.set(true); }
+            if result.is_err() {
+                self.owner.retired.set(true);
+                self.owner.clear_candidates();
+            }
             if result.is_ok() {
                 let candidate = self.history_write.borrow_mut().take().unwrap();
                 let checked = self.owner.history_clamp.borrow_mut().as_mut().unwrap().committed(candidate, history_monitor.as_ref().unwrap());

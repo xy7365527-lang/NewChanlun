@@ -411,7 +411,7 @@ fn h1_control_originals_are_retained_on_the_same_parent_and_released() {
     assert!(owner.history_clamp.borrow().as_ref().unwrap().parent().unwrap().same_parent(&parent));
     let before = parent.live();
     owner.history_clamp.borrow_mut().as_mut().unwrap().retire();
-    assert_eq!(before - parent.live(), retained, "控制容器及工作域元数据都由父账先收后还");
+    assert_eq!(before - parent.live(), retained, "控制容器由父账先收后还，工作域元数据已随run释放");
     assert_eq!(owner.history_retained_bytes(), 0);
 }
 
@@ -457,6 +457,30 @@ fn h1_control_observation_budget_failure_retires_without_writing() {
     assert!(owner.retired.get());
     assert!(owner.connection.is_autocommit());
     assert_eq!(owner.complete_retained_bytes(), 0);
+    assert_eq!(parent.scratch_observation().0, 0);
+    assert_eq!(runtime_root_tables(&f.conn, true), before);
+}
+
+
+#[test]
+fn h1_certified_commit_failure_releases_controls_before_return() {
+    use prepared::tests::runtime_root_tables;
+    let f = fixture();
+    let mut c = context();
+    let owner = h1_certified_owner(&f, &mut c);
+    let parent = owner.complete_budget_for_test();
+    assert!(owner.history_retained_bytes() > 0);
+    let before = runtime_root_tables(&f.conn, true);
+    owner.connection.commit_hook(Some(|| true));
+    let clock = v2::stored_clock(&owner.connection).unwrap();
+    assert!(owner.admit(b2_envelope(2), "1", &clock, tb02a::PROFILE, Some("1"),
+        &s_allocation::Mode::CapturedNative, &mut c).is_err());
+    // 不再begin或drop owner：Err本身必须已经完成退役与费用释放。
+    assert!(owner.retired.get());
+    assert!(owner.connection.is_autocommit());
+    assert_eq!(owner.history_retained_bytes(), 0);
+    assert_eq!(owner.complete_retained_bytes(), 0);
+    assert_eq!(parent.native_observation().0, 0);
     assert_eq!(parent.scratch_observation().0, 0);
     assert_eq!(runtime_root_tables(&f.conn, true), before);
 }
