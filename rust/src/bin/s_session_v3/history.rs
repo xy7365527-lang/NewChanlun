@@ -562,7 +562,7 @@ pub(super) fn ordinary_proofs_enabled() -> bool {
     #[cfg(test)] { !ORDINARY_PROOFS_DISABLED.with(std::cell::Cell::get) }
     #[cfg(not(test))] { true }
 }
-#[cfg(test)]
+#[cfg(all(test, feature = "s_incremental"))]
 pub(super) fn without_ordinary_proofs_for_test<T>(action: impl FnOnce() -> T) -> T {
     struct Reset(bool);
     impl Drop for Reset { fn drop(&mut self) { ORDINARY_PROOFS_DISABLED.with(|v| v.set(self.0)); } }
@@ -576,7 +576,7 @@ fn ordinary_materials_enabled() -> bool {
     #[cfg(test)] { !ORDINARY_MATERIALS_DISABLED.with(std::cell::Cell::get) }
     #[cfg(not(test))] { true }
 }
-#[cfg(test)]
+#[cfg(all(test, feature = "s_incremental"))]
 pub(super) fn without_ordinary_materials_for_test<T>(action: impl FnOnce() -> T) -> T {
     struct Reset(bool);
     impl Drop for Reset { fn drop(&mut self) { ORDINARY_MATERIALS_DISABLED.with(|v| v.set(self.0)); } }
@@ -3126,7 +3126,7 @@ impl<'a> HashReader<'a> {
             history_public_roots: None,
         }
     }
-    #[cfg(test)]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(crate) fn ordinary_publication_reader_for_test(source: &'a mut dyn NodeSource) -> Self {
         Self::metered(source, None, None, None)
     }

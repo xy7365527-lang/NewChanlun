@@ -704,6 +704,7 @@ pub(super) fn request_record_with_slots(
     Ok(())
 }
 
+#[cfg(test)]
 pub(super) fn audit<'a>(
     s: &mut (impl SourceFieldStore + ?Sized),
     objects: impl IntoIterator<Item = &'a Object>,

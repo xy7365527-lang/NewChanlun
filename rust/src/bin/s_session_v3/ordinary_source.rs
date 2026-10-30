@@ -149,9 +149,9 @@ thread_local! { static STATS: std::cell::Cell<ProofStats> = const { std::cell::C
     hits: 0, executions: 0, invalidations: 0, retained_bytes: 0, peak_bytes: 0,
     released_bytes: 0, entries: 0, map_capacity: 0,
 }) }; }
-#[cfg(test)]
+#[cfg(all(test, feature = "s_incremental"))]
 pub(in crate::v3) fn stats() -> ProofStats { STATS.with(std::cell::Cell::get) }
-#[cfg(test)]
+#[cfg(all(test, feature = "s_incremental"))]
 pub(in crate::v3) fn reset_stats() { STATS.with(|s| s.set(ProofStats::default())); }
 
 #[derive(Default)]

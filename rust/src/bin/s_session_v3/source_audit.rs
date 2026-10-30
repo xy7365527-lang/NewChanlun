@@ -41,7 +41,7 @@ pub(crate) use source_contributions::{audit_native_bound, NativeSourceState};
 #[path = "ordinary_source.rs"]
 mod ordinary_source;
 pub(super) use ordinary_source::OrdinaryProofs;
-#[cfg(test)]
+#[cfg(all(test, feature = "s_incremental"))]
 pub(super) use ordinary_source::{stats as ordinary_proof_stats, reset_stats as reset_ordinary_proof_stats};
 #[path = "source_pending.rs"]
 mod source_pending;
