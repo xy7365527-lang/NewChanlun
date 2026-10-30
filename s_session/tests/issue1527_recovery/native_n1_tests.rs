@@ -1439,3 +1439,81 @@ fn native_n1_vfs32f_failed_first_seal_cleanup_keep_priority_on_real_connection()
     assert!(matches!(errors.reported(), Some(Reported::First(NativeError::Code(NativeCode::ShmMeasureFailed)))));
     assert_sidecars32f(&files.db());
 }
+
+struct DmsHolder32f(std::process::Child);
+impl DmsHolder32f {
+    fn new(path: &Path) -> Self {
+        use std::io::BufRead;
+        let mut child = std::process::Command::new("python3").args(["-c",
+            "import fcntl,sys\nf=open(sys.argv[1],'r+b')\nfcntl.lockf(f,fcntl.LOCK_SH,1,128)\nprint('ready',flush=True)\nsys.stdin.read()\n"])
+            .arg(path).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).spawn().unwrap();
+        let mut line = String::new(); std::io::BufReader::new(child.stdout.take().unwrap()).read_line(&mut line).unwrap();
+        assert_eq!(line.trim(), "ready"); Self(child)
+    }
+}
+impl Drop for DmsHolder32f { fn drop(&mut self) { drop(self.0.stdin.take()); assert!(self.0.wait().unwrap().success()); } }
+#[test]
+fn native_n1_vfs32f_first_bextend0_map_holds_budget_before_writable_mapping() {
+    if !native_child("native_n1_vfs32f_first_bextend0_map_holds_budget_before_writable_mapping") { return; }
+    let h = fault_hooks32f();
+    let (file, pins, pin, b0) = wal_fixture("first-map");
+    // 同外部读者持DMS共享锁，真实unixShmMap不能先truncate已存在的足长SHM。
+    let _reader = DmsHolder32f::new(&PathBuf::from(format!("{}-shm", file.0.display())));
+    let (gate, account, _) = gate_with(60_000, 1 << 20);
+    let owner = NativeOwner::begin(h, gate, pins, b0, identity_bound()).unwrap();
+    let session = owner.open_native(&file.0, pin).unwrap();
+    assert_eq!(with_owner(|tls| tls.budget.grant_count()), Some(0));
+    let handle = native_file32f(&session);
+    let (rc, out) = unsafe { map32f(handle, 0, 0) };
+    assert_eq!(rc, rusqlite::ffi::SQLITE_OK); assert!(!out.is_null());
+    assert_eq!(FAULTS32F.with(|f| f.borrow().maps.clone()), vec![(32768, 1)]);
+    assert_eq!(account.borrow().snapshot().open_reservations, 1, "零量grant仍是失败清算载体");
+    let mut errors = NativeErrors::default();
+    assert!(matches!(session.close(&mut errors), Teardown::Destroyed(_)));
+    assert!(errors.reported().is_none(), "{errors:?}"); assert_eq!(account.borrow().snapshot().open_reservations, 0);
+    assert_sidecars32f(&file.0);
+}
+fn wal_writer_locked32f(path: &Path) -> bool {
+    let status = std::process::Command::new("python3").args(["-c",
+        "import fcntl,sys\nf=open(sys.argv[1],'r+b')\ntry:\n fcntl.lockf(f,fcntl.LOCK_EX|fcntl.LOCK_NB,1,120)\nexcept OSError:\n sys.exit(3)\n"])
+        .arg(format!("{}-shm", path.display())).status().unwrap();
+    match status.code() { Some(3) => true, Some(0) => false, other => panic!("WAL锁探针 {other:?}") }
+}
+#[test]
+fn native_n1_vfs32f_rejected_peer_and_deferred_close_keep_real_wal_writer_lock() {
+    if !native_child("native_n1_vfs32f_rejected_peer_and_deferred_close_keep_real_wal_writer_lock") { return; }
+    let h = install().unwrap();
+    let (file, pins, pin, b0) = wal_fixture("real-peer-lock");
+    let (gate, _, _) = gate_with(60_000, 1 << 20);
+    let owner = NativeOwner::begin(h, gate, pins, b0, identity_bound()).unwrap();
+    let mut session = owner.open_native(&file.0, pin).unwrap();
+    let tx = session.begin().unwrap(); assert!(wal_writer_locked32f(&file.0));
+    let path = file.c();
+    assert_eq!(std::thread::spawn(move || unsafe { h.open(path.as_ptr(), libc::O_RDWR, 0) }).join().unwrap(), -1);
+    assert!(wal_writer_locked32f(&file.0), "打开前拒绝未破坏实际BEGIN IMMEDIATE锁");
+    let shm = CString::new(format!("{}-shm", file.0.display())).unwrap();
+    let peer = unsafe { libc::open(shm.as_ptr(), libc::O_RDWR) }; assert!(peer >= 0);
+    assert_eq!(unsafe { h.close(peer) }, 0);
+    assert!(fd_open(peer) && h.deferred_for_test().contains(&peer));
+    assert!(wal_writer_locked32f(&file.0), "未知同inode FD的close延迟，真实WAL写锁仍在");
+    drop(tx);
+    let mut errors = NativeErrors::default();
+    assert!(matches!(session.close(&mut errors), Teardown::Destroyed(_)));
+    assert!(!fd_open(peer)); assert!(!wal_writer_locked32f(&file.0)); assert_sidecars32f(&file.0);
+}
+#[test]
+fn native_n1_vfs32f_active_poison_close_cannot_drop_real_owner_lock() {
+    if !native_child("native_n1_vfs32f_active_poison_close_cannot_drop_real_owner_lock") { return; }
+    let h = install().unwrap();
+    let (file, pins, pin, b0) = wal_fixture("poison-lock");
+    let (gate, _, _) = gate_with(60_000, 1 << 20);
+    let owner = NativeOwner::begin(h, gate, pins, b0, identity_bound()).unwrap();
+    let mut session = owner.open_native(&file.0, pin).unwrap(); let tx = session.begin().unwrap();
+    let owner_fd = shm_fd32f(h); assert!(wal_writer_locked32f(&file.0));
+    h.poison_for_test();
+    assert_eq!(std::thread::spawn(move || unsafe { h.close(owner_fd) }).join().unwrap(), 0);
+    assert!(fd_open(owner_fd) && wal_writer_locked32f(&file.0), "中毒不可透传跨线程owner FD close");
+    drop(tx);
+    let mut errors = NativeErrors::default(); assert!(matches!(session.close(&mut errors), Teardown::Destroyed(_)));
+    assert!(errors.reported().is_some()); assert_sidecars32f(&file.0);
+}
