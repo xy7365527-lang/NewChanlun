@@ -74,7 +74,7 @@ def verify(database, case, node=None):
         check(states[prefix]['snapshot'], prefix, case)
     if node:
         script = """const fs=require('node:fs'), A=require(process.argv[1]);
-(async()=>{for(const s of JSON.parse(fs.readFileSync(0,'utf8'))){await A.validateTB02Catalog(s.catalog);await A.validateTB02CutSources(s.snapshot);await A.validateTB02Axes(s.snapshot.catalog_evidence.axes,s.snapshot.objects);}console.log('28 cuts');})().catch(e=>{console.error(e);process.exitCode=1;});"""
+(async()=>{for(const s of JSON.parse(fs.readFileSync(0,'utf8'))){const snapshot={...s.snapshot,rule_revision:s.snapshot.catalog_evidence.rule_revision};await A.validateTB02Catalog(s.catalog);await A.validateTB02CutSources(snapshot);await A.validateTB02Axes(snapshot.catalog_evidence.axes,snapshot.objects);}console.log('28 cuts');})().catch(e=>{console.error(e);process.exitCode=1;});"""
         result = subprocess.run([str(node), '-e', script, str(ROOT / 'browser/tb01c-client.js')], input=json.dumps(states), text=True, capture_output=True, timeout=60)
         if result.returncode:
             raise ValueError(result.stderr)
