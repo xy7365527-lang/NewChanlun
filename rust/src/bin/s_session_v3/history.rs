@@ -5945,8 +5945,28 @@ pub(super) mod tests {
                 serde_json::from_value(expected["arrays"].clone()).unwrap();
             assert_eq!(layout_published_arrays(&mut conn), expected_arrays);
             let generations: Vec<i64> = (1..=cut as i64).collect();
+            let rebuilt = {
+                let tx = conn.transaction().unwrap();
+                let mut sql = content_store::ReadStore::new(&tx).unwrap();
+                let mut store = HashReader::metered(&mut sql, None, None, None);
+                let entries = object_index::load_for_audit(&tx, &mut store, cut as i64).unwrap();
+                let auxiliary = aux_index::load(&tx, &mut store, cut as i64).unwrap();
+                generations.iter().map(|&generation| {
+                    let (active, withdrawn, _) = object_index::at_cut(
+                        &mut store, super::layout::Layout::Sorted, &entries, generation,
+                    ).unwrap();
+                    let [witnesses, relations, observations] = aux_index::cut_members(
+                        &auxiliary, super::layout::Layout::Sorted, generation, false,
+                    ).unwrap();
+                    [
+                        active.digest, withdrawn.digest,
+                        hash_array(&witnesses).unwrap(), hash_array(&relations).unwrap(),
+                        hash_array(&observations).unwrap(),
+                    ]
+                }).collect::<Vec<_>>()
+            };
             assert_eq!(
-                layout_rebuilt_arrays(&mut conn, super::layout::Layout::Sorted, &generations),
+                rebuilt,
                 expected_arrays.iter().map(|(_, roots)| *roots).collect::<Vec<_>>(),
             );
             assert_eq!(super::prepared::tests::runtime_root_tables(&conn, true), before);
