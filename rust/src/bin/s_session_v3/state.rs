@@ -1038,13 +1038,15 @@ fn audit_core_fresh_with_policy(
         #[cfg(test)]
         trace_event("catalog_current", None);
         // 6''. 当前 13 轴 catalog 行必须与本代最终生成态同根。
-        let axes = field(&mut store, &last.roots.generated_state, "catalog_axes").map_err(newchan_rust::s_content::ContextError::into_message)?;
+        let axes = field(&mut store, &last.roots.generated_state, "catalog_axes")
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
         catalog_evidence::verify_current_for_audit(
             tx,
             &mut store,
             &axes,
             &last.metadata.rule_revision,
-        ).map_err(newchan_rust::s_content::ContextError::into_message)?;
+        )
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
     }
     // 7b. 辅助索引也来自同次history的完整加载，既不跨事务也不减少业务来源核验。
     history::check_deadline(deadline)?;

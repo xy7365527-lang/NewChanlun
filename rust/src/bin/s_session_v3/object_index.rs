@@ -2281,7 +2281,8 @@ fn load_in_store(
         #[cfg(test)]
         super::state::trace_event("object_index_wire_at", Some(e.life.first_known_generation));
         wire_at(s, e, latest)?;
-        validate_withdrawal_target(s, &rule, e, &out, &by_id)?;
+        validate_withdrawal_target(s, &rule, e, &out, &by_id)
+            .map_err(PublishError::into_message)?;
     }
     #[cfg(test)]
     super::state::trace_event("object_index_done", None);
@@ -2299,7 +2300,7 @@ fn validate_withdrawal_target(
     e: &Entry,
     index: &[Entry],
     by_id: &bj::BusinessMap<TextValue, usize>,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     if let Some(death) = e.life.withdrawn_generation {
         match (
             e.life.withdrawal_reason.as_deref(),
@@ -2308,14 +2309,14 @@ fn validate_withdrawal_target(
             (Some("superseded_by_revision"), Some(id)) => {
                 #[cfg(test)]
                 LOAD_TARGET_LOOKUPS.with(|n| n.set(n.get() + 1));
-                let target = &index[*by_id.get(id).ok_or_else(|| err("替代目标不存在"))?];
+                let target = &index[*by_id.get(id).ok_or_else(|| publish_err("替代目标不存在"))?];
                 if !(target.slot == e.slot
                     || (crate::w_revision(rule) == Some(crate::WRevision::W2)
                         && w2_audit_group_contains(s, e, target)?))
                     || target.life.first_known_generation > death
                     || target.life.withdrawn_generation.is_some_and(|d| d <= death)
                 {
-                    return Err(err("替代目标槽位/出生代不同"));
+                    return Err(publish_err("替代目标槽位/出生代不同"));
                 }
             }
             (Some(reason), None)
@@ -2325,7 +2326,7 @@ fn validate_withdrawal_target(
                     } else {
                         "fact_removed"
                     } => {}
-            _ => return Err(err("撤回原因与替代身份不符")),
+            _ => return Err(publish_err("撤回原因与替代身份不符")),
         }
     }
     Ok(())

@@ -2779,6 +2779,35 @@ pub(super) mod tests {
 
     #[cfg(feature = "s_incremental")]
     #[test]
+    fn structure_fact_real_budget_preserves_origin_through_bi_error() {
+        use sc::capture_allocation::scratch::{failure_trace, ScratchFailure, WorkError};
+        let budget = super::super::audit_owner::native::Budget::new(1 << 20, 0).unwrap();
+        let work = budget.codec_work().unwrap();
+        let baseline = budget.live();
+        let mut nodes = MemoryNodes::new();
+        let mut returned = None;
+        let (run, trace) = failure_trace::capture(|| {
+            work.run(|scope| {
+                let mut store = NativeFixture { inner: &mut nodes, work: scope };
+                let ballast = scope.reserve_native(budget.remaining()).unwrap();
+                let result = super::super::content_structure::fact(&mut store, "structure-fact")
+                    .map_err(crate::content_bi::BiError::StructureFacts)
+                    .map_err(bi_error);
+                returned = result.as_ref().err().cloned();
+                drop(ballast);
+                result
+            })
+        });
+        assert!(matches!(run, Err(WorkError::Resource(ScratchFailure::Budget))), "{run:?}");
+        let error = returned.expect("真实结构事实资源拒绝");
+        assert!(trace.only_resource(), "{trace:?}");
+        assert!(trace.bridges(&error), "{error:?}");
+        assert!(error.to_string().starts_with("同核事实缺项："));
+        assert_eq!(budget.live(), baseline);
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
     fn event_radix_memo_hit_requires_current_native_scope_and_keeps_root_recipe() {
         let event = serde_json::json!({"source_coord":"0","revision":1,"value":7});
         let mut oracle = MemoryNodes::new();
@@ -3206,7 +3235,7 @@ pub(super) mod tests {
             let result = budget
                 .codec_work()
                 .unwrap()
-                .run(|work| -> Result<_, String> {
+                .run(|work| -> Result<_, PublishError> {
                     let mut store = NativeFixture {
                         inner: &mut native_nodes,
                         work,

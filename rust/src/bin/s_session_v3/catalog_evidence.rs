@@ -266,7 +266,8 @@ fn generated_axes(
     generated_state: &ContentRef,
     rule: &str,
 ) -> Result<ContentRef, String> {
-    generated_axes_ref(s, generated_state.into(), rule).map_err(newchan_rust::s_content::ContextError::into_message)?;
+    generated_axes_ref(s, generated_state.into(), rule)
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
     field(s, generated_state, "catalog_axes")
 }
 
@@ -375,7 +376,8 @@ fn axes_entries<'r>(
         )));
     }
     let mut out = bj::new_work(s.allocation_budget().as_ref());
-    s.native_codec_room(&mut out, ids.len()).map_err(publish_err)?;
+    s.native_codec_room(&mut out, ids.len())
+        .map_err(publish_err)?;
     for &id in ids {
         let axis = field_ref(s, axes, id)?;
         if axis.kind() != Kind::Object || axis.extent() != Some(AXIS_FIELDS.len() as u64) {
@@ -431,7 +433,9 @@ fn axes_entries<'r>(
             ] {
                 let list = array_field_ref(s, &evidence, key)?;
                 if list.digest().map_err(publish_err)? != hash_json(&Value::from(want.to_vec()))? {
-                    return Err(publish_err(format!("{id} 轴 evidence.{key} 与写者具名清单不同")));
+                    return Err(publish_err(format!(
+                        "{id} 轴 evidence.{key} 与写者具名清单不同"
+                    )));
                 }
             }
         }

@@ -3424,7 +3424,10 @@ mod tests {
             "seq": seq, "payload_hash": "same-price", "receipt_id": format!("r-{seq}"),
             "event_id": format!("e-{seq}"), "input_revision": "1"})
     }
-    pub(super) fn original_sources(raw: &[Value], n: usize) -> Result<BusinessMap<i64, Source>, PublishError> {
+    pub(super) fn original_sources(
+        raw: &[Value],
+        n: usize,
+    ) -> Result<BusinessMap<i64, Source>, PublishError> {
         let effective = bj::effective(RawEventsView::plain(&raw[..n]), None)?;
         let mut sources = bj::new_map(None);
         for event in effective.iter() {

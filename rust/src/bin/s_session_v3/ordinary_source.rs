@@ -1102,6 +1102,8 @@ mod tests {
             &record,
             &raw,
             &producer,
+            &rule,
+            0,
             &mut bj::new_map(None),
             &mut bj::new_map(None),
             &mut bj::new_map(None),
@@ -1199,6 +1201,9 @@ mod tests {
     #[test]
     fn ordinary_proof_request_negative_subject_dependency_cannot_be_reused() {
         struct Steps(bool);
+        impl source_structure::Lookup for Steps {
+            fn object(&self, _: &str) -> Option<&Object> { None }
+        }
         impl source_pending::StepLookup for Steps {
             fn get_step(&self, _: i64) -> Option<&dyn source_pending::StepView> {
                 None
@@ -1249,6 +1254,7 @@ mod tests {
             &Steps(true),
             &mut Slots,
             true,
+            "",
         )
         .unwrap_err();
         assert_eq!(

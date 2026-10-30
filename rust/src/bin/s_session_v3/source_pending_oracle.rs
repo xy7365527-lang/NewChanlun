@@ -315,7 +315,8 @@ pub(super) fn audit(
                 return Err(err("同cut W初始化事实重复"));
             }
         } else if w && object.kind == content_producer::CC004_UNDETERMINED_KIND {
-            let coord = live::w_raw_slot(s, object).map_err(newchan_rust::s_content::ContextError::into_message)?;
+            let coord = live::w_raw_slot(s, object)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
             s.native_map_room(&mut w_raws).map_err(err)?;
             if w_raws.insert(coord, object).map_err(err)?.is_some() {
                 return Err(err("同cut W未定原件坐标重复"));
@@ -494,7 +495,12 @@ pub(super) fn audit(
             if w {
                 nulls(s, fields, &["acc_before", "contains"])?;
                 for key in ["direction", "direction_evidence"] {
-                    if fields.get_admitted(s, key).map_err(newchan_rust::s_content::ContextError::into_message)?.kind() == Kind::Null {
+                    if fields
+                        .get_admitted(s, key)
+                        .map_err(newchan_rust::s_content::ContextError::into_message)?
+                        .kind()
+                        == Kind::Null
+                    {
                         return Err(err("W seed缺初始化方向证据"));
                     }
                 }
@@ -649,7 +655,12 @@ pub(super) fn audit(
             let first = steps
                 .get(&ordered[0].0)
                 .ok_or_else(|| err("raw缺当前CC004步骤"))?;
-            Some(first.fields.get_admitted(s, "direction_evidence").map_err(newchan_rust::s_content::ContextError::into_message)?)
+            Some(
+                first
+                    .fields
+                    .get_admitted(s, "direction_evidence")
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?,
+            )
         };
         live::audit_w(
             s,
@@ -662,7 +673,8 @@ pub(super) fn audit(
             &knowledge,
             true,
             &mut None,
-        ).map_err(newchan_rust::s_content::ContextError::into_message)?;
+        )
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
         if w_unsettled {
             for (coord, _) in ordered.iter() {
                 s.native_codec_room(&mut pending, 1).map_err(err)?;
@@ -719,7 +731,9 @@ pub(super) fn audit(
             return Err(err("同cut知识请求重复"));
         }
         if w {
-            if let Some(class) = live::w_request(s, &request, &w_lookup, &prefix, w_unsettled).map_err(newchan_rust::s_content::ContextError::into_message)? {
+            if let Some(class) = live::w_request(s, &request, &w_lookup, &prefix, w_unsettled)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?
+            {
                 w_seen.note(class);
                 continue;
             }
@@ -833,7 +847,9 @@ pub(super) fn audit(
         return Err(err("CC004缺一一绑定的知识请求"));
     }
     if w {
-        w_seen.check(w_raws.len(), w_unsettled).map_err(newchan_rust::s_content::ContextError::into_message)?;
+        w_seen
+            .check(w_raws.len(), w_unsettled)
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
     }
     Ok(pending)
 }

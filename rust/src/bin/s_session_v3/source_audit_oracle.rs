@@ -82,11 +82,13 @@ pub(super) fn audit_generated_in_store(
         &ordinary_raw
     };
     let current_generation = if crate::is_structure_rule(rule) {
-        number(s, state, "generation").map_err(newchan_rust::s_content::ContextError::into_message)?
+        number(s, state, "generation")
+            .map_err(newchan_rust::s_content::ContextError::into_message)?
     } else {
         0
     };
-    let object_array = field_ref(s, state, "objects").map_err(newchan_rust::s_content::ContextError::into_message)?;
+    let object_array = field_ref(s, state, "objects")
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
     #[cfg(test)]
     super::super::state::trace_event("source_objects", None);
     // 活期只覆盖当前一次audit_generated；不在代际、事务或源修订之间带出。
@@ -284,7 +286,8 @@ pub(super) fn audit_generated_in_store(
                     &sources,
                     raw,
                     current_generation,
-                ).map_err(newchan_rust::s_content::ContextError::into_message)?;
+                )
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
             }
             if kind == CC054_KNOWLEDGE_KIND {
                 let contract = tb02b::contract_for_rule(rule)
@@ -376,7 +379,8 @@ pub(super) fn audit_generated_in_store(
             })
             .map_err(err)?;
     }
-    super::source_structure::audit_full(s, &objects, rule).map_err(newchan_rust::s_content::ContextError::into_message)?;
+    super::source_structure::audit_full(s, &objects, rule)
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
     // #1394 r3：先绑定已发布未定事实，再核组成员与 pending 的不交完备并集。
     let pending = source_pending::audit(s, &objects, raw, &groups, rule, deadline)?;
     let mut partition = bj::new_map(allocation.as_ref());
@@ -730,41 +734,78 @@ pub(super) fn audit_bounded2_batch(
         return Ok(());
     }
     exact(payload, Kind::Object, 2).map_err(newchan_rust::s_content::ContextError::into_message)?;
-    let batch_bar = field(s, payload, "bar").map_err(newchan_rust::s_content::ContextError::into_message)?;
-    let entries = field(s, payload, "entries").map_err(newchan_rust::s_content::ContextError::into_message)?;
-    for entry in elements(s, &entries).map_err(newchan_rust::s_content::ContextError::into_message)? {
-        exact(&entry, Kind::Object, 3).map_err(newchan_rust::s_content::ContextError::into_message)?;
-        text(s, &entry, "fractal_object_id").map_err(newchan_rust::s_content::ContextError::into_message)?;
-        let current = field(s, &entry, "unit").map_err(newchan_rust::s_content::ContextError::into_message)?;
-        let development = field(s, &entry, "development").map_err(newchan_rust::s_content::ContextError::into_message)?;
-        exact(&development, Kind::Object, 2).map_err(newchan_rust::s_content::ContextError::into_message)?;
-        let count = decimal(&text(s, &development, "count").map_err(newchan_rust::s_content::ContextError::into_message)?).map_err(newchan_rust::s_content::ContextError::into_message)?;
+    let batch_bar =
+        field(s, payload, "bar").map_err(newchan_rust::s_content::ContextError::into_message)?;
+    let entries = field(s, payload, "entries")
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
+    for entry in
+        elements(s, &entries).map_err(newchan_rust::s_content::ContextError::into_message)?
+    {
+        exact(&entry, Kind::Object, 3)
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
+        text(s, &entry, "fractal_object_id")
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
+        let current = field(s, &entry, "unit")
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
+        let development = field(s, &entry, "development")
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
+        exact(&development, Kind::Object, 2)
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
+        let count = decimal(
+            &text(s, &development, "count")
+                .map_err(newchan_rust::s_content::ContextError::into_message)?,
+        )
+        .map_err(newchan_rust::s_content::ContextError::into_message)?;
         if count <= 0 {
             return Err(err("CC007发展前缀为空"));
         }
-        let prefix = field(s, &development, "root").map_err(newchan_rust::s_content::ContextError::into_message)?;
-        exact(&prefix, Kind::Array, count as u64).map_err(newchan_rust::s_content::ContextError::into_message)?;
-        let units = elements(s, &prefix).map_err(newchan_rust::s_content::ContextError::into_message)?;
+        let prefix = field(s, &development, "root")
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
+        exact(&prefix, Kind::Array, count as u64)
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
+        let units =
+            elements(s, &prefix).map_err(newchan_rust::s_content::ContextError::into_message)?;
         if units.last() != Some(&current) {
             return Err(err("CC007发展前缀末项不是本单元"));
         }
         for unit in units {
-            exact(&unit, Kind::Object, 3).map_err(newchan_rust::s_content::ContextError::into_message)?;
-            let bar = field(s, &unit, "bar").map_err(newchan_rust::s_content::ContextError::into_message)?;
-            exact(&bar, Kind::Object, 5).map_err(newchan_rust::s_content::ContextError::into_message)?;
-            let coord = decimal(&text(s, &bar, "source_coord").map_err(newchan_rust::s_content::ContextError::into_message)?).map_err(newchan_rust::s_content::ContextError::into_message)?;
+            exact(&unit, Kind::Object, 3)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
+            let bar = field(s, &unit, "bar")
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
+            exact(&bar, Kind::Object, 5)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
+            let coord = decimal(
+                &text(s, &bar, "source_coord")
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?,
+            )
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
             let source = raw.get(&coord).ok_or_else(|| err("CC007单元缺原始来源"))?;
-            if digest(&bar).map_err(newchan_rust::s_content::ContextError::into_message)? != source.bar {
+            if digest(&bar).map_err(newchan_rust::s_content::ContextError::into_message)?
+                != source.bar
+            {
                 return Err(err("CC007单元bar不是同cut五字段原件"));
             }
-            exact(&field(s, &unit, "relations").map_err(newchan_rust::s_content::ContextError::into_message)?, Kind::Array, 24).map_err(newchan_rust::s_content::ContextError::into_message)?;
-            let wire = field(s, &unit, "source_ref").map_err(newchan_rust::s_content::ContextError::into_message)?;
-            exact(&wire, Kind::Object, 8).map_err(newchan_rust::s_content::ContextError::into_message)?;
-            if digest(&wire).map_err(newchan_rust::s_content::ContextError::into_message)? != source.wire {
+            exact(
+                &field(s, &unit, "relations")
+                    .map_err(newchan_rust::s_content::ContextError::into_message)?,
+                Kind::Array,
+                24,
+            )
+            .map_err(newchan_rust::s_content::ContextError::into_message)?;
+            let wire = field(s, &unit, "source_ref")
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
+            exact(&wire, Kind::Object, 8)
+                .map_err(newchan_rust::s_content::ContextError::into_message)?;
+            if digest(&wire).map_err(newchan_rust::s_content::ContextError::into_message)?
+                != source.wire
+            {
                 return Err(err("CC007单元source_ref不是同cut完整八字段原件"));
             }
         }
-        if field(s, &current, "bar").map_err(newchan_rust::s_content::ContextError::into_message)? != batch_bar {
+        if field(s, &current, "bar").map_err(newchan_rust::s_content::ContextError::into_message)?
+            != batch_bar
+        {
             return Err(err("CC007单元bar与批记录不同"));
         }
     }

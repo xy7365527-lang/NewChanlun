@@ -746,7 +746,10 @@ impl Runtime {
                 let structure_prior =
                     object_index::structure_prior_records(&store, &audited.objects)?;
                 sc::write_value(&mut store, &scope_value).map_err(publish_err)?;
-                let generator = self.generator.as_mut().ok_or_else(|| publish_err("生成器未绑定"))?;
+                let generator = self
+                    .generator
+                    .as_mut()
+                    .ok_or_else(|| publish_err("生成器未绑定"))?;
                 #[cfg(test)]
                 state::trace_stage("generate", "delta", generation);
                 #[cfg(all(test, feature = "s_incremental"))]

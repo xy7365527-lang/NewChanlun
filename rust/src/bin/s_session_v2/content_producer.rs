@@ -7698,8 +7698,8 @@ impl Cc004Producer {
         use crate::v3::structure_value as sv;
         let key_text = crate::v3::content_structure::canonical_root_text(store, key)?;
         let axis = axes.fields().map(|(k, v)| (k, sc::ValueView::String(v)));
-        let axis =
-            sc::write_value_view(store, sc::ValueView::Object(&axis)).map_err(sc::ContextError::from)?;
+        let axis = sc::write_value_view(store, sc::ValueView::Object(&axis))
+            .map_err(sc::ContextError::from)?;
         let mut reason_values = sv::Vec::new();
         for r in reasons {
             reason_values.push(sc::ValueView::String(r), store)?;

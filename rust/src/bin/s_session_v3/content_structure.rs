@@ -1738,7 +1738,7 @@ pub(super) fn build_ef_units(
         inputs
             .completed
             .iter()
-            .map(|u| u.range.ok_or_else(|| "完成单元缺区间".to_string())),
+            .map(|u| u.range.ok_or_else(|| sc::ContextError::from("完成单元缺区间"))),
         nodes,
     )?;
     let facts = scan_center_facts_full(&units, center_from_segments);
@@ -3224,6 +3224,7 @@ mod native_wire_tests {
         let before = nodes.iter().count();
         assert!(fact(&mut nodes, &1.25f64)
             .unwrap_err()
+            .to_string()
             .contains("不允许浮点"));
         assert_eq!(nodes.iter().count(), before, "编码拒绝不能先写节点");
     }

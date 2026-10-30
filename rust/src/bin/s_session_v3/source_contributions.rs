@@ -2446,7 +2446,7 @@ mod component_tests {
     #[test]
     fn b2_source_retained_tree_uses_actual_string_capacity_and_symmetric_release() {
         let s = sc::MemoryNodes::default();
-        let mut map = Map::<String, PublishError>::default();
+        let mut map = Map::<String, String>::default();
         let mut key = String::with_capacity(128);
         key.push_str("slot");
         let key_cap = key.capacity();
@@ -2456,7 +2456,7 @@ mod component_tests {
         map.put(&s, key, value).unwrap();
         assert_eq!(
             map.heap_bytes(),
-            retention::tree_slots::<String, PublishError>(1) + key_cap + value_cap
+            retention::tree_slots::<String, String>(1) + key_cap + value_cap
         );
         let mut replacement_key = String::with_capacity(4096);
         replacement_key.push_str("slot");
@@ -2466,7 +2466,7 @@ mod component_tests {
         map.put(&s, replacement_key, replacement).unwrap();
         assert_eq!(
             map.heap_bytes(),
-            retention::tree_slots::<String, PublishError>(1) + key_cap + next_cap
+            retention::tree_slots::<String, String>(1) + key_cap + next_cap
         );
         assert_eq!(map.remove("slot").unwrap().unwrap(), "next");
         assert_eq!(map.heap_bytes(), 0);

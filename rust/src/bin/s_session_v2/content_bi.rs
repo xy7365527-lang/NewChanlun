@@ -4075,10 +4075,10 @@ pub(super) fn known_root(
     generation: i64,
     frontier: i64,
     commit: Option<&str>,
-) -> Result<Built, String> {
+) -> Result<Built, sc::ContextError> {
     use crate::v3::structure_value::{object, put, string, Value as V};
     let latest = Ledger { rows: raw }.latest();
-    let optional = |v: Option<&str>| -> Result<V, String> {
+    let optional = |v: Option<&str>| -> Result<V, sc::ContextError> {
         v.map(|s| string(s, store))
             .transpose()
             .map(|v| v.unwrap_or(V::Null))

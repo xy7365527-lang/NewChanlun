@@ -461,7 +461,10 @@ fn b2_source_fault_hook(
         )
         .unwrap_err()
     };
-    assert!(expected.to_string().contains(fault.reason()), "{fault:?}: {expected}");
+    assert!(
+        expected.to_string().contains(fault.reason()),
+        "{fault:?}: {expected}"
+    );
     drop(store);
     let after_nodes: i64 = tx
         .query_row("SELECT count(*) FROM s_content_nodes", [], |r| r.get(0))
@@ -531,7 +534,9 @@ fn b2_run_source_fault(fault: B2SourceFault) {
         };
         let observation = B2_SOURCE_FAULT_OBSERVATION
             .with(|slot| slot.borrow_mut().take())
-            .unwrap_or_else(|| panic!("{fault:?}: 真实TxStore注入hook必须已运行；publish 错误：{error}"));
+            .unwrap_or_else(|| {
+                panic!("{fault:?}: 真实TxStore注入hook必须已运行；publish 错误：{error}")
+            });
         assert!(observation.semantic_nodes_added);
         assert_eq!(
             error, observation.expected,

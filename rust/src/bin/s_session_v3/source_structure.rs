@@ -2395,7 +2395,7 @@ mod ef_entity_tests {
                     "segment:0",
                 )
                 .expect_err(what);
-                assert!(got.contains(want), "{what}: {got}");
+                assert!(got.to_string().contains(want), "{what}: {got}");
             }
         }
         assert!(withdrawn > 50, "撤回负控覆盖过少：{withdrawn}");

@@ -16,7 +16,10 @@ impl Text {
             .map(Self)
             .map_err(sc::ContextError::from)
     }
-    pub fn format(args: fmt::Arguments<'_>, nodes: &dyn NodeSource) -> Result<Self, sc::ContextError> {
+    pub fn format(
+        args: fmt::Arguments<'_>,
+        nodes: &dyn NodeSource,
+    ) -> Result<Self, sc::ContextError> {
         NativeValue::<String>::try_format(args, nodes.codec_work())
             .map(Self)
             .map_err(sc::ContextError::from)
@@ -115,7 +118,12 @@ impl<T> Vec<T> {
         }
         self.0.try_push(value).map_err(sc::ContextError::from)
     }
-    pub fn insert(&mut self, at: usize, value: T, nodes: &dyn NodeSource) -> Result<(), sc::ContextError> {
+    pub fn insert(
+        &mut self,
+        at: usize,
+        value: T,
+        nodes: &dyn NodeSource,
+    ) -> Result<(), sc::ContextError> {
         if let Some(work) = nodes.codec_work() {
             self.0.try_insert_native(at, value, work)
         } else {
@@ -283,7 +291,10 @@ impl CloneIn for Value {
         })
     }
 }
-pub(crate) fn string(v: impl fmt::Display, nodes: &dyn NodeSource) -> Result<Value, sc::ContextError> {
+pub(crate) fn string(
+    v: impl fmt::Display,
+    nodes: &dyn NodeSource,
+) -> Result<Value, sc::ContextError> {
     Ok(Value::String(Text::format(format_args!("{v}"), nodes)?))
 }
 pub(crate) fn object<const N: usize>(
