@@ -1,0 +1,24 @@
+name: H1 history component 36h
+on:
+  push:
+    branches: [codex/issue1481-history36h]
+  workflow_dispatch:
+jobs:
+  history:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CARGO_INCREMENTAL: '0'
+    defaults:
+      run:
+        working-directory: rust
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/rust-job-setup
+      - name: H1 life clamp and history locks
+        run: cargo test --release --locked --features s_session,s_incremental --bin s_structure_session h1_ --jobs 4 -- --test-threads 1 --nocapture
+      - name: Existing SQLite commit failure locks
+        run: cargo test --release --locked --features s_session,s_incremental --bin s_structure_session sqlite_commit_failure --jobs 4 -- --test-threads 1
+      - name: Ordinary build contract
+        run: cargo check --locked --features s_session --bin s_structure_session --jobs 4

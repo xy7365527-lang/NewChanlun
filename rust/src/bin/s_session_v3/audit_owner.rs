@@ -30,6 +30,8 @@ pub(super) fn log_pager_handle(
 
 #[cfg(feature = "s_incremental")]
 pub(super) mod effects;
+#[cfg(all(feature = "s_incremental", unix))]
+mod history_clamp;
 #[cfg(feature = "s_incremental")]
 pub(crate) mod native;
 /// 冷根父账类型：无native特征时不存在可出生的根，参数只能为None。
@@ -207,6 +209,8 @@ static NEXT_LIFE: AtomicU64 = AtomicU64::new(1);
 
 pub(super) struct AuditConnection {
     connection: Connection,
+    #[cfg(all(feature = "s_incremental", unix))]
+    history_clamp: std::cell::RefCell<Option<history_clamp::Clamp>>,
     life: u64,
     retired: Cell<bool>,
     next_transaction: Cell<u64>,
@@ -277,6 +281,8 @@ struct AuditTxn<'a> {
     transaction_id: u64,
     write_sequence: u64,
     dirty: Cell<bool>,
+    #[cfg(all(feature = "s_incremental", unix))]
+    history_write: std::cell::RefCell<Option<history_clamp::WriteCandidate>>,
     construction: std::cell::RefCell<Option<construction_state::PendingRawState>>,
     #[cfg(feature = "s_incremental")]
     complete: std::cell::RefCell<Option<CompleteCandidate>>,
@@ -317,6 +323,8 @@ impl AuditConnection {
         }
         Ok(Self {
             connection,
+            #[cfg(all(feature = "s_incremental", unix))]
+            history_clamp: Default::default(),
             life,
             retired: Cell::new(false),
             next_transaction: Cell::new(0),
@@ -330,6 +338,26 @@ impl AuditConnection {
             #[cfg(feature = "s_incremental")]
             quiescent: Default::default(),
         })
+    }
+
+    /// #1481 显式组件入口；正式CLI/launcher不调用，不改变Ordinary前置。
+    #[cfg(all(feature = "s_incremental", unix))]
+    #[allow(dead_code, reason = "#1481 H1生产接线受#1645/#1491批准门约束")]
+    pub(super) fn open_history_component(db: &Path, control_limit: usize) -> Result<Self, String> {
+        let owner = Self::open(db)?;
+        *owner.history_clamp.borrow_mut() = Some(history_clamp::Clamp::open(&owner.connection, db, control_limit)?);
+        let active = owner.begin(TransactionBehavior::Deferred)?;
+        active.read_end()?;
+        Ok(owner)
+    }
+
+    #[cfg(all(feature = "s_incremental", unix))]
+    fn history_result<T>(&self, result: Result<T, String>) -> Result<T, String> {
+        if result.is_err() {
+            self.retired.set(true);
+            self.clear_candidates();
+        }
+        result
     }
 
     fn invalidate_construction(&self) {
@@ -375,6 +403,8 @@ impl AuditConnection {
             transaction_id,
             write_sequence: self.write_sequence.get(),
             dirty: Cell::new(false),
+            #[cfg(all(feature = "s_incremental", unix))]
+            history_write: Default::default(),
             construction: Default::default(),
             #[cfg(feature = "s_incremental")]
             complete: Default::default(),
@@ -400,6 +430,8 @@ impl AuditConnection {
             .tx()
             .query_row("PRAGMA main.schema_version", [], |r| r.get(0))
             .map_err(invalid)?;
+        #[cfg(all(feature = "s_incremental", unix))]
+        active.check_history()?;
         Ok(active)
     }
 
@@ -1069,11 +1101,21 @@ impl AuditConnection {
 }
 
 impl AuditTxn<'_> {
+    #[cfg(all(feature = "s_incremental", unix))]
+    fn check_history(&self) -> Result<(), String> {
+        let result = match self.owner.history_clamp.borrow_mut().as_mut() {
+            Some(clamp) => clamp.check(self), None => Ok(()),
+        };
+        self.owner.history_result(result)
+    }
+
     fn tx(&self) -> &Transaction<'_> {
         self.transaction.as_ref().unwrap()
     }
 
     fn read_end(mut self) -> Result<Ended, String> {
+        #[cfg(all(feature = "s_incremental", unix))]
+        self.check_history()?;
         #[cfg(feature = "s_incremental")]
         if let Some(c) = self.complete.borrow().as_ref() {
             if c.seal.transaction_id != self.transaction_id
@@ -1120,6 +1162,16 @@ impl AuditTxn<'_> {
     }
 
     fn commit_as(&mut self, publication: bool) -> Result<Ended, String> {
+        #[cfg(all(feature = "s_incremental", unix))]
+        if self.owner.history_clamp.borrow().is_some() {
+            let checked = (|| {
+                let clamp = self.owner.history_clamp.borrow();
+                let candidate = self.history_write.borrow();
+                let candidate = candidate.as_ref().ok_or_else(|| history_clamp::stale("提交缺已核自身effects"))?;
+                clamp.as_ref().unwrap().check_candidate(self, candidate)
+            })();
+            self.owner.history_result(checked)?;
+        }
         #[cfg(feature = "s_incremental")]
         if let Some(c) = self.complete.borrow().as_ref() {
             if c.seal.life != self.owner.life
@@ -1180,6 +1232,15 @@ impl AuditTxn<'_> {
             self.owner.retired.set(true);
             return Err(invalid("提交返回后事务仍活动"));
         }
+        #[cfg(all(feature = "s_incremental", unix))]
+        if self.owner.history_clamp.borrow().is_some() {
+            if result.is_err() { self.owner.retired.set(true); }
+            if result.is_ok() {
+                let candidate = self.history_write.borrow_mut().take().unwrap();
+                let checked = self.owner.history_clamp.borrow_mut().as_mut().unwrap().committed(candidate);
+                self.owner.history_result(checked)?;
+            }
+        }
         result?;
         if let Some(pending) = self.construction.borrow_mut().take() {
             // SQLite 已确认 COMMIT，才 move 到下一事务候选；失败绝不复原旧 facts。
@@ -1200,6 +1261,11 @@ impl AuditTxn<'_> {
 impl Drop for AuditTxn<'_> {
     fn drop(&mut self) {
         if let Some(tx) = self.transaction.take() {
+            #[cfg(all(feature = "s_incremental", unix))]
+            if self.owner.history_clamp.borrow().is_some() {
+                // 自身写未走确认提交路径，夹持不恢复旧资格。
+                self.owner.retired.set(true);
+            }
             #[cfg(feature = "s_incremental")]
             {
                 if tx
@@ -1903,6 +1969,13 @@ impl AuditTxn<'_> {
     }
 
     fn before_write_inner(&self, preserve_construction: bool) -> Result<(), String> {
+        #[cfg(all(feature = "s_incremental", unix))]
+        if self.owner.history_clamp.borrow().is_some() {
+            self.check_history()?;
+            if self.recording.borrow().is_none() {
+                return self.owner.history_result(Err(history_clamp::stale("写前缺声明effects记录")));
+            }
+        }
         // 必须发生在任何固定 operation（含 Noop）的第一条写 SQL 之前。
         if !preserve_construction {
             self.owner.invalidate_construction();
@@ -1993,6 +2066,10 @@ impl AuditTxn<'_> {
                         "已有增量游标的材料域改变；禁止冷重签",
                     ));
                 }
+                #[cfg(unix)]
+                if self.owner.history_clamp.borrow().is_some() {
+                    return self.owner.history_result(Err(history_clamp::stale("已核候选失效，禁止完整审计兜底")));
+                }
                 // 尚未建立增量游标的独立冷入口保持既有完整审计。
                 drop(candidate);
             }
@@ -2025,7 +2102,13 @@ impl AuditTxn<'_> {
                     let first = first.and_then(|a| cold_root_probe::inject_failure().map(|()| a));
                     match first {
                         Ok(audited) => (audited, Some(root)),
-                        Err(_) => {
+                        Err(error) => {
+                            #[cfg(unix)]
+                            if self.owner.history_clamp.borrow().is_some() {
+                                return self.owner.history_result(Err(error));
+                            }
+                            #[cfg(not(unix))]
+                            let _ = error;
                             drop(context.take());
                             // #1488 P3-1：失败首跑在根工作域内经 legacy cache 保留的 NativeArc 仍持根许可；
                             // 根析构前整体清除跨请求保留（缓存只影响复用，不改判据），不留挂在已析构根上的许可。
@@ -3224,7 +3307,12 @@ impl AuditTxn<'_> {
                         self.tx(),
                         op,
                         (limit / 8).min(recording_cap),
-                        strict,
+                        strict || {
+                            #[cfg(unix)]
+                            { self.owner.history_clamp.borrow().is_some() }
+                            #[cfg(not(unix))]
+                            { false }
+                        },
                         &candidate.resources,
                         candidate.limit,
                     )? {
@@ -3297,8 +3385,12 @@ impl AuditTxn<'_> {
         #[cfg(feature = "s_incremental")]
         {
             let strict = self.construction.borrow().is_some();
+            #[cfg(unix)]
+            let history_strict = self.owner.history_clamp.borrow().is_some();
+            #[cfg(not(unix))]
+            let history_strict = false;
             let missing = || {
-                if strict {
+                if strict || history_strict {
                     Err(construction_state::stale(
                         "effects未完整闭合；不得回落旧审计",
                     ))
@@ -3325,6 +3417,11 @@ impl AuditTxn<'_> {
             if strict && !effects.has_exact_coverage(closed_changes) {
                 return Err(construction_state::stale("actual effects覆盖收据缺失"));
             }
+            #[cfg(unix)]
+            let history_candidate = {
+                let clamp = self.owner.history_clamp.borrow();
+                clamp.as_ref().map(|c| c.candidate(self, &effects)).transpose()?
+            };
             let set = effects.set.take();
             // 真实旧投影核仍负责 birth/revision/withdrawal/辅助合并的双向语义；
             // C2 不按新叶数制造一条新的SQL判据。
@@ -3377,6 +3474,8 @@ impl AuditTxn<'_> {
                 construction.confirm_recover(persisted)?;
             }
             *self.complete.borrow_mut() = Some(candidate);
+            #[cfg(unix)]
+            { *self.history_write.borrow_mut() = history_candidate; }
         }
         Ok(())
     }
@@ -4506,6 +4605,8 @@ pub(super) mod construction_tests {
     use super::*;
 
     include!("audit_owner/b2_source_fault_tests.rs");
+    #[cfg(unix)]
+    include!("audit_owner/history_clamp_tests.rs");
 
     #[derive(Clone, Debug)]
     struct RawObservation {
