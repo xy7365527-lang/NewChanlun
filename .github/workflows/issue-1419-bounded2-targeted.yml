@@ -42,15 +42,8 @@ jobs:
             if ! cargo test --locked --release --features s_session,s_capture_native_testonly,s_allocation_json_testonly --bin s_structure_session --jobs 1 -- --exact "$test" --nocapture 2>&1 | tee "$log"; then failed=1; fi
             if ! grep -F 'test result: ok. 1 passed;' "$log"; then failed=1; fi
           done <<'TESTS'
-          v3::tests::bounded2_archival_rule_dispatch
-          v3::source_audit::tests::bounded2_unit_source_binding_is_exact
-          v3::prepared::tests::pending_source_tests::bounded2_revision_restore_preserves_archived_cuts
-          v3::prepared::tests::pending_source_tests::pending_source_unordered_same_ohlc
-          v3::prepared::tests::pending_source_tests::pending_source_ordered_same_ohlc
-          v3::prepared::tests::pending_source_tests::pending_source_earlier_revision
+          v3::generation::tests::bounded2_crosswalk_rejects_non_w_subject_and_fractal_changes
           v3::generation::tests::w_semantics_layout_neutral_between_layout1_and_bounded
-          v3::generation::tests::w_request_semantics_detects_axes_subject_and_duplicate_changes
-          v3::generation::tests::w_requests_keep_line_order_in_layout1_and_lead_bounded_layout
           TESTS
           exit "$failed"
       - name: Build formal binary

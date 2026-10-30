@@ -7030,6 +7030,55 @@ pub(super) mod tests {
     }
 
     #[test]
+    fn bounded2_crosswalk_rejects_non_w_subject_and_fractal_changes() {
+        let events = delta_long_fixture();
+        let (sorted, bounded) = bounded2_layout_runs(&events, &[events.len()]).remove(0);
+        let shapes = objects_of(&bounded, CC006_SHAPE_KIND);
+        assert!(shapes.len() >= 2);
+        assert!(shapes.iter().all(|o| o.get("fact_key").is_none()));
+        eprintln!("CC006 subject counterexample {}", json!(shapes));
+        let subjects: std::collections::BTreeSet<_> = requests_of(&bounded)
+            .iter()
+            .filter_map(|r| r["subject_id"].as_str().map(str::to_string))
+            .collect();
+        let kinds: std::collections::BTreeSet<_> = bounded["objects"].as_array().unwrap()
+            .iter().filter(|o| subjects.contains(o["object_id"].as_str().unwrap()))
+            .map(|o| o["kind"].as_str().unwrap().to_string()).collect();
+        eprintln!("crosswalk subject kinds {kinds:?}");
+        assert_bounded2_crosswalk(1, &sorted, &bounded, &events);
+        for mutation in ["shape_subject", "non_w_axes", "non_w_coords", "fractal_refs", "fractal_coords", "fractal_lifecycle"] {
+            let mut changed = bounded.clone();
+            if mutation.starts_with("fractal_") {
+                let object = changed["objects"].as_array_mut().unwrap().iter_mut()
+                    .find(|o| o["kind"] == CC007_FRACTAL_KIND).unwrap();
+                match mutation {
+                    "fractal_refs" => object["input_refs_json"] = json!("[]"),
+                    "fractal_coords" => object["source_coords_json"] = json!("[]"),
+                    "fractal_lifecycle" => object["first_known_generation"] = json!(999),
+                    _ => unreachable!(),
+                }
+            } else {
+                let knowledge = changed["objects"].as_array_mut().unwrap().iter_mut()
+                    .find(|o| o["kind"] == CC054_KNOWLEDGE_KIND).unwrap();
+                let mut payload: Value = serde_json::from_str(knowledge["payload_json"].as_str().unwrap()).unwrap();
+                let request = payload["requests"].as_array_mut().unwrap().iter_mut()
+                    .find(|r| r["subject_id"] == shapes[0]["object_id"]).unwrap();
+                match mutation {
+                    "shape_subject" => request["subject_id"] = shapes[1]["object_id"].clone(),
+                    "non_w_axes" => request["axes"]["validity"] = json!("STALE"),
+                    "non_w_coords" => request["source_coords"] = json!([]),
+                    _ => unreachable!(),
+                }
+                knowledge["payload_json"] = json!(crate::canonical_json(&payload));
+            }
+            assert!(std::panic::catch_unwind(|| {
+                assert_bounded2_crosswalk(1, &sorted, &changed, &events);
+            }).is_err(), "{mutation} 必须被完整比较拒绝");
+            eprintln!("crosswalk rejected {mutation}");
+        }
+    }
+
+    #[test]
     fn layout1_generation_has_no_development_batch_and_keeps_line_order_requests() {
         let events = delta_long_fixture();
         let runs = bounded_layout_runs(&events, &[events.len()]);
