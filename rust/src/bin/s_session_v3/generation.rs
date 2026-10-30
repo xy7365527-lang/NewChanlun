@@ -2690,6 +2690,7 @@ fn producer_error(error: ProducerError) -> PublishError {
 fn bi_error(error: crate::content_bi::BiError) -> PublishError {
     match error {
         crate::content_bi::BiError::Content(error) => producer_failure(error),
+        crate::content_bi::BiError::StructureFacts(error) => error.context("同核事实缺项："),
         error => error.to_string().into(),
     }
 }

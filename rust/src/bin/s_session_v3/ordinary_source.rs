@@ -172,6 +172,7 @@ struct RawReads<'a, T: ?Sized> {
     deps: &'a RefCell<Dependencies>,
 }
 impl<T: RawLookup + ?Sized> RawLookup for RawReads<'_, T> {
+    fn len(&self) -> usize { self.raw.len() }
     fn get(&self, c: &i64) -> Option<&Source> {
         let value = self.raw.get(c);
         self.deps.borrow_mut().raw.push((*c, value.copied()));

@@ -1329,7 +1329,6 @@ pub(super) fn audit_with_proofs<'a>(
                 &mut requests,
                 &mut bound,
                 equal_is_evidence,
-                rule,
             )?;
         }
     }

@@ -11,15 +11,15 @@ use std::{
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct Text(NativeValue<String>);
 impl Text {
-    pub fn new(s: &str, nodes: &dyn NodeSource) -> Result<Self, String> {
+    pub fn new(s: &str, nodes: &dyn NodeSource) -> Result<Self, sc::ContextError> {
         NativeValue::<String>::try_from_str(s, nodes.codec_work())
             .map(Self)
-            .map_err(|e| e.to_string())
+            .map_err(sc::ContextError::from)
     }
-    pub fn format(args: fmt::Arguments<'_>, nodes: &dyn NodeSource) -> Result<Self, String> {
+    pub fn format(args: fmt::Arguments<'_>, nodes: &dyn NodeSource) -> Result<Self, sc::ContextError> {
         NativeValue::<String>::try_format(args, nodes.codec_work())
             .map(Self)
-            .map_err(|e| e.to_string())
+            .map_err(sc::ContextError::from)
     }
     pub fn as_str(&self) -> &str {
         &self.0
@@ -68,30 +68,30 @@ impl serde::Serialize for Text {
 }
 
 pub(crate) trait CloneIn: Sized {
-    fn clone_in(&self, nodes: &dyn NodeSource) -> Result<Self, String>;
+    fn clone_in(&self, nodes: &dyn NodeSource) -> Result<Self, sc::ContextError>;
 }
 impl CloneIn for Text {
-    fn clone_in(&self, nodes: &dyn NodeSource) -> Result<Self, String> {
+    fn clone_in(&self, nodes: &dyn NodeSource) -> Result<Self, sc::ContextError> {
         Self::new(self.as_str(), nodes)
     }
 }
 impl CloneIn for Built {
-    fn clone_in(&self, _: &dyn NodeSource) -> Result<Self, String> {
+    fn clone_in(&self, _: &dyn NodeSource) -> Result<Self, sc::ContextError> {
         Ok(self.clone())
     }
 }
 impl CloneIn for usize {
-    fn clone_in(&self, _: &dyn NodeSource) -> Result<Self, String> {
+    fn clone_in(&self, _: &dyn NodeSource) -> Result<Self, sc::ContextError> {
         Ok(*self)
     }
 }
 impl<T: ?Sized> CloneIn for &T {
-    fn clone_in(&self, _: &dyn NodeSource) -> Result<Self, String> {
+    fn clone_in(&self, _: &dyn NodeSource) -> Result<Self, sc::ContextError> {
         Ok(*self)
     }
 }
 impl<A: CloneIn, B: CloneIn> CloneIn for (A, B) {
-    fn clone_in(&self, nodes: &dyn NodeSource) -> Result<Self, String> {
+    fn clone_in(&self, nodes: &dyn NodeSource) -> Result<Self, sc::ContextError> {
         Ok((self.0.clone_in(nodes)?, self.1.clone_in(nodes)?))
     }
 }
@@ -107,27 +107,27 @@ impl<T> Vec<T> {
     pub fn new() -> Self {
         Self::default()
     }
-    pub fn push(&mut self, value: T, nodes: &dyn NodeSource) -> Result<(), String> {
+    pub fn push(&mut self, value: T, nodes: &dyn NodeSource) -> Result<(), sc::ContextError> {
         if let Some(work) = nodes.codec_work() {
             self.0
                 .try_reserve_native(work, 1)
-                .map_err(|e| e.to_string())?;
+                .map_err(sc::ContextError::from)?;
         }
-        self.0.try_push(value).map_err(|e| e.to_string())
+        self.0.try_push(value).map_err(sc::ContextError::from)
     }
-    pub fn insert(&mut self, at: usize, value: T, nodes: &dyn NodeSource) -> Result<(), String> {
+    pub fn insert(&mut self, at: usize, value: T, nodes: &dyn NodeSource) -> Result<(), sc::ContextError> {
         if let Some(work) = nodes.codec_work() {
             self.0.try_insert_native(at, value, work)
         } else {
             self.0.try_insert(at, value)
         }
-        .map_err(|e| e.to_string())
+        .map_err(sc::ContextError::from)
     }
     pub fn extend(
         &mut self,
         iter: impl IntoIterator<Item = T>,
         nodes: &dyn NodeSource,
-    ) -> Result<(), String> {
+    ) -> Result<(), sc::ContextError> {
         for value in iter {
             self.push(value, nodes)?;
         }
@@ -136,15 +136,15 @@ impl<T> Vec<T> {
     pub fn from_iter(
         iter: impl IntoIterator<Item = T>,
         nodes: &dyn NodeSource,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, sc::ContextError> {
         let mut out = Self::new();
         out.extend(iter, nodes)?;
         Ok(out)
     }
     pub fn try_from_iter(
-        iter: impl IntoIterator<Item = Result<T, String>>,
+        iter: impl IntoIterator<Item = Result<T, sc::ContextError>>,
         nodes: &dyn NodeSource,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, sc::ContextError> {
         let mut out = Self::new();
         for value in iter {
             out.push(value?, nodes)?;
@@ -177,7 +177,7 @@ impl<T> DerefMut for Vec<T> {
     }
 }
 impl<T: CloneIn> CloneIn for Vec<T> {
-    fn clone_in(&self, nodes: &dyn NodeSource) -> Result<Self, String> {
+    fn clone_in(&self, nodes: &dyn NodeSource) -> Result<Self, sc::ContextError> {
         Self::try_from_iter(self.iter().map(|v| v.clone_in(nodes)), nodes)
     }
 }
@@ -226,7 +226,7 @@ impl<K: Ord, V> Map<K, V> {
         key: K,
         value: V,
         nodes: &dyn NodeSource,
-    ) -> Result<Option<V>, String> {
+    ) -> Result<Option<V>, sc::ContextError> {
         match self.0.binary_search_by(|(k, _)| k.cmp(&key)) {
             Ok(i) => Ok(Some(std::mem::replace(&mut self.0[i].1, value))),
             Err(i) => {
@@ -251,7 +251,7 @@ impl<K: Ord> Set<K> {
     pub fn new() -> Self {
         Self(Map::new())
     }
-    pub fn insert(&mut self, k: K, nodes: &dyn NodeSource) -> Result<bool, String> {
+    pub fn insert(&mut self, k: K, nodes: &dyn NodeSource) -> Result<bool, sc::ContextError> {
         Ok(self.0.insert(k, (), nodes)?.is_none())
     }
     pub fn contains<Q: Ord + ?Sized>(&self, k: &Q) -> bool
@@ -272,7 +272,7 @@ pub(crate) enum Value {
     Edge(sc::NodeDigest),
 }
 impl CloneIn for Value {
-    fn clone_in(&self, nodes: &dyn NodeSource) -> Result<Self, String> {
+    fn clone_in(&self, nodes: &dyn NodeSource) -> Result<Self, sc::ContextError> {
         Ok(match self {
             Self::Null => Self::Null,
             Self::Bool(v) => Self::Bool(*v),
@@ -283,13 +283,13 @@ impl CloneIn for Value {
         })
     }
 }
-pub(crate) fn string(v: impl fmt::Display, nodes: &dyn NodeSource) -> Result<Value, String> {
+pub(crate) fn string(v: impl fmt::Display, nodes: &dyn NodeSource) -> Result<Value, sc::ContextError> {
     Ok(Value::String(Text::format(format_args!("{v}"), nodes)?))
 }
 pub(crate) fn object<const N: usize>(
     fields: [(&str, Value); N],
     nodes: &dyn NodeSource,
-) -> Result<Value, String> {
+) -> Result<Value, sc::ContextError> {
     let mut out = Vec::new();
     for (k, v) in fields {
         out.push((Text::new(k, nodes)?, v), nodes)?;
@@ -297,7 +297,7 @@ pub(crate) fn object<const N: usize>(
     Ok(Value::Object(out))
 }
 /// 子节点写成内容边，临时视图只借用；与 codec 的规范对象/数组编码共用一核。
-pub(crate) fn put(value: &Value, nodes: &mut dyn NodeStore) -> Result<Built, String> {
+pub(crate) fn put(value: &Value, nodes: &mut dyn NodeStore) -> Result<Built, sc::ContextError> {
     let result = match value {
         Value::Null => sc::write_value(nodes, &sc::Value::Null),
         Value::Bool(v) => sc::write_value(nodes, &sc::Value::Bool(*v)),
@@ -326,7 +326,7 @@ pub(crate) fn put(value: &Value, nodes: &mut dyn NodeStore) -> Result<Built, Str
             sc::write_value_view(nodes, ValueView::Object(&refs))
         }
     };
-    result.map_err(|e| e.to_string())
+    result.map_err(sc::ContextError::from)
 }
 
 #[cfg(all(test, feature = "s_capture_native_testonly"))]
@@ -350,7 +350,7 @@ mod tests {
         let values = budget
             .codec_work()
             .unwrap()
-            .run(|work| -> Result<_, String> {
+            .run(|work| -> Result<_, sc::ContextError> {
                 let source = Source(work);
                 let mut values = Vec::new();
                 values.push(Text::new("segment:1:42", &source)?, &source)?;
@@ -375,7 +375,7 @@ mod tests {
         let failed = tiny
             .codec_work()
             .unwrap()
-            .run(|work| -> Result<(), String> {
+            .run(|work| -> Result<(), sc::ContextError> {
                 let source = Source(work);
                 let mut values = Vec::new();
                 values.push(Text::new("admitted-before-buffer", &source)?, &source)?;
@@ -390,7 +390,7 @@ mod tests {
         let mut values = parent
             .codec_work()
             .unwrap()
-            .run(|work| -> Result<_, String> { Vec::from_iter([7usize], &Source(work)) })
+            .run(|work| -> Result<_, sc::ContextError> { Vec::from_iter([7usize], &Source(work)) })
             .unwrap();
         let before = parent.live();
         let foreign = Budget::new(1 << 20, 0).unwrap();

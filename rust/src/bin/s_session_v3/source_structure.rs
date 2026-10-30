@@ -910,7 +910,7 @@ pub(super) fn entity_id(
         Ok(None)
     }
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(super) fn entity_references(
     s: &mut (impl SourceFieldStore + ?Sized),
     object: &Object,
@@ -2334,7 +2334,7 @@ mod ef_entity_tests {
                 }
                 let lookup = Current(current);
                 let own = audit_links(&mut n, &lookup.0[i].1, &lookup).expect_err(what);
-                assert!(own.contains(want), "{what}: 自身 {own}；全读 {got}");
+                assert!(own.to_string().contains(want), "{what}: 自身 {own}；全读 {got}");
             }
         }
     }

@@ -1516,7 +1516,7 @@ fn w2_group_contains(
     s: &mut (impl CodecStore + ?Sized),
     raw: &Entry,
     group: &Entry,
-) -> Result<bool, String> {
+) -> Result<bool, PublishError> {
     if raw.kind.as_str() != "CC-004.undetermined_raw"
         || group.kind.as_str() != "CC-005.inclusion_group"
     {
@@ -1533,13 +1533,13 @@ fn w2_group_contains(
     }
     let members = field_ref(s, payload.view(), "members")?;
     if members.kind() != Kind::Array {
-        return Err(err("替代组members不是数组"));
+        return Err(publish_err("替代组members不是数组"));
     }
-    for n in 0..members.extent().ok_or_else(|| err("替代组members缺长度"))? {
+    for n in 0..members.extent().ok_or_else(|| publish_err("替代组members缺长度"))? {
         let member = s
             .lookup_ref(members.view(), &[PathStep::Index(n)])
-            .map_err(err)?;
-        if bj::read_text(s, member.view()).map_err(err)? == coord {
+            .map_err(publish_err)?;
+        if bj::read_text(s, member.view()).map_err(publish_err)? == coord {
             return Ok(true);
         }
     }
@@ -1550,7 +1550,7 @@ fn w2_audit_group_contains(
     s: &mut (impl CodecStore + ?Sized),
     raw: &Entry,
     group: &Entry,
-) -> Result<bool, String> {
+) -> Result<bool, PublishError> {
     if raw.kind.as_str() != "CC-004.undetermined_raw"
         || group.kind.as_str() != "CC-005.inclusion_group"
     {
@@ -1560,19 +1560,19 @@ fn w2_audit_group_contains(
     let sources = field_ref(s, original.view(), "source_coords_json")?;
     let sources = s
         .lookup_ref(sources.view(), &[PathStep::JsonText])
-        .map_err(err)?;
+        .map_err(publish_err)?;
     if sources.kind() != Kind::Array || sources.extent() != Some(1) {
-        return Err(err("未定原件必须有一个来源坐标"));
+        return Err(publish_err("未定原件必须有一个来源坐标"));
     }
     let source = s
         .lookup_ref(sources.view(), &[PathStep::Index(0)])
-        .map_err(err)?;
-    let coord = bj::read_text(s, source.view()).map_err(err)?;
+        .map_err(publish_err)?;
+    let coord = bj::read_text(s, source.view()).map_err(publish_err)?;
     let generated = built_ref(s, &group.generated)?;
     let payload = field_ref(s, generated.view(), "payload_json")?;
     let payload = s
         .lookup_ref(payload.view(), &[PathStep::JsonText])
-        .map_err(err)?;
+        .map_err(publish_err)?;
     if field_ref(s, payload.view(), "direction")?.kind() == Kind::Null {
         return Ok(false);
     }
@@ -1580,12 +1580,12 @@ fn w2_audit_group_contains(
     let count = members
         .extent()
         .filter(|_| members.kind() == Kind::Array)
-        .ok_or_else(|| err("定向组原件members不是数组"))?;
+        .ok_or_else(|| publish_err("定向组原件members不是数组"))?;
     for n in 0..count {
         let member = s
             .lookup_ref(members.view(), &[PathStep::Index(n)])
-            .map_err(err)?;
-        if bj::read_text(s, member.view()).map_err(err)? == coord {
+            .map_err(publish_err)?;
+        if bj::read_text(s, member.view()).map_err(publish_err)? == coord {
             return Ok(true);
         }
     }
@@ -1596,7 +1596,7 @@ fn w2_replacing_group(
     s: &mut (impl CodecStore + ?Sized),
     raw: &Entry,
     new: &[Entry],
-) -> Result<Option<usize>, String> {
+) -> Result<Option<usize>, PublishError> {
     if raw.kind.as_str() != "CC-004.undetermined_raw" {
         return Ok(None);
     }
@@ -1604,7 +1604,7 @@ fn w2_replacing_group(
     for (i, group) in new.iter().enumerate() {
         if w2_group_contains(s, raw, group)? {
             if target.replace(i).is_some() {
-                return Err(err("未定原件落入多个定向组"));
+                return Err(publish_err("未定原件落入多个定向组"));
             }
         }
     }
@@ -2536,7 +2536,7 @@ impl StructurePriorRecords {
 pub(super) fn structure_prior_records(
     s: &(impl CodecRead + ?Sized),
     index: &[Entry],
-) -> Result<StructurePriorRecords, String> {
+) -> Result<StructurePriorRecords, PublishError> {
     let mut prior = StructurePriorRecords {
         segments: sc::CodecVec::default(),
         segment_version: None,
@@ -2551,11 +2551,11 @@ pub(super) fn structure_prior_records(
     {
         match entry.kind.as_str() {
             "CC-013.segment" => {
-                s.native_codec_room(&mut prior.segments, 1).map_err(err)?;
+                s.native_codec_room(&mut prior.segments, 1).map_err(publish_err)?;
                 prior
                     .segments
                     .try_push(entry.internal.clone())
-                    .map_err(err)?;
+                    .map_err(publish_err)?;
             }
             "CC-056.segment_version" => {
                 if prior
@@ -2563,7 +2563,7 @@ pub(super) fn structure_prior_records(
                     .replace(entry.internal.clone())
                     .is_some()
                 {
-                    return Err(err("活动段版本对象不唯一"));
+                    return Err(publish_err("活动段版本对象不唯一"));
                 }
             }
             "CC-056.center_version" | "CC-056.pair_version" => {
@@ -2573,18 +2573,18 @@ pub(super) fn structure_prior_records(
                     &mut pair_version
                 };
                 if std::mem::replace(seen, true) {
-                    return Err(err("活动中枢/关系版本对象不唯一"));
+                    return Err(publish_err("活动中枢/关系版本对象不唯一"));
                 }
-                s.native_codec_room(&mut prior.ef, 1).map_err(err)?;
-                prior.ef.try_push(entry.internal.clone()).map_err(err)?;
+                s.native_codec_room(&mut prior.ef, 1).map_err(publish_err)?;
+                prior.ef.try_push(entry.internal.clone()).map_err(publish_err)?;
             }
             "CC-004.undetermined_raw" => {
                 s.native_codec_room(&mut prior.w_undetermined, 1)
-                    .map_err(err)?;
+                    .map_err(publish_err)?;
                 prior
                     .w_undetermined
                     .try_push(entry.internal.clone())
-                    .map_err(err)?;
+                    .map_err(publish_err)?;
             }
             "CC-016.center_seed_attempt"
             | "CC-016.center"
@@ -2592,8 +2592,8 @@ pub(super) fn structure_prior_records(
             | "CC-022.unit_assignment"
             | "CC-018.unit_core_position"
             | "CC-020.center_pair" => {
-                s.native_codec_room(&mut prior.ef, 1).map_err(err)?;
-                prior.ef.try_push(entry.internal.clone()).map_err(err)?;
+                s.native_codec_room(&mut prior.ef, 1).map_err(publish_err)?;
+                prior.ef.try_push(entry.internal.clone()).map_err(publish_err)?;
             }
             _ => {}
         }
@@ -3584,7 +3584,7 @@ pub(super) fn verify_generated_members_swept_with_records<'a>(
                 .ok_or_else(|| err("替代候选不在身份史内"))?;
                 if w2_audit_group_contains(s, e, group)? {
                     if target.replace(n).is_some() {
-                        return Err(err("未定原件有多个替代候选"));
+                        return Err(publish_err("未定原件有多个替代候选"));
                     }
                 }
             }

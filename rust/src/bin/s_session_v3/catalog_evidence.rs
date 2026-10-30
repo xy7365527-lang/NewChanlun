@@ -430,8 +430,8 @@ fn axes_entries<'r>(
                 ("deferred_subobligations", deferred),
             ] {
                 let list = array_field_ref(s, &evidence, key)?;
-                if list.digest().map_err(err)? != hash_json(&Value::from(want.to_vec()))? {
-                    return Err(err(format!("{id} 轴 evidence.{key} 与写者具名清单不同")));
+                if list.digest().map_err(publish_err)? != hash_json(&Value::from(want.to_vec()))? {
+                    return Err(publish_err(format!("{id} 轴 evidence.{key} 与写者具名清单不同")));
                 }
             }
         }

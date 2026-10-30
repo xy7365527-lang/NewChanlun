@@ -96,6 +96,8 @@ pub(super) enum BiError {
     Prior { what: &'static str, detail: String },
     /// 同核事实缺项（例如端点没有极值根、坐标超出 i64 表达）。
     Facts { detail: String },
+    /// 结构事实构造保留底层资源错误来源。
+    StructureFacts(sc::ContextError),
 }
 
 impl From<ProducerError> for BiError {
@@ -121,6 +123,7 @@ impl fmt::Display for BiError {
                 write!(f, "上一代内容对象 `{what}` 不符：{detail}")
             }
             BiError::Facts { detail } => write!(f, "同核事实缺项：{detail}"),
+            BiError::StructureFacts(detail) => write!(f, "同核事实缺项：{detail}"),
         }
     }
 }
@@ -1845,7 +1848,7 @@ fn structure_fact<T: serde::Serialize + ?Sized>(
     store: &mut dyn NodeStore,
     value: &T,
 ) -> Result<Built, BiError> {
-    crate::v3::content_structure::fact(store, value).map_err(|detail| BiError::Facts { detail })
+    crate::v3::content_structure::fact(store, value).map_err(BiError::StructureFacts)
 }
 
 /// 端点值（旧 `wire(serde_json::to_value(Endpoint))` 的同一条文本编码）。

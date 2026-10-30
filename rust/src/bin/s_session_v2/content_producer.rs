@@ -7694,18 +7694,18 @@ impl Cc004Producer {
         axes: RequestAxes,
         reasons: &[&str],
         coords: &Built,
-    ) -> Result<Built, String> {
+    ) -> Result<Built, sc::ContextError> {
         use crate::v3::structure_value as sv;
         let key_text = crate::v3::content_structure::canonical_root_text(store, key)?;
         let axis = axes.fields().map(|(k, v)| (k, sc::ValueView::String(v)));
         let axis =
-            sc::write_value_view(store, sc::ValueView::Object(&axis)).map_err(|e| e.to_string())?;
+            sc::write_value_view(store, sc::ValueView::Object(&axis)).map_err(sc::ContextError::from)?;
         let mut reason_values = sv::Vec::new();
         for r in reasons {
             reason_values.push(sc::ValueView::String(r), store)?;
         }
         let reasons = sc::write_value_view(store, sc::ValueView::Array(&reason_values))
-            .map_err(|e| e.to_string())?;
+            .map_err(sc::ContextError::from)?;
         let fields = [
             ("request_id", sc::ValueView::String(&key_text)),
             ("subject_id", sc::ValueView::String(subject_id)),
@@ -7713,6 +7713,6 @@ impl Cc004Producer {
             ("reasons", sc::ValueView::Edge(reasons.digest)),
             ("source_coords", sc::ValueView::Edge(coords.digest)),
         ];
-        sc::write_value_view(store, sc::ValueView::Object(&fields)).map_err(|e| e.to_string())
+        sc::write_value_view(store, sc::ValueView::Object(&fields)).map_err(sc::ContextError::from)
     }
 }
