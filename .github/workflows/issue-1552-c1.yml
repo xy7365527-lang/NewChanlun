@@ -27,7 +27,8 @@ jobs:
       - run: echo "PYO3_PYTHON=${{ steps.python.outputs.python-path }}" >> "$GITHUB_ENV"
       - name: 记录候选与工具链
         run: |
-          echo "github_sha=$GITHUB_SHA"          sw_vers
+          echo "github_sha=$GITHUB_SHA"
+          sw_vers
           uname -a
           rustc -vV
           cargo -V
@@ -56,7 +57,8 @@ jobs:
               failed=1
             fi
           done
-          exit "$failed"      - name: 保存具名测试原始日志
+          exit "$failed"
+      - name: 保存具名测试原始日志
         if: always()
         uses: actions/upload-artifact@v4
         with:
