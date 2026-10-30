@@ -1,0 +1,26 @@
+name: S4 format export 32y
+on:
+  push:
+    branches: [codex/1640-format-export32y]
+permissions:
+  contents: read
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Export formatter diff
+        run: |
+          rustup component add rustfmt
+          cd rust
+          cargo fmt --all
+          cd ..
+          git diff --binary > /tmp/format32y.patch
+          git diff --stat > /tmp/format32y-stat.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: format32y
+          path: |
+            /tmp/format32y.patch
+            /tmp/format32y-stat.txt
