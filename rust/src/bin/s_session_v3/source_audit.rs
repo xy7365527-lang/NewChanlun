@@ -2377,7 +2377,9 @@ fn audit_generated_in_store(
     #[cfg(test)]
     source_call_note(|n| n.full_members_enumerations += 1);
     if object_array.kind() != Kind::Array { return Err(err("预期数组")); }
-    let mut cursor = s.array_cursor(object_array.view()).map_err(err)?;
+    let mut cursor = if s.audit_full_array_scan() {
+        s.array_cursor(object_array.view()).map_err(err)?
+    } else { None };
     let owned_items = if cursor.is_none() {
         Some(elements_ref(s, object_array.view())?)
     } else { None };

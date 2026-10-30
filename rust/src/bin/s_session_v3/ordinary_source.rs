@@ -503,7 +503,9 @@ mod tests {
             run(&mut nodes, &root, &raw, &rule, &mut book).unwrap();
             book.commit();
             let mut changed = raw.clone();
-            changed[0][field] = json!(value);
+            changed[0][field] = if field == "revision" {
+                json!(raw[0][field].as_i64().unwrap() + 1)
+            } else { json!(value) };
             let expected = oracle(&mut nodes, &root, &changed, &rule).unwrap_err();
             let got = run(&mut nodes, &root, &changed, &rule, &mut book).unwrap_err();
             assert_eq!(got, expected, "{field}");
