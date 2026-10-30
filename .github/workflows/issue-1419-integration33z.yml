@@ -33,9 +33,9 @@ jobs:
           set -o pipefail
           features='${{ matrix.features }}'
           if [ "$features" = s_session ]; then
-            filters=''
+            filters='sqlite_base_ ordinary_materials::tests transaction_material_qualification'
           elif [ "$features" = s_session,s_incremental ]; then
-            filters=''
+            filters='sqlite_base_actual_allocation_and_incremental_exclusion ordinary_materials::tests'
           else
             filters=''
           fi
@@ -45,6 +45,7 @@ jobs:
           done
           if [ "$features" = s_session ]; then
             cargo test --locked --lib --features "$features" raw_materials::tests -- --nocapture --test-threads=1 2>&1 | tee -a ../integration33z/tests.log || failed=1
+            cargo test --locked --lib --features "$features" sqlite_audit::tests -- --nocapture --test-threads=1 2>&1 | tee -a ../integration33z/tests.log || failed=1
           fi
           exit "$failed"
       - name: Record Linux formatting

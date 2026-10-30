@@ -34,12 +34,12 @@ pub const MAX_FRAME_LEN: u64 = (1u64 << 63) - 1;
 pub mod access;
 #[doc(hidden)]
 pub mod capture_allocation;
-pub mod raw_materials;
-pub mod sqlite_audit;
 mod closed;
 /// 受控 compact JSON 写出（#1394 局部发送失败闭合）。
 pub mod json_writer;
+pub mod raw_materials;
 mod ref_owner;
+pub mod sqlite_audit;
 pub use capture_allocation::work::{CodecFields, CodecVec};
 use capture_allocation::work::{WorkBudget, WorkMap, WorkSet, WorkVec};
 use closed::CodecContext;
@@ -5470,7 +5470,10 @@ impl<'a, 'capture> Verifier<'a, 'capture> {
     }
 
     fn push_work(&mut self, digest: NodeDigest, flavor: Flavor) -> Result<(), CodecError> {
-        if self.base_proofs.is_some_and(|proofs| proofs.borrow_mut().contains(&digest, self.mode, flavor)) {
+        if self
+            .base_proofs
+            .is_some_and(|proofs| proofs.borrow_mut().contains(&digest, self.mode, flavor))
+        {
             return Ok(());
         }
 

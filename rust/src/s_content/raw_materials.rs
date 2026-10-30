@@ -56,23 +56,38 @@ pub struct RawMaterials {
 impl RawMaterials {
     pub fn production(metadata: usize) -> Self {
         let slab_len = CAP - META_RESERVE;
-        let layout = Layout::checked(ENTRIES, BUCKETS,
-            slab_len - ENTRIES * ENTRY_BYTES - BUCKETS * 4).unwrap();
+        let layout = Layout::checked(
+            ENTRIES,
+            BUCKETS,
+            slab_len - ENTRIES * ENTRY_BYTES - BUCKETS * 4,
+        )
+        .unwrap();
         Self::allocate_layout(CAP, layout, metadata)
     }
     pub fn with_limits(cap: usize, entries: usize, body: usize, metadata: usize) -> Self {
-        Self::allocate_layout(cap, Layout::checked(entries, entries * 2, body).unwrap(), metadata)
+        Self::allocate_layout(
+            cap,
+            Layout::checked(entries, entries * 2, body).unwrap(),
+            metadata,
+        )
     }
-    pub fn stats(&self) -> Stats { self.stats }
+    pub fn stats(&self) -> Stats {
+        self.stats
+    }
     pub fn read_material(
-        &mut self, digest: &NodeDigest,
+        &mut self,
+        digest: &NodeDigest,
         read: impl FnOnce() -> Result<Option<CheckedFrame>, CodecError>,
     ) -> Result<Option<CheckedFrame>, CodecError> {
         self.stats.logical_reads = self.stats.logical_reads.saturating_add(1);
-        if let Some(frame) = self.hit(digest)? { return Ok(Some(frame)); }
+        if let Some(frame) = self.hit(digest)? {
+            return Ok(Some(frame));
+        }
         self.stats.sql_material_reads = self.stats.sql_material_reads.saturating_add(1);
         let frame = read()?;
-        if let Some(frame) = frame.as_ref() { self.save(digest, frame); }
+        if let Some(frame) = frame.as_ref() {
+            self.save(digest, frame);
+        }
         Ok(frame)
     }
     fn allocate_layout(cap: usize, layout: Layout, metadata: usize) -> Self {
@@ -84,11 +99,7 @@ impl RawMaterials {
                 ..Stats::default()
             },
         };
-        if layout
-            .len
-            .checked_add(metadata)
-            .is_none_or(|n| n > cap)
-        {
+        if layout.len.checked_add(metadata).is_none_or(|n| n > cap) {
             this.stats.disabled = Some("disabled_cap");
             return this;
         }
@@ -206,13 +217,17 @@ mod tests {
     }
     fn read(p: &mut RawMaterials, bytes: &[u8]) -> Result<Option<CheckedFrame>, CodecError> {
         let d = sc::frame(tag::BYTES_CHUNK, bytes);
-        p.read_material(&d, || CheckedFrame::checked(&d, tag::BYTES_CHUNK, bytes.to_vec()).map(Some))
+        p.read_material(&d, || {
+            CheckedFrame::checked(&d, tag::BYTES_CHUNK, bytes.to_vec()).map(Some)
+        })
     }
     #[test]
     fn cap_zero_small_entries_and_body_do_not_change_values() {
         for (cap, entries, body) in [(0, 1, 8), (CAP, 1, 8), (CAP, 8, 2)] {
             let mut p = RawMaterials::with_limits(cap, entries, body, METADATA_BYTES);
-            for b in [b"one", b"two", b"one", b"two"] { assert!(read(&mut p, b).unwrap().is_some()); }
+            for b in [b"one", b"two", b"one", b"two"] {
+                assert!(read(&mut p, b).unwrap().is_some());
+            }
             if cap == 0 {
                 assert_eq!(p.stats.sql_material_reads, 4);
                 assert_eq!(p.stats.disabled, Some("disabled_cap"));
@@ -226,74 +241,79 @@ mod tests {
             }
         }
     }
-#[test]
-fn full_digest_collisions_finite_probe_and_layout_overflow() {
-    assert!(Layout::checked(usize::MAX, usize::MAX, usize::MAX).is_none());
-    assert!(Layout::checked(2, 4, usize::MAX).is_none());
-    assert!(Layout::checked(3, 4, 0).is_none());
-    let mut p = pool(8, 256);
-    let mut keys = Vec::new();
-    for n in 0u32..10000 {
-        let body = n.to_le_bytes().to_vec();
-        let d = sc::frame(sc::tag::BYTES_CHUNK, &body);
-        if u64::from_le_bytes(d[..8].try_into().unwrap()) as usize % 16 == 0 {
-            keys.push((d, body));
-            if keys.len() == 8 {
-                break;
+    #[test]
+    fn full_digest_collisions_finite_probe_and_layout_overflow() {
+        assert!(Layout::checked(usize::MAX, usize::MAX, usize::MAX).is_none());
+        assert!(Layout::checked(2, 4, usize::MAX).is_none());
+        assert!(Layout::checked(3, 4, 0).is_none());
+        let mut p = pool(8, 256);
+        let mut keys = Vec::new();
+        for n in 0u32..10000 {
+            let body = n.to_le_bytes().to_vec();
+            let d = sc::frame(sc::tag::BYTES_CHUNK, &body);
+            if u64::from_le_bytes(d[..8].try_into().unwrap()) as usize % 16 == 0 {
+                keys.push((d, body));
+                if keys.len() == 8 {
+                    break;
+                }
             }
         }
+        assert_eq!(keys.len(), 8);
+        for (d, b) in &keys {
+            p.save(
+                d,
+                &CheckedFrame::checked(d, sc::tag::BYTES_CHUNK, b.clone()).unwrap(),
+            );
+        }
+        for (d, _) in &keys[..4] {
+            assert!(p.hit(d).unwrap().is_none());
+        }
+        for (d, b) in &keys[4..] {
+            assert_eq!(p.hit(d).unwrap().unwrap().body(), b);
+        }
+        assert_eq!(p.stats.saved_entries, 4);
+        assert_eq!(p.stats.saved_body_bytes, 16);
+        assert_eq!(p.stats.max_probes, 4);
+        let absent = [0xfe; 32];
+        assert!(p.slot(&absent).is_err());
+        assert_eq!(p.stats.max_probes, 4);
     }
-    assert_eq!(keys.len(), 8);
-    for (d, b) in &keys {
-        p.save(
-            d,
-            &CheckedFrame::checked(d, sc::tag::BYTES_CHUNK, b.clone()).unwrap(),
-        );
-    }
-    for (d, _) in &keys[..4] {
-        assert!(p.hit(d).unwrap().is_none());
-    }
-    for (d, b) in &keys[4..] {
-        assert_eq!(p.hit(d).unwrap().unwrap().body(), b);
-    }
-    assert_eq!(p.stats.saved_entries, 4);
-    assert_eq!(p.stats.saved_body_bytes, 16);
-    assert_eq!(p.stats.max_probes, 4);
-    let absent = [0xfe; 32];
-    assert!(p.slot(&absent).is_err());
-    assert_eq!(p.stats.max_probes, 4);
-}
 
     #[test]
     fn hit_rechecks_f_without_sql_fallback() {
-        let mut p=pool(4,64);
-        read(&mut p,b"abc").unwrap();
+        let mut p = pool(4, 64);
+        read(&mut p, b"abc").unwrap();
         p.slab[p.layout.body_start] ^= 1;
-        let before=p.stats.sql_material_reads;
-        assert_eq!(read(&mut p,b"abc").unwrap_err().code(), sc::code::NODE_DIGEST);
-        assert_eq!(p.stats.sql_material_reads,before);
-        let mut next=pool(4,64);
-        read(&mut next,b"abc").unwrap();
-        assert_eq!(next.stats.sql_material_reads,1);
+        let before = p.stats.sql_material_reads;
+        assert_eq!(
+            read(&mut p, b"abc").unwrap_err().code(),
+            sc::code::NODE_DIGEST
+        );
+        assert_eq!(p.stats.sql_material_reads, before);
+        let mut next = pool(4, 64);
+        read(&mut next, b"abc").unwrap();
+        assert_eq!(next.stats.sql_material_reads, 1);
     }
     #[test]
     fn exact_production_capacity_accounting() {
-        let p=RawMaterials::production(METADATA_BYTES);
+        let p = RawMaterials::production(METADATA_BYTES);
         assert!(p.stats.disabled.is_none());
-        assert_eq!(p.slab.len(),33550336);
-        assert_eq!(p.layout.body_start,3276800);
-        assert_eq!(p.slab.len()-p.layout.body_start,30273536);
-        assert!(p.stats.retained_capacity_highwater<=CAP);
+        assert_eq!(p.slab.len(), 33550336);
+        assert_eq!(p.layout.body_start, 3276800);
+        assert_eq!(p.slab.len() - p.layout.body_start, 30273536);
+        assert!(p.stats.retained_capacity_highwater <= CAP);
     }
     #[test]
     fn optional_allocation_failure_is_cold_disabled_not_validation_retry() {
-        FAIL_ALLOCATION.with(|v|v.set(true));
-        let mut p=pool(4,64);
-        FAIL_ALLOCATION.with(|v|v.set(false));
-        assert_eq!(p.stats.disabled,Some("disabled_allocation"));
-        assert_eq!(p.slab.capacity(),0);
-        for _ in 0..2 { assert!(read(&mut p,b"abc").unwrap().is_some()); }
-        assert_eq!(p.stats.sql_material_reads,2);
-        assert_eq!(p.stats.material_hits,0);
+        FAIL_ALLOCATION.with(|v| v.set(true));
+        let mut p = pool(4, 64);
+        FAIL_ALLOCATION.with(|v| v.set(false));
+        assert_eq!(p.stats.disabled, Some("disabled_allocation"));
+        assert_eq!(p.slab.capacity(), 0);
+        for _ in 0..2 {
+            assert!(read(&mut p, b"abc").unwrap().is_some());
+        }
+        assert_eq!(p.stats.sql_material_reads, 2);
+        assert_eq!(p.stats.material_hits, 0);
     }
 }

@@ -95,7 +95,10 @@ fn missing_bad_frame_type_and_first_error_equal_all_ports() {
         assert!(r.checked_read(&d).unwrap().is_none());
         assert!(r.checked_read(&d).unwrap().is_none());
     }
-    assert_eq!((p.stats().saved_entries, p.stats().sql_material_reads), (0, 2));
+    assert_eq!(
+        (p.stats().saved_entries, p.stats().sql_material_reads),
+        (0, 2)
+    );
 }
 #[test]
 fn independent_audit_pool_observes_same_tx_update_and_delete() {
@@ -159,7 +162,10 @@ fn overlay_bad_first_and_clear_returns_only_persistent_material() {
         r.clear_overlay();
         assert!(r.checked_read(&absent).unwrap().is_none());
     }
-    assert_eq!((p.stats().sql_material_reads, p.stats().material_hits), (2, 1));
+    assert_eq!(
+        (p.stats().sql_material_reads, p.stats().material_hits),
+        (2, 1)
+    );
 }
 #[test]
 fn mode_flavor_kind_extent_and_bad_payload_errors_match() {

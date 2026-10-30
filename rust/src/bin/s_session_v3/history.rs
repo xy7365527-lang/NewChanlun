@@ -739,8 +739,22 @@ pub(super) fn read_verified_public_history<'scope, 'tx, 'raw>(
     .transpose()
     .map_err(err)?;
     let history = if sqlite_base.is_some() {
-        read_indexed_history_inner(tx, raw.into(), control, deadline, max_render_bytes, budget,
-            true, capture, records, work, materials, policy, false, sqlite_base)?
+        read_indexed_history_inner(
+            tx,
+            raw.into(),
+            control,
+            deadline,
+            max_render_bytes,
+            budget,
+            true,
+            capture,
+            records,
+            work,
+            materials,
+            policy,
+            false,
+            sqlite_base,
+        )?
     } else if let Some(pool) = originals.as_mut() {
         read_indexed_history_inner(
             tx,
@@ -757,7 +771,7 @@ pub(super) fn read_verified_public_history<'scope, 'tx, 'raw>(
             policy,
             true,
             None,
-    )?
+        )?
     } else {
         read_indexed_history_with_policy(
             tx,
@@ -983,7 +997,7 @@ fn read_indexed_history_inner(
     };
     let manifest_coverage = store.owned.is_none()
         && store.work.is_none()
-        && matches!(store.source, ReadOwner::Dynamic(_));
+        && matches!(store.source, ReadOwner::Dynamic(_) | ReadOwner::SqliteBase(_));
     let mut public_roots = public_roots;
     let template_roots = {
         let mut stmt = CheckedStatement::prepare(tx, c"SELECT p.manifest_root FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation ORDER BY p.generation").map_err(err)?;
@@ -1219,7 +1233,7 @@ fn audit_one_published_cut<'capture>(
     let mut assembly = if let Some(verified_templates) = verified_templates.filter(|_| {
         store.owned.is_none()
             && store.work.is_none()
-            && matches!(store.source, ReadOwner::Dynamic(_))
+            && matches!(store.source, ReadOwner::Dynamic(_) | ReadOwner::SqliteBase(_))
     }) {
         let manifest_digest = manifest.view().digest().map_err(publish_err)?;
         if !std::ptr::eq(tx, verified_templates.transaction)
@@ -3306,7 +3320,7 @@ impl<'a> HashReader<'a> {
         self.policy == SourcePolicy::Ordinary
             && self.owned.is_none()
             && self.work.is_none()
-            && matches!(self.source, ReadOwner::Dynamic(_))
+            && matches!(self.source, ReadOwner::Dynamic(_) | ReadOwner::SqliteBase(_))
     }
     pub(crate) fn owned_codec_active(&self) -> bool {
         self.owned.is_some()
@@ -3376,7 +3390,7 @@ impl<'a> HashReader<'a> {
             return owner.verify_many_cached(refs, mode);
         }
         if self.work.is_some()
-            || matches!(self.source, ReadOwner::Dynamic(_))
+            || matches!(self.source, ReadOwner::Dynamic(_) | ReadOwner::SqliteBase(_))
             || (!self.native_measured() && (self.budget.is_some() || self.deadline.is_some()))
         {
             return sc::audit_verify_many(self, refs, mode);
@@ -3487,9 +3501,14 @@ impl<'a> HashReader<'a> {
         }
     }
     fn eligible_sqlite_base(&self) -> Option<&sc::sqlite_audit::SqliteAuditBase<'_>> {
-        if self.policy != SourcePolicy::Ordinary || self.owned.is_some()
-            || self.work.is_some() || self.budget.is_some() || self.deadline.is_some()
-            || self.max_render_bytes.is_some() || cfg!(feature = "s_incremental") {
+        if self.policy != SourcePolicy::Ordinary
+            || self.owned.is_some()
+            || self.work.is_some()
+            || self.budget.is_some()
+            || self.deadline.is_some()
+            || self.max_render_bytes.is_some()
+            || cfg!(feature = "s_incremental")
+        {
             return None;
         }
         let empty = match &self.overlay {
@@ -3497,10 +3516,14 @@ impl<'a> HashReader<'a> {
             #[cfg(test)]
             OverlayOwner::Bounded(_) => false,
         };
-        if !empty { return None; }
-        match &self.source { ReadOwner::SqliteBase(base) => Some(base), _ => None }
+        if !empty {
+            return None;
+        }
+        match &self.source {
+            ReadOwner::SqliteBase(base) => Some(base),
+            _ => None,
+        }
     }
-
 }
 #[cfg(test)]
 impl HashReader<'_> {
@@ -3856,7 +3879,9 @@ impl CodecRead for HashReader<'_> {
         self.verify_ref(r, mode)
     }
     fn verify_ref(&mut self, r: sc::RefView<'_>, m: sc::Mode) -> Result<(), sc::CodecError> {
-        if let Some(base) = self.eligible_sqlite_base() { return base.verify_ref(r, m); }
+        if let Some(base) = self.eligible_sqlite_base() {
+            return base.verify_ref(r, m);
+        }
         self.sync_owned();
         match &mut self.owned {
             Some(o) => o.verify_cached_owned(r, m),
@@ -3897,13 +3922,18 @@ impl CodecRead for HashReader<'_> {
         r: impl IntoIterator<Item = sc::RefView<'a>>,
         m: sc::Mode,
     ) -> Result<(), sc::CodecError> {
-        if let Some(base) = self.eligible_sqlite_base() { return base.verify_many(r, m); }
+        if let Some(base) = self.eligible_sqlite_base() {
+            return base.verify_many(r, m);
+        }
         self.sync_owned();
         match &mut self.owned {
             Some(o) => o.verify_many_cached_owned(r, m),
             None => {
                 if self.work.is_some()
-                    || matches!(self.source, ReadOwner::Dynamic(_) | ReadOwner::SqliteBase(_))
+                    || matches!(
+                        self.source,
+                        ReadOwner::Dynamic(_) | ReadOwner::SqliteBase(_)
+                    )
                     || (!self.native_measured()
                         && (self.budget.is_some() || self.deadline.is_some()))
                 {
@@ -9298,3 +9328,7 @@ mod manifest_template_coverage_tests {
         assert_eq!(gate.later_reads, 0, "停止门之前不得预读下一成员正文");
     }
 }
+
+#[cfg(test)]
+#[path = "sqlite_base_tests.rs"]
+mod sqlite_base_tests;

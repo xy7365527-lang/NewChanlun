@@ -940,7 +940,9 @@ fn audit_core_fresh_with_policy(
     let _profile_id = audit_profile_id_admitted(tx, control_owner, work)?;
     // 只读源 + 内存派生层：overlay 随本函数内的 store 一起销毁，不是 SQLite 写入通道。
     let mut reader = content_store::ReadStore::new(tx).map_err(err)?;
-    if sqlite_base.is_none() && (policy == history::SourcePolicy::NativeMeasured || budget.is_none()) {
+    if sqlite_base.is_none()
+        && (policy == history::SourcePolicy::NativeMeasured || budget.is_none())
+    {
         reader.enable_audit_same_material();
     }
     let mut reader = Some(reader);
@@ -3250,13 +3252,19 @@ mod transaction_material_qualification {
 thread_local! { static BASE_PROOFS_DISABLED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) }; }
 fn base_proofs_enabled() -> bool {
     #[cfg(test)]
-    if BASE_PROOFS_DISABLED.with(std::cell::Cell::get) { return false; }
+    if BASE_PROOFS_DISABLED.with(std::cell::Cell::get) {
+        return false;
+    }
     true
 }
 #[cfg(test)]
 pub(super) fn without_base_proofs_for_test<T>(action: impl FnOnce() -> T) -> T {
     struct Reset(bool);
-    impl Drop for Reset { fn drop(&mut self) { BASE_PROOFS_DISABLED.with(|v| v.set(self.0)); } }
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            BASE_PROOFS_DISABLED.with(|v| v.set(self.0));
+        }
+    }
     let reset = Reset(BASE_PROOFS_DISABLED.with(|v| v.replace(true)));
     let result = action();
     drop(reset);
