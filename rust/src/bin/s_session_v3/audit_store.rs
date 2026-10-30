@@ -391,7 +391,8 @@ pub(crate) trait CodecRead: NodeSource {
                 .map(super::business_json::TextValue::Plain)
                 .map_err(PublishError::from);
         }
-        super::business_json::TextValue::from_str(text, self.allocation_budget().as_ref()).map_err(PublishError::from)
+        super::business_json::TextValue::from_str(text, self.allocation_budget().as_ref())
+            .map_err(PublishError::from)
     }
     fn native_json_clone(
         &self,

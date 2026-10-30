@@ -1,11 +1,11 @@
 //! #1394 业务原始账的入口存储选择与同一借用判据。Owned失败直接Err，不转回std。
 pub(crate) mod json_layout;
 pub(crate) mod scoped_legacy;
-use newchan_rust::s_content::ContextError as PublishError;
 use super::audit_store::{CodecRead, NativeAdmission, NativeTree};
 use super::*;
 use aj::{ArrayIter, ArrayView, JsonView};
 use newchan_rust::s_content as sc;
+use newchan_rust::s_content::ContextError as PublishError;
 #[cfg_attr(
     not(all(test, feature = "s_incremental")),
     allow(
@@ -578,8 +578,9 @@ impl<'raw> RawPrefixIndex<'raw> {
         allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
     )]
     pub(super) fn advance(&mut self, prefix: usize) -> Result<RawPrefixChanges, String> {
-        self.advance_admitted(prefix, &super::audit_store::NativeAdmission(None)).map_err(Into::into)
-}
+        self.advance_admitted(prefix, &super::audit_store::NativeAdmission(None))
+            .map_err(Into::into)
+    }
     pub(super) fn advance_admitted(
         &mut self,
         prefix: usize,
@@ -1979,15 +1980,14 @@ fn push_native_array(
         .len()
         .checked_add(1)
         .ok_or_else(|| PublishError::from(NativeAdmission(Some(work)).native_overflow()))?;
-    let grow = |capacity: usize| -> Result<usize, PublishError> {
-        Ok(needed
-            .max(
-                capacity
-                    .checked_mul(2)
-                    .ok_or_else(|| PublishError::from(NativeAdmission(Some(work)).native_overflow()))?,
-            )
-            .max(4))
-    };
+    let grow =
+        |capacity: usize| -> Result<usize, PublishError> {
+            Ok(needed
+                .max(capacity.checked_mul(2).ok_or_else(|| {
+                    PublishError::from(NativeAdmission(Some(work)).native_overflow())
+                })?)
+                .max(4))
+        };
 
     // 三个准备件各自持费。任何失败都只销毁准备件，父载荷/容量/原许可不变。
     // 新旧完整 buffer 同时持费；不能先给父 reserve 再遇 child 拒绝而留下增长。
@@ -1999,7 +1999,9 @@ fn push_native_array(
         let permit = work.reserve_native(bytes).map_err(PublishError::from)?;
         let mut rows = Vec::new();
         rows.try_reserve_exact(capacity).map_err(|_| {
-            PublishError::from(work.reject(sc::capture_allocation::scratch::ScratchFailure::Allocation))
+            PublishError::from(
+                work.reject(sc::capture_allocation::scratch::ScratchFailure::Allocation),
+            )
         })?;
         Some(PlainJson::itemized_array(permit, rows))
     } else {

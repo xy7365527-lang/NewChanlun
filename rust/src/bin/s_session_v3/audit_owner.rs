@@ -3292,9 +3292,7 @@ impl AuditTxn<'_> {
             let strict = self.construction.borrow().is_some();
             let missing = || {
                 if strict {
-                    Err(publish_stale(
-                        "effects未完整闭合；不得回落旧审计",
-                    ))
+                    Err(publish_stale("effects未完整闭合；不得回落旧审计"))
                 } else {
                     Ok(())
                 }
@@ -6593,38 +6591,64 @@ mod publication_degrade_verdict_tests {
     }
 
     #[test]
-    fn publication_admitted_json_and_history_preserve_deep_origin() {
+    fn publication_admitted_json_preserves_deep_origin() {
         let text = "P57-source".repeat(2048);
-        assert_eq!(verdict(|work| {
-            let mut array = super::super::business_json::ScopedJsonArray::native(work)?;
-            array.push(newchan_rust::s_content::capture_allocation::audit_json::JsonView::String(&text))
-        }), Ok(()), "数组实际准入失败必须到达发布判据");
-        assert_eq!(verdict(|work| {
-            let store = super::super::audit_store::NativeAdmission(Some(work));
-            super::super::history::hash_json_in_store(
-                &store,
-                newchan_rust::s_content::capture_allocation::audit_json::JsonView::String(&text),
-                None,
-                None,
-            ).map(|_| ())
-        }), Ok(()), "历史摘要真实工作域失败必须保留来源");
+        assert_eq!(
+            verdict(|work| {
+                let mut array = super::super::business_json::ScopedJsonArray::native(work)?;
+                array.push(
+                    newchan_rust::s_content::capture_allocation::audit_json::JsonView::String(&text),
+                )
+            }),
+            Ok(()),
+            "数组实际准入失败必须到达发布判据"
+        );
+    }
+
+    #[test]
+    fn publication_admitted_history_preserves_deep_origin() {
+        // 对象键的工作向量必须持有所有键；长字符串编码本身可以流式完成。
+        let object = serde_json::Value::Object(
+            (0..1024).map(|i| (format!("key-{i:04}"), serde_json::Value::Null)).collect(),
+        );
+        assert_eq!(
+            verdict(|work| {
+                let store = super::super::audit_store::NativeAdmission(Some(work));
+                super::super::history::hash_json_in_store(&store, &object, None, None).map(|_| ())
+            }),
+            Ok(()),
+            "历史摘要真实工作域失败必须保留来源"
+        );
     }
 
     #[test]
     fn publication_admitted_sql_text_preserves_deep_origin() {
         let connection = rusqlite::Connection::open_in_memory().unwrap();
         let text = "P57-source".repeat(2048);
-        connection.execute("CREATE TABLE p57_text(value TEXT)", []).unwrap();
-        connection.execute("INSERT INTO p57_text VALUES (?1)", [&text]).unwrap();
-        assert_eq!(verdict(|work| {
-            let mut statement = newchan_rust::sqlite_checked::CheckedStatement::prepare(
-                &connection, c"SELECT value FROM p57_text",
-            )?;
-            let mut row = statement.next()?.unwrap();
-            super::super::business_json::TextValue::from_sql_admitted(
-                &mut row, 0, None, Some(work),
-            ).map(|_| ())
-        }), Ok(()), "SQL文本实际复制失败必须保留来源");
+        connection
+            .execute("CREATE TABLE p57_text(value TEXT)", [])
+            .unwrap();
+        connection
+            .execute("INSERT INTO p57_text VALUES (?1)", [&text])
+            .unwrap();
+        assert_eq!(
+            verdict(|work| {
+                let mut statement = newchan_rust::sqlite_checked::CheckedStatement::prepare(
+                    &connection,
+                    c"SELECT value FROM p57_text",
+                )?;
+                let mut row = statement.next()?.unwrap();
+                super::super::business_json::TextValue::from_sql_admitted(
+                    &mut row,
+                    0,
+                    None,
+                    Some(work),
+                )
+                .map(|_| ())
+            }),
+            Ok(()),
+            "SQL文本实际复制失败必须保留来源"
+        );
     }
 
     #[test]
@@ -6671,19 +6695,27 @@ mod publication_degrade_verdict_tests {
                 let codec = resource_error(ScratchFailure::Allocation);
                 let typed = publish_err(codec.clone());
                 (codec, typed)
-            }).0
-        }).join().unwrap();
+            })
+            .0
+        })
+        .join()
+        .unwrap();
         let expected = typed.to_string();
-        assert_eq!(verdict(|work| {
-            let _ = publish_err(work.reject(ScratchFailure::Allocation));
-            Err(typed)
-        }), Err(expected.clone()));
-        assert_eq!(verdict(|work| {
-            let _ = publish_err(work.reject(ScratchFailure::Allocation));
-            Err(publish_err(codec))
-        }), Err(expected));
+        assert_eq!(
+            verdict(|work| {
+                let _ = publish_err(work.reject(ScratchFailure::Allocation));
+                Err(typed)
+            }),
+            Err(expected.clone())
+        );
+        assert_eq!(
+            verdict(|work| {
+                let _ = publish_err(work.reject(ScratchFailure::Allocation));
+                Err(publish_err(codec))
+            }),
+            Err(expected)
+        );
     }
-
 
     #[test]
     fn publication_nested_capture_respects_birth_interval() {

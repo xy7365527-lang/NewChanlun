@@ -4,7 +4,6 @@
 //! 对象及见证是否由真实来源按正确业务规则生成、完整目录语义仍由来源审计核验；
 //! 返回本结构不等于完整业务历史验收。
 
-use newchan_rust::s_content::ContextError as PublishError;
 use super::audit_header::{AuditMetadata, AuditRoots, AuditSourceCommit};
 use super::audit_store::{BorrowedFieldPath, RefValue};
 use super::business_json::TextValue;
@@ -16,6 +15,7 @@ use crate::v3::audit_store::{CodecRead, CodecStore};
 use content_manifest::ManifestRoots;
 #[cfg(test)]
 use newchan_rust::s_content::path::lookup_path;
+use newchan_rust::s_content::ContextError as PublishError;
 use newchan_rust::s_content::{
     self as sc, path::PathStep, ContentRef, Kind, NodeDigest, NodeRead, NodeSink, NodeSource,
     Value as V,
@@ -91,7 +91,8 @@ fn native_cut_binding(
         c.producer_epoch,
         c.clock_event_id,
     ] {
-        out.try_push(store.native_text(text)?).map_err(publish_err)?;
+        out.try_push(store.native_text(text)?)
+            .map_err(publish_err)?;
     }
     for value in [m.generation, m.input_frontier, c.attempt_index, previous] {
         out.try_push(
@@ -108,7 +109,8 @@ fn native_cut_binding(
         r.delta_template,
     ] {
         for text in [v.format(), v.root(), v.kind().name()] {
-            out.try_push(store.native_text(text)?).map_err(publish_err)?;
+            out.try_push(store.native_text(text)?)
+                .map_err(publish_err)?;
         }
         out.try_push(
             store
@@ -169,9 +171,12 @@ fn native_cut_projection<'scope, 'connection, 'capture>(
     let public_array =
         |s: &mut HashReader<'_>, nodes: &[NodeDigest]| -> Result<sc::Built, PublishError> {
             let mut values = sc::CodecVec::default();
-            s.native_vec_room(&mut values, nodes.len()).map_err(publish_err)?;
+            s.native_vec_room(&mut values, nodes.len())
+                .map_err(publish_err)?;
             for digest in nodes {
-                values.try_push(sc::ValueView::Edge(*digest)).map_err(publish_err)?;
+                values
+                    .try_push(sc::ValueView::Edge(*digest))
+                    .map_err(publish_err)?;
             }
             s.write_template_view(sc::ValueView::Array(&values))
                 .map_err(publish_err)
@@ -296,7 +301,7 @@ impl NativeRawPrefixes {
         retained.vec_capacity::<NodeDigest>(old[0], self.raw_nodes.capacity());
         retained.vec_capacity::<NodeDigest>(old[1], self.raw_wire_nodes.capacity());
         retained.apply(0).map_err(Into::into)
-}
+    }
     #[cfg_attr(
         not(all(test, feature = "s_incremental")),
         allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
@@ -1192,7 +1197,11 @@ fn audit_one_published_cut<'capture>(
             return Err(publish_err("manifest不属于当前完整Template审计"));
         }
         let templates = [
-            roots.publication_template.view().digest().map_err(publish_err)?,
+            roots
+                .publication_template
+                .view()
+                .digest()
+                .map_err(publish_err)?,
             roots.delta_template.view().digest().map_err(publish_err)?,
         ];
         let public = [
@@ -1296,11 +1305,19 @@ fn audit_one_published_cut<'capture>(
         )?
     };
     if resolved.snapshot != snapshot || resolved.delta != delta {
-        return Err(publish_err("实际发布根不是 manifest 模板按独立出生索引解析的结果"));
+        return Err(publish_err(
+            "实际发布根不是 manifest 模板按独立出生索引解析的结果",
+        ));
     }
-    store.native_codec_room(resolved_roots, 2).map_err(publish_err)?;
-    resolved_roots.try_push(resolved.snapshot).map_err(publish_err)?;
-    resolved_roots.try_push(resolved.delta).map_err(publish_err)?;
+    store
+        .native_codec_room(resolved_roots, 2)
+        .map_err(publish_err)?;
+    resolved_roots
+        .try_push(resolved.snapshot)
+        .map_err(publish_err)?;
+    resolved_roots
+        .try_push(resolved.delta)
+        .map_err(publish_err)?;
     #[cfg(test)]
     super::state::trace_event("history_object_members", Some(generation));
     #[cfg(test)]
@@ -1441,10 +1458,11 @@ fn audit_one_published_cut<'capture>(
             return Err(publish_err(format!("manifest.{key} 与冻结域不符")));
         }
     }
-    let scope_text =
-        meta_text_in_store(store, tx, "scope", allocation)?.ok_or_else(|| publish_err("缺scope"))?;
+    let scope_text = meta_text_in_store(store, tx, "scope", allocation)?
+        .ok_or_else(|| publish_err("缺scope"))?;
     let scope = history_decode_in_store(store, scope_text.as_bytes(), allocation)?;
-    if m.scope.digest().map_err(publish_err)? != hash_json_in_store(store, scope.view(), deadline, budget)?
+    if m.scope.digest().map_err(publish_err)?
+        != hash_json_in_store(store, scope.view(), deadline, budget)?
     {
         return Err(publish_err("manifest.scope 与冻结域不符"));
     }
@@ -1489,7 +1507,9 @@ fn audit_one_published_cut<'capture>(
     super::state::trace_event("history_raw_members", Some(generation));
     for n in (previous + 1)..=frontier {
         check_deadline(deadline)?;
-        let event = raw.get(n as usize).ok_or_else(|| publish_err("原始序号越界"))?;
+        let event = raw
+            .get(n as usize)
+            .ok_or_else(|| publish_err("原始序号越界"))?;
         if bj::field(event, "seq").as_i64() != Some(n) {
             return Err(publish_err("真实原始账序与数组位置不符"));
         }
@@ -1950,7 +1970,8 @@ pub(super) fn revalidate_current_for_reuse_measured(
         cuts,
         cuts.last().map_or(-1, |c| c.metadata.input_frontier),
         None,
-    ).map_err(Into::into)
+    )
+    .map_err(Into::into)
 }
 
 fn verify_source(
@@ -1961,7 +1982,8 @@ fn verify_source(
 ) -> Result<(), PublishError> {
     let s = &m.source_commit;
     let mut stmt = CheckedStatement::prepare(tx, c"SELECT canonical_envelope FROM s_input_messages WHERE source_namespace=?1 AND source_epoch=?2 AND message_id=?3").map_err(publish_err)?;
-    stmt.bind_text(1, &s.source_namespace).map_err(publish_err)?;
+    stmt.bind_text(1, &s.source_namespace)
+        .map_err(publish_err)?;
     stmt.bind_text(2, &s.source_epoch).map_err(publish_err)?;
     stmt.bind_text(3, &s.message_id).map_err(publish_err)?;
     let raw = {
@@ -2065,7 +2087,9 @@ fn sql_text_in_store(
     allocation: Option<&OwnedBudget>,
 ) -> Result<TextValue, PublishError> {
     if store.codec_work().is_some() {
-        store.native_text(row.text(column).map_err(publish_err)?).map_err(Into::into)
+        store
+            .native_text(row.text(column).map_err(publish_err)?)
+            .map_err(Into::into)
     } else {
         TextValue::from_sql(row, column, allocation).map_err(Into::into)
     }
@@ -2104,7 +2128,8 @@ fn meta_i64_in_store(
     let label = store
         .native_format(format_args!("meta.{key}"))
         .map_err(publish_err)?;
-    parse_canonical_i64(&value, &label).map_err(|e| PublishError::from(e).context("StorageUnavailable："))
+    parse_canonical_i64(&value, &label)
+        .map_err(|e| PublishError::from(e).context("StorageUnavailable："))
 }
 fn history_decode_in_store(
     store: &(impl CodecRead + ?Sized),
@@ -2297,7 +2322,8 @@ fn integer<'a>(
     r: impl Into<sc::RefView<'a>>,
     k: &str,
 ) -> Result<i64, PublishError> {
-    newchan_rust::session_protocol::parse_canonical_i64(text(s, r, k)?.as_str(), k).map_err(Into::into)
+    newchan_rust::session_protocol::parse_canonical_i64(text(s, r, k)?.as_str(), k)
+        .map_err(Into::into)
 }
 
 fn publish_err(error: impl Into<PublishError>) -> PublishError {
@@ -2349,7 +2375,11 @@ fn same_digest_selected<'r>(
     key: &str,
     want: NodeDigest,
 ) -> Result<(), PublishError> {
-    if selected_field(s, r, fields, key)?.digest().map_err(publish_err)? != want {
+    if selected_field(s, r, fields, key)?
+        .digest()
+        .map_err(publish_err)?
+        != want
+    {
         Err(publish_err(format!("{key}与独立依据不同")))
     } else {
         Ok(())
@@ -2511,7 +2541,8 @@ fn hash_array_metered_with_owner(
     records: bool,
     allocation: Option<&OwnedBudget>,
 ) -> Result<NodeDigest, String> {
-    hash_array_metered_with_work(nodes, deadline, budget, records, allocation, None).map_err(Into::into)
+    hash_array_metered_with_work(nodes, deadline, budget, records, allocation, None)
+        .map_err(Into::into)
 }
 fn hash_array_metered_with_work(
     nodes: &[NodeDigest],
@@ -2565,22 +2596,22 @@ struct PrefixArray {
     stack: sc::CodecVec<(u64, NodeDigest)>,
 }
 impl PrefixArray {
-    fn branch(left: &NodeDigest, right: &NodeDigest, count: u64) -> Result<NodeDigest, String> {
+    fn branch(left: &NodeDigest, right: &NodeDigest, count: u64) -> Result<NodeDigest, PublishError> {
         let mut body = [0; 72];
-        body[..8].copy_from_slice(&sc::checked_frame_len(count).map_err(err)?);
+        body[..8].copy_from_slice(&sc::checked_frame_len(count).map_err(publish_err)?);
         body[8..40].copy_from_slice(left);
         body[40..].copy_from_slice(right);
         Ok(sc::frame(sc::tag::SEQ_BRANCH, &body))
     }
-    fn append(&mut self, digest: NodeDigest) -> Result<(), String> {
+    fn append(&mut self, digest: NodeDigest) -> Result<(), PublishError> {
         let next = self
             .count
             .checked_add(1)
-            .ok_or_else(|| err("前缀叶数溢出"))?;
-        sc::checked_frame_len(next).map_err(err)?;
+            .ok_or_else(|| publish_err("前缀叶数溢出"))?;
+        sc::checked_frame_len(next).map_err(publish_err)?;
         self.stack
             .try_push((1, sc::frame(sc::tag::SEQ_LEAF, &digest)))
-            .map_err(err)?;
+            .map_err(publish_err)?;
         while self.stack.len() >= 2 {
             let (right_count, right) = self.stack[self.stack.len() - 1];
             let (left_count, left) = self.stack[self.stack.len() - 2];
@@ -2589,15 +2620,15 @@ impl PrefixArray {
             }
             let count = left_count
                 .checked_add(right_count)
-                .ok_or_else(|| err("前缀分支叶数溢出"))?;
+                .ok_or_else(|| publish_err("前缀分支叶数溢出"))?;
             let digest = Self::branch(&left, &right, count)?;
             self.stack.truncate(self.stack.len() - 2);
-            self.stack.try_push((count, digest)).map_err(err)?;
+            self.stack.try_push((count, digest)).map_err(publish_err)?;
         }
         self.count = next;
         Ok(())
     }
-    fn array_root(&self) -> Result<NodeDigest, String> {
+    fn array_root(&self) -> Result<NodeDigest, PublishError> {
         let mut iter = self.stack.iter().rev();
         let (count, root) = match iter.next() {
             None => (0, sc::frame(sc::tag::SEQ_EMPTY, &[])),
@@ -2605,23 +2636,23 @@ impl PrefixArray {
                 for &(left_count, left) in iter {
                     count = left_count
                         .checked_add(count)
-                        .ok_or_else(|| err("前缀取根叶数溢出"))?;
+                        .ok_or_else(|| publish_err("前缀取根叶数溢出"))?;
                     root = Self::branch(&left, &root, count)?;
                 }
                 (count, root)
             }
         };
         if count != self.count {
-            return Err(err("前缀序列叶数记账不符"));
+            return Err(publish_err("前缀序列叶数记账不符"));
         }
         let mut body = [0; 40];
-        body[..8].copy_from_slice(&sc::checked_frame_len(count).map_err(err)?);
+        body[..8].copy_from_slice(&sc::checked_frame_len(count).map_err(publish_err)?);
         body[8..].copy_from_slice(&root);
         Ok(sc::frame(sc::tag::ARRAY, &body))
     }
-    fn root_at(&self, count: usize) -> Result<NodeDigest, String> {
+    fn root_at(&self, count: usize) -> Result<NodeDigest, PublishError> {
         if u64::try_from(count).ok() != Some(self.count) {
-            return Err(err("前缀与当前已检查cut长度不符"));
+            return Err(publish_err("前缀与当前已检查cut长度不符"));
         }
         self.array_root()
     }
@@ -2636,7 +2667,9 @@ struct NativeHistoryPrefixes {
 }
 impl NativeHistoryPrefixes {
     fn admit_append(&mut self, store: &(impl CodecRead + ?Sized)) -> Result<(), PublishError> {
-        store.native_vec_room(&mut self.raw.stack, 1).map_err(publish_err)?;
+        store
+            .native_vec_room(&mut self.raw.stack, 1)
+            .map_err(publish_err)?;
         store
             .native_vec_room(&mut self.wire.stack, 1)
             .map_err(publish_err)?;
@@ -2672,7 +2705,7 @@ impl NativeHistoryPrefixes {
             last_coord: None,
         })
     }
-    fn append(&mut self, coord: i64, raw: NodeDigest, wire: NodeDigest) -> Result<(), String> {
+    fn append(&mut self, coord: i64, raw: NodeDigest, wire: NodeDigest) -> Result<(), PublishError> {
         self.raw.append(raw)?;
         self.wire.append(wire)?;
         #[cfg(test)]
@@ -2694,10 +2727,10 @@ impl NativeHistoryPrefixes {
         }
         Ok(())
     }
-    fn raw_root(&self, count: usize) -> Result<NodeDigest, String> {
+    fn raw_root(&self, count: usize) -> Result<NodeDigest, PublishError> {
         self.raw.root_at(count)
     }
-    fn wire_root(&self, count: usize) -> Result<NodeDigest, String> {
+    fn wire_root(&self, count: usize) -> Result<NodeDigest, PublishError> {
         self.wire.root_at(count)
     }
 }
@@ -4584,7 +4617,10 @@ pub(super) mod tests {
                             .err()
                             .unwrap()
                     };
-                    assert!(error.to_string().contains(sc::capture_allocation::LIMIT), "{error}");
+                    assert!(
+                        error.to_string().contains(sc::capture_allocation::LIMIT),
+                        "{error}"
+                    );
                     let refusal = budget.allocation_request_probe();
                     assert!(refusal.refused_kind.ends_with("::path::Ancestor"));
                     assert!(refusal.refused_bytes > 0);
@@ -4666,7 +4702,10 @@ pub(super) mod tests {
                     let result = bj::read_text(&mut reader, r.view());
                     if output_room == 4096 {
                         let error = result.err().unwrap();
-                        assert!(error.to_string().contains(sc::capture_allocation::LIMIT), "{error}");
+                        assert!(
+                            error.to_string().contains(sc::capture_allocation::LIMIT),
+                            "{error}"
+                        );
                         let refusal = budget.allocation_request_probe();
                         assert_eq!(refusal.refused_kind, std::any::type_name::<u8>());
                         assert!(refusal.refused_bytes >= value.len());
@@ -5245,7 +5284,8 @@ pub(super) mod tests {
         );
         reader.audit_full_arrays = true;
         assert!(source_audit::elements(&mut reader, &root)
-            .unwrap_err().to_string()
+            .unwrap_err()
+            .to_string()
             .contains("verify_deadline"));
         assert_eq!(content_store::sql_reads_on_thread(), sql);
         assert!(
@@ -5868,7 +5908,8 @@ pub(super) mod tests {
                 None,
                 None,
                 proofs,
-            ).map_err(|e| e.to_string())
+            )
+            .map_err(|e| e.to_string())
         };
         super::source_audit::reset_ordinary_proof_stats();
         session
@@ -5892,7 +5933,8 @@ pub(super) mod tests {
         assert!(session.proofs.is_none());
         assert!(session
             .audit_cut(&tx, cut, None, None, None, |_, _| Ok(()))
-            .unwrap_err().to_string()
+            .unwrap_err()
+            .to_string()
             .contains("已拒绝"));
         super::source_audit::reset_ordinary_proof_stats();
         let mut reopened = verified.ordinary_source_session().unwrap();
@@ -5927,7 +5969,8 @@ pub(super) mod tests {
                     Some(deadline),
                     None,
                     proofs,
-                ).map_err(|e| e.to_string())
+                )
+                .map_err(|e| e.to_string())
             })
             .is_err());
         assert!(expired.proofs.is_none());
@@ -5969,7 +6012,8 @@ pub(super) mod tests {
                         None,
                         Some(&gate),
                         proofs,
-                    ).map_err(|e| e.to_string())
+                    )
+                    .map_err(|e| e.to_string())
                 })
                 .unwrap_err();
             assert!(error.to_string().contains(code), "{error}");
@@ -5998,7 +6042,8 @@ pub(super) mod tests {
                     None,
                     None,
                     proofs,
-                ).map_err(|e| e.to_string())
+                )
+                .map_err(|e| e.to_string())
             })
             .is_err());
         assert!(malformed.proofs.is_none());
@@ -7286,7 +7331,10 @@ pub(super) mod tests {
         let error = audit(&mut f.conn)
             .err()
             .expect("different valid descriptor must fail");
-        assert!(error.to_string().contains("持久引用与实际内容根不同"), "{error}");
+        assert!(
+            error.to_string().contains("持久引用与实际内容根不同"),
+            "{error}"
+        );
     }
 
     #[test]
@@ -7296,7 +7344,10 @@ pub(super) mod tests {
         let error = audit(&mut f.conn)
             .err()
             .expect("wrong root tuple must fail");
-        assert!(error.to_string().contains("根批次与完整发布史末代不符"), "{error}");
+        assert!(
+            error.to_string().contains("根批次与完整发布史末代不符"),
+            "{error}"
+        );
     }
 
     #[test]
@@ -7309,7 +7360,10 @@ pub(super) mod tests {
         let error = read_history(&tx, &raw, control)
             .err()
             .expect("different source must fail");
-        assert!(error.to_string().contains("raw_events与独立依据不同"), "{error}");
+        assert!(
+            error.to_string().contains("raw_events与独立依据不同"),
+            "{error}"
+        );
     }
 
     #[test]
@@ -7818,7 +7872,10 @@ fn integer_meta(
     parse_canonical_i64(n.as_str(), k).map_err(publish_err)
 }
 
-fn root_ref_bytes(s: &mut (impl CodecRead + ?Sized), bytes: &[u8]) -> Result<RefValue, PublishError> {
+fn root_ref_bytes(
+    s: &mut (impl CodecRead + ?Sized),
+    bytes: &[u8],
+) -> Result<RefValue, PublishError> {
     let digest: NodeDigest = bytes.try_into().map_err(|_| publish_err("根不是32字节"))?;
     s.content_ref_view(sc::FixedRoot::new(&digest).as_str())
         .map_err(publish_err)
@@ -7841,7 +7898,10 @@ mod explicit_empty_json_budget_probe {
                 assert!(actual.as_ref().unwrap().same_ledger(&budget));
                 hash_array_metered_with_owner(&[], None, None, false, actual.as_ref())
             });
-        assert!(result.unwrap_err().to_string().contains(sc::capture_allocation::LIMIT));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains(sc::capture_allocation::LIMIT));
         assert!(budget.snapshot().rejected_layouts > 0);
         assert_eq!(budget.snapshot().allocation_attempts, 0);
         drop(capture);
@@ -7899,7 +7959,10 @@ mod explicit_empty_json_budget_probe {
                 None,
             )
         });
-        assert!(result.unwrap_err().to_string().contains(sc::capture_allocation::LIMIT));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains(sc::capture_allocation::LIMIT));
         assert!(b.snapshot().rejected_layouts > 0);
         assert_eq!(b.snapshot().allocation_attempts, 0);
         drop((empty, capture));
@@ -7984,7 +8047,10 @@ mod borrowed_change_consumer_probe {
                     JsonView::Number(&wrong_type),
                 )
                 .unwrap_err();
-                assert!(error.to_string().contains("generation与独立依据不同"), "{error}");
+                assert!(
+                    error.to_string().contains("generation与独立依据不同"),
+                    "{error}"
+                );
                 let canonical =
                     format!("{{\"from\":\"{}\",\"to\":\"{}\"}}", from.text(), to.text());
                 assert!(history_canonical_equal(
@@ -8086,8 +8152,8 @@ fn verify_required_meta_admitted(
         "last_advance_frontier",
         "scope",
     ] {
-        let mut stmt =
-            CheckedStatement::prepare(tx, c"SELECT value FROM meta WHERE key = ?1").map_err(publish_err)?;
+        let mut stmt = CheckedStatement::prepare(tx, c"SELECT value FROM meta WHERE key = ?1")
+            .map_err(publish_err)?;
         stmt.bind_text(1, key).map_err(publish_err)?;
         if let Some(mut row) = stmt.next().map_err(publish_err)? {
             let text = row.text(0).map_err(publish_err)?;
@@ -8119,7 +8185,9 @@ fn verify_required_meta_admitted(
                 .parse_peak(),
         )
         .ok_or_else(|| publish_err(admission.native_overflow()))?;
-    let _temporaries = admission.native_reservation(reserved_bytes).map_err(publish_err)?;
+    let _temporaries = admission
+        .native_reservation(reserved_bytes)
+        .map_err(publish_err)?;
     // 原严格核返回时所有String、JSON树、格式化缓冲已析构，随后原许可析构。
     verify_required_meta(tx).map_err(Into::into)
 }
@@ -8271,7 +8339,9 @@ pub(super) fn append_owner_cut(
     let frontier = cut.metadata.input_frontier;
     retained.add(&cut);
     let capacity = old.cuts.capacity();
-    store.native_codec_room(&mut old.cuts, 1).map_err(publish_err)?;
+    store
+        .native_codec_room(&mut old.cuts, 1)
+        .map_err(publish_err)?;
     old.cuts.try_push(cut).map_err(publish_err)?;
     retained.vec_capacity::<PublishedCut>(capacity, old.cuts.capacity());
     store

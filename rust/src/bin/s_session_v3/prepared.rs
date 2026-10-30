@@ -1427,7 +1427,10 @@ fn templates(
         ("input_frontier", Text(frontier.text())),
         ("seq_range", Object(&range)),
         ("catalog_run_status", Text(run)),
-        ("catalog_evidence", Edge(evidence.digest().map_err(publish_err)?)),
+        (
+            "catalog_evidence",
+            Edge(evidence.digest().map_err(publish_err)?),
+        ),
     ];
     let mut snapshot = [("", BatchSelf); 20];
     snapshot[..8].copy_from_slice(&common);
@@ -1477,7 +1480,9 @@ fn templates(
         ("observations", Edge(a.delta_values.observations.digest)),
         ("raw_history_added", Edge(a.delta_values.raw_history.digest)),
     ]);
-    let snapshot = s.write_template_view(Object(&snapshot)).map_err(publish_err)?;
+    let snapshot = s
+        .write_template_view(Object(&snapshot))
+        .map_err(publish_err)?;
     let snapshot = s.native_built_ref(&snapshot).map_err(publish_err)?;
     let delta = s.write_template_view(Object(&delta)).map_err(publish_err)?;
     let delta = s.native_built_ref(&delta).map_err(publish_err)?;

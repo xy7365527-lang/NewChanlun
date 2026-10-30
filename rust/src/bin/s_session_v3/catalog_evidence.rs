@@ -20,7 +20,6 @@
 
 #![allow(dead_code)] // S3 发布/历史接线由主控在下游切片落地；本模块 API 现由本文件测试消费。
 
-use newchan_rust::s_content::ContextError as PublishError;
 use super::audit_store::{CodecRead, CodecStore, RefValue};
 use super::business_json::{self as bj, JsonOwner, RawEventsView, TextValue};
 #[cfg_attr(
@@ -30,6 +29,7 @@ use super::business_json::{self as bj, JsonOwner, RawEventsView, TextValue};
 use crate::{canonical_json, content_manifest, content_manifest::ManifestMetadata, tb02a};
 #[cfg(test)]
 use newchan_rust::s_content::path::{lookup_path, PathStep};
+use newchan_rust::s_content::ContextError as PublishError;
 use newchan_rust::s_content::{
     self as sc, ContentRef, Kind, NodeDigest, NodeSink, NodeSource, NodeStore, Value as V,
 };
@@ -317,7 +317,8 @@ fn axes_entries<'r>(
         )));
     }
     let mut out = bj::new_work(s.allocation_budget().as_ref());
-    s.native_codec_room(&mut out, AXIS_IDS.len()).map_err(publish_err)?;
+    s.native_codec_room(&mut out, AXIS_IDS.len())
+        .map_err(publish_err)?;
     for id in AXIS_IDS {
         let axis = field_ref(s, axes, id)?;
         if axis.kind() != Kind::Object || axis.extent() != Some(AXIS_FIELDS.len() as u64) {
@@ -425,7 +426,9 @@ pub(super) fn build_template<'changes>(
         ("scope", Edge(metadata.scope.digest().map_err(publish_err)?)),
         ("axes", Edge(axes.digest().map_err(publish_err)?)),
     ];
-    let built = store.write_template_view(Object(&fields)).map_err(publish_err)?;
+    let built = store
+        .write_template_view(Object(&fields))
+        .map_err(publish_err)?;
     let reference = store.native_built_ref(&built).map_err(publish_err)?;
     Ok((store.native_text(run).map_err(publish_err)?, reference))
 }
@@ -517,7 +520,8 @@ pub(super) fn verify_cut_metered<'a, 'changes>(
         deadline,
         budget,
         0,
-    ).map_err(Into::into)
+    )
+    .map_err(Into::into)
 }
 #[allow(clippy::too_many_arguments)]
 pub(super) fn verify_cut_for_audit<'a, 'r>(
@@ -616,7 +620,9 @@ fn verify_cut_in_store(
         return Err(publish_err("目录证据 tested_domain 不是声明 OHLC 域"));
     }
     if text_ref(store, &evidence, "batch_id")? != frontier {
-        return Err(publish_err("目录证据 batch_id 与 Delta index_frontier 不同"));
+        return Err(publish_err(
+            "目录证据 batch_id 与 Delta index_frontier 不同",
+        ));
     }
     if text_ref(store, &evidence, "structure_cut")? != metadata.structure_cut {
         return Err(publish_err("目录证据 structure_cut 与冻结生成 cut 不同"));
@@ -633,7 +639,9 @@ fn verify_cut_in_store(
     let withdrawals_array = withdrawals
         .as_array()
         .ok_or_else(|| publish_err("withdrawals不是数组"))?;
-    let replaces_array = replaces.as_array().ok_or_else(|| publish_err("replaces不是数组"))?;
+    let replaces_array = replaces
+        .as_array()
+        .ok_or_else(|| publish_err("replaces不是数组"))?;
     for (key, want) in [
         ("classified_objects", counts.objects),
         ("windows_total", counts.windows),
@@ -644,8 +652,10 @@ fn verify_cut_in_store(
         ("insufficient_knowledge", counts.insufficient),
         ("domain_not_satisfied", counts.outside_domain),
     ] {
-        let got = parse_canonical_i64(&text_ref(store, &evidence, key)?, key).map_err(publish_err)?;
-        let want = i64::try_from(want).map_err(|_| publish_err(format!("{key} 实际计数超出 i64")))?;
+        let got =
+            parse_canonical_i64(&text_ref(store, &evidence, key)?, key).map_err(publish_err)?;
+        let want =
+            i64::try_from(want).map_err(|_| publish_err(format!("{key} 实际计数超出 i64")))?;
         if got != want {
             return Err(publish_err(format!(
                 "目录证据 {key}={got} 与真实来源审计计数 {want} 不同"
@@ -707,7 +717,9 @@ fn verify_cut_in_store(
             .as_i64()
             .ok_or_else(|| publish_err("原始账事件缺整数 revision"))?;
         if seq > previous_frontier && revision > 1 {
-            store.native_codec_room(&mut revisions.0, 1).map_err(publish_err)?;
+            store
+                .native_codec_room(&mut revisions.0, 1)
+                .map_err(publish_err)?;
             revisions
                 .0
                 .try_push(bj::RawReference::new(event, false)?)
@@ -797,7 +809,8 @@ pub(super) fn verify_current(
     store: &mut dyn NodeStore,
     axes: &ContentRef,
 ) -> Result<(), String> {
-    verify_current_in_store(tx, &mut super::audit_store::StoreView::generic(store), axes).map_err(Into::into)
+    verify_current_in_store(tx, &mut super::audit_store::StoreView::generic(store), axes)
+        .map_err(Into::into)
 }
 pub(super) fn verify_current_for_audit<'r>(
     tx: &Transaction<'_>,
@@ -818,7 +831,11 @@ fn verify_current_in_store<'r>(
     let entries = axes_entries(store, axes)?;
     let budget = store.allocation_budget();
     for entry in &entries {
-        let read_error = |error: PublishError| error.context(&format!("读 catalog[{}] 失败：", entry.id)).context("CatalogEvidenceInvalid：");
+        let read_error = |error: PublishError| {
+            error
+                .context(&format!("读 catalog[{}] 失败：", entry.id))
+                .context("CatalogEvidenceInvalid：")
+        };
         let mut query = newchan_rust::sqlite_checked::CheckedStatement::prepare(
             tx, c"SELECT impl_status,proof_status,run_status,evidence_json FROM catalog WHERE catalog_id=?1",
         ).map_err(|e| read_error(e.into()))?;
@@ -863,7 +880,12 @@ fn verify_current_in_store<'r>(
             parse_json_owned(evidence_json.as_bytes(), budget.as_ref())
                 .map_err(newchan_rust::s_content::ContextError::from)
         }
-        .map_err(|e| publish_err(PublishError::from(e).context(&format!("catalog[{}].evidence_json 非法：", entry.id))))?;
+        .map_err(|e| {
+            publish_err(
+                PublishError::from(e)
+                    .context(&format!("catalog[{}].evidence_json 非法：", entry.id)),
+            )
+        })?;
         if !canonical_matches(parsed.view(), evidence_json.as_bytes(), budget.as_ref())? {
             return Err(publish_err(format!(
                 "catalog[{}].evidence_json 不是规范 JSON 文本",

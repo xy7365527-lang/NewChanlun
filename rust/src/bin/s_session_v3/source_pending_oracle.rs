@@ -81,7 +81,8 @@ pub(super) fn raw_bar(
         JsonView::object_fields(&fields).map_err(err)?,
         deadline,
         budget,
-    ).map_err(Into::into)
+    )
+    .map_err(Into::into)
 }
 
 struct Step<'a> {

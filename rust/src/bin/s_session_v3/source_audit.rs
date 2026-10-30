@@ -1,7 +1,6 @@
 //! #1394 C §5.2–5.4：绑定同 cut 来源原件、typed/CC006 身份和见证。
 //! 只读事实及其引用，不重新运行包含、分型或新笔判定。原始账必须先经 read_raw_events 核验。
 use super::audit_store::RefValue;
-use newchan_rust::s_content::ContextError as PublishError;
 use super::audit_store::{CodecRead, CodecStore};
 use super::business_json::BusinessMap;
 use super::business_json::{self as bj, RawEventsView};
@@ -15,6 +14,7 @@ use crate::{
     },
     tb02a, tb02b,
 };
+use newchan_rust::s_content::ContextError as PublishError;
 use newchan_rust::s_content::{
     self as sc,
     path::{lookup_path, PathStep},
@@ -232,7 +232,11 @@ impl<'names> SourceFields<'names> {
     fn get(&self, k: &str) -> Result<sc::RefView<'_>, PublishError> {
         self.0.get(k).ok_or_else(|| err(format!("原件缺字段{k}")))
     }
-    fn get_admitted(&self, s: &(impl CodecRead + ?Sized), k: &str) -> Result<RefValue, PublishError> {
+    fn get_admitted(
+        &self,
+        s: &(impl CodecRead + ?Sized),
+        k: &str,
+    ) -> Result<RefValue, PublishError> {
         self.0
             .get_admitted(s, k)
             .map_err(err)?
@@ -256,7 +260,11 @@ impl<'names> SourceFields<'names> {
         let text = view.as_str().ok_or_else(|| err(format!("{k}不是文本")))?;
         s.native_text(text)
     }
-    fn integer(&self, s: &mut (impl SourceFieldStore + ?Sized), k: &str) -> Result<i64, PublishError> {
+    fn integer(
+        &self,
+        s: &mut (impl SourceFieldStore + ?Sized),
+        k: &str,
+    ) -> Result<i64, PublishError> {
         self.scalar(s, k)?
             .view()
             .as_i64()
@@ -843,7 +851,10 @@ fn source_allocation(
     }
     Ok(allocation)
 }
-fn coords(s: &mut (impl CodecRead + ?Sized), r: &RefValue) -> Result<sc::CodecVec<i64>, PublishError> {
+fn coords(
+    s: &mut (impl CodecRead + ?Sized),
+    r: &RefValue,
+) -> Result<sc::CodecVec<i64>, PublishError> {
     let allocation = source_allocation(s)?;
     let mut out = bj::new_work(allocation.as_ref());
     for item in elements(s, r)? {
@@ -1024,7 +1035,10 @@ fn copy_source_coords(
     }
 }
 /// 仅复制i64；从实际读取源取allocator，不开放普通深Clone或空树后补账。
-fn copy_coords(s: &(impl CodecRead + ?Sized), values: &[i64]) -> Result<sc::CodecVec<i64>, PublishError> {
+fn copy_coords(
+    s: &(impl CodecRead + ?Sized),
+    values: &[i64],
+) -> Result<sc::CodecVec<i64>, PublishError> {
     let allocation = source_allocation(s)?;
     let mut out = bj::new_work(allocation.as_ref());
     s.native_codec_room(&mut out, values.len()).map_err(err)?;
@@ -1757,7 +1771,8 @@ pub(super) fn audit_generated_frozen_for_test<'a>(
         None,
         None,
         None,
-    ).map_err(Into::into)
+    )
+    .map_err(Into::into)
 }
 
 /// 单对象同判据核：身份唯一性仍在载荷读取之前；调用方提供当前 cut 的全局索引。
@@ -3990,7 +4005,8 @@ mod tests {
             (&missing, "缺完整三槽"),
         ] {
             assert!(run(&mut context, state, &raw)
-                .unwrap_err().to_string()
+                .unwrap_err()
+                .to_string()
                 .contains(message));
         }
         // #1394（与根裁定 B / 240b061e66 同因）：FIN 04e8a7f48b 的 CC004 incoming 与原始 OHLC
@@ -4021,7 +4037,8 @@ mod tests {
         revised[0]["revision"] = json!(revision.checked_add(1).unwrap());
         let mut revised_context = NativeSourceAudit::new(&capture, (&revised).into()).unwrap();
         assert!(run(&mut revised_context, &state, &revised)
-            .unwrap_err().to_string()
+            .unwrap_err()
+            .to_string()
             .contains("源引用不是本cut的真实完整八字段原件"));
         let empty = sc::AuditCapture::new(MemoryNodes::default());
         let mut wrong_source = NativeSourceAudit::new(&empty, (&raw).into()).unwrap();
@@ -4434,7 +4451,11 @@ mod tests {
             let deadline = Some(std::time::Instant::now());
             let expired = run(false, None, deadline);
             assert_eq!(expired, run(true, None, deadline));
-            assert!(expired.0.unwrap_err().to_string().contains("verify_deadline"));
+            assert!(expired
+                .0
+                .unwrap_err()
+                .to_string()
+                .contains("verify_deadline"));
             assert_eq!((expired.1, expired.2), (0, 0));
             assert!(expired.3.is_empty(), "期限门先于预算门与SQL");
         }
@@ -4633,7 +4654,11 @@ mod tests {
         )
         .unwrap_err();
         drop(original_reader);
-        assert_eq!(none.to_string(), original, "#1488 旧独立 oracle 与局部核首错一致");
+        assert_eq!(
+            none.to_string(),
+            original,
+            "#1488 旧独立 oracle 与局部核首错一致"
+        );
         let meter = Meter::default();
         let mut reader = super::super::history::HashReader::metered(s, None, None, Some(&meter));
         let some = audit_generated_metered(
@@ -4909,7 +4934,8 @@ mod tests {
         sc::verify(&mut s, &forged).unwrap();
         assert!(
             audit_generated(&mut s, &forged, &raw, tb02a::PROFILE, &rule)
-                .unwrap_err().to_string()
+                .unwrap_err()
+                .to_string()
                 .contains("typed obj3身份")
         );
         let shape = all
@@ -4929,7 +4955,8 @@ mod tests {
         sc::verify(&mut s, &forged).unwrap();
         assert!(
             audit_generated(&mut s, &forged, &raw, tb02a::PROFILE, &rule)
-                .unwrap_err().to_string()
+                .unwrap_err()
+                .to_string()
                 .contains("CC006 obj3")
         );
     }
@@ -4949,7 +4976,10 @@ mod tests {
         let forged = replace_member(&mut s, &state, "witnesses", 0, changed);
         sc::verify(&mut s, &forged).unwrap();
         let error = audit_generated(&mut s, &forged, &raw, tb02a::PROFILE, &rule).unwrap_err();
-        assert!(error.to_string().contains("合并值不是同cut组事实"), "{error}");
+        assert!(
+            error.to_string().contains("合并值不是同cut组事实"),
+            "{error}"
+        );
     }
     /// #1394 整合（根裁定 B）：原名 witness_original_bytes_are_bound_even_if_reference_metadata_is_unchanged。
     /// FIN 04e8a7f48b 新增的 CC004 incoming 与原始 OHLC 绑定（source_pending.rs）先于见证检查执行，
@@ -5286,7 +5316,10 @@ mod closed_array_role_probe {
                 )
                 .unwrap();
                 let error = copy_coords(&reader, &values).unwrap_err();
-                assert!(error.to_string().contains(sc::capture_allocation::LIMIT), "{error}");
+                assert!(
+                    error.to_string().contains(sc::capture_allocation::LIMIT),
+                    "{error}"
+                );
                 assert_eq!(&*values, &[0, 2, 3, 7, 11, 15, 17, 20, 21, 25]);
                 drop(fill);
                 assert_eq!(copy_coords(&reader, &values).unwrap(), values);

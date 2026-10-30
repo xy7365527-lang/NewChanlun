@@ -31,11 +31,11 @@
 //!   不把内存派生根当已持久原件带走。
 //! - 本模块只读：不写任何 SQLite 行，也不把 overlay 当写入通道。
 
-use newchan_rust::s_content::ContextError as PublishError;
 use super::*;
 use newchan_rust::s_content as sc;
 #[cfg(test)]
 use newchan_rust::s_content::ContentRef;
+use newchan_rust::s_content::ContextError as PublishError;
 use rusqlite::Transaction;
 
 /// #1394 仅本模块可签发；不是公开事务或跨请求缓存许可。
@@ -2898,8 +2898,10 @@ impl AuditedState {
         work: &sc::capture_allocation::scratch::WorkScope,
         native: &super::audit_owner::native::Budget,
         source_check: Option<&super::audit_owner::OwnerSourceCheck>,
-    ) -> Result<(Self, super::audit_retention::RetainedDelta), super::audit_owner::native::Failure<PublishError>>
-    {
+    ) -> Result<
+        (Self, super::audit_retention::RetainedDelta),
+        super::audit_owner::native::Failure<PublishError>,
+    > {
         let mut retained = super::audit_retention::RetainedDelta::default();
         let historical = match self.historical {
             HistoricalOwner::Unique(v) => v,

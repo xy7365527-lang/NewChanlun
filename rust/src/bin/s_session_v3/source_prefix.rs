@@ -241,7 +241,8 @@ mod tests {
                 3,
                 ParseDomain::JsonInner
             )
-            .unwrap_err().to_string()
+            .unwrap_err()
+            .to_string()
             .contains("完整八字段"));
         assert!(memo
             .references(
@@ -253,7 +254,8 @@ mod tests {
                 1,
                 ParseDomain::JsonInner
             )
-            .unwrap_err().to_string()
+            .unwrap_err()
+            .to_string()
             .contains("生效来源"));
         assert!(memo
             .references(
@@ -516,7 +518,8 @@ impl<'capture> NativeSourceMemo<'capture> {
     fn winner_intervals_admitted(
         s: &(impl CodecRead + ?Sized),
         raw: RawEventsView<'_>,
-    ) -> Result<Option<BusinessMap<(i64, NodeDigest, bool), sc::CodecVec<Interval>>>, PublishError> {
+    ) -> Result<Option<BusinessMap<(i64, NodeDigest, bool), sc::CodecVec<Interval>>>, PublishError>
+    {
         // Establish fixed identity coordinates and no cross-identity coordinate alias.
         // Future malformed input disables proof reuse without changing an earlier cut's errors.
         let mut identity_coords = NativeTree::default();

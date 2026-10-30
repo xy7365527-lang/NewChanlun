@@ -668,9 +668,7 @@ impl Recording {
             let after = tx.total_changes();
             let expected = c.hook_events.checked_add(c.node_inserts);
             if !c.exact || after.checked_sub(c.start) != expected {
-                return Err(publish_stale(
-                    "actual writes与hook/node收据不一致",
-                ));
+                return Err(publish_stale("actual writes与hook/node收据不一致"));
             }
             Some(after)
         } else {
@@ -794,9 +792,7 @@ impl Recording {
                     .find(|c| c.table == stage.kind.table() && c.rowid == stage.rowid)
                     .and_then(|c| c.new.as_ref());
                 if actual != Some(&stage.row) {
-                    return Err(publish_stale(
-                        "stage即时原件与最终effects不一致",
-                    ));
+                    return Err(publish_stale("stage即时原件与最终effects不一致"));
                 }
             }
         }
@@ -2039,8 +2035,7 @@ impl StageGuard {
         }
         let mut j = journal.lock().map_err(publish_err)?;
         let result = (|| {
-            let material =
-                material.ok_or_else(|| publish_stale("strict stage缺实际材料能力"))?;
+            let material = material.ok_or_else(|| publish_stale("strict stage缺实际材料能力"))?;
             if !Arc::ptr_eq(&journal, &material.journal) {
                 return Err(publish_stale("stage与材料能力不属同owner日志"));
             }
@@ -2126,7 +2121,9 @@ impl StageGuard {
                     _ => return Err(publish_stale("stage根不是BLOB")),
                 };
                 let root = sc::FixedRoot::new(&digest);
-                let reference = source.content_ref_view(root.as_str()).map_err(publish_err)?;
+                let reference = source
+                    .content_ref_view(root.as_str())
+                    .map_err(publish_err)?;
                 source
                     .verify_many_ref_fresh([reference.view()], sc::Mode::Public)
                     .map_err(publish_err)?;

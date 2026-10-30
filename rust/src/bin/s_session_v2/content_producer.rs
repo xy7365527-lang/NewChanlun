@@ -111,7 +111,6 @@ impl From<ProducerError> for newchan_rust::s_content::ContextError {
     }
 }
 
-
 /// 八字段原始引用（与全量配方 [`tb02a_facts::raw_ref`] 逐字段同型）。
 ///
 /// 四个身份字段与 `input_revision` 在生产 raw 行里是**文本**；`revision`/`seq` 是 i64，

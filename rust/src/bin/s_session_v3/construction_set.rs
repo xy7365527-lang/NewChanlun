@@ -61,7 +61,11 @@ impl SequenceDelta {
         vec_bytes::<Edit>(self.edits.capacity())
     }
 }
-fn grow<T>(b: &native::Budget, v: &mut native::Reserved<Vec<T>>, value: T) -> Result<(), PublishError> {
+fn grow<T>(
+    b: &native::Budget,
+    v: &mut native::Reserved<Vec<T>>,
+    value: T,
+) -> Result<(), PublishError> {
     b.vec_grow(v, 1).map_err(|_| stale("集合差异额度不足"))?;
     v.push(value);
     Ok(())
@@ -72,9 +76,7 @@ fn split(
     stack: &mut native::Reserved<Vec<Span>>,
 ) -> Result<(), PublishError> {
     let span = stack.pop().ok_or_else(|| stale("空序列前沿"))?;
-    match sc::path::sequence_fragment(s.generic_source(), span.sequence)
-        .map_err(|e| stale(e))?
-    {
+    match sc::path::sequence_fragment(s.generic_source(), span.sequence).map_err(|e| stale(e))? {
         SequenceFragment::Branch { left, right } => {
             grow(
                 b,
@@ -97,10 +99,11 @@ fn split(
         _ => Err(stale("非分支序列不能拆分")),
     }
 }
-fn leaf(s: &mut (impl CodecRead + ?Sized), sequence: SequenceRef) -> Result<NodeDigest, PublishError> {
-    match sc::path::sequence_fragment(s.generic_source(), sequence)
-        .map_err(|e| stale(e))?
-    {
+fn leaf(
+    s: &mut (impl CodecRead + ?Sized),
+    sequence: SequenceRef,
+) -> Result<NodeDigest, PublishError> {
+    match sc::path::sequence_fragment(s.generic_source(), sequence).map_err(|e| stale(e))? {
         SequenceFragment::Leaf(value) => Ok(value),
         _ => Err(stale("集合成员不是规范单叶")),
     }
@@ -118,8 +121,7 @@ fn difference(
         if let Some(sequence) = sequence {
             if sequence.is_empty() {
                 // 即使空序列也触碰原件，不能只认 empty 摘要。
-                sc::path::sequence_fragment(s.generic_source(), sequence)
-                    .map_err(|e| stale(e))?;
+                sc::path::sequence_fragment(s.generic_source(), sequence).map_err(|e| stale(e))?;
             } else {
                 grow(
                     b,
@@ -200,11 +202,9 @@ fn array(
     r: sc::RefView<'_>,
     key: &str,
 ) -> Result<(Declaration, SequenceRef), PublishError> {
-    let value = s
-        .lookup_field_ref(r, key)
-        .map_err(|e| stale(e))?;
-    let sequence = sc::path::array_sequence_refview(s.generic_source(), value.view())
-        .map_err(|e| stale(e))?;
+    let value = s.lookup_field_ref(r, key).map_err(|e| stale(e))?;
+    let sequence =
+        sc::path::array_sequence_refview(s.generic_source(), value.view()).map_err(|e| stale(e))?;
     Ok((Declaration::read(value.view())?, sequence))
 }
 #[derive(Clone, Copy)]

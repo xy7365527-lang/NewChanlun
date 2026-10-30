@@ -214,7 +214,11 @@ fn nulls(
     Ok(())
 }
 
-fn strings(s: &mut (impl CodecRead + ?Sized), r: &RefValue, want: &[&str]) -> Result<(), PublishError> {
+fn strings(
+    s: &mut (impl CodecRead + ?Sized),
+    r: &RefValue,
+    want: &[&str],
+) -> Result<(), PublishError> {
     exact(r, Kind::Array, want.len() as u64)?;
     for (item, expected) in elements(s, r)?.iter().zip(want) {
         if text_value(s, item, "数组文本")? != *expected {
@@ -224,7 +228,11 @@ fn strings(s: &mut (impl CodecRead + ?Sized), r: &RefValue, want: &[&str]) -> Re
     Ok(())
 }
 
-fn singleton(s: &mut (impl CodecRead + ?Sized), r: &RefValue, coord: i64) -> Result<(), PublishError> {
+fn singleton(
+    s: &mut (impl CodecRead + ?Sized),
+    r: &RefValue,
+    coord: i64,
+) -> Result<(), PublishError> {
     let values = coords(s, r)?;
     if &*values != [coord] {
         return Err(err("seed极值来源不是本cut首来源"));
@@ -539,8 +547,16 @@ pub(super) trait StepLookup {
     fn contains_subject(&self, id: &str) -> bool;
 }
 pub(super) trait RequestSlots {
-    fn insert_request(&mut self, s: &(impl CodecRead + ?Sized), key: &str) -> Result<bool, PublishError>;
-    fn insert_bound(&mut self, s: &(impl CodecRead + ?Sized), coord: i64) -> Result<bool, PublishError>;
+    fn insert_request(
+        &mut self,
+        s: &(impl CodecRead + ?Sized),
+        key: &str,
+    ) -> Result<bool, PublishError>;
+    fn insert_bound(
+        &mut self,
+        s: &(impl CodecRead + ?Sized),
+        coord: i64,
+    ) -> Result<bool, PublishError>;
 }
 struct FullStepLookup<'a, 'b, 'c> {
     steps: &'a BusinessMap<i64, Step<'b>>,
@@ -559,7 +575,11 @@ struct FullRequestSlots<'a> {
     bound: &'a mut BusinessMap<i64, ()>,
 }
 impl RequestSlots for FullRequestSlots<'_> {
-    fn insert_request(&mut self, s: &(impl CodecRead + ?Sized), key: &str) -> Result<bool, PublishError> {
+    fn insert_request(
+        &mut self,
+        s: &(impl CodecRead + ?Sized),
+        key: &str,
+    ) -> Result<bool, PublishError> {
         s.native_map_room(self.requests).map_err(err)?;
         Ok(self
             .requests
@@ -567,7 +587,11 @@ impl RequestSlots for FullRequestSlots<'_> {
             .map_err(err)?
             .is_some())
     }
-    fn insert_bound(&mut self, s: &(impl CodecRead + ?Sized), coord: i64) -> Result<bool, PublishError> {
+    fn insert_bound(
+        &mut self,
+        s: &(impl CodecRead + ?Sized),
+        coord: i64,
+    ) -> Result<bool, PublishError> {
         s.native_map_room(self.bound).map_err(err)?;
         Ok(self.bound.insert(coord, ()).map_err(err)?.is_some())
     }

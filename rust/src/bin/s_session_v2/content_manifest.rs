@@ -5,7 +5,6 @@
 //! 模板内 0x08 的业务许可、对象/来源/Delta 对拍仍由正式发布者核验。
 #![allow(dead_code)]
 
-use newchan_rust::s_content::ContextError as PublishError;
 use crate::v3::audit_store::{CodecRead, CodecStore};
 use crate::v3::audit_store::{RefFields, RefValue};
 use crate::v3::business_json::TextValue;
@@ -19,6 +18,7 @@ use crate::v3::business_json::TextValue;
 use newchan_rust::s_content::capture_allocation::native_owned::NativeValue;
 #[cfg(feature = "s_incremental")]
 use newchan_rust::s_content::capture_allocation::scratch::WorkScope;
+use newchan_rust::s_content::ContextError as PublishError;
 #[allow(
     unused_imports,
     reason = "#1488 再合 #1608：8组合实测无调用方，保留不删"

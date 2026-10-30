@@ -677,11 +677,19 @@ struct RequestWrites<'a, T> {
     writes: &'a RefCell<RequestData>,
 }
 impl<T: source_pending::RequestSlots> source_pending::RequestSlots for RequestWrites<'_, T> {
-    fn insert_request(&mut self, s: &(impl CodecRead + ?Sized), key: &str) -> Result<bool, PublishError> {
+    fn insert_request(
+        &mut self,
+        s: &(impl CodecRead + ?Sized),
+        key: &str,
+    ) -> Result<bool, PublishError> {
         self.writes.borrow_mut().key = key.into();
         self.slots.insert_request(s, key)
     }
-    fn insert_bound(&mut self, s: &(impl CodecRead + ?Sized), coord: i64) -> Result<bool, PublishError> {
+    fn insert_bound(
+        &mut self,
+        s: &(impl CodecRead + ?Sized),
+        coord: i64,
+    ) -> Result<bool, PublishError> {
         self.writes.borrow_mut().bound = Some(coord);
         self.slots.insert_bound(s, coord)
     }

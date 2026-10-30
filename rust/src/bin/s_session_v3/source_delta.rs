@@ -780,7 +780,8 @@ mod tests {
             None,
             None,
             None,
-        ).map_err(Into::into)
+        )
+        .map_err(Into::into)
     }
     #[test]
     fn nonempty_root_and_unchanged_cut_match_independent_oracle() {
@@ -1060,7 +1061,9 @@ mod tests {
         sc::verify(&mut s, &next).unwrap();
         let expected = full(&mut s, &next, &raw, &rule).unwrap_err();
         assert!(
-            expected.to_string().contains("源引用不是本cut的真实完整八字段原件"),
+            expected
+                .to_string()
+                .contains("源引用不是本cut的真实完整八字段原件"),
             "{expected}"
         );
         let cut = FixtureCut::bind(&mut s, (&next).into(), (&raw).into(), &state).unwrap();
@@ -1102,7 +1105,9 @@ mod tests {
         sc::verify(&mut s, &next).unwrap();
         let expected = full(&mut s, &next, &raw, &rule).unwrap_err();
         assert!(
-            expected.to_string().contains("见证raw_bars不是同cut真实原始成员"),
+            expected
+                .to_string()
+                .contains("见证raw_bars不是同cut真实原始成员"),
             "{expected}"
         );
         let cut = FixtureCut::bind(&mut s, (&next).into(), (&raw).into(), &state).unwrap();
@@ -1286,7 +1291,8 @@ mod tests {
             .advance(&mut s, cut)
             .err()
             .unwrap()
-            .to_string().contains("前根不匹配"));
+            .to_string()
+            .contains("前根不匹配"));
     }
     #[cfg(feature = "s_allocation_json_testonly")]
     #[test]
@@ -1310,7 +1316,11 @@ mod tests {
         let before = a.0.snapshot().live_requested_layout_bytes;
         let mut state = Contributions::new(&a, "test-rule").unwrap();
         state.same_ledger(&a).unwrap();
-        assert!(state.same_ledger(&b).unwrap_err().to_string().contains("跨工作账本"));
+        assert!(state
+            .same_ledger(&b)
+            .unwrap_err()
+            .to_string()
+            .contains("跨工作账本"));
         assert!(state.same_ledger(&sc::MemoryNodes::default()).is_err());
         let source = Source {
             wire: [1; 32],

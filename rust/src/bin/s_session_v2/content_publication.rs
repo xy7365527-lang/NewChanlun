@@ -31,10 +31,10 @@ use newchan_rust::sqlite_checked::{CheckedRow, CheckedStatement};
 use rusqlite::{OptionalExtension, Transaction};
 use sc::capture_allocation::native_owned::NativeValue;
 use sc::capture_allocation::{audit_json::JsonView, scratch::WorkScope};
+use sc::ContextError as PublishError;
 #[cfg(test)]
 use sc::Value as V;
 use sc::ValueView as VV;
-use sc::ContextError as PublishError;
 #[allow(
     unused_imports,
     reason = "#1488 再合 #1608：8组合实测无调用方，保留不删"
@@ -253,7 +253,10 @@ fn normal_reference(r: sc::RefView<'_>) -> ContentRef {
         extent: r.extent(),
     }
 }
-fn ref_value(store: &(impl CodecStore + ?Sized), r: sc::RefView<'_>) -> Result<RefValue, PublishError> {
+fn ref_value(
+    store: &(impl CodecStore + ?Sized),
+    r: sc::RefView<'_>,
+) -> Result<RefValue, PublishError> {
     // Storage choice is made before the work, never after an allocation failure.
     if store.allocation_budget().is_some() {
         #[cfg(feature = "s_allocation_json_testonly")]
@@ -805,7 +808,8 @@ fn generation_admitted(
 ) -> Result<i64, PublishError> {
     let value = meta_optional_admitted(tx, "generation", store.codec_work())?
         .ok_or_else(|| "StorageUnavailable：meta.generation 缺失".to_owned())?;
-    parse_canonical_i64(&value, "meta.generation").map_err(|e| PublishError::from(e).context("StorageUnavailable："))
+    parse_canonical_i64(&value, "meta.generation")
+        .map_err(|e| PublishError::from(e).context("StorageUnavailable："))
 }
 fn strict_json_admitted(
     raw: &str,
@@ -2301,7 +2305,9 @@ mod tests {
         .err()
         .unwrap();
         assert!(
-            expected.to_string().contains("withdrawn_generation 与独立记录不同"),
+            expected
+                .to_string()
+                .contains("withdrawn_generation 与独立记录不同"),
             "{expected}"
         );
         let actual = resolve_ordinary_indexed_templates_pending_view(
@@ -2477,7 +2483,8 @@ mod tests {
         )
         .err()
         .unwrap()
-        .to_string().contains("capture"));
+        .to_string()
+        .contains("capture"));
         let gated = HashReader::native_publication_fields_for_test(&capture)
             .with_native_publication_deadline_for_test(
                 std::time::Instant::now() + std::time::Duration::from_secs(10),
@@ -2996,7 +3003,10 @@ mod tests {
             tx.execute_batch("SAVEPOINT rejected_publication").unwrap();
             let error = resolve_current_births(&tx, &token, &m, &roots, &manifest).unwrap_err();
             if matches!(change, FixtureChange::PayloadPlaceholder) {
-                assert!(error.to_string().contains(sc::code::TEMPLATE_PLACEHOLDER), "{error}");
+                assert!(
+                    error.to_string().contains(sc::code::TEMPLATE_PLACEHOLDER),
+                    "{error}"
+                );
             }
             // 操作不自行提交；调用者回滚使包括部分祖先重写在内的所有节点回到原状。
             tx.execute_batch("ROLLBACK TO rejected_publication; RELEASE rejected_publication")
@@ -3047,12 +3057,14 @@ mod tests {
         manifest.batch_id = format!("batch3-{}", "f".repeat(64)).into();
         assert!(resolve_current_births(&tx, &token, &m, &roots, &manifest)
             .unwrap_err()
-            .to_string().contains("IdentityConflict"));
+            .to_string()
+            .contains("IdentityConflict"));
         manifest.batch_id = actual.into();
         m.source_commit.producer_id = "wrong-producer".into();
         assert!(resolve_current_births(&tx, &token, &m, &roots, &manifest)
             .unwrap_err()
-            .to_string().contains("producer_id"));
+            .to_string()
+            .contains("producer_id"));
     }
 
     #[test]
@@ -3071,7 +3083,8 @@ mod tests {
         assert_eq!(count, 0);
         assert!(resolve_current_births(&tx, &token, &m, &roots, &manifest)
             .unwrap_err()
-            .to_string().contains("upserts 与独立索引成员数不符"));
+            .to_string()
+            .contains("upserts 与独立索引成员数不符"));
     }
 }
 

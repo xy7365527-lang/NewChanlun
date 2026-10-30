@@ -681,7 +681,8 @@ impl PendingRawState {
         &mut self,
         previous: Option<super::construction_set::Declaration>,
     ) -> Result<super::construction_set::Seed, String> {
-        super::construction_set::Seed::new(self.binding, self.seal, previous, self.set.take()).map_err(Into::into)
+        super::construction_set::Seed::new(self.binding, self.seal, previous, self.set.take())
+            .map_err(Into::into)
     }
     #[cfg(feature = "s_incremental")]
     pub(super) fn close_set(

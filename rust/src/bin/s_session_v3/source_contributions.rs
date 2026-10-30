@@ -718,7 +718,11 @@ fn apply_order(
     Ok(Changes { removed, added })
 }
 impl NativeSourceState {
-    fn coverage_at(&mut self, s: &(impl CodecRead + ?Sized), coord: i64) -> Result<(), PublishError> {
+    fn coverage_at(
+        &mut self,
+        s: &(impl CodecRead + ?Sized),
+        coord: i64,
+    ) -> Result<(), PublishError> {
         let group = self.members.get(&coord).is_some_and(|m| !m.is_empty());
         let pending = self.pending.contains(&coord);
         if group && pending {
@@ -1470,7 +1474,11 @@ struct RequestKeys<'a> {
     bound: &'a mut Map<i64, Handle>,
 }
 impl RequestSlots for RequestKeys<'_> {
-    fn insert_request(&mut self, s: &(impl CodecRead + ?Sized), key: &str) -> Result<bool, PublishError> {
+    fn insert_request(
+        &mut self,
+        s: &(impl CodecRead + ?Sized),
+        key: &str,
+    ) -> Result<bool, PublishError> {
         before(
             s,
             self.keys,
@@ -1480,7 +1488,11 @@ impl RequestSlots for RequestKeys<'_> {
             self.events,
         )
     }
-    fn insert_bound(&mut self, s: &(impl CodecRead + ?Sized), coord: i64) -> Result<bool, PublishError> {
+    fn insert_bound(
+        &mut self,
+        s: &(impl CodecRead + ?Sized),
+        coord: i64,
+    ) -> Result<bool, PublishError> {
         before(s, self.bound, coord, self.at, self.order, self.events)
     }
 }
@@ -1674,7 +1686,10 @@ impl NativeSourceState {
         }
         Ok(())
     }
-    fn observation_phase(&mut self, s: &mut SourceMaterial<'_, '_, '_, '_>) -> Result<(), PublishError> {
+    fn observation_phase(
+        &mut self,
+        s: &mut SourceMaterial<'_, '_, '_, '_>,
+    ) -> Result<(), PublishError> {
         let stream = Stream::Array(SourceArray::Observations);
         let d = delta(s, stream)?;
         if d.old != self.observation_sequence {
