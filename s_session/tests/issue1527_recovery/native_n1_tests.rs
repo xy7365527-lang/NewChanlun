@@ -331,6 +331,7 @@ fn native_n1_l2c_second_page_write_after_deadline_is_refused_first_page_charged(
         gate,
         budget: ShmBudget::new(0, identity_bound()).unwrap(),
         first: None,
+        cleanup: false,
     };
     assert!(matches!(
         owner_step(&mut tls, Class::Shm, None, Effect::Write { end: 4_096 }),
@@ -362,6 +363,7 @@ fn native_n1_l2_main_and_wal_writes_before_seal_are_refused_reads_counted() {
         gate,
         budget: ShmBudget::new(0, identity_bound()).unwrap(),
         first: None,
+        cleanup: false,
     };
     assert!(matches!(owner_step(&mut tls, Class::Wal, None, Effect::Read), Step::Count));
     assert!(matches!(
@@ -379,6 +381,7 @@ fn native_n1_l2_writer_phase_uncounted_but_cannot_widen_shm_mapping() {
         gate,
         budget: ShmBudget::new(0, identity_bound()).unwrap(),
         first: None,
+        cleanup: false,
     };
     tls.budget.cover(&tls.gate, 32_768).unwrap();
     tls.gate.set_phase(Phase::Writer);
@@ -447,6 +450,7 @@ fn native_n1_l2_reserve_over_store_limit_refuses_before_delegate() {
         gate,
         budget: ShmBudget::new(0, identity_bound()).unwrap(),
         first: None,
+        cleanup: false,
     };
     assert!(matches!(
         owner_step(&mut tls, Class::Shm, None, Effect::Truncate { end: 32_768 }),
@@ -667,7 +671,7 @@ fn native_n1_writer_first_error_prevents_later_write_without_restarting_deadline
     gate.with_job(|job| job.begin_first_read()).unwrap();
     gate.set_phase(Phase::Writer);
     now.set(now.get() + Duration::from_secs(1));
-    let mut tls = OwnerTls { token: 1, gate, budget: ShmBudget::new(0, identity_bound()).unwrap(), first: None };
+    let mut tls = OwnerTls { token: 1, gate, budget: ShmBudget::new(0, identity_bound()).unwrap(), first: None, cleanup: false };
     assert!(matches!(owner_step(&mut tls, Class::Main, None, Effect::Write { end: 1 }), Step::Pass));
     tls.fail(NativeCode::TrackingLost.into());
     assert!(matches!(owner_step(&mut tls, Class::Main, None, Effect::Write { end: 1 }), Step::Deny(libc::EIO)));
@@ -1040,13 +1044,13 @@ fn native_n1_vfs32d_real_sqlite_io_and_automatic_cleanup() {
     let owner = NativeOwner::begin(h, gate, pins, b0, identity_bound()).unwrap();
     let mut session = owner.open_native(&file.0, pin).unwrap();
     let tx = session.begin().unwrap();
-    let len: i64 = tx.tx.query_row("SELECT sum(length(data)) FROM payload", [], |r| r.get(0)).unwrap();
+    let len: i64 = tx.tx.as_ref().unwrap().query_row("SELECT sum(length(data)) FROM payload", [], |r| r.get(0)).unwrap();
     assert_eq!(len, 65536);
     let snapshot = account.borrow().snapshot();
     assert!(snapshot.wire_bytes > 0);
     assert_eq!(snapshot.wire_bytes, h.actual_io.load(Ordering::SeqCst) as u128, "同连接只按syscall实际n入账，xRead不重计");
     assert!(snapshot.open_reservations > 0, "真实xShmMap仍持可写映射预留");
-    assert!(tx.tx.execute_batch("ATTACH ':memory:' AS forbidden").is_err(), "原生authorizer实际拒绝旁路连接");
+    assert!(tx.tx.as_ref().unwrap().execute_batch("ATTACH ':memory:' AS forbidden").is_err(), "原生authorizer实际拒绝旁路连接");
     tx.rollback().unwrap();
     let mut errors = NativeErrors::default();
     assert!(matches!(session.close(&mut errors), Teardown::Destroyed(_)), "关闭自动清算无需人工settle");
@@ -1055,4 +1059,27 @@ fn native_n1_vfs32d_real_sqlite_io_and_automatic_cleanup() {
     assert!(file.0.exists() && PathBuf::from(format!("{}-wal", file.0.display())).exists() && PathBuf::from(format!("{}-shm", file.0.display())).exists());
     assert!(other_process_can_lock(&file.0));
     println!("32D real SQLite: wire={}, syscall_n={}, grants_closed=0, sidecars=present", snapshot.wire_bytes, h.actual_io.load(Ordering::SeqCst));
+}
+
+#[test]
+fn native_n1_vfs32f_failed_commit_rolls_back_with_callbacks_still_installed() {
+    if !native_child("native_n1_vfs32f_failed_commit_rolls_back_with_callbacks_still_installed") { return; }
+    let h = install().unwrap();
+    let (file, pins, pin, b0) = wal_fixture("failed-commit");
+    let (gate, account, clock) = gate_with(1000, 1 << 20);
+    let owner = NativeOwner::begin(h, gate, pins, b0, identity_bound()).unwrap();
+    let mut session = owner.open_native(&file.0, pin).unwrap();
+    let raw = session.state.as_ref().unwrap().raw;
+    let tx = session.begin().unwrap();
+    assert_eq!(unsafe { rusqlite::ffi::sqlite3_get_autocommit(raw) }, 0);
+    clock.set(clock.get() + Duration::from_secs(2));
+    assert!(tx.commit().is_err(), "COMMIT 期限检查拒绝");
+    assert_eq!(unsafe { rusqlite::ffi::sqlite3_get_autocommit(raw) }, 1, "失败 COMMIT 的 Drop 已真实回滚");
+    assert!(session.state.as_ref().unwrap().view.as_ref().unwrap().execute_batch("SELECT 1").is_err(), "清理域已退出，首错继续阻止业务");
+    assert!(session.state.as_ref().unwrap().progress.is_some() && session.state.as_ref().unwrap().authorizer.is_some());
+    let mut errors = NativeErrors::default();
+    assert!(matches!(session.close(&mut errors), Teardown::Destroyed(_)));
+    assert!(matches!(errors.reported(), Some(Reported::First(NativeError::Job(_)))));
+    assert_eq!(account.borrow().snapshot().open_reservations, 0);
+    assert!(other_process_can_lock(&file.0));
 }

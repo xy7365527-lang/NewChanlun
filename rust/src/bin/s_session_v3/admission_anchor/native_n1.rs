@@ -705,6 +705,7 @@ struct OwnerTls {
     gate: NativeIoGate,
     budget: ShmBudget,
     first: Option<NativeError>,
+    cleanup: bool,
 }
 
 impl OwnerTls {
@@ -1235,6 +1236,7 @@ impl NativeSession {
         if state.view.is_none() { return Err(rusqlite::Error::InvalidQuery); }
         let native = state.vfs.as_ref().map(|_| (state.owner.hooks, state.owner.token));
         let mut callback: Box<ProgressCallback> = Box::new(Box::new(move || {
+            if native.is_some() && with_owner(|tls| tls.cleanup) == Some(true) { return false; }
             native.is_some_and(|(hooks, token)| callback_gate(hooks, token).is_err()) || callback()
         }));
         unsafe { rusqlite::ffi::sqlite3_progress_handler(state.raw, num_ops, Some(native_progress), (&mut *callback as *mut ProgressCallback).cast()); }
@@ -1250,6 +1252,13 @@ impl NativeSession {
         let native = state.vfs.as_ref().map(|_| (state.owner.hooks, state.owner.token));
         let mut callback: Box<AuthorizerCallback> = Box::new(Box::new(move |event| {
             if let Some((hooks, token)) = native {
+                if with_owner(|tls| tls.cleanup) == Some(true) {
+                    // 失败清理只授予 ROLLBACK，不能藉清理窗口放行业务 SQL。
+                    return if event.action == rusqlite::ffi::SQLITE_TRANSACTION
+                        && event.arg1.is_some_and(|name| name.to_bytes() == b"ROLLBACK") {
+                        rusqlite::hooks::Authorization::Allow
+                    } else { rusqlite::hooks::Authorization::Deny };
+                }
                 if callback_gate(hooks, token).is_err() || native_authorizer_denies(&event) {
                     return rusqlite::hooks::Authorization::Deny;
                 }
@@ -1270,8 +1279,9 @@ impl NativeSession {
     pub(crate) fn begin(&mut self) -> Result<NativeTransaction<'_>, rusqlite::Error> {
         let state = self.state.as_mut().expect("live session");
         let view = state.view.as_mut().ok_or(rusqlite::Error::InvalidQuery)?;
-        let tx = view.transaction()?;
-        Ok(NativeTransaction { tx, owner: &state.owner, vfs: state.vfs.as_ref() })
+        let behavior = if state.vfs.is_some() { rusqlite::TransactionBehavior::Immediate } else { rusqlite::TransactionBehavior::Deferred };
+        let tx = view.transaction_with_behavior(behavior)?;
+        Ok(NativeTransaction { tx: Some(tx), owner: &state.owner, vfs: state.vfs.as_ref() })
     }
 
     pub(crate) fn close(mut self, errors: &mut NativeErrors) -> Teardown {
@@ -1312,13 +1322,13 @@ impl NativeSession {
 
 /// 同事务 audit → settle → seal → accept；不泄露 Transaction 的 Connection Deref。
 pub(crate) struct NativeTransaction<'a> {
-    tx: rusqlite::Transaction<'a>,
+    tx: Option<rusqlite::Transaction<'a>>,
     owner: &'a NativeOwner,
     vfs: Option<&'a native_vfs::Registration>,
 }
 
 impl NativeTransaction<'_> {
-    pub(crate) fn audit(&self) -> Result<NativeAuditReceipt, String> { self.owner.audit_in(&self.tx) }
+    pub(crate) fn audit(&self) -> Result<NativeAuditReceipt, String> { self.owner.audit_in(self.tx.as_ref().unwrap()) }
     pub(crate) fn settle_shm(&self, measured: Result<u64, ()>) -> Result<(), NativeError> { self.owner.settle_shm(measured) }
     pub(crate) fn seal(&self, started: StartedAdmission, audit: &NativeAuditReceipt, errors: &mut NativeErrors) -> Option<FinishedAdmission> {
         if let Some(vfs) = self.vfs {
@@ -1327,10 +1337,31 @@ impl NativeTransaction<'_> {
         self.owner.seal(started, audit, errors)
     }
     pub(crate) fn accept(&self, audit: &NativeAuditReceipt, text: &str, profile: &std::path::Path, epoch: &str, context: Option<&crate::v2::InputContext>) -> Result<serde_json::Value, String> {
-        self.owner.accept_in(&self.tx, audit, text, profile, epoch, context)
+        self.owner.accept_in(self.tx.as_ref().unwrap(), audit, text, profile, epoch, context)
     }
-    pub(crate) fn commit(self) -> Result<(), rusqlite::Error> { self.tx.commit() }
-    pub(crate) fn rollback(self) -> Result<(), rusqlite::Error> { self.tx.rollback() }
+    pub(crate) fn commit(self) -> Result<(), rusqlite::Error> {
+        // consuming Transaction::commit 会在报错时自行 Drop；那时尚未进入清理域。
+        // 保留 tx 在本 wrapper 内，让下方 Drop 在成功后空操作、失败后受限回滚。
+        self.tx.as_ref().unwrap().execute_batch("COMMIT")
+    }
+    pub(crate) fn rollback(mut self) -> Result<(), rusqlite::Error> {
+        let _cleanup = CleanupScope::new();
+        self.tx.take().unwrap().rollback()
+    }
+}
+
+struct CleanupScope;
+impl CleanupScope {
+    fn new() -> Self { let _ = with_owner(|tls| tls.cleanup = true); Self }
+}
+impl Drop for CleanupScope {
+    fn drop(&mut self) { let _ = with_owner(|tls| tls.cleanup = false); }
+}
+impl Drop for NativeTransaction<'_> {
+    fn drop(&mut self) {
+        let _cleanup = CleanupScope::new();
+        drop(self.tx.take());
+    }
 }
 
 impl NativeOwner {
@@ -1422,6 +1453,7 @@ impl NativeOwner {
                 gate,
                 budget,
                 first: None,
+                cleanup: false,
             })
         });
         Ok(NativeOwner {
