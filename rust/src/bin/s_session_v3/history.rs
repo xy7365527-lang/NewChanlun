@@ -4,6 +4,7 @@
 //! 对象及见证是否由真实来源按正确业务规则生成、完整目录语义仍由来源审计核验；
 //! 返回本结构不等于完整业务历史验收。
 
+use newchan_rust::s_content::ContextError as PublishError;
 use super::audit_header::{AuditMetadata, AuditRoots, AuditSourceCommit};
 use super::audit_store::{BorrowedFieldPath, RefValue};
 use super::business_json::TextValue;
@@ -2064,7 +2065,7 @@ fn sql_text_in_store(
     allocation: Option<&OwnedBudget>,
 ) -> Result<TextValue, String> {
     if store.codec_work().is_some() {
-        store.native_text(row.text(column).map_err(err)?)
+        store.native_text(row.text(column).map_err(err)?).map_err(Into::into)
     } else {
         TextValue::from_sql(row, column, allocation)
     }
@@ -2446,7 +2447,7 @@ pub(super) fn hash_json_in_store<'a>(
     v: impl Into<sc::capture_allocation::audit_json::JsonView<'a>>,
     deadline: Option<std::time::Instant>,
     job: Option<&dyn super::audit_budget::Budget>,
-) -> Result<NodeDigest, String> {
+) -> Result<NodeDigest, PublishError> {
     hash_json_with_owner(
         v.into(),
         deadline,
@@ -2461,7 +2462,7 @@ fn hash_json_with_owner(
     job: Option<&dyn super::audit_budget::Budget>,
     owner: Option<&sc::capture_allocation::OwnedBudget>,
     work: Option<&sc::capture_allocation::scratch::WorkScope>,
-) -> Result<NodeDigest, String> {
+) -> Result<NodeDigest, PublishError> {
     check_deadline(deadline)?;
     #[cfg(feature = "s_allocation_json_testonly")]
     if let Some(b) = owner {
@@ -2471,12 +2472,12 @@ fn hash_json_with_owner(
             b,
         )
         .map(|v| v.digest)
-        .map_err(err);
+        .map_err(|error| PublishError::from(error).context("HistoryInvalid："));
     }
     let _ = owner;
     sc::write_json_view(&mut Discard(deadline, job, work), v)
         .map(|v| v.digest)
-        .map_err(err)
+        .map_err(|error| PublishError::from(error).context("HistoryInvalid："))
 }
 
 #[cfg(test)]
@@ -4580,7 +4581,7 @@ pub(super) mod tests {
                             .err()
                             .unwrap()
                     };
-                    assert!(error.contains(sc::capture_allocation::LIMIT), "{error}");
+                    assert!(error.to_string().contains(sc::capture_allocation::LIMIT), "{error}");
                     let refusal = budget.allocation_request_probe();
                     assert!(refusal.refused_kind.ends_with("::path::Ancestor"));
                     assert!(refusal.refused_bytes > 0);
@@ -4662,7 +4663,7 @@ pub(super) mod tests {
                     let result = bj::read_text(&mut reader, r.view());
                     if output_room == 4096 {
                         let error = result.err().unwrap();
-                        assert!(error.contains(sc::capture_allocation::LIMIT), "{error}");
+                        assert!(error.to_string().contains(sc::capture_allocation::LIMIT), "{error}");
                         let refusal = budget.allocation_request_probe();
                         assert_eq!(refusal.refused_kind, std::any::type_name::<u8>());
                         assert!(refusal.refused_bytes >= value.len());
@@ -5214,7 +5215,7 @@ pub(super) mod tests {
                         .collect::<Result<Vec<_>, _>>()
                         .map(sc::CodecVec::from_plain)
                 } else {
-                    source_audit::elements(&mut reader, &root)
+                    source_audit::elements(&mut reader, &root).map_err(|e| e.to_string())
                 };
                 drop(reader);
                 let reads = content_store::sql_reads_on_thread() - reads;
@@ -5241,7 +5242,7 @@ pub(super) mod tests {
         );
         reader.audit_full_arrays = true;
         assert!(source_audit::elements(&mut reader, &root)
-            .unwrap_err()
+            .unwrap_err().to_string()
             .contains("verify_deadline"));
         assert_eq!(content_store::sql_reads_on_thread(), sql);
         assert!(
@@ -5864,7 +5865,7 @@ pub(super) mod tests {
                 None,
                 None,
                 proofs,
-            )
+            ).map_err(|e| e.to_string())
         };
         super::source_audit::reset_ordinary_proof_stats();
         session
@@ -5888,7 +5889,7 @@ pub(super) mod tests {
         assert!(session.proofs.is_none());
         assert!(session
             .audit_cut(&tx, cut, None, None, None, |_, _| Ok(()))
-            .unwrap_err()
+            .unwrap_err().to_string()
             .contains("已拒绝"));
         super::source_audit::reset_ordinary_proof_stats();
         let mut reopened = verified.ordinary_source_session().unwrap();
@@ -5923,7 +5924,7 @@ pub(super) mod tests {
                     Some(deadline),
                     None,
                     proofs,
-                )
+                ).map_err(|e| e.to_string())
             })
             .is_err());
         assert!(expired.proofs.is_none());
@@ -5965,10 +5966,10 @@ pub(super) mod tests {
                         None,
                         Some(&gate),
                         proofs,
-                    )
+                    ).map_err(|e| e.to_string())
                 })
                 .unwrap_err();
-            assert!(error.contains(code), "{error}");
+            assert!(error.to_string().contains(code), "{error}");
             assert!(session.proofs.is_none());
         }
         let mut malformed = verified.ordinary_source_session().unwrap();
@@ -5994,7 +5995,7 @@ pub(super) mod tests {
                     None,
                     None,
                     proofs,
-                )
+                ).map_err(|e| e.to_string())
             })
             .is_err());
         assert!(malformed.proofs.is_none());
@@ -7267,7 +7268,7 @@ pub(super) mod tests {
         let error = audit(&mut f.conn)
             .err()
             .expect("substituted root must fail");
-        assert!(error.contains("实际发布根不是"), "{error}");
+        assert!(error.to_string().contains("实际发布根不是"), "{error}");
     }
 
     #[test]
@@ -7282,7 +7283,7 @@ pub(super) mod tests {
         let error = audit(&mut f.conn)
             .err()
             .expect("different valid descriptor must fail");
-        assert!(error.contains("持久引用与实际内容根不同"), "{error}");
+        assert!(error.to_string().contains("持久引用与实际内容根不同"), "{error}");
     }
 
     #[test]
@@ -7292,7 +7293,7 @@ pub(super) mod tests {
         let error = audit(&mut f.conn)
             .err()
             .expect("wrong root tuple must fail");
-        assert!(error.contains("根批次与完整发布史末代不符"), "{error}");
+        assert!(error.to_string().contains("根批次与完整发布史末代不符"), "{error}");
     }
 
     #[test]
@@ -7305,7 +7306,7 @@ pub(super) mod tests {
         let error = read_history(&tx, &raw, control)
             .err()
             .expect("different source must fail");
-        assert!(error.contains("raw_events与独立依据不同"), "{error}");
+        assert!(error.to_string().contains("raw_events与独立依据不同"), "{error}");
     }
 
     #[test]
@@ -7837,7 +7838,7 @@ mod explicit_empty_json_budget_probe {
                 assert!(actual.as_ref().unwrap().same_ledger(&budget));
                 hash_array_metered_with_owner(&[], None, None, false, actual.as_ref())
             });
-        assert!(result.unwrap_err().contains(sc::capture_allocation::LIMIT));
+        assert!(result.unwrap_err().to_string().contains(sc::capture_allocation::LIMIT));
         assert!(budget.snapshot().rejected_layouts > 0);
         assert_eq!(budget.snapshot().allocation_attempts, 0);
         drop(capture);
@@ -7895,7 +7896,7 @@ mod explicit_empty_json_budget_probe {
                 None,
             )
         });
-        assert!(result.unwrap_err().contains(sc::capture_allocation::LIMIT));
+        assert!(result.unwrap_err().to_string().contains(sc::capture_allocation::LIMIT));
         assert!(b.snapshot().rejected_layouts > 0);
         assert_eq!(b.snapshot().allocation_attempts, 0);
         drop((empty, capture));
@@ -7980,7 +7981,7 @@ mod borrowed_change_consumer_probe {
                     JsonView::Number(&wrong_type),
                 )
                 .unwrap_err();
-                assert!(error.contains("generation与独立依据不同"), "{error}");
+                assert!(error.to_string().contains("generation与独立依据不同"), "{error}");
                 let canonical =
                     format!("{{\"from\":\"{}\",\"to\":\"{}\"}}", from.text(), to.text());
                 assert!(history_canonical_equal(

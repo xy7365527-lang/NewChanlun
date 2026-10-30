@@ -970,7 +970,7 @@ mod tests {
                 ]),
             );
             let expected = oracle(&mut nodes, &bad, &raw, &rule).unwrap_err();
-            assert!(expected.contains(expected_text), "{expected}");
+            assert!(expected.to_string().contains(expected_text), "{expected}");
             let mut book = OrdinaryProofs::default();
             run(&mut nodes, &root, &raw, &rule, &mut book).unwrap();
             book.commit();
@@ -1239,7 +1239,7 @@ mod tests {
                 .unwrap_err(),
             expected
         );
-        assert!(expected.contains("知识主体被绑定"));
+        assert!(expected.to_string().contains("知识主体被绑定"));
         assert_eq!(book.stats.invalidations, 1);
     }
     #[test]
@@ -1276,7 +1276,7 @@ mod tests {
             book.step(&mut nodes, &object, &raw, true).err().unwrap(),
             expected
         );
-        assert!(expected.contains("同cut原始来源"));
+        assert!(expected.to_string().contains("同cut原始来源"));
         let raw = original_sources(&events, events.len()).unwrap();
         let (witness_key, id, slot) = book
             .previous

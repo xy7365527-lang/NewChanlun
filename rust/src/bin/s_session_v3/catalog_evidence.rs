@@ -20,6 +20,7 @@
 
 #![allow(dead_code)] // S3 发布/历史接线由主控在下游切片落地；本模块 API 现由本文件测试消费。
 
+use newchan_rust::s_content::ContextError as PublishError;
 use super::audit_store::{CodecRead, CodecStore, RefValue};
 use super::business_json::{self as bj, JsonOwner, RawEventsView, TextValue};
 #[cfg_attr(
@@ -105,56 +106,56 @@ fn field_ref(
     s: &mut (impl CodecRead + ?Sized),
     root: sc::RefView<'_>,
     key: &str,
-) -> Result<RefValue, String> {
-    s.lookup_field_ref(root, key).map_err(err)
+) -> Result<RefValue, PublishError> {
+    s.lookup_field_ref(root, key).map_err(publish_err)
 }
 fn scalar_ref(
     s: &mut (impl CodecRead + ?Sized),
     root: sc::RefView<'_>,
     key: &str,
-) -> Result<JsonOwner, String> {
+) -> Result<JsonOwner, PublishError> {
     let child = field_ref(s, root, key)?;
     if !matches!(
         child.kind(),
         Kind::String | Kind::Number | Kind::Bool | Kind::Null
     ) {
-        return Err(err(format!("{key} 不是标量")));
+        return Err(publish_err(format!("{key} 不是标量")));
     }
-    bj::render_json(s, child.view()).map_err(err)
+    bj::render_json(s, child.view()).map_err(publish_err)
 }
 fn text_ref<'r>(
     s: &mut (impl CodecRead + ?Sized),
     root: impl Into<sc::RefView<'r>>,
     key: &str,
-) -> Result<TextValue, String> {
+) -> Result<TextValue, PublishError> {
     let value = scalar_ref(s, root.into(), key)?;
     let text = value
         .view()
         .as_str()
-        .ok_or_else(|| err(format!("{key} 不是文本")))?;
-    s.native_text(text).map_err(err)
+        .ok_or_else(|| publish_err(format!("{key} 不是文本")))?;
+    s.native_text(text).map_err(publish_err)
 }
 fn array_field_ref<'r>(
     s: &mut (impl CodecRead + ?Sized),
     root: impl Into<sc::RefView<'r>>,
     key: &str,
-) -> Result<RefValue, String> {
+) -> Result<RefValue, PublishError> {
     let child = field_ref(s, root.into(), key)?;
     if child.kind() != Kind::Array {
-        return Err(err(format!("{key} 不是数组")));
+        return Err(publish_err(format!("{key} 不是数组")));
     }
     Ok(child)
 }
 fn generated_axes_ref(
     s: &mut (impl CodecRead + ?Sized),
     generated_state: sc::RefView<'_>,
-) -> Result<RefValue, String> {
+) -> Result<RefValue, PublishError> {
     if generated_state.kind() != Kind::Object {
-        return Err(err("生成态不是对象"));
+        return Err(publish_err("生成态不是对象"));
     }
     let axes = field_ref(s, generated_state, "catalog_axes")?;
     if axes.kind() != Kind::Object || axes.extent() != Some(AXIS_IDS.len() as u64) {
-        return Err(err(format!(
+        return Err(publish_err(format!(
             "生成态 catalog_axes 不是13轴对象（extent={:?}）",
             axes.extent()
         )));
@@ -194,9 +195,9 @@ fn hash_json(value: &Value) -> Result<NodeDigest, String> {
         .digest)
 }
 
-fn require_ohlc(profile_id: &str) -> Result<(), String> {
+fn require_ohlc(profile_id: &str) -> Result<(), PublishError> {
     if profile_id != tb02a::PROFILE {
-        return Err(err(format!(
+        return Err(publish_err(format!(
             "当前目录证据只实现 OHLC 档 `{}`；非 OHLC 生成态没有 13 轴，拒绝按此口径放行",
             tb02a::PROFILE
         )));
@@ -238,8 +239,8 @@ fn real_batch_id(id: &str) -> bool {
 fn reference_text(
     source: &(impl CodecRead + ?Sized),
     reference: &RefValue,
-) -> Result<TextValue, String> {
-    reference.digest().map_err(err)?;
+) -> Result<TextValue, PublishError> {
+    reference.digest().map_err(publish_err)?;
     // 与 canonical_json 的四字段字典序相同；不先物化 serde_json::Value。
     struct CanonicalReference<'a>(sc::RefView<'a>);
     impl serde::Serialize for CanonicalReference<'_> {
@@ -277,8 +278,8 @@ fn reference_text(
         bytes: bj::new_work(source.allocation_budget().as_ref()),
         source,
     };
-    serde_json::to_writer(&mut out, &CanonicalReference(reference.view())).map_err(err)?;
-    TextValue::from_bytes(out.bytes).map_err(err)
+    serde_json::to_writer(&mut out, &CanonicalReference(reference.view())).map_err(publish_err)?;
+    TextValue::from_bytes(out.bytes).map_err(publish_err)
 }
 
 // 十进制文本在固定栈区内格式化；不先创建无许可 String。
@@ -307,20 +308,20 @@ struct AxisState {
 fn axes_entries<'r>(
     s: &mut (impl CodecRead + ?Sized),
     axes: impl Into<sc::RefView<'r>>,
-) -> Result<sc::CodecVec<AxisState>, String> {
+) -> Result<sc::CodecVec<AxisState>, PublishError> {
     let axes = axes.into();
     if axes.kind() != Kind::Object || axes.extent() != Some(AXIS_IDS.len() as u64) {
-        return Err(err(format!(
+        return Err(publish_err(format!(
             "目录轴根不是13轴对象（extent={:?}）",
             axes.extent()
         )));
     }
     let mut out = bj::new_work(s.allocation_budget().as_ref());
-    s.native_codec_room(&mut out, AXIS_IDS.len()).map_err(err)?;
+    s.native_codec_room(&mut out, AXIS_IDS.len()).map_err(publish_err)?;
     for id in AXIS_IDS {
         let axis = field_ref(s, axes, id)?;
         if axis.kind() != Kind::Object || axis.extent() != Some(AXIS_FIELDS.len() as u64) {
-            return Err(err(format!("{id} 轴不是四字段状态对象")));
+            return Err(publish_err(format!("{id} 轴不是四字段状态对象")));
         }
         let impl_status = text_ref(s, &axis, "impl_status")?;
         let proof_status = text_ref(s, &axis, "proof_status")?;
@@ -329,13 +330,13 @@ fn axes_entries<'r>(
             || proof_status != "not_proved"
             || !matches!(run_status.as_str(), "run" | "not_run" | "waiting")
         {
-            return Err(err(format!(
+            return Err(publish_err(format!(
                 "{id} 轴状态越出声明域：{impl_status}/{proof_status}/{run_status}"
             )));
         }
         let evidence = field_ref(s, axis.view(), "evidence")?;
         if evidence.kind() != Kind::Object {
-            return Err(err(format!("{id} 轴 evidence 不是对象")));
+            return Err(publish_err(format!("{id} 轴 evidence 不是对象")));
         }
         // 必填字段全在 + extent 相符 ⟹ 字段集合恰为声明集合（不缺、不多）。
         let expected = if id == "CC-056" {
@@ -344,13 +345,13 @@ fn axes_entries<'r>(
             EVIDENCE_CORE_FIELDS.len()
         };
         if evidence.extent() != Some(expected as u64) {
-            return Err(err(format!(
+            return Err(publish_err(format!(
                 "{id} 轴 evidence 字段数不符（extent={:?}，应为 {expected}）",
                 evidence.extent()
             )));
         }
         if text_ref(s, &evidence, "scope")? != "TB-02-A" {
-            return Err(err(format!("{id} 轴 evidence.scope 不是 TB-02-A")));
+            return Err(publish_err(format!("{id} 轴 evidence.scope 不是 TB-02-A")));
         }
         for key in EVIDENCE_CORE_FIELDS.iter().skip(1) {
             array_field_ref(s, &evidence, key)?;
@@ -367,7 +368,7 @@ fn axes_entries<'r>(
             run_status,
             evidence,
         })
-        .map_err(err)?;
+        .map_err(publish_err)?;
     }
     Ok(out)
 }
@@ -384,7 +385,7 @@ pub(super) fn build_template<'changes>(
     counts: &super::source_audit::Counts,
     withdrawals: impl Into<RawEventsView<'changes>>,
     replaces: impl Into<RawEventsView<'changes>>,
-) -> Result<(TextValue, RefValue), String> {
+) -> Result<(TextValue, RefValue), PublishError> {
     let withdrawals = withdrawals.into();
     let replaces = replaces.into();
     require_ohlc(&metadata.profile_id)?;
@@ -403,7 +404,7 @@ pub(super) fn build_template<'changes>(
     let mut digits = [[0u8; 20]; 8];
     let mut texts = [""; 8];
     for ((text, digits), count) in texts.iter_mut().zip(digits.iter_mut()).zip(counts) {
-        *text = decimal(u64::try_from(count).map_err(err)?, digits);
+        *text = decimal(u64::try_from(count).map_err(publish_err)?, digits);
     }
     use sc::ValueView::{BatchSelf, Edge, Object, String as Text};
     let fields = [
@@ -421,12 +422,12 @@ pub(super) fn build_template<'changes>(
         ("replaces", Text(texts[5])),
         ("insufficient_knowledge", Text(texts[6])),
         ("domain_not_satisfied", Text(texts[7])),
-        ("scope", Edge(metadata.scope.digest().map_err(err)?)),
-        ("axes", Edge(axes.digest().map_err(err)?)),
+        ("scope", Edge(metadata.scope.digest().map_err(publish_err)?)),
+        ("axes", Edge(axes.digest().map_err(publish_err)?)),
     ];
-    let built = store.write_template_view(Object(&fields)).map_err(err)?;
-    let reference = store.native_built_ref(&built).map_err(err)?;
-    Ok((store.native_text(run).map_err(err)?, reference))
+    let built = store.write_template_view(Object(&fields)).map_err(publish_err)?;
+    let reference = store.native_built_ref(&built).map_err(publish_err)?;
+    Ok((store.native_text(run).map_err(publish_err)?, reference))
 }
 
 /// 在同一读集核验一条已解析的目录证据。
@@ -763,7 +764,7 @@ pub(super) fn stage_current(
     tx: &Transaction<'_>,
     store: &mut dyn NodeStore,
     axes: &ContentRef,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     let entries = axes_entries(store, axes)?;
     for entry in &entries {
         let reference = reference_text(store, &entry.evidence)?;
@@ -778,9 +779,9 @@ pub(super) fn stage_current(
                     entry.id
                 ],
             )
-            .map_err(|e| err(format!("暂写 catalog[{}] 失败：{e}", entry.id)))?;
+            .map_err(|e| publish_err(PublishError::from(e).context(&format!("暂写 catalog[{}] 失败：", entry.id))))?;
         if changed != 1 {
-            return Err(err(format!(
+            return Err(publish_err(format!(
                 "catalog[{}] 更新行数 {changed}≠1（13 行必须都存在且每轴恰一行）",
                 entry.id
             )));
@@ -817,7 +818,6 @@ fn verify_current_in_store<'r>(
     let entries = axes_entries(store, axes)?;
     let budget = store.allocation_budget();
     for entry in &entries {
-        let read_error = |e| err(format!("读 catalog[{}] 失败：{e}", entry.id));
         let mut query = newchan_rust::sqlite_checked::CheckedStatement::prepare(
             tx, c"SELECT impl_status,proof_status,run_status,evidence_json FROM catalog WHERE catalog_id=?1",
         ).map_err(|e| read_error(e.to_string()))?;
@@ -828,16 +828,16 @@ fn verify_current_in_store<'r>(
             Some(mut row) => Some((
                 store
                     .native_text(row.text(0).map_err(|e| read_error(e.to_string()))?)
-                    .map_err(read_error)?,
+                    .map_err(|e| err(format!("读 catalog[{}] 失败：{e}", entry.id)))?,
                 store
                     .native_text(row.text(1).map_err(|e| read_error(e.to_string()))?)
-                    .map_err(read_error)?,
+                    .map_err(|e| err(format!("读 catalog[{}] 失败：{e}", entry.id)))?,
                 store
                     .native_text(row.text(2).map_err(|e| read_error(e.to_string()))?)
-                    .map_err(read_error)?,
+                    .map_err(|e| err(format!("读 catalog[{}] 失败：{e}", entry.id)))?,
                 store
                     .native_text(row.text(3).map_err(|e| read_error(e.to_string()))?)
-                    .map_err(read_error)?,
+                    .map_err(|e| err(format!("读 catalog[{}] 失败：{e}", entry.id)))?,
             )),
             None => None,
         };
@@ -2031,4 +2031,8 @@ mod r9_catalog_stream_tests {
             assert!(canonical_matches(JsonView::Plain(value), &bytes, None).unwrap());
         }
     }
+}
+
+fn publish_err(error: impl Into<PublishError>) -> PublishError {
+    error.into().context("CatalogEvidenceInvalid：")
 }

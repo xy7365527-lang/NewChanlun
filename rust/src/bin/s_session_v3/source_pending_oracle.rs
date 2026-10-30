@@ -545,3 +545,7 @@ pub(super) fn audit(
     }
     Ok(pending)
 }
+
+fn err(error: impl std::fmt::Display) -> String {
+    format!("SourceAuditInvalid：{error}")
+}

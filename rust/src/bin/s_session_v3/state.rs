@@ -2948,7 +2948,7 @@ impl AuditedState {
                 self.raw.view(),
                 raw_sources.ok_or_else(|| err("缺 raw 来源事实"))?,
                 bound,
-            )?
+            ).map_err(|error| error.to_string())?
             .with_codec_work(work, native),
         );
         let mut store = history::HashReader::captured_for_audit(capture, None)

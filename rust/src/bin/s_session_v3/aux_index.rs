@@ -1,6 +1,7 @@
 //! #1394 C §5.4：见证、关系、首次观察的独立内容索引。
 //! plan 先产生含本批占位的值根；manifest 求出 batch3 后 stage 同事务暂写出生记录。
 //! 观察 detail 与来源数组保留为边；仅单条原始事件沿既有投影转换。索引不替代来源业务审计。
+use newchan_rust::s_content::ContextError as PublishError;
 use super::business_json::{self as bj, RawEventsView};
 use super::generation::{Generated, SequenceMemo, WitnessRecord};
 use super::layout::Layout;
@@ -69,23 +70,23 @@ fn field(
     s: &mut (impl CodecRead + ?Sized),
     r: &(impl AuxRef + ?Sized),
     k: &str,
-) -> Result<RefValue, String> {
-    s.lookup_field_ref(r.view(), k).map_err(err)
+) -> Result<RefValue, PublishError> {
+    s.lookup_field_ref(r.view(), k).map_err(publish_err)
 }
-fn digest(r: &(impl AuxRef + ?Sized)) -> Result<NodeDigest, String> {
-    r.view().digest().map_err(err)
+fn digest(r: &(impl AuxRef + ?Sized)) -> Result<NodeDigest, PublishError> {
+    r.view().digest().map_err(publish_err)
 }
 fn scalar(
     s: &mut (impl CodecRead + ?Sized),
     r: &(impl AuxRef + ?Sized),
     k: &str,
-) -> Result<bj::JsonOwner, String> {
+) -> Result<bj::JsonOwner, PublishError> {
     let leaf = field(s, r, k)?;
     if !matches!(
         leaf.kind(),
         Kind::Null | Kind::Bool | Kind::Number | Kind::String
     ) {
-        return Err(err(format!("{k}不是标量")));
+        return Err(publish_err(format!("{k}不是标量")));
     }
     render(s, &leaf)
 }
@@ -93,28 +94,28 @@ fn text(
     s: &mut (impl CodecRead + ?Sized),
     r: &(impl AuxRef + ?Sized),
     k: &str,
-) -> Result<TextValue, String> {
+) -> Result<TextValue, PublishError> {
     let value = scalar(s, r, k)?;
     let value = value
         .view()
         .as_str()
-        .ok_or_else(|| err(format!("{k}不是文本")))?;
-    s.native_text(value).map_err(err)
+        .ok_or_else(|| publish_err(format!("{k}不是文本")))?;
+    s.native_text(value).map_err(publish_err)
 }
 fn integer(
     s: &mut (impl CodecRead + ?Sized),
     r: &(impl AuxRef + ?Sized),
     k: &str,
-) -> Result<i64, String> {
+) -> Result<i64, PublishError> {
     scalar(s, r, k)?
         .view()
         .as_i64()
-        .ok_or_else(|| err(format!("{k}不是i64")))
+        .ok_or_else(|| publish_err(format!("{k}不是i64")))
 }
 fn render(
     s: &mut (impl CodecRead + ?Sized),
     r: &(impl AuxRef + ?Sized),
-) -> Result<bj::JsonOwner, String> {
+) -> Result<bj::JsonOwner, PublishError> {
     bj::render_json(s, r.view()).map_err(Into::into)
 }
 #[cfg(test)]
@@ -132,47 +133,47 @@ fn write_json(s: &mut (impl CodecStore + ?Sized), v: &Value) -> Result<Built, St
 fn write_fields(
     s: &mut (impl CodecStore + ?Sized),
     fields: &[(&str, JsonView<'_>)],
-) -> Result<Built, String> {
-    s.write_json_view(JsonView::object_fields(fields).map_err(err)?)
-        .map_err(err)
+) -> Result<Built, PublishError> {
+    s.write_json_view(JsonView::object_fields(fields).map_err(publish_err)?)
+        .map_err(publish_err)
 }
 fn edge(
     s: &mut (impl CodecRead + ?Sized),
     r: &(impl AuxRef + ?Sized),
     k: &str,
-) -> Result<VV<'static>, String> {
+) -> Result<VV<'static>, PublishError> {
     Ok(VV::Edge(digest(&field(s, r, k)?)?))
 }
 fn array_elements(
     s: &mut (impl CodecRead + ?Sized),
     r: &(impl AuxRef + ?Sized),
-) -> Result<CodecVec<RefValue>, String> {
+) -> Result<CodecVec<RefValue>, PublishError> {
     if r.view().kind() != Kind::Array {
-        return Err(err("预期数组"));
+        return Err(publish_err("预期数组"));
     }
     let mut out = bj::new_work(s.allocation_budget().as_ref());
-    for i in 0..r.view().extent().ok_or_else(|| err("数组缺长度"))? {
-        s.native_codec_room(&mut out, 1).map_err(err)?;
-        out.try_push(s.lookup_ref(r.view(), &[PathStep::Index(i)]).map_err(err)?)
-            .map_err(err)?;
+    for i in 0..r.view().extent().ok_or_else(|| publish_err("数组缺长度"))? {
+        s.native_codec_room(&mut out, 1).map_err(publish_err)?;
+        out.try_push(s.lookup_ref(r.view(), &[PathStep::Index(i)]).map_err(publish_err)?)
+            .map_err(publish_err)?;
     }
     Ok(out)
 }
-fn root(s: &mut (impl CodecRead + ?Sized), b: &[u8]) -> Result<RefValue, String> {
-    let d: NodeDigest = b.try_into().map_err(|_| err("根不是32字节"))?;
+fn root(s: &mut (impl CodecRead + ?Sized), b: &[u8]) -> Result<RefValue, PublishError> {
+    let d: NodeDigest = b.try_into().map_err(|_| publish_err("根不是32字节"))?;
     let r = s
         .content_ref_view(sc::FixedRoot::new(&d).as_str())
-        .map_err(err)?;
+        .map_err(publish_err)?;
     s.verify_many_ref_fresh([r.view()], sc::Mode::Public)
-        .map_err(err)?;
+        .map_err(publish_err)?;
     Ok(r)
 }
-fn built_ref(s: &(impl CodecRead + ?Sized), b: &Built) -> Result<RefValue, String> {
-    s.native_built_ref(b).map_err(err)
+fn built_ref(s: &(impl CodecRead + ?Sized), b: &Built) -> Result<RefValue, PublishError> {
+    s.native_built_ref(b).map_err(publish_err)
 }
-fn exact(r: &(impl AuxRef + ?Sized), n: u64) -> Result<(), String> {
+fn exact(r: &(impl AuxRef + ?Sized), n: u64) -> Result<(), PublishError> {
     if r.view().kind() != Kind::Object || r.view().extent() != Some(n) {
-        Err(err(format!("预期{n}字段对象")))
+        Err(publish_err(format!("预期{n}字段对象")))
     } else {
         Ok(())
     }
@@ -181,7 +182,7 @@ fn fmt_text(
     s: &(impl CodecRead + ?Sized),
     args: std::fmt::Arguments<'_>,
     budget: Option<&OwnedBudget>,
-) -> Result<TextValue, String> {
+) -> Result<TextValue, PublishError> {
     use std::fmt::Write;
     struct Out<'a> {
         work: Option<&'a sc::capture_allocation::scratch::WorkScope>,
@@ -222,14 +223,14 @@ fn fmt_text(
     };
     let result = out.write_fmt(args);
     if let Some(error) = out.error {
-        return Err(err(error));
+        return Err(publish_err(error));
     }
-    result.map_err(err)?;
-    let text = std::str::from_utf8(&out.bytes).map_err(err)?;
+    result.map_err(publish_err)?;
+    let text = std::str::from_utf8(&out.bytes).map_err(publish_err)?;
     if budget.is_none() {
-        s.native_text(text).map_err(err)
+        s.native_text(text).map_err(publish_err)
     } else {
-        TextValue::from_str(text, budget).map_err(err)
+        TextValue::from_str(text, budget).map_err(publish_err)
     }
 }
 /// 见证/关系/观察的公开主序键：出生代（表列 `published_generation`，载入为 `first`）经
@@ -248,18 +249,18 @@ fn stable_sort<T>(
     compare: impl Fn(&T, &T) -> std::cmp::Ordering,
     budget: Option<&OwnedBudget>,
     admission: &(impl CodecRead + ?Sized),
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     let mut order = bj::new_work(budget);
     let mut target = bj::new_work(budget);
     admission
         .native_codec_room(&mut order, rows.len())
-        .map_err(err)?;
+        .map_err(publish_err)?;
     admission
         .native_codec_room(&mut target, rows.len())
-        .map_err(err)?;
+        .map_err(publish_err)?;
     for i in 0..rows.len() {
-        order.try_push(i).map_err(err)?;
-        target.try_push(0usize).map_err(err)?;
+        order.try_push(i).map_err(publish_err)?;
+        target.try_push(0usize).map_err(publish_err)?;
     }
     order.sort_unstable_by(|a, b| compare(&rows[*a], &rows[*b]).then(a.cmp(b)));
     for (new, old) in order.iter().enumerate() {
@@ -290,14 +291,14 @@ impl Witness {
     fn try_clone(&self) -> Result<Self, String> {
         self.try_clone_admitted(&super::audit_store::NativeAdmission(None))
     }
-    fn try_clone_admitted(&self, store: &(impl CodecRead + ?Sized)) -> Result<Self, String> {
+    fn try_clone_admitted(&self, store: &(impl CodecRead + ?Sized)) -> Result<Self, PublishError> {
         Ok(Self {
             id: self.id.try_clone_admitted(store.codec_work())?,
             object_id: self.object_id.try_clone_admitted(store.codec_work())?,
             slot: self.slot,
             merged_index: self.merged_index,
-            generated: store.native_ref_clone(&self.generated).map_err(err)?,
-            wire: store.native_ref_clone(&self.wire).map_err(err)?,
+            generated: store.native_ref_clone(&self.generated).map_err(publish_err)?,
+            wire: store.native_ref_clone(&self.wire).map_err(publish_err)?,
             first: self.first,
         })
     }
@@ -322,13 +323,13 @@ impl Relation {
     fn try_clone(&self) -> Result<Self, String> {
         self.try_clone_admitted(&super::audit_store::NativeAdmission(None))
     }
-    fn try_clone_admitted(&self, store: &(impl CodecRead + ?Sized)) -> Result<Self, String> {
+    fn try_clone_admitted(&self, store: &(impl CodecRead + ?Sized)) -> Result<Self, PublishError> {
         Ok(Self {
             id: self.id.try_clone_admitted(store.codec_work())?,
             subject: self.subject.try_clone_admitted(store.codec_work())?,
             relation_type: self.relation_type.try_clone_admitted(store.codec_work())?,
             object: self.object.try_clone_admitted(store.codec_work())?,
-            generated: store.native_ref_clone(&self.generated).map_err(err)?,
+            generated: store.native_ref_clone(&self.generated).map_err(publish_err)?,
             first: self.first,
         })
     }
@@ -348,13 +349,13 @@ impl Observation {
     fn try_clone(&self) -> Result<Self, String> {
         self.try_clone_admitted(&super::audit_store::NativeAdmission(None))
     }
-    fn try_clone_admitted(&self, store: &(impl CodecRead + ?Sized)) -> Result<Self, String> {
+    fn try_clone_admitted(&self, store: &(impl CodecRead + ?Sized)) -> Result<Self, PublishError> {
         Ok(Self {
             id: self.id.try_clone_admitted(store.codec_work())?,
             kind: self.kind.try_clone_admitted(store.codec_work())?,
             window_start: self.window_start,
-            generated: store.native_ref_clone(&self.generated).map_err(err)?,
-            wire: store.native_ref_clone(&self.wire).map_err(err)?,
+            generated: store.native_ref_clone(&self.generated).map_err(publish_err)?,
+            wire: store.native_ref_clone(&self.wire).map_err(publish_err)?,
             batch: self
                 .batch
                 .as_ref()
@@ -392,12 +393,12 @@ impl Index {
         &self,
         budget: Option<OwnedBudget>,
         store: &(impl CodecRead + ?Sized),
-    ) -> Result<Self, String> {
+    ) -> Result<Self, PublishError> {
         let retained = self.witnesses.capacity() != 0
             || self.relations.capacity() != 0
             || self.observations.capacity() != 0;
         if retained && !same_budget(self.budget.as_ref(), budget.as_ref()) {
-            return Err(err(
+            return Err(publish_err(
                 "prototype_audit_allocation_incomplete：索引账本改变，须重新load",
             ));
         }
@@ -405,26 +406,26 @@ impl Index {
         for row in &self.witnesses {
             store
                 .native_codec_room(&mut out.witnesses, 1)
-                .map_err(err)?;
+                .map_err(publish_err)?;
             out.witnesses
                 .try_push(row.try_clone_admitted(store)?)
-                .map_err(err)?;
+                .map_err(publish_err)?;
         }
         for row in &self.relations {
             store
                 .native_codec_room(&mut out.relations, 1)
-                .map_err(err)?;
+                .map_err(publish_err)?;
             out.relations
                 .try_push(row.try_clone_admitted(store)?)
-                .map_err(err)?;
+                .map_err(publish_err)?;
         }
         for row in &self.observations {
             store
                 .native_codec_room(&mut out.observations, 1)
-                .map_err(err)?;
+                .map_err(publish_err)?;
             out.observations
                 .try_push(row.try_clone_admitted(store)?)
-                .map_err(err)?;
+                .map_err(publish_err)?;
         }
         Ok(out)
     }
@@ -482,23 +483,23 @@ fn work_map<K: Eq + std::hash::Hash, V>(budget: Option<&OwnedBudget>) -> aj::Bus
     aj::BusinessMap::plain()
 }
 impl<K: Eq + std::hash::Hash, V> Cache<K, V> {
-    fn check(&self, budget: Option<&OwnedBudget>) -> Result<(), String> {
+    fn check(&self, budget: Option<&OwnedBudget>) -> Result<(), PublishError> {
         if self.map.is_some() && !same_budget(self.budget.as_ref(), budget) {
-            return Err(err(
+            return Err(publish_err(
                 "prototype_audit_allocation_incomplete：缓存账本改变，须discard",
             ));
         }
         Ok(())
     }
-    fn get(&self, key: &K, budget: Option<&OwnedBudget>) -> Result<Option<&V>, String> {
+    fn get(&self, key: &K, budget: Option<&OwnedBudget>) -> Result<Option<&V>, PublishError> {
         self.check(budget)?;
         Ok(self.map.as_ref().and_then(|m| m.get(key)))
     }
-    fn insert(&mut self, key: K, value: V, budget: Option<&OwnedBudget>) -> Result<(), String> {
+    fn insert(&mut self, key: K, value: V, budget: Option<&OwnedBudget>) -> Result<(), PublishError> {
         self.check(budget)?;
         let map = self.map.get_or_insert_with(|| work_map(budget));
         self.budget = budget.cloned();
-        map.insert(key, value).map_err(err)?;
+        map.insert(key, value).map_err(publish_err)?;
         Ok(())
     }
     fn insert_admitted(
@@ -507,12 +508,12 @@ impl<K: Eq + std::hash::Hash, V> Cache<K, V> {
         key: K,
         value: V,
         budget: Option<&OwnedBudget>,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         self.check(budget)?;
         let map = self.map.get_or_insert_with(|| work_map(budget));
-        s.native_map_room(map).map_err(err)?;
+        s.native_map_room(map).map_err(publish_err)?;
         self.budget = budget.cloned();
-        map.insert(key, value).map_err(err)?;
+        map.insert(key, value).map_err(publish_err)?;
         Ok(())
     }
 }
@@ -575,10 +576,10 @@ impl Runtime {
         w: &WitnessRecord,
         merged_index: i64,
         g: i64,
-    ) -> Result<Witness, String> {
+    ) -> Result<Witness, PublishError> {
         let generated = built_ref(s, &w.built)?;
         s.verify_many_ref_fresh([generated.view()], sc::Mode::Public)
-            .map_err(err)?;
+            .map_err(publish_err)?;
         exact(&generated, 9)?;
         let object_id = text(s, &generated, "object_id")?;
         let slot = integer(s, &generated, "slot")?;
@@ -588,20 +589,20 @@ impl Runtime {
             || id.as_str() != w.witness_id.as_str()
             || !(0..3).contains(&slot)
         {
-            return Err(err("见证生成记录与元数据不符"));
+            return Err(publish_err("见证生成记录与元数据不符"));
         }
         let wire = match self.witness_wires.get(
             &(w.built.digest, merged_index),
             s.allocation_budget().as_ref(),
         )? {
-            Some(r) => s.native_ref_clone(r).map_err(err)?,
+            Some(r) => s.native_ref_clone(r).map_err(publish_err)?,
             None => {
                 verify_witness_id(s, &generated, &id, &object_id, slot, merged_index)?;
                 let r = self.witness_wire(s, &generated)?;
                 self.witness_wires.insert_admitted(
                     s,
                     (w.built.digest, merged_index),
-                    s.native_ref_clone(&r).map_err(err)?,
+                    s.native_ref_clone(&r).map_err(publish_err)?,
                     s.allocation_budget().as_ref(),
                 )?;
                 r
@@ -621,7 +622,7 @@ impl Runtime {
         &mut self,
         s: &mut (impl CodecStore + ?Sized),
         r: &(impl AuxRef + ?Sized),
-    ) -> Result<RefValue, String> {
+    ) -> Result<RefValue, PublishError> {
         let bars = field(s, r, "raw_bars")?;
         let owned_budget = s.allocation_budget();
         let mut values = bj::new_work(owned_budget.as_ref());
@@ -629,7 +630,7 @@ impl Runtime {
             let d = digest(&bar)?;
             let projected =
                 if let Some(cached) = self.bar_wires.get(&d, s.allocation_budget().as_ref())? {
-                    s.native_ref_clone(cached).map_err(err)?
+                    s.native_ref_clone(cached).map_err(publish_err)?
                 } else {
                     let original = render(s, &bar)?;
                     let built = project_bar(s, original.view())?;
@@ -637,15 +638,15 @@ impl Runtime {
                     self.bar_wires.insert_admitted(
                         s,
                         d,
-                        s.native_ref_clone(&r).map_err(err)?,
+                        s.native_ref_clone(&r).map_err(publish_err)?,
                         owned_budget.as_ref(),
                     )?;
                     r
                 };
-            s.native_codec_room(&mut values, 1).map_err(err)?;
+            s.native_codec_room(&mut values, 1).map_err(publish_err)?;
             values
                 .try_push(VV::Edge(digest(&projected)?))
-                .map_err(err)?;
+                .map_err(publish_err)?;
         }
         let witness_id = edge(s, r, "witness_id")?;
         let object_id = edge(s, r, "object_id")?;
@@ -666,7 +667,7 @@ impl Runtime {
             ("merged_source_index", VV::String(source.text())),
             ("raw_bars", VV::Array(&values)),
         ];
-        let b = s.write_value_view(VV::Object(&fields)).map_err(err)?;
+        let b = s.write_value_view(VV::Object(&fields)).map_err(publish_err)?;
         Ok(built_ref(s, &b)?)
     }
     fn observation(
@@ -674,10 +675,10 @@ impl Runtime {
         s: &mut (impl CodecStore + ?Sized),
         b: &Built,
         g: i64,
-    ) -> Result<Observation, String> {
+    ) -> Result<Observation, PublishError> {
         let generated = built_ref(s, b)?;
         s.verify_many_ref_fresh([generated.view()], sc::Mode::Public)
-            .map_err(err)?;
+            .map_err(publish_err)?;
         exact(&generated, 6)?;
         let kind = text(s, &generated, "kind")?;
         let window_start = window(s, &generated, "window_start")?;
@@ -719,7 +720,7 @@ impl Runtime {
         previous_frontier: i64,
         frontier: i64,
         g: i64,
-    ) -> Result<Plan, String> {
+    ) -> Result<Plan, PublishError> {
         let raw = raw.into();
         let replaces = replaces.into();
         if g < 1
@@ -727,16 +728,16 @@ impl Runtime {
             || frontier <= previous_frontier
             || frontier as usize >= raw.len()
         {
-            return Err(err("代号/原始前沿非法"));
+            return Err(publish_err("代号/原始前沿非法"));
         }
         let owned_budget = s.allocation_budget();
         let mut snapshot = old.clone_in_admitted(owned_budget.clone(), s)?;
         let mut births = Index::new(owned_budget.clone());
         let mut ws = work_map(owned_budget.as_ref());
         for (i, row) in snapshot.witnesses.iter().enumerate() {
-            s.native_map_room(&mut ws).map_err(err)?;
+            s.native_map_room(&mut ws).map_err(publish_err)?;
             ws.insert(row.id.try_clone_admitted(s.codec_work())?, i)
-                .map_err(err)?;
+                .map_err(publish_err)?;
         }
         // 未变行跳过（#1488 S3）：生成态逐代给全量见证/关系/观察，但旧快照已含同内容
         // 行时，冷口重算只得到同一行并在下方比对后丢弃。按生成记录摘要直接跳过，
@@ -745,10 +746,10 @@ impl Runtime {
         let mut known_witnesses = work_map(owned_budget.as_ref());
         if unchanged {
             for row in snapshot.witnesses.iter() {
-                s.native_map_room(&mut known_witnesses).map_err(err)?;
+                s.native_map_room(&mut known_witnesses).map_err(publish_err)?;
                 known_witnesses
                     .insert(digest(&row.generated)?, ())
-                    .map_err(err)?;
+                    .map_err(publish_err)?;
             }
         }
         for w in &generated.witnesses {
@@ -759,7 +760,7 @@ impl Runtime {
                 .objects
                 .iter()
                 .find(|o| o.object_id() == w.object_id.as_str())
-                .ok_or_else(|| err("见证对象不在本代生成态"))?;
+                .ok_or_else(|| publish_err("见证对象不在本代生成态"))?;
             let generated_object = built_ref(s, object.generated())?;
             let group = s
                 .lookup_ref(
@@ -770,7 +771,7 @@ impl Runtime {
                         PathStep::Index(w.slot as u64),
                     ],
                 )
-                .map_err(err)?;
+                .map_err(publish_err)?;
             // 身份配方用合并序号 mi；公开 merged_source_index 是原始坐标，二者不可互换。
             let merged_index = integer(s, &group, "merged_index")?;
             let row = self.witness(s, w, merged_index, g)?;
@@ -780,38 +781,38 @@ impl Runtime {
                     || prior.wire != row.wire
                     || prior.merged_index != row.merged_index
                 {
-                    return Err(err("同见证身份换内容"));
+                    return Err(publish_err("同见证身份换内容"));
                 }
             } else {
-                s.native_map_room(&mut ws).map_err(err)?;
+                s.native_map_room(&mut ws).map_err(publish_err)?;
                 ws.insert(
                     row.id.try_clone_admitted(s.codec_work())?,
                     snapshot.witnesses.len(),
                 )
-                .map_err(err)?;
+                .map_err(publish_err)?;
                 s.native_codec_room(&mut snapshot.witnesses, 1)
-                    .map_err(err)?;
+                    .map_err(publish_err)?;
                 snapshot
                     .witnesses
                     .try_push(row.try_clone_admitted(s)?)
-                    .map_err(err)?;
-                s.native_codec_room(&mut births.witnesses, 1).map_err(err)?;
-                births.witnesses.try_push(row).map_err(err)?;
+                    .map_err(publish_err)?;
+                s.native_codec_room(&mut births.witnesses, 1).map_err(publish_err)?;
+                births.witnesses.try_push(row).map_err(publish_err)?;
             }
         }
         let mut rs = work_map(owned_budget.as_ref());
         for (i, row) in snapshot.relations.iter().enumerate() {
-            s.native_map_room(&mut rs).map_err(err)?;
+            s.native_map_room(&mut rs).map_err(publish_err)?;
             rs.insert(row.id.try_clone_admitted(s.codec_work())?, i)
-                .map_err(err)?;
+                .map_err(publish_err)?;
         }
         let mut known_relations = work_map(owned_budget.as_ref());
         if unchanged {
             for row in snapshot.relations.iter() {
-                s.native_map_room(&mut known_relations).map_err(err)?;
+                s.native_map_room(&mut known_relations).map_err(publish_err)?;
                 known_relations
                     .insert(digest(&row.generated)?, ())
-                    .map_err(err)?;
+                    .map_err(publish_err)?;
             }
         }
         let mut candidates = bj::new_work(owned_budget.as_ref());
@@ -819,14 +820,14 @@ impl Runtime {
             if known_relations.get(&b.digest).is_some() {
                 continue;
             }
-            s.native_codec_room(&mut candidates, 1).map_err(err)?;
-            candidates.try_push(built_ref(s, b)?).map_err(err)?;
+            s.native_codec_room(&mut candidates, 1).map_err(publish_err)?;
+            candidates.try_push(built_ref(s, b)?).map_err(publish_err)?;
         }
         for r in replaces {
-            s.native_codec_room(&mut candidates, 1).map_err(err)?;
+            s.native_codec_room(&mut candidates, 1).map_err(publish_err)?;
             candidates
                 .try_push(replacement_relation(s, r)?)
-                .map_err(err)?;
+                .map_err(publish_err)?;
         }
         // 旧前缀的 supersedes 关系已由前代出生入旧快照；只扫本代新增原始事件（Δ_R）。
         let supersedes_from = if unchanged {
@@ -835,48 +836,48 @@ impl Runtime {
             0
         };
         for n in supersedes_from..=frontier as usize {
-            let event = raw.get(n).ok_or_else(|| err("原始前缀越界"))?;
+            let event = raw.get(n).ok_or_else(|| publish_err("原始前缀越界"))?;
             if let Some(r) = supersedes_relation(s, event)? {
-                s.native_codec_room(&mut candidates, 1).map_err(err)?;
-                candidates.try_push(r).map_err(err)?;
+                s.native_codec_room(&mut candidates, 1).map_err(publish_err)?;
+                candidates.try_push(r).map_err(publish_err)?;
             }
         }
         for r in candidates {
             let row = relation(s, r, g)?;
             if let Some(i) = rs.get(&row.id) {
                 if snapshot.relations[*i].generated != row.generated {
-                    return Err(err("同关系身份换内容"));
+                    return Err(publish_err("同关系身份换内容"));
                 }
             } else {
-                s.native_map_room(&mut rs).map_err(err)?;
+                s.native_map_room(&mut rs).map_err(publish_err)?;
                 rs.insert(
                     row.id.try_clone_admitted(s.codec_work())?,
                     snapshot.relations.len(),
                 )
-                .map_err(err)?;
+                .map_err(publish_err)?;
                 s.native_codec_room(&mut snapshot.relations, 1)
-                    .map_err(err)?;
+                    .map_err(publish_err)?;
                 snapshot
                     .relations
                     .try_push(row.try_clone_admitted(s)?)
-                    .map_err(err)?;
-                s.native_codec_room(&mut births.relations, 1).map_err(err)?;
-                births.relations.try_push(row).map_err(err)?;
+                    .map_err(publish_err)?;
+                s.native_codec_room(&mut births.relations, 1).map_err(publish_err)?;
+                births.relations.try_push(row).map_err(publish_err)?;
             }
         }
         let mut obs = work_map(owned_budget.as_ref());
         for (i, row) in snapshot.observations.iter().enumerate() {
-            s.native_map_room(&mut obs).map_err(err)?;
+            s.native_map_room(&mut obs).map_err(publish_err)?;
             obs.insert(row.id.try_clone_admitted(s.codec_work())?, i)
-                .map_err(err)?;
+                .map_err(publish_err)?;
         }
         let mut known_observations = work_map(owned_budget.as_ref());
         if unchanged {
             for row in snapshot.observations.iter() {
-                s.native_map_room(&mut known_observations).map_err(err)?;
+                s.native_map_room(&mut known_observations).map_err(publish_err)?;
                 known_observations
                     .insert(digest(&row.generated)?, ())
-                    .map_err(err)?;
+                    .map_err(publish_err)?;
             }
         }
         for b in &generated.observations {
@@ -891,24 +892,24 @@ impl Runtime {
                 if observation_identity_value(s, &prior.generated)?
                     != observation_identity_value(s, &row.generated)?
                 {
-                    return Err(err("同观察身份的身份字段冲突"));
+                    return Err(publish_err("同观察身份的身份字段冲突"));
                 }
             } else {
-                s.native_map_room(&mut obs).map_err(err)?;
+                s.native_map_room(&mut obs).map_err(publish_err)?;
                 obs.insert(
                     row.id.try_clone_admitted(s.codec_work())?,
                     snapshot.observations.len(),
                 )
-                .map_err(err)?;
+                .map_err(publish_err)?;
                 s.native_codec_room(&mut snapshot.observations, 1)
-                    .map_err(err)?;
+                    .map_err(publish_err)?;
                 snapshot
                     .observations
                     .try_push(row.try_clone_admitted(s)?)
-                    .map_err(err)?;
+                    .map_err(publish_err)?;
                 s.native_codec_room(&mut births.observations, 1)
-                    .map_err(err)?;
-                births.observations.try_push(row).map_err(err)?;
+                    .map_err(publish_err)?;
+                births.observations.try_push(row).map_err(publish_err)?;
             }
         }
         stable_sort(
@@ -932,7 +933,7 @@ impl Runtime {
         let mut raw_nodes = bj::new_work(owned_budget.as_ref());
         for (n, event) in raw.prefix(frontier as usize + 1)?.iter().enumerate() {
             if bj::field(event, "seq").as_i64() != Some(n as i64) {
-                return Err(err("原始序号与输入前缀不符"));
+                return Err(publish_err("原始序号与输入前缀不符"));
             }
             let key: NodeDigest = bj::sha_json(event, raw.budget())?;
             let wire = if let Some(d) = self.raw_wires.get(&key, s.allocation_budget().as_ref())? {
@@ -940,13 +941,13 @@ impl Runtime {
             } else {
                 let d = s
                     .write_json_view(bj::RawWire::new(event)?.view())
-                    .map_err(err)?
+                    .map_err(publish_err)?
                     .digest;
                 self.raw_wires
                     .insert(key, d, s.allocation_budget().as_ref())?;
                 d
             };
-            raw_nodes.try_push(wire).map_err(err)?;
+            raw_nodes.try_push(wire).map_err(publish_err)?;
         }
         let snapshot_values = public_sets(s, &snapshot, &raw_nodes, &mut self.sequences[..4])?;
         let delta_values = public_sets(
@@ -983,7 +984,7 @@ fn incremental_plan() -> bool {
     }
 }
 
-fn project_bar(s: &mut (impl CodecStore + ?Sized), bar: JsonView<'_>) -> Result<Built, String> {
+fn project_bar(s: &mut (impl CodecStore + ?Sized), bar: JsonView<'_>) -> Result<Built, PublishError> {
     let object = bar.as_object().ok_or("raw_bars 成员必须是对象")?;
     let number = |v: Option<JsonView<'_>>| {
         v.and_then(JsonView::as_i64)
@@ -1018,8 +1019,8 @@ fn project_bar(s: &mut (impl CodecStore + ?Sized), bar: JsonView<'_>) -> Result<
                 .unwrap_or(JsonView::Null),
             _ => value,
         };
-        s.native_codec_room(&mut fields, 1).map_err(err)?;
-        fields.try_push((key, value)).map_err(err)?;
+        s.native_codec_room(&mut fields, 1).map_err(publish_err)?;
+        fields.try_push((key, value)).map_err(publish_err)?;
     }
     let extra = if ohlc {
         &["schema_revision", "open", "high", "low", "close"][..]
@@ -1028,7 +1029,7 @@ fn project_bar(s: &mut (impl CodecStore + ?Sized), bar: JsonView<'_>) -> Result<
     };
     for key in ["seq"].into_iter().chain(extra.iter().copied()) {
         if object.get(key).is_none() {
-            s.native_codec_room(&mut fields, 1).map_err(err)?;
+            s.native_codec_room(&mut fields, 1).map_err(publish_err)?;
             fields
                 .try_push((
                     key,
@@ -1038,7 +1039,7 @@ fn project_bar(s: &mut (impl CodecStore + ?Sized), bar: JsonView<'_>) -> Result<
                         JsonView::Null
                     },
                 ))
-                .map_err(err)?;
+                .map_err(publish_err)?;
         }
     }
     write_fields(s, &fields)
@@ -1046,13 +1047,13 @@ fn project_bar(s: &mut (impl CodecStore + ?Sized), bar: JsonView<'_>) -> Result<
 fn replacement_relation(
     s: &mut (impl CodecStore + ?Sized),
     replacement: JsonView<'_>,
-) -> Result<RefValue, String> {
+) -> Result<RefValue, PublishError> {
     let subject = bj::field(replacement, "new_object_id")
         .as_str()
-        .ok_or_else(|| err("replaces缺new_object_id"))?;
+        .ok_or_else(|| publish_err("replaces缺new_object_id"))?;
     let object = bj::field(replacement, "old_object_id")
         .as_str()
-        .ok_or_else(|| err("replaces缺old_object_id"))?;
+        .ok_or_else(|| publish_err("replaces缺old_object_id"))?;
     let fields = [
         ("subject", JsonView::String(subject)),
         ("relation_type", JsonView::String("replaces")),
@@ -1064,16 +1065,16 @@ fn replacement_relation(
 fn supersedes_relation(
     s: &mut (impl CodecStore + ?Sized),
     event: JsonView<'_>,
-) -> Result<Option<RefValue>, String> {
+) -> Result<Option<RefValue>, PublishError> {
     let Some(sup) = bj::field(event, "supersedes_revision").as_i64() else {
         return Ok(None);
     };
     let identity = bj::field(event, "identity_key")
         .as_str()
-        .ok_or_else(|| err("源身份缺失"))?;
+        .ok_or_else(|| publish_err("源身份缺失"))?;
     let rev = bj::field(event, "revision")
         .as_i64()
-        .ok_or_else(|| err("源版本缺失"))?;
+        .ok_or_else(|| publish_err("源版本缺失"))?;
     let budget = s.allocation_budget();
     let subject = fmt_text(s, format_args!("{identity}@{rev}"), budget.as_ref())?;
     let object = fmt_text(s, format_args!("{identity}@{sup}"), budget.as_ref())?;
@@ -1090,19 +1091,19 @@ fn public_sets(
     i: &Index,
     raw: &[NodeDigest],
     memo: &mut [SequenceMemo],
-) -> Result<PublicSets, String> {
+) -> Result<PublicSets, PublishError> {
     let budget = s.allocation_budget();
     let mut w = bj::new_work(budget.as_ref());
     let mut r = bj::new_work(budget.as_ref());
     let mut o = bj::new_work(budget.as_ref());
     for row in &i.witnesses {
-        w.try_push(digest(&row.wire)?).map_err(err)?;
+        w.try_push(digest(&row.wire)?).map_err(publish_err)?;
     }
     for row in &i.relations {
-        r.try_push(digest(&row.generated)?).map_err(err)?;
+        r.try_push(digest(&row.generated)?).map_err(publish_err)?;
     }
     for row in &i.observations {
-        o.try_push(digest(&row.wire)?).map_err(err)?;
+        o.try_push(digest(&row.wire)?).map_err(publish_err)?;
     }
     Ok(PublicSets {
         witnesses: memo[0].sync(s.generic_store(), &w, "见证快照", budget.as_ref())?,
@@ -1115,7 +1116,7 @@ fn window(
     s: &mut (impl CodecRead + ?Sized),
     r: &(impl AuxRef + ?Sized),
     k: &str,
-) -> Result<Option<i64>, String> {
+) -> Result<Option<i64>, PublishError> {
     let v = scalar(s, r, k)?;
     if v.view().is_null() {
         Ok(None)
@@ -1123,7 +1124,7 @@ fn window(
         v.view()
             .as_i64()
             .map(Some)
-            .ok_or_else(|| err("窗口不是i64/null"))
+            .ok_or_else(|| publish_err("窗口不是i64/null"))
     }
 }
 fn observation_wire(
@@ -1131,7 +1132,7 @@ fn observation_wire(
     r: &(impl AuxRef + ?Sized),
     id: &str,
     batch: Option<&str>,
-) -> Result<RefValue, String> {
+) -> Result<RefValue, PublishError> {
     let kind = edge(s, r, "kind")?;
     let reason = edge(s, r, "reason")?;
     let detail = edge(s, r, "detail")?;
@@ -1153,17 +1154,17 @@ fn observation_wire(
         ("window_mid", number(&mid)),
         ("window_end", number(&end)),
     ];
-    let b = s.write_template_view(VV::Object(&fields)).map_err(err)?;
+    let b = s.write_template_view(VV::Object(&fields)).map_err(publish_err)?;
     Ok(built_ref(s, &b)?)
 }
 fn relation(
     s: &mut (impl CodecStore + ?Sized),
     generated: RefValue,
     g: i64,
-) -> Result<Relation, String> {
+) -> Result<Relation, PublishError> {
     audit_count(2);
     s.verify_many_ref_fresh([generated.view()], sc::Mode::Public)
-        .map_err(err)?;
+        .map_err(publish_err)?;
     exact(&generated, 3)?;
     let subject = text(s, &generated, "subject")?;
     let relation_type = text(s, &generated, "relation_type")?;
@@ -1173,7 +1174,7 @@ fn relation(
         ("t", JsonView::String(&relation_type)),
         ("o", JsonView::String(&object)),
     ];
-    let hash = bj::sha_json_admitted(s, JsonView::object_fields(&fields).map_err(err)?)?;
+    let hash = bj::sha_json_admitted(s, JsonView::object_fields(&fields).map_err(publish_err)?)?;
     let hash = sc::FixedRoot::new(&hash);
     let id = fmt_text(
         s,
@@ -1204,13 +1205,13 @@ impl std::io::Write for HashWriter {
 fn stream_hash(
     s: &mut (impl CodecRead + ?Sized),
     r: &(impl AuxRef + ?Sized),
-) -> Result<TextValue, String> {
+) -> Result<TextValue, PublishError> {
     let mut out = HashWriter(Sha256::new());
-    s.render_ref(r.view(), &mut out).map_err(err)?;
+    s.render_ref(r.view(), &mut out).map_err(publish_err)?;
     #[cfg(test)]
     super::state::trace_local_sha256(1, 0);
     let hash = sc::FixedRoot::new(&out.0.finalize().into());
-    s.native_text(&hash.as_str()[4..]).map_err(err)
+    s.native_text(&hash.as_str()[4..]).map_err(publish_err)
 }
 fn verify_witness_id(
     s: &mut (impl CodecStore + ?Sized),
@@ -1219,9 +1220,9 @@ fn verify_witness_id(
     object: &str,
     slot: i64,
     mi: i64,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     if mi < 0 {
-        return Err(err("见证合并序号非法"));
+        return Err(publish_err("见证合并序号非法"));
     }
     let mi = serde_json::Number::from(mi);
     let slot = serde_json::Number::from(slot);
@@ -1231,7 +1232,7 @@ fn verify_witness_id(
         ("slot", VV::Json(JsonView::Number(&slot))),
         ("raw_bars", edge(s, r, "raw_bars")?),
     ];
-    let b = s.write_value_view(VV::Object(&fields)).map_err(err)?;
+    let b = s.write_value_view(VV::Object(&fields)).map_err(publish_err)?;
     let recipe = built_ref(s, &b)?;
     let hash = stream_hash(s, &recipe)?;
     let expected = fmt_text(
@@ -1240,21 +1241,21 @@ fn verify_witness_id(
         s.allocation_budget().as_ref(),
     )?;
     if id != expected.as_str() {
-        return Err(err("见证身份配方不符"));
+        return Err(publish_err("见证身份配方不符"));
     }
     Ok(())
 }
 fn observation_identity_value(
     s: &mut (impl CodecStore + ?Sized),
     r: &(impl AuxRef + ?Sized),
-) -> Result<RefValue, String> {
+) -> Result<RefValue, PublishError> {
     let detail = field(s, r, "detail")?;
     if detail.kind() != Kind::Object {
-        return Err(err("观察detail不是对象"));
+        return Err(publish_err("观察detail不是对象"));
     }
     let tb = match s
         .lookup_optional_field_ref(detail.view(), "tb02a")
-        .map_err(err)?
+        .map_err(publish_err)?
     {
         Some(value) => {
             value.kind() == Kind::Bool && render(s, &value)?.view().as_bool() == Some(true)
@@ -1278,13 +1279,13 @@ fn observation_identity_value(
         ("window_mid", edge(s, r, "window_mid")?),
         ("window_end", edge(s, r, "window_end")?),
     ];
-    let b = s.write_value_view(VV::Object(&fields)).map_err(err)?;
+    let b = s.write_value_view(VV::Object(&fields)).map_err(publish_err)?;
     Ok(built_ref(s, &b)?)
 }
 fn observation_id(
     s: &mut (impl CodecStore + ?Sized),
     r: &(impl AuxRef + ?Sized),
-) -> Result<TextValue, String> {
+) -> Result<TextValue, PublishError> {
     let recipe = observation_identity_value(s, r)?;
     let hash = stream_hash(s, &recipe)?;
     let full = recipe.view().root() == r.view().root()
@@ -1342,10 +1343,10 @@ struct RelationRefKey {
     extent: Option<u64>,
 }
 impl RelationRefKey {
-    fn new(r: &RefValue, store: &(impl CodecRead + ?Sized)) -> Result<Self, String> {
+    fn new(r: &RefValue, store: &(impl CodecRead + ?Sized)) -> Result<Self, PublishError> {
         Ok(Self {
-            format: store.native_string(r.view().format()).map_err(err)?,
-            root: store.native_string(r.view().root()).map_err(err)?,
+            format: store.native_string(r.view().format()).map_err(publish_err)?,
+            root: store.native_string(r.view().root()).map_err(publish_err)?,
             kind: r.kind(),
             extent: r.extent(),
         })
@@ -1359,7 +1360,7 @@ struct RelationCore {
     generated: RefValue,
 }
 impl RelationCore {
-    fn at(&self, g: i64, admission: &(impl CodecRead + ?Sized)) -> Result<Relation, String> {
+    fn at(&self, g: i64, admission: &(impl CodecRead + ?Sized)) -> Result<Relation, PublishError> {
         Ok(Relation {
             id: self.id.try_clone_admitted(admission.codec_work())?,
             subject: self.subject.try_clone_admitted(admission.codec_work())?,
@@ -1367,7 +1368,7 @@ impl RelationCore {
                 .relation_type
                 .try_clone_admitted(admission.codec_work())?,
             object: self.object.try_clone_admitted(admission.codec_work())?,
-            generated: admission.native_ref_clone(&self.generated).map_err(err)?,
+            generated: admission.native_ref_clone(&self.generated).map_err(publish_err)?,
             first: g,
         })
     }
@@ -1600,12 +1601,12 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
         s: &mut (impl CodecStore + ?Sized),
         candidate: RefValue,
         g: i64,
-    ) -> Result<Relation, String> {
-        if !self.capture.contains(&candidate.digest().map_err(err)?) {
+    ) -> Result<Relation, PublishError> {
+        if !self.capture.contains(&candidate.digest().map_err(publish_err)?) {
             return relation(s, candidate, g);
         }
         s.native_verify_original(self.capture, candidate.view(), sc::Mode::Public)
-            .map_err(err)?;
+            .map_err(publish_err)?;
         let key = RelationRefKey::new(&candidate, s)?;
         if let Some(core) = self.relation_memo.get(&key) {
             return core.at(g, s);
@@ -1619,8 +1620,8 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
             generated: parsed.generated,
         };
         let result = core.at(g, s)?;
-        s.native_map_room(&mut self.relation_memo).map_err(err)?;
-        self.relation_memo.insert(key, core).map_err(err)?;
+        s.native_map_room(&mut self.relation_memo).map_err(publish_err)?;
+        self.relation_memo.insert(key, core).map_err(publish_err)?;
         Ok(result)
     }
     fn raw_relation(
@@ -2464,14 +2465,14 @@ fn cut_members_projected(
     };
     Ok(([witnesses, relations, observations], template))
 }
-fn check_batch(batch: &str) -> Result<(), String> {
+fn check_batch(batch: &str) -> Result<(), PublishError> {
     if batch.strip_prefix("batch3-").is_none_or(|h| {
         h.len() != 64
             || !h
                 .bytes()
                 .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
     }) {
-        Err(err("非法batch3身份"))
+        Err(publish_err("非法batch3身份"))
     } else {
         Ok(())
     }
@@ -2505,11 +2506,11 @@ pub(super) fn stage_in_material(
     #[cfg(feature = "s_incremental")] material: Option<
         &super::audit_owner::MaterialAccess<'_, '_, '_>,
     >,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     check_batch(batch)?;
     for w in &p.births.witnesses {
         if w.first != p.generation {
-            return Err(err("见证出生代错绑"));
+            return Err(publish_err("见证出生代错绑"));
         }
         #[cfg(feature = "s_incremental")]
         let construction_stage = super::audit_owner::begin_construction_stage(
@@ -2528,13 +2529,13 @@ pub(super) fn stage_in_material(
                 w.merged_index
             ],
         )
-        .map_err(err)?;
+        .map_err(publish_err)?;
         #[cfg(feature = "s_incremental")]
         construction_stage.finish(material)?;
     }
     for r in &p.births.relations {
         if r.first != p.generation {
-            return Err(err("关系出生代错绑"));
+            return Err(publish_err("关系出生代错绑"));
         }
         #[cfg(feature = "s_incremental")]
         let construction_stage = super::audit_owner::begin_construction_stage(
@@ -2552,13 +2553,13 @@ pub(super) fn stage_in_material(
                 r.first
             ],
         )
-        .map_err(err)?;
+        .map_err(publish_err)?;
         #[cfg(feature = "s_incremental")]
         construction_stage.finish(material)?;
     }
     for o in &p.births.observations {
         if o.first != p.generation || o.batch.is_some() {
-            return Err(err("观察出生代/模板错绑"));
+            return Err(publish_err("观察出生代/模板错绑"));
         }
         #[cfg(feature = "s_incremental")]
         let construction_stage = super::audit_owner::begin_construction_stage(
@@ -2567,9 +2568,9 @@ pub(super) fn stage_in_material(
         )?;
         let wire = s
             .replace_ref(o.wire.view(), &[f("batch_id")], batch)
-            .map_err(err)?;
+            .map_err(publish_err)?;
         s.verify_many_ref_fresh([wire.view()], sc::Mode::Public)
-            .map_err(err)?;
+            .map_err(publish_err)?;
         tx.execute(
             "INSERT INTO s_content_observations VALUES(?1,?2,?3,?4,?5,?6,?7)",
             params![
@@ -2582,7 +2583,7 @@ pub(super) fn stage_in_material(
                 o.first
             ],
         )
-        .map_err(err)?;
+        .map_err(publish_err)?;
         #[cfg(feature = "s_incremental")]
         construction_stage.finish(material)?;
     }
@@ -4405,4 +4406,8 @@ impl Index {
     pub(super) fn overlay_ab_budget_absent(&self) -> bool {
         self.budget.is_none()
     }
+}
+
+fn publish_err(error: impl Into<PublishError>) -> PublishError {
+    error.into().context("AuxIndexInvalid：")
 }

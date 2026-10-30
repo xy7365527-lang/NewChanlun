@@ -2469,10 +2469,7 @@ impl GenerationRuntime {
 }
 
 fn producer_failure(error: ProducerError) -> PublishError {
-    match error {
-        ProducerError::Codec(error) => PublishError::from_codec(error, "内容编码错误："),
-        error => error.to_string().into(),
-    }
+    error.into()
 }
 
 fn producer_error(error: ProducerError) -> PublishError {
@@ -2487,13 +2484,7 @@ fn bi_error(error: crate::content_bi::BiError) -> PublishError {
 }
 
 fn record_error(error: object_records::RecordError) -> PublishError {
-    match error {
-        object_records::RecordError::Codec(error) => {
-            PublishError::from_codec(error, "内容编解码错误：")
-        }
-        error => error.to_string().into(),
-    }
-    .context("GenError：")
+    PublishError::from(error).context("GenError：")
 }
 
 fn codec_error(error: sc::CodecError) -> PublishError {

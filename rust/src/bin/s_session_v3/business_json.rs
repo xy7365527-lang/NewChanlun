@@ -1,6 +1,7 @@
 //! #1394 业务原始账的入口存储选择与同一借用判据。Owned失败直接Err，不转回std。
 pub(crate) mod json_layout;
 pub(crate) mod scoped_legacy;
+use newchan_rust::s_content::ContextError as PublishError;
 use super::audit_store::{CodecRead, NativeAdmission, NativeTree};
 use super::*;
 use aj::{ArrayIter, ArrayView, JsonView};
@@ -2261,7 +2262,7 @@ pub(crate) fn render_json(
 pub(crate) fn read_text(
     s: &mut (impl super::audit_store::CodecRead + ?Sized),
     r: sc::RefView<'_>,
-) -> Result<TextValue, String> {
+) -> Result<TextValue, PublishError> {
     let value = render_json(s, r)?;
     let text = value
         .view()

@@ -582,3 +582,7 @@ pub(super) fn audit_generated_in_store(
         outside_domain,
     })
 }
+
+fn err(error: impl std::fmt::Display) -> String {
+    format!("SourceAuditInvalid：{error}")
+}

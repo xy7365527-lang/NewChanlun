@@ -1411,7 +1411,7 @@ fn templates(
     a: &aux_index::Plan,
     run: &str,
     evidence: sc::RefView<'_>,
-) -> Result<(audit_store::RefValue, audit_store::RefValue), String> {
+) -> Result<(audit_store::RefValue, audit_store::RefValue), PublishError> {
     // #1488/#1507：只借用元数据及已持有输出；固定字段与十进制缓冲都留在栈上。
     // 模板根由 typed owner 保留许可，经 NativeManifestRoots 持有到发布返回。
     use sc::ValueView::{BatchSelf, Edge, Json, Object, String as Text};
@@ -1427,13 +1427,13 @@ fn templates(
         ("input_frontier", Text(frontier.text())),
         ("seq_range", Object(&range)),
         ("catalog_run_status", Text(run)),
-        ("catalog_evidence", Edge(evidence.digest().map_err(err)?)),
+        ("catalog_evidence", Edge(evidence.digest().map_err(publish_err)?)),
     ];
     let mut snapshot = [("", BatchSelf); 20];
     snapshot[..8].copy_from_slice(&common);
     snapshot[8..].copy_from_slice(&[
         ("structure_cut", Text(&m.structure_cut)),
-        ("scope", Edge(m.scope.digest().map_err(err)?)),
+        ("scope", Edge(m.scope.digest().map_err(publish_err)?)),
         ("profile_id", Text(&m.profile_id)),
         ("profile_hash", Text(&m.profile_hash)),
         ("history_mode", Text("RecomputedWithRevision")),
@@ -1451,12 +1451,12 @@ fn templates(
     let budget = s.allocation_budget();
     let mut withdrawals = business_json::WithdrawalArray(business_json::new_work(budget.as_ref()));
     s.native_codec_room(&mut withdrawals.0, o.withdrawals.array_len())
-        .map_err(err)?;
+        .map_err(publish_err)?;
     for withdrawal in business_json::RawEventsView::from(&o.withdrawals) {
         withdrawals
             .0
             .try_push(business_json::WithdrawalWire::new(withdrawal)?)
-            .map_err(err)?;
+            .map_err(publish_err)?;
     }
     let replaces = business_json::RawEventsView::from(&o.replaces);
     let mut delta = [("", BatchSelf); 17];
@@ -1477,10 +1477,10 @@ fn templates(
         ("observations", Edge(a.delta_values.observations.digest)),
         ("raw_history_added", Edge(a.delta_values.raw_history.digest)),
     ]);
-    let snapshot = s.write_template_view(Object(&snapshot)).map_err(err)?;
-    let snapshot = s.native_built_ref(&snapshot).map_err(err)?;
-    let delta = s.write_template_view(Object(&delta)).map_err(err)?;
-    let delta = s.native_built_ref(&delta).map_err(err)?;
+    let snapshot = s.write_template_view(Object(&snapshot)).map_err(publish_err)?;
+    let snapshot = s.native_built_ref(&snapshot).map_err(publish_err)?;
+    let delta = s.write_template_view(Object(&delta)).map_err(publish_err)?;
+    let delta = s.native_built_ref(&delta).map_err(publish_err)?;
     Ok((snapshot, delta))
 }
 

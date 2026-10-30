@@ -102,6 +102,15 @@ impl fmt::Display for ProducerError {
 }
 
 impl std::error::Error for ProducerError {}
+impl From<ProducerError> for newchan_rust::s_content::ContextError {
+    fn from(error: ProducerError) -> Self {
+        match error {
+            ProducerError::Codec(error) => Self::from_codec(error, "内容编码错误："),
+            error => error.to_string().into(),
+        }
+    }
+}
+
 
 /// 八字段原始引用（与全量配方 [`tb02a_facts::raw_ref`] 逐字段同型）。
 ///

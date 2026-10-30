@@ -241,7 +241,7 @@ mod tests {
                 3,
                 ParseDomain::JsonInner
             )
-            .unwrap_err()
+            .unwrap_err().to_string()
             .contains("完整八字段"));
         assert!(memo
             .references(
@@ -253,7 +253,7 @@ mod tests {
                 1,
                 ParseDomain::JsonInner
             )
-            .unwrap_err()
+            .unwrap_err().to_string()
             .contains("生效来源"));
         assert!(memo
             .references(

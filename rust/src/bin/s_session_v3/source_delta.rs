@@ -780,7 +780,7 @@ mod tests {
             None,
             None,
             None,
-        )
+        ).map_err(Into::into)
     }
     #[test]
     fn nonempty_root_and_unchanged_cut_match_independent_oracle() {
@@ -921,7 +921,7 @@ mod tests {
     ) {
         sc::verify(s, next).unwrap();
         let expected = full(s, next, raw, rule).unwrap_err();
-        assert!(expected.contains(reason), "{expected}");
+        assert!(expected.to_string().contains(reason), "{expected}");
         let current = start(s, original, raw, rule);
         let cut = FixtureCut::bind(s, next.into(), raw.into(), &current).unwrap();
         assert_eq!(current.advance(s, cut).err().unwrap(), expected);
@@ -1237,7 +1237,7 @@ mod tests {
             };
             let next = collection(&mut s, &root, "witnesses", items);
             let expected = full(&mut s, &next, &raw, &rule).unwrap_err();
-            assert!(expected.contains(reason));
+            assert!(expected.to_string().contains(reason));
             let cut = FixtureCut::bind(&mut s, (&next).into(), (&raw).into(), &state).unwrap();
             let actual = state
                 .advance(&mut s, cut)
@@ -1310,7 +1310,7 @@ mod tests {
         let before = a.0.snapshot().live_requested_layout_bytes;
         let mut state = Contributions::new(&a, "test-rule").unwrap();
         state.same_ledger(&a).unwrap();
-        assert!(state.same_ledger(&b).unwrap_err().contains("跨工作账本"));
+        assert!(state.same_ledger(&b).unwrap_err().to_string().contains("跨工作账本"));
         assert!(state.same_ledger(&sc::MemoryNodes::default()).is_err());
         let source = Source {
             wire: [1; 32],
