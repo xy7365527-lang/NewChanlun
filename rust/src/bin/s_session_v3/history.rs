@@ -5919,6 +5919,7 @@ pub(super) mod tests {
             assert_eq!(super::layout::Layout::of_library(&conn).unwrap(), super::layout::Layout::Sorted);
             let before = super::prepared::tests::runtime_root_tables(&conn, true);
             super::admission_private::s4_read_trace::enable();
+            super::admission_private::s4_read_trace::phase(2);
             super::source_audit::reset_ordinary_proof_stats();
             {
                 let tx = conn.transaction().unwrap();

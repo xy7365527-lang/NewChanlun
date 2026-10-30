@@ -2834,9 +2834,13 @@ pub(super) mod tests {
         let mut nodes = MemoryNodes::new();
         let input = full_input(raw, effective.raw_view(), &scope, "cut-1", 1, 0, rule);
         let generated = runtime.generate(&mut nodes, &input).unwrap();
-        let record = generated.objects.iter()
+        let object = generated.objects.iter()
             .find(|object| object.kind() == crate::content_producer::CC004_UNDETERMINED_KIND)
-            .expect("首根 W 未定原件").generated().clone();
+            .expect("首根 W 未定原件");
+        let record = match object.borrowed() {
+            object_records::BorrowedObject::Typed(source) => source.record.clone(),
+            _ => panic!("W 未定原件必须是 typed internal record"),
+        };
         read_w_prior(&mut nodes, &runtime.producer, &record).unwrap();
         let budget = super::super::audit_owner::native::Budget::new(1 << 20, 0).unwrap();
         let baseline = budget.live();

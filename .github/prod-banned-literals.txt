@@ -249,6 +249,7 @@ Value证书不得复用JsonInner判定
 W cut 不得发旧串域
 W 夹具索引槽数
 W 对象带请求
+W 未定原件必须是 typed internal record
 W 规则不启用旧业务配方
 W2_PENDING_COPY
 ["完整证据",1.0]
