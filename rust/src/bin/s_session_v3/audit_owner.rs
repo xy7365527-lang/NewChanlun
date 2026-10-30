@@ -6566,6 +6566,25 @@ mod publication_degrade_verdict_tests {
         seen.unwrap()
     }
 
+    #[test]
+    fn publication_same_text_without_origin_rejects() {
+        for failure in [ScratchFailure::Budget, ScratchFailure::Allocation] {
+            let returned = std::cell::RefCell::new(String::new());
+            let result = verdict(|work| {
+                let original = work.reject(failure);
+                let _ = invalid(&original);
+                let independent = newchan_rust::s_content::CodecError::new(
+                    original.code(),
+                    original.detail(),
+                );
+                let error = invalid(independent);
+                *returned.borrow_mut() = error.clone();
+                Err(error)
+            });
+            assert_eq!(result, Err(returned.into_inner()), "同文无来源错误不得降级");
+        }
+    }
+
     /// 0072 判据真值表（独审 0070 R1/R2 + 0068 F1）：种类只取类型化记录；任意前缀包装的真实预算
     /// 不足降级；任何 Ledger（含别的作用域、不记入作用域的直接构造）或闭包自身真实错误一律拒绝。
     #[test]

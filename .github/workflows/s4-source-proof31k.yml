@@ -1,10 +1,11 @@
 name: S4 source proof 31k targeted
 on:
   push:
-    branches: [codex/1640-s4-source-proof31k]
+    branches: [codex/1640-s4-source-proof31k, codex/1640-p57-origin33d]
   workflow_dispatch:
 jobs:
   targeted:
+    if: github.ref != 'refs/heads/codex/1640-p57-origin33d'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -47,3 +48,18 @@ jobs:
       - name: Check ordinary build without incremental feature
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: cargo check --locked --features s_session --bin s_structure_session --jobs 4
+  p57:
+    if: github.ref == 'refs/heads/codex/1640-p57-origin33d'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CARGO_INCREMENTAL: '0'
+    defaults:
+      run:
+        working-directory: rust
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/rust-job-setup
+      - name: P57 来源合同
+        run: cargo test --locked --features s_session,s_incremental --bin s_structure_session publication_same_text_without_origin_rejects --jobs 4 -- --test-threads 1 --nocapture
