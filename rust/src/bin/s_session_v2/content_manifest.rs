@@ -1435,7 +1435,7 @@ pub(crate) fn assemble_unpublished_with_workspace(
 /// 原件在发布租约内仍须真实重绑，本类型不授予跨代跳过权限。
 #[cfg(feature = "s_incremental")]
 pub(crate) struct ManifestSourceReceipt {
-    source: crate::v3::source_audit::source_receipt::RawReceipt,
+    source: crate::v3::audit_owner::RawReceipt,
     metadata: NativeMetadata,
     roots: NativeRoots,
     manifest_value: Built,
@@ -1450,7 +1450,7 @@ impl ManifestSourceReceipt {
         roots: &(impl ManifestRootSource + ?Sized),
         manifest: &UnpublishedManifest,
         raw_range: std::ops::Range<usize>,
-    ) -> Result<crate::v3::source_audit::source_receipt::RawReceipt, String> {
+    ) -> Result<crate::v3::audit_owner::RawReceipt, String> {
         if !self.metadata.matches(metadata.view()) || !same_roots(self.roots.view(), roots.view())
             || self.manifest_value != manifest.value || self.batch_id != manifest.batch_id
         {
@@ -1468,7 +1468,7 @@ pub(crate) fn assemble_with_source(
     store: &mut dyn NodeStore,
     metadata: &ManifestMetadata,
     roots: &(impl ManifestRootSource + ?Sized),
-    source: crate::v3::source_audit::source_receipt::RawReceipt,
+    source: crate::v3::audit_owner::RawReceipt,
     budget: Option<crate::v3::ManifestWorkspaceBudget>,
 ) -> Result<(UnpublishedManifest, Option<PreparedManifestWorkspace>, ManifestSourceReceipt), String> {
     source.check_manifest(metadata.generation, &metadata.profile_id, &metadata.rule_revision,

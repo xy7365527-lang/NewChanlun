@@ -99,6 +99,8 @@ pub(super) mod cold_root_probe {
 mod construction_set;
 #[cfg(feature = "s_incremental")]
 pub(crate) use construction_set::{Edit, OwnerSourceCheck, SequenceDelta, SourceArray};
+#[cfg(feature = "s_incremental")]
+pub(crate) use super::source_audit::source_receipt::RawReceipt;
 #[cfg(all(test, feature = "s_incremental"))]
 pub(crate) use effects::PublicationStageIdentity;
 #[cfg(feature = "s_incremental")]
