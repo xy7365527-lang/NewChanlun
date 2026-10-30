@@ -5,6 +5,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import tarfile
 import time
 import unittest
 from types import SimpleNamespace
@@ -17,6 +18,11 @@ spec.loader.exec_module(runtime)
 
 
 class Preservation(unittest.TestCase):
+    def test_ci_pipeline_retains_python_failure(self):
+        result = subprocess.run(['bash', '-euo', 'pipefail', '-c',
+                                 'python3 -c \"raise SystemExit(7)\" 2>&1 | tee /dev/null'])
+        self.assertEqual(result.returncode, 7)
+
     def test_tar_failure_is_not_complete(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -54,10 +60,14 @@ class Preservation(unittest.TestCase):
                 tar.assert_not_called()
 
     @unittest.skipUnless(sys.platform == 'linux', '真实进程组验收使用Linux CI')
-    def test_state_write_failure_still_stops_child(self):
+    def test_persistent_receipt_failure_preserves_stopped_originals(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            args = SimpleNamespace(log=root / 'export.log', state=root / 'process.json',
+            side = root / 'a'
+            (side / 'w2.run').mkdir(parents=True)
+            (side / 'w2.run/s.sqlite').write_bytes(b'database-original')
+            (side / 'w2.run/s.sqlite-wal').write_bytes(b'wal-original')
+            args = SimpleNamespace(log=side / 'export.log', state=side / 'process.json',
                                    command=[sys.executable, '-c', 'import time; time.sleep(60)'])
             started = []
             popen = runtime.subprocess.Popen
@@ -65,11 +75,46 @@ class Preservation(unittest.TestCase):
                 child = popen(*args, **kwargs)
                 started.append(child)
                 return child
-            with patch.object(runtime, 'save', side_effect=OSError('disk full')), patch.object(runtime.subprocess, 'Popen', side_effect=record):
-                with self.assertRaisesRegex(OSError, 'disk full'):
-                    runtime.run(args)
+            with patch.object(runtime, 'save', side_effect=OSError('receipt unavailable')), patch.object(runtime.subprocess, 'Popen', side_effect=record):
+                self.assertEqual(runtime.run(args), 125)
             self.assertIsNotNone(started[0].poll())
             self.assertEqual(runtime.live_group(started[0].pid), [])
+            with tarfile.open(root / 'a.stopped-originals.tgz') as archive:
+                self.assertEqual(archive.extractfile('a/w2.run/s.sqlite').read(), b'database-original')
+                self.assertEqual(archive.extractfile('a/w2.run/s.sqlite-wal').read(), b'wal-original')
+
+    @unittest.skipUnless(sys.platform == 'linux', '真实进程组验收使用Linux CI')
+    def test_initial_receipt_failure_finalizes_and_allows_package(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            evidence = root / 'evidence'
+            side = evidence / 'a'
+            (side / 'w2.run').mkdir(parents=True)
+            db = side / 'w2.run/s.sqlite'
+            args = SimpleNamespace(log=side / 'export.log', state=side / 'process.json',
+                                   command=[sys.executable, '-c',
+                                            'import pathlib,sys,time; pathlib.Path(sys.argv[1]).write_bytes(b\"original\"); time.sleep(60)', str(db)])
+            original_save = runtime.save
+            calls = []
+            def first_failure(path, value):
+                calls.append(path)
+                if len(calls) == 1:
+                    deadline = time.monotonic() + 5
+                    while not db.exists() and time.monotonic() < deadline:
+                        time.sleep(.01)
+                    self.assertTrue(db.exists())
+                    raise OSError('initial receipt failure')
+                return original_save(path, value)
+            with patch.object(runtime, 'save', side_effect=first_failure):
+                self.assertEqual(runtime.run(args), 125)
+            result = json.loads(args.state.read_text())
+            self.assertTrue(result['stopped'])
+            self.assertIn('initial receipt failure', result['supervisor_error'])
+            package = SimpleNamespace(directory=evidence, archive=root / 'evidence.tgz',
+                                      state=root / 'preservation.json')
+            self.assertEqual(runtime.package(package), 0)
+            with tarfile.open(package.archive) as archive:
+                self.assertEqual(archive.extractfile('evidence/a/w2.run/s.sqlite').read(), b'original')
 
     @unittest.skipUnless(sys.platform == 'linux', '真实进程组验收使用Linux CI')
     def test_natural_failure_retains_exit_code(self):

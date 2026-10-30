@@ -38,7 +38,11 @@ struct Layout {
 }
 impl Layout {
     fn checked(entries: usize, buckets: usize, body_bytes: usize) -> Option<Self> {
-        if entries == 0 || buckets == 0 || entries > buckets / 2 {
+        if entries == 0
+            || buckets == 0
+            || entries > buckets / 2
+            || entries % entries.min(4) != 0
+        {
             return None;
         }
         let body_start = entries
@@ -142,23 +146,23 @@ impl OrdinaryAuditMaterials {
         self.slab[at..at + 4].copy_from_slice(&n.to_le_bytes());
     }
     fn slot(&mut self, digest: &NodeDigest) -> Result<usize, usize> {
-        let start =
-            u64::from_le_bytes(digest[..8].try_into().unwrap()) as usize % self.layout.buckets;
-        let buckets_start = self.layout.entries * ENTRY_BYTES;
-        for hop in 0..self.layout.buckets {
-            let slot = (start + hop) % self.layout.buckets;
+        let ways = self.layout.entries.min(4);
+        let sets = self.layout.entries / ways;
+        let set = u64::from_le_bytes(digest[..8].try_into().unwrap()) as usize % sets;
+        let first = set * ways;
+        let mut empty = None;
+        for way in 0..ways {
+            let at = (first + way) * ENTRY_BYTES;
             self.stats.collision_probes = self.stats.collision_probes.saturating_add(1);
-            self.stats.max_probes = self.stats.max_probes.max((hop + 1) as u64);
-            let v = self.u32_at(buckets_start + slot * 4);
-            if v == 0 {
-                return Err(slot);
-            }
-            let at = (v as usize - 1) * ENTRY_BYTES;
-            if self.slab[at + 41] == 1 && &self.slab[at..at + 32] == digest {
+            self.stats.max_probes = self.stats.max_probes.max((way + 1) as u64);
+            if self.slab[at + 41] == 0 {
+                empty.get_or_insert(at);
+            } else if &self.slab[at..at + 32] == digest {
                 return Ok(at);
             }
         }
-        Err(usize::MAX)
+        let next = self.u32_at(self.layout.entries * ENTRY_BYTES + set * 4) as usize;
+        Err(empty.unwrap_or((first + next % ways) * ENTRY_BYTES))
     }
     fn hit(&mut self, digest: &NodeDigest) -> Result<Option<CheckedFrame>, CodecError> {
         if self.slab.is_empty() {
@@ -179,42 +183,31 @@ impl OrdinaryAuditMaterials {
         if self.slab.is_empty() {
             return;
         }
-        let slot = match self.slot(digest) {
+        let at = match self.slot(digest) {
             Ok(_) => return,
-            Err(slot) => slot,
+            Err(at) => at,
         };
-        if slot == usize::MAX || self.stats.saved_entries == self.layout.entries {
-            self.stats.save_rejected_entries = self.stats.save_rejected_entries.saturating_add(1);
+        let body_bytes = (self.slab.len() - self.layout.body_start) / self.layout.entries;
+        if frame.body().len() > body_bytes {
+            self.stats.save_rejected_bytes = self.stats.save_rejected_bytes.saturating_add(1);
             return;
         }
-        let Some(offset) = self
-            .layout
-            .body_start
-            .checked_add(self.stats.saved_body_bytes)
-        else {
-            self.stats.save_rejected_bytes = self.stats.save_rejected_bytes.saturating_add(1);
-            return;
-        };
-        let Some(end) = offset
-            .checked_add(frame.body().len())
-            .filter(|n| *n <= self.slab.len())
-        else {
-            self.stats.save_rejected_bytes = self.stats.save_rejected_bytes.saturating_add(1);
-            return;
-        };
-        // 全部容量和偏移检查在写入之前；桶最后登记，不会暴露半条原件。
-        let at = self.stats.saved_entries * ENTRY_BYTES;
+        let offset = self.layout.body_start + (at / ENTRY_BYTES) * body_bytes;
+        let end = offset + frame.body().len();
+        if self.slab[at + 41] == 1 {
+            self.stats.saved_body_bytes -= self.u32_at(at + 37) as usize;
+        } else {
+            self.stats.saved_entries += 1;
+        }
         self.slab[offset..end].copy_from_slice(frame.body());
         self.slab[at..at + 32].copy_from_slice(digest);
         self.slab[at + 32] = frame.tag();
         self.put_u32(at + 33, offset as u32);
         self.put_u32(at + 37, frame.body().len() as u32);
         self.slab[at + 41] = 1;
-        self.put_u32(
-            self.layout.entries * ENTRY_BYTES + slot * 4,
-            self.stats.saved_entries as u32 + 1,
-        );
-        self.stats.saved_entries += 1;
+        let ways = self.layout.entries.min(4);
+        let counter = self.layout.entries * ENTRY_BYTES + (at / ENTRY_BYTES / ways) * 4;
+        self.put_u32(counter, ((at / ENTRY_BYTES + 1) % ways) as u32);
         self.stats.saved_body_bytes += frame.body().len();
         self.stats.copied_for_save = self
             .stats

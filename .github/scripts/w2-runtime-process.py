@@ -48,10 +48,13 @@ def run(args):
                                  start_new_session=True)
         state = {'pid': child.pid, 'process_group': child.pid, 'stopped': False,
                  'command': args.command, 'returncode': None, 'signal': None}
+        failure = None
         try:
             save(args.state, state)
             while child.poll() is None and not received:
                 time.sleep(0.05)
+        except Exception as error:
+            failure = repr(error)
         finally:
             if live_group(child.pid):
                 signal_group(child.pid, signal.SIGTERM)
@@ -65,10 +68,23 @@ def run(args):
             deadline = time.monotonic() + 1
             while live_group(child.pid) and time.monotonic() < deadline:
                 time.sleep(0.05)
-        state.update(returncode=code, signal=received[0] if received else None,
-                     stopped=not live_group(child.pid))
-        save(args.state, state)
-        if not state['stopped']:
+            state.update(returncode=code, signal=received[0] if received else None,
+                         stopped=not live_group(child.pid), supervisor_error=failure)
+            try:
+                save(args.state, state)
+            except Exception as error:
+                state['receipt_error'] = repr(error)
+                if state['stopped']:
+                    archive = args.state.parent.with_suffix('.stopped-originals.tgz')
+                    archive_code = subprocess.run([
+                        'tar', '-czf', str(archive), '-C', str(args.state.parent.parent),
+                        args.state.parent.name]).returncode
+                    state.update(emergency_archive=str(archive),
+                                 emergency_tar_returncode=archive_code,
+                                 emergency_archive_complete=archive_code == 0)
+                print(json.dumps(state, ensure_ascii=False), file=sys.stderr, flush=True)
+                failure = repr(error)
+        if failure or not state['stopped']:
             return 125
         return 128 + received[0] if received else (code if code >= 0 else 128 - code)
 

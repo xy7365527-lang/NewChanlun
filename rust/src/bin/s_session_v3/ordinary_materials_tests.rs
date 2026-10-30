@@ -119,7 +119,8 @@ fn cap_zero_small_entries_and_body_do_not_change_values() {
             assert_eq!(p.stats.disabled, Some("disabled_cap"));
         } else if entries == 1 {
             assert_eq!(p.stats.saved_entries, 1);
-            assert_eq!(p.stats.save_rejected_entries, 2);
+            assert_eq!(p.stats.save_rejected_entries, 0);
+            assert_eq!(p.stats.sql_material_reads, 4);
         } else {
             assert_eq!(p.stats.saved_entries, 0);
             assert_eq!(p.stats.save_rejected_bytes, 4);
@@ -150,19 +151,18 @@ fn full_digest_collisions_finite_probe_and_layout_overflow() {
             &CheckedFrame::checked(d, sc::tag::BYTES_CHUNK, b.clone()).unwrap(),
         );
     }
-    for (d, b) in &keys {
+    for (d, _) in &keys[..4] {
+        assert!(p.hit(d).unwrap().is_none());
+    }
+    for (d, b) in &keys[4..] {
         assert_eq!(p.hit(d).unwrap().unwrap().body(), b);
     }
-    assert_eq!(p.stats.saved_entries, 8);
-    assert_eq!(p.stats.max_probes, 8);
-    assert!(p.stats.max_probes <= p.layout.buckets as u64);
-    // 人为填满桶，证明探测有界；不向产品暴露损坏索引能力。
-    for n in 0..p.layout.buckets {
-        p.put_u32(p.layout.entries * ENTRY_BYTES + n * 4, 1);
-    }
+    assert_eq!(p.stats.saved_entries, 4);
+    assert_eq!(p.stats.saved_body_bytes, 16);
+    assert_eq!(p.stats.max_probes, 4);
     let absent = [0xfe; 32];
-    assert_eq!(p.slot(&absent), Err(usize::MAX));
-    assert_eq!(p.stats.max_probes, 16);
+    assert!(p.slot(&absent).is_err());
+    assert_eq!(p.stats.max_probes, 4);
 }
 #[test]
 fn hit_rechecks_f_without_sql_fallback_and_drop_releases_owner() {
@@ -341,4 +341,30 @@ fn optional_allocation_failure_is_cold_disabled_not_validation_retry() {
     }
     assert_eq!(p.stats.sql_material_reads, 2);
     assert_eq!(p.stats.material_hits, 0);
+}
+
+#[test]
+fn replaced_and_oversized_materials_keep_sql_and_f_contract() {
+    let mut f = commit::tests::fixture();
+    let tx = f.conn.transaction().unwrap();
+    let a = put(&tx, sc::tag::BYTES_CHUNK, b"one");
+    let b = put(&tx, sc::tag::BYTES_CHUNK, b"two");
+    let large = put(&tx, sc::tag::BYTES_CHUNK, b"larger than the slot");
+    let mut p = pool(1, 8);
+    {
+        let mut r = p.source(content_store::ReadStore::new(&tx).unwrap());
+        for d in [a, b, a, a, large, large] {
+            let mut oracle = content_store::ReadStore::new(&tx).unwrap();
+            assert_eq!(
+                r.checked_read(&d).unwrap().unwrap().body(),
+                oracle.checked_read(&d).unwrap().unwrap().body()
+            );
+        }
+    }
+    assert_eq!(p.stats.sql_material_reads, 5);
+    assert_eq!(p.stats.material_hits, 1);
+    assert_eq!(p.stats.saved_entries, 1);
+    assert_eq!(p.stats.saved_body_bytes, 3);
+    assert_eq!(p.stats.save_rejected_bytes, 2);
+    assert!(p.stats.retained_capacity_highwater <= CAP);
 }

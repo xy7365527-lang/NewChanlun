@@ -105,6 +105,7 @@ jobs:
           name: issue-1419-w2-runtime-${{ github.sha }}
           path: |
             ${{ runner.temp }}/w2-runtime.tgz
+            ${{ runner.temp }}/w2-runtime/*.stopped-originals.tgz
             ${{ runner.temp }}/w2-preservation.json
             ${{ runner.temp }}/w2-runtime/*/process.json
             ${{ runner.temp }}/w2-runtime/*/export.log

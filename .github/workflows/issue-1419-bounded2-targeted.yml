@@ -55,7 +55,9 @@ jobs:
           shutil.copytree(original/'a/w2.run', root/'pending-copy')
           PY
       - name: Writer lifecycle and archive integrity locks
-        run: python3 ../.github/scripts/test-w2-runtime-process.py 2>&1 | tee ../bounded2-evidence/process-locks.log
+        run: |
+          set -euo pipefail
+          python3 ../.github/scripts/test-w2-runtime-process.py -v 2>&1 | tee ../bounded2-evidence/process-locks.log
       - name: Exact bounded2 behavior locks
         env:
           W2_PENDING_COPY: ${{ github.workspace }}/bounded2-evidence/pending-copy/s.sqlite
@@ -71,6 +73,19 @@ jobs:
           v3::financial_session::tests::w2_pending_cost_probe
           TESTS
           exit "$failed"
+      - name: Material pool semantics and fixed resource locks
+        run: |
+          set -euo pipefail
+          cargo test --locked --release --features s_session --bin s_structure_session --jobs 1 -- v3::ordinary_materials::tests --nocapture 2>&1 | tee ../bounded2-evidence/material-locks.log
+          grep -F 'test result: ok. 11 passed;' ../bounded2-evidence/material-locks.log
+      - name: Original strict bounded2 behavior locks
+        run: |
+          set -euo pipefail
+          for test in v3::generation::tests::bounded2_crosswalk_rejects_non_w_subject_and_fractal_changes v3::generation::tests::w_semantics_layout_neutral_between_layout1_and_bounded; do
+            log="../bounded2-evidence/${test//::/_}.log"
+            cargo test --locked --release --features s_session,s_capture_native_testonly,s_allocation_json_testonly --bin s_structure_session --jobs 1 -- --exact "$test" --nocapture 2>&1 | tee "$log"
+            grep -F 'test result: ok. 1 passed;' "$log"
+          done
       - name: Build formal binary
         run: cargo build --locked --release --features s_session --bin s_structure_session --jobs 1
       - name: Require submitted source formatting
