@@ -5970,20 +5970,34 @@ pub(super) mod tests {
             assert_eq!(stripped, mine, "g{gen} 分型载荷去后续发展后相等");
             assert!(b["payload"].get("subsequent_development").is_none());
             let find_shape = |state: &Value, object_id: &Value, window: &Value| {
-                let matches: Vec<_> = objects_of(state, CC006_SHAPE_KIND).into_iter()
-                    .filter(|o| &o["object_id"] == object_id && json!([
-                        o["window_start"].as_i64().unwrap().to_string(),
-                        o["window_mid"].as_i64().unwrap().to_string(),
-                        o["window_end"].as_i64().unwrap().to_string()
-                    ]) == *window).collect();
+                let matches: Vec<_> = objects_of(state, CC006_SHAPE_KIND)
+                    .into_iter()
+                    .filter(|o| {
+                        &o["object_id"] == object_id
+                            && json!([
+                                o["window_start"].as_i64().unwrap().to_string(),
+                                o["window_mid"].as_i64().unwrap().to_string(),
+                                o["window_end"].as_i64().unwrap().to_string()
+                            ]) == *window
+                    })
+                    .collect();
                 assert_eq!(matches.len(), 1, "g{gen} 分型须指向唯一同窗形态");
                 matches[0].clone()
             };
-            let source_shape = find_shape(sorted, &s["payload"]["shape_object_id"], &s["payload"]["window"]);
+            let source_shape = find_shape(
+                sorted,
+                &s["payload"]["shape_object_id"],
+                &s["payload"]["window"],
+            );
             find_shape(bounded, &shape_id, &b["payload"]["window"]);
             let base_coords = source_shape["source_coords"].as_array().unwrap();
-            let base_refs: Vec<_> = s["input_refs"].as_array().unwrap().iter()
-                .filter(|r| base_coords.contains(&r["source_coord"])).cloned().collect();
+            let base_refs: Vec<_> = s["input_refs"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|r| base_coords.contains(&r["source_coord"]))
+                .cloned()
+                .collect();
             assert_eq!(base_refs.len(), base_coords.len());
             stripped["shape_object_id"] = shape_id;
             let mut normalized = s.clone();
@@ -5991,14 +6005,20 @@ pub(super) mod tests {
             normalized["input_refs"] = json!(base_refs);
             normalized["source_coords"] = json!(base_coords);
             for field in ["payload", "input_refs", "source_coords"] {
-                normalized[format!("{field}_json")] = json!(crate::canonical_json(&normalized[field]));
+                normalized[format!("{field}_json")] =
+                    json!(crate::canonical_json(&normalized[field]));
             }
             let identity = json!({"kind":normalized["kind"],"fact_key":normalized["fact_key"],
                 "payload":normalized["payload"],"input_refs":normalized["input_refs"],
                 "profile_id":bounded["profile_id"],"rule_revision":bounded["rule_revision"]});
             let mut identity_nodes = MemoryNodes::new();
-            let digest = sc::write_value(&mut identity_nodes, &json_to_cvalue(&identity).unwrap()).unwrap().digest;
-            normalized["object_id"] = json!(format!("obj3-{}", &sc::FixedRoot::new(&sc::frame(0x20,&digest)).as_str()[4..]));
+            let digest = sc::write_value(&mut identity_nodes, &json_to_cvalue(&identity).unwrap())
+                .unwrap()
+                .digest;
+            normalized["object_id"] = json!(format!(
+                "obj3-{}",
+                &sc::FixedRoot::new(&sc::frame(0x20, &digest)).as_str()[4..]
+            ));
             assert_eq!(&normalized, b, "g{gen} 分型完整记录仅按布局配方规范化");
             let id = b["object_id"].as_str().unwrap().to_string();
             ids.insert(
@@ -6192,35 +6212,69 @@ pub(super) mod tests {
             actual_semantics, expected_semantics,
             "g{gen} 全部请求五字段与主体绑定"
         );
-        let structure_keys = |state: &Value| requests_of(state).into_iter().filter_map(|r| {
-            let key: Value = serde_json::from_str(r["request_id"].as_str().unwrap()).unwrap();
-            key[1].is_array().then(|| r["request_id"].clone())
-        }).collect::<Vec<_>>();
-        assert_eq!(structure_keys(sorted), structure_keys(bounded), "g{gen} 结构请求后缀次序");
+        let structure_keys = |state: &Value| {
+            requests_of(state)
+                .into_iter()
+                .filter_map(|r| {
+                    let key: Value =
+                        serde_json::from_str(r["request_id"].as_str().unwrap()).unwrap();
+                    key[1].is_array().then(|| r["request_id"].clone())
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            structure_keys(sorted),
+            structure_keys(bounded),
+            "g{gen} 结构请求后缀次序"
+        );
         let mut expected_knowledge = objects_of(sorted, CC054_KNOWLEDGE_KIND).remove(0);
         let actual_knowledge = objects_of(bounded, CC054_KNOWLEDGE_KIND).remove(0);
         let source_requests = requests_of(sorted);
-        let normalized_requests: Vec<_> = bounded_requests.iter().map(|target| {
-            let source = source_requests.iter().find(|r| r["request_id"] == target["request_id"]).unwrap();
-            let mut request = source.clone();
-            if let Some(id) = source["subject_id"].as_str() {
-                let old = sorted["objects"].as_array().unwrap().iter().find(|o| o["object_id"] == id).unwrap();
-                let found: Vec<_> = bounded["objects"].as_array().unwrap().iter()
-                    .filter(|o| o["kind"] == old["kind"] && o["fact_key"] == old["fact_key"]).collect();
-                assert_eq!(found.len(), 1);
-                request["subject_id"] = found[0]["object_id"].clone();
-            }
-            request
-        }).collect();
+        let normalized_requests: Vec<_> = bounded_requests
+            .iter()
+            .map(|target| {
+                let source = source_requests
+                    .iter()
+                    .find(|r| r["request_id"] == target["request_id"])
+                    .unwrap();
+                let mut request = source.clone();
+                if let Some(id) = source["subject_id"].as_str() {
+                    let old = sorted["objects"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .find(|o| o["object_id"] == id)
+                        .unwrap();
+                    let found: Vec<_> = bounded["objects"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .filter(|o| o["kind"] == old["kind"] && o["fact_key"] == old["fact_key"])
+                        .collect();
+                    assert_eq!(found.len(), 1);
+                    request["subject_id"] = found[0]["object_id"].clone();
+                }
+                request
+            })
+            .collect();
         expected_knowledge["payload"]["requests"] = json!(normalized_requests);
-        expected_knowledge["payload_json"] = json!(crate::canonical_json(&expected_knowledge["payload"]));
+        expected_knowledge["payload_json"] =
+            json!(crate::canonical_json(&expected_knowledge["payload"]));
         let identity = json!({"kind":expected_knowledge["kind"],"fact_key":expected_knowledge["fact_key"],
             "payload":expected_knowledge["payload"],"input_refs":expected_knowledge["input_refs"],
             "profile_id":bounded["profile_id"],"rule_revision":bounded["rule_revision"]});
         let mut identity_nodes = MemoryNodes::new();
-        let digest = sc::write_value(&mut identity_nodes, &json_to_cvalue(&identity).unwrap()).unwrap().digest;
-        expected_knowledge["object_id"] = json!(format!("obj3-{}", &sc::FixedRoot::new(&sc::frame(0x20,&digest)).as_str()[4..]));
-        assert_eq!(expected_knowledge, actual_knowledge, "g{gen} CC054完整记录显式规范化");
+        let digest = sc::write_value(&mut identity_nodes, &json_to_cvalue(&identity).unwrap())
+            .unwrap()
+            .digest;
+        expected_knowledge["object_id"] = json!(format!(
+            "obj3-{}",
+            &sc::FixedRoot::new(&sc::frame(0x20, &digest)).as_str()[4..]
+        ));
+        assert_eq!(
+            expected_knowledge, actual_knowledge,
+            "g{gen} CC054完整记录显式规范化"
+        );
         for r in &bounded_requests {
             let (slot, label) = key_of(r);
             if label.as_deref() == Some("subsequent_development") {
