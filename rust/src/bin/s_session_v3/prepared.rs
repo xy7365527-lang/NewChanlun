@@ -1780,7 +1780,7 @@ pub(crate) mod tests {
     #[cfg(feature = "s_incremental")]
     #[test]
     fn p6_production_manifest_source_receipt_rejects_request_substitution() {
-        for changed in 0..8 {
+        for changed in 0..11 {
             let mut f = Fixture::new();
             f.runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
             let (e, token) = f.accept_begin(1, ("p6", 0, 6, 12, 3, 7), 1);
@@ -1797,10 +1797,27 @@ pub(crate) mod tests {
                 4 => metadata.scope.extent = Some(u64::MAX),
                 _ => (),
             }
+            use content_manifest::ManifestRootSource;
+            let copy = |v: sc::RefView<'_>| ContentRef {
+                format: v.format().to_owned(), root: v.root().to_owned(),
+                kind: v.kind(), extent: v.extent(),
+            };
+            let view = prepared.roots.view();
+            let mut roots = content_manifest::ManifestRoots {
+                generated_state: copy(view.generated_state),
+                publication_template: copy(view.publication_template),
+                delta_template: copy(view.delta_template),
+            };
+            match changed {
+                8 => roots.generated_state.root = sc::root_string(&[0xff; 32]),
+                9 => roots.publication_template.root = sc::root_string(&[0xff; 32]),
+                10 => roots.delta_template.root = sc::root_string(&[0xff; 32]),
+                _ => (),
+            }
             let supplied_token = if changed == 5 { "other-request" } else { &token };
             let from = if changed == 6 { 1 } else { 0 };
             let to = if changed == 7 { 2 } else { 1 };
-            assert!(proof.consume(supplied_token, &metadata, &prepared.roots,
+            assert!(proof.consume(supplied_token, &metadata, &roots,
                 &prepared.manifest, from..to).is_err());
             drop(prepared);
             tx.rollback().unwrap();
@@ -2671,6 +2688,7 @@ pub(crate) mod tests {
                 Some(total)
             );
             let start = std::time::Instant::now();
+            content_manifest::take_assemble_call_reads_for_test();
             let mut tx = warm.conn.transaction().unwrap();
             let wr = if admitted {
                 let parent = shared_parent.as_ref().unwrap();
@@ -2704,6 +2722,10 @@ pub(crate) mod tests {
                     .commit_in_request(tx, &wt, &we, &mut context)
                     .unwrap()
             };
+            let warm_assemblies = content_manifest::take_assemble_call_reads_for_test();
+            let historical_cuts = (n - 1) as usize;
+            assert_eq!(warm_assemblies.len(), historical_cuts + 1,
+                "gen{n} workspace须仅重组已有历史和本次prepare，publish复用真实重绑原件");
             let workspace_cost =
                 content_manifest::manifest_workspace_stats().last_workspace_source_cost as usize;
             assert!(
@@ -2732,7 +2754,13 @@ pub(crate) mod tests {
                     <= total
             );
             let elapsed = start.elapsed();
+            content_manifest::take_assemble_call_reads_for_test();
             let cr = cold.publish(&ce, &ct).unwrap();
+            let cold_assemblies = content_manifest::take_assemble_call_reads_for_test();
+            assert_eq!(cold_assemblies.len(), historical_cuts + 2,
+                "gen{n} 无workspace须保留本次prepare和publish严格复核，不增加第三次组装");
+            eprintln!("P6_ASSEMBLY generation={n} history={historical_cuts} workspace={} cold={}",
+                warm_assemblies.len(), cold_assemblies.len());
             let or = ordinary.publish(&oe, &ot).unwrap();
             for other in [&cr, &or] {
                 assert_eq!(wr.batch_id, other.batch_id);
@@ -2795,7 +2823,7 @@ pub(crate) mod tests {
 
     #[cfg(feature = "s_incremental")]
     #[test]
-    fn native_read_lease_boundary_cold_publish_fault_matrix_discards_runtime() {
+    fn p6_native_read_lease_boundary_cold_publish_fault_matrix_discards_runtime() {
         for fault in 0..3 {
             let mut f = Fixture::new();
             f.runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
