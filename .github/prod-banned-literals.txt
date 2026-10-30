@@ -181,6 +181,7 @@ SQL 臂必须完整验证两根 Public 闭包
 SQL/行序/列名/非空scope/完整cell字节均须相同
 SQL与暂存同摘要异原件
 SQL增量账与全量oracle
+SQL文本实际复制失败必须保留来源
 STAGED_NODES_OUTPUT
 S_AUDIT_COST_DB
 S_AUDIT_COST_EXPECT_GENERATION
@@ -608,6 +609,7 @@ writer/recover闭合后无SHM
 历史插入必须退出原代际身份，不得就地改写
 历史插入须开二代际
 历史插入须开新代际对象
+历史摘要真实工作域失败必须保留来源
 历史规则只读审计
 历史规则库字节须不变
 原Pool配方逐storage-class及完整字节计费；不导出原行正文
@@ -681,6 +683,8 @@ writer/recover闭合后无SHM
 同摘要切换到JsonInner后仍必须拒嵌套json_text
 同摘要收据不新增key
 同摘要收据只合并key，不合并事件
+同文同类的域外错误不得借当前资源失败降级
+同文无来源错误不得降级
 同暂存摘要异原件，拒绝
 同源坐标内容键变化必须重算
 同算法真实F读取计量
@@ -930,6 +934,7 @@ writer/recover闭合后无SHM
 故障旧 token 不能重入构造
 效果完成尚未提交
 数值叶 memo 必须按坐标失效（不只文本叶）
+数组实际准入失败必须到达发布判据
 数组序列闭包出现非序列节点
 数组结果容器必须另占真实Layout
 整数与浮点不去重
@@ -1378,6 +1383,7 @@ writer/recover闭合后无SHM
 被拒的 reset 不得改动 S3 库
 被拒的重复许可已归还
 被拒追认不改父账
+被捕获的内层panic不能抹去Ledger
 被撤槽位不得读不可变内容
 被驱逐索引中的原件仍被 Capture 持有，不能漏记
 裁剪后正文容量缓存须匹配实存

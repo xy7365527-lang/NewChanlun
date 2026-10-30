@@ -79,3 +79,74 @@ jobs:
         with:
           name: p57-fmt
           path: /tmp/p57-fmt.patch
+
+  p57-strict:
+    if: github.ref == 'refs/heads/codex/1640-p57-origin33d'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        features: ['', backtest_bin, s_session, 's_session,s_incremental', 's_session,s_capture_native_testonly', 's_session,s_allocation_json_testonly']
+    env:
+      CARGO_INCREMENTAL: '0'
+      RUSTFLAGS: '-D warnings'
+    defaults:
+      run:
+        working-directory: rust
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/rust-job-setup
+      - name: 严格编译（原五档及受影响 Owned 兼容入口）
+        env:
+          FEATURES: ${{ matrix.features }}
+        run: |
+          if [ -n "$FEATURES" ]; then
+            cargo check --locked --all-targets --features "$FEATURES" --jobs 4
+          else
+            cargo check --locked --all-targets --jobs 4
+          fi
+  p57-mutations:
+    if: github.ref == 'refs/heads/codex/1640-p57-origin33d'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        mutation: [0072_a, 0072_b, N57_no_bridges_0072_c, 0072_d, 0072_e, 0072_f, N57_typed_count_only]
+    env:
+      CARGO_INCREMENTAL: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/rust-job-setup
+      - name: 变异前来源组必须绿（包含 testonly 真值表行）
+        working-directory: rust
+        run: cargo test --locked --features s_session,s_capture_native_testonly --bin s_structure_session publication_degrade_verdict_tests --jobs 4 -- --test-threads 1
+      - name: 真实断言红（编译失败不算）
+        env:
+          MUTATION: ${{ matrix.mutation }}
+        run: python3 .github/scripts/run-p57-mutations.py --mutation "$MUTATION" --output /tmp/p57-mutations
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p57-mutation-${{ matrix.mutation }}
+          path: /tmp/p57-mutations
+  p57-production:
+    if: github.ref == 'refs/heads/codex/1640-p57-origin33d'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      CARGO_INCREMENTAL: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/rust-job-setup
+      - name: 来源码无测试钩子及禁串清单
+        run: |
+          python3 .github/scripts/check-prod-no-test-hooks.py
+          python3 .github/scripts/gen-prod-banned-literals.py --check .
+      - name: 生产增量 release
+        working-directory: rust
+        run: cargo build --release --locked --features s_session,s_incremental --bin s_structure_session --jobs 4
+      - name: 生产产物无钩子或禁串
+        run: .github/scripts/check-prod-artifact-hooks.sh rust/target/release/s_structure_session

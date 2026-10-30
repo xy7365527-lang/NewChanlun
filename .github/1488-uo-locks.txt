@@ -118,3 +118,18 @@ v3::driver::tests::p24adj_cold_root_rerun_renews_lease_and_larger_cap_ingest_com
 v3::driver::tests::p24adj_cold_root_renewal_keeps_real_revocations
 # #1488 S4 整代 增量≡冷全量 六阶段对拍锁（主控 D4/D6，#799/#804）：release-only，已移入
 #   .github/1488-uo-release-locks.txt（--release --ignored --exact；fix-0089 负责人裁定）
+
+# #1640 P57：错误自身来源、表示与真实深链传播锁
+v3::audit_owner::publication_degrade_verdict_tests::publication_origin_survives_clone_and_two_contexts
+v3::audit_owner::publication_degrade_verdict_tests::publication_admitted_json_preserves_deep_origin
+v3::audit_owner::publication_degrade_verdict_tests::publication_admitted_history_preserves_deep_origin
+v3::audit_owner::publication_degrade_verdict_tests::publication_admitted_sql_text_preserves_deep_origin
+v3::audit_owner::publication_degrade_verdict_tests::publication_distinct_in_capture_resource_origin_is_valid
+v3::audit_owner::publication_degrade_verdict_tests::publication_prior_capture_display_and_rewrap_cannot_sign_again
+v3::audit_owner::publication_degrade_verdict_tests::publication_foreign_thread_origin_cannot_sign_current_capture
+v3::audit_owner::publication_degrade_verdict_tests::publication_nested_capture_respects_birth_interval
+v3::audit_owner::publication_degrade_verdict_tests::publication_panic_restores_trace_without_reusing_events
+v3::audit_owner::publication_degrade_verdict_tests::publication_serde_writer_preserves_inner_resource_origin
+v3::audit_owner::publication_degrade_verdict_tests::publication_sql_and_io_wrappers_preserve_source_and_display
+v3::audit_owner::publication_degrade_verdict_tests::publication_same_text_without_origin_rejects
+v3::audit_owner::publication_degrade_verdict_tests::publication_same_text_foreign_origin_rejects

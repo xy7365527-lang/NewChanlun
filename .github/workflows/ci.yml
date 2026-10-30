@@ -423,7 +423,7 @@ jobs:
         if: ${{ !cancelled() && matrix.group == 'native' }}
         env:
           S_NATIVE_SQLITE_CACHE_KIB: "262144"
-        run: '../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session,s_incremental --bin s_structure_session --jobs 1 -- s_allocation:: s3_serve incremental_build_full_branch_only_at_birth build_profile pager_probe history_layout_multicut_ layout_object_index_ b2_native_owner_restore_ r9a_new_cut_manifest_ bounded_layout_cc007_ layout1_generation_'
+        run: '../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session,s_incremental --bin s_structure_session --jobs 1 -- s_allocation:: s3_serve incremental_build_full_branch_only_at_birth build_profile pager_probe history_layout_multicut_ layout_object_index_ b2_native_owner_restore_ r9a_new_cut_manifest_ bounded_layout_cc007_ layout1_generation_ publication_'
 
       # #1394 整合（根裁定 A）：v3 history 的 Owned 文本/分配原型用例只在 s_allocation_json_testonly
       #   构建编译；只编译不执行的锁按无锁计（#799），故单列一步执行。不依赖前面各步的产物。
