@@ -1,5 +1,7 @@
 name: P57 projection origin repair
 on:
+  push:
+    branches: [codex/1640-p57-origin33d]
   workflow_dispatch:
     inputs:
       red_only:
