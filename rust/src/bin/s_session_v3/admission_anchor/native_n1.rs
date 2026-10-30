@@ -323,7 +323,8 @@ impl ShmBudget {
         let mut excess = match measured {
             Err(()) => {
                 first = Some(NativeCode::ShmMeasureFailed.into());
-                0
+                // #1527：后续测量失败不能抹掉真实 xShmMap 已观察到的超界量。
+                self.observed.saturating_sub(floor)
             }
             Ok(bytes) if bytes > floor => {
                 first = Some(NativeCode::ShmBoundViolated.into());
