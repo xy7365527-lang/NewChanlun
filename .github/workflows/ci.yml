@@ -420,7 +420,7 @@ jobs:
       # #1640：生产增量构建的编译期模式、`/2` 资源档与出生锁在无测试钩子 feature 下另跑一遍（env 选择臂只在 testonly）。
       #   D-A：pager_probe 锁在此步设缓存实验输入执行，生产构建须不读、不生效（requested_cache_kib 为 null）。
       - name: cargo test — s_incremental 生产增量构建（#1640）
-        if: ${{ !cancelled() && matrix.group == 'native' }}
+        if: ${{ !cancelled() && matrix.group == 'owned' }}
         env:
           S_NATIVE_SQLITE_CACHE_KIB: "262144"
         run: '../.github/scripts/run-cargo-with-telemetry.sh cargo test --locked --features s_session,s_incremental --bin s_structure_session --jobs 1 -- s_allocation:: s3_serve incremental_build_full_branch_only_at_birth build_profile pager_probe history_layout_multicut_ layout_object_index_ b2_native_owner_restore_ r9a_new_cut_manifest_ bounded_layout_cc007_ layout1_generation_'
