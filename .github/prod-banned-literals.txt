@@ -227,6 +227,8 @@ TOP/BOTTOM 窗口必产 CC007
 Template损坏必须拒绝
 TestOnly staging只允许Native
 TestOnly two-input real OHLC production paths; no serve, no writer limits acceptance, no full9011
+TestOnly-same-content
+TestOnly-storage-fixture/1
 TestOnly：Budget 故障仅用于 Owned 模式
 TestOnly：stop_after_accept
 TestOnly：stop_after_begin
@@ -367,6 +369,7 @@ owner不得重放旧birth
 owner不得重放旧death
 owner只释放overlay，Template memo归capture持有
 owning iterator消费首项仍持有原数组allocation
+p6 injected content failure
 pending 与 token 的真实 owner 全部析构才归零
 prepare 不提前生成数组
 producer 公开根
@@ -555,6 +558,7 @@ writer/recover闭合后无SHM
 关系见证是文本
 具名版本不得全局过滤同价原因
 兼容anchor仅接无scope值
+内容 Commit 已完成，不能伪称回滚
 内容边闭包可核
 内层 Ledger 须并入外层
 内层已完整成功并retain后，epoch才拒绝
@@ -1406,6 +1410,7 @@ writer/recover闭合后无SHM
 解析本批占位
 解析结果仍拥有许可
 解除拒写后必须可恢复
+解除锁也不得自动重试
 计费put仍经过原node门
 记录是合法 JSON
 记录渲染是合法 JSON
