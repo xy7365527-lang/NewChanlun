@@ -2319,3 +2319,23 @@ fn export_real_s3_w_fixture_for_q3_impl(persist: bool) {
         result.unwrap();
     }
 }
+
+#[test]
+#[ignore = "#1419 33G 成本归因，不代替106代验收"]
+fn w2_prefix_cost_probe() {
+    let (bars, _, _) = q3_w_bars();
+    let mut f = Fixture::with_clock_plan(64, 106, &[("recover-1", 25)]);
+    for (i, (id, c, o, h, l, cl)) in bars.iter().take(22).enumerate() {
+        let n = i as i64 + 1;
+        if n == 3 { f.recover_writer("2", "recover-1"); }
+        let (envelope, token) = f.accept_begin(n, (id.as_str(), *c, *o, *h, *l, *cl), 1);
+        let started = std::time::Instant::now();
+        if [10, 20, 22].contains(&n) {
+            let (receipt, events, work) = state::traced(false, || f.publish(&envelope, &token));
+            assert_eq!(receipt.unwrap().generation, n);
+            eprintln!("W2-COST {}", canonical_json(&json!({"generation":n,"elapsed_ns":started.elapsed().as_nanos().to_string(),"events":events,"work":work})));
+        } else {
+            assert_eq!(f.publish(&envelope, &token).unwrap().generation, n);
+        }
+    }
+}
