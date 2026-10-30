@@ -1468,6 +1468,9 @@ fn native_n1_vfs32f_first_bextend0_map_holds_budget_before_writable_mapping() {
     assert_eq!(rc, rusqlite::ffi::SQLITE_OK); assert!(!out.is_null());
     assert_eq!(FAULTS32F.with(|f| f.borrow().maps.clone()), vec![(32768, 1)]);
     assert_eq!(account.borrow().snapshot().open_reservations, 1, "零量grant仍是失败清算载体");
+    // 该映射由本测试直接申请，按VFS协议配对释放；调用侧delete=1仍须保留sidecar。
+    assert_eq!(unsafe { (*(*handle).pMethods).xShmUnmap.unwrap()(handle, 1) }, rusqlite::ffi::SQLITE_OK);
+    assert_sidecars32f(&file.0);
     let mut errors = NativeErrors::default();
     assert!(matches!(session.close(&mut errors), Teardown::Destroyed(_)));
     assert!(errors.reported().is_none(), "{errors:?}"); assert_eq!(account.borrow().snapshot().open_reservations, 0);
