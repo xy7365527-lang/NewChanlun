@@ -7425,6 +7425,25 @@ mod tests {
     #[cfg(feature = "s_incremental")]
     #[test]
     fn ordinary_material_multicut_wire_comparison_keeps_same_proofs_and_all_cuts() {
+        if std::env::var("S_ORDINARY_WIRE_CHILD").as_deref() != Ok("1") {
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "v3::driver::tests::ordinary_material_multicut_wire_comparison_keeps_same_proofs_and_all_cuts",
+                    "--nocapture",
+                    "--test-threads=1",
+                ])
+                .env("S_ORDINARY_WIRE_CHILD", "1")
+                .output()
+                .unwrap();
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            print!("{stdout}");
+            eprint!("{stderr}");
+            assert!(output.status.success(), "独立进程原wire锁失败");
+            assert!(stdout.contains("test result: ok. 1 passed;"));
+            return;
+        }
         let mut steps: Vec<S4Step> = (1..=12)
             .map(|n| S4Step {
                 kind: "append",
