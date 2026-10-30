@@ -1824,6 +1824,17 @@ pub(crate) mod tests {
     #[cfg(feature = "s_incremental")]
     #[test]
     fn p6_queued_units_real_owner_commits_only_verified_complete_keys() {
+        let baseline_calls = {
+            let mut baseline = Fixture::new();
+            let (envelope, token) = baseline.accept_begin(1, ("p6", 0, 6, 12, 3, 7), 1);
+            let owner = super::super::audit_owner::AuditConnection::open(&baseline.db_path()).unwrap();
+            let mut runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+            content_manifest::take_assemble_call_reads_for_test();
+            let (_, ended) = owner.publish(&mut runtime, &token, &envelope,
+                &mut request_audit::RequestAuditContext::default()).unwrap();
+            owner.continue_with(ended).unwrap();
+            content_manifest::take_assemble_call_reads_for_test().len()
+        };
         let mut f = Fixture::new();
         let (envelope, token) = f.accept_begin(1, ("p6", 0, 6, 12, 3, 7), 1);
         let rule = meta_get_opt(&f.conn, "rule_revision").unwrap().unwrap();
@@ -1846,8 +1857,8 @@ pub(crate) mod tests {
         assert_eq!(saved.query_row("SELECT verifier_revision FROM cert", [], |r| r.get::<_, String>(0)).unwrap(), sc::closure_delta::VERIFIER_REVISION);
         assert_eq!(saved.query_row("SELECT new_units_count FROM cert", [], |r| r.get::<_, i64>(0)).unwrap(), count);
         assert_eq!(saved.query_row("SELECT COUNT(*) FROM node WHERE digest=?1", [invented.as_slice()], |r| r.get::<_, i64>(0)).unwrap(), 0);
-        assert_eq!(content_manifest::take_assemble_call_reads_for_test().len(), 1,
-            "queued单位由既有prepare组装产生，发布复用workspace，不新增组装");
+        assert_eq!(content_manifest::take_assemble_call_reads_for_test().len(), baseline_calls,
+            "queued单位不增加同形真实owner无台账路径的组装次数");
         owner.continue_with(ended).unwrap();
     }
 
