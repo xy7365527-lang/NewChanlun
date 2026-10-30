@@ -172,13 +172,17 @@ mod tests {
         let valid = write_value(&mut n, &Value::String(value)).unwrap().content_ref();
         let tail = frame(tag::BYTES_CHUNK, &[0xa9]);
         assert!(n.contains(&tail));
+        let leaf = frame(tag::SEQ_LEAF, &tail);
+        assert!(n.contains(&leaf));
+        verify(&mut n, &valid).unwrap();
         let mut body = 1u64.to_be_bytes().to_vec();
-        body.extend_from_slice(&tail);
+        body.extend_from_slice(&leaf);
         let digest = frame(tag::STRING, &body);
         n.insert_unchecked(digest, tag::STRING, body);
         let invalid = ContentRef::new(Kind::String, &digest, Some(1));
         let refs = [valid.clone(), invalid, valid.clone(), valid];
-        assert_eq!(probe(&mut n, &refs, &EmptyFrontier).err().unwrap().code(), full(&mut n, &refs).unwrap_err().code());
+        assert_eq!(probe(&mut n, &refs, &EmptyFrontier).err().unwrap().code(), code::UTF8);
+        assert_eq!(full(&mut n, &refs).unwrap_err().code(), code::UTF8);
     }
     #[test]
     fn p6_closure_probe_retains_and_releases_parent_accounting() {
@@ -213,6 +217,36 @@ mod tests {
             Ok::<_, CodecError>(())
         }).unwrap();
         assert_eq!(parent.0.load(Ordering::SeqCst),0);
+    }
+
+    #[test]
+    fn p6_closure_reused_object_key_is_not_a_new_unit_and_still_requires_string() {
+        let mut n = MemoryNodes::new();
+        let first = write_value(&mut n, &Value::Object(vec![("k".into(), Value::Null)])).unwrap().content_ref();
+        let refs = std::array::from_fn(|_| first.clone());
+        let prior = units(probe(&mut n, &refs, &EmptyFrontier).unwrap());
+        assert_eq!(prior.len(), 6);
+        let next = write_value(&mut n, &Value::Object(vec![("k".into(), Value::Bool(true))])).unwrap().content_ref();
+        let refs = std::array::from_fn(|_| next.clone());
+        let added = units(probe(&mut n, &refs, &prior).unwrap());
+        assert_eq!(added.len(), 4);
+        assert!(added.is_disjoint(&prior));
+        full(&mut n, &refs).unwrap();
+        let null = frame(tag::NULL, &[]);
+        let mut field_body = null.to_vec();
+        field_body.extend_from_slice(&null);
+        let field = frame(tag::OBJECT_FIELD, &field_body);
+        n.insert_unchecked(field, tag::OBJECT_FIELD, field_body);
+        let leaf = frame(tag::SEQ_LEAF, &field);
+        n.insert_unchecked(leaf, tag::SEQ_LEAF, field.to_vec());
+        let mut body = 1u64.to_be_bytes().to_vec();
+        body.extend_from_slice(&leaf);
+        let digest = frame(tag::OBJECT, &body);
+        n.insert_unchecked(digest, tag::OBJECT, body);
+        let bad = ContentRef::new(Kind::Object, &digest, Some(1));
+        let refs = std::array::from_fn(|_| bad.clone());
+        assert_eq!(probe(&mut n, &refs, &prior).err().unwrap().code(), code::VALUE_KIND);
+        assert_eq!(full(&mut n, &refs).unwrap_err().code(), code::VALUE_KIND);
     }
 
 }
