@@ -6774,13 +6774,6 @@ pub(super) mod tests {
             .unwrap();
         let manifest = root_ref_bytes(&mut reader, &bytes).unwrap();
         let (metadata, roots) = decode_manifest(&mut reader, manifest.view()).unwrap();
-        let projection = native_cut_projection(
-            &tx, &mut reader, &mut objects, &auxiliary,
-            metadata.view(), roots.view(), &batch, -1,
-        ).unwrap().unwrap();
-        content_publication::resolve_native_dual_templates_pending_view(
-            &tx, &mut reader, metadata.view(), roots.view(), &batch, -1, &projection,
-        ).unwrap();
         let budget = super::super::audit_owner::native::Budget::new(8 * 1024 * 1024, 0).unwrap();
         let work = budget.codec_work().unwrap();
         let mut returned = None;
@@ -6789,19 +6782,58 @@ pub(super) mod tests {
                 let mut reader = HashReader::captured_for_audit(&capture, None)
                     .map_err(PublishError::from)?
                     .with_codec_work(scope, &budget);
+                let projection = native_cut_projection(
+                    &tx,
+                    &mut reader,
+                    &mut objects,
+                    &auxiliary,
+                    metadata.view(),
+                    roots.view(),
+                    &batch,
+                    -1,
+                )
+                .unwrap()
+                .unwrap();
+                content_publication::resolve_native_dual_templates_pending_view(
+                    &tx,
+                    &mut reader,
+                    metadata.view(),
+                    roots.view(),
+                    &batch,
+                    -1,
+                    &projection,
+                )
+                .unwrap();
                 let ballast = scope.reserve_native(budget.remaining()).unwrap();
                 let result = content_publication::resolve_native_dual_templates_pending_view(
-                    &tx, &mut reader, metadata.view(), roots.view(), &batch, -1, &projection,
+                    &tx,
+                    &mut reader,
+                    metadata.view(),
+                    roots.view(),
+                    &batch,
+                    -1,
+                    &projection,
                 );
                 returned = result.as_ref().err().cloned();
                 drop(ballast);
                 result.map(|_| ())
             })
         });
-        assert!(matches!(run, Err(WorkError::Resource(ScratchFailure::Budget))), "{run:?}");
+        assert!(
+            matches!(run, Err(WorkError::Resource(ScratchFailure::Budget))),
+            "{run:?}"
+        );
         assert!(trace.only_resource(), "{trace:?}");
         let error = returned.expect("真实投影scope绑定预算失败须返回原错误");
-        assert!(trace.bridges(&error), "真实投影scope资源来源须穿过双投影消费者：{error:?}");
+        assert_eq!(
+            super::super::audit_owner::publication_degrade_verdict_for_test(
+                run.unwrap_err(),
+                Some(error),
+                trace,
+            ),
+            Ok(()),
+            "真实投影scope资源来源须穿过双投影消费者和最终publication判决"
+        );
     }
 
     #[cfg(feature = "s_incremental")]
