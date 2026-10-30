@@ -34,6 +34,7 @@ use sc::capture_allocation::{audit_json::JsonView, scratch::WorkScope};
 #[cfg(test)]
 use sc::Value as V;
 use sc::ValueView as VV;
+use sc::ContextError as PublishError;
 #[allow(
     unused_imports,
     reason = "#1488 再合 #1608：8组合实测无调用方，保留不删"
@@ -59,7 +60,7 @@ pub(super) fn resolve_current_births(
     metadata: &ManifestMetadata,
     roots: &(impl ManifestRootSource + ?Sized),
     manifest: &UnpublishedManifest,
-) -> Result<ResolvedTemplates, String> {
+) -> Result<ResolvedTemplates, PublishError> {
     resolve_current_births_inner(
         tx,
         begin_token,
@@ -81,7 +82,7 @@ pub(super) fn resolve_current_births_staged(
     stage: &staged_nodes::StageOwner<'_>,
     workspace: Option<content_manifest::PreparedManifestWorkspace>,
     work: Option<&WorkScope>,
-) -> Result<ResolvedTemplates, String> {
+) -> Result<ResolvedTemplates, PublishError> {
     stage.check_transaction(tx).map_err(err)?;
     if let Some(workspace) = workspace {
         // 冻结workspace只消费真实SQL。生成租约已经析构，再将本代模板闭包落库；
@@ -108,7 +109,7 @@ pub(super) fn resolve_current_births_with_workspace(
     roots: &(impl ManifestRootSource + ?Sized),
     manifest: &UnpublishedManifest,
     workspace: Option<content_manifest::PreparedManifestWorkspace>,
-) -> Result<ResolvedTemplates, String> {
+) -> Result<ResolvedTemplates, PublishError> {
     resolve_current_births_with_workspace_admitted(tx, token, m, roots, manifest, workspace, None)
 }
 #[cfg(feature = "s_incremental")]
@@ -120,7 +121,7 @@ pub(super) fn resolve_current_births_with_workspace_admitted(
     manifest: &UnpublishedManifest,
     workspace: Option<content_manifest::PreparedManifestWorkspace>,
     work: Option<&WorkScope>,
-) -> Result<ResolvedTemplates, String> {
+) -> Result<ResolvedTemplates, PublishError> {
     let Some(workspace) = workspace else {
         return resolve_current_births_inner(
             tx,
@@ -136,14 +137,14 @@ pub(super) fn resolve_current_births_with_workspace_admitted(
     workspace.resolve_in_publication_admitted(tx, token, m, roots, manifest, work)
 }
 #[cfg(feature = "s_incremental")]
-pub(super) fn current_publication_frontier(tx: &Transaction<'_>) -> Result<i64, String> {
+pub(super) fn current_publication_frontier(tx: &Transaction<'_>) -> Result<i64, PublishError> {
     current_publication_frontier_admitted(tx, None)
 }
 #[cfg(feature = "s_incremental")]
 pub(crate) fn current_publication_frontier_admitted(
     tx: &Transaction<'_>,
     work: Option<&WorkScope>,
-) -> Result<i64, String> {
+) -> Result<i64, PublishError> {
     parse_canonical_i64(
         &meta_admitted(tx, "last_advance_frontier", work)?,
         "last_advance_frontier",
@@ -158,7 +159,7 @@ fn resolve_current_births_inner(
     manifest: &UnpublishedManifest,
     work: Option<&WorkScope>,
     #[cfg(all(test, feature = "s_incremental"))] stage: Option<&staged_nodes::StageOwner>,
-) -> Result<ResolvedTemplates, String> {
+) -> Result<ResolvedTemplates, PublishError> {
     verify_current_begin_admitted(tx, begin_token, metadata.view(), work)?;
     #[cfg(all(test, feature = "s_incremental"))]
     let mut store = content_store::TxStore::new_with_stage(tx, stage)
@@ -200,7 +201,7 @@ pub(super) fn resolve_indexed_templates(
     roots: &(impl ManifestRootSource + ?Sized),
     batch_id: &str,
     previous_frontier: i64,
-) -> Result<ResolvedTemplates, String> {
+) -> Result<ResolvedTemplates, PublishError> {
     let result =
         resolve_indexed_templates_pending(tx, store, metadata, roots, batch_id, previous_frontier)?;
     store
@@ -223,7 +224,7 @@ pub(super) fn resolve_indexed_templates_pending(
     roots: &(impl ManifestRootSource + ?Sized),
     batch_id: &str,
     previous_frontier: i64,
-) -> Result<PendingTemplates, String> {
+) -> Result<PendingTemplates, PublishError> {
     let result = resolve_indexed_templates_pending_view(
         tx,
         store,
@@ -252,7 +253,7 @@ fn normal_reference(r: sc::RefView<'_>) -> ContentRef {
         extent: r.extent(),
     }
 }
-fn ref_value(store: &(impl CodecStore + ?Sized), r: sc::RefView<'_>) -> Result<RefValue, String> {
+fn ref_value(store: &(impl CodecStore + ?Sized), r: sc::RefView<'_>) -> Result<RefValue, PublishError> {
     // Storage choice is made before the work, never after an allocation failure.
     if store.allocation_budget().is_some() {
         #[cfg(feature = "s_allocation_json_testonly")]
@@ -276,7 +277,7 @@ pub(crate) fn resolve_indexed_templates_pending_view(
     roots: RootsView<'_>,
     batch_id: &str,
     previous_frontier: i64,
-) -> Result<PendingRefTemplates, String> {
+) -> Result<PendingRefTemplates, PublishError> {
     resolve_indexed_templates_pending_core(
         tx,
         store,
@@ -309,7 +310,7 @@ impl<'capture> NativePublicationMemo<'capture> {
             fields: NativeTree::default(),
         })
     }
-    fn check_store(&self, store: &HashReader<'_>) -> Result<(), String> {
+    fn check_store(&self, store: &HashReader<'_>) -> Result<(), PublishError> {
         if !store
             .native_projection_capture()
             .is_some_and(|c| std::ptr::eq(c, self.capture))
@@ -322,7 +323,7 @@ impl<'capture> NativePublicationMemo<'capture> {
         &mut self,
         store: &mut (impl CodecStore + ?Sized),
         record: sc::RefView<'_>,
-    ) -> Result<PublicationFields, String> {
+    ) -> Result<PublicationFields, PublishError> {
         // 来源在读取前分派：原capture之外的overlay记录按原口读取，不复用结论。
         if !self.capture.contains(&record.digest().map_err(err)?) {
             return read_publication_fields(store, record).map(PublicationFields::Direct);
@@ -372,7 +373,7 @@ impl PublicationFields {
         &self,
         store: &(impl CodecRead + ?Sized),
         name: &str,
-    ) -> Result<Option<RefValue>, String> {
+    ) -> Result<Option<RefValue>, PublishError> {
         match self {
             Self::Direct(f) => f.get_admitted(store, name),
             Self::Shared(f) => f.get_admitted(store, name),
@@ -395,7 +396,7 @@ thread_local! {
 fn read_publication_fields(
     store: &mut (impl CodecStore + ?Sized),
     record: sc::RefView<'_>,
-) -> Result<RefFields<'static>, String> {
+) -> Result<RefFields<'static>, PublishError> {
     #[cfg(test)]
     NATIVE_PUBLICATION_FIELDS_LOOKUPS.with(|v| v.set(v.get() + 1));
     store
@@ -410,7 +411,7 @@ pub(crate) fn resolve_native_indexed_templates_pending_view(
     batch_id: &str,
     previous_frontier: i64,
     memo: &mut NativePublicationMemo<'_>,
-) -> Result<PendingRefTemplates, String> {
+) -> Result<PendingRefTemplates, PublishError> {
     memo.check_store(store)?;
     resolve_indexed_templates_pending_core(
         tx,
@@ -429,7 +430,7 @@ fn check_resolution_header(
     delta: &RefValue,
     metadata: MetadataView<'_>,
     previous_frontier: i64,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     match_field_view(
         store,
         snapshot.view(),
@@ -469,7 +470,7 @@ pub(crate) fn resolve_native_dual_templates_pending_view(
     batch: &str,
     previous: i64,
     projection: &crate::v3::object_index::NativeCutProjection<'_, '_, '_>,
-) -> Result<PendingRefTemplates, String> {
+) -> Result<PendingRefTemplates, PublishError> {
     projection.check_scope(tx, store, metadata, roots, batch, previous)?;
     let capture = store
         .native_projection_capture()
@@ -568,7 +569,7 @@ fn resolve_indexed_templates_pending_core(
     previous_frontier: i64,
     mut memo: Option<&mut NativePublicationMemo<'_>>,
     mut projection: Option<&mut PublicationProjection<'_, '_>>,
-) -> Result<PendingRefTemplates, String> {
+) -> Result<PendingRefTemplates, PublishError> {
     #[cfg(test)]
     crate::v3::diagnostic_s4_read_trace::begin(tx, "ord_pub_births_objects");
     let objects = object_births(tx, &metadata, store);
@@ -675,15 +676,15 @@ fn resolve_indexed_templates_pending_core(
     Ok(PendingRefTemplates { snapshot, delta })
 }
 
-fn err(e: impl std::fmt::Display) -> String {
-    format!("PublicationInvalid：{e}")
+fn err(e: impl Into<PublishError>) -> PublishError {
+    e.into().context("PublicationInvalid：")
 }
 #[cfg(test)]
 fn field(s: &str) -> PathStep {
     PathStep::Field(s.into())
 }
 #[cfg(test)]
-fn meta(tx: &Transaction<'_>, key: &str) -> Result<String, String> {
+fn meta(tx: &Transaction<'_>, key: &str) -> Result<String, PublishError> {
     meta_get_opt(tx, key)?.ok_or_else(|| err(format!("缺 meta.{key}")))
 }
 struct HashOnly;
@@ -706,7 +707,7 @@ impl NodeSink for ScopedHashOnly<'_> {
         Ok(())
     }
 }
-fn hash_view(store: &(impl CodecRead + ?Sized), v: VV<'_>) -> Result<NodeDigest, String> {
+fn hash_view(store: &(impl CodecRead + ?Sized), v: VV<'_>) -> Result<NodeDigest, PublishError> {
     let result = match store.allocation_budget() {
         #[cfg(feature = "s_allocation_json_testonly")]
         Some(b) => sc::write_value_view_for_allocation_prototype(&mut HashOnly, v, &b),
@@ -721,7 +722,7 @@ fn match_field_view(
     root: sc::RefView<'_>,
     key: &str,
     value: VV<'_>,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     let actual = store
         .lookup_field_ref(root, key)
         .map_err(err)?
@@ -781,7 +782,7 @@ fn meta_optional_admitted(
     tx: &Transaction<'_>,
     key: &str,
     work: Option<&WorkScope>,
-) -> Result<Option<NativeValue<String>>, String> {
+) -> Result<Option<NativeValue<String>>, PublishError> {
     query_one(
         tx,
         c"SELECT value FROM meta WHERE key = ?1",
@@ -789,27 +790,27 @@ fn meta_optional_admitted(
         |row| row_text_admitted(row, 0, &NativeAdmission(work)),
     )
     .optional()
-    .map_err(|e| format!("读 meta.{key} 失败：{e}"))
+    .map_err(|e| PublishError::from(e).context(format!("读 meta.{key} 失败：")))
 }
 fn meta_admitted(
     tx: &Transaction<'_>,
     key: &str,
     work: Option<&WorkScope>,
-) -> Result<NativeValue<String>, String> {
+) -> Result<NativeValue<String>, PublishError> {
     meta_optional_admitted(tx, key, work)?.ok_or_else(|| err(format!("缺 meta.{key}")))
 }
 fn generation_admitted(
     tx: &Transaction<'_>,
     store: &(impl CodecRead + ?Sized),
-) -> Result<i64, String> {
+) -> Result<i64, PublishError> {
     let value = meta_optional_admitted(tx, "generation", store.codec_work())?
         .ok_or_else(|| "StorageUnavailable：meta.generation 缺失".to_owned())?;
-    parse_canonical_i64(&value, "meta.generation").map_err(|e| format!("StorageUnavailable：{e}"))
+    parse_canonical_i64(&value, "meta.generation").map_err(|e| PublishError::from(e).context("StorageUnavailable："))
 }
 fn strict_json_admitted(
     raw: &str,
     admission: &NativeAdmission<'_>,
-) -> Result<NativeValue<serde_json::Value>, String> {
+) -> Result<NativeValue<serde_json::Value>, PublishError> {
     #[cfg(feature = "s_incremental")]
     let permit = admission
         .native_reservation(
@@ -835,7 +836,7 @@ fn strict_json_admitted(
 fn canonical_admitted(
     value: &serde_json::Value,
     admission: &NativeAdmission<'_>,
-) -> Result<NativeValue<String>, String> {
+) -> Result<NativeValue<String>, PublishError> {
     #[cfg(feature = "s_incremental")]
     let permit = admission
         .native_reservation(
@@ -861,7 +862,7 @@ fn canonical_admitted(
 fn canonical_array_admitted(
     values: &[JsonView<'_>],
     admission: &NativeAdmission<'_>,
-) -> Result<NativeValue<String>, String> {
+) -> Result<NativeValue<String>, PublishError> {
     let owner = business_json::json_from_view_admitted(admission, JsonView::ArraySlice(values))?;
     match owner {
         business_json::JsonOwner::Plain(value) => canonical_admitted(&value, admission),
@@ -876,14 +877,14 @@ pub(super) fn verify_current_begin(
     tx: &Transaction<'_>,
     token: &str,
     m: &ManifestMetadata,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     verify_current_begin_view(tx, token, m.view())
 }
 pub(crate) fn verify_current_begin_view(
     tx: &Transaction<'_>,
     token: &str,
     m: MetadataView<'_>,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     verify_current_begin_admitted(tx, token, m, None)
 }
 pub(crate) fn verify_current_begin_admitted(
@@ -891,7 +892,7 @@ pub(crate) fn verify_current_begin_admitted(
     token: &str,
     m: MetadataView<'_>,
     work: Option<&WorkScope>,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     let admission = NativeAdmission(work);
     for (key, expected) in [
         ("protocol_revision", "s-session/3"),
@@ -1076,7 +1077,7 @@ fn object_births(
     tx: &Transaction<'_>,
     m: &MetadataView<'_>,
     store: &(impl CodecStore + ?Sized),
-) -> Result<NativeTree<NodeDigest, ObjectBirth>, String> {
+) -> Result<NativeTree<NodeDigest, ObjectBirth>, PublishError> {
     let mut out = NativeTree::default();
     let latest = generation_admitted(tx, store)?.max(m.generation);
     {
@@ -1139,7 +1140,7 @@ fn observation_births(
     tx: &Transaction<'_>,
     m: &MetadataView<'_>,
     store: &(impl CodecStore + ?Sized),
-) -> Result<NativeTree<NodeDigest, ObservationBirth>, String> {
+) -> Result<NativeTree<NodeDigest, ObservationBirth>, PublishError> {
     let mut out = NativeTree::default();
     let latest = generation_admitted(tx, store)?.max(m.generation);
     let mut stmt = CheckedStatement::prepare(
@@ -1183,11 +1184,11 @@ fn array_len(
     store: &mut (impl CodecStore + ?Sized),
     root: &RefValue,
     name: &str,
-) -> Result<u64, String> {
+) -> Result<u64, PublishError> {
     let r = store.lookup_field_ref(root.view(), name).map_err(err)?;
     array_reference_len(&r, name)
 }
-fn array_reference_len(r: &RefValue, name: &str) -> Result<u64, String> {
+fn array_reference_len(r: &RefValue, name: &str) -> Result<u64, PublishError> {
     if r.kind() != Kind::Array {
         return Err(err(format!("{name} 不是数组")));
     }
@@ -1204,7 +1205,7 @@ impl PublicationPath {
     fn new<'a>(
         admission: &(impl CodecRead + ?Sized),
         steps: impl IntoIterator<Item = sc::path::PathStepView<'a>>,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, PublishError> {
         use sc::path::PathStepView;
         let mut result = Self {
             steps: sc::CodecVec::default(),
@@ -1260,7 +1261,7 @@ fn resolve_record_batch(
     stored_batch: &str,
     m: &MetadataView<'_>,
     batch: &str,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     resolve_record_batch_projected(
         store,
         root,
@@ -1283,7 +1284,7 @@ fn resolve_record_batch_projected(
     m: &MetadataView<'_>,
     batch: &str,
     projection: Option<&mut PublicationProjection<'_, '_>>,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     let value = match projection {
         Some(p) => p.read_batch(store, record.view())?,
         None => store
@@ -1343,7 +1344,7 @@ fn resolve_objects(
     family: ObjectFamily,
     mut memo: Option<&mut NativePublicationMemo<'_>>,
     mut projection: Option<&mut PublicationProjection<'_, '_>>,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     #[cfg(test)]
     RECORD_RESOLVERS.with(|v| {
         let mut n = v.get();
@@ -1466,7 +1467,7 @@ fn resolve_observations(
     m: &MetadataView<'_>,
     batch: &str,
     delta: bool,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     #[cfg(test)]
     RECORD_RESOLVERS.with(|v| {
         let mut n = v.get();
@@ -1550,7 +1551,7 @@ mod tests {
         let (text, path) = budget
             .codec_work()
             .unwrap()
-            .run(|work| -> Result<_, String> {
+            .run(|work| -> Result<_, PublishError> {
                 let admission = NativeAdmission(Some(work));
                 let text = query_one(
                     &tx,
@@ -2873,7 +2874,7 @@ mod tests {
                 let held = budget.live();
                 drop(store);
                 assert_eq!(budget.live(), held, "Native许可不得随借用store提前释放");
-                Ok::<_, String>(resolved)
+                Ok::<_, PublishError>(resolved)
             })
             .unwrap();
         assert_eq!(actual.snapshot, expected.snapshot);
@@ -3097,7 +3098,7 @@ impl<'scope, 'tx> PublicationProjection<'scope, 'tx> {
     pub(crate) fn new(
         tx: &'scope Transaction<'tx>,
         store: &HashReader<'_>,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, PublishError> {
         if !tx.is_readonly(rusqlite::MAIN_DB).map_err(err)?
             || !store.ordinary_bound_births_qualified()
         {
@@ -3113,7 +3114,7 @@ impl<'scope, 'tx> PublicationProjection<'scope, 'tx> {
             peak_bytes: 0,
         })
     }
-    fn check(&self, tx: &Transaction<'_>, store: &HashReader<'_>) -> Result<(), String> {
+    fn check(&self, tx: &Transaction<'_>, store: &HashReader<'_>) -> Result<(), PublishError> {
         if !std::ptr::eq(tx, self.transaction)
             || self.reader != store as *const _ as *const ()
             || !store.ordinary_bound_births_qualified()
@@ -3126,7 +3127,7 @@ impl<'scope, 'tx> PublicationProjection<'scope, 'tx> {
         &mut self,
         store: &mut (impl CodecStore + ?Sized),
         r: sc::RefView<'_>,
-    ) -> Result<PublicationFields, String> {
+    ) -> Result<PublicationFields, PublishError> {
         let k = publication_key(r);
         let fields = match self.current.get(&k).or_else(|| self.previous.get(&k)) {
             Some(fields) => std::rc::Rc::clone(fields),
@@ -3139,7 +3140,7 @@ impl<'scope, 'tx> PublicationProjection<'scope, 'tx> {
         &mut self,
         store: &mut (impl CodecStore + ?Sized),
         r: sc::RefView<'_>,
-    ) -> Result<RefValue, String> {
+    ) -> Result<RefValue, PublishError> {
         let k = publication_key(r);
         let value = match self
             .batch_current
@@ -3217,7 +3218,7 @@ pub(crate) fn resolve_ordinary_indexed_templates_pending_view(
     batch_id: &str,
     previous_frontier: i64,
     projection: &mut PublicationProjection<'_, '_>,
-) -> Result<PendingRefTemplates, String> {
+) -> Result<PendingRefTemplates, PublishError> {
     projection.check(tx, store)?;
     resolve_indexed_templates_pending_core(
         tx,

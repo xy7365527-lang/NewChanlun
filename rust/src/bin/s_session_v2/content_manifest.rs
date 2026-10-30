@@ -5,6 +5,7 @@
 //! 模板内 0x08 的业务许可、对象/来源/Delta 对拍仍由正式发布者核验。
 #![allow(dead_code)]
 
+use newchan_rust::s_content::ContextError as PublishError;
 use crate::v3::audit_store::{CodecRead, CodecStore};
 use crate::v3::audit_store::{RefFields, RefValue};
 use crate::v3::business_json::TextValue;
@@ -656,7 +657,7 @@ impl PreparedManifestWorkspace {
         metadata: &ManifestMetadata,
         roots: &(impl ManifestRootSource + ?Sized),
         manifest: &UnpublishedManifest,
-    ) -> Result<super::content_publication::ResolvedTemplates, String> {
+    ) -> Result<super::content_publication::ResolvedTemplates, PublishError> {
         self.resolve_in_publication_admitted(tx, token, metadata, roots, manifest, None)
     }
     pub(crate) fn resolve_in_publication_admitted(
@@ -667,7 +668,7 @@ impl PreparedManifestWorkspace {
         roots: &(impl ManifestRootSource + ?Sized),
         manifest: &UnpublishedManifest,
         work: Option<&s_content::capture_allocation::scratch::WorkScope>,
-    ) -> Result<super::content_publication::ResolvedTemplates, String> {
+    ) -> Result<super::content_publication::ResolvedTemplates, PublishError> {
         self.resolve_in_publication_inner(
             tx,
             token,
@@ -691,7 +692,7 @@ impl PreparedManifestWorkspace {
         manifest: &UnpublishedManifest,
         work: Option<&s_content::capture_allocation::scratch::WorkScope>,
         stage: &super::staged_nodes::StageOwner<'_>,
-    ) -> Result<super::content_publication::ResolvedTemplates, String> {
+    ) -> Result<super::content_publication::ResolvedTemplates, PublishError> {
         self.resolve_in_publication_inner(tx, token, metadata, roots, manifest, work, Some(stage))
     }
     fn resolve_in_publication_inner(
@@ -705,7 +706,7 @@ impl PreparedManifestWorkspace {
         #[cfg(all(test, feature = "s_incremental"))] stage: Option<
             &super::staged_nodes::StageOwner<'_>,
         >,
-    ) -> Result<super::content_publication::ResolvedTemplates, String> {
+    ) -> Result<super::content_publication::ResolvedTemplates, PublishError> {
         // No qualified originals exist across these actual Begin/scope/frontier SELECTs.
         // The issuer itself performs them; callers cannot substitute a scope/frontier token.
         super::content_publication::verify_current_begin_admitted(
@@ -717,7 +718,7 @@ impl PreparedManifestWorkspace {
         let previous_frontier =
             super::content_publication::current_publication_frontier_admitted(tx, work)?;
         NativePublicationLease::new(tx)
-            .map_err(|e| format!("PublicationInvalid：{e}"))?
+            .map_err(|e| PublishError::from(e).context("PublicationInvalid："))?
             .resolve(
                 self,
                 metadata,
@@ -756,7 +757,7 @@ impl<'lease, 'conn> NativePublicationLease<'lease, 'conn> {
         #[cfg(all(test, feature = "s_incremental"))] stage: Option<
             &super::staged_nodes::StageOwner<'_>,
         >,
-    ) -> Result<super::content_publication::ResolvedTemplates, String> {
+    ) -> Result<super::content_publication::ResolvedTemplates, PublishError> {
         let budget = workspace.budget;
         let source_cost = workspace.source_cost;
         let before = manifest_workspace_stats();
@@ -780,7 +781,7 @@ impl<'lease, 'conn> NativePublicationLease<'lease, 'conn> {
             // all bytes, even after context/material mismatch. No caller can mint its owner.
             let equal = store
                 .rebind_originals(&workspace.originals)
-                .map_err(|e| format!("PublicationInvalid：{e}"))?
+                .map_err(|e| PublishError::from(e).context("PublicationInvalid："))?
                 && context_equal;
             if equal {
                 record_workspace_stats(|stats| stats.rebound += 1);
@@ -793,7 +794,7 @@ impl<'lease, 'conn> NativePublicationLease<'lease, 'conn> {
                         .get(digest)
                         .expect("recorded successful put");
                     s_content::NodeSink::put(&mut store, *digest, *tag, body)
-                        .map_err(|e| format!("PublicationInvalid：{e}"))?;
+                        .map_err(|e| PublishError::from(e).context("PublicationInvalid："))?;
                     record_workspace_stats(|stats| stats.replay_puts += 1);
                 }
                 if store.bind_after_replay {
@@ -819,7 +820,7 @@ impl<'lease, 'conn> NativePublicationLease<'lease, 'conn> {
             } else {
                 drop(workspace);
                 let computed = assemble_unpublished(&mut store, metadata, roots)
-                    .map_err(|e| format!("PublicationInvalid：{e}"))?;
+                    .map_err(|e| PublishError::from(e).context("PublicationInvalid："))?;
                 if computed.batch_id != manifest.batch_id
                     || computed.value.content_ref() != manifest.value.content_ref()
                 {

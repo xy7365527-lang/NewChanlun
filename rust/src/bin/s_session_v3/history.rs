@@ -1273,7 +1273,7 @@ fn audit_one_published_cut<'capture>(
             batch_id.as_str(),
             previous,
             projection,
-        )?
+        ).map_err(|error| error.to_string())?
     } else if let Some(projection) = ordinary_publication.as_deref_mut() {
         content_publication::resolve_ordinary_indexed_templates_pending_view(
             tx,
@@ -1283,7 +1283,7 @@ fn audit_one_published_cut<'capture>(
             batch_id.as_str(),
             previous,
             projection,
-        )?
+        ).map_err(|error| error.to_string())?
     } else {
         content_publication::resolve_indexed_templates_pending_view(
             tx,
@@ -1292,7 +1292,7 @@ fn audit_one_published_cut<'capture>(
             roots.view(),
             batch_id.as_str(),
             previous,
-        )?
+        ).map_err(|error| error.to_string())?
     };
     if resolved.snapshot != snapshot || resolved.delta != delta {
         return Err(err("实际发布根不是 manifest 模板按独立出生索引解析的结果"));
