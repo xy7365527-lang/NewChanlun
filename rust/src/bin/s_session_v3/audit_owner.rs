@@ -3,6 +3,7 @@
 //! 连接和事务不向调用者解引用；固定操作返回独立结果，游标在操作内结束。
 //! data_version 只在真实 main 读快照建立后、同连接第一次写入前取得。
 
+use newchan_rust::s_content::ContextError as PublishError;
 use super::*;
 use newchan_rust::session_protocol::required;
 use rusqlite::Transaction;
@@ -250,7 +251,7 @@ impl PublishPhase<'_, '_> {
         token: &str,
         envelope: &Value,
         context: &mut request_audit::RequestAuditContext,
-    ) -> Result<commit::CommitReceipt, String> {
+    ) -> Result<commit::CommitReceipt, PublishError> {
         #[cfg(feature = "s_incremental")]
         return runtime.publish_impl_bound(
             self.transaction,
@@ -264,7 +265,7 @@ impl PublishPhase<'_, '_> {
             self.publication,
         );
         #[cfg(not(feature = "s_incremental"))]
-        runtime.publish_impl(self.transaction, token, envelope, Some(context))
+        runtime.publish_impl(self.transaction, token, envelope, Some(context)).map_err(Into::into)
     }
 }
 
@@ -758,7 +759,7 @@ impl AuditConnection {
         envelope: &Value,
         context: &mut request_audit::RequestAuditContext,
         #[cfg(feature = "s_incremental")] parent: Option<&PublicationScope<'_>>,
-    ) -> Result<commit::CommitReceipt, String> {
+    ) -> Result<commit::CommitReceipt, PublishError> {
         #[cfg(feature = "s_incremental")]
         let issued = if active.complete.borrow().is_some() && context.source_cache_enabled() {
             Some(
@@ -841,7 +842,7 @@ impl AuditConnection {
                 .checked_add(native::Budget::metadata_bytes())
                 .is_none_or(|n| n > candidate.resources.total_limit().unwrap_or(0))
             {
-                return Err(construction_state::stale("来源原件/证明保留账超过效果帽"));
+                return Err((construction_state::stale("来源原件/证明保留账超过效果帽")).into());
             }
         }
         #[cfg(feature = "s_incremental")]
@@ -3399,15 +3400,15 @@ pub(crate) fn audit_native_source_cut(
     raw: &BoundRawAdvance<'_>,
     profile: &str,
     rule: &str,
-) -> Result<(source_audit::Counts, source_audit::NativeSourceState), String> {
+) -> Result<(source_audit::Counts, source_audit::NativeSourceState), PublishError> {
     effects::audit_native_source(material, capture, previous, root, raw, profile, rule)
 }
 #[cfg(feature = "s_incremental")]
-pub(crate) fn with_construction_material<T>(
+pub(crate) fn with_construction_material<T, E: From<String> + From<PublishError>>(
     tx: &Transaction<'_>,
     work: Option<&newchan_rust::s_content::capture_allocation::scratch::WorkScope>,
-    f: impl FnOnce(Option<&MaterialAccess<'_, '_, '_>>) -> Result<T, String>,
-) -> Result<T, String> {
+    f: impl FnOnce(Option<&MaterialAccess<'_, '_, '_>>) -> Result<T, E>,
+) -> Result<T, E> {
     effects::with_material_access(tx, work, f)
 }
 #[cfg(feature = "s_incremental")]
@@ -3415,8 +3416,8 @@ pub(crate) fn with_construction_material_in_publication<T>(
     tx: &Transaction<'_>,
     parent: &PublicationScope<'_>,
     #[cfg(test)] stage: Option<&crate::staged_nodes::StageOwner<'_>>,
-    f: impl FnOnce(Option<&MaterialAccess<'_, '_, '_>>) -> Result<T, String>,
-) -> Result<T, String> {
+    f: impl FnOnce(Option<&MaterialAccess<'_, '_, '_>>) -> Result<T, PublishError>,
+) -> Result<T, PublishError> {
     effects::with_material_in_publication(
         tx,
         parent,
@@ -6374,7 +6375,7 @@ impl AuditConnection {
             // “资源失败被吞后又返回的非预算真实错误”降级成功，这里另存闭包自身的 Err。
             // 0072（独审 0070 R1/R2）：整个 run（闭包 + 关域 + 父健康）在类型化失败记录下执行，
             // 降级判据读记录的类别多重集，不再按错误文字判断。
-            let mut operation_error: Option<String> = None;
+            let mut operation_error: Option<PublishError> = None;
             let (run, trace) = failure_trace::capture(|| {
                 work.run(|work| {
                     let result = (|| {
@@ -6405,7 +6406,7 @@ impl AuditConnection {
                             // 0069 负控（独审 0068 探针 e）：先记 Allocation，再返回与预算无关的真实错误。
                             if PUBLICATION_REAL_ERROR_AFTER_BUDGET.with(|flag| flag.replace(false)) {
                                 let _ = parent.work().reject(newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Allocation);
-                                return Err(construction_state::stale("publication尾检身份不符（0069负控注入）"));
+                                return Err(construction_state::stale("publication尾检身份不符（0069负控注入）").into());
                             }
                             // 0072 锁（独审 0070 探针 g 取反）：先记 Allocation，再返回另一作用域 Ledger 类
                             // scratch 错误经 `invalid` 的渲染（与桥同字），须拒绝。
@@ -6416,10 +6417,10 @@ impl AuditConnection {
                                     ledger = Some(w.reject(newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Ledger).to_string());
                                     Ok::<_, String>(())
                                 });
-                                return Err(invalid(ledger.unwrap()));
+                                return Err(publish_err(ledger.unwrap()));
                             }
                         }
-                        Ok::<_, String>((receipt, after))
+                        Ok::<_, PublishError>((receipt, after))
                     })();
                     if let Err(error) = &result {
                         operation_error = Some(error.clone());
@@ -6431,7 +6432,7 @@ impl AuditConnection {
                 Ok(done) => done,
                 Err(error) => match publication_degrade_verdict(error, operation_error, trace) {
                     Ok(()) => return Ok(None),
-                    Err(e) => return Err(e),
+                    Err(e) => return Err(e.into()),
                 },
             };
             (
@@ -6467,24 +6468,24 @@ impl AuditConnection {
 /// 否则返回 Ledger 分类的工作账损坏。
 #[cfg(feature = "s_incremental")]
 fn publication_degrade_verdict(
-    error: newchan_rust::s_content::capture_allocation::scratch::WorkError<String>,
+    error: newchan_rust::s_content::capture_allocation::scratch::WorkError<PublishError>,
     operation_error: Option<String>,
     trace: failure_trace::FailureTrace,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     use newchan_rust::s_content::capture_allocation::scratch::{ScratchFailure, WorkError};
     let ledger = || match native::Failure::from(ScratchFailure::Ledger) {
         native::Failure::Invalid(e) => e,
         native::Failure::BudgetExceeded => unreachable!("Ledger 恒为 Invalid"),
     };
     match error {
-        WorkError::Operation(e) => Err(e),
-        WorkError::Resource(ScratchFailure::Ledger) => Err(ledger()),
+        WorkError::Operation(e) => Err((e).into()),
+        WorkError::Resource(ScratchFailure::Ledger) => Err((ledger()).into()),
         WorkError::Resource(ScratchFailure::Budget | ScratchFailure::Allocation) => {
             match operation_error {
                 Some(e) if trace.only_resource() && trace.bridges(&e) => Ok(()),
-                Some(e) => Err(e),
+                Some(e) => Err((e).into()),
                 None if trace.only_resource() => Ok(()),
-                None => Err(ledger()),
+                None => Err((ledger()).into()),
             }
         }
     }
@@ -6536,7 +6537,7 @@ mod publication_degrade_verdict_tests {
     use newchan_rust::s_content::CodecError;
 
     /// 真实 codec 工作域 + 真实类型化记录，与 publish_attempt 同构：返回判据结果。
-    fn verdict(f: impl FnOnce(&WorkScope) -> Result<(), String>) -> Result<(), String> {
+    fn verdict(f: impl FnOnce(&WorkScope) -> Result<(), PublishError>) -> Result<(), String> {
         let mut operation_error = None;
         let (run, trace) = failure_trace::capture(|| {
             native::Budget::new(4096, 0)
@@ -6551,7 +6552,7 @@ mod publication_degrade_verdict_tests {
                     result
                 })
         });
-        publication_degrade_verdict(run.expect_err("用例须失败"), operation_error, trace)
+        publication_degrade_verdict(run.expect_err("用例须失败"), operation_error, trace).map_err(Into::into)
     }
     fn other_scope_ledger() -> String {
         let mut seen = None;
@@ -6572,13 +6573,13 @@ mod publication_degrade_verdict_tests {
             let returned = std::cell::RefCell::new(String::new());
             let result = verdict(|work| {
                 let original = work.reject(failure);
-                let _ = invalid(&original);
+                let _ = publish_err(&original);
                 let independent = newchan_rust::s_content::CodecError::new(
                     original.code(),
                     original.detail(),
                 );
-                let error = invalid(independent);
-                *returned.borrow_mut() = error.clone();
+                let error = publish_err(independent);
+                *returned.borrow_mut() = error.to_string();
                 Err(error)
             });
             assert_eq!(result, Err(returned.into_inner()), "同文无来源错误不得降级");
@@ -6594,11 +6595,11 @@ mod publication_degrade_verdict_tests {
                 Ok::<_, String>(())
             });
             let foreign = foreign.unwrap();
-            let expected = invalid(&foreign);
+            let expected = publish_err(&foreign).to_string();
             assert_eq!(
                 verdict(|work| {
-                    let _ = invalid(work.reject(failure));
-                    Err(invalid(foreign.clone()))
+                    let _ = publish_err(work.reject(failure));
+                    Err(publish_err(foreign.clone()))
                 }),
                 Err(expected),
                 "同文同类的域外错误不得借当前资源失败降级"
@@ -6612,18 +6613,18 @@ mod publication_degrade_verdict_tests {
     fn publication_degrade_verdict_only_for_pure_budget_shortfall() {
         let stale = || construction_state::stale("publication尾检身份不符");
         // R1：真实 S3 层前缀（prepared/state/reader/writer_resources/driver/StaleWriter 包装）全部降级。
-        let wrappers: [(&str, fn(&str) -> String); 7] = [
-            ("裸桥", |e| e.to_string()),
-            ("S3DriverInvalid", |e| invalid(e)),
-            ("S3PrepareInvalid", |e| format!("S3PrepareInvalid：{e}")),
-            ("S3StateInvalid", |e| format!("S3StateInvalid：{e}")),
+        let wrappers: [(&str, fn(PublishError) -> PublishError); 7] = [
+            ("裸桥", |e| e),
+            ("S3DriverInvalid", |e| publish_err(e)),
+            ("S3PrepareInvalid", |e| e.context("S3PrepareInvalid：")),
+            ("S3StateInvalid", |e| e.context("S3StateInvalid：")),
             ("S3ContentReadInvalid", |e| {
-                format!("S3ContentReadInvalid：{e}")
+                e.context("S3ContentReadInvalid：")
             }),
             ("S3WriterResourcesInvalid", |e| {
-                format!("S3WriterResourcesInvalid：{e}")
+                e.context("S3WriterResourcesInvalid：")
             }),
-            ("StaleWriter", |e| construction_state::stale(e)),
+            ("StaleWriter", |e| e.context("StaleWriter：")),
         ];
         for failure in [ScratchFailure::Budget, ScratchFailure::Allocation] {
             assert_eq!(
@@ -6636,13 +6637,13 @@ mod publication_degrade_verdict_tests {
             );
             for (name, wrap) in wrappers {
                 assert_eq!(
-                    verdict(|w| Err(wrap(&w.reject(failure).to_string()))),
+                    verdict(|w| Err(wrap(w.reject(failure).into()))),
                     Ok(()),
                     "R1：{name} 包装的真实 {failure:?} 须降级"
                 );
                 // 双层包装（prepared 内经 driver 再包一层）同样降级。
                 assert_eq!(
-                    verdict(|w| Err(invalid(wrap(&w.reject(failure).to_string())))),
+                    verdict(|w| Err(publish_err(wrap(w.reject(failure).into())))),
                     Ok(()),
                     "R1：{name} 双层包装"
                 );
@@ -6651,18 +6652,18 @@ mod publication_degrade_verdict_tests {
             assert_eq!(
                 verdict(|w| {
                     let _ = w.reject(failure);
-                    Err(stale())
+                    Err(stale().into())
                 }),
-                Err(stale()),
+                Err(stale().into()),
                 "F1：资源失败后闭包的非预算错误必须原样拒绝"
             );
             // F1 变体：资源失败已过桥但被吞，随后返回无关真实错误 → 拒绝（过桥核对只收紧）。
             assert_eq!(
                 verdict(|w| {
-                    let _ = invalid(w.reject(failure));
-                    Err(stale())
+                    let _ = publish_err(w.reject(failure));
+                    Err(stale().into())
                 }),
-                Err(stale()),
+                Err(stale().into()),
                 "F1 变体：过桥后被吞的资源失败不能为无关错误背书"
             );
             // R2（独审 0070 探针 g）：先记资源失败，再返回别的作用域 Ledger 类 scratch 错误（与桥同字）。
@@ -6670,9 +6671,9 @@ mod publication_degrade_verdict_tests {
             assert_eq!(
                 verdict(|w| {
                     let _ = w.reject(failure);
-                    Err(invalid(other_scope_ledger()))
+                    Err(publish_err(other_scope_ledger()))
                 }),
-                Err(invalid(&ledger_text)),
+                Err(publish_err(&ledger_text).into_message()),
                 "R2：Ledger 类 scratch 错误与桥同字也须拒绝"
             );
             // R2：不记入任何作用域的直接 Ledger 构造（SourceClaim 字节不符、check_write 域关闭等）。
@@ -6681,7 +6682,7 @@ mod publication_degrade_verdict_tests {
                 assert!(
                     verdict(|w| {
                         let _ = CodecError::scratch_unscoped_for_test(ScratchFailure::Ledger);
-                        Err(invalid(w.reject(failure)))
+                        Err(publish_err(w.reject(failure)))
                     })
                     .is_err(),
                     "R2：闭包期间任何 Ledger 构造都须拒绝"
@@ -6718,9 +6719,9 @@ mod publication_degrade_verdict_tests {
                 assert_eq!(
                     verdict(|w| {
                         // 先记资源失败使作用域分类为 Budget/Allocation，再观察语义失败（分类不变，记录 +1）。
-                        let e = invalid(w.reject(failure));
+                        let e = publish_err(w.reject(failure));
                         w.observe_for_test(&semantic());
-                        *bridged.borrow_mut() = e.clone();
+                        *bridged.borrow_mut() = e.to_string();
                         Err(e)
                     }),
                     Err(bridged.borrow().clone()),
@@ -6735,10 +6736,10 @@ mod publication_degrade_verdict_tests {
         })
         .unwrap_err()
         .contains("工作账损坏"));
-        assert!(verdict(|w| Err(invalid(w.reject(ScratchFailure::Ledger)))).is_err());
+        assert!(verdict(|w| Err(publish_err(w.reject(ScratchFailure::Ledger)))).is_err());
         assert_eq!(
-            verdict(|_| Err(stale())),
-            Err(stale()),
+            verdict(|_| Err(stale().into())),
+            Err(stale().into()),
             "无资源失败记录时闭包错误不降级"
         );
         // 记录只在 capture 内发生，嵌套时并入外层。
@@ -6755,8 +6756,8 @@ mod publication_degrade_verdict_tests {
             let _ = CodecError::scratch_unscoped_for_test(ScratchFailure::Ledger);
             let (_, idle) = failure_trace::capture(|| ());
             assert_eq!(
-                idle,
-                failure_trace::FailureTrace::default(),
+                (idle.budget, idle.allocation, idle.ledger, idle.semantic, idle.bridged),
+                (0, 0, 0, 0, 0),
                 "capture 外不记录"
             );
         }
@@ -6794,4 +6795,8 @@ thread_local! {
     /// 本请求发布时取用即清。writer 单线程串行处理请求，冻结域每请求唯一。
     static COLD_ROOT_RERUN: std::cell::Cell<Option<(u64, u64, bool)>> =
         const { std::cell::Cell::new(None) };
+}
+
+fn publish_err(error: impl Into<PublishError>) -> PublishError {
+    error.into().context("S3DriverInvalid：")
 }

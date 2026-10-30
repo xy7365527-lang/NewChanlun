@@ -117,17 +117,23 @@ pub mod code {
 }
 
 /// 内容层错误：稳定 `code` + 人类可读细节。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct CodecError {
     code: &'static str,
     detail: std::borrow::Cow<'static, str>,
     scratch_failure: Option<capture_allocation::scratch::ScratchFailure>,
+    #[cfg(feature = "s_incremental")]
+    origin: Option<capture_allocation::scratch::failure_trace::FailureOrigin>,
 }
 
 impl CodecError {
     fn scratch(failure: capture_allocation::scratch::ScratchFailure) -> Self {
         let mut error = Self::static_detail(capture_allocation::LIMIT, "codec 工作域分配失败");
         error.scratch_failure = Some(capture_allocation::scratch::traced(failure));
+        #[cfg(feature = "s_incremental")]
+        {
+            error.origin = capture_allocation::scratch::failure_trace::born();
+        }
         error
     }
     pub fn scratch_failure(&self) -> Option<capture_allocation::scratch::ScratchFailure> {
@@ -139,6 +145,8 @@ impl CodecError {
             code,
             detail: std::borrow::Cow::Borrowed(detail),
             scratch_failure: None,
+            #[cfg(feature = "s_incremental")]
+            origin: None,
         }
     }
     pub fn new(code: &'static str, detail: impl Into<String>) -> Self {
@@ -146,6 +154,8 @@ impl CodecError {
             code,
             detail: std::borrow::Cow::Owned(detail.into()),
             scratch_failure: None,
+            #[cfg(feature = "s_incremental")]
+            origin: None,
         }
     }
 
@@ -158,9 +168,102 @@ impl CodecError {
     }
 }
 
+impl PartialEq for CodecError {
+    fn eq(&self, other: &Self) -> bool {
+        self.code == other.code
+            && self.detail == other.detail
+            && self.scratch_failure == other.scratch_failure
+    }
+}
+impl Eq for CodecError {}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContextError {
+    message: String,
+    #[cfg(feature = "s_incremental")]
+    proof: Option<capture_allocation::scratch::failure_trace::BridgeProof>,
+}
+impl ContextError {
+    pub fn from_codec(error: CodecError, prefix: &str) -> Self {
+        #[cfg(feature = "s_incremental")]
+        let proof = capture_allocation::scratch::failure_trace::bridge(&error);
+        Self {
+            message: format!("{prefix}{error}"),
+            #[cfg(feature = "s_incremental")]
+            proof,
+        }
+    }
+    pub fn context(self, prefix: &str) -> Self {
+        Self {
+            message: format!("{prefix}{}", self.message),
+            ..self
+        }
+    }
+    pub fn into_message(self) -> String {
+        self.message
+    }
+}
+impl From<String> for ContextError {
+    fn from(message: String) -> Self {
+        Self {
+            message,
+            #[cfg(feature = "s_incremental")]
+            proof: None,
+        }
+    }
+}
+impl From<&str> for ContextError {
+    fn from(message: &str) -> Self {
+        Self::from(message.to_owned())
+    }
+}
+impl From<CodecError> for ContextError {
+    fn from(error: CodecError) -> Self {
+        Self::from_codec(error, "")
+    }
+}
+impl From<&CodecError> for ContextError {
+    fn from(error: &CodecError) -> Self {
+        Self::from(error.clone())
+    }
+}
+impl From<&String> for ContextError {
+    fn from(error: &String) -> Self {
+        Self::from(error.clone())
+    }
+}
+impl<T> From<std::sync::PoisonError<T>> for ContextError {
+    fn from(error: std::sync::PoisonError<T>) -> Self {
+        Self::from(error.to_string())
+    }
+}
+macro_rules! context_other {
+    ($($error:ty),* $(,)?) => {$(
+        impl From<$error> for ContextError {
+            fn from(error: $error) -> Self { Self::from(error.to_string()) }
+        }
+    )*};
+}
+#[cfg(feature = "s_session")]
+context_other!(rusqlite::Error);
+context_other!(serde_json::Error, std::io::Error,
+    std::num::ParseIntError, std::num::TryFromIntError, std::str::Utf8Error,
+    std::string::FromUtf8Error);
+impl From<ContextError> for String {
+    fn from(error: ContextError) -> Self {
+        error.into_message()
+    }
+}
+impl fmt::Display for ContextError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.message.fmt(f)
+    }
+}
+impl std::error::Error for ContextError {}
+
 impl fmt::Display for CodecError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {}", self.code, *self.shown())
+        write!(f, "{}: {}", self.code, self.detail)
     }
 }
 
@@ -9269,13 +9372,6 @@ impl CodecError {
     }
 }
 
-impl CodecError {
-    /// #1488 0072 Display 挂点：生产构建为 `&self.detail` 恒等，testonly 门内登记过桥渲染。
-    #[inline(always)]
-    fn shown(&self) -> &std::borrow::Cow<'static, str> {
-        capture_allocation::scratch::shown(self)
-    }
-}
 
 #[cfg(test)]
 mod verified_public_subroots_tests {
