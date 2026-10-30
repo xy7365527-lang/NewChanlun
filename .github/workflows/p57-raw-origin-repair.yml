@@ -2,6 +2,10 @@ name: P57 raw origin repair
 on:
   workflow_dispatch:
     inputs:
+      conversion_check:
+        description: '仅收集移除隐式擦源转换后的编译诊断'
+        type: boolean
+        default: false
       object_red:
         description: '仅运行对象原件来源红锁与格式'
         type: boolean
@@ -12,6 +16,7 @@ on:
         default: false
 jobs:
   raw-origin:
+    if: ${{ !inputs.conversion_check }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -29,10 +34,10 @@ jobs:
         if: ${{ !inputs.object_red }}
         run: cargo test --locked --features s_session,s_incremental --bin s_structure_session publication_raw_advance_budget_preserves_origin_through_owner_boundary --jobs 4 -- --test-threads 1 --nocapture
       - name: raw父域与普通入口相邻合同
-        if: ${{ !inputs.strict_only && !inputs.object_red }}
+        if: ${{ !inputs.strict_only && !inputs.object_red && !inputs.conversion_check }}
         run: cargo test --locked --features s_session,s_incremental --bin s_structure_session --jobs 4 -- publication_single_parent_scope_reaches_raw_runtime_material_and_validation pending_and_bound_raw_moves_keep_original_permits_until_payload_drop owner_raw_real_effects_only_promote_after_real_commit owner_raw_schema_read_domain_and_consumer_failure_revoke --test-threads 1
       - name: 来源组与原七锁
-        if: ${{ !inputs.strict_only && !inputs.object_red }}
+        if: ${{ !inputs.strict_only && !inputs.object_red && !inputs.conversion_check }}
         run: cargo test --locked --features s_session,s_incremental --bin s_structure_session --jobs 4 -- publication_degrade_verdict_tests publication_candidate_budget_shortfall_degrades_and_keeps_admitting publication_real_tail_failure_still_rejects_without_degrade publication_real_error_after_budget_failure_rejects_without_degrade publication_source_append_allocation_failure_degrades publication_prepare_wrapped_allocation_failure_degrades publication_ledger_after_budget_failure_rejects_without_degrade --test-threads 1
       - name: 普通与增量入口严格编译
         if: ${{ !inputs.object_red }}
@@ -53,7 +58,7 @@ jobs:
           name: p57-raw-fmt
           path: /tmp/p57-raw-fmt.patch
   production:
-    if: ${{ !inputs.strict_only && !inputs.object_red }}
+    if: ${{ !inputs.strict_only && !inputs.object_red && !inputs.conversion_check }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
@@ -70,3 +75,20 @@ jobs:
         run: cargo build --release --locked --features s_session,s_incremental --bin s_structure_session --jobs 4
       - name: 生产产物无钩子或禁串
         run: .github/scripts/check-prod-artifact-hooks.sh rust/target/release/s_structure_session
+  conversion-check:
+    if: ${{ inputs.conversion_check }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CARGO_INCREMENTAL: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/rust-job-setup
+      - name: 禁止隐式擦源后编译
+        working-directory: rust
+        run: cargo check --locked --all-targets --features s_session,s_incremental --jobs 4 --message-format=json > /tmp/p57-conversion-check.jsonl
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p57-conversion-check
+          path: /tmp/p57-conversion-check.jsonl

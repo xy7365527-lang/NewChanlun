@@ -308,11 +308,6 @@ context_other!(
     std::str::Utf8Error,
     std::string::FromUtf8Error
 );
-impl From<ContextError> for String {
-    fn from(error: ContextError) -> Self {
-        error.into_message()
-    }
-}
 impl fmt::Display for ContextError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.message.fmt(f)

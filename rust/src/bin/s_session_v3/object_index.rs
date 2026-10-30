@@ -1645,7 +1645,7 @@ fn bind_originals(
     s: &mut (impl CodecStore + ?Sized),
     e: &Entry,
     leaf_bindings: &mut Option<ShapeLeafBindings<'_>>,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     let shape = e.slot.is_shape();
     let generated_ref = built_ref(s, &e.generated)?;
     let internal_ref = built_ref(s, &e.internal)?;
@@ -1701,17 +1701,17 @@ fn bind_originals(
         || r.text(s, "kind")? != e.kind
         || r.slot(s, &e.kind)? != e.slot
     {
-        return Err(err("对象索引与生成原件不符"));
+        return Err(publish_err("对象索引与生成原件不符"));
     }
     for key in ["first_known_generation", "published_generation"] {
         if r.integer(s, key)? != e.life.first_known_generation {
-            return Err(err("出生生成代号不符"));
+            return Err(publish_err("出生生成代号不符"));
         }
     }
     if r.text(s, "first_known_cut")? != e.life.first_known_cut
         || e.life.published_generation != e.life.first_known_generation
     {
-        return Err(err("出生cut/发布代不符"));
+        return Err(publish_err("出生cut/发布代不符"));
     }
     for (json, value) in [
         ("input_refs_json", "input_refs"),
@@ -1726,7 +1726,7 @@ fn bind_originals(
         }
         for key in ["window_start", "window_mid", "window_end"] {
             if w.text(s, key)? != bj::Decimal::new(i.integer(s, key)?).text() {
-                return Err(err("窗口公开投影不符"));
+                return Err(publish_err("窗口公开投影不符"));
             }
         }
         let comparison = i.get(s, "comparisons")?;
@@ -1753,17 +1753,17 @@ fn bind_originals(
             };
             let result = s.render_ref(comparison.view(), &mut out);
             if let Some(e) = out.error {
-                return Err(err(e));
+                return Err(publish_err(e));
             }
-            result.map_err(err)?;
+            result.map_err(publish_err)?;
             if r.text(s, "comparisons_json")?.as_bytes() != &*out.bytes {
-                return Err(err("comparisons文本与内部值不符"));
+                return Err(publish_err("comparisons文本与内部值不符"));
             }
         } else {
             let mut out = Vec::new();
-            s.render_ref(comparison.view(), &mut out).map_err(err)?;
+            s.render_ref(comparison.view(), &mut out).map_err(publish_err)?;
             if r.text(s, "comparisons_json")?.as_bytes() != out {
-                return Err(err("comparisons文本与内部值不符"));
+                return Err(publish_err("comparisons文本与内部值不符"));
             }
         }
         i.equal(s, "comparisons", &w, "comparisons")?;
@@ -1780,13 +1780,13 @@ fn bind_originals(
         || w.text(s, "kind")? != e.kind
         || w.text(s, "object_revision")? != bj::Decimal::new(e.revision).text()
     {
-        return Err(err("出生公开身份不符"));
+        return Err(publish_err("出生公开身份不符"));
     }
     if r.immutable(s, shape)? != e.immutable {
-        return Err(err("不可变内容根不符"));
+        return Err(publish_err("不可变内容根不符"));
     }
     if wire_at(s, e, e.life.first_known_generation)? != e.birth_wire {
-        return Err(err("出生公开元数据与独立记录不同"));
+        return Err(publish_err("出生公开元数据与独立记录不同"));
     }
     Ok(())
 }
@@ -1798,7 +1798,7 @@ fn bind_shape_refs(
     s: &mut (impl CodecStore + ?Sized),
     generated: &ContentRef,
     wire: &ContentRef,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     bind_shape_refs_view(s, generated.into(), wire.into(), &mut None)
 }
 
@@ -1815,24 +1815,24 @@ impl ShapeLeafBindings<'_> {
         s: &mut (impl CodecStore + ?Sized),
         ar: sc::RefView<'_>,
         br: sc::RefView<'_>,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         let result = (|| {
             // 每次在查 memo 前判资格；overlay-only 仍跑原叶判据，不获缓存资格。
-            let ad = ar.digest().map_err(err)?;
-            let bd = br.digest().map_err(err)?;
+            let ad = ar.digest().map_err(publish_err)?;
+            let bd = br.digest().map_err(publish_err)?;
             if !self.capture.contains(&ad) || !self.capture.contains(&bd) {
                 return bind_shape_leaf(s, ar, br);
             }
             // 两端自有时必须核完整声明及 capture 自己的 Public 闭包。
             // 自有根缺深叶/坏原件是实际错误，overlay 不得替当前 capture 补证。
             s.native_verify_original(self.capture, ar, sc::Mode::Public)
-                .map_err(err)?;
+                .map_err(publish_err)?;
             s.native_verify_original(self.capture, br, sc::Mode::Public)
-                .map_err(err)?;
-            let declaration = |r: sc::RefView<'_>| -> Result<ShapeLeafDeclaration, String> {
+                .map_err(publish_err)?;
+            let declaration = |r: sc::RefView<'_>| -> Result<ShapeLeafDeclaration, PublishError> {
                 Ok((
-                    s.native_string(r.format()).map_err(err)?,
-                    s.native_string(r.root()).map_err(err)?,
+                    s.native_string(r.format()).map_err(publish_err)?,
+                    s.native_string(r.root()).map_err(publish_err)?,
                     r.kind(),
                     r.extent(),
                 ))
@@ -1840,8 +1840,8 @@ impl ShapeLeafBindings<'_> {
             let key = [declaration(ar)?, declaration(br)?];
             if !self.successful.contains_key(&key) {
                 bind_shape_leaf(s, ar, br)?;
-                s.native_map_room(&mut self.successful).map_err(err)?;
-                self.successful.insert(key, ()).map_err(err)?;
+                s.native_map_room(&mut self.successful).map_err(publish_err)?;
+                self.successful.insert(key, ()).map_err(publish_err)?;
             }
             Ok(())
         })();
@@ -1855,11 +1855,11 @@ fn bind_shape_leaf(
     s: &mut (impl CodecStore + ?Sized),
     ar: sc::RefView<'_>,
     br: sc::RefView<'_>,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     #[cfg(test)]
     tests::SHAPE_LEAF_CHECKS.with(|checks| checks.set(checks.get() + 1));
     if ar.extent() != Some(8) || br.extent() != Some(8) {
-        return Err(err("来源字段集不符"));
+        return Err(publish_err("来源字段集不符"));
     }
     let names = [
         "identity_key",
@@ -1887,7 +1887,7 @@ fn bind_shape_leaf(
         if b_fields.text(s, field_name)?
             != bj::Decimal::new(a_fields.integer(s, field_name)?).text()
         {
-            return Err(err("来源数字公开投影不符"));
+            return Err(publish_err("来源数字公开投影不符"));
         }
     }
     Ok(())
@@ -1897,53 +1897,53 @@ fn bind_shape_refs_view(
     generated: sc::RefView<'_>,
     wire: sc::RefView<'_>,
     leaf_bindings: &mut Option<ShapeLeafBindings<'_>>,
-) -> Result<(), String> {
+) -> Result<(), PublishError> {
     if generated.kind() != Kind::Array
         || generated.extent() != Some(3)
         || wire.kind() != Kind::Array
         || wire.extent() != Some(3)
     {
-        return Err(err("形态来源不是三组"));
+        return Err(publish_err("形态来源不是三组"));
     }
     for n in 0..3 {
         let a = s
             .lookup_ref(generated, &[PathStep::Index(n)])
-            .map_err(err)?;
-        let b = s.lookup_ref(wire, &[PathStep::Index(n)]).map_err(err)?;
+            .map_err(publish_err)?;
+        let b = s.lookup_ref(wire, &[PathStep::Index(n)]).map_err(publish_err)?;
         if a.extent() != Some(3)
             || b.extent() != Some(3)
             || text_ref(s, b.view(), "merged_index")?
                 != bj::Decimal::new(integer_ref(s, a.view(), "merged_index")?).text()
         {
-            return Err(err("合并序号公开投影不符"));
+            return Err(publish_err("合并序号公开投影不符"));
         }
         for key in ["raw_refs", "dependency_refs"] {
             let aa = field_ref(s, a.view(), key)?;
             let bb = field_ref(s, b.view(), key)?;
             if aa.kind() != Kind::Array || bb.kind() != Kind::Array || aa.extent() != bb.extent() {
-                return Err(err("来源数组长度不符"));
+                return Err(publish_err("来源数组长度不符"));
             }
             let items = if s.audit_full_array_scan() {
                 Some((
-                    s.lookup_array_ref(aa.view()).map_err(err)?,
-                    s.lookup_array_ref(bb.view()).map_err(err)?,
+                    s.lookup_array_ref(aa.view()).map_err(publish_err)?,
+                    s.lookup_array_ref(bb.view()).map_err(publish_err)?,
                 ))
             } else {
                 None
             };
-            for k in 0..aa.extent().ok_or_else(|| err("来源缺长度"))? {
+            for k in 0..aa.extent().ok_or_else(|| publish_err("来源缺长度"))? {
                 let (ar, br) = if let Some((a, b)) = &items {
                     (
-                        s.native_ref_clone(&a[k as usize]).map_err(err)?,
-                        s.native_ref_clone(&b[k as usize]).map_err(err)?,
+                        s.native_ref_clone(&a[k as usize]).map_err(publish_err)?,
+                        s.native_ref_clone(&b[k as usize]).map_err(publish_err)?,
                     )
                 } else {
                     // Some 仍逐位置交错原件读取与字段/业务检查，预算与期限门顺序不变。
                     (
                         s.lookup_ref(aa.view(), &[PathStep::Index(k)])
-                            .map_err(err)?,
+                            .map_err(publish_err)?,
                         s.lookup_ref(bb.view(), &[PathStep::Index(k)])
-                            .map_err(err)?,
+                            .map_err(publish_err)?,
                     )
                 };
                 if let Some(bindings) = leaf_bindings {
@@ -6914,9 +6914,9 @@ impl<'a> OwnerFields<'a> {
         k: &str,
         o: &Self,
         j: &str,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         if self.get(s, k)? != o.get(s, j)? {
-            Err(err(format!("{k}/{j}内容边不同")))
+            Err(publish_err(format!("{k}/{j}内容边不同")))
         } else {
             Ok(())
         }
@@ -6964,13 +6964,13 @@ impl<'a> OwnerFields<'a> {
         s: &mut (impl CodecRead + ?Sized),
         json: &str,
         value: &str,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         let input = self.get(s, json)?;
         let parsed = s
             .lookup_ref(input.view(), &[PathStep::JsonText])
-            .map_err(err)?;
+            .map_err(publish_err)?;
         if parsed != self.get(s, value)? {
-            return Err(err("内部JSON视图与值边不同"));
+            return Err(publish_err("内部JSON视图与值边不同"));
         }
         Ok(())
     }
@@ -6983,27 +6983,27 @@ fn field_ref(
     s: &mut (impl CodecRead + ?Sized),
     r: sc::RefView<'_>,
     k: &str,
-) -> Result<RefValue, String> {
-    s.lookup_field_ref(r, k).map_err(err)
+) -> Result<RefValue, PublishError> {
+    s.lookup_field_ref(r, k).map_err(publish_err)
 }
 fn text_ref(
     s: &mut (impl CodecRead + ?Sized),
     r: sc::RefView<'_>,
     k: &str,
-) -> Result<TextValue, String> {
+) -> Result<TextValue, PublishError> {
     let v = field_ref(s, r, k)?;
-    bj::read_text(s, v.view()).map_err(err)
+    bj::read_text(s, v.view()).map_err(publish_err)
 }
 fn integer_ref(
     s: &mut (impl CodecRead + ?Sized),
     r: sc::RefView<'_>,
     k: &str,
-) -> Result<i64, String> {
+) -> Result<i64, PublishError> {
     let v = field_ref(s, r, k)?;
     bj::render_json(s, v.view())?
         .view()
         .as_i64()
-        .ok_or_else(|| err(format!("{k}不是i64")))
+        .ok_or_else(|| publish_err(format!("{k}不是i64")))
 }
 
 #[cfg(feature = "s_incremental")]
