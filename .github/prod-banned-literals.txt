@@ -186,6 +186,7 @@ S_AUDIT_COST_DB
 S_AUDIT_COST_EXPECT_GENERATION
 S_EVIDENCE_MEASURE
 S_NATIVE_SQLITE_CACHE_KIB
+S_ORDINARY_WIRE_CHILD
 S_TEST_AUDIT_CACHE_SOURCE_BYTES
 SchemaUnsupported：history_mode不符
 SchemaUnsupported：projection anchor必须是exact四字段
@@ -1237,6 +1238,7 @@ writer/recover闭合后无SHM
 独立布局推导与字面 96B 不符
 独立来源账的赢家 key、坐标、source/original 桶按真实容量计费
 独立测量结果
+独立进程原wire锁失败
 现场须带 -journal
 现存子树许可不得早退
 生产 diff（TB-02-A/B）
