@@ -4316,7 +4316,9 @@ mod tests {
             let mut returned = None;
             let (run, trace) = failure_trace::capture(|| {
                 work.run(|scope| {
-                    let reader = ordinary.with_codec_work(scope, &budget);
+                    let reader = super::super::history::HashReader::captured_for_audit(&capture, None)
+                        .map_err(PublishError::from)?
+                        .with_codec_work(scope, &budget);
                     let mut targets = bj::new_work(None);
                     let ballast = scope.reserve_native(budget.remaining()).unwrap();
                     let result = push_withdrawal_target(&reader, &mut targets, target);

@@ -820,8 +820,29 @@ impl OrdinaryProofs {
 
 #[cfg(all(test, feature = "s_incremental"))]
 mod tests {
-    use super::super::tests::{fixture, original_sources, replace_field, STATE};
+    use super::super::tests::{original_sources, replace_field, STATE};
     use super::*;
+
+    fn fixture() -> (sc::MemoryNodes, ContentRef, Vec<Value>, String) {
+        let bytes = std::fs::read(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/s4-legacy4df/source.json"),
+        ).unwrap();
+        let fixture: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(fixture["head"], "4df2d10f92d1075f5fb761a1b112c9c949da5408");
+        let mut nodes = sc::MemoryNodes::new();
+        let originals: Vec<(NodeDigest, u8, Vec<u8>)> =
+            serde_json::from_value(fixture["nodes"].clone()).unwrap();
+        for (digest, tag, body) in originals {
+            nodes.insert_unchecked(digest, tag, body);
+        }
+        (
+            nodes,
+            ContentRef::from_transport_json(&fixture["root"]).unwrap(),
+            serde_json::from_value(fixture["raw"].clone()).unwrap(),
+            fixture["rule"].as_str().unwrap().to_string(),
+        )
+    }
 
     fn run(
         nodes: &mut sc::MemoryNodes,

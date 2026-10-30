@@ -5871,12 +5871,10 @@ pub(super) mod tests {
     #[cfg(feature = "s_incremental")]
     #[test]
     fn ordinary_material_whole_readonly_audit_heap_releases() {
-        let mut f = super::prepared::tests::Fixture::with_rule(crate::V3_RULE_REVISION);
-        let (envelope, token) = f.accept_begin(1, ("a", 0, 6, 12, 3, 7), 1);
-        f.publish(&envelope, &token).unwrap();
+        let historical = legacy_s4_fixture_path(1, "db");
         let run = || {
             let mut conn = Connection::open_with_flags(
-                f.conn.path().unwrap(),
+                &historical,
                 rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
             )
             .unwrap();
@@ -5900,13 +5898,66 @@ pub(super) mod tests {
     }
 
     #[cfg(feature = "s_incremental")]
+    pub(crate) fn legacy_s4_fixture_path(cut: usize, extension: &str) -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/s4-legacy4df")
+            .join(format!("cut-{cut}.{extension}"))
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn ordinary_proof_legacy_seven_cut_readonly_matches_frozen_originals() {
+        for cut in 1..=7 {
+            let expected: serde_json::Value = serde_json::from_slice(
+                &std::fs::read(legacy_s4_fixture_path(cut, "json")).unwrap(),
+            ).unwrap();
+            assert_eq!(expected["head"], "4df2d10f92d1075f5fb761a1b112c9c949da5408");
+            let mut conn = Connection::open_with_flags(
+                legacy_s4_fixture_path(cut, "db"),
+                rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+            ).unwrap();
+            assert_eq!(super::layout::Layout::of_library(&conn).unwrap(), super::layout::Layout::Sorted);
+            let before = super::prepared::tests::runtime_root_tables(&conn, true);
+            super::admission_private::s4_read_trace::enable();
+            super::source_audit::reset_ordinary_proof_stats();
+            {
+                let tx = conn.transaction().unwrap();
+                let audited = super::state::audit_until(&tx, None).unwrap();
+                assert_eq!(audited.cuts.len(), cut);
+                for (index, historical) in audited.cuts.iter().enumerate() {
+                    assert_eq!(historical.metadata.generation, index as i64 + 1);
+                    assert_eq!(historical.metadata.rule_revision, crate::V3_RULE_REVISION);
+                }
+            }
+            let coverage = super::admission_private::s4_read_trace::finish();
+            assert_eq!(coverage, [cut as u64, cut as u64 * 3]);
+            let proofs = super::source_audit::ordinary_proof_stats();
+            assert!(proofs.executions > 0);
+            if cut > 1 {
+                assert!(proofs.hits > 0);
+            }
+            assert_eq!(
+                format!("{:?}", super::prepared::tests::runtime_root_tables(&conn, false)),
+                expected["roots_debug"].as_str().unwrap(),
+            );
+            let expected_arrays: Vec<(i64, [NodeDigest; 5])> =
+                serde_json::from_value(expected["arrays"].clone()).unwrap();
+            assert_eq!(layout_published_arrays(&mut conn), expected_arrays);
+            let generations: Vec<i64> = (1..=cut as i64).collect();
+            assert_eq!(
+                layout_rebuilt_arrays(&mut conn, super::layout::Layout::Sorted, &generations),
+                expected_arrays.iter().map(|(_, roots)| *roots).collect::<Vec<_>>(),
+            );
+            assert_eq!(super::prepared::tests::runtime_root_tables(&conn, true), before);
+        }
+    }
+
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn ordinary_proof_owner_commits_only_after_whole_cut_and_reopen_starts_empty() {
-        let mut f = super::prepared::tests::Fixture::with_rule(crate::V3_RULE_REVISION);
-        let (envelope, token) = f.accept_begin(1, ("a", 0, 6, 12, 3, 7), 1);
-        f.publish(&envelope, &token).unwrap();
+        let historical = legacy_s4_fixture_path(1, "db");
         let mut conn = Connection::open_with_flags(
-            f.conn.path().unwrap(),
+            &historical,
             rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
         )
         .unwrap();
@@ -5979,7 +6030,7 @@ pub(super) mod tests {
             first.executions
         );
         let mut foreign = Connection::open_with_flags(
-            f.conn.path().unwrap(),
+            &historical,
             rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
         )
         .unwrap();

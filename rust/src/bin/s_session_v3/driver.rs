@@ -7655,7 +7655,7 @@ mod tests {
     }
     #[cfg(feature = "s_incremental")]
     #[test]
-    fn ordinary_proof_multicut_complete_outputs_match_frozen_oracle() {
+    fn ordinary_proof_w_multicut_complete_outputs_match_full_read_oracle() {
         let steps = vec![
             S4Step {
                 kind: "append",
@@ -7722,7 +7722,7 @@ mod tests {
             );
             assert_eq!(
                 super::super::layout::Layout::of_library(&actual.conn).unwrap(),
-                super::super::layout::Layout::Sorted
+                super::super::layout::Layout::Bounded2
             );
             let coverage = super::admission_private::s4_read_trace::finish();
             assert_eq!(coverage, [index as u64, index as u64 * 3], "{}", step.kind);
@@ -7745,7 +7745,7 @@ mod tests {
         let coverage = super::admission_private::s4_read_trace::finish();
         assert_eq!(coverage, [steps.len() as u64, steps.len() as u64 * 3]);
         let stats = super::super::source_audit::ordinary_proof_stats();
-        assert!(stats.hits > 0 && stats.executions > 0);
+        assert_eq!((stats.hits, stats.executions), (0, 0), "W 规则不启用旧业务配方");
         eprintln!(
             "ORDINARY_PROOF_MULTICUT cuts={} hits={} executions={} coverage={coverage:?}",
             steps.len(),
