@@ -129,7 +129,7 @@ const LEGACY_V3_RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/1";
 /// 那时段教义尚无 #1493/#1604 两组件；重合成后 S3 实际调用的段 parser 已含两组件，规则串随之
 /// 合成，不让同一串名下出现两代段对象。旧串从未在 main 上写过库，不保留只读入口。
 const V3_STRUCTURE_RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1";
-/// #1419 P2：W1为历史读身份，W2与bounded-layout/1同候选发布。
+/// #1419 P2：W1为历史只读身份；W2的历史/1与新写/2见下列完整登记。
 const W1_STRUCTURE_RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1+raw-initialization-w/1";
 /// #1419/#1491 31P：W2 教义部分（不单独作完整规则登记，只经 `v3::layout` 精确表映射）。
 const W2_DOCTRINE_RULE_REVISION: &str = "s2-axis-quantifiers+new-bi/2+segment-second/2+segment-turn/1+second-seq-scan-budget/2+center-seed/1+center-pair/1+raw-initialization-w/2";

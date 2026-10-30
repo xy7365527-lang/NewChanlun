@@ -5852,6 +5852,16 @@ pub(super) mod tests {
                 "g{gen} {kind} 其余内容不变"
             );
         }
+        let unchanged = |state: &Value| {
+            state["objects"].as_array().unwrap().iter().filter(|o| {
+                ![CC007_FRACTAL_KIND, CC007_DEVELOPMENT_BATCH_KIND, CC054_KNOWLEDGE_KIND]
+                    .contains(&o["kind"].as_str().unwrap())
+            }).cloned().collect::<Vec<_>>()
+        };
+        assert_eq!(unchanged(sorted), unchanged(bounded), "g{gen} 其余完整事实记录不变");
+        for (field, value) in sorted.as_object().unwrap() {
+            if field != "objects" { assert_eq!(value, &bounded[field], "g{gen} 其余生成态字段 {field}"); }
+        }
         assert_eq!(
             w_request_semantics(sorted).unwrap(),
             w_request_semantics(bounded).unwrap()

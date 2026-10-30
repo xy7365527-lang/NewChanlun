@@ -271,7 +271,9 @@ fn assert_pending_w2_oracle(
     let segments = trace.segment_facts.as_ref().unwrap();
     assert!(stroke.endpoints.is_empty() && stroke.strokes.is_empty() && segments.candidates.is_empty());
     let metadata = &audited.cuts.last().unwrap().metadata;
-    let cut = metadata.structure_cut.as_str();
+    let cut_text = format!("cut-{generation}");
+    let cut = cut_text.as_str();
+    assert_eq!(metadata.structure_cut, cut);
     let frontier = raw.len() as i64 - 1;
     assert_eq!(metadata.generation, generation);
     assert_eq!(metadata.input_frontier, frontier);
@@ -358,7 +360,7 @@ fn assert_pending_w2_oracle(
         objects.as_slice(), raw.as_slice(), frontier-1, withdrawals.as_slice(), replaces.as_slice());
     let scope: Value = serde_json::from_str(&meta_get_opt(tx,"scope").unwrap().unwrap()).unwrap();
     let expected = json!({"generation":generation,"structure_cut":cut,"input_frontier":frontier,
-        "catalog_revision":metadata.catalog_revision,"profile_id":metadata.profile_id,"profile_hash":metadata.profile_hash,
+        "catalog_revision":meta_get_opt(tx,"catalog_revision").unwrap().unwrap(),"profile_id":tb02a::PROFILE,"profile_hash":meta_get_opt(tx,"profile_hash").unwrap().unwrap(),
         "rule_revision":rule,"scope":scope,"raw_events":raw,"effective_events":effective,"objects":objects,
         "witnesses":[],"relations":[],"observations":observations,"catalog_axes":axes});
     let mut source = content_store::ReadStore::new(tx).unwrap();
