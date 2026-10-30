@@ -240,6 +240,9 @@ pub(crate) struct NativeAuditReceipt {
     delta: crate::DeltaShape,
 }
 
+#[path = "native_vfs.rs"]
+mod native_vfs;
+
 // ---------------------------------------------------------------- 可写映射期 SHM 预算
 
 /// E4 给出的 `A(len)`：目标卷上长度 len 的普通文件、任意页写脏后最多分配的数据字节；
@@ -261,6 +264,7 @@ pub(crate) struct ShmBudget {
     b0: u64,
     bound: AllocationBound,
     covered: u64,
+    observed: u64,
     grants: Vec<ShmGrant>,
 }
 
@@ -271,6 +275,7 @@ impl ShmBudget {
             b0,
             bound,
             covered: 0,
+            observed: b0,
             grants: Vec::new(),
         })
     }
@@ -314,6 +319,7 @@ impl ShmBudget {
         gate.with_job(|_| Ok(()))?;
         let floor = self.floor();
         let mut first: Option<NativeError> = None;
+        let measured = measured.map(|bytes| bytes.max(self.observed));
         let mut excess = match measured {
             Err(()) => {
                 first = Some(NativeCode::ShmMeasureFailed.into());
@@ -366,6 +372,8 @@ pub(crate) type Pwrite64Fn = unsafe extern "C" fn(c_int, *const c_void, usize, i
 pub(crate) type FtruncateFn = unsafe extern "C" fn(c_int, libc::off_t) -> c_int;
 pub(crate) type MmapFn =
     unsafe extern "C" fn(*mut c_void, usize, c_int, c_int, c_int, libc::off_t) -> *mut c_void;
+pub(crate) type FchmodFn = unsafe extern "C" fn(c_int, libc::mode_t) -> c_int;
+pub(crate) type FchownFn = unsafe extern "C" fn(c_int, libc::uid_t, libc::gid_t) -> c_int;
 pub(crate) type UnlinkFn = unsafe extern "C" fn(*const c_char) -> c_int;
 
 /// 安装前经 xGetSystemCall 取得的原指针；测试注入 libc 或计数包装。
@@ -384,6 +392,8 @@ pub(crate) struct Orig {
     pub(crate) ftruncate: FtruncateFn,
     pub(crate) mmap: Option<MmapFn>,
     pub(crate) unlink: UnlinkFn,
+    pub(crate) fchmod: Option<FchmodFn>,
+    pub(crate) fchown: Option<FchownFn>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -714,6 +724,35 @@ fn with_owner<T>(run: impl FnOnce(&mut OwnerTls) -> T) -> Option<T> {
         .flatten()
 }
 
+fn callback_gate(hooks: &'static NativeHooks, token: u64) -> Result<(), NativeError> {
+    let peer = {
+        let reg = hooks.lock();
+        let active = reg.active_for(token).map_err(NativeError::from)?;
+        if active.thread != std::thread::current().id() { return Err(NativeCode::InProcessPeer.into()); }
+        active.peer_error
+    };
+    with_owner(|tls| {
+        if tls.token != token { return Err(NativeCode::Unavailable.into()); }
+        if hooks.unavailable.load(Ordering::SeqCst) { tls.fail(NativeCode::TrackingLost.into()); }
+        if let Some(error) = peer { tls.fail(error.into()); }
+        if let Some(error) = &tls.first { return Err(error.clone()); }
+        if tls.gate.startup_counted() {
+            if let Err(error) = tls.gate.check_deadline() { tls.fail(error.clone()); return Err(error); }
+        }
+        Ok(())
+    }).unwrap_or(Err(NativeCode::Unavailable.into()))
+}
+
+fn native_authorizer_denies(event: &NativeAuthContext<'_>) -> bool {
+    use rusqlite::ffi;
+    matches!(event.action, ffi::SQLITE_ATTACH | ffi::SQLITE_DETACH | ffi::SQLITE_CREATE_TEMP_INDEX |
+        ffi::SQLITE_CREATE_TEMP_TABLE | ffi::SQLITE_CREATE_TEMP_TRIGGER | ffi::SQLITE_CREATE_TEMP_VIEW |
+        ffi::SQLITE_DROP_TEMP_INDEX | ffi::SQLITE_DROP_TEMP_TABLE | ffi::SQLITE_DROP_TEMP_TRIGGER | ffi::SQLITE_DROP_TEMP_VIEW)
+        || (event.action == ffi::SQLITE_PRAGMA && event.arg2.is_some() && event.arg1.is_some_and(|name| {
+            matches!(name.to_bytes(), b"journal_mode" | b"mmap_size" | b"temp_store" | b"wal_checkpoint")
+        }))
+}
+
 /// owner 拥有的 FD 的写类动作。
 #[derive(Clone, Copy)]
 enum Effect {
@@ -721,6 +760,7 @@ enum Effect {
     Write { end: u64 },
     Truncate { end: u64 },
     Map { end: u64 },
+    Metadata,
 }
 
 enum Step {
@@ -750,7 +790,7 @@ fn owner_step(tls: &mut OwnerTls, class: Class, peer: Option<NativeCode>, effect
     }
     let gate = match effect {
         Effect::Read | Effect::Write { .. } => tls.gate.pre_io_check(),
-        Effect::Truncate { .. } | Effect::Map { .. } => tls.gate.check_deadline(),
+        Effect::Truncate { .. } | Effect::Map { .. } | Effect::Metadata => tls.gate.check_deadline(),
     };
     if let Err(error) = gate {
         tls.fail(error);
@@ -758,6 +798,7 @@ fn owner_step(tls: &mut OwnerTls, class: Class, peer: Option<NativeCode>, effect
     }
     match (class, effect) {
         (_, Effect::Read) => Step::Count,
+        (_, Effect::Metadata) => Step::Pass,
         (Class::Shm, Effect::Write { end } | Effect::Truncate { end } | Effect::Map { end }) => {
             let covered = tls.budget.cover(&tls.gate, end);
             if let Err(error) = covered {
@@ -783,6 +824,8 @@ pub(crate) struct NativeHooks {
     reg: Mutex<FdRegistry>,
     active_any: AtomicBool,
     unavailable: AtomicBool,
+    #[cfg(test)]
+    actual_io: std::sync::atomic::AtomicU64,
 }
 
 impl NativeHooks {
@@ -792,6 +835,8 @@ impl NativeHooks {
             reg: Mutex::new(FdRegistry::default()),
             active_any: AtomicBool::new(false),
             unavailable: AtomicBool::new(false),
+            #[cfg(test)]
+            actual_io: std::sync::atomic::AtomicU64::new(0),
         }
     }
 
@@ -976,6 +1021,8 @@ impl NativeHooks {
             Step::Count => {
                 let got = call();
                 let saved = errno();
+                #[cfg(test)]
+                if got > 0 { self.actual_io.fetch_add(got as u64, Ordering::SeqCst); }
                 let charged = with_owner(|tls| {
                     let n = if got > 0 { got as u64 } else { 0 };
                     match tls.gate.charge_wire_bytes(n) {
@@ -1064,6 +1111,14 @@ impl NativeHooks {
         let rc = self.io(fd, Effect::Map { end }, || orig(addr, len, prot, flags, fd, off) as isize);
         rc as *mut c_void
     }
+    pub(crate) unsafe fn fchmod(&self, fd: c_int, mode: libc::mode_t) -> c_int {
+        let Some(orig) = self.orig.fchmod else { set_errno(libc::ENOSYS); return -1; };
+        self.io(fd, Effect::Metadata, || orig(fd, mode) as isize) as c_int
+    }
+    pub(crate) unsafe fn fchown(&self, fd: c_int, uid: libc::uid_t, gid: libc::gid_t) -> c_int {
+        let Some(orig) = self.orig.fchown else { set_errno(libc::ENOSYS); return -1; };
+        self.io(fd, Effect::Metadata, || orig(fd, uid, gid) as isize) as c_int
+    }
     /// active 期间对 pin 路径恒拒（任何相位不删 sidecar）；无 owner 时不多一次 stat。
     pub(crate) unsafe fn unlink(&self, path: *const c_char) -> c_int {
         if self.active_any.load(Ordering::SeqCst) {
@@ -1101,6 +1156,7 @@ pub(crate) struct NativeOwner {
 
 pub(crate) struct DestroyedReceipt {
     token: u64,
+    job: Rc<RefCell<admission_job::Job>>,
 }
 
 /// 连接、回调与 N1 账本只可作为一个整体移动；不导出 Connection/InterruptHandle。
@@ -1112,6 +1168,7 @@ struct NativeSessionState {
     owner: NativeOwner,
     raw: *mut rusqlite::ffi::sqlite3,
     view: Option<rusqlite::Connection>,
+    vfs: Option<native_vfs::Registration>,
     progress: Option<Box<ProgressCallback>>,
     authorizer: Option<Box<AuthorizerCallback>>,
 }
@@ -1173,9 +1230,13 @@ impl Drop for NativeSession {
 impl NativeSession {
     pub(crate) fn progress_handler<F>(&mut self, num_ops: c_int, callback: F) -> Result<(), rusqlite::Error>
     where F: FnMut() -> bool + Send + 'static {
+        let mut callback = callback;
         let state = self.state.as_mut().expect("live session");
         if state.view.is_none() { return Err(rusqlite::Error::InvalidQuery); }
-        let mut callback: Box<ProgressCallback> = Box::new(Box::new(callback));
+        let native = state.vfs.as_ref().map(|_| (state.owner.hooks, state.owner.token));
+        let mut callback: Box<ProgressCallback> = Box::new(Box::new(move || {
+            native.is_some_and(|(hooks, token)| callback_gate(hooks, token).is_err()) || callback()
+        }));
         unsafe { rusqlite::ffi::sqlite3_progress_handler(state.raw, num_ops, Some(native_progress), (&mut *callback as *mut ProgressCallback).cast()); }
         state.progress = Some(callback);
         Ok(())
@@ -1183,9 +1244,18 @@ impl NativeSession {
 
     pub(crate) fn authorizer<F>(&mut self, callback: F) -> Result<(), rusqlite::Error>
     where F: for<'a> FnMut(NativeAuthContext<'a>) -> rusqlite::hooks::Authorization + Send + 'static {
+        let mut callback = callback;
         let state = self.state.as_mut().expect("live session");
         if state.view.is_none() { return Err(rusqlite::Error::InvalidQuery); }
-        let mut callback: Box<AuthorizerCallback> = Box::new(Box::new(callback));
+        let native = state.vfs.as_ref().map(|_| (state.owner.hooks, state.owner.token));
+        let mut callback: Box<AuthorizerCallback> = Box::new(Box::new(move |event| {
+            if let Some((hooks, token)) = native {
+                if callback_gate(hooks, token).is_err() || native_authorizer_denies(&event) {
+                    return rusqlite::hooks::Authorization::Deny;
+                }
+            }
+            callback(event)
+        }));
         let rc = unsafe { rusqlite::ffi::sqlite3_set_authorizer(state.raw, Some(native_authorizer), (&mut *callback as *mut AuthorizerCallback).cast()) };
         if rc != rusqlite::ffi::SQLITE_OK { return Err(rusqlite::Error::SqliteFailure(rusqlite::ffi::Error::new(rc), None)); }
         state.authorizer = Some(callback);
@@ -1201,12 +1271,20 @@ impl NativeSession {
         let state = self.state.as_mut().expect("live session");
         let view = state.view.as_mut().ok_or(rusqlite::Error::InvalidQuery)?;
         let tx = view.transaction()?;
-        Ok(NativeTransaction { tx, owner: &state.owner })
+        Ok(NativeTransaction { tx, owner: &state.owner, vfs: state.vfs.as_ref() })
     }
 
     pub(crate) fn close(mut self, errors: &mut NativeErrors) -> Teardown {
         let state = self.state.as_mut().expect("live session");
         if let Some(first) = state.owner.first_error() { errors.record_first(first); }
+        if let Some(vfs) = &state.vfs {
+            if with_owner(|tls| tls.gate.startup_counted()).unwrap_or(false) {
+                if let Err(error) = state.owner.settle_shm(vfs.measured()) { errors.record_first(error); }
+                if with_owner(|tls| tls.budget.grant_count()).unwrap_or(1) != 0 {
+                    return Teardown::Alive(self);
+                }
+            }
+        }
         if let Some(view) = &state.view { view.flush_prepared_statement_cache(); }
         // 不经 rusqlite owned close：它会先 remove_hooks，BUSY 后已无法保持回调。
         let rc = if state.raw.is_null() { rusqlite::ffi::SQLITE_OK } else { unsafe { rusqlite::ffi::sqlite3_close(state.raw) } };
@@ -1222,6 +1300,12 @@ impl NativeSession {
         if let Some(view) = state.view.take() { drop(view); }
         drop(state.progress.take());
         drop(state.authorizer.take());
+        if let Some(mut vfs) = state.vfs.take() {
+            if vfs.unregister() != rusqlite::ffi::SQLITE_OK {
+                errors.record_cleanup(NativeError::Business("NativeVfsUnregister".into()));
+                std::mem::forget(vfs);
+            }
+        }
         Teardown::Destroyed(state.owner.destroy(errors))
     }
 }
@@ -1230,12 +1314,16 @@ impl NativeSession {
 pub(crate) struct NativeTransaction<'a> {
     tx: rusqlite::Transaction<'a>,
     owner: &'a NativeOwner,
+    vfs: Option<&'a native_vfs::Registration>,
 }
 
 impl NativeTransaction<'_> {
     pub(crate) fn audit(&self) -> Result<NativeAuditReceipt, String> { self.owner.audit_in(&self.tx) }
     pub(crate) fn settle_shm(&self, measured: Result<u64, ()>) -> Result<(), NativeError> { self.owner.settle_shm(measured) }
     pub(crate) fn seal(&self, started: StartedAdmission, audit: &NativeAuditReceipt, errors: &mut NativeErrors) -> Option<FinishedAdmission> {
+        if let Some(vfs) = self.vfs {
+            if let Err(error) = self.owner.settle_shm(vfs.measured()) { errors.record_first(error); }
+        }
         self.owner.seal(started, audit, errors)
     }
     pub(crate) fn accept(&self, audit: &NativeAuditReceipt, text: &str, profile: &std::path::Path, epoch: &str, context: Option<&crate::v2::InputContext>) -> Result<serde_json::Value, String> {
@@ -1247,27 +1335,56 @@ impl NativeTransaction<'_> {
 
 impl NativeOwner {
     /// 只打开已存在的本地源；连接从出生到销毁不可替换成外来 Connection。
+    #[cfg(test)]
     pub(crate) fn open(self, path: &std::path::Path) -> Result<NativeSession, NativeOpenError> {
+        self.open_session(path, None)
+    }
+
+    pub(crate) fn open_native(self, path: &std::path::Path, shm_pin: std::fs::File) -> Result<NativeSession, NativeOpenError> {
+        self.open_session(path, Some(shm_pin))
+    }
+
+    fn open_session(self, path: &std::path::Path, shm_pin: Option<std::fs::File>) -> Result<NativeSession, NativeOpenError> {
         use std::os::unix::ffi::OsStrExt;
         let mut session = NativeSession { state: Some(NativeSessionState {
-            owner: self, raw: std::ptr::null_mut(), view: None, progress: None, authorizer: None,
+            owner: self, raw: std::ptr::null_mut(), view: None, vfs: None, progress: None, authorizer: None,
         }) };
         let result = (|| -> Result<(), String> {
             let state = session.state.as_mut().expect("opening session");
             state.owner.recheck().map_err(|e| format!("{e:?}"))?;
+            if let Some(pin) = shm_pin {
+                state.vfs = Some(native_vfs::Registration::new(&state.owner, pin).map_err(|e| format!("{e:?}"))?);
+            }
+            let vfs_name = state.vfs.as_ref().map_or(std::ptr::null(), |vfs| vfs.name());
             let path = std::ffi::CString::new(path.as_os_str().as_bytes()).map_err(|_| "NativePathContainsNul")?;
             let rc = state.owner.open_scope(|| unsafe {
                 rusqlite::ffi::sqlite3_open_v2(path.as_ptr(), &mut state.raw,
                     rusqlite::ffi::SQLITE_OPEN_READWRITE | rusqlite::ffi::SQLITE_OPEN_PRIVATECACHE | rusqlite::ffi::SQLITE_OPEN_NOMUTEX,
-                    std::ptr::null())
+                    vfs_name)
             });
             if rc != rusqlite::ffi::SQLITE_OK { return Err(format!("NativeSqliteOpen:{rc}")); }
             state.view = Some(unsafe { rusqlite::Connection::from_handle(state.raw) }.map_err(|e| e.to_string())?);
+            if state.vfs.is_some() {
+                let mut active = 0;
+                let rc = unsafe { rusqlite::ffi::sqlite3_db_config(state.raw, rusqlite::ffi::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, 1, &mut active) };
+                if rc != rusqlite::ffi::SQLITE_OK || active != 1 { return Err("NativeNoCheckpointConfig".into()); }
+                state.view.as_ref().unwrap().execute_batch("PRAGMA mmap_size=0; PRAGMA temp_store=MEMORY;").map_err(|e| e.to_string())?;
+            }
             if let Some(error) = state.owner.first_error() { return Err(format!("{error:?}")); }
             Ok(())
         })();
         match result {
-            Ok(()) => Ok(session),
+            Ok(()) => {
+                if session.state.as_ref().unwrap().vfs.is_some() {
+                    // 对外回调仍经Session的同一owner门，不向外泄露Connection。
+                    if let Err(error) = session.progress_handler(100, || false).and_then(|_| session.authorizer(|_| rusqlite::hooks::Authorization::Allow)) {
+                        let error = error.to_string();
+                        let _ = with_owner(|tls| tls.fail(NativeError::Business(error.clone())));
+                        return Err(NativeOpenError { error, session });
+                    }
+                }
+                Ok(session)
+            },
             Err(error) => {
                 let _ = with_owner(|tls| tls.fail(NativeError::Business(error.clone())));
                 Err(NativeOpenError { error, session })
@@ -1466,20 +1583,23 @@ impl NativeOwner {
                 errors.record_cleanup(NativeCode::DeferredCloseFailed.into());
             }
         }
-        OWNER.with(|slot| {
-            if let Some(tls) = slot.borrow_mut().take() {
-                tls.gate.set_phase(Phase::Closed);
-            }
+        let job = OWNER.with(|slot| {
+            let tls = slot.borrow_mut().take().expect("destroyed owner TLS");
+            tls.gate.set_phase(Phase::Closed);
+            tls.gate.job
         });
-        DestroyedReceipt { token: self.token }
+        DestroyedReceipt { token: self.token, job }
     }
 }
 
 /// E9：N1 专用收尾，类型上要求已真实销毁；旧 `finish_output` 签名与调用方不变。
 pub(crate) fn n1_finish(
     finished: &mut FinishedAdmission,
-    _destroyed: &DestroyedReceipt,
+    destroyed: &DestroyedReceipt,
 ) -> Result<(), AccountingError> {
+    if !Rc::ptr_eq(&finished.job, &destroyed.job) {
+        return Err(AccountingError::new("native_finish_owner", "销毁收据不属于同一Job"));
+    }
     finished.finish_output()
 }
 
@@ -1513,6 +1633,8 @@ trampoline!(t_pwrite64, pwrite64, (fd: c_int, b: *const c_void, n: usize, o: i64
 trampoline!(t_ftruncate, ftruncate, (fd: c_int, l: libc::off_t) -> c_int, -1);
 trampoline!(t_mmap, mmap, (a: *mut c_void, l: usize, p: c_int, f: c_int, fd: c_int, o: libc::off_t) -> *mut c_void, libc::MAP_FAILED);
 trampoline!(t_unlink, unlink, (p: *const c_char) -> c_int, -1);
+trampoline!(t_fchmod, fchmod, (fd: c_int, mode: libc::mode_t) -> c_int, -1);
+trampoline!(t_fchown, fchown, (fd: c_int, uid: libc::uid_t, gid: libc::gid_t) -> c_int, -1);
 
 type SyscallPtr = unsafe extern "C" fn();
 
@@ -1551,6 +1673,8 @@ unsafe fn install_once() -> Result<(), NativeCode> {
         ftruncate: std::mem::transmute::<SyscallPtr, FtruncateFn>(need(c"ftruncate")?),
         mmap: fetch(c"mmap").map(|p| std::mem::transmute::<SyscallPtr, MmapFn>(p)),
         unlink: std::mem::transmute::<SyscallPtr, UnlinkFn>(need(c"unlink")?),
+        fchmod: fetch(c"fchmod").map(|p| std::mem::transmute::<SyscallPtr, FchmodFn>(p)),
+        fchown: fetch(c"fchown").map(|p| std::mem::transmute::<SyscallPtr, FchownFn>(p)),
     };
     if orig.pread.is_none() && orig.pread64.is_none() {
         return Err(NativeCode::Unavailable);
@@ -1558,7 +1682,7 @@ unsafe fn install_once() -> Result<(), NativeCode> {
     if HOOKS.set(NativeHooks::new(orig)).is_err() {
         return Err(NativeCode::Unavailable);
     }
-    let table: [(&CStr, SyscallPtr); 11] = [
+    let table: [(&CStr, SyscallPtr); 13] = [
         (c"open", std::mem::transmute::<OpenFn, SyscallPtr>(t_open)),
         (c"close", std::mem::transmute::<CloseFn, SyscallPtr>(t_close)),
         (c"read", std::mem::transmute::<ReadFn, SyscallPtr>(t_read)),
@@ -1570,6 +1694,8 @@ unsafe fn install_once() -> Result<(), NativeCode> {
         (c"ftruncate", std::mem::transmute::<FtruncateFn, SyscallPtr>(t_ftruncate)),
         (c"mmap", std::mem::transmute::<MmapFn, SyscallPtr>(t_mmap)),
         (c"unlink", std::mem::transmute::<UnlinkFn, SyscallPtr>(t_unlink)),
+        (c"fchmod", std::mem::transmute::<FchmodFn, SyscallPtr>(t_fchmod)),
+        (c"fchown", std::mem::transmute::<FchownFn, SyscallPtr>(t_fchown)),
     ];
     let mut done: Vec<(&CStr, SyscallPtr)> = Vec::new();
     for (name, hook) in table {

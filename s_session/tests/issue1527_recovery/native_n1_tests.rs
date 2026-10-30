@@ -29,6 +29,8 @@ fn libc_orig() -> Orig {
         ftruncate: libc::ftruncate,
         mmap: Some(libc::mmap),
         unlink: libc::unlink,
+        fchmod: Some(libc::fchmod),
+        fchown: Some(libc::fchown),
     }
 }
 
@@ -1000,4 +1002,57 @@ fn native_n1_close_backup_busy_preserves_callbacks_where_31v_loses_them() {
     assert!(matches!(session.close(&mut errors), Teardown::Destroyed(_)));
     assert_eq!(drops.load(Ordering::Relaxed), 2);
     assert!(!fd_open(peer) && other_process_can_lock(&file.0));
+}
+
+fn native_child(name: &str) -> bool {
+    if std::env::var("NEWCHAN_32D_CHILD").ok().as_deref() == Some(name) { return true; }
+    let output = std::process::Command::new(std::env::current_exe().unwrap()).args([name, "--nocapture"])
+        .env("NEWCHAN_32D_CHILD", name).output().unwrap();
+    assert!(output.status.success(), "{}\n{}", String::from_utf8_lossy(&output.stdout), String::from_utf8_lossy(&output.stderr));
+    println!("{}", String::from_utf8_lossy(&output.stdout));
+    false
+}
+
+fn wal_fixture(tag: &str) -> (Temp, [DevIno; 3], std::fs::File, u64) {
+    use std::os::unix::fs::MetadataExt;
+    let file = Temp::new(tag);
+    std::fs::write(&file.0, []).unwrap();
+    let conn = rusqlite::Connection::open(&file.0).unwrap();
+    let mut set = 0;
+    assert_eq!(unsafe { rusqlite::ffi::sqlite3_db_config(conn.handle(), rusqlite::ffi::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, 1, &mut set) }, rusqlite::ffi::SQLITE_OK);
+    conn.execute_batch("PRAGMA journal_mode=WAL; CREATE TABLE payload(data BLOB); INSERT INTO payload VALUES(zeroblob(65536));").unwrap();
+    conn.close().unwrap();
+    let wal = PathBuf::from(format!("{}-wal", file.0.display()));
+    let shm = PathBuf::from(format!("{}-shm", file.0.display()));
+    let pin = std::fs::File::open(&shm).unwrap();
+    let metadata = pin.metadata().unwrap();
+    let wal_meta = std::fs::metadata(wal).unwrap();
+    let pins = [file.id(), (wal_meta.dev(), wal_meta.ino()), (metadata.dev(), metadata.ino())];
+    (file, pins, pin, metadata.blocks() * 512)
+}
+
+#[test]
+fn native_n1_vfs32d_real_sqlite_io_and_automatic_cleanup() {
+    if !native_child("native_n1_vfs32d_real_sqlite_io_and_automatic_cleanup") { return; }
+    let h = install().expect("子进程在首次SQLite调用前安装");
+    let (file, pins, pin, b0) = wal_fixture("real-vfs");
+    let (gate, account, _) = gate_with(60_000, 1 << 20);
+    let owner = NativeOwner::begin(h, gate, pins, b0, identity_bound()).unwrap();
+    let mut session = owner.open_native(&file.0, pin).unwrap();
+    let tx = session.begin().unwrap();
+    let len: i64 = tx.tx.query_row("SELECT sum(length(data)) FROM payload", [], |r| r.get(0)).unwrap();
+    assert_eq!(len, 65536);
+    let snapshot = account.borrow().snapshot();
+    assert!(snapshot.wire_bytes > 0);
+    assert_eq!(snapshot.wire_bytes, h.actual_io.load(Ordering::SeqCst) as u128, "同连接只按syscall实际n入账，xRead不重计");
+    assert!(snapshot.open_reservations > 0, "真实xShmMap仍持可写映射预留");
+    assert!(tx.tx.execute_batch("ATTACH ':memory:' AS forbidden").is_err(), "原生authorizer实际拒绝旁路连接");
+    tx.rollback().unwrap();
+    let mut errors = NativeErrors::default();
+    assert!(matches!(session.close(&mut errors), Teardown::Destroyed(_)), "关闭自动清算无需人工settle");
+    assert!(errors.reported().is_none(), "{errors:?}");
+    assert_eq!(account.borrow().snapshot().open_reservations, 0);
+    assert!(file.0.exists() && PathBuf::from(format!("{}-wal", file.0.display())).exists() && PathBuf::from(format!("{}-shm", file.0.display())).exists());
+    assert!(other_process_can_lock(&file.0));
+    println!("32D real SQLite: wire={}, syscall_n={}, grants_closed=0, sidecars=present", snapshot.wire_bytes, h.actual_io.load(Ordering::SeqCst));
 }
