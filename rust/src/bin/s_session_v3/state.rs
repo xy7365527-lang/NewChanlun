@@ -3162,6 +3162,7 @@ mod transaction_material_qualification {
         let meter = Meter;
         for which in 0..8 {
             super::super::ordinary_materials::LAST_REPORT.with(|r| r.set(None));
+            super::super::ordinary_materials::LAST_PROOFS.with(|r| r.set(None));
             let fresh = if which == 7 {
                 Some((
                     control_audit::prepare_s3_control_history(&tx).unwrap(),
@@ -3191,6 +3192,9 @@ mod transaction_material_qualification {
             if which == 0 {
                 result.unwrap();
             }
+            super::super::ordinary_materials::LAST_PROOFS.with(|r| {
+                assert_eq!(r.get().is_some(), which == 0 && !cfg!(feature = "s_incremental"));
+            });
             // 资格门 `ordinary_materials_qualified` 含 `!cfg!(feature = "s_incremental")`
             // （61b4adec5b）：native 构建下第 0 例同样不得发普通原件，与运行顺序无关。
             super::super::ordinary_materials::LAST_REPORT.with(|r| {
@@ -3225,6 +3229,7 @@ mod transaction_material_qualification {
             fn invalidate(&self) {}
         }
         super::super::ordinary_materials::LAST_REPORT.with(|r| r.set(None));
+            super::super::ordinary_materials::LAST_PROOFS.with(|r| r.set(None));
         let _ = CodecWork::new(std::sync::Arc::new(Parent), 1024 * 1024)
             .unwrap()
             .run(|scope| {

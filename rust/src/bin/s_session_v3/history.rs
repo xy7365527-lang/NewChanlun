@@ -997,7 +997,10 @@ fn read_indexed_history_inner(
     };
     let manifest_coverage = store.owned.is_none()
         && store.work.is_none()
-        && matches!(store.source, ReadOwner::Dynamic(_) | ReadOwner::SqliteBase(_));
+        && matches!(
+            store.source,
+            ReadOwner::Dynamic(_) | ReadOwner::SqliteBase(_)
+        );
     let mut public_roots = public_roots;
     let template_roots = {
         let mut stmt = CheckedStatement::prepare(tx, c"SELECT p.manifest_root FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation ORDER BY p.generation").map_err(err)?;
@@ -1233,7 +1236,10 @@ fn audit_one_published_cut<'capture>(
     let mut assembly = if let Some(verified_templates) = verified_templates.filter(|_| {
         store.owned.is_none()
             && store.work.is_none()
-            && matches!(store.source, ReadOwner::Dynamic(_) | ReadOwner::SqliteBase(_))
+            && matches!(
+                store.source,
+                ReadOwner::Dynamic(_) | ReadOwner::SqliteBase(_)
+            )
     }) {
         let manifest_digest = manifest.view().digest().map_err(publish_err)?;
         if !std::ptr::eq(tx, verified_templates.transaction)
@@ -3320,7 +3326,10 @@ impl<'a> HashReader<'a> {
         self.policy == SourcePolicy::Ordinary
             && self.owned.is_none()
             && self.work.is_none()
-            && matches!(self.source, ReadOwner::Dynamic(_) | ReadOwner::SqliteBase(_))
+            && matches!(
+                self.source,
+                ReadOwner::Dynamic(_) | ReadOwner::SqliteBase(_)
+            )
     }
     pub(crate) fn owned_codec_active(&self) -> bool {
         self.owned.is_some()
@@ -3390,7 +3399,10 @@ impl<'a> HashReader<'a> {
             return owner.verify_many_cached(refs, mode);
         }
         if self.work.is_some()
-            || matches!(self.source, ReadOwner::Dynamic(_) | ReadOwner::SqliteBase(_))
+            || matches!(
+                self.source,
+                ReadOwner::Dynamic(_) | ReadOwner::SqliteBase(_)
+            )
             || (!self.native_measured() && (self.budget.is_some() || self.deadline.is_some()))
         {
             return sc::audit_verify_many(self, refs, mode);
@@ -5978,7 +5990,6 @@ pub(super) mod tests {
         eprintln!("ORDINARY_MATERIAL_REQUEST_HEAP {observed} {material:?}");
     }
 
-    #[cfg(feature = "s_incremental")]
     pub(crate) fn legacy_s4_fixture_path(cut: usize, extension: &str) -> std::path::PathBuf {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures/s4-legacy4df")

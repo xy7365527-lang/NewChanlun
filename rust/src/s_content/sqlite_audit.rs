@@ -201,114 +201,194 @@ mod tests {
     use super::*;
     use crate::s_content::{self as sc, ContentRef, Kind, MemoryNodes, Value};
     fn database(nodes: &MemoryNodes) -> Connection {
-        let conn=Connection::open_in_memory().unwrap();
+        let conn = Connection::open_in_memory().unwrap();
         conn.execute_batch("CREATE TABLE s_content_nodes(digest BLOB PRIMARY KEY, tag INTEGER, body BLOB) WITHOUT ROWID").unwrap();
-        for (d,t,b) in nodes.iter() {
-            conn.execute("INSERT INTO s_content_nodes VALUES(?1,?2,?3)",rusqlite::params![&d[..],t,b]).unwrap();
+        for (d, t, b) in nodes.iter() {
+            conn.execute(
+                "INSERT INTO s_content_nodes VALUES(?1,?2,?3)",
+                rusqlite::params![&d[..], t, b],
+            )
+            .unwrap();
         }
         conn
     }
     fn root(nodes: &mut MemoryNodes) -> ContentRef {
-        sc::write_value(nodes,&Value::Array(vec![Value::String("payload".repeat(20)),Value::Bool(true)])).unwrap().content_ref()
+        sc::write_value(
+            nodes,
+            &Value::Array(vec![Value::String("payload".repeat(20)), Value::Bool(true)]),
+        )
+        .unwrap()
+        .content_ref()
     }
-    fn oracle(conn: &Connection, r: &ContentRef, mode: Mode) -> Result<(),CodecError> {
+    fn oracle(conn: &Connection, r: &ContentRef, mode: Mode) -> Result<(), CodecError> {
         struct Source<'a>(&'a Connection);
         impl NodeSource for Source<'_> {
-            fn read(&mut self,d:&NodeDigest)->Result<NodeRead,CodecError> {
-                Ok(match read_sql_material(self.0,d)? { None=>NodeRead::Missing, Some((tag,body))=>NodeRead::Found{tag,body} })
+            fn read(&mut self, d: &NodeDigest) -> Result<NodeRead, CodecError> {
+                Ok(match read_sql_material(self.0, d)? {
+                    None => NodeRead::Missing,
+                    Some((tag, body)) => NodeRead::Found { tag, body },
+                })
             }
         }
-        sc::verify_refview(&mut Source(conn),r.into(),mode)
+        sc::verify_refview(&mut Source(conn), r.into(), mode)
     }
     #[test]
     fn base_success_reuses_only_closure_and_keeps_every_root_header() {
-        let mut nodes=MemoryNodes::new(); let r=root(&mut nodes); let conn=database(&nodes);
-        let base=SqliteAuditBase::new(&conn,4096);
-        base.verify_ref((&r).into(),Mode::Public).unwrap();
-        let first=base.material_stats(); let before=sc::frame_calls_on_thread();
-        base.verify_ref((&r).into(),Mode::Public).unwrap();
-        let second=base.material_stats();
-        assert_eq!(second.logical_reads-first.logical_reads,1);
-        assert_eq!(second.sql_material_reads,first.sql_material_reads);
-        assert_eq!(sc::frame_calls_on_thread()-before,1);
-        assert!(base.proof_stats().hits>0);
-        for bad in [ContentRef::new(Kind::String,&r.digest().unwrap(),Some(2)),
-            ContentRef::new(Kind::Array,&r.digest().unwrap(),Some(99))] {
-            let before=base.proof_stats().commits;
-            assert_eq!(base.verify_ref((&bad).into(),Mode::Public).unwrap_err().to_string(),
-                oracle(&conn,&bad,Mode::Public).unwrap_err().to_string());
-            assert_eq!(base.proof_stats().commits,before);
+        let mut nodes = MemoryNodes::new();
+        let r = root(&mut nodes);
+        let conn = database(&nodes);
+        let base = SqliteAuditBase::new(&conn, 4096);
+        base.verify_ref((&r).into(), Mode::Public).unwrap();
+        let first = base.material_stats();
+        let before = sc::frame_calls_on_thread();
+        base.verify_ref((&r).into(), Mode::Public).unwrap();
+        let second = base.material_stats();
+        assert_eq!(second.logical_reads - first.logical_reads, 1);
+        assert_eq!(second.sql_material_reads, first.sql_material_reads);
+        assert_eq!(sc::frame_calls_on_thread() - before, 1);
+        assert!(base.proof_stats().hits > 0);
+        for bad in [
+            ContentRef::new(Kind::String, &r.digest().unwrap(), Some(2)),
+            ContentRef::new(Kind::Array, &r.digest().unwrap(), Some(99)),
+        ] {
+            let before = base.proof_stats().commits;
+            assert_eq!(
+                base.verify_ref((&bad).into(), Mode::Public)
+                    .unwrap_err()
+                    .to_string(),
+                oracle(&conn, &bad, Mode::Public).unwrap_err().to_string()
+            );
+            assert_eq!(base.proof_stats().commits, before);
         }
-        eprintln!("SQLITE_BASE_READS first={first:?} second={second:?} proof={:?}",base.proof_stats());
+        eprintln!(
+            "SQLITE_BASE_READS first={first:?} second={second:?} proof={:?}",
+            base.proof_stats()
+        );
     }
     #[test]
     fn base_mode_flavor_and_many_failure_never_publish_partial_success() {
-        let mut nodes=MemoryNodes::new();let good=root(&mut nodes);
-        let template=sc::write_template(&mut nodes,&Value::BatchSelf).unwrap().content_ref();
-        let leaf=sc::write_value(&mut nodes,&Value::Bool(true)).unwrap().content_ref();
-        let inner=sc::frame(sc::tag::JSON_TEXT,&leaf.digest().unwrap());
-        nodes.insert_unchecked(inner,sc::tag::JSON_TEXT,leaf.digest().unwrap().to_vec());
-        let outer=sc::frame(sc::tag::JSON_TEXT,&inner);
-        nodes.insert_unchecked(outer,sc::tag::JSON_TEXT,inner.to_vec());
-        let bad=sc::frame(sc::tag::BOOL_TRUE,&[1]);
-        nodes.insert_unchecked(bad,sc::tag::BOOL_TRUE,vec![1]);
-        let bad=ContentRef::new(Kind::Bool,&bad,None);
-        let conn=database(&nodes);
-        let base=SqliteAuditBase::new(&conn,4096);
-        base.verify_ref((&template).into(),Mode::Template).unwrap();
-        assert_eq!(base.verify_ref((&template).into(),Mode::Public).unwrap_err().to_string(),
-            oracle(&conn,&template,Mode::Public).unwrap_err().to_string());
-        let inner=ContentRef::new(Kind::JsonText,&inner,None);
-        let outer=ContentRef::new(Kind::JsonText,&outer,None);
-        base.verify_ref((&inner).into(),Mode::Public).unwrap();
-        assert_eq!(base.verify_ref((&outer).into(),Mode::Public).unwrap_err().to_string(),
-            oracle(&conn,&outer,Mode::Public).unwrap_err().to_string());
+        let mut nodes = MemoryNodes::new();
+        let good = root(&mut nodes);
+        let template = sc::write_template(&mut nodes, &Value::BatchSelf)
+            .unwrap()
+            .content_ref();
+        let leaf = sc::write_value(&mut nodes, &Value::Bool(true))
+            .unwrap()
+            .content_ref();
+        let inner = sc::frame(sc::tag::JSON_TEXT, &leaf.digest().unwrap());
+        nodes.insert_unchecked(inner, sc::tag::JSON_TEXT, leaf.digest().unwrap().to_vec());
+        let outer = sc::frame(sc::tag::JSON_TEXT, &inner);
+        nodes.insert_unchecked(outer, sc::tag::JSON_TEXT, inner.to_vec());
+        let bad = sc::frame(sc::tag::BOOL_TRUE, &[1]);
+        nodes.insert_unchecked(bad, sc::tag::BOOL_TRUE, vec![1]);
+        let bad = ContentRef::new(Kind::Bool, &bad, None);
+        let conn = database(&nodes);
+        let base = SqliteAuditBase::new(&conn, 4096);
+        base.verify_ref((&template).into(), Mode::Template).unwrap();
+        assert_eq!(
+            base.verify_ref((&template).into(), Mode::Public)
+                .unwrap_err()
+                .to_string(),
+            oracle(&conn, &template, Mode::Public)
+                .unwrap_err()
+                .to_string()
+        );
+        let inner = ContentRef::new(Kind::JsonText, &inner, None);
+        let outer = ContentRef::new(Kind::JsonText, &outer, None);
+        base.verify_ref((&inner).into(), Mode::Public).unwrap();
+        assert_eq!(
+            base.verify_ref((&outer).into(), Mode::Public)
+                .unwrap_err()
+                .to_string(),
+            oracle(&conn, &outer, Mode::Public).unwrap_err().to_string()
+        );
         drop(base);
-        let base=SqliteAuditBase::new(&conn,4096);
+        let base = SqliteAuditBase::new(&conn, 4096);
         for _ in 0..2 {
-            assert_eq!(base.verify_many([(&good).into(),(&bad).into()],Mode::Public)
-                .unwrap_err().to_string(),oracle(&conn,&bad,Mode::Public).unwrap_err().to_string());
-            assert_eq!(base.proof_stats().entries,0);
-            assert_eq!(base.proof_stats().commits,0);
+            assert_eq!(
+                base.verify_many([(&good).into(), (&bad).into()], Mode::Public)
+                    .unwrap_err()
+                    .to_string(),
+                oracle(&conn, &bad, Mode::Public).unwrap_err().to_string()
+            );
+            assert_eq!(base.proof_stats().entries, 0);
+            assert_eq!(base.proof_stats().commits, 0);
         }
-        let before=base.material_stats().logical_reads;
-        base.verify_ref((&good).into(),Mode::Public).unwrap();
-        assert!(base.material_stats().logical_reads-before>1);
+        let before = base.material_stats().logical_reads;
+        base.verify_ref((&good).into(), Mode::Public).unwrap();
+        assert!(base.material_stats().logical_reads - before > 1);
     }
     #[test]
     fn base_new_audit_observes_changed_and_missing_sql_materials() {
-        let mut nodes=MemoryNodes::new();let r=root(&mut nodes);let conn=database(&nodes);
-        { let base=SqliteAuditBase::new(&conn,4096);base.verify_ref((&r).into(),Mode::Public).unwrap(); }
-        conn.execute("UPDATE s_content_nodes SET body=x'01' WHERE digest=?1",rusqlite::params![&r.digest().unwrap()[..]]).unwrap();
-        let base=SqliteAuditBase::new(&conn,4096);
-        assert_eq!(base.proof_stats().entries,0);
-        assert_eq!(base.verify_ref((&r).into(),Mode::Public).unwrap_err().to_string(),oracle(&conn,&r,Mode::Public).unwrap_err().to_string());
-        assert_eq!(base.proof_stats().commits,0);drop(base);
-        conn.execute("DELETE FROM s_content_nodes WHERE digest=?1",rusqlite::params![&r.digest().unwrap()[..]]).unwrap();
-        let base=SqliteAuditBase::new(&conn,4096);
-        assert_eq!(base.verify_ref((&r).into(),Mode::Public).unwrap_err().to_string(),oracle(&conn,&r,Mode::Public).unwrap_err().to_string());
+        let mut nodes = MemoryNodes::new();
+        let r = root(&mut nodes);
+        let conn = database(&nodes);
+        {
+            let base = SqliteAuditBase::new(&conn, 4096);
+            base.verify_ref((&r).into(), Mode::Public).unwrap();
+        }
+        conn.execute(
+            "UPDATE s_content_nodes SET body=x'01' WHERE digest=?1",
+            rusqlite::params![&r.digest().unwrap()[..]],
+        )
+        .unwrap();
+        let base = SqliteAuditBase::new(&conn, 4096);
+        assert_eq!(base.proof_stats().entries, 0);
+        assert_eq!(
+            base.verify_ref((&r).into(), Mode::Public)
+                .unwrap_err()
+                .to_string(),
+            oracle(&conn, &r, Mode::Public).unwrap_err().to_string()
+        );
+        assert_eq!(base.proof_stats().commits, 0);
+        drop(base);
+        conn.execute(
+            "DELETE FROM s_content_nodes WHERE digest=?1",
+            rusqlite::params![&r.digest().unwrap()[..]],
+        )
+        .unwrap();
+        let base = SqliteAuditBase::new(&conn, 4096);
+        assert_eq!(
+            base.verify_ref((&r).into(), Mode::Public)
+                .unwrap_err()
+                .to_string(),
+            oracle(&conn, &r, Mode::Public).unwrap_err().to_string()
+        );
     }
     #[test]
     fn base_full_table_and_disabled_table_preserve_verifier_results() {
-        let mut nodes=MemoryNodes::new();
-        let roots:Vec<_>=(0..20).map(|n|sc::write_value(&mut nodes,&Value::String(format!("value-{n}"))).unwrap().content_ref()).collect();
-        let conn=database(&nodes);
-        for capacity in [0,4] {
-            let base=SqliteAuditBase { conn:&conn,materials:RefCell::new(RawMaterials::production(4096)),
-                proofs:RefCell::new(SuccessTable::new(capacity)) };
+        let mut nodes = MemoryNodes::new();
+        let roots: Vec<_> = (0..20)
+            .map(|n| {
+                sc::write_value(&mut nodes, &Value::String(format!("value-{n}")))
+                    .unwrap()
+                    .content_ref()
+            })
+            .collect();
+        let conn = database(&nodes);
+        for capacity in [0, 4] {
+            let base = SqliteAuditBase {
+                conn: &conn,
+                materials: RefCell::new(RawMaterials::production(4096)),
+                proofs: RefCell::new(SuccessTable::new(capacity)),
+            };
             for r in roots.iter().chain(roots.iter().rev()) {
-                oracle(&conn,r,Mode::Public).unwrap();
-                base.verify_ref(r.into(),Mode::Public).unwrap();
-                assert!(base.proof_stats().entries<=capacity);
+                oracle(&conn, r, Mode::Public).unwrap();
+                base.verify_ref(r.into(), Mode::Public).unwrap();
+                assert!(base.proof_stats().entries <= capacity);
             }
         }
-        let base=SqliteAuditBase::new(&conn,4096);
-        let stats=base.proof_stats();
-        assert_eq!(stats.retained_bytes,65536*33+4096);
-        assert!(stats.retained_bytes<=PROOF_CAP);
-        assert_eq!(base.material_stats().slab_capacity,33550336);
-        eprintln!("SQLITE_BASE_LAYOUT table_capacity={} table_entry_size={} owner={} retained={}",
-            base.proofs.borrow().slots.capacity(),std::mem::size_of::<[u8;33]>(),
-            std::mem::size_of_val(&base),stats.retained_bytes);
+        let base = SqliteAuditBase::new(&conn, 4096);
+        let stats = base.proof_stats();
+        assert_eq!(stats.retained_bytes, 65536 * 33 + 4096);
+        assert!(stats.retained_bytes <= PROOF_CAP);
+        assert_eq!(base.material_stats().slab_capacity, 33550336);
+        eprintln!(
+            "SQLITE_BASE_LAYOUT table_capacity={} table_entry_size={} owner={} retained={}",
+            base.proofs.borrow().slots.capacity(),
+            std::mem::size_of::<[u8; 33]>(),
+            std::mem::size_of_val(&base),
+            stats.retained_bytes
+        );
     }
 }

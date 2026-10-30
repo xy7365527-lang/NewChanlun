@@ -10,7 +10,7 @@ fn sqlite_base_two_readers_overlay_clear_and_fresh_obey_domain() {
     let leaf=sc::write_value(&mut content_store::TxStore::new(&tx).unwrap(),
         &sc::Value::String("deep payload".repeat(10))).unwrap().content_ref();
     let root=sc::write_value(&mut content_store::TxStore::new(&tx).unwrap(),
-        &sc::Value::Array(vec![sc::Value::Edge(leaf.clone())])).unwrap().content_ref();
+        &sc::Value::Array(vec![sc::Value::Edge(leaf.digest().unwrap())])).unwrap().content_ref();
     let base=sc::sqlite_audit::SqliteAuditBase::new(&tx,super::super::ordinary_materials::METADATA_BYTES);
     { let mut first=HashReader::sqlite_base(&base);first.verify_ref((&root).into(),sc::Mode::Public).unwrap(); }
     let reads=base.material_stats().logical_reads;
@@ -106,8 +106,8 @@ fn sqlite_base_real_audit_matches_frozen_baseline_and_first_errors() {
     assert_eq!(prepared::tests::runtime_root_tables(&conn,true),before);
     eprintln!("SQLITE_BASE_AUDIT old={old_stats:?} new={new_stats:?} proof={proofs:?}");
     for statement in [
-        "UPDATE s_content_nodes SET body=x'01' WHERE digest=(SELECT digest FROM s_content_nodes ORDER BY digest LIMIT 1)",
-        "DELETE FROM s_content_nodes WHERE digest=(SELECT digest FROM s_content_nodes ORDER BY digest LIMIT 1)"
+        "UPDATE s_content_nodes SET body=x'01' WHERE digest=(SELECT snapshot_root FROM s_content_publications ORDER BY generation LIMIT 1)",
+        "DELETE FROM s_content_nodes WHERE digest=(SELECT snapshot_root FROM s_content_publications ORDER BY generation LIMIT 1)"
     ] {
         conn.execute_batch(statement).unwrap();
         let tx=conn.transaction().unwrap();
