@@ -38,7 +38,7 @@ addition = r'''
                 serde_json::to_vec(&serde_json::json!({
                     "head": "4df2d10f92d1075f5fb761a1b112c9c949da5408",
                     "reply": reply,
-                    "roots": prepared::tests::runtime_root_tables(&actual.conn, false),
+                    "roots_debug": format!("{:?}", prepared::tests::runtime_root_tables(&actual.conn, false)),
                     "arrays": new_roots
                 })).unwrap()).unwrap();
 '''

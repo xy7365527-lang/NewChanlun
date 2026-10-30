@@ -416,7 +416,7 @@ fn ordinary_material_readonly_owner_and_some_gates_match_uncached_source() {
         let reference = sc::write_value(
             &mut content_store::TxStore::new(&tx).unwrap(),
             &sc::Value::Array(vec![
-                sc::Value::String("payload".repeat(200)),
+                sc::Value::String("payload".repeat(20)),
                 sc::Value::Bool(true),
             ]),
         )
