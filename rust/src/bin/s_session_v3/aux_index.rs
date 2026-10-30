@@ -1628,28 +1628,28 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
         &mut self,
         s: &mut (impl CodecStore + ?Sized),
         ordinal: usize,
-    ) -> Result<Option<RefValue>, String> {
+    ) -> Result<Option<RefValue>, PublishError> {
         if let Some(value) = self.raw_memo.get(&ordinal) {
             if let Some(r) = value {
                 s.native_verify_original(self.capture, r.view(), sc::Mode::Public)
-                    .map_err(err)?;
+                    .map_err(publish_err)?;
             }
             return value
                 .as_ref()
-                .map(|r| s.native_ref_clone(r).map_err(err))
+                .map(|r| s.native_ref_clone(r).map_err(publish_err))
                 .transpose();
         }
         let event = self
             .raw
             .get(ordinal)
-            .ok_or_else(|| err("raw ordinal越界"))?;
+            .ok_or_else(|| publish_err("raw ordinal越界"))?;
         let value = supersedes_relation(s, event)?;
         let eligible = match &value {
             None => true,
             Some(r) => {
-                if self.capture.contains(&r.digest().map_err(err)?) {
+                if self.capture.contains(&r.digest().map_err(publish_err)?) {
                     s.native_verify_original(self.capture, r.view(), sc::Mode::Public)
-                        .map_err(err)?;
+                        .map_err(publish_err)?;
                     true
                 } else {
                     false
@@ -1657,16 +1657,16 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
             }
         };
         if eligible {
-            s.native_map_room(&mut self.raw_memo).map_err(err)?;
+            s.native_map_room(&mut self.raw_memo).map_err(publish_err)?;
             self.raw_memo
                 .insert(
                     ordinal,
                     value
                         .as_ref()
-                        .map(|r| s.native_ref_clone(r).map_err(err))
+                        .map(|r| s.native_ref_clone(r).map_err(publish_err))
                         .transpose()?,
                 )
-                .map_err(err)?;
+                .map_err(publish_err)?;
         }
         Ok(value)
     }
@@ -1674,7 +1674,7 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
         &mut self,
         prefix: usize,
         admission: &(impl CodecRead + ?Sized),
-    ) -> Result<usize, String> {
+    ) -> Result<usize, PublishError> {
         self.raw.prefix(prefix)?;
         // 原件只实际读一遍；历史回退取 ordinal 前缀，不把未来修订写回旧 cut。
         for ordinal in self.raw_scanned..prefix {
@@ -1682,12 +1682,12 @@ impl<'index, 'capture, 'raw> NativeAuxAudit<'index, 'capture, 'raw> {
             let event = self
                 .raw
                 .get(ordinal)
-                .ok_or_else(|| err("raw ordinal越界"))?;
+                .ok_or_else(|| publish_err("raw ordinal越界"))?;
             if !bj::field(event, "supersedes_revision").is_null() {
                 admission
                     .native_codec_room(&mut self.facts.raw_revisions, 1)
-                    .map_err(err)?;
-                self.raw_revisions.try_push(ordinal).map_err(err)?;
+                    .map_err(publish_err)?;
+                self.raw_revisions.try_push(ordinal).map_err(publish_err)?;
             }
         }
         self.raw_scanned = self.raw_scanned.max(prefix);
@@ -1721,7 +1721,7 @@ pub(super) fn verify_generated_members<'a>(
         raw,
         g,
         None,
-    )
+    ).map_err(Into::into)
 }
 pub(super) fn verify_generated_members_with_changes<'a>(
     s: &mut (impl CodecStore + ?Sized),
@@ -2960,7 +2960,7 @@ mod tests {
                 2
             )
             .unwrap_err()
-            .contains("出生集合或顺序"));
+            .to_string().contains("出生集合或顺序"));
         assert!(owner
             .audit(
                 &mut reader,
@@ -2970,7 +2970,7 @@ mod tests {
                 2
             )
             .unwrap_err()
-            .contains("源身份缺失"));
+            .to_string().contains("源身份缺失"));
         assert!(owner.raw_memo.is_empty() && owner.relation_memo.is_empty());
         let other = sc::AuditCapture::new(sc::MemoryNodes::new());
         let mut foreign =
@@ -3026,7 +3026,7 @@ mod tests {
                 1
             )
             .unwrap_err()
-            .contains("原件与独立索引不一致"));
+            .to_string().contains("原件与独立索引不一致"));
         drop(owner);
         let missing = Index::default();
         let mut owner =
@@ -3071,7 +3071,7 @@ mod tests {
                 3
             )
             .unwrap_err()
-            .contains("独立索引重复"));
+            .to_string().contains("独立索引重复"));
         drop(owner);
         let mut owner =
             NativeAuxAudit::from_loaded(&reader, &index, RawEventsView::plain(&[])).unwrap();
@@ -3847,7 +3847,7 @@ mod tests {
                                 g
                             )
                             .unwrap_err()
-                            .contains("出生集合或顺序"));
+                            .to_string().contains("出生集合或顺序"));
                     }
                     let bad_replaces = json!([{}]);
                     let mut owner =
@@ -3892,7 +3892,7 @@ mod tests {
                             g
                         )
                         .unwrap_err()
-                        .contains("独立索引重复"));
+                        .to_string().contains("独立索引重复"));
                 }
             }
             if g == 1 {

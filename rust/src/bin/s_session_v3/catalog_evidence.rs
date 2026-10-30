@@ -517,7 +517,7 @@ pub(super) fn verify_cut_metered<'a, 'changes>(
         deadline,
         budget,
         0,
-    )
+    ).map_err(Into::into)
 }
 #[allow(clippy::too_many_arguments)]
 pub(super) fn verify_cut_for_audit<'a, 'r>(
@@ -797,7 +797,7 @@ pub(super) fn verify_current(
     store: &mut dyn NodeStore,
     axes: &ContentRef,
 ) -> Result<(), String> {
-    verify_current_in_store(tx, &mut super::audit_store::StoreView::generic(store), axes)
+    verify_current_in_store(tx, &mut super::audit_store::StoreView::generic(store), axes).map_err(Into::into)
 }
 pub(super) fn verify_current_for_audit<'r>(
     tx: &Transaction<'_>,

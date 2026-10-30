@@ -1013,11 +1013,11 @@ fn audit_core_fresh_with_policy(
                 deadline,
                 max_render_bytes,
                 budget,
-                |store, proofs| audit_cut(store, Some(proofs)),
+                |store, proofs| audit_cut(store, Some(proofs)).map_err(Into::into),
             )?;
         } else if verified_history.qualified() {
             verified_history.audit_cut(tx, cut, deadline, max_render_bytes, budget, |store| {
-                audit_cut(store, None)
+                audit_cut(store, None).map_err(Into::into)
             })?;
         } else {
             audit_cut(&mut store, None)?;

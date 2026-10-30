@@ -295,8 +295,8 @@ impl NativeRawPrefixes {
         let mut retained = super::audit_retention::RetainedDelta::default();
         retained.vec_capacity::<NodeDigest>(old[0], self.raw_nodes.capacity());
         retained.vec_capacity::<NodeDigest>(old[1], self.raw_wire_nodes.capacity());
-        retained.apply(0)
-    }
+        retained.apply(0).map_err(Into::into)
+}
     #[cfg_attr(
         not(all(test, feature = "s_incremental")),
         allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
@@ -1950,7 +1950,7 @@ pub(super) fn revalidate_current_for_reuse_measured(
         cuts,
         cuts.last().map_or(-1, |c| c.metadata.input_frontier),
         None,
-    )
+    ).map_err(Into::into)
 }
 
 fn verify_source(
@@ -2511,7 +2511,7 @@ fn hash_array_metered_with_owner(
     records: bool,
     allocation: Option<&OwnedBudget>,
 ) -> Result<NodeDigest, String> {
-    hash_array_metered_with_work(nodes, deadline, budget, records, allocation, None)
+    hash_array_metered_with_work(nodes, deadline, budget, records, allocation, None).map_err(Into::into)
 }
 fn hash_array_metered_with_work(
     nodes: &[NodeDigest],
@@ -2635,15 +2635,15 @@ struct NativeHistoryPrefixes {
     last_coord: Option<i64>,
 }
 impl NativeHistoryPrefixes {
-    fn admit_append(&mut self, store: &(impl CodecRead + ?Sized)) -> Result<(), String> {
-        store.native_vec_room(&mut self.raw.stack, 1).map_err(err)?;
+    fn admit_append(&mut self, store: &(impl CodecRead + ?Sized)) -> Result<(), PublishError> {
+        store.native_vec_room(&mut self.raw.stack, 1).map_err(publish_err)?;
         store
             .native_vec_room(&mut self.wire.stack, 1)
-            .map_err(err)?;
+            .map_err(publish_err)?;
         if let Some(effective) = &mut self.effective {
             store
                 .native_vec_room(&mut effective.stack, 1)
-                .map_err(err)?;
+                .map_err(publish_err)?;
         }
         Ok(())
     }
@@ -8121,7 +8121,7 @@ fn verify_required_meta_admitted(
         .ok_or_else(|| publish_err(admission.native_overflow()))?;
     let _temporaries = admission.native_reservation(reserved_bytes).map_err(publish_err)?;
     // 原严格核返回时所有String、JSON树、格式化缓冲已析构，随后原许可析构。
-    verify_required_meta(tx)
+    verify_required_meta(tx).map_err(Into::into)
 }
 
 /// owner 已闭合全局 Q 和共同保持前件后，只消费实际新增的一代完整历史。

@@ -2460,7 +2460,7 @@ pub(super) fn changes_at_budgeted(
         index,
         g,
         allocation,
-    )
+    ).map_err(Into::into)
 }
 /// 当前候选域入口；旧接口只用于无 scope 的调用。
 pub(super) fn changes_at_admitted(
@@ -2636,7 +2636,7 @@ fn native_rank(
     e: &Entry,
     dead: bool,
     store: &(impl CodecRead + ?Sized),
-) -> Result<PublicRank, String> {
+) -> Result<PublicRank, PublishError> {
     let (epoch, key) = public_rank(layout, e, dead)?;
     Ok((epoch, key.owned_admitted(store)?))
 }
@@ -2828,16 +2828,16 @@ impl HistorySweep {
     }
     #[cfg(test)]
     fn advance(&mut self, g: i64) -> Result<(), String> {
-        self.advance_admitted(g, &super::audit_store::NativeAdmission(None))
-    }
+        self.advance_admitted(g, &super::audit_store::NativeAdmission(None)).map_err(Into::into)
+}
     #[cfg(test)]
     pub(super) fn changes(
         &self,
         index: &[Entry],
         g: i64,
     ) -> Result<(bj::JsonOwner, bj::JsonOwner), String> {
-        self.changes_admitted(&super::audit_store::NativeAdmission(None), index, g)
-    }
+        self.changes_admitted(&super::audit_store::NativeAdmission(None), index, g).map_err(Into::into)
+}
     pub(super) fn changes_admitted(
         &self,
         s: &(impl CodecRead + ?Sized),
@@ -3050,7 +3050,7 @@ pub(super) fn verify_generated_members_swept<'a>(
     g: i64,
     sweep: Option<&HistorySweep>,
 ) -> Result<(), String> {
-    verify_generated_members_swept_with_records(s, index, state, g, sweep, None)
+    verify_generated_members_swept_with_records(s, index, state, g, sweep, None).map_err(Into::into)
 }
 pub(super) fn verify_generated_members_swept_with_records<'a>(
     s: &mut (impl CodecStore + ?Sized),
@@ -5612,7 +5612,7 @@ mod tests {
                 Layout::Sorted => result.unwrap(),
                 Layout::Bounded1 => {
                     let error = result.unwrap_err();
-                    assert!(error.contains("RankSet出集键不存在"), "{error}");
+                    assert!(error.to_string().contains("RankSet出集键不存在"), "{error}");
                 }
             }
         }
@@ -5635,7 +5635,7 @@ mod tests {
         let error = sweep
             .seek_admitted(4, Layout::Bounded1, &entries, &store)
             .unwrap_err();
-        assert!(error.contains("缺撤回代"), "{error}");
+        assert!(error.to_string().contains("缺撤回代"), "{error}");
     }
 
     #[cfg(feature = "s_incremental")]

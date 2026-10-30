@@ -1143,21 +1143,21 @@ impl ControlFacts {
         _bound: &crate::v3::audit_owner::BoundOriginals,
         retained: &mut crate::v3::audit_retention::RetainedDelta,
         admission: &(impl crate::v3::audit_store::CodecRead + ?Sized),
-    ) -> Result<ControlHistory, String> {
+    ) -> Result<ControlHistory, newchan_rust::s_content::ContextError> {
         if generation != self.headers.len() as i64 + 1 {
-            return Err(err("owner 新控制头非连续尾"));
+            return Err(err("owner 新控制头非连续尾").into());
         }
-        let key = (generation, admission.native_text(batch).map_err(err)?);
+        let key = (generation, admission.native_text(batch).map_err(|error| newchan_rust::s_content::ContextError::from(error).context("StorageUnavailable："))?);
         let header = ControlHeader {
-            commit_ns: admission.native_text(commit_ns).map_err(err)?,
+            commit_ns: admission.native_text(commit_ns).map_err(|error| newchan_rust::s_content::ContextError::from(error).context("StorageUnavailable："))?,
             consumed: false,
         };
         retained.add(&key);
         retained.add(&header);
         let capacity = self.headers.capacity();
-        admission.native_map_room(&mut self.headers).map_err(err)?;
-        if self.headers.insert(key, header).map_err(err)?.is_some() {
-            return Err(err("重复发布控制头"));
+        admission.native_map_room(&mut self.headers).map_err(|error| newchan_rust::s_content::ContextError::from(error).context("StorageUnavailable："))?;
+        if self.headers.insert(key, header).map_err(|error| newchan_rust::s_content::ContextError::from(error).context("StorageUnavailable："))?.is_some() {
+            return Err(err("重复发布控制头").into());
         }
         retained
             .hash_capacity::<(i64, TextValue), ControlHeader>(capacity, self.headers.capacity());

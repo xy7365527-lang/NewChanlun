@@ -578,8 +578,8 @@ impl<'raw> RawPrefixIndex<'raw> {
         allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
     )]
     pub(super) fn advance(&mut self, prefix: usize) -> Result<RawPrefixChanges, String> {
-        self.advance_admitted(prefix, &super::audit_store::NativeAdmission(None))
-    }
+        self.advance_admitted(prefix, &super::audit_store::NativeAdmission(None)).map_err(Into::into)
+}
     pub(super) fn advance_admitted(
         &mut self,
         prefix: usize,

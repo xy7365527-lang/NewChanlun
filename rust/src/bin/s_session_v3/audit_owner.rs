@@ -6584,11 +6584,47 @@ mod publication_degrade_verdict_tests {
                     Err(error
                         .clone()
                         .context("S3PrepareInvalid：")
+                        .context_suffix(" [owner full cut g=1]")
                         .context("S3DriverInvalid："))
                 }),
                 Ok(())
             );
         }
+    }
+
+    #[test]
+    fn publication_admitted_json_and_history_preserve_deep_origin() {
+        let text = "P57-source".repeat(2048);
+        assert_eq!(verdict(|work| {
+            let mut array = super::super::business_json::ScopedJsonArray::native(work)?;
+            array.push(newchan_rust::s_content::capture_allocation::audit_json::JsonView::String(&text))
+        }), Ok(()), "数组实际准入失败必须到达发布判据");
+        assert_eq!(verdict(|work| {
+            let store = super::super::audit_store::NativeAdmission(Some(work));
+            super::super::history::hash_json_in_store(
+                &store,
+                newchan_rust::s_content::capture_allocation::audit_json::JsonView::String(&text),
+                None,
+                None,
+            ).map(|_| ())
+        }), Ok(()), "历史摘要真实工作域失败必须保留来源");
+    }
+
+    #[test]
+    fn publication_admitted_sql_text_preserves_deep_origin() {
+        let connection = rusqlite::Connection::open_in_memory().unwrap();
+        let text = "P57-source".repeat(2048);
+        connection.execute("CREATE TABLE p57_text(value TEXT)", []).unwrap();
+        connection.execute("INSERT INTO p57_text VALUES (?1)", [&text]).unwrap();
+        assert_eq!(verdict(|work| {
+            let mut statement = newchan_rust::sqlite_checked::CheckedStatement::prepare(
+                &connection, c"SELECT value FROM p57_text",
+            )?;
+            let mut row = statement.next()?.unwrap();
+            super::super::business_json::TextValue::from_sql_admitted(
+                &mut row, 0, None, Some(work),
+            ).map(|_| ())
+        }), Ok(()), "SQL文本实际复制失败必须保留来源");
     }
 
     #[test]
