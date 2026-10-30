@@ -6,7 +6,9 @@
 use super::*;
 use std::collections::{BTreeMap, BTreeSet};
 use std::os::unix::fs::OpenOptionsExt;
-use newchan_rust::s_content::{self as sc, ContentRef, RefView};
+use newchan_rust::s_content::{ContentRef, RefView};
+#[cfg(feature = "s_incremental")]
+use newchan_rust::s_content as sc;
 use rusqlite::{params, OpenFlags};
 
 const FORMAT: &str = "s-audit-ledger/1";
@@ -194,10 +196,11 @@ impl Ledger {
         ).map_err(error)
     }
     pub(super) fn stage(&mut self, token: &str, delta: &GenerationDelta) -> Result<(), String> {
-        let result = self.stage_inner(token, delta, delta.new_units.iter());
+        let result = self.stage_inner(token, delta, delta.new_units.iter(), &delta.verifier_revision);
         if result.is_err() { self.invalidate(); }
         result
     }
+    #[cfg(feature = "s_incremental")]
     pub(super) fn stage_verified(
         &mut self, token: &str, delta: &GenerationDelta,
         verified: &sc::closure_delta::VerifiedUnits,
@@ -224,7 +227,7 @@ impl Ledger {
                 Ok(())
             })?;
             units.sort_unstable();
-            self.stage_inner(token, delta, units.iter())
+            self.stage_inner(token, delta, units.iter(), sc::closure_delta::VERIFIER_REVISION)
         })();
         if result.is_err() { self.invalidate(); }
         result
@@ -232,9 +235,10 @@ impl Ledger {
     fn stage_inner<'u>(
         &mut self, token: &str, d: &GenerationDelta,
         new_units: impl Iterator<Item = &'u Unit> + Clone,
+        verifier_revision: &str,
     ) -> Result<(), String> {
         if !matches!(self.phase, Phase::Ready) { return Err(error("台账不在可准备状态")); }
-        if token.is_empty() || d.verifier_revision.is_empty() || self.through()?.checked_add(1) != Some(d.generation) {
+        if token.is_empty() || verifier_revision.is_empty() || self.through()?.checked_add(1) != Some(d.generation) {
             return Err(error("请求或逐代序号无效"));
         }
         for r in &d.roots { r.digest().map_err(error)?; }
@@ -281,13 +285,13 @@ impl Ledger {
         let unit_values = Value::Array(new_units.map(serde_json::to_value)
             .collect::<Result<Vec<_>, _>>().map_err(error)?);
         let units = canonical_json(&unit_values);
-        let delta = json!({"generation":d.generation,"roots":roots,"verifier_revision":d.verifier_revision,
+        let delta = json!({"generation":d.generation,"roots":roots,"verifier_revision":verifier_revision,
             "raw":d.raw,"objects":d.objects,"witnesses":d.witnesses,"observations":d.observations,
             "cover":d.cover,"new_units":unit_values});
         let fold = sha256_hex(canonical_json(&json!([previous,delta])).as_bytes());
         conn.execute("INSERT INTO cert VALUES(?1,?2,?3,?4,?5,?6)",params![d.generation,
             canonical_json(&roots),sha256_hex(units.as_bytes()),i64::try_from(unit_count).map_err(error)?,
-            fold,d.verifier_revision]).map_err(error)?;
+            fold,verifier_revision]).map_err(error)?;
         conn.execute("UPDATE meta SET certified_through_generation=?1,fold_digest=?2 WHERE singleton=1",
             params![d.generation,fold]).map_err(error)?;
         self.check_storage()?;
@@ -398,6 +402,7 @@ pub(super) mod tests {
         assert_eq!(conn.query_row("SELECT withdrawn FROM object",[],|r|r.get::<_,i64>(0)).unwrap(),1);
         assert_eq!(online.through().unwrap(),3);
     }
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn p6_verified_units_difference_keeps_mode_and_first_generation() {
         let (f, _, token, mut metadata, mut roots) = prepared::tests::p6_candidate();

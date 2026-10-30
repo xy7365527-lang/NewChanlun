@@ -562,6 +562,7 @@ impl NativeMetadata {
 pub(super) struct UnpublishedManifest {
     pub value: Built,
     pub batch_id: TextValue,
+    #[cfg(feature = "s_incremental")]
     closure_units: Option<s_content::closure_delta::VerifiedUnits>,
 }
 
@@ -1454,6 +1455,7 @@ pub(crate) struct ManifestSourceReceipt {
     roots: NativeRoots,
     manifest_value: Built,
     batch_id: TextValue,
+    #[cfg(feature = "s_incremental")]
     closure_units: Option<s_content::closure_delta::VerifiedUnits>,
 }
 #[cfg(feature = "s_incremental")]
@@ -1564,6 +1566,7 @@ pub(crate) fn assemble_unpublished_view_in_store(
     });
     Ok(UnpublishedManifest {
         value: body.value,
+        #[cfg(feature = "s_incremental")]
         closure_units: body.closure_units,
         batch_id: TextValue::Plain(store.native_string(batch_text(&body.identity).as_str())?),
     })
@@ -1582,6 +1585,7 @@ pub(crate) fn take_assemble_call_reads_for_test() -> Vec<(u64, u64)> {
 struct ManifestBody {
     value: Built,
     identity: NodeDigest,
+    #[cfg(feature = "s_incremental")]
     closure_units: Option<s_content::closure_delta::VerifiedUnits>,
 }
 fn assemble_manifest_body(
@@ -1596,12 +1600,20 @@ fn assemble_manifest_body(
     // 同一次读集核完整闭包；路径算子只核触碰边界，不能替代这里的全闭包校验。
     #[cfg(test)]
     let sql = super::content_store::sql_reads_on_thread();
-    let closure_units = if store.collect_manifest_units {
+    let collect_units = {
+        #[cfg(feature = "s_incremental")]
+        { store.collect_manifest_units }
+        #[cfg(not(feature = "s_incremental"))]
+        { false }
+    };
+    #[cfg(feature = "s_incremental")]
+    let closure_units = if collect_units {
         let units = s_content::closure_delta::verify_four_roots(store,
             [metadata.scope, roots.generated_state, roots.publication_template, roots.delta_template])?;
         require_kind(metadata.scope, Kind::Object, "scope")?;
         Some(units)
-    } else {
+    } else { None };
+    if !collect_units {
     #[cfg(test)]
     crate::v3::diagnostic_trace_event("manifest_verify_scope", None);
     store.verify_manifest_public(metadata.scope)?;
@@ -1612,8 +1624,7 @@ fn assemble_manifest_body(
     #[cfg(test)]
     crate::v3::diagnostic_trace_event("manifest_verify_templates", None);
     store.verify_manifest_templates([roots.publication_template, roots.delta_template])?;
-        None
-    };
+    }
     #[cfg(test)]
     crate::v3::diagnostic_trace_event("manifest_verify_complete", None);
     #[cfg(test)]
@@ -1769,7 +1780,10 @@ fn assemble_manifest_body(
     ];
     let value = store.write_template_view(VV::Object(&manifest_fields))?;
     let identity = s_content::frame(0x21, &value.digest);
-    Ok(ManifestBody { value, identity, closure_units })
+    Ok(ManifestBody { value, identity,
+        #[cfg(feature = "s_incremental")]
+        closure_units,
+    })
 }
 
 fn text(value: &str) -> VV<'_> {

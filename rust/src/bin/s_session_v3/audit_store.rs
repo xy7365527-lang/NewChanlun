@@ -698,6 +698,7 @@ pub(crate) struct StoreView<'a, 'source> {
     backend: Backend<'a, 'source>,
     manifest_templates: Option<[NodeDigest; 2]>,
     manifest_public: Option<[NodeDigest; 2]>,
+    #[cfg(feature = "s_incremental")]
     pub(crate) collect_manifest_units: bool,
 }
 impl<'a, 'source> StoreView<'a, 'source> {
@@ -706,6 +707,7 @@ impl<'a, 'source> StoreView<'a, 'source> {
             backend: Backend::Generic(s),
             manifest_templates: None,
             manifest_public: None,
+            #[cfg(feature = "s_incremental")]
             collect_manifest_units: false,
         }
     }
@@ -714,6 +716,7 @@ impl<'a, 'source> StoreView<'a, 'source> {
             backend: Backend::Audit(s),
             manifest_templates: None,
             manifest_public: None,
+            #[cfg(feature = "s_incremental")]
             collect_manifest_units: false,
         }
     }
@@ -725,6 +728,7 @@ impl<'a, 'source> StoreView<'a, 'source> {
             backend: Backend::Audit(source),
             manifest_templates: Some(templates),
             manifest_public: Some(public),
+            #[cfg(feature = "s_incremental")]
             collect_manifest_units: false,
         }
     }

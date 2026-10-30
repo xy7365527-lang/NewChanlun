@@ -271,7 +271,7 @@ impl Runtime {
 
     #[cfg(feature = "s_incremental")]
     pub(super) fn queue_audit_ledger(
-        &mut self, token: String, delta: audit_ledger::GenerationDelta,
+        &mut self, token: String, mut delta: audit_ledger::GenerationDelta,
     ) -> Result<(), String> {
         let result = (|| {
             if token.is_empty() || self.queued_audit_delta.is_some()
@@ -283,6 +283,7 @@ impl Runtime {
             if through.checked_add(1) != Some(delta.generation) {
                 return Err("AuditLedgerStale：待准备事实代号不连续".into());
             }
+            delta.new_units.clear();
             self.queued_audit_delta = Some((token, delta));
             Ok(())
         })();
@@ -535,8 +536,7 @@ impl Runtime {
             None
         };
         let result = (|| {
-            #[allow(unused_mut)]
-            let mut prepared = self.prepare(
+            let prepared = self.prepare(
                 tx,
                 token,
                 envelope,
@@ -555,6 +555,8 @@ impl Runtime {
                 #[cfg(feature = "s_incremental")]
                 parent,
             )?;
+            #[cfg(feature = "s_incremental")]
+            let mut prepared = prepared;
             #[cfg(feature = "s_incremental")]
             if let Some((queued_token, delta)) = self.queued_audit_delta.take() {
                 if queued_token != token { return Err("AuditLedgerStale：待准备事实token不匹配".into()); }
@@ -1840,6 +1842,7 @@ pub(crate) mod tests {
         let saved = Connection::open(db.with_file_name("queued.sqlite")).unwrap();
         let count: i64 = saved.query_row("SELECT COUNT(*) FROM node", [], |r| r.get(0)).unwrap();
         assert!(count > 4);
+        assert_eq!(saved.query_row("SELECT verifier_revision FROM cert", [], |r| r.get::<_, String>(0)).unwrap(), sc::closure_delta::VERIFIER_REVISION);
         assert_eq!(saved.query_row("SELECT new_units_count FROM cert", [], |r| r.get::<_, i64>(0)).unwrap(), count);
         assert_eq!(saved.query_row("SELECT COUNT(*) FROM node WHERE digest=?1", [invented.as_slice()], |r| r.get::<_, i64>(0)).unwrap(), 0);
         assert_eq!(content_manifest::take_assemble_call_reads_for_test().len(), 1,
