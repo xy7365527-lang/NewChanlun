@@ -63375,7 +63375,13 @@
     "DS172411|s_session/browser/tb01c-client.js|6791",
     "DS172411|s_session/browser/tb01c-client.js|7029",
     "DS173237|s_session/browser/tb01c-client.js|6605",
-    "DS173237|s_session/browser/tb01c-client.js|6725"
+    "DS173237|s_session/browser/tb01c-client.js|6725",
+    "DS173237|.chanlun/review-results/issue1778-decision-20261028/archaeology.json|8",
+    "DS173237|.chanlun/review-results/issue1778-decision-20261028/archaeology.json|9",
+    "DS173237|.chanlun/review-results/issue1778-decision-20261028/archaeology.json|10",
+    "DS173237|.chanlun/review-results/issue1778-decision-20261028/review1779-sync.json|4",
+    "DS173237|.chanlun/review-results/issue1778-decision-20261028/review1779-sync.json|5",
+    "DS173237|.chanlun/review-results/issue1778-decision-20261028/review1779-sync.json|6"
   ],
   "updates": [
     {
@@ -63600,6 +63606,21 @@
         "DS173237|s_session/browser/tb01c-client.js|6605": "64 位十六进制为浏览器入口的内容摘要常量，非凭据；与既有键 DS173237|s_session/browser/tb01c-client.js|6521 同一行文本，因 #1491 段 B 在上方增 bounded-layout/1 读法（q3-typed/q3-consumer 及其打包段）而行号漂移，逐行比对内容不变。",
         "DS173237|s_session/browser/tb01c-client.js|6725": "64 位十六进制为浏览器入口的内容摘要常量，非凭据；与既有键 DS173237|s_session/browser/tb01c-client.js|6641 同一行文本，因 #1491 段 B 在上方增 bounded-layout/1 读法（q3-typed/q3-consumer 及其打包段）而行号漂移，逐行比对内容不变。"
       }
+    },
+    {
+      "issue": 1778,
+      "pull_request": 1802,
+      "source_head": "f7139f900f",
+      "actions_run": 40816518175,
+      "added_findings": 6,
+      "rule_counts": {
+        "DS173237": 6
+      },
+      "scope": [
+        ".chanlun/review-results/issue1778-decision-20261028/archaeology.json",
+        ".chanlun/review-results/issue1778-decision-20261028/review1779-sync.json"
+      ],
+      "reason": "两文件是 #1778 裁定七原件的逐字归档副本（不改正文）；archaeology.json 第 8–10 行与 review1779-sync.json 第 4–6 行均为 40 位 Git 提交号（git cat-file 核为 commit 对象），非凭据。只追加精确 rule|path|line 键，不作目录排除（同 #1657 先例）。"
     }
   ]
 }
