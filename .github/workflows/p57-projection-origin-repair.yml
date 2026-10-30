@@ -44,3 +44,21 @@ jobs:
         with:
           name: p57-projection-fmt
           path: /tmp/p57-projection-fmt.patch
+  production:
+    if: ${{ !inputs.red_only }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      CARGO_INCREMENTAL: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/rust-job-setup
+      - name: 源码与禁串清单
+        run: |
+          python3 .github/scripts/check-prod-no-test-hooks.py
+          python3 .github/scripts/gen-prod-banned-literals.py --check .
+      - name: 生产增量 release
+        working-directory: rust
+        run: cargo build --release --locked --features s_session,s_incremental --bin s_structure_session --jobs 4
+      - name: 生产产物无钩子或禁串
+        run: .github/scripts/check-prod-artifact-hooks.sh rust/target/release/s_structure_session

@@ -131,17 +131,15 @@ impl NativeCutProjection<'_, '_, '_> {
         r: content_manifest::RootsView<'_>,
         batch: &str,
         previous: i64,
-    ) -> Result<(), String> {
+    ) -> Result<(), PublishError> {
         if !std::ptr::eq(self.transaction, tx)
             || self.batch != batch
-            || self.binding[..]
-                != native_cut_binding(s, m, r, previous)
-                    .map_err(newchan_rust::s_content::ContextError::into_message)?[..]
+            || self.binding[..] != native_cut_binding(s, m, r, previous)?[..]
             || !s
                 .native_projection_capture()
                 .is_some_and(|c| std::ptr::eq(c, self.capture))
         {
-            return Err(err(
+            return Err(publish_err(
                 "Native双投影scope/capture/transaction/cut/index绑定不符",
             ));
         }
