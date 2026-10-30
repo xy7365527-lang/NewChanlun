@@ -16,7 +16,7 @@ export = r'''    #[test]
         std::fs::create_dir_all(&target).unwrap();
         std::fs::write(target.join("source.json"), serde_json::to_vec(&serde_json::json!({
             "head": "4df2d10f92d1075f5fb761a1b112c9c949da5408",
-            "root": root, "raw": raw, "rule": rule, "nodes": nodes
+            "root": root.to_transport_json(), "raw": raw, "rule": rule, "nodes": nodes
         })).unwrap()).unwrap();
     }
 

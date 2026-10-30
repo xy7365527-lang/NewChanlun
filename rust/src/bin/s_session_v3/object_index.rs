@@ -1614,6 +1614,15 @@ fn w2_replacing_group(
     Ok(target)
 }
 
+fn push_withdrawal_target(
+    store: &(impl CodecRead + ?Sized),
+    targets: &mut sc::CodecVec<Option<usize>>,
+    target: Option<usize>,
+) -> Result<(), PublishError> {
+    store.native_codec_room(targets, 1).map_err(publish_err)?;
+    targets.try_push(target).map_err(publish_err)
+}
+
 fn plan_from_candidates(
     s: &mut (impl CodecStore + ?Sized),
     layout: Layout,
@@ -1692,8 +1701,7 @@ fn plan_from_candidates(
             }
             object_diff::Removal::Removed => None,
         };
-        s.native_codec_room(&mut targets, 1).map_err(err)?;
-        targets.try_push(target).map_err(err)?;
+        push_withdrawal_target(s, &mut targets, target)?;
     }
     let mut withdrawals = change_array(s, allocation.as_ref())?;
     let mut replaces = change_array(s, allocation.as_ref())?;
@@ -3602,8 +3610,7 @@ pub(super) fn verify_generated_members_swept_with_records<'a>(
                 }
             }
         }
-        s.native_codec_room(&mut targets, 1).map_err(err)?;
-        targets.try_push(target).map_err(err)?;
+        push_withdrawal_target(s, &mut targets, target)?;
     }
     let mut withdrawals = change_array(s, allocation.as_ref())?;
     let mut replaces = change_array(s, allocation.as_ref())?;
@@ -4289,6 +4296,43 @@ mod tests {
                 trace.bridges(&error),
                 "对象绑定的真实资源来源须穿过字段与原件边界：shape={shape}, {error:?}"
             );
+        }
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn withdrawal_target_real_budget_preserves_origin_to_publication_verdict() {
+        use sc::capture_allocation::scratch::{failure_trace, ScratchFailure, WorkError};
+        let capture = sc::AuditCapture::new(sc::MemoryNodes::new());
+        for target in [None, Some(0)] {
+            let ordinary =
+                super::super::history::HashReader::captured_for_audit(&capture, None).unwrap();
+            let mut plain = bj::new_work(None);
+            push_withdrawal_target(&ordinary, &mut plain, target).unwrap();
+            assert_eq!(&plain[..], &[target]);
+            let budget = super::super::audit_owner::native::Budget::new(1 << 20, 0).unwrap();
+            let baseline = budget.live();
+            let work = budget.codec_work().unwrap();
+            let mut returned = None;
+            let (run, trace) = failure_trace::capture(|| {
+                work.run(|scope| {
+                    let reader = ordinary.with_codec_work(scope, &budget);
+                    let mut targets = bj::new_work(None);
+                    let ballast = scope.reserve_native(budget.remaining()).unwrap();
+                    let result = push_withdrawal_target(&reader, &mut targets, target);
+                    returned = result.as_ref().err().cloned();
+                    drop(ballast);
+                    result
+                })
+            });
+            assert!(matches!(&run, Err(WorkError::Resource(ScratchFailure::Budget))), "{run:?}");
+            let error = returned.as_ref().expect("真实撤回目标资源拒绝");
+            assert!(error.to_string().starts_with("ObjectIndexInvalid："));
+            assert!(trace.only_resource() && trace.bridges(error));
+            super::super::audit_owner::publication_degrade_verdict_for_test(
+                run.unwrap_err(), returned, trace,
+            ).unwrap();
+            assert_eq!(budget.live(), baseline);
         }
     }
 

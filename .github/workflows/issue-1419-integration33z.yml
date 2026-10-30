@@ -35,7 +35,7 @@ jobs:
           if [ "$features" = s_session ]; then
             filters='structure_domain_wires_versions_knowledge_axes_and_rejects_foreign_prior structure_rule_ w_semantics_layout_neutral_between_layout1_and_bounded bounded2_crosswalk_rejects_non_w_subject_and_fractal_changes ordinary_materials::tests ordinary_material_whole_readonly_audit_heap_releases manifest_template_coverage_'
           elif [ "$features" = s_session,s_incremental ]; then
-            filters='structure_fact_real_budget_preserves_origin_through_bi_error publication_origin_survives_clone_and_two_contexts publication_same_text_without_origin_rejects structure_rule_'
+            filters='structure_fact_real_budget_preserves_origin_through_bi_error w_prior_real_budget_preserves_origin_to_publication_verdict withdrawal_target_real_budget_preserves_origin_to_publication_verdict publication_origin_survives_clone_and_two_contexts publication_same_text_without_origin_rejects structure_rule_'
           else
             filters='structure_domain_wires_versions_knowledge_axes_and_rejects_foreign_prior structure_fact_real_budget_preserves_origin_through_bi_error structure_value::tests native_cut_projection_gate_ bounded2_crosswalk_rejects_non_w_subject_and_fractal_changes'
           fi

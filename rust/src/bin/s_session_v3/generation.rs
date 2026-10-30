@@ -1012,8 +1012,7 @@ impl GenerationRuntime {
             let mut prior_w = Vec::with_capacity(input.structure_prior.w_undetermined.len());
             for record in input.structure_prior.w_undetermined {
                 prior_w.push(
-                    crate::content_bi::read_prior_undetermined(store, &self.producer, record)
-                        .map_err(|error| format!("GenError：上一代未定原件不可核：{error}"))?,
+                    read_w_prior(store, &self.producer, record)?,
                 );
             }
             let w = self
@@ -2687,6 +2686,15 @@ fn producer_error(error: ProducerError) -> PublishError {
     producer_failure(error).context("GenError：")
 }
 
+fn read_w_prior(
+    store: &mut dyn NodeStore,
+    producer: &Cc004Producer,
+    record: &Built,
+) -> Result<crate::content_producer::PriorUndetermined, PublishError> {
+    crate::content_bi::read_prior_undetermined(store, producer, record)
+        .map_err(|error| bi_error(error).context("GenError：上一代未定原件不可核："))
+}
+
 fn bi_error(error: crate::content_bi::BiError) -> PublishError {
     match error {
         crate::content_bi::BiError::Content(error) => producer_failure(error),
@@ -2809,6 +2817,46 @@ pub(super) mod tests {
         assert!(trace.only_resource(), "{trace:?}");
         assert!(trace.bridges(&error), "{error:?}");
         assert!(error.to_string().starts_with("同核事实缺项："));
+        assert_eq!(budget.live(), baseline);
+    }
+
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn w_prior_real_budget_preserves_origin_to_publication_verdict() {
+        use sc::capture_allocation::scratch::{failure_trace, ScratchFailure, WorkError};
+        let events = delta_long_fixture();
+        let raw = RawEventsView::plain(&events).prefix(1).unwrap();
+        let effective = bj::effective(raw, None).unwrap();
+        let scope = json!({"instrument":"W-prior", "exchange":"fixture"});
+        let rule = crate::W_STRUCTURE_RULE_REVISION;
+        let mut runtime = GenerationRuntime::new("W-prior-origin".into(), crate::tb02a::PROFILE, rule);
+        let mut nodes = MemoryNodes::new();
+        let input = full_input(raw, effective.raw_view(), &scope, "cut-1", 1, 0, rule);
+        let generated = runtime.generate(&mut nodes, &input).unwrap();
+        let record = generated.objects.iter()
+            .find(|object| object.kind() == crate::content_producer::CC004_UNDETERMINED_KIND)
+            .expect("首根 W 未定原件").generated().clone();
+        read_w_prior(&mut nodes, &runtime.producer, &record).unwrap();
+        let budget = super::super::audit_owner::native::Budget::new(1 << 20, 0).unwrap();
+        let baseline = budget.live();
+        let work = budget.codec_work().unwrap();
+        let mut returned = None;
+        let (run, trace) = failure_trace::capture(|| work.run(|scope| {
+            let mut store = NativeFixture { inner: &mut nodes, work: scope };
+            let ballast = scope.reserve_native(budget.remaining()).unwrap();
+            let result = read_w_prior(&mut store, &runtime.producer, &record).map(|_| ());
+            returned = result.as_ref().err().cloned();
+            drop(ballast);
+            result
+        }));
+        assert!(matches!(&run, Err(WorkError::Resource(ScratchFailure::Budget))), "{run:?}");
+        let error = returned.as_ref().expect("真实 W prior 资源拒绝");
+        assert!(error.to_string().starts_with("GenError：上一代未定原件不可核："));
+        assert!(trace.only_resource() && trace.bridges(error));
+        super::super::audit_owner::publication_degrade_verdict_for_test(
+            run.unwrap_err(), returned, trace,
+        ).unwrap();
         assert_eq!(budget.live(), baseline);
     }
 
