@@ -1205,6 +1205,11 @@ impl AuditTxn<'_> {
             self.data_version,
             self.schema_version,
         );
+        #[cfg(all(feature = "s_incremental", unix))]
+        let history_monitor = {
+            let armed = self.owner.history_clamp.borrow().as_ref().map(history_clamp::Clamp::arm_commit).transpose();
+            self.owner.history_result(armed)?
+        };
         self.owner.connection.flush_prepared_statement_cache();
         let mut transaction = self.transaction.take().unwrap();
         // 提交失败后的终结由 owner 核实，不依赖 Transaction 析构器的隐式回滚。
@@ -1237,7 +1242,7 @@ impl AuditTxn<'_> {
             if result.is_err() { self.owner.retired.set(true); }
             if result.is_ok() {
                 let candidate = self.history_write.borrow_mut().take().unwrap();
-                let checked = self.owner.history_clamp.borrow_mut().as_mut().unwrap().committed(candidate);
+                let checked = self.owner.history_clamp.borrow_mut().as_mut().unwrap().committed(candidate, history_monitor.as_ref().unwrap());
                 self.owner.history_result(checked)?;
             }
         }

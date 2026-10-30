@@ -2,6 +2,7 @@
 //! 显式组件入口才启用。旧路径不增加前置；这里不签发历史认证。
 use super::{effects, request_audit::SqlCell, AuditTxn};
 use rusqlite::{types::ValueRef, Connection};
+use std::{cell::RefCell, rc::Rc};
 use std::{collections::BTreeMap, fs::{File, Metadata}, os::unix::fs::MetadataExt, path::{Path, PathBuf}};
 
 pub(super) fn stale(message: impl std::fmt::Display) -> String {
@@ -53,11 +54,16 @@ struct Observation {
 /// 只有 owner 的 effects 完整覆盖与原语义核均成功才保留此候选。
 /// 候选仍未提交；自身写后没有候选的连接不能推进夹持基线。
 pub(super) struct WriteCandidate { observation: Observation }
+#[path = "history_physical.rs"]
+mod physical;
+pub(super) use physical::CommitMonitor;
 pub(super) struct Clamp {
     main: WatchedFile,
     wal: WatchedFile,
     baseline: Option<Observation>,
     control_limit: usize,
+    checkpoint_threshold: i32,
+    progress: physical::Progress,
 }
 impl Clamp {
     pub(super) fn open(connection: &Connection, path: &Path, control_limit: usize) -> Result<Self, String> {
@@ -66,7 +72,10 @@ impl Clamp {
         let mut wal = path.as_os_str().to_os_string();
         wal.push("-wal");
         let wal = PathBuf::from(wal);
-        Ok(Self { main: WatchedFile::open(path)?, wal: WatchedFile::open(&wal)?, baseline: None, control_limit })
+        let checkpoint_threshold = connection.query_row("PRAGMA wal_autocheckpoint", [], |r| r.get(0)).map_err(stale)?;
+        let result = Self { main: WatchedFile::open(path)?, wal: WatchedFile::open(&wal)?, baseline: None, control_limit, checkpoint_threshold, progress: physical::initial_progress(connection)? };
+        connection.wal_hook(Some(physical::observe_commit));
+        Ok(result)
     }
     fn files(&self) -> Result<Files, String> {
         use std::os::unix::fs::FileExt;
@@ -112,20 +121,25 @@ impl Clamp {
         let mut expected = before.controls.clone();
         expected.apply(effects, self.control_limit)?;
         if expected != after.controls { return Err(stale("控制原件变化未由effects解释")); }
-        Self::own_files(&before.files, &after.files)?;
+        Self::own_files(&before.files, &after.files, self.progress.complete())?;
+        if before.files != after.files && before.total_changes == after.total_changes {
+            return Err(stale("无自身SQL效果却发生物理变化"));
+        }
         Ok(WriteCandidate { observation: after })
     }
-    // 信任的SQLite写口只解释WAL同一文件/同一轮次内追加；checkpoint/reset
-    // 尚无自身物理收据时拒绝，而不是把任意文件stat改变归给“本次有写”。
-    fn own_files(before: &Files, after: &Files) -> Result<(), String> {
+    fn own_files(before: &Files, after: &Files, reset_allowed: bool) -> Result<(), String> {
         if before.main != after.main || !before.wal.same_file(&after.wal) || after.wal.len < before.wal.len {
             return Err(stale("自身写不能解释main变化、WAL替换或截短"));
         }
-        if before.wal.len != 0 && before.wal_header != after.wal_header {
-            return Err(stale("WAL轮次变化缺物理收据"));
-        }
-        if before.wal != after.wal && after.wal.len == before.wal.len {
-            return Err(stale("WAL未追加却发生stat变化"));
+        let reset = before.wal.len != 0 && before.wal_header != after.wal_header;
+        if reset {
+            let (old, new) = (&before.wal_header, &after.wal_header);
+            let next = |offset| u32::from_be_bytes(old[offset..offset+4].try_into().unwrap()).wrapping_add(1)
+                == u32::from_be_bytes(new[offset..offset+4].try_into().unwrap());
+            if !reset_allowed || old.len() != 32 || new.len() != 32 || old[..12] != new[..12]
+                || !next(12) || !next(16) {
+                return Err(stale("WAL轮次变化不匹配本连接已完成checkpoint收据"));
+            }
         }
         if after.wal.len != 0 {
             let h = &after.wal_header;
@@ -138,15 +152,51 @@ impl Clamp {
         }
         Ok(())
     }
+    pub(super) fn arm_commit(&self) -> Result<CommitMonitor, String> {
+        CommitMonitor::begin(self)
+    }
     pub(super) fn check_candidate(&self, active: &AuditTxn<'_>, candidate: &WriteCandidate) -> Result<(), String> {
         if self.observe(active)? != candidate.observation { return Err(stale("effects闭合后出现未声明变化")); }
         Ok(())
     }
-    pub(super) fn committed(&mut self, mut candidate: WriteCandidate) -> Result<(), String> {
+    pub(super) fn committed(&mut self, mut candidate: WriteCandidate, monitor: &CommitMonitor) -> Result<(), String> {
         let after = self.files()?;
-        Self::own_files(&candidate.observation.files, &after)?;
+        let baseline = &self.baseline.as_ref().ok_or_else(|| stale("缺生涯起点"))?.files;
+        if let Some(receipt) = monitor.take() {
+            let receipt = receipt?;
+            Self::own_files(baseline, &receipt.before, self.progress.complete())?;
+            if receipt.after != after || !receipt.before.main.same_file(&after.main)
+                || receipt.before.wal != after.wal || receipt.before.wal_header != after.wal_header {
+                return Err(stale("提交/checkpoint收据后出现未解释物理变化"));
+            }
+            let reset = baseline.wal_header != receipt.before.wal_header;
+            let previous = if reset { physical::Progress::empty() } else { self.progress };
+            if receipt.start.frames != receipt.frames || receipt.frames <= previous.frames
+                || receipt.start.backfill != previous.backfill {
+                return Err(stale("实际WAL帧/已回填前沿不能由本次提交解释"));
+            }
+            let h = &receipt.before.wal_header;
+            let page = u32::from_be_bytes(h[8..12].try_into().unwrap()) as u64;
+            let expected_len = baseline.wal.len.max(32 + receipt.frames as u64 * (page + 24));
+            if receipt.before.wal.len != expected_len {
+                return Err(stale("WAL长度不等于实际帧范围与既有保留空间"));
+            }
+            if receipt.end.frames != receipt.frames || receipt.end.backfill < receipt.start.backfill
+                || (!receipt.checkpoint && receipt.end != receipt.start) {
+                return Err(stale("checkpoint回填进度不匹配本次收据"));
+            }
+            if receipt.end.backfill == receipt.start.backfill && receipt.before.main != after.main {
+                return Err(stale("没有自身回填进展却改变main"));
+            }
+            self.progress = receipt.end;
+        } else {
+            // 无WAL回调时也不可把effects前的变化吞进新基线。
+            if baseline != &after || candidate.observation.files != after {
+                return Err(stale("缺实际WAL提交收据"));
+            }
+        }
         candidate.observation.files = after;
-        // 不在commit后重读data_version；下一读快照与锁内旧值比较，抓住外写。
+        // data_version保留锁内值，下一快照必须与它相同，不以提交后重读刷新。
         self.baseline = Some(candidate.observation);
         Ok(())
     }

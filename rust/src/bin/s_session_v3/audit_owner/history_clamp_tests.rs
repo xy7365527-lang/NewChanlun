@@ -145,3 +145,110 @@ fn h1_complete_canonical_empty_history_is_deterministic() {
     drop((first, second));
     active.read_end().unwrap();
 }
+
+// 只在测试设置原有SQLite阈值，再让H1读取并接管相同的PASSIVE行为。
+fn h1_owner_at_threshold(f: &prepared::tests::Fixture, pages: i32) -> AuditConnection {
+    let owner = AuditConnection::open(&f.db_path()).unwrap();
+    owner.connection.pragma_update(None, "wal_autocheckpoint", pages).unwrap();
+    *owner.history_clamp.borrow_mut() = Some(history_clamp::Clamp::open(&owner.connection, &f.db_path(), 1 << 20).unwrap());
+    owner.begin(TransactionBehavior::Deferred).unwrap().read_end().unwrap();
+    owner
+}
+fn h1_publish_round(owner: &AuditConnection, runtime: &mut prepared::Runtime, c: &mut request_audit::RequestAuditContext, n: i64) {
+    let envelope = b2_envelope(n);
+    let token = b2_accept_begin(owner, &envelope, c);
+    let (receipt, ended) = owner.publish(runtime, &token, &envelope, c).unwrap();
+    assert_eq!(receipt.generation, n);
+    owner.continue_with(ended).unwrap();
+    h1_compare_complete_history(owner);
+}
+fn h1_wal_round(f: &prepared::tests::Fixture) -> Vec<u8> {
+    use std::os::unix::fs::FileExt;
+    let file = std::fs::File::open(format!("{}-wal", f.db_path().display())).unwrap();
+    let mut header = vec![0; 32];
+    file.read_exact_at(&mut header, 0).unwrap();
+    header
+}
+#[test]
+fn h1_own_checkpoint_and_wal_reset_preserve_full_history() {
+    let f = fixture();
+    let owner = h1_owner_at_threshold(&f, 1);
+    let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
+    let mut c = context();
+    let before = h1_wal_round(&f);
+    h1_publish_round(&owner, &mut runtime, &mut c, 2);
+    let middle = h1_wal_round(&f);
+    h1_publish_round(&owner, &mut runtime, &mut c, 3);
+    let after = h1_wal_round(&f);
+    assert_ne!(before, middle, "真实checkpoint之后必须经历WAL轮次重启");
+    assert_ne!(middle, after);
+    assert!(!owner.retired.get());
+}
+#[test]
+fn h1_partial_checkpoint_waits_for_reader_then_resets() {
+    let f = fixture();
+    let reader = open_db(&f.db_path()).unwrap();
+    reader.execute_batch("BEGIN; SELECT COUNT(*) FROM meta;").unwrap();
+    let owner = h1_owner_at_threshold(&f, 1);
+    let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
+    let mut c = context();
+    let before = h1_wal_round(&f);
+    h1_publish_round(&owner, &mut runtime, &mut c, 2);
+    assert_eq!(before, h1_wal_round(&f), "reader钉住旧WAL时不能重启");
+    let (_, frames, done): (i32, i32, i32) = f.conn.query_row("PRAGMA wal_checkpoint(NOOP)", [], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).unwrap();
+    assert!(done < frames, "确实发生未完成回填，而不是虚构reader");
+    reader.execute_batch("ROLLBACK").unwrap();
+    h1_publish_round(&owner, &mut runtime, &mut c, 3);
+    assert_ne!(before, h1_wal_round(&f));
+}
+#[test]
+fn h1_zero_autocheckpoint_keeps_main_and_wal_round() {
+    use std::os::unix::fs::MetadataExt;
+    let f = fixture();
+    let owner = h1_owner_at_threshold(&f, 0);
+    let before = std::fs::metadata(f.db_path()).unwrap();
+    let round = h1_wal_round(&f);
+    let mut runtime = prepared::Runtime::with_mode(s_allocation::Mode::CapturedNative);
+    h1_publish_round(&owner, &mut runtime, &mut context(), 2);
+    let after = std::fs::metadata(f.db_path()).unwrap();
+    assert_eq!((before.len(), before.mtime(), before.mtime_nsec()), (after.len(), after.mtime(), after.mtime_nsec()));
+    assert_eq!(round, h1_wal_round(&f));
+}
+#[test]
+fn h1_external_checkpoint_is_not_own_effect() {
+    let f = fixture();
+    let owner = h1_owner(&f);
+    let (busy, log, done): (i32, i32, i32) = f.conn.query_row("PRAGMA wal_checkpoint(PASSIVE)", [], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).unwrap();
+    assert_eq!(busy, 0); assert!(log > 0); assert_eq!(log, done);
+    h1_assert_stale(&owner);
+}
+#[test]
+fn h1_real_write_does_not_explain_external_main_change_before_checkpoint() {
+    let f = fixture();
+    let owner = h1_owner_at_threshold(&f, 1);
+    let path = f.db_path();
+    owner.connection.commit_hook(Some(move || {
+        let file = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
+        file.set_times(std::fs::FileTimes::new().set_modified(std::time::UNIX_EPOCH)).unwrap();
+        false
+    }));
+    let clock = v2::stored_clock(&owner.connection).unwrap();
+    let result = owner.admit(b2_envelope(2), "1", &clock, tb02a::PROFILE, Some("1"),
+        &s_allocation::Mode::CapturedNative, &mut context());
+    assert!(result.is_err(), "自身checkpoint不能吞掉hook前的main变化");
+    assert!(owner.retired.get());
+    h1_assert_stale(&owner);
+}
+#[test]
+fn h1_missing_commit_receipt_retires_after_real_commit() {
+    let f = fixture();
+    let owner = h1_owner(&f);
+    owner.connection.wal_hook(None);
+    let clock = v2::stored_clock(&owner.connection).unwrap();
+    let before: i64 = f.conn.query_row("SELECT COUNT(*) FROM raw_events", [], |r| r.get(0)).unwrap();
+    assert!(owner.admit(b2_envelope(2), "1", &clock, tb02a::PROFILE, Some("1"),
+        &s_allocation::Mode::CapturedNative, &mut context()).is_err());
+    let after: i64 = f.conn.query_row("SELECT COUNT(*) FROM raw_events", [], |r| r.get(0)).unwrap();
+    assert!(after > before, "真实COMMIT完成但未交收据，不能伪装成回滚");
+    h1_assert_stale(&owner);
+}
