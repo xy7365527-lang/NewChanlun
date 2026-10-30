@@ -2499,7 +2499,10 @@ fn audit_generated_in_store(
     source_call_note(|n| n.full_members_enumerations += 1);
     for item in elements(s, &observations)? {
         super::history::check_deadline(deadline)?;
-        match text(s, &item, "kind")?.as_str() {
+        let kind = if let Some(proofs) = ordinary.as_deref_mut() {
+            proofs.observation(s, &item)?
+        } else { text(s, &item, "kind")? };
+        match kind.as_str() {
             "insufficient_knowledge" => insufficient += 1,
             "domain_not_satisfied" => outside_domain += 1,
             _ => {}

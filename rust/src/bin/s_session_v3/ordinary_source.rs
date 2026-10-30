@@ -9,6 +9,10 @@ fn key(r: sc::RefView<'_>) -> Key {
 fn reference(r: sc::RefView<'_>) -> ContentRef {
     ContentRef { format: r.format().into(), root: r.root().into(), kind: r.kind(), extent: r.extent() }
 }
+fn ref_matches(expected: &ContentRef, actual: sc::RefView<'_>) -> bool {
+    expected.format == actual.format() && expected.root == actual.root()
+        && expected.kind == actual.kind() && expected.extent == actual.extent()
+}
 fn ref_bytes(r: &ContentRef) -> usize { r.format.capacity() + r.root.capacity() }
 type Fields = Vec<(&'static str, ContentRef)>;
 fn fields(f: &SourceFields<'static>, names: &[&'static str]) -> Fields {
@@ -17,6 +21,9 @@ fn fields(f: &SourceFields<'static>, names: &[&'static str]) -> Fields {
 fn restore_fields(f: &Fields) -> Result<SourceFields<'static>, String> {
     NativeRefFields::try_from_views(f.iter().map(|(n, r)| (*n, r.into())), None)
         .map(|f| SourceFields(super::super::audit_store::RefFields::Plain(f))).map_err(err)
+}
+fn fields_match(expected: &Fields, actual: &SourceFields<'_>) -> bool {
+    expected.iter().all(|(name, value)| actual.0.get(name).is_some_and(|r| ref_matches(value, r)))
 }
 fn fields_bytes(f: &Fields) -> usize {
     f.capacity() * std::mem::size_of::<(&str, ContentRef)>() + f.iter().map(|(_, r)| ref_bytes(r)).sum::<usize>()
@@ -30,6 +37,11 @@ impl ObjectData {
         let names: &[&'static str] = if o.kind == CC006_SHAPE_KIND { &SHAPE_SOURCE_FIELDS } else { &TYPED_SOURCE_FIELDS };
         Self { id: o.id.as_str().into(), kind: o.kind.as_str().into(), fields: fields(&o.fields, names),
             refs: reference(o.refs.view()), sources: o.sources.to_vec() }
+    }
+    fn matches(&self, object: &Object) -> bool {
+        self.id == object.id.as_str() && self.kind == object.kind.as_str()
+            && fields_match(&self.fields, &object.fields) && ref_matches(&self.refs, object.refs.view())
+            && self.sources[..] == *object.sources
     }
     fn restore(&self, s: &(impl CodecRead + ?Sized)) -> Result<Object, String> {
         Ok(Object { id: s.native_text(&self.id)?, kind: s.native_text(&self.kind)?,
@@ -48,7 +60,7 @@ impl GroupData {
         Self { payload: reference(g.payload.view()), members: g.members.to_vec(), sources: g.sources.to_vec(), anchor: g.anchor }
     }
     fn matches(&self, g: &Group) -> bool {
-        self.payload == reference(g.payload.view()) && self.members[..] == *g.members
+        ref_matches(&self.payload, g.payload.view()) && self.members[..] == *g.members
             && self.sources[..] == *g.sources && self.anchor == g.anchor
     }
     fn restore(&self, s: &(impl CodecRead + ?Sized)) -> Result<Group, String> {
@@ -114,12 +126,14 @@ enum Output {
     Witness(String, i64),
     Step(StepData),
     Request(RequestData),
+    Observation(String),
 }
 impl Output {
     fn bytes(&self) -> usize { match self {
         Self::Object(o, g) => o.bytes() + g.as_ref().map_or(0, |(_, g)| g.bytes()),
         Self::Shape(_) => 0, Self::Witness(s, _) => s.capacity(),
         Self::Step(s) => s.bytes(), Self::Request(r) => r.bytes(),
+        Self::Observation(kind) => kind.capacity(),
     } }
 }
 struct Proof { deps: Dependencies, output: Output }
@@ -256,7 +270,7 @@ impl OrdinaryProofs {
         checked: &mut BusinessMap<(NodeDigest, bool), i64>, prefix: usize,
         deadline: Option<std::time::Instant>, budget: Option<&dyn super::super::audit_budget::Budget>,
     ) -> Result<Shape, String> {
-        // object_id alone is not the record key. All fields used by the recipe are included.
+        // object_id 不是完整记录身份；配方使用的全部字段均由记录引用绑定。
         let k = self.object_records.get(object.id.as_str()).expect("ordinary object was audited").clone();
         let shapes = bj::new_map::<bj::TextValue, Shape>(None);
         if let Some(p) = self.candidate(1, &k, raw, groups, &shapes) {
@@ -318,6 +332,13 @@ impl StepState {
             insufficient: step.insufficient(), incomplete: step.incomplete(),
         } }
     }
+    fn matches(&self, coord: i64, step: &dyn source_pending::StepView) -> bool {
+        self.object.matches(step.object()) && self.data.coord == coord
+            && fields_match(&self.data.fields, step.fields()) && self.data.key == step.key().as_str()
+            && ref_matches(&self.data.reasons, step.reasons().view())
+            && self.data.waiting_count == step.waiting_count()
+            && self.data.insufficient == step.insufficient() && self.data.incomplete == step.incomplete()
+    }
     fn bytes(&self) -> usize { self.object.bytes() + self.data.bytes() }
 }
 #[derive(Default)]
@@ -327,7 +348,9 @@ struct RequestData {
 }
 impl RequestData {
     fn valid(&self, steps: &impl source_pending::StepLookup) -> bool {
-        self.steps.iter().all(|(c, old)| steps.get_step(*c).map(|s| StepState::read(*c, s)) == *old)
+        self.steps.iter().all(|(c, old)| match (old, steps.get_step(*c)) {
+            (Some(old), Some(current)) => old.matches(*c, current), (None, None) => true, _ => false,
+        })
             && self.subjects.iter().all(|(id, present)| steps.contains_subject(id) == *present)
     }
     fn bytes(&self) -> usize {
@@ -379,6 +402,22 @@ impl OrdinaryProofs {
         self.save(3, k, deps.into_inner(), Output::Step(StepData::read(coord, &step)));
         Ok((coord, step))
     }
+    pub(super) fn observation(
+        &mut self, s: &mut (impl SourceFieldStore + ?Sized), record: &RefValue,
+    ) -> Result<bj::TextValue, String> {
+        let k = key(record.view());
+        if let Some(proof) = self.previous.get(&(5, k.clone())).cloned() {
+            let Output::Observation(kind) = &proof.output else { unreachable!() };
+            let output = s.native_text(kind)?;
+            self.stats.hits += 1;
+            self.publish();
+            self.retain(5, k, proof);
+            return Ok(output);
+        }
+        let kind = text(s, record, "kind")?;
+        self.save(5, k, Dependencies::default(), Output::Observation(kind.as_str().into()));
+        Ok(kind)
+    }
     pub(super) fn request(
         &mut self, s: &mut (impl SourceFieldStore + ?Sized), request: &RefValue,
         steps: &impl source_pending::StepLookup, slots: &mut impl source_pending::RequestSlots, equal: bool,
@@ -425,14 +464,18 @@ mod tests {
         assert_eq!((stats().hits, stats().executions), (0, 0));
         #[cfg(feature = "s_incremental")]
         let heap = super::super::super::audit_owner::allocation_probe::Window::start();
+        let live_before = super::super::super::audit_owner::allocation_probe::live_bytes();
         let mut book = OrdinaryProofs::default();
         assert_eq!(run(&mut nodes, &root, &raw, &rule, &mut book).unwrap(), expected);
         assert!(book.current.keys().any(|(phase, _)| *phase == 3));
         assert!(book.current.keys().any(|(phase, _)| *phase == 4));
         book.commit();
+        let one_frontier = super::super::super::audit_owner::allocation_probe::live_bytes() - live_before;
         let executions = book.stats.executions;
         assert_eq!(run(&mut nodes, &root, &raw, &rule, &mut book).unwrap(), expected);
+        let two_frontiers = super::super::super::audit_owner::allocation_probe::live_bytes() - live_before;
         assert!(book.stats.hits > 0);
+        assert!(one_frontier > 0 && two_frontiers > one_frontier);
         assert_eq!(book.stats.executions, executions);
         book.commit();
         let old_entries = book.previous.len();
@@ -447,7 +490,7 @@ mod tests {
         #[cfg(feature = "s_incremental")]
         {
             let observed = heap.finish();
-            eprintln!("ORDINARY_PROOF_CAPACITY entries_before={old_entries} {capacity:?}");
+            eprintln!("ORDINARY_PROOF_CAPACITY entries_before={old_entries} actual_one_frontier={one_frontier} actual_two_frontiers={two_frontiers} {capacity:?}");
             eprintln!("ORDINARY_PROOF_HEAP {observed}");
             assert_eq!(observed["live_before"], observed["live_after"]);
         }
@@ -587,6 +630,71 @@ mod tests {
         assert!(expected.contains("知识主体被绑定"));
         assert_eq!(book.stats.invalidations, 1);
     }
+    #[test]
+    fn ordinary_proof_step_bar_and_witness_shape_dependencies_match_old_local_kernel() {
+        let (mut nodes, root, events, rule) = fixture();
+        let mut raw = original_sources(&events, events.len()).unwrap();
+        let mut book = OrdinaryProofs::default();
+        run(&mut nodes, &root, &events, &rule, &mut book).unwrap();
+        book.commit();
+        let (step_key, coord) = book.previous.iter().find_map(|((phase, key), proof)| {
+            if *phase != 3 { return None; }
+            let Output::Step(step) = &proof.output else { unreachable!() };
+            Some((key.clone(), step.coord))
+        }).unwrap();
+        let Output::Object(object, _) = &book.previous[&(0, step_key)].output else { unreachable!() };
+        let object = object.restore(&nodes).unwrap();
+        let mut changed = *raw.get(&coord).unwrap();
+        changed.bar[0] ^= 1;
+        raw.insert(coord, changed).unwrap();
+        let expected = source_pending::step_record(&mut nodes, &object, &raw, true).err().unwrap();
+        assert_eq!(book.step(&mut nodes, &object, &raw, true).err().unwrap(), expected);
+        assert!(expected.contains("同cut原始来源"));
+        let raw = original_sources(&events, events.len()).unwrap();
+        let (witness_key, id, slot) = book.previous.iter().find_map(|((phase, key), proof)| {
+            if *phase != 2 { return None; }
+            let Output::Witness(id, slot) = &proof.output else { unreachable!() };
+            Some((key.clone(), id.clone(), *slot))
+        }).unwrap();
+        let mut groups = bj::new_map(None);
+        let mut shapes = bj::new_map(None);
+        for ((phase, key), proof) in &book.previous {
+            if let Output::Object(_, Some((index, group))) = &proof.output {
+                groups.insert(*index, group.restore(&nodes).unwrap()).unwrap();
+            }
+            if *phase == 1 {
+                let Output::Shape(indices) = proof.output else { unreachable!() };
+                let Output::Object(object, _) = &book.previous[&(0, key.clone())].output else { unreachable!() };
+                shapes.insert(nodes.native_text(&object.id).unwrap(), Shape { groups: indices }).unwrap();
+            }
+        }
+        let shape = shapes.get_mut(id.as_str()).unwrap();
+        shape.groups[slot as usize] = (shape.groups[slot as usize] + 1) % groups.len() as i64;
+        let witness: RefValue = ContentRef { format: witness_key.0, root: witness_key.1,
+            kind: Kind::Object, extent: witness_key.3 }.into();
+        let expected = audit_witness_record(&mut nodes, &witness, &raw, &groups, &shapes,
+            &mut bj::new_map(None), None, None).unwrap_err();
+        let invalidations = book.stats.invalidations;
+        assert_eq!(book.witness(&mut nodes, &witness, &raw, &groups, &shapes,
+            &mut FullWitnessSlots(&mut bj::new_map(None)), None).unwrap_err(), expected);
+        assert!(book.stats.invalidations > invalidations);
+    }
+
+    #[test]
+    fn ordinary_proof_root_declaration_errors_match_independent_oracle() {
+        let (mut nodes, root, raw, rule) = fixture();
+        for index in 0..3 {
+            let mut book = OrdinaryProofs::default();
+            run(&mut nodes, &root, &raw, &rule, &mut book).unwrap();
+            book.commit();
+            let mut altered = root.clone();
+            match index { 0 => altered.kind = Kind::Array, 1 => altered.extent = Some(root.extent.unwrap() + 1),
+                _ => altered.format = "wrong-format".into() }
+            let expected = oracle(&mut nodes, &altered, &raw, &rule).unwrap_err();
+            assert_eq!(run(&mut nodes, &altered, &raw, &rule, &mut book).unwrap_err(), expected);
+        }
+    }
+
     #[test]
     fn ordinary_proof_complete_ref_and_profile_rule_are_not_digest_only_keys() {
         let (mut nodes, root, raw, rule) = fixture();
