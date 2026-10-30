@@ -271,7 +271,7 @@ fn development_exclusion_budget_stop_at_ordinary_native_and_owned() {
     }
     let (nodes, state, raw, rule) = super::tests::fixture();
     let conn = database(&nodes);
-    let run = |enabled, stop_at| {
+    let run_data = |conn: &Connection, state: &ContentRef, raw: &[Value], rule: &str, enabled, stop_at| {
         let _config = Config::set((if enabled {16384} else {0},false));
         let base = sc::sqlite_audit::SqliteAuditBase::new(&conn,4096);
         let meter = Meter { stop_at, ..Meter::default() };
@@ -283,10 +283,20 @@ fn development_exclusion_budget_stop_at_ordinary_native_and_owned() {
         drop(reader);
         (result, base.material_stats().sql_material_reads, sc::frame_calls_on_thread()-f, meter.events.into_inner())
     };
+    let run = |enabled,stop_at| run_data(&conn,&state,&raw,&rule,enabled,stop_at);
     let old = run(false,None);
     assert!(old.0.is_ok());
     assert_eq!(run(true,None),old);
-    for stop in (1..=16).chain([old.3.len()/2,old.3.len()]) { assert_eq!(run(true,Some(stop)),run(false,Some(stop)), "stop_at {stop}"); }
+    let prechecks: Vec<_> = old.3.iter().enumerate().filter_map(|(i,event)| (event == "precheck").then_some(i+1)).collect();
+    eprintln!("development budget events={}, prechecks={}", old.3.len(), prechecks.len());
+    for stop in prechecks.iter().take(16).copied().chain([prechecks[prechecks.len()/2],*prechecks.last().unwrap()]) { assert_eq!(run(true,Some(stop)),run(false,Some(stop)), "stop_at {stop}"); }
+    let (small_nodes,small_state,small_raw,small_rule) = super::tests::tb1405_pending_fixture(&[("i0",0,0,10,0,10)]);
+    let small_conn = database(&small_nodes);
+    let small = run_data(&small_conn,&small_state,&small_raw,&small_rule,false,None);
+    assert!(small.0.is_ok());
+    assert_eq!(run_data(&small_conn,&small_state,&small_raw,&small_rule,true,None),small);
+    let small_prechecks: Vec<_> = small.3.iter().enumerate().filter_map(|(i,event)| (event == "precheck").then_some(i+1)).collect();
+    eprintln!("development minimal legal fixture events={}, prechecks={}",small.3.len(),small_prechecks.len());
     let _config = Config::set((16384,false));
     let base = sc::sqlite_audit::SqliteAuditBase::new(&conn,4096);
     let mut reader = super::super::history::HashReader::sqlite_base(&base);

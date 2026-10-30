@@ -1933,24 +1933,37 @@ struct DevelopmentAuditSession<'a, 'raw> {
     table: DevelopmentTable<'a>,
 }
 impl<'a, 'raw> DevelopmentAuditSession<'a, 'raw> {
-    fn new(base: &'a sc::sqlite_audit::SqliteAuditBase<'a>, raw: &'raw dyn RawLookup, rule: &'raw str) -> Self {
+    fn new(
+        base: &'a sc::sqlite_audit::SqliteAuditBase<'a>,
+        raw: &'raw dyn RawLookup,
+        rule: &'raw str,
+    ) -> Self {
         let mut table = DevelopmentTable {
-            slots: Vec::new(), next: 0, lease: None,
-            stats: DevelopmentStats { disabled: true, ..DevelopmentStats::default() },
+            slots: Vec::new(),
+            next: 0,
+            lease: None,
+            stats: DevelopmentStats {
+                disabled: true,
+                ..DevelopmentStats::default()
+            },
         };
         #[cfg(test)]
         let (entries, allocation_failure) = DEVELOPMENT_CONFIG.with(std::cell::Cell::get);
         #[cfg(not(test))]
         let (entries, allocation_failure) = (16384usize, false);
-        let metadata = std::mem::size_of::<Self>() + std::mem::size_of::<Option<Self>>()
+        let metadata = std::mem::size_of::<Self>()
+            + std::mem::size_of::<Option<Self>>()
             + 2 * std::mem::size_of::<DevelopmentStats>();
-        let requested = entries.checked_mul(std::mem::size_of::<DevelopmentSlot>())
+        let requested = entries
+            .checked_mul(std::mem::size_of::<DevelopmentSlot>())
             .and_then(|n| n.checked_add(metadata));
         if entries > 0 && entries % 4 == 0 {
-            // Claim the sole auxiliary slot before allocating, including on a second-session refusal.
             if let Some(lease) = requested.and_then(|n| base.reserve_proof_bytes(n)) {
                 if !allocation_failure && table.slots.try_reserve_exact(entries).is_ok() {
-                    let actual = table.slots.capacity().checked_mul(std::mem::size_of::<DevelopmentSlot>())
+                    let actual = table
+                        .slots
+                        .capacity()
+                        .checked_mul(std::mem::size_of::<DevelopmentSlot>())
                         .and_then(|n| n.checked_add(metadata));
                     if actual == requested {
                         table.slots.resize(entries, DevelopmentSlot::default());
@@ -1965,9 +1978,18 @@ impl<'a, 'raw> DevelopmentAuditSession<'a, 'raw> {
                 }
             }
         }
-        Self { base, raw, rule, table }
+        Self {
+            base,
+            raw,
+            rule,
+            table,
+        }
     }
-    fn batch(&mut self, s: &mut (impl CodecRead + ?Sized), payload: &RefValue) -> Result<(), PublishError> {
+    fn batch(
+        &mut self,
+        s: &mut (impl CodecRead + ?Sized),
+        payload: &RefValue,
+    ) -> Result<(), PublishError> {
         self.table.stats.eligible_batches += 1;
         audit_development_batch_inner(s, payload, self.raw, self.rule, Some(&mut self.table))
     }
@@ -1984,20 +2006,33 @@ impl DevelopmentTable<'_> {
         (u64::from_le_bytes(digest[..8].try_into().unwrap()) as usize % (self.slots.len() / 4)) * 4
     }
     fn lookup(&self, unit: &RefValue) -> Option<i64> {
-        if self.slots.is_empty() { return None; }
+        if self.slots.is_empty() {
+            return None;
+        }
         let key = Self::key(unit)?;
         let start = self.start(&key);
-        self.slots[start..start + 4].iter()
-            .find(|slot| slot.occupied && slot.digest == key).map(|slot| slot.coord)
+        self.slots[start..start + 4]
+            .iter()
+            .find(|slot| slot.occupied && slot.digest == key)
+            .map(|slot| slot.coord)
     }
     fn save(&mut self, unit: &RefValue, coord: i64) {
-        if self.slots.is_empty() { return; }
-        let Some(key) = Self::key(unit) else { return; };
+        if self.slots.is_empty() {
+            return;
+        }
+        let Some(key) = Self::key(unit) else {
+            return;
+        };
         let start = self.start(&key);
-        let index = (start..start + 4).find(|&i| !self.slots[i].occupied || self.slots[i].digest == key)
+        let index = (start..start + 4)
+            .find(|&i| !self.slots[i].occupied || self.slots[i].digest == key)
             .unwrap_or(start + self.next % 4);
         self.next = self.next.wrapping_add(1);
-        self.slots[index] = DevelopmentSlot { digest: key, coord, occupied: true };
+        self.slots[index] = DevelopmentSlot {
+            digest: key,
+            coord,
+            occupied: true,
+        };
     }
 }
 impl Drop for DevelopmentTable<'_> {
@@ -2020,8 +2055,10 @@ fn audit_development_unit(
     audit_development_unit_coord(s, unit, raw, source_bound).map(|_| ())
 }
 fn audit_development_unit_coord(
-    s: &mut (impl CodecRead + ?Sized), unit: &RefValue,
-    raw: &(impl RawLookup + ?Sized), source_bound: bool,
+    s: &mut (impl CodecRead + ?Sized),
+    unit: &RefValue,
+    raw: &(impl RawLookup + ?Sized),
+    source_bound: bool,
 ) -> Result<i64, PublishError> {
     exact(unit, Kind::Object, if source_bound { 3 } else { 2 })?;
     let bar = field(s, unit, "bar")?;
@@ -2052,8 +2089,10 @@ fn audit_development_batch(
     audit_development_batch_inner(s, payload, raw, rule, None)
 }
 fn audit_development_batch_inner(
-    s: &mut (impl CodecRead + ?Sized), payload: &RefValue,
-    raw: &(impl RawLookup + ?Sized), rule: &str,
+    s: &mut (impl CodecRead + ?Sized),
+    payload: &RefValue,
+    raw: &(impl RawLookup + ?Sized),
+    rule: &str,
     mut memo: Option<&mut DevelopmentTable<'_>>,
 ) -> Result<(), PublishError> {
     let source_bound = super::layout::Layout::of_rule(rule)? == super::layout::Layout::Bounded2;
@@ -2067,9 +2106,13 @@ fn audit_development_batch_inner(
         exact(&entry, Kind::Object, 3)?;
         let _fractal = text(s, &entry, "fractal_object_id")?;
         let unit = field(s, &entry, "unit")?;
-        if let Some(memo) = memo.as_deref_mut() { memo.stats.current_full += 1; }
+        if let Some(memo) = memo.as_deref_mut() {
+            memo.stats.current_full += 1;
+        }
         let coord = audit_development_unit_coord(s, &unit, raw, true)?;
-        if let Some(memo) = memo.as_deref_mut() { memo.save(&unit, coord); }
+        if let Some(memo) = memo.as_deref_mut() {
+            memo.save(&unit, coord);
+        }
         if field(s, &unit, "bar")? != bar {
             return Err(err("CC007单元bar与批记录不同"));
         }
@@ -2085,7 +2128,8 @@ fn audit_development_batch_inner(
         for previous in &units {
             if let Some(memo) = memo.as_deref_mut() {
                 if let Some(coord) = memo.lookup(previous) {
-                    sc::audit_verify_refview_headers(s.generic_source(), [previous.view()]).map_err(err)?;
+                    sc::audit_verify_refview_headers(s.generic_source(), [previous.view()])
+                        .map_err(err)?;
                     raw.get(&coord).ok_or_else(|| err("CC007单元缺原始来源"))?;
                     memo.stats.hits += 1;
                     continue;
@@ -2703,11 +2747,16 @@ fn audit_generated_in_store(
         &ordinary_raw
     };
     let mut development = if ordinary.is_none()
-        && budget.is_none() && deadline.is_none()
+        && budget.is_none()
+        && deadline.is_none()
         && super::layout::Layout::of_rule(rule).ok() == Some(super::layout::Layout::Bounded2)
     {
-        s.source.eligible_sqlite_base().map(|base| DevelopmentAuditSession::new(base, &raw, rule))
-    } else { None };
+        s.source
+            .eligible_sqlite_base()
+            .map(|base| DevelopmentAuditSession::new(base, &raw, rule))
+    } else {
+        None
+    };
     let current_generation = if crate::is_structure_rule(rule) {
         number(s, state, "generation")?
     } else {
@@ -2745,7 +2794,9 @@ fn audit_generated_in_store(
         };
         super::history::check_deadline(deadline)?;
         if development.as_ref().is_some_and(|session| {
-            !s.source.eligible_sqlite_base().is_some_and(|base| std::ptr::eq(base, session.base))
+            !s.source
+                .eligible_sqlite_base()
+                .is_some_and(|base| std::ptr::eq(base, session.base))
         }) {
             development = None;
         }
@@ -2773,7 +2824,10 @@ fn audit_generated_in_store(
                 &producer,
                 rule,
                 current_generation,
-                &mut FullObjectSlots { ids: &mut ids, groups: &mut groups },
+                &mut FullObjectSlots {
+                    ids: &mut ids,
+                    groups: &mut groups,
+                },
                 &mut checked_refs,
                 native_sources.as_deref_mut(),
                 raw_prefix.len(),
@@ -3462,7 +3516,7 @@ mod tests {
         (store, root, raw, rule)
     }
 
-    fn tb1405_pending_fixture(
+    pub(super) fn tb1405_pending_fixture(
         rows: &[(&str, i64, i64, i64, i64, i64)],
     ) -> (MemoryNodes, ContentRef, Vec<Value>, String) {
         let files = TestFiles::new();

@@ -34,7 +34,8 @@ pub(super) fn audit_development_batch(
     raw: &(impl RawLookup + ?Sized),
     rule: &str,
 ) -> Result<(), PublishError> {
-    let source_bound = crate::v3::layout::Layout::of_rule(rule)? == crate::v3::layout::Layout::Bounded2;
+    let source_bound =
+        crate::v3::layout::Layout::of_rule(rule)? == crate::v3::layout::Layout::Bounded2;
     if !source_bound {
         return Ok(());
     }
@@ -67,4 +68,3 @@ pub(super) fn audit_development_batch(
     }
     Ok(())
 }
-
