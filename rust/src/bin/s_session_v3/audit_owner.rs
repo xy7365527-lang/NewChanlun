@@ -100,7 +100,7 @@ pub(crate) use construction_set::{Edit, OwnerSourceCheck, SequenceDelta, SourceA
 #[cfg(all(test, feature = "s_incremental"))]
 pub(crate) use effects::PublicationStageIdentity;
 #[cfg(feature = "s_incremental")]
-pub(crate) use effects::{MaterialAccess, SourceCutBinding, SourceMaterial, StageKind};
+pub(crate) use effects::{MaterialAccess, QualifiedSourceCut, SourceCutBinding, SourceMaterial, StageKind};
 #[path = "construction_state.rs"]
 mod construction_state;
 #[cfg_attr(
@@ -3409,7 +3409,7 @@ pub(crate) fn audit_native_source_cut(
     raw: &BoundRawAdvance<'_>,
     profile: &str,
     rule: &str,
-) -> Result<(source_audit::Counts, source_audit::NativeSourceState), String> {
+) -> Result<(QualifiedSourceCut, source_audit::NativeSourceState), String> {
     effects::audit_native_source(material, capture, previous, root, raw, profile, rule)
 }
 #[cfg(feature = "s_incremental")]
@@ -5196,6 +5196,14 @@ pub(super) mod construction_tests {
     /// `owner_suffix_complete`，且无 `publication_candidate_abandoned`（未降级为无候选重发）。
     /// 六代后 warm 库每个 cut 的五个累计数组：写者发布 ＝ 按库布局独立重建；按另一布局重建在
     /// 某个 cut 不等；两库发布值不同。
+    #[test]
+    fn p6_native_source_context_preserves_real_owner_multicut_contract() {
+        // 实际effects/source-set/append消费路径；不以手造Counts或token模拟资格。
+        construction_set::with_source_context_negatives_for_test(|| {
+            b2_native_owner_restore_bounded_multicut_matches_writer_and_rebuild();
+        });
+    }
+
     #[test]
     fn b2_native_owner_restore_bounded_multicut_matches_writer_and_rebuild() {
         use super::super::history::tests::{

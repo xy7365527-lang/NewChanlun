@@ -16,6 +16,7 @@ pub(crate) struct RawReceipt {
     token: NativeValue<String>,
     generation: i64,
     rule: NativeValue<String>,
+    profile: NativeValue<String>,
     generated: NativeValue<ContentRef>,
     scope: NativeValue<ContentRef>,
     raw_from: usize,
@@ -47,16 +48,37 @@ pub(crate) fn audit_raw_receipt(
         &mut s, generated, raw, profile, rule, deadline, budget,
         None, None, None, None, None,
     )?;
+    export_raw_receipt(&mut s, token, generation, generated, raw, raw_from,
+        profile, rule, deadline, budget, counts)
+}
+
+fn export_raw_receipt(
+    s: &mut super::super::audit_store::StoreView<'_, '_>,
+    token: &str,
+    generation: i64,
+    generated: sc::RefView<'_>,
+    raw: RawEventsView<'_>,
+    raw_from: usize,
+    profile: &str,
+    rule: &str,
+    deadline: Option<std::time::Instant>,
+    budget: Option<&dyn super::super::audit_budget::Budget>,
+    counts: Counts,
+) -> Result<RawReceipt, String> {
+    if token.is_empty() || generation < 1 || raw_from > raw.len() {
+        return Err(err("P6来源收据请求或raw区间无效"));
+    }
+    super::super::history::check_deadline(deadline)?;
     let frontier = i64::try_from(raw.len()).map_err(err)?.checked_sub(1)
         .ok_or_else(|| err("P6原始前沿溢出"))?;
-    if number(&mut s, generated, "generation")? != generation
-        || number(&mut s, generated, "input_frontier")? != frontier
-        || text(&mut s, generated, "profile_id")?.as_str() != profile
-        || text(&mut s, generated, "rule_revision")?.as_str() != rule
+    if number(s, generated, "generation")? != generation
+        || number(s, generated, "input_frontier")? != frontier
+        || text(s, generated, "profile_id")?.as_str() != profile
+        || text(s, generated, "rule_revision")?.as_str() != rule
     {
         return Err(err("P6来源收据与生成态元数据不一致"));
     }
-    let scope = field_ref(&mut s, generated, "scope")?;
+    let scope = field_ref(s, generated, "scope")?;
     let scope = s.native_plain_ref(scope.view()).map_err(err)?;
     let allocation = s.allocation_budget();
     let mut rows = bj::new_work(allocation.as_ref());
@@ -69,16 +91,18 @@ pub(crate) fn audit_raw_receipt(
             return Err(err("P6原始seq与独立原件ordinal不连续"));
         }
         let event_digest = super::super::history::hash_json_in_store(
-            &s, event, deadline, budget,
+            s, event, deadline, budget,
         )?;
-        let bar_digest = source_pending::raw_bar(&s, event, deadline, budget)?;
+        let bar_digest = source_pending::raw_bar(s, event, deadline, budget)?;
         s.native_codec_room(&mut rows, 1).map_err(err)?;
         rows.try_push(RawRow { seq, event_digest, bar_digest }).map_err(err)?;
     }
+    super::super::history::check_deadline(deadline)?;
     Ok(RawReceipt {
         token: s.native_string(token).map_err(err)?,
         generation,
         rule: s.native_string(rule).map_err(err)?,
+        profile: s.native_string(profile).map_err(err)?,
         generated: s.native_plain_ref(generated).map_err(err)?,
         scope,
         raw_from,
@@ -89,8 +113,31 @@ pub(crate) fn audit_raw_receipt(
     })
 }
 
+/// 同次 Native 来源核的结果，不能由 Counts 或调用方布尔值制造。
+#[cfg(feature = "s_incremental")]
+pub(crate) fn receipt_from_native(
+    qualified: super::super::audit_owner::QualifiedSourceCut,
+    material: &super::super::audit_owner::MaterialAccess<'_, '_, '_>,
+    store: &mut dyn NodeStore,
+    token: &str,
+    metadata: &crate::content_manifest::ManifestMetadata,
+    generated: sc::RefView<'_>,
+    raw: &super::super::audit_owner::BoundRawAdvance<'_>,
+    raw_from: usize,
+) -> Result<RawReceipt, String> {
+    let counts = qualified.consume(material, generated, raw, metadata, None)?;
+    let result = export_raw_receipt(
+        &mut super::super::audit_store::StoreView::generic(store),
+        token, metadata.generation, generated, raw.raw(), raw_from,
+        &metadata.profile_id, &metadata.rule_revision,
+        None, None, counts,
+    )?;
+    raw.ensure_current()?;
+    Ok(result)
+}
+
 struct DeadlineSource<'a> {
-    source: &'a mut dyn sc::NodeSource,
+    source: &'a mut dyn NodeStore,
     deadline: Option<std::time::Instant>,
 }
 impl DeadlineSource<'_> {
@@ -132,6 +179,17 @@ impl sc::NodeSource for DeadlineSource<'_> {
     }
 }
 
+impl sc::NodeSink for DeadlineSource<'_> {
+    fn codec_sink_work(&self) -> Option<&sc::capture_allocation::scratch::WorkScope> {
+        self.source.codec_sink_work()
+    }
+    fn put(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), sc::CodecError> {
+        self.check()?;
+        self.source.put(digest, tag, body)?;
+        self.check()
+    }
+}
+
 fn same_ref(a: sc::RefView<'_>, b: sc::RefView<'_>) -> bool {
     a.format() == b.format() && a.root() == b.root()
         && a.kind() == b.kind() && a.extent() == b.extent()
@@ -146,6 +204,51 @@ pub(crate) struct PreparedReceipt {
 }
 #[allow(dead_code)]
 impl RawReceipt {
+    pub(crate) fn with_store<T>(
+        &self,
+        store: &mut dyn NodeStore,
+        f: impl FnOnce(&mut dyn NodeStore) -> Result<T, String>,
+    ) -> Result<T, String> {
+        super::super::history::check_deadline(self.deadline)?;
+        let result = f(&mut DeadlineSource { source: store, deadline: self.deadline })?;
+        super::super::history::check_deadline(self.deadline)?;
+        Ok(result)
+    }
+    pub(crate) fn check_request(
+        &self,
+        token: &str,
+        generation: i64,
+        rule: &str,
+        raw_range: std::ops::Range<usize>,
+        scope: sc::RefView<'_>,
+        generated: sc::RefView<'_>,
+    ) -> Result<(), String> {
+        super::super::history::check_deadline(self.deadline)?;
+        if self.token.as_str() != token || self.generation != generation
+            || self.rule.as_str() != rule || self.raw_from != raw_range.start
+            || self.raw_to != raw_range.end || !same_ref((&self.scope).into(), scope)
+            || !same_ref((&self.generated).into(), generated)
+        {
+            return Err(err("P6来源收据与发布请求不符"));
+        }
+        Ok(())
+    }
+    pub(crate) fn check_manifest(
+        &self,
+        generation: i64,
+        profile: &str,
+        rule: &str,
+        input_frontier: i64,
+        scope: sc::RefView<'_>,
+        generated: sc::RefView<'_>,
+    ) -> Result<(), String> {
+        let raw_to = input_frontier.checked_add(1).and_then(|n| usize::try_from(n).ok())
+            .ok_or_else(|| err("P6发布前沿无效"))?;
+        if self.profile.as_str() != profile {
+            return Err(err("P6来源profile与发布不同"));
+        }
+        self.check_request(&self.token, generation, rule, self.raw_from..raw_to, scope, generated)
+    }
     pub(crate) fn counts(&self) -> &Counts { &self.counts }
     pub(crate) fn rows(&self) -> &[RawRow] { &self.rows }
     pub(crate) fn bind_four_roots(
@@ -198,6 +301,19 @@ impl PreparedReceipt {
         super::super::history::check_deadline(self.source.deadline)?;
         Ok(self.source)
     }
+}
+
+#[cfg(test)]
+thread_local! {
+    static PUBLICATION_CONSUMED: std::cell::RefCell<Vec<usize>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+#[cfg(test)]
+pub(crate) fn note_publication_consumed_for_test(rows: usize) {
+    PUBLICATION_CONSUMED.with(|seen| seen.borrow_mut().push(rows));
+}
+#[cfg(test)]
+pub(crate) fn take_publication_consumed_for_test() -> Vec<usize> {
+    PUBLICATION_CONSUMED.with(|seen| std::mem::take(&mut *seen.borrow_mut()))
 }
 
 #[cfg(test)]

@@ -1261,6 +1261,50 @@ pub(crate) struct SourceCutBinding {
     root: construction_set::Declaration,
     raw: RawAdvanceBinding,
 }
+/// 只由来源核最终封口成功点签发；Counts 本身不是来源资格。
+pub(crate) struct QualifiedSourceCut {
+    binding: SourceCutBinding,
+    counts: super::super::source_audit::Counts,
+}
+impl QualifiedSourceCut {
+    pub(crate) fn consume(
+        self,
+        access: &MaterialAccess<'_, '_, '_>,
+        root: sc::RefView<'_>,
+        raw: &BoundRawAdvance<'_>,
+        metadata: &crate::content_manifest::ManifestMetadata,
+        deadline: Option<std::time::Instant>,
+    ) -> Result<super::super::source_audit::Counts, String> {
+        raw.ensure_current()?;
+        super::super::history::check_deadline(deadline)?;
+        let context = crate::content_manifest::NativeMetadata::from_view(metadata.view(), Some(access.work))
+            .map_err(invalid)?;
+        let mut j = access.journal.lock().map_err(invalid)?;
+        access.check(&j)?;
+        if self.binding.root != construction_set::Declaration::read(root)?
+            || self.binding.raw != raw.current_binding()
+            || self.binding.epoch != j.material_epoch
+            || self.binding.seal != access.seal
+            || j.set.is_none()
+        {
+            return Err(construction_state::stale("来源成功结果与当前原件切面不符"));
+        }
+        let extra = sum([j.extra_bytes, context.retained_bytes()]);
+        let bytes = sum([j.container_bytes(), extra]);
+        if bytes > j.cap {
+            return Err(construction_state::stale("来源请求身份保留账超过材料帽"));
+        }
+        j.set.as_mut().ok_or_else(|| construction_state::stale("来源集合已退役"))?
+            .bind_source_context(context, deadline)?;
+        #[cfg(test)]
+        j.set.as_mut().unwrap().context_negatives_for_test(metadata, root, raw.current_prefix());
+        j.extra_bytes = extra;
+        j.bytes = bytes;
+        j.peak = j.peak.max(bytes);
+        Ok(self.counts)
+    }
+}
+
 pub(crate) struct SourceMaterial<'material, 'tx, 'work, 'db> {
     access: &'material MaterialAccess<'tx, 'work, 'db>,
     reader: ActualRead<'material, 'db>,
@@ -1374,7 +1418,7 @@ pub(super) fn audit_native_source(
     rule: &str,
 ) -> Result<
     (
-        super::super::source_audit::Counts,
+        QualifiedSourceCut,
         super::super::source_audit::NativeSourceState,
     ),
     String,
@@ -1492,7 +1536,7 @@ pub(super) fn audit_native_source(
         }
         j.set = Some(set);
         j.source_binding = None;
-        Ok((counts, source))
+        Ok((QualifiedSourceCut { binding, counts }, source))
     })();
     if result.is_err() {
         if let Ok(mut j) = access.journal.lock() {

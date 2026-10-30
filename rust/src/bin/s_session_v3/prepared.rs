@@ -561,6 +561,7 @@ impl Runtime {
                     roots.as_slice(),
                     prepared.workspace,
                     work,
+                    prepared.source_manifest,
                 );
             }
             #[cfg(feature = "s_incremental")]
@@ -573,6 +574,7 @@ impl Runtime {
                 &prepared.policy_records,
                 prepared.workspace,
                 work,
+                prepared.source_manifest,
             );
             #[cfg(not(feature = "s_incremental"))]
             commit::publish_borrowed(
@@ -858,7 +860,7 @@ impl Runtime {
                     let material = material.ok_or_else(|| err("owner增量缺实际材料能力"))?;
                     #[cfg(test)]
                     state::trace_stage("prepare_source_audit", "delta", generation);
-                    let (counts, source) = super::audit_owner::audit_native_source_cut(
+                    let (qualified, source) = super::audit_owner::audit_native_source_cut(
                         material,
                         capture,
                         source_slot.take(),
@@ -878,6 +880,12 @@ impl Runtime {
                             .with_work(Some(material.work())),
                         budget: None,
                     };
+                    let source_receipt = source_audit::source_receipt::receipt_from_native(
+                        qualified, material, &mut store, token, &metadata,
+                        (&generated.generated_state).into(), raw,
+                        usize::try_from(previous.checked_add(1).ok_or_else(|| err("raw前缀溢出"))?).map_err(err)?,
+                    )?;
+                    let counts = source_receipt.counts().clone();
                     let products = self.finish_node_products(
                         &mut store,
                         true,
@@ -886,6 +894,7 @@ impl Runtime {
                         objects,
                         axes,
                         counts,
+                        Some(source_receipt),
                         audited,
                         &metadata,
                         previous,
@@ -924,6 +933,7 @@ impl Runtime {
                 roots,
                 manifest,
                 workspace,
+                source_manifest,
             } = products;
             let policy_records = generated.policy_records.clone();
             return Ok(Prepared {
@@ -932,6 +942,7 @@ impl Runtime {
                 manifest,
                 policy_records,
                 workspace,
+                source_manifest,
             });
         }
         let effective = super::business_json::effective(audited.raw.view(), None)?;
@@ -988,6 +999,7 @@ impl Runtime {
                     &mut store,
                     Some(&NativeGeneration { _lease_route: () }),
                     workspace_budget,
+                    token,
                     &input,
                     &audited,
                     &metadata,
@@ -1010,6 +1022,7 @@ impl Runtime {
                 roots,
                 manifest,
                 workspace,
+                source_manifest,
             } = products;
             let policy_records = generated.policy_records.clone();
             #[cfg(test)]
@@ -1067,6 +1080,7 @@ impl Runtime {
                 manifest,
                 policy_records,
                 workspace,
+                source_manifest,
             });
         }
         let _ = use_lease;
@@ -1093,11 +1107,14 @@ impl Runtime {
             manifest,
             #[cfg(feature = "s_incremental")]
             workspace,
+            #[cfg(feature = "s_incremental")]
+            source_manifest,
         } = self.generate_node_products(
             &mut store,
             None,
             #[cfg(feature = "s_incremental")]
             workspace_budget,
+            token,
             &input,
             &audited,
             &metadata,
@@ -1152,6 +1169,8 @@ impl Runtime {
             policy_records,
             #[cfg(feature = "s_incremental")]
             workspace,
+            #[cfg(feature = "s_incremental")]
+            source_manifest,
         })
     }
     fn generate_node_products<'raw, S: NodeStore>(
@@ -1161,6 +1180,7 @@ impl Runtime {
         #[cfg(feature = "s_incremental")] workspace_budget: Option<
             request_audit::ManifestWorkspaceBudget,
         >,
+        token: &str,
         input: &GenerationInput<'raw>,
         audited: &state::AuditedState,
         metadata: &ManifestMetadata,
@@ -1230,13 +1250,27 @@ impl Runtime {
             .map_err(err)?;
         #[cfg(test)]
         state::trace_stage("prepare_source_audit", path, generation);
-        let counts = source_audit::audit_generated(
-            store,
-            &generated.generated_state,
-            &audited.raw,
-            &metadata.profile_id,
-            &metadata.rule_revision,
-        )?;
+        #[cfg(feature = "s_incremental")]
+        let source_receipt = if native.is_some() {
+            Some(source_audit::source_receipt::audit_raw_receipt(
+                store, token, generation, (&generated.generated_state).into(),
+                audited.raw.view(),
+                usize::try_from(previous.checked_add(1).ok_or_else(|| err("raw前缀溢出"))?).map_err(err)?,
+                &metadata.profile_id, &metadata.rule_revision, None, None,
+            )?)
+        } else { None };
+        #[cfg(feature = "s_incremental")]
+        let counts = match &source_receipt {
+            Some(receipt) => receipt.counts().clone(),
+            None => source_audit::audit_generated(store, &generated.generated_state,
+                &audited.raw, &metadata.profile_id, &metadata.rule_revision)?,
+        };
+        #[cfg(not(feature = "s_incremental"))]
+        let counts = {
+            let _ = token;
+            source_audit::audit_generated(store, &generated.generated_state,
+                &audited.raw, &metadata.profile_id, &metadata.rule_revision)?
+        };
         self.finish_node_products(
             store,
             native.is_some(),
@@ -1246,6 +1280,8 @@ impl Runtime {
             objects,
             axes,
             counts,
+            #[cfg(feature = "s_incremental")]
+            source_receipt,
             audited,
             metadata,
             previous,
@@ -1271,6 +1307,7 @@ impl Runtime {
         objects: object_index::Plan,
         axes: sc::capture_allocation::native_owned::NativeValue<sc::ContentRef>,
         counts: source_audit::Counts,
+        #[cfg(feature = "s_incremental")] source_receipt: Option<source_audit::source_receipt::RawReceipt>,
         audited: &state::AuditedState,
         metadata: &ManifestMetadata,
         previous: i64,
@@ -1317,7 +1354,7 @@ impl Runtime {
             delta_template: delta,
         };
         #[cfg(feature = "s_incremental")]
-        let (manifest, workspace) = if workspace_eligible && workspace_budget.is_some() && {
+        let enabled_budget = workspace_budget.filter(|_| workspace_eligible && {
             #[cfg(test)]
             {
                 self.manifest_workspace
@@ -1326,19 +1363,24 @@ impl Runtime {
             {
                 true
             }
-        } {
-            content_manifest::assemble_unpublished_with_workspace(
-                store,
-                metadata,
-                &roots,
-                workspace_budget.expect("qualified entry budget"),
-            )
-            .map_err(err)?
-        } else {
-            (
-                content_manifest::assemble_unpublished(store, metadata, &roots).map_err(err)?,
-                None,
-            )
+        });
+        #[cfg(feature = "s_incremental")]
+        let (manifest, workspace, source_manifest) = match source_receipt {
+            Some(receipt) => {
+                let (manifest, workspace, proof) = content_manifest::assemble_with_source(
+                    store, metadata, &roots, receipt, enabled_budget,
+                )?;
+                (manifest, workspace, Some(proof))
+            }
+            None => {
+                let (manifest, workspace) = match enabled_budget {
+                    Some(budget) => content_manifest::assemble_unpublished_with_workspace(
+                        store, metadata, &roots, budget).map_err(err)?,
+                    None => (content_manifest::assemble_unpublished(store, metadata, &roots)
+                        .map_err(err)?, None),
+                };
+                (manifest, workspace, None)
+            }
         };
         #[cfg(not(feature = "s_incremental"))]
         let manifest =
@@ -1359,6 +1401,8 @@ impl Runtime {
             manifest,
             #[cfg(feature = "s_incremental")]
             workspace,
+            #[cfg(feature = "s_incremental")]
+            source_manifest,
         })
     }
 }
@@ -1377,6 +1421,8 @@ struct NodeProducts<'raw> {
     manifest: UnpublishedManifest,
     #[cfg(feature = "s_incremental")]
     workspace: Option<content_manifest::PreparedManifestWorkspace>,
+    #[cfg(feature = "s_incremental")]
+    source_manifest: Option<content_manifest::ManifestSourceReceipt>,
 }
 
 // #1488/#1507：三个根的原许可随实际 payload 存活；发布层只借 RootsView。
@@ -1402,6 +1448,8 @@ struct Prepared {
     policy_records: String,
     #[cfg(feature = "s_incremental")]
     workspace: Option<content_manifest::PreparedManifestWorkspace>,
+    #[cfg(feature = "s_incremental")]
+    source_manifest: Option<content_manifest::ManifestSourceReceipt>,
 }
 fn err(e: impl std::fmt::Display) -> String {
     format!("S3PrepareInvalid：{e}")
@@ -1717,6 +1765,46 @@ pub(crate) mod tests {
         tx.rollback().unwrap();
         f.runtime.discard();
         (f, e, token, metadata, roots)
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p6_production_manifest_source_receipt_consumed_without_third_assembly() {
+        source_audit::source_receipt::take_publication_consumed_for_test();
+        // 同一既有四代workspace/cold/Ordinary逐字对拍，包含真实workspace重绑。
+        manifest_workspace_normal_commits(false);
+        let consumed = source_audit::source_receipt::take_publication_consumed_for_test();
+        assert_eq!(consumed, vec![1; 8], "warm/cold Native每代各消费一次来源后缀，Ordinary不新增义务");
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn p6_production_manifest_source_receipt_rejects_request_substitution() {
+        for changed in 0..8 {
+            let mut f = Fixture::new();
+            f.runtime = Runtime::with_mode(s_allocation::Mode::CapturedNative);
+            let (e, token) = f.accept_begin(1, ("p6", 0, 6, 12, 3, 7), 1);
+            let mut tx = f.conn.transaction().unwrap();
+            let mut prepared = f.runtime.prepare(&mut tx, &token, &e, None,
+                None, None, None, None, None, None, None).unwrap();
+            let proof = prepared.source_manifest.take().expect("Native真实prepare须签发来源组装证明");
+            let mut metadata = prepared.metadata.clone();
+            match changed {
+                0 => metadata.generation += 1,
+                1 => metadata.profile_id.push_str("-different"),
+                2 => metadata.rule_revision.push_str("-different"),
+                3 => metadata.source_commit.message_id.push_str("-different"),
+                4 => metadata.scope.extent = Some(u64::MAX),
+                _ => (),
+            }
+            let supplied_token = if changed == 5 { "other-request" } else { &token };
+            let from = if changed == 6 { 1 } else { 0 };
+            let to = if changed == 7 { 2 } else { 1 };
+            assert!(proof.consume(supplied_token, &metadata, &prepared.roots,
+                &prepared.manifest, from..to).is_err());
+            drop(prepared);
+            tx.rollback().unwrap();
+        }
     }
 
     #[cfg(feature = "s_incremental")]
