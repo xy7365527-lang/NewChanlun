@@ -517,9 +517,11 @@ impl<'a, 'borrow, 'source, 'capture> ArrayAuditSource<'a, 'borrow, 'source, 'cap
             &mut super::audit_store::StoreView<'borrow, 'source>,
         ) -> Result<T, sc::CodecError>,
     ) -> Result<T, sc::CodecError> {
-        let role = self.full_arrays && self.deadline.is_none();
+        let role = self.audit_full_array_scan();
         let previous = self.source.swap_codec_full_array_role(role);
+        let previous_sequence = self.source.swap_codec_sequence_role(!role);
         let result = operation(self.source);
+        self.source.swap_codec_sequence_role(previous_sequence);
         self.source.swap_codec_full_array_role(previous);
         result
     }
@@ -801,6 +803,16 @@ impl CodecRead for ArrayAuditSource<'_, '_, '_, '_> {
     }
 }
 impl CodecStore for ArrayAuditSource<'_, '_, '_, '_> {
+    fn rebuild_sequence_suffix(
+        &mut self, seq: &sc::SequenceRef, keep: u64, leaves: &[NodeDigest],
+        budget: Option<&sc::capture_allocation::OwnedBudget>,
+    ) -> Result<sc::SequenceRef, sc::CodecError> {
+        if self.source.owned_codec_active() {
+            self.owned_role(|s| s.rebuild_sequence_suffix(seq, keep, leaves, budget))
+        } else {
+            sc::sequence_rebuild_suffix_with_allocation(self, seq, keep, leaves, budget)
+        }
+    }
     fn write_json_view(
         &mut self,
         v: sc::capture_allocation::audit_json::JsonView<'_>,

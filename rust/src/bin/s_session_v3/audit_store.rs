@@ -604,6 +604,12 @@ pub(crate) trait CodecRead: NodeSource {
     }
 }
 pub(crate) trait CodecStore: CodecRead + NodeSink {
+    fn rebuild_sequence_suffix(
+        &mut self, seq: &sc::SequenceRef, keep: u64, leaves: &[NodeDigest],
+        budget: Option<&sc::capture_allocation::OwnedBudget>,
+    ) -> Result<sc::SequenceRef, CodecError> {
+        sc::sequence_rebuild_suffix_with_allocation(self.generic_store(), seq, keep, leaves, budget)
+    }
     fn replace_ref(
         &mut self,
         r: sc::RefView<'_>,
@@ -742,6 +748,12 @@ impl<'a, 'source> StoreView<'a, 'source> {
         match &self.backend {
             Backend::Generic(_) => false,
             Backend::Audit(s) => s.owned_codec_active(),
+        }
+    }
+    pub(crate) fn swap_codec_sequence_role(&mut self, enabled: bool) -> bool {
+        match &mut self.backend {
+            Backend::Generic(s) => s.preserve_sequence_read_trace(),
+            Backend::Audit(s) => s.swap_codec_sequence_role(enabled),
         }
     }
     pub(crate) fn swap_codec_full_array_role(&mut self, enabled: bool) -> bool {
@@ -1026,6 +1038,15 @@ impl CodecRead for StoreView<'_, '_> {
     }
 }
 impl CodecStore for StoreView<'_, '_> {
+    fn rebuild_sequence_suffix(
+        &mut self, seq: &sc::SequenceRef, keep: u64, leaves: &[NodeDigest],
+        budget: Option<&sc::capture_allocation::OwnedBudget>,
+    ) -> Result<sc::SequenceRef, CodecError> {
+        match &mut self.backend {
+            Backend::Generic(s) => s.rebuild_sequence_suffix(seq, keep, leaves, budget),
+            Backend::Audit(s) => s.rebuild_sequence_suffix(seq, keep, leaves, budget),
+        }
+    }
     fn replace_ref(
         &mut self,
         r: sc::RefView<'_>,

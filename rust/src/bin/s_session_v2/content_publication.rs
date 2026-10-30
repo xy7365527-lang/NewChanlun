@@ -2696,6 +2696,8 @@ mod tests {
     #[test]
     fn owned_publication_same_real_indexed_template_roots_and_f() {
         use sc::capture_allocation::{CaptureSlab, OwnedBudget};
+        crate::v3::diagnostic_s4_read_trace::enable();
+        crate::v3::diagnostic_s4_read_trace::phase(2);
         let mut db = Connection::open_in_memory().unwrap();
         let tx = db.transaction().unwrap();
         let (m, roots, manifest) = fixtures(&tx);
@@ -2721,6 +2723,7 @@ mod tests {
             65536,
             |store| {
                 let f = sc::frame_calls_on_thread();
+                eprintln!("OWNED34P_PUBLICATION_START f={f}");
                 let result = resolve_indexed_templates_pending(
                     &tx,
                     store,
@@ -2752,6 +2755,7 @@ mod tests {
             65536,
             |store| {
                 let f = sc::frame_calls_on_thread();
+                eprintln!("OWNED34P_PUBLICATION_START f={f}");
                 let result = resolve_indexed_templates_pending_view(
                     &tx,
                     store,

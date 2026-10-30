@@ -1137,10 +1137,10 @@ fn public_sets(
         o.try_push(digest(&row.wire)?).map_err(publish_err)?;
     }
     Ok(PublicSets {
-        witnesses: memo[0].sync(s.generic_store(), &w, "见证快照", budget.as_ref())?,
-        relations: memo[1].sync(s.generic_store(), &r, "关系快照", budget.as_ref())?,
-        observations: memo[2].sync(s.generic_store(), &o, "观察快照", budget.as_ref())?,
-        raw_history: memo[3].sync(s.generic_store(), raw, "原始历史", budget.as_ref())?,
+        witnesses: memo[0].sync_codec(s, &w, "见证快照", budget.as_ref())?,
+        relations: memo[1].sync_codec(s, &r, "关系快照", budget.as_ref())?,
+        observations: memo[2].sync_codec(s, &o, "观察快照", budget.as_ref())?,
+        raw_history: memo[3].sync_codec(s, raw, "原始历史", budget.as_ref())?,
     })
 }
 fn window(

@@ -40,9 +40,10 @@ use super::capture_allocation::work::WorkMap;
 use super::capture_allocation::OwnedBudget;
 use super::{
     be_u64, checked_frame_len, digest_at, frame, length_overflow_error, parse_root,
-    read_scoped_checked, root_string, sequence_shape_error, split_index, tag, CodecError,
+    root_string, sequence_shape_error, split_index, tag, CodecError,
     NodeDigest, NodeSink, NodeSource, MAX_FRAME_LEN,
 };
+use super::closed::CodecContext;
 use std::collections::HashMap;
 use std::hash::Hash;
 
@@ -126,7 +127,7 @@ enum SeqNode {
 /// 单节点核验：摘要↔(tag, body) 重算、tag/长度与期望 `count`、分支声明 n 与 k 规则。
 /// 只核这一个节点，不下钻子节点（直接子节点计数由 `read_seq_node` 补）。
 fn read_header(
-    store: &mut dyn NodeStore,
+    store: &mut CodecContext<'_, '_>,
     digest: &NodeDigest,
     count: u64,
 ) -> Result<SeqNode, CodecError> {
@@ -148,7 +149,7 @@ fn read_header(
         return Ok(SeqNode::Empty);
     }
     // 活动工作域下读取签发的原正文许可随 body 持有，核完形状随 body 释放。
-    let (t, body) = read_scoped_checked(&mut *store, digest)?;
+    let (t, body) = store.read(digest)?;
     if count == 1 {
         if t != tag::SEQ_LEAF {
             return Err(sequence_shape_error(format!(
@@ -202,7 +203,7 @@ fn read_header(
 /// 触碰边界核验：本节点 + （分支时）两个直接子节点按各自应有计数核验。
 /// 这是 §5.2 的 k 规则在本地边界的实例；未下钻的更深子树不在此核。
 fn read_seq_node(
-    store: &mut dyn NodeStore,
+    store: &mut CodecContext<'_, '_>,
     digest: &NodeDigest,
     count: u64,
 ) -> Result<SeqNode, CodecError> {
@@ -215,13 +216,13 @@ fn read_seq_node(
 }
 
 /// 入口校验：`SequenceRef` 的根与叶数必须在 store 里自洽（触碰边界的一层）。
-fn checked_input(store: &mut dyn NodeStore, seq: &SequenceRef) -> Result<(), CodecError> {
+fn checked_input(store: &mut CodecContext<'_, '_>, seq: &SequenceRef) -> Result<(), CodecError> {
     read_seq_node(store, &seq.root, seq.count)?;
     Ok(())
 }
 
 fn branch_node(
-    store: &mut dyn NodeStore,
+    store: &mut CodecContext<'_, '_>,
     left: &NodeDigest,
     right: &NodeDigest,
     n: u64,
@@ -230,14 +231,12 @@ fn branch_node(
     body[..8].copy_from_slice(&checked_frame_len(n)?);
     body[8..40].copy_from_slice(left);
     body[40..72].copy_from_slice(right);
-    let digest = frame(tag::SEQ_BRANCH, &body);
-    store.put(digest, tag::SEQ_BRANCH, &body)?;
+    let digest = store.emit(tag::SEQ_BRANCH, &body)?;
     Ok(digest)
 }
 
-fn empty_node(store: &mut dyn NodeStore) -> Result<SequenceRef, CodecError> {
-    let digest = frame(tag::SEQ_EMPTY, &[]);
-    store.put(digest, tag::SEQ_EMPTY, &[])?;
+fn empty_node(store: &mut CodecContext<'_, '_>) -> Result<SequenceRef, CodecError> {
+    let digest = store.emit(tag::SEQ_EMPTY, &[])?;
     Ok(SequenceRef::from_parts_unchecked(digest, 0))
 }
 
@@ -258,6 +257,7 @@ pub fn sequence_concat_with_allocation(
     right: &SequenceRef,
     budget: Option<&OwnedBudget>,
 ) -> Result<SequenceRef, CodecError> {
+    let store = &mut CodecContext::Store(store);
     let mut memo = Memo::new(budget)?;
     checked_input(store, left)?;
     checked_input(store, right)?;
@@ -287,6 +287,7 @@ pub fn sequence_split_with_allocation(
     index: u64,
     budget: Option<&OwnedBudget>,
 ) -> Result<(SequenceRef, SequenceRef), CodecError> {
+    let store = &mut CodecContext::Store(store);
     let mut memo = Memo::new(budget)?;
     if index > seq.count {
         return Err(sequence_shape_error(format!(
@@ -316,10 +317,10 @@ pub fn sequence_append_with_allocation(
     leaf: &NodeDigest,
     budget: Option<&OwnedBudget>,
 ) -> Result<SequenceRef, CodecError> {
+    let store = &mut CodecContext::Store(store);
     let mut memo = Memo::new(budget)?;
     checked_input(store, seq)?;
-    let leaf_digest = frame(tag::SEQ_LEAF, leaf);
-    store.put(leaf_digest, tag::SEQ_LEAF, leaf)?;
+    let leaf_digest = store.emit(tag::SEQ_LEAF, leaf)?;
     let tail = SequenceRef::from_parts_unchecked(leaf_digest, 1);
     concat_core(store, seq, &tail, &mut memo)
 }
@@ -339,6 +340,16 @@ pub fn sequence_rebuild_suffix(
 /// 节点 body 与 store 自身分配不由本入口计量；失败可能已有节点写入，事务由调用方回滚。
 pub fn sequence_rebuild_suffix_with_allocation(
     store: &mut dyn NodeStore,
+    seq: &SequenceRef,
+    keep: u64,
+    leaves: &[NodeDigest],
+    budget: Option<&OwnedBudget>,
+) -> Result<SequenceRef, CodecError> {
+    sequence_rebuild_suffix_ctx(&mut CodecContext::Store(store), seq, keep, leaves, budget)
+}
+
+pub(super) fn sequence_rebuild_suffix_ctx(
+    store: &mut CodecContext<'_, '_>,
     seq: &SequenceRef,
     keep: u64,
     leaves: &[NodeDigest],
@@ -398,8 +409,7 @@ pub fn sequence_rebuild_suffix_with_allocation(
         }
     }
     for leaf in leaves {
-        let leaf_digest = frame(tag::SEQ_LEAF, leaf);
-        store.put(leaf_digest, tag::SEQ_LEAF, leaf)?;
+        let leaf_digest = store.emit(tag::SEQ_LEAF, leaf)?;
         stack.try_push((leaf_digest, 1))?;
         while stack.len() >= 2 && stack[stack.len() - 1].1 == stack[stack.len() - 2].1 {
             let right = stack.pop().expect("len>=2");
@@ -494,7 +504,7 @@ impl Memo {
 ///
 /// 前置：两个输入的有效性已按 `checked_input` 核过。
 fn concat_core(
-    store: &mut dyn NodeStore,
+    store: &mut CodecContext<'_, '_>,
     left: &SequenceRef,
     right: &SequenceRef,
     memo: &mut Memo,
@@ -543,7 +553,7 @@ fn concat_core(
 ///
 /// 前置：`seq` 已按 `checked_input` 核过，且 `0 ≤ index ≤ seq.count`。
 fn split_core(
-    store: &mut dyn NodeStore,
+    store: &mut CodecContext<'_, '_>,
     seq: &SequenceRef,
     index: u64,
     memo: &mut Memo,

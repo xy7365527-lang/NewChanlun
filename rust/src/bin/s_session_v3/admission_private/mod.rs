@@ -117,9 +117,9 @@ pub(crate) mod s4_read_trace {
             let t = t.borrow();
             if t.enabled && t.phase == 2 {
                 let [hit, miss] = cache_counts(conn);
-                eprintln!("S4_AUDIT_WINDOW boundary={} edge={} outcome={} bytes={} node_sql_reads={} cache_hit={:?} cache_miss={:?}",
+                eprintln!("S4_AUDIT_WINDOW boundary={} edge={} outcome={} bytes={} node_sql_reads={} cache_hit={:?} cache_miss={:?} f={}",
                     boundary, edge, outcome, t.bytes[2],
-                    crate::content_store::sql_reads_on_thread(), hit, miss);
+                    crate::content_store::sql_reads_on_thread(), hit, miss, newchan_rust::s_content::frame_calls_on_thread());
             }
         });
     }

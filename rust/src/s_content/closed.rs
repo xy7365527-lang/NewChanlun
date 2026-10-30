@@ -21,6 +21,7 @@ pub struct ClosedCapturedOwner<'capture> {
     overlay: OverlaySlab,
     max_render_bytes: Option<u64>,
     full_arrays: bool,
+    preserve_sequence_trace: bool,
     read_trace: Option<fn(bool)>,
     put_trace: Option<fn()>,
     overlay_peak_trace: Option<fn((usize, usize))>,
@@ -106,6 +107,7 @@ impl AuditCapture {
             overlay,
             max_render_bytes,
             full_arrays: false,
+            preserve_sequence_trace: false,
             read_trace: None,
             put_trace: None,
             overlay_peak_trace: None,
@@ -329,6 +331,20 @@ impl<'capture> ClosedCapturedOwner<'capture> {
     }
     pub fn write_template(&mut self, v: &Value) -> Result<Built, CodecError> {
         write_in_mode(&mut CodecContext::Closed(self), v, Mode::Template)
+    }
+    pub fn sequence_rebuild_suffix(
+        &mut self,
+        seq: &super::SequenceRef,
+        keep: u64,
+        leaves: &[NodeDigest],
+    ) -> Result<super::SequenceRef, CodecError> {
+        let budget = self.budget.clone();
+        super::sequence::sequence_rebuild_suffix_ctx(
+            &mut CodecContext::Closed(self), seq, keep, leaves, Some(&budget),
+        )
+    }
+    pub fn swap_sequence_read_trace(&mut self, enabled: bool) -> bool {
+        std::mem::replace(&mut self.preserve_sequence_trace, enabled)
     }
     pub fn raw_put(&mut self, d: NodeDigest, t: u8, b: &[u8]) -> Result<(), CodecError> {
         let material = FrameMaterial::checked(t, b);
@@ -650,6 +666,8 @@ impl<'read, 'capture> CodecContext<'read, 'capture> {
         match self {
             Self::Source(s) => s.preserve_sequence_read_trace(),
             Self::Store(s) => s.preserve_sequence_read_trace(),
+            Self::Closed(c) => c.preserve_sequence_trace,
+            Self::QAccess { owner, .. } => owner.preserve_sequence_trace,
             _ => false,
         }
     }

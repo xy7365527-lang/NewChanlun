@@ -1799,7 +1799,17 @@ impl SequenceMemo {
         what: &'static str,
         budget: Option<&sc::capture_allocation::OwnedBudget>,
     ) -> Result<Built, PublishError> {
-        self.check_native_scope(store)?;
+        self.sync_splice_codec(store, edit, what, budget)
+    }
+
+    fn sync_splice_codec(
+        &mut self,
+        store: &mut (impl CodecStore + ?Sized),
+        edit: SequenceSplice<'_>,
+        what: &'static str,
+        budget: Option<&sc::capture_allocation::OwnedBudget>,
+    ) -> Result<Built, PublishError> {
+        self.check_native_scope(store.generic_store())?;
         if self.bound
             && !match (self.allocation_budget(), budget) {
                 (None, None) => true,
@@ -1825,7 +1835,7 @@ impl SequenceMemo {
             .unchanged_prefix
             .checked_add(edit.replacement_suffix.len())
             .ok_or_else(|| format!("GenError：{what} splice 长度溢出"))?;
-        let mut next_keys = if !self.bound && (budget.is_some() || store.codec_work().is_some()) {
+        let mut next_keys = if !self.bound && (budget.is_some() || store.generic_store().codec_work().is_some()) {
             Some(match budget {
                 Some(b) => SequenceKeys::owned(b)?,
                 None => SequenceKeys::default(),
@@ -1836,9 +1846,8 @@ impl SequenceMemo {
         next_keys
             .as_mut()
             .unwrap_or(&mut self.keys)
-            .reserve_admitted(store, length)?;
-        let seq = sc::sequence_rebuild_suffix_with_allocation(
-            &mut *store,
+            .reserve_admitted(store.generic_store(), length)?;
+        let seq = store.rebuild_sequence_suffix(
             &previous,
             edit.unchanged_prefix as u64,
             edit.replacement_suffix,
@@ -1847,7 +1856,7 @@ impl SequenceMemo {
         .map_err(|error| {
             PublishError::from(error).context(&format!("GenError：{what} 序列后缀重建失败："))
         })?;
-        let built = array_from_sequence(&mut *store, &seq).map_err(producer_error)?;
+        let built = array_from_sequence(store.generic_store(), &seq).map_err(producer_error)?;
         next_keys
             .as_mut()
             .unwrap_or(&mut self.keys)
@@ -1867,7 +1876,17 @@ impl SequenceMemo {
         what: &'static str,
         budget: Option<&sc::capture_allocation::OwnedBudget>,
     ) -> Result<Built, PublishError> {
-        self.check_native_scope(store)?;
+        self.sync_codec(store, elements, what, budget)
+    }
+
+    pub(super) fn sync_codec(
+        &mut self,
+        store: &mut (impl CodecStore + ?Sized),
+        elements: &[NodeDigest],
+        what: &'static str,
+        budget: Option<&sc::capture_allocation::OwnedBudget>,
+    ) -> Result<Built, PublishError> {
+        self.check_native_scope(store.generic_store())?;
         if self.bound
             && !match (self.allocation_budget(), budget) {
                 (None, None) => true,
@@ -1878,7 +1897,7 @@ impl SequenceMemo {
             return Err("prototype_audit_allocation_incomplete：缓存账本改变，须discard".into());
         }
         // 初次Owned绑定暂留局部，失败不冻结模式；现有Owned真实扩容先同时留账旧新块。
-        let mut next_keys = if !self.bound && (budget.is_some() || store.codec_work().is_some()) {
+        let mut next_keys = if !self.bound && (budget.is_some() || store.generic_store().codec_work().is_some()) {
             Some(match budget {
                 Some(b) => SequenceKeys::owned(b)?,
                 None => SequenceKeys::default(),
@@ -1889,7 +1908,7 @@ impl SequenceMemo {
         next_keys
             .as_mut()
             .unwrap_or(&mut self.keys)
-            .reserve_admitted(store, elements.len())?;
+            .reserve_admitted(store.generic_store(), elements.len())?;
         let keys = self.keys.as_slice();
         let common = keys
             .iter()
@@ -1901,8 +1920,7 @@ impl SequenceMemo {
             None if keys.is_empty() => SequenceRef::empty(),
             _ => return Err((format!("GenError：{what} 序列缓存计数不一致，须discard")).into()),
         };
-        let seq = sc::sequence_rebuild_suffix_with_allocation(
-            &mut *store,
+        let seq = store.rebuild_sequence_suffix(
             &previous,
             common as u64,
             &elements[common..],
@@ -1911,7 +1929,7 @@ impl SequenceMemo {
         .map_err(|error| {
             PublishError::from(error).context(&format!("GenError：{what} 序列后缀重建失败："))
         })?;
-        let built = array_from_sequence(&mut *store, &seq).map_err(producer_error)?;
+        let built = array_from_sequence(store.generic_store(), &seq).map_err(producer_error)?;
         next_keys
             .as_mut()
             .unwrap_or(&mut self.keys)

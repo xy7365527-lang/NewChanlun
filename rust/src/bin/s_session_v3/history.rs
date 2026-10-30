@@ -3339,6 +3339,9 @@ impl<'a> HashReader<'a> {
         self.sync_owned();
         previous
     }
+    pub(crate) fn swap_codec_sequence_role(&mut self, enabled: bool) -> bool {
+        self.owned.as_mut().map_or(false, |o| o.swap_sequence_read_trace(enabled))
+    }
     fn sync_owned(&mut self) {
         let full = self.audit_full_arrays && self.budget.is_none() && self.deadline.is_none();
         if let Some(owner) = &mut self.owned {
@@ -4106,6 +4109,24 @@ impl CodecRead for HashReader<'_> {
     }
 }
 impl CodecStore for HashReader<'_> {
+    fn rebuild_sequence_suffix(
+        &mut self, seq: &sc::SequenceRef, keep: u64, leaves: &[NodeDigest],
+        budget: Option<&sc::capture_allocation::OwnedBudget>,
+    ) -> Result<sc::SequenceRef, sc::CodecError> {
+        self.sync_owned();
+        match &mut self.owned {
+            Some(owner) => {
+                if !budget.is_some_and(|b| b.same_ledger(&owner.allocation_budget())) {
+                    return Err(sc::CodecError::static_detail(
+                        sc::capture_allocation::INCOMPLETE,
+                        "sequence store 与工作集必须使用同一 Owned 账本",
+                    ));
+                }
+                owner.sequence_rebuild_suffix(seq, keep, leaves)
+            }
+            None => sc::sequence_rebuild_suffix_with_allocation(self, seq, keep, leaves, budget),
+        }
+    }
     fn replace_ref(
         &mut self,
         r: sc::RefView<'_>,
