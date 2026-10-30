@@ -6761,10 +6761,6 @@ pub(super) mod tests {
         fixture.publish(&envelope, &token).unwrap();
         let tx = fixture.conn.transaction().unwrap();
         let capture = content_store::capture_for_prototype(&tx).unwrap();
-        let mut reader = HashReader::captured_for_audit(&capture, None).unwrap();
-        reader.audit_full_arrays = true;
-        let auxiliary = aux_index::load(&tx, &mut reader, 1).unwrap();
-        let mut objects = object_index::load_for_history(&tx, &mut reader, 1).unwrap();
         let (bytes, batch): (Vec<u8>, String) = tx
             .query_row(
                 "SELECT manifest_root,batch_id FROM s_content_publications WHERE generation=1",
@@ -6772,8 +6768,6 @@ pub(super) mod tests {
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .unwrap();
-        let manifest = root_ref_bytes(&mut reader, &bytes).unwrap();
-        let (metadata, roots) = decode_manifest(&mut reader, manifest.view()).unwrap();
         let budget = super::super::audit_owner::native::Budget::new(8 * 1024 * 1024, 0).unwrap();
         let work = budget.codec_work().unwrap();
         let mut returned = None;
@@ -6782,6 +6776,11 @@ pub(super) mod tests {
                 let mut reader = HashReader::captured_for_audit(&capture, None)
                     .map_err(PublishError::from)?
                     .with_codec_work(scope, &budget);
+                reader.audit_full_arrays = true;
+                let auxiliary = aux_index::load(&tx, &mut reader, 1).unwrap();
+                let mut objects = object_index::load_for_history(&tx, &mut reader, 1).unwrap();
+                let manifest = root_ref_bytes(&mut reader, &bytes).unwrap();
+                let (metadata, roots) = decode_manifest(&mut reader, manifest.view()).unwrap();
                 let projection = native_cut_projection(
                     &tx,
                     &mut reader,
