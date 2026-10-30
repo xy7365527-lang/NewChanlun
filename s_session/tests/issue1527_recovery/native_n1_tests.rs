@@ -781,3 +781,19 @@ fn native_n1_shm_settle_borrow_failure_retains_unsettled_grants() {
     assert_eq!(account.borrow().snapshot().store.committed, 32768);
     assert_eq!(account.borrow().snapshot().open_reservations, 0);
 }
+
+
+#[test]
+fn native_n1_active_poison_never_delegates_open_or_unlink() {
+    let file = Temp::new("poison-unlink");
+    let h = hooks();
+    let (gate, _, _) = gate_with(60_000, 1 << 20);
+    let owner = NativeOwner::begin(h, gate, [(1, 1), (0, 1), (0, 2)], 0, identity_bound()).unwrap();
+    h.poison_for_test();
+    assert_eq!(unsafe { h.open(file.c().as_ptr(), libc::O_RDWR, 0) }, -1);
+    assert_eq!(h.lock().inflight_open, 0);
+    assert_eq!(unsafe { h.unlink(file.c().as_ptr()) }, -1);
+    assert!(file.0.exists(), "active失去登记资格时不透传删除，即使该路径不是已知pin");
+    assert!(owner.first_error().is_some());
+    let _ = owner.destroy(&mut NativeErrors::default());
+}

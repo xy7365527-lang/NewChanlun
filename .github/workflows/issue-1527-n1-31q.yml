@@ -31,7 +31,7 @@ jobs:
           cargo test --locked --features s_session --bin s_structure_session native_n1_ -- --list | tee "$RUNNER_TEMP/n1-list.log"
           count=$(grep -c ': test$' "$RUNNER_TEMP/n1-list.log")
           echo "n1 tests listed: $count"
-          test "$count" -ge 34
+          test "$count" -ge 35
           cargo test --locked --features s_session --bin s_structure_session native_n1_ -- --nocapture | tee "$RUNNER_TEMP/n1-tests.log"
           grep -E "test result: ok\. ([3-9][0-9]|[1-9][0-9]{2,}) passed" "$RUNNER_TEMP/n1-tests.log"
           for filter in 'admission_anchor::tests::' 'admission_prepare_' 'admission_private::tests::' 'admission::tests::' 'tests::accept_rejects_stale_epoch' 'tests::source_coord_invalid_input_rolls_back_whole_accept_batch' 'tests::pre_policy_records_deltas_' 'tests::historical_pre_policy_records_store_'; do

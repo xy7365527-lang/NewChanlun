@@ -849,6 +849,11 @@ impl NativeHooks {
         let body = catch_unwind(AssertUnwindSafe(|| {
             let thread = std::thread::current().id();
             let plan = self.lock().open_enter();
+            if plan == OpenPlan::NeedPreStat && self.unavailable.load(Ordering::SeqCst) {
+                self.lock().open_failed();
+                set_errno(libc::EIO);
+                return -1;
+            }
             let mut flags = flags;
             let mut pre = PreDecision::Plain;
             if plan == OpenPlan::NeedPreStat {
@@ -1062,8 +1067,15 @@ impl NativeHooks {
     /// active 期间对 pin 路径恒拒（任何相位不删 sidecar）；无 owner 时不多一次 stat。
     pub(crate) unsafe fn unlink(&self, path: *const c_char) -> c_int {
         if self.active_any.load(Ordering::SeqCst) {
-            let pins = catch_unwind(AssertUnwindSafe(|| self.lock().pins_if_active())).unwrap_or(None);
-            if let Some(pins) = pins {
+            let pins = match catch_unwind(AssertUnwindSafe(|| self.lock().pins_if_active())) {
+                Ok(Some(pins)) if !self.unavailable.load(Ordering::SeqCst) => pins,
+                _ => {
+                    self.unavailable.store(true, Ordering::SeqCst);
+                    set_errno(libc::EIO);
+                    return -1;
+                }
+            };
+            {
                 let saved = errno();
                 let mut st: libc::stat = std::mem::zeroed();
                 let hit = (self.orig.stat)(path, &mut st) == 0 && pins.contains(&ident(&st));
