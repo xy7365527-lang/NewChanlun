@@ -5509,6 +5509,36 @@ pub(super) mod tests {
                 (&raw).into(), &cut.metadata.profile_id, &cut.metadata.rule_revision, Some(deadline), None, proofs)
         }).is_err());
         assert!(expired.proofs.is_none());
+        struct Reject(&'static str);
+        impl super::super::audit_budget::Budget for Reject {
+            fn precheck(&self) -> Result<(), sc::CodecError> { Err(sc::CodecError::new(self.0, "owner reject")) }
+            fn prepare_node(&self) -> Result<(), sc::CodecError> { self.precheck() }
+            fn accept_prepared_frame(&self, _: &sc::job::CheckedFrame) -> Result<(), sc::CodecError> { self.precheck() }
+            fn node(&self, _: &NodeDigest, _: u8, _: &[u8]) -> Result<(), sc::CodecError> { self.precheck() }
+            fn record(&self) -> Result<(), sc::CodecError> { self.precheck() }
+        }
+        for code in ["budget_exceeded", "cancelled"] {
+            let mut session = verified.ordinary_source_session().unwrap();
+            session.audit_cut(&tx, cut, None, None, None, audit).unwrap();
+            let gate = Reject(code);
+            let error = session.audit_cut(&tx, cut, None, None, Some(&gate), |reader, proofs| {
+                super::source_audit::audit_generated_with_proofs(reader, cut.roots.generated_state.view(),
+                    (&raw).into(), &cut.metadata.profile_id, &cut.metadata.rule_revision, None, Some(&gate), proofs)
+            }).unwrap_err();
+            assert!(error.contains(code), "{error}");
+            assert!(session.proofs.is_none());
+        }
+        let mut malformed = verified.ordinary_source_session().unwrap();
+        malformed.audit_cut(&tx, cut, None, None, None, audit).unwrap();
+        let original = cut.roots.generated_state.view();
+        let mut bad = ContentRef { format: original.format().into(), root: original.root().into(),
+            kind: original.kind(), extent: original.extent() };
+        bad.kind = Kind::Array;
+        assert!(malformed.audit_cut(&tx, cut, None, None, None, |reader, proofs| {
+            super::source_audit::audit_generated_with_proofs(reader, (&bad).into(), (&raw).into(),
+                &cut.metadata.profile_id, &cut.metadata.rule_revision, None, None, proofs)
+        }).is_err());
+        assert!(malformed.proofs.is_none());
     }
 
     #[test]

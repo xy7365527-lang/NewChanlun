@@ -7335,6 +7335,7 @@ mod tests {
             assert_eq!((oracle_stats.hits, oracle_stats.executions), (0, 0));
             super::admission_private::s4_read_trace::enable();
             let mut actual = new.open("1").unwrap();
+            assert_eq!(super::super::layout::Layout::of_library(&actual.conn).unwrap(), super::super::layout::Layout::Sorted);
             let coverage = super::admission_private::s4_read_trace::finish();
             assert_eq!(coverage, [index as u64, index as u64 * 3], "{}", step.kind);
             assert_eq!(actual.handle(message).unwrap(), reply, "{}", step.kind);
