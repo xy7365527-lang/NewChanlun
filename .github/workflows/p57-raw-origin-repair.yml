@@ -1,0 +1,38 @@
+name: P57 raw origin repair
+on:
+  push:
+    branches: [codex/1640-p57-origin33d]
+  workflow_dispatch:
+jobs:
+  raw-origin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CARGO_INCREMENTAL: '0'
+    defaults:
+      run:
+        working-directory: rust
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/rust-job-setup
+      - name: 真实父域raw来源回归
+        run: cargo test --locked --features s_session,s_incremental --bin s_structure_session publication_raw_advance_budget_preserves_origin_through_owner_boundary --jobs 4 -- --test-threads 1 --nocapture
+      - name: 来源组与原七锁
+        run: cargo test --locked --features s_session,s_incremental --bin s_structure_session --jobs 4 -- publication_degrade_verdict_tests publication_candidate_budget_shortfall_degrades_and_keeps_admitting publication_real_tail_failure_still_rejects_without_degrade publication_real_error_after_budget_failure_rejects_without_degrade publication_source_append_allocation_failure_degrades publication_prepare_wrapped_allocation_failure_degrades publication_ledger_after_budget_failure_rejects_without_degrade --test-threads 1
+      - name: 普通与增量入口严格编译
+        env:
+          RUSTFLAGS: '-D warnings'
+        run: |
+          cargo check --locked --all-targets --features s_session --jobs 4
+          cargo check --locked --all-targets --features s_session,s_incremental --jobs 4
+      - name: formatter artifact
+        if: always()
+        run: |
+          cargo fmt --all
+          git diff --binary > /tmp/p57-raw-fmt.patch
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p57-raw-fmt
+          path: /tmp/p57-raw-fmt.patch

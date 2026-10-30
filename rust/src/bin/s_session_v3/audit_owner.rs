@@ -5897,6 +5897,62 @@ pub(super) mod construction_tests {
     fn publication_resource_tail_failure_prevents_actual_sql_commit() {
         publication_scope_case(true);
     }
+    #[test]
+    fn publication_raw_advance_budget_preserves_origin_through_owner_boundary() {
+        let mut f = fixture();
+        let _ = f.accept_begin(2, ("raw-origin", 10, 8, 16, 6, 12), 1);
+        let owner = AuditConnection::open(&f.db_path()).unwrap();
+        let mut context = context();
+        let cold = owner.begin(TransactionBehavior::Deferred).unwrap();
+        cold.audit_admission(
+            &json!({"payload":{"op":"ready"}}),
+            &s_allocation::Mode::CapturedNative,
+            &mut context,
+        )
+        .unwrap();
+        owner.continue_with(cold.read_end().unwrap()).unwrap();
+        let mut active = owner.begin(TransactionBehavior::Immediate).unwrap();
+        active.bind_existing(Some(&context)).unwrap();
+        let resources = active.issue_publication_resources(&context).unwrap();
+        let work = resources.budget.codec_work().unwrap();
+        let mut operation_error = None;
+        let consumer_called = Cell::new(false);
+        let (run, trace) = failure_trace::capture(|| {
+            work.run(|work| {
+                // 保留真实父账和原帽；占满可用许可，raw首个实际节点申请必须失败。
+                let ballast = work.reserve_native(resources.budget.remaining()).unwrap();
+                let parent = PublicationScope {
+                    resources: &resources,
+                    work,
+                };
+                let result = active.with_bound_raw_advance_in_publication(
+                    &context,
+                    Some(&parent),
+                    |_| {
+                        consumer_called.set(true);
+                        Ok(())
+                    },
+                ).map_err(PublishError::from);
+                operation_error = result.as_ref().err().cloned();
+                drop(ballast);
+                result
+            })
+        });
+        assert!(!consumer_called.get(), "真实raw准入须先于消费者失败");
+        assert!(matches!(
+            run,
+            Err(newchan_rust::s_content::capture_allocation::scratch::WorkError::Resource(
+                newchan_rust::s_content::capture_allocation::scratch::ScratchFailure::Budget
+            ))
+        ), "{run:?}");
+        assert!(trace.only_resource(), "{trace:?}");
+        assert_eq!(
+            publication_degrade_verdict(run.unwrap_err(), operation_error, trace),
+            Ok(()),
+            "真实父域raw前缀Budget须穿过PendingRawState与owner签发边界保留来源"
+        );
+    }
+
     fn publication_scope_case(fail_tail: bool) {
         let mut f = fixture();
         let (envelope, token) = f.accept_begin(2, ("scope-next", 10, 8, 16, 6, 12), 1);

@@ -1,7 +1,7 @@
 name: S4 source proof 31k targeted
 on:
   push:
-    branches: [codex/1640-s4-source-proof31k, codex/1640-p57-origin33d]
+    branches: [codex/1640-s4-source-proof31k]
   workflow_dispatch:
 jobs:
   targeted:
