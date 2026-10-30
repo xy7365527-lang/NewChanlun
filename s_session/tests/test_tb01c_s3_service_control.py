@@ -25,6 +25,8 @@ class S3LifecycleTests(unittest.TestCase):
         root = Path(directory)
         resources = {key: str(index + 1) for index, key in enumerate(sorted(control.S_RESOURCE_FIELDS))}
         resources["max_frame_bytes"] = "8192"
+        if revision == "s-launcher/4":
+            resources["incremental_retention_bytes"] = "268435456"
         return {"schema_revision": revision, "db": str(root / "owned.sqlite"),
                 "socket": str(root / "s.sock"), "binary": "/owned/s_structure_session",
                 "python": sys.executable, "catalog": str(root / "catalog.json"),
@@ -36,8 +38,8 @@ class S3LifecycleTests(unittest.TestCase):
                 "delivery_retain_generations": "1", "startup_timeout_ms": startup_timeout_ms, "s_resources": resources}
 
     @staticmethod
-    def response(request, nonce="current"):
-        return reply_envelope(request, {"kind": "Ready", "control_instance_id": nonce},
+    def response(request, nonce="current", **extra):
+        return reply_envelope(request, {"kind": "Ready", "control_instance_id": nonce, **extra},
                               session_id=request["session_id"], session_generation=request["session_generation"],
                               namespace="s-session/replies", producer_id="S:" + request["session_id"],
                               producer_epoch="1")
@@ -45,11 +47,11 @@ class S3LifecycleTests(unittest.TestCase):
     def test_named_configuration_selects_exact_version_and_resources(self):
         with tempfile.TemporaryDirectory(prefix="s3-cfg-") as directory:
             path = Path(directory) / "launcher.json"
-            for revision in ("s-launcher/2", "s-launcher/3"):
+            for revision in ("s-launcher/2", "s-launcher/3", "s-launcher/4"):
                 config = self.config(directory, revision)
                 path.write_text(json.dumps(config))
                 self.assertEqual(control.read_config(path)["schema_revision"], revision)
-            for revision in (None, "s-launcher/4", "s-launcher/03"):
+            for revision in (None, "s-launcher/5", "s-launcher/03"):
                 config = self.config(directory, revision)
                 path.write_text(json.dumps(config))
                 with self.assertRaises(ValueError):
@@ -103,6 +105,52 @@ class S3LifecycleTests(unittest.TestCase):
                 self.assertEqual(request["schema_revision"], "s-session/3")
                 self.assertEqual(request["payload"], {"op": "ready"})
                 self.assertEqual(request["payload_hash"], hashlib.sha256(control.canonical({"op": "ready"})).hexdigest())
+            finally:
+                controller.close()
+
+    def test_launcher4_requires_exact_eighth_gate_and_launcher3_refuses_it(self):
+        # #1640（ADR 0042 D4）：/4 只配 s_incremental 写者，exact 八字段；/3 仍 exact 原七字段，不静默接受第八门。
+        with tempfile.TemporaryDirectory(prefix="s3-cfg4-") as directory:
+            path = Path(directory) / "launcher.json"
+            eight = self.config(directory, "s-launcher/4")["s_resources"]
+            seven = self.config(directory, "s-launcher/3")["s_resources"]
+            for revision, invalid in (("s-launcher/4", seven),
+                                      ("s-launcher/4", {**eight, "incremental_retention_bytes": "0"}),
+                                      ("s-launcher/4", {**eight, "incremental_retention_bytes": 1}),
+                                      ("s-launcher/4", {**eight, "extra": "1"}),
+                                      ("s-launcher/3", eight)):
+                with self.subTest(revision=revision, fields=sorted(invalid)):
+                    config = self.config(directory, revision)
+                    config["s_resources"] = invalid
+                    path.write_text(json.dumps(config))
+                    with self.assertRaises(ValueError):
+                        control.read_config(path)
+
+    def test_start_launcher4_freezes_structure_resources_2_with_eight_values(self):
+        with tempfile.TemporaryDirectory(prefix="s3-select4-") as directory:
+            config = self.config(directory, "s-launcher/4")
+            clock = [0.0]
+            controller = anchored_controller(config, Path(directory) / "state", clock=lambda: clock[0])
+            try:
+                with patch.object(control.time, "monotonic", side_effect=lambda: clock[0]), \
+                     patch.object(controller, "runtime_environment", return_value={}), \
+                     patch.object(controller, "prepare_socket", return_value=None), \
+                     patch.object(controller, "start_process") as start, \
+                     patch.object(controller, "wait_ready", return_value={"state": "ready"}):
+                    controller.start_s("1")
+                command = start.call_args.args[1]
+                self.assertEqual(command[command.index("--protocol-revision") + 1], "s-session/3")
+                identity = start.call_args.kwargs["resource_identity"]
+                frozen = Path(identity["path"]).read_bytes()
+                self.assertEqual(json.loads(frozen), {"schema_revision": "s-structure-resources/2",
+                                                     "s_resources": config["s_resources"]})
+                controller.validate_resource_identity(identity, command, require_current=True)
+                self.assertEqual(controller.ready_request("1")["schema_revision"], "s-session/3")
+                # 同一冻结件不得冒充 /3 启动配置的当前预算。
+                controller.config = {**config, "schema_revision": "s-launcher/3",
+                                     "s_resources": self.config(directory)["s_resources"]}
+                with self.assertRaises(ValueError):
+                    controller.validate_resource_identity(identity, command, require_current=True)
             finally:
                 controller.close()
 
@@ -235,6 +283,119 @@ class S3LifecycleTests(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, "已失效"):
                         controller.wait_ready("s", "1")
             finally:
+                controller.close()
+
+    def test_ready_build_profile_rejects_testonly_before_record_and_admits_production(self):
+        # #1640 C4：假写者经 Ready 自报构建身份；testonly 在核活进程与登记 Ready 之前即拒绝。
+        cases = (("s-launcher/4", {"build_profile": "testonly"}, "TestOnlyBuild"),
+                 ("s-launcher/3", {"build_profile": "testonly"}, "TestOnlyBuild"),
+                 ("s-launcher/4", {}, "build_profile=production"),
+                 ("s-launcher/4", {"build_profile": "Production"}, "build_profile=production"))
+        record = {"state": "running", "service": "s", "pid": 123456,
+                  "process_identity": "exact current", "control_instance_id": "current"}
+        for revision, extra, message in cases:
+            with self.subTest(revision=revision, extra=extra), \
+                 tempfile.TemporaryDirectory(prefix="s3-profile-") as directory:
+                config = self.config(directory, revision, startup_timeout_ms="2000")
+                controller = anchored_controller(config, Path(directory) / "state")
+                try:
+                    response = self.response(controller.ready_request("1"), **extra)
+                    with patch.object(controller, "status", return_value=record), \
+                         patch.object(control, "exchange",
+                                      return_value={"transport": "Received", "response": response}), \
+                         patch.object(controller, "confirm_ready_process") as confirm, \
+                         patch.object(controller, "discard_rejected_start") as discard:
+                        with self.assertRaisesRegex(ValueError, message):
+                            controller.wait_ready("s", "1")
+                    confirm.assert_not_called()
+                    discard.assert_called_once_with("s")
+                    self.assertFalse(controller.record_path("s").exists())
+                finally:
+                    controller.close()
+        with self.assertRaises(control.TestOnlyBuildError):
+            control.check_build_profile(self.config("/owned", "s-launcher/4"), {"build_profile": "testonly"})
+        # 正控：s-launcher/4 的 production 自报照常就绪并登记；s-launcher/3 无此字段的旧回复原样放行。
+        for revision, extra in (("s-launcher/4", {"build_profile": "production"}), ("s-launcher/3", {})):
+            with self.subTest(revision=revision, extra=extra), \
+                 tempfile.TemporaryDirectory(prefix="s3-profile-") as directory:
+                config = self.config(directory, revision, startup_timeout_ms="2000")
+                controller = anchored_controller(config, Path(directory) / "state")
+                identity = {"path": config["socket"], "device": 1, "inode": 2, "uid": os.getuid()}
+                try:
+                    response = self.response(controller.ready_request("1"), **extra)
+                    with patch.object(controller, "status", return_value=record), \
+                         patch.object(control, "exchange",
+                                      return_value={"transport": "Received", "response": response}), \
+                         patch.object(controller, "socket_identity", return_value=identity), \
+                         patch.object(controller, "discard_rejected_start") as discard:
+                        result = controller.wait_ready("s", "1")
+                    discard.assert_not_called()
+                    self.assertEqual(result["state"], "ready")
+                    self.assertEqual(result["reply"]["payload"].get("build_profile"), extra.get("build_profile"))
+                    self.assertEqual(json.loads(controller.record_path("s").read_text())["socket_identity"],
+                                     identity)
+                finally:
+                    controller.close()
+
+    def test_ready_build_profile_testonly_rejection_stops_real_child_and_clears_registration(self):
+        # #1640 C4：真实子进程按 S3 协议在配置 socket 上回 Ready 并自报 testonly；拒绝后该进程须已退出、
+        # 本次 record 已删、socket 路径不再接受连接，原错误照抛。
+        writer = """
+import os, socket, sys
+sys.path.insert(0, sys.argv[1])
+from s_socket_client import canonical, decode_frame, reply_envelope
+path = sys.argv[sys.argv.index("--socket") + 1]
+nonce = os.environ["S_CONTROL_INSTANCE_ID"]
+sys.stdin.buffer.read(1)
+server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+server.bind(path)
+server.listen(8)
+while True:
+    connection, _ = server.accept()
+    with connection:
+        raw = b""
+        while True:
+            chunk = connection.recv(65536)
+            if not chunk:
+                break
+            raw += chunk
+        request = decode_frame(raw.rstrip(b"\\n"))
+        payload = {"kind": "Ready", "control_instance_id": nonce, "build_profile": "testonly"}
+        response = reply_envelope(request, payload, session_id=request["session_id"],
+                                  session_generation=request["session_generation"],
+                                  namespace="s-session/replies",
+                                  producer_id="S:" + request["session_id"], producer_epoch="1")
+        connection.sendall(canonical(response) + b"\\n")
+"""
+        with tempfile.TemporaryDirectory(prefix="s3-reject-") as directory:
+            config = self.config(directory, "s-launcher/3", startup_timeout_ms="10000")
+            controller = anchored_controller(config, Path(directory) / "state")
+            script = Path(directory) / "testonly_writer.py"
+            script.write_text(writer)
+            process = None
+            try:
+                deadline = time.monotonic() + 10
+                identity = controller.freeze_s_resources(deadline)
+                command = [sys.executable, str(script), str(Path(control.__file__).resolve().parent),
+                           "serve", "--protocol-revision", "s-session/3",
+                           "--resource-config", identity["path"], "--socket", config["socket"]]
+                process = controller.start_process("s", command, deadline=deadline,
+                                                   resource_identity=identity)
+                with self.assertRaisesRegex(control.TestOnlyBuildError, "TestOnlyBuild"):
+                    controller.wait_ready("s", "1", deadline=deadline)
+                self.assertIsNotNone(process.poll())
+                self.assertIsNone(control.process_identity(process.pid))
+                self.assertFalse(controller.record_path("s").exists())
+                self.assertEqual(controller.status("s")["state"], "not_started")
+                self.assertFalse(os.path.lexists(config["socket"]))
+                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as probe:
+                    probe.settimeout(1)
+                    with self.assertRaises(OSError):
+                        probe.connect(config["socket"])
+            finally:
+                if process is not None and process.poll() is None:
+                    process.kill()
+                    process.wait(timeout=5)
                 controller.close()
 
     def test_nonpython_argv_is_exact_and_process_probe_uses_remaining_deadline(self):

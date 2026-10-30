@@ -11,7 +11,7 @@ use super::business_json::{self as bj, RawEventsView};
 use super::business_json::{BusinessMap, JsonOwner};
 use super::*;
 use crate::v3::audit_store::{CodecRead, CodecStore};
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 use content_manifest::ManifestRoots;
 #[cfg(test)]
 use newchan_rust::s_content::path::lookup_path;
@@ -28,7 +28,7 @@ use sc::capture_allocation::{audit_json::JsonView, OwnedBudget};
 #[path = "native_record_fields.rs"]
 mod native_record_fields;
 pub(super) use native_record_fields::NativeRecordFields;
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 pub(super) use native_record_fields::{native_record_field_stats, reset_native_record_field_stats};
 
 /// Opaque per-cut proof: constructed only in this module's complete-load read-only chain.
@@ -218,28 +218,28 @@ pub(super) struct IndexedHistory {
 /// 两者不能混为一个进度，未发布尾不会进入旧 cut 的前缀树。
 pub(super) struct NativeRawPrefixes {
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     raw_nodes: sc::CodecVec<NodeDigest>,
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     raw_wire_nodes: sc::CodecVec<NodeDigest>,
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     prefixes: NativeHistoryPrefixes,
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     ordered: bj::RawPrefixFacts,
 }
 impl NativeRawPrefixes {
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn check_appended(
         &mut self,
         capture: &sc::AuditCapture,
@@ -255,7 +255,7 @@ impl NativeRawPrefixes {
                 sc::capture_allocation::scratch::WorkError::Operation(e) => e,
             })
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn check_appended_work(
         &mut self,
         capture: &sc::AuditCapture,
@@ -297,15 +297,15 @@ impl NativeRawPrefixes {
         retained.apply(0)
     }
     #[cfg_attr(
-        not(all(test, feature = "s_capture_native_testonly")),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+        not(all(test, feature = "s_incremental")),
+        allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
     )]
     pub(super) fn checked_len(&self) -> usize {
         self.raw_nodes.len()
     }
     #[cfg_attr(
-        not(all(test, feature = "s_capture_native_testonly")),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+        not(all(test, feature = "s_incremental")),
+        allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
     )]
     pub(super) fn published_len(&self) -> u64 {
         self.prefixes.raw.count
@@ -378,12 +378,13 @@ pub(super) fn read_indexed_history(
         None,
         None,
         SourcePolicy::Ordinary,
+        false,
     )
 }
 
 #[cfg_attr(
-    not(all(test, feature = "s_capture_native_testonly")),
-    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    not(all(test, feature = "s_incremental")),
+    allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
 )]
 pub(super) fn read_indexed_history_for_audit(
     tx: &Transaction<'_>,
@@ -406,12 +407,13 @@ pub(super) fn read_indexed_history_for_audit(
         None,
         None,
         SourcePolicy::Ordinary,
+        false,
     )
 }
 
 #[cfg_attr(
-    not(all(test, feature = "s_capture_native_testonly")),
-    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    not(all(test, feature = "s_incremental")),
+    allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
 )]
 pub(super) fn read_indexed_history_for_audit_captured<'a>(
     tx: &Transaction<'_>,
@@ -435,8 +437,8 @@ pub(super) fn read_indexed_history_for_audit_captured<'a>(
 }
 
 #[cfg_attr(
-    not(all(test, feature = "s_capture_native_testonly")),
-    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    not(all(test, feature = "s_incremental")),
+    allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
 )]
 pub(super) fn read_indexed_history_for_audit_captured_with_records<'a>(
     tx: &Transaction<'_>,
@@ -462,8 +464,8 @@ pub(super) fn read_indexed_history_for_audit_captured_with_records<'a>(
 }
 
 #[cfg_attr(
-    not(all(test, feature = "s_capture_native_testonly")),
-    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    not(all(test, feature = "s_incremental")),
+    allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
 )]
 pub(super) fn read_indexed_history_for_audit_captured_with_records_admitted<'a>(
     tx: &Transaction<'_>,
@@ -544,6 +546,7 @@ pub(super) fn read_indexed_history_with_policy<'a>(
         work,
         materials,
         policy,
+        false,
     );
     if result.is_err() {
         if let Some(records) = records {
@@ -551,6 +554,307 @@ pub(super) fn read_indexed_history_with_policy<'a>(
         }
     }
     result
+}
+
+#[cfg(test)]
+thread_local! { static ORDINARY_PROOFS_DISABLED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) }; }
+pub(super) fn ordinary_proofs_enabled() -> bool {
+    #[cfg(test)]
+    {
+        !ORDINARY_PROOFS_DISABLED.with(std::cell::Cell::get)
+    }
+    #[cfg(not(test))]
+    {
+        true
+    }
+}
+#[cfg(all(test, feature = "s_incremental"))]
+pub(super) fn without_ordinary_proofs_for_test<T>(action: impl FnOnce() -> T) -> T {
+    struct Reset(bool);
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            ORDINARY_PROOFS_DISABLED.with(|v| v.set(self.0));
+        }
+    }
+    let _reset = Reset(ORDINARY_PROOFS_DISABLED.with(|v| v.replace(true)));
+    action()
+}
+
+#[cfg(test)]
+thread_local! { static ORDINARY_MATERIALS_DISABLED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) }; }
+fn ordinary_materials_enabled() -> bool {
+    #[cfg(test)]
+    {
+        !ORDINARY_MATERIALS_DISABLED.with(std::cell::Cell::get)
+    }
+    #[cfg(not(test))]
+    {
+        true
+    }
+}
+#[cfg(all(test, feature = "s_incremental"))]
+pub(super) fn without_ordinary_materials_for_test<T>(action: impl FnOnce() -> T) -> T {
+    struct Reset(bool);
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            ORDINARY_MATERIALS_DISABLED.with(|v| v.set(self.0));
+        }
+    }
+    let _reset = Reset(ORDINARY_MATERIALS_DISABLED.with(|v| v.replace(true)));
+    action()
+}
+
+pub(super) struct VerifiedPublicHistory<'scope, 'tx> {
+    history: IndexedHistory,
+    transaction: &'scope Transaction<'tx>,
+    qualified: bool,
+    materials: Option<std::cell::RefCell<super::ordinary_materials::OrdinaryAuditMaterials>>,
+}
+impl<'scope, 'tx> VerifiedPublicHistory<'scope, 'tx> {
+    pub(super) fn history(&self) -> &IndexedHistory {
+        &self.history
+    }
+    pub(super) fn into_history(self) -> IndexedHistory {
+        self.history
+    }
+    pub(super) fn qualified(&self) -> bool {
+        self.qualified
+    }
+    pub(super) fn ordinary_source_session(&self) -> Option<OrdinarySourceSession<'_, 'scope, 'tx>> {
+        (self.qualified && ordinary_proofs_enabled()).then(|| OrdinarySourceSession {
+            history: self,
+            proofs: Some(Default::default()),
+        })
+    }
+
+    pub(super) fn audit_cut<R>(
+        &self,
+        tx: &Transaction<'_>,
+        cut: &PublishedCut,
+        deadline: Option<std::time::Instant>,
+        max: Option<u64>,
+        budget: Option<&dyn super::audit_budget::Budget>,
+        action: impl FnOnce(&mut HashReader<'_>) -> Result<R, String>,
+    ) -> Result<R, String> {
+        if !self.qualified
+            || !std::ptr::eq(tx, self.transaction)
+            || !self
+                .history
+                .cuts
+                .iter()
+                .any(|known| std::ptr::eq(known, cut))
+        {
+            return Err(err("Public覆盖事务/cut绑定不符"));
+        }
+        let mut source = Some(content_store::ReadStore::new(tx).map_err(err)?);
+        let mut pool = self.materials.as_ref().map(std::cell::RefCell::borrow_mut);
+        let mut material_source = pool
+            .as_mut()
+            .map(|pool| pool.source(source.take().unwrap()));
+        let source: &mut dyn NodeSource = match material_source.as_mut() {
+            Some(source) => source,
+            None => source.as_mut().unwrap(),
+        };
+        let mut reader = HashReader::metered(source, deadline, max, budget);
+        reader.history_public_roots = Some([
+            cut.roots.generated_state.view().digest().map_err(err)?,
+            cut.delta.view().digest().map_err(err)?,
+        ]);
+        action(&mut reader)
+    }
+}
+pub(super) struct OrdinarySourceSession<'audit, 'scope, 'tx> {
+    history: &'audit VerifiedPublicHistory<'scope, 'tx>,
+    proofs: Option<super::source_audit::OrdinaryProofs>,
+}
+impl OrdinarySourceSession<'_, '_, '_> {
+    pub(super) fn audit_cut<R>(
+        &mut self,
+        tx: &Transaction<'_>,
+        cut: &PublishedCut,
+        deadline: Option<std::time::Instant>,
+        max: Option<u64>,
+        budget: Option<&dyn super::audit_budget::Budget>,
+        action: impl FnOnce(
+            &mut HashReader<'_>,
+            &mut super::source_audit::OrdinaryProofs,
+        ) -> Result<R, String>,
+    ) -> Result<R, String> {
+        let proofs = self
+            .proofs
+            .as_mut()
+            .ok_or_else(|| err("ordinary来源session已拒绝"))?;
+        let result = self
+            .history
+            .audit_cut(tx, cut, deadline, max, budget, |store| {
+                action(store, proofs)
+            });
+        match result {
+            Ok(value) => {
+                proofs.commit();
+                Ok(value)
+            }
+            Err(error) => {
+                self.proofs = None;
+                Err(error)
+            }
+        }
+    }
+}
+
+pub(super) fn read_verified_public_history<'scope, 'tx, 'raw>(
+    tx: &'scope Transaction<'tx>,
+    raw: impl Into<RawEventsView<'raw>>,
+    control: v2::ControlHistory,
+    deadline: Option<std::time::Instant>,
+    max_render_bytes: Option<u64>,
+    budget: Option<&dyn super::audit_budget::Budget>,
+    capture: Option<&sc::AuditCapture>,
+    records: Option<&mut NativeRecordFields<'_>>,
+    work: Option<&sc::capture_allocation::scratch::WorkScope>,
+    materials: Option<&mut super::ordinary_materials::OrdinaryAuditMaterials>,
+    policy: SourcePolicy,
+) -> Result<VerifiedPublicHistory<'scope, 'tx>, String> {
+    let qualified = policy == SourcePolicy::Ordinary
+        && capture.is_none()
+        && work.is_none()
+        && materials.is_none()
+        && tx.is_readonly(rusqlite::MAIN_DB).map_err(err)?;
+    let mut originals = (qualified
+        && records.is_none()
+        && ordinary_proofs_enabled()
+        && ordinary_materials_enabled())
+    .then(|| super::ordinary_materials::OrdinaryAuditMaterials::for_readonly_history(tx))
+    .transpose()
+    .map_err(err)?;
+    let history = if let Some(pool) = originals.as_mut() {
+        read_indexed_history_inner(
+            tx,
+            raw.into(),
+            control,
+            deadline,
+            max_render_bytes,
+            budget,
+            budget.is_none(),
+            None,
+            None,
+            None,
+            Some(pool),
+            policy,
+            true,
+        )?
+    } else {
+        read_indexed_history_with_policy(
+            tx,
+            raw,
+            control,
+            deadline,
+            max_render_bytes,
+            budget,
+            capture,
+            records,
+            work,
+            materials,
+            policy,
+        )?
+    };
+    Ok(VerifiedPublicHistory {
+        history,
+        transaction: tx,
+        qualified,
+        materials: originals.map(std::cell::RefCell::new),
+    })
+}
+
+struct VerifiedObjectOriginals<'a, 'tx> {
+    transaction: &'a Transaction<'tx>,
+    reader: *const (),
+    entries: &'a [object_index::Entry],
+}
+impl VerifiedObjectOriginals<'_, '_> {
+    fn verify_public(
+        &self,
+        tx: &Transaction<'_>,
+        store: &mut HashReader<'_>,
+        roots: &[RefValue],
+    ) -> Result<(), sc::CodecError> {
+        if !std::ptr::eq(tx, self.transaction)
+            || self.reader != (store as *const HashReader<'_>).cast()
+            || !tx
+                .is_readonly(rusqlite::MAIN_DB)
+                .map_err(|e| sc::CodecError::new(sc::code::SOURCE, e.to_string()))?
+            || !store.ordinary_bound_births_qualified()
+        {
+            return Err(sc::CodecError::new(
+                sc::code::SOURCE,
+                "对象Public覆盖不属于当前普通只读事务",
+            ));
+        }
+        let mut originals = sc::CodecVec::from_plain(Vec::new());
+        for entry in self.entries {
+            for built in [&entry.generated, &entry.internal, &entry.immutable] {
+                store.native_codec_room(&mut originals, 1)?;
+                originals.try_push(RefValue::from(built.content_ref()))?;
+            }
+            store.native_codec_room(&mut originals, 1)?;
+            originals.try_push(store.native_ref_clone(&entry.birth_wire)?)?;
+        }
+        sc::audit_verify_public_with_verified_subroots(
+            store,
+            roots.iter().map(RefValue::view),
+            originals.iter().map(RefValue::view),
+        )
+    }
+}
+
+struct VerifiedManifestRoots<'a, 'tx> {
+    transaction: &'a Transaction<'tx>,
+    roots: &'a [RefValue],
+    public: &'a [RefValue],
+}
+
+impl VerifiedManifestRoots<'_, '_> {
+    fn verify_resolved_public(
+        &self,
+        tx: &Transaction<'_>,
+        store: &mut HashReader<'_>,
+        roots: &[RefValue],
+    ) -> Result<(), sc::CodecError> {
+        if !std::ptr::eq(tx, self.transaction) || !store.ordinary_bound_births_qualified() {
+            return Err(sc::CodecError::new(
+                sc::code::SOURCE,
+                "解析根不属于当前普通事务Public证明",
+            ));
+        }
+        for root in roots {
+            if !self.public.iter().any(|covered| covered == root) {
+                return Err(sc::CodecError::new(
+                    sc::code::SOURCE,
+                    "解析根不属于完整Public覆盖",
+                ));
+            }
+            sc::audit_verify_refview_headers(store, [root.view()])?;
+        }
+        Ok(())
+    }
+}
+
+/// 只由完整历史审计构造，源借用与两个已覆盖子根一起交给唯一 manifest 构造器。
+pub(crate) struct VerifiedManifestAssembly<'a, 'source> {
+    source: &'a mut HashReader<'source>,
+    templates: [NodeDigest; 2],
+    public: [NodeDigest; 2],
+}
+impl<'a, 'source> VerifiedManifestAssembly<'a, 'source> {
+    pub(crate) fn into_parts(
+        self,
+    ) -> (
+        &'a mut HashReader<'source>,
+        [NodeDigest; 2],
+        [NodeDigest; 2],
+    ) {
+        (self.source, self.templates, self.public)
+    }
 }
 
 fn read_indexed_history_inner(
@@ -566,16 +870,22 @@ fn read_indexed_history_inner(
     work: Option<&sc::capture_allocation::scratch::WorkScope>,
     materials: Option<&mut super::ordinary_materials::OrdinaryAuditMaterials>,
     policy: SourcePolicy,
+    sealed_ordinary_materials: bool,
 ) -> Result<IndexedHistory, String> {
     check_deadline(deadline)?;
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     if let Some(work) = work {
         verify_required_meta_admitted(tx, work)?;
     } else {
         verify_required_meta(tx)?;
     }
-    #[cfg(not(feature = "s_capture_native_testonly"))]
+    #[cfg(not(feature = "s_incremental"))]
     verify_required_meta(tx)?;
+    let bound_births_qualified = policy == SourcePolicy::Ordinary
+        && capture.is_none()
+        && work.is_none()
+        && (materials.is_none() || sealed_ordinary_materials)
+        && tx.is_readonly(rusqlite::MAIN_DB).map_err(err)?;
     let mut reader = content_store::ReadStore::new(tx).map_err(err)?;
     if audit_same_material {
         reader.enable_audit_same_material();
@@ -642,9 +952,10 @@ fn read_indexed_history_inner(
         stmt.finalize().map_err(err)?;
         roots
     };
-    store
-        .verify_many_ref(public_roots.iter().map(RefValue::view), sc::Mode::Public)
-        .map_err(err)?;
+    let manifest_coverage = store.owned.is_none()
+        && store.work.is_none()
+        && matches!(store.source, ReadOwner::Dynamic(_));
+    let mut public_roots = public_roots;
     let template_roots = {
         let mut stmt = CheckedStatement::prepare(tx, c"SELECT p.manifest_root FROM s_content_publications p JOIN structure_deltas d ON d.generation=p.generation ORDER BY p.generation").map_err(err)?;
         let mut roots = bj::new_work(allocation.as_ref());
@@ -658,15 +969,67 @@ fn read_indexed_history_inner(
         stmt.finalize().map_err(err)?;
         roots
     };
-    store
-        .verify_many_ref(
-            template_roots.iter().map(RefValue::view),
-            sc::Mode::Template,
-        )
-        .map_err(err)?;
+    #[cfg(test)]
+    super::admission_private::s4_read_trace::audit_window(tx, "template", "begin", "pending");
+    let template_result = store.verify_many_ref(
+        template_roots.iter().map(RefValue::view),
+        sc::Mode::Template,
+    );
+    #[cfg(test)]
+    super::admission_private::s4_read_trace::audit_window(
+        tx,
+        "template",
+        "end",
+        if template_result.is_ok() {
+            "ok"
+        } else {
+            "error"
+        },
+    );
+    template_result.map_err(err)?;
+    // manifest 先过完整 Template 才解码；其 scope/generated_state 并入同一次 Public 联合全核。
+    if manifest_coverage {
+        for manifest in template_roots.iter() {
+            check_deadline(deadline)?;
+            let (metadata, roots) = decode_manifest(&mut store, manifest.view())?;
+            store.native_codec_room(&mut public_roots, 2).map_err(err)?;
+            public_roots.try_push(metadata.scope).map_err(err)?;
+            public_roots.try_push(roots.generated_state).map_err(err)?;
+        }
+    }
+    #[cfg(test)]
+    super::admission_private::s4_read_trace::audit_window(tx, "public", "begin", "pending");
+    let public_result = if bound_births_qualified {
+        VerifiedObjectOriginals {
+            transaction: tx,
+            reader: (&store as *const HashReader<'_>).cast(),
+            entries: objects.entries(),
+        }
+        .verify_public(tx, &mut store, &public_roots)
+    } else {
+        store.verify_many_ref(public_roots.iter().map(RefValue::view), sc::Mode::Public)
+    };
+    #[cfg(test)]
+    super::admission_private::s4_read_trace::audit_window(
+        tx,
+        "public",
+        "end",
+        if public_result.is_ok() { "ok" } else { "error" },
+    );
+    public_result.map_err(err)?;
+    let verified_templates = VerifiedManifestRoots {
+        transaction: tx,
+        roots: &template_roots,
+        public: &public_roots,
+    };
     // 原始当前capture闭包全核之后才创建；仅本次历史循环持有，跨请求/阶段重建。
     let mut object_sweep = objects.native_sweep_admitted(&store)?;
     let publication_memo = content_publication::NativePublicationMemo::new(&store);
+    let mut ordinary_publication = if bound_births_qualified && ordinary_proofs_enabled() {
+        Some(content_publication::PublicationProjection::new(tx, &store)?)
+    } else {
+        None
+    };
     let mut native_aux = aux_index::NativeAuxAudit::from_loaded_admitted(&store, &auxiliary, raw)?;
     let mut native_prefix = NativeHistoryPrefixes::new(&store, raw, allocation.as_ref());
     let mut ordered_raw = native_prefix.as_ref().map(|_| bj::RawPrefixIndex::new(raw));
@@ -678,6 +1041,7 @@ fn read_indexed_history_inner(
     while let Some(mut row) = stmt.next().map_err(err)? {
         let cut = audit_one_published_cut(
             tx,
+            Some(&verified_templates),
             &mut row,
             &mut store,
             raw,
@@ -695,10 +1059,15 @@ fn read_indexed_history_inner(
             &mut resolved_roots,
             records.as_deref_mut(),
             publication_memo.is_some(),
+            ordinary_publication.as_mut(),
+            bound_births_qualified,
             deadline,
             budget,
             allocation.as_ref(),
         )?;
+        if let Some(projection) = ordinary_publication.as_mut() {
+            projection.commit_cut();
+        }
         previous = cut.metadata.input_frontier;
         store.native_codec_room(&mut output, 1).map_err(err)?;
         output.try_push(cut).map_err(err)?;
@@ -707,9 +1076,30 @@ fn read_indexed_history_inner(
     }
     stmt.finalize().map_err(err)?;
     // Pending派生根在返回任何历史之前全部通过同一Public判据；非法嵌套占位仍拒绝。
-    store
-        .verify_many_ref(resolved_roots.iter().map(RefValue::view), sc::Mode::Public)
-        .map_err(err)?;
+    #[cfg(test)]
+    super::admission_private::s4_read_trace::audit_window(
+        tx,
+        "resolved_public",
+        "begin",
+        "pending",
+    );
+    let resolved_result = if bound_births_qualified && manifest_coverage {
+        verified_templates.verify_resolved_public(tx, &mut store, &resolved_roots)
+    } else {
+        store.verify_many_ref(resolved_roots.iter().map(RefValue::view), sc::Mode::Public)
+    };
+    #[cfg(test)]
+    super::admission_private::s4_read_trace::audit_window(
+        tx,
+        "resolved_public",
+        "end",
+        if resolved_result.is_ok() {
+            "ok"
+        } else {
+            "error"
+        },
+    );
+    resolved_result.map_err(err)?;
     let control_facts = control.into_facts()?;
     verify_current_frontiers(&store, tx, &output, previous, allocation.as_ref())?;
     let auxiliary_facts = native_aux.map(aux_index::NativeAuxAudit::into_facts);
@@ -729,11 +1119,11 @@ fn read_indexed_history_inner(
         auxiliary_facts,
         cuts: output,
         objects: {
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             {
                 objects.into_entries_preserving(&mut object_sweep)
             }
-            #[cfg(not(feature = "s_capture_native_testonly"))]
+            #[cfg(not(feature = "s_incremental"))]
             {
                 objects.into_entries()
             }
@@ -747,6 +1137,7 @@ fn read_indexed_history_inner(
 /// 返回成功之前不改变已核前沿，派生根仍须由调用方统一核 Public 闭包。
 fn audit_one_published_cut<'capture>(
     tx: &Transaction<'_>,
+    verified_templates: Option<&VerifiedManifestRoots<'_, '_>>,
     row: &mut newchan_rust::sqlite_checked::CheckedRow<'_>,
     store: &mut HashReader<'capture>,
     raw: RawEventsView<'_>,
@@ -764,6 +1155,8 @@ fn audit_one_published_cut<'capture>(
     resolved_roots: &mut sc::CodecVec<RefValue>,
     mut records: Option<&mut NativeRecordFields<'_>>,
     native_publication: bool,
+    mut ordinary_publication: Option<&mut content_publication::PublicationProjection<'_, '_>>,
+    bound_births_qualified: bool,
     deadline: Option<std::time::Instant>,
     budget: Option<&dyn super::audit_budget::Budget>,
     allocation: Option<&OwnedBudget>,
@@ -783,7 +1176,44 @@ fn audit_one_published_cut<'capture>(
     #[cfg(test)]
     super::state::trace_event("history_assemble_manifest", Some(generation));
     // 重用唯一 manifest 构造/跨根判据；写口仅计算摘要，不写 SQLite。
-    let mut assembly = super::audit_store::StoreView::for_audit(store);
+    let mut assembly = if let Some(verified_templates) = verified_templates.filter(|_| {
+        store.owned.is_none()
+            && store.work.is_none()
+            && matches!(store.source, ReadOwner::Dynamic(_))
+    }) {
+        let manifest_digest = manifest.view().digest().map_err(err)?;
+        if !std::ptr::eq(tx, verified_templates.transaction)
+            || !verified_templates
+                .roots
+                .iter()
+                .any(|root| root.view().digest().ok() == Some(manifest_digest))
+        {
+            return Err(err("manifest不属于当前完整Template审计"));
+        }
+        let templates = [
+            roots.publication_template.view().digest().map_err(err)?,
+            roots.delta_template.view().digest().map_err(err)?,
+        ];
+        let public = [
+            m.scope.view().digest().map_err(err)?,
+            roots.generated_state.view().digest().map_err(err)?,
+        ];
+        if !public.iter().all(|digest| {
+            verified_templates
+                .public
+                .iter()
+                .any(|root| root.view().digest().ok() == Some(*digest))
+        }) {
+            return Err(err("manifest Public子根不属于当前联合Public审计"));
+        }
+        super::audit_store::StoreView::for_verified_manifest(VerifiedManifestAssembly {
+            source: store,
+            templates,
+            public,
+        })
+    } else {
+        super::audit_store::StoreView::for_audit(store)
+    };
     let (value, batch_rebuilt) = match assembly.allocation_budget() {
         #[cfg(feature = "s_allocation_json_testonly")]
         Some(_) => {
@@ -844,6 +1274,16 @@ fn audit_one_published_cut<'capture>(
             previous,
             projection,
         )?
+    } else if let Some(projection) = ordinary_publication.as_deref_mut() {
+        content_publication::resolve_ordinary_indexed_templates_pending_view(
+            tx,
+            store,
+            m.view(),
+            roots.view(),
+            batch_id.as_str(),
+            previous,
+            projection,
+        )?
     } else {
         content_publication::resolve_indexed_templates_pending_view(
             tx,
@@ -862,17 +1302,22 @@ fn audit_one_published_cut<'capture>(
     resolved_roots.try_push(resolved.delta).map_err(err)?;
     #[cfg(test)]
     super::state::trace_event("history_object_members", Some(generation));
+    #[cfg(test)]
+    super::admission_private::s4_read_trace::begin(tx, "ord_obj_members");
     if let Some(sweep) = object_sweep.as_mut() {
         sweep.advance_admitted(generation, store)?;
     }
-    object_index::verify_generated_members_swept_with_records(
+    let members_result = object_index::verify_generated_members_swept_with_records(
         store,
         objects.entries(),
         roots.generated_state.view(),
         generation,
         object_sweep.as_ref(),
         records.as_deref_mut(),
-    )?;
+    );
+    #[cfg(test)]
+    super::admission_private::s4_read_trace::end(tx, "ord_obj_members", &members_result);
+    members_result?;
     let (active, withdrawn, upserts) = if let Some(p) = &dual {
         (
             p.arrays[0].1.clone(),
@@ -880,7 +1325,16 @@ fn audit_one_published_cut<'capture>(
             p.arrays[2].1.clone(),
         )
     } else {
-        objects.at_cut(store, generation, budget)?
+        #[cfg(test)]
+        super::admission_private::s4_read_trace::begin(tx, "ord_obj_at_cut");
+        let at_cut = if bound_births_qualified {
+            objects.at_cut_bound_births(tx, store, generation, budget)
+        } else {
+            objects.at_cut(store, generation, budget)
+        };
+        #[cfg(test)]
+        super::admission_private::s4_read_trace::end(tx, "ord_obj_at_cut", &at_cut);
+        at_cut?
     };
     for (public, key, expected) in [
         (&snapshot, "objects", active.digest),
@@ -889,12 +1343,15 @@ fn audit_one_published_cut<'capture>(
     ] {
         same_digest(store, public, key, expected)?;
     }
-    let (withdrawals, replaces) = match &object_sweep {
-        Some(sweep) => sweep.changes_admitted(store, objects.entries(), generation)?,
-        None => {
-            object_index::changes_at_admitted(store, objects.entries(), generation, allocation)?
-        }
+    #[cfg(test)]
+    super::admission_private::s4_read_trace::begin(tx, "ord_obj_changes");
+    let changes = match &object_sweep {
+        Some(sweep) => sweep.changes_admitted(store, objects.entries(), generation),
+        None => object_index::changes_at_admitted(store, objects.entries(), generation, allocation),
     };
+    #[cfg(test)]
+    super::admission_private::s4_read_trace::end(tx, "ord_obj_changes", &changes);
+    let (withdrawals, replaces) = changes?;
     let mut wire_withdrawals = bj::WithdrawalArray(bj::new_work(allocation));
     for v in withdrawals
         .view()
@@ -940,15 +1397,36 @@ fn audit_one_published_cut<'capture>(
                 compare_cut_array(store, public, name, nodes, deadline, budget, allocation)?;
             }
         } else {
+            #[cfg(test)]
+            let (members_label, compare_label) = if is_delta {
+                ("ord_aux_members_delta", "ord_aux_compare_delta")
+            } else {
+                ("ord_aux_members_snapshot", "ord_aux_compare_snapshot")
+            };
+            #[cfg(test)]
+            super::admission_private::s4_read_trace::begin(tx, members_label);
             let members =
-                aux_index::cut_members_metered(auxiliary, layout, generation, is_delta, budget)?;
+                aux_index::cut_members_metered(auxiliary, layout, generation, is_delta, budget);
+            #[cfg(test)]
+            super::admission_private::s4_read_trace::end(tx, members_label, &members);
+            let members = members?;
+            #[cfg(test)]
+            super::admission_private::s4_read_trace::begin(tx, compare_label);
             // Preserve ordinary/Owned by-value consuming iterator and per-item owner drop.
             for (name, nodes) in ["witnesses", "relations", "observations"]
                 .into_iter()
                 .zip(members)
             {
-                compare_cut_array(store, public, name, &nodes, deadline, budget, allocation)?;
+                let compared =
+                    compare_cut_array(store, public, name, &nodes, deadline, budget, allocation);
+                #[cfg(test)]
+                if compared.is_err() {
+                    super::admission_private::s4_read_trace::end(tx, compare_label, &compared);
+                }
+                compared?;
             }
+            #[cfg(test)]
+            super::admission_private::s4_read_trace::end(tx, compare_label, &Ok::<(), ()>(()));
         }
     }
     for (key, actual) in [
@@ -1114,6 +1592,56 @@ fn audit_one_published_cut<'capture>(
     )?;
     #[cfg(test)]
     super::state::trace_event("history_public_fields", Some(generation));
+    let snapshot_fields = if store.allocation_budget().is_none() {
+        Some(
+            store
+                .lookup_subset_ref(
+                    snapshot.view(),
+                    &[
+                        "generation",
+                        "session_id",
+                        "catalog_revision",
+                        "input_frontier",
+                        "index_frontier",
+                        "seq_range",
+                        "structure_cut",
+                        "history_mode",
+                        "as_of_generation",
+                        "profile_id",
+                        "profile_hash",
+                        "scope",
+                        "catalog_evidence",
+                        "catalog_run_status",
+                    ],
+                )
+                .map_err(err)?,
+        )
+    } else {
+        None
+    };
+    let delta_fields = if store.allocation_budget().is_none() {
+        Some(
+            store
+                .lookup_subset_ref(
+                    delta.view(),
+                    &[
+                        "generation",
+                        "session_id",
+                        "catalog_revision",
+                        "input_frontier",
+                        "index_frontier",
+                        "seq_range",
+                        "base_cut",
+                        "next_cut",
+                        "catalog_run_status",
+                        "catalog_evidence",
+                    ],
+                )
+                .map_err(err)?,
+        )
+    } else {
+        None
+    };
     let from_decimal = bj::Decimal::new(previous + 1);
     let to_decimal = bj::Decimal::new(frontier);
     let generation_decimal = bj::Decimal::new(generation);
@@ -1122,59 +1650,97 @@ fn audit_one_published_cut<'capture>(
         ("to", JsonView::String(to_decimal.text())),
     ];
     let seq_range = JsonView::object_fields(&seq_fields).map_err(err)?;
-    for public in [&snapshot, &delta] {
-        same_json(
+    for (public, fields) in [(&snapshot, &snapshot_fields), (&delta, &delta_fields)] {
+        same_json_selected(
             store,
             public,
+            fields.as_ref(),
             "generation",
             JsonView::String(generation_decimal.text()),
         )?;
-        same_json(store, public, "session_id", JsonView::String(&m.session_id))?;
-        same_json(
+        same_json_selected(
             store,
             public,
+            fields.as_ref(),
+            "session_id",
+            JsonView::String(&m.session_id),
+        )?;
+        same_json_selected(
+            store,
+            public,
+            fields.as_ref(),
             "catalog_revision",
             JsonView::String(&m.catalog_revision),
         )?;
-        same_json(
+        same_json_selected(
             store,
             public,
+            fields.as_ref(),
             "input_frontier",
             JsonView::String(to_decimal.text()),
         )?;
-        same_json(store, public, "index_frontier", JsonView::String(&batch_id))?;
-        same_json(store, public, "seq_range", seq_range)?;
+        same_json_selected(
+            store,
+            public,
+            fields.as_ref(),
+            "index_frontier",
+            JsonView::String(&batch_id),
+        )?;
+        same_json_selected(store, public, fields.as_ref(), "seq_range", seq_range)?;
     }
-    same_json(
+    same_json_selected(
         store,
         &snapshot,
+        snapshot_fields.as_ref(),
         "structure_cut",
         JsonView::String(&m.structure_cut),
     )?;
-    same_json(
+    same_json_selected(
         store,
         &snapshot,
+        snapshot_fields.as_ref(),
         "history_mode",
         JsonView::String("RecomputedWithRevision"),
     )?;
-    same_json(store, &snapshot, "as_of_generation", JsonView::Null)?;
-    same_json(
+    same_json_selected(
         store,
         &snapshot,
+        snapshot_fields.as_ref(),
+        "as_of_generation",
+        JsonView::Null,
+    )?;
+    same_json_selected(
+        store,
+        &snapshot,
+        snapshot_fields.as_ref(),
         "profile_id",
         JsonView::String(&m.profile_id),
     )?;
-    same_json(
+    same_json_selected(
         store,
         &snapshot,
+        snapshot_fields.as_ref(),
         "profile_hash",
         JsonView::String(&m.profile_hash),
     )?;
-    same_digest(store, &snapshot, "scope", m.scope.digest().map_err(err)?)?;
-    same_json(store, &delta, "base_cut", JsonView::String(&m.base_cut))?;
-    same_json(
+    same_digest_selected(
+        store,
+        &snapshot,
+        snapshot_fields.as_ref(),
+        "scope",
+        m.scope.digest().map_err(err)?,
+    )?;
+    same_json_selected(
         store,
         &delta,
+        delta_fields.as_ref(),
+        "base_cut",
+        JsonView::String(&m.base_cut),
+    )?;
+    same_json_selected(
+        store,
+        &delta,
+        delta_fields.as_ref(),
         "next_cut",
         JsonView::String(&m.structure_cut),
     )?;
@@ -1205,13 +1771,14 @@ fn audit_one_published_cut<'capture>(
         return Err(err("Delta 独立前沿不符"));
     }
     let catalog_run_status = sql_text_in_store(store, row, 12, allocation).map_err(err)?;
-    same_json(
+    same_json_selected(
         store,
         &delta,
+        delta_fields.as_ref(),
         "catalog_run_status",
         JsonView::String(&catalog_run_status),
     )?;
-    let evidence = field(store, &delta, "catalog_evidence")?;
+    let evidence = selected_field(store, &delta, delta_fields.as_ref(), "catalog_evidence")?;
     for (column, want) in [(13, &evidence), (14, &delta)] {
         let encoded = sql_text_in_store(store, row, column, allocation).map_err(err)?;
         let parsed = history_decode_in_store(store, encoded.as_bytes(), allocation)?;
@@ -1222,8 +1789,10 @@ fn audit_one_published_cut<'capture>(
         }
     }
     for key in ["catalog_evidence", "catalog_run_status"] {
-        let expected = field(store, &delta, key)?.digest().map_err(err)?;
-        same_digest(store, &snapshot, key, expected)?;
+        let expected = selected_field(store, &delta, delta_fields.as_ref(), key)?
+            .digest()
+            .map_err(err)?;
+        same_digest_selected(store, &snapshot, snapshot_fields.as_ref(), key, expected)?;
     }
 
     Ok(PublishedCut {
@@ -1313,8 +1882,8 @@ pub(super) fn revalidate_current_for_reuse(
 }
 
 #[cfg_attr(
-    not(feature = "s_capture_native_testonly"),
-    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    not(feature = "s_incremental"),
+    allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
 )]
 pub(super) fn revalidate_current_for_reuse_admitted(
     tx: &Transaction<'_>,
@@ -1348,13 +1917,13 @@ pub(super) fn revalidate_current_for_reuse_measured(
     budget: Option<&dyn super::audit_budget::Budget>,
     policy: SourcePolicy,
 ) -> Result<(), String> {
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     if let Some(work) = work {
         verify_required_meta_admitted(tx, work)?;
     } else {
         verify_required_meta(tx)?;
     }
-    #[cfg(not(feature = "s_capture_native_testonly"))]
+    #[cfg(not(feature = "s_incremental"))]
     verify_required_meta(tx)?;
     let mut store = HashReader::captured_for_audit(capture, None)
         .map_err(err)?
@@ -1629,10 +2198,17 @@ fn ordered_effective_nodes(
     Ok(out)
 }
 
+#[cfg(test)]
+thread_local! {
+    static MANIFEST_DECODE_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 fn decode_manifest(
     s: &mut (impl CodecRead + ?Sized),
     r: sc::RefView<'_>,
 ) -> Result<(AuditMetadata, AuditRoots), String> {
+    #[cfg(test)]
+    MANIFEST_DECODE_CALLS.with(|calls| calls.set(calls.get() + 1));
     if r.kind() != Kind::Object || r.extent() != Some(21) {
         return Err(err("manifest 不是21字段对象"));
     }
@@ -1698,8 +2274,8 @@ fn field<'a>(
     field_meta(s, r.into(), k)
 }
 #[cfg_attr(
-    not(all(test, feature = "s_capture_native_testonly")),
-    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    not(all(test, feature = "s_incremental")),
+    allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
 )]
 fn text<'a>(
     s: &mut (impl CodecRead + ?Sized),
@@ -1743,6 +2319,44 @@ fn same_json<'r, 'j>(
 ) -> Result<(), String> {
     let expected = hash_json_in_store(s, v, s.deadline, s.budget)?;
     same_digest(s, r, k, expected)
+}
+
+fn selected_field<'r>(
+    s: &mut (impl CodecRead + ?Sized),
+    r: impl Into<sc::RefView<'r>>,
+    fields: Option<&super::audit_store::RefFields<'_>>,
+    key: &str,
+) -> Result<RefValue, String> {
+    match fields {
+        Some(fields) => fields
+            .get_admitted(s, key)
+            .map_err(err)?
+            .ok_or_else(|| err(format!("缺{key}"))),
+        None => field(s, r, key),
+    }
+}
+fn same_digest_selected<'r>(
+    s: &mut (impl CodecRead + ?Sized),
+    r: impl Into<sc::RefView<'r>>,
+    fields: Option<&super::audit_store::RefFields<'_>>,
+    key: &str,
+    want: NodeDigest,
+) -> Result<(), String> {
+    if selected_field(s, r, fields, key)?.digest().map_err(err)? != want {
+        Err(err(format!("{key}与独立依据不同")))
+    } else {
+        Ok(())
+    }
+}
+fn same_json_selected<'r, 'j>(
+    s: &mut HashReader<'_>,
+    r: impl Into<sc::RefView<'r>>,
+    fields: Option<&super::audit_store::RefFields<'_>>,
+    key: &str,
+    value: impl Into<JsonView<'j>>,
+) -> Result<(), String> {
+    let expected = hash_json_in_store(s, value, s.deadline, s.budget)?;
+    same_digest_selected(s, r, fields, key, expected)
 }
 
 #[cfg(test)]
@@ -2026,7 +2640,7 @@ impl NativeHistoryPrefixes {
         }
         Ok(())
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn retained_capacities(&self) -> [usize; 3] {
         [
             self.raw.stack.capacity(),
@@ -2096,22 +2710,16 @@ fn record_history_prefix_leaves(index: usize, count: u64) {
 }
 #[cfg(test)]
 #[cfg_attr(
-    not(feature = "s_capture_native_testonly"),
-    allow(
-        dead_code,
-        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
-    )
+    not(feature = "s_incremental"),
+    allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
 )]
 fn reset_history_prefix_leaves() {
     HISTORY_PREFIX_LEAVES.with(|stats| stats.set([0; 6]));
 }
 #[cfg(test)]
 #[cfg_attr(
-    not(feature = "s_capture_native_testonly"),
-    allow(
-        dead_code,
-        reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
-    )
+    not(feature = "s_incremental"),
+    allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
 )]
 fn history_prefix_leaves() -> [u64; 6] {
     HISTORY_PREFIX_LEAVES.with(std::cell::Cell::get)
@@ -2250,12 +2858,13 @@ pub(crate) enum SourcePolicy {
 }
 
 pub(crate) struct HashReader<'a> {
+    history_public_roots: Option<[NodeDigest; 2]>,
     policy: SourcePolicy,
     source: ReadOwner<'a>,
     overlay: OverlayOwner,
     owned: Option<sc::ClosedCapturedOwner<'a>>,
     work: Option<&'a sc::capture_allocation::scratch::WorkScope>,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     native_budget: Option<&'a super::audit_owner::native::Budget>,
     deadline: Option<std::time::Instant>,
     max_render_bytes: Option<u64>,
@@ -2333,7 +2942,7 @@ impl<'a> HashReader<'a> {
             ReadOwner::Dynamic(_) => Ok(None),
         }
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(crate) fn with_codec_work(
         mut self,
         work: &'a sc::capture_allocation::scratch::WorkScope,
@@ -2347,7 +2956,7 @@ impl<'a> HashReader<'a> {
     /// 仅本轮 Native captured 历史审计可取到 owner；Owned、普通 reader、Q 与有门路径
     /// 均不开投影 memo。返回 owner 自身寿命，不借用或延长任何临时 overlay body。
     pub(crate) fn native_projection_capture(&self) -> Option<&'a sc::AuditCapture> {
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         if self.audit_full_arrays
             && self.owned.is_none()
             && (self.native_measured() || (self.budget.is_none() && self.deadline.is_none()))
@@ -2360,13 +2969,13 @@ impl<'a> HashReader<'a> {
         }
         None
     }
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(crate) fn native_publication_fields_for_test(capture: &'a sc::AuditCapture) -> Self {
         let mut reader = Self::captured(capture, None);
         reader.enable_full_arrays_for_test();
         reader
     }
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(crate) fn with_native_publication_deadline_for_test(
         self,
         deadline: std::time::Instant,
@@ -2587,13 +3196,14 @@ impl<'a> HashReader<'a> {
             overlay: OverlayOwner::Dynamic(Default::default()),
             owned: None,
             work: None,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             native_budget: None,
             deadline: None,
             max_render_bytes,
             budget: None,
             audit_full_arrays: false,
             policy: SourcePolicy::Ordinary,
+            history_public_roots: None,
         }
     }
     #[cfg(test)]
@@ -2602,6 +3212,12 @@ impl<'a> HashReader<'a> {
             ReadOwner::Captured(c) => Some(c),
             ReadOwner::Dynamic(_) => None,
         }
+    }
+    pub(crate) fn ordinary_bound_births_qualified(&self) -> bool {
+        self.policy == SourcePolicy::Ordinary
+            && self.owned.is_none()
+            && self.work.is_none()
+            && matches!(self.source, ReadOwner::Dynamic(_))
     }
     pub(crate) fn owned_codec_active(&self) -> bool {
         self.owned.is_some()
@@ -2658,8 +3274,8 @@ impl<'a> HashReader<'a> {
         sc::audit_verify(self, r, mode)
     }
     #[cfg_attr(
-        not(all(test, feature = "s_capture_native_testonly")),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+        not(all(test, feature = "s_incremental")),
+        allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
     )]
     pub(crate) fn verify_many(
         &mut self,
@@ -2689,13 +3305,14 @@ impl<'a> HashReader<'a> {
             overlay: OverlayOwner::Dynamic(Default::default()),
             owned: None,
             work: None,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             native_budget: None,
             deadline: None,
             max_render_bytes: None,
             budget: None,
             audit_full_arrays: false,
             policy: SourcePolicy::Ordinary,
+            history_public_roots: None,
         }
     }
     #[cfg(test)]
@@ -2708,13 +3325,14 @@ impl<'a> HashReader<'a> {
             overlay: OverlayOwner::Dynamic(Default::default()),
             owned: None,
             work: None,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             native_budget: None,
             deadline,
             max_render_bytes: None,
             budget: None,
             audit_full_arrays: false,
             policy: SourcePolicy::Ordinary,
+            history_public_roots: None,
         }
     }
     #[cfg(test)]
@@ -2728,14 +3346,19 @@ impl<'a> HashReader<'a> {
             overlay: OverlayOwner::Dynamic(Default::default()),
             owned: None,
             work: None,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             native_budget: None,
             deadline,
             max_render_bytes,
             budget: None,
             audit_full_arrays: false,
             policy: SourcePolicy::Ordinary,
+            history_public_roots: None,
         }
+    }
+    #[cfg(all(test, feature = "s_incremental"))]
+    pub(crate) fn ordinary_publication_reader_for_test(source: &'a mut dyn NodeSource) -> Self {
+        Self::metered(source, None, None, None)
     }
     pub(super) fn metered(
         source: &'a mut dyn NodeSource,
@@ -2748,13 +3371,14 @@ impl<'a> HashReader<'a> {
             overlay: OverlayOwner::Dynamic(Default::default()),
             owned: None,
             work: None,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             native_budget: None,
             deadline,
             max_render_bytes,
             budget,
             audit_full_arrays: false,
             policy: SourcePolicy::Ordinary,
+            history_public_roots: None,
         }
     }
 }
@@ -2922,6 +3546,12 @@ impl NodeSink for HashReader<'_> {
         self.work
     }
     fn put(&mut self, digest: NodeDigest, tag: u8, body: &[u8]) -> Result<(), sc::CodecError> {
+        if self.history_public_roots.is_some() {
+            return Err(sc::CodecError::new(
+                sc::code::SOURCE,
+                "Public覆盖只允许不可变来源视图",
+            ));
+        }
         if let Some(owner) = &mut self.owned {
             return owner.raw_put(digest, tag, body);
         }
@@ -2943,8 +3573,8 @@ impl NodeSink for HashReader<'_> {
                 }
                 // #1394：无计费Native完整审计保留同原件的source读取归属。
                 // 后续仍实际复制当前正文并核首次F；本put不预核摘要或减少访问trace。
-                #[cfg(feature = "s_capture_native_testonly")]
-                if capture.native_frame_reuse_active_for_testonly()
+                #[cfg(feature = "s_incremental")]
+                if capture.native_frame_reuse_active()
                     && self.audit_full_arrays
                     && self.owned.is_none()
                     && (self.native_measured()
@@ -3086,6 +3716,24 @@ impl CodecRead for HashReader<'_> {
             None => sc::path::lookup_fields_native(self, r, n, true)
                 .map(super::audit_store::RefFields::Plain),
         }
+    }
+    fn verify_history_public_root(
+        &mut self,
+        r: sc::RefView<'_>,
+        mode: sc::Mode,
+    ) -> Result<(), sc::CodecError> {
+        if let Some(roots) = self.history_public_roots {
+            if mode != sc::Mode::Public || !roots.contains(&r.digest()?) {
+                return Err(sc::CodecError::new(
+                    sc::code::SOURCE,
+                    "Public覆盖根/模式不匹配",
+                ));
+            }
+            #[cfg(test)]
+            super::admission_private::s4_read_trace::coverage(1);
+            return sc::audit_verify_refview_headers(self, [r]);
+        }
+        self.verify_ref(r, mode)
     }
     fn verify_ref(&mut self, r: sc::RefView<'_>, m: sc::Mode) -> Result<(), sc::CodecError> {
         self.sync_owned();
@@ -3429,7 +4077,7 @@ pub(super) mod tests {
         assert!(overflow.array_root().is_err(), "算法错误必须直传");
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn owner_retained_prefix_normal_append_and_revision_matches_oracle() {
         use crate::v3::audit_retention::{Retained, RetainedDelta};
@@ -3463,7 +4111,7 @@ pub(super) mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_history_prefix_effective_topology_keeps_last_coord_overwrite() {
         let capture = sc::AuditCapture::new(sc::MemoryNodes::new());
@@ -3505,7 +4153,7 @@ pub(super) mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_full_audit_duplicate_put_keeps_current_source_vec_and_first_f() {
         let body = vec![0x5a; 4096];
@@ -3514,9 +4162,9 @@ pub(super) mod tests {
         nodes.insert_unchecked(digest, sc::tag::BYTES_CHUNK, body.clone());
         let placeholder = sc::write_template(&mut nodes, &V::BatchSelf).unwrap();
         let capture = sc::AuditCapture::new(nodes)
-            .enable_native_frame_reuse_for_testonly()
+            .enable_native_frame_reuse()
             .unwrap();
-        assert!(capture.native_frame_reuse_active_for_testonly());
+        assert!(capture.native_frame_reuse_active());
         let mut reader = HashReader::captured_for_audit(&capture, None).unwrap();
         reader.enable_full_arrays_for_test();
         let before = sc::frame_calls_on_thread();
@@ -3570,7 +4218,7 @@ pub(super) mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_full_audit_duplicate_put_keeps_conflict_bad_f_missing_and_existing_overlay() {
         let body = b"source";
@@ -3580,7 +4228,7 @@ pub(super) mod tests {
         nodes.insert_unchecked(digest, sc::tag::BYTES_CHUNK, body.to_vec());
         nodes.insert_unchecked(bad_digest, sc::tag::BYTES_CHUNK, body.to_vec());
         let capture = sc::AuditCapture::new(nodes)
-            .enable_native_frame_reuse_for_testonly()
+            .enable_native_frame_reuse()
             .unwrap();
         let mut reader = HashReader::captured(&capture, None);
         reader.enable_full_arrays_for_test();
@@ -3630,7 +4278,7 @@ pub(super) mod tests {
         );
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_measured_reader_retains_source_role_and_actual_frame_observation() {
         #[derive(Default)]
@@ -3661,7 +4309,7 @@ pub(super) mod tests {
         let mut nodes = sc::MemoryNodes::new();
         nodes.insert_unchecked(digest, sc::tag::BYTES_CHUNK, body.to_vec());
         let capture = sc::AuditCapture::new(nodes)
-            .enable_native_frame_reuse_for_testonly()
+            .enable_native_frame_reuse()
             .unwrap();
         let meter = Meter::default();
         let deadline = Some(std::time::Instant::now() + std::time::Duration::from_secs(10));
@@ -3685,7 +4333,7 @@ pub(super) mod tests {
         assert!(ordinary.native_projection_capture().is_none());
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_full_audit_duplicate_put_excludes_non_native_owned_bounded_and_gates() {
         use sc::capture_allocation::{CaptureSlab, OwnedBudget};
@@ -3718,9 +4366,9 @@ pub(super) mod tests {
         nodes.insert_unchecked(digest, sc::tag::BYTES_CHUNK, body.to_vec());
         let legacy = sc::AuditCapture::new(nodes.clone());
         let native = sc::AuditCapture::new(nodes.clone())
-            .enable_native_frame_reuse_for_testonly()
+            .enable_native_frame_reuse()
             .unwrap();
-        assert!(!legacy.native_frame_reuse_active_for_testonly());
+        assert!(!legacy.native_frame_reuse_active());
         let meter = Meter::default();
         for excluded in [
             "legacy", "partial", "render", "deadline", "budget", "bounded",
@@ -3760,7 +4408,7 @@ pub(super) mod tests {
         let mut slab = CaptureSlab::new(1, body.len(), &budget).unwrap();
         slab.push(digest, sc::tag::BYTES_CHUNK, body).unwrap();
         let owned = sc::AuditCapture::from_slab_for_allocation_prototype(slab.finish().unwrap());
-        assert!(!owned.native_frame_reuse_active_for_testonly());
+        assert!(!owned.native_frame_reuse_active());
         let mut reader = HashReader::captured(&owned, None);
         reader.enable_full_arrays_for_test();
         reader.put(digest, sc::tag::BYTES_CHUNK, body).unwrap();
@@ -3788,7 +4436,7 @@ pub(super) mod tests {
         assert!(!expired.overlay.contains_key(&digest));
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_cut_projection_gate_excludes_reader_dynamic_owned_and_deadline_native_publication_fields(
     ) {
@@ -5055,6 +5703,301 @@ pub(super) mod tests {
     }
 
     #[test]
+    fn history_public_coverage_binds_readonly_transaction_cut_and_mode() {
+        let f = published();
+        let mut conn = Connection::open_with_flags(
+            f.conn.path().unwrap(),
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        )
+        .unwrap();
+        let tx = conn.transaction().unwrap();
+        let control = control_audit::prepare_s3_control_history(&tx).unwrap();
+        let raw = read_raw_events(&tx).unwrap();
+        let verified = read_verified_public_history(
+            &tx,
+            &raw,
+            control,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            SourcePolicy::Ordinary,
+        )
+        .unwrap();
+        assert!(verified.qualified());
+        let cut = &verified.history().cuts[0];
+        verified
+            .audit_cut(&tx, cut, None, None, None, |reader| {
+                let r = cut.roots.generated_state.view();
+                reader
+                    .verify_history_public_root(r, sc::Mode::Public)
+                    .map_err(err)?;
+                assert_eq!(
+                    reader
+                        .verify_history_public_root(r, sc::Mode::Template)
+                        .unwrap_err()
+                        .code(),
+                    sc::code::SOURCE
+                );
+                assert_eq!(
+                    reader
+                        .verify_history_public_root(cut.snapshot.view(), sc::Mode::Public)
+                        .unwrap_err()
+                        .code(),
+                    sc::code::SOURCE
+                );
+                assert_eq!(
+                    reader
+                        .put([0; 32], sc::tag::BOOL_TRUE, &[])
+                        .unwrap_err()
+                        .code(),
+                    sc::code::SOURCE
+                );
+                Ok(())
+            })
+            .unwrap();
+        let mut other = Connection::open_with_flags(
+            f.conn.path().unwrap(),
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        )
+        .unwrap();
+        let other_tx = other.transaction().unwrap();
+        assert!(verified
+            .audit_cut(&other_tx, cut, None, None, None, |_| Ok(()))
+            .is_err());
+        let control = control_audit::prepare_s3_control_history(&other_tx).unwrap();
+        let raw = read_raw_events(&other_tx).unwrap();
+        let other_history = read_indexed_history_with_policy(
+            &other_tx,
+            &raw,
+            control,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            SourcePolicy::Ordinary,
+        )
+        .unwrap();
+        assert!(verified
+            .audit_cut(&tx, &other_history.cuts[0], None, None, None, |_| Ok(()))
+            .is_err());
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn ordinary_material_whole_readonly_audit_heap_releases() {
+        let mut f = super::prepared::tests::Fixture::with_rule(crate::V3_RULE_REVISION);
+        let (envelope, token) = f.accept_begin(1, ("a", 0, 6, 12, 3, 7), 1);
+        f.publish(&envelope, &token).unwrap();
+        let run = || {
+            let mut conn = Connection::open_with_flags(
+                f.conn.path().unwrap(),
+                rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+            )
+            .unwrap();
+            let tx = conn.transaction().unwrap();
+            let audited = super::state::audit(&tx).unwrap();
+            assert_eq!(audited.cuts.len(), 1);
+        };
+        run();
+        super::ordinary_materials::LAST_REPORT.with(|r| r.set(None));
+        let heap = crate::v3::audit_owner::allocation_probe::Window::start();
+        run();
+        let observed = heap.finish();
+        let material = super::ordinary_materials::LAST_REPORT
+            .with(|r| r.get())
+            .expect("真实只读审计持有原件池");
+        assert!(material.material_hits > 0);
+        assert!(material.retained_capacity_highwater <= super::ordinary_materials::CAP);
+        assert_eq!(observed["live_before"], observed["live_after"]);
+        assert_eq!(observed["allocated_bytes"], observed["released_bytes"]);
+        eprintln!("ORDINARY_MATERIAL_REQUEST_HEAP {observed} {material:?}");
+    }
+
+    #[cfg(feature = "s_incremental")]
+    #[test]
+    fn ordinary_proof_owner_commits_only_after_whole_cut_and_reopen_starts_empty() {
+        let mut f = super::prepared::tests::Fixture::with_rule(crate::V3_RULE_REVISION);
+        let (envelope, token) = f.accept_begin(1, ("a", 0, 6, 12, 3, 7), 1);
+        f.publish(&envelope, &token).unwrap();
+        let mut conn = Connection::open_with_flags(
+            f.conn.path().unwrap(),
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        )
+        .unwrap();
+        let tx = conn.transaction().unwrap();
+        let control = control_audit::prepare_s3_control_history(&tx).unwrap();
+        let raw = read_raw_events(&tx).unwrap();
+        let verified = read_verified_public_history(
+            &tx,
+            &raw,
+            control,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            SourcePolicy::Ordinary,
+        )
+        .unwrap();
+        let cut = &verified.history().cuts[0];
+        let mut session = verified.ordinary_source_session().unwrap();
+        let audit = |reader: &mut HashReader<'_>,
+                     proofs: &mut super::source_audit::OrdinaryProofs| {
+            super::source_audit::audit_generated_with_proofs(
+                reader,
+                cut.roots.generated_state.view(),
+                (&raw).into(),
+                &cut.metadata.profile_id,
+                &cut.metadata.rule_revision,
+                None,
+                None,
+                proofs,
+            )
+        };
+        super::source_audit::reset_ordinary_proof_stats();
+        session
+            .audit_cut(&tx, cut, None, None, None, audit)
+            .unwrap();
+        let first = super::source_audit::ordinary_proof_stats();
+        assert!(first.executions > 0);
+        session
+            .audit_cut(&tx, cut, None, None, None, audit)
+            .unwrap();
+        let second = super::source_audit::ordinary_proof_stats();
+        assert!(second.hits > first.hits);
+        assert_eq!(first.executions, second.executions);
+        let failure = session
+            .audit_cut(&tx, cut, None, None, None, |reader, proofs| {
+                audit(reader, proofs)?;
+                Err::<(), _>(err("catalog sentinel"))
+            })
+            .unwrap_err();
+        assert!(failure.contains("catalog sentinel"));
+        assert!(session.proofs.is_none());
+        assert!(session
+            .audit_cut(&tx, cut, None, None, None, |_, _| Ok(()))
+            .unwrap_err()
+            .contains("已拒绝"));
+        super::source_audit::reset_ordinary_proof_stats();
+        let mut reopened = verified.ordinary_source_session().unwrap();
+        reopened
+            .audit_cut(&tx, cut, None, None, None, audit)
+            .unwrap();
+        assert_eq!(super::source_audit::ordinary_proof_stats().hits, 0);
+        assert_eq!(
+            super::source_audit::ordinary_proof_stats().executions,
+            first.executions
+        );
+        let mut foreign = Connection::open_with_flags(
+            f.conn.path().unwrap(),
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        )
+        .unwrap();
+        let foreign_tx = foreign.transaction().unwrap();
+        assert!(reopened
+            .audit_cut(&foreign_tx, cut, None, None, None, |_, _| Ok(()))
+            .is_err());
+        assert!(reopened.proofs.is_none());
+        let mut expired = verified.ordinary_source_session().unwrap();
+        let deadline = std::time::Instant::now() - std::time::Duration::from_secs(1);
+        assert!(expired
+            .audit_cut(&tx, cut, Some(deadline), None, None, |reader, proofs| {
+                super::source_audit::audit_generated_with_proofs(
+                    reader,
+                    cut.roots.generated_state.view(),
+                    (&raw).into(),
+                    &cut.metadata.profile_id,
+                    &cut.metadata.rule_revision,
+                    Some(deadline),
+                    None,
+                    proofs,
+                )
+            })
+            .is_err());
+        assert!(expired.proofs.is_none());
+        struct Reject(&'static str);
+        impl super::super::audit_budget::Budget for Reject {
+            fn precheck(&self) -> Result<(), sc::CodecError> {
+                Err(sc::CodecError::new(self.0, "owner reject"))
+            }
+            fn prepare_node(&self) -> Result<(), sc::CodecError> {
+                self.precheck()
+            }
+            fn accept_prepared_frame(
+                &self,
+                _: &sc::job::CheckedFrame,
+            ) -> Result<(), sc::CodecError> {
+                self.precheck()
+            }
+            fn node(&self, _: &NodeDigest, _: u8, _: &[u8]) -> Result<(), sc::CodecError> {
+                self.precheck()
+            }
+            fn record(&self) -> Result<(), sc::CodecError> {
+                self.precheck()
+            }
+        }
+        for code in ["budget_exceeded", "cancelled"] {
+            let mut session = verified.ordinary_source_session().unwrap();
+            session
+                .audit_cut(&tx, cut, None, None, None, audit)
+                .unwrap();
+            let gate = Reject(code);
+            let error = session
+                .audit_cut(&tx, cut, None, None, Some(&gate), |reader, proofs| {
+                    super::source_audit::audit_generated_with_proofs(
+                        reader,
+                        cut.roots.generated_state.view(),
+                        (&raw).into(),
+                        &cut.metadata.profile_id,
+                        &cut.metadata.rule_revision,
+                        None,
+                        Some(&gate),
+                        proofs,
+                    )
+                })
+                .unwrap_err();
+            assert!(error.contains(code), "{error}");
+            assert!(session.proofs.is_none());
+        }
+        let mut malformed = verified.ordinary_source_session().unwrap();
+        malformed
+            .audit_cut(&tx, cut, None, None, None, audit)
+            .unwrap();
+        let original = cut.roots.generated_state.view();
+        let mut bad = ContentRef {
+            format: original.format().into(),
+            root: original.root().into(),
+            kind: original.kind(),
+            extent: original.extent(),
+        };
+        bad.kind = Kind::Array;
+        assert!(malformed
+            .audit_cut(&tx, cut, None, None, None, |reader, proofs| {
+                super::source_audit::audit_generated_with_proofs(
+                    reader,
+                    (&bad).into(),
+                    (&raw).into(),
+                    &cut.metadata.profile_id,
+                    &cut.metadata.rule_revision,
+                    None,
+                    None,
+                    proofs,
+                )
+            })
+            .is_err());
+        assert!(malformed.proofs.is_none());
+    }
+
+    #[test]
     fn committed_history_binds_manifest_source_public_roots_without_writes() {
         let mut f = published();
         f.conn.execute_batch("PRAGMA query_only=ON").unwrap();
@@ -5066,6 +6009,50 @@ pub(super) mod tests {
         assert!(cut.batch_id.starts_with("batch3-"));
         assert_ne!(cut.roots.publication_template, cut.snapshot);
         assert_ne!(cut.roots.delta_template, cut.delta);
+    }
+
+    #[test]
+    fn manifest_template_coverage_failure_precedes_real_history_decode() {
+        let mut f = published();
+        MANIFEST_DECODE_CALLS.with(|calls| calls.set(0));
+        assert_eq!(audit(&mut f.conn).unwrap().len(), 1);
+        assert!(
+            MANIFEST_DECODE_CALLS.with(|calls| calls.get()) > 0,
+            "正控必须实际经过decode_manifest"
+        );
+        let damaged = {
+            let tx = f.conn.transaction().unwrap();
+            let bytes: Vec<u8> = tx
+                .query_row(
+                    "SELECT manifest_root FROM s_content_publications LIMIT 1",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            let mut store = content_store::TxStore::new(&tx).unwrap();
+            let manifest = root_ref_bytes(&mut store, &bytes).unwrap();
+            field(&mut store, &manifest, "source_commit")
+                .unwrap()
+                .digest()
+                .unwrap()
+        };
+        f.conn
+            .execute(
+                "UPDATE s_content_nodes SET body=x'00' WHERE digest=?1",
+                [damaged.as_slice()],
+            )
+            .unwrap();
+        MANIFEST_DECODE_CALLS.with(|calls| calls.set(0));
+        let failure = match audit(&mut f.conn) {
+            Ok(_) => panic!("Template损坏必须拒绝"),
+            Err(error) => error,
+        };
+        assert!(failure.contains(sc::code::NODE_DIGEST), "{failure}");
+        assert_eq!(
+            MANIFEST_DECODE_CALLS.with(|calls| calls.get()),
+            0,
+            "真实history入口在Template失败时不得解码任何manifest"
+        );
     }
 
     /// #1491 ADR 0037 多代输入：b、c 跨代修订（撤回落在第 4、6 两个不同代），d 在第 5 代以更小
@@ -5288,7 +6275,7 @@ pub(super) mod tests {
     /// `audit_owner::construction_tests` 的
     /// `b2_native_owner_restore_bounded_multicut_matches_writer_and_rebuild`（正向）与
     /// `b2_native_owner_restore_wrong_library_layout_rejects_in_append_owner_cut`（负控）覆盖。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn history_layout_multicut_native_projection_equals_plain_audit() {
         let bounded_rule = format!("{}+bounded-layout/1", crate::V3_RULE_REVISION);
@@ -5317,7 +6304,7 @@ pub(super) mod tests {
             }
         }
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn r9a_new_cut_manifest_consumes_scoped_sql_source_and_publication() {
         let mut fixture = published();
@@ -5350,9 +6337,9 @@ pub(super) mod tests {
             let snapshot = root_ref_bytes(&mut store, row.blob(3).map_err(err)?)?;
             let delta = root_ref_bytes(&mut store, row.blob(4).map_err(err)?)?;
             let cut = audit_one_published_cut(
-                &tx, &mut row, &mut store, raw_view, &mut control, &mut objects, &auxiliary,
+                &tx, None, &mut row, &mut store, raw_view, &mut control, &mut objects, &auxiliary,
                 &mut sweep, &mut aux, &mut prefixes, &mut ordered, &mut effective,
-                &raw_nodes, &wire_nodes, -1, &mut resolved, None, true, None, None, None,
+                &raw_nodes, &wire_nodes, -1, &mut resolved, None, true, None, false, None, None, None,
             )?;
             drop(row);
             stmt.finalize().map_err(err)?;
@@ -5377,7 +6364,7 @@ pub(super) mod tests {
         assert!(stats.1 > 0);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_history_prefix_real_multicut_roots_and_linear_leaf_visits() {
         let bars = [(6, 12, 3, 7), (8, 16, 6, 12), (8, 13, 4, 7), (8, 17, 6, 12)];
@@ -5475,7 +6462,7 @@ pub(super) mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_history_prefix_bad_cut_and_unpublished_future_material_still_reject() {
         let mut fixture = super::prepared::tests::Fixture::new();
@@ -5622,7 +6609,7 @@ pub(super) mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_cut_projection_full_history_matches_ordinary_and_rejects_fresh_damage() {
         let mut f = published();
@@ -5680,7 +6667,7 @@ pub(super) mod tests {
         .is_err());
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_dual_real_multicut_roots_and_scoped_projection() {
         let mut fixture = super::prepared::tests::Fixture::new();
@@ -5850,7 +6837,7 @@ pub(super) mod tests {
         .is_err());
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_dual_actual_template_negative_matrix() {
         // Component-level valid-Merkle negatives, not service/e2e acceptance.
@@ -7044,7 +8031,7 @@ mod borrowed_change_consumer_probe {
     }
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 mod owner_retention {
     use super::*;
     use crate::v3::audit_retention::retained_struct;
@@ -7074,7 +8061,7 @@ mod owner_retention {
 /// owner 已闭合全局 Q 和共同保持前件后，只消费实际新增的一代完整历史。
 /// 原 verify_required_meta 的共享判据仍原位执行。先借同一事务的原列，给它实际
 /// 会构造的文本和 scope 树预留；不复制判据，不在失败后换另一套检查。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 fn verify_required_meta_admitted(
     tx: &Transaction<'_>,
     work: &sc::capture_allocation::scratch::WorkScope,
@@ -7131,7 +8118,7 @@ fn verify_required_meta_admitted(
 }
 
 /// owner 已闭合全局 Q 和共同保持前件后，只消费实际新增的一代完整历史。
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(super) fn append_owner_cut(
     tx: &Transaction<'_>,
     raw: RawEventsView<'_>,
@@ -7247,6 +8234,7 @@ pub(super) fn append_owner_cut(
         .map_err(err)?;
     let cut = audit_one_published_cut(
         tx,
+        None,
         &mut row,
         &mut store,
         raw,
@@ -7264,6 +8252,8 @@ pub(super) fn append_owner_cut(
         &mut resolved,
         None,
         true,
+        None,
+        false,
         None,
         None,
         None,
@@ -7315,7 +8305,7 @@ pub(super) fn append_owner_cut(
     ))
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 mod native_reader_owner_tests {
     use super::*;
 
@@ -7348,5 +8338,622 @@ mod native_reader_owner_tests {
         assert!(budget.live() > baseline);
         drop(parsed);
         assert_eq!(budget.live(), baseline);
+    }
+}
+
+#[cfg(test)]
+mod manifest_template_coverage_tests {
+    use super::*;
+    use std::{cell::Cell, rc::Rc};
+
+    struct Counted {
+        nodes: sc::MemoryNodes,
+        reads: Rc<Cell<usize>>,
+    }
+    impl NodeSource for Counted {
+        fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, sc::CodecError> {
+            self.reads.set(self.reads.get() + 1);
+            self.nodes.read(digest)
+        }
+    }
+
+    #[test]
+    fn history_public_coverage_object_originals_source_routes() {
+        let fixture = super::super::prepared::tests::Fixture::new();
+        let mut conn = Connection::open_with_flags(
+            fixture.conn.path().unwrap(),
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        )
+        .unwrap();
+        let tx = conn.transaction().unwrap();
+        let mut nodes = sc::MemoryNodes::new();
+        let root = sc::write_value(&mut nodes, &V::Array(vec![V::String("complete".into())]))
+            .unwrap()
+            .content_ref();
+        let roots = [RefValue::from(root.clone())];
+        let mut reader = HashReader::new(&mut nodes);
+        let proof = VerifiedObjectOriginals {
+            transaction: &tx,
+            reader: (&reader as *const HashReader<'_>).cast(),
+            entries: &[],
+        };
+        proof.verify_public(&tx, &mut reader, &roots).unwrap();
+        let mut other = Connection::open_with_flags(
+            fixture.conn.path().unwrap(),
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        )
+        .unwrap();
+        let other_tx = other.transaction().unwrap();
+        assert_eq!(
+            proof
+                .verify_public(&other_tx, &mut reader, &roots)
+                .unwrap_err()
+                .code(),
+            sc::code::SOURCE
+        );
+        drop(reader);
+        let capture = sc::AuditCapture::new(nodes.clone());
+        let mut captured = HashReader::captured(&capture, None);
+        assert_eq!(
+            proof
+                .verify_public(&tx, &mut captured, &roots)
+                .unwrap_err()
+                .code(),
+            sc::code::SOURCE
+        );
+        nodes.insert_unchecked(root.digest().unwrap(), sc::tag::ARRAY, vec![0]);
+        let mut reader = HashReader::new(&mut nodes);
+        let proof = VerifiedObjectOriginals {
+            transaction: &tx,
+            reader: (&reader as *const HashReader<'_>).cast(),
+            entries: &[],
+        };
+        assert_eq!(
+            proof
+                .verify_public(&tx, &mut reader, &roots)
+                .unwrap_err()
+                .code(),
+            sc::code::NODE_DIGEST
+        );
+    }
+
+    #[test]
+    fn history_public_coverage_resolved_exact_membership_header_and_source_routes() {
+        let mut nodes = sc::MemoryNodes::new();
+        let root = sc::write_value(
+            &mut nodes,
+            &V::Array(vec![V::String("payload".repeat(100))]),
+        )
+        .unwrap()
+        .content_ref();
+        let other = sc::write_value(&mut nodes, &V::Bool(true))
+            .unwrap()
+            .content_ref();
+        let mut conn = Connection::open_in_memory().unwrap();
+        let tx = conn.transaction().unwrap();
+        let roots = [RefValue::from(root.clone())];
+        let proof = VerifiedManifestRoots {
+            transaction: &tx,
+            roots: &[],
+            public: &roots,
+        };
+        let reads = Rc::new(Cell::new(0));
+        let mut source = Counted {
+            nodes: nodes.clone(),
+            reads: reads.clone(),
+        };
+        let mut reader = HashReader::new(&mut source);
+        reader
+            .verify_many_ref(roots.iter().map(RefValue::view), sc::Mode::Public)
+            .unwrap();
+        let before = reads.get();
+        proof
+            .verify_resolved_public(&tx, &mut reader, &roots)
+            .unwrap();
+        assert_eq!(reads.get() - before, 1);
+        for wrong in [
+            ContentRef {
+                format: "wrong".into(),
+                ..root.clone()
+            },
+            ContentRef {
+                kind: Kind::Object,
+                ..root.clone()
+            },
+            ContentRef {
+                extent: Some(999),
+                ..root.clone()
+            },
+            other,
+        ] {
+            assert_eq!(
+                proof
+                    .verify_resolved_public(&tx, &mut reader, &[RefValue::from(wrong)])
+                    .unwrap_err()
+                    .code(),
+                sc::code::SOURCE
+            );
+        }
+        let capture = sc::AuditCapture::new(nodes.clone());
+        let mut captured = HashReader::captured(&capture, None);
+        assert!(!captured.ordinary_bound_births_qualified());
+        assert_eq!(
+            proof
+                .verify_resolved_public(&tx, &mut captured, &roots)
+                .unwrap_err()
+                .code(),
+            sc::code::SOURCE
+        );
+        let mut other_conn = Connection::open_in_memory().unwrap();
+        let other_tx = other_conn.transaction().unwrap();
+        assert_eq!(
+            proof
+                .verify_resolved_public(&other_tx, &mut reader, &roots)
+                .unwrap_err()
+                .code(),
+            sc::code::SOURCE
+        );
+        drop(reader);
+        source
+            .nodes
+            .insert_unchecked(root.digest().unwrap(), sc::tag::ARRAY, vec![0]);
+        let mut reader = HashReader::new(&mut source);
+        assert_eq!(
+            proof
+                .verify_resolved_public(&tx, &mut reader, &roots)
+                .unwrap_err()
+                .code(),
+            sc::code::NODE_DIGEST
+        );
+    }
+
+    #[test]
+    fn history_public_coverage_reads_real_headers_and_keeps_old_caller_full() {
+        let mut nodes = sc::MemoryNodes::new();
+        let root = sc::write_value(
+            &mut nodes,
+            &V::Array(vec![V::String("payload".repeat(100))]),
+        )
+        .unwrap()
+        .content_ref();
+        let digest = root.digest().unwrap();
+        let reads = Rc::new(Cell::new(0));
+        let mut source = Counted {
+            nodes,
+            reads: reads.clone(),
+        };
+        {
+            let mut reader = HashReader::new(&mut source);
+            reader
+                .verify_history_public_root((&root).into(), sc::Mode::Public)
+                .unwrap();
+            let full = reads.get();
+            reader.history_public_roots = Some([digest; 2]);
+            reader
+                .verify_history_public_root((&root).into(), sc::Mode::Public)
+                .unwrap();
+            assert_eq!(reads.get() - full, 1);
+            assert!(full > 1);
+            let mut wrong = root.clone();
+            wrong.extent = Some(999);
+            assert_eq!(
+                reader
+                    .verify_history_public_root((&wrong).into(), sc::Mode::Public)
+                    .unwrap_err()
+                    .code(),
+                sc::code::EXTENT
+            );
+        }
+        source
+            .nodes
+            .insert_unchecked(digest, sc::tag::ARRAY, vec![0]);
+        let mut reader = HashReader::new(&mut source);
+        reader.history_public_roots = Some([digest; 2]);
+        assert_eq!(
+            reader
+                .verify_history_public_root((&root).into(), sc::Mode::Public)
+                .unwrap_err()
+                .code(),
+            sc::code::NODE_DIGEST
+        );
+    }
+
+    #[test]
+    fn manifest_template_coverage_rechecks_headers_and_preserves_public() {
+        let mut nodes = sc::MemoryNodes::new();
+        let template = sc::write_template(
+            &mut nodes,
+            &V::Array(vec![V::BatchSelf, V::String("payload".repeat(100))]),
+        )
+        .unwrap()
+        .content_ref();
+        let manifest = sc::write_template(
+            &mut nodes,
+            &V::Object(vec![(
+                "publication_template".into(),
+                V::Edge(template.digest().unwrap()),
+            )]),
+        )
+        .unwrap()
+        .content_ref();
+        let reads = Rc::new(Cell::new(0));
+        let mut source = Counted {
+            nodes,
+            reads: reads.clone(),
+        };
+        let mut reader = HashReader::new(&mut source);
+        reader
+            .verify_ref((&manifest).into(), sc::Mode::Template)
+            .unwrap();
+        let before = reads.get();
+        reader
+            .verify_many_ref([(&template).into(), (&template).into()], sc::Mode::Template)
+            .unwrap();
+        let full_reads = reads.get() - before;
+        let before = reads.get();
+        {
+            let digest = template.digest().unwrap();
+            let mut covered = super::super::audit_store::StoreView::for_verified_manifest(
+                VerifiedManifestAssembly {
+                    source: &mut reader,
+                    templates: [digest; 2],
+                    public: [digest; 2],
+                },
+            );
+            covered
+                .verify_manifest_templates([(&template).into(), (&template).into()])
+                .unwrap();
+            assert_eq!(reads.get() - before, 2);
+            assert!(full_reads > 2);
+            let mut wrong = template.clone();
+            wrong.extent = Some(999);
+            assert_eq!(
+                covered
+                    .verify_manifest_templates([(&wrong).into(), (&template).into()])
+                    .unwrap_err()
+                    .code(),
+                sc::code::EXTENT
+            );
+            wrong = template.clone();
+            wrong.kind = Kind::Object;
+            assert_eq!(
+                covered
+                    .verify_manifest_templates([(&wrong).into(), (&template).into()])
+                    .unwrap_err()
+                    .code(),
+                sc::code::KIND
+            );
+            assert_eq!(
+                covered
+                    .verify_ref((&template).into(), sc::Mode::Public)
+                    .unwrap_err()
+                    .code(),
+                sc::code::TEMPLATE_PLACEHOLDER
+            );
+        }
+        let before = reads.get();
+        reader
+            .verify_many_ref([(&template).into(), (&template).into()], sc::Mode::Template)
+            .unwrap();
+        assert_eq!(
+            reads.get() - before,
+            full_reads,
+            "覆盖只活在当前manifest构造借用内"
+        );
+    }
+
+    #[test]
+    fn manifest_template_coverage_cannot_cover_another_root_or_hide_source_error() {
+        let mut nodes = sc::MemoryNodes::new();
+        let template = sc::write_template(&mut nodes, &V::Array(vec![V::BatchSelf]))
+            .unwrap()
+            .content_ref();
+        let other = sc::write_value(&mut nodes, &V::Bool(true))
+            .unwrap()
+            .content_ref();
+        let digest = template.digest().unwrap();
+        let mut reader = HashReader::new(&mut nodes);
+        reader
+            .verify_ref((&template).into(), sc::Mode::Template)
+            .unwrap();
+        let mut covered =
+            super::super::audit_store::StoreView::for_verified_manifest(VerifiedManifestAssembly {
+                source: &mut reader,
+                templates: [digest; 2],
+                public: [digest; 2],
+            });
+        assert_eq!(
+            covered
+                .verify_manifest_templates([(&other).into(), (&template).into()])
+                .unwrap_err()
+                .code(),
+            sc::code::SOURCE
+        );
+        drop(covered);
+        drop(reader);
+        nodes.insert_unchecked(digest, sc::tag::ARRAY, vec![0]);
+        let mut reader = HashReader::new(&mut nodes);
+        let mut covered =
+            super::super::audit_store::StoreView::for_verified_manifest(VerifiedManifestAssembly {
+                source: &mut reader,
+                templates: [digest; 2],
+                public: [digest; 2],
+            });
+        assert_eq!(
+            covered
+                .verify_manifest_templates([(&template).into(), (&template).into()])
+                .unwrap_err()
+                .code(),
+            sc::code::NODE_DIGEST
+        );
+    }
+
+    #[test]
+    fn manifest_template_coverage_public_rechecks_headers_and_rejects_foreign_or_damaged_root() {
+        let mut nodes = sc::MemoryNodes::new();
+        let state = sc::write_value(
+            &mut nodes,
+            &V::Array(vec![V::String("payload".repeat(100))]),
+        )
+        .unwrap()
+        .content_ref();
+        let other = sc::write_value(&mut nodes, &V::Bool(true))
+            .unwrap()
+            .content_ref();
+        let digest = state.digest().unwrap();
+        let reads = Rc::new(Cell::new(0));
+        let mut source = Counted {
+            nodes,
+            reads: reads.clone(),
+        };
+        {
+            let mut reader = HashReader::new(&mut source);
+            let mut plain = super::super::audit_store::StoreView::for_audit(&mut reader);
+            let before = reads.get();
+            plain.verify_manifest_public((&state).into()).unwrap();
+            let full = reads.get() - before;
+            assert!(full > 1, "无资格caller仍完整核验");
+            drop(plain);
+            let mut covered = super::super::audit_store::StoreView::for_verified_manifest(
+                VerifiedManifestAssembly {
+                    source: &mut reader,
+                    templates: [digest; 2],
+                    public: [digest; 2],
+                },
+            );
+            let before = reads.get();
+            covered.verify_manifest_public((&state).into()).unwrap();
+            assert_eq!(reads.get() - before, 1, "已核根只重读真实头");
+            assert_eq!(
+                covered
+                    .verify_manifest_public((&other).into())
+                    .unwrap_err()
+                    .code(),
+                sc::code::SOURCE
+            );
+            let mut wrong = state.clone();
+            wrong.extent = Some(999);
+            assert_eq!(
+                covered
+                    .verify_manifest_public((&wrong).into())
+                    .unwrap_err()
+                    .code(),
+                sc::code::EXTENT
+            );
+        }
+        source
+            .nodes
+            .insert_unchecked(digest, sc::tag::ARRAY, vec![0]);
+        let mut reader = HashReader::new(&mut source);
+        let mut covered =
+            super::super::audit_store::StoreView::for_verified_manifest(VerifiedManifestAssembly {
+                source: &mut reader,
+                templates: [digest; 2],
+                public: [digest; 2],
+            });
+        assert_eq!(
+            covered
+                .verify_manifest_public((&state).into())
+                .unwrap_err()
+                .code(),
+            sc::code::NODE_DIGEST
+        );
+    }
+    fn cursor_outcomes(
+        nodes: &sc::MemoryNodes,
+        root: &ContentRef,
+        cursor: bool,
+    ) -> (Vec<NodeDigest>, Option<String>) {
+        let mut nodes = nodes.clone();
+        let mut out = Vec::new();
+        let result = (|| -> Result<(), sc::CodecError> {
+            if cursor {
+                let mut cursor = sc::path::NativeArrayCursor::new(&mut nodes, root.into())?;
+                while let Some(member) = cursor.next(&mut nodes)? {
+                    out.push(member.digest()?);
+                }
+            } else {
+                for i in 0..root.extent.unwrap() {
+                    out.push(
+                        sc::path::lookup_path_native(
+                            &mut nodes,
+                            root.into(),
+                            &[sc::path::PathStep::Index(i)],
+                        )?
+                        .digest()?,
+                    );
+                }
+            }
+            Ok(())
+        })();
+        (out, result.err().map(|e| e.code().to_string()))
+    }
+
+    #[test]
+    fn manifest_template_coverage_cursor_matches_index_order_duplicates_and_boundaries() {
+        for count in [0, 1, 2, 3, 31, 32, 33, 63, 64, 65] {
+            let mut nodes = sc::MemoryNodes::new();
+            let root = sc::write_value(
+                &mut nodes,
+                &V::Array(
+                    (0..count)
+                        .map(|i| V::Object(vec![("id".into(), V::String((i % 7).to_string()))]))
+                        .collect(),
+                ),
+            )
+            .unwrap()
+            .content_ref();
+            assert_eq!(
+                cursor_outcomes(&nodes, &root, true),
+                cursor_outcomes(&nodes, &root, false),
+                "长度{count}的顺序/重复/结束不一致"
+            );
+        }
+        let mut nodes = sc::MemoryNodes::new();
+        let root = sc::write_value(
+            &mut nodes,
+            &V::Array((0..65).map(|i| V::String(i.to_string())).collect()),
+        )
+        .unwrap()
+        .content_ref();
+        let reads = Rc::new(Cell::new(0));
+        let mut source = Counted {
+            nodes,
+            reads: reads.clone(),
+        };
+        for i in 0..65 {
+            sc::path::lookup_path_native(
+                &mut source,
+                (&root).into(),
+                &[sc::path::PathStep::Index(i)],
+            )
+            .unwrap();
+        }
+        let old = reads.replace(0);
+        let mut cursor = sc::path::NativeArrayCursor::new(&mut source, (&root).into()).unwrap();
+        while cursor.next(&mut source).unwrap().is_some() {}
+        assert!(reads.get() < old, "顺序遍历必须实际减少重复祖先读取");
+    }
+
+    #[test]
+    fn manifest_template_coverage_cursor_matches_first_error_for_missing_and_corrupt_nodes() {
+        let mut nodes = sc::MemoryNodes::new();
+        let root = sc::write_value(
+            &mut nodes,
+            &V::Array(
+                (0..9)
+                    .map(|i| V::Object(vec![("id".into(), V::String(i.to_string()))]))
+                    .collect(),
+            ),
+        )
+        .unwrap()
+        .content_ref();
+        let mut wrong = root.clone();
+        wrong.extent = Some(10);
+        assert_eq!(
+            cursor_outcomes(&nodes, &wrong, true),
+            cursor_outcomes(&nodes, &wrong, false)
+        );
+        for (target, tag, _) in nodes.iter() {
+            let mut missing = sc::MemoryNodes::new();
+            for (digest, tag, body) in nodes.iter().filter(|(d, _, _)| *d != target) {
+                missing.insert_unchecked(*digest, tag, body.to_vec());
+            }
+            assert_eq!(
+                cursor_outcomes(&missing, &root, true),
+                cursor_outcomes(&missing, &root, false),
+                "缺节点tag={tag}"
+            );
+            let mut corrupt = nodes.clone();
+            corrupt.insert_unchecked(*target, tag, vec![0]);
+            assert_eq!(
+                cursor_outcomes(&corrupt, &root, true),
+                cursor_outcomes(&corrupt, &root, false),
+                "坏正文tag={tag}"
+            );
+        }
+        let empty = sc::frame(sc::tag::SEQ_EMPTY, &[]);
+        nodes.insert_unchecked(empty, sc::tag::SEQ_EMPTY, vec![]);
+        let leaf = sc::frame(sc::tag::SEQ_LEAF, &empty);
+        nodes.insert_unchecked(leaf, sc::tag::SEQ_LEAF, empty.to_vec());
+        let mut body = 1u64.to_be_bytes().to_vec();
+        body.extend_from_slice(&leaf);
+        let array = sc::frame(sc::tag::ARRAY, &body);
+        nodes.insert_unchecked(array, sc::tag::ARRAY, body);
+        let root = ContentRef::new(Kind::Array, &array, Some(1));
+        let actual = cursor_outcomes(&nodes, &root, true);
+        assert!(actual.1.is_some(), "叶本身是序列必须拒绝");
+        assert_eq!(actual, cursor_outcomes(&nodes, &root, false));
+    }
+
+    #[test]
+    fn manifest_template_coverage_cursor_gate_preserves_prefix_and_stops_before_later_member() {
+        struct Gate {
+            nodes: sc::MemoryNodes,
+            prefix: Vec<sc::path::PathStep>,
+            stop: u64,
+            checked: usize,
+            later: NodeDigest,
+            later_reads: usize,
+        }
+        impl NodeSource for Gate {
+            fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, sc::CodecError> {
+                if digest == &self.later {
+                    self.later_reads += 1;
+                }
+                self.nodes.read(digest)
+            }
+            fn before_path_index(
+                &mut self,
+                prefix: &[sc::path::PathStep],
+                index: u64,
+            ) -> Result<(), sc::CodecError> {
+                assert_eq!(prefix, self.prefix);
+                assert_eq!(index as usize, self.checked, "上一项业务检查必须先发生");
+                if index == self.stop {
+                    Err(sc::CodecError::new(sc::code::SOURCE, "test index gate"))
+                } else {
+                    Ok(())
+                }
+            }
+        }
+        let mut nodes = sc::MemoryNodes::new();
+        let root = sc::write_value(
+            &mut nodes,
+            &V::Array(vec![V::Bool(false), V::Bool(true), V::Null]),
+        )
+        .unwrap()
+        .content_ref();
+        let later = sc::path::lookup_path_native(
+            &mut nodes,
+            (&root).into(),
+            &[sc::path::PathStep::Index(1)],
+        )
+        .unwrap()
+        .digest()
+        .unwrap();
+        let prefix = vec![sc::path::PathStep::Field("observations".into())];
+        let mut gate = Gate {
+            nodes,
+            prefix: prefix.clone(),
+            stop: 1,
+            checked: 0,
+            later,
+            later_reads: 0,
+        };
+        let mut cursor = sc::path::NativeArrayCursor::new(&mut gate, (&root).into()).unwrap();
+        assert!(cursor
+            .next_with_prefix(&mut gate, &prefix)
+            .unwrap()
+            .is_some());
+        gate.checked += 1;
+        assert_eq!(
+            cursor
+                .next_with_prefix(&mut gate, &prefix)
+                .unwrap_err()
+                .code(),
+            sc::code::SOURCE
+        );
+        assert_eq!(gate.later_reads, 0, "停止门之前不得预读下一成员正文");
     }
 }

@@ -424,7 +424,7 @@ mod tests {
         assert!(tree.reclaim(&s, handle).is_err());
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_order_reclaimed_node_and_weak_tail_keep_original_parent_charge() {
         let budget = crate::v3::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
@@ -464,7 +464,7 @@ mod tests {
         assert_eq!(budget.live(), baseline);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_order_admission_failure_preserves_avl_and_next_handle() {
         const LIMIT: usize = 1024 * 1024;
@@ -527,7 +527,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn native_order_rotations_remove_reinsert_and_drop_release_all_nodes() {
         let budget = crate::v3::audit_owner::native::Budget::new(4 * 1024 * 1024, 0).unwrap();

@@ -1313,11 +1313,11 @@ fn descend_seq(
     }
     let budget = source.work_budget();
     let mut branches: WorkVec<BranchFrame> = WorkVec::new_work(budget.as_ref());
-    let mut digest = *root;
+    let mut node = read_seq_node(source, root, count)?;
     let mut at = index;
     let mut n = count;
     loop {
-        match read_seq_node(source, &digest, n)? {
+        match node {
             SeqNode::Empty => return Err(index_range_error(index, count)),
             SeqNode::Leaf(leaf) => {
                 // 叶本身若是序列节点，规范分解就已被破坏（与 verify 同口径）。
@@ -1330,7 +1330,9 @@ fn descend_seq(
                 return Ok((branches, leaf));
             }
             SeqNode::Branch { k, left, right } => {
-                check_branch_children(source, &left, &right, n, k)?;
+                // #1757：两侧仍依原顺序实际读取并核验；所选节点直接交给下一轮。
+                let left_node = read_seq_node(source, &left, k)?;
+                let right_node = read_seq_node(source, &right, n - k)?;
                 if at < k {
                     branches.push(BranchFrame {
                         n,
@@ -1338,7 +1340,11 @@ fn descend_seq(
                         right,
                         went_left: true,
                     })?;
-                    digest = left;
+                    node = if source.preserve_sequence_read_trace() {
+                        read_seq_node(source, &left, k)?
+                    } else {
+                        left_node
+                    };
                     n = k;
                 } else {
                     branches.push(BranchFrame {
@@ -1347,7 +1353,11 @@ fn descend_seq(
                         right,
                         went_left: false,
                     })?;
-                    digest = right;
+                    node = if source.preserve_sequence_read_trace() {
+                        read_seq_node(source, &right, n - k)?
+                    } else {
+                        right_node
+                    };
                     at -= k;
                     n -= k;
                 }
@@ -1363,10 +1373,10 @@ fn boundary_leaf(
     count: u64,
     right: bool,
 ) -> Result<NodeDigest, CodecError> {
-    let mut digest = *root;
+    let mut node = read_seq_node(source, root, count)?;
     let mut n = count;
     loop {
-        match read_seq_node(source, &digest, n)? {
+        match node {
             SeqNode::Empty => {
                 return Err(sequence_shape_error(
                     "边界下行遇到空序列（期望叶数 ≥ 1）".to_string(),
@@ -1378,12 +1388,21 @@ fn boundary_leaf(
                 left,
                 right: right_digest,
             } => {
-                check_branch_children(source, &left, &right_digest, n, k)?;
+                let left_node = read_seq_node(source, &left, k)?;
+                let right_node = read_seq_node(source, &right_digest, n - k)?;
                 if right {
-                    digest = right_digest;
+                    node = if source.preserve_sequence_read_trace() {
+                        read_seq_node(source, &right_digest, n - k)?
+                    } else {
+                        right_node
+                    };
                     n -= k;
                 } else {
-                    digest = left;
+                    node = if source.preserve_sequence_read_trace() {
+                        read_seq_node(source, &left, k)?
+                    } else {
+                        left_node
+                    };
                     n = k;
                 }
             }
@@ -2051,4 +2070,335 @@ pub fn content_ref_of_native(
 ) -> Result<super::capture_allocation::native_owned::NativeValue<ContentRef>, CodecError> {
     let (reference, permit) = super::content_ref_reserved(&mut CodecContext::Source(source), root)?;
     Ok(super::capture_allocation::native_owned::NativeValue::from_reserved(reference, permit))
+}
+
+/// 每次只交出一个成员；调用者完成业务检查后再借用同一来源推进。
+/// 已读序列节点只活在深度有界的遍历栈内，不保存成员或节点正文。
+pub struct NativeArrayCursor {
+    stack: WorkVec<(SeqNode, u64)>,
+    root: Option<(NodeDigest, u64)>,
+    index: u64,
+    count: u64,
+}
+
+impl NativeArrayCursor {
+    pub fn new(source: &mut dyn NodeSource, reference: RefView<'_>) -> Result<Self, CodecError> {
+        let mut source = CodecContext::Source(source);
+        let work = source.work_budget();
+        let result = (|| {
+            let node = navigate_view(&mut source, reference, &[], false)?;
+            if node.tag != tag::ARRAY {
+                return Err(step_kind_error("index", "0x05 数组", node.tag));
+            }
+            let count = framed_len(&node.body, "数组")?;
+            let root = digest_at(&node.body, 8);
+            Ok(Self {
+                stack: WorkVec::new_work(work.as_ref()),
+                root: Some((root, count)),
+                index: 0,
+                count,
+            })
+        })();
+        if let Some(work) = work {
+            work.observe(&result);
+        }
+        result
+    }
+
+    pub fn next(
+        &mut self,
+        source: &mut dyn NodeSource,
+    ) -> Result<Option<super::capture_allocation::native_owned::NativeValue<ContentRef>>, CodecError>
+    {
+        self.next_with_prefix(source, &[])
+    }
+
+    pub fn next_with_prefix(
+        &mut self,
+        source: &mut dyn NodeSource,
+        prefix: &[PathStep],
+    ) -> Result<Option<super::capture_allocation::native_owned::NativeValue<ContentRef>>, CodecError>
+    {
+        let mut source = CodecContext::Source(source);
+        let work = source.work_budget();
+        let result = self.next_inner(&mut source, prefix);
+        if let Some(work) = work {
+            work.observe(&result);
+        }
+        result
+    }
+
+    fn next_inner(
+        &mut self,
+        source: &mut CodecContext<'_, '_>,
+        prefix: &[PathStep],
+    ) -> Result<Option<super::capture_allocation::native_owned::NativeValue<ContentRef>>, CodecError>
+    {
+        if self.index == self.count {
+            return Ok(None);
+        }
+        // 与 Index 相同，在读取当前元素的序列路径之前执行停止门。
+        source.before_path_index(prefix, self.index)?;
+        if let Some((root, count)) = self.root.take() {
+            self.stack
+                .push((read_seq_node(source, &root, count)?, count))?;
+        }
+        while let Some((node, count)) = self.stack.pop() {
+            match node {
+                SeqNode::Empty => return Err(index_range_error(self.index, self.count)),
+                SeqNode::Branch { k, left, right } => {
+                    // 保留 descend_seq 先核左右直接子节点的拒绝顺序，但不重复读祖先。
+                    let left = read_seq_node(source, &left, k)?;
+                    let right = read_seq_node(source, &right, count - k)?;
+                    self.stack.push((right, count - k))?;
+                    self.stack.push((left, k))?;
+                }
+                SeqNode::Leaf(value) => {
+                    let (t, body) = source.read(&value)?;
+                    if is_sequence_tag(t) {
+                        return Err(sequence_shape_error(format!(
+                            "元素序列的叶不能又是序列节点（tag={t:02x}）"
+                        )));
+                    }
+                    let kind = Kind::from_tag(t).ok_or_else(|| unsupported_value_tag_error(t))?;
+                    let extent = header_extent(t, &body)?;
+                    let member = native_reference(source, kind, value, extent)?;
+                    self.index += 1;
+                    return Ok(Some(member));
+                }
+            }
+        }
+        Err(index_range_error(self.index, self.count))
+    }
+}
+
+#[cfg(test)]
+mod s4_local_descent_tests {
+    use super::super::{write_value, MemoryNodes, NodeRead, NodeSink, Value};
+    use super::*;
+
+    struct Observed {
+        nodes: MemoryNodes,
+        trace: Vec<NodeDigest>,
+        faults: Vec<(NodeDigest, u8)>,
+    }
+    impl NodeSource for Observed {
+        fn read(&mut self, digest: &NodeDigest) -> Result<NodeRead, CodecError> {
+            self.trace.push(*digest);
+            match self
+                .faults
+                .iter()
+                .find(|(d, _)| d == digest)
+                .map(|(_, f)| *f)
+            {
+                Some(0) => Ok(NodeRead::Missing),
+                Some(1) => Ok(NodeRead::Found {
+                    tag: tag::NULL,
+                    body: vec![1],
+                }),
+                Some(_) => Err(CodecError::new("descent_source_error", root_string(digest))),
+                None => self.nodes.read(digest),
+            }
+        }
+    }
+    fn source(nodes: &MemoryNodes, faults: &[(NodeDigest, u8)]) -> Observed {
+        Observed {
+            nodes: nodes.clone(),
+            trace: Vec::new(),
+            faults: faults.to_vec(),
+        }
+    }
+    type Outcome = Result<(Vec<(u64, NodeDigest, NodeDigest, bool)>, NodeDigest), CodecError>;
+    fn descent(s: &mut Observed, root: &NodeDigest, n: u64, index: u64, legacy: bool) -> Outcome {
+        let ctx = &mut CodecContext::Source(s);
+        let result = if legacy {
+            legacy_descend_seq(ctx, root, n, index)
+        } else {
+            descend_seq(ctx, root, n, index)
+        };
+        result.map(|(frames, leaf)| {
+            (
+                frames
+                    .iter()
+                    .map(|f| (f.n, f.left, f.right, f.went_left))
+                    .collect(),
+                leaf,
+            )
+        })
+    }
+    fn compare(nodes: &MemoryNodes, root: &NodeDigest, n: u64, faults: &[(NodeDigest, u8)]) {
+        for index in 0..=n {
+            let mut old = source(nodes, faults);
+            let mut new = source(nodes, faults);
+            let expected = descent(&mut old, root, n, index, true);
+            let actual = descent(&mut new, root, n, index, false);
+            assert_eq!(actual, expected, "n={n} index={index} faults={faults:?}");
+            if let Ok((frames, _)) = actual {
+                assert_eq!(old.trace.len() - new.trace.len(), frames.len());
+                if faults.is_empty() && index == 0 {
+                    eprintln!(
+                        "DESCENT_READS n={n} index={index} before={} after={}",
+                        old.trace.len(),
+                        new.trace.len()
+                    );
+                }
+            }
+        }
+        for right in [false, true] {
+            let mut old = source(nodes, faults);
+            let mut new = source(nodes, faults);
+            let expected =
+                legacy_boundary_leaf(&mut CodecContext::Source(&mut old), root, n, right);
+            let actual = boundary_leaf(&mut CodecContext::Source(&mut new), root, n, right);
+            assert_eq!(actual, expected, "n={n} right={right} faults={faults:?}");
+            if n > 1 && actual.is_ok() {
+                assert!(new.trace.len() < old.trace.len());
+            }
+        }
+    }
+    #[test]
+    fn s4_local_descent_matches_legacy_missing_corrupt_source_and_boundaries() {
+        for n in [0u64, 1, 2, 3, 31, 32, 33, 65] {
+            let mut nodes = MemoryNodes::new();
+            let values = (0..n)
+                .map(|i| {
+                    if i % 3 == 0 {
+                        Value::Null
+                    } else {
+                        Value::string(format!("item-{i}"))
+                    }
+                })
+                .collect();
+            let built = write_value(&mut nodes, &Value::Array(values)).unwrap();
+            let (_, body) = nodes.get(&built.digest).unwrap();
+            let root = digest_at(body, 8);
+            compare(&nodes, &root, n, &[]);
+            for (digest, _, _) in nodes.iter() {
+                for fault in 0..3 {
+                    compare(&nodes, &root, n, &[(*digest, fault)]);
+                }
+            }
+            if n > 1 {
+                let (_, body) = nodes.get(&root).unwrap();
+                let left = digest_at(body, 8);
+                let right = digest_at(body, 40);
+                // 两侧同时坏：即使目标在右边，也必须保留左侧的第一错误。
+                for (a, b) in [(0, 1), (1, 0), (2, 0)] {
+                    compare(&nodes, &root, n, &[(left, a), (right, b)]);
+                }
+            }
+        }
+    }
+    fn put(nodes: &mut MemoryNodes, tag: u8, body: &[u8]) -> NodeDigest {
+        let digest = frame(tag, body);
+        nodes.put(digest, tag, body).unwrap();
+        digest
+    }
+    #[test]
+    fn s4_local_descent_preserves_valid_digest_shape_and_role_rejections() {
+        let mut nodes = MemoryNodes::new();
+        let empty = put(&mut nodes, tag::SEQ_EMPTY, &[]);
+        let value = put(&mut nodes, tag::NULL, &[]);
+        let leaf = put(&mut nodes, tag::SEQ_LEAF, &value);
+        let sequence_leaf = put(&mut nodes, tag::SEQ_LEAF, &empty);
+        let short = put(&mut nodes, tag::SEQ_LEAF, &[0; 31]);
+        for child in [empty, value, sequence_leaf, short] {
+            let body = [2u64.to_be_bytes().as_slice(), &child, &leaf].concat();
+            let root = put(&mut nodes, tag::SEQ_BRANCH, &body);
+            compare(&nodes, &root, 2, &[]);
+        }
+        let body = [3u64.to_be_bytes().as_slice(), &leaf, &leaf].concat();
+        let wrong_count = put(&mut nodes, tag::SEQ_BRANCH, &body);
+        compare(&nodes, &wrong_count, 2, &[]);
+        compare(&nodes, &wrong_count, 3, &[]);
+    }
+
+    fn legacy_descend_seq(
+        source: &mut CodecContext<'_, '_>,
+        root: &NodeDigest,
+        count: u64,
+        index: u64,
+    ) -> Result<(WorkVec<BranchFrame>, NodeDigest), CodecError> {
+        if index >= count {
+            return Err(index_range_error(index, count));
+        }
+        let budget = source.work_budget();
+        let mut branches: WorkVec<BranchFrame> = WorkVec::new_work(budget.as_ref());
+        let mut digest = *root;
+        let mut at = index;
+        let mut n = count;
+        loop {
+            match read_seq_node(source, &digest, n)? {
+                SeqNode::Empty => return Err(index_range_error(index, count)),
+                SeqNode::Leaf(leaf) => {
+                    // 叶本身若是序列节点，规范分解就已被破坏（与 verify 同口径）。
+                    let (t, _body) = source.read(&leaf)?;
+                    if is_sequence_tag(t) {
+                        return Err(sequence_shape_error(format!(
+                            "元素序列的叶不能又是序列节点（tag={t:02x}）"
+                        )));
+                    }
+                    return Ok((branches, leaf));
+                }
+                SeqNode::Branch { k, left, right } => {
+                    check_branch_children(source, &left, &right, n, k)?;
+                    if at < k {
+                        branches.push(BranchFrame {
+                            n,
+                            left,
+                            right,
+                            went_left: true,
+                        })?;
+                        digest = left;
+                        n = k;
+                    } else {
+                        branches.push(BranchFrame {
+                            n,
+                            left,
+                            right,
+                            went_left: false,
+                        })?;
+                        digest = right;
+                        at -= k;
+                        n -= k;
+                    }
+                }
+            }
+        }
+    }
+
+    /// 沿 k 规则下行到最左（`right=false`）／最右（`right=true`）叶。
+    fn legacy_boundary_leaf(
+        source: &mut CodecContext<'_, '_>,
+        root: &NodeDigest,
+        count: u64,
+        right: bool,
+    ) -> Result<NodeDigest, CodecError> {
+        let mut digest = *root;
+        let mut n = count;
+        loop {
+            match read_seq_node(source, &digest, n)? {
+                SeqNode::Empty => {
+                    return Err(sequence_shape_error(
+                        "边界下行遇到空序列（期望叶数 ≥ 1）".to_string(),
+                    ))
+                }
+                SeqNode::Leaf(leaf) => return Ok(leaf),
+                SeqNode::Branch {
+                    k,
+                    left,
+                    right: right_digest,
+                } => {
+                    check_branch_children(source, &left, &right_digest, n, k)?;
+                    if right {
+                        digest = right_digest;
+                        n -= k;
+                    } else {
+                        digest = left;
+                        n = k;
+                    }
+                }
+            }
+        }
+    }
 }

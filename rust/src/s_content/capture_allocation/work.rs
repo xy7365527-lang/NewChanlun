@@ -209,7 +209,7 @@ impl<T> CodecVec<T> {
     }
     /// #1488 冷原件接纳的原子入口。所有可能失败的容量/新块准入均在接纳前。
     /// #1488 P3-a：无生产调用方（生产父账恒拒接纳），只随测试/Native测试臂编译。
-    #[cfg(any(test, feature = "s_capture_native_testonly"))]
+    #[cfg(any(test, feature = "s_incremental"))]
     #[doc(hidden)]
     pub fn try_reserve_native_adopting(
         &mut self,
@@ -804,7 +804,7 @@ impl<K, V> Default for WorkMap<K, V> {
     }
 }
 impl<K: Eq + Hash, V> WorkMap<K, V> {
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(crate) fn try_reserve(&mut self, additional: usize) -> Result<(), CodecError> {
         match self {
             Self::Plain(m) => m.try_reserve(additional).map_err(|_| allocation_error()),
@@ -981,7 +981,7 @@ impl<T: Eq + Hash> WorkSet<T> {
             }
         }
     }
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(crate) fn contains(&self, v: &T) -> bool {
         match self {
             Self::Plain(m) => m.contains(v),

@@ -823,7 +823,7 @@ mod tests {
         assert_eq!(tiny.snapshot().live_requested_layout_bytes, 0);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn admitted_slice_and_indexed_share_order_and_failure_semantics() {
         let budget = crate::v3::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
@@ -884,7 +884,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn admitted_changes_keep_permits_past_scope_and_release_on_drop() {
         let budget = crate::v3::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
@@ -921,7 +921,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn admitted_diff_preserves_lazy_read_order_and_budget_failure_atomicity() {
         let budget = crate::v3::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
@@ -983,7 +983,7 @@ mod tests {
         assert_eq!(budget.live(), baseline);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn admitted_diff_rejects_two_allocation_domains_before_growth() {
         let budget = crate::v3::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();
@@ -1010,7 +1010,7 @@ mod tests {
         assert_eq!(budget.live(), baseline);
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn admitted_diff_partial_output_growth_failure_releases_all_buffers() {
         let budget = crate::v3::audit_owner::native::Budget::new(1024 * 1024, 0).unwrap();

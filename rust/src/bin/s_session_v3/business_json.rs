@@ -6,7 +6,7 @@ use super::*;
 use aj::{ArrayIter, ArrayView, JsonView};
 use newchan_rust::s_content as sc;
 #[cfg_attr(
-    not(all(test, feature = "s_capture_native_testonly")),
+    not(all(test, feature = "s_incremental")),
     allow(
         unused_imports,
         reason = "#1488 再合 #1608：native 非测试、s_session 非测试、s_session 测试 构建不触达"
@@ -63,11 +63,8 @@ impl RawEvents {
         }
     }
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(
-            dead_code,
-            reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
-        )
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1488 再合 #1608：非 s_incremental 构建不触达")
     )]
     pub(crate) fn push_native(
         &mut self,
@@ -105,11 +102,11 @@ impl RawEvents {
         self.view().iter()
     }
     #[cfg_attr(
-        not(all(test, feature = "s_capture_native_testonly")),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+        not(all(test, feature = "s_incremental")),
+        allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
     )]
     #[cfg_attr(
-        all(test, feature = "s_capture_native_testonly"),
+        all(test, feature = "s_incremental"),
         allow(dead_code, reason = "#1488：native 测试不使用旧 plain 入口")
     )]
     pub fn plain(&self) -> Result<&[Value], String> {
@@ -397,7 +394,7 @@ pub(crate) fn effective<'a>(
 pub(super) struct RawPrefixIndex<'raw> {
     raw: RawEventsView<'raw>,
     facts: RawPrefixFacts,
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     retained: super::audit_retention::RetainedDelta,
 }
 pub(super) struct RawPrefixFacts {
@@ -418,8 +415,8 @@ impl Default for RawPrefixFacts {
 }
 impl RawPrefixFacts {
     #[cfg_attr(
-        not(all(test, feature = "s_capture_native_testonly")),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+        not(all(test, feature = "s_incremental")),
+        allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
     )]
     pub(super) fn prefix_len(&self) -> usize {
         self.prefix
@@ -489,13 +486,13 @@ impl<'raw> RawPrefixIndex<'raw> {
         Self {
             raw,
             facts: RawPrefixFacts::default(),
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             retained: Default::default(),
         }
     }
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
     )]
     pub(super) fn restore(
         raw: RawEventsView<'raw>,
@@ -508,14 +505,14 @@ impl<'raw> RawPrefixIndex<'raw> {
         Ok(Self {
             raw,
             facts,
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             retained: Default::default(),
         })
     }
     pub(super) fn into_facts(self) -> RawPrefixFacts {
         self.facts
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(super) fn into_facts_retained(
         self,
         delta: &mut super::audit_retention::RetainedDelta,
@@ -524,20 +521,20 @@ impl<'raw> RawPrefixIndex<'raw> {
         self.facts
     }
     fn clear_winners(&mut self) {
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         for (key, _) in self.facts.winners.iter() {
             self.retained.release(key);
         }
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         let ordered_before = self.facts.ordered.allocation_bytes();
         // HashMap clear 保留桶；BTree clear 真实释放根。
         self.facts.winners.retain(|_, _| false);
         self.facts.ordered.clear();
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         self.ordered_retained(ordered_before);
     }
     /// 有序树按其实际许可/节点上界（allocation_bytes）记增量，与全量 heap_bytes 同口径。
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     fn ordered_retained(&mut self, before: usize) {
         let after = self.facts.ordered.allocation_bytes();
         if after >= before {
@@ -548,8 +545,8 @@ impl<'raw> RawPrefixIndex<'raw> {
     }
 
     #[cfg_attr(
-        not(all(test, feature = "s_capture_native_testonly")),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+        not(all(test, feature = "s_incremental")),
+        allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
     )]
     pub(super) fn is_empty(&self) -> bool {
         self.winners.is_empty()
@@ -559,11 +556,8 @@ impl<'raw> RawPrefixIndex<'raw> {
     }
     #[cfg(test)]
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(
-            dead_code,
-            reason = "#1608：测试辅助，仅 s_capture_native_testonly 测试使用"
-        )
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1608：测试辅助，仅 s_incremental 测试使用")
     )]
     pub(super) fn retained_slots(&self) -> [usize; 3] {
         // HashMap 实际 capacity；BTreeMap 只报条目，不冒充节点布局/allocator开销。
@@ -579,8 +573,8 @@ impl<'raw> RawPrefixIndex<'raw> {
         self.facts.coordinates.retain(|_, _| false);
     }
     #[cfg_attr(
-        not(all(test, feature = "s_capture_native_testonly")),
-        allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+        not(all(test, feature = "s_incremental")),
+        allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
     )]
     pub(super) fn advance(&mut self, prefix: usize) -> Result<RawPrefixChanges, String> {
         self.advance_admitted(prefix, &super::audit_store::NativeAdmission(None))
@@ -661,7 +655,7 @@ impl<'raw> RawPrefixIndex<'raw> {
                         budget.record().map_err(|e| e.to_string())?;
                     }
                     let c = coord(event)?;
-                    #[cfg(feature = "s_capture_native_testonly")]
+                    #[cfg(feature = "s_incremental")]
                     let capacity = self.coordinates.capacity();
                     admission
                         .native_map_room(&mut self.facts.coordinates)
@@ -669,7 +663,7 @@ impl<'raw> RawPrefixIndex<'raw> {
                     self.coordinates
                         .insert(ordinal, c)
                         .map_err(|e| e.to_string())?;
-                    #[cfg(feature = "s_capture_native_testonly")]
+                    #[cfg(feature = "s_incremental")]
                     self.retained
                         .hash_capacity::<usize, i64>(capacity, self.facts.coordinates.capacity());
                     updates.coord_decodes += 1;
@@ -681,9 +675,9 @@ impl<'raw> RawPrefixIndex<'raw> {
                 None => {
                     let key = NativeValue::<String>::try_from_str(identity, admission.codec_work())
                         .map_err(|e| e.to_string())?;
-                    #[cfg(feature = "s_capture_native_testonly")]
+                    #[cfg(feature = "s_incremental")]
                     let capacity = self.winners.capacity();
-                    #[cfg(feature = "s_capture_native_testonly")]
+                    #[cfg(feature = "s_incremental")]
                     self.retained.add(&key);
                     admission
                         .native_map_room(&mut self.facts.winners)
@@ -691,7 +685,7 @@ impl<'raw> RawPrefixIndex<'raw> {
                     self.winners
                         .insert(key, (revision, ordinal, c))
                         .map_err(|e| e.to_string())?;
-                    #[cfg(feature = "s_capture_native_testonly")]
+                    #[cfg(feature = "s_incremental")]
                     self.retained
                         .hash_capacity::<NativeValue<String>, (i64, usize, i64)>(
                             capacity,
@@ -711,13 +705,13 @@ impl<'raw> RawPrefixIndex<'raw> {
                 })
                 .map_err(|e| e.to_string())?;
             if let Some((_, _, old)) = previous {
-                #[cfg(feature = "s_capture_native_testonly")]
+                #[cfg(feature = "s_incremental")]
                 let ordered_before = self.facts.ordered.allocation_bytes();
                 self.ordered.remove(&old);
                 if self.ordered.is_empty() {
                     self.ordered.clear();
                 }
-                #[cfg(feature = "s_capture_native_testonly")]
+                #[cfg(feature = "s_incremental")]
                 self.ordered_retained(ordered_before);
                 admission
                     .native_codec_room(&mut updates.removed, 1)
@@ -734,7 +728,7 @@ impl<'raw> RawPrefixIndex<'raw> {
         }
         updates.added.sort_unstable_by_key(|(c, _)| *c);
         for &(c, ordinal) in &updates.added {
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             let ordered_before = self.facts.ordered.allocation_bytes();
             if self
                 .ordered
@@ -744,7 +738,7 @@ impl<'raw> RawPrefixIndex<'raw> {
             {
                 return Err("StorageUnavailable：有效源坐标碰撞，拒绝覆盖业务身份".into());
             }
-            #[cfg(feature = "s_capture_native_testonly")]
+            #[cfg(feature = "s_incremental")]
             self.ordered_retained(ordered_before);
         }
         self.prefix = prefix;
@@ -881,8 +875,8 @@ pub(super) fn validate_raw_coordinate(
 }
 /// cold 与 owner 增量账共用：seq/修订前件由同一已核索引提供，内容谓词不另写一份。
 #[cfg_attr(
-    not(feature = "s_capture_native_testonly"),
-    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 下使用")
+    not(feature = "s_incremental"),
+    allow(dead_code, reason = "#1608：仅 s_incremental 下使用")
 )]
 pub(super) fn validate_raw_row(
     event: JsonView<'_>,
@@ -893,8 +887,8 @@ pub(super) fn validate_raw_row(
     validate_raw_row_core(event, expected_seq, previous, budget, None)
 }
 #[cfg_attr(
-    not(all(test, feature = "s_capture_native_testonly")),
-    allow(dead_code, reason = "#1608：仅 s_capture_native_testonly 测试使用")
+    not(all(test, feature = "s_incremental")),
+    allow(dead_code, reason = "#1608：仅 s_incremental 测试使用")
 )]
 pub(crate) fn validate_raw_row_admitted(
     event: JsonView<'_>,
@@ -1701,11 +1695,8 @@ impl PlainJson {
         }
     }
     #[cfg_attr(
-        not(feature = "s_capture_native_testonly"),
-        allow(
-            dead_code,
-            reason = "#1488 再合 #1608：非 s_capture_native_testonly 构建不触达"
-        )
+        not(feature = "s_incremental"),
+        allow(dead_code, reason = "#1488 再合 #1608：非 s_incremental 构建不触达")
     )]
     pub(crate) fn with_reservation(mut self, permit: Option<NativeReservation>) -> Self {
         assert!(self.permit.is_none());
@@ -1728,7 +1719,7 @@ impl PlainJson {
     pub(crate) fn is_native_admitted(&self) -> bool {
         self.permit.is_some()
     }
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     pub(crate) fn retained_heap_bytes(&self) -> usize {
         use super::audit_retention::Retained;
         let admitted = self.child_permits.iter().fold(
@@ -2638,12 +2629,12 @@ fn admit_json_parse(
 ) -> Result<Option<NativeReservation>, sc::CodecError> {
     check_native_owner(owner, work)?;
     if let Some(work) = work {
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         {
             let peak = super::audit_owner::native::JsonShape::scan(bytes).parse_peak();
             return work.reserve_native(peak).map(Some);
         }
-        #[cfg(not(feature = "s_capture_native_testonly"))]
+        #[cfg(not(feature = "s_incremental"))]
         {
             let _ = (bytes, work);
             return Err(sc::CodecError::new(
@@ -3183,7 +3174,7 @@ mod strict_owner_protocol_tests {
     }
 }
 
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 mod owner_retention {
     use super::*;
     use crate::v3::audit_retention::{retained_struct, Retained};
@@ -3207,7 +3198,7 @@ mod owner_retention {
     }
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 mod native_consumer_tests {
     use super::*;
 
@@ -3353,7 +3344,7 @@ mod native_consumer_tests {
     }
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 mod plain_raii_tests {
     use super::*;
 
@@ -3460,7 +3451,7 @@ mod plain_raii_tests {
     }
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 mod scoped_json_array_tests {
     use super::super::audit_retention::Retained;
     use super::*;
@@ -3624,7 +3615,7 @@ mod scoped_json_array_tests {
 }
 
 // #1488：跨代RawEvents保留同父许可；以下是测试源码，运行由远端统一执行。
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 mod raw_events_native_append_tests {
     use super::super::audit_owner::native::Budget;
     use super::*;
@@ -3727,7 +3718,7 @@ mod raw_events_native_append_tests {
     }
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 mod raw_events_layout_tests {
     use super::super::audit_owner::native::Budget;
     use super::*;

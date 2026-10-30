@@ -73,11 +73,8 @@ pub(super) fn publish_prepared(
 }
 
 #[cfg_attr(
-    all(not(test), feature = "s_capture_native_testonly"),
-    allow(
-        dead_code,
-        reason = "#1608：s_capture_native_testonly 的非测试构建不触达此项"
-    )
+    all(not(test), feature = "s_incremental"),
+    allow(dead_code, reason = "#1608：s_incremental 的非测试构建不触达此项")
 )]
 pub(super) fn publish_borrowed(
     tx: &mut Transaction<'_>,
@@ -94,16 +91,16 @@ pub(super) fn publish_borrowed(
         roots,
         manifest,
         policy_records,
-        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        #[cfg(all(test, feature = "s_incremental"))]
         None,
-        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        #[cfg(all(test, feature = "s_incremental"))]
         &[],
-        #[cfg(feature = "s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         None,
         None,
     )
 }
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 pub(super) fn publish_borrowed_staged(
     tx: &mut Transaction<'_>,
     token: &str,
@@ -129,7 +126,7 @@ pub(super) fn publish_borrowed_staged(
         work,
     )
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 #[allow(
     dead_code,
     reason = "#1608：旧包装入口，全仓无调用方（prepared.rs 直接调 _admitted 版本）；去留见 #1635"
@@ -154,7 +151,7 @@ pub(super) fn publish_borrowed_with_workspace(
         None,
     )
 }
-#[cfg(feature = "s_capture_native_testonly")]
+#[cfg(feature = "s_incremental")]
 pub(super) fn publish_borrowed_with_workspace_admitted(
     tx: &mut Transaction<'_>,
     token: &str,
@@ -187,11 +184,9 @@ fn publish_prepared_inner(
     roots: &(impl ManifestRootSource + ?Sized),
     manifest: &UnpublishedManifest,
     policy_records: &str,
-    #[cfg(all(test, feature = "s_capture_native_testonly"))] stage: Option<
-        &staged_nodes::StageOwner,
-    >,
-    #[cfg(all(test, feature = "s_capture_native_testonly"))] runtime: &[sc::NodeDigest],
-    #[cfg(feature = "s_capture_native_testonly")] workspace: Option<
+    #[cfg(all(test, feature = "s_incremental"))] stage: Option<&staged_nodes::StageOwner>,
+    #[cfg(all(test, feature = "s_incremental"))] runtime: &[sc::NodeDigest],
+    #[cfg(feature = "s_incremental")] workspace: Option<
         content_manifest::PreparedManifestWorkspace,
     >,
     work: Option<&WorkScope>,
@@ -207,7 +202,7 @@ fn publish_prepared_inner(
     if count != head || m.generation.checked_sub(1) != Some(head) {
         return Err(err("发布历史缺代或本次代号不是下一代"));
     }
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     let resolved = match stage {
         Some(stage) => content_publication::resolve_current_births_staged(
             tx,
@@ -229,7 +224,7 @@ fn publish_prepared_inner(
             work,
         )?,
     };
-    #[cfg(all(not(test), feature = "s_capture_native_testonly"))]
+    #[cfg(all(not(test), feature = "s_incremental"))]
     let resolved = content_publication::resolve_current_births_with_workspace_admitted(
         tx,
         begin_token,
@@ -239,7 +234,7 @@ fn publish_prepared_inner(
         workspace,
         work,
     )?;
-    #[cfg(not(feature = "s_capture_native_testonly"))]
+    #[cfg(not(feature = "s_incremental"))]
     let resolved =
         content_publication::resolve_current_births(&tx, begin_token, m, roots, manifest)?;
     let clock = v2::stored_clock(&tx)?;
@@ -258,11 +253,11 @@ fn publish_prepared_inner(
     }
 
     let (seq_range, run, evidence_ref) = {
-        #[cfg(all(test, feature = "s_capture_native_testonly"))]
+        #[cfg(all(test, feature = "s_incremental"))]
         let mut store = content_store::TxStore::new_with_stage(&tx, stage)
             .map_err(err)?
             .with_work(work);
-        #[cfg(not(all(test, feature = "s_capture_native_testonly")))]
+        #[cfg(not(all(test, feature = "s_incremental")))]
         let mut store = content_store::TxStore::new(&tx)
             .map_err(err)?
             .with_work(work);
@@ -327,7 +322,7 @@ fn publish_prepared_inner(
         &source.message_id,
         &source.payload_hash,
     )?;
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     if let Some(stage) = stage {
         if stage.work().is_some() {
             // 本代显式控制/目录/生成根；generated_state包含catalog_axes各轴evidence。

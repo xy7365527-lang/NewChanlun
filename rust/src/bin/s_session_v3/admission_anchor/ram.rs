@@ -615,7 +615,7 @@ mod tests {
         assert!(result.is_err());
     }
 
-    #[cfg(feature = "s_capture_native_testonly")]
+    #[cfg(feature = "s_incremental")]
     #[test]
     fn mixed_ram_parser_refusal_allocates_no_error_string() {
         use crate::v3::{

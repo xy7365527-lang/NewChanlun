@@ -84,7 +84,7 @@ impl RetainedDelta {
         self.capacity(bytes::<K, V>(before), bytes::<K, V>(after));
     }
     #[cfg_attr(
-        feature = "s_capture_native_testonly",
+        feature = "s_incremental",
         allow(dead_code, reason = "#1488：8组合探针 native 路径无调用，保留接口")
     )]
     pub(crate) fn tree_len<K, V>(&mut self, before: usize, after: usize) {
@@ -98,7 +98,7 @@ impl RetainedDelta {
     }
     /// BTree 删除最后一项后可能仍留空根，清空后才允许按零项释放。
     #[cfg_attr(
-        feature = "s_capture_native_testonly",
+        feature = "s_incremental",
         allow(dead_code, reason = "#1488：8组合探针 native 路径无调用，保留接口")
     )]
     pub(crate) fn tree_remove<K: Ord + Retained>(&mut self, set: &mut BTreeSet<K>, key: &K) {
@@ -111,7 +111,7 @@ impl RetainedDelta {
         }
     }
     #[cfg_attr(
-        feature = "s_capture_native_testonly",
+        feature = "s_incremental",
         allow(dead_code, reason = "#1488：8组合探针 native 路径无调用，保留接口")
     )]
     pub(crate) fn tree_insert<K: Ord + Retained>(&mut self, set: &mut BTreeSet<K>, key: K) {
@@ -275,7 +275,7 @@ impl Retained for super::audit_store::RefValue {
 // 穷尽解构让新增字段不能默默漏账；只在声明类型的模块内展开以保持字段私有。
 macro_rules! retained_struct {
     ($t:ty {$($field:ident),* $(,)?}) => {
-        #[cfg(feature="s_capture_native_testonly")]
+        #[cfg(feature = "s_incremental")]
         impl crate::v3::audit_retention::Retained for $t {
             fn heap_bytes(&self)->usize {
                 let Self {$($field),*} = self;

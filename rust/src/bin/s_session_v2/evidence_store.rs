@@ -1215,6 +1215,8 @@ pub(super) fn publish_refs(
             if changed == 1 {
                 inserted += 1;
                 inserted_bytes += node.payload.len() as u64;
+                // #1640：暂停点只编入默认构建与 testonly 构建，s_incremental 生产构建不读 S_SESSION_PAUSE。
+                #[cfg(any(not(feature = "s_incremental"), feature = "s_capture_native_testonly"))]
                 if kind == RootKind::Batch
                     && inserted == 1
                     && staged.nodes.len() > 1

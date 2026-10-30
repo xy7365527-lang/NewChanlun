@@ -930,7 +930,7 @@ fn remove_pending(pending: &mut native::Tree<(i64, i64)>, event: &str, _budget: 
     pending.remove(event);
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 #[test]
 fn pending_normal_last_remove_releases_root_before_charge() {
     let budget = Budget::new(1_048_576, 0).unwrap();
@@ -956,7 +956,7 @@ fn pending_normal_last_remove_releases_root_before_charge() {
     assert_eq!(observed["allocated_bytes"], observed["released_bytes"]);
 }
 
-#[cfg(all(test, feature = "s_capture_native_testonly"))]
+#[cfg(all(test, feature = "s_incremental"))]
 #[test]
 fn actual_nonempty_native_q_accept_preserves_full_raw_without_manual_double_charge() {
     let mut fixture = prepared::tests::Fixture::new();

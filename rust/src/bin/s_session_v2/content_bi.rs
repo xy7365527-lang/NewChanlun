@@ -1109,7 +1109,7 @@ pub(super) struct ContentBi {
 }
 
 impl ContentBi {
-    #[cfg(all(test, feature = "s_capture_native_testonly"))]
+    #[cfg(all(test, feature = "s_incremental"))]
     pub(super) fn visit_runtime_roots(&self, f: &mut dyn FnMut(&'static str, NodeDigest)) {
         if self.coords.coords.is_empty() {
             return;

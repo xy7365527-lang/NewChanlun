@@ -77,6 +77,10 @@ fn ledger() -> Ledger {
 pub(crate) fn released_bytes() -> u64 {
     LEDGER.try_with(Cell::get).map_or(0, |l| l.released)
 }
+/// 当前线程尚未释放的 Rust 请求 layout 字节；用于双前沿的实际驻留采样。
+pub(crate) fn live_bytes() -> i64 {
+    ledger().live
+}
 /// 开窗线程的本账窗口；不得跨线程移交（`!Send`），读数不含其他线程的分配。
 pub(crate) struct Window {
     live: i64,
