@@ -2525,7 +2525,7 @@ mod component_tests {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "s_capture_native_testonly"))]
 pub(super) fn entity_removal_control_for_test(
     s: &mut sc::MemoryNodes,
     objects: Vec<Object>,

@@ -5793,9 +5793,20 @@ mod closed_array_role_probe {
                         deadline: None,
                         fields: None,
                     };
-                    assert!(matches!(source.lookup_ref((&root).into(), &[PathStep::Index(0)]).unwrap(), RefValue::Owned(_)));
+                    assert!(matches!(
+                        source
+                            .lookup_ref((&root).into(), &[PathStep::Index(0)])
+                            .unwrap(),
+                        RefValue::Owned(_)
+                    ));
                     assert_eq!(source.source.swap_codec_sequence_role(preset), preset);
-                    assert_eq!(source.lookup_ref((&root).into(), &[PathStep::Index(100)]).unwrap_err().code(), sc::path::path_code::PATH_INDEX_RANGE);
+                    assert_eq!(
+                        source
+                            .lookup_ref((&root).into(), &[PathStep::Index(100)])
+                            .unwrap_err()
+                            .code(),
+                        sc::path::path_code::PATH_INDEX_RANGE
+                    );
                     assert_eq!(source.source.swap_codec_sequence_role(preset), preset);
                     assert!(!source.source.swap_codec_full_array_role(false));
                 }

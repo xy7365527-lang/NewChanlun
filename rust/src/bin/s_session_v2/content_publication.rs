@@ -1503,7 +1503,9 @@ fn resolve_observations(
             ],
         )?;
         let record = if let Some(cursor) = &mut cursor {
-            store.next_array_member_with_prefix(cursor, &path.steps[..1]).map_err(err)?
+            store
+                .next_array_member_with_prefix(cursor, &path.steps[..1])
+                .map_err(err)?
         } else {
             store.lookup_ref(root.view(), &path.steps).map_err(err)?
         };
