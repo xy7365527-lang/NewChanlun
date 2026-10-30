@@ -33,7 +33,7 @@ jobs:
           echo "$GITHUB_RUN_ID" > g77-evidence/run-id.txt
           rustfmt --check --edition 2021 --config skip_children=true rust/src/bin/s_session_v3/financial_session_tests.rs rust/src/bin/s_session_v3/source_audit.rs rust/src/bin/s_session_v3/source_audit_development_tests.rs
           git diff -- '*.rs' > g77-evidence/rustfmt.patch
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0, native Node24
         timeout-minutes: 3
         with:
           github-token: ${{ github.token }}
