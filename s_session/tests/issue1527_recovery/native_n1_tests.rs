@@ -1,4 +1,4 @@
-//! #1527 31Q TestOnly：N1 受限候选的合成单元/反例锁。只用临时文件、内存 SQLite 与独立
+//! #1527 31Q/31V TestOnly：N1 受限候选的业务事务对拍、原 Job 审计与 syscall 反例锁。临时文件、SQLite 与独立
 //! `NativeHooks` 实例；不安装进全局 aSyscall，不触目标卷、S0 或生产入口。
 use super::*;
 use newchan_rust::s_content::job::{self as job, Existing, JobLimits};
@@ -497,6 +497,9 @@ fn native_n1_l3a_close_busy_keeps_callback_context_then_destroys() {
         )
     };
     assert_eq!(rc, rusqlite::ffi::SQLITE_OK);
+    let callbacks = std::sync::Arc::new(AtomicU64::new(0));
+    let observed = std::sync::Arc::clone(&callbacks);
+    conn.progress_handler(1, Some(move || { observed.fetch_add(1, Ordering::Relaxed); false }));
     let mut errors = NativeErrors::default();
     let bundle = match owner.teardown(conn, &mut errors) {
         Teardown::Alive(bundle) => bundle,
@@ -505,6 +508,8 @@ fn native_n1_l3a_close_busy_keeps_callback_context_then_destroys() {
     assert_eq!(errors.cleanup(), &[NativeError::Code(NativeCode::CloseBusy)]);
     assert!(with_owner(|_| ()).is_some(), "BUSY：gate/TLS 保留");
     assert!(h.lock().active.is_some(), "BUSY：登记与延迟 FD 保留");
+    bundle.conn.execute_batch("SELECT 1;").unwrap();
+    assert!(callbacks.load(Ordering::Relaxed) > 0, "BUSY分支真实progress回调仍可执行");
     assert_eq!(unsafe { rusqlite::ffi::sqlite3_finalize(stmt) }, rusqlite::ffi::SQLITE_OK);
     let AliveBundle { conn, owner } = bundle;
     assert!(matches!(owner.teardown(conn, &mut errors), Teardown::Destroyed(_)));
@@ -707,4 +712,78 @@ fn native_n1_writer_first_error_prevents_later_write_without_restarting_deadline
     assert!(matches!(owner_step(&mut tls, Class::Main, None, Effect::Write { end: 1 }), Step::Pass));
     tls.fail(NativeCode::TrackingLost.into());
     assert!(matches!(owner_step(&mut tls, Class::Main, None, Effect::Write { end: 1 }), Step::Deny(libc::EIO)));
+}
+
+
+#[test]
+fn native_n1_actual_short_read_counts_returned_n_in_same_job() {
+    let file = Temp::new("actual-read");
+    let h = hooks();
+    let (gate, account, _) = gate_with(60_000, 1 << 20);
+    let owner = NativeOwner::begin(h, gate, [file.id(), (0, 1), (0, 2)], 0, identity_bound()).unwrap();
+    owner.recheck().unwrap();
+    let fd = owner.open_scope(|| unsafe { h.open(file.c().as_ptr(), libc::O_RDONLY, 0) });
+    assert!(fd >= 0);
+    owner.enter_audit();
+    let mut buffer = [0u8; 128];
+    let got = unsafe { h.pread(fd, buffer.as_mut_ptr().cast(), buffer.len(), 0) };
+    let expected = std::fs::read(&file.0).unwrap();
+    assert_eq!(got as usize, expected.len());
+    assert_eq!(&buffer[..got as usize], expected.as_slice());
+    assert_eq!(account.borrow().snapshot().wire_bytes, got as u128);
+    assert_eq!(unsafe { h.close(fd) }, 0);
+    let _ = owner.destroy(&mut NativeErrors::default());
+}
+
+#[test]
+fn native_n1_peer_thread_cannot_use_or_close_owner_receipt_fd() {
+    let file = Temp::new("peer-fd");
+    let h = hooks();
+    let (gate, account, _) = gate_with(60_000, 1 << 20);
+    let owner = NativeOwner::begin(h, gate, [file.id(), (0, 1), (0, 2)], 0, identity_bound()).unwrap();
+    let fd = owner.open_scope(|| unsafe { h.open(file.c().as_ptr(), libc::O_RDWR, 0) });
+    assert!(fd >= 0);
+    write_lock(fd);
+    let (read_rc, close_rc) = std::thread::spawn(move || {
+        let mut b = [0u8; 1];
+        (unsafe { h.read(fd, b.as_mut_ptr().cast(), 1) }, unsafe { h.close(fd) })
+    }).join().unwrap();
+    assert_eq!((read_rc, close_rc), (-1, 0));
+    assert_eq!(account.borrow().snapshot().wire_bytes, 0);
+    assert!(fd_open(fd));
+    assert!(!other_process_can_lock(&file.0));
+    assert_eq!(owner.first_error(), Some(NativeError::Code(NativeCode::InProcessPeer)));
+    assert!(h.deferred_for_test().is_empty(), "owner 同一 FD 不排入双关队列");
+    assert_eq!(unsafe { h.close(fd) }, 0);
+    assert!(!fd_open(fd));
+    let _ = owner.destroy(&mut NativeErrors::default());
+}
+
+#[test]
+fn native_n1_open_scope_panic_cannot_leave_main_receipt_window_open() {
+    let file = Temp::new("scope-panic");
+    let h = hooks();
+    let (gate, _, _) = gate_with(60_000, 1 << 20);
+    let owner = NativeOwner::begin(h, gate, [file.id(), (0, 1), (0, 2)], 0, identity_bound()).unwrap();
+    assert!(catch_unwind(AssertUnwindSafe(|| owner.open_scope(|| panic!("test-only")))).is_err());
+    assert!(!h.lock().active_for(owner.token).unwrap().main_scope);
+    assert_eq!(unsafe { h.open(file.c().as_ptr(), libc::O_RDONLY, 0) }, -1);
+    let _ = owner.destroy(&mut NativeErrors::default());
+}
+
+#[test]
+fn native_n1_shm_settle_borrow_failure_retains_unsettled_grants() {
+    let (gate, account, _) = gate_with(60_000, 1 << 20);
+    let mut budget = ShmBudget::new(0, identity_bound()).unwrap();
+    budget.cover(&gate, 32768).unwrap();
+    budget.mark_delegated();
+    let held = account.borrow_mut();
+    assert_eq!(budget.settle(&gate, Ok(0)), Err(NativeError::Code(NativeCode::GateBorrowed)));
+    assert_eq!(budget.grant_count(), 1);
+    assert_eq!(held.snapshot().open_reservations, 1);
+    drop(held);
+    budget.settle(&gate, Ok(0)).unwrap();
+    assert_eq!(budget.grant_count(), 0);
+    assert_eq!(account.borrow().snapshot().store.committed, 32768);
+    assert_eq!(account.borrow().snapshot().open_reservations, 0);
 }

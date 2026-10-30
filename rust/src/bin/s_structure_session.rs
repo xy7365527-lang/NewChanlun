@@ -405,7 +405,7 @@ fn migrate_legacy_policy_records(conn: &mut Connection) -> Result<(), String> {
 }
 
 /// #1527：复用已持有的写事务；执行条件和原迁移授权门缺一不可。
-fn migrate_in(tx: &Transaction<'_>) -> Result<(), String> {
+fn migrate_in(tx: &rusqlite::Transaction<'_>) -> Result<(), String> {
     if policy_records_missing(tx)? {
         v3::admission::require_policy_records_migration()?;
         tx.execute(
@@ -2460,7 +2460,7 @@ fn check_accept_connection(conn: &Connection, prepared: &PreparedAccept) -> Resu
 }
 
 fn accept_body_in(
-    tx: &Transaction<'_>,
+    tx: &rusqlite::Transaction<'_>,
     text: &str,
     prepared: PreparedAccept,
     configured_epoch: &str,
@@ -2512,7 +2512,7 @@ fn accept_body_in(
 /// #1527 N1：保持 parse/profile/init/writable/revision/session 的原次序，
 /// 只复用 owner 已持有的事务；提交或回滚仍归连接生命周期的拥有者。
 fn accept_in(
-    tx: &Transaction<'_>,
+    tx: &rusqlite::Transaction<'_>,
     text: &str,
     profile_path: &Path,
     configured_epoch: &str,

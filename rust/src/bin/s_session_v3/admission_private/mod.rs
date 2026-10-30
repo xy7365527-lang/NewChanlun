@@ -246,7 +246,7 @@ fn audit_legacy_serve_prefix(
 
 /// #1527 N1：业务审计核只借调用者事务；不另开事务、不提交、不撤下回调。
 /// D1 与 N1 使用同一分派和首错顺序；旧域缺费用适配仍拒绝签发准入。
-pub(crate) fn audit_core(
+pub(super) fn audit_core(
     tx: &rusqlite::Transaction<'_>,
     account: &dyn Budget,
     deadline: std::time::Instant,

@@ -307,6 +307,8 @@ impl ShmBudget {
     /// E8（seal 前）与所有 seal 前失败路径的唯一结算口。`measured` 取 E6 pin 的 SHM
     /// st_blocks*512；测不到即首错，仍按保守量入账、不 release 已委托的预留。
     pub(crate) fn settle(&mut self, gate: &NativeIoGate, measured: Result<u64, ()>) -> Result<(), NativeError> {
+        // 短借失败时保留全部 Grant；不得 drain 后把尚未结算的资格丢掉。
+        gate.with_job(|_| Ok(()))?;
         let floor = self.floor();
         let mut first: Option<NativeError> = None;
         let mut excess = match measured {
@@ -592,6 +594,13 @@ impl FdRegistry {
     /// active 期间凡不能证明「非 pin inode」的 close 一律延迟：关闭同 inode 的任一 FD
     /// 会释放本进程在该文件上的全部 POSIX 锁（sqlite3.c:41433–41442）。
     pub(crate) fn close_enter(&mut self, fd: c_int) -> ClosePlan {
+        if let Some(active) = self.active.as_mut() {
+            if active.thread != std::thread::current().id() && active.receipts.contains_key(&fd) {
+                active.fail(NativeCode::InProcessPeer);
+                // 同一 FD 仍归 owner 连接；保留回执，由 owner 的真实 close 消费，不能重复延迟关闭。
+                return ClosePlan::Defer;
+            }
+        }
         let entry = self.fds.remove(&fd);
         let Some(active) = self.active.as_mut() else {
             if let Some(entry) = entry {
@@ -629,15 +638,13 @@ impl FdRegistry {
         }
     }
 
-    fn owned(&self, fd: c_int, thread: ThreadId) -> Option<(Class, Option<NativeCode>)> {
-        let active = self.active.as_ref()?;
+    fn owned(&mut self, fd: c_int, thread: ThreadId) -> Option<(Class, Option<NativeCode>)> {
+        let active = self.active.as_mut()?;
+        let class = *active.receipts.get(&fd)?;
         if active.thread != thread {
-            return None;
+            active.fail(NativeCode::InProcessPeer);
         }
-        active
-            .receipts
-            .get(&fd)
-            .map(|class| (*class, active.peer_error))
+        Some((class, active.peer_error))
     }
 
     fn pins_if_active(&self) -> Option<[DevIno; 3]> {
@@ -1136,11 +1143,16 @@ impl NativeOwner {
         if let Ok(active) = self.hooks.lock().active_mut(self.token) {
             active.main_scope = true;
         }
-        let out = run();
-        if let Ok(active) = self.hooks.lock().active_mut(self.token) {
-            active.main_scope = false;
+        struct Scope<'a>(&'a NativeOwner);
+        impl Drop for Scope<'_> {
+            fn drop(&mut self) {
+                if let Ok(active) = self.0.hooks.lock().active_mut(self.0.token) {
+                    active.main_scope = false;
+                }
+            }
         }
-        out
+        let _scope = Scope(self);
+        run()
     }
 
     pub(crate) fn recheck(&self) -> Result<(), NativeError> {
@@ -1156,7 +1168,7 @@ impl NativeOwner {
     pub(crate) fn audit_in(&self, tx: &rusqlite::Transaction<'_>) -> Result<NativeAuditReceipt, String> {
         use super::super::audit_budget::Budget;
         if let Some(error) = self.first_error() { return Err(format!("{error:?}")); }
-        self.recheck().map_err(|e| format!("{e:?}"))?;
+        // recheck 属 final-open 之前的源检查；此处事务已打开，不能把当前 main 回执误判为旧 FD。
         let gate = with_owner(|tls| tls.gate.clone()).ok_or("NativeOwnerUnavailable")?;
         if !gate.startup_counted() { return Err("NativeAuditPhaseInvalid".into()); }
         self.enter_audit();
@@ -1256,6 +1268,13 @@ impl NativeOwner {
     pub(crate) fn teardown(self, conn: rusqlite::Connection, errors: &mut NativeErrors) -> Teardown {
         if let Some(first) = self.first_error() {
             errors.record_first(first);
+        }
+        // rusqlite 0.40.2 的 InnerConnection::close 在 sqlite3_close 前 remove_hooks。
+        // 未完成语句必须先检测；否则 BUSY 虽保留连接，progress/authorizer 上下文已被卸下。
+        conn.flush_prepared_statement_cache();
+        if !unsafe { rusqlite::ffi::sqlite3_next_stmt(conn.handle(), std::ptr::null_mut()) }.is_null() {
+            errors.record_cleanup(NativeCode::CloseBusy.into());
+            return Teardown::Alive(AliveBundle { conn, owner: self });
         }
         match conn.close() {
             Err((conn, _)) => {
